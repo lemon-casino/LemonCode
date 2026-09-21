@@ -13,6 +13,11 @@
 4. 每个构建只上传目标架构、目标版本的安装包；缺任何目标文件立即失败。
    仅当六个目标全部成功时创建/更新 GitHub Release 草稿；公开发布还需通过
    `readVerifiedNotices({ requireComplete: true })`。已知待复核项不得被基础校验掩盖。
+   Linux 文件名由 electron-builder 各安装格式的原生架构命名决定：x64 的
+   AppImage/RPM 为 `x86_64`、deb 为 `amd64`、pacman 为 `x64`；arm64 的
+   AppImage/deb 为 `arm64`、RPM/pacman 为 `aarch64`。收集脚本按格式精确匹配
+   `ZCode-<version>-linux-<native-arch>.<extension>`，不得将错误架构或旧版本
+   的文件视为目标产物；其他平台保持现有 `<arch>` 命名。
 5. Actions 的发行上传权限只给 Release job；构建 job 仅可读。发布使用 tag 自带的
    `GITHUB_TOKEN`，不借用开发者本地凭据。tag 推送由维护者在版本文件、许可证清单
    和验证提交后执行，不由 `GITHUB_TOKEN` 在工作流内自推 tag。
@@ -24,7 +29,8 @@
 
 `package.json` 拥有版本，Git tag 只是不可变的版本声明；现有 build-metadata 和
 electron-builder 从它读取产物版本。GitHub Actions matrix 只持有当前 job 的短暂构建
-文件；Release job 是唯一上传公开 Release 的路径。构建失败不发布，重试仅覆盖同一
+文件；仓库发布脚本拥有安装包格式到原生架构后缀的匹配规则，Release job 是唯一上传
+公开 Release 的路径。构建失败不发布，重试仅覆盖同一
 tag 的已验证资产，不创建另一个版本。
 
 ```mermaid
@@ -44,5 +50,7 @@ sequenceDiagram
 
 - `v3.14.2` 通过门禁，`v3.14.3` 与版本 `3.14.2` 不一致时失败。
 - 6 个 target 各自只接收自己的安装包；缺失、错架构、错版本或重复文件名都失败。
+- Linux 两种架构的四种格式分别按真实生成的后缀收集，x64 不接收 arm64/aarch64，
+  arm64 不接收 x64/x86_64/amd64；既有非 Linux 命名与版本不改变。
 - `main` 构建不创建 Release；任一目标失败或严格许可校验不通过时 tag 不创建公开 Release。
 - 本地构建脚本版本元数据、安装包文件名、Release tag 一致。

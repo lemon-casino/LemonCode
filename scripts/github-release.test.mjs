@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
@@ -45,6 +45,18 @@ test("six native targets get exact architecture and version artifacts", async ()
   for (const [os, arch, count] of targets) {
     assert.equal(expectedArtifactNames("3.14.2", os, arch).length, count);
   }
+  assert.deepEqual(expectedArtifactNames("3.14.2", "linux", "x64"), [
+    "ZCode-3.14.2-linux-x86_64.AppImage",
+    "ZCode-3.14.2-linux-amd64.deb",
+    "ZCode-3.14.2-linux-x86_64.rpm",
+    "ZCode-3.14.2-linux-x64.pkg.tar.zst",
+  ]);
+  assert.deepEqual(expectedArtifactNames("3.14.2", "linux", "arm64"), [
+    "ZCode-3.14.2-linux-arm64.AppImage",
+    "ZCode-3.14.2-linux-arm64.deb",
+    "ZCode-3.14.2-linux-aarch64.rpm",
+    "ZCode-3.14.2-linux-aarch64.pkg.tar.zst",
+  ]);
 
   const directory = await mkdtemp(join(tmpdir(), "zcode-release-assets-"));
   try {
@@ -68,6 +80,51 @@ test("six native targets get exact architecture and version artifacts", async ()
     await assert.rejects(
       stageReleaseArtifacts({ version: "3.14.2", os: "win", arch: "x64", distDir, outputDir }),
       /missing.*win-x64/iu,
+    );
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("Linux staging requires each native package name for its target", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "zcode-linux-release-"));
+  try {
+    const distDir = join(directory, "dist");
+    await mkdir(distDir);
+    const names = [
+      "ZCode-3.14.2-linux-x86_64.AppImage",
+      "ZCode-3.14.2-linux-amd64.deb",
+      "ZCode-3.14.2-linux-x86_64.rpm",
+      "ZCode-3.14.2-linux-x64.pkg.tar.zst",
+      "ZCode-3.14.2-linux-arm64.AppImage",
+      "ZCode-3.14.2-linux-arm64.deb",
+      "ZCode-3.14.2-linux-aarch64.rpm",
+      "ZCode-3.14.2-linux-aarch64.pkg.tar.zst",
+    ];
+    for (const name of names) await writeFile(join(distDir, name), name);
+    for (const arch of ["x64", "arm64"]) {
+      const outputDir = join(directory, arch);
+      const staged = await stageReleaseArtifacts({
+        version: "3.14.2",
+        os: "linux",
+        arch,
+        distDir,
+        outputDir,
+      });
+      assert.deepEqual(staged, expectedArtifactNames("3.14.2", "linux", arch));
+      assert.deepEqual((await readdir(outputDir)).sort(), staged.toSorted());
+    }
+    await rm(join(distDir, "ZCode-3.14.2-linux-x86_64.AppImage"));
+    await writeFile(join(distDir, "ZCode-3.14.2-linux-x64.AppImage"), "legacy name");
+    await assert.rejects(
+      stageReleaseArtifacts({
+        version: "3.14.2",
+        os: "linux",
+        arch: "x64",
+        distDir,
+        outputDir: join(directory, "invalid"),
+      }),
+      /missing.*linux-x86_64\.AppImage/iu,
     );
   } finally {
     await rm(directory, { recursive: true, force: true });

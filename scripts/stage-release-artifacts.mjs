@@ -9,12 +9,20 @@ const formats = {
   linux: ["AppImage", "deb", "rpm", "pkg.tar.zst"],
 };
 const architectures = ["x64", "arm64"];
+// electron-builder 的 Linux 安装格式使用不同的原生架构后缀；按实际产物匹配，避免误判缺包。
+const linuxPackageArchitectures = {
+  x64: { AppImage: "x86_64", deb: "amd64", rpm: "x86_64", "pkg.tar.zst": "x64" },
+  arm64: { AppImage: "arm64", deb: "arm64", rpm: "aarch64", "pkg.tar.zst": "aarch64" },
+};
 
 export function expectedArtifactNames(version, os, arch) {
   if (!formats[os] || !architectures.includes(arch)) {
     throw new Error(`Unsupported desktop target: ${os}-${arch}`);
   }
-  return formats[os].map((extension) => `ZCode-${version}-${os}-${arch}.${extension}`);
+  return formats[os].map((extension) => {
+    const artifactArch = os === "linux" ? linuxPackageArchitectures[arch][extension] : arch;
+    return `ZCode-${version}-${os}-${artifactArch}.${extension}`;
+  });
 }
 
 async function assertNonemptyFile(directory, name) {
