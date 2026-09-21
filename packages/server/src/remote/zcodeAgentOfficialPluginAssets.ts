@@ -2,7 +2,10 @@ import { posix } from "node:path";
 
 export const REMOTE_AGENT_OFFICIAL_PLUGIN_DIR_NAME = "packages";
 
-export const REMOTE_AGENT_OFFICIAL_PLUGIN_PACKAGE_NAMES = ["browser-use-plugin"] as const;
+export const REMOTE_AGENT_OFFICIAL_PLUGIN_PACKAGE_NAMES = [
+  "browser-use-plugin",
+  "lemon-workflow-plugin",
+] as const;
 
 export const REMOTE_AGENT_OFFICIAL_PLUGIN_INCLUDED_TOP_LEVEL_PATHS = [
   ".mcp.json",
@@ -45,7 +48,13 @@ export const REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS = [
   "browser-use-plugin/scripts/browser-client.mjs",
   "browser-use-plugin/skills/control-browser/SKILL.md",
   "browser-use-plugin/skills/web-gui-tester/SKILL.md",
-  // 仅校验 manifest 无法发现文档插件缺少技能正文或视觉评审 Agent。
+  // `/lemon` 依赖的四块内容必须作为一个发布单元；只校验 manifest 会让远端缓存接受空壳插件。
+  "lemon-workflow-plugin/commands/lemon.md",
+  "lemon-workflow-plugin/skills/ponytail/SKILL.md",
+  "lemon-workflow-plugin/skills/caveman/SKILL.md",
+  "lemon-workflow-plugin/skills/dynamic-workflows/SKILL.md",
+  "lemon-workflow-plugin/skills/dynamic-workflows/examples.md",
+  "lemon-workflow-plugin/skills/dynamic-workflows/patterns.md",
 ] as const;
 
 export function buildRemoteAgentOfficialPluginDir(remoteProviderDir: string): string {

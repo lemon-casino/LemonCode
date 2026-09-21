@@ -64,7 +64,8 @@ export interface ICodingPlanSubscriptionService {
   getOffPeakClientConfig(options?: { forceRefresh?: boolean }): Promise<OffPeakClientConfig>;
   /**
    * 动态工作流灰度快照：远端 `configs.dynamicWorkflow.mode`
-   * 与本地覆盖折叠后的结果；forceRefresh 绕过 1h 快照缓存。请求失败 fail-closed（disabled/default）。
+   * 与本地覆盖折叠后的结果；forceRefresh 绕过 1h 快照缓存。请求失败返回内置
+   * alwaysOn/default，远端显式 disabled 仍可关闭。
    */
   getDynamicWorkflowClientConfig(options?: {
     forceRefresh?: boolean;

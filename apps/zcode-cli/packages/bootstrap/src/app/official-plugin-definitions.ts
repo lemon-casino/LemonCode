@@ -86,6 +86,15 @@ const OFFICIAL_ZCODE_GUIDE_REQUIRED_SEED_PATHS = [
   "skills/dynamic-workflows/patterns.md",
 ] as const;
 
+const OFFICIAL_LEMON_WORKFLOW_REQUIRED_SEED_PATHS = [
+  "commands/lemon.md",
+  "skills/ponytail/SKILL.md",
+  "skills/caveman/SKILL.md",
+  "skills/dynamic-workflows/SKILL.md",
+  "skills/dynamic-workflows/examples.md",
+  "skills/dynamic-workflows/patterns.md",
+] as const;
+
 export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = [
   {
     // 无 listing：宿主不进市场、不对用户露出。它必须始终可用，因为 node_repl 的注册门禁
@@ -289,6 +298,33 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       "../skill-creator-plugin",
       "../../skill-creator-plugin",
       "../../../skill-creator-plugin",
+    ],
+    version: "0.1.0",
+  },
+  {
+    // 纯内容型插件：只贡献命令和技能。运行、恢复、owner/lease 与 journal 继续由现有
+    // dynamic workflow runtime 持有，插件本身不建立第二份状态或后台进程。
+    defaultEnabled: true,
+    listing: {
+      author: { name: "Lemon" },
+      category: "developer-tools",
+      displayName: "Lemon Workflow",
+      displayName_i18n: { "zh-CN": "Lemon 工作流" },
+      description_i18n: {
+        "zh-CN": "使用 Ponytail 与 Caveman 规则启动、恢复和修订 ZCode 动态工作流。",
+      },
+      examplePrompts: ["/lemon review the current changes with a dynamic workflow"],
+      examplePrompts_i18n: {
+        "zh-CN": ["/lemon 用动态工作流审查当前改动"],
+      },
+    },
+    name: "lemon-workflow",
+    requiredSeedPaths: OFFICIAL_LEMON_WORKFLOW_REQUIRED_SEED_PATHS,
+    rootCandidates: [
+      "packages/lemon-workflow-plugin",
+      "../lemon-workflow-plugin",
+      "../../lemon-workflow-plugin",
+      "../../../lemon-workflow-plugin",
     ],
     version: "0.1.0",
   },

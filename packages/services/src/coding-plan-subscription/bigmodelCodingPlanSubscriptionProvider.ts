@@ -240,8 +240,9 @@ export class BigModelCodingPlanSubscriptionProvider {
    *   1. 本地覆盖（ZCODE_DYNAMIC_WORKFLOW_MODE）在任何网络动作之前裁决，命中即返回——
    *      preview 构建和开发者手测因此不受 1h 快照与首次 Host 竞态影响；
    *   2. forceRefresh 与 Off-Peak 同义，清掉快照后重拉（灰度翻转最长 1h 不可见）；
-   *   3. 请求失败 fail-closed：返回 default（disabled）并 warn，绝不把异常抛给调用方——
-   *      调用方在 session create/client 就绪路径上，灰度读失败不能阻断普通聊天。
+   *   3. 请求失败返回内置 default（alwaysOn）并 warn，绝不把异常抛给调用方——
+   *      调用方在 session create/client 就绪路径上，配置读取失败不能阻断普通聊天，也不能
+   *      让随包发布的 `/lemon` 失去 workflow 工具；服务端显式 `disabled` 仍优先关闭。
    */
   async getDynamicWorkflowClientConfig(options?: {
     forceRefresh?: boolean;
@@ -261,7 +262,7 @@ export class BigModelCodingPlanSubscriptionProvider {
         env: process.env,
       });
     } catch (error) {
-      log.warn(undefined, "动态工作流灰度配置读取失败，按关闭处理", {
+      log.warn(undefined, "动态工作流灰度配置读取失败，按内置默认值处理", {
         errorMessage: error instanceof Error ? error.message : String(error),
       });
       return createDynamicWorkflowClientConfig(DEFAULT_DYNAMIC_WORKFLOW_MODE, "default");

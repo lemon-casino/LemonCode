@@ -111,6 +111,22 @@ const officialPluginPackages = [
     runtimeBuildScript: "scripts/build.mjs",
     stagedPath: "packages/node-repl-host",
   },
+  {
+    // Bug 修复：只在源码树注册内容插件会让 dev 可见、安装包缺失。生产资源必须把同一份
+    // /lemon 命令与技能复制到 zcode.cjs 同级的 packages/，首启才能完成 filesystem seed。
+    packageName: "@zcode/lemon-workflow-plugin",
+    relativePath: "apps/zcode-cli/packages/lemon-workflow-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: [
+      "commands/lemon.md",
+      "skills/ponytail/SKILL.md",
+      "skills/caveman/SKILL.md",
+      "skills/dynamic-workflows/SKILL.md",
+      "skills/dynamic-workflows/examples.md",
+      "skills/dynamic-workflows/patterns.md",
+    ],
+    stagedPath: "packages/lemon-workflow-plugin",
+  },
 ];
 const includedOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",

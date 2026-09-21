@@ -116,6 +116,14 @@ const remoteOfficialPluginPackages = [
     runtimeBuildScript: "scripts/build.mjs",
     stagedPath: "packages/node-repl-host",
   },
+  {
+    // 纯内容插件不构建 runtime，但远端 GLM 组件仍必须携带命令和技能；否则本地桌面能用、
+    // SSH/WSL/Docker workspace 会在同一会话能力面丢失 `/lemon`。
+    packageName: "@zcode/lemon-workflow-plugin",
+    relativePath: "apps/zcode-cli/packages/lemon-workflow-plugin",
+    requiresRuntime: false,
+    stagedPath: "packages/lemon-workflow-plugin",
+  },
 ];
 const remoteOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",
@@ -147,6 +155,13 @@ function shouldCopyOfficialPluginAsset(sourcePath) {
 const remoteOfficialPluginRequiredPaths = [
   "packages/browser-use-plugin/.zcode-plugin/plugin.json",
   "packages/node-repl-host/.zcode-plugin/plugin.json",
+  "packages/lemon-workflow-plugin/.zcode-plugin/plugin.json",
+  "packages/lemon-workflow-plugin/commands/lemon.md",
+  "packages/lemon-workflow-plugin/skills/ponytail/SKILL.md",
+  "packages/lemon-workflow-plugin/skills/caveman/SKILL.md",
+  "packages/lemon-workflow-plugin/skills/dynamic-workflows/SKILL.md",
+  "packages/lemon-workflow-plugin/skills/dynamic-workflows/examples.md",
+  "packages/lemon-workflow-plugin/skills/dynamic-workflows/patterns.md",
 ];
 
 function readZCodeAgentRuntimeVersion() {

@@ -10,15 +10,15 @@ import {
 } from "../slash-command-surface.js";
 
 /**
- * `workflow` 是 zcode-guide 内置插件的自定义命令，随 CLI 打包，不受用户 commandOverrides
- * 影响；灰度关闭时只能在装配目录时按名剔除。
+ * 这些内置命令都依赖 dynamic workflow 工具簇。Bug 原因是只过滤 `/workflow` 会在远端
+ * 显式关闭能力时留下可见但不可执行的 `/lemon`；目录装配必须使用同一门禁一起剔除。
  */
-const DYNAMIC_WORKFLOW_SLASH_COMMAND_NAME = "workflow";
+const DYNAMIC_WORKFLOW_SLASH_COMMAND_NAMES = new Set(["workflow", "lemon"]);
 
 export interface ListProtocolSlashCommandsOptions extends ListZCodeCustomCommandsOptions {
   /**
    * 动态工作流灰度门。**只有显式 false
-   * 才剔除** `workflow`：CLI 自身的目录装配（TUI / 未参与灰度的调用方）缺席该字段，
+   * 才剔除**依赖工作流的命令：CLI 自身的目录装配（TUI / 未参与灰度的调用方）缺席该字段，
    * 必须保持原样。协议服务端一律从 appRuntimePreferences 传入显式布尔。
    */
   dynamicWorkflowEnabled?: boolean;
@@ -42,11 +42,11 @@ export async function listProtocolSlashCommands(
     ...customCommands
       .filter((command) => !command.disableNonInteractive)
       .filter((command) => !isReservedZCodeSlashCommandName(command.name))
-      // 灰度关闭：composer 的加号菜单与 `/` 面板都只读这份目录，剔除即两个入口一起消失。开启时后面的 pinWorkflowAfterGoal 继续把它钉在 goal 之后。
+      // 灰度关闭：composer 的加号菜单与 `/` 面板都只读这份目录，剔除即两个入口一起消失。开启时后面的 pinWorkflowAfterGoal 继续把 `/workflow` 钉在 goal 之后。
       .filter(
         (command) =>
           options.dynamicWorkflowEnabled !== false ||
-          command.name !== DYNAMIC_WORKFLOW_SLASH_COMMAND_NAME,
+          !DYNAMIC_WORKFLOW_SLASH_COMMAND_NAMES.has(command.name),
       )
       .map((command) => ({
         description: command.description,
@@ -66,7 +66,7 @@ export async function listProtocolSlashCommands(
  */
 function pinWorkflowAfterGoal(commands: ZCodeSlashCommand[]): ZCodeSlashCommand[] {
   const workflowIndex = commands.findIndex(
-    (command) => command.name === DYNAMIC_WORKFLOW_SLASH_COMMAND_NAME,
+    (command) => command.name === "workflow",
   );
   if (workflowIndex < 0 || !commands.some((command) => command.name === "goal")) return commands;
   const [workflow] = commands.splice(workflowIndex, 1);

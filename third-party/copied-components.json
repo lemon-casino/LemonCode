@@ -250,5 +250,27 @@
     "license": "MIT",
     "scope": "Vendored React/Next.js guidance and local adaptations; local README preserves Shu Ding / Vercel attribution.",
     "reviewRequired": "Pinned upstream README and skill declare MIT, but a complete original copyright/license notice has not been obtained."
+  },
+  {
+    "id": "Ponytail skill",
+    "referenceRevision": "e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156",
+    "source": "https://raw.githubusercontent.com/DietrichGebert/ponytail/e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156/LICENSE",
+    "file": "third-party/upstream/f1af4301bd3b85026965f9f1cfa101b9bfd73a75c6b92f7a2a72bab5768abd36.txt",
+    "sha256": "f1af4301bd3b85026965f9f1cfa101b9bfd73a75c6b92f7a2a72bab5768abd36",
+    "importRevision": "e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156",
+    "roots": ["apps/zcode-cli/packages/lemon-workflow-plugin/skills/ponytail"],
+    "scope": "Vendored Ponytail SKILL.md and its original MIT license.",
+    "license": "MIT"
+  },
+  {
+    "id": "Caveman skill",
+    "referenceRevision": "ae26f3a4775574bd49dc8bdb61c0287bbc3cd268",
+    "source": "https://raw.githubusercontent.com/JuliusBrussee/caveman/ae26f3a4775574bd49dc8bdb61c0287bbc3cd268/LICENSE",
+    "file": "third-party/upstream/94fe75d355887f84ee7eefca68e06d8d082a23dad47a8e1f58a94d98900edf5b.txt",
+    "sha256": "94fe75d355887f84ee7eefca68e06d8d082a23dad47a8e1f58a94d98900edf5b",
+    "importRevision": "ae26f3a4775574bd49dc8bdb61c0287bbc3cd268",
+    "roots": ["apps/zcode-cli/packages/lemon-workflow-plugin/skills/caveman"],
+    "scope": "Vendored Caveman skill and README only. Upstream LICENSING.md classifies skills/ as MIT; no BSL engine or runtime code is included.",
+    "license": "MIT"
   }
 ]

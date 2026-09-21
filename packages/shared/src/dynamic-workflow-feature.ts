@@ -19,8 +19,12 @@ export type DynamicWorkflowMode = (typeof DYNAMIC_WORKFLOW_MODES)[number];
  */
 export const ZCODE_DYNAMIC_WORKFLOW_MODE_ENV = "ZCODE_DYNAMIC_WORKFLOW_MODE";
 
-/** 服务端缺省、格式非法或请求失败时的取值：fail-closed，与闲时任务灰度一致。 */
-export const DEFAULT_DYNAMIC_WORKFLOW_MODE: DynamicWorkflowMode = "disabled";
+/**
+ * Bug 修复：内置 `/lemon` 依赖完整 workflow 工具簇。缺省为 disabled 会让命令随包存在，
+ * 但生产配置缺失或离线时无法执行，形成半装配状态。现在缺省直接启用；远端仍可显式下发
+ * `disabled` 关闭能力，本地开发覆盖的优先级也保持不变。
+ */
+export const DEFAULT_DYNAMIC_WORKFLOW_MODE: DynamicWorkflowMode = "alwaysOn";
 
 export function normalizeDynamicWorkflowMode(value: unknown): DynamicWorkflowMode | undefined {
   if (typeof value !== "string") return undefined;
@@ -57,8 +61,8 @@ export function createDynamicWorkflowClientConfig(
 
 /**
  * 纯函数：把远端 envelope 的 `configs.dynamicWorkflow` 与本地覆盖环境变量折叠成一个快照。
- * 优先级：覆盖 > 远端合法值 > 缺省。远端成功但**未下发**该 key 也视为 disabled——
- * 服务端撤掉 key 等于关闭，不能沿用旧快照（与 desktopContextPromptRollout 同一裁决）。
+ * 优先级：覆盖 > 远端合法值 > 缺省。远端要关闭能力必须显式下发 `disabled`；
+ * 未下发、格式非法或读取失败时使用内置 `alwaysOn`，保证随构建发布的命令与工具面一致。
  */
 export function resolveDynamicWorkflowClientConfig(input: {
   remote: unknown;

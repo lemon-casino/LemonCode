@@ -13,8 +13,9 @@ import { logger } from "@/logger.js";
 //   - 不带 forceRefresh。Host 用同一份 1h 快照推导发给 CLI 的工具策略，
 //     renderer 单独 force 一次会让「界面有入口 / 模型没工具」这类分歧成为可能；
 //     要强制重取走 refresh()；
-//   - 请求失败按 disabled 处理（fail-closed，与 resolveDynamicWorkflowClientConfig 同一裁决），
-//     但**不记住失败**：换一份 service 实例会重试。手机 `/remote` 在工作区桥接前拿到的是
+//   - renderer 到 Host 的请求本身失败时暂按 disabled 处理，避免未知状态露出不可执行入口；Host
+//     成功返回但远端配置缺失/失败时已经按 resolveDynamicWorkflowClientConfig 的 alwaysOn 缺省裁决。
+//     失败结果**不记住**：换一份 service 实例会重试。手机 `/remote` 在工作区桥接前拿到的是
 //     unsupported 代理，必然抛错，桥接完成后 accessor 会换一份，那一次必须能纠正回来。
 
 export type DynamicWorkflowAvailabilityStatus = "loading" | "ready";

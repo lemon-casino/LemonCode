@@ -43,6 +43,22 @@ export const officialSeaPlugins = [
     // 导致发布产物不 seed browser-use，进而无法装配宿主 node_repl MCP。
     version: "0.5.1",
   },
+  {
+    marketplace: "zcode-plugins-official",
+    name: "lemon-workflow",
+    packageName: "@zcode/lemon-workflow-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: [
+      "commands/lemon.md",
+      "skills/ponytail/SKILL.md",
+      "skills/caveman/SKILL.md",
+      "skills/dynamic-workflows/SKILL.md",
+      "skills/dynamic-workflows/examples.md",
+      "skills/dynamic-workflows/patterns.md",
+    ],
+    rootPath: join("packages", "lemon-workflow-plugin"),
+    version: "0.1.0",
+  },
 ];
 
 export const collectSeaOfficialPluginAssets = async ({

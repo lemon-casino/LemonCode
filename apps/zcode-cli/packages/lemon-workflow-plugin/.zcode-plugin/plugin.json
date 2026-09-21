@@ -1,0 +1,9 @@
+{
+  "name": "lemon-workflow",
+  "version": "0.1.0",
+  "description": "Built-in /lemon command for starting and resuming ZCode dynamic workflows with Ponytail and Caveman guidance.",
+  "author": { "name": "Lemon" },
+  "license": "Apache-2.0 AND MIT",
+  "commands": "commands",
+  "skills": "skills"
+}

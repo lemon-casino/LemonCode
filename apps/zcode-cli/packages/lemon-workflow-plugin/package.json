@@ -1,0 +1,9 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@zcode/lemon-workflow-plugin",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Built-in /lemon workflow command with Ponytail, Caveman, and ZCode dynamic workflow guidance.",
+  "license": "Apache-2.0 AND MIT",
+  "type": "module"
+}

@@ -84,29 +84,44 @@ export async function readWorkspaceProductionGraph(root) {
   root = await realpath(root);
   // 修复：pnpm ls 默认读取安装快照，不能把旧图与当前锁文件哈希拼成有效声明。
   const [locked, actual] = await Promise.all(
-    [true, false].map(async (lockfileOnly) => {
-      const { stdout } = await exec(
-        "pnpm",
-        [
-          "-r",
-          "ls",
-          "--prod",
-          "--json",
-          "--depth",
-          "Infinity",
-          ...(lockfileOnly ? ["--lockfile-only"] : []),
-        ],
-        {
-          cwd: root,
-          maxBuffer: 256 * 1024 * 1024,
-          ...resolveSpawnRuntimeOptions("pnpm"),
-        },
-      );
-      return JSON.parse(stdout);
-    }),
+    [true, false].map((lockfileOnly) => readPnpmProductionProjects(root, lockfileOnly)),
   );
   const required = assertProductionGraphs(locked, actual);
   return { required, projects: actual };
+}
+
+async function readPnpmProductionProjects(root, lockfileOnly) {
+  const options = {
+    cwd: root,
+    maxBuffer: 256 * 1024 * 1024,
+    ...resolveSpawnRuntimeOptions("pnpm"),
+  };
+  const suffix = lockfileOnly ? ["--lockfile-only"] : [];
+  try {
+    const { stdout } = await exec(
+      "pnpm",
+      ["-r", "ls", "--prod", "--json", "--depth", "Infinity", ...suffix],
+      options,
+    );
+    return JSON.parse(stdout);
+  } catch (error) {
+    if (!String(error?.stdout ?? error).includes("EMFILE")) throw error;
+  }
+
+  // Bug 修复：Windows 的整仓 pnpm ls 可因打开过多 package.json 报 EMFILE；单包同深度
+  // 查询正常。只在该错误下顺序拆包，仍用 pnpm 的真实 prod/lockfile 图做相同的交叉校验。
+  const { stdout } = await exec("pnpm", ["-r", "ls", "--json", "--depth", "-1"], options);
+  const workspaceProjects = JSON.parse(stdout);
+  const projects = [];
+  for (const project of workspaceProjects) {
+    const filtered = await exec(
+      "pnpm",
+      ["--filter", project.name, "ls", "--prod", "--json", "--depth", "Infinity", ...suffix],
+      options,
+    );
+    projects.push(...JSON.parse(filtered.stdout).filter((item) => item.name === project.name));
+  }
+  return projects;
 }
 
 export async function scanInstalledPackages(root, projects) {
