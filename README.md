@@ -116,6 +116,15 @@ pnpm bootstrap
 
 本项目继承上游 [Apache License 2.0](LICENSE)。
 
+## GitHub Actions 桌面发布
+
+推送 `main` 后，Actions 为 macOS、Windows、Linux 分别构建 x64 与 arm64 包。
+先把根目录 `package.json` 的 `version` 更新为发行版本，重新运行
+`node scripts/licenses.mjs notices`，提交版本与许可证清单，再推送对应的
+`v<version>` tag（例如 `v3.14.2`）。tag 与版本不一致时构建直接失败；六个平台全部成功后，
+Actions 才会将安装包上传到同名 GitHub Release 草稿；严格第三方许可校验通过后才公开发布。
+macOS 包未经 Apple 签名和公证。
+
 ## 项目声明
 
 功能与优惠范围、维护规则、执行与数据风险，以及许可和第三方版权说明，详见 [NOTICE.md](NOTICE.md)。

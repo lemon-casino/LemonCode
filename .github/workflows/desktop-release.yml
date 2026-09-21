@@ -1,0 +1,111 @@
+name: Desktop builds and release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: ${{ matrix.os }}-${{ matrix.arch }}
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-15-intel, os: mac, arch: x64 }
+          - { runner: macos-15, os: mac, arch: arm64 }
+          - { runner: windows-2025, os: win, arch: x64 }
+          - { runner: windows-11-arm, os: win, arch: arm64 }
+          - { runner: ubuntu-24.04, os: linux, arch: x64 }
+          - { runner: ubuntu-24.04-arm, os: linux, arch: arm64 }
+    env:
+      ZCODE_ENV: production
+      ZCODE_SKIP_REMOTE_ASSETS: "1"
+      ZCODE_TARGET_OS: ${{ matrix.os }}
+      ZCODE_TARGET_ARCH: ${{ matrix.arch }}
+      CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      ZCODE_ENABLE_MAC_SIGN: "0"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.33.2
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+      - name: Check release version
+        id: version
+        run: node scripts/verify-release-version.mjs
+      - name: Install Linux packaging tools
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y rpm libarchive-tools fakeroot ruby-dev xz-utils
+          sudo gem install fpm --no-document
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Package desktop app
+        run: pnpm bundle:desktop -- --os ${{ matrix.os }} --arch ${{ matrix.arch }}
+      - name: Stage versioned installers
+        run: node scripts/stage-release-artifacts.mjs ${{ steps.version.outputs.version }} ${{ matrix.os }} ${{ matrix.arch }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.os }}-${{ matrix.arch }}
+          path: packages/desktop/dist/release-assets/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+  release:
+    name: Publish GitHub Release
+    if: github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.14.0
+      - name: Check release version
+        id: version
+        run: node scripts/verify-release-version.mjs
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          path: release-assets
+          merge-multiple: true
+      - name: Verify all six platform packages
+        run: node scripts/stage-release-artifacts.mjs ${{ steps.version.outputs.version }} --verify-collected
+      - name: Upload installers to release draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" --verify-tag --draft \
+              --title "ZCode $VERSION" \
+              --notes "Desktop packages for macOS, Windows, and Linux (x64 and arm64). macOS packages are unsigned and not notarized."
+          fi
+          gh release upload "$GITHUB_REF_NAME" release-assets/* --clobber
+      - name: Verify release notices
+        run: >-
+          node --input-type=module -e "import { readVerifiedNotices } from './scripts/third-party-notices.mjs';
+          await readVerifiedNotices(process.cwd(), { requireComplete: true })"
+      - name: Publish verified release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release edit "$GITHUB_REF_NAME" --draft=false

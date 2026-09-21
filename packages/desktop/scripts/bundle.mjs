@@ -707,6 +707,10 @@ async function main() {
     "electron-builder.config.js",
     osBuilderFlagMap[os],
     archBuilderFlagMap[arch],
+    // Bug 修复：tag CI 下 electron-builder 默认可能向 generic 更新地址自动发布；
+    // 发行资产只能在六平台全部成功后由 GitHub Release job 统一上传。
+    "--publish",
+    "never",
   ];
 
   console.log(`[bundle] target=${os}/${arch}`);
