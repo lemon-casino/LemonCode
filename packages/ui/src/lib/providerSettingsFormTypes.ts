@@ -3,6 +3,7 @@ import type {
   ConfigValidationIssue,
   AccountProviderState,
   ModelConfigObject,
+  ProviderApiKey,
   ProviderConfigObject,
   ProviderSettingsProviderView,
 } from "@zcode/provider";
@@ -57,6 +58,16 @@ export function getProviderFormApiKey(
   provider: Pick<ProviderSettingsFormProvider, "config">,
 ): string {
   return isApiKeyAccess(provider.config.access) ? (provider.config.access.apiKey ?? "") : "";
+}
+
+export function getProviderFormApiKeys(
+  provider: Pick<ProviderSettingsFormProvider, "config">,
+): readonly ProviderApiKey[] {
+  if (!isApiKeyAccess(provider.config.access)) return [];
+  const configured = provider.config.access.apiKeys ?? [];
+  if (configured.length > 0) return configured;
+  const apiKey = provider.config.access.apiKey?.trim();
+  return apiKey ? [{ id: "legacy", label: "API Key 1", apiKey, enabled: true }] : [];
 }
 
 export function getProviderFormApiKeyManagementUrl(

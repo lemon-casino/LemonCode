@@ -19,6 +19,12 @@ import {
 import { createServiceDescriptor } from "../descriptors.js";
 import type { ModelConnectivityResult } from "@zcode/shared";
 import { createServiceLogger } from "../logger/serviceLogger.js";
+import {
+  createProviderCatalogClient,
+  type ProviderApiKeyProbeResult,
+  type ProviderCatalogClient,
+  type ProviderRemoteModelCatalog,
+} from "./providerCatalogClient.js";
 
 export type {
   ProviderSettingsProviderView,
@@ -26,6 +32,7 @@ export type {
   ModelSelectionViewInput,
   ProviderSettingsView,
 } from "@zcode/provider";
+export type { ProviderApiKeyProbeResult, ProviderRemoteModelCatalog };
 
 export interface IProviderSettingsService {
   readonly onDidChange: Event<ProviderSettingsView>;
@@ -68,6 +75,11 @@ export interface IProviderSettingsService {
   testModelConnectivity(
     input: ProviderSettingsConnectivityRequest,
   ): Promise<ModelConnectivityResult>;
+  listRemoteModels(providerId: ProviderId): Promise<ProviderRemoteModelCatalog>;
+  probeApiKeys(
+    providerId: ProviderId,
+    keyIds?: readonly string[],
+  ): Promise<readonly ProviderApiKeyProbeResult[]>;
 }
 
 export const IProviderSettingsService = createServiceDescriptor<IProviderSettingsService>(
@@ -110,6 +122,7 @@ export function createProviderSettingsService(
   facade: ProviderSettingsFacade,
   ensureReady: () => Promise<void> = async () => {},
   testConnectivity?: ProviderSettingsConnectivityTester,
+  catalogClient: ProviderCatalogClient = createProviderCatalogClient(),
 ): IProviderSettingsService {
   return {
     onDidChange: toEvent((listener) => facade.onDidChange(listener)),
@@ -205,6 +218,20 @@ export function createProviderSettingsService(
         providerId: input.providerId,
         modelId: input.modelId,
       });
+    },
+    listRemoteModels: async (providerId) => {
+      await ensureReady();
+      await facade.waitForProviderOperations(providerId);
+      const provider = facade.getView().providers.find((item) => item.providerId === providerId);
+      if (!provider) throw new Error(`Provider 不存在: ${providerId}`);
+      return catalogClient.listModels(provider.effectiveConfig);
+    },
+    probeApiKeys: async (providerId, keyIds) => {
+      await ensureReady();
+      await facade.waitForProviderOperations(providerId);
+      const provider = facade.getView().providers.find((item) => item.providerId === providerId);
+      if (!provider) throw new Error(`Provider 不存在: ${providerId}`);
+      return catalogClient.probeApiKeys(provider.effectiveConfig, keyIds);
     },
   };
 }

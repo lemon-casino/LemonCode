@@ -11,6 +11,7 @@ import {
   type zhipuAccountModeDataSchema,
   type providerVisibilityDataSchema,
   type providerLogoDataSchema,
+  type providerApiKeyDataSchema,
   type apiKeyAccessDataSchema,
   type zhipuAccountAccessDataSchema,
   type providerAccessDataSchema,
@@ -32,16 +33,19 @@ export type ApiKeyAccessConfigInput = Omit<ApiKeyAccessConfigObject, "type"> & {
 };
 
 export type ApiKeyAccessConfigObject = Readonly<z.infer<typeof apiKeyAccessDataSchema>>;
+export type ProviderApiKey = Readonly<z.infer<typeof providerApiKeyDataSchema>>;
 
 export class ApiKeyAccessConfig extends ConfigOverlay<ApiKeyAccessConfig> {
   readonly type: ApiKeyAccessConfigObject["type"];
   readonly apiKey?: ApiKeyAccessConfigInput["apiKey"];
+  readonly apiKeys?: ApiKeyAccessConfigInput["apiKeys"];
   readonly apiKeyManagementUrl?: ApiKeyAccessConfigInput["apiKeyManagementUrl"];
 
   constructor(input: ApiKeyAccessConfigInput = {}) {
     super();
     this.type = input.type ?? "api-key";
     this.apiKey = input.apiKey;
+    this.apiKeys = freezeProviderApiKeys(input.apiKeys);
     this.apiKeyManagementUrl = input.apiKeyManagementUrl;
     Object.freeze(this);
   }
@@ -50,6 +54,7 @@ export class ApiKeyAccessConfig extends ConfigOverlay<ApiKeyAccessConfig> {
     return new ApiKeyAccessConfig({
       type: next.type,
       apiKey: this.overlayValue(this.apiKey, next.apiKey),
+      apiKeys: this.overlayValue(this.apiKeys, next.apiKeys),
       apiKeyManagementUrl: this.overlayValue(this.apiKeyManagementUrl, next.apiKeyManagementUrl),
     });
   }
@@ -63,10 +68,35 @@ export class ApiKeyAccessConfig extends ConfigOverlay<ApiKeyAccessConfig> {
       type: this.type,
       ...objectWithoutUndefined({
         apiKey: this.apiKey,
+        apiKeys: this.apiKeys,
         apiKeyManagementUrl: this.apiKeyManagementUrl,
       }),
     };
   }
+}
+
+export function resolveApiKeyAccessKeys(
+  access: Pick<ApiKeyAccessConfigObject, "apiKey" | "apiKeys">,
+): readonly ProviderApiKey[] {
+  const seen = new Set<string>();
+  const configured = (access.apiKeys ?? []).flatMap((entry) => {
+    const apiKey = entry.apiKey.trim();
+    if (!apiKey || seen.has(apiKey)) return [];
+    seen.add(apiKey);
+    return [
+      Object.freeze({
+        id: entry.id.trim() || `key-${seen.size}`,
+        ...(entry.label?.trim() ? { label: entry.label.trim() } : {}),
+        apiKey,
+        enabled: entry.enabled !== false,
+      }),
+    ];
+  });
+  const legacyApiKey = access.apiKey?.trim();
+  if (configured.length > 0 || !legacyApiKey) return Object.freeze(configured);
+  return Object.freeze([
+    Object.freeze({ id: "legacy", label: "API Key 1", apiKey: legacyApiKey, enabled: true }),
+  ]);
 }
 
 export type ZhipuAccountAccessConfigInput = Omit<ZhipuAccountAccessConfigObject, "type">;
@@ -360,6 +390,13 @@ function freezeProviderLogo(
   logo: ProviderLogoRef | null | undefined,
 ): ProviderLogoRef | null | undefined {
   return logo ? Object.freeze({ ...logo }) : logo;
+}
+
+function freezeProviderApiKeys(
+  apiKeys: readonly ProviderApiKey[] | null | undefined,
+): readonly ProviderApiKey[] | null | undefined {
+  if (!apiKeys) return apiKeys;
+  return Object.freeze(apiKeys.map((entry) => Object.freeze({ ...entry })));
 }
 
 function freezeModelIds(

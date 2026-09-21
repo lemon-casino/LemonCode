@@ -1,70 +1,105 @@
-import { accessSync, constants as fsConstants } from "node:fs";
-import { win32 } from "node:path";
-import type { IntegratedTerminalShellOption } from "@zcode/shared";
+import { access, stat } from "node:fs/promises";
+import { constants as fsConstants } from "node:fs";
+import { basename, posix, win32 } from "node:path";
+import type { IntegratedTerminalShellDialect, IntegratedTerminalShellOption } from "@zcode/shared";
 
-type ExecutableCheck = (path: string) => boolean;
+type ExecutableCheck = (path: string) => boolean | Promise<boolean>;
 
 const WINDOWS_GIT_BASH_PATHS = [
   "C:\\Program Files\\Git\\bin\\bash.exe",
   "C:\\Program Files (x86)\\Git\\bin\\bash.exe",
 ] as const;
+const POSIX_SHELLS = ["zsh", "bash", "fish", "sh", "nu"] as const;
+const POSIX_SHELL_DIRS = ["/bin", "/usr/bin", "/usr/local/bin", "/opt/homebrew/bin"] as const;
 
-export function listIntegratedTerminalShellOptions(options: {
+export async function listIntegratedTerminalShellOptions(options: {
   env: NodeJS.ProcessEnv;
   isExecutable?: ExecutableCheck;
   platform: NodeJS.Platform;
-}): IntegratedTerminalShellOption[] {
-  if (options.platform !== "win32") {
-    return [];
+}): Promise<IntegratedTerminalShellOption[]> {
+  const result: IntegratedTerminalShellOption[] = [];
+  const seen = new Set<string>();
+  const windows = options.platform === "win32";
+
+  async function add(
+    candidate: string | undefined,
+    label: string,
+    dialect: IntegratedTerminalShellDialect,
+    source: IntegratedTerminalShellOption["source"],
+  ): Promise<void> {
+    if (!candidate) return;
+    const path = candidate.trim();
+    const key = windows ? win32.normalize(path).toLowerCase() : path;
+    if (!path || seen.has(key) || !(await isExecutableCandidate(path, options.isExecutable)))
+      return;
+    seen.add(key);
+    result.push({ dialect, id: `${dialect}:${path}`, label, path, source });
   }
 
-  const shellOptions: IntegratedTerminalShellOption[] = [createCommandPromptOption(options.env)];
-  const gitBash = resolveWindowsGitBash(options.env, options.isExecutable);
-  if (gitBash) {
-    shellOptions.push({
-      dialect: "git-bash",
-      id: `git-bash:${gitBash.path}`,
-      label: "Git Bash",
-      path: gitBash.path,
-      source: gitBash.source,
-    });
+  if (windows) {
+    const env = options.env;
+    const programFiles = getWindowsEnvValue(env, "ProgramFiles") ?? "C:\\Program Files";
+    const systemRoot = getWindowsEnvValue(env, "SystemRoot") ?? "C:\\Windows";
+    await add(
+      win32.join(programFiles, "PowerShell", "7", "pwsh.exe"),
+      "PowerShell 7",
+      "powershell",
+      "system",
+    );
+    for (const path of windowsPathCandidates("pwsh.exe", env)) {
+      await add(path, "PowerShell 7", "powershell", "path");
+    }
+    await add(
+      win32.join(systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"),
+      "Windows PowerShell",
+      "powershell",
+      "system",
+    );
+    for (const path of windowsPathCandidates("powershell.exe", env)) {
+      await add(path, "Windows PowerShell", "powershell", "path");
+    }
+    for (const path of WINDOWS_GIT_BASH_PATHS) {
+      await add(path, "Git Bash", "git-bash", "system");
+    }
+    for (const gitExe of windowsPathCandidates("git.exe", env)) {
+      if (!(await isExecutableCandidate(gitExe, options.isExecutable))) continue;
+      for (const path of inferWindowsGitBashPathsFromGitExe(gitExe)) {
+        await add(path, "Git Bash", "git-bash", "path");
+      }
+    }
+    await add(getWindowsEnvValue(env, "ComSpec"), "CMD", "cmd", "system");
+    await add(win32.join(systemRoot, "System32", "cmd.exe"), "CMD", "cmd", "system");
+    for (const path of windowsPathCandidates("cmd.exe", env)) {
+      await add(path, "CMD", "cmd", "path");
+    }
+    for (const path of windowsPathCandidates("nu.exe", env)) {
+      await add(path, "Nushell", "nushell", "path");
+    }
+    return result;
   }
 
-  return shellOptions;
-}
-
-function createCommandPromptOption(env: NodeJS.ProcessEnv): IntegratedTerminalShellOption {
-  const path = getWindowsEnvValue(env, "ComSpec")?.trim() || "cmd.exe";
-  return {
-    dialect: "cmd",
-    id: `cmd:${path}`,
-    label: "CMD",
-    path,
-    source: "system",
-  };
-}
-
-function resolveWindowsGitBash(
-  env: NodeJS.ProcessEnv,
-  isExecutable?: ExecutableCheck,
-): { path: string; source: "system" | "path" } | undefined {
-  for (const candidate of WINDOWS_GIT_BASH_PATHS) {
-    if (isExecutableCandidate(candidate, isExecutable)) {
-      return { path: candidate, source: "system" };
+  const loginShell = options.env.SHELL?.trim();
+  const loginKind = loginShell && POSIX_SHELLS.find((kind) => basename(loginShell) === kind);
+  if (loginKind) {
+    await add(loginShell, posixShellLabel(loginKind), posixDialect(loginKind), "system");
+  }
+  for (const kind of POSIX_SHELLS) {
+    for (const dir of [...(options.env.PATH?.split(posix.delimiter) ?? []), ...POSIX_SHELL_DIRS]) {
+      if (!dir) continue;
+      await add(posix.join(dir, kind), posixShellLabel(kind), posixDialect(kind), "path");
     }
   }
+  return result;
+}
 
-  const gitExe = windowsExecutableCandidates("git", env).find((candidate) =>
-    isExecutableCandidate(candidate, isExecutable),
-  );
-  if (!gitExe) {
-    return undefined;
-  }
+function posixDialect(kind: (typeof POSIX_SHELLS)[number]): IntegratedTerminalShellDialect {
+  if (kind === "bash" || kind === "zsh") return "posix";
+  if (kind === "nu") return "nushell";
+  return kind;
+}
 
-  const inferred = inferWindowsGitBashPathsFromGitExe(gitExe).find((candidate) =>
-    isExecutableCandidate(candidate, isExecutable),
-  );
-  return inferred ? { path: inferred, source: "path" } : undefined;
+function posixShellLabel(kind: (typeof POSIX_SHELLS)[number]): string {
+  return kind === "nu" ? "Nushell" : kind;
 }
 
 function inferWindowsGitBashPathsFromGitExe(gitExe: string): string[] {
@@ -75,50 +110,22 @@ function inferWindowsGitBashPathsFromGitExe(gitExe: string): string[] {
   ];
 }
 
-function windowsExecutableCandidates(command: string, env: NodeJS.ProcessEnv): string[] {
-  if (/[\\/]/.test(command)) {
-    return [command];
-  }
-
-  const pathValue = getWindowsEnvValue(env, "PATH");
-  if (!pathValue) {
-    return [command];
-  }
-
-  const extensions = windowsExecutableExtensions(env);
-  return pathValue
-    .split(win32.delimiter)
-    .filter((entry) => entry.trim().length > 0)
-    .flatMap((entry) => extensions.map((extension) => win32.join(entry, `${command}${extension}`)));
-}
-
-function windowsExecutableExtensions(env: NodeJS.ProcessEnv): string[] {
-  const rawExtensions = getWindowsEnvValue(env, "PATHEXT")?.split(win32.delimiter) ?? [
-    ".COM",
-    ".EXE",
-    ".BAT",
-    ".CMD",
-  ];
-  const normalized = rawExtensions
-    .map((extension) => extension.trim().toLowerCase())
-    .filter((extension) => extension.length > 0);
-  return normalized.includes(".exe") ? normalized : [".exe", ...normalized];
+function windowsPathCandidates(command: string, env: NodeJS.ProcessEnv): string[] {
+  return (getWindowsEnvValue(env, "PATH")?.split(win32.delimiter) ?? [])
+    .filter(Boolean)
+    .map((dir) => win32.join(dir, command));
 }
 
 function getWindowsEnvValue(env: NodeJS.ProcessEnv, key: string): string | undefined {
-  const lowerKey = key.toLowerCase();
-  const match = Object.keys(env).find((envKey) => envKey.toLowerCase() === lowerKey);
+  const match = Object.keys(env).find((envKey) => envKey.toLowerCase() === key.toLowerCase());
   return match ? env[match] : undefined;
 }
 
-function isExecutableCandidate(path: string, isExecutable?: ExecutableCheck): boolean {
-  if (isExecutable) {
-    return isExecutable(path);
-  }
-
+async function isExecutableCandidate(path: string, check?: ExecutableCheck): Promise<boolean> {
+  if (check) return check(path);
   try {
-    accessSync(path, fsConstants.X_OK);
-    return true;
+    await access(path, fsConstants.X_OK);
+    return (await stat(path)).isFile();
   } catch {
     return false;
   }

@@ -871,6 +871,12 @@ function RootInner({
   };
   const handleWelcomeScreenComplete = useCallback(
     async (reason: LoginCompleteReason) => {
+      if (reason === "cancel") {
+        // 欢迎页空闲态的取消以前只取消 OAuth 等待，实际没有等待时入口无法关闭。
+        // 取消不执行跳过保存，也不创建欢迎页专属的默认 workspace。
+        setWelcomeScreenOpenReason(null);
+        return;
+      }
       await refreshAppSettings();
       if (
         welcomeScreenOpenReason !== "startup-provider-required" ||

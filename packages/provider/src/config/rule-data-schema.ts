@@ -97,7 +97,7 @@ export const providerTemplateConfigRuleSchema = providerTemplateDataSchema.exten
   config: providerConfigDataSchema
     .pick({ logo: true, access: true, api: true, builtinModelIds: true })
     .extend({
-      access: apiKeyAccessDataSchema.omit({ apiKey: true }).nullable().optional(),
+      access: apiKeyAccessDataSchema.omit({ apiKey: true, apiKeys: true }).nullable().optional(),
     }),
 });
 export const builtinProviderConfigRuleSchema = providerConfigRuleSchema.extend({

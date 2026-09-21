@@ -10,7 +10,6 @@ import {
 } from "react";
 import type {
   AppSettings,
-  IntegratedTerminalShellOption,
   IntegratedTerminalShellSelection,
   Locale,
   UsageEntitlementSnapshot,
@@ -97,6 +96,7 @@ import { ServiceProvider, useServices } from "@/hooks/useServices.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
+import { useIntegratedTerminalShellOptions } from "@/hooks/useIntegratedTerminalShellOptions.js";
 import { resolveModelProviderConnectivityWorkspacePath } from "@/lib/modelProviderConnectivityTarget.js";
 import {
   createSettingsPageConfig,
@@ -689,9 +689,13 @@ export function SettingsPage({
   const [terminalFontFamily, setTerminalFontFamily] = useState("");
   const [integratedTerminalShell, setIntegratedTerminalShell] =
     useState<IntegratedTerminalShellSelection>({ mode: "auto" });
-  const [integratedTerminalShellOptions, setIntegratedTerminalShellOptions] = useState<
-    IntegratedTerminalShellOption[]
-  >([]);
+  const {
+    options: integratedTerminalShellOptions,
+    platform: hostPlatform,
+    homeDir: defaultHomeDir,
+    loading: integratedTerminalShellLoading,
+    refresh: refreshIntegratedTerminalShells,
+  } = useIntegratedTerminalShellOptions();
   const [httpProxy, setHttpProxy] = useState("");
   const [httpProxyNoProxy, setHttpProxyNoProxy] = useState("");
   const [httpProxyCaCertPath, setHttpProxyCaCertPath] = useState("");
@@ -713,8 +717,6 @@ export function SettingsPage({
   const [toolGroupingChangesEnabled, setToolGroupingChangesEnabled] = useState(false);
   const [zcodeInteractionBehavior, setZCodeInteractionBehavior] =
     useState<ZCodeInteractionBehavior>("queue");
-  const [defaultHomeDir, setDefaultHomeDir] = useState("");
-  const [hostPlatform, setHostPlatform] = useState("");
 
   useEffect(() => {
     if (
@@ -798,26 +800,7 @@ export function SettingsPage({
         setZCodeInteractionBehavior(settings.zcodeInteractionBehavior ?? "queue");
       })
       .catch(() => {});
-    // 这里配置的是本地全局设置。远端 workspace 激活时 useServices()
-    // 可能已经被替换为远端 host，不能用远端 shell 枚举结果写入本机设置。
-    localHostServices.systemService
-      .info()
-      .then((info) => {
-        setDefaultHomeDir(info.homedir);
-        setHostPlatform(info.platform);
-        if (info.platform !== "win32") {
-          setIntegratedTerminalShellOptions([]);
-          return;
-        }
-        void localHostServices.systemService
-          .listIntegratedTerminalShells()
-          .then(setIntegratedTerminalShellOptions)
-          .catch(() => {
-            setIntegratedTerminalShellOptions([]);
-          });
-      })
-      .catch(() => {});
-  }, [localHostServices.systemService, services.settingService]);
+  }, [services.settingService]);
 
   useEffect(() => {
     if (!sharedSettings) {
@@ -1674,12 +1657,14 @@ export function SettingsPage({
                             terminalFontFamily={terminalFontFamily}
                             integratedTerminalShell={integratedTerminalShell}
                             integratedTerminalShellOptions={integratedTerminalShellOptions}
+                            integratedTerminalShellLoading={integratedTerminalShellLoading}
+                            onRefreshIntegratedTerminalShells={refreshIntegratedTerminalShells}
                             nativeSearchEnhancementsEnabled={nativeSearchEnhancementsEnabled}
                             httpProxy={httpProxy}
                             httpProxyNoProxy={httpProxyNoProxy}
                             httpProxyCaCertPath={httpProxyCaCertPath}
                             defaultHomeDir={defaultHomeDir}
-                            showIntegratedTerminalShell={hostPlatform === "win32"}
+                            showIntegratedTerminalShell={Boolean(hostPlatform)}
                             setLocalePreference={handleFooterLocaleChange}
                             setNotificationEnabled={(enabled) =>
                               runUserAction({
@@ -1949,10 +1934,7 @@ export function SettingsPage({
                             localWorkspacePath={activeWorkspaceTab?.localWorkspacePath}
                           />
                         ) : activeSection === "gitBackup" ? (
-                          <GitBackupSection
-                            enabled={false}
-                            onEnabledChange={() => {}}
-                          />
+                          <GitBackupSection enabled={false} onEnabledChange={() => {}} />
                         ) : null}
                       </div>
                     </div>

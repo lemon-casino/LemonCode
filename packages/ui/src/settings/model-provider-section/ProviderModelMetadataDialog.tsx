@@ -45,6 +45,7 @@ function selectFocusedInputText(event: Pick<FocusEvent<HTMLInputElement>, "curre
 
 export function ProviderModelMetadataDialog({
   mode = "edit",
+  contentTestId,
   open,
   draft,
   draftErrorMessage,
@@ -63,6 +64,7 @@ export function ProviderModelMetadataDialog({
   onModelIdBlur,
 }: {
   mode?: "add" | "edit";
+  contentTestId?: string;
   open: boolean;
   draft: ProviderModelDraftValues;
   draftErrorMessage: string | null;
@@ -145,6 +147,7 @@ export function ProviderModelMetadataDialog({
         // overflow-hidden 仍允许聚焦触发外层滚动；语言换行后曾滚走标题。仅正文滚动，外框只裁切。
         className="max-h-[min(48rem,calc(100vh-4rem))] max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto_auto] overflow-clip"
         data-no-model-drag="true"
+        data-testid={contentTestId}
       >
         <DialogHeader className="pr-8">
           <DialogTitle className="truncate">

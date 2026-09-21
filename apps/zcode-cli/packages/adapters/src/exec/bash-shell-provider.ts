@@ -201,6 +201,26 @@ function resolveEffectiveWindowsBashShellSelection(
 function resolveEffectivePosixBashShellSelection(
   options: EffectiveBashShellResolveOptions,
 ): EffectiveBashShellResolution {
+  const override = options.override;
+  if (
+    override?.source === "user-config" &&
+    override.dialect === "posix" &&
+    override.path &&
+    posixShellKind(override.path) &&
+    isExecutableCandidate(override.path, options.exists)
+  ) {
+    return {
+      provider: createPosixShellProvider(override.path),
+      selection: shellSelection({
+        dialect: "posix",
+        displayName: posixShellKind(override.path) ?? "bash",
+        id: override.id,
+        label: override.label,
+        path: override.path,
+        source: "user-config",
+      }),
+    };
+  }
   const bashShell = resolvePosixBashShell(options.env, options.exists);
   if (!bashShell) {
     return legacyShellSelection();

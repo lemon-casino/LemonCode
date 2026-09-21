@@ -18,7 +18,11 @@ import {
   type ModelProviderId,
   type ModelRequestAuth,
 } from "@zcode/contracts";
-import type { RegistryProviderConfig } from "@zcode/provider";
+import {
+  resolveApiKeyAccessKeys,
+  type ProviderApiKey,
+  type RegistryProviderConfig,
+} from "@zcode/provider";
 import { withOpenRouterAttributionHeaders } from "@zcode/shared";
 import { createAnthropicCompatFetch } from "./anthropic-stream-compat.js";
 import { createOpenAIResponsesJsonCompatFetch } from "./openai-responses-json-compat.js";
@@ -36,6 +40,7 @@ interface AiSdkProviderConfig {
   access: RegistryProviderConfig["access"];
   kind: AiSdkProviderKind;
   apiKey?: string;
+  apiKeys?: readonly ProviderApiKey[];
   baseURL: string;
   headers?: Record<string, string>;
   providerOptions?: Record<string, unknown>;
@@ -91,6 +96,11 @@ export interface ProviderBusinessErrorFetchOptions {
   fetch?: ProviderFetch;
   httpProxy?: string;
   noProxy?: string;
+}
+
+export interface ApiKeyFailoverState {
+  readonly failedKeyIds: Set<string>;
+  nextIndex: number;
 }
 
 export interface ProviderBusinessErrorOptions {
@@ -158,6 +168,10 @@ export class AiSdkModelExecution {
   private readonly logger?: Logger;
   private readonly baseTransport?: ProviderFetch;
   private readonly providerTransports = new Map<string, ProviderFetch>();
+  private readonly providerApiKeyStates = new Map<
+    string,
+    { readonly signature: string; readonly state: ApiKeyFailoverState }
+  >();
 
   constructor(config: AiSdkModelExecutionConfig = {}, options: AiSdkModelExecutionOptions = {}) {
     this.env = config.env ?? process.env;
@@ -263,8 +277,16 @@ export class AiSdkModelExecution {
     const apiKey = this.resolveApiKey(providerConfig);
     const headers = providerConfig.headers;
     const providerTransport = this.resolveProviderTransport(providerId);
+    const apiKeyTransport = providerConfig.apiKeys?.length
+      ? createApiKeyFailoverFetch({
+          fetch: providerTransport,
+          keys: providerConfig.apiKeys,
+          providerKind: providerConfig.kind,
+          state: this.resolveApiKeyFailoverState(providerId, providerConfig.apiKeys),
+        })
+      : providerTransport;
     const fetch = createProviderBusinessErrorFetch({
-      fetch: providerTransport,
+      fetch: apiKeyTransport,
       providerId,
       providerKind: providerConfig.kind,
     });
@@ -321,6 +343,20 @@ export class AiSdkModelExecution {
     return providerConfig.apiKey;
   }
 
+  private resolveApiKeyFailoverState(
+    providerId: string,
+    keys: readonly ProviderApiKey[],
+  ): ApiKeyFailoverState {
+    const signature = keys
+      .map((key) => `${key.id}:${key.enabled === false ? "0" : "1"}:${key.apiKey}`)
+      .join("\u0000");
+    const current = this.providerApiKeyStates.get(providerId);
+    if (current?.signature === signature) return current.state;
+    const state = { failedKeyIds: new Set<string>(), nextIndex: 0 };
+    this.providerApiKeyStates.set(providerId, { signature, state });
+    return state;
+  }
+
   private resolveProviderTransport(providerId: string): ProviderFetch {
     const current = this.providerTransports.get(providerId);
     if (current) {
@@ -351,10 +387,12 @@ function toAiSdkProviderConfig(
   providerId: string,
   config: RegistryProviderConfig,
 ): AiSdkProviderConfig {
+  const apiKeys =
+    config.access.type === "zhipu-account" ? [] : resolveApiKeyAccessKeys(config.access);
+  const primaryApiKey = apiKeys.find((entry) => entry.enabled !== false)?.apiKey;
   const common = {
-    ...(config.access.type !== "zhipu-account" && config.access.apiKey
-      ? { apiKey: config.access.apiKey }
-      : {}),
+    ...(primaryApiKey ? { apiKey: primaryApiKey } : {}),
+    ...(apiKeys.length > 0 ? { apiKeys } : {}),
     baseURL: config.api.baseUrl,
     ...(config.api.headers ? { headers: { ...config.api.headers } } : {}),
     providerOptions: { apiFormat: config.api.type },
@@ -379,9 +417,56 @@ function applyModelRequestAuth(
   return {
     ...providerConfig,
     ...(requestAuth.apiKey ? { apiKey: requestAuth.apiKey } : {}),
+    ...(requestAuth.apiKey ? { apiKeys: [] } : {}),
     ...(requestAuth.headers
       ? { headers: mergeModelRequestHeaders(providerConfig.headers, requestAuth.headers) }
       : {}),
+  };
+}
+
+export function createApiKeyFailoverFetch(options: {
+  readonly fetch: ProviderFetch;
+  readonly keys: readonly ProviderApiKey[];
+  readonly providerKind: AiSdkProviderKind;
+  readonly state?: ApiKeyFailoverState;
+}): ProviderFetch {
+  const state = options.state ?? { failedKeyIds: new Set<string>(), nextIndex: 0 };
+  const enabledKeys = options.keys.filter(
+    (entry) => entry.enabled !== false && entry.apiKey.trim().length > 0,
+  );
+  if (enabledKeys.length === 0) return options.fetch;
+
+  return async (input, init) => {
+    const requestTemplate = new Request(input, init);
+    const availableKeys = enabledKeys.filter((entry) => !state.failedKeyIds.has(entry.id));
+    // 全部 Key 已经鉴权失败时仍发送一次请求，保留供应商的真实响应；不能形成空转重试。
+    const candidates =
+      availableKeys.length > 0
+        ? [
+            ...availableKeys.slice(state.nextIndex % availableKeys.length),
+            ...availableKeys.slice(0, state.nextIndex % availableKeys.length),
+          ]
+        : [enabledKeys.at(-1)!];
+    let response: Response | undefined;
+    for (const [index, entry] of candidates.entries()) {
+      const request = requestTemplate.clone();
+      const headers = new Headers(request.headers);
+      headers.set(AUTHORIZATION_HEADER_NAME, `Bearer ${entry.apiKey}`);
+      if (options.providerKind === "anthropic") {
+        headers.set("x-api-key", entry.apiKey);
+      }
+      response = await options.fetch(new Request(request, { headers }));
+      if (response.status !== 401 && response.status !== 403) {
+        const successfulIndex = availableKeys.findIndex((key) => key.id === entry.id);
+        state.nextIndex = successfulIndex < 0 ? 0 : (successfulIndex + 1) % availableKeys.length;
+        return response;
+      }
+      state.failedKeyIds.add(entry.id);
+      if (index < candidates.length - 1) {
+        await response.body?.cancel().catch(() => undefined);
+      }
+    }
+    return response!;
   };
 }
 

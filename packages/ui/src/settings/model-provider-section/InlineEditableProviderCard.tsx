@@ -2,13 +2,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   getProviderFormApiKey,
+  getProviderFormApiKeys,
   getProviderFormLabel,
   type ProviderSettingsFormProvider,
   type ProviderSettingsFormModel,
 } from "@/lib/providerSettingsFormTypes.js";
 import type { ModelConnectivityResult } from "@zcode/shared";
+import type { ProviderApiKeyProbeResult } from "@zcode/services";
 import {
   isApiKeyAccess,
+  type ProviderApiKey,
   type ProviderApiType,
   type SavePersonalModelDraftInput,
 } from "@zcode/provider";
@@ -23,6 +26,7 @@ import {
   ProviderCardHeader,
   ProviderConnectionSection,
   ProviderModelsSection,
+  type ProviderModelMutationOptions,
 } from "./ProviderCardSections.js";
 import { resolveModelProviderDisplayName } from "./constants.js";
 import { useProviderDetailFeedback } from "./ProviderDetailFeedback.js";
@@ -144,6 +148,8 @@ export function InlineEditableProviderCard({
   onDeletePersonalModel,
   onDelete,
   onTestModel,
+  onListRemoteModels,
+  onProbeApiKeys,
   onReorderModelIds,
   readOnlyEndpoints,
   presetApiKeyUrl,
@@ -171,6 +177,11 @@ export function InlineEditableProviderCard({
   onDeletePersonalModel?: (providerId: string, modelId: string) => Promise<unknown>;
   onDelete?: () => void | Promise<void>;
   onTestModel?: (providerId: string, modelId: string) => Promise<ModelConnectivityResult>;
+  onListRemoteModels?: (providerId: string) => Promise<readonly string[]>;
+  onProbeApiKeys?: (
+    providerId: string,
+    keyIds: readonly string[],
+  ) => Promise<readonly ProviderApiKeyProbeResult[]>;
   onReorderModelIds?: (modelIds: string[]) => Promise<void>;
   readOnlyEndpoints?: boolean;
   presetApiKeyUrl?: string;
@@ -189,8 +200,6 @@ export function InlineEditableProviderCard({
     provider.config.api?.type ?? "anthropic-messages",
   );
   const [baseUrlValue, setBaseUrlValue] = useState(provider.config.api?.baseUrl ?? "");
-  const [apiKeyValue, setApiKeyValue] = useState(getProviderFormApiKey(provider));
-  const [apiKeyVisible, setApiKeyVisible] = useState(false);
   const [savingEnabled, setSavingEnabled] = useState(false);
   const authoritativeModels = useMemo(
     () => resolveVisibleProviderModelsForEdit(provider),
@@ -261,7 +270,7 @@ export function InlineEditableProviderCard({
     syncField("nameValue", resolvedLabel, setNameValue);
     syncField("apiFormat", resolvedApiFormat, setApiFormat);
     syncField("baseUrlValue", resolvedBaseUrl, setBaseUrlValue);
-    syncField("apiKeyValue", resolvedApiKey, setApiKeyValue);
+    syncField("apiKeyValue", resolvedApiKey, () => undefined);
   }, [provider]);
 
   const markDraftDirty = useCallback((field: keyof ProviderDraftValues) => {
@@ -360,6 +369,17 @@ export function InlineEditableProviderCard({
     // 回调也换引用会先执行旧 effect cleanup，进而再次保存并形成循环；通知身份通过 ref 读取。
     [],
   );
+
+  const runSilentSaveOperation = useCallback(async (operation: () => Promise<void>) => {
+    selfSaveRequestedRef.current = true;
+    draftRevisionRef.current += 1;
+    try {
+      await operation();
+    } catch (error) {
+      selfSaveRequestedRef.current = false;
+      throw error;
+    }
+  }, []);
 
   const persistModelOrder = useCallback(
     async (modelIds: readonly string[]) => {
@@ -512,16 +532,6 @@ export function InlineEditableProviderCard({
     [markDraftDirty, scheduleIdleDraftSave],
   );
 
-  const handleApiKeyValueChange = useCallback(
-    (value: string) => {
-      markDraftDirty("apiKeyValue");
-      draftRef.current.apiKeyValue = value;
-      setApiKeyValue(value);
-      scheduleIdleDraftSave();
-    },
-    [markDraftDirty, scheduleIdleDraftSave],
-  );
-
   const handleNameBlur = useCallback(() => {
     // Esc/切换供应商先取消编辑意图，随后发生的 blur 不得补发保存。
     if (nameEditProviderIdRef.current !== provider.providerId) return;
@@ -584,9 +594,34 @@ export function InlineEditableProviderCard({
     [commitPendingDraft, markDraftDirty],
   );
 
-  const handleApiKeyBlur = useCallback(() => {
-    void commitPendingDraft("api-key-blur").catch(() => undefined);
-  }, [commitPendingDraft]);
+  const handleSaveApiKeys = useCallback(
+    async (apiKeys: readonly ProviderApiKey[]) => {
+      const access = provider.config.access;
+      if (!isApiKeyAccess(access)) throw new Error("当前供应商不使用 API Key");
+      const pending =
+        resolvePendingProviderDraftSave({
+          provider,
+          draft: draftRef.current,
+          readOnlyEndpoints,
+          now: Date.now,
+        }) ?? provider;
+      const primaryApiKey = apiKeys.find((key) => key.enabled !== false)?.apiKey ?? null;
+      await saveProviderWithCleanupGuard({
+        ...pending,
+        personalConfig: {
+          ...pending.personalConfig,
+          access: {
+            ...access,
+            apiKey: primaryApiKey,
+            apiKeys: [...apiKeys],
+          },
+        },
+      });
+      draftRef.current.apiKeyValue = primaryApiKey ?? "";
+      dirtyProviderFieldsRef.current.delete("apiKeyValue");
+    },
+    [provider, readOnlyEndpoints, saveProviderWithCleanupGuard],
+  );
 
   const handleTextCommitKeyDown = useCallback((event: React.KeyboardEvent<HTMLInputElement>) => {
     if (event.key !== "Enter") {
@@ -628,6 +663,10 @@ export function InlineEditableProviderCard({
     },
     [commitPendingDraft, onTestModel, provider.providerId],
   );
+  const handleListRemoteModels = useCallback(() => {
+    if (!onListRemoteModels) throw new Error("当前设置入口未装配模型同步能力");
+    return onListRemoteModels(provider.providerId);
+  }, [onListRemoteModels, provider.providerId]);
 
   const handleModelCommit = useCallback(
     async (
@@ -666,63 +705,67 @@ export function InlineEditableProviderCard({
   );
 
   const handleDeleteModel = useCallback(
-    (modelId: string) => {
+    async (modelId: string, options?: ProviderModelMutationOptions): Promise<void> => {
       const index = models.findIndex((model) => model.modelId === modelId);
       const model = models[index];
       if (!model) {
         return;
       }
       if (!model.builtin) {
-        void runSaveOperation(
-          async () => {
-            if (!onDeletePersonalModel)
-              throw new Error("当前设置入口未装配 Personal Model 删除能力");
-            await onDeletePersonalModel(provider.providerId, model.modelId);
-          },
-          { modelId: model.modelId, operation: "delete" },
-        ).catch((error) => {
+        const operation = async () => {
+          if (!onDeletePersonalModel) throw new Error("当前设置入口未装配 Personal Model 删除能力");
+          await onDeletePersonalModel(provider.providerId, model.modelId);
+        };
+        const saving = options?.silentFeedback
+          ? runSilentSaveOperation(operation)
+          : runSaveOperation(operation, { modelId: model.modelId, operation: "delete" });
+        await saving.catch((error) => {
           logger.warn("[ModelProviderSection] 删除 Personal Model 失败", {
             providerId: provider.providerId,
             modelId: model.modelId,
             error,
           });
+          throw error;
         });
         return;
       }
     },
-    [models, onDeletePersonalModel, provider.providerId, runSaveOperation],
+    [models, onDeletePersonalModel, provider.providerId, runSaveOperation, runSilentSaveOperation],
   );
 
   const handleModelEnabledChange = useCallback(
-    async (modelId: string, enabled: boolean) => {
+    async (modelId: string, enabled: boolean, options?: ProviderModelMutationOptions) => {
       if (!onSetPersonalModelEnabled) throw new Error("当前设置入口未装配 Model 启停能力");
-      await runSaveOperation(
-        () =>
-          onSetPersonalModelEnabled(provider.providerId, modelId, enabled).then(() => undefined),
-        { modelId },
-      );
+      const operation = () =>
+        onSetPersonalModelEnabled(provider.providerId, modelId, enabled).then(() => undefined);
+      if (options?.silentFeedback) await runSilentSaveOperation(operation);
+      else await runSaveOperation(operation, { modelId });
     },
-    [onSetPersonalModelEnabled, provider.providerId, runSaveOperation],
+    [onSetPersonalModelEnabled, provider.providerId, runSaveOperation, runSilentSaveOperation],
   );
 
   const handleAddModel = useCallback(
-    async (model: ProviderSettingsFormModel) => {
+    async (model: ProviderSettingsFormModel, options?: ProviderModelMutationOptions) => {
       if (!onAddPersonalModel) throw new Error("当前设置入口未装配 Personal Model 添加能力");
       const added = { ...model, modelId: model.modelId.trim(), hasPersonalConfig: true };
       if (!added.modelId) return;
-      await runSaveOperation(
-        async () => {
-          await onAddPersonalModel(
-            provider.providerId,
-            added.modelId,
-            structuredClone(added.personalConfig),
-            added.useRecommendedConfig,
-          );
-        },
-        { modelId: added.modelId, draftOwnsRetry: true },
-      );
+      const operation = async () => {
+        await onAddPersonalModel(
+          provider.providerId,
+          added.modelId,
+          structuredClone(added.personalConfig),
+          added.useRecommendedConfig,
+        );
+      };
+      if (options?.silentFeedback) await runSilentSaveOperation(operation);
+      else {
+        await runSaveOperation(operation, {
+          modelId: added.modelId,
+          draftOwnsRetry: true,
+        });
+      }
     },
-    [onAddPersonalModel, provider.providerId, runSaveOperation],
+    [onAddPersonalModel, provider.providerId, runSaveOperation, runSilentSaveOperation],
   );
 
   const handleReorderModelIds = useCallback(
@@ -826,16 +869,15 @@ export function InlineEditableProviderCard({
 
         {isApiKeyProvider ? (
           <ProviderApiKeySection
-            apiKeyValue={apiKeyValue}
-            apiKeyVisible={apiKeyVisible}
+            apiKeys={getProviderFormApiKeys(provider)}
+            readOnly={readOnlyEndpoints}
             presetApiKeyUrl={presetApiKeyUrl}
             onOpenPresetApiKey={onOpenPresetApiKey}
-            onApiKeyChange={handleApiKeyValueChange}
-            onApiKeyBlur={handleApiKeyBlur}
-            onApiKeyKeyDown={handleTextCommitKeyDown}
-            onApiKeyCompositionStart={handleTechnicalInputCompositionStart}
-            onApiKeyCompositionEnd={handleTechnicalInputCompositionEnd}
-            onToggleApiKeyVisibility={() => setApiKeyVisible((value) => !value)}
+            onSaveApiKeys={handleSaveApiKeys}
+            onProbeApiKeys={(keyIds) => {
+              if (!onProbeApiKeys) throw new Error("当前设置入口未装配 API Key 检测能力");
+              return onProbeApiKeys(provider.providerId, keyIds);
+            }}
           />
         ) : null}
 
@@ -852,6 +894,7 @@ export function InlineEditableProviderCard({
           onModelEnabledChange={handleModelEnabledChange}
           onDeleteModel={handleDeleteModel}
           onAddModel={handleAddModel}
+          onListRemoteModels={onListRemoteModels ? handleListRemoteModels : undefined}
           onReorderModelIds={onReorderModelIds ? handleReorderModelIds : undefined}
           settingsRevision={settingsRevision ?? 0}
         />

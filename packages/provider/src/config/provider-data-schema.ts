@@ -27,16 +27,39 @@ const nonBlankRequiredString = z.string().refine((value) => value.trim().length 
   params: { configIssueCode: "required-field-missing" },
 });
 
+export const providerApiKeyDataSchema = z
+  .object({
+    id: z.string().min(1),
+    label: z.string().nullable().optional(),
+    apiKey: nonBlankRequiredString,
+    enabled: z.boolean().optional(),
+  })
+  .strict();
+
 export const apiKeyAccessDataSchema = z
   .object({
     type: z.enum(["api-key", "zhipu-coding-plan-api-key"]),
     apiKey: z.string().nullable().optional(),
+    apiKeys: z.array(providerApiKeyDataSchema).readonly().nullable().optional(),
     apiKeyManagementUrl: z.string().url().nullable().optional(),
   })
   .strict();
-export const completeApiKeyAccessDataSchema = apiKeyAccessDataSchema.extend({
-  apiKey: nonBlankRequiredString,
-});
+export const completeApiKeyAccessDataSchema = apiKeyAccessDataSchema.superRefine(
+  (access, context) => {
+    const legacyApiKey = access.apiKey?.trim();
+    const hasEnabledApiKey = access.apiKeys?.some(
+      (entry) => entry.enabled !== false && entry.apiKey.trim().length > 0,
+    );
+    if (!legacyApiKey && !hasEnabledApiKey) {
+      context.addIssue({
+        code: "custom",
+        path: ["apiKey"],
+        message: "必填配置不能为空",
+        params: { configIssueCode: "required-field-missing" },
+      });
+    }
+  },
+);
 
 export const completeZhipuAccountAccessDataSchema = z
   .object({

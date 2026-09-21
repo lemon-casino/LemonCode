@@ -8,6 +8,8 @@ export {
   type ModelSelectionViewInput,
   type ProviderSettingsProviderView,
   type ProviderSettingsView,
+  type ProviderApiKeyProbeResult,
+  type ProviderRemoteModelCatalog,
 } from "./model-provider/providerFacadeServices.js";
 export {
   createAccountRequestAuthService,

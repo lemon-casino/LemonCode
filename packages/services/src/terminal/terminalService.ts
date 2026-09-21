@@ -12,6 +12,7 @@ import {
   type TerminalThemeProfile,
 } from "./terminalProfile.js";
 import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js";
+import { resolveConfiguredTerminalShell } from "./terminalShellSelection.js";
 
 const require = createRequire(import.meta.url);
 type NodePtyModule = typeof import("node-pty");
@@ -360,13 +361,19 @@ export function createTerminalService(dependencies: {
       windowsPty?: TerminalWindowsPtyInfo;
     }> {
       const id = String(nextId++);
-      const shell = resolveTerminalShell();
       const cwd = resolveTerminalCwd(params.cwd);
       const env = resolveTerminalEnv();
       const terminalProfileSettings = await dependencies.settingService.get().catch(() => ({
         terminalFontFamily: undefined,
         terminalInheritSystemProfile: true,
+        integratedTerminalShell: undefined,
       }));
+      // 旧实现只把选择传给 Agent Bash 工具，node-pty 始终启动固定默认 shell；
+      // 新终端读取同一份设置，并在已选程序被卸载后回退到平台默认项。
+      const shell = await resolveConfiguredTerminalShell(
+        terminalProfileSettings.integratedTerminalShell,
+        resolveTerminalShell(),
+      );
       const fontProfile = resolveTerminalFontProfile({
         settings: terminalProfileSettings,
         env: process.env,

@@ -1,6 +1,7 @@
 /* eslint-disable max-lines -- 模型供应商卡片仍在迁移期集中维护多个紧耦合区块，后续拆分时再移除。 */
 import {
   useCallback,
+  useEffect,
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
@@ -12,17 +13,29 @@ import type {
   ProviderSettingsFormModel,
 } from "@/lib/providerSettingsFormTypes.js";
 import type { ModelConnectivityResult } from "@zcode/shared";
-import type { ProviderApiType } from "@zcode/provider";
+import type { ProviderApiKey, ProviderApiType } from "@zcode/provider";
+import type { ProviderApiKeyProbeResult } from "@zcode/services";
 import {
+  TID_MODEL_PROVIDER_ADD_MODEL_DIALOG,
   TID_MODEL_PROVIDER_ADD_MODEL_BUTTON,
   TID_MODEL_PROVIDER_BASE_URL_INPUT,
   TID_MODEL_PROVIDER_MODEL_DELETE_BUTTON,
   TID_MODEL_PROVIDER_MODEL_INPUT,
   TID_MODEL_PROVIDER_NAME_EDIT_BUTTON,
   TID_MODEL_PROVIDER_NAME_INPUT,
+  TID_MODEL_PROVIDER_SYNC_MODELS_BUTTON,
   testId,
 } from "@zcode/shared";
-import { InfoIcon, LockKeyholeIcon, Plus, Pencil, Trash2, MoreHorizontal } from "lucide-react";
+import {
+  InfoIcon,
+  KeyRoundIcon,
+  LockKeyholeIcon,
+  Plus,
+  Pencil,
+  RefreshCwIcon,
+  Trash2,
+  MoreHorizontal,
+} from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import {
@@ -35,7 +48,6 @@ import {
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { TECHNICAL_INPUT_ATTRIBUTES } from "@/lib/technicalInputAttributes.js";
-import { ApiKeyInput } from "./ApiKeyInput.js";
 import { ModelRowInput } from "./ProviderFormControls.js";
 import { PresetProviderApiKeyBanner } from "./PresetProviderApiKeyBanner.js";
 import { type ProviderModelDraftValues } from "@/settings/model-provider-section/ProviderModelMetadata.js";
@@ -48,6 +60,8 @@ import { SortableProviderModelList } from "@/settings/model-provider-section/Sor
 import { useProviderModelDraft } from "@/settings/model-provider-section/useProviderModelDraft.js";
 import { ProviderLogo } from "@/settings/model-provider-section/ProviderLogo.js";
 import type { ProviderConfigObject } from "@zcode/provider";
+import { ProviderApiKeyManagerDialog } from "./ProviderApiKeyManagerDialog.js";
+import { SyncModelsDialog, type SyncModelProbeResult } from "./SyncModelsDialog.js";
 
 export { formatModelContextWindowLabel } from "@/lib/tokenNumberFormat.js";
 export {
@@ -276,31 +290,23 @@ export function ProviderConnectionSection({
 }
 
 export function ProviderApiKeySection({
-  apiKeyValue,
-  apiKeyVisible,
+  apiKeys,
   readOnly,
   presetApiKeyUrl,
   onOpenPresetApiKey,
-  onApiKeyChange,
-  onApiKeyBlur,
-  onApiKeyKeyDown,
-  onApiKeyCompositionStart,
-  onApiKeyCompositionEnd,
-  onToggleApiKeyVisibility,
+  onSaveApiKeys,
+  onProbeApiKeys,
 }: {
-  apiKeyValue: string;
-  apiKeyVisible: boolean;
+  apiKeys: readonly ProviderApiKey[];
   readOnly?: boolean;
   presetApiKeyUrl?: string;
   onOpenPresetApiKey?: () => void;
-  onApiKeyChange: (value: string) => void;
-  onApiKeyBlur: () => void;
-  onApiKeyKeyDown?: (event: ReactKeyboardEvent<HTMLInputElement>) => void;
-  onApiKeyCompositionStart?: () => void;
-  onApiKeyCompositionEnd?: () => void;
-  onToggleApiKeyVisibility: () => void;
+  onSaveApiKeys: (apiKeys: readonly ProviderApiKey[]) => Promise<void>;
+  onProbeApiKeys: (keyIds: readonly string[]) => Promise<readonly ProviderApiKeyProbeResult[]>;
 }) {
   const { intl } = useZCodeIntl();
+  const [managerOpen, setManagerOpen] = useState(false);
+  const enabledCount = apiKeys.filter((key) => key.enabled !== false).length;
 
   return (
     <div>
@@ -312,16 +318,30 @@ export function ProviderApiKeySection({
           <PresetProviderApiKeyBanner onOpenApiKey={onOpenPresetApiKey} />
         ) : null}
       </div>
-      <ApiKeyInput
-        value={apiKeyValue}
-        visible={apiKeyVisible}
-        readOnly={readOnly}
-        onChange={onApiKeyChange}
-        onBlur={onApiKeyBlur}
-        onKeyDown={onApiKeyKeyDown}
-        onCompositionStart={onApiKeyCompositionStart}
-        onCompositionEnd={onApiKeyCompositionEnd}
-        onToggleVisibility={onToggleApiKeyVisibility}
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full justify-between"
+        disabled={readOnly}
+        onClick={() => setManagerOpen(true)}
+      >
+        <span className="inline-flex items-center gap-2">
+          <KeyRoundIcon className="size-4" />
+          {intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.title" })}
+        </span>
+        <span className="text-ui-sm text-foreground-subtle">
+          {intl.formatMessage(
+            { id: "settings.modelProvider.apiKeyManager.summary" },
+            { enabled: enabledCount, total: apiKeys.length },
+          )}
+        </span>
+      </Button>
+      <ProviderApiKeyManagerDialog
+        open={managerOpen}
+        apiKeys={apiKeys}
+        onOpenChange={setManagerOpen}
+        onSave={onSaveApiKeys}
+        onProbe={onProbeApiKeys}
       />
     </div>
   );
@@ -343,6 +363,10 @@ function createEmptyModel(): ProviderSettingsFormModel {
   };
 }
 
+export interface ProviderModelMutationOptions {
+  readonly silentFeedback?: boolean;
+}
+
 export function ProviderModelsSection({
   providerId,
   providerName,
@@ -354,6 +378,7 @@ export function ProviderModelsSection({
   onModelEnabledChange,
   onDeleteModel,
   onAddModel,
+  onListRemoteModels,
   onReorderModelIds,
   settingsRevision = 0,
 }: {
@@ -368,19 +393,29 @@ export function ProviderModelsSection({
     model: ProviderSettingsFormModel,
     basedOnRevision: number,
   ) => void | Promise<void>;
-  onDeleteModel: (modelId: string) => void;
-  onModelEnabledChange?: (modelId: string, enabled: boolean) => void | Promise<void>;
-  onAddModel: (model: ProviderSettingsFormModel) => void | Promise<void>;
+  onDeleteModel: (modelId: string, options?: ProviderModelMutationOptions) => void | Promise<void>;
+  onModelEnabledChange?: (
+    modelId: string,
+    enabled: boolean,
+    options?: ProviderModelMutationOptions,
+  ) => void | Promise<void>;
+  onAddModel: (
+    model: ProviderSettingsFormModel,
+    options?: ProviderModelMutationOptions,
+  ) => void | Promise<void>;
+  onListRemoteModels?: () => Promise<readonly string[]>;
   onReorderModelIds?: (modelIds: string[]) => void;
   settingsRevision?: number;
 }) {
   const { intl } = useZCodeIntl();
   const { providerSettingsService } = useServices();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false);
   const [addSaving, setAddSaving] = useState(false);
   const addSavingRef = useRef(false);
   const [addCommitError, setAddCommitError] = useState<string | null>(null);
   const [addModel] = useState(createEmptyModel);
+  const configuredModelIdsRef = useRef(new Set(models.map((model) => model.modelId)));
   const [addDraftErrorField, setAddDraftErrorField] = useState<
     | "id"
     | "contextWindow"
@@ -401,6 +436,10 @@ export function ProviderModelsSection({
     resolve: resolveAddModelConfig,
   });
   const { draft: addDraft } = editor;
+
+  useEffect(() => {
+    configuredModelIdsRef.current = new Set(models.map((model) => model.modelId));
+  }, [models]);
 
   const openAddDialog = useCallback(() => {
     editor.reset(createEmptyModel());
@@ -464,24 +503,104 @@ export function ProviderModelsSection({
       })
     : null;
 
+  const addSyncedModel = useCallback(
+    async (id: string) => {
+      if (configuredModelIdsRef.current.has(id)) return;
+      await onAddModel(
+        {
+          ...createEmptyModel(),
+          modelId: id,
+          useRecommendedConfig: true,
+        },
+        { silentFeedback: true },
+      );
+      configuredModelIdsRef.current.add(id);
+    },
+    [onAddModel],
+  );
+
+  const removeSyncedModel = useCallback(
+    async (id: string) => {
+      await onDeleteModel(id, { silentFeedback: true });
+      configuredModelIdsRef.current.delete(id);
+    },
+    [onDeleteModel],
+  );
+
+  const probeSyncedModel = useCallback(
+    async (id: string, signal: AbortSignal): Promise<SyncModelProbeResult> => {
+      await addSyncedModel(id);
+      if (signal.aborted) return { id, success: false };
+      let result: ModelConnectivityResult;
+      try {
+        result = onTestModel
+          ? await onTestModel(id)
+          : { success: false, error: { message: "Connectivity test unavailable" } };
+      } catch (error) {
+        result = {
+          success: false,
+          error: { message: error instanceof Error ? error.message : String(error) },
+        };
+      }
+      if (!result.success && !signal.aborted) {
+        await onModelEnabledChange?.(id, false, { silentFeedback: true });
+      }
+      return {
+        id,
+        success: result.success,
+        ...(result.success ? {} : { message: result.error?.message }),
+      };
+    },
+    [addSyncedModel, onModelEnabledChange, onTestModel],
+  );
+
   return (
     <div>
       <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
         <span className="text-ui-base text-foreground-subtle">
           {intl.formatMessage({ id: "settings.modelProvider.models" })}
         </span>
-        <Button
-          type="button"
-          variant="secondary"
-          size="default"
-          className="rounded-lg"
-          data-testid={TID_MODEL_PROVIDER_ADD_MODEL_BUTTON}
-          onClick={openAddDialog}
-        >
-          <Plus data-icon="inline-start" aria-hidden="true" />
-          {intl.formatMessage({ id: "settings.modelProvider.addModel" })}
-        </Button>
+        <div className="flex items-center gap-2">
+          {onListRemoteModels ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="default"
+              data-testid={TID_MODEL_PROVIDER_SYNC_MODELS_BUTTON}
+              onClick={() => setSyncDialogOpen(true)}
+            >
+              <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
+              {intl.formatMessage({ id: "settings.modelProvider.syncModels" })}
+            </Button>
+          ) : null}
+          <Button
+            type="button"
+            variant="secondary"
+            size="default"
+            className="rounded-lg"
+            data-testid={TID_MODEL_PROVIDER_ADD_MODEL_BUTTON}
+            onClick={openAddDialog}
+          >
+            <Plus data-icon="inline-start" aria-hidden="true" />
+            {intl.formatMessage({ id: "settings.modelProvider.addModel" })}
+          </Button>
+        </div>
       </div>
+      {onListRemoteModels ? (
+        <SyncModelsDialog
+          open={syncDialogOpen}
+          configuredModels={models.map((model) => ({
+            id: model.modelId,
+            builtin: model.builtin,
+            enabled: model.config.enabled !== false,
+          }))}
+          onOpenChange={setSyncDialogOpen}
+          onLoadRemoteModels={onListRemoteModels}
+          onAddModel={addSyncedModel}
+          onRemoveModel={removeSyncedModel}
+          onProbeModel={probeSyncedModel}
+        />
+      ) : null}
       {models.length > 0 ? (
         <div className="overflow-hidden rounded-lg border border-input-border bg-input">
           <SortableProviderModelList
@@ -561,6 +680,7 @@ export function ProviderModelsSection({
           }}
           mode="add"
           open={addDialogOpen}
+          contentTestId={TID_MODEL_PROVIDER_ADD_MODEL_DIALOG}
           draft={addDraft}
           draftErrorMessage={addCommitError ?? addDraftErrorMessage}
           draftErrorField={addDraftErrorField}

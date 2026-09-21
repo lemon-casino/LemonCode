@@ -10,6 +10,7 @@ import {
   TID_SETTINGS_NATIVE_SEARCH_SWITCH,
 } from "@zcode/shared";
 import { useState, useCallback, useEffect } from "react";
+import { RefreshCw } from "lucide-react";
 import type { IPlatformService } from "@zcode/shared";
 import {
   TID_SETTINGS_LOCALE_SELECT_ITEM,
@@ -61,6 +62,8 @@ export function GeneralSectionContent({
   terminalFontFamily = "",
   integratedTerminalShell = { mode: "auto" },
   integratedTerminalShellOptions = [],
+  integratedTerminalShellLoading = false,
+  onRefreshIntegratedTerminalShells = async () => {},
   nativeSearchEnhancementsEnabled,
   httpProxy = "",
   httpProxyNoProxy = "",
@@ -123,6 +126,8 @@ export function GeneralSectionContent({
   terminalFontFamily: string;
   integratedTerminalShell?: IntegratedTerminalShellSelection;
   integratedTerminalShellOptions?: IntegratedTerminalShellOption[];
+  integratedTerminalShellLoading?: boolean;
+  onRefreshIntegratedTerminalShells?: () => Promise<void>;
   nativeSearchEnhancementsEnabled: boolean;
   httpProxy?: string;
   httpProxyNoProxy?: string;
@@ -397,31 +402,55 @@ export function GeneralSectionContent({
         />
         {showIntegratedTerminalShell ? (
           <SettingsRow
+            controlLayout="wide"
             label={intl.formatMessage({ id: "settings.integratedTerminalShell" })}
             description={intl.formatMessage({
               id: "settings.integratedTerminalShellDescription",
             })}
             control={
-              <Select
-                value={integratedTerminalShellValue}
-                onValueChange={(value) => {
-                  void handleIntegratedTerminalShellChange(value);
-                }}
-              >
-                <SelectTrigger size="lg" className="w-[260px] min-w-0 justify-between">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="auto">
-                    {intl.formatMessage({ id: "settings.integratedTerminalShell.auto" })}
-                  </SelectItem>
-                  {visibleIntegratedTerminalShellOptions.map((option) => (
-                    <SelectItem key={option.id} value={option.id}>
-                      {option.label}
+              <div className="flex w-full min-w-0 items-center gap-2">
+                <Select
+                  value={integratedTerminalShellValue}
+                  onValueChange={(value) => {
+                    void handleIntegratedTerminalShellChange(value);
+                  }}
+                >
+                  <SelectTrigger size="lg" className="min-w-0 flex-1 justify-between">
+                    <SelectValue>
+                      {selectedIntegratedTerminalShellOption?.label ??
+                        intl.formatMessage({ id: "settings.integratedTerminalShell.auto" })}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">
+                      {intl.formatMessage({ id: "settings.integratedTerminalShell.auto" })}
                     </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                    {visibleIntegratedTerminalShellOptions.map((option) => (
+                      <SelectItem key={option.id} value={option.id} textValue={option.label}>
+                        <span className="flex min-w-0 flex-col">
+                          <span>{option.label}</span>
+                          <span className="text-ui-xs font-mono text-foreground-subtle">
+                            {option.path}
+                          </span>
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  disabled={integratedTerminalShellLoading}
+                  aria-label={intl.formatMessage({
+                    id: "settings.integratedTerminalShell.refresh",
+                  })}
+                  title={intl.formatMessage({ id: "settings.integratedTerminalShell.refresh" })}
+                  onClick={() => void onRefreshIntegratedTerminalShells()}
+                >
+                  <RefreshCw className={integratedTerminalShellLoading ? "animate-spin" : ""} />
+                </Button>
+              </div>
             }
           />
         ) : null}

@@ -211,6 +211,17 @@ export function useModelProviders(target: {
     ],
   );
 
+  const listRemoteModels = useCallback(
+    (providerId: string) => providerSettingsService.listRemoteModels(providerId),
+    [providerSettingsService],
+  );
+
+  const probeApiKeys = useCallback(
+    (providerId: string, keyIds?: readonly string[]) =>
+      providerSettingsService.probeApiKeys(providerId, keyIds),
+    [providerSettingsService],
+  );
+
   return {
     modelProviders: effectiveModelProviders,
     providerTemplates: providerSettingsView?.providerTemplates ?? [],
@@ -232,6 +243,8 @@ export function useModelProviders(target: {
     reorderProviderModels,
     saveDisplayOrder,
     testModelConnectivity,
+    listRemoteModels,
+    probeApiKeys,
     providerSettingsView,
   };
 }

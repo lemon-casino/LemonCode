@@ -3121,14 +3121,19 @@ function sendProtocolSessionEvent(
 function integratedTerminalShellToExecutionSelection(
   selection: IntegratedTerminalShellSelection | undefined,
 ): ExecutionShellSelection | undefined {
-  if (!selection || selection.mode === "auto") {
+  // 终端允许 PowerShell/fish 等交互 Shell，但 Bash 工具只接受其支持的语法方言。
+  if (
+    !selection ||
+    selection.mode === "auto" ||
+    !["cmd", "git-bash", "posix"].includes(selection.dialect)
+  ) {
     return undefined;
   }
   return {
     display: {
-      name: selection.dialect === "git-bash" ? "Git Bash" : "CMD",
+      name: selection.label,
     },
-    dialect: selection.dialect,
+    dialect: selection.dialect as ExecutionShellSelection["dialect"],
     id: selection.id,
     label: selection.label,
     path: selection.path,
