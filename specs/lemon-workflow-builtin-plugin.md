@@ -26,6 +26,16 @@ ZCode 的源码构建、桌面安装包、CLI SEA 和远端 Agent 资源必须�
    调用重复提交，也不得退回 `EvalWorkflowSnippet`。
 8. Ponytail 与 Caveman 保持各自上游 MIT 许可和署名；项目对 `/lemon` 与
    `dynamic-workflows` 的本地编排修改单独维护。
+9. `/lemon` 是命令而非名为 `lemon` 的技能。命令只请求插件实际提供的
+   `lemon-workflow:dynamic-workflows`、`lemon-workflow:ponytail` 和
+   `lemon-workflow:caveman`；不得调用 `Skill(lemon)`。
+10. 对未指定 Git 范围的“审查当前改动”，workflow 先读取 `git.changedFiles()`：有
+    实质内容时审查工作区相对 `HEAD` 的改动，不以仅有 `git status` 标记的生成文件
+    代替差异；没有工作区差异且 `git.log(2)` 有父提交时，明确告知用户切换至
+    最近一次提交，以 `git.changedFiles("HEAD^")` 和 `git.diff("HEAD^", path)`
+    为审查证据。若两种范围均无内容，或历史不足以比较，则报告确切原因，不派发
+    审查代理、也不编造发现。用户明确指定未提交文件、某个提交或基准时，严格使用
+    指定范围，不自动回退；所有代理和最终报告使用同一个已宣布的比较基准。
 
 ## 状态所有者与边界
 
@@ -34,6 +44,8 @@ ZCode 的源码构建、桌面安装包、CLI SEA 和远端 Agent 资源必须�
 - `DynamicWorkflowRunService`、run journal 与现有 workflow tools 继续唯一持有 run 状态、恢复判定、
   owner/lease、问题等待和后台追踪。
 - `/lemon` 只提供模型执行约束，不持久化 run，不复制 journal，不建立第二条恢复路径。
+- Git 内容差异仍由现有 `git.*` workflow world reads 持有；命令仅选择审查基准，
+  workflow 不保存第二份 Git 状态，也不修改共享 Git 原语的缺省语义。
 
 ```mermaid
 sequenceDiagram
@@ -91,3 +103,8 @@ prod/lockfile 双图校验，通过逐 workspace 查询降低同时打开的文�
 6. superseded、errored 或不存在的 run 不被恢复，命令返回现有工具诊断。
 7. Desktop、SEA、remote staging 产物缺少任一必需资产时，构建立即失败。
 8. Ponytail 与 Caveman 的 MIT 许可证进入 `THIRD-PARTY-NOTICES.md` 和 inventory。
+9. 从插件命令展开的技能加载不会调用不存在的 `lemon` 技能；干净工作区的
+   “审查当前改动”审查最近一次真实提交，并公开 `HEAD^` 范围；工作区有内容时
+   不混入已提交的变更；显式要求未提交差异时不自动回退。
+10. 只有生成文件的状态标记、无内容差异和无父提交时，报告无法审查的具体范围，
+    不把空的 `git.changedFiles()` 当成“代码已审查、没有问题”。

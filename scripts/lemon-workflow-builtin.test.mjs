@@ -6,6 +6,8 @@ import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import YAML from "yaml";
+import { expandCliCustomCommandPrompt } from "../apps/zcode-cli/packages/cli/src/custom-command-expand.ts";
 import {
   collectSeaOfficialPluginAssets,
   seaOfficialPluginAssetPrefix,
@@ -63,6 +65,37 @@ test("lemon command starts or resumes without the broken snippet preflight", asy
   assert.doesNotMatch(command, /\u62a5\u544a\u4e3a `resumable`/u);
 });
 
+test("lemon loads qualified skills and selects a review scope with actual changes", async () => {
+  const source = await readRepoFile(
+    "apps/zcode-cli/packages/lemon-workflow-plugin/commands/lemon.md",
+  );
+  const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/u.exec(source);
+  assert.ok(frontmatter);
+  const metadata = YAML.parse(frontmatter[1]);
+  const skills = metadata.skills.split(",").map((name) => name.trim());
+  assert.deepEqual(skills, [
+    "lemon-workflow:dynamic-workflows",
+    "lemon-workflow:ponytail",
+    "lemon-workflow:caveman",
+  ]);
+  const { prompt } = expandCliCustomCommandPrompt({
+    args: "用动态工作流审查当前改动",
+    command: {
+      content: source.slice(frontmatter[0].length),
+      metadata: { name: "lemon", scope: "plugin", source: "lemon-workflow", skills },
+    },
+  });
+  assert.match(prompt, /Required skills: `lemon-workflow:dynamic-workflows`/u);
+  assert.doesNotMatch(prompt, /Required skills: `lemon`/u);
+  assert.match(prompt, /`lemon` 不是技能/u);
+  assert.match(prompt, /git\.changedFiles\(\)/u);
+  assert.match(prompt, /git\.log\(2\)/u);
+  assert.match(prompt, /git\.changedFiles\("HEAD\^"\)/u);
+  assert.match(prompt, /git\.diff\("HEAD\^", path\)/u);
+  assert.match(prompt, /明确指定.*不.*回退/u);
+  assert.match(prompt, /无.*差异.*不.*审查/u);
+});
+
 test("built desktop agent discovers /lemon and all three skills without user installation", async (t) => {
   const platform = `${process.platform}-${process.arch}`;
   const builtCli = join(repoRoot, "packages/desktop/bundled-agents", platform, "glm/zcode.cjs");
@@ -93,6 +126,12 @@ test("built desktop agent discovers /lemon and all three skills without user ins
     const command = await run("commands", "inspect", "lemon", "--json");
     assert.equal(command.command.metadata.source, "plugin");
     assert.match(command.command.metadata.path, /lemon-workflow/u);
+    assert.deepEqual(command.command.metadata.skills, [
+      "lemon-workflow:dynamic-workflows",
+      "lemon-workflow:ponytail",
+      "lemon-workflow:caveman",
+    ]);
+    assert.match(command.command.content, /git\.changedFiles\("HEAD\^"\)/u);
     const result = await run("skills", "list", "--json");
     for (const name of ["ponytail", "caveman", "dynamic-workflows"]) {
       assert.ok(
@@ -165,6 +204,10 @@ test("desktop dev bundle stages the plugin beside the agent", async () => {
         `desktop bundle omits ${relativePath}`,
       );
     }
+    assert.equal(
+      await readFile(join(stagedRoot, "commands/lemon.md"), "utf8"),
+      await readRepoFile("apps/zcode-cli/packages/lemon-workflow-plugin/commands/lemon.md"),
+    );
   } finally {
     await rm(tempRepoRoot, { recursive: true, force: true });
   }
