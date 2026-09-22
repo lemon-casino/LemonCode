@@ -20,7 +20,11 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { Switch } from "@/components/ui/switch.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { isImeComposingKeyEvent } from "@/lib/imeComposition.js";
-import { resolvePendingProviderDraftSave, type ProviderDraftValues } from "./ProviderDraftSave.js";
+import {
+  applyProviderApiKeysToDraft,
+  resolvePendingProviderDraftSave,
+  type ProviderDraftValues,
+} from "./ProviderDraftSave.js";
 import {
   ProviderApiKeySection,
   ProviderCardHeader,
@@ -606,17 +610,7 @@ export function InlineEditableProviderCard({
           now: Date.now,
         }) ?? provider;
       const primaryApiKey = apiKeys.find((key) => key.enabled !== false)?.apiKey ?? null;
-      await saveProviderWithCleanupGuard({
-        ...pending,
-        personalConfig: {
-          ...pending.personalConfig,
-          access: {
-            ...access,
-            apiKey: primaryApiKey,
-            apiKeys: [...apiKeys],
-          },
-        },
-      });
+      await saveProviderWithCleanupGuard(applyProviderApiKeysToDraft(pending, apiKeys));
       draftRef.current.apiKeyValue = primaryApiKey ?? "";
       dirtyProviderFieldsRef.current.delete("apiKeyValue");
     },

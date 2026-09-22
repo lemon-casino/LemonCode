@@ -1,4 +1,4 @@
-import { isApiKeyAccess, type ProviderApiType } from "@zcode/provider";
+import { isApiKeyAccess, type ProviderApiKey, type ProviderApiType } from "@zcode/provider";
 import {
   getProviderFormLabel,
   type ProviderSettingsFormProvider,
@@ -9,6 +9,37 @@ export interface ProviderDraftValues {
   apiFormat: ProviderApiType;
   baseUrlValue: string;
   apiKeyValue: string;
+}
+
+export function applyProviderApiKeysToDraft(
+  provider: ProviderSettingsFormProvider,
+  apiKeys: readonly ProviderApiKey[],
+): ProviderSettingsFormProvider {
+  const effectiveAccess = provider.config.access;
+  if (!isApiKeyAccess(effectiveAccess)) throw new Error("当前供应商不使用 API Key");
+  const personalAccess = isApiKeyAccess(provider.personalConfig.access)
+    ? provider.personalConfig.access
+    : { type: effectiveAccess.type };
+  const primaryApiKey = apiKeys.find((key) => key.enabled !== false)?.apiKey ?? null;
+  const nextApiKeys = [...apiKeys];
+
+  return {
+    ...provider,
+    config: {
+      ...provider.config,
+      access: { ...effectiveAccess, apiKey: primaryApiKey, apiKeys: nextApiKeys },
+    },
+    personalConfig: {
+      ...provider.personalConfig,
+      // 修复：Key 管理只修改个人 Access 的 Key 字段，不能把继承字段整对象物化进个人层。
+      access: {
+        ...personalAccess,
+        type: effectiveAccess.type,
+        apiKey: primaryApiKey,
+        apiKeys: nextApiKeys,
+      },
+    },
+  };
 }
 
 function normalizeConfiguredBaseUrl(value: string): string {
@@ -78,9 +109,15 @@ export function resolvePendingProviderDraftSave({
     ...(keyChanged && isApiKeyAccess(provider.config.access)
       ? {
           access: {
-            ...provider.personalConfig.access,
+            ...(isApiKeyAccess(provider.personalConfig.access)
+              ? provider.personalConfig.access
+              : {}),
             type: provider.config.access.type,
             apiKey: draft.apiKeyValue,
+            // 修复：旧版主 Key 草稿与多 Key 列表属于同一事实，局部保存不能丢掉列表。
+            ...(provider.config.access.apiKeys == null
+              ? {}
+              : { apiKeys: [...provider.config.access.apiKeys] }),
           },
         }
       : {}),
