@@ -39,6 +39,7 @@
 //      接线错误，不该让 contracts 的拒绝枚举为它变宽（同不变式 1 的论证）。
 
 import type { DwfRunSessionListItem } from "@zcode/adapters/storage";
+import { verifyWorkflowImageRefs } from "./workflow-image-refs.js";
 import type {
   TraceContext,
   DynamicWorkflowRunEvent,
@@ -59,6 +60,10 @@ import type {
   DynamicWorkflowRunAmendRequest,
   DynamicWorkflowRunAmendResult,
   DynamicWorkflowRunCancelInitiator,
+  DynamicWorkflowAskControlRequest,
+  DynamicWorkflowAskControlResult,
+  DynamicWorkflowAskRevisionRequest,
+  DynamicWorkflowAskRevisionResult,
   DynamicWorkflowRunSubmitRequest,
   DynamicWorkflowRunSubmitResult,
   ExecutionPort,
@@ -82,6 +87,7 @@ import type {
 } from "@zcode/dynamic-workflow";
 import { toProtocolEvent } from "./dynamic-workflow-run-launch.js";
 import { readWorkflowArtifactBytes } from "./dynamic-workflow-run-artifact-read.js";
+import { reviseDynamicWorkflowAsk, workflowRevisionRunId } from "./dynamic-workflow-run-revision.js";
 import { replayRunProgress } from "./dynamic-workflow-run-replay.js";
 import { listArtifactItemsFrom } from "./dynamic-workflow-run-artifact-queries.js";
 import {
@@ -172,6 +178,10 @@ export interface DynamicWorkflowActorRuntimeInput {
    * 表态，pin 只守没有它时的隐式缺省。只管子代理、不动主代理。缺席即跑在 pin 或会话模型上。
    */
   runSubagentModel?: ModelSelection;
+  /** Script-authored model for this actor. */
+  scriptActorModel?: ModelSelection;
+  /** User-approved override matched to this concrete actor. */
+  approvedActorModel?: ModelSelection;
   /**
    * 该 actor runtime 的模型请求准入端口：
    * driver 在治理器端口在场时给出；工厂原样放进 runtime deps。缺席即不受闸门约束。
@@ -212,6 +222,8 @@ export interface DynamicWorkflowRunServiceDeps {
   artifactStore?: ToolArtifactStorePort;
   /** 造一个 actor 的 child AgentRuntime（生产包装 createScriptWorkflowAgentRuntime）。 */
   createActorRuntime: (input: DynamicWorkflowActorRuntimeInput) => AgentRuntime;
+  /** Launch-time parent selection snapshot; read exactly once for each new run. */
+  getSessionModelSelection?: () => ModelSelection | undefined;
   /** actor 会话的 task link 落库面；缺席则跳过建 link（会话本身仍落库）。 */
   taskLinkStore?: DynamicWorkflowTaskLinkStore;
   /**
@@ -304,6 +316,7 @@ export function createDynamicWorkflowRunService(
   deps: DynamicWorkflowRunServiceDeps,
 ): DynamicWorkflowRunService {
   const runs = new Map<string, RunRegistryEntry>();
+  const revisionAdmissions = new Map<string, Promise<DynamicWorkflowAskRevisionResult>>();
   /**
    * 升级问答的停驻表。**一张，跨本服务名下所有在飞 run**：
    * qid 全局唯一正是为此——`resolveQuestion` 只收一个不透明 token，多 run 并发时让模型自己配对
@@ -530,6 +543,42 @@ export function createDynamicWorkflowRunService(
       // 不再只活在后台任务注册表里。
       entry.controller.abort(initiator);
       return true;
+    },
+
+    async controlAsk(request: DynamicWorkflowAskControlRequest): Promise<DynamicWorkflowAskControlResult> {
+      const entry = runs.get(request.runId);
+      if (entry === undefined || (entry.parentSessionId !== undefined &&
+          entry.parentSessionId !== deps.parentSessionId)) return { ok: false, reason: "not_found" };
+      if (entry.terminal !== undefined || entry.controller.signal.aborted)
+        return { ok: false, reason: "not_running" };
+      if (entry.control === undefined) return { ok: false, reason: "not_ready" };
+      const instance = { siteId: request.siteId, ordinal: request.ordinal, attempt: request.attempt };
+      if (request.action === "stop") {
+        return entry.control.pauseAsk(instance)
+          ? { ok: true }
+          : { ok: false, reason: "not_active" };
+      }
+      if (!(await verifyWorkflowImageRefs(request.attachments, deps.artifactStore)))
+        return { ok: false, reason: "not_ready" };
+      // live 重跑先暂停旧尝试；已经暂停的尝试直接重试，两个动作在同一同步片完成。
+      entry.control.pauseAsk(instance);
+      return entry.control.retryAsk(instance, request.supplement, request.attachments)
+        ? { ok: true }
+        : { ok: false, reason: "not_active" };
+    },
+
+    async reviseAsk(request: DynamicWorkflowAskRevisionRequest): Promise<DynamicWorkflowAskRevisionResult> {
+      assertOpen();
+      const runId = workflowRevisionRunId(request);
+      const pending = revisionAdmissions.get(runId);
+      if (pending !== undefined) return pending;
+      const admission = reviseDynamicWorkflowAsk(entryContext, request);
+      revisionAdmissions.set(runId, admission);
+      try {
+        return await admission;
+      } finally {
+        revisionAdmissions.delete(runId);
+      }
     },
 
     async listEvents(

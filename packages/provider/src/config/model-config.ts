@@ -3,6 +3,7 @@ import { ConfigOverlay, type ConfigValidationIssue } from "../config-overlay.js"
 import type { z } from "zod";
 import {
   completeEnumOptionSpecDataSchema,
+  completeSpeedOptionSpecDataSchema,
   completeLimitOptionSpecDataSchema,
   completeModelInputFormatDataSchema,
   completeModelOutputFormatDataSchema,
@@ -10,6 +11,7 @@ import {
   completeModelOptionSpecsDataSchema,
   completeModelConfigDataSchema,
   type enumOptionSpecDataSchema,
+  type speedOptionSpecDataSchema,
   type limitOptionSpecDataSchema,
   type modelInputFormatDataSchema,
   type modelOutputFormatDataSchema,
@@ -39,6 +41,8 @@ export type EnumOptionSpec = Readonly<z.infer<typeof completeEnumOptionSpecDataS
 export type LimitOptionSpec = Readonly<z.infer<typeof completeLimitOptionSpecDataSchema>>;
 
 export type EnumOptionSpecConfigInput = Readonly<z.infer<typeof enumOptionSpecDataSchema>>;
+
+export type SpeedOptionSpecConfigInput = Readonly<z.infer<typeof speedOptionSpecDataSchema>>;
 
 export class EnumOptionSpecConfig extends ConfigOverlay<EnumOptionSpecConfig> {
   readonly values?: EnumOptionSpecConfigInput["values"];
@@ -72,6 +76,38 @@ export class EnumOptionSpecConfig extends ConfigOverlay<EnumOptionSpecConfig> {
       values: this.values,
       map: this.map,
     });
+  }
+}
+
+export class SpeedOptionSpecConfig extends ConfigOverlay<SpeedOptionSpecConfig> {
+  readonly values?: SpeedOptionSpecConfigInput["values"];
+  readonly map?: SpeedOptionSpecConfigInput["map"];
+
+  constructor(input: SpeedOptionSpecConfigInput = {}) {
+    super();
+    this.values =
+      input.values === undefined
+        ? undefined
+        : input.values === null
+          ? null
+          : Object.freeze([...input.values]);
+    this.map = input.map;
+    Object.freeze(this);
+  }
+
+  overlay(next: SpeedOptionSpecConfig): SpeedOptionSpecConfig {
+    return new SpeedOptionSpecConfig({
+      values: this.overlayValue(this.values, next.values),
+      map: this.overlayValue(this.map, next.map),
+    });
+  }
+
+  validateComplete(path: readonly string[] = []): readonly ConfigValidationIssue[] {
+    return validateConfigSchema(completeSpeedOptionSpecDataSchema, this.toJSON(), path, true);
+  }
+
+  toJSON(): SpeedOptionSpecConfigInput {
+    return objectWithoutUndefined({ values: this.values, map: this.map });
   }
 }
 
@@ -248,11 +284,13 @@ export type ModelOptionSpecsConfigInput = Readonly<z.infer<typeof modelOptionSpe
 export class ModelOptionSpecsConfig extends ConfigOverlay<ModelOptionSpecsConfig> {
   readonly reasoningLevel?: EnumOptionSpecConfig | null;
   readonly maxOutputTokens?: LimitOptionSpecConfig | null;
+  readonly speed?: SpeedOptionSpecConfig | null;
 
   constructor(input: ModelOptionSpecsConfigInput = {}) {
     super();
     this.reasoningLevel = toEnumOptionSpecConfig(input.reasoningLevel);
     this.maxOutputTokens = toLimitOptionSpecConfig(input.maxOutputTokens);
+    this.speed = toSpeedOptionSpecConfig(input.speed);
     Object.freeze(this);
   }
 
@@ -260,6 +298,7 @@ export class ModelOptionSpecsConfig extends ConfigOverlay<ModelOptionSpecsConfig
     return new ModelOptionSpecsConfig({
       reasoningLevel: this.overlayConfig(this.reasoningLevel, next.reasoningLevel),
       maxOutputTokens: this.overlayConfig(this.maxOutputTokens, next.maxOutputTokens),
+      speed: this.overlayConfig(this.speed, next.speed),
     });
   }
 
@@ -271,6 +310,7 @@ export class ModelOptionSpecsConfig extends ConfigOverlay<ModelOptionSpecsConfig
     return objectWithoutUndefined({
       reasoningLevel: this.reasoningLevel?.toJSON() ?? this.reasoningLevel,
       maxOutputTokens: this.maxOutputTokens?.toJSON() ?? this.maxOutputTokens,
+      speed: this.speed?.toJSON() ?? this.speed,
     });
   }
 }
@@ -564,6 +604,14 @@ function toEnumOptionSpecConfig(
   return spec instanceof EnumOptionSpecConfig || spec == null
     ? spec
     : new EnumOptionSpecConfig(spec);
+}
+
+function toSpeedOptionSpecConfig(
+  spec: SpeedOptionSpecConfig | SpeedOptionSpecConfigInput | null | undefined,
+): SpeedOptionSpecConfig | null | undefined {
+  return spec instanceof SpeedOptionSpecConfig || spec == null
+    ? spec
+    : new SpeedOptionSpecConfig(spec);
 }
 
 function toLimitOptionSpecConfig(

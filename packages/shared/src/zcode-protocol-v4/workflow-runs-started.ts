@@ -7,6 +7,7 @@
 // `run-started` 既要清掉上一世的结算残影，又不能把进程里已经学到的共享 cap 抹回天花板。
 
 import { reduceRunStartedConcurrency } from "./workflow-runs-concurrency.js";
+import { modelSelectionSchema } from "../model-selection.js";
 import { readRunIdField } from "./workflow-runs-lineage.js";
 import { WORKFLOW_RUNS_LIMITS, type WorkflowRunState } from "./workflow-runs.js";
 
@@ -58,11 +59,19 @@ export function reduceRunStarted(
   // 这条事件到达。读不出就退回已知值——老 CLI 不发这个键，而把已经显示出来的模型抹掉是退化里
   // 最坏的一种：run 看上去换了模型，其实只是少了一个字段。缺席即整个键不在（不是 undefined）。
   const subagentModel = readSubagentModel(payload.subagentModel) ?? rebased.subagentModel;
+  const parsedSelection = modelSelectionSchema.safeParse(payload.subagentSelection);
+  const subagentSelection = parsedSelection.success
+    ? parsedSelection.data
+    : rebased.subagentSelection;
+  const parsedSession = modelSelectionSchema.safeParse(payload.sessionSelection);
+  const sessionSelection = parsedSession.success ? parsedSession.data : rebased.sessionSelection;
   return reduceRunStartedConcurrency(
     {
       ...rebased,
       ...(resumedFrom === undefined ? {} : { resumedFrom }),
       ...(subagentModel === undefined ? {} : { subagentModel }),
+      ...(subagentSelection === undefined ? {} : { subagentSelection }),
+      ...(sessionSelection === undefined ? {} : { sessionSelection }),
       status: "running",
       usage: { spentTokens: 0, nodesUsed: 0 },
     },

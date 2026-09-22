@@ -156,6 +156,7 @@ function createRuntimeToolExecutor(
     agentTelemetryActorKind: runtime.agentTelemetry.actorKind,
     registry: runtime.registry,
     permissionService: runtime.permissionService,
+    toolOperationAdmission: deps.toolOperationAdmission,
     permissionBroker: runtime.permissionBroker,
     emitEvent: async (event) => {
       await runtime.appendEvent(event, getCurrentTraceContext() ?? runtime.rootTraceContext);

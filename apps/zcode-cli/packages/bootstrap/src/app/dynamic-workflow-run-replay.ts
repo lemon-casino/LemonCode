@@ -74,6 +74,13 @@ export function replayRunProgressFromEvents(
     launched?.type === "run-launched" && launched.subagentModel !== undefined
       ? { subagentModel: launched.subagentModel }
       : {};
+  const subagentSelection =
+    launched?.type === "run-launched" && launched.subagentSelection !== undefined
+      ? { subagentSelection: launched.subagentSelection }
+      : {};
+  const sessionSelection =
+    launched?.type === "run-launched" && launched.sessionSelection !== undefined
+      ? { sessionSelection: launched.sessionSelection } : {};
   const terminal = TERMINAL_RUN_STATUSES.has(row.status);
   const last = stored.at(-1);
   // 只替换**尾部**的结算：resume 过的 run 中途还躺着上一世的 `run-settled`，那是真实历史，
@@ -89,6 +96,8 @@ export function replayRunProgressFromEvents(
       ...launchInputId,
       ...resumedFrom,
       ...subagentModel,
+      ...subagentSelection,
+      ...sessionSelection,
       concurrencyCeiling,
     }),
   );
@@ -113,6 +122,8 @@ export function replayRunProgressFromEvents(
       ...launchInputId,
       ...resumedFrom,
       ...subagentModel,
+      ...subagentSelection,
+      ...sessionSelection,
       concurrencyCeiling,
     }),
   );

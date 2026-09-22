@@ -5,6 +5,7 @@
 import { z } from "zod";
 import { toToolJsonSchema } from "./json-schema.js";
 import { SAVED_WORKFLOW_MAX_NAME_CHARS, SavedWorkflowScopeSchema } from "./saved-workflow.js";
+import { WorkflowActorModelOverridesSchema } from "./workflow-actor-model-config.js";
 
 export const CREATE_WORKFLOW_TOOL_NAME = "CreateWorkflow";
 
@@ -161,6 +162,8 @@ export const CreateWorkflowInputSchema = CreateWorkflowModelInputSchema.extend({
    * 加它，好让行号能直接粘进一次对该文件的 `Edit`。
    */
   script_line_offset: z.number().int().nonnegative().optional(),
+  /** Approval UI overrides; never authored by the model. */
+  actor_model_overrides: WorkflowActorModelOverridesSchema.optional(),
 }).strict();
 
 export type CreateWorkflowInput = z.infer<typeof CreateWorkflowInputSchema>;

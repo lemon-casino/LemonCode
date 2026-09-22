@@ -281,7 +281,8 @@ function sameSparseModelSelection(
   return (
     left.providerId === right.providerId &&
     left.modelId === right.modelId &&
-    left.options?.reasoningLevel === right.options?.reasoningLevel
+    left.options?.reasoningLevel === right.options?.reasoningLevel &&
+    left.options?.speed === right.options?.speed
   );
 }
 
@@ -642,6 +643,8 @@ export class ProductProjection {
   seedUsage(seed: SessionUsageSeed): void {
     const current = this.snapshot.usage;
     const currentContextWindow = current.contextWindow;
+    // 子会话 ModelComplete 也可实时入账；迟到的冷种子不能覆盖已确认的 live 累计。
+    if (current.cumulative.inputTokens > 0 || current.cumulative.outputTokens > 0) return;
     if (currentContextWindow) {
       this.contextWindowState.usedTokens = currentContextWindow.usedTokens;
     }
@@ -651,6 +654,12 @@ export class ProductProjection {
     }
     const seededContextWindow = seed.contextWindow;
     if (!Number.isFinite(seededContextWindow.usedTokens) || seededContextWindow.usedTokens <= 0) {
+      if (seed.cumulative) {
+        this.snapshot = {
+          ...this.snapshot,
+          usage: { ...current, cumulative: { ...current.cumulative, ...seed.cumulative } },
+        };
+      }
       return;
     }
     const cumulative = {
@@ -4501,10 +4510,15 @@ export class ProductProjection {
         });
       }
     }
-    if (!isMainTurn) return [...deltas, ...retryClearDeltas];
+    // Bug 原因：子运行时使用 subagent/workflow_child 而非 main_turn，旧门禁将其
+    // 所有完成用量丢弃。只给本会话事件记账，不把内部调用的窗口水位写回父会话。
+    const isChildTurn =
+      (payload.querySource === "subagent" || payload.querySource === "workflow_child") &&
+      String(event.sessionId) === this.snapshot.sessionId;
+    if (!isMainTurn && !isChildTurn) return [...deltas, ...retryClearDeltas];
     const usage = payload.usage as ModelUsage;
-    const usedTokens = getModelUsageContextTokens(usage) ?? 0;
-    this.contextWindowState.usedTokens = usedTokens;
+    const usedTokens = isMainTurn ? (getModelUsageContextTokens(usage) ?? 0) : 0;
+    if (isMainTurn) this.contextWindowState.usedTokens = usedTokens;
     const maxTokens = payload.contextWindow ?? this.contextWindowState.maxTokens;
     const cumulative = this.snapshot.usage.cumulative;
     deltas.push({
@@ -4513,8 +4527,9 @@ export class ProductProjection {
         usage: {
           // Bug 原因：registry 已显式清除窗口时，缺少 contextWindow 的 ModelComplete
           // 过去会用 0 重建对象，破坏未知容量语义。token 继续在侧状态和累计值中更新。
-          contextWindow:
-            maxTokens === null
+          contextWindow: !isMainTurn
+            ? this.snapshot.usage.contextWindow
+            : maxTokens === null
               ? null
               : {
                   usedTokens,

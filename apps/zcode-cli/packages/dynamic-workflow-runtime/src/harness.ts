@@ -77,6 +77,8 @@ export interface RunWorkflowOptions {
   runId?: string;
   /** driver 工厂（见 {@link DriverFactory}）。driver 自带 journal 与 emit。 */
   makeDriver: DriverFactory;
+  /** 引擎建成后、沙箱启动前，交出只作用于当前 run 的任务控制面。 */
+  onControlReady?: (control: Pick<WorkflowEngine, "pauseAsk" | "retryAsk">) => void;
   caps: Caps;
   /** 每 ask 站点的静态规格。**必须覆盖脚本里的每个 ask 站点**——引擎把缺席当接线错误硬失败。 */
   askSpecs: ReadonlyMap<string, AskSpec>;
@@ -212,6 +214,7 @@ export async function runWorkflowScript(options: RunWorkflowOptions): Promise<Ru
     ...(options.inheritedTokens === undefined ? {} : { inheritedTokens: options.inheritedTokens }),
     cwd: options.cwd ?? process.cwd(),
   });
+  options.onControlReady?.(engine);
 
   const maxOldSpaceSizeMb = options.maxOldSpaceSizeMb ?? DEFAULT_MAX_OLD_SPACE_MB;
   const cwd = options.cwd ?? process.cwd();
@@ -443,7 +446,7 @@ function handleChildMessage(message: ChildMessage, deps: MessageDeps): void {
         const actorId = engine.createActor(
           message.siteId,
           message.name,
-          message.persona as string | undefined,
+          message.persona as Parameters<WorkflowEngine["createActor"]>[2],
         );
         actorMap.set(message.localId, actorId);
       } catch (cause) {

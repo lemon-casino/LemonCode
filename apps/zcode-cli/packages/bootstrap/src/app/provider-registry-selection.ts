@@ -1,5 +1,6 @@
 import { ModelErrorCode, ModelProtocolError } from "@zcode/contracts";
 import {
+  completeNewModelSelection,
   normalizeModelSelection,
   type ModelSelection,
   type Provider,
@@ -47,12 +48,14 @@ export function completeAuxiliaryRegistryModelSelection(
   const model = registry.getModel(selection.providerId, selection.modelId);
   const reasoningLevel = model?.config.optionSpecs.reasoningLevel.values[0];
   if (!reasoningLevel) return selection;
+  const speed = model.config.optionSpecs.speed?.values[0];
   return {
     providerId: selection.providerId,
     modelId: selection.modelId,
     options: {
       ...selection.options,
       reasoningLevel,
+      ...(speed ? { speed } : {}),
     },
   };
 }
@@ -61,14 +64,15 @@ export function resolveRegistryOwnedSelection(
   registry: ProviderRegistryModelSource,
   requested: string,
   configuredDefault?: ModelSelection,
-  options?: { allowMissingReasoning?: boolean },
 ): ResolvedRegistrySelection | undefined {
   const parsed = parseRequestedModelSelection(requested, configuredDefault);
-  const selection =
-    parsed && requested.trim() !== "main"
-      ? normalizeModelSelection(registry.getView(), parsed)
-      : parsed;
-  return selection ? resolveRegistryOwnedModelSelection(registry, selection, options) : undefined;
+  if (!parsed) return undefined;
+  // 字符串选模型是主动切换，旧协议没有速度字段；只在此入口补目标模型默认值。
+  const normalized = normalizeModelSelection(registry.getView(), parsed);
+  const selection = normalized?.options
+    ? normalized
+    : completeNewModelSelection(registry.getView(), parsed);
+  return selection ? resolveRegistryOwnedModelSelection(registry, selection) : undefined;
 }
 
 function parseRequestedModelSelection(
@@ -139,6 +143,16 @@ export function createRegistrySelectionProtocolError(
       return new ModelProtocolError(
         ModelErrorCode.InvalidModelRequest,
         `Reasoning effort "${validation.reasoningLevel}" is not supported by ${validation.providerId}/${validation.modelId}`,
+      );
+    case "speed-missing":
+      return new ModelProtocolError(
+        ModelErrorCode.InvalidModelRequest,
+        `Model speed is required for ${validation.providerId}/${validation.modelId}`,
+      );
+    case "speed-not-supported":
+      return new ModelProtocolError(
+        ModelErrorCode.InvalidModelRequest,
+        `Model speed "${validation.speed}" is not supported by ${validation.providerId}/${validation.modelId}`,
       );
   }
 }

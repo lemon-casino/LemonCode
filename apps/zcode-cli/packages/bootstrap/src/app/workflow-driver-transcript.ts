@@ -16,6 +16,7 @@ import {
   type InstanceRef,
 } from "@zcode/dynamic-workflow";
 import { countActorTranscript, seedActorTranscript } from "./workflow-actor-transcript.js";
+import { sameAskAttempt } from "./workflow-driver-helpers.js";
 import type { AgentRuntimeWorkflowDriverDeps, SessionState } from "./workflow-driver-types.js";
 
 /**
@@ -103,7 +104,7 @@ export function journalAskMessageBoundary(
   boundary: number,
 ): void {
   const key = refToString(instance);
-  if (state.currentInstance !== undefined && refToString(state.currentInstance) !== key) return;
+  if (!sameAskAttempt(state.currentInstance, instance)) return;
   const runId = deps.runId ?? "run";
   try {
     const recorded = deps.journal.getNode(runId, instance.siteId, instance.ordinal);

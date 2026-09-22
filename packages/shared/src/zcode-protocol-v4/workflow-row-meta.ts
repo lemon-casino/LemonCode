@@ -6,6 +6,7 @@
 // 对外名字不变：rows.ts 原样再导出，@zcode/shared 桶与相对导入两条路都照旧。
 
 import { z } from "zod";
+import { modelSelectionSchema } from "../model-selection.js";
 import { toolCallCreateWorkflowDisplaySchema } from "./create-workflow-display.js";
 import { WORKFLOW_RUNS_LIMITS } from "./workflow-runs.js";
 
@@ -109,6 +110,12 @@ export const workflowSettingsAmendMetaSchema = z.object({
     .object({
       from: workflowSubagentModelTextSchema.optional(),
       to: workflowSubagentModelTextSchema.optional(),
+    })
+    .optional(),
+  subagentSelection: z
+    .object({
+      from: modelSelectionSchema.optional(),
+      to: modelSelectionSchema.optional(),
     })
     .optional(),
   maxConcurrency: z

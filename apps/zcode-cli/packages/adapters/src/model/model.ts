@@ -6,6 +6,7 @@ import {
   type ModelEvent,
   type ModelOptionSpecs,
   type ModelOptions,
+  type ResolvedModelOptions,
   type ModelProperties,
   type ModelPropertiesInput,
   type ModelId,
@@ -15,7 +16,7 @@ import {
 } from "@zcode/contracts";
 
 export interface ModelExecutionRequest extends Omit<ModelRequest, "options"> {
-  options: Required<ModelOptions>;
+  options: ResolvedModelOptions;
 }
 
 export interface ModelExecutor {
@@ -100,10 +101,18 @@ function freezeOptionSpecs(specs: ModelOptionSpecs): ModelOptionSpecs {
       ...specs.reasoningLevel,
       values: Object.freeze([...specs.reasoningLevel.values]),
     }),
+    ...(specs.speed
+      ? {
+          speed: Object.freeze({
+            ...specs.speed,
+            values: Object.freeze([...specs.speed.values]),
+          }),
+        }
+      : {}),
   });
 }
 
-function validateOptions(specs: ModelOptionSpecs, options: ModelOptions): Required<ModelOptions> {
+function validateOptions(specs: ModelOptionSpecs, options: ModelOptions): ResolvedModelOptions {
   const maxOutputTokens = options.maxOutputTokens;
   if (
     maxOutputTokens === undefined ||
@@ -126,7 +135,19 @@ function validateOptions(specs: ModelOptionSpecs, options: ModelOptions): Requir
     });
   }
 
-  return { maxOutputTokens, reasoningLevel };
+  const speed = options.speed;
+  if (specs.speed) {
+    if (speed === undefined || !specs.speed.values.includes(speed)) {
+      throw invalidRequest("speed is not supported by the model", {
+        speed,
+        values: specs.speed.values,
+      });
+    }
+  } else if (speed !== undefined) {
+    throw invalidRequest("speed is not supported by the model", { speed, values: [] });
+  }
+
+  return { maxOutputTokens, reasoningLevel, ...(speed === undefined ? {} : { speed }) };
 }
 
 function validatePartialOptions(specs: ModelOptionSpecs, options: ModelOptions): ModelOptions {
@@ -147,6 +168,16 @@ function validatePartialOptions(specs: ModelOptionSpecs, options: ModelOptions):
     throw invalidRequest("reasoningLevel is not supported by the model", {
       reasoningLevel,
       values: specs.reasoningLevel.values,
+    });
+  }
+  const speed = options.speed;
+  if (
+    speed !== undefined &&
+    (!specs.speed || !specs.speed.values.includes(speed))
+  ) {
+    throw invalidRequest("speed is not supported by the model", {
+      speed,
+      values: specs.speed?.values ?? [],
     });
   }
   return { ...options };

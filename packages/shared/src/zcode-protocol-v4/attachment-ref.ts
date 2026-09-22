@@ -11,4 +11,16 @@ export const attachmentRefSchema = z
   })
   .strict();
 
+export const workflowImageAttachmentRefSchema = attachmentRefSchema.refine(
+  (ref) =>
+    ref.mime.toLowerCase().startsWith("image/") &&
+    ref.mime.length <= 128 &&
+    ref.fileName.length > 0 &&
+    ref.fileName.length <= 255 &&
+    ref.ref.length > 0 &&
+    ref.ref.length <= 4096 &&
+    Number.isSafeInteger(ref.bytes) &&
+    ref.bytes >= 0,
+);
+
 export type AttachmentRef = z.infer<typeof attachmentRefSchema>;

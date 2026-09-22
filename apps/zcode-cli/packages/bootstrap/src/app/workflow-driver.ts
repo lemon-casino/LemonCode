@@ -59,6 +59,7 @@ import {
   type ArtifactPublishRequest,
   type ArtifactVersionRecord,
   type AskMessage,
+  type WorkflowImageRef,
   type InstanceRef,
   type JournalStorePort,
   type PersonaSpec,
@@ -73,6 +74,7 @@ import { executeArtifactPublish } from "./workflow-artifact-publish.js";
 import { qualityEpilogue } from "./workflow-ask-epilogue.js";
 import { ensureSubmitProfileFits } from "./workflow-driver-submit-profile.js";
 import { executeWorldRead } from "./workflow-world-read.js";
+import { verifyWorkflowImageRefs, workflowImageTurnAttachments } from "./workflow-image-refs.js";
 import {
   createActorModelActivity,
   createRunStallClock,
@@ -95,6 +97,7 @@ import {
   mintActorSessionId,
   rejectWith,
   reportTurnObservations,
+  sameAskAttempt,
   schemaEpilogue,
   toWorkflowError,
 } from "./workflow-driver-helpers.js";
@@ -316,12 +319,12 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
     // 尾注边界：GUI 据此把尾注折进披露。指令正文
     // 之后全是引擎文本，边界就是正文长度；模型收到的仍是全文，持久 text part 也是。
     // fire-and-forget：绝不在 startAsk 内 await turn 完成（Boundary B 契约）。
-    this.runTurn(state, instance, input, message.instructions.length);
+    this.runTurn(state, instance, input, message.instructions.length, message.attachments);
   }
 
   respondToSubmit(instance: InstanceRef, verdict: EngineSubmitVerdict): void {
     const state = this.instanceToSession.get(refToString(instance));
-    if (state === undefined) return;
+    if (state === undefined || !sameAskAttempt(state.currentInstance, instance) || state.cancelled) return;
     switch (verdict.kind) {
       case "accept": {
         // 标记 accept：该 ask 的 turn resolve 时不再上报 askTurnEnded（引擎已 settleOk）。
@@ -349,7 +352,7 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
 
   cancelAsk(instance: InstanceRef): void {
     const state = this.instanceToSession.get(refToString(instance));
-    if (state === undefined) return;
+    if (state === undefined || !sameAskAttempt(state.currentInstance, instance) || state.cancelled) return;
     // 引擎主动取消（repair/nudge 预算耗尽、run 取消/失败）：中止在飞 turn，并解开可能挂起的 submit
     // deferred，避免 handler 永久阻塞；标记 cancelled 使 turn reject 不再上报 askFailed。
     state.cancelled = true;
@@ -451,21 +454,34 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
     instance: InstanceRef,
     input: string,
     epilogueStart: number,
+    attachments?: WorkflowImageRef[],
   ): void {
     const abortSignal = state.abortController?.signal;
-    state.turnGeneration++;
-    state.turn = state.runtime
-      .executeTurn(input, undefined, {
+    const previous = state.turn;
+    const execute = (): Promise<void> => {
+      if (this.disposed || !sameAskAttempt(state.currentInstance, instance) || state.cancelled)
+        return Promise.resolve();
+      state.turnGeneration++;
+      const start = () => state.runtime.executeTurn(input, workflowImageTurnAttachments(attachments), {
         ...(abortSignal ? { abortSignal } : {}),
         epilogueStart,
-      })
-      .then(
+      });
+      return Promise.resolve().then(() => attachments?.length
+        ? verifyWorkflowImageRefs(attachments, this.deps.artifactStore).then((valid) => {
+            if (!valid) throw new Error("Workflow image reference is unavailable");
+            return start();
+          })
+        : start()).then(
         (result) => this.onTurnResolved(state, instance, result),
         (error) => this.onTurnRejected(state, instance, error),
       );
+    };
+    // 旧 turn 的工具与转录收尾必须退出，同一持久 runtime 才能接新尝试。
+    state.turn = previous === undefined ? execute() : previous.then(execute, execute);
   }
 
-  private onTurnResolved(state: SessionState, instance: InstanceRef, result: TurnResult): void {
+  private onTurnResolved(state: SessionState, instance: InstanceRef, result: TurnResult): void | Promise<void> {
+    if (!sameAskAttempt(state.currentInstance, instance) || state.cancelled) return;
     // 一次 turn 解析的两条回报（进度先于用量），顺序与载荷都在 reportTurnObservations 里。
     reportTurnObservations(this.sink, state, instance, result);
     if (this.deps.actorTranscriptStore === undefined) {
@@ -473,7 +489,7 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
       this.reportTurnOutcome(state, instance, result);
       return;
     }
-    void this.settleExchange(state, instance, result);
+    return this.settleExchange(state, instance, result);
   }
 
   /**
@@ -489,7 +505,7 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
     result: TurnResult,
   ): boolean {
     // 已提交并被引擎 accept：ask 已结算，turn 结束只是确认，不再上报 askTurnEnded。
-    if (state.accepted) return true;
+    if (!sameAskAttempt(state.currentInstance, instance) || state.cancelled || state.accepted) return true;
     const generation = state.turnGeneration;
     this.sink.askTurnEnded(instance, result.response);
     return state.turnGeneration === generation;
@@ -508,12 +524,14 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
     result: TurnResult,
   ): Promise<void> {
     const boundary = await countSessionTranscript(this.deps, state, instance);
+    if (!sameAskAttempt(state.currentInstance, instance) || state.cancelled) return;
     const ended = this.reportTurnOutcome(state, instance, result);
     if (!ended || boundary === undefined) return;
     journalAskMessageBoundary(this.deps, state, instance, boundary);
   }
 
   private onTurnRejected(state: SessionState, instance: InstanceRef, error: unknown): void {
+    if (!sameAskAttempt(state.currentInstance, instance) || state.cancelled) return;
     // turn 死了就没有人再读工具结果了：停驻中的升级问答必须一并撤下，否则它们会永远留在
     // 快照的 pendingQuestions 里，请主代理去回答一个没有听众的问题。
     this.withdrawEscalations(state);
@@ -535,7 +553,7 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
       respond: (request: SubmitResultRequest): Promise<ContractsSubmitVerdict> => {
         const state = this.sessions.get(sessionId);
         const instance = state?.currentInstance;
-        if (state === undefined || instance === undefined) {
+        if (state === undefined || instance === undefined || state.cancelled) {
           // 无在飞 ask 却收到 submit：不路由到引擎，直接拒绝（避免悬挂）。
           return Promise.resolve(rejectWith("no active ask is awaiting a submitted result"));
         }

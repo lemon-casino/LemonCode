@@ -199,7 +199,8 @@ export function createDefaultSubagentPort(
       const childModelFactory: NonNullable<AgentRuntimeDeps["modelFactory"]> = (target) =>
         target.selection.providerId === childSelection.providerId &&
         target.selection.modelId === childSelection.modelId &&
-        target.selection.options?.reasoningLevel === childSelection.options?.reasoningLevel
+        target.selection.options?.reasoningLevel === childSelection.options?.reasoningLevel &&
+        target.selection.options?.speed === childSelection.options?.speed
           ? childModel
           : baseChildModelFactory(target);
       const parentToolCallId = traceStringAttribute(request.traceContext, "parentToolCallId");
@@ -438,7 +439,8 @@ function createInheritedSubagentModelFactory(
     if (
       target.selection.providerId === inheritedSelection.providerId &&
       target.selection.modelId === inheritedSelection.modelId &&
-      target.selection.options?.reasoningLevel === inheritedSelection.options?.reasoningLevel
+      target.selection.options?.reasoningLevel === inheritedSelection.options?.reasoningLevel &&
+      target.selection.options?.speed === inheritedSelection.options?.speed
     ) {
       // Selection 保持显式意图的稀疏形态；不能拿它和 Active Model 的完整 effective
       // options 比较，否则默认值必然导致复用失败并让 child 重新解释可变 Registry。
@@ -448,12 +450,20 @@ function createInheritedSubagentModelFactory(
   };
 }
 
-function modelSelectionFromActiveModel(model: Model): ModelSelection {
+export function modelSelectionFromActiveModel(model: Model): ModelSelection {
   const reasoningLevel = model.options.reasoningLevel;
+  const speed = model.options.speed;
   return {
     providerId: model.providerId,
     modelId: model.modelId,
-    ...(reasoningLevel ? { options: { reasoningLevel } } : {}),
+    ...(reasoningLevel || speed
+      ? {
+          options: {
+            ...(reasoningLevel ? { reasoningLevel } : {}),
+            ...(speed ? { speed } : {}),
+          },
+        }
+      : {}),
   };
 }
 

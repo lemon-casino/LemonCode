@@ -8,7 +8,7 @@ import {
   type TraceContext,
   type WorkflowSettingsAmendMeta,
 } from "@zcode/contracts";
-import { uuidv7 } from "@zcode/shared";
+import { formatModelPickerValue, uuidv7, type ModelSelection } from "@zcode/shared";
 import {
   resolveAmendMaxConcurrency,
   resolveAmendSubagentModelChoice,
@@ -37,6 +37,7 @@ import { boundedCompileDiagnostics } from "./dynamic-workflow-run-start.js";
 export interface AmendWorkflowRunSettingsInput {
   runId: string;
   subagentModel?: string | null;
+  subagentSelection?: ModelSelection | null;
   maxConcurrency?: number | null;
   traceContext?: TraceContext;
 }
@@ -59,6 +60,8 @@ export type AmendWorkflowRunSettingsResult =
 /** 本 run 的两项设置的归一形：缺席即默认（会话模型 / 本机上限）。 */
 interface RunSettings {
   subagentModel?: string;
+  subagentSelection?: ModelSelection;
+  sessionSelection?: ModelSelection;
   maxConcurrency?: number;
 }
 
@@ -102,11 +105,12 @@ export async function amendWorkflowRunSettings(
 
   // (4)(5) 两项设置的三态归一，与工具同一段代码。
   const current = runSettingsOfSnapshot(snapshot);
-  const model = resolveAmendSubagentModelChoice(
-    input.subagentModel,
-    current.subagentModel,
-    this.modelCatalogPort,
-  );
+  if (input.subagentModel !== undefined && input.subagentSelection !== undefined) {
+    return { ok: false, reason: "model_unavailable", message: "Conflicting model selections" };
+  }
+  const model = input.subagentSelection === undefined
+    ? resolveAmendSubagentModelChoice(input.subagentModel, current.subagentModel, this.modelCatalogPort)
+    : { ok: true as const, canonical: current.subagentModel };
   if (!model.ok) {
     // 目录缺席时的那句话是写给模型的（「omit subagent_model」），GUI 只要原因码；有目录时的
     // 解析诊断（候选名等）对人同样有用，随 message 走。
@@ -115,6 +119,19 @@ export async function amendWorkflowRunSettings(
       reason: "model_unavailable",
       ...(this.modelCatalogPort === undefined ? {} : { message: model.message }),
     };
+  }
+  let selected: ModelSelection | undefined;
+  let canonical = model.canonical;
+  if (input.subagentSelection !== undefined) {
+    // 结构化选择是速度的唯一来源；不从 legacy picker 串反推未记录的设置。
+    selected = input.subagentSelection ?? current.sessionSelection;
+    if (selected === undefined || !isAvailableWorkflowSelection(selected, this.modelCatalogPort)) {
+      return { ok: false, reason: "model_unavailable" };
+    }
+    canonical = input.subagentSelection === null ? undefined : formatModelPickerValue(selected);
+  } else {
+    selected = input.subagentModel === null ? current.sessionSelection :
+      input.subagentModel === undefined ? current.subagentSelection : undefined;
   }
   const ceiling = port.concurrencyCeiling?.();
   const bound = resolveAmendMaxConcurrency(input.maxConcurrency, current.maxConcurrency, ceiling);
@@ -125,11 +142,14 @@ export async function amendWorkflowRunSettings(
       ? undefined
       : bound.max_concurrency;
   const next: RunSettings = {
-    ...(model.canonical === undefined ? {} : { subagentModel: model.canonical }),
+    ...(canonical === undefined ? {} : { subagentModel: canonical }),
+    ...(selected === undefined ? {} : { subagentSelection: selected }),
+    ...(current.sessionSelection === undefined ? {} : { sessionSelection: current.sessionSelection }),
     ...(nextBound === undefined ? {} : { maxConcurrency: nextBound }),
   };
   // (6) 什么都没变就不起新 run：一次修订会停下在飞的 run，没有理由为零改动付这个代价。
-  const modelChanged = next.subagentModel !== current.subagentModel;
+  const modelChanged = next.subagentModel !== current.subagentModel ||
+    JSON.stringify(next.subagentSelection) !== JSON.stringify(current.subagentSelection);
   const boundChanged = next.maxConcurrency !== current.maxConcurrency;
   if (!modelChanged && !boundChanged) return { ok: false, reason: "unchanged" };
 
@@ -172,7 +192,8 @@ export async function amendWorkflowRunSettings(
   const toolCallId = `settings-${randomUUID()}`;
   const phaseNames = createWorkflowPhaseNames(graph);
   const phaseAlongside = phaseNames === undefined ? undefined : createWorkflowPhaseAlongside(graph);
-  const subagentModel = parseWorkflowSubagentModel(next.subagentModel);
+  const subagentModel = next.subagentModel === undefined ? undefined :
+    (next.subagentSelection ?? parseWorkflowSubagentModel(next.subagentModel, this.modelCatalogPort));
   let amended: Awaited<ReturnType<NonNullable<typeof port.amend>>>;
   try {
     amended = await port.amend({
@@ -185,6 +206,7 @@ export async function amendWorkflowRunSettings(
       ...(phaseAlongside === undefined ? {} : { phaseAlongside }),
       ...(next.maxConcurrency === undefined ? {} : { maxConcurrency: next.maxConcurrency }),
       ...(subagentModel === undefined ? {} : { subagentModel }),
+      ...(next.sessionSelection === undefined ? {} : { sessionModelSelection: next.sessionSelection }),
       ...(scriptPath === undefined ? {} : { scriptPath }),
       // 重跑的是前驱自己的脚本，它读的正是前驱启动时的实参。
       inheritArgs: true,
@@ -212,6 +234,7 @@ export async function amendWorkflowRunSettings(
   const amend: WorkflowSettingsAmendMeta = {
     predecessorRunId: input.runId,
     ...(modelChanged ? { subagentModel: fromTo(current.subagentModel, next.subagentModel) } : {}),
+    ...(modelChanged ? { subagentSelection: fromTo(current.subagentSelection, next.subagentSelection) } : {}),
     ...(boundChanged
       ? { maxConcurrency: fromTo(current.maxConcurrency, next.maxConcurrency) }
       : {}),
@@ -325,7 +348,7 @@ function buildSettingsMessageText(input: {
     changes.push(
       model.to === undefined
         ? "its subagents are back on the session model"
-        : `its subagents now run on ${model.to}`,
+        : `its subagents now run on ${model.to} with ${JSON.stringify(input.amend.subagentSelection?.to?.options ?? {})}`,
     );
   }
   const bound = input.amend.maxConcurrency;
@@ -351,6 +374,22 @@ function buildSettingsMessageText(input: {
 function runSettingsOfSnapshot(snapshot: DynamicWorkflowRunSnapshot): RunSettings {
   return {
     ...(snapshot.subagentModel === undefined ? {} : { subagentModel: snapshot.subagentModel }),
+    ...(snapshot.subagentSelection === undefined ? {} : { subagentSelection: snapshot.subagentSelection }),
+    ...(snapshot.sessionSelection === undefined ? {} : { sessionSelection: snapshot.sessionSelection }),
     ...(snapshot.maxConcurrency === undefined ? {} : { maxConcurrency: snapshot.maxConcurrency }),
   };
+}
+
+function isAvailableWorkflowSelection(
+  selection: ModelSelection,
+  catalog: AgentRuntimeInternal["modelCatalogPort"],
+): boolean {
+  const entry = catalog?.listModels().find((candidate) =>
+    candidate.providerId === selection.providerId && candidate.modelId === selection.modelId &&
+    candidate.disabledReason === undefined);
+  if (entry === undefined) return false;
+  const level = selection.options?.reasoningLevel;
+  const speed = selection.options?.speed;
+  return (level === undefined || entry.reasoningLevels.includes(level)) &&
+    (speed === undefined || (entry.speeds ?? (entry.defaultSpeed ? [entry.defaultSpeed] : [])).includes(speed));
 }

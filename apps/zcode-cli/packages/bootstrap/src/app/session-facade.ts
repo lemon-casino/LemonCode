@@ -457,14 +457,13 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
     },
     setModel: async (modelId, options) => {
       // 配置命令已提交完整 Selection；转成字符串会丢档位。先整体校验再一次
-      // 更新/保存，非法档位不能留下已换模型的半次修改。旧字符串入口保留只改身份语义。
+      // 更新/保存，非法档位不能留下已换模型的半次修改。旧字符串入口补齐新模型默认值。
       const registrySelection =
         typeof modelId === "string"
           ? resolveRegistryOwnedSelection(
               deps.providerRegistry,
               modelId,
               deps.configuredDefaultModelSelection,
-              { allowMissingReasoning: true },
             )
           : resolveRegistryOwnedModelSelection(deps.providerRegistry, modelId);
       if (!registrySelection) {
@@ -476,7 +475,7 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
       const sessionSelection: ModelSelection = {
         providerId: registrySelection.selection.providerId,
         modelId: registrySelection.selection.modelId,
-        ...(typeof modelId !== "string" && registrySelection.selection.options
+        ...(registrySelection.selection.options
           ? { options: { ...registrySelection.selection.options } }
           : {}),
       };

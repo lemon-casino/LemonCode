@@ -191,9 +191,15 @@ const amendWorkflowHandler: ToolHandler = async (input, context) => {
       // 同上：三态已在 resolveInput 归一成「一个规范形或没有」，`null` 在这里只可能来自绕过
       // 归一化的调用方，与缺席同义（端口不收它）。
       ...(() => {
-        const subagentModel = parseWorkflowSubagentModel(parsed.subagent_model ?? undefined);
+        const subagentModel = parseWorkflowSubagentModel(
+          parsed.subagent_model ?? undefined,
+          context.modelCatalogPort,
+        );
         return subagentModel === undefined ? {} : { subagentModel };
       })(),
+      ...(parsed.actor_model_overrides === undefined
+        ? {}
+        : { actorModelOverrides: parsed.actor_model_overrides }),
       // 这一次修订的脚本文件。缺席即草稿写不
       // 下去，模型面随之退回旧文案。
       ...(scriptPath === undefined ? {} : { scriptPath }),

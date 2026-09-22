@@ -10,7 +10,7 @@
 // 调用点只有一个：`CreateWorkflow` / `AmendWorkflow` 的 `resolveInput`。解析必须发生在
 // 确认窗**之前**——窗上显示的是将要生效的那个模型，而解不出来的调用根本不该开窗。
 
-import type { ModelCatalogEntry, ModelSelection } from "@zcode/contracts";
+import type { ModelCatalogEntry, ModelCatalogPort, ModelSelection } from "@zcode/contracts";
 import {
   ZCODE_MODEL_REASONING_SEPARATOR,
   formatModelPickerValue,
@@ -90,10 +90,23 @@ export function resolveModelReference(
  * `resolveInput` 的解析，所以解不开只可能是有人绕过了归一化——那是接线故障，按接线故障喊出来，
  * 而不是静默把用户要的模型丢掉（子代理会安静地跑在会话模型上，没人看得出来）。
  */
-export function parseWorkflowSubagentModel(canonical: string | undefined): ModelSelection | undefined {
+export function parseWorkflowSubagentModel(
+  canonical: string | undefined,
+  catalog?: ModelCatalogPort,
+): ModelSelection | undefined {
   if (canonical === undefined) return undefined;
   try {
-    return parseModelPickerValue(canonical);
+    const selection = parseModelPickerValue(canonical);
+    // 规范字符串只编码推理档位，工作流主动指定模型时需从当前目录补齐标准速度。
+    const speed = catalog
+      ?.listModels()
+      .find(
+        (entry) =>
+          entry.providerId === selection.providerId && entry.modelId === selection.modelId,
+      )?.defaultSpeed;
+    return speed === undefined
+      ? selection
+      : { ...selection, options: { ...selection.options, speed } };
   } catch (cause) {
     throw new Error(
       `workflow subagent_model reached the handler un-canonicalised: ${canonical}`,

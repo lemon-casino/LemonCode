@@ -29,18 +29,22 @@ import {
   type ActorRef,
   type AskSpec,
   type Caps,
+  type CausalityGraph,
   type ImportedRunCache,
   type JournalStorePort,
   type JsonSchema,
+  type WorkflowEngine,
   type RunEvent,
   type RunSettlement,
   type ValidateFn,
+  type WorkflowActorModelOverride,
 } from "@zcode/dynamic-workflow";
 import { runWorkflowScript } from "@zcode/dynamic-workflow-runtime";
 import { createJournalSequenceCapture } from "./dynamic-workflow-run-sequence-capture.js";
 import { isResumableSettlement } from "./dynamic-workflow-run-observation.js";
 import {
-  readRunLaunchAnchor,
+  readRunLaunch,
+  readRunActorModelConfiguration,
   readRunSubagentModel,
   type RunLaunch,
 } from "./dynamic-workflow-run-launch-anchor.js";
@@ -61,6 +65,8 @@ export interface CompiledDynamicWorkflowScript {
   declaredRunCommands: ReadonlySet<string>;
   /** 每个 actor 站点的 submit profile。 */
   actorSubmitProfiles: ReadonlyMap<string, ActorSubmitProfile>;
+  /** Static causal ordering; used only as a conservative revision invalidation hint. */
+  causality: CausalityGraph;
 }
 
 interface LaunchDynamicWorkflowRunInput {
@@ -80,6 +86,7 @@ interface LaunchDynamicWorkflowRunInput {
   args?: Record<string, unknown>;
   parentSessionId?: string;
   runId: string;
+  onControlReady?: (control: Pick<WorkflowEngine, "pauseAsk" | "retryAsk">) => void;
   scriptText: string;
   signal: AbortSignal;
   toolCallId?: string;
@@ -141,7 +148,7 @@ export function launchDynamicWorkflowRun(
   const childSpawn = dynamicWorkflowChildSpawn();
   // 锚点：submit 给的（本次建 run）或 journal 里的（resume）。升级前的 run 两边都没有 → 缺席，
   // 进度事件不带 launchInputId，子代理不上报。
-  const launch = input.launch ?? readRunLaunchAnchor(deps.journal, runId);
+  const launch = input.launch ?? readRunLaunch(deps.journal, runId);
   // lineage 指针：submit/amend 路径由入参给出；resume 路径入参缺席（createRun 早已写死），从
   // journal 行读回——两条路径的 `run-started` 载荷因此同形。
   const lineageFrom = resumedFrom ?? deps.journal.getRun(runId)?.resumedFrom;
@@ -151,10 +158,19 @@ export function launchDynamicWorkflowRun(
   // 子代理模型：submit 给的（随锚点同车）或 journal 里的（resume 从同一条 run-launched 读回）。
   // 与锚点同一条论证，两条路径因此同形；升级前的 run 两边都没有 → 缺席 = 跑在会话模型上。
   const subagentModel = input.launch?.subagentModel ?? readRunSubagentModel(deps.journal, runId);
-  // 字符串 → 选择，每次 launch 解析一次。进度载荷走原串（下面的 toProgressPayload），
-  // actor runtime 工厂要的是结构化选择（含 reasoning 档位，pin 的两段身份带不回来）。
+  const recordedActorModels =
+    input.launch === undefined
+      ? readRunActorModelConfiguration(deps.journal, runId)
+      : {
+          ...(input.launch.subagentSelection === undefined
+            ? {}
+            : { defaultSelection: input.launch.subagentSelection }),
+          overrides: input.launch.actorModelOverrides ?? [],
+        };
+  // 新记录直接保存结构化选择，避免 picker 字符串丢掉 speed。旧记录仍可从显示串恢复。
   const runSubagentModel =
-    subagentModel === undefined ? undefined : parseModelPickerValue(subagentModel);
+    recordedActorModels.defaultSelection ??
+    (subagentModel === undefined ? undefined : parseModelPickerValue(subagentModel));
 
   // 事件的 journal sequence 只有 appendEvent 知道，而引擎在 record() 里
   // `journal.appendEvent(...)` 之后**同步**紧接着 `driver.emit(...)`，并丢掉了返回的
@@ -181,6 +197,8 @@ export function launchDynamicWorkflowRun(
             ...(lineageFrom === undefined ? {} : { resumedFrom: lineageFrom }),
             concurrencyCeiling,
             ...(subagentModel === undefined ? {} : { subagentModel }),
+            ...(runSubagentModel === undefined ? {} : { subagentSelection: runSubagentModel }),
+            ...(launch?.sessionSelection === undefined ? {} : { sessionSelection: launch.sessionSelection }),
           }),
           // 路由与载荷分开：事件必须落在**发起该 run 的**会话里，而 parentSessionId 是
           // 判断"是不是那个会话"的唯一依据。
@@ -261,6 +279,15 @@ export function launchDynamicWorkflowRun(
         // 决定），pin 只守没有它时的隐式缺省。与 pin 不同，它整条带着 reasoning 档位下去——
         // journal 的 pin 只记身份两段。
         ...(runSubagentModel === undefined ? {} : { runSubagentModel }),
+        ...(persona.model === undefined ? {} : { scriptActorModel: persona.model }),
+        ...(() => {
+          const approvedActorModel = matchActorModelOverride(
+            recordedActorModels.overrides,
+            actor,
+            persona.name,
+          );
+          return approvedActorModel === undefined ? {} : { approvedActorModel };
+        })(),
       });
       // persona 的模型档位实际解析成了哪个模型，只有造好的 runtime 说得准（档位映射见
       // workflow-actor-model.ts）。先落库再接入会话：一次失败的会话持久化会让这次 ask 失败，
@@ -300,6 +327,7 @@ export function launchDynamicWorkflowRun(
     cwd,
     lowered: compiled.lowered,
     makeDriver,
+    ...(input.onControlReady === undefined ? {} : { onControlReady: input.onControlReady }),
     // 入口文件写不进项目 `.zcode/` 时 harness 回落到 OS 临时目录并报一声——run 照常启动，
     // 但这条日志是排查「项目里为什么没有 workflow-runs 存档」的唯一线索。
     onWarning: (warning) => {
@@ -495,7 +523,29 @@ export function journalActorResolvedModel(input: {
 
 /** journal 里 `resolvedModel` 的写法：`providerId/modelId`，与 pin 的读法（workflow-actor-model.ts）互逆。 */
 function formatActorResolvedModel(selection: ModelSelection): string {
-  return `${selection.providerId}/${selection.modelId}`;
+  return `selection:${JSON.stringify(selection)}`;
+}
+
+/** Most-specific approved target wins: concrete instance, then call site, then actor name. */
+function matchActorModelOverride(
+  overrides: readonly WorkflowActorModelOverride[],
+  actor: ActorRef,
+  name: string | undefined,
+): ModelSelection | undefined {
+  let winner: { score: number; selection: ModelSelection } | undefined;
+  for (const override of overrides) {
+    if (override.siteId !== undefined && override.siteId !== actor.siteId) continue;
+    if (override.ordinal !== undefined && override.ordinal !== actor.ordinal) continue;
+    if (override.name !== undefined && override.name !== name) continue;
+    const score =
+      (override.ordinal === undefined ? 0 : 4) +
+      (override.siteId === undefined ? 0 : 2) +
+      (override.name === undefined ? 0 : 1);
+    if (winner === undefined || score > winner.score) {
+      winner = { score, selection: override.selection };
+    }
+  }
+  return winner?.selection;
 }
 
 /**
@@ -592,6 +642,9 @@ export function toProgressPayload(input: {
    * 冷回放从同一条 `run-launched` 事件给出同一个键，两侧载荷因此逐字节相等。
    */
   subagentModel?: string;
+  /** 启动时冻结的完整模型选择，包含速度。 */
+  subagentSelection?: ModelSelection;
+  sessionSelection?: ModelSelection;
 }): DynamicWorkflowRunProgressPayload {
   const {
     event,
@@ -602,6 +655,8 @@ export function toProgressPayload(input: {
     resumedFrom,
     concurrencyCeiling,
     subagentModel,
+    subagentSelection,
+    sessionSelection,
   } = input;
   const protocolEvent = toProtocolEvent(sequence, event);
   return {
@@ -625,6 +680,8 @@ export function toProgressPayload(input: {
               ...(resumedFrom === undefined ? {} : { resumedFrom }),
               ...(concurrencyCeiling === undefined ? {} : { concurrencyCeiling }),
               ...(subagentModel === undefined ? {} : { subagentModel }),
+              ...(subagentSelection === undefined ? {} : { subagentSelection }),
+              ...(sessionSelection === undefined ? {} : { sessionSelection }),
             }
           : protocolEvent.payload,
     ...(protocolEvent.truncated ? { truncated: true } : {}),

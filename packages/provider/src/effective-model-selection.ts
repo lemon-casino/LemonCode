@@ -70,7 +70,9 @@ export function resolveEffectiveModelSelection(input: {
     effectiveSelection: selection,
     ...(!validation.ok &&
     (validation.code === "reasoning-level-missing" ||
-      validation.code === "reasoning-level-not-supported")
+      validation.code === "reasoning-level-not-supported" ||
+      validation.code === "speed-missing" ||
+      validation.code === "speed-not-supported")
       ? { selectionIssue: validation.code }
       : {}),
   });

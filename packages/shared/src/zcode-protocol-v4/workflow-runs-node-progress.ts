@@ -47,7 +47,7 @@ export function carryNodeProgress(
   payload: Record<string, unknown>,
   previousNode: WorkflowRunNode | undefined,
 ): Partial<NodeProgressFields> {
-  const requeued = eventType === "node-queued";
+  const requeued = eventType === "node-queued" || eventType === "node-retried";
   const born = requeued || (eventType === "node-settled" && payload.cached === true);
   const carried = born ? undefined : previousNode;
   const head = boundedText(

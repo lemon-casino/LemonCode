@@ -22,12 +22,14 @@ import {
   collectSites,
   collectWorldRunCommands,
   createWorkflowProgram,
+  deriveWorkflowCausalityFor,
   deriveActorSubmitProfilesFor,
   lowerWorkflow,
   synthesizeAskSchemas,
   type Caps,
   type CompileDiagnostic,
   type ImportedRunCache,
+  type WorkflowAskRevision,
   type RunSettlement,
   type WorkflowProgram,
 } from "@zcode/dynamic-workflow";
@@ -44,6 +46,7 @@ import {
 } from "./dynamic-workflow-run-launch.js";
 import {
   readRunLaunchAnchor,
+  readRunLaunch,
   readRunScriptPath,
   readRunSubagentModel,
   resolveLaunchAnchor,
@@ -91,6 +94,9 @@ export async function submitDynamicWorkflowRun(
     ...(request.phaseNames === undefined ? {} : { phaseNames: request.phaseNames }),
     ...(request.maxConcurrency === undefined ? {} : { maxConcurrency: request.maxConcurrency }),
     ...(request.subagentModel === undefined ? {} : { subagentModel: request.subagentModel }),
+    ...(request.actorModelOverrides === undefined
+      ? {}
+      : { actorModelOverrides: request.actorModelOverrides }),
     // 脚本文件与子代理模型同车：原样下传，
     // 端口不做任何推断——写没写下草稿是工具侧的事实，缺席就是真的没有文件。
     ...(request.scriptPath === undefined ? {} : { scriptPath: request.scriptPath }),
@@ -193,6 +199,10 @@ export async function amendDynamicWorkflowRun(
     // 的三态，`AmendWorkflow` 的 resolveInput 已经把它归一成这里的一条选择或缺席（缺席 = 回到
     // 会话模型）。端口若再继承一次，「回到会话模型」（`null`）就永远到不了这里。
     ...(request.subagentModel === undefined ? {} : { subagentModel: request.subagentModel }),
+    ...(request.sessionModelSelection === undefined ? {} : { sessionModelSelection: request.sessionModelSelection }),
+    ...(request.actorModelOverrides === undefined
+      ? {}
+      : { actorModelOverrides: request.actorModelOverrides }),
     // 脚本文件**绝不从前驱继承**：修订记的是这一次修订的脚本来自哪个文件（`path` 提交就是
     // 那个文件，内联提交就是刚写下的草稿）。沿用前驱的路径等于让模型下次去编辑旧脚本。
     ...(request.scriptPath === undefined ? {} : { scriptPath: request.scriptPath }),
@@ -221,6 +231,11 @@ interface StartNewRunInput {
    * 结构化选择进来，落库前归一成 picker 字符串——见 startNewRun 里的注释。
    */
   subagentModel?: ModelSelection;
+  sessionModelSelection?: ModelSelection;
+  actorModelOverrides?: DynamicWorkflowRunSubmitRequest["actorModelOverrides"];
+  askRevisions?: WorkflowAskRevision[];
+  invalidatedSites?: string[];
+  compiled?: CompiledDynamicWorkflowScript;
   /**
    * 本 run 脚本文件的绝对路径。缺席即这个
    * run 没有可编辑的脚本文件。纯模型面元数据：不参与执行，也不参与 resume 校验。
@@ -241,10 +256,10 @@ interface StartNewRunInput {
  * submit 与 amend 共用的启动尾：编译 → 锚点 → 注册表条目 → fire-and-forget launch。
  * 返回 runId（同步：注册表条目在本函数返回前就已存在，见下面的注释）。
  */
-function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInput): string {
+export function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInput): string {
   const { deps, runs, escalations } = ctx;
   const { imported, runId } = input;
-  const compiled = compileOnce(input.scriptText);
+  const compiled = input.compiled ?? compileOnce(input.scriptText);
   // 钳过的上界只算**一次**：它既要随 EngineConfig 落 dwf_run.caps_max_concurrency，也要作为
   // 注册表条目的间隙副本（journal 行出现之前 getTask / getRunDetail 唯一能读到的地方）。
   // 算两次就等于让两条读面在天花板变化的那一瞬间给出不同的数。
@@ -253,6 +268,9 @@ function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInpu
   // 事件、两条读面与进度载荷要的都是一个字符串——在这里归一一次，下游全程搬运。
   const subagentModel =
     input.subagentModel === undefined ? undefined : formatModelPickerValue(input.subagentModel);
+  // 启动时只读一次父会话选择；后续会话切模不影响已批准工作流。显式 run 选择优先。
+  const sessionSelection = input.sessionModelSelection ?? deps.getSessionModelSelection?.();
+  const subagentSelection = input.subagentModel ?? sessionSelection;
 
   // 发起锚点：修订沿用前驱、直接启动用显式值、聊天用活动轮，
   // 都没有就铸一个。引擎在建 run 那一世把它记成 run-launched。
@@ -276,6 +294,15 @@ function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInpu
     // 子代理模型与阶段表并列同车（同样不进 resolveLaunchAnchor：修订绝不继承前驱的模型）。
     // 零 SQL——它活在这条事件里，`dwf_run` 上没有对应的列（刻意不做迁移）。
     ...(subagentModel === undefined ? {} : { subagentModel }),
+    ...(subagentSelection === undefined ? {} : { subagentSelection }),
+    ...(sessionSelection === undefined ? {} : { sessionSelection }),
+    ...(input.actorModelOverrides === undefined
+      ? {}
+      : { actorModelOverrides: input.actorModelOverrides }),
+    ...(input.askRevisions === undefined ? {} : { askRevisions: input.askRevisions }),
+    ...(input.invalidatedSites === undefined
+      ? {}
+      : { invalidatedSites: input.invalidatedSites }),
     // 脚本文件与子代理模型并列同车（同样不进 resolveLaunchAnchor：修订记的是新脚本的文件）。
     // 零 SQL——它活在这条事件里，`dwf_run` 上没有对应的列。
     ...(input.scriptPath === undefined ? {} : { scriptPath: input.scriptPath }),
@@ -302,6 +329,8 @@ function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInpu
     // 「结构化选择 → 规范字符串」的**唯一**归一点：记进 `run-launched` 的是它，两条读面与
     // `run-started` 载荷读到的也是它，所以格式不可能在三处之间分叉。
     ...(subagentModel === undefined ? {} : { subagentModel }),
+    ...(subagentSelection === undefined ? {} : { subagentSelection }),
+    ...(sessionSelection === undefined ? {} : { sessionSelection }),
     // 脚本文件的间隙副本，与子代理模型同规（见 RunRegistryEntry.scriptPath）。
     ...(input.scriptPath === undefined ? {} : { scriptPath: input.scriptPath }),
     ...(imported === undefined ? {} : { resumedFrom: imported.resumedFrom }),
@@ -319,6 +348,7 @@ function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInpu
     entry,
     launchDynamicWorkflowRun({
       caps,
+      onControlReady: (control) => { entry.control = control; },
       compiled,
       cwd: input.cwd,
       deps,
@@ -428,6 +458,7 @@ export async function resumeDynamicWorkflowRun(
   // 必须先于 launch（文件头不变式 5：条目是 watcher 的前提）。
   const resumedSubagentModel = readRunSubagentModel(deps.journal, runId);
   const resumedScriptPath = readRunScriptPath(deps.journal, runId);
+  const resumedLaunch = readRunLaunch(deps.journal, runId);
   const controller = new AbortController();
   const entry: RunRegistryEntry = {
     controller,
@@ -443,6 +474,8 @@ export async function resumeDynamicWorkflowRun(
     // 就写死在 `run-launched` 上、本 run 余生不变，所以抄下来不会与事件分叉；抄了之后两条读面
     // 只剩一条规则——有条目就读条目，只有冷行才去扫事件。
     ...(resumedSubagentModel === undefined ? {} : { subagentModel: resumedSubagentModel }),
+    ...(resumedLaunch?.subagentSelection === undefined ? {} : { subagentSelection: resumedLaunch.subagentSelection }),
+    ...(resumedLaunch?.sessionSelection === undefined ? {} : { sessionSelection: resumedLaunch.sessionSelection }),
     // 脚本文件：与子代理模型同一条读、同一条论证（建 run 那一世写死、余生不变，抄下来不会
     // 与事件分叉）。resume 之后两条读面因此照旧「有条目就读条目」。
     ...(resumedScriptPath === undefined ? {} : { scriptPath: resumedScriptPath }),
@@ -455,6 +488,7 @@ export async function resumeDynamicWorkflowRun(
     entry,
     launchDynamicWorkflowRun({
       // caps 沿用 journal 记录：spentTokens 是对着这套 caps 累计的，
+      onControlReady: (control) => { entry.control = control; },
       // 重算等于悄悄挪门柱。
       caps: record.caps,
       compiled,
@@ -497,7 +531,7 @@ export async function resumeDynamicWorkflowRun(
  * （那会破坏「编译一次」）。resume 用同一个函数重编 journal 里的原文——byte-identical 的
  * 脚本必然重新通过同一套检查。
  */
-function compileOnce(scriptText: string): CompiledDynamicWorkflowScript {
+export function compileOnce(scriptText: string): CompiledDynamicWorkflowScript {
   return compileProgram(scriptText, createWorkflowProgram(scriptText));
 }
 
@@ -559,6 +593,7 @@ function compileProgram(
 
   return {
     askSpecs,
+    causality: deriveWorkflowCausalityFor(workflow, table),
     // 每个 actor 站点的 submit profile：在**同一个**
     // Program 上做解释 + 站点图投影（analyzeWorkflowScript 在 handler 的 analyze 阶段已对同一份文本
     // 跑过这两步），仍是「编译一次」。resume 用同一函数对 byte-identical 文本重算，确定性成立。

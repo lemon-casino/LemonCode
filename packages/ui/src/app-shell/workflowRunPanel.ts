@@ -426,6 +426,7 @@ export interface WorkflowActorInstance {
   name?: string;
   sessionId?: string;
   status: WorkflowRunActor["status"];
+  focusPhaseName?: string;
 }
 
 // ── actor 未启动门──

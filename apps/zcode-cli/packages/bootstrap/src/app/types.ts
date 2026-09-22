@@ -424,6 +424,10 @@ export interface ZCodeApp {
     workId: string;
     name?: string;
   }): Promise<DynamicWorkflowRunResumeResult>;
+  controlWorkflowAsk?(input: import("@zcode/contracts").DynamicWorkflowAskControlRequest):
+    Promise<import("@zcode/contracts").DynamicWorkflowAskControlResult>;
+  reviseWorkflowAsk?(input: import("@zcode/contracts").DynamicWorkflowAskRevisionRequest):
+    Promise<import("@zcode/contracts").DynamicWorkflowAskRevisionResult>;
   /**
    * 中枢直接启动一个已保存的工作流。GUI 在目标项目里建一个
    * 空会话后向它发 `startSavedWorkflow`：agent 解析 saved 来源 + 校验实参 + 编译，干净则以一条

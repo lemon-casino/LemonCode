@@ -36,6 +36,12 @@ export function defer<T>(): Deferred<T> {
   return { promise, resolve, reject };
 }
 
+/** refToString 不含尝试代次；重跑时必须比较它，否则旧回调会误认新 ask。 */
+export function sameAskAttempt(a: InstanceRef | undefined, b: InstanceRef): boolean {
+  return a !== undefined && refToString(a) === refToString(b) &&
+    (a.attempt ?? 1) === (b.attempt ?? 1);
+}
+
 /**
  * actor 会话 id：run 作用域 + 字符集安全。
  *

@@ -30,6 +30,18 @@ declare interface Node<T> extends PromiseLike<T> {}
 declare interface AgentPersona {
   /** System prompt describing the actor's role. */
   system?: string;
+  /**
+   * Model and execution options for this actor. Omit to inherit the workflow's
+   * launch-time session snapshot. The approval screen may override this value.
+   */
+  model?: {
+    providerId: string;
+    modelId: string;
+    options?: {
+      reasoningLevel?: string;
+      speed?: string;
+    };
+  };
 }
 
 /**

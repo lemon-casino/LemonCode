@@ -98,6 +98,7 @@ export function serializeRegistryModelConfig(
     optionSpecs: {
       reasoningLevel: config.optionSpecs.reasoningLevel,
       maxOutputTokens: config.optionSpecs.maxOutputTokens,
+      ...(config.optionSpecs.speed ? { speed: config.optionSpecs.speed } : {}),
     },
   };
 }

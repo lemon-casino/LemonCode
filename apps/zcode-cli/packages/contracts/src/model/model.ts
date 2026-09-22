@@ -26,6 +26,13 @@ export type ModelPropertiesInput = ModelProperties;
 export interface ModelOptions {
   reasoningLevel?: string;
   maxOutputTokens?: number;
+  speed?: string;
+}
+
+export interface ResolvedModelOptions {
+  reasoningLevel: string;
+  maxOutputTokens: number;
+  speed?: string;
 }
 
 export interface ModelRequest {

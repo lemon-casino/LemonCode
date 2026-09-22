@@ -32,6 +32,20 @@ export type ModelSelectionValidation =
       readonly modelId: ModelId;
       readonly reasoningLevel: string;
       readonly supportedLevels: readonly string[];
+    }
+  | {
+      readonly ok: false;
+      readonly code: "speed-missing";
+      readonly providerId: ProviderId;
+      readonly modelId: ModelId;
+    }
+  | {
+      readonly ok: false;
+      readonly code: "speed-not-supported";
+      readonly providerId: ProviderId;
+      readonly modelId: ModelId;
+      readonly speed: string;
+      readonly supportedSpeeds: readonly string[];
     };
 
 export interface ProviderRegistryView {
@@ -130,7 +144,10 @@ export function validateModelSelectionOptions(
   // 只依赖发布给 Renderer 的 Option 事实，避免 UI 另写一份档位校验或构造领域类。
   model: {
     readonly config: {
-      readonly optionSpecs: { readonly reasoningLevel: { readonly values: readonly string[] } };
+      readonly optionSpecs: {
+        readonly reasoningLevel: { readonly values: readonly string[] };
+        readonly speed?: { readonly values: readonly string[] };
+      };
     };
   },
   selection: ModelSelection,
@@ -153,6 +170,26 @@ export function validateModelSelectionOptions(
       modelId: selection.modelId,
       reasoningLevel,
       supportedLevels: Object.freeze([...reasoningSpec.values]),
+    };
+  }
+  const speed = selection.options?.speed;
+  const speedSpec = model.config.optionSpecs.speed;
+  if (speedSpec && speed === undefined) {
+    return {
+      ok: false,
+      code: "speed-missing",
+      providerId: selection.providerId,
+      modelId: selection.modelId,
+    };
+  }
+  if ((!speedSpec && speed !== undefined) || (speed && !speedSpec?.values.includes(speed))) {
+    return {
+      ok: false,
+      code: "speed-not-supported",
+      providerId: selection.providerId,
+      modelId: selection.modelId,
+      speed: speed ?? "",
+      supportedSpeeds: Object.freeze([...(speedSpec?.values ?? [])]),
     };
   }
   return { ok: true };

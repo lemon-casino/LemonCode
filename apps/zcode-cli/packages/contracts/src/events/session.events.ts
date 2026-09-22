@@ -333,6 +333,7 @@ export interface WorkflowSettingsAmendMeta {
   /** 被这次调整替代（或接着跑）的那个 run。 */
   predecessorRunId: string;
   subagentModel?: { from?: string; to?: string };
+  subagentSelection?: { from?: ModelSelection; to?: ModelSelection };
   maxConcurrency?: { from?: number; to?: number };
   ceiling?: number;
 }

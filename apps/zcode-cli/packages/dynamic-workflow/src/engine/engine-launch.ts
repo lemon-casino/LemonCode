@@ -5,7 +5,12 @@
 // `run-started` 逐字转录一次（engine.ts）。构造独立成模块，engine.ts 与 types.ts 才都留在
 // 400 行的 lint 上限之内——它们是两侧同时增长的文件。
 
-import type { RunEvent } from "./types.js";
+import type {
+  RunEvent,
+  WorkflowActorModelOverride,
+  WorkflowAskRevision,
+  WorkflowModelSelection,
+} from "./types.js";
 
 /**
  * 发起 run 那一轮随 `run-launched` 同车的宿主元数据（EngineConfig.launch）：锚点 `inputId`、
@@ -17,6 +22,12 @@ export interface RunLaunchConfig {
   inputId: string;
   phaseNames?: string[];
   subagentModel?: string;
+  subagentSelection?: WorkflowModelSelection;
+  sessionSelection?: WorkflowModelSelection;
+  actorModelOverrides?: WorkflowActorModelOverride[];
+  askRevisions?: WorkflowAskRevision[];
+  /** Causal descendants that may not reuse predecessor ask/world results. */
+  invalidatedSites?: string[];
   /** 本 run 脚本文件的绝对路径。 */
   scriptPath?: string;
   phaseAlongside?: number[][];
@@ -30,7 +41,18 @@ export function runLaunchedEvent(
   launch: RunLaunchConfig,
   origin: { toolCallId?: string | undefined; parentSessionId?: string | undefined },
 ): RunEvent {
-  const { inputId, phaseNames, subagentModel, scriptPath, phaseAlongside } = launch;
+  const {
+    inputId,
+    phaseNames,
+    subagentModel,
+    subagentSelection,
+    sessionSelection,
+    actorModelOverrides,
+    askRevisions,
+    invalidatedSites,
+    scriptPath,
+    phaseAlongside,
+  } = launch;
   return {
     type: "run-launched",
     inputId,
@@ -38,6 +60,11 @@ export function runLaunchedEvent(
     ...(origin.parentSessionId === undefined ? {} : { parentSessionId: origin.parentSessionId }),
     ...(phaseNames === undefined ? {} : { phaseNames }),
     ...(subagentModel === undefined ? {} : { subagentModel }),
+    ...(subagentSelection === undefined ? {} : { subagentSelection }),
+    ...(sessionSelection === undefined ? {} : { sessionSelection }),
+    ...(actorModelOverrides === undefined ? {} : { actorModelOverrides }),
+    ...(askRevisions === undefined ? {} : { askRevisions }),
+    ...(invalidatedSites === undefined ? {} : { invalidatedSites }),
     ...(scriptPath === undefined ? {} : { scriptPath }),
     ...(phaseAlongside === undefined ? {} : { phaseAlongside }),
   };

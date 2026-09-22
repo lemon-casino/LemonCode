@@ -21,6 +21,7 @@ import type {
   ValidateFn,
   WorkflowDriver,
   WorkflowError,
+  WorkflowImageRef,
 } from "./types.js";
 
 /** 一个可外部结算的 promise。 */
@@ -63,6 +64,15 @@ export interface SchedulerHost {
   importCacheClosed(): boolean;
   /** 该记录行在崩溃前是否 live 跑过（resume 时引擎从事件恢复；非 resume 恒 false）。 */
   wasLiveBeforeResume(instance: InstanceRef): boolean;
+  /** Latest task-level control state reconstructed from the event journal. */
+  resumeAskControlState(instance: InstanceRef):
+    | { attempt: number; paused: boolean; supplement?: string; attachments?: WorkflowImageRef[] }
+    | undefined;
+  /** Applies a persisted lineage revision before hashing/cache admission. */
+  instructionsForAdmission(instance: InstanceRef, instructions: string): string;
+  attachmentsForAdmission(instance: InstanceRef): WorkflowImageRef[] | undefined;
+  /** A causal dependent must be live even when its input hash still matches. */
+  invalidatesImportedAsk(instance: InstanceRef): boolean;
 }
 
 /** 一个 live（需真正派发执行）的 ask 节点。 */
@@ -70,7 +80,12 @@ export interface AskNode {
   instance: InstanceRef;
   actor: Actor;
   actorSeq: number;
+  /** 脚本作者给出的原始指令；任务级修订始终从它重建，避免重复拼接。 */
+  originalInstructions: string;
   instructions: string;
+  /** 当前尝试累计采用的用户修订。 */
+  supplement?: string;
+  attachments?: WorkflowImageRef[];
   hash: string;
   spec: AskSpec;
   deferred: Deferred<unknown>;
@@ -78,6 +93,7 @@ export interface AskNode {
   nudgesRemaining: number;
   settled: boolean;
   dispatched: boolean;
+  paused?: boolean;
   lastStats?: AskStats;
 }
 
@@ -99,6 +115,8 @@ export interface Actor {
   liveQueue: AskNode[];
   /** 正在执行的 live 节点（actor 串行，至多一个）。 */
   current?: AskNode;
+  /** 暂停的当前 ask 保留 FIFO 位置，不让同一 actor 的后续 ask 越过它。 */
+  paused?: AskNode;
   /** 会话惰性创建，缓存其 promise（每 actor 一次）。 */
   sessionPromise?: Promise<SessionRef>;
   session?: SessionRef;

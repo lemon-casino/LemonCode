@@ -1,4 +1,4 @@
-import type { RuntimeInputPresentation } from "@zcode/contracts";
+import type { RuntimeInputPresentation, ToolOperationAdmissionPort } from "@zcode/contracts";
 /* eslint-disable max-lines -- Runtime 类型集中承载 core/runtime 对外结构，拆分需要单独迁移。 */
 import { PermissionService, ToolScheduler } from "./deps.js";
 import type {
@@ -357,6 +357,8 @@ export interface AgentRuntimeDeps {
    * 包装（受闸门约束），主 runtime 拿治理器的 observer（只喂信号）；缺席即不设闸门。
    */
   modelRequestAdmission?: ModelRequestAdmission;
+  /** Workflow actors share a file-operation gate; ordinary sessions leave it absent. */
+  toolOperationAdmission?: ToolOperationAdmissionPort;
   workflowPort?: WorkflowPort;
   /** workflow run 的提交/观察/取消端口；存在即 CreateWorkflow 真启动，缺席则回占位诊断。 */
   dynamicWorkflowRunPort?: DynamicWorkflowRunPort;

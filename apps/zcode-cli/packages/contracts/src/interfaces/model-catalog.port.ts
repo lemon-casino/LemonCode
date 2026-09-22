@@ -19,6 +19,10 @@ export interface ModelCatalogEntry {
   reasoningLevels: string[];
   /** 注册表的默认档位；`reasoningLevels` 为空时缺席。 */
   defaultReasoningLevel?: string;
+  /** 主动指定模型时使用的默认速度；旧配置没有速度声明时缺席。 */
+  defaultSpeed?: string;
+  /** 可用速度；用于 GUI 设置的结构化选择预检。 */
+  speeds?: string[];
   contextWindow?: number;
   /** 本条目是否就是会话当前的选择（provider + model 同一）。整张表至多一条为真。 */
   current: boolean;

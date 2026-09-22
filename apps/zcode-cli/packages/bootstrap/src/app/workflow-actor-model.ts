@@ -30,6 +30,10 @@ interface WorkflowActorModelHost {
    * 缺省（见下面的函数注释）。主代理不受它影响——它只描述子代理。
    */
   runSelection?: ModelSelection | undefined;
+  /** Script-authored default from agent(..., { model }). */
+  scriptSelection?: ModelSelection | undefined;
+  /** User-approved actor override. */
+  approvedSelection?: ModelSelection | undefined;
 }
 
 /** AgentRuntimeConfig 的模型面切片。 */
@@ -65,7 +69,7 @@ export class WorkflowActorPinnedModelError extends Error {
  * `pinnedModel` 是这个 actor 在 journal 里记下的 `resolvedModel`（`providerId/modelId`），
  * 只有 resume（含 amend-resume 从前驱承袭的种子）会带上它。
  *
- * 优先级：**本 run 的 `subagentModel` > resume pin > 父会话当前模型**。
+ * 优先级：**批准的 actor 覆盖 > 脚本 actor 默认 > 本 run 启动快照 > resume pin > 父会话当前模型**。
  *
  * | run 选择 | pin | 解析结果 |
  * |---|---|---|
@@ -107,26 +111,20 @@ export function workflowActorModelPolicy(
   host: WorkflowActorModelHost,
   pinnedModel?: string,
 ): WorkflowActorModelPolicy {
+  if (host.approvedSelection !== undefined) {
+    return { configOverrides: { modelSelection: host.approvedSelection } };
+  }
+  if (host.scriptSelection !== undefined) {
+    return { configOverrides: { modelSelection: host.scriptSelection } };
+  }
   // run 选择在场：整条覆盖，pin 连解析都不解析——它只是本 run 要替换掉的那个缺省。
   if (host.runSelection !== undefined) {
     return { configOverrides: { modelSelection: host.runSelection } };
   }
   if (pinnedModel === undefined) return { configOverrides: {} };
   const pinned = parsePinnedModel(pinnedModel);
-  // 钉的就是父会话现在的模型：交给 child runtime 的基线自己表达。「不覆盖」是**更强**的
-  // 表达——基线连 reasoning 选项一起继承，而按身份覆盖会把选项换成一个少了 options 的等价物。
-  if (host.parentSelection !== undefined && sameModelIdentity(pinned, host.parentSelection)) {
-    return { configOverrides: {} };
-  }
-  // 父会话在两次运行之间换了主模型。仍然钉住 pin——静默换模型正是 pin 要防的事；要换，
-  // 走 AmendWorkflow 的 subagent_model（上面那一支）。
-  // reasoning 选项在这条路径上不重算：pin 守的是**模型身份**（providerId/modelId），journal 里也只记这两段。
+  // 同名模型的会话选项也可能变化；续跑必须沿用 journal 钉住的完整选择。
   return { configOverrides: { modelSelection: pinned } };
-}
-
-/** pin 比对只看身份两段：journal 只记 `providerId/modelId`，options 不是身份的一部分。 */
-function sameModelIdentity(a: ModelSelection, b: ModelSelection): boolean {
-  return a.providerId === b.providerId && a.modelId === b.modelId;
 }
 
 /**
@@ -135,6 +133,22 @@ function sameModelIdentity(a: ModelSelection, b: ModelSelection): boolean {
  * 等于猜出一个新身份——正是 pin 要防的事。宁可大声失败。
  */
 function parsePinnedModel(pinnedModel: string): ModelSelection {
+  if (pinnedModel.startsWith("selection:")) {
+    try {
+      const value = JSON.parse(pinnedModel.slice("selection:".length)) as ModelSelection;
+      if (
+        typeof value.providerId === "string" &&
+        value.providerId.length > 0 &&
+        typeof value.modelId === "string" &&
+        value.modelId.length > 0
+      ) {
+        return value;
+      }
+    } catch {
+      // 下面统一抛出带原始 pin 的错误，避免 JSON 解析细节泄漏成另一种失败形态。
+    }
+    throw new WorkflowActorPinnedModelError(pinnedModel);
+  }
   const parsed = parseProviderQualifiedModelSelection(pinnedModel);
   if (parsed === undefined) throw new WorkflowActorPinnedModelError(pinnedModel);
   return parsed;

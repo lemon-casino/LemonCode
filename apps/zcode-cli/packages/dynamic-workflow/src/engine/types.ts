@@ -9,6 +9,11 @@
  *   内存实现与未来 SQLite 实现都能自然落位（同步方法契合 node:sqlite 的 DatabaseSync，且让核心保持确定性）。
  */
 
+import type { WorkflowAskRevision } from "./workflow-ask-revision.js";
+import type { WorkflowImageRef } from "./workflow-image-ref.js";
+export type { WorkflowAskRevision } from "./workflow-ask-revision.js";
+export type { WorkflowImageRef } from "./workflow-image-ref.js";
+
 import type {
   ArtifactContentOp,
   ArtifactOp,
@@ -16,6 +21,7 @@ import type {
   WorldReadOp,
 } from "../facade/registry.js";
 import type { AskProgress, AskStats } from "./ask-observation-types.js";
+import type { JournalStorePort } from "./journal-types.js";
 
 // ————————————————————————————————————————————————————————————————
 // 身份（identity）
@@ -28,6 +34,8 @@ import type { AskProgress, AskStats } from "./ask-observation-types.js";
 export interface InstanceRef {
   siteId: string;
   ordinal: number;
+  /** 一次 ask 的尝试代次；缺席表示首次派发。journal 节点身份不含它。 */
+  attempt?: number;
 }
 
 /** actor 身份：创建站点 × 序号（与 InstanceRef 同构，但语义是 actor 而非 ask）。 */
@@ -61,9 +69,30 @@ export function refToString(ref: InstanceRef | ActorRef): string {
  * 是否注册 submit_result 由 driver 结合站点图判定（全 untyped 的 actor 不注册），
  * 不在这里表达——保持 persona 只描述身份。
  */
+export interface WorkflowModelSelection {
+  providerId: string;
+  modelId: string;
+  options?: {
+    reasoningLevel?: string;
+    speed?: string;
+  };
+}
+
+export interface WorkflowActorModelOverride {
+  /** Static agent() call site. */
+  siteId?: string;
+  /** Runtime actor identity; useful when the call site is shared by dynamic branches. */
+  name?: string;
+  /** Concrete fan-out instance. Omit to target every instance matched by site/name. */
+  ordinal?: number;
+  selection: WorkflowModelSelection;
+}
+
 export interface PersonaSpec {
   name?: string;
   system?: string;
+  /** Script-authored default; an approved run override takes precedence. */
+  model?: WorkflowModelSelection;
 }
 
 /**
@@ -73,6 +102,7 @@ export interface PersonaSpec {
  */
 export interface AskMessage {
   instructions: string;
+  attachments?: WorkflowImageRef[];
   typed: boolean;
   schema?: unknown;
 }
@@ -628,6 +658,14 @@ export type RunEvent =
       parentSessionId?: string;
       phaseNames?: string[];
       subagentModel?: string;
+      /** Lossless launch-time workflow default (including reasoning and speed). */
+      subagentSelection?: WorkflowModelSelection;
+      sessionSelection?: WorkflowModelSelection;
+      /** User-approved per-actor overrides. */
+      actorModelOverrides?: WorkflowActorModelOverride[];
+      /** Completed tasks intentionally rerun by this lineage revision. */
+      askRevisions?: WorkflowAskRevision[];
+      invalidatedSites?: string[];
       scriptPath?: string;
       phaseAlongside?: number[][];
     }
@@ -665,6 +703,8 @@ export type RunEvent =
       instructionsHead?: string;
     }
   | { type: "node-dispatched"; instance: InstanceRef }
+  | { type: "node-paused"; instance: InstanceRef }
+  | { type: "node-retried"; instance: InstanceRef; supplement?: string; attachments?: WorkflowImageRef[] }
   | { type: "node-repairing"; instance: InstanceRef; attempt: number; violations: Violation[] }
   | { type: "node-nudged"; instance: InstanceRef }
   /**
@@ -923,77 +963,7 @@ export interface NodeRecord {
   messageBoundary?: number;
 }
 
-/** 一条已落库事件，sequence 由 appendEvent 单调分配。 */
-export interface StoredEvent {
-  sequence: number;
-  event: RunEvent;
-  /**
-   * 存储层追加这条事件的时刻（epoch 毫秒）。事件日志里一切「多久以前」的唯一时钟：
-   * 日志行的年龄、子代理上一次动作的时刻、run 停滞了多久，都只能从它算。
-   * 由读者现取 `Date.now()` 兜底是错的——那会把一次冷重放里一周前的整段历史全标成「刚刚」。
-   *
-   * 类型上可选，好让实现了端口的测试替身继续编译；两个**真**实现（SQLite 的 `time_created`
-   * 列、内存实现的 append 时戳）都必须填，契约测试钉住这一条。
-   */
-  timeCreated?: number;
-}
-
-/**
- * 事件分页参数（cursor = journal sequence）。app 侧的运行详情页据此增量拉取事件日志：
- * 一次返回全量意味着每翻一页都把整条 journal 读进内存。
- */
-export interface ListEventsOptions {
-  /** 只返回 sequence **严格大于**该值的事件。cursor 是"已读到的最后一个 sequence"，不是偏移量。 */
-  afterSequence?: number;
-  /** 单页最多返回的条数；缺省不限。 */
-  limit?: number;
-}
-
-/**
- * run 结算随附的落库内容。存在的理由是**一笔写**：终态状态与产物分两次 UPDATE，
- * 中间崩溃就造出一个 `completed` 但产物不可恢复的 run。缺省的键表示「不触碰该列」
- * （引擎的 `running` 写入与该列引入之前的历史行都靠这条语义）。
- */
-export interface RunSettlementRecord {
-  /** 与 `status === "stopped"` 同时写入；其余状态不带。 */
-  stopReason?: RunStopReason;
-  /** 与 `stopReason === "superseded"` 同一笔写入（stopped 信封整体重写，分两笔会丢）。 */
-  supersededBy?: string;
-  failure?: WorkflowErrorJson;
-  result?: unknown;
-}
-
-/**
- * journal 存储端口：仓储式、同步方法，无 SQL 泄漏。内存实现见 journal-memory.ts；
- * SQLite 实现与内存实现共用此端口。旧测试入口已随 Vitest 清理，避免生产编译依赖未声明的测试框架。
- */
-export interface JournalStorePort {
-  createRun(record: RunRecord): void;
-  getRun(runId: string): RunRecord | undefined;
-  updateRunStatus(runId: string, status: RunStatus, settlement?: RunSettlementRecord): void;
-  /**
-   * 单独持久化累计 token 用量（run 结算之外的高频小写入）。未知 runId 必须抛错；
-   * 绝不触碰 status / failure——用量更新与 run 结算是两条独立的写入路径。
-   */
-  updateRunUsage(runId: string, spentTokens: number): void;
-
-  putActor(record: ActorRecord): void;
-  getActor(runId: string, siteId: string, ordinal: number): ActorRecord | undefined;
-  listActors(runId: string): ActorRecord[];
-
-  putNode(record: NodeRecord): void;
-  getNode(runId: string, siteId: string, ordinal: number): NodeRecord | undefined;
-  listNodes(runId: string): NodeRecord[];
-
-  appendEvent(runId: string, event: RunEvent): StoredEvent;
-  /**
-   * 按 sequence 升序列出事件。`opts` 缺省即全量（历史形态）；带 cursor / limit 时必须在
-   * 存储层过滤，不得取全量再切片——分页存在的理由就是不把整条 journal 读进内存。
-   * 未知 runId 与越界 cursor 一律返回空数组（不抛错）：投影与 journal 之间的竞态窗口里，
-   * 客户端拿着一个尚未存在的 cursor 回来是正常时序。
-   */
-  listEvents(runId: string, opts?: ListEventsOptions): StoredEvent[];
-}
+export type { StoredEvent, ListEventsOptions, RunSettlementRecord, JournalStorePort } from "./journal-types.js";
 
 // driver 对 ask 的观察词汇表（用量 + 进度）住在 ask-observation-types.ts（同上），此处转出口以保持引用路径。
 export {

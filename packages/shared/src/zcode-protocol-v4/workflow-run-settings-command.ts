@@ -5,6 +5,7 @@
 // bootstrap 铸 fault code、UI 反查文案，两侧共享这一份词表避免漂移。
 
 import { z } from "zod";
+import { modelSelectionSchema } from "../model-selection.js";
 import { WORKFLOW_RUNS_LIMITS } from "./workflow-runs.js";
 
 /**
@@ -22,6 +23,8 @@ export const amendWorkflowRunSettingsPayloadSchema = z.object({
     .max(WORKFLOW_RUNS_LIMITS.maxSubagentModelLength)
     .nullable()
     .optional(),
+  /** 完整选择保留速度；与旧客户端的 subagentModel 互斥。null = 回到启动时的继承选择。 */
+  subagentSelection: modelSelectionSchema.nullable().optional(),
   /** 同时运行的子代理上限；`null` = 解除本 run 自己的界（回到本机上限）。agent 侧钳到 `[1, 天花板]`。 */
   maxConcurrency: z.number().int().min(1).nullable().optional(),
 });

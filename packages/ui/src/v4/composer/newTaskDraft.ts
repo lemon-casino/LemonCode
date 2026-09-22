@@ -15,16 +15,34 @@ export function initializeNewTaskDraft(
   view: ModelSelectionView,
 ): V4ComposerDraft {
   const recent = readComposerRecent(workspacePath, workspaceIdentity);
+  const resolved = resolveDraftInitialModelSelection(view, recent?.modelSelection ?? null);
   return {
     ...draft,
     initializeFromNewTask: undefined,
     mode: recent?.mode === "plan" ? "build" : (recent?.mode ?? "build"),
     planEnabled: false,
-    modelSelection:
-      recent?.modelSelection ??
-      resolveDraftInitialModelSelection(view, null).selection ??
-      undefined,
+    modelSelection: resolved.selection ?? undefined,
   };
+}
+
+/** 空 Root 草稿的旧默认值只在用户尚未明确改选时升级；正文和真实会话不走这条路。 */
+export function refreshUneditedNewTaskDefaults(
+  draft: V4ComposerDraft,
+  view: ModelSelectionView,
+): V4ComposerDraft {
+  if (draft.modelSelectionEdited || draft.text.trim()) return draft;
+  const resolved = resolveDraftInitialModelSelection(view, draft.modelSelection ?? null);
+  const next = resolved.selection;
+  if (
+    !next ||
+    (draft.modelSelection &&
+      (next.providerId !== draft.modelSelection.providerId ||
+        next.modelId !== draft.modelSelection.modelId)) ||
+    (next.options?.reasoningLevel === draft.modelSelection?.options?.reasoningLevel &&
+      next.options?.speed === draft.modelSelection?.options?.speed)
+  )
+    return draft;
+  return { ...draft, modelSelection: next };
 }
 
 /** 在激活首次导入的 Session 前调用；不依赖模型可执行，也不把原新任务正文带入分享。 */

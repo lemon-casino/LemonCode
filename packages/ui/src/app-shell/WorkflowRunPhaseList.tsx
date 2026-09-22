@@ -209,7 +209,7 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
   };
 
   // 行交出槽位身份：会话 id 有则随行，没有就开占位 tab。
-  const openActor = (pill: TimelinePill) => {
+  const openActor = (pill: TimelinePill, focusPhaseName?: string) => {
     const slot = pill.slot;
     if (onOpenActor === undefined || slot === undefined) return;
     const sessionId = pill.instance?.sessionId;
@@ -224,11 +224,12 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
             ? "completed"
             : "waiting",
       ...(pill.runtimeName === undefined ? {} : { name: pill.runtimeName }),
+      ...(focusPhaseName === undefined ? {} : { focusPhaseName }),
     });
   };
 
   /** 药丸的公共接线（名字、状态、可打开）；整行药丸与「列出全部」的密排药丸共用。 */
-  const pillProps = (pill: TimelinePill) => {
+  const pillProps = (pill: TimelinePill, focusPhaseName?: string) => {
     const label = nameOf(pill);
     const openable = onOpenActor !== undefined && pill.slot !== undefined;
     // 脚本行同一条打开语法：开整个 run 的脚本 transcript，落到这一站的第一张卡。
@@ -241,7 +242,7 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
             "data-agent-status": pill.status ?? "pending",
           },
           label: format({ id: "chat.toolCall.workflow.timeline.openAgent" }, { name: label }),
-          onOpen: () => openActor(pill),
+          onOpen: () => openActor(pill, focusPhaseName),
           testId: "workflow-run-agent-open",
         }
       : workspacePhaseId !== undefined
@@ -265,7 +266,7 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
     };
   };
 
-  const renderPill = (pill: TimelinePill) => {
+  const renderPill = (pill: TimelinePill, focusPhaseName?: string) => {
     const activity = pillActivity(graph, run, pill);
     const key = pillKey(pill);
     const questions = key === undefined ? [] : (questionsByInstance.get(key) ?? []);
@@ -284,7 +285,7 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
     // 纵向 flex 容器让每一行拉满本列宽度（与卡上站下的药丸列同一机制）。
     return (
       <div className="flex min-w-0 flex-col" key={pill.key}>
-        <WorkflowAgentPill {...pillProps(pill)}>
+        <WorkflowAgentPill {...pillProps(pill, focusPhaseName)}>
           {counts.length === 0 ? null : (
             <span className="shrink-0 font-mono text-ui-xs tabular-nums text-foreground-subtlest">
               {counts.join(" · ")}
@@ -385,11 +386,11 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
                 style={indent}
               >
                 {roster === undefined ? (
-                  station.pills.map(renderPill)
+                  station.pills.map((pill) => renderPill(pill, station.naming.name))
                 ) : (
                   <>
                     <div className="flex flex-col gap-1.5" data-testid="workflow-roster-pins">
-                      {roster.pinned.map(renderPill)}
+                      {roster.pinned.map((pill) => renderPill(pill, station.naming.name))}
                     </div>
                     <WorkflowMoreRow
                       door={{
@@ -407,7 +408,7 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
                             enterDelayMs={enterDelayMs}
                             key={pill.key}
                             size="row"
-                            {...pillProps(pill)}
+                            {...pillProps(pill, station.naming.name)}
                           >
                             {/* 第六个及以后的提问者落在名单里：尾槽前一枚 ?，问题本身不在这里重复。 */}
                             {pill.asking === true ? (

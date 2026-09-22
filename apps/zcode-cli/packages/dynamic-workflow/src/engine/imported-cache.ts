@@ -34,6 +34,11 @@ export class ImportedActorState {
 
   constructor(private readonly candidate: ImportedActorCandidate) {}
 
+  /** Invalidate this actor's remaining prefix at the first affected ask. */
+  invalidate(): void {
+    this.diverged = true;
+  }
+
   /**
    * fresh ask 在 seq 上问缓存：命中返回条目（并推进游标），否则置分歧并返回 undefined。
    *

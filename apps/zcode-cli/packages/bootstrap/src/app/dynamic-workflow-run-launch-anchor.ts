@@ -12,7 +12,12 @@
 // 没有对应的列。
 
 import type { TraceContext } from "@zcode/contracts";
-import type { JournalStorePort } from "@zcode/dynamic-workflow";
+import type {
+  JournalStorePort,
+  WorkflowActorModelOverride,
+  WorkflowAskRevision,
+  WorkflowModelSelection,
+} from "@zcode/dynamic-workflow";
 import { uuidv7 } from "@zcode/shared";
 
 export interface RunLaunchAnchor {
@@ -31,6 +36,12 @@ export interface RunLaunchAnchor {
 export interface RunLaunch extends RunLaunchAnchor {
   phaseNames?: string[];
   subagentModel?: string;
+  /** Lossless workflow default. Unlike subagentModel, this preserves speed. */
+  subagentSelection?: WorkflowModelSelection;
+  sessionSelection?: WorkflowModelSelection;
+  actorModelOverrides?: WorkflowActorModelOverride[];
+  askRevisions?: WorkflowAskRevision[];
+  invalidatedSites?: string[];
   /**
    * 本 run 脚本文件的绝对路径。与阶段表、
    * 子代理选型同规地不属于锚点：修订记的是**这一次修订**的脚本来自哪个文件，绝不沿用前驱的。
@@ -49,14 +60,42 @@ export interface RunLaunch extends RunLaunchAnchor {
  */
 const RUN_LAUNCH_ANCHOR_SCAN_LIMIT = 8;
 
+/** Reads the complete durable launch configuration used by cold resume. */
+export function readRunLaunch(
+  journal: JournalStorePort,
+  runId: string,
+): RunLaunch | undefined {
+  for (const stored of journal.listEvents(runId, { limit: RUN_LAUNCH_ANCHOR_SCAN_LIMIT })) {
+    const event = stored.event;
+    if (event.type !== "run-launched") continue;
+    return {
+      inputId: event.inputId,
+      ...(event.phaseNames === undefined ? {} : { phaseNames: event.phaseNames }),
+      ...(event.subagentModel === undefined ? {} : { subagentModel: event.subagentModel }),
+      ...(event.subagentSelection === undefined
+        ? {}
+        : { subagentSelection: event.subagentSelection }),
+      ...(event.sessionSelection === undefined ? {} : { sessionSelection: event.sessionSelection }),
+      ...(event.actorModelOverrides === undefined
+        ? {}
+        : { actorModelOverrides: event.actorModelOverrides }),
+      ...(event.askRevisions === undefined ? {} : { askRevisions: event.askRevisions }),
+      ...(event.invalidatedSites === undefined
+        ? {}
+        : { invalidatedSites: event.invalidatedSites }),
+      ...(event.scriptPath === undefined ? {} : { scriptPath: event.scriptPath }),
+      ...(event.phaseAlongside === undefined ? {} : { phaseAlongside: event.phaseAlongside }),
+    };
+  }
+  return undefined;
+}
+
 export function readRunLaunchAnchor(
   journal: JournalStorePort,
   runId: string,
 ): RunLaunchAnchor | undefined {
-  for (const stored of journal.listEvents(runId, { limit: RUN_LAUNCH_ANCHOR_SCAN_LIMIT })) {
-    if (stored.event.type === "run-launched") return { inputId: stored.event.inputId };
-  }
-  return undefined;
+  const launch = readRunLaunch(journal, runId);
+  return launch === undefined ? undefined : { inputId: launch.inputId };
 }
 
 /**
@@ -74,6 +113,31 @@ export function readRunSubagentModel(journal: JournalStorePort, runId: string): 
     if (stored.event.type === "run-launched") return stored.event.subagentModel;
   }
   return undefined;
+}
+
+export interface RunActorModelConfiguration {
+  defaultSelection?: WorkflowModelSelection;
+  overrides: WorkflowActorModelOverride[];
+}
+
+/**
+ * Read the lossless model configuration recorded at admission. Old runs only have
+ * `subagentModel`; their caller retains the legacy parser fallback.
+ */
+export function readRunActorModelConfiguration(
+  journal: JournalStorePort,
+  runId: string,
+): RunActorModelConfiguration {
+  for (const stored of journal.listEvents(runId, { limit: RUN_LAUNCH_ANCHOR_SCAN_LIMIT })) {
+    if (stored.event.type !== "run-launched") continue;
+    return {
+      ...(stored.event.subagentSelection === undefined
+        ? {}
+        : { defaultSelection: stored.event.subagentSelection }),
+      overrides: stored.event.actorModelOverrides ?? [],
+    };
+  }
+  return { overrides: [] };
 }
 
 /**

@@ -320,7 +320,12 @@ export function V4InteractionDialogs({
             ? intl.formatMessage({ id: "chat.permission.responseFailed" })
             : undefined
         }
-        onRespond={(_requestId, option: ZCodePermissionOption, feedback?: string) => {
+        onRespond={(
+          _requestId,
+          option: ZCodePermissionOption,
+          feedback?: string,
+          modifiedInput?: unknown,
+        ) => {
           if (permissionResponseFlight.current === pending.interactionId) return;
           const interactionId = pending.interactionId;
           permissionResponseFlight.current = interactionId;
@@ -328,6 +333,7 @@ export function V4InteractionDialogs({
           void resolveInteraction(interactionId, {
             optionId: option.optionId,
             ...(feedback ? { freeText: feedback } : {}),
+            ...(modifiedInput === undefined ? {} : { content: { modifiedInput } }),
           }).then((accepted) => {
             if (permissionResponseFlight.current !== interactionId) return;
             permissionResponseFlight.current = null;

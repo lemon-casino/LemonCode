@@ -44,6 +44,7 @@ import { readRunIdField, readWorkflowRunStopReason } from "./workflow-runs-linea
 import { carryNodeProgress, reduceNodeProgress } from "./workflow-runs-node-progress.js";
 import { reducePhaseEntered, reduceRunLaunched } from "./workflow-runs-phases.js";
 import { reduceRunStarted } from "./workflow-runs-started.js";
+import { withDerivedWorkflowActorStatuses } from "./workflow-runs-actor-status.js";
 
 /**
  * 节点事件 → 相位。不用 `eventType.slice("node-".length)`（事件名恰好就是相位名），改用显式表
@@ -56,6 +57,8 @@ const NODE_EVENT_PHASE: Readonly<Record<string, WorkflowRunNode["phase"]>> = {
   "node-waiting": "waiting",
   "node-repairing": "repairing",
   "node-nudged": "nudged",
+  "node-paused": "paused",
+  "node-retried": "queued",
   "node-settled": "settled",
 };
 
@@ -180,6 +183,8 @@ function applyWorkflowRunEvent(
     case "node-waiting":
     case "node-repairing":
     case "node-nudged":
+    case "node-paused":
+    case "node-retried":
     case "node-settled": {
       const ref = workflowInstanceRef(payload.instance);
       if (!ref) return run;
@@ -187,6 +192,8 @@ function applyWorkflowRunEvent(
       const previousNode = run.nodes.find(
         (node) => node.siteId === ref.siteId && node.ordinal === ref.ordinal,
       );
+      const incomingAttempt = readAttempt(payload.instance);
+      if ((previousNode?.attempt ?? 1) > incomingAttempt) return run;
       const actorRef = workflowInstanceRef(payload.actor);
       const kind =
         payload.kind === "ask" || payload.kind === "world-read" ? payload.kind : previousNode?.kind;
@@ -200,6 +207,7 @@ function applyWorkflowRunEvent(
         ordinal: ref.ordinal,
         ...(kind === undefined ? {} : { kind }),
         phase,
+        ...(incomingAttempt > 1 ? { attempt: incomingAttempt } : {}),
         ...(payload.outcome === "ok" ||
         payload.outcome === "failed" ||
         payload.outcome === "cancelled"
@@ -222,7 +230,7 @@ function applyWorkflowRunEvent(
       // 触界被拒的实例查不到 previousNode，会照常计数：步数是 run 级事实，不受展示界约束。
       const firstDispatch =
         eventType === "node-dispatched" &&
-        (previousNode === undefined || previousNode.phase === "queued");
+        (previousNode === undefined || (previousNode.phase === "queued" && incomingAttempt === 1));
       return withDerivedWorkflowActorStatuses({
         ...run,
         ...(firstDispatch ? { usage: { ...run.usage, nodesUsed: run.usage.nodesUsed + 1 } } : {}),
@@ -240,6 +248,8 @@ function applyWorkflowRunEvent(
     case "node-progress": {
       const ref = workflowInstanceRef(payload.instance);
       if (!ref) return run;
+      const current = run.nodes.find((node) => node.siteId === ref.siteId && node.ordinal === ref.ordinal);
+      if ((current?.attempt ?? 1) > readAttempt(payload.instance)) return run;
       return reduceNodeProgress(run, ref, payload);
     }
     /**
@@ -564,55 +574,16 @@ function workflowReportPreview(item: unknown): string {
  * ("a-1", 2) 与 ("a", "1-2") 撞车。（搬来时保留原实现的分隔符语义，只把源码里的裸 NUL
  * 字节写成转义 `\0`——同一个运行时字符串，但文件不再是 grep 眼里的二进制。）
  */
-function withDerivedWorkflowActorStatuses(run: WorkflowRunState): WorkflowRunState {
-  // 三态推导：
-  //   running   有节点在 executing / repairing / nudged（模型请求已发出、正在跑）
-  //   waiting   有 live 节点（queued / dispatched / waiting），或尚无任何节点且 run 未终态
-  //   completed 其余：全部节点已结算，或 run 已终态（终态压过一切：一个终态 run 里没有任何人
-  //             还在跑或在等，哪怕某个节点的 settled 事件没来得及落下）
-  // `dispatched` 归 waiting 而不是 running：它是「会话就绪、首个请求尚未准入」的短暂相位，
-  // 真正在跑由 node-executing 说。
-  const executing = new Set<string>();
-  const live = new Set<string>();
-  const owned = new Set<string>();
-  for (const node of run.nodes) {
-    if (node.actorSiteId === undefined || node.actorOrdinal === undefined) continue;
-    const key = `${node.actorSiteId}\0${node.actorOrdinal}`;
-    owned.add(key);
-    switch (node.phase) {
-      case "executing":
-      case "repairing":
-      case "nudged":
-        executing.add(key);
-        break;
-      case "queued":
-      case "dispatched":
-      case "waiting":
-        live.add(key);
-        break;
-      default:
-        break;
-    }
-  }
-  const runLive = run.status === "pending" || run.status === "running";
-  return {
-    ...run,
-    actors: run.actors.map((actor) => {
-      const key = `${actor.siteId}\0${actor.ordinal}`;
-      const status: WorkflowRunActor["status"] = !runLive
-        ? "completed"
-        : executing.has(key)
-          ? "running"
-          : live.has(key) || !owned.has(key)
-            ? "waiting"
-            : "completed";
-      return actor.status === status ? actor : { ...actor, status };
-    }),
-  };
-}
-
 function isPlainRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function readAttempt(instance: unknown): number {
+  if (!isPlainRecord(instance)) return 1;
+  const attempt = instance.attempt;
+  return typeof attempt === "number" && Number.isSafeInteger(attempt) && attempt > 0
+    ? attempt
+    : 1;
 }
 
 function nonEmptyString(value: unknown): string | undefined {

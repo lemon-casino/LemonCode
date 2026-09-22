@@ -10,7 +10,10 @@
  */
 
 import { inputHash } from "./hash.js";
-import { importedAskRecord, type ImportedActorState } from "./imported-cache.js";
+import type { ImportedActorState } from "./imported-cache.js";
+import { applyTaskSupplement, nodeRecordFor, releaseCachedAsk, settleImportedAsk } from "./scheduler-cached.js";
+import { describeCause, hashMismatch, headOfInstructions } from "./scheduler-helpers.js";
+import { recoverInstanceAttempt } from "./ask-control-recovery.js";
 import { defer, type Actor, type AskNode, type Deferred, type SchedulerHost } from "./scheduler-types.js";
 import { handleSubmitAttempted, handleTurnEnded, type SubmitSeam } from "./scheduler-submit.js";
 import type {
@@ -21,12 +24,11 @@ import type {
   AskStats,
   InstanceRef,
   JournalStorePort,
-  NodeRecord,
   PersonaSpec,
   SessionRef,
+  WorkflowImageRef,
 } from "./types.js";
 import {
-  INSTRUCTIONS_HEAD_MAX_CHARS,
   NUDGE_ATTEMPTS,
   refToString,
   REPAIR_ATTEMPTS,
@@ -34,11 +36,13 @@ import {
 } from "./types.js";
 
 export type { SchedulerHost } from "./scheduler-types.js";
+export { hashMismatch } from "./scheduler-helpers.js";
 
 export class AskScheduler {
   private readonly actors = new Map<ActorId, Actor>();
   private readonly actorOrder: Actor[] = [];
   private readonly liveNodes = new Map<string, AskNode>();
+  private readonly settledAttempts = new Map<string, number>();
   private activeAsks = 0;
 
   /** scheduler-submit.ts 的自由函数经它查 live 节点、按结果结算（见 {@link SubmitSeam}）。 */
@@ -47,7 +51,10 @@ export class AskScheduler {
   constructor(private readonly host: SchedulerHost) {
     this.submitSeam = {
       host,
-      liveNode: (instance) => this.liveNodes.get(refToString(instance)),
+      liveNode: (instance) => {
+        const node = this.currentAttempt(instance);
+        return node?.paused ? undefined : node;
+      },
       settleOk: (node, artifact) => this.settleOk(node, artifact),
       settleFailed: (node, error) => this.settleFailed(node, error),
     };
@@ -104,7 +111,9 @@ export class AskScheduler {
     const actor = this.actors.get(actorId)!;
     const ordinal = this.host.nextOrdinal(siteId);
     const instance: InstanceRef = { siteId, ordinal };
-    const hash = inputHash(instructions);
+    const admittedInstructions = this.host.instructionsForAdmission(instance, instructions);
+    const admittedAttachments = this.host.attachmentsForAdmission(instance);
+    const hash = inputHash(admittedInstructions + (admittedAttachments?.length ? JSON.stringify(admittedAttachments) : ""));
     const deferred = defer<unknown>();
 
     const recorded = this.journal.getNode(this.host.runId, siteId, ordinal);
@@ -120,13 +129,26 @@ export class AskScheduler {
         // 崩溃于执行中：按记录的 actorSeq 位置重新 live 派发（hold 规则保证其准入次序）。
         actor.pendingRecorded.set(seq, () => {
           actor.imported?.reconcileRecorded(seq, recorded.inputHash, this.host.wasLiveBeforeResume(instance));
-          this.admitLive(instance, actor, seq, instructions, hash, spec, deferred);
+          if (this.host.invalidatesImportedAsk(instance)) actor.imported?.invalidate();
+          const controlState = this.host.resumeAskControlState(instance);
+          this.admitLive(
+            recoverInstanceAttempt(instance, controlState),
+            actor,
+            seq,
+            admittedInstructions,
+            hash,
+            spec,
+            deferred,
+            controlState?.paused === true,
+            controlState?.supplement,
+            controlState?.attachments ?? admittedAttachments,
+          );
         });
       } else {
         // completed / failed：短路结算，无 driver 调用。
         actor.pendingRecorded.set(seq, () => {
           actor.imported?.reconcileRecorded(seq, recorded.inputHash, this.host.wasLiveBeforeResume(instance));
-          this.releaseCachedAsk(instance, recorded, deferred);
+          releaseCachedAsk(this.host, instance, recorded, deferred);
         });
       }
       this.drainAdmission(actor);
@@ -137,8 +159,8 @@ export class AskScheduler {
     // 分配到 seq 之后先问导入缓存（amend-resume）：命中即 cached settle，不 live。
     actor.pendingLive.push(() => {
       const seq = actor.nextAdmitSeq++;
-      if (this.tryImportedSettle(instance, actor, seq, hash, deferred)) return;
-      this.admitLive(instance, actor, seq, instructions, hash, spec, deferred);
+      if (settleImportedAsk({ instance, actor, seq, hash, deferred, host: this.host })) return;
+      this.admitLive(instance, actor, seq, admittedInstructions, hash, spec, deferred, false, undefined, admittedAttachments);
     });
     this.drainAdmission(actor);
     this.pumpAll();
@@ -154,12 +176,19 @@ export class AskScheduler {
     hash: string,
     spec: AskSpec,
     deferred: Deferred<unknown>,
+    paused = false,
+    supplement?: string,
+    attachments?: WorkflowImageRef[],
   ): void {
+    const effectiveInstructions = applyTaskSupplement(instructions, supplement);
     const node: AskNode = {
       instance,
       actor,
       actorSeq: seq,
-      instructions,
+      originalInstructions: instructions,
+      instructions: effectiveInstructions,
+      ...(supplement === undefined ? {} : { supplement }),
+      ...(attachments === undefined ? {} : { attachments }),
       hash,
       spec,
       deferred,
@@ -167,6 +196,7 @@ export class AskScheduler {
       nudgesRemaining: NUDGE_ATTEMPTS,
       settled: false,
       dispatched: false,
+      ...(paused ? { paused: true } : {}),
     };
     this.liveNodes.set(refToString(instance), node);
     // 准入即落 running（携 actorSeq + inputHash）：崩溃于执行中的节点 resume 可据此重新派发。
@@ -181,7 +211,8 @@ export class AskScheduler {
       inputHash: hash,
       status: "running",
     });
-    actor.liveQueue.push(node);
+    if (paused) actor.paused = node;
+    else actor.liveQueue.push(node);
     // 指令开头随出生事件一起落轨：这里的 instructions 还是
     // 作者的原文——driver 的质量 / schema 尾注在 startAsk 里才追加，所以摘要里不会混进引擎的话。
     const instructionsHead = headOfInstructions(instructions);
@@ -193,40 +224,13 @@ export class AskScheduler {
       actorSeq: seq,
       ...(instructionsHead === undefined ? {} : { instructionsHead }),
     });
+    // 冷恢复不能把用户已停止的任务自动派发；补发状态事件让实时投影与 journal 真相一致。
+    if (paused) this.host.record({ type: "node-paused", instance });
     // 转 live **不**关导入缓存。曾经在这里关：任一 ask live
     // 即视为工作区可能被改写。那是拿时钟代替依赖——同一个 Promise.all 里排在第一个未命中之后的
     // 兄弟 ask 全被判失效，而它们之间没有任何依赖（实测 50 路扇出丢 6 个命中，5 路扇出
     // 丢掉唯一的 1 个）。现在关门的是**第一笔写入**：driver 在子代理即将执行改写工具时上报
     // askMutating，或一条 world.run live 执行；在此之前的世界与前驱留下的世界相同，缓存命中都成立。
-  }
-
-  /**
-   * fresh ask 准入时问一次导入缓存（amend-resume）。命中即 **cached settle** 并返回 true
-   * （调用方不再 live）；判定与分歧记账全在 {@link ImportedActorState}。
-   *
-   * 命中写一行**真** dwf_node，只发 `node-settled cached:true`——与 replay 命中的
-   * {@link releaseCachedAsk} 同一副姿态：不发 node-queued / node-dispatched，
-   * 不入 liveQueue，不建会话，不占 `actor.current`。
-   */
-  private tryImportedSettle(
-    instance: InstanceRef,
-    actor: Actor,
-    seq: number,
-    hash: string,
-    deferred: Deferred<unknown>,
-  ): boolean {
-    // 缓存已关闭 ⇒ 只放**纯** ask（前驱记下 toolCalls === 0）：它只依赖指令与转录前缀，与工作区
-    // 无关，所以对旧世界的答案对新世界同样成立；带工具的条目即便同哈希也转 live——它读过的
-    // 工作区可能已被改写。转 live 的那个 ask 让该 actor 分歧（转录从此不同），已消费前缀仍是种子
-    // 边界的依据。
-    const entry = this.host.importCacheClosed()
-      ? actor.imported?.takeIfPure(seq, hash)
-      : actor.imported?.take(seq, hash);
-    if (entry === undefined) return false;
-    this.journal.putNode(importedAskRecord(this.host.runId, instance, actor.ref, seq, hash, entry));
-    this.host.record({ type: "node-settled", instance, outcome: "ok", cached: true });
-    deferred.resolve(entry.result);
-    return true;
   }
 
   // ——————————————————————————————— 向上回报 ———————————————————————————————
@@ -242,8 +246,10 @@ export class AskScheduler {
   }
 
   noteStats(instance: InstanceRef, stats: AskStats): void {
-    const node = this.liveNodes.get(refToString(instance));
+    const key = refToString(instance);
+    const node = this.liveNodes.get(key);
     if (node !== undefined) {
+      if (node.paused || (node.instance.attempt ?? 1) !== (instance.attempt ?? 1)) return;
       node.lastStats = stats;
       return;
     }
@@ -251,27 +257,30 @@ export class AskScheduler {
     // actor 的用量在 turn 解析后（submit 之后）才知道，故 stats 在结算之后才到达。回填已结算的
     // journal 记录：只新增/覆写 stats，保留 status/result/actorSeq/inputHash/error/kind/actor 身份。
     // 尽力而为且幂等；预算扣减仍在 engine.askStats（此处只补 journal 完整性）。
+    // 旧 turn 的用量仍由 engine 累计，但不能覆盖新尝试的节点统计。
+    const settledAttempt = this.settledAttempts.get(key);
+    if (settledAttempt !== undefined && settledAttempt !== (instance.attempt ?? 1)) return;
     const recorded = this.journal.getNode(this.host.runId, instance.siteId, instance.ordinal);
     if (recorded === undefined) return;
     this.journal.putNode({ ...recorded, stats });
   }
 
   failed(instance: InstanceRef, error: WorkflowError): void {
-    const node = this.liveNodes.get(refToString(instance));
-    if (node === undefined || node.settled) return;
+    const node = this.currentAttempt(instance);
+    if (node === undefined || node.settled || node.paused) return;
     this.settleFailed(node, error);
   }
 
   /** 该实例是否仍是在飞（已准入、未结算）的 live ask——限流观察事件只对这样的节点有意义。 */
   isLive(instance: InstanceRef): boolean {
-    const node = this.liveNodes.get(refToString(instance));
-    return node !== undefined && !node.settled;
+    const node = this.currentAttempt(instance);
+    return node !== undefined && !node.settled && !node.paused;
   }
 
   /** 在飞 ask 所属子代理的有效名（关门事件里点名用）；不在飞即 undefined。 */
   liveActorName(instance: InstanceRef): string | undefined {
-    const node = this.liveNodes.get(refToString(instance));
-    return node === undefined || node.settled ? undefined : node.actor.persona.name;
+    const node = this.currentAttempt(instance);
+    return node === undefined || node.settled || node.paused ? undefined : node.actor.persona.name;
   }
 
   /** 中止所有在飞 ask：run 取消/失败时用。emitCancelled 为真时补发 node-settled(cancelled)。 */
@@ -287,6 +296,62 @@ export class AskScheduler {
     }
     this.liveNodes.clear();
     this.activeAsks = 0;
+    for (const actor of this.actorOrder) actor.paused = undefined;
+  }
+
+  /** 只暂停目标 ask；原 deferred 不结算，依赖它的脚本分支自然等待。 */
+  pauseAsk(instance: InstanceRef): boolean {
+    const node = this.currentAttempt(instance);
+    if (node === undefined || node.paused || this.host.isRunSettled()) return false;
+    // 先标记代次、再中断 turn：同步到来的旧回报会看到 paused，不能结算新尝试。
+    node.paused = true;
+    if (node.dispatched) this.host.driver.cancelAsk(node.instance);
+    if (node.actor.current === node) {
+      node.actor.current = undefined;
+      this.activeAsks--;
+    } else {
+      node.actor.liveQueue = node.actor.liveQueue.filter((queued) => queued !== node);
+    }
+    node.actor.paused = node;
+    this.host.record({ type: "node-paused", instance: node.instance });
+    this.pumpAll();
+    return true;
+  }
+
+  /** 复用同一个脚本 promise，另起一个有代次的尝试；旧尝试的回报会被 currentAttempt 丢弃。 */
+  retryAsk(instance: InstanceRef, supplement?: string, attachments?: WorkflowImageRef[]): boolean {
+    const node = this.currentAttempt(instance);
+    if (node === undefined || !node.paused || this.host.isRunSettled()) return false;
+    const revision = supplement?.trim();
+    if (revision) {
+      node.supplement = node.supplement === undefined
+        ? revision
+        : `${node.supplement}\n\n${revision}`;
+    }
+    if (attachments?.length) node.attachments = [...(node.attachments ?? []), ...attachments];
+    node.instructions = applyTaskSupplement(node.originalInstructions, node.supplement);
+    node.instance = { siteId: instance.siteId, ordinal: instance.ordinal, attempt: (node.instance.attempt ?? 1) + 1 };
+    node.paused = false;
+    node.dispatched = false;
+    node.repairsRemaining = REPAIR_ATTEMPTS;
+    node.nudgesRemaining = NUDGE_ATTEMPTS;
+    node.actor.paused = undefined;
+    node.actor.liveQueue.unshift(node);
+    this.host.record({
+      type: "node-retried",
+      instance: node.instance,
+      ...(node.supplement === undefined ? {} : { supplement: node.supplement }),
+      ...(node.attachments === undefined ? {} : { attachments: node.attachments }),
+    });
+    this.pumpActor(node.actor);
+    return true;
+  }
+
+  private currentAttempt(instance: InstanceRef): AskNode | undefined {
+    const node = this.liveNodes.get(refToString(instance));
+    return node !== undefined && (node.instance.attempt ?? 1) === (instance.attempt ?? 1)
+      ? node
+      : undefined;
   }
 
   // ——————————————————————————————— 内部：准入 / 派发 ———————————————————————————————
@@ -312,23 +377,13 @@ export class AskScheduler {
     this.pumpActor(actor);
   }
 
-  private releaseCachedAsk(instance: InstanceRef, recorded: NodeRecord, deferred: Deferred<unknown>): void {
-    if (recorded.status === "completed") {
-      this.host.record({ type: "node-settled", instance, outcome: "ok", cached: true });
-      deferred.resolve(recorded.result);
-    } else {
-      // 已记录的失败也要短路复现：脚本可能已 try/catch 过它并据此分支，replay 必须重放同一 rejection。
-      this.host.record({ type: "node-settled", instance, outcome: "failed", cached: true, error: recorded.error });
-      deferred.reject(WorkflowError.fromJSON(recorded.error!));
-    }
-  }
-
   private pumpAll(): void {
     for (const actor of this.actorOrder) this.pumpActor(actor);
   }
 
   private pumpActor(actor: Actor): void {
     if (this.host.isRunSettled()) return;
+    if (actor.paused !== undefined) return;
     if (actor.current !== undefined) return;
     if (actor.liveQueue.length === 0) return;
     if (this.activeAsks >= this.host.caps.maxConcurrency) return;
@@ -339,11 +394,13 @@ export class AskScheduler {
   }
 
   private async dispatch(node: AskNode): Promise<void> {
+    const attempt = node.instance.attempt ?? 1;
     let session: SessionRef;
     try {
       session = await this.ensureSession(node.actor);
     } catch (cause) {
-      if (this.host.isRunSettled() || node.settled) return;
+      if (this.host.isRunSettled() || node.settled || node.paused ||
+          (node.instance.attempt ?? 1) !== attempt) return;
       // 把 cause 的文本带进 message：WorkflowError.toJSON 只落 code/message，cause 不进 journal 也
       // 无人记日志，于是「创建 actor 会话失败」在 GUI / journal 里成了无法诊断的黑盒
       // （实机上底层其实是 session_task_link 的 FOREIGN KEY constraint failed）。
@@ -357,7 +414,8 @@ export class AskScheduler {
       );
       return;
     }
-    if (this.host.isRunSettled() || node.settled) return;
+    if (this.host.isRunSettled() || node.settled || node.paused ||
+        (node.instance.attempt ?? 1) !== attempt || node.actor.current !== node) return;
     // node-dispatched 在会话就绪之后。进程级并发闸门
     // 不在这里：它按**模型请求**准入，住在 driver 之下的 runtime deps 里；调度器只守
     // per-run 的 ask 级上界。
@@ -365,6 +423,7 @@ export class AskScheduler {
     node.dispatched = true;
     const message: AskMessage = {
       instructions: node.instructions,
+      ...(node.attachments === undefined ? {} : { attachments: node.attachments }),
       typed: node.spec.typed,
       schema: node.spec.schema,
     };
@@ -406,7 +465,7 @@ export class AskScheduler {
   private settleOk(node: AskNode, artifact: unknown): void {
     if (node.settled) return;
     node.settled = true;
-    this.journal.putNode(this.nodeRecordFor(node, { status: "completed", result: artifact }));
+    this.journal.putNode(nodeRecordFor(this.host, node, { status: "completed", result: artifact }));
     this.host.record({ type: "node-settled", instance: node.instance, outcome: "ok" });
     this.finishLiveNode(node);
     node.deferred.resolve(artifact);
@@ -417,7 +476,7 @@ export class AskScheduler {
     node.settled = true;
     // 结算失败必须落 journal（覆盖准入时的 running）：失败是"完结"，且脚本可能已观察到该 rejection
     // 并据此分支，replay 必须复现它——journal 化失败是重放正确性的硬性要求，而非可选。
-    this.journal.putNode(this.nodeRecordFor(node, { status: "failed", error: error.toJSON() }));
+    this.journal.putNode(nodeRecordFor(this.host, node, { status: "failed", error: error.toJSON() }));
     this.host.record({ type: "node-settled", instance: node.instance, outcome: "failed", error: error.toJSON() });
     this.finishLiveNode(node);
     // 节点失败只 reject 该 ask，不失败整个 run（脚本可 try/catch）。
@@ -425,6 +484,7 @@ export class AskScheduler {
   }
 
   private finishLiveNode(node: AskNode): void {
+    this.settledAttempts.set(refToString(node.instance), node.instance.attempt ?? 1);
     this.liveNodes.delete(refToString(node.instance));
     if (node.actor.current === node) {
       node.actor.current = undefined;
@@ -433,56 +493,4 @@ export class AskScheduler {
     this.pumpAll();
   }
 
-  private nodeRecordFor(
-    node: AskNode,
-    outcome: { status: "completed"; result: unknown } | { status: "failed"; error: NodeRecord["error"] },
-  ): NodeRecord {
-    const record: NodeRecord = {
-      runId: this.host.runId,
-      siteId: node.instance.siteId,
-      ordinal: node.instance.ordinal,
-      kind: "ask",
-      actorSiteId: node.actor.ref.siteId,
-      actorOrdinal: node.actor.ref.ordinal,
-      actorSeq: node.actorSeq,
-      inputHash: node.hash,
-      status: outcome.status,
-    };
-    if (outcome.status === "completed") record.result = outcome.result;
-    else record.error = outcome.error;
-    if (node.lastStats !== undefined) record.stats = node.lastStats;
-    return record;
-  }
-}
-
-/** replay 命中但 inputHash 不一致——纯度契约被破坏，run 大声失败。 */
-export function hashMismatch(instance: InstanceRef, expected: string, got: string): WorkflowError {
-  return new WorkflowError(
-    "InputHashMismatch",
-    `Replay hit at ${refToString(instance)} but inputHash differs (expected ${expected}, got ` +
-      `${got}): the script is not deterministic, so the journal cannot be replayed.`,
-    // 结构化 mismatch 与 ScriptHashMismatch 对齐：两个哈希不一致错误共用同一个字段，
-    // 读端不必再从 message 文本里抠哈希。
-    { mismatch: { expected, got } },
-  );
-}
-
-/** cause → 一行有界文本（Error 取 message，其余 String()；空则给占位）。 */
-function describeCause(cause: unknown): string {
-  const text = cause instanceof Error ? cause.message : String(cause);
-  const trimmed = text.trim();
-  if (trimmed.length === 0) return "unknown error";
-  return trimmed.length > 300 ? `${trimmed.slice(0, 300)}…` : trimmed;
-}
-
-/**
- * 作者指令的开头（{@link INSTRUCTIONS_HEAD_MAX_CHARS} 个字符，去两端空白，**不加省略号**）。
- * 空指令返回 undefined：缺席的键比一个空串诚实——读面据此退回「不知道它被交代了什么」。
- */
-function headOfInstructions(instructions: string): string | undefined {
-  const trimmed = instructions.trim();
-  if (trimmed.length === 0) return undefined;
-  return trimmed.length <= INSTRUCTIONS_HEAD_MAX_CHARS
-    ? trimmed
-    : trimmed.slice(0, INSTRUCTIONS_HEAD_MAX_CHARS);
 }

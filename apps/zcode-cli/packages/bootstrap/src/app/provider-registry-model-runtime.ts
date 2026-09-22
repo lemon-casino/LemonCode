@@ -76,6 +76,7 @@ export class ApiProviderModelRuntime {
     // 输出预算属于单次请求，由 Agent 执行链显式决定，不能在 ModelFactory 中静默绑定。
     // Selection 已在上面的 Registry 边界完成校验，Factory 不再承担任何缺省修复。
     const normalReasoningLevel = target.selection.options!.reasoningLevel!;
+    const speed = target.selection.options?.speed;
     return this.#modelAdapter.createModel({
       providerId: provider.providerId,
       modelId: registryModel.modelId,
@@ -95,6 +96,7 @@ export class ApiProviderModelRuntime {
         : {}),
       options: {
         reasoningLevel: normalReasoningLevel,
+        ...(speed ? { speed } : {}),
       },
     });
   }

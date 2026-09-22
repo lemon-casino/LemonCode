@@ -68,6 +68,8 @@ export interface DynamicWorkflowRunSubmitRequest {
    * 发生」有两个答案。主代理自己不受影响：它恒留在会话模型上。
    */
   subagentModel?: ModelSelection;
+  /** User-approved overrides for selected actor call sites or concrete instances. */
+  actorModelOverrides?: DynamicWorkflowActorModelOverride[];
   /**
    * 本 run 的脚本**来自哪个文件**的绝对路径。与 {@link subagentModel} 走同一条路：随 `run-launched` 记一次、引擎从不读、
    * 零 SQL（`dwf_run` 上没有这一列），两条读面再从事件读回。
@@ -102,6 +104,41 @@ export interface DynamicWorkflowRunSubmitOptions {
  */
 export type DynamicWorkflowRunSubmitResult = { ok: true; runId: string };
 
+/** 任务身份包含尝试代次；旧侧板发出的命令不得作用于更新的重跑。 */
+export interface DynamicWorkflowAskControlRequest {
+  runId: string;
+  siteId: string;
+  ordinal: number;
+  attempt: number;
+  action: "stop" | "retry";
+  /** 本次重跑追加给目标任务的修订要求。 */
+  supplement?: string;
+  attachments?: Array<{ ref: string; fileName: string; mime: string; bytes: number; previewRef?: string }>;
+}
+
+export interface DynamicWorkflowActorModelOverride {
+  siteId?: string;
+  name?: string;
+  ordinal?: number;
+  selection: ModelSelection;
+}
+
+export type DynamicWorkflowAskControlResult =
+  | { ok: true }
+  | { ok: false; reason: "not_found" | "not_running" | "not_ready" | "not_active" };
+
+export interface DynamicWorkflowAskRevisionRequest {
+  runId: string;
+  siteId: string;
+  ordinal: number;
+  supplement?: string;
+  attachments?: Array<{ ref: string; fileName: string; mime: string; bytes: number; previewRef?: string }>;
+}
+
+export type DynamicWorkflowAskRevisionResult =
+  | { ok: true; runId: string; invalidatedSites: string[] }
+  | { ok: false; reason: "not_found" | "not_completed" | "still_running" | "missing_boundaries" | "not_ready" };
+
 /**
  * {@link DynamicWorkflowRunPort.amend} 的请求。
  *
@@ -134,6 +171,9 @@ export interface DynamicWorkflowRunAmendRequest {
    * `resolveInput` 里连同一次重新解析归一成这里的一个选择或缺席。
    */
   subagentModel?: ModelSelection;
+  /** GUI 恢复继承时沿用前驱启动快照，不读取后来变化的父会话。 */
+  sessionModelSelection?: ModelSelection;
+  actorModelOverrides?: DynamicWorkflowActorModelOverride[];
   /**
    * **新脚本**来自哪个文件的绝对路径；语义同 {@link DynamicWorkflowRunSubmitRequest.scriptPath}。
    *
@@ -225,6 +265,10 @@ export type DynamicWorkflowRunSnapshot = Omit<WorkflowTaskSnapshot, "output"> & 
    * 这里是字符串而不是 {@link ModelSelection}：读面只用来显示与原样回填，没有人按字段取值。
    */
   subagentModel?: string;
+  /** 启动时冻结的完整选择，含会话继承的思考档和速度。 */
+  subagentSelection?: ModelSelection;
+  /** 发起会话的冻结选择；显式覆盖也不抹掉此值。 */
+  sessionSelection?: ModelSelection;
   /**
    * 本 run 的脚本文件（绝对路径，journal 事件 `run-launched` 上的那一个）。**只在这个 run 记下过文件时在场**。
    *
@@ -633,6 +677,10 @@ export interface DynamicWorkflowRunPort {
    * 未知 runId 返回 false。
    */
   cancel(runId: string, initiator?: DynamicWorkflowRunCancelInitiator): Promise<boolean>;
+  /** 只控制本会话在飞 run 的单次 ask；已完成任务的因果修订走独立入口。 */
+  controlAsk?(request: DynamicWorkflowAskControlRequest): Promise<DynamicWorkflowAskControlResult>;
+  /** Revise a completed ask in a settled predecessor; preserve independent cached work. */
+  reviseAsk?(request: DynamicWorkflowAskRevisionRequest): Promise<DynamicWorkflowAskRevisionResult>;
   /** 按 cursor 翻取事件日志；越界 cursor 返回空页而非报错。 */
   listEvents(
     runId: string,

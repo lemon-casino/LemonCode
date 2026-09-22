@@ -62,6 +62,8 @@ export interface EngineState {
   readonly importedCache: ImportedRunCache | undefined;
   /** world 导入队列的消费游标（第 n 次出现对第 n 条）。 */
   readonly importedWorld: ImportedWorldQueue;
+  /** A revised world site must observe the successor run rather than old workspace output. */
+  invalidatesImportedWorld(siteId: string): boolean;
 
   isRunSettled(): boolean;
   /** run 已结算时用于 reject / throw 的错误。 */

@@ -46,14 +46,6 @@ async function ensureProviderClientReady(
   // 兜底不抛（让后续 setModel 走既有路径/报错），避免吞掉真实定位。
 }
 
-function createModelSelection(provider: string, model: string, thought: string | undefined) {
-  return {
-    providerId: provider,
-    modelId: model,
-    ...(thought ? { options: { reasoningLevel: thought } } : {}),
-  };
-}
-
 function readActualThought(
   record: V4SessionRecordView,
   fallbackSelection?: ModelSelection,
@@ -83,13 +75,7 @@ async function switchModelConfig(
     // previous 必须在串行化临界区内、setModel 之前快照。registry fallback 可能排在本命令
     // 前面，若在排队前读取会拿到过期 previous，并让 noop/事件顺序与 runtime 真值分裂。
     const previousSelection = record.app.runtime.getSessionModelSelection();
-    const previousModelSelection =
-      previousSelection &&
-      createModelSelection(
-        previousSelection.providerId,
-        previousSelection.modelId,
-        previousSelection.options?.reasoningLevel,
-      );
+    const previousModelSelection = previousSelection;
     const previousThought = readActualThought(record, previousSelection);
     const modelIdentityChanged =
       previousSelection?.providerId !== payload.provider ||
@@ -106,7 +92,6 @@ async function switchModelConfig(
     // setModel 前由当前 Environment Registry 确认目标 Provider 可用。
     await ensureProviderClientReady(host, record.app.sessionId, payload.provider);
     let actualThought = previousThought;
-    let nextModelSelection: ModelSelection;
     if (modelIdentityChanged) {
       const result = await record.app.setModel(`${payload.provider}/${payload.model}`);
       actualThought = result.thoughtLevel ?? readActualThought(record);
@@ -116,19 +101,14 @@ async function switchModelConfig(
         const thoughtResult = await record.app.setThoughtLevel(requestedThought);
         actualThought = thoughtResult.thoughtLevel;
       }
-      nextModelSelection = createModelSelection(
-        payload.provider,
-        payload.model,
-        requestedThought && record.app.listThoughtLevels().includes(requestedThought)
-          ? requestedThought
-          : undefined,
-      );
     } else {
       // provider/model 相同才表示用户显式切 thought；非法值在任何模型变更前失败。
       const result = await record.app.setThoughtLevel(requestedThought);
       actualThought = result.thoughtLevel;
-      nextModelSelection = createModelSelection(payload.provider, payload.model, actualThought);
     }
+    // 事件应使用运行时已保存的完整选择；重建 provider/model/thought 会丢速度。
+    const nextModelSelection = record.app.runtime.getSessionModelSelection();
+    if (!nextModelSelection) throw new Error("Model selection missing after switchModelConfig");
     await record.app.runtime.emitModelSelected({
       modelSelection: nextModelSelection,
       ...(actualThought ? { effectiveReasoningLevel: actualThought } : {}),
@@ -186,13 +166,7 @@ export async function applyRequestedSessionConfig(
 ): Promise<void> {
   await runSessionModelConfigMutation(record.app, async () => {
     const previousSelection = record.app.runtime.getSessionModelSelection();
-    const previousModelSelection =
-      previousSelection &&
-      createModelSelection(
-        previousSelection.providerId,
-        previousSelection.modelId,
-        previousSelection.options?.reasoningLevel,
-      );
+    const previousModelSelection = previousSelection;
     const previousThought = readActualThought(record, previousSelection);
     const requestedSelection = config.modelSelection;
     const targetProvider =
@@ -208,13 +182,19 @@ export async function applyRequestedSessionConfig(
       Boolean(targetThought) &&
       targetThought !==
         (requestedSelection ? previousSelection?.options?.reasoningLevel : previousThought);
-    if (targetProvider && targetModel && (modelIdentityChanged || thoughtChanged)) {
+    const speedChanged =
+      requestedSelection?.options?.speed !== undefined &&
+      requestedSelection.options.speed !== previousSelection?.options?.speed;
+    if (targetProvider && targetModel && (modelIdentityChanged || thoughtChanged || speedChanged)) {
       // 首发 Provider 不在 Registry 时抛 provider.notInRegistry，createSession 处捕获降级为
       // warn（会话保持 runtime 缺省，不连坐创建），语义与既有 config 应用失败一致。
       await ensureProviderClientReady(host, record.app.sessionId, targetProvider);
       let actualThought = previousThought;
-      if (modelIdentityChanged) {
-        const result = await record.app.setModel(`${targetProvider}/${targetModel}`);
+      if (modelIdentityChanged || speedChanged) {
+        // 结构化预热必须原样校验选项，旧 flat config 才按主动选模型补默认档位。
+        const result = await record.app.setModel(
+          requestedSelection ?? `${targetProvider}/${targetModel}`,
+        );
         actualThought = result.thoughtLevel ?? readActualThought(record);
       }
       if (targetThought && record.app.listThoughtLevels().includes(targetThought)) {
@@ -225,17 +205,11 @@ export async function applyRequestedSessionConfig(
         // 保留“目标不支持则使用默认值”的已发布兼容行为。
         await record.app.setThoughtLevel(targetThought);
       }
-      if (modelIdentityChanged || actualThought !== previousThought) {
+      if (modelIdentityChanged || actualThought !== previousThought || speedChanged) {
         // 草稿预热 config 可能携带上一模型的 thought。目标模型不支持时保留
         // setModel 已解析出的兼容档位，仍发布目标模型事件，避免创建出 runtime/投影分裂的 session。
         await record.app.runtime.emitModelSelected({
-          modelSelection: createModelSelection(
-            targetProvider,
-            targetModel,
-            targetThought && record.app.listThoughtLevels().includes(targetThought)
-              ? targetThought
-              : undefined,
-          ),
+          modelSelection: record.app.runtime.getSessionModelSelection()!,
           ...(actualThought ? { effectiveReasoningLevel: actualThought } : {}),
           previousModelSelection,
           supportedThoughtLevels: record.app.listThoughtLevels(),

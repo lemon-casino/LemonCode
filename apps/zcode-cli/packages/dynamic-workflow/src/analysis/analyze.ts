@@ -1,6 +1,6 @@
 import { collectDiagnostics, createWorkflowProgram } from "../compiler/compile.js";
-import type { CompileDiagnostic } from "../compiler/compile.js";
-import { collectSites } from "./sites.js";
+import type { CompileDiagnostic, WorkflowProgram } from "../compiler/compile.js";
+import { collectSites, type SiteTable } from "./sites.js";
 import { collectFacadeMisuse } from "./facade-misuse.js";
 import { collectWorldRunCommands } from "./world-run.js";
 import { collectArtifactDeclarations, type DeclaredArtifact } from "./artifacts.js";
@@ -114,4 +114,13 @@ export function analyzeWorkflowScript(scriptText: string): AnalyzeResult {
     handoff: projectHandoffGraph(core, causality, graph),
     ok: authoring.length === 0,
   };
+}
+
+/** Derives the causal graph from an already compiled program without creating another Program. */
+export function deriveWorkflowCausalityFor(
+  workflow: WorkflowProgram,
+  table: SiteTable,
+): CausalityGraph {
+  const core = interpret(workflow, table);
+  return projectCausalityGraph(core, projectSiteGraph(core));
 }

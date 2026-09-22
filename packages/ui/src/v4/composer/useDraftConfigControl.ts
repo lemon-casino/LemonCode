@@ -16,6 +16,7 @@ import type {
 } from "@zcode/shared";
 import type { SessionConfigState } from "@zcode/shared/zcode-protocol-v4";
 import type { IModelSelectionService } from "@zcode/services";
+import type { ModelSelectionView } from "@zcode/services";
 import { completeNewModelSelection } from "@zcode/provider";
 import {
   useModelSelectionServiceView,
@@ -26,7 +27,10 @@ import { prepareWorkspaceWithZCodeSessionService } from "@/hooks/useWorkspacePre
 import { useZCodeSessionService } from "@/hooks/useZCodeSessionService.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
-import { initializeNewTaskDraft } from "@/v4/composer/newTaskDraft.js";
+import {
+  initializeNewTaskDraft,
+  refreshUneditedNewTaskDefaults,
+} from "@/v4/composer/newTaskDraft.js";
 import {
   clearV4ComposerDraft,
   persistV4ComposerDraft,
@@ -76,6 +80,7 @@ function shouldHydrateWorkspaceCatalog(params: {
 
 interface DraftConfigControl {
   modelSelectionRead: ModelSelectionRead;
+  modelCatalogView: ModelSelectionView | null;
   /** Renderer 下一次提交的配置；Session 只在 scope 首次初始化时提供种子。 */
   draftConfig: Partial<SessionConfigState>;
   /** 草稿已选 config（partial）；createSession 时经 buildDraftCreateConfigPayload 携带。 */
@@ -96,6 +101,10 @@ interface DraftConfigControl {
   ) => () => void;
   handleDraftSelectModel: (modelProvider: string, model: string) => void;
   handleDraftSelectThought: (thought: string) => void;
+  handleDraftSelectSpeed: (
+    speed: string,
+    modelContext: { provider: string; model: string },
+  ) => void;
   handleDraftSwitchMode: (mode: string) => void;
 }
 
@@ -140,31 +149,40 @@ export function useDraftConfigControl(params: {
   const [storedState, setStoredState] = useState(loadedScope);
   let currentState = storedState.scopeKey === scopeKey ? storedState : loadedScope;
   let draft = currentState.draft;
+  // 原因：带选择输入的 View 每次改档都会重新读取，loading 期间目录消失会卸载两个菜单。
+  // 无输入目录只用于展示；提交仍须等待带当前草稿输入的 View 校验完成。
+  const modelCatalogRead = useModelSelectionServiceView(modelSelectionService);
+  const modelCatalogView =
+    modelCatalogRead.state.status === "ready" ? modelCatalogRead.state.view : null;
+  const requestedSelection = draft.modelSelection ?? null;
   const modelSelectionRead = useModelSelectionServiceView(
     modelSelectionService,
     true,
     "remote-waiting",
     {
-      selection: draft.modelSelection ?? null,
+      selection: requestedSelection,
     },
   );
   const modelSelectionView =
     modelSelectionRead.state.status === "ready" ? modelSelectionRead.state.view : null;
   const initializeAsNewTask = sessionId === null || draft.initializeFromNewTask === true;
-  if (!draft.mode && (initializeAsNewTask ? modelSelectionView !== null : sessionConfig != null)) {
+  if (!draft.mode && (initializeAsNewTask ? modelCatalogView !== null : sessionConfig != null)) {
     const mode = submissionModeSchema.safeParse(sessionConfig?.mode);
     // Recent 是初始化原意图，不先按旧 Provider 是否仍在候选中删掉；下一次输入读取
     // 由同一解析入口对应当前账号，或暂时留空。否则冷启动会绕过统一账号对应规则。
     // mode 是已初始化标记：历史恢复给出的空选择也是确定结果，后续 Snapshot 不得填满。
     draft =
-      initializeAsNewTask && modelSelectionView
-        ? initializeNewTaskDraft(draft, workspacePath, workspaceIdentity, modelSelectionView)
+      initializeAsNewTask && modelCatalogView
+        ? initializeNewTaskDraft(draft, workspacePath, workspaceIdentity, modelCatalogView)
         : {
             ...draft,
             mode: mode.success && mode.data !== "plan" ? mode.data : "build",
             planEnabled: resolveExecutionState(sessionConfig ?? {}).planEnabled,
             modelSelection: sessionConfig?.modelSelection,
           };
+  }
+  if (sessionId === null && draft.mode && modelCatalogView) {
+    draft = refreshUneditedNewTaskDefaults(draft, modelCatalogView);
   }
   if (sessionConfig) {
     draft = applyComposerPlanTransition(draft, sessionConfig.planTransition);
@@ -176,9 +194,10 @@ export function useDraftConfigControl(params: {
   stateRef.current = currentState;
   // 原因：按 revision 清草稿会把短暂不可用永久写成空选择。这里只派生当前结果，
   // 正文/模式自动保存继续保存 draft 中的原意图；读取未就绪时保留展示，提交由 View 门禁阻断。
-  const effectiveSelection = modelSelectionView
-    ? (modelSelectionView.effectiveSelection ?? undefined)
-    : draft.modelSelection;
+  const effectiveSelection =
+    modelSelectionView && draft.modelSelection === requestedSelection
+      ? (modelSelectionView.effectiveSelection ?? undefined)
+      : draft.modelSelection;
   const draftConfig = useMemo<Partial<SessionConfigState>>(
     () => ({
       mode: draft.mode,
@@ -238,6 +257,7 @@ export function useDraftConfigControl(params: {
         ...current,
         mode: mode.success ? mode.data : current.mode,
         modelSelection: next.modelSelection,
+        modelSelectionEdited: true,
         // 用户已经显式改选，不能再由导入时等待的默认初始化覆盖。
         ...(current.initializeFromNewTask
           ? { mode: mode.success ? mode.data : "build", initializeFromNewTask: undefined }
@@ -254,7 +274,8 @@ export function useDraftConfigControl(params: {
       if (
         effective?.providerId !== expectedSelection.providerId ||
         effective.modelId !== expectedSelection.modelId ||
-        effective.options?.reasoningLevel !== expectedSelection.options?.reasoningLevel
+        effective.options?.reasoningLevel !== expectedSelection.options?.reasoningLevel ||
+        effective.options?.speed !== expectedSelection.options?.speed
       )
         return () => {};
       return () => {
@@ -411,9 +432,9 @@ export function useDraftConfigControl(params: {
     (modelProvider: string, model: string) => {
       const modelId = modelProvider ? `${modelProvider}/${model}` : model;
       const parsedSelection = parseModelPickerValue(modelId);
-      // 用户点击模型只确定模型身份；Reasoning 没有默认值，保持为空并等待用户选择。
-      const modelSelection = modelSelectionView
-        ? (completeNewModelSelection(modelSelectionView, parsedSelection) ?? parsedSelection)
+      const modelSelection = modelCatalogView
+        ? (completeNewModelSelection(modelCatalogView, parsedSelection, { speed: "highest" }) ??
+          parsedSelection)
         : parsedSelection;
       logger.debug("[v4-draft-config] select model", {
         modelProvider,
@@ -426,7 +447,7 @@ export function useDraftConfigControl(params: {
       });
       updateDraftConfig((current) => applyDraftModelSelection(current, modelSelection));
     },
-    [modelSelectionView, updateDraftConfig, workspaceIdentity, workspacePath],
+    [modelCatalogView, updateDraftConfig, workspaceIdentity, workspacePath],
   );
 
   const handleDraftSelectThought = useCallback(
@@ -451,6 +472,28 @@ export function useDraftConfigControl(params: {
               : {}),
           },
           thought,
+        };
+      });
+    },
+    [updateDraftConfig],
+  );
+
+  const handleDraftSelectSpeed = useCallback(
+    (speed: string, modelContext: { provider: string; model: string }) => {
+      updateDraftConfig((current) => {
+        const selection = current.modelSelection;
+        if (
+          !selection ||
+          selection.providerId !== modelContext.provider ||
+          selection.modelId !== modelContext.model
+        )
+          return current;
+        return {
+          ...current,
+          modelSelection: {
+            ...selection,
+            options: { ...selection.options, speed },
+          },
         };
       });
     },
@@ -482,6 +525,7 @@ export function useDraftConfigControl(params: {
 
   return {
     modelSelectionRead,
+    modelCatalogView,
     draftConfig,
     draftConfigRef,
     resolveInitialDraftConfig,
@@ -492,6 +536,7 @@ export function useDraftConfigControl(params: {
     captureAcceptedModelSelection,
     handleDraftSelectModel,
     handleDraftSelectThought,
+    handleDraftSelectSpeed,
     handleDraftSwitchMode,
   };
 }

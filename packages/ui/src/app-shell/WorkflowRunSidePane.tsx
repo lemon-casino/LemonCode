@@ -267,6 +267,7 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
         siteId: instance.siteId,
         ordinal: instance.ordinal,
         ...(instance.name ? { actorName: instance.name } : {}),
+        ...(instance.focusPhaseName ? { focusPhaseName: instance.focusPhaseName } : {}),
       });
     },
     [onOpenWorkflowActorSession, tab.parentSessionId, tab.runId, tabScope],

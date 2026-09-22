@@ -437,7 +437,12 @@ export function PermissionDialog({
   request: ZCodePermissionRequest;
   responding?: boolean;
   responseError?: string;
-  onRespond: (requestId: string, option: ZCodePermissionOption, feedback?: string) => void;
+  onRespond: (
+    requestId: string,
+    option: ZCodePermissionOption,
+    feedback?: string,
+    modifiedInput?: unknown,
+  ) => void;
   workspacePath: string;
   provider?: ZCodeProvider;
 }) {
@@ -493,6 +498,7 @@ export function PermissionDialog({
   const displayReason = useMemo(() => getPermissionDisplayReason(request), [request]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [feedback, setFeedback] = useState("");
+  const [workflowModifiedInput, setWorkflowModifiedInput] = useState<unknown>(undefined);
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const feedbackInputRef = useRef<HTMLTextAreaElement | null>(null);
   const feedbackCompositionActiveRef = useRef(false);
@@ -518,6 +524,7 @@ export function PermissionDialog({
     setSelectedIndex(0);
     // 草稿按 requestId 归零，避免一个请求的反馈（或工作流修改意见）泄漏进下一个确认窗。
     setFeedback("");
+    setWorkflowModifiedInput(undefined);
   }, [request.requestId]);
 
   useEffect(() => {
@@ -565,9 +572,14 @@ export function PermissionDialog({
       // 模型收不到 workflow_refine_feedback 的升级递送。
       const trimmedFeedback =
         !refineOption && selectedKind.startsWith("reject") ? feedback.trim() : "";
-      onRespond(request.requestId, option, trimmedFeedback || undefined);
+      onRespond(
+        request.requestId,
+        option,
+        trimmedFeedback || undefined,
+        workflowModifiedInput,
+      );
     },
-    [feedback, onRespond, refineOption, request.requestId, responding],
+    [feedback, onRespond, refineOption, request.requestId, responding, workflowModifiedInput],
   );
 
   const submitFeedback = useCallback(() => {
@@ -718,7 +730,11 @@ export function PermissionDialog({
             ) : shouldUseWorkflowBlock ? (
               // CLI 侧的 reason 是给协议诊断用的（"createWorkflow.runConfirmation: ..."），
               // 这里刻意不渲染 displayReason：块内的本地化标题才是给用户看的那句问句。
-              <WorkflowPermissionBlock request={request} workspacePath={workspacePath} />
+              <WorkflowPermissionBlock
+                request={request}
+                workspacePath={workspacePath}
+                onModifiedInputChange={setWorkflowModifiedInput}
+              />
             ) : shouldUseSaveWorkflowBlock ? (
               // 同上：保存 gate 的问句（保存 / 覆盖两句）由块自己给出，不复用协议 reason。
               <SaveWorkflowPermissionBlock request={request} />

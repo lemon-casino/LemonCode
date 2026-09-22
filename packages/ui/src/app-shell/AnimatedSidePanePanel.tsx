@@ -1166,6 +1166,7 @@ export function AnimatedSidePanePanel({
                             onOpenBrowserUrl={onOpenBrowserUrl}
                             onOpenCodeViewer={onOpenCodeViewer}
                             onOpenFileLink={onOpenFileLink}
+                            onOpenWorkflowRun={onOpenWorkflowRun}
                           />
                         ) : tab.type === "workflow-workspace" ? (
                           <WorkflowWorkspaceSidePane

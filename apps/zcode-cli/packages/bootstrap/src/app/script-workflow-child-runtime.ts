@@ -26,6 +26,7 @@ import {
   type SessionId,
   type SessionStorePort,
   type ToolArtifactStorePort,
+  type ToolOperationAdmissionPort,
   type TraceContext,
   type WorkflowAgentCallInput,
   type WorkflowEscalatePort,
@@ -91,6 +92,7 @@ export function createScriptWorkflowAgentRuntime(input: {
    * 不喂信号。与两个工具端口同路进 runtime deps。
    */
   modelRequestAdmission?: ModelRequestAdmission;
+  toolOperationAdmission?: ToolOperationAdmissionPort;
 }): AgentRuntime {
   // dwf actor 经 configOverrides.workflowActor 走 builder 的叠加路径，此时 systemPrompt 必须
   // 缺席（builder 对二者同在抛错）——父会话自带的 custom system prompt 不得漏给子代理，所以
@@ -147,6 +149,9 @@ export function createScriptWorkflowAgentRuntime(input: {
         : {}),
       ...(input.modelRequestAdmission
         ? { modelRequestAdmission: input.modelRequestAdmission }
+        : {}),
+      ...(input.toolOperationAdmission
+        ? { toolOperationAdmission: input.toolOperationAdmission }
         : {}),
     },
   );

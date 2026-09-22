@@ -33,6 +33,10 @@ import {
 import { useWorkflowSubagentModelProviderName } from "@/hooks/useWorkflowSubagentModelProviderName.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { isAmendWorkflowToolCall } from "@/lib/workflowToolNames.js";
+import {
+  WorkflowActorModelOverridesEditor,
+  type WorkflowActorLane,
+} from "@/WorkflowActorModelOverridesEditor.js";
 
 /**
  * saved 来源徽标：这次运行的脚本来自项目里的一个文件，而不是模型现写的一段。
@@ -110,10 +114,12 @@ function WorkflowSavedSourceBadge({ saved }: { saved: WorkflowSavedSource }) {
  * 是决策关键内容且不可折叠，脚本是审计细节层。
  */
 export function WorkflowPermissionBlock({
+  onModifiedInputChange,
   request,
   workspacePath,
 }: {
   request: ZCodePermissionRequest;
+  onModifiedInputChange?: (input: unknown) => void;
   /** 会话模型清单的作用域（PermissionDialog 给）：只用来把 provider id 换成 provider 名。 */
   workspacePath?: string;
 }) {
@@ -161,6 +167,29 @@ export function WorkflowPermissionBlock({
       ? display.causalityGraph
       : undefined;
   const hasGraph = causalityGraph !== undefined;
+  const actorLanes = useMemo<WorkflowActorLane[]>(() => {
+    if (causalityGraph === undefined) return [];
+    const askLaneIds = new Set(
+      causalityGraph.steps.flatMap((step) =>
+        step.kind !== "ask" ? [] : (step.lanes ?? [step.lane]),
+      ),
+    );
+    return causalityGraph.lanes.flatMap((lane) => {
+      if (!askLaneIds.has(lane.id)) return [];
+      const pattern = lane.namePattern;
+      const patternLabel =
+        pattern === undefined ? undefined : `${pattern.head ?? ""}…${pattern.tail ?? ""}`;
+      return [
+        {
+          id: lane.id,
+          label:
+            lane.name ??
+            patternLabel ??
+            intl.formatMessage({ id: "chat.permission.workflow.actorModels.unnamed" }),
+        },
+      ];
+    });
+  }, [causalityGraph, intl]);
   const model = useMemo(
     () =>
       causalityGraph === undefined ? undefined : buildWorkflowTimeline(causalityGraph, undefined),
@@ -271,6 +300,16 @@ export function WorkflowPermissionBlock({
       )}
 
       {saved ? <WorkflowSavedSourceBadge saved={saved} /> : null}
+
+      {onModifiedInputChange === undefined ? null : (
+        <WorkflowActorModelOverridesEditor
+          lanes={actorLanes}
+          onModifiedInputChange={onModifiedInputChange}
+          raw={request.raw}
+          requestId={request.requestId}
+          workspacePath={workspacePath}
+        />
+      )}
 
       {model === undefined ? null : <WorkflowTimeline className="py-1" model={model} />}
 

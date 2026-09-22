@@ -25,6 +25,7 @@ import {
   readRetryAfterMs,
   subagentLabel,
   transientBackoffMs,
+  sameAskAttempt,
 } from "./workflow-driver-helpers.js";
 import type { AgentRuntimeWorkflowDriverDeps, SessionState } from "./workflow-driver-types.js";
 
@@ -116,7 +117,7 @@ function scheduleTransientRedrive(
       state.accepted ||
       state.abortController?.signal.aborted === true ||
       state.currentInstance === undefined ||
-      refToString(state.currentInstance) !== refToString(instance)
+      !sameAskAttempt(state.currentInstance, instance)
     ) {
       return;
     }

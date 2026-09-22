@@ -5,6 +5,7 @@
 // 拆出让 snapshot.ts 回到 max-lines 上限之内（与 workspace-hook-review.ts 同一先例）。
 
 import { z } from "zod";
+import { modelSelectionSchema } from "../model-selection.js";
 
 import { workflowRunArtifactSummarySchema } from "./workflow-artifacts.js";
 
@@ -168,7 +169,18 @@ export const workflowRunNodeSchema = z.object({
   siteId: z.string().min(1).max(64),
   ordinal: z.number().int().nonnegative(),
   kind: z.enum(["ask", "world-read"]).optional(),
-  phase: z.enum(["queued", "dispatched", "executing", "waiting", "repairing", "nudged", "settled"]),
+  phase: z.enum([
+    "queued",
+    "dispatched",
+    "executing",
+    "waiting",
+    "repairing",
+    "nudged",
+    "paused",
+    "settled",
+  ]),
+  /** 同一脚本节点的尝试代次；旧运行日志缺席即第一次。 */
+  attempt: z.number().int().positive().optional(),
   outcome: z.enum(["ok", "failed", "cancelled"]).optional(),
   cached: z.boolean().optional(),
   /** 该节点所属 actor 的站点 id（world-read 无 actor）。 */
@@ -385,6 +397,10 @@ export const workflowRunSchema = z.object({
    * 少一个键是退化，不是整帧被丢。
    */
   subagentModel: z.string().min(1).max(WORKFLOW_RUNS_LIMITS.maxSubagentModelLength).optional(),
+  /** run 启动时冻结的完整子代理选择；旧 run 缺席时不猜测速度。 */
+  subagentSelection: modelSelectionSchema.optional(),
+  /** 发起会话在启动时的选择，恢复继承时使用。 */
+  sessionSelection: modelSelectionSchema.optional(),
   /**
    * 本 run 发布的**用户面产物**，按首次出现顺序，每项只带**最新版**的元数据。**零件时整个键缺席**（不是空数组）：
    * 侧板的 Artifacts 区据此整区不渲染——「无则缺席」与 `reports` / `pendingQuestions` 同规。

@@ -10,6 +10,7 @@
 // 表单只在打开时挂载——模型清单的订阅也随之只活在打开期间。
 
 import { useCallback, useMemo, useRef, useState, type RefObject } from "react";
+import type { ModelSelection } from "@zcode/shared/model-selection";
 import { completeNewModelSelection } from "@zcode/provider";
 import { ZCODE_AGENT_PROVIDER } from "@zcode/shared";
 import type { CommandAck, WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
@@ -20,6 +21,7 @@ import { useModelSelectionView } from "@/hooks/useModelSelectionView.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { buildRegistryModelSelectGroups } from "@/lib/modelSelectionGroups.js";
 import { resolveModelThoughtOption } from "@/lib/modelThoughtOption.js";
+import { thoughtLevelLabelId } from "@/chat-input-toolbar/thoughtLevelLabels.js";
 import { encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
 import { parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
 import { logger } from "@/logger.js";
@@ -52,7 +54,7 @@ export interface WorkflowRunSettingsHost {
   workspaceIdentity?: string;
   remoteSessionId?: string;
   /** 会话当前模型（首项与触发器用它的名字）；缺席时首项只写「会话模型」。 */
-  sessionModel?: { providerId: string; modelId: string };
+  sessionModel?: ModelSelection;
   /** 发 `amendWorkflowRunSettings`（宿主补 workId 与会话），回 ACK。 */
   apply: (change: WorkflowRunSettingsChange) => Promise<CommandAck>;
 }
@@ -183,15 +185,36 @@ function WorkflowRunSettingsForm({
     setRejection(undefined);
   };
 
+  const inheritedSelection =
+    run.sessionSelection ?? (run.subagentModel === undefined ? run.subagentSelection : undefined);
   const sessionModelName =
-    host.sessionModel === undefined
-      ? format("chat.toolCall.workflow.run.settings.model.sessionFallback")
+    inheritedSelection === undefined
+      ? format("chat.toolCall.workflow.run.settings.model.unrecorded")
       : formatProviderModelLabel(
-          host.sessionModel.providerId,
-          providerName(host.sessionModel.providerId),
-          host.sessionModel.modelId,
+          inheritedSelection.providerId,
+          providerName(inheritedSelection.providerId),
+          inheritedSelection.modelId,
         );
   const sessionBadge = format("chat.toolCall.workflow.run.settings.model.session");
+  const inheritedLevel = inheritedSelection?.options?.reasoningLevel;
+  const inheritedSpeed = inheritedSelection?.options?.speed;
+  const inheritedLevelId = inheritedLevel ? thoughtLevelLabelId(inheritedLevel) : undefined;
+  const inheritedLabel =
+    draft.model.kind === "session" && inheritedSelection !== undefined
+      ? [
+          sessionBadge,
+          ...(inheritedLevel ? [inheritedLevelId ? format(inheritedLevelId) : inheritedLevel] : []),
+          ...(inheritedSpeed
+            ? [
+                inheritedSpeed === "fast"
+                  ? format("chat.toolbar.speed.fast")
+                  : inheritedSpeed === "standard"
+                    ? format("chat.toolbar.speed.standard")
+                    : inheritedSpeed,
+              ]
+            : []),
+        ].join(" · ")
+      : undefined;
   // 两个字段都是字符串，所以这一项只在文案真变了时换引用；下游的模型选择器是 memo 组件。
   const sessionModelItem = useMemo(
     () => ({
@@ -206,7 +229,7 @@ function WorkflowRunSettingsForm({
   const modelValue =
     draftModel.kind === "session"
       ? SESSION_MODEL_VALUE
-      : encodeCustomModelValue(draftModel.providerId, draftModel.modelId);
+      : encodeCustomModelValue(draftModel.selection.providerId, draftModel.selection.modelId);
   const listed = groups.some((group) => group.items.some((item) => item.value === modelValue));
   // 清单读好了、却找不到这个模型：它已被删或停用。Apply 等用户换一个——沿用它只会让 agent 回
   // model_unavailable（同工具「沿用的模型已不可用」那条失败，在点下去之前就说出来）。
@@ -219,15 +242,35 @@ function WorkflowRunSettingsForm({
           formatMessage: intl.formatMessage.bind(intl),
           providerName,
         }).name;
+  const effectiveSelection =
+    draftModel.kind === "session" ? inheritedSelection : draftModel.selection;
   const thoughtOption =
-    draftModel.kind === "model" && view !== null && !unavailable
+    effectiveSelection !== undefined && view !== null && !unavailable
       ? resolveModelThoughtOption({
           modelSelectionView: view,
-          providerId: draftModel.providerId,
-          modelId: draftModel.modelId,
-          ...(draftModel.level === undefined ? {} : { currentValue: draftModel.level }),
+          providerId: effectiveSelection.providerId,
+          modelId: effectiveSelection.modelId,
+          ...(effectiveSelection.options?.reasoningLevel === undefined
+            ? {}
+            : { currentValue: effectiveSelection.options.reasoningLevel }),
         })
       : null;
+  const speeds =
+    effectiveSelection === undefined || view === null
+      ? []
+      : (view.providers
+          .find((provider) => provider.providerId === effectiveSelection.providerId)
+          ?.models.find((model) => model.modelId === effectiveSelection.modelId)?.config.optionSpecs
+          .speed?.values ?? []);
+
+  const changeOption = (key: "reasoningLevel" | "speed", value: string) => {
+    if (effectiveSelection === undefined) return;
+    const selection = {
+      ...effectiveSelection,
+      options: { ...effectiveSelection.options, [key]: value },
+    };
+    updateDraft({ ...draft, model: { kind: "model", selection } });
+  };
 
   const handleModelChange = (value: string) => {
     if (value === SESSION_MODEL_VALUE) {
@@ -237,22 +280,18 @@ function WorkflowRunSettingsForm({
     const picked = parseModelPickerValue(value);
     const same =
       draftModel.kind === "model" &&
-      draftModel.providerId === picked.providerId &&
-      draftModel.modelId === picked.modelId;
+      draftModel.selection.providerId === picked.providerId &&
+      draftModel.selection.modelId === picked.modelId;
     // 换模型即取它在注册表里的默认思考档（与设置页子代理那一格同一条规则）；同一个模型保留当前档。
-    const level = same
-      ? draftModel.level
+    const selection = same
+      ? draftModel.selection
       : view === null
         ? undefined
-        : completeNewModelSelection(view, picked)?.options?.reasoningLevel;
+        : completeNewModelSelection(view, picked, { speed: "highest" });
+    if (selection === undefined) return;
     updateDraft({
       ...draft,
-      model: {
-        kind: "model",
-        providerId: picked.providerId,
-        modelId: picked.modelId,
-        ...(level === undefined ? {} : { level }),
-      },
+      model: { kind: "model", selection },
     });
   };
 
@@ -298,14 +337,15 @@ function WorkflowRunSettingsForm({
       <WorkflowRunSettingsModelField
         disabled={pending || view === null}
         groups={groups}
+        inheritedLabel={inheritedLabel}
         leadingItem={sessionModelItem}
         noCatalog={view !== null && groups.length === 0}
-        onLevelChange={(level) => {
-          if (draftModel.kind !== "model" || level === draftModel.level) return;
-          updateDraft({ ...draft, model: { ...draftModel, level } });
-        }}
+        onLevelChange={(level) => changeOption("reasoningLevel", level)}
+        onSpeedChange={(speed) => changeOption("speed", speed)}
         onValueChange={handleModelChange}
         thoughtOption={thoughtOption}
+        speeds={speeds}
+        speed={effectiveSelection?.options?.speed ?? ""}
         triggerLabel={triggerLabel}
         value={modelValue}
         {...(draftModel.kind === "session"
@@ -353,7 +393,14 @@ function WorkflowRunSettingsForm({
       <div className="flex justify-end">
         <Button
           data-testid="workflow-run-settings-apply"
-          disabled={change === undefined || pending || unavailable}
+          disabled={
+            change === undefined ||
+            pending ||
+            unavailable ||
+            (draftModel.kind === "session" &&
+              run.subagentModel !== undefined &&
+              inheritedSelection === undefined)
+          }
           onClick={handleApply}
           size="default"
           type="button"

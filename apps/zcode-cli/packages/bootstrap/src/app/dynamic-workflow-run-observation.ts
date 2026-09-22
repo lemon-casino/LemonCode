@@ -5,6 +5,7 @@
 // 本文件承载「registry + journal → 对外读面」的纯合成规则（无 I/O、无状态）。
 
 import type { DwfRunListItem, DwfRunSessionListItem } from "@zcode/adapters/storage";
+import type { ModelSelection } from "@zcode/shared/model-selection";
 import {
   boundDynamicWorkflowRunEventPayload,
   type DynamicWorkflowRunError,
@@ -17,6 +18,7 @@ import {
 } from "@zcode/contracts";
 import type {
   JournalStorePort,
+  WorkflowEngine,
   NodeRecord,
   RunRecord,
   RunSettlement,
@@ -27,7 +29,7 @@ import type {
   WorkflowErrorJson,
 } from "@zcode/dynamic-workflow";
 import { artifactsOf } from "./dynamic-workflow-run-artifact-projection.js";
-import { readRunScriptPath, readRunSubagentModel } from "./dynamic-workflow-run-launch-anchor.js";
+import { readRunLaunch, readRunScriptPath, readRunSubagentModel } from "./dynamic-workflow-run-launch-anchor.js";
 import { resolveDynamicWorkflowRunLabel } from "./dynamic-workflow-run-label.js";
 import { lineageFields, supersededByOf } from "./dynamic-workflow-run-lineage.js";
 
@@ -41,6 +43,7 @@ export { artifactsOf };
 /** 注册表条目：一个在飞或近期结算的 run。 */
 export interface RunRegistryEntry {
   controller: AbortController;
+  control?: Pick<WorkflowEngine, "pauseAsk" | "retryAsk">;
   startedAt: Date;
   toolCallId?: string;
   parentSessionId?: string;
@@ -68,6 +71,9 @@ export interface RunRegistryEntry {
    * 有条目就读条目，只有冷行（本进程没有条目）才去扫事件。缺席即子代理跑在会话模型上。
    */
   subagentModel?: string;
+  /** 启动快照的内存副本，供 run-launched 尚未落库的间隙读取。 */
+  subagentSelection?: ModelSelection;
+  sessionSelection?: ModelSelection;
   /**
    * 本 run 的脚本文件（`run-launched` 事件上那个绝对路径的内存副本）。与 {@link subagentModel} 逐条同规：
    * 三条建条目的路都落值（submit / amend 用入参给的那一个，resume 读一次事件头抄过来），
@@ -170,6 +176,13 @@ export function snapshotOf(
     ...runSubagentModelField(
       entry === undefined ? readRunSubagentModel(journal, taskId) : entry.subagentModel,
     ),
+    ...(() => {
+      const launch = entry === undefined ? readRunLaunch(journal, taskId) : entry;
+      return {
+        ...(launch?.subagentSelection === undefined ? {} : { subagentSelection: launch.subagentSelection }),
+        ...(launch?.sessionSelection === undefined ? {} : { sessionSelection: launch.sessionSelection }),
+      };
+    })(),
     // 脚本文件：与子代理模型逐条同规（有条目就读条目，只有冷行才扫一次事件头），同样
     // 「记过才在场」。终态通知据它把下一步说成「就地编辑那个文件」，所以快照必须带上它。
     ...runScriptPathField(

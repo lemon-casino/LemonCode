@@ -120,6 +120,7 @@ import {
   type ConversationComposerSendResult,
 } from "@/v4/ConversationComposer.js";
 import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
+import { ReadOnlySessionTokenStats } from "@/v4/composer/ReadOnlySessionTokenStats.js";
 import { shouldIgnoreEscapeForStopGeneration } from "@/v4/composer/escapeStop.js";
 import { ConversationDraftEmptyState } from "@/v4/ConversationDraftEmptyState.js";
 import { ConversationDraftSuggestedPromptsContainer } from "@/v4/ConversationDraftSuggestedPromptsContainer.js";
@@ -1239,11 +1240,13 @@ export function SessionPane({
   const {
     composerDraft,
     modelSelectionRead,
+    modelCatalogView,
     draftConfig,
     draftConfigRef,
     resolveInitialDraftConfig,
     handleDraftSelectModel,
     handleDraftSelectThought,
+    handleDraftSelectSpeed,
     handleDraftSwitchMode,
     promoteComposerDraft,
     captureAcceptedModelSelection,
@@ -4395,7 +4398,7 @@ export function SessionPane({
       workspacePath={workspacePath}
       workspaceIdentity={workspaceIdentity}
       remoteSessionId={remoteSessionId ?? undefined}
-      modelSelectionView={modelSelectionView}
+      modelSelectionView={modelCatalogView}
       modelSelectionState={modelSelectionRead.state}
       modelSelectionReload={modelSelectionRead.reload}
       attachmentSessionId={effectiveSessionId}
@@ -4413,6 +4416,7 @@ export function SessionPane({
       onStop={handleStopFromButton}
       onSelectModel={handleSelectModel}
       onSelectThought={handleSelectThought}
+      onSelectSpeed={handleDraftSelectSpeed}
       onSwitchMode={handleSwitchMode}
       onOpenRunningBackgroundWorks={
         sessionId && runningBackgroundWorkCount > 0 ? handleOpenRunningBackgroundWorks : undefined
@@ -4618,6 +4622,7 @@ export function SessionPane({
         onClosePane={onClosePane}
         workspaceBadge={workspaceBadge}
       />
+      {readOnly && snapshot ? <ReadOnlySessionTokenStats snapshot={snapshot} /> : null}
 
       <div
         ref={conversationLayoutContainerRef}

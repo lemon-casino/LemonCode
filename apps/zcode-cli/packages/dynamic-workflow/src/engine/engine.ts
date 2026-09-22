@@ -28,6 +28,7 @@ import {
 import { publishReport } from "./engine-report.js";
 import { closeImportCache, readWorld, recoverImportClosure } from "./engine-world.js";
 import { settleCompleted, settleFailed, settleStopped } from "./engine-settlement.js";
+import { enrichProviderStopPhase, normalizePersona, stampBirthPhase } from "./engine-birth-phase.js";
 import type {
   ActorId,
   ArtifactRef,
@@ -53,6 +54,7 @@ import type {
 } from "./types.js";
 import { refToString, WorkflowError } from "./types.js";
 import { runLaunchedEvent, type RunLaunchConfig } from "./engine-launch.js";
+import { recoverAskControlStates, type RecoveredAskControlState } from "./ask-control-recovery.js";
 
 /** 引擎构造配置。 */
 export interface EngineConfig {
@@ -181,6 +183,11 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
   private importClosed = false;
   /** resume 时从事件恢复的「崩溃前曾 live 的 ask 实例」（`siteId@ordinal`）；非 resume 为空。 */
   private liveAskInstances: ReadonlySet<string> = new Set();
+  /** Task-level stop/retry state reconstructed before the replayed script admits asks. */
+  private askControlStates: ReadonlyMap<string, RecoveredAskControlState> = new Map();
+  /** Successor-run revisions keyed by the stable ask instance identity. */
+  private readonly askRevisions: ReadonlyMap<string, string | undefined>;
+  private readonly invalidatedSites: ReadonlySet<string>;
 
   /**
    * 本 run 已发布的报告条数（REPORT_CAPS.maxItemsPerRun 的计数器）。resume 时按 journal 里
@@ -215,6 +222,13 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
     this.validate = config.validate;
     this.importedCache = config.importedCache;
     this.importedWorld = new ImportedWorldQueue(config.importedCache?.world ?? new Map());
+    this.askRevisions = new Map(
+      (config.launch?.askRevisions ?? []).map((revision) => [
+        refToString(revision),
+        revision.supplement?.trim() || undefined,
+      ]),
+    );
+    this.invalidatedSites = new Set(config.launch?.invalidatedSites ?? []);
 
     let resolve!: (value: RunSettlement) => void;
     const promise = new Promise<RunSettlement>((res) => {
@@ -229,6 +243,7 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
       artifacts: this.artifacts,
       importedCache: this.importedCache,
       importedWorld: this.importedWorld,
+      invalidatesImportedWorld: (siteId) => this.invalidatedSites.has(siteId),
       isRunSettled: () => this.runSettled,
       runError: () => this.runError(),
       failRun: (error) => this.failRun(error),
@@ -262,6 +277,25 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
       failRun: (error) => this.failRun(error),
       importCacheClosed: () => this.importClosed,
       wasLiveBeforeResume: (instance) => this.liveAskInstances.has(refToString(instance)),
+      resumeAskControlState: (instance) => this.askControlStates.get(refToString(instance)),
+      invalidatesImportedAsk: (instance) => {
+        if (!this.invalidatedSites.has(instance.siteId)) return false;
+        const firstRevised = config.launch?.askRevisions
+          ?.filter((revision) => revision.siteId === instance.siteId)
+          .reduce((min, revision) => Math.min(min, revision.ordinal), Infinity);
+        // 同一循环站点的目标之前已完成的实例仍可导入；从目标那一轮开始才作废。
+        return firstRevised === undefined || instance.ordinal >= firstRevised;
+      },
+      instructionsForAdmission: (instance, instructions) => {
+        if (!this.askRevisions.has(refToString(instance))) return instructions;
+        const supplement = this.askRevisions.get(refToString(instance));
+        return supplement === undefined
+          ? `${instructions}\n\nThe user requested a fresh revision of this workflow task.`
+          : `${instructions}\n\nUser revision for this workflow task:\n${supplement}`;
+      },
+      attachmentsForAdmission: (instance) => config.launch?.askRevisions
+        ?.find((revision) => revision.siteId === instance.siteId && revision.ordinal === instance.ordinal)
+        ?.attachments,
     };
     this.scheduler = new AskScheduler(host);
 
@@ -322,6 +356,7 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
         rememberArtifactRow(this.state, node.artifactId, node.result);
       }
       this.spentTokens = existing.spentTokens;
+      this.askControlStates = recoverAskControlStates(this.journal, this.runId);
       // 修订 run 的崩溃恢复：导入表被整表重建，而「门是否已关」不落库——从事件精确恢复。
       if (this.importedCache !== undefined) {
         const recovered = recoverImportClosure(this.journal, this.runId);
@@ -438,6 +473,15 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
     return this.scheduler.admitAsk(siteId, actorId, instructions, spec);
   }
 
+  /** 用户操作只作用于一条 ask；run 的其他 actor 与 world 节点不受影响。 */
+  pauseAsk(instance: InstanceRef): boolean {
+    return this.scheduler.pauseAsk(instance);
+  }
+
+  retryAsk(instance: InstanceRef, supplement?: string, attachments?: import("./types.js").WorkflowImageRef[]): boolean {
+    return this.scheduler.retryAsk(instance, supplement, attachments);
+  }
+
   /** world 节点（world-read / world-run）：方法体在 engine-world.ts 的 readWorld。 */
   worldRead(siteId: string, op: WorldReadOp, args: unknown[]): Promise<unknown> {
     return readWorld(this.state, siteId, op, args);
@@ -535,7 +579,7 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
    * 与用量同理，结算后到达的迟到观察只丢事件（这里没有账要入），不给已完结的 run 长尾巴。
    */
   askProgress(instance: InstanceRef, progress: AskProgress): void {
-    if (this.runSettled) return;
+    if (this.runSettled || !this.scheduler.isLive(instance)) return;
     this.record({ type: "node-progress", instance, ...progress });
   }
 
@@ -638,61 +682,8 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
    * 必须是**同一个对象**：bootstrap 的 `createJournalSequenceCapture` 按引用相等核对序号。
    */
   private record(event: RunEvent): void {
-    const stamped = this.stampBirthPhase(event);
+    const stamped = stampBirthPhase(event, this.instancePhases);
     this.journal.appendEvent(this.runId, stamped);
     this.driver.emit(stamped);
   }
-
-  /**
-   * actor 的 `actor-created` 按 actor 查表，
-   * 节点的 `node-queued` 按 instance 查表，命中缓存的 `node-settled { cached: true }` 同样按
-   * instance——命中的节点没有 queued，那条 settle 就是它的出生事件。其余事件原样返回：
-   * 调度器的十处发射点零改动，reducer 沿用 `actorSiteId` 的先例向前携带。
-   */
-  private stampBirthPhase(event: RunEvent): RunEvent {
-    if (event.type === "actor-created") {
-      const phaseName = this.instancePhases.get(refToString(event.actor));
-      return phaseName === undefined ? event : { ...event, phaseName };
-    }
-    if (event.type === "node-queued") {
-      const phaseName = this.instancePhases.get(refToString(event.instance));
-      return phaseName === undefined ? event : { ...event, phaseName };
-    }
-    if (event.type === "node-settled" && event.cached === true) {
-      const phaseName = this.instancePhases.get(refToString(event.instance));
-      return phaseName === undefined ? event : { ...event, phaseName };
-    }
-    return event;
-  }
-}
-
-/** persona 规范化：字符串视为 system prompt；display name 落到 persona.name。 */ function normalizePersona(
-  name: string | undefined,
-  persona: string | PersonaSpec | undefined,
-): PersonaSpec {
-  const base: PersonaSpec =
-    typeof persona === "string" ? { system: persona } : persona ? { ...persona } : {};
-  if (base.name === undefined && name !== undefined) base.name = name;
-  return base;
-}
-
-/**
- * 给 `ProviderStop` 补上触发停止的子代理的**出生阶段**：driver 只知道 actor ref，阶段只有引擎知道（`instancePhases`，
- * 与事件流上 `phaseName` 的同一张表）。没有 providerStop、没有 subagent、或该 ref 出生在
- * 任何 `phase()` 标记之前 → 原样返回。
- */
-function enrichProviderStopPhase(
-  error: WorkflowError,
-  instancePhases: ReadonlyMap<string, string>,
-): WorkflowError {
-  const details = error.providerStop;
-  if (details === undefined || details.subagent === undefined || details.phase !== undefined) {
-    return error;
-  }
-  const phase = instancePhases.get(details.subagent);
-  if (phase === undefined) return error;
-  return new WorkflowError(error.code, error.message, {
-    providerStop: { ...details, phase },
-    cause: (error as { cause?: unknown }).cause,
-  });
 }

@@ -11,6 +11,7 @@ import {
   type CommandAck,
   type WorkflowRunState,
 } from "@zcode/shared/zcode-protocol-v4";
+import type { ModelSelection } from "@zcode/shared/model-selection";
 import { formatModelPickerValue, parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
 
 /**
@@ -18,15 +19,11 @@ import { formatModelPickerValue, parseModelPickerValue } from "@/lib/zcodeSessio
  * provider / model 投影；两者都读不出即缺席。
  */
 export function workflowSessionModelOf(
-  config:
-    | { modelSelection?: { providerId: string; modelId: string }; provider: string; model: string }
-    | null
-    | undefined,
-): { providerId: string; modelId: string } | undefined {
+  config: { modelSelection?: ModelSelection; provider: string; model: string } | null | undefined,
+): ModelSelection | undefined {
   if (config === null || config === undefined) return undefined;
   const selection = config.modelSelection;
-  if (selection !== undefined)
-    return { providerId: selection.providerId, modelId: selection.modelId };
+  if (selection !== undefined) return selection;
   const providerId = config.provider.trim();
   const modelId = config.model.trim();
   return providerId && modelId ? { providerId, modelId } : undefined;
@@ -35,7 +32,7 @@ export function workflowSessionModelOf(
 /** 表单里的子代理模型：会话模型，或一个具体模型（可带思考档）。 */
 export type WorkflowRunSettingsModel =
   | { kind: "session" }
-  | { kind: "model"; providerId: string; modelId: string; level?: string };
+  | { kind: "model"; selection: ModelSelection };
 
 /** 表单的两项设置。`bound` 为 null 即「本 run 没有自己的界」（跑在本机上限上）。 */
 export interface WorkflowRunSettingsDraft {
@@ -77,20 +74,14 @@ export function workflowRunSettingsCeiling(run: WorkflowRunState): number | unde
 /** 规范串 → 表单模型；解析不动（坏串）按会话模型处理不成立，所以原样保留成一个查不到的具体模型。 */
 export function workflowRunSettingsModelOf(
   canonical: string | undefined,
+  selection?: ModelSelection,
 ): WorkflowRunSettingsModel {
   const text = canonical?.trim();
   if (!text) return { kind: "session" };
   try {
-    const parsed = parseModelPickerValue(text);
-    const level = parsed.options?.reasoningLevel;
-    return {
-      kind: "model",
-      providerId: parsed.providerId,
-      modelId: parsed.modelId,
-      ...(level === undefined ? {} : { level }),
-    };
+    return { kind: "model", selection: selection ?? parseModelPickerValue(text) };
   } catch {
-    return { kind: "model", providerId: "", modelId: text };
+    return { kind: "model", selection: { providerId: "", modelId: text } };
   }
 }
 
@@ -99,19 +90,15 @@ export function workflowRunSettingsModelCanonical(
   model: WorkflowRunSettingsModel,
 ): string | undefined {
   if (model.kind === "session") return undefined;
-  if (model.providerId === "") return model.modelId;
-  return formatModelPickerValue({
-    providerId: model.providerId,
-    modelId: model.modelId,
-    ...(model.level === undefined ? {} : { options: { reasoningLevel: model.level } }),
-  });
+  if (model.selection.providerId === "") return model.selection.modelId;
+  return formatModelPickerValue(model.selection);
 }
 
 /** 打开弹层时的起点：两项都取 run 自己的当前设置。界缺席时停在天花板上（天花板也未知则为 null）。 */
 export function initialWorkflowRunSettingsDraft(run: WorkflowRunState): WorkflowRunSettingsDraft {
   const limit = run.concurrency?.limit;
   return {
-    model: workflowRunSettingsModelOf(run.subagentModel),
+    model: workflowRunSettingsModelOf(run.subagentModel, run.subagentSelection),
     bound: limit ?? workflowRunSettingsCeiling(run) ?? null,
   };
 }
@@ -135,7 +122,9 @@ export function workflowRunSettingsChange(
   const change: WorkflowRunSettingsChange = {};
   const fromModel = workflowRunSettingsModelCanonical(initial.model);
   const toModel = workflowRunSettingsModelCanonical(draft.model);
-  if (fromModel !== toModel) change.subagentModel = toModel ?? null;
+  if (fromModel !== toModel || JSON.stringify(initial.model) !== JSON.stringify(draft.model)) {
+    change.subagentSelection = draft.model.kind === "session" ? null : draft.model.selection;
+  }
   const fromBound = normalizedBound(initial.bound, ceiling);
   const toBound = normalizedBound(draft.bound, ceiling);
   if (fromBound !== toBound) change.maxConcurrency = toBound;

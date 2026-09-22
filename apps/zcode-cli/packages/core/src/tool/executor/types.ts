@@ -28,6 +28,7 @@ import type {
   SubagentRunOptions,
   SubagentPort,
   ToolArtifactStorePort,
+  ToolOperationAdmissionPort,
   TraceContext,
   TurnId,
   WorkflowPort,
@@ -73,6 +74,7 @@ export type ShouldEnqueueBackgroundTaskNotification = (
 ) => boolean;
 
 export interface ToolExecutorOptions {
+  toolOperationAdmission?: ToolOperationAdmissionPort;
   agentTelemetry?: AgentExecutionTelemetryPort;
   agentTelemetryActorKind?: AgentTelemetryActorKind;
   registry: ToolRegistry;
@@ -177,6 +179,7 @@ export interface ToolBatchExecuteOptions extends ToolExecuteOptions {
 }
 
 export interface ToolExecutorDeps {
+  toolOperationAdmission?: ToolOperationAdmissionPort;
   agentTelemetry?: AgentExecutionTelemetryPort;
   agentTelemetryActorKind?: AgentTelemetryActorKind;
   registry: ToolRegistry;

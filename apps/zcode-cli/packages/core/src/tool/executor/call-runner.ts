@@ -324,32 +324,13 @@ async function executeToolCallImpl(
   const permissionWaitMs = permissionResult.permissionWaitMs;
 
   const startTime = Date.now();
-  // 按**执行入参**解析一次副作用旗标（Bash 的只读命令判定就在这里落定），随 ToolCallStarted 发出：
-  // 事件先于 handler，所以订阅者（dynamic-workflow driver 的导入缓存关门）在第一个字节落盘前就知道。
-  await emitToolCallStarted(
-    deps,
-    canonicalToolCall,
-    traceContext,
-    turnId,
-    startTime,
-    createMcpToolDisplay(entry.metadata.mcpPresentation),
-    resolveToolCallCapabilityFlags(deps, entry, executionInput),
-  );
-
-  deps.logger?.info("Tool call started", {
-    ...traceContextToLogContext(traceContext),
-    event: "tool.call.started",
-    module: "core.tool.executor",
-    status: "started",
-    toolCallId: canonicalToolCall.id,
-    toolName: canonicalToolCall.name,
-  });
-
+  const executionAbortController = new AbortController();
+  const unlinkParentAbort = linkAbortSignal(options?.signal, executionAbortController);
+  let releaseOperation: (() => void) | undefined;
+  let handlerStarted = false;
   const timeoutMs = resolveTimeoutMs(entry, executionInput, deps.defaultTimeoutMs, {
     model,
   });
-  const executionAbortController = new AbortController();
-  const unlinkParentAbort = linkAbortSignal(options?.signal, executionAbortController);
   // 可暂停的 deadline：本次调用内部的模型请求在准入闸门前排队时暂停计时。排队的两端
   // 以本 toolCallId 的 ModelNetworkStatus 会话事件到达，所以在事件出口拦一层即可，handler 无感。
   const deadline = new ToolDeadline(timeoutMs);
@@ -365,6 +346,33 @@ async function executeToolCallImpl(
   let skillTelemetryMetadata: SkillTelemetryMetadata | undefined;
 
   try {
+    // 准入早于 started 事件；handler 超时返回后仍可能在清理，锁必须由真实 handler 的 finally 释放。
+    const capability = resolveToolCallCapabilityFlags(deps, entry, executionInput);
+    releaseOperation = await deps.toolOperationAdmission?.acquire({
+      toolName: canonicalToolCall.name,
+      toolInput: executionInput,
+      ...capability,
+      workingDirectory: deps.getWorkingDirectory(),
+      workspaceRoot: deps.getWorkspaceRoot(),
+      signal: executionAbortController.signal,
+    });
+    await emitToolCallStarted(
+      deps,
+      canonicalToolCall,
+      traceContext,
+      turnId,
+      Date.now(),
+      createMcpToolDisplay(entry.metadata.mcpPresentation),
+      capability,
+    );
+    deps.logger?.info("Tool call started", {
+      ...traceContextToLogContext(traceContext),
+      event: "tool.call.started",
+      module: "core.tool.executor",
+      status: "started",
+      toolCallId: canonicalToolCall.id,
+      toolName: canonicalToolCall.name,
+    });
     const model = options?.model ?? deps.model;
     const bashShellSelection = deps.getBashShellSelection?.() ?? deps.bashShellSelection;
     const embeddedSearchDecision = resolveEmbeddedSearchBranchCapability({
@@ -440,7 +448,15 @@ async function executeToolCallImpl(
     };
 
     const output = await executeWithTimeout(
-      entry.handler,
+      async (input, context) => {
+        handlerStarted = true;
+        try {
+          return await entry.handler(input, context);
+        } finally {
+          releaseOperation?.();
+          releaseOperation = undefined;
+        }
+      },
       executionInput,
       context,
       deadline,
@@ -633,6 +649,7 @@ async function executeToolCallImpl(
     }
     return result;
   } finally {
+    if (!handlerStarted) releaseOperation?.();
     unlinkParentAbort();
   }
 }

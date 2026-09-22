@@ -5,11 +5,13 @@ import { ModelOptionMapError, type JsonObject, type ModelOptionMapProgram } from
 export interface ModelOptionMapSpecs {
   readonly reasoningLevel: { readonly map: string };
   readonly maxOutputTokens: { readonly map: string };
+  readonly speed?: { readonly map: string };
 }
 
 export interface ModelOptionValues {
   readonly reasoningLevel: string;
   readonly maxOutputTokens: number;
+  readonly speed?: string;
 }
 
 export interface CompiledModelOptionMaps {
@@ -20,6 +22,7 @@ export interface CompiledModelOptionMaps {
 export function compileModelOptionMaps(specs: ModelOptionMapSpecs): CompiledModelOptionMaps {
   const reasoningLevel = compileModelOptionMap(specs.reasoningLevel.map, "reasoningLevel");
   const maxOutputTokens = compileModelOptionMap(specs.maxOutputTokens.map, "maxOutputTokens");
+  const speed = specs.speed ? compileModelOptionMap(specs.speed.map, "speed") : undefined;
   return Object.freeze({
     apply(body: JsonObject, values: ModelOptionValues): JsonObject {
       const patches: NamedJsonMergePatch[] = [];
@@ -28,6 +31,12 @@ export function compileModelOptionMaps(specs: ModelOptionMapSpecs): CompiledMode
       }
       patches.push(optionPatch("reasoningLevel", reasoningLevel, values.reasoningLevel));
       patches.push(optionPatch("maxOutputTokens", maxOutputTokens, values.maxOutputTokens));
+      if (speed) {
+        if (values.speed === undefined) {
+          throw new ModelOptionMapError("speed requires an effective value");
+        }
+        patches.push(optionPatch("speed", speed, values.speed));
+      }
       return applyOrderedJsonMergePatches(body, patches);
     },
   });

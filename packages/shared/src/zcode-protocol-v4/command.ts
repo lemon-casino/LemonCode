@@ -4,7 +4,7 @@ import { localTtftContextSchema, localTtftClockSchema } from "../localTtft.js";
 // workspace-only 文件撤销走 applyFileRewind，不截断聊天历史。
 import { z } from "zod";
 import { conversationRowTargetSchema, timestampSchema } from "./core.js";
-import { attachmentRefSchema } from "./attachment-ref.js";
+import { attachmentRefSchema, workflowImageAttachmentRefSchema } from "./attachment-ref.js";
 import { v4ConversationFileRewindPreviewResultSchema } from "./transport.js";
 import { modelSelectionSchema } from "../model-selection.js";
 import { modelExecutionSchema } from "../model-execution.js";
@@ -223,6 +223,26 @@ export const commandPayloadSchemas = {
   // 只会误伤）。门在 CLI 侧（可恢复集 = cancelled ∪ failed+Interrupted），拒绝以
   // fault.command.workflowRunResumeRejected.<reason> 回 ACK。
   resumeWorkflowRun: z.object({ workId: z.string(), name: z.string().optional() }),
+  controlWorkflowAsk: z
+    .object({
+      runId: z.string().min(1),
+      siteId: z.string().min(1),
+      ordinal: z.number().int().positive(),
+      attempt: z.number().int().positive(),
+      action: z.enum(["stop", "retry"]),
+      supplement: z.string().trim().min(1).max(32_768).optional(),
+      attachments: z.array(workflowImageAttachmentRefSchema).max(8).optional(),
+    })
+    .strict(),
+  reviseWorkflowAsk: z
+    .object({
+      runId: z.string().min(1),
+      siteId: z.string().min(1),
+      ordinal: z.number().int().positive(),
+      supplement: z.string().trim().min(1).max(32_768).optional(),
+      attachments: z.array(workflowImageAttachmentRefSchema).max(8).optional(),
+    })
+    .strict(),
   // startSavedWorkflow：中枢「运行」不再合成
   // 对话文案，直接请 agent 在新会话里启动已保存工作流。与 cancelBackgroundWork / resumeWorkflowRun
   // 同类：不携 baseRevision（workflowRuns 面免 revision，假 CAS 失败只会误伤）。name 由 agent 从
@@ -281,6 +301,12 @@ export const SAVED_WORKFLOW_START_REJECTED_FAULT_PREFIX =
 // compile_failed 的有界诊断。
 export const WORKFLOW_RUN_RESUME_REJECTED_FAULT_PREFIX =
   "fault.command.workflowRunResumeRejected." as const;
+
+export const WORKFLOW_ASK_CONTROL_REJECTED_FAULT_PREFIX =
+  "fault.command.workflowAskControlRejected." as const;
+
+export const WORKFLOW_ASK_REVISION_REJECTED_FAULT_PREFIX =
+  "fault.command.workflowAskRevisionRejected." as const;
 
 // cancelBackgroundWork 的拒绝：core 明确回「没有取消任何东西」时（任务不存在 / 已终结 / 类型不支持）
 // 以前缀 + reason 上行，而不是一个假装成功的 accepted——详情页据此告诉用户这个 run 并不在跑。
@@ -406,6 +432,11 @@ export const commandResultSchema = z.discriminatedUnion("type", [
     toolCallId: z.string().min(1),
   }),
   amendWorkflowRunSettingsResultSchema,
+  z.object({
+    type: z.literal("reviseWorkflowAsk"),
+    runId: z.string().min(1),
+    invalidatedSites: z.array(z.string().min(1)),
+  }),
   z.object({
     // messageId 只在 TurnStarted 后作为旁路归因补齐；Core admission ACK 不等待
     // projection commit，不能把 messageId 作为输入 accepted 的必要条件。

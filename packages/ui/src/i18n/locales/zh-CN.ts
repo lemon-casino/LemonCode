@@ -4118,6 +4118,21 @@ const zhCN: Record<string, string> = {
   "chat.reasoning.durationFewSeconds": "持续了几秒",
   "chat.reasoning.durationSeconds": "持续了 {seconds} 秒",
   "chat.contextUsage": "上下文已用 {used} / 总量 {total}",
+  "chat.sessionUsage.title": "会话累计 Token",
+  "chat.sessionUsage.summary": "会话累计 {total} Token",
+  "chat.sessionUsage.input": "输入 Token",
+  "chat.sessionUsage.output": "输出 Token",
+  "chat.sessionUsage.speed": "可见输出速度（估算）",
+  "chat.sessionUsage.mainInput": "主会话输入 Token",
+  "chat.sessionUsage.mainOutput": "主会话输出 Token",
+  "chat.sessionUsage.mainSpeed": "主会话可见输出速度（估算）",
+  "chat.sessionUsage.subagents": "子代理累计 Token",
+  "chat.sessionUsage.childSpeed": "子代理可见输出速度（估算）",
+  "chat.sessionUsage.currentOutput": "本次输出（估算 Token）",
+  "chat.sessionUsage.childCurrentOutput": "子代理本次输出（估算 Token）",
+  "chat.sessionUsage.partial": "已知累计至少 {total} Token，部分子代理用量尚不可用",
+  "chat.sessionUsage.partialTitle": "已知累计 Token（部分子代理用量不可用）",
+  "chat.sessionUsage.unavailable": "会话累计 Token 不可用",
   "chat.contextUsage.title": "上下文容量",
   "chat.contextUsageDescription": "提示词、工具调用和回复都会共享上下文窗口。",
   "chat.contextUsage.cacheHitRate": "平均缓存命中率",
@@ -4301,6 +4316,9 @@ const zhCN: Record<string, string> = {
   "chat.toolbar.thoughtLevel.value.xhigh": "极高",
   "chat.toolbar.thoughtLevel.value.max": "最高",
   "chat.toolbar.thoughtLevel.value.ultra": "极致",
+  "chat.toolbar.speed.tooltip": "模型速度",
+  "chat.toolbar.speed.standard": "标准",
+  "chat.toolbar.speed.fast": "快速",
   "chat.longRunning.expand": "展开长时间运行面板",
   "chat.longRunning.collapse": "收起长时间运行面板",
   "chat.longRunning.elapsedSeconds": "已运行 {seconds} 秒",
@@ -4887,6 +4905,7 @@ const zhCN: Record<string, string> = {
   "chat.toolCall.workflow.run.settings.model": "子代理模型",
   "chat.toolCall.workflow.run.settings.model.session": "会话模型",
   "chat.toolCall.workflow.run.settings.model.sessionFallback": "会话模型",
+  "chat.toolCall.workflow.run.settings.model.unrecorded": "启动时的会话模型未记录",
   "chat.toolCall.workflow.run.settings.model.unavailable": "不可用",
   "chat.toolCall.workflow.run.settings.model.noCatalog":
     "当前 agent 没有可选的模型目录，子代理沿用会话模型。",
@@ -5028,6 +5047,18 @@ const zhCN: Record<string, string> = {
   "chat.toolCall.workflow.script.result.stderr": "stderr",
   "chat.toolCall.workflow.script.args.truncated": "实参在落库前被缩短过。",
   "chat.toolCall.workflow.run.actor.notStarted.title": "尚未启动",
+  "chat.toolCall.workflow.run.actor.task": "选择任务",
+  "chat.toolCall.workflow.run.actor.stop": "停止当前任务",
+  "chat.toolCall.workflow.run.actor.retry": "重跑当前任务",
+  "chat.toolCall.workflow.run.actor.actionRejected": "任务状态已变化，操作未执行。",
+  "chat.toolCall.workflow.run.actor.supplement": "提出后续修改要求",
+  "chat.toolCall.workflow.run.actor.sendSupplement": "提交修订并重跑任务",
+  "chat.toolCall.workflow.run.actor.addImage": "添加图片",
+  "chat.toolCall.workflow.run.actor.removeImage": "移除图片",
+  "chat.toolCall.workflow.run.actor.imagesOnly": "此处仅支持图片附件",
+  "chat.toolCall.workflow.run.actor.imagesNotReady": "图片尚未上传完成，请重试",
+  "chat.toolCall.workflow.run.actor.waitForRun":
+    "工作流仍在运行。已完成任务的修订需等待本次运行结束，其他并行任务不会被中断。",
   "chat.toolCall.workflow.run.actor.notStarted.body":
     "这个子代理还没有被问过任何问题。它的首个步骤一派发，会话记录就会出现在这里。",
   // 逐条引擎事件的标签（`workflowRunEventLines` 的词汇表）。run 侧板的事件日志区已撤走，
@@ -5306,6 +5337,12 @@ const zhCN: Record<string, string> = {
   // 所以这一行也是用户自己提的条件。只说子代理——主代理无论如何都留在会话模型上。
   // `{model}` 是解析过的模型名（必要时带思考强度），不是规范串；规范串在这一行的 tooltip 里。
   "chat.permission.workflow.subagentModel": "子代理运行在 {model}",
+  "chat.permission.workflow.actorModels": "子代理运行配置",
+  "chat.permission.workflow.actorModels.changed": "已覆盖 {count} 个",
+  "chat.permission.workflow.actorModels.inherit": "继承工作流",
+  "chat.permission.workflow.actorModels.reset": "恢复继承",
+  "chat.permission.workflow.actorModels.unavailable": "暂时无法读取模型列表",
+  "chat.permission.workflow.actorModels.unnamed": "未命名子代理",
   // ── 可复用工作流──
   // saved 来源徽标（运行确认窗）：只说明脚本来自哪个文件、带了什么实参。
   // 它不表达任何信任——保存不产生信任，已保存的工作流照样过完整的运行确认。

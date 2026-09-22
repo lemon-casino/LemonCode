@@ -33,6 +33,7 @@ import {
   type ZCodeProvider,
 } from "@zcode/shared";
 import type {
+  ConversationSnapshot,
   SessionConfigState,
   SessionPhase,
   SessionUsageState,
@@ -49,6 +50,7 @@ import {
   type ChatStartPlanBalanceConfig,
 } from "@/chat-input-toolbar/StartPlanContextBalance.js";
 import { ThoughtLevelCycleControl } from "@/chat-input-toolbar/ThoughtLevelCycleControl.js";
+import { ModelSpeedControl } from "@/chat-input-toolbar/ModelSpeedControl.js";
 import { getNextThoughtLevelValue } from "@/chat-input-toolbar/thoughtLevelOptions.js";
 import type { V4ComposerConfigPicker } from "@/v4/composer/configPickerState.js";
 import { useToolbarShortcutBindings } from "@/v4/composer/toolbarShortcuts.js";
@@ -78,6 +80,10 @@ import {
 } from "@/lib/codingPlanFunnelTelemetry.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { logger } from "@/logger.js";
+import { useLiveOutputRate } from "@/v4/composer/useLiveOutputRate.js";
+import { useChildSessionTokenStats } from "@/v4/composer/useChildSessionTokenStats.js";
+import { collectChildSessionIds } from "@/v4/composer/sessionTokenStats.js";
+import { useV4Conversation } from "@/v4/V4ConversationContext.js";
 import { useCodingPlanUpgradeDialog } from "@/settings/CodingPlanUpgradeDialogProvider.js";
 import { useCodingPlanEntitlements } from "@/settings/model-provider-section/useCodingPlanEntitlements.js";
 import { decodeCustomModelValue, encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
@@ -337,6 +343,8 @@ export interface V4ComposerToolbarProps {
   /** 当前 scope 的 Composer 选择；新任务与已有会话都只显示这份状态。 */
   draftConfig?: Partial<SessionConfigState>;
   usage: SessionUsageState | null;
+  sessionRows?: ConversationSnapshot["rows"]["window"];
+  sessionSnapshot?: ConversationSnapshot | null;
   disabled: boolean;
   /** 单个 composer 内的配置 picker 排他 owner；只属于 renderer-local presentation。 */
   activeConfigPicker: V4ComposerConfigPicker | null;
@@ -352,6 +360,7 @@ export interface V4ComposerToolbarProps {
   ) => void;
   /** 选中思考深度；modelContext 固定本次用户操作的目标模型。 */
   onSelectThought: (thought: string, modelContext: { provider: string; model: string }) => void;
+  onSelectSpeed: (speed: string, modelContext: { provider: string; model: string }) => void;
   onSwitchMode: (mode: string) => void;
   /** prepare/configOptions 失败时，custom provider 选择走 workspace recovery 链。 */
   onRecoverCustomModelSelection?: (
@@ -365,6 +374,8 @@ export interface V4ComposerToolbarProps {
 function V4ComposerModelControlsImpl({
   workspacePath,
   workspaceIdentity,
+  sessionId,
+  phase,
   modelSelectionView = null,
   modelSelectionState = MODEL_SELECTION_LOADING_STATE,
   modelSelectionReload,
@@ -373,15 +384,25 @@ function V4ComposerModelControlsImpl({
   draftMode = false,
   draftConfig,
   usage,
+  sessionRows,
+  sessionSnapshot,
   disabled,
   activeConfigPicker,
   onConfigPickerOpenChange,
   onSelectModel,
   onSelectThought,
+  onSelectSpeed,
   onSendCompressionCommand,
   onRecoverCustomModelSelection,
 }: V4ComposerToolbarProps) {
   const { intl, locale } = useZCodeIntl();
+  const liveOutputRate = useLiveOutputRate(sessionRows, phase, sessionId);
+  const { layer } = useV4Conversation();
+  const childIds = useMemo(
+    () => collectChildSessionIds(sessionSnapshot ?? null, sessionId ?? ""),
+    [sessionSnapshot?.subagents, sessionSnapshot?.workflowRuns, sessionId],
+  );
+  const childStats = useChildSessionTokenStats(layer, childIds);
   const { openCodingPlanUpgrade } = useCodingPlanUpgradeDialog();
   const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
   // 配置面读取：workspace 缺省目录（taskId=null），不读旧会话态。
@@ -425,6 +446,10 @@ function V4ComposerModelControlsImpl({
     (open: boolean) => {
       onConfigPickerOpenChange("thought", open);
     },
+    [onConfigPickerOpenChange],
+  );
+  const handleSpeedPickerOpenChange = useCallback(
+    (open: boolean) => onConfigPickerOpenChange("speed", open),
     [onConfigPickerOpenChange],
   );
 
@@ -912,6 +937,25 @@ function V4ComposerModelControlsImpl({
     };
   }, [draftModelThoughtOption, effectiveConfig]);
 
+  const speedValues = useMemo(() => {
+    if (!effectiveConfig) return [];
+    const model = modelSelectionView?.providers
+      .find((candidate) => candidate.providerId === effectiveConfig.provider)
+      ?.models.find((candidate) => candidate.modelId === effectiveConfig.model);
+    return model?.config.optionSpecs.speed?.values ?? [];
+  }, [effectiveConfig, modelSelectionView]);
+  const currentSpeed = effectiveConfig?.modelSelection?.options?.speed ?? "";
+  const handleSpeedValueChange = useCallback(
+    (value: string) => {
+      if (!effectiveConfig || !speedValues.includes(value)) return;
+      onSelectSpeed(value, {
+        provider: effectiveConfig.provider,
+        model: effectiveConfig.model,
+      });
+    },
+    [effectiveConfig, onSelectSpeed, speedValues],
+  );
+
   const handleThoughtValueChange = useCallback(
     (value: string) => {
       if (!effectiveConfig) return;
@@ -1004,6 +1048,8 @@ function V4ComposerModelControlsImpl({
             ? (thoughtOption.options ?? []).map((option) => option.value).join(",")
             : ""
         }
+        data-speed={currentSpeed}
+        data-speed-options={speedValues.join(",")}
         data-mode={draftConfig?.mode ?? ""}
         data-plan-enabled={draftConfig?.planEnabled ?? false}
         data-usage-used={usage?.contextWindow?.usedTokens ?? ""}
@@ -1013,6 +1059,12 @@ function V4ComposerModelControlsImpl({
       <ChatContextUsage
         codingPlanUsageRemaining={codingPlanUsageRemaining}
         taskUsage={taskUsage}
+        sessionUsage={usage?.cumulative}
+        liveOutputRate={liveOutputRate}
+        childUsage={childStats.usage}
+        childCount={childStats.childCount}
+        childCurrentOutputTokens={childStats.currentOutputTokens}
+        childLiveOutputRate={childStats.liveOutputRate}
         startPlanBalance={contextStartPlanBalance}
         selectedProvider={displayProvider}
         intl={intl}
@@ -1085,6 +1137,17 @@ function V4ComposerModelControlsImpl({
           open={activeConfigPicker === "thought"}
           onOpenChange={handleThoughtPickerOpenChange}
           restoreFocusSelector={V4_COMPOSER_INPUT_SELECTOR}
+        />
+      ) : null}
+      {speedValues.length > 0 ? (
+        <ModelSpeedControl
+          values={speedValues}
+          value={speedValues.includes(currentSpeed) ? currentSpeed : ""}
+          disabled={disabled || recoveryPending}
+          open={activeConfigPicker === "speed"}
+          onOpenChange={handleSpeedPickerOpenChange}
+          onValueChange={handleSpeedValueChange}
+          intl={intl}
         />
       ) : null}
     </>

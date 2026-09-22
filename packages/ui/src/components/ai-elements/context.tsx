@@ -114,19 +114,26 @@ const ContextIcon = () => {
 export type ContextTriggerProps = ComponentProps<typeof Button> & {
   /** 触发器转圈：额度自动重置进行中时替换 ContextIcon（对应「正在重置」状态）。 */
   loading?: boolean;
+  summary?: ReactNode;
 };
 
-export const ContextTrigger = ({ children, loading = false, ...props }: ContextTriggerProps) => {
+export const ContextTrigger = ({
+  children,
+  loading = false,
+  summary,
+  ...props
+}: ContextTriggerProps) => {
   return (
     <HoverCardTrigger asChild>
       {children ?? (
         <Button
           type="button"
           variant="ghost"
-          size="icon-md"
+          size={summary ? "sm" : "icon-md"}
           {...props}
           className={cn(props.className)}
         >
+          {summary}
           {loading ? (
             <Loader2
               className="size-3.5 animate-spin motion-reduce:animate-none"

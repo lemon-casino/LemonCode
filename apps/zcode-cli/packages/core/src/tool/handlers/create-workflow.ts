@@ -161,9 +161,15 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
       // 所以这里只是把那个字符串拆回结构化选型。缺席即继承会话模型，不造空壳键——端口按
       // 「字段在场 = 这次 run 显式选过模型」读它。
       ...(() => {
-        const subagentModel = parseWorkflowSubagentModel(parsed.subagent_model);
+        const subagentModel = parseWorkflowSubagentModel(
+          parsed.subagent_model,
+          context.modelCatalogPort,
+        );
         return subagentModel === undefined ? {} : { subagentModel };
       })(),
+      ...(parsed.actor_model_overrides === undefined
+        ? {}
+        : { actorModelOverrides: parsed.actor_model_overrides }),
       // 脚本的家随提交走进 `run-launched`，终态通知与 `GetWorkflowRun` 再从那里读回来。草稿写不下去时字段整个缺席：
       // 端口按「字段在场 = 这个 run 有个可编辑的文件」读它，一个 undefined 会让那句话变成谎话。
       ...(scriptPath === undefined ? {} : { scriptPath }),

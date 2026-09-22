@@ -1,12 +1,38 @@
 type ProviderFetch = typeof globalThis.fetch;
 
 const SSE_FRAME_SEPARATOR_PATTERN = /\r\n\r\n|\n\n|\r\r/;
+const ANTHROPIC_FAST_MODE_BETA = "fast-mode-2026-02-01";
 
-export function createAnthropicCompatFetch(baseFetch: ProviderFetch): ProviderFetch {
+export function createAnthropicCompatFetch(
+  baseFetch: ProviderFetch,
+  options: { readonly speed?: string } = {},
+): ProviderFetch {
   return async (input, init) => {
-    const response = await baseFetch(input, applyAnthropicRequestBodyCompatibility(init));
+    const compatibleInit = applyAnthropicRequestBodyCompatibility(init);
+    const response = await baseFetch(
+      input,
+      options.speed === "fast"
+        ? withAnthropicFastModeBeta(input, compatibleInit)
+        : compatibleInit,
+    );
     return rewriteAnthropicJsonThinkingResponse(filterAnthropicStream(response));
   };
+}
+
+function withAnthropicFastModeBeta(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+): RequestInit {
+  const headers = new Headers(input instanceof Request ? input.headers : undefined);
+  new Headers(init?.headers).forEach((value, name) => headers.set(name, value));
+  const current = headers.get("anthropic-beta") ?? "";
+  const betas = current
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (!betas.includes(ANTHROPIC_FAST_MODE_BETA)) betas.push(ANTHROPIC_FAST_MODE_BETA);
+  headers.set("anthropic-beta", betas.join(","));
+  return { ...init, headers };
 }
 
 function applyAnthropicRequestBodyCompatibility(

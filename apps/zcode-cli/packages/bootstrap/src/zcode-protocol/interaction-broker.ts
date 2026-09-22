@@ -172,24 +172,50 @@ function v4AnswerToPermissionResponse(
     // 会话免确认：会话语义在这里合成，而不是放进
     // option.response——wire 上 zcodePermissionUpdateSchema 是 strict，旧桌面多一个字段就丢事件。
     if (exact.kind === SESSION_ALLOW_PERMISSION_OPTION_KIND) {
-      return {
+      return withWorkflowModifiedInput(toolName, answer, {
         ...exact.response,
         sessionPermissionUpdates: buildSessionPermissionUpdates(toolName),
-      };
+      });
     }
-    return exact.response;
+    return withWorkflowModifiedInput(toolName, answer, exact.response);
   }
   if (answer.optionId === "allowAlways") {
     const allowAlways = permissionOptions.find((option) => option.kind === "allow_always");
     if (allowAlways) {
-      return allowAlways.response;
+      return withWorkflowModifiedInput(toolName, answer, allowAlways.response);
     }
   }
   if (answer.optionId === "allowOnce") {
-    return { decision: "allow", reason: "Approved once" };
+    return withWorkflowModifiedInput(toolName, answer, {
+      decision: "allow",
+      reason: "Approved once",
+    });
   }
   // deny/rejectOnce/rejectAlways、未知 optionId、无 optionId 全部落 deny。
   return { decision: "deny", reason: buildPermissionDeniedContent(answer.freeText) };
+}
+
+function withWorkflowModifiedInput(
+  toolName: string,
+  answer: V4InteractionAnswer,
+  response: ZCodePermissionResponse & {
+    sessionPermissionUpdates?: PermissionBrokerResult["sessionPermissionUpdates"];
+  },
+): ZCodePermissionResponse & {
+  sessionPermissionUpdates?: PermissionBrokerResult["sessionPermissionUpdates"];
+  modifiedInput?: unknown;
+} {
+  const modifiedInput = answer.content?.modifiedInput;
+  if (
+    response.decision !== "allow" ||
+    (toolName !== CREATE_WORKFLOW_TOOL_NAME && toolName !== AMEND_WORKFLOW_TOOL_NAME) ||
+    modifiedInput === undefined
+  ) {
+    return response;
+  }
+  // 只把工作流审批窗产生的覆盖转成现有 modify 决策；executor 随后仍按 runtime schema
+  // 重新验证完整输入，客户端不能借此绕过工具输入校验。
+  return { ...response, decision: "modify", modifiedInput };
 }
 
 async function requestUserInput(

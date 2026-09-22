@@ -2,7 +2,7 @@ import { z } from "zod";
 import { compileModelOptionMap } from "@zcode/model-option-map";
 import { sparseShape } from "./config-schema.js";
 
-function optionMapSchema(variableName: "reasoningLevel" | "maxOutputTokens") {
+function optionMapSchema(variableName: "reasoningLevel" | "maxOutputTokens" | "speed") {
   return z
     .string()
     .min(1)
@@ -34,6 +34,10 @@ export const completeEnumOptionSpecDataSchema = z
   })
   .strict();
 
+export const completeSpeedOptionSpecDataSchema = completeEnumOptionSpecDataSchema.extend({
+  map: optionMapSchema("speed"),
+});
+
 export const completeLimitOptionSpecDataSchema = z
   .object({
     max: z.number().int().positive(),
@@ -43,6 +47,9 @@ export const completeLimitOptionSpecDataSchema = z
 
 export const enumOptionSpecDataSchema = z
   .object(sparseShape(completeEnumOptionSpecDataSchema.shape))
+  .strict();
+export const speedOptionSpecDataSchema = z
+  .object(sparseShape(completeSpeedOptionSpecDataSchema.shape))
   .strict();
 export const limitOptionSpecDataSchema = z
   .object(sparseShape(completeLimitOptionSpecDataSchema.shape))
@@ -89,6 +96,8 @@ export const completeModelOptionSpecsDataSchema = z
   .object({
     reasoningLevel: completeEnumOptionSpecDataSchema,
     maxOutputTokens: completeLimitOptionSpecDataSchema,
+    // 迁移期允许旧远端配置缺失；当前内置基线会为所有模型补齐。
+    speed: completeSpeedOptionSpecDataSchema.optional(),
   })
   .strict();
 export const modelOptionSpecsDataSchema = z
@@ -96,6 +105,7 @@ export const modelOptionSpecsDataSchema = z
     ...sparseShape(completeModelOptionSpecsDataSchema.shape),
     reasoningLevel: enumOptionSpecDataSchema.nullable().optional(),
     maxOutputTokens: limitOptionSpecDataSchema.nullable().optional(),
+    speed: speedOptionSpecDataSchema.nullable().optional(),
   })
   .strict();
 

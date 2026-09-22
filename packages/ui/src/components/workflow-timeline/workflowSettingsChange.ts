@@ -6,6 +6,8 @@
 // 措辞规则只在这里写一次。纯函数 + 注入的 formatMessage / providerName，与 subagent-model-label 同规。
 
 import type { WorkflowSettingsAmendMeta } from "@zcode/shared/zcode-protocol-v4";
+import { thoughtLevelLabelId } from "@/chat-input-toolbar/thoughtLevelLabels.js";
+import { formatProviderModelLabel } from "@/v4/composer/modelTriggerDisplay.js";
 import {
   describeWorkflowSubagentModel,
   type WorkflowSubagentModelDeps,
@@ -14,6 +16,32 @@ import {
 /** 模型的屏幕名：只要名字（档位留给 tooltip），与 run 卡上的模型段同一个词。 */
 function modelName(canonical: string, deps: WorkflowSubagentModelDeps): string {
   return describeWorkflowSubagentModel(canonical, deps).name;
+}
+
+function selectionLabel(
+  selection: NonNullable<WorkflowSettingsAmendMeta["subagentSelection"]>["to"],
+  deps: WorkflowSubagentModelDeps,
+): string | undefined {
+  if (selection === undefined) return undefined;
+  const options: string[] = [];
+  const level = selection.options?.reasoningLevel;
+  if (level) {
+    const id = thoughtLevelLabelId(level);
+    options.push(id ? deps.formatMessage({ id }) : level);
+  }
+  const speed = selection.options?.speed;
+  if (speed)
+    options.push(
+      speed === "fast" || speed === "standard"
+        ? deps.formatMessage({ id: `chat.toolbar.speed.${speed}` })
+        : speed,
+    );
+  const name = formatProviderModelLabel(
+    selection.providerId,
+    deps.providerName?.(selection.providerId),
+    selection.modelId,
+  );
+  return [name, ...options].join(" · ");
 }
 
 /**
@@ -28,12 +56,13 @@ export function workflowSettingsChangeSegments(
   const segments: string[] = [];
   if (amend.subagentModel !== undefined) {
     const to = amend.subagentModel.to;
+    const selectedLabel = selectionLabel(amend.subagentSelection?.to, deps);
     segments.push(
       to === undefined
-        ? formatMessage({ id: "chat.toolCall.workflow.settingsChange.modelSession" })
+        ? `${formatMessage({ id: "chat.toolCall.workflow.settingsChange.modelSession" })}${selectedLabel ? ` · ${selectedLabel}` : ""}`
         : formatMessage(
             { id: "chat.toolCall.workflow.settingsChange.model" },
-            { model: modelName(to, deps) },
+            { model: selectedLabel ?? modelName(to, deps) },
           ),
     );
   }
@@ -67,14 +96,17 @@ export function workflowSettingsProvenanceRows(
   const { formatMessage } = deps;
   const rows: WorkflowSettingsProvenanceRow[] = [];
   if (amend.subagentModel !== undefined) {
-    const end = (canonical: string | undefined) =>
+    const end = (
+      canonical: string | undefined,
+      selection: NonNullable<WorkflowSettingsAmendMeta["subagentSelection"]>["to"],
+    ) =>
       canonical === undefined
-        ? formatMessage({ id: "chat.workflowLaunch.settings.sessionModel" })
-        : modelName(canonical, deps);
+        ? `${formatMessage({ id: "chat.workflowLaunch.settings.sessionModel" })}${selectionLabel(selection, deps) ? ` · ${selectionLabel(selection, deps)}` : ""}`
+        : (selectionLabel(selection, deps) ?? modelName(canonical, deps));
     rows.push({
       key: "model",
       label: formatMessage({ id: "chat.workflowLaunch.settings.model" }),
-      value: `${end(amend.subagentModel.from)} → ${end(amend.subagentModel.to)}`,
+      value: `${end(amend.subagentModel.from, amend.subagentSelection?.from)} → ${end(amend.subagentModel.to, amend.subagentSelection?.to)}`,
     });
   }
   if (amend.maxConcurrency !== undefined) {

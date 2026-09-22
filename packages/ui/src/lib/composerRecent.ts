@@ -1,6 +1,7 @@
 import { modelSelectionSchema, type ModelSelection } from "@zcode/shared/model-selection";
 import { submissionModeSchema, type SubmissionMode } from "@zcode/shared/zcode-protocol-v4";
 import type { ModelSelectionView } from "@zcode/services";
+import { completeNewModelSelection } from "@zcode/provider";
 import { logger } from "@/logger.js";
 
 // 沿用旧 key，读取时兼容只保存 ModelSelection 的历史记录。
@@ -107,36 +108,25 @@ export function resolveDraftInitialModelSelection(
   if (!view) return { selection: recent, invalidated: false };
   if (recent) {
     const model = findModel(view, recent);
-    if (!model) return { selection: null, invalidated: true };
-    const reasoning = recent.options?.reasoningLevel;
-    if (
-      reasoning === undefined ||
-      !model.config.optionSpecs.reasoningLevel.values.includes(reasoning)
-    ) {
-      // 仍保留 Provider/Model 身份，但清空失效档位；Composer 不弹泛化通知，
-      // 让空的 Reasoning 控件直接要求用户作出新的明确选择。
+    if (model) {
+      // 最近提交决定新任务使用哪个模型，不决定这个新任务的档位；旧会话保持原快照。
       return {
-        selection: { providerId: recent.providerId, modelId: recent.modelId },
-        invalidated: true,
+        selection: completeNewModelSelection(view, recent, { speed: "highest" }) ?? null,
+        invalidated: false,
       };
     }
-    return { selection: recent, invalidated: false };
   }
+  const preferred = view.preferredSelection;
+  const firstModel = view.providers.flatMap((provider) =>
+    provider.models.map((model) => ({ providerId: provider.providerId, modelId: model.modelId })),
+  )[0];
   return {
     selection:
-      view.preferredSelection && isSelectionInView(view, view.preferredSelection)
-        ? view.preferredSelection
-        : null,
+      (preferred && completeNewModelSelection(view, preferred, { speed: "highest" })) ||
+      (firstModel && completeNewModelSelection(view, firstModel, { speed: "highest" })) ||
+      null,
     invalidated: recent !== null,
   };
-}
-
-function isSelectionInView(view: ModelSelectionView, selection: ModelSelection): boolean {
-  const model = findModel(view, selection);
-  if (!model) return false;
-  const reasoning = selection.options?.reasoningLevel;
-  const reasoningSpec = model.config.optionSpecs.reasoningLevel;
-  return reasoning !== undefined && reasoningSpec.values.includes(reasoning);
 }
 
 function findModel(view: ModelSelectionView, selection: ModelSelection) {
@@ -149,8 +139,7 @@ function normalizeSparseModelSelection(selection: ModelSelection): ModelSelectio
   const candidate =
     selection && typeof selection === "object" && !Array.isArray(selection) ? selection : null;
   const options = candidate?.options;
-  const normalizedOptions =
-    options?.reasoningLevel !== undefined ? { reasoningLevel: options.reasoningLevel } : {};
+  const normalizedOptions = options ? { ...options } : {};
   const parsed = modelSelectionSchema.safeParse({
     providerId: candidate?.providerId,
     modelId: candidate?.modelId,

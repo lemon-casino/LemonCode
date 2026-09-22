@@ -6,7 +6,7 @@ export interface JsonObject {
 }
 
 export type RestrictedCelValue = string | number;
-export type ModelOptionName = "reasoningLevel" | "maxOutputTokens";
+export type ModelOptionName = "reasoningLevel" | "maxOutputTokens" | "speed";
 
 export interface RestrictedCelProgram {
   readonly source: string;

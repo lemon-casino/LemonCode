@@ -25,6 +25,7 @@ import {
   type ResumeSessionResult,
 } from "@zcode/core";
 import { createModelTelemetry } from "@zcode/telemetry";
+import { completeNewModelSelection } from "@zcode/provider";
 import {
   createRootTraceContext,
   traceContextToLogContext,
@@ -85,6 +86,7 @@ import { createDynamicWorkflowSnippetService } from "./dynamic-workflow-snippet-
 import { createModelCatalogPort } from "./model-catalog-port.js";
 import { createDynamicWorkflowRunProgressSink } from "./dynamic-workflow-run-progress-sink.js";
 import { createScriptWorkflowAgentRuntime } from "./script-workflow-child-runtime.js";
+import { createWorkflowToolOperationAdmission } from "./workflow-tool-operation-admission.js";
 import { workflowActorModelPolicy } from "./workflow-actor-model.js";
 import { workflowActorToolPolicy } from "./workflow-actor-tools.js";
 import {
@@ -583,6 +585,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
     // CreateWorkflow 因此回到占位诊断路径。这是一个记了日志的可见降级，而不是一条
     // 会静默丢掉持久化的运行路径（详见 dynamic-workflow-run-service.ts 的文件头）。
     const dynamicWorkflowJournal = resolveDynamicWorkflowJournalStore(sessionStore, logger);
+    const workflowToolOperationAdmission = createWorkflowToolOperationAdmission();
     const dynamicWorkflowRunPort =
       dynamicWorkflowJournal === undefined
         ? undefined
@@ -592,13 +595,54 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
               persona,
               pinnedModel,
               runSubagentModel,
+              scriptActorModel,
+              approvedActorModel,
               sessionId: actorSessionId,
               submitPort,
               submitProfile,
               escalatePort,
               modelRequestAdmission,
-            }) =>
-              createScriptWorkflowAgentRuntime({
+            }) => {
+              const modelPolicy = workflowActorModelPolicy(
+                {
+                  parentSelection: getRuntime().getSessionModelSelection(),
+                  ...(runSubagentModel === undefined ? {} : { runSelection: runSubagentModel }),
+                  ...(scriptActorModel === undefined ? {} : { scriptSelection: scriptActorModel }),
+                  ...(approvedActorModel === undefined
+                    ? {}
+                    : { approvedSelection: approvedActorModel }),
+                },
+                pinnedModel,
+              );
+              const requestedSelection = modelPolicy.configOverrides.modelSelection;
+              const effectiveSelection =
+                requestedSelection === undefined
+                  ? undefined
+                  : (() => {
+                      const defaults = completeNewModelSelection(
+                        options.providerRegistry.getView(),
+                        requestedSelection,
+                      );
+                      if (defaults === undefined) return undefined;
+                      return {
+                        ...defaults,
+                        options: { ...defaults.options, ...requestedSelection.options },
+                      };
+                    })();
+              if (requestedSelection !== undefined && effectiveSelection === undefined) {
+                throw new Error(
+                  `Workflow actor model is unavailable: ${requestedSelection.providerId}/${requestedSelection.modelId}`,
+                );
+              }
+              if (effectiveSelection !== undefined) {
+                const validation = options.providerRegistry.validateSelection(effectiveSelection);
+                if (!validation.ok) {
+                  throw new Error(
+                    `Workflow actor model options are invalid (${validation.code}): ${effectiveSelection.providerId}/${effectiveSelection.modelId}`,
+                  );
+                }
+              }
+              return createScriptWorkflowAgentRuntime({
                 childSessionId: actorSessionId,
                 configOverrides: {
                   // persona 的身份（有效名 + system）→ context builder 的工作流子代理路径。
@@ -616,13 +660,9 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
                   // resume 带来的 pin 钉住上一次实际跑的模型（persona 冻结不变式的持久化那一半，见
                   // workflow-actor-model.ts 的优先级表）；parentSelection 取父会话**当前**的选择，
                   // 与工厂基线同源，pin 比对才不会漂移。
-                  ...workflowActorModelPolicy(
-                    {
-                      parentSelection: getRuntime().getSessionModelSelection(),
-                      ...(runSubagentModel === undefined ? {} : { runSelection: runSubagentModel }),
-                    },
-                    pinnedModel,
-                  ).configOverrides,
+                  ...(effectiveSelection === undefined
+                    ? modelPolicy.configOverrides
+                    : { modelSelection: effectiveSelection }),
                 },
                 deps: {
                   agentTelemetry: modelTelemetry.agentExecution,
@@ -666,7 +706,9 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
                 workflowEscalatePort: escalatePort,
                 // 请求级准入端口：driver 在治理器在场时给出，runner 每次尝试先过闸门。
                 ...(modelRequestAdmission === undefined ? {} : { modelRequestAdmission }),
-              }),
+                toolOperationAdmission: workflowToolOperationAdmission,
+              });
+            },
             // 边界记账与转录截断都读写 actor 会话的消息，走的必须是同一个 store。
             actorTranscriptStore: sessionStore,
             // 用户面产物的字节落点：与主会话、workflow 子
@@ -675,6 +717,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
             executionPort,
             fileSystemPort,
             journal: dynamicWorkflowJournal,
+            getSessionModelSelection: () => getRuntime().getSessionModelSelection(),
             logger,
             // 进度投影的接缝：一条引擎事件 → 一条父会话的会话事件 → v4 的 workflowRuns 状态键。
             // 走 runtime 的 append 链路（而不是直接推 eventSink）是必需的：只有它同时做持久化、
@@ -1234,6 +1277,20 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
               }
               return result;
             },
+          }),
+      ...(dynamicWorkflowRunPort === undefined ||
+      typeof dynamicWorkflowRunPort.controlAsk !== "function"
+        ? {}
+        : {
+            controlWorkflowAsk: (input: import("@zcode/contracts").DynamicWorkflowAskControlRequest) =>
+              dynamicWorkflowRunPort.controlAsk!(input),
+          }),
+      ...(dynamicWorkflowRunPort === undefined ||
+      typeof dynamicWorkflowRunPort.reviseAsk !== "function"
+        ? {}
+        : {
+            reviseWorkflowAsk: (input: import("@zcode/contracts").DynamicWorkflowAskRevisionRequest) =>
+              dynamicWorkflowRunPort.reviseAsk!(input),
           }),
       // 中枢直接启动一个已保存的工作流。能力缺席条件与
       // resumeWorkflowRun 家族一致：dwf 端口整体缺席（stub / 单测宿主）时不注册——GUI 据此拿到

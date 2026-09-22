@@ -3,8 +3,12 @@ import { HourglassIcon } from "lucide-react";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
-import type { WorkflowActorSessionSidePaneTab } from "@/lib/workspaceSidePane.js";
+import type {
+  OpenScopedWorkflowRunSideTabRequest,
+  WorkflowActorSessionSidePaneTab,
+} from "@/lib/workspaceSidePane.js";
 import { workflowActorStartState } from "@/app-shell/workflowRunPanel.js";
+import { WorkflowActorTaskControls } from "@/app-shell/WorkflowActorTaskControls.js";
 import type { PaneWorkspaceScope } from "@/v4/paneLayoutStore.js";
 import { SessionPane } from "@/v4/SessionPane.js";
 import { useConversationProjection } from "@/v4/useConversationProjection.js";
@@ -16,6 +20,7 @@ interface WorkflowActorSessionSidePaneProps {
   onOpenBrowserUrl?: (url: string) => void;
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
   onOpenFileLink?: (target: MessageFileLinkTarget) => void;
+  onOpenWorkflowRun?: (request: OpenScopedWorkflowRunSideTabRequest) => void;
 }
 
 /**
@@ -59,6 +64,7 @@ const WorkflowActorSessionContent = memo(function WorkflowActorSessionContent({
   onOpenBrowserUrl,
   onOpenCodeViewer,
   onOpenFileLink,
+  onOpenWorkflowRun,
 }: WorkflowActorSessionSidePaneProps) {
   const { layer } = useV4Conversation();
 
@@ -90,8 +96,10 @@ const WorkflowActorSessionContent = memo(function WorkflowActorSessionContent({
     return <WorkflowActorNotStarted />;
   }
 
+  const run = snapshot?.workflowRuns?.runs.find((candidate) => candidate.runId === tab.runId);
   return (
-    <SessionPane
+    <WorkflowActorTaskControls run={run} tab={tab} onOpenWorkflowRun={onOpenWorkflowRun}>
+        <SessionPane
       paneId={tab.id}
       sessionId={gate.sessionId}
       readOnly
@@ -104,7 +112,8 @@ const WorkflowActorSessionContent = memo(function WorkflowActorSessionContent({
       onOpenBrowserUrl={onOpenBrowserUrl}
       onOpenCodeViewer={onOpenCodeViewer}
       onOpenFileLink={onOpenFileLink}
-    />
+        />
+    </WorkflowActorTaskControls>
   );
 });
 
@@ -128,6 +137,7 @@ export const WorkflowActorSessionSidePane = memo(function WorkflowActorSessionSi
   onOpenBrowserUrl,
   onOpenCodeViewer,
   onOpenFileLink,
+  onOpenWorkflowRun,
 }: WorkflowActorSessionSidePaneProps) {
   const scope = useMemo<PaneWorkspaceScope>(
     () => ({
@@ -146,6 +156,7 @@ export const WorkflowActorSessionSidePane = memo(function WorkflowActorSessionSi
         onOpenBrowserUrl={onOpenBrowserUrl}
         onOpenCodeViewer={onOpenCodeViewer}
         onOpenFileLink={onOpenFileLink}
+        onOpenWorkflowRun={onOpenWorkflowRun}
       />
     </V4PaneConversationProvider>
   );

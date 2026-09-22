@@ -31,7 +31,11 @@ export {
   type ScriptLoc,
   type WorkflowProgram,
 } from "./compiler/compile.js";
-export { analyzeWorkflowScript, type AnalyzeResult } from "./analysis/analyze.js";
+export {
+  analyzeWorkflowScript,
+  deriveWorkflowCausalityFor,
+  type AnalyzeResult,
+} from "./analysis/analyze.js";
 export { collectSites, type SiteTable } from "./analysis/sites.js";
 export {
   collectWorldRunCommands,
@@ -208,6 +212,10 @@ export {
   type WorldReadInput,
   WORLD_READ_INPUT_MAX_BYTES,
   type PersonaSpec,
+  type WorkflowActorModelOverride,
+  type WorkflowAskRevision,
+  type WorkflowImageRef,
+  type WorkflowModelSelection,
   type RunEvent,
   type RunRecord,
   type RunSettlement,

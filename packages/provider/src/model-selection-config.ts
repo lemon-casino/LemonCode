@@ -19,6 +19,7 @@ interface ModelSelectionCompletionView {
       readonly config: {
         readonly optionSpecs: {
           readonly reasoningLevel: { readonly values: readonly string[] };
+          readonly speed?: { readonly values: readonly string[] };
         };
       };
     }[];
@@ -58,16 +59,21 @@ export function resolveInitialModelSelection(input: {
 export function completeNewModelSelection(
   registry: ModelSelectionCompletionView,
   selection: ModelSelection,
+  defaults: { readonly speed?: "highest" } = {},
 ): ModelSelection | undefined {
   const model = registry.providers
     .find((provider) => provider.providerId === selection.providerId)
     ?.models.find((candidate) => candidate.modelId === selection.modelId);
   const reasoningLevel = model?.config.optionSpecs.reasoningLevel.values.at(-1);
-  if (!reasoningLevel) return undefined;
+  if (!model || !reasoningLevel) return undefined;
+  const speed =
+    defaults.speed === "highest"
+      ? model.config.optionSpecs.speed?.values.at(-1)
+      : model.config.optionSpecs.speed?.values[0];
   return {
     providerId: selection.providerId,
     modelId: selection.modelId,
-    options: { reasoningLevel },
+    options: { reasoningLevel, ...(speed ? { speed } : {}) },
   };
 }
 
@@ -86,7 +92,13 @@ export function normalizeModelSelection(
   if (!model) return undefined;
   const values = model.config.optionSpecs.reasoningLevel.values;
   const reasoningLevel = selection.options?.reasoningLevel;
-  if (reasoningLevel !== undefined && values.includes(reasoningLevel)) return selection;
+  const speedValues = model.config.optionSpecs.speed?.values;
+  const speed = selection.options?.speed;
+  const reasoningValid = reasoningLevel !== undefined && values.includes(reasoningLevel);
+  const speedValid = speedValues
+    ? speed !== undefined && speedValues.includes(speed)
+    : speed === undefined;
+  if (reasoningValid && speedValid) return selection;
   return {
     providerId: selection.providerId,
     modelId: selection.modelId,

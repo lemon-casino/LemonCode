@@ -54,6 +54,8 @@ import {
 import { runContextPanelActionWithClose } from "@/chat-input-toolbar/contextPanelAction.js";
 import { coordinateCodingPlanQuotaResetAutoPlay } from "@/chat-input-toolbar/codingPlanQuotaResetAutoPlay.js";
 import { formatCompactTokenNumber } from "@/lib/tokenNumberFormat.js";
+import type { SessionUsageState } from "@zcode/shared/zcode-protocol-v4";
+import { readSessionTokenTotal, type ChildSessionUsage } from "@/v4/composer/sessionTokenStats.js";
 import {
   CONTEXT_QUOTA_RESET_URGENT_SECONDS,
   ContextQuotaResetOpportunityReminderContent,
@@ -236,6 +238,12 @@ export function ChatContextUsage({
   codingPlanUsageRemaining,
   startPlanBalance,
   taskUsage,
+  sessionUsage,
+  liveOutputRate = null,
+  childUsage,
+  childCount = 0,
+  childCurrentOutputTokens = null,
+  childLiveOutputRate = null,
   selectedProvider: _selectedProvider,
   intl,
   locale,
@@ -248,6 +256,12 @@ export function ChatContextUsage({
     cache?: { hitRate: number | null };
     breakdown?: ZCodeContextUsageBreakdownItem[];
   } | null;
+  sessionUsage?: SessionUsageState["cumulative"];
+  liveOutputRate?: number | null;
+  childUsage?: ChildSessionUsage;
+  childCount?: number;
+  childCurrentOutputTokens?: number | null;
+  childLiveOutputRate?: number | null;
   selectedProvider: ZCodeProvider;
   intl: ReturnType<typeof useZCodeIntl>["intl"];
   locale: string;
@@ -780,6 +794,14 @@ export function ChatContextUsage({
   }, []);
 
   const numberFormatter = useMemo(() => new Intl.NumberFormat(locale), [locale]);
+  const ownSessionTotal = readSessionTokenTotal(sessionUsage ?? null, taskUsage?.used);
+  const childTokenTotal = (childUsage?.inputTokens ?? 0) + (childUsage?.outputTokens ?? 0);
+  const sessionTokenTotal = ownSessionTotal === null ? null : ownSessionTotal + childTokenTotal;
+  const incompleteTotal = (childUsage?.unknownCount ?? 0) > 0;
+  const combinedLiveOutputRate =
+    liveOutputRate === null && childLiveOutputRate === null
+      ? null
+      : (liveOutputRate ?? 0) + (childLiveOutputRate ?? 0);
   const contextUsageLabel = useMemo(() => {
     if (!renderableTaskUsage) {
       return null;
@@ -818,7 +840,9 @@ export function ChatContextUsage({
   if (
     (!renderableTaskUsage || !contextUsageLabel) &&
     !hasCodingPlanUsageRemaining &&
-    !hasStartPlanBalance
+    !hasStartPlanBalance &&
+    sessionTokenTotal === null &&
+    combinedLiveOutputRate === null
   ) {
     return null;
   }
@@ -841,6 +865,13 @@ export function ChatContextUsage({
       : intl.formatMessage({
           id: "settings.modelProvider.startPlan.balance.title",
         }));
+  const sessionSummaryLabel =
+    sessionTokenTotal === null
+      ? null
+      : intl.formatMessage(
+          { id: incompleteTotal ? "chat.sessionUsage.partial" : "chat.sessionUsage.summary" },
+          { total: numberFormatter.format(sessionTokenTotal) },
+        );
   const contextUsedTokens = renderableTaskUsage?.used ?? 0;
   const contextMaxTokens = renderableTaskUsage?.size ?? 1;
 
@@ -881,7 +912,15 @@ export function ChatContextUsage({
             processing 由弹层内「重置」按钮自身展示，触发器不转圈。 */}
         <span className="inline-flex shrink-0">
           <ContextTrigger
-            aria-label={triggerLabel}
+            aria-label={[
+              sessionSummaryLabel,
+              combinedLiveOutputRate === null
+                ? null
+                : intl.formatMessage({ id: "chat.sessionUsage.speed" }),
+              triggerLabel,
+            ]
+              .filter(Boolean)
+              .join(", ")}
             className={cn(
               "text-foreground-subtle",
               opportunityTriggerTone === "available" && "text-success",
@@ -889,6 +928,23 @@ export function ChatContextUsage({
             )}
             data-chat-toolbar-popover-trigger="true"
             data-testid={TID_CHAT_CONTEXT_USAGE_TRIGGER}
+            summary={
+              sessionTokenTotal === null && combinedLiveOutputRate === null ? undefined : (
+                <span className="inline-flex items-center gap-1.5 font-mono text-ui-xs tabular-nums">
+                  {sessionTokenTotal === null ? null : (
+                    <span>
+                      {incompleteTotal ? "≥" : ""}
+                      {formatCompactTokenNumber(locale, sessionTokenTotal)}
+                    </span>
+                  )}
+                  {combinedLiveOutputRate !== null ? (
+                    <span className="text-foreground-subtle">
+                      {formatCompactTokenNumber(locale, combinedLiveOutputRate)}/s
+                    </span>
+                  ) : null}
+                </span>
+              )
+            }
             onPointerDown={(event) => {
               // Radix HoverCard 会在 touchstart 中阻止后续 click，手机端无法打开面板；
               // 在触摸 pointerdown 阶段先打开，桌面端继续保持原有 hover/focus 语义。
@@ -915,8 +971,89 @@ export function ChatContextUsage({
         <ContextContentBody className="space-y-3">
           {/* 默认 ai-elements Header 会硬编码标题并把摘要拆到独立头部。
           工具栏上下文 hover 只需要一块紧凑信息面板，摘要和明细统一放在 body 里。 */}
+          {sessionTokenTotal !== null && sessionUsage ? (
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between gap-3 text-ui-base font-medium">
+                <span>
+                  {intl.formatMessage({
+                    id: incompleteTotal
+                      ? "chat.sessionUsage.partialTitle"
+                      : "chat.sessionUsage.title",
+                  })}
+                </span>
+                <span className="font-mono tabular-nums">
+                  {incompleteTotal ? "≥" : ""}
+                  {numberFormatter.format(sessionTokenTotal)}
+                </span>
+              </div>
+              {childCount > 0 ? (
+                <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                  <span>{intl.formatMessage({ id: "chat.sessionUsage.subagents" })}</span>
+                  <span className="font-mono tabular-nums">
+                    {numberFormatter.format(childTokenTotal)}
+                  </span>
+                </div>
+              ) : null}
+              {childCurrentOutputTokens !== null ? (
+                <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                  <span>{intl.formatMessage({ id: "chat.sessionUsage.childCurrentOutput" })}</span>
+                  <span className="font-mono tabular-nums">
+                    {numberFormatter.format(childCurrentOutputTokens)}
+                  </span>
+                </div>
+              ) : null}
+              <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                <span>
+                  {intl.formatMessage({
+                    id: childCount > 0 ? "chat.sessionUsage.mainInput" : "chat.sessionUsage.input",
+                  })}
+                </span>
+                <span className="font-mono tabular-nums">
+                  {numberFormatter.format(sessionUsage.inputTokens)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                <span>
+                  {intl.formatMessage({
+                    id:
+                      childCount > 0 ? "chat.sessionUsage.mainOutput" : "chat.sessionUsage.output",
+                  })}
+                </span>
+                <span className="font-mono tabular-nums">
+                  {numberFormatter.format(sessionUsage.outputTokens)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                <span>
+                  {intl.formatMessage({
+                    id: childCount > 0 ? "chat.sessionUsage.mainSpeed" : "chat.sessionUsage.speed",
+                  })}
+                </span>
+                <span className="font-mono tabular-nums">
+                  {liveOutputRate === null
+                    ? "-"
+                    : `${numberFormatter.format(liveOutputRate)} token/s`}
+                </span>
+              </div>
+              {childCount > 0 ? (
+                <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                  <span>{intl.formatMessage({ id: "chat.sessionUsage.childSpeed" })}</span>
+                  <span className="font-mono tabular-nums">
+                    {childLiveOutputRate === null
+                      ? "-"
+                      : `${numberFormatter.format(childLiveOutputRate)} token/s`}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           {renderableTaskUsage && compactTokenUsageLabel ? (
-            <div className="space-y-2">
+            <div
+              className={cn(
+                "space-y-2",
+                sessionTokenTotal !== null && "border-t border-border pt-3",
+              )}
+            >
               <div className="flex min-w-0 mb-3 items-center gap-3">
                 <span className="shrink-0 text-ui-base font-medium text-foreground">
                   {intl.formatMessage({ id: "chat.contextUsage.title" })}

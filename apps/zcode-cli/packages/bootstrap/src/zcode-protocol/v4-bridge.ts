@@ -102,6 +102,8 @@ import type {
   ZCodeProtocolSessionRecord,
 } from "./server-types.js";
 import { createProtocolLogger } from "./server-types.js";
+import { cumulativeFromPersistedMessages } from "./session-usage-cumulative.js";
+import type { MessageWithParts } from "@zcode/contracts";
 
 function normalizeStoredTitleSource(
   source: string | undefined,
@@ -114,9 +116,22 @@ function normalizeStoredTitleSource(
 function sessionUsageSeedFromRuntimeContextUsage(
   contextUsage: ZCodeSessionContextUsage | undefined,
   contextWindowOverride?: number,
+  persistedMessages?: readonly MessageWithParts[],
 ): SessionUsageSeed | null {
+  const recoveredCumulative = persistedMessages
+    ? cumulativeFromPersistedMessages(persistedMessages)
+    : null;
   if (!contextUsage || contextUsage.used <= 0) {
-    return null;
+    return recoveredCumulative
+      ? {
+          contextWindow: {
+            usedTokens: 0,
+            maxTokens: contextWindowOverride ?? null,
+            autoCompactThresholdTokens: null,
+          },
+          cumulative: recoveredCumulative,
+        }
+      : null;
   }
   return {
     contextWindow: {
@@ -126,6 +141,7 @@ function sessionUsageSeedFromRuntimeContextUsage(
       ...(contextUsage.cache ? { cache: contextUsage.cache } : {}),
       ...(contextUsage.breakdown ? { breakdown: contextUsage.breakdown } : {}),
     },
+    ...(recoveredCumulative ? { cumulative: recoveredCumulative } : {}),
   };
 }
 
@@ -1535,6 +1551,7 @@ export function createConversationV4Gateway(
       return sessionUsageSeedFromRuntimeContextUsage(
         contextUsage,
         resolveSessionModelContextWindow(context, record),
+        persistedMessages,
       );
     },
     // ── sessions-index hooks（workspace 分桶 + 冷启动 store 种子）──────────
@@ -1847,6 +1864,7 @@ export function createConversationV4Gateway(
       const usageSeed = sessionUsageSeedFromRuntimeContextUsage(
         await readSessionContextUsage(context, sessionId, source.messages),
         contextWindow,
+        source.messages,
       );
       const merged = mergeColdConversationEvents({
         contextWindow,

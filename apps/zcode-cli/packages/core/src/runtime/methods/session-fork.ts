@@ -94,13 +94,15 @@ function resolveForkModelSelection(
   const historicalOptions = historical?.options;
   const reasoningLevel =
     historicalOptions?.reasoningLevel ?? runtimeSelection?.options?.reasoningLevel;
+  const speed = historicalOptions?.speed ?? runtimeSelection?.options?.speed;
   return {
     modelId: identity.modelId,
     providerId: identity.providerId,
-    ...(reasoningLevel !== undefined
+    ...(reasoningLevel !== undefined || speed !== undefined
       ? {
           options: {
             ...(reasoningLevel !== undefined ? { reasoningLevel } : {}),
+            ...(speed !== undefined ? { speed } : {}),
           },
         }
       : {}),

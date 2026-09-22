@@ -194,6 +194,7 @@ export class AiSdkModelExecution {
     readonly optionSpecs: {
       readonly reasoningLevel: { readonly map: string };
       readonly maxOutputTokens: { readonly map: string };
+      readonly speed?: { readonly map: string };
     };
   }): AiSdkBoundModelResolution {
     const snapshot = this.captureModelSnapshot(input);
@@ -323,7 +324,7 @@ export class AiSdkModelExecution {
         const provider = createAnthropic({
           apiKey,
           baseURL: normalizeAnthropicBaseURL(providerConfig.baseURL),
-          fetch: createAnthropicCompatFetch(optionFetch),
+          fetch: createAnthropicCompatFetch(optionFetch, { speed: optionValues?.speed }),
           headers: withAnthropicAuthorizationHeader(apiKey, headers),
         });
         return provider as LanguageModelFactory;

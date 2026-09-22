@@ -329,14 +329,17 @@ export interface WorkflowActorSessionSidePaneTab {
   siteId: string;
   ordinal: number;
   /** 脚本里写下的名字（`agent("reviewer")`）；分析拿不到字面量时缺席，标题走本地化兜底。 */
-  actorName?: string;
+    actorName?: string;
+    /** 从阶段药丸进入时聚焦该阶段的 ask，不参与 tab 身份。 */
+    focusPhaseName?: string;
 }
 
 export interface OpenWorkflowActorSessionSideTabRequest {
   parentSessionId: string;
   runId: string;
   /** 打开时已知的会话 id；未启动的槽位缺席。 */
-  actorSessionId?: string;
+    actorSessionId?: string;
+    focusPhaseName?: string;
   siteId: string;
   ordinal: number;
   actorName?: string;
@@ -870,7 +873,8 @@ function createWorkflowActorSessionSidePaneTab(
     ...(options.actorSessionId ? { actorSessionId: options.actorSessionId } : {}),
     siteId: options.siteId,
     ordinal: options.ordinal,
-    ...(options.actorName ? { actorName: options.actorName } : {}),
+      ...(options.actorName ? { actorName: options.actorName } : {}),
+      ...(options.focusPhaseName ? { focusPhaseName: options.focusPhaseName } : {}),
   };
 }
 

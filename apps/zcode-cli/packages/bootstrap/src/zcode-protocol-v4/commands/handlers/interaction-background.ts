@@ -15,6 +15,8 @@ import {
   SAVED_WORKFLOW_START_REJECTED_FAULT_PREFIX,
   WORKFLOW_RUN_RESUME_REJECTED_FAULT_PREFIX,
   WORKFLOW_RUN_SETTINGS_REJECTED_FAULT_PREFIX,
+  WORKFLOW_ASK_CONTROL_REJECTED_FAULT_PREFIX,
+  WORKFLOW_ASK_REVISION_REJECTED_FAULT_PREFIX,
 } from "@zcode/shared/zcode-protocol-v4";
 import { requireRecord } from "../record-access.js";
 import type { V4CommandCoreHost } from "../types.js";
@@ -226,6 +228,49 @@ async function resumeWorkflowRun(
   return undefined;
 }
 
+class V4WorkflowAskControlRejectedError extends Error {
+  readonly reasonCode: string;
+  constructor(reason: string) {
+    super(`workflow ask control rejected: ${reason}`);
+    this.name = "V4WorkflowAskControlRejectedError";
+    this.reasonCode = `${WORKFLOW_ASK_CONTROL_REJECTED_FAULT_PREFIX}${reason}`;
+  }
+}
+
+async function controlWorkflowAsk(
+  host: V4CommandCoreHost,
+  envelope: CommandEnvelope,
+): Promise<CommandResult | undefined> {
+  const payload = envelope.payload as CommandPayloadMap["controlWorkflowAsk"];
+  const record = requireRecord(host, envelope.sessionId);
+  if (!record.app.controlWorkflowAsk) {
+    throw new V4CapabilityUnsupportedError("controlWorkflowAsk", record.app.sessionId);
+  }
+  const result = await record.app.controlWorkflowAsk(payload);
+  if (!result.ok) throw new V4WorkflowAskControlRejectedError(result.reason);
+  return undefined;
+}
+
+async function reviseWorkflowAsk(
+  host: V4CommandCoreHost,
+  envelope: CommandEnvelope,
+): Promise<CommandResult | undefined> {
+  const payload = envelope.payload as CommandPayloadMap["reviseWorkflowAsk"];
+  const record = requireRecord(host, envelope.sessionId);
+  if (!record.app.reviseWorkflowAsk) {
+    throw new V4CapabilityUnsupportedError("reviseWorkflowAsk", record.app.sessionId);
+  }
+  const result = await record.app.reviseWorkflowAsk(payload);
+  if (!result.ok) {
+    const error = new Error(`workflow ask revision rejected: ${result.reason}`) as Error & {
+      reasonCode: string;
+    };
+    error.reasonCode = `${WORKFLOW_ASK_REVISION_REJECTED_FAULT_PREFIX}${result.reason}`;
+    throw error;
+  }
+  return { type: "reviseWorkflowAsk", runId: result.runId, invalidatedSites: result.invalidatedSites };
+}
+
 /**
  * startSavedWorkflow：中枢直接启动一个已保存的工作流。
  * - 能力缺席（无 dwf 端口 / stub 宿主）→ 能力不支持错误（与 resume 家族同一条语义），GUI 原样显示
@@ -296,6 +341,7 @@ async function amendWorkflowRunSettings(
   const result = await record.app.amendWorkflowRunSettings({
     runId: payload.workId,
     ...(payload.subagentModel === undefined ? {} : { subagentModel: payload.subagentModel }),
+    ...(payload.subagentSelection === undefined ? {} : { subagentSelection: payload.subagentSelection }),
     ...(payload.maxConcurrency === undefined ? {} : { maxConcurrency: payload.maxConcurrency }),
   });
   if (!result.ok) throw new V4WorkflowRunSettingsRejectedError(result.reason, result.message);
@@ -316,6 +362,8 @@ export const interactionBackgroundHandlers = {
   snoozeInteractionAutoResolution,
   cancelBackgroundWork,
   resumeWorkflowRun,
+  controlWorkflowAsk,
+  reviseWorkflowAsk,
   startSavedWorkflow,
   amendWorkflowRunSettings,
 };

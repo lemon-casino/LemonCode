@@ -11,6 +11,7 @@ import type {
   Logger,
   Model,
   ModelOptions,
+  ResolvedModelOptions,
   ModelRequestAuth,
   ModelRequestDependencies,
   ModelRequestAuthSourceInput,
@@ -227,7 +228,7 @@ export class AiSdkModelAdapter {
     };
     const resolveForRequest = (
       request: AiSdkModelTextRequest,
-      optionValues: Required<ModelOptions>,
+      optionValues: ResolvedModelOptions,
     ): ((requestAuth?: ModelRequestAuth) => ResolvedAiSdkModel) => {
       const maxOutputTokens = requireMaxOutputTokens(optionValues);
       return request.refreshRuntimeHeadersBeforeAttempt
@@ -238,6 +239,7 @@ export class AiSdkModelAdapter {
                 options: {
                   maxOutputTokens,
                   reasoningLevel: optionValues.reasoningLevel,
+                  ...(optionValues.speed ? { speed: optionValues.speed } : {}),
                 },
                 requestAuth,
               }),
@@ -252,6 +254,7 @@ export class AiSdkModelAdapter {
               options: {
                 maxOutputTokens,
                 reasoningLevel: optionValues.reasoningLevel,
+                ...(optionValues.speed ? { speed: optionValues.speed } : {}),
               },
             }),
             properties,
@@ -268,6 +271,7 @@ export class AiSdkModelAdapter {
       optionSpecs: {
         maxOutputTokens: optionSpecs.maxOutputTokens,
         reasoningLevel: optionSpecs.reasoningLevel,
+        ...(optionSpecs.speed ? { speed: optionSpecs.speed } : {}),
       },
       options: options.options,
       executor: {

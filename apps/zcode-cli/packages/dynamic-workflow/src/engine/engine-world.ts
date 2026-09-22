@@ -73,7 +73,9 @@ export function readWorld(
   // **不调 driver**：world-run 的效应绝不静默重放。
   // 缓存关闭后不再问表（也不推进游标）：命令文本没变，但它读到的世界可能已被某个 live 子代理
   // 改写。
-  const imported = state.importClosed() ? undefined : state.importedWorld.take(hash);
+  // 修订站点仍消费前驱的同内容序号，只弃结果；否则后面的同 hash 读取会错配到这一条旧记录。
+  const candidate = state.importClosed() ? undefined : state.importedWorld.take(hash);
+  const imported = state.invalidatesImportedWorld(siteId) ? undefined : candidate;
   if (imported !== undefined) {
     state.journal.putNode({
       runId: state.runId,

@@ -428,6 +428,7 @@ interface ConversationComposerProps {
   ) => void;
   /** 选中思考深度；同时带上用户操作时看到的模型，避免异步回流后把 thought 归到另一模型。 */
   onSelectThought: (thought: string, modelContext: { provider: string; model: string }) => void;
+  onSelectSpeed: (speed: string, modelContext: { provider: string; model: string }) => void;
   onSwitchMode: (mode: string) => void;
   /** 打开当前 session 的 Status panel，并直达 Running 明细。 */
   onOpenRunningBackgroundWorks?: () => void;
@@ -517,6 +518,7 @@ function ConversationComposerImpl({
   onStop,
   onSelectModel,
   onSelectThought,
+  onSelectSpeed,
   onSwitchMode,
   onOpenRunningBackgroundWorks,
   backgroundWorkOpenTarget = "panel",
@@ -2051,11 +2053,14 @@ function ConversationComposerImpl({
             draftMode={draftMode}
             draftConfig={draftConfig}
             usage={composerUsage}
+            sessionRows={snapshot?.rows.window}
+            sessionSnapshot={snapshot}
             disabled={disabled}
             activeConfigPicker={activeConfigPicker}
             onConfigPickerOpenChange={handleConfigPickerOpenChange}
             onSelectModel={handleSelectModelTrace}
             onSelectThought={onSelectThought}
+            onSelectSpeed={onSelectSpeed}
             onSwitchMode={onSwitchMode}
             onRecoverCustomModelSelection={onRecoverCustomModelSelection}
             onSendCompressionCommand={onSendCompressionCommand}
@@ -2103,6 +2108,9 @@ function ConversationComposerImpl({
       activeConfigPicker,
       composerPhase,
       composerUsage,
+      snapshot?.rows.window,
+      snapshot?.subagents,
+      snapshot?.workflowRuns,
       disabled,
       draftConfig,
       draftMode,
@@ -2115,6 +2123,7 @@ function ConversationComposerImpl({
       modelSelectionState,
       modelSelectionView,
       onSelectThought,
+      onSelectSpeed,
       onRecoverCustomModelSelection,
       onSendCompressionCommand,
       onSwitchMode,

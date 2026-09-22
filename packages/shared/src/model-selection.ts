@@ -8,6 +8,7 @@ export const modelSelectionSchema = z
     options: z
       .object({
         reasoningLevel: z.string().trim().min(1).optional(),
+        speed: z.string().trim().min(1).optional(),
       })
       .strict()
       .optional(),
@@ -25,7 +26,9 @@ export interface EffectiveModelSelectionResult {
     | "provider-not-found"
     | "model-not-found"
     | "reasoning-level-missing"
-    | "reasoning-level-not-supported";
+    | "reasoning-level-not-supported"
+    | "speed-missing"
+    | "speed-not-supported";
 }
 
 export const ZCODE_MODEL_REASONING_SEPARATOR = "$";

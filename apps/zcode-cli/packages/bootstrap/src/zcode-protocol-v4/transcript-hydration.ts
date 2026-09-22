@@ -1072,7 +1072,7 @@ interface HydratedTimelineModel {
 }
 
 function hydratedModelKey(modelSelection: ModelSelection): string {
-  return `${modelSelection.providerId}\u0000${modelSelection.modelId}\u0000${modelSelection.options?.reasoningLevel ?? ""}`;
+  return `${modelSelection.providerId}\u0000${modelSelection.modelId}\u0000${modelSelection.options?.reasoningLevel ?? ""}\u0000${modelSelection.options?.speed ?? ""}`;
 }
 
 function turnModelSelectionOfUserMessage(message: MessageWithParts): ModelSelection | null {
