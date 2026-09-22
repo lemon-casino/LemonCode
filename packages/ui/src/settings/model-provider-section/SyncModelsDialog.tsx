@@ -12,13 +12,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { runCancelablePool } from "./syncModelOperations.js";
+import {
+  runCancelablePool,
+  runSequentialModelMutation,
+  selectedModelIds,
+} from "./syncModelOperations.js";
 
 const MODEL_PROBE_CONCURRENCY = 4;
 
 export interface SyncModelItem {
   readonly id: string;
-  readonly builtin: boolean;
   readonly enabled: boolean;
 }
 
@@ -34,11 +37,10 @@ interface SyncModelsDialogProps {
   onOpenChange: (open: boolean) => void;
   onLoadRemoteModels: () => Promise<readonly string[]>;
   onAddModel: (id: string) => Promise<void>;
-  onRemoveModel: (id: string) => Promise<void>;
   onProbeModel: (id: string, signal: AbortSignal) => Promise<SyncModelProbeResult>;
 }
 
-type SyncOperation = "load" | "add" | "remove" | "probe" | "sync";
+type SyncOperation = "load" | "probe" | "sync";
 
 export function SyncModelsDialog(props: SyncModelsDialogProps) {
   const { intl } = useZCodeIntl();
@@ -51,6 +53,12 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
   const operationIdRef = useRef(0);
   const operationAbortRef = useRef<AbortController | null>(null);
   const openRef = useRef(props.open);
+  const loadRemoteModelsRef = useRef(props.onLoadRemoteModels);
+
+  useEffect(() => {
+    // 修复：保存模型会换掉父层目录回调；仅更新回调引用，不能重新加载并清空勾选/检测结果。
+    loadRemoteModelsRef.current = props.onLoadRemoteModels;
+  }, [props.onLoadRemoteModels]);
 
   const beginOperation = useCallback(() => {
     operationAbortRef.current?.abort();
@@ -82,7 +90,7 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
     setProgress(null);
     setError(null);
     try {
-      const ids = await props.onLoadRemoteModels();
+      const ids = await loadRemoteModelsRef.current();
       if (!isCurrentOperation(operationId)) return;
       setRemoteIds(ids);
       setSelected(new Set(ids));
@@ -94,7 +102,7 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
     } finally {
       if (isCurrentOperation(operationId)) setBusy(null);
     }
-  }, [beginOperation, isCurrentOperation, props.onLoadRemoteModels]);
+  }, [beginOperation, isCurrentOperation]);
 
   useEffect(() => {
     openRef.current = props.open;
@@ -143,14 +151,12 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
     operationId: number,
     mutate: (id: string) => Promise<void>,
   ) => {
-    setProgress({ completed: 0, total: ids.length });
-    for (const [index, id] of ids.entries()) {
-      if (!isCurrentOperation(operationId)) return;
-      await mutate(id);
-      if (isCurrentOperation(operationId)) {
-        setProgress({ completed: index + 1, total: ids.length });
-      }
-    }
+    await runSequentialModelMutation({
+      items: ids,
+      shouldContinue: () => isCurrentOperation(operationId),
+      run: mutate,
+      onProgress: (completed) => setProgress({ completed, total: ids.length }),
+    });
   };
 
   const probe = async (ids: readonly string[], operationId: number, signal: AbortSignal) => {
@@ -169,10 +175,7 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
     });
   };
 
-  const selectedIds = [...selected];
-  const removableIds = props.configuredModels
-    .filter((model) => !model.builtin)
-    .map((model) => model.id);
+  const selectedIds = selectedModelIds(rows, selected);
 
   return (
     <Dialog
@@ -208,26 +211,18 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
           <Button
             type="button"
             variant="outline"
-            disabled={busy !== null || remoteIds.length === 0}
-            onClick={() =>
-              void run("add", (operationId) =>
-                mutateSequentially(remoteIds, operationId, props.onAddModel),
-              )
-            }
+            disabled={busy !== null || rows.length === 0}
+            onClick={() => setSelected(new Set(rows))}
           >
-            {intl.formatMessage({ id: "settings.modelProvider.syncModelsAddAll" })}
+            {intl.formatMessage({ id: "settings.modelProvider.syncModelsSelectAll" })}
           </Button>
           <Button
             type="button"
             variant="outline"
-            disabled={busy !== null || removableIds.length === 0}
-            onClick={() =>
-              void run("remove", (operationId) =>
-                mutateSequentially(removableIds, operationId, props.onRemoveModel),
-              )
-            }
+            disabled={busy !== null || selectedIds.length === 0}
+            onClick={() => setSelected(new Set())}
           >
-            {intl.formatMessage({ id: "settings.modelProvider.syncModelsRemoveAll" })}
+            {intl.formatMessage({ id: "settings.modelProvider.syncModelsClearSelection" })}
           </Button>
         </div>
 
@@ -315,11 +310,11 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
           </Button>
           <Button
             type="button"
-            disabled={busy !== null || remoteIds.length === 0}
+            disabled={busy !== null || selectedIds.length === 0}
             onClick={() =>
               void run("sync", async (operationId, signal) => {
-                await mutateSequentially(remoteIds, operationId, props.onAddModel);
-                if (isCurrentOperation(operationId)) await probe(remoteIds, operationId, signal);
+                await mutateSequentially(selectedIds, operationId, props.onAddModel);
+                if (isCurrentOperation(operationId)) await probe(selectedIds, operationId, signal);
               })
             }
           >

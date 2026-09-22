@@ -1,6 +1,55 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { runCancelablePool } from "./syncModelOperations.js";
+import {
+  runCancelablePool,
+  runSequentialModelMutation,
+  selectedModelIds,
+} from "./syncModelOperations.js";
+
+test("selection snapshot keeps only checked rows in visible order", () => {
+  const rows = ["remote-a", "remote-b", "local-only"];
+  assert.deepEqual(selectedModelIds(rows, new Set(rows)), rows);
+  assert.deepEqual(selectedModelIds(rows, new Set(["local-only", "remote-b"])), [
+    "remote-b",
+    "local-only",
+  ]);
+  assert.deepEqual(selectedModelIds(rows, new Set()), []);
+});
+
+test("one sync submits every selected model even when the parent updates between saves", async () => {
+  const selected = selectedModelIds(
+    ["remote-a", "remote-b", "remote-c"],
+    new Set(["remote-a", "remote-c"]),
+  );
+  const saved: string[] = [];
+  const progress: number[] = [];
+  await runSequentialModelMutation({
+    items: selected,
+    shouldContinue: () => true,
+    run: async (id) => {
+      saved.push(id);
+      await Promise.resolve();
+    },
+    onProgress: (completed) => progress.push(completed),
+  });
+  assert.deepEqual(saved, ["remote-a", "remote-c"]);
+  assert.deepEqual(progress, [0, 1, 2]);
+});
+
+test("sequential sync stops scheduling after close", async () => {
+  let open = true;
+  const saved: string[] = [];
+  await runSequentialModelMutation({
+    items: ["a", "b", "c"],
+    shouldContinue: () => open,
+    run: async (id) => {
+      saved.push(id);
+      open = false;
+    },
+    onProgress: () => {},
+  });
+  assert.deepEqual(saved, ["a"]);
+});
 
 test("probe pool never exceeds the configured concurrency", async () => {
   let active = 0;

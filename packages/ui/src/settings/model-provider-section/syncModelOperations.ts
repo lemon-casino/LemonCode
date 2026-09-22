@@ -1,3 +1,26 @@
+export function selectedModelIds(rows: readonly string[], selected: ReadonlySet<string>): string[] {
+  return rows.filter((id) => selected.has(id));
+}
+
+export async function runSequentialModelMutation<T>({
+  items,
+  shouldContinue,
+  run,
+  onProgress,
+}: {
+  items: readonly T[];
+  shouldContinue: () => boolean;
+  run: (item: T) => Promise<void>;
+  onProgress: (completed: number) => void;
+}): Promise<void> {
+  onProgress(0);
+  for (const [index, item] of items.entries()) {
+    if (!shouldContinue()) return;
+    await run(item);
+    if (shouldContinue()) onProgress(index + 1);
+  }
+}
+
 export async function runCancelablePool<TInput, TResult>({
   items,
   concurrency,

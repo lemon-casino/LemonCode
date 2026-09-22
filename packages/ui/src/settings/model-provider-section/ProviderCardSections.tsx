@@ -519,14 +519,6 @@ export function ProviderModelsSection({
     [onAddModel],
   );
 
-  const removeSyncedModel = useCallback(
-    async (id: string) => {
-      await onDeleteModel(id, { silentFeedback: true });
-      configuredModelIdsRef.current.delete(id);
-    },
-    [onDeleteModel],
-  );
-
   const probeSyncedModel = useCallback(
     async (id: string, signal: AbortSignal): Promise<SyncModelProbeResult> => {
       await addSyncedModel(id);
@@ -591,13 +583,11 @@ export function ProviderModelsSection({
           open={syncDialogOpen}
           configuredModels={models.map((model) => ({
             id: model.modelId,
-            builtin: model.builtin,
             enabled: model.config.enabled !== false,
           }))}
           onOpenChange={setSyncDialogOpen}
           onLoadRemoteModels={onListRemoteModels}
           onAddModel={addSyncedModel}
-          onRemoveModel={removeSyncedModel}
           onProbeModel={probeSyncedModel}
         />
       ) : null}

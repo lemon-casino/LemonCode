@@ -2448,8 +2448,8 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.syncModelsDescription":
     "Load the provider catalog, then configure or check models in bulk.",
   "settings.modelProvider.syncModelsRefresh": "Refresh catalog",
-  "settings.modelProvider.syncModelsAddAll": "Add all models",
-  "settings.modelProvider.syncModelsRemoveAll": "Remove all models",
+  "settings.modelProvider.syncModelsSelectAll": "Select all models",
+  "settings.modelProvider.syncModelsClearSelection": "Clear selection",
   "settings.modelProvider.syncModelsProbe": "Check selected models",
   "settings.modelProvider.syncModelsFailed": "Check failed and disabled",
   "settings.modelProvider.syncModelsProbeSuccess": "Available",
