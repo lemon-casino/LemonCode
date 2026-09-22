@@ -30,11 +30,13 @@ export function withDerivedWorkflowActorStatuses(run: WorkflowRunState): Workflo
     ...run,
     actors: run.actors.map((actor) => {
       const key = `${actor.siteId}\0${actor.ordinal}`;
+      // 节点窗口满额后会回收较早的 settled 行；没有留下节点不等于已完成的代理重新等待。
       const status: WorkflowRunActor["status"] = !runLive
         ? "completed"
         : executing.has(key)
           ? "running"
-          : live.has(key) || !owned.has(key)
+          : live.has(key) ||
+              (!owned.has(key) && (run.truncated !== true || actor.status !== "completed"))
             ? "waiting"
             : "completed";
       return actor.status === status ? actor : { ...actor, status };

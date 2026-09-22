@@ -373,21 +373,20 @@ async function honorsBoundary(
  * worldRead）就是写进这一列的那个值，重算一遍等于在这里复制一份哈希契约，而它一旦漂移，
  * 表面上是「缓存莫名不命中」。
  *
- * 只收 completed：失败的世界读取重新执行（失败对新 run 无约束力），running 的更不必说。
+ * 失败/中断也占一个出现序槽位：若直接跳过，后一次同参成功会冒充第一次失败的读取。
+ * 槽位为 null 时消费游标但重新执行；只有 completed 能供导入。
  * world-run 与 world-read 同表——导入 world-run 是**安全特性**而不是优化：修订续跑绝不静默
  * 重放一次已 journal 的效应（部署脚本跑两次）。
  */
-function buildWorldQueues(nodes: NodeRecord[]): ReadonlyMap<string, ImportedWorldEntry[]> {
-  const world = new Map<string, ImportedWorldEntry[]>();
+function buildWorldQueues(nodes: NodeRecord[]): ReadonlyMap<string, (ImportedWorldEntry | null)[]> {
+  const world = new Map<string, (ImportedWorldEntry | null)[]>();
   for (const node of nodes) {
     if (node.kind !== "world-read" && node.kind !== "world-run") continue;
-    if (node.status !== "completed") continue;
     const queue = world.get(node.inputHash);
-    const entry: ImportedWorldEntry = {
-      inputHash: node.inputHash,
-      kind: node.kind,
-      result: node.result,
-    };
+    // 修订后同一哈希的第 n 次读取必须对应前驱第 n 次；不能把失败记录压缩掉。
+    const entry: ImportedWorldEntry | null = node.status === "completed"
+      ? { inputHash: node.inputHash, kind: node.kind, result: node.result }
+      : null;
     if (queue === undefined) world.set(node.inputHash, [entry]);
     else queue.push(entry);
   }

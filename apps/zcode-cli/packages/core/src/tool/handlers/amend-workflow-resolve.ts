@@ -4,7 +4,7 @@
 //
 // 从 amend-workflow.ts 拆出：那边是 handler 与工具声明，这里是**全流程唯一一次读端口**——把模型
 // 的入参归一成「将要发生的执行事实」。每个可省略的字段守同一条规则（省略即沿用前驱），三样都在这里
-// 落定：脚本（三条来路，见 amend-workflow-source.ts）、并发上界、子代理模型。此后 hook、权限、
+// 落定：脚本（完整、文件、精确 edits 或沿用，见 amend-workflow-source.ts）、并发上界、子代理模型。此后 hook、权限、
 // 确认窗与 handler 面对的只有「一份脚本、一个数或没有、一个规范形或没有」。
 
 import {
@@ -74,11 +74,13 @@ export async function resolveAmendWorkflowInput(
       predecessor: _forged,
       max_concurrency: requested,
       subagent_model: _model,
+      edits: _edits,
       script_line_offset: _offset,
       ...rest
     } = parsed.data;
     void _forged;
     void _model;
+    void _edits;
     void _offset;
     // 没有端口就既没有前驱也没有天花板：`null`（解除）与「沿用」都塌成缺席，数原样过。
     // 归一化后的入参此后永远只有「一个数或没有」这一种形状。
@@ -131,12 +133,14 @@ export async function resolveAmendWorkflowInput(
     predecessor: _forged,
     max_concurrency: _tristate,
     subagent_model: _model,
+    edits: _edits,
     // 行偏移与 `predecessor` 同一姿态：解析结果，模型给的一律作废（下面按文件重算）。
     script_line_offset: _offset,
     ...rest
   } = parsed.data;
   void _forged;
   void _model;
+  void _edits;
   void _offset;
   const resolved: AmendWorkflowInput = {
     ...rest,

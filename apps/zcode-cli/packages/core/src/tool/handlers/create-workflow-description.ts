@@ -3,6 +3,9 @@
 
 import { FACADE_DTS } from "@zcode/dynamic-workflow";
 import { SAVED_WORKFLOW_PROJECT_DIR, WORKFLOW_DRAFTS_DIR } from "@zcode/contracts";
+import { compactWorkflowFacadeForDescription } from "./workflow-description-facade.js";
+
+const PROMPT_FACADE_DTS = compactWorkflowFacadeForDescription(FACADE_DTS);
 
 const INTRO = [
   "Create and run a dynamic workflow: a TypeScript script, written against the facade below, that orchestrates multiple model-driven subagents with plain control flow (loops, conditionals, fan-out) and typed intermediate results.",
@@ -102,7 +105,7 @@ export const CREATE_WORKFLOW_TOOL_DESCRIPTION = [
   "",
   "The script is checked against these facade declarations:",
   "```ts",
-  FACADE_DTS.trim(),
+  PROMPT_FACADE_DTS,
   "```",
   "",
   RULES,

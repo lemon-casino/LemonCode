@@ -2022,7 +2022,6 @@ function ConversationComposerImpl({
   // useMemo：composer 随流式 snapshot 高频重渲染，控制簇只在语义依赖变化时重建，
   // 避免每个 token 批次都重建 Tooltip/Select 子树。
   const composerUsage = snapshot?.usage ?? null;
-  const composerPhase = snapshot?.control.phase ?? null;
   const handleSelectModelTrace = useCallback(
     (nextProvider: string, nextModel: string, sourceModel: ModelSelectionSource | null) =>
       runUserAction({
@@ -2048,12 +2047,10 @@ function ConversationComposerImpl({
             modelSelectionState={modelSelectionState}
             modelSelectionReload={modelSelectionReload}
             sessionId={sessionId ?? null}
-            phase={composerPhase}
             provider={provider}
             draftMode={draftMode}
             draftConfig={draftConfig}
             usage={composerUsage}
-            sessionRows={snapshot?.rows.window}
             sessionSnapshot={snapshot}
             disabled={disabled}
             activeConfigPicker={activeConfigPicker}
@@ -2106,9 +2103,10 @@ function ConversationComposerImpl({
     [
       canSend,
       activeConfigPicker,
-      composerPhase,
       composerUsage,
+      snapshot?.control.phase,
       snapshot?.rows.window,
+      snapshot?.sessionId,
       snapshot?.subagents,
       snapshot?.workflowRuns,
       disabled,

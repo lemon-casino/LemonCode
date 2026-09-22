@@ -130,9 +130,9 @@ export class ImportedActorState {
 export class ImportedWorldQueue {
   private readonly cursors = new Map<string, number>();
 
-  constructor(private readonly world: ReadonlyMap<string, ImportedWorldEntry[]>) {}
+  constructor(private readonly world: ReadonlyMap<string, (ImportedWorldEntry | null)[]>) {}
 
-  /** 取该内容哈希的下一条记录，耗尽或从未记录即 undefined（调用方转 live）。 */
+  /** 取该内容哈希的下一次出现；失败占位也推进游标、返回 undefined 让调用方转 live。 */
   take(hash: string): ImportedWorldEntry | undefined {
     const queue = this.world.get(hash);
     if (queue === undefined) return undefined;
@@ -140,7 +140,7 @@ export class ImportedWorldQueue {
     const entry = queue[cursor];
     if (entry === undefined) return undefined;
     this.cursors.set(hash, cursor + 1);
-    return entry;
+    return entry ?? undefined;
   }
 }
 

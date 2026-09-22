@@ -42,6 +42,7 @@ import {
 import { reduceConcurrencyChanged, withoutCooldown } from "./workflow-runs-concurrency.js";
 import { readRunIdField, readWorkflowRunStopReason } from "./workflow-runs-lineage.js";
 import { carryNodeProgress, reduceNodeProgress } from "./workflow-runs-node-progress.js";
+import { upsertBoundedRunNode } from "./workflow-runs-node-window.js";
 import { reducePhaseEntered, reduceRunLaunched } from "./workflow-runs-phases.js";
 import { reduceRunStarted } from "./workflow-runs-started.js";
 import { withDerivedWorkflowActorStatuses } from "./workflow-runs-actor-status.js";
@@ -224,7 +225,7 @@ function applyWorkflowRunEvent(
         // 规则在同族的 workflow-runs-node-progress.ts（那里也讲了为什么必须显式携带）。
         ...carryNodeProgress(eventType, payload, previousNode),
       };
-      const upsertedNodes = upsertBoundedByInstance(run.nodes, node, WORKFLOW_RUNS_LIMITS.maxNodes);
+      const upsertedNodes = upsertBoundedRunNode(run.nodes, node, WORKFLOW_RUNS_LIMITS.maxNodes);
       // 步数：一个实例**首次**派发计一步。重放同一条 node-dispatched 时 previousNode 已在
       // dispatched 之后的相位，不再计数——归约必须幂等（顶层靠逐字节比对判「无变化」）。
       // 触界被拒的实例查不到 previousNode，会照常计数：步数是 run 级事实，不受展示界约束。
@@ -248,7 +249,9 @@ function applyWorkflowRunEvent(
     case "node-progress": {
       const ref = workflowInstanceRef(payload.instance);
       if (!ref) return run;
-      const current = run.nodes.find((node) => node.siteId === ref.siteId && node.ordinal === ref.ordinal);
+      const current = run.nodes.find(
+        (node) => node.siteId === ref.siteId && node.ordinal === ref.ordinal,
+      );
       if ((current?.attempt ?? 1) > readAttempt(payload.instance)) return run;
       return reduceNodeProgress(run, ref, payload);
     }
@@ -480,8 +483,8 @@ function workflowInstanceRef(value: unknown): { siteId: string; ordinal: number 
 /**
  * 按 (siteId, ordinal) upsert 进有界列表。
  *
- * 触界时的语义是**拒绝新条目、仍接受已有条目的更新**：把一个正在跑的实例的相位冻结在
- * "queued" 上，比少列一个实例更容易误导读者（图上那一格会永远显示没开始）。
+ * actor 表触界时拒绝新条目、仍接受已有条目的更新；节点窗口另见
+ * `upsertBoundedRunNode`，它优先保留活动中的节点。
  */
 function upsertBoundedByInstance<T extends { siteId: string; ordinal: number }>(
   list: readonly T[],
@@ -581,9 +584,7 @@ function isPlainRecord(value: unknown): value is Record<string, unknown> {
 function readAttempt(instance: unknown): number {
   if (!isPlainRecord(instance)) return 1;
   const attempt = instance.attempt;
-  return typeof attempt === "number" && Number.isSafeInteger(attempt) && attempt > 0
-    ? attempt
-    : 1;
+  return typeof attempt === "number" && Number.isSafeInteger(attempt) && attempt > 0 ? attempt : 1;
 }
 
 function nonEmptyString(value: unknown): string | undefined {

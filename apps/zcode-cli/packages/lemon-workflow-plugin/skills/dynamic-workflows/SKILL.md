@@ -6,7 +6,7 @@ when_to_use: "Only for CreateWorkflow scripts. A single delegation or a few inde
 
 # Writing dynamic workflows
 
-The `CreateWorkflow` tool's own description already carries the complete API surface and
+The `CreateWorkflow` tool's own description already carries compact API declarations and
 the hard authoring rules. **Read them there, not here** — this skill is the judgment layer:
 how many subagents a request deserves, which of them should share a context, what each one
 should hand back, and how to keep the run's work from dying with the run.
@@ -867,7 +867,7 @@ merging and writing up, not re-checking.
 | Sent a confirmer after a finding a `world.run` already decided, or let the hunter, the confirmer and the gate each run the suite | The same check paid three times; the exit code is the confirmation, and the gate runs the suite once (§10) |
 | `Promise.all` between two stages whose items map one to one (review every file, *then* confirm every finding) | The slowest reviewer gates every confirmer while the slots idle; chain the stages per item and join once (§7) |
 | Waited for a run you already knew was wrong to finish, or stopped it and left it | Everything after the fix point is re-paid either way; call `AmendWorkflow` on it now, while it runs (§13) |
-| Pasted a whole revised script inline after a diagnostic or an error, instead of editing the file the tool named | Twenty thousand tokens re-streamed to change one line, on a provider that may stall on the resubmit — and a script compaction has dropped is one you can no longer paste; the file is on disk, so the revision is an `Edit` and a `path` (§13) |
+| Pasted a whole revised script inline after a diagnostic or an error | Thousands of tokens re-streamed for a small change: use one `AmendWorkflow` call with exact `edits` when the old fragment is known, otherwise edit the named file and submit its `path` (§13) |
 
 ## 13. After you submit
 
@@ -899,8 +899,9 @@ Read the terminal state precisely. A run ends in exactly one of three states:
 - **completed** — the script returned.
 - **errored** — the script itself failed (an uncaught throw, a cap it overran, an artifact
   whose source file was missing). Replaying it would fail the same way, so
-  `ResumeWorkflowRun` refuses it; edit the run's script file, which the notification names,
-  and resubmit it with `AmendWorkflow` and `path`.
+  `ResumeWorkflowRun` refuses it; amend the run. Use compact `edits` when the exact old
+  fragment is in context, otherwise edit the script file named by the notification and pass
+  its `path`.
 - **stopped** — the run was stopped and can be resumed as-is with `ResumeWorkflowRun`. The
   notification's `<stop-reason>` says why: `user` (the user stopped it — leave it alone
   unless they ask), `model` (you stopped it with TaskStop), `interrupted` (the process that
@@ -919,8 +920,10 @@ provider" badge is waiting, not broken. If nothing succeeds for twenty minutes y
 informational stall notification; the run is still running and needs nothing from you.
 
 **When the script itself was wrong, do not start over.** Any run — errored, stopped,
-completed, or still running — can be superseded: edit the run's script file and call
-`AmendWorkflow` with `run_id: "<runId>"` and that `path`. That starts a new run which
+completed, or still running — can be superseded. If the exact old fragment is still in
+context, call `AmendWorkflow` once with `run_id: "<runId>"` and ordered
+`edits: [{ find, replace }]`; each `find` must be unique in the predecessor script. If the
+fragment is no longer in context, edit the run's script file and pass that `path`. That starts a new run which
 imports the old one's finished work, matched per named subagent along its sequence of asks,
 so every step you did not touch settles from cache at no token cost and only the changed
 part actually runs — with one
@@ -936,11 +939,15 @@ cache hit: names that stay the same across the revision, and asks whose instruct
 byte-identical (an upstream change cascades — a changed result changes what interpolates
 into everything downstream, which is what you want).
 
-**Every run remembers its script file, so a revision is an `Edit`.** The terminal
-notification names that path, and `GetWorkflowRun` reports it as `scriptPath` — which is why
-you never have to keep the script in context: by the time a long run errors, compaction may
-well have dropped the text you sent, while the file on disk has not moved. Edit it in place
-and pass `path`; pass `script` only when what you are submitting is genuinely new. A `path`
+**Every run remembers its complete script, so a small revision is one compact call.** Prefer
+`edits` while the changed old text is already in context: the runtime applies the ordered exact
+replacements atomically, compiles the full result, and writes a new draft without modifying the
+predecessor file. A missing or repeated `find` rejects the whole batch before the live run is
+stopped; enlarge the fragment until it is unique.
+
+The terminal notification also names the script file, and `GetWorkflowRun` reports it as
+`scriptPath`. That is the fallback after compaction has dropped the old text: edit the file in
+place and pass `path`; pass `script` only when what you are submitting is genuinely new. A `path`
 whose bytes still equal what the run already ran is refused as `script_unchanged`, with
 nothing stopped and nothing created — that refusal means your `Edit` did not land, not that
 the run cannot be amended (changing only `max_concurrency` or `subagent_model` is a real
@@ -1019,8 +1026,9 @@ you need not drop what you are doing, but you cannot leave it unanswered.
   sure? Read the run with `GetWorkflowRun`, or put the question to the user with
   `AskUserQuestion` — then come back and answer, because nothing answers in your place.
 - The **script** is what is broken — a gate no output can pass, control flow routing work to
-  the wrong subagent. No sentence fixes that. Edit the run's script file and call
-  `AmendWorkflow` on it with that `path` (§13); it stops the run for you. The escalation is
+  the wrong subagent. No sentence fixes that. Call `AmendWorkflow` with compact `edits` when
+  you know the exact old fragment, or edit the run's script file and pass its `path` (§13);
+  it stops the run for you. The escalation is
   what makes that amendment cheap: the ask that escalated never settled, so it sits exactly
   past the cache boundary — everything before it imports from the old run at no token cost,
   and it re-runs against the fixed script.

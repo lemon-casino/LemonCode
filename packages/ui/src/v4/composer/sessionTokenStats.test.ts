@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   aggregateChildSessionUsage,
   collectChildSessionIds,
+  readLiveOutputObservation,
   readChildSessionTokenTotal,
   readSessionTokenTotal,
   readStreamingOutputSample,
@@ -10,6 +11,51 @@ import {
   readStreamingOutputRate,
   retainObservedOutputRate,
 } from "./sessionTokenStats.js";
+
+test("live output observation uses the snapshot identity during prewarming reasoning", () => {
+  const snapshot = {
+    sessionId: "prewarm-session",
+    control: { phase: "prewarming" },
+    rows: {
+      window: [
+        {
+          rowId: 7,
+          kind: "reasoning",
+          assistantResponseId: "response-a",
+          text: "正在分析普通任务的代码路径",
+          state: "streaming",
+        },
+      ],
+    },
+  };
+
+  const observation = readLiveOutputObservation(snapshot as never);
+  assert.equal(observation?.sessionId, "prewarm-session");
+  assert.equal(observation?.sample.responseId, "response-a");
+  assert.ok((observation?.sample.estimatedTokens ?? 0) > 0);
+  const progressed = readLiveOutputObservation({
+    ...snapshot,
+    control: { phase: "running" },
+    rows: {
+      window: [
+        {
+          ...snapshot.rows.window[0],
+          text: "正在分析普通任务的代码路径，并继续检查实时思考输出的统计结果",
+        },
+      ],
+    },
+  } as never);
+  let tracker = recordStreamingOutputSample(null, observation!.sample, 1_000);
+  tracker = recordStreamingOutputSample(tracker, progressed!.sample, 1_500);
+  assert.ok((readStreamingOutputRate(tracker, 1_500) ?? 0) > 0);
+  assert.equal(
+    readLiveOutputObservation({
+      ...snapshot,
+      control: { phase: "completedSuccess" },
+    } as never),
+    null,
+  );
+});
 
 test("child ids include only dispatched workflow actors, dedupe standard children and revisions", () => {
   const snapshot = {
@@ -195,4 +241,15 @@ test("rolling output measurements expire without fresh tokens and reset for the 
   assert.equal(readStreamingOutputRate(tracker, 3700), null);
   tracker = recordStreamingOutputSample(tracker, { responseId: "b", estimatedTokens: 12 }, 4200);
   assert.equal(readStreamingOutputRate(tracker, 4300), 20);
+});
+
+test("a long pause restarts the sampling window without losing the last displayed rate", () => {
+  let tracker = recordStreamingOutputSample(null, { responseId: "a", estimatedTokens: 1 }, 1_000);
+  tracker = recordStreamingOutputSample(tracker, { responseId: "a", estimatedTokens: 13 }, 1_600);
+  const displayed = readStreamingOutputRate(tracker, 1_600);
+  tracker = recordStreamingOutputSample(tracker, { responseId: "a", estimatedTokens: 113 }, 11_000);
+  assert.equal(readStreamingOutputRate(tracker, 11_000), null);
+  assert.equal(retainObservedOutputRate(displayed, readStreamingOutputRate(tracker, 11_000)), 20);
+  tracker = recordStreamingOutputSample(tracker, { responseId: "a", estimatedTokens: 125 }, 11_600);
+  assert.equal(readStreamingOutputRate(tracker, 11_600), 20);
 });

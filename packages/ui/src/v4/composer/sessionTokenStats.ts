@@ -1,5 +1,9 @@
 import { ESTIMATED_TOKEN_CHAR_DIVISOR } from "@zcode/shared";
-import type { ConversationSnapshot, SessionUsageState } from "@zcode/shared/zcode-protocol-v4";
+import type {
+  ConversationSnapshot,
+  SessionPhase,
+  SessionUsageState,
+} from "@zcode/shared/zcode-protocol-v4";
 
 type SessionCumulative = SessionUsageState["cumulative"];
 type ConversationRows = ConversationSnapshot["rows"]["window"];
@@ -79,6 +83,11 @@ export interface StreamingOutputSample {
   estimatedTokens: number;
 }
 
+export interface LiveOutputObservation {
+  sessionId: string;
+  sample: StreamingOutputSample;
+}
+
 export interface LiveOutputTracker {
   responseId: string;
   samples: readonly { at: number; tokens: number }[];
@@ -104,6 +113,18 @@ export function readSessionTokenTotal(
   const total = cumulative.inputTokens + cumulative.outputTokens;
   // 旧冷会话可以恢复上下文水位，却没有历史用量分项；此时 0 不是会话总量。
   return total === 0 && contextUsedTokens > 0 ? null : total;
+}
+
+export function isLiveOutputPhase(phase: SessionPhase): boolean {
+  return phase === "prewarming" || phase === "running";
+}
+
+export function readLiveOutputObservation(
+  snapshot: ConversationSnapshot | null | undefined,
+): LiveOutputObservation | null {
+  if (!snapshot || !isLiveOutputPhase(snapshot.control.phase)) return null;
+  const sample = readStreamingOutputSample(snapshot.rows.window);
+  return sample ? { sessionId: snapshot.sessionId, sample } : null;
 }
 
 export function readStreamingOutputSample(rows: ConversationRows): StreamingOutputSample | null {

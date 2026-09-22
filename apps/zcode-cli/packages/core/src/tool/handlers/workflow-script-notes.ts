@@ -77,10 +77,10 @@ export function workflowLaunchedScriptSentence(location: WorkflowScriptLocation)
     location.kind === "draft"
       ? `The script is saved at ${location.described}`
       : `The script file is ${location.described}`;
-  return ` ${where}; to revise it later, edit that file and pass \`path\` to AmendWorkflow.`;
+  return ` ${where}; to revise it later, use compact \`edits\` when the exact old fragment is known, otherwise edit that file and pass \`path\` to AmendWorkflow.`;
 }
 
 /** 修订启动成功后追加的一句（再修订一次仍是同一个动作）。 */
 export function workflowAmendedScriptSentence(location: WorkflowScriptLocation): string {
-  return ` The revision's script is at ${location.described}; edit it there for a further revision.`;
+  return ` The revision's script is at ${location.described}; use compact \`edits\` for a known exact fragment, or edit that file and pass \`path\` for a further revision.`;
 }

@@ -35,7 +35,6 @@ import {
 import type {
   ConversationSnapshot,
   SessionConfigState,
-  SessionPhase,
   SessionUsageState,
 } from "@zcode/shared/zcode-protocol-v4";
 import { ModelConfigSelect, type ModelSelectGroup } from "@/ModelConfigSelect.js";
@@ -333,7 +332,6 @@ export interface V4ComposerToolbarProps {
   modelSelectionState?: ModelSelectionState;
   modelSelectionReload?: () => void;
   sessionId: string | null;
-  phase: SessionPhase | null;
   provider?: ZCodeProvider;
   /** 当前工具条是否运行在 Web 远控壳中。 */
   /** 当前视口是否为手机输入布局。 */
@@ -343,7 +341,6 @@ export interface V4ComposerToolbarProps {
   /** 当前 scope 的 Composer 选择；新任务与已有会话都只显示这份状态。 */
   draftConfig?: Partial<SessionConfigState>;
   usage: SessionUsageState | null;
-  sessionRows?: ConversationSnapshot["rows"]["window"];
   sessionSnapshot?: ConversationSnapshot | null;
   disabled: boolean;
   /** 单个 composer 内的配置 picker 排他 owner；只属于 renderer-local presentation。 */
@@ -375,7 +372,6 @@ function V4ComposerModelControlsImpl({
   workspacePath,
   workspaceIdentity,
   sessionId,
-  phase,
   modelSelectionView = null,
   modelSelectionState = MODEL_SELECTION_LOADING_STATE,
   modelSelectionReload,
@@ -384,7 +380,6 @@ function V4ComposerModelControlsImpl({
   draftMode = false,
   draftConfig,
   usage,
-  sessionRows,
   sessionSnapshot,
   disabled,
   activeConfigPicker,
@@ -396,11 +391,12 @@ function V4ComposerModelControlsImpl({
   onRecoverCustomModelSelection,
 }: V4ComposerToolbarProps) {
   const { intl, locale } = useZCodeIntl();
-  const liveOutputRate = useLiveOutputRate(sessionRows, phase, sessionId);
+  const liveOutputRate = useLiveOutputRate(sessionSnapshot);
+  const observedSessionId = sessionSnapshot?.sessionId ?? sessionId;
   const { layer } = useV4Conversation();
   const childIds = useMemo(
-    () => collectChildSessionIds(sessionSnapshot ?? null, sessionId ?? ""),
-    [sessionSnapshot?.subagents, sessionSnapshot?.workflowRuns, sessionId],
+    () => collectChildSessionIds(sessionSnapshot ?? null, observedSessionId ?? ""),
+    [sessionSnapshot?.subagents, sessionSnapshot?.workflowRuns, observedSessionId],
   );
   const childStats = useChildSessionTokenStats(layer, childIds);
   const { openCodingPlanUpgrade } = useCodingPlanUpgradeDialog();

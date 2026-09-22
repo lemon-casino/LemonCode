@@ -46,6 +46,10 @@ export function readWorld(
       state.failRun(err);
       return Promise.reject(err);
     }
+    // 冷续跑重建了前驱导入队列，但本 run 已记下的读取会直接 replay。
+    // 它们仍须占用对应的出现序，否则下一条 fresh 同参读取会错配到旧结果。
+    // 即便门已关闭也可消费：后续不会再导入，且本 run 的 journal 始终优先。
+    if (state.importedCache !== undefined) state.importedWorld.take(hash);
     // 完结命中短路（journal 化世界读取使 resume 免疫于 run 与 resume 之间的磁盘变化）。
     if (recorded.status === "completed") {
       state.record({ type: "node-settled", instance, outcome: "ok", cached: true });

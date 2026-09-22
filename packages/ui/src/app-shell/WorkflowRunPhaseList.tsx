@@ -27,6 +27,7 @@ import { WorkflowMoreRow } from "@/components/workflow-timeline/WorkflowMoreRow.
 import { WorkflowRoll } from "@/components/workflow-timeline/WorkflowRoll.js";
 import { RosterMeter } from "@/components/workflow-timeline/WorkflowRosterParts.js";
 import { WorkflowRunQuestionRow } from "@/app-shell/WorkflowRunQuestionRow.js";
+import { WorkflowRunCoverageNotice } from "@/app-shell/WorkflowRunCoverageNotice.js";
 import {
   AvatarCluster,
   Rounds,
@@ -311,6 +312,7 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
       data-testid="workflow-run-phases"
       ref={rootRef}
     >
+      {run?.truncated === true ? <WorkflowRunCoverageNotice /> : null}
       {model.stations.map((station, index) => {
         const expanded = open.has(station.id);
         const name = phaseDisplayName(station.naming, format);

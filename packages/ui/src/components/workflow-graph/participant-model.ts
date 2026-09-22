@@ -216,8 +216,41 @@ export function liveParticipantView(
   if (run === undefined) return { graph, instances: {}, participantStatuses: {} };
   const siteOf = new Map(graph.steps.map((step) => [step.id, step.source ?? step.id]));
   const binder = phaseBinder(graph, run);
-  const sitesOf = (participant: WorkflowParticipantData) =>
-    new Set(participant.steps.map((id) => siteOf.get(id) ?? id));
+  const participantSites = new Map<string, ReadonlySet<string>>();
+  const sitesOf = (participant: WorkflowParticipantData): ReadonlySet<string> => {
+    let sites = participantSites.get(participant.id);
+    if (sites === undefined) {
+      sites = new Set(participant.steps.map((id) => siteOf.get(id) ?? id));
+      participantSites.set(participant.id, sites);
+    }
+    return sites;
+  };
+  // 实时事件每次都会重算视图；按站点/车道建一次索引，避免每张卡都遍历整条 run 的节点表。
+  const nodesBySite = new Map<string, Map<string, WorkflowRunState["nodes"]>>();
+  for (const node of run.nodes) {
+    if (node.actorSiteId === undefined) continue;
+    let byLane = nodesBySite.get(node.siteId);
+    if (byLane === undefined) {
+      byLane = new Map();
+      nodesBySite.set(node.siteId, byLane);
+    }
+    let bucket = byLane.get(node.actorSiteId);
+    if (bucket === undefined) {
+      bucket = [];
+      byLane.set(node.actorSiteId, bucket);
+    }
+    bucket.push(node);
+  }
+  const actorsByLane = new Map<string, WorkflowRunState["actors"]>();
+  for (const actor of run.actors) {
+    let bucket = actorsByLane.get(actor.siteId);
+    if (bucket === undefined) {
+      bucket = [];
+      actorsByLane.set(actor.siteId, bucket);
+    }
+    bucket.push(actor);
+  }
+  const nodesFor = (siteId: string, lane: string) => nodesBySite.get(siteId)?.get(lane) ?? [];
   /**
    * 这张卡名下的实例：车道上在**这张卡的站点**留下过节点、且该节点的戳落在这张卡的阶段的
    * actor；在这些站点上还一个节点都没有的 actor（建了还没被 ask，或还没走到这一站）则按它
@@ -228,32 +261,31 @@ export function liveParticipantView(
     const sites = sitesOf(participant);
     const seen = new Set<number>();
     const here = new Set<number>();
-    for (const node of run.nodes) {
-      if (node.actorSiteId !== participant.lane || !sites.has(node.siteId)) continue;
-      if (node.actorOrdinal === undefined) continue;
-      seen.add(node.actorOrdinal);
-      if (binder.has(participant.phase, node.phaseName)) here.add(node.actorOrdinal);
+    for (const site of sites) {
+      for (const node of nodesFor(site, participant.lane)) {
+        if (node.actorOrdinal === undefined) continue;
+        seen.add(node.actorOrdinal);
+        if (binder.has(participant.phase, node.phaseName)) here.add(node.actorOrdinal);
+      }
     }
-    return run.actors
+    return (actorsByLane.get(participant.lane) ?? [])
       .filter(
         (actor) =>
-          actor.siteId === participant.lane &&
-          (here.has(actor.ordinal) ||
-            (!seen.has(actor.ordinal) && binder.has(participant.phase, actor.phaseName))),
+          here.has(actor.ordinal) ||
+          (!seen.has(actor.ordinal) && binder.has(participant.phase, actor.phaseName)),
       )
       .sort((a, b) => a.ordinal - b.ordinal);
   };
   const statusFor = (participant: WorkflowParticipantData, ordinal: number): StepRunStatus => {
     const sites = sitesOf(participant);
-    const values = run.nodes
-      .filter(
-        (node) =>
-          sites.has(node.siteId) &&
-          node.actorSiteId === participant.lane &&
-          node.actorOrdinal === ordinal &&
-          binder.has(participant.phase, node.phaseName),
-      )
-      .map(statusOfRunNode);
+    const values: StepRunStatus[] = [];
+    for (const site of sites) {
+      for (const node of nodesFor(site, participant.lane)) {
+        if (node.actorOrdinal === ordinal && binder.has(participant.phase, node.phaseName)) {
+          values.push(statusOfRunNode(node));
+        }
+      }
+    }
     return aggregateRunStatuses(values) ?? "pending";
   };
 

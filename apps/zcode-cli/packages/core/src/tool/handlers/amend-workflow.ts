@@ -3,7 +3,7 @@
 // ============================================================
 //
 // 与 CreateWorkflow 的差别只有两处：resolveInput 解析的是**前驱 run**而不是保存的文件（省略的
-// 脚本、并发上界与子代理模型都从前驱沿用，见 amend-workflow-resolve.ts；脚本的三条来路见
+// 脚本、并发上界与子代理模型都从前驱沿用，见 amend-workflow-resolve.ts；脚本的四条来路见
 // amend-workflow-source.ts），handler 调的是
 // `port.amend`（service 负责停在飞前驱、等结算、导入、启动）。编译、诊断路径、display 载荷、
 // backgrounded 契约与 CreateWorkflow 逐字共用——模型面的 response 也照它的样子写，只多一句
@@ -101,7 +101,7 @@ function compileFailureResponse(
         : DIAGNOSTICS_NOT_EXECUTED_NOTE;
   return [
     inherited
-      ? `This amend kept run ${input.run_id}'s script, inherited because you omitted both \`script\` and \`path\`, and that script no longer compiles against the current workflow facade:`
+      ? `This amend kept run ${input.run_id}'s script, inherited because you omitted \`script\`, \`path\` and \`edits\`, and that script no longer compiles against the current workflow facade:`
       : "The revised workflow script has errors:",
     ...formatWorkflowDiagnosticLines(diagnostics, location),
     "",
@@ -262,7 +262,8 @@ export const amendWorkflowToolEntry: ToolEntry = {
     needsApproval: true,
   },
   handler: amendWorkflowHandler,
-  // 修订脚本至多给一个，只对模型入参成立（归一化后 `script` 与 `path` 同时在场是合法执行态）。
+  // 修订脚本来源至多给一个，只对模型入参成立（归一化后完整 `script` 与来源元数据同时在场
+  // 是合法执行态）。
   validateInput: (input) => validateAmendWorkflowSource(input),
   resolveInput: resolveAmendWorkflowInput,
   prepareApproval: prepareAmendWorkflowApproval,

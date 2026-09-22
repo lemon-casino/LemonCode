@@ -2,8 +2,9 @@
 // AmendWorkflow - 这次修订跑哪一份脚本
 // ============================================================
 //
-// 脚本有三条来路，归一成同一组字段：`path`（常态：就地改过的脚本文件）、`script`（内联整份）、
-// 两个都不给（沿用前驱存档的那一份）。从 resolveInput 本体（amend-workflow-resolve.ts）分出来的
+// 脚本有四条来路，归一成同一组字段：`edits`（基于前驱的精确小修）、`path`（就地改过的脚本文件）、
+// `script`（内联整份）、三个都不给（沿用前驱存档的那一份）。从 resolveInput 本体
+//（amend-workflow-resolve.ts）分出来的
 // 理由与 `create-workflow-source.ts` 同一条：这里是**读世界**的地方（脚本文件、前驱存档的脚本），
 // handler 是**改世界**的地方。两者搅在一起，下一个人自然会在 handler 里再读一次盘，而确认窗看到
 // 的就不再是将要执行的那份字节了。
@@ -12,6 +13,7 @@ import {
   AMEND_WORKFLOW_SOURCE_ERROR,
   AmendWorkflowInputSchema,
   type AmendWorkflowInput,
+  type AmendWorkflowScriptEdit,
   type DynamicWorkflowRunPort,
 } from "@zcode/contracts";
 import type { ToolHandlerFailure } from "../types.js";
@@ -29,19 +31,24 @@ export const AMEND_WORKFLOW_ERROR_CODE = {
   SCRIPT_UNCHANGED: 24,
   SCRIPT_FILE: 25,
   SCRIPT_UNAVAILABLE: 26,
+  SCRIPT_EDIT: 27,
 } as const;
 
-/** 入参级违规（两个来源都给了）的码，与 `CreateWorkflow` 的同一个 400。 */
+/** 入参级违规（多个来源同时给出）的码，与 `CreateWorkflow` 的同一个 400。 */
 const AMEND_WORKFLOW_INPUT_FAILURE_CODE = 400;
 
 /**
- * 修订脚本**至多给一个**，只对模型发出的入参成立（理由同 `validateCreateWorkflowSource`：归一化
- * 之后 `script` 与 `path` 同时在场是合法执行态）。两个都不给不是违规——那是「沿用前驱的脚本」。
+ * 修订脚本来源**至多给一个**，只对模型发出的入参成立（理由同
+ * `validateCreateWorkflowSource`：归一化之后完整 `script` 会与来源元数据同时在场）。三个都不给
+ * 不是违规——那是「沿用前驱的脚本」。
  */
 export function validateAmendWorkflowSource(input: unknown): { result: true } | ToolHandlerFailure {
   const parsed = AmendWorkflowInputSchema.safeParse(input);
   if (!parsed.success) return { result: true };
-  if (parsed.data.script !== undefined && parsed.data.path !== undefined) {
+  const sourceCount = [parsed.data.script, parsed.data.path, parsed.data.edits].filter(
+    (source) => source !== undefined,
+  ).length;
+  if (sourceCount > 1) {
     return {
       result: false,
       errorCode: AMEND_WORKFLOW_INPUT_FAILURE_CODE,
@@ -52,7 +59,8 @@ export function validateAmendWorkflowSource(input: unknown): { result: true } | 
 }
 
 /**
- * 两个来源都省略了，却没有可沿用的脚本。两种原因同一个判别键：对模型下一步是同一件事——把脚本交上来。
+ * 需要前驱脚本却读不到。沿用与 `edits` 都依赖这份存档；两种原因同一个判别键：对模型下一步
+ * 是同一件事——改用完整脚本或文件。
  *
  *   - `record`：前驱的记录里没有脚本（脚本落库之前的老 run）；
  *   - `host`：本会话没有 run 端口，或端口不带 `getScript`（老宿主）。
@@ -68,11 +76,11 @@ export function scriptUnavailableFailure(
   return {
     result: false,
     errorCode: AMEND_WORKFLOW_ERROR_CODE.SCRIPT_UNAVAILABLE,
-    message: `workflow_amend_script_unavailable: ${why}, so the script cannot be omitted here — pass the whole script as \`script\`, or its file as \`path\`. Nothing was stopped or created.`,
+    message: `workflow_amend_script_unavailable: ${why}, so the script cannot be inherited or patched here — pass the whole script as \`script\`, or its file as \`path\`. Nothing was stopped or created.`,
   };
 }
 
-/** 归一化出来的脚本字段（三条来源同形），外加模型面该看到的文件写法与「是否沿用」。 */
+/** 归一化出来的脚本字段（四条来源同形），外加模型面该看到的文件写法与「是否沿用」。 */
 type AmendScriptResolution =
   | {
       result: true;
@@ -83,12 +91,14 @@ type AmendScriptResolution =
   | ToolHandlerFailure;
 
 /**
- * 三条来源归一成同一组字段。
+ * 四条来源归一成同一组字段。
  *
  *   - `path`：读文件。带元数据块时块被剥掉且**声明被忽略**——修订不带实参（实参是前驱那次 run
  *     的事实，随 journal 走），所以这里没有可校验的东西；块仍要剥，否则它会被当成脚本的一部分
  *     喂进编译器。
  *   - `script`：原样。
+ *   - `edits`：读前驱存档，在内存按顺序做唯一精确替换。任一片段冲突就整批失败，绝不先落盘、
+ *     停 run 或留下半份脚本；成功结果按内联修订处理，由 handler 写一份新草稿，前驱文件不改。
  *   - 都省略：经端口读前驱存档的那一份（resume 重放的同一份字节）。读在 resolveInput 而不在
  *     handler：确认窗要画将要跑的那份脚本的图，hook 与项目规则也要匹配到它，而这两处都在
  *     handler 之前。空串与缺席同义——运行时 schema 的 `.min(1)` 不收空脚本。沿用的脚本还要
@@ -128,6 +138,18 @@ export async function resolveAmendScript(options: {
   if (model.script !== undefined) {
     return { result: true, inherited: false, fields: { script: model.script } };
   }
+  if (model.edits !== undefined) {
+    if (port === undefined || typeof port.getScript !== "function") {
+      return scriptUnavailableFailure(model.run_id, "host");
+    }
+    const stored = await port.getScript(model.run_id);
+    if (stored === undefined || stored.length === 0) {
+      return scriptUnavailableFailure(model.run_id, "record");
+    }
+    const edited = applyWorkflowScriptEdits(stored, model.edits);
+    if (!edited.result) return scriptEditFailure(edited);
+    return { result: true, inherited: false, fields: { script: edited.script } };
+  }
   if (port === undefined || typeof port.getScript !== "function") {
     return scriptUnavailableFailure(model.run_id, "host");
   }
@@ -153,6 +175,74 @@ export async function resolveAmendScript(options: {
             ...(kept.lineOffset === 0 ? {} : { script_line_offset: kept.lineOffset }),
           }),
     },
+  };
+}
+
+export type ApplyWorkflowScriptEditsResult =
+  | { result: true; script: string }
+  | { result: false; reason: "missing"; editIndex: number }
+  | { result: false; reason: "ambiguous"; editIndex: number; matchCount: number }
+  | { result: false; reason: "unchanged" };
+
+/**
+ * 小修订的纯函数核心。每一步都针对上一步的结果执行，但只有全部成功才返回新脚本；字符串不可变，
+ * 所以失败时调用方不可能误拿到半应用结果。唯一匹配本身也是乐观并发校验：片段不再精确存在时，
+ * 要求模型扩大上下文或退回 `path`，而不是猜位置。
+ */
+export function applyWorkflowScriptEdits(
+  script: string,
+  edits: readonly AmendWorkflowScriptEdit[],
+): ApplyWorkflowScriptEditsResult {
+  let candidate = script;
+  for (const [editIndex, edit] of edits.entries()) {
+    const matchCount = countOverlappingMatches(candidate, edit.find);
+    if (matchCount === 0) return { result: false, reason: "missing", editIndex };
+    if (matchCount > 1) {
+      return { result: false, reason: "ambiguous", editIndex, matchCount };
+    }
+    candidate = candidate.replace(edit.find, edit.replace);
+  }
+  return candidate === script
+    ? { result: false, reason: "unchanged" }
+    : { result: true, script: candidate };
+}
+
+function countOverlappingMatches(value: string, fragment: string): number {
+  if (fragment.length === 0) return 0;
+  let count = 0;
+  let from = 0;
+  while (from <= value.length - fragment.length) {
+    const index = value.indexOf(fragment, from);
+    if (index < 0) break;
+    count += 1;
+    from = index + 1;
+  }
+  return count;
+}
+
+function scriptEditFailure(
+  failure: Exclude<ApplyWorkflowScriptEditsResult, { result: true }>,
+): ToolHandlerFailure {
+  if (failure.reason === "unchanged") {
+    return {
+      result: false,
+      errorCode: AMEND_WORKFLOW_ERROR_CODE.SCRIPT_UNCHANGED,
+      message:
+        "workflow_script_unchanged: the ordered `edits` produce the predecessor's original script, so the amendment would repeat that run exactly. Change the edit batch or omit it for a settings-only amendment. Nothing was stopped or created.",
+    };
+  }
+  const position = failure.editIndex + 1;
+  if (failure.reason === "missing") {
+    return {
+      result: false,
+      errorCode: AMEND_WORKFLOW_ERROR_CODE.SCRIPT_EDIT,
+      message: `workflow_script_edit_missing: edit ${position}'s \`find\` fragment does not occur in the predecessor script. Read the current draft and provide a larger exact fragment, or edit the file and use \`path\`. No edits were applied; nothing was stopped or created.`,
+    };
+  }
+  return {
+    result: false,
+    errorCode: AMEND_WORKFLOW_ERROR_CODE.SCRIPT_EDIT,
+    message: `workflow_script_edit_ambiguous: edit ${position}'s \`find\` fragment occurs ${failure.matchCount} times in the predecessor script. Include enough surrounding text to make it unique, or edit the file and use \`path\`. No edits were applied; nothing was stopped or created.`,
   };
 }
 

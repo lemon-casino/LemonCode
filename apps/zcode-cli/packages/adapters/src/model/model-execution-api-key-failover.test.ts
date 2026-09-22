@@ -31,6 +31,77 @@ test("401 retries with the next key and remembers the failed key", async () => {
   assert.deepEqual(calls, ["Bearer bad", "Bearer good", "Bearer good"]);
 });
 
+test("a quota 403 tries the next enabled key in the same request", async () => {
+  const calls: string[] = [];
+  const execution = new AiSdkModelExecution(
+    {},
+    {
+      transport: async (input) => {
+        const authorization = new Request(input).headers.get("authorization") ?? "";
+        calls.push(authorization);
+        return authorization.endsWith("cipher-bad")
+          ? new Response(
+              JSON.stringify({
+                error: {
+                  code: "permission-denied",
+                  message: "Your team has used all available credits.",
+                },
+              }),
+              { status: 403, headers: { "content-type": "application/json" } },
+            )
+          : new Response(
+              JSON.stringify({
+                id: "cmpl",
+                choices: [{ message: { role: "assistant", content: "ok" }, finish_reason: "stop" }],
+                usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+              }),
+              { status: 200, headers: { "content-type": "application/json" } },
+            );
+      },
+    },
+  );
+  const model = bindKeys(execution, "save-1");
+  await generate(model);
+  assert.deepEqual(calls, ["Bearer cipher-bad", "Bearer cipher-good"]);
+  calls.length = 0;
+  await generate(model);
+  assert.deepEqual(calls, ["Bearer cipher-good"]);
+});
+
+test("a quota 403 with no next key preserves the provider response", async () => {
+  const quotaMessage = "Your team has used all available credits.";
+  const calls: string[] = [];
+  const fetch = createApiKeyFailoverFetch({
+    providerKind: "openai-compatible",
+    keys: [keys[0]!],
+    fetch: async (input) => {
+      calls.push(new Request(input).headers.get("authorization") ?? "");
+      return new Response(quotaMessage, { status: 403 });
+    },
+  });
+  const response = await fetch("https://example.test/chat");
+  assert.equal(response.status, 403);
+  assert.equal(await response.text(), quotaMessage);
+  assert.deepEqual(calls, ["Bearer bad"]);
+});
+
+test("exhausted keys stop after one pass and preserve the final quota error", async () => {
+  const calls: string[] = [];
+  const fetch = createApiKeyFailoverFetch({
+    providerKind: "openai-compatible",
+    keys,
+    fetch: async (input) => {
+      const authorization = new Request(input).headers.get("authorization") ?? "";
+      calls.push(authorization);
+      return new Response(`Quota exceeded: ${authorization}`, { status: 403 });
+    },
+  });
+  const response = await fetch("https://example.test/chat");
+  assert.equal(response.status, 403);
+  assert.equal(await response.text(), "Quota exceeded: Bearer good");
+  assert.deepEqual(calls, ["Bearer bad", "Bearer good"]);
+});
+
 test("500 does not rotate keys", async () => {
   const calls: string[] = [];
   const fetch = createApiKeyFailoverFetch({

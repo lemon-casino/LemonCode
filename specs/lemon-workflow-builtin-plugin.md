@@ -15,15 +15,19 @@ ZCode 的源码构建、桌面安装包、CLI SEA 和远端 Agent 资源必须�
 1. `lemon-workflow` 是纯内容型官方插件，首次启动默认启用，不启动独立进程，不新增 MCP。
 2. 插件内容是构建和运行时的唯一来源。不得在启动时从 `C:\Users\Lemon\.zcode` 复制文件。
 3. `/lemon [任务描述]` 使用参数作为目标；参数为空时使用当前对话中最新任务。
-4. 新任务使用 `CreateWorkflow`，只传一个内联 `script` 来源。不得调用
-   `EvalWorkflowSnippet`，不得同时传 `path`、`saved` 或其他 snippet 来源。
+4. 新任务第一次调用 `CreateWorkflow` 时只传一个内联 `script` 来源。不得调用
+   `EvalWorkflowSnippet`，不得同时传 `path`、`saved` 或其他 snippet 来源。若编译失败，编辑工具
+   返回的草稿并以 `path` 重交，不能再次输出整份脚本。
 5. 当目标明确要求继续、恢复或唤醒现有 run 时，先使用 `GetWorkflowRun` 或
    `ListWorkflowRuns` 确认 run。仅对 `status === "stopped"` 且
    `stopReason !== "superseded"` 的同一 run 调用 `ResumeWorkflowRun`；`provider` 停止
    原因需先排除供应商故障。不得创建重复 run，不得恢复 superseded 或 errored run。
 6. 用户明确要求修改原 workflow 时使用现有 `AmendWorkflow` 语义，不把脚本变化伪装成 resume。
-7. `CreateWorkflow` 返回编译诊断时，修正完整脚本后重新调用 `CreateWorkflow`。不得把同一个无效
-   调用重复提交，也不得退回 `EvalWorkflowSnippet`。
+   已知精确旧片段的小改动优先用单次 `edits`；片段已不在上下文时才编辑 run 的脚本文件并传
+   `path`；只有整体重写才传完整 `script`。
+7. `CreateWorkflow` 返回编译诊断时，按诊断编辑结果中命名的草稿，再以 `path` 重新调用
+   `CreateWorkflow`。不得把整份脚本再次内联、重复提交同一个无效调用或退回
+   `EvalWorkflowSnippet`。
 8. Ponytail 与 Caveman 保持各自上游 MIT 许可和署名；项目对 `/lemon` 与
    `dynamic-workflows` 的本地编排修改单独维护。
 9. `/lemon` 是命令而非名为 `lemon` 的技能。命令只请求插件实际提供的
@@ -97,7 +101,8 @@ prod/lockfile 双图校验，通过逐 workspace 查询降低同时打开的文�
 1. 全新用户目录启动源码或安装包，无需 `/reload-plugins` 即可发现 `/lemon` 和三个技能。
 2. 没有远端 dynamic workflow 配置时，session 仍装配 Create/Get/List/Resume 等 workflow tools。
 3. 远端显式下发 `disabled` 时，workflow UI、tools 与 `/lemon` 入口按现有灰度边界关闭。
-4. `/lemon 新任务` 只走 `CreateWorkflow(script=...)`，不调用 `EvalWorkflowSnippet`。
+4. `/lemon 新任务` 首次只走 `CreateWorkflow(script=...)`，不调用 `EvalWorkflowSnippet`；编译修复
+   通过草稿 `Edit` + `CreateWorkflow(path=...)` 提交，不重复传完整脚本。
 5. `/lemon 恢复 <run_id>` 先读取状态；未被取代的 stopped run 使用相同 ID 恢复，
    running/pending run 只报告进展，不创建新 run。
 6. superseded、errored 或不存在的 run 不被恢复，命令返回现有工具诊断。

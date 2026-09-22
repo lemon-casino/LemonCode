@@ -8,6 +8,10 @@ import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
 import type { SessionOpenKind } from "@/lib/sessionOpenArmsTelemetry.js";
 import { conversationTopic, type ConversationTransport } from "@/v4/transport.js";
 import { logger } from "@/logger.js";
+import {
+  LiveOutputRateRegistry,
+  observeLiveOutputRateStore,
+} from "@/v4/composer/liveOutputRateRegistry.js";
 import type { CommandsQueryParams, CommandsQueryResult } from "@zcode/shared/zcode-protocol-v4";
 
 /** pane 持有的租约；release 幂等。 */
@@ -42,6 +46,7 @@ interface SessionEntry {
   store: ConversationProjectionStore;
   refCount: number;
   keepWarmTimer: ReturnType<typeof setTimeout> | null;
+  stopRateObservation: () => void;
 }
 
 function monotonicNow(): number {
@@ -49,6 +54,7 @@ function monotonicNow(): number {
 }
 
 export class SessionDataLayer {
+  readonly liveOutputRates = new LiveOutputRateRegistry();
   private readonly transport: ConversationTransport;
   private readonly keepWarmMs: number;
   private readonly entries = new Map<string, SessionEntry>();
@@ -86,7 +92,12 @@ export class SessionDataLayer {
       }
     } else {
       const store = new ConversationProjectionStore(topic, this.transport);
-      entry = { store, refCount: 1, keepWarmTimer: null };
+      const stopRateObservation = observeLiveOutputRateStore(
+        store,
+        this.liveOutputRates,
+        sessionId,
+      );
+      entry = { store, refCount: 1, keepWarmTimer: null, stopRateObservation };
       this.entries.set(topic, entry);
       openKind = "cold";
       // 订阅失败落在 store.state（status=error + retry()），不在这里抛。
@@ -144,6 +155,7 @@ export class SessionDataLayer {
     // 关 pane ≠ 停 session：这里只是退订视图，session 在 CLI 里照跑。
     entry.keepWarmTimer = setTimeout(() => {
       this.entries.delete(topic);
+      entry.stopRateObservation();
       logger.lifecycle.info("v4 session data keep-warm expired", {
         event: "v4.session_data.keep_warm_expired",
         module: "ui.v4.session_data_layer",
@@ -178,9 +190,11 @@ export class SessionDataLayer {
       if (entry.keepWarmTimer !== null) {
         clearTimeout(entry.keepWarmTimer);
       }
+      entry.stopRateObservation();
       void entry.store.close();
     }
     this.entries.clear();
+    this.liveOutputRates.clear();
     logger.lifecycle.info("v4 session data layer dispose completed", {
       event: "v4.session_data.dispose.completed",
       module: "ui.v4.session_data_layer",

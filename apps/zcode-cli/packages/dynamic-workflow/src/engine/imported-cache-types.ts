@@ -60,7 +60,8 @@ export interface ImportedRunCache {
   actors: ReadonlyMap<string, ImportedActorCandidate>;
   /**
    * 键 = `inputHash({op, args})`；值 = 按前驱 listNodes 插入序排好的队列——同一个
-   * `{op,args}` 的第 n 次出现对第 n 条记录，队列头即下一次命中。
+   * `{op,args}` 的第 n 次出现对第 n 条记录。失败/中断的出现用 null 占位，
+   * 消费时仍推进游标，但绝不导入它们的结果。
    */
-  world: ReadonlyMap<string, ImportedWorldEntry[]>;
+  world: ReadonlyMap<string, (ImportedWorldEntry | null)[]>;
 }

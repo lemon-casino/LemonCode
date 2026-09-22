@@ -3,6 +3,9 @@
 
 import { FACADE_DTS } from "@zcode/dynamic-workflow";
 import { SAVED_WORKFLOW_GLOBAL_DIR, SAVED_WORKFLOW_PROJECT_DIR } from "@zcode/contracts";
+import { compactWorkflowFacadeForDescription } from "./workflow-description-facade.js";
+
+const PROMPT_FACADE_DTS = compactWorkflowFacadeForDescription(FACADE_DTS);
 
 const INTRO = [
   "Save a dynamic-workflow script so it can be run again later by name. The required `scope` field decides where it lives.",
@@ -62,7 +65,7 @@ export const SAVE_WORKFLOW_TOOL_DESCRIPTION = [
   "",
   "The script is checked against these facade declarations:",
   "```ts",
-  FACADE_DTS.trim(),
+  PROMPT_FACADE_DTS,
   "```",
   "",
   RULES,

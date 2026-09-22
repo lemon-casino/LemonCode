@@ -229,11 +229,12 @@ function formatResumableHint(run: GetWorkflowRunOutput): string {
  */
 function formatAmendableHint(run: GetWorkflowRunOutput): string {
   // 脚本文件那一句两支都带：健康在跑的那一支
-  // 只给一句话，但那句话说的正是「怎么修订」——少了文件就等于让模型去内联重贴整份脚本。
+  // 只给一句话，但那句话说的正是「怎么修订」——已知片段走单次 edits，失去上下文才回退文件，
+  // 两边都不能让模型内联重贴整份脚本。
   const scriptSentence =
     run.scriptPath === undefined
       ? ""
-      : ` Its script is at ${escapeWorkflowRunText(run.scriptPath)}: edit that file in place and pass \`path: "${escapeWorkflowRunText(run.scriptPath)}"\` to AmendWorkflow instead of a script.`;
+      : ` Its script is at ${escapeWorkflowRunText(run.scriptPath)}: use compact \`edits\` when the exact old fragment is known; otherwise edit that file and pass \`path: "${escapeWorkflowRunText(run.scriptPath)}"\`. Do not resend the whole script.`;
   if (run.status === "running" && run.health.stalledSince === undefined) {
     return `<amendable>AmendWorkflow with run_id "${escapeWorkflowRunText(run.runId)}" supersedes this run with a revised script and imports its finished work as cache.${scriptSentence}</amendable>`;
   }
@@ -250,7 +251,7 @@ function formatAmendableHint(run: GetWorkflowRunOutput): string {
     "That mints a NEW run and imports this one's finished work as a warm cache — matched per named subagent along its conversation prefix — so steps you did not change settle from cache at zero tokens and only the revised part runs live.",
     // 省略即沿用：不说出来，
     // 模型会为了改一个数把整份脚本再抄一遍。
-    "To change only its settings (max_concurrency, subagent_model, name), omit both `script` and `path`: the new run keeps this run's script.",
+    "To change only its settings (max_concurrency, subagent_model, name), omit `script`, `path` and `edits`: the new run keeps this run's script.",
     tail,
   ].join(" ");
   return `<amendable>${body}${scriptSentence}</amendable>`;

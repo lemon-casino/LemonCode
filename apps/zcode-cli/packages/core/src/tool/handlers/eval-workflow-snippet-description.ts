@@ -3,6 +3,9 @@
 // this description can never drift from what typechecks
 
 import { SNIPPET_FACADE_DTS } from "@zcode/dynamic-workflow";
+import { compactWorkflowFacadeForDescription } from "./workflow-description-facade.js";
+
+const PROMPT_FACADE_DTS = compactWorkflowFacadeForDescription(SNIPPET_FACADE_DTS);
 
 const INTRO = [
   "Compile and run a small dynamic-workflow TypeScript snippet synchronously, against the same compiler, sandbox, and world-read execution path a real workflow run uses.",
@@ -36,7 +39,7 @@ export const EVAL_WORKFLOW_SNIPPET_TOOL_DESCRIPTION = [
   "",
   "The snippet is checked against these facade declarations:",
   "```ts",
-  SNIPPET_FACADE_DTS.trim(),
+  PROMPT_FACADE_DTS,
   "```",
   "",
   RULES,

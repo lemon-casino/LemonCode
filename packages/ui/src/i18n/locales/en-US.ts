@@ -4821,6 +4821,8 @@ const enUS: Record<string, string> = {
   "chat.toolCall.workflow.completion.moreArtifacts": "{count} more",
   "chat.toolCall.workflow.run.phase.expand": "Show phase {name}",
   "chat.toolCall.workflow.run.phase.collapse": "Hide phase {name}",
+  "chat.toolCall.workflow.run.partialStatus":
+    "Some run records are omitted; phase counts may be incomplete.",
   "chat.workflowLaunch.scope.project": "Project",
   "chat.workflowLaunch.scope.global": "Global",
   "chat.workflowLaunch.startedByYou": "Started by you from the workflows hub",

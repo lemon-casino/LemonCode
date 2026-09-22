@@ -4568,6 +4568,7 @@ const zhCN: Record<string, string> = {
   // ── 侧栏阶段清单──
   "chat.toolCall.workflow.run.phase.expand": "展开阶段 {name}",
   "chat.toolCall.workflow.run.phase.collapse": "收起阶段 {name}",
+  "chat.toolCall.workflow.run.partialStatus": "部分运行记录未显示，阶段计数可能不完整。",
   // ── 直接启动的来龙去脉：run 详情侧板的 provenance 节。
   "chat.workflowLaunch.scope.project": "项目",
   "chat.workflowLaunch.scope.global": "全局",

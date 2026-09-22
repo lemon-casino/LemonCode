@@ -16,12 +16,26 @@ import { WorkflowActorModelOverridesSchema } from "./workflow-actor-model-config
 
 export const AMEND_WORKFLOW_TOOL_NAME = "AmendWorkflow";
 
+export const AMEND_WORKFLOW_MAX_SCRIPT_EDITS = 32;
+
+export const AmendWorkflowScriptEditSchema = z
+  .object({
+    find: z
+      .string()
+      .min(1)
+      .describe("Exact predecessor-script fragment. It must match once at this edit's turn."),
+    replace: z.string().describe("Replacement text. Use an empty string to delete the fragment."),
+  })
+  .strict();
+
+export type AmendWorkflowScriptEdit = z.infer<typeof AmendWorkflowScriptEditSchema>;
+
 /**
  * 「至多给一个修订脚本」的违规说明。与 `CREATE_WORKFLOW_SOURCE_ERROR` 同一个位置、同一种语气；
- * 与它不同的是两个都不给在这里**合法**——那是「沿用前驱的脚本」。
+ * 与它不同的是三个都不给在这里**合法**——那是「沿用前驱的脚本」。
  */
 export const AMEND_WORKFLOW_SOURCE_ERROR =
-  "Provide at most one revised script: `path` for the script file you edited (the usual form), or `script` for the whole revised script inline. Passing both is ambiguous; omit both to keep the predecessor's script unchanged.";
+  "Provide at most one revised script source: `edits` for compact exact replacements, `path` for an edited script file, or `script` for the whole revised script inline. Passing more than one is ambiguous; omit all three to keep the predecessor's script unchanged.";
 
 /**
  * 模型面入参。只有 `run_id` 必填，其余每个字段都守同一条规则：**省略即沿用前驱**。`predecessor` 不在这里——那是
@@ -35,7 +49,7 @@ const AmendWorkflowModelInputSchema = z.object({
       "ID of the run to amend — from CreateWorkflow's or AmendWorkflow's result, a notification, GetWorkflowRun or ListWorkflowRuns. Any run of this project qualifies, settled or still running; a running run is stopped and superseded by the new one.",
     ),
   /**
-   * `script` 与 `path` 都省略 = 沿用前驱存档的脚本：
+   * `script`、`path` 与 `edits` 都省略 = 沿用前驱存档的脚本：
    * 只改设定的修订不必把几千 token 的脚本再抄一遍。与两个设定同一个生命周期——`resolveInput` 读前驱
    * 的脚本回填进来并盖上 `predecessor.script_inherited`，此后 hook、确认窗与 handler 面对的都是一份
    * 脚本。运行时 schema 仍须接受缺席：hook 改写后 call-runner 会按模型的原始形状二次校验。
@@ -45,18 +59,23 @@ const AmendWorkflowModelInputSchema = z.object({
     .min(1)
     .optional()
     .describe(
-      "The WHOLE revised workflow script, inline, written against the same facade as CreateWorkflow. Provide this OR `path`, never both — `path` is the usual form. OMIT both to keep the predecessor's script unchanged and change only the settings (max_concurrency, subagent_model, name). Named subagents whose asks you left byte-identical settle from the predecessor's recorded results at zero token cost; the first changed or new ask runs live, and from that point everything runs live.",
+      "The whole revised workflow script. Use only for a rewrite; otherwise prefer `edits` or `path`. Omit every script source to keep the predecessor script.",
     ),
-  /**
-   * 修订的常态来源：前驱的脚本文件就地改一行，
-   * 再把同一个路径交回来。内联仍然收，但它要把整段脚本再流一遍——而那正是这条路径要省掉的。
-   */
+  edits: z
+    .array(AmendWorkflowScriptEditSchema)
+    .min(1)
+    .max(AMEND_WORKFLOW_MAX_SCRIPT_EDITS)
+    .optional()
+    .describe(
+      "Ordered exact replacements applied to the predecessor's stored script. Each `find` must match exactly once. Preferred for small revisions already visible in context; use `path` when the old fragment is unavailable.",
+    ),
+  /** 精确片段不在上下文时，编辑前驱的脚本文件再传路径；无需内联重传完整脚本。 */
   path: z
     .string()
     .min(1)
     .optional()
     .describe(
-      "The revised script's file, relative to the working directory or absolute — usually the predecessor's own script file, which the errored notification and GetWorkflowRun name. Provide this OR `script`, never both; omit both when the script is not changing. Edit that file in place and pass the same path back: a revision then costs one Edit instead of a second copy of the whole script. Submitting a file whose bytes are unchanged is refused (`script_unchanged`) unless the call also changes `max_concurrency` or `subagent_model`.",
+      "An edited workflow script file, relative to the working directory or absolute. Use when the exact old fragment is no longer in context. Omit every script source when only settings change.",
     ),
   name: z
     .string()
