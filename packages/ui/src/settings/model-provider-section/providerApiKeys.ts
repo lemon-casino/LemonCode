@@ -2,6 +2,43 @@ import type { ProviderApiKey } from "@zcode/provider";
 
 export type ProviderApiKeyState = ProviderApiKey;
 
+export interface ProviderApiKeyOperationToken {
+  readonly scopeKey: string | null;
+  readonly generation: number;
+}
+
+export interface ProviderApiKeyOperationGuard {
+  setScope(scopeKey: string | null): void;
+  begin(): ProviderApiKeyOperationToken;
+  invalidate(): void;
+  isCurrent(token: ProviderApiKeyOperationToken): boolean;
+}
+
+export function createProviderApiKeyOperationGuard(
+  initialScopeKey: string | null,
+): ProviderApiKeyOperationGuard {
+  let scopeKey = initialScopeKey;
+  let generation = 0;
+
+  return {
+    setScope(nextScopeKey) {
+      if (nextScopeKey === scopeKey) return;
+      scopeKey = nextScopeKey;
+      generation += 1;
+    },
+    begin() {
+      generation += 1;
+      return { scopeKey, generation };
+    },
+    invalidate() {
+      generation += 1;
+    },
+    isCurrent(token) {
+      return token.scopeKey === scopeKey && token.generation === generation;
+    },
+  };
+}
+
 export function normalizeProviderApiKeys(
   keys: readonly ProviderApiKeyState[],
   legacyApiKey = "",

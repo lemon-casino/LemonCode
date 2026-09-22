@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { EyeIcon, EyeOffIcon, PlusIcon, ShieldCheckIcon, Trash2Icon } from "lucide-react";
 import type { ProviderApiKey } from "@zcode/provider";
 import type { ProviderApiKeyProbeResult } from "@zcode/services";
@@ -14,18 +14,20 @@ import {
 import { Input } from "@/components/ui/input.js";
 import { Switch } from "@/components/ui/switch.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { normalizeProviderApiKeys } from "./providerApiKeys.js";
+import { createProviderApiKeyOperationGuard, normalizeProviderApiKeys } from "./providerApiKeys.js";
 
 type ProbeState = ProviderApiKeyProbeResult["status"] | "pending";
 
 export function ProviderApiKeyManagerDialog({
   open,
+  scopeKey,
   apiKeys,
   onOpenChange,
   onSave,
   onProbe,
 }: {
   open: boolean;
+  scopeKey: string;
   apiKeys: readonly ProviderApiKey[];
   onOpenChange: (open: boolean) => void;
   onSave: (apiKeys: readonly ProviderApiKey[]) => Promise<void>;
@@ -37,13 +39,29 @@ export function ProviderApiKeyManagerDialog({
   const [busy, setBusy] = useState<"save" | "probe" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [probeStates, setProbeStates] = useState<Record<string, ProbeState>>({});
+  const apiKeysRef = useRef(apiKeys);
+  apiKeysRef.current = apiKeys;
+  const operationGuardRef = useRef<ReturnType<typeof createProviderApiKeyOperationGuard> | null>(
+    null,
+  );
+  if (operationGuardRef.current === null) {
+    operationGuardRef.current = createProviderApiKeyOperationGuard(null);
+  }
+  const operationGuard = operationGuardRef.current;
 
-  useEffect(() => {
-    if (!open) return;
-    setDraft([...apiKeys]);
+  useLayoutEffect(() => {
+    operationGuard.setScope(open ? scopeKey : null);
+    if (!open) {
+      setBusy(null);
+      return () => operationGuard.invalidate();
+    }
+    // 修复：供应商切换时立即建立新的本地状态边界，旧探测结果不能写入新供应商。
+    setDraft([...apiKeysRef.current]);
     setProbeStates({});
     setError(null);
-  }, [apiKeys, open]);
+    setBusy(null);
+    return () => operationGuard.invalidate();
+  }, [open, operationGuard, scopeKey]);
 
   const normalized = useMemo(() => normalizeProviderApiKeys(draft), [draft]);
   const updateKey = (id: string, patch: Partial<ProviderApiKey>) => {
@@ -64,15 +82,18 @@ export function ProviderApiKeyManagerDialog({
   };
 
   const save = async () => {
+    const operation = operationGuard.begin();
     setBusy("save");
     setError(null);
     try {
       await onSave(normalized);
+      if (!operationGuard.isCurrent(operation)) return;
       onOpenChange(false);
     } catch (saveError) {
+      if (!operationGuard.isCurrent(operation)) return;
       setError(saveError instanceof Error ? saveError.message : String(saveError));
     } finally {
-      setBusy(null);
+      if (operationGuard.isCurrent(operation)) setBusy(null);
     }
   };
 
@@ -82,25 +103,32 @@ export function ProviderApiKeyManagerDialog({
       setError(intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.empty" }));
       return;
     }
+    const operation = operationGuard.begin();
     setBusy("probe");
     setError(null);
     setProbeStates(Object.fromEntries(keys.map((key) => [key.id, "pending"])));
     try {
       // 检测必须读取目标 Environment 已接受的配置，先保存同一份草稿再发起并发探测。
       await onSave(keys);
+      if (!operationGuard.isCurrent(operation)) return;
       const results = await onProbe(keys.map((key) => key.id));
+      if (!operationGuard.isCurrent(operation)) return;
       const nextStates = Object.fromEntries(results.map((result) => [result.keyId, result.status]));
       const invalidIds = new Set(
         results.filter((result) => result.status === "invalid").map((result) => result.keyId),
       );
       const next = keys.map((key) => (invalidIds.has(key.id) ? { ...key, enabled: false } : key));
       setDraft(next);
-      if (invalidIds.size > 0) await onSave(next);
+      if (invalidIds.size > 0) {
+        await onSave(next);
+        if (!operationGuard.isCurrent(operation)) return;
+      }
       setProbeStates(nextStates);
     } catch (probeError) {
+      if (!operationGuard.isCurrent(operation)) return;
       setError(probeError instanceof Error ? probeError.message : String(probeError));
     } finally {
-      setBusy(null);
+      if (operationGuard.isCurrent(operation)) setBusy(null);
     }
   };
 

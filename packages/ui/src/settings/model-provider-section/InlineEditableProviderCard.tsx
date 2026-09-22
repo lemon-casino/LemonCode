@@ -869,6 +869,7 @@ export function InlineEditableProviderCard({
 
         {isApiKeyProvider ? (
           <ProviderApiKeySection
+            providerId={provider.providerId}
             apiKeys={getProviderFormApiKeys(provider)}
             readOnly={readOnlyEndpoints}
             presetApiKeyUrl={presetApiKeyUrl}

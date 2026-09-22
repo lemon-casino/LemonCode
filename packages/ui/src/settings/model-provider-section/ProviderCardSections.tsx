@@ -290,6 +290,7 @@ export function ProviderConnectionSection({
 }
 
 export function ProviderApiKeySection({
+  providerId,
   apiKeys,
   readOnly,
   presetApiKeyUrl,
@@ -297,6 +298,7 @@ export function ProviderApiKeySection({
   onSaveApiKeys,
   onProbeApiKeys,
 }: {
+  providerId: string;
   apiKeys: readonly ProviderApiKey[];
   readOnly?: boolean;
   presetApiKeyUrl?: string;
@@ -338,6 +340,7 @@ export function ProviderApiKeySection({
       </Button>
       <ProviderApiKeyManagerDialog
         open={managerOpen}
+        scopeKey={providerId}
         apiKeys={apiKeys}
         onOpenChange={setManagerOpen}
         onSave={onSaveApiKeys}
