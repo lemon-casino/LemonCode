@@ -22,6 +22,8 @@ import type { ProviderConfigSnapshot, ProviderSource } from "./sources.js";
 
 export interface ProviderConfigLayerSnapshot {
   readonly revision: string;
+  /** 不参与业务 revision 的每供应商保存代次，由 Repository sidecar 跨进程传播。 */
+  readonly saveGenerations?: Readonly<Record<ProviderId, string>>;
   readonly providers: ProviderConfigMap;
   readonly providerTemplates?: ProviderTemplateMap;
   readonly models: ModelConfigRules;
@@ -35,6 +37,8 @@ export interface ProviderConfigLayerUpdate {
   readonly models: ModelConfigRules;
   readonly providerOrder?: readonly ProviderId[];
   readonly defaultModelSelection?: ModelSelection;
+  /** 本次保存动到的供应商。不落盘；缺省表示不能清空任何供应商的鉴权失败游标。 */
+  readonly savedProviderId?: ProviderId;
 }
 
 export interface PersonalProviderConfigRepository extends ProviderSource<ProviderConfigLayerSnapshot> {
@@ -125,6 +129,9 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
       zcodeBuiltinModelRules: zcodeBuiltin.models,
       personalModels: personal.models,
       personalProviderOrder: personal.providerOrder ?? [],
+      ...(personal.saveGenerations === undefined
+        ? {}
+        : { personalSaveGenerations: personal.saveGenerations }),
     });
   }
 
@@ -216,6 +223,7 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
         providers,
         models: current.models,
         providerOrder: current.providerOrder,
+        savedProviderId: providerId,
       };
     });
   }
@@ -267,6 +275,7 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
           current.providerOrder,
           providerId,
         ),
+        savedProviderId: providerId,
       };
     });
     if (!createdProviderId) throw new Error("Personal Provider 创建失败");
@@ -279,6 +288,7 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
       providers: current.providers.delete(providerId),
       models: current.models.deleteExactForProvider(providerId),
       providerOrder: current.providerOrder?.filter((candidate) => candidate !== providerId),
+      savedProviderId: providerId,
     }));
   }
 
@@ -315,6 +325,7 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
         providers: current.providers.set(providerId, provider.withModelOrder(modelOrder)),
         models: current.models,
         providerOrder: current.providerOrder,
+        savedProviderId: providerId,
       };
     });
   }
@@ -361,6 +372,7 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
           useRecommendedConfig,
         ),
         providerOrder: current.providerOrder,
+        savedProviderId: normalizedProviderId,
       };
     });
   }
@@ -409,6 +421,7 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
         ),
         models: current.models.renameExactModel(normalizedProviderId, currentId, nextId),
         providerOrder: current.providerOrder,
+        savedProviderId: normalizedProviderId,
       };
     });
   }
@@ -441,6 +454,7 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
         providers: current.providers,
         models: current.models.setExact(id, model, config),
         providerOrder: current.providerOrder,
+        savedProviderId: id,
       };
     });
   }
@@ -514,7 +528,12 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
         recommended && isStructurallyEmpty(config.toJSON())
           ? models.deleteExact(normalizedProviderId, nextId)
           : models.setExact(normalizedProviderId, nextId, config, recommended);
-      return { providers, models, providerOrder: current.providerOrder };
+      return {
+        providers,
+        models,
+        providerOrder: current.providerOrder,
+        savedProviderId: normalizedProviderId,
+      };
     });
   }
 
@@ -554,6 +573,7 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
         ),
         models: current.models.deleteExact(normalizedProviderId, normalizedModelId),
         providerOrder: current.providerOrder,
+        savedProviderId: normalizedProviderId,
       };
     });
   }

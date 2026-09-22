@@ -22,6 +22,8 @@ export interface ProviderConfigSnapshot {
   readonly zcodeBuiltinModelRules: ModelConfigRules;
   readonly personalModels: ModelConfigRules;
   readonly personalProviderOrder?: readonly string[];
+  /** 不参与业务 revision 的每供应商保存代次。 */
+  readonly personalSaveGenerations?: Readonly<Record<string, string>>;
 }
 
 export interface AccountProviderConfigSnapshot {

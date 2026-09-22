@@ -212,8 +212,12 @@ export class ProviderRegistryService {
       }
 
       if (this.#hasSameSourceRevisions(config, account)) {
+        // 内容哈希相同的重新保存不 replace，但供应商代次变了，必须换掉快照里的代次映射。
+        const current = this.#snapshot!;
+        const snapshot = this.#snapshotWithSaveGenerations(config.personalSaveGenerations);
         this.#completedGeneration = generation;
-        this.#resolveRefreshWaiters(generation, this.#snapshot!);
+        this.#resolveRefreshWaiters(generation, snapshot);
+        if (snapshot !== current) this.#emitChanged(snapshot, reasons);
         reasons.clear();
         continue;
       }
@@ -270,6 +274,27 @@ export class ProviderRegistryService {
       else remaining.push(waiter);
     }
     this.#refreshWaiters.splice(0, this.#refreshWaiters.length, ...remaining);
+  }
+
+  #snapshotWithSaveGenerations(
+    saveGenerations: Readonly<Record<string, string>> | undefined,
+  ): ProviderRegistryServiceSnapshot {
+    const current = this.#snapshot;
+    if (!current || current.config.personalSaveGenerations === saveGenerations) {
+      return current!;
+    }
+    const currentSerialized = JSON.stringify(current.config.personalSaveGenerations ?? {});
+    const nextSerialized = JSON.stringify(saveGenerations ?? {});
+    if (currentSerialized === nextSerialized) return current;
+    const snapshot = Object.freeze({
+      ...current,
+      config: Object.freeze({
+        ...current.config,
+        ...(saveGenerations === undefined ? {} : { personalSaveGenerations: saveGenerations }),
+      }),
+    });
+    this.#snapshot = snapshot;
+    return snapshot;
   }
 
   #hasSameSourceRevisions(

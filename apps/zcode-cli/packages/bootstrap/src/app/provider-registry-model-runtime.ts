@@ -14,6 +14,11 @@ export type RuntimeModelFactory = NonNullable<AgentRuntimeDeps["modelFactory"]>;
 
 export interface ProviderRegistryModelSource {
   getView(): ProviderRegistryView;
+  getSnapshot?(): {
+    readonly config: {
+      readonly personalSaveGenerations?: Readonly<Record<string, string>>;
+    };
+  } | null;
   getProvider(providerId: string): Provider | undefined;
   getModel(providerId: string, modelId: string): ProviderModel | undefined;
   validateSelection(selection: ModelSelection): ModelSelectionValidation;
@@ -75,6 +80,8 @@ export class ApiProviderModelRuntime {
       providerId: provider.providerId,
       modelId: registryModel.modelId,
       providerConfig: provider.config,
+      // 创建时冻结。只有本供应商自己的保存代次变化才清失败 Key。
+      ...resolveProviderSaveGeneration(this.#registry, provider.providerId),
       modelConfig: config,
       ...(provider.config.access.type === "zhipu-account" &&
       provider.config.access.mode === "off-peak"
@@ -91,4 +98,15 @@ export class ApiProviderModelRuntime {
       },
     });
   }
+}
+
+export function resolveProviderSaveGeneration(
+  registry: Pick<ProviderRegistryModelSource, "getSnapshot">,
+  providerId: string,
+): {
+  readonly providerSaveGeneration?: string;
+} {
+  const config = registry.getSnapshot?.()?.config;
+  const generation = config?.personalSaveGenerations?.[providerId];
+  return generation === undefined ? {} : { providerSaveGeneration: generation };
 }

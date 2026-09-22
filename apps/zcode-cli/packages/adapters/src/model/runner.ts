@@ -71,6 +71,8 @@ export interface CreateAiSdkModelOptions {
   providerId: string;
   modelId: string;
   providerConfig: RegistryProviderConfig;
+  /** 创建 Model 时冻结的保存代次。后续请求不得再读。 */
+  providerSaveGeneration?: string;
   modelConfig: RegistryModelConfig;
   displayName?: string;
   options?: ModelOptions;
@@ -140,6 +142,9 @@ export class AiSdkModelAdapter {
       providerId: options.providerId,
       modelId: options.modelId,
       providerConfig: options.providerConfig,
+      ...(options.providerSaveGeneration === undefined
+        ? {}
+        : { providerSaveGeneration: options.providerSaveGeneration }),
       supportsJsonSchemaOutput: options.modelConfig.properties.supportsJsonSchemaOutput,
       optionSpecs: options.modelConfig.optionSpecs,
     });

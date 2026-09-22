@@ -168,10 +168,7 @@ export class AiSdkModelExecution {
   private readonly logger?: Logger;
   private readonly baseTransport?: ProviderFetch;
   private readonly providerTransports = new Map<string, ProviderFetch>();
-  private readonly providerApiKeyStates = new Map<
-    string,
-    { readonly signature: string; readonly state: ApiKeyFailoverState }
-  >();
+  private readonly providerApiKeyStates = new Map<string, ApiKeyFailoverState>();
 
   constructor(config: AiSdkModelExecutionConfig = {}, options: AiSdkModelExecutionOptions = {}) {
     this.env = config.env ?? process.env;
@@ -191,6 +188,8 @@ export class AiSdkModelExecution {
     readonly providerId: string;
     readonly modelId: string;
     readonly providerConfig: RegistryProviderConfig;
+    /** 创建时冻结。后续 resolveRequest 不得再读保存代次。 */
+    readonly providerSaveGeneration?: string;
     readonly supportsJsonSchemaOutput: boolean;
     readonly optionSpecs: {
       readonly reasoningLevel: { readonly map: string };
@@ -211,9 +210,11 @@ export class AiSdkModelExecution {
     readonly providerId: string;
     readonly modelId: string;
     readonly providerConfig: RegistryProviderConfig;
+    readonly providerSaveGeneration?: string;
     readonly supportsJsonSchemaOutput: boolean;
   }): AiSdkModelSnapshot {
     const configuredProvider = toAiSdkProviderConfig(input.providerId, input.providerConfig);
+    const providerSaveGeneration = input.providerSaveGeneration;
     // 重构后模型 SDK 曾只接到用户 Header，漏掉版本和站点归因；在公共绑定边界恢复，
     // 不依赖签名成功，不给各业务重复补头，也不修改 Provider 或已绑定 Model 的配置。
     configuredProvider.headers = mergeModelRequestHeaders(
@@ -233,6 +234,7 @@ export class AiSdkModelExecution {
       providerId: input.providerId as ModelProviderId,
       modelId: input.modelId as ModelId,
       supportsJsonSchemaOutput: input.supportsJsonSchemaOutput,
+      ...(providerSaveGeneration === undefined ? {} : { providerSaveGeneration }),
     };
   }
 
@@ -248,6 +250,7 @@ export class AiSdkModelExecution {
     const rawRequestBodyCapture: RawRequestBodyCapture = {};
     const factory = this.createFactory(
       snapshot.providerId,
+      snapshot.providerSaveGeneration,
       providerConfig,
       optionMaps,
       optionValues,
@@ -268,6 +271,7 @@ export class AiSdkModelExecution {
 
   private createFactory(
     providerId: string,
+    providerSaveGeneration: string | undefined,
     providerConfig: AiSdkProviderConfig,
     optionMaps: CompiledModelOptionMaps | undefined,
     optionValues: ModelOptionValues | undefined,
@@ -282,7 +286,11 @@ export class AiSdkModelExecution {
           fetch: providerTransport,
           keys: providerConfig.apiKeys,
           providerKind: providerConfig.kind,
-          state: this.resolveApiKeyFailoverState(providerId, providerConfig.apiKeys),
+          state: this.resolveApiKeyFailoverState(
+            providerId,
+            providerConfig.apiKeys,
+            providerSaveGeneration,
+          ),
         })
       : providerTransport;
     const fetch = createProviderBusinessErrorFetch({
@@ -346,14 +354,18 @@ export class AiSdkModelExecution {
   private resolveApiKeyFailoverState(
     providerId: string,
     keys: readonly ProviderApiKey[],
+    // 相同 Key 列表重新保存时 id/启用位/密文都不变。代次必须是 bindModel 冻结的本供应商保存动作，不能现读。
+    saveGeneration: string | undefined,
   ): ApiKeyFailoverState {
-    const signature = keys
+    const keySignature = keys
       .map((key) => `${key.id}:${key.enabled === false ? "0" : "1"}:${key.apiKey}`)
       .join("\u0000");
-    const current = this.providerApiKeyStates.get(providerId);
-    if (current?.signature === signature) return current.state;
+    // 按冻结代次分槽。后创建的 Model 不能用新代次的空游标覆盖旧代次仍在用的失败记录。
+    const slot = `${providerId}\u0001${saveGeneration ?? ""}\u0001${keySignature}`;
+    const current = this.providerApiKeyStates.get(slot);
+    if (current) return current;
     const state = { failedKeyIds: new Set<string>(), nextIndex: 0 };
-    this.providerApiKeyStates.set(providerId, { signature, state });
+    this.providerApiKeyStates.set(slot, state);
     return state;
   }
 
@@ -381,6 +393,8 @@ interface AiSdkModelSnapshot {
   readonly providerConfig: AiSdkProviderConfig;
   readonly providerId: ModelProviderId;
   readonly modelId: ModelId;
+  /** bindModel 时冻结的保存代次。未提供表示没有保存动作，不能当新代次。 */
+  readonly providerSaveGeneration?: string;
 }
 
 function toAiSdkProviderConfig(
