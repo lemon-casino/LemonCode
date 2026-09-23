@@ -303,6 +303,7 @@ test("Swift PiP presenter is stdin-only, bounded, acknowledges applied updates, 
   assert.match(source, /styleMask: \[\.borderless, \.nonactivatingPanel\]/u);
   assert.match(source, /panel\.isFloatingPanel = true/u);
   assert.match(source, /override var canBecomeKey: Bool \{ false \}/u);
+  assert.match(source, /private let applicationDelegate = PresenterApplicationDelegate\(\)/u);
   assert.match(source, /setActivationPolicy\(\.accessory\)/u);
   assert.ok(source.includes('Data("{\\"type\\":\\"ready\\",\\"version\\":1}\\n".utf8)'));
   assert.ok(source.includes(String.raw`Data("{\"id\":\"\(id)\",\"type\":\"applied\"}\n".utf8)`));

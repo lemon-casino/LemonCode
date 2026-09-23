@@ -468,7 +468,8 @@ private final class PresenterApplicationDelegate: NSObject, NSApplicationDelegat
 }
 
 let application = NSApplication.shared
-let applicationDelegate = PresenterApplicationDelegate()
+// 根因：Swift 要求文件级常量不能暴露其 private 类型，否则新版编译器直接拒绝生成 presenter。
+private let applicationDelegate = PresenterApplicationDelegate()
 application.delegate = applicationDelegate
 _ = application.setActivationPolicy(.accessory)
 application.run()
