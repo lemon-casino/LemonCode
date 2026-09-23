@@ -2925,6 +2925,9 @@ const zhCN: Record<string, string> = {
   "settings.hooks.advanced": "高级",
   "settings.modelProvider.maxOutputTokens": "最大输出 Token",
   "settings.modelProvider.inputModalities": "输入类型",
+  "settings.modelProvider.interactionProtocol": "交互协议",
+  "settings.modelProvider.interactionProtocol.native-tool-calls": "原生工具调用",
+  "settings.modelProvider.interactionProtocol.ui-tars-text-actions": "UI-TARS 文本动作",
   "settings.modelProvider.outputModalities": "输出类型",
   "settings.modelProvider.modality.text": "文本",
   "settings.modelProvider.modality.image": "图片",
@@ -2936,6 +2939,8 @@ const zhCN: Record<string, string> = {
   "settings.modelProvider.modelMetadata.invalid.contextWindow": "上下文窗口必须是正整数",
   "settings.modelProvider.modelMetadata.invalid.maxOutputTokens": "最大输出 Token 必须是正整数",
   "settings.modelProvider.modelMetadata.invalid.inputModalities": "输入类型必须包含文本",
+  "settings.modelProvider.modelMetadata.invalid.interactionProtocol":
+    "UI-TARS 文本动作要求模型支持图片输入和文本输出",
   "settings.modelProvider.newProviderName": "新供应商",
   "settings.modelProvider.modelsPlaceholder": "每行一个模型名称",
   "settings.modelProvider.modelsCount": "{count} 个模型",
@@ -6256,9 +6261,7 @@ const zhCN: Record<string, string> = {
   "settings.computerUse.pluginDisabledHint": "电脑控制插件未启用。前往插件开启后即可使用电脑控制。",
   "settings.computerUse.unsupported.title": "当前环境暂不支持电脑控制",
   "settings.computerUse.unsupported.remoteDescription":
-    "Computer Use 暂不支持 SSH、WSL、Docker 或其他远端环境。请切换到本机 macOS 或 Windows 工作区。",
-  "settings.computerUse.unsupported.linuxDescription":
-    "Computer Use 暂不支持 Linux 桌面环境。请切换到本机 macOS 或 Windows 工作区。",
+    "Computer Use 暂不支持 SSH、WSL、Docker 或其他远端环境。请切换到本机 macOS、Windows 或 Linux 工作区。",
   "settings.computerUse.unsupported.badge": "当前环境不可用",
   "settings.computerUse.unsupported.group": "不可用的内置能力",
   "scheduledPreview.keepAwakeEnabled": "已开启保持唤醒",

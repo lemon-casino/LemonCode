@@ -13,6 +13,7 @@ export const manualModelConfigSchema = completeModelConfigDataSchema
         supportsJsonSchemaOutput: true,
         supportsNativeWebSearch: true,
         supportsMidConversationSystem: true,
+        interactionProtocol: true,
       })
       .extend({
         inputFormat: complete.properties.shape.inputFormat.pick({

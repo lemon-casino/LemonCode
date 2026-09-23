@@ -2,7 +2,7 @@
   "name": "@zcode/zcode-cua",
   "version": "0.6.3",
   "private": true,
-  "description": "API-compatible placeholder package for Computer Use. This build ships without Computer Use: every runtime surface reports unavailable and fails closed.",
+  "description": "ZCode Computer Use runtime with a capability-authenticated Helper broker, xa11y application observation and input, official frame contracts, and fail-closed host integration.",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -53,6 +53,31 @@
     "./broker/helperHealth": {
       "types": "./broker-helper-health.d.ts",
       "import": "./broker-helper-health.js"
+    }
+  },
+  "scripts": {
+    "test": "node --test",
+    "e2e:local": "node ./e2e-local.mjs",
+    "e2e:helper": "node ./e2e-helper.mjs",
+    "e2e:packaged-node-repl": "node ./e2e-packaged-node-repl.mjs"
+  },
+  "dependencies": {
+    "@crowecawcaw/xa11y": "0.15.0",
+    "@nut-tree-fork/nut-js": "^4.2.6"
+  },
+  "zcodeCuaRuntime": {
+    "schema": 1,
+    "windows": {
+      "entry": "helper-entry.js",
+      "nativeAddon": "xa11y-native-loader.js"
+    },
+    "linux": {
+      "entry": "helper-entry.js",
+      "nativeAddon": "xa11y-native-loader.js"
+    },
+    "macos": {
+      "entry": "helper-entry.js",
+      "nativeAddon": "xa11y-native-loader.js"
     }
   }
 }

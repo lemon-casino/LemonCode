@@ -94,6 +94,9 @@ export function serializeRegistryModelConfig(
       supportsJsonSchemaOutput: config.properties.supportsJsonSchemaOutput,
       supportsNativeWebSearch: config.properties.supportsNativeWebSearch,
       supportsMidConversationSystem: config.properties.supportsMidConversationSystem,
+      ...(config.properties.interactionProtocol === undefined
+        ? {}
+        : { interactionProtocol: config.properties.interactionProtocol }),
     },
     optionSpecs: {
       reasoningLevel: config.optionSpecs.reasoningLevel,

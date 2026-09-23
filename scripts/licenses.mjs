@@ -113,11 +113,11 @@ if (command === "check") {
       .reviewRequired ?? [];
   if (reviewRequired.length)
     console.warn(
-      `待补齐/核验材料 ${reviewRequired.length} 项；发布前运行 node scripts/licenses.mjs check --strict，不得将基础检查通过视为合规完成。`,
+      `待补齐/核验材料 ${reviewRequired.length} 项；自动桌面发布仅接受 third-party/release-review-baseline.json 中逐项登记的既有债务，node scripts/licenses.mjs check --strict 仍提供零债务人工门禁。`,
     );
   const n = installed.size;
   console.log(
-    `✓ 许可标识与声明新鲜度检查通过：${n} 个实装包（构建依赖复核 ${[...installed.values()].filter((r) => r.bucket.startsWith("yellow")).length} 项）；材料限制见 third-party/README.md`,
+    `✓ 许可标识与声明新鲜度检查通过：${n} 个实装包（构建依赖复核 ${[...installed.values()].filter((r) => r.bucket.startsWith("yellow")).length} 项）；已知材料债务见 third-party/release-review-baseline.json`,
   );
 } else {
   console.error("用法: node scripts/licenses.mjs [notices|check]");

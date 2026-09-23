@@ -6,11 +6,14 @@ import {
   getCapturedZCodeCuaBrokerCredentials,
   ZCODE_CUA_BROKER_SOCKET_ENV_KEY,
   ZCODE_CUA_NODE_REPL_HOST_ENV_KEY,
+  ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY,
 } from "@zcode/shared/runtime-env";
 import { ZCODE_CUA_OFFICIAL_PLUGIN_ID, ZCODE_PLUGIN_ID_ENV_KEY } from "@zcode/shared/mcp";
 import type { RunContext } from "@zcode/shared-types";
 
 const HOST_USAGE = `${ZCODE_PLUGIN_HOST_COMMAND} <server-path> [-- <server-arg>...]`;
+const ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER_ENV_KEY =
+  "ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER";
 
 type HostedPluginModule = {
   main?: unknown;
@@ -52,21 +55,31 @@ export async function runPluginHostCommand(ctx: RunContext, argv: string[]): Pro
     }
 
     const originalArgv = process.argv;
-    const originalBrokerSocket = process.env[ZCODE_CUA_BROKER_SOCKET_ENV_KEY];
+    const restoredCredentialEntries = [
+      [ZCODE_CUA_BROKER_SOCKET_ENV_KEY, capturedBrokerCredentials.socket],
+      [ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY, capturedBrokerCredentials.pluginAuthority],
+      [ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER_ENV_KEY, capturedBrokerCredentials.refreshMarker],
+    ] as const;
+    const originalCredentialEntries = restoredCredentialEntries.map(([key]) => [
+      key,
+      process.env[key],
+    ]) as ReadonlyArray<readonly [string, string | undefined]>;
     // shared node_repl 把同一凭据组恢复到环境，由 broker bridge 读取；旧的独立 CUA
-    // MCP 不再拥有执行入口。
+    // MCP 不再拥有执行入口。此前这里只恢复 socket，authority 被 CLI 清洗后缺失，导致
+    // runtime 按半组凭据 fail closed；可信 main 生命周期内必须成组恢复，退出时再逐项清理。
     process.argv = [process.execPath, serverPath, ...serverArgs];
     if (capturedBrokerCredentials.socket && process.env[ZCODE_CUA_NODE_REPL_HOST_ENV_KEY] === "1") {
-      process.env[ZCODE_CUA_BROKER_SOCKET_ENV_KEY] = capturedBrokerCredentials.socket;
+      for (const [key, value] of restoredCredentialEntries) {
+        if (value !== undefined) process.env[key] = value;
+      }
     }
     try {
       await module.main();
     } finally {
       process.argv = originalArgv;
-      if (originalBrokerSocket === undefined) {
-        delete process.env[ZCODE_CUA_BROKER_SOCKET_ENV_KEY];
-      } else {
-        process.env[ZCODE_CUA_BROKER_SOCKET_ENV_KEY] = originalBrokerSocket;
+      for (const [key, value] of originalCredentialEntries) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
       }
     }
 

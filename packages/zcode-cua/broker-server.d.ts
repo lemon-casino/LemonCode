@@ -1,12 +1,31 @@
 import type { CuaPermissionRestartOptions, CuaPermissionRestartResult } from "./broker.d.ts";
 
-export declare const HELPER_ADDON_ENV: string;
-export declare const WINDOWS_DEV_CONTROL_PROTOCOL: string;
+export {
+  HELPER_ADDON_ENV,
+  HELPER_CONTROL_PROTOCOL,
+  WINDOWS_DEV_CONTROL_PROTOCOL,
+} from "./broker-helper-constants.js";
 
-export interface HelperLaunchSpec {
+export interface HelperProcessLaunchSpec {
+  socketPath: string;
+  pipSocketPath?: string;
+  launcherPid?: number;
+  exitLogPath?: string;
+  pipMode?: "enabled" | "disabled";
+  permissionRequest?: "accessibility" | "screen_recording";
+  permissionPreflight?: "screen_recording";
+  waitForExit?: boolean;
   [key: string]: unknown;
 }
 
+export interface HelperLaunchSpec extends HelperProcessLaunchSpec {
+  appPath: string;
+}
+
+export declare function buildHelperProcessArgs(
+  spec: HelperProcessLaunchSpec,
+  launcherPid?: number,
+): string[];
 export declare function buildHelperOpenArgs(spec: HelperLaunchSpec, launcherPid?: number): string[];
 
 export declare function isCuaLocalDevelopmentRuntime(
@@ -24,10 +43,25 @@ export interface HelperPermissionSubjectIdentity {
 
 export declare function resolveHelperPermissionSubjectIdentity(
   appPath: string,
+  options?: {
+    platform?: string;
+    readPlistValue?: (infoPlistPath: string, key: string) => Promise<string>;
+    realpath?: (path: string) => Promise<string>;
+    stat?: (path: string) => Promise<{ isDirectory(): boolean; isFile(): boolean }>;
+    dependencies?: Record<string, unknown>;
+  },
 ): Promise<HelperPermissionSubjectIdentity>;
 
 export interface CuaHelperVerifierDependencies {
   readExecutableArchs: (executablePath: string) => Promise<string[]>;
+  verifyCodeSignature: (appPath: string) => Promise<void>;
+  verifyTeamIdentifier: (
+    appPath: string,
+    expectedTeamIdentifier?: string,
+  ) => Promise<string | void>;
+  verifyGatekeeper?: (appPath: string) => Promise<void>;
+  resolveIdentity: typeof resolveHelperPermissionSubjectIdentity;
+  copyBundle: (source: string, destination: string) => Promise<void>;
   [key: string]: unknown;
 }
 
@@ -35,7 +69,18 @@ export interface CuaHelperInstallerOptions {
   env?: NodeJS.ProcessEnv;
   logger?: unknown;
   bundledAppPath?: string;
-  plan?: unknown;
+  installRoot?: string;
+  installPath?: string;
+  platform?: string;
+  arch?: string;
+  expectedTeamIdentifier?: string;
+  compiledLocalDevelopmentRuntime?: boolean;
+  plan?: {
+    installRoot?: string;
+    installPath?: string;
+    bundledAppPath?: string;
+    [key: string]: unknown;
+  };
   dependencies?: Partial<CuaHelperVerifierDependencies>;
 }
 
@@ -52,7 +97,8 @@ export declare const defaultCuaHelperVerifierDependencies: CuaHelperVerifierDepe
 
 export declare function cuaBrokerRefreshMarkerPath(socketPath: string): string | undefined;
 export interface CuaBrokerRefreshMarkerHandle {
-  path: string;
+  path: string | undefined;
+  dispose(): Promise<void>;
 }
 export declare function publishCuaBrokerRefreshMarker(
   socketPath: string,
@@ -63,9 +109,22 @@ export interface HelperNativeAddon {
   [key: string]: unknown;
 }
 
-export declare function loadRealNativeAddon(options?: unknown): HelperNativeAddon;
-export declare function resolvePackagedNativeAddonPath(options?: unknown): string | undefined;
-export declare function resolveInTreeAddonPath(options?: unknown): string | undefined;
+export interface HelperNativeAddonOptions {
+  env?: NodeJS.ProcessEnv;
+  modulePath?: string;
+  resourcesPath?: string;
+  relativePath?: string;
+  rootPath?: string;
+  require?: (path: string) => HelperNativeAddon;
+}
+
+export declare function loadRealNativeAddon(options?: HelperNativeAddonOptions): HelperNativeAddon;
+export declare function resolvePackagedNativeAddonPath(
+  options?: HelperNativeAddonOptions,
+): string | undefined;
+export declare function resolveInTreeAddonPath(
+  options?: HelperNativeAddonOptions,
+): string | undefined;
 
 export interface AxReadOnlySource {
   [key: string]: unknown;
@@ -84,7 +143,7 @@ export declare class CuaHelperLifecycleManager<Managed> {
   acquire(options: {
     isAdmitted?: () => boolean;
     shouldRetainCurrent?: (current: Managed) => boolean;
-    create: () => Managed | undefined;
+    create: () => Managed | undefined | Promise<Managed | undefined>;
   }): Promise<Managed | undefined>;
   peek(): Managed | undefined;
   readonly disposed: boolean;
@@ -99,7 +158,9 @@ export interface CuaProductMcpServerResolverContext {
 
 export interface CuaHelperTransportHandle {
   socketPath: string;
+  pipSocketPath?: string;
   pluginAuthority: string;
+  generation?: number;
   [key: string]: unknown;
 }
 
@@ -116,7 +177,10 @@ export interface CuaPermissionStatusQueryReport {
 export interface CuaProductHelperHost {
   readonly running: boolean;
   readonly socketPath: string | null;
+  readonly pipSocketPath?: string | null;
   readonly pluginAuthority: string | null;
+  readonly generation?: number;
+  readonly reservedTransport?: CuaHelperTransportHandle;
   start(): Promise<CuaHelperHandle>;
   stop(): Promise<void>;
   restart(): Promise<CuaHelperHandle>;
@@ -139,7 +203,7 @@ export interface CuaHelperHost extends CuaProductHelperHost {
 }
 
 export interface CuaHelperTransportRestartOptions {
-  beforeFreshStart?: () => void;
+  beforeFreshStart?: () => void | Promise<void>;
   [key: string]: unknown;
 }
 
@@ -150,8 +214,10 @@ export interface CuaHelperTransportRestartResult {
 
 export interface CuaHelperHandle {
   socketPath: string;
+  pipSocketPath?: string;
   launchSocketPath?: string;
   pluginAuthority: string;
+  generation?: number;
   helperAppPath?: string;
   bundleId?: string | null;
   pid?: number | null;
@@ -173,14 +239,48 @@ export interface CuaProductMcpServerResolver {
 
 export declare class CuaProductHelperWorkspaceRegistry {
   setEnabled(context: CuaProductMcpServerResolverContext | undefined, enabled: boolean): void;
+  isEnabled(context: CuaProductMcpServerResolverContext | undefined): boolean;
+  delete(context: CuaProductMcpServerResolverContext | undefined): boolean;
+  clear(): void;
+  readonly size: number;
 }
 
 export interface CreateProductCuaHelperHostOptions {
   logger?: unknown;
   env?: NodeJS.ProcessEnv;
+  platform?: string;
   helperInstaller?: CuaHelperInstaller;
   bundledHelperAppPath?: string;
   healthTimeoutMs?: number;
+  permissionTimeoutMs?: number;
+  socketPath?: string;
+  pipSocketPath?: string;
+  socketDirectory?: string;
+  pluginAuthority?: string;
+  generation?: number;
+  launcherPid?: number;
+  pipMode?: string;
+  compiledLocalDevelopmentRuntime?: boolean;
+  randomBytes?: (size: number) => Buffer;
+  launchApplication?: (options: {
+    appPath: string;
+    args: string[];
+    timeoutMs: number;
+    env: NodeJS.ProcessEnv;
+    credential: { capability: string; generation: number };
+  }) => Promise<{
+    bundleId: string;
+    pid: number;
+    exited?: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
+    releaseControl?: () => void;
+    terminate?: () => void | Promise<void>;
+  }>;
+  healthProbe?: typeof import("./broker.d.ts").probeHelperHealth;
+  callBrokerMethod?: typeof import("./broker.d.ts").callBrokerMethod;
+  queryScreenRecordingPreflight?: (options: {
+    helperAppPath: string;
+    env: NodeJS.ProcessEnv;
+  }) => Promise<"granted" | "denied" | "unknown" | undefined>;
   [key: string]: unknown;
 }
 
@@ -190,12 +290,21 @@ export declare function createProductCuaHelperHost(
 
 export declare function createCuaProductMcpServerResolver(
   host: CuaProductHelperHost,
-  options?: { hasActiveTurn?: () => boolean },
+  options?: {
+    hasActiveTurn?: () => boolean;
+    healthTimeoutMs?: number;
+    publishRefreshMarker?: (socketPath: string | null) => void | Promise<void>;
+    onDiagnostic?: (code: string, error: unknown) => void;
+  },
 ): CuaProductMcpServerResolver;
 
 export interface IsOfficialCuaPluginEnabledForWorkspaceOptions {
   env?: NodeJS.ProcessEnv;
   workingDirectory?: string;
+  userConfig?: Record<string, unknown>;
+  workspaceConfig?: Record<string, unknown>;
+  userConfigPath?: string;
+  workspaceConfigPath?: string;
   [key: string]: unknown;
 }
 
@@ -232,6 +341,12 @@ export declare function clearCuaProductHelperAgentEnvUnavailable(
 export declare function reapOrphanedHelpers(options: {
   logger?: unknown;
   env?: NodeJS.ProcessEnv;
+  platform?: string;
+  dependencies?: {
+    listProcesses?: () => Promise<Array<{ pid: number; command: string }>>;
+    isProcessAlive?: (pid: number) => boolean;
+    terminate?: (pid: number) => void | Promise<void>;
+  };
 }): Promise<void>;
 
 export interface HelperPermissionRequestResult {
@@ -239,12 +354,34 @@ export interface HelperPermissionRequestResult {
   reason?: string;
 }
 
+export interface HelperPermissionRequestOptions {
+  platform?: string;
+  env?: NodeJS.ProcessEnv;
+  helperAppPath?: string;
+  ensureInstalled?: () => Promise<string>;
+  socketPath?: string;
+  socketDirectory?: string;
+  exitLogPath?: string;
+  launcherPid?: number;
+  timeoutMs?: number;
+  launchApplication?: (options: {
+    appPath: string;
+    args: string[];
+    timeoutMs: number;
+    env: NodeJS.ProcessEnv;
+  }) => Promise<void>;
+}
+
 export declare function requestHelperAccessibilityPermissionViaLaunchServices(
-  options?: unknown,
+  options?: HelperPermissionRequestOptions,
 ): Promise<HelperPermissionRequestResult>;
 
 export declare function requestHelperScreenRecordingPermissionViaLaunchServices(
-  options?: unknown,
+  options?: HelperPermissionRequestOptions,
 ): Promise<HelperPermissionRequestResult>;
+
+export declare function queryHelperScreenRecordingPreflightViaLaunchServices(
+  options?: HelperPermissionRequestOptions,
+): Promise<"granted" | "denied" | undefined>;
 
 export type { CuaPermissionRestartOptions, CuaPermissionRestartResult };

@@ -249,6 +249,26 @@ export function getVisibleTaskMetas(
   return Array.from(taskById.values());
 }
 
+const RUNNING_WORKSPACE_TASK_STATUSES = new Set(["creating", "restoring", "streaming"]);
+
+/**
+ * 插件 runtime 换代会影响同一 workspace 的全部会话；两处设置入口必须消费同一 busy 真值。
+ * runtime 投影和 task index 在事件边界可能短暂错位，所以任一路径仍为 running 都要阻止切换。
+ */
+export function hasRunningWorkspaceTask(
+  workspaceState: Pick<
+    WorkspaceZCodeUIState,
+    "taskRuntimeByTaskId" | "optimisticTaskListByTaskId" | "taskListCache"
+  >,
+): boolean {
+  const runtimeBusy = Object.values(workspaceState.taskRuntimeByTaskId).some(
+    (runtime) =>
+      RUNNING_WORKSPACE_TASK_STATUSES.has(runtime.status) || Boolean(runtime.activeInputId?.trim()),
+  );
+  if (runtimeBusy) return true;
+  return getVisibleTaskMetas(workspaceState).some((task) => task.status === "running");
+}
+
 export function getTaskUnreadIndicator(
   workspaceState:
     | WorkspaceZCodeUIState

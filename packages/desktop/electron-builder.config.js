@@ -20,31 +20,32 @@ import {
   resolveDesktopArtifactSuffix,
   resolveDesktopProductIdentity,
 } from "./scripts/desktop-product-identity.mjs";
-import { verifyStagedKoffi } from "./scripts/koffi-package-assets.mjs";
+import {
+  resolveMacCuaNodeBuildInput,
+  stageMacCuaHelperApp,
+} from "./scripts/macos-cua-helper-app.mjs";
+import { resolveLinuxCuaNativePackageRoots } from "./scripts/linux-cua-native-package.mjs";
+import { stageCuaNodeRuntimeAssets } from "./scripts/windows-cua-runtime-assets.mjs";
 const ELECTRON_BUILDER_ARCH = {
   1: "x64",
   3: "arm64",
 };
-function resolveElectronBuilderWindowsTarget({
-  electronPlatformName,
-  arch,
-  configuredTargetPlatform,
-}) {
-  if (electronPlatformName !== "win32") {
+function resolveElectronBuilderCuaTarget({ electronPlatformName, arch, configuredTargetPlatform }) {
+  if (!["darwin", "linux", "win32"].includes(electronPlatformName)) {
     throw new Error(
-      `[electron-builder.config] context platform is not win32: ${String(electronPlatformName)}`,
+      `[electron-builder.config] unsupported CUA target platform: ${String(electronPlatformName)}`,
     );
   }
   const actualArch = ELECTRON_BUILDER_ARCH[arch];
   if (!actualArch) {
     throw new Error(
-      `[electron-builder.config] unsupported electron-builder Windows architecture: ${String(arch)}`,
+      `[electron-builder.config] unsupported electron-builder CUA architecture: ${String(arch)}`,
     );
   }
   const actualTarget = {
-    os: "win32",
+    os: electronPlatformName,
     arch: actualArch,
-    key: `win32-${actualArch}`,
+    key: `${electronPlatformName}-${actualArch}`,
   };
   if (
     configuredTargetPlatform?.os !== actualTarget.os ||
@@ -539,19 +540,43 @@ export default {
     await stageElectronNotices(context.appOutDir, resources, framework.version);
   },
   afterPack: async (context) => {
-    const actualWindowsTarget =
-      context.electronPlatformName === "win32"
-        ? resolveElectronBuilderWindowsTarget({
-            electronPlatformName: context.electronPlatformName,
-            arch: context.arch,
-            configuredTargetPlatform: targetPlatform,
-          })
-        : null;
+    const actualCuaTarget = resolveElectronBuilderCuaTarget({
+      electronPlatformName: context.electronPlatformName,
+      arch: context.arch,
+      configuredTargetPlatform: targetPlatform,
+    });
+    const cuaDependencyPackageRoots = resolveLinuxCuaNativePackageRoots({
+      targetPlatform: actualCuaTarget,
+      env: process.env,
+    });
     await runTimedAsync("afterPack:injectHoistedRuntimeModulesIntoAsar", () =>
       injectHoistedRuntimeModulesIntoAsar(context),
     );
     await runTimedAsync("afterPack:stripPackagedSourcemapReferences", () =>
       stripPackagedSourcemapReferences(context),
+    );
+    await runTimedAsync("afterPack:stageCuaNodeRuntimeAssets", () =>
+      stageCuaNodeRuntimeAssets({
+        electronPlatformName: context.electronPlatformName,
+        appOutDir: context.appOutDir,
+        targetPlatform: actualCuaTarget,
+        electronVersion: desktopElectronVersion,
+        zcodeCuaRoot: resolve(workspaceRoot, "packages/zcode-cua"),
+        dependencyPackageRoots: cuaDependencyPackageRoots,
+      }),
+    );
+    await runTimedAsync("afterPack:stageMacCuaHelperApp", () =>
+      stageMacCuaHelperApp({
+        electronPlatformName: context.electronPlatformName,
+        resourcesDir: resolvePackagedResourcesDir(context),
+        targetPlatform: actualCuaTarget,
+        zcodeCuaRoot: resolve(workspaceRoot, "packages/zcode-cua"),
+        appVersion: buildMetadata.appVersion,
+        buildIdentity:
+          process.env.ZCODE_CUA_HELPER_BUILD_ID?.trim() ||
+          `${buildMetadata.buildCommitId}:${buildMetadata.buildTime}`,
+        ...resolveMacCuaNodeBuildInput(process.env),
+      }),
     );
     runTimedSync("afterPack:assertPackagedNativeResourcePolicy", () =>
       assertPackagedNativeResourcePolicy(context),
@@ -559,7 +584,7 @@ export default {
     runTimedSync("afterPack:assertPackagedNodePtyPrebuild", () =>
       assertPackagedNodePtyPrebuild(context),
     );
-    if (actualWindowsTarget) {
+    if (actualCuaTarget.os === "win32") {
       await runTimedAsync("afterPack:writeWindowsInstallManifest", () =>
         writeWindowsInstallManifest(context),
       );
@@ -676,12 +701,12 @@ export default {
     gatekeeperAssess: false,
     entitlements: "build/entitlements.mac.plist",
     entitlementsInherit: "build/entitlements.mac.inherit.plist",
-    // runtime 可执行文件已在打包前的独立预签名阶段完成签名，
-    // electron-builder 在签主 app 时若继续深度扫描这些目录，会显著拉长 macOS codesign 时长。
+    // glm 与通用 tools 可执行文件已在打包前的独立预签名阶段完成签名；electron-builder
+    // 在签主 app 时若继续深度扫描这些目录，会显著拉长 macOS codesign 时长。
     // 这里按“任意前缀 + Contents/Resources”匹配绝对路径，避免 ^Contents/... 在 CI 中无法命中。
     // 命中后可跳过已预签名目录的重复签名/遍历，同时保留主 app 与框架签名。
-    // CUA Helper 在独立 job 中已完成 Developer ID 签名和 notarization staple；
-    // electron-builder 若再次签名嵌套 Helper 会改变 CDHash，使最终用户包中的 staple 失效。
+    // CUA Helper 不在忽略列表：它由 afterPack 从开放源码生成，必须在随后与主 app 一起签名，
+    // 这样安装器校验的 TeamIdentifier、嵌套签名和最终公证属于同一次发行身份。
     signIgnore: [
       "[/\\\\]Contents[/\\\\]Resources[/\\\\]glm([/\\\\]|$)",
       "[/\\\\]Contents[/\\\\]Resources[/\\\\]tools([/\\\\]|$)",

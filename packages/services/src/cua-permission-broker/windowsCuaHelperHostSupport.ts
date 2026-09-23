@@ -17,7 +17,7 @@ export const ADDON_ENV = HELPER_ADDON_ENV;
 
 export interface WindowsCuaChild {
   readonly pid?: number;
-  send(message: unknown): boolean;
+  send(message: unknown, callback?: (error: Error | null) => void): boolean;
   kill(): boolean;
   on(event: "message" | "error" | "exit", listener: (...args: unknown[]) => void): this;
   off(event: "message" | "error" | "exit", listener: (...args: unknown[]) => void): this;
@@ -55,7 +55,7 @@ export interface Generation {
 export const defaultChildProcess: WindowsCuaChildProcessAdapter = {
   fork(command, argv, options) {
     const [entryPath, ...args] = argv;
-    if (!entryPath) throw new Error("Windows Computer Use Helper entry path is required");
+    if (!entryPath) throw new Error("Computer Use Helper entry path is required");
     return nodeFork(entryPath, args, { ...options, execPath: command });
   },
 };
@@ -65,7 +65,10 @@ export const defaultHealthProbe = (socketPath: string, timeoutMs: number): Promi
   probeHelperHealth(socketPath, { timeoutMs });
 
 export class WindowsCuaChildLifecycle {
-  constructor(private readonly logger: ServiceLogger) {}
+  constructor(
+    private readonly logger: ServiceLogger,
+    private readonly helperName = "Windows Computer Use Helper",
+  ) {}
 
   async terminate(generation: Generation, context: string, timeoutMs: number): Promise<void> {
     if (generation.exitObserved) {
@@ -86,7 +89,7 @@ export class WindowsCuaChildLifecycle {
       return;
     }
     const blocker = new Error(
-      "Windows Computer Use Helper termination blocker: child did not exit after kill",
+      `${this.helperName} termination blocker: child did not exit after kill`,
     );
     this.logFailure(generation.id, generation.child.pid, `${context}-termination-blocker`, blocker);
     throw blocker;
@@ -144,7 +147,7 @@ export class WindowsCuaChildLifecycle {
     errorClass: string,
     error: unknown,
   ): void {
-    this.logger.warn(undefined, "Windows Computer Use Helper lifecycle failure", {
+    this.logger.warn(undefined, `${this.helperName} lifecycle failure`, {
       generation,
       pid,
       errorClass,

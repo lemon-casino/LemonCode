@@ -21,6 +21,10 @@ export function createDesktopNativePackagePrunePatterns(targetPlatformKey) {
     // 只服务 Node 渲染；pnpm 跨平台安装的 8 套 Canvas native 不应带进桌面安装包。
     "!node_modules/@napi-rs/canvas/**",
     "!node_modules/@napi-rs/canvas-*/**",
+    // CUA 原生包只进入独立 Helper runtime；主 asar 必须在复制阶段即裁掉，后置扫描再复核。
+    "!node_modules/@nut-tree-fork/**",
+    "!node_modules/@crowecawcaw/xa11y/**",
+    "!node_modules/@crowecawcaw/xa11y-*/**",
     // Linux prebuild 会在 beforePack 复制进 node-pty；源平台包本身不属于桌面运行时。
     "!node_modules/@lydell/node-pty-*/**",
     // 桌面运行时统一使用目标 prebuild，禁止把安装机现场编译物或 ABI bin 缓存带进跨平台包。
@@ -56,12 +60,32 @@ function isNativeRuntimeFile(path, targetPlatformKey) {
   return path === `/node_modules/node-pty/prebuilds/${targetPlatformKey}/spawn-helper`;
 }
 
+function getForbiddenCuaNativePackage(path) {
+  // 这两组原生依赖只属于独立 Helper；无论 asar 标记为 pack 还是 unpack，进入 desktop app
+  // 都会扩大原生攻击面，并绕过 Helper resources manifest 的完整性校验。
+  if (/(?:^|\/)node_modules\/@nut-tree-fork(?:\/|$)/u.test(path)) {
+    return "@nut-tree-fork/**";
+  }
+  if (/(?:^|\/)node_modules\/@crowecawcaw\/xa11y[^/]*(?:\/|$)/u.test(path)) {
+    return "@crowecawcaw/xa11y*";
+  }
+  return undefined;
+}
+
 export function findDesktopNativePackageViolations(entries, targetPlatformKey) {
   assertSupportedTargetPlatformKey(targetPlatformKey);
   const violations = [];
 
   for (const entry of entries) {
     const { packState, path } = entry;
+
+    const forbiddenCuaNativePackage = getForbiddenCuaNativePackage(path);
+    if (forbiddenCuaNativePackage) {
+      violations.push(
+        `Helper-only CUA native 依赖不得进入 desktop app (${forbiddenCuaNativePackage}): ${path}`,
+      );
+      continue;
+    }
 
     if (
       path === "/node_modules/@napi-rs/canvas" ||

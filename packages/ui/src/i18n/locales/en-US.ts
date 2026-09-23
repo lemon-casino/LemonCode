@@ -3121,6 +3121,9 @@ const enUS: Record<string, string> = {
   "settings.hooks.advanced": "Advanced",
   "settings.modelProvider.maxOutputTokens": "Max output tokens",
   "settings.modelProvider.inputModalities": "Input types",
+  "settings.modelProvider.interactionProtocol": "Interaction protocol",
+  "settings.modelProvider.interactionProtocol.native-tool-calls": "Native tool calls",
+  "settings.modelProvider.interactionProtocol.ui-tars-text-actions": "UI-TARS text actions",
   "settings.modelProvider.outputModalities": "Output types",
   "settings.modelProvider.modality.text": "Text",
   "settings.modelProvider.modality.image": "Image",
@@ -3134,6 +3137,8 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.modelMetadata.invalid.maxOutputTokens":
     "Max output tokens must be a positive integer",
   "settings.modelProvider.modelMetadata.invalid.inputModalities": "Text input type is required",
+  "settings.modelProvider.modelMetadata.invalid.interactionProtocol":
+    "UI-TARS text actions require image input and text output support",
   "settings.modelProvider.newProviderName": "New provider",
   "settings.modelProvider.modelsPlaceholder": "One model name per line",
   "settings.modelProvider.modelsCount": "{count} models",
@@ -6555,9 +6560,7 @@ const enUS: Record<string, string> = {
     "The Computer Use plugin is not enabled. Enable it in Plugins to use Computer Use.",
   "settings.computerUse.unsupported.title": "Computer Use is unavailable here",
   "settings.computerUse.unsupported.remoteDescription":
-    "Computer Use is not yet supported for SSH, WSL, Docker, or other remote environments. Switch to a local macOS or Windows workspace.",
-  "settings.computerUse.unsupported.linuxDescription":
-    "Computer Use is not yet supported on Linux desktops. Switch to a local macOS or Windows workspace.",
+    "Computer Use is not yet supported for SSH, WSL, Docker, or other remote environments. Switch to a local macOS, Windows, or Linux workspace.",
   "settings.computerUse.unsupported.badge": "Unavailable here",
   "settings.computerUse.unsupported.group": "Unavailable built-in capabilities",
   "scheduledPreview.keepAwakeEnabled": "Keep awake enabled",

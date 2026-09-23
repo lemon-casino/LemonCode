@@ -75,7 +75,8 @@ async function packGitDir(gitDir: string): Promise<Buffer> {
 
   for (const entry of entries) {
     if (!entry.isFile()) continue;
-    const fullPath = join(entry.parentPath ?? entry.path, entry.name);
+    // @types/node 25.6.0 移除了已废弃的 Dirent.path 别名（parentPath 自 v20.12.0 起为正式 API），运行时行为不变。
+    const fullPath = join(entry.parentPath, entry.name);
     const relPath = relative(gitDir, fullPath);
     const content = await readFile(fullPath);
     const header = Buffer.from(`${relPath}\0${content.length}\0`);

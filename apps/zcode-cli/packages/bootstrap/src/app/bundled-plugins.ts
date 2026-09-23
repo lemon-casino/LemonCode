@@ -11,7 +11,7 @@ import {
 import { dirname, join, resolve, sep } from "node:path";
 import { writeBundledOfficialMarketplacePartitionSync } from "@zcode/adapters";
 import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE, type Logger } from "@zcode/contracts";
-import { isZCodeCuaInternalFeatureEnabled, ZCODE_CUA_OFFICIAL_PLUGIN_ID } from "@zcode/shared";
+import { ZCODE_CUA_OFFICIAL_PLUGIN_ID } from "@zcode/shared";
 import {
   createOfficialPluginCacheRetryBudget,
   getOfficialPluginCacheRetryAttempts,
@@ -231,12 +231,8 @@ export function resolveOfficialPluginRoots(input: {
   storageRoot: string;
   suppressedBuiltins?: ReadonlySet<string>;
 }): string[] {
-  const suppressedBuiltins = new Set(input.suppressedBuiltins ?? []);
-  // zcode-cua 内置 plugin 默认不启用，由 feature flag 控制加载。在 seed/discovery 层门控
-  // （而非只隐藏某个 UI 面），这样开关关闭时用户无法经 plugin 列表/marketplace/MCP 设置/CLI 命令看到它。
-  if (!isZCodeCuaInternalFeatureEnabled(input.env ?? process.env)) {
-    suppressedBuiltins.add(ZCODE_CUA_OFFICIAL_PLUGIN_ID);
-  }
+  // 官方插件必须始终进入 seed/catalog；默认关闭由 enabledPlugins/defaultEnabled 单点决定。
+  // 这里复用 internal gate 会把“未启用”错误扩大成“不可发现”，导致用户根本无法开启或恢复。
   const failedSeeds = seedBundledOfficialPlugins({
     logger: input.logger,
     storageRoot: input.storageRoot,

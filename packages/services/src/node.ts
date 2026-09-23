@@ -1,6 +1,5 @@
 /* eslint-disable max-lines -- host process 服务注册和启动装配需要集中维护，拆散后会更难追踪依赖注入顺序 */
 // Node.js service implementations — NOT safe to import in browser code
-import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -429,7 +428,6 @@ import {
   buildAgentRuntimeEnv,
 } from "./runtime-tools/agentProxyEnv.js";
 import { ensureAppCaCert } from "./runtime-tools/appCaCert.js";
-import { buildHelperOpenArgs, isCuaLocalDevelopmentRuntime } from "@zcode/zcode-cua/broker/server";
 import { createServiceLogger, type ServiceLogger } from "#src/logger/serviceLogger.js";
 import { IOffPeakTaskService } from "./session/offPeakTask.js";
 import { OffPeakTaskService } from "./session/offPeakTaskService.js";
@@ -451,6 +449,7 @@ import {
   OFFICIAL_MCP_DEV_TRUSTED_ORIGINS_ENV,
 } from "@zcode/shared";
 import {
+  BROKER_GENERATION_ENV,
   BROKER_SOCKET_ENV,
   BROKER_UNAVAILABLE_ENV,
   clearCuaProductHelperAgentEnvUnavailable,
@@ -467,6 +466,7 @@ import {
   isPotentialZCodeCuaAgentMcpServer,
   isScreenCaptureProbeSuccess,
   markCuaProductHelperAgentEnvUnavailable,
+  queryHelperScreenRecordingPreflightViaLaunchServices,
   reapOrphanedHelpers,
   shouldRunCuaScreenCaptureProbe,
   waitForCuaHelperStartup,
@@ -479,19 +479,18 @@ import {
   type CuaProductMcpServerResolverContext,
   type CuaPermissionRestartOptions,
   type CuaPermissionRestartResult,
-  type CuaPermissionState,
   type CuaPermissionStatusQueryOptions,
   type CuaPermissionStatusResult,
 } from "#src/cua-permission-broker/index.js";
 import {
-  resolveWindowsCuaRuntime,
+  resolveCuaNodeRuntime,
   WindowsCuaDevRuntimeResolutionError,
+  type CuaNodeRuntime,
   type WindowsCuaRuntime,
 } from "#src/cua-permission-broker/windowsCuaDevRuntime.js";
 import { createCanonicalCuaHelperInstaller } from "./cua-permission-broker/cuaHelperInstaller.js";
 import { WindowsCuaHelperHost } from "#src/cua-permission-broker/windowsCuaDevHelperHost.js";
-import { DEV_HELPER_APP_NAME, HELPER_APP_NAME } from "@zcode/zcode-cua/broker/helperConstants";
-import { resolveBrokerSocketPath } from "@zcode/zcode-cua/broker/socketPath";
+import { HELPER_APP_NAME } from "@zcode/zcode-cua/broker/helperConstants";
 import {
   DEFAULT_ZCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
   resolveSafeEndpointHostname,
@@ -510,6 +509,7 @@ import {
   isZCodeCuaMcpCommand,
   isZCodeCuaMcpPackageArg,
   isZCodeCuaInternalFeatureEnabled,
+  ZCODE_CUA_PRODUCT_HELPER_ENV_KEY,
   ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY,
   type ZCodeAutomation,
   type ZCodeAutomationRun,
@@ -695,12 +695,14 @@ export function shouldEnableDefaultCuaProductHelper(
     env?: NodeJS.ProcessEnv;
   } = {},
 ): boolean {
-  // CUA 已随正式版默认开启（isZCodeCuaInternalFeatureEnabled 默认 ON，仅显式 0/false/off 关闭；2026-08 注释更正——旧注释称默认关闭已过期）。显式开启后 macOS 使用既有产品 Helper，Windows 使用安装包内 runtime；
-  // 两端都保持按需启动。关闭时不创建 host、不探测资源、不产生子进程或权限提示。
+  // 这里只判断打包资源/平台是否可用；workspace 启用 admission 由
+  // isCuaEnabledForContext + shouldCreateDefaultCuaProductHelper 单点持有。复用 internal gate
+  // 会让配置中已开启的正式插件因环境变量缺省而永远拿不到 Helper。
   const env = options.env ?? process.env;
-  if (!isZCodeCuaInternalFeatureEnabled(env)) return false;
+  const explicit = env[ZCODE_CUA_PRODUCT_HELPER_ENV_KEY]?.trim().toLowerCase();
+  if (explicit === "0" || explicit === "false" || explicit === "off") return false;
   const platform = options.platform ?? process.platform;
-  return platform === "darwin" || platform === "win32";
+  return platform === "darwin" || platform === "linux" || platform === "win32";
 }
 
 /**
@@ -837,13 +839,15 @@ type CreateDefaultCuaProductHelperOptions = {
   resourcesPath?: string;
   arch?: NodeJS.Architecture;
   electronVersion?: string;
+  resolveNodeRuntime?: () => Promise<CuaNodeRuntime>;
   resolveWindowsRuntime?: () => Promise<WindowsCuaRuntime>;
   createMacHost?: () => CuaHelperHost;
+  createNodeHost?: (runtime: CuaNodeRuntime) => ManagedCuaProductHelperHost;
   createWindowsHost?: (runtime: WindowsCuaRuntime) => ManagedCuaProductHelperHost;
 };
 
 /**
- * Windows 侧 Helper 宿主的懒解析包装：把「解析安装包运行时」推迟到首次 start()/checkHealth()，
+ * Windows/Linux Helper 宿主的懒解析包装：把「解析安装包运行时」推迟到首次 start()/checkHealth()，
  * 并把解析结果缓存（含 rejection）。
  *
  * resolveWindowsCuaRuntime 可能因 missing-native-addon、artifact-integrity-mismatch、
@@ -852,7 +856,7 @@ type CreateDefaultCuaProductHelperOptions = {
  * error 日志，且因为 rejection 被缓存、日志挂在同一条 promise 链上，重复 start() 不会刷屏。
  * 载荷只有 reason/artifact/errorName/message：解析发生在 mint token 与命名管道之前，天然不含密钥。
  */
-export function createWindowsCuaHelperHost(options: {
+export function createCuaNodeHelperHost(options: {
   resolveRuntime: () => Promise<WindowsCuaRuntime>;
   createHost: (runtime: WindowsCuaRuntime) => ManagedCuaProductHelperHost;
   logger?: ServiceLogger;
@@ -867,7 +871,7 @@ export function createWindowsCuaHelperHost(options: {
     const resolutionError =
       error instanceof WindowsCuaDevRuntimeResolutionError ? error : undefined;
     const artifact = resolutionError?.artifact;
-    options.logger.error(undefined, "Windows CUA Helper runtime resolution failed", {
+    options.logger.error(undefined, "CUA Node Helper runtime resolution failed", {
       reason: resolutionError?.reason ?? "unknown",
       ...(artifact ? { artifact } : {}),
       errorName: error instanceof Error ? error.name : typeof error,
@@ -876,7 +880,7 @@ export function createWindowsCuaHelperHost(options: {
   };
   const assertActive = (epoch: number): void => {
     if (stopped || epoch !== lifecycleEpoch) {
-      throw new Error("Windows Computer Use Helper startup stopped");
+      throw new Error("Computer Use Helper startup stopped");
     }
   };
   const getHost = async (epoch: number): Promise<ManagedCuaProductHelperHost> => {
@@ -917,8 +921,14 @@ export function createWindowsCuaHelperHost(options: {
     get socketPath() {
       return host?.socketPath ?? null;
     },
+    get pipSocketPath() {
+      return host?.pipSocketPath ?? null;
+    },
     get pluginAuthority() {
       return host?.pluginAuthority ?? null;
+    },
+    get generation() {
+      return host?.generation;
     },
     async start() {
       return withActiveHost((activeHost) => activeHost.start());
@@ -932,7 +942,9 @@ export function createWindowsCuaHelperHost(options: {
           // 兼容旧注入 Host：没有两阶段接口时，完整 start handle 就是唯一可用 tuple。
           return activeHost.start().then((handle) => ({
             socketPath: handle.socketPath,
+            pipSocketPath: handle.pipSocketPath,
             pluginAuthority: handle.pluginAuthority,
+            generation: handle.generation,
           }));
         }
         return activeHost.waitForTransport(timeoutMs);
@@ -952,7 +964,7 @@ export function createWindowsCuaHelperHost(options: {
           return activeHost.restartAfterCurrentStartPreservingTransport(restartOptions);
         }
         // 兼容旧注入 Host：wrapper 一旦暴露 preserving 接口，就必须代为提交 fresh-start
-        // marker；否则 producer 会在新 tuple 已启动后判定 fail-closed 契约被破坏。
+        // marker；否则开放 Helper 会在新 tuple 已启动后判定 fail-closed 契约被破坏。
         restartOptions?.beforeFreshStart?.();
         return activeHost.restartAfterCurrentStart().then((handle) => ({ handle, reused: false }));
       });
@@ -970,6 +982,13 @@ export function createWindowsCuaHelperHost(options: {
       return stopDrain;
     },
   };
+}
+
+/** Compatibility wrapper for existing Windows-only callers. */
+export function createWindowsCuaHelperHost(
+  options: Parameters<typeof createCuaNodeHelperHost>[0],
+): ManagedCuaProductHelperHost {
+  return createCuaNodeHelperHost(options);
 }
 
 export function createDefaultCuaProductHelper(
@@ -1003,10 +1022,12 @@ export function createDefaultCuaProductHelper(
       options.createMacHost?.() ??
       createProductCuaHelperHost({
         logger,
-        env: process.env,
+        // 根因：使用全局 process.env 会让 host 与本次 Local Host 的冻结环境分叉，
+        // 预检/安装器可能因此选择另一套开发或产品策略。
+        env,
         helperInstaller: createCanonicalCuaHelperInstaller({
           logger,
-          env: process.env,
+          env,
           bundledAppPath: bundledHelperAppPath,
         }),
         // 冲突解决原则：macOS 继续严格消费应用内置 Helper，不能退回下载源；
@@ -1014,16 +1035,18 @@ export function createDefaultCuaProductHelper(
         bundledHelperAppPath,
         // tolerate the Helper's cold first-launch instead of the 5s default.
         healthTimeoutMs: CUA_HELPER_HEALTH_TIMEOUT_MS,
-        // producer product factory 统一固定 ghost cursor/PiP=true、background=false。
-        // consumer 不再传伪动态 getter，避免两个仓库各保存一份产品策略。
+        queryScreenRecordingPreflight: queryHelperScreenRecordingPreflightViaLaunchServices,
+        // 开放 Helper 的产品策略在本仓固定为启用 PiP、禁用后台控制；调用方不再传伪动态
+        // getter，避免 services 与 Helper runtime 各保存一份策略。
       });
     host = macPermissionHost;
   } else {
-    host = createWindowsCuaHelperHost({
+    host = createCuaNodeHelperHost({
       resolveRuntime:
-        options.resolveWindowsRuntime ??
+        options.resolveNodeRuntime ??
+        (platform === "win32" ? options.resolveWindowsRuntime : undefined) ??
         (() =>
-          resolveWindowsCuaRuntime({
+          resolveCuaNodeRuntime({
             platform,
             env,
             resourcesPath: options.resourcesPath,
@@ -1031,7 +1054,8 @@ export function createDefaultCuaProductHelper(
             electronVersion: options.electronVersion,
           })),
       createHost:
-        options.createWindowsHost ??
+        options.createNodeHost ??
+        (platform === "win32" ? options.createWindowsHost : undefined) ??
         ((runtime) =>
           new WindowsCuaHelperHost({
             runtime,
@@ -1103,6 +1127,16 @@ function isGlobalCliZCodeCuaServer(name: string, config: unknown): boolean {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function buildCuaBrokerCredentialEnv(
+  transport: Pick<CuaHelperTransportHandle, "socketPath" | "pluginAuthority" | "generation">,
+): Record<string, string> {
+  return {
+    [BROKER_SOCKET_ENV]: transport.socketPath,
+    [ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY]: transport.pluginAuthority,
+    [BROKER_GENERATION_ENV]: String(transport.generation ?? 0),
+  };
 }
 
 export async function buildCuaProductHelperAgentEnv(
@@ -1186,10 +1220,7 @@ export async function buildCuaProductHelperAgentEnv(
       }
       cuaProductHelperTransportSpawns.add(host);
       cuaProductHelperAgentEnvRetryAt.delete(host);
-      return {
-        [BROKER_SOCKET_ENV]: transport.socketPath,
-        [ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY]: transport.pluginAuthority,
-      };
+      return buildCuaBrokerCredentialEnv(transport);
     }
     // 原来只在 1s 超时后读取预留 tuple，Host 已安全占住 socket 时也会白等。
     // 复用原准入条件提前返回；完整 startup 的失败仍由上面的 tracker 收敛。
@@ -1199,10 +1230,7 @@ export async function buildCuaProductHelperAgentEnv(
       cuaProductHelperAgentEnvRetryAt.delete(host);
       // 这条 reserved 分支不再下发 BROKER_TOKEN_ENV：broker
       // token 鉴权已整体删除（连接门是代码签名身份）。凭据只剩 socket + authority。
-      return {
-        [BROKER_SOCKET_ENV]: reserved.socketPath,
-        [ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY]: reserved.pluginAuthority,
-      };
+      return buildCuaBrokerCredentialEnv(reserved);
     }
     // 有界 deadline race：cold launch 没在 1s 内 ready 且无预留才 fail-closed。waitForCuaHelperStartup
     // 超时抛 caller_timeout（被下面 catch 当作"后台仍在跑"，不额外设 retryAt）。
@@ -1219,10 +1247,7 @@ export async function buildCuaProductHelperAgentEnv(
       };
     }
     cuaProductHelperAgentEnvRetryAt.delete(host);
-    return {
-      [BROKER_SOCKET_ENV]: handle.socketPath,
-      [ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY]: handle.pluginAuthority,
-    };
+    return buildCuaBrokerCredentialEnv(handle);
   } catch (error) {
     // caller_timeout 仅表示共享的 30s startup 仍在后台运行；trackCuaProductHelperStartup 会在其
     // 真正失败时建立 backoff。这里提前退避会让已经 ready 的 Helper 仍被后续 Agent 错误禁用。
@@ -1240,10 +1265,7 @@ export async function buildCuaProductHelperAgentEnv(
         // 上面的 unavailable marker 检查优先：未完成 admission 收敛时不放出 tuple。
         cuaProductHelperReservedSpawns.add(host);
         cuaProductHelperAgentEnvRetryAt.delete(host);
-        return {
-          [BROKER_SOCKET_ENV]: reserved.socketPath,
-          [ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY]: reserved.pluginAuthority,
-        };
+        return buildCuaBrokerCredentialEnv(reserved);
       }
     }
     markCuaProductHelperAgentEnvUnavailable(host);
@@ -1682,10 +1704,8 @@ export function createLocalServices(options: {
   // service 创建完成后再赋值。Helper recovery 始终不能回收 Agent。
   let hasActiveTurnRef: (() => boolean) | undefined;
   const isCuaEnabledForContext = (context?: CuaProductMcpServerResolverContext): boolean =>
-    // 保留 main 原有 gate 行为（避免回归）：dev/internal 特性开启时（ZCODE_CUA_DEV_MODE=1 或
-    // ZCODE_CUA_PRODUCT_HELPER=1）即视为启用，不依赖 config.json 显式 enable——main 的 bootstrap
-    // 用 isZCodeCuaInternalFeatureEnabled 门控 bundled plugin，与 feat 的 workspace enablement 不同。
-    // 生产路径（dev mode off）回落到官方插件 workspace enablement 判定（与 feat 一致）。
+    // internal feature 只为开发路径 bypass 持久化配置；正式产品由官方插件 workspace
+    // enablement 决定。插件 discovery 始终保留，不再把缺省关闭误作“插件不存在”。
     isZCodeCuaInternalFeatureEnabled(process.env) ||
     isOfficialCuaPluginEnabledForWorkspace({
       env: process.env,
@@ -1730,111 +1750,6 @@ export function createLocalServices(options: {
   };
   const isDefaultCuaProductHelperCurrent = (helper: DefaultCuaProductHelper): boolean =>
     defaultCuaProductHelperLifecycle.peek()?.helper === helper;
-  // Helper 懒启动：宿主启动时仅探测稳定 socket 上是否有一个
-  // 自启动（SDK 首调拉起）的 Helper。只 ping，绝不拉起；300ms 预算。probe 结果仅用于
-  // 状态展示 / PiP 凭据发现；权限详情与 onboarding 仍走显式 host 流。
-  const probeStableCuaHelperSocket = async (): Promise<string | null> => {
-    const socketPath = resolveBrokerSocketPath();
-    try {
-      const { createConnection } = await import("node:net");
-      return await new Promise<string | null>((resolve) => {
-        const socket = createConnection(socketPath);
-        const finish = (value: string | null): void => {
-          socket.destroy();
-          resolve(value);
-        };
-        const timer = setTimeout(() => finish(null), 300);
-        socket.on("connect", () => {
-          clearTimeout(timer);
-          socket.write(`{"id":0,"method":"ping","params":{}}\n`);
-          let buffer = "";
-          socket.on("data", (chunk: Buffer) => {
-            buffer += chunk.toString("utf8");
-            if (buffer.includes("\n")) {
-              try {
-                const nl = buffer.indexOf("\n");
-                const reply = JSON.parse(buffer.slice(0, nl)) as { ok?: boolean };
-                finish(reply.ok === true ? socketPath : null);
-              } catch {
-                finish(null);
-              }
-            }
-          });
-        });
-        socket.on("error", () => {
-          clearTimeout(timer);
-          finish(null);
-        });
-      });
-    } catch {
-      return null;
-    }
-  };
-
-  // 按需启动：拉起 standalone Helper（稳定 socket）。dev 场景（本 Helper 构建内嵌 dev
-  // policy）成对带 unsigned-launcher/external-escape argv，让 ad-hoc 签名的本进程也能过
-  // 签名门查询；产品 Helper 不嵌 dev policy，这对 argv 无效（产品签名天然过 Team 门）。
-  // 拉起后轮询 ping（5s/100ms），就绪返回 socket 路径，否则 null。
-  //
-  // dev 判定直接用上游的 isCuaLocalDevelopmentRuntime（@zcode/zcode-cua/broker/server，
-  // 即本文件已经用来 import buildHelperOpenArgs 的那个 subpath，可正常导入）。
-  //
-  // 行为等价性（别误读成安全加固）：上游是 `COMPILED_LOCAL_DEVELOPMENT_RUNTIME &&
-  // ZCODE_RUNTIME_ENV!=="production"`，而那个编译期常量只有 scripts/build-cua-helper-app.mjs
-  // 会用 define 折叠（Helper bundle）；desktop host bundle 没有该 define，于是回退成
-  // `process.env.NODE_ENV !== "production"` —— 正是复制品写的那一项。所以在**当前**打包形态下
-  // 两者逐字等价，关门靠的是 ZCODE_RUNTIME_ENV=production（打包态显式注入且不传 NODE_ENV）。
-  //
-  // 换成上游的收益是消除漂移面：折叠点、因子个数与 fail-closed 方向都由上游一处决定，
-  // 哪天 host bundle 也补上 __ZCODE_LOCAL_DEVELOPMENT_RUNTIME__ define（Helper 侧已经有），
-  // 编译期门自动生效，不需要再回来改这里。
-
-  const launchStandaloneCuaHelperForStatus = async (): Promise<string | null> => {
-    if (process.platform !== "darwin") return null;
-    const { existsSync } = await import("node:fs");
-    const { execFile } = await import("node:child_process");
-    const { promisify } = await import("node:util");
-    const socketPath = resolveBrokerSocketPath();
-    // standaloneHelperCandidatePaths 未在上游 exports 白名单——此处按同一规则枚举安装候选
-    //（dev-desktop → dev/ 前缀；app 名一律取 helperConstants，不写字面量）。
-    const home = process.env.ZCODE_HOME?.trim() || join(homedir(), ".zcode");
-    const baseRoot = join(home, "computer-use");
-    // 安装布局见上游 helperLauncher.resolveCuaHelperInstallRoot：dev 是独立子根 `dev/` 且 app
-    // 名换成 DEV_HELPER_APP_NAME；preview 是独立子根 `preview/` 但**沿用**稳定 app 名
-    //（分根的理由是 build id 不同、共享根会互相覆盖安装，不是改名）。
-    // 只枚举 HELPER_APP_NAME 导致 dev 下永远找不到候选，设置页拉起静默失败、
-    // 权限显示未知。dev 的两种名字都留着：一键 dev bundle 也可能装成稳定名。
-    const candidates = [
-      join(baseRoot, "dev", DEV_HELPER_APP_NAME),
-      join(baseRoot, "dev", HELPER_APP_NAME),
-      join(baseRoot, HELPER_APP_NAME),
-      join(baseRoot, "preview", HELPER_APP_NAME),
-    ];
-    const appPath = candidates.find((candidate) => existsSync(candidate));
-    if (!appPath) return null;
-    // Helper 启动参数统一由 buildHelperOpenArgs 构造，避免多处手写导致漏传或漂移。
-    // 设置页只读权限探测不承载 PiP，不传 --launcher-pid 和 --pip-mode；
-    // exit-log 使用 .settings.exit.log。新增参数应定义在 HelperLaunchSpec 中供调用方共用。
-    const args = buildHelperOpenArgs({
-      appPath,
-      socketPath,
-      exitLogPath: `${socketPath}.settings.exit.log`,
-      ...(isCuaLocalDevelopmentRuntime(process.env)
-        ? { allowUnsignedLauncherLocalDev: true, allowExternalBrokerClientLocalDev: true }
-        : {}),
-    });
-    try {
-      await promisify(execFile)("/usr/bin/open", args, { timeout: 5_000 });
-    } catch {
-      // LaunchServices 已接单也可能超时；继续等 ping。
-    }
-    for (let attempt = 0; attempt < 50; attempt += 1) {
-      const ready = await probeStableCuaHelperSocket();
-      if (ready) return ready;
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
-    return null;
-  };
 
   // enabled 与 onCuaPipSessionLifecycle 是否挂上，都由 serviceAuthorityMode 单点决定；
   // 提出来命名，避免下面的启动期诊断与真实取值漂移。
@@ -1843,16 +1758,30 @@ export function createLocalServices(options: {
   const cuaPipSessionService = createCuaPipSessionService({
     enabled: cuaPipSessionEnabled,
     resolveCredentials: async () => {
-      const host = defaultCuaProductHelperLifecycle.peek()?.helper.macPermissionHost;
-      // PiP 客户端以 role=presentation 声明，资格由 Helper 按对端（ZCode 主进程）签名 identifier 裁决。
-      if (host?.running && host.socketPath) {
-        return {
-          socketPath: host.socketPath,
-        };
+      const helper = defaultCuaProductHelperLifecycle.peek()?.helper;
+      if (!helper || !isDefaultCuaProductHelperCurrent(helper)) return undefined;
+      const host = helper.host;
+      const transport =
+        host.running && host.pipSocketPath && host.pluginAuthority
+          ? {
+              pipSocketPath: host.pipSocketPath,
+              pluginAuthority: host.pluginAuthority,
+              generation: host.generation,
+            }
+          : host.reservedTransport;
+      if (
+        !transport?.pipSocketPath ||
+        !transport.pluginAuthority ||
+        !Number.isSafeInteger(transport.generation) ||
+        (transport.generation ?? -1) < 0
+      ) {
+        return undefined;
       }
-      // 懒启动：无托管 host 时探测稳定 socket 上自启动的 Helper（probe-only，不拉起）。
-      const stable = await probeStableCuaHelperSocket();
-      return stable ? { socketPath: stable } : undefined;
+      return {
+        pipSocketPath: transport.pipSocketPath,
+        capability: transport.pluginAuthority,
+        generation: transport.generation!,
+      };
     },
   });
   // 启动期就把 PiP 投递链的接线状态写出来。dev 实测 PiP 事件一条都没投，而
@@ -1893,55 +1822,15 @@ export function createLocalServices(options: {
           reason: "ZCode Computer Use is not enabled (plugin off or not product mode).",
         };
       }
-      // 懒启动：状态查询绝不拉起 Helper。托管 host 在（如刚完成授权流）→ 全量查询；
-      // 否则探测稳定 socket 上自启动的 Helper（probe-only）；都没有 → 未运行（首次使用时自动启动）。
-      const peeked = defaultCuaProductHelperLifecycle.peek()?.helper;
-      const helper = peeked && isDefaultCuaProductHelperCurrent(peeked) ? peeked : undefined;
-      const host = helper ? helper.macPermissionHost : undefined;
-      if (!host || !host.running) {
-        // Helper 按需启动：设置页查询 = 拉起 standalone Helper（稳定 socket、
-        // 无 launcher-pid → 300s 无访问自动休眠，不进托管体系）。拉起后经稳定 socket 查真值。
-        let stable = await probeStableCuaHelperSocket();
-        if (!stable) {
-          stable = await launchStandaloneCuaHelperForStatus();
-        }
-        if (!stable) {
-          return {
-            available: false,
-            reason:
-              "ZCode Computer Use is not running; it will start automatically on first Computer Use use.",
-            idle: true,
-          } satisfies { available: false; reason: string; idle: true };
-        }
-        // standalone Helper 上直接查权限真值（身份模式，无 token）。
-        try {
-          const { callBrokerMethod } = await import("@zcode/zcode-cua/broker/helperHealth");
-          const report = await callBrokerMethod<{
-            grant_owner: string;
-            owner?: { display_name?: string };
-            accessibility: CuaPermissionState;
-            accessibility_probe_ok?: boolean;
-            screen_recording: CuaPermissionState;
-          }>({
-            socketPath: stable,
-            method: "permission_status",
-            timeoutMs: 3000,
-          });
-          return {
-            grantOwner: report.grant_owner,
-            grantOwnerDisplayName: report.owner?.display_name ?? report.grant_owner,
-            accessibility: report.accessibility,
-            accessibilityProbeOk: report.accessibility_probe_ok === true,
-            screenRecording: report.screen_recording,
-            screenCaptureProbeOk: false,
-          };
-        } catch {
-          return {
-            available: false,
-            reason: "ZCode Computer Use is starting up; retry in a moment.",
-            idle: true,
-          } satisfies { available: false; reason: string; idle: true };
-        }
+      // 权限页与 Agent 必须消费同一个受管 Host tuple；旧 standalone 分支会分别铸造
+      // socket/capability，既无法认证也无法被生命周期 owner 回收。
+      const helper = await getOrCreateDefaultCuaProductHelper(context);
+      const host = helper?.macPermissionHost;
+      if (!helper || !host || !isDefaultCuaProductHelperCurrent(helper)) {
+        return {
+          available: false,
+          reason: "ZCode Computer Use Helper is unavailable.",
+        };
       }
       try {
         const report = await host.queryPermissionStatus();
@@ -2147,17 +2036,14 @@ export function createLocalServices(options: {
       // 与 helper 创建同一个门控（isCuaEnabledForContext：dev/internal 特性 OR 官方插件 enablement），
       // 避免 dev mode 下 helper 建了但 resolveSpawnEnv 漏注入 broker env 的割裂。
       const cuaPluginEnabled = isCuaEnabledForContext(context);
-      // 懒启动：darwin 上 spawn 绝不 acquire 拉起 Helper——已有 host（peek，比如刚走过
-      // 授权流）则复用其 tuple；否则只注入稳定 socket，SDK 首次 CUA 调用自行拉起
-      // （宿主启动/spawn 均不使 Helper 常驻）。win32 保留 acquire（token 模式）。
+      // 所有平台都先取得 Local Host 的单一 owner；macOS 旧分支在没有 host 时自行铸造
+      // socket/capability，却没有对应 launcher，runtime 会永久缓存一组无人监听的凭据。
       const peekedHelper = defaultCuaProductHelperLifecycle.peek()?.helper;
       const helper = !cuaPluginEnabled
         ? undefined
         : peekedHelper && isDefaultCuaProductHelperCurrent(peekedHelper)
           ? peekedHelper
-          : process.platform === "darwin"
-            ? undefined
-            : await getOrCreateDefaultCuaProductHelper(context);
+          : await getOrCreateDefaultCuaProductHelper(context);
       // setting.get / 生命周期队列都可能跨过 host dispose。仅凭调用前的 enabled 会让延迟恢复的
       // resolveSpawnEnv 在 terminal fence 后重新启动 Helper；必须在真正构造 env 前校验代际。
       const cuaProductHelperHost =
@@ -2166,18 +2052,7 @@ export function createLocalServices(options: {
       // 供后续配置/生命周期 bookkeeping 使用；recovery 只清理 marker，不回收已有 Agent。
       cuaProductHelperWorkspaceRegistry.setEnabled(context, Boolean(cuaProductHelperHost));
       let cuaProductHelperEnv: Record<string, string> = {};
-      if (!helper && cuaPluginEnabled && process.platform === "darwin") {
-        // 懒启动：无托管 host 时注入稳定 socket；无 token（身份模式）、无 pluginAuthority
-        // （其校验方就是 host，host 缺席时无意义）。SDK ensureBrokerAvailable 负责拉起。
-        // pluginAuthority 是 agent 进程内的 config-provenance 随机数（bootstrap 捕获后写进
-        // node_repl 配置 env，core 比对两者证明该配置出自本 bootstrap 而非用户配置文件）；
-        // 它不需要 host——托管态由 host 铸造，懒启动态在此按 spawn 铸造，语义与校验完全一致。
-        cuaProductHelperEnv = {
-          [BROKER_SOCKET_ENV]: resolveBrokerSocketPath(),
-          [ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY]: randomBytes(16).toString("hex"),
-        };
-        cuaProductHelperWorkspaceRegistry.setEnabled(context, false);
-      } else if (cuaProductHelperHost && helper) {
+      if (cuaProductHelperHost && helper) {
         const candidateEnv = await buildCuaProductHelperAgentEnv(
           cuaProductHelperHost,
           createServiceLogger("cua-product-helper"),
@@ -2192,9 +2067,11 @@ export function createLocalServices(options: {
             [BROKER_UNAVAILABLE_ENV]: "broker_unavailable: helper lifecycle is disposed",
           };
         }
-      } else if (cuaPluginEnabled && defaultCuaProductHelperLifecycle.disposed) {
+      } else if (cuaPluginEnabled) {
         cuaProductHelperEnv = {
-          [BROKER_UNAVAILABLE_ENV]: "broker_unavailable: helper lifecycle is disposed",
+          [BROKER_UNAVAILABLE_ENV]: defaultCuaProductHelperLifecycle.disposed
+            ? "broker_unavailable: helper lifecycle is disposed"
+            : "broker_unavailable: managed Helper host is unavailable",
         };
       }
       const telemetryEnv = getCapturedZCodeAgentTelemetryEnv();

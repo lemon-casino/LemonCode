@@ -72,6 +72,10 @@ export const modelOutputFormatDataSchema = z
   .object(sparseShape(completeModelOutputFormatDataSchema.shape))
   .strict();
 
+export const modelInteractionProtocolSchema = z.enum(["native-tool-calls", "ui-tars-text-actions"]);
+export type ModelInteractionProtocol = z.infer<typeof modelInteractionProtocolSchema>;
+export const DEFAULT_MODEL_INTERACTION_PROTOCOL = "native-tool-calls" as const;
+
 export const completeModelPropertiesDataSchema = z
   .object({
     requiresMfjsToolSchema: z.boolean(),
@@ -82,6 +86,8 @@ export const completeModelPropertiesDataSchema = z
     supportsJsonSchemaOutput: z.boolean(),
     supportsNativeWebSearch: z.boolean(),
     supportsMidConversationSystem: z.boolean(),
+    // 可选字段保证旧配置无需迁移；消费方通过 resolveModelInteractionProtocol 读取缺省语义。
+    interactionProtocol: modelInteractionProtocolSchema.optional(),
   })
   .strict();
 export const modelPropertiesDataSchema = z
@@ -131,3 +137,9 @@ export type ModelPropertiesData = z.infer<typeof completeModelPropertiesDataSche
 export type EnumOptionSpecData = z.infer<typeof completeEnumOptionSpecDataSchema>;
 export type LimitOptionSpecData = z.infer<typeof completeLimitOptionSpecDataSchema>;
 export type ModelOptionSpecsData = z.infer<typeof completeModelOptionSpecsDataSchema>;
+
+export function resolveModelInteractionProtocol(
+  properties: Pick<ModelPropertiesData, "interactionProtocol">,
+): ModelInteractionProtocol {
+  return properties.interactionProtocol ?? DEFAULT_MODEL_INTERACTION_PROTOCOL;
+}

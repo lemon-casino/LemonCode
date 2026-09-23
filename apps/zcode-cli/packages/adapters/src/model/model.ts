@@ -14,6 +14,8 @@ import {
   type ModelRequest,
   type ModelResult,
 } from "@zcode/contracts";
+import { resolveModelInteractionProtocol } from "@zcode/shared/model-config";
+import { createUiTarsModelExecutor } from "./ui-tars-model-executor.js";
 
 export interface ModelExecutionRequest extends Omit<ModelRequest, "options"> {
   options: ResolvedModelOptions;
@@ -35,7 +37,13 @@ export interface CreateModelOptions {
 }
 
 export function createModel(input: CreateModelOptions): Model {
-  return new ExecutableModel(input);
+  return new ExecutableModel({
+    ...input,
+    executor:
+      resolveModelInteractionProtocol(input.properties) === "ui-tars-text-actions"
+        ? createUiTarsModelExecutor(input.executor)
+        : input.executor,
+  });
 }
 
 class ExecutableModel implements Model {
@@ -171,10 +179,7 @@ function validatePartialOptions(specs: ModelOptionSpecs, options: ModelOptions):
     });
   }
   const speed = options.speed;
-  if (
-    speed !== undefined &&
-    (!specs.speed || !specs.speed.values.includes(speed))
-  ) {
+  if (speed !== undefined && (!specs.speed || !specs.speed.values.includes(speed))) {
     throw invalidRequest("speed is not supported by the model", {
       speed,
       values: specs.speed?.values ?? [],
@@ -184,7 +189,12 @@ function validatePartialOptions(specs: ModelOptionSpecs, options: ModelOptions):
 }
 
 function validateRequestProperties(properties: ModelProperties, request: ModelRequest): void {
-  if (request.tools && request.tools.length > 0 && !properties.supportsToolCall) {
+  if (
+    request.tools &&
+    request.tools.length > 0 &&
+    !properties.supportsToolCall &&
+    resolveModelInteractionProtocol(properties) !== "ui-tars-text-actions"
+  ) {
     throw invalidRequest("Model does not support tool calls");
   }
   if (request.responseJsonSchema && !properties.supportsJsonSchemaOutput) {

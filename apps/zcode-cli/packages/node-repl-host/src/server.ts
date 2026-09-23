@@ -14,7 +14,16 @@ import {
   type NodeReplRequestMeta,
   type NodeReplRunResult,
 } from "@zcode/core/repl";
-import { createComputerUseRuntime, type ComputerUseRuntime } from "@zcode/zcode-cua";
+import {
+  createComputerUseRuntime,
+  type ComputerUseRuntime,
+  type ComputerUseRuntimeLogger,
+} from "@zcode/zcode-cua";
+import {
+  BROKER_CAPABILITY_ENV,
+  BROKER_GENERATION_ENV,
+  BROKER_SOCKET_ENV,
+} from "@zcode/zcode-cua/broker";
 import { z } from "zod";
 import { createBrowserBridgeGlobals, type ActiveNodeReplCall } from "./browser-bridge.js";
 import {
@@ -369,14 +378,32 @@ if (!isMainThread && isWorkerCallData(workerData)) {
     });
 }
 
+// runtime 低频异常路径（门拒绝/驱动异常/dispose 失败/会话排空）的日志落点：
+// node-repl-host 不依赖 services logger，直接走进程 stderr（本文件既有 guards 同通道）。
+const cuaRuntimeLogger: ComputerUseRuntimeLogger = {
+  warn: (message, meta) => {
+    process.stderr.write(`[zcode-cua-runtime] ${message} ${JSON.stringify(meta ?? {})}\n`);
+  },
+};
+
 export function captureComputerUseRuntimeFromEnvironment(
   env: NodeJS.ProcessEnv = process.env,
 ): ComputerUseRuntime | undefined {
-  const socketPath = env.ZCODE_CUA_PERMISSION_BROKER_SOCKET?.trim();
-  if (!socketPath) return undefined;
+  const socketPath = env[BROKER_SOCKET_ENV]?.trim();
+  // 当前 Host 恢复的 plugin authority 是本跳可信 capability。父进程可能残留旧的专用
+  // capability env；若让它优先，会覆盖本次 Host tuple 并让所有请求稳定鉴权失败。
+  // 专用 env 只保留为无 authority 调用方的兼容回退。
+  const brokerCapability =
+    env.ZCODE_CUA_PLUGIN_AUTHORITY?.trim() || env[BROKER_CAPABILITY_ENV]?.trim();
+  // socket 与 capability 必须作为一组出现；半组凭据不能回退到本地驱动。
+  if (!socketPath || !brokerCapability) return undefined;
   return createComputerUseRuntime({
     brokerSocketPath: socketPath,
+    brokerCapability,
+    brokerGeneration: Number(env[BROKER_GENERATION_ENV] ?? 0),
     refreshMarkerPath: env.ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER?.trim(),
+    env,
+    logger: cuaRuntimeLogger,
   });
 }
 

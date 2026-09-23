@@ -32,12 +32,11 @@ export function isCuaDevModeRequested(env: EnvRecord = process.env): boolean {
 }
 
 export function isZCodeCuaInternalFeatureEnabled(env: EnvRecord = process.env): boolean {
-  // CUA 现已默认打包进正式版（plugin staged + Helper enabled），不再需要显式 env flag。
-  // DEV_MODE 仍然 implied（开发一键），PRODUCT_HELPER=0/off/false 可显式关闭。
+  // internal gate 只是开发/内部 bypass，正式产品是否启用由官方插件配置决定。
+  // 缺省或未知值必须 fail-closed，避免 UI 已关闭时 Host 仍提前启动 Helper。
   if (isCuaDevModeRequested(env)) return true;
   const explicit = env[ZCODE_CUA_PRODUCT_HELPER_ENV_KEY]?.trim().toLowerCase();
-  if (explicit === "0" || explicit === "false" || explicit === "off") return false;
-  return true;
+  return explicit === "1" || explicit === "true" || explicit === "on";
 }
 
 const SANITIZED_RUNTIME_ENV_KEYS = [
@@ -63,6 +62,9 @@ const SANITIZED_RUNTIME_ENV_KEYS = [
   // 已授权 Helper（confused-deputy）。这里统一从所有子进程 env 剔除；zcode-cua server 的定向
   // env 注入在 buildMcpStdioEnv 之后 spread，因此仍能拿到（见 adapters/mcp StdioClientTransport）。
   ZCODE_CUA_BROKER_SOCKET_ENV_KEY,
+  // 遗留 capability 不属于当前 Host tuple。若父进程残留该键而 CLI 不清洗，
+  // node_repl 可能用它覆盖本次恢复的可信 plugin authority，稳定触发鉴权失败。
+  "ZCODE_CUA_PERMISSION_BROKER_CAPABILITY",
   // 遗留 bearer token：当前 broker 是 identity 模式（socket + authority，无口令，见
   // captureZCodeCuaBrokerCredentials），本进程不再产生也不再消费它。仍然剔除，因为用户机上
   // 可能装着旧版 Helper —— 那些版本认 bearer token，一旦这个变量随 agent 全局 env 漏给别的
@@ -99,6 +101,7 @@ const NON_TOOL_PASSTHROUGH_RUNTIME_ENV_KEYS = [
   "NODE_NO_WARNINGS",
   // CUA broker 凭据不得经 tool-env-passthrough 恢复到 Bash/tool 子进程（否则等于绕过上面的剔除）。
   ZCODE_CUA_BROKER_SOCKET_ENV_KEY,
+  "ZCODE_CUA_PERMISSION_BROKER_CAPABILITY",
   "ZCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER",
   "ZCODE_CUA_PLUGIN_AUTHORITY",
   ZCODE_REMOTE_RUNTIME_NETWORK_AUTHORITY_ENV_KEY,

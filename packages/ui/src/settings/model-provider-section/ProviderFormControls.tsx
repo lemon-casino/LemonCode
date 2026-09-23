@@ -67,6 +67,7 @@ export function ModelRowInput({
     | "contextWindow"
     | "maxOutputTokens"
     | "inputFormat"
+    | "interactionProtocol"
     | "reasoningLevelValues"
     | "reasoningLevelMap"
     | null

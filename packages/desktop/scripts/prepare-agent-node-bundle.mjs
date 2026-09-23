@@ -127,6 +127,19 @@ const officialPluginPackages = [
     ],
     stagedPath: "packages/lemon-workflow-plugin",
   },
+  {
+    // Computer Use 本身是内容包，node_repl-host 才是 executable host。生产 staging
+    // 仍必须显式复制 SDK/docs/skill；否则开发机 cache 会掩盖干净安装缺包。
+    packageName: "@zcode/zcode-cua-plugin",
+    relativePath: "apps/zcode-cli/packages/zcode-cua-plugin",
+    requiresRuntime: false,
+    requiredSeedPaths: [
+      "docs/computer-use.md",
+      "scripts/computer-use-client.mjs",
+      "skills/computer-use/SKILL.md",
+    ],
+    stagedPath: "packages/zcode-cua-plugin",
+  },
 ];
 const includedOfficialPluginTopLevelPaths = new Set([
   ".mcp.json",

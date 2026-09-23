@@ -366,12 +366,12 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // 「defaultEnabled 仅限内容型插件」的旧约定随之恢复完整。
     // 判定式是 enabledPlugins[id] ?? defaultEnabled：曾在设置页手动开过的用户已落盘
     // 显式 true，不受本次默认值变更影响。改回默认开启时，需同步
-    // packages/shared/src/plugin-marketplaces.ts 的名单（bootstrap 单测机械对照两者）、
-    // isZCodeCuaInternalFeatureEnabled（打包层默认 true）与输入框入口 hidden 默认值的联动语义。
+    // packages/shared/src/plugin-marketplaces.ts 的名单（bootstrap 单测机械对照两者）
+    // 与输入框入口 hidden 默认值的联动语义；internal gate 只保留为开发 bypass。
     name: "computer-use",
     hostMcpServerNames: ["node_repl"],
-    // 用户露出名统一为「Computer Use / 电脑控制」。包名与 producer 仓库仍保持 zcode-cua，
-    // 以兼容原生 Helper identity；EN 描述基线走 manifest
+    // 用户露出名统一为「Computer Use / 电脑控制」。公开内容包沿用 zcode-cua-plugin 路径，
+    // 原生 Helper identity 则由独立 Helper 发布契约维护；EN 描述基线走 manifest
     // description，这里只放 zh-CN 覆盖；resolveLocalizedText 在 en-US 时回退到 manifest。
     listing: {
       author: ZAI_AUTHOR,
@@ -385,16 +385,19 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
       icon: `${OFFICIAL_PLUGIN_ASSETS_BASE_URL}/zcode-cua/icon.png`,
     },
     rootCandidates: [
+      // 仓库根直接运行 bootstrap（测试、开发 CLI）时，candidate base 是 repo root；
+      // 生产 staging 则以 apps/zcode-cli 或 resources/glm 为 base，下面的相对候选继续覆盖。
+      "apps/zcode-cli/packages/zcode-cua-plugin",
       "packages/zcode-cua-plugin",
       "../zcode-cua-plugin",
       "../../zcode-cua-plugin",
       "../../../zcode-cua-plugin",
     ],
     requiredSeedPaths: OFFICIAL_CUA_REQUIRED_SEED_PATHS,
-    // 当前 CUA 为不可用占位包，无需复制 native runtime；避免把本地旧依赖继续带入缓存。
+    // 这是 SDK/docs/skill 内容包；唯一可执行 MCP host 由 node-repl-host 提供，native runtime
+    // 只进入独立 Helper 资源。这里保持空数组，避免把开发机依赖或 producer 产物带入缓存。
     runtimeTopLevelPaths: [],
-    // 这里的 version 追踪上游 zcode-cua runtime 版本，使插件 UI 展示、缓存路径、
-    // marketplace 条目都对齐；具体版本由原子 producer bump 工作流维护。
+    // 公开 plugin manifest、UI 展示、缓存路径和 SEA 清单必须使用同一版本。
     version: "0.6.3",
   },
 ];

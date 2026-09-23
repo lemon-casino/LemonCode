@@ -15,13 +15,20 @@ export type PipSessionEvent =
       eventId?: string;
     }
   | {
-      kind: "turn-ended" | "turn-completed" | "turn-failed" | "tool-scheduled" | "tool-started";
+      kind: "turn-ended" | "turn-completed" | "turn-failed";
       sessionId: string;
-      turnId?: string;
+      turnId: string;
       sequenceNumber?: number;
       eventId?: string;
       outcome?: "completed" | "failed";
-      toolCallId?: string;
+    }
+  | {
+      kind: "tool-scheduled" | "tool-started";
+      sessionId: string;
+      turnId: string;
+      toolCallId: string;
+      sequenceNumber?: number;
+      eventId?: string;
     }
   | {
       kind: "session-closed";
@@ -30,3 +37,8 @@ export type PipSessionEvent =
       sequenceNumber?: number;
       eventId?: string;
     };
+
+export interface PipSessionSnapshot {
+  turns: Array<Extract<PipSessionEvent, { kind: "turn-started" }>>;
+  focus?: Extract<PipSessionEvent, { kind: "focus-changed" }>;
+}

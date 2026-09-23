@@ -4,7 +4,54 @@ import { dirname, resolve } from "node:path";
 
 export const repositoryRoot = resolve(import.meta.dirname, "..");
 export const noticesFileName = "THIRD-PARTY-NOTICES.md";
+export const releaseReviewBaselineFileName = "third-party/release-review-baseline.json";
 const hash = (bytes) => createHash("sha256").update(bytes).digest("hex");
+
+function normalizeReleaseReviewItems(items, label) {
+  if (!Array.isArray(items)) throw new Error(`${label} must be an array`);
+  const seen = new Set();
+  return items
+    .map((item) => {
+      if (
+        typeof item?.id !== "string" ||
+        item.id.trim() === "" ||
+        typeof item.reason !== "string" ||
+        item.reason.trim() === ""
+      ) {
+        throw new Error(`${label} entries require non-empty id and reason strings`);
+      }
+      const normalized = { id: item.id.trim(), reason: item.reason.trim() };
+      if (seen.has(normalized.id))
+        throw new Error(`${label} contains duplicate id: ${normalized.id}`);
+      seen.add(normalized.id);
+      return normalized;
+    })
+    .toSorted((left, right) =>
+      left.id === right.id
+        ? left.reason.localeCompare(right.reason)
+        : left.id.localeCompare(right.id),
+    );
+}
+
+export function assertReleaseReviewBaseline(currentItems, baselineItems) {
+  const current = normalizeReleaseReviewItems(currentItems, "Current reviewRequired");
+  const baseline = normalizeReleaseReviewItems(baselineItems, "Release review baseline");
+  const currentKeys = new Set(current.map((item) => JSON.stringify(item)));
+  const baselineKeys = new Set(baseline.map((item) => JSON.stringify(item)));
+  const currentOnly = current.filter((item) => !baselineKeys.has(JSON.stringify(item)));
+  const baselineOnly = baseline.filter((item) => !currentKeys.has(JSON.stringify(item)));
+  if (currentOnly.length === 0 && baselineOnly.length === 0) return;
+  const describe = (items) => items.map((item) => `${item.id}: ${item.reason}`).join("\n");
+  throw new Error(
+    [
+      "Release review baseline mismatch.",
+      currentOnly.length ? `Current-only items:\n${describe(currentOnly)}` : "",
+      baselineOnly.length ? `Baseline-only items:\n${describe(baselineOnly)}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  );
+}
 
 export async function readThirdPartyNotices(root = repositoryRoot) {
   // 开发和构建只消费已有声明；输入新鲜度由显式 license 检查负责，避免修改 skill 就阻断构建。
@@ -30,6 +77,19 @@ export async function readVerifiedNotices(root = repositoryRoot, { requireComple
       `Unresolved third-party material obligations:\n${manifest.reviewRequired.map((item) => `${item.id}: ${item.reason}`).join("\n")}`,
     );
   }
+  return bytes;
+}
+
+export async function readReleaseVerifiedNotices(root = repositoryRoot) {
+  const bytes = await readVerifiedNotices(root);
+  const [manifest, baseline] = await Promise.all(
+    ["third-party/inventory.json", releaseReviewBaselineFileName].map(async (file) =>
+      JSON.parse(await readFile(resolve(root, file), "utf8")),
+    ),
+  );
+  if (baseline.schemaVersion !== 1) throw new Error("Unsupported release review baseline");
+  // 修复：自动发布只接受显式登记的既有材料债务，不能把非严格检查误当成许可完整。
+  assertReleaseReviewBaseline(manifest.reviewRequired, baseline.reviewRequired);
   return bytes;
 }
 

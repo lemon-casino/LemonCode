@@ -22,7 +22,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { Switch } from "@/components/ui/switch.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { TID_PLUGIN_STORE_BROWSE } from "@zcode/shared";
+import { TID_PLUGIN_STORE_BROWSE, ZCODE_CUA_OFFICIAL_PLUGIN_ID } from "@zcode/shared";
 import type { ZCodePluginInfo, ZCodePluginScope, ZCodePluginUserConfigOption } from "@zcode/shared";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import {
@@ -73,6 +73,8 @@ import {
   resolvePluginDisplayName,
 } from "@/settings/pluginStoreListing.js";
 import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
+import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { getWorkspaceState, hasRunningWorkspaceTask } from "@/store/zcodeSessionStoreSelectors.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab, type WorkspaceTabState } from "@/store/tabStore.js";
 import {
@@ -82,7 +84,7 @@ import {
   selectPluginsForScope,
 } from "@/settings/pluginCapabilityProjection.js";
 import {
-  isComputerUseRemoteOrLinux,
+  isComputerUseUnavailableNonWeb,
   matchesComputerUseSearch,
   resolveComputerUseAvailability,
 } from "@/settings/computerUseAvailability.js";
@@ -190,6 +192,13 @@ function PluginList({
   const resetPluginConfig = usePluginManagementStore((state) => state.resetPluginConfig);
   const togglingPluginId = usePluginManagementStore((state) => state.togglingPluginId);
   const operationId = usePluginManagementStore((state) => state.operationId);
+  const workspaceSessionBusy = useZCodeSessionStore((state) =>
+    target
+      ? hasRunningWorkspaceTask(
+          getWorkspaceState(state, target.workspacePath, target.workspaceIdentity),
+        )
+      : false,
+  );
   const [selectedPluginId, setSelectedPluginId] = useState<string | null>(null);
   const [pluginOptionsDrafts, setPluginOptionsDrafts] = useState<
     Record<string, Record<string, PluginOptionDraftValue>>
@@ -292,7 +301,7 @@ function PluginList({
     configScope === "user" &&
     target &&
     !loading &&
-    isComputerUseRemoteOrLinux(computerUseAvailability) &&
+    isComputerUseUnavailableNonWeb(computerUseAvailability) &&
     matchesComputerUseSearch(searchQuery),
   );
   const hasEmptySearchResult = Boolean(
@@ -318,6 +327,12 @@ function PluginList({
   }, [initialize, pluginManagementService, configScope, target, targetServiceResolution.rpcReady]);
   const handleSetEnabled = useCallback(
     async (pluginId: string, enabled: boolean) => {
+      if (pluginId === ZCODE_CUA_OFFICIAL_PLUGIN_ID && workspaceSessionBusy) {
+        toast(intl.formatMessage({ id: "chat.toolbar.computerUse.tooltip.sessionBusy" }), {
+          variant: "warning",
+        });
+        return;
+      }
       const plugin = plugins.find((candidate) => candidate.id === pluginId);
       const pluginLabel = plugin
         ? resolveManagedPluginDisplay(plugin, storeItemById.get(plugin.id), locale).name
@@ -341,7 +356,16 @@ function PluginList({
             : "settings.plugins.toggle.disabled";
       toast(intl.formatMessage({ id: messageId }, { plugin: pluginLabel }));
     },
-    [configScope, intl, locale, pluginManagementService, plugins, setEnabled, storeItemById],
+    [
+      configScope,
+      intl,
+      locale,
+      pluginManagementService,
+      plugins,
+      setEnabled,
+      storeItemById,
+      workspaceSessionBusy,
+    ],
   );
   const handleResetPluginConfig = useCallback(
     async (pluginId: string) => {
@@ -611,8 +635,16 @@ function PluginList({
                 data-testid="plugin-settings-enabled-switch"
                 data-plugin-id={plugin.id}
                 checked={plugin.enabled}
-                disabled={togglingPluginId === plugin.id}
+                disabled={
+                  togglingPluginId === plugin.id ||
+                  (plugin.id === ZCODE_CUA_OFFICIAL_PLUGIN_ID && workspaceSessionBusy)
+                }
                 aria-busy={togglingPluginId === plugin.id}
+                title={
+                  plugin.id === ZCODE_CUA_OFFICIAL_PLUGIN_ID && workspaceSessionBusy
+                    ? intl.formatMessage({ id: "chat.toolbar.computerUse.tooltip.sessionBusy" })
+                    : undefined
+                }
                 aria-label={intl.formatMessage(
                   {
                     id: plugin.enabled
@@ -649,12 +681,7 @@ function PluginList({
             {intl.formatMessage({ id: "settings.computerUse.title" })}
           </div>
           <div className="mt-0.5 text-ui-sm text-foreground-subtle">
-            {intl.formatMessage({
-              id:
-                computerUseAvailability.kind === "local-linux"
-                  ? "settings.computerUse.unsupported.linuxDescription"
-                  : "settings.computerUse.unsupported.remoteDescription",
-            })}
+            {intl.formatMessage({ id: "settings.computerUse.unsupported.remoteDescription" })}
           </div>
         </div>
         <span className="shrink-0 rounded-md bg-background px-2 py-1 text-ui-xs font-medium text-foreground-subtle">

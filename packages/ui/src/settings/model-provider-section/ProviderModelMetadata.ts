@@ -1,6 +1,10 @@
 /* oxlint-disable eslint(max-lines) -- Model Config 弹窗的 Draft、校验与稀疏 Overlay 必须共享同一字段映射，避免 UI 产生第二套规则。 */
 import type { ProviderSettingsFormModel } from "@/lib/providerSettingsFormTypes.js";
-import type { ModelInputFormatData } from "@zcode/shared/model-config";
+import {
+  DEFAULT_MODEL_INTERACTION_PROTOCOL,
+  type ModelInputFormatData,
+  type ModelInteractionProtocol,
+} from "@zcode/shared/model-config";
 import {
   EnumOptionSpecConfig,
   extractManualModelConfig,
@@ -15,6 +19,7 @@ export interface ProviderModelDraftValues {
   contextWindowValue: string;
   maxOutputTokensValue: string;
   inputFormatValue: ProviderModelInputFormatDraft;
+  interactionProtocolValue: ModelInteractionProtocol;
   enabledValue?: boolean;
   useRecommendedConfigValue?: boolean;
   /** 仅在本次 Draft 从固定模式切回推荐模式时清空已有 Overlay。 */
@@ -37,6 +42,7 @@ export type ProviderModelDraftCommitResult =
         | "contextWindow"
         | "maxOutputTokens"
         | "inputFormat"
+        | "interactionProtocol"
         | "reasoningLevelValues"
         | "reasoningLevelMap";
     };
@@ -65,6 +71,7 @@ export function createProviderModelDraftValues(
       supportsAudio: inputFormat?.supportsAudio ?? false,
       supportsPdf: inputFormat?.supportsPdf ?? false,
     },
+    interactionProtocolValue: properties.interactionProtocol ?? DEFAULT_MODEL_INTERACTION_PROTOCOL,
     enabledValue: model.config.enabled !== false,
     useRecommendedConfigValue: model.useRecommendedConfig !== false,
     clearPersonalConfigValue: false,
@@ -89,6 +96,7 @@ function personalDraftFieldKeys(config: ModelConfigObject): string[] {
   ] as const) {
     if (config.properties?.[key] != null) result.push(`${key}Value`);
   }
+  if (config.properties?.interactionProtocol !== undefined) result.push("interactionProtocolValue");
   if (config.optionSpecs?.reasoningLevel?.values != null) result.push("reasoningLevelValuesValue");
   for (const [key, value] of Object.entries(config.properties?.inputFormat ?? {})) {
     if (value != null) result.push(`inputFormatValue.${key}`);
@@ -144,6 +152,13 @@ export function resolveProviderModelDraftCommit({
   if (!draft.inputFormatValue.supportsText) {
     return { status: "invalid", field: "inputFormat" };
   }
+  if (
+    draft.interactionProtocolValue === "ui-tars-text-actions" &&
+    (!draft.inputFormatValue.supportsImage ||
+      currentModel.config.properties?.outputFormat?.supportsText !== true)
+  ) {
+    return { status: "invalid", field: "interactionProtocol" };
+  }
 
   const reasoningLevelValues = draft.reasoningLevelValuesValue.map((value) => value.trim());
   if (
@@ -167,6 +182,13 @@ export function resolveProviderModelDraftCommit({
   }
   const effectiveEnabled = draft.enabledValue ?? currentModel.config.enabled ?? true;
   const currentEffectiveEnabled = currentModel.config.enabled ?? true;
+  // 缺字段就是 native-tool-calls。旧配置未显式声明时继续保留稀疏形状，
+  // 避免用户只打开并保存弹窗就触发无意义迁移。
+  const effectiveInteractionProtocol =
+    draft.interactionProtocolValue === DEFAULT_MODEL_INTERACTION_PROTOCOL &&
+    currentModel.config.properties?.interactionProtocol === undefined
+      ? undefined
+      : draft.interactionProtocolValue;
   const effectiveProperties = {
     // 系统字段不由编辑草稿产生；手动保存统一按可编辑 schema 提取。
     requiresMfjsToolSchema: currentModel.config.properties?.requiresMfjsToolSchema,
@@ -191,6 +213,9 @@ export function resolveProviderModelDraftCommit({
       draft.supportsMidConversationSystemValue ??
       currentModel.config.properties?.supportsMidConversationSystem ??
       false,
+    ...(effectiveInteractionProtocol === undefined
+      ? {}
+      : { interactionProtocol: effectiveInteractionProtocol }),
   };
   const personalProperties = buildPersonalProperties({
     current: currentModel.personalConfig.properties,
@@ -386,6 +411,13 @@ function buildPersonalProperties({
       inherited?.[key],
     );
   }
+  applyInteractiveSparseLeaf(
+    result,
+    "interactionProtocol",
+    effective.interactionProtocol ?? DEFAULT_MODEL_INTERACTION_PROTOCOL,
+    currentEffective?.interactionProtocol ?? DEFAULT_MODEL_INTERACTION_PROTOCOL,
+    inherited?.interactionProtocol ?? DEFAULT_MODEL_INTERACTION_PROTOCOL,
+  );
   const input = { ...current?.inputFormat } as Record<string, unknown>;
   applyInteractiveSparseLeaf(
     input,

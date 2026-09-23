@@ -14,7 +14,7 @@ export declare function isCuaPermissionStatusAvailable(
 
 export declare function shouldRunCuaScreenCaptureProbe(
   state: CuaPermissionState | undefined,
-  options?: CuaPermissionStatusQueryOptions,
+  options?: CuaPermissionStatusQueryOptions & { includeFunctionalProbes?: boolean },
 ): boolean;
 
 export type {

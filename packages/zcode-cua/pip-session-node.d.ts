@@ -1,4 +1,4 @@
-import type { PipSessionEvent } from "./pip-session.d.ts";
+import type { PipSessionEvent, PipSessionSnapshot } from "./pip-session.d.ts";
 
 export interface PipSessionApplyResult {
   applied: boolean;
@@ -7,9 +7,12 @@ export interface PipSessionApplyResult {
 
 export interface PipSessionClientOptions {
   socketPath?: string;
+  capability?: string;
+  generation?: number;
   timeoutMs?: number;
   reconnectAttempts?: number;
   reconnectDelayMs?: number;
+  getSnapshot?: () => PipSessionSnapshot | Promise<PipSessionSnapshot>;
   peerChecker?: (peer: unknown) => boolean;
   onDiagnostic?: (diagnostic: { code: string; message?: string }) => void;
 }

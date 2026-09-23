@@ -1,7 +1,15 @@
 /* eslint-disable max-lines -- Windows two-phase transport lifecycle must remain one linearized state machine. */
 import { randomBytes } from "node:crypto";
 
-import type { HelperHealth } from "@zcode/zcode-cua/broker";
+import { ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY } from "@zcode/shared";
+import {
+  BROKER_CAPABILITY_ENV,
+  BROKER_GENERATION_ENV,
+  createHelperBootstrapCredentials,
+  parseHelperBootstrapRequest,
+  type HelperHealth,
+} from "@zcode/zcode-cua/broker";
+import { HELPER_CONTROL_PROTOCOL } from "@zcode/zcode-cua/broker/server";
 import type {
   CuaHelperHandle,
   CuaHelperTransportRestartResult,
@@ -36,7 +44,10 @@ const mintRandomAuthority = (): string => randomBytes(16).toString("hex");
 const DEFAULT_STARTUP_TIMEOUT_MS = 30_000;
 const DEFAULT_SHUTDOWN_TIMEOUT_MS = 1_000;
 
-type CuaHelperTransportHandle = Pick<CuaHelperHandle, "socketPath" | "pluginAuthority">;
+type CuaHelperTransportHandle = Pick<
+  CuaHelperHandle,
+  "socketPath" | "pluginAuthority" | "generation"
+>;
 
 export type ManagedCuaProductHelperHost = CuaProductHelperHost & {
   stop(): Promise<void>;
@@ -56,6 +67,7 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
   private readonly shutdownTimeoutMs: number;
   private readonly logger: ServiceLogger;
   private readonly childLifecycle: WindowsCuaChildLifecycle;
+  private readonly helperName: string;
   private readonly authority: string;
   private handle: CuaHelperHandle | null = null;
   // 只要 transport_ready 已经对外 resolve，Agent 就可能已经持有这组凭据；即使 full health
@@ -83,8 +95,16 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
     this.healthProbe = options.healthProbe ?? defaultHealthProbe;
     this.startupTimeoutMs = options.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS;
     this.shutdownTimeoutMs = options.shutdownTimeoutMs ?? DEFAULT_SHUTDOWN_TIMEOUT_MS;
-    this.logger = options.logger ?? createServiceLogger("windows-cua-helper-host");
-    this.childLifecycle = new WindowsCuaChildLifecycle(this.logger);
+    this.helperName =
+      options.runtime.platform === "linux"
+        ? "Linux Computer Use Helper"
+        : "Windows Computer Use Helper";
+    this.logger =
+      options.logger ??
+      createServiceLogger(
+        options.runtime.platform === "linux" ? "linux-cua-helper-host" : "windows-cua-helper-host",
+      );
+    this.childLifecycle = new WindowsCuaChildLifecycle(this.logger, this.helperName);
     this.authority = (options.mintPluginAuthority ?? mintRandomAuthority)();
   }
 
@@ -97,21 +117,25 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
   get pluginAuthority(): string | null {
     return this.handle ? this.authority : null;
   }
+  get generation(): number {
+    return 0;
+  }
 
   waitForTransport(timeoutMs = DEFAULT_STARTUP_TIMEOUT_MS): Promise<CuaHelperTransportHandle> {
     if (this.handle) {
       return Promise.resolve({
         socketPath: this.handle.socketPath,
         pluginAuthority: this.handle.pluginAuthority,
+        generation: 0,
       });
     }
     const pending = this.transportReadyInFlight;
-    if (!pending) return Promise.reject(new Error("Windows Computer Use Helper is not starting"));
+    if (!pending) return Promise.reject(new Error(`${this.helperName} is not starting`));
     // 调用方通常会再套同一份有界 startup 预算；这里的本地 timer 保护直接调用者，
     // 避免 transport promise 因 Helper 永久不回消息而悬挂。
     return new Promise<CuaHelperTransportHandle>((resolve, reject) => {
       const timer = setTimeout(() => {
-        reject(new Error(`Windows Computer Use Helper transport timed out after ${timeoutMs}ms`));
+        reject(new Error(`${this.helperName} transport timed out after ${timeoutMs}ms`));
       }, timeoutMs);
       timer.unref?.();
       pending.then(
@@ -204,7 +228,7 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
       const previous = this.handle ?? this.lastAgentVisibleTransport;
       await this.stopNow("preserving-transport-restart");
       if (stopEpoch !== this.externalStopEpoch)
-        throw new Error("Windows Computer Use Helper startup stopped");
+        throw new Error(`${this.helperName} startup stopped`);
       if (previous) {
         // Helper 进程是可替换的 downstream；已有 Agent 绑定的是 host-facing named pipe，
         // 恢复时复用它们，避免 Windows Helper 重启把 Agent 留在旧 pipe 上。
@@ -226,7 +250,7 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
 
   async checkHealth(timeoutMs = DEFAULT_SHUTDOWN_TIMEOUT_MS): Promise<HelperHealth> {
     const handle = this.handle;
-    if (!handle) throw new Error("Windows Computer Use Helper is not running");
+    if (!handle) throw new Error(`${this.helperName} is not running`);
     return this.healthProbe(handle.socketPath, timeoutMs);
   }
 
@@ -247,7 +271,7 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
     preservedTransport?: Pick<CuaHelperHandle, "socketPath">,
   ): Promise<CuaHelperHandle> {
     if (stopEpoch !== this.externalStopEpoch)
-      return Promise.reject(new Error("Windows Computer Use Helper startup stopped"));
+      return Promise.reject(new Error(`${this.helperName} startup stopped`));
     if (this.handle) return Promise.resolve(this.handle);
     if (this.terminationBlocker) return Promise.reject(this.terminationBlocker);
     return this.startGeneration(stopEpoch, preservedTransport);
@@ -313,16 +337,22 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
       "--parent-pid",
       String(process.pid),
     ];
+    const childEnv: NodeJS.ProcessEnv = {
+      ...process.env,
+      ...this.options.runtime.commandEnv,
+      [ADDON_ENV]: this.options.runtime.addonPath,
+      ELECTRON_RUN_AS_NODE: "1",
+    };
+    // 根因：argv/env 可被同机进程检查；常驻 Helper 的 credential tuple 只能在 exact child
+    // 发出 nonce challenge 后经 Node IPC 一次性交付。
+    delete childEnv[ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY];
+    delete childEnv[BROKER_CAPABILITY_ENV];
+    delete childEnv[BROKER_GENERATION_ENV];
     let child: WindowsCuaChild;
     try {
       child = this.childProcess.fork(this.options.runtime.command, argv, {
         cwd: this.options.runtime.root,
-        env: {
-          ...process.env,
-          ...this.options.runtime.commandEnv,
-          [ADDON_ENV]: this.options.runtime.addonPath,
-          ELECTRON_RUN_AS_NODE: "1",
-        },
+        env: childEnv,
       });
     } catch (error) {
       const startupError = asError(error);
@@ -334,6 +364,7 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
 
     return new Promise<CuaHelperHandle>((resolve, reject) => {
       let settled = false;
+      let bootstrapCompleted = false;
       let timer: ReturnType<typeof setTimeout> | undefined;
       let generation: Generation;
       const fail = (error: unknown, errorClass: string) => {
@@ -365,15 +396,12 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
       const onExit = (code: unknown) => {
         generation.exitObserved = true;
         if (!settled)
-          fail(
-            new Error(`Windows Computer Use Helper exited before ready (${String(code)})`),
-            "early-exit",
-          );
+          fail(new Error(`${this.helperName} exited before ready (${String(code)})`), "early-exit");
         else if (!generation.stopped && this.current?.id === id) {
           this.handle = null;
           this.current = null;
           this.invalidateTransportReady();
-          this.logger.warn(undefined, "Windows Computer Use Helper exited unexpectedly", {
+          this.logger.warn(undefined, `${this.helperName} exited unexpectedly`, {
             generation: id,
             pid: child.pid,
             errorClass: "unexpected-exit",
@@ -386,17 +414,54 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
         // stop 后、旧进程退出前仍可能收到 ready；先检查代际，避免把已清除的 tuple 重新写回。
         if (generation.stopped || stopEpoch !== this.externalStopEpoch || this.current?.id !== id)
           return;
+        const messageRecord =
+          message && typeof message === "object" && !Array.isArray(message)
+            ? (message as Record<string, unknown>)
+            : undefined;
+        if (
+          messageRecord?.protocol === HELPER_CONTROL_PROTOCOL &&
+          messageRecord.type === "bootstrap_request"
+        ) {
+          const request = parseHelperBootstrapRequest(message);
+          if (bootstrapCompleted || !request || request.pid !== child.pid) {
+            return fail(
+              new Error(`Invalid ${this.helperName} credential bootstrap challenge`),
+              "bootstrap-challenge-invalid",
+            );
+          }
+          bootstrapCompleted = true;
+          try {
+            child.send(
+              createHelperBootstrapCredentials({
+                pid: request.pid,
+                nonce: request.nonce,
+                capability: this.authority,
+                // Agent-facing generation 固定为 0；Host authority 在 Host 重建时轮换。
+                generation: 0,
+              }),
+              (error) => {
+                if (error) fail(error, "bootstrap-send-failed");
+              },
+            );
+          } catch (error) {
+            fail(error, "bootstrap-send-failed");
+          }
+          return;
+        }
         const ready = parseReadyMessage(message);
         if (ready === "ignore") return;
         if (!ready)
-          return fail(
-            new Error("Invalid Windows Computer Use Helper control message"),
-            "malformed-message",
-          );
+          return fail(new Error(`Invalid ${this.helperName} control message`), "malformed-message");
         if (ready.type === "error") {
           // The helper reported its own startup failure — surface the
           // diagnostic instead of discarding it as a malformed message.
           return fail(new Error(ready.message), "helper-reported-error");
+        }
+        if (!bootstrapCompleted) {
+          return fail(
+            new Error(`${this.helperName} ready before credential bootstrap`),
+            "ready-before-bootstrap",
+          );
         }
         if (ready.socketPath !== socketPath) return;
         if (ready.pid !== child.pid)
@@ -404,6 +469,7 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
         this.resolveTransportReady({
           socketPath,
           pluginAuthority: this.authority,
+          generation: 0,
         });
         if (ready.type === "transport_ready") return;
         void this.healthProbe(socketPath, this.startupTimeoutMs).then(
@@ -425,13 +491,14 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
               // 没有 rename 让渡语义）。Helper 直接 bind 这个 pipe 名，两者恒等。
               launchSocketPath: socketPath,
               pluginAuthority: this.authority,
+              generation: 0,
               helperAppPath: this.options.runtime.entryPath,
               bundleId: health.bundleId,
               pid: health.pid,
             };
             // 合并时保留 ready handle；transport_ready 已保存可恢复 tuple，不能只存 tuple 而丢掉运行状态。
             this.handle = handle;
-            this.logger.info(undefined, "Windows Computer Use Helper ready", {
+            this.logger.info(undefined, `${this.helperName} ready`, {
               generation: id,
               pid: health.pid,
             });
@@ -459,11 +526,11 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
         !this.childLifecycle.on(child, "error", onError, id, "setup-on-error") ||
         !this.childLifecycle.on(child, "exit", onExit, id, "setup-on-exit")
       ) {
-        fail(new Error("Windows Computer Use Helper listener setup failed"), "listener-setup");
+        fail(new Error(`${this.helperName} listener setup failed`), "listener-setup");
         return;
       }
       timer = setTimeout(
-        () => fail(new Error("Windows Computer Use Helper startup timed out"), "startup-timeout"),
+        () => fail(new Error(`${this.helperName} startup timed out`), "startup-timeout"),
         this.startupTimeoutMs,
       );
       timer.unref?.();
@@ -490,12 +557,12 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
     this.externalStopEpoch += 1;
     this.lastAgentVisibleTransport = null;
     if (!generation) {
-      this.rejectTransportReady(new Error("Windows Computer Use Helper startup stopped"));
+      this.rejectTransportReady(new Error(`${this.helperName} startup stopped`));
       return Promise.resolve();
     }
     this.handle = null;
     generation.stopped = true;
-    generation.abort?.(new Error("Windows Computer Use Helper startup stopped"));
+    generation.abort?.(new Error(`${this.helperName} startup stopped`));
     // settled generation 没有 abort rejecter，仍必须摘除旧 transport tuple，避免后续 start 复用死凭据。
     this.invalidateTransportReady();
     const termination = this.terminateGeneration(generation, "stop");

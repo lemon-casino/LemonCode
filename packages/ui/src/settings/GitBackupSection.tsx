@@ -71,9 +71,8 @@ export function GitBackupSection({
         <SettingsRow
           label={intl.formatMessage({ id: "settings.gitBackup.enabled" })}
           description={intl.formatMessage({ id: "settings.gitBackup.switchNote" })}
-        >
-          <Switch checked={enabled} onCheckedChange={onEnabledChange} />
-        </SettingsRow>
+          control={<Switch checked={enabled} onCheckedChange={onEnabledChange} />}
+        />
       </SettingsGroupCard>
 
       <SettingsGroupCard>
@@ -160,16 +159,19 @@ export function GitBackupSection({
       </SettingsGroupCard>
 
       <SettingsGroupCard>
-        <SettingsRow label={intl.formatMessage({ id: "settings.gitBackup.interval" })}>
-          <Input
-            type="number"
-            min={5}
-            max={1440}
-            value={interval}
-            onChange={(e) => setInterval(Number(e.target.value))}
-            className="w-24"
-          />
-        </SettingsRow>
+        <SettingsRow
+          label={intl.formatMessage({ id: "settings.gitBackup.interval" })}
+          control={
+            <Input
+              type="number"
+              min={5}
+              max={1440}
+              value={interval}
+              onChange={(e) => setInterval(Number(e.target.value))}
+              className="w-24"
+            />
+          }
+        />
       </SettingsGroupCard>
 
       <SettingsGroupCard>
@@ -192,18 +194,16 @@ export function GitBackupSection({
       </SettingsGroupCard>
 
       <SettingsGroupCard>
-        <SettingsRow label={intl.formatMessage({ id: "settings.gitBackup.manualBackup" })}>
-          <Button
-            variant="default"
-            size="sm"
-            onClick={handleManualBackup}
-            disabled={backingUp}
-          >
-            {backingUp
-              ? intl.formatMessage({ id: "settings.gitBackup.manualBackup.running" })
-              : intl.formatMessage({ id: "settings.gitBackup.manualBackup.start" })}
-          </Button>
-        </SettingsRow>
+        <SettingsRow
+          label={intl.formatMessage({ id: "settings.gitBackup.manualBackup" })}
+          control={
+            <Button variant="default" size="sm" onClick={handleManualBackup} disabled={backingUp}>
+              {backingUp
+                ? intl.formatMessage({ id: "settings.gitBackup.manualBackup.running" })
+                : intl.formatMessage({ id: "settings.gitBackup.manualBackup.start" })}
+            </Button>
+          }
+        />
       </SettingsGroupCard>
     </div>
   );

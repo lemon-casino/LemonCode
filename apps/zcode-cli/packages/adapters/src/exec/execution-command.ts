@@ -7,6 +7,7 @@ import {
   type BashShellProvider,
 } from "./bash-shell-provider.js";
 import { applyExecutionTextEnv } from "./outputEncoding.js";
+import { normalizeCmdNulRedirectionForPosixShell } from "./nul-redirection.js";
 import { windowsExecutableCandidates } from "./windows-executable.js";
 import type {
   ExecutionCommand,
@@ -98,10 +99,15 @@ export function resolveExecutionCommand(
       }
     }
 
+    const cwdDialect = defaultCwdDialect(platform);
     return {
       args: [],
-      cwdDialect: defaultCwdDialect(platform),
-      file: command.command,
+      cwdDialect,
+      // POSIX 系 shell 把 CMD 的 nul 设备当普通文件名，重定向会落盘成垃圾文件，需归一化。
+      file:
+        cwdDialect === "posix"
+          ? normalizeCmdNulRedirectionForPosixShell(command.command)
+          : command.command,
       shell: resolveShell(command.shell, env, platform),
     };
   }
@@ -153,8 +159,9 @@ function createShellProviderCommand(
     };
   }
 
+  // git-bash/posix dialect 下 nul 重定向会在 cwd 落盘成垃圾文件，先归一化为 /dev/null。
   return {
-    args: ["-c", "-l", command],
+    args: ["-c", "-l", normalizeCmdNulRedirectionForPosixShell(command)],
     cwdDialect: provider.dialect,
     envOverlay: provider.envOverlay,
     file: provider.file,
@@ -189,18 +196,20 @@ export function applyResolvedShellCommand(
     };
   }
 
+  // POSIX 系 shell 会话的每条命令都经过此处重建 spawn 参数，是 nul 归一化的唯一漏斗。
+  const normalized = normalizeCmdNulRedirectionForPosixShell(command);
   if (resolved.shell === false && resolved.args[0] === "-c" && resolved.usesLoginShell === true) {
     const useLoginShell = resolved.args[1] === "-l";
     return {
       ...resolved,
-      args: useLoginShell ? ["-c", "-l", command] : ["-c", command],
+      args: useLoginShell ? ["-c", "-l", normalized] : ["-c", normalized],
     };
   }
 
   return {
     ...resolved,
     args: [],
-    file: command,
+    file: normalized,
   };
 }
 

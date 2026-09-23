@@ -11,6 +11,11 @@ import {
   stageReleaseArtifacts,
   verifyCollectedArtifacts,
 } from "./stage-release-artifacts.mjs";
+import {
+  assertReleaseReviewBaseline,
+  readReleaseVerifiedNotices,
+  readVerifiedNotices,
+} from "./third-party-notices.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
@@ -132,8 +137,56 @@ test("Linux staging requires each native package name for its target", async () 
 });
 
 test("Actions builds every supported platform and publishes only completed tag builds", async () => {
-  const workflow = YAML.parse(
-    await readFile(join(root, ".github/workflows/desktop-release.yml"), "utf8"),
+  const workflowSource = await readFile(
+    join(root, ".github/workflows/desktop-release.yml"),
+    "utf8",
+  );
+  const workflow = YAML.parse(workflowSource);
+  const linuxAddonJob = workflow.jobs["build-cua-linux-addon"];
+  assert.equal(linuxAddonJob.container.image, "${{ matrix.container }}");
+  assert.equal(linuxAddonJob.permissions.contents, "read");
+  assert.deepEqual(
+    linuxAddonJob.strategy.matrix.include.map(
+      ({ runner, arch, target, container, package_dir, binary }) => ({
+        runner,
+        arch,
+        target,
+        container,
+        package_dir,
+        binary,
+      }),
+    ),
+    [
+      {
+        runner: "ubuntu-24.04",
+        arch: "x64",
+        target: "x86_64-unknown-linux-gnu",
+        container: "quay.io/pypa/manylinux_2_28_x86_64",
+        package_dir: "linux-x64-gnu",
+        binary: "xa11y.linux-x64-gnu.node",
+      },
+      {
+        runner: "ubuntu-24.04-arm",
+        arch: "arm64",
+        target: "aarch64-unknown-linux-gnu",
+        container: "quay.io/pypa/manylinux_2_28_aarch64",
+        package_dir: "linux-arm64-gnu",
+        binary: "xa11y.linux-arm64-gnu.node",
+      },
+    ],
+  );
+  const lockedCheckout = linuxAddonJob.steps.find(
+    (step) => step.name === "Check out locked xa11y source",
+  );
+  assert.equal(lockedCheckout.with.ref, "a3badccf5761615ea3412ee55c19ac3764e27913");
+  assert.equal(lockedCheckout.with.repository, "xa11y/xa11y");
+  assert.match(
+    linuxAddonJob.steps.find((step) => step.name === "Build xa11y N-API addon").run,
+    /napi build --platform --release --target \$\{\{ matrix\.target \}\}/u,
+  );
+  assert.match(
+    linuxAddonJob.steps.find((step) => step.name === "Assemble and load-test native package").run,
+    /require\(packageRoot\)/u,
   );
   const include = workflow.jobs.build.strategy.matrix.include;
   assert.deepEqual(
@@ -147,14 +200,91 @@ test("Actions builds every supported platform and publishes only completed tag b
   assert.equal(include.find(({ os, arch }) => os === "mac" && arch === "arm64").runner, "macos-15");
   assert.deepEqual(workflow.on.push.tags, ["v*"]);
   assert.deepEqual(workflow.on.push.branches, ["main"]);
+  assert.equal(workflow.jobs.build.needs, "build-cua-linux-addon");
+  assert.equal(
+    workflow.jobs.build.steps.find(
+      (step) => step.name === "Download Linux Computer Use xa11y addon",
+    ).with.name,
+    "cua-xa11y-linux-${{ matrix.arch }}-gnu",
+  );
+  assert.match(
+    workflow.jobs.build.steps.find(
+      (step) => step.name === "Configure Linux Computer Use native package",
+    ).run,
+    /ZCODE_CUA_LINUX_XA11Y_NATIVE_ROOT/u,
+  );
   assert.equal(workflow.jobs.release.needs, "build");
   assert.match(workflow.jobs.release.if, /github\.ref_type == 'tag'/u);
   assert.equal(workflow.jobs.release.permissions.contents, "write");
   assert.equal(workflow.jobs.build.permissions.contents, "read");
+  assert.equal(workflow.jobs.build.env.CSC_IDENTITY_AUTO_DISCOVERY, "false");
+  assert.equal(workflow.jobs.build.env.ZCODE_ENABLE_MAC_SIGN, "0");
+  const releaseContractStep = workflow.jobs.build.steps.find(
+    (step) => step.name === "Verify release contract",
+  );
+  assert.equal(releaseContractStep.if, "matrix.os == 'linux' && matrix.arch == 'x64'");
+  assert.equal(releaseContractStep.run, "pnpm test:release");
+  assert.doesNotMatch(
+    workflowSource,
+    /MACOS_CERTIFICATE|APPLE_APP_SPECIFIC_PASSWORD|WINDOWS_CERTIFICATE/iu,
+  );
   const releaseSteps = workflow.jobs.release.steps;
-  assert.ok(
-    releaseSteps.findIndex((step) => step.name === "Verify release notices") <
-      releaseSteps.findIndex((step) => step.name === "Publish verified release"),
+  const verifyPackagesIndex = releaseSteps.findIndex(
+    (step) => step.name === "Verify all six platform packages",
+  );
+  const verifyNoticesIndex = releaseSteps.findIndex(
+    (step) => step.name === "Verify release notice baseline",
+  );
+  const uploadIndex = releaseSteps.findIndex(
+    (step) => step.name === "Upload installers to release draft",
+  );
+  const publishIndex = releaseSteps.findIndex((step) => step.name === "Publish release");
+  assert.ok(verifyPackagesIndex >= 0);
+  assert.ok(verifyPackagesIndex < verifyNoticesIndex);
+  assert.ok(verifyNoticesIndex < uploadIndex);
+  assert.ok(uploadIndex < publishIndex);
+  assert.match(releaseSteps[verifyNoticesIndex].run, /readReleaseVerifiedNotices/u);
+  assert.doesNotMatch(workflowSource, /requireComplete:\s*true/u);
+  assert.match(
+    releaseSteps.find((step) => step.name === "Upload installers to release draft").run,
+    /Unsigned desktop packages for macOS, Windows, and Linux/iu,
+  );
+});
+
+test("release notice baseline permits only the explicitly recorded unresolved set", async () => {
+  const inventory = JSON.parse(await readFile(join(root, "third-party/inventory.json"), "utf8"));
+  const baseline = JSON.parse(
+    await readFile(join(root, "third-party/release-review-baseline.json"), "utf8"),
+  );
+  assert.doesNotThrow(() =>
+    assertReleaseReviewBaseline(inventory.reviewRequired, baseline.reviewRequired),
+  );
+  assert.throws(
+    () =>
+      assertReleaseReviewBaseline(
+        [...inventory.reviewRequired, { id: "new-package@1.0.0", reason: "new debt" }],
+        baseline.reviewRequired,
+      ),
+    /release review baseline mismatch/iu,
+  );
+  assert.throws(
+    () => assertReleaseReviewBaseline(inventory.reviewRequired.slice(1), baseline.reviewRequired),
+    /release review baseline mismatch/iu,
+  );
+  assert.throws(
+    () =>
+      assertReleaseReviewBaseline(
+        inventory.reviewRequired.map((item, index) =>
+          index === 0 ? { ...item, reason: `${item.reason} changed` } : item,
+        ),
+        baseline.reviewRequired,
+      ),
+    /release review baseline mismatch/iu,
+  );
+  await readReleaseVerifiedNotices(root);
+  await assert.rejects(
+    readVerifiedNotices(root, { requireComplete: true }),
+    /Unresolved third-party material obligations/u,
   );
 });
 

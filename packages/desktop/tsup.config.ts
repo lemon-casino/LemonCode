@@ -124,6 +124,12 @@ const desktopNodeRuntimeExternals = [
   "node-forge",
   // ZIP 解包器内部依赖 CommonJS require("fs")，不能内联到 ESM main/host 产物。
   "yauzl",
+  // CUA 本地输入驱动（@zcode/zcode-cua 被 noExternal 内联，其驱动内部动态 import nut-js）。
+  // 必须保持运行时外部依赖：不登记时 esbuild 会把动态 import 目标 chase 进 bundle，
+  // 在其原生 .node 模块上直接构建失败；desktop 链路本身不做本地驱动（services→broker→Helper），
+  // 安装器另经 electron-builder files 规则排除 node_modules/@nut-tree-fork。
+  // 见 specs/computer-use-open-replacement.md「打包接线约束」。
+  "@nut-tree-fork/nut-js",
 ];
 
 function createDevReadyMarkerHook(target: "main" | "host" | "preload"): string {

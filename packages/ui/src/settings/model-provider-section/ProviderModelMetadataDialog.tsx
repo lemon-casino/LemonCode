@@ -38,6 +38,7 @@ import {
 } from "@/settings/model-provider-section/ModelConfigHelp.js";
 
 import { ModelEditorAdvanced } from "@/settings/model-provider-section/ModelEditorAdvanced.js";
+import { ProviderModelInteractionProtocolSelect } from "@/settings/model-provider-section/ProviderModelInteractionProtocolSelect.js";
 
 function selectFocusedInputText(event: Pick<FocusEvent<HTMLInputElement>, "currentTarget">) {
   event.currentTarget.select();
@@ -307,6 +308,16 @@ export function ProviderModelMetadataDialog({
             errorField={draftErrorField}
             validationAttempt={validationAttempt}
           >
+            <ModelSettingsGroup group="advanced">
+              <ProviderModelInteractionProtocolSelect
+                value={draft.interactionProtocolValue}
+                overridden={overridden(
+                  "interactionProtocolValue",
+                  personalConfig?.properties?.interactionProtocol !== undefined,
+                )}
+                onChange={(interactionProtocolValue) => onDraftChange({ interactionProtocolValue })}
+              />
+            </ModelSettingsGroup>
             <ModelSettingsGroup group="modalities">
               <div className="space-y-3">
                 <div>

@@ -9,8 +9,14 @@ const EXPECTED_PACKAGE_NAME = "@zcode/zcode-cua";
 const PACKAGE_JSON = "package.json";
 const PRODUCT_RUNTIME_MANIFEST = "runtime-manifest.json";
 const PRODUCT_RUNTIME_SEGMENTS = ["tools", "cua-helper"] as const;
+const MAX_RUNTIME_MANIFEST_BYTES = 1024 * 1024;
+const MAX_RUNTIME_FILES = 4096;
+const SUPPORTED_NODE_PLATFORMS = ["linux", "win32"] as const;
+
+type CuaNodePlatform = (typeof SUPPORTED_NODE_PLATFORMS)[number];
 
 export interface WindowsCuaRuntime {
+  platform: CuaNodePlatform;
   root: string;
   entryPath: string;
   addonPath: string;
@@ -18,10 +24,14 @@ export interface WindowsCuaRuntime {
   commandEnv: Record<string, string>;
 }
 
+/** 新代码使用平台中立名称；旧 Windows 名称保留给既有注入点。 */
+export type CuaNodeRuntime = WindowsCuaRuntime;
+
 interface WindowsCuaRuntimeFileSystem {
   stat(path: string): Promise<Pick<Stats, "isDirectory" | "isFile">>;
   lstat?(path: string): Promise<Pick<Stats, "isDirectory" | "isFile" | "isSymbolicLink">>;
   realpath?(path: string): Promise<string>;
+  readdir?(path: string): Promise<string[]>;
   readFile(path: string, encoding?: "utf8"): Promise<string | Uint8Array>;
 }
 
@@ -64,6 +74,7 @@ const defaultFileSystem: WindowsCuaRuntimeFileSystem = {
   stat: (path) => fs.stat(path),
   lstat: (path) => fs.lstat(path),
   realpath: (path) => fs.realpath(path),
+  readdir: (path) => fs.readdir(path),
   readFile: (path, encoding) =>
     encoding === "utf8" ? fs.readFile(path, encoding) : fs.readFile(path),
 };
@@ -71,7 +82,7 @@ const defaultHashBytes = async (bytes: string | Uint8Array): Promise<string> =>
   createHash("sha256").update(bytes).digest("hex");
 
 /**
- * Windows 产品运行时解析边界：
+ * Node 产品运行时解析边界（Windows/Linux）：
  * - 显式开发目录具有最高优先级，配置错误时 fail closed，不能悄悄改用安装资源；
  * - 产品模式只读取 resources/tools/cua-helper，不搜索源码目录或 node_modules。
  */
@@ -85,17 +96,40 @@ export async function resolveWindowsCuaRuntime(
     );
   }
 
-  const configuredRoot = (options.env ?? process.env)[DEV_ROOT_ENV]?.trim();
-  if (configuredRoot) {
-    return resolveDevelopmentRuntime(configuredRoot, options.fileSystem ?? defaultFileSystem);
+  return resolveCuaNodeRuntime({ ...options, platform: "win32" });
+}
+
+export async function resolveCuaNodeRuntime(
+  options: WindowsCuaRuntimeResolveOptions = {},
+): Promise<CuaNodeRuntime> {
+  const platform = options.platform ?? process.platform;
+  if (!isCuaNodePlatform(platform)) {
+    throw new WindowsCuaDevRuntimeResolutionError(
+      "unsupported-platform",
+      "CUA Node runtime is only available on win32 or linux.",
+    );
   }
 
-  return resolvePackagedRuntime(options, options.fileSystem ?? defaultFileSystem);
+  const configuredRoot = (options.env ?? process.env)[DEV_ROOT_ENV]?.trim();
+  if (configuredRoot) {
+    return resolveDevelopmentRuntime(
+      configuredRoot,
+      options.fileSystem ?? defaultFileSystem,
+      platform,
+    );
+  }
+
+  return resolvePackagedRuntime(options, options.fileSystem ?? defaultFileSystem, platform);
+}
+
+function isCuaNodePlatform(platform: NodeJS.Platform): platform is CuaNodePlatform {
+  return SUPPORTED_NODE_PLATFORMS.includes(platform as CuaNodePlatform);
 }
 
 async function resolveDevelopmentRuntime(
   configuredRoot: string,
   fileSystem: WindowsCuaRuntimeFileSystem,
+  platform: CuaNodePlatform,
 ): Promise<WindowsCuaRuntime> {
   const isHostAbsolute = isAbsolute(configuredRoot);
   const isWindowsAbsolute = windowsPath.isAbsolute(configuredRoot);
@@ -114,6 +148,7 @@ async function resolveDevelopmentRuntime(
     fileSystem,
     join(root, PACKAGE_JSON),
     rootRealPath,
+    platform,
   );
 
   const entryPath = resolveManifestArtifact(root, producerContract.entry, "entry");
@@ -137,6 +172,7 @@ async function resolveDevelopmentRuntime(
   );
 
   return {
+    platform,
     root,
     entryPath,
     addonPath,
@@ -149,20 +185,23 @@ interface RuntimeManifest {
   schemaVersion: 1;
   packageName: typeof EXPECTED_PACKAGE_NAME;
   packageVersion: string;
-  platform: "win32";
+  platform: CuaNodePlatform;
   arch: NodeJS.Architecture;
   electronVersion: string;
   entry: string;
   addon: string;
-  sha256: {
-    entry: string;
-    addon: string;
-  };
+  files: RuntimeManifestFile[];
+}
+
+interface RuntimeManifestFile {
+  path: string;
+  sha256: string;
 }
 
 async function resolvePackagedRuntime(
   options: WindowsCuaRuntimeResolveOptions,
   fileSystem: WindowsCuaRuntimeFileSystem,
+  platform: CuaNodePlatform,
 ): Promise<WindowsCuaRuntime> {
   const processResourcesPath = (process as NodeJS.Process & { resourcesPath?: string })
     .resourcesPath;
@@ -170,13 +209,13 @@ async function resolvePackagedRuntime(
   if (!resourcesPath) {
     throw new WindowsCuaDevRuntimeResolutionError(
       "missing-resources-path",
-      "Windows CUA packaged runtime requires resourcesPath.",
+      "CUA Node packaged runtime requires resourcesPath.",
     );
   }
   if (!isAbsolute(resourcesPath)) {
     throw new WindowsCuaDevRuntimeResolutionError(
       "resources-path-not-absolute",
-      "Windows CUA packaged runtime resourcesPath must be absolute.",
+      "CUA Node packaged runtime resourcesPath must be absolute.",
     );
   }
 
@@ -184,7 +223,8 @@ async function resolvePackagedRuntime(
   const rootRealPath = await requirePackagedRuntimeRoot(fileSystem, root);
   const manifestPath = join(root, PRODUCT_RUNTIME_MANIFEST);
   const manifest = await readRuntimeManifest(fileSystem, manifestPath, rootRealPath);
-  validateRuntimeManifest(manifest, {
+  const manifestFiles = validateRuntimeManifest(manifest, {
+    platform,
     arch: options.arch ?? process.arch,
     electronVersion: options.electronVersion ?? process.versions.electron,
   });
@@ -209,16 +249,60 @@ async function resolvePackagedRuntime(
       "addon",
     ),
   ]);
-  const [entryBytes, addonBytes] = await Promise.all([
-    readRequiredArtifact(fileSystem, entryPath, manifest.entry, "missing-helper-entry", "entry"),
-    readRequiredArtifact(fileSystem, addonPath, manifest.addon, "missing-native-addon", "addon"),
-  ]);
+  const actualFiles = await collectPackagedRuntimeFiles(fileSystem, root, rootRealPath);
+  requireExactRuntimeFileSet(manifestFiles, actualFiles);
   const hashBytes = options.hashBytes ?? defaultHashBytes;
-  const [entryHash, addonHash] = await Promise.all([hashBytes(entryBytes), hashBytes(addonBytes)]);
-  requireArtifactHash(entryHash, manifest.sha256.entry, "entry");
-  requireArtifactHash(addonHash, manifest.sha256.addon, "addon");
+  for (const file of manifestFiles) {
+    const artifactPath = resolveManifestArtifact(root, file.path, file.path);
+    const artifactKind =
+      file.path === manifest.entry ? "entry" : file.path === manifest.addon ? "addon" : "file";
+    const beforeRealPath = await requireContainedRuntimeFile(
+      fileSystem,
+      rootRealPath,
+      artifactPath,
+      file.path,
+      artifactKind,
+    );
+    const bytes = await readRuntimeArtifact(fileSystem, artifactPath, file.path, artifactKind);
+    const afterRealPath = await requireContainedRuntimeFile(
+      fileSystem,
+      rootRealPath,
+      artifactPath,
+      file.path,
+      artifactKind,
+    );
+    // 根因：lstat/realpath 与 readFile 分步执行，读取期间被替换的路径不能继续启动。
+    if (!samePhysicalPath(beforeRealPath, afterRealPath)) {
+      throwInvalidArtifactPath(file.path);
+    }
+    const stableBytes = await readRuntimeArtifact(
+      fileSystem,
+      artifactPath,
+      file.path,
+      artifactKind,
+    );
+    const finalRealPath = await requireContainedRuntimeFile(
+      fileSystem,
+      rootRealPath,
+      artifactPath,
+      file.path,
+      artifactKind,
+    );
+    if (!samePhysicalPath(afterRealPath, finalRealPath)) {
+      throwInvalidArtifactPath(file.path);
+    }
+    const [firstHash, stableHash] = await Promise.all([hashBytes(bytes), hashBytes(stableBytes)]);
+    requireArtifactHash(firstHash, stableHash, file.path);
+    requireArtifactHash(stableHash, file.sha256, file.path);
+  }
+  // 根因：逐文件校验期间目录仍可能被增删；启动前再次锁定完整集合，不能只校验旧快照。
+  requireExactRuntimeFileSet(
+    manifestFiles,
+    await collectPackagedRuntimeFiles(fileSystem, root, rootRealPath),
+  );
 
   return {
+    platform,
     root,
     entryPath,
     addonPath,
@@ -242,7 +326,18 @@ async function readRuntimeManifest(
       throw new Error("manifest escapes runtime root");
     }
     const contents = await fileSystem.readFile(manifestPath, "utf8");
-    if (typeof contents !== "string") throw new Error("manifest is not text");
+    if (typeof contents !== "string" || contents.length > MAX_RUNTIME_MANIFEST_BYTES) {
+      throw new Error("manifest is not bounded text");
+    }
+    const postReadStats = await lstatFile(fileSystem, manifestPath);
+    const postReadRealPath = await realpathFile(fileSystem, manifestPath);
+    if (
+      !postReadStats.isFile() ||
+      postReadStats.isSymbolicLink() ||
+      !samePhysicalPath(manifestRealPath, postReadRealPath)
+    ) {
+      throw new Error("manifest changed while being read");
+    }
     const value: unknown = JSON.parse(contents);
     if (!value || typeof value !== "object" || Array.isArray(value)) {
       throw new Error("manifest is not an object");
@@ -251,7 +346,7 @@ async function readRuntimeManifest(
   } catch {
     throw new WindowsCuaDevRuntimeResolutionError(
       "invalid-runtime-manifest",
-      `Windows CUA packaged runtime has an invalid ${PRODUCT_RUNTIME_MANIFEST}.`,
+      `CUA Node packaged runtime has an invalid ${PRODUCT_RUNTIME_MANIFEST}.`,
       PRODUCT_RUNTIME_MANIFEST,
     );
   }
@@ -274,7 +369,7 @@ async function requirePackagedRuntimeRoot(
   } catch {
     throw new WindowsCuaDevRuntimeResolutionError(
       "invalid-runtime-manifest",
-      `Windows CUA packaged runtime has an invalid ${PRODUCT_RUNTIME_MANIFEST}.`,
+      `CUA Node packaged runtime has an invalid ${PRODUCT_RUNTIME_MANIFEST}.`,
       PRODUCT_RUNTIME_MANIFEST,
     );
   }
@@ -282,8 +377,12 @@ async function requirePackagedRuntimeRoot(
 
 function validateRuntimeManifest(
   manifest: RuntimeManifest,
-  expected: { arch: NodeJS.Architecture; electronVersion?: string },
-): void {
+  expected: {
+    platform: CuaNodePlatform;
+    arch: NodeJS.Architecture;
+    electronVersion?: string;
+  },
+): RuntimeManifestFile[] {
   const hashPattern = /^[0-9a-f]{64}$/u;
   const hasExactManifestKeys = hasExactKeys(manifest, [
     "schemaVersion",
@@ -294,33 +393,72 @@ function validateRuntimeManifest(
     "electronVersion",
     "entry",
     "addon",
-    "sha256",
+    "files",
   ]);
-  const hasExactHashKeys =
-    manifest.sha256 !== null &&
-    typeof manifest.sha256 === "object" &&
-    hasExactKeys(manifest.sha256, ["entry", "addon"]);
   const compatible =
     hasExactManifestKeys &&
     manifest.schemaVersion === 1 &&
     manifest.packageName === EXPECTED_PACKAGE_NAME &&
     isNonEmptyTrimmedString(manifest.packageVersion) &&
-    manifest.platform === "win32" &&
+    manifest.platform === expected.platform &&
     (manifest.arch === "x64" || manifest.arch === "arm64") &&
     manifest.arch === expected.arch &&
     typeof expected.electronVersion === "string" &&
     expected.electronVersion.length > 0 &&
     manifest.electronVersion === expected.electronVersion &&
-    typeof manifest.entry === "string" &&
-    typeof manifest.addon === "string" &&
+    isCanonicalRelativeArtifactPath(manifest.entry) &&
+    isCanonicalRelativeArtifactPath(manifest.addon) &&
     manifest.entry !== manifest.addon &&
-    hasExactHashKeys &&
-    hashPattern.test(manifest.sha256.entry) &&
-    hashPattern.test(manifest.sha256.addon);
-  if (compatible) return;
+    Array.isArray(manifest.files) &&
+    manifest.files.length > 0 &&
+    manifest.files.length <= MAX_RUNTIME_FILES;
+  if (compatible) {
+    const declaredPaths = new Set<string>();
+    const seenWindowsPaths = new Set<string>();
+    let previousPath = "";
+    let allFilesValid = true;
+    for (const file of manifest.files) {
+      const validFile =
+        isPlainRecord(file) &&
+        hasExactKeys(file, ["path", "sha256"]) &&
+        isCanonicalRelativeArtifactPath(file.path) &&
+        file.path !== PRODUCT_RUNTIME_MANIFEST &&
+        hashPattern.test(file.sha256) &&
+        (previousPath === "" || compareCanonicalPaths(previousPath, file.path) < 0) &&
+        !seenWindowsPaths.has(file.path.toLowerCase());
+      if (!validFile) {
+        allFilesValid = false;
+        break;
+      }
+      declaredPaths.add(file.path);
+      seenWindowsPaths.add(file.path.toLowerCase());
+      previousPath = file.path;
+    }
+    const expectedNativePackage =
+      manifest.platform === "win32"
+        ? `node_modules/@crowecawcaw/xa11y-win32-${manifest.arch}-msvc`
+        : `node_modules/@crowecawcaw/xa11y-linux-${manifest.arch}-gnu`;
+    const expectedNativeBinary =
+      manifest.platform === "win32"
+        ? `xa11y.win32-${manifest.arch}-msvc.node`
+        : `xa11y.linux-${manifest.arch}-gnu.node`;
+    const requiredFiles = [
+      PACKAGE_JSON,
+      manifest.entry,
+      manifest.addon,
+      "node_modules/@crowecawcaw/xa11y/package.json",
+      "node_modules/@crowecawcaw/xa11y/index.js",
+      "node_modules/@crowecawcaw/xa11y/native.js",
+      `${expectedNativePackage}/package.json`,
+      `${expectedNativePackage}/${expectedNativeBinary}`,
+    ];
+    if (allFilesValid && requiredFiles.every((path) => declaredPaths.has(path))) {
+      return manifest.files;
+    }
+  }
   throw new WindowsCuaDevRuntimeResolutionError(
     "incompatible-runtime-manifest",
-    `Windows CUA packaged runtime ${PRODUCT_RUNTIME_MANIFEST} is incompatible with this runtime.`,
+    `CUA Node packaged runtime ${PRODUCT_RUNTIME_MANIFEST} is incompatible with this runtime.`,
     PRODUCT_RUNTIME_MANIFEST,
   );
 }
@@ -361,7 +499,123 @@ function hasExactKeys(value: object, expectedKeys: readonly string[]): boolean {
   );
 }
 
-function resolveManifestArtifact(root: string, artifact: string, field: "entry" | "addon"): string {
+function compareCanonicalPaths(left: string, right: string): number {
+  if (left === right) return 0;
+  return left < right ? -1 : 1;
+}
+
+async function collectPackagedRuntimeFiles(
+  fileSystem: WindowsCuaRuntimeFileSystem,
+  root: string,
+  rootRealPath: string,
+): Promise<string[]> {
+  const files: string[] = [];
+  let visitedDirectories = 0;
+
+  const visitDirectory = async (relativeDirectory: string): Promise<void> => {
+    visitedDirectories += 1;
+    if (visitedDirectories > MAX_RUNTIME_FILES) {
+      throwArtifactIntegrityMismatch(relativeDirectory || ".");
+    }
+    const directoryPath = relativeDirectory
+      ? resolveManifestArtifact(root, relativeDirectory, relativeDirectory)
+      : root;
+    const beforeRealPath = relativeDirectory
+      ? await requireContainedRuntimeDirectory(
+          fileSystem,
+          rootRealPath,
+          directoryPath,
+          relativeDirectory,
+        )
+      : rootRealPath;
+    let names: string[];
+    try {
+      names = await readdirFile(fileSystem, directoryPath);
+    } catch {
+      throwArtifactIntegrityMismatch(relativeDirectory || ".");
+    }
+    names.sort(compareCanonicalPaths);
+    const seenWindowsNames = new Set<string>();
+
+    for (const name of names) {
+      const relativePath = relativeDirectory ? `${relativeDirectory}/${name}` : name;
+      if (
+        !isCanonicalRelativeArtifactPath(relativePath) ||
+        seenWindowsNames.has(name.toLowerCase())
+      ) {
+        throwInvalidArtifactPath(relativePath);
+      }
+      seenWindowsNames.add(name.toLowerCase());
+      const artifactPath = resolveManifestArtifact(root, relativePath, relativePath);
+      let stats: Pick<Stats, "isDirectory" | "isFile" | "isSymbolicLink">;
+      try {
+        stats = await lstatFile(fileSystem, artifactPath);
+      } catch {
+        throwArtifactIntegrityMismatch(relativePath);
+      }
+      if (stats.isSymbolicLink()) throwInvalidArtifactPath(relativePath);
+      if (stats.isDirectory()) {
+        await visitDirectory(relativePath);
+      } else if (stats.isFile()) {
+        const physicalPath = await realpathFile(fileSystem, artifactPath);
+        if (!isPathContainedBy(rootRealPath, physicalPath)) {
+          throwInvalidArtifactPath(relativePath);
+        }
+        if (relativePath !== PRODUCT_RUNTIME_MANIFEST) files.push(relativePath);
+        if (files.length > MAX_RUNTIME_FILES) throwArtifactIntegrityMismatch(relativePath);
+      } else {
+        throwInvalidArtifactPath(relativePath);
+      }
+    }
+
+    const afterRealPath = relativeDirectory
+      ? await requireContainedRuntimeDirectory(
+          fileSystem,
+          rootRealPath,
+          directoryPath,
+          relativeDirectory,
+        )
+      : await requirePackagedRuntimeRoot(fileSystem, root);
+    if (!samePhysicalPath(beforeRealPath, afterRealPath)) {
+      throwInvalidArtifactPath(relativeDirectory || ".");
+    }
+  };
+
+  await visitDirectory("");
+  return files.sort(compareCanonicalPaths);
+}
+
+async function requireContainedRuntimeDirectory(
+  fileSystem: WindowsCuaRuntimeFileSystem,
+  rootRealPath: string,
+  directoryPath: string,
+  artifact: string,
+): Promise<string> {
+  try {
+    const stats = await lstatFile(fileSystem, directoryPath);
+    if (!stats.isDirectory() || stats.isSymbolicLink()) throw new Error("not a regular directory");
+    const physicalPath = await realpathFile(fileSystem, directoryPath);
+    if (!isPathContainedBy(rootRealPath, physicalPath)) throw new Error("directory escapes root");
+    return physicalPath;
+  } catch {
+    throwInvalidArtifactPath(artifact);
+  }
+}
+
+function requireExactRuntimeFileSet(
+  manifestFiles: readonly RuntimeManifestFile[],
+  actualFiles: readonly string[],
+): void {
+  const declaredFiles = manifestFiles.map((file) => file.path);
+  const length = Math.max(declaredFiles.length, actualFiles.length);
+  for (let index = 0; index < length; index += 1) {
+    if (declaredFiles[index] !== actualFiles[index]) {
+      throwArtifactIntegrityMismatch(actualFiles[index] ?? declaredFiles[index] ?? ".");
+    }
+  }
+}
+
+function resolveManifestArtifact(root: string, artifact: string, field: string): string {
   // 测试和构建编排可能在非 Windows 主机上检查 Windows 清单；仅用宿主 path.isAbsolute
   // 会把 C:\... 误判成相对路径，因此同时按 Windows 路径语义 fail closed。
   if (!isCanonicalRelativeArtifactPath(artifact)) {
@@ -387,6 +641,7 @@ function isCanonicalRelativeArtifactPath(artifact: unknown): artifact is string 
   if (
     typeof artifact !== "string" ||
     !artifact ||
+    artifact.length > 4096 ||
     artifact.includes("\\") ||
     isAbsolute(artifact) ||
     windowsPath.isAbsolute(artifact) ||
@@ -401,6 +656,9 @@ function isCanonicalRelativeArtifactPath(artifact: unknown): artifact is string 
         !segment ||
         segment === "." ||
         segment === ".." ||
+        segment.endsWith(".") ||
+        segment.endsWith(" ") ||
+        /^(?:aux|con|nul|prn|com[1-9]|lpt[1-9])(?:\.|$)/iu.test(segment) ||
         segment.includes(":") ||
         segment.includes("\0"),
     );
@@ -413,7 +671,7 @@ async function requireContainedRegularArtifact(
   artifact: string,
   missingReason: "missing-helper-entry" | "missing-native-addon",
   artifactKind: "entry" | "addon",
-): Promise<void> {
+): Promise<string> {
   let stats: Pick<Stats, "isFile" | "isSymbolicLink">;
   try {
     stats = await lstatFile(fileSystem, artifactPath);
@@ -431,9 +689,48 @@ async function requireContainedRegularArtifact(
     if (!isPathContainedBy(rootRealPath, artifactRealPath)) {
       throwInvalidArtifactPath(artifactKind);
     }
+    return artifactRealPath;
   } catch (error) {
     if (error instanceof WindowsCuaDevRuntimeResolutionError) throw error;
     throwMissingArtifact(missingReason, artifact, artifactKind);
+  }
+}
+
+async function requireContainedRuntimeFile(
+  fileSystem: WindowsCuaRuntimeFileSystem,
+  rootRealPath: string,
+  artifactPath: string,
+  artifact: string,
+  artifactKind: "entry" | "addon" | "file",
+): Promise<string> {
+  if (artifactKind === "entry") {
+    return requireContainedRegularArtifact(
+      fileSystem,
+      rootRealPath,
+      artifactPath,
+      artifact,
+      "missing-helper-entry",
+      "entry",
+    );
+  }
+  if (artifactKind === "addon") {
+    return requireContainedRegularArtifact(
+      fileSystem,
+      rootRealPath,
+      artifactPath,
+      artifact,
+      "missing-native-addon",
+      "addon",
+    );
+  }
+  try {
+    const stats = await lstatFile(fileSystem, artifactPath);
+    if (!stats.isFile() || stats.isSymbolicLink()) throw new Error("not a regular file");
+    const physicalPath = await realpathFile(fileSystem, artifactPath);
+    if (!isPathContainedBy(rootRealPath, physicalPath)) throw new Error("file escapes root");
+    return physicalPath;
+  } catch {
+    throwInvalidArtifactPath(artifact);
   }
 }
 
@@ -444,7 +741,7 @@ function throwMissingArtifact(
 ): never {
   throw new WindowsCuaDevRuntimeResolutionError(
     reason,
-    `Windows CUA runtime is missing required ${artifactKind}: ${artifact}.`,
+    `CUA Node runtime is missing required ${artifactKind}: ${artifact}.`,
     artifact,
   );
 }
@@ -458,6 +755,10 @@ function lstatFile(
 
 function realpathFile(fileSystem: WindowsCuaRuntimeFileSystem, path: string): Promise<string> {
   return (fileSystem.realpath ?? defaultFileSystem.realpath!)(path);
+}
+
+function readdirFile(fileSystem: WindowsCuaRuntimeFileSystem, path: string): Promise<string[]> {
+  return (fileSystem.readdir ?? defaultFileSystem.readdir!)(path);
 }
 
 function isPathContainedBy(root: string, candidate: string): boolean {
@@ -478,42 +779,42 @@ function samePhysicalPath(expected: string, actual: string): boolean {
   return normalize(expected) === normalize(actual);
 }
 
-async function readRequiredArtifact(
+async function readRuntimeArtifact(
   fileSystem: WindowsCuaRuntimeFileSystem,
   artifactPath: string,
   artifact: string,
-  reason: "missing-helper-entry" | "missing-native-addon",
-  artifactKind: "entry" | "addon",
+  artifactKind: "entry" | "addon" | "file",
 ): Promise<string | Uint8Array> {
   try {
     return await fileSystem.readFile(artifactPath);
   } catch {
-    // stat 与 read 之间文件仍可能被替换/删除；不能把宿主 I/O 细节泄漏成不稳定诊断。
-    throw new WindowsCuaDevRuntimeResolutionError(
-      reason,
-      `Windows CUA runtime is missing required ${artifactKind}: ${artifact}.`,
-      artifact,
-    );
+    if (artifactKind === "entry") {
+      throwMissingArtifact("missing-helper-entry", artifact, "entry");
+    }
+    if (artifactKind === "addon") {
+      throwMissingArtifact("missing-native-addon", artifact, "addon");
+    }
+    throwArtifactIntegrityMismatch(artifact);
   }
 }
 
-function throwInvalidArtifactPath(field: "entry" | "addon"): never {
+function throwInvalidArtifactPath(field: string): never {
   throw new WindowsCuaDevRuntimeResolutionError(
     "invalid-artifact-path",
-    `Windows CUA packaged runtime ${field} must be a contained relative artifact path.`,
+    `CUA Node packaged runtime ${field} must be a contained relative artifact path.`,
     field,
   );
 }
 
-function requireArtifactHash(
-  actualHash: string,
-  expectedHash: string,
-  artifact: "entry" | "addon",
-): void {
+function requireArtifactHash(actualHash: string, expectedHash: string, artifact: string): void {
   if (actualHash === expectedHash) return;
+  throwArtifactIntegrityMismatch(artifact);
+}
+
+function throwArtifactIntegrityMismatch(artifact: string): never {
   throw new WindowsCuaDevRuntimeResolutionError(
     "artifact-integrity-mismatch",
-    `Windows CUA packaged runtime ${artifact} failed SHA-256 verification.`,
+    `CUA Node packaged runtime ${artifact} failed SHA-256 verification.`,
     artifact,
   );
 }
@@ -522,6 +823,7 @@ async function requireExpectedPackage(
   fileSystem: WindowsCuaRuntimeFileSystem,
   packagePath: string,
   rootRealPath: string,
+  platform: CuaNodePlatform,
 ): Promise<{ packageVersion: string; entry: string; addon: string }> {
   try {
     const stats = await lstatFile(fileSystem, packagePath);
@@ -537,31 +839,40 @@ async function requireExpectedPackage(
     const pkg: unknown = JSON.parse(contents);
     if (!isPlainRecord(pkg)) throw new Error("package.json is not an object");
     const contract = pkg.zcodeCuaRuntime;
+    const contractKeys = isPlainRecord(contract) ? Object.keys(contract) : [];
+    const platformContractKey = platform === "win32" ? "windows" : "linux";
+    const platformContract = isPlainRecord(contract) ? contract[platformContractKey] : undefined;
     if (
       pkg.name !== EXPECTED_PACKAGE_NAME ||
       !isNonEmptyTrimmedString(pkg.version) ||
       !isPlainRecord(contract) ||
-      !hasExactKeys(contract, ["schema", "windows"]) ||
+      !contractKeys.includes("schema") ||
+      !contractKeys.includes(platformContractKey) ||
+      !contractKeys.every(
+        (key) => key === "schema" || key === "windows" || key === "linux" || key === "macos",
+      ) ||
       contract.schema !== 1 ||
-      !isPlainRecord(contract.windows) ||
-      !hasExactKeys(contract.windows, ["entry", "nativeAddon"]) ||
-      !isCanonicalRelativeArtifactPath(contract.windows.entry) ||
-      !isCanonicalRelativeArtifactPath(contract.windows.nativeAddon) ||
-      contract.windows.entry === contract.windows.nativeAddon
+      !isPlainRecord(platformContract) ||
+      !hasExactKeys(platformContract, ["entry", "nativeAddon"]) ||
+      !isCanonicalRelativeArtifactPath(platformContract.entry) ||
+      !isCanonicalRelativeArtifactPath(platformContract.nativeAddon) ||
+      platformContract.entry === platformContract.nativeAddon
     ) {
       throw new Error("package runtime contract is incompatible");
     }
+    // 根因：Linux contract 加入后，旧白名单会把整个当前 package 判成非法，且即使放宽
+    // 白名单仍固定读取 windows 字段。开发根目录必须与打包路径一样按目标平台选唯一 contract。
     return {
       packageVersion: pkg.version,
-      entry: contract.windows.entry,
-      addon: contract.windows.nativeAddon,
+      entry: platformContract.entry,
+      addon: platformContract.nativeAddon,
     };
   } catch {
     // 解析和 I/O 失败共用稳定的 package 诊断，避免依赖底层错误文本。
   }
   throw new WindowsCuaDevRuntimeResolutionError(
     "invalid-package",
-    `Windows CUA development root package.json must name ${EXPECTED_PACKAGE_NAME} and expose a valid zcodeCuaRuntime contract.`,
+    `CUA Node development root package.json must name ${EXPECTED_PACKAGE_NAME} and expose a valid zcodeCuaRuntime contract.`,
     PACKAGE_JSON,
   );
 }

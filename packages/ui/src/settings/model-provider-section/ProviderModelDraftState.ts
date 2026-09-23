@@ -6,6 +6,7 @@ import {
 } from "@/settings/model-provider-section/ProviderModelMetadata.js";
 
 const CONFIG_VALUE_FIELDS = [
+  "interactionProtocolValue",
   "supportsJsonSchemaOutputValue",
   "supportsNativeWebSearchValue",
   "supportsMidConversationSystemValue",

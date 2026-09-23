@@ -219,6 +219,7 @@ export class ModelPropertiesConfig extends ConfigOverlay<ModelPropertiesConfig> 
   readonly supportsJsonSchemaOutput?: ModelPropertiesConfigInput["supportsJsonSchemaOutput"];
   readonly supportsNativeWebSearch?: ModelPropertiesConfigInput["supportsNativeWebSearch"];
   readonly supportsMidConversationSystem?: ModelPropertiesConfigInput["supportsMidConversationSystem"];
+  readonly interactionProtocol?: ModelPropertiesConfigInput["interactionProtocol"];
 
   constructor(input: ModelPropertiesConfigInput = {}) {
     super();
@@ -258,11 +259,35 @@ export class ModelPropertiesConfig extends ConfigOverlay<ModelPropertiesConfig> 
         this.supportsMidConversationSystem,
         next.supportsMidConversationSystem,
       ),
+      interactionProtocol: this.overlayValue(this.interactionProtocol, next.interactionProtocol),
     });
   }
 
   validateComplete(path: readonly string[] = []): readonly ConfigValidationIssue[] {
-    return validateConfigSchema(completeModelPropertiesDataSchema, this.toJSON(), path);
+    const issues = [
+      ...validateConfigSchema(completeModelPropertiesDataSchema, this.toJSON(), path),
+    ];
+    if (
+      this.interactionProtocol === "ui-tars-text-actions" &&
+      this.inputFormat?.supportsImage === false
+    ) {
+      issues.push({
+        code: "invalid-config",
+        path: [...path, "inputFormat", "supportsImage"],
+        message: "ui-tars-text-actions 要求模型支持图片输入",
+      });
+    }
+    if (
+      this.interactionProtocol === "ui-tars-text-actions" &&
+      this.outputFormat?.supportsText === false
+    ) {
+      issues.push({
+        code: "invalid-config",
+        path: [...path, "outputFormat", "supportsText"],
+        message: "ui-tars-text-actions 要求模型支持文本输出",
+      });
+    }
+    return issues;
   }
 
   toJSON(): ModelPropertiesConfigInput {
@@ -275,6 +300,7 @@ export class ModelPropertiesConfig extends ConfigOverlay<ModelPropertiesConfig> 
       supportsJsonSchemaOutput: this.supportsJsonSchemaOutput,
       supportsNativeWebSearch: this.supportsNativeWebSearch,
       supportsMidConversationSystem: this.supportsMidConversationSystem,
+      interactionProtocol: this.interactionProtocol,
     });
   }
 }

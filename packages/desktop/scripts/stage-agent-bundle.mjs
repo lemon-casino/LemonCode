@@ -22,6 +22,25 @@ const LEMON_PLUGIN_REQUIRED_PATHS = [
   "skills/dynamic-workflows/examples.md",
   "skills/dynamic-workflows/patterns.md",
 ];
+const CUA_PLUGIN_SOURCE_RELATIVE = "apps/zcode-cli/packages/zcode-cua-plugin";
+const CUA_PLUGIN_REQUIRED_PATHS = [
+  ".zcode-plugin/plugin.json",
+  "docs/computer-use.md",
+  "scripts/computer-use-client.mjs",
+  "skills/computer-use/SKILL.md",
+];
+
+function stageContentPlugin({ glmDir, repoRoot, sourceRelative, stagedRelative, requiredPaths }) {
+  const sourcePluginRoot = resolve(repoRoot, sourceRelative);
+  const stagedPluginRoot = resolve(glmDir, stagedRelative);
+  for (const relativePath of requiredPaths) {
+    const sourcePath = resolve(sourcePluginRoot, ...relativePath.split("/"));
+    if (!existsSync(sourcePath)) {
+      throw new Error(`[stage:agent-bundle] missing official plugin asset: ${sourcePath}`);
+    }
+  }
+  cpSync(sourcePluginRoot, stagedPluginRoot, { recursive: true });
+}
 
 export function resolveAgentBundlePaths({ repoRoot, platformKey }) {
   const glmDir = resolve(repoRoot, "packages", "desktop", "bundled-agents", platformKey, "glm");
@@ -51,15 +70,22 @@ export function stageAgentBundle({ repoRoot, platformKey, log = console.log }) {
   copyFileSync(cliBundlePath, stagedBundlePath);
   // Bug 修复：dev 与 production 都会先清空 glm。只在生产打包脚本补拷 `/lemon` 会让
   // `pnpm dev:desktop` 指向一份没有命令和技能的 Agent；统一在共享 staging 点补齐。
-  const sourcePluginRoot = resolve(repoRoot, LEMON_PLUGIN_SOURCE_RELATIVE);
-  const stagedPluginRoot = resolve(glmDir, "packages/lemon-workflow-plugin");
-  for (const relativePath of LEMON_PLUGIN_REQUIRED_PATHS) {
-    const sourcePath = resolve(sourcePluginRoot, ...relativePath.split("/"));
-    if (!existsSync(sourcePath)) {
-      throw new Error(`[stage:agent-bundle] missing lemon workflow asset: ${sourcePath}`);
-    }
-  }
-  cpSync(sourcePluginRoot, stagedPluginRoot, { recursive: true });
+  stageContentPlugin({
+    glmDir,
+    repoRoot,
+    sourceRelative: LEMON_PLUGIN_SOURCE_RELATIVE,
+    stagedRelative: "packages/lemon-workflow-plugin",
+    requiredPaths: LEMON_PLUGIN_REQUIRED_PATHS,
+  });
+  // Bug 修复：Computer Use 过去只存在于开发机用户 cache，clean checkout 的 dev bundle
+  // 先清空 glm 后没有任何 seed source。与 Lemon 共用 staging owner，确保 dev/release 同源。
+  stageContentPlugin({
+    glmDir,
+    repoRoot,
+    sourceRelative: CUA_PLUGIN_SOURCE_RELATIVE,
+    stagedRelative: "packages/zcode-cua-plugin",
+    requiredPaths: CUA_PLUGIN_REQUIRED_PATHS,
+  });
   const meta = {
     runtime: "electron-node",
     entry: "zcode.cjs",

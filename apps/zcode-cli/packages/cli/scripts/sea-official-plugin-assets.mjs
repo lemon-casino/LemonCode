@@ -59,6 +59,21 @@ export const officialSeaPlugins = [
     rootPath: join("packages", "lemon-workflow-plugin"),
     version: "0.1.0",
   },
+  {
+    marketplace: "zcode-plugins-official",
+    name: "computer-use",
+    packageName: "@zcode/zcode-cua-plugin",
+    requiresRuntime: false,
+    // Computer Use 的 executable host 归 node-repl-host；这里必须只嵌入公开 SDK、文档和
+    // skill。过去 SEA 漏掉整包，开发机 cache 会掩盖问题，干净安装则无法 seed。
+    requiredSeedPaths: [
+      "docs/computer-use.md",
+      "scripts/computer-use-client.mjs",
+      "skills/computer-use/SKILL.md",
+    ],
+    rootPath: join("packages", "zcode-cua-plugin"),
+    version: "0.6.3",
+  },
 ];
 
 export const collectSeaOfficialPluginAssets = async ({

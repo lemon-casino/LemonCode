@@ -424,6 +424,7 @@ export function ProviderModelsSection({
     | "contextWindow"
     | "maxOutputTokens"
     | "inputFormat"
+    | "interactionProtocol"
     | "reasoningLevelValues"
     | "reasoningLevelMap"
     | null

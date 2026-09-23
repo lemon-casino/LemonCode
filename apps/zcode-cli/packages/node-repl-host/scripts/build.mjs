@@ -50,6 +50,12 @@ export const buildNodeReplHostBundle = async ({
       __ZCODE_CUA_HELPER_BUILD_ID__: JSON.stringify(cuaHelperBuildId),
     },
     entryPoints: [resolve(packageRoot, "src", "server.ts")],
+    // CUA 本地输入驱动的运行时依赖必须外部化：server.ts 静态 import @zcode/zcode-cua，
+    // 其驱动内部动态 import @nut-tree-fork/nut-js（含原生 .node）。不登记 external 时
+    // esbuild 会把它 chase 进 dist/mcp/server.js 并在 .node 上构建失败/运行时崩溃。
+    // CLI 运行时从自身 node_modules 解析（CLI 是本 build 唯一携带 addon 的分发面）。
+    // 见 specs/computer-use-open-replacement.md「打包接线约束」。
+    external: ["@nut-tree-fork/nut-js"],
     format: "esm",
     legalComments: "none",
     outfile,

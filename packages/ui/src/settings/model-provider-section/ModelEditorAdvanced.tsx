@@ -9,6 +9,7 @@ const ERROR_TARGETS: Partial<Record<ErrorField, string>> = {
   reasoningLevelValues: "[data-model-reasoning-level-editor] :is(input, button)",
   reasoningLevelMap: "[data-model-json-slot] textarea",
   inputFormat: '[data-model-input-modality="image"]',
+  interactionProtocol: "[data-model-interaction-protocol]",
 };
 
 export function ModelEditorAdvanced({

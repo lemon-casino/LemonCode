@@ -21,11 +21,8 @@ import {
 import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";
 import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
-import { getVisibleTaskMetas, getWorkspaceState } from "@/store/zcodeSessionStoreSelectors.js";
+import { getWorkspaceState, hasRunningWorkspaceTask } from "@/store/zcodeSessionStoreSelectors.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
-
-/** 与 zcodeSessionStoreTaskSlice 的 isRunningStatus 同口径。 */
-const RUNNING_TASK_STATUSES = new Set(["creating", "restoring", "streaming"]);
 
 export interface UseCuaComposerEntryParams {
   workspacePath: string;
@@ -113,18 +110,9 @@ export function useCuaComposerEntry({
   // session-busy 判定粒度是 workspace：切换插件会让该 workspace 全部会话的
   // 工具集变化、prompt 缓存失效，影响面与禁用面必须一致，因此不能只看当前 task。
   // 复用 getWorkspaceState 的 identity→path fallback，避免这里重写一份 workspaceKey 规则。
-  const workspaceSessionBusy = useZCodeSessionStore((state) => {
-    const workspaceState = getWorkspaceState(state, workspacePath, workspaceIdentity);
-    const runtimeBusy = Object.values(workspaceState.taskRuntimeByTaskId ?? {}).some(
-      (runtime) =>
-        RUNNING_TASK_STATUSES.has(runtime.status) || Boolean(runtime.activeInputId?.trim()),
-    );
-    if (runtimeBusy) return true;
-    // 根因：V4 snapshot 已进入可停止的模型轮次时，workspace runtime 投影可能短暂
-    // 回到 ready；task index 仍权威记录 persist status=running。只看 runtime 会让
-    // CUA 入口在真实执行中保持可点击。合并两条既有事实源，任一 running 都锁住。
-    return getVisibleTaskMetas(workspaceState).some((task) => task.status === "running");
-  });
+  const workspaceSessionBusy = useZCodeSessionStore((state) =>
+    hasRunningWorkspaceTask(getWorkspaceState(state, workspacePath, workspaceIdentity)),
+  );
   // 当前 pane 的 snapshot.control.canStop 比 workspace 投影更早到达；两者 OR
   // 既保证本 composer 立即锁定，也保留同 workspace 其它 composer 的共享锁。
   const sessionBusy = currentSessionBusy || workspaceSessionBusy;

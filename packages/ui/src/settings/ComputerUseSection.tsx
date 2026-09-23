@@ -33,6 +33,8 @@ import {
   type CuaPermissionReturnRecoveryClaim,
 } from "@/lib/cuaPermissionAction.js";
 import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
+import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { getWorkspaceState, hasRunningWorkspaceTask } from "@/store/zcodeSessionStoreSelectors.js";
 import { SettingsBadge, SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { StatusDot, type StatusDotTone } from "@/settings/StatusDot.js";
 import { supportsLocalMacCuaPermissionOnboarding } from "@/lib/cuaPlatform.js";
@@ -41,10 +43,7 @@ import { createCuaPermissionOnboardingOperationId } from "@/lib/cuaPermissionOnb
 import { waitForAccessibilityNotStale } from "@/settings/cuaPermissionRestartVerify.js";
 import { requiredCuaPermissionsForFreshStatus } from "@/settings/cuaPermissionPreparation.js";
 import { ExternalLink } from "lucide-react";
-import {
-  isComputerUseRemoteOrLinux,
-  resolveComputerUseAvailability,
-} from "@/settings/computerUseAvailability.js";
+import { resolveComputerUseAvailability } from "@/settings/computerUseAvailability.js";
 
 interface ComputerUseSectionProps {
   isDesktop?: boolean;
@@ -83,8 +82,6 @@ export function ComputerUseSection({
     !isWindowsDesktop &&
     (isMacDesktop ?? supportsLocalMacCuaPermissionOnboarding(platform)) &&
     isLocalWorkspace;
-  const supportsLocalWindowsWorkspace = isWindowsDesktop && isLocalWorkspace;
-  const supportsComputerUseSettings = supportsLocalMacWorkspace || supportsLocalWindowsWorkspace;
   const availability = resolveComputerUseAvailability({
     isDesktop: isDesktop || isWindowsDesktop || supportsLocalMacWorkspace,
     isMacDesktop: isMacDesktop || supportsLocalMacWorkspace,
@@ -93,6 +90,9 @@ export function ComputerUseSection({
     remoteTarget,
     workspaceIdentity,
   });
+  // 根因：旧实现把可用性等同于“macOS 权限面板或 Windows”，导致已有 Product Helper 的
+  // Linux 被挡在 UI 外。插件入口统一消费 availability；TCC 控件仍只由 macOS 分支拥有。
+  const supportsComputerUseSettings = availability.supported;
   // CUA 权限是 macOS 本机属性：仅完整 macOS 设置需要 Helper workspace 路径。
   const path = supportsLocalMacWorkspace ? (localWorkspacePath ?? workspacePath) : null;
   // 展示只跟 settled：fresh 每次查询开始都会落回 false，跟着它渲染会让授权按钮的文案
@@ -130,6 +130,11 @@ export function ComputerUseSection({
   const cuaPlugin = plugins.find((plugin) => plugin.id === ZCODE_CUA_OFFICIAL_PLUGIN_ID);
   const cuaEnabled = cuaPlugin?.enabled ?? false;
   const cuaToggling = togglingPluginId === ZCODE_CUA_OFFICIAL_PLUGIN_ID;
+  const workspaceSessionBusy = useZCodeSessionStore((state) =>
+    workspacePath
+      ? hasRunningWorkspaceTask(getWorkspaceState(state, workspacePath, workspaceIdentity))
+      : false,
+  );
 
   const initRef = useRef(false);
   useEffect(() => {
@@ -327,6 +332,12 @@ export function ComputerUseSection({
   const onTogglePlugin = useCallback(
     async (next: boolean) => {
       if (!pluginManagementService) return;
+      if (workspaceSessionBusy) {
+        toast(intl.formatMessage({ id: "chat.toolbar.computerUse.tooltip.sessionBusy" }), {
+          variant: "warning",
+        });
+        return;
+      }
       const operationGeneration = ++pluginToggleGenerationRef.current;
       const operationContextKey = pluginToggleContextKey;
       // 切换 zcode-cua 插件 = 同步其 MCP server + skill 一起启用/禁用。
@@ -361,6 +372,7 @@ export function ComputerUseSection({
       refresh,
       setPluginEnabled,
       supportsLocalMacWorkspace,
+      workspaceSessionBusy,
       intl,
     ],
   );
@@ -681,7 +693,7 @@ export function ComputerUseSection({
   };
 
   if (!supportsComputerUseSettings) {
-    // 远端 / Linux 环境若直接 return null，设置页只剩标题，会让用户误以为页面加载失败。
+    // 远端环境若直接 return null，设置页只剩标题，会让用户误以为页面加载失败。
     // 保留入口并明确能力边界，且不渲染任何会触发本地 CUA 写操作的控件。
     return (
       <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-ui-base text-warning">
@@ -689,13 +701,7 @@ export function ComputerUseSection({
           {intl.formatMessage({ id: "settings.computerUse.unsupported.title" })}
         </p>
         <p className="mt-1 text-ui-sm text-foreground-subtle">
-          {intl.formatMessage({
-            id: isComputerUseRemoteOrLinux(availability)
-              ? availability.kind === "local-linux"
-                ? "settings.computerUse.unsupported.linuxDescription"
-                : "settings.computerUse.unsupported.remoteDescription"
-              : "settings.computerUse.unsupported.remoteDescription",
-          })}
+          {intl.formatMessage({ id: "settings.computerUse.unsupported.remoteDescription" })}
         </p>
       </div>
     );
@@ -708,7 +714,9 @@ export function ComputerUseSection({
         <SettingsRow
           label={intl.formatMessage({ id: "settings.computerUse.toggleLabel" })}
           description={intl.formatMessage({
-            id: "settings.computerUse.toggleDescription",
+            id: workspaceSessionBusy
+              ? "chat.toolbar.computerUse.tooltip.sessionBusy"
+              : "settings.computerUse.toggleDescription",
           })}
           control={
             <Switch
@@ -716,7 +724,7 @@ export function ComputerUseSection({
                 id: "settings.computerUse.toggleLabel",
               })}
               checked={cuaEnabled}
-              disabled={cuaToggling || !workspacePath}
+              disabled={cuaToggling || workspaceSessionBusy || !workspacePath}
               onCheckedChange={(checked) => void onTogglePlugin(checked)}
             />
           }

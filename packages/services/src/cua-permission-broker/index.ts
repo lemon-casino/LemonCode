@@ -75,6 +75,7 @@ export {
   // through here rather than importing the producer barrel per call site.
   callBrokerMethod,
   // socketPath.ts
+  BROKER_GENERATION_ENV,
   BROKER_SOCKET_ENV,
   BROKER_UNAVAILABLE_ENV,
   mintBrokerSocketPath,
