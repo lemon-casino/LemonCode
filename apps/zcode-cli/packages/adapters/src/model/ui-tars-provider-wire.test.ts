@@ -22,42 +22,40 @@ const inputFormat = {
   supportsPdf: false,
 } as const;
 
+const providerWireCases = [
+  {
+    name: "Anthropic Messages",
+    apiFormat: "anthropic-messages",
+    providerKind: "anthropic" as const,
+    createModel: (fetch: typeof globalThis.fetch) =>
+      createAnthropic({ apiKey: "test", baseURL: "https://example.invalid", fetch })("wire-model"),
+  },
+  {
+    name: "OpenAI Chat Completions",
+    apiFormat: "openai-chat-completions",
+    providerKind: "openai-compatible" as const,
+    createModel: (fetch: typeof globalThis.fetch) =>
+      createOpenAICompatible({
+        name: "wire-test",
+        apiKey: "test",
+        baseURL: "https://example.invalid",
+        fetch,
+      })("wire-model"),
+  },
+  {
+    name: "OpenAI Responses",
+    apiFormat: "openai-responses",
+    providerKind: "openai" as const,
+    createModel: (fetch: typeof globalThis.fetch) =>
+      createOpenAI({ apiKey: "test", baseURL: "https://example.invalid", fetch }).responses(
+        "wire-model",
+      ),
+  },
+] as const;
+
 test("second UI-TARS request keeps synthetic Thought out of all provider wire formats", async () => {
   const projected = await captureSecondStepProviderRequest();
-  const cases = [
-    {
-      name: "Anthropic Messages",
-      apiFormat: "anthropic-messages",
-      providerKind: "anthropic" as const,
-      createModel: (fetch: typeof globalThis.fetch) =>
-        createAnthropic({ apiKey: "test", baseURL: "https://example.invalid", fetch })(
-          "wire-model",
-        ),
-    },
-    {
-      name: "OpenAI Chat Completions",
-      apiFormat: "openai-chat-completions",
-      providerKind: "openai-compatible" as const,
-      createModel: (fetch: typeof globalThis.fetch) =>
-        createOpenAICompatible({
-          name: "wire-test",
-          apiKey: "test",
-          baseURL: "https://example.invalid",
-          fetch,
-        })("wire-model"),
-    },
-    {
-      name: "OpenAI Responses",
-      apiFormat: "openai-responses",
-      providerKind: "openai" as const,
-      createModel: (fetch: typeof globalThis.fetch) =>
-        createOpenAI({ apiKey: "test", baseURL: "https://example.invalid", fetch }).responses(
-          "wire-model",
-        ),
-    },
-  ];
-
-  for (const providerCase of cases) {
+  for (const providerCase of providerWireCases) {
     const messages = toAiSdkMessages(projected.messages, {
       apiFormat: providerCase.apiFormat,
       providerKind: providerCase.providerKind,
@@ -71,6 +69,39 @@ test("second UI-TARS request keeps synthetic Thought out of all provider wire fo
     assert.doesNotMatch(wire, /"type":"reasoning"/u, providerCase.name);
   }
 });
+
+test("official Computer Use frame and tree text survive all provider wire formats", async () => {
+  const projected = nativeComputerUseProjectionRequest();
+
+  for (const providerCase of providerWireCases) {
+    const messages = toAiSdkMessages(projected.messages, {
+      apiFormat: providerCase.apiFormat,
+      providerKind: providerCase.providerKind,
+      inputFormat,
+    });
+    const body = await captureRequestBody(providerCase.createModel, messages);
+    assertOfficialFrameOnProviderWire(body, "native-frame", providerCase.name);
+  }
+});
+
+function nativeComputerUseProjectionRequest(): ModelExecutionRequest {
+  // 直接构造 native-tool-calls 历史，避免把 UI-TARS 文本动作 codec 当成帧投影前提。
+  return request([
+    { role: "user", content: "Inspect" },
+    {
+      role: "assistant",
+      content: "",
+      toolCalls: [
+        {
+          id: "observe-native-frame",
+          name: nodeReplTool.name,
+          input: { code: "await computer.get_app_state({ include_screenshot: true })" },
+        },
+      ],
+    },
+    officialFrame("native-frame"),
+  ]);
+}
 
 async function captureSecondStepProviderRequest(): Promise<ModelExecutionRequest> {
   const firstMessages: ModelInputMessage[] = [
@@ -182,6 +213,78 @@ function officialFrame(frameId: string): ModelInputMessage {
           appRef,
         }),
       },
+      {
+        type: "text",
+        text: `AX_TREE_TEXT:${frameId}: button Send`,
+      },
     ],
   };
+}
+
+function assertOfficialFrameOnProviderWire(
+  body: Record<string, unknown>,
+  frameId: string,
+  providerName: string,
+): void {
+  const serialized = JSON.stringify(body);
+  assert.match(serialized, /cG5n/u, `${providerName}: PNG payload was dropped`);
+  assert.ok(
+    serialized.includes(`AX_TREE_TEXT:${frameId}: button Send`),
+    `${providerName}: accessibility tree text was dropped`,
+  );
+  assert.ok(
+    hasAdjacentOfficialFramePair(body, frameId),
+    `${providerName}: PNG and official frame reference lost adjacency`,
+  );
+}
+
+function hasAdjacentOfficialFramePair(value: unknown, frameId: string): boolean {
+  if (Array.isArray(value)) {
+    for (let index = 0; index + 1 < value.length; index += 1) {
+      if (isWireImage(value[index]) && isOfficialFrameRef(value[index + 1], frameId)) {
+        return true;
+      }
+    }
+    return value.some((entry) => hasAdjacentOfficialFramePair(entry, frameId));
+  }
+
+  if (value && typeof value === "object") {
+    return Object.values(value).some((entry) => hasAdjacentOfficialFramePair(entry, frameId));
+  }
+
+  return false;
+}
+
+function isWireImage(value: unknown): boolean {
+  const record = objectRecord(value);
+  if (!record) return false;
+  if (record.type === "image") {
+    const source = objectRecord(record.source);
+    return source?.type === "base64" && source.data === "cG5n";
+  }
+  if (record.type === "image_url") {
+    return objectRecord(record.image_url)?.url === "data:image/png;base64,cG5n";
+  }
+  if (record.type === "input_image") {
+    return record.image_url === "data:image/png;base64,cG5n";
+  }
+  return false;
+}
+
+function isOfficialFrameRef(value: unknown, frameId: string): boolean {
+  const record = objectRecord(value);
+  if (!record || (record.type !== "text" && record.type !== "input_text")) return false;
+  if (typeof record.text !== "string") return false;
+  try {
+    const parsed = JSON.parse(record.text) as Record<string, unknown>;
+    return parsed.type === "zcode_cua_frame_ref" && parsed.frameId === frameId;
+  } catch {
+    return false;
+  }
+}
+
+function objectRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
 }

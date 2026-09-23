@@ -183,6 +183,12 @@ stop_computer_control({reason?})
   bind a single window. A bare string is read as a **bundle id**, never as a
   display name. On Windows a display name is the name the OS lists (the
   Start-menu name), not a window title.
+- A Windows app may expose a localized window title and a different process/Start
+  Apps name. When the live title is unique, the Helper binds that app before
+  attempting a launch. Apps that expose only a custom-rendered surface may return
+  a sparse accessibility tree; request `include_screenshot: true` and use the
+  current raster coordinate path when no target element is available. This is a
+  rendering limitation, not a private producer dependency or a Computer Use+  unavailable state.
 - `target` — `{type: "element", index}` for an accessibility element, or
   `{type: "coordinate", x, y}` for a raster pixel, optionally with `frame_id`. An
   element index addresses the most recent observation of that app, so pass
@@ -371,8 +377,8 @@ Actions resolve to `undefined` when they succeed and throw `ComputerUseError`
 when they do not. The fields you act on:
 
 - `code` — `PERMISSION_DENIED`, `NOT_AUTHORIZED`, `APP_NOT_FOUND`,
-  `AMBIGUOUS_APP`, `LAUNCH_FAILED`, `INVALID_APP`, `ELEMENT_UNAVAILABLE`,
-  `STALE_STATE`, `NOT_SETTABLE`, `NOT_SELECTABLE`, `ACTION_UNAVAILABLE`,
+  `APP_NOT_READY`, `AMBIGUOUS_APP`, `LAUNCH_FAILED`, `INVALID_APP`,
+  `ELEMENT_UNAVAILABLE`, `STALE_STATE`, `NOT_SETTABLE`, `NOT_SELECTABLE`, `ACTION_UNAVAILABLE`,
   `FOREGROUND_REQUIRED`, `CONTROLLER_BUSY`, `CONTROL_STOPPED`, `SCREEN_LOCKED`,
   `HELPER_UNAVAILABLE`, `VERSION_MISMATCH`, `TIMEOUT`,
   `STRUCTURED_STATE_UNAVAILABLE`, `INTERNAL`.

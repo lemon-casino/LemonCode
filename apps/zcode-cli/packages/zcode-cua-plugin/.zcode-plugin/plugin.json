@@ -1,9 +1,9 @@
 {
   "name": "computer-use",
-  "version": "0.6.3",
+  "version": "0.1.0",
   "description": "Computer Use: automate desktop apps with mouse, keyboard, and UI element control.",
   "author": {
-    "name": "Z.ai"
+    "name": "Lemon"
   },
   "license": "MIT",
   "skills": "skills"

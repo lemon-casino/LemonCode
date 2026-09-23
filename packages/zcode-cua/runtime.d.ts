@@ -1,6 +1,12 @@
 // runtime 内部实现与注入点的类型面。内部模块：不进 package.json exports。
 import type { ComputerUseRuntime, ComputerUseRuntimeOptions } from "./index.js";
 import type { CuaInputDriver } from "./cua-driver.js";
+import type { callBrokerMethod } from "./broker.js";
+
+export interface BrokerComputerUseRuntimeOptions extends ComputerUseRuntimeOptions {
+  /** 仅供包内测试注入；公开 createComputerUseRuntime 不暴露第二条 transport 写入路径。 */
+  callBrokerMethod?: typeof callBrokerMethod;
+}
 
 /** 权限门 seam：每次有驱动副作用的 execute 在实际执行时调用一次 authorize（不缓存）。 */
 export interface CuaPermissionGate {
@@ -17,7 +23,7 @@ export declare function createBrokerPermissionGate(
 
 /** 产品 runtime：把 14 方法转发到 Helper broker，本进程不加载原生驱动。 */
 export declare function createBrokerComputerUseRuntime(
-  options?: ComputerUseRuntimeOptions,
+  options?: BrokerComputerUseRuntimeOptions,
 ): ComputerUseRuntime;
 
 /**

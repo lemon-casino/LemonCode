@@ -2,8 +2,10 @@
 // 行为矩阵单测：mock 驱动 + mock/缺省权限门注入（spec「验收场景」）。
 // 运行：pnpm --dir packages/zcode-cua test（node --test index.test.js，纯 ESM、无构建、不触原生 addon）。
 import assert from "node:assert/strict";
+import { createServer } from "node:net";
 import test from "node:test";
 import { inflateSync } from "node:zlib";
+import { mintBrokerSocketPath } from "./broker.js";
 import { computePointerScale, resolveNutKeyName, toLogicalPoint } from "./cua-driver.js";
 import { encodeRgbPng } from "./png.js";
 import {
@@ -27,6 +29,87 @@ test("broker runtime rejects malformed dynamic credentials without throwing", as
     await runtime.execute({ toolName: "list_apps", context: mainContext() }),
     "malformed credentials must fail closed",
   );
+});
+
+test("broker runtime preserves authenticated product errors instead of reporting build unavailable", async (t) => {
+  const socketPath = mintBrokerSocketPath();
+  const server = createServer((socket) => {
+    let pending = "";
+    socket.setEncoding("utf8");
+    socket.on("data", (chunk) => {
+      pending += chunk;
+      const newline = pending.indexOf("\n");
+      if (newline < 0) return;
+      const request = JSON.parse(pending.slice(0, newline));
+      socket.end(
+        `${JSON.stringify({
+          id: request.id,
+          ok: false,
+          error: {
+            code: "app_not_found",
+            message: "No installed application matched QQ",
+            details: { app_ref: { name: "QQ" } },
+            possibly_sent: false,
+            retryable: false,
+          },
+        })}\n`,
+      );
+    });
+  });
+  await new Promise((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(socketPath, resolve);
+  });
+  t.after(
+    () =>
+      new Promise((resolve) => {
+        server.close(() => resolve());
+      }),
+  );
+
+  const runtime = createBrokerComputerUseRuntime({
+    brokerSocketPath: socketPath,
+    brokerCapability: "test-authority",
+    brokerGeneration: 0,
+  });
+  const result = await runtime.execute({
+    toolName: "get_app_state",
+    arguments: { app_ref: { name: "QQ" } },
+    context: mainContext(),
+  });
+
+  assert.equal(result.isError, true);
+  assert.doesNotMatch(result.content[0].text, /not available in this build/u);
+  assert.deepEqual(JSON.parse(result.content[0].text), {
+    code: "app_not_found",
+    message: "No installed application matched QQ",
+    details: { app_ref: { name: "QQ" } },
+    action_sent: false,
+    dispatch_status: "not_sent",
+    retryable: false,
+  });
+});
+
+test("broker runtime execute deadline covers the producer launch readiness budget", async () => {
+  let brokerRequest;
+  const runtime = createBrokerComputerUseRuntime({
+    brokerSocketPath: "test-socket",
+    brokerCapability: "test-authority",
+    brokerGeneration: 0,
+    async callBrokerMethod(request) {
+      brokerRequest = request;
+      return { content: [] };
+    },
+  });
+
+  await runtime.execute({
+    toolName: "get_app_state",
+    arguments: { app_ref: { name: "QQ" } },
+    context: mainContext(),
+  });
+
+  assert.equal(brokerRequest.method, "execute");
+  assert.equal(brokerRequest.timeoutMs, 30_000);
 });
 
 function mainContext(overrides = {}) {
@@ -609,11 +692,9 @@ test("键名词表外的取值：未注入谓词时由驱动侧拒绝（模拟�
 test("键名词表外的取值：注入谓词后在廉价预检失败——gate 与驱动零调用、不入队", async () => {
   const driver = createMockDriver();
   const gate = createRecordingGate();
-  const runtime = createComputerUseRuntimeWithDriver(
-    driver,
-    gate,
-    { isKnownKeyName: (name) => resolveNutKeyName(name) !== undefined },
-  );
+  const runtime = createComputerUseRuntimeWithDriver(driver, gate, {
+    isKnownKeyName: (name) => resolveNutKeyName(name) !== undefined,
+  });
   for (const key of ["ctrl+c", "", "ESCAPE", "无效"]) {
     assertUnavailable(
       await runtime.execute({ toolName: "key", arguments: { key }, context: mainContext() }),

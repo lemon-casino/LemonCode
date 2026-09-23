@@ -8,7 +8,7 @@
 
 - 内部驱动采用 `@nut-tree-fork/nut-js`（实测 `npm view @nut-tree-fork/nut-js license version` → `Apache-2.0` / `4.2.6`，与包的 Apache-2.0 许可一致；本仓库已按 `pnpm add @nut-tree-fork/nut-js --filter @zcode/zcode-cua` 落地）。
 - 驱动调用隔离在可替换 seam 之后，单测注入 mock。
-- `createComputerUseRuntime` 公开签名、12 条 exports 子路径、fail-closed 语义与失败文案全部不变；`ComputerUseRuntimeOptions` 以可选字段接收 broker socket/capability/generation、日志与本地 seam 注入，`execute`/`closeSession`/`dispose` 签名不动。
+- `createComputerUseRuntime` 公开签名与 12 条 exports 子路径不变；缺少凭据、Helper transport 不可达或响应无法验证时继续返回既有 unavailable 文案，Helper 已返回的结构化产品错误则保留 code/message/details，不得伪装成 build unavailable。`ComputerUseRuntimeOptions` 以可选字段接收 broker socket/capability/generation、日志与本地 seam 注入，`execute`/`closeSession`/`dispose` 签名不动。
 - 应用观测与产品输入采用 `@crowecawcaw/xa11y@0.15.0`（MIT；Windows UI Automation、macOS AXUIElement、Linux AT-SPI2；Node 方法异步运行在 N-API worker pool），包括 `inputSim()` 原始输入。`@nut-tree-fork/nut-js` 只保留给本地驱动回归和显式 `e2e:local`，不用窗口标题、进程列表或截图裁剪伪造可访问性树。
 - 产品 runtime 只做严格校验、排队和 Helper RPC；截图、观测和输入均在同一个 Helper 进程内完成。直接 nut-js runtime 仅供包内测试与显式 `e2e:local` 自检，不再是产品缺省组装。
 
@@ -18,15 +18,16 @@
 
 ### 产品规则与动作面
 
-1. 官方 SDK 的低层词表固定为 14 个方法：`list_apps`、`list_windows`、`get_app_state`、`left_click`、`left_click_drag`、`scroll`、`type`、`set_value`、`select_text`、`key`、`paste`、`perform_action`、`request_access`、`stop_computer_control`。这是当前仓库随附 `computer-use` 0.6.3 SDK 的 wire contract；本包不再把外部 producer 当作词表真相源。
+1. 官方 SDK 的低层词表固定为 14 个方法：`list_apps`、`list_windows`、`get_app_state`、`left_click`、`left_click_drag`、`scroll`、`type`、`set_value`、`select_text`、`key`、`paste`、`perform_action`、`request_access`、`stop_computer_control`。这是当前仓库随附 `computer-use` 0.1.0 SDK 的 wire contract；本包不再把外部 producer 当作词表真相源。
 2. 第一阶段的八个动作名继续作为包内本地驱动 seam 的兼容面；产品 SDK 请求进入 Helper 后统一投影到上述 14 方法。未登记方法和未知字段 fail closed。
 3. `list_apps`、`list_windows`、`get_app_state` 只能读取 xa11y 返回的真实应用、窗口和 AX/UIA/AT-SPI 元素。平台未提供的字段返回 `null`，不得猜测 bundle id、窗口 id 或元素身份。
 4. `left_click`/`left_click_drag`/`scroll` 的 target 是最近一次目标窗口截图的整数像素坐标 `[x,y]`，或最近一次 `get_app_state` 生成的元素 `index`。元素索引由 Helper 的 session snapshot owner 解析；过期、跨应用或歧义索引返回 `element_unavailable`，绝不退化成错误坐标。
 5. `set_value`、`select_text`、`perform_action` 优先调用 xa11y 的语义动作；`type`、`key`、`paste` 和显式坐标动作才走原始输入。语义动作失败不自动重放为原始输入，避免动作可能已发送后的重复副作用。
 6. `request_access` 只查询或触发 Helper 授权链；`stop_computer_control` 释放当前 `workspaceKey + sessionId` 的 lease、待执行队列和 snapshot，不等价于销毁全局 runtime。
 7. 设置页的平台可用性由同一纯函数判定：本机 macOS、Windows、Linux desktop 均可启用 Computer Use；Web 以及 SSH、WSL、Docker 和其它远端 workspace 保持不可用。只有 macOS 本机展示 TCC 权限与系统设置引导，Windows/Linux 本机只展示插件与 composer 入口开关；UI 不得因 Linux 缺少 TCC 面板而把已打包的 Helper 能力标成不支持。
+8. SDK 的 `getApp(...)` 绑定由第一次 `get_app_state` 完成。目标应用未运行且 `app_ref` 含 `name` 或 `bundle_id` 时，Helper producer 必须通过平台 launcher port 解析已安装应用、启动一次，并在有界期限内重列 xa11y 应用后继续观察；`pid`/`window_id` 引用、歧义匹配以及动作重校验不得触发启动。应用名不得拼接进 shell。找不到安装项返回 `APP_NOT_FOUND`，启动失败返回 `LAUNCH_FAILED`，启动后仍未能唯一观察返回可重试的 `APP_NOT_READY`。
 
-低层严格入参以 SDK 0.6.3 为准：
+低层严格入参以 SDK 0.1.0 为准：
 
 | 方法                    | 必要字段                                      | 可选字段                                                                          |
 | ----------------------- | --------------------------------------------- | --------------------------------------------------------------------------------- |
@@ -63,7 +64,7 @@ AgentRuntime（唯一决策循环）
         -> 每次实时权限裁决
           -> xa11y 读取/语义动作 或 nut-js 原始输入
         <- CallToolResult + app association + snapshot/state/frame identity
-      <- 失败统一折为既有 unavailable 形状
+      <- transport/凭据失败折为既有 unavailable；产品错误保留结构化 code/message/details
   <- 工具结果按现有 turn 持久化并进入下一次模型请求
 ```
 
@@ -96,12 +97,17 @@ Helper 注册 IPC listener
 
 两种 control message 都只接受精确字段集、有界字符串和安全整数；nonce 每个 child 随机生成，等待有界，坏帧、重复凭据、IPC 断开、超时或 PID/nonce 不匹配均在 native addon 加载与 socket bind 前 fail closed。Helper 必须先注册 listener 再发 request，Host 不得在 spawn 后盲发 credential。`permissionRequest` / `permissionPreflight` 是无凭据一次性模式，必须先于 bootstrap 判定，不等待 IPC tuple，也不得启动 broker。
 
-- 产品 `createComputerUseRuntime` 必须真实调用 Helper；无法连接、握手错版、权限拒绝或响应非法均返回原失败形状。`ensureBrokerAvailable` 仅是额外健康门，不能代替逐次 Helper 执行。
+- 产品 `createComputerUseRuntime` 必须真实调用 Helper。缺少凭据、无法连接、握手错版或响应非法返回既有 unavailable 失败形状；Helper 已验证返回的 `APP_NOT_FOUND`、`LAUNCH_FAILED`、`APP_NOT_READY`、权限拒绝、stale/ambiguous 等结构化错误必须转换为 `isError:true` 的 `CallToolResult` 并保留 code/message/details/possibly_sent/retryable，供 SDK 映射，不能被通用文案覆盖。`ensureBrokerAvailable` 仅是额外健康门，不能代替逐次 Helper 执行。
+- SDK 的 `ComputerUseError.details` 必须合并 Helper 返回的结构化 details，并把 broker code/method 作为本地诊断字段；`retryable:true` 映射为 `retry:"retry"`，`APP_NOT_FOUND`、`AMBIGUOUS_APP`、`LAUNCH_FAILED` 的 `retryable:false` 映射为 `retry:"never"`，不能因 SDK 本地缺省表再次变成可重试。
 
 ### xa11y producer 映射
 
-- `App.list()` 生成 `list_apps`；`App.byPid`/`byName` 与严格唯一匹配解析 `app_ref`；`App.windows()` 生成窗口列表。bundle id 仅在平台原始数据明确提供时返回，否则 `null`。
-- `App.tree()`/元素递归遍历生成确定性 pre-order index、紧凑文本和结构化 `elements`。每次完整观察生成新的 `state_id`；snapshot key 为 `workspaceKey + sessionId + pid + window identity`。`disable_diffing:true` 强制全量；只有 `tree_shown_to_model:true` 的状态可成为增量基线。
+- `App.list()` 生成 `list_apps`；`App.byPid`/`byName` 与严格唯一匹配解析 `app_ref`；`App.windows()` 生成窗口列表。bundle id 仅在平台原始数据明确提供时返回，否则 `null`。若首次绑定通过本地化名称/唯一窗口标题解析出不同的 live app 名，SDK 在 Helper 返回可验证 `window_id` 时将该窗口身份带入后续调用，避免同一进程的自绘辅助窗再次触发歧义；普通未指定窗口的绑定仍按 main/key 窗口动态重解析。
+- `get_app_state` 的首次严格解析零匹配时，必须先按同一平台名称/身份规则检查 live app；唯一 live 匹配直接复用，多个 live 匹配返回 `AMBIGUOUS_APP`。Windows 若请求名与进程名因本地化不同，但 live app 暴露了同名窗口标题，必须优先按唯一精确标题绑定，再决定是否启动；这解决自绘微信类应用的本地化 Start Apps/UWP 入口与实际 exe 名不一致，不维护产品白名单。确实未运行时才可调用唯一的 platform launcher port。其它方法仍只做严格 live 解析。launcher adapter 使用参数数组调用受信系统程序，不经 shell：Windows 从 Start Apps/注册应用身份中按显示名、AppID、可执行文件 basename 做规范化唯一匹配后调用系统启动入口；绝对可执行文件必须以自身父目录作为工作目录，避免依赖相对资源的启动器静默退出；macOS 通过 `/usr/bin/open -a`/bundle id；Linux 从 XDG desktop entry 的 Name/desktop id/Exec 首 token 做唯一匹配后调用 `gio launch` 或 `gtk-launch`。Windows AppID、macOS bundle id 与 Linux desktop-file id 都是 `bundle_id` 的平台身份候选；Linux 相同 desktop-file id 按 XDG 目录优先级只保留第一项（用户目录覆盖系统目录），不得误报歧义。同一 producer 内相同规范化引用的并发启动合并成一个 promise，启动请求最多发送一次；轮询只读取 xa11y，不缓存安装清单为权限真值。dispose 后不得再启动或继续轮询；dispose 与任意 xa11y await 竞态时，在途调用最终必须返回 `CONTROL_STOPPED`，不得在清理后重建 snapshot/baseline。
+- launcher 解析只允许 exact 或规范化后的唯一匹配。Windows 的显示名 `QQ` 可与安装项 `QQScLauncher` 通过 launcher 后缀规范化匹配，但不能维护产品名白名单；去掉的后缀集合必须是平台通用启动器后缀，若归一后出现多个候选则返回 `AMBIGUOUS_APP`。
+- launcher 必须把唯一选中的安装身份返回 producer；producer 后续以其显示名、可执行文件名和平台应用 ID 解析实际 xa11y app，不能重新退回用户输入的原始字符串做严格相等。Linux desktop-file id 在 launcher 与 producer 两层都把可选的 `.desktop` 后缀视为同一身份。启动就绪要求同一唯一 app 已出现且已有可唯一选择的 focused/main/sole window；进程先出现、窗口稍后创建时继续在同一有界预算内轮询，预算耗尽统一返回 `APP_NOT_READY`，不能提前返回 `STALE_STATE`。
+- 缺省启动就绪轮询最多约 10 秒，产品 runtime 的 `get_app_state` broker execute deadline 固定为 30 秒并覆盖安装枚举、启动、就绪轮询和首次树/截图读取；其它动作与 broker 方法沿用短 deadline。客户端 deadline 不得短于 producer 的最大启动预算，否则 Helper 仍在执行时 SDK 会先得到伪 `TIMEOUT`。
+- `App.tree()`/元素递归遍历生成确定性 pre-order index、紧凑文本和结构化 `elements`。自绘/嵌入式 UI 可能只暴露根窗格或少量容器；这不是 Helper 不可用：只要截图与坐标映射成功，模型必须转用当前 raster 的坐标路径，不能把稀疏 AX 树误判成“防止调用”。若某个 `children()` 调用返回坏数据或抛出 `STRUCTURED_STATE_UNAVAILABLE`，Helper 保留已取得的根/部分树，标记 `tree_unavailable_reason`，仍继续生成截图与 frame；本次状态不得成为增量基线，缺失的元素索引和语义动作继续 fail closed。权限拒绝、超出 `maxElements`、截图失败和窗口身份错误不属于该降级，仍返回原结构化错误。每次完整观察生成新的 `state_id`；snapshot key 为 `workspaceKey + sessionId + pid + window identity`。`disable_diffing:true` 强制全量；只有 `tree_shown_to_model:true` 且树未降级的状态可成为增量基线。
 - `get_app_state(include_screenshot:true)` 用 xa11y 对已解析窗口元素截图并返回官方帧三件套；帧引用携带本次解析出的严格 `appRef`，供文本动作模型在下一步绑定同一应用/窗口。截图失败不得抹掉已成功的 AX tree，需在结构化结果中给出 `non_actionable_reason`。
 - 元素动作通过 snapshot 中保存的 xa11y Element handle 与稳定身份执行；每次动作前复核 app/window/snapshot owner。xa11y 报 stale/ambiguous 时映射为现有 broker 错误码。
 - xa11y 原生包与 nut-js 原生包只进入独立 Helper 资源，不进入 desktop `app.asar` 或 node_repl bundle。
@@ -113,6 +119,7 @@ Helper 注册 IPC listener
 - Linux Helper 在发布 `transport_ready`/`ready` 和 Agent-facing credential tuple 前必须完成无输入副作用的能力预检：识别当前 X11 或 Wayland 会话，验证 AT-SPI `App.list()` 返回有效数组，并确认 xa11y `inputSim()` 可初始化后立即释放。Wayland 还必须由 **Helper 同一进程身份**验证 `/dev/uinput` 可写；不满足时返回稳定的 fail-closed 启动原因，不能等到首个 move/click/key/type 才失败。不得静默把用户加入 `input` group、安装扩大权限的 udev 规则或回退到绕过 broker 的输入路径；无显示环境、Wayland bridge、AT-SPI 或输入权限只拒绝本次启动，不能永久禁用 Linux 平台。
 - macOS 产品资源中的 `ZCode Computer Use.app` 必须由仓库内构建脚本生成，bundle 内执行同一份开放 Helper runtime，并包含仓库内 Swift 源码构建的非激活浮动 PiP presenter；固定 bundle id 继续作为 TCC 身份。`Info.plist`、入口、Node executable、presenter、JS 闭包及 `@crowecawcaw/xa11y-darwin-{x64|arm64}` 原生文件全部进入清单。仓库与 GitHub workflow 只产出可签名的未签名 bundle/package；使用者下载后在外部对嵌套 Mach-O 与 bundle 自行签名、公证。对要求签名的安装模式，现有安装器仍复核 TeamIdentifier、架构、Gatekeeper 与签名并 fail closed。
 - macOS 的 `CFBundleExecutable` 是 Node SEA Mach-O，不得是 shell wrapper。打包方必须显式提供 `ZCODE_CUA_MAC_NODE_EXECUTABLE`、与构建 Node 相同的 `ZCODE_CUA_MAC_NODE_VERSION` 和 `ZCODE_CUA_MAC_NODE_SHA256`；stager 在注入 SEA 前校验常规文件、SHA-256 与目标 `lipo` 架构，任一缺失或不匹配即终止出包。SEA bootstrap 只负责校验 bundle 内 Info/runtime 文件集并加载 `Contents/Resources/runtime/helper-entry.js`；Node 主 executable、PiP presenter 与 `.node` 允许由外部签名流程在打包后改写，清单将其明确标记为 `signedMutablePaths`，已签名安装模式的运行时身份复核由现有 `codesign --deep --strict`、TeamIdentifier 和 Gatekeeper 安装门承担。`CFBundleShortVersionString` 必须跟随桌面应用版本，`CFBundleVersion` 必须由 `ZCODE_CUA_HELPER_BUILD_ID`（缺省为同一份桌面 commit + build time 元数据）稳定派生为合法数字版本；不得复用独立 CUA 包版本，否则安装器可能把新发行包误判为同一 Helper 而保留旧产物。
+- `ZCODE_CUA_HELPER_BUILD_ID` 的唯一构建消费者是 macOS Helper app stager/Info.plist；共享 `node_repl` 只是 broker client，不安装 Helper，也不得再把该值 define 进自己的 bundle 或要求产物包含它。Desktop main/host bundle 同样不持有这份版本状态。
 - Helper 常驻 CLI 的规范参数固定为 `--socket`、可选 `--pip-socket`、`--parent-pid` 和 `--pip-mode`；`--capability`、`--generation` 及两个旧 `--allow-*-local-dev` 参数必须拒绝。`--parent-pid` 是新启动的唯一写出格式；孤儿回收在迁移期先识别它，并兼容读取旧进程的 `--launcher-pid`，不得因参数方言漂移漏掉当前 Helper。权限预检/提示保留无凭据的 `--permission-request` / `--permission-preflight` LaunchServices 方言，不进入常驻 bootstrap。
 - macOS 常驻产品 Helper 必须直接 spawn 安装器已验证 bundle identity 返回的 `CFBundleExecutable` realpath，并配置 Node IPC stdio；直接执行同一 bundle 内已验证 Mach-O 保留其 code-signing/TCC 身份，不得复制到 bundle 外或改用 shell wrapper。Host 只在收到 child 的 bootstrap request 后经 IPC 回 credential，发送完成后断开 bootstrap channel；health 必须同时核对固定 bundle id 与 exact child PID。权限 request/preflight 仍使用 `/usr/bin/open` 启动同一 Helper.app，且永不接收 credential。
 - Desktop Local Host 仍是唯一启动/重启 owner。Windows、macOS、Linux 均按需启动同一协议版本；平台启动失败不得退回进程内 nut-js 或绕过 broker。开发根目录与打包 runtime 必须按目标平台分别消费 `windows` / `linux` contract，不能用字段当前相同作为跨平台复用理由。已有配置无需迁移，关闭 CUA 的显式开关在三平台保持有效。
@@ -131,6 +138,7 @@ PID 缺失或在有界期限内仍存活时，重启必须 fail closed，保留�
 ### 官方 Computer Use 插件发布单元
 
 - `computer-use@zcode-plugins-official` 的唯一源码位于仓库内 `apps/zcode-cli/packages/zcode-cua-plugin`。该包只包含公开的 plugin manifest、`docs/computer-use.md`、`scripts/computer-use-client.mjs` 与 `skills/computer-use/SKILL.md`；不得从用户 plugin cache、私有 producer 仓库或开发机绝对路径补齐任何发布文件。
+- 本项目自研 Computer Use 发布单元的公开作者固定为 `Lemon`、版本固定为 `0.1.0`。plugin manifest、包元数据、official definition、staging/SEA 清单与测试断言必须一致，不得继续显示 `Z.ai` 或旧版 `0.6.3`；桌面应用自身仍按根 `package.json` 的 `3.14.3` 发布版本独立演进。
 - Computer Use plugin 是 SDK/文档/skill 内容包，不拥有独立 MCP server 或 native runtime。`node-repl-host` 仍是唯一可执行 host，通过 `Symbol.for("zcode.node-repl.computer-use-bridge")` 向 SDK 注入受上下文约束的 broker bridge；公开 plugin id、`node_repl` host 依赖和 `agent.computerUse` SDK 入口保持稳定。
 - Desktop 开发 staging、Desktop release staging 与 standalone SEA 必须从同一份仓库源码复制/嵌入该包。三条路径都至少校验 manifest、文档、SDK client 和 skill；任一文件缺失、manifest name/version 不匹配或 SEA 哈希清单不包含该包时终止构建，不得回退读取已安装 cache。
 - official definition resolver 只允许解析受控的仓库/staging root candidate，并沿用现有 seed 完整性校验；用户 cache 是安装输出，不是源码候选。Computer Use 默认启用状态和远程 workspace 能力边界不因本发布修复改变：没有 `node-repl-host` 与本地 Helper 的环境仍不得宣称可用。
@@ -179,7 +187,7 @@ PID 缺失或在有界期限内仍存活时，重启必须 fail closed，保留�
 ### 产品闭环验收
 
 1. broker parser/client/server 覆盖分片、多帧、上限、超时、中止、坏 capability、旧 generation、动态权限变化和 `possibly_sent`；拒绝路径驱动零调用。
-2. xa11y adapter 用 mock App/Element 覆盖 14 方法、确定性 index、stale snapshot、跨会话隔离、全量/增量、截图成功与独立失败；Windows 真机覆盖真实 UIA 树、元素动作、窗口截图和 DPI。真机自检必须遍历枚举结果，选择首个同时返回有效 UIA tree 与官方 PNG frame 的窗口；不得假设首个系统窗口一定可截图，也不得把单个受保护或瞬态窗口误判成 Helper 全局不可用。
+2. xa11y adapter 用 mock App/Element 覆盖 14 方法、确定性 index、stale snapshot、跨会话隔离、全量/增量、截图成功与独立失败，以及 UIA 子树不可用时保留 PNG/frame、标记 `tree_unavailable_reason`、坐标动作可用而元素动作拒绝；Windows 真机覆盖真实 UIA 树、元素动作、窗口截图和 DPI。真机自检必须遍历枚举结果，选择首个同时返回有效 UIA tree 与官方 PNG frame 的窗口；不得假设首个系统窗口一定可截图，也不得把单个受保护或瞬态窗口误判成 Helper 全局不可用。
 3. Windows/Linux Helper 子进程覆盖 bootstrap request/credential 的严格字段、超时、坏 PID/nonce、重复消息、transport-ready、exact PID health、真实截图/动作、shutdown、父进程退出回收和旧 capability 拒绝；argv 与 child env 断言不得出现 capability/generation。
 4. Linux runtime 与 macOS Helper.app 的目录构建、平台/架构包选择、完整性清单、标准 CLI 参数和 Local Host 组装必须有无真机依赖的测试；macOS 还必须覆盖 PiP presenter 的目标架构编译输入、清单与签名边界；Linux 还必须覆盖 dev-root 平台 contract 选择、ELF 机器类型、glibc 2.28 上限、release addon override，以及 X11 允许、Wayland `/dev/uinput` 拒绝/允许和无显示会话拒绝的启动预检。真机 TCC/Retina/AT-SPI/PiP 验收按用户要求暂不作为本阶段完成门槛。
 5. 设置页 availability 单测覆盖本机 macOS/Windows/Linux 均可用、Web 不可用，以及任意 desktop 平台一旦带远端 session/target/identity 就保持不可用；Computer Use 分区与插件列表必须消费同一判定，不保留 Linux 专用的不可用分支。
@@ -188,6 +196,8 @@ PID 缺失或在有界期限内仍存活时，重启必须 fail closed，保留�
 8. `e2e:helper` 必须启动仓库内真实 Helper 子进程，响应 child bootstrap request 后才经 IPC 下发 capability + generation，再由 broker 链调用公开 `createComputerUseRuntime`；验证 `list_apps`、目标应用 `get_app_state(include_screenshot:true)` 的真实 AX/UIA 树与官方帧，并在 `closeSession` 后通过认证 `shutdown` 回收。脚本默认跳过，只有显式 `ZCODE_CUA_HELPER_E2E=1` 才读取桌面，且不发送鼠标或键盘副作用。
 9. CLI plugin-host 集成测试必须覆盖完整凭据 tuple 的临时恢复与 finally 清理；Windows 产品回归须从已打包 `node_repl` 发起一次 `list_apps` 或绑定目标应用，不能只以 Helper ready 判定可用。
 10. 从关闭态启用 Computer Use 后，当前 workspace 的旧 Agent 必须失效；下一次请求创建的新 Agent 同时具备 `runtimeFeatures.computerUse=true` 与完整 Helper tuple。运行中的 workspace 不得由设置页触发该换代。
+11. `getApp` 的目标 fixture 初始未运行时，真实 Helper 必须经平台 launcher 启动它并返回非空 AX/UIA/AT-SPI 状态；不存在的应用返回 `APP_NOT_FOUND`，启动器失败返回 `LAUNCH_FAILED`，两者都不得包含 `Computer Use is not available in this build`。单测覆盖启动合并、歧义、超时、dispose 和不经 shell；Windows 本机构建验收覆盖一个真实未运行应用。
+12. 启动器单测必须覆盖 Windows AppID、Linux desktop-file id、XDG 用户覆盖及安装名与运行名不同；producer 单测覆盖 Linux desktop id 后缀等价、已运行应用不重复启动、Windows 本地化窗口标题选窗、进程先出现/窗口后出现并最终成功、预算耗尽返回 `APP_NOT_READY`，以及应用枚举期间 dispose 不得晚成功；runtime 单测断言 execute deadline 大于启动预算；SDK 集成测试断言本地化别名会钉住已解析 window_id，且结构化 details 与 retry 语义不丢失。
 
 ## 本地驱动兼容 seam
 
@@ -230,7 +240,7 @@ PID 缺失或在有界期限内仍存活时，重启必须 fail closed，保留�
 
 ### fail-closed 语义（不可漂移）
 
-权限不足、凭据缺失、驱动缺失、方法未登记、参数非法、平台不支持、驱动执行异常、`signal` 中止、`dispose` 之后调用——一律返回与占位完全相同的失败形状（唯一定义点 `packages/zcode-cua/runtime.js:9,26-28` 的 `UNAVAILABLE_TEXT` / `unavailableResult`；公开入口 `packages/zcode-cua/index.js:8`）：
+产品 broker transport 不可用（权限不足、凭据缺失、Helper 缺失、握手/响应非法）、本地 driver seam 的方法未登记/参数非法/平台不支持/驱动异常，以及 `signal` 中止、`dispose` 之后调用——返回与占位完全相同的失败形状（唯一定义点 `packages/zcode-cua/runtime.js` 的 `UNAVAILABLE_TEXT` / `unavailableResult`；公开入口 `packages/zcode-cua/index.js`）。Helper 已成功验证并返回的结构化产品错误是本规则的例外，必须按上文保留 error envelope，不能折叠为占位文案：
 
 ```
 { content: [{ type: "text", text: "Computer Use is not available in this build." }], isError: true }
@@ -293,7 +303,7 @@ Agent 循环（决策层，不换）
 ### 公开签名（不变）
 
 - `createComputerUseRuntime(options?: ComputerUseRuntimeOptions): ComputerUseRuntime`（`packages/zcode-cua/index.d.ts:34-36`），返回 `{ execute, closeSession, dispose }`（`:21-25`），入参类型 `:14-19` / context `:1-12` 均不变。
-- `package.json` 的 12 条 exports 子路径面不变（`packages/zcode-cua/package.json:8-57`）；不新增 subpath，避免与 producer API 兼容面、插件 version（`official-plugin-definitions.ts:396-398`，0.6.3，由原子 producer bump 维护）联动漂移。
+- `package.json` 的 12 条 exports 子路径面不变（`packages/zcode-cua/package.json:8-57`）；不新增 subpath。runtime 包与公开 plugin 的自研发布版本统一为 `0.1.0`，但桌面发行版本继续由根 `package.json` 独立拥有。
 
 ### 日志注入点（评审定死）
 

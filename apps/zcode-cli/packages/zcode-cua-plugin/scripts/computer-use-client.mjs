@@ -77,6 +77,9 @@ const MUTATING_METHODS = new Set([
 const ERROR_CODE_BY_BROKER = Object.freeze({
   permission_denied: "PERMISSION_DENIED",
   not_authorized: "NOT_AUTHORIZED",
+  app_not_found: "APP_NOT_FOUND",
+  app_not_ready: "APP_NOT_READY",
+  ambiguous_app: "AMBIGUOUS_APP",
   launch_failed: "LAUNCH_FAILED",
   invalid_request: "INVALID_APP",
   element_unavailable: "ELEMENT_UNAVAILABLE",
@@ -109,10 +112,13 @@ const NEVER_RETRY_CODES = new Set([
   "ACTION_UNAVAILABLE",
   "NOT_SETTABLE",
   "NOT_SELECTABLE",
+  "APP_NOT_FOUND",
+  "AMBIGUOUS_APP",
+  "LAUNCH_FAILED",
 ]);
 
 class ComputerUseError extends Error {
-  constructor(message, { code, actionSent, dispatchStatus, details } = {}) {
+  constructor(message, { code, actionSent, dispatchStatus, details, retryable } = {}) {
     super(message);
     this.name = "ComputerUseError";
     this.code = code ?? "INTERNAL";
@@ -123,11 +129,13 @@ class ComputerUseError extends Error {
     this.details = Object.freeze({ ...(details ?? {}) });
     this.retry = this.actionSent
       ? "reobserve"
-      : NEVER_RETRY_CODES.has(this.code)
-        ? "never"
-        : REOBSERVE_CODES.has(this.code)
-          ? "reobserve"
-          : "retry";
+      : retryable === true
+        ? "retry"
+        : NEVER_RETRY_CODES.has(this.code)
+          ? "never"
+          : REOBSERVE_CODES.has(this.code)
+            ? "reobserve"
+            : "retry";
   }
 }
 
@@ -193,6 +201,8 @@ function receiptOf(result) {
       "reason",
       "snapshot_mode",
       "base_state_id",
+      "details",
+      "retryable",
     ]) {
       if (merged[key] === undefined && candidate[key] !== undefined) {
         merged[key] = candidate[key];
@@ -286,13 +296,20 @@ function assertOk(methodName, result) {
   const code = isError
     ? (ERROR_CODE_BY_BROKER[brokerCode] ?? "INTERNAL")
     : "TIMEOUT";
+  const brokerDetails =
+    receipt.details && typeof receipt.details === "object" && !Array.isArray(receipt.details)
+      ? receipt.details
+      : {};
   throw new ComputerUseError(
     messageOf(result, `${methodName} failed`),
     {
       code,
       actionSent: actionSent || dispatch === "possibly_sent",
       dispatchStatus: dispatch,
-      details: { method: methodName, ...(brokerCode ? { brokerCode } : {}) },
+      // Bug 根因：runtime 已保留 Helper details/retryable，旧 SDK receipt 白名单又把它们丢弃，
+      // 导致不可重试的启动错误被改写成 retry，且诊断身份消失。
+      details: { ...brokerDetails, method: methodName, ...(brokerCode ? { brokerCode } : {}) },
+      retryable: receipt.retryable,
     },
   );
 }
@@ -409,6 +426,7 @@ function alternateAppRef(target, windowId) {
  */
 function isAppNotFound(result) {
   if (!result?.isError) return false;
+  if (brokerErrorCodeOf(result) === "app_not_found") return true;
   return textBlocks(result).some((text) =>
     /target app is not running/u.test(text),
   );
@@ -438,8 +456,12 @@ function emitText(globals, text, options) {
 
 function isFrameAuthorityText(value) {
   const parsed = parseJsonRecord(value);
+  // Bug 根因：旧实现只识别兼容层的 `{image_ref}`，把真正绑定 raster/坐标契约的
+  // `zcode_cua_frame_ref` 从投影中过滤掉。这里只负责保留候选，严格校验仍由 host/core 完成。
   return Boolean(
-    parsed && Object.keys(parsed).length === 1 && Object.hasOwn(parsed, "image_ref"),
+    parsed &&
+      ((parsed.type === "zcode_cua_frame_ref" && parsed.schemaVersion === 1) ||
+        (Object.keys(parsed).length === 1 && Object.hasOwn(parsed, "image_ref"))),
   );
 }
 
@@ -523,7 +545,16 @@ function appStateOf(methodName, result) {
   for (const text of textBlocks(result)) {
     const parsed = parseJsonRecord(text);
     if (!parsed) continue;
-    for (const key of ["state_id", "app", "window", "elements", "text", "snapshot_mode", "base_state_id"]) {
+    for (const key of [
+      "state_id",
+      "app",
+      "window",
+      "elements",
+      "text",
+      "snapshot_mode",
+      "base_state_id",
+      "tree_unavailable_reason",
+    ]) {
       if (merged[key] === undefined && parsed[key] !== undefined) merged[key] = parsed[key];
     }
   }
@@ -614,7 +645,10 @@ function createTarget(ctx, binding) {
     assertOk("get_app_state", result);
     const state = appStateOf("get_app_state", result);
     binding.stateId = state.state_id;
-    binding.treeSeen = yieldsTree === true;
+    // Bug 根因：UIA 自绘窗口可能只返回根节点，或 children() 在本次观察中失败；
+    // producer 会保留截图但不建立增量基线。客户端也必须同步清掉 treeSeen，避免下一次
+    // 元素索引被误当作模型已经看过的完整树。
+    binding.treeSeen = yieldsTree === true && typeof state.tree_unavailable_reason !== "string";
     const frameId = frameIdOf(result);
     if (typeof frameId === "string") binding.frameId = frameId;
     return { state, result };
@@ -668,9 +702,11 @@ function createTarget(ctx, binding) {
           `Screenshot unavailable for ${binding.label}` +
             (state.non_actionable_reason ? ` (${state.non_actionable_reason})` : "") +
             (state.screenshot_blank ? " (the captured raster was blank)" : "") +
-            ". The accessibility tree still works on a hidden or unrendered window: use " +
-            "getAXState() and act on element indices. Do not activate the app; ask the user " +
-            "to unhide the window if pixels are genuinely required.",
+            (state.tree_unavailable_reason
+              ? ". The accessibility tree is incomplete; coordinate actions are unavailable until a new screenshot succeeds."
+              : ". The accessibility tree still works on a hidden or unrendered window: use " +
+                "getAXState() and act on element indices.") +
+            " Do not activate the app; ask the user to unhide the window if pixels are genuinely required.",
           { code: "ELEMENT_UNAVAILABLE", details: { app: binding.label } },
         );
       }
@@ -685,12 +721,17 @@ function createTarget(ctx, binding) {
       // 回传（窗口在副显示器上，坐标为负）」，然后去抢用户焦点——它得到的信息量是零，
       // 所以只能猜。请求了像素却没拿到，必须说清为什么、以及重试有没有用。
       const note =
-        screenshot || !state.non_actionable_reason
+        screenshot && !state.tree_unavailable_reason
           ? ""
-          : `\n[screenshot unavailable: ${state.non_actionable_reason}]` +
-            " A hidden or minimized window produces this persistently, so re-observing will not" +
-            " help. The accessibility tree above is complete — act on element indices. Do not" +
-            " activate the app.";
+          : state.tree_unavailable_reason
+            ? `\n[accessibility tree incomplete: ${state.tree_unavailable_reason}]` +
+              " Use the current screenshot's raster coordinates; missing element indices are not actionable."
+            : state.non_actionable_reason
+              ? `\n[screenshot unavailable: ${state.non_actionable_reason}]` +
+                " A hidden or minimized window produces this persistently, so re-observing will not" +
+                " help. The accessibility tree above is complete — act on element indices. Do not" +
+                " activate the app."
+              : "";
       const text = `${state.text}${advisoryTextOf(result, state.text)}`;
       emitText(globals, `${text}${note}`, options);
       return screenshot ? { state: text, screenshot } : { state: text };
@@ -1017,8 +1058,22 @@ export async function setupComputerUseRuntime({ globals }) {
         ? state.app.bundle_id
         : undefined;
     if (resolvedPid !== undefined || resolvedBundleId !== undefined) {
+      const requestedName = typeof appRef?.name === "string" ? appRef.name : undefined;
+      const resolvedName = typeof state.app?.name === "string" ? state.app.name : undefined;
+      const localizedAlias =
+        requestedName !== undefined &&
+        resolvedName !== undefined &&
+        requestedName !== resolvedName;
       const boundWindowId =
-        typeof appRef?.window_id === "number" ? { window_id: appRef.window_id } : {};
+        typeof appRef?.window_id === "number"
+          ? { window_id: appRef.window_id }
+          : localizedAlias && Number.isSafeInteger(state.window?.window_id)
+            ? { window_id: state.window.window_id }
+            : {};
+      // Bug 根因：本地化名（例如“微信”->进程名 Weixin）首次观察能按标题选中主窗，
+      // 旧客户端随后只保留 pid，第二次观察遇到同进程的媒体窗就重新变成 ambiguous。
+      // 仅在名称确实发生别名解析且 Helper 返回可验证 window_id 时钉住该窗口；普通未指定
+      // window_id 的绑定仍保留每次重选 main/key window 的契约。
       appRef = {
         ...(resolvedPid !== undefined ? { pid: resolvedPid } : {}),
         ...(resolvedBundleId !== undefined ? { bundle_id: resolvedBundleId } : {}),

@@ -51,6 +51,13 @@ background app and does not steal the user's focus.
    the operation, or the user asked for keyboard interaction. Coordinates are the
    last fallback, for canvas, games and Electron content accessibility cannot see.
 
+Some Windows apps render their content into a custom surface (for example a
+single `MMUIRenderSubWindowHW` pane). A sparse tree in that case is expected, not
+evidence that Computer Use is unavailable: request a screenshot and use its current
+raster coordinates when no actionable element is exposed. The runtime also resolves
+a localized app name through a unique live window title before attempting a launch;
+this does not require a product-specific name table or a DOM bridge.
+
 Do not replace an available element action with a keyboard shortcut just because
 the shortcut is shorter. Do not run both the accessibility and visual paths for
 the same action.
@@ -239,8 +246,8 @@ before reading state — no `setTimeout`, no polling loop.
 Actions resolve to `undefined` on success and throw `ComputerUseError` otherwise:
 
 - `code` — `PERMISSION_DENIED`, `NOT_AUTHORIZED`, `APP_NOT_FOUND`,
-  `AMBIGUOUS_APP`, `LAUNCH_FAILED`, `INVALID_APP`, `ELEMENT_UNAVAILABLE`,
-  `STALE_STATE`, `NOT_SETTABLE`, `NOT_SELECTABLE`, `ACTION_UNAVAILABLE`,
+  `APP_NOT_READY`, `AMBIGUOUS_APP`, `LAUNCH_FAILED`, `INVALID_APP`,
+  `ELEMENT_UNAVAILABLE`, `STALE_STATE`, `NOT_SETTABLE`, `NOT_SELECTABLE`, `ACTION_UNAVAILABLE`,
   `FOREGROUND_REQUIRED`, `CONTROLLER_BUSY`, `CONTROL_STOPPED`, `SCREEN_LOCKED`,
   `HELPER_UNAVAILABLE`, `VERSION_MISMATCH`, `TIMEOUT`,
   `STRUCTURED_STATE_UNAVAILABLE`, `INTERNAL`.

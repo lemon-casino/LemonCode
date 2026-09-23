@@ -43,7 +43,7 @@ async function createFixture(t) {
     resolve(zcodeCuaRoot, "package.json"),
     JSON.stringify({
       name: "@zcode/zcode-cua",
-      version: "0.6.3",
+      version: "0.1.0",
       type: "module",
       zcodeCuaRuntime: {
         schema: 1,

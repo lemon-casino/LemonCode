@@ -16,6 +16,11 @@ import {
   readReleaseVerifiedNotices,
   readVerifiedNotices,
 } from "./third-party-notices.mjs";
+import {
+  OFFICIAL_ELECTRON_MIRROR,
+  resolveElectronRuntimeFallbackMirror,
+  shouldRetryElectronBuilderFailure,
+} from "../packages/desktop/scripts/bundle.mjs";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
@@ -224,6 +229,25 @@ test("Actions builds every supported platform and publishes only completed tag b
   );
   assert.equal(releaseContractStep.if, "matrix.os == 'linux' && matrix.arch == 'x64'");
   assert.equal(releaseContractStep.run, "pnpm test:release");
+  const buildSteps = workflow.jobs.build.steps;
+  const committedNoticeIndex = buildSteps.findIndex(
+    (step) => step.name === "Verify committed release notice baseline",
+  );
+  const installIndex = buildSteps.findIndex((step) => step.name === "Install dependencies");
+  const restoreInputIndex = buildSteps.findIndex(
+    (step) => step.name === "Restore committed release input after install",
+  );
+  const releaseContractIndex = buildSteps.findIndex(
+    (step) => step.name === "Verify release contract",
+  );
+  assert.ok(
+    committedNoticeIndex >= 0 && committedNoticeIndex < installIndex,
+    "committed notice inputs must be verified before a platform install can rewrite them",
+  );
+  assert.match(buildSteps[committedNoticeIndex].run, /readReleaseVerifiedNotices/u);
+  assert.ok(installIndex < restoreInputIndex && restoreInputIndex < releaseContractIndex);
+  assert.match(buildSteps[restoreInputIndex].run, /git diff -- pnpm-lock\.yaml/u);
+  assert.match(buildSteps[restoreInputIndex].run, /git restore --source=HEAD -- pnpm-lock\.yaml/u);
   assert.doesNotMatch(
     workflowSource,
     /MACOS_CERTIFICATE|APPLE_APP_SPECIFIC_PASSWORD|WINDOWS_CERTIFICATE/iu,
@@ -248,6 +272,34 @@ test("Actions builds every supported platform and publishes only completed tag b
   assert.match(
     releaseSteps.find((step) => step.name === "Upload installers to release draft").run,
     /Unsigned desktop packages for macOS, Windows, and Linux/iu,
+  );
+});
+
+test("release build keeps Helper identity out of node_repl and retries only corrupt Electron runtime extraction", async () => {
+  const nodeReplBuild = await readFile(
+    join(root, "apps/zcode-cli/packages/node-repl-host/scripts/build.mjs"),
+    "utf8",
+  );
+  const desktopTsup = await readFile(join(root, "packages/desktop/tsup.config.ts"), "utf8");
+  assert.doesNotMatch(nodeReplBuild, /__ZCODE_CUA_HELPER_BUILD_ID__|cuaHelperBuildId/u);
+  assert.doesNotMatch(desktopTsup, /__ZCODE_CUA_HELPER_BUILD_ID__/u);
+
+  const corruptExtraction =
+    "Error: ENOENT: no such file or directory, open 'electron\\dist\\LICENSE.electron.txt'";
+  assert.equal(shouldRetryElectronBuilderFailure(corruptExtraction), true);
+  assert.equal(
+    resolveElectronRuntimeFallbackMirror(
+      corruptExtraction,
+      "https://npmmirror.com/mirrors/electron/",
+    ),
+    OFFICIAL_ELECTRON_MIRROR,
+  );
+  assert.equal(
+    resolveElectronRuntimeFallbackMirror(
+      "ENOENT: missing app.asar during afterExtract",
+      "https://npmmirror.com/mirrors/electron/",
+    ),
+    null,
   );
 });
 

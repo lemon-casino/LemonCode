@@ -1,9 +1,10 @@
 {
   "$schema": "https://json.schemastore.org/package.json",
   "name": "@zcode/zcode-cua-plugin",
-  "version": "0.6.3",
+  "version": "0.1.0",
   "private": true,
   "description": "Repository-owned Computer Use SDK, documentation, and skill for the shared node_repl host.",
+  "author": "Lemon",
   "license": "MIT",
   "type": "module",
   "main": "./scripts/computer-use-client.mjs"

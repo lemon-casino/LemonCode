@@ -55,6 +55,7 @@ export interface OfficialPluginDefinition {
 }
 
 const ZAI_AUTHOR = { name: "Z.ai", url: "https://z.ai" } as const;
+const LEMON_AUTHOR = { name: "Lemon" } as const;
 const OFFICIAL_PLUGIN_ASSETS_BASE_URL = "https://cdn-zcode.z.ai/zcode/official-plugin/assets";
 
 const OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS = ["dist/mcp/server.js"] as const;
@@ -374,7 +375,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // 原生 Helper identity 则由独立 Helper 发布契约维护；EN 描述基线走 manifest
     // description，这里只放 zh-CN 覆盖；resolveLocalizedText 在 en-US 时回退到 manifest。
     listing: {
-      author: ZAI_AUTHOR,
+      author: LEMON_AUTHOR,
       category: "productivity",
       displayName: "Computer Use",
       displayName_i18n: { "zh-CN": "电脑控制" },
@@ -398,7 +399,7 @@ export const OFFICIAL_PLUGIN_DEFINITIONS: readonly OfficialPluginDefinition[] = 
     // 只进入独立 Helper 资源。这里保持空数组，避免把开发机依赖或 producer 产物带入缓存。
     runtimeTopLevelPaths: [],
     // 公开 plugin manifest、UI 展示、缓存路径和 SEA 清单必须使用同一版本。
-    version: "0.6.3",
+    version: "0.1.0",
   },
 ];
 

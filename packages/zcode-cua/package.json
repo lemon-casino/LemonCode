@@ -1,9 +1,10 @@
 {
   "name": "@zcode/zcode-cua",
-  "version": "0.6.3",
+  "version": "0.1.0",
   "private": true,
   "description": "ZCode Computer Use runtime with a capability-authenticated Helper broker, xa11y application observation and input, official frame contracts, and fail-closed host integration.",
   "license": "Apache-2.0",
+  "author": "Lemon",
   "type": "module",
   "exports": {
     ".": {

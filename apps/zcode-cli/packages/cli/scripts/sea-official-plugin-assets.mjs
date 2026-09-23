@@ -72,7 +72,7 @@ export const officialSeaPlugins = [
       "skills/computer-use/SKILL.md",
     ],
     rootPath: join("packages", "zcode-cua-plugin"),
-    version: "0.6.3",
+    version: "0.1.0",
   },
 ];
 

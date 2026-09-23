@@ -119,6 +119,7 @@ const electronBuilderRetryCount = 3;
 const electronBuilderRetryDelayMs = 5_000;
 const electronBuilderHeartbeatIntervalMs = 30_000;
 export const DEFAULT_ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/";
+export const OFFICIAL_ELECTRON_MIRROR = "https://github.com/electron/electron/releases/download/";
 export const NPMMIRROR_ELECTRON_BUILDER_BINARIES_MIRROR =
   "https://registry.npmmirror.com/-/binary/electron-builder-binaries/";
 export const OFFICIAL_ELECTRON_BUILDER_BINARIES_MIRROR =
@@ -449,7 +450,19 @@ async function runTimedAsync(label, fn) {
   }
 }
 
-function shouldRetryElectronBuilderFailure(output) {
+function isCorruptElectronRuntimeExtractionFailure(output) {
+  const normalizedOutput = output.toLowerCase();
+  return normalizedOutput.includes("enoent") && normalizedOutput.includes("license.electron.txt");
+}
+
+export function resolveElectronRuntimeFallbackMirror(output, mirror) {
+  if (!isCorruptElectronRuntimeExtractionFailure(output)) return null;
+  const normalizedMirror = mirror.trim().replace(/\/+$/u, "").toLowerCase();
+  const normalizedOfficial = OFFICIAL_ELECTRON_MIRROR.replace(/\/+$/u, "").toLowerCase();
+  return normalizedMirror === normalizedOfficial ? null : OFFICIAL_ELECTRON_MIRROR;
+}
+
+export function shouldRetryElectronBuilderFailure(output) {
   const normalizedOutput = output.toLowerCase();
   const transientSignals = [
     "github.com/electron-userland/electron-builder-binaries/releases/download",
@@ -467,12 +480,16 @@ function shouldRetryElectronBuilderFailure(output) {
     "err_electron_builder_cannot_execute",
   ];
 
-  return transientSignals.some((signal) => normalizedOutput.includes(signal));
+  return (
+    isCorruptElectronRuntimeExtractionFailure(output) ||
+    transientSignals.some((signal) => normalizedOutput.includes(signal))
+  );
 }
 
 async function runElectronBuilderWithRetry(args, envPatch) {
   const retryEnvPatch = { ...envPatch };
   let didFallbackElectronBuilderMirror = false;
+  let didFallbackElectronRuntimeMirror = false;
 
   for (let attempt = 1; attempt <= electronBuilderRetryCount; attempt += 1) {
     console.log(
@@ -572,6 +589,27 @@ async function runElectronBuilderWithRetry(args, envPatch) {
       didFallbackElectronBuilderMirror = true;
       console.warn(
         `[bundle] electron-builder 二进制镜像缺文件，切换到 registry.npmmirror 后重试 (${attempt}/${electronBuilderRetryCount})`,
+      );
+      await sleep(electronBuilderRetryDelayMs);
+      continue;
+    }
+
+    const currentElectronRuntimeMirror = retryEnvPatch.ZCODE_ELECTRON_RUNTIME_MIRROR ?? "";
+    const fallbackElectronRuntimeMirror = resolveElectronRuntimeFallbackMirror(
+      failureOutput,
+      currentElectronRuntimeMirror,
+    );
+    if (
+      attempt < electronBuilderRetryCount &&
+      !didFallbackElectronRuntimeMirror &&
+      fallbackElectronRuntimeMirror
+    ) {
+      // 根因：分片下载内部重试曾生成可解压但缺 LICENSE.electron.txt 的 Electron runtime。
+      // 仅对这一精确完整性信号切一次官方源；其它 afterExtract 失败仍立即暴露。
+      Object.assign(retryEnvPatch, createElectronRuntimeMirrorEnv(fallbackElectronRuntimeMirror));
+      didFallbackElectronRuntimeMirror = true;
+      console.warn(
+        `[bundle] Electron runtime 解包不完整，切换官方镜像后重试 (${attempt}/${electronBuilderRetryCount})`,
       );
       await sleep(electronBuilderRetryDelayMs);
       continue;

@@ -26,6 +26,7 @@ import {
   readRasterEnvelopeIdentity,
 } from "./frame-contract.js";
 import { CUA_APP_ASSOCIATIONS_META_KEY } from "./host-display-contract.js";
+import { createInstalledAppLauncher } from "./installed-app-launcher.js";
 import { createMacOsPipPresenter } from "./pip-presentation-macos.js";
 import { createPipSessionCoordinator } from "./pip-session-coordinator.js";
 import { createPipSessionServer } from "./pip-session-server.js";
@@ -57,8 +58,10 @@ const VALUE_ARGUMENTS = new Map([
 const PRODUCER_ERROR_CODES = Object.freeze({
   PERMISSION_DENIED: "permission_denied",
   INVALID_REQUEST: "invalid_request",
-  APP_NOT_FOUND: "invalid_request",
-  AMBIGUOUS_APP: "invalid_request",
+  APP_NOT_FOUND: "app_not_found",
+  APP_NOT_READY: "app_not_ready",
+  LAUNCH_FAILED: "launch_failed",
+  AMBIGUOUS_APP: "ambiguous_app",
   INVALID_APP: "invalid_request",
   ELEMENT_UNAVAILABLE: "element_unavailable",
   STALE_STATE: "element_unavailable",
@@ -902,8 +905,15 @@ export async function runHelperProcess(options = {}) {
     options.producer ??
     createXa11yProducer({
       loadXa11y: async () => xa11y,
+      platform: options.platform,
       requestAccess: createPermissionAdapter(xa11y),
       paste: createPasteAdapter(xa11y),
+      launcher:
+        options.launcher ??
+        createInstalledAppLauncher({
+          platform: options.platform,
+          env: options.env,
+        }),
       motionProfile: options.motionProfile ?? (options.env ?? process.env).ZCODE_CUA_MOTION_PROFILE,
     });
   let backend;

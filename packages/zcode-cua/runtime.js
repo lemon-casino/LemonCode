@@ -1,7 +1,7 @@
 /* eslint-disable max-lines -- 产品 broker runtime 与仅供包内测试的本地 driver seam 共用失败契约。 */
 // Computer Use runtime 的内部实现：权限门 + 动作校验 + 串行化队列 + 驱动 dispatch。
 // 设计约束见 specs/computer-use-open-replacement.md：
-// - 唯一失败形状：一切失败（门拒绝/未登记/参数非法/驱动异常/中止/dispose）都返回占位文案。
+// - transport/凭据失败返回占位文案；Helper 已认证的产品错误保留结构化 envelope。
 // - 权限结论不缓存：每次有驱动副作用的 execute 在实际执行时重新过门。
 // - nut-js 鼠标/键盘是进程级全局资源：驱动调用经本队列串行化（并发 execute 的唯一互斥点）。
 // - signal 中止不抛 AbortError（桥层会折叠成协议错误丢形状），以失败形状结束；
@@ -11,6 +11,7 @@ import {
   BROKER_CAPABILITY_ENV,
   BROKER_GENERATION_ENV,
   BROKER_SOCKET_ENV,
+  BrokerError,
   callBrokerMethod,
 } from "./broker.js";
 import {
@@ -38,6 +39,33 @@ const SCROLL_DIRECTIONS = new Set(["up", "down", "left", "right"]);
 
 function unavailableResult() {
   return { content: [{ type: "text", text: UNAVAILABLE_TEXT }], isError: true };
+}
+
+const UNAVAILABLE_BROKER_ERROR_CODES = new Set(["aborted", "invalid_response", "unavailable"]);
+const BROKER_GET_APP_STATE_TIMEOUT_MS = 30_000;
+
+function brokerProductErrorResult(error) {
+  if (!(error instanceof BrokerError) || UNAVAILABLE_BROKER_ERROR_CODES.has(error.code)) {
+    return undefined;
+  }
+  // 根因：此前把 Helper 已认证返回的 APP_NOT_FOUND 等业务错误和“根本没有 runtime”混为一谈，
+  // 导致已完整打包的产品谎报 build unavailable。结构化文本沿用 SDK 既有 error envelope 读取面。
+  const envelope = {
+    code: error.code,
+    message: error.message,
+    ...(error.details === undefined ? {} : { details: error.details }),
+    action_sent: error.possiblySent === true,
+    dispatch_status: error.possiblySent === true ? "possibly_sent" : "not_sent",
+    retryable: error.retryable === true,
+  };
+  try {
+    return {
+      content: [{ type: "text", text: JSON.stringify(envelope) }],
+      isError: true,
+    };
+  } catch {
+    return undefined;
+  }
 }
 
 function readBrokerCredentials(options) {
@@ -82,23 +110,26 @@ function isCallToolResult(value) {
 export function createBrokerComputerUseRuntime(options = {}) {
   const credentials = readBrokerCredentials(options);
   const logger = isPlainObject(options?.logger) ? options.logger : undefined;
+  const brokerCall =
+    typeof options?.callBrokerMethod === "function" ? options.callBrokerMethod : callBrokerMethod;
   let disposed = false;
 
-  const call = async (method, params, signal) => {
+  const call = async (method, params, signal, timeoutMs) => {
     if (disposed || !credentials || signal?.aborted) return undefined;
     try {
-      return await callBrokerMethod({
+      return await brokerCall({
         ...credentials,
         method,
         params,
         signal,
+        ...(timeoutMs === undefined ? {} : { timeoutMs }),
       });
     } catch (error) {
       warn(logger, "Computer Use Helper broker request failed", {
         method,
         error: error instanceof Error ? error.message : String(error),
       });
-      return undefined;
+      return brokerProductErrorResult(error);
     }
   };
 
@@ -121,6 +152,9 @@ export function createBrokerComputerUseRuntime(options = {}) {
           context: input.context,
         },
         input.signal,
+        // Bug 根因：producer 的应用启动就绪预算约 10 秒，broker 旧缺省 5 秒会先断开，
+        // 把仍在正常启动的应用伪报为 TIMEOUT。只放宽观察，不拖慢动作、健康检查和关闭路径。
+        input.toolName === "get_app_state" ? BROKER_GET_APP_STATE_TIMEOUT_MS : undefined,
       );
       return isCallToolResult(result) ? result : unavailableResult();
     },

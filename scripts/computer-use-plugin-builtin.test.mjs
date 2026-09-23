@@ -19,6 +19,7 @@ import {
   seaOfficialPluginAssetPrefix,
 } from "../apps/zcode-cli/packages/cli/scripts/sea-official-plugin-assets.mjs";
 import { stageAgentBundle } from "../packages/desktop/scripts/stage-agent-bundle.mjs";
+import { findOfficialCuaFrameContentPair } from "../packages/zcode-cua/frame-contract.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pluginRoot = join(repoRoot, "apps/zcode-cli/packages/zcode-cua-plugin");
@@ -46,14 +47,24 @@ test("computer-use is a repository-owned content plugin with the public identity
   const manifest = JSON.parse(
     await readRepoFile("apps/zcode-cli/packages/zcode-cua-plugin/.zcode-plugin/plugin.json"),
   );
+  const contentPackage = JSON.parse(
+    await readRepoFile("apps/zcode-cli/packages/zcode-cua-plugin/package.json"),
+  );
+  const runtimePackage = JSON.parse(await readRepoFile("packages/zcode-cua/package.json"));
   assert.equal(manifest.name, "computer-use");
-  assert.equal(manifest.version, "0.6.3");
+  assert.equal(manifest.version, "0.1.0");
+  assert.deepEqual(manifest.author, { name: "Lemon" });
   assert.equal(manifest.skills, "skills");
+  assert.equal(contentPackage.version, manifest.version);
+  assert.equal(contentPackage.author, "Lemon");
+  assert.equal(runtimePackage.version, manifest.version);
+  assert.equal(runtimePackage.author, "Lemon");
 
   const definition = OFFICIAL_PLUGIN_DEFINITIONS.find(({ name }) => name === "computer-use");
   assert.ok(definition);
   assert.equal(`${definition.name}@zcode-plugins-official`, "computer-use@zcode-plugins-official");
   assert.equal(definition.version, manifest.version);
+  assert.deepEqual(definition.listing?.author, manifest.author);
   assert.deepEqual(definition.requiredSeedPaths, requiredPluginAssets.slice(1));
   assert.deepEqual(resolveOfficialPluginHostMcpServerNames("computer-use@zcode-plugins-official"), [
     "node_repl",
@@ -90,11 +101,148 @@ test("computer-use SDK uses only the injected node_repl bridge and fails closed 
   assert.match(await globals.agent.documentation.get("computer-use"), /Computer Use/u);
 });
 
+test("computer-use SDK maps structured app lookup failures without calling them build unavailable", async () => {
+  const clientUrl = pathToFileURL(join(pluginRoot, "scripts/computer-use-client.mjs")).href;
+  const { setupComputerUseRuntime } = await import(`${clientUrl}?errors=${Date.now()}`);
+  const globals = {
+    [Symbol.for("zcode.node-repl.computer-use-bridge")]: {
+      assertAvailable() {},
+      async call() {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                code: "app_not_found",
+                message: "No installed application matched Missing App",
+                action_sent: false,
+                dispatch_status: "not_sent",
+                retryable: false,
+                details: { app_ref: { name: "Missing App" }, installed_matches: 0 },
+              }),
+            },
+          ],
+          isError: true,
+        };
+      },
+      documentationRoot: join(pluginRoot, "docs"),
+    },
+  };
+  const computerUse = await setupComputerUseRuntime({ globals });
+
+  await assert.rejects(computerUse.getApp({ name: "Missing App" }), (error) => {
+    assert.equal(error?.code, "APP_NOT_FOUND");
+    assert.match(error?.message ?? "", /No installed application matched/u);
+    assert.doesNotMatch(error?.message ?? "", /not available in this build/u);
+    assert.equal(error?.retry, "never");
+    assert.deepEqual(error?.details, {
+      app_ref: { name: "Missing App" },
+      installed_matches: 0,
+      method: "get_app_state",
+      brokerCode: "app_not_found",
+    });
+    return true;
+  });
+});
+
+test("computer-use SDK preserves the official frame authority when projecting screenshots", async () => {
+  const clientUrl = pathToFileURL(join(pluginRoot, "scripts/computer-use-client.mjs")).href;
+  const { setupComputerUseRuntime } = await import(`${clientUrl}?frame=${Date.now()}`);
+  const state = {
+    state_id: "state-1",
+    app: { pid: 42, name: "QQ", bundle_id: null },
+    window: { title: "QQ", window_id: 7 },
+    elements: [],
+    text: '[0] window "QQ"',
+  };
+  const officialRef = {
+    type: "zcode_cua_frame_ref",
+    schemaVersion: 1,
+    authority: "zcode.cua/open-frame/xa11y-helper",
+    frameId: "frame-1",
+    contentProtection: "official_cua_frame_v1",
+    mimeType: "image/png",
+    width: 1,
+    height: 1,
+    envelopeAlgorithm: "png-raster-envelope-v1/1x1",
+    appRef: { pid: 42, name: "QQ", window_id: 7 },
+  };
+  const projected = [];
+  const globals = {
+    nodeRepl: {
+      emitStructuredResult(result) {
+        projected.push(result);
+      },
+      write() {},
+    },
+    [Symbol.for("zcode.node-repl.computer-use-bridge")]: {
+      assertAvailable() {},
+      async call(_method, input) {
+        if (input?.include_screenshot === true) {
+          return {
+            content: [
+              { type: "image", data: "iVBORw0KGgo=", mimeType: "image/png" },
+              { type: "text", text: JSON.stringify(officialRef) },
+              {
+                type: "text",
+                text: JSON.stringify({
+                  image_ref: {
+                    frame_id: "frame-1",
+                    mime_type: "image/png",
+                    width: 1,
+                    height: 1,
+                  },
+                }),
+              },
+            ],
+            structuredContent: state,
+          };
+        }
+        return { content: [{ type: "text", text: state.text }], structuredContent: state };
+      },
+      documentationRoot: join(pluginRoot, "docs"),
+    },
+  };
+  const computerUse = await setupComputerUseRuntime({ globals });
+  const app = await computerUse.getApp({ name: "QQ" });
+  await app.getAXStateAndScreenshot({ emit: false });
+
+  assert.ok(findOfficialCuaFrameContentPair(projected.at(-1)?.content));
+});
+
+test("computer-use pins the resolved window after a localized app alias", async () => {
+  const clientUrl = pathToFileURL(join(pluginRoot, "scripts", "computer-use-client.mjs")).href;
+  const { setupComputerUseRuntime } = await import(`${clientUrl}?localized-window=${Date.now()}`);
+  const state = {
+    state_id: "state-localized",
+    app: { pid: 42, name: "Weixin", bundle_id: null },
+    window: { title: "微信", window_id: 7 },
+    elements: [],
+    text: '[0] window "微信"',
+  };
+  const calls = [];
+  const globals = {
+    [Symbol.for("zcode.node-repl.computer-use-bridge")]: {
+      assertAvailable() {},
+      async call(method, input) {
+        calls.push({ method, input });
+        return { content: [{ type: "text", text: state.text }], structuredContent: state };
+      },
+      documentationRoot: join(pluginRoot, "docs"),
+    },
+  };
+  const computerUse = await setupComputerUseRuntime({ globals });
+  const app = await computerUse.getApp({ name: "微信" });
+  await app.getAXState({ emit: false });
+
+  assert.deepEqual(calls.at(-1)?.input?.app_ref, { pid: 42, window_id: 7 });
+});
+
 test("bootstrap resolver seeds computer-use from the repository instead of a pre-existing cache", async () => {
   const storageRoot = await mkdtemp(join(tmpdir(), "zcode-cua-resolver-"));
   try {
     resolveOfficialPluginRoots({ env: {}, storageRoot });
-    const seededRoot = join(storageRoot, "cache/zcode-plugins-official/computer-use/0.6.3");
+    const seededRoot = join(storageRoot, "cache/zcode-plugins-official/computer-use/0.1.0");
     for (const relativePath of requiredPluginAssets) {
       assert.equal(
         (await stat(join(seededRoot, ...relativePath.split("/")))).isFile(),
@@ -105,7 +253,7 @@ test("bootstrap resolver seeds computer-use from the repository instead of a pre
     const marker = JSON.parse(await readFile(join(seededRoot, ".zcode-plugin-seed.json"), "utf8"));
     assert.equal(marker.source, "filesystem");
     assert.equal(marker.plugin, "computer-use");
-    assert.equal(marker.pluginVersion, "0.6.3");
+    assert.equal(marker.pluginVersion, "0.1.0");
   } finally {
     await rm(storageRoot, { force: true, recursive: true });
   }
@@ -196,7 +344,7 @@ test("SEA embeds every computer-use seed asset in its hashed manifest", async ()
       stagingDirectory,
     });
     const computerUse = manifest.plugins.find((plugin) => plugin.name === "computer-use");
-    assert.equal(computerUse?.version, "0.6.3");
+    assert.equal(computerUse?.version, "0.1.0");
     assert.match(manifest.hash, /^[a-f0-9]{64}$/u);
     for (const relativePath of requiredPluginAssets) {
       assert.equal(
@@ -208,7 +356,7 @@ test("SEA embeds every computer-use seed asset in its hashed manifest", async ()
       );
       assert.ok(
         assets[
-          `${seaOfficialPluginAssetPrefix}zcode-plugins-official/computer-use/0.6.3/${relativePath}`
+          `${seaOfficialPluginAssetPrefix}zcode-plugins-official/computer-use/0.1.0/${relativePath}`
         ],
       );
     }

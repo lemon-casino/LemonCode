@@ -1,5 +1,9 @@
 /* eslint-disable max-lines -- 14 个严格 wire action 共用同一 snapshot owner；任务边界要求暂不拆出额外实现文件。 */
 import { randomUUID as createRandomUUID } from "node:crypto";
+import {
+  normalizeInstalledAppLookupKey,
+  normalizeInstalledAppName,
+} from "./installed-app-launcher.js";
 import { executeMotionPath } from "./motion-profile.js";
 
 export const XA11Y_PRODUCER_METHODS = Object.freeze([
@@ -24,6 +28,7 @@ const APP_REF_KEYS = ["name", "bundle_id", "pid", "window_id"];
 const STRATEGIES = new Set(["auto", "a11y", "event"]);
 const RETURN_STATES = new Set(["none", "compact", "full"]);
 const DIRECTIONS = new Set(["up", "down", "left", "right"]);
+const TREE_UNAVAILABLE_REASON = "accessibility_tree_unavailable";
 const MOUSE_BUTTONS = new Set(["left", "right", "middle"]);
 const PASTE_FORMATS = new Set(["text", "md", "html"]);
 const RAW_BUNDLE_ID_KEYS = ["bundle_id", "bundleId", "bundle_identifier", "bundleIdentifier"];
@@ -500,6 +505,15 @@ function readWindowId(window) {
     const parsed = Number(stableId);
     if (Number.isSafeInteger(parsed)) return parsed;
   }
+  if (typeof stableId === "string") {
+    const hwnd = /^hwnd:0x([0-9a-f]+)$/iu.exec(stableId.trim());
+    if (hwnd) {
+      const parsed = Number.parseInt(hwnd[1], 16);
+      // Bug 根因：Windows xa11y 将可回传的原生 HWND 编码在 stableId（hwnd:0x...）中，
+      // 旧适配只接受纯十进制 stableId，微信这类自绘窗口因此被错误降级为 window_id:null。
+      if (Number.isSafeInteger(parsed) && parsed >= 0) return parsed;
+    }
+  }
   return null;
 }
 
@@ -547,6 +561,51 @@ function matchesAppRef(record, ref) {
     (ref.bundle_id === undefined || record.bundle_id === ref.bundle_id) &&
     (ref.pid === undefined || record.pid === ref.pid)
   );
+}
+
+function normalizedPlatformIdentity(value) {
+  return typeof value === "string" ? value.normalize("NFKC").trim().toLocaleLowerCase("en-US") : "";
+}
+
+function normalizedDesktopIdentity(value) {
+  const normalized = normalizedPlatformIdentity(value);
+  return normalized.endsWith(".desktop") ? normalized.slice(0, -".desktop".length) : normalized;
+}
+
+function normalizedRunningAppName(value, platform) {
+  if (platform === "win32") return normalizeInstalledAppName(value);
+  return normalizedPlatformIdentity(value)
+    .replace(/\.(?:app|desktop)$/iu, "")
+    .replace(/[^\p{Letter}\p{Number}]+/gu, "");
+}
+
+function matchesLaunchedApp(record, ref, installed, platform) {
+  if (!installed && matchesAppRef(record, ref)) return true;
+  const recordBundleId = normalizedPlatformIdentity(record.bundle_id);
+  const installedIds = [
+    ...(installed ? [] : [ref.bundle_id]),
+    installed?.bundleId,
+    installed?.appId,
+  ]
+    .map(normalizedPlatformIdentity)
+    .filter(Boolean);
+  if (recordBundleId && installedIds.includes(recordBundleId)) return true;
+
+  // Bug 根因：launcher 接受 Linux desktop id 的可选后缀，producer 过去却严格比较，
+  // 导致应用已经启动且可观察时仍耗尽轮询并误报 APP_NOT_READY。
+  const desktopIds = [
+    ...(installed || platform !== "linux" ? [] : [ref.bundle_id]),
+    installed?.desktopId,
+  ]
+    .map(normalizedDesktopIdentity)
+    .filter(Boolean);
+  if (recordBundleId && desktopIds.includes(normalizedDesktopIdentity(recordBundleId))) return true;
+
+  const runningName = normalizedRunningAppName(record.name ?? "", platform);
+  const installedNames = [...(installed ? [] : [ref.name]), installed?.name, installed?.executable]
+    .map((value) => normalizedRunningAppName(value ?? "", platform))
+    .filter(Boolean);
+  return runningName.length > 0 && installedNames.includes(runningName);
 }
 
 function internalWindowIdentity(window, record) {
@@ -632,6 +691,7 @@ function pureElementRow(element, index, parentIndex, depth) {
 
 async function captureElementTree(root, maxElements) {
   const entries = [];
+  let treeUnavailable = false;
   async function visit(element, parentIndex, depth, path) {
     if (entries.length >= maxElements) {
       throw producerError("STRUCTURED_STATE_UNAVAILABLE", "accessibility tree exceeds limit");
@@ -643,17 +703,24 @@ async function captureElementTree(root, maxElements) {
     try {
       children = await element.children();
     } catch (error) {
-      throw mapXa11yError(error, "STRUCTURED_STATE_UNAVAILABLE");
+      const mapped = mapXa11yError(error, "STRUCTURED_STATE_UNAVAILABLE");
+      if (mapped.code !== "STRUCTURED_STATE_UNAVAILABLE") throw mapped;
+      // Bug 根因：自绘窗口的 UIA 子树可能只在 children() 处返回坏数据；直接抛错会让
+      // 截图也无法返回，坐标路径因此被错误地当成 Computer Use 不可用。保留已读节点，
+      // 由 getAppState 标记降级并继续取图；元素索引只对实际读到的节点有效。
+      treeUnavailable = true;
+      return;
     }
     if (!Array.isArray(children)) {
-      throw producerError("STRUCTURED_STATE_UNAVAILABLE", "xa11y children() returned invalid data");
+      treeUnavailable = true;
+      return;
     }
     for (let childIndex = 0; childIndex < children.length; childIndex += 1) {
       await visit(children[childIndex], index, depth + 1, `${path}.${childIndex}`);
     }
   }
   await visit(root, null, 0, "0");
-  return entries;
+  return { entries, treeUnavailable };
 }
 
 function elementFingerprint(row) {
@@ -699,16 +766,30 @@ function renderElement(row) {
   return `${indent}[${row.index}] ${row.kind ?? "unknown"}${title}${value}${actions}`;
 }
 
-function renderStateText(app, window, stateId, entries, changes) {
+function renderStateText(app, window, stateId, entries, changes, treeUnavailable) {
   const header = [
     `state_id: ${stateId}`,
     `app: name=${JSON.stringify(app.name)} pid=${app.pid ?? "null"} bundle_id=${JSON.stringify(app.bundle_id)}`,
     `window: title=${JSON.stringify(window.title)} window_id=${window.window_id ?? "null"}`,
   ];
-  if (!changes) return [...header, ...entries.map((entry) => renderElement(entry.row))].join("\n");
+  const treeWarning = treeUnavailable
+    ? `tree_unavailable_reason: ${TREE_UNAVAILABLE_REASON}`
+    : undefined;
+  if (!changes) {
+    return [
+      ...header,
+      ...(treeWarning ? [treeWarning] : []),
+      ...entries.map((entry) => renderElement(entry.row)),
+    ].join("\n");
+  }
   const changedRows = [...changes.added, ...changes.updated].toSorted((a, b) => a.index - b.index);
   const removed = changes.removed.map((row) => `[-${row.index}] removed`);
-  return [...header, ...changedRows.map(renderElement), ...removed].join("\n");
+  return [
+    ...header,
+    ...(treeWarning ? [treeWarning] : []),
+    ...changedRows.map(renderElement),
+    ...removed,
+  ].join("\n");
 }
 
 function sessionMaps(container, sessionKey) {
@@ -722,6 +803,7 @@ function sessionMaps(container, sessionKey) {
 
 export function createXa11yProducer(options = {}) {
   const loadXa11y = options.loadXa11y ?? defaultLoadXa11y;
+  const platform = options.platform ?? process.platform;
   const makeId = options.randomUUID ?? createRandomUUID;
   const delay =
     options.delay ??
@@ -731,8 +813,27 @@ export function createXa11yProducer(options = {}) {
       ? options.maxElements
       : 10_000;
   const motion = normalizeMotionOptions(options);
+  const launcher = options.launcher;
+  const launchPollAttempts = options.launchPollAttempts ?? 40;
+  const launchPollIntervalMs = options.launchPollIntervalMs ?? 250;
+  if (
+    !Number.isSafeInteger(launchPollAttempts) ||
+    launchPollAttempts < 1 ||
+    launchPollAttempts > 200
+  ) {
+    throw producerError("INVALID_REQUEST", "launch poll attempts must be between 1 and 200");
+  }
+  if (
+    !Number.isSafeInteger(launchPollIntervalMs) ||
+    launchPollIntervalMs < 0 ||
+    launchPollIntervalMs > 5_000
+  ) {
+    throw producerError("INVALID_REQUEST", "launch poll interval must be between 0 and 5000 ms");
+  }
   const snapshots = new Map();
   const baselines = new Map();
+  const launchAttempts = new Map();
+  const lifecycle = new AbortController();
   let modulePromise;
   let inputSimPromise;
   let lastPointerPoint;
@@ -778,8 +879,7 @@ export function createXa11yProducer(options = {}) {
     }
   }
 
-  async function resolveApp(ref) {
-    const matches = (await listAppHandles()).filter(({ record }) => matchesAppRef(record, ref));
+  function resolveUniqueApp(matches) {
     if (matches.length === 0) {
       throw producerError("APP_NOT_FOUND", "application reference did not match a running app", {
         retry: "reobserve",
@@ -793,6 +893,131 @@ export function createXa11yProducer(options = {}) {
     return matches[0];
   }
 
+  function canLaunch(ref) {
+    return (
+      launcher &&
+      ref.pid === undefined &&
+      ref.window_id === undefined &&
+      (ref.name !== undefined || ref.bundle_id !== undefined)
+    );
+  }
+
+  function mapLauncherError(error) {
+    if (error instanceof Xa11yProducerError) return error;
+    const code = error?.code;
+    if (
+      code === "APP_NOT_FOUND" ||
+      code === "AMBIGUOUS_APP" ||
+      code === "LAUNCH_FAILED" ||
+      code === "CONTROL_STOPPED"
+    ) {
+      return producerError(code, error.message || "installed application launch failed", {
+        details: error.details,
+        retry: code === "CONTROL_STOPPED" ? "never" : "reobserve",
+      });
+    }
+    return producerError("LAUNCH_FAILED", "installed application launch failed", {
+      retry: "reobserve",
+    });
+  }
+
+  async function waitForLaunchPoll() {
+    if (disposed || lifecycle.signal.aborted) {
+      throw producerError("CONTROL_STOPPED", "xa11y producer is disposed");
+    }
+    await new Promise((resolve, reject) => {
+      const abort = () => {
+        reject(producerError("CONTROL_STOPPED", "xa11y producer is disposed"));
+      };
+      lifecycle.signal.addEventListener("abort", abort, { once: true });
+      Promise.resolve()
+        .then(() => delay(launchPollIntervalMs))
+        .then(resolve, reject)
+        .finally(() => lifecycle.signal.removeEventListener("abort", abort));
+    });
+  }
+
+  async function launchAndWaitForApp(ref) {
+    if (disposed) throw producerError("CONTROL_STOPPED", "xa11y producer is disposed");
+    let installed;
+    try {
+      installed = await launcher.launch(ref);
+    } catch (error) {
+      throw mapLauncherError(error);
+    }
+    for (let attempt = 0; attempt < launchPollAttempts; attempt += 1) {
+      if (disposed) throw producerError("CONTROL_STOPPED", "xa11y producer is disposed");
+      // Bug 根因：launcher 已唯一解析出安装身份后，旧代码仍用用户原始别名做严格相等，
+      // 启动成功的 QQScLauncher/QQ 等名称差异会一直轮询到 APP_NOT_READY。
+      const matches = (await listAppHandles()).filter(({ record }) =>
+        matchesLaunchedApp(record, ref, installed, platform),
+      );
+      if (matches.length === 1) {
+        const windows = await listWindowHandles(matches[0]);
+        if (selectWindow(windows, ref)) return matches[0];
+      }
+      if (matches.length > 1) resolveUniqueApp(matches);
+      if (attempt + 1 < launchPollAttempts) await waitForLaunchPoll();
+    }
+    throw producerError("APP_NOT_READY", "launched application is not ready for observation", {
+      retry: "retry",
+    });
+  }
+
+  async function ensureLaunchedApp(ref) {
+    const key = normalizeInstalledAppLookupKey(ref, platform);
+    let attempt = launchAttempts.get(key);
+    if (!attempt) {
+      // Bug 根因：producer 过去把“未运行”和“未安装”都直接判为 APP_NOT_FOUND，SDK 的
+      // getApp 因而永远不会启动桌面应用。启动 promise 由 producer 唯一持有，避免并发重复副作用。
+      attempt = launchAndWaitForApp(ref).finally(() => {
+        if (launchAttempts.get(key) === attempt) launchAttempts.delete(key);
+      });
+      launchAttempts.set(key, attempt);
+    }
+    return attempt;
+  }
+
+  async function resolveApp(ref, allowLaunch = false) {
+    const apps = await listAppHandles();
+    const matches = apps.filter(({ record }) => matchesAppRef(record, ref));
+    if (matches.length > 0 || !allowLaunch) return resolveUniqueApp(matches);
+
+    // Bug 根因：Windows live app 名仅含通用 launcher 后缀时，严格查询会把“已运行”
+    // 误判成“未运行”并产生第二次启动副作用。先按平台规则做唯一 live 复核。
+    const normalizedMatches = apps.filter(({ record }) =>
+      matchesLaunchedApp(record, ref, undefined, platform),
+    );
+    if (normalizedMatches.length > 0) return resolveUniqueApp(normalizedMatches);
+    if (allowLaunch) {
+      const titleMatches = await findAppsByWindowTitle(apps, ref);
+      if (titleMatches.length > 0) {
+        // Bug 根因：微信等自绘应用的进程名（Weixin）与窗口标题（微信）可本地化不同，
+        // 且 Start Apps 可能把同名 UWP 入口列在前面。窗口标题是当前 live app 的事实，
+        // 唯一命中时应直接绑定，不能因为安装项名称不一致再次启动。
+        return resolveUniqueApp(titleMatches);
+      }
+    }
+    if (!canLaunch(ref)) return resolveUniqueApp(normalizedMatches);
+    if (allowLaunch) {
+      if (typeof launcher.resolve === "function") {
+        try {
+          // 仅在窗口标题没有唯一命中时解析安装身份；若安装项本身也未映射到 live app，
+          // 下面的 launchAndWaitForApp 会以同一身份有界启动，不凭猜测绑定其它进程。
+          const installed = await launcher.resolve(ref);
+          const running = apps.filter(({ record }) =>
+            matchesLaunchedApp(record, ref, installed, platform),
+          );
+          if (running.length > 0) return resolveUniqueApp(running);
+        } catch (error) {
+          if (error?.code !== "APP_NOT_FOUND") throw mapLauncherError(error);
+        }
+      }
+      return await ensureLaunchedApp(ref);
+    }
+    return resolveUniqueApp(normalizedMatches);
+  }
+
   async function listWindowHandles(app) {
     try {
       const windows = await app.handle.windows();
@@ -803,36 +1028,50 @@ export function createXa11yProducer(options = {}) {
     }
   }
 
-  async function resolveAppAndWindow(ref) {
-    const app = await resolveApp(ref);
-    const windows = await listWindowHandles(app);
-    let matches;
-    let selection = "unknown";
-    if (ref.window_id !== undefined) {
-      matches = windows.filter(({ record }) => record.window_id === ref.window_id);
-      selection = `window:${ref.window_id}`;
-    } else {
-      const focused = windows.filter(({ record }) => record.focused);
-      const main = windows.filter(({ record }) => record.main === true);
-      if (focused.length === 1) {
-        matches = focused;
-        selection = "focused";
-      } else if (main.length === 1) {
-        matches = main;
-        selection = "main";
-      } else if (windows.length === 1) {
-        matches = windows;
-        selection = "sole";
-      } else {
-        matches = [];
+  async function findAppsByWindowTitle(apps, ref) {
+    if (ref.name === undefined) return [];
+    const matches = [];
+    for (const app of apps) {
+      try {
+        const windows = await listWindowHandles(app);
+        if (windows.some(({ record }) => record.title === ref.name)) matches.push(app);
+      } catch {
+        // 窗口枚举失败不应把一个可通过 launcher 解析的应用误报成内部错误；
+        // 后续仍会走安装身份解析与有界启动路径。
       }
     }
-    if (matches.length !== 1) {
+    return matches;
+  }
+
+  function selectWindow(windows, ref) {
+    if (ref.window_id !== undefined) {
+      const matches = windows.filter(({ record }) => record.window_id === ref.window_id);
+      return matches.length === 1
+        ? { window: matches[0], selection: `window:${ref.window_id}` }
+        : undefined;
+    }
+    // Bug 根因：本地化 app_ref 可能与进程名不同，同一进程又有聊天窗/媒体窗；先用唯一
+    // 精确标题绑定，不能让另一个恰好 focused/main 的兄弟窗抢走目标。
+    const titled =
+      ref.name === undefined ? [] : windows.filter(({ record }) => record.title === ref.name);
+    if (titled.length === 1) return { window: titled[0], selection: "title" };
+    const focused = windows.filter(({ record }) => record.focused);
+    const main = windows.filter(({ record }) => record.main === true);
+    if (focused.length === 1) return { window: focused[0], selection: "focused" };
+    if (main.length === 1) return { window: main[0], selection: "main" };
+    return windows.length === 1 ? { window: windows[0], selection: "sole" } : undefined;
+  }
+
+  async function resolveAppAndWindow(ref, allowLaunch = false) {
+    const app = await resolveApp(ref, allowLaunch);
+    const windows = await listWindowHandles(app);
+    const selected = selectWindow(windows, ref);
+    if (!selected) {
       throw producerError("STALE_STATE", "target window is unavailable or ambiguous", {
         retry: "reobserve",
       });
     }
-    const window = matches[0];
+    const { window, selection } = selected;
     const stableIdentity = internalWindowIdentity(window.handle, window.record);
     const pid = app.record.pid;
     if (pid === null) {
@@ -888,8 +1127,10 @@ export function createXa11yProducer(options = {}) {
   }
 
   async function getAppState(params, context) {
-    const resolved = await resolveAppAndWindow(params.appRef);
-    const entries = await captureElementTree(resolved.window.handle, maxElements);
+    const resolved = await resolveAppAndWindow(params.appRef, true);
+    const tree = await captureElementTree(resolved.window.handle, maxElements);
+    const entries = tree.entries;
+    const treeUnavailable = tree.treeUnavailable;
     const sessionSnapshots = sessionMaps(snapshots, context.key);
     const previousSnapshot = sessionSnapshots.get(resolved.targetKey);
     let frame = params.includeScreenshot ? undefined : previousSnapshot?.frame;
@@ -918,6 +1159,15 @@ export function createXa11yProducer(options = {}) {
       }
     }
 
+    // 只有当前观察同时拿到可映射 PNG，树降级才允许继续；否则维持结构化失败，避免把
+    // 没有可操作坐标的半棵树误交给模型。include_screenshot=false 也不能借用旧帧绕过此门。
+    if (treeUnavailable && (!params.includeScreenshot || !frame?.mappingAvailable)) {
+      throw producerError(
+        "STRUCTURED_STATE_UNAVAILABLE",
+        "accessibility tree is unavailable and no actionable screenshot is available",
+      );
+    }
+
     const stateId = makeId();
     const app = { ...resolved.app.record };
     const window = { ...resolved.window.record };
@@ -925,7 +1175,8 @@ export function createXa11yProducer(options = {}) {
     const baseline = resolved.windowIdentityStable
       ? sessionBaselines.get(resolved.targetKey)
       : undefined;
-    const full = params.disableDiffing || !baseline;
+    if (treeUnavailable) sessionBaselines.delete(resolved.targetKey);
+    const full = params.disableDiffing || !baseline || treeUnavailable;
     const changes = full ? undefined : diffElements(baseline.entries, entries);
     const snapshot = {
       stateId,
@@ -938,9 +1189,10 @@ export function createXa11yProducer(options = {}) {
       windowIdentityStable: resolved.windowIdentityStable,
       entries,
       frame,
+      treeUnavailable,
     };
     sessionSnapshots.set(resolved.targetKey, snapshot);
-    if (params.treeShownToModel && resolved.windowIdentityStable) {
+    if (params.treeShownToModel && resolved.windowIdentityStable && !treeUnavailable) {
       sessionBaselines.set(resolved.targetKey, snapshot);
     }
 
@@ -952,10 +1204,11 @@ export function createXa11yProducer(options = {}) {
       window,
       focused_element: entries.find((entry) => entry.row.focused)?.row.index ?? null,
       elements: entries.map((entry) => ({ ...entry.row })),
-      text: renderStateText(app, window, stateId, entries, changes),
+      text: renderStateText(app, window, stateId, entries, changes, treeUnavailable),
       ...(changes ? { changes } : {}),
       ...(screenshot ? { screenshot } : {}),
       ...(frame ? { frame_id: frame.frameId } : {}),
+      ...(treeUnavailable ? { tree_unavailable_reason: TREE_UNAVAILABLE_REASON } : {}),
       ...(nonActionableReason ? { non_actionable_reason: nonActionableReason } : {}),
     };
     return result;
@@ -1005,6 +1258,11 @@ export function createXa11yProducer(options = {}) {
   async function resolveTarget(target, appRef, context) {
     const { snapshot, resolved } = await snapshotFor(appRef, context);
     if (target.type === "element") {
+      if (snapshot.treeUnavailable) {
+        throw producerError("ELEMENT_UNAVAILABLE", "accessibility tree is incomplete", {
+          retry: "reobserve",
+        });
+      }
       const entry = snapshot.entries[target.index];
       if (!entry || entry.row.index !== target.index) {
         throw producerError("ELEMENT_UNAVAILABLE", "element index is unknown or stale", {
@@ -1386,14 +1644,7 @@ export function createXa11yProducer(options = {}) {
     baselines.delete(context.key);
   }
 
-  async function dispatch(method, rawParams, rawContext) {
-    if (disposed) throw producerError("CONTROL_STOPPED", "xa11y producer is disposed");
-    if (typeof method !== "string" || !METHOD_NAMES.has(method)) {
-      throw producerError("INVALID_REQUEST", "unknown Computer Use method");
-    }
-    // 参数与 owner context 必须在 native import、权限提示或输入副作用之前完成校验。
-    const params = parseParams(method, rawParams);
-    const context = parseContext(rawContext);
+  async function dispatchValidated(method, params, context) {
     switch (method) {
       case "list_apps":
         return listApps();
@@ -1444,6 +1695,27 @@ export function createXa11yProducer(options = {}) {
     }
   }
 
+  async function dispatch(method, rawParams, rawContext) {
+    if (disposed) throw producerError("CONTROL_STOPPED", "xa11y producer is disposed");
+    if (typeof method !== "string" || !METHOD_NAMES.has(method)) {
+      throw producerError("INVALID_REQUEST", "unknown Computer Use method");
+    }
+    // 参数与 owner context 必须在 native import、权限提示或输入副作用之前完成校验。
+    const params = parseParams(method, rawParams);
+    const context = parseContext(rawContext);
+    try {
+      const result = await dispatchValidated(method, params, context);
+      if (!disposed) return result;
+    } catch (error) {
+      if (!disposed) throw error;
+    }
+    // Bug 根因：dispose 可能发生在 xa11y 的 App.list/tree/screenshot await 内；旧实现会在
+    // 清理完成后继续写回 snapshot 并成功返回。最后一道生命周期栅栏统一拒绝晚完成。
+    snapshots.clear();
+    baselines.clear();
+    throw producerError("CONTROL_STOPPED", "xa11y producer is disposed");
+  }
+
   return {
     dispatch,
     execute(input) {
@@ -1458,10 +1730,11 @@ export function createXa11yProducer(options = {}) {
     async dispose() {
       if (disposed) return;
       disposed = true;
+      lifecycle.abort();
       snapshots.clear();
       baselines.clear();
       const sim = await inputSimPromise?.catch(() => undefined);
-      await sim?.dispose?.();
+      await Promise.allSettled([sim?.dispose?.(), launcher?.dispose?.()]);
     },
   };
 }

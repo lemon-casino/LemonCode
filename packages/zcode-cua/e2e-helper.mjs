@@ -19,6 +19,7 @@ import { findOfficialCuaFrameContentPair } from "./frame-contract.js";
 import { createComputerUseRuntime } from "./index.js";
 
 const enabled = process.env.ZCODE_CUA_HELPER_E2E === "1";
+const targetAppName = process.env.ZCODE_CUA_E2E_APP_NAME?.trim();
 if (!enabled) {
   console.log("e2e-helper: skipped (set ZCODE_CUA_HELPER_E2E=1 on a real Windows desktop)");
   process.exit(0);
@@ -168,35 +169,61 @@ try {
   assert.ok(apps.length > 0, "list_apps returned no applications");
 
   let observation;
-  for (const app of [...apps].sort((left, right) => Number(right.active) - Number(left.active))) {
-    if (!Number.isSafeInteger(app?.pid) || app.pid <= 0) continue;
-    const windowsResult = await runtime.execute({
-      toolName: "list_windows",
-      arguments: { app_ref: { pid: app.pid } },
+  if (targetAppName) {
+    const state = await runtime.execute({
+      toolName: "get_app_state",
+      arguments: {
+        app_ref: { name: targetAppName },
+        include_screenshot: true,
+        disable_diffing: true,
+      },
       context,
     });
-    if (windowsResult?.isError || !Array.isArray(windowsResult?.structuredContent)) continue;
-    const windows = [...windowsResult.structuredContent].sort(
-      (left, right) =>
-        Number(right.focused) - Number(left.focused) || Number(right.main) - Number(left.main),
+    assert.ok(
+      !state?.isError,
+      `get_app_state(${JSON.stringify(targetAppName)}) failed: ${JSON.stringify(state?.content)}`,
     );
-    for (const window of windows) {
-      const appRef = {
-        pid: app.pid,
-        ...(Number.isSafeInteger(window.window_id) ? { window_id: window.window_id } : {}),
-      };
-      const state = await runtime.execute({
-        toolName: "get_app_state",
-        arguments: { app_ref: appRef, include_screenshot: true, disable_diffing: true },
+    assert.ok(
+      Array.isArray(state?.structuredContent?.elements),
+      `get_app_state(${JSON.stringify(targetAppName)}) returned no accessibility elements`,
+    );
+    const framePair = findOfficialCuaFrameContentPair(state.content);
+    assert.ok(
+      framePair,
+      `get_app_state(${JSON.stringify(targetAppName)}) returned no official PNG frame`,
+    );
+    observation = { state, framePair };
+  } else {
+    for (const app of [...apps].sort((left, right) => Number(right.active) - Number(left.active))) {
+      if (!Number.isSafeInteger(app?.pid) || app.pid <= 0) continue;
+      const windowsResult = await runtime.execute({
+        toolName: "list_windows",
+        arguments: { app_ref: { pid: app.pid } },
         context,
       });
-      if (state?.isError || !Array.isArray(state?.structuredContent?.elements)) continue;
-      const framePair = findOfficialCuaFrameContentPair(state.content);
-      if (!framePair) continue;
-      observation = { state, framePair };
-      break;
+      if (windowsResult?.isError || !Array.isArray(windowsResult?.structuredContent)) continue;
+      const windows = [...windowsResult.structuredContent].sort(
+        (left, right) =>
+          Number(right.focused) - Number(left.focused) || Number(right.main) - Number(left.main),
+      );
+      for (const window of windows) {
+        const appRef = {
+          pid: app.pid,
+          ...(Number.isSafeInteger(window.window_id) ? { window_id: window.window_id } : {}),
+        };
+        const state = await runtime.execute({
+          toolName: "get_app_state",
+          arguments: { app_ref: appRef, include_screenshot: true, disable_diffing: true },
+          context,
+        });
+        if (state?.isError || !Array.isArray(state?.structuredContent?.elements)) continue;
+        const framePair = findOfficialCuaFrameContentPair(state.content);
+        if (!framePair) continue;
+        observation = { state, framePair };
+        break;
+      }
+      if (observation) break;
     }
-    if (observation) break;
   }
   assert.ok(observation, "No window returned both an accessibility tree and an official PNG frame");
 

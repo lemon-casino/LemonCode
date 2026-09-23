@@ -134,6 +134,11 @@ jobs:
       - name: Check release version
         id: version
         run: node scripts/verify-release-version.mjs
+      - name: Verify committed release notice baseline
+        if: matrix.os == 'linux' && matrix.arch == 'x64'
+        run: >-
+          node --input-type=module -e "import { readReleaseVerifiedNotices } from './scripts/third-party-notices.mjs';
+          await readReleaseVerifiedNotices(process.cwd())"
       - name: Install Linux packaging tools
         if: runner.os == 'Linux'
         run: |
@@ -142,6 +147,12 @@ jobs:
           sudo gem install fpm --no-document
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Restore committed release input after install
+        if: matrix.os == 'linux' && matrix.arch == 'x64'
+        shell: bash
+        run: |
+          git diff -- pnpm-lock.yaml
+          git restore --source=HEAD -- pnpm-lock.yaml
       - name: Verify release contract
         if: matrix.os == 'linux' && matrix.arch == 'x64'
         run: pnpm test:release

@@ -1,5 +1,6 @@
 // Windows 打包链真机自检：packaged CLI -> shared node_repl -> runtime -> packaged Helper。
-// 默认不读取桌面；显式设置 ZCODE_CUA_PACKAGED_NODE_REPL_E2E=1 才执行，且只调用 list_apps。
+// 默认不读取桌面；显式设置 ZCODE_CUA_PACKAGED_NODE_REPL_E2E=1 才执行。
+// 可选 ZCODE_CUA_E2E_APP_NAME 会进一步覆盖 getApp -> 状态树 + 截图路径。
 import assert from "node:assert/strict";
 import { fork } from "node:child_process";
 import { randomBytes } from "node:crypto";
@@ -16,6 +17,7 @@ import {
   parseHelperBootstrapRequest,
 } from "./broker.js";
 import { HELPER_ADDON_ENV, HELPER_CONTROL_PROTOCOL } from "./broker-helper-constants.js";
+import { findOfficialCuaFrameContentPair } from "./frame-contract.js";
 
 const ENABLE_ENV = "ZCODE_CUA_PACKAGED_NODE_REPL_E2E";
 const BROKER_SOCKET_ENV = "ZCODE_CUA_PERMISSION_BROKER_SOCKET";
@@ -25,6 +27,7 @@ const PLUGIN_ID_ENV = "ZCODE_PLUGIN_ID";
 const OFFICIAL_CUA_PLUGIN_ID = "computer-use@zcode-plugins-official";
 const MCP_PROTOCOL_VERSION = "2026-07-28";
 const MAX_DIAGNOSTIC_BYTES = 8192;
+const targetAppName = process.env.ZCODE_CUA_E2E_APP_NAME?.trim();
 
 const enabled = process.env[ENABLE_ENV] === "1";
 if (!enabled) {
@@ -132,8 +135,8 @@ try {
 
   // 回归覆盖点：CLI 入口会先把 socket + authority 从 process.env 成组清洗。官方 plugin-host
   // 必须在 node_repl main() 捕获 runtime 前成组恢复二者；历史实现只恢复 socket，最终稳定返回
-  // "Computer Use is unavailable for this node_repl session"。真实 list_apps 穿透整条链才能证明修复。
-  const code = `
+  // "Computer Use is unavailable for this node_repl session"。真实调用穿透整条链才能证明修复。
+  const bootstrapCode = `
 const root = process.env.ZCODE_CUA_PLUGIN_ROOT;
 if (!root) throw new Error("ZCODE_CUA_PLUGIN_ROOT is missing");
 const { join } = await import("node:path");
@@ -142,6 +145,28 @@ const { setupComputerUseRuntime } = await import(
   pathToFileURL(join(root, "scripts", "computer-use-client.mjs")).href
 );
 await setupComputerUseRuntime({ globals: globalThis });
+`;
+  const code = targetAppName
+    ? `${bootstrapCode}
+const appName = ${JSON.stringify(targetAppName)};
+const app = await agent.computerUse.getApp(appName);
+const observation = await app.getAXStateAndScreenshot({ disableDiffing: true });
+if (!observation || typeof observation.state !== "string" || !observation.state.trim()) {
+  throw new Error("Packaged node_repl getApp returned no accessibility state");
+}
+const screenshot = observation.screenshot;
+// Bug 根因：SDK 模块与 cell 可处于不同 VM realm，跨 realm 的 instanceof Uint8Array
+// 会把真实截图误判为缺失；ArrayBuffer.isView 按底层 slot 判断，不依赖构造器身份。
+if (!ArrayBuffer.isView(screenshot) || screenshot.byteLength < 8) {
+  throw new Error("Packaged node_repl getApp returned no screenshot bytes");
+}
+const pngSignature = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+if (!pngSignature.every((byte, index) => screenshot[index] === byte)) {
+  throw new Error("Packaged node_repl getApp returned a non-PNG screenshot");
+}
+({ appName, stateLength: observation.state.length, screenshotBytes: screenshot.byteLength });
+`
+    : `${bootstrapCode}
 const apps = await agent.computerUse.computer.list_apps({});
 if (!Array.isArray(apps) || apps.length === 0) {
   throw new Error("Packaged node_repl list_apps returned no applications");
@@ -151,7 +176,12 @@ if (!Array.isArray(apps) || apps.length === 0) {
   const result = await client.callTool(
     {
       name: "js",
-      arguments: { code, title: "Validate packaged Computer Use application discovery" },
+      arguments: {
+        code,
+        title: targetAppName
+          ? `Validate packaged Computer Use getApp for ${targetAppName}`
+          : "Validate packaged Computer Use application discovery",
+      },
       _meta: {
         "com.zcode/request-context": {
           runtime_scope: "main",
@@ -166,13 +196,31 @@ if (!Array.isArray(apps) || apps.length === 0) {
     { timeout: 30_000 },
   );
   assert.notEqual(result.isError, true, describeMcpFailure(result));
-  assert.ok(
-    Array.isArray(result.structuredContent) && result.structuredContent.length > 0,
-    `Packaged node_repl list_apps returned no structured applications: ${describeMcpFailure(result)}`,
-  );
-  console.log(
-    `e2e-packaged-node-repl: packaged CLI + node_repl + Helper list_apps ok (${result.structuredContent.length} applications)`,
-  );
+  if (targetAppName) {
+    const framePair = findOfficialCuaFrameContentPair(result.content);
+    assert.ok(
+      framePair,
+      `Packaged node_repl getApp returned no official PNG frame: ${describeMcpFailure(result)}`,
+    );
+    assert.ok(
+      Number.isSafeInteger(result.structuredContent?.element_count),
+      `Packaged node_repl getApp returned no accessibility element count: ${describeMcpFailure(result)}`,
+    );
+    const frameRef = JSON.parse(framePair.imageRef.text);
+    const png = Buffer.from(framePair.image.data, "base64");
+    assert.deepEqual([...png.subarray(0, 8)], [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    console.log(
+      `e2e-packaged-node-repl: packaged CLI + node_repl + Helper getApp(${JSON.stringify(targetAppName)}) ok (${frameRef.width}x${frameRef.height}, ${result.structuredContent.element_count} elements)`,
+    );
+  } else {
+    assert.ok(
+      Array.isArray(result.structuredContent) && result.structuredContent.length > 0,
+      `Packaged node_repl list_apps returned no structured applications: ${describeMcpFailure(result)}`,
+    );
+    console.log(
+      `e2e-packaged-node-repl: packaged CLI + node_repl + Helper list_apps ok (${result.structuredContent.length} applications)`,
+    );
+  }
   console.log("e2e-packaged-node-repl: PASS");
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
@@ -204,7 +252,20 @@ function appendDiagnostic(current, chunk) {
 }
 
 function describeMcpFailure(result) {
-  return JSON.stringify({ content: result?.content, isError: result?.isError });
+  // Bug 根因：失败时直接序列化真实应用树和截图，会把用户界面内容写进 CI 日志。
+  // 这里只保留诊断所需的块类型与长度；原始内容始终留在进程内。
+  const content = Array.isArray(result?.content)
+    ? result.content.map((block) => ({
+        type: block?.type,
+        ...(block?.type === "image"
+          ? {
+              dataLength: typeof block.data === "string" ? block.data.length : 0,
+              mimeType: block.mimeType,
+            }
+          : { textLength: typeof block?.text === "string" ? block.text.length : 0 }),
+      }))
+    : undefined;
+  return JSON.stringify({ content, isError: result?.isError });
 }
 
 function waitForHelperReady(timeoutMs = 15_000) {

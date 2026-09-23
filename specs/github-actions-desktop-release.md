@@ -8,8 +8,12 @@
    分支构建只保留 Actions 构建产物；`v*` tag 的构建必须先验证 tag 和
    `package.json` 版本完全一致，禁止把旧源码打成新版本。
 3. 发行矩阵复用 `pnpm bundle:desktop -- --os <os> --arch <arch>`。所有 job 使用
-   `mise.toml` 指定的 Node/pnpm 版本，以 `pnpm install --frozen-lockfile` 安装依赖，
-   保持 production 产品身份，并跳过不属于桌面安装包的远端预构建。
+   `mise.toml` 指定的 Node/pnpm 版本。Linux x64 必须在依赖安装前用无第三方依赖的校验
+   针对 checkout 中已提交的 `pnpm-lock.yaml` 与许可清单执行 NOTICE 基线验证；随后才以
+   `pnpm install --frozen-lockfile` 安装依赖。平台安装器若临时改写工作区 lockfile，workflow
+   必须先打印该 diff，再把这个单一输入恢复为已验证的 `HEAD` 内容，最后运行完整
+   `pnpm test:release`。临时改写不得改变“提交输入是否新鲜”的结论，也不得靠重生成 NOTICE
+   掩盖。构建保持 production 产品身份，并跳过不属于桌面安装包的远端预构建。
 4. 每个构建只上传目标架构、目标版本的安装包；缺任何目标文件立即失败。
    仅当六个目标全部成功时才进入 GitHub Release job。Release job 必须先验证
    `THIRD-PARTY-NOTICES.md` 与 inventory 输入新鲜度，再要求当前 `reviewRequired`
@@ -27,6 +31,10 @@
 6. 无 Apple 签名和公证凭据时，macOS 构建必须标明未签名；不得宣称 Gatekeeper
    可直接通过。保持 electron-builder 原有 generic 更新服务配置，GitHub Release
    是下载安装包的分发面，不冒充应用内自动更新源。
+7. Electron runtime 下载若在解包阶段精确表现为 `ENOENT` 且缺少
+   `LICENSE.electron.txt`，视为下载/解包损坏而非源码错误：打包脚本最多在既有重试预算内
+   切换一次官方 Electron runtime mirror 后重试。其它 afterExtract/NOTICE 错误不得重试，
+   避免用镜像切换掩盖真实许可文件回归。
 
 ## 所有者与事件顺序
 
@@ -61,6 +69,9 @@ sequenceDiagram
   arm64 不接收 x64/x86_64/amd64；既有非 Linux 命名与版本不改变。
 - `main` 构建不创建 Release；任一目标失败、NOTICE/输入过期、当前材料复核项偏离显式
   release baseline 时，tag 不创建 Release。
+- Linux x64 在 `pnpm install` 前验证 committed NOTICE 基线；安装后的平台临时状态
+  不参与该输入哈希，恢复已提交 lockfile 后再跑完整 release contract。测试必须证明 workflow
+  顺序不会因 Linux 的 pnpm lockfile 重写而误报过期。
 - 当前材料复核项与显式 release baseline 完全一致时，`v<package version>` tag 在六目标
   成功后无需人工步骤，自动创建或更新同名 GitHub Release、上传全部 14 个安装包并公开。
 - `node scripts/licenses.mjs check --strict` 仍保留“零未解决项”的更强人工门禁；自动发布的

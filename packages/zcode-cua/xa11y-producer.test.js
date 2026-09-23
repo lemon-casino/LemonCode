@@ -275,7 +275,7 @@ async function expectCode(promise, code) {
   });
 }
 
-test("exports the complete 0.6.3 method vocabulary", () => {
+test("exports the complete 0.1.0 method vocabulary", () => {
   assert.deepEqual(XA11Y_PRODUCER_METHODS, [
     "list_apps",
     "list_windows",
@@ -351,6 +351,384 @@ test("validates before lazy native import and resolves AppRef strictly", async (
   );
 });
 
+test("get_app_state launches a missing installed app once and merges concurrent callers", async () => {
+  const fixture = createFixture();
+  fixture.apps = [];
+  let releaseLaunch;
+  const launchCalls = [];
+  const launcher = {
+    async launch(ref) {
+      launchCalls.push(ref);
+      await new Promise((resolve) => {
+        releaseLaunch = resolve;
+      });
+      fixture.apps = [fixture.app];
+    },
+    async dispose() {},
+  };
+  const producer = fixture.createProducer({ launcher, launchPollAttempts: 2 });
+  const first = producer.dispatch(
+    "get_app_state",
+    { app_ref: { name: "Notes" }, disable_diffing: true },
+    context("launch-a"),
+  );
+  const second = producer.dispatch(
+    "get_app_state",
+    { app_ref: { name: " Notes " }, disable_diffing: true },
+    context("launch-b"),
+  );
+  while (!releaseLaunch) await new Promise((resolve) => setImmediate(resolve));
+  releaseLaunch();
+
+  const states = await Promise.all([first, second]);
+  assert.equal(launchCalls.length, 1);
+  assert.deepEqual(launchCalls[0], { name: "Notes" });
+  assert.deepEqual(
+    states.map((state) => state.app.pid),
+    [42, 42],
+  );
+});
+
+test("launch readiness uses the selected installed identity instead of the raw lookup text", async () => {
+  const fixture = createFixture();
+  fixture.apps = [];
+  fixture.app.name = "QQ";
+  const producer = fixture.createProducer({
+    launcher: {
+      async launch() {
+        fixture.apps = [fixture.app];
+        return {
+          name: "QQScLauncher",
+          appId: "Tencent.QQScLauncher_abc!QQScLauncher",
+        };
+      },
+      async dispose() {},
+    },
+    launchPollAttempts: 2,
+  });
+
+  const state = await producer.dispatch(
+    "get_app_state",
+    { app_ref: { name: "qq launcher" }, disable_diffing: true },
+    context(),
+  );
+  assert.equal(state.app.name, "QQ");
+});
+
+test("launch readiness treats Linux desktop ids with or without the suffix as equal", async () => {
+  const fixture = createFixture();
+  fixture.apps = [];
+  fixture.app.name = "Runtime Process";
+  fixture.root.raw.bundle_id = "org.example.App";
+  const producer = fixture.createProducer({
+    platform: "linux",
+    launcher: {
+      async launch() {
+        fixture.apps = [fixture.app];
+        return {
+          name: "Desktop Entry",
+          desktopId: "org.example.App.desktop",
+          executable: "example-app",
+        };
+      },
+      async dispose() {},
+    },
+    launchPollAttempts: 2,
+  });
+
+  const state = await producer.dispatch(
+    "get_app_state",
+    { app_ref: { bundle_id: "org.example.App.desktop" }, disable_diffing: true },
+    context(),
+  );
+  assert.equal(state.app.bundle_id, "org.example.App");
+});
+
+test("an already-running normalized Windows app is reused without launching it again", async () => {
+  const fixture = createFixture();
+  fixture.app.name = "QQLauncher";
+  let launchCount = 0;
+  const producer = fixture.createProducer({
+    platform: "win32",
+    launcher: {
+      async launch() {
+        launchCount += 1;
+      },
+      async dispose() {},
+    },
+  });
+
+  const state = await producer.dispatch(
+    "get_app_state",
+    { app_ref: { name: "QQ" }, disable_diffing: true },
+    context(),
+  );
+  assert.equal(state.app.name, "QQLauncher");
+  assert.equal(launchCount, 0);
+});
+
+test("a localized Windows app name reuses the matching running executable identity", async () => {
+  const fixture = createFixture();
+  fixture.app.name = "Weixin";
+  let launchCount = 0;
+  const producer = fixture.createProducer({
+    platform: "win32",
+    launcher: {
+      async resolve() {
+        return { name: "Weixin", appId: "D:\\Tencent\\Weixin\\Weixin.exe" };
+      },
+      async launch() {
+        launchCount += 1;
+      },
+      async dispose() {},
+    },
+  });
+
+  const state = await producer.dispatch(
+    "get_app_state",
+    { app_ref: { name: "微信" }, disable_diffing: true },
+    context(),
+  );
+  assert.equal(state.app.name, "Weixin");
+  assert.equal(launchCount, 0);
+});
+
+test("a localized Windows name can bind through a unique live window title", async () => {
+  const fixture = createFixture();
+  fixture.app.name = "Weixin";
+  fixture.window.name = "微信";
+  let launchCount = 0;
+  const producer = fixture.createProducer({
+    platform: "win32",
+    launcher: {
+      async launch() {
+        launchCount += 1;
+      },
+      async dispose() {},
+    },
+  });
+
+  const state = await producer.dispatch(
+    "get_app_state",
+    { app_ref: { name: "微信" }, disable_diffing: true },
+    context(),
+  );
+  assert.equal(state.app.name, "Weixin");
+  assert.equal(state.window.title, "微信");
+  assert.equal(launchCount, 0);
+});
+
+test("a localized title selects the intended window when a custom app exposes siblings", async () => {
+  const fixture = createFixture();
+  fixture.app.name = "Weixin";
+  fixture.window.name = "微信";
+  fixture.window.stableId = "hwnd:0x2a";
+  delete fixture.window.raw.window_id;
+  const mediaWindow = new MockElement(
+    {
+      role: "window",
+      name: "图片和视频",
+      stableId: "hwnd:0x2b",
+      focused: true,
+      children: [],
+      raw: {},
+    },
+    fixture.log,
+  );
+  fixture.app._windows = [fixture.window, mediaWindow];
+  const producer = fixture.createProducer({
+    platform: "win32",
+    launcher: {
+      async launch() {
+        throw new Error("title match should avoid launch");
+      },
+      async dispose() {},
+    },
+  });
+
+  const state = await producer.dispatch(
+    "get_app_state",
+    { app_ref: { name: "微信" }, disable_diffing: true },
+    context(),
+  );
+  assert.equal(state.window.title, "微信");
+  assert.equal(state.window.window_id, 42);
+});
+
+test("launch readiness rejects ambiguous normalized live app identities", async () => {
+  const fixture = createFixture();
+  fixture.apps = [];
+  fixture.app.name = "QQ";
+  const duplicate = new MockApp({
+    name: "QQLauncher",
+    pid: 43,
+    isForeground: false,
+    root: fixture.root,
+    windows: [fixture.window],
+  });
+  const producer = fixture.createProducer({
+    launcher: {
+      async launch() {
+        fixture.apps = [fixture.app, duplicate];
+        return { name: "QQScLauncher" };
+      },
+      async dispose() {},
+    },
+    launchPollAttempts: 2,
+  });
+
+  await expectCode(
+    producer.dispatch(
+      "get_app_state",
+      { app_ref: { name: "qq launcher" }, disable_diffing: true },
+      context(),
+    ),
+    "AMBIGUOUS_APP",
+  );
+});
+
+test("launch readiness waits for a uniquely selectable window after the process appears", async () => {
+  const fixture = createFixture();
+  fixture.apps = [];
+  fixture.app._windows = [];
+  let delayCount = 0;
+  const producer = fixture.createProducer({
+    launcher: {
+      async launch() {
+        fixture.apps = [fixture.app];
+        return { name: "Notes" };
+      },
+      async dispose() {},
+    },
+    launchPollAttempts: 3,
+    async delay(milliseconds) {
+      fixture.log.push(["delay", milliseconds]);
+      delayCount += 1;
+      if (delayCount === 1) fixture.app._windows = [fixture.window];
+    },
+  });
+
+  const state = await producer.dispatch(
+    "get_app_state",
+    { app_ref: { name: "Notes" }, disable_diffing: true },
+    context(),
+  );
+  assert.equal(state.window.window_id, 7);
+  assert.equal(delayCount, 1);
+});
+
+test("only the initial get_app_state lookup may launch", async () => {
+  const fixture = createFixture();
+  fixture.apps = [];
+  let launchCount = 0;
+  const producer = fixture.createProducer({
+    launcher: {
+      async launch() {
+        launchCount += 1;
+      },
+      async dispose() {},
+    },
+    launchPollAttempts: 1,
+  });
+
+  await expectCode(
+    producer.dispatch("list_windows", { app_ref: { name: "Notes" } }, context()),
+    "APP_NOT_FOUND",
+  );
+  await expectCode(
+    producer.dispatch("get_app_state", { app_ref: { pid: 42 }, disable_diffing: true }, context()),
+    "APP_NOT_FOUND",
+  );
+  assert.equal(launchCount, 0);
+});
+
+test("launch timeout is bounded, reported as APP_NOT_READY and does not poison later attempts", async () => {
+  const fixture = createFixture();
+  fixture.apps = [];
+  let launchCount = 0;
+  const producer = fixture.createProducer({
+    launcher: {
+      async launch() {
+        launchCount += 1;
+      },
+      async dispose() {},
+    },
+    launchPollAttempts: 2,
+    launchPollIntervalMs: 5,
+  });
+  const input = {
+    app_ref: { bundle_id: "com.example.notes" },
+    disable_diffing: true,
+  };
+
+  await expectCode(producer.dispatch("get_app_state", input, context()), "APP_NOT_READY");
+  await expectCode(producer.dispatch("get_app_state", input, context()), "APP_NOT_READY");
+  assert.equal(launchCount, 2);
+  assert.deepEqual(
+    fixture.log.filter(([name]) => name === "delay"),
+    [
+      ["delay", 5],
+      ["delay", 5],
+    ],
+  );
+});
+
+test("dispose aborts an in-flight launch poll and disposes the launcher", async () => {
+  const fixture = createFixture();
+  fixture.apps = [];
+  let disposeCount = 0;
+  let polling;
+  const producer = fixture.createProducer({
+    launcher: {
+      async launch() {},
+      async dispose() {
+        disposeCount += 1;
+      },
+    },
+    launchPollAttempts: 20,
+    delay() {
+      polling = true;
+      return new Promise(() => {});
+    },
+  });
+  const pending = producer.dispatch(
+    "get_app_state",
+    { app_ref: { name: "Notes" }, disable_diffing: true },
+    context(),
+  );
+  while (!polling) await new Promise((resolve) => setImmediate(resolve));
+  await producer.dispose();
+
+  await expectCode(pending, "CONTROL_STOPPED");
+  assert.equal(disposeCount, 1);
+});
+
+test("dispose fences an in-flight application enumeration", async () => {
+  const fixture = createFixture();
+  let releaseList;
+  let markListStarted;
+  const listStarted = new Promise((resolve) => {
+    markListStarted = resolve;
+  });
+  fixture.module.App.list = async () => {
+    markListStarted();
+    return await new Promise((resolve) => {
+      releaseList = () => resolve([fixture.app]);
+    });
+  };
+  const producer = fixture.createProducer();
+  const pending = producer.dispatch(
+    "get_app_state",
+    { app_ref: appRef(), disable_diffing: true },
+    context(),
+  );
+  await listStarted;
+  await producer.dispose();
+  releaseList();
+
+  await expectCode(pending, "CONTROL_STOPPED");
+});
+
 test("lists real window fields and returns deterministic state plus mapped PNG frame", async () => {
   const fixture = createFixture();
   const producer = fixture.createProducer();
@@ -416,6 +794,77 @@ test("screenshot failure preserves the accessibility tree and clears coordinate 
   );
 });
 
+test("keeps an actionable screenshot when a custom surface cannot expose its child tree", async () => {
+  const fixture = createFixture();
+  const producer = fixture.createProducer();
+  fixture.window.children = async () => {
+    throw new Error("custom renderer has no UIA child projection");
+  };
+
+  const degraded = await observe(producer, "session-a", { include_screenshot: true });
+  assert.equal(degraded.elements.length, 1);
+  assert.equal(degraded.tree_unavailable_reason, "accessibility_tree_unavailable");
+  assert.equal(degraded.screenshot.mime_type, "image/png");
+  assert.match(degraded.text, /tree_unavailable_reason: accessibility_tree_unavailable/u);
+
+  await producer.dispatch(
+    "left_click",
+    {
+      target: { type: "coordinate", x: 5, y: 6, frame_id: degraded.frame_id },
+      app_ref: appRef(),
+      strategy: "event",
+    },
+    context(),
+  );
+  assert.ok(fixture.log.some(([name]) => name === "input.click"));
+  await expectCode(
+    producer.dispatch("left_click", { target: 1, app_ref: appRef(), strategy: "a11y" }, context()),
+    "ELEMENT_UNAVAILABLE",
+  );
+
+  await expectCode(
+    producer.dispatch(
+      "get_app_state",
+      { app_ref: appRef(), disable_diffing: true },
+      context("session-tree-only"),
+    ),
+    "STRUCTURED_STATE_UNAVAILABLE",
+  );
+
+  fixture.window.children = async () => fixture.window._children;
+  const healthy = await producer.dispatch(
+    "get_app_state",
+    { app_ref: appRef(), tree_shown_to_model: true },
+    context(),
+  );
+  assert.equal(healthy.mode, "full");
+});
+
+test("does not downgrade a broken tree without an actionable screenshot mapping", async () => {
+  const fixture = createFixture();
+  fixture.window.children = async () => {
+    throw new Error("custom renderer has no UIA child projection");
+  };
+  fixture.module.screenshot = async () => ({
+    width: 200,
+    height: 100,
+    mappingAvailable: false,
+    toPng() {
+      return Buffer.from("mock-png");
+    },
+  });
+  const producer = fixture.createProducer();
+
+  await expectCode(
+    producer.dispatch(
+      "get_app_state",
+      { app_ref: appRef(), include_screenshot: true, disable_diffing: true },
+      context(),
+    ),
+    "STRUCTURED_STATE_UNAVAILABLE",
+  );
+});
+
 test("returns null instead of fabricating a window id and refuses unverifiable handles", async () => {
   const fixture = createFixture();
   fixture.window.stableId = null;
@@ -431,6 +880,25 @@ test("returns null instead of fabricating a window id and refuses unverifiable h
   await expectCode(
     producer.dispatch("left_click", { target: 1, app_ref: { pid: 42 } }, context()),
     "STALE_STATE",
+  );
+});
+
+test("projects a native HWND encoded in xa11y stableId", async () => {
+  const fixture = createFixture();
+  fixture.window.stableId = "hwnd:0x2a";
+  delete fixture.window.raw.window_id;
+  const producer = fixture.createProducer();
+
+  const state = await producer.dispatch(
+    "get_app_state",
+    { app_ref: { pid: 42 }, disable_diffing: true },
+    context(),
+  );
+  assert.equal(state.window.window_id, 42);
+  await producer.dispatch(
+    "left_click",
+    { target: 1, app_ref: { pid: 42, window_id: 42 } },
+    context(),
   );
 });
 

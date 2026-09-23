@@ -20,6 +20,8 @@ export type Xa11yProducerErrorCode =
   | "INVALID_REQUEST"
   | "PERMISSION_DENIED"
   | "APP_NOT_FOUND"
+  | "APP_NOT_READY"
+  | "LAUNCH_FAILED"
   | "AMBIGUOUS_APP"
   | "INVALID_APP"
   | "ELEMENT_UNAVAILABLE"
@@ -130,6 +132,8 @@ export interface Xa11yAppState {
   text: string;
   frame_id?: string;
   screenshot?: Xa11yScreenshotData;
+  /** UIA/AX 子树读取降级时的诊断；存在时只能使用本次截图坐标，元素索引仍 fail closed。 */
+  tree_unavailable_reason?: string;
   non_actionable_reason?: string;
   changes?: {
     added_count: number;
@@ -150,6 +154,8 @@ export interface Xa11yModuleLike {
 export interface Xa11yProducerOptions {
   /** 缺省时首次需要 xa11y 的 dispatch 才动态 import 原生包。 */
   loadXa11y?: () => Promise<Xa11yModuleLike>;
+  /** 平台身份归一化；产品 Helper 传入自身平台，测试可注入。 */
+  platform?: NodeJS.Platform;
   /** Helper 权限链 seam；xa11y 本身不负责查询/触发产品授权。 */
   requestAccess?: (input: {
     capabilities?: string[];
@@ -163,6 +169,32 @@ export interface Xa11yProducerOptions {
   }) => Promise<void>;
   /** Helper lease/queue stop seam；producer 自身始终先清当前 session snapshot。 */
   stop?: (input: { reason?: string; context: Xa11yProducerContext }) => Promise<void>;
+  /** 已安装应用启动端口；仅首次 get_app_state 零匹配时调用。 */
+  launcher?: {
+    resolve?: (ref: Pick<Xa11yAppRef, "name" | "bundle_id">) => Promise<
+      | {
+          name?: string;
+          bundleId?: string;
+          appId?: string;
+          desktopId?: string;
+          executable?: string;
+        }
+      | undefined
+    >;
+    launch(ref: Pick<Xa11yAppRef, "name" | "bundle_id">): Promise<
+      | {
+          name?: string;
+          bundleId?: string;
+          appId?: string;
+          desktopId?: string;
+          executable?: string;
+        }
+      | undefined
+    >;
+    dispose?(): Promise<void>;
+  };
+  launchPollAttempts?: number;
+  launchPollIntervalMs?: number;
   randomUUID?: () => string;
   delay?: (milliseconds: number) => Promise<void>;
   maxElements?: number;
