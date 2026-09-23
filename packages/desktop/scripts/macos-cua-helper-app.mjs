@@ -241,6 +241,10 @@ async function defaultCompilePipPresenter({ sourcePath, targetPath, targetTriple
         "--sdk",
         "macosx",
         "swiftc",
+        // 根因：新版 Xcode 默认启用更严格的 Swift 6 诊断；这个 stdin-only AppKit
+        // presenter 按 Swift 5 兼容语义构建，避免仅因工具链升级阻断未签名发布包。
+        "-swift-version",
+        "5",
         "-O",
         "-whole-module-optimization",
         "-target",
@@ -254,9 +258,16 @@ async function defaultCompilePipPresenter({ sourcePath, targetPath, targetTriple
       { encoding: "utf8", maxBuffer: 4 * 1024 * 1024 },
     );
   } catch (error) {
-    throw new Error("[macos-cua-helper-app] failed to compile the macOS PiP presenter", {
-      cause: error,
-    });
+    const detail = [error?.stderr, error?.stdout]
+      .filter((value) => typeof value === "string" && value.trim())
+      .join("\n")
+      .trim();
+    const status = [error?.code, error?.signal].filter(Boolean).join("/");
+    const suffix = [status && `status=${status}`, detail].filter(Boolean).join("\n");
+    throw new Error(
+      `[macos-cua-helper-app] failed to compile the macOS PiP presenter${suffix ? `:\n${suffix}` : ""}`,
+      { cause: error },
+    );
   }
 }
 
