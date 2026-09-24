@@ -2,8 +2,9 @@
  * 预置图表的序列调色板与**次级编码**。
  *
  * 颜色直接复用设计系统里既有的 `--color-usage-chart-1..6`（DESIGN.md「Color Usage Rules」：
- * 用语义 token，不自造一次性色值）。这套 token 在四套主题（light / dark / zai-light / zai-dark）
- * 里都有定义，因此图表天然跟着主题走，组件里不需要任何主题分支。
+ * 用语义 token，不自造一次性色值）。这套 token 在全部界面主题里都有定义——Zai 深浅两套直接
+ * 定义，新增主题（sepia-light / midnight-blue / forest-dark，见 specs/ui-theme-modes.md）经
+ * 差量继承明暗基底同样满足该语义——因此图表天然跟着主题走，组件里不需要任何主题分支。
  *
  * **为什么每条序列还要带一个虚线样式**：这 6 个色槽在色觉障碍（protan / deutan）下不是两两可分的
  * ——把它们喂给 dataviz 的调色板校验脚本，紫↔蓝、橙↔红两对在 all-pairs 下低于 ΔE 8 的门槛。

@@ -41,11 +41,23 @@ Avoid:
 
 ## Theme Modes
 
-User-facing theme choices are:
+User-facing theme choices are, in display order:
 
-- System
+- System (dynamic: resolves to Zai Dark / Zai Light via `prefers-color-scheme`)
+- Dark Theme, backed by Zai Dark (default)
 - Light Theme, backed by Zai Light
-- Dark Theme, backed by Zai Dark
+- Sepia Light (light base)
+- Midnight Blue (dark base)
+- Forest Dark (dark base)
+
+The canonical registry of theme ids, light/dark bases, display-name i18n keys, and picker swatches lives in `packages/ui/src/useTheme.ts` (`THEME_OPTIONS`); pickers and whitelists must derive from it instead of keeping literal lists. Extending the theme list means extending this registry, its diff blocks in `packages/ui/src/styles.css`, the five first-paint bootstrap write points, and both locale files.
+
+Layering rules:
+
+- Dark-base themes activate with `dark` + `theme-<id>` on the document root; the `theme-<id>` block only overrides variables that differ from the `.dark` foundation. Light-base themes activate with `theme-<id>` only, layering diffs on the `:root`/`@theme` light foundation. `theme-<id>` must never be used as a subtree-forced class — local light-forcing keeps reusing the full `theme-zai-light` block.
+- New themes must not introduce new variable names, must not redefine `--color-icon-blue` or `--color-markdown-inline-code`, and must keep the transparent root background (Electron vibrancy).
+- Follow-system always resolves to the Zai pair, never to the new themes, and theme toggling shortcuts land on the opposite Zai side.
+- Do not add `dark:` tailwind utilities for theme-internal styling: that variant follows the OS preference, not the selected theme. Validate every theme's text and interaction contrast against the accessibility rules below.
 
 Default light and dark CSS variables still exist as fallback foundations, but new UI should be validated against Zai Light and Zai Dark as the active light/dark experiences.
 

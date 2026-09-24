@@ -97,6 +97,7 @@ import { useWorkspaceOpenInEditorTarget } from "@/hooks/useWorkspaceOpenInEditor
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
+import { resolveTheme } from "@/useTheme.js";
 import type { Theme } from "@/useTheme.js";
 import { createZCodeFileCitationRemarkPlugin } from "@/lib/zcodeFileCitationRemarkPlugin.js";
 import { windowsFileLinkEscapeRemarkPlugin } from "@/lib/windowsFileLinkEscapeRemarkPlugin.js";
@@ -843,13 +844,18 @@ function resolveMessageCodeTheme(
   theme: Theme,
   codePreviewSettings: { lightTheme: BundledTheme; darkTheme: BundledTheme },
 ): BundledTheme {
-  if (theme === "system" && typeof window !== "undefined") {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? codePreviewSettings.darkTheme
-      : codePreviewSettings.lightTheme;
+  if (theme === "system") {
+    if (typeof window !== "undefined") {
+      return window.matchMedia("(prefers-color-scheme: dark)").matches
+        ? codePreviewSettings.darkTheme
+        : codePreviewSettings.lightTheme;
+    }
+
+    return codePreviewSettings.lightTheme;
   }
 
-  return theme === "dark" || theme === "zai-dark"
+  // 非 system 主题按注册表基底归类（resolveTheme），新增深基底主题才不会漏判成亮侧。
+  return resolveTheme(theme) === "dark"
     ? codePreviewSettings.darkTheme
     : codePreviewSettings.lightTheme;
 }

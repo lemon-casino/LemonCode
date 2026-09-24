@@ -40,6 +40,13 @@ import {
   serializeWorkbenchSessionDragPayload,
   setActiveWorkbenchSessionDragPayload,
 } from "@/v4/workbenchDragDrop.js";
+import {
+  SESSION_REFERENCE_DRAG_MIME,
+  clearActivePointerSessionReference,
+  createSessionReferenceDragPayload,
+  serializeSessionReferenceDragPayload,
+  setActivePointerSessionReference,
+} from "@/v4/sessionReferenceDragDrop.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceReadOnly } from "@/store/tabStore.js";
 import { TaskTitleOverflowText } from "@/components/TaskTitleOverflowText.js";
@@ -161,6 +168,7 @@ export const MemoTaskItem = memo(function TaskListItem({
       window.matchMedia("(hover: none)").matches,
   );
   const itemRef = useRef<HTMLLIElement | null>(null);
+  const sessionReferenceNonceRef = useRef<string | null>(null);
   const workspaceActionsDisabled = useOptionalTabStore(
     (state) =>
       actionsDisabled || isWorkspaceReadOnly(state, task.workspacePath, task.workspaceIdentity),
@@ -224,6 +232,14 @@ export const MemoTaskItem = memo(function TaskListItem({
   );
   const canDragToWorkbench =
     !workspaceActionsDisabled && splitPaneEntryEnabled && !isSessionInWorkbenchGroup;
+  // 会话引用不要求源 workspace 可写；只要 row 有稳定 session id，就可以把它作为只读背景引用。
+  // 原生 HTML5 drag 仅在桌面 workbench surface 开启；手机/remote web 沿用已有 Mention Picker，
+  // 避免长按侧栏行被浏览器当成拖拽而打断滚动。
+  const canDragToSessionReference =
+    Boolean(task.taskId) &&
+    splitPaneEntryEnabled &&
+    !isHoverNone &&
+    Boolean(task.workspaceIdentity?.trim()) === Boolean(remoteSessionId);
 
   // V4 runtime/interaction 已由 sessions-index 投影，旧 Zustand map 不再接收
   // 后台会话 delta。row 直接消费随列表条目到达的 activity sidecar，避免 spinner/attention 假静止。
@@ -257,23 +273,47 @@ export const MemoTaskItem = memo(function TaskListItem({
   }, [onSelectTask, task.taskId]);
   const handleDragStart = useCallback(
     (event: React.DragEvent<HTMLLIElement>) => {
-      if (!canDragToWorkbench) {
+      if (!canDragToWorkbench && !canDragToSessionReference) {
         event.preventDefault();
         return;
       }
       event.dataTransfer.effectAllowed = "copy";
-      const payload = {
+      clearActiveWorkbenchSessionDragPayload();
+      const workbenchPayload = {
         kind: "zcode/session" as const,
         workspacePath,
         ...(task.workspaceIdentity?.trim() ? { workspaceIdentity: task.workspaceIdentity } : {}),
         ...(remoteSessionId ? { remoteSessionId } : {}),
         sessionId: task.taskId,
       };
-      setActiveWorkbenchSessionDragPayload(payload);
-      event.dataTransfer.setData(
-        WORKBENCH_SESSION_DRAG_MIME,
-        serializeWorkbenchSessionDragPayload(payload),
-      );
+      if (canDragToWorkbench) {
+        setActiveWorkbenchSessionDragPayload(workbenchPayload);
+        event.dataTransfer.setData(
+          WORKBENCH_SESSION_DRAG_MIME,
+          serializeWorkbenchSessionDragPayload(workbenchPayload),
+        );
+      }
+      if (sessionReferenceNonceRef.current) {
+        clearActivePointerSessionReference(sessionReferenceNonceRef.current);
+      }
+      sessionReferenceNonceRef.current = null;
+      if (canDragToSessionReference) {
+        const referencePayload = createSessionReferenceDragPayload({
+          sessionId: task.taskId,
+          workspacePath,
+          ...(task.workspaceIdentity?.trim() ? { workspaceIdentity: task.workspaceIdentity } : {}),
+          ...(remoteSessionId ? { remoteSessionId } : {}),
+          title: taskTitle,
+        });
+        if (referencePayload) {
+          sessionReferenceNonceRef.current = referencePayload.nonce;
+          setActivePointerSessionReference(referencePayload);
+          event.dataTransfer.setData(
+            SESSION_REFERENCE_DRAG_MIME,
+            serializeSessionReferenceDragPayload(referencePayload),
+          );
+        }
+      }
       event.dataTransfer.setData("text/plain", taskTitle);
       // 浏览器默认 drag preview 背景透明、边界不清晰；保留原行内容，
       // 只补齐 Grouped drag overlay 使用的背景、边框和阴影。
@@ -291,6 +331,7 @@ export const MemoTaskItem = memo(function TaskListItem({
       }
     },
     [
+      canDragToSessionReference,
       canDragToWorkbench,
       remoteSessionId,
       task.taskId,
@@ -301,6 +342,10 @@ export const MemoTaskItem = memo(function TaskListItem({
   );
   const handleDragEnd = useCallback(() => {
     clearActiveWorkbenchSessionDragPayload();
+    if (sessionReferenceNonceRef.current) {
+      clearActivePointerSessionReference(sessionReferenceNonceRef.current);
+    }
+    sessionReferenceNonceRef.current = null;
   }, []);
   const handleContextMenu = useCallback(() => {
     onOpenTaskContextMenu?.(task.taskId);
@@ -518,7 +563,7 @@ export const MemoTaskItem = memo(function TaskListItem({
       data-archive-confirming-task-id={isArchiveConfirming ? task.taskId : undefined}
       onClick={handleSelect}
       onContextMenu={handleContextMenu}
-      draggable={canDragToWorkbench}
+      draggable={canDragToWorkbench || canDragToSessionReference}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
       onMouseEnter={handleMouseEnter}

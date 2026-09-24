@@ -12,6 +12,7 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
+import { ThemeSwatch } from "@/components/ui/ThemeSwatch.js";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,6 +44,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
 import { normalizeInterfaceMode } from "@/lib/interfaceMode.js";
+import { THEME_OPTIONS } from "@/useTheme.js";
 import type { Theme } from "@/useTheme.js";
 import {
   WorkspaceSidebarFooterPlanBadge,
@@ -266,22 +268,20 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
                 {intl.formatMessage({ id: "settings.themeMode" })}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="w-48">
+                {/* 主题清单唯一来源是 useTheme.ts 的 THEME_OPTIONS 注册表；不在组件内维护第二份白名单。 */}
                 <DropdownMenuRadioGroup value={theme} onValueChange={onThemeChange}>
-                  <DropdownMenuRadioItem value="system">
-                    {intl.formatMessage({
-                      id: "sidebar.settings.systemDefault",
-                    })}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="zai-dark">
-                    {intl.formatMessage({
-                      id: "sidebar.settings.theme.zai-dark",
-                    })}
-                  </DropdownMenuRadioItem>
-                  <DropdownMenuRadioItem value="zai-light">
-                    {intl.formatMessage({
-                      id: "sidebar.settings.theme.zai-light",
-                    })}
-                  </DropdownMenuRadioItem>
+                  {THEME_OPTIONS.map((option) => (
+                    <DropdownMenuRadioItem key={option.id} value={option.id}>
+                      <ThemeSwatch option={option} />
+                      {intl.formatMessage({
+                        // system 沿用既有的「系统默认」key；静态主题按 id 派生侧栏 key。
+                        id:
+                          option.id === "system"
+                            ? "sidebar.settings.systemDefault"
+                            : `sidebar.settings.theme.${option.id}`,
+                      })}
+                    </DropdownMenuRadioItem>
+                  ))}
                 </DropdownMenuRadioGroup>
               </DropdownMenuSubContent>
             </DropdownMenuSub>

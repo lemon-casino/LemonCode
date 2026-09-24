@@ -191,7 +191,9 @@ function createMermaidConfig(resolvedTheme: "light" | "dark"): MermaidConfig {
 
 function resolveBrowserTheme(theme: Theme): "light" | "dark" {
   if (typeof window === "undefined") {
-    return theme === "dark" || theme === "zai-dark" ? "dark" : "light";
+    // SSR 分支没有 window，system 无法查 matchMedia 保持落亮侧；
+    // 其余主题与 resolveTheme 同源按注册表基底归类，新增深基底不漏判成亮侧。
+    return theme !== "system" && resolveTheme(theme) === "dark" ? "dark" : "light";
   }
 
   return resolveTheme(theme);

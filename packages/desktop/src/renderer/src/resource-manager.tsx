@@ -19,34 +19,52 @@ declare global {
   }
 }
 
-type Theme = "light" | "dark" | "zai-light" | "zai-dark" | "system";
+// 主题 id → 明暗基底：与 useTheme.ts THEME_OPTIONS 注册表保持同步的本地引导副本
+// （独立窗口不建 store、不走广播链路，自带最小解析逻辑；新增主题需同步此处）。
+const APPLIED_THEME_BASES = {
+  "zai-light": "light",
+  "zai-dark": "dark",
+  "sepia-light": "light",
+  "midnight-blue": "dark",
+  "forest-dark": "dark",
+} as const;
 
-function resolveTheme(theme: Theme): "light" | "dark" {
-  if (theme === "system") {
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+type AppliedTheme = keyof typeof APPLIED_THEME_BASES;
+
+function isAppliedTheme(value: string): value is AppliedTheme {
+  return value in APPLIED_THEME_BASES;
+}
+
+/** 把 localStorage 的原始主题偏好（含 legacy light/dark/system）归一为可挂载的激活主题。 */
+function resolveAppliedTheme(savedTheme: string): AppliedTheme {
+  if (savedTheme === "system") {
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "zai-dark" : "zai-light";
   }
-  return theme === "dark" || theme === "zai-dark" ? "dark" : "light";
+  if (savedTheme === "dark") return "zai-dark";
+  if (savedTheme === "light") return "zai-light";
+  // localStorage 可能被手改或旧版本污染：非法值回落默认 zai-dark，与主窗口 store 行为一致。
+  return isAppliedTheme(savedTheme) ? savedTheme : "zai-dark";
 }
 
 function applyResourceManagerTheme(): void {
-  const savedTheme = (localStorage.getItem("zcode-theme") as Theme | null) ?? "zai-dark";
-  const resolvedTheme = resolveTheme(savedTheme);
-  const appliedTheme =
-    savedTheme === "system"
-      ? resolvedTheme === "dark"
-        ? "zai-dark"
-        : "zai-light"
-      : savedTheme === "dark"
-        ? "zai-dark"
-        : savedTheme === "light"
-          ? "zai-light"
-          : savedTheme;
-  document.documentElement.classList.toggle("dark", resolvedTheme === "dark");
-  document.documentElement.classList.toggle("theme-zai-light", appliedTheme === "zai-light");
-  document.documentElement.classList.toggle("theme-zai-dark", appliedTheme === "zai-dark");
+  const appliedTheme = resolveAppliedTheme(localStorage.getItem("zcode-theme") ?? "zai-dark");
+  const root = document.documentElement;
+  root.classList.toggle("dark", APPLIED_THEME_BASES[appliedTheme] === "dark");
+  // toggle 其余 theme-* 为 false 等价清空，防止残留上一个主题的差量变量块。
+  for (const themeId of Object.keys(APPLIED_THEME_BASES)) {
+    root.classList.toggle(`theme-${themeId}`, themeId === appliedTheme);
+  }
 }
 
 applyResourceManagerTheme();
+// 资源管理器窗口不经过主窗口的广播链路（不建 store、不接 broadcastService），
+// 但主窗口 setTheme 会写 localStorage；这里补 storage 监听跟随主窗口的主题切换，
+// 否则独立窗口将持续停留打开时的旧主题，无法满足「与主窗口主题一致」。
+window.addEventListener("storage", (event) => {
+  if (event.key === "zcode-theme") {
+    applyResourceManagerTheme();
+  }
+});
 // 资源管理器不创建主窗口的 Zustand store，text-ui-* 无法自动获得持久化基准。
 // 首屏前显式应用，运行中再由 storage 事件同步，且不改变 html font-size 或接入业务 Host。
 applyUiFontSizePx(loadUiFontSizePx());

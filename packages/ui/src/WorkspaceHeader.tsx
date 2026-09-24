@@ -141,7 +141,9 @@ export function WorkspaceHeader({
         variant === "draft" ? "border-transparent" : "border-border/50",
       )}
     >
-      {variant === "draft" && draftDropTargetController?.active ? (
+      {variant === "draft" &&
+      draftDropTargetController?.active &&
+      draftDropTargetController.kind !== "session-reference" ? (
         <div
           className="absolute inset-0 z-40 bg-accent/55 backdrop-blur-sm pointer-events-auto [app-region:no-drag]"
           data-testid="new-task-draft-drop-mask"

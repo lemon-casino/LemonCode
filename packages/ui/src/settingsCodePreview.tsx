@@ -1,9 +1,10 @@
 import type { Theme } from "@/useTheme.js";
 import { useState } from "react";
-import { resolveTheme } from "@/useTheme.js";
+import { resolveTheme, THEME_OPTIONS } from "@/useTheme.js";
 import { Card, CardContent } from "@/components/ui/card.js";
 import { Input } from "@/components/ui/input.js";
 import { Switch } from "@/components/ui/switch.js";
+import { ThemeSwatch } from "@/components/ui/ThemeSwatch.js";
 import {
   Select,
   SelectContent,
@@ -122,16 +123,19 @@ export function AppearanceSectionContent({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {THEME_MODES.map(({ mode, icon: Icon }) => (
-                      <SelectItem key={mode} value={mode}>
-                        <div className="flex items-center gap-2">
-                          <Icon className="size-4" />
-                          {intl.formatMessage({
-                            id: `settings.themeMode.${mode}`,
-                          })}
-                        </div>
-                      </SelectItem>
-                    ))}
+                    {THEME_MODES.map(({ mode }) => {
+                      // 选项值来自 THEME_OPTIONS 派生的枚举，as Theme 收窄安全。
+                      const option = THEME_OPTIONS.find((candidate) => candidate.id === mode);
+                      if (!option) return null;
+                      return (
+                        <SelectItem key={mode} value={mode}>
+                          <div className="flex items-center gap-2">
+                            <ThemeSwatch option={option} />
+                            {intl.formatMessage({ id: option.labelKey })}
+                          </div>
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               }

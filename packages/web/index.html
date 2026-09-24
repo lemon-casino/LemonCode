@@ -15,20 +15,21 @@
     <title>ZCode</title>
     <script>
       (() => {
-        // JS bundle 执行前先按本地主题偏好决定首屏底色，避免 dark 用户在这一帧看到白底闪烁。
+        // JS bundle 执行前先按本地主题偏好决定首屏底色，避免深色用户在这一帧看到白底闪烁。
         const STORAGE_KEY = "zcode-theme";
         const DEFAULT_THEME = "zai-dark";
         const BROWSER_THEME_COLORS = {
           dark: "#161616",
           light: "#f8f8f8",
         };
-
-        const normalizeResolvedTheme = (theme) => {
-          if (theme === "dark") return "dark";
-          if (theme === "light") return "light";
-          if (theme === "zai-dark") return "dark";
-          if (theme === "zai-light") return "light";
-          return theme;
+        // 主题 id → 明暗基底：与 useTheme.ts 的 THEME_OPTIONS 注册表手工同步
+        // （内联脚本无法 import 共享模块，新增主题必须同步此处）。
+        const THEME_BASES = {
+          "zai-light": "light",
+          "zai-dark": "dark",
+          "sepia-light": "light",
+          "midnight-blue": "dark",
+          "forest-dark": "dark",
         };
 
         const syncBrowserThemeSurface = (theme) => {
@@ -40,24 +41,35 @@
           document.querySelector('meta[name="color-scheme"]')?.setAttribute("content", theme);
         };
 
+        // 按归一后的激活主题挂 class：深基底挂 dark + theme-<id>，浅基底只挂 theme-<id>，
+        // 让 styles.css 加载后首帧即呈现新主题差量色，而不是基底色再跳变。
+        const applyBootstrapTheme = (themeId) => {
+          const base = THEME_BASES[themeId] || THEME_BASES[DEFAULT_THEME];
+          document.documentElement.setAttribute("data-zcode-bootstrap-theme", base);
+          syncBrowserThemeSurface(base);
+          document.documentElement.classList.toggle("dark", base === "dark");
+          for (const id of Object.keys(THEME_BASES)) {
+            document.documentElement.classList.toggle(`theme-${id}`, id === themeId);
+          }
+        };
+
         try {
           const saved = localStorage.getItem(STORAGE_KEY) || DEFAULT_THEME;
-          const resolved =
+          const themeId =
             saved === "system"
               ? window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
-                ? "dark"
-                : "light"
-              : normalizeResolvedTheme(saved);
-          const finalTheme = resolved === "dark" ? "dark" : "light";
-          document.documentElement.setAttribute("data-zcode-bootstrap-theme", finalTheme);
-          syncBrowserThemeSurface(finalTheme);
-          if (finalTheme === "dark") {
-            document.documentElement.classList.add("dark");
-          }
+                ? "zai-dark"
+                : "zai-light"
+              : saved === "dark"
+                ? "zai-dark"
+                : saved === "light"
+                  ? "zai-light"
+                  : THEME_BASES[saved]
+                    ? saved
+                    : DEFAULT_THEME;
+          applyBootstrapTheme(themeId);
         } catch {
-          document.documentElement.setAttribute("data-zcode-bootstrap-theme", "dark");
-          syncBrowserThemeSurface("dark");
-          document.documentElement.classList.add("dark");
+          applyBootstrapTheme(DEFAULT_THEME);
         }
       })();
     </script>

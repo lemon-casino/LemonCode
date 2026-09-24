@@ -1,4 +1,13 @@
-type WebThemeSeed = "light" | "dark" | "zai-light" | "zai-dark" | "system";
+// 与 useTheme.ts 的 THEME_OPTIONS 注册表保持同步的种子白名单（新增主题需同步此处）。
+type WebThemeSeed =
+  | "light"
+  | "dark"
+  | "zai-light"
+  | "zai-dark"
+  | "sepia-light"
+  | "midnight-blue"
+  | "forest-dark"
+  | "system";
 
 export const WEB_DEFAULT_THEME: WebThemeSeed = "zai-dark";
 
@@ -8,6 +17,9 @@ function isWebThemeSeed(value: unknown): value is WebThemeSeed {
     value === "dark" ||
     value === "zai-light" ||
     value === "zai-dark" ||
+    value === "sepia-light" ||
+    value === "midnight-blue" ||
+    value === "forest-dark" ||
     value === "system"
   );
 }

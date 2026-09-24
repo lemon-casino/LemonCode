@@ -21,16 +21,25 @@ import {
   HardDriveUpload,
 } from "lucide-react";
 import { isSettingsSectionEnabled, type SettingsSectionId } from "@/lib/settingsNavigation.js";
-import type { Theme } from "@/useTheme.js";
+import { THEME_OPTIONS, type Theme } from "@/useTheme.js";
 
+// 图标映射按 id 约定保留（既有三个入口图标不变）；新增主题不配 lucide 图标，
+// 选择入口统一用 ThemeSwatch 三色小色板表达（见 settingsCodePreview / WorkspaceSidebarFooter）。
+const THEME_MODE_ICONS: Partial<Record<Theme, typeof Sun>> = {
+  system: Monitor,
+  "zai-dark": Moon,
+  "zai-light": Sun,
+};
+
+// 合法主题清单由 useTheme.ts 的 THEME_OPTIONS 注册表派生，禁止在此散落第二份主题白名单；
+// 顺序即注册表顺序（system → zai-dark → zai-light → 三个新主题）。
 export const THEME_MODES: Array<{
   mode: Theme;
-  icon: typeof Sun;
-}> = [
-  { mode: "system", icon: Monitor },
-  { mode: "zai-dark", icon: Moon },
-  { mode: "zai-light", icon: Sun },
-];
+  icon?: typeof Sun;
+}> = THEME_OPTIONS.map((option) => ({
+  mode: option.id,
+  icon: THEME_MODE_ICONS[option.id],
+}));
 
 type SettingsSectionGroupId = "basics" | "agentCapabilities" | "dataAndStats";
 

@@ -750,6 +750,290 @@ body {
 }
 
 /*
+ * === 新增主题（spec: specs/ui-theme-modes.md）==============================
+ * 叠加规则：深基底主题（.theme-midnight-blue / .theme-forest-dark）激活时
+ * documentElement 同时挂 dark + theme-<id>，块内只写与 .dark 基底的差异；
+ * 浅基底主题（.theme-sepia-light）只挂 theme-<id>，块内只写与 :root/@theme
+ * 基底的差异。三个块位于 .dark / .theme-zai-* 之后，同特异性下源码顺序胜出。
+ *
+ * 数据色板继承决策（按组逐项记录，均继承基底块同款值，热力图经
+ * --color-surface 引用自动适配）：
+ * - terminal ANSI 16 色：sepia 继承 :root 暖色可用；midnight/forest 按主题色相
+ *   整组重定义为蓝系/绿系（spec 色板要求「蓝色系/绿色系终端 ANSI」）。
+ * - usage-chart-1..6、context-breakdown-1..7、usage-heatmap-0..4：全部继承基底。
+ * - 六组 node tint（file/skill/command/subagent/session/plugin 各
+ *   node/node-hover/node-foreground 共 18 项）：全部继承基底。
+ * - git-* 8 项（modified/added/deleted/renamed/untracked 继承基底；
+ *   none/ignored 在基底块中即 var(--color-foreground*) 引用，自动跟随主题前景）。
+ * - trajectory 5 项、workflow-rule/trace/trace-strong、
+ *   plugin-paid-plan-badge(+foreground)：全部继承基底。
+ *
+ * 不重定义 --color-icon-blue 与 --color-markdown-inline-code（全主题共享/派生色，
+ * 后者经 --color-tag 跟随）；不写 html/body 不透明背景（Electron vibrancy 保持透明根，
+ * --color-background-win-alt 已给值）。关键前景/背景对已按 WCAG 校验 ≥ 4.5:1。
+ * ========================================================================== */
+
+/* === Sepia Light（暖纸浅色）：浅基底，继承 :root/@theme，只挂 theme-sepia-light === */
+.theme-sepia-light {
+  --animated-gradient-text-strong: rgba(63, 56, 46, 1);
+  --animated-gradient-text-soft: rgba(63, 56, 46, 0.22);
+  --color-background: #f6f1e7;
+  --color-background-win-alt: #eae3d3;
+  --color-background-alt: color-mix(in oklab, var(--color-background) 70%, transparent);
+  --color-brand: #8a5a1e;
+  --color-accent: #f3e8d2;
+  --color-find-highlight: #f5e6c4;
+  --color-find-highlight-active: #e8b96a;
+  --color-border: rgba(63, 56, 46, 0.14);
+  --color-border-hover: rgba(63, 56, 46, 0.22);
+  --color-hover: rgba(63, 56, 46, 0.05);
+  --color-selected: rgba(63, 56, 46, 0.07);
+  --color-header: #fbf8f1;
+  --color-panel: #fbf8f1;
+  --color-sidebar: #efe8da;
+  --color-surface: rgba(63, 56, 46, 0.04);
+  --color-surface-hover: rgba(63, 56, 46, 0.07);
+  --color-card: #fdfbf5;
+  --color-card-selected: var(--color-input);
+  --color-card-border: var(--color-border);
+  --color-popover: #fdfbf5;
+  --color-popover-foreground: var(--color-foreground);
+  --color-popover-header: #f6f1e7;
+  --color-popover-border: var(--color-border);
+  --color-input: #fdfbf5;
+  --color-input-focused: var(--color-input);
+  --color-input-border: var(--color-border);
+  --color-input-border-hover: var(--color-border-hover);
+  --color-input-border-focused: var(--color-border-hover);
+  --color-terminal-bg: var(--color-background);
+  --color-terminal-fg: var(--color-foreground);
+  --color-terminal-cursor: #3f382e;
+  --color-terminal-cursor-accent: var(--color-background);
+  --color-terminal-selection: rgba(138, 90, 30, 0.22);
+  --color-terminal-selection-inactive: rgba(63, 56, 46, 0.12);
+  --color-tab: #efe8da;
+  --color-tab-active: #fdfbf5;
+  --color-tab-border: var(--color-border);
+  --color-menu: #fdfbf5;
+  --color-menu-hover: #f0e9db;
+  --color-primary: #3f382e;
+  --color-primary-foreground: #fdfbf5;
+  --color-secondary: #e6ddc9;
+  --color-interaction-ask-surface: #f2ead6;
+  --color-interaction-ask-foreground: #7c5310;
+  --color-interaction-ask-fill: rgba(70, 152, 96, 0.2);
+  --color-interaction-confirmation-surface: #e9f2e4;
+  --color-interaction-confirmation-foreground: #336b3f;
+  --color-foreground: #3f382e;
+  --color-foreground-subtle: color-mix(in oklab, var(--color-foreground) 60%, transparent);
+  --color-foreground-subtlest: color-mix(in oklab, var(--color-foreground) 40%, transparent);
+  --color-foreground-inverse: #fdfbf5;
+  --color-success: #2e7d43;
+  --color-success-foreground: #ffffff;
+  --color-idle-task: #7157c2;
+  --color-idle-task-surface: #f3eefa;
+  --color-destructive: #c0392b;
+  --color-destructive-foreground: #ffffff;
+  --color-warning: #9a6200;
+  --color-feedback-privacy-hint: #9a6200;
+  --color-warning-foreground: #ffffff;
+  --color-diff-added: #2e7d43;
+  --color-diff-added-foreground: #ffffff;
+  --color-diff-removed: #c0392b;
+  --color-diff-removed-foreground: #ffffff;
+  --color-toast: #fdfbf5;
+  --color-tooltip: #efe8da;
+  --color-tooltip-foreground: #3f382e;
+  --color-tooltip-tag: #e3dac7;
+  --color-tooltip-tag-foreground: #63573f;
+  --color-tag: #e9dfc9;
+}
+
+/* === Midnight Blue（午夜蓝）：深基底，叠加 dark class，块内为与 .dark 的差异 === */
+.theme-midnight-blue {
+  --animated-gradient-text-strong: rgba(230, 235, 245, 1);
+  --animated-gradient-text-soft: rgba(230, 235, 245, 0.2);
+  --color-background: #0d1424;
+  --color-background-win-alt: #1a2438;
+  --color-background-alt: color-mix(in oklab, var(--color-background-win-alt) 60%, transparent);
+  --color-brand: #5b9dff;
+  --color-accent: #14243f;
+  --color-find-highlight: #0f2f5c;
+  --color-find-highlight-active: #2e6fd8;
+  --color-border: rgba(159, 176, 204, 0.16);
+  --color-border-hover: rgba(159, 176, 204, 0.26);
+  --color-hover: var(--color-surface-hover);
+  --color-selected: rgba(91, 157, 255, 0.16);
+  --color-header: #131c30;
+  --color-panel: #131c30;
+  --color-sidebar: #0a101d;
+  --color-surface: rgba(230, 235, 245, 0.05);
+  --color-surface-hover: rgba(230, 235, 245, 0.09);
+  --color-card: #16203a;
+  --color-card-selected: var(--color-input);
+  --color-card-border: var(--color-border);
+  --color-popover: #16203a;
+  --color-popover-foreground: var(--color-foreground);
+  --color-popover-header: #131c30;
+  --color-popover-border: var(--color-border);
+  --color-input: #16203a;
+  --color-input-focused: #0b1120;
+  --color-input-border: var(--color-border);
+  --color-input-border-hover: var(--color-border-hover);
+  --color-input-border-focused: var(--color-border-hover);
+  --color-terminal-bg: var(--color-background);
+  --color-terminal-fg: var(--color-foreground);
+  --color-terminal-cursor: #e6ebf5;
+  --color-terminal-cursor-accent: #0d1424;
+  --color-terminal-selection: rgba(91, 157, 255, 0.3);
+  --color-terminal-selection-inactive: rgba(230, 235, 245, 0.1);
+  --color-terminal-black: #1e2a48;
+  --color-terminal-red: #ff7a7a;
+  --color-terminal-green: #5fd39a;
+  --color-terminal-yellow: #ffc86b;
+  --color-terminal-blue: #6fa8ff;
+  --color-terminal-magenta: #9d8cff;
+  --color-terminal-cyan: #6fc7df;
+  --color-terminal-white: #a8b8d8;
+  --color-terminal-bright-black: #56688c;
+  --color-terminal-bright-red: #ff9e9e;
+  --color-terminal-bright-green: #8fe0b6;
+  --color-terminal-bright-yellow: #ffdba0;
+  --color-terminal-bright-blue: #9cc3ff;
+  --color-terminal-bright-magenta: #bcaeff;
+  --color-terminal-bright-cyan: #9ddcec;
+  --color-terminal-bright-white: #eef3fb;
+  --color-tab: #131c30;
+  --color-tab-active: #0b1120;
+  --color-tab-border: var(--color-border);
+  --color-menu: #16203a;
+  --color-menu-hover: #1e2a48;
+  --color-primary: #e6ebf5;
+  --color-primary-foreground: #0d1424;
+  --color-secondary: #263450;
+  --color-interaction-ask-surface: #14243f;
+  --color-interaction-ask-foreground: #9dc4ff;
+  --color-interaction-ask-fill: rgba(95, 211, 154, 0.22);
+  --color-interaction-confirmation-surface: rgba(95, 211, 154, 0.14);
+  --color-interaction-confirmation-foreground: #7fd8a2;
+  --color-foreground: #e6ebf5;
+  --color-foreground-subtle: color-mix(in oklab, var(--color-foreground) 60%, transparent);
+  --color-foreground-subtlest: color-mix(in oklab, var(--color-foreground) 30%, transparent);
+  --color-foreground-inverse: #0d1424;
+  --color-success: #4cc07a;
+  --color-success-foreground: var(--color-foreground-inverse);
+  --color-idle-task: #8f9dff;
+  --color-idle-task-surface: #141d3a;
+  --color-destructive: #f2666b;
+  --color-destructive-foreground: var(--color-foreground-inverse);
+  --color-warning: #eda23f;
+  --color-feedback-privacy-hint: #ffd479;
+  --color-warning-foreground: var(--color-foreground-inverse);
+  --color-diff-added: #4cc07a;
+  --color-diff-added-foreground: var(--color-foreground-inverse);
+  --color-diff-removed: #f2666b;
+  --color-diff-removed-foreground: var(--color-foreground-inverse);
+  --color-toast: #16203a;
+  --color-tooltip: #16203a;
+  --color-tooltip-foreground: #e6ebf5;
+  --color-tooltip-tag: #22304e;
+  --color-tooltip-tag-foreground: #9fb0cc;
+  --color-tag: #22304e;
+}
+
+/* === Forest Dark（森林深色）：深基底，叠加 dark class，块内为与 .dark 的差异 === */
+.theme-forest-dark {
+  --animated-gradient-text-strong: rgba(217, 226, 217, 1);
+  --animated-gradient-text-soft: rgba(217, 226, 217, 0.2);
+  --color-background: #101812;
+  --color-background-win-alt: #1c2a1f;
+  --color-background-alt: color-mix(in oklab, var(--color-background-win-alt) 60%, transparent);
+  --color-brand: #7fbf8e;
+  --color-accent: #16281b;
+  --color-find-highlight: #163a22;
+  --color-find-highlight-active: #2f7a44;
+  --color-border: rgba(167, 184, 169, 0.16);
+  --color-border-hover: rgba(167, 184, 169, 0.26);
+  --color-hover: var(--color-surface-hover);
+  --color-selected: rgba(127, 191, 142, 0.16);
+  --color-header: #152017;
+  --color-panel: #152017;
+  --color-sidebar: #0c120e;
+  --color-surface: rgba(217, 226, 217, 0.05);
+  --color-surface-hover: rgba(217, 226, 217, 0.09);
+  --color-card: #182419;
+  --color-card-selected: var(--color-input);
+  --color-card-border: var(--color-border);
+  --color-popover: #182419;
+  --color-popover-foreground: var(--color-foreground);
+  --color-popover-header: #152017;
+  --color-popover-border: var(--color-border);
+  --color-input: #182419;
+  --color-input-focused: #0d130e;
+  --color-input-border: var(--color-border);
+  --color-input-border-hover: var(--color-border-hover);
+  --color-input-border-focused: var(--color-border-hover);
+  --color-terminal-bg: var(--color-background);
+  --color-terminal-fg: var(--color-foreground);
+  --color-terminal-cursor: #d9e2d9;
+  --color-terminal-cursor-accent: #101812;
+  --color-terminal-selection: rgba(127, 191, 142, 0.28);
+  --color-terminal-selection-inactive: rgba(217, 226, 217, 0.1);
+  --color-terminal-black: #1e2a20;
+  --color-terminal-red: #ff7a7a;
+  --color-terminal-green: #6fd08c;
+  --color-terminal-yellow: #d9c26b;
+  --color-terminal-blue: #7fb3d9;
+  --color-terminal-magenta: #b79fdf;
+  --color-terminal-cyan: #7fc9b0;
+  --color-terminal-white: #a8b8ab;
+  --color-terminal-bright-black: #56685c;
+  --color-terminal-bright-red: #ffa39e;
+  --color-terminal-bright-green: #a3e0b4;
+  --color-terminal-bright-yellow: #ecdaa0;
+  --color-terminal-bright-blue: #a3cce8;
+  --color-terminal-bright-magenta: #cdbaec;
+  --color-terminal-bright-cyan: #a3dfc8;
+  --color-terminal-bright-white: #eaf3ec;
+  --color-tab: #152017;
+  --color-tab-active: #0d130e;
+  --color-tab-border: var(--color-border);
+  --color-menu: #182419;
+  --color-menu-hover: #223122;
+  --color-primary: #d9e2d9;
+  --color-primary-foreground: #101812;
+  --color-secondary: #26352a;
+  --color-interaction-ask-surface: #16281b;
+  --color-interaction-ask-foreground: #a9d2b3;
+  --color-interaction-ask-fill: rgba(111, 208, 140, 0.22);
+  --color-interaction-confirmation-surface: rgba(111, 208, 140, 0.14);
+  --color-interaction-confirmation-foreground: #8fd3a4;
+  --color-foreground: #d9e2d9;
+  --color-foreground-subtle: color-mix(in oklab, var(--color-foreground) 60%, transparent);
+  --color-foreground-subtlest: color-mix(in oklab, var(--color-foreground) 30%, transparent);
+  --color-foreground-inverse: #101812;
+  --color-success: #5ec97d;
+  --color-success-foreground: var(--color-foreground-inverse);
+  --color-idle-task: #8fc9a8;
+  --color-idle-task-surface: #14211a;
+  --color-destructive: #e06c60;
+  --color-destructive-foreground: var(--color-foreground-inverse);
+  --color-warning: #d9a03f;
+  --color-feedback-privacy-hint: #ffd479;
+  --color-warning-foreground: var(--color-foreground-inverse);
+  --color-diff-added: #5ec97d;
+  --color-diff-added-foreground: var(--color-foreground-inverse);
+  --color-diff-removed: #e06c60;
+  --color-diff-removed-foreground: var(--color-foreground-inverse);
+  --color-toast: #182419;
+  --color-tooltip: #182419;
+  --color-tooltip-foreground: #d9e2d9;
+  --color-tooltip-tag: #223122;
+  --color-tooltip-tag-foreground: #a7b8a9;
+  --color-tag: #223122;
+}
+
+/*
  * 之前只有 task 列表单独定制了滚动条，其他面板、下拉列表、代码区仍然保留系统默认样式，
  * 同一套界面里会出现粗细、圆角和轨道背景都不一致的问题。这里把这套透明轨道 + 圆角 thumb
  * 提升成全局原生滚动条样式，让 desktop/web、明暗主题下的视觉表现保持统一。
@@ -929,6 +1213,28 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .zcode-draft-prompt-waterfall {
     animation: none;
+  }
+}
+
+/* 会话引用 armed 状态只改变边框/阴影，不移动布局；reduced-motion 保留静态目标提示。 */
+.session-reference-target {
+  animation: session-reference-breathe 1.6s ease-in-out infinite;
+}
+
+@keyframes session-reference-breathe {
+  0%,
+  100% {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 28%, transparent);
+  }
+  50% {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 62%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-reference-target {
+    animation: none;
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-brand) 50%, transparent);
   }
 }
 

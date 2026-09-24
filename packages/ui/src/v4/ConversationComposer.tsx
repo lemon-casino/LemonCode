@@ -86,6 +86,7 @@ import {
   type ChatMediaAttachmentPreviewTarget,
 } from "@/ChatMediaAttachmentPreviewDialog.js";
 import type { LexicalChatInputHandle } from "@/LexicalChatInput.js";
+import type { EditorState } from "lexical";
 import { ChatPromptEditor } from "@/prompt-editor/ChatPromptEditor.js";
 import { usePromptEditorDragState } from "@/prompt-editor/usePromptEditorDragState.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
@@ -137,6 +138,17 @@ import { usePrimaryFollowupModifier } from "@/v4/composer/usePrimaryFollowupModi
 import { consumeV4ComposerDraftWorkspaceTransferRequest } from "@/v4/composer/composerDraftWorkspaceTransfer.js";
 import { useComposerAttachments } from "@/v4/composer/useComposerAttachments.js";
 import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
+import {
+  SESSION_REFERENCE_ARM_DELAY_MS,
+  SESSION_REFERENCE_DRAG_MIME,
+  buildSessionReferenceMention,
+  canAcceptSessionReference,
+  hasSessionReferenceMention,
+  parseSessionReferenceDragPayload,
+  resolveSessionReferenceDragOverPayload,
+  type SessionReferenceDragPayload,
+} from "@/v4/sessionReferenceDragDrop.js";
+import { WORKBENCH_SESSION_DRAG_MIME, resolveWorkbenchDropSide } from "@/v4/workbenchDragDrop.js";
 import { CodeCommentAttachmentChip } from "@/v4/composer/CodeCommentAttachmentChip.js";
 import { removeCodeCommentPreview } from "@/v4/composer/codeCommentPreviewSync.js";
 import {
@@ -475,6 +487,10 @@ interface ConversationComposerProps {
   appSlashCommands?: readonly AppSlashCommand[];
   /** 把 composer 的 drop 路由暴露给整个对话 pane / 桌面草稿标题栏。 */
   onDropTargetControllerChange?: (controller: ConversationDropTargetController | null) => void;
+  /** 仅当前聚焦且可编辑的 Pane 接受会话引用拖拽。 */
+  sessionReferenceDropEnabled?: boolean;
+  /** 草稿 pane 的 prewarm session 也属于当前目标，避免 self-reference 绕过门禁。 */
+  sessionReferenceTargetSessionId?: string | null;
 }
 
 function formatAttachmentLineCount(attachment: ChatComposerAttachment, locale: string): string {
@@ -538,6 +554,8 @@ function ConversationComposerImpl({
   suppressGoalCommands = false,
   appSlashCommands,
   onDropTargetControllerChange,
+  sessionReferenceDropEnabled = false,
+  sessionReferenceTargetSessionId = sessionId,
 }: ConversationComposerProps) {
   const { intl, locale } = useZCodeIntl();
   const services = useOptionalServices();
@@ -604,6 +622,10 @@ function ConversationComposerImpl({
   const activeShareContext = resolveAttachableShareContext(snapshot?.sharedContextImport);
   const pendingShareContext = activeShareContext?.status === "pending" ? activeShareContext : null;
   const inputApiRef = useRef<LexicalChatInputHandle | null>(null);
+  const sessionReferenceTimerRef = useRef<number | null>(null);
+  const sessionReferencePayloadRef = useRef<SessionReferenceDragPayload | null>(null);
+  const sessionReferencePhaseRef = useRef<"candidate" | "armed" | null>(null);
+  const sessionReferenceSelectionRef = useRef<EditorState | null>(null);
   const reportedErrorKeysRef = useRef(new Set<string>());
   const primaryModifierPressed = usePrimaryFollowupModifier();
   const appleKeyboardPlatform = isAppleKeyboardPlatform();
@@ -618,6 +640,280 @@ function ConversationComposerImpl({
       onTextChange?.(next);
     },
     [onTextChange, workspaceIdentity, workspacePath],
+  );
+
+  const clearSessionReferenceDrag = useCallback(() => {
+    if (sessionReferenceTimerRef.current !== null && typeof window !== "undefined") {
+      window.clearTimeout(sessionReferenceTimerRef.current);
+    }
+    sessionReferenceTimerRef.current = null;
+    sessionReferencePayloadRef.current = null;
+    sessionReferencePhaseRef.current = null;
+    sessionReferenceSelectionRef.current = null;
+  }, []);
+
+  const [sessionReferenceVersion, setSessionReferenceVersion] = useState(0);
+  const setSessionReferencePhase = useCallback((phase: "candidate" | "armed" | null) => {
+    if (sessionReferencePhaseRef.current === phase) return;
+    sessionReferencePhaseRef.current = phase;
+    setSessionReferenceVersion((value) => value + 1);
+  }, []);
+  const resetSessionReferenceDrag = useCallback(() => {
+    const hadState = Boolean(
+      sessionReferenceTimerRef.current !== null ||
+      sessionReferencePayloadRef.current ||
+      sessionReferencePhaseRef.current ||
+      sessionReferenceSelectionRef.current,
+    );
+    clearSessionReferenceDrag();
+    if (hadState) {
+      setSessionReferenceVersion((value) => value + 1);
+    }
+  }, [clearSessionReferenceDrag]);
+
+  const canAcceptCurrentSessionReference = useCallback(
+    (payload: SessionReferenceDragPayload): boolean => {
+      if (!sessionReferenceDropEnabled || disabled || snapshot?.inputRouting.mode === "reject") {
+        return false;
+      }
+      return canAcceptSessionReference(payload, {
+        sessionId: sessionReferenceTargetSessionId,
+        workspacePath,
+        workspaceIdentity,
+        remoteSessionId,
+      });
+    },
+    [
+      disabled,
+      remoteSessionId,
+      sessionReferenceTargetSessionId,
+      sessionReferenceDropEnabled,
+      snapshot?.inputRouting.mode,
+      workspaceIdentity,
+      workspacePath,
+    ],
+  );
+
+  // 监听器始终挂载，避免 candidate 刚建立但 React effect 尚未提交时漏掉 dragend/blur。
+  useEffect(() => {
+    const cancel = () => resetSessionReferenceDrag();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") cancel();
+    };
+    window.addEventListener("blur", cancel);
+    window.addEventListener("dragend", cancel, true);
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      window.removeEventListener("blur", cancel);
+      window.removeEventListener("dragend", cancel, true);
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [resetSessionReferenceDrag]);
+
+  useEffect(() => {
+    resetSessionReferenceDrag();
+    return resetSessionReferenceDrag;
+  }, [
+    disabled,
+    remoteSessionId,
+    resetSessionReferenceDrag,
+    sessionId,
+    sessionReferenceDropEnabled,
+    sessionReferenceTargetSessionId,
+    snapshot?.inputRouting.mode,
+    workspaceIdentity,
+    workspacePath,
+  ]);
+
+  const resolveSessionReferencePayload = useCallback(
+    (event: DragEvent<HTMLElement>): SessionReferenceDragPayload | null => {
+      if (
+        Array.from(event.dataTransfer.types ?? []).includes(WORKBENCH_SESSION_DRAG_MIME) &&
+        resolveWorkbenchDropSide(
+          event.currentTarget.getBoundingClientRect(),
+          event.clientX,
+          event.clientY,
+        )
+      ) {
+        // Workbench 的边缘 split 是更高优先级；让父级 pane shell 消费同一个 drag。
+        return null;
+      }
+      const payload = resolveSessionReferenceDragOverPayload(event.dataTransfer);
+      return payload && canAcceptCurrentSessionReference(payload) ? payload : null;
+    },
+    [canAcceptCurrentSessionReference],
+  );
+
+  const armSessionReference = useCallback((payload: SessionReferenceDragPayload) => {
+    if (sessionReferenceTimerRef.current !== null || sessionReferencePhaseRef.current === "armed") {
+      return;
+    }
+    sessionReferenceTimerRef.current =
+      typeof window === "undefined"
+        ? null
+        : window.setTimeout(() => {
+            sessionReferenceTimerRef.current = null;
+            if (sessionReferencePayloadRef.current?.nonce !== payload.nonce) return;
+            sessionReferencePhaseRef.current = "armed";
+            setSessionReferenceVersion((value) => value + 1);
+          }, SESSION_REFERENCE_ARM_DELAY_MS);
+  }, []);
+
+  const handleSessionReferenceDragOver = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      const payload = resolveSessionReferencePayload(event);
+      if (!payload) {
+        if (Array.from(event.dataTransfer.types ?? []).includes(SESSION_REFERENCE_DRAG_MIME)) {
+          resetSessionReferenceDrag();
+        }
+        return false;
+      }
+      event.preventDefault();
+      event.dataTransfer.dropEffect = "copy";
+      const previous = sessionReferencePayloadRef.current;
+      if (previous?.nonce !== payload.nonce) {
+        clearSessionReferenceDrag();
+        sessionReferencePayloadRef.current = payload;
+        sessionReferenceSelectionRef.current = inputApiRef.current?.getEditorState() ?? null;
+        setSessionReferencePhase("candidate");
+        armSessionReference(payload);
+      } else if (sessionReferencePhaseRef.current === null) {
+        setSessionReferencePhase("candidate");
+        armSessionReference(payload);
+      }
+      return true;
+    },
+    [
+      armSessionReference,
+      clearSessionReferenceDrag,
+      inputApiRef,
+      resetSessionReferenceDrag,
+      resolveSessionReferencePayload,
+      setSessionReferencePhase,
+    ],
+  );
+
+  const handleSessionReferenceDragLeave = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      const hasReferenceType = Array.from(event.dataTransfer.types ?? []).includes(
+        SESSION_REFERENCE_DRAG_MIME,
+      );
+      if (!hasReferenceType && !sessionReferencePayloadRef.current) return false;
+      const nextTarget = event.relatedTarget;
+      if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) return true;
+      resetSessionReferenceDrag();
+      return true;
+    },
+    [resetSessionReferenceDrag],
+  );
+
+  const commitSessionReference = useCallback(
+    (payload: SessionReferenceDragPayload): boolean => {
+      if (sessionReferencePayloadRef.current?.nonce !== payload.nonce) {
+        resetSessionReferenceDrag();
+        return true;
+      }
+      if (!canAcceptCurrentSessionReference(payload)) {
+        resetSessionReferenceDrag();
+        return true;
+      }
+      if (sessionReferencePhaseRef.current !== "armed") {
+        resetSessionReferenceDrag();
+        return true;
+      }
+      const api = inputApiRef.current;
+      if (!api) {
+        resetSessionReferenceDrag();
+        return true;
+      }
+      try {
+        const currentMarkdown = api.getMarkdown() ?? textRef.current;
+        if (!hasSessionReferenceMention(currentMarkdown, payload.sessionId)) {
+          api.insertMention(
+            buildSessionReferenceMention(payload),
+            sessionReferenceSelectionRef.current ?? undefined,
+          );
+          // Lexical 的 onChange 是 Composer draft 的唯一写入路径，避免在这里再造一条
+          // updateText/persist 写入链，造成 revision、telemetry 和 editorStateJson 不一致。
+        }
+        api.focus();
+      } catch (error) {
+        // Pane 在 drop 瞬间卸载时 Lexical selection 可能已失效；无论插入是否成功，
+        // 都必须清掉 timer/overlay，避免下一次拖拽继承上一次的 armed 状态。
+        logger.warn(`[v4-composer] 会话引用插入失败: ${String(error)}`);
+      } finally {
+        resetSessionReferenceDrag();
+      }
+      return true;
+    },
+    [canAcceptCurrentSessionReference, inputApiRef, resetSessionReferenceDrag],
+  );
+
+  const handleSessionReferenceDrop = useCallback(
+    (event: DragEvent<HTMLElement>) => {
+      if (
+        Array.from(event.dataTransfer.types ?? []).includes(WORKBENCH_SESSION_DRAG_MIME) &&
+        resolveWorkbenchDropSide(
+          event.currentTarget.getBoundingClientRect(),
+          event.clientX,
+          event.clientY,
+        )
+      ) {
+        // split drop 交给外层 Workbench；先清理 reference candidate，避免取消 split 后残留蒙层。
+        resetSessionReferenceDrag();
+        return false;
+      }
+      const payload = parseSessionReferenceDragPayload(event.dataTransfer);
+      if (!payload) {
+        if (Array.from(event.dataTransfer.types ?? []).includes(SESSION_REFERENCE_DRAG_MIME)) {
+          event.preventDefault();
+          resetSessionReferenceDrag();
+          return true;
+        }
+        return false;
+      }
+      event.preventDefault();
+      return commitSessionReference(payload);
+    },
+    [commitSessionReference, resetSessionReferenceDrag],
+  );
+
+  const handleSessionReferencePointerMove = useCallback(
+    (payload: SessionReferenceDragPayload, _clientX: number, _clientY: number) => {
+      if (!canAcceptCurrentSessionReference(payload)) {
+        resetSessionReferenceDrag();
+        return;
+      }
+      if (sessionReferencePayloadRef.current?.nonce !== payload.nonce) {
+        clearSessionReferenceDrag();
+        sessionReferencePayloadRef.current = payload;
+        sessionReferenceSelectionRef.current = inputApiRef.current?.getEditorState() ?? null;
+        setSessionReferencePhase("candidate");
+        armSessionReference(payload);
+      }
+    },
+    [
+      armSessionReference,
+      canAcceptCurrentSessionReference,
+      clearSessionReferenceDrag,
+      inputApiRef,
+      resetSessionReferenceDrag,
+      setSessionReferencePhase,
+    ],
+  );
+
+  const handleSessionReferencePointerLeave = useCallback(
+    (payload: SessionReferenceDragPayload) => {
+      if (sessionReferencePayloadRef.current?.nonce !== payload.nonce) return;
+      resetSessionReferenceDrag();
+    },
+    [resetSessionReferenceDrag],
+  );
+
+  const handleSessionReferencePointerDrop = useCallback(
+    (payload: SessionReferenceDragPayload, _clientX: number, _clientY: number) =>
+      commitSessionReference(payload),
+    [commitSessionReference],
   );
 
   // ── 附件全链路（选择/粘贴/拖拽/画板/预传/门禁）──
@@ -641,18 +937,21 @@ function ConversationComposerImpl({
   });
   const handleConversationDragOver = useCallback(
     (event: DragEvent<HTMLElement>) => {
+      if (handleSessionReferenceDragOver(event)) return;
       attachmentsApi.handleDragOverComposer(event);
     },
-    [attachmentsApi.handleDragOverComposer],
+    [attachmentsApi.handleDragOverComposer, handleSessionReferenceDragOver],
   );
   const handleConversationDragLeave = useCallback(
     (event: DragEvent<HTMLElement>) => {
+      if (handleSessionReferenceDragLeave(event)) return;
       attachmentsApi.handleDragLeaveComposer(event);
     },
-    [attachmentsApi.handleDragLeaveComposer],
+    [attachmentsApi.handleDragLeaveComposer, handleSessionReferenceDragLeave],
   );
   const handleConversationDrop = useCallback(
     (event: DragEvent<HTMLElement>) => {
+      if (handleSessionReferenceDrop(event)) return;
       const workspaceFilePayload = readWorkspaceFileDragPayload(event.dataTransfer);
       if (workspaceFilePayload) {
         // 文件树 payload 与 OS File[] 语义不同：只插入 mention，绝不能进入上传队列。
@@ -670,27 +969,56 @@ function ConversationComposerImpl({
       }
       attachmentsApi.handleDropComposer(event);
     },
-    [attachmentsApi.handleDropComposer, updateText, workspaceIdentity, workspacePath],
+    [
+      attachmentsApi.handleDropComposer,
+      handleSessionReferenceDrop,
+      updateText,
+      workspaceIdentity,
+      workspacePath,
+    ],
   );
-  const conversationDragKind = workspaceFileDragging
-    ? "workspace"
-    : externalFileDragging
-      ? "attachment"
-      : (attachmentsApi.composerDragKind ??
-        (attachmentsApi.isDraggingOverComposer ? "attachment" : null));
+  const sessionReferencePhase = sessionReferencePhaseRef.current;
+  const sessionReferencePayload = sessionReferencePayloadRef.current;
+  const conversationDragKind = sessionReferencePhase
+    ? "session-reference"
+    : workspaceFileDragging
+      ? "workspace"
+      : externalFileDragging
+        ? "attachment"
+        : (attachmentsApi.composerDragKind ??
+          (attachmentsApi.isDraggingOverComposer ? "attachment" : null));
   const dropTargetController = useMemo<ConversationDropTargetController>(
     () => ({
-      active: conversationDragKind !== null,
+      active:
+        conversationDragKind !== null &&
+        (conversationDragKind !== "session-reference" || sessionReferencePhase === "armed"),
       kind: conversationDragKind,
+      phase:
+        conversationDragKind === "session-reference"
+          ? (sessionReferencePhase ?? undefined)
+          : undefined,
+      sessionReferenceTitle:
+        conversationDragKind === "session-reference"
+          ? sessionReferencePayload?.display?.title
+          : undefined,
       onDragOver: handleConversationDragOver,
       onDragLeave: handleConversationDragLeave,
       onDrop: handleConversationDrop,
+      onPointerDragMove: handleSessionReferencePointerMove,
+      onPointerDragLeave: handleSessionReferencePointerLeave,
+      onPointerDrop: handleSessionReferencePointerDrop,
     }),
     [
       conversationDragKind,
       handleConversationDragLeave,
       handleConversationDragOver,
       handleConversationDrop,
+      handleSessionReferencePointerDrop,
+      handleSessionReferencePointerLeave,
+      handleSessionReferencePointerMove,
+      sessionReferencePayload,
+      sessionReferencePhase,
+      sessionReferenceVersion,
     ],
   );
   useEffect(() => {

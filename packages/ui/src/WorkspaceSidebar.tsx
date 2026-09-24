@@ -108,6 +108,7 @@ import {
   persistGroupedTaskCollapsedGroupIds,
   readGroupedTaskCollapsedGroupIds,
 } from "@/lib/groupedTaskExpansionPreference.js";
+import { isThemeValue } from "@/useTheme.js";
 import type { Theme } from "@/useTheme.js";
 import type { RemoteConnectionLogEntry } from "@/hooks/useRemoteConnectionLogs.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
@@ -723,13 +724,8 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
 
   const handleThemeChange = useCallback(
     (value: string) => {
-      if (
-        value === "light" ||
-        value === "dark" ||
-        value === "zai-light" ||
-        value === "zai-dark" ||
-        value === "system"
-      ) {
+      // 合法主题值唯一白名单：useTheme.ts 注册表的 isThemeValue，不在组件内维护字面量链。
+      if (isThemeValue(value)) {
         setTheme(value);
       }
     },

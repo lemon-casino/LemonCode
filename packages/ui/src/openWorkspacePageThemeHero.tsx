@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { useZCodeStore } from "@/store/StoreProvider.js";
-import { resolveTheme } from "@/useTheme.js";
+import { resolveTheme, THEME_OPTIONS } from "@/useTheme.js";
 import type { Theme } from "@/useTheme.js";
 
 interface ThemeHeroPalette {
@@ -15,7 +15,12 @@ interface ThemeHeroPalette {
 }
 
 function getThemeHeroPalette(theme: Theme): ThemeHeroPalette {
-  switch (theme) {
+  // 新主题没有专属 hero 视觉：按 THEME_OPTIONS 的明暗基底归一到既有四分支，
+  // 新浅基底（sepia-light）→ zai-light hero，新深基底（midnight-blue/forest-dark）→
+  // zai-dark hero，避免落入 default 深蓝 hero、与界面主题基底割裂。
+  const base = THEME_OPTIONS.find((option) => option.id === theme)?.base;
+  const normalized: Theme = base === "light" ? "zai-light" : base === "dark" ? "zai-dark" : theme;
+  switch (normalized) {
     case "light":
       return {
         meshBase: "#eff6ff",

@@ -56,6 +56,7 @@ import type {
   ImportedConversationShare,
 } from "@zcode/services";
 import { toast } from "@/components/ui/toast.js";
+import { cn } from "@/components/lib/utils.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
@@ -120,6 +121,10 @@ import {
   type ConversationComposerSendResult,
 } from "@/v4/ConversationComposer.js";
 import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
+import {
+  SESSION_REFERENCE_DRAG_MIME,
+  registerSessionReferencePointerTarget,
+} from "@/v4/sessionReferenceDragDrop.js";
 import { ReadOnlySessionTokenStats } from "@/v4/composer/ReadOnlySessionTokenStats.js";
 import { shouldIgnoreEscapeForStopGeneration } from "@/v4/composer/escapeStop.js";
 import { ConversationDraftEmptyState } from "@/v4/ConversationDraftEmptyState.js";
@@ -1048,12 +1053,28 @@ export function SessionPane({
       active: false,
       kind: null,
       onDragLeave: () => {},
+      // 分组 dnd-kit 没有 DataTransfer；只读 Pane 仍要明确消费 pointer drop，
+      // 否则 grouped drag end 会把拒绝的引用继续当作列表排序提交。
+      onPointerDragMove: () => {},
+      onPointerDragLeave: () => {},
+      onPointerDrop: () => true,
       onDragOver: (event) => {
+        if (Array.from(event.dataTransfer.types ?? []).includes(SESSION_REFERENCE_DRAG_MIME)) {
+          // 只读 Pane 明确拒绝 reference；不 stopPropagation，让可 split 的 Workbench
+          // parent 仍可在边缘消费同一事件。
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "none";
+          return;
+        }
         if (!isConversationFileDrag(event.dataTransfer)) return;
         event.preventDefault();
         event.dataTransfer.dropEffect = "none";
       },
       onDrop: (event) => {
+        if (Array.from(event.dataTransfer.types ?? []).includes(SESSION_REFERENCE_DRAG_MIME)) {
+          event.preventDefault();
+          return;
+        }
         if (!isConversationFileDrag(event.dataTransfer)) return;
         event.preventDefault();
         event.stopPropagation();
@@ -1064,6 +1085,30 @@ export function SessionPane({
   const effectiveDropTargetController = readOnly
     ? readOnlyDropTargetController
     : dropTargetController;
+  const conversationDropTargetRef = useRef<HTMLDivElement | null>(null);
+  const effectiveDropTargetControllerRef = useRef(effectiveDropTargetController);
+  effectiveDropTargetControllerRef.current = effectiveDropTargetController;
+  const sessionReferencePointerTargetId = useMemo(
+    () =>
+      [workspaceIdentity?.trim() || workspacePath, remoteSessionId ?? "local", paneId].join(
+        "\u0000",
+      ),
+    [paneId, remoteSessionId, workspaceIdentity, workspacePath],
+  );
+  useEffect(() => {
+    const element = conversationDropTargetRef.current;
+    if (!element) return;
+    return registerSessionReferencePointerTarget({
+      id: sessionReferencePointerTargetId,
+      element,
+      onMove: (payload, clientX, clientY) =>
+        effectiveDropTargetControllerRef.current?.onPointerDragMove?.(payload, clientX, clientY),
+      onLeave: (payload) => effectiveDropTargetControllerRef.current?.onPointerDragLeave?.(payload),
+      onDrop: (payload, clientX, clientY) =>
+        effectiveDropTargetControllerRef.current?.onPointerDrop?.(payload, clientX, clientY) ??
+        false,
+    });
+  }, [sessionReferencePointerTargetId]);
 
   // 稳定回调读取的最新值经 ref 透传，避免回调依赖高频变化的 snapshot/文本。
   const snapshotRef = useRef<ConversationSnapshot | null>(snapshot);
@@ -4389,6 +4434,8 @@ export function SessionPane({
       externalTextInsertRequest={focused && sessionId === null ? composerTextInsertRequest : null}
       onExternalTextInsertApplied={handleExternalTextInsertApplied}
       autoFocusEnabled={focused}
+      sessionReferenceDropEnabled={focused && !readOnly && !selectionSideChat}
+      sessionReferenceTargetSessionId={effectiveSessionId}
       disabled={
         connecting ||
         draftRuntimeRebuilding ||
@@ -4584,6 +4631,7 @@ export function SessionPane({
 
   return (
     <div
+      ref={conversationDropTargetRef}
       data-testid={testId(TID_V4_SESSION_PANE, paneId)}
       data-session-id={sessionId ?? "draft"}
       data-initial-draft-provider={initialDraftConfigForDiagnostics?.provider ?? ""}
@@ -4598,20 +4646,42 @@ export function SessionPane({
       onDragOver={effectiveDropTargetController?.onDragOver}
       onDragLeave={effectiveDropTargetController?.onDragLeave}
       onDrop={effectiveDropTargetController?.onDrop}
-      className="relative flex h-full min-h-0 flex-col"
+      className={cn(
+        "relative flex h-full min-h-0 flex-col",
+        effectiveDropTargetController?.kind === "session-reference" &&
+          effectiveDropTargetController.phase === "candidate" &&
+          "ring-1 ring-brand/35 ring-inset",
+        effectiveDropTargetController?.kind === "session-reference" &&
+          effectiveDropTargetController.phase === "armed" &&
+          "session-reference-target",
+      )}
     >
       {effectiveDropTargetController?.active ? (
-        <div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-accent/55 backdrop-blur-sm">
-          <div className="flex items-center gap-2 rounded-full border border-border bg-accent px-4 py-2 text-ui-base text-foreground shadow-sm">
+        <div
+          className={cn(
+            "pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-accent/55 backdrop-blur-sm",
+            effectiveDropTargetController.kind === "session-reference" &&
+              "session-reference-glass-overlay",
+          )}
+        >
+          <div className="flex max-w-[min(28rem,calc(100%-2rem))] items-center gap-2 rounded-full border border-border bg-accent px-4 py-2 text-ui-base text-foreground shadow-sm">
             <Hand className="size-4 text-foreground" />
-            <span>
-              {intl.formatMessage({
-                id:
-                  effectiveDropTargetController.kind === "workspace"
-                    ? "chat.composer.workspaceFileDragHint"
-                    : "chat.attachments.dragHint",
-              })}
+            <span className="min-w-0 truncate">
+              {effectiveDropTargetController.kind === "session-reference"
+                ? intl.formatMessage({ id: "chat.composer.sessionReferenceDragHint" })
+                : intl.formatMessage({
+                    id:
+                      effectiveDropTargetController.kind === "workspace"
+                        ? "chat.composer.workspaceFileDragHint"
+                        : "chat.attachments.dragHint",
+                  })}
             </span>
+            {effectiveDropTargetController.kind === "session-reference" &&
+            effectiveDropTargetController.sessionReferenceTitle ? (
+              <span className="max-w-48 truncate text-foreground-subtle">
+                {effectiveDropTargetController.sessionReferenceTitle}
+              </span>
+            ) : null}
           </div>
         </div>
       ) : null}

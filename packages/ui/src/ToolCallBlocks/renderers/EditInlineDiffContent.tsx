@@ -9,6 +9,7 @@ import { inferCodeLanguage, type PatchCodeViewerSource } from "@/lib/codeViewer.
 import { getPlainTextPatchPreviewLines } from "@/lib/patchDiffPreview.js";
 import type { CodePreviewSettings } from "@/lib/codePreviewSettings.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
+import { resolveTheme } from "@/useTheme.js";
 import type { Theme } from "@/useTheme.js";
 
 export {
@@ -20,6 +21,11 @@ function resolveInlineDiffHighlightTheme(
   theme: Theme | undefined,
   codePreviewSettings: CodePreviewSettings,
 ): BundledTheme {
+  // theme 缺省时保持既有兜底落亮侧；否则 resolveTheme 需要 Theme 入参。
+  if (theme === undefined) {
+    return codePreviewSettings.lightTheme;
+  }
+
   if (theme === "system") {
     if (typeof window !== "undefined") {
       return window.matchMedia("(prefers-color-scheme: dark)").matches
@@ -30,7 +36,8 @@ function resolveInlineDiffHighlightTheme(
     return codePreviewSettings.lightTheme;
   }
 
-  return theme === "dark" || theme === "zai-dark"
+  // 非 system 主题按注册表基底归类（resolveTheme），新增深基底主题才不会漏判成亮侧。
+  return resolveTheme(theme) === "dark"
     ? codePreviewSettings.darkTheme
     : codePreviewSettings.lightTheme;
 }

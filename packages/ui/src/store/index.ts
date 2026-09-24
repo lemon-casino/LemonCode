@@ -37,7 +37,7 @@ import {
   persistTaskNotificationSoundEnabled,
 } from "@/lib/taskNotificationPreferences.js";
 import type { Theme } from "../useTheme.js";
-import { applyTheme, normalizeThemePreference, resolveTheme } from "../useTheme.js";
+import { applyTheme, isThemeValue, normalizeThemePreference, resolveTheme } from "../useTheme.js";
 
 import {
   INTERFACE_MODE_STORAGE_KEY,
@@ -254,7 +254,11 @@ export function createZCodeStore(
     },
     // 默认主题统一收敛到 Zai dark，避免首次启动时 store 与其他主题入口表现不一致。
     // 仍然优先尊重 localStorage 中已保存的用户选择，不覆盖已有偏好。
-    theme: normalizeThemePreference((readSafeLocalStorage("zcode-theme") as Theme) || "zai-dark"),
+    // localStorage 可能被手改或旧版本污染：非法主题值不得进入 store，统一回落默认 zai-dark。
+    theme: (() => {
+      const storedTheme = readSafeLocalStorage("zcode-theme");
+      return isThemeValue(storedTheme) ? normalizeThemePreference(storedTheme) : "zai-dark";
+    })(),
     setTheme: (theme: Theme) => {
       const normalizedTheme = normalizeThemePreference(theme);
       writeSafeLocalStorage("zcode-theme", normalizedTheme);
@@ -471,8 +475,10 @@ export function createZCodeStore(
     try {
       // 调用对应的 setter，确保副作用（localStorage、DOM）也执行
       const state = useStore.getState();
-      if (field === "theme" && typeof msg.payload === "string") {
-        state.setTheme(msg.payload as Theme);
+      if (field === "theme" && isThemeValue(msg.payload)) {
+        // 广播 payload 同样经注册表白名单校验：异常值直接忽略，
+        // 既不进入 store 也不会经 subscribe 触发二次广播（防回环语义不变）。
+        state.setTheme(msg.payload);
       } else if (field === "locale" && typeof msg.payload === "string") {
         state.setLocale(msg.payload);
       } else if (

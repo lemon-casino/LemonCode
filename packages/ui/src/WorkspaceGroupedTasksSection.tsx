@@ -70,6 +70,15 @@ import {
   createWorkbenchPointerPositionTracker,
   type WorkbenchPointerPositionTracker,
 } from "@/v4/workbenchPointerPositionTracker.js";
+import {
+  cancelSessionReferencePointerDrag,
+  createSessionReferenceDragPayload,
+  finishSessionReferencePointerDrag,
+  readActivePointerSessionReference,
+  setActivePointerSessionReference,
+  updateSessionReferencePointerDrag,
+  type SessionReferenceDragPayload,
+} from "@/v4/sessionReferenceDragDrop.js";
 
 function findNearestScrollableAncestor(element: HTMLElement): HTMLElement | null {
   let current = element.parentElement;
@@ -646,6 +655,7 @@ export function WorkspaceGroupedTasksSection({
   const dragDirectionRef = useRef<GroupedTaskDragDirectionPosition>("after");
   const lastDragDeltaYRef = useRef(0);
   const workbenchDragPayloadRef = useRef<WorkbenchSessionDragPayload | null>(null);
+  const sessionReferencePayloadRef = useRef<SessionReferenceDragPayload | null>(null);
   const workbenchPointerPositionTrackerRef = useRef<WorkbenchPointerPositionTracker | null>(null);
   const [renamingTaskKey, setRenamingTaskKey] = useState<string | null>(null);
   const [renameDraft, setRenameDraft] = useState("");
@@ -679,6 +689,7 @@ export function WorkspaceGroupedTasksSection({
       workbenchPointerPositionTrackerRef.current?.dispose();
       workbenchPointerPositionTrackerRef.current = null;
       cancelWorkbenchPointerDrag();
+      cancelSessionReferencePointerDrag();
     },
     [],
   );
@@ -1206,6 +1217,10 @@ export function WorkspaceGroupedTasksSection({
 
   const handleGroupedTaskDragStart = useCallback(
     (event: DragStartEvent) => {
+      // 每次 pointer drag 都重新建立两个 payload；迟到的 dragend/cancel 不能消费上一拖。
+      cancelSessionReferencePointerDrag();
+      workbenchDragPayloadRef.current = null;
+      sessionReferencePayloadRef.current = null;
       dragDirectionRef.current = "after";
       lastDragDeltaYRef.current = 0;
       lastDragOverEventRef.current = null;
@@ -1238,13 +1253,32 @@ export function WorkspaceGroupedTasksSection({
       }
       const activeTask = findTaskInGroupedView(view, nextActiveTaskKey);
       if (activeTask) {
+        const activeTaskRemoteSessionId = getTaskRemoteSessionId(activeTask);
         workbenchDragPayloadRef.current = {
           kind: "zcode/session",
           workspacePath: activeTask.workspacePath,
           workspaceIdentity: activeTask.workspaceIdentity,
-          remoteSessionId: getTaskRemoteSessionId(activeTask),
+          remoteSessionId: activeTaskRemoteSessionId,
           sessionId: activeTask.taskId,
         };
+        const referencePayload =
+          Boolean(activeTask.workspaceIdentity?.trim()) === Boolean(activeTaskRemoteSessionId)
+            ? createSessionReferenceDragPayload({
+                sessionId: activeTask.taskId,
+                workspacePath: activeTask.workspacePath,
+                ...(activeTask.workspaceIdentity?.trim()
+                  ? { workspaceIdentity: activeTask.workspaceIdentity }
+                  : {}),
+                ...(activeTaskRemoteSessionId
+                  ? { remoteSessionId: activeTaskRemoteSessionId }
+                  : {}),
+                title: activeTask.title,
+              })
+            : null;
+        sessionReferencePayloadRef.current = referencePayload;
+        if (referencePayload) {
+          setActivePointerSessionReference(referencePayload);
+        }
       }
       dragOriginViewRef.current = authoritativeView;
       dragPreviewViewRef.current = authoritativeView;
@@ -1259,7 +1293,14 @@ export function WorkspaceGroupedTasksSection({
       }
       setActiveDragTaskKey(nextActiveTaskKey);
     },
-    [collapsedGroupIds, getTaskRemoteSessionId, onCollapsedGroupIdsChange, authoritativeView, view],
+    [
+      authoritativeView,
+      cancelSessionReferencePointerDrag,
+      collapsedGroupIds,
+      getTaskRemoteSessionId,
+      onCollapsedGroupIdsChange,
+      view,
+    ],
   );
 
   const applyGroupedTaskDragOverPreview = useCallback(
@@ -1313,8 +1354,18 @@ export function WorkspaceGroupedTasksSection({
     (event: DragMoveEvent) => {
       const workbenchPayload = workbenchDragPayloadRef.current;
       const position = workbenchPointerPositionTrackerRef.current?.getPosition();
+      let workbenchEdgeActive = false;
       if (workbenchPayload && position) {
-        updateWorkbenchPointerDrag(workbenchPayload, position.x, position.y);
+        workbenchEdgeActive = updateWorkbenchPointerDrag(workbenchPayload, position.x, position.y);
+      }
+      if (workbenchEdgeActive) {
+        cancelSessionReferencePointerDrag(sessionReferencePayloadRef.current?.nonce);
+      } else if (position && sessionReferencePayloadRef.current) {
+        const activeReference = readActivePointerSessionReference();
+        if (activeReference?.nonce !== sessionReferencePayloadRef.current.nonce) {
+          setActivePointerSessionReference(sessionReferencePayloadRef.current);
+        }
+        updateSessionReferencePointerDrag(position.x, position.y);
       }
       const nextDeltaY = event.delta.y;
       const previousDirection = dragDirectionRef.current;
@@ -1341,7 +1392,9 @@ export function WorkspaceGroupedTasksSection({
 
   const resetGroupedTaskDrag = useCallback(() => {
     cancelWorkbenchPointerDrag();
+    cancelSessionReferencePointerDrag();
     workbenchDragPayloadRef.current = null;
+    sessionReferencePayloadRef.current = null;
     workbenchPointerPositionTrackerRef.current?.dispose();
     workbenchPointerPositionTrackerRef.current = null;
     setActiveDragTaskKey(null);
@@ -1418,6 +1471,34 @@ export function WorkspaceGroupedTasksSection({
       ) {
         resetGroupedTaskDrag();
         setViewWithGroupedTaskAnimation(originView);
+        return;
+      }
+      const sessionReferencePayload = sessionReferencePayloadRef.current;
+      if (
+        sessionReferencePayload &&
+        workbenchDropPosition &&
+        readActivePointerSessionReference()?.nonce !== sessionReferencePayload.nonce
+      ) {
+        // Workbench edge preview 会暂停 reference coordinator；pointerup 若已回到中心，
+        // 先恢复同一次 payload，再由最终坐标重新解析真实目标。
+        setActivePointerSessionReference(sessionReferencePayload);
+      }
+      const sessionReferenceConsumed = sessionReferencePayload
+        ? finishSessionReferencePointerDrag(
+            sessionReferencePayload.nonce,
+            workbenchDropPosition
+              ? {
+                  clientX: workbenchDropPosition.x,
+                  clientY: workbenchDropPosition.y,
+                }
+              : undefined,
+          )
+        : false;
+      if (sessionReferenceConsumed) {
+        resetGroupedTaskDrag();
+        if (originView) {
+          setViewWithGroupedTaskAnimation(originView);
+        }
         return;
       }
       const currentPreviewView = dragPreviewViewRef.current ?? authoritativeView;
