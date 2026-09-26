@@ -185,6 +185,8 @@ export {
   inputHash,
   refToString,
   type ActorId,
+  type ActorModelProvenance,
+  type WorkflowRunModelProvenance,
   type ActorRecord,
   type ActorRef,
   type ActorSessionSeed,

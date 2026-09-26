@@ -199,7 +199,9 @@ export async function amendDynamicWorkflowRun(
     // 的三态，`AmendWorkflow` 的 resolveInput 已经把它归一成这里的一条选择或缺席（缺席 = 回到
     // 会话模型）。端口若再继承一次，「回到会话模型」（`null`）就永远到不了这里。
     ...(request.subagentModel === undefined ? {} : { subagentModel: request.subagentModel }),
-    ...(request.sessionModelSelection === undefined ? {} : { sessionModelSelection: request.sessionModelSelection }),
+    ...(request.sessionModelSelection === undefined
+      ? {}
+      : { sessionModelSelection: request.sessionModelSelection }),
     ...(request.actorModelOverrides === undefined
       ? {}
       : { actorModelOverrides: request.actorModelOverrides }),
@@ -271,6 +273,8 @@ export function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNew
   // 启动时只读一次父会话选择；后续会话切模不影响已批准工作流。显式 run 选择优先。
   const sessionSelection = input.sessionModelSelection ?? deps.getSessionModelSelection?.();
   const subagentSelection = input.subagentModel ?? sessionSelection;
+  const subagentModelProvenance =
+    input.subagentModel === undefined ? "sessionInherited" : "runModel";
 
   // 发起锚点：修订沿用前驱、直接启动用显式值、聊天用活动轮，
   // 都没有就铸一个。引擎在建 run 那一世把它记成 run-launched。
@@ -294,15 +298,14 @@ export function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNew
     // 子代理模型与阶段表并列同车（同样不进 resolveLaunchAnchor：修订绝不继承前驱的模型）。
     // 零 SQL——它活在这条事件里，`dwf_run` 上没有对应的列（刻意不做迁移）。
     ...(subagentModel === undefined ? {} : { subagentModel }),
+    subagentModelProvenance,
     ...(subagentSelection === undefined ? {} : { subagentSelection }),
     ...(sessionSelection === undefined ? {} : { sessionSelection }),
     ...(input.actorModelOverrides === undefined
       ? {}
       : { actorModelOverrides: input.actorModelOverrides }),
     ...(input.askRevisions === undefined ? {} : { askRevisions: input.askRevisions }),
-    ...(input.invalidatedSites === undefined
-      ? {}
-      : { invalidatedSites: input.invalidatedSites }),
+    ...(input.invalidatedSites === undefined ? {} : { invalidatedSites: input.invalidatedSites }),
     // 脚本文件与子代理模型并列同车（同样不进 resolveLaunchAnchor：修订记的是新脚本的文件）。
     // 零 SQL——它活在这条事件里，`dwf_run` 上没有对应的列。
     ...(input.scriptPath === undefined ? {} : { scriptPath: input.scriptPath }),
@@ -313,6 +316,9 @@ export function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNew
   // 立刻开始轮询快照——注册表是「run 已存在」的唯一同步事实（journal 的 dwf_run 行
   // 要等引擎构造，晚若干个微任务）。
   const controller = new AbortController();
+  const executionFailoverLineageLease = deps.acquireExecutionFailoverLineageLease?.(
+    mintRunLineageLeaseId(runId),
+  );
   const entry: RunRegistryEntry = {
     controller,
     startedAt: new Date(),
@@ -331,12 +337,16 @@ export function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNew
     ...(subagentModel === undefined ? {} : { subagentModel }),
     ...(subagentSelection === undefined ? {} : { subagentSelection }),
     ...(sessionSelection === undefined ? {} : { sessionSelection }),
+    ...(input.actorModelOverrides === undefined
+      ? {}
+      : { actorModelOverrides: input.actorModelOverrides }),
     // 脚本文件的间隙副本，与子代理模型同规（见 RunRegistryEntry.scriptPath）。
     ...(input.scriptPath === undefined ? {} : { scriptPath: input.scriptPath }),
     ...(imported === undefined ? {} : { resumedFrom: imported.resumedFrom }),
     // 用量起点的间隙副本，与并发上界同规：journal 行落下之前，两条读面只能从条目读到用量，
     // 而修订一个刚起步的 run 恰好落在那几个微任务里——报 0 会让详情面说「这条 lineage 没花钱」。
     ...(input.inheritedTokens === undefined ? {} : { inheritedTokens: input.inheritedTokens }),
+    ...(executionFailoverLineageLease === undefined ? {} : { executionFailoverLineageLease }),
     // 真正的结算 promise 在下面替换；先占位以满足类型（同步可见）。
     settlement: Promise.resolve<RunSettlement>({ status: "stopped", reason: "user" }),
   };
@@ -348,7 +358,9 @@ export function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNew
     entry,
     launchDynamicWorkflowRun({
       caps,
-      onControlReady: (control) => { entry.control = control; },
+      onControlReady: (control) => {
+        entry.control = control;
+      },
       compiled,
       cwd: input.cwd,
       deps,
@@ -361,6 +373,7 @@ export function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNew
       ...(input.args === undefined ? {} : { args: input.args }),
       ...(entry.parentSessionId === undefined ? {} : { parentSessionId: entry.parentSessionId }),
       escalationRegistry: escalations,
+      ...(executionFailoverLineageLease === undefined ? {} : { executionFailoverLineageLease }),
       runId,
       scriptText: input.scriptText,
       signal: controller.signal,
@@ -460,6 +473,9 @@ export async function resumeDynamicWorkflowRun(
   const resumedScriptPath = readRunScriptPath(deps.journal, runId);
   const resumedLaunch = readRunLaunch(deps.journal, runId);
   const controller = new AbortController();
+  const executionFailoverLineageLease = deps.acquireExecutionFailoverLineageLease?.(
+    mintRunLineageLeaseId(runId),
+  );
   const entry: RunRegistryEntry = {
     controller,
     startedAt: new Date(),
@@ -474,11 +490,19 @@ export async function resumeDynamicWorkflowRun(
     // 就写死在 `run-launched` 上、本 run 余生不变，所以抄下来不会与事件分叉；抄了之后两条读面
     // 只剩一条规则——有条目就读条目，只有冷行才去扫事件。
     ...(resumedSubagentModel === undefined ? {} : { subagentModel: resumedSubagentModel }),
-    ...(resumedLaunch?.subagentSelection === undefined ? {} : { subagentSelection: resumedLaunch.subagentSelection }),
-    ...(resumedLaunch?.sessionSelection === undefined ? {} : { sessionSelection: resumedLaunch.sessionSelection }),
+    ...(resumedLaunch?.subagentSelection === undefined
+      ? {}
+      : { subagentSelection: resumedLaunch.subagentSelection }),
+    ...(resumedLaunch?.sessionSelection === undefined
+      ? {}
+      : { sessionSelection: resumedLaunch.sessionSelection }),
+    ...(resumedLaunch?.actorModelOverrides === undefined
+      ? {}
+      : { actorModelOverrides: resumedLaunch.actorModelOverrides }),
     // 脚本文件：与子代理模型同一条读、同一条论证（建 run 那一世写死、余生不变，抄下来不会
     // 与事件分叉）。resume 之后两条读面因此照旧「有条目就读条目」。
     ...(resumedScriptPath === undefined ? {} : { scriptPath: resumedScriptPath }),
+    ...(executionFailoverLineageLease === undefined ? {} : { executionFailoverLineageLease }),
     settlement: Promise.resolve<RunSettlement>({ status: "stopped", reason: "user" }),
   };
   runs.set(runId, entry);
@@ -488,7 +512,9 @@ export async function resumeDynamicWorkflowRun(
     entry,
     launchDynamicWorkflowRun({
       // caps 沿用 journal 记录：spentTokens 是对着这套 caps 累计的，
-      onControlReady: (control) => { entry.control = control; },
+      onControlReady: (control) => {
+        entry.control = control;
+      },
       // 重算等于悄悄挪门柱。
       caps: record.caps,
       compiled,
@@ -506,6 +532,7 @@ export async function resumeDynamicWorkflowRun(
       ...(record.parentSessionId === undefined ? {} : { parentSessionId: record.parentSessionId }),
       // 两条入口共用同一张停驻表（见上面的字段注释）。
       escalationRegistry: escalations,
+      ...(executionFailoverLineageLease === undefined ? {} : { executionFailoverLineageLease }),
       runId,
       scriptText: record.scriptText,
       signal: controller.signal,
@@ -521,6 +548,14 @@ export async function resumeDynamicWorkflowRun(
     runId,
     ...(record.toolCallId === undefined ? {} : { toolCallId: record.toolCallId }),
   };
+}
+
+/**
+ * runId 会被 resume 复用，不能直接充当 lease owner。每次 launch 铸独立 incarnation token，
+ * 旧 incarnation 的延迟 release 因而只会释放自己的 lease，不会误删新 run 正在使用的保留项。
+ */
+export function mintRunLineageLeaseId(runId: string): string {
+  return `${runId}:${randomUUID()}`;
 }
 
 /**

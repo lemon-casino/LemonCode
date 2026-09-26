@@ -11,6 +11,11 @@ import { ModelRetryBudget } from "@zcode/contracts";
 /** 状态事件里 `maxAttempts` 表示「无上限」的哨兵（Infinity 不可序列化，0 不占用合法计数）。 */
 export const UNBOUNDED_RETRY_MAX_ATTEMPTS = 0;
 
+/** Runtime-only continuation comes from an error context; invalid values must not expand retry budget. */
+export function normalizeRetryAttemptOffset(value: number | undefined): number {
+  return Number.isSafeInteger(value) && (value ?? -1) >= 0 ? value! : 0;
+}
+
 export function isUnboundedRetryBudget(budget: ModelRetryBudget | undefined): boolean {
   return budget === ModelRetryBudget.Unbounded;
 }

@@ -17,8 +17,10 @@ import type {
   WorkflowActorModelOverride,
   WorkflowAskRevision,
   WorkflowModelSelection,
+  WorkflowRunModelProvenance,
 } from "@zcode/dynamic-workflow";
 import { uuidv7 } from "@zcode/shared";
+import { parseModelPickerValue } from "@zcode/shared/model-selection";
 
 export interface RunLaunchAnchor {
   /** 发起 run 那一轮的 inputId（中枢直接启动为铸出的 UUID v7）。 */
@@ -36,6 +38,8 @@ export interface RunLaunchAnchor {
 export interface RunLaunch extends RunLaunchAnchor {
   phaseNames?: string[];
   subagentModel?: string;
+  /** 新事件显式记录 run 默认模型来源；缺席仅用于兼容旧 journal。 */
+  subagentModelProvenance?: WorkflowRunModelProvenance;
   /** Lossless workflow default. Unlike subagentModel, this preserves speed. */
   subagentSelection?: WorkflowModelSelection;
   sessionSelection?: WorkflowModelSelection;
@@ -61,10 +65,7 @@ export interface RunLaunch extends RunLaunchAnchor {
 const RUN_LAUNCH_ANCHOR_SCAN_LIMIT = 8;
 
 /** Reads the complete durable launch configuration used by cold resume. */
-export function readRunLaunch(
-  journal: JournalStorePort,
-  runId: string,
-): RunLaunch | undefined {
+export function readRunLaunch(journal: JournalStorePort, runId: string): RunLaunch | undefined {
   for (const stored of journal.listEvents(runId, { limit: RUN_LAUNCH_ANCHOR_SCAN_LIMIT })) {
     const event = stored.event;
     if (event.type !== "run-launched") continue;
@@ -72,6 +73,9 @@ export function readRunLaunch(
       inputId: event.inputId,
       ...(event.phaseNames === undefined ? {} : { phaseNames: event.phaseNames }),
       ...(event.subagentModel === undefined ? {} : { subagentModel: event.subagentModel }),
+      ...(event.subagentModelProvenance === undefined
+        ? {}
+        : { subagentModelProvenance: event.subagentModelProvenance }),
       ...(event.subagentSelection === undefined
         ? {}
         : { subagentSelection: event.subagentSelection }),
@@ -80,9 +84,7 @@ export function readRunLaunch(
         ? {}
         : { actorModelOverrides: event.actorModelOverrides }),
       ...(event.askRevisions === undefined ? {} : { askRevisions: event.askRevisions }),
-      ...(event.invalidatedSites === undefined
-        ? {}
-        : { invalidatedSites: event.invalidatedSites }),
+      ...(event.invalidatedSites === undefined ? {} : { invalidatedSites: event.invalidatedSites }),
       ...(event.scriptPath === undefined ? {} : { scriptPath: event.scriptPath }),
       ...(event.phaseAlongside === undefined ? {} : { phaseAlongside: event.phaseAlongside }),
     };
@@ -117,12 +119,59 @@ export function readRunSubagentModel(journal: JournalStorePort, runId: string): 
 
 export interface RunActorModelConfiguration {
   defaultSelection?: WorkflowModelSelection;
+  defaultProvenance?: WorkflowRunModelProvenance;
   overrides: WorkflowActorModelOverride[];
 }
 
+export interface RunRevisionModelConfiguration {
+  sessionModelSelection?: WorkflowModelSelection;
+  subagentModel?: WorkflowModelSelection;
+}
+
+/** 显式 run 选择与会话启动快照必须分开；新事件读显式 provenance，旧事件才回退到字符串在场。 */
+export function runActorModelConfigurationFromLaunch(
+  launch: Pick<
+    RunLaunch,
+    | "actorModelOverrides"
+    | "subagentModel"
+    | "subagentModelProvenance"
+    | "subagentSelection"
+  >,
+): RunActorModelConfiguration {
+  const defaultProvenance =
+    launch.subagentModelProvenance ??
+    (launch.subagentModel === undefined ? undefined : "runModel");
+  const defaultSelection =
+    defaultProvenance === "runModel" ? launch.subagentSelection : undefined;
+  return {
+    ...(defaultSelection === undefined ? {} : { defaultSelection }),
+    ...(defaultProvenance === undefined ? {} : { defaultProvenance }),
+    overrides: launch.actorModelOverrides ?? [],
+  };
+}
+
+/** Ask revision 必须继承模型选择，同时保留“显式选择”和“会话快照”的来源区别。 */
+export function runRevisionModelConfigurationFromLaunch(
+  launch: Pick<RunLaunch, "sessionSelection" | "subagentModel" | "subagentSelection"> | undefined,
+): RunRevisionModelConfiguration {
+  if (launch === undefined) return {};
+  const subagentModel =
+    launch.subagentModel === undefined
+      ? undefined
+      : (launch.subagentSelection ?? parseModelPickerValue(launch.subagentModel));
+  const sessionModelSelection =
+    launch.sessionSelection ??
+    (launch.subagentModel === undefined ? launch.subagentSelection : undefined);
+  return {
+    ...(subagentModel === undefined ? {} : { subagentModel }),
+    ...(sessionModelSelection === undefined ? {} : { sessionModelSelection }),
+  };
+}
+
 /**
- * Read the lossless model configuration recorded at admission. Old runs only have
- * `subagentModel`; their caller retains the legacy parser fallback.
+ * Read the lossless model configuration recorded at admission. New events carry provenance even
+ * when the user cleared an inherited model; legacy explicit events are reconstructed from
+ * `subagentModel`, while legacy inherited events deliberately remain unknown.
  */
 export function readRunActorModelConfiguration(
   journal: JournalStorePort,
@@ -130,12 +179,7 @@ export function readRunActorModelConfiguration(
 ): RunActorModelConfiguration {
   for (const stored of journal.listEvents(runId, { limit: RUN_LAUNCH_ANCHOR_SCAN_LIMIT })) {
     if (stored.event.type !== "run-launched") continue;
-    return {
-      ...(stored.event.subagentSelection === undefined
-        ? {}
-        : { defaultSelection: stored.event.subagentSelection }),
-      overrides: stored.event.actorModelOverrides ?? [],
-    };
+    return runActorModelConfigurationFromLaunch(stored.event);
   }
   return { overrides: [] };
 }

@@ -87,7 +87,7 @@ import { createModelCatalogPort } from "./model-catalog-port.js";
 import { createDynamicWorkflowRunProgressSink } from "./dynamic-workflow-run-progress-sink.js";
 import { createScriptWorkflowAgentRuntime } from "./script-workflow-child-runtime.js";
 import { createWorkflowToolOperationAdmission } from "./workflow-tool-operation-admission.js";
-import { workflowActorModelPolicy } from "./workflow-actor-model.js";
+import { workflowActorExecutionFailoverScope } from "./workflow-actor-model.js";
 import { workflowActorToolPolicy } from "./workflow-actor-tools.js";
 import {
   createNodeReplBrowserBroker,
@@ -593,28 +593,23 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
             concurrency: workflowConcurrencyGovernor,
             createActorRuntime: ({
               persona,
-              pinnedModel,
-              runSubagentModel,
-              scriptActorModel,
-              approvedActorModel,
+              actorModelSelection,
+              actorModelProvenance,
+              onExecutionFailoverSelection,
+              executionFailoverLineageId,
               sessionId: actorSessionId,
               submitPort,
               submitProfile,
               escalatePort,
               modelRequestAdmission,
             }) => {
-              const modelPolicy = workflowActorModelPolicy(
-                {
-                  parentSelection: getRuntime().getSessionModelSelection(),
-                  ...(runSubagentModel === undefined ? {} : { runSelection: runSubagentModel }),
-                  ...(scriptActorModel === undefined ? {} : { scriptSelection: scriptActorModel }),
-                  ...(approvedActorModel === undefined
-                    ? {}
-                    : { approvedSelection: approvedActorModel }),
-                },
-                pinnedModel,
-              );
-              const requestedSelection = modelPolicy.configOverrides.modelSelection;
+              const parentRuntime = getRuntime();
+              const executionFailoverScope = workflowActorExecutionFailoverScope({
+                childSessionId: actorSessionId,
+                foregroundExecutionId: executionFailoverLineageId,
+                provenance: actorModelProvenance,
+              });
+              const requestedSelection = actorModelSelection;
               const effectiveSelection =
                 requestedSelection === undefined
                   ? undefined
@@ -654,14 +649,10 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
                   // actor 的工具面是减法（全集减去会悬挂/越权的交互工具），只能经 configOverrides
                   // 表达（request.opts.tools 只有 allowlist）。
                   ...workflowActorToolPolicy(),
-                  // 模型面：`runSubagentModel` 是本 run 自己的选择（`subagent_model`），在场时整条
-                  // 覆盖，排在 pin 之上——主代理不受它影响。没有它也没有 pin 就不覆盖——child runtime
-                  // 的基线本就是父会话当前模型（工厂的基线，见 script-workflow-child-runtime.ts）。
-                  // resume 带来的 pin 钉住上一次实际跑的模型（persona 冻结不变式的持久化那一半，见
-                  // workflow-actor-model.ts 的优先级表）；parentSelection 取父会话**当前**的选择，
-                  // 与工厂基线同源，pin 比对才不会漂移。
+                  // launch 已把显式配置、同 run journal 绑定与 import seed 归约成一个选择。
+                  // 缺席即沿用 child runtime 的父会话基线；provenance 单独决定是否加入父 failover。
                   ...(effectiveSelection === undefined
-                    ? modelPolicy.configOverrides
+                    ? {}
                     : { modelSelection: effectiveSelection }),
                 },
                 deps: {
@@ -679,7 +670,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
                   // 不各自冻结一份。
                   modelFactory,
                   permissionService,
-                  runtime: getRuntime(),
+                  runtime: parentRuntime,
                   runtimeConfig,
                   sessionId,
                   sessionStore,
@@ -691,6 +682,17 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
                 // request 在这里只是工厂签名的占位：opts 为空即「不覆盖任何东西」。
                 request: { opts: {} } as never,
                 traceContext,
+                ...(executionFailoverScope === undefined
+                  ? {}
+                  : {
+                      executionFailover: {
+                        ...(onExecutionFailoverSelection
+                          ? { onSelectionActivated: onExecutionFailoverSelection }
+                          : {}),
+                        policyPort: parentRuntime.getExecutionFailoverPolicyPort(),
+                        scope: executionFailoverScope,
+                      },
+                    }),
                 // submit profile → submit_result 形态：
                 // `untyped` 不注入端口（core 的注册门是端口在场，于是没有这个工具——全 untyped 的子代理
                 // 本来就无处可提交）；`mono` 注入端口 + typed 声明；`generic` 只注入端口（通用声明）。
@@ -738,7 +740,7 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
             // 惰性取 runtime 同 onRunEvent：run service 是 AgentRuntime 的依赖，构造更早；
             // 而启动只来自工具调用或 v4 命令，那时 runtime 必已就绪。
             registerResidencyBlockingWork: (work) => {
-              void getRuntime().trackResidencyBlockingWork(work);
+              getRuntime().retainSessionStoreDependentCloseWork(work);
             },
             // 发起锚点：CreateWorkflow 在父会话的活动轮里执行，
             // 那一轮的 inputId 就是子代理 agent_step 要挂的 message。trace.turnId 对不上活动轮
@@ -748,6 +750,17 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
               return active !== undefined && active.turnId === trace.turnId
                 ? active.inputId
                 : undefined;
+            },
+            resolveExecutionFailoverLineageId: () => getRuntime().getExecutionFailoverLineageId(),
+            acquireExecutionFailoverLineageLease: async (leaseId) => {
+              const policyPort = getRuntime().getExecutionFailoverPolicyPort();
+              const lease = await policyPort.acquireLineageLease(leaseId);
+              return lease === undefined
+                ? undefined
+                : {
+                    ...lease,
+                    release: () => policyPort.releaseLineageLease(lease.leaseId),
+                  };
             },
             ...(isDynamicWorkflowTaskLinkStore(sessionStore)
               ? { taskLinkStore: sessionStore }
@@ -1282,15 +1295,17 @@ export async function createZCodeApp(options: ZCodeAppOptions): Promise<ZCodeApp
       typeof dynamicWorkflowRunPort.controlAsk !== "function"
         ? {}
         : {
-            controlWorkflowAsk: (input: import("@zcode/contracts").DynamicWorkflowAskControlRequest) =>
-              dynamicWorkflowRunPort.controlAsk!(input),
+            controlWorkflowAsk: (
+              input: import("@zcode/contracts").DynamicWorkflowAskControlRequest,
+            ) => dynamicWorkflowRunPort.controlAsk!(input),
           }),
       ...(dynamicWorkflowRunPort === undefined ||
       typeof dynamicWorkflowRunPort.reviseAsk !== "function"
         ? {}
         : {
-            reviseWorkflowAsk: (input: import("@zcode/contracts").DynamicWorkflowAskRevisionRequest) =>
-              dynamicWorkflowRunPort.reviseAsk!(input),
+            reviseWorkflowAsk: (
+              input: import("@zcode/contracts").DynamicWorkflowAskRevisionRequest,
+            ) => dynamicWorkflowRunPort.reviseAsk!(input),
           }),
       // 中枢直接启动一个已保存的工作流。能力缺席条件与
       // resumeWorkflowRun 家族一致：dwf 端口整体缺席（stub / 单测宿主）时不注册——GUI 据此拿到

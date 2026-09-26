@@ -252,7 +252,7 @@
     "apps/zcode-cli/packages/zcode-cua-plugin/package.json": "b51cece2ca1b64af3bd866403b5b370c74f73c5e4e7f8338952e47a93222e063",
     "apps/zcode-cli/tools/prompt-trajectory/package.json": "7f161fc87f36691f01eb8c2034bd89cf28107da36db02bc20e76f059edd36af6",
     "apps/zcode-cli/tools/typescript/package.json": "23d7e50d2089d205ce3022c5bafbb6b3e31d000e41ac678a5934e0b72627cf3a",
-    "package.json": "a80be972c7740c936c66baba6441e14c85f70eefedb2da49c451229e9e62ebfc",
+    "package.json": "5b1fc14d06e51aaf759f6c5c050cf35e5b4dbdcbf0f01dae99f251cd899b7f89",
     "packages/client/package.json": "e76f441549130dc3e5e68072a36b6cb9044e19a6625f1e813f19a4def2b1b689",
     "packages/desktop/package.json": "1a7da93549be6591eb298a7b315bb659c7701093fe3bea2ecf22694685918be1",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
@@ -1518,6 +1518,7 @@
     "packages/ui/src/components/ui/switch.tsx": "1a6490eb3c47b3a86b76c8469e5702608ea57da7853df5de00fffa9a4a472adf",
     "packages/ui/src/components/ui/tabs.tsx": "adc59a0469c80118e9d60c08bf0222d55664ef95e6c522496b5c201011b347f0",
     "packages/ui/src/components/ui/textarea.tsx": "a839574ce1301fbaa9ba917fdb980900eb9118bffa7c6c4e469f3293b122ed30",
+    "packages/ui/src/components/ui/ThemeSwatch.tsx": "1d098f7d470ee054044772c22145cd7a6f607a7f92b0df64997dbce543a5fdcb",
     "packages/ui/src/components/ui/toast.tsx": "0f8894c6fc30e4cec44caa4cffe70e111f9c41ff9bf3699ec8e91696ea631671",
     "packages/ui/src/components/ui/tooltip.tsx": "301dbf3a6f8b1bc496f9bdc6fbc5fe6202ed373182897f39cd1ecd19b00fdfbe",
     "packages/ui/src/components/ui/usePdfZoomOverlay.ts": "c8c91b003ce2fded32c7a2369dc6eac43aa4b9dc9c830a0f5ceccb21d366b610",
@@ -20801,6 +20802,10 @@
           "sha256": "05610a7a90f17c5548af8d6be4341f32a1f983288418ea2a10470e4031f57174"
         },
         {
+          "file": "packages/ui/src/components/ui/ThemeSwatch.tsx",
+          "sha256": "1d098f7d470ee054044772c22145cd7a6f607a7f92b0df64997dbce543a5fdcb"
+        },
+        {
           "file": "packages/ui/src/components/ui/ZCodeAboutLogo.tsx",
           "sha256": "80c0fbcdf136e3535f0b5b1c747efcecc299c45bfa3531710755df86126756cd"
         },
@@ -20974,7 +20979,7 @@
         },
         {
           "file": "packages/ui/src/styles.css",
-          "sha256": "2d6ce62c279a76f4860aa5c14eb0f6a61bd830c4f7cc4117551767fa1a38c3e8"
+          "sha256": "9fce89e1a87cc7504b30d1197644687ae1534ca55223b6ab018b6520329477a5"
         }
       ]
     },
@@ -21224,11 +21229,11 @@
         },
         {
           "file": "packages/ui/src/components/ai-elements/mermaid-block.tsx",
-          "sha256": "4962bf69546159f459b9a4a4ffd6fb55a40769ee1fdf35a2215deaad353eba16"
+          "sha256": "da63ee749080f5726d676b9cd9cc6c752a1be25a871947022920068f7a024de0"
         },
         {
           "file": "packages/ui/src/components/ai-elements/message.tsx",
-          "sha256": "ecd43975863befd4ccf12bdd0760d552f208861a40abe8ca8b7317a935550f2d"
+          "sha256": "abe121ef448445f0c53744cfe1ceb6b85673c5244ccd3daa4cfb370eb9319602"
         },
         {
           "file": "packages/ui/src/components/ai-elements/node.tsx",

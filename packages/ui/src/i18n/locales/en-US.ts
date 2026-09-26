@@ -4393,6 +4393,19 @@ const enUS: Record<string, string> = {
   "chat.followup.sendNow": "Send now",
   "chat.followup.addToQueue": "Add to queue",
   "chat.modelChangeNotice.changed": "Switched from {fromModel} to {toModel}",
+  "chat.executionSwitch.currentUnknown": "current model",
+  "chat.executionSwitch.selectionWithOptions": "{model} ({options})",
+  "chat.executionSwitch.reasoningOption": "reasoning: {value}",
+  "chat.executionSwitch.speedOption": "speed: {value}",
+  "chat.executionSwitch.optionSeparator": ", ",
+  "chat.executionSwitch.waitingSafeBoundary":
+    "Current {currentModel} / switching to {targetModel} at the next safe step",
+  "chat.executionSwitch.switching": "Safely switching {currentModel} to {targetModel}...",
+  "chat.executionSwitch.active": "Safely switched: {fromModel} → {toModel}",
+  "chat.executionSwitch.blocked":
+    "Safe switch to {targetModel} is blocked; current model: {currentModel}",
+  "chat.executionSwitch.armFailed":
+    "The model choice was kept, but this run could not schedule a safe switch",
   "chat.preparing": "Preparing...",
   "chat.remoteGenerating": "Another device is sending a message...",
   "chat.reasoning.thinking": "Thinking",

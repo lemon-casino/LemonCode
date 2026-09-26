@@ -1,5 +1,6 @@
 import { traceContextToLogContext } from "../deps.js";
 import type { ModelRequestAuth } from "@zcode/contracts";
+import { ModelErrorCode, ModelFailureReason, ModelProtocolError } from "@zcode/contracts";
 import type { ZCodeProviderAccountAccess } from "@zcode/shared";
 import type { Model, TraceContext } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
@@ -41,9 +42,10 @@ export function createRefreshRuntimeHeadersBeforeModelAttempt(
     // 不能复用进入 adapter 前的旧材料。
     // 路由身份：主 runtime 报自己的会话；child runtime 拿到的端口由父 runtime 派生
     // （helpers/child-client-ports.ts），把 sessionId 改写成客户端认识的根会话。
+    const abortSignal = attemptInput.abortSignal ?? input.abortSignal;
     const refreshResult = await runtimeHeadersPort.refreshBeforeModelRequest({
       accountAccess: attemptInput.accountAccess,
-      abortSignal: attemptInput.abortSignal ?? input.abortSignal,
+      abortSignal,
       modelId: String(input.model.modelId),
       providerId: String(input.model.providerId),
       reason: attemptInput.reason ?? "model-request",
@@ -51,8 +53,20 @@ export function createRefreshRuntimeHeadersBeforeModelAttempt(
       traceContext: input.traceContext,
       turnId: input.traceContext.turnId,
     });
-    if (!refreshResult.headersApplied) {
-      throw new Error("Provider runtime headers were not applied before model request attempt.");
+    // Host 应答与用户取消可能同拍完成；取消必须先于认证失败归因生效。
+    abortSignal?.throwIfAborted();
+    if (!refreshResult.headersApplied || !refreshResult.requestAuth) {
+      // Host 凭据解析失败发生在物理请求前；保留稳定认证归因，Core 才能在安全边界接管。
+      throw new ModelProtocolError(
+        ModelErrorCode.ModelRequestAuthMissing,
+        "Provider runtime headers were not applied before model request attempt.",
+        {
+          modelId: String(input.model.modelId),
+          providerId: String(input.model.providerId),
+          reason: ModelFailureReason.AuthFailed,
+          retryable: false,
+        },
+      );
     }
     runtime.logger?.debug("Provider runtime headers refreshed before model request attempt", {
       ...traceContextToLogContext(input.traceContext),

@@ -22,6 +22,12 @@ export function enqueueCancellableRuntimeCommand<
     onCommandCancelled?: () => void;
   },
 ): Promise<Result> {
+  if (runtime.shuttingDown) {
+    // executeTurn、target continuation 等入口都会汇聚到这里；只在 admitPrompt 拒绝会留下旁路，
+    // 让 stable close drain 返回后再次产生 session-store work。
+    input.onCommandCancelled?.();
+    return Promise.reject(createTurnCancelledError(new Error("Runtime is shutting down")));
+  }
   return new Promise<Result>((resolve, reject) => {
     let settled = false;
     const abortSignal = input.abortSignal;

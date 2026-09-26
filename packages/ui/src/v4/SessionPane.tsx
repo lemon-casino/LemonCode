@@ -28,6 +28,7 @@ import type {
   ConversationShareAccessMode,
   GitChangeSourceId,
   GitRepositorySummary,
+  ModelSelection,
   ZCodeProvider,
   ZCodeTaskChangeSummary,
 } from "@zcode/shared";
@@ -125,6 +126,7 @@ import {
   SESSION_REFERENCE_DRAG_MIME,
   registerSessionReferencePointerTarget,
 } from "@/v4/sessionReferenceDragDrop.js";
+import { buildExecutionFailoverCommandPayload } from "@/v4/executionFailoverUi.js";
 import { ReadOnlySessionTokenStats } from "@/v4/composer/ReadOnlySessionTokenStats.js";
 import { shouldIgnoreEscapeForStopGeneration } from "@/v4/composer/escapeStop.js";
 import { ConversationDraftEmptyState } from "@/v4/ConversationDraftEmptyState.js";
@@ -3457,8 +3459,39 @@ export function SessionPane({
     snapshotSessionId,
   ]);
 
-  // Composer 选择表达“下一次提交”。点击只更新 renderer intent；Session Selection
-  // 在 Submission 真正开跑（Guide 为下一次 model-step）时由 CLI/Core 更新。
+  const requestExecutionSwitch = useCallback(
+    (modelSelection: ModelSelection) => {
+      const current = snapshotRef.current;
+      if (!sessionId || current?.sessionId !== sessionId) return;
+      const payload = buildExecutionFailoverCommandPayload(current, modelSelection);
+      if (!payload) return;
+
+      // 草稿已在调用此函数前同步更新。安全切换命令独立结算，失败不得回滚用户的下一次提交选择。
+      void dispatchCommand("setExecutionFailoverTarget", payload, sessionId)
+        .then((ack) => {
+          if (ack.status === "accepted" || ack.status === "duplicate" || ack.status === "noop") {
+            return;
+          }
+          logger.warn("[v4-pane] 安全模型切换命令被拒绝", {
+            status: ack.status,
+            reasonCode: ack.reasonCode ?? null,
+            sessionId,
+          });
+          toast(intl.formatMessage({ id: "chat.executionSwitch.armFailed" }));
+        })
+        .catch((error) => {
+          logger.warn("[v4-pane] 安全模型切换命令发送失败", {
+            error: error instanceof Error ? error.message : String(error),
+            sessionId,
+          });
+          toast(intl.formatMessage({ id: "chat.executionSwitch.armFailed" }));
+        });
+    },
+    [dispatchCommand, intl, sessionId],
+  );
+
+  // Composer 选择仍先表达“下一次提交”。若已有执行，Runtime 在当前请求、工具和文件写入
+  // 到达安全边界后应用同一完整选择；健康的在途物理请求不会被 UI 强制中断。
   const handleSelectModel = useCallback(
     (modelProvider: string, model: string, sourceModel: ModelSelectionSource | null) => {
       const resolvedProvider =
@@ -3468,16 +3501,26 @@ export function SessionPane({
         model,
         branch: "composer-submission-intent",
       });
-      handleDraftSelectModel(resolvedProvider, model);
+      const modelSelection = handleDraftSelectModel(resolvedProvider, model);
+      requestExecutionSwitch(modelSelection);
     },
-    [draftConfigRef, handleDraftSelectModel],
+    [draftConfigRef, handleDraftSelectModel, requestExecutionSwitch],
   );
 
   const handleSelectThought = useCallback(
-    (thought: string, _modelContext: { provider: string; model: string }) => {
-      handleDraftSelectThought(thought);
+    (thought: string, modelContext: { provider: string; model: string }) => {
+      const modelSelection = handleDraftSelectThought(thought, modelContext);
+      if (modelSelection) requestExecutionSwitch(modelSelection);
     },
-    [handleDraftSelectThought],
+    [handleDraftSelectThought, requestExecutionSwitch],
+  );
+
+  const handleSelectSpeed = useCallback(
+    (speed: string, modelContext: { provider: string; model: string }) => {
+      const modelSelection = handleDraftSelectSpeed(speed, modelContext);
+      if (modelSelection) requestExecutionSwitch(modelSelection);
+    },
+    [handleDraftSelectSpeed, requestExecutionSwitch],
   );
 
   const handleRecoverCustomModelSelection = useCallback(
@@ -4463,7 +4506,7 @@ export function SessionPane({
       onStop={handleStopFromButton}
       onSelectModel={handleSelectModel}
       onSelectThought={handleSelectThought}
-      onSelectSpeed={handleDraftSelectSpeed}
+      onSelectSpeed={handleSelectSpeed}
       onSwitchMode={handleSwitchMode}
       onOpenRunningBackgroundWorks={
         sessionId && runningBackgroundWorkCount > 0 ? handleOpenRunningBackgroundWorks : undefined

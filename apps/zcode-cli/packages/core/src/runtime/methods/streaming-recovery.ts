@@ -205,6 +205,7 @@ export async function emitStreamRecoveryRetryEvents(
 }
 
 export async function recoverPartialAssistantOutputFailure(input: {
+  allowProviderFailover?: boolean;
   abortController: AbortController;
   assistantCreatedAt: number;
   discardedReasoningBytes: number;
@@ -222,7 +223,7 @@ export async function recoverPartialAssistantOutputFailure(input: {
 }): Promise<boolean> {
   if (
     input.discardedReasoningBytes + input.discardedTextBytes <= 0 ||
-    !isRetryableStreamRecoveryFailure(input.error)
+    (!input.allowProviderFailover && !isRetryableStreamRecoveryFailure(input.error))
   ) {
     return false;
   }
@@ -294,7 +295,7 @@ function findStartPlanBusyProviderCode(error: unknown): string | undefined {
   return undefined;
 }
 
-function isRetryableStreamRecoveryFailure(error: unknown): boolean {
+export function isRetryableStreamRecoveryFailure(error: unknown): boolean {
   for (const record of walkErrorRecords(error)) {
     if (record.retryable === true) return true;
     const context = asRecord(record.context);

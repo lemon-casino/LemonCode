@@ -5,6 +5,7 @@ import type { TraceContext } from "../tracing/tracer.js";
 import type {
   ModelRequestAdmission,
   ModelRequestSessionType,
+  ModelRetryYieldGate,
   ModelRetryBudget,
   ModelStatusSink,
   ModelStreamRecoveryStatus,
@@ -24,6 +25,10 @@ export interface ModelInvocationContext {
   modelRetryBudget?: ModelRetryBudget;
   /** 准入端口；runtime 从 deps 带入，adapter 每次尝试先 acquire。 */
   modelRequestAdmission?: ModelRequestAdmission;
+  /** 用户已请求安全切换时，让 Adapter 在下一次旧模型重试前把控制权交回 Core。 */
+  shouldYieldRetryToFailover?: ModelRetryYieldGate;
+  /** retry-yield 接管失配后恢复旧 selection 时，一次性延续已消耗的有界 retry attempt。 */
+  retryAttemptOffset?: number;
   statusSink?: ModelStatusSink;
   traceContext?: TraceContext;
   streamIdleTimeoutRetryNumber?: number;

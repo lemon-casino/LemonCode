@@ -38,7 +38,11 @@ import {
   logStreamFailureDiagnostics,
   recordStreamChunkDiagnostic,
 } from "./runner-diagnostics.js";
-import { canRetryEmptyCompletion, scheduleEmptyCompletionRetry } from "./empty-completion-retry.js";
+import {
+  canRetryEmptyCompletion,
+  createEmptyCompletionFailure,
+  scheduleEmptyCompletionRetry,
+} from "./empty-completion-retry.js";
 import { createStreamTextOptions } from "./runner-options.js";
 import {
   isDevelopmentModelIOEnv,
@@ -48,6 +52,7 @@ import {
 import { sanitizeModelNetworkHeaders } from "./runner-network-headers.js";
 import { admitAttempt, type AttemptAdmission } from "./request-admission.js";
 import {
+  normalizeRetryAttemptOffset,
   retryAttemptLoopContinues,
   retryBudgetAllows,
   retryBudgetMaxAttempts,
@@ -85,6 +90,11 @@ import {
   readModelFailureErrorPhase,
 } from "./runner-telemetry.js";
 import { repairReasoningHistoryAfterSignatureRejection } from "./reasoning-history-normalization.js";
+import {
+  createDeferredRetryYieldGate,
+  type DeferredRetryYieldGate,
+  RetryYieldBeforeInvocationError,
+} from "./runner-failover-yield.js";
 
 type StreamFailurePhase = "request_setup" | "response_body";
 
@@ -119,9 +129,11 @@ export async function* runStreamText(input: {
   let requestMessages = input.request.messages;
   let signatureRepairAttempted = false;
   let emptyCompletionRetryCount = 0;
+  let pendingRetryYield: DeferredRetryYieldGate | undefined;
+  const retryAttemptOffset = normalizeRetryAttemptOffset(input.request.retryAttemptOffset);
 
   for (
-    let attempt = 1;
+    let attempt = retryAttemptOffset + 1;
     retryAttemptLoopContinues(
       retryBudget,
       attempt,
@@ -129,8 +141,7 @@ export async function* runStreamText(input: {
     );
     attempt += 1
   ) {
-    const retryBudgetAttempt =
-      attempt - Number(signatureRepairAttempted);
+    const retryBudgetAttempt = attempt - Number(signatureRepairAttempted);
     const startedAt = Date.now();
     // SSE idle timeout 后的重试如果仍固定首请求窗口，容易被同一段 provider 静默窗口反复打断；
     // core recovery 和 adapter 内部 retry 都统一按重试次数每次增加 30s。
@@ -154,9 +165,7 @@ export async function* runStreamText(input: {
     let statusContext = createAttemptStatusContext(
       {
         ...baseStatusContext,
-        maxAttempts: statusMaxAttempts(
-          Number(signatureRepairAttempted),
-        ),
+        maxAttempts: statusMaxAttempts(Number(signatureRepairAttempted)),
       },
       attempt,
     );
@@ -275,6 +284,24 @@ export async function* runStreamText(input: {
       });
     }
 
+    const closeAttemptBeforeRetryYield = async (): Promise<void> => {
+      admission.release();
+      if (!streamIterator || streamReachedNaturalEnd) return;
+      attemptFailed = true;
+      awaitIteratorClose = true;
+      if (!attemptAbortController.signal.aborted) {
+        attemptAbortController.controller.abort(
+          new Error("Model stream attempt yielded before its retry."),
+        );
+      }
+      await closeStreamIteratorBestEffort(streamIterator, {
+        attempt,
+        logger: input.logger,
+        result,
+      });
+      streamIterator = undefined;
+    };
+
     try {
       resolved = await resolveModelForAttempt({
         attempt,
@@ -307,6 +334,34 @@ export async function* runStreamText(input: {
         },
         statusPublishOptions(input, admission),
       );
+      const finalRetryYieldGate = pendingRetryYield;
+      pendingRetryYield = undefined;
+      if (finalRetryYieldGate && (await finalRetryYieldGate.shouldYield())) {
+        admission.release();
+        await publishModelStatus(
+          {
+            ...statusContext,
+            attempt,
+            durationMs: Date.now() - startedAt,
+            errorCode: ModelErrorCode.ModelRequestCancelled,
+            errorPhase: "prepare",
+            exceptionType: RetryYieldBeforeInvocationError.name,
+            message: "Model retry yielded to execution failover before provider invocation.",
+            reason: ModelFailureReasonValue.Cancelled,
+            requestHeaderCount,
+            requestHeaders,
+            retryable: false,
+            streamOutputCommitted: false,
+            timestamp: new Date().toISOString(),
+            type: "model_request_failed",
+          },
+          statusPublishOptions(input, admission),
+        );
+        throw new RetryYieldBeforeInvocationError(finalRetryYieldGate.adapterError);
+      }
+      // final gate 等异步准备期间可能收到取消；物理 stream 调用前必须再次检查，
+      // 不能把已经 aborted 的 signal 交给 Provider 后寄希望于其自行短路。
+      attemptAbortController.signal.throwIfAborted();
       const streamResult = input.runtime.streamText(options);
       result = streamResult;
       streamIterator = streamResult.fullStream[Symbol.asyncIterator]();
@@ -360,6 +415,7 @@ export async function* runStreamText(input: {
             chunk: next.value,
             diagnostics,
             emittedRetryBoundaryEvent,
+            beforeRetryYieldEvaluation: closeAttemptBeforeRetryYield,
             input,
             pendingRetrySafeEvents,
             requestHeaderCount,
@@ -421,6 +477,7 @@ export async function* runStreamText(input: {
           awaitIteratorClose = true;
           retryScheduledFromStreamChunk = true;
           offPeakQueueHoldFromStreamChunk = event.offPeakQueueHold;
+          pendingRetryYield = event.deferredRetryYield;
           break;
         }
         if (event.terminalError) {
@@ -557,6 +614,7 @@ export async function* runStreamText(input: {
               statusContext,
             });
             emptyCompletionRetryCount += 1;
+            admission.release();
             await scheduleEmptyCompletionRetry({
               abortSignal: input.request.abortSignal,
               attempt,
@@ -573,6 +631,32 @@ export async function* runStreamText(input: {
               statusSink: input.statusSink,
               streamOutputCommitted: false,
             });
+            const emptyFailure = createEmptyCompletionFailure();
+            const emptyRetryYieldGate = createDeferredRetryYieldGate(
+              {
+                attempt,
+                canRetry: true,
+                consumedRetryAttempts: retryBudgetAttempt,
+                failure: emptyFailure,
+                logger: input.logger,
+                request: input.request,
+                resolved,
+              },
+              toAdapterError(
+                new Error(emptyFailure.message),
+                emptyFailure,
+                statusContext,
+                attempt,
+                {
+                  errorPhase: "stream",
+                  retryYieldedToFailover: true,
+                },
+              ),
+            );
+            if (await emptyRetryYieldGate.shouldYield()) {
+              throw new RetryYieldBeforeInvocationError(emptyRetryYieldGate.adapterError);
+            }
+            pendingRetryYield = emptyRetryYieldGate;
             continue;
           }
         }
@@ -635,6 +719,9 @@ export async function* runStreamText(input: {
       return;
     } catch (error) {
       attemptFailed = true;
+      if (error instanceof RetryYieldBeforeInvocationError) {
+        throw error.adapterError;
+      }
       if (recordModelIO && options) {
         await recordStreamTextDebug({
           modelIoFullRetentionEnabled: input.modelIoFullRetentionEnabled,
@@ -785,7 +872,7 @@ export async function* runStreamText(input: {
       if (!failureDecision.canRetry) {
         logRetryDelayDecision({
           attempt,
-          canRetry: failureDecision.canRetry,
+          canRetry: false,
           failure,
           logger: input.logger,
           responseHeaders,
@@ -821,8 +908,8 @@ export async function* runStreamText(input: {
         responseHeaders,
         admission,
       );
-      // 退避期间不持票：槽位让给别人，重试再准入。
-      admission.release();
+      // 旧 attempt 的 ticket 与 stream/tee 都必须在 backoff 和 policy gate 前完成释放。
+      await closeAttemptBeforeRetryYield();
       try {
         await sleep(delayMs, input.request.abortSignal);
       } catch (sleepError) {
@@ -854,6 +941,29 @@ export async function* runStreamText(input: {
           errorPhase: "connect",
         });
       }
+      // policy 可在 backoff 或下一次 admission/header/status 等待期间被 UI 武装；
+      // 保留本次失败，在下一次物理 provider 调用前再做最后一次无 await 判定。
+      const finalRetryYieldGate = createDeferredRetryYieldGate(
+        {
+          attempt,
+          canRetry: failureDecision.canRetry,
+          consumedRetryAttempts:
+            offPeak?.kind === "queued" ? Math.max(0, retryBudgetAttempt - 1) : retryBudgetAttempt,
+          failure,
+          logger: input.logger,
+          request: input.request,
+          resolved,
+        },
+        toAdapterError(error, failure, statusContext, attempt, {
+          ...failureDecision.context,
+          errorPhase,
+          retryYieldedToFailover: true,
+        }),
+      );
+      if (await finalRetryYieldGate.shouldYield()) {
+        throw finalRetryYieldGate.adapterError;
+      }
+      pendingRetryYield = finalRetryYieldGate;
       if (offPeak?.kind === "queued") {
         // 排队等待不消耗重试预算：回退计数让 for 自增后原地重试，无限探测。
         attempt -= 1;
@@ -991,6 +1101,7 @@ async function handleStreamChunk(input: {
   /** 本次尝试的准入：错误块的退避 sleep 之前先归还。 */
   admission: AttemptAdmission;
   attempt: number;
+  beforeRetryYieldEvaluation: () => Promise<void>;
   chunk: TextStreamPart<ToolSet>;
   diagnostics: ReturnType<typeof createStreamDiagnostics>;
   emittedRetryBoundaryEvent: boolean;
@@ -1010,6 +1121,7 @@ async function handleStreamChunk(input: {
   statusContext: ReturnType<typeof createStatusContext>;
   toolCallAssembler: StreamingToolCallAssembler;
 }): Promise<{
+  deferredRetryYield?: DeferredRetryYieldGate;
   emittedError: boolean;
   emittedEvent: boolean;
   emittedRetryBoundaryEvent: boolean;
@@ -1294,7 +1406,7 @@ async function handleStreamErrorEvent(
   if (!failureDecision.canRetry) {
     logRetryDelayDecision({
       attempt: input.attempt,
-      canRetry: failureDecision.canRetry,
+      canRetry: false,
       failure,
       logger: input.input.logger,
       responseHeaders,
@@ -1335,8 +1447,8 @@ async function handleStreamErrorEvent(
     responseHeaders,
     input.admission,
   );
-  // 退避期间不持票：这次尝试到此结束，槽位让给别人。
-  input.admission.release();
+  // error chunk 仍持有 AI SDK iterator；退避和 policy gate 前必须先关闭旧 attempt。
+  await input.beforeRetryYieldEvaluation();
   // Note: AI SDK can surface pre-output APICallError as an error chunk;
   // retry it here so protocol clients still receive the normal apiRetry status updates.
   try {
@@ -1349,7 +1461,33 @@ async function handleStreamErrorEvent(
       errorPhase: "connect",
     });
   }
+  const finalRetryYieldGate = createDeferredRetryYieldGate(
+    {
+      attempt: input.attempt,
+      canRetry: failureDecision.canRetry,
+      consumedRetryAttempts:
+        offPeak?.kind === "queued"
+          ? Math.max(0, input.retryBudgetAttempt - 1)
+          : input.retryBudgetAttempt,
+      failure,
+      logger: input.input.logger,
+      request: input.input.request,
+      resolved: input.input.resolved,
+    },
+    toAdapterError(error, failure, statusContext, input.attempt, {
+      ...failureDecision.context,
+      errorPhase: "stream",
+      retryYieldedToFailover: true,
+    }),
+  );
+  if (await finalRetryYieldGate.shouldYield()) {
+    return streamChunkResult({
+      emittedError: true,
+      terminalError: new TerminalStreamChunkError(finalRetryYieldGate.adapterError),
+    });
+  }
   return streamChunkResult({
+    deferredRetryYield: finalRetryYieldGate,
     emittedError: true,
     retryScheduled: true,
     offPeakQueueHold: offPeak?.kind === "queued",
@@ -1537,6 +1675,7 @@ function readHeader(headers: Record<string, string>, name: string): string | und
 
 function streamChunkResult(
   overrides: Partial<{
+    deferredRetryYield?: DeferredRetryYieldGate;
     emittedError: boolean;
     emittedEvent: boolean;
     emittedRetryBoundaryEvent: boolean;

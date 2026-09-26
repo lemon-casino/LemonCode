@@ -152,6 +152,7 @@ const MEMORY_ONLY_EVENT_TYPES = new Set<string>([
   SessionEventType.SessionResumed,
   SessionEventType.SessionTitleUpdated,
   SessionEventType.SessionModeChanged,
+  SessionEventType.ExecutionFailoverChanged,
   SessionEventType.PermissionRequested,
   SessionEventType.PermissionResolved,
   SessionEventType.PermissionDenied,

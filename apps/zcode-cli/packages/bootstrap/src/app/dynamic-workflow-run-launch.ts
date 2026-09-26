@@ -41,15 +41,21 @@ import {
 } from "@zcode/dynamic-workflow";
 import { runWorkflowScript } from "@zcode/dynamic-workflow-runtime";
 import { createJournalSequenceCapture } from "./dynamic-workflow-run-sequence-capture.js";
+import type { DynamicWorkflowRunExecutionFailoverLineageLease } from "./dynamic-workflow-run-observation.js";
 import { isResumableSettlement } from "./dynamic-workflow-run-observation.js";
 import {
   readRunLaunch,
   readRunActorModelConfiguration,
   readRunSubagentModel,
+  runActorModelConfigurationFromLaunch,
   type RunLaunch,
 } from "./dynamic-workflow-run-launch-anchor.js";
 import { resolveWorkflowConcurrencyCeiling } from "./workflow-concurrency-ceiling.js";
 import { createAgentRuntimeWorkflowDriver, mintActorSessionId } from "./workflow-driver.js";
+import {
+  workflowActorModelPolicy,
+  type WorkflowActorModelBinding,
+} from "./workflow-actor-model.js";
 import type { WorkflowEscalationRegistry } from "./workflow-escalation-registry.js";
 import type { DynamicWorkflowRunServiceDeps } from "./dynamic-workflow-run-service.js";
 
@@ -114,6 +120,9 @@ interface LaunchDynamicWorkflowRunInput {
    * 只在建 run 那一世落 journal，resume 路径一概从那条事件读回。
    */
   launch?: RunLaunch;
+  executionFailoverLineageLease?: Promise<
+    DynamicWorkflowRunExecutionFailoverLineageLease | undefined
+  >;
   /**
    * 升级问答的停驻注册表。由 run service 持有一张、
    * 跨它名下所有在飞 run，两条入口（submit / resume）传的是**同一个对象**——注册表按完整 qid
@@ -126,7 +135,7 @@ interface LaunchDynamicWorkflowRunInput {
  * 启动（或恢复）一个 run：装配 sequence 截取 → emit 钩子 → 真实 driver → runWorkflowScript。
  * fire-and-forget 语义由调用方决定（本函数只返回结算 promise，不做注册表簿记）。
  */
-export function launchDynamicWorkflowRun(
+export async function launchDynamicWorkflowRun(
   input: LaunchDynamicWorkflowRunInput,
 ): Promise<RunSettlement> {
   const {
@@ -145,6 +154,12 @@ export function launchDynamicWorkflowRun(
     signal,
     toolCallId,
   } = input;
+  // acquisition promise 在注册表条目建立的同步片就已创建；这里先等待它，确保首个 actor
+  // 不会越过 run-level lease。旧测试装配没有该能力时沿用只读 lineage resolver。
+  const executionFailoverLineageLease = await input.executionFailoverLineageLease;
+  const executionFailoverLineageId =
+    executionFailoverLineageLease?.foregroundExecutionId ??
+    deps.resolveExecutionFailoverLineageId?.();
   const childSpawn = dynamicWorkflowChildSpawn();
   // 锚点：submit 给的（本次建 run）或 journal 里的（resume）。升级前的 run 两边都没有 → 缺席，
   // 进度事件不带 launchInputId，子代理不上报。
@@ -161,16 +176,13 @@ export function launchDynamicWorkflowRun(
   const recordedActorModels =
     input.launch === undefined
       ? readRunActorModelConfiguration(deps.journal, runId)
-      : {
-          ...(input.launch.subagentSelection === undefined
-            ? {}
-            : { defaultSelection: input.launch.subagentSelection }),
-          overrides: input.launch.actorModelOverrides ?? [],
-        };
+      : runActorModelConfigurationFromLaunch(input.launch);
   // 新记录直接保存结构化选择，避免 picker 字符串丢掉 speed。旧记录仍可从显示串恢复。
   const runSubagentModel =
     recordedActorModels.defaultSelection ??
-    (subagentModel === undefined ? undefined : parseModelPickerValue(subagentModel));
+    (recordedActorModels.defaultProvenance !== "runModel" || subagentModel === undefined
+      ? undefined
+      : parseModelPickerValue(subagentModel));
 
   // 事件的 journal sequence 只有 appendEvent 知道，而引擎在 record() 里
   // `journal.appendEvent(...)` 之后**同步**紧接着 `driver.emit(...)`，并丢掉了返回的
@@ -198,7 +210,9 @@ export function launchDynamicWorkflowRun(
             concurrencyCeiling,
             ...(subagentModel === undefined ? {} : { subagentModel }),
             ...(runSubagentModel === undefined ? {} : { subagentSelection: runSubagentModel }),
-            ...(launch?.sessionSelection === undefined ? {} : { sessionSelection: launch.sessionSelection }),
+            ...(launch?.sessionSelection === undefined
+              ? {}
+              : { sessionSelection: launch.sessionSelection }),
           }),
           // 路由与载荷分开：事件必须落在**发起该 run 的**会话里，而 parentSessionId 是
           // 判断"是不是那个会话"的唯一依据。
@@ -242,6 +256,9 @@ export function launchDynamicWorkflowRun(
     ...(deps.concurrency === undefined ? {} : { concurrency: deps.concurrency }),
     // 测试注入的 driver 时钟（故障矩阵）；生产缺席，driver 走真时间。
     ...(deps.driverClock === undefined ? {} : { clock: deps.driverClock }),
+    ...(deps.registerResidencyBlockingWork === undefined
+      ? {}
+      : { registerResidencyBlockingWork: deps.registerResidencyBlockingWork }),
     runtimeFactory: async ({
       sessionId,
       actor,
@@ -252,6 +269,23 @@ export function launchDynamicWorkflowRun(
       submitProfile,
       modelRequestAdmission,
     }) => {
+      const approvedActorModel = matchActorModelOverride(
+        recordedActorModels.overrides,
+        actor,
+        persona.name,
+      );
+      const modelPolicy = workflowActorModelPolicy(
+        {
+          ...(runSubagentModel === undefined ? {} : { runSelection: runSubagentModel }),
+          ...(recordedActorModels.defaultProvenance === undefined
+            ? {}
+            : { runProvenance: recordedActorModels.defaultProvenance }),
+          ...(persona.model === undefined ? {} : { scriptSelection: persona.model }),
+          ...(approvedActorModel === undefined ? {} : { approvedSelection: approvedActorModel }),
+        },
+        persistedActorModelBinding({ actor, journal: deps.journal, runId }),
+        seedActorModelBinding(seed),
+      );
       const runtime = deps.createActorRuntime({
         runId,
         sessionId,
@@ -260,43 +294,32 @@ export function launchDynamicWorkflowRun(
         submitPort,
         // 工厂据 profile 决定端口是否注入、声明是否 typed（create-app.ts 的 createActorRuntime）。
         submitProfile,
+        ...(executionFailoverLineageId ? { executionFailoverLineageId } : {}),
         // 请求级准入端口与两个工具端口同路下传到 runtime deps。
         ...(modelRequestAdmission === undefined ? {} : { modelRequestAdmission }),
         // 升级端口与 submit 端口同路下传：core 侧的注册门以端口存在为准，所以恒传。
         escalatePort,
-        // resume 的 pin：这个 actor 上一次跑在哪个模型上。必须在**造 runtime 之前**读，
-        // 因为下面那行 journalActorResolvedModel 会把这一轮的解析结果写回同一个字段。
-        //
-        // 种子带来的 pin 是**承袭**（amend-resume）：修订 run 的第一次派发时本 run 的 journal 还
-        // 没有解析结果，pin 只能来自前驱——转录接续下静默换模型正是 pin 要防的身份突变。两者都在
-        // 场（修订 run 崩溃后 resume）时以本 run 的记录为准：那是这个 actor 在**这个 run 里**实际
-        // 跑过的模型，比前驱的更具体，且两者本就应当相等。畸形 pin 的大声失败沿用既有那一套
-        // （workflow-actor-model.ts 的 WorkflowActorPinnedModelError），此处不分叉。
-        pinnedModel:
-          pinnedActorModel({ actor, journal: deps.journal, runId }) ?? seed?.resolvedModel,
-        // 本 run 的子代理模型：在 pin **之上**（workflow-actor-model.ts 的优先级表）。它是用户对
-        // 这一次 run 的显式表态（AmendWorkflow 带 subagent_model 就是「resume 时换模型」的那个显式
-        // 决定），pin 只守没有它时的隐式缺省。与 pin 不同，它整条带着 reasoning 档位下去——
-        // journal 的 pin 只记身份两段。
-        ...(runSubagentModel === undefined ? {} : { runSubagentModel }),
-        ...(persona.model === undefined ? {} : { scriptActorModel: persona.model }),
-        ...(() => {
-          const approvedActorModel = matchActorModelOverride(
-            recordedActorModels.overrides,
+        ...(modelPolicy.configOverrides.modelSelection === undefined
+          ? {}
+          : { actorModelSelection: modelPolicy.configOverrides.modelSelection }),
+        actorModelProvenance: modelPolicy.provenance,
+        onExecutionFailoverSelection: (selection) =>
+          journalActorResolvedModel({
             actor,
-            persona.name,
-          );
-          return approvedActorModel === undefined ? {} : { approvedActorModel };
-        })(),
+            journal: deps.journal,
+            selection,
+            modelProvenance: modelPolicy.provenance,
+            runId,
+          }),
       });
-      // persona 的模型档位实际解析成了哪个模型，只有造好的 runtime 说得准（档位映射见
-      // workflow-actor-model.ts）。先落库再接入会话：一次失败的会话持久化会让这次 ask 失败，
-      // 但「当时选了哪个模型」这条审计事实照旧留在 journal 里。rehydrate 路径也要写——
-      // pin 缺席（升级前的旧 run）时这一轮才是第一次有解析结果可记。
+      // runtime selection 与 policy provenance 共同构成 actor 的持久模型绑定。先落库再接入会话：
+      // 一次失败的会话持久化会让这次 ask 失败，但当时采用的完整绑定仍留在 journal 里。
+      // rehydrate 路径也要写，旧行的 NULL provenance 已由 modelPolicy 按兼容规则解释。
       journalActorResolvedModel({
         actor,
         journal: deps.journal,
         selection: requireActorModelSelection(runtime, actor),
+        modelProvenance: modelPolicy.provenance,
         runId,
       });
       const attached = await attachActorSession({
@@ -496,11 +519,11 @@ async function persistActorSession(input: {
 }
 
 /**
- * 把 actor 实际跑在哪个模型上写进 journal（`ActorRecord.resolvedModel`，落 dwf_actor 的
- * resolved_model 列）。
+ * 把 actor 实际模型与来源作为一个绑定写进 journal（dwf_actor 的 resolved_model /
+ * model_provenance 两列）。
  *
  * 为什么必须**读改写**：`putActor` 是整条记录的替换，而这条记录的另外几个字段（name /
- * persona / sessionId）不是本函数的；直接写一条只有 resolvedModel 的记录会把引擎刚写下的
+ * persona / sessionId）不是本函数的；直接写一条只有模型绑定的记录会把引擎刚写下的
  * 冻结 persona 抹掉。
  *
  * 为什么是 driver 侧写：子代理跑在哪个模型上是宿主事实（父会话当时的选择），引擎在 createActor
@@ -511,17 +534,19 @@ export function journalActorResolvedModel(input: {
   actor: ActorRef;
   journal: JournalStorePort;
   selection: ModelSelection;
+  modelProvenance: NonNullable<WorkflowActorModelBinding["modelProvenance"]>;
   runId: string;
 }): void {
-  const { actor, journal, selection, runId } = input;
+  const { actor, journal, selection, modelProvenance, runId } = input;
   const existing = journal.getActor(runId, actor.siteId, actor.ordinal);
   journal.putActor({
     ...(existing ?? { runId, siteId: actor.siteId, ordinal: actor.ordinal }),
     resolvedModel: formatActorResolvedModel(selection),
+    modelProvenance,
   });
 }
 
-/** journal 里 `resolvedModel` 的写法：`providerId/modelId`，与 pin 的读法（workflow-actor-model.ts）互逆。 */
+/** journal 以带前缀的 JSON 保存完整选择；解析端同时兼容旧 `providerId/modelId` 记录。 */
 function formatActorResolvedModel(selection: ModelSelection): string {
   return `selection:${JSON.stringify(selection)}`;
 }
@@ -563,21 +588,36 @@ function requireActorModelSelection(runtime: AgentRuntime, actor: ActorRef): Mod
 }
 
 /**
- * resume 的 pin 读取：这个 actor 在 journal 里记下的 `resolvedModel`（`providerId/modelId`）。
+ * 读取同 run 的已持久化模型绑定；旧行可能只有 resolvedModel、没有 provenance。
  *
- * 只有 resume 才会读到值：引擎 replay `createActor` 时把该字段 carry-forward 保了下来；
+ * 只有 resume 才会读到值：引擎 replay `createActor` 时把两个字段 carry-forward 保了下来；
  * 全新 run 在 runtime 工厂运行的这一刻还没有解析结果，天然缺席。**必须在造 runtime 之前读**，
  * 因为 `journalActorResolvedModel` 随后就会把本轮的解析写回同一字段——读晚了会把本轮结果
- * 误当成上一轮的 pin。pin 与本 run 的 subagentModel 谁优先，见 workflow-actor-model.ts
- * （run 选择在上；pin 只守没有 run 选择时的缺省，persona 冻结不变式的持久化那一半）。
+ * 误当成上一轮的绑定。显式配置与旧 NULL 的解释统一由 workflow-actor-model.ts 裁决。
  */
-function pinnedActorModel(input: {
+function persistedActorModelBinding(input: {
   actor: ActorRef;
   journal: JournalStorePort;
   runId: string;
-}): string | undefined {
-  return input.journal.getActor(input.runId, input.actor.siteId, input.actor.ordinal)
-    ?.resolvedModel;
+}): WorkflowActorModelBinding | undefined {
+  const record = input.journal.getActor(input.runId, input.actor.siteId, input.actor.ordinal);
+  if (record?.resolvedModel === undefined) return undefined;
+  return {
+    resolvedModel: record.resolvedModel,
+    ...(record.modelProvenance === undefined ? {} : { modelProvenance: record.modelProvenance }),
+  };
+}
+
+function seedActorModelBinding(
+  seed:
+    | { resolvedModel?: string; modelProvenance?: WorkflowActorModelBinding["modelProvenance"] }
+    | undefined,
+): WorkflowActorModelBinding | undefined {
+  if (seed?.resolvedModel === undefined) return undefined;
+  return {
+    resolvedModel: seed.resolvedModel,
+    ...(seed.modelProvenance === undefined ? {} : { modelProvenance: seed.modelProvenance }),
+  };
 }
 
 /**

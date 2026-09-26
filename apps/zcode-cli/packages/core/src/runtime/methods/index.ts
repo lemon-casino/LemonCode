@@ -74,6 +74,11 @@ import {
 } from "./steering.js";
 import { discardPersistedPendingSteerInputs } from "./steering.js";
 import { createDefaultSubagentPort } from "./subagent.js";
+import {
+  getExecutionFailoverLineageId,
+  getExecutionFailoverPolicyPort,
+  setExecutionFailoverTarget,
+} from "./model-failover-policy.js";
 import { ensureContextInitialized, getSkillCatalog } from "./context.js";
 import { createContextBuilderFromSnapshot } from "./context.js";
 import { loadProjectMemoryRoot } from "./context.js";
@@ -253,6 +258,9 @@ export function installAgentRuntimeMethods(ctor: AgentRuntimeConstructor): void 
   proto.trackResidencyBlockingWork = trackResidencyBlockingWork;
   proto.acquireForegroundPromotionLease = acquireForegroundPromotionLease;
   proto.getActiveForegroundExecutionId = getActiveForegroundExecutionId;
+  proto.getExecutionFailoverLineageId = getExecutionFailoverLineageId;
+  proto.setExecutionFailoverTarget = setExecutionFailoverTarget;
+  proto.getExecutionFailoverPolicyPort = getExecutionFailoverPolicyPort;
   proto.releaseForegroundPromotionLease = releaseForegroundPromotionLease;
   proto.stopActiveForegroundExecution = stopActiveForegroundExecution;
   proto.enqueueBackgroundTaskNotification = enqueueBackgroundTaskNotification;

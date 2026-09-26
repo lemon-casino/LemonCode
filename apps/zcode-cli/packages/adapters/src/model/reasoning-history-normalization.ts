@@ -98,14 +98,18 @@ function removeCrossModelReasoning(
   if (!targetModel) return messages;
 
   return filterReasoningBlocks(messages, (block, message) => {
-    if (!message.providerId || !message.modelId) return false;
+    // 旧会话可能没有 source model provenance。此时无法证明私有签名/item reference 与
+    // 当前目标兼容，必须删除私有 metadata；普通 reasoning 正文仍可安全保留。
+    if (!message.providerId || !message.modelId) {
+      return hasProviderPrivateReasoningMetadata(block);
+    }
     if (
       message.modelId === targetModel.modelId &&
       areReasoningProvidersCompatible(message.providerId, targetModel.providerId)
     ) {
       return false;
     }
-    return isSignedOrRedactedReasoning(block);
+    return hasProviderPrivateReasoningMetadata(block);
   });
 }
 
@@ -270,6 +274,12 @@ function isSignedOrRedactedReasoning(block: ModelReasoningContentBlock): boolean
     (typeof anthropic.signature === "string" && anthropic.signature.length > 0) ||
     typeof anthropic.redactedData === "string"
   );
+}
+
+function hasProviderPrivateReasoningMetadata(block: ModelReasoningContentBlock): boolean {
+  if (isSignedOrRedactedReasoning(block)) return true;
+  if (!block.providerOptions || typeof block.providerOptions !== "object") return false;
+  return Object.keys(block.providerOptions).length > 0;
 }
 
 function hasToolCalls(message: ModelInputMessage): boolean {

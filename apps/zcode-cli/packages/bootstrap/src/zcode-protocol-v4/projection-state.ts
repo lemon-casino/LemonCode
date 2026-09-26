@@ -72,6 +72,8 @@ export function createInitialConversationSnapshot(
       mode: "build",
     },
     modelTransition: null,
+    executionFailover: null,
+    executionFailoverEligibleBackgroundWorkIds: [],
     usage: {
       contextWindow: null,
       cumulative: {
@@ -187,6 +189,8 @@ export function computeInputRouting(
 // （每个节点约 5 次迁移）、自带单调 revision 字段、且没有任何 command 的
 // baseRevision CAS 读它——列入会让 run 在飞期间的每次节点迁移都抖动 conversation revision，
 // 徒增 CAS 假失败。
+// executionFailover 与 eligible IDs 共用单调 revision，且命令按 execution/work ID 做 stale guard，
+// 都不进 conversation CAS。
 const REVISION_BEARING_PATCH_KEYS: ReadonlyArray<keyof StatePatch> = [
   "control",
   "availability",

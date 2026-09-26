@@ -1,4 +1,5 @@
 import type {
+  ModelSelection,
   ModelUsage,
   SessionId,
   SubagentTaskSnapshot,
@@ -47,6 +48,8 @@ export interface RuntimeTaskSnapshot extends SubagentTaskSnapshot {
   type: RuntimeTaskType;
   isBackgrounded?: boolean;
   messageSink?: RuntimeTaskMessageSink;
+  /** 当前 child 实际在用的完整 selection；只供 execution failover stale/same-target guard。 */
+  modelSelection?: ModelSelection;
   output?: AgentOutput;
   parentSessionId?: SessionId;
   pendingMessages?: RuntimeTaskPendingMessage[];
@@ -71,10 +74,7 @@ export interface RuntimeTaskRegistry {
   all(): Record<string, RuntimeTaskSnapshot>;
   get(id: string): RuntimeTaskSnapshot | undefined;
   drainMessages(id: string): RuntimeTaskPendingMessage[];
-  queueMessage(
-    id: string,
-    message: RuntimeTaskPendingMessage,
-  ): RuntimeTaskSnapshot | undefined;
+  queueMessage(id: string, message: RuntimeTaskPendingMessage): RuntimeTaskSnapshot | undefined;
   register(task: RuntimeTaskSnapshot): void;
   remove(id: string): void;
   requestBackground(id: string): boolean;
@@ -165,10 +165,7 @@ export class InMemoryRuntimeTaskRegistry implements RuntimeTaskRegistry {
     return Object.fromEntries(this.tasks);
   }
 
-  queueMessage(
-    id: string,
-    message: RuntimeTaskPendingMessage,
-  ): RuntimeTaskSnapshot | undefined {
+  queueMessage(id: string, message: RuntimeTaskPendingMessage): RuntimeTaskSnapshot | undefined {
     return this.update(id, (task) => ({
       ...task,
       pendingMessages: [...(task.pendingMessages ?? []), message],
@@ -242,10 +239,7 @@ export class InMemoryRuntimeTaskRegistry implements RuntimeTaskRegistry {
     }
   }
 
-  private resolveBackgroundWaiters(
-    id: string,
-    task: RuntimeTaskSnapshot | undefined,
-  ): void {
+  private resolveBackgroundWaiters(id: string, task: RuntimeTaskSnapshot | undefined): void {
     this.resolveWaiters(this.backgroundWaiters, id, task);
   }
 

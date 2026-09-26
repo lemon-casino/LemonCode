@@ -35,6 +35,10 @@ import type {
   ExecutionShellSelection,
 } from "./deps.js";
 import type { BackgroundResultOriginMeta, ContextUsageBreakdownItem } from "@zcode/contracts";
+import type {
+  ExecutionFailoverPolicyPort,
+  SetExecutionFailoverTargetInput,
+} from "./methods/model-failover-policy.js";
 import type { RuntimeCommand, RuntimeCommandId } from "./command-queue.js";
 import type { RuntimeMessageEntry } from "../agent/message-history.js";
 import type {
@@ -154,6 +158,9 @@ export interface AgentRuntimeCoreMethods {
   hasResidencyBlockingWork(): boolean;
   trackResidencyBlockingWork<T>(work: Promise<T>): Promise<T>;
   getActiveForegroundExecutionId(): string | undefined;
+  getExecutionFailoverLineageId(): string | undefined;
+  setExecutionFailoverTarget(input: SetExecutionFailoverTargetInput): Promise<"applied" | "stale">;
+  getExecutionFailoverPolicyPort(): ExecutionFailoverPolicyPort;
   acquireForegroundPromotionLease(options: {
     leaseId: string;
     mode: ForegroundPromotionLeaseMode;

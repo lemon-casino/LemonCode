@@ -31,6 +31,10 @@ export type {
   WorkspaceRewindRestoredFile,
   WorkspaceRewindResult,
 } from "./runtime/types.js";
+export type {
+  ExecutionFailoverPolicyPort,
+  ExecutionFailoverScope,
+} from "./runtime/methods/model-failover-policy.js";
 
 import type { AgentRuntime } from "./runtime/agent-runtime.js";
 import type { AgentRuntimeConfig } from "./runtime/types.js";

@@ -16,6 +16,11 @@ import {
 /** 终态 run 在内存注册表里的保留条数（产物只在结算里，journal 不存脚本返回值）。 */
 const TERMINAL_REGISTRY_LIMIT = 32;
 
+/** lineage lease 释放失败后的固定重试间隔；测试可由 driver clock 接管。 */
+const LINEAGE_LEASE_RELEASE_RETRY_MS = 250;
+
+type CleanupRetrySchedule = (callback: () => void, delayMs: number) => () => void;
+
 /** 一个 run 结算后的通知；`liveRunCount` 是通知那一刻本服务名下仍在飞的 run 数。 */
 export interface DynamicWorkflowRunSettledNotice {
   runId: string;
@@ -23,6 +28,8 @@ export interface DynamicWorkflowRunSettledNotice {
 }
 
 interface RunServiceLifecycleDeps {
+  /** 终态 cleanup 的确定性调度器；生产缺席时使用可 unref 的真实 timer。 */
+  cleanupRetrySchedule?: CleanupRetrySchedule;
   /** 只读 `getRun`：外来终态行的判定要看行上的状态。 */
   journal: Pick<JournalStorePort, "getRun">;
   logger?: Logger;
@@ -66,6 +73,7 @@ interface RunServiceLifecycle {
 export function createRunServiceLifecycle(deps: RunServiceLifecycleDeps): RunServiceLifecycle {
   const { runs } = deps;
   const terminalOrder: string[] = [];
+  const pendingCleanups = new Set<Promise<void>>();
   const settledListeners = new Set<(notice: DynamicWorkflowRunSettledNotice) => void>();
   const countLiveRuns = (): number => {
     let live = 0;
@@ -144,9 +152,15 @@ export function createRunServiceLifecycle(deps: RunServiceLifecycleDeps): RunSer
       },
     );
     // service 文件头不变式 6：三条入口（submit / amend / resume）共用这一个登记点，且必须在 launch 的
-    // 同一同步片登记——晚一个微任务，一次常驻再平衡就能落在启动与登记之间。登记的是**结算后**
-    // 的 promise（`settlement` 永不 reject，簿记已做完），计数随它的 finally 释放。
-    deps.registerResidencyBlockingWork?.(settlement);
+    // 同一同步片登记——晚一个微任务，一次常驻再平衡就能落在启动与登记之间。业务 settlement
+    // 不等待 cleanup；常驻登记则延伸到 lineage lease 真正释放成功，失败时同一个句柄继续重试。
+    const cleanup = releaseLineageLeaseAfterSettlement(deps, runId, entry, settlement).finally(
+      () => {
+        pendingCleanups.delete(cleanup);
+      },
+    );
+    pendingCleanups.add(cleanup);
+    deps.registerResidencyBlockingWork?.(cleanup);
     return settlement;
   };
 
@@ -166,6 +180,7 @@ export function createRunServiceLifecycle(deps: RunServiceLifecycleDeps): RunSer
       });
       for (const entry of live) entry.controller.abort("interrupted");
       await Promise.all(live.map((entry) => entry.settlement));
+      await Promise.all(pendingCleanups);
       deps.logger?.info?.("Dynamic workflow run service closed", {
         event: "dynamic_workflow.service.closed",
         module: "bootstrap.app",
@@ -223,4 +238,72 @@ export function createRunServiceLifecycle(deps: RunServiceLifecycleDeps): RunSer
     assertOpen,
     noteForeignTerminalRow,
   };
+}
+
+/**
+ * run 终态与 lease cleanup 分离：终态对业务立即可见；release 失败则保留 entry 上的原 promise，
+ * 由常驻工作和 close 继续持有，直到同一个 release 句柄成功。这样 append/owner 失败不会把唯一
+ * 可重试调用方丢掉，也不会把失败改写成 run 的业务终态。
+ */
+async function releaseLineageLeaseAfterSettlement(
+  deps: RunServiceLifecycleDeps,
+  runId: string,
+  entry: RunRegistryEntry,
+  settlement: Promise<RunSettlement>,
+): Promise<void> {
+  await settlement;
+  const leasePromise = entry.executionFailoverLineageLease;
+  if (leasePromise === undefined) return;
+
+  let lease: Awaited<typeof leasePromise>;
+  try {
+    lease = await leasePromise;
+  } catch (error: unknown) {
+    // acquire 已经失败，Runtime 没有可释放的 lease；清掉 rejected promise，避免 close 再次观察它。
+    if (entry.executionFailoverLineageLease === leasePromise) {
+      entry.executionFailoverLineageLease = undefined;
+    }
+    deps.logger?.warn?.("Dynamic workflow lineage lease acquisition failed", {
+      errorMessage: error instanceof Error ? error.message : String(error),
+      event: "dynamic_workflow.lineage_lease.acquire_failed",
+      module: "bootstrap.app",
+      runId,
+    });
+    return;
+  }
+  if (lease === undefined) {
+    if (entry.executionFailoverLineageLease === leasePromise) {
+      entry.executionFailoverLineageLease = undefined;
+    }
+    return;
+  }
+
+  while (entry.executionFailoverLineageLease === leasePromise) {
+    try {
+      await lease.release();
+      if (entry.executionFailoverLineageLease === leasePromise) {
+        entry.executionFailoverLineageLease = undefined;
+      }
+      return;
+    } catch (error: unknown) {
+      deps.logger?.warn?.("Dynamic workflow lineage lease release failed; retrying", {
+        errorMessage: error instanceof Error ? error.message : String(error),
+        event: "dynamic_workflow.lineage_lease.release_retry",
+        leaseId: lease.leaseId,
+        module: "bootstrap.app",
+        runId,
+      });
+      await waitForCleanupRetry(deps.cleanupRetrySchedule);
+    }
+  }
+}
+
+function waitForCleanupRetry(schedule: CleanupRetrySchedule | undefined): Promise<void> {
+  return new Promise((resolve) => {
+    if (schedule !== undefined) {
+      schedule(resolve, LINEAGE_LEASE_RELEASE_RETRY_MS);
+      return;
+    }
+    setTimeout(resolve, LINEAGE_LEASE_RELEASE_RETRY_MS);
+  });
 }

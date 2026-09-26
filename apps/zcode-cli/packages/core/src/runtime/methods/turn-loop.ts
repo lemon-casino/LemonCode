@@ -2,6 +2,8 @@ import { beginLocalTurnPreparation } from "@zcode/contracts";
 import {
   CompactPhase,
   CompactReason,
+  CoreErrorType,
+  createCoreError,
   createMessageId,
   traceContextToLogContext,
   TurnMachineImpl,
@@ -39,12 +41,41 @@ import {
   commitTurnRequestEntries,
   filterOutputTokenContinuationEntries,
 } from "./turn-output-token-continuation.js";
+import { activateExecutionFailoverAtSafeBoundary } from "./model-failover-router.js";
 
 export async function runRegularTurnLoop(
   this: AgentRuntimeInternal,
   state: RegularTurnLoopState,
 ): Promise<void> {
   while (true) {
+    throwIfTurnAborted(state.turnAbortSignal);
+    // 这是跨供应商交接的唯一健康路径：上一 model-step（含完整工具批次）已结束，
+    // 下一请求尚未组装。UI command 本身绝不改正在使用的 model。
+    const failoverActivation = await activateExecutionFailoverAtSafeBoundary(this, state);
+    if (failoverActivation === "blocked") {
+      const target = this.executionFailoverPolicyPort.resolve(
+        this.executionFailoverScope ?? {
+          foregroundExecutionId: this.activeForegroundExecution?.foregroundExecutionId,
+        },
+      );
+      // 已投影 blocked 后不能继续拿旧 A 请求；否则 UI 显示切换失败，实际执行却静默回退。
+      throw createCoreError(
+        CoreErrorType.ModelError,
+        "Requested model switch could not be activated",
+        {
+          context: {
+            code: "execution_failover_target_blocked",
+            ...(target
+              ? {
+                  modelId: target.modelSelection.modelId,
+                  providerId: target.modelSelection.providerId,
+                }
+              : {}),
+          },
+          recoverable: true,
+        },
+      );
+    }
     throwIfTurnAborted(state.turnAbortSignal);
     const outputTokenRecoveryActive = state.turnRequestState.outputTokenContinuationCount > 0;
     // guide 只允许由完整 tool result batch 设置这个一次性诊断；普通 queue 不在

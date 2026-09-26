@@ -11,7 +11,7 @@ import type {
   TurnId,
 } from "../deps.js";
 import type { ActiveTurnSteeringState } from "../types.js";
-import type { SubagentRunOptions } from "@zcode/contracts";
+import type { ModelRequestDependencies, SubagentRunOptions } from "@zcode/contracts";
 import type { DrainedPendingInputDiagnostics } from "../types.js";
 import type { TurnMachineImpl } from "../deps.js";
 import type { RuntimeMessageEntry } from "../../agent/message-history.js";
@@ -90,10 +90,23 @@ export interface RegularTurnLoopState {
   currentUserMessageId: MessageId;
   drainedSteerForNextRequest?: DrainedPendingInputDiagnostics;
   events: SessionEvent[];
+  /** 当前逻辑执行已访问的完整 ModelSelection 身份；防止 A→B→A 循环。 */
+  executionFailoverVisitedModels: Set<string>;
+  executionFailoverTransitionCount: number;
+  /** 工具执行结果不确定时，只封锁对应 source command + target 身份。 */
+  executionFailoverUnsafePolicies: Set<string>;
   input: string;
   modelResponse: string;
   /** 本轮固定使用的可调用模型；配置变化只影响以后创建的 Loop。 */
   model: Model;
+  /** 本 execution 创建时绑定的请求依赖；failover 预检只透传，真正请求前才解析。 */
+  modelRequestDependencies?: ModelRequestDependencies;
+  /** retry-yield 决策后 latest target 无法接管时，旧 selection 的一次性 Adapter 重试续点。 */
+  pendingModelRetryContinuation?: {
+    consumedRetryAttempts: number;
+    requestIdentity: string;
+    selectionIdentity: string;
+  };
   /** execution 表示当前 Active Model 不能被同 loop 的 guide 改写。 */
   modelSelectionScope?: "execution";
   /** Core Server 的前台 child Selection override；优先于 profile 与父模型继承。 */

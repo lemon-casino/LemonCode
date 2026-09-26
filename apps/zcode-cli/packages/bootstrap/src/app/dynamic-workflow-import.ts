@@ -267,6 +267,7 @@ async function buildActorCandidate(input: {
     entries,
     transcriptSourceSessionId: source.sessionId,
     ...(source.resolvedModel === undefined ? {} : { resolvedModel: source.resolvedModel }),
+    ...(source.modelProvenance === undefined ? {} : { modelProvenance: source.modelProvenance }),
   };
 }
 
@@ -310,8 +311,8 @@ function completedAskPrefix(nodes: NodeRecord[], actor: ActorRecord): ImportedAs
  * B→C 的修订要接续该 actor 时，转录只存在于 A。count 边界跨前缀复制不变，所以在链上任何
  * 持会话祖先处，B 抄来的边界值都直接可用——这正是链式修订成立的根基。
  *
- * `resolvedModel` 与会话取自**同一行**：pin 的意义是「接续这段转录时别换模型」，取自别的行
- * 就是在为一段不属于它的转录做承诺。
+ * `resolvedModel` 与会话取自**同一行**：它描述这段转录的模型接续起点，取自别的行就是在为一段
+ * 不属于它的转录做承诺；宿主仍须另行判断本 run 是否已有真正的 resume pin。
  *
  * 环防御（seen）是纯防御：supersede 只能指向已终结的更早 run，构造不出环。但这个 while 若真
  * 遇到损坏数据就是死循环，而防御的代价是一个 Set。
@@ -320,7 +321,7 @@ function resolveTranscriptSource(input: {
   actorName: string;
   journal: ImportedCacheJournalReader;
   startRunId: string;
-}): { sessionId: string; resolvedModel?: string } | undefined {
+}): ({ sessionId: string } & Pick<ActorRecord, "resolvedModel" | "modelProvenance">) | undefined {
   const { actorName, journal, startRunId } = input;
   const seen = new Set<string>();
   let runId: string | undefined = startRunId;
@@ -336,6 +337,7 @@ function resolveTranscriptSource(input: {
       return {
         sessionId: actor.sessionId,
         ...(actor.resolvedModel === undefined ? {} : { resolvedModel: actor.resolvedModel }),
+        ...(actor.modelProvenance === undefined ? {} : { modelProvenance: actor.modelProvenance }),
       };
     }
     runId = journal.getRun(runId)?.resumedFrom;
@@ -384,9 +386,10 @@ function buildWorldQueues(nodes: NodeRecord[]): ReadonlyMap<string, (ImportedWor
     if (node.kind !== "world-read" && node.kind !== "world-run") continue;
     const queue = world.get(node.inputHash);
     // 修订后同一哈希的第 n 次读取必须对应前驱第 n 次；不能把失败记录压缩掉。
-    const entry: ImportedWorldEntry | null = node.status === "completed"
-      ? { inputHash: node.inputHash, kind: node.kind, result: node.result }
-      : null;
+    const entry: ImportedWorldEntry | null =
+      node.status === "completed"
+        ? { inputHash: node.inputHash, kind: node.kind, result: node.result }
+        : null;
     if (queue === undefined) world.set(node.inputHash, [entry]);
     else queue.push(entry);
   }

@@ -84,6 +84,10 @@ import type {
   RuntimeBackgroundStopResult,
 } from "./methods/background.js";
 import { initializeRuntimeTooling } from "./helpers/runtime-tools.js";
+import {
+  retainSessionStoreDependentCloseWork,
+  settleSessionStoreDependentCloseWork,
+} from "./methods/session-store-dependent-close-work.js";
 import type {
   ActiveTurnInfo,
   ActiveForegroundExecutionState,
@@ -119,7 +123,11 @@ import type {
   WorkspaceForkResult,
 } from "./types.js";
 import type { AgentRuntimeInternal } from "./internal.js";
-import { InMemoryRuntimeTaskRegistry, type RuntimeTaskRegistry } from "../runtime-task/registry.js";
+import {
+  InMemoryRuntimeTaskRegistry,
+  isTerminalRuntimeTask,
+  type RuntimeTaskRegistry,
+} from "../runtime-task/registry.js";
 import type { ChildClientPortsContext, ClientFacingPorts } from "./helpers/child-client-ports.js";
 import type { ProjectMemoryExtractionScheduler } from "./helpers/project-memory-extraction.js";
 import { projectPersistentAgentMemoryTools } from "../subagent/persistent-memory.js";
@@ -127,6 +135,19 @@ import { RuntimeTelemetryFacade } from "../telemetry/runtime-telemetry.js";
 import type { WorkspaceHookRuntimeAdmissionPort } from "../hooks/workspace-hook-runtime-admission.js";
 import { disposeNodeReplSession } from "../tool/handlers/node-repl.js";
 import { cloneModelSelection } from "./model-selection.js";
+import type { ExecutionFailoverState } from "@zcode/shared/zcode-protocol-v4";
+import {
+  createExecutionFailoverPolicyPort,
+  type ExecutionFailoverRegistration,
+  type ExecutionFailoverDormantIntent,
+  type ExecutionFailoverLineageLease,
+  type ExecutionFailoverPolicyPort,
+  type ExecutionFailoverScope,
+  type ExecutionFailoverScopeLifetime,
+  type SetExecutionFailoverTargetInput,
+} from "./methods/model-failover-policy.js";
+
+const DEFAULT_BROWSER_SESSION_CLOSE_TIMEOUT_MS = 6_000;
 
 // oxlint-disable typescript-eslint/no-unsafe-declaration-merging
 export class AgentRuntime {
@@ -149,6 +170,22 @@ export class AgentRuntime {
   private hookRunner?: HookRunner;
   private workspaceHookAdmission?: WorkspaceHookRuntimeAdmissionPort;
   private modelFactory: AgentRuntimeDeps["modelFactory"];
+  private failoverModelFactory: AgentRuntimeDeps["modelFactory"];
+  private executionFailoverPolicyPort: ExecutionFailoverPolicyPort;
+  private executionFailoverScope?: ExecutionFailoverScope;
+  private executionFailoverScopeLifetime: ExecutionFailoverScopeLifetime;
+  private executionFailoverScopeRetained = false;
+  private executionFailoverSelectionSink?: AgentRuntimeDeps["executionFailoverSelectionSink"];
+  private executionFailoverState?: ExecutionFailoverState;
+  private executionFailoverRevision = 0;
+  private executionFailoverMutation: Promise<void> = Promise.resolve();
+  private executionFailoverRegistrations = new Map<string, ExecutionFailoverRegistration>();
+  private executionFailoverLineageLeases = new Map<string, ExecutionFailoverLineageLease>();
+  private executionFailoverDormantIntents = new Map<string, ExecutionFailoverDormantIntent>();
+  private browserSessionClosed = false;
+  private nodeReplSessionDisposed = false;
+  private browserSessionCloseTimeoutMs = DEFAULT_BROWSER_SESSION_CLOSE_TIMEOUT_MS;
+  private shutdownStarted = false;
   private modelIoDir?: string;
   private providerRuntimeHeadersPort?: AgentRuntimeDeps["providerRuntimeHeadersPort"];
   private browserControlPort?: AgentRuntimeDeps["browserControlPort"];
@@ -170,6 +207,7 @@ export class AgentRuntime {
   private mcpPort?: McpPort;
   private mcpStartupPromise?: Promise<McpConnectionSnapshot>;
   private residencyBlockingWorkCount = 0;
+  private pendingSessionStoreDependentCloseWork = new Set<Promise<void>>();
   private mcpInitialized = false;
   private mcpToolsRegistered = false;
   private subagentPort?: SubagentPort;
@@ -267,6 +305,12 @@ export class AgentRuntime {
     this.now = deps.now ?? (() => new Date());
     this.isRemoteWorkspace = deps.isRemoteWorkspace ?? (() => false);
     this.modelFactory = deps.modelFactory;
+    this.failoverModelFactory = deps.failoverModelFactory ?? deps.modelFactory;
+    this.executionFailoverScope = deps.executionFailoverScope;
+    this.executionFailoverScopeLifetime = deps.executionFailoverScopeLifetime ?? "turn";
+    this.executionFailoverSelectionSink = deps.executionFailoverSelectionSink;
+    this.executionFailoverPolicyPort =
+      deps.executionFailoverPolicyPort ?? createExecutionFailoverPolicyPort(runtime);
     this.modelIoDir = deps.modelIoDir;
     this.providerRuntimeHeadersPort = deps.providerRuntimeHeadersPort;
     this.browserControlPort = deps.browserControlPort;
@@ -309,25 +353,105 @@ export class AgentRuntime {
 
   async closeBrowserSession(): Promise<void> {
     this.beginShutdown();
-    disposeNodeReplSession(this.sessionId);
-    try {
-      await this.browserControlPort?.closeSession?.({
-        sessionId: this.sessionId,
-        traceContext: this.rootTraceContext,
-      });
-    } catch (error) {
-      // browser backend 清理失败不能阻断 execution/MCP/session store 的主关闭链路。
-      this.logger?.warn("Browser session cleanup failed", {
-        error: error instanceof Error ? error.message : String(error),
-        event: "browser.session_cleanup.failed",
-      });
+    if (!this.nodeReplSessionDisposed) {
+      disposeNodeReplSession(this.sessionId);
+      this.nodeReplSessionDisposed = true;
     }
+    let failoverReleaseFailure: { error: unknown } | undefined;
+    if (
+      this.executionFailoverScopeLifetime === "runtime" &&
+      this.executionFailoverScopeRetained &&
+      this.executionFailoverScope
+    ) {
+      const release = this.executionFailoverPolicyPort.release(
+        this.executionFailoverScope,
+        this.rootTraceContext,
+      );
+      // release 会写父 session 的 failover event；必须在第一次 await 前登记，
+      // 否则 facade 的资源 deadline 可能先到并在它迟到落库前关闭 store。
+      retainSessionStoreDependentCloseWork(this as unknown as AgentRuntimeInternal, release);
+      try {
+        await release;
+        this.executionFailoverScopeRetained = false;
+      } catch (error) {
+        // actor runtime 的 target 属于父 policy；先保留 retained 标记并继续收口独立资源，
+        // 最后再把失败交还所有者。吞掉错误会让 driver 删除唯一的 runtime 重试句柄。
+        failoverReleaseFailure = { error };
+        this.logger?.warn("Execution failover runtime scope release failed", {
+          errorMessage: error instanceof Error ? error.message : String(error),
+          event: "model.failover.runtime_scope_release_failed",
+          module: "core.runtime",
+        });
+      }
+    }
+    if (!this.browserSessionClosed) {
+      let timer: NodeJS.Timeout | undefined;
+      const outcome = await Promise.race([
+        Promise.resolve()
+          .then(() =>
+            this.browserControlPort?.closeSession?.({
+              sessionId: this.sessionId,
+              traceContext: this.rootTraceContext,
+            }),
+          )
+          .then(
+            () => ({ type: "completed" as const }),
+            (error: unknown) => ({ error, type: "failed" as const }),
+          ),
+        new Promise<{ type: "timed_out" }>((resolve) => {
+          timer = setTimeout(
+            () => resolve({ type: "timed_out" }),
+            this.browserSessionCloseTimeoutMs,
+          );
+        }),
+      ]);
+      if (timer) clearTimeout(timer);
+      // browser backend 是有界的 ephemeral 清理；它不能把仍需父 store 的 actor dispose 永久卡住。
+      this.browserSessionClosed = true;
+      if (outcome.type !== "completed") {
+        this.logger?.warn("Browser session cleanup failed", {
+          error:
+            outcome.type === "failed"
+              ? outcome.error instanceof Error
+                ? outcome.error.message
+                : String(outcome.error)
+              : "Browser session cleanup timed out",
+          event: "browser.session_cleanup.failed",
+        });
+      }
+    }
+    await settleSessionStoreDependentCloseWork(this as unknown as AgentRuntimeInternal);
+    if (failoverReleaseFailure) throw failoverReleaseFailure.error;
+  }
+
+  retainSessionStoreDependentCloseWork(work: Promise<unknown>): void {
+    retainSessionStoreDependentCloseWork(
+      this as unknown as AgentRuntimeInternal,
+      work.then(() => undefined),
+    );
+  }
+
+  async drainSessionStoreDependentCloseWork(): Promise<void> {
+    await settleSessionStoreDependentCloseWork(this as unknown as AgentRuntimeInternal);
   }
 
   beginShutdown(): void {
+    if (this.shutdownStarted) return;
+    this.shutdownStarted = true;
     // ExecutionPort.close() 会把后台 Bash 收口为 cancelled；若允许
     // teardown terminal event 再唤醒模型，并与随后关闭的 session store 竞态。
     this.shuttingDown = true;
+    for (const task of Object.values(this.runtimeTaskRegistry.all())) {
+      if (task.type !== "local_agent" || isTerminalRuntimeTask(task)) continue;
+      const stop = this.subagentPort?.stopTask?.(task.taskId);
+      if (!stop) continue;
+      // beginShutdown 必须同步登记 stop owner；否则 facade 的 stable drain 可能在 stop 创建
+      // terminal policy cleanup 前误判为空，并提前关闭 session store。
+      retainSessionStoreDependentCloseWork(
+        this as unknown as AgentRuntimeInternal,
+        stop.then(() => undefined),
+      );
+    }
     // 关闭单个 session 后进程仍存活，
     // 因此必须先终止该 runtime 的 Extraction，不能只在超时后放弃等待。
     this.memoryExtractionScheduler?.shutdown();
@@ -338,6 +462,10 @@ export interface AgentRuntime {
   lastPermissionGrantId?: string;
   beginShutdown(): void;
   closeBrowserSession(): Promise<void>;
+  /** 登记 workflow actor dispose 等仍可能访问父 session store 的异步关闭工作。 */
+  retainSessionStoreDependentCloseWork(work: Promise<unknown>): void;
+  /** store 关闭前稳定等待普通子代理与 workflow actor 的全部关闭工作。 */
+  drainSessionStoreDependentCloseWork(): Promise<void>;
   updateConfig(
     patch: Pick<AgentRuntimeConfig, "mode" | "planEnabled" | "language" | "outputStyle">,
   ): void;
@@ -414,6 +542,9 @@ export interface AgentRuntime {
    */
   isSessionPersisted(): boolean;
   getActiveForegroundExecutionId(): string | undefined;
+  getExecutionFailoverLineageId(): string | undefined;
+  setExecutionFailoverTarget(input: SetExecutionFailoverTargetInput): Promise<"applied" | "stale">;
+  getExecutionFailoverPolicyPort(): ExecutionFailoverPolicyPort;
   acquireForegroundPromotionLease(options: {
     leaseId: string;
     mode: ForegroundPromotionLeaseMode;

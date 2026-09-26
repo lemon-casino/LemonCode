@@ -24,6 +24,7 @@ import {
   zcodeProtocolMcpServerSchema,
 } from "../zcode-protocol/index.js";
 import { sharedContextRefSchema } from "./shared-context-ref.js";
+import { setExecutionFailoverTargetPayloadSchema } from "./execution-failover.js";
 export type { SharedContextRef } from "./shared-context-ref.js";
 
 const createSessionRequestedConfigSchema = z.object({
@@ -129,6 +130,9 @@ export const commandPayloadSchemas = {
         });
       }
     }),
+  // 运行中选择模型同时武装精确 execution/work 目标；非 CAS，避免高频投影造成假 stale。
+  // 当前请求与已开始工具照常完成，Runtime 只在下一安全 model-step 或故障恢复边界激活。
+  setExecutionFailoverTarget: setExecutionFailoverTargetPayloadSchema,
   sendGoalCommand: z.object({
     text: z.string(),
     displayText: z.string().optional(),

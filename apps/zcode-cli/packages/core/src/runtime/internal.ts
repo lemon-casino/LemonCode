@@ -56,6 +56,15 @@ import type { AgentRuntimeHookMethods } from "./internal-hook-methods.js";
 import type { ProjectMemoryExtractionScheduler } from "./helpers/project-memory-extraction.js";
 import type { RuntimeTelemetryFacade } from "../telemetry/runtime-telemetry.js";
 import type { WorkspaceHookRuntimeAdmissionPort } from "../hooks/workspace-hook-runtime-admission.js";
+import type { ExecutionFailoverState } from "@zcode/shared/zcode-protocol-v4";
+import type {
+  ExecutionFailoverRegistration,
+  ExecutionFailoverDormantIntent,
+  ExecutionFailoverLineageLease,
+  ExecutionFailoverPolicyPort,
+  ExecutionFailoverScope,
+  ExecutionFailoverScopeLifetime,
+} from "./methods/model-failover-policy.js";
 
 export interface AgentRuntimeInternal
   extends AgentRuntimeCoreMethods, AgentRuntimeTurnMethods, AgentRuntimeHookMethods {
@@ -78,6 +87,18 @@ export interface AgentRuntimeInternal
   hookRunner?: HookRunner;
   workspaceHookAdmission?: WorkspaceHookRuntimeAdmissionPort;
   modelFactory: AgentRuntimeDeps["modelFactory"];
+  failoverModelFactory: AgentRuntimeDeps["modelFactory"];
+  executionFailoverPolicyPort: ExecutionFailoverPolicyPort;
+  executionFailoverScope?: ExecutionFailoverScope;
+  executionFailoverScopeLifetime: ExecutionFailoverScopeLifetime;
+  executionFailoverScopeRetained: boolean;
+  executionFailoverSelectionSink?: AgentRuntimeDeps["executionFailoverSelectionSink"];
+  executionFailoverState?: ExecutionFailoverState;
+  executionFailoverRevision: number;
+  executionFailoverMutation: Promise<void>;
+  executionFailoverRegistrations: Map<string, ExecutionFailoverRegistration>;
+  executionFailoverLineageLeases: Map<string, ExecutionFailoverLineageLease>;
+  executionFailoverDormantIntents: Map<string, ExecutionFailoverDormantIntent>;
   modelIoDir?: string;
   providerRuntimeHeadersPort?: ProviderRuntimeHeadersPort;
   browserControlPort?: AgentRuntimeDeps["browserControlPort"];
@@ -98,6 +119,7 @@ export interface AgentRuntimeInternal
   mcpPort?: McpPort;
   mcpStartupPromise?: Promise<McpConnectionSnapshot>;
   residencyBlockingWorkCount: number;
+  pendingSessionStoreDependentCloseWork: Set<Promise<void>>;
   mcpInitialized: boolean;
   mcpToolsRegistered: boolean;
   subagentPort?: SubagentPort;

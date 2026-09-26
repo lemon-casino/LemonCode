@@ -113,7 +113,13 @@ export interface DynamicWorkflowAskControlRequest {
   action: "stop" | "retry";
   /** 本次重跑追加给目标任务的修订要求。 */
   supplement?: string;
-  attachments?: Array<{ ref: string; fileName: string; mime: string; bytes: number; previewRef?: string }>;
+  attachments?: Array<{
+    ref: string;
+    fileName: string;
+    mime: string;
+    bytes: number;
+    previewRef?: string;
+  }>;
 }
 
 export interface DynamicWorkflowActorModelOverride {
@@ -132,12 +138,21 @@ export interface DynamicWorkflowAskRevisionRequest {
   siteId: string;
   ordinal: number;
   supplement?: string;
-  attachments?: Array<{ ref: string; fileName: string; mime: string; bytes: number; previewRef?: string }>;
+  attachments?: Array<{
+    ref: string;
+    fileName: string;
+    mime: string;
+    bytes: number;
+    previewRef?: string;
+  }>;
 }
 
 export type DynamicWorkflowAskRevisionResult =
   | { ok: true; runId: string; invalidatedSites: string[] }
-  | { ok: false; reason: "not_found" | "not_completed" | "still_running" | "missing_boundaries" | "not_ready" };
+  | {
+      ok: false;
+      reason: "not_found" | "not_completed" | "still_running" | "missing_boundaries" | "not_ready";
+    };
 
 /**
  * {@link DynamicWorkflowRunPort.amend} 的请求。
@@ -269,6 +284,8 @@ export type DynamicWorkflowRunSnapshot = Omit<WorkflowTaskSnapshot, "output"> & 
   subagentSelection?: ModelSelection;
   /** 发起会话的冻结选择；显式覆盖也不抹掉此值。 */
   sessionSelection?: ModelSelection;
+  /** 启动时批准的 actor 级模型覆盖；普通修订与 GUI 设置修订默认原样继承。 */
+  actorModelOverrides?: DynamicWorkflowActorModelOverride[];
   /**
    * 本 run 的脚本文件（绝对路径，journal 事件 `run-launched` 上的那一个）。**只在这个 run 记下过文件时在场**。
    *

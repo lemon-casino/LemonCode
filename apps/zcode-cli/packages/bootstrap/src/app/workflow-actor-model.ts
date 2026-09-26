@@ -1,35 +1,34 @@
 // ============================================================
-// workflow actor 的模型面（run 选择 / journal pin → AgentRuntime 模型配置）
+// workflow actor 的模型面（显式配置 / 持久绑定 / import seed → AgentRuntime 模型配置）
 // ============================================================
 //
 // persona 的模型档位（`model?: "main" | "lite"`）已退场。宿主在 provider 重构后没有 lite 模型来源，
 // "lite" 与 "main" 早已同路——继承父会话当前模型。
 //
-// 于是本模块只回答一个问题：**这个 actor 的会话该跑在哪个模型上**。三个来源按优先级排：
-// 本 run 的 `subagentModel`（`CreateWorkflow` / `AmendWorkflow` 的 `subagent_model`）> resume pin（journal 里上一次实际跑的模型）> 父会话当前模型。
+// 本模块把五类稳定 provenance（approved/script/run/resumePin/sessionInherited）归约成两个事实：
+// actor 创建时是否覆盖父模型，以及它是否有资格跟随父 execution failover。
 // 与 workflow-actor-tools.ts 是同一个接缝上的姊妹模块：一个给出工具面，一个给出模型面，
 // 都由 driver 侧的 runtime 工厂在造 AgentRuntime 时展开。
 
-import type { ModelSelection } from "@zcode/shared/model-selection";
+import type {
+  ActorModelProvenance,
+  WorkflowRunModelProvenance,
+} from "@zcode/dynamic-workflow";
+import { modelSelectionSchema, type ModelSelection } from "@zcode/shared/model-selection";
 import { parseProviderQualifiedModelSelection } from "./provider-registry-selection.js";
 
 /** 解析模型面需要的宿主侧事实。 */
 interface WorkflowActorModelHost {
   /**
-   * 父会话**当前**的模型选择（`runtime.getSessionModelSelection()`）。只在没有 run 级选择时
-   * 有用：与 pin 比对（判断「钉住的模型是否就是现在的主模型」，从而决定 pin 分支要不要真的
-   * 覆盖）。父会话尚无选择时缺席。
-   */
-  parentSelection?: ModelSelection | undefined;
-  /**
    * 本 run 自己的子代理模型（`CreateWorkflow` / `AmendWorkflow` 的 `subagent_model`，从 journal
    * 的 `run-launched` 事件读回）。**整条选择**，含 reasoning
    * 档位——用户说「子代理跑 GLM-5.3-Flash$high」时那个档位是选择的一部分，不能在这里掉。
    *
-   * 位置：**最高**。它是用户对这一次 run 的显式表态；在场时 pin 与父模型都只是它本来要替换的
-   * 缺省（见下面的函数注释）。主代理不受它影响——它只描述子代理。
+   * 它是用户对这一次 run 的显式表态；主代理不受它影响——它只描述子代理。
    */
   runSelection?: ModelSelection | undefined;
+  /** 新 launch 的显式 provenance；sessionInherited 只屏蔽 imported seed，不覆盖同 run 绑定。 */
+  runProvenance?: WorkflowRunModelProvenance | undefined;
   /** Script-authored default from agent(..., { model }). */
   scriptSelection?: ModelSelection | undefined;
   /** User-approved actor override. */
@@ -37,20 +36,37 @@ interface WorkflowActorModelHost {
 }
 
 /** AgentRuntimeConfig 的模型面切片。 */
+export type WorkflowActorModelProvenance = ActorModelProvenance;
+
+/** resolvedModel 与来源在 journal/seed 中必须作为一个绑定事实同行传播。 */
+export interface WorkflowActorModelBinding {
+  resolvedModel: string;
+  modelProvenance?: ActorModelProvenance;
+}
+
+export interface WorkflowActorExecutionFailoverScope {
+  backgroundWorkId: string;
+  foregroundExecutionId: string;
+}
+
 interface WorkflowActorModelPolicy {
   /**
    * 展开进 AgentRuntimeConfig 的覆盖项。**空对象即「不覆盖」**：child runtime 的基线本就是
-   * 父会话的模型选择（script-workflow-child-runtime.ts），所以没有 run 选择也没有 pin 时什么
-   * 都不写，就是继承父模型。
+   * 父会话的模型选择（script-workflow-child-runtime.ts），所以 sessionInherited 的全新 actor
+   * 或 inherited seed 什么都不写，就是从父会话当前选择开始。
    */
   configOverrides: {
     modelSelection?: ModelSelection;
   };
+  /**
+   * 模型选择的权威来源。只有 `sessionInherited` 能跟随父执行做安全边界切换；其余来源都是
+   * workflow 自己的显式/持久化约束，父会话切换不能覆盖。
+   */
+  provenance: WorkflowActorModelProvenance;
 }
 
 /**
- * 钉住的模型无法构造时抛出。带上 pin 本身：排查的人需要知道 journal 里钉的是哪个模型，
- * 而不是从一条「模型引用非法」的通用消息里猜。
+ * 持久绑定无法解析时抛出。保留旧类名与字段，兼容已经按 resume pin 识别该错误的调用方。
  */
 export class WorkflowActorPinnedModelError extends Error {
   readonly pinnedModel: string;
@@ -64,43 +80,27 @@ export class WorkflowActorPinnedModelError extends Error {
 }
 
 /**
- * 把 run 选择与 journal 里的 pin 映射成 AgentRuntime 的模型配置。纯函数。
+ * 把显式配置、同 run 持久绑定与 import seed 映射成 AgentRuntime 的模型配置。纯函数。
  *
- * `pinnedModel` 是这个 actor 在 journal 里记下的 `resolvedModel`（`providerId/modelId`），
- * 只有 resume（含 amend-resume 从前驱承袭的种子）会带上它。
+ * `persistedBinding` 是这个 actor 在**本 run** journal 里的完整模型绑定。新记录使用
+ * `selection:<完整 ModelSelection JSON>`，旧记录仍兼容 `providerId/modelId`。`inheritedSeedBinding`
+ * 来自 amend 导入的前驱 transcript；只有它自己带着显式/pin provenance 时才保持固定。
  *
- * 优先级：**批准的 actor 覆盖 > 脚本 actor 默认 > 本 run 启动快照 > resume pin > 父会话当前模型**。
+ * 优先级：**批准的 actor 覆盖 > 脚本 actor 默认 > 本 run 显式选择 > 同 run 持久绑定 >
+ * import seed > 父会话基线**。
  *
- * | run 选择 | pin | 解析结果 |
+ * | 证据 | 创建选择 | provenance |
  * |---|---|---|
- * | 有 | 任意（含畸形，不解析） | 覆盖成 run 选择（整条，含 reasoning 档位） |
- * | 无 | 无 | 不覆盖（父会话当前模型） |
- * | 无 | = 父会话当前模型 | 不覆盖（钉的就是现在的主模型） |
- * | 无 | ≠ 父会话当前模型 | 覆盖成 pin 解析出的选择 |
- * | 无 | 畸形（缺 provider 段） | {@link WorkflowActorPinnedModelError} |
+ * | approved / script / run 配置 | 该完整显式选择 | 对应显式来源 |
+ * | 同 run 持久绑定 | journal selection continuation | journal provenance；旧 NULL 按 sessionInherited |
+ * | import seed 为 sessionInherited 或旧 NULL | 不覆盖父会话当前选择 | sessionInherited |
+ * | import seed 为 explicit / resumePin | seed selection | seed 原 provenance |
+ * | 全部缺席 | 不覆盖父会话当前选择 | sessionInherited |
  *
- * **省略即继承，显式值即替换。** resume / amend 的 `resolveInput` 对 `subagentModel` 与
- * `max_concurrency` 已经是这条规则；pin 是同一条规则用在**隐式缺省**上：一个没有 `subagentModel`
- * 的 run，其子代理的缺省不是「父会话此刻的模型」，而是「这个子代理上次实际跑的模型」。run 有了
- * `subagentModel`，就没有缺省可继承，pin 便无话可说。所以 pin 排在 run 选择之下——它守的是
- * 静默漂移，而 `AmendWorkflow` 带 `subagent_model` 恰是那个显式、用户看得见的决定（确认窗与
- * 工具输出都写着「Subagents run on …」）。之前 pin 排在 run 选择之上，结果每个
- * 带 live 工作的续跑子代理都跑在前驱的模型上，而 `run-launched` 与确认窗说的是另一个。
- * 换模型这段历史不会丢：新 run 自己的 `dwf_actor` 行记下新选择，前驱的行仍是旧模型，lineage
- * 因此保留了「在哪一次 run 换过」。
- *
- * 为什么要有 pin——它是 **persona 冻结不变式的持久化那一半**：persona 在 `agent()` 时冻结，
- * 而 resume 会从 journal 重建 actor。没有 pin，父会话在两次运行之间换了主模型，就会在一条
- * actor transcript 中途**悄悄改掉一个已冻结的身份**：前半段的 ask 由模型 X 产出、resume 之后的
- * 由模型 Y 产出，而没有任何地方记下身份变过。
- *
- * **v1 的 pin-miss 策略（无 run 选择的路径）：宁可失败，绝不静默换模型。** pin 指向宿主再也
- * 构造不出的模型时（provider 没了、模型下线），本函数**不回退**到父会话模型——那恰好就是 pin
- * 要防的那次静默身份变更。畸形的 pin 在这里就以 {@link WorkflowActorPinnedModelError} 失败；
- * 而一个「格式合法但宿主已经没有」的模型在建会话这一刻查不出来（要查得动宿主的 Registry，那是
- * 本纯函数刻意不引入的机器），它会在**第一次 ask** 的模型调用上以 node 级错误浮出来——这是有意
- * 接受的：晚一点大声失败，也好过悄悄换一个模型继续跑。要在 resume 时换模型，路只有一条：
- * `AmendWorkflow` 带上 `subagent_model`，那正是 run 选择这一支。
+ * `resolvedModel` 自身不是来源证据。特别是旧行 provenance 为 NULL 时，没有上述显式配置便按
+ * sessionInherited 解释；同 run 的 selection 仍作为 continuation 起点使用，但不会升级成 resumePin。
+ * import seed 更严格：sessionInherited seed 的 selection 只描述前驱 transcript，不能覆盖父会话
+ * 已切换后的当前选择。所有被采用的持久 selection 若格式无效都大声失败，不猜 provider 或降级。
  *
  * 本函数**不产出**「最终跑在哪个模型上」这条事实：它要落 journal，而权威是造出来的 child
  * runtime 自己（`runtime.getSessionModelSelection()`）。让 runtime 来说，就不会出现「策略以为
@@ -109,47 +109,85 @@ export class WorkflowActorPinnedModelError extends Error {
  */
 export function workflowActorModelPolicy(
   host: WorkflowActorModelHost,
-  pinnedModel?: string,
+  persistedBinding?: WorkflowActorModelBinding,
+  inheritedSeedBinding?: WorkflowActorModelBinding,
 ): WorkflowActorModelPolicy {
   if (host.approvedSelection !== undefined) {
-    return { configOverrides: { modelSelection: host.approvedSelection } };
+    return {
+      configOverrides: { modelSelection: host.approvedSelection },
+      provenance: "approvedActorOverride",
+    };
   }
   if (host.scriptSelection !== undefined) {
-    return { configOverrides: { modelSelection: host.scriptSelection } };
+    return {
+      configOverrides: { modelSelection: host.scriptSelection },
+      provenance: "scriptActorModel",
+    };
   }
-  // run 选择在场：整条覆盖，pin 连解析都不解析——它只是本 run 要替换掉的那个缺省。
+  // 显式 run 选择在场时整条覆盖，旧持久绑定连解析都不解析。
   if (host.runSelection !== undefined) {
-    return { configOverrides: { modelSelection: host.runSelection } };
+    return { configOverrides: { modelSelection: host.runSelection }, provenance: "runModel" };
   }
-  if (pinnedModel === undefined) return { configOverrides: {} };
-  const pinned = parsePinnedModel(pinnedModel);
-  // 同名模型的会话选项也可能变化；续跑必须沿用 journal 钉住的完整选择。
-  return { configOverrides: { modelSelection: pinned } };
+  if (persistedBinding !== undefined) {
+    const selection = parseRecordedModel(persistedBinding.resolvedModel);
+    // 旧 NULL 行不能仅凭 resolvedModel 猜成 pin：没有显式配置证据时按继承解释。
+    const provenance = persistedBinding.modelProvenance ?? "sessionInherited";
+    return { configOverrides: { modelSelection: selection }, provenance };
+  }
+  if (host.runProvenance === "sessionInherited") {
+    return { configOverrides: {}, provenance: "sessionInherited" };
+  }
+  if (inheritedSeedBinding !== undefined) {
+    const provenance = inheritedSeedBinding.modelProvenance ?? "sessionInherited";
+    if (provenance === "sessionInherited") {
+      // 继承 seed 的 resolvedModel 只描述前驱 transcript；父会话已到 B 时不能先跑一次 A。
+      return { configOverrides: {}, provenance };
+    }
+    return {
+      configOverrides: {
+        modelSelection: parseRecordedModel(inheritedSeedBinding.resolvedModel),
+      },
+      provenance,
+    };
+  }
+  return { configOverrides: {}, provenance: "sessionInherited" };
 }
 
 /**
- * 解析 journal 里的 pin。**不带默认 provider**：pin 是本机写出的 `providerId/modelId`，
- * 缺了 provider 段就说明这条记录不是这个格式写的（或被改过），此时拿父会话的 provider 去补
- * 等于猜出一个新身份——正是 pin 要防的事。宁可大声失败。
+ * 把 workflow 模型来源收窄成运行期接管 scope。runId 不能作为 work id：同一个 run 内可以同时
+ * 存在显式模型与继承模型的 actor；childSessionId 才是逐 actor、跨 resume 稳定的身份。
  */
-function parsePinnedModel(pinnedModel: string): ModelSelection {
-  if (pinnedModel.startsWith("selection:")) {
-    try {
-      const value = JSON.parse(pinnedModel.slice("selection:".length)) as ModelSelection;
-      if (
-        typeof value.providerId === "string" &&
-        value.providerId.length > 0 &&
-        typeof value.modelId === "string" &&
-        value.modelId.length > 0
-      ) {
-        return value;
-      }
-    } catch {
-      // 下面统一抛出带原始 pin 的错误，避免 JSON 解析细节泄漏成另一种失败形态。
-    }
-    throw new WorkflowActorPinnedModelError(pinnedModel);
+export function workflowActorExecutionFailoverScope(input: {
+  childSessionId: string;
+  foregroundExecutionId?: string;
+  provenance: WorkflowActorModelProvenance;
+}): WorkflowActorExecutionFailoverScope | undefined {
+  if (input.provenance !== "sessionInherited" || input.foregroundExecutionId === undefined) {
+    return undefined;
   }
-  const parsed = parseProviderQualifiedModelSelection(pinnedModel);
-  if (parsed === undefined) throw new WorkflowActorPinnedModelError(pinnedModel);
+  return {
+    backgroundWorkId: input.childSessionId,
+    foregroundExecutionId: input.foregroundExecutionId,
+  };
+}
+
+/**
+ * 解析 journal/seed 里的选择。新格式保留完整 options；旧 `providerId/modelId` 格式继续兼容。
+ * 两种格式都**不带默认 provider**：缺 provider 就意味着记录无效，不能拿父会话 provider 猜身份。
+ */
+function parseRecordedModel(recordedModel: string): ModelSelection {
+  if (recordedModel.startsWith("selection:")) {
+    try {
+      const parsed = modelSelectionSchema.safeParse(
+        JSON.parse(recordedModel.slice("selection:".length)),
+      );
+      if (parsed.success) return parsed.data;
+    } catch {
+      // 下面统一抛出带原始记录的错误，避免 JSON 解析细节泄漏成另一种失败形态。
+    }
+    throw new WorkflowActorPinnedModelError(recordedModel);
+  }
+  const parsed = parseProviderQualifiedModelSelection(recordedModel);
+  if (parsed === undefined) throw new WorkflowActorPinnedModelError(recordedModel);
   return parsed;
 }

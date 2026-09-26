@@ -28,7 +28,11 @@ import {
 import { publishReport } from "./engine-report.js";
 import { closeImportCache, readWorld, recoverImportClosure } from "./engine-world.js";
 import { settleCompleted, settleFailed, settleStopped } from "./engine-settlement.js";
-import { enrichProviderStopPhase, normalizePersona, stampBirthPhase } from "./engine-birth-phase.js";
+import {
+  enrichProviderStopPhase,
+  normalizePersona,
+  stampBirthPhase,
+} from "./engine-birth-phase.js";
 import type {
   ActorId,
   ArtifactRef,
@@ -55,6 +59,7 @@ import type {
 import { refToString, WorkflowError } from "./types.js";
 import { runLaunchedEvent, type RunLaunchConfig } from "./engine-launch.js";
 import { recoverAskControlStates, type RecoveredAskControlState } from "./ask-control-recovery.js";
+import { putActorDefinition } from "./actor-record.js";
 
 /** 引擎构造配置。 */
 export interface EngineConfig {
@@ -293,9 +298,11 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
           ? `${instructions}\n\nThe user requested a fresh revision of this workflow task.`
           : `${instructions}\n\nUser revision for this workflow task:\n${supplement}`;
       },
-      attachmentsForAdmission: (instance) => config.launch?.askRevisions
-        ?.find((revision) => revision.siteId === instance.siteId && revision.ordinal === instance.ordinal)
-        ?.attachments,
+      attachmentsForAdmission: (instance) =>
+        config.launch?.askRevisions?.find(
+          (revision) =>
+            revision.siteId === instance.siteId && revision.ordinal === instance.ordinal,
+        )?.attachments,
     };
     this.scheduler = new AskScheduler(host);
 
@@ -432,19 +439,7 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
       this.actorNames.set(effectiveName, id);
     }
     this.scheduler.registerActor(ref, id, name, spec, matchImportedActor(this.importedCache, spec));
-    // putActor 是整条记录的替换，而 sessionId / resolvedModel 是 **driver 拥有**的字段
-    // （前者由 ensureSession 写、后者由宿主侧的 runtime 工厂写）。这里必须把既有值原样带过去，
-    // 否则 replay 命中同一 (siteId, ordinal) 时会把两者抹成空。
-    const existing = this.journal.getActor(this.runId, siteId, ordinal);
-    this.journal.putActor({
-      runId: this.runId,
-      siteId,
-      ordinal,
-      name,
-      persona: spec,
-      sessionId: existing?.sessionId,
-      resolvedModel: existing?.resolvedModel,
-    });
+    putActorDefinition(this.journal, this.runId, ref, name, spec);
     this.record({ type: "actor-created", actor: ref, name, persona: spec });
     return id;
   }
@@ -478,7 +473,11 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
     return this.scheduler.pauseAsk(instance);
   }
 
-  retryAsk(instance: InstanceRef, supplement?: string, attachments?: import("./types.js").WorkflowImageRef[]): boolean {
+  retryAsk(
+    instance: InstanceRef,
+    supplement?: string,
+    attachments?: import("./types.js").WorkflowImageRef[],
+  ): boolean {
     return this.scheduler.retryAsk(instance, supplement, attachments);
   }
 

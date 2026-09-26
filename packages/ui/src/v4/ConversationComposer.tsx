@@ -181,6 +181,7 @@ import type { ConversationPromptTelemetrySeed } from "@/v4/telemetry/conversatio
 import type { ComposerSubmissionConfig } from "@/v4/composer/composerSubmissionConfig.js";
 import { buildV4ConversationPromptTelemetryExtraDetail } from "@/v4/telemetry/conversationPromptTelemetry.js";
 import { resolveAttachableShareContext } from "@/lib/conversationShareContext.js";
+import { ExecutionSwitchStatus } from "@/v4/ExecutionSwitchStatus.js";
 
 const MODEL_SELECTION_LOADING_STATE: ModelSelectionState = { status: "loading" };
 
@@ -2580,6 +2581,13 @@ function ConversationComposerImpl({
               id: `chat.selections.limit.${conversationSelectionLimitReason}`,
             })}
           </div>
+        ) : null}
+        {snapshot?.executionFailover ? (
+          <ExecutionSwitchStatus
+            state={snapshot.executionFailover}
+            currentSelection={snapshot.config.modelSelection}
+            modelSelectionView={modelSelectionView}
+          />
         ) : null}
         <ChatPromptEditor
           workspacePath={workspacePath}

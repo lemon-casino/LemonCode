@@ -8,12 +8,13 @@ import {
   type ModelRequest,
 } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
-import type { RuntimeModelFactoryInput } from "../types.js";
+import type { RuntimeModelFactory, RuntimeModelFactoryInput } from "../types.js";
 import { resolveModelRetryBudgetFromTaskType } from "./model-request-session-type.js";
 
 export function createRuntimeModel(
   runtime: AgentRuntimeInternal,
   input: Omit<RuntimeModelFactoryInput, "selection"> & {
+    rawModelFactory?: RuntimeModelFactory;
     selection: RuntimeModelFactoryInput["selection"] | undefined;
   },
 ): Model {
@@ -25,7 +26,10 @@ export function createRuntimeModel(
   }
   return withRuntimeInvocationLayer(
     runtime,
-    runtime.modelFactory({ ...input, selection: input.selection }),
+    (input.rawModelFactory ?? runtime.modelFactory)({
+      selection: input.selection,
+      requestDependencies: input.requestDependencies,
+    }),
   );
 }
 

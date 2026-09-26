@@ -74,8 +74,8 @@ export type ActorRuntimeFactory = (input: {
   /**
    * amend-resume 的会话种子，仅当本 actor 消费了 ≥1 条导入 ask 条目时在场。
    *
-   * 工厂只需要它的一件事：`resolvedModel` 是**前驱解析出的模型 pin**，要像 journal 里的 pin 一样
-   * 压过档位重解析（转录接续下静默换模型，正是 pin 要防的身份突变）。转录复制本身不归工厂——那是 driver 在工厂返回**之后**做的事（会话行要先存在，
+   * 工厂只需要它的一件事：`resolvedModel` 是前驱 transcript 的模型接续起点，不是本 run 的
+   * resume pin；session-inherited provenance 仍须保留。转录复制本身不归工厂——那是 driver 在工厂返回**之后**做的事（会话行要先存在，
    * `message.session_id` 对 `session(id)` 有 FK）。
    */
   seed?: ActorSessionSeed;
@@ -145,6 +145,11 @@ export interface AgentRuntimeWorkflowDriverDeps {
    */
   actorSubmitProfiles?: ReadonlyMap<string, ActorSubmitProfile>;
   runtimeFactory: ActorRuntimeFactory;
+  /**
+   * run 结算后 actor runtime 的异步关闭仍会读写父 runtime 的 failover event 链；把完整关闭
+   * promise 登记到同一个常驻所有者，避免 settlement 已结束但 release 尚待重试时父会话被回收。
+   */
+  registerResidencyBlockingWork?: (work: Promise<unknown>) => void;
   /**
    * 进程级并发治理器的窄端口。在场时
    * driver 给每个 actor runtime 一个 `ModelRequestAdmission`（经 runtimeFactory 入参下传到 runtime
@@ -226,6 +231,16 @@ export interface SessionState {
    * 之后才 resolve），同步关会与这条尾巴竞争。
    */
   turn?: Promise<void>;
+  /** dispose 已等到最后一个 turn 收尾，后续 close 重试无需再次挂 then。 */
+  runtimeCloseReady?: boolean;
+  /** dispose 正在等最后一个 turn；防止重复 dispose 重复挂 close continuation。 */
+  runtimeCloseWaitingForTurn?: boolean;
+  /** 当前 close 尝试；在飞期间重复 dispose 不并发调用同一 runtime。 */
+  runtimeCloseInFlight?: Promise<void>;
+  /** seed 失败后尚未成为正式 session 的 runtime 也必须由父 Runtime 持有到 close 成功。 */
+  runtimeCloseCompletion?: Deferred<void>;
+  /** close 失败后的确定性重试闹钟；显式重复 dispose 会撤钟并立即重试。 */
+  cancelRuntimeCloseRetry?: () => void;
   /**
    * 该 actor 的模型活动面：准入端口 + 会话事件观察（waiting / executing 徽标的来源）。
    */

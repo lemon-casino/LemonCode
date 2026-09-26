@@ -41,6 +41,7 @@ import {
 import { resolveAppFollowupMode } from "@/v4/composer/followupModeSettings.js";
 import { logger } from "@/logger.js";
 import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { updateDraftModelSelectionOption } from "@/v4/composer/draftModelSelection.js";
 
 /** 目录水合单飞（per workspaceKey）：draft、已有 session 和严格模式双挂载共享一次 RPC。 */
 const workspaceCatalogHydrationFlights = new Map<string, Promise<void>>();
@@ -99,12 +100,16 @@ interface DraftConfigControl {
     selection: ModelSelection,
     expectedSelection?: ModelSelection,
   ) => () => void;
-  handleDraftSelectModel: (modelProvider: string, model: string) => void;
-  handleDraftSelectThought: (thought: string) => void;
+  /** 同步返回已经按目录补全的选择，供点击边界冻结 execution failover target。 */
+  handleDraftSelectModel: (modelProvider: string, model: string) => ModelSelection;
+  handleDraftSelectThought: (
+    thought: string,
+    modelContext: { provider: string; model: string },
+  ) => ModelSelection | null;
   handleDraftSelectSpeed: (
     speed: string,
     modelContext: { provider: string; model: string },
-  ) => void;
+  ) => ModelSelection | null;
   handleDraftSwitchMode: (mode: string) => void;
 }
 
@@ -446,56 +451,48 @@ export function useDraftConfigControl(params: {
         workspaceIdentity: workspaceIdentity ?? null,
       });
       updateDraftConfig((current) => applyDraftModelSelection(current, modelSelection));
+      return modelSelection;
     },
     [modelCatalogView, updateDraftConfig, workspaceIdentity, workspacePath],
   );
 
   const handleDraftSelectThought = useCallback(
-    (thought: string) => {
-      updateDraftConfig((current) => {
-        const providerId = current.modelSelection?.providerId ?? current.provider?.trim();
-        const modelId = current.modelSelection?.modelId ?? current.model?.trim();
-        if (!providerId || !modelId) return { ...current, thought };
-        const reasoningLevel = thought.trim();
-        return {
-          ...current,
-          modelSelection: {
-            providerId,
-            modelId,
-            ...(reasoningLevel
-              ? {
-                  options: {
-                    ...current.modelSelection?.options,
-                    reasoningLevel,
-                  },
-                }
-              : {}),
-          },
-          thought,
-        };
-      });
+    (thought: string, modelContext: { provider: string; model: string }) => {
+      const modelSelection = updateDraftModelSelectionOption(
+        draftConfigRef.current,
+        modelContext,
+        "reasoningLevel",
+        thought,
+      );
+      if (!modelSelection) return null;
+      updateDraftConfig((current) => ({
+        ...current,
+        modelSelection,
+        provider: modelSelection.providerId,
+        model: modelSelection.modelId,
+        thought: modelSelection.options?.reasoningLevel ?? "",
+      }));
+      return modelSelection;
     },
     [updateDraftConfig],
   );
 
   const handleDraftSelectSpeed = useCallback(
     (speed: string, modelContext: { provider: string; model: string }) => {
-      updateDraftConfig((current) => {
-        const selection = current.modelSelection;
-        if (
-          !selection ||
-          selection.providerId !== modelContext.provider ||
-          selection.modelId !== modelContext.model
-        )
-          return current;
-        return {
-          ...current,
-          modelSelection: {
-            ...selection,
-            options: { ...selection.options, speed },
-          },
-        };
-      });
+      const modelSelection = updateDraftModelSelectionOption(
+        draftConfigRef.current,
+        modelContext,
+        "speed",
+        speed,
+      );
+      if (!modelSelection) return null;
+      updateDraftConfig((current) => ({
+        ...current,
+        modelSelection,
+        provider: modelSelection.providerId,
+        model: modelSelection.modelId,
+      }));
+      return modelSelection;
     },
     [updateDraftConfig],
   );

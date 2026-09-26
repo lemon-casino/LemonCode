@@ -9,6 +9,7 @@
  */
 
 import type {
+  ActorModelProvenance,
   ActorRecord,
   AskStats,
   Caps,
@@ -244,6 +245,7 @@ export interface DwfActorRow {
   name: string | null;
   ordinal: number;
   persona_json: string | null;
+  model_provenance: ActorModelProvenance | null;
   resolved_model: string | null;
   run_id: string;
   session_id: string | null;
@@ -398,6 +400,7 @@ export function decodeActor(row: DwfActorRow): ActorRecord {
   if (row.session_id !== null) record.sessionId = row.session_id;
   // 列引入之前的行该列为 NULL：解成**缺席的键**，历史 actor 记录照旧回得来。
   if (row.resolved_model !== null) record.resolvedModel = row.resolved_model;
+  if (row.model_provenance !== null) record.modelProvenance = row.model_provenance;
   return record;
 }
 

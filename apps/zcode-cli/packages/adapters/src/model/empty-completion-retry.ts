@@ -9,11 +9,12 @@ const EMPTY_COMPLETION_MAX_RETRIES = 1;
 const EMPTY_COMPLETION_MESSAGE =
   "Model returned no text, no tool calls, and no usage before completing the turn.";
 
-function createEmptyCompletionFailure(): ClassifiedModelFailure {
+export function createEmptyCompletionFailure(): ClassifiedModelFailure {
   return {
     code: ModelErrorCode.InvalidModelResponse,
     message: EMPTY_COMPLETION_MESSAGE,
-    reason: ModelFailureReason.Unknown,
+    // 物理重试按上游临时空响应处理；该结构化原因也允许 Core 在安全边界接管。
+    reason: ModelFailureReason.ServerError,
     retryReason: ModelRetryReason.ServerError,
     retryable: true,
   };

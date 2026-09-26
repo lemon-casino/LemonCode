@@ -23,6 +23,10 @@ export async function admitPrompt(
   attachments?: Parameters<AgentRuntimeInternal["executeTurn"]>[1],
   options?: PromptAdmissionOptions,
 ): Promise<PromptAdmissionReceipt> {
+  if (this.shuttingDown) {
+    // close 的 durable drain 依赖 shutdown 后不再产生新 session-store work。
+    return { kind: "rejected", reason: "no_active_turn" };
+  }
   const promotionLeaseOnly =
     options?.requireIdle === true &&
     this.foregroundPromotionLease !== undefined &&

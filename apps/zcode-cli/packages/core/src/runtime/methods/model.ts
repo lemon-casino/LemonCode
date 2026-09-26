@@ -111,6 +111,8 @@ export async function runModelTextRequest(
       model,
       traceContext: projectedOptions.traceContext,
     }),
+    shouldYieldRetryToFailover: projectedOptions.shouldYieldRetryToFailover,
+    retryAttemptOffset: projectedOptions.retryAttemptOffset,
     // SSE 已经输出后由 core recovery 重发新请求；这些请求在 adapter 看起来都是 attempt=1，
     // 必须把 recovery 次数带过去，才能把 idle timeout 从首请求窗口逐次递增。
     streamIdleTimeoutRetryNumber: projectedOptions.streamRecovery?.retryNumber,

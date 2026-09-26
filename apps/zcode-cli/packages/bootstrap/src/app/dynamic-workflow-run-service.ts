@@ -79,6 +79,7 @@ import type {
 import type { AgentRuntime } from "@zcode/core";
 import { WORKFLOW_RUNS_LIMITS } from "@zcode/shared/zcode-protocol-v4";
 import type {
+  ActorModelProvenance,
   ActorSubmitProfile,
   ActorRef,
   Caps,
@@ -87,7 +88,10 @@ import type {
 } from "@zcode/dynamic-workflow";
 import { toProtocolEvent } from "./dynamic-workflow-run-launch.js";
 import { readWorkflowArtifactBytes } from "./dynamic-workflow-run-artifact-read.js";
-import { reviseDynamicWorkflowAsk, workflowRevisionRunId } from "./dynamic-workflow-run-revision.js";
+import {
+  reviseDynamicWorkflowAsk,
+  workflowRevisionRunId,
+} from "./dynamic-workflow-run-revision.js";
 import { replayRunProgress } from "./dynamic-workflow-run-replay.js";
 import { listArtifactItemsFrom } from "./dynamic-workflow-run-artifact-queries.js";
 import {
@@ -112,6 +116,7 @@ import {
   settleOrAbort,
   snapshotOf,
   toSessionSummary,
+  type DynamicWorkflowRunExecutionFailoverLineageLease,
   type RunRegistryEntry,
 } from "./dynamic-workflow-run-observation.js";
 import {
@@ -162,31 +167,19 @@ export interface DynamicWorkflowActorRuntimeInput {
    * 恰是作者没标记的那一个。
    */
   escalatePort: WorkflowEscalatePort;
-  /**
-   * 这个 actor 上一次解析出的模型（journal 里的 `resolvedModel`，`providerId/modelId`），
-   * 只有 resume 会带上它。没有 {@link DynamicWorkflowActorRuntimeInput.runSubagentModel} 时工厂
-   * 必须优先于父会话模型采用它：见 `workflow-actor-model.ts` 里 pin 的理由（persona 冻结不变式
-   * 的持久化那一半）。
-   */
-  pinnedModel?: string;
-  /**
-   * 本 run 自己的子代理模型（`CreateWorkflow` / `AmendWorkflow` 的 `subagent_model`，从
-   * journal 的 `run-launched` 事件解析回来）。整条选择，含 reasoning 档位。
-   *
-   * 优先级**最高**，在 {@link DynamicWorkflowActorRuntimeInput.pinnedModel} 与父会话模型之上
-   * （workflow-actor-model.ts 的 `workflowActorModelPolicy`）：这一条是用户对这一次 run 的显式
-   * 表态，pin 只守没有它时的隐式缺省。只管子代理、不动主代理。缺席即跑在 pin 或会话模型上。
-   */
-  runSubagentModel?: ModelSelection;
-  /** Script-authored model for this actor. */
-  scriptActorModel?: ModelSelection;
-  /** User-approved override matched to this concrete actor. */
-  approvedActorModel?: ModelSelection;
+  /** launch 已按显式配置、同 run 绑定与 import seed 裁决出的选择；缺席即继承父会话。 */
+  actorModelSelection?: ModelSelection;
+  /** 与 actorModelSelection 同一次裁决得到的来源，供 failover scope 与 journal 共用。 */
+  actorModelProvenance: ActorModelProvenance;
   /**
    * 该 actor runtime 的模型请求准入端口：
    * driver 在治理器端口在场时给出；工厂原样放进 runtime deps。缺席即不受闸门约束。
    */
   modelRequestAdmission?: ModelRequestAdmission;
+  /** session-inherited actor 安全切换成功后，将新的完整 selection 写回本 run journal。 */
+  onExecutionFailoverSelection?: (selection: ModelSelection) => Promise<void> | void;
+  /** run 启动时冻结的父 execution lineage；同一 run 后续 actor 共用。 */
+  executionFailoverLineageId?: string;
 }
 
 export interface DynamicWorkflowRunServiceDeps {
@@ -198,6 +191,15 @@ export interface DynamicWorkflowRunServiceDeps {
    * 缺席即宿主没有「当前轮」概念（CLI、测试装配）。
    */
   resolveLaunchInputId?: (trace: TraceContext) => string | undefined;
+  /** run 启动时读取一次；不得在每个 actor 创建时重新采样。 */
+  resolveExecutionFailoverLineageId?: () => string | undefined;
+  /**
+   * run 级 lineage lease 在引擎启动前取得；它不伪装成 work，也不进入 eligibility 投影。
+   * 返回的 release 必须幂等，生命周期所有者会在终态失败重试。
+   */
+  acquireExecutionFailoverLineageLease?: (
+    leaseId: string,
+  ) => Promise<DynamicWorkflowRunExecutionFailoverLineageLease | undefined>;
   /**
    * 本服务实例的父会话 id（= 本 app 的会话，见 create-app.ts）。
    *
@@ -368,6 +370,9 @@ export function createDynamicWorkflowRunService(
     ...(deps.registerResidencyBlockingWork === undefined
       ? {}
       : { registerResidencyBlockingWork: deps.registerResidencyBlockingWork }),
+    ...(deps.driverClock?.schedule === undefined
+      ? {}
+      : { cleanupRetrySchedule: deps.driverClock.schedule }),
     runs,
   });
 
@@ -545,14 +550,23 @@ export function createDynamicWorkflowRunService(
       return true;
     },
 
-    async controlAsk(request: DynamicWorkflowAskControlRequest): Promise<DynamicWorkflowAskControlResult> {
+    async controlAsk(
+      request: DynamicWorkflowAskControlRequest,
+    ): Promise<DynamicWorkflowAskControlResult> {
       const entry = runs.get(request.runId);
-      if (entry === undefined || (entry.parentSessionId !== undefined &&
-          entry.parentSessionId !== deps.parentSessionId)) return { ok: false, reason: "not_found" };
+      if (
+        entry === undefined ||
+        (entry.parentSessionId !== undefined && entry.parentSessionId !== deps.parentSessionId)
+      )
+        return { ok: false, reason: "not_found" };
       if (entry.terminal !== undefined || entry.controller.signal.aborted)
         return { ok: false, reason: "not_running" };
       if (entry.control === undefined) return { ok: false, reason: "not_ready" };
-      const instance = { siteId: request.siteId, ordinal: request.ordinal, attempt: request.attempt };
+      const instance = {
+        siteId: request.siteId,
+        ordinal: request.ordinal,
+        attempt: request.attempt,
+      };
       if (request.action === "stop") {
         return entry.control.pauseAsk(instance)
           ? { ok: true }
@@ -567,7 +581,9 @@ export function createDynamicWorkflowRunService(
         : { ok: false, reason: "not_active" };
     },
 
-    async reviseAsk(request: DynamicWorkflowAskRevisionRequest): Promise<DynamicWorkflowAskRevisionResult> {
+    async reviseAsk(
+      request: DynamicWorkflowAskRevisionRequest,
+    ): Promise<DynamicWorkflowAskRevisionResult> {
       assertOpen();
       const runId = workflowRevisionRunId(request);
       const pending = revisionAdmissions.get(runId);

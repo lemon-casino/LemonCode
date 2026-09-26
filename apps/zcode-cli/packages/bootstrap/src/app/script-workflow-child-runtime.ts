@@ -10,6 +10,8 @@ import {
   type AgentRuntimeConfig,
   type AgentRuntimeDeps,
   type ChildClientPortsContext,
+  type ExecutionFailoverPolicyPort,
+  type ExecutionFailoverScope,
   type PermissionService,
 } from "@zcode/core";
 import {
@@ -71,6 +73,17 @@ export function createScriptWorkflowAgentRuntime(input: {
    * 同一个自由度。
    */
   configOverrides?: Partial<AgentRuntimeConfig>;
+  /**
+   * 仅 session-inherited workflow actor 注入。显式 run/script/approved/resume 模型不连接父策略，
+   * 避免主会话切换覆盖 workflow 自己的模型约束。
+   */
+  executionFailover?: {
+    onSelectionActivated?: (
+      selection: import("@zcode/contracts").ModelSelection,
+    ) => Promise<void> | void;
+    policyPort: ExecutionFailoverPolicyPort;
+    scope: ExecutionFailoverScope;
+  };
   /**
    * 会话级 submit 端口。注入即为该会话注册 submit_result 工具（core 的注册门以端口存在为准），
    * 这是 dwf typed ask 的终止通道。
@@ -144,14 +157,23 @@ export function createScriptWorkflowAgentRuntime(input: {
       ...(input.workflowSubmitPort && input.workflowSubmitSchema
         ? { workflowSubmitSchema: input.workflowSubmitSchema }
         : {}),
-      ...(input.workflowEscalatePort
-        ? { workflowEscalatePort: input.workflowEscalatePort }
-        : {}),
+      ...(input.workflowEscalatePort ? { workflowEscalatePort: input.workflowEscalatePort } : {}),
       ...(input.modelRequestAdmission
         ? { modelRequestAdmission: input.modelRequestAdmission }
         : {}),
       ...(input.toolOperationAdmission
         ? { toolOperationAdmission: input.toolOperationAdmission }
+        : {}),
+      ...(input.executionFailover
+        ? {
+            executionFailoverPolicyPort: input.executionFailover.policyPort,
+            executionFailoverScope: input.executionFailover.scope,
+            executionFailoverScopeLifetime: "runtime",
+            ...(input.executionFailover.onSelectionActivated
+              ? { executionFailoverSelectionSink: input.executionFailover.onSelectionActivated }
+              : {}),
+            failoverModelFactory: input.deps.modelFactory,
+          }
         : {}),
     },
   );

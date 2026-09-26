@@ -64,6 +64,11 @@ import { appendBrowserTurnScreenshot } from "./browser-turn-screenshot.js";
 import { clearBrowserTurnState } from "../../repl/browser-turn-state.js";
 import { applySubmissionExecutionState, createTurnModel } from "./turn-model.js";
 import { rebuildContextPrefix } from "./context-refresh.js";
+import {
+  blockExecutionFailoverTargetForModelCreationFailure,
+  executionModelSelectionIdentity,
+  modelSelectionFromModel,
+} from "./model-failover-router.js";
 
 const TARGET_RUN_HEARTBEAT_MS = 15_000;
 
@@ -185,6 +190,20 @@ export async function executeTurnCommand(
       const executionStartedAt = performance.timeOrigin + performance.now();
       beginLocalTurnPreparation(turnTraceContext, "execution")();
       throwIfTurnAborted(turnAbortSignal);
+      if (this.executionFailoverScope?.backgroundWorkId) {
+        if (
+          this.executionFailoverScopeLifetime === "turn" ||
+          !this.executionFailoverScopeRetained
+        ) {
+          await this.executionFailoverPolicyPort.retain({
+            ...(admittedModelSelection ? { currentSelection: admittedModelSelection } : {}),
+            lifetime: this.executionFailoverScopeLifetime,
+            scope: this.executionFailoverScope,
+            traceContext: turnTraceContext,
+          });
+          this.executionFailoverScopeRetained = true;
+        }
+      }
       let admittedModel;
       try {
         admittedModel =
@@ -195,6 +214,23 @@ export async function executeTurnCommand(
               })
             : undefined;
       } catch (error) {
+        if (admittedModelSelection) {
+          try {
+            await blockExecutionFailoverTargetForModelCreationFailure(
+              this,
+              admittedModelSelection,
+              turnTraceContext,
+            );
+          } catch (policyError) {
+            // failover 状态持久化失败不能吞掉原始模型创建错误；Turn 仍必须形成明确终态。
+            this.logger?.warn("Execution failover target could not be marked blocked", {
+              errorMessage:
+                policyError instanceof Error ? policyError.message : String(policyError),
+              event: "model.failover.target_block_persist_failed",
+              module: "core.runtime",
+            });
+          }
+        }
         // 同步滞后/模型失效可在内层 Turn try 之前创建失败。只写日志会让已接纳输入
         // 没有终态、桌面与手机都看不到错误；复用 outcome，不等待同步、不改原选择。
         turnFailureHandled = true;
@@ -211,6 +247,14 @@ export async function executeTurnCommand(
           logLabel: "Turn",
         });
         throw coreError;
+      }
+      if (this.executionFailoverScope?.backgroundWorkId && admittedModel) {
+        await this.executionFailoverPolicyPort.retain({
+          currentSelection: modelSelectionFromModel(admittedModel),
+          lifetime: this.executionFailoverScopeLifetime,
+          scope: this.executionFailoverScope,
+          traceContext: turnTraceContext,
+        });
       }
       let phaseStartedAt = startTurnPhase("context_initialization");
       if (this.contextInitialized) {
@@ -558,6 +602,9 @@ export async function executeTurnCommand(
         if (!loopModel) {
           throw new Error("Turn model was not created before execution");
         }
+        if (this.activeForegroundExecution) {
+          this.activeForegroundExecution.currentModelSelection = modelSelectionFromModel(loopModel);
+        }
         loopState = {
           activeTurn,
           ...(options?.automationId ? { automationId: options.automationId } : {}),
@@ -568,9 +615,17 @@ export async function executeTurnCommand(
           workflowResultConsumed: options?.workflowResultConsumed === true,
           currentUserMessageId: userMessageId,
           events,
+          executionFailoverVisitedModels: new Set([
+            executionModelSelectionIdentity(modelSelectionFromModel(loopModel)),
+          ]),
+          executionFailoverTransitionCount: 0,
+          executionFailoverUnsafePolicies: new Set(),
           input,
           modelResponse: "",
           model: loopModel,
+          ...(options?.modelExecution?.requestDependencies === undefined
+            ? {}
+            : { modelRequestDependencies: options.modelExecution.requestDependencies }),
           ...(options?.modelExecution?.selectionScope === "execution"
             ? { modelSelectionScope: "execution" as const }
             : {}),

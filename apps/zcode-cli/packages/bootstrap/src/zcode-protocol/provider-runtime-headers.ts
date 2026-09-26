@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { ModelErrorCode, ModelFailureReason, ModelProtocolError } from "@zcode/contracts";
 import {
   zcodeProtocolMethods,
   zcodeProtocolNotifications,
@@ -72,20 +73,18 @@ export function createProviderRuntimeHeadersPort(
           timeoutError.cause = error;
           throw timeoutError;
         }
+        if (!input.abortSignal?.aborted && isStructuredRequestAuthFailure(error)) {
+          if (error instanceof ModelProtocolError) throw error;
+          throw createRequestAuthMissingError(errorMessage(error), input, workspace, error);
+        }
         throw error;
       }
       if (!result.headersApplied) {
-        // runtime header 刷新失败可能来自配置读取失败或凭据缺失；
-        // 不能统一改写成单一失败文案，否则会掩盖真实根因并误导重试策略。
-        throw new ProtocolRequestError(
-          -32031,
+        throw createRequestAuthMissingError(
           result.errorMessage ??
             "Provider runtime headers were not applied before model request attempt.",
-          {
-            providerId: input.providerId,
-            reason: input.reason,
-            workspaceKey: workspace.workspaceKey,
-          },
+          input,
+          workspace,
         );
       }
       // zcode-plan 的账号鉴权材料是每次请求刷新的运行时配置，
@@ -94,4 +93,46 @@ export function createProviderRuntimeHeadersPort(
       return result;
     },
   };
+}
+
+function createRequestAuthMissingError(
+  message: string,
+  input: { modelId: string; providerId: string },
+  workspace: ZCodeWorkspaceRef,
+  cause?: unknown,
+): ModelProtocolError {
+  const error = new ModelProtocolError(ModelErrorCode.ModelRequestAuthMissing, message, {
+    modelId: input.modelId,
+    providerId: input.providerId,
+    reason: ModelFailureReason.AuthFailed,
+    retryable: false,
+    workspaceKey: workspace.workspaceKey,
+  });
+  if (cause !== undefined) error.cause = cause;
+  return error;
+}
+
+function isStructuredRequestAuthFailure(error: unknown): boolean {
+  if (error instanceof ModelProtocolError) {
+    return (
+      error.code === ModelErrorCode.ModelRequestAuthMissing ||
+      error.context?.reason === ModelFailureReason.AuthFailed
+    );
+  }
+  if (!(error instanceof ProtocolRequestError)) return false;
+  const data = asRecord(error.data);
+  return (
+    data?.code === ModelErrorCode.ModelRequestAuthMissing ||
+    data?.reason === ModelFailureReason.AuthFailed
+  );
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

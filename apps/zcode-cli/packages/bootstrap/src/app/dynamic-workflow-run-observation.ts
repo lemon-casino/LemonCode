@@ -29,7 +29,11 @@ import type {
   WorkflowErrorJson,
 } from "@zcode/dynamic-workflow";
 import { artifactsOf } from "./dynamic-workflow-run-artifact-projection.js";
-import { readRunLaunch, readRunScriptPath, readRunSubagentModel } from "./dynamic-workflow-run-launch-anchor.js";
+import {
+  readRunLaunch,
+  readRunScriptPath,
+  readRunSubagentModel,
+} from "./dynamic-workflow-run-launch-anchor.js";
 import { resolveDynamicWorkflowRunLabel } from "./dynamic-workflow-run-label.js";
 import { lineageFields, supersededByOf } from "./dynamic-workflow-run-lineage.js";
 
@@ -39,6 +43,16 @@ import { lineageFields, supersededByOf } from "./dynamic-workflow-run-lineage.js
  * 不是边界的变化——把它变成一次跨模块改名，只会让 git blame 指向一个与意图无关的提交。
  */
 export { artifactsOf };
+
+/**
+ * 父 Runtime 为一个 live run 保留的 execution lineage。lease 不进入 background-work
+ * 投影；它只保证首个 session-inherited actor 尚未创建时，已接受的模型目标不会丢失。
+ */
+export interface DynamicWorkflowRunExecutionFailoverLineageLease {
+  foregroundExecutionId: string;
+  leaseId: string;
+  release(): Promise<void>;
+}
 
 /** 注册表条目：一个在飞或近期结算的 run。 */
 export interface RunRegistryEntry {
@@ -74,6 +88,7 @@ export interface RunRegistryEntry {
   /** 启动快照的内存副本，供 run-launched 尚未落库的间隙读取。 */
   subagentSelection?: ModelSelection;
   sessionSelection?: ModelSelection;
+  actorModelOverrides?: DynamicWorkflowRunSnapshot["actorModelOverrides"];
   /**
    * 本 run 的脚本文件（`run-launched` 事件上那个绝对路径的内存副本）。与 {@link subagentModel} 逐条同规：
    * 三条建条目的路都落值（submit / amend 用入参给的那一个，resume 读一次事件头抄过来），
@@ -88,6 +103,10 @@ export interface RunRegistryEntry {
    * resume 的行早就在了。
    */
   inheritedTokens?: number;
+  /** acquisition 与 launch 共用同一个 promise；release 成功前保留，供确定性 cleanup 重试。 */
+  executionFailoverLineageLease?: Promise<
+    DynamicWorkflowRunExecutionFailoverLineageLease | undefined
+  >;
   /** 结算 promise；waitForTask 等它。fire-and-forget 的那条链就挂在这里。 */
   settlement: Promise<RunSettlement>;
   /** 已结算时的终态（产物/错误只在这里，journal 不存脚本返回值）。 */
@@ -179,8 +198,15 @@ export function snapshotOf(
     ...(() => {
       const launch = entry === undefined ? readRunLaunch(journal, taskId) : entry;
       return {
-        ...(launch?.subagentSelection === undefined ? {} : { subagentSelection: launch.subagentSelection }),
-        ...(launch?.sessionSelection === undefined ? {} : { sessionSelection: launch.sessionSelection }),
+        ...(launch?.subagentSelection === undefined
+          ? {}
+          : { subagentSelection: launch.subagentSelection }),
+        ...(launch?.sessionSelection === undefined
+          ? {}
+          : { sessionSelection: launch.sessionSelection }),
+        ...(launch?.actorModelOverrides === undefined
+          ? {}
+          : { actorModelOverrides: launch.actorModelOverrides }),
       };
     })(),
     // 脚本文件：与子代理模型逐条同规（有条目就读条目，只有冷行才扫一次事件头），同样

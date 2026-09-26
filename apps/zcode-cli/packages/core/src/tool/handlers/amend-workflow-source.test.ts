@@ -3,10 +3,11 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import type {
-  AmendWorkflowInput,
-  DynamicWorkflowRunAmendRequest,
-  DynamicWorkflowRunPort,
+import {
+  AmendWorkflowInputSchema,
+  type AmendWorkflowInput,
+  type DynamicWorkflowRunAmendRequest,
+  type DynamicWorkflowRunPort,
 } from "@zcode/contracts";
 import type { ToolExecutionContext } from "../types.js";
 import { amendWorkflowToolEntry } from "./amend-workflow.js";
@@ -200,14 +201,68 @@ test("resolver rejects an edit conflict before the workflow handler can stop its
   assert.match(result.message, /nothing was stopped or created/u);
 });
 
+test("resolver does not turn an inherited session snapshot into an explicit run model", async () => {
+  const sessionSelection = {
+    providerId: "provider-a",
+    modelId: "model-a",
+    options: { reasoningLevel: "high", speed: "fast" },
+  } as const;
+  const port = {
+    getTask: async () => ({
+      name: "Inherited",
+      runStatus: "running",
+      parentSessionId: "session-1",
+      subagentSelection: sessionSelection,
+      sessionSelection,
+    }),
+    getScript: async () => "const rounds = 2;\nreturn rounds;",
+  } as DynamicWorkflowRunPort;
+
+  const result = await resolveAmendWorkflowInput(
+    {
+      run_id: "run-1",
+      edits: [{ find: "const rounds = 2", replace: "const rounds = 3" }],
+    },
+    { workingDirectory: ".", dynamicWorkflowRunPort: port, sessionId: "session-1" },
+  );
+
+  assert.equal(result.result, true);
+  if (!result.result) return;
+  const resolved = result.input as Record<string, unknown>;
+  assert.equal(resolved.subagent_model, undefined);
+  assert.equal(resolved.subagent_selection, undefined);
+});
+
 test("compact amendment previews and submits the complete script in a new draft", async () => {
   const cwd = await mkdtemp(join(tmpdir(), "zcode-amend-edits-"));
   const predecessor =
     'phase("Draft");\nconst writer = agent("writer");\nreturn await writer.ask("Draft version one");';
   const revised = predecessor.replace("Draft version one", "Draft version two");
+  const inheritedSelection = {
+    providerId: "provider-a",
+    modelId: "model-a",
+    options: { reasoningLevel: "high", speed: "fast" },
+  } as const;
+  const inheritedOverrides = [
+    {
+      name: "writer",
+      selection: {
+        providerId: "provider-b",
+        modelId: "model-b",
+        options: { reasoningLevel: "low", speed: "standard" },
+      },
+    },
+  ] as const;
   let submitted: DynamicWorkflowRunAmendRequest | undefined;
   const port = {
-    getTask: async () => ({ name: "Draft", runStatus: "running", parentSessionId: "session-1" }),
+    getTask: async () => ({
+      name: "Draft",
+      runStatus: "running",
+      parentSessionId: "session-1",
+      subagentModel: "provider-a/model-a$high",
+      subagentSelection: inheritedSelection,
+      actorModelOverrides: inheritedOverrides,
+    }),
     getScript: async () => predecessor,
     amend: async (request: DynamicWorkflowRunAmendRequest) => {
       submitted = request;
@@ -225,6 +280,12 @@ test("compact amendment previews and submits the complete script in a new draft"
     );
     assert.equal(resolved.result, true);
     if (!resolved.result) return;
+    const runtimeInput = AmendWorkflowInputSchema.safeParse(resolved.input);
+    assert.equal(
+      runtimeInput.success,
+      true,
+      runtimeInput.success ? undefined : JSON.stringify(runtimeInput.error.issues),
+    );
     assert.equal(amendWorkflowToolEntry.prepareApproval?.(resolved.input).gate, "ask");
 
     const output = await amendWorkflowToolEntry.handler(resolved.input, {
@@ -240,8 +301,24 @@ test("compact amendment previews and submits the complete script in a new draft"
     assert.equal(output.ok, true);
     assert.equal(output.backgroundTaskId, "run-2");
     assert.equal(submitted?.scriptText, revised);
+    assert.deepEqual(submitted?.subagentModel, inheritedSelection);
+    assert.deepEqual(submitted?.actorModelOverrides, inheritedOverrides);
     assert.ok(submitted?.scriptPath?.startsWith(join(cwd, ".zcode", "workflow-drafts")));
     assert.equal(await readFile(submitted.scriptPath, "utf8"), revised);
+
+    const clearedInput = { ...(resolved.input as Record<string, unknown>) };
+    delete clearedInput.actor_model_overrides;
+    submitted = undefined;
+    await amendWorkflowToolEntry.handler(clearedInput, {
+      toolCallId: "tool-2",
+      traceId: "trace-2",
+      abortSignal: new AbortController().signal,
+      workingDirectory: cwd,
+      workspaceRoot: cwd,
+      sessionId: "session-1",
+      dynamicWorkflowRunPort: port,
+    } as ToolExecutionContext);
+    assert.equal(submitted?.actorModelOverrides, undefined);
   } finally {
     assert.ok(cwd.startsWith(join(tmpdir(), "zcode-amend-edits-")));
     await rm(cwd, { recursive: true, force: true });

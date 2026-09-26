@@ -15,6 +15,7 @@ import type {
   CompactLifecyclePayload,
   AssistantFeedbackUpdatedPayload,
   DynamicWorkflowRunProgressPayload,
+  ExecutionFailoverChangedPayload,
   HookRunLifecyclePayload,
   ModelCompletePayload,
   ModelNetworkStatusPayload,
@@ -116,6 +117,8 @@ import {
   applyConversationDeltasMutable,
   createMutableConversationSnapshotAccumulator,
   reduceWorkflowRunsState,
+  executionFailoverEligibleBackgroundWorkIdsSchema,
+  executionFailoverStateSchema,
   workspaceHookReviewRequestPayloadSchema,
 } from "@zcode/shared/zcode-protocol-v4";
 import {
@@ -487,6 +490,10 @@ export class ProductProjection {
   // 又避免后续种子覆盖新事件已原子发布的模型能力。
   private configThoughtLevelsTouchedByEvent = false;
   private configModeTouchedByEvent = false;
+  // snapshot 清空后仍需拒绝迟到的旧 policy 事件，故 revision 不能只从 nullable 字段读取。
+  private executionFailoverRevision = 0;
+  // revision 只在 Runtime epoch 内单调；resume 的 event sequence 是跨 epoch 的迟到事件栅栏。
+  private executionFailoverEpochStartSequence = -1;
   // assistant 守恒：非运行期拒收的正文流计数（gateway 据此置 stale）。
   private droppedContentStreamEventCount = 0;
   // 读取期 legacy fallback 必须可观测；否则 normalizer 缺字段后仍会退化为“可见但不可寻址”。
@@ -1130,6 +1137,8 @@ export class ProductProjection {
     clone.configModelTouchedByEvent = this.configModelTouchedByEvent;
     clone.configThoughtLevelsTouchedByEvent = this.configThoughtLevelsTouchedByEvent;
     clone.configModeTouchedByEvent = this.configModeTouchedByEvent;
+    clone.executionFailoverRevision = this.executionFailoverRevision;
+    clone.executionFailoverEpochStartSequence = this.executionFailoverEpochStartSequence;
     clone.droppedContentStreamEventCount = this.droppedContentStreamEventCount;
     clone.normalizationDiagnostics = [...this.normalizationDiagnostics];
     return clone;
@@ -1173,6 +1182,8 @@ export class ProductProjection {
     this.configModelTouchedByEvent = candidate.configModelTouchedByEvent;
     this.configThoughtLevelsTouchedByEvent = candidate.configThoughtLevelsTouchedByEvent;
     this.configModeTouchedByEvent = candidate.configModeTouchedByEvent;
+    this.executionFailoverRevision = candidate.executionFailoverRevision;
+    this.executionFailoverEpochStartSequence = candidate.executionFailoverEpochStartSequence;
     this.droppedContentStreamEventCount = candidate.droppedContentStreamEventCount;
     this.normalizationDiagnostics = candidate.normalizationDiagnostics;
   }
@@ -1360,6 +1371,8 @@ export class ProductProjection {
         return this.onStreamRecoveryRetryStarted(event);
       case SessionEventType.ModelSelected:
         return this.onModelSelected(event);
+      case SessionEventType.ExecutionFailoverChanged:
+        return this.onExecutionFailoverChanged(event);
       case SessionEventType.ModelComplete:
         return this.onModelComplete(event);
       case SessionEventType.ToolCallScheduled:
@@ -1450,6 +1463,10 @@ export class ProductProjection {
   private onSessionResumed(event: SessionEvent): ConversationDelta[] {
     const endedAt = this.ms(event);
     const deltas: ConversationDelta[] = [];
+    // failover revision 只在单个 Runtime epoch 内单调；新 Runtime 会从 1 重新发号。
+    // 先重置水位，后续新 epoch 的 revision=1 才不会被旧 epoch 墓碑误判为迟到事件。
+    this.executionFailoverRevision = 0;
+    this.executionFailoverEpochStartSequence = event.sequenceNumber;
     // Runtime epoch 切换前尚未归位的 session Hook 不得附着到新 epoch 的下一轮；
     // 新 Runtime 会重新产生自己的 resume SessionStart lifecycle。
     this.pendingSessionHookInvocations.clear();
@@ -1491,6 +1508,20 @@ export class ProductProjection {
     // epoch 清理时置 null,避免旧 Runtime 的提示条残留到新 Runtime 接管前。
     if (this.snapshot.workspaceHookAdmission !== null) {
       deltas.push({ op: "state.updated", patch: { workspaceHookAdmission: null } });
+    }
+    if (
+      this.snapshot.executionFailover !== null ||
+      this.snapshot.executionFailoverEligibleBackgroundWorkIds === undefined ||
+      this.snapshot.executionFailoverEligibleBackgroundWorkIds.length > 0
+    ) {
+      // Runtime epoch 已变化，旧 policy 与 registration ID 必须在同一个 patch 原子失效。
+      deltas.push({
+        op: "state.updated",
+        patch: {
+          executionFailover: null,
+          executionFailoverEligibleBackgroundWorkIds: [],
+        },
+      });
     }
     return deltas;
   }
@@ -1990,7 +2021,7 @@ export class ProductProjection {
             `model-change:${turnId}:${this.lastTurnModel.provider}/${this.lastTurnModel.model}->${config.provider}/${config.model}`,
           ),
           kind: "timelineMarker",
-        // lane 由投影裁决（UI 不得按 marker type 自行推断落位语义）。
+          // lane 由投影裁决（UI 不得按 marker type 自行推断落位语义）。
           lane: "lightBoundary",
           marker: {
             type: "modelChange",
@@ -4349,6 +4380,51 @@ export class ProductProjection {
   }
 
   // ── config / usage ──
+
+  private onExecutionFailoverChanged(event: SessionEvent): ConversationDelta[] {
+    const payload = event.payload as ExecutionFailoverChangedPayload;
+    if (
+      event.sequenceNumber <= this.executionFailoverEpochStartSequence ||
+      !Number.isInteger(payload.revision) ||
+      payload.revision <= this.executionFailoverRevision
+    ) {
+      return [];
+    }
+    const parsed =
+      payload.state === null
+        ? { success: true as const, data: null }
+        : executionFailoverStateSchema.safeParse(payload.state);
+    const parsedEligibleBackgroundWorkIds =
+      payload.eligibleBackgroundWorkIds === undefined
+        ? { success: true as const, data: undefined }
+        : executionFailoverEligibleBackgroundWorkIdsSchema.safeParse(
+            payload.eligibleBackgroundWorkIds,
+          );
+    if (
+      !parsed.success ||
+      !parsedEligibleBackgroundWorkIds.success ||
+      (parsed.data !== null &&
+        (parsed.data.revision !== payload.revision ||
+          !payload.sourceCommandId ||
+          parsed.data.sourceCommandId !== payload.sourceCommandId))
+    ) {
+      return [];
+    }
+    this.executionFailoverRevision = payload.revision;
+    return [
+      {
+        op: "state.updated",
+        patch: {
+          executionFailover: parsed.data,
+          ...(parsedEligibleBackgroundWorkIds.data === undefined
+            ? {}
+            : {
+                executionFailoverEligibleBackgroundWorkIds: parsedEligibleBackgroundWorkIds.data,
+              }),
+        },
+      },
+    ];
+  }
 
   private onModelSelected(event: SessionEvent): ConversationDelta[] {
     const payload = event.payload as ModelSelectedPayload;

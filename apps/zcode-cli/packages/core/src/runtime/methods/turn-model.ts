@@ -8,6 +8,7 @@ import {
 import { getCurrentModelInvocationContext } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { cloneModelSelection } from "../model-selection.js";
+import type { RuntimeModelFactory } from "../types.js";
 import { createRefreshRuntimeHeadersBeforeModelAttempt } from "./model-runtime-headers.js";
 import { createRuntimeModel, withModelInvocationContext } from "./runtime-model.js";
 import { applyRuntimeExecutionState } from "../execution-state.js";
@@ -15,12 +16,14 @@ import { applyRuntimeExecutionState } from "../execution-state.js";
 export function createTurnModel(
   runtime: AgentRuntimeInternal,
   options: {
+    rawModelFactory?: RuntimeModelFactory;
     selection?: ModelSelection;
     requestDependencies?: import("@zcode/contracts").ModelRequestDependencies;
   } = {},
 ): Model {
   const selection = options.selection ?? runtime.getSessionModelSelection();
   const model = createRuntimeModel(runtime, {
+    rawModelFactory: options.rawModelFactory,
     selection,
     requestDependencies: options.requestDependencies,
   });

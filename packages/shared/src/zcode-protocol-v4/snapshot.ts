@@ -14,6 +14,10 @@ import {
 import { timestampSchema } from "./core.js";
 import { conversationRowSchema } from "./rows.js";
 import { toolCallDisplaySchema } from "./toolDisplay.js";
+import {
+  executionFailoverEligibleBackgroundWorkIdsSchema,
+  executionFailoverStateSchema,
+} from "./execution-failover.js";
 
 import { workspaceHookReviewRequestPayloadSchema } from "./workspace-hook-review.js";
 import { workflowRunsStateSchema } from "./workflow-runs.js";
@@ -486,6 +490,11 @@ export const conversationSnapshotSchema = z.object({
   config: sessionConfigStateSchema,
   // 持久化稳定事实供 live 客户端识别一次性提示；旧快照缺字段时不触发。
   modelTransition: sessionModelTransitionSchema.nullable().default(null),
+  // additive：旧 CLI 缺省按无交接处理；新 CLI 始终投影 null 或完整替换状态。
+  executionFailover: executionFailoverStateSchema.nullable().default(null),
+  // optional 区分旧 CLI；新 CLI 初始即显式发布 []，客户端不得从 workflowRuns 猜资格。
+  executionFailoverEligibleBackgroundWorkIds:
+    executionFailoverEligibleBackgroundWorkIdsSchema.optional(),
   usage: sessionUsageStateSchema,
   queue: queueStateSchema,
   pendingInteractions: z.array(pendingInteractionSchema),

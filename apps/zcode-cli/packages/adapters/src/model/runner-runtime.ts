@@ -1,5 +1,7 @@
 import { generateText as aiGenerateText, streamText as aiStreamText } from "ai";
 import type {
+  ModelErrorCode,
+  ModelFailureReason,
   ModelProperties,
   ModelRequestAuth,
   ModelTextRequest,
@@ -39,6 +41,32 @@ export interface AiSdkModelTextRequest extends ModelTextRequest {
     headersApplied: boolean;
     requestAuth?: ModelRequestAuth;
   }>;
+  // Adapter 单包检查可能读取尚未重建的 contracts 声明；在源边界显式接住 failover runtime hook。
+  shouldYieldRetryToFailover?: (input: {
+    attempt: number;
+    errorCode?: ModelErrorCode;
+    reason: ModelFailureReason;
+    retryable: boolean;
+    statusCode?: number;
+    providerId: string;
+    modelId: string;
+  }) =>
+    | boolean
+    | {
+        policyRevision?: number;
+        shouldYield: boolean;
+        sourceCommandId?: string;
+      }
+    | Promise<
+        | boolean
+        | {
+            policyRevision?: number;
+            shouldYield: boolean;
+            sourceCommandId?: string;
+          }
+      >;
+  /** Core 在 retry-yield claim 失配后恢复同一 selection 的全局 attempt 偏移。 */
+  retryAttemptOffset?: number;
   // adapter 测试和开发态常直接使用源文件；这里显式接住 core recovery 透传的 SSE idle timeout 递增序号。
   streamIdleTimeoutRetryNumber?: number;
   // 同一源文件加载边界还需显式接住 compact 专用 provider stream 边界，

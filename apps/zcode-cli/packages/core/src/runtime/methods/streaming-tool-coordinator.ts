@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- streaming tool ledger 与失败恢复安全性必须在同一 coordinator 内判定。 */
 import { TurnMachineImpl, createPartId } from "../deps.js";
 import type {
   MessageId,
@@ -21,6 +22,7 @@ import {
   emitStreamRecoveryRetryEvents,
   emitStreamRecoveryStarted,
   hasStreamRecoveryBudget,
+  isRetryableStreamRecoveryFailure,
   recoverPartialAssistantOutputFailure,
 } from "./streaming-recovery.js";
 import { executeToolCallsForModelStep } from "./turn-tools.js";
@@ -47,8 +49,12 @@ interface StreamingToolCoordinator {
   recoverFromModelFailure(
     error: unknown,
     assistantCreatedAt: number,
-    options?: { failedRequestId?: string },
-  ): Promise<boolean>;
+    options?: { allowProviderFailover?: boolean; failedRequestId?: string },
+  ): Promise<{
+    failoverSafe: boolean;
+    providerFailoverOverrideUsed: boolean;
+    recovered: boolean;
+  }>;
 }
 
 export function createStreamingToolCoordinator(
@@ -65,6 +71,7 @@ export function createStreamingToolCoordinator(
   const acceptedToolCalls = new Map<string, ModelToolCall>();
   let discardedReasoningBytes = 0;
   let discardedTextBytes = 0;
+  let providerExecutedToolObserved = false;
 
   const abortOnTurnCancel = () => abortController.abort();
   state.turnAbortSignal.addEventListener("abort", abortOnTurnCancel, { once: true });
@@ -74,7 +81,10 @@ export function createStreamingToolCoordinator(
       // model.ts 已完成 runtime admission。这里必须保留空名原值，使正常 finish
       // 走 end-of-stream registry miss，同时让 finish 前断流保留 synthetic interrupted error。
       const normalizedToolCall = { ...toolCall };
-      if (normalizedToolCall.providerExecuted) return;
+      if (normalizedToolCall.providerExecuted) {
+        providerExecutedToolObserved = true;
+        return;
+      }
       acceptedToolCalls.set(normalizedToolCall.id, normalizedToolCall);
       if (!shouldExecuteToolDuringStream(runtime, normalizedToolCall)) return;
       if (handles.has(normalizedToolCall.id)) return;
@@ -146,7 +156,15 @@ export function createStreamingToolCoordinator(
     },
 
     async recoverFromModelFailure(error, assistantCreatedAt, recoveryOptions = {}) {
-      if (state.turnAbortSignal.aborted || !hasStreamRecoveryBudget(state)) return false;
+      if (state.turnAbortSignal.aborted || !hasStreamRecoveryBudget(state)) {
+        return {
+          // 恢复预算耗尽时无法再收口 in-flight handle；即使 promise 恰好已完成，也不能
+          // 在没有 ledger 结果的情况下假定工具未执行，跨供应商会有重复副作用风险。
+          failoverSafe: !providerExecutedToolObserved && handles.size === 0,
+          providerFailoverOverrideUsed: false,
+          recovered: false,
+        };
+      }
       const recoveryEventOptions = {
         ...options,
         ...(recoveryOptions.failedRequestId
@@ -154,7 +172,12 @@ export function createStreamingToolCoordinator(
           : {}),
       };
       if (acceptedToolCalls.size === 0) {
-        return recoverPartialAssistantOutputFailure({
+        // provider-executed 工具没有本地 ledger 可供幂等恢复。此时只允许原有的同供应商
+        // retryable 恢复，不能借 failover override 把非重试错误转成一次旧供应商重投。
+        const allowProviderFailover =
+          recoveryOptions.allowProviderFailover === true && !providerExecutedToolObserved;
+        const recovered = await recoverPartialAssistantOutputFailure({
+          allowProviderFailover,
           abortController,
           assistantCreatedAt,
           discardedReasoningBytes,
@@ -165,6 +188,12 @@ export function createStreamingToolCoordinator(
           state,
           turnAbortListener: abortOnTurnCancel,
         });
+        return {
+          failoverSafe: !providerExecutedToolObserved,
+          providerFailoverOverrideUsed:
+            recovered === true && allowProviderFailover && !isRetryableStreamRecoveryFailure(error),
+          recovered,
+        };
       }
       abortController.abort();
       const recoveryAttempt = beginStreamRecoveryAttempt(state);
@@ -180,6 +209,9 @@ export function createStreamingToolCoordinator(
             toolCall,
             handles.has(toolCall.id) ? "unknown_execution_state" : "not_executed",
           ),
+      );
+      const hasUnknownToolExecution = toolCalls.some(
+        (toolCall) => handles.has(toolCall.id) && !settledResultById.has(toolCall.id as ToolCallId),
       );
       await emitStreamRecoveryStarted(runtime, state, recoveryEventOptions, error, recoveryAttempt);
       state.modelResponse = "";
@@ -214,7 +246,11 @@ export function createStreamingToolCoordinator(
         toolCallIds: streamedToolResults.map((result) => result.toolCallId),
       });
       state.turnAbortSignal.removeEventListener("abort", abortOnTurnCancel);
-      return true;
+      return {
+        failoverSafe: !providerExecutedToolObserved && !hasUnknownToolExecution,
+        providerFailoverOverrideUsed: false,
+        recovered: true,
+      };
     },
   };
 }

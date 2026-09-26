@@ -23,6 +23,10 @@ import {
   workspaceHookAdmissionStateSchema,
 } from "./snapshot.js";
 import { workflowRunsStateSchema } from "./workflow-runs.js";
+import {
+  executionFailoverEligibleBackgroundWorkIdsSchema,
+  executionFailoverStateSchema,
+} from "./execution-failover.js";
 
 // StatePatch：键级整体替换（Object.assign），键集合封闭。键内绝不深合并。
 export const statePatchSchema = z.object({
@@ -34,6 +38,9 @@ export const statePatchSchema = z.object({
   meta: sessionMetaStateSchema.optional(),
   config: sessionConfigStateSchema.optional(),
   modelTransition: sessionModelTransitionSchema.nullable().optional(),
+  executionFailover: executionFailoverStateSchema.nullable().optional(),
+  executionFailoverEligibleBackgroundWorkIds:
+    executionFailoverEligibleBackgroundWorkIdsSchema.optional(),
   usage: sessionUsageStateSchema.optional(),
   queue: queueStateSchema.optional(),
   pendingInteractions: z.array(pendingInteractionSchema).optional(),

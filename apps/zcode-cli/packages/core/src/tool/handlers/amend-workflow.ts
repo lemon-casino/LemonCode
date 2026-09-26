@@ -191,10 +191,10 @@ const amendWorkflowHandler: ToolHandler = async (input, context) => {
       // 同上：三态已在 resolveInput 归一成「一个规范形或没有」，`null` 在这里只可能来自绕过
       // 归一化的调用方，与缺席同义（端口不收它）。
       ...(() => {
-        const subagentModel = parseWorkflowSubagentModel(
-          parsed.subagent_model ?? undefined,
-          context.modelCatalogPort,
-        );
+        // 普通修订优先使用 resolver 从 predecessor snapshot 带来的完整选择，避免 picker 串丢 speed。
+        const subagentModel =
+          parsed.subagent_selection ??
+          parseWorkflowSubagentModel(parsed.subagent_model ?? undefined, context.modelCatalogPort);
         return subagentModel === undefined ? {} : { subagentModel };
       })(),
       ...(parsed.actor_model_overrides === undefined

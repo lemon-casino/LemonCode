@@ -12,7 +12,10 @@ import {
   WORKFLOW_RUN_LIFECYCLE_STATUSES,
   WORKFLOW_RUN_STOP_REASONS,
 } from "./list-workflow-runs.js";
-import { WorkflowActorModelOverridesSchema } from "./workflow-actor-model-config.js";
+import {
+  WorkflowActorModelOverridesSchema,
+  WorkflowModelSelectionSchema,
+} from "./workflow-actor-model-config.js";
 
 export const AMEND_WORKFLOW_TOOL_NAME = "AmendWorkflow";
 
@@ -151,6 +154,8 @@ export const AmendWorkflowInputSchema = AmendWorkflowModelInputSchema.extend({
   script_line_offset: z.number().int().nonnegative().optional(),
   /** Approval UI overrides; never authored by the model. */
   actor_model_overrides: WorkflowActorModelOverridesSchema.optional(),
+  /** Lossless predecessor selection resolved by the host; never authored by the model. */
+  subagent_selection: WorkflowModelSelectionSchema.optional(),
 }).strict();
 
 export type AmendWorkflowInput = z.infer<typeof AmendWorkflowInputSchema>;

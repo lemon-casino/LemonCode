@@ -72,6 +72,11 @@ export interface CacheStats {
   cacheReadTokens?: number;
 }
 
+export interface PreparedMessageHistoryReplacement {
+  commit(): void;
+  entries: readonly RuntimeMessageEntry[];
+}
+
 // ============================================================
 // Message History Interface
 // ============================================================
@@ -115,6 +120,11 @@ export interface MessageHistory {
 
   // Replace the active provider-visible history after compact/rewind.
   replaceMessages(messages: readonly (ModelInputMessage | RuntimeMessageEntry)[]): void;
+
+  // 在外层 durable transition 前完成 clone/count；commit 只交换已验证的内存快照。
+  prepareMessagesReplacement(
+    messages: readonly (ModelInputMessage | RuntimeMessageEntry)[],
+  ): PreparedMessageHistoryReplacement;
 
   // Get current message count
   getMessageCount(): number;
@@ -226,11 +236,24 @@ export class MessageHistoryImpl implements MessageHistory {
   }
 
   replaceMessages(messages: readonly (ModelInputMessage | RuntimeMessageEntry)[]): void {
-    this.entries = messages.map(cloneEntryInput);
-    this.cacheStats = {
-      totalMessages: this.entries.length,
-      cachedMessages: countContextPrefixMessages(this.entries),
+    this.prepareMessagesReplacement(messages).commit();
+  }
+
+  prepareMessagesReplacement(
+    messages: readonly (ModelInputMessage | RuntimeMessageEntry)[],
+  ): PreparedMessageHistoryReplacement {
+    const entries = messages.map(cloneEntryInput);
+    const cacheStats: CacheStats = {
+      totalMessages: entries.length,
+      cachedMessages: countContextPrefixMessages(entries),
       lastCacheHit: false,
+    };
+    return {
+      entries,
+      commit: () => {
+        this.entries = entries;
+        this.cacheStats = cacheStats;
+      },
     };
   }
 

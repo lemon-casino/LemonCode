@@ -167,6 +167,7 @@ export type {
   WorkspaceRewindResult,
   RuntimeFactory,
 } from "./runtime.js";
+export type { ExecutionFailoverPolicyPort, ExecutionFailoverScope } from "./runtime.js";
 
 // Output helpers
 export { color, formatJson, supportsColor } from "./output.js";

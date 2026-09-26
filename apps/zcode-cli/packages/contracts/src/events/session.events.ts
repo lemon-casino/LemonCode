@@ -61,6 +61,11 @@ import type {
   StreamRecoveryTailDiscardedPayload,
   StreamingToolLedgerPayload,
 } from "./stream-recovery.events.js";
+import type {
+  ExecutionFailoverChangeCause,
+  ExecutionFailoverState,
+  ExecutionFailoverTransition,
+} from "@zcode/shared/zcode-protocol-v4";
 
 // Re-export for convenience
 export type { CollaborationMode, RiskLevel } from "../interfaces/session.port.js";
@@ -114,6 +119,7 @@ export const SessionEventType = {
   SystemMessage: "system_message",
   ModelRequest: "model_request",
   ModelSelected: "model_selected",
+  ExecutionFailoverChanged: "execution_failover_changed",
   ModelStreaming: "model_streaming",
   StreamingToolLedgerUpdated: "streaming_tool_ledger_updated",
   StreamRecoveryAnchorCreated: "stream_recovery_anchor_created",
@@ -690,6 +696,15 @@ export interface ModelSelectedPayload {
   contextWindow?: number | null;
 }
 
+export interface ExecutionFailoverChangedPayload {
+  revision: number;
+  cause: ExecutionFailoverChangeCause;
+  eligibleBackgroundWorkIds?: string[];
+  sourceCommandId?: string;
+  state: ExecutionFailoverState | null;
+  transition?: ExecutionFailoverTransition;
+}
+
 export type ModelStreamingKind =
   | "start"
   | "text_start"
@@ -1195,6 +1210,7 @@ export type SessionEventPayload =
   | SystemMessagePayload
   | ModelRequestPayload
   | ModelSelectedPayload
+  | ExecutionFailoverChangedPayload
   | ModelStreamingPayload
   | StreamingToolLedgerPayload
   | StreamRecoveryAnchorPayload

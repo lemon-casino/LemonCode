@@ -235,6 +235,9 @@ export async function resumeFromStore(
   const resumedTodos = await this.readSessionTodosForContext(traceContext);
   const resumedTarget = await this.readSessionTargetForContext(traceContext);
   this.injectTargetStateIntoMessageHistory(resumedTarget);
+  // policy、actor registration 与 run lease 都是进程内事实；冷恢复若沿用旧内存会让已结束
+  // execution 的 dormant intent/资格泄漏到新时间线，因此必须经同一个 policy 串行门统一清空。
+  await this.executionFailoverPolicyPort.reset();
 
   const resumedEvent = this.createEvent(
     SessionEventType.SessionResumed,

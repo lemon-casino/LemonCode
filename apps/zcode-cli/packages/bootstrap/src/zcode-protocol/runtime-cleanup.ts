@@ -23,6 +23,13 @@ export async function cleanupProtocolRuntime(options: {
   providerRegistryRuntime?: { dispose(): unknown };
 }): Promise<void> {
   const deadline = options.deadlineAt ?? Date.now() + DEFAULT_CLEANUP_BUDGET_MS;
+  const warnCleanupFailure = (resource: string, error: unknown): void => {
+    options.logger.warn(`ZCode Protocol ${resource} shutdown failed`, {
+      errorType: error instanceof Error ? error.name : typeof error,
+      event: `zcode_protocol.${resource}.shutdown.failed`,
+      module: "bootstrap.zcode_protocol",
+    });
+  };
   const step = async (resource: string, cleanup: () => unknown | Promise<unknown>) => {
     let timeout: NodeJS.Timeout | undefined;
     try {
@@ -36,21 +43,24 @@ export async function cleanupProtocolRuntime(options: {
           );
         }),
       ]);
+      return { status: "completed" as const };
     } catch (error) {
-      options.logger.warn(`ZCode Protocol ${resource} shutdown failed`, {
-        errorType: error instanceof Error ? error.name : typeof error,
-        event: `zcode_protocol.${resource}.shutdown.failed`,
-        module: "bootstrap.zcode_protocol",
-      });
+      warnCleanupFailure(resource, error);
+      return { error, status: "failed" as const };
     } finally {
       if (timeout) clearTimeout(timeout);
     }
+  };
+  let sessionShutdown: Promise<unknown> | undefined;
+  const shutdownSessions = (): Promise<unknown> => {
+    sessionShutdown ??= Promise.resolve().then(() => options.server?.shutdown());
+    return sessionShutdown;
   };
   await Promise.all([
     step("sampler", () => options.processResourceSampler?.stop()),
     step("mcp_telemetry", () => options.mcpTelemetryTracker?.stop()),
   ]);
-  await step("sessions", () => options.server?.shutdown());
+  const sessionStepResult = await step("sessions", shutdownSessions);
   await step("projections", () => options.server?.disposeProjections());
   await Promise.all([
     step("node_repl_browser_broker", () => options.nodeReplBrowserBroker?.close()),
@@ -59,10 +69,20 @@ export async function cleanupProtocolRuntime(options: {
     step("mcp_pool", () => options.mcpConnectionPool?.close()),
   ]);
   await Promise.all([
-    step("session_store", () => {
-      if (options.sessionStore) closeSessionStore(options.sessionStore);
-    }),
     step("provider_registry", () => options.providerRegistryRuntime?.dispose()),
     step("telemetry", () => shutdownPreparedModelTelemetry()),
   ]);
+  try {
+    // 单步 budget 只负责让其它资源继续关闭；store 必须等同一个 shutdown 真正 settle，
+    // 否则 session finalizer 可能在 SQLite 已关闭后继续写入。
+    await shutdownSessions();
+  } catch (error) {
+    // 若第一次只记录了 budget 超时，最终 reject 也要落日志；同一即时 reject 不重复记录。
+    if (sessionStepResult.status !== "failed" || sessionStepResult.error !== error) {
+      warnCleanupFailure("sessions", error);
+    }
+  }
+  await step("session_store", () => {
+    if (options.sessionStore) closeSessionStore(options.sessionStore);
+  });
 }

@@ -12,6 +12,7 @@ import { createTurnCancelledError } from "../helpers/index.js";
 import { executeTargetContinuationCommand } from "./target.js";
 import { runActiveTargetContinuationLoop } from "./target-continuation-loop.js";
 import { isStaleBranchRuntimeCommand } from "./runtime-command-generation.js";
+import { retainSessionStoreDependentCloseWork } from "./session-store-dependent-close-work.js";
 import type {
   AcquireForegroundPromotionLeaseResult,
   ActiveForegroundExecutionState,
@@ -310,7 +311,7 @@ async function runRuntimeCommand(
       module: "core.runtime",
     });
   } finally {
-    finishForegroundExecution.call(this, foregroundExecution);
+    await finishForegroundExecution.call(this, foregroundExecution, command.traceContext);
   }
 }
 
@@ -389,7 +390,7 @@ async function runTaskNotificationBatch(
       module: "core.runtime",
     });
   } finally {
-    finishForegroundExecution.call(this, foregroundExecution);
+    await finishForegroundExecution.call(this, foregroundExecution, firstCommand.traceContext);
   }
 }
 
@@ -422,14 +423,65 @@ function beginForegroundExecution(
   return state;
 }
 
-function finishForegroundExecution(
+const FOREGROUND_EXECUTION_CLEANUP_RETRY_DELAY_MS = 1_000;
+
+export async function finishForegroundExecution(
   this: AgentRuntimeInternal,
   state: ActiveForegroundExecutionState,
-): void {
+  traceContext: RuntimeCommand["traceContext"],
+  waitForRetry: (delayMs: number) => Promise<void> = waitForForegroundExecutionCleanupRetry,
+): Promise<void> {
   state.disposeParentAbort();
-  if (this.activeForegroundExecution === state) {
-    this.activeForegroundExecution = undefined;
+  if (this.activeForegroundExecution !== state) return;
+
+  // execution 已经终态，先从实时目标中移除；但原 ID 由当前 command drain 持有，
+  // policy 事件写失败时必须在同一 owner 内重试，不能抛出后让队列失去唤醒者。
+  this.activeForegroundExecution = undefined;
+  const cleanup = completeForegroundExecutionFailoverTarget.call(
+    this,
+    state,
+    traceContext,
+    waitForRetry,
+  );
+  retainSessionStoreDependentCloseWork(this, cleanup);
+  await cleanup;
+}
+
+async function completeForegroundExecutionFailoverTarget(
+  this: AgentRuntimeInternal,
+  state: ActiveForegroundExecutionState,
+  traceContext: RuntimeCommand["traceContext"],
+  waitForRetry: (delayMs: number) => Promise<void>,
+): Promise<void> {
+  let attempt = 0;
+  for (;;) {
+    attempt += 1;
+    try {
+      await this.executionFailoverPolicyPort.complete(
+        { foregroundExecutionId: state.foregroundExecutionId },
+        traceContext,
+      );
+      return;
+    } catch (error) {
+      this.logger?.warn(
+        "Execution failover foreground target cleanup failed; retry scheduled",
+        {
+          ...traceContextToLogContext(traceContext),
+          attempt,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          event: "model.failover.foreground_target_cleanup_retry_scheduled",
+          foregroundExecutionId: state.foregroundExecutionId,
+          module: "core.runtime",
+        },
+      );
+      await waitForRetry(FOREGROUND_EXECUTION_CLEANUP_RETRY_DELAY_MS);
+    }
   }
+}
+
+function waitForForegroundExecutionCleanupRetry(delayMs: number): Promise<void> {
+  // durable policy cleanup 未成功前保持进程存活；不能使用普通请求 backoff 的 unref timer。
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
 function runtimeCommandAbortSignal(command: RuntimeCommand): AbortSignal | undefined {

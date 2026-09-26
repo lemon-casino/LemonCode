@@ -88,6 +88,7 @@ interface SessionResourceCloseInput {
   closeMcp?: () => Promise<void> | void;
   closeNodeReplBrowserBroker?: () => Promise<void> | void;
   closeSessionStore?: () => void;
+  drainSessionStoreDependentCloseWork: () => Promise<void>;
   logger: Logger;
   timeoutMs?: number;
 }
@@ -116,6 +117,7 @@ interface CreateSessionFacadeDeps {
   providerRegistry: ProviderRegistryModelSource;
   resolveUiLocale(locale: UiLocale): SupportedLocale;
   runtime: AgentRuntime;
+  sessionResourceCloseTimeoutMs?: number;
   sessionId: SessionId;
   sessionStore: SessionStorePort;
   traceContext: TraceContext;
@@ -263,20 +265,15 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
   return {
     close: async () => {
       closePromise ??= (async () => {
-        // 关闭入口先阻止新调度并取消在飞 Memory Extraction，再等待取消链路收口。
+        // 第一拍封闭新准入；随后立即启动各 owner 的收口，不能先等待某一项而饿死其它资源。
         deps.runtime.beginShutdown();
-        await deps.runtime.drainMemoryExtractions(60_000);
-        // 引擎归本 App 所有，所以关闭要主动停下它。
-        // 位置是两个约束夹出来的：在 beginShutdown **之后**，结算带出的终态通知才会被丢掉
-        // （background-notifications.ts 在 shuttingDown 时不入队），不会把正在关闭的会话的模型
-        // 叫醒；在 closeSessionResources **之前**，子代理还有 execution / MCP / session store
-        // 可以干净地中止，引擎也还有 journal 可以写自己那一笔 stopped(interrupted)。
-        if (deps.closeDynamicWorkflowRuns !== undefined) {
+        const memoryDrain = deps.runtime.drainMemoryExtractions(60_000);
+        deps.runtime.retainSessionStoreDependentCloseWork(memoryDrain);
+        const workflowClose = (async () => {
+          if (deps.closeDynamicWorkflowRuns === undefined) return;
           try {
             await deps.closeDynamicWorkflowRuns();
           } catch (error: unknown) {
-            // 卡住或抛错的 dwf 关闭绝不能吃掉资源关闭（同下面并行关闭那条注释的论证）：
-            // 记一条 warn 继续走，最坏情况是那个 run 留成孤儿行，下一次构造时被收敛。
             deps.logger.warn?.(
               "Closing dynamic workflow runs failed; continuing to close resources",
               {
@@ -286,7 +283,8 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
               },
             );
           }
-        }
+        })();
+        deps.runtime.retainSessionStoreDependentCloseWork(workflowClose);
         const closableSessionStore =
           deps.ownsSessionStore && isClosableSessionStore(deps.sessionStore)
             ? deps.sessionStore
@@ -301,7 +299,10 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
           closeMcp: deps.ownsMcpPort && deps.mcpPort ? () => deps.mcpPort?.close() : undefined,
           closeNodeReplBrowserBroker: deps.closeNodeReplBrowserBroker,
           closeSessionStore: closableSessionStore ? () => closableSessionStore.close() : undefined,
+          drainSessionStoreDependentCloseWork: () =>
+            deps.runtime.drainSessionStoreDependentCloseWork(),
           logger: deps.logger,
+          timeoutMs: deps.sessionResourceCloseTimeoutMs,
         });
       })();
       return await closePromise;
@@ -584,20 +585,35 @@ async function closeSessionResources(input: SessionResourceCloseInput): Promise<
     1,
     Math.trunc(input.timeoutMs ?? DEFAULT_SESSION_RESOURCE_CLOSE_TIMEOUT_MS),
   );
+  let browserCloseFailure: unknown;
+  const closeBrowserSession = async (): Promise<void> => {
+    try {
+      await input.closeBrowserSession();
+    } catch (error) {
+      // Browser facade 的 ephemeral backend 错误已在 Runtime 内收敛；这里剩下的拒绝来自
+      // session-store-dependent release/drain，不能在 helper 记录后静默关 store。
+      browserCloseFailure = error;
+      throw error;
+    }
+  };
   const resources: Array<[name: string, close: (() => Promise<void> | void) | undefined]> = [
-    ["browser_session", input.closeBrowserSession],
+    ["browser_session", closeBrowserSession],
     ["execution", input.closeExecution],
     ["mcp", input.closeMcp],
     ["node_repl_browser_broker", input.closeNodeReplBrowserBroker],
   ];
 
   // 旧关闭链串行 await；Browser close 永不 settle 时，Execution/MCP 永远不会执行。
-  // 各 owner 并行、独立带 deadline，任何一个失败都不能跳过其它资源。
-  await Promise.all(
+  // 各 owner 并行、独立带 deadline；它们都启动并越过同步 retain 点后才 stable drain，
+  // 否则空集合会先返回，资源随后登记的 store work 就会落到已关闭 store。
+  const resourceCloses = Promise.all(
     resources.flatMap(([name, close]) =>
       close ? [closeSessionResourceWithinDeadline(name, close, timeoutMs, input.logger)] : [],
     ),
   );
+  await resourceCloses;
+  await input.drainSessionStoreDependentCloseWork();
+  if (browserCloseFailure !== undefined) throw browserCloseFailure;
 
   try {
     input.closeSessionStore?.();

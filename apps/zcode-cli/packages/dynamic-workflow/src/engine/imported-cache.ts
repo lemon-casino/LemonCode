@@ -103,12 +103,12 @@ export class ImportedActorState {
   }
 
   /**
-   * 分歧 actor 的会话种子：源会话 + 复制多少条消息 + 承袭的模型 pin。
+   * 分歧 actor 的会话种子：源会话 + 复制多少条消息 + 承袭的模型接续起点。
    *
    * 边界取**最后一条被消费**的导入条目的记账值：在 seq k 分歧意味着 0..k-1 的问答都已按缓存
    * 结算，新会话要接着的正是那 k 次完整交换之后的位置（含它们的 repair / nudge 轮）。
-   * 一条也没消费就没有种子——全新会话、全新模型解析、不带 pin：pin 是为「转录接续下不静默
-   * 换模型」存在的，没有接续就没有它的用武之地。
+   * 一条也没消费就没有种子——全新会话、全新模型解析、不带接续选择；宿主会单独决定本 run
+   * 是否已有 resume pin。
    */
   seed(): ActorSessionSeed | undefined {
     if (this.consumed === 0) return undefined;
@@ -118,7 +118,10 @@ export class ImportedActorState {
       sourceSessionId: this.candidate.transcriptSourceSessionId,
       messageCount: last.messageBoundary,
     };
-    if (this.candidate.resolvedModel !== undefined) seed.resolvedModel = this.candidate.resolvedModel;
+    if (this.candidate.resolvedModel !== undefined)
+      seed.resolvedModel = this.candidate.resolvedModel;
+    if (this.candidate.modelProvenance !== undefined)
+      seed.modelProvenance = this.candidate.modelProvenance;
     return seed;
   }
 }

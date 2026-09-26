@@ -11,6 +11,22 @@
 
 import type { WorkflowAskRevision } from "./workflow-ask-revision.js";
 import type { WorkflowImageRef } from "./workflow-image-ref.js";
+import type { ActorSessionSeed } from "./actor-record.js";
+import type {
+  PersonaSpec,
+  WorkflowActorModelOverride,
+  WorkflowModelSelection,
+  WorkflowRunModelProvenance,
+} from "./actor-model-provenance.js";
+export type { ActorRecord, ActorSessionSeed } from "./actor-record.js";
+export type {
+  ActorModelBinding,
+  ActorModelProvenance,
+  PersonaSpec,
+  WorkflowActorModelOverride,
+  WorkflowModelSelection,
+  WorkflowRunModelProvenance,
+} from "./actor-model-provenance.js";
 export type { WorkflowAskRevision } from "./workflow-ask-revision.js";
 export type { WorkflowImageRef } from "./workflow-image-ref.js";
 
@@ -58,42 +74,6 @@ export function refToString(ref: InstanceRef | ActorRef): string {
 // ————————————————————————————————————————————————————————————————
 // persona / ask 消息
 // ————————————————————————————————————————————————————————————————
-
-/**
- * 冻结的 actor persona，交给 {@link WorkflowDriver.createActorSession}。
- *
- * persona 只剩身份（名字 + system prompt）。模型档位（`model?: "main" | "lite"`）
- * 与工具档位（`tools?: "default" | "readonly" | "none"`）都已退场：宿主没有 lite 模型来源，而
- * 工具档位买到的只有「裁判不能改文件」——普通子代理也不靠档位保证这一点，ask 文本说清即可。
- * 子代理一律跑在父会话当前模型上、拿完整工作工具集减去会悬挂/越权的交互工具。
- * 是否注册 submit_result 由 driver 结合站点图判定（全 untyped 的 actor 不注册），
- * 不在这里表达——保持 persona 只描述身份。
- */
-export interface WorkflowModelSelection {
-  providerId: string;
-  modelId: string;
-  options?: {
-    reasoningLevel?: string;
-    speed?: string;
-  };
-}
-
-export interface WorkflowActorModelOverride {
-  /** Static agent() call site. */
-  siteId?: string;
-  /** Runtime actor identity; useful when the call site is shared by dynamic branches. */
-  name?: string;
-  /** Concrete fan-out instance. Omit to target every instance matched by site/name. */
-  ordinal?: number;
-  selection: WorkflowModelSelection;
-}
-
-export interface PersonaSpec {
-  name?: string;
-  system?: string;
-  /** Script-authored default; an approved run override takes precedence. */
-  model?: WorkflowModelSelection;
-}
 
 /**
  * 单次 ask 的下发消息：指令正文 + 是否 typed + typed 时的 schema（结构对核心不透明，
@@ -643,7 +623,8 @@ export type RunEvent =
    * `subagentModel` 是本 run 的子代理跑在哪个模型上，规范形 `providerId/modelId[$reasoningLevel]`。与锚点、阶段表同一路宿主元数据：引擎**从不读它**，
    * 只在建 run 那一世随这条事件记一次；宿主在 resume 与两条读面上从事件头读回同一个串
    * （子代理会话按「本字段 > resume pin > 父会话模型」定选型，bootstrap 的
-   * workflow-actor-model.ts）。同样零 SQL——不在 `dwf_run` 列上。缺席即子代理跑在会话模型上。
+   * workflow-actor-model.ts）。同样零 SQL——不在 `dwf_run` 列上。新事件另以
+   * `subagentModelProvenance` 明确区分显式 run 选择与会话继承；旧事件才以本字段是否在场兼容推断。
    * `phaseAlongside` 与 `phaseNames` **按位置对齐**：`phaseAlongside[i]` 是进入 `phaseNames[i]` 时
    * strand 仍在跑的其他阶段的下标（下标落在同一张 `phaseNames` 里）。侧栏据此把并行的两站画成
    * 双线段；没有阶段并行时缺席，缺席就是「这条轨道是一条直线」。
@@ -658,6 +639,8 @@ export type RunEvent =
       parentSessionId?: string;
       phaseNames?: string[];
       subagentModel?: string;
+      /** New launches record inheritance explicitly; absence is reserved for legacy events. */
+      subagentModelProvenance?: WorkflowRunModelProvenance;
       /** Lossless launch-time workflow default (including reasoning and speed). */
       subagentSelection?: WorkflowModelSelection;
       sessionSelection?: WorkflowModelSelection;
@@ -704,7 +687,12 @@ export type RunEvent =
     }
   | { type: "node-dispatched"; instance: InstanceRef }
   | { type: "node-paused"; instance: InstanceRef }
-  | { type: "node-retried"; instance: InstanceRef; supplement?: string; attachments?: WorkflowImageRef[] }
+  | {
+      type: "node-retried";
+      instance: InstanceRef;
+      supplement?: string;
+      attachments?: WorkflowImageRef[];
+    }
   | { type: "node-repairing"; instance: InstanceRef; attempt: number; violations: Violation[] }
   | { type: "node-nudged"; instance: InstanceRef }
   /**
@@ -742,7 +730,12 @@ export type RunEvent =
    * （`cause: "world-run"`）。每个 run 最多一条；修订 run 崩溃后 resume 据它恢复「门已关」——这是
    * 关门的**唯一**事实来源，不再由「曾有 ask live」推断。非修订 run 没有表可关，不发。
    */
-  | { type: "import-cache-closed"; instance: InstanceRef; cause: ImportCloseCause; actorName?: string }
+  | {
+      type: "import-cache-closed";
+      instance: InstanceRef;
+      cause: ImportCloseCause;
+      actorName?: string;
+    }
   /**
    * 控制流经过了一个 `phase("…")` 标记。**无站点、无 journal 行、无 driver 往返**——标记不是一步工作，它只是
    * 「跑到哪了」的一个刻度。`name` 是作者的原词（去两端空白，与分析器铸造阶段 id 的键同一）；
@@ -882,31 +875,6 @@ export interface RunRecord {
   result?: unknown;
 }
 
-/** dwf_actor 记录，unique(runId, siteId, ordinal)。 */
-export interface ActorRecord {
-  runId: string;
-  siteId: string;
-  ordinal: number;
-  name?: string;
-  persona?: PersonaSpec;
-  sessionId?: string;
-  /**
-   * actor 实际跑在哪个模型上（`providerId/modelId`），由 driver 侧写入。
-   *
-   * 为什么不塞进 `persona`：persona 是引擎在 createActor 时同步写下的冻结身份，而模型是宿主
-   * 事实（父会话**当时**的选择），引擎看不见。分成两个字段，身份与宿主事实就各有一个作者，
-   * 谁写的谁负责。
-   *
-   * 为什么要落库：run 的成本因此可审计，且 resume 能重新附着到**同一个**模型——父会话在两次
-   * 运行之间换了主模型，也不会让同一个 run 的后半段悄悄换模型（pin，见 bootstrap 的
-   * workflow-actor-model.ts）。
-   *
-   * 与 `sessionId` 同属「driver 拥有的字段」：引擎的 putActor 只负责把已有值原样带过去
-   * （见 engine.ts 的 createActor 与 scheduler.ts 的 ensureSession），绝不自己产出它。
-   */
-  resolvedModel?: string;
-}
-
 /**
  * 节点的落库状态。节点在**准入时**即以 `running` 落库（携带 actorSeq 与 inputHash），
  * 结算时更新为 completed/failed。因此崩溃于执行中的节点在 journal 里留有 `running` 记录，
@@ -963,7 +931,12 @@ export interface NodeRecord {
   messageBoundary?: number;
 }
 
-export type { StoredEvent, ListEventsOptions, RunSettlementRecord, JournalStorePort } from "./journal-types.js";
+export type {
+  StoredEvent,
+  ListEventsOptions,
+  RunSettlementRecord,
+  JournalStorePort,
+} from "./journal-types.js";
 
 // driver 对 ask 的观察词汇表（用量 + 进度）住在 ask-observation-types.ts（同上），此处转出口以保持引用路径。
 export {
@@ -984,22 +957,6 @@ export type {
   ImportedRunCache,
   ImportedWorldEntry,
 } from "./imported-cache-types.js";
-
-/**
- * 会话种子：分歧 actor 首次 live 派发时交给 {@link WorkflowDriver.createActorSession}，
- * 让新会话以源会话的**全保真转录前缀**开场。
- */
-export interface ActorSessionSeed {
-  /** 转录来源会话（前驱或更早祖先的该名 actor 会话）。 */
-  sourceSessionId: string;
-  /**
-   * 复制源会话前多少条消息 = 最后一条被消费导入 ask 的 {@link NodeRecord.messageBoundary}。
-   * count offset 跨前缀复制不变，所以这个值在链上任何持会话祖先处都直接可用。
-   */
-  messageCount: number;
-  /** 承袭的模型 pin（转录接续下静默换模型正是 pin 要防的身份突变）。 */
-  resolvedModel?: string;
-}
 
 // ————————————————————————————————————————————————————————————————
 // 策略常量（此契约的一部分）

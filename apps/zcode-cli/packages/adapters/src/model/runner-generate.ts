@@ -1,6 +1,7 @@
 import type { Logger, ModelStatusSink, ModelTextResult } from "@zcode/contracts";
 import {
   ModelErrorCode,
+  ModelFailureReason as ModelFailureReasonValue,
   ModelProtocolError,
   ModelRetryReason,
   ModelTransportKind as ModelTransportKindValue,
@@ -31,7 +32,11 @@ import {
   logGenerateTextDiagnostics,
 } from "./runner-diagnostics.js";
 import { sanitizeModelNetworkHeaders } from "./runner-network-headers.js";
-import { canRetryEmptyCompletion, scheduleEmptyCompletionRetry } from "./empty-completion-retry.js";
+import {
+  canRetryEmptyCompletion,
+  createEmptyCompletionFailure,
+  scheduleEmptyCompletionRetry,
+} from "./empty-completion-retry.js";
 import {
   calculateRetryDelay,
   logRetryDelayDecision,
@@ -52,11 +57,17 @@ import type {
   ResolvedAiSdkModel,
 } from "./runner-runtime.js";
 import { resolveModelForAttempt, RuntimeHeadersRefreshError } from "./runner-runtime-headers.js";
+import {
+  createDeferredRetryYieldGate,
+  type DeferredRetryYieldGate,
+  RetryYieldBeforeInvocationError,
+} from "./runner-failover-yield.js";
 import { retryAllowedByFailurePolicy } from "./workflow-model-failure-policy.js";
 import { modelFailureStatusFields, providerRequestIdFromHeaders } from "./runner-telemetry.js";
 import { repairReasoningHistoryAfterSignatureRejection } from "./reasoning-history-normalization.js";
 import { admitAttempt, type AttemptAdmission } from "./request-admission.js";
 import {
+  normalizeRetryAttemptOffset,
   retryAttemptLoopContinues,
   retryBudgetAllows,
   retryBudgetMaxAttempts,
@@ -91,9 +102,11 @@ export async function runGenerateText(input: {
   let requestMessages = input.request.messages;
   let signatureRepairAttempted = false;
   let emptyCompletionRetryCount = 0;
+  let pendingRetryYield: DeferredRetryYieldGate | undefined;
+  const retryAttemptOffset = normalizeRetryAttemptOffset(input.request.retryAttemptOffset);
 
   for (
-    let attempt = 1;
+    let attempt = retryAttemptOffset + 1;
     retryAttemptLoopContinues(
       retryBudget,
       attempt,
@@ -101,17 +114,14 @@ export async function runGenerateText(input: {
     );
     attempt += 1
   ) {
-    const retryBudgetAttempt =
-      attempt - Number(signatureRepairAttempted);
+    const retryBudgetAttempt = attempt - Number(signatureRepairAttempted);
     const attemptRequest = { ...input.request, messages: requestMessages };
     const startedAt = Date.now();
     let resolved = input.resolved;
     let statusContext = createAttemptStatusContext(
       {
         ...baseStatusContext,
-        maxAttempts: statusMaxAttempts(
-          Number(signatureRepairAttempted),
-        ),
+        maxAttempts: statusMaxAttempts(Number(signatureRepairAttempted)),
       },
       attempt,
     );
@@ -190,6 +200,34 @@ export async function runGenerateText(input: {
         statusPublishOptions(input, admission),
       );
 
+      const finalRetryYieldGate = pendingRetryYield;
+      pendingRetryYield = undefined;
+      if (finalRetryYieldGate && (await finalRetryYieldGate.shouldYield())) {
+        // decision=false 时当前 ticket 直接保护物理调用；只有明确让渡才释放并闭合已发布的 started。
+        admission.release();
+        await publishModelStatus(
+          {
+            ...statusContext,
+            attempt,
+            durationMs: Date.now() - startedAt,
+            errorCode: ModelErrorCode.ModelRequestCancelled,
+            errorPhase: "prepare",
+            exceptionType: RetryYieldBeforeInvocationError.name,
+            message: "Model retry yielded to execution failover before provider invocation.",
+            reason: ModelFailureReasonValue.Cancelled,
+            requestHeaderCount,
+            requestHeaders,
+            retryable: false,
+            timestamp: new Date().toISOString(),
+            type: "model_request_failed",
+          },
+          statusPublishOptions(input, admission),
+        );
+        throw new RetryYieldBeforeInvocationError(finalRetryYieldGate.adapterError);
+      }
+      // final gate、header/status sink 都可能异步等待；取消若在等待中到达，
+      // 不能仅依赖 Provider 自己识别已 aborted signal 后再多发一次物理请求。
+      input.request.abortSignal?.throwIfAborted();
       // 部分非流式 provider/fetch 兼容层收到 AbortSignal 后不会及时 settle
       // generateText promise，导致 runtime 已 Stop，goal verifier 仍要等上游自然返回才收口。
       // adapter 是本地取消契约边界：signal 一旦 abort 就立即拒绝，迟到 provider 结果只丢弃。
@@ -257,6 +295,8 @@ export async function runGenerateText(input: {
           usage,
         });
         emptyCompletionRetryCount += 1;
+        // 正常 resolve 的空 completion 也进入 backoff；不能在等待 policy 或 sleep 时占用物理请求票据。
+        admission.release();
         await scheduleEmptyCompletionRetry({
           abortSignal: input.request.abortSignal,
           attempt,
@@ -272,6 +312,26 @@ export async function runGenerateText(input: {
           statusContext,
           statusSink: input.statusSink,
         });
+        const emptyFailure = createEmptyCompletionFailure();
+        const emptyRetryYieldGate = createDeferredRetryYieldGate(
+          {
+            attempt,
+            canRetry: true,
+            consumedRetryAttempts: retryBudgetAttempt,
+            failure: emptyFailure,
+            logger: input.logger,
+            request: input.request,
+            resolved,
+          },
+          toAdapterError(new Error(emptyFailure.message), emptyFailure, statusContext, attempt, {
+            errorPhase: "response",
+            retryYieldedToFailover: true,
+          }),
+        );
+        if (await emptyRetryYieldGate.shouldYield()) {
+          throw new RetryYieldBeforeInvocationError(emptyRetryYieldGate.adapterError);
+        }
+        pendingRetryYield = emptyRetryYieldGate;
         continue;
       }
       const completedAt = Date.now();
@@ -329,6 +389,9 @@ export async function runGenerateText(input: {
         providerMetadata: result.providerMetadata as Record<string, unknown> | undefined,
       };
     } catch (error) {
+      if (error instanceof RetryYieldBeforeInvocationError) {
+        throw error.adapterError;
+      }
       // 合并后鉴权解析进入 attempt try；与 stream 一致保留网络前凭据缺失的类型化错误。
       if (
         error instanceof ModelProtocolError &&
@@ -431,7 +494,7 @@ export async function runGenerateText(input: {
       if (!canRetry) {
         logRetryDelayDecision({
           attempt,
-          canRetry,
+          canRetry: false,
           failure,
           logger: input.logger,
           responseHeaders,
@@ -527,6 +590,30 @@ export async function runGenerateText(input: {
           errorPhase: "connect",
         });
       }
+      // 用户可能在 retry backoff 或下一次 admission/header/status 等待期间才选择新供应商。
+      // 先在退避结束快速判定，再把同一失败保留到物理调用前做最终判定。
+      const finalRetryYieldGate = createDeferredRetryYieldGate(
+        {
+          attempt,
+          canRetry,
+          consumedRetryAttempts:
+            offPeak?.kind === "queued" ? Math.max(0, retryBudgetAttempt - 1) : retryBudgetAttempt,
+          failure,
+          logger: input.logger,
+          request: input.request,
+          resolved,
+          // 签名拒绝分支已通过上面的 continue 唯一放行修复请求；修复请求若仍失败，
+          // 必须恢复 failover gate，避免 unbounded workflow 永久锁在失效供应商。
+        },
+        toAdapterError(error, failure, statusContext, attempt, {
+          errorPhase: requestInvocationCompleted ? "response" : "prepare",
+          retryYieldedToFailover: true,
+        }),
+      );
+      if (await finalRetryYieldGate.shouldYield()) {
+        throw finalRetryYieldGate.adapterError;
+      }
+      pendingRetryYield = finalRetryYieldGate;
       if (offPeak?.kind === "queued") {
         // 排队等待不消耗重试预算：回退计数让 for 自增后原地重试，无限探测。
         attempt -= 1;
@@ -576,12 +663,8 @@ function waitForGenerateTextOrAbort<T>(
       );
     };
 
-    if (abortSignal.aborted) {
-      onAbort();
-      return;
-    }
-
-    abortSignal.addEventListener("abort", onAbort, { once: true });
+    // Provider promise 已创建后，即使取消先赢也必须先观察其 settle；否则 fast-abort
+    // 分支会遗留未处理 rejection，并可能直接终止 CLI 进程。
     pending.then(
       (value) => {
         cleanup();
@@ -592,6 +675,12 @@ function waitForGenerateTextOrAbort<T>(
         reject(error);
       },
     );
+    if (abortSignal.aborted) {
+      onAbort();
+      return;
+    }
+
+    abortSignal.addEventListener("abort", onAbort, { once: true });
   });
 }
 

@@ -13,6 +13,7 @@ import {
   type AmendWorkflowPredecessor,
   type DynamicWorkflowRunSnapshot,
   type ModelCatalogPort,
+  type ModelSelection,
 } from "@zcode/contracts";
 import type {
   ToolHandlerFailure,
@@ -74,18 +75,23 @@ export async function resolveAmendWorkflowInput(
       predecessor: _forged,
       max_concurrency: requested,
       subagent_model: _model,
+      subagent_selection: _selection,
+      actor_model_overrides: _actorOverrides,
       edits: _edits,
       script_line_offset: _offset,
       ...rest
     } = parsed.data;
     void _forged;
     void _model;
+    void _selection;
+    void _actorOverrides;
     void _edits;
     void _offset;
     // 没有端口就既没有前驱也没有天花板：`null`（解除）与「沿用」都塌成缺席，数原样过。
     // 归一化后的入参此后永远只有「一个数或没有」这一种形状。
     const subagentModel = resolveAmendSubagentModel(
       parsed.data.subagent_model,
+      undefined,
       undefined,
       context.modelCatalogPort,
     );
@@ -112,6 +118,7 @@ export async function resolveAmendWorkflowInput(
   const subagentModel = resolveAmendSubagentModel(
     parsed.data.subagent_model,
     snapshot.subagentModel,
+    snapshot.subagentSelection,
     context.modelCatalogPort,
   );
   if (!subagentModel.result) return subagentModel;
@@ -133,6 +140,8 @@ export async function resolveAmendWorkflowInput(
     predecessor: _forged,
     max_concurrency: _tristate,
     subagent_model: _model,
+    subagent_selection: _selection,
+    actor_model_overrides: _actorOverrides,
     edits: _edits,
     // 行偏移与 `predecessor` 同一姿态：解析结果，模型给的一律作废（下面按文件重算）。
     script_line_offset: _offset,
@@ -140,6 +149,8 @@ export async function resolveAmendWorkflowInput(
   } = parsed.data;
   void _forged;
   void _model;
+  void _selection;
+  void _actorOverrides;
   void _edits;
   void _offset;
   const resolved: AmendWorkflowInput = {
@@ -151,6 +162,9 @@ export async function resolveAmendWorkflowInput(
       port.concurrencyCeiling?.(),
     ),
     ...subagentModel.field,
+    ...(snapshot.actorModelOverrides === undefined
+      ? {}
+      : { actor_model_overrides: snapshot.actorModelOverrides }),
     predecessor: {
       ...describePredecessor(snapshot, context.sessionId),
       ...(script.inherited ? { script_inherited: true as const } : {}),
@@ -175,13 +189,24 @@ export async function resolveAmendWorkflowInput(
 function resolveAmendSubagentModel(
   requested: string | null | undefined,
   inherited: string | undefined,
+  inheritedSelection: ModelSelection | undefined,
   catalog: ModelCatalogPort | undefined,
-): { result: true; field: { subagent_model?: string } } | ToolHandlerFailure {
+):
+  | {
+      result: true;
+      field: { subagent_model?: string; subagent_selection?: ModelSelection };
+    }
+  | ToolHandlerFailure {
   const choice = resolveAmendSubagentModelChoice(requested, inherited, catalog);
   if (choice.ok) {
+    const shouldInheritSelection =
+      requested === undefined && choice.canonical !== undefined && inheritedSelection !== undefined;
     return {
       result: true,
-      field: choice.canonical === undefined ? {} : { subagent_model: choice.canonical },
+      field: {
+        ...(choice.canonical === undefined ? {} : { subagent_model: choice.canonical }),
+        ...(shouldInheritSelection ? { subagent_selection: inheritedSelection } : {}),
+      },
     };
   }
   // 沿用的那一个失败时必须说清它是**继承来的**：模型这次调用压根没提模型名，直接把解析

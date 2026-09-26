@@ -230,7 +230,6 @@ class SqliteDwfJournalStore implements JournalStorePort, DwfRunIntrospectionQuer
     return listRunsByParentSession(this.db, parentSessionId, limit);
   }
 
-
   putActor(record: ActorRecord): void {
     const now = Date.now();
     this.db
@@ -238,13 +237,14 @@ class SqliteDwfJournalStore implements JournalStorePort, DwfRunIntrospectionQuer
         `
         insert into dwf_actor (
           run_id, site_id, ordinal, name, persona_json, session_id, resolved_model,
-          time_created, time_updated
-        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+          model_provenance, time_created, time_updated
+        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         on conflict(run_id, site_id, ordinal) do update set
           name = excluded.name,
           persona_json = excluded.persona_json,
           session_id = excluded.session_id,
           resolved_model = excluded.resolved_model,
+          model_provenance = excluded.model_provenance,
           time_updated = excluded.time_updated
         `,
       )
@@ -256,6 +256,7 @@ class SqliteDwfJournalStore implements JournalStorePort, DwfRunIntrospectionQuer
         encodeJson(record.persona),
         record.sessionId ?? null,
         record.resolvedModel ?? null,
+        record.modelProvenance ?? null,
         now,
         now,
       );

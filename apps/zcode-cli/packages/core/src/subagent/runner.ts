@@ -106,6 +106,15 @@ export type EnqueueParentTaskNotification = (
   notification: ParentTaskNotificationCommand,
 ) => undefined;
 
+export interface RuntimeTaskTerminalCleanupConfig {
+  /** 清理父 execution policy 中已经进入 registry 终态的 task target。 */
+  release(taskId: string, traceContext: TraceContext): Promise<void>;
+  /** 同步把未完成清理登记到父 Runtime residency，直到 release 成功。 */
+  retain(work: Promise<void>): void;
+  /** 测试可注入确定性调度；生产 timer 在 durable cleanup 成功前保持进程存活。 */
+  scheduleRetry?(retry: () => void, delayMs: number): void;
+}
+
 export interface ExploreSubagentPortOptions {
   runExploreAgent: (
     request: ExploreSubagentRuntimeRequest,
@@ -125,10 +134,33 @@ export interface ExploreSubagentPortOptions {
   getAllowedTools?: (profile: AgentProfile) => readonly string[];
   inactivityTimeoutMs?: number;
   autoBackgroundMs?: number;
+  /** Runtime shutdown 第一拍关闭新执行准入，避免 stable drain 返回后又登记 store work。 */
+  acceptRun?: () => boolean;
+  /** subagent prelaunch、foreground 物理执行与 background finalizer 都必须阻止父 Runtime 提前关 store。 */
+  retainBackgroundRunSettlement?: (work: Promise<void>) => void;
+  /** registry 终态 cleanup 的 release、retry 与父 Runtime residency 接线。 */
+  runtimeTaskTerminalCleanup?: RuntimeTaskTerminalCleanupConfig;
   logger?: Logger;
 }
 
-export function createExploreSubagentPort(options: ExploreSubagentPortOptions): SubagentPort {
+interface RuntimeTaskTerminalCleanupOwner {
+  complete(lifecycle: Pick<SubagentLifecycle, "agentId" | "runTraceContext">): Promise<void>;
+  settleTask(taskId: string): Promise<void>;
+}
+
+interface ExploreSubagentRunnerOptions extends ExploreSubagentPortOptions {
+  backgroundRunSettlements: Map<string, Promise<void>>;
+  taskMutations: Map<string, Promise<void>>;
+  terminalCleanupOwner: RuntimeTaskTerminalCleanupOwner;
+}
+
+export function createExploreSubagentPort(inputOptions: ExploreSubagentPortOptions): SubagentPort {
+  const options: ExploreSubagentRunnerOptions = {
+    ...inputOptions,
+    backgroundRunSettlements: new Map(),
+    taskMutations: new Map(),
+    terminalCleanupOwner: createRuntimeTaskTerminalCleanupOwner(inputOptions),
+  };
   const registry = options.runtimeTaskRegistry ?? new InMemoryRuntimeTaskRegistry();
   const abortControllers = new Map<string, AbortController>();
   const borrowedForegroundAgentIds = new Set<string>();
@@ -174,265 +206,286 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
       rawRequest: SubagentRunRequest,
       runOptions?: SubagentRunOptions,
     ): Promise<AgentOutput> {
+      assertSubagentRunAdmission(options);
       const { profile, request } = resolveAgentProfileForRequest(profiles, rawRequest);
       const lifecycle = createSubagentLifecycle(options, request, profile);
       const startedAt = new Date(lifecycle.startedAt);
-
-      registry.register(
-        createRuntimeTaskSnapshot({
-          isBackgrounded: false,
-          lifecycle,
-          request,
-          startedAt,
-          status: "running",
-        }),
-      );
+      const runMethodSettled = createSubagentSessionReadyGate();
+      let physicalRunSettlement: Promise<void> = Promise.resolve();
+      const fullRunSettlement = runMethodSettled.promise.then(() => physicalRunSettlement);
+      // foreground 的工具调用可在 abort guard 后先返回，但同 taskId 的 resume 与父 Runtime
+      // 关闭都必须等底层 child、artifacts、terminal side effects 真正退出。
+      trackBackgroundRunSettlement(options, lifecycle, fullRunSettlement);
       try {
         await writeAgentMetadataFile(lifecycle, request, "running");
-      } catch (error) {
-        // 启动元数据写入失败时，child runtime 还没有开始执行；
-        // 保留 running task 会让父 runtime 误以为仍有后台任务并持续 defer。
-        registry.remove(lifecycle.agentId);
-        throw error;
-      }
+        assertSubagentRunAdmission(options);
+        registry.register(
+          createRuntimeTaskSnapshot({
+            isBackgrounded: false,
+            lifecycle,
+            request,
+            startedAt,
+            status: "running",
+          }),
+        );
 
-      const taskAbort = createSubagentTaskAbortController(
-        abortControllers,
-        lifecycle.agentId,
-        runOptions?.signal,
-      );
-      const hasForegroundModelOverride = runOptions?.modelOverride !== undefined;
-      if (hasForegroundModelOverride) {
-        borrowedForegroundAgentIds.add(lifecycle.agentId);
-      }
-      const activityWatchdog = createSubagentActivityWatchdog({
-        abort: taskAbort.abort,
-        lifecycle,
-        logger: options.logger,
-        request,
-        signal: taskAbort.signal,
-        timeoutMs: options.inactivityTimeoutMs ?? DEFAULT_MODEL_STREAM_IDLE_TIMEOUT_MS,
-      });
-      const readyGate = createSubagentSessionReadyGate();
-      // child persistence/resume 可能在 onSessionReady 前永久挂起；watchdog 和
-      // abort guard 必须覆盖完整 setup，而不能把 Ready 当成取消能力的安装边界。
-      activityWatchdog.start();
-      const completionPromise = runAgentToCompletion(
-        options,
-        request,
-        lifecycle,
-        registry,
-        {
+        const taskAbort = createSubagentTaskAbortController(
+          abortControllers,
+          lifecycle.agentId,
+          runOptions?.signal,
+        );
+        const hasForegroundModelOverride = runOptions?.modelOverride !== undefined;
+        if (hasForegroundModelOverride) {
+          borrowedForegroundAgentIds.add(lifecycle.agentId);
+        }
+        const activityWatchdog = createSubagentActivityWatchdog({
+          abort: taskAbort.abort,
+          lifecycle,
+          logger: options.logger,
+          request,
           signal: taskAbort.signal,
-          ...(runOptions?.model ? { model: runOptions.model } : {}),
-          ...(runOptions?.modelOverride ? { modelOverride: runOptions.modelOverride } : {}),
-        },
-        {
-          reportActivity: activityWatchdog.reportActivity,
-        },
-        {
-          onSessionReady: async () => {
-            await emitSubagentEvent(
-              options,
-              SessionEventType.SubagentSpawned,
-              request,
-              lifecycle.runTraceContext,
-              {
-                agentId: lifecycle.agentId,
-                agentType: request.agentType,
-                childSessionId: lifecycle.childSessionId,
-                description: request.description,
-                prompt: request.prompt,
-                parentToolCallId: request.parentToolCallId,
-                status: "running",
-                allowedTools: [...resolveAllowedTools(profile, options)],
-                model: profile.modelSelection
-                  ? `${profile.modelSelection.providerId}/${profile.modelSelection.modelId}`
-                  : undefined,
-              },
-            );
-            readyGate.resolve();
+          timeoutMs: options.inactivityTimeoutMs ?? DEFAULT_MODEL_STREAM_IDLE_TIMEOUT_MS,
+        });
+        const readyGate = createSubagentSessionReadyGate();
+        // child persistence/resume 可能在 onSessionReady 前永久挂起；watchdog 和
+        // abort guard 必须覆盖完整 setup，而不能把 Ready 当成取消能力的安装边界。
+        activityWatchdog.start();
+        const completionPromise = runAgentToCompletion(
+          options,
+          request,
+          lifecycle,
+          registry,
+          {
+            signal: taskAbort.signal,
+            ...(runOptions?.model ? { model: runOptions.model } : {}),
+            ...(runOptions?.modelOverride ? { modelOverride: runOptions.modelOverride } : {}),
           },
-        },
-      );
-      void completionPromise.catch((error: unknown) => readyGate.reject(error));
-      try {
-        await guardSubagentPromiseWithAbort(
-          readyGate.promise,
+          {
+            reportActivity: activityWatchdog.reportActivity,
+          },
+          {
+            onSessionReady: async () => {
+              await emitSubagentEvent(
+                options,
+                SessionEventType.SubagentSpawned,
+                request,
+                lifecycle.runTraceContext,
+                {
+                  agentId: lifecycle.agentId,
+                  agentType: request.agentType,
+                  childSessionId: lifecycle.childSessionId,
+                  description: request.description,
+                  prompt: request.prompt,
+                  parentToolCallId: request.parentToolCallId,
+                  status: "running",
+                  allowedTools: [...resolveAllowedTools(profile, options)],
+                  model: profile.modelSelection
+                    ? `${profile.modelSelection.providerId}/${profile.modelSelection.modelId}`
+                    : undefined,
+                },
+              );
+              readyGate.resolve();
+            },
+          },
+        );
+        physicalRunSettlement = completionPromise.then(
+          () => undefined,
+          () => undefined,
+        );
+        void completionPromise.catch((error: unknown) => readyGate.reject(error));
+        try {
+          await guardSubagentPromiseWithAbort(
+            readyGate.promise,
+            request,
+            lifecycle,
+            taskAbort.signal,
+          );
+        } catch (error) {
+          activityWatchdog.stop();
+          taskAbort.abort(error);
+          taskAbort.dispose();
+          borrowedForegroundAgentIds.delete(lifecycle.agentId);
+          registry.remove(lifecycle.agentId);
+          await completeRuntimeTaskFailoverTarget(options, lifecycle);
+          throw error;
+        }
+
+        options.logger?.info("Explore subagent spawned", {
+          ...traceContextToLogContext(lifecycle.runTraceContext),
+          agentId: lifecycle.agentId,
+          agentType: request.agentType,
+          event: "subagent.spawned",
+          module: "core.subagent",
+          parentToolCallId: request.parentToolCallId,
+          status: "started",
+        });
+        const guardedCompletionPromise = guardSubagentPromiseWithAbort(
+          completionPromise,
           request,
           lifecycle,
           taskAbort.signal,
         );
-      } catch (error) {
-        activityWatchdog.stop();
-        taskAbort.abort(error);
-        taskAbort.dispose();
-        borrowedForegroundAgentIds.delete(lifecycle.agentId);
-        registry.remove(lifecycle.agentId);
-        throw error;
-      }
 
-      options.logger?.info("Explore subagent spawned", {
-        ...traceContextToLogContext(lifecycle.runTraceContext),
-        agentId: lifecycle.agentId,
-        agentType: request.agentType,
-        event: "subagent.spawned",
-        module: "core.subagent",
-        parentToolCallId: request.parentToolCallId,
-        status: "started",
-      });
-      const guardedCompletionPromise = guardSubagentPromiseWithAbort(
-        completionPromise,
-        request,
-        lifecycle,
-        taskAbort.signal,
-      );
-
-      let autoBackgroundTimer: AutoBackgroundTimer | undefined;
-      try {
-        autoBackgroundTimer =
-          !hasForegroundModelOverride && autoBackgroundMs !== undefined
-            ? createAutoBackgroundTimer(
-                registry,
-                lifecycle.agentId,
-                autoBackgroundMs,
-                taskAbort.signal,
-              )
+        let autoBackgroundTimer: AutoBackgroundTimer | undefined;
+        try {
+          autoBackgroundTimer =
+            !hasForegroundModelOverride && autoBackgroundMs !== undefined
+              ? createAutoBackgroundTimer(
+                  registry,
+                  lifecycle.agentId,
+                  autoBackgroundMs,
+                  taskAbort.signal,
+                )
+              : undefined;
+          const backgroundRequestPromise = !hasForegroundModelOverride
+            ? registry
+                .waitForBackgroundRequest(lifecycle.agentId, { signal: taskAbort.signal })
+                .then((task) => ({
+                  kind: task ? ("backgrounded" as const) : ("ignored" as const),
+                }))
             : undefined;
-        const backgroundRequestPromise = !hasForegroundModelOverride
-          ? registry
-              .waitForBackgroundRequest(lifecycle.agentId, { signal: taskAbort.signal })
-              .then((task) => ({
-                kind: task ? ("backgrounded" as const) : ("ignored" as const),
-              }))
-          : undefined;
-        const winner = await Promise.race([
-          guardedCompletionPromise.then((completed) => ({
-            completed,
-            kind: "completed" as const,
-          })),
-          ...(backgroundRequestPromise ? [backgroundRequestPromise] : []),
-          ...(autoBackgroundTimer ? [autoBackgroundTimer.promise] : []),
-        ]);
+          const winner = await Promise.race([
+            guardedCompletionPromise.then((completed) => ({
+              completed,
+              kind: "completed" as const,
+            })),
+            ...(backgroundRequestPromise ? [backgroundRequestPromise] : []),
+            ...(autoBackgroundTimer ? [autoBackgroundTimer.promise] : []),
+          ]);
 
-        if (winner.kind === "backgrounded") {
-          taskAbort.detachParent();
+          if (winner.kind === "backgrounded") {
+            taskAbort.detachParent();
+            activityWatchdog.stop();
+            const settlement = completionPromise
+              .then((completed) =>
+                finalizeBackgroundCompletion(options, request, lifecycle, registry, completed),
+              )
+              .catch((error) =>
+                finalizeBackgroundFailure(options, request, lifecycle, registry, error),
+              )
+              .finally(taskAbort.dispose);
+            trackBackgroundRunSettlement(options, lifecycle, settlement);
+            return createAgentBackgroundedOutput(request, lifecycle);
+          }
+
+          const completed =
+            winner.kind === "completed" ? winner.completed : await guardedCompletionPromise;
+          autoBackgroundTimer?.cancel();
           activityWatchdog.stop();
-          void completionPromise
-            .then((completed) =>
-              finalizeBackgroundCompletion(options, request, lifecycle, registry, completed),
-            )
-            .catch((error) =>
-              finalizeBackgroundFailure(options, request, lifecycle, registry, error),
-            )
-            .finally(taskAbort.dispose);
-          return createAgentBackgroundedOutput(request, lifecycle);
-        }
+          taskAbort.dispose();
+          borrowedForegroundAgentIds.delete(lifecycle.agentId);
 
-        const completed =
-          winner.kind === "completed" ? winner.completed : await guardedCompletionPromise;
-        autoBackgroundTimer?.cancel();
-        activityWatchdog.stop();
-        taskAbort.dispose();
-        borrowedForegroundAgentIds.delete(lifecycle.agentId);
-
-        await writeCompletedAgentArtifacts(lifecycle, request, completed.output);
-        registry.update(lifecycle.agentId, (task) => ({
-          ...withoutRuntimeMessageState(task),
-          status: "completed",
-          completedAt: new Date(),
-          output: completed.output,
-          usage: {
-            durationMs: completed.output.totalDurationMs,
-            modelUsage: completed.output.usage,
-            toolUseCount: completed.output.totalToolUseCount,
-            totalTokens: completed.output.totalTokens,
-          },
-        }));
-
-        await emitSubagentEvent(
-          options,
-          SessionEventType.SubagentStopped,
-          request,
-          lifecycle.runTraceContext,
-          {
-            agentId: lifecycle.agentId,
-            agentType: request.agentType,
-            childSessionId: lifecycle.childSessionId,
-            parentToolCallId: request.parentToolCallId,
+          await writeCompletedAgentArtifacts(lifecycle, request, completed.output);
+          const terminalTask = commitRuntimeTaskTerminal(registry, lifecycle, (task) => ({
+            ...withoutRuntimeMessageState(task),
             status: "completed",
-            totalDurationMs: completed.output.totalDurationMs,
-            totalToolUseCount: completed.output.totalToolUseCount,
-            totalTokens: completed.output.totalTokens,
-          },
-        );
+            completedAt: new Date(),
+            output: completed.output,
+            usage: {
+              durationMs: completed.output.totalDurationMs,
+              modelUsage: completed.output.usage,
+              toolUseCount: completed.output.totalToolUseCount,
+              totalTokens: completed.output.totalTokens,
+            },
+          }));
+          if (!terminalTask) return completed.output;
+          await completeRuntimeTaskFailoverTarget(options, lifecycle);
 
-        options.logger?.info("Explore subagent completed", {
-          ...traceContextToLogContext(lifecycle.runTraceContext),
-          agentId: lifecycle.agentId,
-          durationMs: completed.output.totalDurationMs,
-          event: "subagent.completed",
-          module: "core.subagent",
-          status: "completed",
-          totalToolUseCount: completed.output.totalToolUseCount,
-          totalTokens: completed.output.totalTokens,
-        });
-
-        return completed.output;
-      } catch (error) {
-        activityWatchdog.stop();
-        taskAbort.dispose();
-        borrowedForegroundAgentIds.delete(lifecycle.agentId);
-        const totalDurationMs = Date.now() - lifecycle.startedAt;
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        await writeFailedAgentArtifacts(lifecycle, request, errorMessage);
-        registry.update(lifecycle.agentId, (task) => ({
-          ...withoutRuntimeMessageState(task),
-          status: "failed",
-          completedAt: new Date(),
-          error: errorMessage,
-          usage: {
-            durationMs: totalDurationMs,
-          },
-        }));
-        await emitSubagentEvent(
-          options,
-          SessionEventType.SubagentStopped,
-          request,
-          lifecycle.runTraceContext,
-          {
-            agentId: lifecycle.agentId,
-            agentType: request.agentType,
-            childSessionId: lifecycle.childSessionId,
-            parentToolCallId: request.parentToolCallId,
-            status: "failed",
-            totalDurationMs,
-            error: errorMessage,
-          },
-        );
-
-        if (isCoreError(error)) {
-          throw error;
-        }
-
-        throw createCoreError(CoreErrorType.ToolExecutionFailed, "Explore subagent failed", {
-          cause: error instanceof Error ? error : undefined,
-          // 这层只描述父 Agent toolcall 的生命周期失败；真实 provider/model
-          // 错误在 cause 链里，应作为 UI hover 与父模型 tool result 的主摘要。
-          context: withErrorPayloadRole(
+          await emitSubagentEvent(
+            options,
+            SessionEventType.SubagentStopped,
+            request,
+            lifecycle.runTraceContext,
             {
-              code: AgentErrorCode.CHILD_RUNTIME_FAILED,
               agentId: lifecycle.agentId,
               agentType: request.agentType,
+              childSessionId: lifecycle.childSessionId,
               parentToolCallId: request.parentToolCallId,
+              status: "completed",
+              totalDurationMs: completed.output.totalDurationMs,
+              totalToolUseCount: completed.output.totalToolUseCount,
+              totalTokens: completed.output.totalTokens,
             },
-            ErrorPayloadRole.Wrapper,
-          ),
-          recoverable: true,
-        });
+          );
+
+          options.logger?.info("Explore subagent completed", {
+            ...traceContextToLogContext(lifecycle.runTraceContext),
+            agentId: lifecycle.agentId,
+            durationMs: completed.output.totalDurationMs,
+            event: "subagent.completed",
+            module: "core.subagent",
+            status: "completed",
+            totalToolUseCount: completed.output.totalToolUseCount,
+            totalTokens: completed.output.totalTokens,
+          });
+
+          return completed.output;
+        } catch (error) {
+          activityWatchdog.stop();
+          taskAbort.dispose();
+          borrowedForegroundAgentIds.delete(lifecycle.agentId);
+          const totalDurationMs = Date.now() - lifecycle.startedAt;
+          const errorMessage = error instanceof Error ? error.message : String(error);
+          const current = registry.get(lifecycle.agentId);
+          if (
+            isRuntimeTaskExecutionCurrent(current, lifecycle) &&
+            !isTerminalRuntimeTask(current)
+          ) {
+            await writeFailedAgentArtifacts(lifecycle, request, errorMessage);
+            const terminalTask = commitRuntimeTaskTerminal(registry, lifecycle, (task) => ({
+              ...withoutRuntimeMessageState(task),
+              status: "failed",
+              completedAt: new Date(),
+              error: errorMessage,
+              usage: {
+                durationMs: totalDurationMs,
+              },
+            }));
+            if (terminalTask) {
+              await completeRuntimeTaskFailoverTarget(options, lifecycle);
+              await emitSubagentEvent(
+                options,
+                SessionEventType.SubagentStopped,
+                request,
+                lifecycle.runTraceContext,
+                {
+                  agentId: lifecycle.agentId,
+                  agentType: request.agentType,
+                  childSessionId: lifecycle.childSessionId,
+                  parentToolCallId: request.parentToolCallId,
+                  status: "failed",
+                  totalDurationMs,
+                  error: errorMessage,
+                },
+              );
+            }
+          }
+
+          if (isCoreError(error)) {
+            throw error;
+          }
+
+          throw createCoreError(CoreErrorType.ToolExecutionFailed, "Explore subagent failed", {
+            cause: error instanceof Error ? error : undefined,
+            // 这层只描述父 Agent toolcall 的生命周期失败；真实 provider/model
+            // 错误在 cause 链里，应作为 UI hover 与父模型 tool result 的主摘要。
+            context: withErrorPayloadRole(
+              {
+                code: AgentErrorCode.CHILD_RUNTIME_FAILED,
+                agentId: lifecycle.agentId,
+                agentType: request.agentType,
+                parentToolCallId: request.parentToolCallId,
+              },
+              ErrorPayloadRole.Wrapper,
+            ),
+            recoverable: true,
+          });
+        } finally {
+          activityWatchdog.stop();
+          autoBackgroundTimer?.cancel();
+        }
       } finally {
-        activityWatchdog.stop();
-        autoBackgroundTimer?.cancel();
+        runMethodSettled.resolve();
       }
     },
 
@@ -440,89 +493,93 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
       rawRequest: SubagentStartRequest,
       startOptions?: SubagentStartOptions,
     ): Promise<AgentBackgroundedOutput> {
+      assertSubagentRunAdmission(options);
       const { profile, request } = resolveAgentProfileForRequest(profiles, rawRequest);
       const lifecycle = createSubagentLifecycle(options, request, profile);
       const startedAt = new Date(lifecycle.startedAt);
       const output = createAgentBackgroundedOutput(request, lifecycle);
-
-      registry.register(
-        createRuntimeTaskSnapshot({
-          isBackgrounded: true,
-          lifecycle,
-          request,
-          startedAt,
-          status: "running",
-        }),
-      );
+      const settlePrelaunch = retainBackgroundPrelaunch(options);
       try {
         await writeAgentMetadataFile(lifecycle, request, "running");
-      } catch (error) {
-        // setup 失败时移除 registry 记录，避免 fake running background task。
-        registry.remove(lifecycle.agentId);
-        throw error;
-      }
-
-      const taskAbort = createSubagentTaskAbortController(abortControllers, lifecycle.agentId);
-      if (startOptions?.signal?.aborted) {
-        taskAbort.abort(startOptions.signal.reason);
-      }
-      const readyGate = createSubagentSessionReadyGate();
-      void runBackgroundAgent(
-        options,
-        request,
-        lifecycle,
-        registry,
-        {
-          signal: taskAbort.signal,
-          ...(startOptions?.model ? { model: startOptions.model } : {}),
-        },
-        {
-          onSessionReady: async () => {
-            await emitSubagentEvent(
-              options,
-              SessionEventType.SubagentSpawned,
-              request,
-              lifecycle.runTraceContext,
-              {
-                agentId: lifecycle.agentId,
-                agentType: request.agentType,
-                background: true,
-                childSessionId: lifecycle.childSessionId,
-                description: request.description,
-                prompt: request.prompt,
-                parentToolCallId: request.parentToolCallId,
-                status: "running",
-                allowedTools: [...resolveAllowedTools(profile, options)],
-                outputFile: lifecycle.outputFile,
-                model: profile.modelSelection
-                  ? `${profile.modelSelection.providerId}/${profile.modelSelection.modelId}`
-                  : undefined,
-              },
-            );
-            readyGate.resolve();
+        assertSubagentRunAdmission(options);
+        // metadata 是最后一个异步准备。此后到 settlement retain 之间不能再 await，
+        // 否则 shutdown stable drain 可能观察为空后才出现 provider work。
+        registry.register(
+          createRuntimeTaskSnapshot({
+            isBackgrounded: true,
+            lifecycle,
+            request,
+            startedAt,
+            status: "running",
+          }),
+        );
+        const taskAbort = createSubagentTaskAbortController(abortControllers, lifecycle.agentId);
+        if (startOptions?.signal?.aborted) {
+          taskAbort.abort(startOptions.signal.reason);
+        }
+        const readyGate = createSubagentSessionReadyGate();
+        const settlement = runBackgroundAgent(
+          options,
+          request,
+          lifecycle,
+          registry,
+          {
+            signal: taskAbort.signal,
+            ...(startOptions?.model ? { model: startOptions.model } : {}),
           },
-          onSessionStartFailed: readyGate.reject,
-        },
-        taskAbort.dispose,
-      );
-      try {
-        await readyGate.promise;
-      } catch (error) {
-        taskAbort.abort(error);
-        registry.remove(lifecycle.agentId);
-        throw error;
-      }
+          {
+            onSessionReady: async () => {
+              await emitSubagentEvent(
+                options,
+                SessionEventType.SubagentSpawned,
+                request,
+                lifecycle.runTraceContext,
+                {
+                  agentId: lifecycle.agentId,
+                  agentType: request.agentType,
+                  background: true,
+                  childSessionId: lifecycle.childSessionId,
+                  description: request.description,
+                  prompt: request.prompt,
+                  parentToolCallId: request.parentToolCallId,
+                  status: "running",
+                  allowedTools: [...resolveAllowedTools(profile, options)],
+                  outputFile: lifecycle.outputFile,
+                  model: profile.modelSelection
+                    ? `${profile.modelSelection.providerId}/${profile.modelSelection.modelId}`
+                    : undefined,
+                },
+              );
+              readyGate.resolve();
+            },
+            onSessionStartFailed: readyGate.reject,
+          },
+          taskAbort.dispose,
+        );
+        trackBackgroundRunSettlement(options, lifecycle, settlement);
+        settlePrelaunch();
+        try {
+          await readyGate.promise;
+        } catch (error) {
+          taskAbort.abort(error);
+          removeRuntimeTaskExecutionIfNonterminal(registry, lifecycle);
+          await completeRuntimeTaskFailoverTarget(options, lifecycle);
+          throw error;
+        }
 
-      options.logger?.info("Explore subagent background task started", {
-        ...traceContextToLogContext(lifecycle.runTraceContext),
-        agentId: lifecycle.agentId,
-        agentType: request.agentType,
-        event: "subagent.background.started",
-        module: "core.subagent",
-        parentToolCallId: request.parentToolCallId,
-        status: "started",
-      });
-      return output;
+        options.logger?.info("Explore subagent background task started", {
+          ...traceContextToLogContext(lifecycle.runTraceContext),
+          agentId: lifecycle.agentId,
+          agentType: request.agentType,
+          event: "subagent.background.started",
+          module: "core.subagent",
+          parentToolCallId: request.parentToolCallId,
+          status: "started",
+        });
+        return output;
+      } finally {
+        settlePrelaunch();
+      }
     },
 
     async getTask(taskId: string): Promise<SubagentTaskSnapshot | undefined> {
@@ -548,20 +605,22 @@ export function createExploreSubagentPort(options: ExploreSubagentPortOptions): 
       taskId: string,
       stopOptions?: SubagentStopOptions,
     ): Promise<SubagentTaskSnapshot | undefined> {
-      if (stopOptions?.signal?.aborted) {
-        throw stopOptions.signal.reason ?? new Error("Subagent stop aborted");
-      }
-      const task = registry.get(taskId);
-      if (!task || task.type !== "local_agent") return task;
-      if (isTerminalRuntimeTask(task)) return task;
+      return mutateSubagentTask(options, taskId, async () => {
+        if (stopOptions?.signal?.aborted) {
+          throw stopOptions.signal.reason ?? new Error("Subagent stop aborted");
+        }
+        const task = registry.get(taskId);
+        if (!task || task.type !== "local_agent") return task;
+        if (isTerminalRuntimeTask(task)) return task;
 
-      const stopped = createBackgroundStoppedTask(registry, task);
-      if (!stopped) return undefined;
-      return finalizeBackgroundStopped(options, registry, stopped, () => {
-        abortControllers
-          .get(taskId)
-          ?.abort(new Error(`${BACKGROUND_AGENT_STOPPED_STATE.message}: ${taskId}`));
-        abortControllers.delete(taskId);
+        const stopped = createBackgroundStoppedTask(registry, task);
+        if (!stopped) return registry.get(taskId);
+        return finalizeBackgroundStopped(options, registry, stopped, () => {
+          abortControllers
+            .get(taskId)
+            ?.abort(new Error(`${BACKGROUND_AGENT_STOPPED_STATE.message}: ${taskId}`));
+          abortControllers.delete(taskId);
+        });
       });
     },
 
@@ -905,32 +964,34 @@ async function sendMessageToLocalAgent(
   request: SubagentSendMessageRequest,
   sendOptions?: SubagentSendMessageOptions,
 ): Promise<SubagentSendMessageResult> {
-  if (sendOptions?.signal?.aborted) {
-    return createSendMessageFailure(request, `SendMessage was aborted for ${request.to}.`);
-  }
+  return mutateSubagentTask(options, request.to, async () => {
+    if (sendOptions?.signal?.aborted) {
+      return createSendMessageFailure(request, `SendMessage was aborted for ${request.to}.`);
+    }
 
-  const task = registry.get(request.to);
-  if (!task || task.type !== "local_agent") {
-    return createSendMessageFailure(
+    const task = registry.get(request.to);
+    if (!task || task.type !== "local_agent") {
+      return createSendMessageFailure(
+        request,
+        `No active local_agent task found for target ${request.to}.`,
+      );
+    }
+
+    const message = createRuntimeTaskPendingMessage(request);
+    if (!isTerminalRuntimeTask(task)) {
+      return deliverMessageToRunningAgent(registry, task, message);
+    }
+
+    return resumeTerminalAgentInBackground(
+      options,
+      profiles,
+      registry,
+      abortControllers,
+      task,
       request,
-      `No active local_agent task found for target ${request.to}.`,
+      message,
     );
-  }
-
-  const message = createRuntimeTaskPendingMessage(request);
-  if (!isTerminalRuntimeTask(task)) {
-    return deliverMessageToRunningAgent(registry, task, message);
-  }
-
-  return resumeTerminalAgentInBackground(
-    options,
-    profiles,
-    registry,
-    abortControllers,
-    task,
-    request,
-    message,
-  );
+  });
 }
 
 async function deliverMessageToRunningAgent(
@@ -961,6 +1022,7 @@ async function resumeTerminalAgentInBackground(
   request: SubagentSendMessageRequest,
   message: RuntimeTaskPendingMessage,
 ): Promise<SubagentSendMessageResult> {
+  assertSubagentRunAdmission(options);
   const profile = profiles.find((candidate) => candidate.name === task.agentType);
   if (!profile) {
     return createSendMessageFailure(
@@ -968,97 +1030,113 @@ async function resumeTerminalAgentInBackground(
       `Cannot resume local agent ${task.agentId}: profile ${task.agentType} is unavailable.`,
     );
   }
-
-  const resumeRequest: SubagentRunRequest = {
-    sessionId: request.sessionId,
-    turnId: request.turnId,
-    parentToolCallId: request.parentToolCallId,
-    agentType: task.agentType,
-    description: request.summary || task.description,
-    prompt: request.message,
-    workingDirectory: request.workingDirectory,
-    workspaceRoot: request.workspaceRoot,
-    trace: request.trace,
-  };
-  const lifecycle = createSubagentLifecycleFromTask(options, resumeRequest, profile, task);
-  if (!lifecycle) {
-    return createSendMessageFailure(
-      request,
-      `Cannot resume local agent ${task.agentId}: missing child session id.`,
-    );
-  }
-  const startedAt = new Date(lifecycle.startedAt);
-  const previousTask = task;
-  registry.register(
-    createRuntimeTaskSnapshot({
-      isBackgrounded: true,
-      lifecycle,
-      request: resumeRequest,
-      startedAt,
-      status: "running",
-    }),
-  );
+  const settlePrelaunch = retainBackgroundPrelaunch(options);
   try {
+    // stopTask 只提交 registry 终态并发出 abort；provider/child runtime 仍可能迟到 settle。
+    // resume 必须等旧 finalizer 的 artifacts、registry CAS 与事件路径全部退出后再注册新代次。
+    await settleBackgroundRun(options, task.taskId);
+    // 同一 taskId 的 resume 会复用 policy registration。必须先等上一代终态 release 成功，
+    // 否则迟到的旧 retry 可能在新 child retain 之后误删新一代 registration。
+    await getRuntimeTaskTerminalCleanupOwner(options).settleTask(task.taskId);
+    assertSubagentRunAdmission(options);
+
+    const resumeRequest: SubagentRunRequest = {
+      sessionId: request.sessionId,
+      turnId: request.turnId,
+      parentToolCallId: request.parentToolCallId,
+      agentType: task.agentType,
+      description: request.summary || task.description,
+      prompt: request.message,
+      workingDirectory: request.workingDirectory,
+      workspaceRoot: request.workspaceRoot,
+      trace: request.trace,
+    };
+    const lifecycle = createSubagentLifecycleFromTask(options, resumeRequest, profile, task);
+    if (!lifecycle) {
+      return createSendMessageFailure(
+        request,
+        `Cannot resume local agent ${task.agentId}: missing child session id.`,
+      );
+    }
+    const startedAt = new Date(lifecycle.startedAt);
     await writeAgentMetadataFile(lifecycle, resumeRequest, "running", {
       resumedAt: new Date().toISOString(),
       resumedFromMessageId: message.id,
     });
-  } catch (error) {
-    // SendMessage resume setup 失败不能覆盖原 terminal task；
-    // 还原旧 snapshot，避免一个未启动的新 turn 卡成 running。
-    registry.register(previousTask);
-    throw error;
-  }
+    assertSubagentRunAdmission(options);
+    const current = registry.get(task.taskId);
+    if (!isSameRuntimeTaskExecution(current, task) || !isTerminalRuntimeTask(current)) {
+      return createSendMessageFailure(
+        request,
+        `Cannot resume local agent ${task.agentId}: task execution changed during preparation.`,
+      );
+    }
 
-  const taskAbort = createSubagentTaskAbortController(abortControllers, lifecycle.agentId);
-  const readyGate = createSubagentSessionReadyGate();
-  void runBackgroundAgent(
-    options,
-    resumeRequest,
-    lifecycle,
-    registry,
-    { signal: taskAbort.signal },
-    {
-      resumeFromStore: true,
-      onSessionReady: async () => {
-        await emitSubagentEvent(
-          options,
-          SessionEventType.SubagentSpawned,
-          resumeRequest,
-          lifecycle.runTraceContext,
-          {
-            agentId: lifecycle.agentId,
-            agentType: resumeRequest.agentType,
-            background: true,
-            childSessionId: lifecycle.childSessionId,
-            description: resumeRequest.description,
-            outputFile: lifecycle.outputFile,
-            parentToolCallId: resumeRequest.parentToolCallId,
-            prompt: resumeRequest.prompt,
-            resumed: true,
-            status: "running",
-          },
-        );
-        readyGate.resolve();
+    // 第二次 admission 是最后一个异步准备后的 commit gate；register、controller、runner 与
+    // settlement retain 必须处于同一同步片，shutdown 才不可能从中间穿过。
+    registry.register(
+      createRuntimeTaskSnapshot({
+        isBackgrounded: true,
+        lifecycle,
+        request: resumeRequest,
+        startedAt,
+        status: "running",
+      }),
+    );
+    const taskAbort = createSubagentTaskAbortController(abortControllers, lifecycle.agentId);
+    const readyGate = createSubagentSessionReadyGate();
+    const settlement = runBackgroundAgent(
+      options,
+      resumeRequest,
+      lifecycle,
+      registry,
+      { signal: taskAbort.signal },
+      {
+        resumeFromStore: true,
+        onSessionReady: async () => {
+          await emitSubagentEvent(
+            options,
+            SessionEventType.SubagentSpawned,
+            resumeRequest,
+            lifecycle.runTraceContext,
+            {
+              agentId: lifecycle.agentId,
+              agentType: resumeRequest.agentType,
+              background: true,
+              childSessionId: lifecycle.childSessionId,
+              description: resumeRequest.description,
+              outputFile: lifecycle.outputFile,
+              parentToolCallId: resumeRequest.parentToolCallId,
+              prompt: resumeRequest.prompt,
+              resumed: true,
+              status: "running",
+            },
+          );
+          readyGate.resolve();
+        },
+        onSessionStartFailed: readyGate.reject,
       },
-      onSessionStartFailed: readyGate.reject,
-    },
-    taskAbort.dispose,
-  );
-  try {
-    await readyGate.promise;
-  } catch (error) {
-    taskAbort.abort(error);
-    registry.register(previousTask);
-    throw error;
+      taskAbort.dispose,
+    );
+    trackBackgroundRunSettlement(options, lifecycle, settlement);
+    settlePrelaunch();
+    try {
+      await readyGate.promise;
+    } catch (error) {
+      taskAbort.abort(error);
+      restorePreviousTaskIfCurrentExecutionNonterminal(registry, lifecycle, task);
+      throw error;
+    }
+    // terminal 状态属于旧 snapshot，但 resume 输出路径属于新 lifecycle；
+    // 旧 snapshot 的可选 outputFile 不能用于本次 provider-visible 结果。
+    return createSendMessageSuccess(
+      { ...task, outputFile: lifecycle.outputFile },
+      message,
+      "resumed_background",
+    );
+  } finally {
+    settlePrelaunch();
   }
-  // terminal 状态属于旧 snapshot，但 resume 输出路径属于新 lifecycle；
-  // 旧 snapshot 的可选 outputFile 不能用于本次 provider-visible 结果。
-  return createSendMessageSuccess(
-    { ...task, outputFile: lifecycle.outputFile },
-    message,
-    "resumed_background",
-  );
 }
 
 function createRuntimeTaskPendingMessage(
@@ -1324,6 +1402,74 @@ function guardSubagentPromiseWithAbort<T>(
   });
 }
 
+function trackBackgroundRunSettlement(
+  options: ExploreSubagentPortOptions,
+  lifecycle: Pick<SubagentLifecycle, "agentId" | "runTraceContext">,
+  work: Promise<void>,
+): void {
+  const runnerOptions = getExploreSubagentRunnerOptions(options);
+  const settlement = work.catch((error: unknown) => {
+    // detached background finalizer 的错误必须有明确 owner；否则既会形成 unhandled rejection，
+    // 也会让 resume 无法判断旧代次是否已经退出全部副作用路径。
+    options.logger?.warn("Subagent background settlement failed", {
+      ...traceContextToLogContext(lifecycle.runTraceContext),
+      errorMessage: error instanceof Error ? error.message : String(error),
+      event: "subagent.background.settlement_failed",
+      module: "core.subagent",
+      taskId: lifecycle.agentId,
+    });
+  });
+  runnerOptions.backgroundRunSettlements.set(lifecycle.agentId, settlement);
+  options.retainBackgroundRunSettlement?.(settlement);
+  void settlement.then(() => {
+    if (runnerOptions.backgroundRunSettlements.get(lifecycle.agentId) === settlement) {
+      runnerOptions.backgroundRunSettlements.delete(lifecycle.agentId);
+    }
+  });
+}
+
+function retainBackgroundPrelaunch(options: ExploreSubagentPortOptions): () => void {
+  if (!options.retainBackgroundRunSettlement) return () => undefined;
+  let resolvePreparation!: () => void;
+  const preparation = new Promise<void>((resolve) => {
+    resolvePreparation = resolve;
+  });
+  let settled = false;
+  options.retainBackgroundRunSettlement(preparation);
+  return () => {
+    if (settled) return;
+    settled = true;
+    resolvePreparation();
+  };
+}
+
+async function settleBackgroundRun(
+  options: ExploreSubagentPortOptions,
+  taskId: string,
+): Promise<void> {
+  await getExploreSubagentRunnerOptions(options).backgroundRunSettlements.get(taskId);
+}
+
+async function mutateSubagentTask<T>(
+  options: ExploreSubagentPortOptions,
+  taskId: string,
+  mutation: () => Promise<T>,
+): Promise<T> {
+  const mutations = getExploreSubagentRunnerOptions(options).taskMutations;
+  const previous = mutations.get(taskId) ?? Promise.resolve();
+  const operation = previous.then(mutation);
+  const tail = operation.then(
+    () => undefined,
+    () => undefined,
+  );
+  mutations.set(taskId, tail);
+  try {
+    return await operation;
+  } finally {
+    if (mutations.get(taskId) === tail) mutations.delete(taskId);
+  }
+}
+
 async function runBackgroundAgent(
   options: ExploreSubagentPortOptions,
   request: SubagentRunRequest,
@@ -1336,6 +1482,7 @@ async function runBackgroundAgent(
   let sessionReady = false;
   try {
     if (isTerminalRuntimeTask(registry.get(lifecycle.agentId) ?? { status: "lost" })) {
+      await completeRuntimeTaskFailoverTarget(options, lifecycle);
       return;
     }
     const completed = await runAgentToCompletion(
@@ -1468,6 +1615,67 @@ function createRuntimeTaskSnapshot(input: {
   };
 }
 
+function isRuntimeTaskExecutionCurrent(
+  task: RuntimeTaskSnapshot | undefined,
+  lifecycle: Pick<SubagentLifecycle, "agentId" | "runTraceContext">,
+): task is RuntimeTaskSnapshot {
+  if (!task || task.taskId !== lifecycle.agentId) return false;
+  const taskSpanId = task.traceContext?.spanId;
+  const lifecycleSpanId = lifecycle.runTraceContext.spanId;
+  return taskSpanId !== undefined && taskSpanId === lifecycleSpanId;
+}
+
+function isSameRuntimeTaskExecution(
+  current: RuntimeTaskSnapshot | undefined,
+  expected: RuntimeTaskSnapshot,
+): current is RuntimeTaskSnapshot {
+  const expectedSpanId = expected.traceContext?.spanId;
+  return (
+    current?.taskId === expected.taskId &&
+    expectedSpanId !== undefined &&
+    current.traceContext?.spanId === expectedSpanId
+  );
+}
+
+function removeRuntimeTaskExecutionIfNonterminal(
+  registry: RuntimeTaskRegistry,
+  lifecycle: Pick<SubagentLifecycle, "agentId" | "runTraceContext">,
+): void {
+  const current = registry.get(lifecycle.agentId);
+  if (isRuntimeTaskExecutionCurrent(current, lifecycle) && !isTerminalRuntimeTask(current)) {
+    registry.remove(lifecycle.agentId);
+  }
+}
+
+function restorePreviousTaskIfCurrentExecutionNonterminal(
+  registry: RuntimeTaskRegistry,
+  lifecycle: Pick<SubagentLifecycle, "agentId" | "runTraceContext">,
+  previousTask: RuntimeTaskSnapshot,
+): void {
+  const current = registry.get(lifecycle.agentId);
+  if (isRuntimeTaskExecutionCurrent(current, lifecycle) && !isTerminalRuntimeTask(current)) {
+    registry.register(previousTask);
+  }
+}
+
+function commitRuntimeTaskTerminal(
+  registry: RuntimeTaskRegistry,
+  lifecycle: Pick<SubagentLifecycle, "agentId" | "runTraceContext">,
+  commit: (current: RuntimeTaskSnapshot) => RuntimeTaskSnapshot,
+): RuntimeTaskSnapshot | undefined {
+  let committed = false;
+  const task = registry.update(lifecycle.agentId, (current) => {
+    // artifact IO 期间 stop/resume 都可能推进 registry；终态提交必须按 execution span CAS。
+    // CAS 失败后旧 finalizer 直接退出，不能再写 notification、cleanup 或 completed/failed 事件。
+    if (!isRuntimeTaskExecutionCurrent(current, lifecycle) || isTerminalRuntimeTask(current)) {
+      return current;
+    }
+    committed = true;
+    return commit(current);
+  });
+  return committed ? task : undefined;
+}
+
 function withoutRuntimeMessageState(task: RuntimeTaskSnapshot): RuntimeTaskSnapshot {
   const { messageSink: _messageSink, pendingMessages: _pendingMessages, ...snapshot } = task;
   return snapshot;
@@ -1516,7 +1724,7 @@ async function finalizeBackgroundCompletion(
     usage: completed.output.usage,
   });
   const completedAt = new Date();
-  const task = registry.update(lifecycle.agentId, (current) => ({
+  const task = commitRuntimeTaskTerminal(registry, lifecycle, (current) => ({
     ...withoutRuntimeMessageState(current),
     status: "completed",
     completedAt,
@@ -1528,6 +1736,8 @@ async function finalizeBackgroundCompletion(
       totalTokens: completed.output.totalTokens,
     },
   }));
+  if (!task) return;
+  await completeRuntimeTaskFailoverTarget(options, lifecycle);
   enqueueBackgroundNotification(
     options,
     registry,
@@ -1597,7 +1807,7 @@ async function finalizeBackgroundFailure(
     status: "failed",
     totalDurationMs,
   });
-  const task = registry.update(lifecycle.agentId, (current) => ({
+  const task = commitRuntimeTaskTerminal(registry, lifecycle, (current) => ({
     ...withoutRuntimeMessageState(current),
     status: "failed",
     completedAt,
@@ -1606,6 +1816,8 @@ async function finalizeBackgroundFailure(
       durationMs: totalDurationMs,
     },
   }));
+  if (!task) return;
+  await completeRuntimeTaskFailoverTarget(options, lifecycle);
   enqueueBackgroundNotification(
     options,
     registry,
@@ -1646,7 +1858,6 @@ async function finalizeBackgroundFailure(
 }
 
 interface StoppedBackgroundAgentTask {
-  previousTask: RuntimeTaskSnapshot;
   task: RuntimeTaskSnapshot;
   totalDurationMs: number;
   traceContext: TraceContext;
@@ -1680,7 +1891,7 @@ function createBackgroundStoppedTask(
   };
 
   const traceContext = traceContextFromRuntimeTask(stopped);
-  return { previousTask: current, task: stopped, totalDurationMs, traceContext };
+  return { task: stopped, totalDurationMs, traceContext };
 }
 
 async function finalizeBackgroundStopped(
@@ -1699,10 +1910,21 @@ async function finalizeBackgroundStopped(
     totalDurationMs: stopped.totalDurationMs,
   });
   await writeStoppedAgentArtifacts(stopped.task);
-  registry.update(stopped.task.taskId, (current) => ({
-    ...stopped.task,
-    notified: current.notified,
-  }));
+  const committed = commitRuntimeTaskTerminal(
+    registry,
+    {
+      agentId: stopped.task.taskId,
+      runTraceContext: stopped.traceContext,
+    },
+    (current) => ({
+      ...stopped.task,
+      notified: current.notified,
+    }),
+  );
+  // provider finalizer 与 stop 竞争同一个 execution 终态；CAS 输的一方不能再 abort、
+  // 通知或 release，否则会重复终态事件，甚至误伤同 taskId 后续代次的 controller。
+  if (!committed) return registry.get(stopped.task.taskId);
+  onCommitted?.();
   const enqueued = enqueueBackgroundNotification(
     options,
     registry,
@@ -1710,16 +1932,16 @@ async function finalizeBackgroundStopped(
     notification,
     stopped.traceContext,
   );
+  await completeRuntimeTaskFailoverTarget(options, {
+    agentId: stopped.task.taskId,
+    runTraceContext: stopped.traceContext,
+  });
   if (!enqueued) {
-    registry.register(stopped.previousTask);
+    // registry 终态与 provider execution 已经收口，通知失败不能回滚成一个无人执行的 running task。
     throw new Error(
       `Background agent task stopped notification was not enqueued: ${stopped.task.taskId}`,
     );
   }
-
-  const committed = registry.get(stopped.task.taskId);
-  if (!committed) return undefined;
-  onCommitted?.();
 
   await emitRuntimeTaskBackgroundCompletedEvent(options, committed, stopped.traceContext);
   await emitRuntimeTaskSubagentStoppedEvent(
@@ -1904,6 +2126,183 @@ function traceContextFromRuntimeTask(task: RuntimeTaskSnapshot): TraceContext {
       turnId: task.turnId,
     }
   );
+}
+
+async function completeRuntimeTaskFailoverTarget(
+  options: ExploreSubagentPortOptions,
+  lifecycle: Pick<SubagentLifecycle, "agentId" | "runTraceContext">,
+): Promise<void> {
+  await getRuntimeTaskTerminalCleanupOwner(options).complete(lifecycle);
+}
+
+const RUNTIME_TASK_TERMINAL_CLEANUP_RETRY_DELAY_MS = 1_000;
+
+interface RuntimeTaskTerminalCleanupEntry {
+  attempt: number;
+  completion: Promise<void>;
+  generationId: string;
+  resolveCompletion(): void;
+  retryScheduled: boolean;
+  running: boolean;
+  settled: boolean;
+  taskId: string;
+  traceContext: TraceContext;
+}
+
+export function createRuntimeTaskTerminalCleanupOwner(
+  options: ExploreSubagentPortOptions,
+): RuntimeTaskTerminalCleanupOwner {
+  const config = options.runtimeTaskTerminalCleanup;
+  if (!config) {
+    return {
+      complete: async () => undefined,
+      settleTask: async () => undefined,
+    };
+  }
+  if (typeof config.release !== "function" || typeof config.retain !== "function") {
+    throw new Error("Runtime task terminal cleanup release requires a retaining cleanup owner.");
+  }
+
+  const pendingByTaskId = new Map<string, RuntimeTaskTerminalCleanupEntry>();
+  // taskId 可通过 SendMessage resume 复用；必须记住端口生命周期内所有已完成代次。
+  // 只记“最后一代”会让旧 terminal 在新代完成后再次 release，误删新 registration。
+  const completedGenerations = new Set<string>();
+
+  const runCleanup = async (entry: RuntimeTaskTerminalCleanupEntry): Promise<void> => {
+    if (entry.running || entry.settled) return;
+    entry.running = true;
+    entry.attempt += 1;
+    try {
+      await config.release(entry.taskId, entry.traceContext);
+    } catch (error) {
+      entry.running = false;
+      // registry 终态已经提交，不能让一次 policy append 失败把任务改写成 failed。
+      // 句柄留在唯一 owner 中并由父 Runtime residency 持有，直到幂等 release 成功。
+      options.logger?.warn("Execution failover task target cleanup failed; retry scheduled", {
+        ...traceContextToLogContext(entry.traceContext),
+        attempt: entry.attempt,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        event: "model.failover.task_target_cleanup_retry_scheduled",
+        module: "core.subagent",
+        taskId: entry.taskId,
+      });
+      if (!entry.retryScheduled) {
+        entry.retryScheduled = true;
+        const retry = (): void => {
+          entry.retryScheduled = false;
+          void runCleanup(entry);
+        };
+        try {
+          (config.scheduleRetry ?? scheduleRuntimeTaskTerminalCleanupRetry)(
+            retry,
+            RUNTIME_TASK_TERMINAL_CLEANUP_RETRY_DELAY_MS,
+          );
+        } catch (scheduleError) {
+          options.logger?.warn("Execution failover cleanup retry scheduler failed", {
+            ...traceContextToLogContext(entry.traceContext),
+            errorMessage:
+              scheduleError instanceof Error ? scheduleError.message : String(scheduleError),
+            event: "model.failover.task_target_cleanup_retry_scheduler_failed",
+            module: "core.subagent",
+            taskId: entry.taskId,
+          });
+          scheduleRuntimeTaskTerminalCleanupRetry(
+            retry,
+            RUNTIME_TASK_TERMINAL_CLEANUP_RETRY_DELAY_MS,
+          );
+        }
+      }
+      return;
+    }
+
+    entry.running = false;
+    entry.settled = true;
+    if (pendingByTaskId.get(entry.taskId) === entry) {
+      pendingByTaskId.delete(entry.taskId);
+    }
+    completedGenerations.add(entry.generationId);
+    entry.resolveCompletion();
+  };
+
+  const complete: RuntimeTaskTerminalCleanupOwner["complete"] = async (lifecycle) => {
+    const generationId = runtimeTaskTerminalCleanupGeneration(lifecycle);
+    if (completedGenerations.has(generationId)) return;
+
+    const pending = pendingByTaskId.get(lifecycle.agentId);
+    if (pending) {
+      if (pending.generationId === generationId) return;
+      await pending.completion;
+      return complete(lifecycle);
+    }
+
+    let resolveCompletion!: () => void;
+    const completion = new Promise<void>((resolve) => {
+      resolveCompletion = resolve;
+    });
+    const entry: RuntimeTaskTerminalCleanupEntry = {
+      attempt: 0,
+      completion,
+      generationId,
+      resolveCompletion,
+      retryScheduled: false,
+      running: false,
+      settled: false,
+      taskId: lifecycle.agentId,
+      traceContext: lifecycle.runTraceContext,
+    };
+    pendingByTaskId.set(entry.taskId, entry);
+    try {
+      // retain 必须在 release 的第一个 await 之前同步发生，避免 session pool 在失败窗口关闭 Runtime。
+      config.retain(completion);
+    } catch (error) {
+      pendingByTaskId.delete(entry.taskId);
+      throw error;
+    }
+    await runCleanup(entry);
+  };
+
+  return {
+    complete,
+    settleTask: async (taskId) => pendingByTaskId.get(taskId)?.completion,
+  };
+}
+
+function getRuntimeTaskTerminalCleanupOwner(
+  options: ExploreSubagentPortOptions,
+): RuntimeTaskTerminalCleanupOwner {
+  const owner = getExploreSubagentRunnerOptions(options).terminalCleanupOwner;
+  if (!owner) {
+    throw new Error("Runtime task terminal cleanup owner was not initialized.");
+  }
+  return owner;
+}
+
+function getExploreSubagentRunnerOptions(
+  options: ExploreSubagentPortOptions,
+): ExploreSubagentRunnerOptions {
+  const runnerOptions = options as Partial<ExploreSubagentRunnerOptions>;
+  if (!runnerOptions.backgroundRunSettlements || !runnerOptions.taskMutations) {
+    throw new Error("Explore subagent runner state was not initialized.");
+  }
+  return runnerOptions as ExploreSubagentRunnerOptions;
+}
+
+function assertSubagentRunAdmission(options: ExploreSubagentPortOptions): void {
+  if (options.acceptRun?.() !== false) return;
+  // shutdown 后再启动 child 会落在 store durable drain 观察为空之后，形成无人持有的写入路径。
+  throw new Error("Runtime is shutting down; subagent admission is closed.");
+}
+
+function runtimeTaskTerminalCleanupGeneration(
+  lifecycle: Pick<SubagentLifecycle, "agentId" | "runTraceContext">,
+): string {
+  const context = lifecycle.runTraceContext;
+  return `${lifecycle.agentId}:${context.spanId ?? `${context.traceId}:${context.turnId ?? ""}`}`;
+}
+
+function scheduleRuntimeTaskTerminalCleanupRetry(retry: () => void, delayMs: number): void {
+  // cleanup 是 durable policy/eligibility 收口；成功前 timer 必须保活，不能随进程空闲退出。
+  setTimeout(retry, delayMs);
 }
 
 async function emitSubagentEvent(

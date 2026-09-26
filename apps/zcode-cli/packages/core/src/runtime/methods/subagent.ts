@@ -55,6 +55,7 @@ import {
   type OfficialCuaPolicy,
 } from "../../subagent/computer-use-policy.js";
 import { computeOfficialCuaServerNames } from "./mcp.js";
+import { retainSessionStoreDependentCloseWork } from "./session-store-dependent-close-work.js";
 
 export function createDefaultSubagentPort(
   this: AgentRuntimeInternal,
@@ -65,6 +66,7 @@ export function createDefaultSubagentPort(
   }
 
   return createExploreSubagentPort({
+    acceptRun: () => !this.shuttingDown,
     logger: this.logger,
     inactivityTimeoutMs: this.config.subagents?.inactivityTimeoutMs,
     autoBackgroundMs: this.config.subagents?.autoBackgroundMs,
@@ -72,6 +74,16 @@ export function createDefaultSubagentPort(
     profiles: this.config.subagents?.profiles,
     builtInModelSelectionOverrides: this.config.subagents?.builtInModelSelectionOverrides,
     runtimeTaskRegistry: this.runtimeTaskRegistry,
+    retainBackgroundRunSettlement: (work) => {
+      retainSessionStoreDependentCloseWork(this, work);
+    },
+    runtimeTaskTerminalCleanup: {
+      release: (taskId, traceContext) =>
+        this.executionFailoverPolicyPort.release({ backgroundWorkId: taskId }, traceContext),
+      retain: (work) => {
+        retainSessionStoreDependentCloseWork(this, work);
+      },
+    },
     emitParentEvent: async (event, traceContext) => {
       if (isStaleBranchRuntimeTaskEvent(this, event)) return;
       await this.appendEvent(event, traceContext);
@@ -92,6 +104,7 @@ export function createDefaultSubagentPort(
     },
     runExploreAgent: async (request, options) => {
       request.reportActivity?.();
+      const parentForegroundExecutionId = this.activeForegroundExecution?.foregroundExecutionId;
       const builtInExplore = isBuiltInExploreAgentProfile(request.profile);
       const agentsMdInstructions =
         request.profile.injectAgentsMd !== false
@@ -196,6 +209,10 @@ export function createDefaultSubagentPort(
         );
       }
       const childModel = baseChildModelFactory({ selection: childSelection });
+      this.runtimeTaskRegistry.update(request.agentId, (task) => ({
+        ...task,
+        modelSelection: modelSelectionFromActiveModel(childModel),
+      }));
       const childModelFactory: NonNullable<AgentRuntimeDeps["modelFactory"]> = (target) =>
         target.selection.providerId === childSelection.providerId &&
         target.selection.modelId === childSelection.modelId &&
@@ -300,6 +317,16 @@ export function createDefaultSubagentPort(
           // 它们该与父一样喂治理器信号（父是 observer 则子也是 observer）。
           modelRequestAdmission: this.modelRequestAdmission,
           modelFactory: childModelFactory,
+          failoverModelFactory: this.failoverModelFactory,
+          ...(parentForegroundExecutionId
+            ? {
+                executionFailoverPolicyPort: this.executionFailoverPolicyPort,
+                executionFailoverScope: {
+                  backgroundWorkId: request.agentId,
+                  foregroundExecutionId: parentForegroundExecutionId,
+                },
+              }
+            : {}),
           resolveEffectiveModelSelection: deps.resolveEffectiveModelSelection,
           // 子 runtime 自己仍使用 request.sessionId 做事件持久化和 trace 归档；对外阻塞交互
           // （permission / AskUserQuestion / provider runtime headers）一律路由回父 session——

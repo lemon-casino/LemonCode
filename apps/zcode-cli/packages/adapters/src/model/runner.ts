@@ -368,11 +368,9 @@ function projectRequestHistory(
   request: AiSdkModelTextRequest,
   resolved: ResolvedAiSdkModel,
 ): AiSdkModelTextRequest {
-  if (resolved.providerKind !== "anthropic") return request;
-
-  // 结构归一化过去位于每次物理请求都会经过的 serializer，签名修复重试
-  // 因而会再次删除上一轮刚补出的 assistant 占位并合并 user。逻辑请求入口只投影一次，
-  // 后续 attempt 只能复用或从这份 request-local history 派生。
+  // 跨供应商时，Anthropic signature、OpenAI item reference 等私有 reasoning 元数据
+  // 都不能进入目标请求。统一在逻辑请求入口投影一次；后续物理 attempt 只复用副本，
+  // 避免重复结构修复改变消息轮次。
   const messages = normalizeReasoningHistory(request.messages, {
     providerId: resolved.providerId,
     modelId: resolved.modelId,

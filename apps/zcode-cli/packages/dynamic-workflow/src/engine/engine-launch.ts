@@ -10,18 +10,20 @@ import type {
   WorkflowActorModelOverride,
   WorkflowAskRevision,
   WorkflowModelSelection,
+  WorkflowRunModelProvenance,
 } from "./types.js";
 
 /**
  * 发起 run 那一轮随 `run-launched` 同车的宿主元数据（EngineConfig.launch）：锚点 `inputId`、
  * 脚本声明的阶段表 `phaseNames`、与之按位置对齐的 `phaseAlongside`、本 run 子代理的选型
- * `subagentModel`、脚本来自哪个文件 `scriptPath`。五者引擎都不读——字段语义见 types.ts 里
+ * `subagentModel`、默认模型 provenance、脚本来自哪个文件 `scriptPath`。这些字段引擎都不读——语义见 types.ts 里
  * `run-launched` 的注释。
  */
 export interface RunLaunchConfig {
   inputId: string;
   phaseNames?: string[];
   subagentModel?: string;
+  subagentModelProvenance?: WorkflowRunModelProvenance;
   subagentSelection?: WorkflowModelSelection;
   sessionSelection?: WorkflowModelSelection;
   actorModelOverrides?: WorkflowActorModelOverride[];
@@ -45,6 +47,7 @@ export function runLaunchedEvent(
     inputId,
     phaseNames,
     subagentModel,
+    subagentModelProvenance,
     subagentSelection,
     sessionSelection,
     actorModelOverrides,
@@ -60,6 +63,7 @@ export function runLaunchedEvent(
     ...(origin.parentSessionId === undefined ? {} : { parentSessionId: origin.parentSessionId }),
     ...(phaseNames === undefined ? {} : { phaseNames }),
     ...(subagentModel === undefined ? {} : { subagentModel }),
+    ...(subagentModelProvenance === undefined ? {} : { subagentModelProvenance }),
     ...(subagentSelection === undefined ? {} : { subagentSelection }),
     ...(sessionSelection === undefined ? {} : { sessionSelection }),
     ...(actorModelOverrides === undefined ? {} : { actorModelOverrides }),

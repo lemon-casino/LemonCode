@@ -12,6 +12,7 @@ import type {
   ForkChildSessionMetadata,
   ModelRequestAuth,
   ModelRequestDependencies,
+  ModelRetryYieldGate,
   ModelSelection,
   PluginReferenceCatalog,
   ResolvedUserInstructions,
@@ -23,6 +24,11 @@ import type {
 import type { ZCodeProviderAccountAccess } from "@zcode/shared";
 import type { EffectiveModelSelectionResult } from "@zcode/shared/model-selection";
 import type { RuntimeMessageEntry } from "../agent/message-history.js";
+import type {
+  ExecutionFailoverPolicyPort,
+  ExecutionFailoverScope,
+  ExecutionFailoverScopeLifetime,
+} from "./methods/model-failover-policy.js";
 import type {
   CompactPhase,
   CompactReason,
@@ -315,6 +321,15 @@ export interface AgentRuntimeDeps {
   sessionStore?: SessionStorePort;
   sessionMailboxPort?: SessionMailboxPort;
   modelFactory: RuntimeModelFactory;
+  /** 跨供应商接管只用原始 factory；子代理的 profile/override factory 仍只决定初始模型。 */
+  failoverModelFactory?: RuntimeModelFactory;
+  /** 子 runtime 只有显式注入这两个 execution 字段才继承父策略。 */
+  executionFailoverPolicyPort?: ExecutionFailoverPolicyPort;
+  executionFailoverScope?: ExecutionFailoverScope;
+  /** 普通子代理由 registry 终态 owner 释放；持久 workflow actor 随 runtime close 释放。 */
+  executionFailoverScopeLifetime?: ExecutionFailoverScopeLifetime;
+  /** 仅由宿主为持久 actor 注入；Core 不依赖 workflow journal 的具体实现。 */
+  executionFailoverSelectionSink?: (selection: ModelSelection) => Promise<void> | void;
   /** 可选宿主能力：解析未来执行的显式意图；不用于修改已冻结 Model。 */
   resolveEffectiveModelSelection?: (selection: ModelSelection) => EffectiveModelSelectionResult;
   modelIoDir?: string;
@@ -511,6 +526,7 @@ export interface ContinueActiveTargetLoopOptions {
 
 export interface ActiveForegroundExecutionState {
   controller: AbortController;
+  currentModelSelection?: ModelSelection;
   disposeParentAbort: () => void;
   foregroundExecutionId: string;
   preserveQueueAutoDrainOnCancel: boolean;
@@ -824,6 +840,12 @@ export interface RunModelTextRequestOptions {
   /** 与 messages 按索引对应的 canonical 来源，仅用于本地用量统计。 */
   sourceEntries?: readonly (RuntimeMessageEntry | undefined)[];
   model: Model;
+  /** 当前 execution 固定的模型创建依赖，仅供 failover 预检和目标构造透传。 */
+  requestDependencies?: ModelRequestDependencies;
+  /** 已绑定当前 loop state 的重试让渡决策；compact/sidecar 请求不设置。 */
+  shouldYieldRetryToFailover?: ModelRetryYieldGate;
+  /** retry-yield claim 失配后，仅供同 selection 的下一次 Adapter 请求延续 retry budget。 */
+  retryAttemptOffset?: number;
   onStreamSnapshot?: (snapshot: RuntimeModelStreamSnapshot) => void;
   onStreamReasoningDelta?: (text: string) => void;
   onStreamTextDelta?: (text: string) => void;

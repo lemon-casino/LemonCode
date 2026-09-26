@@ -89,6 +89,29 @@ export interface ModelRequestTarget {
   modelId: string;
 }
 
+/**
+ * Adapter 准备安排下一次物理重试时交给 Runtime 的只读失败事实。
+ * Runtime 只能据此让出本 Provider 的重试；模型切换仍由 Core 在稳定 model-step 边界完成。
+ */
+export interface ModelRetryYieldInput extends ModelRequestTarget {
+  attempt: number;
+  errorCode?: ModelErrorCode;
+  reason: ModelFailureReason;
+  retryable: boolean;
+  statusCode?: number;
+}
+
+/** Core 在 failover policy 串行队列内作出的只读让渡决定。 */
+export interface ModelRetryYieldDecision {
+  policyRevision?: number;
+  shouldYield: boolean;
+  sourceCommandId?: string;
+}
+
+export type ModelRetryYieldGate = (
+  input: ModelRetryYieldInput,
+) => boolean | ModelRetryYieldDecision | Promise<boolean | ModelRetryYieldDecision>;
+
 export type ModelRequestSessionType =
   (typeof ModelRequestSessionType)[keyof typeof ModelRequestSessionType];
 
@@ -667,6 +690,16 @@ export interface ModelTextRequest extends ModelRequestSettings {
    * 结束即 release。与 statusSink 同族：不进 JSON schema、不进 provider 请求。
    */
   modelRequestAdmission?: ModelRequestAdmission;
+  /**
+   * Runtime-only 重试让出闸门。用户已请求安全切换时，Adapter 不再向旧模型发起下一次
+   * 物理请求，而是把结构化失败抛回 Core；当前在途请求不会因此被取消。
+   */
+  shouldYieldRetryToFailover?: ModelRetryYieldGate;
+  /**
+   * Runtime-only retry continuation offset. Core 只在 retry-yield 接管失配且 selection 未变时
+   * 一次性设置；Adapter 用它延续原请求的全局 attempt 编号与有界预算。
+   */
+  retryAttemptOffset?: number;
   /**
    * Runtime-only SSE idle timeout 递增序号。0/undefined 表示首请求；
    * 每重试一次在 adapter base timeout 上加 30000ms。

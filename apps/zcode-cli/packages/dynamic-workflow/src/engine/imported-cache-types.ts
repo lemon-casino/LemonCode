@@ -5,6 +5,7 @@
 // journal 构建，引擎只查表。
 
 import type { AskStats, NodeKind, PersonaSpec } from "./types.js";
+import type { ActorModelBinding } from "./actor-model-provenance.js";
 
 /**
  * 一条可导入的已完结 ask：前驱 run 里某具名 actor 第 `actorSeq` 次问答的结果。
@@ -26,7 +27,7 @@ export interface ImportedAskEntry {
 /**
  * 前驱 run 里一个具名 actor 的可导入前缀。由 run service 从前驱 journal 构建（纯确定，可重建）。
  */
-export interface ImportedActorCandidate {
+export interface ImportedActorCandidate extends ActorModelBinding {
   /** 前驱记录的规范化 persona——运行期 createActor 比对用（不一致即弃该候选）。 */
   persona: PersonaSpec;
   /** 最长全 completed ask 前缀，按 actorSeq 0..n-1 索引。 */
@@ -36,11 +37,6 @@ export interface ImportedActorCandidate {
    * 持有该 actor 会话的候选在 service 侧就已弃置（降级为全新 actor），所以这里不是可选。
    */
   transcriptSourceSessionId: string;
-  /**
-   * 前驱解析出的模型 pin，随种子带给 driver。**仅当真的导入了转录时生效**：一条也没命中的
-   * actor 走全新解析、不带 pin（见 scheduler 的 ensureSession）。
-   */
-  resolvedModel?: string;
 }
 
 /** 一条可导入的世界节点（world-read / world-run），按内容 + 出现序匹配。 */

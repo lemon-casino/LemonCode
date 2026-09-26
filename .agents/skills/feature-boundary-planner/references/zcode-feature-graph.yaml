@@ -43,6 +43,32 @@ nodes:
     invariants:
       - "Shared model controls do not share commit effects: conversation commands, automation records
         and Subagent configuration have separate owners."
+  - id: capability.execution-model-failover
+    kind: capability
+    label: Active execution model provider failover
+    aliases:
+      - failover override
+      - running model fallback
+      - provider failover
+      - 运行中模型故障切换
+      - 供应商故障接管
+    codeSeeds:
+      - file: packages/ui/src/v4/SessionPane.tsx
+        symbol: handleSelectModel
+      - file: apps/zcode-cli/packages/bootstrap/src/zcode-protocol-v4/command-inbox.ts
+        symbol: CommandInbox
+      - file: apps/zcode-cli/packages/core/src/runtime/methods/turn-model-step.ts
+        symbol: runModelBackedTurnStep
+    invariants:
+      - "A running selection arms an execution-ID-scoped graceful handoff; in-flight requests and
+        started tools finish, then activation occurs at the next safe model request boundary or an
+        eligible provider-failure recovery boundary."
+      - "Workflow actors inherit only when model provenance is session-inherited; explicit run,
+        script actor, approved override and resume-pin selections remain isolated from the parent
+        execution handoff."
+      - "Runtime-lifetime failover registrations are the sole source of reusable workflow actor
+        eligibility; the renderer consumes their bounded projection and never infers eligibility
+        from workflow presentation state."
   - id: surface.conversation-model-control
     kind: ui-surface
     label: Conversation composer model control
@@ -355,6 +381,12 @@ nodes:
     codeSeeds:
       - file: apps/zcode-cli/packages/core/src/runtime/methods/turn-model.ts
         symbol: applySubmissionExecutionState
+  - id: service.runtime-model-request-boundary
+    kind: service
+    label: Runtime model-backed request and failover boundary
+    codeSeeds:
+      - file: apps/zcode-cli/packages/core/src/runtime/methods/turn-model-step.ts
+        symbol: runModelBackedTurnStep
 edges:
   - from: capability.model-selection
     to: surface.conversation-model-control
@@ -598,3 +630,29 @@ edges:
     type: emits-model-selection-for
     rank: must-inspect
     condition: Applied runtime model selection is projected through ModelSelected events.
+  - from: capability.execution-model-failover
+    to: surface.conversation-model-control
+    type: arms-from
+    rank: must-inspect
+    condition: Model selection always updates the next-submission draft before it may arm active targets.
+  - from: capability.execution-model-failover
+    to: service.conversation-command-inbox
+    type: requires-admission-through
+    rank: must-inspect
+    condition: Running overrides are ordered and deduplicated by CommandInbox without conversation CAS.
+  - from: capability.execution-model-failover
+    to: service.runtime-model-request-boundary
+    type: activates-at
+    rank: must-inspect
+    condition:
+      In-flight requests and started tools complete; user-requested handoff activates at the next safe
+      model step, while eligible structured failures activate at a recovery boundary.
+  - from: capability.execution-model-failover
+    to: capability.subagents
+    type: inherits-within-execution-lineage
+    rank: conditional
+    condition: Existing work IDs are targeted explicitly and later children inherit from the same foreground execution.
+  - from: service.runtime-model-request-boundary
+    to: state.conversation-product-projection
+    type: projects-failover-state-through
+    rank: must-inspect

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { SharedZCodeCredentialStore } from "@zcode/adapters/auth";
+import { ModelErrorCode, ModelFailureReason, ModelProtocolError } from "@zcode/contracts";
 import type { ProviderRuntimeHeadersPort } from "@zcode/core";
 import {
   createAccountProviderConfigSnapshot,
@@ -184,8 +185,14 @@ export function createStandaloneProviderRuntimeHeadersPort(
       const currentIdentity = (
         await credentialStore.load(standaloneAccountIdentityCredentialKey(providerId))
       )?.trim();
+      // 凭据读取是异步 IO；取消必须先于迟到的缺凭据结果生效，不能误触发认证接管。
+      input.abortSignal?.throwIfAborted();
       if (!currentIdentity)
-        throw new Error(`Standalone Account Provider 凭据已经失效: ${providerId}`);
+        throw createStandaloneRequestAuthMissingError({
+          message: `Standalone Account Provider 凭据已经失效: ${providerId}`,
+          modelId: input.modelId,
+          providerId,
+        });
       const apiKey = (
         await credentialStore.load(
           standaloneAccountProviderCredentialKey({
@@ -194,8 +201,13 @@ export function createStandaloneProviderRuntimeHeadersPort(
           }),
         )
       )?.trim();
+      input.abortSignal?.throwIfAborted();
       if (!apiKey) {
-        throw new Error(`Standalone Account Provider 缺少请求凭据: ${providerId}`);
+        throw createStandaloneRequestAuthMissingError({
+          message: `Standalone Account Provider 缺少请求凭据: ${providerId}`,
+          modelId: input.modelId,
+          providerId,
+        });
       }
       return {
         headersApplied: true,
@@ -203,4 +215,17 @@ export function createStandaloneProviderRuntimeHeadersPort(
       };
     },
   };
+}
+
+function createStandaloneRequestAuthMissingError(input: {
+  message: string;
+  modelId: string;
+  providerId: string;
+}): ModelProtocolError {
+  return new ModelProtocolError(ModelErrorCode.ModelRequestAuthMissing, input.message, {
+    modelId: input.modelId,
+    providerId: input.providerId,
+    reason: ModelFailureReason.AuthFailed,
+    retryable: false,
+  });
 }
