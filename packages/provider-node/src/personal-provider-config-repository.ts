@@ -87,7 +87,7 @@ export class NodePersonalProviderConfigRepository implements PersonalProviderCon
         const savedProviderId = next.savedProviderId?.trim() || undefined;
         const saveGenerations = savedProviderId
           ? Object.freeze({
-              ...(current.saveGenerations ?? {}),
+              ...current.saveGenerations,
               [savedProviderId]: randomUUID(),
             })
           : current.saveGenerations;

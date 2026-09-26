@@ -9,7 +9,7 @@ import type {
   GitBackupStatus,
   IGitBackupService,
 } from "./gitBackup.js";
-import { ensureKeyPair, encryptBuffer, readPublicKey, readPrivateKey } from "./gitBackupEncryption.js";
+import { ensureKeyPair, encryptBuffer, readPrivateKey } from "./gitBackupEncryption.js";
 import { uploadToOss } from "./gitBackupOssClient.js";
 
 const CONFIG_FILE = "git-backup-config.json";
@@ -130,7 +130,9 @@ export function createGitBackupService(dataDir: string): IGitBackupService {
     async startBackup(workspacePath: string): Promise<GitBackupManifest> {
       const config = await loadConfig(dataDir);
       if (!config.oss) {
-        throw new Error("OSS not configured. Please configure your Alibaba Cloud OSS credentials first.");
+        throw new Error(
+          "OSS not configured. Please configure your Alibaba Cloud OSS credentials first.",
+        );
       }
 
       lastStatus.running = true;

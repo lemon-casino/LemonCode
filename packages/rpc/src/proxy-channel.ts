@@ -45,7 +45,7 @@ export namespace ProxyChannel {
    */
   export function fromService<TContext>(
     service: unknown,
-    disposables?: DisposableStore,
+    _disposables?: DisposableStore,
   ): IServerChannel<TContext> {
     const handler = service as { [key: string]: unknown };
 

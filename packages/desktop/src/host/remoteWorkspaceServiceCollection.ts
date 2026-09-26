@@ -2,7 +2,6 @@
 import {
   ServiceCollection,
   IFileService,
-  IMediaPreviewService,
   IGitService,
   IGitCheckpointService,
   ISystemService,
@@ -55,7 +54,6 @@ import {
   resolveAccountTeamPlanRuntimeApiKey,
   createSettingsSyncService,
   createUsageStatsService,
-  createMediaPreviewService,
   createCodingPlanSubscriptionService,
   createClientScenesService,
   createServiceLogger,

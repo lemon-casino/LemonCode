@@ -66,6 +66,7 @@ export function ChatPromptEditor({
   betweenCancelAndSubmitAction,
   submitControl,
   inputTestId,
+  shellTestId,
   submitTestId,
   cancelTestId,
   inputApiRef,
@@ -88,6 +89,8 @@ export function ChatPromptEditor({
   excludedSlashCommandNames,
   appSlashCommands,
   enableMentionPanel,
+  enableSlashPanel,
+  enableActionMenuQuickCommands = true,
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
@@ -123,6 +126,7 @@ export function ChatPromptEditor({
   betweenCancelAndSubmitAction?: ReactNode;
   submitControl?: ReactNode;
   inputTestId?: string;
+  shellTestId?: string;
   submitTestId?: string;
   cancelTestId?: string;
   inputApiRef?: MutableRefObject<LexicalChatInputHandle | null>;
@@ -148,6 +152,10 @@ export function ChatPromptEditor({
   appSlashCommands?: readonly AppSlashCommand[];
   /** mention 面板开关（透传 LexicalChatInput）。 */
   enableMentionPanel?: boolean;
+  /** slash 面板开关（透传 LexicalChatInput）。 */
+  enableSlashPanel?: boolean;
+  /** `+` 菜单中的会话级快捷命令；受限输入面可只保留附件动作。 */
+  enableActionMenuQuickCommands?: boolean;
 }) {
   const { intl } = useZCodeIntl();
   const toolbarRef = useComposerToolbarFit();
@@ -340,6 +348,7 @@ export function ChatPromptEditor({
         />
       )}
       <div
+        data-testid={shellTestId}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
@@ -384,6 +393,7 @@ export function ChatPromptEditor({
           excludedSlashCommandNames={excludedSlashCommandNames}
           appSlashCommands={appSlashCommands}
           enableMentionPanel={enableMentionPanel}
+          enableSlashPanel={enableSlashPanel}
         />
         <div ref={toolbarRef} className="group/toolbar flex items-end gap-3">
           <div className="flex min-w-0 flex-1 items-center" data-composer-leading-actions>
@@ -401,6 +411,7 @@ export function ChatPromptEditor({
                   sessionId={taskId}
                   container={resolvedTriggerPanelContainer}
                   showPlugins={enableMentionPanel !== false}
+                  showQuickCommands={enableActionMenuQuickCommands}
                 />
               ) : null}
               {/* 权限/模式选择曾作为 leadingActions 先于动作菜单渲染，导致常驻顺序与产品规范相反。*/}

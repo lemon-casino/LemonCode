@@ -98,7 +98,8 @@ async function mapWithConcurrency<Input, Output>(
   run: (item: Input, index: number) => Promise<Output>,
 ): Promise<Output[]> {
   if (items.length === 0) return [];
-  const results = new Array<Output>(items.length);
+  const results: Output[] = [];
+  results.length = items.length;
   let nextIndex = 0;
   const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
     for (;;) {

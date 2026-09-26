@@ -1335,6 +1335,8 @@ interface LexicalChatInputProps {
   appSlashCommands?: readonly AppSlashCommand[];
   /** mention（@/#）面板开关。v4 数据面未就绪时显式关闭，入口保留。 */
   enableMentionPanel?: boolean;
+  /** slash 面板开关；普通会话默认开启，受限用途的共享输入壳可显式关闭。 */
+  enableSlashPanel?: boolean;
 }
 
 const EDITOR_THEME = {
@@ -1365,6 +1367,7 @@ export function LexicalChatInput({
   excludedSlashCommandNames,
   appSlashCommands,
   enableMentionPanel = true,
+  enableSlashPanel = true,
 }: LexicalChatInputProps) {
   const inputMountedAtRef = useRef(Date.now());
   const lastReadyLogKeyRef = useRef<string | null>(null);
@@ -1496,19 +1499,21 @@ export function LexicalChatInput({
           <EditablePlugin editable={!disabled} />
           <E2ELexicalInputBridgePlugin inputTestId={inputTestId} />
           <EditorApiPlugin editorApiRef={editorApiRef} />
-          <LeadingChineseSlashAliasPlugin disabled={disabled} />
+          {enableSlashPanel ? <LeadingChineseSlashAliasPlugin disabled={disabled} /> : null}
           <PasteCapturePlugin disabled={disabled} onPaste={onPaste} />
         </div>
-        <SlashCommandPlugin
-          workspacePath={workspacePath}
-          workspaceIdentity={workspaceIdentity}
-          sessionId={skillCatalogSessionId ?? taskId}
-          provider={activeTaskProvider}
-          container={triggerPanelContainer}
-          disabled={disabled}
-          excludedCommandNames={excludedSlashCommandNames}
-          appCommands={appSlashCommands}
-        />
+        {enableSlashPanel ? (
+          <SlashCommandPlugin
+            workspacePath={workspacePath}
+            workspaceIdentity={workspaceIdentity}
+            sessionId={skillCatalogSessionId ?? taskId}
+            provider={activeTaskProvider}
+            container={triggerPanelContainer}
+            disabled={disabled}
+            excludedCommandNames={excludedSlashCommandNames}
+            appCommands={appSlashCommands}
+          />
+        ) : null}
         {enableMentionPanel ? (
           <MentionPlugin
             workspacePath={workspacePath}

@@ -82,6 +82,8 @@ interface ComposerAttachmentsApi {
   isDraggingOverComposer: boolean;
   attachmentInputRef: React.RefObject<HTMLInputElement | null>;
   openAttachmentPicker: () => void;
+  /** 已由调用方校验用途的 File 列表；仍复用普通 composer 的上传、限额与去重事务。 */
+  addAttachmentFiles: (files: readonly File[]) => void;
   handleAttachmentInputChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   handlePaste: (event: ChatComposerPasteEvent) => void;
   handleDragOverComposer: (event: React.DragEvent<HTMLElement>) => void;
@@ -216,7 +218,18 @@ export function useComposerAttachments(
   const attachments = useComposerAttachmentUploadStore(
     (state) => state.scopes[scopeKey] ?? EMPTY_COMPOSER_ATTACHMENTS,
   );
-  const [attachmentError, setAttachmentError] = useState<string | null>(null);
+  const [attachmentErrorsByScope, setAttachmentErrorsByScope] = useState<
+    Record<string, string | null>
+  >({});
+  const attachmentError = attachmentErrorsByScope[scopeKey] ?? null;
+  const setAttachmentError = useCallback(
+    (message: string | null) => {
+      setAttachmentErrorsByScope((current) =>
+        current[scopeKey] === message ? current : { ...current, [scopeKey]: message },
+      );
+    },
+    [scopeKey],
+  );
   /**
    * runtime 换代计数。换代后 attachmentSessionId 可能原地不变（正式会话由 cold-resume 恢复），
    * 只靠它做依赖会漏掉唤醒，附件将永久停在 waitingSession。
@@ -674,11 +687,11 @@ export function useComposerAttachments(
         if (item.uploadStatus === "queued") enqueueUpload(scopeKey, item.id);
       }
     },
-    [commitScope, enqueueUpload, scopeKey, showAttachmentLimitWarning],
+    [commitScope, enqueueUpload, scopeKey, setAttachmentError, showAttachmentLimitWarning],
   );
 
   const addAttachmentFiles = useCallback(
-    (selectedFiles: File[]) => {
+    (selectedFiles: readonly File[]) => {
       addPreparedAttachments(
         selectedFiles.map((file) => {
           let localPath: string | undefined;
@@ -723,7 +736,14 @@ export function useComposerAttachments(
           ),
         );
       });
-  }, [addAttachmentLocalPaths, intl, platform, scopeKey, showAttachmentLimitWarning]);
+  }, [
+    addAttachmentLocalPaths,
+    intl,
+    platform,
+    scopeKey,
+    setAttachmentError,
+    showAttachmentLimitWarning,
+  ]);
 
   const handleAttachmentInputChange = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -778,7 +798,7 @@ export function useComposerAttachments(
         }
       })();
     },
-    [addAttachmentFiles, addPreparedAttachments, disabled, intl, platform],
+    [addAttachmentFiles, addPreparedAttachments, disabled, intl, platform, setAttachmentError],
   );
 
   const clearDragFeedbackTimer = useCallback(() => {
@@ -877,7 +897,7 @@ export function useComposerAttachments(
         );
       }
     },
-    [addAttachmentFiles, intl, workspaceIdentity, workspacePath],
+    [addAttachmentFiles, intl, setAttachmentError, workspaceIdentity, workspacePath],
   );
   const handleWhiteboardMentionSelected = useCallback(
     async (boardId: string) => addWhiteboardToChat(boardId),
@@ -930,7 +950,7 @@ export function useComposerAttachments(
       commitScope(scopeKey, (items) => items.filter((candidate) => candidate.id !== id));
       setAttachmentError(null);
     },
-    [commitScope, scopeKey],
+    [commitScope, scopeKey, setAttachmentError],
   );
 
   const retryAttachment = useCallback(
@@ -993,7 +1013,7 @@ export function useComposerAttachments(
       commitScope(scopeKey, (items) => (ids ? items.filter((item) => !ids.has(item.id)) : []));
       setAttachmentError(null);
     },
-    [commitScope, scopeKey],
+    [commitScope, scopeKey, setAttachmentError],
   );
 
   const restoreSessionOwnedAttachments = useCallback(
@@ -1026,7 +1046,7 @@ export function useComposerAttachments(
       setAttachmentError(null);
       return true;
     },
-    [commitScope, scopeKey],
+    [commitScope, scopeKey, setAttachmentError],
   );
 
   const prepareForSend = useCallback(async (): Promise<AttachmentRef[] | null> => {
@@ -1071,6 +1091,7 @@ export function useComposerAttachments(
       isDraggingOverComposer,
       attachmentInputRef,
       openAttachmentPicker,
+      addAttachmentFiles,
       handleAttachmentInputChange,
       handlePaste,
       handleDragOverComposer,
@@ -1087,6 +1108,7 @@ export function useComposerAttachments(
     }),
     [
       attachmentError,
+      addAttachmentFiles,
       adoptSentAttachments,
       attachments,
       composerDragKind,
@@ -1103,6 +1125,7 @@ export function useComposerAttachments(
       prepareForSend,
       removeAttachment,
       retryAttachment,
+      setAttachmentError,
     ],
   );
 }
