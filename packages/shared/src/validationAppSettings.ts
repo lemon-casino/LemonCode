@@ -1,5 +1,11 @@
 /* oxlint-disable eslint(max-lines) -- AppSettings schema 聚合历史迁移、默认值和 patch 校验，拆分会削弱设置迁移的单一入口。 */
 import { z } from "zod";
+import {
+  LOCAL_PROJECT_NAME_MAX_LENGTH,
+  LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT,
+  isSameLocalProjectPath,
+  localProjectPathKey,
+} from "./localProjects.js";
 import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { wslUserSchema } from "./wslUserValidation.js";
@@ -106,6 +112,7 @@ const appWorkspaceSessionEntrySchema = z.discriminatedUnion("kind", [
     kind: z.literal("local"),
     workspacePath: nonEmptyStringSchema,
     workspacePurpose: z.enum(["project", "conversation"]).default("project"),
+    localProjectId: nonEmptyStringSchema.optional(),
   }),
   z.object({
     kind: z.literal("remote"),
@@ -118,6 +125,50 @@ const appWorkspaceSessionEntrySchema = z.discriminatedUnion("kind", [
     lastConnectionError: z.string().optional(),
   }),
 ]);
+
+const localProjectSchema = z
+  .object({
+    id: nonEmptyStringSchema,
+    name: nonEmptyStringSchema.max(LOCAL_PROJECT_NAME_MAX_LENGTH),
+    primaryFolderPath: nonEmptyStringSchema,
+    sourceFolderPaths: z
+      .array(nonEmptyStringSchema)
+      .min(1)
+      .max(LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT),
+  })
+  .superRefine((project, context) => {
+    if (!isSameLocalProjectPath(project.primaryFolderPath, project.sourceFolderPaths[0]!)) {
+      context.addIssue({
+        code: "custom",
+        path: ["primaryFolderPath"],
+        message: "primaryFolderPath must be the first source folder",
+      });
+    }
+    const keys = project.sourceFolderPaths.map(localProjectPathKey);
+    if (new Set(keys).size !== keys.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["sourceFolderPaths"],
+        message: "sourceFolderPaths must be unique",
+      });
+    }
+  });
+
+const localProjectsSchema = z.array(localProjectSchema).superRefine((projects, context) => {
+  const ids = projects.map((project) => project.id);
+  if (new Set(ids).size !== ids.length) {
+    context.addIssue({ code: "custom", message: "local project ids must be unique" });
+  }
+  const primaryFolderKeys = projects.map((project) =>
+    localProjectPathKey(project.primaryFolderPath),
+  );
+  if (new Set(primaryFolderKeys).size !== primaryFolderKeys.length) {
+    context.addIssue({
+      code: "custom",
+      message: "local project primary folders must be unique",
+    });
+  }
+});
 
 const lcodeEndpointOriginSchema = z.preprocess((value) => {
   if (typeof value !== "string") {
@@ -418,6 +469,7 @@ function migrateLegacyWorkspaceSession(value: unknown): unknown {
 
 const appSettingsObjectSchema = z.object({
   recentProjects: z.array(z.string()).default([]),
+  localProjects: localProjectsSchema.default([]),
   locale: localeSchema.default("zh-CN"),
   // 快捷键用户覆盖（语义校验在 ui/src/shortcuts 生效表阶段容错，schema 只管形状）
   shortcutBindings: z.record(z.string(), z.array(z.string())).optional(),
@@ -493,6 +545,7 @@ export const appSettingsSchema = z.preprocess(
 
 export const appSettingsPatchSchema = z.object({
   recentProjects: z.array(z.string()).optional(),
+  localProjects: localProjectsSchema.optional(),
   locale: localeSchema.optional(),
   shortcutBindings: z.record(z.string(), z.array(z.string())).optional(),
   localePreference: localePreferenceSchema.optional(),

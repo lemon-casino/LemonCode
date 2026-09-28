@@ -19,37 +19,50 @@ function isFilesystemServer(
 
 export function appendWorkspaceToFilesystemMcpServers(
   mcpServers: LCodeAgentMcpServer[] | undefined,
-  workspacePath: string,
+  workspacePaths: string | readonly string[],
 ): LCodeAgentMcpServer[] | undefined {
   if (!mcpServers || mcpServers.length === 0) {
     return mcpServers;
   }
 
-  const trimmedWorkspacePath = workspacePath.trim();
-  if (!trimmedWorkspacePath || !existsSync(trimmedWorkspacePath)) {
+  const candidatePaths = typeof workspacePaths === "string" ? [workspacePaths] : workspacePaths;
+  const existingWorkspacePaths = candidatePaths.reduce<string[]>((paths, candidatePath) => {
+    const trimmedPath = candidatePath.trim();
+    if (!trimmedPath || !existsSync(trimmedPath)) {
+      return paths;
+    }
+    const pathKey = normalizePathForCompare(trimmedPath);
+    if (!paths.some((path) => normalizePathForCompare(path) === pathKey)) {
+      paths.push(trimmedPath);
+    }
+    return paths;
+  }, []);
+  if (existingWorkspacePaths.length === 0) {
     return mcpServers;
   }
 
   let changed = false;
-  const workspaceKey = normalizePathForCompare(trimmedWorkspacePath);
   const nextServers = mcpServers.map((server) => {
     if (!isFilesystemServer(server)) {
       return server;
     }
 
-    const hasWorkspace = server.args.some((arg) => normalizePathForCompare(arg) === workspaceKey);
-    if (hasWorkspace) {
+    const existingServerPathKeys = new Set(server.args.map(normalizePathForCompare));
+    const missingWorkspacePaths = existingWorkspacePaths.filter(
+      (workspacePath) => !existingServerPathKeys.has(normalizePathForCompare(workspacePath)),
+    );
+    if (missingWorkspacePaths.length === 0) {
       return server;
     }
 
     changed = true;
-    // 用户目录里的 filesystem MCP 可能只包含固定目录，
-    // 不会自动允许当前 workspace，导致 agent 写当前项目文件时报
-    // "Access denied - path outside allowed directories"。这里仅在本机路径存在时
-    // 非持久化追加当前 workspace，避免远程 workspace 被误注入本机 MCP。
+    // 用户目录里的 filesystem MCP 可能只包含固定目录，不会自动允许当前项目目录，
+    // 导致 agent 写主文件夹或附加源文件夹时报 "Access denied - path outside allowed
+    // directories"。这里仅在本机路径存在时非持久化追加，避免远程 workspace
+    // 被误注入本机 MCP。
     return {
       ...server,
-      args: [...server.args, trimmedWorkspacePath],
+      args: [...server.args, ...missingWorkspacePaths],
     };
   });
 

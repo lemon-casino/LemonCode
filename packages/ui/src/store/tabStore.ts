@@ -41,6 +41,8 @@ export interface WorkspaceTabState extends TabState {
   workspaceIdentity?: string;
   localWorkspacePath?: string;
   workspacePurpose?: WorkspacePurpose;
+  /** AppSettings.localProjects 的稳定关联；名称和目录列表不在 store 复制。 */
+  localProjectId?: string;
 }
 
 export interface WorkspaceTabOptions {
@@ -51,6 +53,7 @@ export interface WorkspaceTabOptions {
   workspaceIdentity?: string;
   localWorkspacePath?: string;
   workspacePurpose?: WorkspacePurpose;
+  localProjectId?: string;
 }
 
 export interface RestorableWorkspaceTab {
@@ -61,6 +64,7 @@ export interface RestorableWorkspaceTab {
   workspaceIdentity?: string;
   localWorkspacePath?: string;
   workspacePurpose?: WorkspacePurpose;
+  localProjectId?: string;
 }
 
 export type WindowTabState = WorkspaceTabState | SettingsTabState;
@@ -161,6 +165,7 @@ function createWorkspaceTab(
     workspaceIdentity: options?.workspaceIdentity,
     localWorkspacePath: options?.localWorkspacePath,
     workspacePurpose: options?.workspacePurpose,
+    localProjectId: options?.localProjectId,
   };
 }
 
@@ -177,6 +182,7 @@ function mergeWorkspaceTabOptions(
     workspaceIdentity: options?.workspaceIdentity ?? tab.workspaceIdentity,
     localWorkspacePath: options?.localWorkspacePath ?? tab.localWorkspacePath,
     workspacePurpose: options?.workspacePurpose ?? tab.workspacePurpose,
+    localProjectId: options?.localProjectId ?? tab.localProjectId,
   };
 }
 

@@ -189,6 +189,8 @@ export interface LocalWorkspaceSessionEntry {
   workspacePath: string;
   /** 项目展示分类；旧数据缺省为 project，conversation 仍使用真实 workspacePath 作为 cwd/key。 */
   workspacePurpose?: WorkspacePurpose;
+  /** 本地多文件夹项目的稳定关联；项目定义仍以 AppSettings.localProjects 为权威。 */
+  localProjectId?: string;
 }
 
 export interface RemoteWorkspaceSessionEntry extends RemoteWorkspaceSessionSnapshot {
@@ -244,6 +246,8 @@ export interface AppSettings {
   /** 当前 App/Host 不再显示提交前体验套餐推荐；不改变任何入口的模型选择。 */
   startPlanRecommendationDismissed?: boolean;
   recentProjects: string[]; // 最近项目列表，最多保留 10 个
+  /** 本地项目定义；主文件夹承担 cwd/Git，次要文件夹扩展搜索和文件访问范围。 */
+  localProjects: import("./localProjects.js").LocalProject[];
   locale: Locale; // 界面语言
   /**
    * 用户覆盖的快捷键绑定（命令 ID → 绑定串数组，格式见 shortcutCommands.ts）。

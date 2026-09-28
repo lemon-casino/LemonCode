@@ -125,11 +125,14 @@ export function restorePersistedRemoteWorkspaceSessions({
           ? "unavailable-local-directory"
           : undefined;
       restoredTabs.push(
-        workspacePurpose || availability
+        workspacePurpose || availability || persistedEntry.localProjectId
           ? {
               workspacePath: persistedEntry.workspacePath,
               workspacePurpose,
               availability,
+              ...(persistedEntry.localProjectId
+                ? { localProjectId: persistedEntry.localProjectId }
+                : {}),
             }
           : persistedEntry.workspacePath,
       );

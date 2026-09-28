@@ -2,8 +2,12 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   DesktopCommandIds,
+  createLocalProject,
+  createUuid,
+  hasLocalProjectPrimaryFolderConflict,
   type AppSettings,
   type IPlatformService,
+  type LocalProjectCreateRequest,
   type RemoteTarget,
   type UserInfo,
   type LCodeTaskClientMode,
@@ -19,7 +23,12 @@ import { logger } from "@/logger.js";
 import { openFolderFromWorkspaceEntry } from "@/root/openWorkspaceFolderEntry.js";
 import { useConversationWorkspaceActions } from "@/root/useConversationWorkspaceActions.js";
 import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
-import { isWorkspaceReadOnly, type TabStore, type TabStoreState } from "@/store/tabStore.js";
+import {
+  isWorkspaceReadOnly,
+  type TabStore,
+  type TabStoreState,
+  type WorkspaceTabOptions,
+} from "@/store/tabStore.js";
 import type { RootProps } from "@/root/types.js";
 import {
   hadPersistedPaneLayoutAtModuleLoad,
@@ -361,7 +370,7 @@ export function useRootWorkspaceActions({
   ]);
 
   const handleSelectProject = useCallback(
-    async (path: string) => {
+    async (path: string, tabOptions?: WorkspaceTabOptions) => {
       logger.info("[Root] handleSelectProject called with path:", path);
       try {
         const wslUncWorkspace = parseWslUncWorkspacePath(path);
@@ -398,7 +407,7 @@ export function useRootWorkspaceActions({
         }
 
         // 新增 tab（如果已在本窗口打开则激活它）
-        addTab(path);
+        addTab(path, tabOptions);
         // 打开 workspace 是 workspace-only 意图，不是“继续上次会话”。
         // 即使命中已存在 tab，也必须清掉该 workspace 的 activeTaskId 并回到单 pane 草稿。
         startDraftInWorkspace(path);
@@ -485,48 +494,44 @@ export function useRootWorkspaceActions({
     supportsSettings,
   ]);
 
-  const handleOpenFolderFromWorkspaceMenu = useCallback(() => {
-    if (!allowOpenWorkspace) {
-      logger.info("[Root] 当前模式不支持从空态菜单打开文件夹，已忽略请求");
-      return;
-    }
-
-    // 空态 workspace 菜单的 Open folder 需要复用根级打开工作区动作。
-    // 因此这里调用同一个入口函数，只把 Root 里的 selectDirectory 与项目选择回调注入进去。
-    if (preferDirectoryBrowser) {
-      void openFolderFromWorkspaceEntry({
-        preferDirectoryBrowser,
-        openDirectoryBrowser,
-        selectDirectory: () => platform.selectDirectory(),
-        onSelectProject: (path) => {
-          void handleSelectProject(path);
-        },
+  const handleCreateLocalProject = useCallback(
+    async (request: LocalProjectCreateRequest) => {
+      if (!allowOpenWorkspace || !supportsSettings) {
+        throw new Error(intl.formatMessage({ id: "chat.empty.createProject.unsupported" }));
+      }
+      const settings = await services.settingService.get();
+      const project = createLocalProject({
+        id: createUuid(),
+        name: request.name,
+        sourceFolderPaths: request.sourceFolderPaths,
       });
-      return;
-    }
+      if (hasLocalProjectPrimaryFolderConflict(settings.localProjects, project.primaryFolderPath)) {
+        throw new Error(intl.formatMessage({ id: "chat.empty.createProject.duplicatePrimary" }));
+      }
 
-    if (!supportsSettings) {
-      void handleEnsureConversationWorkspace().catch((error) => {
-        logger.error("[Root] 从空态菜单创建对话 workspace 失败", { error });
+      // 项目定义必须先成为设置事实，再打开 tab。反过来会在设置写失败时留下一个
+      // 看似属于项目、实际无法恢复源文件夹的半创建会话。
+      await updateAppSettings({
+        localProjects: [project, ...settings.localProjects],
+        recentProjects: [
+          project.primaryFolderPath,
+          ...settings.recentProjects.filter((path) => path !== project.primaryFolderPath),
+        ].slice(0, 10),
       });
-      return;
-    }
-
-    void openFolderFromWorkspaceEntry({
-      selectDirectory: () => platform.selectDirectory(),
-      onSelectProject: (path) => {
-        void handleSelectProject(path);
-      },
-    });
-  }, [
-    allowOpenWorkspace,
-    handleEnsureConversationWorkspace,
-    handleSelectProject,
-    openDirectoryBrowser,
-    platform,
-    preferDirectoryBrowser,
-    supportsSettings,
-  ]);
+      await handleSelectProject(project.primaryFolderPath, {
+        workspacePurpose: "project",
+        localProjectId: project.id,
+      });
+    },
+    [
+      allowOpenWorkspace,
+      handleSelectProject,
+      intl,
+      services.settingService,
+      supportsSettings,
+      updateAppSettings,
+    ],
+  );
 
   const handleCreateScratchWorkspace = useCallback(
     async (name: string) => {
@@ -576,7 +581,7 @@ export function useRootWorkspaceActions({
     handleEnsureConversationWorkspace,
     handleCreateConversationTask,
     handleOpenWorkspace,
-    handleOpenFolderFromWorkspaceMenu,
+    handleCreateLocalProject,
     handleCreateScratchWorkspace,
     handleCreateTask,
     handleBackFromSettings,

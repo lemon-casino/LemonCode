@@ -213,6 +213,11 @@ export const TID_COMPOSER_REMOTE_CONNECTION = "composer-remote-connection";
 export const TID_COMPOSER_PROJECT_DETACH = "composer-project-detach";
 /** Composer workspace 菜单的非项目工作入口 */
 export const TID_COMPOSER_WORK_OUTSIDE_PROJECT = "composer-work-outside-project";
+/** 本地多文件夹项目创建弹窗 */
+export const TID_CREATE_PROJECT_DIALOG = "create-project-dialog";
+export const TID_CREATE_PROJECT_NAME = "create-project-name";
+export const TID_CREATE_PROJECT_ADD_FOLDER = "create-project-add-folder";
+export const TID_CREATE_PROJECT_SUBMIT = "create-project-submit";
 // ChatView
 /** 聊天视图容器 */
 export const TID_CHAT_VIEW = "chat-view";

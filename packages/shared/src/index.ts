@@ -27,6 +27,7 @@ export type {
   PersistedWorkspaceSessionEntry,
 } from "./protocol.js";
 export type { WorkspacePurpose } from "./workspacePurpose.js";
+export * from "./localProjects.js";
 export { DEFAULT_LOCALE } from "./protocol.js";
 export { LCODE_VERSION, LCODE_COMMIT, LCODE_BUILD_TIME } from "./version.js";
 export type { HelloMessage, HelloAckMessage } from "./handshake.js";

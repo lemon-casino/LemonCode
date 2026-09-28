@@ -42,12 +42,17 @@ interface CreateLCodeSessionServiceOptions {
    */
   taskIndexSyncer?: LCodeTaskIndexSyncer;
   cuaProductMcpServerResolver?: CuaProductMcpServerResolver;
+  resolveWorkspaceSourceFolders?: (
+    workspacePath: string,
+    workspaceIdentity?: string,
+  ) => Promise<readonly string[]>;
 }
 
 export function createLCodeSessionService({
   agentService,
   taskIndexSyncer,
   cuaProductMcpServerResolver,
+  resolveWorkspaceSourceFolders,
 }: CreateLCodeSessionServiceOptions): ILCodeSessionService {
   const { withApiRetryRuntime } = createLCodeSessionApiRetryRuntimeTracker();
   const deferredDraftSessions = createLCodeDeferredDraftRegistry();
@@ -175,10 +180,13 @@ export function createLCodeSessionService({
   async function withResolvedMcpServers<
     T extends LCodeSessionCreateParams | LCodeSessionResumeParams,
   >(params: T): Promise<T> {
-    const mcpServers = appendWorkspaceToFilesystemMcpServers(
-      params.mcpServers,
+    const sourceFolderPaths = resolveWorkspaceSourceFolders
+      ? await resolveWorkspaceSourceFolders(params.workspacePath, params.workspaceIdentity)
+      : [params.workspacePath];
+    const mcpServers = appendWorkspaceToFilesystemMcpServers(params.mcpServers, [
       params.workspacePath,
-    );
+      ...sourceFolderPaths,
+    ]);
     const resolvedMcpServers = cuaProductMcpServerResolver
       ? await cuaProductMcpServerResolver.resolveMcpServers(mcpServers, {
           workspacePath: params.workspacePath,

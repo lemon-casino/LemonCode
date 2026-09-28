@@ -209,7 +209,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   onCreateConversationTask,
   onResolveConversationWorkspace,
   onOpenWorkspace,
-  onOpenFolderFromWorkspaceMenu,
+  onCreateLocalProject,
+  localProjects,
   onOpenRemoteWorkspace,
   allowOpenWorkspace = true,
   allowRemoteWorkspace = true,
@@ -1083,6 +1084,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       targetWorkspaceIdentity?: string,
       targetWorkspacePurpose?: import("@lcode/shared").WorkspacePurpose,
       createSource?: import("@lcode/shared").SessionCreateSource,
+      localProjectId?: string,
     ) => {
       showChatMainView();
       handleStartDraftInWorkspace(
@@ -1090,6 +1092,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
         targetWorkspaceIdentity,
         targetWorkspacePurpose,
         createSource,
+        localProjectId,
       );
     },
     [handleStartDraftInWorkspace, showChatMainView],
@@ -1166,15 +1169,18 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           workspaceIdentity={workspaceIdentity}
           isWindowsDesktop={isWindowsDesktop}
           workspaceTabs={workspaceTabs}
+          localProjects={localProjects}
           onSelectWorkspace={(workspaceTab) =>
             handleStartDraftInWorkspaceInChat(
               workspaceTab.workspacePath,
               workspaceTab.workspaceIdentity,
               workspaceTab.workspacePurpose,
+              undefined,
+              workspaceTab.localProjectId,
             )
           }
           onSelectConversationWorkspace={handleSelectConversationWorkspace}
-          onOpenFolder={onOpenFolderFromWorkspaceMenu}
+          onCreateLocalProject={onCreateLocalProject}
           allowOpenWorkspace={allowOpenWorkspace}
           allowRemoteWorkspace={allowRemoteWorkspace}
           remoteWorkspaceSessions={remoteWorkspaceSessions}
@@ -1222,7 +1228,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       isWindowsDesktop,
       onCancelRemoteProject,
       onConnectRemote,
-      onOpenFolderFromWorkspaceMenu,
+      localProjects,
+      onCreateLocalProject,
       onSelectRemoteProject,
       remoteWorkspaceSessions,
       workspaceAbsPath,
@@ -1561,7 +1568,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                     fileTreeOpenRequest={fileTreeOpenRequest}
                     onCreateTask={handleCreateTaskInChat}
                     onCreateConversationTask={onCreateConversationTask ?? handleCreateTaskInChat}
-                    onOpenFolderFromWorkspaceMenu={onOpenFolderFromWorkspaceMenu}
+                    onOpenFolderFromWorkspaceMenu={onOpenWorkspace}
                     onOpenRemoteWorkspace={onOpenRemoteWorkspace}
                     theme={theme}
                     onConnectRemote={onConnectRemote}

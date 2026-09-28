@@ -233,6 +233,37 @@ nodes:
         symbol: buildRemoteWorkspaceIdentity
       - file: packages/services/src/lcode-agent/lcodeAgentConnectionScope.ts
         symbol: workspaceKey
+  - id: capability.local-multi-folder-projects
+    kind: capability
+    label: Local multi-folder project definitions and selection
+    aliases:
+      - local project
+      - new project
+      - source folders
+      - multi-folder project
+      - 新建项目
+      - 多文件夹项目
+      - 源文件夹
+    codeSeeds:
+      - file: packages/ui/src/ChatEmptyState.tsx
+        symbol: ChatEmptyWorkspacePreviewMenu
+      - file: packages/shared/src/localProjects.ts
+        symbol: createLocalProject
+      - file: packages/services/src/session/mcpWorkspaceScope.ts
+        symbol: appendWorkspaceToFilesystemMcpServers
+    invariants:
+      - AppSettings.localProjects is the authoritative registry; a workspace tab stores only the
+        selected localProjectId projection.
+      - workspacePath remains the primary folder for execution, Git, display, and workspace-key
+        fallback; secondary folders only extend project-scoped discovery and filesystem access.
+  - id: persistence.local-project-registry
+    kind: persistence
+    label: Local multi-folder project registry in AppSettings
+    codeSeeds:
+      - file: packages/shared/src/protocol.ts
+        symbol: AppSettings
+      - file: packages/shared/src/validationAppSettings.ts
+        symbol: appSettingsSchema
   - id: service.workspace-identity-builder
     kind: service
     label: Remote workspace identity builder
@@ -774,6 +805,24 @@ edges:
     to: service.workspace-identity-builder
     type: implemented-by
     rank: must-inspect
+  - from: capability.local-multi-folder-projects
+    to: persistence.local-project-registry
+    type: persists-definitions-in
+    rank: must-inspect
+  - from: capability.local-multi-folder-projects
+    to: boundary.workspace-key
+    type: preserves-primary-workspace-boundary
+    rank: invariant-only
+    condition:
+      Project membership never replaces workspaceIdentity?.trim() || workspacePath as the isolation
+      key; the primary folder remains workspacePath.
+  - from: capability.local-multi-folder-projects
+    to: service.composer-host-file-search
+    type: expands-search-roots-for
+    rank: must-inspect
+    condition:
+      Explicit local projects search every configured source folder; legacy local folders and remote
+      workspaces retain single-root behavior.
   - from: service.workspace-identity-builder
     to: boundary.workspace-key
     type: supplies-identity-for

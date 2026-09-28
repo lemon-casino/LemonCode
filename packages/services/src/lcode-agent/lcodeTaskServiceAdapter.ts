@@ -165,6 +165,7 @@ import {
 } from "./lcodeConfigOptions.js";
 import type { CuaProductMcpServerResolver } from "#src/cua-permission-broker/index.js";
 import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js";
+import { appendWorkspaceToFilesystemMcpServers } from "#src/session/mcpWorkspaceScope.js";
 
 interface TaskOverlay {
   archived?: boolean;
@@ -182,6 +183,10 @@ interface CreateLCodeTaskServiceAdapterOptions {
   taskIndexSyncer: LCodeTaskIndexSyncer;
   settingService?: Pick<ISettingService, "get">;
   cuaProductMcpServerResolver?: CuaProductMcpServerResolver;
+  resolveWorkspaceSourceFolders?: (
+    workspacePath: string,
+    workspaceIdentity?: string,
+  ) => Promise<readonly string[]>;
 }
 
 interface TaskTarget {
@@ -331,8 +336,17 @@ export function createLCodeTaskServiceAdapter(
 
   async function resolveProductMcpServers(
     servers: LCodeAgentMcpServer[] | undefined,
+    workspacePath: string,
+    workspaceIdentity?: string,
   ): Promise<LCodeAgentMcpServer[] | undefined> {
-    const configuredServers = (servers?.length ?? 0) > 0 ? servers : undefined;
+    const sourceFolderPaths = options.resolveWorkspaceSourceFolders
+      ? await options.resolveWorkspaceSourceFolders(workspacePath, workspaceIdentity)
+      : [workspacePath];
+    const scopedServers = appendWorkspaceToFilesystemMcpServers(servers, [
+      workspacePath,
+      ...sourceFolderPaths,
+    ]);
+    const configuredServers = (scopedServers?.length ?? 0) > 0 ? scopedServers : undefined;
     if (!configuredServers || !options.cuaProductMcpServerResolver) {
       return configuredServers;
     }
@@ -1142,7 +1156,11 @@ export function createLCodeTaskServiceAdapter(
   ): Promise<LCodeSessionStateSnapshot> {
     rememberTaskTarget(params);
     const thoughtLevel = params.thoughtLevel?.trim();
-    const mcpServers = await resolveProductMcpServers(params.mcpServers);
+    const mcpServers = await resolveProductMcpServers(
+      params.mcpServers,
+      params.workspacePath,
+      params.workspaceIdentity,
+    );
     return options.lcodeAgentService.resumeSession({
       workspacePath: params.workspacePath,
       workspaceIdentity: params.workspaceIdentity,
@@ -1249,7 +1267,11 @@ export function createLCodeTaskServiceAdapter(
       // 复用导入模块的严格来源校验，避免清理 ACP 时误删这条独立的数据迁移路径。
       const history = await readLegacyImportedClaudeHistory(params);
       if (!history) throw error;
-      const mcpServers = await resolveProductMcpServers(params.mcpServers);
+      const mcpServers = await resolveProductMcpServers(
+        params.mcpServers,
+        params.workspacePath,
+        params.workspaceIdentity,
+      );
       const restored = await options.lcodeAgentService.createSession({
         workspacePath: params.workspacePath,
         workspaceIdentity: params.workspaceIdentity,
@@ -1779,7 +1801,11 @@ export function createLCodeTaskServiceAdapter(
             }
           : undefined);
       const draftSessionId = params.draftSessionId?.trim();
-      const mcpServers = await resolveProductMcpServers(params.mcpServers);
+      const mcpServers = await resolveProductMcpServers(
+        params.mcpServers,
+        params.workspacePath,
+        params.workspaceIdentity,
+      );
       let snapshot: LCodeSessionStateSnapshot | null = null;
       if (draftSessionId && !mcpServers) {
         try {

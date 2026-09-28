@@ -106,7 +106,8 @@ export function App({
   onCreateConversationTask,
   onResolveConversationWorkspace,
   onOpenWorkspace,
-  onOpenFolderFromWorkspaceMenu,
+  onCreateLocalProject,
+  localProjects,
   onOpenRemoteWorkspace,
   onCreateScratchWorkspace,
   remoteConnectionInProgress = false,
@@ -400,6 +401,7 @@ export function App({
         remoteTarget: tab.remoteTarget,
         workspaceIdentity: tab.workspaceIdentity,
         workspacePurpose: tab.workspacePurpose,
+        localProjectId: tab.localProjectId,
         localWorkspacePath: tab.localWorkspacePath,
         availability: tab.availability,
       })),
@@ -706,6 +708,7 @@ export function App({
       targetWorkspaceIdentity?: string,
       targetWorkspacePurpose?: WorkspacePurpose,
       createSource?: import("@lcode/shared").SessionCreateSource,
+      localProjectId?: string,
     ) => {
       const store = useLCodeSessionStore.getState();
       const resolvedTargetWorkspaceIdentity =
@@ -735,12 +738,13 @@ export function App({
       // 看起来就像"点了没反应"。这里先确保目标 workspace 已打开，再把当前空态的 provider 一并传给 startDraft，
       // 保证首次进入的新 workspace 也能继续沿用当前上下文。
       const targetTabOptions =
-        resolvedTargetWorkspaceIdentity || targetWorkspacePurpose
+        resolvedTargetWorkspaceIdentity || targetWorkspacePurpose || localProjectId
           ? {
               ...(resolvedTargetWorkspaceIdentity
                 ? { workspaceIdentity: resolvedTargetWorkspaceIdentity }
                 : {}),
               ...(targetWorkspacePurpose ? { workspacePurpose: targetWorkspacePurpose } : {}),
+              ...(localProjectId ? { localProjectId } : {}),
             }
           : undefined;
       if (targetWorkspacePurpose) {
@@ -1151,7 +1155,8 @@ export function App({
         onCreateConversationTask={onCreateConversationTask}
         onResolveConversationWorkspace={onResolveConversationWorkspace}
         onOpenWorkspace={onOpenWorkspace}
-        onOpenFolderFromWorkspaceMenu={onOpenFolderFromWorkspaceMenu}
+        onCreateLocalProject={onCreateLocalProject}
+        localProjects={localProjects}
         onOpenRemoteWorkspace={onOpenRemoteWorkspace}
         onCreateScratchWorkspace={onCreateScratchWorkspace}
         remoteConnectionInProgress={remoteConnectionInProgress}

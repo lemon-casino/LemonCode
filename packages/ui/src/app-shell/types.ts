@@ -94,7 +94,10 @@ export interface AppProps {
   onCreateConversationTask?: () => void;
   onResolveConversationWorkspace?: () => Promise<string>;
   onOpenWorkspace: () => void;
-  onOpenFolderFromWorkspaceMenu: () => void;
+  onCreateLocalProject: (
+    request: import("@lcode/shared").LocalProjectCreateRequest,
+  ) => Promise<void>;
+  localProjects: import("@lcode/shared").LocalProject[];
   onOpenRemoteWorkspace?: () => void;
   onCreateScratchWorkspace: (name: string) => Promise<string | null>;
   remoteConnectionInProgress?: boolean;
@@ -167,6 +170,7 @@ export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackS
     remoteTarget?: import("@lcode/shared").RemoteTarget;
     workspaceIdentity?: string;
     workspacePurpose?: import("@lcode/shared").WorkspacePurpose;
+    localProjectId?: string;
     localWorkspacePath?: string;
     availability?: import("@/store/tabStore.js").WorkspaceAvailability;
   }>;
@@ -225,6 +229,7 @@ export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackS
     targetWorkspaceIdentity?: string,
     targetWorkspacePurpose?: import("@lcode/shared").WorkspacePurpose,
     createSource?: SessionCreateSource,
+    localProjectId?: string,
   ) => void;
   handleOpenCommandCenter: () => void;
   handleRefreshGit: () => void;

@@ -446,6 +446,7 @@ import {
 } from "./official-mcp/officialMcpCredentials.js";
 import {
   createOfficialMcpTrustedOriginRegistry,
+  findLocalProjectForWorkspace,
   OFFICIAL_MCP_DEV_TRUSTED_ORIGINS_ENV,
 } from "@lcode/shared";
 import {
@@ -2163,10 +2164,25 @@ export function createLocalServices(options: {
   });
   const cuaProductMcpServerResolver =
     options?.cuaProductMcpServerResolver ?? defaultCuaProductMcpServerResolver;
+  const resolveWorkspaceSourceFolders = async (
+    workspacePath: string,
+    workspaceIdentity?: string,
+  ) => {
+    if (workspaceIdentity?.trim()) {
+      return [workspacePath];
+    }
+    const settings = await settingService.get();
+    return (
+      findLocalProjectForWorkspace(settings.localProjects, workspacePath)?.sourceFolderPaths ?? [
+        workspacePath,
+      ]
+    );
+  };
   const lcodeSessionService = createLCodeSessionService({
     agentService: lcodeAgentService,
     taskIndexSyncer: lcodeTaskIndexSyncer,
     cuaProductMcpServerResolver,
+    resolveWorkspaceSourceFolders,
   });
   const gitCommitMessageGenerator = new GitCommitMessageGenerator({
     currentModelProvider: {
@@ -2199,6 +2215,7 @@ export function createLocalServices(options: {
     taskIndexSyncer: lcodeTaskIndexSyncer,
     settingService,
     cuaProductMcpServerResolver,
+    resolveWorkspaceSourceFolders,
   });
   const oauthService = createOAuthService(credentialService, {
     apiClient,

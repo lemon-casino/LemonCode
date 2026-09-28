@@ -1,27 +1,37 @@
 import { useEffect, useMemo, useState } from "react";
-import type { WorkspaceFileEntry } from "@lcode/shared";
 import { useServices } from "@/hooks/useServices.js";
 import { buildFileMentionMarkdown } from "@/mentions/mentionMarkdown.js";
 import { WORKSPACE_FILE_SEARCH_DISPLAY_CAP } from "@lcode/shared/workspaceFileSearch";
 import { getMentionGroupLimitForQuery } from "@/mentions/mentionSearch.js";
 import type { MentionCategoryResult, MentionItem } from "@/mentions/mentionTypes.js";
+import { useLocalProjectForWorkspace } from "@/LocalProjectsContext.js";
+import { getPathLeaf } from "@/lib/path.js";
+import { mergeProjectFileEntries, type ProjectFileEntry } from "./projectFileSearch.js";
 
-function mapWorkspaceFileToMentionItem(entry: WorkspaceFileEntry): MentionItem {
+function mapWorkspaceFileToMentionItem({
+  entry,
+  rootPath,
+  primary,
+}: ProjectFileEntry): MentionItem {
+  const projectRelativePath = primary
+    ? entry.relativePath
+    : `${getPathLeaf(rootPath)}/${entry.relativePath}`;
+  const mentionPath = primary ? entry.relativePath : entry.path;
   return {
-    id: `file:${entry.relativePath}`,
+    id: `file:${entry.path}`,
     category: "files",
     label: entry.name,
-    description: entry.relativePath,
-    value: entry.relativePath,
+    description: projectRelativePath,
+    value: mentionPath,
     // 文件 mention 的标准转译格式需要保持 `[filename](path)`，
     // 之前这里误把整条 relativePath 当成链接文本，导致发送后回显和复制内容都退化成“长路径做标题”。
     // 这里恢复为只用 basename 做 label，路径只放在链接目标里，和输入框 node 样式保持一致。
-    markdown: buildFileMentionMarkdown(entry.relativePath, entry.name, entry.type),
-    keywords: [entry.relativePath, entry.path],
+    markdown: buildFileMentionMarkdown(mentionPath, entry.name, entry.type),
+    keywords: [projectRelativePath, entry.relativePath, entry.path, rootPath],
     data: {
       kind: entry.type,
       path: entry.path,
-      relativePath: entry.relativePath,
+      relativePath: mentionPath,
     },
   };
 }
@@ -40,6 +50,12 @@ export function useFileMentionProvider(
   defaultPreviewLimit?: number,
 ): MentionCategoryResult {
   const { fileService } = useServices();
+  const localProject = useLocalProjectForWorkspace(workspacePath, workspaceIdentity);
+  const sourceFolderPaths = useMemo(
+    () => localProject?.sourceFolderPaths ?? [workspacePath],
+    [localProject, workspacePath],
+  );
+  const sourceFolderSignature = sourceFolderPaths.join("\0");
   const limit =
     getMentionGroupLimitForQuery(query, defaultPreviewLimit) ?? WORKSPACE_FILE_SEARCH_DISPLAY_CAP;
   // 连接实例也属于作用域：相同路径的远程重连不能接纳旧 Host 的查询结果。
@@ -48,13 +64,13 @@ export function useFileMentionProvider(
       error: null as Error | null,
       lastMissQuery: null as string | null,
     }),
-    [fileService, workspacePath, workspaceIdentity, enabled],
+    [fileService, workspacePath, workspaceIdentity, enabled, sourceFolderSignature],
   );
   const [result, setResult] = useState<{
     scope: typeof scope;
     query: string;
     limit: number;
-    entries: WorkspaceFileEntry[];
+    entries: ProjectFileEntry[];
     loading: boolean;
     error: Error | null;
   } | null>(null);
@@ -64,16 +80,30 @@ export function useFileMentionProvider(
     if (!enabled || scope.error) return;
     let active = true;
     setResult({ scope, query, limit, entries: [], loading: true, error: null });
-    const params = { rootPath: workspacePath, workspaceIdentity, query, limit };
     const search = async () => {
       try {
-        let entries = await fileService.searchWorkspaceFiles(params);
+        const searchAllRoots = async (refresh = false) => {
+          const resultGroups = await Promise.all(
+            sourceFolderPaths.map(async (rootPath) => ({
+              rootPath,
+              entries: await fileService.searchWorkspaceFiles({
+                rootPath,
+                workspaceIdentity,
+                query,
+                limit,
+                ...(refresh ? { refresh: true } : {}),
+              }),
+            })),
+          );
+          return mergeProjectFileEntries(resultGroups, workspacePath, limit);
+        };
+        let entries = await searchAllRoots();
         if (!active) return;
         const normalizedQuery = normalizeRefreshQuery(query);
         if (entries.length === 0 && normalizedQuery && scope.lastMissQuery !== normalizedQuery) {
           scope.lastMissQuery = normalizedQuery;
           // 无命中补扫必须绕过 Host TTL，否则外部新文件在缓存有效期内永远不可见。
-          entries = await fileService.searchWorkspaceFiles({ ...params, refresh: true });
+          entries = await searchAllRoots(true);
           if (!active) return;
         }
         setResult({ scope, query, limit, entries, loading: false, error: null });
@@ -88,7 +118,16 @@ export function useFileMentionProvider(
     return () => {
       active = false;
     };
-  }, [enabled, fileService, workspacePath, workspaceIdentity, query, limit, scope]);
+  }, [
+    enabled,
+    fileService,
+    workspacePath,
+    workspaceIdentity,
+    query,
+    limit,
+    scope,
+    sourceFolderPaths,
+  ]);
 
   const current =
     enabled && result?.scope === scope && result.query === query && result.limit === limit;

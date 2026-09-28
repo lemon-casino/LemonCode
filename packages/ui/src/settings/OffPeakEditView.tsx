@@ -582,7 +582,6 @@ export function OffPeakEditView({
                       onSelectConversationWorkspace={() => {}}
                       allowOpenWorkspace={false}
                       allowRemoteWorkspace={false}
-                      onOpenFolder={() => {}}
                       onConnectRemote={async () => ""}
                       onSelectRemoteProject={async () => {}}
                       onCancelRemoteProject={async (_sessionId) => {}}

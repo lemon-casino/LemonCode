@@ -8,6 +8,7 @@ import type { AppProps } from "@/app-shell/types.js";
 import type { RootProps } from "@/root/types.js";
 import type { IFeedbackService, IServiceAccessor } from "@lcode/services";
 import { ConversationTelemetryWorkspaceAttachment } from "@/v4/telemetry/ConversationTelemetryAttachment.js";
+import { LocalProjectsProvider } from "@/LocalProjectsContext.js";
 
 const StableWorkspaceApp = memo(App);
 
@@ -27,7 +28,8 @@ interface RootWorkspaceContentProps {
   handleCreateConversationTask: NonNullable<AppProps["onCreateConversationTask"]>;
   handleResolveConversationWorkspace: NonNullable<AppProps["onResolveConversationWorkspace"]>;
   handleOpenWorkspace: AppProps["onOpenWorkspace"];
-  handleOpenFolderFromWorkspaceMenu: AppProps["onOpenFolderFromWorkspaceMenu"];
+  handleCreateLocalProject: AppProps["onCreateLocalProject"];
+  localProjects: AppProps["localProjects"];
   handleOpenRemoteWorkspace?: AppProps["onOpenRemoteWorkspace"];
   handleCreateScratchWorkspace: AppProps["onCreateScratchWorkspace"];
   remoteConnectionInProgress?: AppProps["remoteConnectionInProgress"];
@@ -65,7 +67,8 @@ export function RootWorkspaceContent({
   handleCreateConversationTask,
   handleResolveConversationWorkspace,
   handleOpenWorkspace,
-  handleOpenFolderFromWorkspaceMenu,
+  handleCreateLocalProject,
+  localProjects,
   handleOpenRemoteWorkspace,
   handleCreateScratchWorkspace,
   remoteConnectionInProgress,
@@ -136,43 +139,46 @@ export function RootWorkspaceContent({
               variant="panel"
               className="h-full"
             >
-              <StableWorkspaceApp
-                services={workspaceScopedServices}
-                baseFeedbackService={baseFeedbackService}
-                onConnectRemote={handleConnectRemote}
-                onSelectRemoteProject={handleSelectRemoteProject}
-                onCancelRemoteProject={handleCancelRemoteProject}
-                onReconnectRemoteWorkspace={handleReconnectRemoteWorkspace}
-                onLogout={handleLogout}
-                onLogin={onLogin}
-                user={user}
-                reconnectingRemoteWorkspaceKeys={reconnectingRemoteWorkspaceKeys}
-                remoteWorkspaceErrorByWorkspaceKey={remoteWorkspaceErrorByWorkspaceKey}
-                reconnectingRemoteWorkspaceLogsByWorkspaceKey={
-                  reconnectingRemoteWorkspaceLogsByWorkspaceKey
-                }
-                remoteConnectionLogs={remoteConnectionLogs}
-                workspaceAbsPath={workspaceShellPath}
-                workspaceRemoteSessionId={workspaceRemoteSessionId}
-                workspaceIdentity={workspaceIdentity}
-                onCreateTask={handleCreateTask}
-                onCreateConversationTask={handleCreateConversationTask}
-                onResolveConversationWorkspace={handleResolveConversationWorkspace}
-                onOpenWorkspace={handleOpenWorkspace}
-                onOpenFolderFromWorkspaceMenu={handleOpenFolderFromWorkspaceMenu}
-                onOpenRemoteWorkspace={handleOpenRemoteWorkspace}
-                onCreateScratchWorkspace={handleCreateScratchWorkspace}
-                remoteConnectionInProgress={remoteConnectionInProgress}
-                onReturnToWorkspace={handleBackFromSettings}
-                allowOpenWorkspace={allowOpenWorkspace}
-                allowRemoteWorkspace={allowRemoteWorkspace}
-                remoteWorkspaceSessions={remoteWorkspaceSessions}
-                isWorkspaceVisible={!isSettingsTabActive}
-                isDesktop={isDesktop}
-                isMacDesktop={isMacDesktop}
-                isWindowsDesktop={isWindowsDesktop}
-                supportsEmbeddedBrowser={supportsEmbeddedBrowser}
-              />
+              <LocalProjectsProvider projects={localProjects}>
+                <StableWorkspaceApp
+                  services={workspaceScopedServices}
+                  baseFeedbackService={baseFeedbackService}
+                  onConnectRemote={handleConnectRemote}
+                  onSelectRemoteProject={handleSelectRemoteProject}
+                  onCancelRemoteProject={handleCancelRemoteProject}
+                  onReconnectRemoteWorkspace={handleReconnectRemoteWorkspace}
+                  onLogout={handleLogout}
+                  onLogin={onLogin}
+                  user={user}
+                  reconnectingRemoteWorkspaceKeys={reconnectingRemoteWorkspaceKeys}
+                  remoteWorkspaceErrorByWorkspaceKey={remoteWorkspaceErrorByWorkspaceKey}
+                  reconnectingRemoteWorkspaceLogsByWorkspaceKey={
+                    reconnectingRemoteWorkspaceLogsByWorkspaceKey
+                  }
+                  remoteConnectionLogs={remoteConnectionLogs}
+                  workspaceAbsPath={workspaceShellPath}
+                  workspaceRemoteSessionId={workspaceRemoteSessionId}
+                  workspaceIdentity={workspaceIdentity}
+                  onCreateTask={handleCreateTask}
+                  onCreateConversationTask={handleCreateConversationTask}
+                  onResolveConversationWorkspace={handleResolveConversationWorkspace}
+                  onOpenWorkspace={handleOpenWorkspace}
+                  onCreateLocalProject={handleCreateLocalProject}
+                  localProjects={localProjects}
+                  onOpenRemoteWorkspace={handleOpenRemoteWorkspace}
+                  onCreateScratchWorkspace={handleCreateScratchWorkspace}
+                  remoteConnectionInProgress={remoteConnectionInProgress}
+                  onReturnToWorkspace={handleBackFromSettings}
+                  allowOpenWorkspace={allowOpenWorkspace}
+                  allowRemoteWorkspace={allowRemoteWorkspace}
+                  remoteWorkspaceSessions={remoteWorkspaceSessions}
+                  isWorkspaceVisible={!isSettingsTabActive}
+                  isDesktop={isDesktop}
+                  isMacDesktop={isMacDesktop}
+                  isWindowsDesktop={isWindowsDesktop}
+                  supportsEmbeddedBrowser={supportsEmbeddedBrowser}
+                />
+              </LocalProjectsProvider>
             </ScopedErrorBoundary>
           </ServiceProvider>
         </ConversationTelemetryWorkspaceAttachment>
