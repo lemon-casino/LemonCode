@@ -109,6 +109,10 @@
 - packages/web/src/remote/pairingCredentialStore.ts（2 行）
 - scripts/lcode-brand-migration.test.mjs（16 行）
 
+### DEEP_LINK_RE 旧 scheme 双认正则 / 展开正则 ZCODE_ 族 / cookie 旧名常量 —— 2 行 / 2 文件
+- packages/desktop/src/main/desktopDeepLinkUrl.ts（1 行）
+- packages/server/src/http.ts（1 行）
+
 ### 转义域名正则 / 旧数据字段键 / bizCode 误报 / 外部包名识别串 —— 30 行 / 8 文件
 - apps/lcode-cli/packages/adapters/src/config/schema.ts（1 行）
 - config/provider/lcode-builtin.json（3 行）
@@ -240,9 +244,7 @@
 - patches/@ai-sdk__openai-compatible@2.0.60.patch（2 行）
 - patches/@arms__rum-electron@0.0.3.patch（47 行）
 
-### ⚠ 未分类（需人工处理）—— 3 行
+### ⚠ 未分类（需人工处理）—— 1 行
 - apps/lcode-cli/packages/bootstrap/src/custom-command-shell-expansion.ts（1 行）
-- packages/desktop/src/main/desktopDeepLinkUrl.ts（1 行）
-- packages/server/src/http.ts（1 行）
 
 （例外清单由 `.zcode/gen-exceptions.mjs` 按保留类别自动生成；品牌验收 grep 以本清单为排除集，未分类为 0 即全部残余均有登记原因。）
