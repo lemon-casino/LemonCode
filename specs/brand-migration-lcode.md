@@ -64,6 +64,7 @@
 - 过程中发现并处理：node_modules 里 app-builder-lib 的 NSIS 模板留着 v3.14.8 构建打入的旧补丁（标记 zcode-installer-details-v1），与改名后的 PATCH_MARKER 不互认——已还原为上游形态，本次构建由新脚本重新打补丁；CI 干净环境不受影响
 - 旧 dist/win-unpacked/resources/app.asar 被无关进程（杀毒/索引类；运行中的 D:\ZCode\ZCode.exe 均为已安装旧版应用，与 repo 无关，未触碰）占用无法清理——用 LCODE_DESKTOP_DIST_DIR=dist-lcode-fresh 换输出目录绕过
 - **迁移逻辑真实环境实测**：打包过程触发工作区复制式迁移——.lcode/ 快照副本生成、.zcode/ 源目录完整保留、草稿一致；.lcode/ 已入 gitignore（429bfbb）
+- **正式版构建（2026-09-28）**：按 CI desktop-release.yml 同配方（`LCODE_ENV=production LCODE_SKIP_REMOTE_ASSETS=1 LCODE_TARGET_OS/ARCH CSC_IDENTITY_AUTO_DISCOVERY=false LCODE_ENABLE_MAC_SIGN=0`）出包 `LCode-3.14.9-win-x64.exe`（143.5 MiB）——产物名符合发布规范模板（无 _TEST 后缀）、win-unpacked 可执行名为 `LCode.exe`（productName=LCode 正式身份，非 Preview）、updater latest.yml 指向正式命名；`resources/glm/lcode.cjs` 就位
 
 ## 例外清单（批次 1 后实测登记）
 
