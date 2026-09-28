@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 /**
  * 用户消息里的引擎附加文本。
@@ -31,7 +31,7 @@ function trimEpilogueLead(text: string): string {
 }
 
 export function ConversationUserInputEpilogue({ text }: { text: string }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [open, setOpen] = useState(false);
   const label = intl.formatMessage({ id: "chat.userInput.epilogue.label" });
   return (

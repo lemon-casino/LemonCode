@@ -1,4 +1,4 @@
-import type { ProviderConfigObject } from "@zcode/provider";
+import type { ProviderConfigObject } from "@lcode/provider";
 
 /** 产品展示例外：套餐 GLM-5.3 的图片输入是服务端桥接，不能把桥接标为原生视觉。 */
 export function shouldShowModelVisionBadge(

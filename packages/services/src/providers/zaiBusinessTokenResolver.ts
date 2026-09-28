@@ -1,4 +1,4 @@
-import type { ApiClient } from "@zcode/shared";
+import type { ApiClient } from "@lcode/shared";
 import { readApiJson } from "./api/apiJson.js";
 
 const ZAI_BUSINESS_TOKEN_REFRESH_SKEW_MS = 5 * 60 * 1000;

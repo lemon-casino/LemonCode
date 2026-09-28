@@ -76,7 +76,7 @@ function resolveBootstrapWithRemoteEnv(baseEnv = process.env) {
     // remote assets 和 bootstrap build 同一轮里会触发大量 workspace 构建。
     // 这里把降峰值限制在 bootstrap:with-remote 子进程，不修改 build/build:bootstrap 的全局语义。
     PNPM_CONFIG_WORKSPACE_CONCURRENCY: "1",
-    ZCODE_BOOTSTRAP_WITH_REMOTE: "1",
+    LCODE_BOOTSTRAP_WITH_REMOTE: "1",
     ...(pathEntries.length > 0
       ? {
           PATH: prependPathEntries(baseEnv.PATH, pathEntries),
@@ -109,7 +109,7 @@ function runPnpm(args, options = {}) {
 function runBootstrapServerBuild() {
   const serverDir = resolve(rootDir, "packages/server");
 
-  // bootstrap:with-remote 的最终构建过去复用 build:bootstrap，导致 @zcode/server build
+  // bootstrap:with-remote 的最终构建过去复用 build:bootstrap，导致 @lcode/server build
   // 内部再次嵌套 pnpm run build:remote；在本地低内存环境中 tsx/esbuild 子进程容易卡住或被停掉。
   // 同时不能按 dist 文件存在就跳过构建：开发时 version 经常不变，旧 entry-http 或 remote bundle
   // 会让本地/远端继续运行旧协议。这里仅保留直接执行等价入口的低内存优化，CI 和生产 build 脚本保持原样。
@@ -149,7 +149,7 @@ function runBootstrapDesktopBuild() {
 }
 
 function runBootstrapWithRemoteBuild() {
-  for (const filter of ["@zcode/rpc", "@zcode/web", "@zcode/formal-proof"]) {
+  for (const filter of ["@lcode/rpc", "@lcode/web", "@lcode/formal-proof"]) {
     // pnpm -r 会在 bootstrap:with-remote 的最终构建阶段并发启动多个 Vite/esbuild/tsup。
     // remote assets 已经占过一轮内存峰值，这里显式串行包构建，且不改变 build:bootstrap/CI 命令。
     runPnpm(["--filter", filter, "build"]);
@@ -158,7 +158,7 @@ function runBootstrapWithRemoteBuild() {
   runBootstrapDesktopBuild();
 }
 
-runGit(["submodule", "update", "--init", "--recursive", "apps/zcode-cli"]);
+runGit(["submodule", "update", "--init", "--recursive", "apps/lcode-cli"]);
 
 runPnpm(withRemoteAssets ? ["install", "--config.confirmModulesPurge=false"] : ["install"]);
 
@@ -169,7 +169,7 @@ runPnpm(["prepare:desktop-runtime"], {
         // 本地 bootstrap 过去默认准备 remote mock-cdn，
         // 每次都会重新打包跨平台组件，导致普通初始化很慢。
         // 默认只准备桌面端本地 runtime；需要远程资源时使用 bootstrap:with-remote。
-        ZCODE_SKIP_REMOTE_ASSETS: "1",
+        LCODE_SKIP_REMOTE_ASSETS: "1",
       },
 });
 

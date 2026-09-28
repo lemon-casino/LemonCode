@@ -1,4 +1,4 @@
-import { BUILTIN_PROVIDER_TEMPLATE_IDS } from "@zcode/shared";
+import { BUILTIN_PROVIDER_TEMPLATE_IDS } from "@lcode/shared";
 import {
   ApiKeyAccessConfig,
   ModelConfig,
@@ -8,7 +8,7 @@ import {
   ProviderConfig,
   ProviderConfigMap,
   type ProviderConfigLayerUpdate,
-} from "@zcode/provider";
+} from "@lcode/provider";
 import {
   isModelProviderModelConfig,
   normalizeModelProviderConfiguredBaseUrl,
@@ -65,7 +65,7 @@ export function importLegacyPersonalProviderConfig(
       continue;
     }
     if (providerId.startsWith("builtin:") || providerId.startsWith("account:")) continue;
-    // Built-in 整体由当前 ZCode Built-in Config 与 Account Overlay 重建；models-dev 已
+    // Built-in 整体由当前 LCode Built-in Config 与 Account Overlay 重建；models-dev 已
     // 退役，workspace 也不是全局 Personal 输入。只允许旧自定义 Provider 进入新文件。
     if (legacy.source !== undefined && legacy.source !== "custom") continue;
 

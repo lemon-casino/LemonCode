@@ -1,7 +1,7 @@
 import { ArrowUpRightIcon } from "lucide-react";
 import { useMemo } from "react";
 import { WORKFLOW_CARD_ICON } from "@/components/workflow-timeline/WorkflowCardChrome.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { ToolLayout } from "@/ToolCallBlocks/ToolLayout.js";
 import type { WorkflowRunCardSummary } from "@/ToolCallBlocks/shared.js";
 
@@ -17,7 +17,7 @@ export function WorkflowToolSummary({
   /** AmendWorkflow 发起行：种类词换成「工作流已调整」。 */
   amend?: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   // ToolLayout 是 memo 组件：primaryText 若是内联 JSX，每次渲染都会打破 memo（reactStableReferences 测试会拦下）。
   // 计数只说子代理；宿主没给子代理数时那一段留空，只剩 ↗。
   const agents = summary.agents;

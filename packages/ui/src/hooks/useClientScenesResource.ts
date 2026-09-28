@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import useSWR, { useSWRConfig } from "swr";
-import type { ClientSceneConfig, IClientScenesService } from "@zcode/services";
+import type { ClientSceneConfig, IClientScenesService } from "@lcode/services";
 import { createClientScenesVisibilityRecovery } from "@/hooks/clientScenesVisibilityRecovery.js";
 
 const CLIENT_SCENES_RESOURCE_KEY = "client-scenes";

@@ -1,9 +1,9 @@
 import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
 import { buildStartPlanEntitlementOptions } from "@/lib/startPlanEntitlementOptions.js";
 import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from "react";
-import { BUILTIN_MODEL_PROVIDER_IDS, isStartPlanModelProviderId } from "@zcode/shared";
-import type { IUsageStatsService } from "@zcode/services";
-import type { SessionErrorInfo, SessionPhase } from "@zcode/shared/zcode-protocol-v4";
+import { BUILTIN_MODEL_PROVIDER_IDS, isStartPlanModelProviderId } from "@lcode/shared";
+import type { IUsageStatsService } from "@lcode/services";
+import type { SessionErrorInfo, SessionPhase } from "@lcode/shared/lcode-protocol-v4";
 import { useUsageEntitlementWithService } from "@/hooks/useUsageEntitlement.js";
 import {
   resolveGlmQuotaBannerBusinessCode,

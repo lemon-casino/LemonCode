@@ -1,14 +1,14 @@
 import {
   normalizeUnknownError,
-  ZCODE_AGENT_PROVIDER_NOT_READY_CODE,
-  type ZCodeProvider,
-  type ZCodeError,
-} from "@zcode/shared";
-import { normalizeZCodeUiError } from "@/lib/zcodeUiError.js";
+  LCODE_AGENT_PROVIDER_NOT_READY_CODE,
+  type LCodeProvider,
+  type LCodeError,
+} from "@lcode/shared";
+import { normalizeLCodeUiError } from "@/lib/lcodeUiError.js";
 
 export const MODEL_CONFIG_MISSING_UI_ERROR_CODE = "model_config_missing";
 
-export type ModelConfigMissingUiError = ZCodeError & {
+export type ModelConfigMissingUiError = LCodeError & {
   code: typeof MODEL_CONFIG_MISSING_UI_ERROR_CODE;
 };
 
@@ -22,12 +22,12 @@ export function buildModelConfigMissingUiError(): ModelConfigMissingUiError {
 }
 
 export function isProviderNotReadyError(error: unknown): boolean {
-  return normalizeUnknownError(error).code === ZCODE_AGENT_PROVIDER_NOT_READY_CODE;
+  return normalizeUnknownError(error).code === LCODE_AGENT_PROVIDER_NOT_READY_CODE;
 }
 
 interface WorkspacePrepareErrorContext {
   workspacePath: string;
-  provider: ZCodeProvider;
+  provider: LCodeProvider;
   reason:
     | "mount"
     | "retry"
@@ -128,8 +128,8 @@ function buildDisplayErrorInput(err: unknown, displayMessage: string | undefined
 export function buildWorkspacePrepareUiError(
   err: unknown,
   context: WorkspacePrepareErrorContext,
-): ZCodeError & { detail?: string } {
-  const normalizedError = normalizeZCodeUiError(
+): LCodeError & { detail?: string } {
+  const normalizedError = normalizeLCodeUiError(
     buildDisplayErrorInput(err, context.displayMessage),
     {
       fallbackCode: "WORKSPACE_PREPARE_FAILED",

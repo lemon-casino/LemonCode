@@ -6,8 +6,8 @@ import type {
   SettingsSyncImportResult,
   SettingsSyncProgressEvent,
   SettingsSyncSelection,
-} from "@zcode/shared";
-import { ServiceChannels } from "@zcode/shared";
+} from "@lcode/shared";
+import { ServiceChannels } from "@lcode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 
 export interface ISettingsSyncService {
@@ -15,7 +15,7 @@ export interface ISettingsSyncService {
     workspacePath?: string;
     workspaceIdentity?: string;
   }): Promise<SettingsSyncClaudeAgentsFileMigrationStatus>;
-  copyClaudeAgentsFileToZcodeAgentsFile(request?: {
+  copyClaudeAgentsFileToLcodeAgentsFile(request?: {
     workspacePath?: string;
     workspaceIdentity?: string;
     overwrite?: boolean;

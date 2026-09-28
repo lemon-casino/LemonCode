@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { IFileWatcherService } from "@zcode/services";
+import type { IFileWatcherService } from "@lcode/services";
 import { logger } from "@/logger.js";
 import type { WorkspaceFileTreeWatcherRegistration } from "@/workspace-file-tree/types.js";
 

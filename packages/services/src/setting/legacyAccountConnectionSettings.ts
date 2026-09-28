@@ -1,7 +1,7 @@
 import type {
   ProviderFamilyConnectionSelectionSettings,
   ProviderFamilyDomain,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { readFile } from "node:fs/promises";
 
 function record(value: unknown): Record<string, unknown> {

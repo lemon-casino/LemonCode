@@ -1,6 +1,6 @@
 import { BrowserWindow, screen } from "electron";
 import type { BrowserWindowConstructorOptions, Display, Point, Rectangle } from "electron";
-import type { HostCuaOperationStateResponse, Locale } from "@zcode/shared";
+import type { HostCuaOperationStateResponse, Locale } from "@lcode/shared";
 import {
   INDICATOR_CARD_TOP_OFFSET,
   INDICATOR_SHADOW_INSET,
@@ -300,7 +300,7 @@ export function createWindowsCuaOperationIndicator(
       windowShown = false;
       return;
     } catch (error) {
-      // 关闭是这个浮层的安全底线：它在声称"ZCode 正在操作电脑"，隐藏失败就等于向用户
+      // 关闭是这个浮层的安全底线：它在声称"LCode 正在操作电脑"，隐藏失败就等于向用户
       // 撒谎。hide() 抛错时降级为销毁窗口——下一个 CUA cell 会由 ensureWindow 重建。
       options.logger.warn("[cua-operation-indicator] hide failed, destroying window", error);
     }

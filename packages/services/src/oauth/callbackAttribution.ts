@@ -1,4 +1,4 @@
-import type { OAuthLoginAttribution } from "@zcode/shared";
+import type { OAuthLoginAttribution } from "@lcode/shared";
 
 const ATTRIBUTION_PARAM_KEYS = ["channel_id", "utm_source", "utm_campaign"] as const;
 

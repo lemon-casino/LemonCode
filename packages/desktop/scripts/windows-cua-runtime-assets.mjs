@@ -20,7 +20,7 @@ import {
   requireCanonicalWindowsRuntimePath,
 } from "./windows-cua-runtime-manifest.mjs";
 
-const EXPECTED_PACKAGE_NAME = "@zcode/zcode-cua";
+const EXPECTED_PACKAGE_NAME = "@lcode/lcode-cua";
 const XA11Y_PACKAGE_NAME = "@crowecawcaw/xa11y";
 const RUNTIME_MANIFEST_NAME = "runtime-manifest.json";
 const NODE_RUNTIME_SEGMENTS = ["resources", "tools", "cua-helper"];
@@ -271,16 +271,16 @@ async function copyPackageTree(sourceRootRealPath, targetRoot, relativeDirectory
   }
 }
 
-function defaultResolveDependencyPackageRoot(packageName, zcodeCuaRoot) {
-  const requireFromCua = createRequire(resolve(zcodeCuaRoot, "package.json"));
+function defaultResolveDependencyPackageRoot(packageName, lcodeCuaRoot) {
+  const requireFromCua = createRequire(resolve(lcodeCuaRoot, "package.json"));
   return dirname(requireFromCua.resolve(`${packageName}/package.json`));
 }
 
-async function resolveDependencyPackage({ packageName, zcodeCuaRoot, dependencyPackageRoots }) {
+async function resolveDependencyPackage({ packageName, lcodeCuaRoot, dependencyPackageRoots }) {
   const configuredRoot = dependencyPackageRoots?.[packageName];
   let packageRoot;
   try {
-    packageRoot = configuredRoot ?? defaultResolveDependencyPackageRoot(packageName, zcodeCuaRoot);
+    packageRoot = configuredRoot ?? defaultResolveDependencyPackageRoot(packageName, lcodeCuaRoot);
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error);
     throw new Error(
@@ -322,7 +322,7 @@ function requireCuaTarget(electronPlatformName, targetPlatform) {
  */
 export async function stageCuaRuntimeTree({
   targetPlatform,
-  zcodeCuaRoot,
+  lcodeCuaRoot,
   runtimeRoot,
   dependencyPackageRoots,
   runtimeContractName = targetPlatform?.os === "darwin"
@@ -332,21 +332,21 @@ export async function stageCuaRuntimeTree({
       : "windows",
 }) {
   const cuaTarget = requireCuaTarget(targetPlatform?.os, targetPlatform);
-  if (!isNonEmptyTrimmedString(zcodeCuaRoot) || !isAbsolute(zcodeCuaRoot)) {
-    throw new Error("[windows-cua-runtime-assets] zcodeCuaRoot must be an absolute path");
+  if (!isNonEmptyTrimmedString(lcodeCuaRoot) || !isAbsolute(lcodeCuaRoot)) {
+    throw new Error("[windows-cua-runtime-assets] lcodeCuaRoot must be an absolute path");
   }
   if (!isNonEmptyTrimmedString(runtimeRoot) || !isAbsolute(runtimeRoot)) {
     throw new Error("[windows-cua-runtime-assets] runtimeRoot must be an absolute path");
   }
 
-  const sourceRootRealPath = await realpath(resolve(zcodeCuaRoot));
+  const sourceRootRealPath = await realpath(resolve(lcodeCuaRoot));
   const packageJsonPath = await requireRegularFile(
     sourceRootRealPath,
     "package.json",
-    "zcode-cua package.json",
+    "lcode-cua package.json",
   );
-  const packageJson = await readJsonFile(packageJsonPath, "zcode-cua package.json");
-  const runtimeContract = packageJson.zcodeCuaRuntime;
+  const packageJson = await readJsonFile(packageJsonPath, "lcode-cua package.json");
+  const runtimeContract = packageJson.lcodeCuaRuntime;
   const platformContract = isPlainObject(runtimeContract)
     ? runtimeContract[runtimeContractName]
     : null;
@@ -358,7 +358,7 @@ export async function stageCuaRuntimeTree({
     !isPlainObject(platformContract)
   ) {
     throw new Error(
-      `[windows-cua-runtime-assets] invalid zcode-cua ${runtimeContractName} runtime contract`,
+      `[windows-cua-runtime-assets] invalid lcode-cua ${runtimeContractName} runtime contract`,
     );
   }
   const entry = requireCanonicalWindowsRuntimePath(platformContract.entry, "runtime entry");
@@ -367,19 +367,19 @@ export async function stageCuaRuntimeTree({
     "native addon loader",
   );
   if (entry !== "helper-entry.js" || addon !== "xa11y-native-loader.js" || entry === addon) {
-    throw new Error("[windows-cua-runtime-assets] unexpected zcode-cua runtime artifacts");
+    throw new Error("[windows-cua-runtime-assets] unexpected lcode-cua runtime artifacts");
   }
 
   const runtimeModules = await collectRuntimeModuleClosure(sourceRootRealPath, [entry, addon]);
   const xa11yPackage = await resolveDependencyPackage({
     packageName: XA11Y_PACKAGE_NAME,
-    zcodeCuaRoot: sourceRootRealPath,
+    lcodeCuaRoot: sourceRootRealPath,
     dependencyPackageRoots,
   });
   const nativePackageName = cuaTarget.nativePackageName;
   const nativePackage = await resolveDependencyPackage({
     packageName: nativePackageName,
-    zcodeCuaRoot: sourceRootRealPath,
+    lcodeCuaRoot: sourceRootRealPath,
     dependencyPackageRoots,
   });
   if (nativePackage.packageJson.version !== xa11yPackage.packageJson.version) {
@@ -443,7 +443,7 @@ export async function stageCuaNodeRuntimeAssets({
   appOutDir,
   targetPlatform,
   electronVersion,
-  zcodeCuaRoot,
+  lcodeCuaRoot,
   dependencyPackageRoots,
 }) {
   if (electronPlatformName !== "win32" && electronPlatformName !== "linux") {
@@ -472,7 +472,7 @@ export async function stageCuaNodeRuntimeAssets({
   try {
     const runtime = await stageCuaRuntimeTree({
       targetPlatform: nodeTarget,
-      zcodeCuaRoot,
+      lcodeCuaRoot,
       runtimeRoot: stagingRoot,
       dependencyPackageRoots,
       runtimeContractName: nodeTarget.os === "linux" ? "linux" : "windows",

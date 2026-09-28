@@ -1,7 +1,7 @@
 import type { KeyboardEvent, MouseEvent } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { TaskRowActionButton } from "@/workspace-grouped-tasks/task-row-action-button.js";
 
 export function GroupedDraftTaskRow({
@@ -15,7 +15,7 @@ export function GroupedDraftTaskRow({
   onSelect: () => void;
   onClose?: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const title = intl.formatMessage({ id: "taskList.newThread" });
   const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) {

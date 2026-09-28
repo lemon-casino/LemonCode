@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sourcePath = join(packageRoot, "native", "macos-window-bounds", "main.swift");
 const outputDir = join(packageRoot, "resources", "macos-window-bounds");
-const outputPath = join(outputDir, "zcode-window-bounds");
+const outputPath = join(outputDir, "lcode-window-bounds");
 
 if (process.platform !== "darwin") {
   console.log("[window-bounds] 跳过：仅 macOS 需要");

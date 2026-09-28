@@ -17,7 +17,7 @@ import { buildSlashApplyMentionPayload } from "@/lib/slashApplyMentionPayload.js
 import { useSlashCommands } from "@/hooks/useSlashCommands.js";
 import { normalizeSlashCommandValue } from "@/slashCommandHelpers.js";
 import type { LexicalChatInputHandle } from "@/LexicalChatInput.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { MentionPanel, type MentionPanelSection } from "@/mentions/components/MentionPanel.js";
 import { PluginMentionOptionContent } from "@/mentions/components/PluginMentionOptionContent.js";
 import { usePluginsMentionProvider } from "@/mentions/providers/pluginsMentionProvider.js";
@@ -64,7 +64,7 @@ export function ChatPromptActionMenu({
   showQuickCommands?: boolean;
   excludedSlashCommandNames?: readonly string[];
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [open, setOpen] = useState(false);
   const [quickCommands, setQuickCommands] = useState<QuickCommand[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);

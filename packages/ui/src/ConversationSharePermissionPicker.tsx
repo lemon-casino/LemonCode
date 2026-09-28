@@ -1,7 +1,7 @@
 import { Fragment } from "react";
 import { Check, Globe, Info, Lock, UserRoundPen } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 type ConversationSharePermission = "private" | "link-viewer" | "link-editor";
 
@@ -34,7 +34,7 @@ export function ConversationSharePermissionPicker({
   disabled?: boolean;
   variant?: "default" | "compact";
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const compact = variant === "compact";
 
   return (

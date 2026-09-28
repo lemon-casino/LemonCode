@@ -1,4 +1,4 @@
-import type { ZCodePermissionRequest } from "./zcode-task-types-core.js";
+import type { LCodePermissionRequest } from "./lcode-task-types-core.js";
 
 export type PermissionRequestScope = "command" | "file" | "generic";
 
@@ -22,7 +22,7 @@ const FILE_PATH_KEYS = new Set([
   "path",
   "paths",
   "file",
-  // ZCode Agent edit 权限常把目标文件放在 file_path/filePath，漏掉会让权限预览只剩标题。
+  // LCode Agent edit 权限常把目标文件放在 file_path/filePath，漏掉会让权限预览只剩标题。
   "file_path",
   "filepath",
   "files",
@@ -77,7 +77,7 @@ function readPermissionInputSource(rawSource: unknown): unknown {
     return rawSource.rawInput;
   }
 
-  // ZCode protocol 的 requestPermission schema 使用 input 承载工具参数；
+  // LCode protocol 的 requestPermission schema 使用 input 承载工具参数；
   // 只按旧 rawInput 读取会让 Write/Edit 这类结构化工具退回到通用 JSON 预览。
   return "input" in rawSource ? rawSource.input : rawSource;
 }
@@ -336,7 +336,7 @@ function collectFileChanges(
 }
 
 export function getPermissionRequestPreview(
-  request: Pick<ZCodePermissionRequest, "title" | "description" | "kind" | "raw">,
+  request: Pick<LCodePermissionRequest, "title" | "description" | "kind" | "raw">,
 ): PermissionRequestPreview {
   const rawSource = request.raw;
   const filePaths: string[] = [];

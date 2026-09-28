@@ -1,4 +1,4 @@
-import { OffPeakPermanentDispatchError } from "@zcode/services/node";
+import { OffPeakPermanentDispatchError } from "@lcode/services/node";
 
 /**
  * 闲时派发三分支：

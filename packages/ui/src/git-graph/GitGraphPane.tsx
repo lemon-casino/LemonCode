@@ -2,7 +2,7 @@ import { GitGraph, GitMergeIcon, RefreshCwIcon } from "lucide-react";
 import { useCallback, useMemo, useState, type UIEvent } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { GitGraphCommitDetail } from "./GitGraphCommitDetail.js";
 import { formatCommitTime, getRefIcon, getShortHash } from "./GitGraphDisplay.js";
 import { type GitGraphCommit, type GitGraphLayoutPath, layoutGitGraph } from "./layout.js";
@@ -67,7 +67,7 @@ export function GitGraphPane({
   onLoadMore,
   onRefresh,
 }: GitGraphPaneProps) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const [hoveredCommitHash, setHoveredCommitHash] = useState<string | null>(null);
   const [expandedCommitHash, setExpandedCommitHash] = useState<string | null>(null);
   const layout = useMemo(() => layoutGitGraph(commits), [commits]);

@@ -5,7 +5,7 @@ import {
   RUN_STATUS_DOT,
   RUN_STATUS_TEXT,
 } from "@/components/workflow-graph/run-status-presentation.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
 import { readToolResultDisplay } from "@/ToolCallBlocks/toolResultDisplay.js";
 import { ToolLayout } from "../ToolLayout.js";
@@ -36,7 +36,7 @@ const FALLBACK_OUTPUT_MAX_HEIGHT_CLASS = "max-h-60";
  *   说明；无 display 时有界纯文本面板，绝不 raw JSON dump。
  */
 export function ResumeWorkflowRunToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCall } = context.toolCallNode;
 
   const display = readToolResultDisplay(toolCall.raw);

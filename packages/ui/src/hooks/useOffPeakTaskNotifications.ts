@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
-import type { IPlatformService } from "@zcode/shared";
-import type { ZCodeOffPeakTaskStatus } from "@zcode/shared";
-import type { IOffPeakTaskService } from "@zcode/services";
+import type { IPlatformService } from "@lcode/shared";
+import type { LCodeOffPeakTaskStatus } from "@lcode/shared";
+import type { IOffPeakTaskService } from "@lcode/services";
 import type { IntlInstance } from "@/i18n/index.js";
 import { logger } from "@/logger.js";
 
@@ -12,7 +12,7 @@ import { logger } from "@/logger.js";
 const OFF_PEAK_NOTIFICATION_POLL_MS = 30_000;
 
 /** Off-Peak 聚合只通知终态；permission/elicitation 由普通 session 通知链路负责，避免重复通知。 */
-function notifiableStatus(status: ZCodeOffPeakTaskStatus): "completed" | "failed" | null {
+function notifiableStatus(status: LCodeOffPeakTaskStatus): "completed" | "failed" | null {
   if (status === "completed") return "completed";
   if (status === "failed") return "failed";
   return null;
@@ -26,7 +26,7 @@ export function useOffPeakTaskNotifications(params: {
 }): void {
   const { offPeakTaskService, platform, enabled, formatMessage } = params;
   // offPeakTaskId → 上次见到的状态；只在"新→需通知状态"的边沿触发，避免每轮重发。
-  const seenStatusRef = useRef(new Map<string, ZCodeOffPeakTaskStatus>());
+  const seenStatusRef = useRef(new Map<string, LCodeOffPeakTaskStatus>());
 
   useEffect(() => {
     if (!enabled || !platform) return;

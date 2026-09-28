@@ -1,7 +1,7 @@
 import { CodingPlanEntryButton } from "@/settings/CodingPlanEntryButton.js";
 import { ArrowLeftIcon, Loader2Icon, RocketIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CodingPlanLoginOptions } from "./codingPlanPricingCards.js";
 
 export function CodingPlanStatusActions({
@@ -29,7 +29,7 @@ export function CodingPlanStatusActions({
   onLogin?: (options?: CodingPlanLoginOptions) => void;
   onDisconnect?: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   return (
     <div className="flex shrink-0 flex-wrap justify-start gap-2">
@@ -68,7 +68,7 @@ export function CodingPlanUpgradeAction({
   actionLabelId?: string;
   onUpgradePlansVisibleChange: (visible: boolean) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   // 开源版不享受额度活动权益，升级入口只展示操作，不附带优惠徽标或规则说明。
   return (

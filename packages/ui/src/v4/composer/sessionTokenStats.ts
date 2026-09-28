@@ -1,9 +1,9 @@
-import { ESTIMATED_TOKEN_CHAR_DIVISOR } from "@zcode/shared";
+import { ESTIMATED_TOKEN_CHAR_DIVISOR } from "@lcode/shared";
 import type {
   ConversationSnapshot,
   SessionPhase,
   SessionUsageState,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
 
 type SessionCumulative = SessionUsageState["cumulative"];
 type ConversationRows = ConversationSnapshot["rows"]["window"];

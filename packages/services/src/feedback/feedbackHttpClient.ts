@@ -1,4 +1,4 @@
-import { redactFeedbackText } from "@zcode/shared";
+import { redactFeedbackText } from "@lcode/shared";
 /* eslint-disable max-lines -- 反馈 HTTP 客户端集中维护新后端协议、鉴权头合并、OSS 表单直传和响应归一化。 */
 import { randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
@@ -25,7 +25,7 @@ import type {
   FeedbackTicketStatus,
   FeedbackTicketSummary,
   FeedbackTicketType,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { createServiceLogger, type ServiceLogger } from "#src/logger/serviceLogger.js";
 import { withRequestIdHeaderRecord } from "#src/providers/api/requestIdHeaders.js";
 import {
@@ -578,7 +578,7 @@ function toFeedbackEnvironment(input: CreateFeedbackTicketInput): Record<string,
     "platform",
     resolveClientConfigPlatform(device.osPlatform, device.osArch),
   );
-  assignDefined(environment, "release_channel", process.env.ZCODE_ENV?.trim() || "stable");
+  assignDefined(environment, "release_channel", process.env.LCODE_ENV?.trim() || "stable");
   assignDefined(environment, "os_category", device.osPlatform ?? process.platform);
   assignDefined(environment, "os_version", device.osVersion ?? device.osRelease ?? process.version);
   assignDefined(environment, "build_commit_id", device.buildCommitId);
@@ -943,7 +943,7 @@ async function uploadOssForm(
   return new Promise((resolve, reject) => {
     const uploadUrl = new URL(credential.oss.host);
     const requestImpl = uploadUrl.protocol === "https:" ? httpsRequest : httpRequest;
-    const boundary = `----zcode-feedback-${randomUUID()}`;
+    const boundary = `----lcode-feedback-${randomUUID()}`;
     const fields = buildOssFormFields(credential);
     const fieldBuffers = fields.map(([name, value]) => createMultipartField(boundary, name, value));
     const fileHeader = Buffer.from(

@@ -6,7 +6,7 @@
  * - 模型目录：`ListModels`。
  *
  * 为什么不走 `resolveToolCallIdentity`：这些工具名都不在 `packages/shared` 的
- * `ZCODE_KNOWN_TOOL_NAMES` 里，identity 对它们只会回 `unknown`，分流会掉进 raw JSON 兜底卡。
+ * `LCODE_KNOWN_TOOL_NAMES` 里，identity 对它们只会回 `unknown`，分流会掉进 raw JSON 兜底卡。
  *
  * 而且这些判定必须排在 family 分流**之前**：`workflow` family 的兜底分支是 CreateWorkflow
  * 卡（`resolveRenderer.ts`）与运行确认块（`PermissionDialog.tsx`），一旦有人把这些名字登记

@@ -5,15 +5,15 @@ import {
   TID_SETTINGS_MEMORY_SWITCH,
   TID_SETTINGS_SESSION_RECALL_HELP,
   TID_SETTINGS_SESSION_RECALL_SWITCH,
-} from "@zcode/shared";
-import { ZCodeIntlProvider } from "../i18n/IntlProvider.js";
+} from "@lcode/shared";
+import { LCodeIntlProvider } from "../i18n/IntlProvider.js";
 import enUS from "../i18n/locales/en-US.js";
 import zhCN from "../i18n/locales/zh-CN.js";
 import { MemorySettingsSection } from "./MemorySettingsSection.js";
 
 test("memory settings exposes an independent automatic history recall switch and help trigger", () => {
   const markup = renderToStaticMarkup(
-    <ZCodeIntlProvider initialLocale="zh-CN">
+    <LCodeIntlProvider initialLocale="zh-CN">
       <MemorySettingsSection
         memoryEnabled={false}
         memoryService={{ listProjectMemories: async () => [] }}
@@ -22,7 +22,7 @@ test("memory settings exposes an independent automatic history recall switch and
         projectMemoryViewerAvailable={false}
         sessionRecallEnabled
       />
-    </ZCodeIntlProvider>,
+    </LCodeIntlProvider>,
   );
 
   assert.match(markup, /自动历史召回/);

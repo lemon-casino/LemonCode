@@ -6,7 +6,7 @@
  * - 手机端（Web 远程控制）：使用物理属性指纹（browserPlatform + screen.width/height + colorDepth），
  *   抗浏览器/网络/语言/时区变化，换手机才会变
  */
-import { createUuid } from "@zcode/shared";
+import { createUuid } from "@lcode/shared";
 
 let cachedStreamClientId: string | null = null;
 

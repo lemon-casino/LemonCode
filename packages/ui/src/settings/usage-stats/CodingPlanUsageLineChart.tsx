@@ -1,13 +1,13 @@
 import { useCallback, useMemo } from "react";
 import { CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
-import type { CodingPlanUsageGranularity } from "@zcode/shared";
+import type { CodingPlanUsageGranularity } from "@lcode/shared";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   UsageEmptyState,
   formatCompactNumber,
@@ -94,7 +94,7 @@ export function CodingPlanUsageLineChart({
   valueKind?: "count" | "credit" | "speed" | "token";
   showLegend?: boolean;
 }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const visibleSeries = useMemo(
     // Recharts 对 series、legend、tooltip props 的引用变化很敏感。
     // 稳定派生数据，避免设置页刷新时图表内部 store 出现重复 replace 更新。

@@ -2,7 +2,7 @@ import { FileTextIcon, GlobeIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   type AssistantPreviewCard,
   type AssistantPreviewCardFileStatService,
@@ -191,7 +191,7 @@ export function AssistantPreviewCards({
   autoOpenPptxKey,
   onAutoOpenPptx,
 }: AssistantPreviewCardsProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { visibleCards, settled } = useAssistantPreviewCardValidation(cards, {
     workspacePath,
     workspaceIdentity,
@@ -286,10 +286,10 @@ function AssistantPreviewCardRow({
   return (
     <div
       className="flex w-full items-center gap-3 rounded-xl border border-card-border bg-card p-3 pr-4 text-foreground"
-      data-zcode-stream-animate="true"
+      data-lcode-stream-animate="true"
       style={
         {
-          "--zcode-stream-animation-delay": `${animationDelayMs}ms`,
+          "--lcode-stream-animation-delay": `${animationDelayMs}ms`,
         } as CSSProperties
       }
     >

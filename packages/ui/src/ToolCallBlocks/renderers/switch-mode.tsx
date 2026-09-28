@@ -2,7 +2,7 @@ import { useState, type KeyboardEvent, type MouseEvent } from "react";
 import { MessageResponse } from "@/components/ai-elements/message.js";
 import { ToolOutput } from "@/components/ai-elements/tool.js";
 import { Button } from "@/components/ui/button.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { getToolCallErrorText } from "@/lib/toolError.js";
 import { extractPlanToolCallContent, getPlanFileLabel } from "@/lib/planToolCall.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
@@ -18,7 +18,7 @@ function isInteractiveDescendant(target: EventTarget | null, card: HTMLElement):
 }
 
 export function SwitchModeToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCall } = context.toolCallNode;
   const errorText = getToolCallErrorText(toolCall);
   const { markdown, planFilePath } = extractPlanToolCallContent(toolCall, context.workspacePath);

@@ -1,7 +1,7 @@
 import {
   conversationArtifactTypeSchema,
   type ConversationArtifactType,
-} from "./zcode-protocol-v4/rows.js";
+} from "./lcode-protocol-v4/rows.js";
 import { MEDIA_PREVIEW_FORMATS } from "./media-preview.js";
 
 export type ConversationPreviewFileKind =
@@ -98,7 +98,7 @@ export const CONVERSATION_PREVIEW_CARD_CANDIDATE_LIMIT = 15;
 export const CONVERSATION_PREVIEW_CARD_VISIBLE_LIMIT = 10;
 
 const FILE_URL_RE = /\bfile:\/\/[^\s<>()\]`"'*，。！？；：、]+/giu;
-const FILE_CITATION_RE = /:{1,2}zcode-file-citation\{([^}]*)\}/giu;
+const FILE_CITATION_RE = /:{1,2}lcode-file-citation\{([^}]*)\}/giu;
 const MARKDOWN_LINK_RE = /\[([^\]\n]*)\]\(([^)\n]+)\)/g;
 const DELIMITED_FILE_PATH_RE =
   /([`"'])([^`"'\r\n]+?\.(?:md|html?|docx|xlsx|pptx|pdf|mp4|mov|webm|m4v|mp3|wav|m4a|ogg|opus|flac|weba)(?::\d+(?::\d+)?)?)\1/giu;

@@ -1,4 +1,4 @@
-import { isApiKeyAccess } from "@zcode/provider";
+import { isApiKeyAccess } from "@lcode/provider";
 import type {
   ConfigValidationIssue,
   AccountProviderState,
@@ -6,7 +6,7 @@ import type {
   ProviderApiKey,
   ProviderConfigObject,
   ProviderSettingsProviderView,
-} from "@zcode/provider";
+} from "@lcode/provider";
 
 /** 设置页面在一次编辑会话中使用的 Provider 状态。 */
 export interface ProviderSettingsFormProvider extends Pick<

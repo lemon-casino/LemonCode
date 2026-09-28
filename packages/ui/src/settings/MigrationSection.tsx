@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.js";
 import { useClaudeSessionMigration } from "@/hooks/useClaudeSessionMigration.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { MigrationCandidatesCard } from "@/settings/MigrationCandidatesCard.js";
 
 const RANGE_OPTIONS = ["7d", "30d", "90d", "all"] as const;
@@ -34,7 +34,7 @@ export function MigrationSection({
   workspaceIdentity?: string;
   isDesktop?: boolean;
 }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const {
     supportState,
     workspaceFilterMode,

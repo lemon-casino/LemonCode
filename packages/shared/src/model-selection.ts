@@ -31,7 +31,7 @@ export interface EffectiveModelSelectionResult {
     | "speed-not-supported";
 }
 
-export const ZCODE_MODEL_REASONING_SEPARATOR = "$";
+export const LCODE_MODEL_REASONING_SEPARATOR = "$";
 
 /** UI Picker/legacy CLI 的展示值；不是可逆的 ModelSelection 序列化格式。 */
 export function formatModelPickerValue(selection: ModelSelection | undefined): string {
@@ -39,7 +39,7 @@ export function formatModelPickerValue(selection: ModelSelection | undefined): s
   if (!selection) return "";
   const base = `${selection.providerId}/${selection.modelId}`;
   const reasoningLevel = selection.options?.reasoningLevel;
-  return reasoningLevel ? `${base}${ZCODE_MODEL_REASONING_SEPARATOR}${reasoningLevel}` : base;
+  return reasoningLevel ? `${base}${LCODE_MODEL_REASONING_SEPARATOR}${reasoningLevel}` : base;
 }
 
 /** 只解析 Picker/legacy 字符串边界；领域状态与协议必须直接保存 ModelSelection。 */
@@ -51,7 +51,7 @@ export function parseModelPickerValue(value: string): ModelSelection {
   }
   const providerId = normalized.slice(0, providerSeparatorIndex);
   const rawModelId = normalized.slice(providerSeparatorIndex + 1);
-  const reasoningSeparatorIndex = rawModelId.indexOf(ZCODE_MODEL_REASONING_SEPARATOR);
+  const reasoningSeparatorIndex = rawModelId.indexOf(LCODE_MODEL_REASONING_SEPARATOR);
   if (reasoningSeparatorIndex <= 0 || reasoningSeparatorIndex >= rawModelId.length - 1) {
     return modelSelectionSchema.parse({ providerId, modelId: rawModelId });
   }

@@ -14,8 +14,8 @@ import type {
   Locale,
   UsageEntitlementSnapshot,
   UserInfo,
-  ZCodeInteractionBehavior,
-} from "@zcode/shared";
+  LCodeInteractionBehavior,
+} from "@lcode/shared";
 import {
   BUILTIN_MODEL_PROVIDER_IDS,
   TID_SETTINGS_BACK_BUTTON,
@@ -23,11 +23,11 @@ import {
   TID_SETTINGS_SECTION_NAV,
   TID_SETTINGS_USAGE_TAB,
   testId,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { getPathLeaf } from "@/lib/path.js";
 import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
@@ -81,7 +81,7 @@ import {
   SettingsHeaderBreadcrumb,
   type SettingsBreadcrumbItem,
 } from "@/settings/SettingsHeaderBreadcrumb.js";
-import { useZCodeStore } from "@/store/StoreProvider.js";
+import { useLCodeStore } from "@/store/StoreProvider.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab } from "@/store/tabStore.js";
 import { isThemeValue } from "@/useTheme.js";
@@ -145,7 +145,7 @@ function SettingsUsageProviderTabs({
   codingPlanSources: CodingPlanUsageSource[];
   onTabChange: (tab: UsageStatsSectionTab) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const tabItems = [
     {
       id: "app" as const,
@@ -294,7 +294,7 @@ export function SettingsPage({
   onLogout?: () => void;
   user?: UserInfo | null;
 }) {
-  const { intl, localePreference, setLocalePreference } = useZCodeIntl();
+  const { intl, localePreference, setLocalePreference } = useLCodeIntl();
   const { settingsSectionGroups, settingsSections } = useMemo(
     () =>
       createSettingsPageConfig({
@@ -335,18 +335,18 @@ export function SettingsPage({
   const [settingsBreadcrumbItems, setSettingsBreadcrumbItems] = useState<
     readonly SettingsBreadcrumbItem[]
   >([]);
-  const interfaceMode = useZCodeStore((state) => state.interfaceMode);
-  const setInterfaceMode = useZCodeStore((state) => state.setInterfaceMode);
-  const theme = useZCodeStore((state) => state.theme);
-  const setTheme = useZCodeStore((state) => state.setTheme);
-  const codePreviewSettings = useZCodeStore((state) => state.codePreviewSettings);
-  const setCodePreviewSettings = useZCodeStore((state) => state.setCodePreviewSettings);
-  const uiFontSizePx = useZCodeStore((state) => state.uiFontSizePx);
-  const setUiFontSizePx = useZCodeStore((state) => state.setUiFontSizePx);
-  const notificationEnabled = useZCodeStore((state) => state.notificationEnabled);
-  const setNotificationEnabled = useZCodeStore((state) => state.setNotificationEnabled);
-  const notificationSoundEnabled = useZCodeStore((state) => state.notificationSoundEnabled);
-  const setNotificationSoundEnabled = useZCodeStore((state) => state.setNotificationSoundEnabled);
+  const interfaceMode = useLCodeStore((state) => state.interfaceMode);
+  const setInterfaceMode = useLCodeStore((state) => state.setInterfaceMode);
+  const theme = useLCodeStore((state) => state.theme);
+  const setTheme = useLCodeStore((state) => state.setTheme);
+  const codePreviewSettings = useLCodeStore((state) => state.codePreviewSettings);
+  const setCodePreviewSettings = useLCodeStore((state) => state.setCodePreviewSettings);
+  const uiFontSizePx = useLCodeStore((state) => state.uiFontSizePx);
+  const setUiFontSizePx = useLCodeStore((state) => state.setUiFontSizePx);
+  const notificationEnabled = useLCodeStore((state) => state.notificationEnabled);
+  const setNotificationEnabled = useLCodeStore((state) => state.setNotificationEnabled);
+  const notificationSoundEnabled = useLCodeStore((state) => state.notificationSoundEnabled);
+  const setNotificationSoundEnabled = useLCodeStore((state) => state.setNotificationSoundEnabled);
   const usageProviderSettingsRead = useProviderSettingsView();
   const usageProviderSettingsView =
     usageProviderSettingsRead.state.status === "ready"
@@ -589,7 +589,7 @@ export function SettingsPage({
         : "app",
     );
   }, [selectedUsageCodingPlanSource, usageActiveTab, usageCodingPlanSources]);
-  const setNewUserOnboardingOpen = useZCodeStore((state) => state.setNewUserOnboardingOpen);
+  const setNewUserOnboardingOpen = useLCodeStore((state) => state.setNewUserOnboardingOpen);
   const requestOnboardingDialog = () => setNewUserOnboardingOpen(true);
   const setActiveSettingsSection = useCallback(
     (section: SettingsSectionId, fallbackSection: SettingsSectionId = activeSection) => {
@@ -716,8 +716,8 @@ export function SettingsPage({
   const [toolGroupingExploreEnabled, setToolGroupingExploreEnabled] = useState(true);
   const [toolGroupingTerminalEnabled, setToolGroupingTerminalEnabled] = useState(true);
   const [toolGroupingChangesEnabled, setToolGroupingChangesEnabled] = useState(false);
-  const [zcodeInteractionBehavior, setZCodeInteractionBehavior] =
-    useState<ZCodeInteractionBehavior>("queue");
+  const [lcodeInteractionBehavior, setLCodeInteractionBehavior] =
+    useState<LCodeInteractionBehavior>("queue");
 
   useEffect(() => {
     if (
@@ -798,7 +798,7 @@ export function SettingsPage({
         setToolGroupingExploreEnabled(settings.toolGroupingExploreEnabled ?? true);
         setToolGroupingTerminalEnabled(settings.toolGroupingTerminalEnabled ?? true);
         setToolGroupingChangesEnabled(settings.toolGroupingChangesEnabled ?? false);
-        setZCodeInteractionBehavior(settings.zcodeInteractionBehavior ?? "queue");
+        setLCodeInteractionBehavior(settings.lcodeInteractionBehavior ?? "queue");
       })
       .catch(() => {});
   }, [services.settingService]);
@@ -812,7 +812,7 @@ export function SettingsPage({
     setToolGroupingExploreEnabled(sharedSettings.toolGroupingExploreEnabled ?? true);
     setToolGroupingTerminalEnabled(sharedSettings.toolGroupingTerminalEnabled ?? true);
     setToolGroupingChangesEnabled(sharedSettings.toolGroupingChangesEnabled ?? false);
-    setZCodeInteractionBehavior(sharedSettings.zcodeInteractionBehavior ?? "queue");
+    setLCodeInteractionBehavior(sharedSettings.lcodeInteractionBehavior ?? "queue");
     setReceivePreviewUpdates(sharedSettings.receivePreviewUpdates ?? false);
     setAutoDownloadAndInstallUpdates(sharedSettings.autoDownloadAndInstallUpdates ?? false);
   }, [sharedSettings]);
@@ -1266,16 +1266,16 @@ export function SettingsPage({
     },
     [updateSharedSettings],
   );
-  const handleZCodeInteractionBehaviorChange = useCallback(
-    async (behavior: ZCodeInteractionBehavior) => {
+  const handleLCodeInteractionBehaviorChange = useCallback(
+    async (behavior: LCodeInteractionBehavior) => {
       await runSettingsActionAsync({
         featureId: "settings.conversation",
         action: "change_interaction_behavior",
         trigger: "select",
-        operation: () => updateSharedSettings({ zcodeInteractionBehavior: behavior }),
+        operation: () => updateSharedSettings({ lcodeInteractionBehavior: behavior }),
         completed: { resultSource: "shared_settings", valueAfter: behavior },
       });
-      setZCodeInteractionBehavior(behavior);
+      setLCodeInteractionBehavior(behavior);
     },
     [updateSharedSettings],
   );
@@ -1729,7 +1729,7 @@ export function SettingsPage({
                             toolGroupingExploreEnabled={toolGroupingExploreEnabled}
                             toolGroupingTerminalEnabled={toolGroupingTerminalEnabled}
                             toolGroupingChangesEnabled={toolGroupingChangesEnabled}
-                            zcodeInteractionBehavior={zcodeInteractionBehavior}
+                            lcodeInteractionBehavior={lcodeInteractionBehavior}
                             autoGenerateGitCommitMessage={autoGenerateGitCommitMessage}
                             askUserQuestionAutoResolutionEnabled={
                               askUserQuestionAutoResolutionEnabled
@@ -1777,7 +1777,7 @@ export function SettingsPage({
                             onToolGroupingChangesEnabledChange={
                               handleToolGroupingChangesEnabledChange
                             }
-                            onZCodeInteractionBehaviorChange={handleZCodeInteractionBehaviorChange}
+                            onLCodeInteractionBehaviorChange={handleLCodeInteractionBehaviorChange}
                             onAutoGenerateGitCommitMessageChange={
                               handleAutoGenerateGitCommitMessageChange
                             }

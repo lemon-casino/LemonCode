@@ -30,9 +30,9 @@ function createLinuxElfFixture(arch, glibcVersion = "2.28") {
 }
 
 async function createFixture() {
-  const root = await mkdtemp(join(tmpdir(), "zcode-cua-stage-test-"));
+  const root = await mkdtemp(join(tmpdir(), "lcode-cua-stage-test-"));
   const appOutDir = resolve(root, "out");
-  const zcodeCuaRoot = resolve(root, "zcode-cua");
+  const lcodeCuaRoot = resolve(root, "lcode-cua");
   const xa11yRoot = resolve(root, "xa11y");
   const x64NativeRoot = resolve(root, "xa11y-win32-x64-msvc");
   const arm64NativeRoot = resolve(root, "xa11y-win32-arm64-msvc");
@@ -40,12 +40,12 @@ async function createFixture() {
   const linuxArm64NativeRoot = resolve(root, "xa11y-linux-arm64-gnu");
   await mkdir(appOutDir, { recursive: true });
   await writeFixtureFile(
-    resolve(zcodeCuaRoot, "package.json"),
+    resolve(lcodeCuaRoot, "package.json"),
     JSON.stringify({
-      name: "@zcode/zcode-cua",
+      name: "@lcode/lcode-cua",
       version: "1.2.3",
       type: "module",
-      zcodeCuaRuntime: {
+      lcodeCuaRuntime: {
         schema: 1,
         windows: { entry: "helper-entry.js", nativeAddon: "xa11y-native-loader.js" },
         linux: { entry: "helper-entry.js", nativeAddon: "xa11y-native-loader.js" },
@@ -53,11 +53,11 @@ async function createFixture() {
     }),
   );
   await writeFixtureFile(
-    resolve(zcodeCuaRoot, "helper-entry.js"),
+    resolve(lcodeCuaRoot, "helper-entry.js"),
     'import { serve } from "./server.js";\nserve();\n',
   );
   await writeFixtureFile(
-    resolve(zcodeCuaRoot, "server.js"),
+    resolve(lcodeCuaRoot, "server.js"),
     [
       'export { helper } from "./nested/helper.js";',
       'export const deferred = () => import("./nested/deferred.js");',
@@ -68,18 +68,18 @@ async function createFixture() {
     ].join("\n"),
   );
   await writeFixtureFile(
-    resolve(zcodeCuaRoot, "nested/helper.js"),
+    resolve(lcodeCuaRoot, "nested/helper.js"),
     "export const helper = true;\n",
   );
   await writeFixtureFile(
-    resolve(zcodeCuaRoot, "nested/deferred.js"),
+    resolve(lcodeCuaRoot, "nested/deferred.js"),
     "export const deferred = true;\n",
   );
   await writeFixtureFile(
-    resolve(zcodeCuaRoot, "xa11y-native-loader.js"),
+    resolve(lcodeCuaRoot, "xa11y-native-loader.js"),
     'export const load = () => import("@crowecawcaw/xa11y");\n',
   );
-  await writeFixtureFile(resolve(zcodeCuaRoot, "unused.js"), "throw new Error('not staged');\n");
+  await writeFixtureFile(resolve(lcodeCuaRoot, "unused.js"), "throw new Error('not staged');\n");
 
   await writeFixtureFile(
     resolve(xa11yRoot, "package.json"),
@@ -124,7 +124,7 @@ async function createFixture() {
       [LINUX_X64_NATIVE_PACKAGE]: linuxX64NativeRoot,
       [LINUX_ARM64_NATIVE_PACKAGE]: linuxArm64NativeRoot,
     },
-    zcodeCuaRoot,
+    lcodeCuaRoot,
   };
 }
 
@@ -238,9 +238,9 @@ test("stages the Linux helper closure with only the target xa11y binary", async 
 
 test("stages Linux from the Linux runtime contract instead of the Windows contract", async () => {
   const fixture = await createFixture();
-  const packageJsonPath = resolve(fixture.zcodeCuaRoot, "package.json");
+  const packageJsonPath = resolve(fixture.lcodeCuaRoot, "package.json");
   const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
-  packageJson.zcodeCuaRuntime.windows.entry = "windows-only-entry.js";
+  packageJson.lcodeCuaRuntime.windows.entry = "windows-only-entry.js";
   await writeFile(packageJsonPath, JSON.stringify(packageJson));
 
   await assert.doesNotReject(
@@ -295,7 +295,7 @@ test("is a no-op for non-Windows targets before validating paths", async () => {
       appOutDir: "not-absolute",
       electronVersion: "",
       targetPlatform: null,
-      zcodeCuaRoot: "not-absolute",
+      lcodeCuaRoot: "not-absolute",
     }),
     { staged: false },
   );
@@ -303,9 +303,9 @@ test("is a no-op for non-Windows targets before validating paths", async () => {
 
 test("rejects a runtime contract path that escapes the package", async () => {
   const fixture = await createFixture();
-  const packageJsonPath = resolve(fixture.zcodeCuaRoot, "package.json");
+  const packageJsonPath = resolve(fixture.lcodeCuaRoot, "package.json");
   const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8"));
-  packageJson.zcodeCuaRuntime.windows.entry = "../outside.js";
+  packageJson.lcodeCuaRuntime.windows.entry = "../outside.js";
   await writeFile(packageJsonPath, JSON.stringify(packageJson));
 
   await assert.rejects(

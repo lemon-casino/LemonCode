@@ -9,7 +9,7 @@
 
 ## 状态与所有者
 
-- 改写所有者：`apps/zcode-cli/packages/adapters` 执行适配层（`resolveExecutionCommand`、`applyResolvedShellCommand` 与 shell provider 命令构造）。
+- 改写所有者：`apps/lcode-cli/packages/adapters` 执行适配层（`resolveExecutionCommand`、`applyResolvedShellCommand` 与 shell provider 命令构造）。
 - 不引入第二份状态；所有 POSIX 系 shell 命令都经过同一漏斗改写，无并行写入路径。
 
 ## 验收场景

@@ -19,8 +19,8 @@ snapshot contract.
 
 ## Ownership and interface
 
-- Contract owner: `@zcode/contracts` `FileSystemPort`.
-- Node I/O owner: `@zcode/adapters` Node filesystem adapter.
+- Contract owner: `@lcode/contracts` `FileSystemPort`.
+- Node I/O owner: `@lcode/adapters` Node filesystem adapter.
 - Callers choose whether they require complete compatibility behavior or a bounded listing.
 - Project Memory recall passes the remaining core entry budget as `limit`; it keeps its own defensive
   slice for alternate/test adapters that violate or predate the contract.

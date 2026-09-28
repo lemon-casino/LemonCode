@@ -1,9 +1,9 @@
 import {
-  mapZCodeEnvToArmsRumEnv,
-  type ZCodeRuntimeEnv,
-  ZCODE_ARMS_RUM_ENDPOINT,
-  ZCODE_VERSION,
-} from "@zcode/shared";
+  mapLCodeEnvToArmsRumEnv,
+  type LCodeRuntimeEnv,
+  LCODE_ARMS_RUM_ENDPOINT,
+  LCODE_VERSION,
+} from "@lcode/shared";
 
 /** 主进程 init 的 browserCollectors，经 autoInject 注入到 renderer 的 RumSDK.init(collectors) */
 export const ARMS_BROWSER_COLLECTORS = {
@@ -34,12 +34,12 @@ export function parseArmsViewName(url: string): string {
 }
 
 /** Renderer Browser SDK init 配置（与主进程 endpoint/env/version 对齐） */
-export function buildArmsBrowserInitConfig(runtimeEnv: ZCodeRuntimeEnv) {
+export function buildArmsBrowserInitConfig(runtimeEnv: LCodeRuntimeEnv) {
   return {
     enable: true,
-    version: ZCODE_VERSION,
-    endpoint: ZCODE_ARMS_RUM_ENDPOINT,
-    env: mapZCodeEnvToArmsRumEnv(runtimeEnv),
+    version: LCODE_VERSION,
+    endpoint: LCODE_ARMS_RUM_ENDPOINT,
+    env: mapLCodeEnvToArmsRumEnv(runtimeEnv),
     sessionConfig: {
       sampleRate: 1,
     },

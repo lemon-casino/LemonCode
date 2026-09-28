@@ -1,5 +1,5 @@
-import type { IRemoteBackend, StdioStream } from "@zcode/server/remote/backend.js";
-import { waitForClose } from "@zcode/server/remote/deployShared.js";
+import type { IRemoteBackend, StdioStream } from "@lcode/server/remote/backend.js";
+import { waitForClose } from "@lcode/server/remote/deployShared.js";
 
 export type RemoteDownloadTool = "curl" | "wget";
 export type RemoteSha256Tool = "sha256sum" | "shasum" | "openssl";
@@ -32,17 +32,17 @@ export async function detectRemoteAssetTools(
 
   if (!download) {
     throw new Error(
-      "远端服务器缺少 curl 或 wget，无法直接下载 ZCode 远程资源。请安装 curl/wget，或切回“本地下载后上传”。",
+      "远端服务器缺少 curl 或 wget，无法直接下载 LCode 远程资源。请安装 curl/wget，或切回“本地下载后上传”。",
     );
   }
   if (!tar) {
     throw new Error(
-      "远端服务器缺少 tar，无法解压 ZCode 远程资源。请安装 tar，或切回“本地下载后上传”。",
+      "远端服务器缺少 tar，无法解压 LCode 远程资源。请安装 tar，或切回“本地下载后上传”。",
     );
   }
   if (!sha256) {
     throw new Error(
-      "远端服务器缺少 sha256sum、shasum 或 openssl，无法校验 ZCode 远程资源。请安装其中一个校验工具，或切回“本地下载后上传”。",
+      "远端服务器缺少 sha256sum、shasum 或 openssl，无法校验 LCode 远程资源。请安装其中一个校验工具，或切回“本地下载后上传”。",
     );
   }
 

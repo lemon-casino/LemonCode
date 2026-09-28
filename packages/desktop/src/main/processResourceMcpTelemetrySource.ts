@@ -1,10 +1,10 @@
 /** MCP 每个上报窗口只交一份合计；瞬时读数不进入会话、队列或持久化。 */
 import {
-  zcodeMcpResourceSamplesSchema,
-  ZCODE_MCP_RESOURCE_SAMPLE_INTERVAL_MS,
-  type ZCodeMcpResourceSample,
+  lcodeMcpResourceSamplesSchema,
+  LCODE_MCP_RESOURCE_SAMPLE_INTERVAL_MS,
+  type LCodeMcpResourceSample,
   type ProcessResourceRuntimeSurface,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { logger } from "./logger.js";
 import { recordExternalAppResourceSample } from "./processResourceExternalAppSamples.js";
 import type {
@@ -19,7 +19,7 @@ import {
 const MAX_MCP_GROUPS_PER_WINDOW = 32;
 const MAX_MCP_INSTANCE_SAMPLES = 256;
 interface StoredSample {
-  sample: ZCodeMcpResourceSample;
+  sample: LCodeMcpResourceSample;
   runtimeSurface: ProcessResourceRuntimeSurface;
   environmentKey?: string;
   receivedAt: number;
@@ -29,7 +29,7 @@ const latest = new Map<string, StoredSample>();
 
 function purgeExpired(now: number): void {
   for (const [key, entry] of latest) {
-    if (now - entry.receivedAt > ZCODE_MCP_RESOURCE_SAMPLE_INTERVAL_MS * 2) latest.delete(key);
+    if (now - entry.receivedAt > LCODE_MCP_RESOURCE_SAMPLE_INTERVAL_MS * 2) latest.delete(key);
   }
 }
 
@@ -38,7 +38,7 @@ export function ingestMcpResourceSamples(
   runtimeSurface: ProcessResourceRuntimeSurface,
   environmentKey?: string,
 ): void {
-  const parsed = zcodeMcpResourceSamplesSchema.safeParse(raw);
+  const parsed = lcodeMcpResourceSamplesSchema.safeParse(raw);
   if (!parsed.success) return;
   const receivedAt = Date.now();
   purgeExpired(receivedAt);
@@ -123,7 +123,7 @@ export const mcpProcessResourceSampleSource: ProcessResourceSampleSource = {
         cpuPercent: group.role.cpuPercent,
         rssKbTotal: group.role.rssKbTotal,
         processCount: group.role.processCount,
-        intervalMs: ZCODE_MCP_RESOURCE_SAMPLE_INTERVAL_MS,
+        intervalMs: LCODE_MCP_RESOURCE_SAMPLE_INTERVAL_MS,
         receivedAt: group.receivedAt,
       });
     }

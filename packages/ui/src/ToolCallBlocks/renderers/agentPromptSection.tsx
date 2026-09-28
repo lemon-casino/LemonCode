@@ -1,5 +1,5 @@
 import { MessageResponse } from "@/components/ai-elements/message.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
 import { formatAgentMessage } from "./agentHelpers.js";
 
@@ -20,7 +20,7 @@ export function AgentPromptSection({
   onOpenFileLink?: ToolCallBlockRenderContext["onOpenFileLink"];
   onOpenBrowserUrl?: ToolCallBlockRenderContext["onOpenBrowserUrl"];
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const promptLabel = formatAgentMessage(intl, "chat.toolCall.agent.prompt", "Prompt");
 
   return (

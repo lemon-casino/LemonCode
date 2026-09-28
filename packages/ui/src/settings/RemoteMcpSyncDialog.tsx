@@ -8,11 +8,11 @@ import type {
   McpSyncImportResult,
   McpSyncRemoteStatus,
   RemoteTarget,
-} from "@zcode/shared";
-import type { IMcpSyncService } from "@zcode/services";
+} from "@lcode/shared";
+import type { IMcpSyncService } from "@lcode/services";
 import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatRemoteSkillSyncTarget } from "@/settings/RemoteSkillSyncDialog.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
@@ -90,7 +90,7 @@ function resolveMcpTypeLabel(config: McpServerConfig): string {
 }
 
 function RemoteMcpSyncTitle() {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [warningTooltipOpen, setWarningTooltipOpen] = useState(false);
   const warningTitle = intl.formatMessage({
     id: "settings.mcp.remoteSync.warningTitle",
@@ -131,7 +131,7 @@ function RemoteMcpSyncExistingFilterCheckbox({
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   return (
     <label className="inline-flex h-6 cursor-pointer items-center gap-2 rounded-md px-1 text-ui-base text-foreground-subtle hover:text-foreground">
@@ -157,7 +157,7 @@ function RemoteMcpSyncTargetRow({
   showExistingFilter: boolean;
   onShowExistingRemoteMcpChange: (checked: boolean) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   return (
     <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -187,7 +187,7 @@ function RemoteMcpSyncBulkSelectionCheckbox({
   onSelectAll: () => void;
   onClearAll: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const inputRef = useRef<HTMLInputElement>(null);
   const disabled = totalSelectable === 0;
   const checked = totalSelectable > 0 && selectedCount >= totalSelectable;
@@ -236,7 +236,7 @@ function RemoteMcpSyncSelectionList({
   emptyMessageId?: string;
   onToggle: (id: string, checked: boolean) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   if (rows.length === 0) {
     return (
@@ -307,7 +307,7 @@ function RemoteMcpSyncSelectionList({
 }
 
 function RemoteMcpSyncResultList({ result }: { result: McpSyncImportResult | null }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const items = result?.results ?? [];
 
   if (items.length === 0) {
@@ -347,7 +347,7 @@ function RemoteMcpSyncResultList({ result }: { result: McpSyncImportResult | nul
 }
 
 export function RemoteMcpSyncDialog(props: RemoteMcpSyncDialogProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const {
     localMcpSyncService,
     localWorkspacePath,

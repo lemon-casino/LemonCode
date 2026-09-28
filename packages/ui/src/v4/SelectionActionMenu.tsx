@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 // 问题原因：Markdown 曾复制一份固定宽度的竖排菜单，与对话流逐渐分叉。
 // 两处只传选区位置与动作，共用展示和尺寸测量，避免再次出现样式差异。
@@ -24,7 +24,7 @@ export function SelectionActionMenu({
   onAddToCurrentTask: () => void;
   onAskInSideChat: () => void;
 }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const ref = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const menu = ref.current;

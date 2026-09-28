@@ -15,7 +15,7 @@ import type {
   GitLocalBranchListResult,
   GitWorkspaceRepositoryInfo,
   GitPushResult,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import {
   DEFAULT_GIT_COMMAND_TIMEOUT_MS,
@@ -1026,7 +1026,7 @@ export function createGitCliRepo(options?: { commandProvider?: GitCommandProvide
         cwd: resolution.repoRoot,
         args: [
           "log",
-          // --all 会把 refs/zcode/checkpoints 等内部 hidden refs 拉进 Git Graph。
+          // --all 会把 refs/lcode/checkpoints 等内部 hidden refs 拉进 Git Graph。
           // Graph 只展示用户可见历史，因此限定到 HEAD、分支、标签和远端分支。
           "HEAD",
           "--branches",
@@ -1542,7 +1542,7 @@ export function createGitCliRepo(options?: { commandProvider?: GitCommandProvide
           timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
         });
         const parentHash = headResult.exitCode === 0 ? headResult.stdout.trim() : null;
-        const tempIndexDir = await mkdtemp(join(tmpdir(), "zcode-git-index-"));
+        const tempIndexDir = await mkdtemp(join(tmpdir(), "lcode-git-index-"));
         const tempIndexPath = join(tempIndexDir, "index");
         const tempIndexEnv = { GIT_INDEX_FILE: tempIndexPath };
 

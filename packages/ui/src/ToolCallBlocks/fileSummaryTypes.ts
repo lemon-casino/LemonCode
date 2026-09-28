@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunState } from "@lcode/shared/lcode-protocol-v4";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import type { CodePreviewSettings } from "@/lib/codePreviewSettings.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
@@ -88,7 +88,7 @@ export function readRawToolCallInput(raw: unknown): unknown {
     return raw.rawInput;
   }
 
-  // ZCode protocol 的 permission/request payload 按 schema 把工具参数放在 input，
+  // LCode protocol 的 permission/request payload 按 schema 把工具参数放在 input，
   // 旧 UI 只读兼容输入字段 rawInput，Write/Edit 会退化成整段 JSON 展示而不是文件 diff。
   return "input" in raw ? raw.input : null;
 }

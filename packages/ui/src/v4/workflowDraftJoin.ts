@@ -1,4 +1,4 @@
-import type { ConversationRow, ToolCallRow } from "@zcode/shared/zcode-protocol-v4";
+import type { ConversationRow, ToolCallRow } from "@lcode/shared/lcode-protocol-v4";
 import type { WorkflowDraftPosition } from "@/ToolCallBlocks/shared.js";
 import {
   isPlainRecord,

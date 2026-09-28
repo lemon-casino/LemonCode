@@ -1,5 +1,5 @@
 const WORKSPACE_SIDEBAR_RESIZING_ATTR = "data-workspace-sidebar-resizing";
-const WORKSPACE_SIDEBAR_RESIZE_END_EVENT = "zcode:workspace-sidebar-resize-end";
+const WORKSPACE_SIDEBAR_RESIZE_END_EVENT = "lcode:workspace-sidebar-resize-end";
 
 const WORKSPACE_SIDEBAR_RESIZING_VALUE = "true";
 

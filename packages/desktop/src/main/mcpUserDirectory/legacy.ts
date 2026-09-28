@@ -9,7 +9,7 @@ import type {
   McpServerConfig,
   MigrateLegacyCommonMcpRequest,
   MigrateLegacyCommonMcpResult,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { isRecord, normalizeServerMap } from "./utils.js";
 
 function extractBalancedJson(text: string, startIndex: number): string | null {
@@ -202,14 +202,14 @@ function buildLegacyCommonMcpStorageCandidates(request?: MigrateLegacyCommonMcpR
   const appData = process.env.APPDATA ?? join(homedir(), "AppData", "Roaming");
 
   // 优先从老的 store.json 读取 common MCP 配置
-  candidates.push(join(appData, "ai.z.zcode", "store.json"));
+  candidates.push(join(appData, "ai.z.lcode", "store.json"));
 
   candidates.push(
     join(localAppData, "ai.z.work", "EBWebView", "Default", "Local Storage", "leveldb"),
-    join(appData, "ZCode", "Local Storage", "leveldb"),
-    join(appData, "ZCode", "Partitions", "zcode-embedded-browser", "Local Storage", "leveldb"),
-    join(appData, "ZCode Dev", "Local Storage", "leveldb"),
-    join(appData, "ZCode Dev", "Partitions", "zcode-embedded-browser", "Local Storage", "leveldb"),
+    join(appData, "LCode", "Local Storage", "leveldb"),
+    join(appData, "LCode", "Partitions", "lcode-embedded-browser", "Local Storage", "leveldb"),
+    join(appData, "LCode Dev", "Local Storage", "leveldb"),
+    join(appData, "LCode Dev", "Partitions", "lcode-embedded-browser", "Local Storage", "leveldb"),
   );
 
   return Array.from(new Set(candidates));

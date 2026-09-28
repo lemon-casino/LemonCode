@@ -22,14 +22,14 @@ export const PROCESS_RESOURCE_ROLES = [
 export type ProcessResourceRole = (typeof PROCESS_RESOURCE_ROLES)[number];
 
 /**
- * zcode-cli 的自采周期，是 CLI 与 app 之间的节拍契约：
+ * lcode-cli 的自采周期，是 CLI 与 app 之间的节拍契约：
  * CLI 侧是定时器周期，main 侧既是「多久算一个 CLI 样本」也是过期判据（2 个周期）的基数。
  * 两侧必须同源，否则改 CLI 节拍会让 main 的 `sample_count` 静默偏离约定值。
  */
-export const ZCODE_CLI_RESOURCE_SAMPLE_INTERVAL_MS = 60_000;
+export const LCODE_CLI_RESOURCE_SAMPLE_INTERVAL_MS = 60_000;
 
 /**
- * zcode-cli 的进程泳道。
+ * lcode-cli 的进程泳道。
  *
  * lane 不是 CLI 协议字段——CLI 进程不知道自己被哪个进程管理器拉起，由 app 侧 services 层
  * 在解析样本时按所属进程管理器打标（`chat` 是 workspace 级 Agent，其余两条是控制面 lane）。

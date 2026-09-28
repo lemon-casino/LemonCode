@@ -1,4 +1,4 @@
-import { BUILTIN_MODEL_PROVIDER_IDS } from "@zcode/shared";
+import { BUILTIN_MODEL_PROVIDER_IDS } from "@lcode/shared";
 
 /**
  * transcript 和 custom provider 的安全 code/message 证据集中在这里判定：

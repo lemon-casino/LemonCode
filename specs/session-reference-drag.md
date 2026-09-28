@@ -5,7 +5,7 @@
 1. 用户可以从侧栏可读的历史会话行拖拽到当前聚焦且可编辑的对话 Pane。普通列表使用原生 HTML5 drag，分组列表继续使用现有 `@dnd-kit` pointer drag；两条路径都输出同一 renderer-only 会话引用 payload。
 2. 拖拽进入目标 Pane 后先进入候选态。指针连续停留 1500ms 且源会话与目标 Pane 属于同一 Agent service authority 时，目标进入 armed 态：Pane 显示玻璃蒙层、低幅度呼吸边框和“松开以引用会话”提示。停留不足、离开、失焦、取消或目标不可用时不写入草稿。
 3. armed 状态松开后，在拖拽开始前保存的当前光标位置插入一个原子化 `sessions` Mention；markdown 的 destination 是 canonical `#sess_<id>`，带标题的链接 label 只用于展示。不复制源会话 transcript，不自动发送，不清空已有文字、文件引用或其他 Mention；同一 session id 已存在时不重复插入。
-4. 拖拽 payload 只包含版本、renderer authority、session id、源 workspace identity/remote route 和可选展示标题。标题只用于 UI，不能参与身份、权限或读取。payload 使用独立的 `application/x-zcode-session-reference` MIME，不能复用 Workbench split 的 fallback payload。
+4. 拖拽 payload 只包含版本、renderer authority、session id、源 workspace identity/remote route 和可选展示标题。标题只用于 UI，不能参与身份、权限或读取。payload 使用独立的 `application/x-lcode-session-reference` MIME，不能复用 Workbench split 的 fallback payload。
 5. Renderer 在 dragover 和 drop 时都校验 session id、renderer authority、Agent service route、目标 Pane 的 focused/readOnly/connection 状态；远程 scope 要求 identity 与 endpoint 成对存在，并遵循现有 # mention 的同 Agent service 规则。HTML DnD protected mode 下，dragover 只允许使用当前 renderer 正在拖拽的活动 payload 建立候选态；drop 必须重新解析 MIME 正文并与候选 nonce 一致。Core 仍以现有 `#sess_*` parser 和 `ReadSessionContext` 作为最终读取边界。跨 renderer window/Agent Host 的引用在 V1 拒绝，不按 workspace path 猜测 Host。
 6. Draft 继续由现有 Lexical editor state 和 composer draft store 持久化，身份 key 使用 `workspaceIdentity?.trim() || workspacePath`。拖拽不会新增 Runtime、IPC、RPC 或 shared protocol 字段。
 7. Mention 提交后只注入引用提醒；模型按需调用 `ReadSessionContext`，工具结果受既有 token 上限约束并视为不可信背景。父会话、子代理、provider/model selection 和 compaction 语义不改变。

@@ -3,7 +3,7 @@ import { readSafeLocalStorage } from "@/lib/browserEnvironment.js";
 const DEFAULT_UI_FONT_SIZE_PX = 14;
 export const MIN_UI_FONT_SIZE_PX = 12;
 export const MAX_UI_FONT_SIZE_PX = 20;
-export const UI_FONT_SIZE_STORAGE_KEY = "zcode-ui-font-size-px";
+export const UI_FONT_SIZE_STORAGE_KEY = "lcode-ui-font-size-px";
 
 export function normalizeUiFontSizePx(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value)

@@ -30,7 +30,7 @@ import {
   type RemotePairingStartResult,
   type RemoteTarget,
   type TelemetryEventPayload,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { dispatchTaskNotification } from "./desktopNotifications.js";
 import {
   clearOAuthRoutesForWindow,
@@ -105,7 +105,7 @@ function isCodingPlanWebviewUrl(src: string | undefined): boolean {
     if (url.protocol !== "http:" && url.protocol !== "https:") return false;
     if (
       !isTrustedCodingPlanWebviewOrigin(url.origin, {
-        e2eStoreBridgeEnabled: process.env.VITE_ZCODE_E2E_STORE_BRIDGE === "1",
+        e2eStoreBridgeEnabled: process.env.VITE_LCODE_E2E_STORE_BRIDGE === "1",
       })
     ) {
       return false;
@@ -124,7 +124,7 @@ function isCodingPlanPaymentCallbackUrl(src: string | undefined): boolean {
     if (url.protocol !== "http:" && url.protocol !== "https:") return false;
     if (
       !isTrustedCodingPlanWebviewOrigin(url.origin, {
-        e2eStoreBridgeEnabled: process.env.VITE_ZCODE_E2E_STORE_BRIDGE === "1",
+        e2eStoreBridgeEnabled: process.env.VITE_LCODE_E2E_STORE_BRIDGE === "1",
       })
     ) {
       return false;
@@ -177,7 +177,7 @@ export function registerRemoteIpcHandlers(options: {
     appVersion: string;
     armsEnv: ArmsRumEnv;
   };
-  /** 仅由 VITE_ZCODE_E2E_STORE_BRIDGE + test runner 双门禁打开。 */
+  /** 仅由 VITE_LCODE_E2E_STORE_BRIDGE + test runner 双门禁打开。 */
   finalArmsCustomEventE2EEnabled?: boolean;
   createRemoteWorkspaceSession: (
     win: BrowserWindow,

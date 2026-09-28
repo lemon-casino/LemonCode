@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type {
   WindowHostControllerTaskListItem,
-  ZCodeTaskListKind,
-  ZCodeTaskListWorkspaceScope,
-} from "@zcode/services";
+  LCodeTaskListKind,
+  LCodeTaskListWorkspaceScope,
+} from "@lcode/services";
 import { logger } from "@/logger.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
-import { selectWorkspaceZCodeState, useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { selectWorkspaceLCodeState, useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import { attachTaskListRowActivity } from "@/v4/taskListRowActivity.js";
 import { stabilizeTaskListItems } from "@/v4/taskListItemStabilization.js";
 import { getWindowControllerTaskListRegistry } from "@/v4/windowControllerTaskListRegistry.js";
@@ -18,8 +18,8 @@ type GlobalTaskListItem = WindowHostControllerTaskListItem;
 const subscribeToNothing = () => () => {};
 const zeroRevision = () => 0;
 
-function buildWorkspaceScopes(workspaceTabs: WorkspaceTabState[]): ZCodeTaskListWorkspaceScope[] {
-  const scopes = new Map<string, ZCodeTaskListWorkspaceScope>();
+function buildWorkspaceScopes(workspaceTabs: WorkspaceTabState[]): LCodeTaskListWorkspaceScope[] {
+  const scopes = new Map<string, LCodeTaskListWorkspaceScope>();
   for (const tab of workspaceTabs) {
     const scope = {
       workspacePath: tab.workspacePath,
@@ -34,7 +34,7 @@ function buildWorkspaceScopes(workspaceTabs: WorkspaceTabState[]): ZCodeTaskList
 }
 
 export function useGlobalTaskList(params: {
-  kind: ZCodeTaskListKind;
+  kind: LCodeTaskListKind;
   workspaceTabs: WorkspaceTabState[];
   sortBy: "created" | "updated";
   searchQuery: string;
@@ -85,11 +85,11 @@ export function useGlobalTaskList(params: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [workspaceSignature],
   );
-  const taskListVersionSignature = useZCodeSessionStore((state) =>
+  const taskListVersionSignature = useLCodeSessionStore((state) =>
     JSON.stringify(
       params.workspaceTabs
         .map((tab) => {
-          const workspace = selectWorkspaceZCodeState(
+          const workspace = selectWorkspaceLCodeState(
             state,
             tab.workspacePath,
             tab.workspaceIdentity,

@@ -1,7 +1,7 @@
 import type {
   WorkflowLaunchMeta,
   WorkflowSettingsAmendMeta,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
 import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
 import type { WorkflowRunCardSummary } from "@/ToolCallBlocks/fileSummaryTypes.js";
 import { readWorkflowName } from "@/ToolCallBlocks/renderers/createWorkflowInput.js";

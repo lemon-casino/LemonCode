@@ -26,7 +26,7 @@ import {
 } from "@/components/ui/dialog.js";
 import { toast } from "@/components/ui/toast.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 type MarkdownTableNodeProp = {
   node?: unknown;
@@ -397,7 +397,7 @@ export function resolveMarkdownTableVirtualScrollMax({
 export type MarkdownTableProps = ComponentProps<"table"> & MarkdownTableNodeProp;
 
 export function MarkdownTable({ className, children, node: _node, ...props }: MarkdownTableProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [previewOpen, setPreviewOpen] = useState(false);
   const [expandedScrollEnabled, setExpandedScrollEnabled] = useState(false);
   const [canToggleExpandedScroll, setCanToggleExpandedScroll] = useState(false);

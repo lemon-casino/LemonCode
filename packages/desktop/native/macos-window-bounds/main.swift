@@ -10,7 +10,7 @@
 // 常驻设计：每 interval 输出一行 JSON。父进程只 spawn 一次并读 stdout —— 每帧起一个进程的
 // 开销（~10ms × 每秒 7 次）完全不可接受。
 //
-// 用法：zcode-window-bounds [intervalMs]   默认 150ms
+// 用法：lcode-window-bounds [intervalMs]   默认 150ms
 
 import CoreGraphics
 import Foundation

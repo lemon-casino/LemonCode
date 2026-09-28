@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 
@@ -18,7 +18,7 @@ interface GitBackupWelcomeDialogProps {
 }
 
 export function GitBackupWelcomeDialog({ open, onComplete }: GitBackupWelcomeDialogProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [showOssForm, setShowOssForm] = useState(false);
   const [accessKeyId, setAccessKeyId] = useState("");
   const [accessKeySecret, setAccessKeySecret] = useState("");
@@ -136,7 +136,7 @@ export function GitBackupWelcomeDialog({ open, onComplete }: GitBackupWelcomeDia
               <Input
                 value={pathPrefix}
                 onChange={(e) => setPathPrefix(e.target.value)}
-                placeholder="zcode-backups"
+                placeholder="lcode-backups"
               />
             </div>
           </div>

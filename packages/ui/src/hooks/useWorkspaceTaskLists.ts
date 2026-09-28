@@ -1,10 +1,10 @@
 /* eslint-disable max-lines -- workspace 行任务列表需要把分片查询、缓存展示和跨端 membership 订阅保持在同一 hook 内，拆分会增加缓存一致性风险。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { IServiceAccessor } from "@zcode/services";
-import type { ZCodeWorkspaceEvent } from "@zcode/shared";
+import type { IServiceAccessor } from "@lcode/services";
+import type { LCodeWorkspaceEvent } from "@lcode/shared";
 import { logger } from "@/logger.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
-import { useZCodeSessionStore, selectWorkspaceZCodeState } from "@/store/zcodeSessionStore.js";
+import { useLCodeSessionStore, selectWorkspaceLCodeState } from "@/store/lcodeSessionStore.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 import {
   buildTaskEntityKey,
@@ -33,7 +33,7 @@ import {
 } from "@/hooks/workspaceTaskListRefreshSignatures.js";
 import { shouldRefetchTaskListMembershipForWorkspaceEvent } from "@/lib/taskListRefreshPolicy.js";
 import { syncTaskUnreadFromStatusWorkspaceEvent } from "@/lib/taskStatusUnreadSync.js";
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { LCodeTaskMeta } from "@lcode/shared";
 import { fetchTaskListMembershipSetsForEndpointsCached } from "@/lib/taskListMembershipSets.js";
 import { buildTaskListResult } from "@/v4/buildTaskListResultFromSessions.js";
 import {
@@ -68,7 +68,7 @@ interface WorkspaceTaskListEndpointShard {
 interface WorkspaceTaskListGroupResult {
   workspacePath: string;
   workspaceIdentity?: string;
-  items: ZCodeTaskMeta[];
+  items: LCodeTaskMeta[];
   total: number;
   hasMore: boolean;
   unreadTaskKeys: string[];
@@ -99,9 +99,9 @@ function updateBlockingLoadingState(
 // workspace 分组结果以 tasks-index task rows 为持久行，sessions-index 只补 activity/detail。
 // remote shard 使用自己的 endpoint task service，返回与旧协议同形的 group map。
 async function buildWorkspaceGroupsFromSessions(params: {
-  service: IServiceAccessor["zcodeTaskService"];
+  service: IServiceAccessor["lcodeTaskService"];
   scopes: Array<{ workspacePath: string; workspaceIdentity?: string }>;
-  sessions: ZCodeTaskMeta[];
+  sessions: LCodeTaskMeta[];
   sortBy: "created" | "updated";
   /** 差量更新：membership 只随 membershipVersion 变化，按版本缓存避免每次内容帧都重拉。 */
   membershipCacheKey: string;
@@ -162,7 +162,7 @@ async function buildWorkspaceGroupsFromSessions(params: {
  * 依赖 sessions-index 聚合层的引用稳定化：条目引用不变 = 内容等价。
  * 前后两轮 items 里引用有出入的条目所属的 workspace 才算"有变化"。
  */
-function diffChangedWorkspaceKeys(previous: ZCodeTaskMeta[], next: ZCodeTaskMeta[]): Set<string> {
+function diffChangedWorkspaceKeys(previous: LCodeTaskMeta[], next: LCodeTaskMeta[]): Set<string> {
   const changed = new Set<string>();
   const previousSet = new Set(previous);
   const nextSet = new Set(next);
@@ -226,11 +226,11 @@ export function useWorkspaceTaskLists(params: {
   const nextRequestIdRef = useRef(0);
   const rerunRequestedRef = useRef(false);
   const groupCacheRef = useRef<Map<string, WorkspaceTaskListGroup>>(new Map());
-  const taskListVersionSignature = useZCodeSessionStore((state) =>
+  const taskListVersionSignature = useLCodeSessionStore((state) =>
     buildWorkspaceTaskListVersionSignature(
       params.workspaceTabs.map((tab) => {
         const workspaceKey = buildTaskWorkspaceKey(tab.workspacePath, tab.workspaceIdentity);
-        const workspaceState = selectWorkspaceZCodeState(
+        const workspaceState = selectWorkspaceLCodeState(
           state,
           tab.workspacePath,
           tab.workspaceIdentity,
@@ -389,7 +389,7 @@ export function useWorkspaceTaskLists(params: {
             ? { workspaceIdentity: config.scope.workspaceIdentity }
             : {}),
           ...(shard.shardKey === "__base__" ? {} : { endpointKey: shard.shardKey }),
-          agentService: shard.services.zcodeAgentService,
+          agentService: shard.services.lcodeAgentService,
         })),
       ),
     [endpointShards],
@@ -529,7 +529,7 @@ export function useWorkspaceTaskLists(params: {
             // 本机和 remote shard 都以各自 endpoint 的 tasks-index 行为集合，
             // 再用同 endpoint/workspace 的 sessions-index activity/detail enrich。
             const groupByWorkspaceKey = await buildWorkspaceGroupsFromSessions({
-              service: shard.services.zcodeTaskService,
+              service: shard.services.lcodeTaskService,
               scopes: shardConfigs.map((config) => config.scope),
               sessions: sessionsForRequest,
               sortBy: params.sortBy,
@@ -623,7 +623,7 @@ export function useWorkspaceTaskLists(params: {
   // 防环：cache 标脏会引发 re-render，若父组件每次渲染重建 workspaceTabs 数组，
   // scope 数组身份会跟着换新；这里只认「items 引用 / 归属版本」的真实变化，避免 setState 死循环。
   const lastSessionsRefreshRef = useRef<{
-    items: ZCodeTaskMeta[];
+    items: LCodeTaskMeta[];
     membershipVersion: number;
   } | null>(null);
   useEffect(() => {
@@ -673,12 +673,12 @@ export function useWorkspaceTaskLists(params: {
       );
 
       for (const config of configByWorkspaceKey.values()) {
-        const disposable = shard.services.zcodeTaskService.onDynamicWorkspaceEvent({
+        const disposable = shard.services.lcodeTaskService.onDynamicWorkspaceEvent({
           workspacePath: config.scope.workspacePath,
           ...(config.scope.workspaceIdentity
             ? { workspaceIdentity: config.scope.workspaceIdentity }
             : {}),
-        })((event: ZCodeWorkspaceEvent) => {
+        })((event: LCodeWorkspaceEvent) => {
           if (event.type !== "workspace_task_list_changed") {
             return;
           }
@@ -692,7 +692,7 @@ export function useWorkspaceTaskLists(params: {
           syncTaskUnreadFromStatusWorkspaceEvent({
             activeWorkspace: activeWorkspaceRef.current,
             event,
-            service: shard.services.zcodeTaskService,
+            service: shard.services.lcodeTaskService,
           });
           if (!shouldRefetchTaskListMembershipForWorkspaceEvent(event)) {
             return;

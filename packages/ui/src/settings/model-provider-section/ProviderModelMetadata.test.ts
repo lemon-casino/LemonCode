@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { ProviderSettingsFormModel } from "@/lib/providerSettingsFormTypes.js";
-import { ModelPropertiesConfig, type ModelConfigObject } from "@zcode/provider";
+import { ModelPropertiesConfig, type ModelConfigObject } from "@lcode/provider";
 import {
   createProviderModelDraftValues,
   resolveProviderModelDraftCommit,

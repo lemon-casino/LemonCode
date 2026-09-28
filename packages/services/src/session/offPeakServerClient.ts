@@ -3,13 +3,13 @@
    （由 idle plan per-turn provider 在 agent 进程内直连）。
    无内建重试：排队/退避语义在调用方（offPeakTaskService 轮询 / 适配层）。 */
 import { z } from "zod";
-import type { OffPeakTakeNumberAvailability } from "@zcode/shared";
+import type { OffPeakTakeNumberAvailability } from "@lcode/shared";
 import type { ServiceLogger } from "../logger/serviceLogger.js";
 import {
   withRequestIdHeader,
   REQUEST_ID_HEADER_NAME,
 } from "#src/providers/api/requestIdHeaders.js";
-import { buildZCodeSourceHeaders } from "#src/providers/sourceHeaders.js";
+import { buildLCodeSourceHeaders } from "#src/providers/sourceHeaders.js";
 import {
   buildOffPeakPlanIdentityHeaders,
   type OffPeakCredentialSnapshot,
@@ -126,7 +126,7 @@ export class OffPeakServerError extends Error {
 }
 
 interface OffPeakServerClientDeps {
-  /** API origin（真实服务端或 mock 网关，ZCODE_OFFPEAK_MOCK 切换在装配层）；mock 网关懒启动故允许异步。 */
+  /** API origin（真实服务端或 mock 网关，LCODE_OFFPEAK_MOCK 切换在装配层）；mock 网关懒启动故允许异步。 */
   resolveOrigin: () => string | Promise<string>;
   /** 凭证快照：四个 ticket 接口统一携带同一次 selected credential snapshot。 */
   resolveCredentials: () => Promise<OffPeakCredentialSnapshot>;
@@ -156,7 +156,7 @@ export function createOffPeakServerClient(deps: OffPeakServerClientDeps): OffPea
       // test 服务端只能看到 user_agent=node，且客户端日志无法关联 2007/裸 429 的服务端请求。
       // 这里只补标准非敏感来源头和链路 id，JWT/API Key 仍禁止进入日志。
       const headers = withRequestIdHeader({
-        ...buildZCodeSourceHeaders(),
+        ...buildLCodeSourceHeaders(),
         ...(body === undefined ? {} : { "content-type": "application/json" }),
         authorization: `Bearer ${credentials.jwt}`,
         "x-coding-plan-api-key": credentials.codingPlanApiKey,

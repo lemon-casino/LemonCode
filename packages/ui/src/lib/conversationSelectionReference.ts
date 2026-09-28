@@ -1,4 +1,4 @@
-import { createUuid } from "@zcode/shared";
+import { createUuid } from "@lcode/shared";
 
 export const CONVERSATION_SELECTION_MAX_TEXT_LENGTH = 8_000;
 const CONVERSATION_SELECTION_MAX_COUNT = 8;
@@ -52,10 +52,10 @@ type ConversationSelectionAppendResult =
     }
   | { ok: false; reason: ConversationSelectionLimitReason };
 
-const ADD_EVENT = "zcode:conversation-selection-add";
+const ADD_EVENT = "lcode:conversation-selection-add";
 const USER_SELECT_BLOCK_PATTERN = /(?:\n\n)?# userselect:\n```userselect\n([\s\S]*?)\n```\s*$/;
 const LEGACY_BLOCK_PATTERN =
-  /(?:\n\n)?# Conversation selections:\n```zcode-conversation-selections\n([\s\S]*?)\n```\s*$/;
+  /(?:\n\n)?# Conversation selections:\n```lcode-conversation-selections\n([\s\S]*?)\n```\s*$/;
 const referencesByScope = new Map<string, readonly ConversationSelectionReference[]>();
 const limitReasonByScope = new Map<string, ConversationSelectionLimitReason>();
 

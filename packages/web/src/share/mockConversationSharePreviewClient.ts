@@ -1,4 +1,4 @@
-import type { ConversationShareAccessMode, ConversationSharePreview } from "@zcode/shared";
+import type { ConversationShareAccessMode, ConversationSharePreview } from "@lcode/shared";
 import { ConversationSharePreviewClientError } from "./conversationSharePreviewClient.js";
 
 function previewFor(accessMode: ConversationShareAccessMode): ConversationSharePreview {
@@ -30,7 +30,7 @@ function previewFor(accessMode: ConversationShareAccessMode): ConversationShareP
         createdAt: createdAt + 1_000,
         createdAtSeq: 2,
         kind: "assistantText",
-        text: "这是一个公开的 ZCode 会话分享。",
+        text: "这是一个公开的 LCode 会话分享。",
         state: "complete",
       },
       // 让 dev mock 覆盖 artifact 卡片：它的视觉要与正文的 AssistantPreviewCards 对齐，
@@ -49,7 +49,7 @@ function previewFor(accessMode: ConversationShareAccessMode): ConversationShareP
         mimeType: "application/pdf",
         sizeBytes: 172_974,
         sha256: "c".repeat(64),
-        ref: "zcode-artifact://share/mock-artifact-1",
+        ref: "lcode-artifact://share/mock-artifact-1",
         state: "current",
       },
     ],
@@ -60,7 +60,7 @@ function previewFor(accessMode: ConversationShareAccessMode): ConversationShareP
         producer_product_turn_id: "share-product-turn-1",
         artifact_version: 1,
         state: "current",
-        ref: "zcode-artifact://share/mock-artifact-1",
+        ref: "lcode-artifact://share/mock-artifact-1",
         artifact_type: "pdf",
         display_name: "晨报_2026-08-28_早会版.pdf",
         extension: "pdf",
@@ -108,7 +108,7 @@ export class MockConversationSharePreviewClient {
     if (shareCode === "mock-outdated-client") {
       throw new ConversationSharePreviewClientError({
         kind: "unsupported_schema_version",
-        message: "Share requires a newer ZCode",
+        message: "Share requires a newer LCode",
         status: 200,
       });
     }

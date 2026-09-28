@@ -38,7 +38,7 @@ const DEFAULT_OPTIONS: WebElementPickerScriptOptions = {
 };
 
 function webElementPickerScript(options: WebElementPickerScriptOptions) {
-  const stateKey = "__zcodeWebElementPicker";
+  const stateKey = "__lcodeWebElementPicker";
   const existing = (window as unknown as Record<string, { cancel?: () => void }>)[stateKey];
   existing?.cancel?.();
 
@@ -327,7 +327,7 @@ function webElementPickerScript(options: WebElementPickerScriptOptions) {
   });
 
   const overlay = document.createElement("div");
-  overlay.setAttribute("data-zcode-web-element-picker", "overlay");
+  overlay.setAttribute("data-lcode-web-element-picker", "overlay");
   Object.assign(overlay.style, {
     background: "rgba(37, 99, 235, 0.12)",
     border: "2px solid #2563eb",
@@ -657,7 +657,7 @@ export function buildWebElementPickerScript(options: WebElementPickerScriptBuild
 export function buildCancelWebElementPickerScript() {
   return [
     "(() => {",
-    "const picker = window.__zcodeWebElementPicker;",
+    "const picker = window.__lcodeWebElementPicker;",
     "if (picker && typeof picker.cancel === 'function') picker.cancel();",
     "})()",
   ].join("\n");

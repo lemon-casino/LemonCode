@@ -2,7 +2,7 @@ import {
   isApiKeyAccess,
   resolveApiKeyAccessKeys,
   type ProviderConfigObject,
-} from "@zcode/provider";
+} from "@lcode/provider";
 
 export interface ProviderRemoteModelCatalog {
   readonly models: readonly string[];

@@ -1,5 +1,5 @@
 import { buildPluginMentionMarkdown } from "@/mentions/mentionMarkdown.js";
-import type { ComposerMentionPrefill } from "@/store/zcodeSessionStoreTypes.js";
+import type { ComposerMentionPrefill } from "@/store/lcodeSessionStoreTypes.js";
 
 interface DraftSuggestedPromptPluginReference {
   stableId: string;

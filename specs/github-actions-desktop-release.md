@@ -23,7 +23,7 @@
    Linux 文件名由 electron-builder 各安装格式的原生架构命名决定：x64 的
    AppImage/RPM 为 `x86_64`、deb 为 `amd64`、pacman 为 `x64`；arm64 的
    AppImage/deb 为 `arm64`、RPM/pacman 为 `aarch64`。收集脚本按格式精确匹配
-   `ZCode-<version>-linux-<native-arch>.<extension>`，不得将错误架构或旧版本
+   `LCode-<version>-linux-<native-arch>.<extension>`，不得将错误架构或旧版本
    的文件视为目标产物；其他平台保持现有 `<arch>` 命名。
 5. Actions 的发行上传权限只给 Release job；构建 job 仅可读。发布使用 tag 自带的
    `GITHUB_TOKEN`，不借用开发者本地凭据。tag 推送由维护者在版本文件、许可证清单

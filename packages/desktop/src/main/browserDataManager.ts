@@ -4,7 +4,7 @@ import type {
   ChromeBrowserDataImportError,
   ChromeBrowserDataImportResult,
   EmbeddedBrowserDataClearResult,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import {
   importChromeCookies,
   type ChromeCookieDatabaseBackup,
@@ -27,7 +27,7 @@ import {
 import type { LinuxChromePasswordStore } from "./chromeInstallationCandidates.js";
 import type { WindowsChromeAppBoundKeyReader } from "./windowsChromeAppBoundKey.js";
 
-export const EMBEDDED_BROWSER_PARTITION = "persist:zcode-embedded-browser";
+export const EMBEDDED_BROWSER_PARTITION = "persist:lcode-embedded-browser";
 const CACHE_STORAGE_TYPES: Electron.ClearStorageDataOptions["storages"] = [
   "shadercache",
   "serviceworkers",

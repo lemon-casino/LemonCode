@@ -1,4 +1,4 @@
-import type { WorkflowRunNode, WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunNode, WorkflowRunState } from "@lcode/shared/lcode-protocol-v4";
 import { phaseNameMatches } from "../components/workflow-graph/phase-name.js";
 
 function keyOf(node: WorkflowRunNode): string {

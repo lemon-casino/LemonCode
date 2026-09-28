@@ -4,11 +4,11 @@ import { cp } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { basename, join, win32 } from "node:path";
 import { homedir } from "node:os";
-import { DATA_BASE_DIR_FORBIDDEN_WINDOWS_INSTALL_DIR_ERROR_CODE } from "@zcode/shared";
+import { DATA_BASE_DIR_FORBIDDEN_WINDOWS_INSTALL_DIR_ERROR_CODE } from "@lcode/shared";
 
 let _dataBaseDir: string | null = null;
-export const ZCODE_WINDOWS_APP_INSTALL_DIR_ENV = "ZCODE_WINDOWS_APP_INSTALL_DIR";
-const envDataBaseDir = process.env.ZCODE_DATA_BASE_DIR?.trim() || null;
+export const LCODE_WINDOWS_APP_INSTALL_DIR_ENV = "LCODE_WINDOWS_APP_INSTALL_DIR";
+const envDataBaseDir = process.env.LCODE_DATA_BASE_DIR?.trim() || null;
 const defaultDataBaseDir = process.env.HOME?.trim() || homedir();
 
 interface DataBaseDirTargetValidationOptions {
@@ -30,7 +30,7 @@ export function setDataBaseDir(dir: string | null): void {
   _dataBaseDir = dir?.trim() || null;
 }
 
-/** Get the current base directory. Priority: setDataBaseDir() > env ZCODE_DATA_BASE_DIR > homedir(). */
+/** Get the current base directory. Priority: setDataBaseDir() > env LCODE_DATA_BASE_DIR > homedir(). */
 export function getDataBaseDir(): string {
   if (_dataBaseDir) return _dataBaseDir;
   if (envDataBaseDir) return envDataBaseDir;
@@ -39,19 +39,19 @@ export function getDataBaseDir(): string {
   return defaultDataBaseDir;
 }
 
-/** {dataBaseDir}/.zcode */
-export function getZCodeDataRootDir(): string {
-  return join(getDataBaseDir(), ".zcode");
+/** {dataBaseDir}/.lcode */
+export function getLCodeDataRootDir(): string {
+  return join(getDataBaseDir(), ".lcode");
 }
 
-/** 非项目对话共享的真实工作目录；默认 ~/.zcode/workspace/default。 */
+/** 非项目对话共享的真实工作目录；默认 ~/.lcode/workspace/default。 */
 export function getConversationWorkspaceDir(): string {
-  return join(getZCodeDataRootDir(), "workspace", "default");
+  return join(getLCodeDataRootDir(), "workspace", "default");
 }
 
-/** {dataBaseDir}/.zcode/v2 */
+/** {dataBaseDir}/.lcode/v2 */
 export function getAppConfigDir(): string {
-  return join(getZCodeDataRootDir(), "v2");
+  return join(getLCodeDataRootDir(), "v2");
 }
 
 function readEnvValue(env: Record<string, string | undefined>, key: string): string | undefined {
@@ -112,11 +112,11 @@ function collectWindowsForbiddenAppInstallDirs(
   const localAppData = readEnvValue(env, "LOCALAPPDATA");
   const candidates = [
     options.appInstallDir,
-    readEnvValue(env, ZCODE_WINDOWS_APP_INSTALL_DIR_ENV),
-    programFiles ? win32.join(programFiles, "ZCode") : null,
-    programFilesX86 ? win32.join(programFilesX86, "ZCode") : null,
-    programW6432 ? win32.join(programW6432, "ZCode") : null,
-    localAppData ? win32.join(localAppData, "Programs", "ZCode") : null,
+    readEnvValue(env, LCODE_WINDOWS_APP_INSTALL_DIR_ENV),
+    programFiles ? win32.join(programFiles, "LCode") : null,
+    programFilesX86 ? win32.join(programFilesX86, "LCode") : null,
+    programW6432 ? win32.join(programW6432, "LCode") : null,
+    localAppData ? win32.join(localAppData, "Programs", "LCode") : null,
   ];
   const seen = new Set<string>();
   const result: string[] = [];
@@ -159,15 +159,15 @@ export function validateDataBaseDirTarget(
 }
 
 export function getExportLogStageDir(): string {
-  return join(getZCodeDataRootDir(), "export-log-stage");
+  return join(getLCodeDataRootDir(), "export-log-stage");
 }
 
 export function getExportLogDir(): string {
-  return join(getZCodeDataRootDir(), "export-log");
+  return join(getLCodeDataRootDir(), "export-log");
 }
 
 export function getFeedbackRootDir(): string {
-  return join(getZCodeDataRootDir(), "feedback");
+  return join(getLCodeDataRootDir(), "feedback");
 }
 
 export function getFeedbackAttachmentDir(): string {
@@ -179,10 +179,10 @@ export function getFeedbackLogArchiveDir(): string {
 }
 
 export function getGitCheckpointIndexRootDir(): string {
-  return join(getZCodeDataRootDir(), "git-checkpoint-index");
+  return join(getLCodeDataRootDir(), "git-checkpoint-index");
 }
 
-/** ~/.zcode/v2/tasks-index.sqlite */
+/** ~/.lcode/v2/tasks-index.sqlite */
 export function getTasksIndexDatabasePath(): string {
   return join(getAppConfigDir(), "tasks-index.sqlite");
 }
@@ -192,7 +192,7 @@ function getWorkspaceKey(workspacePath: string, workspaceIdentity?: string): str
   return workspaceIdentity?.trim() || workspacePath;
 }
 
-/** 与 ZCode session 持久化一致：使用 workspaceKey 的 SHA-256 前 12 位 */
+/** 与 LCode session 持久化一致：使用 workspaceKey 的 SHA-256 前 12 位 */
 export function getWorkspaceHash(workspacePath: string, workspaceIdentity?: string): string {
   return createHash("sha256")
     .update(getWorkspaceKey(workspacePath, workspaceIdentity))
@@ -200,12 +200,12 @@ export function getWorkspaceHash(workspacePath: string, workspaceIdentity?: stri
     .slice(0, 12);
 }
 
-/** ~/.zcode/v2/sessions/{workspaceHash} */
+/** ~/.lcode/v2/sessions/{workspaceHash} */
 function getTaskSessionDir(workspacePath: string, workspaceIdentity?: string): string {
   return join(getAppConfigDir(), "sessions", getWorkspaceHash(workspacePath, workspaceIdentity));
 }
 
-/** ~/.zcode/v2/sessions/{workspaceHash}/{taskId}.json */
+/** ~/.lcode/v2/sessions/{workspaceHash}/{taskId}.json */
 export function getLegacyTaskSessionSnapshotPath(
   workspacePath: string,
   taskId: string,
@@ -214,7 +214,7 @@ export function getLegacyTaskSessionSnapshotPath(
   return join(getTaskSessionDir(workspacePath, workspaceIdentity), `${taskId}.json`);
 }
 
-/** ~/.zcode/v2/sessions/{workspaceHash}/{taskId}.deleted.json */
+/** ~/.lcode/v2/sessions/{workspaceHash}/{taskId}.deleted.json */
 export function getLegacyDeletedTaskSessionSnapshotPath(
   workspacePath: string,
   taskId: string,
@@ -224,13 +224,13 @@ export function getLegacyDeletedTaskSessionSnapshotPath(
 }
 
 /**
- * Copy the .zcode/v2 data directory from one base dir to another.
+ * Copy the .lcode/v2 data directory from one base dir to another.
  * Excludes setting.json and its transient atomic-write siblings — bootstrap
  * state must only live at the default homedir location.
  */
 export async function copyDataDirectory(oldBaseDir: string, newBaseDir: string): Promise<void> {
-  const oldDir = join(oldBaseDir, ".zcode", "v2");
-  const newDir = join(newBaseDir, ".zcode", "v2");
+  const oldDir = join(oldBaseDir, ".lcode", "v2");
+  const newDir = join(newBaseDir, ".lcode", "v2");
   await cp(oldDir, newDir, {
     recursive: true,
     force: false,

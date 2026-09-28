@@ -7,14 +7,14 @@ import {
   REMOTE_CONTROL_MAX_PERSISTED_DEVICES,
   DEFAULT_REMOTE_CONTROL_PAIRING_TTL_MS,
   type RemoteControlPersistedDevice,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { z } from "zod";
 
 export const REMOTE_CONTROL_ACCESS_KEY_CREDENTIAL_KEY = "remoteControl.accessKey";
 export const REMOTE_CONTROL_CONFIG_CREDENTIAL_KEY = "remoteControl.config";
 export const REMOTE_CONTROL_DEVICES_CREDENTIAL_KEY = "remoteControl.devices";
 
-/** 与 @zcode/services ICredentialService 的 load/save/delete 面(测试注入用窄接口)。 */
+/** 与 @lcode/services ICredentialService 的 load/save/delete 面(测试注入用窄接口)。 */
 export interface RemoteControlCredentialService {
   load(key: string): Promise<string | null>;
   save(key: string, value: string): Promise<void>;

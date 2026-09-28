@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import type { WorkspaceFileEntry } from "@zcode/shared";
+import type { WorkspaceFileEntry } from "@lcode/shared";
 import { useServices } from "@/hooks/useServices.js";
 import { buildFileMentionMarkdown } from "@/mentions/mentionMarkdown.js";
-import { WORKSPACE_FILE_SEARCH_DISPLAY_CAP } from "@zcode/shared/workspaceFileSearch";
+import { WORKSPACE_FILE_SEARCH_DISPLAY_CAP } from "@lcode/shared/workspaceFileSearch";
 import { getMentionGroupLimitForQuery } from "@/mentions/mentionSearch.js";
 import type { MentionCategoryResult, MentionItem } from "@/mentions/mentionTypes.js";
 

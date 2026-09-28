@@ -17,11 +17,11 @@ import type {
   AppUsageHeatmap,
   AppUsageHeatmapCell,
   AppUsageHeatmapWeek,
-} from "@zcode/shared";
-import { ESTIMATED_TOKEN_CHAR_DIVISOR } from "@zcode/shared";
+} from "@lcode/shared";
+import { ESTIMATED_TOKEN_CHAR_DIVISOR } from "@lcode/shared";
 
 // ============================================================================
-// 把 BigModel monitor 接口数据(model-usage / tool-usage)转成 ZCode 内部统一
+// 把 BigModel monitor 接口数据(model-usage / tool-usage)转成 LCode 内部统一
 // 的 UsageStatsSnapshot 结构。
 //
 // monitor 接口直接返回估算 token 数,反推字符数以保持现有 UI 字段语义。

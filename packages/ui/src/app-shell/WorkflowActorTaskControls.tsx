@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { RotateCcwIcon, SquareIcon } from "lucide-react";
-import type { WorkflowRunNode, WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunNode, WorkflowRunState } from "@lcode/shared/lcode-protocol-v4";
 import { Button } from "@/components/ui/button.js";
 import {
   Select,
@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { LexicalChatInputHandle } from "@/LexicalChatInput.js";
 import type {
   OpenScopedWorkflowRunSideTabRequest,
@@ -42,7 +42,7 @@ export function WorkflowActorTaskControls({
   children: ReactNode;
   onOpenWorkflowRun?: (request: OpenScopedWorkflowRunSideTabRequest) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { sendCommand, attachmentPut, onRuntimeRestart, onRuntimeLifecycle } = useV4Conversation();
   const [selectedKey, setSelectedKey] = useState<string>();
   const [pending, setPending] = useState(false);

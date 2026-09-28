@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import type { RefObject } from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
-import type { IServiceAccessor } from "@zcode/services";
+import type { IServiceAccessor } from "@lcode/services";
 import { Terminal } from "@/Terminal.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
 import { cn } from "@/components/lib/utils.js";

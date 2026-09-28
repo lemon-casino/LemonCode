@@ -31,7 +31,7 @@
 - 会话分享脱敏：另立发布安全 spec，必须同时说明附件字节是否扫描，不能只改正文却承诺“发布内容均已脱敏”。
 - Git 行级归因：另立实验性 provenance spec；Git diff 仍由 `IGitService` 拥有，CLI 只能查询会话证据，不能成为第二个 diff owner。
 - 远端 workspace 的自动记忆提取：维持当前禁用语义。
-- subagent 的 `.zcode/agent-memory*`：与项目记忆是不同 owner，本期不合并。
+- subagent 的 `.lcode/agent-memory*`：与项目记忆是不同 owner，本期不合并。
 - 默认联网、向量数据库或 embedding 服务。
 
 ## 3. 不变量与状态所有者
@@ -248,17 +248,17 @@ production-SQLite 语料的 p95/p99 均通过 P3 门槛，现有证据不足以�
 
 ## 7. 真实验证入口
 
-仓库没有统一 test script；CLI 各包也没有 `test` script。禁止使用会 0 tests 假绿的 `pnpm -C apps/zcode-cli --filter ... test`。从仓库根执行显式测试文件：
+仓库没有统一 test script；CLI 各包也没有 `test` script。禁止使用会 0 tests 假绿的 `pnpm -C apps/lcode-cli --filter ... test`。从仓库根执行显式测试文件：
 
 ```text
 pnpm exec tsx --test <新增的显式 .test.ts 文件>
-pnpm --dir apps/zcode-cli bench:session-recall
+pnpm --dir apps/lcode-cli bench:session-recall
 pnpm typecheck
 pnpm lint
 pnpm fmt:check
-pnpm -C apps/zcode-cli typecheck
-pnpm -C apps/zcode-cli lint
-pnpm -C apps/zcode-cli format:check
+pnpm -C apps/lcode-cli typecheck
+pnpm -C apps/lcode-cli lint
+pnpm -C apps/lcode-cli format:check
 pnpm architecture:check --changed
 ```
 
@@ -279,6 +279,6 @@ migration boundary: no DB/protocol/schema migration; P4 is deferred/not triggere
 ## 9. 已知治理缺口
 
 - feature boundary graph 原缺少 memory/retrieval 节点，本次已补充 verified seeds；其 maintainer contract `docs/skills/feature-boundary-graph.md` 在当前 checkout 缺失，因此只做可由 YAML 自身规则验证的最小更新。
-- `shared/services/session/ui/zcode-cli` 当前均为 `managed:false`，`architecture:check` 通过不代表这些模块的依赖方向已被机器证明；实现仍需人工核对 package exports 与依赖。
+- `shared/services/session/ui/lcode-cli` 当前均为 `managed:false`，`architecture:check` 通过不代表这些模块的依赖方向已被机器证明；实现仍需人工核对 package exports 与依赖。
 - `architecture-policy.yaml` 登记的 `packages/services/src/session/contract.ts` 当前不存在，属于既有 graph/policy drift，本次不伪造无关 contract。
 - 当前文件端口没有 no-follow/lstat 或原子的 contained-read，P1 只能拒绝 `listDirectory` 当时报告的 symlink；若另一本地进程在 list 与 read 之间替换文件，彻底消除该 TOCTOU 需要先扩展 `FileSystemPort`，不得靠重复 stat 声称已形成原子沙箱。

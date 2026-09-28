@@ -7,7 +7,7 @@ import {
 } from "@/components/ai-elements/attachments.js";
 import { ImagePreviewDialog } from "@/components/ai-elements/image-preview-dialog.js";
 import { Button } from "@/components/ui/button.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { ChatComposerPasteEvent, LexicalChatInputHandle } from "@/LexicalChatInput.js";
 import { ChatPromptEditor } from "@/prompt-editor/ChatPromptEditor.js";
 import type { ComposerAttachmentUploadItem } from "@/store/composerAttachmentUploadStore.js";
@@ -49,7 +49,7 @@ export function WorkflowActorSupplementComposer({
   workspaceIdentity?: string;
   workspacePath: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [previewIndex, setPreviewIndex] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
   const previewItems = useMemo(

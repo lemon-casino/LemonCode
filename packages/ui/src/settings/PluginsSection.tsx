@@ -22,15 +22,15 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { Switch } from "@/components/ui/switch.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { TID_PLUGIN_STORE_BROWSE, ZCODE_CUA_OFFICIAL_PLUGIN_ID } from "@zcode/shared";
-import type { ZCodePluginInfo, ZCodePluginScope, ZCodePluginUserConfigOption } from "@zcode/shared";
+import { TID_PLUGIN_STORE_BROWSE, LCODE_CUA_OFFICIAL_PLUGIN_ID } from "@lcode/shared";
+import type { LCodePluginInfo, LCodePluginScope, LCodePluginUserConfigOption } from "@lcode/shared";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import {
   useBaseWorkspaceServices,
   useWorkspaceServicesResolution,
 } from "@/hooks/useWorkspaceServices.js";
 import { getPathLeaf } from "@/lib/path.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { McpSettingsSection } from "@/settings/McpSettingsSection.js";
 import { SkillsSection } from "@/settings/SkillsSection.js";
 import { CommandsSection } from "@/settings/CommandsSection.js";
@@ -73,8 +73,8 @@ import {
   resolvePluginDisplayName,
 } from "@/settings/pluginStoreListing.js";
 import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
-import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
-import { getWorkspaceState, hasRunningWorkspaceTask } from "@/store/zcodeSessionStoreSelectors.js";
+import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
+import { getWorkspaceState, hasRunningWorkspaceTask } from "@/store/lcodeSessionStoreSelectors.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab, type WorkspaceTabState } from "@/store/tabStore.js";
 import {
@@ -149,7 +149,7 @@ function PluginList({
   onVisibleCountChange,
 }: {
   target: WorkspaceTabState | null;
-  configScope: ZCodePluginScope;
+  configScope: LCodePluginScope;
   searchQuery: string;
   isDesktop: boolean;
   isMacDesktop: boolean;
@@ -161,7 +161,7 @@ function PluginList({
   showMarketplaceBreadcrumb?: boolean;
   onVisibleCountChange?: (count: number) => void;
 }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const targetServiceResolution = useWorkspaceServicesResolution(
     target?.workspacePath,
     target?.remoteSessionId,
@@ -192,7 +192,7 @@ function PluginList({
   const resetPluginConfig = usePluginManagementStore((state) => state.resetPluginConfig);
   const togglingPluginId = usePluginManagementStore((state) => state.togglingPluginId);
   const operationId = usePluginManagementStore((state) => state.operationId);
-  const workspaceSessionBusy = useZCodeSessionStore((state) =>
+  const workspaceSessionBusy = useLCodeSessionStore((state) =>
     target
       ? hasRunningWorkspaceTask(
           getWorkspaceState(state, target.workspacePath, target.workspaceIdentity),
@@ -327,7 +327,7 @@ function PluginList({
   }, [initialize, pluginManagementService, configScope, target, targetServiceResolution.rpcReady]);
   const handleSetEnabled = useCallback(
     async (pluginId: string, enabled: boolean) => {
-      if (pluginId === ZCODE_CUA_OFFICIAL_PLUGIN_ID && workspaceSessionBusy) {
+      if (pluginId === LCODE_CUA_OFFICIAL_PLUGIN_ID && workspaceSessionBusy) {
         toast(intl.formatMessage({ id: "chat.toolbar.computerUse.tooltip.sessionBusy" }), {
           variant: "warning",
         });
@@ -431,9 +431,9 @@ function PluginList({
     }));
   };
   const getPluginOptionValue = (
-    plugin: ZCodePluginInfo,
+    plugin: LCodePluginInfo,
     key: string,
-    option: ZCodePluginUserConfigOption,
+    option: LCodePluginUserConfigOption,
   ): string | number | boolean => {
     const draft = pluginOptionsDrafts[plugin.id]?.[key];
     if (draft === null) return "";
@@ -444,7 +444,7 @@ function PluginList({
       (option.type === "boolean" ? false : "")
     );
   };
-  const savePluginOptions = async (plugin: ZCodePluginInfo) => {
+  const savePluginOptions = async (plugin: LCodePluginInfo) => {
     const { options, clearOptionKeys } = buildPluginConfigPatch(
       plugin,
       pluginOptionsDrafts[plugin.id] ?? {},
@@ -505,7 +505,7 @@ function PluginList({
     });
   }, [initialize, pluginManagementService, configScope, target, targetServiceResolution.rpcReady]);
 
-  const renderPluginRows = (items: ZCodePluginInfo[]) => (
+  const renderPluginRows = (items: LCodePluginInfo[]) => (
     <div className="overflow-hidden rounded-xl bg-surface">
       {items.map((plugin, index) => (
         <Fragment key={plugin.id}>
@@ -637,11 +637,11 @@ function PluginList({
                 checked={plugin.enabled}
                 disabled={
                   togglingPluginId === plugin.id ||
-                  (plugin.id === ZCODE_CUA_OFFICIAL_PLUGIN_ID && workspaceSessionBusy)
+                  (plugin.id === LCODE_CUA_OFFICIAL_PLUGIN_ID && workspaceSessionBusy)
                 }
                 aria-busy={togglingPluginId === plugin.id}
                 title={
-                  plugin.id === ZCODE_CUA_OFFICIAL_PLUGIN_ID && workspaceSessionBusy
+                  plugin.id === LCODE_CUA_OFFICIAL_PLUGIN_ID && workspaceSessionBusy
                     ? intl.formatMessage({ id: "chat.toolbar.computerUse.tooltip.sessionBusy" })
                     : undefined
                 }
@@ -949,8 +949,8 @@ function PluginList({
         onPluginOpenChange={setRemotePluginSyncOpen}
         localPluginSyncService={baseServices.pluginSyncService}
         remotePluginSyncService={targetServiceResolution.services.pluginSyncService}
-        localZCodeAgentService={baseServices.zcodeAgentService}
-        remoteZCodeAgentService={targetServiceResolution.services.zcodeAgentService}
+        localLCodeAgentService={baseServices.lcodeAgentService}
+        remoteLCodeAgentService={targetServiceResolution.services.lcodeAgentService}
         remoteTarget={connectedRemoteSyncTarget}
         skillWorkspacePath=""
         mcpWorkspacePath=""
@@ -986,7 +986,7 @@ export function PluginsSection({
   onOpenPluginStore,
   showMarketplaceBreadcrumb = false,
 }: PluginsSectionProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const tabs = useTabStore((state) => state.tabs);
   const storeActiveWorkspacePath = useTabStore((state) => state.activeWorkspacePath);
   const storeActiveWorkspaceIdentity = useTabStore((state) => state.activeWorkspaceIdentity);

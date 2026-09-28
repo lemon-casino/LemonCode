@@ -112,11 +112,11 @@ test("port 流控对象不穿越 WS,只驱动反压边沿", () => {
   const { port } = makePortSide();
   const pauses: boolean[] = [];
   const pump = createRemoteControlFramePump({ ws, port, setTransportPaused: (p) => pauses.push(p) });
-  pump.handlePortMessage({ __zcodeRpcControl: "connection-flow-v1", state: "saturated" });
+  pump.handlePortMessage({ __lcodeRpcControl: "connection-flow-v1", state: "saturated" });
   assert.deepEqual(pauses, [true]);
-  pump.handlePortMessage({ __zcodeRpcControl: "connection-flow-v1", state: "saturated" });
+  pump.handlePortMessage({ __lcodeRpcControl: "connection-flow-v1", state: "saturated" });
   assert.deepEqual(pauses, [true]); // 同一边沿不重复
-  pump.handlePortMessage({ __zcodeRpcControl: "connection-flow-v1", state: "drained" });
+  pump.handlePortMessage({ __lcodeRpcControl: "connection-flow-v1", state: "drained" });
   assert.deepEqual(pauses, [true, false]);
   assert.equal(sent.length, 0);
 });
@@ -144,7 +144,7 @@ test("stop 后幂等忽略两侧输入并解除反压", () => {
   const { port, posted } = makePortSide();
   const pauses: boolean[] = [];
   const pump = createRemoteControlFramePump({ ws, port, setTransportPaused: (p) => pauses.push(p) });
-  pump.handlePortMessage({ __zcodeRpcControl: "connection-flow-v1", state: "saturated" });
+  pump.handlePortMessage({ __lcodeRpcControl: "connection-flow-v1", state: "saturated" });
   pump.stop();
   pump.stop();
   pump.handleWsBinary(encodeRemoteControlRegularFrame(new Uint8Array([1])));

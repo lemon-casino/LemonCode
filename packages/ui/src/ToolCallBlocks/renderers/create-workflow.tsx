@@ -1,6 +1,6 @@
 import { ChevronRightIcon, RotateCcwIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { CodeBlock } from "@/components/ai-elements/code-block.js";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -73,7 +73,7 @@ const workflowCardOpenState = new Map<string, boolean>();
  * 实现），只换修订词汇，并在卡体多一行「调整自 run X」——按工具名判，不看 family。
  */
 export function CreateWorkflowToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCall } = context.toolCallNode;
   const amend = isAmendWorkflowToolCall(toolCall);
   const amendTarget = amend ? readWorkflowAmendTarget(toolCall.input) : undefined;

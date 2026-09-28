@@ -1,11 +1,11 @@
-import { redactFeedbackText } from "@zcode/shared";
+import { redactFeedbackText } from "@lcode/shared";
 import { useCallback, useEffect, useRef } from "react";
 import { AlertTriangleIcon, LoaderIcon } from "lucide-react";
-import { TID_SSH_ERROR, type RemoteTarget } from "@zcode/shared";
+import { TID_SSH_ERROR, type RemoteTarget } from "@lcode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import type { RemoteConnectionLogEntry } from "@/hooks/useRemoteConnectionLogs.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useFeedbackStore } from "@/feedback/feedbackStore.js";
 import {
   isRemoteConnectionLogScrolledToLatest,
@@ -27,7 +27,7 @@ export function RemoteConnectionConnectingStep({
   onBack: () => void;
   onRetry: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const openFeedbackSubmit = useFeedbackStore((state) => state.openSubmit);
   const logContainerRef = useRef<HTMLDivElement | null>(null);
   const shouldFollowLatestLogRef = useRef(true);

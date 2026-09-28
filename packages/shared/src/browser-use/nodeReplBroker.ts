@@ -3,8 +3,8 @@ import { browserBackendDescriptorSchema } from "./backend.js";
 import { browserCommandSchema } from "./commands.js";
 import { browserCommandResultSchema } from "./result.js";
 
-export const NODE_REPL_BROWSER_BROKER_SOCKET_ENV = "ZCODE_NODE_REPL_BROWSER_BROKER_SOCKET";
-export const NODE_REPL_BROWSER_BROKER_TOKEN_ENV = "ZCODE_NODE_REPL_BROWSER_BROKER_TOKEN";
+export const NODE_REPL_BROWSER_BROKER_SOCKET_ENV = "LCODE_NODE_REPL_BROWSER_BROKER_SOCKET";
+export const NODE_REPL_BROWSER_BROKER_TOKEN_ENV = "LCODE_NODE_REPL_BROWSER_BROKER_TOKEN";
 
 const requestBase = z.object({
   id: z.string().uuid(),

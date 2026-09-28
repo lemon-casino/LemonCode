@@ -1,4 +1,4 @@
-import type { ZCodePluginMarketplaceSummary } from "@zcode/shared";
+import type { LCodePluginMarketplaceSummary } from "@lcode/shared";
 
 /**
  * 把 marketplace id 解析为对用户友好的展示名：
@@ -7,7 +7,7 @@ import type { ZCodePluginMarketplaceSummary } from "@zcode/shared";
  */
 export function resolveMarketplaceDisplayName(
   marketplaceId: string,
-  marketplaces: readonly ZCodePluginMarketplaceSummary[],
+  marketplaces: readonly LCodePluginMarketplaceSummary[],
 ): string {
   const matched = marketplaces.find((marketplace) => marketplace.id === marketplaceId);
   return matched?.name ?? marketplaceId;

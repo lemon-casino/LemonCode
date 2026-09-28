@@ -6,7 +6,7 @@ import type {
   ApplicationIconInfo,
   ApplicationIconRequest,
   ApplicationIconLocator,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { app } from "electron";
 import { getAppIconDataUrl } from "./editors.js";
 import { logger } from "./logger.js";

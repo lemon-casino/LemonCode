@@ -1,4 +1,4 @@
-import { computeLineChangeStat } from "@zcode/shared";
+import { computeLineChangeStat } from "@lcode/shared";
 import { resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
 import { getPathLeaf } from "@/lib/path.js";
 import { buildUnifiedDiff } from "@/lib/toolDiffPreview.js";
@@ -24,7 +24,7 @@ export function hasWritableToolSemantic(source?: EditKindSource): boolean {
   }
 
   // TodoWrite/AskUserQuestion 这类固定工具名不能再靠字符串片段判断写文件。
-  // 统一走 tool identity，旧 ZCode Agent 的 kind/title/raw 兼容只留在 resolver fallback 里。
+  // 统一走 tool identity，旧 LCode Agent 的 kind/title/raw 兼容只留在 resolver fallback 里。
   return resolveToolCallIdentity(source).family === "file-write";
 }
 

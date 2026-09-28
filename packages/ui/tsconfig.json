@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   // ui 包沿用 NodeNext 的 ESM 解析规则，包内导入必须能直接落到真实文件路径。
-  // 之前 ai-elements 一边从包内部自引用 @zcode/ui/...，一边大量省略内部 .js 后缀，
+  // 之前 ai-elements 一边从包内部自引用 @lcode/ui/...，一边大量省略内部 .js 后缀，
   // 会同时踩中 package exports 限制和 NodeNext 的路径解析失败。
   // 这里保留现有配置，把包内导入统一收敛到带 .js 后缀的相对路径，避免开发态、构建态和类型检查结果不一致。
   "compilerOptions": {

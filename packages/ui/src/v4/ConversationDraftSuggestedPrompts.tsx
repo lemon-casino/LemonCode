@@ -18,7 +18,7 @@ import { ClientSceneLucideIcon } from "@/components/ClientSceneLucideIcon.js";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   resolveDraftSuggestedPromptText,
   type DraftSuggestedPromptItem,
@@ -183,7 +183,7 @@ export function ConversationDraftSuggestedPrompts({
   refreshDisabled = false,
   pluginActionPopover,
 }: ConversationDraftSuggestedPromptsProps) {
-  const { locale, intl } = useZCodeIntl();
+  const { locale, intl } = useLCodeIntl();
   const [confirmClose, setConfirmClose] = useState(false);
 
   if (items.length === 0) return null;
@@ -318,10 +318,10 @@ export function ConversationDraftSuggestedPrompts({
                   title={label}
                   disabled={!onSelect || disabled}
                   onClick={onSelect ? () => onSelect(item) : undefined}
-                  className="zcode-draft-prompt-waterfall h-8 min-w-0 justify-start gap-1.5 overflow-hidden rounded-lg px-3 text-left text-ui-caption font-normal leading-4.5 text-foreground"
+                  className="lcode-draft-prompt-waterfall h-8 min-w-0 justify-start gap-1.5 overflow-hidden rounded-lg px-3 text-left text-ui-caption font-normal leading-4.5 text-foreground"
                   style={
                     {
-                      "--zcode-draft-prompt-waterfall-delay": `${index * 65}ms`,
+                      "--lcode-draft-prompt-waterfall-delay": `${index * 65}ms`,
                     } as CSSProperties
                   }
                 >

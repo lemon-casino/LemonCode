@@ -6,11 +6,11 @@ import {
 import type {
   IPlatformService,
   RemoteWorkspaceIdentityKind,
-  ZCodeContextCompactionTimelineMeta,
-  ZCodeStreamEvent,
-  ZCodeUsage,
-} from "@zcode/shared";
-import type { ConversationTelemetryFact } from "@zcode/shared/zcode-protocol-v4";
+  LCodeContextCompactionTimelineMeta,
+  LCodeStreamEvent,
+  LCodeUsage,
+} from "@lcode/shared";
+import type { ConversationTelemetryFact } from "@lcode/shared/lcode-protocol-v4";
 import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
 import {
   reportChatErrorBannerTelemetry,
@@ -57,7 +57,7 @@ import {
   reportUiToolCallDetail,
   reportUiTurnBreakdown,
 } from "@/lib/uiPerfArmsTelemetry.js";
-import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
+import type { LCodeUiError } from "@/lib/lcodeUiError.js";
 import { resolveLegacyRuntimeModelValue } from "@/v4/telemetry/conversationPromptTelemetry.js";
 
 const MAX_DEDUPE_KEYS = 2_000;
@@ -67,7 +67,7 @@ const MAX_BUFFERED_COMMANDS = 200;
 type TelemetryPlatform = Pick<IPlatformService, "reportArmsCustomEvent" | "reportTelemetryEvent">;
 
 export interface ConversationPromptTelemetrySeed {
-  localTtft?: import("@zcode/shared").LocalTtftContext;
+  localTtft?: import("@lcode/shared").LocalTtftContext;
   /** 用户触发原始发送动作的 renderer 时钟。 */
   sendTime: number;
   /** 发送瞬间冻结的旧版模型/模式/套餐字段。 */
@@ -248,7 +248,7 @@ interface ForegroundSubagentUsage {
   modelName: string;
   modelProvider: string;
   providerName: string;
-  usage: ZCodeUsage | null;
+  usage: LCodeUsage | null;
   stopped: boolean;
   pendingFinalizedSteps: PendingFinalizedStep[];
 }
@@ -277,7 +277,7 @@ interface BackgroundSubagentTelemetry {
   startedAt: number;
   requestIds: string[];
   requestCount: number;
-  usage: ZCodeUsage | null;
+  usage: LCodeUsage | null;
   modelName: string;
   modelProvider: string;
   providerName: string;
@@ -326,7 +326,7 @@ class BoundedKeySet {
 
 function toLegacyNetworkEvent(
   fact: Extract<ConversationTelemetryFact, { kind: "model.request.status" }>,
-): Extract<ZCodeStreamEvent, { type: "task_network_debug_status" }> {
+): Extract<LCodeStreamEvent, { type: "task_network_debug_status" }> {
   return {
     type: "task_network_debug_status",
     taskId: fact.sessionId,
@@ -358,7 +358,7 @@ function toLegacyNetworkEvent(
     responseHeaders: {},
     requestHeaderCount: 0,
     responseHeaderCount: 0,
-  } as Extract<ZCodeStreamEvent, { type: "task_network_debug_status" }>;
+  } as Extract<LCodeStreamEvent, { type: "task_network_debug_status" }>;
 }
 
 function scopedSubagentToolCallId(agentId: string, childToolCallId: string): string {
@@ -425,7 +425,7 @@ function toToolLifecycleEvent(input: {
   toolId: string;
   inputId?: string;
   hasStarted: boolean;
-}): ZCodeStreamEvent {
+}): LCodeStreamEvent {
   const { fact } = input;
   const skillMetadata =
     fact.skillQualifiedName || fact.skillPluginId || fact.skillSource
@@ -449,7 +449,7 @@ function toToolLifecycleEvent(input: {
       title: "",
       raw: {},
       ...(skillMetadata ? { skillMetadata } : {}),
-    } as Extract<ZCodeStreamEvent, { type: "tool_call" }>;
+    } as Extract<LCodeStreamEvent, { type: "tool_call" }>;
   }
   return {
     type: "tool_call_update",
@@ -465,10 +465,10 @@ function toToolLifecycleEvent(input: {
     error: fact.errorMessage,
     raw: {},
     ...(skillMetadata ? { skillMetadata } : {}),
-  } as Extract<ZCodeStreamEvent, { type: "tool_call_update" }>;
+  } as Extract<LCodeStreamEvent, { type: "tool_call_update" }>;
 }
 
-function toUsage(fact: Extract<ConversationTelemetryFact, { kind: "usage.delta" }>): ZCodeUsage {
+function toUsage(fact: Extract<ConversationTelemetryFact, { kind: "usage.delta" }>): LCodeUsage {
   return {
     inputTokens: fact.inputTokens,
     outputTokens: fact.outputTokens,
@@ -487,7 +487,7 @@ function runtimeTelemetryModelName(providerId: string | undefined, modelId: stri
   return model.includes("/") ? model : `${provider}/${model}`;
 }
 
-function mergeUsage(left: ZCodeUsage | null, right: ZCodeUsage): ZCodeUsage {
+function mergeUsage(left: LCodeUsage | null, right: LCodeUsage): LCodeUsage {
   if (!left) return { ...right };
   return {
     inputTokens: left.inputTokens + right.inputTokens,
@@ -1317,7 +1317,7 @@ export class ConversationTelemetrySupervisor {
     surface?: ChatErrorBannerSurface;
     errorKey?: string | null;
     displayMessage: string;
-    error: ZCodeUiError;
+    error: LCodeUiError;
   }): void {
     if (this.disposed) return;
     void reportChatErrorBannerTelemetry(this.platform, {
@@ -1540,7 +1540,7 @@ export class ConversationTelemetrySupervisor {
             ? { messageId: fact.assistantMessageId }
             : {}),
           ...(fact.parentToolCallId ? { parentToolUseId: fact.parentToolCallId } : {}),
-        } as Extract<ZCodeStreamEvent, { type: "agent_thought_chunk" | "agent_message_chunk" }>;
+        } as Extract<LCodeStreamEvent, { type: "agent_thought_chunk" | "agent_message_chunk" }>;
         this.reportFinalizedSteps(
           lifecycle,
           recordAgentStepTelemetryEvent({
@@ -1782,7 +1782,7 @@ export class ConversationTelemetrySupervisor {
               error: fact.errorMessage ?? lifecycle.lastErrorMessage ?? fact.errorCode ?? "",
               code: fact.errorCode,
             }
-      ) as Extract<ZCodeStreamEvent, { type: "task_complete" | "task_error" }>;
+      ) as Extract<LCodeStreamEvent, { type: "task_complete" | "task_error" }>;
     this.reportFinalizedSteps(
       lifecycle,
       recordAgentStepTelemetryEvent({
@@ -1919,7 +1919,7 @@ export class ConversationTelemetrySupervisor {
     if (!this.compactionKeys.remember(dedupeKey)) return;
     // compaction 只按 terminal 到达瞬间是否前台决定；后台到达后切回不能补报。
     if (!foregroundAtReceipt) return;
-    const timeline: ZCodeContextCompactionTimelineMeta = {
+    const timeline: LCodeContextCompactionTimelineMeta = {
       version: 1,
       kind: "synthetic",
       type: "context_compaction",

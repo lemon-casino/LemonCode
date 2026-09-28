@@ -1,5 +1,5 @@
 {
-  "name": "@zcode/web",
+  "name": "@lcode/web",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,9 +10,9 @@
     "lint:fix": "oxlint --fix"
   },
   "dependencies": {
-    "@zcode/client": "workspace:*",
-    "@zcode/shared": "workspace:*",
-    "@zcode/ui": "workspace:*",
+    "@lcode/client": "workspace:*",
+    "@lcode/shared": "workspace:*",
+    "@lcode/ui": "workspace:*",
     "react": "^19.2.4",
     "react-dom": "^19.2.4"
   },

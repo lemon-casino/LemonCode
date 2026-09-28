@@ -1,4 +1,4 @@
-import { databaseStartupPortPayloadSchema, type DatabaseStartupState } from "@zcode/shared";
+import { databaseStartupPortPayloadSchema, type DatabaseStartupState } from "@lcode/shared";
 
 /** 页面只做同代准入；ready(A) 不能与端口(B) 拼成一次完成事实。 */
 export class DatabaseStartupAdmission {

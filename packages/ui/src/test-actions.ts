@@ -1,6 +1,6 @@
 import type { TaskChatMessage as ChatMessage } from "@/lib/taskChatMessageTypes.js";
 import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
-import type { IZCodeAgentService } from "@zcode/services";
+import type { ILCodeAgentService } from "@lcode/services";
 import type { TaskListE2EActions } from "@/lib/taskListE2EActions.js";
 import type { Theme } from "@/useTheme.js";
 import { useEffect } from "react";
@@ -29,18 +29,18 @@ export interface TestActions extends TaskListE2EActions {
   setChatMessages: (messages: ChatMessage[]) => void;
   /** 获取当前 mock 消息数量 */
   getChatMessageCount: () => number;
-  /** E2E 通过真实 zcodeAgentService 拉取插件 overview */
-  getPluginsOverview: IZCodeAgentService["getPluginsOverview"];
-  /** E2E 通过真实 zcodeAgentService 添加 marketplace */
-  addPluginMarketplace: IZCodeAgentService["addPluginMarketplace"];
-  /** E2E 通过真实 zcodeAgentService 刷新 marketplace */
-  updatePluginMarketplace: IZCodeAgentService["updatePluginMarketplace"];
-  /** E2E 通过真实 zcodeAgentService 安装 marketplace plugin */
-  installPlugin: IZCodeAgentService["installPlugin"];
-  /** E2E 通过真实 zcodeAgentService 触发插件 discover */
-  listPlugins: IZCodeAgentService["listPlugins"];
-  /** E2E 通过真实 zcodeAgentService 查询 Workspace/Session Plugin catalog */
-  getPluginReferenceCatalog: IZCodeAgentService["getPluginReferenceCatalog"];
+  /** E2E 通过真实 lcodeAgentService 拉取插件 overview */
+  getPluginsOverview: ILCodeAgentService["getPluginsOverview"];
+  /** E2E 通过真实 lcodeAgentService 添加 marketplace */
+  addPluginMarketplace: ILCodeAgentService["addPluginMarketplace"];
+  /** E2E 通过真实 lcodeAgentService 刷新 marketplace */
+  updatePluginMarketplace: ILCodeAgentService["updatePluginMarketplace"];
+  /** E2E 通过真实 lcodeAgentService 安装 marketplace plugin */
+  installPlugin: ILCodeAgentService["installPlugin"];
+  /** E2E 通过真实 lcodeAgentService 触发插件 discover */
+  listPlugins: ILCodeAgentService["listPlugins"];
+  /** E2E 通过真实 lcodeAgentService 查询 Workspace/Session Plugin catalog */
+  getPluginReferenceCatalog: ILCodeAgentService["getPluginReferenceCatalog"];
 }
 
 declare global {

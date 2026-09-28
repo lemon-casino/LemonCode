@@ -1,4 +1,4 @@
-import { LOCAL_TTFT_TTL_MS } from "@zcode/shared";
+import { LOCAL_TTFT_TTL_MS } from "@lcode/shared";
 
 const MAX_OBSERVATIONS = 1024;
 const MAX_FACTS_PER_OBSERVATION = 512;

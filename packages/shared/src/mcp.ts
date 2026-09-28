@@ -1,19 +1,19 @@
 /**
- * MCP (Model Context Protocol) types for ZCode
+ * MCP (Model Context Protocol) types for LCode
  * Based on the original Tauri implementation
  */
 
 import type { SettingsDirectoryLocation } from "./settings-source.js";
-import type { McpServerFailureKind } from "./zcode-protocol/index.js";
+import type { McpServerFailureKind } from "./lcode-protocol/index.js";
 
 // CUA official plugin 身份常量（port 自 feat；UI 设置面板 + bootstrap 复用以避免字面量漂移）。
-export const ZCODE_CUA_OFFICIAL_PLUGIN_ID = "computer-use@zcode-plugins-official";
-// CUA server 身份串（port 自 feat mcp.ts）：server key = 模型可见工具前缀段（刻意不带 zcode-）；
+export const LCODE_CUA_OFFICIAL_PLUGIN_ID = "computer-use@zcode-plugins-official";
+// CUA server 身份串（port 自 feat mcp.ts）：server key = 模型可见工具前缀段（刻意不带 lcode-）；
 // namespace name = official plugin 运行时命名空间 plugin:<pluginId>:<serverKey>。
-export const ZCODE_CUA_OFFICIAL_MCP_NAMESPACE_NAME = "plugin:computer-use:computer-use";
+export const LCODE_CUA_OFFICIAL_MCP_NAMESPACE_NAME = "plugin:computer-use:computer-use";
 // 插件身份 env key：resolver（adapters/src/plugins/mcp.ts）权威写入 loaded.id，manifest/user env 不可覆盖。
-// bootstrap + cli/plugin-host-command.ts 复用此常量识别 official zcode-cua plugin server，避免字面量漂移。
-export const ZCODE_PLUGIN_ID_ENV_KEY = "ZCODE_PLUGIN_ID";
+// bootstrap + cli/plugin-host-command.ts 复用此常量识别 official lcode-cua plugin server，避免字面量漂移。
+export const LCODE_PLUGIN_ID_ENV_KEY = "LCODE_PLUGIN_ID";
 
 export type McpSource = "mcp" | "zcodeagentmcp";
 export type CliMcpSource = Exclude<McpSource, "mcp">;
@@ -110,7 +110,7 @@ export interface McpConfig {
   zcodeagentmcp: CliMcpConfig;
 }
 
-export interface ZCodeMcpServer {
+export interface LCodeMcpServer {
   id: string;
   name: string;
   config: McpServerConfig;
@@ -163,7 +163,7 @@ export interface McpTestResult {
   response_time?: number;
 }
 
-export type ZCodeAgentMcpServer =
+export type LCodeAgentMcpServer =
   | {
       name: string;
       command: string;
@@ -209,12 +209,12 @@ export function getMcpServerRequestHeaders(
   return config.headers ?? config.http_headers;
 }
 
-// zcode-cua MCP server 识别的单一事实源。desktop 产品 broker resolver（@zcode/services 的
-// mcpBrokerInjection）与 CLI bootstrap（apps/zcode-cli 的 mcp-config）两条注入入口必须用
+// lcode-cua MCP server 识别的单一事实源。desktop 产品 broker resolver（@lcode/services 的
+// mcpBrokerInjection）与 CLI bootstrap（apps/lcode-cli 的 mcp-config）两条注入入口必须用
 // 完全一致的判定；否则同一 MCP 配置在不同入口行为不同，可能漏注入 product broker，让
 // Python/uvx 自己持有 macOS TCC 权限（违反 fail-closed 边界）。改这里即同时改两条链路。
-function zcodeCuaArgLeaf(value: string): string {
-  // 先去掉结尾的路径分隔符再取叶子：`.../zcode-cua/` 直接 split 会得到空串叶子 → 漏判 → fail-open。
+function lcodeCuaArgLeaf(value: string): string {
+  // 先去掉结尾的路径分隔符再取叶子：`.../lcode-cua/` 直接 split 会得到空串叶子 → 漏判 → fail-open。
   return (
     value
       .replace(/[\\/]+$/, "")
@@ -223,44 +223,51 @@ function zcodeCuaArgLeaf(value: string): string {
   );
 }
 
-// 单个候选串是否为 zcode-cua 的包规格。PyPI 视 `_`/`-` 等价，故先把下划线归一成短横（zcode_cua →
+// 单个候选串是否为 CUA 的包规格。PyPI 视 `_`/`-` 等价，故先把下划线归一成短横（zcode_cua →
 // zcode-cua）；覆盖 uv/npm 的 `@version`、pip 的 `==version`、extras `[...]`、git 的 `.git`/`.git@`，
 // 以及 `python -m zcode_cua.server` 这种点号子模块（`zcode-cua.<submodule>`）。fail-closed 边界宁可
 // 过判也不漏判；仍不会误判 `zcode-cua-proxy`（短横续接，不以 `.`/`@`/`[`/`==` 边界续接）。
-function matchesZCodeCuaSpec(candidate: string): boolean {
+// 外部 PyPI/npm 生态发布名是 zcode_cua/zcode-cua.server（品牌更名不改变外部包名），同时接受
+// lcode-cua 族以兼容未来自有发布与仓内命名。
+function matchesLCodeCuaSpec(candidate: string): boolean {
   const c = candidate.replace(/_/g, "-");
   return (
     c === "zcode-cua" ||
     c.startsWith("zcode-cua[") ||
     c.startsWith("zcode-cua@") ||
     c.startsWith("zcode-cua==") ||
+    c === "lcode-cua" ||
+    c.startsWith("lcode-cua[") ||
+    c.startsWith("lcode-cua@") ||
+    c.startsWith("lcode-cua==") ||
     // `.` 分支同时覆盖 `zcode-cua.git` / `zcode-cua.git@v1` 与 `zcode-cua.server` 等 python 子模块。
-    c.startsWith("zcode-cua.")
+    c.startsWith("zcode-cua.") ||
+    c.startsWith("lcode-cua.")
   );
 }
 
 /**
- * MCP server 的 command 是否指向 zcode-cua。用与 args 相同的包规格判定（并比对路径叶子），
- * 覆盖 `command: "zcode-cua"`、`/opt/bin/zcode-cua`，以及把包规格直接当 command 的写法
- * （`zcode-cua@1.2.3` 等）。对 fail-closed 边界宁可过判也不漏判。
+ * MCP server 的 command 是否指向 CUA。用与 args 相同的包规格判定（并比对路径叶子），
+ * 覆盖 `command: "zcode-cua"`、`/opt/bin/lcode-cua`，以及把包规格直接当 command 的写法
+ * （`zcode_cua@1.2.3` 等）。对 fail-closed 边界宁可过判也不漏判。
  */
-export function isZCodeCuaMcpCommand(command: string): boolean {
-  return matchesZCodeCuaSpec(command) || matchesZCodeCuaSpec(zcodeCuaArgLeaf(command));
+export function isLCodeCuaMcpCommand(command: string): boolean {
+  return matchesLCodeCuaSpec(command) || matchesLCodeCuaSpec(lcodeCuaArgLeaf(command));
 }
 
 /**
- * 单个 arg 是否为 zcode-cua 的包规格。覆盖 `zcode-cua`、`zcode-cua[macos]`、`zcode-cua@1.2.3`、
- * `zcode-cua==1.2.3`、`zcode_cua`，以及 git / 本地路径形态（`.../zcode-cua`、`zcode-cua.git`、
+ * 单个 arg 是否为 CUA 的包规格。覆盖 `zcode-cua`、`zcode-cua[macos]`、`zcode_cua@1.2.3`、
+ * `lcode-cua==1.2.3`，以及 git / 本地路径形态（`.../zcode-cua`、`lcode-cua.git`、
  * `git+https://.../zcode-cua.git@v1`）。同时比对原始值与路径叶子，覆盖 `--from <path>`、`--from <git-url>`。
  */
-export function isZCodeCuaMcpPackageArg(value: string): boolean {
-  return matchesZCodeCuaSpec(value) || matchesZCodeCuaSpec(zcodeCuaArgLeaf(value));
+export function isLCodeCuaMcpPackageArg(value: string): boolean {
+  return matchesLCodeCuaSpec(value) || matchesLCodeCuaSpec(lcodeCuaArgLeaf(value));
 }
 
-export function convertToZCodeAgentMcpServer(
+export function convertToLCodeAgentMcpServer(
   name: string,
   config: McpServerConfig,
-): ZCodeAgentMcpServer | null {
+): LCodeAgentMcpServer | null {
   let inferredType = config.type;
   if (!inferredType) {
     if (config.command) inferredType = "stdio";
@@ -283,7 +290,7 @@ export function convertToZCodeAgentMcpServer(
       const unwrappedCommand = args[1];
       if ((lowerCmd === "cmd" || lowerCmd === "cmd.exe") && args[0] === "/c" && unwrappedCommand) {
         // noUncheckedIndexedAccess 下 args[1] 即使经过 length 判断也仍是 string | undefined。
-        // 先显式取值并判空，既满足类型收窄，也避免把空命令传给 ZCode Agent。
+        // 先显式取值并判空，既满足类型收窄，也避免把空命令传给 LCode Agent。
         command = unwrappedCommand;
         args = args.slice(2);
       }

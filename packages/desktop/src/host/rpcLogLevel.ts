@@ -1,4 +1,4 @@
-import { ZCODE_AGENT_PROVIDER_NOT_READY_CODE } from "@zcode/shared";
+import { LCODE_AGENT_PROVIDER_NOT_READY_CODE } from "@lcode/shared";
 
 type RpcLogLevel = "debug" | "info" | "warn";
 
@@ -8,18 +8,18 @@ type RpcLogLevel = "debug" | "info" | "warn";
  */
 export function resolveRpcLogLevel(message: string, ...args: unknown[]): RpcLogLevel {
   // 后台详情每秒读取一次，成功日志会持续落盘；只降低该查询的成功级别，保留失败诊断。
-  if (message.startsWith("[rpc:call] zcode-agent.backgroundBashOutputV4 OK (")) return "debug";
+  if (message.startsWith("[rpc:call] lcode-agent.backgroundBashOutputV4 OK (")) return "debug";
 
   // workspace 首次绑定时，provider registry 会在 runtime identity 查询之后同步；
   // 这个明确带错误码的失败是启动握手状态，不是服务降级，避免每个 workspace 都留下一条 warn。
   if (
-    message.includes("zcode-session.getWorkspaceRuntimeIdentity FAIL") &&
+    message.includes("lcode-session.getWorkspaceRuntimeIdentity FAIL") &&
     args.some(
       (arg) =>
         typeof arg === "object" &&
         arg !== null &&
         "code" in arg &&
-        (arg as { code?: unknown }).code === ZCODE_AGENT_PROVIDER_NOT_READY_CODE,
+        (arg as { code?: unknown }).code === LCODE_AGENT_PROVIDER_NOT_READY_CODE,
     )
   ) {
     return "info";

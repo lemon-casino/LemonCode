@@ -27,7 +27,7 @@ export type FeedbackTicketModule =
   | "文档 / 使用咨询"
   | "其它";
 
-export type FeedbackTicketFramework = "zcode-agent";
+export type FeedbackTicketFramework = "lcode-agent";
 
 /**
  * UI 层 Select 不允许空字符串作为可选项 value（Radix 会抛错），
@@ -57,9 +57,9 @@ export interface FeedbackDeviceInfo {
   osRelease?: string;
   osVersion?: string;
   osArch?: string;
-  /** 提交反馈时的当前 Agent。单 ZCode Agent 模式下固定为 ZCode Agent。 */
+  /** 提交反馈时的当前 Agent。单 LCode Agent 模式下固定为 LCode Agent。 */
   agentProvider?: string;
-  /** 提交反馈时归一到反馈平台的框架标识，当前固定为 zcode-agent。 */
+  /** 提交反馈时归一到反馈平台的框架标识，当前固定为 lcode-agent。 */
   agentFramework?: FeedbackTicketFramework;
   /** 提交反馈时当前模型配置里的原始选中值。 */
   agentModel?: string;
@@ -207,12 +207,12 @@ export const FEEDBACK_TICKET_TYPES: { value: FeedbackTicketType; label: string }
 
 export const FEEDBACK_TICKET_SEVERITIES: FeedbackTicketSeverity[] = ["P1-高", "P2-中", "P3-低"];
 
-export const DEFAULT_FEEDBACK_TICKET_FRAMEWORK: FeedbackTicketFramework = "zcode-agent";
+export const DEFAULT_FEEDBACK_TICKET_FRAMEWORK: FeedbackTicketFramework = "lcode-agent";
 
 export const FEEDBACK_TICKET_FRAMEWORK_OPTIONS: {
   value: FeedbackTicketFramework;
   label: string;
-}[] = [{ value: "zcode-agent", label: "ZCode Agent" }];
+}[] = [{ value: "lcode-agent", label: "LCode Agent" }];
 
 /** 含「未指定」的完整列表，供管理端等场景使用。 */
 export const FEEDBACK_TICKET_FRAMEWORKS: {

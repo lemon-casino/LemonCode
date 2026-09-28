@@ -115,12 +115,12 @@ jobs:
           - { runner: ubuntu-24.04, os: linux, arch: x64 }
           - { runner: ubuntu-24.04-arm, os: linux, arch: arm64 }
     env:
-      ZCODE_ENV: production
-      ZCODE_SKIP_REMOTE_ASSETS: "1"
-      ZCODE_TARGET_OS: ${{ matrix.os }}
-      ZCODE_TARGET_ARCH: ${{ matrix.arch }}
+      LCODE_ENV: production
+      LCODE_SKIP_REMOTE_ASSETS: "1"
+      LCODE_TARGET_OS: ${{ matrix.os }}
+      LCODE_TARGET_ARCH: ${{ matrix.arch }}
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
-      ZCODE_ENABLE_MAC_SIGN: "0"
+      LCODE_ENABLE_MAC_SIGN: "0"
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -168,7 +168,7 @@ jobs:
         run: |
           native_root="$(realpath .release-inputs/xa11y-native)"
           test -f "$native_root/package.json"
-          echo "ZCODE_CUA_LINUX_XA11Y_NATIVE_ROOT=$native_root" >> "$GITHUB_ENV"
+          echo "LCODE_CUA_LINUX_XA11Y_NATIVE_ROOT=$native_root" >> "$GITHUB_ENV"
       - name: Configure macOS Computer Use SEA runtime
         if: runner.os == 'macOS'
         shell: bash
@@ -177,10 +177,10 @@ jobs:
           node_version="$(node -p 'process.versions.node')"
           node_sha256="$(shasum -a 256 "$node_executable" | awk '{print $1}')"
           {
-            echo "ZCODE_CUA_MAC_NODE_EXECUTABLE=$node_executable"
-            echo "ZCODE_CUA_MAC_NODE_VERSION=$node_version"
-            echo "ZCODE_CUA_MAC_NODE_SHA256=$node_sha256"
-            echo "ZCODE_CUA_HELPER_BUILD_ID=$GITHUB_SHA:$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT"
+            echo "LCODE_CUA_MAC_NODE_EXECUTABLE=$node_executable"
+            echo "LCODE_CUA_MAC_NODE_VERSION=$node_version"
+            echo "LCODE_CUA_MAC_NODE_SHA256=$node_sha256"
+            echo "LCODE_CUA_HELPER_BUILD_ID=$GITHUB_SHA:$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT"
           } >> "$GITHUB_ENV"
       - name: Package desktop app
         run: pnpm bundle:desktop -- --os ${{ matrix.os }} --arch ${{ matrix.arch }}
@@ -228,7 +228,7 @@ jobs:
         run: |
           if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release create "$GITHUB_REF_NAME" --verify-tag --draft \
-              --title "ZCode $VERSION" \
+              --title "LCode $VERSION" \
               --notes "Unsigned desktop packages for macOS, Windows, and Linux (x64 and arm64). Sign them locally if your environment requires it."
           fi
           gh release upload "$GITHUB_REF_NAME" release-assets/* --clobber

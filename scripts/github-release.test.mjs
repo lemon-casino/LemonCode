@@ -56,19 +56,19 @@ test("six native targets get exact architecture and version artifacts", async ()
     assert.equal(expectedArtifactNames("3.14.2", os, arch).length, count);
   }
   assert.deepEqual(expectedArtifactNames("3.14.2", "linux", "x64"), [
-    "ZCode-3.14.2-linux-x86_64.AppImage",
-    "ZCode-3.14.2-linux-amd64.deb",
-    "ZCode-3.14.2-linux-x86_64.rpm",
-    "ZCode-3.14.2-linux-x64.pkg.tar.zst",
+    "LCode-3.14.2-linux-x86_64.AppImage",
+    "LCode-3.14.2-linux-amd64.deb",
+    "LCode-3.14.2-linux-x86_64.rpm",
+    "LCode-3.14.2-linux-x64.pkg.tar.zst",
   ]);
   assert.deepEqual(expectedArtifactNames("3.14.2", "linux", "arm64"), [
-    "ZCode-3.14.2-linux-arm64.AppImage",
-    "ZCode-3.14.2-linux-arm64.deb",
-    "ZCode-3.14.2-linux-aarch64.rpm",
-    "ZCode-3.14.2-linux-aarch64.pkg.tar.zst",
+    "LCode-3.14.2-linux-arm64.AppImage",
+    "LCode-3.14.2-linux-arm64.deb",
+    "LCode-3.14.2-linux-aarch64.rpm",
+    "LCode-3.14.2-linux-aarch64.pkg.tar.zst",
   ]);
 
-  const directory = await mkdtemp(join(tmpdir(), "zcode-release-assets-"));
+  const directory = await mkdtemp(join(tmpdir(), "lcode-release-assets-"));
   try {
     const distDir = join(directory, "dist");
     const outputDir = join(directory, "out");
@@ -76,8 +76,8 @@ test("six native targets get exact architecture and version artifacts", async ()
     for (const name of expectedArtifactNames("3.14.2", "mac", "arm64")) {
       await writeFile(join(distDir, name), name);
     }
-    await writeFile(join(distDir, "ZCode-3.14.1-mac-arm64.dmg"), "old");
-    await writeFile(join(distDir, "ZCode-3.14.2-mac-x64.dmg"), "wrong arch");
+    await writeFile(join(distDir, "LCode-3.14.1-mac-arm64.dmg"), "old");
+    await writeFile(join(distDir, "LCode-3.14.2-mac-x64.dmg"), "wrong arch");
     const names = await stageReleaseArtifacts({
       version: "3.14.2",
       os: "mac",
@@ -97,19 +97,19 @@ test("six native targets get exact architecture and version artifacts", async ()
 });
 
 test("Linux staging requires each native package name for its target", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "zcode-linux-release-"));
+  const directory = await mkdtemp(join(tmpdir(), "lcode-linux-release-"));
   try {
     const distDir = join(directory, "dist");
     await mkdir(distDir);
     const names = [
-      "ZCode-3.14.2-linux-x86_64.AppImage",
-      "ZCode-3.14.2-linux-amd64.deb",
-      "ZCode-3.14.2-linux-x86_64.rpm",
-      "ZCode-3.14.2-linux-x64.pkg.tar.zst",
-      "ZCode-3.14.2-linux-arm64.AppImage",
-      "ZCode-3.14.2-linux-arm64.deb",
-      "ZCode-3.14.2-linux-aarch64.rpm",
-      "ZCode-3.14.2-linux-aarch64.pkg.tar.zst",
+      "LCode-3.14.2-linux-x86_64.AppImage",
+      "LCode-3.14.2-linux-amd64.deb",
+      "LCode-3.14.2-linux-x86_64.rpm",
+      "LCode-3.14.2-linux-x64.pkg.tar.zst",
+      "LCode-3.14.2-linux-arm64.AppImage",
+      "LCode-3.14.2-linux-arm64.deb",
+      "LCode-3.14.2-linux-aarch64.rpm",
+      "LCode-3.14.2-linux-aarch64.pkg.tar.zst",
     ];
     for (const name of names) await writeFile(join(distDir, name), name);
     for (const arch of ["x64", "arm64"]) {
@@ -124,8 +124,8 @@ test("Linux staging requires each native package name for its target", async () 
       assert.deepEqual(staged, expectedArtifactNames("3.14.2", "linux", arch));
       assert.deepEqual((await readdir(outputDir)).sort(), staged.toSorted());
     }
-    await rm(join(distDir, "ZCode-3.14.2-linux-x86_64.AppImage"));
-    await writeFile(join(distDir, "ZCode-3.14.2-linux-x64.AppImage"), "legacy name");
+    await rm(join(distDir, "LCode-3.14.2-linux-x86_64.AppImage"));
+    await writeFile(join(distDir, "LCode-3.14.2-linux-x64.AppImage"), "legacy name");
     await assert.rejects(
       stageReleaseArtifacts({
         version: "3.14.2",
@@ -216,14 +216,14 @@ test("Actions builds every supported platform and publishes only completed tag b
     workflow.jobs.build.steps.find(
       (step) => step.name === "Configure Linux Computer Use native package",
     ).run,
-    /ZCODE_CUA_LINUX_XA11Y_NATIVE_ROOT/u,
+    /LCODE_CUA_LINUX_XA11Y_NATIVE_ROOT/u,
   );
   assert.equal(workflow.jobs.release.needs, "build");
   assert.match(workflow.jobs.release.if, /github\.ref_type == 'tag'/u);
   assert.equal(workflow.jobs.release.permissions.contents, "write");
   assert.equal(workflow.jobs.build.permissions.contents, "read");
   assert.equal(workflow.jobs.build.env.CSC_IDENTITY_AUTO_DISCOVERY, "false");
-  assert.equal(workflow.jobs.build.env.ZCODE_ENABLE_MAC_SIGN, "0");
+  assert.equal(workflow.jobs.build.env.LCODE_ENABLE_MAC_SIGN, "0");
   const releaseContractStep = workflow.jobs.build.steps.find(
     (step) => step.name === "Verify release contract",
   );
@@ -277,12 +277,12 @@ test("Actions builds every supported platform and publishes only completed tag b
 
 test("release build keeps Helper identity out of node_repl and retries only corrupt Electron runtime extraction", async () => {
   const nodeReplBuild = await readFile(
-    join(root, "apps/zcode-cli/packages/node-repl-host/scripts/build.mjs"),
+    join(root, "apps/lcode-cli/packages/node-repl-host/scripts/build.mjs"),
     "utf8",
   );
   const desktopTsup = await readFile(join(root, "packages/desktop/tsup.config.ts"), "utf8");
-  assert.doesNotMatch(nodeReplBuild, /__ZCODE_CUA_HELPER_BUILD_ID__|cuaHelperBuildId/u);
-  assert.doesNotMatch(desktopTsup, /__ZCODE_CUA_HELPER_BUILD_ID__/u);
+  assert.doesNotMatch(nodeReplBuild, /__LCODE_CUA_HELPER_BUILD_ID__|cuaHelperBuildId/u);
+  assert.doesNotMatch(desktopTsup, /__LCODE_CUA_HELPER_BUILD_ID__/u);
 
   const corruptExtraction =
     "Error: ENOENT: no such file or directory, open 'electron\\dist\\LICENSE.electron.txt'";
@@ -341,7 +341,7 @@ test("release notice baseline permits only the explicitly recorded unresolved se
 });
 
 test("release rejects missing or unexpected platform installers", async () => {
-  const directory = await mkdtemp(join(tmpdir(), "zcode-complete-release-"));
+  const directory = await mkdtemp(join(tmpdir(), "lcode-complete-release-"));
   try {
     for (const os of ["mac", "win", "linux"]) {
       for (const arch of ["x64", "arm64"]) {
@@ -351,7 +351,7 @@ test("release rejects missing or unexpected platform installers", async () => {
       }
     }
     assert.equal((await verifyCollectedArtifacts({ version: "3.14.2", directory })).length, 14);
-    await writeFile(join(directory, "ZCode-3.14.1-win-x64.exe"), "stale");
+    await writeFile(join(directory, "LCode-3.14.1-win-x64.exe"), "stale");
     await assert.rejects(
       verifyCollectedArtifacts({ version: "3.14.2", directory }),
       /extra.*3\.14\.1/iu,

@@ -1,5 +1,5 @@
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatCommitTime, getRefIcon, getShortHash } from "./GitGraphDisplay.js";
 import type { GitGraphCommit } from "./layout.js";
 
@@ -8,7 +8,7 @@ interface GitGraphCommitDetailProps {
 }
 
 export function GitGraphCommitDetail({ commit }: GitGraphCommitDetailProps) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
 
   return (
     <div className="border-t border-border bg-surface/45 px-3 py-3">

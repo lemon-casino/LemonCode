@@ -35,8 +35,8 @@ function normalizeTargetArch(rawArch) {
 }
 
 export function getTargetPlatform() {
-  const targetOs = process.env.ZCODE_TARGET_OS ?? process.platform;
-  const targetArch = process.env.ZCODE_TARGET_ARCH ?? process.arch;
+  const targetOs = process.env.LCODE_TARGET_OS ?? process.platform;
+  const targetArch = process.env.LCODE_TARGET_ARCH ?? process.arch;
   const os = normalizeTargetOs(targetOs);
   const arch = normalizeTargetArch(targetArch);
 

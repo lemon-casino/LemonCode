@@ -1,5 +1,5 @@
 import type { MessagePortMain } from "electron";
-import type { MessagePortLike, MessagePortPayload } from "@zcode/rpc";
+import type { MessagePortLike, MessagePortPayload } from "@lcode/rpc";
 
 /**
  * 将 Electron MessagePortMain 适配为 RPC 层的 MessagePortLike 接口。

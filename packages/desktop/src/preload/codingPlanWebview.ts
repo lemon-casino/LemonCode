@@ -3,7 +3,7 @@ import {
   CodingPlanWebviewChannels,
   isTrustedCodingPlanWebviewOrigin,
   PlatformChannels,
-} from "@zcode/shared";
+} from "@lcode/shared";
 
 // Coding Plan 官网页 preload：
 // - 在官网页主世界挂 window.zcodeBridge，暴露三个能力：
@@ -26,10 +26,10 @@ import {
 // 把 webPreferences.preload 切到本文件（见 desktopWindowChrome.ts）。
 
 const PUBLIC_BRIDGE_KEY = "zcodeBridge";
-const NATIVE_BRIDGE_KEY = "__zcodeCodingPlanWebviewNativeBridge__";
+const NATIVE_BRIDGE_KEY = "__lcodeCodingPlanWebviewNativeBridge__";
 const LANG_VAR = "__zcodeLang__";
 const LANG_CHANGE_EVENT = "zcode-coding-plan-lang-change";
-const REPORT_CONTEXT_VAR = "__zcodeReportContext__";
+const REPORT_CONTEXT_VAR = "__lcodeReportContext__";
 
 function isTrustedCodingPlanBridgeLocation(): boolean {
   try {
@@ -37,7 +37,7 @@ function isTrustedCodingPlanBridgeLocation(): boolean {
     if (url.protocol !== "http:" && url.protocol !== "https:") return false;
     if (
       !isTrustedCodingPlanWebviewOrigin(url.origin, {
-        e2eStoreBridgeEnabled: process.env.VITE_ZCODE_E2E_STORE_BRIDGE === "1",
+        e2eStoreBridgeEnabled: process.env.VITE_LCODE_E2E_STORE_BRIDGE === "1",
       })
     ) {
       return false;
@@ -81,7 +81,7 @@ if (isTrustedCodingPlanBridgeLocation()) {
         ipcRenderer.sendToHost(CodingPlanWebviewChannels.PurchaseComplete, {
           provider: payload.provider,
           timestamp: Date.now(),
-        } satisfies import("@zcode/shared").CodingPlanPurchaseCompletePayload);
+        } satisfies import("@lcode/shared").CodingPlanPurchaseCompletePayload);
       } catch {
         // host renderer 尚未 attach 或 webview 被销毁时 sendToHost 会抛；
         // 官网页自身不依赖此调用成功，静默即可。

@@ -44,7 +44,7 @@ function padTwo(value: number): string {
  * `40s` / `5m 10s` / `2h 15m` / `3d 2h`：情势截面里每一段时长与年龄的写法。
  *
  * 刻意与 GetWorkflowRun 模型面的 `formatWorkflowRunDuration`
- * （apps/zcode-cli/packages/core/src/tool/handlers/workflow-run-introspection.ts）逐字同款：
+ * （apps/lcode-cli/packages/core/src/tool/handlers/workflow-run-introspection.ts）逐字同款：
  * 同一份快照的同一个数，模型读到的和卡上画的不能长得不一样。
  */
 export function formatWorkflowDuration(ms: number): string {

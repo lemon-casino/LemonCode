@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { logger } from "@/logger.js";
-import { useZCodeTaskService } from "@/hooks/useZCodeTaskService.js";
+import { useLCodeTaskService } from "@/hooks/useLCodeTaskService.js";
 
 /**
  * useWorkspaceActiveTaskState 的导出返回类型间接引用此接口，声明生成要求它可导出。
@@ -40,7 +40,7 @@ function getErrorMessage(error: unknown): string {
  *
  * UI 之前直接在浏览器里访问 crypto.subtle 计算 workspace hash，
  * 在 http 预览或远程访问这类非安全上下文里 subtle 可能不存在，副作用阶段会直接抛错。
- * 这里改成统一走 zcodeTaskService 解析最终路径，既不让 UI 猜目录规则，也能兼容 remote workspace 的远端 home 目录。
+ * 这里改成统一走 lcodeTaskService 解析最终路径，既不让 UI 猜目录规则，也能兼容 remote workspace 的远端 home 目录。
  */
 export function useTaskSessionFilePath(
   workspacePath: string,
@@ -48,7 +48,7 @@ export function useTaskSessionFilePath(
   workspaceIdentity?: string,
   options: { enabled?: boolean } = {},
 ) {
-  const zcodeTaskService = useZCodeTaskService(workspacePath, undefined, workspaceIdentity);
+  const lcodeTaskService = useLCodeTaskService(workspacePath, undefined, workspaceIdentity);
   const [state, setState] = useState<TaskSessionFilePathState>(INITIAL_STATE);
   const requestVersionRef = useRef(0);
   const enabled = options.enabled ?? true;
@@ -75,7 +75,7 @@ export function useTaskSessionFilePath(
       error: null,
     });
 
-    void zcodeTaskService
+    void lcodeTaskService
       .getTaskSessionFilePath({
         workspacePath,
         taskId,
@@ -116,7 +116,7 @@ export function useTaskSessionFilePath(
     return () => {
       disposed = true;
     };
-  }, [enabled, zcodeTaskService, taskId, workspaceIdentity, workspacePath]);
+  }, [enabled, lcodeTaskService, taskId, workspaceIdentity, workspacePath]);
 
   return state;
 }

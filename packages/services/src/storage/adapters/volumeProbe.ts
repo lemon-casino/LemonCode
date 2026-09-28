@@ -4,7 +4,7 @@
  */
 import { stat, statfs } from "node:fs/promises";
 import { dirname } from "node:path";
-import type { StorageVolume } from "@zcode/shared";
+import type { StorageVolume } from "@lcode/shared";
 import type { VolumeProbePort } from "../app/ports.js";
 
 async function probeStorageVolume(path: string): Promise<StorageVolume | null> {

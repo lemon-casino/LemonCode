@@ -64,7 +64,7 @@ export async function testOssConnection(config: GitBackupOssConfig): Promise<{
   error?: string;
 }> {
   try {
-    const testKey = `${config.pathPrefix ?? ""}/.zcode-backup-test`;
+    const testKey = `${config.pathPrefix ?? ""}/.lcode-backup-test`;
     const result = await uploadToOss(config, testKey, Buffer.from("connectivity-test"), "text/plain");
     return { ok: result.ok, error: result.error };
   } catch (err) {

@@ -8,7 +8,7 @@ import type {
   WebContents,
   WindowOpenHandlerResponse,
 } from "electron";
-import type { DesktopTitleBarTheme, Locale } from "@zcode/shared";
+import type { DesktopTitleBarTheme, Locale } from "@lcode/shared";
 import {
   DEFAULT_LOCALE,
   desktopMenuMessageIds,
@@ -16,7 +16,7 @@ import {
   isTrustedCodingPlanWebviewOrigin,
   resolveZaiBusinessBaseUrl,
   PlatformChannels,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { loadWindow, type WindowBootstrapOptions } from "./desktopHostProcess.js";
 import {
   buildWindowsTitleBarOverlayForZoomLevel,
@@ -44,7 +44,7 @@ const ALLOWED_EMBEDDED_BROWSER_PROTOCOLS = new Set([
   "data:",
   "http:",
   "https:",
-  "zcode-browser-restore:",
+  "lcode-browser-restore:",
 ]);
 const ALLOWED_EMBEDDED_BROWSER_NEW_WINDOW_PROTOCOLS = new Set(["http:", "https:"]);
 const EXTERNAL_BROWSER_DISPOSITIONS = new Set(["background-tab"]);
@@ -68,7 +68,7 @@ function isCodingPlanEmbeddedWebviewSrc(src: string | undefined): boolean {
     if (url.protocol !== "http:" && url.protocol !== "https:") return false;
     if (
       !isTrustedCodingPlanWebviewOrigin(url.origin, {
-        e2eStoreBridgeEnabled: process.env.VITE_ZCODE_E2E_STORE_BRIDGE === "1",
+        e2eStoreBridgeEnabled: process.env.VITE_LCODE_E2E_STORE_BRIDGE === "1",
       })
     ) {
       return false;
@@ -95,7 +95,7 @@ function isCodingPlanWebviewUrl(src: string | undefined): boolean {
     if (url.protocol !== "http:" && url.protocol !== "https:") return false;
     if (
       !isTrustedCodingPlanWebviewOrigin(url.origin, {
-        e2eStoreBridgeEnabled: process.env.VITE_ZCODE_E2E_STORE_BRIDGE === "1",
+        e2eStoreBridgeEnabled: process.env.VITE_LCODE_E2E_STORE_BRIDGE === "1",
       })
     ) {
       return false;
@@ -114,7 +114,7 @@ function isCodingPlanPaymentCallbackUrl(src: string | undefined): boolean {
     if (url.protocol !== "http:" && url.protocol !== "https:") return false;
     if (
       !isTrustedCodingPlanWebviewOrigin(url.origin, {
-        e2eStoreBridgeEnabled: process.env.VITE_ZCODE_E2E_STORE_BRIDGE === "1",
+        e2eStoreBridgeEnabled: process.env.VITE_LCODE_E2E_STORE_BRIDGE === "1",
       })
     ) {
       return false;
@@ -664,7 +664,7 @@ export function createBrowserWindow(options: {
     delete params.allowpopups;
 
     // webview 内 target=_blank/window.open 如果完全禁用 popup 会表现为点击无响应；
-    // 如果放任 Electron 默认处理，又会创建脱离 ZCode 的 BrowserWindow。这里由宿主重新打开
+    // 如果放任 Electron 默认处理，又会创建脱离 LCode 的 BrowserWindow。这里由宿主重新打开
     // allowpopups，并在 did-attach-webview 中用 setWindowOpenHandler 统一 deny 默认窗口创建，
     // 再把合法 URL 路由到内部 Browser tab 或系统浏览器。
     params.allowpopups = "true";

@@ -1,0 +1,45 @@
+{
+  "name": "@lcode/bootstrap",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./v4-replay": {
+      "types": "./dist/lcode-protocol-v4/replay.d.ts",
+      "import": "./dist/lcode-protocol-v4/replay.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "node ../../scripts/clean-dist.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src",
+    "lint:fix": "oxlint --write src"
+  },
+  "dependencies": {
+    "@lcode/adapters": "workspace:*",
+    "@lcode/contracts": "workspace:*",
+    "@lcode/core": "workspace:*",
+    "@lcode/dynamic-workflow": "workspace:*",
+    "@lcode/dynamic-workflow-runtime": "workspace:*",
+    "@lcode/i18n": "workspace:*",
+    "@lcode/provider": "workspace:*",
+    "@lcode/provider-node": "workspace:*",
+    "@lcode/shared": "workspace:*",
+    "@lcode/telemetry": "workspace:*",
+    "diff": "^9.0.0",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/yazl": "^3.3.1",
+    "@lcode/formal-proof": "workspace:*",
+    "yazl": "^3.3.1"
+  }
+}

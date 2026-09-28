@@ -1,7 +1,7 @@
 <!--
 Derived from vercel-labs/agent-browser (skills/agent-browser/references/commands.md).
 Copyright 2025 Vercel Inc. Licensed under Apache-2.0.
-Modified by ZCode: local integration, formatting and adaptations.
+Modified by LCode: local integration, formatting and adaptations.
 See THIRD-PARTY-NOTICES.md in the repository root for license and provenance.
 -->
 

@@ -3,8 +3,8 @@ import type {
   IntranetProbeRequest,
   IntranetProbeResult,
   SystemInfo,
-} from "@zcode/shared";
-import { ServiceChannels } from "@zcode/shared";
+} from "@lcode/shared";
+import { ServiceChannels } from "@lcode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 
 export interface ISystemService {

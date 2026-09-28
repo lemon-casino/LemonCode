@@ -22,15 +22,15 @@ import {
 } from "./windows-cua-runtime-manifest.mjs";
 import { stageCuaRuntimeTree } from "./windows-cua-runtime-assets.mjs";
 
-export const MAC_CUA_HELPER_APP_NAME = "ZCode Computer Use.app";
-export const MAC_CUA_HELPER_DISPLAY_NAME = "ZCode Computer Use";
-export const MAC_CUA_HELPER_BUNDLE_ID = "dev.zcode.cua-helper";
-export const MAC_CUA_HELPER_EXECUTABLE_NAME = "ZCode Computer Use";
-export const MAC_CUA_PIP_PRESENTER_EXECUTABLE_NAME = "ZCode Computer Use PiP";
-export const MAC_CUA_PIP_PRESENTER_ENV = "ZCODE_CUA_PIP_PRESENTER";
-export const MAC_CUA_NODE_EXECUTABLE_ENV = "ZCODE_CUA_MAC_NODE_EXECUTABLE";
-export const MAC_CUA_NODE_VERSION_ENV = "ZCODE_CUA_MAC_NODE_VERSION";
-export const MAC_CUA_NODE_SHA256_ENV = "ZCODE_CUA_MAC_NODE_SHA256";
+export const MAC_CUA_HELPER_APP_NAME = "LCode Computer Use.app";
+export const MAC_CUA_HELPER_DISPLAY_NAME = "LCode Computer Use";
+export const MAC_CUA_HELPER_BUNDLE_ID = "dev.lcode.cua-helper";
+export const MAC_CUA_HELPER_EXECUTABLE_NAME = "LCode Computer Use";
+export const MAC_CUA_PIP_PRESENTER_EXECUTABLE_NAME = "LCode Computer Use PiP";
+export const MAC_CUA_PIP_PRESENTER_ENV = "LCODE_CUA_PIP_PRESENTER";
+export const MAC_CUA_NODE_EXECUTABLE_ENV = "LCODE_CUA_MAC_NODE_EXECUTABLE";
+export const MAC_CUA_NODE_VERSION_ENV = "LCODE_CUA_MAC_NODE_VERSION";
+export const MAC_CUA_NODE_SHA256_ENV = "LCODE_CUA_MAC_NODE_SHA256";
 
 const execFileAsync = promisify(execFile);
 const requireFromScript = createRequire(import.meta.url);
@@ -200,7 +200,7 @@ for (const [path, digest] of expected) {
   if (mutable.has(path)) continue;
   if (hash(resolve(bundleRoot, ...path.split("/"))) !== digest) fail("hash mismatch for " + path);
 }
-process.env.ZCODE_CUA_HELPER_ADDON = resolve(runtimeRoot, "xa11y-native-loader.js");
+process.env.LCODE_CUA_HELPER_ADDON = resolve(runtimeRoot, "xa11y-native-loader.js");
 process.env[${JSON.stringify(MAC_CUA_PIP_PRESENTER_ENV)}] = presenterPath;
 const firstFlag = process.argv.findIndex((value, index) => index > 0 && value.startsWith("--"));
 const helperArgs = firstFlag < 0 ? [] : process.argv.slice(firstFlag);
@@ -321,7 +321,7 @@ async function removeMacCodeSignature(executablePath) {
 }
 
 async function defaultPrepareSeaExecutable({ sourceNodePath, targetPath, bootstrapSource }) {
-  const buildRoot = resolve(tmpdir(), `.zcode-cua-mac-sea-${process.pid}-${randomUUID()}`);
+  const buildRoot = resolve(tmpdir(), `.lcode-cua-mac-sea-${process.pid}-${randomUUID()}`);
   await mkdir(buildRoot, { recursive: true });
   try {
     const bootstrapPath = resolve(buildRoot, "bootstrap.cjs");
@@ -423,7 +423,7 @@ export async function stageMacCuaHelperApp({
   electronPlatformName,
   resourcesDir,
   targetPlatform,
-  zcodeCuaRoot,
+  lcodeCuaRoot,
   appVersion,
   buildIdentity,
   nodeExecutablePath,
@@ -459,7 +459,7 @@ export async function stageMacCuaHelperApp({
   try {
     const runtime = await stageCuaRuntimeTree({
       targetPlatform: macTarget,
-      zcodeCuaRoot,
+      lcodeCuaRoot,
       runtimeRoot,
       dependencyPackageRoots,
       runtimeContractName: "macos",

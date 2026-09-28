@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import type { ProjectMemoryWorkspaceSummary } from "@zcode/services";
+import type { ProjectMemoryWorkspaceSummary } from "@lcode/services";
 import {
   TID_SETTINGS_MEMORY_COUNT,
   TID_SETTINGS_MEMORY_FILE,
@@ -14,9 +14,9 @@ import {
   TID_SETTINGS_MEMORY_SEARCH_INPUT,
   TID_SETTINGS_MEMORY_WORKSPACE,
   testId,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { Alert, AlertDescription } from "@/components/ui/alert.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
 import { PluginScopeMenu } from "@/settings/PluginScopeMenu.js";
 import { PluginSearchEmptyState } from "@/settings/PluginInstallEmptyState.js";
@@ -42,7 +42,7 @@ export function MemorySettingsViewer({
   onRefresh: () => Promise<void>;
   onScopeKeyChange: (workspaceId: string) => void;
 }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const [searchQuery, setSearchQuery] = useState("");
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {

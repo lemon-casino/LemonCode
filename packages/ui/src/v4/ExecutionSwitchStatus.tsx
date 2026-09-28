@@ -1,8 +1,8 @@
-import type { ModelSelection } from "@zcode/shared";
-import type { ExecutionFailoverState } from "@zcode/shared/zcode-protocol-v4";
-import type { ModelSelectionView } from "@zcode/services";
+import type { ModelSelection } from "@lcode/shared";
+import type { ExecutionFailoverState } from "@lcode/shared/lcode-protocol-v4";
+import type { ModelSelectionView } from "@lcode/services";
 import { thoughtLevelLabelId } from "@/chat-input-toolbar/thoughtLevelLabels.js";
-import { useZCodeIntl, type IntlInstance } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl, type IntlInstance } from "@/i18n/IntlProvider.js";
 import { resolveProviderLabel } from "@/lib/registryProviderView.js";
 import { formatModelChangeLabel } from "@/v4/composer/modelTriggerDisplay.js";
 import { resolveExecutionSwitchDisplay } from "@/v4/executionFailoverUi.js";
@@ -74,7 +74,7 @@ export function ExecutionSwitchStatus({
   modelSelectionView: ModelSelectionView | null;
   state: ExecutionFailoverState;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const display = resolveExecutionSwitchDisplay(state, currentSelection);
   if (!display) return null;
 

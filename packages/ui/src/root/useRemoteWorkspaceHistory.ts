@@ -6,9 +6,9 @@ import type {
   IPlatformService,
   RemoteSessionClosedEvent,
   RemoteWorkspaceSessionEntry,
-} from "@zcode/shared";
-import { buildSshRemoteHostKey, createUuid, stripRemoteTargetSecrets } from "@zcode/shared";
-import type { IServiceAccessor } from "@zcode/services";
+} from "@lcode/shared";
+import { buildSshRemoteHostKey, createUuid, stripRemoteTargetSecrets } from "@lcode/shared";
+import type { IServiceAccessor } from "@lcode/services";
 import {
   bindRemoteWorkspaceIdentity,
   bindRemoteWorkspacePath,
@@ -16,7 +16,7 @@ import {
   type RemoteWorkspaceSession,
   unregisterRemoteWorkspaceSession,
 } from "@/store/remoteWorkspaceSessionStore.js";
-import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import { refreshRemotePinnedTasksForSession } from "@/store/remotePinnedTaskStore.js";
 import { refreshRemoteTimelineTasksForSession } from "@/store/remoteTimelineTaskStore.js";
 import { toast } from "@/components/ui/toast.js";
@@ -614,7 +614,7 @@ export function useRemoteWorkspaceHistory({
   addTab,
   onWorkspaceActivated,
 }: {
-  intl: ReturnType<typeof import("@/i18n/IntlProvider.js").useZCodeIntl>["intl"];
+  intl: ReturnType<typeof import("@/i18n/IntlProvider.js").useLCodeIntl>["intl"];
   services: IServiceAccessor;
   platform: IPlatformService;
   supportsSettings: boolean;
@@ -749,7 +749,7 @@ export function useRemoteWorkspaceHistory({
 
       // 远程连接成功只代表 main/host 已经建好 session，
       // renderer 侧的 MessagePort 仍然可能在下一拍才注册进 zustand store。
-      // 如果此时立刻 addTab，会短暂走到本地 services，导致首屏读目录/预热 ZCode Agent 命中错误服务。
+      // 如果此时立刻 addTab，会短暂走到本地 services，导致首屏读目录/预热 LCode Agent 命中错误服务。
       // 这里等 session 真正挂进 store 再继续。
       await waitForRemoteWorkspaceSessionReady(result.sessionId);
       if (!context) {
@@ -1134,11 +1134,11 @@ export function useRemoteWorkspaceHistory({
       ]
         .filter(Boolean)
         .join(" ");
-      const zcodeSessionStore = useZCodeSessionStore.getState();
+      const lcodeSessionStore = useLCodeSessionStore.getState();
       const failedTaskCount = markRemoteWorkspaceRunningTasksFailed({
         tabs: matchedTabs,
-        getWorkspaceState: zcodeSessionStore.getWorkspaceState,
-        setTaskRuntimeState: zcodeSessionStore.setTaskRuntimeState,
+        getWorkspaceState: lcodeSessionStore.getWorkspaceState,
+        setTaskRuntimeState: lcodeSessionStore.setTaskRuntimeState,
         reason,
       });
 

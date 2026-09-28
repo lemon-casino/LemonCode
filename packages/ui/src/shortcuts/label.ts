@@ -2,7 +2,7 @@
  * 快捷键展示 label——绑定串 → 平台展示格式化。
  * 从 bindings.ts 拆出（展示层独立于匹配/录制/冲突，且 bindings.ts 有 max-lines 门禁）。
  */
-import { parseShortcutBinding } from "@zcode/shared";
+import { parseShortcutBinding } from "@lcode/shared";
 
 import {
   isAppleKeyboardPlatform,

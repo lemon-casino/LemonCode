@@ -4,12 +4,12 @@ import { toast } from "@/components/ui/toast.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { useOnboardingRecordService } from "@/hooks/useOnboardingRecordService.js";
 import { useSettings } from "@/hooks/useSettingService.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { SettingsRow } from "@/settings/SettingsPageParts.js";
 
 export function ProactiveSuggestionsSetting() {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { settings, update } = useSettings();
   const onboardingRecordService = useOnboardingRecordService();
   const isOfficeMode = useIsOfficeMode();

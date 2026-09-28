@@ -1,4 +1,4 @@
-import type { CommandAck, CommandEnvelope } from "@zcode/shared/zcode-protocol-v4";
+import type { CommandAck, CommandEnvelope } from "@lcode/shared/lcode-protocol-v4";
 import { logger } from "@/logger.js";
 import { createCommandEnvelope } from "@/v4/commandFactory.js";
 import { pendingCommandRegistry } from "@/v4/pendingCommandRegistry.js";

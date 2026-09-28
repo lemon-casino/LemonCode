@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/compone
 import { useClaudeSessionMigration } from "@/hooks/useClaudeSessionMigration.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useSettingsSync } from "@/hooks/useSettingsSync.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { getPathLeaf } from "@/lib/path.js";
 import { logger } from "@/logger.js";
 import {
@@ -24,7 +24,7 @@ import {
   type OnboardingWorkspaceCandidate,
 } from "@/onboarding/OnboardingFlowParts.js";
 import { OnboardingAgentsFileStep } from "@/onboarding/OnboardingAgentsFileStep.js";
-import { useZCodeStore } from "@/store/StoreProvider.js";
+import { useLCodeStore } from "@/store/StoreProvider.js";
 import {
   shouldAutoScanOnboardingSessions,
   useOnboardingMigration,
@@ -52,7 +52,7 @@ export function OnboardingDialog(props: {
   workspaceIdentity?: string;
   isDesktop?: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const confirmDialog = useConfirmDialog();
   const settingsSync = useSettingsSync({
     workspacePath: props.workspacePath,
@@ -62,8 +62,8 @@ export function OnboardingDialog(props: {
     workspacePath: props.workspacePath ?? null,
     isDesktop: props.isDesktop,
   });
-  const onboardingDialogRequested = useZCodeStore((state) => state.onboardingDialogRequested);
-  const clearOnboardingDialogRequest = useZCodeStore((state) => state.clearOnboardingDialogRequest);
+  const onboardingDialogRequested = useLCodeStore((state) => state.onboardingDialogRequested);
+  const clearOnboardingDialogRequest = useLCodeStore((state) => state.clearOnboardingDialogRequest);
   const [view, setView] = useState<OnboardingView>("welcome");
   const [wizardStep, setWizardStep] = useState<OnboardingWizardStep>("session");
   const [selectedWorkspacePaths, setSelectedWorkspacePaths] = useState<string[]>([]);
@@ -317,7 +317,7 @@ export function OnboardingDialog(props: {
           { id: "onboarding.agentsFile.confirmDescription" },
           {
             source: agentsFileMigration.status?.sourcePath ?? "~/.claude/CLAUDE.md",
-            target: agentsFileMigration.status?.targetPath ?? "~/.zcode/AGENTS.md",
+            target: agentsFileMigration.status?.targetPath ?? "~/.lcode/AGENTS.md",
           },
         ),
         confirmLabel: intl.formatMessage({ id: "onboarding.agentsFile.confirmAction" }),

@@ -27,8 +27,8 @@ export { useTheme } from "./useTheme.js";
 export type { Theme } from "./useTheme.js";
 export { useTestActions } from "./test-actions.js";
 export type { TestActions } from "./test-actions.js";
-export { StoreProvider, useZCodeStore } from "./store/StoreProvider.js";
-export type { ZCodeState } from "./store/index.js";
+export { StoreProvider, useLCodeStore } from "./store/StoreProvider.js";
+export type { LCodeState } from "./store/index.js";
 export {
   bindRemoteWorkspacePath,
   getRemoteWorkspaceSession,
@@ -65,7 +65,7 @@ export {
   useGitActions,
 } from "./hooks/index.js";
 
-export { ZCodeIntlProvider, useZCodeIntl, LocaleSwitcher } from "./i18n/index.js";
+export { LCodeIntlProvider, useLCodeIntl, LocaleSwitcher } from "./i18n/index.js";
 export { ResourceManagerApp } from "./resource-manager/ResourceManagerApp.js";
 export type {
   ResourceManagerAppProps,

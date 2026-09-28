@@ -1,6 +1,6 @@
 import type { PresentationPageElement } from "@/presentation/types.js";
 
-export const PPTX_ELEMENT_REFERENCE_ADD_TO_CHAT_EVENT = "zcode:pptx-element-reference-add-to-chat";
+export const PPTX_ELEMENT_REFERENCE_ADD_TO_CHAT_EVENT = "lcode:pptx-element-reference-add-to-chat";
 const PPTX_ELEMENT_COMMENT_BLOCK_TITLE = "# Presentation element comments:";
 const PPTX_ELEMENT_COMMENT_BLOCK_DIRECTIVE =
   "Each item below is an independent comment on one presentation element. Treat every non-empty `comment` as the user's instruction for that element, process all of them, and never apply one item's comment to another reference.";

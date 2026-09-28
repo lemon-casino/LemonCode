@@ -5,14 +5,14 @@ import type {
   ProviderFamilyConnectionSelectionSettings,
   UsageEntitlementSubscriptionDetail,
   UsageQuotaLimit,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import {
   getModelProviderFamilySpec,
   isIndividualCodingPlanModelProviderId,
   isStartPlanModelProviderId,
   MODEL_PROVIDER_FAMILY_SPECS,
   resolveModelProviderFamilySpecByProviderId,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { resolveMcpQuotaLimit } from "@/lib/codingPlanQuotaPresentation.js";
 import { resolveUsageEntitlementOutcome } from "@/lib/codingPlanProvider.js";
 import { formatTeamPlanDisplayName } from "@/lib/teamPlanDisplayName.js";
@@ -65,8 +65,8 @@ export function resolveCodingPlanEntitlementState({
   providerId: string;
   /** 当前账号是否明确拥有该 Provider 对应的产品权益。 */
   accountEntitled: boolean;
-  accountAvailability?: import("@zcode/provider").AccountProviderState["availability"];
-  accountUnavailableReason?: import("@zcode/provider").AccountProviderState["unavailableReason"];
+  accountAvailability?: import("@lcode/provider").AccountProviderState["availability"];
+  accountUnavailableReason?: import("@lcode/provider").AccountProviderState["unavailableReason"];
   entitlement?: CodingPlanEntitlementState;
   modelProvidersLoading: boolean;
 }): ResolvedCodingPlanEntitlementState {
@@ -498,7 +498,7 @@ function appendSubscribedTeamPlanItems({
           subscriptionBillingCycle: null,
           subscriptionRenewTime: null,
           subscriptionExpireTime: null,
-          // Team Plan 项目没有可用 zcode-team-api-key 时，不能继续当作已启用连接方式。
+          // Team Plan 项目没有可用 lcode-team-api-key 时，不能继续当作已启用连接方式。
           // 服务端会按组织/项目返回 apiKeyStatus；UI 需要在连接项和状态卡中明确标成不可用。
           statusActive: !teamPlanUnavailable,
         },

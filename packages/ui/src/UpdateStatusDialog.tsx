@@ -142,7 +142,7 @@ export function UpdateStatusDialog({
             </div>
             <Progress
               value={progressValue}
-              className="zcode-update-charge-progress h-2 bg-primary/15 dark:bg-primary/20"
+              className="lcode-update-charge-progress h-2 bg-primary/15 dark:bg-primary/20"
               indicatorClassName="bg-primary"
             />
           </section>
@@ -296,7 +296,7 @@ function getDialogTitleParts({
   intl: IntlInstance;
   titleId: string;
 }) {
-  const marker = "__ZCODE_UPDATE_VERSION__";
+  const marker = "__LCODE_UPDATE_VERSION__";
   const text = intl.formatMessage({ id: titleId }, { version: marker });
   const index = text.indexOf(marker);
   const rawPrefix = index >= 0 ? text.slice(0, index) : "";

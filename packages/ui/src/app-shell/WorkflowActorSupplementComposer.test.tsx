@@ -3,7 +3,7 @@ import { registerHooks } from "node:module";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ComposerAttachmentUploadItem } from "@/store/composerAttachmentUploadStore.js";
-import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
+import { LCodeIntlProvider } from "@/i18n/IntlProvider.js";
 import { TabStoreProvider } from "@/store/TabStoreProvider.js";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 
@@ -87,7 +87,7 @@ const readyImage: ComposerAttachmentUploadItem = {
 
 test("actor image thumbnail is rendered inside the shared prompt editor shell", () => {
   const markup = renderToStaticMarkup(
-    <ZCodeIntlProvider initialLocale="zh-CN">
+    <LCodeIntlProvider initialLocale="zh-CN">
       <TooltipProvider>
         <TabStoreProvider>
           <WorkflowActorSupplementComposer
@@ -110,7 +110,7 @@ test("actor image thumbnail is rendered inside the shared prompt editor shell", 
           />
         </TabStoreProvider>
       </TooltipProvider>
-    </ZCodeIntlProvider>,
+    </LCodeIntlProvider>,
   );
 
   const shellStart = markup.indexOf('data-testid="workflow-actor-composer-shell"');

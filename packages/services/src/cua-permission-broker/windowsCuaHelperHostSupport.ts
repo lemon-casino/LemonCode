@@ -4,10 +4,10 @@ import {
   mintBrokerSocketPath,
   probeHelperHealth,
   type HelperHealth,
-} from "@zcode/zcode-cua/broker";
+} from "@lcode/lcode-cua/broker";
 // Contract constants are single-sourced from the producer package: locally re-declared literals here had drifted risk — a rename in the
 // producer would silently orphan these. Kept as aliases for existing callers.
-import { HELPER_ADDON_ENV, WINDOWS_DEV_CONTROL_PROTOCOL } from "@zcode/zcode-cua/broker/server";
+import { HELPER_ADDON_ENV, WINDOWS_DEV_CONTROL_PROTOCOL } from "@lcode/lcode-cua/broker/server";
 
 import type { ServiceLogger } from "#src/logger/serviceLogger.js";
 import type { WindowsCuaRuntime } from "#src/cua-permission-broker/windowsCuaDevRuntime.js";
@@ -191,7 +191,7 @@ type WindowsDevHelperControlMessage =
   | { protocol: typeof CONTROL_PROTOCOL; type: "error"; message: string };
 
 /**
- * Parse a `zcode-cua-windows-dev/v1` control message from the helper child.
+ * Parse a `lcode-cua-windows-dev/v1` control message from the helper child.
  *
  * "transport_ready" means the named pipe is bound and authenticated, while
  * "ready" remains the full health handshake. "error" is the helper's OWN startup-failure

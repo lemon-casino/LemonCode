@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { WorkflowRunWorkspaceNode } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunWorkspaceNode } from "@lcode/shared/lcode-protocol-v4";
 import { logger } from "@/logger.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
 

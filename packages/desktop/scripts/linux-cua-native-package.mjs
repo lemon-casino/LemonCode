@@ -1,6 +1,6 @@
 import { isAbsolute, resolve } from "node:path";
 
-export const LINUX_CUA_XA11Y_NATIVE_ROOT_ENV = "ZCODE_CUA_LINUX_XA11Y_NATIVE_ROOT";
+export const LINUX_CUA_XA11Y_NATIVE_ROOT_ENV = "LCODE_CUA_LINUX_XA11Y_NATIVE_ROOT";
 
 const LINUX_XA11Y_NATIVE_PACKAGES = Object.freeze({
   arm64: "@crowecawcaw/xa11y-linux-arm64-gnu",

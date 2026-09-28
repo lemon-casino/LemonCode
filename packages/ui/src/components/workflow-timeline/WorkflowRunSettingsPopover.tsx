@@ -10,20 +10,20 @@
 // 表单只在打开时挂载——模型清单的订阅也随之只活在打开期间。
 
 import { useCallback, useMemo, useRef, useState, type RefObject } from "react";
-import type { ModelSelection } from "@zcode/shared/model-selection";
-import { completeNewModelSelection } from "@zcode/provider";
-import { ZCODE_AGENT_PROVIDER } from "@zcode/shared";
-import type { CommandAck, WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import type { ModelSelection } from "@lcode/shared/model-selection";
+import { completeNewModelSelection } from "@lcode/provider";
+import { LCODE_AGENT_PROVIDER } from "@lcode/shared";
+import type { CommandAck, WorkflowRunState } from "@lcode/shared/lcode-protocol-v4";
 import { Button } from "@/components/ui/button.js";
 import { Popover, PopoverAnchor, PopoverContent, PopoverTitle } from "@/components/ui/popover.js";
 import { Spinner } from "@/components/ui/spinner.js";
 import { useModelSelectionView } from "@/hooks/useModelSelectionView.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { buildRegistryModelSelectGroups } from "@/lib/modelSelectionGroups.js";
 import { resolveModelThoughtOption } from "@/lib/modelThoughtOption.js";
 import { thoughtLevelLabelId } from "@/chat-input-toolbar/thoughtLevelLabels.js";
-import { encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
-import { parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
+import { encodeCustomModelValue } from "@/lib/lcodeCustomModelValue.js";
+import { parseModelPickerValue } from "@/lib/lcodeSessionProjection.js";
 import { logger } from "@/logger.js";
 import { formatProviderModelLabel } from "@/v4/composer/modelTriggerDisplay.js";
 import { describeWorkflowSubagentModel } from "./subagent-model-label.js";
@@ -139,7 +139,7 @@ function WorkflowRunSettingsForm({
   onClose: () => void;
   run: WorkflowRunState;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const format = useCallback(
     (id: string, values?: Record<string, string | number>) => intl.formatMessage({ id }, values),
     [intl],
@@ -154,7 +154,7 @@ function WorkflowRunSettingsForm({
     () =>
       view === null
         ? []
-        : buildRegistryModelSelectGroups(ZCODE_AGENT_PROVIDER, view, {
+        : buildRegistryModelSelectGroups(LCODE_AGENT_PROVIDER, view, {
             apiKeyLabel: format("settings.modelProvider.apiKey"),
             apiKeyBadgeLabel: format("settings.modelProvider.connectionMode.apiKeyBadge"),
             codingPlanLabel: format("settings.modelProvider.connectionMode.codingPlan"),

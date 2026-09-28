@@ -5,9 +5,9 @@
  * 广播频道前缀 "state:" 表示状态同步类消息。
  */
 import { create } from "zustand";
-import type { IBroadcastService, BroadcastMessage } from "@zcode/services";
-import type { OAuthProviderId, UserInfo } from "@zcode/shared";
-import type { CodingPlanResetType } from "@zcode/shared";
+import type { IBroadcastService, BroadcastMessage } from "@lcode/services";
+import type { OAuthProviderId, UserInfo } from "@lcode/shared";
+import type { CodingPlanResetType } from "@lcode/shared";
 import type { CodePreviewSettings } from "@/lib/codePreviewSettings.js";
 import type {
   CodingPlanQuotaResetUiEntries,
@@ -67,8 +67,8 @@ export interface LoginEntryAttempt {
   status: LoginEntryAttemptStatus;
 }
 
-const CODE_PREVIEW_SETTINGS_KEY = "zcode-code-preview-settings";
-const PERFORMANCE_MODE_STORAGE_KEY = "zcode-performance-mode";
+const CODE_PREVIEW_SETTINGS_KEY = "lcode-code-preview-settings";
+const PERFORMANCE_MODE_STORAGE_KEY = "lcode-performance-mode";
 
 function loadCodePreviewSettings(): CodePreviewSettings {
   try {
@@ -99,7 +99,7 @@ function loadPerformanceMode(): boolean {
 // State 定义
 // ============================================================================
 
-export interface ZCodeState {
+export interface LCodeState {
   /** 展示详情偏好，不改变 Agent 权限或执行能力。 */
   interfaceMode: InterfaceMode;
   setInterfaceMode: (mode: InterfaceMode) => void;
@@ -227,7 +227,7 @@ const STATE_CHANNEL_PREFIX = "state:";
  *
  * @param broadcastService - 广播服务。Desktop 走 RPC，Web 可传 no-op 实现
  */
-export function createZCodeStore(
+export function createLCodeStore(
   broadcastService: IBroadcastService,
   options: {
     initialIsRestoringOAuthSession?: boolean;
@@ -239,7 +239,7 @@ export function createZCodeStore(
   let cleanupSystemThemeListener: (() => void) | null = null;
   let syncSystemThemeListener = (_theme: Theme) => {};
 
-  const useStore = create<ZCodeState>()((set, get) => ({
+  const useStore = create<LCodeState>()((set, get) => ({
     interfaceMode: normalizeInterfaceMode(readSafeLocalStorage(INTERFACE_MODE_STORAGE_KEY)),
     setInterfaceMode: (mode) => {
       const interfaceMode = normalizeInterfaceMode(mode);
@@ -256,21 +256,21 @@ export function createZCodeStore(
     // 仍然优先尊重 localStorage 中已保存的用户选择，不覆盖已有偏好。
     // localStorage 可能被手改或旧版本污染：非法主题值不得进入 store，统一回落默认 zai-dark。
     theme: (() => {
-      const storedTheme = readSafeLocalStorage("zcode-theme");
+      const storedTheme = readSafeLocalStorage("lcode-theme");
       return isThemeValue(storedTheme) ? normalizeThemePreference(storedTheme) : "zai-dark";
     })(),
     setTheme: (theme: Theme) => {
       const normalizedTheme = normalizeThemePreference(theme);
-      writeSafeLocalStorage("zcode-theme", normalizedTheme);
+      writeSafeLocalStorage("lcode-theme", normalizedTheme);
       syncSystemThemeListener(normalizedTheme);
       applyTheme(normalizedTheme);
 
       set({ theme: normalizedTheme });
     },
 
-    locale: readSafeLocalStorage("zcode-locale") || "zh-CN",
+    locale: readSafeLocalStorage("lcode-locale") || "zh-CN",
     setLocale: (locale: string) => {
-      writeSafeLocalStorage("zcode-locale", locale);
+      writeSafeLocalStorage("lcode-locale", locale);
       set({ locale });
     },
 
@@ -505,4 +505,4 @@ export function createZCodeStore(
   return useStore;
 }
 
-export type ZCodeStore = ReturnType<typeof createZCodeStore>;
+export type LCodeStore = ReturnType<typeof createLCodeStore>;

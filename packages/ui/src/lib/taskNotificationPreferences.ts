@@ -1,5 +1,5 @@
-const TASK_NOTIFICATION_ENABLED_STORAGE_KEY = "zcode-notification-enabled";
-const TASK_NOTIFICATION_SOUND_ENABLED_STORAGE_KEY = "zcode-notification-sound-enabled";
+const TASK_NOTIFICATION_ENABLED_STORAGE_KEY = "lcode-notification-enabled";
+const TASK_NOTIFICATION_SOUND_ENABLED_STORAGE_KEY = "lcode-notification-sound-enabled";
 
 function readStoredBoolean(key: string, defaultValue: boolean): boolean {
   try {

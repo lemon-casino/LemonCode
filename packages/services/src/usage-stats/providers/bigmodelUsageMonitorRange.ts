@@ -2,7 +2,7 @@ import type {
   CodingPlanUsageGranularity,
   CodingPlanUsageRequest,
   UsageStatsRequest,
-} from "@zcode/shared";
+} from "@lcode/shared";
 
 const MONITOR_MAX_RANGE_DAYS = 30;
 const MONITOR_DEFAULT_RANGE_DAYS = 30;

@@ -6,9 +6,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { modelEditorControlStyle } from "@/settings/model-provider-section/modelEditorControlStyle.js";
-import type { ModelInteractionProtocol } from "@zcode/shared/model-config";
+import type { ModelInteractionProtocol } from "@lcode/shared/model-config";
 import { useId } from "react";
 
 const MODEL_INTERACTION_PROTOCOLS = [
@@ -25,7 +25,7 @@ export function ProviderModelInteractionProtocolSelect({
   overridden: boolean;
   onChange: (value: ModelInteractionProtocol) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const label = intl.formatMessage({ id: "settings.modelProvider.interactionProtocol" });
   const triggerId = useId();
   return (

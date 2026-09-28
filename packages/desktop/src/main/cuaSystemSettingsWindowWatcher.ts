@@ -1,5 +1,5 @@
 /**
- * 系统设置窗口位置的数据源：spawn 常驻的 `zcode-window-bounds` 并读它的 stdout。
+ * 系统设置窗口位置的数据源：spawn 常驻的 `lcode-window-bounds` 并读它的 stdout。
  *
  * 设计约束全部来自「吸附是观感增强、不是可用性前提」这一条：
  *   - 二进制缺失、spawn 失败、进程崩溃、输出损坏 —— 全部表现为 `latest() === null`，由

@@ -1,4 +1,4 @@
-import { BUILTIN_MODEL_PROVIDER_IDS } from "@zcode/shared";
+import { BUILTIN_MODEL_PROVIDER_IDS } from "@lcode/shared";
 import type { CodingPlanProviderId } from "@/settings/model-provider-section/constants.js";
 
 // 死代码清理：原生购买组件 CodingPlanPricingCards 及其配套 resolver 已随

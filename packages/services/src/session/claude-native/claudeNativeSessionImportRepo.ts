@@ -1,7 +1,7 @@
 import { copyFile, mkdir, readdir, rename, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join, normalize, resolve, sep } from "node:path";
-import type { ZCodeImportableSessionCandidate } from "@zcode/shared";
+import type { LCodeImportableSessionCandidate } from "@lcode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { getAppConfigDir, getDataBaseDir, getWorkspaceHash } from "#src/paths.js";
 import {
@@ -60,8 +60,8 @@ class ClaudeNativeSessionImportRepo {
       homes.add(dataBaseDir);
     }
 
-    // 关键业务逻辑：扫描 Claude Code 原生历史目录 ~/.claude/projects，不是 zcode 自己的数据目录。
-    // 当 ZCODE_DATA_BASE_DIR 把 .zcode 放到别处时，原生 .claude 往往仍在真实用户 HOME 下。
+    // 关键业务逻辑：扫描 Claude Code 原生历史目录 ~/.claude/projects，不是 lcode 自己的数据目录。
+    // 当 LCODE_DATA_BASE_DIR 把 .lcode 放到别处时，原生 .claude 往往仍在真实用户 HOME 下。
     return [...homes].map((homePath) => join(homePath, ".claude", "projects"));
   }
 
@@ -129,7 +129,7 @@ class ClaudeNativeSessionImportRepo {
     workspacePath?: string;
     modifiedSince?: number;
     limit?: number;
-  }): Promise<ZCodeImportableSessionCandidate[]> {
+  }): Promise<LCodeImportableSessionCandidate[]> {
     const workspaceKey = params.workspacePath
       ? normalizePathForComparison(params.workspacePath)
       : null;
@@ -142,7 +142,7 @@ class ClaudeNativeSessionImportRepo {
         ).flat(),
       ),
     ];
-    const candidates: ZCodeImportableSessionCandidate[] = [];
+    const candidates: LCodeImportableSessionCandidate[] = [];
 
     for (const filePath of sessionFiles) {
       let fileStat;
@@ -209,7 +209,7 @@ class ClaudeNativeSessionImportRepo {
   async findImportableSession(params: {
     workspacePath?: string;
     sessionId: string;
-  }): Promise<ZCodeImportableSessionCandidate | null> {
+  }): Promise<LCodeImportableSessionCandidate | null> {
     const workspaceKey = params.workspacePath
       ? normalizePathForComparison(params.workspacePath)
       : null;
@@ -267,7 +267,7 @@ class ClaudeNativeSessionImportRepo {
     workspaceIdentity?: string;
     sourcePath: string;
   }): Promise<{ outputPath: string; createdOutputPaths: string[] }> {
-    // 导入副本沿用历史目录布局 ~/.zcode/v2/agent-config/claude/{workspaceHash}/projects；
+    // 导入副本沿用历史目录布局 ~/.lcode/v2/agent-config/claude/{workspaceHash}/projects；
     // 这是 Claude 历史导入的存储位置，与 agent runtime provider（glm）无关。
     const relativeProjectsPath = this.getRelativeProjectsPath(params.sourcePath);
     const outputPath = join(

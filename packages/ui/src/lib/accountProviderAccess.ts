@@ -1,9 +1,9 @@
-import type { ProviderSettingsView } from "@zcode/services";
-import { type ZCodeProviderAccountAccess, zcodeProviderAccountAccessSchema } from "@zcode/shared";
+import type { ProviderSettingsView } from "@lcode/services";
+import { type LCodeProviderAccountAccess, lcodeProviderAccountAccessSchema } from "@lcode/shared";
 
 interface EntitledAccountProviderAccess {
   readonly providerId: string;
-  readonly access: ZCodeProviderAccountAccess;
+  readonly access: LCodeProviderAccountAccess;
   readonly label?: string;
 }
 
@@ -18,7 +18,7 @@ export function resolveEntitledAccountProviderAccess(
 
   // Registry Access 是静态 accountType/mode 约束，动态 planKind 与 Team scope
   // 只能由账号服务在请求期解析。旧 Schema 会把所有真实 Registry Provider 误判为空。
-  const parsed = zcodeProviderAccountAccessSchema.safeParse(provider.effectiveConfig.access);
+  const parsed = lcodeProviderAccountAccessSchema.safeParse(provider.effectiveConfig.access);
   if (!parsed.success || parsed.data.entitled !== true) return null;
   const label = provider.providerName?.trim();
   return {
@@ -56,7 +56,7 @@ export function resolveAccountProviderInspectionAccess(
     )
   )
     return null;
-  const parsed = zcodeProviderAccountAccessSchema.safeParse(provider.effectiveConfig.access);
+  const parsed = lcodeProviderAccountAccessSchema.safeParse(provider.effectiveConfig.access);
   if (!parsed.success || parsed.data.mode === "off-peak") return null;
   if (!provider.accountState && parsed.data.entitled !== true) return null;
   return { providerId, access: parsed.data };

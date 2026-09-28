@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import type { IFileService, IMediaPreviewService, MediaPreviewPreparation } from "@zcode/services";
-import { getMediaPreviewFormat, type WindowHostAttachmentScope } from "@zcode/shared";
+import type { IFileService, IMediaPreviewService, MediaPreviewPreparation } from "@lcode/services";
+import { getMediaPreviewFormat, type WindowHostAttachmentScope } from "@lcode/shared";
 import {
   isPathWithinWorkspace,
   listen,
@@ -12,7 +12,7 @@ import {
 
 export { waitForDrainOrDisconnect } from "./remoteMediaPreviewProxyHelpers.js";
 
-const MEDIA_ROUTE_PREFIX = "/__zcode_media/";
+const MEDIA_ROUTE_PREFIX = "/__lcode_media/";
 const DEFAULT_MAX_FILE_BYTES = 512 * 1024 * 1024;
 const DEFAULT_MAX_CONCURRENT_REQUESTS = 2;
 const DEFAULT_CHUNK_BYTES = 1024 * 1024;

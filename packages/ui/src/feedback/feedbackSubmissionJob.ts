@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- 反馈后台提交状态机集中维护创建、截图、日志上传、取消和降级逻辑；本次修 413/fetch 回归，不拆文件避免扩大行为面。 */
-import type { CreateFeedbackTicketInput, FeedbackAttachmentKind } from "@zcode/shared";
-import type { FeedbackUploadProgress, IFeedbackService } from "@zcode/services";
+import type { CreateFeedbackTicketInput, FeedbackAttachmentKind } from "@lcode/shared";
+import type { FeedbackUploadProgress, IFeedbackService } from "@lcode/services";
 import type { FeedbackSubmitDraft } from "@/feedback/feedbackStore.js";
 import { getErrorMessage } from "@/lib/errorMessage.js";
 import { logger } from "@/logger.js";

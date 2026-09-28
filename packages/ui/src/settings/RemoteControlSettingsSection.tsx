@@ -1,9 +1,9 @@
 // 远程控制设置段（基础设置）：连接配置、手机配对面板、安全与隐私。
 // 配置/配对状态/设备列表的唯一所有者是 Desktop Main（cfworker-remote/PROTOCOL.md §6.3），
-// Renderer 经 useRemoteControl（remoteControlBridge 能力面）读写，不触碰 window.zcode。
+// Renderer 经 useRemoteControl（remoteControlBridge 能力面）读写，不触碰 window.lcode。
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useRemoteControl } from "@/hooks/useRemoteControl.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { RemoteControlConnectionSettings } from "@/settings/RemoteControlConnectionSettings.js";
 import { RemoteControlPairingSettings } from "@/settings/RemoteControlPairingSettings.js";
 import { RemoteControlSecuritySettings } from "@/settings/RemoteControlSecuritySettings.js";
@@ -20,7 +20,7 @@ export function RemoteControlSettingsSection({
 }: {
   mirrorWorkspace?: RemoteControlMirrorWorkspace;
 } = {}) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const platform = usePlatform();
   const {
     bridge,

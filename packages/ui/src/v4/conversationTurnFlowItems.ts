@@ -3,7 +3,7 @@ import type {
   ConversationRow,
   TurnHeaderRow,
   UserInputRow,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
 import type { ConversationCuaGroupRenderItem } from "@/v4/conversationCuaGroups.js";
 
 export type AssistantWorkRow = Exclude<ConversationRow, TurnHeaderRow | UserInputRow>;

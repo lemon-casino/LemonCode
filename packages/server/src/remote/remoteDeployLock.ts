@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { posix } from "node:path";
-import type { IRemoteBackend, StdioStream } from "@zcode/server/remote/backend.js";
-import { REMOTE_BASE } from "@zcode/server/remote/deployShared.js";
-import { quotePosixPathArg, quotePosixShellArg } from "@zcode/server/remote/posixShell.js";
+import type { IRemoteBackend, StdioStream } from "@lcode/server/remote/backend.js";
+import { REMOTE_BASE } from "@lcode/server/remote/deployShared.js";
+import { quotePosixPathArg, quotePosixShellArg } from "@lcode/server/remote/posixShell.js";
 
 const DEPLOY_LOCK_HEARTBEAT_SECONDS = 30;
 const DEPLOY_LOCK_STALE_SECONDS = 600;
@@ -37,8 +37,8 @@ function destroyLockStreamBestEffort(stream: StdioStream): void {
 }
 
 function buildRemoteDeployLockScript(lockDir: string, ownerToken: string): string {
-  const acquiredMarker = `zcode-deploy-lock-acquired:${ownerToken}`;
-  const releaseMarker = `zcode-deploy-lock-release:${ownerToken}`;
+  const acquiredMarker = `lcode-deploy-lock-acquired:${ownerToken}`;
+  const releaseMarker = `lcode-deploy-lock-release:${ownerToken}`;
   return [
     "set -eu",
     `lock_dir=${quotePosixPathArg(lockDir)}`,
@@ -124,8 +124,8 @@ export async function acquireRemoteDeployLock(
     1,
     Math.floor(options.releaseTimeoutMs ?? DEFAULT_RELEASE_TIMEOUT_MS),
   );
-  const acquiredMarker = `zcode-deploy-lock-acquired:${ownerToken}`;
-  const releaseMarker = `zcode-deploy-lock-release:${ownerToken}`;
+  const acquiredMarker = `lcode-deploy-lock-acquired:${ownerToken}`;
+  const releaseMarker = `lcode-deploy-lock-release:${ownerToken}`;
   const stream = await backend.exec(buildRemoteDeployLockCommand(lockDir, ownerToken));
   const close = createStreamClosePromise(stream);
   let stderrText = "";

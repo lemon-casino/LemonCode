@@ -1,5 +1,5 @@
-import type { AppUsageRange } from "@zcode/shared";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { AppUsageRange } from "@lcode/shared";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatCompactTokenNumber } from "@/lib/tokenNumberFormat.js";
 
 export const RANGE_OPTIONS: AppUsageRange[] = ["7d", "30d"];
@@ -81,7 +81,7 @@ export function formatMonth(locale: string, dateKey: string): string {
 }
 
 export function resolveModelLabel(
-  intl: ReturnType<typeof useZCodeIntl>["intl"],
+  intl: ReturnType<typeof useLCodeIntl>["intl"],
   modelId: string | null,
 ): string {
   return modelId?.trim() || intl.formatMessage({ id: "settings.usage.unknownModel" });

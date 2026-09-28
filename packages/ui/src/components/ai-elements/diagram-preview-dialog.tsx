@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu.js";
 import { cn } from "@/components/lib/utils.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   fitDiagramToViewport,
   panDiagram,
@@ -317,7 +317,7 @@ export function DiagramPreviewDialog({
   svg,
   title,
 }: DiagramPreviewDialogProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const dialogContentRef = useRef<HTMLDivElement | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);

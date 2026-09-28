@@ -3,11 +3,11 @@ import { AlertCircle, AlertTriangle, Info, LoaderCircle } from "lucide-react";
 import type {
   ConversationShareFailureIssue,
   ConversationSharePreflightResult,
-} from "@zcode/services";
+} from "@lcode/services";
 import { Button } from "@/components/ui/button.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   formatConversationShareAllowedArtifacts,
   formatConversationShareArtifactType,
@@ -52,7 +52,7 @@ function ConversationShareSelectionDockImpl({
   preflight = DEFAULT_PREFLIGHT,
   pending = false,
 }: ConversationShareSelectionDockProps) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const selectAllState =
     selectedCount === 0 ? false : selectedCount === totalCount ? true : ("indeterminate" as const);
   const bulkActionMessageId =

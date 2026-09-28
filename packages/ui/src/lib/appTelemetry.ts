@@ -7,7 +7,7 @@ import {
   sanitizeTelemetryEventDetail,
   type BuiltinModelProviderId,
   type IPlatformService,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { logger } from "@/logger.js";
 
 export function resolveProviderTelemetryLabel(providerId: string): string {

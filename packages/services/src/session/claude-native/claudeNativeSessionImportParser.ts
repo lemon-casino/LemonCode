@@ -143,7 +143,7 @@ function extractClaudeUserText(entry: JsonLineRecord): string | null {
 
   // 关键业务逻辑：这里只提取“用户真正可见的问题文本”。
   // tool_result / local-command / ide_opened_file 这些内容虽然也会混在 Claude 原生日志里，
-  // 但它们属于协议噪音或 IDE 注入信息，直接写进 zcode task 会让导入后的聊天记录失真。
+  // 但它们属于协议噪音或 IDE 注入信息，直接写进 lcode task 会让导入后的聊天记录失真。
   const content =
     message?.content ?? (isObjectRecord(entry.request) ? entry.request.prompt : undefined);
   if (typeof content === "string") {
@@ -337,7 +337,7 @@ function parseClaudeNativeSessionRecords(params: {
     updatedAt: updatedAt ?? firstVisibleUserTimestamp ?? params.fallbackCreatedAt ?? Date.now(),
     title: deriveSessionTitle(messages.find((item) => item.role === "user")?.content ?? "", []),
     // 关键业务逻辑：provider=claude 只能说明任务最终由 Claude 续接，
-    // 不能区分它是 zcode 内新建的 Claude 任务，还是从 Claude Code 原生历史迁移来的任务。
+    // 不能区分它是 lcode 内新建的 Claude 任务，还是从 Claude Code 原生历史迁移来的任务。
     // 这里单独写 migrationSource，后续任务列表/统计才能稳定识别迁移来源。
     migrationSource: "claudeCode",
     ...(model ? { model } : {}),

@@ -1,7 +1,7 @@
-import type { IPlatformService, UpdateStatePayload } from "@zcode/shared";
+import type { IPlatformService, UpdateStatePayload } from "@lcode/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { UpdateStatusDialogController } from "@/UpdateStatusDialogController.js";
@@ -26,7 +26,7 @@ export function UpdateStatusButton({
   isWindowsDesktop?: boolean;
   className?: string;
 }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const [dialogOpen, setDialogOpen] = useState(false);
   const releaseNotesCacheRef = useRef(
     new Map<

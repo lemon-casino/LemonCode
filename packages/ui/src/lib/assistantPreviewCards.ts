@@ -2,7 +2,7 @@ import {
   buildConversationPreviewArtifactCandidatesFromReferences,
   CONVERSATION_PREVIEW_CARD_CANDIDATE_LIMIT,
   CONVERSATION_PREVIEW_CARD_VISIBLE_LIMIT,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import {
   cleanAssistantFilePathCandidate,
   getAssistantPreviewFileTypeDefinition,

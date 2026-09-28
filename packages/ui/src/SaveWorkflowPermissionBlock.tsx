@@ -1,6 +1,6 @@
 import { ChevronRightIcon, Save } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
-import type { ZCodePermissionRequest } from "@zcode/shared";
+import type { LCodePermissionRequest } from "@lcode/shared";
 import { CodeBlock } from "@/components/ai-elements/code-block.js";
 import {
   Collapsible,
@@ -14,7 +14,7 @@ import {
   SaveWorkflowOverwriteBadge,
   type WorkflowArgDeclaration,
 } from "@/ToolCallBlocks/renderers/save-workflow.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 const NO_VALUE_PLACEHOLDER = "—";
 
@@ -40,7 +40,7 @@ function MetadataRow({ label, value, mono }: { label: string; value: string; mon
  * 版面扛得住 i18n 膨胀。必填用文字而不是对勾：语义不靠图标单独表达。
  */
 function WorkflowArgsTable({ args }: { args: readonly WorkflowArgDeclaration[] }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   const headers = [
     intl.formatMessage({ id: "chat.permission.workflow.save.args.name" }),
@@ -114,8 +114,8 @@ function WorkflowArgsTable({ args }: { args: readonly WorkflowArgDeclaration[] }
  * 刻意**不**接 Refine：Refine 的语义是「拒绝这次运行并告诉模型怎么改工作流」，
  * 而保存是一次写盘，改法是模型换一组元数据重新调用，不需要第三个选项。
  */
-export function SaveWorkflowPermissionBlock({ request }: { request: ZCodePermissionRequest }) {
-  const { intl } = useZCodeIntl();
+export function SaveWorkflowPermissionBlock({ request }: { request: LCodePermissionRequest }) {
+  const { intl } = useLCodeIntl();
 
   const input = readSaveWorkflowInput(request.raw);
   const [scriptOpen, setScriptOpen] = useState(false);

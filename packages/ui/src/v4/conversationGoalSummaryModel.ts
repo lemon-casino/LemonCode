@@ -1,4 +1,4 @@
-import type { GoalState } from "@zcode/shared/zcode-protocol-v4";
+import type { GoalState } from "@lcode/shared/lcode-protocol-v4";
 
 const INTERNAL_GOAL_VERIFICATION_FALLBACK_NEXT_ACTION =
   "Continue verifying and completing the goal.";

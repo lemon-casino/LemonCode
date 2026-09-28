@@ -1,13 +1,13 @@
 import {
   BIGMODEL_PROVIDER_ID,
   BUILTIN_MODEL_PROVIDER_IDS,
-  DEFAULT_ZCODE_ENDPOINT_ORIGIN,
+  DEFAULT_LCODE_ENDPOINT_ORIGIN,
   isTrustedCodingPlanWebviewOrigin,
   isZaiCodingPlanProviderId,
-  normalizeZCodeEndpointOrigin,
+  normalizeLCodeEndpointOrigin,
   ZAI_PROVIDER_ID,
-} from "@zcode/shared";
-import type { CodingPlanWebviewLocale } from "@zcode/shared";
+} from "@lcode/shared";
+import type { CodingPlanWebviewLocale } from "@lcode/shared";
 import type { CodingPlanFunnelContext } from "@/lib/codingPlanFunnelTelemetry.js";
 import type { CodingPlanProviderId } from "@/settings/model-provider-section/constants.js";
 
@@ -16,7 +16,7 @@ export type CodingPlanPurchaseAudience = "personal" | "team";
 
 export interface CodingPlanEmbeddedCredentials {
   zaiAccessToken?: string | null;
-  zcodeJwtToken?: string | null;
+  lcodeJwtToken?: string | null;
   bigmodelAccessToken?: string | null;
 }
 
@@ -58,10 +58,10 @@ interface ResolveCodingPlanEmbeddedOriginOptions {
 export const CODING_PLAN_WEBVIEW_OVERRIDE_ENV_KEY = "VITE_CODING_PLAN_WEBVIEW_ORIGIN";
 const CODING_PLAN_WEBVIEW_CREDENTIAL_LOCAL_STORAGE_KEYS = [
   "oauth:zai:access_token",
-  "zcodejwttoken",
+  "lcodejwttoken",
   "oauth:bigmodel:access_token",
 ] as const;
-const CODING_PLAN_REPORT_CONTEXT_STORAGE_KEY = "zcode:coding-plan:report-context";
+const CODING_PLAN_REPORT_CONTEXT_STORAGE_KEY = "lcode:coding-plan:report-context";
 
 export function resolveCodingPlanWebsiteProvider(
   providerId: CodingPlanProviderId,
@@ -82,12 +82,12 @@ export function resolveCodingPlanEmbeddedOrigin({
     normalizedOverride &&
     isTrustedCodingPlanWebviewOrigin(normalizedOverride, { e2eStoreBridgeEnabled })
   ) {
-    return normalizeZCodeEndpointOrigin(normalizedOverride);
+    return normalizeLCodeEndpointOrigin(normalizedOverride);
   }
-  const normalizedEndpointOrigin = normalizeZCodeEndpointOrigin(endpointOrigin);
+  const normalizedEndpointOrigin = normalizeLCodeEndpointOrigin(endpointOrigin);
   return isTrustedCodingPlanWebviewOrigin(normalizedEndpointOrigin, { e2eStoreBridgeEnabled })
     ? normalizedEndpointOrigin
-    : DEFAULT_ZCODE_ENDPOINT_ORIGIN;
+    : DEFAULT_LCODE_ENDPOINT_ORIGIN;
 }
 
 export function buildCodingPlanEmbeddedWebviewUrl({
@@ -108,7 +108,7 @@ export function buildCodingPlanEmbeddedWebviewUrl({
   audience?: CodingPlanPurchaseAudience;
   teamPlanKey?: string | null;
 }): string {
-  const url = new URL("/coding-plan", normalizeZCodeEndpointOrigin(origin));
+  const url = new URL("/coding-plan", normalizeLCodeEndpointOrigin(origin));
   url.searchParams.set("provider", provider);
   url.searchParams.set("embedded", "app");
   url.searchParams.set("lang", codingPlanLocaleToWebsiteLang(locale));
@@ -179,16 +179,16 @@ export function createCodingPlanAuthInjectionScript({
     provider === "zai"
       ? {
           "oauth:zai:access_token": credentials.zaiAccessToken?.trim() || null,
-          zcodejwttoken: credentials.zcodeJwtToken?.trim() || null,
+          lcodejwttoken: credentials.lcodeJwtToken?.trim() || null,
           "oauth:bigmodel:access_token": null,
         }
       : {
           "oauth:zai:access_token": null,
-          // zcodejwttoken 是 zcode-plan 域通用凭证（BigModel OAuth callback 同样落盘），
+          // lcodejwttoken 是 zcode-plan 域通用凭证（BigModel OAuth callback 同样落盘），
           // 官网用它查 billing/balance 判定 Start Plan 是否使用中；BigModel 分支缺失注入
           // 会导致官网 Start Plan 卡因查不到权益而误显示「已过期」。业务接口仍走
           // oauth:bigmodel:access_token，互不污染。
-          zcodejwttoken: credentials.zcodeJwtToken?.trim() || null,
+          lcodejwttoken: credentials.lcodeJwtToken?.trim() || null,
           "oauth:bigmodel:access_token": credentials.bigmodelAccessToken?.trim() || null,
         };
   const storageUpdates = Object.entries(values)
@@ -203,20 +203,20 @@ export function createCodingPlanAuthInjectionScript({
 
   return `(() => {
   ${storageUpdates}
-  const zcodeTheme = ${JSON.stringify(theme)};
-  document.documentElement.classList.toggle("dark", zcodeTheme === "zai-dark");
-  document.documentElement.classList.toggle("theme-zai-light", zcodeTheme === "zai-light");
-  document.documentElement.classList.toggle("theme-zai-dark", zcodeTheme === "zai-dark");
+  const lcodeTheme = ${JSON.stringify(theme)};
+  document.documentElement.classList.toggle("dark", lcodeTheme === "zai-dark");
+  document.documentElement.classList.toggle("theme-zai-light", lcodeTheme === "zai-light");
+  document.documentElement.classList.toggle("theme-zai-dark", lcodeTheme === "zai-dark");
   localStorage.setItem("zcode-theme", zcodeTheme);
   localStorage.setItem("zcode:coding-plan:embedded", "app");
   // 写入当前 App locale，供官网 zcodeBridge.getLang() 读取。
   // 注意：这是注入 webview 执行的原始 JS，不能用 TS 语法（如 as any）。
   window.__zcodeLang__ = ${JSON.stringify(resolvedLocale)};
-  const zcodeReportContext = ${JSON.stringify(normalizedReportContext)};
-  window.__zcodeReportContext__ = zcodeReportContext;
-  localStorage.setItem(${JSON.stringify(CODING_PLAN_REPORT_CONTEXT_STORAGE_KEY)}, JSON.stringify(zcodeReportContext));
-  window.dispatchEvent(new CustomEvent("zcode-coding-plan-auth-ready", {
-    detail: { ...${JSON.stringify({ provider, locale: resolvedLocale })}, reportContext: zcodeReportContext },
+  const lcodeReportContext = ${JSON.stringify(normalizedReportContext)};
+  window.__lcodeReportContext__ = lcodeReportContext;
+  localStorage.setItem(${JSON.stringify(CODING_PLAN_REPORT_CONTEXT_STORAGE_KEY)}, JSON.stringify(lcodeReportContext));
+  window.dispatchEvent(new CustomEvent("lcode-coding-plan-auth-ready", {
+    detail: { ...${JSON.stringify({ provider, locale: resolvedLocale })}, reportContext: lcodeReportContext },
   }));
 })()`;
 }
@@ -271,13 +271,13 @@ export function createCodingPlanCredentialClearScript(): string {
     localStorage.removeItem(key);
   }
   localStorage.removeItem(${JSON.stringify(CODING_PLAN_REPORT_CONTEXT_STORAGE_KEY)});
-  delete window.__zcodeReportContext__;
+  delete window.__lcodeReportContext__;
 })()`;
 }
 
 export function createCodingPlanScrollbarHideScript(): string {
   return `(() => {
-  const styleId = "zcode-coding-plan-hide-scrollbar";
+  const styleId = "lcode-coding-plan-hide-scrollbar";
   if (document.getElementById(styleId)) return;
   const style = document.createElement("style");
   style.id = styleId;
@@ -318,9 +318,9 @@ export function createCodingPlanLangInjectionScript(locale: CodingPlanWebviewLoc
 }
 
 export function getCodingPlanCredentialKeys(provider: CodingPlanWebsiteProvider): string[] {
-  // zcodejwttoken 对两个 provider 都加载：它是 zcode-plan 域通用凭证，
-  // BigModel OAuth callback 同样落盘（见 resolveBigModelStartPlanZcodeJwt）。
+  // lcodejwttoken 对两个 provider 都加载：它是 zcode-plan 域通用凭证，
+  // BigModel OAuth callback 同样落盘（见 resolveBigModelStartPlanLcodeJwt）。
   return provider === "zai"
-    ? [`oauth:${ZAI_PROVIDER_ID}:access_token`, "zcodejwttoken"]
-    : [`oauth:${BIGMODEL_PROVIDER_ID}:access_token`, "zcodejwttoken"];
+    ? [`oauth:${ZAI_PROVIDER_ID}:access_token`, "lcodejwttoken"]
+    : [`oauth:${BIGMODEL_PROVIDER_ID}:access_token`, "lcodejwttoken"];
 }

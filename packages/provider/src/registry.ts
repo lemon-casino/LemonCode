@@ -1,8 +1,8 @@
 import type { ModelId, ProviderId } from "./config/index.js";
 import type { Provider, ProviderModel } from "./resolver.js";
-import type { ModelSelection } from "@zcode/shared/model-selection";
+import type { ModelSelection } from "@lcode/shared/model-selection";
 
-export type { ModelSelection } from "@zcode/shared/model-selection";
+export type { ModelSelection } from "@lcode/shared/model-selection";
 
 export type ModelSelectionOptions = NonNullable<ModelSelection["options"]>;
 

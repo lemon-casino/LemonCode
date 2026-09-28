@@ -10,9 +10,9 @@ import {
   type AmendWorkflowRunSettingsPayload,
   type CommandAck,
   type WorkflowRunState,
-} from "@zcode/shared/zcode-protocol-v4";
-import type { ModelSelection } from "@zcode/shared/model-selection";
-import { formatModelPickerValue, parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
+} from "@lcode/shared/lcode-protocol-v4";
+import type { ModelSelection } from "@lcode/shared/model-selection";
+import { formatModelPickerValue, parseModelPickerValue } from "@/lib/lcodeSessionProjection.js";
 
 /**
  * 会话当前模型（「会话模型」那一项的名字从它来）：优先会话持久的稀疏选择，退回 UI effective 的

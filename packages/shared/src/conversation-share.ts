@@ -5,7 +5,7 @@ import {
   conversationArtifactTypeSchema,
   conversationRowSchema,
   type ConversationRow,
-} from "./zcode-protocol-v4/rows.js";
+} from "./lcode-protocol-v4/rows.js";
 
 /**
  * 分享站按语言分路径：中文站带 /cn 前缀，英文站是裸 /share。
@@ -69,7 +69,7 @@ export const CONVERSATION_SHARE_SCHEMA_VERSION = 1;
 /**
  * 入站 schema_version 一律先按数字收下，再由 isConversationShareSchemaVersionSupported
  * 判定。用 z.literal 会让「版本太新」和「响应形状不对」挤进同一个 invalid_contract，
- * 用户看到的是「分享格式无效」而不是「请升级 ZCode」。
+ * 用户看到的是「分享格式无效」而不是「请升级 LCode」。
  */
 const conversationShareSchemaVersionSchema = z.number().int().positive();
 
@@ -87,7 +87,7 @@ export function isConversationShareSchemaVersionSupported(version: number): bool
  *
  * 渲染链本来就容错（buildConversationTurnRenderUnits 把认不出的 kind 归入 assistantWork，
  * ConversationShareReadonlyTimeline 的 switch 认不出就不渲染），所以这里只需要不抛。
- * 计数交给调用方转成「部分内容需要更新 ZCode 查看」的软提示，不能静默。
+ * 计数交给调用方转成「部分内容需要更新 LCode 查看」的软提示，不能静默。
  */
 export function decodeConversationShareRows(rows: readonly unknown[]): {
   rows: ConversationRow[];
@@ -119,7 +119,7 @@ const conversationShareArtifactDescriptorFields = {
   producer_product_turn_id: z.string().trim().min(1),
   artifact_version: z.number().int().positive(),
   state: z.literal("current"),
-  ref: z.string().regex(/^zcode-artifact:\/\/share\/[A-Za-z0-9._~-]+$/u),
+  ref: z.string().regex(/^lcode-artifact:\/\/share\/[A-Za-z0-9._~-]+$/u),
   artifact_type: conversationArtifactTypeSchema,
   display_name: z.string().trim().min(1),
   original_path: z.string().min(1).optional(),
@@ -356,7 +356,7 @@ export const conversationSharePreviewDataSchema = z.object({
 export type ConversationSharePreviewWire = z.infer<typeof conversationSharePreviewDataSchema>;
 export type ConversationSharePreview = Omit<ConversationSharePreviewWire, "rows"> & {
   rows: ConversationRow[];
-  /** 本端认不出、已跳过的行数；>0 时 UI 必须给「部分内容需要更新 ZCode 查看」软提示。 */
+  /** 本端认不出、已跳过的行数；>0 时 UI 必须给「部分内容需要更新 LCode 查看」软提示。 */
   unsupportedRowCount: number;
 };
 
@@ -394,7 +394,7 @@ export type ConversationShareContinuation = Omit<ConversationShareContinuationWi
   rows: ConversationRow[];
   /** 未解析的原始 rows：落盘只读副本时按原样保存，避免未知字段被本端永久抹掉。 */
   rawRows: readonly unknown[];
-  /** 本端认不出、已跳过的行数；>0 时 UI 必须给「部分内容需要更新 ZCode 查看」软提示。 */
+  /** 本端认不出、已跳过的行数；>0 时 UI 必须给「部分内容需要更新 LCode 查看」软提示。 */
   unsupportedRowCount: number;
 };
 

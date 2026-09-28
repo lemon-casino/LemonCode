@@ -1,5 +1,5 @@
-export const ZCODE_AGENT_PROVIDER_NOT_READY_CODE = "ZCODE_AGENT_PROVIDER_NOT_READY" as const;
-export const ZCODE_AGENT_PROVIDER_NOT_READY_REASON = "provider_not_ready" as const;
+export const LCODE_AGENT_PROVIDER_NOT_READY_CODE = "LCODE_AGENT_PROVIDER_NOT_READY" as const;
+export const LCODE_AGENT_PROVIDER_NOT_READY_REASON = "provider_not_ready" as const;
 
 export type ModelSelectionGhostReason =
   | "mismatch"

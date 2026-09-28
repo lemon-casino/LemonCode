@@ -1,7 +1,7 @@
 import { mkdir, writeFile, rename, rm, readdir, stat } from "node:fs/promises";
 import { dirname, basename, join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
-import { acquireFileLock } from "@zcode/shared/node";
+import { acquireFileLock } from "@lcode/shared/node";
 import { isInjectedFsFaultError, maybeThrowInjectedFsFault } from "./fsFaultInjection.js";
 
 const DEFAULT_RENAME_RETRY_DELAYS_MS = [50, 100, 200, 400, 800, 1600, 3200] as const;
@@ -117,7 +117,7 @@ export async function atomicWriteText(
   await mkdir(dir, { recursive: true });
   // Windows 上多个窗口/host process 可能同时保存同一个 task JSON，
   // 进程内 writeChains 无法覆盖这种抢写，最终在 rename 替换目标文件时高频 EPERM。
-  // 这里用同目录 lock 文件做 ZCode 进程间协作串行化，再保留 rename 重试处理杀软/索引器的短暂占用。
+  // 这里用同目录 lock 文件做 LCode 进程间协作串行化，再保留 rename 重试处理杀软/索引器的短暂占用。
   const releaseLock =
     options?.useFileLock === false
       ? null

@@ -48,7 +48,7 @@ export type {
   ConversationShareTurnPreflightResult,
   PublishTextConversationInput,
 } from "./conversation-share/conversationShare.js";
-// Conversation share 的具体实现依赖 Node 文件系统，只能从 @zcode/services/node 引入；
+// Conversation share 的具体实现依赖 Node 文件系统，只能从 @lcode/services/node 引入；
 // 根入口必须保持 browser-safe，避免 renderer 解析到 node:* 模块。
 export {
   createConversationTelemetryService,
@@ -65,7 +65,7 @@ export type { MediaPreviewPreparation } from "./media-preview/mediaPreview.js";
 export { IGitService } from "./git/git.js";
 export { IGitCheckpointService } from "./git/gitCheckpoint.js";
 
-// Git backup service (ZCode 满血版新增)
+// Git backup service (LCode 满血版新增)
 export { IGitBackupService } from "./git-backup/gitBackup.js";
 export type {
   GitBackupConfig,
@@ -96,7 +96,7 @@ export type {
   OnboardingRecordServiceFactory,
 } from "./onboarding/onboardingRecord.js";
 // 这里只能导出 descriptor 和类型。根 index 会被 renderer 经 value import 拉进浏览器包，
-// 若 value 导出 createOnboardingRecordService，会连带 fs/atomicFileUtils → @zcode/shared/node →
+// 若 value 导出 createOnboardingRecordService，会连带 fs/atomicFileUtils → @lcode/shared/node →
 // node:timers/promises 整条 Node 链进浏览器，模块加载直接抛错导致整个应用黑屏。
 // 工厂函数由 host 侧（node.ts）与测试从实现文件路径直接导入，与 createSettingService 同惯例。
 export type {
@@ -105,36 +105,36 @@ export type {
   BroadcastMessage,
 } from "./broadcast/broadcast.js";
 
-// ZCode task wrapper service — task 列表/置顶/归档等 app 侧包装状态入口。
-export { IZCodeTaskService } from "./session/zcodeTaskService.js";
+// LCode task wrapper service — task 列表/置顶/归档等 app 侧包装状态入口。
+export { ILCodeTaskService } from "./session/lcodeTaskService.js";
 export type {
-  ZCodeArchivedTaskDeletionResult,
-  ZCodeModelTrajectory,
-  ZCodeModelTrajectoryCallSource,
-  ZCodeModelTrajectoryCallSourceKind,
-  ZCodeModelTrajectoryContentPart,
-  ZCodeModelTrajectoryMessage,
-  ZCodeModelTrajectoryRecord,
-  ZCodeModelTrajectoryUsage,
-  ZCodeTaskListKind,
-  ZCodeTaskListQuery,
-  ZCodeTaskListResult,
-  ZCodeTaskListSortBy,
-  ZCodeTaskListWorkspaceScope,
-  ZCodeTaskReadyOutcome,
-  ZCodeGroupedTaskRef,
-  ZCodeGroupedTaskView,
-  ZCodeGroupedTaskViewNode,
-  ZCodeGroupedTaskViewOrderInput,
-  ZCodeGroupedTaskViewQuery,
-  ZCodeGroupedTaskViewStructure,
-  ZCodeGroupedTaskViewStructureMember,
-  ZCodeGroupedTaskViewStructureTopOrder,
-  ZCodeGroupedTaskViewTopLevelNodeRef,
-  ZCodeTaskGroup,
-  ZCodeTaskGroupColor,
-} from "./session/zcodeTaskService.js";
-export type { ZCodeTaskListItem } from "./session/zcodeTaskListTypes.js";
+  LCodeArchivedTaskDeletionResult,
+  LCodeModelTrajectory,
+  LCodeModelTrajectoryCallSource,
+  LCodeModelTrajectoryCallSourceKind,
+  LCodeModelTrajectoryContentPart,
+  LCodeModelTrajectoryMessage,
+  LCodeModelTrajectoryRecord,
+  LCodeModelTrajectoryUsage,
+  LCodeTaskListKind,
+  LCodeTaskListQuery,
+  LCodeTaskListResult,
+  LCodeTaskListSortBy,
+  LCodeTaskListWorkspaceScope,
+  LCodeTaskReadyOutcome,
+  LCodeGroupedTaskRef,
+  LCodeGroupedTaskView,
+  LCodeGroupedTaskViewNode,
+  LCodeGroupedTaskViewOrderInput,
+  LCodeGroupedTaskViewQuery,
+  LCodeGroupedTaskViewStructure,
+  LCodeGroupedTaskViewStructureMember,
+  LCodeGroupedTaskViewStructureTopOrder,
+  LCodeGroupedTaskViewTopLevelNodeRef,
+  LCodeTaskGroup,
+  LCodeTaskGroupColor,
+} from "./session/lcodeTaskService.js";
+export type { LCodeTaskListItem } from "./session/lcodeTaskListTypes.js";
 
 export { IWindowControllerService } from "./window-controller/windowController.js";
 export type {
@@ -144,68 +144,68 @@ export type {
   WindowHostControllerTaskListResult,
 } from "./window-controller/windowController.js";
 
-// ZCode agent service — IZCodeAgentService is both a type (interface) and value (descriptor)
+// LCode agent service — ILCodeAgentService is both a type (interface) and value (descriptor)
 export {
-  IZCodeAgentService,
-  type ZCodeAgentLocalRuntimeChildProcesses,
-  ZCODE_AGENT_RUNTIME_UNAVAILABLE_CODE,
-} from "./zcode-agent/zcodeAgent.js";
+  ILCodeAgentService,
+  type LCodeAgentLocalRuntimeChildProcesses,
+  LCODE_AGENT_RUNTIME_UNAVAILABLE_CODE,
+} from "./lcode-agent/lcodeAgent.js";
 export {
-  isZCodeAgentMcpStatusModeUnsupportedError,
-  ZCODE_AGENT_MCP_STATUS_MODE_UNSUPPORTED_ERROR_CODE,
-  ZCodeAgentMcpStatusModeUnsupportedError,
-} from "./zcode-agent/zcodeAgentErrors.js";
+  isLCodeAgentMcpStatusModeUnsupportedError,
+  LCODE_AGENT_MCP_STATUS_MODE_UNSUPPORTED_ERROR_CODE,
+  LCodeAgentMcpStatusModeUnsupportedError,
+} from "./lcode-agent/lcodeAgentErrors.js";
 export {
-  createZCodeAgentConnectionScope,
-  readTrustedZCodeAgentV4Connection,
-} from "./zcode-agent/zcodeAgentConnectionScope.js";
+  createLCodeAgentConnectionScope,
+  readTrustedLCodeAgentV4Connection,
+} from "./lcode-agent/lcodeAgentConnectionScope.js";
 export type {
-  ZCodeAgentConnectionScope,
-  ZCodeAgentV4ClientMode,
-  ZCodeAgentV4ConnectionContext,
-} from "./zcode-agent/zcodeAgentConnectionScope.js";
+  LCodeAgentConnectionScope,
+  LCodeAgentV4ClientMode,
+  LCodeAgentV4ConnectionContext,
+} from "./lcode-agent/lcodeAgentConnectionScope.js";
 export type {
-  ZCodeAgentAttachmentBeginParams,
-  ZCodeAgentAttachmentChunkParams,
-  ZCodeAgentAttachmentTerminalParams,
-  ZCodeAgentCreateSessionParams,
-  ZCodeAgentCuaPermissionObservation,
-  ZCodeAgentInitializeResult,
-  ZCodeAgentStorageStartupSnapshot,
-  ZCodeAgentRuntimeLifecycleEvent,
-  ZCodeAgentRuntimePolicy,
-  ZCodeAgentReadSessionParams,
-  ZCodeAgentResumeSessionParams,
-  ZCodeAgentRunAutomationNowResult,
-  ZCodeAgentSavedWorkflowTarget,
-  ZCodeAgentSendPromptParams,
-  ZCodeAgentServiceEvent,
-  ZCodeAgentSessionSubscribeParams,
-  ZCodeAgentSessionTarget,
-  ZCodeAgentSetModeParams,
-  ZCodeAgentSetModelParams,
-  ZCodeAgentSetThoughtLevelParams,
-  ZCodeAgentWorkspaceTarget,
-} from "./zcode-agent/zcodeAgent.js";
+  LCodeAgentAttachmentBeginParams,
+  LCodeAgentAttachmentChunkParams,
+  LCodeAgentAttachmentTerminalParams,
+  LCodeAgentCreateSessionParams,
+  LCodeAgentCuaPermissionObservation,
+  LCodeAgentInitializeResult,
+  LCodeAgentStorageStartupSnapshot,
+  LCodeAgentRuntimeLifecycleEvent,
+  LCodeAgentRuntimePolicy,
+  LCodeAgentReadSessionParams,
+  LCodeAgentResumeSessionParams,
+  LCodeAgentRunAutomationNowResult,
+  LCodeAgentSavedWorkflowTarget,
+  LCodeAgentSendPromptParams,
+  LCodeAgentServiceEvent,
+  LCodeAgentSessionSubscribeParams,
+  LCodeAgentSessionTarget,
+  LCodeAgentSetModeParams,
+  LCodeAgentSetModelParams,
+  LCodeAgentSetThoughtLevelParams,
+  LCodeAgentWorkspaceTarget,
+} from "./lcode-agent/lcodeAgent.js";
 
-// ZCode session service — app-facing session facade without ZCode Agent naming.
-export { IZCodeSessionService } from "./zcode-session/zcodeSession.js";
+// LCode session service — app-facing session facade without LCode Agent naming.
+export { ILCodeSessionService } from "./lcode-session/lcodeSession.js";
 export type {
-  ZCodeSessionCreateParams,
-  ZCodeSessionEventsParams,
-  ZCodeSessionInitializeResult,
-  ZCodeSessionListParams,
-  ZCodeSessionMessagesParams,
-  ZCodeSessionReadParams,
-  ZCodeSessionResumeParams,
-  ZCodeSessionServiceEvent,
-  ZCodeSessionSetModeParams,
-  ZCodeSessionSetModelParams,
-  ZCodeSessionSetThoughtLevelParams,
-  ZCodeSessionSubscribeParams,
-  ZCodeTaskTarget,
-  ZCodeSessionWorkspaceTarget,
-} from "./zcode-session/zcodeSession.js";
+  LCodeSessionCreateParams,
+  LCodeSessionEventsParams,
+  LCodeSessionInitializeResult,
+  LCodeSessionListParams,
+  LCodeSessionMessagesParams,
+  LCodeSessionReadParams,
+  LCodeSessionResumeParams,
+  LCodeSessionServiceEvent,
+  LCodeSessionSetModeParams,
+  LCodeSessionSetModelParams,
+  LCodeSessionSetThoughtLevelParams,
+  LCodeSessionSubscribeParams,
+  LCodeTaskTarget,
+  LCodeSessionWorkspaceTarget,
+} from "./lcode-session/lcodeSession.js";
 
 // Hooks service — IHooksService is both a type (interface) and value (descriptor).
 export { IHooksService } from "./hooks/hooks.js";
@@ -229,7 +229,7 @@ export { IOAuthService } from "./oauth/oauth.js";
 // UsageStats service — IUsageStatsService is both a type (interface) and value (descriptor)
 export { IUsageStatsService } from "./usage-stats/usageStats.js";
 
-// Storage（资源管理器「存储」tab）：数据类型在 @zcode/shared；这里只导出服务接口与卷分组纯函数
+// Storage（资源管理器「存储」tab）：数据类型在 @lcode/shared；这里只导出服务接口与卷分组纯函数
 export type { IStorageService } from "./storage/contract.js";
 
 // CodingPlanSubscription service — ICodingPlanSubscriptionService is both a type (interface) and value (descriptor)
@@ -272,7 +272,7 @@ export {
 
 // Plugins service — IPluginsService is both a type (interface) and value (descriptor)
 export { IPluginsService } from "./plugins/plugins.js";
-// 设置页插件管理薄服务（UI 平台能力面不再直触 zcodeAgentService）
+// 设置页插件管理薄服务（UI 平台能力面不再直触 lcodeAgentService）
 export { IPluginManagementService } from "./plugins/pluginManagement.js";
 
 // Subagents service — ISubagentsService is both a type (interface) and value (descriptor)
@@ -308,5 +308,5 @@ export type {
   FeedbackTicketStatus,
   FeedbackTicketSummary,
   FeedbackTicketType,
-} from "@zcode/shared";
+} from "@lcode/shared";
 export { IClientConfigService } from "./client-config/clientConfig.js";

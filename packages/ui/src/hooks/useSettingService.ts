@@ -2,8 +2,8 @@
  * useSettingService —— 设置服务 hooks
  */
 import { useState, useEffect, useCallback } from "react";
-import { APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL, type AppSettings } from "@zcode/shared";
-import type { ISettingService } from "@zcode/services";
+import { APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL, type AppSettings } from "@lcode/shared";
+import type { ISettingService } from "@lcode/services";
 import { useServices } from "./useServices.js";
 import { usePlatform } from "./usePlatform.js";
 
@@ -106,7 +106,7 @@ async function refreshSettingsStore(settingService: ISettingService | undefined)
 
 /** 获取和更新应用设置 */
 export function useSettings() {
-  const { broadcastService, settingService, zcodeAgentService } = useServices();
+  const { broadcastService, settingService, lcodeAgentService } = useServices();
   const platform = usePlatform();
   const settingsStore = getSettingsStore(settingService);
   const [snapshot, setSnapshot] = useState<SettingsSnapshot>(settingsStore.snapshot);
@@ -155,7 +155,7 @@ export function useSettings() {
             settingsStore.snapshot.settings?.modelIoFullRetentionEnabled === true,
         };
         const syncResults = await Promise.allSettled([
-          zcodeAgentService.syncAppRuntimePreferences(preferences),
+          lcodeAgentService.syncAppRuntimePreferences(preferences),
         ]);
         const syncError = syncResults.find(
           (result): result is PromiseRejectedResult => result.status === "rejected",
@@ -169,7 +169,7 @@ export function useSettings() {
         }
       }
     },
-    [broadcastService, settingService, settingsStore, zcodeAgentService, platform, refresh],
+    [broadcastService, settingService, settingsStore, lcodeAgentService, platform, refresh],
   );
 
   return {

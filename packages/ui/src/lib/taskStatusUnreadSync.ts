@@ -1,5 +1,5 @@
-import type { IZCodeTaskService } from "@zcode/services";
-import type { ZCodeTaskMeta, ZCodeWorkspaceTaskListChanged } from "@zcode/shared";
+import type { ILCodeTaskService } from "@lcode/services";
+import type { LCodeTaskMeta, LCodeWorkspaceTaskListChanged } from "@lcode/shared";
 import { buildTaskEntityKey, buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import {
   markTaskQueryCacheScopesStale,
@@ -8,21 +8,21 @@ import {
   setTaskQueryCacheUnreadOverlay,
   useTaskQueryCacheStore,
 } from "@/store/taskQueryCacheStore.js";
-import { getTaskUnreadIndicator, useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { getTaskUnreadIndicator, useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import { bumpTaskListMembershipVersion } from "@/v4/taskListMembershipVersion.js";
 import { logger } from "@/logger.js";
 
-type TaskUnreadService = Pick<IZCodeTaskService, "setTaskUnread">;
+type TaskUnreadService = Pick<ILCodeTaskService, "setTaskUnread">;
 
 const STATUS_UNREAD_DEDUPE_WINDOW_MS = 1_000;
 const STATUS_UNREAD_DEDUPE_MAX_KEYS = 256;
 const recentStatusUnreadAtByKey = new Map<string, number>();
 
-function isTerminalTaskStatus(status: ZCodeTaskMeta["status"]): boolean {
+function isTerminalTaskStatus(status: LCodeTaskMeta["status"]): boolean {
   return status === "completed" || status === "error";
 }
 
-function buildStatusUnreadKey(event: ZCodeWorkspaceTaskListChanged, taskId: string): string {
+function buildStatusUnreadKey(event: LCodeWorkspaceTaskListChanged, taskId: string): string {
   const workspaceKey = buildTaskWorkspaceKey(event.workspacePath, event.workspaceIdentity);
   return [workspaceKey, taskId, event.taskMeta?.status ?? "", event.taskMeta?.updatedAt ?? ""].join(
     "::",
@@ -52,7 +52,7 @@ function shouldSkipRecentStatusUnread(key: string): boolean {
 function shouldMarkStatusEventTaskUnread(params: {
   activeTaskId: string | null;
   activeWorkspace: { workspacePath: string; workspaceIdentity?: string };
-  event: ZCodeWorkspaceTaskListChanged;
+  event: LCodeWorkspaceTaskListChanged;
 }): boolean {
   const taskId = params.event.taskId ?? params.event.taskMeta?.taskId;
   const isEventWorkspaceActive =
@@ -71,7 +71,7 @@ function shouldMarkStatusEventTaskUnread(params: {
 
 export function syncTaskUnreadFromStatusWorkspaceEvent(params: {
   activeWorkspace: { workspacePath: string; workspaceIdentity?: string };
-  event: ZCodeWorkspaceTaskListChanged;
+  event: LCodeWorkspaceTaskListChanged;
   service: TaskUnreadService;
 }): void {
   const { event, service } = params;
@@ -84,7 +84,7 @@ export function syncTaskUnreadFromStatusWorkspaceEvent(params: {
     return;
   }
 
-  const store = useZCodeSessionStore.getState();
+  const store = useLCodeSessionStore.getState();
   const workspaceState = store.getWorkspaceState(event.workspacePath, event.workspaceIdentity);
   if (
     !shouldMarkStatusEventTaskUnread({

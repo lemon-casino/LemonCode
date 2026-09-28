@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { glob, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { delimiter, dirname, isAbsolute, join, resolve } from "node:path";
-import type { SSHConfigAliasOption } from "@zcode/shared";
+import type { SSHConfigAliasOption } from "@lcode/shared";
 
 const CACHE_TTL_MS = 30_000;
 const MAX_ALIAS_COUNT = 200;

@@ -4,8 +4,8 @@ import {
   sanitizeTelemetryModelValue,
   type ArmsCustomEventPayload,
   type IPlatformService,
-  type ZCodeTaskNetworkDebugStatus,
-} from "@zcode/shared";
+  type LCodeTaskNetworkDebugStatus,
+} from "@lcode/shared";
 import { logger } from "@/logger.js";
 
 const PLAN_USAGE_ARMS_GROUP = "plan_usage";
@@ -57,7 +57,7 @@ function nonNegativeInteger(value: number | undefined): number | undefined {
 }
 
 function networkRequestStatus(
-  statusType: ZCodeTaskNetworkDebugStatus["statusType"],
+  statusType: LCodeTaskNetworkDebugStatus["statusType"],
 ): PlanUsageRequestStatus {
   switch (statusType) {
     case "model_request_started":
@@ -120,7 +120,7 @@ function providerTelemetryProjection(
 
 export function reportPlanUsageModelRequestStartedToArms(
   reporter: ArmsReporter | null | undefined,
-  event: ZCodeTaskNetworkDebugStatus,
+  event: LCodeTaskNetworkDebugStatus,
 ): void {
   if (!reporter) {
     return;

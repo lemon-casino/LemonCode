@@ -1,5 +1,5 @@
-import type { Event } from "@zcode/rpc";
-import { ServiceChannels } from "@zcode/shared";
+import type { Event } from "@lcode/rpc";
+import { ServiceChannels } from "@lcode/shared";
 import {
   type ModelConfigObject,
   type ModelId,
@@ -15,9 +15,9 @@ import {
   type ProviderSettingsView,
   type ResolveModelConfigInput,
   type SavePersonalModelDraftInput,
-} from "@zcode/provider";
+} from "@lcode/provider";
 import { createServiceDescriptor } from "../descriptors.js";
-import type { ModelConnectivityResult } from "@zcode/shared";
+import type { ModelConnectivityResult } from "@lcode/shared";
 import { createServiceLogger } from "../logger/serviceLogger.js";
 import {
   createProviderCatalogClient,
@@ -31,7 +31,7 @@ export type {
   ModelSelectionView,
   ModelSelectionViewInput,
   ProviderSettingsView,
-} from "@zcode/provider";
+} from "@lcode/provider";
 export type { ProviderApiKeyProbeResult, ProviderRemoteModelCatalog };
 
 export interface IProviderSettingsService {

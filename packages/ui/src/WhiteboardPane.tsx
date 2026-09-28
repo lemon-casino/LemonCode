@@ -12,7 +12,7 @@ import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   WHITEBOARD_DEFAULT_COLOR,
   createWhiteboardStroke,
@@ -36,7 +36,7 @@ export function WhiteboardPane({
   workspaceIdentity?: string;
   boardId: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const workspaceKey = buildWhiteboardWorkspaceKey({ workspacePath, workspaceIdentity });
   const board = useWhiteboardStore((state) => state.workspaces[workspaceKey]?.boardsById[boardId]);
   const renameBoard = useWhiteboardStore((state) => state.renameBoard);

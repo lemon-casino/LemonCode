@@ -1,9 +1,9 @@
 /* eslint-disable max-lines -- Explore 聚合渲染同时维护分类、父级摘要和可复用子工具摘要，拆开会让父子展示规则更难对齐 */
 import { SearchIcon } from "lucide-react";
-import { extractPlanStepsFromToolInput, extractPlanStepsFromToolOutput } from "@zcode/shared";
+import { extractPlanStepsFromToolInput, extractPlanStepsFromToolOutput } from "@lcode/shared";
 import { ToolCallBlock } from "@/ToolCallBlocks.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { getExecuteSecondaryText } from "@/ToolCallBlocks/renderers/execute.js";
 import { buildReadSummary, ReadFileChip } from "@/ToolCallBlocks/renderers/read.js";
 import { getSearchPrimaryText } from "@/ToolCallBlocks/renderers/search.js";
@@ -13,7 +13,7 @@ import { ToolLayout } from "../ToolLayout.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
 import { useCallback, type ReactNode } from "react";
 import type { TaskChatToolCallTreeNode } from "@/lib/toolCallTree.js";
-import type { ZCodePlanStep } from "@zcode/shared";
+import type { LCodePlanStep } from "@lcode/shared";
 
 const EXPLORE_TOOL_ICON = <SearchIcon className="size-4 shrink-0 text-foreground-subtle" />;
 
@@ -229,7 +229,7 @@ function renderChildActionKindPrefix(actionKindLabel: string | null, content: Re
 
 function readTodoPlanFromToolCall(
   childToolCall: ToolCallBlockRenderContext["toolCallNode"]["toolCall"],
-): ZCodePlanStep[] | null {
+): LCodePlanStep[] | null {
   return (
     extractPlanStepsFromToolOutput({
       title: childToolCall.title,
@@ -394,7 +394,7 @@ export function getLatestExploreChildSummaryFromChildren(
 }
 
 export function ExploreToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCallNode, isRunning, statusLabel, errorText } = context;
   const { toolCall, childToolCalls } = toolCallNode;
   const counts = childToolCalls.reduce<Record<ExploreBucket, number>>(

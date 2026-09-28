@@ -1,5 +1,5 @@
 import { CheckCircle2, XCircle } from "lucide-react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CuaDetailsModel } from "@/ToolCallBlocks/renderers/cua.js";
 import { CuaScreenshotSection } from "@/ToolCallBlocks/renderers/CuaScreenshotSection.js";
 import { CuaDetailListSection } from "@/ToolCallBlocks/renderers/cuaListDetails.js";
@@ -17,7 +17,7 @@ function readText(record: Record<string, unknown> | null, key: string): string |
 }
 
 function CuaDetailRows({ rows }: { rows: CuaDetailsModel["actionRows"] }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <dl className="grid grid-cols-[minmax(4rem,auto)_minmax(0,1fr)] gap-x-3 gap-y-1.5 text-sm">
       {rows.map((row) => (
@@ -53,7 +53,7 @@ export function CuaToolCallDetails({
   model: CuaDetailsModel;
   toolCall: ToolCallBlockRenderContext["toolCallNode"]["toolCall"];
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const typedCount = readText(asRecord(toolCall.input), "text")?.length ?? 0;
   // 完整 tool call JSON 混入了面向用户的 CUA 详情，暴露内部生命周期字段并制造无效入口。
   // 原始数据继续保留在协议与持久化层；这里仅渲染用户完成操作所需的信息。

@@ -1,11 +1,11 @@
 import { sendWithConversationDelayE2E } from "@/v4/conversationTransportDelayE2E.js";
 import { getLocalTtftObserver } from "@/v4/telemetry/localTtftObserver.js";
-import { calibrateLocalTtftClock, localTtftNow } from "@zcode/shared";
+import { calibrateLocalTtftClock, localTtftNow } from "@lcode/shared";
 /* oxlint-disable eslint(max-lines) -- transport 将上传、分块读取和 runtime 生命周期保持在同一 host 边界。 */
-// ConversationTransport 的 desktop/host 实现：桥到 IZCodeAgentService 的 v4 转发面
+// ConversationTransport 的 desktop/host 实现：桥到 ILCodeAgentService 的 v4 转发面
 // （依赖注入原则——数据层不感知 host 细节，
 // web 直连 ws relay 时换一个实现即可）。
-import type { IZCodeAgentService } from "@zcode/services";
+import type { ILCodeAgentService } from "@lcode/services";
 import {
   conversationTopicFrameSchema,
   PROTOCOL_V4_LIMITS,
@@ -32,7 +32,7 @@ import {
   type V4ConversationRowsRangeResult,
   type V4ConversationSubscribeResult,
   type V4ConversationResyncResult,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
 import type { ConversationTransport } from "@/v4/transport.js";
 import { ensureAgentV4ConnectionHandshake } from "@/v4/agentV4ConnectionHandshake.js";
 import { createWorkflowRunTransportMethods } from "@/v4/agentConversationTransportWorkflowRuns.js";
@@ -52,7 +52,7 @@ interface AgentConversationTransportTarget {
 }
 
 type ConversationV4AgentService = Pick<
-  IZCodeAgentService,
+  ILCodeAgentService,
   | "subscribeConversationV4"
   | "resyncConversationV4"
   | "helloConversationV4"
@@ -81,7 +81,7 @@ type ConversationV4AgentService = Pick<
   | "onDynamicLocalTtftFacts"
   | "onAgentRuntimeRestarted"
 > &
-  Partial<Pick<IZCodeAgentService, "onAgentRuntimeLifecycle">>;
+  Partial<Pick<ILCodeAgentService, "onAgentRuntimeLifecycle">>;
 
 /**
  * 一条 host 连接（= 一个 workspace）上的 v4 conversation 传输面。

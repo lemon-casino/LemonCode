@@ -14,27 +14,27 @@ import {
   ChannelServer,
   LoggingChannelServer,
   type ISocket,
-} from "@zcode/rpc";
+} from "@lcode/rpc";
 import {
   ServiceCollection,
-  IZCodeAgentService,
-  createZCodeAgentConnectionScope,
+  ILCodeAgentService,
+  createLCodeAgentConnectionScope,
   IFileService,
   IGitService,
   ISystemService,
   ITerminalService,
   IProviderProvisioningTargetService,
-} from "@zcode/services";
+} from "@lcode/services";
 import {
   formatLogPrefix,
   formatZodError,
   remoteTargetSchema,
   SERVER_REMOTE_PROTOCOL_VERSION,
-  ZCODE_RPC_HOST_CAPABILITY_HEADER,
-  ZCODE_VERSION,
+  LCODE_RPC_HOST_CAPABILITY_HEADER,
+  LCODE_VERSION,
   type ServerRemoteInfo,
   type ServerRemoteWorkspaceInfo,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { connectRemote, createRemoteBackend, type RemoteConnection } from "./remote/index.js";
 import { createHostCapabilityStore } from "./hostCapability.js";
 
@@ -78,7 +78,7 @@ function wrapWebSocket(ws: WebSocket): ISocket {
 }
 
 const log = (...args: unknown[]) =>
-  console.log(formatLogPrefix("zcode-server:http", process.pid), ...args);
+  console.log(formatLogPrefix("lcode-server:http", process.pid), ...args);
 
 function setupChannelServer(
   ws: WebSocket,
@@ -90,9 +90,9 @@ function setupChannelServer(
   const rawServer = new ChannelServer(protocol, "server");
   // 用日志中间件包装，统一记录所有 RPC 调用
   const server = new LoggingChannelServer(rawServer, log);
-  const agentService = services.getOptional(IZCodeAgentService);
+  const agentService = services.getOptional(ILCodeAgentService);
   const connectionScope = agentService
-    ? createZCodeAgentConnectionScope(agentService, {
+    ? createLCodeAgentConnectionScope(agentService, {
         connectionId: `server-ws-${randomUUID()}`,
         clientMode,
         role: clientMode === "desktop-continuous" ? "trusted-host-relay" : "terminal-client",
@@ -100,7 +100,7 @@ function setupChannelServer(
     : undefined;
   const overrides = new Map<string, unknown>();
   if (connectionScope) {
-    overrides.set(IZCodeAgentService.channelName, connectionScope.service);
+    overrides.set(ILCodeAgentService.channelName, connectionScope.service);
   }
   // Provisioning 携带跨 Environment 凭据，只允许 Desktop trusted host 使用；普通 Web
   // remote/replayable 客户端即使知道频道名，也不能获得 target 写入接口。
@@ -146,7 +146,7 @@ function readTrimmedEnv(name: string): string | undefined {
 
 function resolveServerId(options: HttpServerOptions): string {
   return (
-    options.serverId?.trim() || readTrimmedEnv("ZCODE_SERVER_ID") || hostname() || "zcode-server"
+    options.serverId?.trim() || readTrimmedEnv("LCODE_SERVER_ID") || hostname() || "lcode-server"
   );
 }
 
@@ -154,7 +154,7 @@ function resolveServerWorkspaces(options: HttpServerOptions): ServerRemoteWorksp
   if (options.workspaces) {
     return options.workspaces;
   }
-  const workspacePath = readTrimmedEnv("ZCODE_SERVER_WORKSPACE") || process.cwd();
+  const workspacePath = readTrimmedEnv("LCODE_SERVER_WORKSPACE") || process.cwd();
   return [
     {
       path: workspacePath,
@@ -166,12 +166,12 @@ function resolveServerWorkspaces(options: HttpServerOptions): ServerRemoteWorksp
 function createServerInfo(options: HttpServerOptions): ServerRemoteInfo {
   return {
     serverId: resolveServerId(options),
-    ...(options.name?.trim() || readTrimmedEnv("ZCODE_SERVER_NAME")
-      ? { name: options.name?.trim() || readTrimmedEnv("ZCODE_SERVER_NAME") }
+    ...(options.name?.trim() || readTrimmedEnv("LCODE_SERVER_NAME")
+      ? { name: options.name?.trim() || readTrimmedEnv("LCODE_SERVER_NAME") }
       : {}),
-    version: ZCODE_VERSION,
+    version: LCODE_VERSION,
     protocolVersion: SERVER_REMOTE_PROTOCOL_VERSION,
-    authRequired: options.authRequired ?? Boolean(readTrimmedEnv("ZCODE_SERVER_TOKEN")),
+    authRequired: options.authRequired ?? Boolean(readTrimmedEnv("LCODE_SERVER_TOKEN")),
     workspaces: resolveServerWorkspaces(options),
     capabilities: {
       desktopContinuous: true,
@@ -181,7 +181,7 @@ function createServerInfo(options: HttpServerOptions): ServerRemoteInfo {
   };
 }
 
-const zcodeLiteTokenCookieName = "zcode_lite_token";
+const lcodeLiteTokenCookieName = "lcode_lite_token";
 
 const staticMimeTypes: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
@@ -226,11 +226,11 @@ function hasValidLiteToken(c: Context, token: string): boolean {
   if (url.searchParams.get("token") === token) {
     c.header(
       "Set-Cookie",
-      `${zcodeLiteTokenCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`,
+      `${lcodeLiteTokenCookieName}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax`,
     );
     return true;
   }
-  return parseCookieHeader(c.req.header("cookie")).get(zcodeLiteTokenCookieName) === token;
+  return parseCookieHeader(c.req.header("cookie")).get(lcodeLiteTokenCookieName) === token;
 }
 
 function isTokenProtectedPath(pathname: string): boolean {
@@ -334,7 +334,7 @@ export function createHttpServer(
     },
   }));
   app.use("/ws/host", async (c, next) => {
-    const capability = c.req.header(ZCODE_RPC_HOST_CAPABILITY_HEADER);
+    const capability = c.req.header(LCODE_RPC_HOST_CAPABILITY_HEADER);
     if (!hostCapabilities.consume(capability)) {
       return c.json({ error: "Invalid or expired host capability" }, 401);
     }

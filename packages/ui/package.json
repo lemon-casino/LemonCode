@@ -1,5 +1,5 @@
 {
-  "name": "@zcode/ui",
+  "name": "@lcode/ui",
   "private": true,
   "type": "module",
   "exports": {
@@ -42,10 +42,10 @@
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
     "@xyflow/react": "^12.10.1",
-    "@zcode/provider": "workspace:*",
-    "@zcode/rpc": "workspace:*",
-    "@zcode/services": "workspace:*",
-    "@zcode/shared": "workspace:*",
+    "@lcode/provider": "workspace:*",
+    "@lcode/rpc": "workspace:*",
+    "@lcode/services": "workspace:*",
+    "@lcode/shared": "workspace:*",
     "ai": "^6.0.138",
     "ansi-to-react": "^6.2.6",
     "class-variance-authority": "^0.7.1",

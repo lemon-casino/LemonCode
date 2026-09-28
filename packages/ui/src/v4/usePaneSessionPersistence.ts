@@ -8,7 +8,7 @@
 import { useEffect, useRef } from "react";
 import { isRendererReloadNavigation } from "@/lib/rendererNavigation.js";
 
-const STORAGE_PREFIX = "zcode-v4-last-session:v1:";
+const STORAGE_PREFIX = "lcode-v4-last-session:v1:";
 
 function storageKey(workspaceKey: string): string {
   return `${STORAGE_PREFIX}${workspaceKey}`;

@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import { ArrowUpRightIcon } from "lucide-react";
-import type { WorkflowRunArtifactKind } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunArtifactKind } from "@lcode/shared/lcode-protocol-v4";
 import {
   ArtifactKindIcon,
   artifactDisplayTitle,
@@ -8,7 +8,7 @@ import {
   truncateArtifactChipTitle,
 } from "@/app-shell/workflow-artifacts/artifactPresentation.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 /**
  * 产物药丸：与子代理药丸同一套语法——
@@ -65,7 +65,7 @@ export function WorkflowArtifactPill({
   testId?: string;
   className?: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const fullTitle = artifactDisplayTitle(artifact);
   const label = truncateTitle ? truncateArtifactChipTitle(fullTitle) : fullTitle;
   const kindLabel = intl.formatMessage({ id: artifactKindMessageId(artifact.kind) });

@@ -4,7 +4,7 @@ import type {
   ConfigureFinalArmsCustomEventE2ERequest,
   FinalArmsCustomEventE2EEntry,
   FinalArmsCustomEventPayload,
-} from "@zcode/shared";
+} from "@lcode/shared";
 
 const MAX_FINAL_ARMS_CUSTOM_EVENT_E2E_ENTRIES = 200;
 const MAX_SUPPRESSED_EVENT_NAMES = 100;

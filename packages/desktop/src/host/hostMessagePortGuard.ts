@@ -1,4 +1,4 @@
-import { hostIncomingMessageSchema } from "@zcode/shared";
+import { hostIncomingMessageSchema } from "@lcode/shared";
 
 interface CloseableTransferredPort {
   close(): void;
@@ -21,7 +21,7 @@ function closeTransferredPort(port: CloseableTransferredPort | undefined): void 
 export function parseHostIncomingMessageEvent(
   event: HostIncomingMessageEventLike,
 ): ReturnType<typeof hostIncomingMessageSchema.safeParse> {
-  // clean pnpm install 下 zod 会位于 @zcode/shared 私有 node_modules；导出函数若
+  // clean pnpm install 下 zod 会位于 @lcode/shared 私有 node_modules；导出函数若
   // 依赖推断返回型，.d.ts 会引用不可移植的私有 ZodSafeParseResult 路径。
   const result = hostIncomingMessageSchema.safeParse(event.data);
   if (!result.success) {

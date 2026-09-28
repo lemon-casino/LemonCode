@@ -5,7 +5,7 @@
  * flush 时每个窗口投影成一条 `perf_process_window`。纯内存、有界、无队列、无重试。
  */
 
-import type { ProcessResourceRole, ProcessResourceRuntimeSurface } from "@zcode/shared";
+import type { ProcessResourceRole, ProcessResourceRuntimeSurface } from "@lcode/shared";
 import {
   appendBoundedSamples,
   computeAggregateStats,

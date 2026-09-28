@@ -17,7 +17,7 @@ import {
   type EditKindSource,
 } from "../shared.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 const EDIT_TOOL_ICON = <PencilIcon className="size-4 shrink-0 text-foreground-subtle" />;
 
@@ -83,7 +83,7 @@ function buildEditInlinePreview(
 }
 
 export function EditToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCallNode, rawFileSummaries, isRunning, statusLabel, errorText, onOpenCodeViewer } =
     context;
   const { toolCall } = toolCallNode;
@@ -377,7 +377,7 @@ function EditFileSummaryBlock({
   sourceLabel?: string;
   animateDiffCountOnMount?: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const kindLabel = intl.formatMessage({
     id: getEditKindLabelMessageId([summary.operationKind], [summary.actionLabel], isRunning),
   });

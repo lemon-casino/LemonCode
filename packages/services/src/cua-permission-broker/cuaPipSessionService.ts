@@ -1,9 +1,9 @@
-import type { PipSessionEvent, PipSessionSnapshot } from "@zcode/zcode-cua/pip-session";
+import type { PipSessionEvent, PipSessionSnapshot } from "@lcode/lcode-cua/pip-session";
 import {
   createPipSessionClient,
   type PipSessionClient,
   type PipSessionClientOptions,
-} from "@zcode/zcode-cua/pip-session/node";
+} from "@lcode/lcode-cua/pip-session/node";
 import { createServiceLogger, type ServiceLogger } from "../logger/serviceLogger.js";
 import type { CuaPipSessionService } from "./cuaPipSession.js";
 

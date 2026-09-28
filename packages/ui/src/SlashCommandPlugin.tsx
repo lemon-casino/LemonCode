@@ -3,12 +3,12 @@
  * SlashCommandPlugin — Lexical trigger 面板插件
  *
  * 处理 `/` 面板里的 slash commands 和 subagents：
- * 1. `/` 直接展示 ZCode Agent 广播的真实 slash commands，并补充可用 subagents
+ * 1. `/` 直接展示 LCode Agent 广播的真实 slash commands，并补充可用 subagents
  * 2. 面板通过 portal 渲染到输入区上方的独立挂载层，展开时直接覆盖消息区
  * 3. 支持 Esc 关闭、上下键切换、Enter / Tab 选中，以及跟随输入做模糊搜索
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ZCodeProvider } from "@zcode/shared";
+import type { LCodeProvider } from "@lcode/shared";
 import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 import { createPortal } from "react-dom";
 import {
@@ -26,7 +26,7 @@ import { useSubagents } from "@/hooks/useSubagents.js";
 import { useSkills } from "@/hooks/useSkills.js";
 import { buildSlashApplyMentionPayload } from "@/lib/slashApplyMentionPayload.js";
 import { filterSkillsForProvider } from "@/lib/skillSourceFilter.js";
-import { useZCodeIntl } from "./i18n/IntlProvider.js";
+import { useLCodeIntl } from "./i18n/IntlProvider.js";
 import { useSlashCommands } from "./hooks/useSlashCommands.js";
 import { $createPromptMentionNode } from "./mentions/nodes/PromptMentionNode.js";
 import {
@@ -67,12 +67,12 @@ export function SlashCommandPlugin({
   disabled = false,
   excludedCommandNames,
   appCommands,
-}: SlashCommandPluginProps & { provider: ZCodeProvider }) {
+}: SlashCommandPluginProps & { provider: LCodeProvider }) {
   const [editor] = useLexicalComposerContext();
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const [activeTrigger, setActiveTrigger] = useState<ActivePromptInputTrigger | null>(null);
   // 远程 workspace 的 slashCommands 写在 workspaceIdentity 桶。
-  // 这里只按 workspacePath 读取会落到 path 桶，表现为 ZCode Agent 已收到 available_commands_update 但 / 面板为空。
+  // 这里只按 workspacePath 读取会落到 path 桶，表现为 LCode Agent 已收到 available_commands_update 但 / 面板为空。
   const commands = useSlashCommands(workspacePath, workspaceIdentity);
   const {
     agents,

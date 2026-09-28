@@ -3,7 +3,7 @@ import {
   type OAuthProviderId,
   type OAuthTokenSet,
   type OAuthUserProfile,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import type { OAuthProviderAdapter } from "./providers/index.js";
 
 const BIGMODEL_PROFILE_SCHEMA_VERSION = 2;
@@ -24,7 +24,7 @@ function getCachedProfileSchemaVersion(profile: OAuthUserProfile): number | null
     return null;
   }
 
-  const version = (rawProfile as { zcodeProfileSchemaVersion?: unknown }).zcodeProfileSchemaVersion;
+  const version = (rawProfile as { lcodeProfileSchemaVersion?: unknown }).lcodeProfileSchemaVersion;
   return typeof version === "number" ? version : null;
 }
 
@@ -34,8 +34,8 @@ function getCachedProfileMigrationRetryAfter(profile: OAuthUserProfile): number 
     return null;
   }
 
-  const retryAfter = (rawProfile as { zcodeProfileMigrationRetryAfter?: unknown })
-    .zcodeProfileMigrationRetryAfter;
+  const retryAfter = (rawProfile as { lcodeProfileMigrationRetryAfter?: unknown })
+    .lcodeProfileMigrationRetryAfter;
   return typeof retryAfter === "number" ? retryAfter : null;
 }
 
@@ -68,13 +68,13 @@ export function withProviderProfileSchema(
   const rawProfile =
     profile.rawProfile && typeof profile.rawProfile === "object" ? profile.rawProfile : {};
   const nextRawProfile = { ...(rawProfile as Record<string, unknown>) };
-  delete nextRawProfile.zcodeProfileMigrationRetryAfter;
+  delete nextRawProfile.lcodeProfileMigrationRetryAfter;
 
   return {
     ...profile,
     rawProfile: {
       ...nextRawProfile,
-      zcodeProfileSchemaVersion: BIGMODEL_PROFILE_SCHEMA_VERSION,
+      lcodeProfileSchemaVersion: BIGMODEL_PROFILE_SCHEMA_VERSION,
     },
   };
 }
@@ -90,7 +90,7 @@ function withBigModelProfileMigrationRetryAfter(
     ...profile,
     rawProfile: {
       ...(rawProfile as Record<string, unknown>),
-      zcodeProfileMigrationRetryAfter: now + BIGMODEL_PROFILE_MIGRATION_RETRY_DELAY_MS,
+      lcodeProfileMigrationRetryAfter: now + BIGMODEL_PROFILE_MIGRATION_RETRY_DELAY_MS,
     },
   };
 }
@@ -125,7 +125,7 @@ export async function refreshLegacyBigModelCachedProfile(
       }),
     );
     if (isBigModelUserInfoFallback(refreshedProfile)) {
-      // 旧版本可能把 zcode JWT 写进 BigModel access token。
+      // 旧版本可能把 lcode JWT 写进 BigModel access token。
       // adapter 会返回 unknown/User 哨兵值表示无法查 BigModel 用户信息；
       // 迁移不能把已有可信缓存覆盖成这个哨兵值，否则版本标记会永久固化错误展示名。
       await saveProfile(withProviderProfileSchema(BIGMODEL_PROVIDER_ID, cachedProfile));

@@ -4,13 +4,13 @@ import {
   DEFAULT_MODEL_INTERACTION_PROTOCOL,
   type ModelInputFormatData,
   type ModelInteractionProtocol,
-} from "@zcode/shared/model-config";
+} from "@lcode/shared/model-config";
 import {
   EnumOptionSpecConfig,
   extractManualModelConfig,
   clearManualModelConfig,
   type ModelConfigObject,
-} from "@zcode/provider";
+} from "@lcode/provider";
 
 export type ProviderModelInputFormatDraft = ModelInputFormatData;
 

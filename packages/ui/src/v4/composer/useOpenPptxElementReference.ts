@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { toast } from "@/components/ui/toast.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import type { PptxElementReference } from "@/lib/pptxElementReference.js";
 import { createPptxElementReferencePreviewSource } from "@/lib/pptxElementReferencePreview.js";
@@ -12,7 +12,7 @@ export function useOpenPptxElementReference(options: {
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
 }) {
   const { workspacePath, workspaceIdentity, remoteSessionId, onOpenCodeViewer } = options;
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   return useCallback(
     (reference: PptxElementReference) => {

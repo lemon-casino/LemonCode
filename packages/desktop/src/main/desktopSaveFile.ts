@@ -4,8 +4,8 @@ import { BlockList } from "node:net";
 import type { LookupFunction } from "node:net";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import type { SaveFileRequest, SaveFileResult } from "@zcode/shared";
-import { PlatformChannels } from "@zcode/shared";
+import type { SaveFileRequest, SaveFileResult } from "@lcode/shared";
+import { PlatformChannels } from "@lcode/shared";
 import { BrowserWindow, dialog, ipcMain } from "electron";
 import { Agent, fetch as undiciFetch } from "undici";
 
@@ -133,7 +133,7 @@ async function fetchPublicRemoteUrl(
 
 async function downloadRemoteFile(sourceUrl: URL, destinationPath: string): Promise<void> {
   const controller = new AbortController();
-  const temporaryDirectory = await mkdtemp(join(tmpdir(), "zcode-save-file-"));
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), "lcode-save-file-"));
   const temporaryPath = join(temporaryDirectory, "download");
   let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
   let file: Awaited<ReturnType<typeof open>> | null = null;

@@ -3,8 +3,8 @@ import { useEffect, useState } from "react";
 import { logger } from "@/logger.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { resolveWorkspaceShellPanelRadiusPx } from "@/app-shell/workspaceShellWindowChrome.js";
-import { ZCodeStartupLogoBadge } from "@/root/RootStartupLoading.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { LCodeStartupLogoBadge } from "@/root/RootStartupLoading.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { cn } from "@/components/lib/utils.js";
 import { useResolvedThemeHeroPalette } from "@/openWorkspacePageThemeHero.js";
 import "@/onboarding/onboardingLogoSweep.css";
@@ -37,7 +37,7 @@ export function OccupationOnboardingVisual({
     isWindowsDesktop,
     macOSMajorVersion,
   });
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const palette = useResolvedThemeHeroPalette();
   return (
     <aside
@@ -51,7 +51,7 @@ export function OccupationOnboardingVisual({
       />
       <div className="relative my-auto flex w-full max-w-[640px] shrink-0 flex-col items-start [container-type:inline-size]">
         <div aria-hidden="true" className="relative mb-10 rounded-3xl">
-          <ZCodeStartupLogoBadge animated={false} />
+          <LCodeStartupLogoBadge animated={false} />
           <div className="onboarding-logo-sweep">
             <div />
           </div>

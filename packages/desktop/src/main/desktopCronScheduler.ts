@@ -3,7 +3,7 @@
 // 把 host 回报的 CronRunResult 转回 scheduler 结算。scheduler 只碰 tasks-index，createTask 在 host 域执行。
 import { utilityProcess as electronUtilityProcess } from "electron";
 import type { UtilityProcess as ElectronUtilityProcess } from "electron";
-import { HostMessageTypes } from "@zcode/shared";
+import { HostMessageTypes } from "@lcode/shared";
 import { buildHostProcessEnv, schedulerModulePath } from "./desktopRuntimeEnv.js";
 import { ingestSchedulerSelfResourceSample } from "./processResourceSelfHeapSource.js";
 import { registerSchedulerProcess, unregisterSchedulerProcess } from "./resourceManagerWindow.js";
@@ -59,11 +59,11 @@ const DISPOSE_FORCE_KILL_MS = 1_500;
 
 export function spawnCronScheduler(deps: CronSchedulerDeps): CronSchedulerHandle {
   const child = electronUtilityProcess.fork(schedulerModulePath, [], {
-    serviceName: "zcode-cron-scheduler",
+    serviceName: "lcode-cron-scheduler",
     execArgv: ["--no-warnings"],
     env: {
       ...buildHostProcessEnv(deps.hostProcessLocalEnv),
-      ZCODE_PROCESS_LABEL: "scheduler",
+      LCODE_PROCESS_LABEL: "scheduler",
     },
   });
 

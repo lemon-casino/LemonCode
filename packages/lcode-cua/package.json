@@ -1,0 +1,84 @@
+{
+  "name": "@lcode/lcode-cua",
+  "version": "0.1.0",
+  "private": true,
+  "description": "LCode Computer Use runtime with a capability-authenticated Helper broker, xa11y application observation and input, official frame contracts, and fail-closed host integration.",
+  "license": "Apache-2.0",
+  "author": "Lemon",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./index.js"
+    },
+    "./frame-contract": {
+      "types": "./frame-contract.d.ts",
+      "import": "./frame-contract.js"
+    },
+    "./host-display-contract": {
+      "types": "./host-display-contract.d.ts",
+      "import": "./host-display-contract.js"
+    },
+    "./request-access-contract": {
+      "types": "./request-access-contract.d.ts",
+      "import": "./request-access-contract.js"
+    },
+    "./pip-session": {
+      "types": "./pip-session.d.ts",
+      "import": "./pip-session.js"
+    },
+    "./pip-session/node": {
+      "types": "./pip-session-node.d.ts",
+      "import": "./pip-session-node.js"
+    },
+    "./broker": {
+      "types": "./broker.d.ts",
+      "import": "./broker.js"
+    },
+    "./broker/server": {
+      "types": "./broker-server.d.ts",
+      "import": "./broker-server.js"
+    },
+    "./broker/ports": {
+      "types": "./broker-ports.d.ts",
+      "import": "./broker-ports.js"
+    },
+    "./broker/socketPath": {
+      "types": "./broker-socket-path.d.ts",
+      "import": "./broker-socket-path.js"
+    },
+    "./broker/helperConstants": {
+      "types": "./broker-helper-constants.d.ts",
+      "import": "./broker-helper-constants.js"
+    },
+    "./broker/helperHealth": {
+      "types": "./broker-helper-health.d.ts",
+      "import": "./broker-helper-health.js"
+    }
+  },
+  "scripts": {
+    "test": "node --test",
+    "e2e:local": "node ./e2e-local.mjs",
+    "e2e:helper": "node ./e2e-helper.mjs",
+    "e2e:packaged-node-repl": "node ./e2e-packaged-node-repl.mjs"
+  },
+  "dependencies": {
+    "@crowecawcaw/xa11y": "0.15.0",
+    "@nut-tree-fork/nut-js": "^4.2.6"
+  },
+  "lcodeCuaRuntime": {
+    "schema": 1,
+    "windows": {
+      "entry": "helper-entry.js",
+      "nativeAddon": "xa11y-native-loader.js"
+    },
+    "linux": {
+      "entry": "helper-entry.js",
+      "nativeAddon": "xa11y-native-loader.js"
+    },
+    "macos": {
+      "entry": "helper-entry.js",
+      "nativeAddon": "xa11y-native-loader.js"
+    }
+  }
+}

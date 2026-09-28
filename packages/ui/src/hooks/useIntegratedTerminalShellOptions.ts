@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { IntegratedTerminalShellOption } from "@zcode/shared";
+import type { IntegratedTerminalShellOption } from "@lcode/shared";
 import { useBaseWorkspaceServices } from "./useWorkspaceServices.js";
 
 export function useIntegratedTerminalShellOptions() {

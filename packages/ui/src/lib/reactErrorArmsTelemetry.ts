@@ -2,7 +2,7 @@ import {
   redactTelemetryText,
   type ArmsCustomEventPayload,
   type IPlatformService,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { logger } from "@/logger.js";
 
 /** ARMS 自定义事件名：React 错误边界捕获的渲染层异常 */

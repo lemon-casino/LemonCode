@@ -3,11 +3,11 @@ import {
   TID_WORKFLOW_DETAIL_WHEN_TO_USE,
   TID_WORKFLOW_META_DISCARD,
   TID_WORKFLOW_META_SAVE,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Spinner } from "@/components/ui/spinner.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsFormTextarea } from "@/settings/SettingsFormTextarea.js";
 import type {
   SavedWorkflowArgRow,
@@ -54,7 +54,7 @@ export function SavedWorkflowMetaForm({
   onDiscard,
   onSave,
 }: SavedWorkflowMetaFormProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <section className="flex flex-col gap-4">
       <h2 className="text-ui-base font-medium leading-5 text-foreground-subtle">

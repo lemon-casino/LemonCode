@@ -4,10 +4,10 @@ import {
   sanitizeTelemetryErrorMessage,
   type IPlatformService,
   type ModelSelection,
-  type ZCodeAutomation,
-} from "@zcode/shared";
-import type { ProviderSettingsView } from "@zcode/services";
-import { isApiKeyAccess } from "@zcode/provider";
+  type LCodeAutomation,
+} from "@lcode/shared";
+import type { ProviderSettingsView } from "@lcode/services";
+import { isApiKeyAccess } from "@lcode/provider";
 import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
 import { legacyTelemetryProviderId } from "@/lib/providerTelemetryIdentity.js";
 
@@ -135,7 +135,7 @@ export function reportAutomationActionClick(
   params: {
     action: "run_now" | "delete";
     source: "list" | "editor";
-    automation: ZCodeAutomation;
+    automation: LCodeAutomation;
     providerSettingsView: ProviderSettingsView | null;
   },
 ): Promise<void> {

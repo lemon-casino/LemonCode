@@ -10,8 +10,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog.js";
 import { Input } from "@/components/ui/input.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import type { ModelConfigObject } from "@zcode/provider";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
+import type { ModelConfigObject } from "@lcode/provider";
 import type {
   ProviderModelDraftValues,
   ProviderModelDraftCommitResult,
@@ -83,7 +83,7 @@ export function ProviderModelMetadataDialog({
   modelDefaultsLoaded?: boolean;
   onModelIdBlur?: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [validationAttempt, setValidationAttempt] = useState(0);
   const commit = async () => {
     const result = await onCommit();

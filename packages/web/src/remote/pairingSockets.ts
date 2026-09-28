@@ -1,4 +1,4 @@
-import { connectViaWebSocket, type WebSocketConnectionCloseEvent } from "@zcode/client";
+import { connectViaWebSocket, type WebSocketConnectionCloseEvent } from "@lcode/client";
 import {
   describePairingClose,
   parsePairingControlFrame,

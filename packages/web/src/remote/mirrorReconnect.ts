@@ -33,7 +33,7 @@ export const DATA_SOCKET_RETRY_DEADLINE_MS = 90_000;
 // 用户仍可手动刷新(手动路径不设限)。
 export const MIRROR_RELOAD_BUDGET = 5;
 export const MIRROR_RELOAD_WINDOW_MS = 5 * 60_000;
-export const MIRROR_RELOAD_BUDGET_KEY = "zcode:remote-pairing:reconnect-reloads";
+export const MIRROR_RELOAD_BUDGET_KEY = "lcode:remote-pairing:reconnect-reloads";
 
 /** 纯函数:给定历史刷新时间戳,决定本次是否允许自动刷新,并返回应写回的时间戳序列。 */
 export function planMirrorReconnectReload(

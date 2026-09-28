@@ -10,7 +10,7 @@ const zhCN: Record<string, string> = {
   "startPlan.recommendation.dismiss": "不再提示",
   "occupationOnboarding.stepMode": "UI 模式",
   "occupationOnboarding.modeTitle": "选择适合你的 UI 模式",
-  "occupationOnboarding.modeDescription": "你希望 ZCode 如何呈现工作过程？",
+  "occupationOnboarding.modeDescription": "你希望 LCode 如何呈现工作过程？",
   "occupationOnboarding.coding": "编程模式",
   "occupationOnboarding.codingDescription":
     "我需要查看代码、命令输出和修改细节，掌握完整的开发过程。",
@@ -49,7 +49,7 @@ const zhCN: Record<string, string> = {
   "occupationOnboarding.heroTitle": "简单、迅捷、氛围十足！",
   "occupationOnboarding.heroDescription": "多智能体协作完成复杂目标，随时随地尽在掌控。",
   "occupationOnboarding.title": "你的主要工作方向是？",
-  "occupationOnboarding.description": "选择最接近你日常工作的一项，让 ZCode 更懂你的工作。",
+  "occupationOnboarding.description": "选择最接近你日常工作的一项，让 LCode 更懂你的工作。",
   "occupationOnboarding.office": "白领 / 办公人群",
   "occupationOnboarding.developer": "软件开发/数据/AI",
   "occupationOnboarding.student": "学生/教师/科研",
@@ -59,26 +59,26 @@ const zhCN: Record<string, string> = {
   "occupationOnboarding.migration": "迁移会话数据",
   "occupationOnboarding.migrationDescription": "从 Claude Code 迁移历史会话数据",
   "occupationOnboarding.memory": "开启工作区记忆",
-  "occupationOnboarding.memoryDescription": "让 ZCode 记住你的偏好与工作上下文。",
+  "occupationOnboarding.memoryDescription": "让 LCode 记住你的偏好与工作上下文。",
   "occupationOnboarding.suggestions": "开启主动任务推荐",
   "occupationOnboarding.suggestionsDescription": "在新对话中显示任务建议，点击后填入输入框。",
   "occupationOnboarding.close": "退出引导",
-  "startup.global.silent": "正在启动 ZCode",
+  "startup.global.silent": "正在启动 LCode",
   "startup.global.upgrading": "正在升级本地数据",
   "startup.global.initializing": "正在初始化本地数据",
   "startup.global.waiting": "正在等待数据库准备",
   "startup.global.saving": "正在保存更新",
   "startup.global.finishing": "正在完成启动",
   "startup.global.servicesFailed":
-    "本地数据准备已完成，但应用服务启动失败。请复制诊断信息，退出并重新打开 ZCode。",
+    "本地数据准备已完成，但应用服务启动失败。请复制诊断信息，退出并重新打开 LCode。",
   "startup.global.starting": "正在准备本地数据",
   "startup.global.preparing_host_storage": "正在更新任务索引",
   "startup.global.preparing_session_storage": "正在更新聊天记录",
-  "startup.global.starting_services": "正在启动 ZCode",
+  "startup.global.starting_services": "正在启动 LCode",
   "startup.global.ready": "本地数据已就绪",
   "startup.global.failed": "无法完成启动准备",
   "startup.global.help":
-    "准备完成后将自动进入 ZCode。历史记录较多时可能需要较长时间，请保持应用运行。",
+    "准备完成后将自动进入 LCode。历史记录较多时可能需要较长时间，请保持应用运行。",
   "startup.global.diagnostic": "诊断 ID",
   "startup.global.copy": "复制诊断信息",
   "startup.global.exit": "退出",
@@ -97,15 +97,15 @@ const zhCN: Record<string, string> = {
   "startup.global.error.open_failed":
     "无法打开数据库。请检查数据目录是否存在且可访问，处理后点击重试。",
   "startup.global.error.lock_timeout":
-    "等待数据库写锁超时。请检查其他 ZCode 或 CLI 进程是否仍在更新数据，待其完成后点击重试。",
+    "等待数据库写锁超时。请检查其他 LCode 或 CLI 进程是否仍在更新数据，待其完成后点击重试。",
   "startup.global.error.sql_failed":
     "准备过程未完成。请复制诊断信息查看日志，排除问题后手动重试。应用不会自动重试。",
   "startup.global.error.startup_status_timeout":
-    "未能收到启动状态。请退出并重新打开 ZCode；如果仍失败，请提供诊断信息。",
+    "未能收到启动状态。请退出并重新打开 LCode；如果仍失败，请提供诊断信息。",
   "startup.global.error.transport_closed":
-    "数据准备进程意外退出或连接中断。请退出并重新打开 ZCode，应用会重新检查迁移记录。",
+    "数据准备进程意外退出或连接中断。请退出并重新打开 LCode，应用会重新检查迁移记录。",
   "startup.global.error.unsupported_runtime":
-    "当前配置的 Agent 不支持独立存储准备。请恢复配套的 Agent 后重新打开 ZCode。",
+    "当前配置的 Agent 不支持独立存储准备。请恢复配套的 Agent 后重新打开 LCode。",
 
   "startup.database.checking": "正在检查历史数据",
   "startup.database.waiting_for_lock": "数据库正被其他进程使用，正在等待",
@@ -152,7 +152,7 @@ const zhCN: Record<string, string> = {
   "offPeak.nav.listUnavailable": "闲时任务列表加载失败，请刷新后重试",
   "offPeak.boundSession.hint": "任务将在该会话中执行；执行期间停止会话会取消任务。",
   "offPeak.chatCreated.boundHint": "将在本会话中运行",
-  "settings.computerUse.disabledToast": "电脑控制已关闭，已有对话需重启 ZCode 后生效。",
+  "settings.computerUse.disabledToast": "电脑控制已关闭，已有对话需重启 LCode 后生效。",
   "settings.modelProvider.connectionUnavailableNotice": "当前套餐已不可用。",
   "settings.modelProvider.switchConnection": "切换至「{connection}」",
   "settings.modelProvider.connectionSuggestionStale": "套餐状态已变化，请在模型设置中重新选择。",
@@ -185,7 +185,7 @@ const zhCN: Record<string, string> = {
   "conversationShare.permission.linkViewerHint": "不能导入继续",
   "conversationShare.permission.linkViewerSummary": "链接持有者可查看",
   "conversationShare.permission.linkEditor": "拥有链接的人可导入并继续",
-  "conversationShare.permission.linkEditorHint": "可导入到 ZCode",
+  "conversationShare.permission.linkEditorHint": "可导入到 LCode",
   "conversationShare.permission.linkEditorSummary": "链接持有者可导入并继续",
   "conversationShare.permission.privateSummary": "仅自己可见",
   "conversationShare.openLink": "打开分享页",
@@ -376,7 +376,7 @@ const zhCN: Record<string, string> = {
   "conversationShare.import.installing": "正在安装分享文件",
   "conversationShare.import.committing": "正在创建分享会话",
   "conversationShare.import.complete": "分享导入完成",
-  "conversationShare.import.loginRequired": "该分享暂不支持匿名导入，请登录 ZCode 后重试",
+  "conversationShare.import.loginRequired": "该分享暂不支持匿名导入，请登录 LCode 后重试",
   "conversationShare.import.notFound": "分享不存在或当前账号无权访问",
   "conversationShare.import.expired": "分享已过期，请让分享者重新生成",
   "conversationShare.import.integrityFailed": "分享文件校验失败，已停止导入",
@@ -497,14 +497,14 @@ const zhCN: Record<string, string> = {
     "项目“{projectName}”会从侧边栏移除，但不会删除磁盘上的文件。",
 
   // 登录
-  "welcome.title": "Welcome to ZCode",
+  "welcome.title": "Welcome to LCode",
   "welcome.username": "用户名",
   "welcome.password": "密码",
   "welcome.login": "登录",
   "welcome.loggingIn": "登录中...",
   "welcome.loginFailed": "登录失败",
-  "login.title": "欢迎来到 ZCode",
-  "login.description": "连接账号，开始使用 ZCode",
+  "login.title": "欢迎来到 LCode",
+  "login.description": "连接账号，开始使用 LCode",
   "login.oauth.activeProviderHint": "当前已登录提供方：{provider}。新登录会替换当前登录身份。",
   "login.oauth.loadingProviders": "正在加载登录提供方...",
   "login.oauth.noProviders": "当前没有可用的登录提供方，请稍后重试。",
@@ -545,7 +545,7 @@ const zhCN: Record<string, string> = {
   "app.currentTheme": "当前: {theme}",
   "app.login": "连接使用",
   "app.logout": "断开连接",
-  "logout.confirm.title": "断开连接并重启 ZCode？",
+  "logout.confirm.title": "断开连接并重启 LCode？",
   "logout.confirm.descriptionWithRunningSessions":
     "检测到 {count} 个会话正在运行。断开连接会中断这些会话并重启 App。",
   "logout.confirm.descriptionDefault": "断开连接后会重启 App，之后需要重新连接账号。",
@@ -691,7 +691,7 @@ const zhCN: Record<string, string> = {
   "modelTrajectory.refresh": "刷新",
   "modelTrajectory.close": "关闭",
   "modelTrajectory.loading": "正在加载调用轨迹…",
-  "modelTrajectory.empty": "暂无模型调用记录（仅 ZCode Agent 会落盘 model-io）",
+  "modelTrajectory.empty": "暂无模型调用记录（仅 LCode Agent 会落盘 model-io）",
   "modelTrajectory.error": "读取调用轨迹失败",
   "modelTrajectory.truncatedNotice": "记录过多，仅展示最近的调用",
   "modelTrajectory.summaryCalls": "{count} 次调用",
@@ -1119,14 +1119,14 @@ const zhCN: Record<string, string> = {
   "titleBar.menu.view.actualSize": "实际大小",
   "titleBar.menu.view.zoomIn": "放大",
   "titleBar.menu.view.zoomOut": "缩小",
-  "titleBar.menu.help.about": "关于 ZCode",
+  "titleBar.menu.help.about": "关于 LCode",
   "titleBar.menu.help.checkForUpdates": "检查更新",
   "titleBar.menu.help.feedback": "问题上报",
   "sidebar.menu.community": "用户社群",
   "titleBar.menu.help.exportLogs": "导出日志",
   "titleBar.menu.help.toggleDevTools": "切换开发者工具",
   "titleBar.menu.help.resourceManager": "资源管理器",
-  "titleBar.menu.help.toggleZCodeStdioTap": "抓取 Agent stdio 通信",
+  "titleBar.menu.help.toggleLCodeStdioTap": "抓取 Agent stdio 通信",
   "titleBar.menu.help.clearAllData": "清除所有数据",
 
   // 目录浏览
@@ -1171,7 +1171,7 @@ const zhCN: Record<string, string> = {
   "update.toast.ready": "v{version} 已下载，重启即可安装",
   "update.toast.devSkipped": "开发环境不检查更新",
   "update.toast.error": "检查更新失败：{error}",
-  "forceUpdate.title": "需要升级 ZCode 后继续使用",
+  "forceUpdate.title": "需要升级 LCode 后继续使用",
   "forceUpdate.description":
     "当前版本 v{currentVersion} 低于最低可用版本 v{minimalVersion}。请先完成升级，升级前暂时无法继续使用当前客户端。",
   "forceUpdate.currentVersion": "当前版本",
@@ -1252,7 +1252,7 @@ const zhCN: Record<string, string> = {
   "workspaceSidebar.notConnected": "未连接",
   "workspaceSidebar.empty": "暂无工作区，请先打开一个工作区。",
   "workspaceSidebar.unavailableLocalDirectory":
-    "工作区目录不存在或无法访问，当前仅可查看历史记录。恢复该目录后重启 ZCode 即可继续使用。",
+    "工作区目录不存在或无法访问，当前仅可查看历史记录。恢复该目录后重启 LCode 即可继续使用。",
   "workspaceSidebar.showSidebar": "显示侧边栏",
   "workspaceSidebar.hideSidebar": "隐藏侧边栏",
   "workspaceSidebar.toggleSidebar": "切换侧边栏",
@@ -1295,7 +1295,7 @@ const zhCN: Record<string, string> = {
   "ssh.assetInstallMode.local-download-upload": "本地下载后上传",
   "ssh.assetInstallMode.remote-download": "远端服务器下载",
   "ssh.assetInstallModeDescription":
-    "远端服务器下载可减少上传等待，但服务器需要能访问 ZCode CDN，并具备下载、解压和校验工具。",
+    "远端服务器下载可减少上传等待，但服务器需要能访问 LCode CDN，并具备下载、解压和校验工具。",
   "ssh.password": "密码",
   "ssh.passwordPlaceholder": "输入 SSH 密码",
   "ssh.privateKey": "私钥",
@@ -1706,7 +1706,7 @@ const zhCN: Record<string, string> = {
     "启动内置终端时尽量继承登录 shell 环境、代理、Kube 变量和本机终端字体。",
   "settings.terminalFontFamily": "终端字体",
   "settings.terminalFontFamilyDescription":
-    "留空时自动探测系统终端配置；填写后作为 ZCode 终端的字体覆盖。",
+    "留空时自动探测系统终端配置；填写后作为 LCode 终端的字体覆盖。",
   "settings.terminalFontFamilyPlaceholder": "留空自动继承，例如 MesloLGS NF, monospace",
   "settings.integratedTerminalShell": "内置终端 Shell",
   "settings.integratedTerminalShellDescription":
@@ -1821,14 +1821,14 @@ const zhCN: Record<string, string> = {
   "settings.toolGroupingChanges": "分组文件更改",
   "settings.toolGroupingChangesDescription":
     "将连续的 Write、Edit 和 ApplyPatch 调用聚合为 Changes 分组。",
-  "settings.zcodeInteractionBehavior": "交互行为",
+  "settings.lcodeInteractionBehavior": "交互行为",
   "settings.autoGenerateGitCommitMessage": "任务完成后生成提交信息",
   "settings.autoGenerateGitCommitMessageDescription":
     "聚焦的编码任务成功完成后，使用当前模型生成提交信息草稿。不会自动暂存或提交，且会消耗模型额度。",
-  "settings.zcodeInteractionBehaviorDescription":
-    "在 ZCode 运行时将后续操作加入队列，或引导至下一轮工具调用后运行。",
-  "settings.zcodeInteractionBehavior.option.queue": "队列",
-  "settings.zcodeInteractionBehavior.option.guide": "引导",
+  "settings.lcodeInteractionBehaviorDescription":
+    "在 LCode 运行时将后续操作加入队列，或引导至下一轮工具调用后运行。",
+  "settings.lcodeInteractionBehavior.option.queue": "队列",
+  "settings.lcodeInteractionBehavior.option.guide": "引导",
   "settings.askUserQuestionAutoResolution": "提问自动继续",
   "settings.askUserQuestionAutoResolutionDescription":
     "开启后，Agent 提问 5 分钟未回答会自动继续；关闭后，当前和后续提问会一直等待你的回答。",
@@ -1848,14 +1848,14 @@ const zhCN: Record<string, string> = {
   "settings.taskAutoArchiveDays.option.30": "30 天后归档",
   "settings.dataBaseDir": "数据存储路径",
   "settings.dataBaseDirDescription":
-    "应用数据的根目录（默认为用户主目录），修改后会将现有数据复制到新位置。路径后缀 .zcode/v2 不可更改。",
+    "应用数据的根目录（默认为用户主目录），修改后会将现有数据复制到新位置。路径后缀 .lcode/v2 不可更改。",
   "settings.dataBaseDirPlaceholder": "默认：用户主目录",
   "settings.dataBaseDirBrowse": "选择文件夹",
   "settings.dataBaseDirSave": "保存",
   "settings.dataBaseDirCopying": "正在复制数据，请勿关闭应用…",
   "settings.dataBaseDirCopyFailed": "数据复制失败，路径未更改。",
   "settings.dataBaseDirForbiddenInstallDir":
-    "不能选择 ZCode 安装目录作为数据存储路径。请选择安装目录之外的文件夹。",
+    "不能选择 LCode 安装目录作为数据存储路径。请选择安装目录之外的文件夹。",
   "settings.dataBaseDirRestartRequired": "数据已保存，重启应用后生效。",
   "settings.locale.system": "系统默认",
   "settings.locale.zh-CN": "中文简体",
@@ -1872,7 +1872,7 @@ const zhCN: Record<string, string> = {
   "settings.migration.title": "迁移",
   "settings.migration.sectionTitle": "Claude 历史迁移",
   "settings.migration.sectionDescription":
-    "扫描本机 Claude Code 原生历史，可按 workspace 和时间范围筛选，再把选中的会话导入到对应的 ZCode 任务列表。",
+    "扫描本机 Claude Code 原生历史，可按 workspace 和时间范围筛选，再把选中的会话导入到对应的 LCode 任务列表。",
   "settings.migration.badge.localOnly": "本机 Claude 记录",
   "settings.migration.badge.manualOnly": "手动执行",
   "settings.migration.currentWorkspace": "当前工作区",
@@ -1924,14 +1924,14 @@ const zhCN: Record<string, string> = {
     "源会话不存在，或已经不匹配当前 workspace 筛选。",
   "settings.usageTitle": "使用统计",
   "settings.usageDescription": "查看会话活跃度与模型用量的粗略统计。",
-  "resourceManager.storage.summaryTotal": "ZCode 总占用",
+  "resourceManager.storage.summaryTotal": "LCode 总占用",
   "resourceManager.storage.scanning": "正在计算…",
   "resourceManager.storage.lastScanned": "上次计算 {time}",
   "resourceManager.storage.idle": "尚未计算",
   "resourceManager.storage.failed": "计算失败",
   "resourceManager.storage.rescan": "重新计算",
   "resourceManager.storage.disk": "磁盘",
-  "resourceManager.storage.diskUsage": "ZCode 占用 {used}",
+  "resourceManager.storage.diskUsage": "LCode 占用 {used}",
   "resourceManager.storage.diskFree": "剩余 {free} / 共 {total}",
   "resourceManager.storage.diskUnknown": "无法读取磁盘容量",
   "resourceManager.storage.roots": "数据目录",
@@ -1983,7 +1983,7 @@ const zhCN: Record<string, string> = {
     "这些副本用于升级或迁移出错时恢复数据，删除后将无法回退。",
   "settings.remoteControl.title": "远程控制",
   "settings.remoteControl.unavailable":
-    "远程控制只能在 ZCode 桌面端使用，且需要桌面版本支持该功能。",
+    "远程控制只能在 LCode 桌面端使用，且需要桌面版本支持该功能。",
   "settings.remoteControl.enable.title": "启用远程控制",
   "settings.remoteControl.enable.description":
     "通过 Cloudflare Worker 隧道让手机镜像这台桌面：手机获得与桌面使用者完全一致的操作能力。开启后桌面只向 Worker 发起出站连接。",
@@ -2114,7 +2114,7 @@ const zhCN: Record<string, string> = {
   "settings.embeddedBrowserAllowInsecureCertificatesSavedHint":
     "证书校验设置已保存，重启应用后生效",
   "settings.browser.data.section": "浏览器数据",
-  "settings.browser.desktopOnly": "浏览器数据只能在 ZCode 桌面端管理。",
+  "settings.browser.desktopOnly": "浏览器数据只能在 LCode 桌面端管理。",
   "settings.browser.import.title": "导入 Chrome 登录状态",
   "settings.browser.import.description":
     "一次性把 Chrome 登录状态带到内置浏览器，AI 就能直接打开你已经登录的网站，操作更流畅。",
@@ -2130,12 +2130,12 @@ const zhCN: Record<string, string> = {
     "需要确认管理员授权后才能导入受 App-Bound 保护的 Chrome Cookie。",
   "settings.browser.import.elevationCancelled": "已取消 Windows 管理员授权，Cookie 未导入。",
   "settings.browser.import.helperVerificationFailed":
-    "ZCode 的 Windows 安全导入组件校验失败，Cookie 未导入。请重新安装或更新 ZCode。",
+    "LCode 的 Windows 安全导入组件校验失败，Cookie 未导入。请重新安装或更新 LCode。",
   "settings.browser.import.appBoundFailed":
     "Windows 未能解开 Chrome 的 App-Bound Cookie，Cookie 未导入。",
   "settings.browser.import.adminConfirmTitle": "允许管理员权限导入 Chrome Cookie？",
   "settings.browser.import.adminConfirmDescription":
-    "Chrome 在 Windows 上使用 App-Bound 加密保护 Cookie。ZCode 将为本次导入请求管理员权限，临时启动系统服务，完成后立即删除。不会读取或导入 Chrome 密码。",
+    "Chrome 在 Windows 上使用 App-Bound 加密保护 Cookie。LCode 将为本次导入请求管理员权限，临时启动系统服务，完成后立即删除。不会读取或导入 Chrome 密码。",
   "settings.browser.import.adminConsent": "我确认只为本次 Cookie 导入授予管理员权限",
   "settings.browser.import.adminConfirmAction": "继续并请求授权",
   "settings.browser.import.cookieProtected":
@@ -2190,7 +2190,7 @@ const zhCN: Record<string, string> = {
   "settings.previewBadge.dark": "深色",
   "settings.modelProviderTitle": "模型设置",
   "settings.mcpTitle": "MCP 服务器",
-  "settings.mcp.description": "管理 ZCode Agent 使用的 MCP 服务器配置。",
+  "settings.mcp.description": "管理 LCode Agent 使用的 MCP 服务器配置。",
   "settings.mcp.create.open": "新建 MCP 服务器",
   "settings.mcp.import.open": "从外部 Agent 导入 MCP 服务器",
   "settings.mcp.import.action": "导入",
@@ -2263,7 +2263,7 @@ const zhCN: Record<string, string> = {
   "settings.mcp.plugin.disconnectedDescription": "该插件 MCP 服务器已加载，但当前未连接。",
   "settings.mcp.host.active": "宿主内置",
   "settings.mcp.host.activeDescription":
-    "该 MCP 服务器由 ZCode 宿主为 {pluginName} 插件提供，运行时身份由宿主管理。",
+    "该 MCP 服务器由 LCode 宿主为 {pluginName} 插件提供，运行时身份由宿主管理。",
   "settings.mcp.plugin.disabled": "插件未启用",
   "settings.mcp.plugin.disabledDescription": "该 MCP 服务器内置在插件中，启用插件后会加载。",
   "settings.mcp.plugin.unavailable": "未加载",
@@ -2274,7 +2274,7 @@ const zhCN: Record<string, string> = {
     "打开授权后即可完成该插件 MCP 服务器连接。",
   "settings.mcp.oauth.openAuthorization": "打开授权",
   "settings.mcp.statusOnlyUnsupported":
-    "当前 ZCode Agent 不支持 OAuth 状态刷新。请升级或重启 ZCode，然后重新打开 MCP 设置进行完整刷新。",
+    "当前 LCode Agent 不支持 OAuth 状态刷新。请升级或重启 LCode，然后重新打开 MCP 设置进行完整刷新。",
   "settings.mcp.refreshFailed": "刷新 MCP 状态失败：{error}",
   "settings.mcp.status.toolCount": "{count} 个工具",
   "settings.mcp.status.connectedReason": "已连接并可用。",
@@ -2294,7 +2294,7 @@ const zhCN: Record<string, string> = {
   "settings.mcp.failure.unexpected_disconnect": "MCP 连接已意外断开。",
   "settings.mcp.failure.oauth_authorization_failed": "MCP 授权未完成或已超时，请重新授权。",
   "settings.mcp.failure.official_origin_untrusted": "MCP 服务器地址未通过安全校验，连接已阻止。",
-  "settings.mcp.failure.not_authenticated": "当前未登录，请先登录 ZCode。",
+  "settings.mcp.failure.not_authenticated": "当前未登录，请先登录 LCode。",
   "settings.mcp.failure.coding_plan_required":
     "当前账号没有 Coding Plan，请先购买或配置 Coding Plan。",
   "settings.mcp.failure.server_not_found": "找不到该 MCP 服务器，请检查插件或服务器配置。",
@@ -2356,7 +2356,7 @@ const zhCN: Record<string, string> = {
   "settings.mcpServers.import.targetLabel": "导入目标",
   "settings.mcpServers.import.target.global": "导入到全局",
   "settings.mcpServers.import.target.project": "导入到项目",
-  "settings.mcpServers.import.importing": "正在导入 MCP 服务器到 ZCode",
+  "settings.mcpServers.import.importing": "正在导入 MCP 服务器到 LCode",
   "settings.mcpServers.import.imported": "已导入",
   "settings.mcpServers.import.skipped": "已跳过",
   "settings.mcpServers.import.failed": "失败",
@@ -2516,7 +2516,7 @@ const zhCN: Record<string, string> = {
   "settings.modelProvider.startPlan.balance.used": "已用 {value}",
   "settings.modelProvider.startPlan.highlight.trial.label": "体验周期",
   "settings.modelProvider.startPlan.highlight.trial.value": "5 个自然日",
-  "settings.modelProvider.startPlan.highlight.trial.description": "登录 ZCode 3.x 后开始计时。",
+  "settings.modelProvider.startPlan.highlight.trial.description": "登录 LCode 3.x 后开始计时。",
   "settings.modelProvider.startPlan.highlight.quota.label": "每日额度",
   "settings.modelProvider.startPlan.highlight.quota.value": "3M tokens/日",
   "settings.modelProvider.startPlan.highlight.quota.description":
@@ -2526,7 +2526,7 @@ const zhCN: Record<string, string> = {
   "settings.modelProvider.startPlan.highlight.metering.description":
     "仅在使用平台 GLM 旗舰模型后计量。",
   "settings.modelProvider.startPlan.compatibility":
-    "支持 BYOK、BYOA；Base URL、API Format 和 API Key 由 ZCode 自动维护，无需手动配置。",
+    "支持 BYOK、BYOA；Base URL、API Format 和 API Key 由 LCode 自动维护，无需手动配置。",
   "settings.modelProvider.codingPlan.title": "{provider} - 编程套餐",
   "settings.modelProvider.codingPlan.webview.title": "升级套餐",
   "settings.modelProvider.codingPlan.webview.authInjectFailed": "无法登录到套餐页，请重试。",
@@ -2654,7 +2654,7 @@ const zhCN: Record<string, string> = {
   "settings.modelProvider.codingPlan.purchase.done": "完成",
   "settings.modelProvider.codingPlan.purchase.teamMemberNoticeTitle": "团队套餐需要分配成员",
   "settings.modelProvider.codingPlan.purchase.teamMemberNoticeDescription":
-    "请先在 BigModel 团队套餐管理页添加自己或其他成员，完成后即可在 ZCode 使用团队额度。",
+    "请先在 BigModel 团队套餐管理页添加自己或其他成员，完成后即可在 LCode 使用团队额度。",
   "settings.modelProvider.codingPlan.purchase.manageTeamPlan": "管理团队套餐",
   "settings.modelProvider.codingPlan.manage": "管理",
   "settings.modelProvider.planCard.codingPlan": "编程套餐",
@@ -3006,7 +3006,7 @@ const zhCN: Record<string, string> = {
   "settings.modelProvider.resetForm": "重置表单",
   "settings.modelProvider.fieldHelp": "{field}说明",
   "settings.modelProvider.help.contextWindow":
-    "模型一次可处理的上下文容量，单位为 Token。ZCode 会据此管理上下文。\n请勿超过模型的实际上限。",
+    "模型一次可处理的上下文容量，单位为 Token。LCode 会据此管理上下文。\n请勿超过模型的实际上限。",
   "settings.modelProvider.help.maxOutputTokens":
     "单次模型请求允许生成的最大 Token 数。\n请勿超过模型的实际上限。",
   "settings.modelProvider.help.inputModalities":
@@ -3022,7 +3022,7 @@ const zhCN: Record<string, string> = {
   "settings.modelProvider.help.advanced":
     "**MFJS 工具 Schema**：启用 Moonshot Flavored JSON Schema（Moonshot 的 JSON Schema 格式）兼容处理，常用于 Moonshot 的 Kimi 模型接口。仅在模型接口要求该格式时开启。",
   "settings.modelProvider.help.followRecommendedConfig":
-    "根据模型 ID、Base URL 和 API 格式，为您智能匹配推荐配置。ZCode 会持续更新推荐配置，并自动同步给您。\n如果手动修改某项配置，该项将转为手动管理，不再跟随推荐更新；其他配置仍由智能配置管理。",
+    "根据模型 ID、Base URL 和 API 格式，为您智能匹配推荐配置。LCode 会持续更新推荐配置，并自动同步给您。\n如果手动修改某项配置，该项将转为手动管理，不再跟随推荐更新；其他配置仍由智能配置管理。",
   "settings.modelProvider.modelDefaultsLoaded": "已匹配到智能配置",
   "settings.modelProvider.modelConfigIncomplete": "模型配置不完整",
   "settings.modelProvider.models": "模型列表",
@@ -3115,7 +3115,7 @@ const zhCN: Record<string, string> = {
   "settings.usage.sourceProvider": "来源：{provider}",
   "settings.usage.billingBanner.title": "{provider} 编程套餐",
   "settings.usage.billingBanner.description":
-    "连接 {provider} 账号后查询编程套餐权益，购买或配置后回到 ZCode 即可继续编码。",
+    "连接 {provider} 账号后查询编程套餐权益，购买或配置后回到 LCode 即可继续编码。",
   "settings.usage.billingBanner.compactDescription": "连接 {provider} 账号后即可同步用量。",
   "settings.usage.billingBanner.buy": "购买编程套餐",
   "settings.usage.billingBanner.apiKeys": "API 密钥",
@@ -3171,7 +3171,7 @@ const zhCN: Record<string, string> = {
   "settings.usage.entitlementFiveHourUsage": "5 小时剩余",
   "settings.usage.entitlementWeeklyUsage": "每周剩余",
   "settings.usage.entitlementMonthlyMcpUsage": "工具调用",
-  "settings.usage.entitlementServerMcpUsage": "ZCode MCP",
+  "settings.usage.entitlementServerMcpUsage": "LCode MCP",
   "settings.usage.entitlementResetAt": "重置 {time}",
   "settings.usage.entitlementUsageDetails": "工具用量拆分",
   "settings.usage.entitlementPromptCap": "5 小时 Prompt 池",
@@ -3229,9 +3229,9 @@ const zhCN: Record<string, string> = {
   "sidebar.usage.plan.fiveHour": "5 小时",
   "sidebar.usage.plan.weekly": "每周",
   "sidebar.usage.plan.toolCalls": "工具调用",
-  "sidebar.usage.plan.mcp": "ZCode MCP",
-  "sidebar.usage.plan.zcodeMcp": "ZCode MCP",
-  "sidebar.usage.plan.zcodeMcpDescription": "ZCode 预置插件 MCP 每日合计额度",
+  "sidebar.usage.plan.mcp": "LCode MCP",
+  "sidebar.usage.plan.lcodeMcp": "LCode MCP",
+  "sidebar.usage.plan.lcodeMcpDescription": "LCode 预置插件 MCP 每日合计额度",
   "chat.planUsage.title": "套餐用量",
   "chat.planUsage.titleWithPlan": "{plan} 套餐用量",
   "chat.planUsage.providerFallback": "当前供应商",
@@ -3416,10 +3416,10 @@ const zhCN: Record<string, string> = {
   "settings.skills.import.mode.copy": "直接复制",
   "settings.skills.import.mode.symlink": "软链",
   "settings.skills.import.mode.copy.description":
-    "将完整技能目录复制到 ZCode。外部 Agent 目录后续变更不会自动同步。",
+    "将完整技能目录复制到 LCode。外部 Agent 目录后续变更不会自动同步。",
   "settings.skills.import.mode.symlink.description":
-    "创建指向外部 Agent 技能目录的链接。ZCode 会跟随来源目录后续变更，但该技能依赖来源路径持续可用。",
-  "settings.skills.import.importing": "正在导入技能到 ZCode",
+    "创建指向外部 Agent 技能目录的链接。LCode 会跟随来源目录后续变更，但该技能依赖来源路径持续可用。",
+  "settings.skills.import.importing": "正在导入技能到 LCode",
   "settings.skills.import.imported": "已导入",
   "settings.skills.import.skipped": "已跳过",
   "settings.skills.import.failed": "失败",
@@ -3491,7 +3491,7 @@ const zhCN: Record<string, string> = {
   "settings.skills.diagnostics.code.skill_too_large": "SKILL.md 体积过大已截断",
   "settings.skills.diagnostics.code.skill_not_found": "技能未找到",
   "settings.subagents.title": "子智能体",
-  "settings.subagents.description": "管理 ZCode Agent 运行时消费的用户级子智能体 Markdown 文件。",
+  "settings.subagents.description": "管理 LCode Agent 运行时消费的用户级子智能体 Markdown 文件。",
   "settings.subagents.workspaceScopeUnsupported": "暂不支持工作区级创建或编辑",
   "settings.subagents.searchPlaceholder": "搜索子智能体...",
   "settings.subagents.empty": "没有找到子智能体",
@@ -3619,7 +3619,7 @@ const zhCN: Record<string, string> = {
   "settings.plugin.source.plugin": "插件",
   "settings.plugins.description":
     "启用或停用已安装的插件。插件可打包技能、命令、Hooks 和 MCP 服务器。",
-  "settings.plugins.store.subtitle": "用插件为 ZCode 扩展技能、命令与 MCP 能力",
+  "settings.plugins.store.subtitle": "用插件为 LCode 扩展技能、命令与 MCP 能力",
   "settings.plugins.store.searchPlaceholder": "搜索插件",
   "settings.plugins.store.searchResults": "搜索结果（{count}）",
   "settings.plugins.store.searchEmpty": "没有匹配的插件",
@@ -3817,10 +3817,10 @@ const zhCN: Record<string, string> = {
   "settings.plugins.import.mode.copy": "直接复制",
   "settings.plugins.import.mode.symlink": "软链",
   "settings.plugins.import.mode.copy.description":
-    "将完整插件目录复制到 ZCode，并注册到 plugins.dirs。外部 Agent 目录后续变更不会自动同步。",
+    "将完整插件目录复制到 LCode，并注册到 plugins.dirs。外部 Agent 目录后续变更不会自动同步。",
   "settings.plugins.import.mode.symlink.description":
-    "创建指向外部 Agent 插件目录的链接，并注册到 plugins.dirs。ZCode 会跟随来源目录后续变更，但该插件依赖来源路径持续可用。",
-  "settings.plugins.import.importing": "正在导入插件到 ZCode",
+    "创建指向外部 Agent 插件目录的链接，并注册到 plugins.dirs。LCode 会跟随来源目录后续变更，但该插件依赖来源路径持续可用。",
+  "settings.plugins.import.importing": "正在导入插件到 LCode",
   "settings.plugins.import.imported": "已导入",
   "settings.plugins.import.skipped": "已跳过",
   "settings.plugins.import.failed": "失败",
@@ -3829,9 +3829,9 @@ const zhCN: Record<string, string> = {
   "settings.plugins.import.finish": "完成",
   "settings.commands.title": "命令",
   "settings.commands.description":
-    "管理 ZCode Agent 的 .md 命令文件。命令可通过 /command-name 在聊天中调用。",
+    "管理 LCode Agent 的 .md 命令文件。命令可通过 /command-name 在聊天中调用。",
   "settings.commands.sourceFilterLabel": "来源筛选",
-  "settings.commands.source.zcodeAgent": "ZCode Agent",
+  "settings.commands.source.lcodeAgent": "LCode Agent",
   "settings.commands.add": "新建",
   "settings.commands.addNew": "新建命令",
   "settings.commands.addDescription": "填写命令名称和提示词，保存后返回列表。",
@@ -3886,10 +3886,10 @@ const zhCN: Record<string, string> = {
   "settings.commands.import.mode.copy": "直接复制",
   "settings.commands.import.mode.symlink": "软链",
   "settings.commands.import.mode.copy.description":
-    "将命令文件复制到 ZCode。外部 Agent 文件后续变更不会自动同步。",
+    "将命令文件复制到 LCode。外部 Agent 文件后续变更不会自动同步。",
   "settings.commands.import.mode.symlink.description":
-    "创建指向外部 Agent 命令文件的链接。ZCode 会跟随来源文件后续变更，但该命令依赖来源路径持续可用。",
-  "settings.commands.import.importing": "正在导入命令到 ZCode",
+    "创建指向外部 Agent 命令文件的链接。LCode 会跟随来源文件后续变更，但该命令依赖来源路径持续可用。",
+  "settings.commands.import.importing": "正在导入命令到 LCode",
   "settings.commands.import.imported": "已导入",
   "settings.commands.import.skipped": "已跳过",
   "settings.commands.import.failed": "失败",
@@ -3915,9 +3915,9 @@ const zhCN: Record<string, string> = {
   "settings.hooks.title": "钩子",
   "settings.workspaceFileSearch.title": "工作区搜索范围",
   "settings.workspaceFileSearch.description":
-    "编辑 .zcodeignore 忽略规则（语法与 .gitignore 一致），控制工作区文件搜索的范围。保存后下次搜索生效。",
+    "编辑 .lcodeignore 忽略规则（语法与 .gitignore 一致），控制工作区文件搜索的范围。保存后下次搜索生效。",
   "settings.workspaceFileSearch.templateHint":
-    ".zcodeignore 尚未创建：下方为初始内容预览（.gitignore 拷贝 + 默认排除规则），保存后才会写入工作区。",
+    ".lcodeignore 尚未创建：下方为初始内容预览（.gitignore 拷贝 + 默认排除规则），保存后才会写入工作区。",
   "settings.workspaceFileSearch.editorLabel": "工作区搜索忽略规则编辑框",
   "settings.workspaceFileSearch.save": "保存",
   "settings.workspaceFileSearch.saved": "已保存，下次搜索生效",
@@ -3927,7 +3927,7 @@ const zhCN: Record<string, string> = {
   "settings.workspaceFileSearch.restoreDefaults": "恢复默认规则",
   "settings.workspaceFileSearch.transformFailed": "应用分区操作失败，请查看日志",
   "settings.workspaceFileSearch.reveal": "打开文件位置",
-  "settings.workspaceFileSearch.revealHint": "保存后即可在工作区根目录找到 .zcodeignore",
+  "settings.workspaceFileSearch.revealHint": "保存后即可在工作区根目录找到 .lcodeignore",
   "settings.workspaceFileSearch.unsaved": "有未保存的修改",
   "settings.workspaceFileSearch.noWorkspace": "当前没有打开的工作区，无法配置搜索忽略规则。",
   "settings.hooks.description": "管理任务生命周期钩子，在特定事件发生时自动执行命令。",
@@ -3981,7 +3981,7 @@ const zhCN: Record<string, string> = {
   "settingsSync.action.importSelected": "一键导入已选内容",
   "settingsSync.action.importing": "导入进行中",
   "settingsSync.action.finish": "开始使用",
-  "settingsSync.agent.zcode": "ZCode Agent",
+  "settingsSync.agent.lcode": "LCode Agent",
   "settingsSync.agent.claudeCode": "Claude Code",
   "settingsSync.agent.codexCli": "Codex CLI",
   "settingsSync.agent.openCode": "OpenCode",
@@ -4028,17 +4028,17 @@ const zhCN: Record<string, string> = {
   "settingsSync.complete.finished": "导入流程已经结束。",
   "settingsSync.discovery.title": "发现可导入的现有设置",
   "settingsSync.discovery.description": "不再自动扫描可导入的三方 Agent 设置。",
-  "settingsSync.discovery.helper": "仅导入缺失项，不会覆盖当前 ZCode 中已存在的配置。",
+  "settingsSync.discovery.helper": "仅导入缺失项，不会覆盖当前 LCode 中已存在的配置。",
   "settingsSync.discovery.agentCount": "已发现 {count} 个 Agent",
   "settingsSync.discovery.categoryCount": "发现分类：{count}",
   "settingsSync.discovery.error": "检测失败：{error}",
   "settingsSync.discovery.continue": "继续选择",
-  "onboarding.dialog.title": "欢迎使用 ZCode",
+  "onboarding.dialog.title": "欢迎使用 LCode",
   "onboarding.dialog.description": "选择如何开始第一次会话。",
   "onboarding.wizard.label": "迁移向导",
   "onboarding.welcome.eyebrow": "首次启动设置",
-  "onboarding.welcome.title": "欢迎使用 ZCode",
-  "onboarding.welcome.start": "开始使用 ZCode",
+  "onboarding.welcome.title": "欢迎使用 LCode",
+  "onboarding.welcome.start": "开始使用 LCode",
   "onboarding.welcome.migrate": "数据迁移向导",
   "onboarding.welcome.helper": "可立即导入旧工具设置，或先跳过，稍后在设置中继续迁移。",
   "onboarding.step.session": "会话",
@@ -4053,7 +4053,7 @@ const zhCN: Record<string, string> = {
   "onboarding.stepDescription.mcpImport": "从外部 Agent 配置中选择要合并的 MCP 服务器。",
   "onboarding.stepDescription.pluginsImport": "在最终迁移前，从外部 Agent 选择要导入的插件。",
   "onboarding.stepDescription.commandsImport": "在最终迁移前，从外部 Agent 选择要导入的命令。",
-  "onboarding.stepDescription.migration": "开始迁移并等待 ZCode 完成导入。",
+  "onboarding.stepDescription.migration": "开始迁移并等待 LCode 完成导入。",
   "onboarding.sessions.empty": "暂无可迁移工作区。请先扫描本地历史，再勾选要迁移的工作区。",
   "onboarding.sessions.count": "{count} 个会话",
   "onboarding.sessions.unlimited": "不限制",
@@ -4068,7 +4068,7 @@ const zhCN: Record<string, string> = {
   "onboarding.agentsFile.error": "检测 AGENTS.md 迁移状态失败：{error}",
   "onboarding.agentsFile.confirmTitle": "覆盖默认 AGENTS.md？",
   "onboarding.agentsFile.confirmDescription":
-    "将从 {source} 复制到 {target}。\n如果目标文件已存在，ZCode 默认 AGENTS 配置会被覆盖。",
+    "将从 {source} 复制到 {target}。\n如果目标文件已存在，LCode 默认 AGENTS 配置会被覆盖。",
   "onboarding.agentsFile.confirmAction": "覆盖并迁移",
   "onboarding.finish.summary.label.imported": "已导入",
   "onboarding.finish.summary.label.skipped": "已跳过",
@@ -4144,8 +4144,8 @@ const zhCN: Record<string, string> = {
   "chat.empty.createWorkspace.error.createFailed": "创建工作区失败。",
   "chat.emptyResult.title": "没有可展示内容",
   "chat.emptyResult.description": "这个任务没有生成聊天内容，可能是在模型返回正文前被停止了。",
-  "chat.placeholder.newTask": "向 ZCode 提问，使用 @ 添加上下文，使用 / 选择命令或能力",
-  "chat.placeholder.newTaskMobile": "向 ZCode 提问…",
+  "chat.placeholder.newTask": "向 LCode 提问，使用 @ 添加上下文，使用 / 选择命令或能力",
+  "chat.placeholder.newTaskMobile": "向 LCode 提问…",
   "chat.placeholder.followUpAsk": "提出后续修改要求",
   "chat.placeholder.followUpQueue": "继续输入以排队后续修改",
   "chat.placeholder.loading": "初始化任务中",
@@ -4442,10 +4442,10 @@ const zhCN: Record<string, string> = {
   "chat.toolbar.computerUse.label": "电脑操作",
   "chat.toolbar.computerUse.tooltip.idle": "电脑操作空闲——首次使用时自动启动",
   "chat.toolbar.computerUse.tooltip.starting": "正在启用电脑操作插件…",
-  "chat.toolbar.computerUse.tooltip.ready": "电脑操作已就绪 · 直接描述你想让 ZCode 做的事",
+  "chat.toolbar.computerUse.tooltip.ready": "电脑操作已就绪 · 直接描述你想让 LCode 做的事",
   "chat.toolbar.computerUse.tooltip.permissionRequired": "缺少 macOS 权限，点击完成授权",
   "chat.toolbar.computerUse.tooltip.error":
-    "电脑操作启用失败 · 重启 ZCode 应用后重试，或让 ZCode 排查日志",
+    "电脑操作启用失败 · 重启 LCode 应用后重试，或让 LCode 排查日志",
   "chat.toolbar.computerUse.tooltip.sessionBusy":
     "会话进行中，暂不能切换电脑操作；任务结束后可再试",
   "chat.toolbar.mode.description": "切换当前任务的权限/执行模式，例如默认、计划或接受编辑。",
@@ -4776,7 +4776,7 @@ const zhCN: Record<string, string> = {
   "workflows.hub.global.noLocalRuntime": "无法连接本地 agent，全局工作流暂不可用。",
   "workflows.hub.empty.title": "已打开的项目里还没有保存的工作流",
   "workflows.hub.empty.hint":
-    "在对话里让 ZCode 设计工作流，跑通之后再让它保存到项目里。未打开的项目不会出现在这里。",
+    "在对话里让 LCode 设计工作流，跑通之后再让它保存到项目里。未打开的项目不会出现在这里。",
   "workflows.hub.noWorkspace": "打开一个项目以查看它的工作流。",
   "workflows.hub.loadError": "读取工作流失败：{error}",
   "workflows.hub.invalid": "{count} 个文件无法读取",
@@ -4836,7 +4836,7 @@ const zhCN: Record<string, string> = {
   "workflows.hub.detail.basics": "基本信息",
   "workflows.hub.detail.description": "说明",
   "workflows.hub.detail.whenToUse": "使用时机",
-  "workflows.hub.detail.whenToUse.help": "给 ZCode 的路由提示：什么场景该选这个工作流。",
+  "workflows.hub.detail.whenToUse.help": "给 LCode 的路由提示：什么场景该选这个工作流。",
   "workflows.hub.detail.args": "参数",
   "workflows.hub.detail.args.name": "名称",
   "workflows.hub.detail.args.type": "类型",
@@ -4855,7 +4855,7 @@ const zhCN: Record<string, string> = {
   "workflows.hub.detail.meta.saveFailed": "保存失败：{reason}",
   "workflows.hub.detail.meta.descriptionRequired": "说明不能为空",
   "workflows.hub.detail.script": "脚本",
-  "workflows.hub.detail.script.note": "脚本只读。要改脚本，在对话里让 ZCode 修订后另存一版。",
+  "workflows.hub.detail.script.note": "脚本只读。要改脚本，在对话里让 LCode 修订后另存一版。",
   "workflows.hub.detail.script.copy": "复制脚本",
   "workflows.hub.detail.loadError": "无法读取这个工作流：{reason}",
   "workflows.hub.detail.notFound": "这个工作流已不在项目里。",
@@ -5433,9 +5433,9 @@ const zhCN: Record<string, string> = {
     "当前系统繁忙，当前自动重试已达到最大次数，请稍后再试或升级账户。",
   "chat.quota.startPlan.concurrentLimit.switchModel":
     "当前模型请求已达到并发上限，请切换模型继续当前任务",
-  "chat.quota.mcp.quotaExhausted": "ZCode MCP「{server}」今日额度已用完，明天自动恢复。",
+  "chat.quota.mcp.quotaExhausted": "LCode MCP「{server}」今日额度已用完，明天自动恢复。",
   "chat.quota.mcp.codingPlanRequired":
-    "当前无 ZCode MCP「{server}」额度，请登录或开通 Coding Plan 使用。",
+    "当前无 LCode MCP「{server}」额度，请登录或开通 Coding Plan 使用。",
   "chat.quota.providerLimited": "当前账户额度或套餐已达到使用限制。请升级或调整套餐后继续。",
   "chat.quota.action.upgrade": "升级",
   "chat.quota.action.renew": "续期",
@@ -5589,37 +5589,37 @@ const zhCN: Record<string, string> = {
   "planTool.guidance.enterMode": "已开启 Plan Mode",
   "chat.permission.switchMode.placeholder": "实施计划",
 
-  // ZCode Agent
-  "zcode.unavailable": "AI 代理不可用",
-  "zcode.initFailed": "启动 AI 代理失败",
-  "zcode.error.TASK_OWNED_BY_OTHER_HOST": "该任务正在另一个已连接视图中运行。",
-  "zcode.error.STALE_TASK_OWNER_COMMAND": "该操作属于旧的运行轮次，已忽略。",
-  "zcode.error.NO_ACTIVE_TASK_OWNER": "当前没有可处理该操作的任务所有者。",
-  "zcode.error.OWNER_COMMAND_FAILED": "任务所有者未能完成该操作。",
-  "zcode.error.MEDIA_BUDGET_CURRENT_ATTACHMENT_TOO_LARGE":
+  // LCode Agent
+  "lcode.unavailable": "AI 代理不可用",
+  "lcode.initFailed": "启动 AI 代理失败",
+  "lcode.error.TASK_OWNED_BY_OTHER_HOST": "该任务正在另一个已连接视图中运行。",
+  "lcode.error.STALE_TASK_OWNER_COMMAND": "该操作属于旧的运行轮次，已忽略。",
+  "lcode.error.NO_ACTIVE_TASK_OWNER": "当前没有可处理该操作的任务所有者。",
+  "lcode.error.OWNER_COMMAND_FAILED": "任务所有者未能完成该操作。",
+  "lcode.error.MEDIA_BUDGET_CURRENT_ATTACHMENT_TOO_LARGE":
     "当前附件总量过大，请移除部分附件或压缩后重试。",
-  "zcode.error.MEDIA_BUDGET_CURRENT_IMAGE_TOO_LARGE":
+  "lcode.error.MEDIA_BUDGET_CURRENT_IMAGE_TOO_LARGE":
     "当前图片附件过大，请移除部分图片或压缩后重试。",
-  "zcode.error.MEDIA_BUDGET_CURRENT_VIDEO_TOO_LARGE":
+  "lcode.error.MEDIA_BUDGET_CURRENT_VIDEO_TOO_LARGE":
     "当前视频附件过大，请移除部分视频或压缩后重试。",
-  "zcode.error.ZCODE_RUNTIME_MODEL_UNAVAILABLE":
+  "lcode.error.LCODE_RUNTIME_MODEL_UNAVAILABLE":
     "当前使用的模型已不可用，请从当前模型列表中选择一个可用模型后继续。",
-  "zcode.error.ZCODE_BIGMODEL_TEAM_PLAN_MEMBER_REQUIRED":
+  "lcode.error.LCODE_BIGMODEL_TEAM_PLAN_MEMBER_REQUIRED":
     "当前模型不可用，请检查是否已将当前账号添加到项目成员列表",
-  "zcode.error.providerBusiness.1006": "登录状态已失效，请重新登录后再试。",
-  "zcode.error.providerBusiness.1005":
+  "lcode.error.providerBusiness.1006": "登录状态已失效，请重新登录后再试。",
+  "lcode.error.providerBusiness.1005":
     "今日免费计划额度已用完。请升级账户、切换模型，或等待额度恢复。",
-  "zcode.error.providerBusiness.3006": "当前模型不在可用范围内，请切换到允许的模型后重试。",
-  "zcode.error.providerBusiness.3002": "请求过于频繁，请稍后重试。",
-  "zcode.error.providerBusiness.3001": "请求参数错误，请检查输入后重试。",
-  "zcode.error.providerBusiness.3007": "请求被网关安全校验拒绝，请稍后重试或联系支持。",
-  "zcode.error.providerBusiness.3008": "当前系统繁忙，请切换模型、升级账户，或稍后再试。",
-  "zcode.error.providerBusiness.3009": "当前系统繁忙，请切换模型、升级账户，或稍后再试。",
-  "zcode.error.providerBusiness.3010": "当前系统繁忙，请切换模型、升级账户，或稍后再试。",
-  "zcode.error.providerBusiness.3102": "已超过单次最长运行时间，请创建新的闲时任务继续。",
-  "zcode.error.modelSuspiciousEmpty": "模型未返回任何内容。",
-  "zcode.error.providerBusiness.2007": "上游服务暂时不可用，请稍后重试。",
-  "zcode.error.providerBusiness.429": "请求过于频繁，请稍后重试。",
+  "lcode.error.providerBusiness.3006": "当前模型不在可用范围内，请切换到允许的模型后重试。",
+  "lcode.error.providerBusiness.3002": "请求过于频繁，请稍后重试。",
+  "lcode.error.providerBusiness.3001": "请求参数错误，请检查输入后重试。",
+  "lcode.error.providerBusiness.3007": "请求被网关安全校验拒绝，请稍后重试或联系支持。",
+  "lcode.error.providerBusiness.3008": "当前系统繁忙，请切换模型、升级账户，或稍后再试。",
+  "lcode.error.providerBusiness.3009": "当前系统繁忙，请切换模型、升级账户，或稍后再试。",
+  "lcode.error.providerBusiness.3010": "当前系统繁忙，请切换模型、升级账户，或稍后再试。",
+  "lcode.error.providerBusiness.3102": "已超过单次最长运行时间，请创建新的闲时任务继续。",
+  "lcode.error.modelSuspiciousEmpty": "模型未返回任何内容。",
+  "lcode.error.providerBusiness.2007": "上游服务暂时不可用，请稍后重试。",
+  "lcode.error.providerBusiness.429": "请求过于频繁，请稍后重试。",
 
   // 调试信息栏
   "debugInfo.taskId": "Task ID",
@@ -5636,7 +5636,7 @@ const zhCN: Record<string, string> = {
   "resourceManager.cpu": "CPU",
   "resourceManager.memory": "内存",
   "resourceManager.storage": "存储",
-  "resourceManager.appUsage": "ZCode",
+  "resourceManager.appUsage": "LCode",
   "resourceManager.systemUsage": "整机",
   "resourceManager.category.base": "基础服务",
   "resourceManager.category.builtinPlugin": "内置插件",
@@ -5865,7 +5865,7 @@ const zhCN: Record<string, string> = {
   "feedback.submit.template.section.errorSummaryLine": "报错摘要：{message}",
   "feedback.submit.template.section.errorDetail": "报错详情",
   "feedback.submit.template.section.errorTraceId": "TraceID: {traceId}",
-  "feedback.submit.template.section.copyErrorHeading": "ZCode 报错信息",
+  "feedback.submit.template.section.copyErrorHeading": "LCode 报错信息",
   "feedback.submit.template.section.notProvided": "未提供",
   "feedback.submit.template.section.remoteLogEmpty": "未捕获到连接日志",
   "feedback.submit.template.section.taskFeedbackTitle": "反馈任务问题：{title}",
@@ -6008,7 +6008,7 @@ const zhCN: Record<string, string> = {
   "automations.statusFilter.completed": "已完成",
   "automations.statusFilter.failed": "失败",
   "automations.statusFilter.empty": "没有符合条件的任务",
-  "offPeak.keepAwakeBanner": "ZCode 运行会话时保持电脑唤醒。",
+  "offPeak.keepAwakeBanner": "LCode 运行会话时保持电脑唤醒。",
   "offPeak.sectionTitle": "闲时任务",
   "offPeak.createButton": "创建闲时任务",
   "offPeak.templates.sectionTitle": "闲时任务模板",
@@ -6052,7 +6052,7 @@ const zhCN: Record<string, string> = {
   "offPeak.form.titlePlaceholder": "例如：夜间重构",
   "offPeak.form.instructionsLabel": "任务指令",
   "offPeak.form.instructionsPlaceholder":
-    "描述希望 ZCode 在后台完成的工作、预期结果和约束，例如整理本周代码改动并生成站会摘要…",
+    "描述希望 LCode 在后台完成的工作、预期结果和约束，例如整理本周代码改动并生成站会摘要…",
   "offPeak.form.permissionWarning": "闲时执行时无人值守，需要确认的操作会暂停任务直到你响应。",
   "offPeak.form.modelLabel": "模型",
   "offPeak.thought.max": "最高",
@@ -6239,9 +6239,9 @@ const zhCN: Record<string, string> = {
   "automations.runs.nextPage": "下一页",
   // CUA (Computer Use)
   "chat.cuaReadiness.toolsNotLoaded":
-    "ZCode 电脑控制仍在准备中——工具尚未加载（已加载 {count} 个）。请先授予下方权限，Helper 就绪后工具会自动出现。",
+    "LCode 电脑控制仍在准备中——工具尚未加载（已加载 {count} 个）。请先授予下方权限，Helper 就绪后工具会自动出现。",
   "chat.cuaReadiness.toolsPreparing":
-    "ZCode 电脑控制仍在准备中——工具尚未加载。请先授予下方权限，Helper 就绪后工具会自动出现。",
+    "LCode 电脑控制仍在准备中——工具尚未加载。请先授予下方权限，Helper 就绪后工具会自动出现。",
   "chat.toolCall.cua.requestAccess": "检查 Computer Use 权限",
   "chat.toolCall.cua.appName": "电脑控制",
   "chat.toolCall.cua.group.completedLabel": "电脑控制",
@@ -6366,9 +6366,9 @@ const zhCN: Record<string, string> = {
   "cuaPermission.modal.restartButton": "重启 Helper",
   "cuaPermission.modal.restarting": "正在重启 Helper…",
   "cuaPermission.modal.restartFailed": "无法重启 Helper：{error}",
-  "cuaPermission.modal.relaunchAppButton": "重启 ZCode",
+  "cuaPermission.modal.relaunchAppButton": "重启 LCode",
   "cuaPermission.modal.relaunchAppHint":
-    "重启 Helper 后仍未生效？重启 ZCode 可彻底重载 Helper 进程。",
+    "重启 Helper 后仍未生效？重启 LCode 可彻底重载 Helper 进程。",
   "cuaPermission.status.granted": "已授权",
   "cuaPermission.status.missing": "未授权",
   "cuaPermission.status.unknown": "未知",
@@ -6381,7 +6381,7 @@ const zhCN: Record<string, string> = {
   "cuaPermission.tools.agentUpdateRequired":
     "当前 Agent 版本过旧，无法安全检查工具就绪状态。请更新或重启 Agent 后重新检查。",
   "cuaPermission.tools.untrustedRuntime":
-    "检测到电脑控制工具，但它们并非来自已校验的 ZCode 官方插件。请检查插件安装后重新验证。",
+    "检测到电脑控制工具，但它们并非来自已校验的 LCode 官方插件。请检查插件安装后重新验证。",
   "cuaPermission.perm.accessibility": "辅助功能 (Accessibility)",
   "cuaPermission.perm.accessibility.purpose": "读取/驱动 UI 元素 + 合成键鼠输入",
   "cuaPermission.perm.screenRecording": "屏幕录制 (Screen Recording)",
@@ -6391,7 +6391,7 @@ const zhCN: Record<string, string> = {
   "cuaPermission.osFloorDescription": "请先升级系统后再使用。授权设置在低版本系统上无法完成。",
   "cuaPermission.ready": "权限已就绪",
   "cuaPermission.ready.sessionValidationHint":
-    "首个会话启动时，ZCode 会针对该会话精确验证电脑控制工具。",
+    "首个会话启动时，LCode 会针对该会话精确验证电脑控制工具。",
   "settings.computerUse.title": "电脑控制",
   "settings.computerUse.toggleLabel": "启用电脑控制",
   "settings.computerUse.toggleDescription": "开启后将启用电脑控制及其 MCP 与技能。",
@@ -6445,7 +6445,7 @@ const zhCN: Record<string, string> = {
 
   "gitBackup.welcome.title": "Git 自动备份",
   "gitBackup.welcome.description":
-    "ZCode 满血版支持将你的 .git 仓库历史自动备份到你自己的阿里云 OSS 存储桶。备份使用 AES-256-CTR + RSA-OAEP 加密，密钥在你的设备本地生成，私钥从不离开你的设备。",
+    "LCode 满血版支持将你的 .git 仓库历史自动备份到你自己的阿里云 OSS 存储桶。备份使用 AES-256-CTR + RSA-OAEP 加密，密钥在你的设备本地生成，私钥从不离开你的设备。",
   "gitBackup.welcome.enableNow": "开启自动备份",
   "gitBackup.welcome.skipForNow": "暂不开启",
   "gitBackup.welcome.skipNote": "你随时可以在 设置 → Git 自动备份 中配置此功能。",

@@ -1,17 +1,17 @@
 import { create } from "zustand";
-import type { ISubagentsService } from "@zcode/services";
+import type { ISubagentsService } from "@lcode/services";
 import {
-  normalizeAgentProviderToZCodeAgent,
+  normalizeAgentProviderToLCodeAgent,
   type AgentSummary,
   type AgentsCapability,
-  type ZCodeProvider,
-} from "@zcode/shared";
+  type LCodeProvider,
+} from "@lcode/shared";
 import { logger } from "@/logger.js";
 
 interface SubagentsContextSnapshot {
   workspacePath: string;
   workspaceIdentity: string | null;
-  provider: ZCodeProvider;
+  provider: LCodeProvider;
   agents: AgentSummary[];
   capability: AgentsCapability | null;
   loading: boolean;
@@ -23,19 +23,19 @@ interface SubagentsContextStoreState {
   contexts: Record<string, SubagentsContextSnapshot>;
   initialize: (
     workspacePath: string,
-    provider: ZCodeProvider,
+    provider: LCodeProvider,
     subagentsService: ISubagentsService,
     workspaceIdentity?: string,
   ) => Promise<void>;
   refresh: (
     workspacePath: string,
-    provider: ZCodeProvider,
+    provider: LCodeProvider,
     subagentsService: ISubagentsService,
     workspaceIdentity?: string,
   ) => Promise<void>;
   setEnabled: (
     workspacePath: string,
-    provider: ZCodeProvider,
+    provider: LCodeProvider,
     agentId: string,
     enabled: boolean,
     subagentsService: ISubagentsService,
@@ -49,10 +49,10 @@ let nextRequestId = 0;
 
 export function getSubagentsContextKey(
   workspacePath: string,
-  provider: ZCodeProvider,
+  provider: LCodeProvider,
   workspaceIdentity?: string | null,
 ): string {
-  return `${workspaceIdentity?.trim() || workspacePath}::${normalizeAgentProviderToZCodeAgent(provider)}`;
+  return `${workspaceIdentity?.trim() || workspacePath}::${normalizeAgentProviderToLCodeAgent(provider)}`;
 }
 
 function updateContext(
@@ -66,7 +66,7 @@ function updateContext(
 function loadAgents(
   key: string,
   workspacePath: string,
-  provider: ZCodeProvider,
+  provider: LCodeProvider,
   subagentsService: ISubagentsService,
   workspaceIdentity?: string,
   bypassCache = false,
@@ -87,7 +87,7 @@ function loadAgents(
 async function loadContext(
   params: {
     workspacePath: string;
-    provider: ZCodeProvider;
+    provider: LCodeProvider;
     subagentsService: ISubagentsService;
     workspaceIdentity?: string;
     bypassCache: boolean;
@@ -97,7 +97,7 @@ async function loadContext(
   ) => void,
   get: () => SubagentsContextStoreState,
 ): Promise<void> {
-  const provider = normalizeAgentProviderToZCodeAgent(params.provider);
+  const provider = normalizeAgentProviderToLCodeAgent(params.provider);
   const workspaceIdentity = params.workspaceIdentity?.trim() || undefined;
   const key = getSubagentsContextKey(params.workspacePath, provider, workspaceIdentity);
   const existing = get().contexts[key];

@@ -1,22 +1,22 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcwIcon } from "lucide-react";
-import { completeNewModelSelection } from "@zcode/provider";
-import type { ModelSelectionView } from "@zcode/services";
+import { completeNewModelSelection } from "@lcode/provider";
+import type { ModelSelectionView } from "@lcode/services";
 import {
   modelSelectionSchema,
-  ZCODE_AGENT_PROVIDER,
+  LCODE_AGENT_PROVIDER,
   type ModelSelection,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { ThoughtLevelCycleControl } from "@/chat-input-toolbar/ThoughtLevelCycleControl.js";
 import { ModelSpeedControl } from "@/chat-input-toolbar/ModelSpeedControl.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { useModelSelectionView } from "@/hooks/useModelSelectionView.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { buildRegistryModelSelectGroups } from "@/lib/modelSelectionGroups.js";
 import { resolveModelThoughtOption } from "@/lib/modelThoughtOption.js";
-import { encodeCustomModelValue } from "@/lib/zcodeCustomModelValue.js";
-import { parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
+import { encodeCustomModelValue } from "@/lib/lcodeCustomModelValue.js";
+import { parseModelPickerValue } from "@/lib/lcodeSessionProjection.js";
 import { ModelConfigSelect, type ModelSelectGroupItem } from "@/ModelConfigSelect.js";
 
 const INHERIT_VALUE = "workflow-approval:inherit";
@@ -40,11 +40,11 @@ export function WorkflowActorModelOverridesEditor({
   requestId: string;
   workspacePath?: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const modelRead = useModelSelectionView(workspacePath ?? "");
   const view = modelRead.state.status === "ready" ? modelRead.state.view : null;
   const groups = useMemo(
-    () => (view === null ? [] : buildRegistryModelSelectGroups(ZCODE_AGENT_PROVIDER, view)),
+    () => (view === null ? [] : buildRegistryModelSelectGroups(LCODE_AGENT_PROVIDER, view)),
     [view],
   );
   const [draft, setDraft] = useState<Map<string, ModelSelection>>(() => readOverrides(raw));
@@ -112,7 +112,7 @@ function WorkflowActorModelRow({
   siteId: string;
   view: ModelSelectionView | null;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const thoughtTriggerRef = useRef<HTMLSpanElement | null>(null);
   const [thoughtOpen, setThoughtOpen] = useState(false);
   const [speedOpen, setSpeedOpen] = useState(false);
@@ -187,7 +187,7 @@ function WorkflowActorModelRow({
           <ThoughtLevelCycleControl
             intl={intl}
             option={thoughtOption}
-            provider={ZCODE_AGENT_PROVIDER}
+            provider={LCODE_AGENT_PROVIDER}
             onCurrentValueCommit={(level) => setOption("reasoningLevel", level)}
             showInvalidCurrentValue
             disabled={false}

@@ -1,13 +1,13 @@
-import { redactFeedbackText } from "@zcode/shared";
+import { redactFeedbackText } from "@lcode/shared";
 import type { FeedbackAgentModelContext } from "@/feedback/feedbackSubmitModelContext.js";
 import type {
   FeedbackTicketModule,
   FeedbackTicketSeverity,
   FeedbackTicketType,
-} from "@zcode/shared";
+} from "@lcode/shared";
 
 const TITLE_MAX = 80;
-const FEEDBACK_ZCODE_AGENT_LABEL = "ZCode Agent";
+const FEEDBACK_LCODE_AGENT_LABEL = "LCode Agent";
 
 type MessageFormatter = (descriptor: { id: string }, values?: Record<string, string>) => string;
 
@@ -42,8 +42,8 @@ export function buildDeveloperFacingDescription({
     `反馈类型: ${ticketType}`,
     `产品模块: ${ticketModule}`,
     `严重程度: ${ticketSeverity}`,
-    "Agent 框架: zcode-agent",
-    `当前 Agent: ${FEEDBACK_ZCODE_AGENT_LABEL}`,
+    "Agent 框架: lcode-agent",
+    `当前 Agent: ${FEEDBACK_LCODE_AGENT_LABEL}`,
     `当前模型型号: ${redactFeedbackText(modelContext.display || modelContext.model || notReported)}`,
     "处理方式: 用户提交轻量表单，客户端自动补齐上下文，后端可异步生成 AI 分析",
     "",

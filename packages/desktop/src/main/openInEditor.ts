@@ -1,8 +1,8 @@
 import { execFile } from "node:child_process";
 import { statSync } from "node:fs";
 import { shell } from "electron";
-import type { OpenInEditorOptions, OpenInEditorRemoteTarget } from "@zcode/shared";
-import { listWSLDistros } from "@zcode/server/remote/wsl-detect.js";
+import type { OpenInEditorOptions, OpenInEditorRemoteTarget } from "@lcode/shared";
+import { listWSLDistros } from "@lcode/server/remote/wsl-detect.js";
 import { getEditorDefsForCurrentPlatform, resolveEditorDefAppPath } from "./editors.js";
 import { logger } from "./logger.js";
 import { isDelegatedWindowsExplorerExit } from "./windowsExplorerDelegation.js";

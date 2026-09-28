@@ -1,6 +1,6 @@
-import type { IPlatformService, Locale, UpdateStatePayload } from "@zcode/shared";
+import type { IPlatformService, Locale, UpdateStatePayload } from "@lcode/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
+import { LCodeIntlProvider } from "@/i18n/IntlProvider.js";
 import { UpdateStatusDialogController } from "@/UpdateStatusDialogController.js";
 import { ConfirmDialogHost } from "@/ConfirmDialog.js";
 
@@ -73,7 +73,7 @@ export function UpdateStatusWindowRoot({
     <div className="min-h-screen bg-transparent text-foreground">
       {/* 独立更新窗口不挂 workspace setting/broadcast service，不能只依赖启动时 locale。
           主窗口切语言后由 main 进程推送最新解析语言，这里重建 Provider 让弹窗文案实时跟随。 */}
-      <ZCodeIntlProvider key={locale} initialLocale={locale}>
+      <LCodeIntlProvider key={locale} initialLocale={locale}>
         <UpdateStatusDialogController
           platform={platform}
           version={readyVersion}
@@ -84,7 +84,7 @@ export function UpdateStatusWindowRoot({
           showOverlay={false}
         />
         <ConfirmDialogHost />
-      </ZCodeIntlProvider>
+      </LCodeIntlProvider>
     </div>
   );
 }

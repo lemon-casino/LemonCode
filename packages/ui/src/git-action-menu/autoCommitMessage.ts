@@ -1,9 +1,9 @@
-import type { GitCommitMessageConversationContext } from "@zcode/shared";
+import type { GitCommitMessageConversationContext } from "@lcode/shared";
 import type {
   ConversationRow,
   ConversationRowTarget,
   SessionPhase,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
 
 interface AutoGitCommitMessageCompletedTurn {
   turnId: string;

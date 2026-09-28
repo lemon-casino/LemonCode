@@ -60,7 +60,7 @@
     "packages/ui/src/components/ai-elements",
     ".agents/skills",
     "packages/formal-proof",
-    "apps/zcode-cli",
+    "apps/lcode-cli",
     "cfworker-remote",
     "docs/electron"
   ]

@@ -11,13 +11,13 @@ import {
   type DragEvent,
   type ReactNode,
 } from "react";
-import { TID_V4_PANE_SHELL, testId } from "@zcode/shared";
+import { TID_V4_PANE_SHELL, testId } from "@lcode/shared";
 import type {
   GitChangeSourceId,
   GitRepositorySummary,
-  ZCodeProvider,
-  ZCodeTaskChangeSummary,
-} from "@zcode/shared";
+  LCodeProvider,
+  LCodeTaskChangeSummary,
+} from "@lcode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { useServices } from "@/hooks/useServices.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
@@ -201,7 +201,7 @@ function PaneRestoredGuard({
   onMissing,
 }: PaneRestoredGuardProps) {
   const services = useServices();
-  const agentService = services.zcodeAgentService;
+  const agentService = services.lcodeAgentService;
   const { workspacePath, workspaceIdentity, remoteSessionId } = scope;
 
   useEffect(() => {
@@ -262,7 +262,7 @@ export interface WorkbenchShellBinding {
   /** Shell 当前真正激活的 task；split pane 接管 active task 时不等于 primary sessionId。 */
   activeSessionId?: string | null;
   activeSelectionSideChatSessionId?: string | null;
-  provider?: ZCodeProvider;
+  provider?: LCodeProvider;
   onSessionCreated?: (sessionId: string) => void;
   onSessionDeleted?: () => void;
   draftComposerHeader?: ReactNode;
@@ -273,7 +273,7 @@ export interface WorkbenchShellBinding {
   gitDirtyFileCount?: number;
   gitWorktreeReviewSourceId?: GitChangeSourceId | null;
   gitWorktreeChangeSummary?: { added: number; removed: number } | null;
-  activeTaskChangeSummary?: ZCodeTaskChangeSummary | null;
+  activeTaskChangeSummary?: LCodeTaskChangeSummary | null;
   summaryPanelVariantOverride?: ChatViewSummaryPanelVariant | null;
   onSummaryPanelVariantOverrideChange?: (variant: ChatViewSummaryPanelVariant | null) => void;
   onRefreshGit?: () => void;

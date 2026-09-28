@@ -1,7 +1,7 @@
 import { AppWindow } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { ToolCallBlockRenderContext } from "@/ToolCallBlocks/shared.js";
 import { readToolResultDisplay } from "@/ToolCallBlocks/toolResultDisplay.js";
 
@@ -117,7 +117,7 @@ export function buildCuaDetailList(
 }
 
 function CuaAppList({ items }: { items: CuaAppItem[] }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const platform = useOptionalPlatform();
   const [icons, setIcons] = useState<Record<string, string>>({});
 
@@ -173,7 +173,7 @@ function CuaAppList({ items }: { items: CuaAppItem[] }) {
 }
 
 function CuaWindowList({ items }: { items: CuaWindowItem[] }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <div className="max-h-64 space-y-1 overflow-y-auto pr-1">
       {items.map((item, index) => (
@@ -209,7 +209,7 @@ function CuaWindowList({ items }: { items: CuaWindowItem[] }) {
 }
 
 export function CuaDetailListSection({ list }: { list: CuaDetailList }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <section className="space-y-2 border-t border-border pt-3">
       <h4 className="text-sm text-foreground-subtle">

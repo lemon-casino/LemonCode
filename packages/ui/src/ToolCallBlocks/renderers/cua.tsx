@@ -1,8 +1,8 @@
 /* oxlint-disable eslint(max-lines) -- summary 与同源 detail 投影暂集中维护，本次 review fix 不扩大重构范围。 */
 import { type ReactNode, useCallback, useMemo } from "react";
-import type { ApplicationIconRequest } from "@zcode/shared";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { isZCodeCuaToolName } from "@/lib/cuaPermissionAction.js";
+import type { ApplicationIconRequest } from "@lcode/shared";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
+import { isLCodeCuaToolName } from "@/lib/cuaPermissionAction.js";
 import { ToolLayout } from "@/ToolCallBlocks/ToolLayout.js";
 import { readCuaActionDetail } from "@/ToolCallBlocks/renderers/cuaActionDetail.js";
 import { buildCuaAccessDetails } from "@/ToolCallBlocks/renderers/cuaAccessDetails.js";
@@ -55,7 +55,7 @@ function readCuaToolName(value: string | null | undefined): string | null {
   if (!normalized.includes("computer_use")) return null;
   // action = 最后一个 "__" 之后的段。兼容两种命名：
   //   feat:        mcp__computer_use__<action>
-  //   main namesp: mcp__plugin_zcode_cua_computer_use__<action>
+  //   main namesp: mcp__plugin_lcode_cua_computer_use__<action>
   // 都取尾部 <action>（get_app_state / left_click / type ...）。
   const lastSep = normalized.lastIndexOf("__");
   const shortName = lastSep >= 0 ? normalized.slice(lastSep + 2) : normalized;
@@ -332,7 +332,7 @@ function buildCuaDetailsModel(
 export function isCuaToolCall(
   toolCall: ToolCallBlockRenderContext["toolCallNode"]["toolCall"],
 ): boolean {
-  return collectToolNames(toolCall).some(isZCodeCuaToolName);
+  return collectToolNames(toolCall).some(isLCodeCuaToolName);
 }
 
 interface CuaSummaryPresentation {
@@ -346,7 +346,7 @@ interface CuaSummaryPresentation {
   failureText?: string;
 }
 
-type CuaIntl = ReturnType<typeof useZCodeIntl>["intl"];
+type CuaIntl = ReturnType<typeof useLCodeIntl>["intl"];
 
 export function buildCuaSummaryPresentation(
   toolCall: ToolCallBlockRenderContext["toolCallNode"]["toolCall"],
@@ -449,7 +449,7 @@ export function buildCuaSummaryPresentation(
 }
 
 export function CuaToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCall } = context.toolCallNode;
   const summary = buildCuaSummaryPresentation(toolCall, intl, {
     fallbackErrorText: context.errorText,

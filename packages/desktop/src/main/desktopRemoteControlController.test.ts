@@ -3,7 +3,7 @@ import test from "node:test";
 import type {
   RemoteControlPersistedDevice,
   RemotePairingStatePush,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { createRemoteControlController } from "./desktopRemoteControlController.js";
 import {
   REMOTE_CONTROL_ACCESS_KEY_CREDENTIAL_KEY,
@@ -370,7 +370,7 @@ test("bridge.open:attach 以 web-remote-replayable 调度,帧泵双向连通", a
   assert.equal(tunnel.sentBinary[0]![0], 1);
 
   // port 流控对象不穿越 WS。
-  okAttach.emitPortMessage({ __zcodeRpcControl: "connection-flow-v1", state: "saturated" });
+  okAttach.emitPortMessage({ __lcodeRpcControl: "connection-flow-v1", state: "saturated" });
   assert.equal(tunnel.sentBinary.length, 1);
 });
 

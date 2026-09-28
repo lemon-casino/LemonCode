@@ -1,5 +1,5 @@
 import { Plus, X } from "lucide-react";
-import type { ZCodeSavedWorkflowArgType } from "@zcode/shared";
+import type { LCodeSavedWorkflowArgType } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import {
@@ -11,13 +11,13 @@ import {
 } from "@/components/ui/select.js";
 import { Switch } from "@/components/ui/switch.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type {
   SavedWorkflowArgRow,
   SavedWorkflowArgRowError,
 } from "@/settings/saved-workflows/savedWorkflowArgsForm.js";
 
-const ARG_TYPES: readonly ZCodeSavedWorkflowArgType[] = ["string", "number", "boolean", "json"];
+const ARG_TYPES: readonly LCodeSavedWorkflowArgType[] = ["string", "number", "boolean", "json"];
 
 /** 详情页「参数」声明表：可增删行，默认值按类型出控件。 */
 export function SavedWorkflowArgsTable({
@@ -33,7 +33,7 @@ export function SavedWorkflowArgsTable({
   onAdd: () => void;
   onRemove: (key: string) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const columns = "grid-cols-[minmax(0,1.4fr)_112px_64px_minmax(0,1fr)_minmax(0,1.6fr)_28px]";
   return (
     <div className="overflow-hidden rounded-lg border border-border">
@@ -71,7 +71,7 @@ export function SavedWorkflowArgsTable({
               <Select
                 value={row.type}
                 onValueChange={(value) =>
-                  onChange(row.key, { type: value as ZCodeSavedWorkflowArgType })
+                  onChange(row.key, { type: value as LCodeSavedWorkflowArgType })
                 }
               >
                 <SelectTrigger size="sm" className="h-7 w-full font-mono">

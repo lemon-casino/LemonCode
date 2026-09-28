@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import type {
   SettingsSyncClaudeAgentsFileCopyResult,
   SettingsSyncClaudeAgentsFileMigrationStatus,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { useServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 
@@ -72,7 +72,7 @@ export function useOnboardingAgentsFileMigration(params: {
   );
 
   const copy = useCallback(async () => {
-    const result = await settingsSyncService.copyClaudeAgentsFileToZcodeAgentsFile({
+    const result = await settingsSyncService.copyClaudeAgentsFileToLcodeAgentsFile({
       workspacePath: params.workspacePath,
       workspaceIdentity: params.workspaceIdentity,
       overwrite: true,

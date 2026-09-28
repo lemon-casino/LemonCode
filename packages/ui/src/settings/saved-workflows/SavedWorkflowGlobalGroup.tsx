@@ -4,10 +4,10 @@ import {
   TID_WORKFLOWS_LIST,
   TID_WORKFLOW_GLOBAL_GROUP,
   testId,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { AutomationWorkspaceOption } from "@/settings/automationWorkspaceOptions.js";
 import { SavedWorkflowCard } from "@/settings/saved-workflows/SavedWorkflowCard.js";
 import { SavedWorkflowDetailView } from "@/settings/saved-workflows/SavedWorkflowDetailView.js";
@@ -49,7 +49,7 @@ interface SavedWorkflowGlobalGroupProps {
 
 /**
  * 全局工作流组：顶部固定的「全局」组，空也显示。载体不用
- * `useWorkspaceServicesResolution`——直接用 `useServices().zcodeAgentService`，RPC 带 `{ scope: "global" }`，
+ * `useWorkspaceServicesResolution`——直接用 `useServices().lcodeAgentService`，RPC 带 `{ scope: "global" }`，
  * services 层自选本机运行时。运行走带「运行于」的实参窗；卡片 / 详情可「移到项目…」搬回本地项目。
  * 状态与动作全在 `useSavedWorkflowGlobalGroup`，本文件只负责渲染。
  */
@@ -62,7 +62,7 @@ export function SavedWorkflowGlobalGroup(props: SavedWorkflowGlobalGroupProps) {
     localProjects,
     activeProjectKey,
   } = props;
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const group = useSavedWorkflowGlobalGroup(props);
   const {
     agentService,

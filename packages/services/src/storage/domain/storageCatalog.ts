@@ -1,9 +1,9 @@
 /**
- * 存储分类目录：把 .zcode 根下的相对路径映射到类别、聚合 key 与可清理性。
+ * 存储分类目录：把 .lcode 根下的相对路径映射到类别、聚合 key 与可清理性。
  * 纯函数、单一事实源。
  * 匹配顺序：根级特例 → 文件规则（精确）→ 前缀规则（最长前缀优先）→ 其他。
  */
-import type { StorageCategoryId, StorageCleanability, StorageRootId } from "@zcode/shared";
+import type { StorageCategoryId, StorageCleanability, StorageRootId } from "@lcode/shared";
 
 export interface StorageCatalogContext {
   rootId: StorageRootId;
@@ -139,7 +139,7 @@ const PROTECTED_BASENAMES = new Set([
   "credentials.json",
   ".credentials.json",
   ".tokens",
-  "zcode-stdio-tap.json",
+  "lcode-stdio-tap.json",
 ]);
 const PROTECTED_PREFIXES = ["v2/crash/live"];
 

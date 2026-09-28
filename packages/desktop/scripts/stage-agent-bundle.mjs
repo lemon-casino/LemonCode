@@ -1,20 +1,20 @@
-// Agent bundle 的暂存动作：把 apps/zcode-cli/packages/cli/dist/zcode.cjs 放进
+// Agent bundle 的暂存动作：把 apps/lcode-cli/packages/cli/dist/lcode.cjs 放进
 // bundled-agents/<平台>/glm，并写 meta。
 //
 // dev 与打包**必须**用同一份暂存实现。
 // 只有打包链（prepare-agent-node-bundle.mjs）会暂存是不够的，dev 链
 // （scripts/build-desktop-agent-cli.mjs）不会；而 dev 未打包时的 agent 二进制由
-// desktopRuntimeEnv.ts 的 resolveBundledZCodeAgentBinaryPath() 解析，候选**只有**
+// desktopRuntimeEnv.ts 的 resolveBundledLCodeAgentBinaryPath() 解析，候选**只有**
 // bundled-agents/，没有 cli/dist/。于是 dev 一直跑着上一次打包时留下的那份 ——
 // 实测陈旧 3 天，任何 agent CLI 侧改动在 dev 里静默不生效，排查时会把「改动没生效」
 // 误判成「代码没起作用」。两边共用这一份，dev 与打包不可能再各自漂移。
 import { copyFileSync, cpSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-export const AGENT_BUNDLE_SOURCE_RELATIVE = "apps/zcode-cli/packages/cli/dist/zcode.cjs";
-const LEMON_PLUGIN_SOURCE_RELATIVE = "apps/zcode-cli/packages/lemon-workflow-plugin";
+export const AGENT_BUNDLE_SOURCE_RELATIVE = "apps/lcode-cli/packages/cli/dist/lcode.cjs";
+const LEMON_PLUGIN_SOURCE_RELATIVE = "apps/lcode-cli/packages/lemon-workflow-plugin";
 const LEMON_PLUGIN_REQUIRED_PATHS = [
-  ".zcode-plugin/plugin.json",
+  ".lcode-plugin/plugin.json",
   "commands/lemon.md",
   "skills/ponytail/SKILL.md",
   "skills/caveman/SKILL.md",
@@ -22,9 +22,9 @@ const LEMON_PLUGIN_REQUIRED_PATHS = [
   "skills/dynamic-workflows/examples.md",
   "skills/dynamic-workflows/patterns.md",
 ];
-const CUA_PLUGIN_SOURCE_RELATIVE = "apps/zcode-cli/packages/zcode-cua-plugin";
+const CUA_PLUGIN_SOURCE_RELATIVE = "apps/lcode-cli/packages/lcode-cua-plugin";
 const CUA_PLUGIN_REQUIRED_PATHS = [
-  ".zcode-plugin/plugin.json",
+  ".lcode-plugin/plugin.json",
   "docs/computer-use.md",
   "scripts/computer-use-client.mjs",
   "skills/computer-use/SKILL.md",
@@ -47,7 +47,7 @@ export function resolveAgentBundlePaths({ repoRoot, platformKey }) {
   return {
     cliBundlePath: resolve(repoRoot, AGENT_BUNDLE_SOURCE_RELATIVE),
     glmDir,
-    stagedBundlePath: resolve(glmDir, "zcode.cjs"),
+    stagedBundlePath: resolve(glmDir, "lcode.cjs"),
     stagedMetaPath: resolve(glmDir, ".node-bundle-meta.json"),
   };
 }
@@ -55,7 +55,7 @@ export function resolveAgentBundlePaths({ repoRoot, platformKey }) {
 /**
  * 干净重建 glm 目录再拷贝。清空是刻意的：electron-builder 整目录拷贝
  * bundled-agents/<平台>/glm → resources/glm，本地工作树里上一次构建残留的原生二进制
- * （zcode-agent / zcode-acp 等）和旧 meta 会被一并打进安装包（CI 干净检出不会有，本地会）。
+ * （lcode-agent / lcode-acp 等）和旧 meta 会被一并打进安装包（CI 干净检出不会有，本地会）。
  */
 export function stageAgentBundle({ repoRoot, platformKey, log = console.log }) {
   const { cliBundlePath, glmDir, stagedBundlePath, stagedMetaPath } = resolveAgentBundlePaths({
@@ -83,12 +83,12 @@ export function stageAgentBundle({ repoRoot, platformKey, log = console.log }) {
     glmDir,
     repoRoot,
     sourceRelative: CUA_PLUGIN_SOURCE_RELATIVE,
-    stagedRelative: "packages/zcode-cua-plugin",
+    stagedRelative: "packages/lcode-cua-plugin",
     requiredPaths: CUA_PLUGIN_REQUIRED_PATHS,
   });
   const meta = {
     runtime: "electron-node",
-    entry: "zcode.cjs",
+    entry: "lcode.cjs",
     platform: platformKey,
     source: AGENT_BUNDLE_SOURCE_RELATIVE,
   };

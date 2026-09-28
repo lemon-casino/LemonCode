@@ -7,7 +7,7 @@ import {
   TID_BROWSER_RESPONSIVE_ZOOM_OPTION,
   TID_BROWSER_RESPONSIVE_ZOOM_SELECT,
   type BrowserViewportSize,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import {
   BROWSER_VIEWPORT_ZOOM_OPTIONS,
   type BrowserViewportZoom,
@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 type ViewportDimension = "height" | "width";
 
@@ -52,7 +52,7 @@ export function BrowserViewportToolbar({
   viewportSize: BrowserViewportSize;
   zoom: BrowserViewportZoom;
 }): React.JSX.Element {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [widthDraft, setWidthDraft] = useState(String(viewportSize.width));
   const [heightDraft, setHeightDraft] = useState(String(viewportSize.height));
   const [invalidDrafts, setInvalidDrafts] = useState<Record<ViewportDimension, boolean>>({

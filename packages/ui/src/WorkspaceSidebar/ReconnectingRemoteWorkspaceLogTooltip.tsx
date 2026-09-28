@@ -1,6 +1,6 @@
 import { LoaderCircle } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ReactElement } from "react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { RemoteConnectionLogEntry } from "@/hooks/useRemoteConnectionLogs.js";
 import { cn } from "@/components/lib/utils.js";
 import {
@@ -34,7 +34,7 @@ export function ReconnectingRemoteWorkspaceLogTooltip({
   logs: RemoteConnectionLogEntry[];
   children?: ReactElement;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [open, setOpen] = useState(false);
   const logViewportRef = useRef<HTMLDivElement | null>(null);
   const cancelScheduledScrollRef = useRef<() => void>(() => {});

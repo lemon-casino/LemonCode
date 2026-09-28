@@ -16,7 +16,7 @@ import {
   type SessionModelTransition,
   type ToolCallRow,
   type TopicFrameDeliveryKind,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
 import { logger } from "@/logger.js";
 import type { ConversationTurnNavigatorHydrationResult } from "@/v4/conversationTurnNavigatorHelpers.js";
 import type { ConversationTransport } from "@/v4/transport.js";
@@ -44,7 +44,7 @@ const ACCEPTED_INPUT_PROJECTION_GRACE_MS = 2_000;
 const ACCEPTED_INPUT_COMMAND_TYPES = new Set(["sendText"]);
 
 /** 退避耗尽时展示给用户的 lastError（无底层 error 对象可引用的换代路径）。 */
-const RUNTIME_RECYCLED_ERROR = "ZCode agent runtime 已被回收，重连未成功";
+const RUNTIME_RECYCLED_ERROR = "LCode agent runtime 已被回收，重连未成功";
 
 function monotonicNow(): number {
   return typeof performance !== "undefined" ? performance.now() : Date.now();
@@ -57,7 +57,7 @@ function roundedDuration(startedAt: number, endedAt: number): number {
 /**
  * 是否为 runtime 换代/回收导致的瞬态 subscribe 失败。
  *
- * 三种文案都来自同一次回收：transport 关闭时 ZCodeProtocolClient.rejectAll 打断在途请求
+ * 三种文案都来自同一次回收：transport 关闭时 LCodeProtocolClient.rejectAll 打断在途请求
  * （transport closed），复用已回收 client 时 assertNotDisposed 早退（client disposed），
  * 以及 runtime 尚未重新拉起时的 fail-fast（runtime is not running）。
  */
@@ -66,10 +66,10 @@ function isRuntimeRecycleError(error: unknown): boolean {
   return (
     // 冷订阅可能亲自拉起新 runtime；restart 令在途 ACK 失效后仍须有界重订，不能停在 error。
     message.includes("fault.subscription.runtimeRestarted") ||
-    message.includes("ZCode agent transport closed") ||
-    message.includes("ZCode Protocol client disposed") ||
-    message.includes("ZCode Protocol client is disposed") ||
-    message.includes("ZCode Agent runtime is not running")
+    message.includes("LCode agent transport closed") ||
+    message.includes("LCode Protocol client disposed") ||
+    message.includes("LCode Protocol client is disposed") ||
+    message.includes("LCode Agent runtime is not running")
   );
 }
 
@@ -529,7 +529,7 @@ export class ConversationProjectionStore {
   }
 
   /**
-   * 有界退避重连。重订阅走 start-if-needed（zcodeAgentService.subscribeConversationV4），
+   * 有界退避重连。重订阅走 start-if-needed（lcodeAgentService.subscribeConversationV4），
    * 自身即可把懒启动的 runtime 拉起来——这是 available 永不到达时唯一的自愈路径。
    * 返回 true 表示已接管，调用方不应再落 error。
    */

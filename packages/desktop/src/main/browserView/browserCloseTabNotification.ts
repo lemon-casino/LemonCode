@@ -1,4 +1,4 @@
-import type { BrowserViewCloseTabNotification } from "@zcode/shared";
+import type { BrowserViewCloseTabNotification } from "@lcode/shared";
 import type { BrowserGuestExecutionContext } from "./browserGuestManager.js";
 
 /** 构造 main→renderer 关闭通知所需的 owner scope 子集；完整 execution context 的其余字段与 renderer 无关。 */

@@ -4,7 +4,7 @@
  * 从 bindings.ts 拆出（内核 vs 冲突策略分层，且 bindings.ts 有 max-lines 门禁）：
  * 键位匹配/录制/生效表仍在 bindings.ts，本模块只回答"这个绑定能不能落"。
  */
-import { parseShortcutBinding, SHORTCUT_COMMANDS, type ShortcutCommandId } from "@zcode/shared";
+import { parseShortcutBinding, SHORTCUT_COMMANDS, type ShortcutCommandId } from "@lcode/shared";
 
 import {
   isAppleKeyboardPlatform,

@@ -6,7 +6,7 @@
 // 不展开已收起的侧栏）。等的是投影里出现新 run 这一事实，不是一个超时。
 
 import { useEffect, useMemo, useState } from "react";
-import type { SessionConfigState, WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import type { SessionConfigState, WorkflowRunState } from "@lcode/shared/lcode-protocol-v4";
 import {
   useWorkflowRunSettingsPopoverState,
   type WorkflowRunSettingsAccepted,

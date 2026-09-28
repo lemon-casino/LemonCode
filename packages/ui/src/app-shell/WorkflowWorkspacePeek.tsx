@@ -6,7 +6,7 @@
 // IntersectionObserver 的环境（jsdom）视作立刻可见。
 
 import { memo, useEffect, useMemo, useRef, useState } from "react";
-import type { WorkflowRunWorkspaceNode } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunWorkspaceNode } from "@lcode/shared/lcode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { useWorkflowRunNodeResult } from "@/hooks/useWorkflowRunNodeResult.js";
 import { peekLinesOf } from "@/app-shell/workflowWorkspaceLogbook.js";

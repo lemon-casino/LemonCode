@@ -25,7 +25,7 @@ import {
   type RemotePairingStartRequest,
   type RemotePairingStartResult,
   type RemotePairingStatePush,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import {
   createRemoteControlFramePump,
   type RemoteControlFramePump,
@@ -658,7 +658,7 @@ export function createRemoteControlController(options: RemoteControlControllerOp
       const fetchHealth = options.fetchHealth ?? ((url, init) => fetch(url, init));
       const response = await fetchHealth(`${base}/api/health`, {
         method: "POST",
-        headers: { "x-zcode-remote-access-key": accessKey },
+        headers: { "x-lcode-remote-access-key": accessKey },
         signal: AbortSignal.timeout(8000),
       });
       const latencyMs = Math.max(0, now() - startedAt);

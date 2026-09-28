@@ -1,7 +1,7 @@
 /* oxlint-disable eslint(max-lines) -- Browser Plugin、Chrome 数据导入与清理共享同一平台状态机，拆分会扩大 pending/失败回收边界。 */
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { LoaderCircle } from "lucide-react";
-import type { ChromeBrowserDataImportResult } from "@zcode/shared";
+import type { ChromeBrowserDataImportResult } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import {
   AlertDialog,
@@ -17,9 +17,9 @@ import { Switch } from "@/components/ui/switch.js";
 import { toast } from "@/components/ui/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
-import { useZCodeSessionService } from "@/hooks/useZCodeSessionService.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/zcodeDraftSkillInvalidation.js";
+import { useLCodeSessionService } from "@/hooks/useLCodeSessionService.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
+import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/lcodeDraftSkillInvalidation.js";
 import { logger } from "@/logger.js";
 import { startUserAction } from "@/lib/userActionTelemetry.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
@@ -79,10 +79,10 @@ export function BrowserSettingsSection({
   embeddedBrowserAllowInsecureCertificates = false,
   onEmbeddedBrowserAllowInsecureCertificatesChange = async () => {},
 }: BrowserSettingsSectionProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const platform = usePlatform();
   const { pluginManagementService, skillsService } = useServices();
-  const zcodeSessionService = useZCodeSessionService(
+  const lcodeSessionService = useLCodeSessionService(
     workspacePath ?? undefined,
     undefined,
     workspaceIdentity,
@@ -120,7 +120,7 @@ export function BrowserSettingsSection({
 
   const refreshAfterPluginChange = useCallback(async () => {
     await invalidateDeferredDraftSessionForSkillChange({
-      zcodeSessionService,
+      lcodeSessionService,
       workspacePath,
       workspaceIdentity: normalizedWorkspaceIdentity ?? undefined,
       reason: "settings-browser-use-plugin-enabled",
@@ -139,7 +139,7 @@ export function BrowserSettingsSection({
     skillStoreWorkspacePath,
     skillsService,
     workspacePath,
-    zcodeSessionService,
+    lcodeSessionService,
   ]);
 
   const handleBrowserEnabledChange = useCallback(

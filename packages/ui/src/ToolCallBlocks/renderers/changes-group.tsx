@@ -1,6 +1,6 @@
 import { PencilIcon } from "lucide-react";
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { getFileDisplayPath } from "@/lib/fileDisplay.js";
 import { ToolCallBlock } from "@/ToolCallBlocks.js";
 import { ToolLayout } from "@/ToolCallBlocks/ToolLayout.js";
@@ -158,7 +158,7 @@ function ResponsiveFileChipList({
 }
 
 export function ChangesGroupToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCall, childToolCalls } = context.toolCallNode;
   const childSummaries = useMemo(
     () =>

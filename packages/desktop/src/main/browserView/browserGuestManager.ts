@@ -23,7 +23,7 @@ import {
   type BrowserViewResidencyTransitionPayload,
   type BrowserViewRestoredTabShell,
   type BrowserViewportSize,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { executeBrowserCommandOnView, type ControlledView } from "./browserCommandExecutor.js";
 import { executeIabPlaywrightLocator } from "./browserPlaywrightLocatorExecutor.js";
 import { recordBrowserVideo, type BrowserWebmRecorderFactory } from "./browserVideoRecorder.js";
@@ -549,7 +549,7 @@ export class BrowserGuestManager {
     }
     if (guest.getType() !== "webview") {
       // fromId 接受进程内任意 WebContents id；若 renderer 误传主窗口 id，后续
-      // CDP/Runtime 输入会直接操作 ZCode composer。IAB 只允许真实 <webview> guest fail closed。
+      // CDP/Runtime 输入会直接操作 LCode composer。IAB 只允许真实 <webview> guest fail closed。
       this.log?.(
         `[browser-use] attachGuest rejected tabId=${tabId} id=${webContentsId} reason=not-webview type=${guest.getType()}`,
       );
@@ -2432,7 +2432,7 @@ export class BrowserGuestManager {
 
   private async installRecordingCursorOverlay(guest: GuestWebContents): Promise<void> {
     await guest.executeJavaScript(`(() => {
-      const id = "__zcode_browser_recording_cursor";
+      const id = "__lcode_browser_recording_cursor";
       document.getElementById(id)?.remove();
       const cursor = document.createElement("div");
       cursor.id = id;
@@ -2449,16 +2449,16 @@ export class BrowserGuestManager {
       const up = () => {
         cursor.style.transform = "translate(-50%,-50%) scale(1)";
       };
-      window["__zcodeBrowserRecordingCursorCleanup"]?.();
+      window["__lcodeBrowserRecordingCursorCleanup"]?.();
       window.addEventListener("mousemove", move, true);
       window.addEventListener("mousedown", down, true);
       window.addEventListener("mouseup", up, true);
-      window["__zcodeBrowserRecordingCursorCleanup"] = () => {
+      window["__lcodeBrowserRecordingCursorCleanup"] = () => {
         window.removeEventListener("mousemove", move, true);
         window.removeEventListener("mousedown", down, true);
         window.removeEventListener("mouseup", up, true);
         cursor.remove();
-        delete window["__zcodeBrowserRecordingCursorCleanup"];
+        delete window["__lcodeBrowserRecordingCursorCleanup"];
       };
     })()`);
   }
@@ -2466,7 +2466,7 @@ export class BrowserGuestManager {
   private async removeRecordingCursorOverlay(guest: GuestWebContents): Promise<void> {
     if (guest.isDestroyed()) return;
     await guest
-      .executeJavaScript('window["__zcodeBrowserRecordingCursorCleanup"]?.()')
+      .executeJavaScript('window["__lcodeBrowserRecordingCursorCleanup"]?.()')
       .catch(() => undefined);
   }
 
@@ -2733,7 +2733,7 @@ export class BrowserGuestManager {
     context: InternalExecutionContext,
     keep: Map<string, "handoff" | "deliverable">,
   ): void {
-    // 产品语义：IAB tab 在当前 ZCode 进程内默认持久。keep 是状态标记集合，不是清理白名单；
+    // 产品语义：IAB tab 在当前 LCode 进程内默认持久。keep 是状态标记集合，不是清理白名单；
     // 遗漏的 tab 不能当成临时页关闭：模型未显式 close 时用户页面会在 turn end 消失。
     for (const tab of this.tabs.values()) {
       if (!sameScope(tab.owner, context)) continue;

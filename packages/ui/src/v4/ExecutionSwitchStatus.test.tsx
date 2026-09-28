@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { ModelSelection } from "@zcode/shared";
-import type { ExecutionFailoverState } from "@zcode/shared/zcode-protocol-v4";
-import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
+import type { ModelSelection } from "@lcode/shared";
+import type { ExecutionFailoverState } from "@lcode/shared/lcode-protocol-v4";
+import { LCodeIntlProvider } from "@/i18n/IntlProvider.js";
 import { ExecutionSwitchStatus } from "./ExecutionSwitchStatus.js";
 
 function renderStatus({
@@ -47,9 +47,9 @@ function renderStatus({
   };
 
   return renderToStaticMarkup(
-    <ZCodeIntlProvider initialLocale={locale}>
+    <LCodeIntlProvider initialLocale={locale}>
       <ExecutionSwitchStatus currentSelection={from} modelSelectionView={null} state={state} />
-    </ZCodeIntlProvider>,
+    </LCodeIntlProvider>,
   );
 }
 

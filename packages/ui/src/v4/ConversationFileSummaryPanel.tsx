@@ -6,7 +6,7 @@ import type {
   TurnHeaderRow,
   V4ConversationFileChangesResult,
   V4ConversationFileRewindPreviewResult,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import {
@@ -14,7 +14,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { FileDisplayInline } from "@/lib/fileDisplay.js";
 import { toWorkspaceRelativePath } from "@/lib/taskChangeSummary.js";
 import { buildChangeSummaryFilePreviewSource } from "@/messageChangeSummaryPreview.js";
@@ -71,7 +71,7 @@ export function ConversationFileSummaryPanel({
   header,
   context,
 }: ConversationFileSummaryPanelProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const summary = header.fileChanges;
   const [open, setOpen] = useState(false);
   const [details, setDetails] = useState<V4ConversationFileChangesResult | null>(null);

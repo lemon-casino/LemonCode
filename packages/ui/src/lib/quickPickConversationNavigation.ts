@@ -1,4 +1,4 @@
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { LCodeTaskMeta } from "@lcode/shared";
 import type { CachedTaskListResult, TaskEntityKey } from "@/lib/taskQueryCache.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 
@@ -32,7 +32,7 @@ export function selectQuickPickConversationTaskIds(params: {
   workspacePath: string;
   workspaceIdentity?: string;
   resultsByQueryKey: Record<string, CachedTaskListResult>;
-  taskMetaByEntityKey: Record<TaskEntityKey, ZCodeTaskMeta>;
+  taskMetaByEntityKey: Record<TaskEntityKey, LCodeTaskMeta>;
   fallbackTaskIds: readonly string[];
 }): string[] {
   const workspaceKey = buildTaskWorkspaceKey(params.workspacePath, params.workspaceIdentity);
@@ -76,7 +76,7 @@ export function selectQuickPickConversationTaskIds(params: {
     }
   }
 
-  // quickpick 的上/下一个任务以前只读 zcodeSessionStore.taskListCache。
+  // quickpick 的上/下一个任务以前只读 lcodeSessionStore.taskListCache。
   // 任务列表迁到 task query cache 后，旧缓存可能为空或顺序过期；只有新缓存还没到时才走旧路径兜底。
   return [...params.fallbackTaskIds];
 }

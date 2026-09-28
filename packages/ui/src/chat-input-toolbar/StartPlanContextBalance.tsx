@@ -1,8 +1,8 @@
 import { CodingPlanEntryButton } from "@/settings/CodingPlanEntryButton.js";
 import { Loader2Icon, RocketIcon } from "lucide-react";
-import type { UsageEntitlementSnapshot, UsageQuotaLimit } from "@zcode/shared";
+import type { UsageEntitlementSnapshot, UsageQuotaLimit } from "@lcode/shared";
 import { cn } from "@/components/lib/utils.js";
-import type { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { getContextQuotaMeterGridClass } from "@/chat-input-toolbar/contextQuotaMeterGrid.js";
 import { formatStartPlanBucketResetTime } from "@/lib/codingPlanQuotaPresentation.js";
 import { formatQuotaModelDisplayName } from "@/settings/model-provider-section/quotaModelDisplayName.js";
@@ -115,7 +115,7 @@ export function ChatStartPlanBalancePanel({
   separated = false,
 }: {
   config: ChatStartPlanBalanceConfig;
-  intl: ReturnType<typeof useZCodeIntl>["intl"];
+  intl: ReturnType<typeof useLCodeIntl>["intl"];
   locale: string;
   separated?: boolean;
 }) {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const RENDERER_ACTION_TRACE_SERVICE_NAME = "zcode-desktop-renderer";
+export const RENDERER_ACTION_TRACE_SERVICE_NAME = "lcode-desktop-renderer";
 export const RENDERER_ACTION_TRACE_MAX_SAMPLE_RATIO = 0.2;
 export const RENDERER_ACTION_TRACE_MAX_BATCH_SPANS = 32;
 export const RENDERER_ACTION_TRACE_MAX_BATCH_BYTES = 256 * 1024;

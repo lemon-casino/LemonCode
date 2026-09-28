@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type {
   ClaudeMigrationRange,
   useClaudeSessionMigration,
@@ -77,7 +77,7 @@ export function OnboardingSessionsStep(props: {
   onSelectAll: () => void;
   onClearSelection: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const selectedCount = props.selectedWorkspacePaths.length;
   const totalCount = props.workspaceCandidates.length;
   const allSelected = totalCount > 0 && selectedCount === totalCount;
@@ -227,7 +227,7 @@ export function OnboardingSessionsStep(props: {
 export function OnboardingAgentSettingsStep(props: {
   settingsSync: ReturnType<typeof useSettingsSync>;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   const { discovery, loading, error } = props.settingsSync.state;
 
@@ -280,7 +280,7 @@ export function OnboardingMigrationStep(props: {
   overallProgress: number;
   finishExecution: FinishExecutionState;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   return (
     <div className="flex h-full min-h-0 flex-col justify-center">
@@ -324,7 +324,7 @@ export function OnboardingFinishStep(props: {
   settingsSkippedCount: number;
   settingsFailedCount: number;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-8 pt-8">

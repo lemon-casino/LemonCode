@@ -55,7 +55,7 @@ test("parser fails closed for invalid ids, remote routes and stale data", () => 
       transfer(
         JSON.stringify({
           version: 1,
-          kind: "zcode/session-reference",
+          kind: "lcode/session-reference",
           sessionId: "not-a-session",
           source: { workspacePath: "C:/repo" },
           nonce: "session-reference-test-2",

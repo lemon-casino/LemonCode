@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@lcode/browser-use-plugin",
+  "version": "0.5.1",
+  "private": true,
+  "description": "作为官方 LCode 内置插件发布的 Browser Use skill 与 client runtime；node_repl MCP server 由 @lcode/node-repl-host 提供。",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/mcp/server.js",
+  "scripts": {
+    "build": "tsc && node scripts/build.mjs",
+    "clean": "node ../../scripts/clean-dist.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src --no-ignore"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/server": "2.0.0",
+    "@lcode/contracts": "workspace:*",
+    "@lcode/core": "workspace:*",
+    "@lcode/node-repl-host": "workspace:*",
+    "@lcode/shared": "workspace:*",
+    "zod": "4.6.5"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "2.0.0",
+    "@types/node": "^24.0.0",
+    "@lcode/adapters": "workspace:*",
+    "@lcode/bootstrap": "workspace:*",
+    "esbuild": "^0.25.0",
+    "playwright-core": "1.59.1",
+    "typescript": "^5.9.0"
+  }
+}

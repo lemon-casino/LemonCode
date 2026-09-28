@@ -2,10 +2,10 @@ import type { MarkdownSelectionTarget } from "@/lib/conversationSelectionReferen
 /* eslint-disable max-lines -- PreviewPane 内容路由同时承载文本、图片、媒体、Office、PDF 和 PPTX 渲染。 */
 import type { BundledTheme } from "shiki";
 import { useMemo, type Ref, type SyntheticEvent, type UIEventHandler } from "react";
-import type { FileBinaryPreview, FileMediaPreview, FileTextSlice } from "@zcode/shared";
+import type { FileBinaryPreview, FileMediaPreview, FileTextSlice } from "@lcode/shared";
 import { inferCodeLanguage } from "@/lib/codeViewer.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CodePreviewSettings } from "@/store/index.js";
 import type { CodeCommentLabels } from "@/components/ui/code-viewer.js";
 import { MarkdownPreviewContent } from "@/previewPaneMarkdownContent.js";
@@ -131,7 +131,7 @@ export function PreviewPaneContent({
   onScroll,
   scrollContainerRef,
 }: PreviewPaneContentProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const fileMissingMessage = intl.formatMessage({ id: "codeViewer.fileMissing" });
   const mediaLabels = {
     loading: intl.formatMessage({ id: "codeViewer.loadingMedia" }),

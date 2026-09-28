@@ -5,7 +5,7 @@ import {
   FOLDER_FILE_ICON_SRC,
   resolveFileDisplayDescriptor,
 } from "@/lib/fileDisplay.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { ToolLayout } from "../ToolLayout.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
@@ -252,7 +252,7 @@ export function ReadFileChip({
 }
 
 export function ReadToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCallNode, isRunning, statusLabel, errorText, onOpenCodeViewer } = context;
   const { toolCall } = toolCallNode;
   const summary = buildReadSummary(toolCall);

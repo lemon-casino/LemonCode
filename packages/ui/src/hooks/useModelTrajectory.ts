@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ZCodeModelTrajectory } from "@zcode/services";
+import type { LCodeModelTrajectory } from "@lcode/services";
 import { logger } from "@/logger.js";
-import { useZCodeTaskService } from "@/hooks/useZCodeTaskService.js";
+import { useLCodeTaskService } from "@/hooks/useLCodeTaskService.js";
 
 interface ModelTrajectoryState {
   loading: boolean;
-  data: ZCodeModelTrajectory | null;
+  data: LCodeModelTrajectory | null;
   error: string | null;
 }
 
@@ -25,7 +25,7 @@ function getErrorMessage(error: unknown): string {
 /**
  * 读取某个 task/session 的模型调用轨迹（model-io）。
  *
- * 路径解析与文件读取都收口在 zcodeTaskService.getModelTrajectory（host 侧），
+ * 路径解析与文件读取都收口在 lcodeTaskService.getModelTrajectory（host 侧），
  * 桌面读本机、手机远控读远端 host，UI 只消费结构化结果。
  */
 export function useModelTrajectory(
@@ -33,7 +33,7 @@ export function useModelTrajectory(
   taskId: string | null,
   workspaceIdentity?: string,
 ): ModelTrajectoryState & { refresh: () => void } {
-  const zcodeTaskService = useZCodeTaskService(workspacePath, undefined, workspaceIdentity);
+  const lcodeTaskService = useLCodeTaskService(workspacePath, undefined, workspaceIdentity);
   const [state, setState] = useState<ModelTrajectoryState>(INITIAL_STATE);
   const [reloadToken, setReloadToken] = useState(0);
   const requestVersionRef = useRef(0);
@@ -57,7 +57,7 @@ export function useModelTrajectory(
     requestVersionRef.current = requestVersion;
     setState({ loading: true, data: null, error: null });
 
-    void zcodeTaskService
+    void lcodeTaskService
       .getModelTrajectory({ taskId })
       .then((data) => {
         if (disposed || requestVersionRef.current !== requestVersion) {
@@ -82,7 +82,7 @@ export function useModelTrajectory(
     return () => {
       disposed = true;
     };
-  }, [zcodeTaskService, taskId, workspaceIdentity, workspacePath, reloadToken]);
+  }, [lcodeTaskService, taskId, workspaceIdentity, workspacePath, reloadToken]);
 
   return { ...state, refresh };
 }

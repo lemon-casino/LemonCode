@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import { PlatformChannels, type ChromeBrowserDataImportOptions } from "@zcode/shared";
+import { PlatformChannels, type ChromeBrowserDataImportOptions } from "@lcode/shared";
 import { clearEmbeddedBrowserData, importChromeBrowserData } from "./browserDataManager.js";
 
 export function registerBrowserDataIpcHandlers(logger: {

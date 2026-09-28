@@ -1,4 +1,4 @@
-import type { AssistantTextRow, ReasoningRow, ToolCallRow } from "@zcode/shared/zcode-protocol-v4";
+import type { AssistantTextRow, ReasoningRow, ToolCallRow } from "@lcode/shared/lcode-protocol-v4";
 import type { TaskChatToolCallTreeNode } from "@/lib/toolCallTree.js";
 import type { AssistantWorkRow } from "@/v4/conversationTurnRenderUnits.js";
 import type { ConversationTurnFlowItem } from "@/v4/conversationTurnFlowItems.js";
@@ -23,7 +23,7 @@ export interface ConversationCuaGroupRenderItem {
 
 const OFFICIAL_CUA_TOOL_PREFIXES = [
   "mcp__computer-use__",
-  "mcp__plugin_zcode-cua_computer-use__",
+  "mcp__plugin_lcode-cua_computer-use__",
 ] as const;
 
 export const ENABLE_CUA_TOOL_CALL_GROUPING = true;

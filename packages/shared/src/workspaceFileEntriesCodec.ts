@@ -1,4 +1,4 @@
-import type { WorkspaceFileEntry } from "@zcode/shared";
+import type { WorkspaceFileEntry } from "@lcode/shared";
 
 /**
  * 工作区文件条目的列式编解码（worker/跨进程传输专用，零运行时依赖）。

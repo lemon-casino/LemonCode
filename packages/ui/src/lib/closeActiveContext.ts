@@ -1,7 +1,7 @@
 import type { WorkspaceSidePaneState, WorkspaceSidePaneTab } from "@/lib/workspaceSidePane.js";
 import { getActiveSidePaneTab } from "@/lib/workspaceSidePane.js";
 
-export const CLOSE_ACTIVE_CONTEXT_REQUEST_EVENT = "zcode:close-active-context-request";
+export const CLOSE_ACTIVE_CONTEXT_REQUEST_EVENT = "lcode:close-active-context-request";
 
 export function getCloseActiveContextSidePaneTab(options: {
   isWorkspaceVisible: boolean;

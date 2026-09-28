@@ -1,30 +1,30 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ZCODE_CUA_OFFICIAL_PLUGIN_ID } from "@zcode/shared";
-import type { ZCodePluginsSetEnabledResult } from "@zcode/shared";
+import { LCODE_CUA_OFFICIAL_PLUGIN_ID } from "@lcode/shared";
+import type { LCodePluginsSetEnabledResult } from "@lcode/shared";
 import { createPluginManagementService } from "./pluginManagementService.js";
 
 const CUA_RESULT = {
   enabled: true,
-  plugin: { id: ZCODE_CUA_OFFICIAL_PLUGIN_ID },
-} as unknown as ZCodePluginsSetEnabledResult;
+  plugin: { id: LCODE_CUA_OFFICIAL_PLUGIN_ID },
+} as unknown as LCodePluginsSetEnabledResult;
 
 const TARGET = {
   workspacePath: "C:\\workspace",
   workspaceIdentity: "desktop-local:test",
-  pluginId: ZCODE_CUA_OFFICIAL_PLUGIN_ID,
+  pluginId: LCODE_CUA_OFFICIAL_PLUGIN_ID,
   enabled: true,
 } as const;
 
 function createService(input: {
-  setPluginEnabled?: () => Promise<ZCodePluginsSetEnabledResult>;
+  setPluginEnabled?: () => Promise<LCodePluginsSetEnabledResult>;
   disposeWorkspace?: (params: {
     workspacePath: string;
     workspaceIdentity?: string;
   }) => Promise<void>;
 }) {
   return createPluginManagementService({
-    zcodeAgentService: {
+    lcodeAgentService: {
       setPluginEnabled: input.setPluginEnabled ?? (async () => CUA_RESULT),
       disposeWorkspace: input.disposeWorkspace ?? (async () => undefined),
     } as never,

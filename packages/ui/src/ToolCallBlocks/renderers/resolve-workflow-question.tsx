@@ -1,6 +1,6 @@
 import { MessageCircleReply } from "lucide-react";
 import { useCallback, useMemo } from "react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
 import { ToolLayout } from "@/ToolCallBlocks/ToolLayout.js";
 import type { ToolCallBlockRenderContext } from "@/ToolCallBlocks/shared.js";
@@ -55,7 +55,7 @@ function toInlinePreview(value: string | undefined): string | undefined {
  * `status==="failed"`，此时才走失败样式；成功确认是普通结果。
  */
 export function ResolveWorkflowQuestionToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCall } = context.toolCallNode;
   const input = toRecord(toolCall.input);
   const questionId = readText(input?.question_id);

@@ -31,11 +31,11 @@ import {
 import { toast } from "@/components/ui/toast.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   TID_WORKSPACE_FILE_TREE_PANEL,
   TID_WORKSPACE_FILE_TREE_REFRESH_BUTTON,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import {
   areWorkspaceFilePathsEqual,
   createCodeViewerSourceForWorkspaceFile,
@@ -98,7 +98,7 @@ export function WorkspaceFileTree({
   onOpenBrowserUrl,
   onOpenPreview,
 }: WorkspaceFileTreeProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const platform = usePlatform();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const listRef = useRef<HTMLDivElement | null>(null);

@@ -1,4 +1,4 @@
-import type { RemoteEnvironment } from "@zcode/server/remote/backend.js";
+import type { RemoteEnvironment } from "@lcode/server/remote/backend.js";
 
 export function assertSupportedRemoteEnvironment(env: RemoteEnvironment): void {
   if (env.platform !== "win32") {

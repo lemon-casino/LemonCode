@@ -1,6 +1,6 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, type RefObject } from "react";
-import type { ZCodeModelTrajectoryRecord } from "@zcode/services";
+import type { LCodeModelTrajectoryRecord } from "@lcode/services";
 import {
   type TrajectorySearchMatch,
   type TrajectorySearchTimelineItem,
@@ -141,7 +141,7 @@ export function ModelTrajectoryTimeline({
   );
 }
 
-export function resolveTrajectoryTimelineItems(records: ZCodeModelTrajectoryRecord[]) {
+export function resolveTrajectoryTimelineItems(records: LCodeModelTrajectoryRecord[]) {
   let previousConversationMessageCount = 0;
 
   return records.map((record, index) => {
@@ -165,11 +165,11 @@ export function resolveTrajectoryInputMessages({
   index,
   previousConversationMessageCount,
 }: {
-  record: ZCodeModelTrajectoryRecord;
+  record: LCodeModelTrajectoryRecord;
   index: number;
   previousConversationMessageCount: number;
 }): {
-  inputMessages: ZCodeModelTrajectoryRecord["request"]["messages"];
+  inputMessages: LCodeModelTrajectoryRecord["request"]["messages"];
   nextConversationMessageCount: number;
 } {
   const messages = record.request.messages;
@@ -192,16 +192,16 @@ export function resolveTrajectoryInputMessages({
   };
 }
 
-function shouldUseConversationDelta(record: ZCodeModelTrajectoryRecord): boolean {
+function shouldUseConversationDelta(record: LCodeModelTrajectoryRecord): boolean {
   const kind = record.callSource?.kind;
   return kind === undefined || kind === "main" || kind === "subagent";
 }
 
 function computeDeltaMessages(
-  messages: ZCodeModelTrajectoryRecord["request"]["messages"],
+  messages: LCodeModelTrajectoryRecord["request"]["messages"],
   previousMessageCount: number,
   index: number,
-): ZCodeModelTrajectoryRecord["request"]["messages"] {
+): LCodeModelTrajectoryRecord["request"]["messages"] {
   if (index === 0) return messages;
   if (messages.length > previousMessageCount) return messages.slice(previousMessageCount);
   if (messages.length < previousMessageCount) return messages;

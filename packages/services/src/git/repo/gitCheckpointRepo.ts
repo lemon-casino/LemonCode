@@ -5,7 +5,7 @@ import type {
   GitCheckpointDiff,
   GitCheckpointMeta,
   GitCheckpointRestoreResult,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { getGitCheckpointIndexRootDir } from "../../paths.js";
 import { toWorkspaceRelativeGitPath } from "../config.js";
 import {
@@ -324,7 +324,7 @@ export function createGitCheckpointRepo(options?: {
             "commit-tree",
             treeResult.stdout.trim(),
             "-m",
-            `zcode checkpoint ${params.checkpointId}`,
+            `lcode checkpoint ${params.checkpointId}`,
           ],
           env,
         });
@@ -359,7 +359,7 @@ export function createGitCheckpointRepo(options?: {
     /**
      * 比较两个 checkpoint 在当前 workspace scope 下的文件差异。
      *
-     * 这个方法本身不感知 ZCode Agent/task/turn，只回答一个纯文件问题：
+     * 这个方法本身不感知 LCode Agent/task/turn，只回答一个纯文件问题：
      * “从 fromCheckpoint 到 toCheckpoint，这个工作区范围内有哪些文件发生了什么变化？”
      *
      * 返回值会被 restore、后续摘要能力、甚至潜在的调试工具复用，所以这里保持纯读、无副作用。

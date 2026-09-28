@@ -19,7 +19,7 @@ interface PersistedComposerDraftFile {
   scopes: Record<string, unknown>;
 }
 
-const STORAGE_KEY_PREFIX = "zcode-chat-composer-drafts:v1:";
+const STORAGE_KEY_PREFIX = "lcode-chat-composer-drafts:v1:";
 const ROOT_COMPOSER_DRAFT_SCOPE_ID = "__draft__";
 
 function getBrowserStorage(): StorageLike | null {

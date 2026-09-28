@@ -8,7 +8,7 @@ import {
   TerminalIcon,
 } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { LaneClass, StepRunStatus } from "@/components/workflow-graph/types.js";
 import { WorkflowAgentFace, agentColor } from "@/components/workflow-timeline/WorkflowAgentFace.js";
 
@@ -61,7 +61,7 @@ export function LaneGlyph({
 
 /** 状态标记：转圈 / 对勾 / 叉；`pending` 与 undefined 没有标记。状态变化时新标记弹入；可打开的药丸悬停时它让位给 ↗。 */
 export function PillStatusMark({ status }: { status: StepRunStatus | undefined }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   if (status === undefined || status === "pending") return null;
   const label = intl.formatMessage({ id: `chat.toolCall.workflow.graph.status.${status}` });
   return (

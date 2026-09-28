@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { Switch } from "@/components/ui/switch.js";
 import { Button } from "@/components/ui/button.js";
@@ -28,7 +28,7 @@ export function GitBackupSection({
   enabled: boolean;
   onEnabledChange: (enabled: boolean) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [ossForm, setOssForm] = useState<OssFormState>(EMPTY_OSS);
   const [interval, setInterval] = useState(60);
   const [backingUp, setBackingUp] = useState(false);
@@ -135,7 +135,7 @@ export function GitBackupSection({
             <Input
               value={ossForm.pathPrefix}
               onChange={(e) => updateField("pathPrefix", e.target.value)}
-              placeholder="zcode-backups"
+              placeholder="lcode-backups"
             />
           </div>
 

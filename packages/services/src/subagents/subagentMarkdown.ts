@@ -9,7 +9,7 @@ import {
   type AgentScope,
   type AgentSummary,
   type SubAgentConfig,
-} from "@zcode/shared";
+} from "@lcode/shared";
 
 const VALID_COLORS = new Set<AgentColor>([
   "red",
@@ -94,7 +94,7 @@ export function parseSubagentMarkdown(
       scope: input.scope,
       source,
       enabled: true,
-      // workspace scope 曾一并标为只读，导致 .zcode/agents 下的 profile 在设置页
+      // workspace scope 曾一并标为只读，导致 .lcode/agents 下的 profile 在设置页
       // 既不能编辑/删除，又因 groupAgentsByScope 的兜底分支被显示在“内置”分组里。
       // 只有内置 agent 是真正不可编辑的；插件 agent 由 discoverPluginAgents 显式覆盖为只读。
       readOnly: input.scope === "built-in",

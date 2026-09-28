@@ -1,5 +1,5 @@
 import type {
-  ZCodeProvider,
+  LCodeProvider,
   AgentSummary,
   AgentsListResult,
   AgentCreateParams,
@@ -8,15 +8,15 @@ import type {
   BuiltInSubagentModelOverrideParams,
   PluginSubagentModelOverrideParams,
   SubagentsListMode,
-} from "@zcode/shared";
-import { ServiceChannels } from "@zcode/shared";
+} from "@lcode/shared";
+import { ServiceChannels } from "@lcode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 
 export interface ISubagentsService {
   list(params: {
     workspacePath: string;
     workspaceIdentity?: string;
-    provider?: ZCodeProvider;
+    provider?: LCodeProvider;
     mode?: SubagentsListMode;
   }): Promise<AgentsListResult>;
 
@@ -28,7 +28,7 @@ export interface ISubagentsService {
   setPluginAgentModelOverride(params: PluginSubagentModelOverrideParams): Promise<void>;
 
   /** 当前筛选来源对应的用户级 agent 根目录（与内置扫描顺序一致，取 buildUserRoots 的首项）。 */
-  getPrimaryUserAgentsDirectory(params: { provider: ZCodeProvider }): Promise<{ path: string }>;
+  getPrimaryUserAgentsDirectory(params: { provider: LCodeProvider }): Promise<{ path: string }>;
 
   /** 创建新的 agent 文件 */
   createAgent(params: AgentCreateParams): Promise<{ agent: AgentSummary }>;

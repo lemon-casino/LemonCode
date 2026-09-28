@@ -1,5 +1,5 @@
 import { computeAggregateStats, type AggregateStats } from "./resourceMetricsStats.js";
-import type { NetworkObservation, NetworkTransportKind } from "@zcode/rpc";
+import type { NetworkObservation, NetworkTransportKind } from "@lcode/rpc";
 
 export type NetworkErrorKind =
   | "timeout"

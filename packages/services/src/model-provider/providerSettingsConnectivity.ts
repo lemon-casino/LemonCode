@@ -1,4 +1,4 @@
-import type { ModelConnectivityResult } from "@zcode/shared";
+import type { ModelConnectivityResult } from "@lcode/shared";
 import type { ProviderSettingsConnectivityTester } from "./providerFacadeServices.js";
 
 interface FormalModelConnectivityInput {

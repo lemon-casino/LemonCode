@@ -4,19 +4,19 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { lstat, readFile, realpath, stat } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
-import { ZCODE_COMMIT, ZCODE_VERSION } from "@zcode/shared";
+import { LCODE_COMMIT, LCODE_VERSION } from "@lcode/shared";
 import {
   createEncodedPowerShellArgs,
   createWindowsPowerShellSecurityArgs,
 } from "../../scripts/powershell-command.mjs";
 import { isElectronAppPackaged } from "./desktopElectronApp.js";
 
-const HELPER_PROTOCOL = "ZCODE_BROWSER_IMPORT_V1";
-const HELPER_VERSION_PROTOCOL = "ZCODE_BROWSER_IMPORT_HELPER";
+const HELPER_PROTOCOL = "LCODE_BROWSER_IMPORT_V1";
+const HELPER_VERSION_PROTOCOL = "LCODE_BROWSER_IMPORT_HELPER";
 const HELPER_VERSION = "2";
 const HELPER_TIMEOUT_MS = 90_000;
 const HELPER_MAX_OUTPUT_BYTES = 128 * 1024;
-const HELPER_FILENAME = "zcode-browser-import-helper.exe";
+const HELPER_FILENAME = "lcode-browser-import-helper.exe";
 const APP_BOUND_HELPER_FAILURE_REASONS = new Set([
   "helper_failed",
   "broker_initialization_failed",
@@ -248,10 +248,10 @@ async function verifyAuthenticodePair(
   // GLOBALROOT\\SystemRoot 由 Windows 内核解析到真实系统目录，再转成 CreateProcess 可执行的 DOS 路径。
   const powershellPath = await realpath(TRUSTED_WINDOWS_POWERSHELL_ALIAS);
   const script = [
-    "$stream=[IO.File]::Open($zcodeArg0,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);",
+    "$stream=[IO.File]::Open($lcodeArg0,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);",
     "try{",
-    "$helper=Microsoft.PowerShell.Security\\Get-AuthenticodeSignature -LiteralPath $zcodeArg0;",
-    "$app=Microsoft.PowerShell.Security\\Get-AuthenticodeSignature -LiteralPath $zcodeArg1;",
+    "$helper=Microsoft.PowerShell.Security\\Get-AuthenticodeSignature -LiteralPath $lcodeArg0;",
+    "$app=Microsoft.PowerShell.Security\\Get-AuthenticodeSignature -LiteralPath $lcodeArg1;",
     "if($helper.Status -ne 'Valid' -or $app.Status -ne 'Valid'){throw 'invalid_signature'};",
     "if($null -eq $helper.SignerCertificate -or $null -eq $app.SignerCertificate){throw 'missing_signer'};",
     "if($helper.SignerCertificate.Thumbprint -ne $app.SignerCertificate.Thumbprint){throw 'signer_mismatch'};",
@@ -287,16 +287,16 @@ async function runLockedPackagedHelper(options: {
       : "return";
   const invocation =
     options.mode === "broker"
-      ? "$request=[Console]::In.ReadToEnd();$response=$request | & $zcodeArg0 --broker --parent-pid $zcodeArg2;"
-      : "$response=& $zcodeArg0 --version;";
+      ? "$request=[Console]::In.ReadToEnd();$response=$request | & $lcodeArg0 --broker --parent-pid $lcodeArg2;"
+      : "$response=& $lcodeArg0 --version;";
   const script = [
-    "$stream=[IO.File]::Open($zcodeArg0,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);",
+    "$stream=[IO.File]::Open($lcodeArg0,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::Read);",
     "try{",
     "$sha=[Security.Cryptography.SHA256]::Create();",
     "try{$stream.Position=0;$hash=$sha.ComputeHash($stream);",
     "$digest=([BitConverter]::ToString($hash)).Replace('-','').ToLowerInvariant()}",
     "finally{$sha.Dispose()};",
-    `if($digest -ne $zcodeArg1){${hashMismatchResponse}};`,
+    `if($digest -ne $lcodeArg1){${hashMismatchResponse}};`,
     invocation,
     "if($null -ne $response){[Console]::Out.WriteLine(($response -join [Environment]::NewLine))}",
     "}finally{$stream.Dispose()}",
@@ -361,8 +361,8 @@ async function verifyHelper(helperPath: string, options: ReadAppBoundKeyOptions)
         })
       : await runHelper(helperPath, ["--version"]);
     const fields = version.stdout.split("\t");
-    const expectedAppVersion = options.expectedAppVersion ?? ZCODE_VERSION;
-    const expectedBuildCommit = options.expectedBuildCommit ?? ZCODE_COMMIT;
+    const expectedAppVersion = options.expectedAppVersion ?? LCODE_VERSION;
+    const expectedBuildCommit = options.expectedBuildCommit ?? LCODE_COMMIT;
     if (
       version.exitCode !== 0 ||
       fields.length !== 5 ||

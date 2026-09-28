@@ -55,7 +55,7 @@ export function useTaskInteractionAutoResolutionSnooze(
 
   return useCallback(
     async (interactionId: string): Promise<boolean> => {
-      const agentService = targetServices?.zcodeAgentService;
+      const agentService = targetServices?.lcodeAgentService;
       if (!agentService) {
         logger.warn("[task-interaction] 暂停自动结束时目标 workspace 未连接", {
           interactionId,

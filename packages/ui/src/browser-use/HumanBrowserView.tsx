@@ -3,7 +3,7 @@ import {
   DEFAULT_AGENT_BROWSER_VIEWPORT,
   DEFAULT_EMBEDDED_BROWSER_VIEWPORT_PREFERENCE,
   type EmbeddedBrowserViewportPreference,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { UnifiedBrowserView } from "@/browser-use/UnifiedBrowserView.js";
 import type { HumanBrowserViewportPreferenceChangeSource } from "@/browser-use/useResponsiveBrowserViewportControl.js";
 import { useSettings } from "@/hooks/useSettingService.js";

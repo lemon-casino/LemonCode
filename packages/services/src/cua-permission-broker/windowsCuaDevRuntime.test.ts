@@ -34,7 +34,7 @@ function createRuntimeFiles(platform: "linux" | "win32"): Map<string, string> {
     ["helper-entry.js", 'import "./server.js";\n'],
     ["server.js", "export const serve = true;\n"],
     ["xa11y-native-loader.js", 'export const load = () => import("@crowecawcaw/xa11y");\n'],
-    ["package.json", '{"name":"@zcode/zcode-cua","version":"1.2.3","type":"module"}\n'],
+    ["package.json", '{"name":"@lcode/lcode-cua","version":"1.2.3","type":"module"}\n'],
     ["node_modules/@crowecawcaw/xa11y/package.json", '{"name":"@crowecawcaw/xa11y"}\n'],
     ["node_modules/@crowecawcaw/xa11y/index.js", 'module.exports = require("./native.js");\n'],
     ["node_modules/@crowecawcaw/xa11y/native.js", "module.exports = {};\n"],
@@ -56,7 +56,7 @@ async function writeFixtureFile(path: string, contents: string): Promise<void> {
 }
 
 async function createPackagedFixture(t: TestContext, platform: "linux" | "win32" = "win32") {
-  const root = await mkdtemp(join(tmpdir(), "zcode-cua-runtime-test-"));
+  const root = await mkdtemp(join(tmpdir(), "lcode-cua-runtime-test-"));
   t.after(() => rm(root, { force: true, recursive: true }));
   const resourcesPath = resolve(root, "resources");
   const runtimeRoot = resolve(resourcesPath, "tools", "cua-helper");
@@ -69,7 +69,7 @@ async function createPackagedFixture(t: TestContext, platform: "linux" | "win32"
     .sort((left, right) => (left.path < right.path ? -1 : left.path > right.path ? 1 : 0));
   const manifest = {
     schemaVersion: 1,
-    packageName: "@zcode/zcode-cua",
+    packageName: "@lcode/lcode-cua",
     packageVersion: "1.2.3",
     platform,
     arch: "x64",
@@ -83,14 +83,14 @@ async function createPackagedFixture(t: TestContext, platform: "linux" | "win32"
 }
 
 async function createDevelopmentFixture(t: TestContext) {
-  const root = await mkdtemp(join(tmpdir(), "zcode-cua-dev-runtime-test-"));
+  const root = await mkdtemp(join(tmpdir(), "lcode-cua-dev-runtime-test-"));
   t.after(() => rm(root, { force: true, recursive: true }));
   await writeFixtureFile(
     resolve(root, "package.json"),
     JSON.stringify({
-      name: "@zcode/zcode-cua",
+      name: "@lcode/lcode-cua",
       version: "1.2.3",
-      zcodeCuaRuntime: {
+      lcodeCuaRuntime: {
         schema: 1,
         windows: { entry: "windows-entry.js", nativeAddon: "windows-addon.js" },
         linux: { entry: "linux-entry.js", nativeAddon: "linux-addon.js" },
@@ -167,11 +167,11 @@ test("development roots select the contract for the requested Node platform", as
   const root = await createDevelopmentFixture(t);
   const windowsRuntime = await resolveCuaNodeRuntime({
     platform: "win32",
-    env: { ZCODE_CUA_DEV_ROOT: root },
+    env: { LCODE_CUA_DEV_ROOT: root },
   });
   const linuxRuntime = await resolveCuaNodeRuntime({
     platform: "linux",
-    env: { ZCODE_CUA_DEV_ROOT: root },
+    env: { LCODE_CUA_DEV_ROOT: root },
   });
 
   assert.equal(windowsRuntime.entryPath, resolve(root, "windows-entry.js"));
@@ -180,11 +180,11 @@ test("development roots select the contract for the requested Node platform", as
   assert.equal(linuxRuntime.addonPath, resolve(root, "linux-addon.js"));
 });
 
-test("current zcode-cua source package is a valid Windows and Linux development root", async () => {
-  const root = resolve(import.meta.dirname, "../../../zcode-cua");
+test("current lcode-cua source package is a valid Windows and Linux development root", async () => {
+  const root = resolve(import.meta.dirname, "../../../lcode-cua");
   const [windowsRuntime, linuxRuntime] = await Promise.all([
-    resolveCuaNodeRuntime({ platform: "win32", env: { ZCODE_CUA_DEV_ROOT: root } }),
-    resolveCuaNodeRuntime({ platform: "linux", env: { ZCODE_CUA_DEV_ROOT: root } }),
+    resolveCuaNodeRuntime({ platform: "win32", env: { LCODE_CUA_DEV_ROOT: root } }),
+    resolveCuaNodeRuntime({ platform: "linux", env: { LCODE_CUA_DEV_ROOT: root } }),
   ]);
 
   assert.equal(windowsRuntime.entryPath, resolve(root, "helper-entry.js"));

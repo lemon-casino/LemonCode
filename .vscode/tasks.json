@@ -2,7 +2,7 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "zcode: tsup watch (debug)",
+      "label": "lcode: tsup watch (debug)",
       "type": "process",
       "command": "node",
       "args": ["${workspaceFolder}/.vscode/tsup-watch.mjs"],
@@ -13,7 +13,7 @@
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
-        "group": "zcode-debug"
+        "group": "lcode-debug"
       },
       "problemMatcher": {
         "owner": "custom",
@@ -29,7 +29,7 @@
       }
     },
     {
-      "label": "zcode: vite dev",
+      "label": "lcode: vite dev",
       "type": "process",
       "command": "node",
       "args": ["${workspaceFolder}/.vscode/vite-dev.mjs"],
@@ -40,7 +40,7 @@
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
-        "group": "zcode-debug"
+        "group": "lcode-debug"
       },
       "problemMatcher": {
         "owner": "custom",
@@ -56,12 +56,12 @@
       }
     },
     {
-      "label": "zcode: prepare desktop debug",
-      "dependsOn": ["zcode: tsup watch (debug)", "zcode: vite dev"],
+      "label": "lcode: prepare desktop debug",
+      "dependsOn": ["lcode: tsup watch (debug)", "lcode: vite dev"],
       "dependsOrder": "parallel"
     },
     {
-      "label": "zcode: start electron (debug)",
+      "label": "lcode: start electron (debug)",
       "type": "process",
       "command": "node",
       "args": ["${workspaceFolder}/.vscode/start-electron.mjs"],
@@ -69,11 +69,11 @@
         "cwd": "${workspaceFolder}"
       },
       "isBackground": true,
-      "dependsOn": ["zcode: prepare desktop debug"],
+      "dependsOn": ["lcode: prepare desktop debug"],
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
-        "group": "zcode-debug"
+        "group": "lcode-debug"
       },
       "problemMatcher": {
         "owner": "custom",
@@ -89,7 +89,7 @@
       }
     },
     {
-      "label": "zcode: start electron (debug with host inspect)",
+      "label": "lcode: start electron (debug with host inspect)",
       "type": "process",
       "command": "node",
       "args": ["${workspaceFolder}/.vscode/start-electron.mjs", "--host-inspect"],
@@ -97,11 +97,11 @@
         "cwd": "${workspaceFolder}"
       },
       "isBackground": true,
-      "dependsOn": ["zcode: prepare desktop debug"],
+      "dependsOn": ["lcode: prepare desktop debug"],
       "presentation": {
         "reveal": "always",
         "panel": "dedicated",
-        "group": "zcode-debug"
+        "group": "lcode-debug"
       },
       "problemMatcher": {
         "owner": "custom",

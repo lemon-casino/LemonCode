@@ -1,7 +1,7 @@
 import { QuoteIcon, Trash2Icon } from "lucide-react";
 import type { AttachmentHoverCardContentProps } from "@/components/ai-elements/attachments.js";
 import { Button } from "@/components/ui/button.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   isConversationSelectionReference,
   type ConversationSelectionDisplayReference,
@@ -19,7 +19,7 @@ export function ConversationSelectionReferenceChip({
   onRemove?: (id: string) => void;
   onRemoveAll?: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   if (references.length === 0) return null;
   const filePath = references.length === 1 ? references[0]?.path : undefined;
   // 文件引用沿用共用 pill，但不能再被「对话引用」计数隐藏来源。

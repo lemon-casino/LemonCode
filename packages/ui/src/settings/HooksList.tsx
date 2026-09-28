@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 import { Anchor, Download, ShieldCheck } from "lucide-react";
-import type { Hook, PluginHookDetail, PluginScope } from "@zcode/shared";
+import type { Hook, PluginHookDetail, PluginScope } from "@lcode/shared";
 import { Badge } from "@/components/ui/badge.js";
 import { Button } from "@/components/ui/button.js";
 import { Switch } from "@/components/ui/switch.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { PluginInstallEmptyState } from "@/settings/PluginInstallEmptyState.js";
 import { PluginStoreAvatar } from "@/settings/PluginStoreAvatar.js";
 import type { StorePluginItem } from "@/settings/pluginStoreListing.js";
@@ -103,7 +103,7 @@ export function HooksList({
   installedEmptyTitle?: string;
   showInstalledSection?: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const groupedSections = groupHookSections(editableHooks, compatibilityHooks, pluginHooks);
   const sections: HookSection[] =
     showInstalledSection && editableHooks.length === 0
@@ -258,13 +258,13 @@ function ConfiguredHookRow({
   onEdit: (hook: Hook) => void;
   onTrust?: (hook: Hook) => Promise<void>;
   onToggle: (hook: Hook, enabled: boolean) => Promise<void>;
-  /** 上游/祖先 zcode.json 的只读工作区 Hook：不可编辑、不可 toggle，但仍可逐条 Trust。 */
+  /** 上游/祖先 lcode.json 的只读工作区 Hook：不可编辑、不可 toggle，但仍可逐条 Trust。 */
   readOnly?: boolean;
   requiresTrust: boolean;
   trustActionAvailable: boolean;
   trusting: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <HookItemFrame
       testId="configured-hook-row"
@@ -293,7 +293,7 @@ function ConfiguredHookRow({
           ) : null}
           {/* workspace-hook-trust：未通过信任审核的工作区 Hook 禁止直接启用，
               Switch 强制关闭并禁用，引导用户先完成 Trust 审核流程。
-              只读行（上游 zcode.json）的 Switch 始终禁用：信任后展示真实配置状态，
+              只读行（上游 lcode.json）的 Switch 始终禁用：信任后展示真实配置状态，
               但启用/禁用必须去源文件改，Settings 不提供写入口。 */}
           <Switch
             checked={requiresTrust ? false : hook.enabled}
@@ -318,7 +318,7 @@ function CompatibilityHookRow({
   hook: Hook;
   onImport: (hook: Hook) => Promise<void>;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <HookItemFrame
       actions={
@@ -334,7 +334,7 @@ function CompatibilityHookRow({
 }
 
 function PluginHookItem({ hook }: { hook: PluginHookRow }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <HookItemFrame testId="plugin-hook-row" pluginIconItem={hook.pluginIconItem}>
       <HookContent

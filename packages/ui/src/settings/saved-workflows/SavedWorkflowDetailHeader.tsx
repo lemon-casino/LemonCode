@@ -4,8 +4,8 @@ import {
   TID_WORKFLOW_ACTION_DELETE,
   TID_WORKFLOW_ACTION_MOVE,
   testId,
-  type ZCodeSavedWorkflowEntry,
-} from "@zcode/shared";
+  type LCodeSavedWorkflowEntry,
+} from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import {
   DropdownMenu,
@@ -14,7 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   AutomationMoreHorizontalIcon,
   AutomationRunNowIcon,
@@ -24,7 +24,7 @@ import {
 interface SavedWorkflowDetailHeaderProps {
   name: string;
   description: string;
-  entry: ZCodeSavedWorkflowEntry | undefined;
+  entry: LCodeSavedWorkflowEntry | undefined;
   busy: boolean;
   onRun: () => void;
   onRevise: () => void;
@@ -48,7 +48,7 @@ export function SavedWorkflowDetailHeader({
   onMove,
   onDelete,
 }: SavedWorkflowDetailHeaderProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="flex min-w-0 flex-col gap-1.5">

@@ -1,4 +1,4 @@
-import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "./plugin-marketplaces.js";
+import { LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "./plugin-marketplaces.js";
 import type { PluginStoreModeOrder } from "./pluginStoreOrder.js";
 
 export const FALLBACK_PLUGIN_STORE_CATEGORY = "other";
@@ -14,7 +14,7 @@ export const PLUGIN_STORE_CATEGORY_ORDER: readonly string[] = [
 // 完整 ID 避免个人市场的同名插件被误置顶；所有展示入口复用同一默认顺序。
 const DOCUMENT_PLUGIN_RANKS = new Map(
   ["pdf", "presentations", "spreadsheets", "documents"].map((name, index) => [
-    `${name}@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID}`,
+    `${name}@${LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID}`,
     index,
   ]),
 );

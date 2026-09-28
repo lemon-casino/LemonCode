@@ -6,7 +6,7 @@
 import { lstat, opendir } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import type { StorageScanEntry } from "../domain/usageAggregate.js";
-import type { StoragePathError } from "@zcode/shared";
+import type { StoragePathError } from "@lcode/shared";
 
 interface WalkStorageRootOptions {
   rootPath: string;

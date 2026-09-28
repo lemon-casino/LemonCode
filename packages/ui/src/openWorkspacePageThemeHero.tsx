@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeStore } from "@/store/StoreProvider.js";
+import { useLCodeStore } from "@/store/StoreProvider.js";
 import { resolveTheme, THEME_OPTIONS } from "@/useTheme.js";
 import type { Theme } from "@/useTheme.js";
 
@@ -71,7 +71,7 @@ function getThemeHeroPalette(theme: Theme): ThemeHeroPalette {
 }
 
 export function useResolvedThemeHeroPalette(): ThemeHeroPalette {
-  const theme = useZCodeStore((state) => state.theme);
+  const theme = useLCodeStore((state) => state.theme);
   const resolvedTheme =
     theme === "system" ? (resolveTheme(theme) === "dark" ? "dark" : "light") : theme;
 

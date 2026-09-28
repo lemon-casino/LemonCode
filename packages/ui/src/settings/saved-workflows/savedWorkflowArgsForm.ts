@@ -1,11 +1,11 @@
 // 已保存工作流的实参表单与元数据实参表。
 // 纯函数：把 frontmatter 的 args 声明铺成可编辑字段，再把字段收回成实参袋 / 声明；
 // 校验规则与 CLI 的 validateWorkflowArgs 同源（required、按类型解析、default 回填由服务端做）。
-import type { ZCodeSavedWorkflowArgType, ZCodeSavedWorkflowArgsDeclaration } from "@zcode/shared";
+import type { LCodeSavedWorkflowArgType, LCodeSavedWorkflowArgsDeclaration } from "@lcode/shared";
 
 export interface SavedWorkflowArgField {
   name: string;
-  type: ZCodeSavedWorkflowArgType;
+  type: LCodeSavedWorkflowArgType;
   description?: string;
   required: boolean;
   hasDefault: boolean;
@@ -16,7 +16,7 @@ export interface SavedWorkflowArgField {
 export type SavedWorkflowArgFieldError = "required" | "invalid_number" | "invalid_json";
 
 /** 把一个默认值 / 已有值按类型转成编辑器文本。 */
-function formatSavedWorkflowArgValue(type: ZCodeSavedWorkflowArgType, value: unknown): string {
+function formatSavedWorkflowArgValue(type: LCodeSavedWorkflowArgType, value: unknown): string {
   if (value === undefined) return type === "boolean" ? "false" : "";
   switch (type) {
     case "string":
@@ -31,7 +31,7 @@ function formatSavedWorkflowArgValue(type: ZCodeSavedWorkflowArgType, value: unk
 }
 
 export function buildSavedWorkflowArgFields(
-  declaration: ZCodeSavedWorkflowArgsDeclaration | undefined,
+  declaration: LCodeSavedWorkflowArgsDeclaration | undefined,
 ): SavedWorkflowArgField[] {
   if (!declaration) return [];
   return Object.entries(declaration).map(([name, spec]) => ({
@@ -108,7 +108,7 @@ export interface SavedWorkflowArgRow {
   /** 行的稳定身份（新增行也要有，名字可空）。 */
   key: string;
   name: string;
-  type: ZCodeSavedWorkflowArgType;
+  type: LCodeSavedWorkflowArgType;
   required: boolean;
   /** 默认值的编辑文本；空即无默认值（boolean 用 "" / "true" / "false"）。 */
   defaultText: string;
@@ -118,7 +118,7 @@ export interface SavedWorkflowArgRow {
 export type SavedWorkflowArgRowError = "empty_name" | "duplicate_name" | "invalid_default";
 
 export function argsDeclarationToRows(
-  declaration: ZCodeSavedWorkflowArgsDeclaration | undefined,
+  declaration: LCodeSavedWorkflowArgsDeclaration | undefined,
 ): SavedWorkflowArgRow[] {
   if (!declaration) return [];
   return Object.entries(declaration).map(([name, spec], index) => ({
@@ -139,7 +139,7 @@ export function argsDeclarationToRows(
 }
 
 function parseDefaultText(
-  type: ZCodeSavedWorkflowArgType,
+  type: LCodeSavedWorkflowArgType,
   text: string,
 ): { ok: true; value?: unknown } | { ok: false } {
   if (text.trim().length === 0) return { ok: true };
@@ -164,7 +164,7 @@ function parseDefaultText(
 }
 
 type SavedWorkflowArgRowsCollect =
-  | { ok: true; args: ZCodeSavedWorkflowArgsDeclaration | undefined }
+  | { ok: true; args: LCodeSavedWorkflowArgsDeclaration | undefined }
   | { ok: false; errors: Record<string, SavedWorkflowArgRowError> };
 
 /**
@@ -176,7 +176,7 @@ export function rowsToArgsDeclaration(
 ): SavedWorkflowArgRowsCollect {
   const errors: Record<string, SavedWorkflowArgRowError> = {};
   const seen = new Set<string>();
-  const args: ZCodeSavedWorkflowArgsDeclaration = {};
+  const args: LCodeSavedWorkflowArgsDeclaration = {};
   for (const row of rows) {
     const name = row.name.trim();
     if (name.length === 0) {

@@ -9,7 +9,7 @@ import {
   type ApiClient,
   type ProviderFamilyDomain,
   type ProviderFamilyConnectionSelectionSettings,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { type BigModelTeamPlanBizContext } from "#src/bigmodel/teamPlanApiKey.js";
 import {
   fetchPersonalCodingPlanEntitlement,
@@ -18,7 +18,7 @@ import {
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import { readApiJson } from "../providers/api/apiJson.js";
 import { normalizeApiKeyForHeader } from "../providers/api/index.js";
-import { resolveBigModelStartPlanZcodeJwt } from "./bigmodelStartPlanZcodeJwt.js";
+import { resolveBigModelStartPlanLcodeJwt } from "./bigmodelStartPlanLcodeJwt.js";
 import {
   buildZaiStartPlanBalanceUrl,
   fetchZaiStartPlanBalanceEnvelope,
@@ -34,7 +34,7 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const log = createServiceLogger("coding-plan-availability");
 const BIGMODEL_SUBSCRIPTION_LIST_PATH = "/api/biz/subscription/list";
 
-const ZCODE_JWT_TOKEN_KEY = "zcodejwttoken";
+const LCODE_JWT_TOKEN_KEY = "lcodejwttoken";
 
 export type CodingPlanUnavailableReason =
   | "coding_plan_not_authenticated"
@@ -44,7 +44,7 @@ export type CodingPlanUnavailableReason =
 
 function buildZaiSubscriptionListUrl(): string {
   // ZAI 测试环境业务 token 只能请求配置的 ZAI Business origin。
-  // availability 校验必须和 OAuth business login 共用同一套 ZCODE_ENV 域名分流，只允许 origin 不同。
+  // availability 校验必须和 OAuth business login 共用同一套 LCODE_ENV 域名分流，只允许 origin 不同。
   return buildRuntimeZaiBusinessUrl(process.env, "/api/biz/subscription/list");
 }
 
@@ -239,10 +239,10 @@ async function validateSelectedTeamPlanAvailability(
   if (!token) {
     return { kind: "unavailable", reason: "coding_plan_not_connected" };
   }
-  const zcodeJwtToken = (await context.credentialService?.load(ZCODE_JWT_TOKEN_KEY))?.trim();
-  // BigModel 旧版本可能把 zcodejwttoken 误写进 oauth access token；
+  const lcodeJwtToken = (await context.credentialService?.load(LCODE_JWT_TOKEN_KEY))?.trim();
+  // BigModel 旧版本可能把 lcodejwttoken 误写进 oauth access token；
   // 但 Z.ai 的 business JWT 本身就是合法 Bearer token，不能套用这个 stale-token 防御。
-  if (family === "bigmodel" && zcodeJwtToken && token === zcodeJwtToken) {
+  if (family === "bigmodel" && lcodeJwtToken && token === lcodeJwtToken) {
     return { kind: "unavailable", reason: "coding_plan_not_connected" };
   }
 
@@ -442,17 +442,17 @@ async function resolveStartPlanAuthorization(
   context: CodingPlanAvailabilityContext,
 ): Promise<StartPlanAuthorization> {
   if (provider.family === "bigmodel") {
-    const zcodeJwtToken = await resolveBigModelStartPlanZcodeJwt({
+    const lcodeJwtToken = await resolveBigModelStartPlanLcodeJwt({
       credentialService: context.credentialService,
       provider,
     });
     return {
-      value: zcodeJwtToken ? `Bearer ${zcodeJwtToken}` : "",
+      value: lcodeJwtToken ? `Bearer ${lcodeJwtToken}` : "",
       missingReason: "coding_plan_not_authenticated",
     };
   }
 
-  const credentialJwt = await loadZaiProviderConnectionZcodeJwtToken(context);
+  const credentialJwt = await loadZaiProviderConnectionLcodeJwtToken(context);
   const providerJwt = normalizeApiKeyForHeader(provider.apiKey ?? "");
   return {
     value: credentialJwt || providerJwt ? `Bearer ${credentialJwt || providerJwt}` : "",
@@ -504,10 +504,10 @@ function resolveStartPlanBalanceAvailability(
     : { kind: "available" };
 }
 
-async function loadZaiProviderConnectionZcodeJwtToken(
+async function loadZaiProviderConnectionLcodeJwtToken(
   context: CodingPlanAvailabilityContext,
 ): Promise<string> {
-  return (await context.credentialService?.load(ZCODE_JWT_TOKEN_KEY))?.trim() || "";
+  return (await context.credentialService?.load(LCODE_JWT_TOKEN_KEY))?.trim() || "";
 }
 
 function classifyAvailabilityError(error: unknown): CodingPlanAvailabilityResult {
@@ -530,8 +530,8 @@ function hasActiveStartPlan(plans: ZaiStartPlanPlan[] | undefined): boolean {
       const status = plan.status?.trim().toLowerCase();
       const planId = plan.plan_id?.trim().toLowerCase();
       const name = plan.name?.trim().toLowerCase();
-      // billing/balance 的 plans 真实返回的是 `plan_id=zcode-v3-start-plan`
-      // 和 `name=ZCode V3 Start Plan`；只认 `name === "start plan"` 的话，
+      // billing/balance 的 plans 真实返回的是 `plan_id=lcode-v3-start-plan`
+      // 和 `name=LCode V3 Start Plan`；只认 `name === "start plan"` 的话，
       // 已激活的 Start Plan 会被误写成 coding_plan_not_entitled。
       const identityMatches =
         !planId && !name ? true : isZaiStartPlanIdentity(planId) || isZaiStartPlanIdentity(name);

@@ -1,12 +1,12 @@
-import { PERMISSION_FULL_ACCESS_OPTION_ID } from "@zcode/shared/zcode-protocol-v4";
-import type { ZCodePermissionOption } from "@zcode/shared";
+import { PERMISSION_FULL_ACCESS_OPTION_ID } from "@lcode/shared/lcode-protocol-v4";
+import type { LCodePermissionOption } from "@lcode/shared";
 
 export {
   getPermissionRequestPreview,
   type PermissionRequestFileChange,
   type PermissionRequestPreview,
   type PermissionRequestScope,
-} from "@zcode/shared";
+} from "@lcode/shared";
 
 type PermissionOptionDisplayKind =
   | "allowOnce"
@@ -53,7 +53,7 @@ export function getPermissionOptionDisplayKind(kind: string): PermissionOptionDi
 }
 
 export function shouldPreferPermissionOptionName(
-  option: Pick<ZCodePermissionOption, "kind" | "name">,
+  option: Pick<LCodePermissionOption, "kind" | "name">,
 ): boolean {
   const normalizedName = normalizeInlineText(option.name).toLowerCase();
   if (normalizedName.length === 0) {
@@ -84,8 +84,8 @@ function getPermissionOptionSortPriority(kind: string): number {
 }
 
 export function sortPermissionOptions(
-  options: readonly ZCodePermissionOption[],
-): ZCodePermissionOption[] {
+  options: readonly LCodePermissionOption[],
+): LCodePermissionOption[] {
   return options
     .map((option, index) => ({ option, index }))
     .sort((left, right) => {

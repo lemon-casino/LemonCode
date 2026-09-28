@@ -1,4 +1,4 @@
-import { redactTelemetryText, redactTelemetryUrl } from "@zcode/shared";
+import { redactTelemetryText, redactTelemetryUrl } from "@lcode/shared";
 
 /**
  * ARMS SDK 自动采集事件离开本机前的脱敏收口。
@@ -19,7 +19,7 @@ const EXCEPTION_STACK_MAX_LENGTH = 4_000;
 
 /**
  * Browser SDK 的 click name 形如 `click on <type-><tag>: <innerText 前 20 字符>...`。
- * 只保留到 tag 为止；`: ` 之后是元素文本，在 ZCode 里可能是会话标题、文件名或消息正文。
+ * 只保留到 tag 为止；`: ` 之后是元素文本，在 LCode 里可能是会话标题、文件名或消息正文。
  */
 const CLICK_NAME_PATTERN = /^(click on [a-z0-9-]+)(?::[\s\S]*)?$/iu;
 

@@ -1,4 +1,4 @@
-import type { ProviderSettingsView } from "@zcode/services";
+import type { ProviderSettingsView } from "@lcode/services";
 
 export interface ProviderTemplateGroup {
   readonly id: string;

@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>ZCode</title>
+    <title>LCode</title>
     <style>
       html,
       body,
@@ -18,7 +18,7 @@
         transition: opacity 0.16s ease;
       }
 
-      body.zcode-startup-ready #root {
+      body.lcode-startup-ready #root {
         opacity: 1;
       }
 
@@ -32,7 +32,7 @@
         transition: opacity 0.16s ease;
       }
 
-      body.zcode-startup-ready #loading {
+      body.lcode-startup-ready #loading {
         pointer-events: none;
         opacity: 0;
       }
@@ -151,7 +151,7 @@
       const tryFinishStartupAnimation = () => {
         if (finished || !animationDone || !reactReady) return;
         finished = true;
-        document.body.classList.add("zcode-startup-ready");
+        document.body.classList.add("lcode-startup-ready");
         window.setTimeout(() => startupLoading?.remove(), 500);
       };
 
@@ -169,10 +169,10 @@
         // 更新状态窗口本身就是一个轻量弹窗，复用主入口 HTML 时不应再显示启动壳。
         // 否则透明独立窗口里的启动 logo 会短暂或持续盖在更新按钮上，看起来像弹窗 UI 异常。
         finished = true;
-        document.body.classList.add("zcode-startup-ready");
+        document.body.classList.add("lcode-startup-ready");
         startupLoading?.remove();
       } else {
-        window.addEventListener("zcode-react-startup-ready", markReactReady, { once: true });
+        window.addEventListener("lcode-react-startup-ready", markReactReady, { once: true });
       }
 
       if (isUpdateStatusWindow || reduceMotion || !startupLogoShell) {

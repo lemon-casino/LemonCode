@@ -1,9 +1,9 @@
 import { useMemo, type ReactNode } from "react";
-import type { ToolCallCreateWorkflowDisplay } from "@zcode/shared/zcode-protocol-v4";
+import type { ToolCallCreateWorkflowDisplay } from "@lcode/shared/lcode-protocol-v4";
 import { CodeBlock, CodeBlockHeader } from "@/components/ai-elements/code-block.js";
 import { cn } from "@/components/lib/utils.js";
 import { DRAFT_FEEDBACK_DOT } from "@/components/workflow-graph/run-status-presentation.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { WorkflowDraftPosition } from "@/ToolCallBlocks/shared.js";
 import {
   formatWorkflowFeedbackTooltip,
@@ -52,7 +52,7 @@ export function useWorkflowDraftRowSlots({
   diagnostics,
   saved,
 }: WorkflowDraftRowInput): WorkflowDraftRowSlots {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const ordinal = workflowDraftOrdinalShown(draft, { compileErrors, inFlight });
   const inFlightOrdinal = workflowDraftOrdinalShown(draft, { compileErrors: false, inFlight });
   const inFlightOrdinalText =
@@ -156,7 +156,7 @@ function workflowDraftOrdinalShown(
 }
 
 function WorkflowDraftOrdinal({ ordinal }: { ordinal: number }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <span className="shrink-0 whitespace-nowrap tabular-nums" data-testid="workflow-draft-ordinal">
       {intl.formatMessage(

@@ -1,5 +1,5 @@
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   EMPTY_SCROLL_MASK_STATE,
   getVerticalScrollMaskStyle,
@@ -152,7 +152,7 @@ function CuaGroupChildren({
 }
 
 export function CuaGroupToolCallBlock(context: CuaGroupRenderProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCall, childToolCalls } = context.toolCallNode;
   const events: readonly ConversationCuaGroupEvent[] =
     context.events ??

@@ -2,7 +2,7 @@ import { Loader2Icon, CircleAlertIcon, CheckCircle2Icon } from "lucide-react";
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button.js";
 import { Switch } from "@/components/ui/switch.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { ModelConfigHelp } from "@/settings/model-provider-section/ModelConfigHelp.js";
 
 export function ModelConfigRestoreButton({
@@ -12,7 +12,7 @@ export function ModelConfigRestoreButton({
   disabled: boolean;
   onRestore?: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <Button
       type="button"
@@ -34,7 +34,7 @@ export function ModelConfigDraftFeedback({
   error?: string | null;
   matched?: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   if (!error && !matched) return null;
   const Icon = error ? CircleAlertIcon : CheckCircle2Icon;
   return (
@@ -63,7 +63,7 @@ export function ModelSmartConfigSwitch({
   disabled: boolean;
   onChange: (checked: boolean) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const label = intl.formatMessage({ id: "settings.modelProvider.followRecommendedConfig" });
   return (
     <div

@@ -1,4 +1,4 @@
-import type { AppSettings } from "@zcode/shared";
+import type { AppSettings } from "@lcode/shared";
 import type { ISettingService } from "./setting.js";
 
 interface SettingServiceUpdatedEvent {

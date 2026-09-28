@@ -2,10 +2,10 @@
  * usePlatform —— 通过 React Context 提供 IPlatformService
  *
  * 平台操作（native dialog、窗口生命周期等）通过此 hook 访问，
- * 替代直接调用 window.zcode。
+ * 替代直接调用 window.lcode。
  */
 import { createContext, useContext, useCallback, type ReactNode } from "react";
-import type { IPlatformService, RemoteTarget } from "@zcode/shared";
+import type { IPlatformService, RemoteTarget } from "@lcode/shared";
 
 const PlatformContext = createContext<IPlatformService | null>(null);
 

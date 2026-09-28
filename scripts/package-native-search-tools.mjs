@@ -41,8 +41,8 @@ async function packWindowsZip(directory, binaryName, archivePath) {
 }
 
 export async function packageNativeSearchTools({
-  platform = process.env.ZCODE_TARGET_OS || process.platform,
-  arch = process.env.ZCODE_TARGET_ARCH || process.arch,
+  platform = process.env.LCODE_TARGET_OS || process.platform,
+  arch = process.env.LCODE_TARGET_ARCH || process.arch,
   artifactsDir = join(repoRoot, "dist/native-search-tools-deps"),
   buildOutputDir,
   jobs,
@@ -105,8 +105,8 @@ function readJobs() {
 
 async function main() {
   await packageNativeSearchTools({
-    platform: readOption("platform") ?? process.env.ZCODE_TARGET_OS ?? process.platform,
-    arch: readOption("arch") ?? process.env.ZCODE_TARGET_ARCH ?? process.arch,
+    platform: readOption("platform") ?? process.env.LCODE_TARGET_OS ?? process.platform,
+    arch: readOption("arch") ?? process.env.LCODE_TARGET_ARCH ?? process.arch,
     artifactsDir: readOption("artifacts-dir"),
     buildOutputDir: readOption("build-output-dir"),
     jobs: readJobs(),

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { completeModelConfigDataSchema, modelConfigDataSchema } from "@zcode/shared/model-config";
+import { completeModelConfigDataSchema, modelConfigDataSchema } from "@lcode/shared/model-config";
 
 const complete = completeModelConfigDataSchema.shape;
 // 手动模式只冻结产品明确开放的叶子；新增系统字段默认不属于个人手动配置。

@@ -1,5 +1,5 @@
-import type { RemoteAssetInstallMode, RemoteTarget } from "@zcode/shared";
-import { isValidWslUser, normalizeRemoteResourcePackageSelection } from "@zcode/shared";
+import type { RemoteAssetInstallMode, RemoteTarget } from "@lcode/shared";
+import { isValidWslUser, normalizeRemoteResourcePackageSelection } from "@lcode/shared";
 import type { SSHAuthMethod } from "@/hooks/useRemoteConnectionForm.js";
 import type { RemoteWizardStep } from "@/RemoteConnectionWizardChrome.js";
 
@@ -152,7 +152,7 @@ export function withDefaultRemoteResourcePackages(target: RemoteTarget): RemoteT
   return {
     ...target,
     resourcePackages: {
-      // 当前分支只保留一个 ZCode Agent，SSH 向导再让用户手动挑资源包会产生无意义分叉。
+      // 当前分支只保留一个 LCode Agent，SSH 向导再让用户手动挑资源包会产生无意义分叉。
       // 这里统一走默认 active 资源集，历史重连传入的旧选择不再影响部署范围。
       selectedPackageIds: normalizeRemoteResourcePackageSelection(),
     },

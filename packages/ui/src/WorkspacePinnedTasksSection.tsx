@@ -1,19 +1,19 @@
 /* eslint-disable max-lines -- pinned 列表现在同时承载本地查询、远端主动注入结果和任务操作分发，先集中保持交互一致。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { LCodeTaskMeta } from "@lcode/shared";
 import { toast } from "@/components/ui/toast.js";
 import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu.js";
 import { useGlobalTaskList } from "@/hooks/useGlobalTaskList.js";
 import { useLocalWorkspaceScopes } from "@/hooks/useLocalWorkspaceScopes.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
-import { compareZCodeTaskListItems } from "@/lib/taskListOrdering.js";
+import { compareLCodeTaskListItems } from "@/lib/taskListOrdering.js";
 import { resolveTaskFileTreeTargetFromTabs } from "@/lib/taskFileTreeTarget.js";
 import { MemoTaskItem, TaskListItemContextMenuContent } from "@/TaskListItem.js";
 import { TaskRenameDialog } from "@/TaskRenameDialog.js";
-import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 import { applyTaskQueryCacheMutation } from "@/store/taskQueryCacheStore.js";
 import { TaskListRemoteSyncHint } from "@/TaskListRemoteSyncHint.js";
@@ -36,7 +36,7 @@ interface PinnedTaskItemHandlers {
   onArchiveTask: (taskId: string) => void;
   onMarkTaskAsUnread: (taskId: string) => void;
   onOpenTaskContextMenu: (taskId: string) => void;
-  onOpenFileTree: (task: ZCodeTaskMeta) => void;
+  onOpenFileTree: (task: LCodeTaskMeta) => void;
 }
 
 function PinnedTasksSectionTitle({ title }: { title: string }) {
@@ -70,7 +70,7 @@ export function WorkspacePinnedTasksSection({
     workspaceRemoteSessionId?: string;
   }) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const baseServices = useBaseWorkspaceServices();
   const scopedWorkspaceTabs = useLocalWorkspaceScopes({
     workspaceTabs,
@@ -78,14 +78,14 @@ export function WorkspacePinnedTasksSection({
   const remoteSessionIdByWorkspaceIdentity = useRemoteWorkspaceSessionStore(
     (state) => state.sessionIdByWorkspaceIdentity,
   );
-  const removeTaskState = useZCodeSessionStore((state) => state.removeTaskState);
-  const upsertOptimisticTaskListItem = useZCodeSessionStore(
+  const removeTaskState = useLCodeSessionStore((state) => state.removeTaskState);
+  const upsertOptimisticTaskListItem = useLCodeSessionStore(
     (state) => state.upsertOptimisticTaskListItem,
   );
-  const removeOptimisticTaskListItem = useZCodeSessionStore(
+  const removeOptimisticTaskListItem = useLCodeSessionStore(
     (state) => state.removeOptimisticTaskListItem,
   );
-  const setTaskUnreadIndicator = useZCodeSessionStore((state) => state.setTaskUnreadIndicator);
+  const setTaskUnreadIndicator = useLCodeSessionStore((state) => state.setTaskUnreadIndicator);
   const [pendingArchiveItemKey, setPendingArchiveItemKey] = useState<string | null>(null);
   const [renamingItemKey, setRenamingItemKey] = useState<string | null>(null);
   const [contextMenuItemKey, setContextMenuItemKey] = useState<string | null>(null);
@@ -136,7 +136,7 @@ export function WorkspacePinnedTasksSection({
   }, [remotePinnedItemsByWorkspaceKey, workspaceTabs]);
   const sortedItems = useMemo(() => {
     return [...localItems, ...remoteItems].sort((left, right) =>
-      compareZCodeTaskListItems(left, right, taskSortBy),
+      compareLCodeTaskListItems(left, right, taskSortBy),
     );
   }, [localItems, remoteItems, taskSortBy]);
   const items = showAllTasks ? sortedItems : sortedItems.slice(0, collapsedLimit);
@@ -155,7 +155,7 @@ export function WorkspacePinnedTasksSection({
   const sectionTitle = intl.formatMessage({ id: "taskList.pinnedSection" });
   const activeWorkspaceKey = buildTaskWorkspaceKey(activeWorkspacePath, activeWorkspaceIdentity);
   const itemByKey = useMemo(() => {
-    const nextItemByKey = new Map<string, ZCodeTaskMeta>();
+    const nextItemByKey = new Map<string, LCodeTaskMeta>();
     for (const item of items) {
       nextItemByKey.set(
         buildPinnedItemKey(item.workspacePath, item.taskId, item.workspaceIdentity),
@@ -216,7 +216,7 @@ export function WorkspacePinnedTasksSection({
         return;
       }
       const { item, services } = current;
-      void services.zcodeTaskService
+      void services.lcodeTaskService
         .archiveTask({
           taskId: item.taskId,
           workspacePath: item.workspacePath,
@@ -284,7 +284,7 @@ export function WorkspacePinnedTasksSection({
         previousState: { pinned: true, archived: false },
         nextState: { pinned, archived: false },
       });
-      void services.zcodeTaskService
+      void services.lcodeTaskService
         .setTaskPinned({
           taskId: item.taskId,
           workspacePath: item.workspacePath,
@@ -343,7 +343,7 @@ export function WorkspacePinnedTasksSection({
         return;
       }
       const { item, services } = current;
-      void services.zcodeTaskService
+      void services.lcodeTaskService
         .setTaskUnread({
           taskId: item.taskId,
           workspacePath: item.workspacePath,
@@ -497,7 +497,7 @@ export function WorkspacePinnedTasksSection({
               handleCancelRenameTask();
               return;
             }
-            void services.zcodeTaskService
+            void services.lcodeTaskService
               .renameTask({
                 taskId: item.taskId,
                 workspacePath: item.workspacePath,
@@ -606,7 +606,7 @@ export function WorkspacePinnedTasksSection({
                 previousState: { pinned: true, archived: false },
                 nextState: { pinned, archived: false },
               });
-              void contextMenuServices.zcodeTaskService
+              void contextMenuServices.lcodeTaskService
                 .setTaskPinned({
                   taskId: contextMenuItem.taskId,
                   workspacePath: contextMenuItem.workspacePath,
@@ -667,7 +667,7 @@ export function WorkspacePinnedTasksSection({
               setRenameDraft(currentTitle);
             }}
             onArchiveTask={() => {
-              void contextMenuServices.zcodeTaskService
+              void contextMenuServices.lcodeTaskService
                 .archiveTask({
                   taskId: contextMenuItem.taskId,
                   workspacePath: contextMenuItem.workspacePath,
@@ -706,7 +706,7 @@ export function WorkspacePinnedTasksSection({
                 });
             }}
             onMarkTaskAsUnread={() => {
-              void contextMenuServices.zcodeTaskService
+              void contextMenuServices.lcodeTaskService
                 .setTaskUnread({
                   taskId: contextMenuItem.taskId,
                   workspacePath: contextMenuItem.workspacePath,

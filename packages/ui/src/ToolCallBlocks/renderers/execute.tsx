@@ -1,11 +1,11 @@
 import {
   bashOutputDisplaySchema,
   executionOutputPreviewSchema,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
 import { ExecuteOutput } from "@/ToolCallBlocks/renderers/ExecuteOutput.js";
 import { SquareTerminalIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
 import { ToolLayout } from "../ToolLayout.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
@@ -266,7 +266,7 @@ function extractExecuteResultText(output: unknown): string | null {
 }
 
 export function ExecuteToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCallNode, isRunning, statusLabel, errorText, isOfficeMode = false } = context;
   const { toolCall } = toolCallNode;
   const secondaryText = getExecuteSecondaryText(toolCall.input);

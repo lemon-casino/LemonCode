@@ -15,12 +15,12 @@ changes that contract.
 
 - Persisted benchmark corpus: temporary SQLite database owned by the existing `SqliteSessionStore` and
   deleted in `finally`.
-- Search behavior: public `@zcode/core/session-history-search` entry, reusing
+- Search behavior: public `@lcode/core/session-history-search` entry, reusing
   `searchSessionHistory` and `SESSION_HISTORY_AUTO_RECALL_BOUNDS`.
 - Measurement and decision:
-  `apps/zcode-cli/packages/bootstrap/scripts/session-recall-benchmark.mjs`. Bootstrap is the existing
+  `apps/lcode-cli/packages/bootstrap/scripts/session-recall-benchmark.mjs`. Bootstrap is the existing
   integration package that publicly depends on contracts, adapters, and core.
-- Reproducible command: `pnpm --dir apps/zcode-cli bench:session-recall` from the repository root.
+- Reproducible command: `pnpm --dir apps/lcode-cli bench:session-recall` from the repository root.
 
 The command builds the three public package boundaries it imports, prints a single JSON report, and exits
 non-zero when a latency threshold or output invariant fails. It never reads the user's configured DB.

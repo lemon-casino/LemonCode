@@ -3,7 +3,7 @@ import {
   overlapsAssistantTextRanges,
   type AssistantTextRange,
 } from "@/lib/assistantDirectiveParser.js";
-import { extractZCodeFileCitationDirectives } from "@/lib/zcodeFileCitation.js";
+import { extractLCodeFileCitationDirectives } from "@/lib/lcodeFileCitation.js";
 
 function resolveCitationFileName(path: string): string {
   const normalizedPath = path.trim().replaceAll("\\", "/");
@@ -72,7 +72,7 @@ export function normalizeConversationShareMarkdown(
   artifactNames: ReadonlyMap<string, string> = new Map(),
 ): string {
   const protectedRanges = findMarkdownCodeRanges(markdown);
-  const directives = extractZCodeFileCitationDirectives(markdown).filter(
+  const directives = extractLCodeFileCitationDirectives(markdown).filter(
     (directive) => !overlapsAssistantTextRanges(directive.start, directive.end, protectedRanges),
   );
 

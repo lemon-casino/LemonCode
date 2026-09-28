@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { WorkspaceFileEntry } from "@zcode/shared";
+import type { WorkspaceFileEntry } from "@lcode/shared";
 import {
   packWorkspaceFileEntries,
   unpackWorkspaceFileEntries,
-} from "@zcode/shared/workspaceFileEntriesCodec";
+} from "@lcode/shared/workspaceFileEntriesCodec";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { fetchWorkspaceFileEntriesPacked } from "@/workspace-file-search/fetchWorkspaceFileEntries.js";
 import { useWorkspaceFileSearchFilterEntries } from "@/workspace-file-search/useWorkspaceFileSearchFilter.js";

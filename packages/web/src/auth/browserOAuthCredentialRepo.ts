@@ -6,11 +6,11 @@ import {
   type OAuthCachedSessionRestoreResult,
   type UserInfo,
   resolveJwtExpiration,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { toUserInfo } from "./zaiWebOAuthProvider.js";
 
 const ACTIVE_PROVIDER_KEY = "oauth:active_provider";
-const ZCODE_JWT_TOKEN_KEY = "zcodejwttoken";
+const LCODE_JWT_TOKEN_KEY = "lcodejwttoken";
 const ZAI_ACCESS_TOKEN_KEY = "oauth:zai:access_token";
 const ZAI_USER_INFO_KEY = "oauth:zai:user_info";
 const BIGMODEL_ACCESS_TOKEN_KEY = "oauth:bigmodel:access_token";
@@ -47,7 +47,7 @@ interface BrowserOAuthCredentialRepoOptions {
 }
 
 interface WebZaiTokenSet {
-  zcodeJwtToken: string;
+  lcodeJwtToken: string;
   zaiAccessToken: string;
   expiresAt?: number;
 }
@@ -81,13 +81,13 @@ export class BrowserOAuthCredentialRepo {
   saveTokenSet(tokenSet: WebZaiTokenSet | OAuthTokenSet, provider: WebOAuthProviderId): void {
     const accessToken =
       "zaiAccessToken" in tokenSet ? tokenSet.zaiAccessToken : tokenSet.accessToken;
-    const zcodeJwtToken = tokenSet.zcodeJwtToken;
+    const lcodeJwtToken = tokenSet.lcodeJwtToken;
 
     this.localStorage.setItem(providerKeys(provider).accessToken, accessToken);
-    if (zcodeJwtToken) {
-      this.localStorage.setItem(ZCODE_JWT_TOKEN_KEY, zcodeJwtToken);
+    if (lcodeJwtToken) {
+      this.localStorage.setItem(LCODE_JWT_TOKEN_KEY, lcodeJwtToken);
     } else {
-      this.localStorage.removeItem(ZCODE_JWT_TOKEN_KEY);
+      this.localStorage.removeItem(LCODE_JWT_TOKEN_KEY);
     }
   }
 
@@ -116,20 +116,20 @@ export class BrowserOAuthCredentialRepo {
 
   loadCachedSessionState(): OAuthCachedSessionRestoreResult {
     const activeProvider = this.localStorage.getItem(ACTIVE_PROVIDER_KEY);
-    const zcodeJwtToken = this.localStorage.getItem(ZCODE_JWT_TOKEN_KEY);
+    const lcodeJwtToken = this.localStorage.getItem(LCODE_JWT_TOKEN_KEY);
     // 一次只有一个 activeProvider（切换 provider = 重新登录并覆盖），所以按它选 key 段读。
     const keys = isWebOAuthProviderId(activeProvider) ? providerKeys(activeProvider) : null;
     const accessToken = keys ? this.localStorage.getItem(keys.accessToken) : null;
     const rawUserInfo = keys ? this.localStorage.getItem(keys.userInfo) : null;
 
-    if (!keys || !hasText(zcodeJwtToken) || !hasText(accessToken) || !hasText(rawUserInfo)) {
+    if (!keys || !hasText(lcodeJwtToken) || !hasText(accessToken) || !hasText(rawUserInfo)) {
       if (this.hasAnyStoredCredential()) {
         this.clearAll();
       }
       return { status: "signed-out" };
     }
 
-    if (resolveJwtExpiration(zcodeJwtToken, this.now()).kind === "expired") {
+    if (resolveJwtExpiration(lcodeJwtToken, this.now()).kind === "expired") {
       // Web localStorage 之前只检查 JWT 是否存在，过期后仍会恢复伪登录态。
       this.clearAll();
       return { status: "reauthentication-required", reason: "jwt-expired" };
@@ -149,16 +149,16 @@ export class BrowserOAuthCredentialRepo {
     return { status: "signed-out" };
   }
 
-  loadZCodeJwtToken(): string | null {
+  loadLCodeJwtToken(): string | null {
     const session = this.loadCachedSessionState();
     if (session.status !== "authenticated") return null;
-    return this.localStorage.getItem(ZCODE_JWT_TOKEN_KEY)?.trim() || null;
+    return this.localStorage.getItem(LCODE_JWT_TOKEN_KEY)?.trim() || null;
   }
 
   private hasAnyStoredCredential(): boolean {
     return Boolean(
       this.localStorage.getItem(ACTIVE_PROVIDER_KEY) ||
-      this.localStorage.getItem(ZCODE_JWT_TOKEN_KEY) ||
+      this.localStorage.getItem(LCODE_JWT_TOKEN_KEY) ||
       this.localStorage.getItem(ZAI_ACCESS_TOKEN_KEY) ||
       this.localStorage.getItem(ZAI_USER_INFO_KEY) ||
       this.localStorage.getItem(BIGMODEL_ACCESS_TOKEN_KEY) ||
@@ -168,7 +168,7 @@ export class BrowserOAuthCredentialRepo {
 
   clearAll(): void {
     this.localStorage.removeItem(ACTIVE_PROVIDER_KEY);
-    this.localStorage.removeItem(ZCODE_JWT_TOKEN_KEY);
+    this.localStorage.removeItem(LCODE_JWT_TOKEN_KEY);
     // 两个 provider 的 key 段一起清：切换 provider 时不能留下上一个身份的残片，
     // 否则 loadCachedSessionState 可能读到半套凭据。
     this.localStorage.removeItem(ZAI_ACCESS_TOKEN_KEY);

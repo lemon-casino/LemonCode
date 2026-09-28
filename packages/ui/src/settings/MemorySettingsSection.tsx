@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CircleHelp } from "lucide-react";
-import { type IMemoryService, type ProjectMemoryWorkspaceSummary } from "@zcode/services";
+import { type IMemoryService, type ProjectMemoryWorkspaceSummary } from "@lcode/services";
 import {
   TID_SETTINGS_MEMORY_SWITCH,
   TID_SETTINGS_SESSION_RECALL_HELP,
   TID_SETTINGS_SESSION_RECALL_SWITCH,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
 import { Switch } from "@/components/ui/switch.js";
 import {
@@ -14,7 +14,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   MemorySettingsViewer,
   type MemoryViewerLoadingState,
@@ -71,7 +71,7 @@ export function MemorySettingsSection({
   sessionRecallEnabled: boolean;
   workspaceDisplayNames?: readonly string[];
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const catalogRequestIdRef = useRef(0);
   const [catalogState, setCatalogState] = useState<MemoryViewerLoadingState>("idle");
   const [catalogError, setCatalogError] = useState<string | null>(null);

@@ -3,9 +3,9 @@ import { nanoid } from "nanoid";
 import {
   VIDEO_INPUT_MAX_BYTES,
   type CreateTempTextAttachmentResult,
-  type ZCodePromptAttachment,
-} from "@zcode/shared";
-import { PROTOCOL_V4_LIMITS } from "@zcode/shared/zcode-protocol-v4";
+  type LCodePromptAttachment,
+} from "@lcode/shared";
+import { PROTOCOL_V4_LIMITS } from "@lcode/shared/lcode-protocol-v4";
 import {
   OversizedInlineImageAttachmentError,
   OversizedInlinePdfAttachmentError,
@@ -139,7 +139,7 @@ export function revokeChatComposerAttachment(attachment: ChatComposerAttachment)
 
 export async function serializeChatComposerAttachment(
   attachment: ChatComposerAttachment,
-): Promise<ZCodePromptAttachment> {
+): Promise<LCodePromptAttachment> {
   const mimeType = normalizeComposerMimeType(
     attachment.mimeType || inferAttachmentMimeType(attachment.filename),
   );

@@ -9,7 +9,7 @@ interface SidebarTaskPreferences {
   sortBy: SidebarTaskSortBy;
 }
 
-const SIDEBAR_TASK_PREFERENCES_STORAGE_KEY = "zcode-sidebar-task-preferences";
+const SIDEBAR_TASK_PREFERENCES_STORAGE_KEY = "lcode-sidebar-task-preferences";
 
 const DEFAULT_SIDEBAR_TASK_PREFERENCES: SidebarTaskPreferences = {
   organizeBy: "project",

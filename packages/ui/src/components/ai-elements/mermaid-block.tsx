@@ -5,7 +5,7 @@ import { Loader2Icon } from "lucide-react";
 import type { HTMLAttributes } from "react";
 import { useEffect, useId, useMemo, useState } from "react";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import type { Theme } from "@/useTheme.js";
 import { resolveTheme } from "@/useTheme.js";
@@ -234,7 +234,7 @@ export function MermaidBlock({
   onPreviewSvgChange,
   ...props
 }: MermaidBlockProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const systemThemeRevision = useSystemThemeRevision(theme);
   const renderIdPrefix = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const trimmedCode = code.trim();
@@ -265,7 +265,7 @@ export function MermaidBlock({
 
     setRenderState({ status: "loading" });
     onPreviewSvgChange?.(null);
-    const renderId = `zcode-mermaid-${renderIdPrefix}-${hashMermaidCode(renderKey)}`;
+    const renderId = `lcode-mermaid-${renderIdPrefix}-${hashMermaidCode(renderKey)}`;
 
     void enqueueMermaidRender(async () => {
       const renderer = mermaidPlugin.getMermaid(mermaidConfig);

@@ -1,12 +1,12 @@
 import { mkdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { onboardingRecordFileSchema } from "@zcode/shared";
-import { appSettingsOccupationEnum } from "@zcode/shared";
+import { onboardingRecordFileSchema } from "@lcode/shared";
+import { appSettingsOccupationEnum } from "@lcode/shared";
 import type {
   OnboardingRecordEntry,
   OnboardingRecordEntryInput,
   OnboardingRecordFile,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { atomicWriteText } from "../fs/atomicFileUtils.js";
 import { getAppConfigDir } from "../paths.js";
 import { createServiceLogger } from "../logger/serviceLogger.js";
@@ -19,7 +19,7 @@ import type {
 const logger = createServiceLogger("onboardingRecordService");
 
 function getRecordFile(): string {
-  // 记录是设备级数据，必须跟随 dataBaseDir（用户自定义数据目录时落在其 .zcode/v2 下，
+  // 记录是设备级数据，必须跟随 dataBaseDir（用户自定义数据目录时落在其 .lcode/v2 下，
   // 与 telemetry-state.json 一致），不能学 setting.json 固定写 home——setting.json 留在 home
   // 只是启动引导需要固定位置读取 dataBaseDir，不代表其他设备数据的落点。
   return join(getAppConfigDir(), "onboarding-record.json");

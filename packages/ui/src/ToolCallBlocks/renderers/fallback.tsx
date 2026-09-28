@@ -2,7 +2,7 @@ import { WrenchIcon } from "lucide-react";
 import { useCallback, type ReactNode } from "react";
 import { ToolCallBody } from "@/ToolCallBlocks/ToolCallBody.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { ToolLayout } from "../ToolLayout.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
 
@@ -16,7 +16,7 @@ interface FallbackToolCallBlockProps extends ToolCallBlockRenderContext {
 }
 
 export function FallbackToolCallBlock(context: FallbackToolCallBlockProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const {
     toolCallNode,
     isRunning,

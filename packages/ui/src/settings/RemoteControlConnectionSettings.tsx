@@ -5,12 +5,12 @@
 // 界面只回显 Main 给出的 hasAccessKey（契约 PROTOCOL.md §6.3：永不回明文）。
 import { useCallback, useEffect, useState } from "react";
 import { LoaderCircle } from "lucide-react";
-import { normalizeRemoteControlWorkerBaseUrl } from "@zcode/shared";
+import { normalizeRemoteControlWorkerBaseUrl } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Switch } from "@/components/ui/switch.js";
 import { toast } from "@/components/ui/toast.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { startUserAction } from "@/lib/userActionTelemetry.js";
 import { commitRemoteControlConfig } from "@/settings/remoteControlSettingsShared.js";
@@ -43,7 +43,7 @@ export function RemoteControlConnectionSettings({
   testingConnection,
   testSupported,
 }: RemoteControlConnectionSettingsProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [workerBaseUrlDraft, setWorkerBaseUrlDraft] = useState("");
   const [accessKeyDraft, setAccessKeyDraft] = useState("");
   const [testResult, setTestResult] = useState<RemoteControlTestResult | null>(null);
@@ -104,7 +104,7 @@ export function RemoteControlConnectionSettings({
   );
 
   const handleSaveWorkerBaseUrl = useCallback(async () => {
-    // 与 Main/Worker 同口径（@zcode/shared）：仅接受 https，或 localhost 系的 http。
+    // 与 Main/Worker 同口径（@lcode/shared）：仅接受 https，或 localhost 系的 http。
     const normalized = normalizeRemoteControlWorkerBaseUrl(workerBaseUrlDraft);
     if (!normalized) {
       toast(intl.formatMessage({ id: "settings.remoteControl.workerBaseUrl.invalid" }));

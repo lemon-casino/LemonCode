@@ -1,9 +1,9 @@
 import type { ReactNode } from "react";
 import { Ban, ChevronRight, CircleCheck, Loader2, TriangleAlert } from "lucide-react";
-import { TID_WORKFLOW_RUN_ROW, testId, type ZCodeSavedWorkflowRun } from "@zcode/shared";
+import { TID_WORKFLOW_RUN_ROW, testId, type LCodeSavedWorkflowRun } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatDateTime } from "@/settings/automationFormat.js";
 import { SavedWorkflowArtifactChips } from "@/settings/saved-workflows/SavedWorkflowArtifactChips.js";
 import {
@@ -31,19 +31,19 @@ export function SavedWorkflowRunHistory({
   onOpenArtifact,
   resolveRunProject,
 }: {
-  runs: readonly ZCodeSavedWorkflowRun[];
+  runs: readonly LCodeSavedWorkflowRun[];
   now: number;
   canOpenRun: boolean;
-  onOpenRun: (run: ZCodeSavedWorkflowRun) => void;
+  onOpenRun: (run: LCodeSavedWorkflowRun) => void;
   /**
    * 产物 chip → `workflow-artifact` tab。
    * 缺席即 chips 只读。门比「查看实例」松一格：产物不需要 `toolCallId`。
    */
-  onOpenArtifact?: (run: ZCodeSavedWorkflowRun, artifactId: string) => void;
+  onOpenArtifact?: (run: LCodeSavedWorkflowRun, artifactId: string) => void;
   /** 传入即在每行渲染项目列（全局工作流跨项目历史）；「查看实例」还要该行 canOpen。 */
-  resolveRunProject?: (run: ZCodeSavedWorkflowRun) => SavedWorkflowRunProject | null;
+  resolveRunProject?: (run: LCodeSavedWorkflowRun) => SavedWorkflowRunProject | null;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   if (runs.length === 0) {
     return (
       <p className="text-ui-base text-foreground-subtlest">

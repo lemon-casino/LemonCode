@@ -1,4 +1,4 @@
-import type { CuaPermissionKind, Locale } from "@zcode/shared";
+import type { CuaPermissionKind, Locale } from "@lcode/shared";
 
 interface CuaPermissionPanelMessages {
   documentTitle: string;
@@ -14,7 +14,7 @@ const MESSAGES: Record<
   Omit<CuaPermissionPanelMessages, "permissionLabel"> & Record<CuaPermissionKind, string>
 > = {
   "zh-CN": {
-    documentTitle: "ZCode Computer Use 权限",
+    documentTitle: "LCode Computer Use 权限",
     dragTitle: "拖动我到上面的权限列表",
     hintPrefix: "把左边的图标拖进上方的",
     hintSuffix: "列表",
@@ -23,7 +23,7 @@ const MESSAGES: Record<
     screen_recording: "屏幕录制",
   },
   "en-US": {
-    documentTitle: "ZCode Computer Use Permissions",
+    documentTitle: "LCode Computer Use Permissions",
     dragTitle: "Drag me to the permission list above",
     hintPrefix: "Drag the icon on the left into the ",
     hintSuffix: " list above",

@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
-import type { ZCodeModelTrajectoryContentPart, ZCodeModelTrajectoryRecord } from "@zcode/services";
+import type { LCodeModelTrajectoryContentPart, LCodeModelTrajectoryRecord } from "@lcode/services";
 import { Badge } from "@/components/ui/badge.js";
 import { cn } from "@/components/lib/utils.js";
-import type { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
-type IntlShape = ReturnType<typeof useZCodeIntl>["intl"];
+type IntlShape = ReturnType<typeof useLCodeIntl>["intl"];
 
 export function ContentPartView({
   part,
@@ -12,7 +12,7 @@ export function ContentPartView({
   sectionLabel,
   showToolHeader = true,
 }: {
-  part: ZCodeModelTrajectoryContentPart;
+  part: LCodeModelTrajectoryContentPart;
   intl: IntlShape;
   sectionLabel?: string;
   showToolHeader?: boolean;
@@ -184,7 +184,7 @@ export function EmptyState({
   );
 }
 
-export function summarizeRecords(records: ZCodeModelTrajectoryRecord[]): {
+export function summarizeRecords(records: LCodeModelTrajectoryRecord[]): {
   totalTokens: number;
   models: string[];
 } {

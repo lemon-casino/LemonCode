@@ -1,5 +1,5 @@
 import { thoughtLevelLabelId } from "@/chat-input-toolbar/thoughtLevelLabels.js";
-import { parseModelPickerValue } from "@/lib/zcodeSessionProjection.js";
+import { parseModelPickerValue } from "@/lib/lcodeSessionProjection.js";
 import { formatProviderModelLabel } from "@/v4/composer/modelTriggerDisplay.js";
 
 /**
@@ -64,7 +64,7 @@ export function describeWorkflowSubagentModel(
     return { canonical: trimmed, name: fallbackName(trimmed) };
   }
 
-  // 会话清单里 providerName 查不到时会退回 providerId 本身（见 zcodeSessionSettingsToConfigOptions）；
+  // 会话清单里 providerName 查不到时会退回 providerId 本身（见 lcodeSessionSettingsToConfigOptions）；
   // 那种「名字」正是我们要挡的东西，当作没查到。
   const resolvedName = deps.providerName?.(parsed.providerId)?.trim();
   const providerName =

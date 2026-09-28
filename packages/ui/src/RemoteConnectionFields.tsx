@@ -7,7 +7,7 @@ import type {
   RemoteWorkspaceSessionEntry,
   SSHConfigAliasOption,
   WSLDistro,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { AlertTriangleIcon, CheckIcon, ChevronDownIcon, LoaderIcon, Plus } from "lucide-react";
 import {
   TID_DOCKER_CONTAINER_INPUT,
@@ -23,7 +23,7 @@ import {
   TID_WSL_DISTRO_SELECT,
   TID_WSL_USER_INPUT,
   isValidWslUser,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import type { SSHAuthMethod } from "@/hooks/useRemoteConnectionForm.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { cn } from "@/components/lib/utils.js";
@@ -47,7 +47,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 const DEFAULT_WSL_DISTRO_VALUE = "__default_wsl_distro__";
 const NO_SSH_CONFIG_ALIAS_VALUE = "__ssh_config_alias_none__";
@@ -136,7 +136,7 @@ export function RemoteConnectionFields({
   setDockerContainer: (value: string) => void;
   setManualDockerContainer: (value: string) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const platform = usePlatform();
   const [sshAliasPopoverOpen, setSshAliasPopoverOpen] = useState(false);
   const [dockerContainerPopoverOpen, setDockerContainerPopoverOpen] = useState(false);

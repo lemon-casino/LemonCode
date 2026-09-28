@@ -3,7 +3,7 @@
 // 状态所有权（cfworker-remote/PROTOCOL.md §6.3）：配对状态、配置与已授权设备的唯一
 // 所有者是 Desktop Main；本 hook 只是挂载期缓存 —— 通过 remoteControlBridge 的平台
 // 能力读取与订阅，Renderer 不自行推断任何状态迁移（例如 stop 成功后面板回到什么状态，
-// 一律等 Main 的 zcode:remote-pairing-state 推送）。
+// 一律等 Main 的 lcode:remote-pairing-state 推送）。
 //
 // 快照语义：Main 仅在状态变化时推送；config-get 响应附带最近一次推送的 pairing 快照与
 // waiting 态的 pairingUrl（§6.3），挂载/重挂载时据此恢复面板初始状态。取快照期间若收到
@@ -12,7 +12,7 @@
 // 凭据红线：接入 Key 只经 saveConfig({ accessKey }) 单向进入 Main 的凭据集中存储，
 // 本 hook 不持有、不缓存、不写日志；读回永远只有 hasAccessKey。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { IPlatformService } from "@zcode/shared";
+import type { IPlatformService } from "@lcode/shared";
 import { logger } from "@/logger.js";
 import {
   resolveRemoteControlBridge,

@@ -3,7 +3,7 @@ import {
   resolveZaiBusinessBaseUrl,
   type ApiClient,
   type ProviderFamilyDomain,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import type { LegacyTeamConnection } from "#src/setting/legacyAccountConnectionSettings.js";
 import type {
   RemoteCustomerInfo,
@@ -15,12 +15,12 @@ export function createLegacyTeamOrganizationResolver(dependencies: {
   apiClient: ApiClient;
   loadOAuthTokenSet: (
     family: ProviderFamilyDomain,
-  ) => Promise<{ accessToken: string; zcodeJwtToken?: string | null } | null>;
+  ) => Promise<{ accessToken: string; lcodeJwtToken?: string | null } | null>;
 }): (connection: LegacyTeamConnection) => Promise<string | null> {
   return async ({ family, projectId }) => {
     const tokens = await dependencies.loadOAuthTokenSet(family);
     const token = tokens?.accessToken.trim();
-    if (!token || (family === "bigmodel" && token === tokens?.zcodeJwtToken)) return null;
+    if (!token || (family === "bigmodel" && token === tokens?.lcodeJwtToken)) return null;
     const origin =
       family === "zai"
         ? resolveZaiBusinessBaseUrl(process.env)

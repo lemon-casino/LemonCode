@@ -9,7 +9,7 @@ import {
   savedWorkflowStartRejectionReasonSchema,
   type CommandAck,
   type SavedWorkflowStartRejectionReason,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
 import { createCommandEnvelope } from "@/v4/commandFactory.js";
 import {
   acquireWorkspaceConnection,

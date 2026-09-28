@@ -1,5 +1,5 @@
 // 配对面板：等待手机连接 / 设备裁决 / 已就绪 / 停止 / 刷新二维码 / 复制链接。
-// 面板状态唯一来源是 Desktop Main 的 zcode:remote-pairing-state 推送（hook 缓存），
+// 面板状态唯一来源是 Desktop Main 的 lcode:remote-pairing-state 推送（hook 缓存），
 // 本组件只做投影：不在本地推断状态迁移，也不持有第二个房间状态副本。
 // pairingUrl 只在内存中存在（capability 只经 URL fragment 传递，PROTOCOL.md §5）。
 import { useCallback, useState } from "react";
@@ -19,7 +19,7 @@ import { RemotePairingQrCode } from "@/settings/RemotePairingQrCode.js";
 import { formatDateTime } from "@/settings/automationFormat.js";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { StatusDot } from "@/settings/StatusDot.js";
 
 interface RemotePairingPanelProps {
@@ -74,7 +74,7 @@ const REMOTE_PAIRING_ERROR_MESSAGE_IDS: Record<string, string> = {
 
 function describeRemotePairingError(
   code: string,
-  intl: ReturnType<typeof useZCodeIntl>["intl"],
+  intl: ReturnType<typeof useLCodeIntl>["intl"],
 ): string {
   const messageId = REMOTE_PAIRING_ERROR_MESSAGE_IDS[code];
   if (messageId) {
@@ -94,7 +94,7 @@ export function RemotePairingPanel({
   onStop,
   onDecide,
 }: RemotePairingPanelProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [decidePending, setDecidePending] = useState(false);
   // 状态未知(pairing=null)时的「开启等待」会 stop 当前房间:若手机正镜像中会立即断开,
   // 必须二次确认后才执行(评审:用户重挂载设置页后无法区分两种状态,不能一键触发)。

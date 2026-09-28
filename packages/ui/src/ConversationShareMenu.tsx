@@ -2,7 +2,7 @@ import { ShareIcon } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { useConversationShareSelectionStore } from "@/store/conversationShareSelectionStore.js";
 import { WINDOWS_CAPTION_CONTROL_CLASS } from "@/windowCaptionControls.js";
@@ -14,7 +14,7 @@ export function ConversationShareMenu({
   taskId: string;
   useWindowsCaptionSpacing?: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const setScope = useConversationShareSelectionStore((state) => state.setScope);
   const finishSelection = useConversationShareSelectionStore((state) => state.finishSelection);
   const publishing = useConversationShareSelectionStore(

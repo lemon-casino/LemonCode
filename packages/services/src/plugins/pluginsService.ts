@@ -1,4 +1,4 @@
-import type { PluginScope, PluginsOverviewResult } from "@zcode/shared";
+import type { PluginScope, PluginsOverviewResult } from "@lcode/shared";
 import type { IPluginsService } from "./plugins.js";
 
 interface PluginsServiceOptions {
@@ -15,7 +15,7 @@ function createRetiredOverview(): PluginsOverviewResult {
 }
 
 function throwRetiredPluginManagement(): never {
-  throw new Error("Legacy plugin management has been retired in ZCode Agent mode");
+  throw new Error("Legacy plugin management has been retired in LCode Agent mode");
 }
 
 export function createPluginsService(_options?: PluginsServiceOptions): IPluginsService {

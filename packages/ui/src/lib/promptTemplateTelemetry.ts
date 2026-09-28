@@ -1,4 +1,4 @@
-import type { IPlatformService, TelemetryEventPayload } from "@zcode/shared";
+import type { IPlatformService, TelemetryEventPayload } from "@lcode/shared";
 import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
 
 const PROMPT_TEMPLATE_CLICK_EVENT_NAME = "prompt_template_ck";

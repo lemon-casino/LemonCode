@@ -7,7 +7,7 @@ import {
 } from "@/lib/selectionSideChatRuntime.js";
 import { useCallback, useSyncExternalStore, type RefObject } from "react";
 import { useTextSelection } from "@/hooks/useTextSelection.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { hasExcludedConversationSelectionEndpoint } from "@/lib/conversationSelectionGuard.js";
 import {
   CONVERSATION_SELECTION_MAX_TEXT_LENGTH,
@@ -31,7 +31,7 @@ export function MarkdownSelectionTooltip({
   sourcePath?: string;
   target: MarkdownSelectionTarget;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const inspect = useCallback(() => {
     const root = rootRef.current;
     const selection = window.getSelection();

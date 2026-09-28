@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { GitDiffResult } from "@zcode/shared";
+import type { GitDiffResult } from "@lcode/shared";
 import { ChevronDownIcon, CopyIcon, FolderOpenIcon, ListTreeIcon } from "lucide-react";
 import { DiffViewer } from "@/components/ui/diff-viewer.js";
 import { cn } from "@/components/lib/utils.js";
@@ -13,7 +13,7 @@ import {
 import { getDiffFallbackMessageId, getGitPaneDiffPreviewPlan } from "@/GitPane/helpers.js";
 import { FileDisplayInline } from "@/lib/fileDisplay.js";
 import type { GitPaneFileChange } from "@/hooks/useGitRepository.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CodePreviewSettings } from "@/store/index.js";
 import type { ResolvedTheme } from "@/useTheme.js";
 import { LightweightDiffPreview } from "@/components/ui/lightweight-diff-preview.js";
@@ -52,7 +52,7 @@ export function GitPaneChangeCard({
   onRevealInFileManager: (change: GitPaneFileChange) => void;
   onRevealInFileTree?: (change: GitPaneFileChange) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const diffPreviewPlan = useMemo(() => getGitPaneDiffPreviewPlan(diffState), [diffState]);
   const multiFileDiffFiles = useMemo(() => {
     if (diffState?.availability !== "patch" || diffState.afterContent === null) {

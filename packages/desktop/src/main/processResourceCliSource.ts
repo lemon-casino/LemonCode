@@ -1,5 +1,5 @@
 /**
- * zcode-cli 角色（`cli_chat` / `cli_aux`）的资源样本来源（注册表第五行）。
+ * lcode-cli 角色（`cli_chat` / `cli_aux`）的资源样本来源（注册表第五行）。
  *
  * 每个 CLI 进程每 60 秒自采一次，经协议通知交给 services（在那里按所属进程管理器打上 lane），
  * 再由 Host 转发到 main。这里按「角色 × runtime_surface × 进程实例」保留每个进程最近一次读数，
@@ -22,11 +22,11 @@
 import {
   agentLaneResourceSampleSchema,
   resolveCliProcessResourceRole,
-  ZCODE_CLI_RESOURCE_SAMPLE_INTERVAL_MS,
+  LCODE_CLI_RESOURCE_SAMPLE_INTERVAL_MS,
   type AgentLaneResourceSample,
   type ProcessResourceRole,
   type ProcessResourceRuntimeSurface,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { recordExternalAppResourceSample } from "./processResourceExternalAppSamples.js";
 import type {
   ProcessResourceSampleContext,
@@ -114,7 +114,7 @@ export function ingestCliResourceSample(
 
 /** 采样周期至少按 CLI 自采周期计：读数间隔异常小时不能把过期窗口跟着缩短。 */
 function resolveSampleIntervalMs(sample: AgentLaneResourceSample): number {
-  return Math.max(ZCODE_CLI_RESOURCE_SAMPLE_INTERVAL_MS, sample.intervalMs);
+  return Math.max(LCODE_CLI_RESOURCE_SAMPLE_INTERVAL_MS, sample.intervalMs);
 }
 
 function resolveHardware(sample: AgentLaneResourceSample): ProcessResourceHardwareOverride {
@@ -247,7 +247,7 @@ export const cliProcessResourceSampleSource: ProcessResourceSampleSource = {
     // 这里只决定「多久算一个 CLI 样本」，同一份读数不会被计入两次统计量。
     if (
       lastDeliveredAt !== null &&
-      context.now - lastDeliveredAt < ZCODE_CLI_RESOURCE_SAMPLE_INTERVAL_MS
+      context.now - lastDeliveredAt < LCODE_CLI_RESOURCE_SAMPLE_INTERVAL_MS
     ) {
       return;
     }

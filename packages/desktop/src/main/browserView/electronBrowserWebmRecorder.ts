@@ -16,7 +16,7 @@ import type {
   BrowserWebmRecorderSession,
 } from "./browserVideoRecorder.js";
 
-const RECORDER_PORT_CHANNEL = "zcode-browser-video-recorder:port";
+const RECORDER_PORT_CHANNEL = "lcode-browser-video-recorder:port";
 const RECORDER_START_TIMEOUT_MS = 15_000;
 const RECORDER_STOP_TIMEOUT_MS = 15_000;
 
@@ -283,7 +283,7 @@ export async function createElectronBrowserWebmRecorder(
     `.${randomUUID()}-browser-video-recorder.html`,
   );
 
-  const recorderSession = session.fromPartition(`zcode-browser-video-recorder-${randomUUID()}`);
+  const recorderSession = session.fromPartition(`lcode-browser-video-recorder-${randomUUID()}`);
   const recorderWindow = new BrowserWindow({
     show: false,
     width: Math.max(1, input.viewport.width),

@@ -3,7 +3,7 @@ import {
   BUILTIN_MODEL_PROVIDER_IDS,
   ZAI_PROVIDER_ID,
   type OAuthProviderId,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { accountProviderCredentialKey } from "../model-provider/accountProviderCredentialKey.js";
 import type { AccountProviderCredentialStore } from "../model-provider/accountProviderCredentialStore.js";
 

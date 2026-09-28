@@ -14,9 +14,9 @@ import {
   type SplitDirection,
 } from "@/v4/paneLayoutTree.js";
 
-const PANE_LAYOUT_STORAGE_KEY = "zcode-v4-pane-layout:v2";
+const PANE_LAYOUT_STORAGE_KEY = "lcode-v4-pane-layout:v2";
 /** 旧版单值分屏的 key（只读迁移，不再写入）。 */
-const PANE_LAYOUT_STORAGE_KEY_V1 = "zcode-v4-pane-layout:v1";
+const PANE_LAYOUT_STORAGE_KEY_V1 = "lcode-v4-pane-layout:v1";
 
 /** v1 迁移用的保留 pane id（旧版 split pane 固定 id，e2e/testid 契约沿用）。 */
 const V4_LEGACY_SPLIT_PANE_ID = "split";

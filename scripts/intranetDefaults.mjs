@@ -9,7 +9,7 @@ export function resolveIntranetMachineHost(env = { ...endpointEnv, ...process.en
 export const INTRANET_MACHINE_HOST = resolveIntranetMachineHost();
 export const INTRANET_ASSET_SERVICE_PORT = 12345;
 export const INTRANET_ASSET_BASE_URL = INTRANET_MACHINE_HOST
-  ? `http://${INTRANET_MACHINE_HOST}:${INTRANET_ASSET_SERVICE_PORT}/zcode`
+  ? `http://${INTRANET_MACHINE_HOST}:${INTRANET_ASSET_SERVICE_PORT}/lcode`
   : "";
 export const INTRANET_DEPS_BASE_URL = INTRANET_ASSET_BASE_URL
   ? `${INTRANET_ASSET_BASE_URL}/deps`
@@ -17,7 +17,7 @@ export const INTRANET_DEPS_BASE_URL = INTRANET_ASSET_BASE_URL
 
 export function resolveIntranetDepsBaseUrl(env = process.env) {
   env = { ...endpointEnv, ...env };
-  const depsBaseUrl = env.ZCODE_DEPS_BASE_URL?.trim();
+  const depsBaseUrl = env.LCODE_DEPS_BASE_URL?.trim();
   if (depsBaseUrl) {
     return depsBaseUrl.replace(/\/+$/, "");
   }
@@ -25,7 +25,7 @@ export function resolveIntranetDepsBaseUrl(env = process.env) {
   const host = resolveIntranetMachineHost(env);
   if (!host)
     throw new Error(
-      "Configure ZCODE_DEPS_BASE_URL or INTRANET_MACHINE_HOST in .env before downloading internal dependencies",
+      "Configure LCODE_DEPS_BASE_URL or INTRANET_MACHINE_HOST in .env before downloading internal dependencies",
     );
-  return `http://${host}:${INTRANET_ASSET_SERVICE_PORT}/zcode/deps`;
+  return `http://${host}:${INTRANET_ASSET_SERVICE_PORT}/lcode/deps`;
 }

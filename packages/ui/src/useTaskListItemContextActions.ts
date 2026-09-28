@@ -1,4 +1,4 @@
-import type { ZCodeProvider } from "@zcode/shared";
+import type { LCodeProvider } from "@lcode/shared";
 import { useCallback } from "react";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useTaskNativeSessionLogFile } from "@/hooks/useTaskNativeSessionLogFile.js";
@@ -33,7 +33,7 @@ export function useTaskListItemContextActions({
   remoteSessionId?: string;
   workspaceIdentity?: string;
   taskId: string;
-  provider?: ZCodeProvider;
+  provider?: LCodeProvider;
   intl: {
     formatMessage: (desc: { id: string }, values?: Record<string, string>) => string;
   };

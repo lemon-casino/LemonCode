@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, type KeyboardEvent } from "react";
 import { XlsxViewer, setWasmSource, type XlsxViewerController } from "@extend-ai/react-xlsx";
 import xlsxWasmUrl from "@extend-ai/react-xlsx/duke_sheets_wasm_bg.wasm?url";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { installDocumentLinkSafety } from "@/lib/officeFilePreview.js";
 import { logger } from "@/logger.js";
 
@@ -137,7 +137,7 @@ export function PreviewPaneOfficeXlsxContent({
   sourcePath: string;
 }) {
   const viewerRef = useRef<HTMLDivElement | null>(null);
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const sheetTabsLabel = intl.formatMessage({ id: "codeViewer.excel.sheetTabs" });
   // react-xlsx 的默认工具栏同时承载编辑动作和 sheet tabs。
   // 预览关闭默认工具栏后会丢失多表导航，因此只通过 toolbar render prop 补回只读 sheet tabs。

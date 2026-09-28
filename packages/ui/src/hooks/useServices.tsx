@@ -4,7 +4,7 @@
  * 替代 props drilling，组件通过 useServices() 直接获取服务。
  */
 import { createContext, useContext, type ReactNode } from "react";
-import type { IServiceAccessor } from "@zcode/services";
+import type { IServiceAccessor } from "@lcode/services";
 
 const ServiceContext = createContext<IServiceAccessor | null>(null);
 

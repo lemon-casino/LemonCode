@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { modelConfigDataSchema } from "@zcode/shared/model-config";
+import { modelConfigDataSchema } from "@lcode/shared/model-config";
 import { manualModelConfigSchema } from "./manual-model-config.js";
 export { manualModelConfigSchema, type ManualModelConfig } from "./manual-model-config.js";
 import {
@@ -117,7 +117,7 @@ const personalProviderConfigRuleSchema = providerConfigRuleSchema
       context.addIssue({
         code: "custom",
         path: ["config", "access"],
-        message: "固定 Account Provider 的 Access 只能由 ZCode Built-in Config 声明",
+        message: "固定 Account Provider 的 Access 只能由 LCode Built-in Config 声明",
       });
     }
   });

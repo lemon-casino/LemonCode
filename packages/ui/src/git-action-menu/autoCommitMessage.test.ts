@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { GitFileChange, GitRepositorySummary } from "@zcode/shared";
-import type { ConversationRow } from "@zcode/shared/zcode-protocol-v4";
+import type { GitFileChange, GitRepositorySummary } from "@lcode/shared";
+import type { ConversationRow } from "@lcode/shared/lcode-protocol-v4";
 import {
   advanceAutoGitCommitMessageGate,
   buildGitCommitMessageConversationContext,

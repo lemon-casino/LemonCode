@@ -4,7 +4,7 @@ import type { WorkflowRunSettingsHost } from "@/components/workflow-timeline/Wor
 import { WorkflowSettingsChangeRow } from "@/components/workflow-timeline/WorkflowSettingsChangeRow.js";
 import { isWorkflowRunConfigurable } from "@/components/workflow-timeline/workflowRunSettings.js";
 import { useWorkflowSubagentModelProviderName } from "@/hooks/useWorkflowSubagentModelProviderName.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { ConversationRowRenderContext } from "@/v4/conversationRowContext.js";
 import type { WorkflowTurnDigest } from "@/v4/workflowTurnDigests.js";
 import { resolveWorkflowRunOpenToolCallId } from "@/v4/workflowRunCardJoin.js";
@@ -24,7 +24,7 @@ export function ConversationWorkflowDigests({
   context: ConversationRowRenderContext;
   turnKey: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   // 子代理模型名里的 provider 名从会话的模型清单来（卡本身不碰 store，宿主把查找函数递进去）。
   const subagentModelProviderName = useWorkflowSubagentModelProviderName(
     context.workspacePath,

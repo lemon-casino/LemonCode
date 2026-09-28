@@ -18,7 +18,7 @@ const nativeSearchReleasePlan = resolveNativeSearchReleasePlan({
 // Windows Chrome 导入入口未启用，默认构建继续编译 helper 会增加 CI 时间和发布签名面。
 // 保留显式开关，后续恢复入口时仍可复用既有原生实现和供应链校验。
 const shouldPrepareWindowsBrowserImportHelper =
-  target.os === "win32" && process.env.ZCODE_ENABLE_WINDOWS_BROWSER_IMPORT === "1";
+  target.os === "win32" && process.env.LCODE_ENABLE_WINDOWS_BROWSER_IMPORT === "1";
 // CUA 权限浮窗的吸附数据源。仅 macOS；缺 swiftc 时脚本内部自行降级为跳过（浮窗 fail-open
 // 到屏幕底部，仍可用），所以无条件挂在 darwin 上不会让构建变脆。
 const shouldPrepareMacosWindowBounds = target.os === "darwin";
@@ -48,7 +48,7 @@ function runTimedPnpmScript(scriptName) {
   }
 }
 
-const shouldSkipRemoteAssets = process.env.ZCODE_SKIP_REMOTE_ASSETS === "1";
+const shouldSkipRemoteAssets = process.env.LCODE_SKIP_REMOTE_ASSETS === "1";
 
 if (!shouldSkipRemoteAssets) {
   runTimedPnpmScript("prepare:remote-assets");
@@ -56,7 +56,7 @@ if (!shouldSkipRemoteAssets) {
   // Windows build job 的桌面安装包不依赖 mock-cdn remote 资产。
   // 之前这里无条件执行 prepare:remote-assets，会在同一个 job 里串行下载/打包跨平台资源，
   // 导致 CI 时间被白白拉长并逼近 1 小时上限。增加显式开关，只在需要时才准备 remote 资产。
-  console.log("[prepare:runtime-assets] skip prepare:remote-assets (ZCODE_SKIP_REMOTE_ASSETS=1)");
+  console.log("[prepare:runtime-assets] skip prepare:remote-assets (LCODE_SKIP_REMOTE_ASSETS=1)");
 }
 
 for (const scriptName of localRuntimeScripts) {

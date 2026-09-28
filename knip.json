@@ -25,7 +25,7 @@
     "packages/services": {
       "entry": ["src/index.ts", "src/storage/module.ts"]
     },
-    "apps/zcode-cli/packages/browser-use-plugin": {
+    "apps/lcode-cli/packages/browser-use-plugin": {
       "entry": ["src/browser-client.ts"]
     }
   },

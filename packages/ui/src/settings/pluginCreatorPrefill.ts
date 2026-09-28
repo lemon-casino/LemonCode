@@ -1,4 +1,4 @@
-import type { SkillSummary } from "@zcode/shared";
+import type { SkillSummary } from "@lcode/shared";
 import type { CreateTaskOptions } from "@/app-shell/types.js";
 import { buildSkillMentionMarkdown } from "@/mentions/mentionMarkdown.js";
 

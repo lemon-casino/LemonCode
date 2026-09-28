@@ -2,7 +2,7 @@ import {
   HostResponseTypes,
   resolveWorkspaceTelemetryDetail,
   type AutomationSessionCreateTelemetry,
-} from "@zcode/shared";
+} from "@lcode/shared";
 
 /** 仅实际新建并完成首发 admission 的派发分支调用；不从恢复订阅推断创建。 */
 export function reportHostSessionCreate(

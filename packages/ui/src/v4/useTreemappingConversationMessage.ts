@@ -1,13 +1,13 @@
 // TreemappingPane 的数据源是 v4 conversation 投影 rows。
 // Treemapping 只消费「一轮 assistant 输出的 toolCalls + 是否仍在流式」，这里把
 // snapshot rows 里最后一个 assistant 轮的 ToolCallRow 适配回旧 TaskChatMessage 形态，
-// 复用 treemappingActivity 的既有解析规则，不复活 zcodeChatMessages。
+// 复用 treemappingActivity 的既有解析规则，不复活 lcodeChatMessages。
 //
 // TreemappingPane 挂在 side pane（V4ConversationProvider 之外），因此自持一条
 // SessionDataLayer；pane 当前默认从侧边栏隐藏（workspaceSidePane sanitize 过滤
 // treemapping tab），该订阅只在 pane 真实挂载时才会建立。
 import { useEffect, useMemo, useState } from "react";
-import type { ConversationRow, ToolCallRow } from "@zcode/shared/zcode-protocol-v4";
+import type { ConversationRow, ToolCallRow } from "@lcode/shared/lcode-protocol-v4";
 import type { TaskChatMessage } from "@/lib/taskChatMessageTypes.js";
 import { useServices } from "@/hooks/useServices.js";
 import { createAgentConversationTransport } from "@/v4/agentConversationTransport.js";
@@ -64,16 +64,16 @@ export function useTreemappingConversationMessage(params: {
   workspaceIdentity?: string;
 }): TaskChatMessage | null {
   const { sessionId, workspacePath, workspaceIdentity } = params;
-  const { zcodeAgentService } = useServices();
+  const { lcodeAgentService } = useServices();
   const layer = useMemo(
     () =>
       new SessionDataLayer({
-        transport: createAgentConversationTransport(zcodeAgentService, {
+        transport: createAgentConversationTransport(lcodeAgentService, {
           workspacePath,
           workspaceIdentity,
         }),
       }),
-    [zcodeAgentService, workspacePath, workspaceIdentity],
+    [lcodeAgentService, workspacePath, workspaceIdentity],
   );
   useEffect(() => {
     return () => layer.dispose();

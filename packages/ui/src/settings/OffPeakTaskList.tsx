@@ -19,8 +19,8 @@ import {
   TID_OFFPEAK_CARD,
   TID_OFFPEAK_CARD_SESSION,
   TID_OFFPEAK_CARD_MENU,
-  type ZCodeOffPeakTask,
-} from "@zcode/shared";
+  type LCodeOffPeakTask,
+} from "@lcode/shared";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -29,7 +29,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import {
   AutomationCancelActionIcon,
@@ -50,19 +50,19 @@ import {
 } from "@/settings/offPeakUiPresentation.js";
 
 interface OffPeakTaskListProps {
-  tasks: readonly ZCodeOffPeakTask[];
+  tasks: readonly LCodeOffPeakTask[];
   busyOperationId: string | null;
-  onOpen: (task: ZCodeOffPeakTask) => void;
-  onPause: (task: ZCodeOffPeakTask) => void;
-  onContinue: (task: ZCodeOffPeakTask) => void;
-  onCancel: (task: ZCodeOffPeakTask) => void;
-  onDelete: (task: ZCodeOffPeakTask) => void;
-  onOpenSession: (task: ZCodeOffPeakTask) => void;
+  onOpen: (task: LCodeOffPeakTask) => void;
+  onPause: (task: LCodeOffPeakTask) => void;
+  onContinue: (task: LCodeOffPeakTask) => void;
+  onCancel: (task: LCodeOffPeakTask) => void;
+  onDelete: (task: LCodeOffPeakTask) => void;
+  onOpenSession: (task: LCodeOffPeakTask) => void;
 }
 
 // 按状态分组会让任务在运行和终态切换时跳位，破坏用户对已有卡片位置的预期；
 // 列表只按不可变的创建时间倒序，状态变化不再影响顺序。
-function sortOffPeakTasksByCreatedAt(tasks: readonly ZCodeOffPeakTask[]): ZCodeOffPeakTask[] {
+function sortOffPeakTasksByCreatedAt(tasks: readonly LCodeOffPeakTask[]): LCodeOffPeakTask[] {
   return [...tasks].sort((a, b) => b.createdAt - a.createdAt);
 }
 
@@ -153,7 +153,7 @@ export function OffPeakTaskList({
   onDelete,
   onOpenSession,
 }: OffPeakTaskListProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const sorted = sortOffPeakTasksByCreatedAt(tasks);
 
   if (sorted.length === 0) {

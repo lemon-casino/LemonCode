@@ -6,9 +6,9 @@
 // 工具路径发起的 run 没有——它的来历是转写里那一行 CreateWorkflow。只读，无动作。
 
 import { Fragment, memo } from "react";
-import type { WorkflowLaunchMeta } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowLaunchMeta } from "@lcode/shared/lcode-protocol-v4";
 import { workflowSettingsProvenanceRows } from "@/components/workflow-timeline/workflowSettingsChange.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 /** 实参值：字符串原样，其余 `JSON.stringify`（与实参窗 / 通知同一条归一化）。 */
 function formatArgValue(value: unknown): string {
@@ -30,7 +30,7 @@ export const WorkflowRunProvenance = memo(function WorkflowRunProvenance({
   /** 启动轮 / 设置轮的 startedAt；缺席即不写时刻。 */
   startedAt?: number;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const amend = meta.amend;
   const caption = intl.formatMessage({
     id:

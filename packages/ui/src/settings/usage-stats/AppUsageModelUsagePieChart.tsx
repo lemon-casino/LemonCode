@@ -1,8 +1,8 @@
 import { useCallback, useMemo } from "react";
 import { Cell, Pie, PieChart } from "recharts";
-import type { AppUsageSnapshot } from "@zcode/shared";
+import type { AppUsageSnapshot } from "@lcode/shared";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   buildAppUsageModelPieChartViewModel,
   type AppUsageModelPieSlice,
@@ -21,7 +21,7 @@ const APP_USAGE_MODEL_PIE_CHART_MARGIN = {
 } as const;
 
 export function AppUsageModelUsagePieChart({ snapshot }: { snapshot: AppUsageSnapshot }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const { chartConfig, chartData, totalModelTokens } = useMemo(
     // Recharts 会镜像 data/config props 到内部 store；稳定饼图数据可避免设置页刷新时重复派发。
     () => buildAppUsageModelPieChartViewModel({ intl, snapshot }),

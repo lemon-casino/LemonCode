@@ -1,8 +1,8 @@
 /* oxlint-disable max-lines -- 热力图在同一文件内维护每日、每周、累计三种展示计算，拆分会割裂共享列模型。 */
 import { useState } from "react";
-import type { AppUsageHeatmapCell, AppUsageHeatmapWeek } from "@zcode/shared";
+import type { AppUsageHeatmapCell, AppUsageHeatmapWeek } from "@lcode/shared";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   HeatmapColumn,
   type HeatmapDisplayColumn,
@@ -38,7 +38,7 @@ type HeatmapCountMetric = "turns" | "tools";
 
 function renderHeatmapTooltipTitle(
   locale: string,
-  intl: ReturnType<typeof useZCodeIntl>["intl"],
+  intl: ReturnType<typeof useLCodeIntl>["intl"],
   cell: AppUsageHeatmapCell,
   countMetric: HeatmapCountMetric,
 ): string {
@@ -57,7 +57,7 @@ function renderHeatmapTooltipTitle(
 
 function renderWeeklyHeatmapTooltipTitle(
   locale: string,
-  intl: ReturnType<typeof useZCodeIntl>["intl"],
+  intl: ReturnType<typeof useLCodeIntl>["intl"],
   date: string,
   totalTokens: number,
   count: number,
@@ -81,7 +81,7 @@ function renderWeeklyHeatmapTooltipTitle(
 
 function renderCumulativeHeatmapTooltipTitle(
   locale: string,
-  intl: ReturnType<typeof useZCodeIntl>["intl"],
+  intl: ReturnType<typeof useLCodeIntl>["intl"],
   date: string,
   totalTokens: number,
   count: number,
@@ -187,7 +187,7 @@ function resolveHeatmapColumnMonthDate(week: AppUsageHeatmapWeek): string {
 
 function buildDailyHeatmapColumns(
   locale: string,
-  intl: ReturnType<typeof useZCodeIntl>["intl"],
+  intl: ReturnType<typeof useLCodeIntl>["intl"],
   weeks: AppUsageHeatmapWeek[],
   countMetric: HeatmapCountMetric,
 ): HeatmapDisplayColumn[] {
@@ -211,7 +211,7 @@ function buildDailyHeatmapColumns(
 
 function buildWeeklyLikeHeatmapColumns(
   locale: string,
-  intl: ReturnType<typeof useZCodeIntl>["intl"],
+  intl: ReturnType<typeof useLCodeIntl>["intl"],
   weeks: AppUsageHeatmapWeek[],
   mode: Extract<TokenActivityMode, "weekly" | "cumulative">,
   countMetric: HeatmapCountMetric,
@@ -275,7 +275,7 @@ function buildWeeklyLikeHeatmapColumns(
 
 function buildHeatmapDisplayColumns(
   locale: string,
-  intl: ReturnType<typeof useZCodeIntl>["intl"],
+  intl: ReturnType<typeof useLCodeIntl>["intl"],
   weeks: AppUsageHeatmapWeek[],
   mode: TokenActivityMode,
   countMetric: HeatmapCountMetric,
@@ -326,7 +326,7 @@ export function UsageHeatmap({
   countMetric = "turns",
 }: {
   locale: string;
-  intl: ReturnType<typeof useZCodeIntl>["intl"];
+  intl: ReturnType<typeof useLCodeIntl>["intl"];
   weeks: AppUsageHeatmapWeek[];
   /** Coding Plan 远端只提供 mcpCalls；App Usage 才提供真实消息轮数。 */
   countMetric?: HeatmapCountMetric;

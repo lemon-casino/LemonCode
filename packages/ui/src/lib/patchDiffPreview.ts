@@ -6,8 +6,8 @@ const MAX_PATCH_DIFF_SAFE_HUNK_LINE_NUMBER = 1_200;
 const MAX_PLAIN_TEXT_FALLBACK_RENDER_LINES = 800;
 // 这里不能直接拼接展示文案，否则 lib 层会把英文硬编码带进 UI，破坏国际化。
 // 改成内部 marker token，真正展示文案在组件层走 intl 渲染。
-const FALLBACK_TRUNCATED_MARKER_PREFIX = "\\ __ZCODE_DIFF_TRUNCATED__:";
-const FALLBACK_TRUNCATED_MARKER_REGEX = /^\\ __ZCODE_DIFF_TRUNCATED__:(\d+)$/;
+const FALLBACK_TRUNCATED_MARKER_PREFIX = "\\ __LCODE_DIFF_TRUNCATED__:";
+const FALLBACK_TRUNCATED_MARKER_REGEX = /^\\ __LCODE_DIFF_TRUNCATED__:(\d+)$/;
 const PACKAGE_MANAGER_LOCKFILE_NAMES = new Set([
   "bun.lock",
   "bun.lockb",

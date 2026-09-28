@@ -5,7 +5,7 @@ import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
 import { extractPlanToolCallContent } from "@/lib/planToolCall.js";
 import type { PlanDetailSidePaneTab } from "@/lib/workspaceSidePane.js";
-import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
+import { useLCodeStoreWithDefault } from "@/store/StoreProvider.js";
 import type { SessionLease } from "@/v4/sessionDataLayer.js";
 import { toolCallRowToLegacyNode } from "@/v4/toolCallRowAdapter.js";
 import { useConversationProjection } from "@/v4/useConversationProjection.js";
@@ -26,8 +26,8 @@ const PlanDetailContent = memo(function PlanDetailContent({
   const { layer } = useV4Conversation();
   const [lease, setLease] = useState<SessionLease | null>(null);
   const [lastMarkdown, setLastMarkdown] = useState(tab.markdown);
-  const theme = useZCodeStoreWithDefault((state) => state.theme, "system");
-  const codePreviewSettings = useZCodeStoreWithDefault(
+  const theme = useLCodeStoreWithDefault((state) => state.theme, "system");
+  const codePreviewSettings = useLCodeStoreWithDefault(
     (state) => state.codePreviewSettings,
     DEFAULT_CODE_PREVIEW_SETTINGS,
   );

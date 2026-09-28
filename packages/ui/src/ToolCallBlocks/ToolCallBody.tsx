@@ -1,10 +1,10 @@
 import { useEffect, useState, type ReactNode } from "react";
-import type { FileMediaPreview } from "@zcode/shared";
+import type { FileMediaPreview } from "@lcode/shared";
 import { CodeBlock } from "@/components/ai-elements/code-block.js";
 import { MessageResponse, type MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import { ToolInput, ToolOutput } from "@/components/ai-elements/tool.js";
 import { useServices } from "@/hooks/useServices.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type {
   CodeViewerSource,
   ImageCodeViewerSource,
@@ -134,7 +134,7 @@ function InlineCodeContent({
 
 function InlineImageContent({ preview }: { preview: ImageCodeViewerSource }) {
   const { fileService } = useServices();
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [imagePreview, setImagePreview] = useState<FileMediaPreview | null>(null);
 
   useEffect(() => {
@@ -176,7 +176,7 @@ function InlinePlanResult({
   onOpenFileLink?: (target: MessageFileLinkTarget) => void;
   onOpenBrowserUrl?: (url: string) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   return (
     <div className="space-y-3 rounded-xl border border-outline/60 bg-muted/15 p-3">

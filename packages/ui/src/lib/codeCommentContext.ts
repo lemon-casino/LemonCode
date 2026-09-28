@@ -1,5 +1,5 @@
-export const CODE_COMMENT_ADD_TO_CHAT_EVENT = "zcode:code-comment-add-to-chat";
-export const CODE_COMMENT_REMOVE_FROM_CHAT_EVENT = "zcode:code-comment-remove-from-chat";
+export const CODE_COMMENT_ADD_TO_CHAT_EVENT = "lcode:code-comment-add-to-chat";
+export const CODE_COMMENT_REMOVE_FROM_CHAT_EVENT = "lcode:code-comment-remove-from-chat";
 export const CODE_COMMENT_REMOVE_BROADCAST_CHANNEL = "code-comment:remove-from-chat";
 export const CODE_COMMENT_PREVIEW_RESTORE_BROADCAST_CHANNEL = "code-comment:restore-preview";
 

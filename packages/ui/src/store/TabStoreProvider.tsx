@@ -10,7 +10,7 @@ import { createTabStore, type TabStore, type TabStoreState } from "./tabStore.js
 
 declare global {
   interface Window {
-    __zcodeTabStoreE2E?: TabStore;
+    __lcodeTabStoreE2E?: TabStore;
   }
 }
 
@@ -33,10 +33,10 @@ export function TabStoreProvider({ children }: { children: ReactNode }) {
     // V4 draft 没有 taskId，E2E 若按 activeTaskId=null 反查 workspace，
     // 多 workspace 会命中任意草稿桶。只在 E2E 构建暴露当前窗口导航 store，供 helper
     // 按 workspaceIdentity?.trim() || workspacePath 精确读取当前草稿。
-    window.__zcodeTabStoreE2E = store;
+    window.__lcodeTabStoreE2E = store;
     return () => {
-      if (window.__zcodeTabStoreE2E === store) {
-        delete window.__zcodeTabStoreE2E;
+      if (window.__lcodeTabStoreE2E === store) {
+        delete window.__lcodeTabStoreE2E;
       }
     };
   }, []);

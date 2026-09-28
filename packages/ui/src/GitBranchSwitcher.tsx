@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
-import type { GitRepositorySummary } from "@zcode/shared";
+import type { GitRepositorySummary } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import {
   Command,
@@ -17,7 +17,7 @@ import {
 } from "@/git-branch-switcher/GitBranchDialogs.js";
 import { GitGraphDialog } from "@/git-graph/GitGraphDialog.js";
 import { useGitBranchSwitcher } from "@/hooks/useGitBranchSwitcher.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   matchesGitBranchSearch,
   resolveGitBranchTriggerLabel,
@@ -57,7 +57,7 @@ export function GitBranchSwitcher({
   avoidPopoverCollisions = true,
   showFooterActions = true,
 }: GitBranchSwitcherProps) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const numberFormatter = new Intl.NumberFormat(locale);
   const commandListRef = useRef<HTMLDivElement | null>(null);
   const [gitGraphDialogOpen, setGitGraphDialogOpen] = useState(false);

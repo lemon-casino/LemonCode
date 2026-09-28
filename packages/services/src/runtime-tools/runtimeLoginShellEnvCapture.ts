@@ -3,8 +3,8 @@ import type { ChildProcess } from "node:child_process";
 import { accessSync, constants } from "node:fs";
 import { prependPathEntries } from "./runtimeToolResolver.js";
 
-const LOGIN_ENV_CAPTURE_PREFIX = "__ZCODE_LOGIN_ENV_START__";
-const LOGIN_ENV_CAPTURE_SUFFIX = "__ZCODE_LOGIN_ENV_END__";
+const LOGIN_ENV_CAPTURE_PREFIX = "__LCODE_LOGIN_ENV_START__";
+const LOGIN_ENV_CAPTURE_SUFFIX = "__LCODE_LOGIN_ENV_END__";
 const DEFAULT_POSIX_BOOTSTRAP_PATH =
   process.platform === "darwin"
     ? "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"

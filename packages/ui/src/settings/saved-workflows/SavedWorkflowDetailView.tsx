@@ -4,18 +4,18 @@ import {
   TID_WORKFLOW_DETAIL,
   TID_WORKFLOW_DETAIL_SCRIPT,
   TID_WORKFLOW_DETAIL_TAB,
-  type ZCodeSavedWorkflowEntry,
-  type ZCodeSavedWorkflowMeta,
-  type ZCodeSavedWorkflowRun,
-  type ZCodeWorkflowsGetResult,
-} from "@zcode/shared";
-import type { IZCodeAgentService, ZCodeAgentSavedWorkflowTarget } from "@zcode/services";
+  type LCodeSavedWorkflowEntry,
+  type LCodeSavedWorkflowMeta,
+  type LCodeSavedWorkflowRun,
+  type LCodeWorkflowsGetResult,
+} from "@lcode/shared";
+import type { ILCodeAgentService, LCodeAgentSavedWorkflowTarget } from "@lcode/services";
 import { CodeBlock } from "@/components/ai-elements/code-block.js";
 import { Button } from "@/components/ui/button.js";
 import { Spinner } from "@/components/ui/spinner.js";
 import { toast } from "@/components/ui/toast.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { SettingsBreadcrumbReporter } from "@/settings/SettingsHeaderBreadcrumb.js";
 import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
@@ -41,12 +41,12 @@ type DetailTab = "definition" | "history";
 
 type DetailLoad =
   | { status: "loading" }
-  | { status: "ready"; detail: Extract<ZCodeWorkflowsGetResult, { ok: true }> }
+  | { status: "ready"; detail: Extract<LCodeWorkflowsGetResult, { ok: true }> }
   | { status: "failed"; reason: string };
 
 type MetaDraft = SavedWorkflowMetaDraft;
 
-function draftFromMeta(meta: ZCodeSavedWorkflowMeta): MetaDraft {
+function draftFromMeta(meta: LCodeSavedWorkflowMeta): MetaDraft {
   return {
     description: meta.description,
     whenToUse: meta.whenToUse ?? "",
@@ -58,13 +58,13 @@ let rowKeySeq = 0;
 
 interface SavedWorkflowDetailViewProps {
   /** 项目档传 workspace target；全局档传 `{ scope: "global" }`（get/updateMeta 直接透传）。 */
-  target: ZCodeAgentSavedWorkflowTarget;
-  agentService: IZCodeAgentService;
+  target: LCodeAgentSavedWorkflowTarget;
+  agentService: ILCodeAgentService;
   name: string;
   /** 面包屑「自动化 › <项目名> › <工作流名>」里的项目一级。 */
   projectLabel: string;
-  entry: ZCodeSavedWorkflowEntry | undefined;
-  runs: readonly ZCodeSavedWorkflowRun[];
+  entry: LCodeSavedWorkflowEntry | undefined;
+  runs: readonly LCodeSavedWorkflowRun[];
   now: number;
   busy: boolean;
   canOpenRun: boolean;
@@ -75,12 +75,12 @@ interface SavedWorkflowDetailViewProps {
   /** 作用域动作：项目档「提升为全局」（AI 概括）/ 全局档「移到项目…」；仅在传入时出现。 */
   onMove?: () => void;
   onDelete: () => void;
-  onOpenRun: (run: ZCodeSavedWorkflowRun) => void;
+  onOpenRun: (run: LCodeSavedWorkflowRun) => void;
   /** 产物 chip → `workflow-artifact` tab；缺席即 chips 只读。 */
-  onOpenArtifact?: (run: ZCodeSavedWorkflowRun, artifactId: string) => void;
+  onOpenArtifact?: (run: LCodeSavedWorkflowRun, artifactId: string) => void;
   onMetaSaved: () => void;
   /** 传入即在运行历史每行渲染项目列（全局工作流跨项目历史）。 */
-  resolveRunProject?: (run: ZCodeSavedWorkflowRun) => SavedWorkflowRunProject | null;
+  resolveRunProject?: (run: LCodeSavedWorkflowRun) => SavedWorkflowRunProject | null;
   /** 实参窗由列表层持有（同一份状态），详情页只负责挂到树上。 */
   launchDialog: ReactNode;
 }
@@ -111,7 +111,7 @@ export function SavedWorkflowDetailView({
   resolveRunProject,
   launchDialog,
 }: SavedWorkflowDetailViewProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [tab, setTab] = useState<DetailTab>("definition");
   const [loadState, setLoadState] = useState<DetailLoad>({ status: "loading" });
   const [draft, setDraft] = useState<MetaDraft | null>(null);
@@ -214,7 +214,7 @@ export function SavedWorkflowDetailView({
     if (!collected.ok) setRowErrors(collected.errors);
     if (descriptionMissing || !collected.ok) return;
     const whenToUse = draft.whenToUse.trim();
-    const meta: ZCodeSavedWorkflowMeta = {
+    const meta: LCodeSavedWorkflowMeta = {
       description,
       ...(whenToUse.length === 0 ? {} : { whenToUse }),
       ...(collected.args === undefined ? {} : { args: collected.args }),

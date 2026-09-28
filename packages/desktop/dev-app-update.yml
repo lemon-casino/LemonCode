@@ -3,4 +3,4 @@
 provider: generic
 url: http://localhost:8081
 useMultipleRangeRequest: false
-updaterCacheDirName: zcode-dev-updater
+updaterCacheDirName: lcode-dev-updater

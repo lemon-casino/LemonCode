@@ -1,14 +1,14 @@
-/* ZCode 官方 Server MCP 鉴权的共享常量与类型。
+/* LCode 官方 Server MCP 鉴权的共享常量与类型。
    放在 shared 是因为头集合有两个消费者且分属不同包：
    - `packages/services` 侧生产身份头；
-   - `apps/zcode-cli/packages/adapters` 侧（Plugin parser + MCP adapter）拦截保留头。
+   - `apps/lcode-cli/packages/adapters` 侧（Plugin parser + MCP adapter）拦截保留头。
    两侧必须同源，否则新增身份头时会漏掉黑名单，出现静态 header 覆盖凭证的缺口。 */
 
 /** `.mcp.json` 中 `auth.type` 的唯一合法值；区分大小写，不接受别名。 */
-export const ZCODE_OFFICIAL_MCP_AUTH_TYPE = "zcode_official" as const;
+export const LCODE_OFFICIAL_MCP_AUTH_TYPE = "lcode_official" as const;
 
 /** 第一阶段唯一合法的 provider。后续新增短期 Token 应新增 provider 值，不改变本值语义。 */
-export const ZCODE_OFFICIAL_MCP_AUTH_PROVIDER_JWT_TOKEN = "jwt_token" as const;
+export const LCODE_OFFICIAL_MCP_AUTH_PROVIDER_JWT_TOKEN = "jwt_token" as const;
 
 /**
  * 官方 MCP 使用用户身份和套餐身份两组独立凭据。
@@ -71,7 +71,7 @@ export function findOfficialMcpReservedHeaders(
   return [...hits].sort();
 }
 
-/** 服务端 `Bigmodel-Target-Type` 的取值（对齐 zcode-server 的 CodingPlanTargetType）。 */
+/** 服务端 `Bigmodel-Target-Type` 的取值（对齐 lcode-server 的 CodingPlanTargetType）。 */
 export type OfficialMcpTargetType = "PERSONAL" | "TEAM";
 
 /**
@@ -103,8 +103,8 @@ export type OfficialMcpAuthFailureKind =
 
 // ── 官方 MCP 信任判定──
 // 放在 shared 而非 CLI bootstrap，是因为有两个消费者且分属互不可见的包：
-//   - apps/zcode-cli/packages/adapters：请求发出前的本地校验；
-//   - packages/services（host）：身份权威边界的二次校验（只依赖 @zcode/shared，
+//   - apps/lcode-cli/packages/adapters：请求发出前的本地校验；
+//   - packages/services（host）：身份权威边界的二次校验（只依赖 @lcode/shared，
 //     无法 import CLI 侧包）。
 // 单源是硬要求：双处判定分叉会让一侧放行、另一侧拒绝。
 
@@ -135,10 +135,10 @@ function normalizeLoopbackOrigin(candidate: string): string | undefined {
   }
 }
 
-export const OFFICIAL_MCP_DEV_TRUSTED_ORIGINS_ENV = "ZCODE_OFFICIAL_MCP_DEV_TRUSTED_ORIGINS";
+export const OFFICIAL_MCP_DEV_TRUSTED_ORIGINS_ENV = "LCODE_OFFICIAL_MCP_DEV_TRUSTED_ORIGINS";
 
 /** Host 在 spawn 时注入的真实 workspace identity；只用于隔离/审计，不用于文件执行。 */
-export const ZCODE_WORKSPACE_IDENTITY_ENV = "ZCODE_WORKSPACE_IDENTITY";
+export const LCODE_WORKSPACE_IDENTITY_ENV = "LCODE_WORKSPACE_IDENTITY";
 
 /** 身份头的安全日志摘要：只含 header 名、Team 成对性与 TargetType，不含任何值。 */
 export function summarizeOfficialMcpIdentityHeaders(
@@ -163,7 +163,7 @@ export function summarizeOfficialMcpIdentityHeaders(
 export interface OfficialMcpTrustResult {
   trusted: boolean;
   /** 拒绝时的可读原因，仅用于日志，不用于流程分流。 */
-  detail: "ok" | "invalid_input" | "origin_mismatch" | "zcode_origin_unresolved";
+  detail: "ok" | "invalid_input" | "origin_mismatch" | "lcode_origin_unresolved";
 }
 
 export interface IsOfficialMcpOriginTrustedInput {
@@ -175,12 +175,12 @@ export interface IsOfficialMcpOriginTrustedInput {
    * 归属标识。保留在入参里是为了让日志能回答"是哪个插件在要凭证"。
    */
   pluginId: string;
-  /** 当前 ZCode API origin，由调用方按各自口径解析后传入。 */
-  zcodeApiOrigin: string | undefined;
+  /** 当前 LCode API origin，由调用方按各自口径解析后传入。 */
+  lcodeApiOrigin: string | undefined;
 }
 
 /**
- * 校验官方 MCP 的凭据目标：要求 HTTPS origin 与运行时 ZCode API origin 相等，
+ * 校验官方 MCP 的凭据目标：要求 HTTPS origin 与运行时 LCode API origin 相等，
  * 且 URL 不携带 username/password。开发配置只允许显式列出的 HTTP loopback origin。
  *
  * pluginId 用于归属和日志，不是授权过滤条件；任何已加载插件都可以请求官方鉴权。
@@ -207,8 +207,8 @@ export function isOfficialMcpOriginTrusted(
     }
   }
 
-  const expected = input.zcodeApiOrigin ? normalizeHttpsOrigin(input.zcodeApiOrigin) : undefined;
-  if (!expected) return { detail: "zcode_origin_unresolved", trusted: false };
+  const expected = input.lcodeApiOrigin ? normalizeHttpsOrigin(input.lcodeApiOrigin) : undefined;
+  if (!expected) return { detail: "lcode_origin_unresolved", trusted: false };
   if (normalizeHttpsOrigin(origin) !== expected) {
     return { detail: "origin_mismatch", trusted: false };
   }
@@ -245,8 +245,8 @@ export interface OfficialMcpTrustedOriginRegistry {
 export interface CreateOfficialMcpTrustedOriginRegistryOptions {
   /** 本地自测开关原始值（逗号分隔的 loopback origin），通常来自 env。 */
   devTrustedOriginsRaw?: string | undefined;
-  /** 当前 ZCode API origin 的解析器；两侧必须用等价口径，否则会一侧放行一侧拒绝。 */
-  resolveZCodeApiOrigin: () => string | undefined | Promise<string | undefined>;
+  /** 当前 LCode API origin 的解析器；两侧必须用等价口径，否则会一侧放行一侧拒绝。 */
+  resolveLCodeApiOrigin: () => string | undefined | Promise<string | undefined>;
 }
 
 export function createOfficialMcpTrustedOriginRegistry(
@@ -254,18 +254,18 @@ export function createOfficialMcpTrustedOriginRegistry(
 ): OfficialMcpTrustedOriginRegistry {
   return {
     async isTrusted({ origin, pluginId }) {
-      let zcodeApiOrigin: string | undefined;
+      let lcodeApiOrigin: string | undefined;
       try {
-        zcodeApiOrigin = await options.resolveZCodeApiOrigin();
+        lcodeApiOrigin = await options.resolveLCodeApiOrigin();
       } catch {
         // 解析失败按不可信处理，绝不因为拿不到 origin 就放行。
-        return { detail: "zcode_origin_unresolved", trusted: false };
+        return { detail: "lcode_origin_unresolved", trusted: false };
       }
       return isOfficialMcpOriginTrusted({
         devTrustedOriginsRaw: options.devTrustedOriginsRaw,
         origin,
         pluginId,
-        zcodeApiOrigin,
+        lcodeApiOrigin,
       });
     },
   };

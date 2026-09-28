@@ -1,6 +1,6 @@
 import { AlertTriangle, InfoIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { setPendingSettingsSection } from "@/lib/settingsNavigation.js";
 import {
   formatUsageErrorMessage,
@@ -9,7 +9,7 @@ import {
 } from "@/lib/usageErrorCopy.js";
 
 export function UsageStatsErrorNotice({ error }: { error: string }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   // 团队套餐业务错误（如"您当前暂无有效的团队套餐授权记录…"）含"授权"字样，
   // 直接 isUsageCredentialError 会误判成凭据问题（显示检查 API Key 按钮），业务错误优先。
   const usageErrorIsTeamPlanBusiness = isUsageTeamPlanBusinessError(error);

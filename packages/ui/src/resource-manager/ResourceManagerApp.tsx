@@ -5,9 +5,9 @@ import {
   type ResourceUsageCategory,
   type ResourceUsageSnapshot,
   type StorageManagementBridge,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
-import { useZCodeIntl } from "@/i18n/index.js";
+import { useLCodeIntl } from "@/i18n/index.js";
 import { StorageSection } from "./storage/StorageSection.js";
 import { UNSAMPLED_PLACEHOLDER, UsageGroup, UsageMeter } from "./resourceUsageParts.js";
 import {
@@ -55,7 +55,7 @@ export function ResourceManagerApp({
   refreshIntervalMs = DEFAULT_REFRESH_INTERVAL_MS,
   initialTab = "cpu",
 }: ResourceManagerAppProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [tab, setTab] = useState<ResourceManagerTab>(initialTab);
   // CPU / 内存共用一份进程快照；存储 tab 激活时停止轮询，避免和扫盘争抢 IO。
   const pollingActive = tab !== "storage";
@@ -180,7 +180,7 @@ function UsageTabContent({
   expanded: Record<ResourceUsageCategory, boolean>;
   onToggleGroup: (category: ResourceUsageCategory) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <>
       {error ? (

@@ -1,5 +1,5 @@
 import { AlarmClock, GiftIcon, XIcon } from "lucide-react";
-import type { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatCodingPlanQuotaResetCountdown } from "@/components/coding-plan-quota-reset/CodingPlanQuotaResetDialog.js";
 import { Button } from "@/components/ui/button.js";
 
@@ -130,7 +130,7 @@ export function ContextQuotaResetOpportunityReminderContent({
   remainingSeconds,
 }: {
   count: number;
-  intl: ReturnType<typeof useZCodeIntl>["intl"];
+  intl: ReturnType<typeof useLCodeIntl>["intl"];
   onDismiss: () => void;
   phase: ContextQuotaResetOpportunityReminderPhase;
   remainingSeconds: number;
@@ -160,7 +160,7 @@ export function ContextQuotaResetOpportunityReminderContent({
     >
       <span className="inline-flex items-center gap-1.5" data-context-reset-reminder-copy>
         <span
-          className="inline-flex shrink-0 origin-bottom animate-zcode-alarm-ring text-warning motion-reduce:animate-none"
+          className="inline-flex shrink-0 origin-bottom animate-lcode-alarm-ring text-warning motion-reduce:animate-none"
           aria-hidden="true"
         >
           <AlarmClock className="size-3.5" />
@@ -181,7 +181,7 @@ function ContextQuotaResetOpportunityDismissButton({
   intl,
   onDismiss,
 }: {
-  intl: ReturnType<typeof useZCodeIntl>["intl"];
+  intl: ReturnType<typeof useLCodeIntl>["intl"];
   onDismiss: () => void;
 }) {
   return (

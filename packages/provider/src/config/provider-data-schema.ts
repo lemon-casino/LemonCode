@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { sparseShape } from "@zcode/shared/config-schema";
+import { sparseShape } from "@lcode/shared/config-schema";
 
 export const providerApiTypeDataSchema = z.enum([
   "anthropic-messages",

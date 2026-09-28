@@ -1,6 +1,6 @@
-// sessions-index 传输面（desktop/host 实现）：桥到 IZCodeAgentService 的 v4 sessions-index 转发面
+// sessions-index 传输面（desktop/host 实现）：桥到 ILCodeAgentService 的 v4 sessions-index 转发面
 // （与 agentConversationTransport 同构；web 直连 relay 时换实现即可）。
-import type { IZCodeAgentService } from "@zcode/services";
+import type { ILCodeAgentService } from "@lcode/services";
 import {
   sessionsIndexTopicFrameSchema,
   TopicWireFrameAssembler,
@@ -10,8 +10,8 @@ import {
   type TopicFrameDeliveryKind,
   type V4ConversationResyncResult,
   type V4SessionsIndexSubscribeResult,
-} from "@zcode/shared/zcode-protocol-v4";
-import { sessionsIndexTopic } from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
+import { sessionsIndexTopic } from "@lcode/shared/lcode-protocol-v4";
 import { logger } from "@/logger.js";
 import { ensureAgentV4ConnectionHandshake } from "@/v4/agentV4ConnectionHandshake.js";
 import { createAckActivationBarrier } from "@/v4/ackActivationBarrier.js";
@@ -49,7 +49,7 @@ interface AgentSessionsIndexTransportTarget {
 }
 
 type SessionsIndexV4AgentService = Pick<
-  IZCodeAgentService,
+  ILCodeAgentService,
   | "subscribeSessionsIndexV4"
   | "resyncSessionsIndexV4"
   | "unsubscribeSessionsIndexV4"
@@ -58,7 +58,7 @@ type SessionsIndexV4AgentService = Pick<
 > &
   Partial<
     Pick<
-      IZCodeAgentService,
+      ILCodeAgentService,
       "helloConversationV4" | "initializeConversationV4" | "onAgentRuntimeLifecycle"
     >
   >;
@@ -77,7 +77,7 @@ export function createAgentSessionsIndexTransport(
       return Promise.reject(new Error("fault.connection.handshakeUnavailable"));
     }
     return ensureAgentV4ConnectionHandshake(
-      agentService as Pick<IZCodeAgentService, "helloConversationV4" | "initializeConversationV4">,
+      agentService as Pick<ILCodeAgentService, "helloConversationV4" | "initializeConversationV4">,
     );
   };
   const topic = sessionsIndexTopic(target.workspaceIdentity?.trim() || target.workspacePath);

@@ -4,7 +4,7 @@ import type {
   WorkflowRunArtifactKind,
   WorkflowRunArtifactSummary,
   WorkflowRunArtifactVersion,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
 import { orderArtifactsPrimaryFirst } from "@/app-shell/workflow-artifacts/artifactPresentation.js";
 import { logger } from "@/logger.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";

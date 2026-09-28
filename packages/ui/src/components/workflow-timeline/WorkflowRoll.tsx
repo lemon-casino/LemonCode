@@ -2,7 +2,7 @@ import { Fragment, type ReactNode } from "react";
 import { CircleCheckIcon, CircleXIcon, LoaderCircleIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import type { StepRunStatus } from "@/components/workflow-graph/types.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { RollGroup } from "./roster-model.js";
 import type { TimelinePill } from "./timeline-model.js";
 
@@ -42,7 +42,7 @@ export function WorkflowRoll({
   /** 渲染一行；`enterDelayMs` 是这一行在整卷名单里的落地延迟。 */
   renderRow: (pill: TimelinePill, enterDelayMs: number) => ReactNode;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   let index = 0;
   return (
     <div className="wf-unfold grid grid-cols-2 gap-x-2 pt-0.5" data-testid="workflow-roster-roll">

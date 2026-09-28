@@ -4,8 +4,8 @@ import type { Stats } from "node:fs";
 import * as fs from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep, win32 as windowsPath } from "node:path";
 
-const DEV_ROOT_ENV = "ZCODE_CUA_DEV_ROOT";
-const EXPECTED_PACKAGE_NAME = "@zcode/zcode-cua";
+const DEV_ROOT_ENV = "LCODE_CUA_DEV_ROOT";
+const EXPECTED_PACKAGE_NAME = "@lcode/lcode-cua";
 const PACKAGE_JSON = "package.json";
 const PRODUCT_RUNTIME_MANIFEST = "runtime-manifest.json";
 const PRODUCT_RUNTIME_SEGMENTS = ["tools", "cua-helper"] as const;
@@ -838,7 +838,7 @@ async function requireExpectedPackage(
     if (typeof contents !== "string") throw new Error("package.json is not text");
     const pkg: unknown = JSON.parse(contents);
     if (!isPlainRecord(pkg)) throw new Error("package.json is not an object");
-    const contract = pkg.zcodeCuaRuntime;
+    const contract = pkg.lcodeCuaRuntime;
     const contractKeys = isPlainRecord(contract) ? Object.keys(contract) : [];
     const platformContractKey = platform === "win32" ? "windows" : "linux";
     const platformContract = isPlainRecord(contract) ? contract[platformContractKey] : undefined;
@@ -872,7 +872,7 @@ async function requireExpectedPackage(
   }
   throw new WindowsCuaDevRuntimeResolutionError(
     "invalid-package",
-    `CUA Node development root package.json must name ${EXPECTED_PACKAGE_NAME} and expose a valid zcodeCuaRuntime contract.`,
+    `CUA Node development root package.json must name ${EXPECTED_PACKAGE_NAME} and expose a valid lcodeCuaRuntime contract.`,
     PACKAGE_JSON,
   );
 }

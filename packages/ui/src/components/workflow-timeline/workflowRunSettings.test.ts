@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ZCODE_AGENT_PROVIDER } from "@zcode/shared";
-import type { ModelSelectionView } from "@zcode/services";
-import type { WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import { LCODE_AGENT_PROVIDER } from "@lcode/shared";
+import type { ModelSelectionView } from "@lcode/services";
+import type { WorkflowRunState } from "@lcode/shared/lcode-protocol-v4";
 import { buildRegistryModelSelectGroups } from "@/lib/modelSelectionGroups.js";
 import {
   initialWorkflowRunSettingsDraft,
@@ -73,7 +73,7 @@ test("workflow model picker lists models across configured suppliers", () => {
       },
     ],
   } as unknown as ModelSelectionView;
-  const groups = buildRegistryModelSelectGroups(ZCODE_AGENT_PROVIDER, view);
+  const groups = buildRegistryModelSelectGroups(LCODE_AGENT_PROVIDER, view);
   assert.deepEqual(
     groups.map((group) => group.label),
     ["Supplier A", "Supplier B"],

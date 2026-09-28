@@ -1,5 +1,5 @@
 /* eslint-disable max-lines, @typescript-eslint/no-explicit-any -- 该函数会序列化后在隔离的浏览器页面上下文执行，不能引用 host 闭包。 */
-import type { BrowserCommandResult, BrowserPlaywrightAction } from "@zcode/shared";
+import type { BrowserCommandResult, BrowserPlaywrightAction } from "@lcode/shared";
 import { buildViewportScreenshotParams } from "./browserCommandPageHandlers.js";
 import type { ControlledView } from "./browserCommandTypes.js";
 import { captureScreenshotWithCssPixelCorrection } from "./browserScreenshotCapture.js";
@@ -62,7 +62,7 @@ function elementInfoRuntime(options: { x: number; y: number; includeNonInteracta
 }
 
 function overlayRuntime(options: { x: number; y: number; remove?: boolean }): void {
-  const id = "__zcode-playwright-element-screenshot-overlay";
+  const id = "__lcode-playwright-element-screenshot-overlay";
   document.getElementById(id)?.remove();
   if (options.remove) return;
   const root = document.createElement("div");
@@ -92,7 +92,7 @@ async function evaluateInPlaywrightIsolatedWorld(
   const world = (await view.cdp.send("Page.createIsolatedWorld", {
     frameId,
     grantUniveralAccess: false,
-    worldName: "zcode-playwright-helper",
+    worldName: "lcode-playwright-helper",
   })) as { executionContextId?: number };
   if (typeof world.executionContextId !== "number") {
     throw new Error("Playwright isolated world was not created");

@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { resolveModelProviderFamilyIdByProviderId } from "@zcode/shared";
+import { resolveModelProviderFamilyIdByProviderId } from "@lcode/shared";
 import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
 import { useServices } from "@/hooks/useServices.js";
 import { type CodingPlanProviderId } from "@/settings/model-provider-section/constants.js";

@@ -1,8 +1,8 @@
 import type { ControlledView, ControlledViewCdp } from "./browserCommandTypes.js";
 import { getPlaywrightInjectedScriptSource } from "./playwrightInjectedScriptSource.js";
 
-const PLAYWRIGHT_WORLD_NAME = "zcode-playwright-dom-snapshot";
-const PLAYWRIGHT_GLOBAL = "__zcodePlaywrightInjected";
+const PLAYWRIGHT_WORLD_NAME = "lcode-playwright-dom-snapshot";
+const PLAYWRIGHT_GLOBAL = "__lcodePlaywrightInjected";
 // Playwright 操作预算：顶层 snapshot 3s；IAB iframe 额外总预算 1s。
 const TOP_LEVEL_TIMEOUT_MS = 3_000;
 const IAB_IFRAME_TOTAL_BUDGET_MS = 1_000;

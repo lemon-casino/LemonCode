@@ -14,7 +14,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { cuaAppKeyToIconRequest } from "@/lib/cuaAppIconRequest.js";
 import { buildNodeReplDisplayModel, type NodeReplDisplayModel } from "@/lib/nodeReplToolDisplay.js";
 import { CuaAppSummaryIcon } from "@/ToolCallBlocks/renderers/cuaAppSummaryIcon.js";
@@ -164,7 +164,7 @@ function FriendlyCodeBlock({
 }
 
 export function NodeReplToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCall } = context.toolCallNode;
   const model = useMemo(() => buildNodeReplDisplayModel(toolCall), [toolCall]);
   const formatMessage = useCallback((id: string) => intl.formatMessage({ id }), [intl]);

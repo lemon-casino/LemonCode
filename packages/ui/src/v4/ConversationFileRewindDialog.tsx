@@ -2,8 +2,8 @@ import { Loader2Icon, Undo2Icon } from "lucide-react";
 import {
   TID_V4_EDIT_WORKSPACE_CONFLICT_CONVERSATION_ONLY,
   TID_V4_EDIT_WORKSPACE_CONFLICT_DIALOG,
-} from "@zcode/shared";
-import type { V4ConversationFileRewindPreviewResult } from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared";
+import type { V4ConversationFileRewindPreviewResult } from "@lcode/shared/lcode-protocol-v4";
 import { Button } from "@/components/ui/button.js";
 import {
   Dialog,
@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 type FileRewindPreviewFile =
   | V4ConversationFileRewindPreviewResult["safeFiles"][number]
@@ -32,7 +32,7 @@ interface ConversationFileRewindDialogProps {
   onConversationOnly?: () => void;
 }
 
-function formatReason(reason: string, intl: ReturnType<typeof useZCodeIntl>["intl"]) {
+function formatReason(reason: string, intl: ReturnType<typeof useLCodeIntl>["intl"]) {
   const fallbackReasonKey = "chat.changeSummary.rewindDialog.reason.unsupportedCheckpoint";
   const keyByReason: Record<string, string> = {
     bash_ignored: "chat.changeSummary.rewindDialog.reason.bashIgnored",
@@ -52,7 +52,7 @@ function PreviewFileList({
   files: readonly FileRewindPreviewFile[];
   type: "safe" | "unsafe" | "ignored";
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   if (files.length === 0) return null;
   return (
     <div className="grid gap-1">
@@ -87,7 +87,7 @@ export function ConversationFileRewindDialog({
   variant = "fileRewind",
   onConversationOnly,
 }: ConversationFileRewindDialogProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const safeCount = preview?.safeFiles.length ?? 0;
   const unsafeCount = preview?.unsafeFiles.length ?? 0;
   const ignoredCount = preview?.ignoredFiles.length ?? 0;

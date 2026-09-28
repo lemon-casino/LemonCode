@@ -1,4 +1,4 @@
-import type { ProviderApiType } from "@zcode/provider";
+import type { ProviderApiType } from "@lcode/provider";
 import {
   Select,
   SelectContent,
@@ -6,12 +6,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   TID_MODEL_PROVIDER_API_FORMAT_ITEM,
   TID_MODEL_PROVIDER_API_FORMAT_TRIGGER,
   testId,
-} from "@zcode/shared";
+} from "@lcode/shared";
 
 const PROVIDER_CONNECTION_API_FORMATS: readonly ProviderApiType[] = [
   "anthropic-messages",
@@ -56,7 +56,7 @@ export function ProviderApiFormatSelect({
   value: ProviderApiType;
   onChange: (value: ProviderApiType) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   return (
     <Select value={value} onValueChange={(nextValue) => onChange(nextValue as ProviderApiType)}>

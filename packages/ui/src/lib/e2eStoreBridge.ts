@@ -1,5 +1,5 @@
 type E2EStoreBridgeImportMetaEnv = {
-  VITE_ZCODE_E2E_STORE_BRIDGE?: string;
+  VITE_LCODE_E2E_STORE_BRIDGE?: string;
 };
 
 function readE2EStoreBridgeImportMetaEnv(): E2EStoreBridgeImportMetaEnv {
@@ -10,5 +10,5 @@ function readE2EStoreBridgeImportMetaEnv(): E2EStoreBridgeImportMetaEnv {
 export function shouldExposeE2EStoreBridge(
   env: E2EStoreBridgeImportMetaEnv = readE2EStoreBridgeImportMetaEnv(),
 ): boolean {
-  return typeof window !== "undefined" && env.VITE_ZCODE_E2E_STORE_BRIDGE === "1";
+  return typeof window !== "undefined" && env.VITE_LCODE_E2E_STORE_BRIDGE === "1";
 }

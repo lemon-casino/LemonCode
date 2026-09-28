@@ -1,4 +1,4 @@
-import type { WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunState } from "@lcode/shared/lcode-protocol-v4";
 import { phaseNameMatches } from "@/components/workflow-graph/phase-name.js";
 import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
 

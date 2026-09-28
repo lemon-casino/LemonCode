@@ -5,7 +5,7 @@ import { loadBuiltinProviderConfig } from "../../scripts/builtin-provider-config
 import { stageThirdPartyNotices } from "../../scripts/third-party-notices.mjs";
 
 const { version } = JSON.parse(readFileSync("../../package.json", "utf-8"));
-const { content: zcodeBuiltinProviderConfigJson } = await loadBuiltinProviderConfig();
+const { content: lcodeBuiltinProviderConfigJson } = await loadBuiltinProviderConfig();
 
 /**
  * Let esbuild bundle node-pty's JS code normally, but keep .node native
@@ -30,7 +30,7 @@ const nativeAddonPlugin: Plugin = {
 const buildResult = await build({
   entryPoints: ["src/entry-stdio.ts"],
   bundle: true,
-  outfile: "dist/remote/zcode-server.cjs",
+  outfile: "dist/remote/lcode-server.cjs",
   platform: "node",
   format: "cjs",
   target: "node22",
@@ -43,16 +43,16 @@ const buildResult = await build({
   define: {
     "import.meta.url": "__import_meta_url",
     "import.meta.dirname": "__import_meta_dirname",
-    __ZCODE_VERSION__: JSON.stringify(version),
-    __ZCODE_BUILTIN_PROVIDER_CONFIG_JSON__: JSON.stringify(zcodeBuiltinProviderConfigJson),
+    __LCODE_VERSION__: JSON.stringify(version),
+    __LCODE_BUILTIN_PROVIDER_CONFIG_JSON__: JSON.stringify(lcodeBuiltinProviderConfigJson),
   },
   metafile: true,
 });
 
-const remoteBundleSource = readFileSync("dist/remote/zcode-server.cjs", "utf-8");
+const remoteBundleSource = readFileSync("dist/remote/lcode-server.cjs", "utf-8");
 const bundledInputs = Object.keys(buildResult.metafile.inputs);
 validateRemoteServerBundle({ bundledInputs, source: remoteBundleSource });
 // 修复：remote 单文件 bundle 内联第三方代码，dist/remote 也必须附完整声明。
 await stageThirdPartyNotices("dist/remote");
 
-console.log("Built dist/remote/zcode-server.cjs");
+console.log("Built dist/remote/lcode-server.cjs");

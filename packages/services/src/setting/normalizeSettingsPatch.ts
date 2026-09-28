@@ -1,4 +1,4 @@
-import type { AppSettings } from "@zcode/shared";
+import type { AppSettings } from "@lcode/shared";
 
 export function normalizeSettingsPatch(patch: Partial<AppSettings>): Partial<AppSettings> {
   const normalizedPatch = { ...patch };
@@ -69,13 +69,13 @@ export function normalizeSettingsPatch(patch: Partial<AppSettings>): Partial<App
   }
 
   if (
-    "zcodeEndpointOrigin" in normalizedPatch &&
-    typeof normalizedPatch.zcodeEndpointOrigin === "string"
+    "lcodeEndpointOrigin" in normalizedPatch &&
+    typeof normalizedPatch.lcodeEndpointOrigin === "string"
   ) {
     // 非生产 endpoint override 需要支持 Reset 清空；RPC/JSON 对 undefined 不稳定时，用空串也能回到默认生产域。
-    const trimmedZCodeEndpointOrigin = normalizedPatch.zcodeEndpointOrigin.trim();
-    normalizedPatch.zcodeEndpointOrigin =
-      trimmedZCodeEndpointOrigin.length > 0 ? trimmedZCodeEndpointOrigin : undefined;
+    const trimmedLCodeEndpointOrigin = normalizedPatch.lcodeEndpointOrigin.trim();
+    normalizedPatch.lcodeEndpointOrigin =
+      trimmedLCodeEndpointOrigin.length > 0 ? trimmedLCodeEndpointOrigin : undefined;
   }
 
   if (

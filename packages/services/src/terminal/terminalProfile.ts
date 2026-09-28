@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import type { AppSettings } from "@zcode/shared";
+import type { AppSettings } from "@lcode/shared";
 import { parse as parseToml } from "smol-toml";
 import { parse as parseYaml } from "yaml";
 import { createMacOsTerminalProfileDetectors } from "./terminalProfileMacOs.js";

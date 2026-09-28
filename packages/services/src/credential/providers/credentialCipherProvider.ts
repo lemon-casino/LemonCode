@@ -1,12 +1,12 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { homedir, platform, userInfo } from "node:os";
-import { CREDENTIAL_DECRYPT_ERROR_CODE, CREDENTIAL_DECRYPT_ERROR_PREFIX } from "@zcode/shared";
+import { CREDENTIAL_DECRYPT_ERROR_CODE, CREDENTIAL_DECRYPT_ERROR_PREFIX } from "@lcode/shared";
 
 const ENCRYPTED_VALUE_PREFIX = "enc:v1:";
 const CREDENTIAL_CIPHER_ALGORITHM = "aes-256-gcm";
 const CREDENTIAL_CIPHER_IV_BYTES = 12;
 const CREDENTIAL_CIPHER_AUTH_TAG_BYTES = 16;
-const CREDENTIAL_SECRET_ENV_KEY = "ZCODE_CREDENTIAL_SECRET";
+const CREDENTIAL_SECRET_ENV_KEY = "LCODE_CREDENTIAL_SECRET";
 
 export interface CredentialCipherProvider {
   encrypt(value: string): string;
@@ -34,7 +34,7 @@ function defaultCredentialSecret(env: NodeJS.ProcessEnv): string {
     // 部分运行环境可能拿不到系统用户，失败时退回默认占位值。
   }
 
-  return `zcode-credential-fallback:${platform()}:${homedir()}:${username}`;
+  return `lcode-credential-fallback:${platform()}:${homedir()}:${username}`;
 }
 
 function base64urlToBuffer(raw: string): Buffer {

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type {
   BrowserViewScreenshotSurfacePreparePayload,
   BrowserViewScreenshotSurfaceReleasePayload,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import type { BrowserUseSidePaneTab, WorkspaceSidePaneTab } from "@/lib/workspaceSidePane.js";
 import { logger } from "@/logger.js";

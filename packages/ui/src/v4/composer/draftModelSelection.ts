@@ -1,4 +1,4 @@
-import type { ModelSelection } from "@zcode/shared";
+import type { ModelSelection } from "@lcode/shared";
 
 export interface DraftModelSelectionContext {
   provider: string;

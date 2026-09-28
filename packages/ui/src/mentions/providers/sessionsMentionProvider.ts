@@ -1,10 +1,10 @@
-// composer parity：`#` 会话候选的数据源从旧 zcodeSessionStore/taskQueryCache/remote*
+// composer parity：`#` 会话候选的数据源从旧 lcodeSessionStore/taskQueryCache/remote*
 // 店面切到 v4 sessions-index（useWorkspaceSessionsIndexItems，侧栏同源）。
 // 旧店面在 v4 shell 下不再被会话列表填充，继续读会得到空面板；序列化与排序语义不变
 // （collectSessionMentionItems 保留，供单测与聚合复用）。
 import { useMemo } from "react";
-import type { IServiceAccessor } from "@zcode/services";
-import type { ZCodeProvider, ZCodeTaskMeta } from "@zcode/shared";
+import type { IServiceAccessor } from "@lcode/services";
+import type { LCodeProvider, LCodeTaskMeta } from "@lcode/shared";
 import { buildSessionMentionMarkdown } from "@/mentions/mentionMarkdown.js";
 import { filterMentionItemsWithOptions } from "@/mentions/mentionSearch.js";
 import type { MentionCategoryResult, MentionItem } from "@/mentions/mentionTypes.js";
@@ -34,8 +34,8 @@ interface SessionMentionItem extends MentionItem {
 }
 
 function compareSessionTasks(
-  left: ZCodeTaskMeta,
-  right: ZCodeTaskMeta,
+  left: LCodeTaskMeta,
+  right: LCodeTaskMeta,
   currentWorkspaceKey?: string,
 ) {
   if (currentWorkspaceKey) {
@@ -50,17 +50,17 @@ function compareSessionTasks(
   return left.title.localeCompare(right.title);
 }
 
-function getSessionLabel(task: ZCodeTaskMeta): string {
+function getSessionLabel(task: LCodeTaskMeta): string {
   const title = task.title.replace(/^#sess_[a-zA-Z0-9._-]+\s*/, "").trim();
   return title || "Untitled session";
 }
 
-function getWorkspaceLabel(task: ZCodeTaskMeta): string {
+function getWorkspaceLabel(task: LCodeTaskMeta): string {
   const raw = task.workspacePath.trim() || task.workspaceIdentity?.trim() || "";
   return raw.split(/[\\/]/).filter(Boolean).at(-1) ?? raw;
 }
 
-function mapTaskToMentionItem(task: ZCodeTaskMeta, provider: ZCodeProvider): SessionMentionItem {
+function mapTaskToMentionItem(task: LCodeTaskMeta, provider: LCodeProvider): SessionMentionItem {
   const sessionId = task.taskId;
   const itemProvider = task.provider ?? provider;
   return {
@@ -83,8 +83,8 @@ function mapTaskToMentionItem(task: ZCodeTaskMeta, provider: ZCodeProvider): Ses
 }
 
 function collectSessionMentionItems(
-  tasks: ZCodeTaskMeta[],
-  provider: ZCodeProvider,
+  tasks: LCodeTaskMeta[],
+  provider: LCodeProvider,
   options: {
     workspacePath?: string;
     workspaceIdentity?: string;
@@ -93,7 +93,7 @@ function collectSessionMentionItems(
   const currentWorkspaceKey = options.workspacePath
     ? buildTaskWorkspaceKey(options.workspacePath, options.workspaceIdentity)
     : undefined;
-  const taskBySessionId = new Map<string, ZCodeTaskMeta>();
+  const taskBySessionId = new Map<string, LCodeTaskMeta>();
   for (const task of tasks) {
     if (task.migrationSource) {
       continue;
@@ -134,7 +134,7 @@ function buildSessionMentionScopes(params: {
     return [];
   }
 
-  const currentAgentService = params.currentServices.zcodeAgentService;
+  const currentAgentService = params.currentServices.lcodeAgentService;
   const scopes: WorkspaceSessionsIndexScope[] = [];
   const seenWorkspaceKeys = new Set<string>();
   const candidates: Array<
@@ -170,7 +170,7 @@ function buildSessionMentionScopes(params: {
     // 功能边界：# 引用最终由当前 Agent Host 的 SQLite session store 按 session id 读取。
     // 这里只聚合同一 agent service authority，避免把另一个远端 Host 的会话做成可选但不可读的引用；
     // 未连接 remote 也会在 resolver 处返回 null，不能回退到本地 base service。
-    if (!resolved || resolved.services.zcodeAgentService !== currentAgentService) {
+    if (!resolved || resolved.services.lcodeAgentService !== currentAgentService) {
       continue;
     }
 
@@ -179,7 +179,7 @@ function buildSessionMentionScopes(params: {
       workspacePath: candidate.workspacePath,
       ...(candidate.workspaceIdentity ? { workspaceIdentity: candidate.workspaceIdentity } : {}),
       ...(resolved.remoteSessionId ? { endpointKey: resolved.remoteSessionId } : {}),
-      agentService: resolved.services.zcodeAgentService,
+      agentService: resolved.services.lcodeAgentService,
     });
   }
 
@@ -187,7 +187,7 @@ function buildSessionMentionScopes(params: {
 }
 
 export function useSessionsMentionProvider(
-  provider: ZCodeProvider,
+  provider: LCodeProvider,
   workspacePath: string,
   workspaceIdentity: string | undefined,
   query: string,
@@ -232,7 +232,7 @@ export function useSessionsMentionProvider(
           ...(workspaceIdentity ? { workspaceIdentity } : {}),
           ...(remoteSessionId ? { endpointKey: remoteSessionId } : {}),
           // 远端必须显式携带已解析 endpoint 的 service，不能让本机 Host 查询远端路径。
-          agentService: workspaceServices.zcodeAgentService,
+          agentService: workspaceServices.lcodeAgentService,
         },
       ];
     }

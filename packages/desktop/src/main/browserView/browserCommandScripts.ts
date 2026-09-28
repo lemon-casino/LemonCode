@@ -10,7 +10,7 @@ const DEFAULT_SNAPSHOT_MAX_DOM_NODES = 300;
  * - elements 选取可交互元素并分配动作 ref；
  * - dom 另行选取可见语义节点（heading/paragraph/list/landmark/table/image 等），供模型读页面；
  * - includeHidden=false 时跳过 display:none / visibility:hidden / opacity:0 / 0 尺寸元素；
- * - 按 DOM 序分配 ref（e1,e2,...），并挂 window.__zcodeRefs = Map<ref, Element>（供后续 click/type 解析）；
+ * - 按 DOM 序分配 ref（e1,e2,...），并挂 window.__lcodeRefs = Map<ref, Element>（供后续 click/type 解析）；
  * - parentRef：最近的被选中祖先的 ref（层级线索；祖先在文档序里必先出现，用 WeakMap 反查，无风险）；
  * - 每个元素严格产出 browserSnapshotSchema 要求的字段：
  *   tag/role/name/text/value/disabled/checked/selector/xpath/rect/inViewport（+ 可选 parentRef）；
@@ -48,13 +48,13 @@ export function SNAPSHOT_SCRIPT(maxElements?: number, includeHidden?: boolean): 
     "function implicitRole(el,tag){if(tag==='a'&&el.getAttribute('href')!=null)return 'link';if(tag==='button')return 'button';if(tag==='select')return 'combobox';if(tag==='textarea')return 'textbox';if(tag==='summary')return 'button';if(tag==='input'){var ty=(el.getAttribute('type')||'text').toLowerCase();if(ty==='checkbox')return 'checkbox';if(ty==='radio')return 'radio';if(ty==='button'||ty==='submit'||ty==='reset')return 'button';if(ty==='search')return 'searchbox';return 'textbox';}return '';}" +
     "function buildSelector(el){if(el.id&&safeId(el.id))return '#'+el.id;var parts=[];var cur=el;var depth=0;while(cur&&cur.nodeType===1&&depth<6){if(cur.id&&safeId(cur.id)){parts.unshift('#'+cur.id);break;}var t=cur.tagName.toLowerCase();var idx=1;var sib=cur.previousElementSibling;while(sib){if(sib.tagName===cur.tagName)idx++;sib=sib.previousElementSibling;}parts.unshift(t+':nth-of-type('+idx+')');cur=cur.parentElement;depth++;}return parts.join(' > ');}" +
     "function xpathOf(el){if(el.id&&safeId(el.id))return \"//*[@id='\"+el.id+\"']\";var parts=[];var cur=el;while(cur&&cur.nodeType===1){var t=cur.tagName.toLowerCase();var idx=1;var sib=cur.previousElementSibling;while(sib){if(sib.tagName===cur.tagName)idx++;sib=sib.previousElementSibling;}parts.unshift(t+'['+idx+']');cur=cur.parentElement;}return '/'+parts.join('/');}" +
-    "try{window.__zcodeRefs=new Map();}catch(e){window.__zcodeRefs=null;}" +
+    "try{window.__lcodeRefs=new Map();}catch(e){window.__lcodeRefs=null;}" +
     // elRef：元素→ref 反查（供 parentRef 计算）。祖先在文档序里必先于后代出现，处理到某元素时其被选中的祖先已入表。
     "var elRef=(typeof WeakMap!=='undefined')?new WeakMap():null;" +
     "var vw=window.innerWidth||document.documentElement.clientWidth||0;" +
     "var vh=window.innerHeight||document.documentElement.clientHeight||0;" +
     "var nodes=document.querySelectorAll(ACTION_SEL);var elements=[];var truncated=false;var count=0;" +
-    "for(var i=0;i<nodes.length;i++){var el=nodes[i];if(!INCLUDE_HIDDEN&&isHidden(el))continue;if(count>=MAX){truncated=true;break;}count++;var ref='e'+count;if(window.__zcodeRefs)window.__zcodeRefs.set(ref,el);if(elRef)elRef.set(el,ref);var r=el.getBoundingClientRect();var rect={x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height)};var inViewport=r.top<vh&&r.bottom>0&&r.left<vw&&r.right>0;var tag=el.tagName.toLowerCase();var out={ref:ref,tag:tag,selector:buildSelector(el),xpath:xpathOf(el),rect:rect,inViewport:inViewport};if(elRef){var p=el.parentElement;while(p){var pr=elRef.get(p);if(pr){out.parentRef=pr;break;}p=p.parentElement;}}var role=el.getAttribute('role')||implicitRole(el,tag);if(role)out.role=role;var name=accName(el);if(name)out.name=name;var text=(el.innerText||'').trim().slice(0,100);if(text)out.text=text;var attrs=attrsOf(el);if(Object.keys(attrs).length)out.attributes=attrs;if((tag==='input'||tag==='textarea'||tag==='select')&&el.value!=null&&el.value!=='')out.value=String(el.value);if(el.disabled===true)out.disabled=true;if(tag==='input'&&(el.type==='checkbox'||el.type==='radio'))out.checked=el.checked===true;elements.push(out);}" +
+    "for(var i=0;i<nodes.length;i++){var el=nodes[i];if(!INCLUDE_HIDDEN&&isHidden(el))continue;if(count>=MAX){truncated=true;break;}count++;var ref='e'+count;if(window.__lcodeRefs)window.__lcodeRefs.set(ref,el);if(elRef)elRef.set(el,ref);var r=el.getBoundingClientRect();var rect={x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height)};var inViewport=r.top<vh&&r.bottom>0&&r.left<vw&&r.right>0;var tag=el.tagName.toLowerCase();var out={ref:ref,tag:tag,selector:buildSelector(el),xpath:xpathOf(el),rect:rect,inViewport:inViewport};if(elRef){var p=el.parentElement;while(p){var pr=elRef.get(p);if(pr){out.parentRef=pr;break;}p=p.parentElement;}}var role=el.getAttribute('role')||implicitRole(el,tag);if(role)out.role=role;var name=accName(el);if(name)out.name=name;var text=(el.innerText||'').trim().slice(0,100);if(text)out.text=text;var attrs=attrsOf(el);if(Object.keys(attrs).length)out.attributes=attrs;if((tag==='input'||tag==='textarea'||tag==='select')&&el.value!=null&&el.value!=='')out.value=String(el.value);if(el.disabled===true)out.disabled=true;if(tag==='input'&&(el.type==='checkbox'||el.type==='radio'))out.checked=el.checked===true;elements.push(out);}" +
     "var domCandidates=document.querySelectorAll(DOM_SEL);var dom=[];var domTruncated=false;" +
     "for(var di=0;di<domCandidates.length;di++){var de=domCandidates[di];if(!INCLUDE_HIDDEN&&isHidden(de))continue;if(dom.length>=DOM_MAX){domTruncated=true;break;}var dr=de.getBoundingClientRect();var dtag=de.tagName.toLowerCase();var dn={tag:dtag,depth:depthOf(de),inViewport:dr.top<vh&&dr.bottom>0&&dr.left<vw&&dr.right>0};if(elRef){var dref=elRef.get(de);if(dref)dn.ref=dref;}var drole=de.getAttribute('role')||implicitRole(de,dtag);if(drole)dn.role=drole;var dname=semanticName(de,dtag);if(dname)dn.name=dname;var dtext=semanticText(de,dtag);if(dtext)dn.text=dtext;var dattrs=attrsOf(de);if(Object.keys(dattrs).length)dn.attributes=dattrs;dom.push(dn);}" +
     // 大页面结果会落入 persisted-output，预览只保留开头；DOM 放前面才能确保模型
@@ -68,7 +68,7 @@ export function SNAPSHOT_SCRIPT(maxElements?: number, includeHidden?: boolean): 
  * 生成"按 ref 解析元素中心点"的注入脚本（IIFE 字符串，返回值为最后一个表达式）。
  *
  * 脚本在页面上下文里：
- * - 从 snapshot 时挂的 `window.__zcodeRefs`（Map<ref, Element>）取元素；
+ * - 从 snapshot 时挂的 `window.__lcodeRefs`（Map<ref, Element>）取元素；
  * - 取不到（页面已导航/未 snapshot）返回 null；
  * - 取到则 `scrollIntoView({block:'center',inline:'center'})` 保证在视口内，
  *   再返回 getBoundingClientRect 的中心点（viewport CSS px，与 CDP Input 坐标同系）。
@@ -79,7 +79,7 @@ export function RESOLVE_SCRIPT(ref: string): string {
   const refLiteral = JSON.stringify(ref);
   return (
     "(function(){" +
-    "var m=window.__zcodeRefs;" +
+    "var m=window.__lcodeRefs;" +
     "var el=m&&m.get(" +
     refLiteral +
     ");" +
@@ -108,7 +108,7 @@ export function SELECT_SCRIPT(ref: string, values: readonly string[]): string {
   const valsLit = JSON.stringify(values);
   return (
     "(function(){" +
-    "var m=window.__zcodeRefs;var el=m&&m.get(" +
+    "var m=window.__lcodeRefs;var el=m&&m.get(" +
     refLit +
     ");" +
     "if(!el)return {error:'ref_not_found'};" +
@@ -138,7 +138,7 @@ export function CHECK_SCRIPT(ref: string, checked: boolean): string {
   const wantLit = checked ? "true" : "false";
   return (
     "(function(){" +
-    "var m=window.__zcodeRefs;var el=m&&m.get(" +
+    "var m=window.__lcodeRefs;var el=m&&m.get(" +
     refLit +
     ");" +
     "if(!el)return {error:'ref_not_found'};" +
@@ -155,7 +155,7 @@ export function CHECK_SCRIPT(ref: string, checked: boolean): string {
 
 /**
  * elementInfo：给视口坐标 (x,y)，用 document.elementFromPoint 命中元素，构造复用快照结构的单元素。
- * 现分配 ref（p1,p2,...）并存入 window.__zcodeRefs，以便后续 click 直接用该 ref。命中不到返回 null。
+ * 现分配 ref（p1,p2,...）并存入 window.__lcodeRefs，以便后续 click 直接用该 ref。命中不到返回 null。
  * 复用与 SNAPSHOT_SCRIPT 同款的 selector/xpath/role/name 构造逻辑。
  */
 export function ELEMENT_AT_POINT_SCRIPT(x: number, y: number): string {
@@ -174,9 +174,9 @@ export function ELEMENT_AT_POINT_SCRIPT(x: number, y: number): string {
     "function implicitRole(el,tag){if(tag==='a'&&el.getAttribute('href')!=null)return 'link';if(tag==='button')return 'button';if(tag==='select')return 'combobox';if(tag==='textarea')return 'textbox';if(tag==='summary')return 'button';if(tag==='input'){var ty=(el.getAttribute('type')||'text').toLowerCase();if(ty==='checkbox')return 'checkbox';if(ty==='radio')return 'radio';if(ty==='button'||ty==='submit'||ty==='reset')return 'button';if(ty==='search')return 'searchbox';return 'textbox';}return '';}" +
     "function buildSelector(el){if(el.id&&safeId(el.id))return '#'+el.id;var parts=[];var cur=el;var depth=0;while(cur&&cur.nodeType===1&&depth<6){if(cur.id&&safeId(cur.id)){parts.unshift('#'+cur.id);break;}var t=cur.tagName.toLowerCase();var idx=1;var sib=cur.previousElementSibling;while(sib){if(sib.tagName===cur.tagName)idx++;sib=sib.previousElementSibling;}parts.unshift(t+':nth-of-type('+idx+')');cur=cur.parentElement;depth++;}return parts.join(' > ');}" +
     "function xpathOf(el){if(el.id&&safeId(el.id))return \"//*[@id='\"+el.id+\"']\";var parts=[];var cur=el;while(cur&&cur.nodeType===1){var t=cur.tagName.toLowerCase();var idx=1;var sib=cur.previousElementSibling;while(sib){if(sib.tagName===cur.tagName)idx++;sib=sib.previousElementSibling;}parts.unshift(t+'['+idx+']');cur=cur.parentElement;}return '/'+parts.join('/');}" +
-    "if(!window.__zcodeRefs){try{window.__zcodeRefs=new Map();}catch(e){window.__zcodeRefs=null;}}" +
-    "window.__zcodePtSeq=(window.__zcodePtSeq||0)+1;var ref='p'+window.__zcodePtSeq;" +
-    "if(window.__zcodeRefs)window.__zcodeRefs.set(ref,el);" +
+    "if(!window.__lcodeRefs){try{window.__lcodeRefs=new Map();}catch(e){window.__lcodeRefs=null;}}" +
+    "window.__lcodePtSeq=(window.__lcodePtSeq||0)+1;var ref='p'+window.__lcodePtSeq;" +
+    "if(window.__lcodeRefs)window.__lcodeRefs.set(ref,el);" +
     "var vw=window.innerWidth||document.documentElement.clientWidth||0;var vh=window.innerHeight||document.documentElement.clientHeight||0;" +
     "var r=el.getBoundingClientRect();var rect={x:Math.round(r.x),y:Math.round(r.y),width:Math.round(r.width),height:Math.round(r.height)};" +
     "var inViewport=r.top<vh&&r.bottom>0&&r.left<vw&&r.right>0;var tag=el.tagName.toLowerCase();" +

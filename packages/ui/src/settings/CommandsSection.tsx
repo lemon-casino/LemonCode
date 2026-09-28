@@ -2,9 +2,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import type { CommandConfig, UserCommand, ZCodeCommand } from "@zcode/shared";
-import { isPluginCommand, isUserCommand, ZCODE_COMMAND_AGENT_SOURCE } from "@zcode/shared";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { CommandConfig, UserCommand, LCodeCommand } from "@lcode/shared";
+import { isPluginCommand, isUserCommand, LCODE_COMMAND_AGENT_SOURCE } from "@lcode/shared";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { toast } from "@/components/ui/toast.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { useCommands } from "@/hooks/useCommands.js";
@@ -61,7 +61,7 @@ export function CommandsSection({
   onEditorOpenChange,
   onFormScopeKeyChange,
 }: CommandsSectionProps) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const confirmDialog = useConfirmDialog();
 
   const currentWorkspaceKey = workspaceIdentity?.trim() || workspacePath || "";
@@ -180,7 +180,7 @@ export function CommandsSection({
         } else {
           await formServices.commandsService.writeCommandFile({
             config,
-            agentSource: ZCODE_COMMAND_AGENT_SOURCE,
+            agentSource: LCODE_COMMAND_AGENT_SOURCE,
             storageLevel,
             workspacePath: targetWorkspacePath,
           });
@@ -218,7 +218,7 @@ export function CommandsSection({
   );
 
   const handleDelete = useCallback(
-    async (command: ZCodeCommand) => {
+    async (command: LCodeCommand) => {
       if (!isEditableUserCommand(command)) {
         return;
       }
@@ -250,7 +250,7 @@ export function CommandsSection({
   );
 
   const handleToggle = useCallback(
-    async (command: ZCodeCommand, enabled: boolean) => {
+    async (command: LCodeCommand, enabled: boolean) => {
       if (!isUserCommand(command)) {
         return;
       }
@@ -270,7 +270,7 @@ export function CommandsSection({
   );
 
   const handleEdit = useCallback(
-    (command: ZCodeCommand) => {
+    (command: LCodeCommand) => {
       if (!isEditableUserCommand(command)) {
         return;
       }
@@ -341,7 +341,7 @@ export function CommandsSection({
   const directInstalledCommandCount = scopedCommands.filter(isUserCommand).length;
   const hideInstalledGroup = Boolean(searchQuery.trim()) && groupedCommands.local.length === 0;
 
-  const renderCommandList = (items: ZCodeCommand[]) => (
+  const renderCommandList = (items: LCodeCommand[]) => (
     <SettingsResourceList
       items={items}
       getKey={(command) => command.id}
@@ -406,7 +406,7 @@ export function CommandsSection({
 
           <CommandForm
             initial={editingCommand ?? undefined}
-            agentSource={editingCommand?.agentSource ?? ZCODE_COMMAND_AGENT_SOURCE}
+            agentSource={editingCommand?.agentSource ?? LCODE_COMMAND_AGENT_SOURCE}
             scopeKey={formScopeKey}
             workspaceTabs={workspaceTabs}
             onScopeKeyChange={handleFormScopeKeyChange}

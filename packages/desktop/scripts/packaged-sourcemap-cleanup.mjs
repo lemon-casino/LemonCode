@@ -87,7 +87,7 @@ export async function cleanupPackagedSourcemaps({
 }) {
   if (existsSync(appAsarPath)) {
     mkdirSync(tmpdir(), { recursive: true });
-    const stagingDir = mkdtempSync(resolve(tmpdir(), "zcode-app-asar-sourcemap-"));
+    const stagingDir = mkdtempSync(resolve(tmpdir(), "lcode-app-asar-sourcemap-"));
     try {
       runTimedSync("afterPack:sourcemap-cleanup:asar-extract", () =>
         runAsarCommand(["extract", appAsarPath, stagingDir]),

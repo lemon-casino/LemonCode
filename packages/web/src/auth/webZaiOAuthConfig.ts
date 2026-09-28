@@ -1,9 +1,9 @@
 import type { WebZaiOAuthProviderConfig } from "./zaiWebOAuthProvider.js";
 import {
-  buildZCodeEndpointUrls,
-  DEFAULT_ZCODE_ENDPOINT_ORIGIN,
+  buildLCodeEndpointUrls,
+  DEFAULT_LCODE_ENDPOINT_ORIGIN,
   resolveBigModelApiOrigin,
-} from "@zcode/shared";
+} from "@lcode/shared";
 
 interface WebImportMetaEnv {
   VITE_DEV_ORIGIN?: string;
@@ -11,8 +11,8 @@ interface WebImportMetaEnv {
   VITE_ZAI_OAUTH_ORIGIN?: string;
   VITE_BIGMODEL_OAUTH_ORIGIN?: string;
   VITE_BIGMODEL_OAUTH_APP_ID?: string;
-  VITE_ZCODE_BASE_URL?: string;
-  VITE_ZCODE_ENDPOINT_ORIGIN?: string;
+  VITE_LCODE_BASE_URL?: string;
+  VITE_LCODE_ENDPOINT_ORIGIN?: string;
   VITE_WEB_REMOTE_ALLOW_DEV_RETURN_TO?: string;
 }
 
@@ -44,10 +44,10 @@ function buildBigModelAuthorizeUrl(origin: string | undefined): string {
 
 function createWebZaiOAuthConfig(env: WebImportMetaEnv = {}): WebZaiOAuthConfig {
   const devOrigin = env.VITE_DEV_ORIGIN?.trim().replace(/\/$/, "");
-  const zcodeEndpointUrls = buildZCodeEndpointUrls(
-    env.VITE_ZCODE_BASE_URL?.trim() ||
-      env.VITE_ZCODE_ENDPOINT_ORIGIN?.trim() ||
-      DEFAULT_ZCODE_ENDPOINT_ORIGIN,
+  const lcodeEndpointUrls = buildLCodeEndpointUrls(
+    env.VITE_LCODE_BASE_URL?.trim() ||
+      env.VITE_LCODE_ENDPOINT_ORIGIN?.trim() ||
+      DEFAULT_LCODE_ENDPOINT_ORIGIN,
   );
 
   return {
@@ -59,8 +59,8 @@ function createWebZaiOAuthConfig(env: WebImportMetaEnv = {}): WebZaiOAuthConfig 
     bigmodelAuthorizeUrl: buildBigModelAuthorizeUrl(env.VITE_BIGMODEL_OAUTH_ORIGIN),
     // BigModel 用 appId 而不是 client_id，且默认值就是桌面端在用的 "zcode"。
     bigmodelAppId: env.VITE_BIGMODEL_OAUTH_APP_ID?.trim() || "zcode",
-    redirectUri: zcodeEndpointUrls.webShareCallbackUrl,
-    shareRedirectUri: zcodeEndpointUrls.webShareCallbackUrl,
+    redirectUri: lcodeEndpointUrls.webShareCallbackUrl,
+    shareRedirectUri: lcodeEndpointUrls.webShareCallbackUrl,
     ...(devOrigin ? { devOrigin } : {}),
     allowDevReturnToRedirect: env.VITE_WEB_REMOTE_ALLOW_DEV_RETURN_TO === "true",
   };

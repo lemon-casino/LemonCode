@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { writeFileSync } from "node:fs";
 
-const PATCH_MARKER = "; zcode-installer-details-v1";
+const PATCH_MARKER = "; lcode-installer-details-v1";
 
 function optionalMacro(name) {
   return [`!ifmacrodef ${name}`, `  !insertmacro ${name}`, "!endif"].join("\n");

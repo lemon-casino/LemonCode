@@ -11,7 +11,7 @@
  * 纯内存、有界、失败即丢：不排队、不持久化、不重试。
  */
 
-import type { ProcessResourceRuntimeSurface } from "@zcode/shared";
+import type { ProcessResourceRuntimeSurface } from "@lcode/shared";
 import {
   addAppResourceTotals,
   createEmptyAppResourceTotals,

@@ -8,7 +8,7 @@
  * "第一次见到这份状态的时刻"推。登记按对象身份（WeakMap）：归约对未变的 `concurrency` 保留同一对象
  * 引用，一被新事件替换就是新对象、重新登记。不放进协议，是因为它是本地观察，不是引擎事实。
  */
-import type { WorkflowRunConcurrency } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunConcurrency } from "@lcode/shared/lcode-protocol-v4";
 import type { WorkflowRunEventItem, WorkflowRunEventLine } from "./workflowRunPanel.js";
 
 const MS_PER_SECOND = 1_000;

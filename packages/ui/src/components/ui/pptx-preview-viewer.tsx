@@ -220,7 +220,7 @@ function RenderedPage({
           replaceChildren() 会误删 selection overlay，随后 React removeChild 因节点已不存在而崩溃。
           renderer 只能操作下面不包含 React 子节点的独立 leaf mount。 */}
       <div
-        data-zcode-pptx-render-surface=""
+        data-lcode-pptx-render-surface=""
         className="absolute left-0 top-0 origin-top-left"
         style={{
           width: document.pageSize.width,
@@ -230,7 +230,7 @@ function RenderedPage({
       >
         <div
           ref={mountRef}
-          data-zcode-pptx-render-surface="true"
+          data-lcode-pptx-render-surface="true"
           className={cn(
             "absolute inset-0",
             interactive && (!selectionMode || textSelectionEnabled)

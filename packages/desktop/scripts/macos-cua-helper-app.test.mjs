@@ -27,10 +27,10 @@ async function writeFixtureFile(path, contents) {
 }
 
 async function createFixture(t) {
-  const root = await mkdtemp(join(tmpdir(), "zcode-cua-mac-stage-test-"));
+  const root = await mkdtemp(join(tmpdir(), "lcode-cua-mac-stage-test-"));
   t.after(() => rm(root, { recursive: true, force: true }));
-  const resourcesDir = resolve(root, "ZCode.app/Contents/Resources");
-  const zcodeCuaRoot = resolve(root, "zcode-cua");
+  const resourcesDir = resolve(root, "LCode.app/Contents/Resources");
+  const lcodeCuaRoot = resolve(root, "lcode-cua");
   const xa11yRoot = resolve(root, "xa11y");
   const arm64NativeRoot = resolve(root, "xa11y-darwin-arm64");
   const x64NativeRoot = resolve(root, "xa11y-darwin-x64");
@@ -40,24 +40,24 @@ async function createFixture(t) {
   await mkdir(resourcesDir, { recursive: true });
   await writeFixtureFile(nodeExecutablePath, "darwin arm64 node fixture");
   await writeFixtureFile(
-    resolve(zcodeCuaRoot, "package.json"),
+    resolve(lcodeCuaRoot, "package.json"),
     JSON.stringify({
-      name: "@zcode/zcode-cua",
+      name: "@lcode/lcode-cua",
       version: "0.1.0",
       type: "module",
-      zcodeCuaRuntime: {
+      lcodeCuaRuntime: {
         schema: 1,
         macos: { entry: "helper-entry.js", nativeAddon: "xa11y-native-loader.js" },
       },
     }),
   );
   await writeFixtureFile(
-    resolve(zcodeCuaRoot, "helper-entry.js"),
+    resolve(lcodeCuaRoot, "helper-entry.js"),
     'import { serve } from "./server.js";\nexport async function runHelperProcess() { serve(); }\n',
   );
-  await writeFixtureFile(resolve(zcodeCuaRoot, "server.js"), "export function serve() {}\n");
+  await writeFixtureFile(resolve(lcodeCuaRoot, "server.js"), "export function serve() {}\n");
   await writeFixtureFile(
-    resolve(zcodeCuaRoot, "xa11y-native-loader.js"),
+    resolve(lcodeCuaRoot, "xa11y-native-loader.js"),
     'export const loadXa11y = () => import("@crowecawcaw/xa11y");\n',
   );
   await writeFixtureFile(
@@ -80,7 +80,7 @@ async function createFixture(t) {
     electronPlatformName: "darwin",
     resourcesDir,
     targetPlatform: { os: "darwin", arch: "arm64", key: "darwin-arm64" },
-    zcodeCuaRoot,
+    lcodeCuaRoot,
     appVersion: "3.14.2",
     buildIdentity: "release-2026-09-23:commit-deadbeef",
     nodeExecutablePath,
@@ -149,7 +149,7 @@ test("stages an open macOS Helper.app with the target xa11y package and full man
   assert.ok(fixture.executableArchReads.some((path) => presenterSuffix.test(path)));
 
   const plist = await readFile(resolve(result.appRoot, "Contents/Info.plist"), "utf8");
-  assert.match(plist, /<string>dev\.zcode\.cua-helper<\/string>/u);
+  assert.match(plist, /<string>dev\.lcode\.cua-helper<\/string>/u);
   assert.match(plist, /<key>CFBundleShortVersionString<\/key>\s*<string>3\.14\.2<\/string>/u);
   assert.match(
     plist,
@@ -179,14 +179,14 @@ test("stages an open macOS Helper.app with the target xa11y package and full man
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   assert.deepEqual(manifest, result.manifest);
   assert.ok(manifest.files.some((file) => file.path === "Contents/Info.plist"));
-  assert.ok(manifest.files.some((file) => file.path === "Contents/MacOS/ZCode Computer Use"));
+  assert.ok(manifest.files.some((file) => file.path === "Contents/MacOS/LCode Computer Use"));
   assert.ok(
     manifest.files.some(
       (file) => file.path === `Contents/MacOS/${MAC_CUA_PIP_PRESENTER_EXECUTABLE_NAME}`,
     ),
   );
   assert.ok(manifest.files.some((file) => file.path.endsWith("xa11y.darwin-arm64.node")));
-  assert.ok(manifest.signedMutablePaths.includes("Contents/MacOS/ZCode Computer Use"));
+  assert.ok(manifest.signedMutablePaths.includes("Contents/MacOS/LCode Computer Use"));
   assert.ok(
     manifest.signedMutablePaths.includes(`Contents/MacOS/${MAC_CUA_PIP_PRESENTER_EXECUTABLE_NAME}`),
   );
@@ -209,7 +209,7 @@ test("macOS staging rejects unpinned or wrong-architecture Node inputs", async (
   const fixture = await createFixture(t);
   await assert.rejects(
     stageMacCuaHelperApp({ ...fixture, nodeSha256: undefined }),
-    /ZCODE_CUA_MAC_NODE_SHA256/u,
+    /LCODE_CUA_MAC_NODE_SHA256/u,
   );
   await assert.rejects(
     stageMacCuaHelperApp({ ...fixture, readExecutableArchs: async () => ["x86_64"] }),
@@ -268,9 +268,9 @@ test("macOS Helper build version is stable, numeric, and changes with build iden
 
 test("SEA bootstrap binds the fixed bundle and verifies the runtime before importing it", () => {
   const source = createMacCuaSeaBootstrapSource();
-  assert.match(source, /dev\.zcode\.cua-helper/u);
+  assert.match(source, /dev\.lcode\.cua-helper/u);
   assert.match(source, /runtime file set changed/u);
-  assert.match(source, /ZCODE_CUA_HELPER_ADDON/u);
+  assert.match(source, /LCODE_CUA_HELPER_ADDON/u);
   assert.match(source, new RegExp(MAC_CUA_PIP_PRESENTER_ENV, "u"));
   assert.match(source, new RegExp(MAC_CUA_PIP_PRESENTER_EXECUTABLE_NAME, "u"));
   assert.match(source, /manifest\.presenter !== expectedPresenter/u);

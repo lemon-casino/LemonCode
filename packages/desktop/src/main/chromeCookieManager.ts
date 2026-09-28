@@ -6,7 +6,7 @@ import { copyFile, mkdtemp, rm, stat } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join, relative } from "node:path";
-import type { ChromeBrowserDataImportError } from "@zcode/shared";
+import type { ChromeBrowserDataImportError } from "@lcode/shared";
 import { readChromeCookiesWithHelper } from "./chromeLocalStorageManager.js";
 import {
   toCookieDetails,
@@ -157,7 +157,7 @@ async function withDatabaseSnapshot<T>(
   databaseBackup: ChromeCookieDatabaseBackup,
   run: (snapshotPath: string) => T | Promise<T>,
 ): Promise<T> {
-  const tempDir = await mkdtemp(join(tmpdir(), "zcode-browser-import-"));
+  const tempDir = await mkdtemp(join(tmpdir(), "lcode-browser-import-"));
   const snapshotPath = join(tempDir, "database.sqlite");
   let sourceDatabase: import("node:sqlite").DatabaseSync | null = null;
   try {

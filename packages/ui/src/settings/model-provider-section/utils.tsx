@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { type BuiltinModelProviderId } from "@zcode/shared";
+import { type BuiltinModelProviderId } from "@lcode/shared";
 import { PackageIcon } from "lucide-react";
 import { ProviderLogo } from "./ProviderLogo.js";
 import { type ModelProviderNavItem } from "./constants.js";

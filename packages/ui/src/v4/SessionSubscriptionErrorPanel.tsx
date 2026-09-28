@@ -1,9 +1,9 @@
 import { useCallback } from "react";
-import { TID_V4_RETRY_SUBSCRIBE } from "@zcode/shared";
+import { TID_V4_RETRY_SUBSCRIBE } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { useFeedbackStore } from "@/feedback/feedbackStore.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { buildErrorFeedbackDescription } from "@/lib/errorFeedbackDraft.js";
 
 interface SessionSubscriptionErrorPanelProps {
@@ -19,7 +19,7 @@ export function SessionSubscriptionErrorPanel({
   workspacePath,
   onReconnect,
 }: SessionSubscriptionErrorPanelProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const openFeedbackSubmit = useFeedbackStore((state) => state.openSubmit);
   const handleOpenFeedback = useCallback(async () => {
     openFeedbackSubmit({

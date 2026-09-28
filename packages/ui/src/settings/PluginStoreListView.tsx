@@ -2,11 +2,11 @@ import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 /* eslint-disable max-lines -- 商店列表页把标题/搜索/已安装条/公开-个人分段/Featured/分类折叠聚合成一个连贯浏览面，拆散反而难以维持 1:1 布局。 */
 import { useMemo, useState } from "react";
 import { Download, Loader2, Settings2 } from "lucide-react";
-import type { PluginStoreOrder, ZCodePluginMarketplaceSummary } from "@zcode/shared";
-import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@zcode/shared";
+import type { PluginStoreOrder, LCodePluginMarketplaceSummary } from "@lcode/shared";
+import { LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { PluginStoreAvatar } from "@/settings/PluginStoreAvatar.js";
 import { PluginStoreCard, type PluginStoreActions } from "@/settings/PluginStoreCard.js";
@@ -29,7 +29,7 @@ import { resolveMarketplaceDisplayName } from "@/settings/pluginSourceLabel.js";
 
 // 分类/市场分组手动收起后的展示数量；默认完整展示，避免较少的插件又被自动隐藏。
 const CATEGORY_VISIBLE_LIMIT = 6;
-const RETIRED_STORE_PLUGIN_ID = `restore-legacy-sessions@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID}`;
+const RETIRED_STORE_PLUGIN_ID = `restore-legacy-sessions@${LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID}`;
 
 export type PluginStoreSegment = "public" | "personal";
 
@@ -47,7 +47,7 @@ export function PluginStoreListView({
 }: {
   items: StorePluginItem[];
   order?: PluginStoreOrder | null;
-  marketplaces: ZCodePluginMarketplaceSummary[];
+  marketplaces: LCodePluginMarketplaceSummary[];
   actions: PluginStoreActions;
   loading: boolean;
   query: string;
@@ -56,7 +56,7 @@ export function PluginStoreListView({
   onSegmentChange: (segment: PluginStoreSegment) => void;
   onOpenManage: () => void;
 }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const isOfficeMode = useIsOfficeMode();
   const modeOrder = isOfficeMode ? order?.work : order?.code;
   const keyword = query.trim().toLowerCase();
@@ -372,7 +372,7 @@ function CollapsibleCardGroup({
   actions: PluginStoreActions;
   locale: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const visible = expanded ? items : items.slice(0, CATEGORY_VISIBLE_LIMIT);
   const hidden = expanded ? [] : items.slice(CATEGORY_VISIBLE_LIMIT);
   const hiddenNames = hidden.slice(0, 2).map((item) => resolveItemDisplayName(item, locale));
@@ -448,7 +448,7 @@ function PublicSegment({
   resolveCategoryLabel: (category: string) => string;
   onToggleGroup: (key: string) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const isEmpty = featuredItems.length === 0 && categoryGroups.length === 0;
   if (isEmpty) {
     return (
@@ -512,7 +512,7 @@ function PersonalSegment({
   locale: string;
   onToggleGroup: (key: string) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   if (groups.length === 0) {
     return (
       <p className="rounded-xl border border-dashed border-border px-4 py-3 text-ui-base text-foreground-subtle">

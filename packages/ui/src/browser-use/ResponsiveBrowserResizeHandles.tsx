@@ -9,7 +9,7 @@ import {
   TID_BROWSER_RESPONSIVE_RESIZE_LEFT,
   TID_BROWSER_RESPONSIVE_RESIZE_TOP,
   TID_BROWSER_RESPONSIVE_RESIZE_WIDTH,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { GripHorizontalIcon, GripVerticalIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 

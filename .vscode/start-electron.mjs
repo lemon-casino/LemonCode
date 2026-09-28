@@ -22,7 +22,7 @@ function resolveElectronExecutable() {
 const electronExecutable = resolveElectronExecutable();
 
 if (!existsSync(electronExecutable)) {
-  console.error(`[zcode-debug] Electron executable not found: ${electronExecutable}`);
+  console.error(`[lcode-debug] Electron executable not found: ${electronExecutable}`);
   process.exit(1);
 }
 
@@ -34,7 +34,7 @@ const child = spawn(electronExecutable, ["--inspect-brk=9231", "."], {
     // 调试启动时 renderer 也必须走 localhost。
     // 否则即使 Vite 已经就绪，Electron 仍会因为访问 127.0.0.1 被拒绝而打开空白页。
     ELECTRON_RENDERER_URL: "http://localhost:5174",
-    ...(enableHostInspect ? { ZCODE_DEBUG: "9230" } : {}),
+    ...(enableHostInspect ? { LCODE_DEBUG: "9230" } : {}),
   },
 });
 

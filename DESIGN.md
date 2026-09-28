@@ -1,4 +1,4 @@
-# ZCode Design System
+# LCode Design System
 
 Portable design system for AI-assisted UI work in this repository.
 
@@ -19,7 +19,7 @@ Treat violations of this section as design-system defects, not stylistic prefere
 
 ## Product Character
 
-ZCode is a desktop-first and web-compatible AI workspace. The interface should feel calm, dense, and operational rather than decorative.
+LCode is a desktop-first and web-compatible AI workspace. The interface should feel calm, dense, and operational rather than decorative.
 
 Design for:
 
@@ -472,7 +472,7 @@ Overlay rules:
 
 ## Elevation and Depth
 
-ZCode should use restrained depth. Layer primarily through background contrast, borders, and radius before relying on heavy shadows.
+LCode should use restrained depth. Layer primarily through background contrast, borders, and radius before relying on heavy shadows.
 
 Recommended elevation levels:
 

@@ -3,9 +3,9 @@ import {
   type ApiClient,
   resolveBigModelApiOrigin,
   resolveZaiBusinessBaseUrl,
-  type ZCodeAccountAccess,
+  type LCodeAccountAccess,
   ZAI_PROVIDER_ID,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import type { ICredentialService } from "#src/credential/credential.js";
 import {
   createBigModelBizHeaders,
@@ -18,13 +18,13 @@ import { readApiJson } from "#src/providers/api/apiJson.js";
 import type { RemoteCustomerInfo } from "./accountProviderApiTypes.js";
 
 const log = createServiceLogger("account-provider-team-plan-request-key");
-const ZCODE_JWT_TOKEN_KEY = "zcodejwttoken";
+const LCODE_JWT_TOKEN_KEY = "lcodejwttoken";
 const TEAM_PLAN_RUNTIME_KEY_REQUEST_TIMEOUT_MS = 15_000;
 
 interface TeamPlanRequestKeyDependencies {
   readonly apiClient: ApiClient;
   readonly credentialService?: Pick<ICredentialService, "load">;
-  readonly access: Extract<ZCodeAccountAccess, { planKind: "team-coding-plan" }>;
+  readonly access: Extract<LCodeAccountAccess, { planKind: "team-coding-plan" }>;
 }
 
 export async function resolveAccountTeamPlanRuntimeApiKey(
@@ -41,10 +41,10 @@ export async function resolveAccountTeamPlanRuntimeApiKey(
     });
     return null;
   }
-  const zcodeJwtToken = (await params.credentialService?.load(ZCODE_JWT_TOKEN_KEY))?.trim() ?? "";
-  if (family === "bigmodel" && zcodeJwtToken && token === zcodeJwtToken) {
-    // BigModel /api/biz 只接受登录 access token，不能使用旧版本误存的 ZCode JWT。
-    log.warn(undefined, "Team Plan runtime key projection skipped: stale zcode JWT token", {
+  const lcodeJwtToken = (await params.credentialService?.load(LCODE_JWT_TOKEN_KEY))?.trim() ?? "";
+  if (family === "bigmodel" && lcodeJwtToken && token === lcodeJwtToken) {
+    // BigModel /api/biz 只接受登录 access token，不能使用旧版本误存的 LCode JWT。
+    log.warn(undefined, "Team Plan runtime key projection skipped: stale lcode JWT token", {
       family,
       projectId,
     });

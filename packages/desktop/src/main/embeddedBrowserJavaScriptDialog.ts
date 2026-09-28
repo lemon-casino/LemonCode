@@ -1,6 +1,6 @@
 import { BrowserWindow, dialog, nativeImage, webContents } from "electron";
 import type { WebContents } from "electron";
-import type { Locale } from "@zcode/shared";
+import type { Locale } from "@lcode/shared";
 
 const DEFAULT_AUTOMATION_GRACE_MS = 3_000;
 const USER_BROWSER_TAB_PREFIX = "browser:";

@@ -1,5 +1,5 @@
 import { resolvePluginIconSource } from "@/lib/pluginIconSource.js";
-import type { ZCodePluginReferenceCatalogEntry } from "@zcode/shared";
+import type { LCodePluginReferenceCatalogEntry } from "@lcode/shared";
 import type { ConversationStoreStatus } from "@/v4/conversationProjectionStore.js";
 
 export function isSessionPluginCatalogReady(
@@ -25,7 +25,7 @@ export function hasPluginReferenceUserRows(
  */
 export function buildSessionPluginIconMap(
   authority: "session" | "workspace" | null,
-  entries: readonly ZCodePluginReferenceCatalogEntry[],
+  entries: readonly LCodePluginReferenceCatalogEntry[],
 ): ReadonlyMap<string, string> {
   if (authority !== "session") {
     return new Map();

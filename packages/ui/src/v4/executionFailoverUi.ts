@@ -2,8 +2,8 @@ import {
   MAX_EXECUTION_FAILOVER_BACKGROUND_WORK_IDS,
   type ActiveWorkSummary,
   type BackgroundWorkSummary,
-} from "@zcode/shared/zcode-protocol-v4";
-import type { ModelSelection } from "@zcode/shared";
+} from "@lcode/shared/lcode-protocol-v4";
+import type { ModelSelection } from "@lcode/shared";
 
 export interface ExecutionFailoverObservedTargets {
   foregroundExecutionId?: string;

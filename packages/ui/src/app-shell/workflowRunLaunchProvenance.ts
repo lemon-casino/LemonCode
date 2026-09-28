@@ -1,4 +1,4 @@
-import type { ConversationRow, WorkflowLaunchMeta } from "@zcode/shared/zcode-protocol-v4";
+import type { ConversationRow, WorkflowLaunchMeta } from "@lcode/shared/lcode-protocol-v4";
 
 /**
  * 直接启动的来龙去脉：作用域、说明、实参与

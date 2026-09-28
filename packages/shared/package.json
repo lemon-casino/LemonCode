@@ -1,5 +1,5 @@
 {
-  "name": "@zcode/shared",
+  "name": "@lcode/shared",
   "private": true,
   "type": "module",
   "exports": {
@@ -14,10 +14,10 @@
     "./model-config": "./src/model-config.ts",
     "./config-schema": "./src/config-schema.ts",
     "./node": "./src/node.ts",
-    "./zcodeEndpoint": "./src/zcodeEndpoint.ts",
+    "./lcodeEndpoint": "./src/lcodeEndpoint.ts",
     "./workspaceFileSearch": "./src/workspaceFileSearch.ts",
     "./workspaceFileEntriesCodec": "./src/workspaceFileEntriesCodec.ts",
-    "./zcode-protocol-v4": "./src/zcode-protocol-v4/index.ts",
+    "./lcode-protocol-v4": "./src/lcode-protocol-v4/index.ts",
     "./workspace-hook-discovery": "./src/workspace-hook-discovery.ts",
     "./workspace-hook-mutation": "./src/workspace-hook-mutation.ts",
     "./workspace-hook-review-monotonicity": "./src/workspace-hook-review-monotonicity.ts",
@@ -28,7 +28,7 @@
     "lint:fix": "oxlint --fix"
   },
   "dependencies": {
-    "@zcode/model-option-map": "workspace:*",
+    "@lcode/model-option-map": "workspace:*",
     "zod": "4.6.5"
   },
   "devDependencies": {

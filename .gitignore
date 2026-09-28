@@ -1,6 +1,6 @@
 node_modules/
 dist/
-# zcode-server-cli 发行包 staging 输出，本地组装产物不入库。
+# lcode-server-cli 发行包 staging 输出，本地组装产物不入库。
 dist-release/
 # macOS CI 按架构隔离 electron-builder 输出目录，这些仍是构建产物。
 packages/desktop/dist-*/
@@ -68,7 +68,7 @@ __pycache__/
 packages/desktop/.e2e-artifacts/
 packages/desktop/.e2e-cache/
 packages/desktop/.e2e-network-capture/
-.zcode-runtime/
+.lcode-runtime/
 
 # cfworker-remote 是独立 git 仓库(Cloudflare Workers 隧道),单独提交与部署。
 cfworker-remote/

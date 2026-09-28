@@ -12,7 +12,7 @@
 //   不是「session 能触达的全部路径」（未来跨 workspace session 的辅助路径是
 //   session 属性，不进布局层）。
 // - primary pane（workspace-main）是保留叶子：不进 panes，绑定沿用既有选择态
-//   （activeTaskId → shell props），避免与 zcodeSessionStore/tabStore 双写；
+//   （activeTaskId → shell props），避免与 lcodeSessionStore/tabStore 双写；
 //   tabStore（workspace tab 语义）完全不动。
 // 所有转移函数无副作用；无变化时返回原引用（zustand 免重渲染）。
 

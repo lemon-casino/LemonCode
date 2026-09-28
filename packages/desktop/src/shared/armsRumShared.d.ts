@@ -1,4 +1,4 @@
-import { type ZCodeRuntimeEnv } from "@zcode/shared";
+import { type LCodeRuntimeEnv } from "@lcode/shared";
 /** 主进程 init 的 browserCollectors，经 autoInject 注入到 renderer 的 RumSDK.init(collectors) */
 export declare const ARMS_BROWSER_COLLECTORS: {
   readonly perf: true;
@@ -13,11 +13,11 @@ export declare const ARMS_BROWSER_COLLECTORS: {
 /** ARMS 页面名解析：file:// 与 dev-server 统一规则，主进程 parseViewName 与 renderer 共用 */
 export declare function parseArmsViewName(url: string): string;
 /** Renderer Browser SDK init 配置（与主进程 endpoint/env/version 对齐） */
-export declare function buildArmsBrowserInitConfig(runtimeEnv: ZCodeRuntimeEnv): {
+export declare function buildArmsBrowserInitConfig(runtimeEnv: LCodeRuntimeEnv): {
   enable: boolean;
   version: string;
   endpoint: string;
-  env: import("@zcode/shared").ArmsRumEnv;
+  env: import("@lcode/shared").ArmsRumEnv;
   sessionConfig: {
     sampleRate: number;
   };

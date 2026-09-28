@@ -27,8 +27,8 @@ export interface ThemeOption {
   swatch: { bg: string; fg: string; primary: string };
 }
 
-const STORAGE_KEY = "zcode-theme";
-const BROWSER_THEME_SURFACE_ATTRIBUTE = "data-zcode-browser-theme-surface";
+const STORAGE_KEY = "lcode-theme";
+const BROWSER_THEME_SURFACE_ATTRIBUTE = "data-lcode-browser-theme-surface";
 
 // 合法主题与明暗基底的唯一注册表（spec: specs/ui-theme-modes.md）：
 // 新增主题只允许改这里；白名单（isThemeValue）、暗色判定（resolveTheme）与

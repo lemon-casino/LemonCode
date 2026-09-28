@@ -1,5 +1,5 @@
 import type { SettingsDirectoryLocation } from "./settings-source.js";
-import type { WorkspaceHookReviewTrustState } from "./zcode-protocol-v4/workspace-hook-review.js";
+import type { WorkspaceHookReviewTrustState } from "./lcode-protocol-v4/workspace-hook-review.js";
 
 export type HookEvent =
   | "SessionStart"
@@ -81,7 +81,7 @@ export interface ToolCallHookMeta {
   hookFeedback?: string;
   hookStderr?: string;
   /** Skill-related metadata */
-  "zcode/isSkill"?: boolean;
-  "zcode/skillName"?: string;
+  "lcode/isSkill"?: boolean;
+  "lcode/skillName"?: string;
   [key: string]: unknown;
 }

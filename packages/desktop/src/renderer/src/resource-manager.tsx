@@ -1,13 +1,13 @@
 import { createRoot } from "react-dom/client";
-import type { ResourceUsageSnapshot, StorageManagementBridge } from "@zcode/shared";
-import "@zcode/ui/styles.css";
+import type { ResourceUsageSnapshot, StorageManagementBridge } from "@lcode/shared";
+import "@lcode/ui/styles.css";
 import {
   ResourceManagerApp,
-  ZCodeIntlProvider,
+  LCodeIntlProvider,
   applyUiFontSizePx,
   loadUiFontSizePx,
   subscribeToUiFontSizeStorageChanges,
-} from "@zcode/ui";
+} from "@lcode/ui";
 
 declare global {
   interface Window {
@@ -47,7 +47,7 @@ function resolveAppliedTheme(savedTheme: string): AppliedTheme {
 }
 
 function applyResourceManagerTheme(): void {
-  const appliedTheme = resolveAppliedTheme(localStorage.getItem("zcode-theme") ?? "zai-dark");
+  const appliedTheme = resolveAppliedTheme(localStorage.getItem("lcode-theme") ?? "zai-dark");
   const root = document.documentElement;
   root.classList.toggle("dark", APPLIED_THEME_BASES[appliedTheme] === "dark");
   // toggle 其余 theme-* 为 false 等价清空，防止残留上一个主题的差量变量块。
@@ -61,7 +61,7 @@ applyResourceManagerTheme();
 // 但主窗口 setTheme 会写 localStorage；这里补 storage 监听跟随主窗口的主题切换，
 // 否则独立窗口将持续停留打开时的旧主题，无法满足「与主窗口主题一致」。
 window.addEventListener("storage", (event) => {
-  if (event.key === "zcode-theme") {
+  if (event.key === "lcode-theme") {
     applyResourceManagerTheme();
   }
 });
@@ -74,7 +74,7 @@ const root = document.getElementById("root");
 if (root) {
   createRoot(root).render(
     // 语言沿用主窗口写入 localStorage 的偏好；不接 settingService，避免独立窗口再起一份 RPC。
-    <ZCodeIntlProvider>
+    <LCodeIntlProvider>
       <ResourceManagerApp
         setSamplingActive={window.resourceManager?.setSamplingActive}
         getSnapshot={
@@ -82,6 +82,6 @@ if (root) {
         }
         storage={window.resourceManager?.storage}
       />
-    </ZCodeIntlProvider>,
+    </LCodeIntlProvider>,
   );
 }

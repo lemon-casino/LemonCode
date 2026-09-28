@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import type { RemoteTarget } from "@zcode/shared";
-import type { IServiceAccessor } from "@zcode/services";
+import type { RemoteTarget } from "@lcode/shared";
+import type { IServiceAccessor } from "@lcode/services";
 import { remoteAgentServiceGeneration } from "@/lib/remoteAgentServiceGeneration.js";
 import { createRemoteWorkspaceDisconnectedError } from "@/lib/remoteWorkspaceServiceError.js";
 
@@ -120,8 +120,8 @@ export function registerRemoteWorkspaceSession(session: RemoteWorkspaceSession):
   // 单调代际，避免迟到的中间 proxy 把 transport 从最新代切回去。
   // Web/测试降级 accessor 可能暂未提供 agent transport；真正可订阅时 registry 仍会
   // 按首次观察分配 generation，不能为了预注册破坏这种兼容形态。
-  if (session.services.zcodeAgentService) {
-    remoteAgentServiceGeneration(session.services.zcodeAgentService);
+  if (session.services.lcodeAgentService) {
+    remoteAgentServiceGeneration(session.services.lcodeAgentService);
   }
   const previousSession = useRemoteWorkspaceSessionStore.getState().sessionsById[session.sessionId];
   if (previousSession && previousSession !== session) {
@@ -167,7 +167,7 @@ export function getRemoteWorkspaceSession(sessionId: string): RemoteWorkspaceSes
 /** 当前在册代理的远程 session 身份；旧代代理不匹配，仅用于 scope 诊断。 */
 export function findRemoteWorkspaceSessionIdForAgentService(agentService: object): string | null {
   for (const session of Object.values(useRemoteWorkspaceSessionStore.getState().sessionsById)) {
-    if (session.services.zcodeAgentService === agentService) {
+    if (session.services.lcodeAgentService === agentService) {
       return session.sessionId;
     }
   }

@@ -1,0 +1,119 @@
+import { existsSync } from "node:fs";
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { LCODE_PLUGIN_HOST_COMMAND } from "@lcode/contracts/plugins";
+import {
+  getCapturedLCodeCuaBrokerCredentials,
+  LCODE_CUA_BROKER_SOCKET_ENV_KEY,
+  LCODE_CUA_NODE_REPL_HOST_ENV_KEY,
+  LCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY,
+} from "@lcode/shared/runtime-env";
+import { LCODE_CUA_OFFICIAL_PLUGIN_ID, LCODE_PLUGIN_ID_ENV_KEY } from "@lcode/shared/mcp";
+import type { RunContext } from "@lcode/shared-types";
+
+const HOST_USAGE = `${LCODE_PLUGIN_HOST_COMMAND} <server-path> [-- <server-arg>...]`;
+const LCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER_ENV_KEY =
+  "LCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER";
+
+type HostedPluginModule = {
+  main?: unknown;
+};
+
+export function isPluginHostInvocation(argv: readonly string[]): boolean {
+  return argv[0] === LCODE_PLUGIN_HOST_COMMAND;
+}
+
+// __lcode-plugin-host 在 agent 子进程里运行 official plugin 的 MCP server（server.js）。
+// CLI 入口 main.ts 的 applyCliRuntimeEnvSanitization 会先把 broker token 从 process.env 剔除进
+// 进程内 capture；因此这里是恢复 bearer token 的最后一道宿主边界。capture 本身只证明某个
+// Agent 进程曾收到过 Helper 凭据，不能证明当前传入的 server 就是官方 lcode-cua：
+// 只凭存在 capture 就把 token 恢复给任意 server path，第三方/被替换的插件可借此取得 CUA
+// broker 的 TCC 能力。必须同时验证 resolver 权威写入的 plugin id、完整的捕获凭据组，
+// 以及 canonical broker socket；任一字段不匹配都在 import 之前拒绝，避免加载不受信模块后再暴露 token。
+export async function runPluginHostCommand(ctx: RunContext, argv: string[]): Promise<number> {
+  if (argv.length < 1) {
+    ctx.stderr.write(`Usage: ${HOST_USAGE}\n`);
+    return 1;
+  }
+
+  const [rawServerPath, ...serverArgs] = argv;
+
+  try {
+    if (rawServerPath === undefined) {
+      throw new Error("Plugin server path is required.");
+    }
+
+    const serverPath = resolve(rawServerPath);
+    if (!existsSync(serverPath)) {
+      throw new Error("Plugin server file does not exist.");
+    }
+    const capturedBrokerCredentials = getCapturedLCodeCuaBrokerCredentials();
+    assertCapturedBrokerLaunchIsAuthorized(capturedBrokerCredentials);
+    const module = (await import(pathToFileURL(serverPath).href)) as HostedPluginModule;
+    if (typeof module.main !== "function") {
+      throw new Error("Plugin server does not export main().");
+    }
+
+    const originalArgv = process.argv;
+    const restoredCredentialEntries = [
+      [LCODE_CUA_BROKER_SOCKET_ENV_KEY, capturedBrokerCredentials.socket],
+      [LCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY, capturedBrokerCredentials.pluginAuthority],
+      [LCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER_ENV_KEY, capturedBrokerCredentials.refreshMarker],
+    ] as const;
+    const originalCredentialEntries = restoredCredentialEntries.map(([key]) => [
+      key,
+      process.env[key],
+    ]) as ReadonlyArray<readonly [string, string | undefined]>;
+    // shared node_repl 把同一凭据组恢复到环境，由 broker bridge 读取；旧的独立 CUA
+    // MCP 不再拥有执行入口。此前这里只恢复 socket，authority 被 CLI 清洗后缺失，导致
+    // runtime 按半组凭据 fail closed；可信 main 生命周期内必须成组恢复，退出时再逐项清理。
+    process.argv = [process.execPath, serverPath, ...serverArgs];
+    if (capturedBrokerCredentials.socket && process.env[LCODE_CUA_NODE_REPL_HOST_ENV_KEY] === "1") {
+      for (const [key, value] of restoredCredentialEntries) {
+        if (value !== undefined) process.env[key] = value;
+      }
+    }
+    try {
+      await module.main();
+    } finally {
+      process.argv = originalArgv;
+      for (const [key, value] of originalCredentialEntries) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+
+    return 0;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    ctx.stderr.write(`Plugin host failed: ${message}\n`);
+    return 1;
+  }
+}
+
+type CapturedBrokerCredentials = ReturnType<typeof getCapturedLCodeCuaBrokerCredentials>;
+
+function assertCapturedBrokerLaunchIsAuthorized(credentials: CapturedBrokerCredentials): void {
+  const hasCapturedCredentials = Boolean(credentials.socket || credentials.pluginAuthority);
+  if (!hasCapturedCredentials) return;
+
+  const pluginId = process.env[LCODE_PLUGIN_ID_ENV_KEY]?.trim().toLowerCase();
+  // 凭据组里已经没有 token 了：broker 全平台改为身份模式（Helper 按对端代码签名裁决连接），
+  // shared/runtimeEnv.ts 的 CapturedCuaBrokerCredentials 只有 socket + pluginAuthority
+  // (+ refreshMarker)。这里不能再读 `credentials.token`；token 已从凭据组移除，
+  // 残留读取方只能靠 CLI 自己的 typecheck 发现（根 `pnpm typecheck` 不含 apps/lcode-cli）。
+  // socket + pluginAuthority 必须成对（authority 是 bootstrap 写入 node_repl 配置的 provenance
+  // 随机数，core 据此认官方 server）；捕获侧本就只在成对时落快照，半组会清空并 fail-closed。
+  // 校验也不能要求 token 齐全——身份模式凭据没有 token，强校验会让 node_repl 宿主启动即
+  // 退出（"connection closed during the server/discover probe"），工具面为空。
+  if (
+    credentials.socket === undefined ||
+    credentials.pluginAuthority === undefined ||
+    pluginId !== LCODE_CUA_OFFICIAL_PLUGIN_ID ||
+    process.env[LCODE_CUA_NODE_REPL_HOST_ENV_KEY] !== "1"
+  ) {
+    throw new Error(
+      "Captured LCode CUA broker credentials may only launch the trusted shared node_repl host",
+    );
+  }
+}

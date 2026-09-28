@@ -1,6 +1,6 @@
 import { CircleIcon } from "lucide-react";
 import type { ProviderSettingsFormProvider } from "@/lib/providerSettingsFormTypes.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 const presentation = {
   disabled: { label: "settings.modelProvider.disabledStatus", color: "text-foreground-subtlest" },
@@ -13,7 +13,7 @@ export function ProviderStatusIndicator({
 }: {
   provider?: Pick<ProviderSettingsFormProvider, "enabled" | "executable"> | null;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   // 只做展示映射，不能在 UI 再检查 Key、权益或模型成员。
   const status =
     provider?.enabled === false ? "disabled" : provider?.executable ? "ready" : "unavailable";

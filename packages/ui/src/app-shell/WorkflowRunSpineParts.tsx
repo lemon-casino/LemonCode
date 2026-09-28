@@ -17,7 +17,7 @@ import type {
 import { LaneGlyph, agentColor } from "@/components/workflow-timeline/WorkflowAgentPill.js";
 import { MarchLight } from "@/components/workflow-timeline/WorkflowMarchLight.js";
 import type { SpineSection } from "@/app-shell/workflowRunSpine.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 /** 折叠节头上最多几枚头像；其余进 `+n`。 */
 const CLUSTER_MAX = 3;
@@ -207,7 +207,7 @@ export function AvatarCluster({
 
 /** 轮次：`⟳ n`，只在回边两端且至少跑过一轮时在场（与卡上同一条规则）。 */
 export function Rounds({ station }: { station: TimelineStation }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   if (!station.onLoop || station.rounds === 0) return null;
   return (
     <span

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { WORKFLOW_ARTIFACT_LIMITS } from "@zcode/shared/zcode-protocol-v4";
+import { WORKFLOW_ARTIFACT_LIMITS } from "@lcode/shared/lcode-protocol-v4";
 import type { ArtifactItem } from "@/app-shell/workflow-artifacts/presets/index.js";
 import { logger } from "@/logger.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";

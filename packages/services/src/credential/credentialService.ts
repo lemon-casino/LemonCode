@@ -1,12 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { atomicWritePrivateTextFile, backupCorruptFile, withFileLock } from "@zcode/shared/node";
+import { atomicWritePrivateTextFile, backupCorruptFile, withFileLock } from "@lcode/shared/node";
 import {
   credentialKeySchema,
   credentialRecordSchema,
   credentialValueSchema,
   formatZodError,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import type { ICredentialService } from "./credential.js";
 import {
   createCredentialCipherProvider,
@@ -48,7 +48,7 @@ async function readAll(credentialsFile = getCredentialsFile()): Promise<Record<s
     if (getErrorCode(error) === "ENOENT") {
       return {};
     }
-    throw new Error(`Unable to read ZCode credentials: ${credentialsFile}`, { cause: error });
+    throw new Error(`Unable to read LCode credentials: ${credentialsFile}`, { cause: error });
   }
 
   try {
@@ -68,7 +68,7 @@ async function readAll(credentialsFile = getCredentialsFile()): Promise<Record<s
       backupPath,
       credentialsFile,
     });
-    throw new Error(`ZCode credentials are corrupt: ${credentialsFile}`, { cause: error });
+    throw new Error(`LCode credentials are corrupt: ${credentialsFile}`, { cause: error });
   }
 }
 

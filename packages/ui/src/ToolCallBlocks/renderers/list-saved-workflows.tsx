@@ -1,6 +1,6 @@
 import { Library } from "lucide-react";
 import { useCallback, useMemo } from "react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
 import { FallbackToolCallBlock } from "@/ToolCallBlocks/renderers/fallback.js";
 import { readToolResultDisplay } from "@/ToolCallBlocks/toolResultDisplay.js";
@@ -148,7 +148,7 @@ function readListSavedWorkflowsResult(
  * 灌进上下文）。坏文件单独一行——它们是**刻意可见**的，不静默跳过。
  */
 export function ListSavedWorkflowsToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCall } = context.toolCallNode;
 
   const result = useMemo(() => readListSavedWorkflowsResult(toolCall), [toolCall]);

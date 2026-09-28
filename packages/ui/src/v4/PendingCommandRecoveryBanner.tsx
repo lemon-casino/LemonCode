@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { PendingCommandEntry } from "@/v4/pendingCommandRegistry.js";
 
 interface PendingCommandRecoveryBannerProps {
@@ -14,7 +14,7 @@ export const PendingCommandRecoveryBanner = memo(function PendingCommandRecovery
   onResend,
   onDismiss,
 }: PendingCommandRecoveryBannerProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const hasReplayPayload = entry.replay.kind === "input";
   // 根因：恢复提示过去用了整块 warning 黄色，和同一 bottom dock 的普通 error
   // 形成了错误的视觉层级。这里复用 ChatErrorBanner 的默认 surface/border/foreground。

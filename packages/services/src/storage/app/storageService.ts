@@ -2,11 +2,11 @@
  * IStorageService 实现：扫描 job、最近快照、清理的唯一 owner。
  * 不做 IO；根目录、遍历、删除、系统定位全部通过 ports 注入。
  */
-import { Emitter } from "@zcode/rpc";
+import { Emitter } from "@lcode/rpc";
 import type { IStorageService } from "../contract.js";
 import { planStorageClean } from "../domain/cleanPlan.js";
 import { getStorageCategoryCleanability, getStorageCleanScopes } from "../domain/storageCatalog.js";
-import type { StorageRootId, StorageRootSpec, StorageUsageSnapshot } from "@zcode/shared";
+import type { StorageRootId, StorageRootSpec, StorageUsageSnapshot } from "@lcode/shared";
 import type { FsCleanerPort, RootsResolverPort, ScanRunnerPort } from "./ports.js";
 import { createScanJob, type ScanJob } from "./scanJob.js";
 

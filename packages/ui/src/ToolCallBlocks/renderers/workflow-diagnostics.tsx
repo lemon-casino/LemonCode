@@ -1,4 +1,4 @@
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 /** 一条 TS 诊断（CreateWorkflow 与 EvalWorkflowSnippet 的 display 共用同一形状）。 */
 interface WorkflowDiagnosticEntry {
@@ -52,7 +52,7 @@ export function WorkflowDiagnosticsSection({
   /** 脚本来自保存的工作流文件：那句话点名文件而不是这次调用。 */
   saved?: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   if (diagnostics.length === 0) {
     return null;
   }

@@ -1,10 +1,10 @@
 import type { CSSProperties } from "react";
-import type { ZCodeGroupedTaskViewNode } from "@zcode/services";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { LCodeGroupedTaskViewNode } from "@lcode/services";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { TaskGroupColorMark } from "@/workspace-grouped-tasks/colors.js";
 import { getTaskGroupDisplayTitle } from "@/workspace-grouped-tasks/group-title.js";
 
-type GroupNode = Extract<ZCodeGroupedTaskViewNode, { type: "group" }>;
+type GroupNode = Extract<LCodeGroupedTaskViewNode, { type: "group" }>;
 
 function GroupDragOverlay({
   node,
@@ -15,7 +15,7 @@ function GroupDragOverlay({
   className?: string;
   style?: CSSProperties;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   // cron 在存储层使用 `cron` 占位名；拖拽浮层曾绕过普通 header 的本地化逻辑，
   // 导致拖动时从“定时任务”闪回内部值。三种 header 统一走同一个标题格式化入口。
   const displayTitle = getTaskGroupDisplayTitle(node.group, {

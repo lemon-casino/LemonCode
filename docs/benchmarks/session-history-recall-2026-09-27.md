@@ -10,13 +10,13 @@ performance gate; it does not authorize an implicit default-on product rollout.
 
 ## Command and checkout
 
-Executed from `apps/zcode-cli`:
+Executed from `apps/lcode-cli`:
 
 ```text
 pnpm bench:session-recall
 ```
 
-The command built `@zcode/contracts`, `@zcode/adapters`, and `@zcode/core`, created a temporary migrated
+The command built `@lcode/contracts`, `@lcode/adapters`, and `@lcode/core`, created a temporary migrated
 SQLite store, seeded the fixed corpus from `specs/session-history-recall-benchmark.md`, ran the shared
 automatic-recall search path, closed the store, and removed the temporary directory.
 

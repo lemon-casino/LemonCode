@@ -29,8 +29,8 @@ import type {
   V4ConversationWorkflowRunsParams,
   V4ConversationWorkflowRunEventsResult,
   V4ConversationWorkflowRunsResult,
-} from "@zcode/shared/zcode-protocol-v4";
-import type { IServiceAccessor } from "@zcode/services";
+} from "@lcode/shared/lcode-protocol-v4";
+import type { IServiceAccessor } from "@lcode/services";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
@@ -117,14 +117,14 @@ function ReadyV4ConversationProvider({
   services: IServiceAccessor;
   remoteSessionId: string | null;
 }) {
-  const { zcodeAgentService } = services;
+  const { lcodeAgentService } = services;
   const platform = usePlatform();
   const bundle = useMemo(() => {
-    const transport = createAgentConversationTransport(zcodeAgentService, {
+    const transport = createAgentConversationTransport(lcodeAgentService, {
       workspacePath,
       workspaceIdentity,
       // 主 workspace resolver 已识别远端 endpoint，但这里曾丢弃
-      // remoteSessionId，导致远端绝对路径被交给本机 zcode-media。仅本地 endpoint 注入转换器。
+      // remoteSessionId，导致远端绝对路径被交给本机 lcode-media。仅本地 endpoint 注入转换器。
       ...(remoteSessionId === null && platform.createLocalMediaPreviewUrl
         ? { createLocalMediaPreviewUrl: platform.createLocalMediaPreviewUrl }
         : {}),
@@ -166,7 +166,7 @@ function ReadyV4ConversationProvider({
     remoteSessionId,
     workspacePath,
     workspaceIdentity,
-    zcodeAgentService,
+    lcodeAgentService,
   ]);
 
   useEffect(() => {
@@ -275,7 +275,7 @@ function ReadyV4PaneConversationProvider({
 }: Pick<V4PaneConversationProviderProps, "scope" | "children"> & {
   services: IServiceAccessor;
 }) {
-  const agentService = services.zcodeAgentService;
+  const agentService = services.lcodeAgentService;
   const platform = usePlatform();
 
   // 与 V4ConversationProvider 相同的 useMemo 同步建连模式（renderer 无 StrictMode，

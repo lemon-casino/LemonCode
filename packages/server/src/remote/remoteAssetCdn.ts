@@ -133,14 +133,14 @@ export function assertRemoteCdnBaseVersionMatches(
     return;
   }
 
-  // 开发态常会临时覆盖 ZCODE_REMOTE_ASSET_CDN_BASE_URL 做分支联调。
+  // 开发态常会临时覆盖 LCODE_REMOTE_ASSET_CDN_BASE_URL 做分支联调。
   // 如果把基址固定到旧版本（如 .../0.2.7）但客户端已经是 0.2.10，
   // 之前会把旧 remote-assets 落到新版本缓存目录，最终在 deploy 阶段才报 bundle 版本不匹配。
   // 这里前置做版本锁校验，避免“下载成功但后续部署失败”的误导性体验。
   throw new Error(
     `[remote-assets] remoteCdnBaseUrl 版本不匹配：当前应用版本是 ${expectedVersion}，但以下基址固定在其他版本：` +
       `${mismatchedBases.map(({ remoteCdnBaseUrl, pinnedVersion }) => `${pinnedVersion} (${remoteCdnBaseUrl})`).join(", ")}。` +
-      `请将 ZCODE_REMOTE_ASSET_CDN_BASE_URL 改为不带版本的发布根目录，或改为 ${expectedVersion} 对应目录。`,
+      `请将 LCODE_REMOTE_ASSET_CDN_BASE_URL 改为不带版本的发布根目录，或改为 ${expectedVersion} 对应目录。`,
   );
 }
 

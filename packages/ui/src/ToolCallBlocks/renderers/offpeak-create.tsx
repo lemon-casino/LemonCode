@@ -1,8 +1,8 @@
 import { MoonIcon } from "lucide-react";
-import { TID_OFFPEAK_CREATE_CARD, TID_OFFPEAK_CREATE_OPEN } from "@zcode/shared";
+import { TID_OFFPEAK_CREATE_CARD, TID_OFFPEAK_CREATE_OPEN } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl, type IntlInstance } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl, type IntlInstance } from "@/i18n/IntlProvider.js";
 import type { ToolCallBlockRenderContext } from "@/ToolCallBlocks/shared.js";
 
 // OffPeakCreate 的静态轮尾卡（cron-create 兄弟实现，样式契约一致）。
@@ -123,7 +123,7 @@ export function OffPeakCreateTaskCard({
   task: OffPeakCreateTaskSummary;
   onOpenAutomationsMain?: (automationId?: string, automationTab?: "scheduled" | "idle") => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const title = task.title ?? intl.formatMessage({ id: "offPeak.chatCreated.defaultTitle" });
   // 会话内创建的任务绑定并运行在当前会话；位次快照后追加一句提示。
   const statusLine = `${describeOffPeakCardStatus(task, intl)} · ${intl.formatMessage({

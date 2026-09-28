@@ -3,7 +3,7 @@ import {
   TID_WORKFLOW_MOVE_DIALOG,
   TID_WORKFLOW_MOVE_DIALOG_SUBMIT,
   TID_WORKFLOW_MOVE_DIALOG_TARGET,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import {
   Dialog,
@@ -20,7 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   findAutomationWorkspaceOptionByKey,
   reconcileAutomationWorkspaceSelectionKey,
@@ -53,7 +53,7 @@ export function SavedWorkflowMoveDialog({
   onOpenChange,
   onSubmit,
 }: SavedWorkflowMoveDialogProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [targetKey, setTargetKey] = useState<string | null>(null);
 
   // 候选变化时保留仍有效的选择，否则回落到默认项目、首个候选或 null。

@@ -6,13 +6,13 @@ import type {
   CommandsQueryParams,
   CommandsQueryResult,
   ConversationSnapshot,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
 import type { PendingCommandClientContext } from "@/v4/pendingCommandWorkspace.js";
 import { pendingCommandReplayFor, type PendingCommandReplay } from "@/v4/pendingCommandReplay.js";
 export type { PendingCommandReplay } from "@/v4/pendingCommandReplay.js";
 
 const PENDING_COMMAND_TTL_MS = 24 * 60 * 60 * 1_000;
-const STORAGE_KEY = "zcode-v4-pending-commands:v1";
+const STORAGE_KEY = "lcode-v4-pending-commands:v1";
 
 interface StorageLike {
   getItem(key: string): string | null;

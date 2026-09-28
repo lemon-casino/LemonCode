@@ -3,7 +3,7 @@
 import type { ComponentPropsWithoutRef } from "react";
 import { LoaderIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 export interface ChatLoadingProps extends ComponentPropsWithoutRef<"div"> {
   loading: boolean;
@@ -12,7 +12,7 @@ export interface ChatLoadingProps extends ComponentPropsWithoutRef<"div"> {
 }
 
 export function ChatLoading({ loading, size = "default", className, ...props }: ChatLoadingProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   if (!loading) {
     return null;
@@ -24,7 +24,7 @@ export function ChatLoading({ loading, size = "default", className, ...props }: 
     <div
       aria-label={intl.formatMessage({ id: "common.loading" })}
       {...props}
-      data-zcode-chat-loading-animate="true"
+      data-lcode-chat-loading-animate="true"
       role="status"
       className={cn("flex items-center", className)}
     >

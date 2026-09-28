@@ -1,4 +1,4 @@
-import { getMediaPreviewFormat, ServiceChannels, type MediaPreviewKind } from "@zcode/shared";
+import { getMediaPreviewFormat, ServiceChannels, type MediaPreviewKind } from "@lcode/shared";
 import type { IFileService } from "../file/file.js";
 import { createServiceDescriptor } from "../descriptors.js";
 

@@ -7,7 +7,7 @@ export interface CommandCenterSearchHistoryEntry {
 }
 
 const COMMAND_CENTER_HISTORY_LIMIT = 20;
-const COMMAND_CENTER_HISTORY_KEY_PREFIX = "zcode-command-center-search-history:";
+const COMMAND_CENTER_HISTORY_KEY_PREFIX = "lcode-command-center-search-history:";
 
 function getStorage(): Storage | null {
   if (typeof window === "undefined") {

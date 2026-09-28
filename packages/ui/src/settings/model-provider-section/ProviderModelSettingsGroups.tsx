@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
-import type { ModelConfigObject } from "@zcode/provider";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { ModelConfigObject } from "@lcode/provider";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { ProviderModelDraftValues } from "@/settings/model-provider-section/ProviderModelMetadata.js";
 import { JsonSlotEditor } from "@/settings/model-provider-section/ProviderModelMetadataFields.js";
 import { ProviderModelReasoningLevelEditor } from "@/settings/model-provider-section/ProviderModelReasoningLevelEditor.js";
@@ -33,7 +33,7 @@ export function ProviderModelReasoningSettings({
   overrideFields?: ReadonlySet<string>;
   onDraftChange: (patch: Partial<ProviderModelDraftValues>) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   return (
     <ModelSettingsGroup group="reasoning">

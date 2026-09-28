@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { canRetryDatabaseStartup, type DatabaseStartupState } from "@zcode/shared";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { canRetryDatabaseStartup, type DatabaseStartupState } from "@lcode/shared";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
 import { RootStartupLoading } from "@/root/RootStartupLoading.js";
 
@@ -15,7 +15,7 @@ export function GlobalDatabaseStartupLoading({
   onCopy: (details: string) => Promise<void>;
   onExit: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [now, setNow] = useState(Date.now);
   const [copyStatus, setCopyStatus] = useState<"copied" | "copyFailed" | null>(null);
   const failed = state?.phase === "failed";

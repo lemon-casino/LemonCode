@@ -6,14 +6,14 @@ import {
   type OAuthProviderMeta,
   type OAuthTokenSet,
   type OAuthUserProfile,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { readApiJson } from "../../providers/api/apiJson.js";
 import { createServiceLogger } from "../../logger/serviceLogger.js";
 import { parseOAuthLoginAttribution } from "../callbackAttribution.js";
 import type { OAuthProviderRuntimeConfig } from "../runtimeConfig.js";
 import type { OAuthProviderAdapter, OAuthProviderContext } from "./providerAdapter.js";
 
-interface BigModelZcodeTokenEnvelope {
+interface BigModelLcodeTokenEnvelope {
   code?: number;
   msg?: string;
   data?: {
@@ -119,18 +119,18 @@ export class BigModelProviderAdapter implements OAuthProviderAdapter {
     params: OAuthCallbackParams,
     _context: OAuthProviderContext,
   ): Promise<OAuthTokenSet> {
-    const tokenSet = await this.exchangeZcodeJwtToken(params, _context);
+    const tokenSet = await this.exchangeLcodeJwtToken(params, _context);
 
     return {
       ...tokenSet,
     };
   }
 
-  private async exchangeZcodeJwtToken(
+  private async exchangeLcodeJwtToken(
     params: OAuthCallbackParams,
     context: OAuthProviderContext,
   ): Promise<OAuthTokenSet> {
-    log.info(undefined, "zcode token request", {
+    log.info(undefined, "lcode token request", {
       method: "POST",
       url: this.config.tokenUrl,
       headers: { "Content-Type": "application/json" },
@@ -144,13 +144,13 @@ export class BigModelProviderAdapter implements OAuthProviderAdapter {
     });
 
     try {
-      const payload = await readApiJson<BigModelZcodeTokenEnvelope>(
+      const payload = await readApiJson<BigModelLcodeTokenEnvelope>(
         this.apiClient,
         this.config.tokenUrl,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          // zcode JWT 的后端 token 路由按 OAuth callback 授权码语义解析。
+          // lcode JWT 的后端 token 路由按 OAuth callback 授权码语义解析。
           // BigModel Start Plan 不能在后续 balance 查询阶段用 access_token 二次兑换，
           // 否则 body 与 Z.ai 登录链路不一致并触发 HTTP 400。provider 用 shared
           // 中的 OAuth provider 枚举值，避免前后端新增多 provider 后只靠 redirect_uri 猜身份。
@@ -163,34 +163,34 @@ export class BigModelProviderAdapter implements OAuthProviderAdapter {
         },
       );
       if (payload.code !== undefined && payload.code !== 0) {
-        // BigModel 的一次性 authCode 现在只交给 zcode token 路由。
+        // BigModel 的一次性 authCode 现在只交给 lcode token 路由。
         // 如果这里失败，不能继续保存半登录态，否则 Start Plan 仍会显示未连接。
-        log.warn(undefined, "zcode token business response rejected", {
+        log.warn(undefined, "lcode token business response rejected", {
           code: payload.code,
           msg: payload.msg,
         });
         throw new Error(
-          payload.msg?.trim() || `BigModel zcode token 交换失败（code: ${payload.code}）`,
+          payload.msg?.trim() || `BigModel lcode token 交换失败（code: ${payload.code}）`,
         );
       }
-      const zcodeJwtToken = payload.data?.token?.trim() || "";
-      if (!zcodeJwtToken) {
-        log.warn(undefined, "zcode token response missing data.token", {
+      const lcodeJwtToken = payload.data?.token?.trim() || "";
+      if (!lcodeJwtToken) {
+        log.warn(undefined, "lcode token response missing data.token", {
           code: payload.code,
           msg: payload.msg,
         });
-        throw new Error("BigModel zcode token 交换失败：响应缺少 data.token");
+        throw new Error("BigModel lcode token 交换失败：响应缺少 data.token");
       }
       const accessToken = resolveBigModelBusinessAccessToken(payload);
       if (!accessToken) {
         // Coding Plan 付费套餐仍调用 bigmodel.cn 业务接口，只能使用
-        // BigModel 业务 access token；zcode JWT 只能写入 zcodejwttoken 给 Start Plan 使用。
-        // 如果继续把 zcode JWT 写进 oauth:bigmodel:access_token，套餐预览会稳定报“令牌已过期”。
-        log.warn(undefined, "zcode token response missing bigmodel access token", {
+        // BigModel 业务 access token；lcode JWT 只能写入 lcodejwttoken 给 Start Plan 使用。
+        // 如果继续把 lcode JWT 写进 oauth:bigmodel:access_token，套餐预览会稳定报“令牌已过期”。
+        log.warn(undefined, "lcode token response missing bigmodel access token", {
           code: payload.code,
           msg: payload.msg,
         });
-        throw new Error("BigModel zcode token 交换失败：响应缺少 data.bigmodel.access_token");
+        throw new Error("BigModel lcode token 交换失败：响应缺少 data.bigmodel.access_token");
       }
 
       const refreshToken =
@@ -200,12 +200,12 @@ export class BigModelProviderAdapter implements OAuthProviderAdapter {
       return {
         accessToken,
         ...(refreshToken ? { refreshToken } : {}),
-        zcodeJwtToken,
+        lcodeJwtToken,
       };
     } catch (error) {
       // BigModel callback code 是一次性的，客户端不能再先调用
-      // tokenByAuthCode 消费它；zcode token 交换失败时直接中止登录并记录链路头。
-      log.warn(undefined, "zcode token request failed", {
+      // tokenByAuthCode 消费它；lcode token 交换失败时直接中止登录并记录链路头。
+      log.warn(undefined, "lcode token request failed", {
         message: error instanceof Error ? error.message : String(error),
         ...(error instanceof ApiError
           ? {
@@ -224,9 +224,9 @@ export class BigModelProviderAdapter implements OAuthProviderAdapter {
     tokenSet: OAuthTokenSet,
     _context: OAuthProviderContext,
   ): Promise<OAuthUserProfile> {
-    if (tokenSet.zcodeJwtToken && tokenSet.accessToken === tokenSet.zcodeJwtToken) {
+    if (tokenSet.lcodeJwtToken && tokenSet.accessToken === tokenSet.lcodeJwtToken) {
       // 移除 tokenByAuthCode 后 callback 阶段没有 BigModel access token。
-      // zcode JWT 不能调用 bigmodel.cn 的 customer 接口，避免无意义的鉴权失败请求。
+      // lcode JWT 不能调用 bigmodel.cn 的 customer 接口，避免无意义的鉴权失败请求。
       return {
         id: "unknown",
         username: "user",
@@ -298,7 +298,7 @@ export class BigModelProviderAdapter implements OAuthProviderAdapter {
   }
 }
 
-function resolveBigModelBusinessAccessToken(payload: BigModelZcodeTokenEnvelope): string {
+function resolveBigModelBusinessAccessToken(payload: BigModelLcodeTokenEnvelope): string {
   return (
     payload.data?.bigmodel?.access_token?.trim() ??
     payload.data?.bigmodel?.accessToken?.trim() ??

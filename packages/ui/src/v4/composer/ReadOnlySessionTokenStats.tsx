@@ -1,11 +1,11 @@
-import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { ConversationSnapshot } from "@lcode/shared/lcode-protocol-v4";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatCompactTokenNumber } from "@/lib/tokenNumberFormat.js";
 import { readChildSessionTokenTotal, readLiveOutputObservation } from "./sessionTokenStats.js";
 import { useLiveOutputRate } from "./useLiveOutputRate.js";
 
 export function ReadOnlySessionTokenStats({ snapshot }: { snapshot: ConversationSnapshot }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const rate = useLiveOutputRate(snapshot);
   const currentOutput = readLiveOutputObservation(snapshot)?.sample.estimatedTokens ?? null;
   const total = readChildSessionTokenTotal(snapshot);

@@ -1,12 +1,12 @@
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { LCodeTaskMeta } from "@lcode/shared";
 import type { TaskNavEntry } from "@/lib/taskNavigationHistory.js";
 import type { TaskEntityKey } from "@/lib/taskQueryCache.js";
 import { buildTaskEntityKey } from "@/lib/taskQueryCache.js";
 
 export function taskNavigationTargetExists(params: {
   entry: TaskNavEntry;
-  visibleTasks: readonly Pick<ZCodeTaskMeta, "taskId">[];
-  taskMetaByEntityKey: Record<TaskEntityKey, ZCodeTaskMeta>;
+  visibleTasks: readonly Pick<LCodeTaskMeta, "taskId">[];
+  taskMetaByEntityKey: Record<TaskEntityKey, LCodeTaskMeta>;
 }): boolean {
   if (params.visibleTasks.some((task) => task.taskId === params.entry.taskId)) {
     return true;

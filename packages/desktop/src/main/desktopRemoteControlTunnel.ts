@@ -21,7 +21,7 @@ import {
   type RemoteControlRoomExpiredFrame,
   type RemoteControlRoomInvalidatedFrame,
   type RemoteControlRoomReadyFrame,
-} from "@zcode/shared";
+} from "@lcode/shared";
 
 export const REMOTE_CONTROL_HEARTBEAT_INTERVAL_MS = 30_000;
 /** host socket 断开后的重连宽限:与 DO 的 30s 保留期一致(PROTOCOL.md §3.3,v1 常量不配置)。 */
@@ -188,7 +188,7 @@ export function createRemoteControlTunnelSession(
     ((url, headers) => defaultCreateSocket(url, headers));
 
   const upgradeUrl = `${params.workerBaseUrl}/connect/host?roomId=${encodeURIComponent(params.roomId)}`;
-  const upgradeHeaders = { "x-zcode-remote-access-key": params.accessKey };
+  const upgradeHeaders = { "x-lcode-remote-access-key": params.accessKey };
   /**
    * 房间设备表的可变快照:吊销即移除,重连重发的 room.create 不再携带被吊销设备的
    * credHash——否则 host socket 断开窗口内丢失的 device.revoke 会让 Worker 侧凭据

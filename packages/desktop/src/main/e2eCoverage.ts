@@ -7,8 +7,8 @@ const COVERAGE_ENABLED_VALUE = "1";
 export function buildHostE2ECoverageEnv(
   env: NodeJS.ProcessEnv = process.env,
 ): Record<string, string> {
-  const artifactDir = env.ZCODE_E2E_ARTIFACT_DIR?.trim();
-  if (env.ZCODE_E2E_COVERAGE !== COVERAGE_ENABLED_VALUE || !artifactDir) {
+  const artifactDir = env.LCODE_E2E_ARTIFACT_DIR?.trim();
+  if (env.LCODE_E2E_COVERAGE !== COVERAGE_ENABLED_VALUE || !artifactDir) {
     return {};
   }
   const directory = resolve(artifactDir, "coverage", "raw", "host");
@@ -18,7 +18,7 @@ export function buildHostE2ECoverageEnv(
 
 export function flushMainE2ECoverage(onError?: (error: unknown) => void): boolean {
   if (
-    process.env.ZCODE_E2E_COVERAGE !== COVERAGE_ENABLED_VALUE ||
+    process.env.LCODE_E2E_COVERAGE !== COVERAGE_ENABLED_VALUE ||
     !process.env.NODE_V8_COVERAGE?.trim()
   ) {
     return false;

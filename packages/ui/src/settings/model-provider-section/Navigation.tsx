@@ -25,7 +25,7 @@ import {
   isStartPlanModelProviderId,
   TID_MODEL_PROVIDER_NAV_ITEM,
   testId,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { useCallback, useMemo, type KeyboardEvent } from "react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import type { ModelProviderNavGroup, ModelProviderNavItem } from "./constants.js";

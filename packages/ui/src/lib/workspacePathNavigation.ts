@@ -1,6 +1,6 @@
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 
-const WORKSPACE_PATH_OPEN_REQUEST_EVENT = "zcode:workspace-path-open-request";
+const WORKSPACE_PATH_OPEN_REQUEST_EVENT = "lcode:workspace-path-open-request";
 
 export interface WorkspacePathOpenRequest extends MessageFileLinkTarget {
   serviceScope?: "workspace" | "base-local";

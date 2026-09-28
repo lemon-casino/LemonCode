@@ -1,25 +1,25 @@
 import { spawn, execFile } from "node:child_process";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
-import type { DockerConnectOptions } from "@zcode/shared";
+import type { DockerConnectOptions } from "@lcode/shared";
 import type {
   IRemoteBackend,
   RemoteEnvironment,
   RemoteUploadOptions,
   StdioStream,
-} from "@zcode/server/remote/backend.js";
-import { createCloseEventController } from "@zcode/server/remote/closeEvent.js";
+} from "@lcode/server/remote/backend.js";
+import { createCloseEventController } from "@lcode/server/remote/closeEvent.js";
 import {
   isDockerAvailable,
   listDockerContainers,
   resolveDockerCommand,
   type DockerContainerInfo,
-} from "@zcode/server/remote/docker-detect.js";
+} from "@lcode/server/remote/docker-detect.js";
 import {
   normalizeRemoteArch,
   normalizeRemotePlatform,
   resolveRemotePlatform,
-} from "@zcode/server/remote/detectEnv.js";
+} from "@lcode/server/remote/detectEnv.js";
 
 interface ResolvedDockerInfo {
   containerName: string;
@@ -84,7 +84,7 @@ export class DockerBackend implements IRemoteBackend {
     const parentDir = this.dirname(resolvedRemotePath);
 
     // 上传流不会帮我们创建父目录。
-    // 如果直接写入 `~/.zcode/server/...` 这类首次连接路径，上传会因为目录不存在而失败。
+    // 如果直接写入 `~/.lcode/server/...` 这类首次连接路径，上传会因为目录不存在而失败。
     // 先显式 `mkdir -p`，再由容器当前用户写入目标文件，和 SSH/WSL 保持一致。
     await this.execSimple(`mkdir -p ${quotePosixShellArg(parentDir)}`);
 

@@ -1,4 +1,4 @@
-import { Emitter, VSBuffer, type ISocket } from "@zcode/rpc";
+import { Emitter, VSBuffer, type ISocket } from "@lcode/rpc";
 import type { StdioStream } from "./backend.js";
 
 /**

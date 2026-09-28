@@ -1,12 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { HostResponseTypes } from "@zcode/shared";
+import { HostResponseTypes } from "@lcode/shared";
 import type {
   BrowserBackendDescriptor,
   BrowserClientMode,
   BrowserCommand,
   BrowserCommandResult,
   BrowserRecordingArtifact,
-} from "@zcode/shared";
+} from "@lcode/shared";
 
 /**
  * host↔main browser 执行桥。host 侧把一条命令经 parentPort 发给 main（WebContentsView+CDP 执行），
@@ -138,7 +138,7 @@ export function createBrowserControlMainBridge(deps: {
     id: browserId,
     generation: browserGeneration,
     type: "iab",
-    name: "ZCode In-app Browser",
+    name: "LCode In-app Browser",
     capabilities: {
       // capability collection 只列 optional capability；tabs/cua/screenshot/dialog 是 core API，
       // 不能伪装成 capability。viewport 是 Playwright-like Tab 核心 API；browser capability
@@ -162,7 +162,7 @@ export function createBrowserControlMainBridge(deps: {
       "BrowserRecordingAPI.cancel": true,
     },
     metadata: {
-      provider: "zcode-desktop-iab",
+      provider: "lcode-desktop-iab",
     },
   };
 

@@ -2,7 +2,7 @@
  * useTerminalService —— 终端服务 hooks
  */
 import { useState, useEffect, useCallback, useRef } from "react";
-import type { IDisposable } from "@zcode/rpc";
+import type { IDisposable } from "@lcode/rpc";
 import { logger } from "@/logger.js";
 import { useServices } from "./useServices.js";
 

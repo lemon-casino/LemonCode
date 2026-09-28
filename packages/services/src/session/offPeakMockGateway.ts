@@ -2,7 +2,7 @@
 /* off-peak 进程内 mock 网关。
    本地起 127.0.0.1 http 服务完整模拟 额度快照/取号/批量状态/结算/messages，
    真实 HTTP client 与 idle plan provider 的 baseURL 只需指到本网关 origin——生产代码路径
-   与联调完全一致，联调时删掉 ZCODE_OFFPEAK_MOCK 开关即可。
+   与联调完全一致，联调时删掉 LCODE_OFFPEAK_MOCK 开关即可。
 
    ⚠ messages 端点在准入后把请求原样代理到 resolveUpstream() 指定的真实模型端点
    （通常是用户 coding plan 的 anthropic 兼容端点）——mock 模式下跑的是真模型、
@@ -65,7 +65,7 @@ interface MockTicket {
 }
 
 export function isOffPeakMockEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
-  return env["ZCODE_OFFPEAK_MOCK"] === "1";
+  return env["LCODE_OFFPEAK_MOCK"] === "1";
 }
 
 /** 环境变量覆盖数值选项（真机演示用；测试直接传 options）。 */
@@ -76,7 +76,7 @@ function readEnvOptions(env: NodeJS.ProcessEnv): OffPeakMockGatewayOptions {
     const value = Number(raw);
     return Number.isFinite(value) && value >= 0 ? value : undefined;
   };
-  const scenarioValue = env["ZCODE_OFFPEAK_MOCK_SCENARIO"];
+  const scenarioValue = env["LCODE_OFFPEAK_MOCK_SCENARIO"];
   const scenario =
     scenarioValue === "foreground-subagents" ||
     scenarioValue === "capture" ||
@@ -84,31 +84,31 @@ function readEnvOptions(env: NodeJS.ProcessEnv): OffPeakMockGatewayOptions {
       ? scenarioValue
       : undefined;
   return {
-    ...(num("ZCODE_OFFPEAK_MOCK_READY_DELAY_MS") !== undefined
-      ? { readyDelayMs: num("ZCODE_OFFPEAK_MOCK_READY_DELAY_MS") }
+    ...(num("LCODE_OFFPEAK_MOCK_READY_DELAY_MS") !== undefined
+      ? { readyDelayMs: num("LCODE_OFFPEAK_MOCK_READY_DELAY_MS") }
       : {}),
-    ...(num("ZCODE_OFFPEAK_MOCK_READY_TTL_MS") !== undefined
-      ? { readyTtlMs: num("ZCODE_OFFPEAK_MOCK_READY_TTL_MS") }
+    ...(num("LCODE_OFFPEAK_MOCK_READY_TTL_MS") !== undefined
+      ? { readyTtlMs: num("LCODE_OFFPEAK_MOCK_READY_TTL_MS") }
       : {}),
-    ...(num("ZCODE_OFFPEAK_MOCK_ACTIVE_MS") !== undefined
-      ? { activeMs: num("ZCODE_OFFPEAK_MOCK_ACTIVE_MS") }
+    ...(num("LCODE_OFFPEAK_MOCK_ACTIVE_MS") !== undefined
+      ? { activeMs: num("LCODE_OFFPEAK_MOCK_ACTIVE_MS") }
       : {}),
-    ...(num("ZCODE_OFFPEAK_MOCK_QUEUE_429_COUNT") !== undefined
-      ? { queue429Count: num("ZCODE_OFFPEAK_MOCK_QUEUE_429_COUNT") }
+    ...(num("LCODE_OFFPEAK_MOCK_QUEUE_429_COUNT") !== undefined
+      ? { queue429Count: num("LCODE_OFFPEAK_MOCK_QUEUE_429_COUNT") }
       : {}),
-    ...(num("ZCODE_OFFPEAK_MOCK_QUOTA_COUNT") !== undefined
-      ? { quotaExhaustedCount: num("ZCODE_OFFPEAK_MOCK_QUOTA_COUNT") }
+    ...(num("LCODE_OFFPEAK_MOCK_QUOTA_COUNT") !== undefined
+      ? { quotaExhaustedCount: num("LCODE_OFFPEAK_MOCK_QUOTA_COUNT") }
       : {}),
-    ...(num("ZCODE_OFFPEAK_MOCK_AVAILABILITY_BLOCK_MS") !== undefined
+    ...(num("LCODE_OFFPEAK_MOCK_AVAILABILITY_BLOCK_MS") !== undefined
       ? {
-          availabilityBlockedMs: num("ZCODE_OFFPEAK_MOCK_AVAILABILITY_BLOCK_MS"),
+          availabilityBlockedMs: num("LCODE_OFFPEAK_MOCK_AVAILABILITY_BLOCK_MS"),
         }
       : {}),
-    ...(num("ZCODE_OFFPEAK_MOCK_RETRY_AFTER_S") !== undefined
-      ? { retryAfterS: num("ZCODE_OFFPEAK_MOCK_RETRY_AFTER_S") }
+    ...(num("LCODE_OFFPEAK_MOCK_RETRY_AFTER_S") !== undefined
+      ? { retryAfterS: num("LCODE_OFFPEAK_MOCK_RETRY_AFTER_S") }
       : {}),
-    ...(num("ZCODE_OFFPEAK_MOCK_NEXT_POLL_S") !== undefined
-      ? { nextPollS: num("ZCODE_OFFPEAK_MOCK_NEXT_POLL_S") }
+    ...(num("LCODE_OFFPEAK_MOCK_NEXT_POLL_S") !== undefined
+      ? { nextPollS: num("LCODE_OFFPEAK_MOCK_NEXT_POLL_S") }
       : {}),
     ...(scenario ? { scenario } : {}),
   };
@@ -135,7 +135,7 @@ interface OffPeakMockGatewayHandle {
   close: () => Promise<void>;
 }
 
-/** 固定端口（可用 ZCODE_OFFPEAK_MOCK_PORT 覆盖）：多窗口多 host 时共享同一份 mock 票据状态。 */
+/** 固定端口（可用 LCODE_OFFPEAK_MOCK_PORT 覆盖）：多窗口多 host 时共享同一份 mock 票据状态。 */
 const DEFAULT_MOCK_PORT = 45_197;
 
 export async function startOffPeakMockGateway(
@@ -509,8 +509,8 @@ export async function startOffPeakMockGateway(
 
   const requestedPort =
     options?.port ??
-    (Number(process.env["ZCODE_OFFPEAK_MOCK_PORT"]) > 0
-      ? Number(process.env["ZCODE_OFFPEAK_MOCK_PORT"])
+    (Number(process.env["LCODE_OFFPEAK_MOCK_PORT"]) > 0
+      ? Number(process.env["LCODE_OFFPEAK_MOCK_PORT"])
       : DEFAULT_MOCK_PORT);
   try {
     await new Promise<void>((resolve, reject) => {

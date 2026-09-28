@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRightIcon, CircleHelpIcon } from "lucide-react";
-import type { WorkflowRunPendingQuestion, WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunPendingQuestion, WorkflowRunState } from "@lcode/shared/lcode-protocol-v4";
 import { cn } from "@/components/lib/utils.js";
 import { laneDisplayName } from "@/components/workflow-graph/lane-name.js";
 import { phaseDisplayName } from "@/components/workflow-graph/phase-name.js";
@@ -36,7 +36,7 @@ import {
 } from "@/app-shell/WorkflowRunSpineParts.js";
 import { spineSections } from "@/app-shell/workflowRunSpine.js";
 import type { WorkflowActorInstance } from "@/app-shell/workflowRunPanel.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 /**
  * 运行详情页的脊线：卡上的横向时间线在
@@ -94,7 +94,7 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
   /** 落点：`key` 每次打开都不同（`phaseId@openedAt`），同一站再点一次也再落。 */
   landing?: { phaseId: string; key: string };
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const format = intl.formatMessage.bind(intl);
   // 正在运行的站自己展开——带里两条轨道可以同时在跑，**每一个**都要开，不只最右那个。
   // 用一个稳定的键记住这一组 id：投影每动一次模型都换身份，但这一组通常不变。

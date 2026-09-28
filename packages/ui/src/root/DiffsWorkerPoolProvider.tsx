@@ -7,12 +7,12 @@ import {
 import { createDiffsWorkerHighlighterOptions } from "@/lib/diffsHighlighterEngine.js";
 import { logger } from "@/logger.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/store/index.js";
-import { useZCodeStore } from "@/store/StoreProvider.js";
+import { useLCodeStore } from "@/store/StoreProvider.js";
 
 function createDiffsWorker(): Worker {
   return new Worker(new URL("../workers/diffs.worker.ts", import.meta.url), {
     type: "module",
-    name: "zcode-diffs-worker",
+    name: "lcode-diffs-worker",
   });
 }
 
@@ -60,7 +60,7 @@ function WorkerRenderOptionsSync({
 }
 
 export function DiffsWorkerPoolProvider({ children }: { children: ReactNode }) {
-  const codePreviewSettings = useZCodeStore(
+  const codePreviewSettings = useLCodeStore(
     (state) => state.codePreviewSettings ?? DEFAULT_CODE_PREVIEW_SETTINGS,
   );
 

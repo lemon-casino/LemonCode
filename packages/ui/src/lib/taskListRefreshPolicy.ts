@@ -1,4 +1,4 @@
-import type { ZCodeWorkspaceTaskListChanged } from "@zcode/shared";
+import type { LCodeWorkspaceTaskListChanged } from "@lcode/shared";
 
 type TaskListMembershipWorkspaceEventReason =
   | "task_archived"
@@ -6,7 +6,7 @@ type TaskListMembershipWorkspaceEventReason =
   | "task_pinned"
   | "task_unpinned";
 
-const TASK_LIST_MEMBERSHIP_REASONS = new Set<ZCodeWorkspaceTaskListChanged["reason"]>([
+const TASK_LIST_MEMBERSHIP_REASONS = new Set<LCodeWorkspaceTaskListChanged["reason"]>([
   "task_archived",
   "task_unarchived",
   "task_pinned",
@@ -14,7 +14,7 @@ const TASK_LIST_MEMBERSHIP_REASONS = new Set<ZCodeWorkspaceTaskListChanged["reas
 ]);
 
 function isTaskListMembershipWorkspaceEvent<
-  T extends Pick<ZCodeWorkspaceTaskListChanged, "reason">,
+  T extends Pick<LCodeWorkspaceTaskListChanged, "reason">,
 >(
   event: T,
 ): event is T & {
@@ -33,7 +33,7 @@ function isTaskListMembershipWorkspaceEvent<
  * 里，切一次模型会全局 bump membershipVersion，所有列表实例连带重拉归属。
  */
 export function shouldRefetchTaskListMembershipForWorkspaceEvent(
-  event: Pick<ZCodeWorkspaceTaskListChanged, "reason">,
+  event: Pick<LCodeWorkspaceTaskListChanged, "reason">,
 ): boolean {
   // delete 后 sessions-index 仍可能继续发布保留在 CLI store 的 session；
   // task_deleted 必须换代 deleted tombstone join，不能只做一次 query cache 移除。

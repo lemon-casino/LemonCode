@@ -1,12 +1,12 @@
-// 把若干 workspace scope 的 sessions-index 会话聚合成 ZCodeTaskMeta[]（响应式），
+// 把若干 workspace scope 的 sessions-index 会话聚合成 LCodeTaskMeta[]（响应式），
 // 作为侧栏各列表的实时 activity/detail 输入；持久行集合由 tasks-index 提供。
 // 多消费者共享：同一 endpoint+workspace 的订阅经 sessionsIndexRegistry 引用计数复用（地基）。
 // scope 携带 endpoint 维度与该 endpoint 的 agentService（resolveWorkspaceServices 产物），
-// remote shard（web/手机远控/SSH workspace）经 @zcode/rpc proxy 走同一条 sessions-index 链路。
+// remote shard（web/手机远控/SSH workspace）经 @lcode/rpc proxy 走同一条 sessions-index 链路。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { LCodeTaskMeta } from "@lcode/shared";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
-import { compareZCodeTaskListItems } from "@/lib/taskListOrdering.js";
+import { compareLCodeTaskListItems } from "@/lib/taskListOrdering.js";
 import { mapSessionSummaryToTaskMeta } from "@/v4/mapSessionSummaryToTaskMeta.js";
 import {
   buildTaskListItemIdentityKey,
@@ -35,7 +35,7 @@ export interface WorkspaceSessionsIndexScope {
 
 interface WorkspaceSessionsIndexItemsResult {
   /** 聚合会话 meta（running 置顶；其余按 updatedAt 降序；tick 驱动重算，引用稳定）。 */
-  items: ZCodeTaskMeta[];
+  items: LCodeTaskMeta[];
   /**
    * 每个 endpoint + workspace scope 的只读代次。包含 service binding 与 store 的
    * logEpoch/seq，供异步 tasks-index membership join 精确拒绝旧 activity 快照。
@@ -91,7 +91,7 @@ function isHydratingStore(store: SessionsIndexStore): boolean {
 }
 
 /**
- * 订阅给定 workspace scope 的 sessions-index，聚合出 ZCodeTaskMeta[]（running 置顶，其余按 updatedAt 降序）。
+ * 订阅给定 workspace scope 的 sessions-index，聚合出 LCodeTaskMeta[]（running 置顶，其余按 updatedAt 降序）。
  * 生命周期：scope 集合变化时按引用计数 acquire/release 共享 store；任一 store 变化即重算。
  * sessions-index 变化是 conflated 低频列表事件，不属于高频 snapshot。
  */
@@ -99,7 +99,7 @@ export function useWorkspaceSessionsIndexItems(
   scopes: WorkspaceSessionsIndexScope[],
 ): WorkspaceSessionsIndexItemsResult {
   const baseServices = useBaseWorkspaceServices();
-  const baseAgentService = baseServices.zcodeAgentService;
+  const baseAgentService = baseServices.lcodeAgentService;
 
   // scope 签名稳定化，避免每渲染重算协调；effect/memo 通过 ref 读取内容等价的最新 scopes。
   // endpointKey、workspacePath 或 agentService generation 变化都会换签名。
@@ -131,7 +131,7 @@ export function useWorkspaceSessionsIndexItems(
   useEffect(() => {
     const bindings: WorkspaceSessionsIndexBinding[] = [];
     for (const scope of scopesRef.current) {
-      // 防御：测试/降级环境可能没有 zcodeAgentService（sessions-index 传输面），此时不订阅该 scope。
+      // 防御：测试/降级环境可能没有 lcodeAgentService（sessions-index 传输面），此时不订阅该 scope。
       const agentService = scope.agentService ?? baseAgentService;
       if (!agentService) {
         continue;
@@ -150,11 +150,11 @@ export function useWorkspaceSessionsIndexItems(
     [subscriptionSet],
   );
 
-  // 从各 store 聚合会话 → ZCodeTaskMeta + hydration 状态（tick 驱动重算，引用稳定）。
-  const previousItemsRef = useRef<ZCodeTaskMeta[]>([]);
+  // 从各 store 聚合会话 → LCodeTaskMeta + hydration 状态（tick 驱动重算，引用稳定）。
+  const previousItemsRef = useRef<LCodeTaskMeta[]>([]);
   const previousHydratingRef = useRef<string[]>([]);
   return useMemo(() => {
-    const metas: ZCodeTaskMeta[] = [];
+    const metas: LCodeTaskMeta[] = [];
     const hydratingEndpointKeys = new Set<string>();
     const sourceRevisionByScopeKey: Record<string, string> = {};
     const previousByKey = new Map(
@@ -190,7 +190,7 @@ export function useWorkspaceSessionsIndexItems(
         );
       }
     }
-    metas.sort((a, b) => compareZCodeTaskListItems(a, b, "updated"));
+    metas.sort((a, b) => compareLCodeTaskListItems(a, b, "updated"));
     // 每个 tick 都全量重建 metas，即使内容完全没变（例如冷恢复把 seed 换成
     // live 投影只改了列表不消费的 preview 字段），下游也会把"全新数组引用"当成新数据：
     // grouped 视图整树 refresh、workspace 行缓存被 invalidate、各列表 republish——

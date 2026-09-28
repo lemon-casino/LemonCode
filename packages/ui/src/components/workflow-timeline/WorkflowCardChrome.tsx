@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { ChevronRightIcon, ListIcon, Maximize2Icon, Workflow } from "lucide-react";
-import type { WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunState } from "@lcode/shared/lcode-protocol-v4";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -12,7 +12,7 @@ import {
   workflowRunStopReasonMessageId,
   isWorkflowRunSuperseded,
 } from "@/components/workflow-graph/run-status-presentation.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 /**
  * 工作流卡的表头与页脚。
@@ -75,7 +75,7 @@ export function WorkflowRunStatus({
   className?: string;
   testId?: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const effectiveStatus = status ?? run?.status ?? "pending";
   const reason =
     run === undefined ? undefined : readWorkflowRunStopReason({ ...run, status: effectiveStatus });
@@ -161,7 +161,7 @@ export function WorkflowCardHeader({
   /** chevron 的无障碍名；缺席时是工具卡的「展开 / 收起工具详情」。 */
   toggleLabel?: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const openLabel = intl.formatMessage({ id: "chat.toolCall.workflow.openRunDetails" });
   const toggleLabel =
     toggleLabelOverride ??

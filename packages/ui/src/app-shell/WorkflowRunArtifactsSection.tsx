@@ -4,7 +4,7 @@ import {
   TID_WORKFLOW_ARTIFACTS_SECTION,
   TID_WORKFLOW_ARTIFACTS_TOGGLE,
   TID_WORKFLOW_ARTIFACT_CARD,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { WorkflowArtifactIndex } from "@/components/workflow-timeline/WorkflowArtifactIndex.js";
 import { WorkflowArtifactRow } from "@/components/workflow-timeline/WorkflowArtifactRow.js";
@@ -18,9 +18,9 @@ import {
   resolvePrimaryArtifact,
 } from "@/app-shell/workflow-artifacts/artifactPresentation.js";
 import { WorkflowArtifactTilePreview } from "@/app-shell/workflow-artifacts/WorkflowArtifactTilePreview.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { WorkflowRunArtifactView } from "@/hooks/useWorkflowRunArtifacts.js";
-import { useZCodeStoreWithDefault } from "@/store/StoreProvider.js";
+import { useLCodeStoreWithDefault } from "@/store/StoreProvider.js";
 
 /**
  * workflow run 详情页的产物区。
@@ -56,10 +56,10 @@ export const WorkflowRunArtifactsSection = memo(function WorkflowRunArtifactsSec
   /** 缺席即瓦片禁用（宿主没注入打开 tab 的能力）。 */
   onOpenArtifact?: (artifactId: string) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [expanded, setExpanded] = useState(true);
   // markdown 缩略要按 theme 选代码块配色；无 Provider 的宿主（单测）拿到 system。
-  const theme = useZCodeStoreWithDefault((state) => state.theme, "system");
+  const theme = useLCodeStoreWithDefault((state) => state.theme, "system");
   const title = intl.formatMessage({ id: "chat.toolCall.workflow.run.artifacts.title" });
   // 稳定引用：四个渲染器都是 memo 的，labels 每帧换一个新对象会让那层比较永远命中不了。
   const labels = useMemo(

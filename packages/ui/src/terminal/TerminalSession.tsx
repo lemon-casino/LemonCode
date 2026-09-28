@@ -5,9 +5,9 @@ import { Terminal as XTerm } from "@xterm/xterm";
 import { ClipboardPaste, Copy } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
 import type { ILink, ILinkHandler, ITheme, IWindowsPty } from "@xterm/xterm";
-import type { IServiceAccessor } from "@zcode/services";
-import type { IDisposable } from "@zcode/rpc";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { IServiceAccessor } from "@lcode/services";
+import type { IDisposable } from "@lcode/rpc";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import {
   ContextMenu,
@@ -121,7 +121,7 @@ export function TerminalSession({
    */
   workspaceKey?: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);

@@ -1,4 +1,4 @@
-import { ZCODE_FILE_LOCK_TIMEOUT_ERROR_CODE } from "../errors.js";
+import { LCODE_FILE_LOCK_TIMEOUT_ERROR_CODE } from "../errors.js";
 import { mkdir, readFile, readdir, rmdir, rm, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -163,9 +163,9 @@ function createFileLockTimeoutError(
   cause?: unknown,
 ): NodeJS.ErrnoException {
   const error = new Error(
-    `Timed out after ${waitedMs}ms waiting for the ZCode file lock: ${lockFile}`,
+    `Timed out after ${waitedMs}ms waiting for the LCode file lock: ${lockFile}`,
   ) as NodeJS.ErrnoException & { cause?: unknown };
-  error.code = ZCODE_FILE_LOCK_TIMEOUT_ERROR_CODE;
+  error.code = LCODE_FILE_LOCK_TIMEOUT_ERROR_CODE;
   error.path = filePath;
   error.syscall = "mkdir";
   error.cause = cause;
@@ -211,7 +211,7 @@ export async function acquireFileLock(
         currentOwners.length !== 1 ||
         currentOwners[0] !== `owner-${token}.json`
       ) {
-        throw Object.assign(new Error("ZCode file lock ownership changed during acquire"), {
+        throw Object.assign(new Error("LCode file lock ownership changed during acquire"), {
           code: "EEXIST",
         });
       }

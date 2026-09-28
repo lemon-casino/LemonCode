@@ -1,7 +1,7 @@
 import { watch, type FSWatcher } from "node:fs";
 import { resolve } from "node:path";
-import { Emitter, Event, type Event as RpcEvent } from "@zcode/rpc";
-import type { FileWatchEvent } from "@zcode/shared";
+import { Emitter, Event, type Event as RpcEvent } from "@lcode/rpc";
+import type { FileWatchEvent } from "@lcode/shared";
 import { createServiceLogger, type ServiceLogger } from "#src/logger/serviceLogger.js";
 import type { IFileWatcherService } from "./fileWatcher.js";
 import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js";

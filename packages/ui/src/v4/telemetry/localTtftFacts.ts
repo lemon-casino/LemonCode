@@ -1,4 +1,4 @@
-import { LOCAL_TTFT_MAX_DETAILS, type LocalTtftFacts } from "@zcode/shared";
+import { LOCAL_TTFT_MAX_DETAILS, type LocalTtftFacts } from "@lcode/shared";
 
 export function mergeLocalTtftFacts(
   prior: LocalTtftFacts | undefined,

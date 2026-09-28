@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@/components/ui/dialog.js";
 import { toast } from "@/components/ui/toast.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 
 export interface ImagePreviewDialogItem {
@@ -165,7 +165,7 @@ export function ImagePreviewDialog({
   onOpenChange: (open: boolean) => void;
   open: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const platform = useOptionalPlatform();
   const [activeIndex, setActiveIndex] = useState(initialIndex);
   const [previewScale, setPreviewScale] = useState(1);

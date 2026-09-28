@@ -1,7 +1,7 @@
 import { LockKeyholeIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { ProviderModelInputFormatDraft } from "@/settings/model-provider-section/ProviderModelMetadata.js";
 import { modelEditorControlStyle } from "@/settings/model-provider-section/modelEditorControlStyle.js";
 import { ModelOptionCheckbox } from "@/settings/model-provider-section/ProviderModelMetadataFields.js";
@@ -34,7 +34,7 @@ function ModalityOption({
   overridden?: boolean;
   onToggle?: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <Button
       type="button"

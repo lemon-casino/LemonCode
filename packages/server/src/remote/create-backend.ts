@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { homedir } from "node:os";
-import type { RemoteTarget } from "@zcode/shared";
+import type { RemoteTarget } from "@lcode/shared";
 import type { IRemoteBackend } from "./backend.js";
 
 export async function createRemoteBackend(target: RemoteTarget): Promise<IRemoteBackend> {

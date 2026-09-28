@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunState } from "@lcode/shared/lcode-protocol-v4";
 import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
 import type { WorkflowTimelineModel } from "@/components/workflow-timeline/timeline-model.js";
-import { ZCodeIntlProvider } from "@/i18n/IntlProvider.js";
+import { LCodeIntlProvider } from "@/i18n/IntlProvider.js";
 import { WorkflowRunPhaseList } from "./WorkflowRunPhaseList.js";
 
 test("run details mark partial stage counts only when the projection is truncated", () => {
@@ -33,9 +33,9 @@ test("run details mark partial stage counts only when the projection is truncate
   };
   const render = (current: WorkflowRunState) =>
     renderToStaticMarkup(
-      <ZCodeIntlProvider initialLocale="zh-CN">
+      <LCodeIntlProvider initialLocale="zh-CN">
         <WorkflowRunPhaseList graph={graph} model={model} run={current} pendingQuestions={[]} />
-      </ZCodeIntlProvider>,
+      </LCodeIntlProvider>,
     );
   assert.match(render(run), /data-testid="workflow-run-partial-status"/);
   assert.match(render(run), /阶段计数可能不完整/);

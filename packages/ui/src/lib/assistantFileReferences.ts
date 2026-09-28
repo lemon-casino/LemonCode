@@ -2,13 +2,13 @@ import {
   resolveMarkdownFileLink,
   type MarkdownFileLinkResolveOptions,
 } from "@/lib/markdownFileLink.js";
-import { extractConversationPreviewFileReferences } from "@zcode/shared";
+import { extractConversationPreviewFileReferences } from "@lcode/shared";
 import { decodeFilePathUriEscapes, joinFilePath } from "@/lib/path.js";
-import { MEDIA_PREVIEW_FORMATS } from "@zcode/shared";
+import { MEDIA_PREVIEW_FORMATS } from "@lcode/shared";
 import {
-  extractZCodeFileCitationDirectives,
-  resolveZCodeFileCitationPreviewKind,
-} from "@/lib/zcodeFileCitation.js";
+  extractLCodeFileCitationDirectives,
+  resolveLCodeFileCitationPreviewKind,
+} from "@/lib/lcodeFileCitation.js";
 import {
   isBalancedAssistantPathQuotePair,
   isAssistantPathQuoteCharacter,
@@ -161,14 +161,14 @@ export function extractAssistantFileReferences(
   const references: AssistantFileReference[] = [];
   const protectedRanges: Array<[number, number]> = [];
 
-  for (const citation of extractZCodeFileCitationDirectives(content)) {
+  for (const citation of extractLCodeFileCitationDirectives(content)) {
     // Citation 必须占用完整保护区间，否则内部 path 会再次被普通文件正则抽取，
     // 从而绕过 citation 只允许 Office/PDF 卡片的产品边界。
     protectedRanges.push([citation.start, citation.end]);
     if (!citation.path) continue;
     const path = resolveAssistantRawFilePath(workspacePath, citation.path, options);
     const kind = path
-      ? resolveZCodeFileCitationPreviewKind({
+      ? resolveLCodeFileCitationPreviewKind({
           artifactKind: citation.artifactKind,
           path,
         })
@@ -246,7 +246,7 @@ export function extractAssistantFileReferences(
     if (overlapsRanges(start, end, protectedRanges)) continue;
 
     // 普通正文里的 `~/...` 是给用户看的 shell 路径，不是稳定的预览卡片引用。
-    // 明确的 zcode-file-citation 仍在上面的专用分支处理。
+    // 明确的 lcode-file-citation 仍在上面的专用分支处理。
     if (/^~[\\/]/.test(raw)) {
       protectedRanges.push([start, end]);
       continue;

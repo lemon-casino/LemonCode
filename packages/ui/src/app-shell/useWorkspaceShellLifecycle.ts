@@ -1,13 +1,13 @@
 import { useEffect, useRef, type Dispatch, type SetStateAction } from "react";
-import type { IServiceAccessor } from "@zcode/services";
+import type { IServiceAccessor } from "@lcode/services";
 import type { TaskChatMessage as TestChatMessage } from "@/lib/taskChatMessageTypes.js";
 import type { BrowserNavigationRequest } from "@/hooks/useAppPanels.js";
 import { logger } from "@/logger.js";
 import {
   getWorkspaceDisplayedTaskState,
   getWorkspaceInitState,
-  useZCodeSessionStore,
-} from "@/store/zcodeSessionStore.js";
+  useLCodeSessionStore,
+} from "@/store/lcodeSessionStore.js";
 
 export function useWorkspaceShellLifecycle({
   workspaceAbsPath,
@@ -43,7 +43,7 @@ export function useWorkspaceShellLifecycle({
 
   useEffect(() => {
     return () => {
-      const currentWorkspaceState = useZCodeSessionStore
+      const currentWorkspaceState = useLCodeSessionStore
         .getState()
         .getWorkspaceState(workspaceAbsPath);
       const displayedTaskState = getWorkspaceDisplayedTaskState(currentWorkspaceState);
@@ -55,11 +55,11 @@ export function useWorkspaceShellLifecycle({
         return;
       }
 
-      // 预热 session 会让没有 task 的 workspace 也常驻一个 ZCode Agent 进程。
+      // 预热 session 会让没有 task 的 workspace 也常驻一个 LCode Agent 进程。
       // 如果切走 tab 时不清理这类"只预热、未真正使用"的会话，来回切多个 workspace 后，
       // 背景里会留下多条空转进程。这里在离开当前 workspace 时做一次 best-effort 回收。
       // 另外必须把 workspace 初始化状态同步回退成 idle，否则下一次进入页面仍可能看到
-      // 上一次残留的 ready/failed。单 ZCode Agent 下这里不再按 provider 循环清理。
+      // 上一次残留的 ready/failed。单 LCode Agent 下这里不再按 provider 循环清理。
       const workspaceInitState = getWorkspaceInitState(currentWorkspaceState);
       if (workspaceInitState.status === "idle") {
         return;
@@ -69,14 +69,14 @@ export function useWorkspaceShellLifecycle({
       logger.info(
         `[App] 回退 workspace 预热状态 workspace=${workspaceAbsPath} provider=${provider}`,
       );
-      useZCodeSessionStore
+      useLCodeSessionStore
         .getState()
         .setWorkspaceInitAttempts(workspaceAbsPath, 0, workspaceIdentity);
-      useZCodeSessionStore
+      useLCodeSessionStore
         .getState()
         .setWorkspaceInitState(workspaceAbsPath, "idle", null, workspaceIdentity);
 
-      void services.zcodeTaskService
+      void services.lcodeTaskService
         .releaseWorkspacePreparation({
           workspacePath: workspaceAbsPath,
           ...(workspaceIdentity ? { workspaceIdentity } : {}),
@@ -89,5 +89,5 @@ export function useWorkspaceShellLifecycle({
           );
         });
     };
-  }, [services.zcodeTaskService, workspaceIdentity, workspaceAbsPath]);
+  }, [services.lcodeTaskService, workspaceIdentity, workspaceAbsPath]);
 }

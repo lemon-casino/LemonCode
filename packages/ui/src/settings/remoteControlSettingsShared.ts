@@ -1,6 +1,6 @@
 // 远程控制设置段各卡片共享的小工具与常量。
 // 校验规则与毫秒选项在这里集中，卡片组件不各自持有第二份阈值；
-// 域名规范化直接复用 @zcode/shared 的实现，保证 UI 预检与 Main/Worker 的口径一致。
+// 域名规范化直接复用 @lcode/shared 的实现，保证 UI 预检与 Main/Worker 的口径一致。
 import { startUserAction, type UserActionTrigger } from "@/lib/userActionTelemetry.js";
 import { toast } from "@/components/ui/toast.js";
 import type { IntlInstance } from "@/i18n/IntlProvider.js";

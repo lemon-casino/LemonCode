@@ -7,7 +7,7 @@
 //   (cfworker-remote/PROTOCOL.md §1),配合 packages/web/index.html 的 <base href="/"
 //   让资源始终解析到站点根,深链页不会请求 /p/assets/* 这类不存在的路径。
 //   packages/web 自身的默认构建(base=/)不受影响。
-// - 注入 ZCODE_ENV(默认 production):vite.config.ts 用它选择 endpoint 常量与
+// - 注入 LCODE_ENV(默认 production):vite.config.ts 用它选择 endpoint 常量与
 //   sourcemap 策略,移动端产物按生产态构建;只允许注入公开链接常量,
 //   凭据类值不得走 VITE_ 环境注入。
 import { spawn } from "node:child_process";
@@ -48,8 +48,8 @@ async function buildWeb() {
       stdio: "inherit",
       env: {
         ...process.env,
-        // 移动端产物默认生产态;本地调试可显式传 ZCODE_ENV=test 覆盖。
-        ZCODE_ENV: process.env.ZCODE_ENV?.trim() || "production",
+        // 移动端产物默认生产态;本地调试可显式传 LCODE_ENV=test 覆盖。
+        LCODE_ENV: process.env.LCODE_ENV?.trim() || "production",
       },
       windowsHide: true,
     });

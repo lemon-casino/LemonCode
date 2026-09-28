@@ -1,12 +1,12 @@
 import { Button } from "@/components/ui/button.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 export function BigModelRegistrationHint({
   onOpenRegistration,
 }: {
   onOpenRegistration?: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   return (
     <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-ui-base text-foreground-subtle">

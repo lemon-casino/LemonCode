@@ -133,7 +133,7 @@ const BufferPresets = {
   Int: createOneByteBuffer(DataType.Int),
 };
 
-const RPC_NESTED_UINT8_ARRAY_MARKER = "__zcode_rpc_nested_uint8array_v1";
+const RPC_NESTED_UINT8_ARRAY_MARKER = "__lcode_rpc_nested_uint8array_v1";
 const RPC_NESTED_UINT8_ARRAY_BASE64_KEY = "base64";
 
 // ============================================================================

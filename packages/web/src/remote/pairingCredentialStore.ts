@@ -5,7 +5,7 @@
  * 与 Worker 侧 TTL/吊销的 fail-closed 语义一致;localStorage 会把长期有效凭据
  * 留在共享/借用设备上,不在 v1 语义内。
  */
-const STORAGE_KEY = "zcode:remote-pairing:device";
+const STORAGE_KEY = "lcode:remote-pairing:device";
 
 export interface StoredPairingCredential {
   roomId: string;

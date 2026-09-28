@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { IPlatformService } from "@zcode/shared";
+import type { IPlatformService } from "@lcode/shared";
 import {
   appendRemoteConnectionRuntimeLog,
   normalizeRemoteConnectionLogMessage,
@@ -19,7 +19,7 @@ export function useReconnectingRemoteWorkspaceLogs({
   reconnectingWorkspaceKeys: string[];
   resolveWorkspaceTargetByKey: (
     workspaceKey: string,
-  ) => import("@zcode/shared").RemoteWorkspaceSessionEntry["target"] | null;
+  ) => import("@lcode/shared").RemoteWorkspaceSessionEntry["target"] | null;
   resolveWorkspaceRequestIdByKey?: (workspaceKey: string) => string | null;
 }) {
   const reconnectingWorkspaceKeysRef = useRef<string[]>([]);

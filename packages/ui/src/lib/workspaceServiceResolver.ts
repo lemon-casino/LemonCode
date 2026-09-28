@@ -1,4 +1,4 @@
-import type { IServiceAccessor } from "@zcode/services";
+import type { IServiceAccessor } from "@lcode/services";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 
 interface WorkspaceServiceTarget {

@@ -1,6 +1,6 @@
 import { access } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
-import type { IntegratedTerminalShellSelection } from "@zcode/shared";
+import type { IntegratedTerminalShellSelection } from "@lcode/shared";
 
 export async function resolveConfiguredTerminalShell(
   selection: IntegratedTerminalShellSelection | undefined,

@@ -1,5 +1,5 @@
-import type { ModelSelectionView } from "@zcode/provider";
-import type { SessionConfigState } from "@zcode/shared/zcode-protocol-v4";
+import type { ModelSelectionView } from "@lcode/provider";
+import type { SessionConfigState } from "@lcode/shared/lcode-protocol-v4";
 import { createComposerSubmissionConfig } from "@/v4/composer/composerSubmissionConfig.js";
 
 /** 副屏继承父 runtime 的生效模型；不能把主 Composer 未提交的草稿带进新 child。 */

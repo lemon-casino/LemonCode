@@ -1,10 +1,10 @@
 import type { ConversationFindMatch } from "@/v4/conversationFindIndex.js";
 
-const FIND_HIGHLIGHT_NAME = "zcode-v4-conversation-find";
-const ACTIVE_FIND_HIGHLIGHT_NAME = "zcode-v4-conversation-find-active";
-const SEARCH_RESULT_HIGHLIGHT_NAME = "zcode-v4-conversation-search-result";
+const FIND_HIGHLIGHT_NAME = "lcode-v4-conversation-find";
+const ACTIVE_FIND_HIGHLIGHT_NAME = "lcode-v4-conversation-find-active";
+const SEARCH_RESULT_HIGHLIGHT_NAME = "lcode-v4-conversation-search-result";
 
-const FIND_STYLE_ID = "zcode-v4-conversation-find-highlight-style";
+const FIND_STYLE_ID = "lcode-v4-conversation-find-highlight-style";
 const FIND_HIGHLIGHT_STYLE = `
 ::highlight(${FIND_HIGHLIGHT_NAME}) {
   background-color: var(--color-find-highlight, #fde68a);

@@ -1,7 +1,7 @@
 import { memo, type ReactNode, useEffect, useMemo, useState } from "react";
-import { TID_CHAT_TOOL_CALL_BLOCK, testId } from "@zcode/shared";
+import { TID_CHAT_TOOL_CALL_BLOCK, testId } from "@lcode/shared";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { mapToolStatus } from "@/lib/mapToolStatus.js";
 import { buildToolDisplayModel } from "@/lib/toolDisplay.js";
 import type { TaskChatToolCallTreeNode } from "@/lib/toolCallTree.js";
@@ -152,7 +152,7 @@ function ToolCallBlockComponent({
   ) => ReactNode;
 }) {
   const { toolCall, childToolCalls } = toolCallNode;
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const isOfficeMode = useIsOfficeMode();
   const toolEntranceAnimationKey = `${streamingEntranceKeyPrefix}:${toolCall.toolId}`;
   // tool 在流式对话中新出现时如果没有淡入，会和同一段文字的渐入节奏割裂。
@@ -373,7 +373,7 @@ function ToolCallBlockComponent({
       data-tool-call-id={toolCall.toolId}
       data-tool-name={toolCall.toolName ?? toolCall.kind ?? ""}
       data-status={toolCall.status}
-      data-zcode-tool-stream-animate={shouldPlayEntranceAnimation ? "true" : undefined}
+      data-lcode-tool-stream-animate={shouldPlayEntranceAnimation ? "true" : undefined}
     >
       {toolCall.kind === "cuaGroup" ? (
         <CuaGroupToolCallBlock

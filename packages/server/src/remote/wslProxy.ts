@@ -1,5 +1,5 @@
 import { isIP } from "node:net";
-import { quotePosixShellArg } from "@zcode/server/remote/posixShell.js";
+import { quotePosixShellArg } from "@lcode/server/remote/posixShell.js";
 
 const LOOPBACK_IPV4_PREFIX = "127.";
 const LINK_LOCAL_IPV4_PREFIX = "169.254.";

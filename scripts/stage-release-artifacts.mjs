@@ -21,7 +21,7 @@ export function expectedArtifactNames(version, os, arch) {
   }
   return formats[os].map((extension) => {
     const artifactArch = os === "linux" ? linuxPackageArchitectures[arch][extension] : arch;
-    return `ZCode-${version}-${os}-${artifactArch}.${extension}`;
+    return `LCode-${version}-${os}-${artifactArch}.${extension}`;
   });
 }
 

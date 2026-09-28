@@ -6,7 +6,7 @@
 // - 30s keep-warm：refCount 归零不立即 dispose（防 pane 关/开、布局调整抖动）；
 // - agentService 换代：远程条目保持 layer/transport 身份并单向切换最新 proxy；
 //   本地 __base__ 用新 service 重建条目。
-import type { IZCodeAgentService } from "@zcode/services";
+import type { ILCodeAgentService } from "@lcode/services";
 import { createAgentConversationTransport } from "@/v4/agentConversationTransport.js";
 import { remoteAgentServiceGeneration } from "@/lib/remoteAgentServiceGeneration.js";
 import { ReplaceableConversationTransport } from "@/v4/replaceableConversationTransport.js";
@@ -16,7 +16,7 @@ import { logger } from "@/logger.js";
 
 /** 注册表需要的 agentService 窄面（= conversation transport 的依赖面，便于测试注入）。 */
 export type WorkspaceConnectionAgentService = Pick<
-  IZCodeAgentService,
+  ILCodeAgentService,
   | "helloConversationV4"
   | "initializeConversationV4"
   | "subscribeConversationV4"

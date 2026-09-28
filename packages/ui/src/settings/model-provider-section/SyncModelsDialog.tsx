@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RefreshCwIcon, ShieldCheckIcon } from "lucide-react";
-import { TID_MODEL_PROVIDER_SYNC_MODELS_DIALOG } from "@zcode/shared";
+import { TID_MODEL_PROVIDER_SYNC_MODELS_DIALOG } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
 import {
@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   runCancelablePool,
   runSequentialModelMutation,
@@ -43,7 +43,7 @@ interface SyncModelsDialogProps {
 type SyncOperation = "load" | "probe" | "sync";
 
 export function SyncModelsDialog(props: SyncModelsDialogProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [remoteIds, setRemoteIds] = useState<readonly string[]>([]);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [results, setResults] = useState<Record<string, SyncModelProbeResult>>({});

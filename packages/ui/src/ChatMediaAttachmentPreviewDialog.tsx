@@ -7,7 +7,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.js";
 import type { PdfViewerLabels, PdfViewerSource } from "@/components/ui/pdf-viewer.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 // react-pdf/pdfjs 在模块导入阶段依赖浏览器 DOMMatrix；对话列表也会加载本组件，
 // 导致 Node 测试和非 PDF 对话在真正打开预览前就触发浏览器专属依赖。仅在渲染 PDF 时懒加载，
@@ -37,7 +37,7 @@ export function ChatMediaAttachmentPreviewDialog({
   loading?: boolean;
   error?: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const isVideo = attachment?.mediaType.startsWith("video/") === true;
   const isPdf = attachment?.mediaType.split(";", 1)[0]?.trim().toLowerCase() === "application/pdf";
   const [videoState, setVideoState] = useState<"loading" | "ready" | "unsupported">("loading");

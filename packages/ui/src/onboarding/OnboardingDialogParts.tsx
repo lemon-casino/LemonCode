@@ -1,7 +1,7 @@
 import { CheckIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 export type OnboardingView = "welcome" | "wizard";
 export type OnboardingWizardStep =
@@ -48,7 +48,7 @@ export function getOnboardingStepMessageKey(step: OnboardingWizardStep): string 
 }
 
 export function OnboardingWizardSidebar(props: { currentStep: OnboardingWizardStep }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const currentIndex = WIZARD_STEPS.findIndex((step) => step.key === props.currentStep);
 
   return (
@@ -129,7 +129,7 @@ export function OnboardingWizardFooter(props: {
   /** 未选任何会话或外部导入项时禁用「开始迁移」 */
   beginMigrationDisabled?: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const isExternalImportStep = isOnboardingExternalImportStep(props.currentStep);
 
   const helperText =

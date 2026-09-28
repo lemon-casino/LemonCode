@@ -4,14 +4,14 @@ import { createRoot } from "react-dom/client";
 import {
   AppErrorBoundary,
   Root,
-  ZCodeIntlProvider,
+  LCodeIntlProvider,
   generateMobileDeviceFingerprint,
   playTaskNotificationSound,
   setStreamClientId,
   type Theme,
-} from "@zcode/ui";
-import "@zcode/ui/styles.css";
-import { connectViaWebSocket } from "@zcode/client";
+} from "@lcode/ui";
+import "@lcode/ui/styles.css";
+import { connectViaWebSocket } from "@lcode/client";
 import { WebCallbackPage } from "./auth/WebCallbackPage.js";
 import { createWebAuthService } from "./auth/webAuthService.js";
 import { WEB_ZAI_OAUTH_CONFIG, resolveWebAuthDevReturnTo } from "./auth/webZaiOAuthConfig.js";
@@ -29,14 +29,14 @@ import {
   isConversationSharePath,
   resolveConversationShareCodeFromPath,
 } from "./share/conversationShareRoute.js";
-import type { IPlatformService, RemoteTarget, ServerRemoteInfo } from "@zcode/shared";
+import type { IPlatformService, RemoteTarget, ServerRemoteInfo } from "@lcode/shared";
 import { parsePairingDeepLink, type PairingDeepLinkRoute } from "./remote/pairingDeepLink.js";
 import { MobilePairingPage } from "./remote/MobilePairingPage.js";
 import type { MobileDataServices } from "./remote/pairingSockets.js";
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
 
 function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): Theme {
-  const saved = localStorage.getItem("zcode-theme");
+  const saved = localStorage.getItem("lcode-theme");
   return resolveWebInitialTheme({ storedTheme: saved, defaultTheme });
 }
 
@@ -102,7 +102,7 @@ interface WebBootstrapResult {
 }
 
 // connectViaWebSocket 的返回即 app shell 需要的 services 面;不直接命名 IServiceAccessor,
-// 避免 packages/web 为类型引入对 @zcode/services 的直接依赖。
+// 避免 packages/web 为类型引入对 @lcode/services 的直接依赖。
 type WebServices = Awaited<ReturnType<typeof connectViaWebSocket>>;
 
 function isWebOAuthCallback(params: URLSearchParams): boolean {
@@ -114,7 +114,7 @@ function isWebOAuthCallback(params: URLSearchParams): boolean {
 }
 
 function renderWebAuthCallbackPage(): void {
-  document.title = "ZCode - Sign In";
+  document.title = "LCode - Sign In";
   const callbackState = parseOAuthState(
     new URLSearchParams(window.location.search).get("state") ?? "",
   );
@@ -139,7 +139,7 @@ async function renderConversationSharePage(): Promise<void> {
   document.documentElement.lang = routeLocale;
   // 分享页必须设置 title：否则浏览器标签只显示 index.html 的通用标题。
   // 会话标题要等 preview 加载完，先给一个语言正确的兜底。
-  document.title = routeLocale === "zh-CN" ? "ZCode 会话分享" : "ZCode Conversation Share";
+  document.title = routeLocale === "zh-CN" ? "LCode 会话分享" : "LCode Conversation Share";
   const shareCode = resolveConversationShareCodeFromPath(window.location.pathname);
   if (!shareCode) {
     root.render(
@@ -152,7 +152,7 @@ async function renderConversationSharePage(): Promise<void> {
   }
 
   const endpointOrigin =
-    import.meta.env.VITE_ZCODE_BASE_URL?.trim().replace(/\/+$/u, "") || window.location.origin;
+    import.meta.env.VITE_LCODE_BASE_URL?.trim().replace(/\/+$/u, "") || window.location.origin;
   const mockMode =
     import.meta.env.DEV && import.meta.env.VITE_CONVERSATION_SHARE_PREVIEW_MOCK === "true";
   // Share 加载失败不能只有通用 network 文案：需要区分 mock、endpoint 配置或跨域 fetch。
@@ -169,12 +169,12 @@ async function renderConversationSharePage(): Promise<void> {
       ).MockConversationSharePreviewClient()
     : new ConversationSharePreviewClient({ baseUrl: `${endpointOrigin}/api/v1` });
   const getMockToken = () =>
-    mockMode && window.sessionStorage.getItem("zcode:share:mock-auth") === "owner"
+    mockMode && window.sessionStorage.getItem("lcode:share:mock-auth") === "owner"
       ? "mock-owner-token"
       : null;
   const onLogout = () => {
     if (mockMode) {
-      window.sessionStorage.removeItem("zcode:share:mock-auth");
+      window.sessionStorage.removeItem("lcode:share:mock-auth");
       window.location.reload();
       return;
     }
@@ -184,10 +184,10 @@ async function renderConversationSharePage(): Promise<void> {
     <ConversationShareLandingLoader
       shareCode={shareCode}
       client={client}
-      getAccessToken={() => getMockToken() ?? webAuthService.getZCodeJwtToken()}
+      getAccessToken={() => getMockToken() ?? webAuthService.getLCodeJwtToken()}
       onLogin={(provider) => {
         if (mockMode) {
-          window.sessionStorage.setItem("zcode:share:mock-auth", "owner");
+          window.sessionStorage.setItem("lcode:share:mock-auth", "owner");
           window.location.reload();
           return;
         }
@@ -433,7 +433,7 @@ function WebBootstrapErrorScreen({ message }: { message: string }) {
 }
 
 function renderWebBootstrapError(error: unknown): void {
-  document.title = "ZCode - Web";
+  document.title = "LCode - Web";
   root.render(
     <WebBootstrapErrorScreen message={error instanceof Error ? error.message : String(error)} />,
   );
@@ -454,7 +454,7 @@ function buildAppShellElement(
   const platform = createWebPlatform();
   return (
     <AppErrorBoundary>
-      <ZCodeIntlProvider
+      <LCodeIntlProvider
         settingService={services.settingService}
         broadcastService={services.broadcastService}
       >
@@ -470,7 +470,7 @@ function buildAppShellElement(
           supportsEmbeddedBrowser={false}
           allowRemoteWorkspace={false}
         />
-      </ZCodeIntlProvider>
+      </LCodeIntlProvider>
     </AppErrorBoundary>
   );
 }
@@ -519,7 +519,7 @@ async function bootstrapWebApp() {
     const services = await connectViaWebSocket(bootstrap.wsUrl, {
       onClose: () => {},
     });
-    document.title = "ZCode - Web + Server";
+    document.title = "LCode - Web + Server";
 
     root.render(buildAppShellElement(services, bootstrap));
   } catch (error) {

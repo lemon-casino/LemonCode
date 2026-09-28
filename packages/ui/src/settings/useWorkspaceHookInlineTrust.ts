@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Hook } from "@zcode/shared";
-import type { IHooksService } from "@zcode/services";
+import type { Hook } from "@lcode/shared";
+import type { IHooksService } from "@lcode/services";
 import { toast } from "@/components/ui/toast.js";
 import { useServices } from "@/hooks/useServices.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { useHooksStore } from "@/store/hooksStore.js";
 import {
@@ -24,7 +24,7 @@ export function useWorkspaceHookInlineTrust(input: {
   hooksService?: IHooksService;
   rpcReady?: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const contextServices = useServices();
   // Settings 的 PluginScopeMenu 可以选中非当前激活的（远程）workspace。
   // 信任后的列表刷新与 settings 预信任回退若走 useServices() 的 context 服务（指向激活

@@ -4,9 +4,9 @@ import {
   TID_RESOURCE_MANAGER_STORAGE_DISK_CARD,
   TID_RESOURCE_MANAGER_STORAGE_ROOT,
   testId,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatBytes } from "@/resource-manager/resourceUsageView.js";
 import { storageCategoryTitleId, type StorageLegendItem } from "./storageCategoryPresentation.js";
 
@@ -25,7 +25,7 @@ export function StorageDiskCard({
   selectable: boolean;
   onSelect: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const label =
     group.volume?.mountPoint ?? intl.formatMessage({ id: "resourceManager.storage.disk" });
   const body = (

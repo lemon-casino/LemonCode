@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, type ReactNode } from "react";
-import type { ConversationTelemetryFact } from "@zcode/shared/zcode-protocol-v4";
-import { resolveWorkspaceTelemetryDetail, type IPlatformService } from "@zcode/shared";
-import { createConversationTelemetryService, type IServiceAccessor } from "@zcode/services";
+import type { ConversationTelemetryFact } from "@lcode/shared/lcode-protocol-v4";
+import { resolveWorkspaceTelemetryDetail, type IPlatformService } from "@lcode/shared";
+import { createConversationTelemetryService, type IServiceAccessor } from "@lcode/services";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { ConversationTelemetrySupervisor } from "@/v4/telemetry/conversationTelemetrySupervisor.js";
 
@@ -74,7 +74,7 @@ function acquireSupervisor(
   platform: Pick<IPlatformService, "reportArmsCustomEvent" | "reportTelemetryEvent">,
 ): SupervisorLease {
   const logicalScopeKey = logicalAttachmentScopeKey(scope);
-  const key = attachmentScopeKey(scope, services.zcodeAgentService);
+  const key = attachmentScopeKey(scope, services.lcodeAgentService);
   // service generation 换代时，零引用旧 supervisor 立即销毁；仍被 pane 使用的旧代标 stale，
   // 等末位 lease 释放再清理。不能让旧/新 generation 同时长期订阅同一 workspace。
   for (const [candidateKey, candidate] of supervisorRegistry) {
@@ -160,7 +160,7 @@ function ensureSupervisorSubscription(
   services: IServiceAccessor,
 ): void {
   if (entry.subscription) return;
-  const telemetryService = createConversationTelemetryService(services.zcodeAgentService);
+  const telemetryService = createConversationTelemetryService(services.lcodeAgentService);
   const factEvent = telemetryService.onFact({
     workspacePath: scope.workspacePath,
     ...(scope.workspaceIdentity ? { workspaceIdentity: scope.workspaceIdentity } : {}),
@@ -201,7 +201,7 @@ export function ConversationTelemetryWorkspaceAttachment({
     [remoteSessionId, workspaceIdentity, workspacePath],
   );
   const lease = useMemo(() => {
-    const agentService = services.zcodeAgentService as object | null | undefined;
+    const agentService = services.lcodeAgentService as object | null | undefined;
     if (!enabled || !platform || !agentService) return null;
     // Bug 根因：Root 的隔离渲染和远端 service 准备阶段可能尚无 PlatformProvider 或 agent service。
     // telemetry 是旁路能力，不能因依赖未就绪阻断 workspace 主界面；依赖齐备后再按 generation 建 lease。

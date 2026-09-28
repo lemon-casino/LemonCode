@@ -7,7 +7,7 @@ import {
   TID_PROMPT_SUGGESTION_SECTION,
   TID_PROMPT_SUGGESTION_STATUS,
   testId,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { Info, LoaderIcon } from "lucide-react";
 import {

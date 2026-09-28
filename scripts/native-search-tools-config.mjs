@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 export const NATIVE_SEARCH_DEPENDENCIES_DIR = join(
   repoRoot,
-  "apps/zcode-cli/dependencies/native-search",
+  "apps/lcode-cli/dependencies/native-search",
 );
 
 export const MACOS_NATIVE_SEARCH_DEPLOYMENT_TARGET = "12.0";

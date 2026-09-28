@@ -8,7 +8,7 @@ import {
   readWorkflowRunStopReason,
   type WorkflowRunStopReason,
 } from "@/components/workflow-graph/run-status-presentation.js";
-import type { WorkflowRunActor, WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunActor, WorkflowRunState } from "@lcode/shared/lcode-protocol-v4";
 import { workflowRunConcurrencyEventLine } from "@/app-shell/workflowRunThrottle.js";
 
 /** 未知事件种类的兜底原文上限：事件日志绝不把整条 journal 灌进 DOM。 */

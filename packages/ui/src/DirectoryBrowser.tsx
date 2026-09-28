@@ -1,10 +1,10 @@
 import { useEffect, useState, useRef } from "react";
-import type { IServiceAccessor } from "@zcode/services";
-import type { FileEntry } from "@zcode/shared";
+import type { IServiceAccessor } from "@lcode/services";
+import type { FileEntry } from "@lcode/shared";
 import { FolderIcon, FolderSymlinkIcon } from "lucide-react";
 import { Button } from "./components/ui/button.js";
 import { Input } from "./components/ui/input.js";
-import { useZCodeIntl } from "./i18n/IntlProvider.js";
+import { useLCodeIntl } from "./i18n/IntlProvider.js";
 import { logger } from "./logger.js";
 
 function createDirectoryBrowserReadParams(
@@ -67,7 +67,7 @@ export function DirectoryBrowser({
   const listRef = useRef<HTMLDivElement>(null);
   const showHiddenDirectoriesRef = useRef(false);
   const requestGuardRef = useRef(createDirectoryBrowserRequestGuard());
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   // 初始化：获取 homedir 作为起始路径
   useEffect(() => {

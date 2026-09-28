@@ -2,11 +2,11 @@
 
 ## 背景与范围
 
-`packages/zcode-cua` 现提供仓库内开放实现：本地输入驱动 seam、官方帧契约、带认证的 PiP 客户端/服务端与 macOS presenter、capability-authenticated Helper broker、xa11y 应用观测及 14 方法产品词表。公开 API、12 条 exports 子路径与既有失败文案保持兼容；产品路径不依赖私有 producer。
+`packages/lcode-cua` 现提供仓库内开放实现：本地输入驱动 seam、官方帧契约、带认证的 PiP 客户端/服务端与 macOS presenter、capability-authenticated Helper broker、xa11y 应用观测及 14 方法产品词表。公开 API、12 条 exports 子路径与既有失败文案保持兼容；产品路径不依赖私有 producer。
 
 实现组成：
 
-- 内部驱动采用 `@nut-tree-fork/nut-js`（实测 `npm view @nut-tree-fork/nut-js license version` → `Apache-2.0` / `4.2.6`，与包的 Apache-2.0 许可一致；本仓库已按 `pnpm add @nut-tree-fork/nut-js --filter @zcode/zcode-cua` 落地）。
+- 内部驱动采用 `@nut-tree-fork/nut-js`（实测 `npm view @nut-tree-fork/nut-js license version` → `Apache-2.0` / `4.2.6`，与包的 Apache-2.0 许可一致；本仓库已按 `pnpm add @nut-tree-fork/nut-js --filter @lcode/lcode-cua` 落地）。
 - 驱动调用隔离在可替换 seam 之后，单测注入 mock。
 - `createComputerUseRuntime` 公开签名与 12 条 exports 子路径不变；缺少凭据、Helper transport 不可达或响应无法验证时继续返回既有 unavailable 文案，Helper 已返回的结构化产品错误则保留 code/message/details，不得伪装成 build unavailable。`ComputerUseRuntimeOptions` 以可选字段接收 broker socket/capability/generation、日志与本地 seam 注入，`execute`/`closeSession`/`dispose` 签名不动。
 - 应用观测与产品输入采用 `@crowecawcaw/xa11y@0.15.0`（MIT；Windows UI Automation、macOS AXUIElement、Linux AT-SPI2；Node 方法异步运行在 N-API worker pool），包括 `inputSim()` 原始输入。`@nut-tree-fork/nut-js` 只保留给本地驱动回归和显式 `e2e:local`，不用窗口标题、进程列表或截图裁剪伪造可访问性树。
@@ -75,14 +75,14 @@ AgentRuntime（唯一决策循环）
 broker 使用 Node `net` 的 newline JSON，单帧上限 1 MiB（含截图的响应上限沿 node_repl 既有 32 MiB），首帧和每个请求都严格校验：
 
 ```text
-{id, protocol:"zcode.cua/broker", version:1, capability, generation, method, params}
+{id, protocol:"lcode.cua/broker", version:1, capability, generation, method, params}
 {id, ok:true, result}
 {id, ok:false, error:{code,message,possibly_sent?,retryable?}}
 ```
 
 - 控制方法为 `ping`、`broker_info`、`permission_status`、`execute`、`close_session`、`shutdown`；`execute.params` 承载上述 14 方法、参数和 context。为兼容现有 macOS 设置页的本机签名身份通道，前三个只读方法允许无 wire capability；它们不得触发权限提示或输入副作用。`execute`、`close_session`、`shutdown` 始终要求 capability + generation。
-- socket 路径不是授权凭据。为兼容本项目已有 Host/Agent 身份链，broker **复用同一批下发的 `ZCODE_CUA_PLUGIN_AUTHORITY` 作为 capability**，不再制造第二份机密状态。当前 Host authority 在 Host 生命周期内稳定、重建 Host 时随机轮换，因此旧 Host authority、缺 capability、generation 不匹配、坏帧、超限、未知方法、Helper dispose 后请求均在触发权限/驱动前拒绝。比较使用常量时间实现。
-- 常驻 Helper 的 capability 与 generation 不得出现在 argv、环境变量或 credential 文件。Windows/Linux Node fork 与 macOS 产品 Helper 统一使用父子进程 Node IPC 一次性 bootstrap；`ZCODE_CUA_PERMISSION_BROKER_SOCKET`、既有 `ZCODE_CUA_PLUGIN_AUTHORITY` 与 generation 只定向注入官方 `node_repl`，并继续从通用子进程环境剥离。当前 Agent-facing tuple 的兼容 generation 为 `0`；协议保留显式数字字段，后续轮换时无需改 wire。node_repl 自身的二级 broker token 保留，两跳各自防 confused deputy。
+- socket 路径不是授权凭据。为兼容本项目已有 Host/Agent 身份链，broker **复用同一批下发的 `LCODE_CUA_PLUGIN_AUTHORITY` 作为 capability**，不再制造第二份机密状态。当前 Host authority 在 Host 生命周期内稳定、重建 Host 时随机轮换，因此旧 Host authority、缺 capability、generation 不匹配、坏帧、超限、未知方法、Helper dispose 后请求均在触发权限/驱动前拒绝。比较使用常量时间实现。
+- 常驻 Helper 的 capability 与 generation 不得出现在 argv、环境变量或 credential 文件。Windows/Linux Node fork 与 macOS 产品 Helper 统一使用父子进程 Node IPC 一次性 bootstrap；`LCODE_CUA_PERMISSION_BROKER_SOCKET`、既有 `LCODE_CUA_PLUGIN_AUTHORITY` 与 generation 只定向注入官方 `node_repl`，并继续从通用子进程环境剥离。当前 Agent-facing tuple 的兼容 generation 为 `0`；协议保留显式数字字段，后续轮换时无需改 wire。node_repl 自身的二级 broker token 保留，两跳各自防 confused deputy。
 
 常驻 Helper 的 credential bootstrap 时序固定为：
 
@@ -117,9 +117,9 @@ Helper 注册 IPC listener
 - 三个平台必须从仓库内同一份 `helper-entry.js`、broker、producer 和驱动源码生成 Helper 资源，不得把私有 producer、预置的外部 Helper 二进制或仅开发机存在的绝对路径作为产品依赖。平台差异只允许位于受控的启动器、原生 xa11y/nut-js 包选择和系统权限适配层。
 - Windows 与 Linux 使用受完整性清单约束的 Node Helper runtime。清单必须覆盖入口、递归 JS 闭包、所选平台/架构的 `.node` 与运行所需旁文件；启动前逐项校验哈希、拒绝缺失、额外文件、符号链接、大小写碰撞和平台/架构不匹配。Linux 选择 `@crowecawcaw/xa11y-linux-{x64|arm64}-gnu`，并保持本项目既有 RHEL 8+/glibc 2.28 发布基线：release workflow 必须从锁定的 xa11y 源码 revision 在 manylinux*2_28 对应原生架构环境构建 N-API addon，stager 必须校验 ELF 架构与最高 `GLIBC*\*` 符号版本不高于 2.28；npm 上游预编译包或任意 override 不满足该契约时终止出包，不能生成“可安装但 Helper 必然无法加载”的产物。
 - Linux Helper 在发布 `transport_ready`/`ready` 和 Agent-facing credential tuple 前必须完成无输入副作用的能力预检：识别当前 X11 或 Wayland 会话，验证 AT-SPI `App.list()` 返回有效数组，并确认 xa11y `inputSim()` 可初始化后立即释放。Wayland 还必须由 **Helper 同一进程身份**验证 `/dev/uinput` 可写；不满足时返回稳定的 fail-closed 启动原因，不能等到首个 move/click/key/type 才失败。不得静默把用户加入 `input` group、安装扩大权限的 udev 规则或回退到绕过 broker 的输入路径；无显示环境、Wayland bridge、AT-SPI 或输入权限只拒绝本次启动，不能永久禁用 Linux 平台。
-- macOS 产品资源中的 `ZCode Computer Use.app` 必须由仓库内构建脚本生成，bundle 内执行同一份开放 Helper runtime，并包含仓库内 Swift 源码构建的非激活浮动 PiP presenter；固定 bundle id 继续作为 TCC 身份。`Info.plist`、入口、Node executable、presenter、JS 闭包及 `@crowecawcaw/xa11y-darwin-{x64|arm64}` 原生文件全部进入清单。仓库与 GitHub workflow 只产出可签名的未签名 bundle/package；使用者下载后在外部对嵌套 Mach-O 与 bundle 自行签名、公证。对要求签名的安装模式，现有安装器仍复核 TeamIdentifier、架构、Gatekeeper 与签名并 fail closed。
-- macOS 的 `CFBundleExecutable` 是 Node SEA Mach-O，不得是 shell wrapper。打包方必须显式提供 `ZCODE_CUA_MAC_NODE_EXECUTABLE`、与构建 Node 相同的 `ZCODE_CUA_MAC_NODE_VERSION` 和 `ZCODE_CUA_MAC_NODE_SHA256`；stager 在注入 SEA 前校验常规文件、SHA-256 与目标 `lipo` 架构，任一缺失或不匹配即终止出包。SEA bootstrap 只负责校验 bundle 内 Info/runtime 文件集并加载 `Contents/Resources/runtime/helper-entry.js`；Node 主 executable、PiP presenter 与 `.node` 允许由外部签名流程在打包后改写，清单将其明确标记为 `signedMutablePaths`，已签名安装模式的运行时身份复核由现有 `codesign --deep --strict`、TeamIdentifier 和 Gatekeeper 安装门承担。`CFBundleShortVersionString` 必须跟随桌面应用版本，`CFBundleVersion` 必须由 `ZCODE_CUA_HELPER_BUILD_ID`（缺省为同一份桌面 commit + build time 元数据）稳定派生为合法数字版本；不得复用独立 CUA 包版本，否则安装器可能把新发行包误判为同一 Helper 而保留旧产物。
-- `ZCODE_CUA_HELPER_BUILD_ID` 的唯一构建消费者是 macOS Helper app stager/Info.plist；共享 `node_repl` 只是 broker client，不安装 Helper，也不得再把该值 define 进自己的 bundle 或要求产物包含它。Desktop main/host bundle 同样不持有这份版本状态。
+- macOS 产品资源中的 `LCode Computer Use.app` 必须由仓库内构建脚本生成，bundle 内执行同一份开放 Helper runtime，并包含仓库内 Swift 源码构建的非激活浮动 PiP presenter；固定 bundle id 继续作为 TCC 身份。`Info.plist`、入口、Node executable、presenter、JS 闭包及 `@crowecawcaw/xa11y-darwin-{x64|arm64}` 原生文件全部进入清单。仓库与 GitHub workflow 只产出可签名的未签名 bundle/package；使用者下载后在外部对嵌套 Mach-O 与 bundle 自行签名、公证。对要求签名的安装模式，现有安装器仍复核 TeamIdentifier、架构、Gatekeeper 与签名并 fail closed。
+- macOS 的 `CFBundleExecutable` 是 Node SEA Mach-O，不得是 shell wrapper。打包方必须显式提供 `LCODE_CUA_MAC_NODE_EXECUTABLE`、与构建 Node 相同的 `LCODE_CUA_MAC_NODE_VERSION` 和 `LCODE_CUA_MAC_NODE_SHA256`；stager 在注入 SEA 前校验常规文件、SHA-256 与目标 `lipo` 架构，任一缺失或不匹配即终止出包。SEA bootstrap 只负责校验 bundle 内 Info/runtime 文件集并加载 `Contents/Resources/runtime/helper-entry.js`；Node 主 executable、PiP presenter 与 `.node` 允许由外部签名流程在打包后改写，清单将其明确标记为 `signedMutablePaths`，已签名安装模式的运行时身份复核由现有 `codesign --deep --strict`、TeamIdentifier 和 Gatekeeper 安装门承担。`CFBundleShortVersionString` 必须跟随桌面应用版本，`CFBundleVersion` 必须由 `LCODE_CUA_HELPER_BUILD_ID`（缺省为同一份桌面 commit + build time 元数据）稳定派生为合法数字版本；不得复用独立 CUA 包版本，否则安装器可能把新发行包误判为同一 Helper 而保留旧产物。
+- `LCODE_CUA_HELPER_BUILD_ID` 的唯一构建消费者是 macOS Helper app stager/Info.plist；共享 `node_repl` 只是 broker client，不安装 Helper，也不得再把该值 define 进自己的 bundle 或要求产物包含它。Desktop main/host bundle 同样不持有这份版本状态。
 - Helper 常驻 CLI 的规范参数固定为 `--socket`、可选 `--pip-socket`、`--parent-pid` 和 `--pip-mode`；`--capability`、`--generation` 及两个旧 `--allow-*-local-dev` 参数必须拒绝。`--parent-pid` 是新启动的唯一写出格式；孤儿回收在迁移期先识别它，并兼容读取旧进程的 `--launcher-pid`，不得因参数方言漂移漏掉当前 Helper。权限预检/提示保留无凭据的 `--permission-request` / `--permission-preflight` LaunchServices 方言，不进入常驻 bootstrap。
 - macOS 常驻产品 Helper 必须直接 spawn 安装器已验证 bundle identity 返回的 `CFBundleExecutable` realpath，并配置 Node IPC stdio；直接执行同一 bundle 内已验证 Mach-O 保留其 code-signing/TCC 身份，不得复制到 bundle 外或改用 shell wrapper。Host 只在收到 child 的 bootstrap request 后经 IPC 回 credential，发送完成后断开 bootstrap channel；health 必须同时核对固定 bundle id 与 exact child PID。权限 request/preflight 仍使用 `/usr/bin/open` 启动同一 Helper.app，且永不接收 credential。
 - Desktop Local Host 仍是唯一启动/重启 owner。Windows、macOS、Linux 均按需启动同一协议版本；平台启动失败不得退回进程内 nut-js 或绕过 broker。开发根目录与打包 runtime 必须按目标平台分别消费 `windows` / `linux` contract，不能用字段当前相同作为跨平台复用理由。已有配置无需迁移，关闭 CUA 的显式开关在三平台保持有效。
@@ -137,9 +137,9 @@ PID 缺失或在有界期限内仍存活时，重启必须 fail closed，保留�
 
 ### 官方 Computer Use 插件发布单元
 
-- `computer-use@zcode-plugins-official` 的唯一源码位于仓库内 `apps/zcode-cli/packages/zcode-cua-plugin`。该包只包含公开的 plugin manifest、`docs/computer-use.md`、`scripts/computer-use-client.mjs` 与 `skills/computer-use/SKILL.md`；不得从用户 plugin cache、私有 producer 仓库或开发机绝对路径补齐任何发布文件。
+- `computer-use@zcode-plugins-official` 的唯一源码位于仓库内 `apps/lcode-cli/packages/lcode-cua-plugin`。该包只包含公开的 plugin manifest、`docs/computer-use.md`、`scripts/computer-use-client.mjs` 与 `skills/computer-use/SKILL.md`；不得从用户 plugin cache、私有 producer 仓库或开发机绝对路径补齐任何发布文件。
 - 本项目自研 Computer Use 发布单元的公开作者固定为 `Lemon`、版本固定为 `0.1.0`。plugin manifest、包元数据、official definition、staging/SEA 清单与测试断言必须一致，不得继续显示 `Z.ai` 或旧版 `0.6.3`；桌面应用自身仍按根 `package.json` 的 `3.14.3` 发布版本独立演进。
-- Computer Use plugin 是 SDK/文档/skill 内容包，不拥有独立 MCP server 或 native runtime。`node-repl-host` 仍是唯一可执行 host，通过 `Symbol.for("zcode.node-repl.computer-use-bridge")` 向 SDK 注入受上下文约束的 broker bridge；公开 plugin id、`node_repl` host 依赖和 `agent.computerUse` SDK 入口保持稳定。
+- Computer Use plugin 是 SDK/文档/skill 内容包，不拥有独立 MCP server 或 native runtime。`node-repl-host` 仍是唯一可执行 host，通过 `Symbol.for("lcode.node-repl.computer-use-bridge")` 向 SDK 注入受上下文约束的 broker bridge；公开 plugin id、`node_repl` host 依赖和 `agent.computerUse` SDK 入口保持稳定。
 - Desktop 开发 staging、Desktop release staging 与 standalone SEA 必须从同一份仓库源码复制/嵌入该包。三条路径都至少校验 manifest、文档、SDK client 和 skill；任一文件缺失、manifest name/version 不匹配或 SEA 哈希清单不包含该包时终止构建，不得回退读取已安装 cache。
 - official definition resolver 只允许解析受控的仓库/staging root candidate，并沿用现有 seed 完整性校验；用户 cache 是安装输出，不是源码候选。Computer Use 默认启用状态和远程 workspace 能力边界不因本发布修复改变：没有 `node-repl-host` 与本地 Helper 的环境仍不得宣称可用。
 - 验收必须覆盖：空临时目录中的 staging 可独立得到完整 plugin；SEA collector 产出带哈希的四项 seed；official definition resolver 在仓库源码与 staged tree 中解析相同公开 id/version；SDK 只通过注入的 node_repl bridge 调用 broker，bridge 缺失时 fail closed。
@@ -147,24 +147,24 @@ PID 缺失或在有界期限内仍存活时，重启必须 fail closed，保留�
 ### node_repl 凭据恢复边界
 
 - Desktop Local Host 是 Helper socket、plugin authority、generation 与 refresh marker 的唯一所有者。Agent CLI 入口必须在通用工具环境形成前把 socket、authority 和可选 marker 从 `process.env` 清理进进程内快照；Bash、第三方 MCP 与普通子进程不得继承它们。
-- 只有 resolver 标记为官方 Computer Use、且同时标记为共享 `node_repl` host 的 `__zcode-plugin-host` 调用可以消费该快照。它必须在调用可信 server 的 `main()` 前临时恢复完整的 socket + authority + 可选 marker，`main()` settle 后在 `finally` 中逐字段恢复原环境；只恢复 socket 会形成半组凭据，`captureComputerUseRuntimeFromEnvironment()` 必须继续 fail closed，不得退回本地 driver。
-- `ZCODE_CUA_PLUGIN_AUTHORITY` 是 Local Host 下发并由可信 plugin host 恢复的唯一 capability 真值。遗留的 `ZCODE_CUA_PERMISSION_BROKER_CAPABILITY` 不属于当前 Host tuple：CLI sanitization 与 tool-env passthrough 必须将其剥离；即使父进程环境残留该键，`node_repl` 也必须优先使用可信 plugin authority，不能让遗留值覆盖本次 Host authority。
+- 只有 resolver 标记为官方 Computer Use、且同时标记为共享 `node_repl` host 的 `__lcode-plugin-host` 调用可以消费该快照。它必须在调用可信 server 的 `main()` 前临时恢复完整的 socket + authority + 可选 marker，`main()` settle 后在 `finally` 中逐字段恢复原环境；只恢复 socket 会形成半组凭据，`captureComputerUseRuntimeFromEnvironment()` 必须继续 fail closed，不得退回本地 driver。
+- `LCODE_CUA_PLUGIN_AUTHORITY` 是 Local Host 下发并由可信 plugin host 恢复的唯一 capability 真值。遗留的 `LCODE_CUA_PERMISSION_BROKER_CAPABILITY` 不属于当前 Host tuple：CLI sanitization 与 tool-env passthrough 必须将其剥离；即使父进程环境残留该键，`node_repl` 也必须优先使用可信 plugin authority，不能让遗留值覆盖本次 Host authority。
 - generation 不是授权秘密，继续由该 server 的定向配置环境传递；`node_repl` 在 `main()` 生命周期内、MCP initialize 之前一次性捕获 runtime。官方 host 之外不得新增第二条凭据恢复路径，也不得为了热启用把凭据写入持久化配置。
 - 回归验收必须真实执行 CLI sanitization → trusted plugin host → 临时 server `main()`：server 内能同时读取 socket、authority、marker 与 generation；调用结束后三个被清理的字段恢复为调用前状态。聚焦测试还必须证明遗留 capability 不进入 sanitized/tool passthrough 环境，且 authority 与污染 capability 同时存在时 runtime 选择 authority。缺 authority、非官方 plugin id 或非 `node_repl` marker 均不得启动带凭据的 server。
 
 ### 运行时启停收敛
 
-- `isZCodeCuaInternalFeatureEnabled` 只表示开发/内部环境对产品配置门的显式 bypass，不是正式版 Computer Use 的默认值，也不拥有插件启用状态。未设置环境变量、空字符串、`0`、`false`、`off` 或任意未知值都必须返回 `false`；只有忽略大小写与首尾空白后的 `1`、`true`、`on` 能显式开启。
-- `ZCODE_CUA_DEV_MODE` 是一键本地开发开关，显式真值时优先开启 internal feature；否则才读取 `ZCODE_CUA_PRODUCT_HELPER`。正式产品路径仍由 `computer-use@zcode-plugins-official` 的持久化配置决定，不能用 internal gate 的缺省值绕过用户关闭状态。
+- `isLCodeCuaInternalFeatureEnabled` 只表示开发/内部环境对产品配置门的显式 bypass，不是正式版 Computer Use 的默认值，也不拥有插件启用状态。未设置环境变量、空字符串、`0`、`false`、`off` 或任意未知值都必须返回 `false`；只有忽略大小写与首尾空白后的 `1`、`true`、`on` 能显式开启。
+- `LCODE_CUA_DEV_MODE` 是一键本地开发开关，显式真值时优先开启 internal feature；否则才读取 `LCODE_CUA_PRODUCT_HELPER`。正式产品路径仍由 `computer-use@zcode-plugins-official` 的持久化配置决定，不能用 internal gate 的缺省值绕过用户关闭状态。
 
-| `ZCODE_CUA_DEV_MODE` | `ZCODE_CUA_PRODUCT_HELPER` | internal feature |
+| `LCODE_CUA_DEV_MODE` | `LCODE_CUA_PRODUCT_HELPER` | internal feature |
 | -------------------- | -------------------------- | ---------------- |
 | 未设置/假值/未知值   | 未设置/空值/假值/未知值    | `false`          |
 | 未设置/假值/未知值   | `1` / `true` / `on`        | `true`           |
 | `1` / `true` / `on`  | 任意值（含显式假值）       | `true`           |
 
 - 官方 Computer Use 必须始终进入 seed/catalog/discovery 面；缺少 `defaultEnabled` 只让它默认关闭，不能把它从插件列表或内置插件恢复入口删除。持久化的 `enabledPlugins[id]` 是正式产品启用状态的唯一所有者，internal feature 不得改写该配置或插件元数据。
-- 默认 Helper factory 只回答“当前平台是否具备产品 Helper 资源”：Windows、macOS、Linux 可用，`ZCODE_CUA_PRODUCT_HELPER=0|false|off` 是显式资源硬关闭。实际创建仍需通过 desktop-local、本地 workspace、未注入 resolver，以及“插件配置已启用或 internal bypass 已开启”的 admission；两层不得复用同一个布尔门。
+- 默认 Helper factory 只回答“当前平台是否具备产品 Helper 资源”：Windows、macOS、Linux 可用，`LCODE_CUA_PRODUCT_HELPER=0|false|off` 是显式资源硬关闭。实际创建仍需通过 desktop-local、本地 workspace、未注入 resolver，以及“插件配置已启用或 internal bypass 已开启”的 admission；两层不得复用同一个布尔门。
 - 被 `suppressedBuiltins` 隐藏的 Computer Use 必须继续出现在 `restorableBuiltins`，恢复操作也不得要求 internal feature；恢复只清除 suppression，不隐式启用插件。
 
 | internal bypass | `enabledPlugins[computer-use]` | Helper 硬关闭 | 插件面             | Helper admission                    |
@@ -175,14 +175,14 @@ PID 缺失或在有界期限内仍存活时，重启必须 fail closed，保留�
 | 任意值          | 任意值                         | 是            | 仍按持久化配置展示 | factory 不可用                      |
 
 - `plugins/setEnabled` 的配置写入由 plugin-management 专用 Agent 承担；workspace 主 Agent 的 plugin outcome、runtime features、MCP 与 skill 快照仍只在 runtime 创建时确定，不伪造会话内热更新。
-- 官方 Computer Use 启停写入成功后，Host 侧 `IPluginManagementService` 必须通过公开的 `IZCodeAgentService.disposeWorkspace()` 只失效同一 `workspaceIdentity?.trim() || workspacePath` 的主 Agent。plugin-management lane 与 Helper 生命周期不随之销毁；下一次会话请求按新配置重建 Agent、重新取得 Helper tuple，并恢复原 session。配置写入失败不得失效 runtime。
+- 官方 Computer Use 启停写入成功后，Host 侧 `IPluginManagementService` 必须通过公开的 `ILCodeAgentService.disposeWorkspace()` 只失效同一 `workspaceIdentity?.trim() || workspacePath` 的主 Agent。plugin-management lane 与 Helper 生命周期不随之销毁；下一次会话请求按新配置重建 Agent、重新取得 Helper tuple，并恢复原 session。配置写入失败不得失效 runtime。
 - runtime cleanup 即使最终报告失败，旧 client 也已先从复用池移除且 generation 已推进；该失败只能记 `warn`，不得把已经落盘的插件状态回滚成旧值。Helper 仍由下一次 Agent spawn 的既有懒启动边界创建，不从 Renderer 增加第二条启动路径。
 - workspace 任一 task 正在 `creating` / `restoring` / `streaming`、存在 active input，或 task index 仍为 `running` 时，Computer Use 专页与通用插件页都必须禁用该插件开关；两处复用同一个 workspace busy 纯函数，不能各自维护判定。服务层的 runtime 失效仍是最终一致性边界，UI busy 门用于防止正常产品路径中断已接纳的 turn。
 - 回归验收覆盖：CUA 写入成功只失效目标 workspace 一次；其它插件不触发该专用失效；写入失败不失效；cleanup 失败不回滚成功结果；两处 UI 消费的共享 busy 判定覆盖 runtime 与 task-index 两条运行中事实源。
 
 ### 轨迹与可测性
 
-原始坐标动作支持 `instant` 与 `smooth` 两个内部 motion profile。`smooth` 由确定性路径生成器产生有界分段轨迹，测试可注入 clock/driver；Helper 通过显式 `ZCODE_CUA_MOTION_PROFILE=instant|smooth` 配置 xa11y producer，缺省保持 `instant`，非法值必须在动作执行前拒绝。该配置只改变坐标 click/drag/scroll/type-target 的指针移动，不改变元素语义动作、权限、目标绑定或 stale-frame 校验；首个未知指针位置退化为一次直达，后续已知坐标间才生成平滑路径。记录的诊断只含动作类别、路径点数、耗时、结果码和匿名域 key，不含截图、文本、坐标或应用私有数据。所谓“90%+”必须由版本化回放集/真实同意样本计算，代码不得硬编码成功率或靠超时掩盖同步。
+原始坐标动作支持 `instant` 与 `smooth` 两个内部 motion profile。`smooth` 由确定性路径生成器产生有界分段轨迹，测试可注入 clock/driver；Helper 通过显式 `LCODE_CUA_MOTION_PROFILE=instant|smooth` 配置 xa11y producer，缺省保持 `instant`，非法值必须在动作执行前拒绝。该配置只改变坐标 click/drag/scroll/type-target 的指针移动，不改变元素语义动作、权限、目标绑定或 stale-frame 校验；首个未知指针位置退化为一次直达，后续已知坐标间才生成平滑路径。记录的诊断只含动作类别、路径点数、耗时、结果码和匿名域 key，不含截图、文本、坐标或应用私有数据。所谓“90%+”必须由版本化回放集/真实同意样本计算，代码不得硬编码成功率或靠超时掩盖同步。
 
 ### 产品闭环验收
 
@@ -193,7 +193,7 @@ PID 缺失或在有界期限内仍存活时，重启必须 fail closed，保留�
 5. 设置页 availability 单测覆盖本机 macOS/Windows/Linux 均可用、Web 不可用，以及任意 desktop 平台一旦带远端 session/target/identity 就保持不可用；Computer Use 分区与插件列表必须消费同一判定，不保留 Linux 专用的不可用分支。
 6. desktop native package policy 明确拒绝 `app.asar` / unpacked app 中的 `@nut-tree-fork` 与 `@crowecawcaw/xa11y*`；Helper resources manifest 对 entry、JS、`.node` 与旁文件逐项 SHA-256 校验。该检查用 `electron-builder --dir`/asar 列表即可执行，不依赖签名安装器。
 7. `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed`、包内 `node --test` 与 license check 全部实际执行并如实报告。
-8. `e2e:helper` 必须启动仓库内真实 Helper 子进程，响应 child bootstrap request 后才经 IPC 下发 capability + generation，再由 broker 链调用公开 `createComputerUseRuntime`；验证 `list_apps`、目标应用 `get_app_state(include_screenshot:true)` 的真实 AX/UIA 树与官方帧，并在 `closeSession` 后通过认证 `shutdown` 回收。脚本默认跳过，只有显式 `ZCODE_CUA_HELPER_E2E=1` 才读取桌面，且不发送鼠标或键盘副作用。
+8. `e2e:helper` 必须启动仓库内真实 Helper 子进程，响应 child bootstrap request 后才经 IPC 下发 capability + generation，再由 broker 链调用公开 `createComputerUseRuntime`；验证 `list_apps`、目标应用 `get_app_state(include_screenshot:true)` 的真实 AX/UIA 树与官方帧，并在 `closeSession` 后通过认证 `shutdown` 回收。脚本默认跳过，只有显式 `LCODE_CUA_HELPER_E2E=1` 才读取桌面，且不发送鼠标或键盘副作用。
 9. CLI plugin-host 集成测试必须覆盖完整凭据 tuple 的临时恢复与 finally 清理；Windows 产品回归须从已打包 `node_repl` 发起一次 `list_apps` 或绑定目标应用，不能只以 Helper ready 判定可用。
 10. 从关闭态启用 Computer Use 后，当前 workspace 的旧 Agent 必须失效；下一次请求创建的新 Agent 同时具备 `runtimeFeatures.computerUse=true` 与完整 Helper tuple。运行中的 workspace 不得由设置页触发该换代。
 11. `getApp` 的目标 fixture 初始未运行时，真实 Helper 必须经平台 launcher 启动它并返回非空 AX/UIA/AT-SPI 状态；不存在的应用返回 `APP_NOT_FOUND`，启动器失败返回 `LAUNCH_FAILED`，两者都不得包含 `Computer Use is not available in this build`。单测覆盖启动合并、歧义、超时、dispose 和不经 shell；Windows 本机构建验收覆盖一个真实未运行应用。
@@ -240,7 +240,7 @@ PID 缺失或在有界期限内仍存活时，重启必须 fail closed，保留�
 
 ### fail-closed 语义（不可漂移）
 
-产品 broker transport 不可用（权限不足、凭据缺失、Helper 缺失、握手/响应非法）、本地 driver seam 的方法未登记/参数非法/平台不支持/驱动异常，以及 `signal` 中止、`dispose` 之后调用——返回与占位完全相同的失败形状（唯一定义点 `packages/zcode-cua/runtime.js` 的 `UNAVAILABLE_TEXT` / `unavailableResult`；公开入口 `packages/zcode-cua/index.js`）。Helper 已成功验证并返回的结构化产品错误是本规则的例外，必须按上文保留 error envelope，不能折叠为占位文案：
+产品 broker transport 不可用（权限不足、凭据缺失、Helper 缺失、握手/响应非法）、本地 driver seam 的方法未登记/参数非法/平台不支持/驱动异常，以及 `signal` 中止、`dispose` 之后调用——返回与占位完全相同的失败形状（唯一定义点 `packages/lcode-cua/runtime.js` 的 `UNAVAILABLE_TEXT` / `unavailableResult`；公开入口 `packages/lcode-cua/index.js`）。Helper 已成功验证并返回的结构化产品错误是本规则的例外，必须按上文保留 error envelope，不能折叠为占位文案：
 
 ```
 { content: [{ type: "text", text: "Computer Use is not available in this build." }], isError: true }
@@ -262,7 +262,7 @@ PID 缺失或在有界期限内仍存活时，重启必须 fail closed，保留�
 
 ### 隐私与安全不变量
 
-- `shouldRunCuaScreenCaptureProbe` 等「省略 options 是否主动抓屏」谓词继续从 `@zcode/zcode-cua/broker/ports` 纯子路径复用（`packages/services/src/cua-permission-broker/cuaPermissionService.ts:43-49`），本次不改 `broker-ports.js` 的任何谓词。
+- `shouldRunCuaScreenCaptureProbe` 等「省略 options 是否主动抓屏」谓词继续从 `@lcode/lcode-cua/broker/ports` 纯子路径复用（`packages/services/src/cua-permission-broker/cuaPermissionService.ts:43-49`），本次不改 `broker-ports.js` 的任何谓词。
 - 本地截屏只发生在已放行的 `execute` 调用内；不新增旁路进程抓屏。
 - UI 侧仍然只可 import 纯 ports 子路径与类型；Node-only 面留在 services/host 层。
 - 本地截图**签发** official-frame integrity metadata（`OFFICIAL_CUA_FRAME_INTEGRITY_META_KEY`）。这是对首版 spec「不签发」决策的有意反转（第二阶段任务要求补齐帧契约）：开源 build 里该标记的语义是「本 runtime 真实截取的栅格」，让 core 归一化层走 exact-raster 保留路径、坐标契约不被通用落盘路径破坏。**它不构成防伪造签名，也不参与特权判定**——`officialCuaAuthorityVerified` 只认 server 白名单（`core/src/mcp/index.ts:71-72` 的 `officialCuaServerNames`），permission capability group 不会因帧标记而放行；第三方进程仿造帧标记的后果上限是「自己的图片不被压缩/落盘」，无提权面。
@@ -295,35 +295,35 @@ Agent 循环（决策层，不换）
   └─ standalone Helper broker RPC permission_status / 托管 host.queryPermissionStatus
        └─ UI 经 accessor 只读消费（accessor.ts）
   凭据下发（上图 ③ 的输入）：desktop/CLI 只在 Helper broker 就绪后把
-  ZCODE_CUA_PERMISSION_BROKER_SOCKET 定向注入 zcode-cua/node_repl 的 env
+  LCODE_CUA_PERMISSION_BROKER_SOCKET 定向注入 lcode-cua/node_repl 的 env
 ```
 
 ## 接口
 
 ### 公开签名（不变）
 
-- `createComputerUseRuntime(options?: ComputerUseRuntimeOptions): ComputerUseRuntime`（`packages/zcode-cua/index.d.ts:34-36`），返回 `{ execute, closeSession, dispose }`（`:21-25`），入参类型 `:14-19` / context `:1-12` 均不变。
-- `package.json` 的 12 条 exports 子路径面不变（`packages/zcode-cua/package.json:8-57`）；不新增 subpath。runtime 包与公开 plugin 的自研发布版本统一为 `0.1.0`，但桌面发行版本继续由根 `package.json` 独立拥有。
+- `createComputerUseRuntime(options?: ComputerUseRuntimeOptions): ComputerUseRuntime`（`packages/lcode-cua/index.d.ts:34-36`），返回 `{ execute, closeSession, dispose }`（`:21-25`），入参类型 `:14-19` / context `:1-12` 均不变。
+- `package.json` 的 12 条 exports 子路径面不变（`packages/lcode-cua/package.json:8-57`）；不新增 subpath。runtime 包与公开 plugin 的自研发布版本统一为 `0.1.0`，但桌面发行版本继续由根 `package.json` 独立拥有。
 
 ### 日志注入点（评审定死）
 
-- `ComputerUseRuntimeOptions` 新增**唯一**的可选成员 `logger?: ComputerUseRuntimeLogger`（`index.d.ts` 手写类型同步新增该接口；`debug?/info?/warn?/error?` 全可选，方法签名与 `@zcode/contracts` 的 `Logger`（`apps/zcode-cli/packages/contracts/src/logging/logger.ts:82-88`）结构兼容，宿主可直接传入既有 logger）。这是对「公开签名不变」的唯一豁免：函数签名、既有字段、`execute` 入参、context 与 12 条子路径全部不动，调用方零改动。
+- `ComputerUseRuntimeOptions` 新增**唯一**的可选成员 `logger?: ComputerUseRuntimeLogger`（`index.d.ts` 手写类型同步新增该接口；`debug?/info?/warn?/error?` 全可选，方法签名与 `@lcode/contracts` 的 `Logger`（`apps/lcode-cli/packages/contracts/src/logging/logger.ts:82-88`）结构兼容，宿主可直接传入既有 logger）。这是对「公开签名不变」的唯一豁免：函数签名、既有字段、`execute` 入参、context 与 12 条子路径全部不动，调用方零改动。
 - runtime 只在**低频异常路径**落 `warn`，共四点（门拒绝 `gate_denied`、驱动动作异常 `driver_failed`、驱动 dispose 异常 `driver_dispose_failed`、会话关闭丢弃排队调用 `session_queued_drained`），不落 `debug/info`（无高频事件），不落成功路径。禁 `console.log`；缺省（未注入 logger）零日志。
 - 组装点已接 logger：`server.ts` 的 `captureComputerUseRuntimeFromEnvironment` 注入 stderr 直写 logger（`node-repl-host` 不依赖 services logger，与本文件 process guards 同通道），driver 级失败在生产可观测。
 
 ### 内部驱动 seam（新增，不进 exports）
 
-- 包为 flat `"type":"module"` 纯 JS + 手写 `.d.ts`、无构建步骤（`ls packages/zcode-cua` 实测），驱动实现保持同构，不引入构建链。
+- 包为 flat `"type":"module"` 纯 JS + 手写 `.d.ts`、无构建步骤（`ls packages/lcode-cua` 实测），驱动实现保持同构，不引入构建链。
 - 包内新增内部模块（**全部不列入 exports**，包外只能经 `"."` 入口取得默认组合）：
   - `cua-driver.js` + `cua-driver.d.ts`：`CuaInputDriver` 接口：`screenshot` / `move` / `click` / `doubleClick` / `drag` / `type` / `key` / `scroll` / `dispose`，全部异步；键名词表与 DPI 换算的纯函数（键名解析、scale 计算、逻辑坐标取整）具名导出供包内单测直接覆盖（不触原生 addon）。默认实现 `createNutJsDriver()`：内部 `await import("@nut-tree-fork/nut-js")`（异步动态 import；import 失败或原生 addon 缺失 → 归一为 fail-closed 失败形状，进程不 crash）。nut-js 类型不跨包泄漏。
   - `runtime.js`：权限门工厂 `createBrokerPermissionGate(options)` 与 `createComputerUseRuntimeWithDriver(driver, gate, options)`（注入点，供包内单测组装 mock 驱动 + mock 门）、参数校验、串行化队列、`closeSession`/`dispose` 语义。公开入口 `createComputerUseRuntime` 固定组装默认门 + 默认驱动。
   - `png.js`：RGB → PNG 编码（`node:zlib` deflate + 自含 CRC32），供 `screenshot` 把 nut-js BGR(A) 内存帧转 PNG，无第三方图像依赖。
-- 测试落点（评审定死）：`packages/zcode-cua/index.test.js`——与源码同目录的 `node:test` 用例（本仓库惯例是 `*.test.ts` 与源码同目录，如 `apps/zcode-cli/packages/adapters/src/exec/nul-redirection.test.ts`；本包无构建链，故用 `.js` 直跑）。运行入口为包内新增 script `"test": "node --test index.test.js"` → `pnpm --dir packages/zcode-cua test`。该包不在 root typecheck 工程列表（root `package.json:29`），其 `.d.ts` 类型正确性由消费方（services/core/node-repl-host）的 typecheck 覆盖；`index.test.js` 是 JS，不进 tsc。
+- 测试落点（评审定死）：`packages/lcode-cua/index.test.js`——与源码同目录的 `node:test` 用例（本仓库惯例是 `*.test.ts` 与源码同目录，如 `apps/lcode-cli/packages/adapters/src/exec/nul-redirection.test.ts`；本包无构建链，故用 `.js` 直跑）。运行入口为包内新增 script `"test": "node --test index.test.js"` → `pnpm --dir packages/lcode-cua test`。该包不在 root typecheck 工程列表（root `package.json:29`），其 `.d.ts` 类型正确性由消费方（services/core/node-repl-host）的 typecheck 覆盖；`index.test.js` 是 JS，不进 tsc。
 
 ### 依赖与第三方登记
 
-- `@nut-tree-fork/nut-js` 进 `packages/zcode-cua/package.json` `dependencies`。该文件的精确 sha256 已被 `third-party/inventory.json:2673` 锁定，改动后必须执行 `node scripts/licenses.mjs check`（Apache-2.0 属 green 分类，`scripts/licenses.mjs:70-84`；非 green 需 WEAK_ALLOW 登记且退出码 1，`:89,107-108`）与 `node scripts/licenses.mjs notices` 重新生成 `THIRD-PARTY-NOTICES.md` 与 inventory 哈希。
-- **安装可行性验收（评审定死）**：`@nut-tree-fork/libnut-win32/-darwin/-linux` 在 publish 期以 cmake-js 预编译、tarball 内直接携带 `build/Release/libnut.node`，`npm view scripts` 无 install 钩子（`prepublishOnly`/`build:*` 均不会在用户侧触发）。因此 `pnpm-workspace.yaml` 的 `allowBuilds` 白名单**无需**为其登记——验收命令：`pnpm add @nut-tree-fork/nut-js --filter @zcode/zcode-cua && pnpm install` 后，
+- `@nut-tree-fork/nut-js` 进 `packages/lcode-cua/package.json` `dependencies`。该文件的精确 sha256 已被 `third-party/inventory.json:2673` 锁定，改动后必须执行 `node scripts/licenses.mjs check`（Apache-2.0 属 green 分类，`scripts/licenses.mjs:70-84`；非 green 需 WEAK_ALLOW 登记且退出码 1，`:89,107-108`）与 `node scripts/licenses.mjs notices` 重新生成 `THIRD-PARTY-NOTICES.md` 与 inventory 哈希。
+- **安装可行性验收（评审定死）**：`@nut-tree-fork/libnut-win32/-darwin/-linux` 在 publish 期以 cmake-js 预编译、tarball 内直接携带 `build/Release/libnut.node`，`npm view scripts` 无 install 钩子（`prepublishOnly`/`build:*` 均不会在用户侧触发）。因此 `pnpm-workspace.yaml` 的 `allowBuilds` 白名单**无需**为其登记——验收命令：`pnpm add @nut-tree-fork/nut-js --filter @lcode/lcode-cua && pnpm install` 后，
   `ls node_modules/@nut-tree-fork/libnut-win32/build/Release/libnut.node`（darwin/linux 同理）必须存在；且 install 输出不得出现针对 `@nut-tree-fork` 的 ignored/skipped build scripts 警告（本仓库 node-linker=hoisted，2026-09-23 实测 `pnpm add` 全程零构建脚本跳过、四个 `.node` 产物全部就位）。若未来某版本引入 install 钩子，必须先把它加进 `allowBuilds` 并重新走本节验收，绝不允许 pnpm 静默跳过构建却让运行期才爆炸。
 - 传递依赖说明：nut-js 4.2.6 依赖 `jimp@0.22.10`（其图像读写 provider 在 import 时装配）与 `@nut-tree-fork/libnut`（原生 addon 门面，import 时按平台 require 预编译 `.node`）。driver 对 jimp 无直接依赖，PNG 编码自含。
 - **上游许可材料钉定（本次实际执行）**：`@nut-tree-fork/{libnut,shared,provider-interfaces,default-clipboard-provider}@4.2.6`、`buffer-equal@0.0.1`、`readable-web-to-node-stream@3.0.4`、`tr46@0.0.3` 七个包的 tarball 内无完整 LICENSE/许可段（前三者与后三者分别是 nut-js 与 jimp@0.22 传递拉入生产图的新包），已按仓库既有流程把上游许可文本钉进 `third-party/upstream/<sha256>.txt` 并登记 `third-party/npm-overrides.json`（Apache-2.0 用 canonical 文本，source 指向 apache.org；其余钉上游仓库 LICENSE/README 许可段，source 指向 raw.githubusercontent）；nut-tree/fork 仓库在 GitHub 已不可公开访问（404），故采用发行方 SPDX 声明（Apache-2.0）+ canonical 许可文本的组合。执行 `node scripts/licenses.mjs notices` 重生成声明与 inventory 后，`node scripts/licenses.mjs check` 通过（2026-09-23 实测：1829 个实装包，退出码 0）。
@@ -339,14 +339,14 @@ Agent 循环（决策层，不换）
 三处对外声明必须同步反映当前实现：产品 runtime 通过开放 Helper broker 提供应用观测与输入，失败仍保持 fail-closed；不得再描述成占位包：
 
 1. `NOTICE.md:24`（含 `index.js#L3` 锚点是否仍指向入口所在行）；
-2. `packages/zcode-cua/README.md:3-7`；
-3. `packages/zcode-cua/package.json:5` description。
+2. `packages/lcode-cua/README.md:3-7`；
+3. `packages/lcode-cua/package.json:5` description。
 
 失败文案本身保持原文，与声明更新互不冲突。
 
 ## 验收场景
 
-### 行为矩阵（单测，mock 驱动 + mock 权限门注入；全部在 `packages/zcode-cua/index.test.js`）
+### 行为矩阵（单测，mock 驱动 + mock 权限门注入；全部在 `packages/lcode-cua/index.test.js`）
 
 | #   | 前提                                                           | 调用                                                       | 期望                                                                                                                                                                                                                                                                                                                                                                                               |
 | --- | -------------------------------------------------------------- | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -364,7 +364,7 @@ Agent 循环（决策层，不换）
 ### 平台行为
 
 - **Windows**：安装包 staging 出受完整性清单约束的开放 Node Helper runtime，Host 按需启动并通过父子进程 IPC bootstrap 下发 capability/generation；命名管道只承载后续 broker RPC。Helper recovery 只收敛后续 admission，不回收已有 Agent。DPI：坐标换算规则见「动作入参契约」，150% 缩放真机已验证逻辑/物理双坐标系分歧。
-- **macOS**：TCC 判定在 Helper broker（accessibility/screenRecording，`broker.d.ts:95-110`）；未授权 → fail closed + 原文案。本地驱动不得绕过 TCC 门；`screenRecording` 新进程探测必须启动同一已安装 Helper.app 的一次性 preflight 模式并等待其退出，screen-capture 端到端探针的既有语义不变（`node.ts:1954-1971`）。产品启动仓库构建出的开放 `ZCode Computer Use.app`，不再依赖私有 producer artifact。Retina 的逻辑/物理换算与 Windows 同机制（driver 按 screenshot 比例换算），真机待手动验收。
+- **macOS**：TCC 判定在 Helper broker（accessibility/screenRecording，`broker.d.ts:95-110`）；未授权 → fail closed + 原文案。本地驱动不得绕过 TCC 门；`screenRecording` 新进程探测必须启动同一已安装 Helper.app 的一次性 preflight 模式并等待其退出，screen-capture 端到端探针的既有语义不变（`node.ts:1954-1971`）。产品启动仓库构建出的开放 `LCode Computer Use.app`，不再依赖私有 producer artifact。Retina 的逻辑/物理换算与 Windows 同机制（driver 按 screenshot 比例换算），真机待手动验收。
 - **Linux**：产品 Local Host 与 Windows/macOS 一样按需启动仓库构建出的开放 Helper runtime；xa11y 使用 AT-SPI2。X11 走原生输入模拟器；Wayland 只有在同一 Helper 身份可写 `/dev/uinput` 且输入模拟器初始化成功后才进入 ready。无显示环境、原生包不匹配、accessibility bridge、`/dev/uinput` 权限或驱动初始化失败 → fail closed，不 crash、不发布凭据；不得因为未做真机验收而在平台谓词中永久关闭 Linux。
 
 ### 回归保护
@@ -372,14 +372,14 @@ Agent 循环（决策层，不换）
 - 12 条 subpath 的公开面不变：`isBrokerMethod` / `isReadOnlyBrokerMethod` 对未知值 fail closed；`host-display-contract` 常量与 16 KiB 上限不变。`request-access-contract` 做严格结构校验，`pip-session-node` 提供真实客户端。
 - services 垫片不新增 `export *` 双 barrel（TS2308），新增符号显式列入 `cua-permission-broker/index.ts`（本次预期无新增）。
 - 授权后重启继续走 `resolver.restart()` / `restartAfterPermissionGrant`（`node.ts:2036-2040`），不得裸 `host.restart()`——本替换不触碰该链路。
-- 每次行为改动随 PR 补测试（seam 注入单测 + 失败形状断言）；真机场景（Windows 驱动生效、macOS TCC 拒绝、Retina 换算）由 `e2e-local.mjs`（`ZCODE_CUA_E2E=1`，真实截图 + 指针移动自检）与 PR 手动验收项覆盖。
+- 每次行为改动随 PR 补测试（seam 注入单测 + 失败形状断言）；真机场景（Windows 驱动生效、macOS TCC 拒绝、Retina 换算）由 `e2e-local.mjs`（`LCODE_CUA_E2E=1`，真实截图 + 指针移动自检）与 PR 手动验收项覆盖。
 
 ## 官方帧契约（第二阶段实装）
 
 `frame-contract.js` 的全部纯函数开源实装，是 producer（本 runtime）与消费方（core 归一化层、adapters 投影、node_repl result 投影）的唯一定义点：
 
-- **线格式**：帧引用是一个紧凑 JSON 文本块，紧随 image 块之后；逐字段与字段集合严格校验（`type:"zcode_cua_frame_ref"`、`schemaVersion:1`、`authority` 等于 `zcode.cua/open-frame` 或以 `zcode.cua/open-frame/` 开头、非空 `frameId`、`contentProtection:"official_cua_frame_v1"`），任何字段不满足都不算官方帧引用。
-- **判定函数**：`isOfficialCuaImageRefText`（整块引用）、`containsOfficialCuaImageRefCredentialText`（凭据令牌 `zcode_cua_frame_ref` 的包含检查，供 unavailable-media 投影与 additionalContext 过滤）、`containsImageRefAuthority`、`parseOfficialCuaImageRef`、`findOfficialCuaFrameContentPair`（image + 紧随引用文本的成对定位）、`attestOfficialCuaFrameContent`（配对存在且引用的 contentProtection 与期望一致才出 attestation）。
+- **线格式**：帧引用是一个紧凑 JSON 文本块，紧随 image 块之后；逐字段与字段集合严格校验（`type:"lcode_cua_frame_ref"`、`schemaVersion:1`、`authority` 等于 `lcode.cua/open-frame` 或以 `lcode.cua/open-frame/` 开头、非空 `frameId`、`contentProtection:"official_cua_frame_v1"`），任何字段不满足都不算官方帧引用。
+- **判定函数**：`isOfficialCuaImageRefText`（整块引用）、`containsOfficialCuaImageRefCredentialText`（凭据令牌 `lcode_cua_frame_ref` 的包含检查，供 unavailable-media 投影与 additionalContext 过滤）、`containsImageRefAuthority`、`parseOfficialCuaImageRef`、`findOfficialCuaFrameContentPair`（image + 紧随引用文本的成对定位）、`attestOfficialCuaFrameContent`（配对存在且引用的 contentProtection 与期望一致才出 attestation）。
 - **保留路径**：`preserveOfficialCuaFrameResult` 对官方帧对逐对处理——超限栅格（base64 > `OFFICIAL_CUA_IMAGE_INLINE_BASE64_BYTES`）经注入的 `imageProcessorPort.prepareForModel` 压缩；请求同时传 `maxBase64Bytes` 与其 3/4 对应的 `maxRawBytes`，满足项目现有 `ImageProcessorPort` 的完整预算契约，并同步改写引用宽高（坐标契约跟随真实栅格）。压缩失败/端口缺失时原样保留（底线是块不丢弃，不是尺寸必然达标）；`_meta` 浅拷贝保留。语义与 core 归一化层一致：`signal` 取消上抛，普通失败按保留原图处理。
 - **栅格信封标识**：`readRasterEnvelopeIdentity` 把截图宽高 + PNG mime 映射为确定性 `algorithm` 字符串，进引用文本与 `_meta`，供下游核对坐标契约对应的栅格形状。
 
@@ -390,7 +390,7 @@ PiP 不复用“一连接一请求”的 broker socket。Host 只在 `pipMode:"e
 `pip-session-node.js` 的 `createPipSessionClient` 与 Helper server 使用 node `net` + newline JSON；单帧上限 1 MiB，握手与每个事件都严格校验对象字段、字符串长度和安全整数：
 
 ```text
-连接后客户端先发 {id,protocol:"zcode.cua/pip-session",version:1,role:"presentation",
+连接后客户端先发 {id,protocol:"lcode.cua/pip-session",version:1,role:"presentation",
                   capability,generation,snapshot:{turns:[turn-started...],focus?}}
 服务端回          {id,ok:true,version:1} 或 {id,ok:false,code:"not_authorized"|"version_mismatch"|...}
 事件              客户端 {id,kind:"event",event:<PipSessionEvent>}

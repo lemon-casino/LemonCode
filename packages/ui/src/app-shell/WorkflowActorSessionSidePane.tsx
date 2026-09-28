@@ -1,7 +1,7 @@
 import { memo, useEffect, useMemo } from "react";
 import { HourglassIcon } from "lucide-react";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import type {
   OpenScopedWorkflowRunSideTabRequest,
@@ -30,7 +30,7 @@ interface WorkflowActorSessionSidePaneProps {
  * 一个并不存在的重试。状态不靠颜色单独表达：图标 + 标题 + 正文都在说同一件事。
  */
 function WorkflowActorNotStarted() {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <div
       className="flex h-full flex-col items-center justify-center px-6 text-center"

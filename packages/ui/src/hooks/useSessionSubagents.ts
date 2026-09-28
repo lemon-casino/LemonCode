@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ZCodeSessionEndedSubagent, ZCodeSessionSubagentsResult } from "@zcode/shared";
+import type { LCodeSessionEndedSubagent, LCodeSessionSubagentsResult } from "@lcode/shared";
 import { useServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 
@@ -8,7 +8,7 @@ const MAX_PAGE_SIZE = 100;
 
 interface SessionSubagentsViewState {
   revision: number;
-  ended: ZCodeSessionSubagentsResult["ended"];
+  ended: LCodeSessionSubagentsResult["ended"];
   error: string | null;
   loading: boolean;
 }
@@ -23,9 +23,9 @@ function emptyState(): SessionSubagentsViewState {
 }
 
 function mergeEndedSubagentPages(
-  current: readonly ZCodeSessionEndedSubagent[],
-  incoming: readonly ZCodeSessionEndedSubagent[],
-): ZCodeSessionEndedSubagent[] {
+  current: readonly LCodeSessionEndedSubagent[],
+  incoming: readonly LCodeSessionEndedSubagent[],
+): LCodeSessionEndedSubagent[] {
   const currentIds = new Set(current.map((item) => item.childSessionId));
   return [...current, ...incoming.filter((item) => !currentIds.has(item.childSessionId))];
 }
@@ -49,7 +49,7 @@ export function useSessionSubagents(options: {
   workspacePath: string;
 }) {
   const services = useServices();
-  const zcodeAgentService = services.zcodeAgentService;
+  const lcodeAgentService = services.lcodeAgentService;
   const [state, setState] = useState<SessionSubagentsViewState>(emptyState);
   const requestVersionRef = useRef(0);
   const requestInFlightRef = useRef(false);
@@ -59,9 +59,9 @@ export function useSessionSubagents(options: {
   const enabled = options.enabled !== false && Boolean(options.sessionId);
 
   const requestPage = useCallback(
-    (endedLimit: number, endedCursor?: string): Promise<ZCodeSessionSubagentsResult> => {
+    (endedLimit: number, endedCursor?: string): Promise<LCodeSessionSubagentsResult> => {
       if (!options.sessionId) return Promise.reject(new Error("session_id_missing"));
-      if (typeof zcodeAgentService?.listSessionSubagents !== "function") {
+      if (typeof lcodeAgentService?.listSessionSubagents !== "function") {
         return Promise.resolve({
           revision: 0,
           childSessionIds: [],
@@ -69,7 +69,7 @@ export function useSessionSubagents(options: {
           ended: { total: 0, items: [] },
         });
       }
-      return zcodeAgentService.listSessionSubagents({
+      return lcodeAgentService.listSessionSubagents({
         workspacePath: options.workspacePath,
         ...(options.workspaceIdentity ? { workspaceIdentity: options.workspaceIdentity } : {}),
         ...(options.remoteSessionId ? { remoteSessionId: options.remoteSessionId } : {}),
@@ -83,7 +83,7 @@ export function useSessionSubagents(options: {
       options.sessionId,
       options.workspaceIdentity,
       options.workspacePath,
-      zcodeAgentService,
+      lcodeAgentService,
     ],
   );
 

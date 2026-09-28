@@ -1,4 +1,4 @@
-import type { ToolCallCreateWorkflowCausalityGraph } from "@zcode/shared/zcode-protocol-v4";
+import type { ToolCallCreateWorkflowCausalityGraph } from "@lcode/shared/lcode-protocol-v4";
 
 /**
  * The graph the renderer consumes is exactly the bounded display payload from the

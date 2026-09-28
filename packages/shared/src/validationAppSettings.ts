@@ -3,7 +3,7 @@ import { z } from "zod";
 import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
 import { wslUserSchema } from "./wslUserValidation.js";
-import { normalizeZCodeEndpointOrigin } from "./zcodeEndpoint.js";
+import { normalizeLCodeEndpointOrigin } from "./lcodeEndpoint.js";
 import {
   DEFAULT_EMBEDDED_BROWSER_VIEWPORT_PREFERENCE,
   embeddedBrowserViewportPreferenceSchema,
@@ -33,7 +33,7 @@ const nonEmptyStringSchema = z.string().trim().min(1);
 
 export const localeSchema = z.enum(["zh-CN", "en-US"]);
 const localePreferenceSchema = z.enum(["system", "zh-CN", "en-US"]);
-const zcodeInteractionBehaviorSchema = z.enum(["queue", "guide"]);
+const lcodeInteractionBehaviorSchema = z.enum(["queue", "guide"]);
 const electronReleaseChannelSchema = z.enum(["stable", "preview"]);
 const desktopZoomLevelSchema = z.number().int().min(-3).max(5);
 const desktopWindowSizeSchema = z.object({
@@ -119,7 +119,7 @@ const appWorkspaceSessionEntrySchema = z.discriminatedUnion("kind", [
   }),
 ]);
 
-const zcodeEndpointOriginSchema = z.preprocess((value) => {
+const lcodeEndpointOriginSchema = z.preprocess((value) => {
   if (typeof value !== "string") {
     return undefined;
   }
@@ -128,25 +128,25 @@ const zcodeEndpointOriginSchema = z.preprocess((value) => {
     return undefined;
   }
   try {
-    return normalizeZCodeEndpointOrigin(trimmed);
+    return normalizeLCodeEndpointOrigin(trimmed);
   } catch {
     return undefined;
   }
 }, z.string().optional());
 
-function sanitizeZCodeEndpointOrigin(value: unknown): unknown {
+function sanitizeLCodeEndpointOrigin(value: unknown): unknown {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return value;
   }
   const raw = value as Record<string, unknown>;
-  if (!("zcodeEndpointOrigin" in raw)) {
+  if (!("lcodeEndpointOrigin" in raw)) {
     return value;
   }
-  const parsed = zcodeEndpointOriginSchema.safeParse(raw.zcodeEndpointOrigin);
+  const parsed = lcodeEndpointOriginSchema.safeParse(raw.lcodeEndpointOrigin);
   if (parsed.success && typeof parsed.data === "string") {
-    return { ...raw, zcodeEndpointOrigin: parsed.data };
+    return { ...raw, lcodeEndpointOrigin: parsed.data };
   }
-  const { zcodeEndpointOrigin: _zcodeEndpointOrigin, ...next } = raw;
+  const { lcodeEndpointOrigin: _lcodeEndpointOrigin, ...next } = raw;
   // 非生产 endpoint override 是开发辅助字段，坏值只丢弃该字段，不能拖垮整个 settings 读取。
   return next;
 }
@@ -449,7 +449,7 @@ const appSettingsObjectSchema = z.object({
   toolGroupingExploreEnabled: z.boolean().default(true),
   toolGroupingTerminalEnabled: z.boolean().default(true),
   toolGroupingChangesEnabled: z.boolean().default(false),
-  zcodeInteractionBehavior: zcodeInteractionBehaviorSchema.default("queue"),
+  lcodeInteractionBehavior: lcodeInteractionBehaviorSchema.default("queue"),
   autoGenerateGitCommitMessage: z.boolean().default(false),
   askUserQuestionAutoResolutionEnabled: z.boolean().default(true),
   modelIoFullRetentionEnabled: z.boolean().default(false),
@@ -472,7 +472,7 @@ const appSettingsObjectSchema = z.object({
   autoDownloadAndInstallUpdates: z.boolean().default(false),
   skippedElectronUpdateVersions: skippedElectronUpdateVersionsSchema,
   settingsSyncFirstRunPromptHandled: z.boolean().optional(),
-  zcodeEndpointOrigin: zcodeEndpointOriginSchema.optional(),
+  lcodeEndpointOrigin: lcodeEndpointOriginSchema.optional(),
 });
 
 export const appSettingsSchema = z.preprocess(
@@ -482,7 +482,7 @@ export const appSettingsSchema = z.preprocess(
         migrateMessageStreamShowReasoningDefault(
           migrateCloseToTrayOnWindowsDefault(
             migrateLegacyLocalePreference(
-              sanitizeZCodeEndpointOrigin(migrateLegacyWorkspaceSession(value)),
+              sanitizeLCodeEndpointOrigin(migrateLegacyWorkspaceSession(value)),
             ),
           ),
         ),
@@ -519,7 +519,7 @@ export const appSettingsPatchSchema = z.object({
   toolGroupingExploreEnabled: z.boolean().optional(),
   toolGroupingTerminalEnabled: z.boolean().optional(),
   toolGroupingChangesEnabled: z.boolean().optional(),
-  zcodeInteractionBehavior: zcodeInteractionBehaviorSchema.optional(),
+  lcodeInteractionBehavior: lcodeInteractionBehaviorSchema.optional(),
   autoGenerateGitCommitMessage: z.boolean().optional(),
   askUserQuestionAutoResolutionEnabled: z.boolean().optional(),
   modelIoFullRetentionEnabled: z.boolean().optional(),
@@ -561,5 +561,5 @@ export const appSettingsPatchSchema = z.object({
     .partialRecord(electronReleaseChannelSchema, nonEmptyStringSchema)
     .optional(),
   settingsSyncFirstRunPromptHandled: z.boolean().optional(),
-  zcodeEndpointOrigin: zcodeEndpointOriginSchema.optional(),
+  lcodeEndpointOrigin: lcodeEndpointOriginSchema.optional(),
 });

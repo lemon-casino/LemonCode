@@ -2,8 +2,8 @@
 // Skill scan policy (pure, no I/O)
 // ============================================================
 //
-// 技能目录扫描的共享策略，被 @zcode/services（桌面端递归扫描）与
-// apps/zcode-cli 的 @zcode/adapters（agent 端单层扫描）共同消费，
+// 技能目录扫描的共享策略，被 @lcode/services（桌面端递归扫描）与
+// apps/lcode-cli 的 @lcode/adapters（agent 端单层扫描）共同消费，
 // 避免两端对“什么目录该进入”产生分歧。
 //
 // 必须保持纯逻辑、不引入 node:* 依赖，否则会破坏 web bundle。
@@ -43,7 +43,7 @@ export const SKILL_SCAN_EXCLUDED_DIRECTORY_NAMES: ReadonlySet<string> = new Set(
 export const MAX_SKILL_SCAN_DEPTH = 8;
 
 /**
- * 技能目录（含 ~/.zcode/skills 等）下默认不进入以 . 开头的子目录，
+ * 技能目录（含 ~/.lcode/skills 等）下默认不进入以 . 开头的子目录，
  * 避免 .agents/.cursor 等 vendored 副本与软链镜像重复列出；
  * 同时跳过 node_modules 等内容目录。
  */

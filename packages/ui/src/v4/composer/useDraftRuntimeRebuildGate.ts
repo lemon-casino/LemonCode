@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef } from "react";
-import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 
 /**
  * 重建窗口上限。实测 agent start→ready 约 550-650ms，createSession 再数百 ms，5s 有充分余量。
@@ -103,7 +103,7 @@ export function useDraftRuntimeRebuildGate(params: {
   const handleRuntimeRestart = useCallback(() => {
     if (!enabledRef.current) return;
     dispatch({ prewarmSessionId: prewarmSessionIdRef.current, type: "runtimeRestart" });
-    useZCodeSessionStore.getState().invalidateDraftRuntime(workspacePath, workspaceIdentity);
+    useLCodeSessionStore.getState().invalidateDraftRuntime(workspacePath, workspaceIdentity);
   }, [workspaceIdentity, workspacePath]);
 
   useEffect(() => {

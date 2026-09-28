@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { AssistantCodeCommentCard } from "@/lib/assistantCodeComment.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { getPathLeaf } from "@/lib/path.js";
@@ -45,7 +45,7 @@ export function AssistantCodeCommentCards({
   workspacePath: string;
   workspaceRemoteSessionId?: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [isOpen, setIsOpen] = useState(false);
   const visibleCards = cards;
 

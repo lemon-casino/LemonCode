@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { IPlatformService } from "@zcode/shared";
+import type { IPlatformService } from "@lcode/shared";
 import { PlatformProvider } from "../hooks/usePlatform.js";
-import { ZCodeIntlProvider } from "../i18n/IntlProvider.js";
+import { LCodeIntlProvider } from "../i18n/IntlProvider.js";
 import enUS from "../i18n/locales/en-US.js";
 import zhCN from "../i18n/locales/zh-CN.js";
 import { resolveSettingsSection } from "../lib/settingsNavigation.js";
@@ -37,17 +37,17 @@ const bridgePlatformStub = {
 
 function renderSection(platform: IPlatformService): string {
   return renderToStaticMarkup(
-    <ZCodeIntlProvider initialLocale="zh-CN">
+    <LCodeIntlProvider initialLocale="zh-CN">
       <PlatformProvider platform={platform}>
         <RemoteControlSettingsSection />
       </PlatformProvider>
-    </ZCodeIntlProvider>,
+    </LCodeIntlProvider>,
   );
 }
 
 function renderPairingPanel(props: Partial<Parameters<typeof RemotePairingPanel>[0]>): string {
   return renderToStaticMarkup(
-    <ZCodeIntlProvider initialLocale="zh-CN">
+    <LCodeIntlProvider initialLocale="zh-CN">
       <RemotePairingPanel
         canStart
         noMirrorTargetHint="镜像目标缺失提示"
@@ -60,7 +60,7 @@ function renderPairingPanel(props: Partial<Parameters<typeof RemotePairingPanel>
         onDecide={async () => {}}
         {...props}
       />
-    </ZCodeIntlProvider>,
+    </LCodeIntlProvider>,
   );
 }
 
@@ -96,7 +96,7 @@ test("remoteControl 分区仅桌面注册且落在 basics 组，导航可解析"
 
 test("平台能力缺失时渲染 desktopOnly 提示，不渲染任何控件", () => {
   const markup = renderSection({} as IPlatformService);
-  assert.match(markup, /远程控制只能在 ZCode 桌面端使用/);
+  assert.match(markup, /远程控制只能在 LCode 桌面端使用/);
   assert.doesNotMatch(markup, /remote-control-enabled-switch/);
 });
 

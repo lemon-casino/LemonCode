@@ -1,7 +1,7 @@
 import type {
   V4ConversationWorkflowRunSummary,
   WorkflowRunState,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
 
 /**
  * run 目录的纯模型，单一信源是 journal。

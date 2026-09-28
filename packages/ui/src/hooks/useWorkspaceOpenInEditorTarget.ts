@@ -1,4 +1,4 @@
-import { createOpenInEditorRemoteTarget } from "@zcode/shared";
+import { createOpenInEditorRemoteTarget } from "@lcode/shared";
 import { useMemo } from "react";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceTab, type WindowTabState, type WorkspaceTabState } from "@/store/tabStore.js";

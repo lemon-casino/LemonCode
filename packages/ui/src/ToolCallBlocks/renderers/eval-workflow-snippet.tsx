@@ -1,13 +1,13 @@
 import { FlaskConical } from "lucide-react";
 import { useCallback, useMemo } from "react";
-import type { ToolCallEvalWorkflowSnippetDisplay } from "@zcode/shared/zcode-protocol-v4";
+import type { ToolCallEvalWorkflowSnippetDisplay } from "@lcode/shared/lcode-protocol-v4";
 import {
   CodeBlock,
   CodeBlockHeader,
   CodeBlockCopyButton,
 } from "@/components/ai-elements/code-block.js";
 import { useNowTicker } from "@/components/workflow-graph/use-now-ticker.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
 import { readToolResultDisplay } from "@/ToolCallBlocks/toolResultDisplay.js";
 import { ToolLayout } from "@/ToolCallBlocks/ToolLayout.js";
@@ -22,7 +22,7 @@ const ICON = <FlaskConical className="size-4 shrink-0 text-foreground-subtle" />
 
 /** 三态摘要不放结果预览，展开内容按执行状态排序。 */
 export function EvalWorkflowSnippetToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCall } = context.toolCallNode;
   const display = readToolResultDisplay(toolCall.raw);
   const snippet = display?.kind === "eval_workflow_snippet" ? display : undefined;
@@ -139,7 +139,7 @@ function SnippetBody({
   response?: string;
   theme: ToolCallBlockRenderContext["theme"];
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   if (!failed) {
     const content = running
       ? code === undefined
@@ -239,7 +239,7 @@ function SnippetTextPanel({
   running: boolean;
   truncated: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <div className="mb-2 min-w-0" data-testid="workflow-snippet-body">
       <div data-testid={running ? "snippet-running-code" : "snippet-result"}>

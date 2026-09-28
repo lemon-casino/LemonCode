@@ -1,7 +1,7 @@
 /*
  * Derived from vercel/ai-elements (packages/elements/src/reasoning.tsx).
  * Copyright 2023 Vercel, Inc. Licensed under Apache-2.0.
- * Modified by ZCode: local integration, formatting and adaptations.
+ * Modified by LCode: local integration, formatting and adaptations.
  * See THIRD-PARTY-NOTICES.md in the repository root for license and provenance.
  */
 "use client";
@@ -9,9 +9,9 @@
 import { useControllableState } from "@radix-ui/react-use-controllable-state";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "../ui/collapsible.js";
 import { cn } from "../lib/utils.js";
-import { TID_CHAT_REASONING_CONTENT, TID_CHAT_REASONING_TRIGGER } from "@zcode/shared";
+import { TID_CHAT_REASONING_CONTENT, TID_CHAT_REASONING_TRIGGER } from "@lcode/shared";
 import { BrainIcon, ChevronRightIcon } from "lucide-react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { QueuedSummaryContent } from "@/ToolCallBlocks/QueuedSummaryContent.js";
 import type { ComponentProps, CSSProperties, ReactNode } from "react";
 import {
@@ -291,7 +291,7 @@ export const ReasoningTrigger = memo(
     ...props
   }: ReasoningTriggerProps) => {
     const { isStreaming, isOpen, duration } = useReasoning();
-    const { intl } = useZCodeIntl();
+    const { intl } = useLCodeIntl();
     const streamingSummary =
       isStreaming && !isOpen ? resolveReasoningStreamingSummary(streamingText) : null;
     const streamingSummaryRef = useRef<HTMLSpanElement | null>(null);

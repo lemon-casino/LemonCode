@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { isApiKeyAccess } from "@zcode/provider";
+import { isApiKeyAccess } from "@lcode/provider";
 import { Loader2Icon, TriangleAlertIcon } from "lucide-react";
 import {
   BIGMODEL_PROVIDER_ID,
@@ -12,7 +12,7 @@ import {
   TID_LOGIN_API_KEY_SKIP_BUTTON,
   ZAI_PROVIDER_ID,
   testId,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { Alert, AlertDescription } from "@/components/ui/alert.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
@@ -26,7 +26,7 @@ import {
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
 import { useServices } from "@/hooks/useServices.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { renderOAuthProviderIcon } from "@/lib/oauthProviderIcon.js";
 import {
@@ -38,7 +38,7 @@ import {
   shouldShowLoginApiKeyLink,
   type ApiKeyProviderChoice,
 } from "@/login/LoginApiKeyForm.helpers.js";
-import { useZCodeStore } from "@/store/StoreProvider.js";
+import { useLCodeStore } from "@/store/StoreProvider.js";
 
 interface LoginApiKeyFormProps {
   onCancel: () => void;
@@ -47,10 +47,10 @@ interface LoginApiKeyFormProps {
 }
 
 export function LoginApiKeyForm({ onCancel, onSaved, onSkipped }: LoginApiKeyFormProps) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const platform = usePlatform();
   const { modelSelectionService, providerSettingsService, settingService } = useServices();
-  const markApiKeyLoginSuccess = useZCodeStore((state) => state.markApiKeyLoginSuccess);
+  const markApiKeyLoginSuccess = useLCodeStore((state) => state.markApiKeyLoginSuccess);
   const [providerChoice, setProviderChoice] = useState<ApiKeyProviderChoice>(() =>
     resolveLoginApiKeyDefaultProvider(locale),
   );

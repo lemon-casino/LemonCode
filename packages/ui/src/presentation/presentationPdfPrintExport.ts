@@ -7,9 +7,9 @@ export interface PresentationPrintHost {
   dispose(): void;
 }
 
-const HOST_ATTRIBUTE = "data-zcode-pptx-print-host";
-const PAGE_ATTRIBUTE = "data-zcode-pptx-print-page";
-const STYLE_ATTRIBUTE = "data-zcode-pptx-print-style";
+const HOST_ATTRIBUTE = "data-lcode-pptx-print-host";
+const PAGE_ATTRIBUTE = "data-lcode-pptx-print-page";
+const STYLE_ATTRIBUTE = "data-lcode-pptx-print-style";
 
 /** 单图解码失败不阻塞导出（预览同样会失败），整体解码等待设上限 */
 const IMAGE_DECODE_TIMEOUT_MS = 10_000;

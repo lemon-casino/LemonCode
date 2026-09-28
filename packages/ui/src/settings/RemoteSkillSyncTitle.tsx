@@ -2,10 +2,10 @@ import { useState } from "react";
 import { AlertCircleIcon } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { DialogTitle } from "@/components/ui/dialog.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 export function RemoteSkillSyncTitle() {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [warningTooltipOpen, setWarningTooltipOpen] = useState(false);
   const warningTitle = intl.formatMessage({
     id: "settings.skills.remoteSync.warningTitle",

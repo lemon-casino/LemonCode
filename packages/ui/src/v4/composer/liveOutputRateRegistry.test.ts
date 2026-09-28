@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ConversationSnapshot } from "@zcode/shared/zcode-protocol-v4";
+import type { ConversationSnapshot } from "@lcode/shared/lcode-protocol-v4";
 import { LiveOutputRateRegistry, observeLiveOutputRateStore } from "./liveOutputRateRegistry.js";
 
 function liveSnapshot(

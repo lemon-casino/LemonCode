@@ -40,12 +40,12 @@ import type {
   EnterpriseCodingPlanPricingRequest,
   EnterpriseCodingPlanPricingResponse,
   StartPlanPreviewConfig,
-  ZCodeModelContextBudgetStrategy,
+  LCodeModelContextBudgetStrategy,
   ForceUpdateConfig,
   DynamicWorkflowClientConfig,
-} from "@zcode/shared";
-import type { ModelSelectionView } from "@zcode/provider";
-import { ServiceChannels } from "@zcode/shared";
+} from "@lcode/shared";
+import type { ModelSelectionView } from "@lcode/provider";
+import { ServiceChannels } from "@lcode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 
 export interface OffPeakClientConfig {
@@ -71,7 +71,7 @@ export interface ICodingPlanSubscriptionService {
     forceRefresh?: boolean;
   }): Promise<DynamicWorkflowClientConfig>;
   /** 兼容接口：固定返回 preflight-v1，不读取远端配置或缓存。 */
-  getModelContextBudgetStrategy(): Promise<ZCodeModelContextBudgetStrategy>;
+  getModelContextBudgetStrategy(): Promise<LCodeModelContextBudgetStrategy>;
   getForceUpdateConfig(): Promise<ForceUpdateConfig | null>;
   productInfo(request: CodingPlanProductInfoRequest): Promise<CodingPlanProductInfo>;
   preview(request: CodingPlanPreviewRequest): Promise<CodingPlanPreviewResponse>;

@@ -2,7 +2,7 @@ import { accessSync, chmodSync, constants, existsSync, statSync } from "node:fs"
 import { createRequire } from "node:module";
 import { homedir, release } from "node:os";
 import { delimiter, dirname, join, resolve } from "node:path";
-import { Emitter, type Event } from "@zcode/rpc";
+import { Emitter, type Event } from "@lcode/rpc";
 import type { IPty } from "node-pty";
 import type { ISettingService } from "../setting/setting.js";
 import type { ITerminalService, TerminalWindowsPtyInfo } from "./terminal.js";

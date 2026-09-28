@@ -152,7 +152,7 @@ test("升级 URL 携带接入 Key header 与 roomId;open 后首帧为 proto:1 �
     nowImpl: clock.now,
   });
   assert.equal(factory.urls[0], "https://tunnel.example.com/connect/host?roomId=roomId-00000000");
-  assert.equal(factory.headers[0]!["x-zcode-remote-access-key"], "ak_test_access_key_value_123456");
+  assert.equal(factory.headers[0]!["x-lcode-remote-access-key"], "ak_test_access_key_value_123456");
 
   factory.sockets[0]!.emitOpen();
   const firstFrame = JSON.parse(factory.sockets[0]!.sentText[0]!) as Record<string, unknown>;

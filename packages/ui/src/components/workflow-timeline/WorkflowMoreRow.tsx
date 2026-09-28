@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import { ArrowUpRightIcon, ChevronDownIcon, CircleXIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import { laneDisplayName } from "@/components/workflow-graph/lane-name.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { RosterCounts, RosterMore } from "./roster-model.js";
 import type { TimelinePill } from "./timeline-model.js";
 import { LaneGlyph } from "./WorkflowAgentPill.js";
@@ -34,7 +34,7 @@ export function WorkflowMoreRow({
   /** 门的形态（侧板）：开合状态与其余人的计数。缺席即卡上那一行（↗ 常驻）。 */
   door?: { open: boolean; tally: RosterCounts };
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const format = intl.formatMessage.bind(intl);
   const nameOf = (pill: TimelinePill) => pill.runtimeName ?? laneDisplayName(pill.lane, format);
   const label = format(

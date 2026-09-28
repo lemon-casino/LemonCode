@@ -16,7 +16,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { PluginStoreAvatar } from "@/settings/PluginStoreAvatar.js";
 import {
   canUpdatePluginItem,
@@ -64,7 +64,7 @@ export function PluginStorePaidPlanBadge({
 }: {
   item: Pick<StorePluginItem, "id" | "listing">;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   if (!item.listing?.requiresPaidPlan) return null;
   const label = intl.formatMessage({ id: "settings.plugins.store.requiresPaidPlan" });
   const badgeLabel = intl.formatMessage({ id: "settings.plugins.store.paidPlanBadge" });
@@ -97,7 +97,7 @@ export function PluginStoreItemMenu({
   triggerVariant?: "ghost" | "outline";
   triggerSize?: "icon-md" | "icon-lg";
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const enabled = item.info?.enabled ?? false;
   const updatePending = canUpdatePluginItem(item);
   const busy = isItemBusy(item, actions);
@@ -195,7 +195,7 @@ export function PluginStoreInstallButton({
   actions: PluginStoreActions;
   size?: "sm" | "default" | "lg";
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const installing =
     actions.operationId === `plugin:install:${item.name}@${item.marketplace}` ||
     actions.operationId === `plugin:restore:${item.id}`;
@@ -232,7 +232,7 @@ export function PluginStoreUpdateBadge({
 }: {
   item: Pick<StorePluginItem, "id" | "installedMeta" | "orphaned"> | null | undefined;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   if (!canUpdatePluginItem(item)) return null;
   const label = intl.formatMessage({ id: "settings.plugins.list.updateAvailable" });
   return (
@@ -258,7 +258,7 @@ export function PluginStoreUpdateButton({
   actions: PluginStoreActions;
   size?: "sm" | "default" | "lg";
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   if (!item || !canUpdatePluginItem(item)) return null;
   const updating = actions.operationId === `plugin:update:${item.id}`;
   return (
@@ -298,7 +298,7 @@ export function PluginStoreCard({
   actions: PluginStoreActions;
   locale: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const displayName = resolveItemDisplayName(item, locale);
   const description = resolveItemDescription(item, locale);
   return (

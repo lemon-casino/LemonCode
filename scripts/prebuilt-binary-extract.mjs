@@ -111,7 +111,7 @@ export async function extractPrebuiltBinary({
   verifyPrebuiltArchiveSha256(archivePath, archiveSha256);
   mkdirSync(dirname(binaryPath), { recursive: true });
   mkdirSync(tmpdir(), { recursive: true });
-  const tempDir = mkdtempSync(join(tmpdir(), "zcode-prebuilt-binary-"));
+  const tempDir = mkdtempSync(join(tmpdir(), "lcode-prebuilt-binary-"));
   const extractDir = join(tempDir, "extract");
 
   try {

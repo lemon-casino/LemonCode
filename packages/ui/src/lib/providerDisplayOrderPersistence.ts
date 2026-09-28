@@ -1,4 +1,4 @@
-import type { IProviderSettingsService, ProviderSettingsView } from "@zcode/services";
+import type { IProviderSettingsService, ProviderSettingsView } from "@lcode/services";
 import type { ProviderOrderView } from "@/lib/modelProviderOrdering.js";
 
 export async function persistProviderDisplayOrder(params: {

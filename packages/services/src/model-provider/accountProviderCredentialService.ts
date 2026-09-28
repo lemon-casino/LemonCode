@@ -1,4 +1,4 @@
-import type { ProviderFamilyDomain } from "@zcode/shared";
+import type { ProviderFamilyDomain } from "@lcode/shared";
 import type { AccountProviderCredentialStore } from "./accountProviderCredentialStore.js";
 import { accountProviderCredentialKey } from "./accountProviderCredentialKey.js";
 

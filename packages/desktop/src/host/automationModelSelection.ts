@@ -1,5 +1,5 @@
-import type { ModelSelection } from "@zcode/shared";
-import type { IModelSelectionService } from "@zcode/services";
+import type { ModelSelection } from "@lcode/shared";
+import type { IModelSelectionService } from "@lcode/services";
 
 /** 在 Automation Select 转为一次 Submission 的边界固定模型身份。 */
 export async function resolveAutomationSubmissionModelSelection(params: {

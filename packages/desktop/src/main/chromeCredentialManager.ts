@@ -71,7 +71,7 @@ export async function readWindowsChromeMasterKey(userDataDir: string): Promise<B
   if (!encryptedKey) throw new Error("chrome_master_key_missing");
   const script = [
     "Add-Type -AssemblyName System.Security;",
-    "$data=[Convert]::FromBase64String($zcodeArg0);",
+    "$data=[Convert]::FromBase64String($lcodeArg0);",
     "if ([Text.Encoding]::ASCII.GetString($data,0,5) -eq 'DPAPI') {$data=$data[5..($data.Length-1)]};",
     "$plain=[Security.Cryptography.ProtectedData]::Unprotect($data,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);",
     "[Convert]::ToBase64String($plain)",

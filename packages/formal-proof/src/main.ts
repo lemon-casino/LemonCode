@@ -67,7 +67,7 @@ interface TreeViewState {
   review: Record<string, ReviewStatus>;
 }
 
-const reviewKey = "zcode.conversation-state-space.review.v1";
+const reviewKey = "lcode.conversation-state-space.review.v1";
 const statusOptions: ReviewStatus[] = ["accepted", "undefined", "invalid", "ignored", "bug"];
 const numberFormat = new Intl.NumberFormat("zh-CN");
 const app = mustQuery<HTMLDivElement>("#app");

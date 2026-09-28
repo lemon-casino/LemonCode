@@ -9,7 +9,7 @@ import {
   BACKGROUND_WORK_CANCEL_REJECTED_FAULT_PREFIX,
   WORKFLOW_RUN_RESUME_REJECTED_FAULT_PREFIX,
   type CommandAck,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
 
 export type WorkflowRunAction = "cancel" | "resume";
 

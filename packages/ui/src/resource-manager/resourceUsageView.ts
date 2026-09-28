@@ -1,4 +1,4 @@
-import type { ResourceUsageCategory, ResourceUsageProcess } from "@zcode/shared";
+import type { ResourceUsageCategory, ResourceUsageProcess } from "@lcode/shared";
 
 /** 三组固定顺序：基础服务 / 内置插件 / 社区插件 */
 const RESOURCE_USAGE_CATEGORY_ORDER: readonly ResourceUsageCategory[] = [

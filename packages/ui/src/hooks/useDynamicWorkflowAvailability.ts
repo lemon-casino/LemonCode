@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from "react";
-import type { ICodingPlanSubscriptionService } from "@zcode/services";
+import type { ICodingPlanSubscriptionService } from "@lcode/services";
 import {
   useDynamicWorkflowAvailabilityStore,
   type DynamicWorkflowAvailabilitySnapshot,

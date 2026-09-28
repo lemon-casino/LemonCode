@@ -68,8 +68,8 @@ function readJobs() {
 
 function main() {
   const options = {
-    platform: readOption("platform") ?? process.env.ZCODE_TARGET_OS ?? process.platform,
-    arch: readOption("arch") ?? process.env.ZCODE_TARGET_ARCH ?? process.arch,
+    platform: readOption("platform") ?? process.env.LCODE_TARGET_OS ?? process.platform,
+    arch: readOption("arch") ?? process.env.LCODE_TARGET_ARCH ?? process.arch,
     outputDir: readOption("output-dir"),
     keepWorkdir: hasFlag("keep-workdir"),
     quiet: hasFlag("quiet"),

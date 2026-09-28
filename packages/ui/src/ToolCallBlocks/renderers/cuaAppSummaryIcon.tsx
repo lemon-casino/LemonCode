@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import type { ApplicationIconRequest } from "@zcode/shared";
+import type { ApplicationIconRequest } from "@lcode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { CUA_TOOL_ICON } from "@/ToolCallBlocks/renderers/cuaIcon.js";

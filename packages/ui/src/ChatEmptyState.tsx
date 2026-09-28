@@ -26,7 +26,7 @@ import {
   SearchIcon,
   X,
 } from "lucide-react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useRemoteConnectionEntryVisibility } from "@/hooks/useRemoteConnectionEntryVisibility.js";
 import { cn } from "@/components/lib/utils.js";
 import { getPathLeaf } from "@/lib/path.js";
@@ -45,7 +45,7 @@ import {
   type RemoteTarget,
   type RemoteWorkspaceSessionEntry,
   type WorkspacePurpose,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
 export {
   getScratchWorkspaceLocationHint,
@@ -213,7 +213,7 @@ export function ChatEmptyWorkspacePreviewMenu({
   /** 调用方局部替换尾部 indicator；普通会话继续使用默认 Lucide chevron。 */
   triggerIndicator?: ReactNode;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [sshDialogOpen, setSshDialogOpen] = useState(false);
   const [workspaceSearchQuery, setWorkspaceSearchQuery] = useState("");
   const showRemoteConnectionEntry = useRemoteConnectionEntryVisibility();

@@ -3,7 +3,7 @@ interface StorageLike {
   setItem(key: string, value: string): void;
 }
 
-const LAST_SELECTED_EDITOR_STORAGE_KEY = "zcode-last-editor-id";
+const LAST_SELECTED_EDITOR_STORAGE_KEY = "lcode-last-editor-id";
 
 function getBrowserStorage(): StorageLike | null {
   if (typeof window === "undefined") {

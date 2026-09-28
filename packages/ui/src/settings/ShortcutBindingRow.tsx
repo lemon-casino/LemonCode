@@ -1,8 +1,8 @@
 import { Keyboard, Pencil, Trash2 } from "lucide-react";
-import type { ShortcutCommandEntry, ShortcutCommandId } from "@zcode/shared";
+import type { ShortcutCommandEntry, ShortcutCommandId } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Kbd, KbdGroup } from "@/components/ui/kbd.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatShortcutBindingLabelParts } from "@/shortcuts/label.js";
 
 export interface RecordingState {
@@ -54,7 +54,7 @@ export function ShortcutBindingRow({
   onSteal,
   onClearAll,
 }: ShortcutBindingRowProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const conflictBinding = isRecording ? recording?.conflictBinding : null;
 
   // 录制内嵌块：出现在被替换条目 / 追加条目的位置（预览 kbd 抢占焦点）

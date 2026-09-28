@@ -5,7 +5,7 @@
  * 放在组件或 hook 里就只能靠搭 store mock 来测，覆盖不全。这里不 import React、不读 store，
  * 全部输入由调用方（useCuaComposerEntry）注入。
  */
-import { isCuaPermissionStatusAvailable, type CuaPermissionStatusResult } from "@zcode/services";
+import { isCuaPermissionStatusAvailable, type CuaPermissionStatusResult } from "@lcode/services";
 import { isCuaPermissionTccGranted } from "@/lib/cuaPermissionStatusStore.js";
 import type { StatusDotTone } from "@/settings/StatusDot.js";
 
@@ -32,11 +32,11 @@ interface CuaComposerEntryInputs {
   hiddenBySettings: boolean;
   /** cuaPermissionService 是否存在；远端 host 上为 false。 */
   permissionServiceAvailable: boolean;
-  /** zcode-cua 插件启用态。 */
+  /** lcode-cua 插件启用态。 */
   pluginEnabled: boolean;
-  /** zcode-cua 插件正在切换中。 */
+  /** lcode-cua 插件正在切换中。 */
   pluginToggling: boolean;
-  /** 最近一次 zcode-cua 插件操作失败。 */
+  /** 最近一次 lcode-cua 插件操作失败。 */
   pluginError: boolean;
   /** Helper 权限状态。入口不查询权限，恒为 null（idle 中性态）；真值只在设置页读。 */
   permissionStatus: CuaPermissionStatusResult | null;

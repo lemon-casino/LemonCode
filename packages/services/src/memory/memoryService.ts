@@ -6,7 +6,7 @@ import {
 import { lstat, readdir, realpath } from "node:fs/promises";
 import { basename, isAbsolute, join, relative, sep } from "node:path";
 import { readProjectMemoryFileFromStableHandle } from "#src/memory/projectMemoryStableRead.js";
-import { getZCodeDataRootDir } from "#src/paths.js";
+import { getLCodeDataRootDir } from "#src/paths.js";
 
 const PROJECT_MEMORY_INDEX_FILE_NAME = "MEMORY.md";
 const PROJECT_MEMORY_DIRECTORY_NAME = "memory";
@@ -17,7 +17,7 @@ function isNotFoundError(error: unknown): boolean {
 }
 
 function getProjectMemoriesRoot(): string {
-  return join(getZCodeDataRootDir(), "cli", "memories", "projects");
+  return join(getLCodeDataRootDir(), "cli", "memories", "projects");
 }
 
 function isValidPathSegment(value: string): boolean {

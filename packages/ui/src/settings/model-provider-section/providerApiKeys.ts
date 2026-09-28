@@ -1,4 +1,4 @@
-import type { ProviderApiKey } from "@zcode/provider";
+import type { ProviderApiKey } from "@lcode/provider";
 
 export type ProviderApiKeyState = ProviderApiKey;
 

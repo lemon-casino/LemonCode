@@ -1,7 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { ZCodeGroupedTaskViewNode } from "@zcode/services";
+import type { LCodeGroupedTaskViewNode } from "@lcode/services";
 import { taskKey } from "@/workspace-grouped-tasks/ids.js";
 import {
   isPotentialVerticalScrollContainer,
@@ -17,7 +17,7 @@ function shouldVirtualizeGroupedTopLevelNodes(nodeCount: number): boolean {
   return nodeCount > GROUPED_TOP_LEVEL_VIRTUALIZATION_THRESHOLD;
 }
 
-function getTopLevelNodeKey(node: ZCodeGroupedTaskViewNode | undefined, index: number): string {
+function getTopLevelNodeKey(node: LCodeGroupedTaskViewNode | undefined, index: number): string {
   if (!node) {
     return `missing:${index}`;
   }
@@ -25,7 +25,7 @@ function getTopLevelNodeKey(node: ZCodeGroupedTaskViewNode | undefined, index: n
 }
 
 function estimateTopLevelNodeSize(
-  node: ZCodeGroupedTaskViewNode | undefined,
+  node: LCodeGroupedTaskViewNode | undefined,
   isGroupCollapsed: (groupId: string) => boolean,
 ): number {
   if (!node || node.type === "task") {
@@ -67,9 +67,9 @@ function VirtualizedGroupedTopLevelList({
   isGroupCollapsed,
   renderNode,
 }: {
-  nodes: ZCodeGroupedTaskViewNode[];
+  nodes: LCodeGroupedTaskViewNode[];
   isGroupCollapsed: (groupId: string) => boolean;
-  renderNode: (node: ZCodeGroupedTaskViewNode, index: number) => ReactNode;
+  renderNode: (node: LCodeGroupedTaskViewNode, index: number) => ReactNode;
 }) {
   const listRef = useRef<HTMLDivElement | null>(null);
   const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);

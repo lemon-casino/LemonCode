@@ -8,7 +8,7 @@
     "importRevision": null,
     "provenance": "The original copy revision is not recorded in the current checkout; this pinned license reference is not asserted to be the original import version.",
     "roots": ["packages/ui/src/components/ui", "packages/ui/src/styles.css"],
-    "scope": "Upstream-derived portions only; ZCode-specific files in the same directory are not attributed to the upstream project.",
+    "scope": "Upstream-derived portions only; LCode-specific files in the same directory are not attributed to the upstream project.",
     "license": "MIT"
   },
   {
@@ -20,7 +20,7 @@
     "importRevision": null,
     "provenance": "The original copy revision is not recorded in the current checkout; this pinned license reference is not asserted to be the original import version.",
     "roots": ["packages/ui/src/components/ai-elements", ".agents/skills/ai-elements"],
-    "scope": "Upstream-derived UI components, skill instructions, reference documentation and example scripts only; locally adapted for ZCode imports, styling and agent workflow. Original import revision not recorded.",
+    "scope": "Upstream-derived UI components, skill instructions, reference documentation and example scripts only; locally adapted for LCode imports, styling and agent workflow. Original import revision not recorded.",
     "license": "Apache-2.0",
     "modifiedFiles": [
       "packages/ui/src/components/ai-elements/agent.tsx",
@@ -166,7 +166,7 @@
   },
   {
     "id": "Fig autocomplete registry",
-    "roots": ["apps/zcode-cli/packages/core/src/tool/handlers/generated/bash-command-registry.ts"],
+    "roots": ["apps/lcode-cli/packages/core/src/tool/handlers/generated/bash-command-registry.ts"],
     "license": "MIT",
     "source": "https://raw.githubusercontent.com/withfig/autocomplete/aef52acff84c45edde61ae610cc2c964802b9a38/LICENSE",
     "file": "third-party/upstream/5129f8779dca579cfcb235570688a2f15822b270575e04f27ef906aabbcc0355.txt",
@@ -196,7 +196,7 @@
     "importRevision": null,
     "provenance": "Original import revision is not recorded. This pinned upstream license/source reference is not asserted to be the original import version.",
     "roots": [".agents/skills/agent-browser", ".agents/skills/dogfood", ".agents/skills/electron"],
-    "scope": "Upstream-derived instructions, reference documents and shell templates; locally adapted for the ZCode workspace. Reference release v0.20.0 contains all three skills.",
+    "scope": "Upstream-derived instructions, reference documents and shell templates; locally adapted for the LCode workspace. Reference release v0.20.0 contains all three skills.",
     "license": "Apache-2.0",
     "modifiedFiles": [
       ".agents/skills/agent-browser/SKILL.md",
@@ -221,9 +221,9 @@
     "roots": [
       "packages/rpc/src",
       "packages/rpc/examples",
-      "packages/shared/src/zcode-protocol-v4/wire-codec.ts"
+      "packages/shared/src/lcode-protocol-v4/wire-codec.ts"
     ],
-    "scope": "Upstream-derived IPC, serialization, buffer, lifecycle and event portions only. Local RPC extensions, transports and envelope measurement are ZCode adaptations; inclusion does not attribute all local code to Microsoft.",
+    "scope": "Upstream-derived IPC, serialization, buffer, lifecycle and event portions only. Local RPC extensions, transports and envelope measurement are LCode adaptations; inclusion does not attribute all local code to Microsoft.",
     "license": "MIT"
   },
   {
@@ -236,7 +236,7 @@
     "provenance": "Original import revision is not recorded. This pinned upstream license/source reference is not asserted to be the original import version.",
     "roots": [
       "packages/ui/src/lib/builtinSkillI18n.ts",
-      "apps/zcode-cli/packages/superpowers-plugin/LICENSE"
+      "apps/lcode-cli/packages/superpowers-plugin/LICENSE"
     ],
     "scope": "Superpowers-derived skill descriptions and their translations only; unrelated descriptions from other projects in this file are not covered. The former bundled plugin implementation has been removed; only its retained license remains.",
     "license": "MIT"
@@ -258,7 +258,7 @@
     "file": "third-party/upstream/f1af4301bd3b85026965f9f1cfa101b9bfd73a75c6b92f7a2a72bab5768abd36.txt",
     "sha256": "f1af4301bd3b85026965f9f1cfa101b9bfd73a75c6b92f7a2a72bab5768abd36",
     "importRevision": "e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156",
-    "roots": ["apps/zcode-cli/packages/lemon-workflow-plugin/skills/ponytail"],
+    "roots": ["apps/lcode-cli/packages/lemon-workflow-plugin/skills/ponytail"],
     "scope": "Vendored Ponytail SKILL.md and its original MIT license.",
     "license": "MIT"
   },
@@ -269,7 +269,7 @@
     "file": "third-party/upstream/94fe75d355887f84ee7eefca68e06d8d082a23dad47a8e1f58a94d98900edf5b.txt",
     "sha256": "94fe75d355887f84ee7eefca68e06d8d082a23dad47a8e1f58a94d98900edf5b",
     "importRevision": "ae26f3a4775574bd49dc8bdb61c0287bbc3cd268",
-    "roots": ["apps/zcode-cli/packages/lemon-workflow-plugin/skills/caveman"],
+    "roots": ["apps/lcode-cli/packages/lemon-workflow-plugin/skills/caveman"],
     "scope": "Vendored Caveman skill and README only. Upstream LICENSING.md classifies skills/ as MIT; no BSL engine or runtime code is included.",
     "license": "MIT"
   }

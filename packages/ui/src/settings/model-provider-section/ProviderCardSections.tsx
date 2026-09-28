@@ -12,9 +12,9 @@ import type {
   ProviderSettingsFormProvider,
   ProviderSettingsFormModel,
 } from "@/lib/providerSettingsFormTypes.js";
-import type { ModelConnectivityResult } from "@zcode/shared";
-import type { ProviderApiKey, ProviderApiType } from "@zcode/provider";
-import type { ProviderApiKeyProbeResult } from "@zcode/services";
+import type { ModelConnectivityResult } from "@lcode/shared";
+import type { ProviderApiKey, ProviderApiType } from "@lcode/provider";
+import type { ProviderApiKeyProbeResult } from "@lcode/services";
 import {
   TID_MODEL_PROVIDER_ADD_MODEL_DIALOG,
   TID_MODEL_PROVIDER_ADD_MODEL_BUTTON,
@@ -25,7 +25,7 @@ import {
   TID_MODEL_PROVIDER_NAME_INPUT,
   TID_MODEL_PROVIDER_SYNC_MODELS_BUTTON,
   testId,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import {
   InfoIcon,
   KeyRoundIcon,
@@ -45,7 +45,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
 import { TECHNICAL_INPUT_ATTRIBUTES } from "@/lib/technicalInputAttributes.js";
 import { ModelRowInput } from "./ProviderFormControls.js";
@@ -59,7 +59,7 @@ import {
 import { SortableProviderModelList } from "@/settings/model-provider-section/SortableProviderModelList.js";
 import { useProviderModelDraft } from "@/settings/model-provider-section/useProviderModelDraft.js";
 import { ProviderLogo } from "@/settings/model-provider-section/ProviderLogo.js";
-import type { ProviderConfigObject } from "@zcode/provider";
+import type { ProviderConfigObject } from "@lcode/provider";
 import { ProviderApiKeyManagerDialog } from "./ProviderApiKeyManagerDialog.js";
 import { SyncModelsDialog, type SyncModelProbeResult } from "./SyncModelsDialog.js";
 
@@ -108,7 +108,7 @@ export function ProviderCardHeader({
   actionsVisible?: boolean;
   providerToggle?: ReactNode;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const renameRequestedRef = useRef(false);
   const secondaryActionsVisible = actionsVisible && (nameEditable || Boolean(onDelete));
 
@@ -214,7 +214,7 @@ export function ProviderConnectionSection({
   onBaseUrlCompositionStart?: () => void;
   onBaseUrlCompositionEnd?: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const showApiFormat = shouldShowProviderApiFormat(provider);
   const readOnlyBaseUrl = provider.config.api?.baseUrl ?? "";
   const resolvedApiFormat = provider.config.api?.type ?? "anthropic-messages";
@@ -306,7 +306,7 @@ export function ProviderApiKeySection({
   onSaveApiKeys: (apiKeys: readonly ProviderApiKey[]) => Promise<void>;
   onProbeApiKeys: (keyIds: readonly string[]) => Promise<readonly ProviderApiKeyProbeResult[]>;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [managerOpen, setManagerOpen] = useState(false);
   const enabledCount = apiKeys.filter((key) => key.enabled !== false).length;
 
@@ -410,7 +410,7 @@ export function ProviderModelsSection({
   onReorderModelIds?: (modelIds: string[]) => void;
   settingsRevision?: number;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { providerSettingsService } = useServices();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);

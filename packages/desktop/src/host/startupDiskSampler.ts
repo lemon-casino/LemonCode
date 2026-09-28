@@ -1,7 +1,7 @@
 import { stat, statfs } from "node:fs/promises";
 import { dirname } from "node:path";
 import { createHash } from "node:crypto";
-import type { StartupDiskSummary } from "@zcode/shared";
+import type { StartupDiskSummary } from "@lcode/shared";
 
 const SAMPLE_INTERVAL_MS = 2000;
 type Probe = (path: string) => Promise<{ scope: string; availableBytes: number }>;

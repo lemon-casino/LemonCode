@@ -3,7 +3,7 @@
 // 这里是 renderer-local 壳子状态：只管 session 到 pane/group 的归属与本地持久化，
 // 不下沉到协议、agent、main process 或 web-remote replayable 状态。
 import { create } from "zustand";
-import type { ZCodeTaskClientMode } from "@zcode/shared";
+import type { LCodeTaskClientMode } from "@lcode/shared";
 import {
   INITIAL_PANE_LAYOUT,
   MAX_WORKBENCH_PANES,
@@ -25,7 +25,7 @@ import {
   type PaneWorkspaceScope,
 } from "@/v4/paneLayoutTree.js";
 
-const WORKBENCH_GROUP_STORAGE_KEY = "zcode-v4-session-workbench-groups:v1";
+const WORKBENCH_GROUP_STORAGE_KEY = "lcode-v4-session-workbench-groups:v1";
 
 export interface WorkbenchSessionBinding {
   readonly workspaceScope: PaneWorkspaceScope;
@@ -52,7 +52,7 @@ interface WorkbenchGroupSnapshot {
 }
 
 interface WorkbenchGroupStore extends WorkbenchGroupSnapshot {
-  configureClientMode: (clientMode: ZCodeTaskClientMode) => void;
+  configureClientMode: (clientMode: LCodeTaskClientMode) => void;
   openSessionFromSidebar: (binding: WorkbenchSessionBinding) => void;
   splitSessionIntoGroup: (
     anchorPaneId: string,
@@ -81,7 +81,7 @@ const INITIAL_WORKBENCH_GROUP_STATE: WorkbenchGroupSnapshot = {
   sessionIndex: {},
 };
 
-let workbenchGroupClientMode: ZCodeTaskClientMode = "desktop-continuous";
+let workbenchGroupClientMode: LCodeTaskClientMode = "desktop-continuous";
 let desktopGroupsHydrated = false;
 
 function workbenchGroupsEnabled(): boolean {

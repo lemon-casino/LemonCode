@@ -1,4 +1,4 @@
-import type { ZCodePlanStep } from "./zcode-task-types-core.js";
+import type { LCodePlanStep } from "./lcode-task-types-core.js";
 
 const TODO_TOOL_NAME_PATTERN =
   /(?:^|[_\s-])(?:todo[_\s-]*(?:read|write)|update[_\s-]*plan)(?:$|[_\s-])/i;
@@ -12,7 +12,7 @@ function readString(value: unknown): string | undefined {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 }
 
-function normalizePlanStatus(value: unknown): ZCodePlanStep["status"] | null {
+function normalizePlanStatus(value: unknown): LCodePlanStep["status"] | null {
   const status = readString(value)?.replace(/-/g, "_").toLowerCase();
   if (status === "pending" || status === "in_progress" || status === "completed") {
     return status;
@@ -20,7 +20,7 @@ function normalizePlanStatus(value: unknown): ZCodePlanStep["status"] | null {
   return null;
 }
 
-function parsePlanStep(value: unknown, index: number): ZCodePlanStep | null {
+function parsePlanStep(value: unknown, index: number): LCodePlanStep | null {
   if (typeof value === "string") {
     const title = value.trim();
     return title ? { id: title, title, status: index === 0 ? "in_progress" : "pending" } : null;
@@ -69,7 +69,7 @@ function readPlanCollection(input: unknown): unknown[] | null {
   return null;
 }
 
-function extractPlanStepsFromValue(value: unknown): ZCodePlanStep[] | null {
+function extractPlanStepsFromValue(value: unknown): LCodePlanStep[] | null {
   const collection = readPlanCollection(value);
   if (!collection || collection.length === 0) {
     return null;
@@ -77,7 +77,7 @@ function extractPlanStepsFromValue(value: unknown): ZCodePlanStep[] | null {
 
   const steps = collection
     .map((item, index) => parsePlanStep(item, index))
-    .filter((step): step is ZCodePlanStep => step !== null);
+    .filter((step): step is LCodePlanStep => step !== null);
 
   return steps.length === collection.length ? steps : null;
 }
@@ -130,7 +130,7 @@ export function extractPlanStepsFromToolInput(params: {
   title?: string;
   kind?: string;
   input: unknown;
-}): ZCodePlanStep[] | null {
+}): LCodePlanStep[] | null {
   const fingerprint = [params.title, params.kind].filter(Boolean).join(" ");
   if (!isTodoPlanToolName(fingerprint)) {
     return null;
@@ -143,7 +143,7 @@ export function extractPlanStepsFromToolOutput(params: {
   title?: string;
   kind?: string;
   output: unknown;
-}): ZCodePlanStep[] | null {
+}): LCodePlanStep[] | null {
   const fingerprint = [params.title, params.kind].filter(Boolean).join(" ");
   if (!isTodoPlanToolName(fingerprint)) {
     return null;

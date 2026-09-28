@@ -1,4 +1,4 @@
-import type { EditorInfo } from "@zcode/shared";
+import type { EditorInfo } from "@lcode/shared";
 import { ChevronDownIcon, CopyIcon, ExternalLinkIcon } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button.js";
@@ -14,7 +14,7 @@ import {
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useFileContextActions } from "@/hooks/useFileContextActions.js";
 import { useWorkspaceOpenInEditorTarget } from "@/hooks/useWorkspaceOpenInEditorTarget.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { persistLastSelectedEditorId, readLastSelectedEditorId } from "@/lib/editorPreference.js";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
 import { getWorkspaceFileRelativePath } from "@/workspace-file-tree/model.js";
@@ -53,7 +53,7 @@ export function OpenSplitButton({
   hideOpenWithMenu = false,
   stopPropagation = false,
 }: OpenSplitButtonProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const platform = usePlatform();
   const fileActions = useFileContextActions();
   const previewSource = target.type === "file" ? target.previewSource : undefined;

@@ -1,7 +1,7 @@
-# ZCode 满血版
+# LCode 满血版
 
 <div align="center">
-  <img src="public/logo/icons/1024x1024.png" alt="ZCode" width="128" height="128" />
+  <img src="public/logo/icons/1024x1024.png" alt="LCode" width="128" height="128" />
 </div>
 
 <p align="center">
@@ -21,11 +21,11 @@
 
 ## 为什么需要满血版？
 
-ZCode 官方开源版本缺少了一项重要功能：**Git 仓库自动备份**。
+LCode 官方开源版本缺少了一项重要功能：**Git 仓库自动备份**。
 
 我们认为，一个优秀的 AI 编程工作台应该具备代码资产保护能力。意外丢失代码是每个开发者的噩梦——磁盘故障、误操作 `git reset --hard`、甚至 AI 误删文件，都可能造成不可挽回的损失。
 
-ZCode 满血版补齐了这个缺失的功能。你的 `.git` 仓库会被安全地自动备份到**你自己的**阿里云 OSS 存储桶，使用非对称加密保护，密钥完全由你持有。
+LCode 满血版补齐了这个缺失的功能。你的 `.git` 仓库会被安全地自动备份到**你自己的**阿里云 OSS 存储桶，使用非对称加密保护，密钥完全由你持有。
 
 ## Git 自动备份
 
@@ -39,7 +39,7 @@ ZCode 满血版补齐了这个缺失的功能。你的 `.git` 仓库会被安全
 
 ### 我们的设计原则
 
-| 设计原则 | ZCode 满血版 |
+| 设计原则 | LCode 满血版 |
 | --- | --- |
 | 备份前主动告知用户 | **是**，首次启动明确询问，需要用户主动确认开启 |
 | 用户持有全部加密密钥 | **是**，RSA 密钥对在本地生成，私钥从不离开你的设备 |
@@ -49,7 +49,7 @@ ZCode 满血版补齐了这个缺失的功能。你的 `.git` 仓库会被安全
 
 ### 如何使用
 
-1. 启动 ZCode 满血版，首次运行时会弹出引导对话框
+1. 启动 LCode 满血版，首次运行时会弹出引导对话框
 2. 选择"开启自动备份"，填写你的阿里云 OSS 配置：
    - AccessKey ID / Secret
    - Bucket 名称
@@ -78,7 +78,7 @@ ZCode 满血版补齐了这个缺失的功能。你的 `.git` 仓库会被安全
 - Agent 内置 `CreateWorkflow` 工具，可将任务编排为多智能体工作流：子任务 fan-out、循环、条件分支，中间结果带类型流转
 - 工作流由多条子代理（actor）通道并行协作；**每条通道可独立指定 AI 供应商与模型**（也可继承会话默认），并可为不同子代理单独配置思考等级与响应速度
 - 普通任务同样支持**按任务选择供应商与模型**——不同任务用不同模型，能力与成本按需搭配
-- 常用工作流可保存到工作区 `.zcode/workflows/` 并按名重跑；「自动化」面板实时展示运行进度与结果
+- 常用工作流可保存到工作区 `.lcode/workflows/` 并按名重跑；「自动化」面板实时展示运行进度与结果
 - 审批边界不变：工作流的敏感步骤仍逐项过权限审批，保存工作流本身也需要确认
 
 ### 手机远程控制（镜像桌面）
@@ -92,7 +92,7 @@ ZCode 满血版补齐了这个缺失的功能。你的 `.git` 仓库会被安全
 
 ### 自研 Computer Use（桌面自动化运行时）
 
-`packages/zcode-cua` 是我们自研的 Computer Use 运行时。上游官方版本的该功能**未随源码开源**，公开仓库中只保留了基于 nut-js 的简易回退实现；我们以独立 Helper 进程 + xa11y 方案完整自研替代：
+`packages/lcode-cua` 是我们自研的 Computer Use 运行时。上游官方版本的该功能**未随源码开源**，公开仓库中只保留了基于 nut-js 的简易回退实现；我们以独立 Helper 进程 + xa11y 方案完整自研替代：
 
 - 独立 Helper 进程经能力校验的 broker 执行 14 项 Computer Use 契约动作；权限拒绝即 fail-closed
 - 基于 `@crowecawcaw/xa11y` 读取真实 UIA（Windows）/ AX（macOS）/ AT-SPI（Linux）应用树，支持窗口截图、语义操作与原始输入
@@ -126,8 +126,8 @@ pnpm bootstrap
 | 入口 | 用途 | 开发命令 |
 | --- | --- | --- |
 | Desktop | Electron 桌面应用 | `pnpm dev:desktop` |
-| Web / ZCode 命令行版 | 终端与浏览器工作台 | `pnpm dev:web` |
-| Agent CLI | 终端 Agent 运行时 | `pnpm --filter @zcode/cli dev` |
+| Web / LCode 命令行版 | 终端与浏览器工作台 | `pnpm dev:web` |
+| Agent CLI | 终端 Agent 运行时 | `pnpm --filter @lcode/cli dev` |
 
 详细的开发、配置、打包说明请参考 [官方 README](https://github.com/zai-org/ZCode/blob/main/README.md)。
 
@@ -141,14 +141,14 @@ pnpm bootstrap
 | `packages/ui` | 共享 React 组件、hooks 与 Zustand 状态 |
 | `packages/services` | 业务服务与持久化 |
 | `packages/services/src/git-backup` | **Git 自动备份服务（满血版新增）** |
-| `packages/zcode-cua` | **自研 Computer Use 运行时（满血版新增）** |
+| `packages/lcode-cua` | **自研 Computer Use 运行时（满血版新增）** |
 | `cfworker-remote/` | **手机远程控制 Cloudflare Worker 隧道（满血版新增，独立仓库）** |
 | `packages/shared` | 共享协议和类型 |
-| `apps/zcode-cli` | Agent CLI、TUI、运行时与工具 |
+| `apps/lcode-cli` | Agent CLI、TUI、运行时与工具 |
 
 ## 背景
 
-2026 年 9 月，安全研究人员发现 ZCode 桌面版存在[静默上传用户工作区 `.git` 完整历史](https://blog.ferstar.org/posts/zcode-silent-workspace-snapshot-upload/)的行为，相关讨论见 [zai-org/feedback#707](https://github.com/zai-org/feedback/issues/707)、[#709](https://github.com/zai-org/feedback/issues/709)、[#711](https://github.com/zai-org/feedback/issues/711)、[#715](https://github.com/zai-org/feedback/issues/715)。
+2026 年 9 月，安全研究人员发现 LCode 桌面版存在[静默上传用户工作区 `.git` 完整历史](https://blog.ferstar.org/posts/zcode-silent-workspace-snapshot-upload/)的行为，相关讨论见 [zai-org/feedback#707](https://github.com/zai-org/feedback/issues/707)、[#709](https://github.com/zai-org/feedback/issues/709)、[#711](https://github.com/zai-org/feedback/issues/711)、[#715](https://github.com/zai-org/feedback/issues/715)。
 
 随后 Z.ai 将 ZCode 客户端开源，但[上传相关代码在开源前被完全剥离](https://github.com/zai-org/ZCode/issues/9)。
 

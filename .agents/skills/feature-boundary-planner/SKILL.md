@@ -1,6 +1,6 @@
 ---
 name: feature-boundary-planner
-description: Map a ZCode behavior change to current UI surfaces, state owners, protocol commands, persistence, and validation. Use for impact analysis, product-boundary planning, or an implementation handoff grounded in the checked-out source.
+description: Map a LCode behavior change to current UI surfaces, state owners, protocol commands, persistence, and validation. Use for impact analysis, product-boundary planning, or an implementation handoff grounded in the checked-out source.
 ---
 
 # Feature Boundary Planner
@@ -17,7 +17,7 @@ Use the mode implied by the request. Clarify only unknown decisions that materia
 
 ## Find Current Evidence
 
-1. Search aliases and node IDs in [zcode-feature-graph.yaml](references/zcode-feature-graph.yaml) for the user's terms. Read only matched nodes and their one-hop relationships, then verify the declared files, symbols and semantics against the current checkout. The graph is a curated seed index, not a complete feature inventory. Use [source-discovery.md](references/source-discovery.md) to fill gaps or start when there is no match. Read the relevant existing contracts and package scripts; read `DESIGN.md` for UI work and `CONTEXT.md` for plugin-store work.
+1. Search aliases and node IDs in [lcode-feature-graph.yaml](references/lcode-feature-graph.yaml) for the user's terms. Read only matched nodes and their one-hop relationships, then verify the declared files, symbols and semantics against the current checkout. The graph is a curated seed index, not a complete feature inventory. Use [source-discovery.md](references/source-discovery.md) to fill gaps or start when there is no match. Read the relevant existing contracts and package scripts; read `DESIGN.md` for UI work and `CONTEXT.md` for plugin-store work.
 2. Locate the entrypoint with `rg --files` and focused `rg -n` searches. Trace direct callers with `pnpm dep:refs <file>:<symbol>` when the symbol is a TypeScript export. If an indexed codegraph tool is available, use it as additional evidence and verify its paths against the checkout.
 3. Classify the change: presentation, option source, draft/default, validation, commit effect, persistence, or recovery.
 4. Trace each user surface separately through validation and the command that commits the change. Shared UI components do not establish shared state or side effects.

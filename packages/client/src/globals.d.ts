@@ -45,23 +45,23 @@ import type {
   UpdateCheckResultPayload,
   UpdateStatePayload,
   OpenInEditorOptions,
-} from "@zcode/shared";
+} from "@lcode/shared";
 
 /**
- * window.zcode 类型定义 —— 仅包含需要 main 进程参与的平台操作
+ * window.lcode 类型定义 —— 仅包含需要 main 进程参与的平台操作
  *
  * 凭据管理已迁移到 ICredentialService（通过 RPC），不再经过此接口。
  */
 declare global {
   interface Window {
-    zcode: {
+    lcode: {
       connectRemote(
         options: RemoteTarget,
         requestId?: string,
         context?: {
           workspacePath: string;
           workspaceIdentity?: string;
-          connectTrigger?: import("@zcode/shared").RemoteWorkspaceConnectTrigger;
+          connectTrigger?: import("@lcode/shared").RemoteWorkspaceConnectTrigger;
         },
       ): Promise<{ success: boolean; error?: string; sessionId?: string }>;
       /** 取消当前窗口尚未建立完成的远程连接 */
@@ -76,30 +76,30 @@ declare global {
       disposeRemoteSession(sessionId: string): Promise<void>;
       /** 手机远程控制:开启配对等待(生成二维码载荷并出站注册房间);仅 Desktop 暴露 */
       startRemotePairing?(
-        request?: import("@zcode/shared").RemotePairingStartRequest,
-      ): Promise<import("@zcode/shared").RemotePairingStartResult>;
+        request?: import("@lcode/shared").RemotePairingStartRequest,
+      ): Promise<import("@lcode/shared").RemotePairingStartResult>;
       /** 手机远程控制:停止配对(room.stop、断出站、detach 桥) */
       stopRemotePairing?(): Promise<void>;
       /** 手机远程控制:对 pairing.requested 的用户裁决 */
       decideRemotePairing?(
-        request: import("@zcode/shared").RemotePairingDecideRequest,
+        request: import("@lcode/shared").RemotePairingDecideRequest,
       ): Promise<void>;
       /** 手机远程控制:订阅配对面板状态推送(面板状态唯一来源),返回 disposer */
       onRemotePairingState?(
-        handler: (state: import("@zcode/shared").RemotePairingStatePush) => void,
+        handler: (state: import("@lcode/shared").RemotePairingStatePush) => void,
       ): () => void;
       /** 手机远程控制:读取已授权设备列表 */
-      listRemoteDevices?(): Promise<import("@zcode/shared").RemoteDevicesRefreshResult>;
+      listRemoteDevices?(): Promise<import("@lcode/shared").RemoteDevicesRefreshResult>;
       /** 手机远程控制:吊销已授权设备(立即断开其连接并使凭据失效) */
       revokeRemoteDevice?(deviceId: string): Promise<void>;
       /** 手机远程控制:读取配置与配对状态快照;接入 Key 只回 hasAccessKey,永不回明文 */
-      getRemoteControlConfig?(): Promise<import("@zcode/shared").RemoteControlConfigSnapshot>;
+      getRemoteControlConfig?(): Promise<import("@lcode/shared").RemoteControlConfigSnapshot>;
       /** 手机远程控制:写入配置;accessKey 为 write-only,进凭据集中存储 */
       setRemoteControlConfig?(
-        request: import("@zcode/shared").RemoteControlConfigSetRequest,
-      ): Promise<import("@zcode/shared").RemoteControlConfigSetResult>;
+        request: import("@lcode/shared").RemoteControlConfigSetRequest,
+      ): Promise<import("@lcode/shared").RemoteControlConfigSetResult>;
       /** 手机远程控制:测试桌面到 Worker 隧道的连通性(Main 持接入 Key 调 /api/health) */
-      testRemoteControlConnection?(): Promise<import("@zcode/shared").RemoteControlTestResult>;
+      testRemoteControlConnection?(): Promise<import("@lcode/shared").RemoteControlTestResult>;
       /** 检查本机 Docker daemon 是否可用 */
       isDockerAvailable(): Promise<boolean>;
       /** 列出本机可用的 WSL 发行版 */
@@ -118,10 +118,10 @@ declare global {
       selectFiles?(): Promise<string[]>;
       /** 通过系统原生另存为对话框保存文件 */
       saveFile?(
-        payload: import("@zcode/shared").SaveFileRequest,
-      ): Promise<import("@zcode/shared").SaveFileResult>;
+        payload: import("@lcode/shared").SaveFileRequest,
+      ): Promise<import("@lcode/shared").SaveFileResult>;
       /** 将当前页面的 print 媒体版面导出为 PDF（Chromium 打印引擎，矢量文本） */
-      printPageToPdf?(): Promise<import("@zcode/shared").PrintPageToPdfResult>;
+      printPageToPdf?(): Promise<import("@lcode/shared").PrintPageToPdfResult>;
       /** 从系统拖拽/文件输入得到的 Web File 解析真实本地路径 */
       getPathForFile?(file: File): string | null;
       /** 订阅当前窗口内远程连接过程日志，返回 disposer */
@@ -212,7 +212,7 @@ declare global {
       openInFileManager(path: string): Promise<{ success: boolean; error?: string }>;
       /** 使用系统默认应用打开本地文件 */
       openExternalFile(path: string): Promise<{ success: boolean; error?: string }>;
-      /** 打开 ZCode Computer Use 完整权限引导 */
+      /** 打开 LCode Computer Use 完整权限引导 */
       openCuaPermissionOnboarding?(
         options?: OpenCuaPermissionOnboardingOptions,
       ): Promise<CuaAccessibilitySettingsResult>;
@@ -246,7 +246,7 @@ declare global {
       reportRendererHeapSample?(sample: RendererHeapSample): void;
       /** 触发任务状态对应的系统通知 */
       showTaskNotification(payload: TaskNotificationPayload): void;
-      /** 导出日志：打包 ~/.zcode/v2 及外部 agent 日志为 zip 并在 Finder 中显示 */
+      /** 导出日志：打包 ~/.lcode/v2 及外部 agent 日志为 zip 并在 Finder 中显示 */
       exportLogs(): Promise<{
         success: boolean;
         path?: string;
@@ -279,7 +279,7 @@ declare global {
       }): Promise<void>;
       /** 从自动发现的 Chrome Profile 一次性导入内置浏览器数据。 */
       importChromeBrowserData?(
-        options?: import("@zcode/shared").ChromeBrowserDataImportOptions,
+        options?: import("@lcode/shared").ChromeBrowserDataImportOptions,
       ): Promise<ChromeBrowserDataImportResult>;
       /** 清理内置浏览器缓存或全部站点数据。 */
       clearEmbeddedBrowserData?(mode: "cache" | "all"): Promise<EmbeddedBrowserDataClearResult>;

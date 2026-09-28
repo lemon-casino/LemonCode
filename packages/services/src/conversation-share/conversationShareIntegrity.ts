@@ -4,7 +4,7 @@ import {
   conversationShareConfirmRequestSchema,
   type ConversationShareArtifactDescriptor,
   type ConversationShareConfirmRequest,
-} from "@zcode/shared";
+} from "@lcode/shared";
 
 type ConversationShareConfirmRequestBase = Omit<ConversationShareConfirmRequest, "integrity"> & {
   artifacts: ConversationShareArtifactDescriptor[];

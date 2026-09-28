@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { test } from "node:test";
 
-import { HELPER_CONTROL_PROTOCOL } from "@zcode/zcode-cua/broker/server";
+import { HELPER_CONTROL_PROTOCOL } from "@lcode/lcode-cua/broker/server";
 
 import { WindowsCuaHelperHost } from "./windowsCuaDevHelperHost.js";
 import type {
@@ -52,9 +52,9 @@ const runtime = {
   addonPath: "/runtime/xa11y-native-loader.js",
   command: process.execPath,
   commandEnv: {
-    ZCODE_CUA_PLUGIN_AUTHORITY: "must-not-leak",
-    ZCODE_CUA_PERMISSION_BROKER_CAPABILITY: "must-not-leak",
-    ZCODE_CUA_PERMISSION_BROKER_GENERATION: "99",
+    LCODE_CUA_PLUGIN_AUTHORITY: "must-not-leak",
+    LCODE_CUA_PERMISSION_BROKER_CAPABILITY: "must-not-leak",
+    LCODE_CUA_PERMISSION_BROKER_GENERATION: "99",
   },
 };
 
@@ -88,9 +88,9 @@ test("Node Helper host bootstraps credentials over exact child IPC only", async 
   assert.ok(forkCall);
   assert.equal(forkCall.argv.includes("--capability"), false);
   assert.equal(forkCall.argv.includes("--generation"), false);
-  assert.equal(forkCall.env?.ZCODE_CUA_PLUGIN_AUTHORITY, undefined);
-  assert.equal(forkCall.env?.ZCODE_CUA_PERMISSION_BROKER_CAPABILITY, undefined);
-  assert.equal(forkCall.env?.ZCODE_CUA_PERMISSION_BROKER_GENERATION, undefined);
+  assert.equal(forkCall.env?.LCODE_CUA_PLUGIN_AUTHORITY, undefined);
+  assert.equal(forkCall.env?.LCODE_CUA_PERMISSION_BROKER_CAPABILITY, undefined);
+  assert.equal(forkCall.env?.LCODE_CUA_PERMISSION_BROKER_GENERATION, undefined);
   assert.deepEqual(child.sent[0], {
     protocol: HELPER_CONTROL_PROTOCOL,
     type: "bootstrap_credentials",

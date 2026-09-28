@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SettingsSyncSelection } from "@zcode/shared";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { SettingsSyncSelection } from "@lcode/shared";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { getPathLeaf } from "@/lib/path.js";
 import type { useClaudeSessionMigration } from "@/hooks/useClaudeSessionMigration.js";
 import type { useSettingsSync } from "@/hooks/useSettingsSync.js";
@@ -61,7 +61,7 @@ export function useOnboardingMigration(
   settingsSync: ReturnType<typeof useSettingsSync>,
   options: { includeSettingsSelections?: boolean } = {},
 ) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [finishExecution, setFinishExecution] = useState<FinishExecutionState>(
     createInitialFinishExecutionState,
   );

@@ -3,7 +3,7 @@ interface StorageLike {
   setItem(key: string, value: string): void;
 }
 
-const WORKSPACE_EXPANSION_STORAGE_KEY = "zcode-workspace-expansion";
+const WORKSPACE_EXPANSION_STORAGE_KEY = "lcode-workspace-expansion";
 
 function getBrowserStorage(): StorageLike | null {
   if (typeof window === "undefined") {

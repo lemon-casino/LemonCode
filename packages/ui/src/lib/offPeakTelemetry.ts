@@ -2,7 +2,7 @@ import {
   type IPlatformService,
   type OffPeakTaskCreateResult,
   type TelemetryEventPayload,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
 import { legacyTelemetryProviderId } from "@/lib/providerTelemetryIdentity.js";
 

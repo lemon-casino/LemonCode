@@ -1,4 +1,4 @@
-import type { ModelSelectionView } from "@zcode/services";
+import type { ModelSelectionView } from "@lcode/services";
 
 export function resolveProviderLabel(
   providerId: string | undefined,

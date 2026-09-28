@@ -4,28 +4,28 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { resolveOfficialPluginRoots } from "../apps/zcode-cli/packages/bootstrap/src/app/bundled-plugins.ts";
+import { resolveOfficialPluginRoots } from "../apps/lcode-cli/packages/bootstrap/src/app/bundled-plugins.ts";
 import {
   OFFICIAL_PLUGIN_DEFINITIONS,
   resolveOfficialPluginHostMcpServerNames,
-} from "../apps/zcode-cli/packages/bootstrap/src/app/official-plugin-definitions.ts";
+} from "../apps/lcode-cli/packages/bootstrap/src/app/official-plugin-definitions.ts";
 import {
-  getZCodePluginsOverview,
-  resolveZCodePlugins,
+  getLCodePluginsOverview,
+  resolveLCodePlugins,
   restoreBuiltinPlugin,
-} from "../apps/zcode-cli/packages/bootstrap/src/plugins.ts";
+} from "../apps/lcode-cli/packages/bootstrap/src/plugins.ts";
 import {
   collectSeaOfficialPluginAssets,
   seaOfficialPluginAssetPrefix,
-} from "../apps/zcode-cli/packages/cli/scripts/sea-official-plugin-assets.mjs";
+} from "../apps/lcode-cli/packages/cli/scripts/sea-official-plugin-assets.mjs";
 import { stageAgentBundle } from "../packages/desktop/scripts/stage-agent-bundle.mjs";
-import { findOfficialCuaFrameContentPair } from "../packages/zcode-cua/frame-contract.js";
+import { findOfficialCuaFrameContentPair } from "../packages/lcode-cua/frame-contract.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const pluginRoot = join(repoRoot, "apps/zcode-cli/packages/zcode-cua-plugin");
+const pluginRoot = join(repoRoot, "apps/lcode-cli/packages/lcode-cua-plugin");
 const computerUsePluginId = "computer-use@zcode-plugins-official";
 const requiredPluginAssets = [
-  ".zcode-plugin/plugin.json",
+  ".lcode-plugin/plugin.json",
   "docs/computer-use.md",
   "scripts/computer-use-client.mjs",
   "skills/computer-use/SKILL.md",
@@ -45,12 +45,12 @@ test("computer-use is a repository-owned content plugin with the public identity
   }
 
   const manifest = JSON.parse(
-    await readRepoFile("apps/zcode-cli/packages/zcode-cua-plugin/.zcode-plugin/plugin.json"),
+    await readRepoFile("apps/lcode-cli/packages/lcode-cua-plugin/.lcode-plugin/plugin.json"),
   );
   const contentPackage = JSON.parse(
-    await readRepoFile("apps/zcode-cli/packages/zcode-cua-plugin/package.json"),
+    await readRepoFile("apps/lcode-cli/packages/lcode-cua-plugin/package.json"),
   );
-  const runtimePackage = JSON.parse(await readRepoFile("packages/zcode-cua/package.json"));
+  const runtimePackage = JSON.parse(await readRepoFile("packages/lcode-cua/package.json"));
   assert.equal(manifest.name, "computer-use");
   assert.equal(manifest.version, "0.1.0");
   assert.deepEqual(manifest.author, { name: "Lemon" });
@@ -81,7 +81,7 @@ test("computer-use SDK uses only the injected node_repl bridge and fails closed 
 
   const calls = [];
   const globals = {
-    [Symbol.for("zcode.node-repl.computer-use-bridge")]: {
+    [Symbol.for("lcode.node-repl.computer-use-bridge")]: {
       assertAvailable() {},
       async call(method, input) {
         calls.push({ input, method });
@@ -105,7 +105,7 @@ test("computer-use SDK maps structured app lookup failures without calling them 
   const clientUrl = pathToFileURL(join(pluginRoot, "scripts/computer-use-client.mjs")).href;
   const { setupComputerUseRuntime } = await import(`${clientUrl}?errors=${Date.now()}`);
   const globals = {
-    [Symbol.for("zcode.node-repl.computer-use-bridge")]: {
+    [Symbol.for("lcode.node-repl.computer-use-bridge")]: {
       assertAvailable() {},
       async call() {
         return {
@@ -156,9 +156,9 @@ test("computer-use SDK preserves the official frame authority when projecting sc
     text: '[0] window "QQ"',
   };
   const officialRef = {
-    type: "zcode_cua_frame_ref",
+    type: "lcode_cua_frame_ref",
     schemaVersion: 1,
-    authority: "zcode.cua/open-frame/xa11y-helper",
+    authority: "lcode.cua/open-frame/xa11y-helper",
     frameId: "frame-1",
     contentProtection: "official_cua_frame_v1",
     mimeType: "image/png",
@@ -175,7 +175,7 @@ test("computer-use SDK preserves the official frame authority when projecting sc
       },
       write() {},
     },
-    [Symbol.for("zcode.node-repl.computer-use-bridge")]: {
+    [Symbol.for("lcode.node-repl.computer-use-bridge")]: {
       assertAvailable() {},
       async call(_method, input) {
         if (input?.include_screenshot === true) {
@@ -222,7 +222,7 @@ test("computer-use pins the resolved window after a localized app alias", async 
   };
   const calls = [];
   const globals = {
-    [Symbol.for("zcode.node-repl.computer-use-bridge")]: {
+    [Symbol.for("lcode.node-repl.computer-use-bridge")]: {
       assertAvailable() {},
       async call(method, input) {
         calls.push({ method, input });
@@ -239,7 +239,7 @@ test("computer-use pins the resolved window after a localized app alias", async 
 });
 
 test("bootstrap resolver seeds computer-use from the repository instead of a pre-existing cache", async () => {
-  const storageRoot = await mkdtemp(join(tmpdir(), "zcode-cua-resolver-"));
+  const storageRoot = await mkdtemp(join(tmpdir(), "lcode-cua-resolver-"));
   try {
     resolveOfficialPluginRoots({ env: {}, storageRoot });
     const seededRoot = join(storageRoot, "cache/zcode-plugins-official/computer-use/0.1.0");
@@ -250,7 +250,7 @@ test("bootstrap resolver seeds computer-use from the repository instead of a pre
         `resolver did not seed ${relativePath}`,
       );
     }
-    const marker = JSON.parse(await readFile(join(seededRoot, ".zcode-plugin-seed.json"), "utf8"));
+    const marker = JSON.parse(await readFile(join(seededRoot, ".lcode-plugin-seed.json"), "utf8"));
     assert.equal(marker.source, "filesystem");
     assert.equal(marker.plugin, "computer-use");
     assert.equal(marker.pluginVersion, "0.1.0");
@@ -260,11 +260,11 @@ test("bootstrap resolver seeds computer-use from the repository instead of a pre
 });
 
 test("computer-use stays discoverable and only explicit plugin config enables it", async () => {
-  const storageRoot = await mkdtemp(join(tmpdir(), "zcode-cua-config-"));
+  const storageRoot = await mkdtemp(join(tmpdir(), "lcode-cua-config-"));
   const userConfigPath = join(storageRoot, "config.json");
   const pluginStorageRoot = join(storageRoot, "plugins");
   const resolvePlugins = () =>
-    resolveZCodePlugins({
+    resolveLCodePlugins({
       env: {},
       pluginStorageRoot,
       userConfigPath,
@@ -292,14 +292,14 @@ test("computer-use stays discoverable and only explicit plugin config enables it
 });
 
 test("computer-use remains restorable without an internal environment bypass", async () => {
-  const storageRoot = await mkdtemp(join(tmpdir(), "zcode-cua-restorable-"));
+  const storageRoot = await mkdtemp(join(tmpdir(), "lcode-cua-restorable-"));
   const userConfigPath = join(storageRoot, "config.json");
   try {
     await writeFile(
       userConfigPath,
       JSON.stringify({ plugins: { suppressedBuiltins: [computerUsePluginId] } }),
     );
-    const overview = getZCodePluginsOverview({
+    const overview = getLCodePluginsOverview({
       env: {},
       pluginStorageRoot: join(storageRoot, "plugins"),
       userConfigPath,
@@ -315,7 +315,7 @@ test("computer-use remains restorable without an internal environment bypass", a
 });
 
 test("computer-use restore mutation does not require an internal environment bypass", async () => {
-  const storageRoot = await mkdtemp(join(tmpdir(), "zcode-cua-restore-"));
+  const storageRoot = await mkdtemp(join(tmpdir(), "lcode-cua-restore-"));
   const userConfigPath = join(storageRoot, "config.json");
   try {
     await writeFile(
@@ -337,10 +337,10 @@ test("computer-use restore mutation does not require an internal environment byp
 });
 
 test("SEA embeds every computer-use seed asset in its hashed manifest", async () => {
-  const stagingDirectory = await mkdtemp(join(tmpdir(), "zcode-cua-sea-"));
+  const stagingDirectory = await mkdtemp(join(tmpdir(), "lcode-cua-sea-"));
   try {
     const { assets, manifest } = await collectSeaOfficialPluginAssets({
-      root: join(repoRoot, "apps/zcode-cli"),
+      root: join(repoRoot, "apps/lcode-cli"),
       stagingDirectory,
     });
     const computerUse = manifest.plugins.find((plugin) => plugin.name === "computer-use");
@@ -366,24 +366,24 @@ test("SEA embeds every computer-use seed asset in its hashed manifest", async ()
 });
 
 test("clean desktop staging carries computer-use beside node_repl consumers", async () => {
-  const tempRepoRoot = await mkdtemp(join(tmpdir(), "zcode-cua-desktop-"));
+  const tempRepoRoot = await mkdtemp(join(tmpdir(), "lcode-cua-desktop-"));
   try {
-    const tempBundle = join(tempRepoRoot, "apps/zcode-cli/packages/cli/dist/zcode.cjs");
+    const tempBundle = join(tempRepoRoot, "apps/lcode-cli/packages/cli/dist/lcode.cjs");
     await mkdir(dirname(tempBundle), { recursive: true });
     await writeFile(tempBundle, "// fixture bundle\n");
     await cp(
-      join(repoRoot, "apps/zcode-cli/packages/lemon-workflow-plugin"),
-      join(tempRepoRoot, "apps/zcode-cli/packages/lemon-workflow-plugin"),
+      join(repoRoot, "apps/lcode-cli/packages/lemon-workflow-plugin"),
+      join(tempRepoRoot, "apps/lcode-cli/packages/lemon-workflow-plugin"),
       { recursive: true },
     );
-    await cp(pluginRoot, join(tempRepoRoot, "apps/zcode-cli/packages/zcode-cua-plugin"), {
+    await cp(pluginRoot, join(tempRepoRoot, "apps/lcode-cli/packages/lcode-cua-plugin"), {
       recursive: true,
     });
 
     stageAgentBundle({ repoRoot: tempRepoRoot, platformKey: "win32-x64", log: () => {} });
     const stagedRoot = join(
       tempRepoRoot,
-      "packages/desktop/bundled-agents/win32-x64/glm/packages/zcode-cua-plugin",
+      "packages/desktop/bundled-agents/win32-x64/glm/packages/lcode-cua-plugin",
     );
     for (const relativePath of requiredPluginAssets) {
       assert.equal(
@@ -400,12 +400,12 @@ test("clean desktop staging carries computer-use beside node_repl consumers", as
 test("production staging and SEA list the repository-owned computer-use package", async () => {
   for (const relativePath of [
     "packages/desktop/scripts/prepare-agent-node-bundle.mjs",
-    "apps/zcode-cli/packages/cli/scripts/sea-official-plugin-assets.mjs",
+    "apps/lcode-cli/packages/cli/scripts/sea-official-plugin-assets.mjs",
   ]) {
     const source = await readRepoFile(relativePath);
     assert.match(
       source,
-      /apps\/zcode-cli\/packages\/zcode-cua-plugin|packages["', ]+zcode-cua-plugin/u,
+      /apps\/lcode-cli\/packages\/lcode-cua-plugin|packages["', ]+lcode-cua-plugin/u,
     );
     assert.doesNotMatch(source, /plugins\/cache.*computer-use|private producer/iu);
   }

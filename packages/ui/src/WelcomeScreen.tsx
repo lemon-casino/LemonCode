@@ -11,15 +11,15 @@ import {
   TID_LOGIN_USE_API_KEY_BUTTON,
   TID_OAUTH_CANCEL,
   TID_OAUTH_ERROR,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { Alert, AlertDescription } from "./components/ui/alert.js";
 import { Button } from "./components/ui/button.js";
-import { ZCodeAboutLogo } from "@/components/ui/ZCodeAboutLogo.js";
+import { LCodeAboutLogo } from "@/components/ui/LCodeAboutLogo.js";
 import { useOAuth } from "./hooks/useOAuth.js";
-import { useZCodeIntl } from "./i18n/IntlProvider.js";
+import { useLCodeIntl } from "./i18n/IntlProvider.js";
 import { LoginApiKeyForm } from "./login/LoginApiKeyForm.js";
 import { ThemeHeroVisual } from "./openWorkspacePageThemeHero.js";
-import { useZCodeStore } from "./store/StoreProvider.js";
+import { useLCodeStore } from "./store/StoreProvider.js";
 
 interface WelcomeScreenProps {
   onComplete: (reason: LoginCompleteReason) => void | Promise<void>;
@@ -64,17 +64,17 @@ function shouldCompleteLoginFromExistingUser(params: {
 }
 
 function LoginPanel({ active, onComplete }: LoginPanelProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { startLogin, cancel, reset, status, error, providers, pendingProvider, refreshProviders } =
     useOAuth();
-  const user = useZCodeStore((s) => s.user);
-  const oauthError = useZCodeStore((s) => s.oauthError);
-  const setOAuthError = useZCodeStore((s) => s.setOAuthError);
-  const oauthSuccessSeq = useZCodeStore((s) => s.oauthSuccessSeq);
-  const lastOAuthSuccessProvider = useZCodeStore((s) => s.lastOAuthSuccessProvider);
-  const loginEntryRequest = useZCodeStore((s) => s.loginEntryRequest);
-  const clearLoginEntryRequest = useZCodeStore((s) => s.clearLoginEntryRequest);
-  const markLoginEntryAttemptStatus = useZCodeStore((s) => s.markLoginEntryAttemptStatus);
+  const user = useLCodeStore((s) => s.user);
+  const oauthError = useLCodeStore((s) => s.oauthError);
+  const setOAuthError = useLCodeStore((s) => s.setOAuthError);
+  const oauthSuccessSeq = useLCodeStore((s) => s.oauthSuccessSeq);
+  const lastOAuthSuccessProvider = useLCodeStore((s) => s.lastOAuthSuccessProvider);
+  const loginEntryRequest = useLCodeStore((s) => s.loginEntryRequest);
+  const clearLoginEntryRequest = useLCodeStore((s) => s.clearLoginEntryRequest);
+  const markLoginEntryAttemptStatus = useLCodeStore((s) => s.markLoginEntryAttemptStatus);
   const [loginMode, setLoginMode] = useState<"providers" | "apiKey">("providers");
   const wasActiveRef = useRef(active);
   const consumedLoginRequestRef = useRef<number | null>(null);
@@ -422,10 +422,10 @@ function LoginPanelLogo() {
     // 登录 logo 壳是固定深色底，边框不能跟随浅色主题 token，否则浅色主题下边框过重。
     <div
       className="relative mb-1 flex size-16 items-center justify-center rounded-2xl bg-[linear-gradient(180deg,#000000_0%,#151718_100%)] text-[#ffffff] shadow-lg/20 before:pointer-events-none before:absolute before:inset-0 before:rounded-2xl before:border before:border-[rgba(255,255,255,0.1)]"
-      aria-label="ZCode"
+      aria-label="LCode"
       role="img"
     >
-      <ZCodeAboutLogo className="h-auto w-10" />
+      <LCodeAboutLogo className="h-auto w-10" />
     </div>
   );
 }

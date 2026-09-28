@@ -1,4 +1,4 @@
-import { createOpenInEditorRemoteTarget, type EditorInfo, type RemoteTarget } from "@zcode/shared";
+import { createOpenInEditorRemoteTarget, type EditorInfo, type RemoteTarget } from "@lcode/shared";
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import { ChevronDown } from "lucide-react";
@@ -10,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { persistLastSelectedEditorId, readLastSelectedEditorId } from "@/lib/editorPreference.js";
 import {
   resolveWorkspaceEditorSelection,
@@ -33,7 +33,7 @@ export function WorkspaceEditorButtonGroup({
   remoteTarget?: RemoteTarget;
   onSelectedEditorChange?: (editor: EditorInfo | null) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const platform = usePlatform();
   const isOfficeMode = useIsOfficeMode();
 

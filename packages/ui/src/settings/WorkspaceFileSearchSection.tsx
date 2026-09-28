@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea.js";
 import { toast } from "@/components/ui/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { SettingsGroupCard } from "@/settings/SettingsPageParts.js";
 import { logger } from "@/logger.js";
 
@@ -20,7 +20,7 @@ type IgnoreFileState = {
 };
 
 /**
- * 工作区文件搜索忽略规则（.zcodeignore）编辑页。
+ * 工作区文件搜索忽略规则（.lcodeignore）编辑页。
  * 规则文件是目录排除的单一真相源：编辑保存即生效（下次扫描读取新内容）；
  * 「从 .gitignore 同步」与「恢复默认规则」是分区操作：只重写各自标记区
  * （gitignore 同步区 / 默认排除段），用户自定义规则区不受影响；结果填入编辑框，
@@ -44,7 +44,7 @@ export function WorkspaceFileSearchSection({
 }
 
 function NoWorkspaceFileSearchHint() {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <p className="text-ui-base leading-6 text-foreground-subtle">
       {intl.formatMessage({ id: "settings.workspaceFileSearch.noWorkspace" })}
@@ -59,7 +59,7 @@ function ActiveWorkspaceFileSearchEditor({
   workspacePath: string;
   workspaceIdentity?: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const platform = usePlatform();
   const resolution = useWorkspaceServicesResolution(workspacePath, undefined, workspaceIdentity);
   const services = resolution.services;
@@ -91,7 +91,7 @@ function ActiveWorkspaceFileSearchEditor({
       if (loadVersionRef.current !== version) {
         return;
       }
-      logger.warn("[WorkspaceFileSearchSection] 读取 .zcodeignore 失败", {
+      logger.warn("[WorkspaceFileSearchSection] 读取 .lcodeignore 失败", {
         error: error instanceof Error ? error.message : String(error),
       });
       toast(intl.formatMessage({ id: "settings.workspaceFileSearch.loadFailed" }));
@@ -125,7 +125,7 @@ function ActiveWorkspaceFileSearchEditor({
         if (loadVersionRef.current !== version) {
           return;
         }
-        logger.warn("[WorkspaceFileSearchSection] 应用 .zcodeignore 分区操作失败", {
+        logger.warn("[WorkspaceFileSearchSection] 应用 .lcodeignore 分区操作失败", {
           transform,
           error: error instanceof Error ? error.message : String(error),
         });
@@ -160,7 +160,7 @@ function ActiveWorkspaceFileSearchEditor({
       setLoaded({ content: draft, source: "file" });
       toast(intl.formatMessage({ id: "settings.workspaceFileSearch.saved" }));
     } catch (error) {
-      logger.warn("[WorkspaceFileSearchSection] 保存 .zcodeignore 失败", {
+      logger.warn("[WorkspaceFileSearchSection] 保存 .lcodeignore 失败", {
         error: error instanceof Error ? error.message : String(error),
       });
       toast(intl.formatMessage({ id: "settings.workspaceFileSearch.saveFailed" }));
@@ -169,13 +169,13 @@ function ActiveWorkspaceFileSearchEditor({
     }
   }, [draft, intl, services, workspacePath]);
 
-  // 保存语义是"把编辑框内容落盘"：template 态（.zcodeignore 尚未创建）即使未编辑也允许保存，
+  // 保存语义是"把编辑框内容落盘"：template 态（.lcodeignore 尚未创建）即使未编辑也允许保存，
   // 否则用户第一次进页面什么都不改就永远无法创建文件；已落盘态才按"有修改才可保存"门控。
   const canSave = loaded === null || loaded.source === "template" || draft !== loaded.content;
   // "有未保存的修改"提示只表达真实差异（template 态未编辑时不显示）。
   const dirty = loaded !== null && loaded.source === "file" && draft !== loaded.content;
 
-  // 「打开文件位置」：.zcodeignore 位于 workspace 根，打开根目录即所在位置
+  // 「打开文件位置」：.lcodeignore 位于 workspace 根，打开根目录即所在位置
   // （与 WindowsCaptionMenuButton/ModelTrajectoryPane 先例一致传目录）。
   // 远程 workspace 的规则文件在远端机器，本地文件管理器无法打开，按钮不展示。
   const isLocalWorkspace = !workspaceIdentity?.trim();

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
-import type { BrowserViewportSize } from "@zcode/shared";
+import type { BrowserViewportSize } from "@lcode/shared";
 
 const BROWSER_TAB_PAGE_STATE_MAX_RECORDS = 100;
 const BROWSER_TAB_PAGE_STATE_MAX_TOTAL_BYTES = 64 * 1024 * 1024;

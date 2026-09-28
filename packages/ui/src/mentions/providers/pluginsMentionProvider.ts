@@ -5,15 +5,15 @@ import {
   type PluginStoreModeOrder,
   resolvePluginDisplayName,
   resolveLocalizedText,
-  type ZCodePluginReferenceCatalogEntry,
-} from "@zcode/shared";
+  type LCodePluginReferenceCatalogEntry,
+} from "@lcode/shared";
 import type { MentionCategoryResult, MentionItem } from "@/mentions/mentionTypes.js";
 import { filterMentionItemsWithOptions } from "@/mentions/mentionSearch.js";
 import { buildPluginMentionMarkdown } from "@/mentions/mentionMarkdown.js";
 import { usePluginReferenceCatalog } from "@/hooks/usePluginReferenceCatalog.js";
 import { usePluginStoreOrder } from "@/hooks/usePluginStoreOrder.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 interface PluginMentionLabels {
   conflictReason: string;
@@ -28,7 +28,7 @@ interface PluginMentionLabels {
 // - keywords 并入 listing 的全部语言显示名（无论当前 locale）：英文界面下打中文
 //   也能搜到官方插件（插件 @ 引用中文搜索）。
 function mapPluginCatalogToMentionItemsForTest(
-  entries: ZCodePluginReferenceCatalogEntry[],
+  entries: LCodePluginReferenceCatalogEntry[],
   labels: PluginMentionLabels,
   locale: string,
   order?: PluginStoreModeOrder,
@@ -109,7 +109,7 @@ export function usePluginsMentionProvider(
   emptyText: string,
   title: string,
 ): MentionCategoryResult {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const { order } = usePluginStoreOrder(enabled);
   const isOfficeMode = useIsOfficeMode();
   const modeOrder = isOfficeMode ? order?.work : order?.code;

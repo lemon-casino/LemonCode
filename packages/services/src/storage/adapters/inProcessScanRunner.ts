@@ -3,7 +3,7 @@
  * Worker 入口（desktop main）与单测都调用这里的 runStorageScan，保证只有一条扫描路径。
  */
 import type { StorageScanProgress, VolumeProbePort } from "../app/ports.js";
-import type { StoragePathError, StorageRootSpec, StorageRootUsage } from "@zcode/shared";
+import type { StoragePathError, StorageRootSpec, StorageRootUsage } from "@lcode/shared";
 import { createStorageUsageAccumulator } from "../domain/usageAggregate.js";
 import { walkStorageRoot } from "./fsWalker.js";
 import { createFsVolumeProbe } from "./volumeProbe.js";

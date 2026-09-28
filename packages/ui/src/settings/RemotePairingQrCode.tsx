@@ -4,7 +4,7 @@
 // 二维码固定黑块白底，不跟随主题——扫码器依赖高对比度，主题色可能导致部分手机无法识别。
 import { useEffect, useState } from "react";
 import { toDataURL } from "qrcode";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 interface RemotePairingQrCodeProps {
   url: string;
@@ -13,7 +13,7 @@ interface RemotePairingQrCodeProps {
 }
 
 export function RemotePairingQrCode({ url, size = 208 }: RemotePairingQrCodeProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [dataUrl, setDataUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
 

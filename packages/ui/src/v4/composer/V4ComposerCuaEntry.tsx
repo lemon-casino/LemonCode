@@ -6,12 +6,12 @@
  */
 import { memo } from "react";
 import { MonitorCogIcon } from "lucide-react";
-import { TID_V4_COMPOSER_CUA_ENTRY } from "@zcode/shared";
+import { TID_V4_COMPOSER_CUA_ENTRY } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   supportsLocalMacCuaPermissionOnboarding,
   supportsLocalWindowsCuaEntry,
@@ -45,7 +45,7 @@ function V4ComposerCuaEntryImpl(props: V4ComposerCuaEntryProps) {
 }
 
 function V4ComposerCuaEntryMounted(props: V4ComposerCuaEntryProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { view, onActivate } = useCuaComposerEntry(props);
   const label = intl.formatMessage({ id: "chat.toolbar.computerUse.label" });
 

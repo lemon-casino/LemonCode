@@ -1,4 +1,4 @@
-import type { GitCommitGraphCommit, GitCommitGraphRef, GitCommitGraphRefKind } from "@zcode/shared";
+import type { GitCommitGraphCommit, GitCommitGraphRef, GitCommitGraphRefKind } from "@lcode/shared";
 import {
   createGitGraphLayoutModel,
   type BranchLineSeed,

@@ -1,7 +1,7 @@
 import { access, stat } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { basename, posix, win32 } from "node:path";
-import type { IntegratedTerminalShellDialect, IntegratedTerminalShellOption } from "@zcode/shared";
+import type { IntegratedTerminalShellDialect, IntegratedTerminalShellOption } from "@lcode/shared";
 
 type ExecutableCheck = (path: string) => boolean | Promise<boolean>;
 

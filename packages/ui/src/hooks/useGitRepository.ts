@@ -1,9 +1,9 @@
 /* eslint-disable max-lines */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
-  ZCodePersistedFileChange,
-  ZCodePersistedFileSnapshot,
-  ZCodeTaskChangeSummary,
+  LCodePersistedFileChange,
+  LCodePersistedFileSnapshot,
+  LCodeTaskChangeSummary,
   GitBranchComparison,
   GitChangeSectionId,
   GitChangeSourceId,
@@ -11,7 +11,7 @@ import type {
   GitFileChange,
   GitIdentity,
   GitRepositorySummary,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { buildTurnChangeSummary, toWorkspaceRelativePath } from "@/lib/taskChangeSummary.js";
 import { logger } from "@/logger.js";
 import { shouldEnableWorkspaceRpc } from "@/lib/workspaceRpcAvailability.js";
@@ -285,8 +285,8 @@ function buildRepositoryDatasets(options: {
 
 function createLastTurnChange(
   workspacePath: string,
-  snapshotByPath: Map<string, ZCodePersistedFileSnapshot>,
-  file: ZCodeTaskChangeSummary["files"][number],
+  snapshotByPath: Map<string, LCodePersistedFileSnapshot>,
+  file: LCodeTaskChangeSummary["files"][number],
 ): GitPaneFileChange {
   const relativePath = toWorkspaceRelativePath(workspacePath, file.path);
   const snapshot = snapshotByPath.get(file.path);
@@ -316,10 +316,10 @@ function createLastTurnChange(
 function buildLastTurnDataset(options: {
   workspacePath: string;
   turnIndex: number | null;
-  fileChange: ZCodePersistedFileChange | null;
-  summary: ZCodeTaskChangeSummary | null;
+  fileChange: LCodePersistedFileChange | null;
+  summary: LCodeTaskChangeSummary | null;
 }): GitPaneDataset {
-  const snapshotByPath = new Map<string, ZCodePersistedFileSnapshot>(
+  const snapshotByPath = new Map<string, LCodePersistedFileSnapshot>(
     options.fileChange?.snapshots.map((snapshot) => [snapshot.path, snapshot]) ?? [],
   );
 
@@ -327,7 +327,7 @@ function buildLastTurnDataset(options: {
     id: "last-turn",
     readonly: true,
     turnIndex: options.turnIndex,
-    // 关键业务逻辑：上一轮更改继续优先复用 ZCode Agent 已持久化的单轮文件快照，
+    // 关键业务逻辑：上一轮更改继续优先复用 LCode Agent 已持久化的单轮文件快照，
     // 这样 Git pane 接入真实仓库数据后，agent 视角的只读审阅链路仍然保持独立稳定。
     sections: options.summary
       ? [

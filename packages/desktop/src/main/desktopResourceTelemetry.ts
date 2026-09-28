@@ -3,15 +3,15 @@ import {
   bytesToKb,
   createMemorySampleWriteGate,
   formatMemorySampleLine,
-  mapZCodeEnvToArmsRumEnv,
+  mapLCodeEnvToArmsRumEnv,
   memoryUsageToSampleFields,
   type MemorySample,
   type MemorySampleWriteGate,
   type ProcessResourceRole,
   type ProcessResourceRuntimeSurface,
   PROCESS_RESOURCE_EVENT_NAMES,
-  zcodeToolExecResourceSchema,
-} from "@zcode/shared";
+  lcodeToolExecResourceSchema,
+} from "@lcode/shared";
 import { BrowserWindow } from "electron";
 import os from "node:os";
 import { getSharedFinalArmsCustomEventE2EController } from "./desktopArmsCustomEvent.js";
@@ -60,7 +60,7 @@ function resolveDefaultReportIntervalMs(): number {
     return 60_000;
   }
   // E2E 跑的是打包构建，没有这个短窗口就无法在一次用例里观察到趋势事件。
-  if (process.env.ZCODE_ENV === "test" && process.env.ZCODE_E2E_RUN_ID?.trim()) {
+  if (process.env.LCODE_ENV === "test" && process.env.LCODE_E2E_RUN_ID?.trim()) {
     return 60_000;
   }
   return 300_000;
@@ -87,7 +87,7 @@ interface ResourceGlobalContext {
   deviceMid: string;
   platform: NodeJS.Platform;
   appVersion: string;
-  armsEnv: ReturnType<typeof mapZCodeEnvToArmsRumEnv>;
+  armsEnv: ReturnType<typeof mapLCodeEnvToArmsRumEnv>;
 }
 
 let globalContext: ResourceGlobalContext | null = null;
@@ -177,7 +177,7 @@ export function ingestToolExecResource(
   runtimeSurface: ProcessResourceRuntimeSurface,
 ): void {
   if (!globalContext) return;
-  const parsed = zcodeToolExecResourceSchema.safeParse(raw);
+  const parsed = lcodeToolExecResourceSchema.safeParse(raw);
   if (!parsed.success) return;
   const sample = parsed.data;
   // 同一 Server 可经多个 workspace 和 window Host 转发完成事实；只在 main 唯一出口去重。
@@ -214,8 +214,8 @@ function auditDisabledAgentMetricProbe(logger: ResourceLogger | undefined): void
   if (
     agentMetricProbeDisabledAuditLogged ||
     process.platform !== "win32" ||
-    process.env.ZCODE_ENV !== "test" ||
-    !process.env.ZCODE_E2E_RUNTIME_LOG_DIR?.trim()
+    process.env.LCODE_ENV !== "test" ||
+    !process.env.LCODE_E2E_RUNTIME_LOG_DIR?.trim()
   ) {
     return;
   }

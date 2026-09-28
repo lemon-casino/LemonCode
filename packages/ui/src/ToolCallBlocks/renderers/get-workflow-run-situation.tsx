@@ -3,7 +3,7 @@
  * get-workflow-run-roster.tsx）。
  *
  * 两条纪律与模型面
- * （apps/zcode-cli/packages/core/src/tool/handlers/get-workflow-run-format-roster.ts）一字不差：
+ * （apps/lcode-cli/packages/core/src/tool/handlers/get-workflow-run-format-roster.ts）一字不差：
  *   1. **缺席即不画**。没有时刻就没有年龄，没有读数就没有那一格；`0` 是一件事实，
  *      而「不知道」是另一件——绝不用 0 顶替后者。
  *   2. 所有年龄对**快照时刻** `generatedAt` 算，不对 `Date.now()` 算：一张三天前的卡
@@ -12,9 +12,9 @@
  * 布局：一律换行行（flex-wrap），没有定宽表格——手机窄屏下要能折行而不是横向溢出。
  */
 
-import type { ToolCallGetWorkflowRunDisplay } from "@zcode/shared/zcode-protocol-v4";
+import type { ToolCallGetWorkflowRunDisplay } from "@lcode/shared/lcode-protocol-v4";
 import { throttleReasonLabel } from "@/app-shell/workflowRunThrottle.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatWorkflowAge, formatWorkflowDuration } from "@/lib/workflowObservationFormat.js";
 
 type WorkflowRunPhaseView = NonNullable<ToolCallGetWorkflowRunDisplay["phases"]>[number];
@@ -53,7 +53,7 @@ export function WorkflowRunPhaseTrack({
   generatedAt: number | undefined;
   terminal: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   if (phases.length === 0) return null;
   return (
     <div className={SITUATION_BLOCK_CLASS} data-testid="workflow-run-phases">
@@ -108,7 +108,7 @@ export function WorkflowRunPhaseTrack({
   );
 }
 
-type FormatMessage = ReturnType<typeof useZCodeIntl>["intl"]["formatMessage"];
+type FormatMessage = ReturnType<typeof useLCodeIntl>["intl"]["formatMessage"];
 
 function phaseDuration(
   phase: WorkflowRunPhaseView,
@@ -146,7 +146,7 @@ export function WorkflowRunHealthLine({
   generatedAt: number | undefined;
   terminal: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const cells: string[] = [];
 
   const lastProgress = formatWorkflowAge(generatedAt, health.lastProgressAt);

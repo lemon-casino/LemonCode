@@ -3,13 +3,13 @@ import { createHash, randomUUID } from "node:crypto";
 import armsRum from "@arms/rum-electron";
 import { BrowserWindow, type WebContents } from "electron";
 import {
-  mapZCodeEnvToArmsRumEnv,
+  mapLCodeEnvToArmsRumEnv,
   type HostAgentProcessErrorResponse,
   type HostAgentProcessExceptionResponse,
   type HostAgentProcessExitedResponse,
   type HostAgentProcessReadyResponse,
   type HostAgentProcessSpawnedResponse,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import type { CrashCapturePaths } from "./desktopCrashCapture.js";
 import { registerCrashEventMonitor as registerBaseCrashEventMonitor } from "./desktopCrashCapture.js";
 import { getResourceManagerWindowId } from "./resourceManagerWindow.js";
@@ -93,7 +93,7 @@ interface StabilityGlobalContext {
   deviceMid: string;
   platform: NodeJS.Platform;
   appVersion: string;
-  armsEnv: ReturnType<typeof mapZCodeEnvToArmsRumEnv>;
+  armsEnv: ReturnType<typeof mapLCodeEnvToArmsRumEnv>;
 }
 
 interface UnresponsiveWatchState {
@@ -187,14 +187,14 @@ function redactRemainingAbsolutePaths(value: string): string {
   const protectedPaths: string[] = [];
   const protectedValue = value.replace(AGENT_CRASH_KNOWN_PATH_PLACEHOLDER_PATTERN, (match) => {
     const index = protectedPaths.push(match) - 1;
-    return `ZCODE_REDACTED_PATH_${index}_TOKEN`;
+    return `LCODE_REDACTED_PATH_${index}_TOKEN`;
   });
   const redacted = protectedValue
     .replace(AGENT_CRASH_WINDOWS_ABSOLUTE_PATH_PATTERN, "<path>")
     .replace(AGENT_CRASH_POSIX_ABSOLUTE_PATH_PATTERN, "<path>");
   return protectedPaths.reduce(
     (result, protectedPath, index) =>
-      result.replace(`ZCODE_REDACTED_PATH_${index}_TOKEN`, protectedPath),
+      result.replace(`LCODE_REDACTED_PATH_${index}_TOKEN`, protectedPath),
     redacted,
   );
 }
@@ -701,10 +701,10 @@ function mapChildProcessGoneToProcessRoleWithName(
   type: string,
   processName?: string,
 ): StabilityProcessRole {
-  if (processName?.startsWith("zcode-host")) {
+  if (processName?.startsWith("lcode-host")) {
     return "host";
   }
-  if (processName?.startsWith("zcode-agent")) {
+  if (processName?.startsWith("lcode-agent")) {
     return "agent";
   }
   switch (type) {
@@ -728,7 +728,7 @@ function shouldReportChildProcessGoneAsCrash(input: ChildProcessGoneInput): bool
   }
 
   // Bugfix: RUM 里 Video Capture / Network Service / Audio Service 等 Chromium Utility
-  // 子进程会被系统自动重建，不会让 ZCode 主窗口或会话不可用；它们只能作为可恢复退出记录，
+  // 子进程会被系统自动重建，不会让 LCode 主窗口或会话不可用；它们只能作为可恢复退出记录，
   // 不能进入 perf_crash，否则会把 crash-free 指标按“非真实崩溃”拉低。
   if (role === "utility") {
     return false;

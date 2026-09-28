@@ -1,7 +1,7 @@
 import { buildSessionMentionMarkdown } from "../mentions/mentionMarkdown.js";
-import type { ComposerMentionPrefill } from "../store/zcodeSessionStoreTypes.js";
+import type { ComposerMentionPrefill } from "../store/lcodeSessionStoreTypes.js";
 
-export const SESSION_REFERENCE_DRAG_MIME = "application/x-zcode-session-reference";
+export const SESSION_REFERENCE_DRAG_MIME = "application/x-lcode-session-reference";
 export const SESSION_REFERENCE_DRAG_VERSION = 1 as const;
 export const SESSION_REFERENCE_ARM_DELAY_MS = 1500;
 
@@ -13,7 +13,7 @@ const SESSION_REFERENCE_RENDERER_AUTHORITY =
 
 export interface SessionReferenceDragPayload {
   readonly version: typeof SESSION_REFERENCE_DRAG_VERSION;
-  readonly kind: "zcode/session-reference";
+  readonly kind: "lcode/session-reference";
   /** renderer instance boundary；跨窗口/Host 的 native payload fail closed。 */
   readonly rendererAuthority: string;
   readonly sessionId: string;
@@ -76,7 +76,7 @@ function normalizePayload(value: unknown): SessionReferenceDragPayload | null {
   if (!isRecord(value)) return null;
   if (
     value.version !== SESSION_REFERENCE_DRAG_VERSION ||
-    value.kind !== "zcode/session-reference" ||
+    value.kind !== "lcode/session-reference" ||
     value.rendererAuthority !== SESSION_REFERENCE_RENDERER_AUTHORITY ||
     typeof value.sessionId !== "string" ||
     !SESSION_ID_PATTERN.test(value.sessionId) ||
@@ -103,7 +103,7 @@ function normalizePayload(value: unknown): SessionReferenceDragPayload | null {
 
   return {
     version: SESSION_REFERENCE_DRAG_VERSION,
-    kind: "zcode/session-reference",
+    kind: "lcode/session-reference",
     rendererAuthority: SESSION_REFERENCE_RENDERER_AUTHORITY,
     sessionId: value.sessionId,
     source: {
@@ -126,7 +126,7 @@ export function createSessionReferenceDragPayload(input: {
 }): SessionReferenceDragPayload | null {
   const normalized = normalizePayload({
     version: SESSION_REFERENCE_DRAG_VERSION,
-    kind: "zcode/session-reference",
+    kind: "lcode/session-reference",
     rendererAuthority: SESSION_REFERENCE_RENDERER_AUTHORITY,
     sessionId: input.sessionId,
     source: {

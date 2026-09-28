@@ -1,4 +1,4 @@
-import type { RendererActionTraceGroup } from "@zcode/shared";
+import type { RendererActionTraceGroup } from "@lcode/shared";
 
 export const CORE_USER_ACTION_FEATURES = {
   "workspace.local.lifecycle": ["open", "switch", "close"],

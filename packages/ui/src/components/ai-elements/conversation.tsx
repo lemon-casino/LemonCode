@@ -1,12 +1,12 @@
 /*
  * Derived from vercel/ai-elements (packages/elements/src/conversation.tsx).
  * Copyright 2023 Vercel, Inc. Licensed under Apache-2.0.
- * Modified by ZCode: local integration, formatting and adaptations.
+ * Modified by LCode: local integration, formatting and adaptations.
  * See THIRD-PARTY-NOTICES.md in the repository root for license and provenance.
  */
 "use client";
 
-// 这些 ai-elements 组件本身就位于 @zcode/ui 包内部；如果继续写 @zcode/ui/... 自引用，
+// 这些 ai-elements 组件本身就位于 @lcode/ui 包内部；如果继续写 @lcode/ui/... 自引用，
 // TypeScript 在 NodeNext 下会先套用 package.json 的 exports，而当前并没有导出这些深层源码路径。
 // 这里统一改成带 .js 后缀的相对导入，让源码、声明产物和消费方都按同一套 ESM 规则解析。
 import { Button } from "../ui/button.js";

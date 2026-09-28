@@ -2,9 +2,9 @@
 
 ## 目标
 
-ZCode 的源码构建、桌面安装包、CLI SEA 和远端 Agent 资源必须内置一个默认启用的
+LCode 的源码构建、桌面安装包、CLI SEA 和远端 Agent 资源必须内置一个默认启用的
 `lemon-workflow` 内容插件。插件提供 `/lemon` 命令以及 `ponytail`、`caveman`、
-`dynamic-workflows` 技能，不依赖用户目录 `~/.zcode` 中已有文件。
+`dynamic-workflows` 技能，不依赖用户目录 `~/.lcode` 中已有文件。
 
 动态工作流能力缺省为 `alwaysOn`。远端配置或本地开发覆盖仍可显式设置
 `disabled`，但配置缺失、非法或请求失败时不得让内置 `/lemon` 落入“命令存在、工具未装配”
@@ -13,7 +13,7 @@ ZCode 的源码构建、桌面安装包、CLI SEA 和远端 Agent 资源必须�
 ## 产品规则
 
 1. `lemon-workflow` 是纯内容型官方插件，首次启动默认启用，不启动独立进程，不新增 MCP。
-2. 插件内容是构建和运行时的唯一来源。不得在启动时从 `C:\Users\Lemon\.zcode` 复制文件。
+2. 插件内容是构建和运行时的唯一来源。不得在启动时从 `C:\Users\Lemon\.lcode` 复制文件。
 3. `/lemon [任务描述]` 使用参数作为目标；参数为空时使用当前对话中最新任务。
 4. 新任务第一次调用 `CreateWorkflow` 时只传一个内联 `script` 来源。不得调用
    `EvalWorkflowSnippet`，不得同时传 `path`、`saved` 或其他 snippet 来源。若编译失败，编辑工具
@@ -88,7 +88,7 @@ prod/lockfile 双图校验，通过逐 workspace 查询降低同时打开的文�
 
 每条分发路径至少校验以下资产：
 
-- `.zcode-plugin/plugin.json`
+- `.lcode-plugin/plugin.json`
 - `commands/lemon.md`
 - `skills/ponytail/SKILL.md`
 - `skills/caveman/SKILL.md`

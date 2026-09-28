@@ -5,7 +5,7 @@
  * 单个来源采样失败只丢它自己的样本（失败即丢，不阻塞业务）。
  */
 
-import type { ProcessResourceRole } from "@zcode/shared";
+import type { ProcessResourceRole } from "@lcode/shared";
 import type { AppResourceTotals } from "./processResourceAppTotals.js";
 import type { DeviceResourceSample } from "./processResourceSystemWindowAggregator.js";
 import type { ProcessRoleSample } from "./processResourceWindowAggregator.js";

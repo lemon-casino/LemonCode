@@ -1,6 +1,6 @@
 // 动态工作流（dynamic workflow）相关的测试 id。
 // test-ids.ts 已顶到 oxlint max-lines 上限（400 行），工作流这一族整段拆出；
-// 仍从 @zcode/shared 桶文件导出，消费方 import 路径不变。
+// 仍从 @lcode/shared 桶文件导出，消费方 import 路径不变。
 
 // 已保存工作流的 GUI 中枢。
 export const TID_AUTOMATIONS_PAGE_TAB = "automations-page-tab";

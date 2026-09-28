@@ -5,7 +5,7 @@ description: Apply the repository's architecture policy to code changes by gener
 
 # Architecture governance
 
-Use this skill before editing code in the ZCode repository. It is a design guide as well as a gate: the goal is to make the intended architecture obvious before code is generated, so the checker confirms a decision instead of discovering it for the first time.
+Use this skill before editing code in the LCode repository. It is a design guide as well as a gate: the goal is to make the intended architecture obvious before code is generated, so the checker confirms a decision instead of discovering it for the first time.
 
 ## Before writing code
 

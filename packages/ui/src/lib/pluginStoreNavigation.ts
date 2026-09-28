@@ -1,4 +1,4 @@
-const OPEN_PLUGIN_STORE_EVENT = "zcode:open-plugin-store";
+const OPEN_PLUGIN_STORE_EVENT = "lcode:open-plugin-store";
 
 export interface PluginStoreOpenTarget {
   pluginId?: string;

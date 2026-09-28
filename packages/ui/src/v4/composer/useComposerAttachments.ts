@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast.js";
 import { nanoid } from "nanoid";
-import type { AttachmentRef } from "@zcode/shared/zcode-protocol-v4";
+import type { AttachmentRef } from "@lcode/shared/lcode-protocol-v4";
 import { WORKSPACE_FILE_DRAG_MIME } from "@/lib/workspaceFileDrag.js";
 import {
   MAX_CHAT_ATTACHMENTS,
@@ -28,11 +28,11 @@ import {
 } from "@/lib/whiteboard.js";
 import { useWhiteboardStore } from "@/store/whiteboardStore.js";
 import type { ChatComposerPasteEvent } from "@/LexicalChatInput.js";
-import type { IPromptAttachmentTransferService } from "@zcode/services";
-import type { IPlatformService } from "@zcode/shared";
+import type { IPromptAttachmentTransferService } from "@lcode/services";
+import type { IPlatformService } from "@lcode/shared";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useServices } from "@/hooks/useServices.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import {
   exposeComposerAttachmentScopeKeyForE2E,
@@ -204,7 +204,7 @@ export function useComposerAttachments(
   } = options;
   const platform = usePlatform();
   const { promptAttachmentTransferService } = useServices();
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const scopeKey = buildScopeKey(workspacePath, workspaceIdentity, scopeId);
   exposeComposerAttachmentScopeKeyForE2E(scopeKey);
 

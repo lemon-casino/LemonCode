@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, CopyIcon, Inbox, Loader2, PlusCircle, RefreshCcw } from "lucide-react";
-import type { FeedbackTicketSummary } from "@zcode/shared";
-import type { IFeedbackService } from "@zcode/services";
+import type { FeedbackTicketSummary } from "@lcode/shared";
+import type { IFeedbackService } from "@lcode/services";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { FeedbackErrorTip, StatusIndicator } from "@/feedback/feedbackBadges.js";
 import { ScrollFadeViewport } from "@/components/ui/scroll-fade-viewport.js";
 import { useFeedbackStore } from "@/feedback/feedbackStore.js";
 import { formatRelativeTime } from "@/feedback/feedbackUserView.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { getErrorMessage } from "@/lib/errorMessage.js";
 import { logger } from "@/logger.js";
 
@@ -20,7 +20,7 @@ export function TicketsView({
   onCreateNew: () => void;
 }) {
   const selectedTicketId = useFeedbackStore((state) => state.selectedTicketId);
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const formatMessage = intl.formatMessage;
   const copiedResetTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
   const [items, setItems] = useState<FeedbackTicketSummary[]>([]);
@@ -139,7 +139,7 @@ export function TicketsView({
 }
 
 function TicketsInitialLoadingState() {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-6 py-8 text-center text-ui-base text-foreground-subtle">
       <Loader2 className="size-4 animate-spin text-primary" />
@@ -159,7 +159,7 @@ function FeedbackTicketList({
   copiedTicketId: string | null;
   onCopyTicketId: (ticketId: string) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const formatMessage = intl.formatMessage;
   if (items.length === 0) return null;
 
@@ -231,7 +231,7 @@ function FeedbackTicketList({
 }
 
 function EmptyState({ onCreateNew }: { onCreateNew: () => void }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const formatMessage = intl.formatMessage;
   return (
     <div className="flex flex-col items-center justify-center gap-2 px-4 pt-12 text-center">

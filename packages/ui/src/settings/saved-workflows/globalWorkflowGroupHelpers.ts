@@ -1,13 +1,13 @@
 // 全局工作流组的纯逻辑。与组件分文件以守住 max-lines 400，
 // 也便于单测这些无 React 的判定。
-import { resolveWorkspaceKey, type ZCodeSavedWorkflowRun } from "@zcode/shared";
-import type { ZCodeAgentSavedWorkflowTarget } from "@zcode/services";
+import { resolveWorkspaceKey, type LCodeSavedWorkflowRun } from "@lcode/shared";
+import type { LCodeAgentSavedWorkflowTarget } from "@lcode/services";
 import type { AutomationWorkspaceOption } from "@/settings/automationWorkspaceOptions.js";
 import type { SavedWorkflowProjectTarget } from "@/settings/saved-workflows/savedWorkflowContract.js";
 import type { SavedWorkflowRunProject } from "@/settings/saved-workflows/SavedWorkflowRunHistoryPanel.js";
 
 /** 全局档的 RPC 载体常量：不带 workspace，services 层自选本机运行时。 */
-export const GLOBAL_SAVED_WORKFLOW_TARGET: ZCodeAgentSavedWorkflowTarget = { scope: "global" };
+export const GLOBAL_SAVED_WORKFLOW_TARGET: LCodeAgentSavedWorkflowTarget = { scope: "global" };
 
 /** 取路径末段（跨 `/` 与 `\\`），给未打开项目的运行行做兜底 label。 */
 function basenameOfPath(path: string): string {
@@ -49,7 +49,7 @@ export function findProjectByCwd(
  */
 export function buildGlobalRunProjectResolver(
   localProjects: readonly AutomationWorkspaceOption[],
-): (run: ZCodeSavedWorkflowRun) => SavedWorkflowRunProject | null {
+): (run: LCodeSavedWorkflowRun) => SavedWorkflowRunProject | null {
   return (run) => {
     if (!run.cwd) return null;
     const project = findProjectByCwd(localProjects, run.cwd);

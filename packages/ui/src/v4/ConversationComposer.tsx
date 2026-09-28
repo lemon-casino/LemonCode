@@ -42,13 +42,13 @@ import {
   TID_V4_STOP,
   testId,
   type PlanIdentitySnapshot,
-  type ZCodeProvider,
-} from "@zcode/shared";
+  type LCodeProvider,
+} from "@lcode/shared";
 import type {
   AttachmentRef,
   ConversationSnapshot,
   SessionConfigState,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
 import {
   ArrowUpIcon,
   ClipboardPenLineIcon,
@@ -89,14 +89,14 @@ import type { LexicalChatInputHandle } from "@/LexicalChatInput.js";
 import type { EditorState } from "lexical";
 import { ChatPromptEditor } from "@/prompt-editor/ChatPromptEditor.js";
 import { usePromptEditorDragState } from "@/prompt-editor/usePromptEditorDragState.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { advanceComposerDraftRevision } from "@/v4/composer/composerDraftRevision.js";
 import type { AppSlashCommand } from "@/slashCommandHelpers.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 import { runUserAction, startUserAction } from "@/lib/userActionTelemetry.js";
-import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
-import type { ComposerMentionPrefill } from "@/store/zcodeSessionStoreTypes.js";
+import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
+import type { ComposerMentionPrefill } from "@/store/lcodeSessionStoreTypes.js";
 import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
 import {
   isImageChatComposerAttachment,
@@ -119,9 +119,9 @@ import {
 } from "@/lib/workspaceFileDrag.js";
 import { appendWorkspaceFileMentionToComposer } from "@/lib/workspaceFileComposer.js";
 import { resolveProviderBaseURL } from "@/lib/registryProviderView.js";
-import type { ModelSelectionView } from "@zcode/services";
+import type { ModelSelectionView } from "@lcode/services";
 import type { ModelSelectionState } from "@/hooks/useModelSelectionView.js";
-import type { ZCodeUiError } from "@/lib/zcodeUiError.js";
+import type { LCodeUiError } from "@/lib/lcodeUiError.js";
 import {
   resolveComposerAutoFocus,
   type ComposerAutoFocusOptions,
@@ -419,7 +419,7 @@ interface ConversationComposerProps {
   onRuntimeRestart?: (listener: () => void) => () => void;
   /** 承载 transport 暴露 runtime 存活态时优先用它，替代 onRuntimeRestart。 */
   onRuntimeLifecycle?: (listener: (state: "available" | "unavailable") => void) => () => void;
-  provider?: ZCodeProvider;
+  provider?: LCodeProvider;
   /** 宿主 pane 与 workspace 遮罩共同裁决的真实可见性，仅用于 visible-only telemetry。 */
   telemetryVisible?: boolean;
   /** 点击发送时读取套餐身份；二次确认会继续复用同一份冻结 seed。 */
@@ -459,7 +459,7 @@ interface ConversationComposerProps {
   /** context usage 面板的 /compact 入口（宿主走 v4 compact 命令）。 */
   onSendCompressionCommand?: (command: string) => void;
   /** v4 会话级错误（snapshot.control.lastError），展示在输入框上方。 */
-  error?: ZCodeUiError | null;
+  error?: LCodeUiError | null;
   onDismissError?: () => void;
   /** 无可用模型横幅的恢复动作；由 SessionPane 注入壳层导航，组件不直接操作 tab。 */
   onOpenModelSettings?: () => void;
@@ -558,7 +558,7 @@ function ConversationComposerImpl({
   sessionReferenceDropEnabled = false,
   sessionReferenceTargetSessionId = sessionId,
 }: ConversationComposerProps) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const services = useOptionalServices();
   const conversationTelemetry = useScopedConversationTelemetrySupervisor({
     workspacePath,
@@ -1137,7 +1137,7 @@ function ConversationComposerImpl({
   // 触发源：startDraft 递增的 draftFocusVersion（覆盖 Cmd/Ctrl+N 与所有「新建任务」入口）、
   // sessionId→draftScopeId 变化（切会话/切草稿）、以及挂载。三者置位聚焦意图；因切到需
   // 连接的会话时 composer 短暂 disabled，聚焦意图暂存，待可编辑时兑现一次。
-  const draftFocusVersion = useZCodeSessionStore(
+  const draftFocusVersion = useLCodeSessionStore(
     (state) => state.getWorkspaceState(workspacePath, workspaceIdentity).draftFocusVersion,
   );
   const pendingFocusRef = useRef(false);

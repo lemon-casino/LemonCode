@@ -1,7 +1,7 @@
 import {
   BUILTIN_MODEL_PROVIDER_IDS,
   resolveModelProviderFamilyIdByProviderId,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import type { IntlInstance } from "@/i18n/IntlProvider.js";
 import type { ModelSelectGroup } from "@/ModelConfigSelect.js";
 

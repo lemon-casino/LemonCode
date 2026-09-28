@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { EditorInfo } from "@zcode/shared";
+import type { EditorInfo } from "@lcode/shared";
 import {
   ChevronRightIcon,
   Ellipsis,
@@ -24,11 +24,11 @@ import { nanoid } from "nanoid";
 import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { cn } from "@/components/lib/utils.js";
-import type { FileBinaryPreview, FileMediaPreview, FileTextSlice } from "@zcode/shared";
-import { TID_PREVIEW_PANE } from "@zcode/shared";
+import type { FileBinaryPreview, FileMediaPreview, FileTextSlice } from "@lcode/shared";
+import { TID_PREVIEW_PANE } from "@lcode/shared";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { usePptxFileWatch } from "@/hooks/usePptxFileWatch.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { usePdfViewerLabels, usePptxViewerLabels } from "@/hooks/usePreviewViewerLabels.js";
 import {
   FILE_VIEWER_MAX_TEXT_BYTES,
@@ -49,7 +49,7 @@ import { usePlatform } from "@/hooks/usePlatform.js";
 import { useFileContextActions } from "@/hooks/useFileContextActions.js";
 import { useWorkspaceOpenInEditorTarget } from "@/hooks/useWorkspaceOpenInEditorTarget.js";
 import { logger } from "@/logger.js";
-import { useZCodeStore } from "@/store/StoreProvider.js";
+import { useLCodeStore } from "@/store/StoreProvider.js";
 import { useCodeCommentPreviewStore } from "@/store/codeCommentPreviewStore.js";
 import { resolveTheme } from "@/useTheme.js";
 import {
@@ -494,9 +494,9 @@ export function PreviewPane({
   markdownSelectionTarget?: MarkdownSelectionTarget;
 }) {
   const platform = usePlatform();
-  const { intl } = useZCodeIntl();
-  const theme = useZCodeStore((state) => state.theme);
-  const codePreviewSettings = useZCodeStore((state) => state.codePreviewSettings);
+  const { intl } = useLCodeIntl();
+  const theme = useLCodeStore((state) => state.theme);
+  const codePreviewSettings = useLCodeStore((state) => state.codePreviewSettings);
   const source = useMemo(
     () => (rawSource ? normalizeCodeViewerSource(rawSource) : null),
     [rawSource],

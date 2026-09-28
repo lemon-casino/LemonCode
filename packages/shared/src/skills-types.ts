@@ -15,7 +15,7 @@ export interface SkillSummary {
   path: string;
   /**
    * 发现阶段命中的原始 SKILL.md 路径（未经 realpath 解析）。
-   * 软链导入的技能里 `path` 是 realpath 后的目标文件，`sourcePath` 才指向 `~/.zcode/skills/<name>` 下的链接本体，
+   * 软链导入的技能里 `path` 是 realpath 后的目标文件，`sourcePath` 才指向 `~/.lcode/skills/<name>` 下的链接本体，
    * 删除时必须用它才能只删链接、不动目标。普通技能与 `path` 相同。
    */
   sourcePath?: string;
@@ -35,7 +35,7 @@ export interface SkillsCapability {
 
 export type SkillDiagnosticSeverity = "warning" | "error";
 
-/** 与 zcode-cli `SkillDiagnosticCode` 同步。变动时一并改 apps/zcode-cli/packages/contracts/src/skills/index.ts。 */
+/** 与 lcode-cli `SkillDiagnosticCode` 同步。变动时一并改 apps/lcode-cli/packages/contracts/src/skills/index.ts。 */
 export type SkillDiagnosticCode =
   | "skill_root_not_found"
   | "skill_scan_failed"

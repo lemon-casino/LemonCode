@@ -76,7 +76,7 @@ function ensureHost() {
   }
 
   const host = document.createElement("div");
-  host.id = "zcode-toast-host";
+  host.id = "lcode-toast-host";
   document.body.appendChild(host);
   const root = createRoot(host);
   root.render(<ToastContainer />);

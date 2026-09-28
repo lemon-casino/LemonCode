@@ -9,7 +9,7 @@ interface StorageLike {
   setItem(key: string, value: string): void;
 }
 
-const WORKFLOW_RUN_ACK_STORAGE_KEY = "zcode-workflow-run-acknowledged";
+const WORKFLOW_RUN_ACK_STORAGE_KEY = "lcode-workflow-run-acknowledged";
 /** 集合上限；满了淘汰最早确认的。256 远大于任何会话列表里同时挂着的已结束 run 数。 */
 const WORKFLOW_RUN_ACK_LIMIT = 256;
 

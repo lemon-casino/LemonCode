@@ -3,11 +3,11 @@ import {
   buildRuntimeZaiBusinessUrl,
   buildRuntimeZaiOAuthUrl,
   resolveZaiOAuthClientId,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import type { OAuthProviderRuntimeConfig } from "../runtimeConfig.js";
 import {
   buildDesktopOAuthRedirectUriFromEnv,
-  buildZCodeApiUrlFromEnv,
+  buildLCodeApiUrlFromEnv,
   readBoolean,
   readEnv,
 } from "./configUtils.js";
@@ -24,7 +24,7 @@ const ZAI_OAUTH_PROVIDER_CONFIG: Omit<OAuthProviderRuntimeConfig, "appSecret"> =
   businessLoginUrl: "https://api.z.ai/api/auth/z/login",
   // 生产 client_id 不是 secret，但保留 fallback 可以避免未配置 env 的旧构建直接无法登录。
   appId: "client_P8X5CMWmlaRO9gyO-KSqtg",
-  redirectUri: "zcode://oauth/callback",
+  redirectUri: "lcode://oauth/callback",
 };
 
 export function createZaiProviderRuntimeConfig(env: NodeJS.ProcessEnv): OAuthProviderRuntimeConfig {
@@ -35,7 +35,7 @@ export function createZaiProviderRuntimeConfig(env: NodeJS.ProcessEnv): OAuthPro
       readEnv(env, "ZAI_OAUTH_AUTHORIZE_URL") ??
       buildRuntimeZaiOAuthUrl(env, "/api/oauth/authorize"),
     tokenUrl:
-      readEnv(env, "ZAI_OAUTH_TOKEN_URL") ?? buildZCodeApiUrlFromEnv(env, "/api/v1/oauth/token"),
+      readEnv(env, "ZAI_OAUTH_TOKEN_URL") ?? buildLCodeApiUrlFromEnv(env, "/api/v1/oauth/token"),
     userinfoUrl: resolveZaiUserinfoUrl(env),
     businessLoginUrl:
       readEnv(env, "ZAI_BUSINESS_LOGIN_URL") ??

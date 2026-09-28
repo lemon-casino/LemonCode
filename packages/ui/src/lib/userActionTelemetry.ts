@@ -4,11 +4,11 @@ import type {
   RendererActionTraceConfigV1,
   RendererActionTraceResourceV1,
   RendererActionTraceSpanV1,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import {
   RENDERER_ACTION_TRACE_MAX_BATCH_BYTES,
   RENDERER_ACTION_TRACE_MAX_BATCH_SPANS,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import {
   resolveUserActionCatalogEntry,
   type UserActionFeatureId,

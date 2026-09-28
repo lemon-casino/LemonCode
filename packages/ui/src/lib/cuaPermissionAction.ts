@@ -1,14 +1,14 @@
-import type { CuaAccessibilitySettingsResult } from "@zcode/shared";
+import type { CuaAccessibilitySettingsResult } from "@lcode/shared";
 
 function normalizeToolName(value: string | null | undefined): string {
   return value?.trim().toLowerCase().replace(/_/g, "-") ?? "";
 }
 
-export function isZCodeCuaToolName(value: string | null | undefined): boolean {
+export function isLCodeCuaToolName(value: string | null | undefined): boolean {
   const normalized = normalizeToolName(value);
   // server key 段为 computer-use。feat: mcp__computer-use__*；
   // main v3.5.3 的 plugin MCP 命名约定给 plugin server 加 namespace：
-  // mcp__plugin_zcode-cua_computer-use__*（归一化后 server 段前是单连字符 cua-computer-use，
+  // mcp__plugin_lcode-cua_computer-use__*（归一化后 server 段前是单连字符 cua-computer-use，
   // 不是双连字符）。两种形态都包含 "computer-use" 串——用 includes 兼容，否则 main 的 namespace
   // 前缀会让 cua 工具识别失败、ToolCallBlock 退化成 fallback 渲染。"computer-use" 足够特异
   // （仅 cua server 用此 key，不会误判 android-emulator/browser-use 等）。
@@ -18,7 +18,7 @@ export function isZCodeCuaToolName(value: string | null | undefined): boolean {
 function didReturnFromCuaPermissionSettings(
   result: CuaAccessibilitySettingsResult | null | undefined,
 ): boolean {
-  // main 只有在整组 staged pane 都完成并观察到 ZCode 应用级返回后才置 true。renderer focus
+  // main 只有在整组 staged pane 都完成并观察到 LCode 应用级返回后才置 true。renderer focus
   // 可能来自 TCC 原生 prompt、另一窗口或普通切换，不能再作为授权完成信号。
   return (
     result?.success === true &&

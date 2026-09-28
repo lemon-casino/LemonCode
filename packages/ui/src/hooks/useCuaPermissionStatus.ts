@@ -11,7 +11,7 @@
 // 之间反复横跳。状态本身存放在 lib/cuaPermissionStatusStore 的进程内共享缓存里，
 // 设置页与输入框入口读同一份，重新进入页面时先渲染上次的授权状态，不再从「未知」闪起。
 import { useCallback, useEffect, useSyncExternalStore } from "react";
-import type { CuaPermissionStatusQueryOptions, CuaPermissionStatusResult } from "@zcode/services";
+import type { CuaPermissionStatusQueryOptions, CuaPermissionStatusResult } from "@lcode/services";
 import {
   cuaPermissionStatusKey,
   fetchCuaPermissionStatus,

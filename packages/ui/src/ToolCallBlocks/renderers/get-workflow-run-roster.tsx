@@ -3,7 +3,7 @@
  * get-workflow-run-situation.tsx）。
  *
  * 一行的读法与模型面
- * （apps/zcode-cli/packages/core/src/tool/handlers/get-workflow-run-format-roster.ts）同一句话：
+ * （apps/lcode-cli/packages/core/src/tool/handlers/get-workflow-run-format-roster.ts）同一句话：
  * 「谁 · 在哪 · 什么相位 · 在哪个阶段 · 正在做什么 · 花了多少 token」，其中「正在做什么」
  * 按相位分叉——在跑的说它的进度与最后一个工具，在等的说等什么、还要等多久，停驻的说等哪个
  * 问题。这正是这张卡存在的理由：一眼看出谁卡住了。
@@ -12,8 +12,8 @@
  * 在场推出来；缺席一律不画，绝不用 0 顶替不知道。
  */
 
-import type { ToolCallGetWorkflowRunDisplay } from "@zcode/shared/zcode-protocol-v4";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { ToolCallGetWorkflowRunDisplay } from "@lcode/shared/lcode-protocol-v4";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   formatWorkflowAge,
   formatWorkflowDuration,
@@ -25,7 +25,7 @@ import {
 } from "@/ToolCallBlocks/renderers/get-workflow-run-situation.js";
 
 type WorkflowRunSubagentView = NonNullable<ToolCallGetWorkflowRunDisplay["subagents"]>[number];
-type FormatMessage = ReturnType<typeof useZCodeIntl>["intl"]["formatMessage"];
+type FormatMessage = ReturnType<typeof useLCodeIntl>["intl"]["formatMessage"];
 
 const I18N_PREFIX = "chat.toolCall.workflow.getRun.";
 
@@ -51,7 +51,7 @@ export function WorkflowRunSubagentRoster({
   subagents: readonly WorkflowRunSubagentView[];
   generatedAt: number | undefined;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   // 空花名册什么也不画：还没造出子代理是一件不需要一整块区域来说的事。
   if (subagents.length === 0) return null;
   return (

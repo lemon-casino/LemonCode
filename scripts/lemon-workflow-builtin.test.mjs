@@ -7,19 +7,19 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import YAML from "yaml";
-import { expandCliCustomCommandPrompt } from "../apps/zcode-cli/packages/cli/src/custom-command-expand.ts";
+import { expandCliCustomCommandPrompt } from "../apps/lcode-cli/packages/cli/src/custom-command-expand.ts";
 import {
   collectSeaOfficialPluginAssets,
   seaOfficialPluginAssetPrefix,
-} from "../apps/zcode-cli/packages/cli/scripts/sea-official-plugin-assets.mjs";
+} from "../apps/lcode-cli/packages/cli/scripts/sea-official-plugin-assets.mjs";
 import { resolveDynamicWorkflowClientConfig } from "../packages/shared/src/dynamic-workflow-feature.ts";
 import { stageAgentBundle } from "../packages/desktop/scripts/stage-agent-bundle.mjs";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const exec = promisify(execFile);
-const pluginRoot = join(repoRoot, "apps/zcode-cli/packages/lemon-workflow-plugin");
+const pluginRoot = join(repoRoot, "apps/lcode-cli/packages/lemon-workflow-plugin");
 const requiredPluginAssets = [
-  ".zcode-plugin/plugin.json",
+  ".lcode-plugin/plugin.json",
   "commands/lemon.md",
   "skills/ponytail/SKILL.md",
   "skills/caveman/SKILL.md",
@@ -43,7 +43,7 @@ test("lemon workflow plugin contains every runtime asset", async () => {
   }
 
   const manifest = JSON.parse(
-    await readRepoFile("apps/zcode-cli/packages/lemon-workflow-plugin/.zcode-plugin/plugin.json"),
+    await readRepoFile("apps/lcode-cli/packages/lemon-workflow-plugin/.lcode-plugin/plugin.json"),
   );
   assert.equal(manifest.name, "lemon-workflow");
   assert.equal(manifest.commands, "commands");
@@ -52,7 +52,7 @@ test("lemon workflow plugin contains every runtime asset", async () => {
 
 test("lemon command starts or resumes without the broken snippet preflight", async () => {
   const command = await readRepoFile(
-    "apps/zcode-cli/packages/lemon-workflow-plugin/commands/lemon.md",
+    "apps/lcode-cli/packages/lemon-workflow-plugin/commands/lemon.md",
   );
 
   assert.match(command, /\u4e0d\u8981\u8c03\u7528 `EvalWorkflowSnippet`/u);
@@ -67,7 +67,7 @@ test("lemon command starts or resumes without the broken snippet preflight", asy
 
 test("lemon loads qualified skills and selects a review scope with actual changes", async () => {
   const source = await readRepoFile(
-    "apps/zcode-cli/packages/lemon-workflow-plugin/commands/lemon.md",
+    "apps/lcode-cli/packages/lemon-workflow-plugin/commands/lemon.md",
   );
   const frontmatter = /^---\r?\n([\s\S]*?)\r?\n---\r?\n/u.exec(source);
   assert.ok(frontmatter);
@@ -98,7 +98,7 @@ test("lemon loads qualified skills and selects a review scope with actual change
 
 test("built desktop agent discovers /lemon and all three skills without user installation", async (t) => {
   const platform = `${process.platform}-${process.arch}`;
-  const builtCli = join(repoRoot, "packages/desktop/bundled-agents", platform, "glm/zcode.cjs");
+  const builtCli = join(repoRoot, "packages/desktop/bundled-agents", platform, "glm/lcode.cjs");
   try {
     await stat(builtCli);
   } catch (error) {
@@ -107,13 +107,13 @@ test("built desktop agent discovers /lemon and all three skills without user ins
     return;
   }
 
-  const tempHome = await mkdtemp(join(tmpdir(), "zcode-lemon-clean-home-"));
+  const tempHome = await mkdtemp(join(tmpdir(), "lcode-lemon-clean-home-"));
   try {
     const env = {
       ...process.env,
       HOME: tempHome,
       USERPROFILE: tempHome,
-      ZCODE_HOME: join(tempHome, ".zcode"),
+      LCODE_HOME: join(tempHome, ".lcode"),
     };
     const run = async (...args) => {
       const { stdout } = await exec(process.execPath, [builtCli, ...args], {
@@ -158,10 +158,10 @@ test("dynamic workflow defaults on but remote can explicitly turn it off", () =>
 });
 
 test("SEA embeds a complete lemon workflow content plugin", async () => {
-  const stagingDirectory = await mkdtemp(join(tmpdir(), "zcode-lemon-sea-"));
+  const stagingDirectory = await mkdtemp(join(tmpdir(), "lcode-lemon-sea-"));
   try {
     const { assets, manifest } = await collectSeaOfficialPluginAssets({
-      root: join(repoRoot, "apps/zcode-cli"),
+      root: join(repoRoot, "apps/lcode-cli"),
       stagingDirectory,
     });
     const lemon = manifest.plugins.find((plugin) => plugin.name === "lemon-workflow");
@@ -184,10 +184,10 @@ test("SEA embeds a complete lemon workflow content plugin", async () => {
 });
 
 test("desktop dev bundle stages the plugin beside the agent", async () => {
-  const tempRepoRoot = await mkdtemp(join(tmpdir(), "zcode-lemon-desktop-"));
+  const tempRepoRoot = await mkdtemp(join(tmpdir(), "lcode-lemon-desktop-"));
   try {
-    const tempPluginRoot = join(tempRepoRoot, "apps/zcode-cli/packages/lemon-workflow-plugin");
-    const tempBundle = join(tempRepoRoot, "apps/zcode-cli/packages/cli/dist/zcode.cjs");
+    const tempPluginRoot = join(tempRepoRoot, "apps/lcode-cli/packages/lemon-workflow-plugin");
+    const tempBundle = join(tempRepoRoot, "apps/lcode-cli/packages/cli/dist/lcode.cjs");
     await mkdir(dirname(tempBundle), { recursive: true });
     await writeFile(tempBundle, "// fixture bundle\n");
     await cp(pluginRoot, tempPluginRoot, { recursive: true });
@@ -206,7 +206,7 @@ test("desktop dev bundle stages the plugin beside the agent", async () => {
     }
     assert.equal(
       await readFile(join(stagedRoot, "commands/lemon.md"), "utf8"),
-      await readRepoFile("apps/zcode-cli/packages/lemon-workflow-plugin/commands/lemon.md"),
+      await readRepoFile("apps/lcode-cli/packages/lemon-workflow-plugin/commands/lemon.md"),
     );
   } finally {
     await rm(tempRepoRoot, { recursive: true, force: true });
@@ -215,13 +215,13 @@ test("desktop dev bundle stages the plugin beside the agent", async () => {
 
 test("every official plugin distribution path stages lemon workflow", async () => {
   const sourceContracts = [
-    "apps/zcode-cli/packages/bootstrap/src/app/official-plugin-definitions.ts",
+    "apps/lcode-cli/packages/bootstrap/src/app/official-plugin-definitions.ts",
     "packages/shared/src/plugin-marketplaces.ts",
     "packages/desktop/scripts/stage-agent-bundle.mjs",
     "packages/desktop/scripts/prepare-agent-node-bundle.mjs",
-    "apps/zcode-cli/packages/cli/scripts/sea-official-plugin-assets.mjs",
+    "apps/lcode-cli/packages/cli/scripts/sea-official-plugin-assets.mjs",
     "scripts/prepare-prebuilds.mjs",
-    "packages/server/src/remote/zcodeAgentOfficialPluginAssets.ts",
+    "packages/server/src/remote/lcodeAgentOfficialPluginAssets.ts",
   ];
 
   for (const relativePath of sourceContracts) {

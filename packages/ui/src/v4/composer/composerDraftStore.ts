@@ -1,6 +1,6 @@
 // composer parity：v4 composer 的 per-session 草稿持久化（新做，轻量 localStorage）。
 //
-// 旧草稿面（zcodeSessionStore composerDraftByScopeId + chatComposerDraftStorage 写路径）
+// 旧草稿面（lcodeSessionStore composerDraftByScopeId + chatComposerDraftStorage 写路径）
 // 已随 store 收尾删除；本模块是 v4 侧替代——键空间独立（v4 前缀），不与旧键互写，
 // 旧键清理仍归 chatComposerDraftStorage 的 janitor。
 // 语义：scope = sessionId（draft 态 = "__draft__"）；保存 text + editorStateJson，外部预填在
@@ -9,9 +9,9 @@
 // 附件不入草稿（objectUrl/File 不可序列化，localPath 附件重启后归属难校验——
 // 与「v4 composer 不做附件草稿持久化」的裁决一致）。
 import { logger } from "@/logger.js";
-import { modelSelectionSchema, type ModelSelection } from "@zcode/shared";
-import { submissionModeSchema, type SubmissionMode } from "@zcode/shared/zcode-protocol-v4";
-import type { ComposerMentionPrefill } from "@/store/zcodeSessionStoreTypes.js";
+import { modelSelectionSchema, type ModelSelection } from "@lcode/shared";
+import { submissionModeSchema, type SubmissionMode } from "@lcode/shared/lcode-protocol-v4";
+import type { ComposerMentionPrefill } from "@/store/lcodeSessionStoreTypes.js";
 
 export interface V4ComposerDraft {
   text: string;
@@ -36,7 +36,7 @@ interface V4DraftFile {
   scopes: Record<string, V4ComposerDraft>;
 }
 
-const STORAGE_KEY_PREFIX = "zcode-v4-composer-drafts:v1:";
+const STORAGE_KEY_PREFIX = "lcode-v4-composer-drafts:v1:";
 export const V4_DRAFT_SCOPE_ROOT = "__draft__";
 const warnedStorageKeys = new Set<string>();
 

@@ -1,23 +1,23 @@
 import { ArrowRightIcon, CircleCheckIcon, CircleIcon, ListTodoIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";
-import { extractPlanStepsFromToolInput, extractPlanStepsFromToolOutput } from "@zcode/shared";
-import type { ZCodePlanStep } from "@zcode/shared";
+import { extractPlanStepsFromToolInput, extractPlanStepsFromToolOutput } from "@lcode/shared";
+import type { LCodePlanStep } from "@lcode/shared";
 import { ToolCallBody } from "@/ToolCallBlocks/ToolCallBody.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { cn } from "@/components/lib/utils.js";
 import { ToolLayout } from "../ToolLayout.js";
 import type { ToolCallBlockRenderContext } from "../shared.js";
 
 const TODO_TOOL_ICON = <ListTodoIcon className="size-4 shrink-0 text-foreground-subtle" />;
 
-const todoTextClasses: Record<ZCodePlanStep["status"], string> = {
+const todoTextClasses: Record<LCodePlanStep["status"], string> = {
   pending: "text-foreground-subtle",
   in_progress: "text-foreground",
   completed: "text-foreground-subtlest line-through",
 };
 
-function readTodoPlan(context: ToolCallBlockRenderContext): ZCodePlanStep[] | null {
+function readTodoPlan(context: ToolCallBlockRenderContext): LCodePlanStep[] | null {
   const { toolCall } = context.toolCallNode;
   return (
     extractPlanStepsFromToolOutput({
@@ -33,7 +33,7 @@ function readTodoPlan(context: ToolCallBlockRenderContext): ZCodePlanStep[] | nu
   );
 }
 
-function TodoStatusIcon({ status }: { status: ZCodePlanStep["status"] }) {
+function TodoStatusIcon({ status }: { status: LCodePlanStep["status"] }) {
   if (status === "completed") {
     return <CircleCheckIcon className="size-3.5 shrink-0 text-success" />;
   }
@@ -46,7 +46,7 @@ function TodoStatusIcon({ status }: { status: ZCodePlanStep["status"] }) {
 }
 
 export function TodoToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCall } = context.toolCallNode;
   const plan = readTodoPlan(context);
   const completedCount = plan?.filter((step) => step.status === "completed").length ?? 0;

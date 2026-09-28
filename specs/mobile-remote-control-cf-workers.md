@@ -76,7 +76,7 @@
 | ------------------------------------------------------- | ---------------------------------------------------------------- | ------------------------------------------------ |
 | 一次性 capability 防重放(30s TTL、consume-once)         | `packages/server/src/hostCapability.ts`                          | Worker DO 同构实现配对 token                     |
 | `/ws`(恒 web-remote-replayable)与 `/ws/host` 双路径语义 | `packages/server/src/http.ts:322-343`                            | 协议语义参照;手机按 replayable 档位接入          |
-| v4 连接作用域 clientMode/档位权威面                     | `packages/services/src/zcode-agent/zcodeAgentConnectionScope.ts` | 手机连接的可信档位判定,不新增路径                |
+| v4 连接作用域 clientMode/档位权威面                     | `packages/services/src/lcode-agent/lcodeAgentConnectionScope.ts` | 手机连接的可信档位判定,不新增路径                |
 | `attachRemoteWorkspaceSessionHost`(无调用方)            | `packages/desktop/src/desktopRemoteSessions.ts:832`              | 手机 attachment 的生产入口                       |
 | web-remote-replayable 客户端                            | `packages/web`                                                   | 移动端镜像 UI(完整客户端构建产物,由 Worker 托管) |
 | 凭据集中管理                                            | `packages/ui/src/root/remoteWorkspaceHistory.ts`                 | 接入 Key/设备凭据的保存与删除                    |

@@ -1,4 +1,4 @@
-export const IAB_INPUT_TARGET_TOKEN_PROPERTY = "__zcodeIabInputTargetToken";
+export const IAB_INPUT_TARGET_TOKEN_PROPERTY = "__lcodeIabInputTargetToken";
 
 /** 页面虚拟粘贴；此函数源码在目标 page execution context 内执行。 */
 export const VIRTUAL_PASTE_PAGE_FUNCTION = `async (options) => {

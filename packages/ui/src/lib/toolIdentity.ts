@@ -1,15 +1,15 @@
 import {
-  getZCodeToolFamilyForName,
+  getLCodeToolFamilyForName,
   isTodoPlanToolName,
-  isZCodeFileContentWriteToolName,
-  normalizeZCodeToolName,
-  type ZCodeKnownToolName,
-  type ZCodeToolFamily,
-} from "@zcode/shared";
+  isLCodeFileContentWriteToolName,
+  normalizeLCodeToolName,
+  type LCodeKnownToolName,
+  type LCodeToolFamily,
+} from "@lcode/shared";
 import { normalizeAskUserQuestionInput, readAskUserQuestionInput } from "@/lib/askUserQuestion.js";
 
 export type ToolCallPresentationFamily =
-  | ZCodeToolFamily
+  | LCodeToolFamily
   | "plan-guidance"
   | "switch-mode"
   | "explore"
@@ -20,14 +20,14 @@ export type ToolCallIdentitySource =
   | "kind"
   | "title"
   | "raw"
-  | "raw-zcode-meta"
+  | "raw-lcode-meta"
   | "legacy-kind"
   | "legacy-title"
   | "legacy-payload"
   | "unknown";
 
 export interface ToolCallIdentity {
-  toolName: ZCodeKnownToolName | string | null;
+  toolName: LCodeKnownToolName | string | null;
   family: ToolCallPresentationFamily;
   source: ToolCallIdentitySource;
   isLegacy: boolean;
@@ -80,11 +80,11 @@ function identityFromKnownToolName(
   value: string | null | undefined,
   source: ToolCallIdentitySource,
 ): ToolCallIdentity | null {
-  const toolName = normalizeZCodeToolName(value);
+  const toolName = normalizeLCodeToolName(value);
   if (!toolName) {
     return null;
   }
-  const family = getZCodeToolFamilyForName(toolName);
+  const family = getLCodeToolFamilyForName(toolName);
   if (!family) {
     return null;
   }
@@ -115,7 +115,7 @@ function readRawToolNameCandidates(raw: unknown) {
       readNestedString(raw, ["toolName"]) ??
       readNestedString(raw, ["tool_name"]) ??
       readNestedString(raw, ["name"]),
-    zcode: readNestedString(raw, ["_meta", "zcode", "toolName"]),
+    lcode: readNestedString(raw, ["_meta", "lcode", "toolName"]),
     rawKind: readNestedString(raw, ["kind"]),
     rawTitle: readNestedString(raw, ["title"]),
   };
@@ -128,10 +128,10 @@ function isLegacyAgentTool(
   const kind = normalizeLegacyToken(toolCall.kind);
   const title = normalizeLegacyToken(toolCall.title);
   const rawDirect = normalizeLegacyToken(rawNames.direct);
-  const rawZCode = normalizeLegacyToken(rawNames.zcode);
+  const rawLCode = normalizeLegacyToken(rawNames.lcode);
 
   return (
-    rawZCode === "agent" ||
+    rawLCode === "agent" ||
     rawDirect === "agent" ||
     kind === "agent" ||
     (kind === "think" && (title === "agent" || title === "task")) ||
@@ -210,7 +210,7 @@ export function resolveToolCallIdentity(toolCall: ToolIdentityLike): ToolCallIde
     { value: toolCall.toolName, source: "toolName" as const },
     { value: toolCall.kind, source: "kind" as const },
     { value: rawNames.direct, source: "raw" as const },
-    { value: rawNames.zcode, source: "raw-zcode-meta" as const },
+    { value: rawNames.lcode, source: "raw-lcode-meta" as const },
   ]) {
     const identity = identityFromKnownToolName(candidate.value, candidate.source);
     if (identity) {
@@ -220,13 +220,13 @@ export function resolveToolCallIdentity(toolCall: ToolIdentityLike): ToolCallIde
 
   if (isLegacyAgentTool(toolCall, rawNames)) {
     return identityFromLegacyFamily(
-      rawNames.direct ?? rawNames.zcode ?? "Agent",
+      rawNames.direct ?? rawNames.lcode ?? "Agent",
       "agent",
       "legacy-payload",
     );
   }
 
-  // `Task` 现在是现役 Claude 兼容工具名，但历史 ZCode Agent 投影会用
+  // `Task` 现在是现役 Claude 兼容工具名，但历史 LCode Agent 投影会用
   // kind="think" + title="Task" 表示子 agent 活动。title 只是展示名，必须放在
   // legacy payload 判断之后，避免把旧会话误升级成非 legacy 工具身份。
   const titleIdentity = identityFromKnownToolName(toolCall.title, "title");
@@ -276,14 +276,14 @@ export function resolveToolCallIdentity(toolCall: ToolIdentityLike): ToolCallIde
   }
 
   if (
-    // 当前 ZCode Agent 传给 app 的 plan mode 退出工具是 ExitPlanMode，
+    // 当前 LCode Agent 传给 app 的 plan mode 退出工具是 ExitPlanMode，
     // normalize 后没有下划线；旧兼容只认 switch_mode / Exited Plan Mode，导致计划卡片走 fallback。
     [
       toolCall.toolName,
       toolCall.kind,
       toolCall.title,
       rawNames.direct,
-      rawNames.zcode,
+      rawNames.lcode,
       rawNames.rawKind,
       rawNames.rawTitle,
     ]
@@ -328,7 +328,7 @@ export function isFileContentWriteToolCall(
   if (identity.family !== "file-write") {
     return false;
   }
-  if (isZCodeFileContentWriteToolName(identity.toolName)) {
+  if (isLCodeFileContentWriteToolName(identity.toolName)) {
     return true;
   }
   const legacyKind = normalizeLegacyToken(toolCall.kind);

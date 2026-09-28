@@ -1,10 +1,10 @@
 import { posix } from "node:path";
 import type { CustomPublishOptions, PackageFileInfo } from "builder-util-runtime";
 import {
-  DEFAULT_ZCODE_ENDPOINT_ORIGIN,
-  normalizeZCodeEndpointOrigin,
+  DEFAULT_LCODE_ENDPOINT_ORIGIN,
+  normalizeLCodeEndpointOrigin,
   type ElectronReleaseChannel,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import {
   Provider,
   AppImageUpdater,
@@ -83,7 +83,7 @@ function buildElectronManifestUrl(options: {
 }): URL {
   const url = options.manifestUrl?.trim()
     ? new URL(options.manifestUrl.trim())
-    : new URL(ELECTRON_MANIFEST_API_PATH, normalizeZCodeEndpointOrigin(options.endpointOrigin));
+    : new URL(ELECTRON_MANIFEST_API_PATH, normalizeLCodeEndpointOrigin(options.endpointOrigin));
   url.searchParams.set("platform", options.platform);
   if (options.deviceMid?.trim()) {
     url.searchParams.set("device_mid", options.deviceMid.trim());
@@ -182,7 +182,7 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
   private readonly options: ManifestUpdateProviderOptions;
   private readonly releasePlatform: string;
   private readonly linuxExtensions: readonly string[] | null;
-  private resolveBaseUrl = new URL(DEFAULT_ZCODE_ENDPOINT_ORIGIN);
+  private resolveBaseUrl = new URL(DEFAULT_LCODE_ENDPOINT_ORIGIN);
 
   constructor(
     options: ManifestUpdateProviderOptions,
@@ -194,7 +194,7 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
     this.linuxExtensions = getLinuxUpdateExtensions(updater);
     this.releasePlatform = options.releasePlatform?.trim() || getElectronReleasePlatform();
     this.resolveBaseUrl = new URL(
-      normalizeZCodeEndpointOrigin(options.endpointOrigin ?? DEFAULT_ZCODE_ENDPOINT_ORIGIN),
+      normalizeLCodeEndpointOrigin(options.endpointOrigin ?? DEFAULT_LCODE_ENDPOINT_ORIGIN),
     );
   }
 
@@ -235,7 +235,7 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
       // preview/stable 切换时旧 manifest 请求可能晚于新请求返回。
       // electron-updater 的 update-available 事件默认不带请求通道，main 进程无法识别过期结果；
       // 这里把本次请求通道随 UpdateInfo 带回去，避免旧通道覆盖更新弹窗内容。
-      zcodeReleaseChannel: releaseChannel,
+      lcodeReleaseChannel: releaseChannel,
     } as UpdateInfo;
   }
 
@@ -247,8 +247,8 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
     const resolved =
       (await this.options.resolveEndpointOrigin?.()) ??
       this.options.endpointOrigin ??
-      DEFAULT_ZCODE_ENDPOINT_ORIGIN;
-    return normalizeZCodeEndpointOrigin(resolved);
+      DEFAULT_LCODE_ENDPOINT_ORIGIN;
+    return normalizeLCodeEndpointOrigin(resolved);
   }
 
   private async resolveReleaseChannel(): Promise<ElectronReleaseChannel> {

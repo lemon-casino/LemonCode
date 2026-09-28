@@ -1,4 +1,4 @@
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { LCodeTaskMeta } from "@lcode/shared";
 import { getPathLeaf } from "@/lib/path.js";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
@@ -11,7 +11,7 @@ interface TaskFileTreeTarget {
 }
 
 function resolveTaskFileTreeTarget(
-  task: ZCodeTaskMeta,
+  task: LCodeTaskMeta,
   tab: WorkspaceTabState | undefined,
 ): TaskFileTreeTarget | null {
   // 旧本地 task 没有 workspaceIdentity，key 会回退到 workspacePath；如果同路径
@@ -50,7 +50,7 @@ function resolveTaskFileTreeTarget(
 }
 
 export function resolveTaskFileTreeTargetFromTabs(
-  task: ZCodeTaskMeta,
+  task: LCodeTaskMeta,
   tabs: readonly WorkspaceTabState[],
 ): TaskFileTreeTarget | null {
   // 同一路径的本地与旧远程 tab 可能生成相同 key，不能先压成单值 Map；

@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ZCodeSkillReferenceCatalogEntry } from "@zcode/shared";
+import type { LCodeSkillReferenceCatalogEntry } from "@lcode/shared";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
 import { logger } from "@/logger.js";
 
 interface ConversationSkillCatalogState {
-  skills: ZCodeSkillReferenceCatalogEntry[];
+  skills: LCodeSkillReferenceCatalogEntry[];
   authority: "session" | "workspace" | null;
   loading: boolean;
   error: string | null;
@@ -60,7 +60,7 @@ export function useSkills(options: UseSkillsOptions): ConversationSkillCatalogSt
 
   useEffect(() => {
     if (!options.enabled || !options.sessionId || !rpcReady) return;
-    const subscription = services.zcodeAgentService.onAgentRuntimeRestarted((event) => {
+    const subscription = services.lcodeAgentService.onAgentRuntimeRestarted((event) => {
       if (event.workspaceKey !== workspaceKey) return;
       // runtime 重建后 workspace/session key 不变，旧 catalog 会继续命中。
       // 显式推进代次，使冷恢复后的新 runtime 必须重新提供一次 Session authority。
@@ -90,7 +90,7 @@ export function useSkills(options: UseSkillsOptions): ConversationSkillCatalogSt
       ...(remoteSessionId ? { remoteSessionId } : {}),
       ...(options.sessionId ? { sessionId: options.sessionId } : {}),
     };
-    services.zcodeAgentService
+    services.lcodeAgentService
       .getSkillReferenceCatalog(params)
       .then((result) => {
         if (cancelled || seq !== requestSeqRef.current) return;

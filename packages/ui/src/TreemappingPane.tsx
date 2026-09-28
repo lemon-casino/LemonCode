@@ -7,7 +7,7 @@ import {
   FileDisplayIcon,
   resolveFileDisplayDescriptor,
 } from "@/lib/fileDisplay.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   buildTreemappingActivityModel,
   type TreemappingActivityEvent,
@@ -308,9 +308,9 @@ export function TreemappingPane({
   workspaceIdentity?: string;
   source: TreemappingSidePaneSource;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  // store 收尾：消息源从旧 zcodeSessionStore 迁 v4 conversation 投影 rows。
+  // store 收尾：消息源从旧 lcodeSessionStore 迁 v4 conversation 投影 rows。
   // 旧 source.kind === "message"（按 legacy messageId 锚定某条消息）的入口随旧
   // ChatView 一起删除，这里统一取最后一个 assistant 轮的活动。
   const message: TaskChatMessage | null = useTreemappingConversationMessage({
@@ -504,7 +504,7 @@ function DiffCount({
 }
 
 function EmptyState({ runningWithoutPathCount }: { runningWithoutPathCount: number }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <div className="flex h-full min-h-0 w-full flex-1 flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 text-center">
       {runningWithoutPathCount > 0 ? (

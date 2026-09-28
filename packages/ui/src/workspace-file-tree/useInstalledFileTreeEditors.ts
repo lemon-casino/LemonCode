@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { EditorInfo } from "@zcode/shared";
+import type { EditorInfo } from "@lcode/shared";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { sortInstalledEditorsForOpenWith } from "@/lib/openWithEditors.js";
 import { logger } from "@/logger.js";

@@ -1,12 +1,12 @@
 import { create } from "zustand";
 import {
-  normalizeAgentProviderToZCodeAgent,
-  ZCODE_AGENT_PROVIDER,
-  type ZCodeProvider,
+  normalizeAgentProviderToLCodeAgent,
+  LCODE_AGENT_PROVIDER,
+  type LCodeProvider,
   type SkillSummary,
   type SkillsCapability,
-} from "@zcode/shared";
-import type { ISkillsService } from "@zcode/services";
+} from "@lcode/shared";
+import type { ISkillsService } from "@lcode/services";
 import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
 import { logger } from "@/logger.js";
 
@@ -15,22 +15,22 @@ interface SkillStoreState {
   workspaceIdentity: string | null;
   loadedWorkspacePath: string | null;
   loadedWorkspaceIdentity: string | null;
-  provider: ZCodeProvider;
-  loadedProvider: ZCodeProvider | null;
+  provider: LCodeProvider;
+  loadedProvider: LCodeProvider | null;
   skills: SkillSummary[];
   capability: SkillsCapability | null;
   loading: boolean;
   error: string | null;
   initialize: (
     workspacePath: string,
-    providerOrSkillsService: ZCodeProvider | ISkillsService,
+    providerOrSkillsService: LCodeProvider | ISkillsService,
     maybeSkillsService?: ISkillsService,
     workspaceIdentity?: string,
   ) => Promise<void>;
   refresh: (skillsService: ISkillsService, workspaceIdentity?: string) => Promise<void>;
   setEnabled: (
     skillId: string,
-    providerOrEnabled: ZCodeProvider | boolean,
+    providerOrEnabled: LCodeProvider | boolean,
     scopeOrSkillsService: SkillSummary["scope"] | ISkillsService,
     enabledOrSkillsService?: boolean | ISkillsService,
     maybeSkillsService?: ISkillsService,
@@ -42,7 +42,7 @@ const inFlightSkillLoads = new Map<string, ReturnType<ISkillsService["list"]>>()
 
 function getSkillLoadKey(
   workspacePath: string,
-  provider: ZCodeProvider,
+  provider: LCodeProvider,
   workspaceIdentity?: string,
 ): string {
   return `${workspaceIdentity?.trim() || workspacePath}::${provider}`;
@@ -50,7 +50,7 @@ function getSkillLoadKey(
 
 function loadSkillsOnce(
   workspacePath: string,
-  provider: ZCodeProvider,
+  provider: LCodeProvider,
   skillsService: ISkillsService,
   workspaceIdentity?: string,
   options: { bypassCache?: boolean } = {},
@@ -79,7 +79,7 @@ export const useSkillStore = create<SkillStoreState>((set, get) => ({
   workspaceIdentity: null,
   loadedWorkspacePath: null,
   loadedWorkspaceIdentity: null,
-  provider: ZCODE_AGENT_PROVIDER,
+  provider: LCODE_AGENT_PROVIDER,
   loadedProvider: null,
   skills: [],
   capability: null,
@@ -87,14 +87,14 @@ export const useSkillStore = create<SkillStoreState>((set, get) => ({
   error: null,
   async initialize(
     workspacePath: string,
-    providerOrSkillsService: ZCodeProvider | ISkillsService,
+    providerOrSkillsService: LCodeProvider | ISkillsService,
     maybeSkillsService?: ISkillsService,
     workspaceIdentity?: string,
   ) {
     const currentState = get();
     const hasProvider = typeof providerOrSkillsService === "string";
-    const provider = normalizeAgentProviderToZCodeAgent(
-      hasProvider ? providerOrSkillsService : ZCODE_AGENT_PROVIDER,
+    const provider = normalizeAgentProviderToLCodeAgent(
+      hasProvider ? providerOrSkillsService : LCODE_AGENT_PROVIDER,
     );
     const skillsService = hasProvider ? maybeSkillsService : providerOrSkillsService;
     const normalizedWorkspaceIdentity = workspaceIdentity?.trim() || null;
@@ -168,7 +168,7 @@ export const useSkillStore = create<SkillStoreState>((set, get) => ({
     }
     const workspaceIdentityFromState =
       workspaceIdentity?.trim() || get().workspaceIdentity || undefined;
-    const provider = normalizeAgentProviderToZCodeAgent(get().provider);
+    const provider = normalizeAgentProviderToLCodeAgent(get().provider);
     const hasCachedSkills = get().skills.length > 0;
     // 开关技能后会触发 refresh，之前每次都把 loading 置 true，
     // Settings 列表会先切到“加载中”再切回数据，用户看到整列表闪烁。
@@ -211,7 +211,7 @@ export const useSkillStore = create<SkillStoreState>((set, get) => ({
   },
   async setEnabled(
     skillId: string,
-    providerOrEnabled: ZCodeProvider | boolean,
+    providerOrEnabled: LCodeProvider | boolean,
     scopeOrSkillsService: SkillSummary["scope"] | ISkillsService,
     enabledOrSkillsService?: boolean | ISkillsService,
     maybeSkillsService?: ISkillsService,
@@ -224,7 +224,7 @@ export const useSkillStore = create<SkillStoreState>((set, get) => ({
     const workspaceIdentityFromState =
       workspaceIdentity?.trim() || get().workspaceIdentity || undefined;
     const legacyCall = typeof providerOrEnabled === "boolean";
-    const provider = normalizeAgentProviderToZCodeAgent(
+    const provider = normalizeAgentProviderToLCodeAgent(
       legacyCall ? get().provider : providerOrEnabled,
     );
     const scope = legacyCall ? undefined : (scopeOrSkillsService as SkillSummary["scope"]);
@@ -263,6 +263,6 @@ declare global {
 }
 
 if (shouldExposeE2EStoreBridge()) {
-  // E2E 诊断入口必须由 WDIO 显式打开，不能复用 ZCODE_ENV=test，避免产品测试环境暴露可变全局 store。
+  // E2E 诊断入口必须由 WDIO 显式打开，不能复用 LCODE_ENV=test，避免产品测试环境暴露可变全局 store。
   window.__skillStoreE2E = useSkillStore;
 }

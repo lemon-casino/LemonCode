@@ -5,7 +5,7 @@
  * 后所有消费方自动重算；不引入独立的 store/广播通道。
  */
 import { useMemo } from "react";
-import { type ShortcutCommandId } from "@zcode/shared";
+import { type ShortcutCommandId } from "@lcode/shared";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { resolveEffectiveShortcutBindings, type EffectiveShortcutBindings } from "./bindings.js";
 import { formatShortcutBindingLabel } from "./label.js";

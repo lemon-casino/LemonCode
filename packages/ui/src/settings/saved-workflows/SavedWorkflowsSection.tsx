@@ -5,12 +5,12 @@ import {
   TID_WORKFLOWS_EMPTY,
   TID_WORKFLOWS_REFRESH,
   resolveWorkspaceKey,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Spinner } from "@/components/ui/spinner.js";
 import { cn } from "@/components/lib/utils.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import {
   buildAutomationWorkspaceOptions,
@@ -90,7 +90,7 @@ export function SavedWorkflowsSection({
   openWorkflow,
   onOpenWorkflowConsumed,
 }: SavedWorkflowsSectionProps) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const tabs = useTabStore((store) => store.tabs);
   const projects = useMemo(() => buildAutomationWorkspaceOptions(tabs), [tabs]);
   // 全局组的运行 / 移动落点只能是本机项目：过滤掉远程 workspace。

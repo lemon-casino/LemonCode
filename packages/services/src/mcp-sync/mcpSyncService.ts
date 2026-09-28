@@ -17,7 +17,7 @@ import type {
   SaveCliMcpToUserDirectoryRequest,
   SettingsDirectoryLocation,
   SettingsDirectorySource,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import type { IMcpSyncService } from "./mcpSync.js";
 import { checkRemoteSyncDirectoryWriteAccess } from "../remote-sync/remoteSyncWriteAccess.js";
 
@@ -40,11 +40,11 @@ interface UserMcpRecord {
   path: string;
 }
 
-const ZCODE_MCP_DESCRIPTOR: DirectoryMcpDescriptor = {
+const LCODE_MCP_DESCRIPTOR: DirectoryMcpDescriptor = {
   source: "zcode",
   directorySource: "zcode",
-  userConfigDirSegments: [".zcode", "cli"],
-  workspaceConfigDirSegments: [".zcode"],
+  userConfigDirSegments: [".lcode", "cli"],
+  workspaceConfigDirSegments: [".lcode"],
   fileName: "config.json",
   configKeyName: "mcp.servers",
 };
@@ -65,7 +65,7 @@ const ENABLED_KEY = "enabled";
 const LEGACY_ENABLE_KEY = "enable";
 const SECRET_CONFIG_FILE_MODE = 0o600;
 const DIRECTORY_MCP_DESCRIPTORS: readonly DirectoryMcpDescriptor[] = [
-  ZCODE_MCP_DESCRIPTOR,
+  LCODE_MCP_DESCRIPTOR,
   AGENTS_MCP_DESCRIPTOR,
 ];
 
@@ -134,7 +134,7 @@ export function createMcpSyncService(
       };
     },
     async checkRemoteUserMcpWriteAccess() {
-      return checkRemoteSyncDirectoryWriteAccess(dirname(getUserZcodeMcpConfigPath()));
+      return checkRemoteSyncDirectoryWriteAccess(dirname(getUserLcodeMcpConfigPath()));
     },
     async importMcpServers(params) {
       if (params.overwrite) {
@@ -169,8 +169,8 @@ function buildUserConfigPath(descriptor: DirectoryMcpDescriptor): string {
   return buildDirectoryConfigPath(descriptor, "user");
 }
 
-function getUserZcodeMcpConfigPath(): string {
-  return buildUserConfigPath(ZCODE_MCP_DESCRIPTOR);
+function getUserLcodeMcpConfigPath(): string {
+  return buildUserConfigPath(LCODE_MCP_DESCRIPTOR);
 }
 
 function buildDirectoryMcpLocation(
@@ -198,9 +198,9 @@ function findDescriptorByLocation(location: SettingsDirectoryLocation): Director
 }
 
 async function collectEffectiveUserMcpRecords(): Promise<UserMcpRecord[]> {
-  const zcodeRecords = await readUserMcpRecordsFromFile(ZCODE_MCP_DESCRIPTOR);
-  if (zcodeRecords.length > 0) {
-    return sortMcpRecords(zcodeRecords);
+  const lcodeRecords = await readUserMcpRecordsFromFile(LCODE_MCP_DESCRIPTOR);
+  if (lcodeRecords.length > 0) {
+    return sortMcpRecords(lcodeRecords);
   }
   return sortMcpRecords(await readUserMcpRecordsFromFile(AGENTS_MCP_DESCRIPTOR));
 }
@@ -237,7 +237,7 @@ async function saveMcpToUserDirectory(payload: SaveCliMcpToUserDirectoryRequest)
     const scope: Exclude<McpScope, "common"> = payload.projectPath ? "workspace" : "user";
     const location =
       payload.location ??
-      buildDirectoryMcpLocation(ZCODE_MCP_DESCRIPTOR, scope, payload.projectPath);
+      buildDirectoryMcpLocation(LCODE_MCP_DESCRIPTOR, scope, payload.projectPath);
     await writeServerEnabledToFile(
       findDescriptorByLocation(location),
       location,
@@ -250,7 +250,7 @@ async function saveMcpToUserDirectory(payload: SaveCliMcpToUserDirectoryRequest)
 
   const scope: Exclude<McpScope, "common"> = payload.projectPath ? "workspace" : "user";
   const existingServers = await readDirectoryServersFromFile(
-    ZCODE_MCP_DESCRIPTOR,
+    LCODE_MCP_DESCRIPTOR,
     scope,
     payload.projectPath,
   );
@@ -267,7 +267,7 @@ async function saveMcpToUserDirectory(payload: SaveCliMcpToUserDirectoryRequest)
     delete nextServers[payload.name];
   }
 
-  await writeZCodeServersToFile(scope, nextServers, payload.projectPath);
+  await writeLCodeServersToFile(scope, nextServers, payload.projectPath);
 }
 
 function sortMcpRecords(records: UserMcpRecord[]): UserMcpRecord[] {
@@ -278,13 +278,13 @@ async function readDirectoryServersFromPreferredSources(
   scope: Exclude<McpScope, "common">,
   workspacePath?: string,
 ): Promise<NativeMcpServerRecord[]> {
-  const zcodeServers = await readDirectoryServersFromFile(
-    ZCODE_MCP_DESCRIPTOR,
+  const lcodeServers = await readDirectoryServersFromFile(
+    LCODE_MCP_DESCRIPTOR,
     scope,
     workspacePath,
   );
-  if (zcodeServers.length > 0) {
-    return zcodeServers;
+  if (lcodeServers.length > 0) {
+    return lcodeServers;
   }
   return readDirectoryServersFromFile(AGENTS_MCP_DESCRIPTOR, scope, workspacePath);
 }
@@ -320,23 +320,23 @@ async function readDirectoryServersFromFile(
   }));
 }
 
-async function writeZCodeServersToFile(
+async function writeLCodeServersToFile(
   scope: Exclude<McpScope, "common">,
   servers: Record<string, Record<string, unknown>>,
   workspacePath?: string,
 ): Promise<void> {
-  const filePath = buildDirectoryConfigPath(ZCODE_MCP_DESCRIPTOR, scope, workspacePath);
+  const filePath = buildDirectoryConfigPath(LCODE_MCP_DESCRIPTOR, scope, workspacePath);
   const current = (await readJsonObject(filePath)) ?? {};
-  const next = writeServerMapToJson(current, ZCODE_MCP_DESCRIPTOR.configKeyName, servers);
+  const next = writeServerMapToJson(current, LCODE_MCP_DESCRIPTOR.configKeyName, servers);
   await writeTextAtomic(filePath, `${JSON.stringify(next, null, 2)}\n`);
 }
 
 async function readUserCliConfig(): Promise<Record<string, unknown>> {
-  return (await readJsonObject(getUserZcodeMcpConfigPath())) ?? {};
+  return (await readJsonObject(getUserLcodeMcpConfigPath())) ?? {};
 }
 
 async function writeUserCliConfig(config: Record<string, unknown>): Promise<void> {
-  await writeTextAtomic(getUserZcodeMcpConfigPath(), `${JSON.stringify(config, null, 2)}\n`);
+  await writeTextAtomic(getUserLcodeMcpConfigPath(), `${JSON.stringify(config, null, 2)}\n`);
 }
 
 function removeLegacyMcpEnabledOverride(
@@ -562,9 +562,9 @@ async function importMcpServers(params: {
   localWorkspacePath?: string;
   remoteWorkspacePath?: string;
 }): Promise<McpSyncImportResult> {
-  const targetPath = getUserZcodeMcpConfigPath();
+  const targetPath = getUserLcodeMcpConfigPath();
   const current = (await readJsonObject(targetPath)) ?? {};
-  const targetServers = readServerMapFromJson(current, ZCODE_MCP_DESCRIPTOR.configKeyName);
+  const targetServers = readServerMapFromJson(current, LCODE_MCP_DESCRIPTOR.configKeyName);
   const existingByName = await collectEffectiveUserMcpRecordByName();
   const results: McpSyncImportResult["results"] = [];
   let changed = false;
@@ -621,7 +621,7 @@ async function importMcpServers(params: {
   if (changed) {
     await writeTextAtomic(
       targetPath,
-      `${JSON.stringify(writeServerMapToJson(current, ZCODE_MCP_DESCRIPTOR.configKeyName, targetServers), null, 2)}\n`,
+      `${JSON.stringify(writeServerMapToJson(current, LCODE_MCP_DESCRIPTOR.configKeyName, targetServers), null, 2)}\n`,
     );
   }
 

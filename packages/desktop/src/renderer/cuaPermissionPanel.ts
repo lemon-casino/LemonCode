@@ -2,7 +2,7 @@ import type {
   CuaPermissionKind,
   Locale,
   PrepareCuaHelperPermissionDragResult,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { resolveCuaPermissionPanelMessages } from "./cuaPermissionPanelMessages.js";
 
 interface CuaPermissionPanelState {
@@ -54,7 +54,7 @@ bridge?.onState?.((state) => {
   if (permissionLabel) permissionLabel.textContent = messages.permissionLabel;
   if (hintSuffix) hintSuffix.textContent = messages.hintSuffix;
   if (completion) completion.textContent = messages.completion;
-  // 用真实 ZCode 图标替换占位渐变，和系统设置列表里那一行的图标保持一致。
+  // 用真实 LCode 图标替换占位渐变，和系统设置列表里那一行的图标保持一致。
   if (state.iconDataUrl && icon) {
     icon.style.backgroundImage = `url("${state.iconDataUrl}")`;
   }

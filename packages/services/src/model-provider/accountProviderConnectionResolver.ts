@@ -6,15 +6,15 @@ import type {
   AccountProviderConnectionResult,
   ProviderConfigSnapshot,
   ProviderSource,
-} from "@zcode/provider";
-import { AccountProviderService, createAccountProviderConfigResolver } from "@zcode/provider";
+} from "@lcode/provider";
+import { AccountProviderService, createAccountProviderConfigResolver } from "@lcode/provider";
 import {
   type ApiClient,
   type ProviderFamilyConnectionSelectionSettings,
   type ProviderFamilyDomain,
-  type ZCodeAccountAccess,
-  type ZCodeProviderAccountAccess,
-} from "@zcode/shared";
+  type LCodeAccountAccess,
+  type LCodeProviderAccountAccess,
+} from "@lcode/shared";
 import type {
   CodingPlanAvailabilityProvider,
   CodingPlanAvailabilityResult,
@@ -305,10 +305,10 @@ export function createCodingPlanFamilyAvailabilityResolver(
  * 每次请求重新读取当前选择；只有 family 与 mode 兼容时才返回动态访问事实。
  */
 export async function resolveCurrentAccountAccess(input: {
-  readonly access: ZCodeProviderAccountAccess;
+  readonly access: LCodeProviderAccountAccess;
   readonly readSettings: () => Promise<AccountProviderConnectionSettings>;
   readonly loadAccountIdentity: (family: ProviderFamilyDomain) => Promise<string | null>;
-}): Promise<ZCodeAccountAccess | null> {
+}): Promise<LCodeAccountAccess | null> {
   const settings = await input.readSettings();
   const { accountType, mode } = input.access;
   if (settings.providerFamilyDomain !== accountType) return null;

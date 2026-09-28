@@ -1,4 +1,4 @@
-import { type ApiClient } from "@zcode/shared";
+import { type ApiClient } from "@lcode/shared";
 import { readApiJson } from "../providers/api/apiJson.js";
 import type { RemoteEnvelope } from "./accountProviderApiTypes.js";
 

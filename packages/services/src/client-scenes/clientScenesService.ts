@@ -1,6 +1,6 @@
-import type { ApiClient } from "@zcode/shared";
+import type { ApiClient } from "@lcode/shared";
 import { readApiJson } from "../providers/api/apiJson.js";
-import { ZCODE_CLIENT_SCENES_URL } from "../providers/api/apiEndpoints.js";
+import { LCODE_CLIENT_SCENES_URL } from "../providers/api/apiEndpoints.js";
 import type { ClientScenesResponse, IClientScenesService } from "./clientScenes.js";
 
 export function createClientScenesService(dependencies: {
@@ -8,7 +8,7 @@ export function createClientScenesService(dependencies: {
 }): IClientScenesService {
   return {
     list: () =>
-      readApiJson<ClientScenesResponse>(dependencies.apiClient, ZCODE_CLIENT_SCENES_URL, {
+      readApiJson<ClientScenesResponse>(dependencies.apiClient, LCODE_CLIENT_SCENES_URL, {
         method: "GET",
       }),
   };

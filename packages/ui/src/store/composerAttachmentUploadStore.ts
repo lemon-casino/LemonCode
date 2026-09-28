@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AttachmentRef } from "@zcode/shared/zcode-protocol-v4";
+import type { AttachmentRef } from "@lcode/shared/lcode-protocol-v4";
 import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
 import type { ChatComposerAttachment } from "@/lib/chatAttachments.js";
 
@@ -49,19 +49,19 @@ export const useComposerAttachmentUploadStore = create<ComposerAttachmentUploadS
 
 declare global {
   interface Window {
-    __zcodeComposerAttachmentUploadStoreE2E?: typeof useComposerAttachmentUploadStore;
-    __zcodeCurrentComposerAttachmentScopeKeyE2E?: string;
+    __lcodeComposerAttachmentUploadStoreE2E?: typeof useComposerAttachmentUploadStore;
+    __lcodeCurrentComposerAttachmentScopeKeyE2E?: string;
   }
 }
 
 if (shouldExposeE2EStoreBridge()) {
   // E2E 只暴露当前唯一附件 owner，供 scope 切换用例准备状态；不再把附件塞回旧 Session Store。
-  window.__zcodeComposerAttachmentUploadStoreE2E = useComposerAttachmentUploadStore;
+  window.__lcodeComposerAttachmentUploadStoreE2E = useComposerAttachmentUploadStore;
 }
 
 export function exposeComposerAttachmentScopeKeyForE2E(scopeKey: string): void {
-  if (window.__zcodeComposerAttachmentUploadStoreE2E) {
-    window.__zcodeCurrentComposerAttachmentScopeKeyE2E = scopeKey;
+  if (window.__lcodeComposerAttachmentUploadStoreE2E) {
+    window.__lcodeCurrentComposerAttachmentScopeKeyE2E = scopeKey;
   }
 }
 

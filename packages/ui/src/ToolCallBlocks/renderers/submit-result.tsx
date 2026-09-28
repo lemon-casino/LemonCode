@@ -1,7 +1,7 @@
 import { ClipboardCheckIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { CodeBlock } from "@/components/ai-elements/code-block.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
 import { ToolLayout } from "@/ToolCallBlocks/ToolLayout.js";
 import type { ToolCallBlockRenderContext } from "@/ToolCallBlocks/shared.js";
@@ -92,7 +92,7 @@ function toInlinePreview(value: unknown): string | undefined {
 }
 
 export function SubmitResultToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCall } = context.toolCallNode;
   const input = toRecord(toolCall.input);
   // 修复原因照 send-message：streaming 首帧的 input 可能还是 `{}`，不能为一个空面板提供

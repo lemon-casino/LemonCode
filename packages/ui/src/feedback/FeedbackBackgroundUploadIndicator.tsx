@@ -19,7 +19,7 @@ import {
   type FeedbackSubmissionProgressState,
 } from "@/feedback/feedbackSubmissionJob.js";
 import { useFeedbackStore } from "@/feedback/feedbackStore.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 
 const SUCCESS_DISMISS_DELAY_MS = 5_000;
@@ -151,7 +151,7 @@ function FeedbackBackgroundUploadIndicatorView({
   onDismiss,
   defaultExpanded = false,
 }: FeedbackBackgroundUploadIndicatorViewProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const progressValue = Math.max(0, Math.min(progress.progress ?? 0, 100));
   const isPaused = status === "paused-log";
   const isSuccess = status === "success";

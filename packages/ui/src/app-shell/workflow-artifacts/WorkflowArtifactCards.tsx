@@ -9,7 +9,7 @@
 
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatArtifactBytes } from "@/app-shell/workflow-artifacts/artifactPresentation.js";
 import { toFileUrl } from "@/lib/path.js";
 import type { WorkflowRunArtifactView } from "@/hooks/useWorkflowRunArtifacts.js";
@@ -82,7 +82,7 @@ export function ArtifactMetadataCard({
  *
  * ## 「在浏览器中打开」为什么用**工作区原路径**而不是 store 里那份钉住的字节
  *
- * store 的句柄是 `zcode-artifact://…`，不是文件系统路径，浏览器 tab 打不开它；协议这一侧
+ * store 的句柄是 `lcode-artifact://…`，不是文件系统路径，浏览器 tab 打不开它；协议这一侧
  * 也刻意不把 store 的落盘路径交给 renderer。所以唯一能变成 `file://` 的东西是
  * `sourcePath`（工作区相对的原路径）。代价说清楚：那是**工作区当前的文件**，不是这一版
  * 被钉住的字节——所以卡上有一句话把这件事写明（spec 的「卡上写明打开的是工作区副本」），
@@ -104,7 +104,7 @@ export function WorkflowArtifactHtmlCard({
   onOpenBrowserUrl?: (url: string) => void;
   onReveal?: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const openable =
     isLatestVersion && localSourcePath !== undefined && onOpenBrowserUrl !== undefined;
   return (

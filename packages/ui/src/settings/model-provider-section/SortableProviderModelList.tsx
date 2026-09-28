@@ -16,7 +16,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import type { PointerEvent as ReactPointerEvent, ReactNode } from "react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 function resolveReorderedModelIds(params: {
   activeModelId: string;
@@ -76,7 +76,7 @@ function SortableProviderModelRow({
   children: ReactNode;
   isLast: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: modelId,
   });

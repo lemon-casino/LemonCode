@@ -2,7 +2,7 @@ import { CodingPlanEntryButton } from "@/settings/CodingPlanEntryButton.js";
 import { useEffect, useRef } from "react";
 import { InfoIcon, RocketIcon, XIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type {
   SessionQuotaBannerKind,
   SessionQuotaBannerState,
@@ -57,7 +57,7 @@ export function ConversationQuotaBanner({
   onDismiss: () => void;
   onShown?: () => void;
 }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const bannerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!onShown || !state.visible || !bannerRef.current) return;

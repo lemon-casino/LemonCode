@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { Keyboard, Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatShortcutBindingLabel } from "@/shortcuts/label.js";
 import type { ShortcutKeySearch } from "./useShortcutKeySearch.js";
 
@@ -23,7 +23,7 @@ export function ShortcutSearchBar({
   onArmKeySearch,
   actions,
 }: ShortcutSearchBarProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   // VSCode 同款展示：捕获的组合键作为输入框文本从左侧显示（替代文本搜索词，
   // 文本过滤条件仍在内部生效，× 清除后回到纯文本搜索）。
   const keyLabel =

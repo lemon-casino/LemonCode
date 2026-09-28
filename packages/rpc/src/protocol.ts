@@ -41,7 +41,7 @@ export interface ConnectionFlowControl {
 export type MessagePortFlowState = "saturated" | "drained";
 
 export interface MessagePortFlowControl {
-  __zcodeRpcControl: "connection-flow-v1";
+  __lcodeRpcControl: "connection-flow-v1";
   state: MessagePortFlowState;
 }
 
@@ -52,7 +52,7 @@ function isMessagePortFlowControl(value: unknown): value is MessagePortFlowContr
   const record = value as Record<string, unknown>;
   return (
     Object.keys(record).length === 2 &&
-    record.__zcodeRpcControl === "connection-flow-v1" &&
+    record.__lcodeRpcControl === "connection-flow-v1" &&
     (record.state === "saturated" || record.state === "drained")
   );
 }
@@ -385,7 +385,7 @@ export class MessagePortProtocol implements IMessagePassingProtocol {
   }
 
   sendFlowState(state: MessagePortFlowState): void {
-    this.port.postMessage({ __zcodeRpcControl: "connection-flow-v1", state });
+    this.port.postMessage({ __lcodeRpcControl: "connection-flow-v1", state });
   }
 
   disconnect(): void {

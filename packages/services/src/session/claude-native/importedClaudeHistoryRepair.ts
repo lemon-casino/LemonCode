@@ -1,10 +1,10 @@
 import { readFile } from "node:fs/promises";
 import type {
-  ZCodeAgentMcpServer,
-  ZCodeSessionImportHistory,
-  ZCodeSessionImportMessage,
-  ZCodeSessionStateSnapshot,
-} from "@zcode/shared";
+  LCodeAgentMcpServer,
+  LCodeSessionImportHistory,
+  LCodeSessionImportMessage,
+  LCodeSessionStateSnapshot,
+} from "@lcode/shared";
 import {
   getLegacyDeletedTaskSessionSnapshotPath,
   getLegacyTaskSessionSnapshotPath,
@@ -25,29 +25,29 @@ interface ImportedClaudeHistoryRepairResult {
   title?: string;
   createdAt?: number;
   updatedAt?: number;
-  messages: ZCodeSessionImportMessage[];
+  messages: LCodeSessionImportMessage[];
   source: "legacySnapshot" | "nativeJsonl";
 }
 
 interface ImportedClaudeSessionRepairTarget extends ImportedClaudeHistoryRepairTarget {
-  mcpServers?: ZCodeAgentMcpServer[];
+  mcpServers?: LCodeAgentMcpServer[];
 }
 
 interface ImportedClaudeSessionRepairCreateParams {
   workspacePath: string;
   workspaceIdentity?: string;
   sessionId: string;
-  mode: ZCodeSessionStateSnapshot["session"]["mode"];
-  model: ZCodeSessionStateSnapshot["settings"]["model"]["current"];
+  mode: LCodeSessionStateSnapshot["session"]["mode"];
+  model: LCodeSessionStateSnapshot["settings"]["model"]["current"];
   thoughtLevel?: string;
   persistence: "immediate";
-  mcpServers?: ZCodeAgentMcpServer[];
-  importedHistory: ZCodeSessionImportHistory;
+  mcpServers?: LCodeAgentMcpServer[];
+  importedHistory: LCodeSessionImportHistory;
 }
 
 function toImportMessages(
   messages: readonly { role: string; content: string; timestamp?: number }[],
-): ZCodeSessionImportMessage[] {
+): LCodeSessionImportMessage[] {
   return messages
     .filter((message) => message.role === "user" || message.role === "assistant")
     .map((message) => ({
@@ -57,12 +57,12 @@ function toImportMessages(
     }));
 }
 
-function countAssistantMessages(messages: readonly ZCodeSessionImportMessage[]): number {
+function countAssistantMessages(messages: readonly LCodeSessionImportMessage[]): number {
   return messages.filter((message) => message.role === "assistant").length;
 }
 
 function shouldRepairImportedClaudeSnapshot(
-  snapshot: Pick<ZCodeSessionStateSnapshot, "messages" | "runtime" | "session">,
+  snapshot: Pick<LCodeSessionStateSnapshot, "messages" | "runtime" | "session">,
 ): boolean {
   if (snapshot.session.status === "running" || snapshot.runtime.activeTurnId) {
     return false;
@@ -73,7 +73,7 @@ function shouldRepairImportedClaudeSnapshot(
   if (!snapshot.session.sessionId.startsWith("claude-import-") && !hasLegacyFixedMessageIds) {
     // user-only / assistant-first 只是异常形态，不等于 Claude 导入。
     // 只有稳定导入 taskId 或旧版全局 msg_import_* 污染能证明它属于迁移修复边界，
-    // 避免普通 ZCode session 被同名 legacy 备份误回填成 Claude 历史。
+    // 避免普通 LCode session 被同名 legacy 备份误回填成 Claude 历史。
     return false;
   }
   const hasAssistant = snapshot.messages.some((message) => message.info.role === "assistant");
@@ -184,7 +184,7 @@ async function resolveImportedClaudeHistoryForRepair(
 }
 
 export async function repairImportedClaudeSessionSnapshot<T>(params: {
-  snapshot: ZCodeSessionStateSnapshot;
+  snapshot: LCodeSessionStateSnapshot;
   target: ImportedClaudeSessionRepairTarget;
   createSession(input: ImportedClaudeSessionRepairCreateParams): Promise<T>;
   onRepair?(history: ImportedClaudeHistoryRepairResult): void;
@@ -198,8 +198,8 @@ export async function repairImportedClaudeSessionSnapshot<T>(params: {
   }
 
   params.onRepair?.(history);
-  // 早期导入可能已经创建了真实 ZCode session，但没有把 Claude 历史写入
-  // zcode-cli sessionStore，或用了全局 msg_import_* 导致串会话。这里统一用同名 sessionId
+  // 早期导入可能已经创建了真实 LCode session，但没有把 Claude 历史写入
+  // lcode-cli sessionStore，或用了全局 msg_import_* 导致串会话。这里统一用同名 sessionId
   // 幂等回填 importedHistory，让 session/read、task snapshot 和远控恢复路径走同一套修复。
   return params.createSession({
     workspacePath: params.target.workspacePath,

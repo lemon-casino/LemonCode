@@ -24,7 +24,7 @@ import {
   TID_BROWSER_OPEN_EXTERNAL_ITEM,
   TID_BROWSER_REFRESH_BUTTON,
   TID_BROWSER_RESPONSIVE_BUTTON,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import {

@@ -10,7 +10,7 @@
  * 每次读数只贡献一个 heap 样本（交付即清空），不拿旧值充当当前事实。
  */
 
-import { nodeSelfResourceSampleSchema, type ProcessResourceRole } from "@zcode/shared";
+import { nodeSelfResourceSampleSchema, type ProcessResourceRole } from "@lcode/shared";
 import type { ProcessResourceSampleSource } from "./processResourceSampleSources.js";
 
 /** 角色 → 尚未交付的 heap 读数（KB）。 */

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { IServiceAccessor } from "@zcode/services";
+import type { IServiceAccessor } from "@lcode/services";
 import { connectProviderSettingsSnapshot } from "@/lib/providerSettingsSnapshot.js";
 import { logger } from "@/logger.js";
 

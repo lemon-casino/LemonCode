@@ -6,7 +6,7 @@ import {
   artifactKindMessageId,
 } from "@/app-shell/workflow-artifacts/artifactPresentation.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { ArtifactPillData } from "./WorkflowArtifactPill.js";
 
 /**
@@ -86,7 +86,7 @@ export function WorkflowArtifactTile({
   /** tooltip 覆盖（侧板把工作区出处放进来）；缺席时是「种类词 · 标题」。 */
   title?: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const title = artifactDisplayTitle(artifact);
   const kindLabel = intl.formatMessage({ id: artifactKindMessageId(artifact.kind) });
   const openable = onOpen !== undefined;

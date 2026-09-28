@@ -11,7 +11,7 @@ import type {
   SkillSyncCandidateListResult,
   SkillSyncImportResult,
   SkillSyncRemoteStatusResult,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import type { ISkillSyncService } from "./skillSync.js";
 import { createSkillSyncArchive, extractSkillSyncArchive } from "./skillSyncArchive.js";
 import { normalizeSkillSyncRelativePath, resolveSkillSyncPathWithin } from "./skillSyncPath.js";
@@ -36,7 +36,7 @@ export function createSkillSyncService(options?: { maxArchiveBytes?: number }): 
       };
     },
     async listRemoteUserSkillStatuses(params): Promise<SkillSyncRemoteStatusResult> {
-      const root = getUserZcodeSkillRoot();
+      const root = getUserLcodeSkillRoot();
       const existingSkillPathByName = await collectUserSkillDirectoryPathByName();
       // skill sync service 会通过 RPC 暴露给 renderer / remote 客户端；
       // directoryName 不能只信 UI 候选，必须在服务端限制为 skills 根内的安全相对路径。
@@ -108,7 +108,7 @@ export function createSkillSyncService(options?: { maxArchiveBytes?: number }): 
       };
     },
     async checkRemoteUserSkillWriteAccess() {
-      return checkRemoteSyncDirectoryWriteAccess(getUserZcodeSkillRoot());
+      return checkRemoteSyncDirectoryWriteAccess(getUserLcodeSkillRoot());
     },
     async importSkillsArchive(params): Promise<SkillSyncImportResult> {
       if (params.overwrite) {
@@ -130,8 +130,8 @@ function resolveUserHomeDir(): string {
   return process.env.HOME?.trim() || process.env.USERPROFILE?.trim() || homedir();
 }
 
-function getUserZcodeSkillRoot(): string {
-  return join(resolveUserHomeDir(), ".zcode", "skills");
+function getUserLcodeSkillRoot(): string {
+  return join(resolveUserHomeDir(), ".lcode", "skills");
 }
 
 function getUserAgentsSkillRoot(): string {
@@ -140,26 +140,26 @@ function getUserAgentsSkillRoot(): string {
 
 async function collectUserSkillCandidates(): Promise<SkillSyncCandidate[]> {
   const seenSkillRealpaths = new Set<string>();
-  const userZcodeSkillRoot = getUserZcodeSkillRoot();
-  const rawZcodeCandidates = await collectUserSkillCandidatesInRoot(userZcodeSkillRoot);
-  const zcodeDirectoryNames = await collectCoveredSkillDirectoryNamesInRoot(userZcodeSkillRoot);
-  const zcodeSkillNameKeys = new Set(
-    rawZcodeCandidates.map((candidate) => normalizeSkillNameKey(candidate.name)),
+  const userLcodeSkillRoot = getUserLcodeSkillRoot();
+  const rawLcodeCandidates = await collectUserSkillCandidatesInRoot(userLcodeSkillRoot);
+  const lcodeDirectoryNames = await collectCoveredSkillDirectoryNamesInRoot(userLcodeSkillRoot);
+  const lcodeSkillNameKeys = new Set(
+    rawLcodeCandidates.map((candidate) => normalizeSkillNameKey(candidate.name)),
   );
-  const zcodeCandidates = await dedupeCandidatesByCanonicalSkillPath(
-    rawZcodeCandidates,
+  const lcodeCandidates = await dedupeCandidatesByCanonicalSkillPath(
+    rawLcodeCandidates,
     seenSkillRealpaths,
   );
   const agentsCandidates = await dedupeCandidatesByCanonicalSkillPath(
     (await collectUserSkillCandidatesInRoot(getUserAgentsSkillRoot())).filter(
       (candidate) =>
-        !zcodeDirectoryNames.has(candidate.directoryName) &&
-        !zcodeSkillNameKeys.has(normalizeSkillNameKey(candidate.name)),
+        !lcodeDirectoryNames.has(candidate.directoryName) &&
+        !lcodeSkillNameKeys.has(normalizeSkillNameKey(candidate.name)),
     ),
     seenSkillRealpaths,
   );
 
-  return [...zcodeCandidates, ...agentsCandidates].sort((left, right) =>
+  return [...lcodeCandidates, ...agentsCandidates].sort((left, right) =>
     left.directoryName.localeCompare(right.directoryName),
   );
 }
@@ -378,7 +378,7 @@ async function collectSkillDirectoryPathByName(root: string): Promise<Map<string
 }
 
 async function collectUserSkillDirectoryPathByName(): Promise<Map<string, string>> {
-  const result = await collectSkillDirectoryPathByName(getUserZcodeSkillRoot());
+  const result = await collectSkillDirectoryPathByName(getUserLcodeSkillRoot());
   const agentsSkillPathByName = await collectSkillDirectoryPathByName(getUserAgentsSkillRoot());
   for (const [nameKey, directoryPath] of agentsSkillPathByName) {
     if (!result.has(nameKey)) {
@@ -392,7 +392,7 @@ async function importArchive(
   archive: Uint8Array,
   maxArchiveBytes: number,
 ): Promise<SkillSyncImportResult> {
-  const targetRoot = getUserZcodeSkillRoot();
+  const targetRoot = getUserLcodeSkillRoot();
   await mkdir(targetRoot, { recursive: true });
   const tempRoot = join(targetRoot, `.sync-tmp-${randomUUID()}`);
   await mkdir(tempRoot, { recursive: true });
@@ -403,8 +403,8 @@ async function importArchive(
       maxExtractedBytes: maxArchiveBytes,
     });
     const extractedSkillDirectories = await collectExtractedSkillDirectories(tempRoot);
-    // 远端 SkillsService 会同时读取用户级 .zcode/skills 和 .agents/skills。
-    // 同名 skill 已在兼容目录存在时也必须跳过，避免同步后在 .zcode 下生成重复来源。
+    // 远端 SkillsService 会同时读取用户级 .lcode/skills 和 .agents/skills。
+    // 同名 skill 已在兼容目录存在时也必须跳过，避免同步后在 .lcode 下生成重复来源。
     const existingSkillPathByName = await collectUserSkillDirectoryPathByName();
     const results: SkillSyncImportResult["results"] = [];
     for (const extracted of extractedSkillDirectories) {

@@ -270,7 +270,7 @@ function resolveWorkspaceSpecifier(specifier, sourceFile, workspacePackages, kno
     return findExistingFile(path.join(sourcePackage.srcRoot, specifier.slice(2)), knownFiles);
   }
 
-  if (!specifier.startsWith("@zcode/")) {
+  if (!specifier.startsWith("@lcode/")) {
     return null;
   }
 

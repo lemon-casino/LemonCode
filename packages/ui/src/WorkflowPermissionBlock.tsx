@@ -1,6 +1,6 @@
 import { ChevronRightIcon } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import type { ZCodePermissionRequest } from "@zcode/shared";
+import type { LCodePermissionRequest } from "@lcode/shared";
 import { CodeBlock } from "@/components/ai-elements/code-block.js";
 import {
   Collapsible,
@@ -31,7 +31,7 @@ import {
   workflowSubagentModelTooltip,
 } from "@/components/workflow-timeline/subagent-model-label.js";
 import { useWorkflowSubagentModelProviderName } from "@/hooks/useWorkflowSubagentModelProviderName.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { isAmendWorkflowToolCall } from "@/lib/workflowToolNames.js";
 import {
   WorkflowActorModelOverridesEditor,
@@ -45,7 +45,7 @@ import {
  * 前置事实，读完它才轮到图。徽标不表达任何信任——不变式 1：保存不产生信任。
  */
 function WorkflowSavedSourceBadge({ saved }: { saved: WorkflowSavedSource }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   const savedLabel = intl.formatMessage({ id: "chat.permission.workflow.saved.badge" });
   const scopeLabel =
@@ -118,12 +118,12 @@ export function WorkflowPermissionBlock({
   request,
   workspacePath,
 }: {
-  request: ZCodePermissionRequest;
+  request: LCodePermissionRequest;
   onModifiedInputChange?: (input: unknown) => void;
   /** 会话模型清单的作用域（PermissionDialog 给）：只用来把 provider id 换成 provider 名。 */
   workspacePath?: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   // v4 ask 的 raw 就是工具入参（product-projection 的 detail: payload.input），
   // 与聊天卡片共用 create-workflow.tsx 的读取规则，避免两处对同一入参各自解析。

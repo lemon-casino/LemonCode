@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildRemoteWorkspaceIdentity, type RemoteTarget } from "@zcode/shared";
+import { buildRemoteWorkspaceIdentity, type RemoteTarget } from "@lcode/shared";
 import {
   isComputerUseUnavailableNonWeb,
   resolveComputerUseAvailability,

@@ -1,6 +1,6 @@
 import { History } from "lucide-react";
 import { useMemo } from "react";
-import type { ToolCallListWorkflowRunsDisplay } from "@zcode/shared/zcode-protocol-v4";
+import type { ToolCallListWorkflowRunsDisplay } from "@lcode/shared/lcode-protocol-v4";
 import {
   RUN_STATUS_DOT,
   RUN_STATUS_TEXT,
@@ -8,7 +8,7 @@ import {
   workflowRunStopReasonMessageId,
 } from "@/components/workflow-graph/run-status-presentation.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   formatWorkflowTimestamp,
   formatWorkflowTokenCount,
@@ -28,7 +28,7 @@ const LIST_WORKFLOW_RUNS_TOOL_ICON = <History className="size-4 shrink-0 text-fo
  * 行尾给警示标注——「可能已中断」是读面标注不是状态改写，卡片上同样只标注。
  */
 export function ListWorkflowRunsToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCall } = context.toolCallNode;
 
   const display = readToolResultDisplay(toolCall.raw);
@@ -126,7 +126,7 @@ export function ListWorkflowRunsToolCallBlock(context: ToolCallBlockRenderContex
 }
 
 function ListWorkflowRunsBody({ runs }: { runs: ToolCallListWorkflowRunsDisplay["runs"] }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const ownSessionLabel = intl.formatMessage({ id: "chat.toolCall.workflow.listRuns.ownSession" });
   const interruptedLabel = intl.formatMessage({
     id: "chat.toolCall.workflow.listRuns.interrupted",

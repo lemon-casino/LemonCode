@@ -4,7 +4,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { WorkspaceSidebarItem, type SortableBindings } from "./WorkspaceSidebarItem.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 import type { RemoteConnectionLogEntry } from "@/hooks/useRemoteConnectionLogs.js";
-import type { ZCodeTaskMeta } from "@zcode/shared";
+import type { LCodeTaskMeta } from "@lcode/shared";
 
 export type { SortableBindings };
 
@@ -45,7 +45,7 @@ export const SortableWorkspaceSidebarItem = memo(function SortableWorkspaceSideb
     targetWorkspaceIdentity?: string,
   ) => void;
   onStartDraftInWorkspace: (targetWorkspacePath: string, targetWorkspaceIdentity?: string) => void;
-  taskItems: ZCodeTaskMeta[];
+  taskItems: LCodeTaskMeta[];
   taskListLoading: boolean;
   taskListHasMore: boolean;
   taskListHasUnread?: boolean;

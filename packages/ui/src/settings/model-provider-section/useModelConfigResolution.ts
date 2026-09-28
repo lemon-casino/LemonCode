@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ModelConfigResolution } from "@zcode/provider";
+import type { ModelConfigResolution } from "@lcode/provider";
 import { useIdleTrigger } from "@/settings/model-provider-section/useIdleTrigger.js";
 
 export function useModelConfigResolution({

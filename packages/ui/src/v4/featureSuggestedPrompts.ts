@@ -8,7 +8,7 @@ import presentationsIcon from "@/assets/plugin-icons/presentations.png";
 import spreadsheetsIcon from "@/assets/plugin-icons/spreadsheets.png";
 import type { DraftSuggestedPromptItem } from "@/v4/draftSuggestedPromptItems.js";
 
-const ASSETS = "https://cdn-zcode.z.ai/zcode/official-plugin/assets";
+const ASSETS = "https://cdn-zcode.z.ai/lcode/official-plugin/assets";
 
 type FeatureRecommendedPrompt = DraftSuggestedPromptItem & {
   mode: "office" | "coding";
@@ -139,7 +139,7 @@ export const featureSuggestedPrompts: FeatureRecommendedPrompt[] = [
   {
     id: "feature-recvvsS2usyGu7",
     mode: "office",
-    iconUrl: `${ASSETS}/zcode-cua/icon.png`,
+    iconUrl: `${ASSETS}/lcode-cua/icon.png`,
     iconStyle: "plugin",
     label: {
       cn: "帮我设置一个闲时任务，体验网站的完整用户旅程",
@@ -254,7 +254,7 @@ export const featureSuggestedPrompts: FeatureRecommendedPrompt[] = [
   {
     id: "feature-recvvsPdvclWR1",
     mode: "office",
-    iconUrl: `${ASSETS}/zcode-cua/icon.png`,
+    iconUrl: `${ASSETS}/lcode-cua/icon.png`,
     iconStyle: "plugin",
     label: {
       cn: "帮我把下载文件夹里的截图按月份批量归档",

@@ -37,7 +37,7 @@ import type {
   ConversationResyncParams,
   V4ConversationResyncResult,
   V4ConversationSubscribeResult,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
 import type { AttachmentUploadOptions } from "@/v4/attachmentUploadTransaction.js";
 
 /**
@@ -165,4 +165,4 @@ export interface ConversationAttachmentReadParams {
 }
 
 /** conversation topic key（与 CLI 侧 parseConversationTopic 对偶），从协议包再导出。 */
-export { conversationTopic } from "@zcode/shared/zcode-protocol-v4";
+export { conversationTopic } from "@lcode/shared/lcode-protocol-v4";

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { isZCodeAgentProvider, ZCODE_AGENT_PROVIDER, type ZCodeProvider } from "@zcode/shared";
-import type { IModelSelectionService, ModelSelectionView } from "@zcode/services";
+import { isLCodeAgentProvider, LCODE_AGENT_PROVIDER, type LCodeProvider } from "@lcode/shared";
+import type { IModelSelectionService, ModelSelectionView } from "@lcode/services";
 import {
   buildModelConfigMissingUiError,
   type ModelConfigMissingUiError,
@@ -42,14 +42,14 @@ function resolveModelSelectionReadinessStatus(
 export function useDraftModelReadinessGate(params: {
   workspacePath: string;
   workspaceIdentity?: string;
-  provider?: ZCodeProvider;
+  provider?: LCodeProvider;
   sessionId: string | null;
   modelSelectionService: Pick<IModelSelectionService, "getView" | "onDidChange">;
 }): DraftModelReadinessGate {
   const { workspacePath, workspaceIdentity, provider, sessionId, modelSelectionService } = params;
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
-  const displayProvider = provider ?? ZCODE_AGENT_PROVIDER;
-  const enabled = sessionId === null && isZCodeAgentProvider(displayProvider);
+  const displayProvider = provider ?? LCODE_AGENT_PROVIDER;
+  const enabled = sessionId === null && isLCodeAgentProvider(displayProvider);
   const gateKey = `${workspaceKey}\u0000${displayProvider}`;
   const [state, setState] = useState<DraftModelReadinessState>(() => ({
     gateKey,

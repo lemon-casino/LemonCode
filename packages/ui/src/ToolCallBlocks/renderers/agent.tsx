@@ -1,9 +1,9 @@
 import { BotIcon } from "lucide-react";
 import { useCallback, useMemo, type ReactNode } from "react";
-import type { AgentColor } from "@zcode/shared";
+import type { AgentColor } from "@lcode/shared";
 import { MessageResponse } from "@/components/ai-elements/message.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { resolveSubagentColorFromName, SUBAGENT_TEXT_COLOR_CLASS } from "@/lib/subagentColors.js";
 import { useSubagentsContextStore } from "@/store/subagentsContextStore.js";
 import { useSubagentsStore } from "@/store/subagentsStore.js";
@@ -157,7 +157,7 @@ function BackgroundAgentProcessSection({
   isRunning: boolean;
   status: string | undefined;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const msg = (id: string, fallback: string) => formatAgentMessage(intl, id, fallback);
   const launchStatus =
     status === "failed"
@@ -211,7 +211,7 @@ function BackgroundAgentProcessSection({
 }
 
 export function AgentToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCall, childToolCalls } = context.toolCallNode;
   const prompt = getAgentPrompt(toolCall);
   const fallbackLabel = formatAgentMessage(intl, "chat.toolCall.agent.fallback", "SubAgent");

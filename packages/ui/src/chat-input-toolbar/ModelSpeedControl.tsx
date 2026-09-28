@@ -1,7 +1,7 @@
 import { GaugeIcon } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select.js";
-import type { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 interface ModelSpeedControlProps {
   values: readonly string[];
@@ -10,7 +10,7 @@ interface ModelSpeedControlProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onValueChange: (value: string) => void;
-  intl: ReturnType<typeof useZCodeIntl>["intl"];
+  intl: ReturnType<typeof useLCodeIntl>["intl"];
   labelClassName?: string;
 }
 

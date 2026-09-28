@@ -1,4 +1,4 @@
-import type { BrowserCommandResult } from "@zcode/shared";
+import type { BrowserCommandResult } from "@lcode/shared";
 
 export type BrowserCommandDone = (
   partial: Omit<BrowserCommandResult, "elapsedMs">,

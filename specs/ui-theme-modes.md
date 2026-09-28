@@ -37,7 +37,7 @@
 ## 状态所有权与数据流
 
 - `Theme` 联合类型、解析（`resolveTheme`/`normalizeThemePreference`/`isThemeValue`/`applyTheme`）与 `THEME_OPTIONS` 注册表唯一定义在 `packages/ui/src/useTheme.ts`；`system` 的 base 以 `"dynamic"` 标注，消费端不得当静态基底读取。
-- 运行时状态唯一所有者是 Zustand store 的 `theme`/`setTheme`（`packages/ui/src/store/index.ts:108-109`、`:258-265`）；`localStorage` key `"zcode-theme"` 是持久化事实；`documentElement` 的 `dark`/`theme-*` class 是投影，`applyTheme` 是主窗口唯一 DOM 写点。本地初始值（store `:257`）与广播 payload（store `:474-475`）均须经 `isThemeValue` 校验，异常值回落 `zai-dark`，不进入 store。
+- 运行时状态唯一所有者是 Zustand store 的 `theme`/`setTheme`（`packages/ui/src/store/index.ts:108-109`、`:258-265`）；`localStorage` key `"lcode-theme"` 是持久化事实；`documentElement` 的 `dark`/`theme-*` class 是投影，`applyTheme` 是主窗口唯一 DOM 写点。本地初始值（store `:257`）与广播 payload（store `:474-475`）均须经 `isThemeValue` 校验，异常值回落 `zai-dark`，不进入 store。
 - 资源管理器独立窗口不建 store，其主题投影由自带引导（启动读 `localStorage` 一次）+ `storage` 事件监听（跟随主窗口 `setTheme` 写入）承担；该文件现无任何 `addEventListener`，必须新增。
 - 跨窗口一致性由广播承担：`theme` 在 `BROADCAST_FIELDS`（store `:214`），发送与接收都必须经 `setTheme`；`applyingBroadcast` 防回环（store `:237`、`:438-453`、`:470-489`），不得在广播路径外直写 `localStorage` 或 setState。
 - 设置页与侧栏两个入口统一消费 `THEME_OPTIONS` 注册表（`settingsPageConfig.ts` 的 `THEME_MODES` 改为由其派生并保留 lucide icon 映射；侧栏 `DropdownMenuRadioGroup` 改为 map 渲染），共用新增的三色小色板展示组件（纯展示，色值读注册表 swatch，`system` 项用对半分色表达动态），不发明新样式体系。
@@ -88,7 +88,7 @@ system 跟随：matchMedia change → 确认 store.theme 仍为 system → apply
 ## 验收场景
 
 - 设置页与侧栏菜单可见 6 项，中英文文案齐全、无裸 id 展示；选择每一项后 `documentElement` class 组合正确（深基底 = `dark` + `theme-<id>`，浅基底 = 仅 `theme-<id>`）。
-- 首帧：`localStorage` 预置新 id 后冷启动，React 接管前即呈现新主题差量色（而非 `.dark` neutral / `:root` neutral 基底色），无基底→主题跳变；desktop 与 web（含 `web/index.html` 内联引导的 class 与 `data-zcode-bootstrap-theme`/meta theme-color）均验证。
+- 首帧：`localStorage` 预置新 id 后冷启动，React 接管前即呈现新主题差量色（而非 `.dark` neutral / `:root` neutral 基底色），无基底→主题跳变；desktop 与 web（含 `web/index.html` 内联引导的 class 与 `data-lcode-bootstrap-theme`/meta theme-color）均验证。
 - 旧值兼容：`localStorage` 预置 `"dark"`/`"light"` 刷新后归一 Zai 对；预置异常字符串经本地初始值与广播 payload 两条路径均回落 `zai-dark`，不进入 store、不触发广播。
 - 跟随系统：`system` 下切换 OS 亮暗实时落到 Zai 对；新主题不参与跟随系统；选中主题与系统偏好相反的组合下无大块错色（`dark:` utility 已知跟随 OS，不计为回归）。
 - 广播同步不回环：双窗口 A 切换新 id，B 经广播同步且无死循环（`applyingBroadcast` 防回环不二次广播），两窗口 DOM class 一致。

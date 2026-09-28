@@ -29,7 +29,7 @@ export function isProviderProvisioningAccountCredentialKey(key: string): boolean
   return normalized === key && /^account-provider:.+:api-key$/.test(normalized);
 }
 
-/** Personal Config 的 Envelope；具体字段由 @zcode/provider 在目标 Environment 再校验。 */
+/** Personal Config 的 Envelope；具体字段由 @lcode/provider 在目标 Environment 再校验。 */
 export const providerProvisioningPersonalConfigSchema = z
   .object({
     providerConfigRules: z.object({ providerRules: z.array(z.unknown()) }).strict(),

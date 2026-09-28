@@ -1,19 +1,19 @@
 import { useCallback, useMemo, useState } from "react";
-import type { ZCodeInstalledPluginSummary, ZCodePluginInfo } from "@zcode/shared";
-import type { IPluginManagementService } from "@zcode/services";
+import type { LCodeInstalledPluginSummary, LCodePluginInfo } from "@lcode/shared";
+import type { IPluginManagementService } from "@lcode/services";
 import { usePluginManagementStore } from "@/store/pluginManagementStore.js";
 
 interface UsePluginUninstallInput {
   pluginService: IPluginManagementService;
-  installedPlugins: ZCodeInstalledPluginSummary[];
-  plugins: ZCodePluginInfo[];
+  installedPlugins: LCodeInstalledPluginSummary[];
+  plugins: LCodePluginInfo[];
   operationId: string | null;
   // 卸载会让插件提供的技能/命令失效，调用方传入统一的「能力变更后刷新」收尾逻辑。
   onAfterUninstall: () => Promise<void>;
 }
 
 interface PluginUninstallController {
-  pendingPlugin: ZCodePluginInfo | ZCodeInstalledPluginSummary | null;
+  pendingPlugin: LCodePluginInfo | LCodeInstalledPluginSummary | null;
   uninstalling: boolean;
   requestUninstall: (pluginId: string) => void;
   cancelUninstall: () => void;

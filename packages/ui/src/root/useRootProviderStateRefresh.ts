@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { IServiceAccessor } from "@zcode/services";
+import type { IServiceAccessor } from "@lcode/services";
 import { logger } from "@/logger.js";
 
 type RootProviderStateServices = Pick<IServiceAccessor, "providerSettingsService">;

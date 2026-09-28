@@ -3,7 +3,7 @@
  * 纯函数、零 Electron 运行时依赖，便于单测；pid 集合由 resourceManagerWindow 的注册表提供。
  */
 
-import type { ProcessResourceRole } from "@zcode/shared";
+import type { ProcessResourceRole } from "@lcode/shared";
 import {
   addAppResourceTotals,
   createEmptyAppResourceTotals,

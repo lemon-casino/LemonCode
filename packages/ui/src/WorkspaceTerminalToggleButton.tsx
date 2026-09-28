@@ -1,9 +1,9 @@
-import { TID_TERMINAL_TOGGLE } from "@zcode/shared";
+import { TID_TERMINAL_TOGGLE } from "@lcode/shared";
 import { SquareTerminalIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { WINDOWS_CAPTION_CONTROL_CLASS } from "@/windowCaptionControls.js";
 import { runUserAction } from "@/lib/userActionTelemetry.js";
@@ -20,7 +20,7 @@ export function WorkspaceTerminalToggleButton({
   disabledReason?: string;
   useWindowsCaptionSpacing?: boolean;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const isOfficeMode = useIsOfficeMode();
   const label = intl.formatMessage({ id: "terminal.toggle" });
   // 展示 label 从快捷键生效表取，用户改键后 tooltip 跟随更新

@@ -2,7 +2,7 @@ import {
   databaseStartupControlSchema,
   databaseStartupStateSchema,
   databaseStartupPortPayloadSchema,
-} from "@zcode/shared";
+} from "@lcode/shared";
 /* eslint-disable max-lines -- preload bridge 集中暴露桌面平台 IPC，拆散会让 contextBridge 权限边界更难审计。 */
 import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
 import {
@@ -25,7 +25,7 @@ function parseDeviceIdFromArgs(): string {
 }
 
 // 在 contextBridge 建立之前就暴露同步值，让 renderer 在 React 渲染前就能读到
-contextBridge.exposeInMainWorld("__ZCODE_DEVICE_ID__", parseDeviceIdFromArgs());
+contextBridge.exposeInMainWorld("__LCODE_DEVICE_ID__", parseDeviceIdFromArgs());
 
 import type {
   AppSettings,
@@ -61,7 +61,7 @@ import type {
   RemoteSessionClosedEvent,
   UpdateCheckResultPayload,
   UpdateStatePayload,
-  ZCodeStdioTapDevState,
+  LCodeStdioTapDevState,
   LoadCliMcpFromUserDirectoryRequest,
   MigrateLegacyCommonMcpRequest,
   SaveCliMcpToUserDirectoryRequest,
@@ -76,17 +76,17 @@ import type {
   OpenCuaPermissionOnboardingOptions,
   ConfigureFinalArmsCustomEventE2ERequest,
   FinalArmsCustomEventE2EEntry,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import {
   InternalChannels,
   PlatformChannels,
-  formatZCodeRendererProcessName,
+  formatLCodeRendererProcessName,
   shouldEnableE2ETestBridge,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { createOAuthCallbackHandler } from "./oauthCallbackBridge.js";
 
 if (shouldEnableE2ETestBridge(process.env)) {
-  contextBridge.exposeInMainWorld("__zcodeFinalArmsCustomEventsE2E", {
+  contextBridge.exposeInMainWorld("__lcodeFinalArmsCustomEventsE2E", {
     read: (): Promise<FinalArmsCustomEventE2EEntry[]> =>
       ipcRenderer.invoke(PlatformChannels.ReadFinalArmsCustomEventsE2E),
     clear: (): Promise<void> => ipcRenderer.invoke(PlatformChannels.ClearFinalArmsCustomEventsE2E),
@@ -202,7 +202,7 @@ ipcRenderer.on(PlatformChannels.ShareImport, (_event: unknown, payload: { shareC
 });
 
 function updateRendererProcessTitle(): void {
-  process.title = formatZCodeRendererProcessName(document.title);
+  process.title = formatLCodeRendererProcessName(document.title);
 }
 
 function notifyUpdateReadyCallbacks(version: string): void {
@@ -231,7 +231,7 @@ function notifyUpdateStateCallbacks(payload: UpdateStatePayload): void {
 }
 
 // 进程检索体验优化：renderer 在系统里通常只会显示成通用 helper 名称，
-// 这里在 preload 阶段补上 zcode-* title，便于按窗口角色筛选。
+// 这里在 preload 阶段补上 lcode-* title，便于按窗口角色筛选。
 updateRendererProcessTitle();
 window.addEventListener("DOMContentLoaded", updateRendererProcessTitle, {
   once: true,
@@ -243,14 +243,14 @@ window.addEventListener("DOMContentLoaded", updateRendererProcessTitle, {
  * 凭据管理已迁移到 host process 的 ICredentialService，
  * 通过 MessagePort RPC 访问，不再经过此 bridge。
  */
-contextBridge.exposeInMainWorld("zcode", {
+contextBridge.exposeInMainWorld("lcode", {
   connectRemote: (
     options: RemoteTarget,
     requestId?: string,
     context?: {
       workspacePath: string;
       workspaceIdentity?: string;
-      connectTrigger?: import("@zcode/shared").RemoteWorkspaceConnectTrigger;
+      connectTrigger?: import("@lcode/shared").RemoteWorkspaceConnectTrigger;
     },
   ) =>
     ipcRenderer.invoke(PlatformChannels.ConnectRemote, {
@@ -271,18 +271,18 @@ contextBridge.exposeInMainWorld("zcode", {
   disposeRemoteSession: (sessionId: string): Promise<void> =>
     ipcRenderer.invoke(PlatformChannels.DisposeRemoteSession, sessionId),
   /** 手机远程控制:开启配对等待(生成二维码载荷并出站注册房间) */
-  startRemotePairing: (request?: import("@zcode/shared").RemotePairingStartRequest) =>
+  startRemotePairing: (request?: import("@lcode/shared").RemotePairingStartRequest) =>
     ipcRenderer.invoke(PlatformChannels.RemotePairingStart, request ?? {}),
   /** 手机远程控制:停止配对(room.stop、断出站、detach 桥) */
   stopRemotePairing: (): Promise<void> =>
     ipcRenderer.invoke(PlatformChannels.RemotePairingStop),
   /** 手机远程控制:对 pairing.requested 的用户裁决 */
-  decideRemotePairing: (request: import("@zcode/shared").RemotePairingDecideRequest) =>
+  decideRemotePairing: (request: import("@lcode/shared").RemotePairingDecideRequest) =>
     ipcRenderer.invoke(PlatformChannels.RemotePairingDecide, request),
   /** 手机远程控制:订阅配对面板状态推送(面板状态唯一来源),返回 disposer */
-  onRemotePairingState: (callback: (state: import("@zcode/shared").RemotePairingStatePush) => void) => {
+  onRemotePairingState: (callback: (state: import("@lcode/shared").RemotePairingStatePush) => void) => {
     const handler = (_event: unknown, state: unknown) =>
-      callback(state as import("@zcode/shared").RemotePairingStatePush);
+      callback(state as import("@lcode/shared").RemotePairingStatePush);
     ipcRenderer.on(PlatformChannels.RemotePairingState, handler);
     return () => ipcRenderer.removeListener(PlatformChannels.RemotePairingState, handler);
   },
@@ -294,7 +294,7 @@ contextBridge.exposeInMainWorld("zcode", {
   /** 手机远程控制:读取配置;接入 Key 只回 hasAccessKey,永不回明文 */
   getRemoteControlConfig: () => ipcRenderer.invoke(PlatformChannels.RemoteControlConfigGet),
   /** 手机远程控制:写入配置;accessKey 为 write-only,进凭据集中存储 */
-  setRemoteControlConfig: (request: import("@zcode/shared").RemoteControlConfigSetRequest) =>
+  setRemoteControlConfig: (request: import("@lcode/shared").RemoteControlConfigSetRequest) =>
     ipcRenderer.invoke(PlatformChannels.RemoteControlConfigSet, request),
   /** 手机远程控制:测试桌面到 Worker 隧道的连通性(Main 持接入 Key 调 /api/health) */
   testRemoteControlConnection: () => ipcRenderer.invoke(PlatformChannels.RemoteControlTest),
@@ -604,7 +604,7 @@ contextBridge.exposeInMainWorld("zcode", {
   openInFileManager: (path: string) => ipcRenderer.invoke(PlatformChannels.OpenInFileManager, path),
   /** 使用系统默认应用打开本地文件 */
   openExternalFile: (path: string) => ipcRenderer.invoke(PlatformChannels.OpenExternalFile, path),
-  /** 打开 ZCode Computer Use 完整权限引导 */
+  /** 打开 LCode Computer Use 完整权限引导 */
   openCuaPermissionOnboarding: (options?: OpenCuaPermissionOnboardingOptions) =>
     ipcRenderer.invoke(PlatformChannels.OpenCuaPermissionOnboarding, options),
   /** 只取消当前 renderer 以 operationId 发起的 onboarding participant。 */
@@ -680,7 +680,7 @@ contextBridge.exposeInMainWorld("zcode", {
       ipcRenderer.removeListener(PlatformChannels.RendererActionTraceConfigChanged, handler);
   },
   /** 发送已结束 Span；使用 send 避免遥测往返阻塞业务。 */
-  reportLocalTtftBatch: (batch: import("@zcode/shared").LocalTtftBatch): void =>
+  reportLocalTtftBatch: (batch: import("@lcode/shared").LocalTtftBatch): void =>
     ipcRenderer.send(PlatformChannels.ReportLocalTtftBatch, batch),
   reportRendererActionTraceBatch: (batch: RendererActionTraceBatchV1): void =>
     ipcRenderer.send(PlatformChannels.ReportRendererActionTraceBatch, batch),
@@ -693,7 +693,7 @@ contextBridge.exposeInMainWorld("zcode", {
   /** 通过 main process 触发原生任务通知 */
   showTaskNotification: (payload: TaskNotificationPayload) =>
     ipcRenderer.send(PlatformChannels.ShowTaskNotification, payload),
-  /** 导出日志：打包 ~/.zcode/v2 及外部 agent 日志为 zip 并在 Finder 中显示 */
+  /** 导出日志：打包 ~/.lcode/v2 及外部 agent 日志为 zip 并在 Finder 中显示 */
   exportLogs: (): Promise<{
     success: boolean;
     path?: string;
@@ -731,14 +731,14 @@ contextBridge.exposeInMainWorld("zcode", {
   browserViewUpdateViewport: (payload: { tabId: string; viewport: BrowserViewportSize | null }) =>
     ipcRenderer.invoke(PlatformChannels.BrowserViewUpdateViewport, payload),
   /** 从自动发现的 Chrome Profile 一次性导入内置浏览器数据。 */
-  importChromeBrowserData: (options?: import("@zcode/shared").ChromeBrowserDataImportOptions) =>
+  importChromeBrowserData: (options?: import("@lcode/shared").ChromeBrowserDataImportOptions) =>
     ipcRenderer.invoke(PlatformChannels.ImportChromeBrowserData, options),
   /** 清理内置浏览器缓存或全部站点数据。 */
   clearEmbeddedBrowserData: (mode: "cache" | "all") =>
     ipcRenderer.invoke(PlatformChannels.ClearEmbeddedBrowserData, mode),
   /** 读取开发态 stdio tap proxy 开关状态 */
-  getZCodeStdioTapDevState: (): Promise<ZCodeStdioTapDevState> =>
-    ipcRenderer.invoke(PlatformChannels.GetZCodeStdioTapDevState),
+  getLCodeStdioTapDevState: (): Promise<LCodeStdioTapDevState> =>
+    ipcRenderer.invoke(PlatformChannels.GetLCodeStdioTapDevState),
   /** 注册 main 进程修改 settings 后的通知，返回 disposer */
   onSettingsChanged: (callback: () => void): (() => void) => {
     const handler = () => callback();

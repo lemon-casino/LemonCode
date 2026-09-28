@@ -1,4 +1,4 @@
-import type { AccountProviderUnavailableReason } from "@zcode/shared/account-provider-state";
+import type { AccountProviderUnavailableReason } from "@lcode/shared/account-provider-state";
 
 /**
  * 账号不可用原因，只回答"为什么不可用"。
@@ -8,7 +8,7 @@ import type { AccountProviderUnavailableReason } from "@zcode/shared/account-pro
  * 用户已登录但没有套餐时被显示成"未连接"。原因必须随 State 一起下发，UI 才不需要
  * 用二次请求去猜（不可用 provider 不会再发起权益查询）。
  */
-export type { AccountProviderUnavailableReason } from "@zcode/shared/account-provider-state";
+export type { AccountProviderUnavailableReason } from "@lcode/shared/account-provider-state";
 
 /**
  * 账号实时事实，不是配置 Overlay，也不写入用户设置。

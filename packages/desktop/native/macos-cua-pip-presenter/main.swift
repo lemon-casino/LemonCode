@@ -289,7 +289,7 @@ private final class PresenterWindowController {
 
 private final class StdinCommandReader {
     private let input = FileHandle.standardInput
-    private let queue = DispatchQueue(label: "dev.zcode.cua-helper.pip-presenter.stdin")
+    private let queue = DispatchQueue(label: "dev.lcode.cua-helper.pip-presenter.stdin")
     private var buffer = Data()
     private var stopped = false
     private var commandInFlight = false

@@ -1,6 +1,6 @@
 // 远程控制「安全与隐私」卡片：允许新设备配对、配对链接有效期、空闲自动断开、
 // 隐私说明与已授权设备列表（吊销）。设备列表事实源在 Desktop Main
-// （PROTOCOL.md §6.3 zcode:remote-devices-refresh），Renderer 只读快照 + 显式刷新。
+// （PROTOCOL.md §6.3 lcode:remote-devices-refresh），Renderer 只读快照 + 显式刷新。
 import { useCallback, useState } from "react";
 import { LoaderCircle } from "lucide-react";
 import {
@@ -23,7 +23,7 @@ import {
 } from "@/components/ui/select.js";
 import { Switch } from "@/components/ui/switch.js";
 import { toast } from "@/components/ui/toast.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { startUserAction } from "@/lib/userActionTelemetry.js";
 import { formatDateTime } from "@/settings/automationFormat.js";
@@ -66,7 +66,7 @@ export function RemoteControlSecuritySettings({
   refreshDevices,
   revokeDevice,
 }: RemoteControlSecuritySettingsProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [devicePendingRevoke, setDevicePendingRevoke] = useState<RemoteControlDevice | null>(null);
 
   const handleRevokeDevice = useCallback(

@@ -4,7 +4,7 @@
 // 不进 Zustand、不跨窗口广播。
 import type { AutomationsPageTab } from "@/settings/saved-workflows/AutomationsPageTitleSwitch.js";
 
-const STORAGE_KEY = "zcode-automations-page-tab";
+const STORAGE_KEY = "lcode-automations-page-tab";
 
 function storage(): Storage | null {
   try {

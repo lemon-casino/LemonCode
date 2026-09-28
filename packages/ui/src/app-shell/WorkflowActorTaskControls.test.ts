@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { WorkflowRunNode } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunNode } from "@lcode/shared/lcode-protocol-v4";
 import {
   resolveWorkflowActorSupplementChange,
   selectWorkflowActorTask,
   updateWorkflowActorTaskError,
   workflowActorTaskActionState,
 } from "./workflowActorTaskState.js";
-import type { WorkflowRunState } from "@zcode/shared/zcode-protocol-v4";
+import type { WorkflowRunState } from "@lcode/shared/lcode-protocol-v4";
 
 test("a phase click focuses its ask while explicit task selection takes precedence", () => {
   const nodes: WorkflowRunNode[] = [

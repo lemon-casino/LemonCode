@@ -11,7 +11,7 @@ import type {
   IntranetProbeTcpTarget,
   IntranetProbeTcpTargetResult,
   SystemInfo,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import type { ISystemService } from "./system.js";
 import { listIntegratedTerminalShellOptions } from "./integratedTerminalShells.js";
 
@@ -226,7 +226,7 @@ async function probeServiceEndpoint(params: ServiceProbeParams): Promise<Service
   try {
     const response = await fetch(params.url, {
       method: "GET",
-      headers: params.token ? { "x-zcode-intranet-token": params.token } : undefined,
+      headers: params.token ? { "x-lcode-intranet-token": params.token } : undefined,
       signal: controller.signal,
     });
     if (!response.ok) {

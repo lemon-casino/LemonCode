@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { CuaHelperHandle } from "@zcode/zcode-cua/broker/server";
+import type { CuaHelperHandle } from "@lcode/lcode-cua/broker/server";
 
 import {
   buildCuaProductHelperAgentEnv,
@@ -12,12 +12,12 @@ import {
 import type { ManagedCuaProductHelperHost } from "./cua-permission-broker/windowsCuaDevHelperHost.js";
 
 const handle: CuaHelperHandle = {
-  socketPath: "/tmp/zcode-cua-test.sock",
-  pipSocketPath: "/tmp/zcode-cua-test.pip.sock",
-  launchSocketPath: "/tmp/zcode-cua-test.sock",
+  socketPath: "/tmp/lcode-cua-test.sock",
+  pipSocketPath: "/tmp/lcode-cua-test.pip.sock",
+  launchSocketPath: "/tmp/lcode-cua-test.sock",
   pluginAuthority: "test-authority",
-  helperAppPath: "/tmp/zcode-cua/helper-entry.js",
-  bundleId: "dev.zcode.cua-helper",
+  helperAppPath: "/tmp/lcode-cua/helper-entry.js",
+  bundleId: "dev.lcode.cua-helper",
   pid: 42,
   generation: 7,
 };
@@ -44,7 +44,7 @@ function fakeHost(calls: string[]): ManagedCuaProductHelperHost {
     },
     async checkHealth() {
       calls.push("check-health");
-      return { bundleId: "dev.zcode.cua-helper", pid: 42 };
+      return { bundleId: "dev.lcode.cua-helper", pid: 42 };
     },
   };
 }
@@ -55,7 +55,7 @@ test("enables the open product Helper on Linux unless explicitly disabled", () =
     assert.equal(
       shouldEnableDefaultCuaProductHelper({
         platform: "linux",
-        env: { ZCODE_CUA_PRODUCT_HELPER: value },
+        env: { LCODE_CUA_PRODUCT_HELPER: value },
       }),
       false,
       value,
@@ -64,7 +64,7 @@ test("enables the open product Helper on Linux unless explicitly disabled", () =
   assert.equal(
     shouldEnableDefaultCuaProductHelper({
       platform: "linux",
-      env: { ZCODE_CUA_PRODUCT_HELPER: "unexpected" },
+      env: { LCODE_CUA_PRODUCT_HELPER: "unexpected" },
     }),
     true,
   );
@@ -90,9 +90,9 @@ test("assembles Linux through the lazy Node runtime host and honors stop", async
       calls.push("resolve-runtime");
       return {
         platform: "linux",
-        root: "/tmp/zcode-cua",
-        entryPath: "/tmp/zcode-cua/helper-entry.js",
-        addonPath: "/tmp/zcode-cua/xa11y-native-loader.js",
+        root: "/tmp/lcode-cua",
+        entryPath: "/tmp/lcode-cua/helper-entry.js",
+        addonPath: "/tmp/lcode-cua/xa11y-native-loader.js",
         command: process.execPath,
         commandEnv: { ELECTRON_RUN_AS_NODE: "1" },
       };
@@ -116,9 +116,9 @@ test("assembles Linux through the lazy Node runtime host and honors stop", async
 test("agent env forwards the complete broker generation tuple", async () => {
   const calls: string[] = [];
   assert.deepEqual(await buildCuaProductHelperAgentEnv(fakeHost(calls)), {
-    ZCODE_CUA_PERMISSION_BROKER_SOCKET: "/tmp/zcode-cua-test.sock",
-    ZCODE_CUA_PLUGIN_AUTHORITY: "test-authority",
-    ZCODE_CUA_PERMISSION_BROKER_GENERATION: "7",
+    LCODE_CUA_PERMISSION_BROKER_SOCKET: "/tmp/lcode-cua-test.sock",
+    LCODE_CUA_PLUGIN_AUTHORITY: "test-authority",
+    LCODE_CUA_PERMISSION_BROKER_GENERATION: "7",
   });
   assert.deepEqual(calls, ["start"]);
 });

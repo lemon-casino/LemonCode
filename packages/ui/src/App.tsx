@@ -1,9 +1,9 @@
 /* eslint-disable max-lines -- App 当前集中编排 workspace 级状态、导航、Git 派生数据和 shell wiring；已将新增 side pane memory 桥接抽出，剩余拆分需要按 shell 边界单独重构。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useShallow } from "zustand/react/shallow";
-import type { GitChangeSourceId, WorkspacePurpose } from "@zcode/shared";
-import { useZCodeStore } from "@/store/StoreProvider.js";
-import { getVisibleTaskMetas, useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
+import type { GitChangeSourceId, WorkspacePurpose } from "@lcode/shared";
+import { useLCodeStore } from "@/store/StoreProvider.js";
+import { getVisibleTaskMetas, useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import { useTaskQueryCacheStore } from "@/store/taskQueryCacheStore.js";
 import { useAppPanels } from "@/hooks/useAppPanels.js";
 import { useGitAutoRefresh } from "@/hooks/useGitAutoRefresh.js";
@@ -15,7 +15,7 @@ import { useEnsureWorkspaceMcpLoaded } from "@/hooks/useEnsureWorkspaceMcpLoaded
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceReadOnly, isWorkspaceTab } from "@/store/tabStore.js";
 import type { TaskChatMessage as TestChatMessage } from "@/lib/taskChatMessageTypes.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { getPathLeaf } from "@/lib/path.js";
 import {
@@ -46,14 +46,14 @@ import {
   type SettingsSectionId,
 } from "@/lib/settingsNavigation.js";
 import { runWorkspaceVisibleCommand } from "@/lib/workspaceVisibleCommand.js";
-import { ZCODE_PRODUCT_DOCS_URL } from "@/lib/productDocs.js";
+import { LCODE_PRODUCT_DOCS_URL } from "@/lib/productDocs.js";
 import appLogoUrl from "@/assets/provider-icons/logo-zai.svg";
 import { resolveTheme } from "@/useTheme.js";
 import { WorkspaceShellLayout } from "@/app-shell/WorkspaceShellLayout.js";
 import { useAppChromeState } from "@/app-shell/useAppChromeState.js";
 import { useWorkspaceSessionReload } from "@/app-shell/useWorkspaceSessionReload.js";
 import { useWorkspaceShellLifecycle } from "@/app-shell/useWorkspaceShellLifecycle.js";
-import { useWorkspaceShellZCodeState } from "@/app-shell/useWorkspaceShellZCodeState.js";
+import { useWorkspaceShellLCodeState } from "@/app-shell/useWorkspaceShellLCodeState.js";
 import { useWorkspaceMainViewSettingsExit } from "@/app-shell/useWorkspaceMainViewSettingsExit.js";
 import {
   useWorkspaceTaskNavigation,
@@ -133,7 +133,7 @@ export function App({
   const openWorkspaceShortcutLabel = useShortcutCommandLabel("openWorkspace");
   const isLinuxDesktop = Boolean(isDesktop && !isMacDesktop && !isWindowsDesktop);
   const supportsEmbeddedBrowser = explicitSupportsEmbeddedBrowser ?? Boolean(isDesktop);
-  const { intl, locale, setLocale } = useZCodeIntl();
+  const { intl, locale, setLocale } = useLCodeIntl();
   const isOfficeMode = useIsOfficeMode();
   const platform = usePlatform();
   // 进程内存本地诊断日志：每窗口一个 60s 采样器，
@@ -196,21 +196,21 @@ export function App({
   const workspaceReadOnlyReason = workspaceReadOnly
     ? intl.formatMessage({ id: "workspaceSidebar.unavailableLocalDirectory" })
     : undefined;
-  const { workspaceShellZCodeState, reloadSessionDisabled } = useWorkspaceShellZCodeState(
+  const { workspaceShellLCodeState, reloadSessionDisabled } = useWorkspaceShellLCodeState(
     workspaceAbsPath,
     workspaceIdentity,
   );
-  const activeTaskId = workspaceShellZCodeState.activeTaskId;
+  const activeTaskId = workspaceShellLCodeState.activeTaskId;
   // 右侧栏按对话隔离的归属 id：草稿态 activeTaskId 为 null，用 draftSessionId 兜底
   //（draftSessionId 稳定、每个新对话唯一、发首条消息后会变成 activeTaskId），
   // 从而新建对话不会串到上一个对话/草稿留下的 tab，且草稿转正后 tab 归属无缝衔接。
-  const draftSessionId = useZCodeSessionStore(
+  const draftSessionId = useLCodeSessionStore(
     (state) => state.getWorkspaceState(workspaceAbsPath, workspaceIdentity).draftSessionId,
   );
   const sidePaneOwnerId = activeTaskId ?? draftSessionId ?? null;
   const [summaryPanelVariantOverride, setSummaryPanelVariantOverride] =
     useState<ChatViewSummaryPanelVariant | null>(null);
-  const draftFocusVersion = workspaceShellZCodeState.draftFocusVersion;
+  const draftFocusVersion = workspaceShellLCodeState.draftFocusVersion;
   const {
     isTerminalOpen,
     setIsTerminalOpen,
@@ -271,7 +271,7 @@ export function App({
     }),
   });
   const workspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
-  const notificationEnabled = useZCodeStore((s) => s.notificationEnabled);
+  const notificationEnabled = useLCodeStore((s) => s.notificationEnabled);
   useWorkspaceTerminalTaskNotifications({
     workspacePath: workspaceAbsPath,
     ...(workspaceIdentity ? { workspaceIdentity } : {}),
@@ -353,8 +353,8 @@ export function App({
     workspaceAbsPath,
     workspaceIdentity,
   });
-  const theme = useZCodeStore((s) => s.theme);
-  const setTheme = useZCodeStore((s) => s.setTheme);
+  const theme = useLCodeStore((s) => s.theme);
+  const setTheme = useLCodeStore((s) => s.setTheme);
   const {
     isMacFullscreen,
     desktopWindowChromeState,
@@ -388,7 +388,7 @@ export function App({
     activeTaskId,
     workspaceRemoteSessionId,
     workspaceIdentity,
-    selectedProvider: workspaceShellZCodeState.selectedProvider,
+    selectedProvider: workspaceShellLCodeState.selectedProvider,
     intl,
   });
   const workspaceTabs = useMemo(
@@ -681,7 +681,7 @@ export function App({
   }, [openFeedbackSubmit, openFeedbackTickets, platform]);
   const handleOpenCommunity = useCallback(() => platform.openCommunity(), [platform]);
   const handleOpenProductDocs = useCallback(() => {
-    platform.openExternal(ZCODE_PRODUCT_DOCS_URL);
+    platform.openExternal(LCODE_PRODUCT_DOCS_URL);
   }, [platform]);
   const themeTarget = resolveTheme(theme) === "dark" ? "light" : "dark";
   const handleSwitchTheme = useCallback(() => {
@@ -705,9 +705,9 @@ export function App({
       targetWorkspacePath: string,
       targetWorkspaceIdentity?: string,
       targetWorkspacePurpose?: WorkspacePurpose,
-      createSource?: import("@zcode/shared").SessionCreateSource,
+      createSource?: import("@lcode/shared").SessionCreateSource,
     ) => {
-      const store = useZCodeSessionStore.getState();
+      const store = useLCodeSessionStore.getState();
       const resolvedTargetWorkspaceIdentity =
         targetWorkspaceIdentity ??
         tabs.filter(isWorkspaceTab).find((tab) => tab.workspacePath === targetWorkspacePath)
@@ -716,7 +716,7 @@ export function App({
         return;
       }
       const targetSelectedProvider = resolveWorkspaceSwitchDraftProvider({
-        currentSelectedProvider: workspaceShellZCodeState.selectedProvider,
+        currentSelectedProvider: workspaceShellLCodeState.selectedProvider,
         targetWorkspacePath,
         targetWorkspaceIdentity: resolvedTargetWorkspaceIdentity,
         workspaces: store.workspaces,
@@ -786,7 +786,7 @@ export function App({
       tabs,
       workspaceAbsPath,
       workspaceIdentity,
-      workspaceShellZCodeState.selectedProvider,
+      workspaceShellLCodeState.selectedProvider,
     ],
   );
 
@@ -811,16 +811,16 @@ export function App({
         setTestMessages([...messages]);
       },
       getChatMessageCount: () => testMessages?.length ?? 0,
-      getPluginsOverview: (params) => services.zcodeAgentService.getPluginsOverview(params),
-      addPluginMarketplace: (params) => services.zcodeAgentService.addPluginMarketplace(params),
+      getPluginsOverview: (params) => services.lcodeAgentService.getPluginsOverview(params),
+      addPluginMarketplace: (params) => services.lcodeAgentService.addPluginMarketplace(params),
       updatePluginMarketplace: (params) =>
-        services.zcodeAgentService.updatePluginMarketplace(params),
-      installPlugin: (params) => services.zcodeAgentService.installPlugin(params),
-      listPlugins: (params) => services.zcodeAgentService.listPlugins(params),
+        services.lcodeAgentService.updatePluginMarketplace(params),
+      installPlugin: (params) => services.lcodeAgentService.installPlugin(params),
+      listPlugins: (params) => services.lcodeAgentService.listPlugins(params),
       getPluginReferenceCatalog: (params) =>
-        services.zcodeAgentService.getPluginReferenceCatalog(params),
+        services.lcodeAgentService.getPluginReferenceCatalog(params),
     }),
-    [locale, services.zcodeAgentService, setLocale, theme, setTheme, testMessages],
+    [locale, services.lcodeAgentService, setLocale, theme, setTheme, testMessages],
   );
   useTestActions(testActions);
   const [workspaceMainView, setWorkspaceMainView] = useState<WorkspaceMainView>("chat");
@@ -896,7 +896,7 @@ export function App({
   const handleSelectAdjacentConversation = useCallback(
     (direction: "previous" | "next") => {
       runVisibleWorkspaceCommand(() => {
-        const sessionState = useZCodeSessionStore.getState();
+        const sessionState = useLCodeSessionStore.getState();
         const workspaceState = sessionState.getWorkspaceState(workspaceAbsPath, workspaceIdentity);
         const fallbackTaskIds = getVisibleTaskMetas(workspaceState).map((task) => task.taskId);
         const taskQueryCacheState = useTaskQueryCacheStore.getState();
@@ -1165,7 +1165,7 @@ export function App({
         isDesktop={isDesktop}
         isMacDesktop={isMacDesktop}
         isWindowsDesktop={isWindowsDesktop}
-        workspaceShellZCodeState={workspaceShellZCodeState}
+        workspaceShellLCodeState={workspaceShellLCodeState}
         theme={theme}
         isMacFullscreen={isMacFullscreen}
         desktopWindowChromeState={desktopWindowChromeState}

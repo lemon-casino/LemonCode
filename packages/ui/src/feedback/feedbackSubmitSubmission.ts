@@ -3,8 +3,8 @@ import {
   type FeedbackTicketModule,
   type FeedbackTicketSeverity,
   type FeedbackTicketType,
-} from "@zcode/shared";
-import type { IFeedbackService } from "@zcode/services";
+} from "@lcode/shared";
+import type { IFeedbackService } from "@lcode/services";
 import { persistFeedbackContactPreference } from "@/feedback/feedbackContactPreference.js";
 import type { FeedbackSubmitDraft } from "@/feedback/feedbackStore.js";
 import type { ScreenshotAttachmentDraft } from "@/feedback/FeedbackScreenshotPicker.js";
@@ -19,7 +19,7 @@ import {
   type FeedbackSubmissionJob,
 } from "@/feedback/feedbackSubmissionJob.js";
 
-const FEEDBACK_ZCODE_AGENT_LABEL = "ZCode Agent";
+const FEEDBACK_LCODE_AGENT_LABEL = "LCode Agent";
 
 export const DEFAULT_FEEDBACK_TYPE: FeedbackTicketType = "bug";
 export const DEFAULT_FEEDBACK_SEVERITY: FeedbackTicketSeverity = "P2-中";
@@ -94,7 +94,7 @@ export async function startSimplifiedFeedbackSubmission({
       framework,
       device: {
         ...device,
-        agentProvider: FEEDBACK_ZCODE_AGENT_LABEL,
+        agentProvider: FEEDBACK_LCODE_AGENT_LABEL,
         agentFramework: framework,
         ...(modelContext.model ? { agentModel: modelContext.model } : {}),
         ...(modelContext.display ? { agentModelDisplay: modelContext.display } : {}),

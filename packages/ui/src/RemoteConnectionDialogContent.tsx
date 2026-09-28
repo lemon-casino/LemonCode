@@ -7,15 +7,15 @@ import type {
   RemoteWorkspaceSessionEntry,
   SSHConfigAliasOption,
   WSLDistro,
-} from "@zcode/shared";
-import { TID_REMOTE_KIND_DOCKER, TID_REMOTE_KIND_SSH, TID_REMOTE_KIND_WSL } from "@zcode/shared";
+} from "@lcode/shared";
+import { TID_REMOTE_KIND_DOCKER, TID_REMOTE_KIND_SSH, TID_REMOTE_KIND_WSL } from "@lcode/shared";
 import type {
   IMcpSyncService,
   IPluginSyncService,
   IServiceAccessor,
   ISkillSyncService,
-  IZCodeAgentService,
-} from "@zcode/services";
+  ILCodeAgentService,
+} from "@lcode/services";
 import {
   AlertTriangleIcon,
   ChevronRightIcon,
@@ -29,7 +29,7 @@ import { RemoteConnectionFields } from "@/RemoteConnectionFields.js";
 import type { SSHAuthMethod } from "@/hooks/useRemoteConnectionForm.js";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   RemoteSyncDialogs,
   RemoteSyncDropdownButton,
@@ -61,7 +61,7 @@ export function RemoteConnectionKindStep({
   onCancel: () => void;
   onNext: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-6 h-full">
@@ -220,7 +220,7 @@ export function RemoteConnectionSettingsStep({
   onClearSelectedSshConfigAlias: () => void;
   onConnect: () => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-6 h-full">
@@ -327,8 +327,8 @@ export function RemoteConnectionDirectoryStep({
   remoteMcpSyncService,
   localPluginSyncService,
   remotePluginSyncService,
-  localZCodeAgentService,
-  remoteZCodeAgentService,
+  localLCodeAgentService,
+  remoteLCodeAgentService,
   localWorkspacePath,
   selecting = false,
   onSelect,
@@ -346,8 +346,8 @@ export function RemoteConnectionDirectoryStep({
   remoteMcpSyncService?: IMcpSyncService | null;
   localPluginSyncService?: IPluginSyncService;
   remotePluginSyncService?: IPluginSyncService | null;
-  localZCodeAgentService?: IZCodeAgentService;
-  remoteZCodeAgentService?: IZCodeAgentService | null;
+  localLCodeAgentService?: ILCodeAgentService;
+  remoteLCodeAgentService?: ILCodeAgentService | null;
   localWorkspacePath?: string;
   selecting?: boolean;
   onSelect: (path: string) => void;
@@ -357,7 +357,7 @@ export function RemoteConnectionDirectoryStep({
   onMcpSynced?: () => Promise<void> | void;
   onPluginsSynced?: () => Promise<void> | void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [selectedPath, setSelectedPath] = useState("");
   const [remoteSkillSyncOpen, setRemoteSkillSyncOpen] = useState(false);
   const [remoteMcpSyncOpen, setRemoteMcpSyncOpen] = useState(false);
@@ -478,8 +478,8 @@ export function RemoteConnectionDirectoryStep({
         remoteMcpSyncService={remoteMcpSyncService}
         localPluginSyncService={localPluginSyncService}
         remotePluginSyncService={remotePluginSyncService}
-        localZCodeAgentService={localZCodeAgentService}
-        remoteZCodeAgentService={remoteZCodeAgentService}
+        localLCodeAgentService={localLCodeAgentService}
+        remoteLCodeAgentService={remoteLCodeAgentService}
         remoteTarget={remoteTarget}
         skillWorkspacePath=""
         mcpWorkspacePath={selectedPath.trim()}

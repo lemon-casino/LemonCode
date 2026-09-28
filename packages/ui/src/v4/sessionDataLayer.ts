@@ -12,7 +12,7 @@ import {
   LiveOutputRateRegistry,
   observeLiveOutputRateStore,
 } from "@/v4/composer/liveOutputRateRegistry.js";
-import type { CommandsQueryParams, CommandsQueryResult } from "@zcode/shared/zcode-protocol-v4";
+import type { CommandsQueryParams, CommandsQueryResult } from "@lcode/shared/lcode-protocol-v4";
 
 /** pane 持有的租约；release 幂等。 */
 export interface SessionLease {

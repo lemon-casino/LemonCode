@@ -1,17 +1,17 @@
-import type { ZCodeTaskMode } from "./zcode-task-types-core.js";
+import type { LCodeTaskMode } from "./lcode-task-types-core.js";
 import type { ModelSelection } from "./model-selection.js";
 
 // ---- 闲时任务(Off-Peak Task)领域类型 ----
 // off_peak_tasks 存 tasks-index.sqlite。
 // 与 automation 共用 scheduler 进程与派发管道，但数据表、消息类型、状态机全部独立，
-// 禁止往 ZCodeAutomation 上加字段。sqlite 列名 snake_case，此处为跨域 camelCase 领域类型。
+// 禁止往 LCodeAutomation 上加字段。sqlite 列名 snake_case，此处为跨域 camelCase 领域类型。
 
 /**
  * 客户端执行态六态（服务端准入态 queued/ready/active/expired/settled 是另一轴）：
  * queued=排队等服务端 ready；paused=用户 Pause 停止派发；running=执行中；
  * permission/elicitation 在普通 session 内等待且聚合态保持 running；completed/failed/cancelled=终态。
  */
-export type ZCodeOffPeakTaskStatus =
+export type LCodeOffPeakTaskStatus =
   | "queued"
   | "paused"
   | "running"
@@ -23,17 +23,17 @@ export type ZCodeOffPeakTaskStatus =
 export const OFF_PEAK_TERMINAL_STATUSES = ["completed", "failed", "cancelled"] as const;
 
 export function isOffPeakTerminalStatus(
-  status: ZCodeOffPeakTaskStatus,
+  status: LCodeOffPeakTaskStatus,
 ): status is "completed" | "failed" | "cancelled" {
   return (OFF_PEAK_TERMINAL_STATUSES as readonly string[]).includes(status);
 }
 
 /**
  * 票据不可用（服务端 400/3102：active 3h 到期 / ready 5min 废票 / settled / 非本人）的
- * 稳定错误标记。zcode-cli 适配层把该业务码分类为不可重试失败并在错误消息里嵌入本标记；
+ * 稳定错误标记。lcode-cli 适配层把该业务码分类为不可重试失败并在错误消息里嵌入本标记；
  * host 终态回写据此改走"同 task_id 重新取号 → resume 续跑"而非落 failed。
  * 跨进程只能靠错误文本传递，标记必须全链路唯一且稳定，勿改；与
- * apps/zcode-cli/packages/adapters/src/model/offpeak-retry.ts 的同名常量跨包同值。
+ * apps/lcode-cli/packages/adapters/src/model/offpeak-retry.ts 的同名常量跨包同值。
  */
 export const OFF_PEAK_TICKET_EXPIRED_MARKER = "off-peak-ticket-expired";
 
@@ -99,7 +99,7 @@ export function isOffPeakTicketExpiredError(message: string | undefined): boolea
 }
 
 /** 一条闲时任务：表单创建即取号排队，派发时 createTask 新建 session。 */
-export interface ZCodeOffPeakTask {
+export interface LCodeOffPeakTask {
   /** 本地主键，同时用作服务端 task_id（稳定，跨多个 ticket）。 */
   offPeakTaskId: string;
   /** 服务端取号返回的 Snowflake ticket_id；每次重新取号（3h 到期续跑/Continue 重取）更新。 */
@@ -117,8 +117,8 @@ export interface ZCodeOffPeakTask {
   sessionTitle?: string;
   /** 表单 Instructions。 */
   prompt: string;
-  /** 权限四档全开放，映射现有 ZCodeTaskMode，默认 "default"（Ask for approval）。 */
-  permissionMode: ZCodeTaskMode;
+  /** 权限四档全开放，映射现有 LCodeTaskMode，默认 "default"（Ask for approval）。 */
+  permissionMode: LCodeTaskMode;
   /**
    * 创建被接受时固定的结构化 Submission 选择。
    *
@@ -136,7 +136,7 @@ export interface ZCodeOffPeakTask {
   workspaceKey: string;
   workspacePath: string;
   workspaceIdentity?: string;
-  status: ZCodeOffPeakTaskStatus;
+  status: LCodeOffPeakTaskStatus;
   /** FIFO 序依据（服务端权威序由取号顺序决定，本地仅展示/派发排序用）。 */
   queuedAt: number;
   startedAt?: number;
@@ -165,10 +165,10 @@ export interface ZCodeOffPeakTask {
 }
 
 /** 创建闲时任务的入参（workspace 由调用方从上下文注入；取号在 service 层先行，成功才落库）。 */
-export interface ZCodeOffPeakTaskCreateParams {
+export interface LCodeOffPeakTaskCreateParams {
   title: string;
   prompt: string;
-  permissionMode: ZCodeTaskMode;
+  permissionMode: LCodeTaskMode;
   modelSelection: ModelSelection;
   workspacePath: string;
   workspaceIdentity?: string;
@@ -206,7 +206,7 @@ export type OffPeakTaskCreateErrorCategory =
 export type OffPeakTaskCreateResult =
   | {
       ok: true;
-      task: ZCodeOffPeakTask;
+      task: LCodeOffPeakTask;
       ticketInitialState: OffPeakTaskTicketInitialState;
       queuePosition?: number;
       providerName: string;

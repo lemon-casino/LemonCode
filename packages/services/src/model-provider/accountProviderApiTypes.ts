@@ -1,4 +1,4 @@
-import { BIGMODEL_PROVIDER_ID, ZAI_PROVIDER_ID } from "@zcode/shared";
+import { BIGMODEL_PROVIDER_ID, ZAI_PROVIDER_ID } from "@lcode/shared";
 
 export type AccountApiProviderId = typeof BIGMODEL_PROVIDER_ID | typeof ZAI_PROVIDER_ID;
 
@@ -35,4 +35,4 @@ export interface RemoteApiKeySecret {
 
 export const DEFAULT_ORG_NAME = "默认机构";
 export const DEFAULT_PROJECT_NAME = "默认项目";
-export const ZCODE_API_KEY_NAME = "zcode-api-key";
+export const LCODE_API_KEY_NAME = "zcode-api-key";

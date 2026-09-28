@@ -1,16 +1,16 @@
 import { useMemo, useRef } from "react";
-import type { ZCodeProvider, ZCodeTaskMeta } from "@zcode/shared";
+import type { LCodeProvider, LCodeTaskMeta } from "@lcode/shared";
 import { useActiveTaskSnapshotMeta } from "@/hooks/useActiveTaskSnapshotMeta.js";
 import { useTaskNativeSessionLogFile } from "@/hooks/useTaskNativeSessionLogFile.js";
 import { useTaskSessionFilePath } from "@/hooks/useTaskSessionFilePath.js";
 import { buildTaskEntityKey } from "@/lib/taskQueryCache.js";
-import { mergeTaskMetaCandidates } from "@/lib/zcodeTaskMetaMerge.js";
+import { mergeTaskMetaCandidates } from "@/lib/lcodeTaskMetaMerge.js";
 import { resolveWorkspaceHeaderProvider } from "@/lib/workspaceHeaderProvider.js";
 import {
   getTaskMeta,
-  selectWorkspaceZCodeState,
-  useZCodeSessionStore,
-} from "@/store/zcodeSessionStore.js";
+  selectWorkspaceLCodeState,
+  useLCodeSessionStore,
+} from "@/store/lcodeSessionStore.js";
 import { useTaskQueryCacheStore } from "@/store/taskQueryCacheStore.js";
 
 interface UseWorkspaceActiveTaskStateParams {
@@ -18,7 +18,7 @@ interface UseWorkspaceActiveTaskStateParams {
   activeTaskId: string | null;
   workspaceRemoteSessionId?: string | null;
   workspaceIdentity?: string;
-  selectedProvider: ZCodeProvider;
+  selectedProvider: LCodeProvider;
   intl: {
     formatMessage(descriptor: { id: string }): string;
   };
@@ -28,7 +28,7 @@ function areTaskMetaJsonFieldsEqual(left: unknown, right: unknown) {
   return JSON.stringify(left ?? null) === JSON.stringify(right ?? null);
 }
 
-function areResolvedTaskMetasEqual(left: ZCodeTaskMeta | null, right: ZCodeTaskMeta | null) {
+function areResolvedTaskMetasEqual(left: LCodeTaskMeta | null, right: LCodeTaskMeta | null) {
   if (left === right) {
     return true;
   }
@@ -61,8 +61,8 @@ function areResolvedTaskMetasEqual(left: ZCodeTaskMeta | null, right: ZCodeTaskM
   );
 }
 
-function useStableResolvedActiveTaskMeta(taskMeta: ZCodeTaskMeta | null) {
-  const stableTaskMetaRef = useRef<ZCodeTaskMeta | null>(null);
+function useStableResolvedActiveTaskMeta(taskMeta: LCodeTaskMeta | null) {
+  const stableTaskMetaRef = useRef<LCodeTaskMeta | null>(null);
   const stableTaskMeta = stableTaskMetaRef.current;
   // stream chunk 只更新消息流时，active task meta 经列表/乐观层重新合成后可能字段相同但引用变了。
   // Header/Shell 依赖 memo props；这里复用等价 meta 的旧引用，避免连续流式更新拖动标题栏重渲。
@@ -80,8 +80,8 @@ export function useWorkspaceActiveTaskState({
   selectedProvider,
   intl,
 }: UseWorkspaceActiveTaskStateParams) {
-  const workspaceState = useZCodeSessionStore((state) =>
-    selectWorkspaceZCodeState(state, workspaceAbsPath, workspaceIdentity),
+  const workspaceState = useLCodeSessionStore((state) =>
+    selectWorkspaceLCodeState(state, workspaceAbsPath, workspaceIdentity),
   );
   const activeTaskQueryMeta = useTaskQueryCacheStore((state) => {
     if (!activeTaskId) {
@@ -102,7 +102,7 @@ export function useWorkspaceActiveTaskState({
       return null;
     }
 
-    // App 以前依赖 zcodeTaskMetaMerge 同时拉普通列表和 pinned 列表，只是为了给当前激活 task
+    // App 以前依赖 lcodeTaskMetaMerge 同时拉普通列表和 pinned 列表，只是为了给当前激活 task
     // 找一份 meta。这样任何列表刷新都会把整棵 App 一起带着重渲。
     // 这里改成直接从 workspace store 读 taskListCache + optimistic meta 的合并结果；
     // 普通任务可以同步命中，pinned / archived 再由 snapshot meta 兜底，不再要求 App 常驻订阅旧列表 hook。

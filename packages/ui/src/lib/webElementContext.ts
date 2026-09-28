@@ -1,6 +1,6 @@
-export const WEB_ELEMENT_CONTEXT_ADD_TO_CHAT_EVENT = "zcode:web-element-context-add-to-chat";
+export const WEB_ELEMENT_CONTEXT_ADD_TO_CHAT_EVENT = "lcode:web-element-context-add-to-chat";
 export const WEB_ELEMENT_CONTEXT_REMOVE_FROM_CHAT_EVENT =
-  "zcode:web-element-context-remove-from-chat";
+  "lcode:web-element-context-remove-from-chat";
 
 const WEB_ELEMENT_CONTEXT_BLOCK_TITLE = "# Web page elements:";
 const MAX_MARKDOWN_FIELD_LENGTH = 8_000;

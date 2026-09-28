@@ -16,19 +16,19 @@ import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.js";
 import { Switch } from "@/components/ui/switch.js";
 import type {
-  ZCodeProvider,
+  LCodeProvider,
   SkillDiagnostic,
   SkillDiagnosticCode,
   SkillSummary,
   SkillsCapability,
   RemoteTarget,
-} from "@zcode/shared";
-import { ZCODE_AGENT_PROVIDER } from "@zcode/shared";
+} from "@lcode/shared";
+import { LCODE_AGENT_PROVIDER } from "@lcode/shared";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { toast } from "@/components/ui/toast.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
-import { useZCodeSessionService } from "@/hooks/useZCodeSessionService.js";
+import { useLCodeSessionService } from "@/hooks/useLCodeSessionService.js";
 import {
   useBaseWorkspaceServices,
   useWorkspaceServicesResolution,
@@ -36,7 +36,7 @@ import {
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { buildSkillMentionMarkdown } from "@/mentions/mentionMarkdown.js";
 import { filterSkillsForProvider } from "@/lib/skillSourceFilter.js";
-import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/zcodeDraftSkillInvalidation.js";
+import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/lcodeDraftSkillInvalidation.js";
 import { PluginStoreAvatar } from "@/settings/PluginStoreAvatar.js";
 import { SettingsResourceHeaderActions } from "@/settings/SettingsResourceHeaderActions.js";
 import {
@@ -171,7 +171,7 @@ export function SkillsSection({
   showMarketplaceBreadcrumb = false,
   reportDetailBreadcrumb = false,
 }: SkillsSectionProps) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const platform = usePlatform();
   const baseServices = useBaseWorkspaceServices();
   const plugins = usePluginManagementStore((state) => state.plugins);
@@ -200,7 +200,7 @@ export function SkillsSection({
   // 取服务，导致跨远程 host 误路由。技能读写和远端同步都改用同一 target 解析结果。
   const { pluginManagementService, skillSyncService, skillsService } =
     targetServiceResolution.services;
-  const zcodeSessionService = useZCodeSessionService(
+  const lcodeSessionService = useLCodeSessionService(
     activeWorkspacePath ?? undefined,
     undefined,
     activeWorkspaceIdentity,
@@ -314,7 +314,7 @@ export function SkillsSection({
         const result = await skillsService.list({
           workspacePath: activeWorkspacePath,
           workspaceIdentity: activeWorkspaceIdentity,
-          provider: ZCODE_AGENT_PROVIDER,
+          provider: LCODE_AGENT_PROVIDER,
         });
         if (requestId !== latestRequestIdRef.current) {
           return;
@@ -367,9 +367,9 @@ export function SkillsSection({
       if (!activeWorkspacePath) {
         return;
       }
-      // 移除三方来源后，技能状态统一写入 ZCode Agent 上下文，避免旧 provider 前缀带来分桶漂移。
+      // 移除三方来源后，技能状态统一写入 LCode Agent 上下文，避免旧 provider 前缀带来分桶漂移。
       const targetSkill = skills.find((skill) => skill.id === skillId);
-      const effectiveProvider: ZCodeProvider = ZCODE_AGENT_PROVIDER;
+      const effectiveProvider: LCodeProvider = LCODE_AGENT_PROVIDER;
       try {
         await skillsService.setEnabled({
           workspacePath: activeWorkspacePath,
@@ -380,7 +380,7 @@ export function SkillsSection({
           enabled,
         });
         await invalidateDeferredDraftSessionForSkillChange({
-          zcodeSessionService,
+          lcodeSessionService,
           workspacePath: activeWorkspacePath,
           workspaceIdentity: activeWorkspaceIdentity,
           reason: "settings-skill-enabled",
@@ -399,7 +399,7 @@ export function SkillsSection({
       refreshSharedSkillStoreForCurrentWorkspace,
       skills,
       skillsService,
-      zcodeSessionService,
+      lcodeSessionService,
     ],
   );
 
@@ -428,7 +428,7 @@ export function SkillsSection({
           skillId: skill.id,
         });
         await invalidateDeferredDraftSessionForSkillChange({
-          zcodeSessionService,
+          lcodeSessionService,
           workspacePath: activeWorkspacePath,
           workspaceIdentity: activeWorkspaceIdentity,
           reason: "settings-skill-delete",
@@ -449,12 +449,12 @@ export function SkillsSection({
       loadSkills,
       selectedSkill,
       skillsService,
-      zcodeSessionService,
+      lcodeSessionService,
     ],
   );
 
   const scopedProviderSkills = useMemo(() => {
-    const allProviderSkills = filterSkillsForProvider(skills, ZCODE_AGENT_PROVIDER);
+    const allProviderSkills = filterSkillsForProvider(skills, LCODE_AGENT_PROVIDER);
     const pluginStoreMatchesTarget =
       (pluginWorkspaceIdentity?.trim() || pluginWorkspacePath || "") ===
         (activeWorkspaceIdentity?.trim() || activeWorkspacePath || "") &&
@@ -510,7 +510,7 @@ export function SkillsSection({
     if (!activeWorkspacePath || !onCreateTask) {
       return;
     }
-    const effectiveProvider: ZCodeProvider = ZCODE_AGENT_PROVIDER;
+    const effectiveProvider: LCodeProvider = LCODE_AGENT_PROVIDER;
     const skillCreator = filterSkillsForProvider(skills, effectiveProvider).find(
       (skill) => skill.name === "skill-creator",
     );
@@ -968,7 +968,7 @@ export function SkillsSection({
         onOpenChange={setImportDialogOpen}
         onImported={async () => {
           await invalidateDeferredDraftSessionForSkillChange({
-            zcodeSessionService,
+            lcodeSessionService,
             workspacePath: activeWorkspacePath,
             workspaceIdentity: activeWorkspaceIdentity,
             reason: "settings-skill-import",
@@ -993,7 +993,7 @@ export function SkillsSection({
         workspaceIdentity={activeWorkspaceIdentity}
         onSkillsSynced={async () => {
           await invalidateDeferredDraftSessionForSkillChange({
-            zcodeSessionService,
+            lcodeSessionService,
             workspacePath: activeWorkspacePath,
             workspaceIdentity: activeWorkspaceIdentity,
             reason: "settings-remote-skill-sync",

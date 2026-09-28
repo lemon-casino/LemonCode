@@ -2,7 +2,7 @@ import type {
   CodingPlanResetStatusSnapshot,
   CodingPlanResetType,
   UsageQuotaLimit,
-} from "@zcode/shared";
+} from "@lcode/shared";
 // 完成后“额度已重置”提示的停留时长，随后自动收起提示（额度条保持 100%）。
 export const CODING_PLAN_QUOTA_RESET_DONE_DISPLAY_MS = 2_600;
 // 自动/运营重置在 Composer 触发器上先合成一小段“正在重置”的时长，随后切换为“已重置”。

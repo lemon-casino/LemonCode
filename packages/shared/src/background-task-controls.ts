@@ -1,4 +1,4 @@
-export type ZCodeBackgroundTaskControlStatus =
+export type LCodeBackgroundTaskControlStatus =
   | "pending"
   | "running"
   | "completed"
@@ -6,14 +6,14 @@ export type ZCodeBackgroundTaskControlStatus =
   | "killed"
   | "lost";
 
-export interface ZCodeBackgroundTaskControlItem {
+export interface LCodeBackgroundTaskControlItem {
   jobId: string;
   toolCallId?: string;
   command: string;
   taskKind: "agent" | "bash";
   cancellable?: boolean;
   title?: string;
-  status: ZCodeBackgroundTaskControlStatus;
+  status: LCodeBackgroundTaskControlStatus;
   startedAt?: number;
   elapsedMs?: number;
   pid?: number;
@@ -23,7 +23,7 @@ export interface ZCodeBackgroundTaskControlItem {
   raw?: unknown;
 }
 
-const ACTIVE_BACKGROUND_TASK_CONTROL_STATUSES = new Set<ZCodeBackgroundTaskControlStatus>([
+const ACTIVE_BACKGROUND_TASK_CONTROL_STATUSES = new Set<LCodeBackgroundTaskControlStatus>([
   "running",
 ]);
 
@@ -148,7 +148,7 @@ function normalizeToken(value: string | undefined): string {
   );
 }
 
-type BackgroundTaskControlKind = ZCodeBackgroundTaskControlItem["taskKind"];
+type BackgroundTaskControlKind = LCodeBackgroundTaskControlItem["taskKind"];
 
 function taskKindFromToken(token: string): BackgroundTaskControlKind | undefined {
   if (
@@ -223,7 +223,7 @@ function resolveTaskKind(record: Record<string, unknown>): BackgroundTaskControl
  * 旧 background task 事件的唯一 kind 兼容入口。
  * 新协议应直接携带 taskKind；只有历史记录缺字段时才从工具名/类型别名恢复。
  */
-export function resolveZCodeBackgroundTaskControlKind(
+export function resolveLCodeBackgroundTaskControlKind(
   value: unknown,
 ): BackgroundTaskControlKind | undefined {
   return isPlainRecord(value) ? resolveTaskKind(value) : undefined;
@@ -243,7 +243,7 @@ function readDisplayCommand(
   );
 }
 
-function normalizeStatus(value: string | undefined): ZCodeBackgroundTaskControlStatus {
+function normalizeStatus(value: string | undefined): LCodeBackgroundTaskControlStatus {
   const normalized = normalizeToken(value);
   if (
     normalized === "queued" ||
@@ -297,7 +297,7 @@ function normalizeStatus(value: string | undefined): ZCodeBackgroundTaskControlS
 
 function readJobId(record: Record<string, unknown>, command: string): string {
   const explicitId = readStringField(record, [
-    // ZCode Protocol 后台任务取消入口按 taskId 查找 runtime task 记录；
+    // LCode Protocol 后台任务取消入口按 taskId 查找 runtime task 记录；
     // 若这里落到 toolCallId，UI 会发送 call_*，后端只能返回 background_task_not_found。
     "taskId",
     "task_id",
@@ -317,18 +317,18 @@ function readJobId(record: Record<string, unknown>, command: string): string {
   return `background-task:${pid ?? "no-pid"}:${startedAt ?? "no-start"}:${command}`;
 }
 
-export function parseZCodeBackgroundTaskControlItems(
+export function parseLCodeBackgroundTaskControlItems(
   value: unknown,
-): ZCodeBackgroundTaskControlItem[] {
+): LCodeBackgroundTaskControlItem[] {
   if (!Array.isArray(value)) {
     return [];
   }
-  const jobsById = new Map<string, ZCodeBackgroundTaskControlItem>();
+  const jobsById = new Map<string, LCodeBackgroundTaskControlItem>();
   for (const item of value) {
     if (!isPlainRecord(item)) {
       continue;
     }
-    const taskKind = resolveZCodeBackgroundTaskControlKind(item);
+    const taskKind = resolveLCodeBackgroundTaskControlKind(item);
     if (!taskKind) {
       continue;
     }
@@ -352,7 +352,7 @@ export function parseZCodeBackgroundTaskControlItems(
     const stdoutTail = readStringField(item, ["stdoutTail", "stdout_tail"]);
     const stderrTail = readStringField(item, ["stderrTail", "stderr_tail"]);
     const outputTail = readStringField(item, ["outputTail", "output_tail"]);
-    const job: ZCodeBackgroundTaskControlItem = {
+    const job: LCodeBackgroundTaskControlItem = {
       jobId,
       ...(toolCallId ? { toolCallId } : {}),
       command,
@@ -373,14 +373,14 @@ export function parseZCodeBackgroundTaskControlItems(
   return Array.from(jobsById.values());
 }
 
-export function isActiveZCodeBackgroundTaskControlItem(
-  job: ZCodeBackgroundTaskControlItem,
+export function isActiveLCodeBackgroundTaskControlItem(
+  job: LCodeBackgroundTaskControlItem,
 ): boolean {
   return ACTIVE_BACKGROUND_TASK_CONTROL_STATUSES.has(job.status);
 }
 
-export function getZCodeBackgroundTaskControlItemElapsedMs(
-  job: ZCodeBackgroundTaskControlItem,
+export function getLCodeBackgroundTaskControlItemElapsedMs(
+  job: LCodeBackgroundTaskControlItem,
   now = Date.now(),
 ): number {
   const elapsedFromStart =
@@ -388,16 +388,16 @@ export function getZCodeBackgroundTaskControlItemElapsedMs(
   return Math.max(elapsedFromStart ?? 0, job.elapsedMs ?? 0);
 }
 
-export function collectVisibleZCodeBackgroundTaskControlItems(
-  jobs: readonly ZCodeBackgroundTaskControlItem[],
+export function collectVisibleLCodeBackgroundTaskControlItems(
+  jobs: readonly LCodeBackgroundTaskControlItem[],
   now = Date.now(),
   thresholdMs = 30_000,
-): Array<ZCodeBackgroundTaskControlItem & { elapsedMs: number }> {
+): Array<LCodeBackgroundTaskControlItem & { elapsedMs: number }> {
   return jobs
-    .filter(isActiveZCodeBackgroundTaskControlItem)
+    .filter(isActiveLCodeBackgroundTaskControlItem)
     .map((job) => ({
       ...job,
-      elapsedMs: getZCodeBackgroundTaskControlItemElapsedMs(job, now),
+      elapsedMs: getLCodeBackgroundTaskControlItemElapsedMs(job, now),
     }))
     .filter((job) => job.elapsedMs >= thresholdMs)
     .sort((left, right) => right.elapsedMs - left.elapsedMs);

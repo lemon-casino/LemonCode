@@ -1,4 +1,4 @@
-import type { LaunchMarks } from "@zcode/shared";
+import type { LaunchMarks } from "@lcode/shared";
 
 // 启动计时(epoch ms):T0 进程创建 / T1 main JS / T2 whenReady。T3 在 loadWindow 记。
 // 单独成模块，避免被 index.js 的 bootstrap 副作用链拖累（如 desktopHostProcess 也要读这些标记）。

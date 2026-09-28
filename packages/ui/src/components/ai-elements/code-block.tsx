@@ -1,7 +1,7 @@
 /*
  * Derived from vercel/ai-elements (packages/elements/src/code-block.tsx).
  * Copyright 2023 Vercel, Inc. Licensed under Apache-2.0.
- * Modified by ZCode: local integration, formatting and adaptations.
+ * Modified by LCode: local integration, formatting and adaptations.
  * See THIRD-PARTY-NOTICES.md in the repository root for license and provenance.
  */
 "use client";
@@ -31,7 +31,7 @@ import {
 } from "@/lib/mermaidRenderBudget.js";
 import { MermaidBlock } from "@/components/ai-elements/mermaid-block.js";
 import { DiagramPreviewDialog } from "@/components/ai-elements/diagram-preview-dialog.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import type { Theme } from "@/useTheme.js";
 
@@ -260,7 +260,7 @@ export const CodeBlock = ({
   contentClassName,
   ...props
 }: CodeBlockProps) => {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [isWrapped, setIsWrapped] = useState(wrapLongLines);
   const [mermaidPreviewSvg, setMermaidPreviewSvg] = useState<string | null>(null);
   const [mermaidPreviewOpen, setMermaidPreviewOpen] = useState(false);
@@ -382,7 +382,7 @@ export const CodeBlockWrapButton = ({
   ...props
 }: CodeBlockWrapButtonProps) => {
   const { toggleWrapLongLines, wrapLongLines } = useContext(CodeBlockContext);
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const label = title ?? intl.formatMessage({ id: "codeBlock.wrapLines" });
 
   return (
@@ -418,7 +418,7 @@ export const CodeBlockMermaidPreviewButton = ({
   title,
   ...props
 }: CodeBlockMermaidPreviewButtonProps) => {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { mermaidPreviewAvailable, openMermaidPreview } = useContext(CodeBlockContext);
   const label = title ?? intl.formatMessage({ id: "codeBlock.mermaid.openPreview" });
 
@@ -464,7 +464,7 @@ export const CodeBlockCopyButton = ({
   const [isCopied, setIsCopied] = useState(false);
   const timeoutRef = useRef<number>(0);
   const { code } = useContext(CodeBlockContext);
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const label = title ?? intl.formatMessage({ id: "codeBlock.copyCode" });
 
   const copyToClipboard = useCallback(async () => {

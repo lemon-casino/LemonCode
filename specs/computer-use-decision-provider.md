@@ -17,7 +17,7 @@ UI-TARS 通常由远端或本地 OpenAI-compatible endpoint 提供，但 codec �
 
 ## 输出契约
 
-解析使用固定版本 `@ui-tars/action-parser@1.2.3`，并在其输出之上做本仓严格校验。只接受一个完整的最终 `Action:`；provider 归一化结果还必须明确以成功原因 `stop` 结束，stream 必须实际收到这条最终 `finish` 事件。提前 EOF、`length`、`content-filter`、错误或其他终止原因即使前缀恰好能解析也一律 fail closed。多个动作、未知动作、缺字段、非有限数、越界坐标、解析剩余垃圾或同时出现原生 tool call 同样不执行任何输入。文本方言里的 `Thought` 只作为 ZCode reasoning 展示并按正常历史持久化；adapter 必须标记其为 UI-TARS 合成内容，并在下一次 provider 请求投影时删除。它不是 Anthropic thinking、OpenAI Responses reasoning item 或 Chat Completions `reasoning_content`，不得伪造 provider metadata，也不得覆盖或删除同一消息中真正由 provider 返回的 reasoning。
+解析使用固定版本 `@ui-tars/action-parser@1.2.3`，并在其输出之上做本仓严格校验。只接受一个完整的最终 `Action:`；provider 归一化结果还必须明确以成功原因 `stop` 结束，stream 必须实际收到这条最终 `finish` 事件。提前 EOF、`length`、`content-filter`、错误或其他终止原因即使前缀恰好能解析也一律 fail closed。多个动作、未知动作、缺字段、非有限数、越界坐标、解析剩余垃圾或同时出现原生 tool call 同样不执行任何输入。文本方言里的 `Thought` 只作为 LCode reasoning 展示并按正常历史持久化；adapter 必须标记其为 UI-TARS 合成内容，并在下一次 provider 请求投影时删除。它不是 Anthropic thinking、OpenAI Responses reasoning item 或 Chat Completions `reasoning_content`，不得伪造 provider metadata，也不得覆盖或删除同一消息中真正由 provider 返回的 reasoning。
 
 支持的方言：
 
@@ -68,6 +68,6 @@ UI-TARS 每个决策请求必须携带同一 session 最新的受信 official fr
 - 模型数据合同在共享 model properties 中增加可选 `interactionProtocol`; provider overlay/序列化保留该字段，UI 只在高级模型配置中暴露枚举，不按模型名自动选择；UI 与 provider 完整配置边界同时拒绝缺少图片输入或文本输出能力的 UI-TARS 配置。
 - generate 与 stream 路径共享同一个 codec；generate 只接受 `finishReason:"stop"`，stream 必须见到唯一的成功 `finish` 后才发一个 final tool call，不从 partial `Action:`、提前 EOF 或非成功 finish 提前执行。
 - generate 与 stream 都必须让 UI-TARS `Thought` 对 UI 可见，同时在后续 provider 历史投影中只剥离这类带内部来源标记的合成 reasoning；剥离后为空的 assistant 消息不得进入 wire。Anthropic Messages 请求不得出现空签名 thinking，OpenAI Chat Completions 不得因该 `Thought` 出现 `reasoning_content`，OpenAI Responses 不得出现伪造 reasoning item。
-- provider wire 投影必须保留每个受信 Computer Use 观察的完整内容契约：PNG 栅格、紧邻其后的官方 `zcode_cua_frame_ref` 文本，以及同一工具结果中的 UIA/AX 树文本都不得丢失。该有序媒体/引用配对和树文本必须在已登记的 Anthropic Messages、OpenAI Chat Completions、OpenAI Responses 三种 wire 上可被模型读取；Chat Completions 即使把媒体后置为独立 user 消息，也必须保持 PNG 与 frame-ref 的相邻顺序。
+- provider wire 投影必须保留每个受信 Computer Use 观察的完整内容契约：PNG 栅格、紧邻其后的官方 `lcode_cua_frame_ref` 文本，以及同一工具结果中的 UIA/AX 树文本都不得丢失。该有序媒体/引用配对和树文本必须在已登记的 Anthropic Messages、OpenAI Chat Completions、OpenAI Responses 三种 wire 上可被模型读取；Chat Completions 即使把媒体后置为独立 user 消息，也必须保持 PNG 与 frame-ref 的相邻顺序。
 - 生成的 `node_repl` 调用包含每 cell 必需的官方 SDK bootstrap，且只调用 bridge 暴露的 Computer Use 方法；title 为用户可读短句，不含实现术语。
 - 测试覆盖九类动作、字符串转义、坐标映射、无受信帧、消息角色/toolName/ref 邻接伪造、非法 authority 边界、多 Action、未知动作、原生 tool call 冲突、generate 非成功终止、stream 分片/提前 EOF/非成功 finish、首次观察、动作后同 window 观察、中止、权限拒绝、50 步上限、`finished` 收口，以及 Anthropic Messages、OpenAI Chat Completions、OpenAI Responses 三类 wire 的二步请求投影不携带合成 provider reasoning。

@@ -8,10 +8,10 @@ import {
   databaseMigrationFactsSchema,
   type DatabaseMigrationFacts,
   databaseStartupErrorDetailsSchema,
-  zcodeStoragePreparationFrameSchema,
+  lcodeStoragePreparationFrameSchema,
   type DatabaseStartupState,
-} from "@zcode/shared";
-import { resolveDefaultZCodeAgentCommand } from "@zcode/services/storage-startup";
+} from "@lcode/shared";
+import { resolveDefaultLCodeAgentCommand } from "@lcode/services/storage-startup";
 
 type Phase = NonNullable<DatabaseStartupState["databasePhase"]>;
 const workerMessageSchema = z.discriminatedUnion("type", [
@@ -118,7 +118,7 @@ export async function prepareSessionStorage(options: {
   preparedPaths?: Set<string>;
   observePath: (path: string) => Promise<void>;
 }): Promise<void> {
-  const command = resolveDefaultZCodeAgentCommand({
+  const command = resolveDefaultLCodeAgentCommand({
     workspacePath: options.cwd,
     workspaceKey: options.cwd,
     presentationSurface: "desktop",
@@ -162,7 +162,7 @@ export async function prepareSessionStorage(options: {
     lines.on("line", (line) => {
       try {
         if (line.length > 65536) throw statusError("transport_closed");
-        const frame = zcodeStoragePreparationFrameSchema.parse(JSON.parse(line));
+        const frame = lcodeStoragePreparationFrameSchema.parse(JSON.parse(line));
         clearTimeout(firstStateTimer);
         if (frame.method === "startup/storagePath") {
           if (pathReceived) throw statusError("transport_closed");

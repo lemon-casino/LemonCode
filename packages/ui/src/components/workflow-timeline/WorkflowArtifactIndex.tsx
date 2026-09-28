@@ -9,7 +9,7 @@ import {
 } from "@/app-shell/workflow-artifacts/artifactPresentation.js";
 import type { PresetLabels } from "@/app-shell/workflow-artifacts/presets/index.js";
 import { cn } from "@/components/lib/utils.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { WorkflowCompletionArtifact } from "./WorkflowArtifactTile.js";
 import { PILL_STAGGER_MS } from "./WorkflowTimeline.js";
 
@@ -58,7 +58,7 @@ function WorkflowArtifactLine({
   /** tooltip 覆盖（侧板把工作区出处放进来）；缺席时是「种类词 · 标题」。 */
   title?: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const title = artifactDisplayTitle(artifact);
   const kindLabel = intl.formatMessage({ id: artifactKindMessageId(artifact.kind) });
   const hasDetail = artifactDetailText(artifact, labels) !== undefined;
@@ -148,7 +148,7 @@ function WorkflowArtifactMoreLine({
   enterDelayMs?: number;
   testId?: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const openable = onOpen !== undefined;
   return (
     <button

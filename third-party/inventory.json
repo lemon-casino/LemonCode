@@ -2,152 +2,152 @@
   "schemaVersion": 1,
   "inputHashEncoding": "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
   "scope": "Production dependency union across current workspace projects, copied source/assets and native tools; not a per-installer SBOM or a certification of all licensing obligations.",
-  "noticesSha256": "461a33eb90d8cea3ca65de7bd3689650be4cde50d27a35d87848caa97a11c7ec",
+  "noticesSha256": "bb008781a7bffe794c694d4a8da4f392733342ee843174a8271454811fd985e7",
   "inputs": {
-    ".agents/skills/agent-browser/references/authentication.md": "e2c3b0f4a1dc1368dee821f03c000d818a48421d09f3872525dddffe73f2112b",
-    ".agents/skills/agent-browser/references/commands.md": "17522fc56d742663f47231ff06c4811abc87e12c7f78e11f94d253ddd540a909",
+    ".agents/skills/agent-browser/references/authentication.md": "03776b640f377e030c419aa5ad53ec4de5babe69dc37b495d432cd318727ca03",
+    ".agents/skills/agent-browser/references/commands.md": "532584b4c03bdbd47acde121edadbffd83a8f3a020f7750f923c6dd789302604",
     ".agents/skills/agent-browser/references/profiling.md": "15f1e6c7994d7471a274dc1476992d0ec178acd91f8b626e0d6f24a4dbef738f",
     ".agents/skills/agent-browser/references/proxy-support.md": "4c44ba60d9397523109fdbdf1d972739691856c5bf6bf1587fc58793c71b4671",
-    ".agents/skills/agent-browser/references/session-management.md": "b3bb0ed32a893f44aeeae761a85353f5341dd1dd49ebb534dd3db204e3fcf280",
-    ".agents/skills/agent-browser/references/snapshot-refs.md": "2cdef4267f5a2875dc5d1be62708e84f10339640a975a4e8339204604185b061",
+    ".agents/skills/agent-browser/references/session-management.md": "d8ae93e57687fe2df2ff4ce41406f7ec2874e5eb1a205a69fa9c906de0d713aa",
+    ".agents/skills/agent-browser/references/snapshot-refs.md": "3a49d7079b7c3ac4ef98e432c74de75e7b64a983d969683d5e6dca26d42b4f03",
     ".agents/skills/agent-browser/references/video-recording.md": "c2c12bd8c44e5d36fbb94cfc376180d47507d3c26a7ee8876b892fc700dcf332",
-    ".agents/skills/agent-browser/SKILL.md": "c0428aedede3e47001cf520c939ba565be9d3e4020d4300446e794da253311ee",
+    ".agents/skills/agent-browser/SKILL.md": "48bf7e4df90e1a7d8d4a89d86c16a8c9c054b132efd8f1a097b0a5efde92ba47",
     ".agents/skills/agent-browser/templates/authenticated-session.sh": "1fa9926c36dbe71191120ce067e5e3babe732cd1cc605020f3bd04dc430aa58c",
     ".agents/skills/agent-browser/templates/capture-workflow.sh": "bf3f3a2f8413773891d9fa400d2a2fddf6d73ffc7a9b2fa00f797f944171c3d5",
     ".agents/skills/agent-browser/templates/form-automation.sh": "b86836986d339f736b15ca78cf3d566e845a6293ae25a5b00aa520b837572650",
-    ".agents/skills/ai-elements/references/agent.md": "f9de9c9a904a65846e0e705adf541019ebfe510c4bdc3b3722ac4c8148bf201d",
-    ".agents/skills/ai-elements/references/artifact.md": "21c4f0a433d3e64f8863e9957ed75563313f11be15fc15fcd331e80f753315e3",
-    ".agents/skills/ai-elements/references/attachments.md": "71d7351467cae50ab894d0ac781298deb20e74b2f307da5cecbfe11a256b8183",
-    ".agents/skills/ai-elements/references/audio-player.md": "ff3c0adac2ba4dc6d071ba629e5d04289e8cd7abfaad3be13ff969c1aaa4644b",
-    ".agents/skills/ai-elements/references/canvas.md": "69db5278340094b7f158082671b70abf1332cabebdeb6f0c9e94316b0bfd2873",
-    ".agents/skills/ai-elements/references/chain-of-thought.md": "353a37633edf71c40d46d01a11a3c03fa4c3921fdbfd086658ac5ceb3f2f1a9e",
-    ".agents/skills/ai-elements/references/checkpoint.md": "617156e88061c14e5d898df2093e9fef393e1f49f495a4b2a4a5306ed901cc87",
-    ".agents/skills/ai-elements/references/code-block.md": "be3a3878666f5f37896d5c4151c72b0f7b004aa8123b9738604c855b9231716c",
-    ".agents/skills/ai-elements/references/commit.md": "7b4efa9541d14ced030b809e1d9147d5e41b1db55ce8314925871fc1ac967b00",
-    ".agents/skills/ai-elements/references/confirmation.md": "6fab079f37d91be4e8fe6c9134b1cba15ee35dff74538944c972e4a6b21b33d0",
-    ".agents/skills/ai-elements/references/connection.md": "955cb01d3f843de3fbb78b84830d48b17d416ab3883c65f7ead23838e29ad2a2",
-    ".agents/skills/ai-elements/references/context.md": "13675930dcf1abb9a1c990720674302d530e1624357f4469adef1673ad2f6e68",
-    ".agents/skills/ai-elements/references/controls.md": "f725d0fab596a028f4a4c0aaff5f7cfa66b93d933d54dfb708d6ea68f2300869",
-    ".agents/skills/ai-elements/references/conversation.md": "41eb2c6cb93147ff5f585569267034b6ceca6ba910bee5312aab79ce2368665a",
-    ".agents/skills/ai-elements/references/edge.md": "793651178ba276c5c370ef83fbb8bbe284e931a01f552748357469b94c818a6d",
-    ".agents/skills/ai-elements/references/environment-variables.md": "7e5f4a4760cffca941f8dede7541289f5ae127393c36fb8bb2b48afd031a0856",
-    ".agents/skills/ai-elements/references/file-tree.md": "27786cfcf132bd5f8e2d09fdee732b4dfaa09d1352b463040423c5297cfe6e8f",
-    ".agents/skills/ai-elements/references/image.md": "f46c8118dea9559eb691efac478cc3e45ec9c5770325de979408ba83f62138f4",
-    ".agents/skills/ai-elements/references/inline-citation.md": "eac6674922bb3a7175316b3c8abcd0f7b566853cb2866cb4734b66b6fad0cd81",
-    ".agents/skills/ai-elements/references/jsx-preview.md": "f2b333d662d8b152de1eef34c0ce557d5c1601bbb08c56241aebb468041bea41",
-    ".agents/skills/ai-elements/references/message.md": "ce7a734af755f446b29c724f45dd98706dfa8c60652fcf678df2ffe4e03acef1",
-    ".agents/skills/ai-elements/references/mic-selector.md": "d6079327967504d79c3cc02c1065c3df5f7c310af1fe0aea6d677859d878a9ba",
-    ".agents/skills/ai-elements/references/model-selector.md": "bb44732884f357b125c9effe01daef4ce657b0ca15742e188034089d56082312",
-    ".agents/skills/ai-elements/references/node.md": "6049a626814af312352cfa34568e8c3a4c1a311a66551dbc16c6d16fac2d0183",
-    ".agents/skills/ai-elements/references/open-in-chat.md": "c3816c6204dd29dcc19c336f3a646c1f242dff13e3cff0c7879f173633745c9a",
-    ".agents/skills/ai-elements/references/package-info.md": "cda7936e0920ce594c936b8f579d1894888570db6b88760fb6161a575c4327d2",
-    ".agents/skills/ai-elements/references/panel.md": "209b9a3498b4141241eb76e47cef28d34849839e32606366a548d7871b65a8dd",
-    ".agents/skills/ai-elements/references/persona.md": "b9df358f8d9f0ba852a4265ee3db098d59a4f71ddeca3bc799d0b3dd18c0e406",
-    ".agents/skills/ai-elements/references/plan.md": "f2803d6e3f474348b5355cbb677990e4361aa2f45f46f3742bcdbd959f5204a2",
-    ".agents/skills/ai-elements/references/prompt-input.md": "cc2542b066f231477cd71a4ae147f942eb259aca03d989b47030249c892652af",
-    ".agents/skills/ai-elements/references/queue.md": "52f6ab16b11fc52fe8f2c5aba8e979869af56ef4227a863974de0bd83d2c7818",
-    ".agents/skills/ai-elements/references/reasoning.md": "d1b528d27a9a32ecc1e4b16a8dc4edcd0bb5d005433241ab4f1f4697dc35d777",
-    ".agents/skills/ai-elements/references/sandbox.md": "31bc6c856d74efc2b7dad5523604804abfbf968b5aca4e25f04c73ba9b944f3d",
-    ".agents/skills/ai-elements/references/schema-display.md": "bde0677cfbdd6b7fc5ef1fbbf36d4dedb64e38000863be59293311a9c3dd4419",
-    ".agents/skills/ai-elements/references/shimmer.md": "6c288f321a03661fee880c60b59fe722467695fd11cfac25e4f12583b72664ac",
-    ".agents/skills/ai-elements/references/snippet.md": "2f23e696b584c48b91606a34ff6c3251d19994fe3e18bfdb655a5ff2bc210f90",
-    ".agents/skills/ai-elements/references/sources.md": "c06de3958602213854fcf4b70267d64ccf00fc259593f46f57426ecede97a64d",
-    ".agents/skills/ai-elements/references/speech-input.md": "073bdc7c6dd9b198b2a1c0dceb20b33f84bf7b8c7f2d91a356f8da29de408fe1",
-    ".agents/skills/ai-elements/references/stack-trace.md": "ed34d9c39eb99bf4c1e5638083007fba1c18047929150cf8463af31cf74f3c53",
-    ".agents/skills/ai-elements/references/suggestion.md": "6c7799a88efc2ca34b182f462dede0053ebd17999cfd3c98b4f585b82967566d",
-    ".agents/skills/ai-elements/references/task.md": "8247856f7cfac328ac391d17f4a3430d2d384f600fc7e08442973396b256406f",
-    ".agents/skills/ai-elements/references/terminal.md": "c80f9a94c395f2b7e7d012fea725200293afbd150450071b8c690bbe9d105fd0",
-    ".agents/skills/ai-elements/references/test-results.md": "b2493b2a38408ba995678d13de5edece7f22d5e63909370a64545e83194aff05",
-    ".agents/skills/ai-elements/references/tool.md": "7e8b05e820c3f8c4604b463ee3003c04ff96bb04bcdb144a25db32b392c7654d",
-    ".agents/skills/ai-elements/references/toolbar.md": "a4002655612f5ab0b1defcd42e0704f8e57419fb19fc03b6beb5b5e908de1c33",
-    ".agents/skills/ai-elements/references/transcription.md": "3ed06b2df882102ddd5156c1c929f86fbb4ae985dd5a38bf4b64142dbf48d62b",
-    ".agents/skills/ai-elements/references/voice-selector.md": "d02021e5aea9887dba6819a4da024972e895d7c6367861789856d51a308c6e17",
-    ".agents/skills/ai-elements/references/web-preview.md": "a34a8e92b09671694581244a1775ac28f795d28ae462ee90c7194951f319142e",
-    ".agents/skills/ai-elements/scripts/agent.tsx": "4652bca8c438d6c2714da6e13f42fe0f7a0a8ac9d99f52e02a4dd3e3efb2a2b8",
-    ".agents/skills/ai-elements/scripts/artifact.tsx": "6eb6b05e469c7457eaee524d8b79c1eb68f8fbbcfbbcd54b5f96c32daf2f9f28",
-    ".agents/skills/ai-elements/scripts/attachments-inline.tsx": "91a3ce9cfb1db246b9e6dc624dc9779e41c3a9ba73b18796df2955a342bf1b6a",
-    ".agents/skills/ai-elements/scripts/attachments-list.tsx": "d31b2696b7543d13b26f2c2b4884a7bcf44f07607d5c83b3c463373433603617",
-    ".agents/skills/ai-elements/scripts/attachments.tsx": "302c8f23a8a84fc596cee83f74901d541e425af1c375127a8a1cb77e71f44f6c",
+    ".agents/skills/ai-elements/references/agent.md": "b5261a6cc7c4d1473cf99c3f3c7d75198528c5bf67bb94545559257ef1e856cc",
+    ".agents/skills/ai-elements/references/artifact.md": "b9328077a17a475d8c6d4d622009de8e1276581e5141e9f19d0bdd1d6f2294f1",
+    ".agents/skills/ai-elements/references/attachments.md": "53117823d90703b6f5cec286a72a68e9df4684353d1c1a904d4dd11ad05842cb",
+    ".agents/skills/ai-elements/references/audio-player.md": "f75345947333dcc0362976a4dffaa287e7e2e77619e9c54e6280208156b18d5a",
+    ".agents/skills/ai-elements/references/canvas.md": "45c95ebd0b140086d0fcd289b0c2469bd6953ac0f04c60fceffec20b99ddf955",
+    ".agents/skills/ai-elements/references/chain-of-thought.md": "9a70f50e882559408acdc9e45dce7c9330d1b77b332e01c9dda079baf41619b1",
+    ".agents/skills/ai-elements/references/checkpoint.md": "8abc52a834caeb5abef74f98caf1bb08153f5a02f8c191dd4721f3688a1fbc0b",
+    ".agents/skills/ai-elements/references/code-block.md": "dd614d38bbe329e202fbf858f147d3040fd2c54d07cb0b8795459861d0dee107",
+    ".agents/skills/ai-elements/references/commit.md": "b4f13998691069fc60136519b5fd0e3f16e4f7efd53f37d84ce3538b5cc3bc67",
+    ".agents/skills/ai-elements/references/confirmation.md": "d5e482a63f3e0b3028c6fd28be4e208bc3e541c5ec9a499357da95fdfe6062cd",
+    ".agents/skills/ai-elements/references/connection.md": "4847f689add8f1f4dbaa9edd97026d0f53c5c964e6a6624cf6a51f1196544855",
+    ".agents/skills/ai-elements/references/context.md": "adecea8e008e55b9d30ece6b5bc4d193ece64ee0e7f37bb60c00bc3e787abbb1",
+    ".agents/skills/ai-elements/references/controls.md": "7cc18f94ac5c53d7e65673ec2f7b67592c3c2bf5826b1730d4fa99c5d5fb453a",
+    ".agents/skills/ai-elements/references/conversation.md": "d7a1d7ed8099cc965e865568926c13f57cc947d056a92e79e37cdaa1d997d8e2",
+    ".agents/skills/ai-elements/references/edge.md": "280c58625178d08ed5aa0b90e21f40debbedd068a8d3f808239dc19289830e08",
+    ".agents/skills/ai-elements/references/environment-variables.md": "a7ae72f523ed1f135686311e00a8f7cc34c8131e2cc9fb7fa79a85a0057ebde9",
+    ".agents/skills/ai-elements/references/file-tree.md": "5e6d93c621a884b12897823f9c57e89ca443762236d9c6fddc4f268075aeec4e",
+    ".agents/skills/ai-elements/references/image.md": "79cc9b503a1f06be8465ff862a883f0cb0beb399c676d5092125513cfbd59caa",
+    ".agents/skills/ai-elements/references/inline-citation.md": "8562d5aea468ab60ee790604fcb058bf6f2908162e7043a1f3519367a23aafb5",
+    ".agents/skills/ai-elements/references/jsx-preview.md": "bcba613ff75facc01af80c7980922142b57e63619865372e79d68090bc1dc304",
+    ".agents/skills/ai-elements/references/message.md": "b60a7d47a7c80b2a2a429bc3d76a8b367bbf079190de256774120af0e53a37b3",
+    ".agents/skills/ai-elements/references/mic-selector.md": "d5f0a158b8df481237c3d95046d962c058b0efbc1708864f1c86efd1cfae59b8",
+    ".agents/skills/ai-elements/references/model-selector.md": "dd20394cc9b49c80bb341499ac9e5252384c0bbf3b4973dd14f5e801fffa9d0a",
+    ".agents/skills/ai-elements/references/node.md": "d473004bbbe212fde96165cddf317de73bf761fdc6111be632e34dc442df48b0",
+    ".agents/skills/ai-elements/references/open-in-chat.md": "07a7df222663a06941f82c38e7e7f1de2d5f019363064468438edc31ac7a9ad9",
+    ".agents/skills/ai-elements/references/package-info.md": "463d6c9be68df5b5dcc075de73ea9e377e7a6deda51cc8f8d9f2c021fee87727",
+    ".agents/skills/ai-elements/references/panel.md": "a5f6f6b5cd1c1c3013fb099dfd9ab7ca0d5522f0d3087e3dc44de1091420dff8",
+    ".agents/skills/ai-elements/references/persona.md": "cc666f5c1c9dbcd45f57124166d90fe25f5bf9120eed719446acd4c3e18f4656",
+    ".agents/skills/ai-elements/references/plan.md": "88b1bf6b663a039f8ec3885de03837e484450d5ce77da726fee0798ff98f4e54",
+    ".agents/skills/ai-elements/references/prompt-input.md": "4cdf65b48c257db99e3e8898a20b43dcd3aa5adfc5690deb4a31ac18b7649062",
+    ".agents/skills/ai-elements/references/queue.md": "49f1017d054f3b646b062931463c3b1cfbda552b41ab2c214cfc7869d3a18dab",
+    ".agents/skills/ai-elements/references/reasoning.md": "11cba3d9c453dd502036b13b66953a51998255d3acd3cdbb208e11ab820c3607",
+    ".agents/skills/ai-elements/references/sandbox.md": "e2be9ddb39a08ca64af0efb9920af9b588decb47097aa4340a0816daec782b48",
+    ".agents/skills/ai-elements/references/schema-display.md": "f3f1caed8ad66d93b66c886adf7704688a4bc75f3bf292d562930bcfce715de0",
+    ".agents/skills/ai-elements/references/shimmer.md": "52dd2210525ee1f574ff5c66a7f2748202aef4c0d2f0335ae0e180a9866d7eda",
+    ".agents/skills/ai-elements/references/snippet.md": "4559c368d5d3c99e3636bca9a98a7cd5381db627dc2492e27f553c26f8598ffc",
+    ".agents/skills/ai-elements/references/sources.md": "e0a0f7ff6e0719d8e35fb5a97f1b567d583239a624a8c932f6920ee1c89fdb9b",
+    ".agents/skills/ai-elements/references/speech-input.md": "c2a748a09e35341d82a8b9e3d66b61ed79d76d6c5a82527a53aee4a914aed78c",
+    ".agents/skills/ai-elements/references/stack-trace.md": "0fa4703025ebfd5172a9ac1fffe604c97423d9d4b030d3c99815132ec2e6d7db",
+    ".agents/skills/ai-elements/references/suggestion.md": "0c8a91867facb22bdaebf54e2f14867e7e87ff142948e772e0a1c4b9542869a6",
+    ".agents/skills/ai-elements/references/task.md": "b74cf60001f8374fad414480c9d0592bf2eb4d69b324c69423fadf33f02802c7",
+    ".agents/skills/ai-elements/references/terminal.md": "7c846bfd7c4cbe71b9236903f0a847aec9296fcea97ebe8f4a94d50fff01e81d",
+    ".agents/skills/ai-elements/references/test-results.md": "84db62a8b2edd6fbb5ed007d433bf9b7f2843e6243fc83277b0c98bf3815d285",
+    ".agents/skills/ai-elements/references/tool.md": "b5dd4a62b540f5b27f5b4f9fc206d8447ed93f20ccb736a4d4f697a31568ea06",
+    ".agents/skills/ai-elements/references/toolbar.md": "4419e027f26e19e0597769a793258c902bfecbcfd78257b381a2515d053ec5c2",
+    ".agents/skills/ai-elements/references/transcription.md": "3de14c9212f661ef22a0e470a40dc708c77a1636fffda192da9bab228dabb24e",
+    ".agents/skills/ai-elements/references/voice-selector.md": "e4a8047d096088b078741ce3ff311b88e2258142098f1cfef06b544bb667ced7",
+    ".agents/skills/ai-elements/references/web-preview.md": "51676e30da04cf2a2040b6fdb4c6825480ae8d74298e9dbe42b7b87d21679531",
+    ".agents/skills/ai-elements/scripts/agent.tsx": "0442345b522ca020037c9a855fbf3769f9e889de4ee091908984d397020cc5ec",
+    ".agents/skills/ai-elements/scripts/artifact.tsx": "b9c2b35a723b81b92745fc0ee22c6d28cbe18db51dd97bf839537ba9c443fe8c",
+    ".agents/skills/ai-elements/scripts/attachments-inline.tsx": "cd7949651c981750ed78ae1397f66bb847101f83f78d232b81228a97c0c3360f",
+    ".agents/skills/ai-elements/scripts/attachments-list.tsx": "75d0bfcf13fe1e31fc83b786a44a344488e3388034b0d83f98ea709673651168",
+    ".agents/skills/ai-elements/scripts/attachments.tsx": "4fc57fbd9e4432e5fc186724b7f9bb9617275689c2b994b67a5134be04fa8215",
     ".agents/skills/ai-elements/scripts/audio-player-remote.tsx": "59040a9e79898a8de0fe88813bca035d7f2abed684465826f4bc322d4c52a2bb",
-    ".agents/skills/ai-elements/scripts/audio-player.tsx": "4260e7e1385607cc64cb5bad56862c9b674d9c872a71fcd67d8f98e2c4f24e57",
-    ".agents/skills/ai-elements/scripts/chain-of-thought.tsx": "bb57dc04e298197fc3c29265244d37b761a42b47c414a1cfc9347b15bca6ab1a",
-    ".agents/skills/ai-elements/scripts/checkpoint.tsx": "cce86147dbb00aedac1bd53ae03889a2a781f19e22680247400bccdd5179f004",
+    ".agents/skills/ai-elements/scripts/audio-player.tsx": "6079cf4fc0639b6b947871d7bbc35ccfa66c1b77329e2ec2ab88dfe3dc929807",
+    ".agents/skills/ai-elements/scripts/chain-of-thought.tsx": "43ec20cc4c4b45840506cf7dd2924c6c8470fe4b38e08fc0931b39c6ce7bc438",
+    ".agents/skills/ai-elements/scripts/checkpoint.tsx": "4d508e3c5e71f53ef8592428c84f15df2fb093be7ee0cd245080093c7744480f",
     ".agents/skills/ai-elements/scripts/code-block-dark.tsx": "6f3b11047fa9d2cab32fe650c3067f2f37a40d5e8cac101fa2fc6699283b836a",
-    ".agents/skills/ai-elements/scripts/code-block.tsx": "f075b34dda31ff10fe0311e72f4b4f86fa7bcda41daa3b0fc33fac06a0997340",
+    ".agents/skills/ai-elements/scripts/code-block.tsx": "7dec9e252f4da5fe2135aeb3329e2ebbd2069841b234182adcb994611379f462",
     ".agents/skills/ai-elements/scripts/commit.tsx": "4efda612212b526704286c7771478628365b1c58fb3a54a5ad46400c83b092a4",
-    ".agents/skills/ai-elements/scripts/confirmation-accepted.tsx": "3f9a05a286f3dd5c1abcdf58a3246e851e5b864f5124f91a78722ae8dfb5ffe2",
-    ".agents/skills/ai-elements/scripts/confirmation-rejected.tsx": "9714c9e0e793f72a999a6b204e62a61e212b6953b4fde5ccc08b40d42d58eefe",
+    ".agents/skills/ai-elements/scripts/confirmation-accepted.tsx": "d90f776db54a4a9474e2d4c9a67beaaf982ad003829f9cf84a21c574fa65608f",
+    ".agents/skills/ai-elements/scripts/confirmation-rejected.tsx": "e1f87c0d789bb15ce963a8dbd07554cdbcda8a3d57e8f21462d85be977f409a0",
     ".agents/skills/ai-elements/scripts/confirmation-request.tsx": "d3c74a6d4ea699d33054d7e56d6d8ff71678b329c83cba832ea97f6a5aa44df2",
-    ".agents/skills/ai-elements/scripts/confirmation.tsx": "86b2c0591239aba027968994c8dcead4f7c39c9e887c30e086794c5addaf50b8",
+    ".agents/skills/ai-elements/scripts/confirmation.tsx": "31431eedefde860419a5d4986eaebd7423c3ddd7f54fb856d7824632298af85e",
     ".agents/skills/ai-elements/scripts/context.tsx": "c6e8c87e38a44c5d794f31c60e3a52381f215018fb85b80e55a45dd10502ad1f",
-    ".agents/skills/ai-elements/scripts/conversation.tsx": "4cbf2ee7c20d0cdbcaa3651571e48c71093f843ee961c2aed7976f1b5c90adea",
-    ".agents/skills/ai-elements/scripts/environment-variables.tsx": "ea300510455f0c7796bcb73aa63ddb5b92471e56cdff5218e64705af9e43649a",
-    ".agents/skills/ai-elements/scripts/file-tree-basic.tsx": "a4d73b01a0c702cf2dcfeb70eb44ee3fd7a3eaded0c8e18cecf7d4a1949a7c0c",
-    ".agents/skills/ai-elements/scripts/file-tree-expanded.tsx": "b306a5e2a322bbf9819068af868d35b2eec6a4a4a7d4621631ba7cef6ce9a7fd",
-    ".agents/skills/ai-elements/scripts/file-tree-selection.tsx": "e44d4a9c8f927de42fc45973670bc57968649e41b6180959870eb7b673410b2a",
-    ".agents/skills/ai-elements/scripts/file-tree.tsx": "b9a93b001df3e2277d7ec5f3656e134c56a0b9e6bd717516578fe5e2c763ae55",
+    ".agents/skills/ai-elements/scripts/conversation.tsx": "ca5cf54859ef907d17ed5baae45b12fd7c8fce7c9657e5b24144303f5ccaf55f",
+    ".agents/skills/ai-elements/scripts/environment-variables.tsx": "17a8f1b97163d96a0b0798d0cea3ca3a38d0bb7e21f77898eebedabaa35f0003",
+    ".agents/skills/ai-elements/scripts/file-tree-basic.tsx": "46c6a68f2c01bb27103d9b57840b6120516c9509135b2d07c436959a7b12341e",
+    ".agents/skills/ai-elements/scripts/file-tree-expanded.tsx": "72971b32d3cddd9bb47d418471ed3d834f1c9e363b26fae0b09279c9c5fef052",
+    ".agents/skills/ai-elements/scripts/file-tree-selection.tsx": "8947703d71a8cef0ea45456882dfb4909277207a803085ff1ac02dc50657227e",
+    ".agents/skills/ai-elements/scripts/file-tree.tsx": "b48adeaa587e13b96d6efa96de575e4adb84845c18f892192a5c9e3fa92786ce",
     ".agents/skills/ai-elements/scripts/image.tsx": "ad20593bd14c3027e11822843ddbd9a19ccc8e7bb8cd8c0a82cfc8ed1786a8b4",
-    ".agents/skills/ai-elements/scripts/inline-citation.tsx": "138f25f95e8755f7ca9c6dee771de3b456497d0f1a3bdcffca739e32f6ebe61e",
-    ".agents/skills/ai-elements/scripts/jsx-preview.tsx": "cd12d68a3b1d3829f12344b0e0dbf2dd530efc290b739bd4a1db8de53812001e",
-    ".agents/skills/ai-elements/scripts/message.tsx": "5fb8c27ce87118c01321b503d08584e34865e670fdc97b108025a9801eb52cd7",
-    ".agents/skills/ai-elements/scripts/mic-selector.tsx": "d6f3286e964b56974da76fbf59a5e2fd57c73664a13c15b1a89c0245c1f98a97",
-    ".agents/skills/ai-elements/scripts/model-selector.tsx": "eb9288a81beb8f796fff55fcfdd50dce65f3310724d6655c701b01d996fd64a7",
+    ".agents/skills/ai-elements/scripts/inline-citation.tsx": "f12031db566dbe4c766e694b391f226e2fce95dfa4128beeffcdcb79a31b7373",
+    ".agents/skills/ai-elements/scripts/jsx-preview.tsx": "799008e52b89992057db0616b3db65ab91df540ab0358eb8e9e19a06fccfae92",
+    ".agents/skills/ai-elements/scripts/message.tsx": "9c485a6161cfe5ab07e6e0040a42736c26dc483c874c6039c065e73dca794122",
+    ".agents/skills/ai-elements/scripts/mic-selector.tsx": "e7925c05103afbc341a7830096828c26149911e7de6fa79dc73d89c3211afa27",
+    ".agents/skills/ai-elements/scripts/model-selector.tsx": "5a01e19548a8588414c0058c507fd2f490bc690d15c6741e22805caa26da8b02",
     ".agents/skills/ai-elements/scripts/open-in-chat.tsx": "7ce522e30d9c031c378452ae93c788a208b962a7168bdfc55041aa0a414649b4",
-    ".agents/skills/ai-elements/scripts/package-info.tsx": "ecb4353cb7be530982386d20a5e8bc05edb03f1f82cade1ba160ff6591661dfe",
-    ".agents/skills/ai-elements/scripts/persona-command.tsx": "e2eb4db562e98234cd7effa2ef66e9b182efd32978735eeae0eaa6538627455b",
-    ".agents/skills/ai-elements/scripts/persona-glint.tsx": "90c4fba773c3a6131a5fc2781687361f32309bc01257874bc0b88972d0c82dc8",
-    ".agents/skills/ai-elements/scripts/persona-halo.tsx": "cfff11663822ba29cf17e937f559225524571177b5d5105317cd806de2d41e30",
-    ".agents/skills/ai-elements/scripts/persona-mana.tsx": "f45b03ab02c674d12bcd5e4f19d9f9ac1e00bb6dd1578b9016bc3a7ae6361c78",
-    ".agents/skills/ai-elements/scripts/persona-obsidian.tsx": "98ab8979309de064ddfc1f6c0614d7f49d44179c3c9918dd39adfd4e7b2933e2",
-    ".agents/skills/ai-elements/scripts/persona-opal.tsx": "72526c78a119012c7ff6eb1e71db38315b7564daee09b78f9afe51fc144d3286",
-    ".agents/skills/ai-elements/scripts/plan.tsx": "ae4b842a18ea0e05e609e91928a997ad72b26fde3dfbcfdc826af54009092adf",
-    ".agents/skills/ai-elements/scripts/prompt-input-cursor.tsx": "830fc1114e5f63923c2c3d1aadbcad08a3076cd9ee0c94eee3ca5e531b5f6d0a",
-    ".agents/skills/ai-elements/scripts/prompt-input-tooltip.tsx": "a2579e6732d03855b8e2a1d21dcc9be0c92ed22e2fe2dbd15313e1fe5b67b919",
-    ".agents/skills/ai-elements/scripts/prompt-input.tsx": "8745f07e5e5484c6964e501b44ded6726a84befcabf13e31e9f8bde281193b20",
-    ".agents/skills/ai-elements/scripts/queue-prompt-input.tsx": "b430e19e29555adb134bfce575be67635dfa66c37254690533b0f7164080236c",
-    ".agents/skills/ai-elements/scripts/queue.tsx": "63a3cb48bf768c2e9e65b7fed5da7c5cf2870ed4b163497f9e0a2d7a105467d2",
-    ".agents/skills/ai-elements/scripts/reasoning.tsx": "746a4518f0e97c21126bfb99ff2745efb7ee038f5fe40e0e9cb969fbb88f468c",
-    ".agents/skills/ai-elements/scripts/sandbox.tsx": "9697a45db552c4b1cfdebb84e3409fb922264617efe4011e87b2f181b6c11dab",
-    ".agents/skills/ai-elements/scripts/schema-display-basic.tsx": "f1aa3d60b116975b546ea8de536a35ea41f1131704ab18631eeee9a1f1973eb0",
+    ".agents/skills/ai-elements/scripts/package-info.tsx": "0c9079b9877d2ececefca3ba082a987418ab3b47349aab79aa860a2f4028762f",
+    ".agents/skills/ai-elements/scripts/persona-command.tsx": "09271f01e4d26bbacae7a20679826b4ed645145bcd4c1a5cc7f0fae6685d595b",
+    ".agents/skills/ai-elements/scripts/persona-glint.tsx": "6c80830602dd1d62f88c708794370bc11989d43e51ff0762666113ccebc505f3",
+    ".agents/skills/ai-elements/scripts/persona-halo.tsx": "72c81c4553de2b72dca78dcf7f63cbb025b0644f66b235ec497cf0713e4d5052",
+    ".agents/skills/ai-elements/scripts/persona-mana.tsx": "36a8f7fce637d0360c6017211ffd8bcef7f74e8ac52ed14e5e0c2d57f110506b",
+    ".agents/skills/ai-elements/scripts/persona-obsidian.tsx": "991c9153313206c352a656376737bb2fa83cc7290928e7b8935007e8217794ed",
+    ".agents/skills/ai-elements/scripts/persona-opal.tsx": "8acdea80552213f4c3ada3304310e7044e4565a166a340dd867197a192b5e7b1",
+    ".agents/skills/ai-elements/scripts/plan.tsx": "e08c443bdce68bd87a120d7bd01cd4bf86a63599851780046d3c281e66e69518",
+    ".agents/skills/ai-elements/scripts/prompt-input-cursor.tsx": "9cf8cfdc7d2c5e22169be6292bd75de24a32ca5e287afb58856369e56356f0f3",
+    ".agents/skills/ai-elements/scripts/prompt-input-tooltip.tsx": "a7520243b4b52853abcee3ca32926243d1dbc95b3a6e72c792e2201b5a236c08",
+    ".agents/skills/ai-elements/scripts/prompt-input.tsx": "7f761bdf1a5b4b956cbb6a1b7bd6f45583969f35c13d2c864e31a8367d5ee7ba",
+    ".agents/skills/ai-elements/scripts/queue-prompt-input.tsx": "a0d9376114a38212b7eb19ad72cf710995d6e6073794cd27bca58a20fec87be1",
+    ".agents/skills/ai-elements/scripts/queue.tsx": "e4a90812f05d1b2aa282454185f6d4f78c6c5d2d07cebcc8a4d6096c9710ee15",
+    ".agents/skills/ai-elements/scripts/reasoning.tsx": "8951c1b8bc08b2e7c8db5f111f7291fc146b95594a2330145f107f0939019808",
+    ".agents/skills/ai-elements/scripts/sandbox.tsx": "6b1a90dee3f914eef87b71bf1d94744d6607062cf209e1a44dda8b9ea24272a3",
+    ".agents/skills/ai-elements/scripts/schema-display-basic.tsx": "a0677935902d8ac810b642135c194bf0b305821304e1c7c21b66bce898478d65",
     ".agents/skills/ai-elements/scripts/schema-display-body.tsx": "941dd26ed94847bb792bb8b1f5459e344e0d820dcdc51804254d2385dd683751",
     ".agents/skills/ai-elements/scripts/schema-display-nested.tsx": "03d519460a04c9ab9d67176e8161efa5db97c786f4c53a3121eda672f31ac30c",
     ".agents/skills/ai-elements/scripts/schema-display-params.tsx": "84883f2a17f783edb9c22993da407f2e731073eddc431a15980fdcf030d64590",
     ".agents/skills/ai-elements/scripts/schema-display.tsx": "721570b85a7c425f003f1adfac4fe00356bc2e4fead6d9c16283fe3f4c85a64b",
-    ".agents/skills/ai-elements/scripts/shimmer-duration.tsx": "9516126c70e218070b27e73ccfe3a5cc897210429085e674912503f81b11453a",
-    ".agents/skills/ai-elements/scripts/shimmer-elements.tsx": "e3e140b3092da392a9d206fb05577fd52ecc7b3445e43fcd153ab665a22f893b",
+    ".agents/skills/ai-elements/scripts/shimmer-duration.tsx": "b5e3942e2f507503f68736676e6750c904fdc0d79d93153c2c0232e04329c530",
+    ".agents/skills/ai-elements/scripts/shimmer-elements.tsx": "9545963a18d2dd8a5ef669b8dedacc43cf3cd10bd6a1a9845e0fd99c8933a426",
     ".agents/skills/ai-elements/scripts/shimmer.tsx": "5b1c83ba49bdaffecc58b8eb5fc2d1f730ea6f6872688fd6dead9d7bd53f8a4b",
     ".agents/skills/ai-elements/scripts/snippet-plain.tsx": "2b6f48a76914cd1db3ca6bfbf159d0f83f45311f4e0d0cdf1b34a235ae2db8d6",
     ".agents/skills/ai-elements/scripts/snippet.tsx": "d078c8d7b61479ea70ae078ba56839df5b455aa571b2de76e347ae428509ebe4",
-    ".agents/skills/ai-elements/scripts/sources-custom.tsx": "1950a2eef553a3a6760dc0747ee210004f5fdfce3bbd109d97314fd10f0f041c",
-    ".agents/skills/ai-elements/scripts/sources.tsx": "9d900d34186a22a86161adea4b17db6ded84c55dc7d7c959cb0c123c614c78f8",
-    ".agents/skills/ai-elements/scripts/speech-input.tsx": "62b51b9c7ff854f46de48bba724540b4499d9e234bac19823556a04d7e923462",
+    ".agents/skills/ai-elements/scripts/sources-custom.tsx": "f0dbffbfef0e5a39c5f3fcdd97c93fca8505eb76fa6d752416e62c56eace6278",
+    ".agents/skills/ai-elements/scripts/sources.tsx": "aa29fa00c34e6871db45c946d2aa7ff5a236f67fb7998bbcf0f7da726d75cb32",
+    ".agents/skills/ai-elements/scripts/speech-input.tsx": "e113bae3a2ab9b58a6e7655c9afbc78feff4f5a3d4025f9318a47eb76e77cf5b",
     ".agents/skills/ai-elements/scripts/stack-trace-collapsed.tsx": "ec57c9bda182cde7a1e1b120d4fb54b6f35c94b0ec238e792dcd694fa1d4f443",
     ".agents/skills/ai-elements/scripts/stack-trace-no-internal.tsx": "2a57c6a862b5e933b0888d3f049a61391d19951274e9d9357ae09007c08cf0e4",
-    ".agents/skills/ai-elements/scripts/stack-trace.tsx": "362df6a397a1e1e39794b6d558b91424883c7b7cea2b884900c7705f9785a020",
-    ".agents/skills/ai-elements/scripts/suggestion-input.tsx": "6d7f0f71c78d30940452090d956ca0cc1bf050290695a907413638b0fa0d2ebb",
-    ".agents/skills/ai-elements/scripts/suggestion.tsx": "360fd9a71ef95092cb84457549a8d35799d69198971e010b1c6793afeed0fcdc",
+    ".agents/skills/ai-elements/scripts/stack-trace.tsx": "5b31d0e9ba789e69c7b13adf1bc8ca5d573e8c10b4d7fe46eba094ef74eedb9e",
+    ".agents/skills/ai-elements/scripts/suggestion-input.tsx": "a0dc2c3909ea00827e7eac9321c9f71dd350b2b2e8c752ec0ad2022d489dee42",
+    ".agents/skills/ai-elements/scripts/suggestion.tsx": "ba519010c57383627a5bb75eeb399fa80be180857e1b61a699a8adba08faec6d",
     ".agents/skills/ai-elements/scripts/task.tsx": "07b6f65581068b0afcd5df23973f2fc72880c0f224b8817730a145fc7b175e34",
     ".agents/skills/ai-elements/scripts/terminal-basic.tsx": "573e2adf152d193e5a0b932ac185fb31d76dceec4407bfef5bf1e786c4abf92d",
     ".agents/skills/ai-elements/scripts/terminal-clear.tsx": "8e9e7724453269168c1e3c32a858b42be7dda5d3a7eaaf9c7d142240ce7f54eb",
     ".agents/skills/ai-elements/scripts/terminal-streaming.tsx": "6add64118a77cf615522b713d39c657007fb9a9b8b26eda5d3c524a5c7b13944",
-    ".agents/skills/ai-elements/scripts/terminal.tsx": "0338bcdc8a126afcab4d949b68e1f1b9dedea8d68bf6a57253f1c00303c7f44a",
+    ".agents/skills/ai-elements/scripts/terminal.tsx": "c36741ef43822d205af06d60efc05d610e0beaf90b7802dfd2649da828aa1509",
     ".agents/skills/ai-elements/scripts/test-results-basic.tsx": "d31b0c4922897dd092a1317dce9d73010d8780db554ede29065e8683a8d9809c",
     ".agents/skills/ai-elements/scripts/test-results-errors.tsx": "d88841b9ec3226a27c9a630ec749e292dbff4db89b8885b409b1bd681f18541b",
     ".agents/skills/ai-elements/scripts/test-results-suites.tsx": "7659130e2cb9ec20d70bdaceb30a1b020619b5bdbc4850afc16a024615c63f11",
-    ".agents/skills/ai-elements/scripts/test-results.tsx": "a05f119fde7d3628638e05ec0263b3a3c3ed58122071308d94f4c6872e388649",
+    ".agents/skills/ai-elements/scripts/test-results.tsx": "b55d3934fa33498c85dbc7bba968433189d75095703e076b91cb218fe3321d87",
     ".agents/skills/ai-elements/scripts/tool-input-available.tsx": "28496f812bc4706c28d11fd9abd0baca199585f98334488db3b9f6bea815fd68",
     ".agents/skills/ai-elements/scripts/tool-input-streaming.tsx": "2a6d469911ddaef5eebbec445574c2a81d1c9e77b2264acd8f1fb1f34b732ffb",
-    ".agents/skills/ai-elements/scripts/tool-output-available.tsx": "c12fdf8c979c2787354f31cecfcb256b48ee3ba1a998ca4f492e1436e02e8199",
-    ".agents/skills/ai-elements/scripts/tool-output-error.tsx": "ce9dd43f57838bf6695cb103eea94bfbca631a4f304eaa6090bcd237c53ac092",
-    ".agents/skills/ai-elements/scripts/tool.tsx": "fc90d270ff13394977dff59b5628007c9d6566890efaaf677840fd00ccd52575",
-    ".agents/skills/ai-elements/scripts/transcription.tsx": "cbf190132b6d882875c85b92b39431cb2f3b31f10f2fba9218fda9336dad0158",
-    ".agents/skills/ai-elements/scripts/voice-selector.tsx": "055b96858f543a94acf07c4e4497bdad574cb21bc5d10f74eb363ee59a1dc083",
-    ".agents/skills/ai-elements/scripts/web-preview.tsx": "0e26bf5587a9fdbf07ecb1d08ab236c81ab94378bfdf7d5a45a0e910ee7e9bbd",
-    ".agents/skills/ai-elements/SKILL.md": "4e7f9f75c0e765bc4929b4cb90a8adac84939d6edb60251fca0b9582601f7473",
-    ".agents/skills/dogfood/references/issue-taxonomy.md": "fa3eaceec546c2918e5a0d5c861bb61f9fb47cfb44dde31a16c98e16f8f143e6",
-    ".agents/skills/dogfood/SKILL.md": "984bd5aa263aa91c818394459f90d46477ddfad07c49cc2f61db2ece3f626564",
-    ".agents/skills/dogfood/templates/dogfood-report-template.md": "8b5c1672e32354c10c045f68f59f1103891fdf6e1410ed7d3c8220a00d8f9465",
-    ".agents/skills/electron/SKILL.md": "989a15a88409e079d3dff3f9b7d41bf653e565a4f1e46854dac6669c116aecb4",
+    ".agents/skills/ai-elements/scripts/tool-output-available.tsx": "8b582ff71d48c299b5cfe695e2ef372a19c55bdf74971e401857850489d3cae3",
+    ".agents/skills/ai-elements/scripts/tool-output-error.tsx": "895df1f2d96a6611f16219272cf18dd770a1e4fabe427fc970168668f6fb17b1",
+    ".agents/skills/ai-elements/scripts/tool.tsx": "0f2752b29dca696b60efd3d75ff49b893edad6d0ed76f8f897e87c04134edb39",
+    ".agents/skills/ai-elements/scripts/transcription.tsx": "cf543085dced61552e92d00d192d90767eb210dc9666f93511cbcfed9c911ecc",
+    ".agents/skills/ai-elements/scripts/voice-selector.tsx": "8fb4359c32592e91f4333ea99b9349cd09ddf7e9518049e29654299959bc36bc",
+    ".agents/skills/ai-elements/scripts/web-preview.tsx": "be61c6a49e1adf9c19b41492347113dd03250b95159a976031a65854a28e614b",
+    ".agents/skills/ai-elements/SKILL.md": "b00ee612d4511a62a8c9fa407eca1df43cf29dfd8a011739d89f82ee28d0518f",
+    ".agents/skills/dogfood/references/issue-taxonomy.md": "75ada2e8cfb95260c4b489fc16932cf4a63a31d4849db94e1f8dc5be0e1dde74",
+    ".agents/skills/dogfood/SKILL.md": "b34f63c21e0db43a1752cdc2e372ad3fc2d8862a6ad529814cece766d7b1a614",
+    ".agents/skills/dogfood/templates/dogfood-report-template.md": "e6facf4dc88c9dbe73e0db570a957374c28ad1fc4c272b53febfee99d58dfe87",
+    ".agents/skills/electron/SKILL.md": "ca1fdc021601629d04e7f547dcf6d58d233021593a6917ebfc391eae62bfca78",
     ".agents/skills/react-best-practices/AGENTS.md": "9d0d1c4f1922a65ddead8b869b4f2653bf3c10c84b1c8c9dd2507e0a4a4c82cb",
     ".agents/skills/react-best-practices/metadata.json": "c4e18bac3290fbe1b471a605867d4df68b03144ea26b8befdbe8f9d8fd124354",
     ".agents/skills/react-best-practices/README.md": "e49f5e0088d47dab6687a7d501e9f3b23ce8ce7e8a8e428a2fd590e582f966da",
@@ -224,37 +224,37 @@
     ".agents/skills/react-best-practices/rules/server-parallel-nested-fetching.md": "4d9c44e579e1286013acf5cb5f65b04297d2b68909f44f8163804656514a78ff",
     ".agents/skills/react-best-practices/rules/server-serialization.md": "4d025c42043c56e6355196a2e885d168cdb15248d0797146c9db838a57b34946",
     ".agents/skills/react-best-practices/SKILL.md": "b7d246acb440bee224ab33614979a5b8debe5fdb13d0304967aa19358eb69d9f",
-    "apps/zcode-cli/package.json": "5448571773de8094dd0cfe85a135e7db3e50d777200382c6d3c30ad367694d75",
-    "apps/zcode-cli/packages/adapters/package.json": "ae636cb208da4ba825392781d4bc7655c3b3930d10379fcdfc5ed9bcc74152d8",
-    "apps/zcode-cli/packages/bootstrap/package.json": "03466459735416bd4f6aced619f1d1963a485894de8ee3f9524740f822aa121f",
-    "apps/zcode-cli/packages/browser-use-plugin/package.json": "b7ecf0a222844419da9a27c66f6bcc0e17bdbb2db187183133c4fb0932b3d59a",
-    "apps/zcode-cli/packages/cli/package.json": "81a0c3dbdff4fb6598ac5b7336578de102c54eef914e06f0f3a65bc1b6e734b9",
-    "apps/zcode-cli/packages/contracts/package.json": "7443f402f58df867ad5f776b2e94823d2b3bb235b16d0155f7a939ba181aa3ac",
-    "apps/zcode-cli/packages/core/package.json": "cbaf74d40104738af6421e9a0ea1c55394f23ace83faadd1fff6cb96d0826fd2",
-    "apps/zcode-cli/packages/core/src/tool/handlers/generated/bash-command-registry.ts": "60fa5acd9f5c357f4e51b1d1e944ee39da92680e4bc5e98dd708f1457fcf612b",
-    "apps/zcode-cli/packages/debug/package.json": "16e6a402d995d3a56ed6e97665cd81f0dd22f03280350d5e0a70c14a2cc4b2ca",
-    "apps/zcode-cli/packages/dynamic-workflow-runtime/package.json": "f8dab813c3b9f236b593d4d04f1b78e511e15d586cb7dcdd74147e7d1c22ec5c",
-    "apps/zcode-cli/packages/dynamic-workflow/package.json": "aac5891463ddeb419ff6f73fc95b7c407964b06f8aeff66b6a9ba4d999164f99",
-    "apps/zcode-cli/packages/i18n/package.json": "025e4620d80f39cac3df06249866fcaed531615b6b8a4c4a727c4557066f7b1b",
-    "apps/zcode-cli/packages/lemon-workflow-plugin/package.json": "3b9f9ffebb506d15c58a90dbbd804ae60c553f42ee6f37e0965e3f0ebccb7314",
-    "apps/zcode-cli/packages/lemon-workflow-plugin/skills/caveman/LICENSE": "94fe75d355887f84ee7eefca68e06d8d082a23dad47a8e1f58a94d98900edf5b",
-    "apps/zcode-cli/packages/lemon-workflow-plugin/skills/caveman/LICENSING.md": "84e8dfe4096a9989640ed5d544355cc8878a874346245ec3b643bd5001c7b106",
-    "apps/zcode-cli/packages/lemon-workflow-plugin/skills/caveman/README.md": "e59aba7147058f0b90e9961a50ccd2e76a6883524711567c0d9348bd1f9cd74d",
-    "apps/zcode-cli/packages/lemon-workflow-plugin/skills/caveman/SKILL.md": "0bf09a0a9a017d004a81d4b693e5a2d830e1a28230a5885df773e1ed9c0571cc",
-    "apps/zcode-cli/packages/lemon-workflow-plugin/skills/ponytail/LICENSE": "fb1bc6909ac3ef82d5c22106e32ef682b0cff66788fa915fb9b53b15c9d2f3ab",
-    "apps/zcode-cli/packages/lemon-workflow-plugin/skills/ponytail/SKILL.md": "1316a2f3f95741d2300b116fe0c2d81ce4a9568656ed0a62643f54aaf09957f2",
-    "apps/zcode-cli/packages/node-repl-host/package.json": "1f593b58799ead7927275a71bcda496ad4861c491ae639b721830594171fa96b",
-    "apps/zcode-cli/packages/shared-types/package.json": "6616fb50cf5b4b854273d09411f38857c17df5d4b4abebdfe5d9601e7341e451",
-    "apps/zcode-cli/packages/superpowers-plugin/LICENSE": "a37e0e9697144819e1d965176ac4ae5bc3fa02d11e7812036bbcadf6dafe2400",
-    "apps/zcode-cli/packages/swift-bridge/package.json": "958674fcd44c789564ee672b0e6c687f1f900f4286174280700ddfb442d23906",
-    "apps/zcode-cli/packages/telemetry/package.json": "98a3f23459cde469988c15262f1cf92521ddb213370ac1a8d82d641982a6a012",
-    "apps/zcode-cli/packages/tui/package.json": "097d5896b0b37a455eafaf015f21113dfbea7b05bb3f92666f423f7753720eb1",
-    "apps/zcode-cli/packages/zcode-cua-plugin/package.json": "b51cece2ca1b64af3bd866403b5b370c74f73c5e4e7f8338952e47a93222e063",
-    "apps/zcode-cli/tools/prompt-trajectory/package.json": "7f161fc87f36691f01eb8c2034bd89cf28107da36db02bc20e76f059edd36af6",
-    "apps/zcode-cli/tools/typescript/package.json": "23d7e50d2089d205ce3022c5bafbb6b3e31d000e41ac678a5934e0b72627cf3a",
-    "package.json": "6619cc64a758f11c7e6602dda64b47b1ccbcdbfc6c4a4273b92a64a2b2c6f67c",
-    "packages/client/package.json": "e76f441549130dc3e5e68072a36b6cb9044e19a6625f1e813f19a4def2b1b689",
-    "packages/desktop/package.json": "1a7da93549be6591eb298a7b315bb659c7701093fe3bea2ecf22694685918be1",
+    "apps/lcode-cli/package.json": "15c7c043d61508b74660d26deb515351cb8564f213b6f6e159343e0bcbb3e61b",
+    "apps/lcode-cli/packages/adapters/package.json": "6f0f045ddf3a549459a233b909ad817bf74db97979ae39fdfe3021e39850ec04",
+    "apps/lcode-cli/packages/bootstrap/package.json": "a9a499d43c2081b7c9eca4f6acdf6c02fd1335b0472a48a4e232980e45be00af",
+    "apps/lcode-cli/packages/browser-use-plugin/package.json": "2434064a2dc441850f30e5087c091f55f47290b8e9e6608aa0471ad4c61f16d3",
+    "apps/lcode-cli/packages/cli/package.json": "e4fc2d36a7ffa5200132584d303e8ecc98a4e488e6566d635efe1f30844293dc",
+    "apps/lcode-cli/packages/contracts/package.json": "ef808b9e4604720302578ec8b168e897cf27fd026d95063af8310032afecffb5",
+    "apps/lcode-cli/packages/core/package.json": "893c9d22fbbade4ba7e8b64855880e3ad480ec0fce85354c893cc5e098b6d9e4",
+    "apps/lcode-cli/packages/core/src/tool/handlers/generated/bash-command-registry.ts": "60fa5acd9f5c357f4e51b1d1e944ee39da92680e4bc5e98dd708f1457fcf612b",
+    "apps/lcode-cli/packages/debug/package.json": "16e6a402d995d3a56ed6e97665cd81f0dd22f03280350d5e0a70c14a2cc4b2ca",
+    "apps/lcode-cli/packages/dynamic-workflow-runtime/package.json": "4e75c72bf57a1a86c0a99fe46be49ae11f9b88b698f24ee14e3c6ad49d7507c7",
+    "apps/lcode-cli/packages/dynamic-workflow/package.json": "ee2df00089565896b65b619003a08def2f2003bc27a2d59fdc00d7696da048dd",
+    "apps/lcode-cli/packages/i18n/package.json": "65da7979171302940d83661b617a51a3200a74ecfe18946626f97473e9be2e7c",
+    "apps/lcode-cli/packages/lcode-cua-plugin/package.json": "55de52ff70a54a091881d4da12331e589e103214ce13b4237bcc66990fde13aa",
+    "apps/lcode-cli/packages/lemon-workflow-plugin/package.json": "9249d2aa868c783f6d614a7edbf13cc45d069e04ec50192c8711a08340d64b79",
+    "apps/lcode-cli/packages/lemon-workflow-plugin/skills/caveman/LICENSE": "94fe75d355887f84ee7eefca68e06d8d082a23dad47a8e1f58a94d98900edf5b",
+    "apps/lcode-cli/packages/lemon-workflow-plugin/skills/caveman/LICENSING.md": "84e8dfe4096a9989640ed5d544355cc8878a874346245ec3b643bd5001c7b106",
+    "apps/lcode-cli/packages/lemon-workflow-plugin/skills/caveman/README.md": "e59aba7147058f0b90e9961a50ccd2e76a6883524711567c0d9348bd1f9cd74d",
+    "apps/lcode-cli/packages/lemon-workflow-plugin/skills/caveman/SKILL.md": "0bf09a0a9a017d004a81d4b693e5a2d830e1a28230a5885df773e1ed9c0571cc",
+    "apps/lcode-cli/packages/lemon-workflow-plugin/skills/ponytail/LICENSE": "fb1bc6909ac3ef82d5c22106e32ef682b0cff66788fa915fb9b53b15c9d2f3ab",
+    "apps/lcode-cli/packages/lemon-workflow-plugin/skills/ponytail/SKILL.md": "1316a2f3f95741d2300b116fe0c2d81ce4a9568656ed0a62643f54aaf09957f2",
+    "apps/lcode-cli/packages/node-repl-host/package.json": "74b837f0593c4ab93dcf8f3bc75226e8acf413040144e343335846e06f57666b",
+    "apps/lcode-cli/packages/shared-types/package.json": "df6a494ec434948909f996ca1f492bb6930698d8b5f4a7e3e80e9802b5dfc860",
+    "apps/lcode-cli/packages/superpowers-plugin/LICENSE": "a37e0e9697144819e1d965176ac4ae5bc3fa02d11e7812036bbcadf6dafe2400",
+    "apps/lcode-cli/packages/swift-bridge/package.json": "e5808e11242a08f2e5eef890acfa9aa0f9754a4c78e6dd2ccf0f74f4d5e6466d",
+    "apps/lcode-cli/packages/telemetry/package.json": "12e5e84601f6cda183df0b7e6044c586fb92099b486d902bed8c8ecd0be967aa",
+    "apps/lcode-cli/packages/tui/package.json": "51decf6f5c4286c694c4b15ef0ca16129dee0283951b4929c43e0ed9aa12f468",
+    "apps/lcode-cli/tools/prompt-trajectory/package.json": "6ab89bba2dba20f07cf913e34acb4bda59d9563d196995a25f867f34281df02b",
+    "apps/lcode-cli/tools/typescript/package.json": "2f33883fe33cc9d878a3d6d78a0d262eb0db134fc02042ed7563c3dc50d797f7",
+    "package.json": "b46687de3c3c30a7e36ff48d2c47f541576295853b48d9f171ac01b8e0797438",
+    "packages/client/package.json": "6cfcb57428c4728a98b7cf4504d29304cf6e9e547e136f0ab1edcef8f821b452",
+    "packages/desktop/package.json": "b68388d3a85da919fbb58ff079ee0f0b426eaef17fe6f35b8d3553f6065ba826",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
     "packages/desktop/src/renderer/public/material-icons/abap.svg": "1335bd7eb9a0ed49deb622330d680c2e97731726a7a5eee8e4f46dc1e5db4de4",
     "packages/desktop/src/renderer/public/material-icons/abc.svg": "d1a68020e8f020ef29dca5f94dc8613b7ae8fb5b212d8b1cc23b0f975ac7acda",
@@ -1401,15 +1401,17 @@
     "packages/desktop/src/renderer/public/material-icons/zeabur.svg": "8bb7c84934202e9b24842ddb1ca69d316b9d69f1a4f5ebc9bbcce78eb2cea1a7",
     "packages/desktop/src/renderer/public/material-icons/zig.svg": "37be0ce02cf471b18d86150b3c38e80caa7c16c49a15078e7db6f1f41788d101",
     "packages/desktop/src/renderer/public/material-icons/zip.svg": "dad79a45f756542d37abd422502ecfbea15720b92ea1c9d80ef0439ab6b9448a",
-    "packages/formal-proof/package.json": "ccfbc2908b846d96a053ba348b0cabeccf76a6dffc126a0326e228f3af92aaaf",
-    "packages/model-option-map/package.json": "3c4f3581fda415d2567e9c33be2fbecb6fe2160fddd2a5a2265012bed977b77b",
-    "packages/provider-node/package.json": "e736a208a0049c30b61f75c0361a9ef15f70cf75938468ef43271395c7ad9e47",
-    "packages/provider/package.json": "dee1d0a66f94d922685a647af9972def6482e2d2d96cfa4e1facb402b40af7d0",
+    "packages/formal-proof/package.json": "985a07a2002614e4d0e96811829325561e5483acadaf02b47a684345307d66d7",
+    "packages/lcode-cua/package.json": "71c133dbc92de8416208114f48adc7ce005ddfd2704ff2a23b9e03e0d234acbb",
+    "packages/lcode-server-cli/package.json": "9d824802017245a14e355315d5e659a572e7a94fcd540ca9437c189df8614b85",
+    "packages/model-option-map/package.json": "a9f720efdb353f556d01ea866bb15ac0201c155fb305a4246e6a323384770aba",
+    "packages/provider-node/package.json": "001a5fa26669ff9df0e2158575340b6ca6ef30bb8b4bfdd7188e14f27a928a8d",
+    "packages/provider/package.json": "6a29c25053ce0e7c19ffa331eddcb6f0f66a5c6d3952f4136686bcfceafc14a2",
     "packages/rpc/examples/01-basic-ipc.ts": "bb4423c1642918846010f9307262c379536ca9541d79df6ebba120b5cf792f3e",
     "packages/rpc/examples/02-proxy-channel.ts": "66dda9aec12cd46da8a56560cb765a3de590917bbc40f329185e6fd05a388fff",
     "packages/rpc/examples/03-ipc-server-client.ts": "9b873f565b4a3426ee3a5338a975cb6ab76e29af094cf6bbee4f7030f872f758",
     "packages/rpc/examples/04-remote-connection.ts": "db268ab9e21a6e20eff2a16ce7c88de571d6688a6f46aa9eb0508ca734bcdc1c",
-    "packages/rpc/package.json": "5f8bb83df4cecc0e93490b1990517d67c4bd65fcc4fdb8c18f2c9baf45477eed",
+    "packages/rpc/package.json": "8139af31fe3eb863365496b91395536f9f078f743db573d1bf25fbe50fad39a4",
     "packages/rpc/src/buffer.ts": "6bc6a44e6abd088f72d57616d9556d78ce078b6f3813bf75402dde386781492c",
     "packages/rpc/src/channelClient.ts": "d2504929253ebb18f020e6f35e51a3741190558875d18a47192f9af78ca3f8ac",
     "packages/rpc/src/channels.shared.ts": "e2d3ce17dfb23d53ea8fef6cd4dc87bef4558ff6e72b458e50fd456b0b2a6ae2",
@@ -1422,61 +1424,61 @@
     "packages/rpc/src/logging-middleware.ts": "20edfd8e5d054097186f2498ec4e9c08c61740ed003fc69eecea8176a15fe025",
     "packages/rpc/src/network-telemetry-middleware.ts": "18a7cde46e6c65e0138af0623d07bf883ce278acf44654bc5144ecaadd36a536",
     "packages/rpc/src/persistent-protocol.ts": "80609595b89188272d743e557502c6cad3858f828acae31c2ef64206bb3c8978",
-    "packages/rpc/src/protocol.ts": "aafc0c098c75fcba4519fad2ecbee7e025d5d8a27c15c87e5ccb4ca6ce554670",
+    "packages/rpc/src/protocol.ts": "4743279ebe11deb978f3d67d2ece3503bcb618f0c01314908f53ee1505b085cd",
     "packages/rpc/src/proxy-channel.ts": "1f81da70701f1ae95856c3a94abca456fd8352e7860013609d19f567bfdc94fb",
     "packages/rpc/src/remote.ts": "a11e072d5df7e1c1ce64814a68f72afc081246b364f0da409b5c9d22bc815957",
-    "packages/rpc/src/serialization.ts": "e949418e1cd17cc863c147fc8d1ff15237e1b5f0cb8e3344fd2a9ccfae9d54e7",
-    "packages/server/package.json": "0a6119239c88af79bc766e3c023eb4437105a0d35b03ecca1137d1e688e60a90",
-    "packages/services/package.json": "8d7757a8d8328ef827925cb730c28ce21fed20e27ddd83f2aae7b447229bd17a",
-    "packages/shared/package.json": "6394da63b39d6bf4cabadf803a4f26cf9758de944ac6e0cc5c4f0dc303f66b77",
-    "packages/shared/src/zcode-protocol-v4/wire-codec.ts": "ac2494a3acc795c809c94ee9393f50271a9c2a0fd33813459e5ab93842ceef75",
-    "packages/ui/package.json": "220e916077604008bb6ffea19d6bdf7148c4b09472bea251248a230ba3c69bf5",
-    "packages/ui/src/components/ai-elements/agent.tsx": "830e7ea9e927de1524851337f1d35bda0e5690e3e4fa307fff854b60006b16c7",
-    "packages/ui/src/components/ai-elements/artifact.tsx": "7d73f08864d6280ac86c77d32e56d0e702f8aa6208e5910820139d0fb08ce64c",
-    "packages/ui/src/components/ai-elements/attachments.tsx": "7a847ce6c8ac9dc630481a82dd20a5e9e00949bf710a41fea1d32a18123011d8",
+    "packages/rpc/src/serialization.ts": "9720698411e17c31869c4bc974c381e4201bf3d51cf8e849ea7375eb54399dc6",
+    "packages/server/package.json": "47bc3b110296320aaa4ea77eb4707107111e3be8da4026ffd4c1bc844d0d9c4f",
+    "packages/services/package.json": "02f5914184b2cd36e70e7f87fa6941e924b7e1cecda6c77c85abcee678b9e1e9",
+    "packages/shared/package.json": "ddd531f64a2f324b493ee7fec2885ca7c6ae46b113e9a3422588ad997007bc8c",
+    "packages/shared/src/lcode-protocol-v4/wire-codec.ts": "4e895f7c3ea4067ad9540649e779661055c46c09be7247fb33533489f814cd2c",
+    "packages/ui/package.json": "9a8b8b435afccf93662d16b2d112c6c5953dcee389d05bf211f011b76a479737",
+    "packages/ui/src/components/ai-elements/agent.tsx": "76c6ca3e47de7ff7f727edc9e5bf9279ccf5d767819cc5371cf20b1d283125fd",
+    "packages/ui/src/components/ai-elements/artifact.tsx": "fefcf7d1a7756f3204a9289bc8effe0674d992df427364d0041d5d8cee2dabc3",
+    "packages/ui/src/components/ai-elements/attachments.tsx": "dcfa06920de3bdbf4c9051e1c63ed91e5754ffa4e8a778b2484a79e1cd01a086",
     "packages/ui/src/components/ai-elements/canvas.tsx": "7bc92905e97c182c9a2f52b421a4d70414c8700a66039af9a4466587f74d2687",
-    "packages/ui/src/components/ai-elements/chat-loading.tsx": "b75d4398d778179f78209debde63547410d76e01cdaf3887f60b13ef9a35331f",
-    "packages/ui/src/components/ai-elements/checkpoint.tsx": "72459f6fb8668e9245ec32542f92c7de809cc9b5a366bb44ab08f91ea4e1255b",
-    "packages/ui/src/components/ai-elements/code-block.tsx": "ae4f975537ebb9c8ef905b7b9de39bc37180f81511bffc027dc4da1929037f18",
-    "packages/ui/src/components/ai-elements/commit.tsx": "e9f5dcffac4ec7702b6d77b41cfc28fab54f0595375dd2c992dc972c0a9e74d2",
-    "packages/ui/src/components/ai-elements/confirmation.tsx": "bb39ae89d5550f4ffcbb36e73dc8b75d1c9930f0fdba28cc8ff135d753b65a9b",
-    "packages/ui/src/components/ai-elements/connection.tsx": "6e6cf65efcef612a3d14f5fda69e27009bc06046d1f7aa842a1a93b9142a7f81",
-    "packages/ui/src/components/ai-elements/context.tsx": "b5bb03fc3f58707cbe29c10b5b7730142137cbea905a17da544c1cd290780e75",
-    "packages/ui/src/components/ai-elements/controls.tsx": "3123e9cb668171780944fb91632c68977617ae4ef46312540c1f7ddecc3fc568",
-    "packages/ui/src/components/ai-elements/conversation.tsx": "1fda6a3c198ae104e8736b70992e9ce8549f667a942246d9a9762be8f4431e3a",
-    "packages/ui/src/components/ai-elements/diagram-preview-dialog.tsx": "cc142f8808370897dfc40cd7aea3f1aa42fd07ce471a7fbb284d9ae728b1299a",
-    "packages/ui/src/components/ai-elements/edge.tsx": "661a25632f0879b8363f22e6b99198a6d37ad622781c798c090fcad9b591b181",
-    "packages/ui/src/components/ai-elements/image-preview-dialog.tsx": "47d4ecdefc84d39f2deda93119ce400b36224276bb6c7dab6a914868914ac8de",
+    "packages/ui/src/components/ai-elements/chat-loading.tsx": "f13fe9e29775b4e8cfc058f3021c66d6506123f0f53a02e843ca8ed23881a661",
+    "packages/ui/src/components/ai-elements/checkpoint.tsx": "ea31a16bdc6d7fedea3ffff99ff900aed84bda1dff211466fdef2bcccd2ad02f",
+    "packages/ui/src/components/ai-elements/code-block.tsx": "f03cd9204ccd9191c0cb908854c6b89bd0f357535854d68ab68db1961d727904",
+    "packages/ui/src/components/ai-elements/commit.tsx": "57cc52241eea3920b3e63477e8a47d289de57628ee89d396f49428eaba57743a",
+    "packages/ui/src/components/ai-elements/confirmation.tsx": "4a1693a6c9bf09f354b7324aba576b8fb955033aa214344e42cfb05bc6386d79",
+    "packages/ui/src/components/ai-elements/connection.tsx": "e6729f466f42adaf231cd5f227f7af982baeede93784743178c46e86a4370450",
+    "packages/ui/src/components/ai-elements/context.tsx": "e6365859c135848e2b0ebcf30418c460cc1bdd9b8b99d374ba1c92cf34c9a3df",
+    "packages/ui/src/components/ai-elements/controls.tsx": "0b30ada54959b867c65f7de5e4952abdb0f1d8eba9fd3432d92467637435aaef",
+    "packages/ui/src/components/ai-elements/conversation.tsx": "b31e60c84ae740b6d3ecc9ea3537d30f6a223c033f9756e1a4cf463e03555c49",
+    "packages/ui/src/components/ai-elements/diagram-preview-dialog.tsx": "d07c5b8872fa3328b747a836eaf7de172fee7e3c7ecdb5193d24f8ab9e8ddc37",
+    "packages/ui/src/components/ai-elements/edge.tsx": "ae9887130a408ec2ef3e17248532b7a373fe7561160e0fff4a242630c3a4e57e",
+    "packages/ui/src/components/ai-elements/image-preview-dialog.tsx": "561b506a6ef733c9a2855b975ac5a502650b82bb89e2560e0db6bf93128baab7",
     "packages/ui/src/components/ai-elements/image-thumbnail-gallery.tsx": "185766c039c6c4852ae12360360f7cf29e844a1463358b8cc2c6de972dcdaf43",
-    "packages/ui/src/components/ai-elements/image.tsx": "1c6f9595ef814c4ef9648607562fa77a3007f7d857571f8e107a24022fe83e24",
+    "packages/ui/src/components/ai-elements/image.tsx": "2c9261c73aeb51b4c26388e0eefa0c39c997c9b5e359b09224dc17f8bfcf1101",
     "packages/ui/src/components/ai-elements/markdown-blockquote.tsx": "0c76599780a464136703d40d07172dcc62730dee1ce01a155100cf4712440a7f",
-    "packages/ui/src/components/ai-elements/markdown-image.tsx": "aedf797b19d4f5d37fc7e8833b2824a9d1a1a4fca440b69519b43a43eb122e90",
+    "packages/ui/src/components/ai-elements/markdown-image.tsx": "e5cc13f156f0b0e6ac145235b4d3d6f83ff2c83bb7db64d9480009797a2c5712",
     "packages/ui/src/components/ai-elements/markdown-list.tsx": "ecf50ad4f48cd460ddcf90db7b463671f915d8c22c7cb8e7760ff3b02282c7f1",
-    "packages/ui/src/components/ai-elements/markdown-table.tsx": "612d78092eaeb950931070fff2a194a244e84c5c2d63c6df645e6b91391953da",
-    "packages/ui/src/components/ai-elements/mermaid-block.tsx": "a4e668cf18b90ac960d77ed0c2edb47f84dc8c60a3a0f93f570b05daff46130e",
-    "packages/ui/src/components/ai-elements/message.tsx": "d725ea454d0c4039f5e29b5f9649b91f491837336884a5bc056f94a898bdf357",
-    "packages/ui/src/components/ai-elements/node.tsx": "d7b68c41717a509bd9063f0a9fc0c4525ceb2b23bae4028bcd49ec949fc6268f",
-    "packages/ui/src/components/ai-elements/panel.tsx": "9c345ecb217fbb6a3a2b49b93ca81b746f249d18b9223470fbf511c0a9a37bb7",
-    "packages/ui/src/components/ai-elements/persona.tsx": "c796e1aa0f85395138eda5e4c7ffc7dac5321690b3f6949f73c7b3ebe8d52808",
-    "packages/ui/src/components/ai-elements/plan.tsx": "576b2ee1a9546f9e30f2512bb2e097babca71ca35a2820c0be4c93caef600622",
-    "packages/ui/src/components/ai-elements/prompt-input-actions.tsx": "198df66e5883016d542b4dfbfb12d050992febf53ccdcd712a289fbdd7a48a56",
-    "packages/ui/src/components/ai-elements/prompt-input-buttons.tsx": "b1c2a6ded9a2866946d08691072a4dacb59ecdce761baba7ee06f02e1e117185",
-    "packages/ui/src/components/ai-elements/prompt-input-primitives.tsx": "2412c8a868445a649264724ef8c6b75a97eb87aa3f790ca012c8e6a8b460a632",
-    "packages/ui/src/components/ai-elements/prompt-input-textarea.tsx": "4798574a8f2fc8584a1c5585d9dd878dd19d76bd05603e77948ec12180649def",
-    "packages/ui/src/components/ai-elements/prompt-input.tsx": "68a92e07c27774e9c1d63bccd12ec3ff38b4f89dd245b20bfffbbd052e6101c4",
-    "packages/ui/src/components/ai-elements/queue.tsx": "9d84f6e15708519ec65e258d9843dc5f4d76f106fc85155f7dcf51f89474b695",
-    "packages/ui/src/components/ai-elements/reasoning.tsx": "a10a38c7b3ca633e9b5480ad94f9c7a1fdd52bc5526ae0801e3e6ed141f2b604",
-    "packages/ui/src/components/ai-elements/sandbox.tsx": "f521400dbaebe4c2a2fbcdcb8c18f98980c566169233beb137b22a093b44bbf0",
-    "packages/ui/src/components/ai-elements/shimmer.tsx": "5d06ffdff80a13453a0b61b67f588c48d838a20d9be2cd319ca2a97d441b3127",
-    "packages/ui/src/components/ai-elements/snippet.tsx": "6f369f0bb3308166ccd55f39dd542f7315873c5bd6de2491ffccc26b0700edfe",
-    "packages/ui/src/components/ai-elements/sources.tsx": "cd5a9a20dc50b66f9d114b9a0ced1dd2eb8815040cccd4c577b386ef18bed435",
+    "packages/ui/src/components/ai-elements/markdown-table.tsx": "bd5beecfa71848f00e0f2a629675ec2eaaf28bb2a378a81391696c754d6383b7",
+    "packages/ui/src/components/ai-elements/mermaid-block.tsx": "7642a8ee837c3413db522251453b2b694cee7148a0b9dfa1788d81d3a44af49a",
+    "packages/ui/src/components/ai-elements/message.tsx": "f846955f290d057a57294aeba2c31c330c8f7a43288baa5d8f2ae3dc8d86a89e",
+    "packages/ui/src/components/ai-elements/node.tsx": "0de310841f8ffa377bbaccfac9f9e2e46305b293999c0e0d6e325b8c61e8b706",
+    "packages/ui/src/components/ai-elements/panel.tsx": "da29f7977ea822a3bde967e0b6a53559ab5ab51c843fc58e7f91c7eccf55f30a",
+    "packages/ui/src/components/ai-elements/persona.tsx": "96a9dc510ebc36f0eaaa37a22b1707ad50975c27f3bb7d465fadce7fd0937300",
+    "packages/ui/src/components/ai-elements/plan.tsx": "23c65532f2448958797872ed0f534cf5ce7b49d70a7a5251ead63b4411e32aa6",
+    "packages/ui/src/components/ai-elements/prompt-input-actions.tsx": "9cb2c03a0c45bef1cbf3132c76bf5f409f758f1ef94c62188c8e1367968be9e8",
+    "packages/ui/src/components/ai-elements/prompt-input-buttons.tsx": "d680725bb754c7826a26df794cd7124d71fc57eae2c921c5fdba2c766594e122",
+    "packages/ui/src/components/ai-elements/prompt-input-primitives.tsx": "74d60adeab48f7e198df801c035fb6f1d1afa88be4d89b8f9f7d3373e6203428",
+    "packages/ui/src/components/ai-elements/prompt-input-textarea.tsx": "cf67a2958add44c8cfa1e8a292997cc65d7ac25c9c64ad3c2a2ddc63bdf147f4",
+    "packages/ui/src/components/ai-elements/prompt-input.tsx": "b6296020cf0329df4118986a19559fadccae3330fd61d9737d0160fed6a2733c",
+    "packages/ui/src/components/ai-elements/queue.tsx": "f00af4e40e3a2bb5b905204192d4495c3f93da735775fd328576b7f97f21e869",
+    "packages/ui/src/components/ai-elements/reasoning.tsx": "0845de78f944d1ee8849230865b56669c12f6f56b5c9ff0008756d1e41c21fd6",
+    "packages/ui/src/components/ai-elements/sandbox.tsx": "d8eb3855fb4581cdd1e846ca7c158e7ad7248af4816a85d574c660ccdc5c6827",
+    "packages/ui/src/components/ai-elements/shimmer.tsx": "315bc7470299082083e98a976fab68e51e4df51d50410f8404a772835e211e62",
+    "packages/ui/src/components/ai-elements/snippet.tsx": "eb4bbbb6a75e5cc456ba5504c7e6aaccdf8b1676f1b8e11b49ffb027b3c85ca9",
+    "packages/ui/src/components/ai-elements/sources.tsx": "6548afab5ad3ef666da740023def6414dfccff3a777e2c8d6559be4f3c4041bb",
     "packages/ui/src/components/ai-elements/streamdown-controls.ts": "13dc740d133c75a9d6eec6e23e673b29d0361a87ba4ee0e7d44a4b7ad047984a",
-    "packages/ui/src/components/ai-elements/suggestion.tsx": "e92b5cdbf1a7868a42f4cb00d172cd8558543dbeb59ebdd192598c6333ea635f",
-    "packages/ui/src/components/ai-elements/task.tsx": "89f8110b326bd86afd71d17db79c36d86ada09d9f58401cc01aa47e16667926d",
-    "packages/ui/src/components/ai-elements/terminal.tsx": "da19fdbdeaaf682b50db23ccd8ba2a5fc6fa43dc2337bd1a3a0c4b8f52677f44",
-    "packages/ui/src/components/ai-elements/test-results.tsx": "8e12e551516048a877ca94c92c4979ecd6e4f2eb0042e465a3a23fc805ae7449",
-    "packages/ui/src/components/ai-elements/tool.tsx": "c4ca6fee5ecb3cfa597e8e99a2786c1bca28a6af36c4e8d05626b979e0f5963c",
-    "packages/ui/src/components/ai-elements/toolbar.tsx": "4bf1d6677248001166eb640a264ea7dc8750d609a01119e6aaf161ef74c0a245",
+    "packages/ui/src/components/ai-elements/suggestion.tsx": "1e88ef2a0067e3b8da844a22b10a40e9d2e8b7db232daab08e7fb000a7824d0f",
+    "packages/ui/src/components/ai-elements/task.tsx": "c34cb20cc0a7710987f11b34e350654249cf980c81d2179dedccf3c06600dfcb",
+    "packages/ui/src/components/ai-elements/terminal.tsx": "346411962d214f639bdc7892dcd64b57c802a4479f0586c1e467cf598a0359e6",
+    "packages/ui/src/components/ai-elements/test-results.tsx": "6c06b659ccbe6aa30676a1a6959250f49bda2ffd29382461104777e6f60e21d5",
+    "packages/ui/src/components/ai-elements/tool.tsx": "a563de75d2a1945463981a415f591ac6c09885bf45823946dd03c963dc206e9c",
+    "packages/ui/src/components/ai-elements/toolbar.tsx": "aa52a585ca7fd4e26357a037f8109abc31b0579eae4c553bc05b5f6ed32731f2",
     "packages/ui/src/components/ui/accordion.tsx": "4a72f846da91bdeac1dbba849572132b98c8b96f0b03e611f46d0f3e41791947",
     "packages/ui/src/components/ui/alert-dialog.tsx": "3dd074ddbfcefdad6a6c231b6cf055bbcd5fce40bf8feecc6950b60d9ab53b81",
     "packages/ui/src/components/ui/alert.tsx": "5f29338fc9b767994b39849edeac71ee91dc1fd4a875252b40c5cf9001b1c0a7",
@@ -1495,17 +1497,18 @@
     "packages/ui/src/components/ui/diff-viewer.tsx": "f02208b316e6dc4043ed1794455422bc74cdd521285fcac5a2c0d589c2eb9af2",
     "packages/ui/src/components/ui/dropdown-menu.tsx": "34c5b79489756aa3467ec26d2b44587f3d47eafcb2cb16402686aac15e4debdb",
     "packages/ui/src/components/ui/flip-metric-value.tsx": "ce2d6cf063003e1023191b0fa4e3eb9b365e04a14eb0d498b897326600bf4071",
-    "packages/ui/src/components/ui/GlmMonochromeIcon.tsx": "f1691224d23be4359e1a79bcd81b9dd5ee19c0177b3a4bf750332c620b98ae5c",
+    "packages/ui/src/components/ui/GlmMonochromeIcon.tsx": "1a1db9e6b61e49c524cfffb1d5d323a23c5d7f62ffb1cbc7d480da41ed73061d",
     "packages/ui/src/components/ui/highlighted-lightweight-diff-preview.tsx": "c04bb6009683ab74cb72ff8f1e1157ffbdd06be4a46dc3c725c63e0bc43fea72",
     "packages/ui/src/components/ui/hover-card.tsx": "28e49fb55a3fd4f5bfc5d61f336854304bc92c5a7098305b208274913b226f3d",
     "packages/ui/src/components/ui/input-group.tsx": "72e8c0775e55525efe49dfa42ecba7b9244836a78c31be0dd576d52640d4c3c9",
     "packages/ui/src/components/ui/input.tsx": "946d37bdf07c81e70ad13242b904c27618d5d09f7c17a74f6b6c8cb613fa93dc",
     "packages/ui/src/components/ui/kbd.tsx": "a7fabb33892c759337ae5c936d3b62f27fb2356a5a6340dbff8bfbac6f0a359f",
     "packages/ui/src/components/ui/label.tsx": "717bd1167a7c8c136abfe0b3e23e8cfcb38abbe51b04c74d6d01ba1ea0b53fa5",
-    "packages/ui/src/components/ui/lightweight-diff-preview.tsx": "7d1ff2a02815d988f5ffd2d6549848920c98488a4dba43f67ba9d81a3da49d01",
+    "packages/ui/src/components/ui/LCodeAboutLogo.tsx": "c55c1ac8af5709e5c340fed5ac4a823b3f02e6d197470fd16386f6ae30d75b3d",
+    "packages/ui/src/components/ui/lightweight-diff-preview.tsx": "54aeef56cde6fe0683c9fb255f0391e9e4fe01952da0820297c36dc0a7525425",
     "packages/ui/src/components/ui/pdf-viewer.tsx": "19ba82ab97a84599bb99178de85a4d5c6a89da6924ba55a0dc14f33286187fdc",
     "packages/ui/src/components/ui/popover.tsx": "e23c9238865ba7e85965ebed89e7328cfbdbbdcc2264156c775d51e9e264b484",
-    "packages/ui/src/components/ui/pptx-preview-viewer.tsx": "64d7ed9e83cad0e98ba56ff2c49be2db335aedca4230b207cba5a383a15cb93d",
+    "packages/ui/src/components/ui/pptx-preview-viewer.tsx": "a5e9e16e321af171a6fa59fd6d1b197efcdc3ecae520cf9c65be795f497ee471",
     "packages/ui/src/components/ui/pptx-selection-action-bar.tsx": "6e7187b7f527e4a97df117cc0df85d2dd8f4408d7415aec2e4907db39a331efd",
     "packages/ui/src/components/ui/progress.tsx": "ba88ffa75ad78eaa23519c7af84e11679ca2b8e4508c57759d769462811c0ec5",
     "packages/ui/src/components/ui/README.md": "75b3a7d95cb683c0e97d4212af3a984359031f9b1f0c5d373b2c9ed38e4bda40",
@@ -1514,18 +1517,17 @@
     "packages/ui/src/components/ui/scroll-fade-viewport.tsx": "50e5984232b6a7d59e872aab4ebb36ae837e2865e3a770adbc234b61c2531da1",
     "packages/ui/src/components/ui/select.tsx": "e6d73ae0bf6916256fd86005d8a94e3dfb004c8107f51882cfd2d52e7751ca09",
     "packages/ui/src/components/ui/separator.tsx": "31ade0b9a0eca6689226c94d479352416ef076859980a976422a8af17879dee2",
-    "packages/ui/src/components/ui/spinner.tsx": "96bef1c5ef7e582de503aac8402b55f3539cea37bd2c186a12a4f2cb7605468e",
+    "packages/ui/src/components/ui/spinner.tsx": "1b5bfd868b51bb40104ebc2fd4b6485d586a087a5dfee49655cc406d462d2b6a",
     "packages/ui/src/components/ui/switch.tsx": "1a6490eb3c47b3a86b76c8469e5702608ea57da7853df5de00fffa9a4a472adf",
     "packages/ui/src/components/ui/tabs.tsx": "adc59a0469c80118e9d60c08bf0222d55664ef95e6c522496b5c201011b347f0",
     "packages/ui/src/components/ui/textarea.tsx": "a839574ce1301fbaa9ba917fdb980900eb9118bffa7c6c4e469f3293b122ed30",
     "packages/ui/src/components/ui/ThemeSwatch.tsx": "1d098f7d470ee054044772c22145cd7a6f607a7f92b0df64997dbce543a5fdcb",
-    "packages/ui/src/components/ui/toast.tsx": "0f8894c6fc30e4cec44caa4cffe70e111f9c41ff9bf3699ec8e91696ea631671",
+    "packages/ui/src/components/ui/toast.tsx": "d027c93c64daccab1f5c5c12f2302ce7b8677edfb6086780a96c7453978be339",
     "packages/ui/src/components/ui/tooltip.tsx": "301dbf3a6f8b1bc496f9bdc6fbc5fe6202ed373182897f39cd1ecd19b00fdfbe",
     "packages/ui/src/components/ui/usePdfZoomOverlay.ts": "c8c91b003ce2fded32c7a2369dc6eac43aa4b9dc9c830a0f5ceccb21d366b610",
-    "packages/ui/src/components/ui/ZCodeAboutLogo.tsx": "1e5b7c2e8a9dc98a3c597cbe34122521319eaeb89825e4c41641e77715d1407a",
-    "packages/ui/src/lib/builtinSkillI18n.ts": "9640e8db6813244029e85b7569845cf2c098bd9b92dcb1d98befb3211280f7e4",
-    "packages/ui/src/styles.css": "03df9675ff6fd6518a4de59f6734b12287e9e4226f7dd5997d72ededdab7370d",
-    "packages/web/package.json": "3854b3fe23b2664f341aa8f5a431dc13236a0d68e0720a2e37e3b6607c8e9fc1",
+    "packages/ui/src/lib/builtinSkillI18n.ts": "0a177a74855a0b4fa344bc633bfbf4dcc4b14d577f3c73b931cf279f74df7485",
+    "packages/ui/src/styles.css": "7136aaba203d8e2de9a3b46793a7d1e1dada4cc0ace62a34d0832d3b6b4d4602",
+    "packages/web/package.json": "3687e3ce852e660776b6f3a7a0875f2cca3b8922af8603487a6b085b190676a1",
     "packages/web/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
     "packages/web/public/material-icons/abap.svg": "1335bd7eb9a0ed49deb622330d680c2e97731726a7a5eee8e4f46dc1e5db4de4",
     "packages/web/public/material-icons/abc.svg": "d1a68020e8f020ef29dca5f94dc8613b7ae8fb5b212d8b1cc23b0f975ac7acda",
@@ -2672,14 +2674,12 @@
     "packages/web/public/material-icons/zeabur.svg": "8bb7c84934202e9b24842ddb1ca69d316b9d69f1a4f5ebc9bbcce78eb2cea1a7",
     "packages/web/public/material-icons/zig.svg": "37be0ce02cf471b18d86150b3c38e80caa7c16c49a15078e7db6f1f41788d101",
     "packages/web/public/material-icons/zip.svg": "dad79a45f756542d37abd422502ecfbea15720b92ea1c9d80ef0439ab6b9448a",
-    "packages/zcode-cua/package.json": "1936896e69b130ded40ef082648b88d6f7ffac36439d98c25669bc954eb5a511",
-    "packages/zcode-server-cli/package.json": "6e294c4409cb90863d85b2e3d60f92766b156ccee577ebfeaffcb85e94194004",
-    "pnpm-lock.yaml": "a95611bc5c88f49138a6db142a2873beacce2383e88a3d5fa8eb7a5970427255",
-    "pnpm-workspace.yaml": "3d33ccce7a7f8934668fa6488d52a5ce1b79884c5effe228656ebb91d80e1b74",
+    "pnpm-lock.yaml": "32bb264ceff6f92fb2ee82b97830a194d1846e3a30d4df0cfe06634cff0b804f",
+    "pnpm-workspace.yaml": "75f1aaa4a90c88712c9db16f6ba935ee68151545143b9112e5952b9c4caf99cb",
     "scripts/license-texts/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-    "scripts/native-search-tools-config.mjs": "281d368464f61363fa2d8ab74f416962fe730dd0a0572db5564475f876bb65aa",
+    "scripts/native-search-tools-config.mjs": "51483e7c154b76d431703e22b28c6b4687245bf15662e5246ed976d561d086ae",
     "scripts/remote-native-search-tools-config.mjs": "472322a66f84c7452f96aa9e16e9c4e0600f7c2588a03dc6bc869229161b1cb2",
-    "third-party/copied-components.json": "518ac3db33173291de2a99412acdf5571a65deacfebd76ff9fcaf7a80885deb8",
+    "third-party/copied-components.json": "d775ff32583a5785e5c8b5011f1321b1e111581fd3c3eb47a64164dca72928d8",
     "third-party/embedded-components.json": "9586ccca15897f56d4ca1d703dffe9e02880fedd766c1dff93f7ac1f52ea891a",
     "third-party/native-search/licenses/00373c9bf56a894b2ed67586596bc1e8b0630cabbaf1ab46c75fc754b6bcd1ce.txt": "00373c9bf56a894b2ed67586596bc1e8b0630cabbaf1ab46c75fc754b6bcd1ce",
     "third-party/native-search/licenses/01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f.txt": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f",
@@ -2795,7 +2795,7 @@
     "third-party/native-search/licenses/f8a6a9a718ca8be13701d706d208dd0d7b4d2b41cb1df3342fc5a6d602bd1dac.txt": "f8a6a9a718ca8be13701d706d208dd0d7b4d2b41cb1df3342fc5a6d602bd1dac",
     "third-party/native-search/licenses/f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af.txt": "f9bc4423732350eb0b3f7ed7e91d530298476f8fec0c6c427a1c04ade22655af",
     "third-party/native-search/licenses/f9c375a1be4a41f7b70301dd83c91cb89e41567478859b77eef375a52d782505.txt": "f9c375a1be4a41f7b70301dd83c91cb89e41567478859b77eef375a52d782505",
-    "third-party/native-search/sources.json": "5a7b2d7abf5bd5f310712710cbbd0ca70dc9491e723cbf070b5c696fe155a962",
+    "third-party/native-search/sources.json": "a888bcaf90cb976289aea02a89fa35f1f322583a3d74c7997e068ad5bede4d93",
     "third-party/npm-overrides.json": "faffff69f684e90794092fcefe78841de0647a48f3dbf4b56b94c6c5fc5d0765",
     "third-party/runtime/node-22.16.0-LICENSE.txt": "1ae62e2015784ba438db7b04ebd33f3c4ff3efdb824c111c4ececd99945fd52d",
     "third-party/runtime/node-24.14.0-LICENSE.txt": "4573185d56580da2b890ba34a85a409257640f1c5632eade4300137266194d18",
@@ -20787,12 +20787,16 @@
         "packages/ui/src/components/ui",
         "packages/ui/src/styles.css"
       ],
-      "scope": "Upstream-derived portions only; ZCode-specific files in the same directory are not attributed to the upstream project.",
+      "scope": "Upstream-derived portions only; LCode-specific files in the same directory are not attributed to the upstream project.",
       "license": "MIT",
       "files": [
         {
           "file": "packages/ui/src/components/ui/GlmMonochromeIcon.tsx",
-          "sha256": "42a8fbf15562fa4ac935a920cd9a9bb31c984d23e08331ba19c6d8174cc5a223"
+          "sha256": "b10a9d1424cfe0e5f169ebbed565f01d360f359132cac3870338cbcbe88532ae"
+        },
+        {
+          "file": "packages/ui/src/components/ui/LCodeAboutLogo.tsx",
+          "sha256": "dc72708b0852f8fcf9a829a0f9df3b7c6786711a01d3cefdb8b042961c3fbbb1"
         },
         {
           "file": "packages/ui/src/components/ui/README.md",
@@ -20801,10 +20805,6 @@
         {
           "file": "packages/ui/src/components/ui/ThemeSwatch.tsx",
           "sha256": "1d098f7d470ee054044772c22145cd7a6f607a7f92b0df64997dbce543a5fdcb"
-        },
-        {
-          "file": "packages/ui/src/components/ui/ZCodeAboutLogo.tsx",
-          "sha256": "80c0fbcdf136e3535f0b5b1c747efcecc299c45bfa3531710755df86126756cd"
         },
         {
           "file": "packages/ui/src/components/ui/accordion.tsx",
@@ -20904,7 +20904,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/lightweight-diff-preview.tsx",
-          "sha256": "53d7872783b515d3644e143ce1d42e58bd4f9e2998eb85eef74fe68271c6fea0"
+          "sha256": "ccdab411700b3db7013f9c86df5e2ff1259d7fba25f2563a5cc0060293950a8b"
         },
         {
           "file": "packages/ui/src/components/ui/pdf-viewer.tsx",
@@ -20916,7 +20916,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/pptx-preview-viewer.tsx",
-          "sha256": "423e61926c66f213ddb66414bb75b84ede45ae6065889f922b8089701f83af9a"
+          "sha256": "8f005b7e4fd8ccfd465550bfbc6746380c733d598a810670319904c9a52040db"
         },
         {
           "file": "packages/ui/src/components/ui/pptx-selection-action-bar.tsx",
@@ -20948,7 +20948,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/spinner.tsx",
-          "sha256": "3e18b1e73e3fedcb1f800949edf9b3759dee22951731758ef70d3609b7fe7502"
+          "sha256": "7cbbb2451ef1cf203a7c8defc47d1682915b192c73ea38182c5d659f2314358e"
         },
         {
           "file": "packages/ui/src/components/ui/switch.tsx",
@@ -20964,7 +20964,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/toast.tsx",
-          "sha256": "40d726d6499a8d1176d02771932f66188bc69b73ee4f0dfc6cd67b6c5ddfc990"
+          "sha256": "89b3c952a592c4f68ae5cf9418d0b986cf22d15afe8547621132ab7c9a266f03"
         },
         {
           "file": "packages/ui/src/components/ui/tooltip.tsx",
@@ -20976,7 +20976,7 @@
         },
         {
           "file": "packages/ui/src/styles.css",
-          "sha256": "9fce89e1a87cc7504b30d1197644687ae1534ca55223b6ab018b6520329477a5"
+          "sha256": "4f99ea3d1ffea35f1b3076be9a6d18987f833194e5180289aac1b283694a800d"
         }
       ]
     },
@@ -20992,7 +20992,7 @@
         "packages/ui/src/components/ai-elements",
         ".agents/skills/ai-elements"
       ],
-      "scope": "Upstream-derived UI components, skill instructions, reference documentation and example scripts only; locally adapted for ZCode imports, styling and agent workflow. Original import revision not recorded.",
+      "scope": "Upstream-derived UI components, skill instructions, reference documentation and example scripts only; locally adapted for LCode imports, styling and agent workflow. Original import revision not recorded.",
       "license": "Apache-2.0",
       "modifiedFiles": [
         "packages/ui/src/components/ai-elements/agent.tsx",
@@ -21138,15 +21138,15 @@
       "files": [
         {
           "file": "packages/ui/src/components/ai-elements/agent.tsx",
-          "sha256": "f3e9cb77966a98bbb0891e26ef785e5686cb7208396f4489066029ccfc807bcb"
+          "sha256": "6a486de239f37b85b286f425c739b4866b39381050f3465d190a8a19d391239f"
         },
         {
           "file": "packages/ui/src/components/ai-elements/artifact.tsx",
-          "sha256": "40a4cf560b0e917863c3a6bb79cce35bbbf62f261085935e0333b75023026e0b"
+          "sha256": "860e86f2f630fb93b1abcbd7853a367c4ae4e3983454b5caa178d05bf4cc1fb3"
         },
         {
           "file": "packages/ui/src/components/ai-elements/attachments.tsx",
-          "sha256": "6b4e643f384f6125b73ca86d6c253fc7835ffcc439fc7ace18e273e3dc4ae0b6"
+          "sha256": "4dc4a1e1ad2c20c680814ac151d8d6f73758a6b79ab0284096ed8b90fa0df0fe"
         },
         {
           "file": "packages/ui/src/components/ai-elements/canvas.tsx",
@@ -21154,51 +21154,51 @@
         },
         {
           "file": "packages/ui/src/components/ai-elements/chat-loading.tsx",
-          "sha256": "82a86742375dd6e1a33aaf0681358e750b26eaf893e3ce61e2fde66505dd3bb3"
+          "sha256": "5e497dfdb3bb657739de9cea6e41d6319b270ae00a4fcb847754d560f1dc5187"
         },
         {
           "file": "packages/ui/src/components/ai-elements/checkpoint.tsx",
-          "sha256": "64e18bdf7c37419116771395b7518b0c53a18c3a55f072cfc38021f57eb392aa"
+          "sha256": "2646d2a64e2b0a18f69f0ccf761099ba598f6d5f8a7bc12e11d2703d3d843702"
         },
         {
           "file": "packages/ui/src/components/ai-elements/code-block.tsx",
-          "sha256": "b7600334dcb648daf2dd99748ea6a24e5a3a86c4a056d6bc659571ba892f8dfb"
+          "sha256": "f971ceb8b5d947e6ff0d30585fd8372270b0265e9ab7deebea91ab0d4f4be347"
         },
         {
           "file": "packages/ui/src/components/ai-elements/commit.tsx",
-          "sha256": "d5da05d31b158085886cf2617c0a8d12f940f7851907ee97881e385add8f39de"
+          "sha256": "27d5843a666db1ae880fee7d35efbdc10c1db1380b6ff0f77cc1ad2647c2ef26"
         },
         {
           "file": "packages/ui/src/components/ai-elements/confirmation.tsx",
-          "sha256": "8defdc12b6551cc5eb3f9aa0314ba9956aed5bf9c6fe862d7bb6052d7f2adbe2"
+          "sha256": "dd5c1eafecc0d1cd771bf5d0a939dd7c5ac4fd0a2970cfc6632fbbb8cfacdf41"
         },
         {
           "file": "packages/ui/src/components/ai-elements/connection.tsx",
-          "sha256": "5fcf40d92499ad2c371dfcec7d20438d98eaf5bfc301c0d78065c36b1f0dfce2"
+          "sha256": "146f8e76bbd5da48c3f9c10d027ecb6c3a44d5463eadc61db2ee0d132fde7b30"
         },
         {
           "file": "packages/ui/src/components/ai-elements/context.tsx",
-          "sha256": "b5bb03fc3f58707cbe29c10b5b7730142137cbea905a17da544c1cd290780e75"
+          "sha256": "e6365859c135848e2b0ebcf30418c460cc1bdd9b8b99d374ba1c92cf34c9a3df"
         },
         {
           "file": "packages/ui/src/components/ai-elements/controls.tsx",
-          "sha256": "977a5e6671c8b8764df0be1f97a9ddeef63f39233b721e40006c731696d5fda5"
+          "sha256": "210b11e3b66bd1df042616ab95e75357436ea3541d96242a794606bd3ed15455"
         },
         {
           "file": "packages/ui/src/components/ai-elements/conversation.tsx",
-          "sha256": "6e6b7df4d9311b5a1a4e1afc252e33de7525ca9897ee650b81a99809f7e0185c"
+          "sha256": "6918d59c17daa009024802a10626b4b0f4a2e5abbfd0cb4319f971e79e374000"
         },
         {
           "file": "packages/ui/src/components/ai-elements/diagram-preview-dialog.tsx",
-          "sha256": "213a90088c8cc32402efb2b3775217b5f4bfdca5ee0aa27a3170a8064131e275"
+          "sha256": "246fb75218b3b0f0383b6d684c83f19a6425a434cb9c74b042188113ae5248fe"
         },
         {
           "file": "packages/ui/src/components/ai-elements/edge.tsx",
-          "sha256": "f8367b3783935fc94e75a438372df5b3f9e798299877810d5c71c8ae9fbad327"
+          "sha256": "a77f42cbe32b3b2f26f5183ea3febc80a1276476ff7fb4036ebbd9ad8b30c9fd"
         },
         {
           "file": "packages/ui/src/components/ai-elements/image-preview-dialog.tsx",
-          "sha256": "68774872d6dee86f48801458bbf68c1e000fd35b32f07a14171cd6c7d83afa4c"
+          "sha256": "cc1e33d6ff9060cdfe7a9a106bf50e7775cdedeed9450f50e50c000cd9e6f6d8"
         },
         {
           "file": "packages/ui/src/components/ai-elements/image-thumbnail-gallery.tsx",
@@ -21206,7 +21206,7 @@
         },
         {
           "file": "packages/ui/src/components/ai-elements/image.tsx",
-          "sha256": "b19fc107d04e3ecc944e81cc45660810b00f1587cc4283f350acf8f2f979f48e"
+          "sha256": "1c939edff90a1bc423474f1e1d1e6f277a89e91bc21622b82fe3d71a65cd305b"
         },
         {
           "file": "packages/ui/src/components/ai-elements/markdown-blockquote.tsx",
@@ -21214,7 +21214,7 @@
         },
         {
           "file": "packages/ui/src/components/ai-elements/markdown-image.tsx",
-          "sha256": "ac582c5757253ca207d71c0fbd1083b674a5e0bceb9704a8535ec4ca303211e7"
+          "sha256": "4307cf81062ec494c62b5a2cb911bc48a25497dca81910e96c002f95fb74e3e8"
         },
         {
           "file": "packages/ui/src/components/ai-elements/markdown-list.tsx",
@@ -21222,75 +21222,75 @@
         },
         {
           "file": "packages/ui/src/components/ai-elements/markdown-table.tsx",
-          "sha256": "9b536a8e4458d6c7a71e7178972adb664554361465f77f7c982ea5506342d653"
+          "sha256": "b923c3d513a027539360776e784c020e92760a199f2375b3744d90638e41b6be"
         },
         {
           "file": "packages/ui/src/components/ai-elements/mermaid-block.tsx",
-          "sha256": "da63ee749080f5726d676b9cd9cc6c752a1be25a871947022920068f7a024de0"
+          "sha256": "39f13b8257e4838265a98b2ddd299dd742bee3ebb01228acec1dba63fc4edd5e"
         },
         {
           "file": "packages/ui/src/components/ai-elements/message.tsx",
-          "sha256": "abe121ef448445f0c53744cfe1ceb6b85673c5244ccd3daa4cfb370eb9319602"
+          "sha256": "e98bb9dc58716df059f8394aecea3f0e149042cd89ad31e3f835719542569098"
         },
         {
           "file": "packages/ui/src/components/ai-elements/node.tsx",
-          "sha256": "32654316e9b4d1ccdc8d09df244ace7a0f170a7a29309b7957f3a40fcce0179d"
+          "sha256": "80c3a040f0c237b8d789a7f7d9ceb976ac910d07e4ee53f7bf980d51487233cc"
         },
         {
           "file": "packages/ui/src/components/ai-elements/panel.tsx",
-          "sha256": "f5c82af472b437abbd2a41bfa94594497062c940bc9411ac9881189172ef5fc6"
+          "sha256": "03a12bfc04732846159c75318074a95094da0d356a2cabbbe76f7cb5e483fc6f"
         },
         {
           "file": "packages/ui/src/components/ai-elements/persona.tsx",
-          "sha256": "fb7132d2d418e68c1ead7633728bbfb85e63529da3dd4b49fa40ea4cb38a58fd"
+          "sha256": "18ebfd43526ddc19d132f533926cbfda9a4cded36d68a7ab90e8fc3ea718aca3"
         },
         {
           "file": "packages/ui/src/components/ai-elements/plan.tsx",
-          "sha256": "25a8bc6496d4b0b79d86fe3fc830dcc2539accfc46ee555c45701991933e78cf"
+          "sha256": "ba1e26b516a46a13759f511c67f4e07d52336ca9d76549fe593e1f189cdb41c3"
         },
         {
           "file": "packages/ui/src/components/ai-elements/prompt-input-actions.tsx",
-          "sha256": "89cb84286e9f7c7bc849dbf532ca41a8ffa72d1ce5728c2535e6d291e014c8c5"
+          "sha256": "99a67d757e1b6217ca60ddbf135e2dad4d843ada1e8be95eae6b305cbd4ee5e3"
         },
         {
           "file": "packages/ui/src/components/ai-elements/prompt-input-buttons.tsx",
-          "sha256": "539c37a9fb88faf219f03dd265651b5f72e01fb3be7a103dcf5be66cfa0ae139"
+          "sha256": "8821d5b6e7de6475527733c417fd55d038d74dbff703680256bec603329ec53c"
         },
         {
           "file": "packages/ui/src/components/ai-elements/prompt-input-primitives.tsx",
-          "sha256": "210cea05548a4e8c105964bcab752d002c0415340ac3f67acf7d7d3566df32cf"
+          "sha256": "f8e8d09284863ad755ab5b4e0700fb4bcbffbd614d346cf97f7602c3918922da"
         },
         {
           "file": "packages/ui/src/components/ai-elements/prompt-input-textarea.tsx",
-          "sha256": "6cfedf54567ab6b0aa00fc6fabe841da3bf2d2a05d383b503ac9d0eb52f9aa20"
+          "sha256": "9ef4ba147a21c75788dcb9e91913590cf08b879858cde0f2d58570ef8073ea33"
         },
         {
           "file": "packages/ui/src/components/ai-elements/prompt-input.tsx",
-          "sha256": "52cb90635eb4029b38dbb95194940f0b4c7a7c5c6bec5e98743607de260fafa9"
+          "sha256": "4df675616da51c081c214c5771a9c3ad264475a05911bb88a2e9546e9a93836f"
         },
         {
           "file": "packages/ui/src/components/ai-elements/queue.tsx",
-          "sha256": "9451f053ad4d3f7d52d3df30df952d71412b99207e72208a9438d8ce8341c0b1"
+          "sha256": "cff7de347cf4e5da0900ddfdfe9c3b4c8dbecbfa3677ab2fccfcb4cc437dcf3a"
         },
         {
           "file": "packages/ui/src/components/ai-elements/reasoning.tsx",
-          "sha256": "7ad6dea5cce454246b47c644277b5a530bcf789fa2a4903fb0325851b0f099f9"
+          "sha256": "f17cc930c55cf5d343a5ba6548fa0f32bbc5679999c9a2786cac282c4594cd07"
         },
         {
           "file": "packages/ui/src/components/ai-elements/sandbox.tsx",
-          "sha256": "46e652b77dc55859bcabca5d9b9534e4d77edff07513ce3a89725fbeac5e1d7f"
+          "sha256": "4f9849b1172328354f7dc3a8ffb0cd1ecf4961ff7d89db371a26c9f8ed8a0b3f"
         },
         {
           "file": "packages/ui/src/components/ai-elements/shimmer.tsx",
-          "sha256": "a0b54ec3469f84fc5c930e693c5cc0d4557aff51afc4755f0f1636aa7b51e2fd"
+          "sha256": "9560c73e01498d51fcd2f51af5747aa259cd6068c0695da22b2f1a658c9841fb"
         },
         {
           "file": "packages/ui/src/components/ai-elements/snippet.tsx",
-          "sha256": "5156f62309c1a9e1481895f74c8dd079b18b495127df49f08ef366f4e82eb0de"
+          "sha256": "92fde331b2a688cd707295148cfd3e3cca215d7971372588a2b5f0c52b4bab8a"
         },
         {
           "file": "packages/ui/src/components/ai-elements/sources.tsx",
-          "sha256": "a81b6a01b794f374bd64162b5c90464666d50cf6f1c033f24e15760f78898668"
+          "sha256": "ad54d1f0cc84b3b4f3951f7ee5ab42da70f0cfa6343ea73fd40c9add801e8553"
         },
         {
           "file": "packages/ui/src/components/ai-elements/streamdown-controls.ts",
@@ -21298,243 +21298,243 @@
         },
         {
           "file": "packages/ui/src/components/ai-elements/suggestion.tsx",
-          "sha256": "48a0d88ddc5bb4089cd1bb16a1235362476971e2842e09ea8f1a27d3a14e4c15"
+          "sha256": "ed9ab25da2c5fae09d57b6094043b485b032462b9bdcf61fad0b1ecb2a609b41"
         },
         {
           "file": "packages/ui/src/components/ai-elements/task.tsx",
-          "sha256": "0919139033fc223a719da8b5c273955510ceed719d977ec5568200f86db677a1"
+          "sha256": "7c4701d55c29a5add88d3b103dafea5dcfc09cba2823a0e3154a4815634f5c46"
         },
         {
           "file": "packages/ui/src/components/ai-elements/terminal.tsx",
-          "sha256": "b1aab2bcd7996b8c488cc8165c54fa5bec93984de9b35953305f623f6f4754f8"
+          "sha256": "561c3b1906d041f2b69a10567886832d1c27a75b451fbbb15824decabdbcd970"
         },
         {
           "file": "packages/ui/src/components/ai-elements/test-results.tsx",
-          "sha256": "6fd6ddf3b8c658d87409f5cdb23d30ce9c97f966a75dcdb5c29ffec55125801d"
+          "sha256": "6c65d4e712769d8e3c3256278ee96fc1cb1662094318273b69bc5d8b11537d26"
         },
         {
           "file": "packages/ui/src/components/ai-elements/tool.tsx",
-          "sha256": "5a19939b5d11c9c7c8b376d8e8a7b91065a4ef76c3c367b62a725d3a2e16bb31"
+          "sha256": "dbcf8b36d398b99e67fd89bed8f33d65c4cac21d84d9d1a40b94370eed8662ca"
         },
         {
           "file": "packages/ui/src/components/ai-elements/toolbar.tsx",
-          "sha256": "62106c95be606cfff15896a466070911d35a2eac1b18b1ea2ed00e4f9e5188a0"
+          "sha256": "c56b30d1c9ccb95759b0fff90903e0bb73ccd996b86059429b38662c579bd600"
         },
         {
           "file": ".agents/skills/ai-elements/SKILL.md",
-          "sha256": "4b9837425fc5b91177465c2fbe2e5e822d086cf20b9a94ca2b40c7cce0d06ebe"
+          "sha256": "60527140edbbabffa1d2102e0f8f2b068170f8bb6eab2f7aec6cef657f41fe25"
         },
         {
           "file": ".agents/skills/ai-elements/references/agent.md",
-          "sha256": "c29be2782307eeccf58bf0061781cec1375615c42d38f746a91a753ea616e38c"
+          "sha256": "bda52c988552cf4322c173631c8261df6b195d950f940b1fc95766a2c60a22da"
         },
         {
           "file": ".agents/skills/ai-elements/references/artifact.md",
-          "sha256": "7d2999a0650767ae7afacbff1f8856c50cf23a67888a92ca594fa973a730e24c"
+          "sha256": "f2cdee79a18343413b340653e03f70e08cbf77a4e27b2f266b84fb1af9f4be5d"
         },
         {
           "file": ".agents/skills/ai-elements/references/attachments.md",
-          "sha256": "e02aaa8548631cde7552a2ce6afb0d570b6777ce134efc6b1347b2a79d3265d3"
+          "sha256": "b602ecc17317c12ef555e22d7d850507c06f476bb9c7ea25b996aa48f3a6cacd"
         },
         {
           "file": ".agents/skills/ai-elements/references/audio-player.md",
-          "sha256": "82a9c26fa42097dab5c63f18b4ae737159433ee1c1ed8efeb4ea0d3c123c4c43"
+          "sha256": "e47b0640199f11e34c1c754ddc4f834a1cd5927f6a119c141e91507c367a7aa9"
         },
         {
           "file": ".agents/skills/ai-elements/references/canvas.md",
-          "sha256": "9ecee753f0e22c110fb0e07140c1de4f19cf9f466adadfb7c4607226d43039e9"
+          "sha256": "ad1f8261355d7130043a750edbf85e8046a5a8deace0c0d73bba7734f37b904b"
         },
         {
           "file": ".agents/skills/ai-elements/references/chain-of-thought.md",
-          "sha256": "a6f5462c53910884782cb7a98ed7ce5f851a4ccff6109faa813c876fe265cc7b"
+          "sha256": "de66999cd4ca4c193b5faceff0f586ade2282f0b3cc6eb3e16da14decd746d45"
         },
         {
           "file": ".agents/skills/ai-elements/references/checkpoint.md",
-          "sha256": "3e68187c4732a105b239fe0ddd43d0be1c0d4462be15a443a4111be37c429cc4"
+          "sha256": "33cecb49c95aa82deeabd23ba8bbcbcedec1ffe250beed7f3aaa86638e8d7ab1"
         },
         {
           "file": ".agents/skills/ai-elements/references/code-block.md",
-          "sha256": "df106a98345ccc65f6181bb9512ab052817a296098146384cc44b99707415825"
+          "sha256": "06a94a80c8ea172d050505811e264e102de2ae8f9ad6c3dcf90711e9275e598b"
         },
         {
           "file": ".agents/skills/ai-elements/references/commit.md",
-          "sha256": "a12cbc5ff2831c086016ddbcd74613222b090609b7e936556d2b23fdf542fef9"
+          "sha256": "0e58eade86949e56bd918cc66584649c15b91a932d6809046a685a493071051c"
         },
         {
           "file": ".agents/skills/ai-elements/references/confirmation.md",
-          "sha256": "b5a3715218f856e71ecaf57d840d1a0e1d139ecbba42db1711df074bd3210342"
+          "sha256": "0c0a637f60ec09740df997ca66eeab9b62ded2fed50917535ac44d65d5f22cc3"
         },
         {
           "file": ".agents/skills/ai-elements/references/connection.md",
-          "sha256": "d4adf093c44b6eb5936fc0bcc11deb67dbdb5059e693e59e9d5e82c93235d807"
+          "sha256": "4966799cb6b4fb64d03a1f1f4e6f041e33df6330050e3cbca80557a9ad69b8b1"
         },
         {
           "file": ".agents/skills/ai-elements/references/context.md",
-          "sha256": "24be128e1341f6cec2ce3c5e0fd646f02363691b3d48cc7513015b2857859f77"
+          "sha256": "9684f55338d86697edd2aef16bfd8e79451f2df7da9fd38406ad40c8d7c52109"
         },
         {
           "file": ".agents/skills/ai-elements/references/controls.md",
-          "sha256": "0b28ac7274da8dab3bdd58a3ae5ed8f0ed36ed529083a77f721a6e7ac7af6d07"
+          "sha256": "e61431a4dcfc25a56cc94d03dc0e36b4a8ee4d8f657697118bd369601c58257c"
         },
         {
           "file": ".agents/skills/ai-elements/references/conversation.md",
-          "sha256": "b2bf778b0b4ba81c29c630bb72a75f6450d694ecb23768ccacf143b4c4fe252d"
+          "sha256": "e378946f653eb4302d35c7b738786284fe88eb587384db0ed75fff1b0fcdbe03"
         },
         {
           "file": ".agents/skills/ai-elements/references/edge.md",
-          "sha256": "b6106935d0e0981103d3f69b29059ed96e28f496009c349cd306d0b5b5510c9a"
+          "sha256": "aa1a7cbcc5520ab170e331a1c7a04453ca3374a0be2396a7c716a0952fdc1c32"
         },
         {
           "file": ".agents/skills/ai-elements/references/environment-variables.md",
-          "sha256": "29432a4e7a227c259968067a6ecf387f864a7d383ec4ef67e5dd65182e8c5be0"
+          "sha256": "eb8c2115eedec22f150a92df9c23075c3d9bebcbe2b0b119cf689d919c6f424d"
         },
         {
           "file": ".agents/skills/ai-elements/references/file-tree.md",
-          "sha256": "a849685543257ec163a66ff8b990a17ad604c0d44d55b391961da18d0ecbbf08"
+          "sha256": "b895884a733ede06f3ef6dba2063b0486731ecf84e9d08b3fa0ca3a0daa40ec9"
         },
         {
           "file": ".agents/skills/ai-elements/references/image.md",
-          "sha256": "b6789405a1d666d5f693d5a5a4a3e1ede43b2906bb56488a14293959a5c45161"
+          "sha256": "377b26baefa916b13d84c90b4e7f136cab23e80fb9b6962d901dd8be32151352"
         },
         {
           "file": ".agents/skills/ai-elements/references/inline-citation.md",
-          "sha256": "48895f7eb1fc47ef2a0d87422c02d6b367c82d84dd9580bfe52e46b4350d366f"
+          "sha256": "c2fd470c68b247dfd23b5f902a12e32a367019f78814a19882c3eec1484f7106"
         },
         {
           "file": ".agents/skills/ai-elements/references/jsx-preview.md",
-          "sha256": "86f4ac700ac050cd1f550a2cf90c3aa75d131dd3cb92c447800f481627794a7b"
+          "sha256": "ca05e23f8a54df3315518e17ee63c274866e56ebd41c36ab69186ca159ec9a87"
         },
         {
           "file": ".agents/skills/ai-elements/references/message.md",
-          "sha256": "8d2336c411e71516d3c1cacdda16b3d778a9a8d04997387958fd072044970363"
+          "sha256": "8bb44dfde5bab9a0ab48e64463c756aa6f02450c5da8aaa86d410fc2a1f1b159"
         },
         {
           "file": ".agents/skills/ai-elements/references/mic-selector.md",
-          "sha256": "217321b8861e812988e6f0ced1e57bac5f5c407e8888b0d174bedbd8fa8938a2"
+          "sha256": "2dc7956d272851a2d0193f1916b7205a1a07bc6baf12281fa83ade6b07f3c004"
         },
         {
           "file": ".agents/skills/ai-elements/references/model-selector.md",
-          "sha256": "76a647ed72f591b8dcdda7ea7b2f6d7a6310192de981b905eb64fc6dcfb6ecaf"
+          "sha256": "1fce1323213f155eae3d317915bafdcd02537e452a318d1e92b300c62b54d210"
         },
         {
           "file": ".agents/skills/ai-elements/references/node.md",
-          "sha256": "35378beda0b76f270b9b342cee265ab5e6817c7f8d8d8c0282ac8b1b6696986e"
+          "sha256": "5047034760e52561d89049eecba30e9c31305400049b4bd5b8785c726f142799"
         },
         {
           "file": ".agents/skills/ai-elements/references/open-in-chat.md",
-          "sha256": "e72ac83d1cfd108cff9f0da70bed7ef96f9165583f07634d2c2a250d9adf73bc"
+          "sha256": "478077df8c72a3ff47be93590d7396f88b08445d0108f415f12cf043bf3fb718"
         },
         {
           "file": ".agents/skills/ai-elements/references/package-info.md",
-          "sha256": "60036e31c01da5c852a786a4c55889a7e4eac0dc1cc2ee5b5e9bb2383aff8ed6"
+          "sha256": "07bcd071d8aac4b66a9edd0975c04640a5926ba086206f6e645f58d4ccb889be"
         },
         {
           "file": ".agents/skills/ai-elements/references/panel.md",
-          "sha256": "32efcb54f129ab2cdbfc0e9358bd35ce719769469d28eb87655dba7c867ae012"
+          "sha256": "12c53393b24c4132e95b1f4910d0000fb6b448623f35d9b9715d9c4ec166178f"
         },
         {
           "file": ".agents/skills/ai-elements/references/persona.md",
-          "sha256": "cbb5a0931da73e009a2c5973f39d2e48b6a506121838a5754fb012f81bf1c5a9"
+          "sha256": "72a18878fdc1949cf6f96df61243ee686dcc1199611a93ba60ae64663f41e3b4"
         },
         {
           "file": ".agents/skills/ai-elements/references/plan.md",
-          "sha256": "f1d8a9bc73e7933f16b9854dd521f677b293f944c012402546c2a490c7c70bba"
+          "sha256": "421371f38776c7807a0f88c64e2f7df10e05ba8a4324af2f5860e7c57eb58e2a"
         },
         {
           "file": ".agents/skills/ai-elements/references/prompt-input.md",
-          "sha256": "eda5e414df0b8cfd2ca64281177cf3777a1a140ecbb52c4c5feeb4f492dced70"
+          "sha256": "bcec0b54616d60f0a16f8b3a9859fd3735c9670bd05f5e7b4c3c893ef6d1e8ae"
         },
         {
           "file": ".agents/skills/ai-elements/references/queue.md",
-          "sha256": "1bd1c4d55eb4170c8ccf20df58675c99e66762886afd73969b798067e67e5110"
+          "sha256": "49d25aa426cf6c6887ed75d75e7f4dbe0a5a62321023a7a0e4c7e91f74433b08"
         },
         {
           "file": ".agents/skills/ai-elements/references/reasoning.md",
-          "sha256": "474296fb23c873a375f3a680d00ef4b9d6d2f55677733ca8b6d8f5f695d27327"
+          "sha256": "a729e69711a7b17a2c1c77f1a3a1fef661961491b0a94c70a16894709af1b0e1"
         },
         {
           "file": ".agents/skills/ai-elements/references/sandbox.md",
-          "sha256": "a68e9025d338f18972f41e0ccd963b80387a392114f7e685b09446e6c88023d4"
+          "sha256": "aa5729489986ae4f7948abd0cfbecc87a052dd6b4557233fc42441f27012fd34"
         },
         {
           "file": ".agents/skills/ai-elements/references/schema-display.md",
-          "sha256": "857d1c5a1f716a0d2c4c9e2502948d783427ba5a79530efe089aa8be7883a709"
+          "sha256": "4d2e08d6fbba5d605b78a6bc6f220971e75f15860fe9ca274433b108ff926f06"
         },
         {
           "file": ".agents/skills/ai-elements/references/shimmer.md",
-          "sha256": "7635fa540d877f511f2b12200271d3c752dcb2c62822a47934c3260ce1dd2974"
+          "sha256": "a7a26ce49a3c78214e2a9e3845f0c476bc324171a1c4b025e7ffc3672439a5dc"
         },
         {
           "file": ".agents/skills/ai-elements/references/snippet.md",
-          "sha256": "5709073f1e348359dc79b9b9c0992bed5b02a3ad0acdee0d383ce5d7741c2f09"
+          "sha256": "9f14aa922a35d0ed5d263cc29d2a0d7eddf4a68c64bc4b1746d2b48816666e0e"
         },
         {
           "file": ".agents/skills/ai-elements/references/sources.md",
-          "sha256": "210038fa01bbb6cd6b268882a2c169c777a312bca1a2ae189a94426f39d32bd0"
+          "sha256": "99116b8e7fdd12501b943af92dfdd76c7fd0dc015c791fd0b1a8232f26380258"
         },
         {
           "file": ".agents/skills/ai-elements/references/speech-input.md",
-          "sha256": "8a8fb4be92e71b4c0b6c1b07c6f5bdb29ebebde15aed090fd27337e58316fb5f"
+          "sha256": "c98f8fd80b98de48c5dbbc1b2b41bac5f7bdf0da83e227d3bde0fbdf4ebf05b7"
         },
         {
           "file": ".agents/skills/ai-elements/references/stack-trace.md",
-          "sha256": "48604e030d5f6978e17c50daab814addc37afea79b06e60a3fe6a7f5c9631643"
+          "sha256": "34a8bd15b5b67a75851763fb0844a5e29b0efb4fc98deb9984aa8725297295bd"
         },
         {
           "file": ".agents/skills/ai-elements/references/suggestion.md",
-          "sha256": "b9e7777349541361ec10b22ed401cfb8c3ae4727e89bb010eb71c4747a3f42ef"
+          "sha256": "26223221d6136f86b8f6c503c177a16db1e3ea978191970a6358c14981ca6ce4"
         },
         {
           "file": ".agents/skills/ai-elements/references/task.md",
-          "sha256": "0f901e711d68e6dbd6eb5aa13cd2334fed2f7cf071459d4aa56714a770afcfe0"
+          "sha256": "ef88f1df9b7d2953641e1f956d9bbf21f55638812c0e834dc6dd43310bce29ed"
         },
         {
           "file": ".agents/skills/ai-elements/references/terminal.md",
-          "sha256": "126170699caac10fdd3f06cf44765b5df20a3df28ac5f15db72ebcdda2258ef7"
+          "sha256": "5658ad2680eedff83e0b5570421b96ef6294e6367c2720f3c65a411f937aaf95"
         },
         {
           "file": ".agents/skills/ai-elements/references/test-results.md",
-          "sha256": "b8b248a20ed701f61c8ad1ea7aac818ca895795d6308ed47c8bcfe88caec20a0"
+          "sha256": "1d40f00f580fe40eaa267bde0287915adb6c3243bb0b3a4afd0b536e07d4a9a9"
         },
         {
           "file": ".agents/skills/ai-elements/references/tool.md",
-          "sha256": "a353e10eb432066605f1479c1974835da9c920ea0dee088a7d353b0e4c149efd"
+          "sha256": "b6c08d0254da1a32ed82c9791dc9b4fe2b229f7a35e95cfb847e3f3e5ef3b5f4"
         },
         {
           "file": ".agents/skills/ai-elements/references/toolbar.md",
-          "sha256": "020920a062fff1f8b668748eff8c4747e8054093e9c4531c9857956036dbc303"
+          "sha256": "2da12fa436337e9a131904ea265e479e7de8e7cca5116bf59a9e1d58ce28addf"
         },
         {
           "file": ".agents/skills/ai-elements/references/transcription.md",
-          "sha256": "b21a15197960919e8264797998bbdc4f70782111ef26f8786eb1d465fb7d41a8"
+          "sha256": "48f75384548b10f7246f9d1ccdbec131c41dc3de69992c20d1ca1ec0f407e355"
         },
         {
           "file": ".agents/skills/ai-elements/references/voice-selector.md",
-          "sha256": "c6b2d05447a013938193694800476b262b5a01e34530a7ab8100e1bd25bd1294"
+          "sha256": "f0a2eff9a3533603b4ba0f07f87c06233972876e1c681eb626f00cdf094dc884"
         },
         {
           "file": ".agents/skills/ai-elements/references/web-preview.md",
-          "sha256": "1ca944eeba8d8df4afd078b2714874cf538fa69e10c38fc8563af2cce3417f61"
+          "sha256": "0abc6e0dcd8a83ecf0a002147517f936e15e1968d7933339502883a019b51a1a"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/agent.tsx",
-          "sha256": "7e0ae32c9870734c7ba94946261cd101244f04e03ddd077d1a8ebc7ba6dedeca"
+          "sha256": "aa51ba880d21ae48483f6be4c88634e89640af76a7d4916c6b0d8d1037c0ac80"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/artifact.tsx",
-          "sha256": "569ecaddd735aeaa50be5d40d60c332ae8122b40220663f7ab6c1b2c3394ad8b"
+          "sha256": "daf4238ec5df27315856586dbb9ecf357c2474adc679adfc8ee0ee08f32f44b0"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/attachments-inline.tsx",
-          "sha256": "455ad9c6aa36ff0020ba0f8f179ef08e87ba94598a6d2722812858a094c702e4"
+          "sha256": "84e931280bb1e6bd077552b77d83b5a019a39d165b9f2a9c7f28b8dcafdaff82"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/attachments-list.tsx",
-          "sha256": "3f8c30adf5973e0c1ba9bff33d90e86a0dc12674d17ebf6b223f3648f49b5d33"
+          "sha256": "0fddd87d211e31fa508d6a6d6b59f29362d96e60063bfcca30c7b7741e0719f9"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/attachments.tsx",
-          "sha256": "ca2c803aea8bc8ebfb8a462446ba6fecb5c03c0113f3eb073817d39aae6ef5dc"
+          "sha256": "9e2c0f84af29c01e9e747d8bf67c0844848b4d764930dd70136c30561842d32a"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/audio-player-remote.tsx",
@@ -21542,15 +21542,15 @@
         },
         {
           "file": ".agents/skills/ai-elements/scripts/audio-player.tsx",
-          "sha256": "31ccdde6852d7ad295ec9983660465024e3f97fb460085d9cd5be77ef9b0230b"
+          "sha256": "1eabe1f3a970936f4511c5dc90aceb07c3bbc04c2908a87d775cad8cf291e91b"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/chain-of-thought.tsx",
-          "sha256": "24bfb4e96a7b675ac7011c1cc0dc0f37663f20976188ba98bbf69a4c0b7b8d83"
+          "sha256": "a2e026c24f63f18217d5303db1b27aba5f015bc584c7344c20a9ac679dd8469e"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/checkpoint.tsx",
-          "sha256": "e9e88186df595f40598a2138d1e583f64b8933b3541b14a428022ef5d7b2236b"
+          "sha256": "26a9442c786caf1d2d5cc18ca97c96bd24cceac90f3fba4e64eaa2151db66e5d"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/code-block-dark.tsx",
@@ -21558,7 +21558,7 @@
         },
         {
           "file": ".agents/skills/ai-elements/scripts/code-block.tsx",
-          "sha256": "cb530dba2ffbd30c6c4c2d6d9ced8024810d5de412090618053c2bf95322dc00"
+          "sha256": "f041f5b72b9311fe2a48c526c67314159fa32dbd1ebe3699802fbe17a5cac9e1"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/commit.tsx",
@@ -21566,11 +21566,11 @@
         },
         {
           "file": ".agents/skills/ai-elements/scripts/confirmation-accepted.tsx",
-          "sha256": "8fa3722db9429f320d09d715c6964a823647847494b027dced10de9136f45dda"
+          "sha256": "5317ba1927ac1c8e08561104bd0991977c752bd4e993e32d165f9c5e1c5d4a1b"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/confirmation-rejected.tsx",
-          "sha256": "b6ce7a6d1c5b0623dbd862f5034284e6ca6338753deed6a8d7f350f60f203a60"
+          "sha256": "b3e3fd09a0800da35549bab1f3d64802b926e61eb3fb9e5faceba8af6713b2f6"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/confirmation-request.tsx",
@@ -21578,7 +21578,7 @@
         },
         {
           "file": ".agents/skills/ai-elements/scripts/confirmation.tsx",
-          "sha256": "064704d7cc77552835bd846a7cdb7b66f807dbaf297076ce0484d5dd9b25acf9"
+          "sha256": "d94bdf64cb69efd77dfeed9031cafbebfa1915515dd5ced7e371821cbad659a2"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/context.tsx",
@@ -21586,27 +21586,27 @@
         },
         {
           "file": ".agents/skills/ai-elements/scripts/conversation.tsx",
-          "sha256": "47dbef0bfe368bfcfc1cfea8abbca1f2b3356437abbe6f8da3dbd1a16d91c709"
+          "sha256": "aa38130312c48cac707eafd7e294decbca5cd2cf9c05e4bcbe2c61e3ea083be0"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/environment-variables.tsx",
-          "sha256": "e44e8963dbfc92cfa5c4aca5df74fbd359006155fe08576788fb5e16804c81a6"
+          "sha256": "d2e6534bc3490dde6e6501023176eb01ae7eb0e8502fb7afbe2116662fc4dcef"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/file-tree-basic.tsx",
-          "sha256": "dabd4ce45083d414089f5a9c162030afa293d0994cd41e4e7a23596bbb7db0c5"
+          "sha256": "0256db35b7e7a7a88ce813907ca4175712ee24944e481c73a7332d3124b2e105"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/file-tree-expanded.tsx",
-          "sha256": "988d0987bb599b9bf651875554241f5af35e93cdeefd39bf4eeccae00d70b3a7"
+          "sha256": "3d89316043a845a78f729a13b1c333b69eaae497c6684f00c83083d2a0006c87"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/file-tree-selection.tsx",
-          "sha256": "7391b43051e227e20f95de391c99945ce9b86630d58373685cffa85ce3d90f58"
+          "sha256": "f7a8dc3eab0504eceae314038fa3cc2aebd5ab51087a9e7d2652b5e0c07359a3"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/file-tree.tsx",
-          "sha256": "932d353566806358c62c1b42003615ebeb66a31ef2f2eb49b957a1597cf1df7c"
+          "sha256": "4040a481868a3bd803429b00823754e07493739dfbcef145909ceb11f8b4e87f"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/image.tsx",
@@ -21614,23 +21614,23 @@
         },
         {
           "file": ".agents/skills/ai-elements/scripts/inline-citation.tsx",
-          "sha256": "3dac24e87c0ef91408759ebc82ab605158fff303a5d942f89530cc99c319fea2"
+          "sha256": "4eb2a30eeb5318b6fbda89637868645552bfff0d9079f4c919a72d3617e21729"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/jsx-preview.tsx",
-          "sha256": "d86ae33359c636d628fcccfd583828f197b03a0521d9018a3c18b024a2e1a277"
+          "sha256": "d575e0bae2bb20ec305f57dd0da4ce5bee16a4b2396c77bdc1c93f5f697408b5"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/message.tsx",
-          "sha256": "9e525cbd3c425c54e964559ad03aece05598452aff8c0c72bae607c8fe52ef11"
+          "sha256": "e54deb3cd932227c032e49d65f00d32fe87522a1f90016e334e4826aa7afe3c0"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/mic-selector.tsx",
-          "sha256": "41be0b91cf54a46007435ff813929579dd903ebd819e87681dca0f2ba1394650"
+          "sha256": "2e98113fdc68fca9432d5c1a55604d60409ec6eed34c95c19dbccdc93c7cef07"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/model-selector.tsx",
-          "sha256": "3bd6db58e725759ef1bbb37562303bc9453abe79bccc88793e42ca2a8748ff52"
+          "sha256": "04a391425ce6a9da9dc1248d03dd1b61d51adacae12636ddb96771ac0990ac63"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/open-in-chat.tsx",
@@ -21638,67 +21638,67 @@
         },
         {
           "file": ".agents/skills/ai-elements/scripts/package-info.tsx",
-          "sha256": "839257269af9f5e7f94a9fc853249978becd12ef4314c2fc632cb2d2d4ab1082"
+          "sha256": "fd50f634b2d3b326a15586f29832b6b884fd9b46f8ab50cb129f2c2ddd9571ba"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/persona-command.tsx",
-          "sha256": "5b6cb4122f646d5186855a043de53744f2b9df34b9dbaa6c844bae25574adc8a"
+          "sha256": "a525830948671d0df4102598be95681fe800232abd13ed419acccf0585a812f5"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/persona-glint.tsx",
-          "sha256": "18b9ad674987c7d3ff3577345ddbde86661d25fc69adb8713ee84a85ebd19484"
+          "sha256": "a86e78c94b87af4dd236b72646fa5c2a2dabbfee51b2bd9eade3ad04156d3d7f"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/persona-halo.tsx",
-          "sha256": "9b14b4cd6ce1a633695a7ef0a04d5bbbf412979059faeab195a375788fd7754e"
+          "sha256": "ed76ce5eda72e3d8524da182c7869e5386be0c2e41ff1bce07565ff0613d915b"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/persona-mana.tsx",
-          "sha256": "71dd6cfbe5574e4346409d3fdc4a250e67246f17c688a7b3518283a6c3f8f883"
+          "sha256": "a628ca506f97056d9b41b6c93e61800df123c5b0bab5ffc111c702a638e2801e"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/persona-obsidian.tsx",
-          "sha256": "b5dcc7895ca1efece5140e5849ec3bbca53baf3e247deae598154eb41c62b5fb"
+          "sha256": "f1d4fa628e67b8380ee9ab65286b2469964a49a2e3c5084b0fc6631a64bf225b"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/persona-opal.tsx",
-          "sha256": "4e1677564efdd94545b2522557c45d2da08937e6c223451c0c2bf8f44119e0a6"
+          "sha256": "43dc0bcfe81d8381cc3f7ff4f939180fffbf5da1dedc1c66812a0171e372c1f7"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/plan.tsx",
-          "sha256": "9cfaa61429d3e341e9c8ad1e043e4da9ff7b55e42958be3ccc4018cefb286d01"
+          "sha256": "cd8387ee540947ef3f11f767092df37d7c782733712815129962f8e3759c6222"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/prompt-input-cursor.tsx",
-          "sha256": "b8891c03a5621fe83ac5939c0e05e6366065e536cff5779bb6296228c6bb02d3"
+          "sha256": "098694845ef75663d109d93d74bb8bc6058ac7285845fff4ea557904e481eca3"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/prompt-input-tooltip.tsx",
-          "sha256": "1706e9bf0d6e600209424f86595374baeea7d93c3dafc12c6dcecb614ff085bb"
+          "sha256": "72d5c079ed854e5d5f3679c2eefe17787a2547e01cd5f939ea1a36b993508c98"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/prompt-input.tsx",
-          "sha256": "7e053029b8dd01923932043d90c8dc5d2ae9d8aaebb97304f22b59267eb7216c"
+          "sha256": "5065eb0c88737196424b809de89f2157f78bc4bf3a31deb4cf6eb2693dfa7394"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/queue-prompt-input.tsx",
-          "sha256": "038252a54dd9c1b2adba2128474626cb277978b71d30abf151aab7aafeea3ab3"
+          "sha256": "55bd8d25621fcf43024ce82334c72471898a8a78e5305df342368965e29d0b22"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/queue.tsx",
-          "sha256": "d90acbcbcfd43e322cc2dbbf10ed144a763944ae8a2ba664f6cbda845f64aa90"
+          "sha256": "5471b1dc75fd8a6ecbfa417c7fb591caf79a3788a4aa8007da3617fb0355678f"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/reasoning.tsx",
-          "sha256": "29b7dfe5b66be9e3c4088669964b8201baa043e3e4b34e4fff52a6adddb7d737"
+          "sha256": "6a48fddbe2374bde5ad3153c4bc8e93523db45efd68bc1937f267853dd59824a"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/sandbox.tsx",
-          "sha256": "27530f931c887f8c5988867f3d5893e78bb1cdbdd4bbab4dc13c4d686ccfc73e"
+          "sha256": "d27cc382fd641b12c0c4e1896cb6cb48502dbea640860025dc1541a62c250a67"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/schema-display-basic.tsx",
-          "sha256": "b9202fa593bc466e6629d7f1b3d5192663ea081e32619034430dc9abc5de4484"
+          "sha256": "49e85e04a6963c0a3da793809e20f48197cd886d7e2b0eb918efaa1ca5f70249"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/schema-display-body.tsx",
@@ -21718,11 +21718,11 @@
         },
         {
           "file": ".agents/skills/ai-elements/scripts/shimmer-duration.tsx",
-          "sha256": "1aa8344fceff370ad73dbb79f22d778069036bba5660da4c1737e9b6585b4e93"
+          "sha256": "075977e54d0f80537d604358570467f451388ce069f0083851712b0d5135641f"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/shimmer-elements.tsx",
-          "sha256": "b5ed5702e558abd5ced6b4fbb400880b80fa9c02bfe6595a4dd4d8b698cb9804"
+          "sha256": "b79b89b906dd29419f28afb3cf1c75c285f5a6d0bbc65a37b846e5288412299b"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/shimmer.tsx",
@@ -21738,15 +21738,15 @@
         },
         {
           "file": ".agents/skills/ai-elements/scripts/sources-custom.tsx",
-          "sha256": "6371828298341ff39656906abff4bae6e17fa70b3001073f153982fdfa888df0"
+          "sha256": "a4d88c7a27365f0968a2667e6b6476c81a03ae6883a3494df936c24d12a1d948"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/sources.tsx",
-          "sha256": "6075eedadbbedd2390f0224f791966b8b329bfb24b479c65335c9b81dabaff36"
+          "sha256": "2c53111da7b01dc7e9ada27a5774d7a71605f8eb0f92883ae944fdc0ebc6ec3e"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/speech-input.tsx",
-          "sha256": "a6647bae1743df980631238578793ed7cc7984109f78ca24dfd52e8cad5fe44e"
+          "sha256": "845e3780a3ce1ca61e77132423c68f3bf830dc8dc5a084cbf7cc179b21ae0fad"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/stack-trace-collapsed.tsx",
@@ -21758,15 +21758,15 @@
         },
         {
           "file": ".agents/skills/ai-elements/scripts/stack-trace.tsx",
-          "sha256": "ff186e9a927b79b065e7ee34379178189c505b37634402be4cb2b0f4c0f602d9"
+          "sha256": "214f2615278c5a200e4b8178587aca843e9f0070f2a4571d314aae8fd32ae855"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/suggestion-input.tsx",
-          "sha256": "56b282f999f621610b8cb2f014998124b4713dd20df734bf5a6a8ff4aca14e42"
+          "sha256": "2c6b9b1fbc0510575cd65978ea722447aab4cff1929745852d3a4bd74bd52b49"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/suggestion.tsx",
-          "sha256": "9dd02a75b7f6b982212b4992d49d3c664e6e7c7a94ead6ce9e7d32f582096c98"
+          "sha256": "b8d6cf25be67d85c77a7f0957d73a669b2493a88bfc2595284326a26194e7016"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/task.tsx",
@@ -21786,7 +21786,7 @@
         },
         {
           "file": ".agents/skills/ai-elements/scripts/terminal.tsx",
-          "sha256": "c91c6c606c31bb32c8ee1b9d47d177340ac2db883d66fa9cd9255af19de12877"
+          "sha256": "77687d7657b632e2df7a6c93e0616df088a84b80849e047944f890363def5a66"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/test-results-basic.tsx",
@@ -21802,7 +21802,7 @@
         },
         {
           "file": ".agents/skills/ai-elements/scripts/test-results.tsx",
-          "sha256": "362dca63b81aa0c9c59aaa4d4602a6e1a806d6c8cf19c53807b7aa24a8129299"
+          "sha256": "daf46172e8317bc3c76cfa549eb0ffdd84b748860a026e1631eb2558843258cb"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/tool-input-available.tsx",
@@ -21814,34 +21814,34 @@
         },
         {
           "file": ".agents/skills/ai-elements/scripts/tool-output-available.tsx",
-          "sha256": "2804b9dd0cce4f44a14ba55e54cdabc1303d2aeec556dd9fb0147d433726d509"
+          "sha256": "8539025a09118b576a0607547b19ead706caa8208e1c1e6163c1721f8dbde044"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/tool-output-error.tsx",
-          "sha256": "a3732a788f67b45159a608f14ed28be0e7bc6e3426d12fbb4f57a291eb0b8570"
+          "sha256": "ac186ea33ac244dfec6a2d36aef611bff9a1a3718a769536f09095a71735ab53"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/tool.tsx",
-          "sha256": "816a3b3fbce141072bfcc5bf45014dac931feedc6c04c49a4534ef66a5086946"
+          "sha256": "fb96acee2682358b3b327453f436a192d8800901b1b5dccaf865764303ec6f2d"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/transcription.tsx",
-          "sha256": "17be1b17dbd4034f88e6e363223016ef2b0ee551f4be71a8778212d3c7b0972a"
+          "sha256": "a50c6b33cce0865504f0bdd5f86e2764a43ca065543b687e3332b4f307ed7c5e"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/voice-selector.tsx",
-          "sha256": "e7a7bc8e91f11e6a5495beb4f2a8cfa9e696c6c0eeefa15b1a59651d11621cc2"
+          "sha256": "e48cb2feb2ad257e76c2e0d1ceca0be8270b648de5622b4f06d128d19b9fb7f0"
         },
         {
           "file": ".agents/skills/ai-elements/scripts/web-preview.tsx",
-          "sha256": "e6afcc697a958e5d013b3be8e50c5b8951ba65e98cb30307d5d58208ade6acf1"
+          "sha256": "856f343ceb12651772d2eb58d3fe7e59ded94248fdfe2559a7fc7d8ed1578281"
         }
       ]
     },
     {
       "id": "Fig autocomplete registry",
       "roots": [
-        "apps/zcode-cli/packages/core/src/tool/handlers/generated/bash-command-registry.ts"
+        "apps/lcode-cli/packages/core/src/tool/handlers/generated/bash-command-registry.ts"
       ],
       "license": "MIT",
       "source": "https://raw.githubusercontent.com/withfig/autocomplete/aef52acff84c45edde61ae610cc2c964802b9a38/LICENSE",
@@ -21851,7 +21851,7 @@
       "importRevision": null,
       "files": [
         {
-          "file": "apps/zcode-cli/packages/core/src/tool/handlers/generated/bash-command-registry.ts",
+          "file": "apps/lcode-cli/packages/core/src/tool/handlers/generated/bash-command-registry.ts",
           "sha256": "9d258f30f35330c554027ab9bde233732804f1dd1354badc8e54861889ff3496"
         }
       ]
@@ -31052,7 +31052,7 @@
         ".agents/skills/dogfood",
         ".agents/skills/electron"
       ],
-      "scope": "Upstream-derived instructions, reference documents and shell templates; locally adapted for the ZCode workspace. Reference release v0.20.0 contains all three skills.",
+      "scope": "Upstream-derived instructions, reference documents and shell templates; locally adapted for the LCode workspace. Reference release v0.20.0 contains all three skills.",
       "license": "Apache-2.0",
       "modifiedFiles": [
         ".agents/skills/agent-browser/SKILL.md",
@@ -31068,15 +31068,15 @@
       "files": [
         {
           "file": ".agents/skills/agent-browser/SKILL.md",
-          "sha256": "ebdbf327ccf1803b4174bd063eabb5161dc83edda63f60f8e03f051e079876c0"
+          "sha256": "31de8ee0cfe153ef461eb14de65cef4b1f948bfc939f45a1d8f628ec446d61b4"
         },
         {
           "file": ".agents/skills/agent-browser/references/authentication.md",
-          "sha256": "11fe9aeb56afaa33f53f6fdf9b728366ff5596317c9f0d3aa35a1d6f82275b98"
+          "sha256": "a4a1b8239806418e54d215f799a7154120ef7e77e790a8a373a8766e9330c8ed"
         },
         {
           "file": ".agents/skills/agent-browser/references/commands.md",
-          "sha256": "20d6b9da711c7b3085c5cdefed03d01150df6e0636849bfc3c26e57d8fc133b0"
+          "sha256": "360db0d2375a864b9761efe56afe361de5cebf897cf81f28df8107a02cc1d15b"
         },
         {
           "file": ".agents/skills/agent-browser/references/profiling.md",
@@ -31088,11 +31088,11 @@
         },
         {
           "file": ".agents/skills/agent-browser/references/session-management.md",
-          "sha256": "a25a5c1cc7c4a80a7459e9d1e1c5bc7dff2cfbd2b7515a99cbc505049d789023"
+          "sha256": "3556765a1922e9bf1932b4c08f3f073ce43978f25c0aa6c275941a976cf93742"
         },
         {
           "file": ".agents/skills/agent-browser/references/snapshot-refs.md",
-          "sha256": "dccbc2753989a1189a2c177e86617286580d1d1713a5c4b74aeeb6d4f395aa35"
+          "sha256": "ae425956f976b05437a98e6505f47a24ed945fcd81ef63eee344603db5a77501"
         },
         {
           "file": ".agents/skills/agent-browser/references/video-recording.md",
@@ -31112,19 +31112,19 @@
         },
         {
           "file": ".agents/skills/dogfood/SKILL.md",
-          "sha256": "8bdf327ee1542a4956834eaa2175d6f5701aa6bad505d6a8728757ad5f7e0f25"
+          "sha256": "6fe059e026e1fdefd329b6e577f52d10a42518ce77e205f4b260d821f104fb85"
         },
         {
           "file": ".agents/skills/dogfood/references/issue-taxonomy.md",
-          "sha256": "7906120fd4f9960c162f49ae19e46387e43397d4be055e583ed54f53bd8082c1"
+          "sha256": "c6b269b2e700d3ed2417a85cab5ddf4ed3391d6e7c7ec94ae03fc27c7a3d1bcb"
         },
         {
           "file": ".agents/skills/dogfood/templates/dogfood-report-template.md",
-          "sha256": "1c13f6fa8d415af301557676a4241fec87e0ce777bfa04240eefdc5339100344"
+          "sha256": "68d85a1309142fbd4b7366dbb8d83d1ed69a6677caf96423160ce7a2eb7c9da6"
         },
         {
           "file": ".agents/skills/electron/SKILL.md",
-          "sha256": "33bda7b864faa95286abad806af384e8d41ec45d6dbbd79e6842c1747a56e6c2"
+          "sha256": "d2ab8ea717314afabcbf83df5f16f81f15390f5a644f4ee5db84036925acc8a8"
         }
       ]
     },
@@ -31139,9 +31139,9 @@
       "roots": [
         "packages/rpc/src",
         "packages/rpc/examples",
-        "packages/shared/src/zcode-protocol-v4/wire-codec.ts"
+        "packages/shared/src/lcode-protocol-v4/wire-codec.ts"
       ],
-      "scope": "Upstream-derived IPC, serialization, buffer, lifecycle and event portions only. Local RPC extensions, transports and envelope measurement are ZCode adaptations; inclusion does not attribute all local code to Microsoft.",
+      "scope": "Upstream-derived IPC, serialization, buffer, lifecycle and event portions only. Local RPC extensions, transports and envelope measurement are LCode adaptations; inclusion does not attribute all local code to Microsoft.",
       "license": "MIT",
       "files": [
         {
@@ -31194,7 +31194,7 @@
         },
         {
           "file": "packages/rpc/src/protocol.ts",
-          "sha256": "e6556cfe0eb32bcb4add1023951179eb2d52bf992d7716ffff36588daaed83b0"
+          "sha256": "70b9647eff9572122f3fd5de22ed80a47cc50d5a653d32f0481b62fa35f3e4d5"
         },
         {
           "file": "packages/rpc/src/proxy-channel.ts",
@@ -31206,7 +31206,7 @@
         },
         {
           "file": "packages/rpc/src/serialization.ts",
-          "sha256": "1d2d3173ae78b8bea066c05b655fbf2bd6545c77453e849a9c63a856a45f6df5"
+          "sha256": "f899369f326247cb51849aa639ddc96def30c8bd41c9f9c602f52e5f2c319e89"
         },
         {
           "file": "packages/rpc/examples/01-basic-ipc.ts",
@@ -31225,8 +31225,8 @@
           "sha256": "db268ab9e21a6e20eff2a16ce7c88de571d6688a6f46aa9eb0508ca734bcdc1c"
         },
         {
-          "file": "packages/shared/src/zcode-protocol-v4/wire-codec.ts",
-          "sha256": "3c089371d1447c2637009221d1270fff74486385488cfafb85693109ad72c314"
+          "file": "packages/shared/src/lcode-protocol-v4/wire-codec.ts",
+          "sha256": "a2d254148e7c5721dc45b93962e3a859938c7ba2a2b4788c0cc1414d61d66db4"
         }
       ]
     },
@@ -31240,17 +31240,17 @@
       "provenance": "Original import revision is not recorded. This pinned upstream license/source reference is not asserted to be the original import version.",
       "roots": [
         "packages/ui/src/lib/builtinSkillI18n.ts",
-        "apps/zcode-cli/packages/superpowers-plugin/LICENSE"
+        "apps/lcode-cli/packages/superpowers-plugin/LICENSE"
       ],
       "scope": "Superpowers-derived skill descriptions and their translations only; unrelated descriptions from other projects in this file are not covered. The former bundled plugin implementation has been removed; only its retained license remains.",
       "license": "MIT",
       "files": [
         {
           "file": "packages/ui/src/lib/builtinSkillI18n.ts",
-          "sha256": "ff16d6be2ba50f6740a2dbc292874afa046c57e5a43eff7f2cebc82179b53ccf"
+          "sha256": "62bd09a0bb5ee15e4fddc939b3a6b585a27d33e463512ee724cb548828e1fa98"
         },
         {
-          "file": "apps/zcode-cli/packages/superpowers-plugin/LICENSE",
+          "file": "apps/lcode-cli/packages/superpowers-plugin/LICENSE",
           "sha256": "0da33ed814ee87e72db078f489c4447af72f13d9f25d9e17476f32efd77705fc"
         }
       ]
@@ -31581,17 +31581,17 @@
       "sha256": "f1af4301bd3b85026965f9f1cfa101b9bfd73a75c6b92f7a2a72bab5768abd36",
       "importRevision": "e3ba2aa6f1e6f0bc4d69eb09c9f0d0a93af56156",
       "roots": [
-        "apps/zcode-cli/packages/lemon-workflow-plugin/skills/ponytail"
+        "apps/lcode-cli/packages/lemon-workflow-plugin/skills/ponytail"
       ],
       "scope": "Vendored Ponytail SKILL.md and its original MIT license.",
       "license": "MIT",
       "files": [
         {
-          "file": "apps/zcode-cli/packages/lemon-workflow-plugin/skills/ponytail/LICENSE",
+          "file": "apps/lcode-cli/packages/lemon-workflow-plugin/skills/ponytail/LICENSE",
           "sha256": "f1af4301bd3b85026965f9f1cfa101b9bfd73a75c6b92f7a2a72bab5768abd36"
         },
         {
-          "file": "apps/zcode-cli/packages/lemon-workflow-plugin/skills/ponytail/SKILL.md",
+          "file": "apps/lcode-cli/packages/lemon-workflow-plugin/skills/ponytail/SKILL.md",
           "sha256": "46a57e26a2632e7fa40eae6a3cf3011ccdc4d8db19d8f8617907d6b5deef055e"
         }
       ]
@@ -31604,25 +31604,25 @@
       "sha256": "94fe75d355887f84ee7eefca68e06d8d082a23dad47a8e1f58a94d98900edf5b",
       "importRevision": "ae26f3a4775574bd49dc8bdb61c0287bbc3cd268",
       "roots": [
-        "apps/zcode-cli/packages/lemon-workflow-plugin/skills/caveman"
+        "apps/lcode-cli/packages/lemon-workflow-plugin/skills/caveman"
       ],
       "scope": "Vendored Caveman skill and README only. Upstream LICENSING.md classifies skills/ as MIT; no BSL engine or runtime code is included.",
       "license": "MIT",
       "files": [
         {
-          "file": "apps/zcode-cli/packages/lemon-workflow-plugin/skills/caveman/LICENSE",
+          "file": "apps/lcode-cli/packages/lemon-workflow-plugin/skills/caveman/LICENSE",
           "sha256": "94fe75d355887f84ee7eefca68e06d8d082a23dad47a8e1f58a94d98900edf5b"
         },
         {
-          "file": "apps/zcode-cli/packages/lemon-workflow-plugin/skills/caveman/LICENSING.md",
+          "file": "apps/lcode-cli/packages/lemon-workflow-plugin/skills/caveman/LICENSING.md",
           "sha256": "84e8dfe4096a9989640ed5d544355cc8878a874346245ec3b643bd5001c7b106"
         },
         {
-          "file": "apps/zcode-cli/packages/lemon-workflow-plugin/skills/caveman/README.md",
+          "file": "apps/lcode-cli/packages/lemon-workflow-plugin/skills/caveman/README.md",
           "sha256": "e59aba7147058f0b90e9961a50ccd2e76a6883524711567c0d9348bd1f9cd74d"
         },
         {
-          "file": "apps/zcode-cli/packages/lemon-workflow-plugin/skills/caveman/SKILL.md",
+          "file": "apps/lcode-cli/packages/lemon-workflow-plugin/skills/caveman/SKILL.md",
           "sha256": "0bf09a0a9a017d004a81d4b693e5a2d830e1a28230a5885df773e1ed9c0571cc"
         }
       ]

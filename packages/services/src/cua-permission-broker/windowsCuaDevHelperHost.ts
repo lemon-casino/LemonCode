@@ -1,20 +1,20 @@
 /* eslint-disable max-lines -- Windows two-phase transport lifecycle must remain one linearized state machine. */
 import { randomBytes } from "node:crypto";
 
-import { ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY } from "@zcode/shared";
+import { LCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY } from "@lcode/shared";
 import {
   BROKER_CAPABILITY_ENV,
   BROKER_GENERATION_ENV,
   createHelperBootstrapCredentials,
   parseHelperBootstrapRequest,
   type HelperHealth,
-} from "@zcode/zcode-cua/broker";
-import { HELPER_CONTROL_PROTOCOL } from "@zcode/zcode-cua/broker/server";
+} from "@lcode/lcode-cua/broker";
+import { HELPER_CONTROL_PROTOCOL } from "@lcode/lcode-cua/broker/server";
 import type {
   CuaHelperHandle,
   CuaHelperTransportRestartResult,
   CuaProductHelperHost,
-} from "@zcode/zcode-cua/broker/server";
+} from "@lcode/lcode-cua/broker/server";
 
 import { createServiceLogger, type ServiceLogger } from "#src/logger/serviceLogger.js";
 import {
@@ -345,7 +345,7 @@ export class WindowsCuaHelperHost implements ManagedCuaProductHelperHost {
     };
     // 根因：argv/env 可被同机进程检查；常驻 Helper 的 credential tuple 只能在 exact child
     // 发出 nonce challenge 后经 Node IPC 一次性交付。
-    delete childEnv[ZCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY];
+    delete childEnv[LCODE_CUA_PLUGIN_AUTHORITY_ENV_KEY];
     delete childEnv[BROKER_CAPABILITY_ENV];
     delete childEnv[BROKER_GENERATION_ENV];
     let child: WindowsCuaChild;

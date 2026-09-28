@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState, useSyncExternalStore } from "react";
-import type { IProviderSettingsService, ProviderSettingsView } from "@zcode/services";
+import type { IProviderSettingsService, ProviderSettingsView } from "@lcode/services";
 import { logger } from "@/logger.js";
 import {
   getProviderSettingsSnapshot,

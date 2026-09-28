@@ -4,7 +4,7 @@ import {
   appSettingsSchema,
   appSettingsPatchSchema,
 } from "../../shared/src/validationAppSettings.js";
-import { zcodeTaskMetaSchema } from "../../shared/src/validation.js";
+import { lcodeTaskMetaSchema } from "../../shared/src/validation.js";
 import { readAskUserQuestionAnswers } from "../src/lib/askUserQuestion.js";
 import {
   getAgentPrimaryText,
@@ -26,9 +26,9 @@ const meta = {
 };
 
 test("current task metadata is accepted without upgrading third-party Agent identities", () => {
-  assert.equal(zcodeTaskMetaSchema.parse(meta).provider, "glm");
+  assert.equal(lcodeTaskMetaSchema.parse(meta).provider, "glm");
   for (const provider of ["claude", "codex", "gemini", "opencode"]) {
-    assert.equal(zcodeTaskMetaSchema.safeParse({ ...meta, provider }).success, false, provider);
+    assert.equal(lcodeTaskMetaSchema.safeParse({ ...meta, provider }).success, false, provider);
   }
 });
 
@@ -64,7 +64,7 @@ test("current question results work while Claude ACP text is no longer interpret
   }
 });
 
-test("ZCode subagent identity wins over retired Codex nicknames", () => {
+test("LCode subagent identity wins over retired Codex nicknames", () => {
   const tool = {
     id: "tool-example",
     kind: "Agent",

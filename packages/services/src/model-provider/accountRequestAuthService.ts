@@ -4,7 +4,7 @@ import type {
   AccountRequestAuthMaterial,
   AccountRequestAuthResolver,
 } from "./accountProviderRequestAuthService.js";
-import type { ZCodeAccountAccess, ZCodeProviderAccountAccess } from "@zcode/shared";
+import type { LCodeAccountAccess, LCodeProviderAccountAccess } from "@lcode/shared";
 
 /**
  * 请求期 Account 鉴权边界。
@@ -13,7 +13,7 @@ import type { ZCodeAccountAccess, ZCodeProviderAccountAccess } from "@zcode/shar
  * 它不保存 Provider Config，也不提供 Registry fallback。
  */
 export interface IAccountRequestAuthService {
-  resolveAccessCurrent(access: ZCodeProviderAccountAccess): Promise<ZCodeAccountAccess | null>;
+  resolveAccessCurrent(access: LCodeProviderAccountAccess): Promise<LCodeAccountAccess | null>;
   resolveCurrent(input: AccountRequestAuthInput): Promise<AccountRequestAuthMaterial>;
   assertCurrent(input: AccountAccessIdentityInput): Promise<void>;
 }

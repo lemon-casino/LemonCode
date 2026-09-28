@@ -5,7 +5,7 @@ import {
   imageThumbnailClassName,
   imageThumbnailTriggerClassName,
 } from "@/components/ai-elements/image-thumbnail-gallery.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { NodeReplDisplayModel } from "@/lib/nodeReplToolDisplay.js";
 
 export function NodeReplImageGrid({
@@ -15,7 +15,7 @@ export function NodeReplImageGrid({
   images: ReadonlyArray<NodeReplDisplayModel["images"][number]>;
   resultImageLabel: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [previewIndex, setPreviewIndex] = useState(0);
   const [previewOpen, setPreviewOpen] = useState(false);
   const triggerRefs = useRef<Array<HTMLButtonElement | null>>([]);

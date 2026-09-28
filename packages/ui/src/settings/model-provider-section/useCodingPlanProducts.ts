@@ -9,7 +9,7 @@ import {
   type CodingPlanStaticProductsConfig,
   type StartPlanPreviewConfig,
   isZaiCodingPlanProviderId,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 import {

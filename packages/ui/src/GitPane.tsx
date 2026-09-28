@@ -1,8 +1,8 @@
 /* eslint-disable max-lines -- GitPane 当前集中承载来源切换、diff 懒加载、展开状态和文件变更查找联动；后续拆分需按 Git 面板功能边界单独推进。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import type { GitChangeSourceId, GitDiffResult } from "@zcode/shared";
-import { TID_GIT_PANE } from "@zcode/shared";
+import type { GitChangeSourceId, GitDiffResult } from "@lcode/shared";
+import { TID_GIT_PANE } from "@lcode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { FileTextIcon, RefreshCw } from "lucide-react";
@@ -17,7 +17,7 @@ import { type GitPaneFileChange, type GitPaneRepositoryState } from "@/hooks/use
 import { useServices } from "@/hooks/useServices.js";
 import { useFileContextActions } from "@/hooks/useFileContextActions.js";
 import { useWorkspaceOpenInEditorTarget } from "@/hooks/useWorkspaceOpenInEditorTarget.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { joinFilePath, isAbsoluteFilePath } from "@/lib/path.js";
 import {
   getDiffCacheKey,
@@ -28,7 +28,7 @@ import {
 import { GitPaneChangeCard } from "@/GitPaneChangeCard.js";
 import { getFileChangeFindState } from "@/GitPane/fileChangeFindSearch.js";
 import { logger } from "@/logger.js";
-import { useZCodeStore } from "@/store/StoreProvider.js";
+import { useLCodeStore } from "@/store/StoreProvider.js";
 import { resolveTheme } from "@/useTheme.js";
 import { getWorkspaceFileRelativePath } from "@/workspace-file-tree/model.js";
 
@@ -72,9 +72,9 @@ export function GitPane({
   onRevealFileInTree?: (path: string) => void;
 }) {
   const { gitService } = useServices();
-  const { intl } = useZCodeIntl();
-  const theme = useZCodeStore((state) => state.theme);
-  const codePreviewSettings = useZCodeStore((state) => state.codePreviewSettings);
+  const { intl } = useLCodeIntl();
+  const theme = useLCodeStore((state) => state.theme);
+  const codePreviewSettings = useLCodeStore((state) => state.codePreviewSettings);
   const workspaceOpenTarget = useWorkspaceOpenInEditorTarget({
     workspacePath,
     workspaceIdentity,

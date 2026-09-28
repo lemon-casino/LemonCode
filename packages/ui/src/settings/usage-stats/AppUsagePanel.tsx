@@ -1,10 +1,10 @@
 import { RefreshCcw } from "lucide-react";
 import { Fragment, lazy, useState } from "react";
-import { APP_USAGE_RANGES } from "@zcode/shared";
-import type { AppUsageRange, AppUsageSnapshot } from "@zcode/shared";
+import { APP_USAGE_RANGES } from "@lcode/shared";
+import type { AppUsageRange, AppUsageSnapshot } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useAppUsageStats } from "@/hooks/useUsageStats.js";
 import { UsageChartLoadBoundary } from "@/settings/usage-stats/UsageChartLoadBoundary.js";
 import { UsageHeatmap } from "@/settings/usage-stats/UsageHeatmap.js";
@@ -32,7 +32,7 @@ const AppUsageModelUsagePieChart = lazy(() =>
 );
 
 export function AppUsagePanel() {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const [range, setRange] = useState<AppUsageRange>("7d");
   const { snapshot: lifetimeSnapshot, refresh: refreshLifetime } = useAppUsageStats("all");
   const { snapshot, loading, error, refresh } = useAppUsageStats(range);
@@ -131,7 +131,7 @@ export function AppUsagePanel() {
 }
 
 function AppUsageLifetimeSummaryStrip({ snapshot }: { snapshot: AppUsageSnapshot | null }) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const items = [
     {
       label: intl.formatMessage({ id: "settings.usage.lifetimeTotalTokens" }),
@@ -176,7 +176,7 @@ function AppUsageLifetimeSummaryStrip({ snapshot }: { snapshot: AppUsageSnapshot
 
 function formatAppUsageDays(
   days: number,
-  intl: ReturnType<typeof useZCodeIntl>["intl"],
+  intl: ReturnType<typeof useLCodeIntl>["intl"],
   locale: string,
 ): string {
   return `${formatCompactNumber(locale, days)} ${intl.formatMessage({
@@ -186,7 +186,7 @@ function formatAppUsageDays(
 
 export function formatAppUsageDuration(
   durationMs: number,
-  intl: ReturnType<typeof useZCodeIntl>["intl"],
+  intl: ReturnType<typeof useLCodeIntl>["intl"],
 ): string {
   const totalMinutes = Math.max(0, Math.floor(durationMs / 60_000));
   const days = Math.floor(totalMinutes / (24 * 60));
@@ -212,7 +212,7 @@ function AppUsageRangeTabs({
   range: AppUsageRange;
   onRangeChange: (range: AppUsageRange) => void;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <Tabs
       value={range}

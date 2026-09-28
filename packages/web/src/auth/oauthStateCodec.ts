@@ -1,6 +1,6 @@
-import { DEFAULT_ZCODE_ENDPOINT_ORIGIN } from "@zcode/shared";
+import { DEFAULT_LCODE_ENDPOINT_ORIGIN } from "@lcode/shared";
 
-const PRODUCTION_WEB_ORIGIN = DEFAULT_ZCODE_ENDPOINT_ORIGIN;
+const PRODUCTION_WEB_ORIGIN = DEFAULT_LCODE_ENDPOINT_ORIGIN;
 const WEB_CALLBACK_PATHS = new Set(["/cn/share/callback", "/share/callback"]);
 const SHARE_PATH_PATTERN = /^\/(?:cn\/share|share)\/[A-Za-z0-9._~-]{1,512}$/u;
 const PRIVATE_DEV_RETURN_TO_PATTERN =

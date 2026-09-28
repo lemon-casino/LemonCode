@@ -1,12 +1,12 @@
 import { USAGE_ENTITLEMENT_ACCESS_REFRESH_MS } from "@/lib/usageEntitlementRefreshPolicy.js";
-import { validateModelSelectionOptions, type ModelSelectionView } from "@zcode/provider";
+import { validateModelSelectionOptions, type ModelSelectionView } from "@lcode/provider";
 import {
   isBuiltinModelProviderId,
   isStartPlanModelProviderId,
   resolveModelProviderFamilySpecByProviderId,
   type ModelSelection,
   type UsageEntitlementSnapshot,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import {
   bucketMatchesModel,
   bucketRemainingRatio,

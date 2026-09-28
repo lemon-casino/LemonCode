@@ -1,5 +1,5 @@
 import { nativeTheme, type BrowserWindow, type Point } from "electron";
-import { PlatformChannels } from "@zcode/shared";
+import { PlatformChannels } from "@lcode/shared";
 import { resolveDesktopZoomFactorForLevel } from "./desktopZoom.js";
 
 export const MACOS_TRAFFIC_LIGHT_BASE_POSITION = { x: 22, y: 23 } as const;

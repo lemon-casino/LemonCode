@@ -2,7 +2,7 @@
  * 契约:cfworker-remote/PROTOCOL.md §6.4 —— 手机→Host 校验 13B 头后剥出 payload postMessage;
  * Host→手机把每条 Uint8Array 包成 Regular 帧写入 WS;port 流控对象永不穿越 WS,仅用于自身反压;
  * 非法帧丢弃并计数,连续违规断开。本模块保持纯函数化(不 import electron/ws),便于单元测试。 */
-import { PROTOCOL_V4_LIMITS } from "@zcode/shared/zcode-protocol-v4";
+import { PROTOCOL_V4_LIMITS } from "@lcode/shared/lcode-protocol-v4";
 
 /** SocketProtocol 13 字节帧头(type:u8 + id:u32BE + ack:u32BE + length:u32BE)。 */
 export const REMOTE_CONTROL_WS_HEADER_SIZE = 13;
@@ -11,7 +11,7 @@ const REGULAR_FRAME_TYPE = 1;
 
 /** port 内部流控对象(connection-flow-v1);与 packages/rpc MessagePortProtocol 的判定同构。 */
 export interface RemoteControlFlowControlMessage {
-  __zcodeRpcControl: "connection-flow-v1";
+  __lcodeRpcControl: "connection-flow-v1";
   state: "saturated" | "drained";
 }
 
@@ -20,7 +20,7 @@ function isFlowControlMessage(value: unknown): value is RemoteControlFlowControl
   const record = value as Record<string, unknown>;
   return (
     Object.keys(record).length === 2 &&
-    record.__zcodeRpcControl === "connection-flow-v1" &&
+    record.__lcodeRpcControl === "connection-flow-v1" &&
     (record.state === "saturated" || record.state === "drained")
   );
 }

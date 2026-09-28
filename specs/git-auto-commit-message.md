@@ -68,7 +68,7 @@ CLI session owner
 7. 生成后 Git 状态变化：提交弹窗不预填过期草稿。
 8. 用户已打开弹窗并编辑文本：之后到达的自动结果不覆盖输入。
 9. 自动生成失败：任务保持完成，现有手动生成与手动输入可继续使用。
-10. 本地与远程 workspace：均由当前 ServiceProvider 中的目标 Host Git 服务读取与生成，不直接调用 `window.zcode`。
+10. 本地与远程 workspace：均由当前 ServiceProvider 中的目标 Host Git 服务读取与生成，不直接调用 `window.lcode`。
 
 ## 验证
 

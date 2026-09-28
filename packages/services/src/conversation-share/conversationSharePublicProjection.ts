@@ -1,6 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- 公开 Row 的 allow-list 构建与闭包校验必须同处一个策略边界，拆分会让 builder/validator 规则漂移。 */
-import type { ConversationShareArtifactDescriptor } from "@zcode/shared";
-import type { ArtifactRow, ConversationRow } from "@zcode/shared/zcode-protocol-v4";
+import type { ConversationShareArtifactDescriptor } from "@lcode/shared";
+import type { ArtifactRow, ConversationRow } from "@lcode/shared/lcode-protocol-v4";
 
 import { ConversationShareServiceError } from "./conversationShare.js";
 
@@ -56,7 +56,7 @@ function visitStrings(value: unknown, visitor: (value: string) => void): void {
 }
 
 function assertSafeString(value: string): void {
-  if (/^zcode-artifact:\/\//iu.test(value)) {
+  if (/^lcode-artifact:\/\//iu.test(value)) {
     throwProjectionError(
       "artifact_protocol_not_ready",
       "Artifact references must be represented by formal conversation artifact rows",
@@ -68,7 +68,7 @@ function assertSafeString(value: string): void {
 }
 
 function isPublicArtifactRef(value: string): boolean {
-  return /^zcode-artifact:\/\/share\/[A-Za-z0-9._~-]+$/u.test(value);
+  return /^lcode-artifact:\/\/share\/[A-Za-z0-9._~-]+$/u.test(value);
 }
 
 function assertTerminalAndSafe(rows: ConversationRow[]): void {
@@ -379,7 +379,7 @@ function projectRow(row: ConversationRow, index: number, ids: PublicIdMaps): Con
         mimeType: row.mimeType,
         sizeBytes: row.sizeBytes,
         sha256: row.sha256,
-        ref: `zcode-artifact://share/${artifactVersionId}`,
+        ref: `lcode-artifact://share/${artifactVersionId}`,
         state: row.state,
       };
     }
@@ -539,7 +539,7 @@ function assertConversationSharePublicProjection(input: {
     } else if (row.kind === "artifact") {
       if (
         !PUBLIC_ARTIFACT_ID.test(row.artifactVersionId) ||
-        row.ref !== `zcode-artifact://share/${row.artifactVersionId}`
+        row.ref !== `lcode-artifact://share/${row.artifactVersionId}`
       ) {
         throwProjectionError(
           "invalid_conversation",

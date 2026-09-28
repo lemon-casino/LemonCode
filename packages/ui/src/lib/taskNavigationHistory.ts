@@ -2,7 +2,7 @@
  * Workspace 导航历史 —— 浏览器式前进/后退栈
  *
  * 纯数据结构 + 不可变更新函数，不含 React 依赖。
- * 由 zcodeSessionStore 持有实例并驱动 UI 状态。
+ * 由 lcodeSessionStore 持有实例并驱动 UI 状态。
  */
 
 interface WorkspaceNavEntryBase {

@@ -1,24 +1,24 @@
-export interface ZCodeStreamingToolInputState {
+export interface LCodeStreamingToolInputState {
   deltaCount?: number;
   lastPreviewAt?: number;
   lastPreviewRawInputLength?: number;
   rawInput: string;
 }
 
-export interface ZCodeStreamingToolInputPreview {
+export interface LCodeStreamingToolInputPreview {
   complete: boolean;
   input: unknown;
   rawInput: string;
 }
 
-export type ZCodeStreamingToolInputPreviewMode = "active-live" | "background-summary";
+export type LCodeStreamingToolInputPreviewMode = "active-live" | "background-summary";
 
-export const ZCODE_ACTIVE_STREAMING_TOOL_INPUT_EAGER_DELTA_COUNT = 1;
-export const ZCODE_ACTIVE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS = 750;
-export const ZCODE_ACTIVE_STREAMING_TOOL_INPUT_PREVIEW_MIN_RAW_GROWTH = 8 * 1024;
-export const ZCODE_FILE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS = 1_000;
-export const ZCODE_ACTIVE_STREAMING_TOOL_INPUT_TIME_BUDGET_MAX_RAW_INPUT =
-  ZCODE_ACTIVE_STREAMING_TOOL_INPUT_PREVIEW_MIN_RAW_GROWTH;
+export const LCODE_ACTIVE_STREAMING_TOOL_INPUT_EAGER_DELTA_COUNT = 1;
+export const LCODE_ACTIVE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS = 750;
+export const LCODE_ACTIVE_STREAMING_TOOL_INPUT_PREVIEW_MIN_RAW_GROWTH = 8 * 1024;
+export const LCODE_FILE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS = 1_000;
+export const LCODE_ACTIVE_STREAMING_TOOL_INPUT_TIME_BUDGET_MAX_RAW_INPUT =
+  LCODE_ACTIVE_STREAMING_TOOL_INPUT_PREVIEW_MIN_RAW_GROWTH;
 
 const PARTIAL_JSON_STRING_FIELD_KEYS = [
   "file_path",
@@ -51,10 +51,10 @@ const PARTIAL_JSON_STRING_FIELD_KEYS = [
   "script",
 ] as const;
 
-export function appendZCodeStreamingToolInputDelta(
-  state: ZCodeStreamingToolInputState | undefined,
+export function appendLCodeStreamingToolInputDelta(
+  state: LCodeStreamingToolInputState | undefined,
   delta: string,
-): ZCodeStreamingToolInputState {
+): LCodeStreamingToolInputState {
   return {
     ...state,
     deltaCount: (state?.deltaCount ?? 0) + 1,
@@ -62,10 +62,10 @@ export function appendZCodeStreamingToolInputDelta(
   };
 }
 
-export function buildZCodeStreamingToolInputPreview(
+export function buildLCodeStreamingToolInputPreview(
   rawInput: string,
   completeInput?: unknown,
-): ZCodeStreamingToolInputPreview {
+): LCodeStreamingToolInputPreview {
   if (completeInput !== undefined) {
     return {
       complete: true,
@@ -90,10 +90,10 @@ export function buildZCodeStreamingToolInputPreview(
   };
 }
 
-export function shouldMaterializeZCodeStreamingToolInputPreview(
-  state: ZCodeStreamingToolInputState,
+export function shouldMaterializeLCodeStreamingToolInputPreview(
+  state: LCodeStreamingToolInputState,
   options: {
-    mode?: ZCodeStreamingToolInputPreviewMode;
+    mode?: LCodeStreamingToolInputPreviewMode;
     now?: number;
     toolName?: string;
   } = {},
@@ -102,41 +102,41 @@ export function shouldMaterializeZCodeStreamingToolInputPreview(
     return false;
   }
   const deltaCount = state.deltaCount ?? 0;
-  if (deltaCount <= ZCODE_ACTIVE_STREAMING_TOOL_INPUT_EAGER_DELTA_COUNT) {
+  if (deltaCount <= LCODE_ACTIVE_STREAMING_TOOL_INPUT_EAGER_DELTA_COUNT) {
     return true;
   }
   const lastPreviewAt = state.lastPreviewAt ?? 0;
-  if (isZCodeFileStreamingToolInputPreviewTool(options.toolName)) {
+  if (isLCodeFileStreamingToolInputPreviewTool(options.toolName)) {
     // 性能修复：Write/Edit 的半截 JSON 会触发全量内容恢复和行级 diff。
     // 大字节 chunk 不能绕过一秒窗口，否则模型输出越快，UI 反而更新越频繁。
     return (
       (options.now ?? Date.now()) - lastPreviewAt >=
-      ZCODE_FILE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS
+      LCODE_FILE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS
     );
   }
   const lastPreviewRawInputLength = state.lastPreviewRawInputLength ?? 0;
   const rawGrowth = state.rawInput.length - lastPreviewRawInputLength;
-  if (rawGrowth >= ZCODE_ACTIVE_STREAMING_TOOL_INPUT_PREVIEW_MIN_RAW_GROWTH) {
+  if (rawGrowth >= LCODE_ACTIVE_STREAMING_TOOL_INPUT_PREVIEW_MIN_RAW_GROWTH) {
     return true;
   }
   const intervalElapsed =
     (options.now ?? Date.now()) - lastPreviewAt >=
-    ZCODE_ACTIVE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS;
+    LCODE_ACTIVE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS;
   if (!intervalElapsed) {
     return false;
   }
   // 性能修复：大 Write/Edit 参数通常会被 provider 以 4KB 左右的慢速 chunk 推送。
   // 若只按时间预算，active 任务仍会每个 chunk 解析累计 JSON；超过小输入范围后改由 raw growth 控制。
-  return state.rawInput.length <= ZCODE_ACTIVE_STREAMING_TOOL_INPUT_TIME_BUDGET_MAX_RAW_INPUT;
+  return state.rawInput.length <= LCODE_ACTIVE_STREAMING_TOOL_INPUT_TIME_BUDGET_MAX_RAW_INPUT;
 }
 
-export function isZCodeFileStreamingToolInputPreviewTool(toolName?: string): boolean {
+export function isLCodeFileStreamingToolInputPreviewTool(toolName?: string): boolean {
   const normalized = toolName?.trim().toLowerCase();
   return normalized === "write" || normalized === "edit";
 }
 
-export function markZCodeStreamingToolInputPreviewMaterialized(
-  state: ZCodeStreamingToolInputState,
+export function markLCodeStreamingToolInputPreviewMaterialized(
+  state: LCodeStreamingToolInputState,
   now = Date.now(),
 ): void {
   state.lastPreviewAt = now;

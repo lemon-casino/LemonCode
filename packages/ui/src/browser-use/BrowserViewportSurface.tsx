@@ -3,7 +3,7 @@ import {
   BROWSER_VIEW_RESTORE_BOOTSTRAP_URL,
   TID_BROWSER_WEBVIEW,
   type BrowserViewportSize,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { TriangleAlertIcon } from "lucide-react";
 import { ResponsiveBrowserViewport } from "@/browser-use/ResponsiveBrowserViewport.js";
 import {
@@ -148,7 +148,7 @@ export function BrowserViewportSurface({
             ref={handleWebviewRef}
             allowpopups={"" as unknown as boolean}
             src={isResidencyRestore ? BROWSER_VIEW_RESTORE_BOOTSTRAP_URL : DEFAULT_BROWSER_URL}
-            partition="persist:zcode-embedded-browser"
+            partition="persist:lcode-embedded-browser"
             nodeintegrationinsubframes="true"
             data-browser-compositor-scale={isResponsiveMode ? desktopZoomFactor : undefined}
             data-browser-layout-scale={isResponsiveMode ? responsiveGuestLayoutScale : undefined}

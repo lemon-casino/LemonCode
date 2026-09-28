@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import type { PdfViewerLabels } from "@/components/ui/pdf-viewer.js";
 import type { PptxPreviewViewerLabels } from "@/components/ui/pptx-preview-viewer.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 /**
  * 两个重量级叶子查看器（PDF / PPTX）的本地化标签。
@@ -11,7 +11,7 @@ import { useZCodeIntl } from "@/i18n/IntlProvider.js";
  * **必填全字段**的接口，漏一个是类型错误，漏译却只是运行时看到 message id。
  */
 export function usePdfViewerLabels(): PdfViewerLabels {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return useMemo(
     () => ({
       loading: intl.formatMessage({ id: "codeViewer.pdf.loading" }),
@@ -28,7 +28,7 @@ export function usePdfViewerLabels(): PdfViewerLabels {
 }
 
 export function usePptxViewerLabels(): PptxPreviewViewerLabels {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return useMemo<PptxPreviewViewerLabels>(
     () => ({
       loading: intl.formatMessage({ id: "codeViewer.pptx.loading" }),

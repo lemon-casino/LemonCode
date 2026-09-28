@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import type { PipSessionEvent, PipSessionSnapshot } from "@zcode/zcode-cua/pip-session";
-import type { PipSessionClient, PipSessionClientOptions } from "@zcode/zcode-cua/pip-session/node";
+import type { PipSessionEvent, PipSessionSnapshot } from "@lcode/lcode-cua/pip-session";
+import type { PipSessionClient, PipSessionClientOptions } from "@lcode/lcode-cua/pip-session/node";
 
 import type { ServiceLogger } from "../logger/serviceLogger.js";
 import {
@@ -11,7 +11,7 @@ import {
 } from "./cuaPipSessionService.js";
 
 const credentials: CuaPipPresentationCredentials = {
-  pipSocketPath: "/tmp/zcode-cua-pip-test.sock",
+  pipSocketPath: "/tmp/lcode-cua-pip-test.sock",
   capability: "never-log-this-capability",
   generation: 7,
 };

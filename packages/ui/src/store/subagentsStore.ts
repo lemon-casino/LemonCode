@@ -1,13 +1,13 @@
 import { create } from "zustand";
 import {
-  normalizeAgentProviderToZCodeAgent,
-  ZCODE_AGENT_PROVIDER,
-  type ZCodeProvider,
+  normalizeAgentProviderToLCodeAgent,
+  LCODE_AGENT_PROVIDER,
+  type LCodeProvider,
   type AgentSummary,
   type AgentsCapability,
   type SubAgentConfig,
-} from "@zcode/shared";
-import type { ISubagentsService } from "@zcode/services";
+} from "@lcode/shared";
+import type { ISubagentsService } from "@lcode/services";
 import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
 import { logger } from "@/logger.js";
 import { getSubagentsContextKey, useSubagentsContextStore } from "@/store/subagentsContextStore.js";
@@ -17,8 +17,8 @@ interface SubagentsStoreState {
   workspaceIdentity: string | null;
   loadedWorkspacePath: string | null;
   loadedWorkspaceIdentity: string | null;
-  provider: ZCodeProvider;
-  loadedProvider: ZCodeProvider | null;
+  provider: LCodeProvider;
+  loadedProvider: LCodeProvider | null;
   agents: AgentSummary[];
   capability: AgentsCapability | null;
   loading: boolean;
@@ -27,7 +27,7 @@ interface SubagentsStoreState {
   operatingAgentId: string | null;
   initialize: (
     workspacePath: string,
-    providerOrSubagentsService: ZCodeProvider | ISubagentsService,
+    providerOrSubagentsService: LCodeProvider | ISubagentsService,
     maybeSubagentsService?: ISubagentsService,
     workspaceIdentity?: string,
   ) => Promise<void>;
@@ -40,7 +40,7 @@ interface SubagentsStoreState {
   ) => Promise<void>;
   createAgent: (
     config: SubAgentConfig,
-    provider: ZCodeProvider,
+    provider: LCodeProvider,
     subagentsService: ISubagentsService,
     workspaceIdentity?: string,
   ) => Promise<AgentSummary | null>;
@@ -48,7 +48,7 @@ interface SubagentsStoreState {
     agentId: string,
     config: SubAgentConfig,
     oldFilePath: string | undefined,
-    provider: ZCodeProvider,
+    provider: LCodeProvider,
     subagentsService: ISubagentsService,
     workspaceIdentity?: string,
   ) => Promise<AgentSummary | null>;
@@ -65,7 +65,7 @@ let latestAgentLoadRequestId = 0;
 
 function getAgentLoadKey(
   workspacePath: string,
-  provider: ZCodeProvider,
+  provider: LCodeProvider,
   workspaceIdentity?: string,
 ): string {
   return `${workspaceIdentity?.trim() || workspacePath}::${provider}`;
@@ -73,7 +73,7 @@ function getAgentLoadKey(
 
 function loadAgentsOnce(
   workspacePath: string,
-  provider: ZCodeProvider,
+  provider: LCodeProvider,
   subagentsService: ISubagentsService,
   workspaceIdentity?: string,
   options: { bypassCache?: boolean } = {},
@@ -112,7 +112,7 @@ export const useSubagentsStore = create<SubagentsStoreState>((set, get) => ({
   workspaceIdentity: null,
   loadedWorkspacePath: null,
   loadedWorkspaceIdentity: null,
-  provider: ZCODE_AGENT_PROVIDER,
+  provider: LCODE_AGENT_PROVIDER,
   loadedProvider: null,
   agents: [],
   capability: null,
@@ -121,14 +121,14 @@ export const useSubagentsStore = create<SubagentsStoreState>((set, get) => ({
   operatingAgentId: null,
   async initialize(
     workspacePath: string,
-    providerOrSubagentsService: ZCodeProvider | ISubagentsService,
+    providerOrSubagentsService: LCodeProvider | ISubagentsService,
     maybeSubagentsService?: ISubagentsService,
     workspaceIdentity?: string,
   ) {
     const currentState = get();
     const hasProvider = typeof providerOrSubagentsService === "string";
-    const provider = normalizeAgentProviderToZCodeAgent(
-      hasProvider ? providerOrSubagentsService : ZCODE_AGENT_PROVIDER,
+    const provider = normalizeAgentProviderToLCodeAgent(
+      hasProvider ? providerOrSubagentsService : LCODE_AGENT_PROVIDER,
     );
     const subagentsService = hasProvider ? maybeSubagentsService : providerOrSubagentsService;
     const normalizedWorkspaceIdentity = workspaceIdentity?.trim() || null;
@@ -203,7 +203,7 @@ export const useSubagentsStore = create<SubagentsStoreState>((set, get) => ({
     }
     const workspaceIdentityFromState =
       workspaceIdentity?.trim() || get().workspaceIdentity || undefined;
-    const provider = normalizeAgentProviderToZCodeAgent(get().provider);
+    const provider = normalizeAgentProviderToLCodeAgent(get().provider);
     const hasCachedAgents = get().agents.length > 0;
     set({ loading: !hasCachedAgents, error: null });
     const requestId = nextAgentLoadRequestId();
@@ -273,7 +273,7 @@ export const useSubagentsStore = create<SubagentsStoreState>((set, get) => ({
   },
   async createAgent(
     config: SubAgentConfig,
-    provider: ZCodeProvider,
+    provider: LCodeProvider,
     subagentsService: ISubagentsService,
     workspaceIdentity?: string,
   ) {
@@ -287,7 +287,7 @@ export const useSubagentsStore = create<SubagentsStoreState>((set, get) => ({
     try {
       const result = await subagentsService.createAgent({
         config,
-        provider: normalizeAgentProviderToZCodeAgent(provider),
+        provider: normalizeAgentProviderToLCodeAgent(provider),
       });
       await get().refresh(subagentsService, workspaceIdentityFromState);
       return result.agent;
@@ -304,7 +304,7 @@ export const useSubagentsStore = create<SubagentsStoreState>((set, get) => ({
     agentId: string,
     config: SubAgentConfig,
     oldFilePath: string | undefined,
-    provider: ZCodeProvider,
+    provider: LCodeProvider,
     subagentsService: ISubagentsService,
     workspaceIdentity?: string,
   ) {
@@ -320,7 +320,7 @@ export const useSubagentsStore = create<SubagentsStoreState>((set, get) => ({
         agentId,
         config,
         oldFilePath,
-        provider: normalizeAgentProviderToZCodeAgent(provider),
+        provider: normalizeAgentProviderToLCodeAgent(provider),
       });
       await get().refresh(subagentsService, workspaceIdentityFromState);
       return result.agent;
@@ -373,7 +373,7 @@ declare global {
 }
 
 if (shouldExposeE2EStoreBridge()) {
-  // E2E 诊断入口必须由 WDIO 显式打开，不能复用 ZCODE_ENV=test，避免产品测试环境暴露可变全局 store。
+  // E2E 诊断入口必须由 WDIO 显式打开，不能复用 LCODE_ENV=test，避免产品测试环境暴露可变全局 store。
   window.__subagentsStoreE2E = useSubagentsStore;
 }
 
@@ -394,14 +394,14 @@ export async function refreshLoadedSubagentsStoreForWorkspace(params: {
   }
 
   const contextStore = useSubagentsContextStore.getState();
-  const contextKey = getSubagentsContextKey(workspacePath, ZCODE_AGENT_PROVIDER, workspaceIdentity);
+  const contextKey = getSubagentsContextKey(workspacePath, LCODE_AGENT_PROVIDER, workspaceIdentity);
   if (contextStore.contexts[contextKey]) {
     // 分屏输入框按 workspaceKey 持有子智能体目录；设置页变更后只刷新对应桶，
     // 避免同路径的本地/远端 workspace 相互污染。
     refreshes.push(
       contextStore.refresh(
         workspacePath,
-        ZCODE_AGENT_PROVIDER,
+        LCODE_AGENT_PROVIDER,
         params.subagentsService,
         workspaceIdentity ?? undefined,
       ),

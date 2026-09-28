@@ -1,5 +1,5 @@
-import type { BrowserCommand, BrowserCommandResult } from "@zcode/shared";
-import { browserSnapshotElementSchema } from "@zcode/shared";
+import type { BrowserCommand, BrowserCommandResult } from "@lcode/shared";
+import { browserSnapshotElementSchema } from "@lcode/shared";
 import {
   dispatchClickAt,
   dispatchDrag,
@@ -223,7 +223,7 @@ export async function handleElementInfo(
   command: Extract<BrowserCommand, { method: "elementInfo" }>,
   done: BrowserCommandDone,
 ): Promise<BrowserCommandResult> {
-  // 视口坐标 (x,y) → document.elementFromPoint → 复用快照元素结构（现分配 ref 存入 __zcodeRefs）。
+  // 视口坐标 (x,y) → document.elementFromPoint → 复用快照元素结构（现分配 ref 存入 __lcodeRefs）。
   const raw = await view.webContents.executeJavaScript(
     ELEMENT_AT_POINT_SCRIPT(command.x, command.y),
   );

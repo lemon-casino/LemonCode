@@ -172,7 +172,7 @@ export function probeWindowsPackagedResourceWritable(
     }
     const sentinelPath = join(
       path,
-      `.zcode_resource_probe_${process.pid}_${Date.now()}_${Math.random().toString(16).slice(2)}`,
+      `.lcode_resource_probe_${process.pid}_${Date.now()}_${Math.random().toString(16).slice(2)}`,
     );
     const renamedSentinelPath = `${sentinelPath}.renamed`;
     try {

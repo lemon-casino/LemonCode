@@ -11,7 +11,7 @@ import {
   createNodeSelfResourceSampler,
   NODE_SELF_RESOURCE_SAMPLE_INTERVAL_MS,
   type NodeSelfResourceSamplerOptions,
-} from "@zcode/shared/node";
+} from "@lcode/shared/node";
 import type { SchedulerToMainMessage } from "./schedulerProtocol.js";
 
 interface SchedulerResourceTelemetryTimerHandle {

@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 import { join } from "node:path";
-import { ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "../plugin-marketplaces.js";
+import { LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID } from "../plugin-marketplaces.js";
 
 interface OfficialPluginCacheRoot {
   /** 缓存目录名，即官方插件 name。 */
@@ -17,7 +17,7 @@ interface OfficialPluginCacheRoot {
 export async function scanOfficialPluginCacheRoots(
   pluginStorageRoot: string,
 ): Promise<OfficialPluginCacheRoot[]> {
-  const cacheRoot = join(pluginStorageRoot, "cache", ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID);
+  const cacheRoot = join(pluginStorageRoot, "cache", LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID);
   let pluginEntries;
   try {
     pluginEntries = await readdir(cacheRoot, { withFileTypes: true });

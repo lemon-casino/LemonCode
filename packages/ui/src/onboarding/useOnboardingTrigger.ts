@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { AppSettings } from "@zcode/shared";
+import type { AppSettings } from "@lcode/shared";
 import type { useOnboardingRecordService } from "@/hooks/useOnboardingRecordService.js";
 import { logger } from "@/logger.js";
 

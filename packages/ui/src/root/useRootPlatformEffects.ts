@@ -1,7 +1,7 @@
 /* oxlint-disable eslint(max-lines) -- 平台事件和分享导入共用同一生命周期。 */
 import { useEffect, useRef, useState } from "react";
-import { useZCodeSessionStore } from "@/store/zcodeSessionStore.js";
-import type { IPlatformService } from "@zcode/shared";
+import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
+import type { IPlatformService } from "@lcode/shared";
 import { isWorkspaceTab, type TabStoreState, type WindowTabState } from "@/store/tabStore.js";
 import { useTabStore } from "@/store/TabStoreProvider.js";
 import { logger } from "@/logger.js";
@@ -47,14 +47,14 @@ export function useRootPlatformEffects({
 }: {
   initialWorkspaceAbsPath?: string;
   initialWorkspaceIdentity?: string;
-  initialWorkspacePurpose?: import("@zcode/shared").WorkspacePurpose;
+  initialWorkspacePurpose?: import("@lcode/shared").WorkspacePurpose;
   initialTaskId?: string;
   canBootstrapInitialWorkspace?: boolean;
   addTab: (
     workspacePath: string,
     options?: {
       workspaceIdentity?: string;
-      workspacePurpose?: import("@zcode/shared").WorkspacePurpose;
+      workspacePurpose?: import("@lcode/shared").WorkspacePurpose;
     },
   ) => void;
   setIsBootstrappingInitialWorkspace: (value: boolean) => void;
@@ -67,7 +67,7 @@ export function useRootPlatformEffects({
   setWorkspaceActionError: (message: string | null) => void;
   allowOpenWorkspace?: boolean;
   isDesktop?: boolean;
-  locale: ReturnType<typeof import("@/i18n/IntlProvider.js").useZCodeIntl>["locale"];
+  locale: ReturnType<typeof import("@/i18n/IntlProvider.js").useLCodeIntl>["locale"];
   tabs: WindowTabState[];
   activeWorkspacePath?: string | null;
   activeWorkspaceIdentity?: string | null;
@@ -75,7 +75,7 @@ export function useRootPlatformEffects({
   remoteWorkspaceErrorByWorkspaceKey?: Record<string, string>;
   totalUnreadTaskCount: number;
   hasCompletedFullTabRestore?: boolean;
-  intl: ReturnType<typeof import("@/i18n/IntlProvider.js").useZCodeIntl>["intl"];
+  intl: ReturnType<typeof import("@/i18n/IntlProvider.js").useLCodeIntl>["intl"];
   isRestoringOAuthSession: boolean;
 }) {
   const didBootstrapInitialWorkspaceRef = useRef(false);
@@ -106,7 +106,7 @@ export function useRootPlatformEffects({
           : undefined,
       );
       if (initialTaskId) {
-        useZCodeSessionStore
+        useLCodeSessionStore
           .getState()
           .setActiveTaskId(initialWorkspaceAbsPath, initialTaskId, initialWorkspaceIdentity);
       } else if (!isRendererReloadNavigation()) {
@@ -203,7 +203,7 @@ export function useRootPlatformEffects({
     const disposeNotificationClick = platform.onTaskNotificationClick((taskId: string) => {
       logger.info("[Root] onTaskNotificationClick:", taskId);
       // 遍历所有 workspace 找到 taskId 所属的 workspace，然后激活对应 tab 并切换任务
-      const workspaces = useZCodeSessionStore.getState().workspaces;
+      const workspaces = useLCodeSessionStore.getState().workspaces;
       for (const [workspacePath, workspaceState] of Object.entries(workspaces)) {
         const taskMeta = workspaceState.taskListCache?.find((task) => task.taskId === taskId);
         const hasTask = workspaceState.activeTaskId === taskId || Boolean(taskMeta);
@@ -216,7 +216,7 @@ export function useRootPlatformEffects({
             targetWorkspacePath,
             targetWorkspaceIdentity ? { workspaceIdentity: targetWorkspaceIdentity } : undefined,
           );
-          useZCodeSessionStore
+          useLCodeSessionStore
             .getState()
             .setActiveTaskId(targetWorkspacePath, taskId, targetWorkspaceIdentity);
           return;
@@ -376,7 +376,7 @@ export function useRootPlatformEffects({
             workspacePurpose: "conversation",
           });
         }
-        const sessionStore = useZCodeSessionStore.getState();
+        const sessionStore = useLCodeSessionStore.getState();
         sessionStore.setActiveTaskId(
           result.workspacePath,
           result.sessionId,
@@ -581,7 +581,7 @@ export function useRootPlatformEffects({
     const workspaceIdentity = activeTab?.workspaceIdentity;
     const syncActiveSession = (): void => {
       const nextSessionId = workspacePath
-        ? (useZCodeSessionStore.getState().getWorkspaceState(workspacePath, workspaceIdentity)
+        ? (useLCodeSessionStore.getState().getWorkspaceState(workspacePath, workspaceIdentity)
             .activeTaskId ?? null)
         : null;
       if (nextSessionId === lastSyncedSessionIdRef.current) return;
@@ -589,6 +589,6 @@ export function useRootPlatformEffects({
       platform.syncActiveTaskSession(nextSessionId);
     };
     syncActiveSession();
-    return useZCodeSessionStore.subscribe(syncActiveSession);
+    return useLCodeSessionStore.subscribe(syncActiveSession);
   }, [activeTab, activeTabId, isDesktop, platform]);
 }

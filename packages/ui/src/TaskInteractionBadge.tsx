@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import type { ZCodeTaskPendingInteraction } from "@zcode/shared";
+import type { LCodeTaskPendingInteraction } from "@lcode/shared";
 import { cn } from "@/components/lib/utils.js";
 
 interface TaskInteractionBadgeProps {
-  interaction?: ZCodeTaskPendingInteraction;
+  interaction?: LCodeTaskPendingInteraction;
   legacyPending?: boolean;
   className?: string;
   /** fake-clock / SSR 注入；生产缺省使用当前绝对时间。 */
@@ -19,7 +19,7 @@ interface TaskInteractionBadgePresentation {
 }
 
 function isAskUserQuestionInteraction(
-  interaction: ZCodeTaskPendingInteraction | undefined,
+  interaction: LCodeTaskPendingInteraction | undefined,
 ): boolean {
   if (!interaction || interaction.kind !== "userInput") return false;
   // 旧 sessions-index 摘要没有 toolName；autoResolution 只属于普通 AskUserQuestion，
@@ -31,7 +31,7 @@ function isAskUserQuestionInteraction(
 }
 
 function getTaskInteractionBadgePresentation(
-  interaction: ZCodeTaskPendingInteraction | undefined,
+  interaction: LCodeTaskPendingInteraction | undefined,
   legacyPending: boolean,
   now: number,
 ): TaskInteractionBadgePresentation | null {
@@ -107,8 +107,8 @@ export function TaskInteractionBadge({
   const style =
     progress !== undefined
       ? ({
-          "--zcode-interaction-progress": String(progress),
-          "--zcode-interaction-remaining-ms": `${remainingMs}ms`,
+          "--lcode-interaction-progress": String(progress),
+          "--lcode-interaction-remaining-ms": `${remainingMs}ms`,
         } as CSSProperties)
       : undefined;
   const canSnooze = presentation.canSnooze && Boolean(interaction) && Boolean(onSnoozeCountdown);
@@ -141,7 +141,7 @@ export function TaskInteractionBadge({
       {progress !== undefined ? (
         <span
           aria-hidden="true"
-          className="zcode-task-interaction-countdown-fill absolute inset-0 origin-left bg-interaction-ask-fill transition-opacity group-hover/interaction-badge:opacity-0 group-focus-visible/interaction-badge:opacity-0 motion-reduce:transition-none"
+          className="lcode-task-interaction-countdown-fill absolute inset-0 origin-left bg-interaction-ask-fill transition-opacity group-hover/interaction-badge:opacity-0 group-focus-visible/interaction-badge:opacity-0 motion-reduce:transition-none"
         />
       ) : null}
       {canSnooze ? (

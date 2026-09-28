@@ -4,7 +4,7 @@
 // §6.3），本文件只做两件事：把它们收敛成一个窄接口（consumer-side contract），并从平台
 // 服务上按可选方法探测能力。桌面 preload/desktopPlatform 实现 IPlatformService 上这批
 // 可选方法后，resolveRemoteControlBridge 才返回非空；Web/旧版 preload 缺能力时保持
-// null，UI 据此显示「仅桌面端可用」，不在设置页里直接触碰 window.zcode。
+// null，UI 据此显示「仅桌面端可用」，不在设置页里直接触碰 window.lcode。
 //
 // 契约外的「测试连接」（Main 持接入 Key 调 Worker `POST /api/health`，PROTOCOL.md §1）
 // 在 shared 通道表里没有对应项，这里保留为可选能力 testRemoteControlConnection：
@@ -21,7 +21,7 @@ import type {
   RemotePairingStartRequest,
   RemotePairingStartResult,
   RemotePairingStatePush,
-} from "@zcode/shared";
+} from "@lcode/shared";
 
 export type {
   RemoteControlConfigSnapshot,
@@ -34,12 +34,12 @@ export type {
   RemotePairingStartRequest,
   RemotePairingStartResult,
   RemotePairingStatePush,
-} from "@zcode/shared";
+} from "@lcode/shared";
 
 /** 等待桌面用户裁决的设备（PROTOCOL.md §2.2 pairing.requested）。 */
 export type RemotePairingPendingDevice = NonNullable<RemotePairingStatePush["pendingDevice"]>;
 
-/** 配对面板状态（PROTOCOL.md §6.3 zcode:remote-pairing-state 推送；Renderer 不自行推断）。 */
+/** 配对面板状态（PROTOCOL.md §6.3 lcode:remote-pairing-state 推送；Renderer 不自行推断）。 */
 export type RemotePairingStateEvent = RemotePairingStatePush;
 
 /** 面板状态枚举（waiting/pairing/bridged/stopped/error）。 */
@@ -49,7 +49,7 @@ export type RemotePairingPhase = RemotePairingStatePush["state"];
 export type RemoteControlConfigPatch = RemoteControlConfigSetRequest;
 
 /** 「测试连接」结果:Main 持接入 Key 调 Worker `POST /api/health`(§1),形状以 shared 为准。 */
-export type { RemoteControlTestResult } from "@zcode/shared";
+export type { RemoteControlTestResult } from "@lcode/shared";
 
 /**
  * 远程控制平台能力面。除 testRemoteControlConnection 外全部必需：

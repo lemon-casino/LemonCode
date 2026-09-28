@@ -2,7 +2,7 @@
  * useFileService —— 文件服务 hooks
  */
 import { useState, useEffect, useCallback } from "react";
-import type { FileEntry } from "@zcode/shared";
+import type { FileEntry } from "@lcode/shared";
 import { useServices } from "./useServices.js";
 
 /** 读取目录内容，自带 loading/error/refresh 状态管理 */

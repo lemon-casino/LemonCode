@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- 聚合命令、任务、文件三类搜索结果，后续可按 result section 拆分。 */
 import { memo, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
-import { unpackWorkspaceFileEntries } from "@zcode/shared/workspaceFileEntriesCodec";
+import { unpackWorkspaceFileEntries } from "@lcode/shared/workspaceFileEntriesCodec";
 import { fetchWorkspaceFileEntriesPacked } from "@/workspace-file-search/fetchWorkspaceFileEntries.js";
 import { Command as CommandPrimitive } from "cmdk";
 import {
@@ -13,7 +13,7 @@ import {
   SearchIcon,
   Trash2Icon,
 } from "lucide-react";
-import type { WorkspaceFileEntry, ZCodeTaskChangeSummary, ZCodeTaskMeta } from "@zcode/shared";
+import type { WorkspaceFileEntry, LCodeTaskChangeSummary, LCodeTaskMeta } from "@lcode/shared";
 import {
   Command,
   CommandDialog,
@@ -27,7 +27,7 @@ import { cn } from "@/components/lib/utils.js";
 import { toast } from "@/components/ui/toast.js";
 import { useGlobalTaskList } from "@/hooks/useGlobalTaskList.js";
 import { useServices } from "@/hooks/useServices.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { FileDisplayIcon, resolveFileDisplayDescriptor } from "@/lib/fileDisplay.js";
 import { formatTaskRelativeTime } from "@/lib/taskListItemPresentation.js";
 import { toWorkspaceRelativePath } from "@/lib/taskChangeSummary.js";
@@ -75,11 +75,11 @@ const commandCenterListClassName = cn(
 );
 
 type CommandCenterSectionId = "commands" | "conversations" | "files";
-type TaskSearchResultItem = ZCodeTaskMeta & {
+type TaskSearchResultItem = LCodeTaskMeta & {
   searchSnippet?: string;
   searchSnippets?: string[];
 };
-type TaskChangedFileSummary = ZCodeTaskChangeSummary["files"][number];
+type TaskChangedFileSummary = LCodeTaskChangeSummary["files"][number];
 type TaskSearchResultRow = {
   key: string;
   task: TaskSearchResultItem;
@@ -145,7 +145,7 @@ function getUniqueTaskSearchSnippets(task: TaskSearchResultItem): string[] {
   return uniqueSnippets;
 }
 
-function getTaskTitle(task: ZCodeTaskMeta, untitledLabel: string): string {
+function getTaskTitle(task: LCodeTaskMeta, untitledLabel: string): string {
   return task.title.trim() || untitledLabel;
 }
 
@@ -414,7 +414,7 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
   workspaceAbsPath: string;
   workspaceIdentity?: string;
   activeTaskId?: string | null;
-  activeTaskChangeSummary?: ZCodeTaskChangeSummary | null;
+  activeTaskChangeSummary?: LCodeTaskChangeSummary | null;
   workspaceTabs: WorkspaceTabState[];
   onOpenChange: (open: boolean) => void;
   onSelectTask: (
@@ -428,7 +428,7 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
   onOpenCodeViewer: (source: CodeViewerSource) => void;
 }) {
   const { fileService } = useServices();
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const workspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
   const [rawQuery, setRawQuery] = useState("");
   const [manualScope, setManualScope] = useState<CommandCenterSearchScope>("all");
@@ -684,7 +684,7 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
   );
 
   const selectRecentTask = useCallback(
-    (task: ZCodeTaskMeta) => {
+    (task: LCodeTaskMeta) => {
       onSelectTask(task.workspacePath, task.taskId, task.workspaceIdentity);
       closeDialog();
     },
@@ -768,7 +768,7 @@ export const CommandCenterDialog = memo(function CommandCenterDialogComponent({
     rows = recentTaskPreviewRows,
     showEmpty = false,
   }: {
-    rows?: ZCodeTaskMeta[];
+    rows?: LCodeTaskMeta[];
     showEmpty?: boolean;
   } = {}) => {
     if (hasSearchQuery || (rows.length === 0 && !showEmpty)) {

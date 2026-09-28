@@ -3,7 +3,7 @@
  * 取消时先发 abort 让 Worker 收敛，随后无论如何 terminate，保证 main 不会残留遍历线程。
  */
 import { Worker } from "node:worker_threads";
-import type { StorageScanProgress, StorageScanRunnerPort } from "@zcode/services/node";
+import type { StorageScanProgress, StorageScanRunnerPort } from "@lcode/services/node";
 import {
   isStorageScanWorkerMessage,
   type StorageScanWorkerData,

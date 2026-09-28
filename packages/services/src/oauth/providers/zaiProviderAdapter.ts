@@ -8,7 +8,7 @@ import {
   type OAuthProviderMeta,
   type OAuthTokenSet,
   type OAuthUserProfile,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { readApiJson } from "../../providers/api/apiJson.js";
 import { ZaiBusinessTokenResolver } from "../../providers/zaiBusinessTokenResolver.js";
 import { parseOAuthLoginAttribution } from "../callbackAttribution.js";
@@ -332,7 +332,7 @@ export class ZaiProviderAdapter implements OAuthProviderAdapter {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          // zcode OAuth token 后端现在同时服务 Z.ai 和 BigModel。
+          // lcode OAuth token 后端现在同时服务 Z.ai 和 BigModel。
           // 显式传 provider 枚举值，避免只依赖 redirect_uri 推断登录域导致兑换错路由。
           body: JSON.stringify({
             provider: ZAI_PROVIDER_ID,
@@ -356,8 +356,8 @@ export class ZaiProviderAdapter implements OAuthProviderAdapter {
       throw new Error(tokenPayload.msg?.trim() || "ZAI 后端 token 交换失败");
     }
 
-    const zcodeJwtToken = tokenPayload.data?.token;
-    if (!zcodeJwtToken) {
+    const lcodeJwtToken = tokenPayload.data?.token;
+    if (!lcodeJwtToken) {
       throw new Error("Token 交换失败：响应缺少 data.token");
     }
 
@@ -384,7 +384,7 @@ export class ZaiProviderAdapter implements OAuthProviderAdapter {
 
     return {
       accessToken: businessAccessToken,
-      zcodeJwtToken,
+      lcodeJwtToken,
       ...(expiresAt ? { expiresAt } : {}),
     };
   }

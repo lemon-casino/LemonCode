@@ -1,7 +1,7 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import { EyeIcon, EyeOffIcon, PlusIcon, ShieldCheckIcon, Trash2Icon } from "lucide-react";
-import type { ProviderApiKey } from "@zcode/provider";
-import type { ProviderApiKeyProbeResult } from "@zcode/services";
+import type { ProviderApiKey } from "@lcode/provider";
+import type { ProviderApiKeyProbeResult } from "@lcode/services";
 import { Button } from "@/components/ui/button.js";
 import {
   Dialog,
@@ -13,7 +13,7 @@ import {
 } from "@/components/ui/dialog.js";
 import { Input } from "@/components/ui/input.js";
 import { Switch } from "@/components/ui/switch.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { createProviderApiKeyOperationGuard, normalizeProviderApiKeys } from "./providerApiKeys.js";
 
 type ProbeState = ProviderApiKeyProbeResult["status"] | "pending";
@@ -33,7 +33,7 @@ export function ProviderApiKeyManagerDialog({
   onSave: (apiKeys: readonly ProviderApiKey[]) => Promise<void>;
   onProbe: (keyIds: readonly string[]) => Promise<readonly ProviderApiKeyProbeResult[]>;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [draft, setDraft] = useState<ProviderApiKey[]>(() => [...apiKeys]);
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState<"save" | "probe" | null>(null);

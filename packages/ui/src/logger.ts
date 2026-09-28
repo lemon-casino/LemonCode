@@ -1,11 +1,11 @@
-import { formatLogPrefix } from "@zcode/shared";
+import { formatLogPrefix } from "@lcode/shared";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
 type DesktopLogLevel = Exclude<LogLevel, "debug">;
 
 type DesktopLogBridgeWindow = Window & {
-  zcode?: {
+  lcode?: {
     log?: (level: DesktopLogLevel, args: unknown[]) => void;
   };
 };
@@ -24,9 +24,9 @@ function isRendererLoggingDisabled(): boolean {
   return (
     (
       globalThis as typeof globalThis & {
-        __ZCODE_RENDERER_DISABLE_LOGGING__?: boolean;
+        __LCODE_RENDERER_DISABLE_LOGGING__?: boolean;
       }
-    ).__ZCODE_RENDERER_DISABLE_LOGGING__ === true
+    ).__LCODE_RENDERER_DISABLE_LOGGING__ === true
   );
 }
 
@@ -48,14 +48,14 @@ function log(level: LogLevel, ...args: unknown[]) {
     return;
   }
   consoleFns[level](formatLogPrefix("ui"), ...args);
-  // ui 包单独 typecheck 时拿不到 desktop renderer 注入的 window.zcode 声明，
+  // ui 包单独 typecheck 时拿不到 desktop renderer 注入的 window.lcode 声明，
   // 而且 Electron bridge 只接收 info/warn/error；debug 原样透传会让类型和宿主协议都不一致。
   // 这里显式收窄 bridge 形状，并只把主进程真正支持的级别转发过去。
   if (level !== "debug" && typeof window !== "undefined") {
     // tabStore 等纯前端状态模块现在也会在 Vitest 的 Node 环境里打 info 日志。
     // 如果这里无条件访问 window，测试一触发日志就会直接抛 ReferenceError，
     // 结果变成“为了排查问题而引入新的测试噪音”。先确认运行在浏览器环境，再走桌面端 bridge。
-    (window as DesktopLogBridgeWindow).zcode?.log?.(level, args);
+    (window as DesktopLogBridgeWindow).lcode?.log?.(level, args);
   }
 }
 
@@ -67,7 +67,7 @@ function lifecycleLog(level: DesktopLogLevel, ...args: unknown[]) {
   }
   if (isRendererProductionBuild()) {
     if (typeof window !== "undefined") {
-      (window as DesktopLogBridgeWindow).zcode?.log?.(level, args);
+      (window as DesktopLogBridgeWindow).lcode?.log?.(level, args);
     }
     return;
   }
@@ -100,7 +100,7 @@ export function logMemoryDiagnostics(line: string): void {
     return;
   }
   if (typeof window !== "undefined") {
-    const bridge = (window as DesktopLogBridgeWindow).zcode?.log;
+    const bridge = (window as DesktopLogBridgeWindow).lcode?.log;
     if (bridge) {
       bridge("info", [line]);
       return;

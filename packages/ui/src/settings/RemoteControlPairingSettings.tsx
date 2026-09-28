@@ -3,7 +3,7 @@
 // （specs/mobile-remote-control-cf-workers.md 验收）。
 import { useCallback, useMemo } from "react";
 import { toast } from "@/components/ui/toast.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { startUserAction } from "@/lib/userActionTelemetry.js";
 import { buildRemotePairingMirrorTarget } from "@/settings/remoteControlBridge.js";
@@ -40,7 +40,7 @@ export function RemoteControlPairingSettings({
   stopPairing,
   decidePairing,
 }: RemoteControlPairingSettingsProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
 
   // target.windowId 是占位值(Main handler 按可信 IPC sender 权威覆盖,见
   // remoteControlBridge.ts 的 REMOTE_PAIRING_PLACEHOLDER_WINDOW_ID 注释);

@@ -3,10 +3,10 @@ import { useCallback, useMemo } from "react";
 import {
   getModelProviderFamilySpec,
   resolveModelProviderFamilyIdByProviderId,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { thoughtLevelLabelId } from "@/chat-input-toolbar/thoughtLevelOptions.js";
 import { useWorkflowSubagentModelProviderName } from "@/hooks/useWorkflowSubagentModelProviderName.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
 import { FallbackToolCallBlock } from "@/ToolCallBlocks/renderers/fallback.js";
 import { readToolResultDisplay } from "@/ToolCallBlocks/toolResultDisplay.js";
@@ -167,7 +167,7 @@ function listModelsGroupName(
   if (label !== undefined && label.length > 0 && label !== providerId) {
     return label;
   }
-  // 会话清单查不到时会退回 providerId 本身（zcodeSessionSettingsToConfigOptions），当作没查到。
+  // 会话清单查不到时会退回 providerId 本身（lcodeSessionSettingsToConfigOptions），当作没查到。
   const resolved = providerName?.(providerId)?.trim();
   if (resolved !== undefined && resolved.length > 0 && resolved !== providerId) {
     return resolved;
@@ -251,7 +251,7 @@ function groupModelsByProvider(models: ListModelsEntryView[]): ListModelsGroup[]
  * providerId 一个字符都不上屏。
  */
 export function ListModelsToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCall } = context.toolCallNode;
   const providerName = useWorkflowSubagentModelProviderName(context.workspacePath);
 

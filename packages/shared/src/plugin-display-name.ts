@@ -1,9 +1,9 @@
-import type { ZCodePluginStoreListing } from "./zcode-protocol/index.js";
+import type { LCodePluginStoreListing } from "./lcode-protocol/index.js";
 
 const CANONICAL_PLUGIN_NAME_ACRONYMS: Readonly<Record<string, string>> = {
   aws: "AWS",
   mcp: "MCP",
-  zcode: "ZCode",
+  lcode: "LCode",
 };
 
 /** listing 的多语言字段先精确匹配，再按语言前缀兜底。 */
@@ -42,7 +42,7 @@ export function formatCanonicalPluginName(name: string, locale: string): string 
  * 不按裸 manifest name 猜测官方产品名，避免同名 marketplace 插件互相覆盖。
  */
 export function resolvePluginDisplayName(
-  plugin: { name: string; listing?: ZCodePluginStoreListing },
+  plugin: { name: string; listing?: LCodePluginStoreListing },
   locale: string,
 ): string {
   return (

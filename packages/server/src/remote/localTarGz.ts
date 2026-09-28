@@ -24,7 +24,7 @@ export interface LocalTarGzEntry {
 }
 
 // Windows 客户端不一定能 spawn System32\tar.exe，远端资源本地缓存不能依赖系统 tar。
-// 这里仅支持 ZCode remote assets 使用的普通文件/目录子集，避免扩大归档格式的行为面。
+// 这里仅支持 LCode remote assets 使用的普通文件/目录子集，避免扩大归档格式的行为面。
 export async function extractTarGzArchive(archivePath: string, targetDir: string): Promise<void> {
   const targetRoot = resolve(targetDir);
   await mkdir(targetRoot, { recursive: true });
@@ -213,8 +213,8 @@ function createTarHeader(options: {
   }
   writeTarString(header, "ustar", 257, 6);
   writeTarString(header, "00", 263, 2);
-  writeTarString(header, "zcode", 265, 32);
-  writeTarString(header, "zcode", 297, 32);
+  writeTarString(header, "lcode", 265, 32);
+  writeTarString(header, "lcode", 297, 32);
   writeTarString(header, prefix, 345, 155);
 
   let checksum = 0;

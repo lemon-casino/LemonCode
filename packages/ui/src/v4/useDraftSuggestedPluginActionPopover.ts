@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { DraftSuggestedPluginFlow } from "@/v4/ConversationDraftSuggestedPluginFlow.js";
 
 const PLUGIN_ACTION_SUCCESS_DURATION_MS = 2_000;
@@ -21,7 +21,7 @@ type OperationTimer = {
 };
 
 export function useDraftSuggestedPluginActionPopover() {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const [pluginActionPopover, setPluginActionPopover] =
     useState<DraftSuggestedPluginActionPopoverState | null>(null);
   const resultTimerRef = useRef<OperationTimer | null>(null);

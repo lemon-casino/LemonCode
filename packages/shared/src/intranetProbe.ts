@@ -17,7 +17,7 @@ export interface IntranetProbeServiceTarget {
   url: string;
   /** 期望服务返回 marker（可选） */
   expectedMarker?: string;
-  /** 简单 token（可选）；会放在 x-zcode-intranet-token 请求头 */
+  /** 简单 token（可选）；会放在 x-lcode-intranet-token 请求头 */
   token?: string;
   /** 单次探测超时，默认 800ms */
   timeoutMs?: number;

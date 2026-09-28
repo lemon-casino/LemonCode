@@ -1,6 +1,6 @@
 import { Component, lazy, Suspense, useMemo, type ErrorInfo, type ReactNode } from "react";
-import type { FileBinaryPreview } from "@zcode/shared";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import type { FileBinaryPreview } from "@lcode/shared";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { decodeBase64ToArrayBuffer, type OfficeFilePreviewKind } from "@/lib/officeFilePreview.js";
 import { logger } from "@/logger.js";
 
@@ -86,7 +86,7 @@ export function PreviewPaneOfficeContent({
   resolvedTheme: "light" | "dark";
   sourcePath: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const errorMessage = intl.formatMessage({
     id: "codeViewer.officeUnavailable",
   });

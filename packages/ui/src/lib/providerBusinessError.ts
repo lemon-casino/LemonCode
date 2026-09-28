@@ -13,7 +13,7 @@
  * | 闲时票据不可用 | 3102 | 400  | 单段运行时间到顶，提示新建闲时任务续跑 |
  * | 上游 HTTP 异常 | 2007 | 500  | 可重试；刷新配额，勿本地扣额度 |
  */
-import { isOffPeakTicketExpiredError } from "@zcode/shared";
+import { isOffPeakTicketExpiredError } from "@lcode/shared";
 
 const PROVIDER_BUSINESS_ERROR_CODES = [
   "1006",
@@ -40,18 +40,18 @@ export type ProviderBusinessErrorUiAction =
   | "upgrade";
 
 const PROVIDER_BUSINESS_ERROR_MESSAGE_IDS: Record<ProviderBusinessErrorCode, string> = {
-  "1006": "zcode.error.providerBusiness.1006",
-  "1005": "zcode.error.providerBusiness.1005",
-  "3006": "zcode.error.providerBusiness.3006",
-  "3002": "zcode.error.providerBusiness.3002",
-  "3001": "zcode.error.providerBusiness.3001",
-  "3007": "zcode.error.providerBusiness.3007",
-  "3008": "zcode.error.providerBusiness.3008",
-  "3009": "zcode.error.providerBusiness.3009",
-  "3010": "zcode.error.providerBusiness.3010",
-  "3102": "zcode.error.providerBusiness.3102",
-  "2007": "zcode.error.providerBusiness.2007",
-  "429": "zcode.error.providerBusiness.429",
+  "1006": "lcode.error.providerBusiness.1006",
+  "1005": "lcode.error.providerBusiness.1005",
+  "3006": "lcode.error.providerBusiness.3006",
+  "3002": "lcode.error.providerBusiness.3002",
+  "3001": "lcode.error.providerBusiness.3001",
+  "3007": "lcode.error.providerBusiness.3007",
+  "3008": "lcode.error.providerBusiness.3008",
+  "3009": "lcode.error.providerBusiness.3009",
+  "3010": "lcode.error.providerBusiness.3010",
+  "3102": "lcode.error.providerBusiness.3102",
+  "2007": "lcode.error.providerBusiness.2007",
+  "429": "lcode.error.providerBusiness.429",
 };
 
 const PROVIDER_BUSINESS_ERROR_UI_ACTIONS: Record<

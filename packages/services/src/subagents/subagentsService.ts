@@ -6,7 +6,7 @@ import {
   createPluginAgentStateId,
   parsePluginSubagentModelSelectionOverrides,
   DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS,
-  ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
+  LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID,
   modelSelectionSchema,
   type AgentCreateParams,
   type AgentDeleteParams,
@@ -22,8 +22,8 @@ import {
   type PluginSubagentModelSelectionOverrides,
   type SubAgentConfig,
   type SubagentsListMode,
-  type ZCodeProvider,
-} from "@zcode/shared";
+  type LCodeProvider,
+} from "@lcode/shared";
 import { normalizeSubagentModelSelection } from "./subagentModelSelection.js";
 import { serializeSubagentMarkdown, parseSubagentMarkdown } from "./subagentMarkdown.js";
 import {
@@ -31,7 +31,7 @@ import {
   resolveUserHomeDir,
   resolveUserSubagentRoot,
   resolveWorkspaceSubagentRoot,
-  resolveZCodeStorageRoot,
+  resolveLCodeStorageRoot,
   type SubagentStorageOptions,
 } from "./subagentStorage.js";
 import type { ISubagentsService } from "./subagents.js";
@@ -40,7 +40,7 @@ import {
   migrateUserSubagentMarkdown,
   migrateSubagentStateFile,
   scanOfficialPluginCacheRoots,
-} from "@zcode/shared/node";
+} from "@lcode/shared/node";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 
 const subagentLogger = createServiceLogger("subagents");
@@ -82,7 +82,7 @@ interface PluginAgentDiscovery {
 
 const BUILT_IN_AGENT_NAMES = new Set(["general-purpose", "Explore"]);
 const PLUGIN_MANIFEST_PATHS = [
-  join(".zcode-plugin", "plugin.json"),
+  join(".lcode-plugin", "plugin.json"),
   join(".claude-plugin", "plugin.json"),
   join(".codex-plugin", "plugin.json"),
 ] as const;
@@ -273,7 +273,7 @@ async function collectAgentMarkdownPaths(rootPath: string): Promise<string[]> {
 }
 
 function resolveCapabilities(options?: SubagentsServiceOptions): AgentsCapability {
-  const isDesktopRuntime = options?.isDesktopRuntime ?? Boolean(process.env.ZCODE_PROCESS_LABEL);
+  const isDesktopRuntime = options?.isDesktopRuntime ?? Boolean(process.env.LCODE_PROCESS_LABEL);
   if (isDesktopRuntime) {
     return { userScopeAvailable: true };
   }
@@ -302,7 +302,7 @@ async function discoverPluginAgents(params: {
   reservedNames: Iterable<string>;
   storageOptions?: SubagentStorageOptions;
 }): Promise<PluginAgentDiscovery> {
-  const storageRoot = await resolveZCodeStorageRoot(params.storageOptions);
+  const storageRoot = await resolveLCodeStorageRoot(params.storageOptions);
   const cliStorageRoot = basename(storageRoot) === "cli" ? storageRoot : join(storageRoot, "cli");
   const pluginConfig = await readPluginConfig(params.storageOptions);
   const records = await readEnabledPluginRecords(join(cliStorageRoot, "plugins"), pluginConfig);
@@ -396,7 +396,7 @@ async function discoverPluginAgents(params: {
 
 async function readPluginConfig(options?: SubagentStorageOptions): Promise<PluginConfigSummary> {
   try {
-    const configPath = join(resolveUserHomeDir(options), ".zcode", "cli", "config.json");
+    const configPath = join(resolveUserHomeDir(options), ".lcode", "cli", "config.json");
     const raw = await readFile(configPath, "utf-8");
     const parsed = JSON.parse(raw) as unknown;
     if (!isRecord(parsed)) return { enabledPlugins: {}, suppressedBuiltins: [] };
@@ -428,13 +428,13 @@ async function readEnabledPluginRecords(
       config.enabledPlugins[record.id] === true &&
       // 卸载抑制优先于遗留的安装/启用记录，不能只在缓存兜底时检查而复活官方插件。
       !(
-        record.id.endsWith(`@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID}`) &&
+        record.id.endsWith(`@${LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID}`) &&
         config.suppressedBuiltins.includes(record.id)
       ),
   );
   const seenIds = new Set(installed.map((record) => record.id));
   for (const cacheRoot of await scanOfficialPluginCacheRoots(pluginStorageRoot)) {
-    const id = `${cacheRoot.name}@${ZCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID}`;
+    const id = `${cacheRoot.name}@${LCODE_OFFICIAL_PLUGIN_MARKETPLACE_ID}`;
     if (seenIds.has(id) || config.suppressedBuiltins.includes(id)) continue;
     const enabled = config.enabledPlugins[id] ?? DEFAULT_ENABLED_OFFICIAL_PLUGIN_IDS.has(id);
     if (!enabled) continue;
@@ -566,7 +566,7 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
     async list(params: {
       workspacePath: string;
       workspaceIdentity?: string;
-      provider?: ZCodeProvider;
+      provider?: LCodeProvider;
       mode?: SubagentsListMode;
     }): Promise<AgentsListResult> {
       const capability = resolveCapabilities(options);
@@ -692,7 +692,7 @@ export function createSubagentsService(options?: SubagentsServiceOptions): ISuba
       await queued;
     },
 
-    async getPrimaryUserAgentsDirectory(_params: { provider: ZCodeProvider }): Promise<{
+    async getPrimaryUserAgentsDirectory(_params: { provider: LCodeProvider }): Promise<{
       path: string;
     }> {
       const path = await resolveUserSubagentRoot(storageOptions);

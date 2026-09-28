@@ -1,7 +1,7 @@
-import type { ZCodePluginComponentKind } from "@zcode/shared";
+import type { LCodePluginComponentKind } from "@lcode/shared";
 import { cn } from "@/components/lib/utils.js";
 import { Badge } from "@/components/ui/badge.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 /** 详情中单个组件项：名称（mono）+ 可选描述（次行）。 */
 export interface PluginComponentDisplayItem {
@@ -11,14 +11,14 @@ export interface PluginComponentDisplayItem {
 
 /** 一组同类组件：类型 + 权威数量 + 可展示的名称/描述列表。 */
 export interface PluginComponentDisplayGroup {
-  kind: ZCodePluginComponentKind;
+  kind: LCodePluginComponentKind;
   /** 权威数量：优先取协议计数，缺失时取 items.length。 */
   count: number;
   items: PluginComponentDisplayItem[];
 }
 
 /** 组件分组徽标配色：复用主题里已有的 Tailwind 调色板做轻量底色，深浅主题均正确。 */
-const COMPONENT_BADGE_STYLES: Record<ZCodePluginComponentKind, string> = {
+const COMPONENT_BADGE_STYLES: Record<LCodePluginComponentKind, string> = {
   agent: "bg-violet-500/15 text-violet-500 dark:text-violet-300",
   command: "bg-sky-500/15 text-sky-600 dark:text-sky-300",
   skill: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300",
@@ -26,7 +26,7 @@ const COMPONENT_BADGE_STYLES: Record<ZCodePluginComponentKind, string> = {
   mcp: "bg-slate-500/15 text-slate-600 dark:text-slate-300",
 };
 
-const COMPONENT_LABEL_IDS: Record<ZCodePluginComponentKind, string> = {
+const COMPONENT_LABEL_IDS: Record<LCodePluginComponentKind, string> = {
   agent: "settings.plugins.detail.component.agent",
   command: "settings.plugins.detail.component.command",
   skill: "settings.plugins.detail.component.skill",
@@ -45,7 +45,7 @@ export function PluginComponentGroups({
   groups: PluginComponentDisplayGroup[];
   className?: string;
 }) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   return (
     <div className={cn("space-y-3", className)}>
       {groups.map((group) => (

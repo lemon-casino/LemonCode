@@ -49,13 +49,13 @@ const RETRYABLE_KEYS: ReadonlySet<PairingFailureKey> = new Set([
   "busy",
 ]);
 
-// 配对页位于 ZCodeIntlProvider 之外(services 尚未建立),与 main.tsx 的
+// 配对页位于 LCodeIntlProvider 之外(services 尚未建立),与 main.tsx 的
 // WebBootstrapErrorScreen 一致用 navigator.language 分流中英文;zh-* 一律落 zh-CN
 // 与 packages/ui IntlProvider 的既有判定一致(IntlProvider.tsx:167)。
 // 授权完成进入 app shell 后由既有 i18n 体系接管。
 const PAIRING_COPY = {
   "zh-CN": {
-    documentTitle: "ZCode 远程配对",
+    documentTitle: "LCode 远程配对",
     connecting: "正在连接配对通道…",
     waitingTitle: "等待桌面确认",
     waitingHint: "请在桌面端「远程控制」面板选择“允许此设备”。",
@@ -66,7 +66,7 @@ const PAIRING_COPY = {
     retry: "重试",
   },
   "en-US": {
-    documentTitle: "ZCode Remote Pairing",
+    documentTitle: "LCode Remote Pairing",
     connecting: "Connecting to the pairing channel…",
     waitingTitle: "Waiting for desktop confirmation",
     waitingHint: "Choose “Allow this device” in the desktop Remote Control panel.",

@@ -5,7 +5,7 @@ interface StorageLike {
   setItem(key: string, value: string): void;
 }
 
-const PROMPT_HISTORY_STORAGE_KEY_PREFIX = "zcode-chat-prompt-history:";
+const PROMPT_HISTORY_STORAGE_KEY_PREFIX = "lcode-chat-prompt-history:";
 
 function getBrowserStorage(): StorageLike | null {
   if (typeof window === "undefined") {

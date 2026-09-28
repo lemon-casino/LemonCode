@@ -4,8 +4,8 @@ import { Circle, CircleAlert, CircleCheck, CircleX, LoaderCircle, ShieldCheck } 
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import type { ConversationShareAccessMode } from "@zcode/shared";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
+import type { ConversationShareAccessMode } from "@lcode/shared";
 import { ConversationSharePermissionPicker } from "@/ConversationSharePermissionPicker.js";
 import {
   DEFAULT_CONVERSATION_SHARE_ACCESS_MODE,
@@ -84,7 +84,7 @@ function ConversationShareConfirmationDockImpl({
   onDismissWarnings,
   onCopyRequestId,
 }: ConversationShareConfirmationDockProps) {
-  const { intl, locale } = useZCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const errorDetailsLabel = intl.formatMessage({ id: "conversationShare.issue.details" });
   const disclosureRef = useRef<HTMLElement>(null);
   const checkboxRef = useRef<HTMLInputElement>(null);

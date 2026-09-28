@@ -3,19 +3,19 @@
    返回行 + 内联保持电脑运行开关 + Settings/History tab + 标题输入 + 大 composer 盒
    （textarea + 工具条：项目/权限｜模型/推理档位）。权限四档默认 build，模型走白名单。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ModelSelectionView } from "@zcode/services";
-import { completeNewModelSelection } from "@zcode/provider";
+import type { ModelSelectionView } from "@lcode/services";
+import { completeNewModelSelection } from "@lcode/provider";
 import { FolderOpen } from "lucide-react";
 import {
   TID_OFFPEAK_EDIT_SUBMIT,
   TID_OFFPEAK_EDIT_VIEW,
   TID_OFFPEAK_FORM_INSTRUCTIONS,
   TID_OFFPEAK_FORM_TITLE,
-  ZCODE_AGENT_PROVIDER,
-  type ZCodeConfigOption,
-  type ZCodeOffPeakTask,
+  LCODE_AGENT_PROVIDER,
+  type LCodeConfigOption,
+  type LCodeOffPeakTask,
   type ModelSelection,
-} from "@zcode/shared";
+} from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Input } from "@/components/ui/input.js";
@@ -40,7 +40,7 @@ import { OffPeakHistoryTab } from "@/settings/OffPeakHistoryTab.js";
 import { AutomationSwitchToggle } from "@/settings/AutomationSwitchToggle.js";
 import { cn } from "@/components/lib/utils.js";
 import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import {
@@ -84,7 +84,7 @@ export interface OffPeakEditSubmit {
 }
 
 interface OffPeakEditViewProps {
-  editing: ZCodeOffPeakTask | null;
+  editing: LCodeOffPeakTask | null;
   /** 创建态预填（New task 页模板卡跳转）；编辑态忽略。 */
   initialDraft?: { title?: string; prompt?: string } | null;
   modelSelectionView: ModelSelectionView;
@@ -101,10 +101,10 @@ interface OffPeakEditViewProps {
     workspacePath: string;
     workspaceIdentity?: string;
   }) => void;
-  onDelete?: (task: ZCodeOffPeakTask) => void;
-  onDeleteHistory?: (task: ZCodeOffPeakTask) => void;
-  onPause?: (task: ZCodeOffPeakTask) => void;
-  onContinue?: (task: ZCodeOffPeakTask) => void;
+  onDelete?: (task: LCodeOffPeakTask) => void;
+  onDeleteHistory?: (task: LCodeOffPeakTask) => void;
+  onPause?: (task: LCodeOffPeakTask) => void;
+  onContinue?: (task: LCodeOffPeakTask) => void;
   showToast?: typeof toast;
 }
 
@@ -130,7 +130,7 @@ export function OffPeakEditView({
   onContinue,
   showToast = toast,
 }: OffPeakEditViewProps) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { settings, update: updateSettings } = useSettings();
   const confirmDialog = useConfirmDialog();
   const localWorkspaceOptions = useAutomationProjectOptions();
@@ -222,7 +222,7 @@ export function OffPeakEditView({
   }, [createWorkspacePath, editing, localWorkspaceOptions, preferredLocalWorkspace?.workspacePath]);
   // 闲时任务模型和 reasoning 档位只读取 Host 投影的 Built-in Config，
   // 避免 Renderer 按模型名重建第二份模型事实。
-  const thoughtLevelOption = useMemo<ZCodeConfigOption | null>(
+  const thoughtLevelOption = useMemo<LCodeConfigOption | null>(
     () =>
       resolveModelThoughtOption({
         modelSelectionView,
@@ -471,7 +471,7 @@ export function OffPeakEditView({
           task={editing}
           {...(onOpenSession
             ? {
-                onOpenSession: (task: ZCodeOffPeakTask) =>
+                onOpenSession: (task: LCodeOffPeakTask) =>
                   task.sessionId
                     ? onOpenSession({
                         sessionId: task.sessionId,
@@ -618,7 +618,7 @@ export function OffPeakEditView({
                       复用 ConfigSelect，避免两处样式再次分叉。 */}
                   <ConfigSelect
                     option={modeOption}
-                    provider={ZCODE_AGENT_PROVIDER}
+                    provider={LCODE_AGENT_PROVIDER}
                     onValueChange={setMode}
                     disabled={readOnly}
                     tooltipTitle={intl.formatMessage({
@@ -666,7 +666,7 @@ export function OffPeakEditView({
                     <ThoughtLevelCycleControl
                       intl={intl}
                       option={thoughtLevelOption}
-                      provider={ZCODE_AGENT_PROVIDER}
+                      provider={LCODE_AGENT_PROVIDER}
                       disabled={readOnly}
                       triggerRef={thoughtTriggerRef}
                       triggerClassName={AUTOMATION_INSTRUCTIONS_TOOLBAR_TRIGGER_CLASSNAME}

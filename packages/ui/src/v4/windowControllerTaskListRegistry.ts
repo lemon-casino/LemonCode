@@ -2,8 +2,8 @@ import type {
   IWindowControllerService,
   WindowHostControllerFrame,
   WindowHostControllerTaskListResult,
-  ZCodeTaskListQuery,
-} from "@zcode/services";
+  LCodeTaskListQuery,
+} from "@lcode/services";
 import {
   CONTROLLER_TASKS_INDEX_TOPIC,
   CONTROLLER_WORKSPACES_TOPIC,
@@ -12,7 +12,7 @@ import {
   type WindowHostControllerCursor,
   type WindowHostControllerTaskFrame,
   type WindowHostControllerTaskRow,
-} from "@zcode/shared/zcode-protocol-v4";
+} from "@lcode/shared/lcode-protocol-v4";
 import { logger } from "@/logger.js";
 
 interface WindowControllerTaskListRegistry {
@@ -21,7 +21,7 @@ interface WindowControllerTaskListRegistry {
   list(
     queryKey: string,
     version: WindowControllerTaskListVersion,
-    query: ZCodeTaskListQuery,
+    query: LCodeTaskListQuery,
   ): Promise<WindowHostControllerTaskListResult>;
 }
 
@@ -44,7 +44,7 @@ function taskAddressKey(address: WindowHostControllerTaskRow["address"]): string
 }
 
 function queryContainsWorkspace(
-  query: ZCodeTaskListQuery,
+  query: LCodeTaskListQuery,
   address: WindowHostControllerTaskRow["address"],
 ): boolean {
   const workspaceKey = address.workspaceIdentity?.trim() || address.workspacePath;
@@ -80,7 +80,7 @@ export function getWindowControllerTaskListRegistry(
     {
       versionKey: string;
       promise: Promise<WindowHostControllerTaskListResult>;
-      query: ZCodeTaskListQuery;
+      query: LCodeTaskListQuery;
     }
   >();
   const taskRows = new Map<string, WindowHostControllerTaskRow>();

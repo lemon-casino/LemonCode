@@ -12,7 +12,7 @@
 // 结构：生命周期收敛在纯控制器 startDraftSessionPrewarm（可单测，无 React 依赖），
 // useDraftSessionPrewarm 只做 effect 接线与 owner-scoped binding 暴露。
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
-import type { CommandAck, CommandType, SessionConfigState } from "@zcode/shared/zcode-protocol-v4";
+import type { CommandAck, CommandType, SessionConfigState } from "@lcode/shared/lcode-protocol-v4";
 import { logger } from "@/logger.js";
 
 type DispatchCommand = (

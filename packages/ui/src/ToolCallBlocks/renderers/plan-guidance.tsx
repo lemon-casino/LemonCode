@@ -2,7 +2,7 @@ import { NotepadText } from "lucide-react";
 import { useCallback } from "react";
 import { MessageResponse } from "@/components/ai-elements/message.js";
 import { ToolOutput } from "@/components/ai-elements/tool.js";
-import { useZCodeIntl } from "@/i18n/IntlProvider.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { getToolCallErrorText } from "@/lib/toolError.js";
 import { ToolSnapshotFieldNotice } from "@/ToolCallBlocks/ToolSnapshotFieldNotice.js";
 import { ToolLayout } from "../ToolLayout.js";
@@ -75,7 +75,7 @@ function extractGuidanceMarkdown(
 }
 
 export function PlanGuidanceToolCallBlock(context: ToolCallBlockRenderContext) {
-  const { intl } = useZCodeIntl();
+  const { intl } = useLCodeIntl();
   const { toolCall } = context.toolCallNode;
   const errorText = getToolCallErrorText(toolCall);
   const guidanceMarkdown = extractGuidanceMarkdown(toolCall);

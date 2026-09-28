@@ -1,5 +1,5 @@
 {
-  "name": "@zcode/rpc",
+  "name": "@lcode/rpc",
   "version": "1.0.0",
   "description": "VS Code style IPC communication abstraction framework",
   "type": "module",
