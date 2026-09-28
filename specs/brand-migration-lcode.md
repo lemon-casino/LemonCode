@@ -65,6 +65,7 @@
 - 旧 dist/win-unpacked/resources/app.asar 被无关进程（杀毒/索引类；运行中的 D:\ZCode\ZCode.exe 均为已安装旧版应用，与 repo 无关，未触碰）占用无法清理——用 LCODE_DESKTOP_DIST_DIR=dist-lcode-fresh 换输出目录绕过
 - **迁移逻辑真实环境实测**：打包过程触发工作区复制式迁移——.lcode/ 快照副本生成、.zcode/ 源目录完整保留、草稿一致；.lcode/ 已入 gitignore（429bfbb）
 - **正式版构建（2026-09-28）**：按 CI desktop-release.yml 同配方（`LCODE_ENV=production LCODE_SKIP_REMOTE_ASSETS=1 LCODE_TARGET_OS/ARCH CSC_IDENTITY_AUTO_DISCOVERY=false LCODE_ENABLE_MAC_SIGN=0`）出包 `LCode-3.14.9-win-x64.exe`（143.5 MiB）——产物名符合发布规范模板（无 _TEST 后缀）、win-unpacked 可执行名为 `LCode.exe`（productName=LCode 正式身份，非 Preview）、updater latest.yml 指向正式命名；`resources/glm/lcode.cjs` 就位
+- **⚠ 安装启动崩溃事故与修复（2026-09-28）**：首个正式包启动即崩 `migrateDesktopIdentityDataSync is not defined`——批次 2 接线在 `src/main/index.ts` 加了调用但**漏加 import**。根因：desktop 主进程/preload 有独立 tsconfig（tsconfig.main/preload.json）但**不在根 typecheck 门禁**（root typecheck 只引 tsconfig.host.json=src/host），esbuild 打包也不校验未定义标识符，缺陷漏网到安装包。修复：补 import（e7d521f 之后）；甄别确认 preload 的 TS2305（DesktopZoomState 等）与 main 的 DOM TS2304 均为既有类型债（基线即如此，这些 tsconfig 平时不参与门禁），迁移引入的未定义引用仅此一处。产物验证：本地 out/main/index.js 中定义+调用成对（esbuild 内联函数命名标记确认）；重出包 `LCode-3.14.9-win-x64.exe`。**预防建议**：将 tsconfig.main/preload 纳入类型门禁需先清偿既有类型债，暂以「主进程接线改动必须跑 `npx tsc --noEmit -p tsconfig.main.json` 并过滤 TS2304/TS2305」作为人工门禁。
 
 ## 例外清单（批次 1 后实测登记）
 
