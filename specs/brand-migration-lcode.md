@@ -57,6 +57,14 @@
 2. `pnpm typecheck`、`pnpm lint` 通过；`node --test scripts/github-release.test.mjs` 等定向测试通过。
 3. 架构检查 `pnpm architecture:check --changed` 通过（基线模块 id 已同步改名）。
 
+## 打包验证（2026-09-28 补充）
+
+- `pnpm bundle:desktop -- --os win --arch x64` 出包成功：`packages/desktop/dist-lcode-fresh/LCode Preview-3.14.9-win-x64_TEST.exe`（143.5 MiB，本机非发布环境走 Preview/TEST 形态；正式命名 LCode-<version>-* 由 release CI 产出，命名断言测试 7/7 已覆盖）
+- 包内 `resources/glm/lcode.cjs` 就位（Host 启动 Agent 的入口）；NSIS 编译通过——installer.nsh 旧 .zcode 数据目录阻断语法有效
+- 过程中发现并处理：node_modules 里 app-builder-lib 的 NSIS 模板留着 v3.14.8 构建打入的旧补丁（标记 zcode-installer-details-v1），与改名后的 PATCH_MARKER 不互认——已还原为上游形态，本次构建由新脚本重新打补丁；CI 干净环境不受影响
+- 旧 dist/win-unpacked/resources/app.asar 被无关进程（杀毒/索引类；运行中的 D:\ZCode\ZCode.exe 均为已安装旧版应用，与 repo 无关，未触碰）占用无法清理——用 LCODE_DESKTOP_DIST_DIR=dist-lcode-fresh 换输出目录绕过
+- **迁移逻辑真实环境实测**：打包过程触发工作区复制式迁移——.lcode/ 快照副本生成、.zcode/ 源目录完整保留、草稿一致；.lcode/ 已入 gitignore（429bfbb）
+
 ## 例外清单（批次 1 后实测登记）
 
 ## 例外清单（`git grep -I -i zcode` 全仓残余，自动分类于迁移执行时）
