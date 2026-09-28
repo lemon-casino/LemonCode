@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="1024" height="1024" viewBox="0 0 1024 1024"
+     role="img" aria-labelledby="title desc">
+  <title id="title">Lemon L rounded application icon</title>
+  <desc id="desc">A black squircle containing a yellow rounded vertical bar, a green rounded horizontal bar, and a yellow-green circular four-petal emblem at the corner, forming the letter L.</desc>
+
+  <defs>
+    <clipPath id="hub-clip">
+      <circle cx="356" cy="696" r="112"/>
+    </clipPath>
+  </defs>
+
+  <!-- Transparent canvas outside the black app-icon container. -->
+  <rect x="32" y="32" width="960" height="960" rx="220" fill="#000000"/>
+
+  <!-- Simple matching rounded-rectangle arms. -->
+  <rect x="276" y="160" width="160" height="408" rx="30" fill="#FFD414"/>
+  <rect x="484" y="616" width="344" height="160" rx="30" fill="#6CCB43"/>
+
+  <!-- The supplied yellow-green emblem is the complete corner module. -->
+  <g clip-path="url(#hub-clip)">
+    <circle cx="356" cy="696" r="112" fill="#FFD414"/>
+
+    <!-- Green field on the right/lower side of the circle. -->
+    <path d="M438 629
+             C405 647 378 675 356 696
+             C346 730 337 765 329 799
+             A112 112 0 0 0 438 629 Z"
+          fill="#6CCB43"/>
+
+    <!-- White curved division between the yellow and green fields. -->
+    <path d="M438 629
+             C405 647 378 675 356 696
+             C346 730 337 765 329 799"
+          fill="none" stroke="#FFFFFF" stroke-width="7"
+          stroke-linecap="round" stroke-linejoin="round"/>
+
+    <!-- Four cyan-blue rotating petals. -->
+    <g fill="#1EA7E1" stroke="#FFFFFF" stroke-width="6"
+       stroke-linejoin="round">
+      <path d="M356 696
+               C333 678 319 646 334 614
+               C360 635 369 668 356 696 Z"/>
+      <path d="M356 696
+               C330 714 295 723 270 705
+               C295 678 330 677 356 696 Z"/>
+      <path d="M356 696
+               C376 674 411 659 438 676
+               C421 706 387 713 356 696 Z"/>
+      <path d="M356 696
+               C377 721 381 756 362 783
+               C338 758 335 722 356 696 Z"/>
+    </g>
+
+    <!-- White stem and dot details from the supplied emblem. -->
+    <path d="M360 688 C377 671 383 648 374 632"
+          fill="none" stroke="#FFFFFF" stroke-width="6"
+          stroke-linecap="round"/>
+    <circle cx="373" cy="627" r="7" fill="#FFFFFF"/>
+    <circle cx="399" cy="661" r="4" fill="#FFFFFF"/>
+  </g>
+</svg>

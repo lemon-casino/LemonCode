@@ -172,24 +172,38 @@ export function createCustomAboutDialogHtml(input: CustomAboutDialogHtmlInput): 
         <div class="content">
           <div class="app-icon" aria-hidden="true">
             <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="118"
-              height="100"
-              fill="none"
-              viewBox="0 0 256 218"
-              class="app-logo"
-              focusable="false"
-            >
-              <path
-                fill="currentColor"
-                d="M134.4 0.130152L116.48 25.6022C113.665 29.5699 109.054 32.0019 104.064 32.0019H6.3999V0C6.3999 0.130149 134.4 0.130152 134.4 0.130152Z"
-              />
-              <path fill="currentColor" d="M256 0.130127L102.401 217.732H0L153.599 0.130127H256Z" />
-              <path
-                fill="currentColor"
-                d="M121.601 217.732L139.65 192.134C142.465 188.166 147.076 185.734 152.067 185.734H249.604V217.736H121.601V217.732Z"
-              />
-            </svg>
+xmlns="http://www.w3.org/2000/svg"
+width="100"
+height="100"
+fill="none"
+viewBox="0 0 1024 1024"
+class="app-logo"
+aria-hidden="true"
+          >
+<defs>
+  <clipPath id="lcode-hub-clip-about">
+    <circle cx="356" cy="696" r="112"/>
+  </clipPath>
+</defs>
+<rect x="32" y="32" width="960" height="960" rx="220" fill="#000000"/>
+<rect x="276" y="160" width="160" height="408" rx="30" fill="#FFD414"/>
+<rect x="484" y="616" width="344" height="160" rx="30" fill="#6CCB43"/>
+<g clip-path="url(#lcode-hub-clip-about)">
+  <circle cx="356" cy="696" r="112" fill="#FFD414"/>
+  <path d="M438 629 C405 647 378 675 356 696 C346 730 337 765 329 799 A112 112 0 0 0 438 629 Z" fill="#6CCB43"/>
+  <path d="M438 629 C405 647 378 675 356 696 C346 730 337 765 329 799" fill="none" stroke="#FFFFFF" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <g fill="#1EA7E1" stroke="#FFFFFF" stroke-width="6" stroke-linejoin="round">
+    <path d="M356 696 C333 678 319 646 334 614 C360 635 369 668 356 696 Z"/>
+    <path d="M356 696 C330 714 295 723 270 705 C295 678 330 677 356 696 Z"/>
+    <path d="M356 696 C376 674 411 659 438 676 C421 706 387 713 356 696 Z"/>
+    <path d="M356 696 C377 721 381 756 362 783 C338 758 335 722 356 696 Z"/>
+  </g>
+  <path d="M360 688 C377 671 383 648 374 632" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="373" cy="627" r="7" fill="#FFFFFF"/>
+  <circle cx="399" cy="661" r="4" fill="#FFFFFF"/>
+</g>
+<animate attributeName="opacity" dur="1.5s" repeatCount="indefinite" values="1;0.55;1"/>
+          </svg>
           </div>
           <h1 id="about-title" class="title">
             ${escapeHtml(input.applicationName)}<br />
