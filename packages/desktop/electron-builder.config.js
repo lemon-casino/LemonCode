@@ -676,7 +676,9 @@ export default {
       // 协议处理器的展示名之前使用小写 scheme，打包产物里的协议描述无法体现产品名。
       // 展示名跟随安装包身份；scheme 仍保持 lcode，因此两个应用中最后注册者会成为默认 handler。
       name: desktopProductIdentity.productName,
-      schemes: ["lcode"],
+      // 品牌迁移过渡：新身份主注册 lcode://，同时保留 zcode:// 注册以接住
+      // 旧分享页/旧文档里已分发出去的深链（specs/brand-migration-lcode.md）。
+      schemes: ["lcode", "zcode"],
     },
   ],
   mac: {

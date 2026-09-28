@@ -1,5 +1,7 @@
 const DEEP_LINK_SCHEME = "lcode";
-const DEEP_LINK_RE = /\blcode:(?:\/\/|\/)?[^\s"'<>]+/i;
+// 品牌迁移过渡：旧分享页/旧二维码仍会分发 zcode:// 深链，解析端双认（specs/brand-migration-lcode.md）。
+const LEGACY_DEEP_LINK_SCHEME = "zcode";
+const DEEP_LINK_RE = /\b(?:lcode|zcode):(?:\/\/|\/)?[^\s"'<>]+/i;
 const OAUTH_CALLBACK_HOSTS = new Set(["oauth"]);
 const PAYMENT_CALLBACK_HOST = "payment";
 const WORKSPACE_OPEN_HOST = "workspace";
@@ -15,7 +17,7 @@ function normalizeOAuthCallbackPath(pathname: string): string {
 }
 
 export function isOAuthCallbackUrl(parsedUrl: URL): boolean {
-  if (parsedUrl.protocol !== `${DEEP_LINK_SCHEME}:`) {
+  if (parsedUrl.protocol !== `${DEEP_LINK_SCHEME}:` && parsedUrl.protocol !== `${LEGACY_DEEP_LINK_SCHEME}:`) {
     return false;
   }
 
@@ -35,7 +37,7 @@ export function isOAuthCallbackUrl(parsedUrl: URL): boolean {
 }
 
 export function isPaymentCallbackUrl(parsedUrl: URL): boolean {
-  if (parsedUrl.protocol !== `${DEEP_LINK_SCHEME}:`) {
+  if (parsedUrl.protocol !== `${DEEP_LINK_SCHEME}:` && parsedUrl.protocol !== `${LEGACY_DEEP_LINK_SCHEME}:`) {
     return false;
   }
 
@@ -53,7 +55,7 @@ export function isPaymentCallbackUrl(parsedUrl: URL): boolean {
 }
 
 export function isWorkspaceOpenUrl(parsedUrl: URL): boolean {
-  if (parsedUrl.protocol !== `${DEEP_LINK_SCHEME}:`) {
+  if (parsedUrl.protocol !== `${DEEP_LINK_SCHEME}:` && parsedUrl.protocol !== `${LEGACY_DEEP_LINK_SCHEME}:`) {
     return false;
   }
 
@@ -81,7 +83,7 @@ export function extractWorkspaceOpenPath(parsedUrl: URL): string | null {
 
 export function isShareImportUrl(parsedUrl: URL): boolean {
   return (
-    parsedUrl.protocol === `${DEEP_LINK_SCHEME}:` &&
+    (parsedUrl.protocol === `${DEEP_LINK_SCHEME}:` || parsedUrl.protocol === `${LEGACY_DEEP_LINK_SCHEME}:`) &&
     parsedUrl.hostname === SHARE_IMPORT_HOST &&
     normalizeOAuthCallbackPath(parsedUrl.pathname) === "/import"
   );

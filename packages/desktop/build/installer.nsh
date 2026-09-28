@@ -471,8 +471,19 @@
     IfFileExists "$R9\.lcode\*.*" 0 +2
       StrCpy $R2 "$R9\.lcode"
     StrCmp $R2 "" 0 lcodeFindNestedDataDirDone
-    IfFileExists "$R9\.lcode" 0 lcodeFindNestedDataDirListChildren
+    IfFileExists "$R9\.lcode" 0 lcodeFindLegacyZcodeDataDir
       StrCpy $R2 "$R9\.lcode"
+    StrCmp $R2 "" 0 lcodeFindNestedDataDirDone
+    Goto lcodeFindNestedDataDirListChildren
+
+    ; 品牌迁移兼容：旧版本写入安装目录的数据目录是 .zcode，覆盖安装同样必须阻断，
+    ; 否则会清掉老用户全部会话数据（specs/brand-migration-lcode.md 批次 4）。
+    lcodeFindLegacyZcodeDataDir:
+    IfFileExists "$R9\.zcode\*.*" 0 +2
+      StrCpy $R2 "$R9\.zcode"
+    StrCmp $R2 "" 0 lcodeFindNestedDataDirDone
+    IfFileExists "$R9\.zcode" 0 lcodeFindNestedDataDirListChildren
+      StrCpy $R2 "$R9\.zcode"
     StrCmp $R2 "" 0 lcodeFindNestedDataDirDone
 
     lcodeFindNestedDataDirListChildren:
