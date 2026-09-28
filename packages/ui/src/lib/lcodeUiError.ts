@@ -84,8 +84,11 @@ function collectMessageCandidatesFromRecord(record: Record<string, unknown>): st
     // lcode-cli 会把模型/网络错误摘要放在 data.lcode.error 下。
     // 之前 UI 只读 data.error，导致已经结构化好的 provider 根因仍被 “Internal error” 盖住。
     ["data", "lcode", "error", "message"],
+    ["data", "zcode", "error", "message"],
     ["data", "lcode", "error", "detail"],
+    ["data", "zcode", "error", "detail"],
     ["data", "lcode", "error", "details"],
+    ["data", "zcode", "error", "details"],
   ];
   for (const path of messagePaths) {
     push(readValueByPath(record, path));
@@ -178,6 +181,7 @@ function readFirstAttributionFromPaths(error: unknown): ErrorAttribution | undef
     ["data", "attribution"],
     ["data", "error", "attribution"],
     ["data", "lcode", "error", "attribution"],
+    ["data", "zcode", "error", "attribution"],
   ];
   for (const path of paths) {
     const parsed = errorAttributionSchema.safeParse(readValueByPath(record, path));
@@ -209,8 +213,10 @@ export function normalizeLCodeUiError(
     ["data", "code"],
     ["data", "error", "code"],
     ["data", "lcode", "error", "code"],
+    ["data", "zcode", "error", "code"],
     // turn-errors 会把 provider 业务码写入 summary.code；部分链路仍只落在 context.providerCode。
     ["data", "lcode", "error", "context", "providerCode"],
+    ["data", "zcode", "error", "context", "providerCode"],
     ["data", "error", "context", "providerCode"],
     ["context", "providerCode"],
   ]);
@@ -219,18 +225,21 @@ export function normalizeLCodeUiError(
     ["data", "detail"],
     ["data", "error", "detail"],
     ["data", "lcode", "error", "detail"],
+    ["data", "zcode", "error", "detail"],
   ]);
   const underlyingErrorMessage = readFirstStringFromPaths(error, [
     ["underlyingErrorMessage"],
     ["data", "underlyingErrorMessage"],
     ["data", "error", "underlyingErrorMessage"],
     ["data", "lcode", "error", "underlyingErrorMessage"],
+    ["data", "zcode", "error", "underlyingErrorMessage"],
   ]);
   const underlyingErrorDetail = readFirstStringFromPaths(error, [
     ["underlyingErrorDetail"],
     ["data", "underlyingErrorDetail"],
     ["data", "error", "underlyingErrorDetail"],
     ["data", "lcode", "error", "underlyingErrorDetail"],
+    ["data", "zcode", "error", "underlyingErrorDetail"],
   ]);
   const providerCodeFromDetail = detailFromError?.match(/provider_code=([0-9]+)/)?.[1];
   const traceIdFromError = readFirstStringFromPaths(error, [
@@ -238,12 +247,14 @@ export function normalizeLCodeUiError(
     ["data", "traceId"],
     ["data", "error", "traceId"],
     ["data", "lcode", "error", "traceId"],
+    ["data", "zcode", "error", "traceId"],
   ]) as TraceId | undefined;
   const taskIdFromError = readFirstStringFromPaths(error, [
     ["taskId"],
     ["data", "taskId"],
     ["data", "error", "taskId"],
     ["data", "lcode", "error", "taskId"],
+    ["data", "zcode", "error", "taskId"],
   ]);
   const attribution = readFirstAttributionFromPaths(error);
 

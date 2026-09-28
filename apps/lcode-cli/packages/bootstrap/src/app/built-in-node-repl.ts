@@ -35,7 +35,10 @@ export function resolveBuiltInNodeReplMcpServers(input: {
     cwd: input.workingDirectory,
     env: {
       // 领域 root 各自注入，且只在对应能力启用时注入：宿主据此决定哪一半文档可用。
-      ...(browserUsePackage ? { LCODE_PLUGIN_ROOT: browserUsePackage.rootPath } : {}),
+      // 旧名兼容：旧插件仍读 ZCODE_PLUGIN_ROOT，双名注入同一取值。
+      ...(browserUsePackage
+        ? { LCODE_PLUGIN_ROOT: browserUsePackage.rootPath, ZCODE_PLUGIN_ROOT: browserUsePackage.rootPath }
+        : {}),
       ...(cuaPackage ? { LCODE_CUA_PLUGIN_ROOT: cuaPackage.rootPath } : {}),
     },
     rootPath: hostPackage.rootPath,

@@ -1,3 +1,5 @@
+import { homedir } from "node:os";
+import { migrateHomeBrandDataRootSync, migrateWorkspaceBrandDirsSync } from "@lcode/shared/node";
 import { interceptTuiStderr, isTuiInvocation } from "./tui-stderr.js";
 import { interceptKnownRuntimeWarnings } from "./runtime-warnings.js";
 import { installStderrConsoleBoundary } from "./protocol-console.js";
@@ -14,6 +16,10 @@ import { isProtocolServerInvocation } from "./arguments.js";
 void main();
 
 async function main(): Promise<void> {
+  // 品牌迁移（复制式、幂等）先于任何配置/会话库访问：~/.zcode → ~/.lcode，
+  // 工作区 .zcode/.zcode-plugin → .lcode/.lcode-plugin（specs/brand-migration-lcode.md）。
+  migrateHomeBrandDataRootSync(homedir());
+  migrateWorkspaceBrandDirsSync(process.cwd());
   const argv = process.argv.slice(2);
   // 存储模式也可运行在 Host Worker 中，不能修改整个 Host 的进程名称。
   if (!argv.includes("--prepare-storage")) setCliProcessTitle();

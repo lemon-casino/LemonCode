@@ -1,4 +1,5 @@
-import { disposeServiceResourcesAndWait, getAppConfigDir } from "@lcode/services/node";
+import { migrateHomeBrandDataRootSync } from "@lcode/shared/node";
+import { disposeServiceResourcesAndWait, getDataBaseDir, getAppConfigDir } from "@lcode/services/node";
 import {
   LCODE_VERSION,
   SERVICE_AUTHORITY_MODE_ENV,
@@ -37,6 +38,8 @@ if (process.argv.includes("--version")) {
 }
 
 async function main() {
+  // 品牌迁移（复制式、幂等）先于 config/任务索引访问：~/.zcode → ~/.lcode。
+  migrateHomeBrandDataRootSync(getDataBaseDir());
   // Phase 1: Send hello message
   const hello: HelloMessage = {
     type: "lcode-hello",

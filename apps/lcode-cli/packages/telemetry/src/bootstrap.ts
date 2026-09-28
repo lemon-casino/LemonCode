@@ -126,7 +126,9 @@ export async function prepareModelTelemetryEnv(
   }
   const existingInstallationId = normalizeTelemetryDeviceMid(env.LCODE_TELEMETRY_DEVICE_MID);
   const installationId =
-    existingInstallationId ?? (await resolveStandaloneDeviceMid(env.LCODE_HOME?.trim()));
+    // 旧名兼容：LCODE_HOME 未设时回退旧 ZCODE_HOME（specs/brand-migration-lcode.md）。
+    existingInstallationId ??
+      (await resolveStandaloneDeviceMid(env.LCODE_HOME?.trim() || env.ZCODE_HOME?.trim()));
   const preparedEnv = installationId ? { ...env, LCODE_TELEMETRY_DEVICE_MID: installationId } : env;
 
   if (!preparingOwner && !preparedOwner) {

@@ -1,4 +1,5 @@
-import { createLocalServices, getAppConfigDir } from "@lcode/services/node";
+import { migrateHomeBrandDataRootSync } from "@lcode/shared/node";
+import { createLocalServices, getDataBaseDir, getAppConfigDir } from "@lcode/services/node";
 import {
   materializeBundledLCodeBuiltinProviderConfig,
   readBundledLCodeBuiltinProviderConfig,
@@ -6,6 +7,8 @@ import {
 import { createHttpServer } from "./http.js";
 
 async function main(): Promise<void> {
+  // 品牌迁移（复制式、幂等）先于 config/任务索引访问：~/.zcode → ~/.lcode。
+  migrateHomeBrandDataRootSync(getDataBaseDir());
   const lcodeBuiltinProviderConfigFilePath = await materializeBundledLCodeBuiltinProviderConfig({
     environmentConfigRoot: getAppConfigDir(),
     content: readBundledLCodeBuiltinProviderConfig(),

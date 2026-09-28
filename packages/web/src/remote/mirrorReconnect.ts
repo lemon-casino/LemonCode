@@ -55,7 +55,10 @@ export function scheduleMirrorReconnectReload(closeKey: PairingFailureKey): void
     return;
   }
   try {
-    const raw = window.sessionStorage.getItem(MIRROR_RELOAD_BUDGET_KEY);
+    // 旧键兼容读：老会话预算存于 zcode:remote-pairing:reconnect-reloads。
+    const raw =
+      window.sessionStorage.getItem(MIRROR_RELOAD_BUDGET_KEY) ||
+      window.sessionStorage.getItem("zcode:remote-pairing:reconnect-reloads");
     const plan = planMirrorReconnectReload(raw ? JSON.parse(raw) : [], Date.now());
     if (!plan.reload) {
       return;

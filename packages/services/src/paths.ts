@@ -8,7 +8,9 @@ import { DATA_BASE_DIR_FORBIDDEN_WINDOWS_INSTALL_DIR_ERROR_CODE } from "@lcode/s
 
 let _dataBaseDir: string | null = null;
 export const LCODE_WINDOWS_APP_INSTALL_DIR_ENV = "LCODE_WINDOWS_APP_INSTALL_DIR";
-const envDataBaseDir = process.env.LCODE_DATA_BASE_DIR?.trim() || null;
+// 品牌更名兼容：既有用户/宿主可能仍设置旧名 ZCODE_DATA_BASE_DIR（specs/brand-migration-lcode.md）。
+const envDataBaseDir =
+  process.env.LCODE_DATA_BASE_DIR?.trim() || process.env.ZCODE_DATA_BASE_DIR?.trim() || null;
 const defaultDataBaseDir = process.env.HOME?.trim() || homedir();
 
 interface DataBaseDirTargetValidationOptions {

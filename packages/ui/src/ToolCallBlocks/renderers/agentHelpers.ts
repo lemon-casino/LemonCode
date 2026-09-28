@@ -149,6 +149,8 @@ export function getAgentColor(toolCall: AgentToolCall) {
   const inputRecord = isPlainRecord(toolCall.input) ? toolCall.input : null;
   const rawColor =
     readStringFromNestedRecord(toolCall.raw, ["_meta", "lcode", "color"]) ??
+    // 旧会话数据兼容读：旧版本 agent 写的是 _meta.zcode。
+    readStringFromNestedRecord(toolCall.raw, ["_meta", "zcode", "color"]) ??
     readStringFromNestedRecord(toolCall.raw, ["color"]) ??
     readAgentColorFromRecord(inputRecord) ??
     readAgentColorFromRecord(outputRecord);

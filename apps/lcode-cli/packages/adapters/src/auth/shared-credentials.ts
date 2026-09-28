@@ -285,7 +285,12 @@ export function resolveSharedLCodeCredentialsPath(
   }
 
   const env = options.env ?? process.env;
-  const baseDir = options.baseDir ?? env[LCODE_DATA_BASE_DIR_ENV_KEY] ?? homedir();
+  const baseDir =
+      options.baseDir ??
+      env[LCODE_DATA_BASE_DIR_ENV_KEY] ??
+      // 旧名兼容：迁移窗口内既有环境仍可能使用 ZCODE_DATA_BASE_DIR。
+      env["ZCODE_DATA_BASE_DIR"] ??
+      homedir();
   return join(resolveUserPath(baseDir), ".lcode", "v2", "credentials.json");
 }
 

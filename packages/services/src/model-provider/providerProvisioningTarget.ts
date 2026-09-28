@@ -1,6 +1,10 @@
 /* eslint-disable max-lines -- Provisioning target keeps transaction and rollback invariants together. */
 import { readFile } from "node:fs/promises";
 import { atomicWritePrivateTextFile, withFileLock } from "@lcode/shared/node";
+// 旧品牌键别名：双写窗口内旧版本客户端仍按旧键名读取。
+const LEGACY_BRAND_CREDENTIAL_KEY_ALIASES: Record<string, string> = {
+  lcodejwttoken: "zcodejwttoken",
+};
 import {
   type PersonalProviderConfigRepository,
   type ProviderConfigLayerUpdate,
@@ -94,8 +98,16 @@ export function createProviderProvisioningTarget(
           for (const key of before.credentials.keys()) {
             const value = incomingCredentials.get(key);
             applied.credentials.push({ key, value: value ?? null });
-            if (value === undefined) await options.credentialService.delete(key);
-            else await options.credentialService.save(key, value);
+            if (value === undefined) {
+              await options.credentialService.delete(key);
+              // 品牌更名双写：旧版本客户端按旧键名读取（specs/brand-migration-lcode.md）。
+              const legacyAlias = LEGACY_BRAND_CREDENTIAL_KEY_ALIASES[key];
+              if (legacyAlias) await options.credentialService.delete(legacyAlias).catch(() => undefined);
+            } else {
+              await options.credentialService.save(key, value);
+              const legacyAlias = LEGACY_BRAND_CREDENTIAL_KEY_ALIASES[key];
+              if (legacyAlias) await options.credentialService.save(legacyAlias, value).catch(() => undefined);
+            }
           }
 
           applied.personalConfig = true;

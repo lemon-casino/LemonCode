@@ -182,6 +182,8 @@ function createServerInfo(options: HttpServerOptions): ServerRemoteInfo {
 }
 
 const lcodeLiteTokenCookieName = "lcode_lite_token";
+// 品牌更名过渡：旧 Web 会话的 HttpOnly cookie 仍是旧名，双读避免全员掉登录（specs/brand-migration-lcode.md）。
+const legacyZcodeLiteTokenCookieName = "zcode_lite_token";
 
 const staticMimeTypes: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
@@ -230,7 +232,11 @@ function hasValidLiteToken(c: Context, token: string): boolean {
     );
     return true;
   }
-  return parseCookieHeader(c.req.header("cookie")).get(lcodeLiteTokenCookieName) === token;
+  const cookies = parseCookieHeader(c.req.header("cookie"));
+  return (
+    cookies.get(lcodeLiteTokenCookieName) === token ||
+    cookies.get(legacyZcodeLiteTokenCookieName) === token
+  );
 }
 
 function isTokenProtectedPath(pathname: string): boolean {

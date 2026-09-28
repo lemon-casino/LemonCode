@@ -1,7 +1,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { app } from "electron";
+import { migrateDirCopyStyleSync } from "@lcode/shared/node";
 import { setDataBaseDir } from "@lcode/services/node";
+import { runtimeApplicationName, runtimeUserDataPath } from "./desktopRuntimeEnv.js";
 
 function resolveBootstrapSettingsFile(homePath: string = homedir()): string {
   return join(homePath, ".lcode", "v2", "setting.json");
@@ -44,4 +47,20 @@ export function applyEarlyDataBaseDirBootstrap(): string | null {
     setDataBaseDir(dataBaseDir);
   }
   return dataBaseDir;
+}
+
+// 品牌迁移（复制式、幂等）：旧 appData/<ZCode 系身份> → 新 appData/<LCode 系身份>，
+// 并把旧 Chromium 分区目录迁到新分区名，避免丢嵌入式浏览器会话与 Coding Plan 登录态。
+// 旧目录保留（并列安装形态下旧版应用继续读旧 appData，数据不受影响）。
+export function migrateDesktopIdentityDataSync(): void {
+  const appData = app.getPath("appData");
+  // runtimeApplicationName 取 "LCode" | "LCode Preview" | "LCode Dev"；旧身份仅前缀不同。
+  const legacyUserData = join(appData, runtimeApplicationName.replace(/^LCode/, "ZCode"));
+  migrateDirCopyStyleSync(legacyUserData, runtimeUserDataPath);
+  for (const [legacyPartition, partition] of [
+    ["persist:zcode-embedded-browser", "persist:lcode-embedded-browser"],
+    ["persist:zcode-coding-plan", "persist:lcode-coding-plan"],
+  ] as const) {
+    migrateDirCopyStyleSync(join(legacyUserData, "Partitions", legacyPartition), join(runtimeUserDataPath, "Partitions", partition));
+  }
 }

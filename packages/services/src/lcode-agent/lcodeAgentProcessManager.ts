@@ -438,13 +438,22 @@ function resolveElectronRuntimeLCodeAgentCommand(
 export function resolveDefaultLCodeAgentCommand(
   context: LCodeAgentCommandResolverContext,
 ): LCodeAgentCommand | null {
-  const command = process.env.LCODE_AGENT_SERVER_COMMAND?.trim();
+  // 旧名兼容：ZCODE_AGENT_SERVER_* 是既有宿主/用户覆盖面（specs/brand-migration-lcode.md）。
+  const command =
+    process.env.LCODE_AGENT_SERVER_COMMAND?.trim() ||
+    process.env.ZCODE_AGENT_SERVER_COMMAND?.trim();
   if (command) {
     return applyPresentationSurfaceToCommand(
       {
         command,
-        args: parseArgsJson(process.env.LCODE_AGENT_SERVER_ARGS_JSON) ?? ["app-server", "--stdio"],
-        cwd: process.env.LCODE_AGENT_SERVER_CWD?.trim() || context.workspacePath,
+        args:
+        parseArgsJson(process.env.LCODE_AGENT_SERVER_ARGS_JSON) ??
+        parseArgsJson(process.env.ZCODE_AGENT_SERVER_ARGS_JSON) ??
+        ["app-server", "--stdio"],
+        cwd:
+        process.env.LCODE_AGENT_SERVER_CWD?.trim() ||
+        process.env.ZCODE_AGENT_SERVER_CWD?.trim() ||
+        context.workspacePath,
       },
       context.presentationSurface,
     );

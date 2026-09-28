@@ -262,6 +262,8 @@ if (!shouldUseElectronDefaultUserDataPath) {
       "Desktop runtime data paths are required when Electron default userData is disabled",
     );
   }
+  // 品牌迁移：userData 与 Chromium 分区先于 Electron 使用它们完成迁移（幂等）。
+  migrateDesktopIdentityDataSync();
   app.setPath("userData", runtimeUserDataPath);
   app.setPath("sessionData", runtimeSessionDataPath);
 }

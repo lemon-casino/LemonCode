@@ -90,7 +90,9 @@ function registerE2EStoreBridgesIfEnabled() {
   const isBootstrapAppliedTheme = (value: string): value is BootstrapAppliedTheme =>
     value in BOOTSTRAP_THEME_BASES;
 
-  const saved = localStorage.getItem("lcode-theme") || "zai-dark";
+  // 旧键兼容读：老用户主题偏好存于 zcode-theme（specs/brand-migration-lcode.md）。
+  const saved =
+    localStorage.getItem("lcode-theme") || localStorage.getItem("zcode-theme") || "zai-dark";
   const appliedTheme: BootstrapAppliedTheme =
     saved === "system"
       ? window.matchMedia("(prefers-color-scheme: dark)").matches

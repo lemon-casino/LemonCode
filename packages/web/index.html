@@ -59,7 +59,11 @@
         };
 
         try {
-          const saved = localStorage.getItem(STORAGE_KEY) || DEFAULT_THEME;
+          const saved =
+            localStorage.getItem(STORAGE_KEY) ||
+            // 旧键兼容读：老用户主题偏好存于 zcode-theme。
+            localStorage.getItem("zcode-theme") ||
+            DEFAULT_THEME;
           const themeId =
             saved === "system"
               ? window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches

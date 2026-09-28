@@ -115,7 +115,10 @@ function readRawToolNameCandidates(raw: unknown) {
       readNestedString(raw, ["toolName"]) ??
       readNestedString(raw, ["tool_name"]) ??
       readNestedString(raw, ["name"]),
-    lcode: readNestedString(raw, ["_meta", "lcode", "toolName"]),
+    lcode:
+      readNestedString(raw, ["_meta", "lcode", "toolName"]) ??
+      // 旧会话数据兼容读：旧版本 agent 写的是 _meta.zcode。
+      readNestedString(raw, ["_meta", "zcode", "toolName"]),
     rawKind: readNestedString(raw, ["kind"]),
     rawTitle: readNestedString(raw, ["title"]),
   };

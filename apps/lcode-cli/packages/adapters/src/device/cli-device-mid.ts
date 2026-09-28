@@ -55,7 +55,11 @@ export function ensureCliDeviceMid(options: EnsureCliDeviceMidOptions = {}): Pro
 function resolveCliTelemetryStateFile(options: EnsureCliDeviceMidOptions): string {
   const env = options.env ?? process.env;
   const configuredBaseDir =
-    options.baseDir ?? env[LCODE_DATA_BASE_DIR_ENV_KEY]?.trim() ?? homedir();
+    options.baseDir ??
+      env[LCODE_DATA_BASE_DIR_ENV_KEY]?.trim() ??
+      // 旧名兼容：迁移窗口内既有环境仍可能使用 ZCODE_DATA_BASE_DIR。
+      env["ZCODE_DATA_BASE_DIR"]?.trim() ??
+      homedir();
   const baseDir = configuredBaseDir.length > 0 ? configuredBaseDir : homedir();
   return join(resolveUserPath(baseDir), ".lcode", "v2", "telemetry-state.json");
 }

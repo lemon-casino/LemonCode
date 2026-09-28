@@ -495,7 +495,10 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
             )
           ? rawInheritedEnv.LCODE_CUA_BUNDLED_HELPER_APP_PATH?.trim() ||
             join(
-              rawInheritedEnv.LCODE_HOME?.trim() || join(homedir(), ".lcode"),
+              // 旧名兼容：LCODE_HOME 未设时回退旧 ZCODE_HOME。
+              rawInheritedEnv.LCODE_HOME?.trim() ||
+              rawInheritedEnv.ZCODE_HOME?.trim() ||
+              join(homedir(), ".lcode"),
               "computer-use",
               "dev",
               DEV_HELPER_APP_NAME,

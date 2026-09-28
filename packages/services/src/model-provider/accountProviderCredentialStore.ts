@@ -32,13 +32,27 @@ export function createAccountProviderCredentialStore(
         return;
       }
       await options.credentialService.save(key, normalized);
+      // 品牌更名双写：旧版本 CLI 共享同一凭据文件，按旧键名保留别名（specs/brand-migration-lcode.md）。
+      const legacyAlias = LEGACY_BRAND_CREDENTIAL_KEY_ALIASES[key];
+      if (legacyAlias) {
+        await options.credentialService.save(legacyAlias, normalized).catch(() => undefined);
+      }
     },
 
     async deleteApiKey(credentialKey) {
+      const legacyAlias = LEGACY_BRAND_CREDENTIAL_KEY_ALIASES[requireCredentialKey(credentialKey)];
+      if (legacyAlias) {
+        await options.credentialService.delete(legacyAlias).catch(() => undefined);
+      }
       await options.credentialService.delete(requireCredentialKey(credentialKey));
     },
   };
 }
+
+// 旧品牌键别名：双写窗口内旧版本客户端仍按旧键名读取。
+const LEGACY_BRAND_CREDENTIAL_KEY_ALIASES: Record<string, string> = {
+  lcodejwttoken: "zcodejwttoken",
+};
 
 function requireCredentialKey(value: string): string {
   const normalized = value.trim();

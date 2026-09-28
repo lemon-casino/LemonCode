@@ -400,7 +400,7 @@ function resolveHelperInstallPlan(options, env) {
   const root = resolve(
     options.installRoot ??
       options.plan?.installRoot ??
-      join(env.LCODE_HOME?.trim() || homedir(), "computer-use"),
+      join(env.LCODE_HOME?.trim() || env.ZCODE_HOME?.trim() || homedir(), "computer-use"),
   );
   const appName = variant === "dev" ? DEV_HELPER_APP_NAME : HELPER_APP_NAME;
   const variantRoot = variant === "stable" ? root : join(root, variant);
@@ -1424,7 +1424,8 @@ export function isOfficialCuaPluginEnabledForWorkspace(options = {}) {
   const configs = [];
   if (isRecord(options.userConfig)) configs.push(options.userConfig);
   else {
-    const home = env.LCODE_HOME?.trim() || join(homedir(), ".lcode");
+    // 旧名兼容：LCODE_HOME 未设时回退旧 ZCODE_HOME。
+    const home = env.LCODE_HOME?.trim() || env.ZCODE_HOME?.trim() || join(homedir(), ".lcode");
     const userConfig = parseJsonFile(options.userConfigPath ?? join(home, "cli", "config.json"));
     if (userConfig) configs.push(userConfig);
   }

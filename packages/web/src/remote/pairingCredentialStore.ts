@@ -16,7 +16,10 @@ export interface StoredPairingCredential {
 
 export function loadStoredPairingCredential(): StoredPairingCredential | null {
   try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY);
+    // 旧键兼容读：老会话凭据存于 zcode:remote-pairing:device。
+    const raw =
+      window.sessionStorage.getItem(STORAGE_KEY) ||
+      window.sessionStorage.getItem("zcode:remote-pairing:device");
     if (!raw) {
       return null;
     }

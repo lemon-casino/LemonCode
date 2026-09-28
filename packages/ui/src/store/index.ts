@@ -256,7 +256,7 @@ export function createLCodeStore(
     // 仍然优先尊重 localStorage 中已保存的用户选择，不覆盖已有偏好。
     // localStorage 可能被手改或旧版本污染：非法主题值不得进入 store，统一回落默认 zai-dark。
     theme: (() => {
-      const storedTheme = readSafeLocalStorage("lcode-theme");
+      const storedTheme = readSafeLocalStorage("lcode-theme") ?? readSafeLocalStorage("zcode-theme");
       return isThemeValue(storedTheme) ? normalizeThemePreference(storedTheme) : "zai-dark";
     })(),
     setTheme: (theme: Theme) => {
@@ -268,7 +268,8 @@ export function createLCodeStore(
       set({ theme: normalizedTheme });
     },
 
-    locale: readSafeLocalStorage("lcode-locale") || "zh-CN",
+    locale:
+      (readSafeLocalStorage("lcode-locale") ?? readSafeLocalStorage("zcode-locale")) || "zh-CN",
     setLocale: (locale: string) => {
       writeSafeLocalStorage("lcode-locale", locale);
       set({ locale });

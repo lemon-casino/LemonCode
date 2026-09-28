@@ -175,6 +175,10 @@ function buildWorkspaceHookCandidatePaths(directories: readonly string[]): strin
   return directories.flatMap((directory) => [
     join(directory, "lcode.json"),
     join(directory, ".lcode", "config.json"),
+    // 旧名兼容探测：老工作区的配置文件仍叫 zcode.json / .zcode/config.json，
+    // 命中后按对应新 kind 处理（specs/brand-migration-lcode.md）。
+    join(directory, "zcode.json"),
+    join(directory, ".zcode", "config.json"),
   ]);
 }
 
@@ -232,17 +236,21 @@ export function createWorkspaceHookSourceInput(input: {
   const configDirectory = dirname(canonicalPath);
   return {
     canonicalPath,
-    baseDir: basename(configDirectory) === ".lcode" ? dirname(configDirectory) : configDirectory,
+    baseDir:
+      basename(configDirectory) === ".lcode" || basename(configDirectory) === ".zcode"
+        ? dirname(configDirectory)
+        : configDirectory,
     discoveryOrder: input.discoveryOrder,
     configFileKind: explicitProjectConfig
       ? "explicit"
-      : basename(canonicalPath) === "lcode.json"
+      : basename(canonicalPath) === "lcode.json" || basename(canonicalPath) === "zcode.json"
         ? "lcode.json"
         : ".lcode/config.json",
     explicitProjectConfig,
     editable:
       !explicitProjectConfig &&
-      canonicalPath === resolve(input.workingDirectory, ".lcode", "config.json"),
+      (canonicalPath === resolve(input.workingDirectory, ".lcode", "config.json") ||
+        canonicalPath === resolve(input.workingDirectory, ".zcode", "config.json")),
     hooks: input.hooks,
   };
 }
