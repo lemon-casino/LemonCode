@@ -256,4 +256,5 @@
 - patches/@ai-sdk__openai-compatible@2.0.60.patch（2 行）
 - patches/@arms__rum-electron@0.0.3.patch（47 行）
 
-（例外清单由 `.zcode/gen-exceptions.mjs` 按保留类别自动生成；品牌验收 grep 以本清单为排除集，未分类为 0 即全部残余均有登记原因。）
+（例外清单由 `.zcode/gen-exceptions.mjs` 按保留类别自动生成；品牌验收 grep 以本清单为排除集，未分类为 0 即全部残余均有登记原因。）- **⚠ 应用内 Z 徽标（2026-09-29，用户实装发现）**：二进制图标之外还有一批 **SVG 组件/内嵌图形**形式的品牌标，二进制替换覆盖不到——`LCodeAboutLogo` 组件（批次 1 只改了组件名，里面的 Z path 没改）、`LCodeWordmarkLogo` 字标的 Z 字形、三处把 `provider-icons/logo-zai.svg`（智谱供应商图标）误当应用 logo（App 顶部/折叠侧栏/Windows 左上角）、四处内嵌首屏/About Z 徽标（desktop renderer index.html、RootStartupLoading.tsx、aboutWindow.ts、web index.html，含呼吸/错峰动画）。已全部替换为 lemon-l-rounded-icon-v5 图形（新增 `assets/app-logo.svg`；`logo-zai.svg` 保留给 oauthProviderIcon/供应商列表的第三方语义）。产物验证：asar 解包 grep——`lcode-hub-clip` 新图形进 styles chunk，旧 Z path `M134.4 0.130152` 全仓与产物 0 残留。教训：**品牌图形残留要按「内嵌 SVG path 特征串」专门 grep**（如 `M134.4 0.130152`），二进制 hash 替换 + 文本 grep 都覆盖不到这类。
+
