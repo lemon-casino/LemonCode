@@ -61,14 +61,14 @@
 
 ## 例外清单（`git grep -I -i zcode` 全仓残余，自动分类于迁移执行时）
 
-### 品牌迁移兼容读取点（批次2/3：env 旧名回退、存储/凭据旧键双读、旧数据目录探测、迁移模块自身） —— 128 行 / 46 文件
+### 品牌迁移兼容读取点（批次2/3：env 旧名回退、存储/凭据旧键双读、旧数据目录探测、迁移模块自身） —— 129 行 / 46 文件
 - .gitignore（1 行）
 - apps/lcode-cli/packages/adapters/src/auth/shared-credentials.ts（2 行）
 - apps/lcode-cli/packages/adapters/src/device/cli-device-mid.ts（2 行）
 - apps/lcode-cli/packages/adapters/src/mcp/index.ts（1 行）
 - apps/lcode-cli/packages/adapters/src/mcp/official-auth.ts（1 行）
 - apps/lcode-cli/packages/bootstrap/src/app/built-in-node-repl.ts（2 行）
-- apps/lcode-cli/packages/bootstrap/src/custom-command-shell-expansion.ts（9 行）
+- apps/lcode-cli/packages/bootstrap/src/custom-command-shell-expansion.ts（10 行）
 - apps/lcode-cli/packages/cli/src/main.ts（2 行）
 - apps/lcode-cli/packages/contracts/src/interfaces/mcp.port.ts（3 行）
 - apps/lcode-cli/packages/node-repl-host/src/server.ts（1 行）
@@ -243,8 +243,5 @@
 - patches/@ai-sdk__anthropic@3.0.81.patch（2 行）
 - patches/@ai-sdk__openai-compatible@2.0.60.patch（2 行）
 - patches/@arms__rum-electron@0.0.3.patch（47 行）
-
-### ⚠ 未分类（需人工处理）—— 1 行
-- apps/lcode-cli/packages/bootstrap/src/custom-command-shell-expansion.ts（1 行）
 
 （例外清单由 `.zcode/gen-exceptions.mjs` 按保留类别自动生成；品牌验收 grep 以本清单为排除集，未分类为 0 即全部残余均有登记原因。）
