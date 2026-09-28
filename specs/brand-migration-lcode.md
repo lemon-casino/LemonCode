@@ -61,6 +61,49 @@
 
 ## 例外清单（`git grep -I -i zcode` 全仓残余，自动分类于迁移执行时）
 
+### 品牌迁移兼容读取点（批次2/3：env 旧名回退、存储/凭据旧键双读、旧数据目录探测、迁移模块自身） —— 106 行 / 41 文件
+- .gitignore（1 行）
+- apps/lcode-cli/packages/adapters/src/auth/shared-credentials.ts（2 行）
+- apps/lcode-cli/packages/adapters/src/device/cli-device-mid.ts（2 行）
+- apps/lcode-cli/packages/adapters/src/mcp/index.ts（1 行）
+- apps/lcode-cli/packages/adapters/src/mcp/official-auth.ts（1 行）
+- apps/lcode-cli/packages/bootstrap/src/app/built-in-node-repl.ts（2 行）
+- apps/lcode-cli/packages/bootstrap/src/custom-command-shell-expansion.ts（9 行）
+- apps/lcode-cli/packages/cli/src/main.ts（2 行）
+- apps/lcode-cli/packages/contracts/src/interfaces/mcp.port.ts（3 行）
+- apps/lcode-cli/packages/node-repl-host/src/server.ts（1 行）
+- apps/lcode-cli/packages/telemetry/src/bootstrap.ts（2 行）
+- packages/desktop/build/installer.nsh（6 行）
+- packages/desktop/electron-builder.config.js（1 行）
+- packages/desktop/src/main/desktopDataBaseDirBootstrap.ts（3 行）
+- packages/desktop/src/main/desktopDeepLinkUrl.ts（2 行）
+- packages/desktop/src/main/desktopEarlyDataBaseDirBootstrap.ts（1 行）
+- packages/desktop/src/main/desktopRuntimeEnv.ts（2 行）
+- packages/desktop/src/preload/codingPlanWebview.ts（3 行）
+- packages/desktop/src/renderer/src/main.tsx（2 行）
+- packages/lcode-cua/broker-server.js（3 行）
+- packages/lcode-cua/e2e-packaged-node-repl.mjs（1 行）
+- packages/server/src/entry-http.ts（1 行）
+- packages/server/src/entry-stdio.ts（1 行）
+- packages/server/src/http.ts（1 行）
+- packages/services/src/hooks/hooksService.ts（1 行）
+- packages/services/src/lcode-agent/lcodeAgentProcessManager.ts（4 行）
+- packages/services/src/model-provider/accountProviderCredentialStore.ts（1 行）
+- packages/services/src/model-provider/providerProvisioningTarget.ts（1 行）
+- packages/services/src/paths.ts（2 行）
+- packages/shared/src/channels.ts（1 行）
+- packages/shared/src/node/brandDataMigration.ts（8 行）
+- packages/shared/src/official-mcp-auth.ts（2 行）
+- packages/shared/src/workspace-hook-config.ts（6 行）
+- packages/ui/src/ToolCallBlocks/renderers/agentHelpers.ts（1 行）
+- packages/ui/src/lib/toolIdentity.ts（1 行）
+- packages/ui/src/settings/model-provider-section/codingPlanEmbeddedWebview.ts（3 行）
+- packages/ui/src/store/index.ts（2 行）
+- packages/web/index.html（2 行）
+- packages/web/src/remote/mirrorReconnect.ts（2 行）
+- packages/web/src/remote/pairingCredentialStore.ts（2 行）
+- scripts/lcode-brand-migration.test.mjs（14 行）
+
 ### 转义域名正则 / 旧数据字段键 / bizCode 误报 / 外部包名识别串 —— 30 行 / 8 文件
 - apps/lcode-cli/packages/adapters/src/config/schema.ts（1 行）
 - config/provider/lcode-builtin.json（3 行）
@@ -104,14 +147,8 @@
 ### 上游指认 zai-org/ZCode —— 5 行 / 1 文件
 - README.md（5 行）
 
-### MCP 命名空间 com.zcode/*（含 Go 侧） —— 11 行 / 7 文件
-- apps/lcode-cli/packages/adapters/src/mcp/index.ts（1 行）
-- apps/lcode-cli/packages/adapters/src/mcp/official-auth.ts（1 行）
-- apps/lcode-cli/packages/contracts/src/interfaces/mcp.port.ts（3 行）
-- apps/lcode-cli/packages/node-repl-host/src/server.ts（1 行）
+### MCP 命名空间 com.zcode/*（含 Go 侧） —— 2 行 / 1 文件
 - packages/lcode-cua/broker.test.js（2 行）
-- packages/lcode-cua/e2e-packaged-node-repl.mjs（1 行）
-- packages/shared/src/official-mcp-auth.ts（2 行）
 
 ### 插件市场 ID zcode-plugins-official —— 115 行 / 23 文件
 - CONTEXT.md（1 行）
@@ -143,25 +180,26 @@
 - packages/services/src/model-provider/accountProviderApiTypes.ts（1 行）
 - packages/shared/src/mcp.ts（2 行）
 
-### 官网跨站契约 zcodeBridge / __zcodeLang__ / zcode-coding-plan-lang-change / zcode:coding-plan:embedded / 注入页 zcode-theme —— 26 行 / 6 文件
+### 官网跨站契约 zcodeBridge / __zcodeLang__ / zcode-coding-plan-lang-change / zcode:coding-plan:embedded / 注入页 zcode-theme —— 19 行 / 6 文件
 - packages/desktop/src/main/desktopWindowChrome.ts（3 行）
-- packages/desktop/src/preload/codingPlanWebview.ts（8 行）
-- packages/shared/src/channels.ts（3 行）
+- packages/desktop/src/preload/codingPlanWebview.ts（5 行）
+- packages/shared/src/channels.ts（2 行）
 - packages/ui/src/settings/CodingPlanEmbeddedWebviewDialog.tsx（2 行）
 - packages/ui/src/settings/CodingPlanUpgradeDialog.tsx（1 行）
-- packages/ui/src/settings/model-provider-section/codingPlanEmbeddedWebview.ts（9 行）
+- packages/ui/src/settings/model-provider-section/codingPlanEmbeddedWebview.ts（6 行）
 
-### 持久化枚举/数据标识 "zcode" / zcodeagentmcp / provider.zcode / model.zcode / localStorage:zcode-mcp-config / __zcode_internal —— 84 行 / 35 文件
+### 持久化枚举/数据标识 "zcode" / zcodeagentmcp / provider.zcode / model.zcode / localStorage:zcode-mcp-config / __zcode_internal —— 95 行 / 37 文件
 - apps/lcode-cli/packages/adapters/src/auth/bigmodel-oauth.ts（1 行）
 - apps/lcode-cli/packages/adapters/src/commands/roots.ts（2 行）
 - apps/lcode-cli/packages/adapters/src/skills/roots.ts（2 行）
 - apps/lcode-cli/packages/contracts/src/commands/index.ts（1 行）
 - apps/lcode-cli/packages/contracts/src/skills/index.ts（1 行）
+- packages/desktop/electron-builder.config.js（1 行）
 - packages/desktop/src/main/mcpUserDirectory/index.ts（3 行）
 - packages/desktop/src/main/mcpUserDirectory/types.ts（1 行）
 - packages/services/src/coding-plan-subscription/bigmodelCodingPlanSubscriptionProvider.ts（1 行）
 - packages/services/src/commands/commandsService.ts（2 行）
-- packages/services/src/hooks/hooksService.ts（8 行）
+- packages/services/src/hooks/hooksService.ts（7 行）
 - packages/services/src/hooks/workspaceHookSettingsModel.ts（1 行）
 - packages/services/src/mcp-sync/mcpSyncService.ts（4 行）
 - packages/services/src/model-provider/legacyLCodeConfigProviderReader.ts（8 行）
@@ -172,6 +210,7 @@
 - packages/shared/src/mcp.ts（2 行）
 - packages/shared/src/settings-source.ts（1 行）
 - packages/shared/src/settings-sync.ts（1 行）
+- packages/ui/src/lib/lcodeUiError.ts（11 行）
 - packages/ui/src/lib/messageTelemetry.ts（1 行）
 - packages/ui/src/settings-sync/SettingsSyncSelectionStep.tsx（1 行）
 - packages/ui/src/settings/CommandCard.tsx（1 行）
@@ -200,5 +239,15 @@
 - patches/@ai-sdk__anthropic@3.0.81.patch（2 行）
 - patches/@ai-sdk__openai-compatible@2.0.60.patch（2 行）
 - patches/@arms__rum-electron@0.0.3.patch（47 行）
+
+### ⚠ 未分类（需人工处理）—— 9 行
+- apps/lcode-cli/packages/bootstrap/src/custom-command-shell-expansion.ts（1 行）
+- packages/desktop/build/installer.nsh（1 行）
+- packages/desktop/src/main/desktopDataBaseDirBootstrap.ts（1 行）
+- packages/desktop/src/main/desktopDeepLinkUrl.ts（1 行）
+- packages/server/src/http.ts（1 行）
+- packages/ui/src/ToolCallBlocks/renderers/agentHelpers.ts（1 行）
+- packages/ui/src/lib/toolIdentity.ts（1 行）
+- scripts/lcode-brand-migration.test.mjs（2 行）
 
 （例外清单由 `.zcode/gen-exceptions.mjs` 按保留类别自动生成；品牌验收 grep 以本清单为排除集，未分类为 0 即全部残余均有登记原因。）
