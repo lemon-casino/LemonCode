@@ -78,3 +78,6 @@ packages/desktop/src/scheduler/schedulerProtocol.d.ts
 packages/desktop/src/scheduler/schedulerProtocol.d.ts.map
 packages/desktop/src/scheduler/schedulerProtocol.js
 packages/desktop/src/scheduler/schedulerProtocol.js.map
+
+# 品牌迁移一次性工具与运行时数据（工作流草稿/运行快照）不入库
+.zcode/
