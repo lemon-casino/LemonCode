@@ -103,7 +103,7 @@ test("平台能力缺失时渲染 desktopOnly 提示，不渲染任何控件", (
   assert.doesNotMatch(markup, /remote-control-enabled-switch/);
 });
 
-test("官方托管服务使用默认域名且无需 Key，自建入口与安全隐私仍可见", () => {
+test("默认域名允许粘贴可选 Key，自建入口与安全隐私仍可见", () => {
   const markup = renderSection(bridgePlatformStub);
   // 启用开关 + Worker 域名 + 接入 Key + 测试连接。
   assert.match(markup, /data-testid="remote-control-enabled-switch"/);
@@ -116,10 +116,14 @@ test("官方托管服务使用默认域名且无需 Key，自建入口与安全�
   assert.match(markup, /data-testid="remote-control-allow-new-devices"/);
   assert.match(markup, /正在读取已授权设备/);
   assert.match(markup, /未做端到端加密/);
-  // 官方托管服务不把共享密钥放进客户端；自建 Worker 才需要填写 Key。
-  assert.match(markup, /官方托管服务无需接入 Key/);
+  // 默认域名不内置共享密钥，但用户自己的 Key 输入必须可用，不能阻止粘贴。
+  assert.match(markup, /默认域名可留空；如需使用自己的接入 Key，可在此粘贴并保存/);
   assert.match(markup, /value="https:\/\/code\.lemon\.vin"/);
-  assert.match(markup, /disabled=""/);
+  const accessKeyInput = markup.match(
+    /<input[^>]*data-testid="remote-control-access-key"[^>]*>/,
+  )?.[0];
+  assert.ok(accessKeyInput);
+  assert.doesNotMatch(accessKeyInput, /disabled=""/);
   // 手机配对已独立为 MobileRemoteControlPanel（侧栏 footer 弹框），设置段不再渲染配对 UI。
   assert.doesNotMatch(markup, /data-testid="remote-control-pairing-panel"/);
   assert.doesNotMatch(markup, /在这里生成二维码/);

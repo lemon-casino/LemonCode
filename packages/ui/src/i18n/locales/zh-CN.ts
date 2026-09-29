@@ -1996,14 +1996,14 @@ const zhCN: Record<string, string> = {
     "Worker 域名无效：需为 https:// 地址（本地调试可用 http://localhost）",
   "settings.remoteControl.accessKey.title": "接入 Key",
   "settings.remoteControl.accessKey.description":
-    "仅自建 Worker 需要。保存进系统凭据存储，不写入明文配置；官方托管服务不向客户端分发共享密钥。",
+    "可选 Key 会保存进系统凭据存储，不写入明文配置；客户端不会内置或分发共享密钥。",
   "settings.remoteControl.accessKey.placeholder": "粘贴接入 Key",
   "settings.remoteControl.accessKey.save": "保存 Key",
   "settings.remoteControl.accessKey.saved": "接入 Key 已保存",
   "settings.remoteControl.accessKey.configured": "已配置接入 Key（不再明文显示）",
   "settings.remoteControl.accessKey.notConfigured": "尚未配置接入 Key",
   "settings.remoteControl.accessKey.managedService":
-    "官方托管服务无需接入 Key（客户端不内置共享密钥）",
+    "默认域名可留空；如需使用自己的接入 Key，可在此粘贴并保存",
   "settings.remoteControl.config.save": "保存",
   "settings.remoteControl.config.saved": "设置已保存",
   "settings.remoteControl.config.saveFailed": "保存失败，请重试",

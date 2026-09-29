@@ -530,6 +530,8 @@ nodes:
     invariants:
       - "The Desktop footer shortcut and Basics settings section share the same Main-owned config and
         pairing state; Web and mobile surfaces do not register Desktop-only settings."
+      - "Pairing restart confirmation opened from the footer popover keeps one local dialog state and
+        layers parent popover below confirmation backdrop below confirmation content."
   - id: surface.remote-control-settings
     kind: ui-surface
     label: Basics remote control settings and footer pairing shortcut
@@ -549,8 +551,11 @@ nodes:
       - file: packages/shared/src/remoteControl.ts
         symbol: DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL
     invariants:
-      - "The hosted service defaults to https://code.lemon.vin and never embeds a shared client key;
-        self-hosted Workers keep write-only access-key credentials."
+      - "The hosted service defaults to https://code.lemon.vin and never embeds a shared client key.
+        The access-key field remains enabled for every valid endpoint, including the default: an empty
+        key uses public hosted admission, while a user-supplied write-only key is stored by Main and sent
+        for health checks and host tunnels. public-rate-limited Workers ignore that optional key for
+        admission and rate-limit bypass; non-default access-key Workers still fail closed without one."
       - "Each room has an independent random roomId, capability and host token; the host token stays in
         Main memory and never enters pairing URLs, Renderer IPC or persisted config."
       - "One Desktop Main owns one active pairing room; concurrent window starts are generation-gated so

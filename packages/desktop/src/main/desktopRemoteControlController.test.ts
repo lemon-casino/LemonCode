@@ -121,6 +121,7 @@ function makeAttachOk() {
 function makeController(options?: {
   attach?: ReturnType<typeof makeAttachOk>["attach"];
   attachLocal?: ReturnType<typeof makeAttachOk>["attach"];
+  fetchHealth?: NonNullable<Parameters<typeof createRemoteControlController>[0]["fetchHealth"]>;
 }) {
   const { map, service } = makeFakeCredentials();
   const { tunnels, createTunnelSession } = makeTunnelFactory();
@@ -146,6 +147,7 @@ function makeController(options?: {
     createTunnelSession: createTunnelSession as unknown as Parameters<
       typeof createRemoteControlController
     >[0]["createTunnelSession"],
+    fetchHealth: options?.fetchHealth,
   });
   return { controller, map, service, tunnels, broadcasts, okAttach };
 }
@@ -222,6 +224,34 @@ test("全新安装默认使用托管 Worker，空 Key 可启动且每个房间�
   assert.ok(second.success);
   assert.notEqual(tunnels[1]!.params.hostToken, firstHostToken);
   assert.equal(tunnels[1]!.params.clientId, tunnels[0]!.params.clientId);
+});
+
+test("默认域名允许用户 Key，并同时用于健康检查与 host 隧道", async () => {
+  const healthRequests: Array<{ url: string; headers: Record<string, string> }> = [];
+  const { controller, tunnels } = makeController({
+    fetchHealth: async (url, init) => {
+      healthRequests.push({ url, headers: init.headers });
+      return { ok: true, status: 200 };
+    },
+  });
+  const accessKey = "synthetic-user-key-123456789012345678901234";
+  assert.deepEqual(await controller.setConfig({ enabled: true, accessKey }), { success: true });
+
+  const start = await controller.startPairing({ target: MIRROR_TARGET });
+  assert.ok(start.success);
+  assert.equal(tunnels[0]!.params.workerBaseUrl, DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL);
+  assert.equal(tunnels[0]!.params.accessKey, accessKey);
+
+  assert.deepEqual(await controller.testConnection(), { success: true, latencyMs: 1_000 });
+  assert.deepEqual(healthRequests, [
+    {
+      url: `${DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL}/api/health`,
+      headers: {
+        "x-lcode-client-id": tunnels[0]!.params.clientId,
+        "x-lcode-remote-access-key": accessKey,
+      },
+    },
+  ]);
 });
 
 test("多窗口并发开启时仅最后一次请求创建房间，不遗留孤儿隧道", async () => {

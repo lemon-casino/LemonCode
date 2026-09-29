@@ -28,10 +28,10 @@
 
 ### 托管服务认证与多人隔离
 
-- 官方托管地址固定为 `https://code.lemon.vin`;本地未保存 Worker 地址或旧值为空时回填该地址。官方托管服务不要求用户填写接入 Key。
+- 官方托管地址固定为 `https://code.lemon.vin`;本地未保存 Worker 地址或旧值为空时回填该地址。官方托管服务不要求用户填写接入 Key，但设置页在该地址下仍必须允许输入、粘贴和保存用户自己的 Key；空 Key 继续走托管公开模式，已保存 Key 则由 Main 作为可选请求头发送，供同域名的私有/自管部署使用。
 - **禁止**把官方服务的全局共享 Key 写进源码、GitHub Actions、安装包、混淆字符串或客户端凭据库。客户端可解密/使用的共享秘密都可被提取,不能作为多人服务的安全边界。
 - 每次新建房间由 Desktop Main 独立生成 128-bit `roomId`、256-bit 一次性 capability 与 256-bit `hostToken`;`hostToken` 只放在 host WebSocket header 中,不进入二维码、配对 URL、Renderer、日志或持久化配置。DO 首次 host 接入时原子绑定其哈希,重连必须持同一 token,防止知道 roomId 的其他客户端替换 host。
-- 官方托管 Worker 采用显式 `public-rate-limited` host admission:无共享客户端秘密,按稳定安装 ID 与网络来源两层限速;任一限速 binding 缺失时 fail-closed。自建 Worker 默认仍为 `access-key` 模式,空 Key 拒绝连接。
+- 官方托管 Worker 采用显式 `public-rate-limited` host admission:无共享客户端秘密,按稳定安装 ID 与网络来源两层限速;任一限速 binding 缺失时 fail-closed。该模式即使收到用户配置的可选 Key 也不以它放行或绕过限速。自建 Worker 默认仍为 `access-key` 模式,空 Key 拒绝连接。
 - `idFromName(roomId)` 只决定每房间 DO 路由;用户状态、设备凭据、失败计数和 socket 不得进入全局对象。随机 roomId + 每房间 hostToken 共同保证不同安装之间不冲突、不串房。
 - 单个 Desktop Main 进程仍只拥有一个活动配对房间;多个窗口同时点击开启时以最后一次用户意图为准,旧 start 在出站前返回 `PAIRING_REQUEST_SUPERSEDED`,不得留下孤儿隧道。不同安装/用户进程之间互不共享该状态。
 
@@ -70,10 +70,33 @@
 
 1. **设置(基础设置 → 远程控制)**:启用开关;Worker 域名;自建 Worker 接入 Key(凭据保存复用 `remoteWorkspaceHistory` 的凭据集中管理机制,不进明文配置);安全隐私——允许新设备配对开关、已授权设备列表(名称/授权时间/最近在线)+吊销、配对链接有效期、空闲自动断开;「测试连接」。对应 `packages/ui/src/settings/settingsPageConfig.ts` 的 `BASE_SETTINGS_SECTIONS`(basics 组)注册 section。
    - **双入口规则(2026-09-29)**:`remoteControl` 必须显示在设置侧栏「基础设置」组;同时保留 `WorkspaceSidebarFooter` 中「连接使用」与设置齿轮之间的手机图标快捷入口。快捷入口继续弹出 `MobileRemoteControlPanel`;弹框内「远程控制设置」仍经 `setPendingSettingsSection("remoteControl")` + `openSettingsTab()` 直达同一分区。两处入口只复用同一 `useRemoteControl`/Main 配置事实源,不复制状态。入口平台门禁与分区注册同源(仅桌面平台三布尔任一为真);Web/手机视图均不注册分区、不显示 footer 入口。
-   - 官方托管地址为空时使用 `https://code.lemon.vin`,且 Key 输入禁用并明确显示“托管服务无需接入 Key”;切换到自建 Worker 后才要求接入 Key。主开关的前置条件为“有效 Worker 地址 + (官方托管模式或已保存自建 Key)”。
-2. **配对面板**:对齐截图形态(等待手机连接/已就绪/停止/刷新二维码/复制链接);「开启等待」驱动 Main 出站注册并生成二维码;「停止」关闭房间并断开出站。
+   - 官方托管地址为空时使用 `https://code.lemon.vin`。任何有效 Worker 地址（含默认地址）下 Key 输入、粘贴和保存始终可用；默认地址留空可直接使用，用户保存 Key 后，Main 在「测试连接」和 host 隧道握手中都发送该 Key。非默认自建 Worker 仍要求先保存 Key。主开关的前置条件为“有效 Worker 地址 + (默认地址或已保存 Key)”。
+2. **配对面板**:对齐截图形态(等待手机连接/已就绪/停止/刷新二维码/复制链接);「开启等待」驱动 Main 出站注册并生成二维码;「停止」关闭房间并断开出站。状态未知时「开启等待」先由 `RemotePairingPanel` 的单一本地布尔状态打开二次确认，再在确认后调用既有 `onStart`;取消不能触发 Main 命令。该确认框从 footer Popover 内触发时，层级必须满足“父 Popover < 确认遮罩 < 确认内容”，确认内容不得被自己的遮罩覆盖，也不得产生无法点击的残留遮罩。
 3. **Attachment 接线**:Main 收到配对完成事件后,经 `attachRemoteWorkspaceSessionHost`(`desktopRemoteSessions.ts:832`,现为已实现无调用方)把手机接入窗口 Host——这将是该入口的首个生产调用方;Main 维护「Worker WS ↔ attachment port」的帧泵,只做转发。
-4. Main 在桌面退出/禁用功能时主动关闭房间并断开出站;接入 Key 与设备吊销列表本地持久化。
+4. Main 在桌面退出/禁用功能时主动关闭房间并断开出站;接入 Key 与设备吊销列表本地持久化。接入 Key 始终 write-only，不回读明文、不写日志，也不因 Worker 地址等于默认域名而丢弃。
+
+### 可选接入 Key 的状态与发送时序
+
+```mermaid
+sequenceDiagram
+  participant U as 用户
+  participant R as Renderer 设置页
+  participant M as Desktop Main
+  participant V as 系统凭据存储
+  participant W as Worker
+  U->>R: 在任意 Worker 域名粘贴 Key
+  R->>M: config-set(accessKey)
+  M->>V: write-only 保存
+  U->>R: 测试连接 / 开启等待
+  R->>M: 发起操作
+  M->>V: 读取可选 Key
+  M->>W: health/host 请求（有 Key 时携带请求头）
+  alt public-rate-limited
+    W-->>M: 忽略 Key 的授权意义，继续执行双层限速
+  else access-key
+    W-->>M: 恒定时间校验 Key
+  end
+```
 
 ## 移动端
 
@@ -104,7 +127,8 @@
 - Worker 不持久化任务队列、快照、消息内容(仅鉴权哈希与房间映射,TTL 清理);房间关闭后 DO 状态清空。
 - 中英文、桌面窄窗口与手机窄屏均可用;扫码与复制链接两条路径等价。
 - 桌面端设置侧栏「基础设置」组显示「远程控制」;侧栏 footer 也保留远程控制快捷入口,点击向上弹出「移动端远程控制」配对弹框(二维码/复制链接/停止/刷新在弹框内完成);两处入口读写同一配置与配对状态。Web/手机视图无此入口,直达意图不得把分区解析回退成 general。
-- 全新安装或旧配置中 Worker 地址为空时,设置页与 Main 回读均为 `https://code.lemon.vin`;不填写接入 Key 可启用、测试并连接官方托管服务。自建 Worker 未配置 Key 时继续 fail-closed。
+- footer 配对弹框处于“状态未知”时点击「开启等待」只显示一个可交互的二次确认框；背景 Popover 被遮罩压低，确认框内容位于遮罩之上。点击取消后回到原配对弹框且不调用开始命令；点击确认只调用一次开始命令，关闭后不残留灰色遮罩。
+- 全新安装或旧配置中 Worker 地址为空时,设置页与 Main 回读均为 `https://code.lemon.vin`;不填写接入 Key 可启用、测试并连接官方托管服务。默认域名下 Key 输入不得禁用，粘贴并保存后，测试连接与开启等待必须携带该 Key；自建 Worker 未配置 Key 时继续 fail-closed。
 - 安装包、Actions 产物和仓库扫描不得包含官方托管服务共享 Key;已披露的旧 Key 必须在 Worker 侧轮换或删除。
 - 同时创建多个随机 roomId 时路由到不同 DO;同房间第二个不同 hostToken 的 host 升级被拒,不得替换原 host。官方托管 host 注册超过安装/网络限额返回 429,限速 binding 缺失返回 503。
 - 同一 Desktop Main 的两个窗口并发开启时只创建最后一个房间,前一个请求明确返回 superseded;停止/退出期间尚未完成的 start 不得随后复活连接。

@@ -4,6 +4,12 @@ import { AlertDialog as AlertDialogPrimitive } from "radix-ui";
 import { cn } from "../lib/utils.js";
 import { buttonVariants } from "./button.js";
 
+export const ALERT_DIALOG_LAYERS = {
+  parentInteractiveOverlay: 60,
+  backdrop: { zIndex: 70, className: "z-[70]" },
+  content: { zIndex: 71, className: "z-[71]" },
+} as const;
+
 function AlertDialog({ ...props }: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
   return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />;
 }
@@ -29,7 +35,8 @@ function AlertDialogOverlay({
         // Linux 旧标题栏避让会留下未遮罩的顶部亮条；确认弹窗也应覆盖完整窗口。
         // z 必须高于 popover/dropdown 的 z-[60]：确认框会从弹层（如 footer 配对弹框）内触发，
         // 作为模态中断必须盖住打开它的弹层；toast(z-[9999]) 仍在其上。
-        "fixed inset-0 isolate z-[70] bg-black/60 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        "fixed inset-0 isolate bg-black/60 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        ALERT_DIALOG_LAYERS.backdrop.className,
         className,
       )}
       {...props}
@@ -47,7 +54,9 @@ function AlertDialogContent({
       <AlertDialogPrimitive.Content
         data-slot="alert-dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-5 rounded-2xl border-none bg-popover/98 p-5 text-ui-base/relaxed text-foreground ring-border shadow-2xl duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 sm:max-w-md",
+          // 修复依据：遮罩提升到 z-70 后，旧 z-50 内容会被自己的遮罩覆盖并拦截全部点击。
+          "fixed top-1/2 left-1/2 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-5 rounded-2xl border-none bg-popover/98 p-5 text-ui-base/relaxed text-foreground ring-border shadow-2xl duration-100 outline-none data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95 sm:max-w-md",
+          ALERT_DIALOG_LAYERS.content.className,
           className,
         )}
         {...props}

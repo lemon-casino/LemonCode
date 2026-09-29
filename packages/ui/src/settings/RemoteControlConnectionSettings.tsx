@@ -243,7 +243,7 @@ export function RemoteControlConnectionSettings({
           <Button
             type="button"
             size="lg"
-            disabled={managedService || configSaving || accessKeyDraft.trim() === ""}
+            disabled={configSaving || accessKeyDraft.trim() === ""}
             onClick={() => void handleSaveAccessKey()}
           >
             {intl.formatMessage({ id: "settings.remoteControl.accessKey.save" })}
@@ -255,7 +255,6 @@ export function RemoteControlConnectionSettings({
               size="lg"
               type="password"
               autoComplete="off"
-              disabled={managedService}
               value={accessKeyDraft}
               placeholder={intl.formatMessage({
                 id: "settings.remoteControl.accessKey.placeholder",
@@ -274,10 +273,10 @@ export function RemoteControlConnectionSettings({
               data-testid="remote-control-access-key-state"
             >
               {intl.formatMessage({
-                id: managedService
-                  ? "settings.remoteControl.accessKey.managedService"
-                  : config?.hasAccessKey
-                    ? "settings.remoteControl.accessKey.configured"
+                id: config?.hasAccessKey
+                  ? "settings.remoteControl.accessKey.configured"
+                  : managedService
+                    ? "settings.remoteControl.accessKey.managedService"
                     : "settings.remoteControl.accessKey.notConfigured",
               })}
             </div>

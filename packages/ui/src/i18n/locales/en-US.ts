@@ -2115,7 +2115,7 @@ const enUS: Record<string, string> = {
     "Invalid Worker domain: use an https:// address (http://localhost is allowed for local debugging)",
   "settings.remoteControl.accessKey.title": "Access key",
   "settings.remoteControl.accessKey.description":
-    "Only required for a self-hosted Worker. It is stored in the credential vault and never written to plain config; the hosted service does not distribute a shared client secret.",
+    "An optional key is stored in the credential vault and never written to plain config; the client never embeds or distributes a shared secret.",
   "settings.remoteControl.accessKey.placeholder": "Paste access key",
   "settings.remoteControl.accessKey.save": "Save key",
   "settings.remoteControl.accessKey.saved": "Access key saved",
@@ -2123,7 +2123,7 @@ const enUS: Record<string, string> = {
     "Access key configured (no longer shown in plain text)",
   "settings.remoteControl.accessKey.notConfigured": "No access key configured yet",
   "settings.remoteControl.accessKey.managedService":
-    "The hosted service requires no access key (no shared secret is embedded in the client)",
+    "The default domain works without a key; paste and save your own access key here if needed",
   "settings.remoteControl.config.save": "Save",
   "settings.remoteControl.config.saved": "Settings saved",
   "settings.remoteControl.config.saveFailed": "Failed to save, please try again",

@@ -310,7 +310,8 @@ export function createRemoteControlController(options: RemoteControlControllerOp
       return { success: false, error: "WORKER_BASE_URL_INVALID" };
     }
     const managedService = isDefaultRemoteControlWorkerBaseUrl(workerBaseUrl);
-    const accessKey = managedService ? null : await store.loadAccessKey();
+    // 修复依据：默认域名也可能由用户配置私有接入 Key；只允许空 Key，不应丢弃已保存凭据。
+    const accessKey = await store.loadAccessKey();
     if (!isCurrentOperation()) return superseded();
     if (!managedService && !accessKey) {
       return { success: false, error: "ACCESS_KEY_MISSING" };
@@ -692,7 +693,8 @@ export function createRemoteControlController(options: RemoteControlControllerOp
     const base = normalizeRemoteControlWorkerBaseUrl(config.workerBaseUrl);
     if (!base) return { success: false, error: "WORKER_BASE_URL_INVALID" };
     const managedService = isDefaultRemoteControlWorkerBaseUrl(base);
-    const accessKey = managedService ? null : await store.loadAccessKey();
+    // 与 host 隧道共用同一凭据规则，避免“保存成功但测试连接未携带”的分叉行为。
+    const accessKey = await store.loadAccessKey();
     if (!managedService && !accessKey) return { success: false, error: "ACCESS_KEY_MISSING" };
     const clientId = await loadOrCreateClientId();
     const startedAt = now();
