@@ -21,10 +21,10 @@ import semver from "semver";
 import { logger } from "./logger.js";
 import { getElectronReleasePlatform, ManifestUpdateProvider } from "./manifestUpdateProvider.js";
 import {
-  downloadVerifiedMacDmg,
-  selectVerifiedMacDmgArtifact,
-  type VerifiedMacDmgArtifact,
-} from "./verifiedMacUpdate.js";
+  downloadVerifiedUpdateArtifact,
+  selectVerifiedUpdateArtifact,
+  type VerifiedUpdateArtifact,
+} from "./verifiedUpdateArtifact.js";
 const { autoUpdater } = pkg;
 
 export const CHECK_FOR_UPDATE_MENU_ID = "check-for-update";
@@ -53,8 +53,8 @@ let availableUpdateChannel: ElectronReleaseChannel = "stable";
 let downloadingUpdateVersion: string | null = null;
 let downloadingUpdateReleaseNotes: PostUpdateReleaseNotesPayload | null = null;
 let downloadingUpdateChannel: ElectronReleaseChannel | null = null;
-let availableMacDmgArtifact: VerifiedMacDmgArtifact | null = null;
-let downloadingMacDmgArtifact: VerifiedMacDmgArtifact | null = null;
+let availableUpdateArtifact: VerifiedUpdateArtifact | null = null;
+let downloadingUpdateArtifact: VerifiedUpdateArtifact | null = null;
 let readyMacDmgPath: string | null = null;
 let downloadCancellationToken: CancellationToken | null = null;
 let readyUpdateChannel: ElectronReleaseChannel | null = null;
@@ -86,6 +86,7 @@ type UpdateDownloadedInfoLike = {
   } | null> | null;
   packages?: Record<string, { path?: string | null } | null> | null;
   lcodeManifestBaseUrl?: string | null;
+  lcodeInstallExtensions?: readonly string[] | null;
   lcodeReleaseChannel?: ElectronReleaseChannel | null;
   releaseName?: string | null;
   releaseNotes?: string | ReleaseNoteInfoLike[] | null;
@@ -965,14 +966,14 @@ function sendManualCheckResult(payload: UpdateCheckResultPayload) {
 
 function clearAvailableUpdateState() {
   availableUpdateReleaseNotes = null;
-  availableMacDmgArtifact = null;
+  availableUpdateArtifact = null;
 }
 
 function clearDownloadingUpdateState() {
   downloadingUpdateVersion = null;
   downloadingUpdateReleaseNotes = null;
   downloadingUpdateChannel = null;
-  downloadingMacDmgArtifact = null;
+  downloadingUpdateArtifact = null;
 }
 
 function clearReadyUpdateState() {
@@ -1042,14 +1043,14 @@ function handleAutoUpdateFailure(error: unknown, source: string) {
           version: downloadingUpdateVersion ?? menuState.version,
           releaseNotes: downloadingUpdateReleaseNotes ?? menuState.releaseNotes ?? null,
           channel: downloadingUpdateChannel ?? menuState.channel ?? availableUpdateChannel,
-          macDmgArtifact: downloadingMacDmgArtifact,
+          updateArtifact: downloadingUpdateArtifact,
         }
       : downloadCancellationToken && downloadingUpdateVersion
         ? {
             version: downloadingUpdateVersion,
             releaseNotes: downloadingUpdateReleaseNotes ?? null,
             channel: downloadingUpdateChannel ?? availableUpdateChannel,
-            macDmgArtifact: downloadingMacDmgArtifact,
+            updateArtifact: downloadingUpdateArtifact,
           }
         : null;
   if (
@@ -1086,7 +1087,7 @@ function handleAutoUpdateFailure(error: unknown, source: string) {
     // 清空 available/downloading 并广播 idle 会让 renderer 入口和弹窗同时消失。
     // 失败并不等同于用户跳过该版本，应退回“发现更新”状态，让用户能看到并重试下载。
     availableUpdateReleaseNotes = failedDownload.releaseNotes;
-    availableMacDmgArtifact = failedDownload.macDmgArtifact;
+    availableUpdateArtifact = failedDownload.updateArtifact;
     availableUpdateChannel = failedDownload.channel;
     setAutoUpdaterMenuState(
       buildUpdateAvailableState(
@@ -1167,7 +1168,7 @@ async function skipAvailableUpdateVersion(
     (menuState.kind === "download-progress" ? downloadingUpdateChannel : availableUpdateChannel) ??
     availableUpdateChannel;
   if (downloadCancellationToken) {
-    markCancelledDownload(downloadCancellationToken, !downloadingMacDmgArtifact);
+    markCancelledDownload(downloadCancellationToken, process.platform !== "darwin");
     downloadCancellationToken.cancel();
     logger.info(
       `[auto-update] skipped downloading version; cancel active download channel=${channel} version=${version}`,
@@ -1310,7 +1311,7 @@ function handleUpdateDownloaded(info: UpdateDownloadedInfoLike, macDmgPath: stri
 }
 
 function downloadVerifiedMacUpdate(
-  artifact: VerifiedMacDmgArtifact,
+  artifact: VerifiedUpdateArtifact,
   version: string,
   cancellationToken: CancellationToken,
 ): Promise<string> {
@@ -1318,17 +1319,16 @@ function downloadVerifiedMacUpdate(
     const abortController = new AbortController();
     onCancel(() => abortController.abort());
     const safeVersion = version.replaceAll(/[^A-Za-z0-9._-]/gu, "_");
-    void downloadVerifiedMacDmg({
+    void downloadVerifiedUpdateArtifact({
       artifact,
       directory: join(app.getPath("userData"), "updates", `mac-${safeVersion}`),
       fetcher: (url, request) => net.fetch(url, request),
       signal: abortController.signal,
       onProgress: (transferred, total) => {
-        const knownTotal = total ?? artifact.size ?? transferred;
         handleUpdateDownloadProgress({
-          percent: knownTotal > 0 ? (transferred / knownTotal) * 100 : 0,
+          percent: (transferred / total) * 100,
           transferred,
-          total: knownTotal,
+          total,
         });
       },
     }).then(resolve, reject);
@@ -1365,12 +1365,12 @@ function downloadAvailableUpdate(reason = "renderer") {
   downloadingUpdateVersion = targetVersion;
   downloadingUpdateReleaseNotes = menuState.releaseNotes ?? availableUpdateReleaseNotes;
   downloadingUpdateChannel = menuState.channel ?? availableUpdateChannel;
-  downloadingMacDmgArtifact = availableMacDmgArtifact;
-  if (process.platform === "darwin" && !downloadingMacDmgArtifact) {
-    // 功能原因：macOS 未签名更新只能使用本次清单中经过 SHA-512 约束的 DMG。
-    // 没有 DMG 上下文时禁止回退到 Squirrel.Mac，否则又会依赖签名 staging。
-    const error = new Error("macOS update manifest has no verified DMG download context");
-    logger.error("[auto-update] macOS DMG download rejected:", error);
+  downloadingUpdateArtifact = availableUpdateArtifact;
+  if (!downloadingUpdateArtifact) {
+    // 功能原因：三平台都必须使用本次同架构清单准入的文件。
+    // 禁止回退到 updater 猜测 URL、另一安装格式或未校验下载。
+    const error = new Error("Update manifest has no verified artifact download context");
+    logger.error("[auto-update] verified artifact download rejected:", error);
     clearDownloadingUpdateState();
     notifyForceAutoUpdate({ kind: "error", message: error.message });
     return;
@@ -1386,14 +1386,15 @@ function downloadAvailableUpdate(reason = "renderer") {
 
   const cancellationToken = new CancellationToken();
   downloadCancellationToken = cancellationToken;
-  const downloadPromise = downloadingMacDmgArtifact
-    ? downloadVerifiedMacUpdate(downloadingMacDmgArtifact, targetVersion, cancellationToken).then(
-        (path) => {
-          handleUpdateDownloaded({ version: targetVersion }, path);
-          return [path];
-        },
-      )
-    : autoUpdater.downloadUpdate(cancellationToken);
+  const downloadPromise =
+    process.platform === "darwin"
+      ? downloadVerifiedMacUpdate(downloadingUpdateArtifact, targetVersion, cancellationToken).then(
+          (path) => {
+            handleUpdateDownloaded({ version: targetVersion }, path);
+            return [path];
+          },
+        )
+      : autoUpdater.downloadUpdate(cancellationToken);
   void downloadPromise
     .catch((error) => {
       if (isCancelledDownload(cancellationToken, error)) {
@@ -1426,9 +1427,9 @@ function cancelDownloadingUpdate(reason = "renderer") {
   const version = downloadingUpdateVersion;
   const releaseNotes = downloadingUpdateReleaseNotes;
   const channel = downloadingUpdateChannel ?? availableUpdateChannel;
-  const macDmgArtifact = downloadingMacDmgArtifact;
+  const updateArtifact = downloadingUpdateArtifact;
   const cancellationToken = downloadCancellationToken;
-  markCancelledDownload(cancellationToken, !macDmgArtifact);
+  markCancelledDownload(cancellationToken, process.platform !== "darwin");
   cancellationToken.cancel();
   logger.info(
     `[auto-update] ${reason}: cancel download channel=${channel} version=${version ?? "unknown"}`,
@@ -1439,7 +1440,7 @@ function cancelDownloadingUpdate(reason = "renderer") {
   if (version) {
     availableUpdateReleaseNotes = releaseNotes;
     availableUpdateChannel = channel;
-    availableMacDmgArtifact = macDmgArtifact;
+    availableUpdateArtifact = updateArtifact;
     setAutoUpdaterMenuState(buildUpdateAvailableState(version, releaseNotes, channel));
     return;
   }
@@ -1755,10 +1756,9 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
         return;
       }
 
-      const macDmgArtifact =
-        process.platform === "darwin" ? selectVerifiedMacDmgArtifact(info) : null;
+      const verifiedArtifact = selectVerifiedUpdateArtifact(info);
       availableUpdateReleaseNotes = toPostUpdateReleaseNotesPayload(info);
-      availableMacDmgArtifact = macDmgArtifact;
+      availableUpdateArtifact = verifiedArtifact;
       if (readyUpdateRestoredFromPendingReleaseNotes) {
         // pendingPostUpdateReleaseNotes 只能证明“曾经下载完成并持久化了版本说明”，
         // 不能恢复当前进程里的 electron-updater downloadedUpdateHelper、Squirrel.Mac proxy server

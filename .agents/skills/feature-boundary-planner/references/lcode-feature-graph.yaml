@@ -717,6 +717,7 @@ nodes:
     invariants:
       - "Desktop Main owns runtime update state; Renderer is a projection and never downloads or installs packages directly."
       - "Every OS/architecture target publishes one manifest whose checksums describe that target's final release bytes."
+      - "Windows, macOS and Linux admit one current-install-format artifact through the same mandatory size and SHA-512 contract before platform-specific installation handoff."
   - id: surface.desktop-update-status
     kind: ui-surface
     label: Desktop update status and install controls

@@ -18,6 +18,7 @@ import {
 } from "electron-updater";
 import type { ProviderRuntimeOptions } from "electron-updater/out/providers/Provider.js";
 import { parse as parseYaml } from "yaml";
+import { resolveUpdateInstallExtensions } from "./verifiedUpdateArtifact.js";
 
 const ELECTRON_MANIFEST_API_PATH = "/api/v1/releases/electron/manifest";
 
@@ -147,8 +148,11 @@ function resolveManifestFiles(
     throw new Error(`Manifest contains no update file for ${linuxExtensions?.join(" / ")}`);
   }
   const resolved: ResolvedUpdateFileInfo[] = updateFiles.map((fileInfo) => {
-    if (!fileInfo.sha512 && !("sha2" in fileInfo && fileInfo.sha2)) {
-      throw new Error(`Manifest file is missing checksum: ${fileInfo.url}`);
+    if (!fileInfo.sha512) {
+      throw new Error(`Manifest file is missing SHA-512 checksum: ${fileInfo.url}`);
+    }
+    if (!Number.isSafeInteger(fileInfo.size) || Number(fileInfo.size) <= 0) {
+      throw new Error(`Manifest file is missing valid size: ${fileInfo.url}`);
     }
 
     const url = resolveManifestUrl(fileInfo.url, baseUrl);
@@ -181,6 +185,7 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
   private readonly options: ManifestUpdateProviderOptions;
   private readonly releasePlatform: string;
   private readonly linuxExtensions: readonly string[] | null;
+  private readonly installArtifactExtensions: readonly string[];
   private resolveBaseUrl = new URL(LCODE_UPDATE_SERVICE_ORIGIN);
 
   constructor(
@@ -191,6 +196,10 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
     super(runtimeOptions);
     this.options = options;
     this.linuxExtensions = getLinuxUpdateExtensions(updater);
+    this.installArtifactExtensions = resolveUpdateInstallExtensions(
+      process.platform,
+      this.linuxExtensions,
+    );
     this.releasePlatform = options.releasePlatform?.trim() || getElectronReleasePlatform();
     this.resolveBaseUrl = new URL(
       normalizeLCodeEndpointOrigin(options.endpointOrigin ?? LCODE_UPDATE_SERVICE_ORIGIN),
@@ -235,9 +244,12 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
       // electron-updater 的 update-available 事件默认不带请求通道，main 进程无法识别过期结果；
       // 这里把本次请求通道随 UpdateInfo 带回去，避免旧通道覆盖更新弹窗内容。
       lcodeReleaseChannel: releaseChannel,
-      // macOS 未签名更新由 Main 从原始 manifest 选择 DMG；保留与 resolveFiles 相同的
-      // URL 基址，让相对文件路径仍严格解析到本次 Worker 清单所属 origin。
+      // Main 从原始 manifest 选择当前平台安装格式；保留与 resolveFiles 相同的 URL 基址，
+      // 让相对文件路径仍严格解析到本次 Worker 清单所属 origin。
       lcodeManifestBaseUrl: this.resolveBaseUrl.href,
+      // 三平台共用同一 VerifiedUpdateArtifact 准入逻辑；允许格式由当前 updater 类型决定，
+      // Renderer 不参与选择，也不根据文件名自行猜测。
+      lcodeInstallExtensions: this.installArtifactExtensions,
     } as UpdateInfo;
   }
 

@@ -52,12 +52,18 @@
    不落存储，不修改清单里的版本与校验和。
    六个原生构建目标各自拥有且只上传一份 `latest-<os>-<arch>.yml`；每份清单必须列出
    该目标所有受支持安装格式及最终 size/SHA-512，不能从另一架构复制，也不能依赖客户端
-   猜测文件名。Windows 与 Linux 继续由 electron-updater 按当前安装格式下载并接管安装；
-   macOS 不把 Squirrel.Mac 的签名 staging 当作未签名更新的前置条件，而是从同一份按架构
-   清单中选择 DMG，经 cfworker-remote 下载并在 Main 进程按清单 SHA-512（及存在时的 size）
-   校验后打开安装镜像，再执行正常退出。缺 DMG、缺/非法摘要、大小或摘要不匹配、打开失败
-   都必须 fail-closed 并保留可重试入口；不得回退到未校验下载，也不得关闭 Gatekeeper。
-   macOS 未签名更新因此是“校验下载 + 打开 DMG + 用户拖动安装”，不是静默替换应用。
+   猜测文件名。三平台运行时采用同一 `VerifiedUpdateArtifact` 准入标准：Windows 只接受 EXE，
+   macOS 只接受 DMG，Linux 只接受当前安装类型对应的 AppImage/DEB/RPM/Pacman 包；候选文件
+   必须来自本次同架构清单，且必须同时具有正整数 size 与合法 SHA-512。缺包、错格式、缺失或
+   非法摘要/大小、下载大小或摘要不匹配都必须 fail-closed，并由 Main 的同一状态机保留取消、
+   失败反馈和可重试入口，禁止回退到猜测 URL、另一格式或未校验下载。
+   Windows 与 Linux 在统一准入后继续由 electron-updater 对同一文件重复执行摘要校验并按当前
+   安装格式接管；macOS 不把 Squirrel.Mac 的签名 staging 当作未签名更新前置条件，而是经
+   cfworker-remote 下载已准入 DMG，按同一 size/SHA-512 标准校验后打开安装镜像，再正常退出。
+   默认未签名 Windows 通道不得在 `app-update.yml` 声明 `publisherName`，否则 electron-updater
+   会把 Authenticode 发布者校验变成安装前置条件；以后若增加签名专用通道，必须单独声明并测试。
+   三平台均不得因未配置签名而关闭更新，也不得关闭 SmartScreen、Gatekeeper 或 Linux 包管理器
+   的系统安全策略。macOS 未签名更新是“打开 DMG + 用户拖动安装”，不是静默替换应用。
 7. Electron runtime 下载若在解包阶段精确表现为 `ENOENT` 且缺少
    `LICENSE.electron.txt`，视为下载/解包损坏而非源码错误：打包脚本最多在既有重试预算内
    切换一次官方 Electron runtime mirror 后重试。其它 afterExtract/NOTICE 错误不得重试，
@@ -75,9 +81,10 @@ electron-builder 从它读取产物版本。GitHub Actions matrix 只持有当�
 才转为公开 Release，同 tag 重跑用 `--clobber` 幂等恢复。
 
 桌面 Main 的 `autoUpdater.ts` 是运行时更新状态、取消令牌、就绪版本和安装入口的唯一所有者；
-`ManifestUpdateProvider` 只读取 Worker 清单并解析文件 URL，不保存第二份更新状态。macOS DMG
-下载器只产生经过清单校验的本地文件路径，并把进度交回同一状态机；Renderer 只消费
-`UpdateStatePayload`，不能自行下载或决定安装包。
+`ManifestUpdateProvider` 只读取 Worker 清单、声明当前安装类型允许的文件扩展名并解析文件 URL，
+不保存第二份更新状态。`VerifiedUpdateArtifact` 是三平台共享的不可变准入结果；macOS 下载器
+只产生经过同一规则校验的本地文件路径，并把进度交回同一状态机。Renderer 只消费
+`UpdateStatePayload`，不能自行选择、下载或决定安装包。
 
 ```mermaid
 sequenceDiagram
@@ -99,20 +106,28 @@ sequenceDiagram
   participant Main as Main autoUpdater 状态机
   participant Worker as cfworker-remote
   participant Release as GitHub Release
-  participant OS as macOS
-  Main->>Worker: 请求 latest-mac-<arch>.yml
+  participant OS as 平台安装接管
+  Main->>Worker: 请求 latest-<os>-<arch>.yml
   Worker->>Release: 读取对应 Release 清单
-  Release-->>Worker: DMG/ZIP URL + 最终 size/SHA-512
+  Release-->>Worker: 当前架构安装包 URL + 最终 size/SHA-512
   Worker-->>Main: 改写后的同架构清单
+  Main->>Main: 按当前安装类型选择包；强制 size + SHA-512
   UI->>Main: 下载更新
-  Main->>Worker: 下载清单指定 DMG
+  alt macOS
+    Main->>Worker: 下载清单指定 DMG
+  else Windows / Linux
+    Main->>Worker: electron-updater 下载同一已准入文件
+  end
   Worker-->>Release: 302 到不可变 Release 资产
-  Release-->>Main: DMG 字节流
-  Main->>Main: 校验 size 与 SHA-512；原子落盘
+  Release-->>Main: 安装包字节流
+  Main->>Main: 校验 size 与 SHA-512
   UI->>Main: 安装更新
   Main->>Main: 等待 Host/Agent 退出准备
-  Main->>OS: 打开已校验 DMG
-  Main->>OS: 退出 LCode；用户完成拖动安装
+  alt macOS
+    Main->>OS: 打开已校验 DMG；用户完成拖动安装
+  else Windows / Linux
+    Main->>OS: 原生 updater 按当前安装格式接管
+  end
 ```
 
 ## 验收
@@ -134,8 +149,10 @@ sequenceDiagram
   manifest 的 SHA-512 为准。
 - 六个 matrix target 的临时 artifact 均包含自己的架构清单；测试逐一解析六份清单，断言
   文件集合、原生架构后缀、size 与 SHA-512 都只来自本 target 的最终安装包。
-- macOS x64/arm64 在无签名凭据时均能从各自清单选中 DMG；下载摘要或大小不符、清单只有
-  ZIP、摘要非法时不进入 ready，合法 DMG 才能打开。Windows/Linux 的现有原生安装路径不变。
+- Windows x64/arm64 只能从各自清单选中 EXE；macOS x64/arm64 只能选中 DMG；Linux 两种
+  架构按当前 updater 类型分别只能选中 AppImage、DEB、RPM 或 Pacman 包。六类选择都要求
+  size/SHA-512，错格式、缺字段或非法值不进入下载；macOS 下载字节不匹配时不进入 ready，
+  Windows/Linux 的原生安装路径在统一准入后保持不变。
 - `node scripts/licenses.mjs check --strict` 仍保留“零未解决项”的更强人工门禁；自动发布的
   baseline-aware 校验不得改变它，也不得输出“许可完整”的结论。
 - 本地构建脚本版本元数据、安装包文件名、Release tag 一致。

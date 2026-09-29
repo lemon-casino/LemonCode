@@ -273,19 +273,26 @@ test("Actions builds every supported platform and publishes only completed tag b
   );
 });
 
-test("unsigned macOS runtime update opens only a manifest-verified DMG", async () => {
-  const [autoUpdaterSource, providerSource] = await Promise.all([
+test("unsigned desktop updates share one verified artifact contract", async () => {
+  const [autoUpdaterSource, providerSource, builderSource] = await Promise.all([
     readFile(join(root, "packages/desktop/src/main/autoUpdater.ts"), "utf8"),
     readFile(join(root, "packages/desktop/src/main/manifestUpdateProvider.ts"), "utf8"),
+    readFile(join(root, "packages/desktop/electron-builder.config.js"), "utf8"),
   ]);
-  assert.match(autoUpdaterSource, /selectVerifiedMacDmgArtifact\(info\)/u);
-  assert.match(autoUpdaterSource, /downloadVerifiedMacDmg\(\{/u);
+  assert.match(autoUpdaterSource, /selectVerifiedUpdateArtifact\(info\)/u);
+  assert.match(autoUpdaterSource, /downloadVerifiedUpdateArtifact\(\{/u);
   assert.match(autoUpdaterSource, /await shell\.openPath\(readyMacDmgPath\)/u);
   assert.match(
     autoUpdaterSource,
     /autoUpdater\.autoInstallOnAppQuit\s*=\s*process\.platform\s*===\s*"linux"/u,
   );
   assert.match(providerSource, /lcodeManifestBaseUrl:\s*this\.resolveBaseUrl\.href/u);
+  assert.match(providerSource, /lcodeInstallExtensions:\s*this\.installArtifactExtensions/u);
+  assert.match(providerSource, /if \(!fileInfo\.sha512\)/u);
+  assert.match(providerSource, /Number\.isSafeInteger\(fileInfo\.size\)/u);
+  // 功能原因：electron-updater 只有在 app-update.yml 声明 publisherName 时才强制
+  // Authenticode 发布者校验；未签名默认通道不能生成这个字段。
+  assert.doesNotMatch(builderSource, /\bpublisherName\s*:/u);
   assert.doesNotMatch(autoUpdaterSource, /disable.*(?:Gatekeeper|signature)|allow.*unsigned/iu);
 });
 
