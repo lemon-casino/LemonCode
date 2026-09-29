@@ -226,10 +226,20 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
+          git log -1 --format=%B HEAD > release-notes.md
+          cat >> release-notes.md <<'EOF'
+
+          ---
+          Unsigned desktop packages for macOS, Windows, and Linux (x64 and arm64). Sign them locally if your environment requires it.
+          EOF
           if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
             gh release create "$GITHUB_REF_NAME" --verify-tag --draft \
               --title "LCode $VERSION" \
-              --notes "Unsigned desktop packages for macOS, Windows, and Linux (x64 and arm64). Sign them locally if your environment requires it."
+              --notes-file release-notes.md
+          else
+            gh release edit "$GITHUB_REF_NAME" \
+              --title "LCode $VERSION" \
+              --notes-file release-notes.md
           fi
           gh release upload "$GITHUB_REF_NAME" release-assets/* --clobber
       - name: Publish release

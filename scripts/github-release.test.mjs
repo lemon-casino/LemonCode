@@ -259,9 +259,17 @@ test("Actions builds every supported platform and publishes only completed tag b
   assert.ok(uploadIndex < publishIndex);
   assert.match(releaseSteps[verifyNoticesIndex].run, /readReleaseVerifiedNotices/u);
   assert.doesNotMatch(workflowSource, /requireComplete:\s*true/u);
-  assert.match(
-    releaseSteps.find((step) => step.name === "Upload installers to release draft").run,
-    /Unsigned desktop packages for macOS, Windows, and Linux/iu,
+  const uploadRelease = releaseSteps.find(
+    (step) => step.name === "Upload installers to release draft",
+  ).run;
+  assert.match(uploadRelease, /git log -1 --format=%B HEAD > release-notes\.md/u);
+  assert.match(uploadRelease, /gh release create[\s\S]*--notes-file release-notes\.md/u);
+  assert.match(uploadRelease, /gh release edit[\s\S]*--notes-file release-notes\.md/u);
+  assert.match(uploadRelease, /Unsigned desktop packages for macOS, Windows, and Linux/iu);
+  assert.ok(
+    uploadRelease.indexOf("git log -1 --format=%B HEAD") <
+      uploadRelease.indexOf("Unsigned desktop packages"),
+    "commit message must be written before the unsigned-package notice",
   );
 });
 

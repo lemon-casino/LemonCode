@@ -37,7 +37,9 @@
    的文件视为目标产物；其他平台保持现有 `<arch>` 命名。
 5. Actions 的发行上传权限只给 Release job；构建 job 仅可读。发布使用 tag 自带的
    `GITHUB_TOKEN`，不借用开发者本地凭据。tag 推送由维护者在版本文件、许可证清单
-   和验证提交后执行，不由 `GITHUB_TOKEN` 在工作流内自推 tag。
+   和验证提交后执行，不由 `GITHUB_TOKEN` 在工作流内自推 tag。GitHub Release 的说明
+   以 tag 指向提交的完整 commit message 为唯一内容来源，并在其后追加未签名安装包提示；
+   同一 tag 重跑时也必须覆盖旧说明，不能继续使用固定模板取代本次提交内容。
 6. 发布与更新清单门禁不得依赖 Apple/Windows 签名凭据；未配置凭据时六个平台仍须完成
    安装包、六份清单和 Release 构建。无 Apple 签名和公证凭据时，macOS 构建必须标明
    未签名，不得宣称 Gatekeeper 可直接通过；维护者可在仓库外以内签方式处理最终产物，
