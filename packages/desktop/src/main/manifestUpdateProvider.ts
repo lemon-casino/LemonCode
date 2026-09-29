@@ -230,11 +230,14 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
     }
 
     return {
-      ...(parsed as UpdateInfo),
+      ...(parsed as unknown as UpdateInfo),
       // preview/stable 切换时旧 manifest 请求可能晚于新请求返回。
       // electron-updater 的 update-available 事件默认不带请求通道，main 进程无法识别过期结果；
       // 这里把本次请求通道随 UpdateInfo 带回去，避免旧通道覆盖更新弹窗内容。
       lcodeReleaseChannel: releaseChannel,
+      // macOS 未签名更新由 Main 从原始 manifest 选择 DMG；保留与 resolveFiles 相同的
+      // URL 基址，让相对文件路径仍严格解析到本次 Worker 清单所属 origin。
+      lcodeManifestBaseUrl: this.resolveBaseUrl.href,
     } as UpdateInfo;
   }
 

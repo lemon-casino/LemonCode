@@ -85,3 +85,54 @@ test("six native targets get exact architecture and version artifacts", async ()
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test("every native target stages its own parseable manifest with final package checksums", async () => {
+  const version = "9.8.7";
+  const targets = [
+    ["mac", "x64", "latest-mac.yml"],
+    ["mac", "arm64", "latest-mac.yml"],
+    ["win", "x64", "latest.yml"],
+    ["win", "arm64", "latest.yml"],
+    ["linux", "x64", "latest-linux.yml"],
+    // Linux arm64 用缺少上游清单的真实例外验证确定性生成路径。
+    ["linux", "arm64", null],
+  ];
+  const directory = await mkdtemp(join(tmpdir(), "lcode-six-manifests-"));
+  try {
+    for (const [os, arch, sourceManifest] of targets) {
+      const distDir = join(directory, `${os}-${arch}-dist`);
+      const outputDir = join(directory, `${os}-${arch}-out`);
+      await mkdir(distDir);
+      const manifestName = `latest-${os}-${arch}.yml`;
+      const installers = expectedArtifactNames(version, os, arch).filter(
+        (name) => name !== manifestName,
+      );
+      for (const name of installers) {
+        await writeFile(join(distDir, name), `${os}-${arch}:${name}`);
+      }
+      if (sourceManifest) {
+        await writeFile(
+          join(distDir, sourceManifest),
+          YAML.stringify({
+            version,
+            files: installers.map((url) => ({ url, size: 1, sha512: "stale" })),
+            path: installers[0],
+            sha512: "stale",
+          }),
+        );
+      }
+
+      await stageReleaseArtifacts({ version, os, arch, distDir, outputDir });
+      const manifest = YAML.parse(await readFile(join(outputDir, manifestName), "utf8"));
+      assert.equal(manifest.version, version);
+      assert.deepEqual(manifest.files.map(({ url }) => url).toSorted(), installers.toSorted());
+      for (const file of manifest.files) {
+        const bytes = await readFile(join(outputDir, file.url));
+        assert.equal(file.size, bytes.length);
+        assert.equal(file.sha512, createHash("sha512").update(bytes).digest("base64"));
+      }
+    }
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

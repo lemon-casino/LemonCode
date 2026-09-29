@@ -273,6 +273,22 @@ test("Actions builds every supported platform and publishes only completed tag b
   );
 });
 
+test("unsigned macOS runtime update opens only a manifest-verified DMG", async () => {
+  const [autoUpdaterSource, providerSource] = await Promise.all([
+    readFile(join(root, "packages/desktop/src/main/autoUpdater.ts"), "utf8"),
+    readFile(join(root, "packages/desktop/src/main/manifestUpdateProvider.ts"), "utf8"),
+  ]);
+  assert.match(autoUpdaterSource, /selectVerifiedMacDmgArtifact\(info\)/u);
+  assert.match(autoUpdaterSource, /downloadVerifiedMacDmg\(\{/u);
+  assert.match(autoUpdaterSource, /await shell\.openPath\(readyMacDmgPath\)/u);
+  assert.match(
+    autoUpdaterSource,
+    /autoUpdater\.autoInstallOnAppQuit\s*=\s*process\.platform\s*===\s*"linux"/u,
+  );
+  assert.match(providerSource, /lcodeManifestBaseUrl:\s*this\.resolveBaseUrl\.href/u);
+  assert.doesNotMatch(autoUpdaterSource, /disable.*(?:Gatekeeper|signature)|allow.*unsigned/iu);
+});
+
 test("release build keeps Helper identity out of node_repl and retries only corrupt Electron runtime extraction", async () => {
   const nodeReplBuild = await readFile(
     join(root, "apps/lcode-cli/packages/node-repl-host/scripts/build.mjs"),

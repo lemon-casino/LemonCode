@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- autoUpdater 需要集中维护 Electron 事件、菜单状态与 IPC 交互，过度拆分会让更新状态流更难追踪 */
+import { join } from "node:path";
 import type { ISettingService } from "@lcode/services";
 import {
   DEFAULT_LOCALE,
@@ -14,11 +15,16 @@ import {
   type UpdateCheckResultPayload,
   type UpdateStatePayload,
 } from "@lcode/shared";
-import { app, BrowserWindow, ipcMain, Menu } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, net, shell } from "electron";
 import pkg, { CancellationToken } from "electron-updater";
 import semver from "semver";
 import { logger } from "./logger.js";
 import { getElectronReleasePlatform, ManifestUpdateProvider } from "./manifestUpdateProvider.js";
+import {
+  downloadVerifiedMacDmg,
+  selectVerifiedMacDmgArtifact,
+  type VerifiedMacDmgArtifact,
+} from "./verifiedMacUpdate.js";
 const { autoUpdater } = pkg;
 
 export const CHECK_FOR_UPDATE_MENU_ID = "check-for-update";
@@ -47,6 +53,9 @@ let availableUpdateChannel: ElectronReleaseChannel = "stable";
 let downloadingUpdateVersion: string | null = null;
 let downloadingUpdateReleaseNotes: PostUpdateReleaseNotesPayload | null = null;
 let downloadingUpdateChannel: ElectronReleaseChannel | null = null;
+let availableMacDmgArtifact: VerifiedMacDmgArtifact | null = null;
+let downloadingMacDmgArtifact: VerifiedMacDmgArtifact | null = null;
+let readyMacDmgPath: string | null = null;
 let downloadCancellationToken: CancellationToken | null = null;
 let readyUpdateChannel: ElectronReleaseChannel | null = null;
 let pendingManifestReleaseChannelRefresh: ElectronReleaseChannel | null = null;
@@ -70,8 +79,13 @@ type ReleaseNoteInfoLike = {
 type UpdateDownloadedInfoLike = {
   version: string;
   path?: string | null;
-  files?: Array<{ url?: string | null } | null> | null;
+  files?: Array<{
+    url?: string | null;
+    sha512?: string | null;
+    size?: number | null;
+  } | null> | null;
   packages?: Record<string, { path?: string | null } | null> | null;
+  lcodeManifestBaseUrl?: string | null;
   lcodeReleaseChannel?: ElectronReleaseChannel | null;
   releaseName?: string | null;
   releaseNotes?: string | ReleaseNoteInfoLike[] | null;
@@ -407,6 +421,14 @@ async function quitAndInstallUpdate(rejectUnavailable = false) {
     setAutoUpdaterMenuState(
       buildUpdateAvailableState(restoredVersion, restoredReleaseNotes, restoredChannel),
     );
+    if (process.platform === "darwin") {
+      // macOS 重启后只恢复了 release notes，没有可证明来源的 DMG 路径；
+      // 先重新读取同架构 manifest，禁止拿旧内存状态或 Squirrel 缓存直接安装。
+      void autoUpdater.checkForUpdates().catch((error) => {
+        handleAutoUpdateFailure(error, "refresh restored macOS update failed");
+      });
+      return;
+    }
     if (await shouldAutoDownloadAndInstallUpdates(autoUpdaterSettingService)) {
       downloadAvailableUpdate("restored-pending-install");
     }
@@ -462,10 +484,36 @@ async function quitAndInstallUpdate(rejectUnavailable = false) {
       return;
     }
 
+    if (process.platform === "darwin") {
+      if (!readyMacDmgPath) {
+        throw new Error("Verified macOS update DMG is not ready");
+      }
+      // 功能原因：未签名 ZIP 会在 Squirrel.Mac 的签名 staging 阶段失败。
+      // 与 Trace-Browser 相同，这里只打开已按 manifest SHA-512 校验的 DMG，
+      // 由系统展示安装镜像并让用户完成拖动安装；不绕过 Gatekeeper。
+      const openError = await shell.openPath(readyMacDmgPath);
+      if (openError) throw new Error(`Open macOS update DMG failed: ${openError}`);
+      logger.info(`[auto-update] opened verified macOS update DMG: ${readyMacDmgPath}`);
+      app.quit();
+      return;
+    }
+
     // 3.3.0 的 Windows 自定义 PowerShell delayed launcher 在 detached/hidden
     // 模式下可能只创建 powershell.exe，却没有稳定执行到安装器启动，用户看到应用关闭但版本不变。
     // 这里恢复 electron-updater 原生安装入口，避免把“launcher 进程创建成功”误当成更新已接管。
     autoUpdater.quitAndInstall();
+  } catch (error) {
+    if (process.platform === "darwin" && readyMacDmgPath && readyUpdateVersion) {
+      // 打开失败不等于已校验 DMG 失效；保留 ready 让用户修复系统瞬时错误后重试。
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error("[auto-update] open verified macOS DMG failed:", error);
+      setAutoUpdaterMenuState(buildUpdateDownloadedState(readyUpdateVersion));
+      notifyForceAutoUpdate({ kind: "error", message });
+      if (rejectUnavailable) throw error;
+      return;
+    }
+    handleAutoUpdateFailure(error, "install update failed");
+    if (rejectUnavailable) throw error;
   } finally {
     quitAndInstallInFlight = false;
   }
@@ -917,12 +965,14 @@ function sendManualCheckResult(payload: UpdateCheckResultPayload) {
 
 function clearAvailableUpdateState() {
   availableUpdateReleaseNotes = null;
+  availableMacDmgArtifact = null;
 }
 
 function clearDownloadingUpdateState() {
   downloadingUpdateVersion = null;
   downloadingUpdateReleaseNotes = null;
   downloadingUpdateChannel = null;
+  downloadingMacDmgArtifact = null;
 }
 
 function clearReadyUpdateState() {
@@ -930,6 +980,7 @@ function clearReadyUpdateState() {
   readyUpdateReleaseNotes = null;
   readyUpdateChannel = null;
   readyUpdateRestoredFromPendingReleaseNotes = false;
+  readyMacDmgPath = null;
 }
 
 function clearPersistedPostUpdateReleaseNotesForVersion(version: string, reason: string) {
@@ -969,9 +1020,9 @@ function isDownloadCancellationError(error: unknown): boolean {
   return error instanceof Error && error.message === "cancelled";
 }
 
-function markCancelledDownload(cancellationToken: CancellationToken) {
+function markCancelledDownload(cancellationToken: CancellationToken, expectUpdaterError = true) {
   cancelledDownloadTokens.add(cancellationToken);
-  pendingCancelledDownloadErrorCount += 1;
+  if (expectUpdaterError) pendingCancelledDownloadErrorCount += 1;
 }
 
 function shouldIgnoreCancelledDownloadError(error: unknown): boolean {
@@ -991,12 +1042,14 @@ function handleAutoUpdateFailure(error: unknown, source: string) {
           version: downloadingUpdateVersion ?? menuState.version,
           releaseNotes: downloadingUpdateReleaseNotes ?? menuState.releaseNotes ?? null,
           channel: downloadingUpdateChannel ?? menuState.channel ?? availableUpdateChannel,
+          macDmgArtifact: downloadingMacDmgArtifact,
         }
       : downloadCancellationToken && downloadingUpdateVersion
         ? {
             version: downloadingUpdateVersion,
             releaseNotes: downloadingUpdateReleaseNotes ?? null,
             channel: downloadingUpdateChannel ?? availableUpdateChannel,
+            macDmgArtifact: downloadingMacDmgArtifact,
           }
         : null;
   if (
@@ -1033,6 +1086,7 @@ function handleAutoUpdateFailure(error: unknown, source: string) {
     // 清空 available/downloading 并广播 idle 会让 renderer 入口和弹窗同时消失。
     // 失败并不等同于用户跳过该版本，应退回“发现更新”状态，让用户能看到并重试下载。
     availableUpdateReleaseNotes = failedDownload.releaseNotes;
+    availableMacDmgArtifact = failedDownload.macDmgArtifact;
     availableUpdateChannel = failedDownload.channel;
     setAutoUpdaterMenuState(
       buildUpdateAvailableState(
@@ -1113,7 +1167,7 @@ async function skipAvailableUpdateVersion(
     (menuState.kind === "download-progress" ? downloadingUpdateChannel : availableUpdateChannel) ??
     availableUpdateChannel;
   if (downloadCancellationToken) {
-    markCancelledDownload(downloadCancellationToken);
+    markCancelledDownload(downloadCancellationToken, !downloadingMacDmgArtifact);
     downloadCancellationToken.cancel();
     logger.info(
       `[auto-update] skipped downloading version; cancel active download channel=${channel} version=${version}`,
@@ -1181,6 +1235,106 @@ async function clearSkippedUpdateVersionForManualCheck(
   }
 }
 
+function handleUpdateDownloadProgress(progress: {
+  percent: number;
+  transferred: number;
+  total: number;
+  bytesPerSecond?: number;
+}) {
+  // 用户快速取消下载后，底层网络层可能还会补发旧下载流的 progress。
+  // 继续接收会把 UI 从“可更新”重新推回“下载中”。
+  if (!downloadCancellationToken || downloadCancellationToken.cancelled) return;
+  if (menuState.kind !== "download-progress" && menuState.kind !== "update-available") return;
+
+  const normalizedProgress = normalizeProgressPercent(progress) ?? progress.percent.toFixed(0);
+  const speed = progress.bytesPerSecond
+    ? `, ${(progress.bytesPerSecond / 1024).toFixed(0)} KB/s`
+    : "";
+  logger.info(
+    `[auto-update] download progress: ${progress.percent.toFixed(1)}%${speed}, ${(progress.transferred / 1024 / 1024).toFixed(1)}/${(progress.total / 1024 / 1024).toFixed(1)} MB`,
+  );
+  if (menuState.kind === "update-available") clearAvailableUpdateState();
+  setAutoUpdaterMenuState(
+    buildDownloadProgressState(normalizedProgress, {
+      transferredBytes: progress.transferred,
+      totalBytes: progress.total,
+    }),
+  );
+  logForceAutoUpdateProgress(normalizedProgress);
+  notifyForceAutoUpdate({
+    kind: "downloading",
+    ...(downloadingUpdateVersion ? { version: downloadingUpdateVersion } : {}),
+    progress: normalizedProgress,
+  });
+}
+
+function handleUpdateDownloaded(info: UpdateDownloadedInfoLike, macDmgPath: string | null = null) {
+  readyUpdateVersion = info.version;
+  readyUpdateRestoredFromPendingReleaseNotes = false;
+  readyUpdateChannel = downloadingUpdateChannel ?? availableUpdateChannel;
+  readyUpdateReleaseNotes = toPostUpdateReleaseNotesPayload(info) ?? downloadingUpdateReleaseNotes;
+  readyMacDmgPath = macDmgPath;
+  clearAvailableUpdateState();
+  clearDownloadingUpdateState();
+  logger.info(
+    `[auto-update] downloaded: ${info.version}, ${macDmgPath ? "verified DMG ready to open" : process.platform === "win32" ? "waiting for explicit install" : "ready to install on quit or explicit install"}`,
+  );
+  setAutoUpdaterMenuState(buildUpdateDownloadedState(info.version));
+  notifyForceAutoUpdate({ kind: "ready", version: info.version });
+
+  if (activeForceAutoUpdateListener) {
+    notifyForceAutoUpdate({ kind: "installing" });
+    void quitAndInstallUpdate();
+  }
+
+  const settingService = autoUpdaterSettingService;
+  if (settingService) {
+    const releaseNotesPayload = readyUpdateReleaseNotes;
+    const persistTask = releaseNotesPayload
+      ? persistPendingPostUpdateReleaseNotes(
+          settingService,
+          releaseNotesPayload,
+          "update-downloaded",
+        )
+      : clearPendingPostUpdateReleaseNotes(
+          settingService,
+          "update-downloaded-without-release-notes",
+        );
+
+    void persistTask.catch((error) => {
+      logger.error("[auto-update] persist post-update release notes failed:", error);
+    });
+  }
+
+  for (const win of BrowserWindow.getAllWindows()) syncReadyUpdateToWindow(win);
+}
+
+function downloadVerifiedMacUpdate(
+  artifact: VerifiedMacDmgArtifact,
+  version: string,
+  cancellationToken: CancellationToken,
+): Promise<string> {
+  return cancellationToken.createPromise((resolve, reject, onCancel) => {
+    const abortController = new AbortController();
+    onCancel(() => abortController.abort());
+    const safeVersion = version.replaceAll(/[^A-Za-z0-9._-]/gu, "_");
+    void downloadVerifiedMacDmg({
+      artifact,
+      directory: join(app.getPath("userData"), "updates", `mac-${safeVersion}`),
+      fetcher: (url, request) => net.fetch(url, request),
+      signal: abortController.signal,
+      onProgress: (transferred, total) => {
+        const knownTotal = total ?? artifact.size ?? transferred;
+        handleUpdateDownloadProgress({
+          percent: knownTotal > 0 ? (transferred / knownTotal) * 100 : 0,
+          transferred,
+          total: knownTotal,
+        });
+      },
+    }).then(resolve, reject);
+  });
+}
+
 function downloadAvailableUpdate(reason = "renderer") {
   if (!canUseAutoUpdaterInCurrentRuntime()) {
     logger.info(`[auto-update] skip ${reason} download: not packaged`);
@@ -1207,9 +1361,20 @@ function downloadAvailableUpdate(reason = "renderer") {
     return;
   }
 
-  downloadingUpdateVersion = menuState.version;
+  const targetVersion = menuState.version;
+  downloadingUpdateVersion = targetVersion;
   downloadingUpdateReleaseNotes = menuState.releaseNotes ?? availableUpdateReleaseNotes;
   downloadingUpdateChannel = menuState.channel ?? availableUpdateChannel;
+  downloadingMacDmgArtifact = availableMacDmgArtifact;
+  if (process.platform === "darwin" && !downloadingMacDmgArtifact) {
+    // 功能原因：macOS 未签名更新只能使用本次清单中经过 SHA-512 约束的 DMG。
+    // 没有 DMG 上下文时禁止回退到 Squirrel.Mac，否则又会依赖签名 staging。
+    const error = new Error("macOS update manifest has no verified DMG download context");
+    logger.error("[auto-update] macOS DMG download rejected:", error);
+    clearDownloadingUpdateState();
+    notifyForceAutoUpdate({ kind: "error", message: error.message });
+    return;
+  }
   // electron-updater 如果命中本地已下载缓存，会在 downloadUpdate() 内直接触发
   // update-downloaded。这里不能先广播 0% 下载态，否则用户会先看到“下载中”，
   // 再跳到“已下载”；真实下载态改由第一条 download-progress 事件驱动。
@@ -1221,8 +1386,15 @@ function downloadAvailableUpdate(reason = "renderer") {
 
   const cancellationToken = new CancellationToken();
   downloadCancellationToken = cancellationToken;
-  void autoUpdater
-    .downloadUpdate(cancellationToken)
+  const downloadPromise = downloadingMacDmgArtifact
+    ? downloadVerifiedMacUpdate(downloadingMacDmgArtifact, targetVersion, cancellationToken).then(
+        (path) => {
+          handleUpdateDownloaded({ version: targetVersion }, path);
+          return [path];
+        },
+      )
+    : autoUpdater.downloadUpdate(cancellationToken);
+  void downloadPromise
     .catch((error) => {
       if (isCancelledDownload(cancellationToken, error)) {
         logger.info(`[auto-update] ${reason} download cancelled`);
@@ -1254,8 +1426,9 @@ function cancelDownloadingUpdate(reason = "renderer") {
   const version = downloadingUpdateVersion;
   const releaseNotes = downloadingUpdateReleaseNotes;
   const channel = downloadingUpdateChannel ?? availableUpdateChannel;
+  const macDmgArtifact = downloadingMacDmgArtifact;
   const cancellationToken = downloadCancellationToken;
-  markCancelledDownload(cancellationToken);
+  markCancelledDownload(cancellationToken, !macDmgArtifact);
   cancellationToken.cancel();
   logger.info(
     `[auto-update] ${reason}: cancel download channel=${channel} version=${version ?? "unknown"}`,
@@ -1266,6 +1439,7 @@ function cancelDownloadingUpdate(reason = "renderer") {
   if (version) {
     availableUpdateReleaseNotes = releaseNotes;
     availableUpdateChannel = channel;
+    availableMacDmgArtifact = macDmgArtifact;
     setAutoUpdaterMenuState(buildUpdateAvailableState(version, releaseNotes, channel));
     return;
   }
@@ -1499,9 +1673,9 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
   // 导致 `3.1.2` 已 ready `3.1.3` 时每次轮询都可能重复下载 `3.1.3`。
   autoUpdater.autoDownload = false;
   // Windows/NSIS 在窗口关闭后会异步启动安装；如果用户紧接着关机，安装器可能被系统中断，
-  // 留下半更新状态并导致下次启动失败。
-  // 这里仅在 Windows 关闭“退出即自动安装”，要求用户显式点更新；其他平台保持原有行为，避免改动既有升级链路。
-  autoUpdater.autoInstallOnAppQuit = process.platform !== "win32";
+  // 留下半更新状态并导致下次启动失败，因此要求用户显式点更新。
+  // macOS 由已校验 DMG 显式接管，禁止退出时又触发 Squirrel.Mac 的签名 staging。
+  autoUpdater.autoInstallOnAppQuit = process.platform === "linux";
   autoUpdater.logger = logger;
   applyManifestUpdateProvider(options);
 
@@ -1581,7 +1755,10 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
         return;
       }
 
+      const macDmgArtifact =
+        process.platform === "darwin" ? selectVerifiedMacDmgArtifact(info) : null;
       availableUpdateReleaseNotes = toPostUpdateReleaseNotesPayload(info);
+      availableMacDmgArtifact = macDmgArtifact;
       if (readyUpdateRestoredFromPendingReleaseNotes) {
         // pendingPostUpdateReleaseNotes 只能证明“曾经下载完成并持久化了版本说明”，
         // 不能恢复当前进程里的 electron-updater downloadedUpdateHelper、Squirrel.Mac proxy server
@@ -1643,77 +1820,11 @@ export async function initAutoUpdater(options: InitAutoUpdaterOptions = {}): Pro
   });
 
   autoUpdater.on("download-progress", (progress) => {
-    // 用户快速取消下载后，electron-updater 可能还会补发旧下载流的 progress。
-    // 如果继续接收这个陈旧事件，UI 会从“可更新”被重新推回“下载中”，看起来像取消后卡住。
-    if (!downloadCancellationToken || downloadCancellationToken.cancelled) {
-      return;
-    }
-
-    if (menuState.kind !== "download-progress" && menuState.kind !== "update-available") {
-      return;
-    }
-
-    const normalizedProgress = normalizeProgressPercent(progress) ?? progress.percent.toFixed(0);
-    logger.info(
-      `[auto-update] download progress: ${progress.percent.toFixed(1)}% (${(progress.bytesPerSecond / 1024).toFixed(0)} KB/s, ${(progress.transferred / 1024 / 1024).toFixed(1)}/${(progress.total / 1024 / 1024).toFixed(1)} MB)`,
-    );
-    if (menuState.kind === "update-available") {
-      clearAvailableUpdateState();
-    }
-    setAutoUpdaterMenuState(
-      buildDownloadProgressState(normalizedProgress, {
-        transferredBytes: progress.transferred,
-        totalBytes: progress.total,
-      }),
-    );
-    logForceAutoUpdateProgress(normalizedProgress);
-    notifyForceAutoUpdate({
-      kind: "downloading",
-      ...(downloadingUpdateVersion ? { version: downloadingUpdateVersion } : {}),
-      progress: normalizedProgress,
-    });
+    handleUpdateDownloadProgress(progress);
   });
 
   autoUpdater.on("update-downloaded", (info: UpdateDownloadedInfoLike) => {
-    readyUpdateVersion = info.version;
-    readyUpdateRestoredFromPendingReleaseNotes = false;
-    readyUpdateChannel = downloadingUpdateChannel ?? availableUpdateChannel;
-    readyUpdateReleaseNotes =
-      toPostUpdateReleaseNotesPayload(info) ?? downloadingUpdateReleaseNotes;
-    clearAvailableUpdateState();
-    clearDownloadingUpdateState();
-    logger.info(
-      `[auto-update] downloaded: ${info.version}, ${process.platform === "win32" ? "waiting for explicit install" : "ready to install on quit or explicit install"}`,
-    );
-    setAutoUpdaterMenuState(buildUpdateDownloadedState(info.version));
-    notifyForceAutoUpdate({ kind: "ready", version: info.version });
-
-    if (activeForceAutoUpdateListener) {
-      notifyForceAutoUpdate({ kind: "installing" });
-      void quitAndInstallUpdate();
-    }
-
-    if (options.settingService) {
-      const releaseNotesPayload = readyUpdateReleaseNotes;
-      const persistTask = releaseNotesPayload
-        ? persistPendingPostUpdateReleaseNotes(
-            options.settingService,
-            releaseNotesPayload,
-            "update-downloaded",
-          )
-        : clearPendingPostUpdateReleaseNotes(
-            options.settingService,
-            "update-downloaded-without-release-notes",
-          );
-
-      void persistTask.catch((error) => {
-        logger.error("[auto-update] persist post-update release notes failed:", error);
-      });
-    }
-
-    for (const win of BrowserWindow.getAllWindows()) {
-      syncReadyUpdateToWindow(win);
-    }
+    handleUpdateDownloaded(info);
   });
 
   autoUpdater.on("error", (err) => {

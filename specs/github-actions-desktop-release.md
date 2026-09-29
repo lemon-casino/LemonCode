@@ -50,6 +50,14 @@
    `latest-<os>-<arch>.yml`（改写文件 URL 指向自身下载代理），安装包经 302 回
    GitHub Release 资产；GitHub Release 仍是安装包与清单的唯一来源，Worker 无状态
    不落存储，不修改清单里的版本与校验和。
+   六个原生构建目标各自拥有且只上传一份 `latest-<os>-<arch>.yml`；每份清单必须列出
+   该目标所有受支持安装格式及最终 size/SHA-512，不能从另一架构复制，也不能依赖客户端
+   猜测文件名。Windows 与 Linux 继续由 electron-updater 按当前安装格式下载并接管安装；
+   macOS 不把 Squirrel.Mac 的签名 staging 当作未签名更新的前置条件，而是从同一份按架构
+   清单中选择 DMG，经 cfworker-remote 下载并在 Main 进程按清单 SHA-512（及存在时的 size）
+   校验后打开安装镜像，再执行正常退出。缺 DMG、缺/非法摘要、大小或摘要不匹配、打开失败
+   都必须 fail-closed 并保留可重试入口；不得回退到未校验下载，也不得关闭 Gatekeeper。
+   macOS 未签名更新因此是“校验下载 + 打开 DMG + 用户拖动安装”，不是静默替换应用。
 7. Electron runtime 下载若在解包阶段精确表现为 `ENOENT` 且缺少
    `LICENSE.electron.txt`，视为下载/解包损坏而非源码错误：打包脚本最多在既有重试预算内
    切换一次官方 Electron runtime mirror 后重试。其它 afterExtract/NOTICE 错误不得重试，
@@ -66,6 +74,11 @@ electron-builder 从它读取产物版本。GitHub Actions matrix 只持有当�
 已验证资产，不创建另一个版本。资产上传失败最多保留不可见的 draft；只有全部上传成功
 才转为公开 Release，同 tag 重跑用 `--clobber` 幂等恢复。
 
+桌面 Main 的 `autoUpdater.ts` 是运行时更新状态、取消令牌、就绪版本和安装入口的唯一所有者；
+`ManifestUpdateProvider` 只读取 Worker 清单并解析文件 URL，不保存第二份更新状态。macOS DMG
+下载器只产生经过清单校验的本地文件路径，并把进度交回同一状态机；Renderer 只消费
+`UpdateStatePayload`，不能自行下载或决定安装包。
+
 ```mermaid
 sequenceDiagram
   participant Maintainer as 维护者
@@ -78,6 +91,28 @@ sequenceDiagram
   Matrix-->>Release: 全部成功后下载六组安装包
   Release->>Release: 校验 14 个安装包、六份更新清单与许可材料基线
   Release->>Release: 创建/更新同名 tag 资产并公开发布
+```
+
+```mermaid
+sequenceDiagram
+  participant UI as Renderer 更新界面
+  participant Main as Main autoUpdater 状态机
+  participant Worker as cfworker-remote
+  participant Release as GitHub Release
+  participant OS as macOS
+  Main->>Worker: 请求 latest-mac-<arch>.yml
+  Worker->>Release: 读取对应 Release 清单
+  Release-->>Worker: DMG/ZIP URL + 最终 size/SHA-512
+  Worker-->>Main: 改写后的同架构清单
+  UI->>Main: 下载更新
+  Main->>Worker: 下载清单指定 DMG
+  Worker-->>Release: 302 到不可变 Release 资产
+  Release-->>Main: DMG 字节流
+  Main->>Main: 校验 size 与 SHA-512；原子落盘
+  UI->>Main: 安装更新
+  Main->>Main: 等待 Host/Agent 退出准备
+  Main->>OS: 打开已校验 DMG
+  Main->>OS: 退出 LCode；用户完成拖动安装
 ```
 
 ## 验收
@@ -97,6 +132,10 @@ sequenceDiagram
 - 不配置平台签名凭据时，发布契约、清单生成和 Worker 查询均保持可用；仓库外内签若改变
   安装包或 macOS ZIP 的字节，必须在替换 Release 资产前重算清单，客户端下载仍以最终
   manifest 的 SHA-512 为准。
+- 六个 matrix target 的临时 artifact 均包含自己的架构清单；测试逐一解析六份清单，断言
+  文件集合、原生架构后缀、size 与 SHA-512 都只来自本 target 的最终安装包。
+- macOS x64/arm64 在无签名凭据时均能从各自清单选中 DMG；下载摘要或大小不符、清单只有
+  ZIP、摘要非法时不进入 ready，合法 DMG 才能打开。Windows/Linux 的现有原生安装路径不变。
 - `node scripts/licenses.mjs check --strict` 仍保留“零未解决项”的更强人工门禁；自动发布的
   baseline-aware 校验不得改变它，也不得输出“许可完整”的结论。
 - 本地构建脚本版本元数据、安装包文件名、Release tag 一致。

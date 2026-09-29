@@ -699,7 +699,73 @@ nodes:
     codeSeeds:
       - file: apps/lcode-cli/packages/core/src/runtime/methods/turn-model-step.ts
         symbol: runModelBackedTurnStep
+  - id: capability.desktop-software-update
+    kind: capability
+    label: Desktop software update
+    aliases:
+      - auto update
+      - software update
+      - release manifest
+      - 软件更新
+      - 自动更新
+      - 更新清单
+    codeSeeds:
+      - file: packages/desktop/src/main/autoUpdater.ts
+        symbol: initAutoUpdater
+      - file: scripts/stage-release-artifacts.mjs
+        symbol: stageReleaseArtifacts
+    invariants:
+      - "Desktop Main owns runtime update state; Renderer is a projection and never downloads or installs packages directly."
+      - "Every OS/architecture target publishes one manifest whose checksums describe that target's final release bytes."
+  - id: surface.desktop-update-status
+    kind: ui-surface
+    label: Desktop update status and install controls
+    codeSeeds:
+      - file: packages/ui/src/UpdateStatusDialogController.tsx
+        symbol: UpdateStatusDialogController
+      - file: packages/ui/src/UpdateStatusButton.tsx
+        symbol: UpdateStatusButton
+  - id: state.desktop-auto-updater
+    kind: state-owner
+    label: Desktop Main update lifecycle state
+    codeSeeds:
+      - file: packages/desktop/src/main/autoUpdater.ts
+        symbol: initAutoUpdater
+  - id: service.desktop-update-manifest
+    kind: service
+    label: cfworker-remote Electron manifest provider
+    codeSeeds:
+      - file: packages/desktop/src/main/manifestUpdateProvider.ts
+        symbol: ManifestUpdateProvider
+  - id: service.desktop-release-artifact-staging
+    kind: service
+    label: Per-target release artifact and manifest staging
+    codeSeeds:
+      - file: scripts/stage-release-artifacts.mjs
+        symbol: stageReleaseArtifacts
 edges:
+  - from: capability.desktop-software-update
+    to: surface.desktop-update-status
+    type: renders-in
+    rank: must-inspect
+  - from: surface.desktop-update-status
+    to: state.desktop-auto-updater
+    type: projects-state-and-sends-intent-to
+    rank: must-inspect
+    condition: Renderer consumes UpdateStatePayload and sends IPC intents; it does not own download or install state.
+  - from: state.desktop-auto-updater
+    to: service.desktop-update-manifest
+    type: reads-version-and-artifacts-from
+    rank: must-inspect
+  - from: capability.desktop-software-update
+    to: service.desktop-release-artifact-staging
+    type: publishes-manifests-through
+    rank: must-inspect
+    condition: Each native OS/architecture job stages only its own installers and final SHA-512 manifest.
+  - from: service.desktop-update-manifest
+    to: service.desktop-release-artifact-staging
+    type: consumes-published-contract-from
+    rank: must-inspect
   - from: capability.model-selection
     to: surface.conversation-model-control
     type: renders-in
