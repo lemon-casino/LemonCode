@@ -137,6 +137,7 @@ import {
   registerSessionReferencePointerTarget,
 } from "@/v4/sessionReferenceDragDrop.js";
 import { buildExecutionFailoverCommandPayload } from "@/v4/executionFailoverUi.js";
+import { buildEditUserQueryPayload } from "@/v4/editUserQueryPayload.js";
 import { ReadOnlySessionTokenStats } from "@/v4/composer/ReadOnlySessionTokenStats.js";
 import { shouldIgnoreEscapeForStopGeneration } from "@/v4/composer/escapeStop.js";
 import { ConversationDraftEmptyState } from "@/v4/ConversationDraftEmptyState.js";
@@ -3285,16 +3286,21 @@ export function SessionPane({
         logger.warn("[v4-pane] edit 跳过：行内编辑内容为空且无附件");
         return false;
       }
+      const submission = createSubmissionFromComposer();
+      if (!submission) {
+        // 编辑重发也必须经过同一份 ModelSelectionView 校验，不能回退到历史轮的旧模型。
+        logger.warn("[v4-pane] edit 跳过：当前模型选择尚未校验");
+        return false;
+      }
       const ack = await dispatchCommand(
         "editUserQuery",
-        {
+        buildEditUserQueryPayload({
           target,
           newText,
+          attachments,
+          modelSelection: submission.modelSelection,
           workspaceMode,
-          // editUserQuery 的 attachments 缺省表示保留 canonical 原附件；
-          // 只有显式透传 []，CLI 才能区分“用户删除全部”与“调用方未修改附件”。
-          ...(attachments ? { attachments: [...attachments] } : {}),
-        },
+        }),
         sessionId,
         current.revision,
         current.logEpoch,
@@ -3306,7 +3312,7 @@ export function SessionPane({
       // fork ACK 只做旧协议解码兼容；新 edit 永不导航 child。blocked 由行内冲突弹窗处理。
       return ack;
     },
-    [dispatchCommand, sessionId],
+    [createSubmissionFromComposer, dispatchCommand, sessionId],
   );
 
   const dispatchRetryTurn = useCallback(

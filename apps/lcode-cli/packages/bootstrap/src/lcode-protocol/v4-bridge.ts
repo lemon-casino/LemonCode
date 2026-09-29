@@ -280,6 +280,7 @@ interface InputCommandForAdmission {
   kind: ConversationInputIntent["kind"];
   text: string;
   attachments: readonly AttachmentRef[];
+  modelSelection?: ConversationInputIntent["modelSelection"];
   sharedContextRefs?: ConversationInputIntent["sharedContextRefs"];
   requestedDelivery?: ConversationInputIntent["delivery"]["requested"];
   admittedDelivery?: ConversationInputIntent["delivery"]["admitted"];
@@ -327,7 +328,11 @@ function resolveInputCommandForAdmission(
   if (envelope.type === "createSession") {
     const firstInput = (
       envelope.payload as {
-        firstInput?: { text: string; attachments?: AttachmentRef[] };
+        firstInput?: {
+          text: string;
+          attachments?: AttachmentRef[];
+          modelSelection?: ConversationInputIntent["modelSelection"];
+        };
       }
     ).firstInput;
     return firstInput
@@ -335,6 +340,7 @@ function resolveInputCommandForAdmission(
           kind: "sendText",
           text: firstInput.text,
           attachments: firstInput.attachments ?? [],
+          ...(firstInput.modelSelection ? { modelSelection: firstInput.modelSelection } : {}),
         }
       : null;
   }
@@ -356,12 +362,14 @@ function resolveInputCommandForAdmission(
     const payload = envelope.payload as {
       text: string;
       attachments?: AttachmentRef[];
+      modelSelection?: ConversationInputIntent["modelSelection"];
       context_refs?: ConversationInputIntent["sharedContextRefs"];
     };
     return {
       kind: envelope.type,
       text: payload.text,
       attachments: payload.attachments ?? [],
+      ...(payload.modelSelection ? { modelSelection: payload.modelSelection } : {}),
       ...(payload.context_refs ? { sharedContextRefs: payload.context_refs } : {}),
     };
   }
@@ -374,6 +382,7 @@ function resolveInputCommandForAdmission(
     target: { rowId: number; entityId: string };
     newText?: string;
     attachments?: AttachmentRef[];
+    modelSelection?: ConversationInputIntent["modelSelection"];
   };
   const resolution = resolveRowTarget(envelope.sessionId, payload.target, envelope.type);
   if (!resolution?.ok || !resolution.editTarget) return null;
@@ -388,6 +397,9 @@ function resolveInputCommandForAdmission(
       envelope.type === "editUserQuery"
         ? (payload.newText ?? canonical.intent.text)
         : canonical.intent.text,
+    ...(payload.modelSelection ?? canonical.intent.modelSelection
+      ? { modelSelection: payload.modelSelection ?? canonical.intent.modelSelection }
+      : {}),
     attachments:
       envelope.type === "editUserQuery" && payload.attachments
         ? payload.attachments
@@ -441,6 +453,7 @@ function buildForkInitialInput(
     kind: input.kind,
     text: input.text,
     attachments: input.attachments,
+    ...(input.modelSelection ? { modelSelection: input.modelSelection } : {}),
     delivery: {
       requested,
       admitted,
@@ -813,6 +826,9 @@ export function createConversationV4Gateway(
             admittedAt: admission.admittedAt,
             requestedDelivery: conversationInputIntent.delivery.requested,
             admittedDelivery: conversationInputIntent.delivery.admitted,
+            ...(conversationInputIntent.modelSelection
+              ? { modelSelection: conversationInputIntent.modelSelection }
+              : {}),
             ...(fallbackReasonCode ? { fallbackReasonCode } : {}),
             attachmentRefs,
             ...(conversationInputIntent.sharedContextRefs

@@ -132,6 +132,8 @@ async function editUserQuery(
     throw new V4EditTargetNotLatestError(payload.target.rowId);
   }
   const editTarget = resolution.editTarget;
+  // 编辑提交可携带 Composer 在点击瞬间冻结的选择；旧客户端缺省时继续复用历史 canonical selection。
+  const modelSelection = payload.modelSelection ?? editTarget.intent.modelSelection;
   const attachmentRefs = payload.attachments ?? stableAttachmentRefs(editTarget);
   // attachments 缺省与 [] 语义不同；必须基于 effective refs 校验，
   // 才能同时允许 attachment-only edit，并在正文和附件都被清空时于 rewind 前拒绝。
@@ -214,6 +216,7 @@ async function editUserQuery(
     payload.newText,
     attachmentRefs,
     attachments,
+    modelSelection,
   );
   // 生产 renderer 不落日志，过去只能从通用 rewind + send 猜测发生过编辑，
   // 无法与 retry 稳定区分。命令副作用完成后由 Agent server 写低频 info 审计索引。
@@ -342,6 +345,7 @@ async function startCanonicalIntent(
   text: string,
   attachmentRefs: ReturnType<typeof stableAttachmentRefs>,
   attachments: Awaited<ReturnType<typeof mapAttachmentRefsToTurnAttachments>>,
+  modelSelection?: CommandPayloadMap["editUserQuery"]["modelSelection"],
 ): Promise<void> {
   const intent = inputIntentMetadataFromCanonical(
     envelope,
@@ -354,7 +358,7 @@ async function startCanonicalIntent(
       requestedDelivery: editTarget.intent.requestedDelivery,
       admittedDelivery: editTarget.intent.admittedDelivery,
       fallbackReasonCode: editTarget.intent.fallbackReasonCode,
-      modelSelection: editTarget.intent.modelSelection,
+      modelSelection: modelSelection ?? editTarget.intent.modelSelection,
       mode: editTarget.intent.mode,
       planEnabled: editTarget.intent.planEnabled,
       attachmentRefs,

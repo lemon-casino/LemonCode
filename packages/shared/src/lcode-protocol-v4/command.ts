@@ -156,6 +156,9 @@ export const commandPayloadSchemas = {
     target: conversationRowTargetSchema,
     newText: z.string(),
     attachments: z.array(attachmentRefSchema).optional(),
+    // 编辑提交可携带 Composer 在点击瞬间冻结的完整选择；旧客户端缺省时由 CLI
+    // 回退到被编辑轮的 canonical selection。
+    modelSelection: modelSelectionSchema.optional(),
     // 缺省 preserve：仅切 conversation branch；rewind 会先安全恢复该轮文件。
     workspaceMode: z.enum(["preserve", "rewind"]).optional(),
   }),
