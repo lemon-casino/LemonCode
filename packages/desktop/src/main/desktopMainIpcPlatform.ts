@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- 桌面平台 IPC 集中装配，拆散会让权限边界更难审计；行数随平台能力增长。 */
 import { BrowserWindow, dialog, ipcMain, nativeTheme } from "electron";
+import { userInfo } from "node:os";
 import { readLCodeStdioTapDevState } from "@lcode/services/node";
 import {
   DesktopCommandIds,
@@ -238,6 +239,16 @@ export function registerPlatformIpcHandlers(options: {
   });
 
   ipcMain.handle(PlatformChannels.GetSystemLocale, () => options.resolveSystemLocale());
+
+  // OAuth 授权登录移除后，footer 身份区用宿主系统用户名做本地身份展示。
+  // userInfo() 失败（如极端环境下无用户映射）时回退空串，UI 侧再回退默认名。
+  ipcMain.handle(PlatformChannels.GetSystemUsername, () => {
+    try {
+      return userInfo().username;
+    } catch {
+      return "";
+    }
+  });
 
   ipcMain.on(PlatformChannels.SyncWindowTabs, (event, paths: string[]) => {
     const result = stringArraySchema.safeParse(paths);

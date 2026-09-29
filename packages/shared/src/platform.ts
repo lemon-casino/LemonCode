@@ -625,7 +625,9 @@ export interface IPlatformService {
   getRemoteControlConfig?(): Promise<RemoteControlConfigSnapshot>;
 
   /** 写入远程控制配置；accessKey 为 write-only，进凭据集中存储；仅 Desktop 实现。 */
-  setRemoteControlConfig?(request: RemoteControlConfigSetRequest): Promise<RemoteControlConfigSetResult>;
+  setRemoteControlConfig?(
+    request: RemoteControlConfigSetRequest,
+  ): Promise<RemoteControlConfigSetResult>;
 
   /** 测试桌面到 Worker 隧道的连通性（Main 持接入 Key 调 /api/health）；仅 Desktop 实现。 */
   testRemoteControlConnection?(): Promise<RemoteControlTestResult>;
@@ -970,6 +972,9 @@ export interface IPlatformService {
 
   /** 宿主系统语言；桌面端由 main 进程读取，Web 端可回退到 navigator.language。 */
   getSystemLocale?(): Promise<Locale>;
+
+  /** 宿主系统用户名（os.userInfo）；OAuth 授权登录移除后 footer 身份区展示用。仅 Desktop 实现，Web 端回退空串。 */
+  getSystemUsername?(): Promise<string>;
 
   /** 注册更新完成后的版本说明，返回 disposer */
   onPostUpdateReleaseNotes(callback: (payload: PostUpdateReleaseNotesPayload) => void): () => void;

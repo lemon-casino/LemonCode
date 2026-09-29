@@ -554,7 +554,6 @@ const enUS: Record<string, string> = {
   "welcome.loggingIn": "Logging in...",
   "welcome.loginFailed": "Login failed",
   "login.title": "Welcome to LCode",
-  "login.description": "Connect your account to start using LCode",
   "login.oauth.activeProviderHint":
     "Current active provider: {provider}. Signing in again replaces the current identity.",
   "login.oauth.loadingProviders": "Loading account providers...",
@@ -605,7 +604,6 @@ const enUS: Record<string, string> = {
     "The app will restart after disconnecting. You will need to connect your account again.",
   "logout.confirm.ok": "Disconnect and restart",
   "logout.confirm.cancel": "Cancel",
-  "sidebar.profile.notLoggedIn": "Connect",
   "app.selectFile": "Select a file to get started",
   "app.workspace": "Workspace",
   "browser.title": "Browser",
@@ -2134,9 +2132,15 @@ const enUS: Record<string, string> = {
   "settings.remoteControl.testConnection.action": "Test connection",
   "settings.remoteControl.testConnection.success": "Connected ({latencyMs}ms)",
   "settings.remoteControl.testConnection.failed": "Connection failed: {error}",
-  "settings.remoteControl.pairing.section": "Phone pairing",
-  "settings.remoteControl.pairing.disabledHint":
-    "Enable remote control to generate a pairing QR code here and grant your phone access via mutual authorization.",
+  "remoteControl.quick.title": "Mobile remote control",
+  "remoteControl.quick.description":
+    "Scan the code or open the link on your phone to control this workspace remotely.",
+  "remoteControl.quick.scanTitle": "Scan to connect",
+  "remoteControl.quick.scanDescription":
+    "Scan with your phone camera to open this workspace on your phone.",
+  "remoteControl.quick.disabledHint":
+    "Remote control is not enabled yet. Fill in the Worker domain, save the access key and turn on the switch in Remote control settings before pairing.",
+  "remoteControl.quick.openSettings": "Remote control settings",
   "settings.remoteControl.pairing.status.idle": "Not waiting",
   "settings.remoteControl.pairing.status.unknown": "Status unknown",
   "settings.remoteControl.pairing.status.waiting": "Waiting for the phone to connect…",
@@ -2146,7 +2150,7 @@ const enUS: Record<string, string> = {
   "settings.remoteControl.pairing.idleDescription":
     "Generate a pairing QR code, then scan it or open the copied link on the phone. Once both sides authorize, mirroring starts.",
   "settings.remoteControl.pairing.unknownDescription":
-    "This page has not received any pairing state from the desktop, so it cannot tell whether mirroring is active; if the phone already shows “Ready”, mirroring is still running. Starting the wait again stops the current room and generates a new QR code — a mirroring phone is disconnected immediately.",
+    "No pairing state has been received from the desktop, so it cannot tell whether mirroring is active; if the phone already shows “Ready”, mirroring is still running. Starting the wait again stops the current room and generates a new QR code — a mirroring phone is disconnected immediately.",
   "settings.remoteControl.pairing.restartConfirmTitle": "Start waiting again?",
   "settings.remoteControl.pairing.restartConfirmDescription":
     "The current pairing room will be stopped and a new QR code generated; if the phone is currently mirroring, its connection drops immediately and pairing must be redone with a fresh scan and your confirmation.",

@@ -51,6 +51,8 @@ interface SettingsSectionDefinition {
   contentTitleId?: string;
   titleBadgeId?: string;
   groupId: SettingsSectionGroupId;
+  /** 不进设置侧栏导航，但保留分区注册与直达意图解析（入口在别处，如 footer 快捷入口）。 */
+  navHidden?: boolean;
 }
 
 const BASE_SETTINGS_SECTION_GROUPS: Array<{
@@ -149,11 +151,14 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
   },
   // 远程控制紧跟「电脑控制」：同为“控制这台桌面”的入口（方向相反——手机镜像桌面），
   // 依赖桌面 Main 的配对/出站连接，仅桌面端可见。
+  // 入口在侧栏 footer（「连接使用」与设置按钮之间）；分区保留注册供直达意图与
+  // 上次停留分区解析，但不再进设置侧栏导航（specs/mobile-remote-control-cf-workers.md）。
   {
     id: "remoteControl",
     icon: Smartphone,
     titleId: "settings.remoteControl.title",
     groupId: "basics",
+    navHidden: true,
   },
   // 键盘快捷键紧跟「电脑控制」：同属本机操控/效率配置，收纳在基础设置尾部。
   {
@@ -199,22 +204,34 @@ interface SettingsPageConfigOptions {
   isWindowsDesktop?: boolean;
 }
 
-export function createSettingsPageConfig({
+/**
+ * 桌面平台能力门槛（三平台布尔任一为真）：Computer Use 与远程控制分区注册、
+ * footer 远程控制快捷入口共用这一份判定；配对/出站连接等能力都由桌面 Main 承担，
+ * Web/手机视图一律不出现。
+ */
+export function hasDesktopPlatformCapability({
   isDesktop = false,
   isMacDesktop = false,
   isWindowsDesktop = false,
-}: SettingsPageConfigOptions = {}) {
-  const showComputerUse = isDesktop || isMacDesktop || isWindowsDesktop;
-  // 远程控制的配对与出站连接都由桌面 Main 承担，与 Computer Use 同门槛。
+}: SettingsPageConfigOptions = {}): boolean {
+  return isDesktop || isMacDesktop || isWindowsDesktop;
+}
+
+export function createSettingsPageConfig(options: SettingsPageConfigOptions = {}) {
+  const showComputerUse = hasDesktopPlatformCapability(options);
   const showRemoteControl = showComputerUse;
   const settingsSections = BASE_SETTINGS_SECTIONS.filter((section) => {
     if (section.id === "computerUse" && !showComputerUse) return false;
     if (section.id === "remoteControl" && !showRemoteControl) return false;
     return isSettingsSectionEnabled(section.id);
   });
+  // settingsSections 保留 navHidden 分区（直达意图、面包屑、上次停留分区解析仍有效）；
+  // 只有侧栏导航分组把它过滤掉。
   const settingsSectionGroups = BASE_SETTINGS_SECTION_GROUPS.map((group) => ({
     ...group,
-    sections: settingsSections.filter((section) => section.groupId === group.id),
+    sections: settingsSections.filter(
+      (section) => section.groupId === group.id && !section.navHidden,
+    ),
   })).filter((group) => group.sections.length > 0);
 
   return { settingsSectionGroups, settingsSections };

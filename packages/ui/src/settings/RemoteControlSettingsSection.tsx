@@ -1,25 +1,14 @@
-// 远程控制设置段（基础设置）：连接配置、手机配对面板、安全与隐私。
+// 远程控制设置段（基础设置）：连接配置、安全与隐私。
 // 配置/配对状态/设备列表的唯一所有者是 Desktop Main（cfworker-remote/PROTOCOL.md §6.3），
 // Renderer 经 useRemoteControl（remoteControlBridge 能力面）读写，不触碰 window.lcode。
+// 「手机配对」已独立为 MobileRemoteControlPanel（侧栏 footer 弹框），设置段不再重复承载。
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useRemoteControl } from "@/hooks/useRemoteControl.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { RemoteControlConnectionSettings } from "@/settings/RemoteControlConnectionSettings.js";
-import { RemoteControlPairingSettings } from "@/settings/RemoteControlPairingSettings.js";
 import { RemoteControlSecuritySettings } from "@/settings/RemoteControlSecuritySettings.js";
 
-/** 激活 workspace 上下文(tabStore 权威),用于组装手机镜像 target;由 SettingsPage 传入。 */
-export interface RemoteControlMirrorWorkspace {
-  remoteSessionId?: string | null;
-  workspacePath?: string | null;
-  workspaceIdentity?: string | null;
-}
-
-export function RemoteControlSettingsSection({
-  mirrorWorkspace,
-}: {
-  mirrorWorkspace?: RemoteControlMirrorWorkspace;
-} = {}) {
+export function RemoteControlSettingsSection() {
   const { intl } = useLCodeIntl();
   const platform = usePlatform();
   const {
@@ -27,19 +16,12 @@ export function RemoteControlSettingsSection({
     config,
     configLoading,
     configSaving,
-    pairing,
-    pairingUrl,
-    startingPairing,
-    stoppingPairing,
     devices,
     devicesLoading,
     deviceActionPendingId,
     testingConnection,
     refreshDevices,
     saveConfig,
-    startPairing,
-    stopPairing,
-    decidePairing,
     revokeDevice,
     testConnection,
   } = useRemoteControl(platform);
@@ -65,23 +47,6 @@ export function RemoteControlSettingsSection({
           testConnection={testConnection}
           testingConnection={testingConnection}
           testSupported={bridge.testRemoteControlConnection !== undefined}
-        />
-      </section>
-
-      <section className="space-y-3">
-        <div className="text-ui-base font-medium text-foreground-subtle">
-          {intl.formatMessage({ id: "settings.remoteControl.pairing.section" })}
-        </div>
-        <RemoteControlPairingSettings
-          enabled={config?.enabled === true}
-          mirrorWorkspace={mirrorWorkspace}
-          pairing={pairing}
-          pairingUrl={pairingUrl}
-          startingPairing={startingPairing}
-          stoppingPairing={stoppingPairing}
-          startPairing={startPairing}
-          stopPairing={stopPairing}
-          decidePairing={decidePairing}
         />
       </section>
 

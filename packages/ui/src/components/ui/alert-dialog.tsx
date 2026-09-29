@@ -27,7 +27,9 @@ function AlertDialogOverlay({
       data-slot="alert-dialog-overlay"
       className={cn(
         // Linux 旧标题栏避让会留下未遮罩的顶部亮条；确认弹窗也应覆盖完整窗口。
-        "fixed inset-0 isolate z-50 bg-black/60 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
+        // z 必须高于 popover/dropdown 的 z-[60]：确认框会从弹层（如 footer 配对弹框）内触发，
+        // 作为模态中断必须盖住打开它的弹层；toast(z-[9999]) 仍在其上。
+        "fixed inset-0 isolate z-[70] bg-black/60 duration-100 supports-backdrop-filter:backdrop-blur-xs data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0",
         className,
       )}
       {...props}

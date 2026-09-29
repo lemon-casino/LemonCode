@@ -339,6 +339,8 @@ declare global {
       setApplicationLocale(locale: Locale): Promise<void>;
       /** 读取宿主系统语言 */
       getSystemLocale?(): Promise<Locale>;
+      /** 读取宿主系统用户名（os.userInfo） */
+      getSystemUsername?(): Promise<string>;
       /** 同步标题栏亮暗色 */
       setTitleBarTheme(theme: DesktopTitleBarTheme): Promise<void>;
     };

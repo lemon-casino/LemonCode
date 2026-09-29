@@ -265,12 +265,9 @@ function LoginPanel({ active, onComplete }: LoginPanelProps) {
 
   return (
     <>
-      <LoginPanelHeader
-        title={intl.formatMessage({ id: "login.title" })}
-        description={intl.formatMessage({ id: "login.description" })}
-      >
-        {null}
-      </LoginPanelHeader>
+      {/* OAuth 授权登录已移除：欢迎首屏只保留标题，不再展示“连接账号”副标题
+          （specs/welcome-login-entry.md）。 */}
+      <LoginPanelHeader title={intl.formatMessage({ id: "login.title" })}>{null}</LoginPanelHeader>
 
       <div className="space-y-6">
         {/* Root 层写入 oauthError（轮询/回调失败）后 effect 会把 useOAuth reset 回 idle，
@@ -396,21 +393,12 @@ function LoginPanel({ active, onComplete }: LoginPanelProps) {
   );
 }
 
-function LoginPanelHeader({
-  title,
-  description,
-  children,
-}: {
-  title: string;
-  description: string;
-  children: ReactNode;
-}) {
+function LoginPanelHeader({ title, children }: { title: string; children: ReactNode }) {
   return (
     <header className="flex flex-col items-center gap-3 text-center">
       <LoginPanelLogo />
       <div className="flex flex-col items-center gap-1 text-center">
         <h1 className="text-3xl font-semibold tracking-tight">{title}</h1>
-        <p className="text-ui-base/relaxed text-foreground-subtle">{description}</p>
       </div>
       {children}
     </header>

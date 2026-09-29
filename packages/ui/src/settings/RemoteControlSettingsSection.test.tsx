@@ -73,22 +73,31 @@ test("resolveRemoteControlBridge 缺任一必需能力即整体 fail-closed", ()
   // 「测试连接」是契约外可选能力（Main 调 /api/health），缺失时仍应放行其余能力。
   assert.equal(typeof bridge.testRemoteControlConnection, "undefined");
 
-  const { onRemotePairingState: _omitted, ...incomplete } =
-    bridgePlatformStub as unknown as Record<string, unknown>;
-  assert.equal(
-    resolveRemoteControlBridge(incomplete as unknown as IPlatformService),
-    null,
-  );
+  const { onRemotePairingState: _omitted, ...incomplete } = bridgePlatformStub as unknown as Record<
+    string,
+    unknown
+  >;
+  assert.equal(resolveRemoteControlBridge(incomplete as unknown as IPlatformService), null);
 });
 
-test("remoteControl 分区仅桌面注册且落在 basics 组，导航可解析", () => {
+test("remoteControl 分区仅桌面注册，入口在 footer 而非设置侧栏导航", () => {
   // Web 默认配置（无桌面平台能力）不出现远程控制。
-  assert.equal(SETTINGS_SECTIONS.some((section) => section.id === "remoteControl"), false);
+  assert.equal(
+    SETTINGS_SECTIONS.some((section) => section.id === "remoteControl"),
+    false,
+  );
 
   const desktopConfig = createSettingsPageConfig({ isDesktop: true });
-  const basics = desktopConfig.settingsSectionGroups.find((group) => group.id === "basics");
-  assert.ok(basics);
-  assert.ok(basics.sections.some((section) => section.id === "remoteControl"));
+  // 分区保留注册：直达意图（footer 快捷入口）、面包屑与上次停留分区解析仍可落回本分区。
+  assert.ok(desktopConfig.settingsSections.some((section) => section.id === "remoteControl"));
+  // 侧栏导航分组不再列出（入口已迁到侧栏 footer，specs/mobile-remote-control-cf-workers.md）。
+  for (const group of desktopConfig.settingsSectionGroups) {
+    assert.equal(
+      group.sections.some((section) => section.id === "remoteControl"),
+      false,
+      `导航分组 ${group.id} 不应再列出 remoteControl`,
+    );
+  }
 
   // 上次停留分区记忆的往返解析必须落回本分区，而不是被当成未知 id 回退 general。
   assert.equal(resolveSettingsSection("remoteControl"), "remoteControl");
@@ -100,7 +109,7 @@ test("平台能力缺失时渲染 desktopOnly 提示，不渲染任何控件", (
   assert.doesNotMatch(markup, /remote-control-enabled-switch/);
 });
 
-test("能力齐备时渲染启用开关、域名/Key 输入、测试连接、安全隐私与设备空态", () => {
+test("能力齐备时渲染启用开关、域名/Key 输入、测试连接与安全隐私，不再承载手机配对", () => {
   const markup = renderSection(bridgePlatformStub);
   // 启用开关 + Worker 域名 + 接入 Key + 测试连接。
   assert.match(markup, /data-testid="remote-control-enabled-switch"/);
@@ -108,15 +117,17 @@ test("能力齐备时渲染启用开关、域名/Key 输入、测试连接、安
   assert.match(markup, /data-testid="remote-control-access-key"/);
   assert.match(markup, /data-testid="remote-control-access-key-state"/);
   assert.match(markup, /data-testid="remote-control-test-connection"/);
-  // 主开关未开启时配对面板只显示提示；已授权设备区处于加载态；隐私说明如实标注无端到端加密。
+  // 已授权设备区处于加载态；隐私说明如实标注无端到端加密。
   // （renderToStaticMarkup 不执行 effect，devicesLoading 保持初始 true，空态在交互后才可达。）
-  assert.match(markup, /开启远程控制后，在这里生成二维码/);
   assert.match(markup, /data-testid="remote-control-allow-new-devices"/);
   assert.match(markup, /正在读取已授权设备/);
   assert.match(markup, /未做端到端加密/);
   // 尚未从 Main 拿到配置前接入 Key 显示未配置，且开关禁用（配置只回读 hasAccessKey）。
   assert.match(markup, /尚未配置接入 Key/);
   assert.match(markup, /disabled=""/);
+  // 手机配对已独立为 MobileRemoteControlPanel（侧栏 footer 弹框），设置段不再渲染配对 UI。
+  assert.doesNotMatch(markup, /data-testid="remote-control-pairing-panel"/);
+  assert.doesNotMatch(markup, /在这里生成二维码/);
 });
 
 test("配对面板按 Main 推送的状态投影：等待/裁决/已就绪", () => {
@@ -226,10 +237,12 @@ test("buildRemotePairingMirrorTarget:远程三元组产出 remote target,本地�
   assert.equal(localWithIdentity?.workspaceIdentity, "identity-1");
 });
 
-test("zh-CN 与 en-US 的 settings.remoteControl 文案键一一对应", () => {
-  const zhKeys = Object.keys(zhCN).filter((key) => key.startsWith("settings.remoteControl."));
-  const enKeys = Object.keys(enUS).filter((key) => key.startsWith("settings.remoteControl."));
-  assert.ok(zhKeys.length >= 50, `zh-CN 远程控制文案过少: ${zhKeys.length}`);
+test("zh-CN 与 en-US 的远程控制文案键（设置段 + 独立配对块）一一对应", () => {
+  const isRemoteControlKey = (key: string) =>
+    key.startsWith("settings.remoteControl.") || key.startsWith("remoteControl.quick.");
+  const zhKeys = Object.keys(zhCN).filter(isRemoteControlKey);
+  const enKeys = Object.keys(enUS).filter(isRemoteControlKey);
+  assert.ok(zhKeys.length >= 50, `远程控制文案过少: ${zhKeys.length}`);
   assert.deepEqual(
     enKeys.filter((key) => !(key in zhCN)),
     [],

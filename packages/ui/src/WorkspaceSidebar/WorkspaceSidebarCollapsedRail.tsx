@@ -1,5 +1,4 @@
 import { PanelLeftOpen } from "lucide-react";
-import appLogoUrl from "@/assets/app-logo.svg";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
@@ -22,23 +21,18 @@ export function WorkspaceSidebarCollapsedRail({
             shortcut={toggleSidebarShortcutLabel}
             side="bottom"
           >
+            {/* 品牌徽标不再兼任折叠按钮：收起栏顶部直接显示展开图标（与顶部浮层折叠图标一致）。 */}
             <Button
               type="button"
               variant="ghost"
               size="icon-md"
-              className="group relative overflow-hidden rounded-lg"
+              className="rounded-lg"
               onClick={onToggleSidebar}
               aria-label={intl.formatMessage({
                 id: "workspaceSidebar.toggleSidebar",
               })}
             >
-              <img
-                src={appLogoUrl}
-                alt="LCode"
-                className="size-5 transition-opacity group-hover:opacity-0"
-                draggable={false}
-              />
-              <PanelLeftOpen className="absolute size-4 opacity-0 transition-opacity group-hover:opacity-100" />
+              <PanelLeftOpen className="size-4" />
             </Button>
           </ControlHintTooltip>
         </div>

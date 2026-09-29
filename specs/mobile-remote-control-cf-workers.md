@@ -3,7 +3,7 @@
 ## 目标与边界
 
 1. 社区版自研移动端远程控制:桌面端(本项目构建)与手机之间用 Cloudflare Worker(`cfworker-remote` 仓库,经 GitHub 连接 Workers Builds 自动部署)做**隧道**。桌面端只做出站连接,无需公网 IP/端口转发,任意地点、任意时间可连。
-2. 交互形态对齐官方:设置 → 基础设置 → 新增「远程控制」段;桌面生成二维码或可复制链接,手机扫码/打开链接 → **双方授权** → 手机获得与官方一致的远程控制能力,且**权限与桌面使用者完全对等(镜像)**:桌面能使用的功能,手机同样可以使用,不另做缩减版界面或只读模式;断线后按 web-remote-replayable 恢复。
+2. 交互形态对齐官方:提供「远程控制」设置段(2026-09-29 起入口从设置侧栏迁至侧栏 footer 快捷入口,见「桌面端改动」#1);桌面生成二维码或可复制链接,手机扫码/打开链接 → **双方授权** → 手机获得与官方一致的远程控制能力,且**权限与桌面使用者完全对等(镜像)**:桌面能使用的功能,手机同样可以使用,不另做缩减版界面或只读模式;断线后按 web-remote-replayable 恢复。
 3. Worker 只做鉴权、配对、心跳、桥接转发与房间生命周期管理,**不保存任务队列、快照、消息内容等业务状态**;桌面不为本功能另起 Agent、Local Host 或远程会话,手机 attachment 到已有窗口 Host,复用会话运行时。
 4. v1 明确不做:端到端加密(Worker 以 TLS 终止 + 鉴权转发,可见帧内容);离线推送;多桌面账号体系。
 
@@ -59,6 +59,7 @@
 ## 桌面端改动
 
 1. **设置(基础设置 → 远程控制)**:启用开关;Worker 域名;接入 Key(凭据保存复用 `remoteWorkspaceHistory` 的凭据集中管理机制,不进明文配置);安全隐私——允许新设备配对开关、已授权设备列表(名称/授权时间/最近在线)+吊销、配对链接有效期、空闲自动断开;「测试连接」。对应 `packages/ui/src/settings/settingsPageConfig.ts` 的 `BASE_SETTINGS_SECTIONS`(basics 组)新增 section。
+   - **入口迁移(2026-09-29,同日二改)**:分区入口从设置侧栏「基础设置」组迁到侧栏 footer——`WorkspaceSidebarFooter` 中「连接使用」账户入口与「设置」齿轮之间、齿轮之前的手机图标按钮,**点击弹出「移动端远程控制」配对弹框(向上 Popover),不再跳转设置页**。配对块独立为 `MobileRemoteControlPanel`(自持 `useRemoteControl` 装配与镜像 target fail-closed 判定,配对交互本体仍是 `RemotePairingPanel`);设置段 `RemoteControlSettingsSection` 不再承载配对分区,只保留连接配置与安全隐私。弹框内提供「远程控制设置」出口,经 `setPendingSettingsSection("remoteControl")` + `openSettingsTab()` 直达分区。设置侧栏导航不再列出该分区(`settingsPageConfig` 以 `navHidden` 标记保留分区注册,`settingsSections` 解析、面包屑、上次停留分区记忆与直达意图均不受影响)。入口平台门禁与分区注册同源(仅桌面平台三布尔任一为真);Web/手机视图既不注册分区也不显示 footer 入口。
 2. **配对面板**:对齐截图形态(等待手机连接/已就绪/停止/刷新二维码/复制链接);「开启等待」驱动 Main 出站注册并生成二维码;「停止」关闭房间并断开出站。
 3. **Attachment 接线**:Main 收到配对完成事件后,经 `attachRemoteWorkspaceSessionHost`(`desktopRemoteSessions.ts:832`,现为已实现无调用方)把手机接入窗口 Host——这将是该入口的首个生产调用方;Main 维护「Worker WS ↔ attachment port」的帧泵,只做转发。
 4. Main 在桌面退出/禁用功能时主动关闭房间并断开出站;接入 Key 与设备吊销列表本地持久化。
@@ -91,6 +92,7 @@
 - 设置禁用后,桌面立即断开出站连接且不再重连;主开关关闭时不产生任何出站请求。
 - Worker 不持久化任务队列、快照、消息内容(仅鉴权哈希与房间映射,TTL 清理);房间关闭后 DO 状态清空。
 - 中英文、桌面窄窗口与手机窄屏均可用;扫码与复制链接两条路径等价。
+- 桌面端侧栏 footer 在「连接使用」与「设置」之间显示远程控制快捷入口,点击向上弹出「移动端远程控制」配对弹框(二维码/复制链接/停止/刷新在弹框内完成,不跳设置页);设置侧栏「基础设置」组不再出现该分区,弹框内「远程控制设置」可直达分区;Web/手机视图无此入口,直达意图不得把分区解析回退成 general。
 - `cfworker-remote` push 到 GitHub 后,Workers Builds 自动部署,无需本地 wrangler。
 
 ## 开放问题(实现前需对齐)

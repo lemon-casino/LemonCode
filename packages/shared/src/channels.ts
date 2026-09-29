@@ -429,6 +429,8 @@ export const PlatformChannels = {
   ApplicationLocaleChanged: "lcode:application-locale-changed",
   /** Renderer → Main：读取宿主系统语言 */
   GetSystemLocale: "lcode:get-system-locale",
+  /** Renderer → Main：读取宿主系统用户名（os.userInfo） */
+  GetSystemUsername: "lcode:get-system-username",
   /** Main → Renderer：更新安装后的版本说明 */
   PostUpdateReleaseNotes: "lcode:post-update-release-notes",
   /** Renderer → Main：确认版本说明已读 */

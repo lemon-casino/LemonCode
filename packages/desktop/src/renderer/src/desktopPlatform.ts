@@ -203,6 +203,8 @@ export function createDesktopPlatform(options: {
     getSystemLocale: () =>
       window.lcode.getSystemLocale?.() ??
       Promise.resolve(navigator.language.toLowerCase().startsWith("zh") ? "zh-CN" : "en-US"),
+    // preload 缺失（旧版本）时回退空串，UI 侧再回退默认名。
+    getSystemUsername: async () => (await window.lcode.getSystemUsername?.()) ?? "",
     setTitleBarTheme: (theme) => window.lcode.setTitleBarTheme(theme),
     getDeviceId: () =>
       (window as Window & { __LCODE_DEVICE_ID__?: string }).__LCODE_DEVICE_ID__ ?? "",

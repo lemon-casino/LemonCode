@@ -318,6 +318,8 @@ export const TID_TASK_EMPTY = "task-empty";
 export const TID_TASK_ARCHIVE = "task-archive";
 /** 任务列表下方设置入口按钮 */
 export const TID_TASK_SETTINGS_BUTTON = "task-settings-button";
+/** 侧栏 footer 远程控制快捷入口（位于账户入口与设置按钮之间，仅桌面平台渲染） */
+export const TID_FOOTER_REMOTE_CONTROL_BUTTON = "footer-remote-control-button";
 
 // Settings
 /** 设置页容器 */

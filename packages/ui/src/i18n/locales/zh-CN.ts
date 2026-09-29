@@ -504,7 +504,6 @@ const zhCN: Record<string, string> = {
   "welcome.loggingIn": "登录中...",
   "welcome.loginFailed": "登录失败",
   "login.title": "欢迎来到 LCode",
-  "login.description": "连接账号，开始使用 LCode",
   "login.oauth.activeProviderHint": "当前已登录提供方：{provider}。新登录会替换当前登录身份。",
   "login.oauth.loadingProviders": "正在加载登录提供方...",
   "login.oauth.noProviders": "当前没有可用的登录提供方，请稍后重试。",
@@ -551,7 +550,6 @@ const zhCN: Record<string, string> = {
   "logout.confirm.descriptionDefault": "断开连接后会重启 App，之后需要重新连接账号。",
   "logout.confirm.ok": "断开连接并重启",
   "logout.confirm.cancel": "取消",
-  "sidebar.profile.notLoggedIn": "连接使用",
   "app.selectFile": "选择文件以开始",
   "app.workspace": "工作区",
   "browser.title": "浏览器",
@@ -2014,9 +2012,13 @@ const zhCN: Record<string, string> = {
   "settings.remoteControl.testConnection.action": "测试连接",
   "settings.remoteControl.testConnection.success": "连接成功（{latencyMs}ms）",
   "settings.remoteControl.testConnection.failed": "连接失败：{error}",
-  "settings.remoteControl.pairing.section": "手机配对",
-  "settings.remoteControl.pairing.disabledHint":
-    "开启远程控制后，在这里生成二维码，让手机完成双方授权。",
+  "remoteControl.quick.title": "移动端远程控制",
+  "remoteControl.quick.description": "扫码或在手机上打开链接，即可远程控制当前工作区。",
+  "remoteControl.quick.scanTitle": "手机扫码连接",
+  "remoteControl.quick.scanDescription": "用手机相机扫码，在手机上打开这个工作区。",
+  "remoteControl.quick.disabledHint":
+    "远程控制尚未开启。在「远程控制设置」里填写 Worker 域名、保存接入 Key 并开启开关后再配对。",
+  "remoteControl.quick.openSettings": "远程控制设置",
   "settings.remoteControl.pairing.status.idle": "未在等待",
   "settings.remoteControl.pairing.status.unknown": "状态未知",
   "settings.remoteControl.pairing.status.waiting": "等待手机连接…",
@@ -2026,7 +2028,7 @@ const zhCN: Record<string, string> = {
   "settings.remoteControl.pairing.idleDescription":
     "生成配对二维码后，用手机扫码或打开复制链接，完成双方授权即可开始镜像。",
   "settings.remoteControl.pairing.unknownDescription":
-    "设置页没有收到桌面的配对状态推送，无法确认当前是否正在镜像；若手机端已显示「已就绪」，镜像仍在进行。重新开启等待会停止当前房间并生成新二维码，正在镜像的手机会立即断开。",
+    "没有收到桌面的配对状态推送，无法确认当前是否正在镜像；若手机端已显示「已就绪」，镜像仍在进行。重新开启等待会停止当前房间并生成新二维码，正在镜像的手机会立即断开。",
   "settings.remoteControl.pairing.restartConfirmTitle": "重新开启等待？",
   "settings.remoteControl.pairing.restartConfirmDescription":
     "将停止当前配对房间并生成新二维码；若手机正处于镜像中，其连接会立即断开，需要重新扫码并经你确认。",

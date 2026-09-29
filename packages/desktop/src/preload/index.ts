@@ -274,13 +274,14 @@ contextBridge.exposeInMainWorld("lcode", {
   startRemotePairing: (request?: import("@lcode/shared").RemotePairingStartRequest) =>
     ipcRenderer.invoke(PlatformChannels.RemotePairingStart, request ?? {}),
   /** 手机远程控制:停止配对(room.stop、断出站、detach 桥) */
-  stopRemotePairing: (): Promise<void> =>
-    ipcRenderer.invoke(PlatformChannels.RemotePairingStop),
+  stopRemotePairing: (): Promise<void> => ipcRenderer.invoke(PlatformChannels.RemotePairingStop),
   /** 手机远程控制:对 pairing.requested 的用户裁决 */
   decideRemotePairing: (request: import("@lcode/shared").RemotePairingDecideRequest) =>
     ipcRenderer.invoke(PlatformChannels.RemotePairingDecide, request),
   /** 手机远程控制:订阅配对面板状态推送(面板状态唯一来源),返回 disposer */
-  onRemotePairingState: (callback: (state: import("@lcode/shared").RemotePairingStatePush) => void) => {
+  onRemotePairingState: (
+    callback: (state: import("@lcode/shared").RemotePairingStatePush) => void,
+  ) => {
     const handler = (_event: unknown, state: unknown) =>
       callback(state as import("@lcode/shared").RemotePairingStatePush);
     ipcRenderer.on(PlatformChannels.RemotePairingState, handler);
@@ -833,6 +834,8 @@ contextBridge.exposeInMainWorld("lcode", {
     ipcRenderer.invoke(PlatformChannels.SetApplicationLocale, locale),
   /** 读取宿主系统语言 */
   getSystemLocale: (): Promise<Locale> => ipcRenderer.invoke(PlatformChannels.GetSystemLocale),
+  /** 读取宿主系统用户名（os.userInfo） */
+  getSystemUsername: (): Promise<string> => ipcRenderer.invoke(PlatformChannels.GetSystemUsername),
   /** 同步标题栏亮暗色 */
   setTitleBarTheme: (theme: DesktopTitleBarTheme) =>
     ipcRenderer.invoke(PlatformChannels.SetTitleBarTheme, theme),

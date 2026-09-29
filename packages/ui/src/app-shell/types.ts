@@ -208,7 +208,6 @@ export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackS
   fileChangeFindNavigationRequestId: number;
   fileChangeFindQuery: string;
   onFileChangeFindMatchCountChange: (count: number) => void;
-  appLogoUrl: string;
   platform: IPlatformService;
   reloadSessionDisabled: boolean;
   reloadSessionPending: boolean;

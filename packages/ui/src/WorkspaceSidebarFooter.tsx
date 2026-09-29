@@ -1,8 +1,9 @@
 /* oxlint-disable eslint(max-lines) -- footer 聚合账户、主题、模式和快捷键菜单。 */
 import type { Locale, UserInfo } from "@lcode/shared";
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useState, type ReactNode } from "react";
 import {
   DesktopCommandIds,
+  TID_FOOTER_REMOTE_CONTROL_BUTTON,
   TID_LOGIN_MENU_ITEM,
   TID_LOGIN_TRIGGER,
   TID_LOGOUT_BUTTON,
@@ -11,6 +12,7 @@ import {
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar.js";
 import { cn } from "@/components/lib/utils.js";
+import appLogoUrl from "@/assets/app-logo.svg";
 import { Button } from "@/components/ui/button.js";
 import { ThemeSwatch } from "@/components/ui/ThemeSwatch.js";
 import {
@@ -26,6 +28,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
 import {
   PencilRuler,
   Globe,
@@ -35,7 +38,7 @@ import {
   Maximize,
   Palette,
   Settings,
-  User,
+  Smartphone,
   ZoomIn,
   ZoomOut,
 } from "lucide-react";
@@ -69,15 +72,13 @@ function getSidebarProfileName(user?: UserInfo | null): string {
   return "LCode";
 }
 
-function getSidebarProfileBadge(
-  user: UserInfo | null | undefined,
-  formatMessage: ReturnType<typeof useLCodeIntl>["intl"]["formatMessage"],
-): string {
+function getSidebarProfileBadge(user: UserInfo | null | undefined, fallbackName: string): string {
   if (user) {
     return getSidebarProfileName(user);
   }
 
-  return formatMessage({ id: "sidebar.profile.notLoggedIn" });
+  // OAuth 授权登录移除后无账号体系：身份区展示宿主系统用户名，取不到再回退品牌名。
+  return fallbackName;
 }
 
 function getAvatarFallbackText(user: UserInfo | null | undefined): string {
@@ -91,6 +92,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   onLocaleChange,
   onThemeChange,
   onSettingsButtonClick,
+  remoteControlPanel,
   onUsageClick,
   onUpgradeClick,
   onLogin,
@@ -107,6 +109,11 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   onLocaleChange: (value: string) => void;
   onThemeChange: (value: string) => void;
   onSettingsButtonClick?: () => void;
+  /**
+   * 远程控制快捷入口（身份入口与设置按钮之间）的弹框内容，即独立的手机配对块
+   * MobileRemoteControlPanel；不传则不渲染入口，平台门禁与 workspace 上下文由调用方决定。
+   */
+  remoteControlPanel?: ReactNode;
   onUsageClick?: () => void;
   onUpgradeClick?: Parameters<
     typeof WorkspaceSidebarFooterUsageSummaryContent
@@ -130,7 +137,25 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   const zoomOutShortcutLabel = useShortcutCommandLabel("zoomOut");
   const resetZoomShortcutLabel = useShortcutCommandLabel("resetZoom");
   const isRestoringOAuthSession = useLCodeStore((state) => state.isRestoringOAuthSession);
-  const profileBadge = getSidebarProfileBadge(user, intl.formatMessage);
+  // OAuth 授权登录移除后无账号体系：身份区回退展示宿主系统用户名（Desktop 提供）。
+  const [systemUsername, setSystemUsername] = useState("");
+  useEffect(() => {
+    let isCancelled = false;
+    void platform
+      .getSystemUsername?.()
+      .then((name) => {
+        if (!isCancelled) {
+          setSystemUsername(name.trim());
+        }
+      })
+      .catch(() => {
+        // 平台不支持或读取失败时保持空串，身份区回退品牌名。
+      });
+    return () => {
+      isCancelled = true;
+    };
+  }, [platform]);
+  const profileBadge = getSidebarProfileBadge(user, systemUsername || "LCode");
   const avatarFallbackText = getAvatarFallbackText(user);
   const avatarKey = user?.avatarUrl ?? user?.id ?? "guest";
   const showAuthRestoreLoading = !user && isRestoringOAuthSession;
@@ -155,7 +180,8 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
               <span className="sr-only">{intl.formatMessage({ id: "common.loading" })}</span>
             </>
           ) : (
-            <User className="size-4" />
+            // 无账号体系时头像写死为品牌 L 徽标，与左上角品牌一致（app-logo.svg 自带配色）。
+            <img src={appLogoUrl} alt="LCode" className="size-full select-none" draggable={false} />
           )}
         </AvatarFallback>
       </Avatar>
@@ -367,6 +393,29 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
           </DropdownMenuContent>
         </DropdownMenu>
         <div className="flex shrink-0 items-center gap-1.5">
+          {remoteControlPanel ? (
+            <Popover>
+              <ControlHintTooltip
+                title={intl.formatMessage({ id: "settings.remoteControl.title" })}
+              >
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-lg"
+                    data-testid={TID_FOOTER_REMOTE_CONTROL_BUTTON}
+                    aria-label={intl.formatMessage({ id: "settings.remoteControl.title" })}
+                  >
+                    <Smartphone className="size-4" />
+                  </Button>
+                </PopoverTrigger>
+              </ControlHintTooltip>
+              {/* footer 贴屏幕底边：向上弹出；宽度收到视口内，224px 二维码可完整容纳。 */}
+              <PopoverContent side="top" align="start" className="w-[min(92vw,400px)] p-0">
+                {remoteControlPanel}
+              </PopoverContent>
+            </Popover>
+          ) : null}
           <ControlHintTooltip title={settingsButtonLabel}>
             <Button
               type="button"

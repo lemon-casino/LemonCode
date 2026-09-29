@@ -138,15 +138,21 @@ export function RemotePairingPanel({
   const pendingDevice = pairing?.pendingDevice;
 
   return (
-    <div className="space-y-3" data-testid="remote-control-pairing-panel">
+    // @container：等待态的二维码/操作布局按容器宽度断行（弹框 400px 走上下堆叠，
+    // 设置页宽容器保持左右并排）。sm: 是视口断点，在桌面端弹框里永远不会命中，
+    // 曾把右侧操作列压成一条窄竖条（用户反馈“太拥挤”）。
+    <div className="space-y-3 @container" data-testid="remote-control-pairing-panel">
       <div className="flex items-center gap-2" data-testid="remote-control-pairing-status">
         <StatusDot tone={phase.tone} spinning={phase.state === "waiting" && !busy} />
         <span className="text-ui-base font-medium text-foreground">{statusLabel}</span>
         {expiresAt && (phase.state === "waiting" || phase.state === "pairing") ? (
           <span className="text-ui-base text-foreground-subtle">
-            {intl.formatMessage({ id: "settings.remoteControl.pairing.expiresAt" }, {
-              time: formatDateTime(expiresAt),
-            })}
+            {intl.formatMessage(
+              { id: "settings.remoteControl.pairing.expiresAt" },
+              {
+                time: formatDateTime(expiresAt),
+              },
+            )}
           </span>
         ) : null}
       </div>
@@ -198,8 +204,12 @@ export function RemotePairingPanel({
 
       {phase.state === "waiting" ? (
         pairingUrl ? (
-          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-start sm:gap-5">
-            <RemotePairingQrCode url={pairingUrl} />
+          // 列布局（窄容器/弹框）子项按默认 stretch 撑满行宽，提示文案与链接在容器内
+          // 折行/截断；@lg 宽容器（设置页）恢复左右并排并顶部对齐。
+          <div className="flex flex-col gap-3 @lg:flex-row @lg:items-start @lg:gap-5">
+            <div className="self-center @lg:self-start">
+              <RemotePairingQrCode url={pairingUrl} />
+            </div>
             <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
               <p className="text-ui-base text-foreground-subtle">
                 {intl.formatMessage({ id: "settings.remoteControl.pairing.qrHint" })}

@@ -1966,13 +1966,7 @@ export function SettingsPage({
                             localWorkspacePath={activeWorkspaceTab?.localWorkspacePath}
                           />
                         ) : activeSection === "remoteControl" ? (
-                          <RemoteControlSettingsSection
-                            mirrorWorkspace={{
-                              remoteSessionId: activeWorkspaceTab?.remoteSessionId,
-                              workspacePath: activeWorkspacePath,
-                              workspaceIdentity: activeWorkspaceIdentity,
-                            }}
-                          />
+                          <RemoteControlSettingsSection />
                         ) : activeSection === "gitBackup" ? (
                           <GitBackupSection enabled={false} onEnabledChange={() => {}} />
                         ) : null}

@@ -83,6 +83,9 @@ import {
   type SidebarTaskOrganizeBy,
   type SidebarTaskSortBy,
 } from "@/lib/sidebarTaskPreferences.js";
+import { setPendingSettingsSection } from "@/lib/settingsNavigation.js";
+import { MobileRemoteControlPanel } from "@/settings/MobileRemoteControlPanel.js";
+import { hasDesktopPlatformCapability } from "@/settings/settingsPageConfig.js";
 import {
   persistSidebarPurposeSectionPreferences,
   readSidebarPurposeSectionPreferences,
@@ -244,7 +247,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   remoteWorkspaceErrorByWorkspaceKey,
   reconnectingRemoteWorkspaceLogsByWorkspaceKey = EMPTY_RECONNECTING_REMOTE_WORKSPACE_LOGS_BY_WORKSPACE_KEY,
   isDesktop = false,
-  isMacDesktop: _isMacDesktop = false,
+  isMacDesktop = false,
   isWindowsDesktop = false,
   isSidebarVisible: _isSidebarVisible = true,
   onToggleSidebar: _onToggleSidebar,
@@ -366,6 +369,17 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   const reorderWorkspaceTabs = useTabStore((state) => state.reorderWorkspaceTabs);
   const expandAllWorkspaceTabs = useTabStore((state) => state.expandAllWorkspaceTabs);
   const collapseAllWorkspaceTabs = useTabStore((state) => state.collapseAllWorkspaceTabs);
+  // 远程控制分区入口已从设置侧栏迁到 footer（连接使用与设置按钮之间）；
+  // 与 App 的 handleOpenSettingsSection 同一条路径：先写分区意图再开设置 tab。
+  const openRemoteControlSettings = useCallback(() => {
+    setPendingSettingsSection("remoteControl");
+    openSettingsTab();
+  }, [openSettingsTab]);
+  const showRemoteControlFooterEntry = hasDesktopPlatformCapability({
+    isDesktop,
+    isMacDesktop,
+    isWindowsDesktop,
+  });
 
   const workspaceTabs = useMemo(() => tabs.filter(isWorkspaceTab), [tabs]);
   const { conversationWorkspaceTabs, projectWorkspaceTabs } = useMemo(
@@ -1642,6 +1656,18 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
             onLocaleChange={handleLocaleChange}
             onThemeChange={handleThemeChange}
             onSettingsButtonClick={openSettingsTab}
+            remoteControlPanel={
+              showRemoteControlFooterEntry ? (
+                <MobileRemoteControlPanel
+                  mirrorWorkspace={{
+                    remoteSessionId: workspaceRemoteSessionId,
+                    workspacePath,
+                    workspaceIdentity,
+                  }}
+                  onOpenSettings={openRemoteControlSettings}
+                />
+              ) : undefined
+            }
             onUsageClick={openSettingsTab}
             onUpgradeClick={handleOpenCodingPlanUpgrade}
             onLogin={onLogin}
