@@ -252,7 +252,7 @@
     "apps/lcode-cli/packages/tui/package.json": "51decf6f5c4286c694c4b15ef0ca16129dee0283951b4929c43e0ed9aa12f468",
     "apps/lcode-cli/tools/prompt-trajectory/package.json": "6ab89bba2dba20f07cf913e34acb4bda59d9563d196995a25f867f34281df02b",
     "apps/lcode-cli/tools/typescript/package.json": "2f33883fe33cc9d878a3d6d78a0d262eb0db134fc02042ed7563c3dc50d797f7",
-    "package.json": "6fb59594bc9722f93a6cc30a618e2a37692a7b349bdd7f4a3a81f63bb386cabc",
+    "package.json": "4cbffba8a8c9963e55ae935a9d7c5d10376112ee6053861c9551dc1ab411ae14",
     "packages/client/package.json": "6cfcb57428c4728a98b7cf4504d29304cf6e9e547e136f0ab1edcef8f821b452",
     "packages/desktop/package.json": "b68388d3a85da919fbb58ff079ee0f0b426eaef17fe6f35b8d3553f6065ba826",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
@@ -1480,7 +1480,7 @@
     "packages/ui/src/components/ai-elements/tool.tsx": "a563de75d2a1945463981a415f591ac6c09885bf45823946dd03c963dc206e9c",
     "packages/ui/src/components/ai-elements/toolbar.tsx": "aa52a585ca7fd4e26357a037f8109abc31b0579eae4c553bc05b5f6ed32731f2",
     "packages/ui/src/components/ui/accordion.tsx": "4a72f846da91bdeac1dbba849572132b98c8b96f0b03e611f46d0f3e41791947",
-    "packages/ui/src/components/ui/alert-dialog.tsx": "3dd074ddbfcefdad6a6c231b6cf055bbcd5fce40bf8feecc6950b60d9ab53b81",
+    "packages/ui/src/components/ui/alert-dialog.tsx": "c3306b00d84fb85c6be27ed3e7f5cfae3b54879a5b56d88c3c743f33a0fdfdc9",
     "packages/ui/src/components/ui/alert.tsx": "5f29338fc9b767994b39849edeac71ee91dc1fd4a875252b40c5cf9001b1c0a7",
     "packages/ui/src/components/ui/avatar.tsx": "5d87a3860936de1795099bc995ca64b2d5a9179caa74385b4e5de5fd3ee59725",
     "packages/ui/src/components/ui/badge.tsx": "d4966b2604bc7acf38bd3aecc899b08a6aec8b62552f680d4e1fd4616d2198b9",
@@ -20812,7 +20812,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/alert-dialog.tsx",
-          "sha256": "bbb24197b2b9e1a6dd4f5f600ef416d9127a66ca0cc7078ddd8ab6ced3a8eab8"
+          "sha256": "c3306b00d84fb85c6be27ed3e7f5cfae3b54879a5b56d88c3c743f33a0fdfdc9"
         },
         {
           "file": "packages/ui/src/components/ui/alert.tsx",
