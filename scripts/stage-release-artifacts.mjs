@@ -16,11 +16,15 @@ const linuxPackageArchitectures = {
 };
 // electron-builder 在 dist 生成的更新清单（内含安装包 sha512）是应用内更新服务的唯一
 // 校验和来源；按 latest-<os>-<arch>.yml 重命名收集，供 cfworker-remote 清单服务代理。
+// 已知上游行为（v3.16.2 CI 实证）：electron-builder 只为 Linux x64 生成 latest-linux.yml，
+// arm64 构建不产出清单——因此 linux x64 的清单必收，arm64 的清单存在才收集（可选）。
 const updateManifests = {
   mac: "latest-mac.yml",
   win: "latest.yml",
   linux: "latest-linux.yml",
 };
+/** verify-collected 允许存在但不强制的清单（目前仅 linux arm64：上游不生成）。 */
+const optionalManifestTargets = new Set(["latest-linux-arm64.yml"]);
 
 export function expectedArtifactNames(version, os, arch) {
   if (!formats[os] || !architectures.includes(arch)) {
@@ -30,6 +34,10 @@ export function expectedArtifactNames(version, os, arch) {
     const artifactArch = os === "linux" ? linuxPackageArchitectures[arch][extension] : arch;
     return `LCode-${version}-${os}-${artifactArch}.${extension}`;
   });
+  if (os === "linux" && arch === "arm64") {
+    // 上游不为 Linux arm64 生成更新清单；该文件收集属可选，不进必需集合。
+    return installers;
+  }
   return [...installers, `latest-${os}-${arch}.yml`];
 }
 
@@ -42,19 +50,25 @@ async function assertNonemptyFile(directory, name) {
 
 export async function stageReleaseArtifacts({ version, os, arch, distDir, outputDir }) {
   const names = expectedArtifactNames(version, os, arch);
-  const installers = names.slice(0, -1);
-  // dist 里的清单源文件名固定为 electron-builder 的 latest*.yml，落盘时重命名为
-  // latest-<os>-<arch>.yml（同一 OS 的 x64/arm64 构建各产出一份 latest.yml，按架构区分）。
   const manifestSource = updateManifests[os];
-  const manifestTarget = names[names.length - 1];
+  const manifestTarget = `latest-${os}-${arch}.yml`;
+  // 安装包先校验（缺失是主错误）；清单源文件名固定为 electron-builder 的 latest*.yml，
+  // 落盘时重命名为 latest-<os>-<arch>.yml（同一 OS 的 x64/arm64 构建各产出一份，按架构区分）。
+  // 已知上游例外：Linux arm64 构建不产出清单——缺席时跳过收集，不失败（可选）。
+  const installers = names.filter((name) => name !== manifestTarget);
   for (const name of installers) await assertNonemptyFile(distDir, name);
-  await assertNonemptyFile(distDir, manifestSource);
+  const hasManifestSource = Boolean(await stat(resolve(distDir, manifestSource)).catch(() => null));
+  if (!hasManifestSource && manifestTarget !== "latest-linux-arm64.yml") {
+    throw new Error(`Missing or empty release artifact: ${manifestSource}`);
+  }
   await mkdir(outputDir, { recursive: true });
   for (const name of installers) {
     await copyFile(resolve(distDir, name), resolve(outputDir, name));
   }
-  await copyFile(resolve(distDir, manifestSource), resolve(outputDir, manifestTarget));
-  return names;
+  if (hasManifestSource) {
+    await copyFile(resolve(distDir, manifestSource), resolve(outputDir, manifestTarget));
+  }
+  return hasManifestSource && !names.includes(manifestTarget) ? [...names, manifestTarget] : names;
 }
 
 export async function verifyCollectedArtifacts({ version, directory }) {
@@ -63,7 +77,9 @@ export async function verifyCollectedArtifacts({ version, directory }) {
   );
   const actual = await readdir(directory);
   const missing = expected.filter((name) => !actual.includes(name));
-  const extra = actual.filter((name) => !expected.includes(name));
+  const extra = actual.filter(
+    (name) => !expected.includes(name) && !optionalManifestTargets.has(name),
+  );
   if (missing.length || extra.length) {
     throw new Error(
       `Invalid release assets: missing [${missing.join(", ")}], extra [${extra.join(", ")}]`,

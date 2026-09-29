@@ -50,7 +50,8 @@ test("six native targets get exact architecture and version artifacts", async ()
     ["win", "x64", 2],
     ["win", "arm64", 2],
     ["linux", "x64", 5],
-    ["linux", "arm64", 5],
+    // 上游 electron-builder 不为 Linux arm64 生成更新清单，必需集合只有安装包。
+    ["linux", "arm64", 4],
   ];
   for (const [os, arch, count] of targets) {
     assert.equal(expectedArtifactNames("3.14.2", os, arch).length, count);
@@ -67,7 +68,6 @@ test("six native targets get exact architecture and version artifacts", async ()
     "LCode-3.14.2-linux-arm64.deb",
     "LCode-3.14.2-linux-aarch64.rpm",
     "LCode-3.14.2-linux-aarch64.pkg.tar.zst",
-    "latest-linux-arm64.yml",
   ]);
   assert.deepEqual(expectedArtifactNames("3.14.2", "win", "x64"), [
     "LCode-3.14.2-win-x64.exe",
@@ -132,7 +132,15 @@ test("Linux staging requires each native package name for its target", async () 
         distDir,
         outputDir,
       });
-      assert.deepEqual(staged, expectedArtifactNames("3.14.2", "linux", arch));
+      // x64 必需清单随集合返回；arm64 上游无清单，仅在源文件存在时可选附带。
+      if (arch === "x64") {
+        assert.deepEqual(staged, expectedArtifactNames("3.14.2", "linux", arch));
+      } else {
+        assert.deepEqual(staged, [
+          ...expectedArtifactNames("3.14.2", "linux", arch),
+          "latest-linux-arm64.yml",
+        ]);
+      }
       assert.deepEqual((await readdir(outputDir)).sort(), staged.toSorted());
     }
     await rm(join(distDir, "LCode-3.14.2-linux-x86_64.AppImage"));
@@ -361,7 +369,11 @@ test("release rejects missing or unexpected platform installers", async () => {
         }
       }
     }
-    assert.equal((await verifyCollectedArtifacts({ version: "3.14.2", directory })).length, 20);
+    // 上游不生成 Linux arm64 清单：可选文件缺席时集合校验通过。
+    assert.equal((await verifyCollectedArtifacts({ version: "3.14.2", directory })).length, 19);
+    // 可选的 arm64 清单存在时同样通过（额外白名单）。
+    await writeFile(join(directory, "latest-linux-arm64.yml"), "optional");
+    assert.equal((await verifyCollectedArtifacts({ version: "3.14.2", directory })).length, 19);
     await writeFile(join(directory, "LCode-3.14.1-win-x64.exe"), "stale");
     await assert.rejects(
       verifyCollectedArtifacts({ version: "3.14.2", directory }),

@@ -17,6 +17,9 @@
    electron-builder 在 dist 生成的更新清单（Windows `latest.yml`、macOS `latest-mac.yml`、
    Linux `latest-linux.yml`，内含安装包 sha512）是应用内更新服务的唯一校验和来源：
    staging 脚本按 `latest-<os>-<arch>.yml` 重命名收集并上传到 Release，缺失即失败。
+   已知上游例外（2026-09-29 v3.16.2 CI 实证）：electron-builder 只为 Linux x64 生成
+   清单，arm64 构建不产出——`latest-linux-arm64.yml` 属可选收集，存在则上传、缺席不失败
+   （Worker 对 `linux-aarch64` 按契约 404，arm64 Linux 与既有行为一致走手动更新）。
 4. 每个构建只上传目标架构、目标版本的安装包与对应更新清单；缺任何目标文件立即失败。
    仅当六个目标全部成功时才进入 GitHub Release job。Release job 必须先验证
    `THIRD-PARTY-NOTICES.md` 与 inventory 输入新鲜度，再要求当前 `reviewRequired`
@@ -63,7 +66,7 @@ sequenceDiagram
   Git->>Matrix: checkout tag，核对 package.json.version
   Matrix->>Matrix: 原生构建 + 校验版本及架构 + 上传临时 artifact
   Matrix-->>Release: 全部成功后下载六组安装包
-  Release->>Release: 校验 14 个安装包、6 份更新清单与许可材料基线
+  Release->>Release: 校验 14 个安装包、更新清单与许可材料基线
   Release->>Release: 创建/更新同名 tag 资产并公开发布
 ```
 
@@ -79,8 +82,8 @@ sequenceDiagram
   不参与该输入哈希，恢复已提交 lockfile 后再跑完整 release contract。测试必须证明 workflow
   顺序不会因 Linux 的 pnpm lockfile 重写而误报过期。
 - 当前材料复核项与显式 release baseline 完全一致时，`v<package version>` tag 在六目标
-  成功后无需人工步骤，自动创建或更新同名 GitHub Release、上传全部 14 个安装包与 6 份
-  更新清单并公开。
+  成功后无需人工步骤，自动创建或更新同名 GitHub Release、上传全部 14 个安装包与 5~6 份
+  更新清单（Linux arm64 上游不生成，缺席不失败）并公开。
 - `node scripts/licenses.mjs check --strict` 仍保留“零未解决项”的更强人工门禁；自动发布的
   baseline-aware 校验不得改变它，也不得输出“许可完整”的结论。
 - 本地构建脚本版本元数据、安装包文件名、Release tag 一致。
