@@ -1,4 +1,3 @@
-import { CodingPlanEntryButton } from "@/settings/CodingPlanEntryButton.js";
 import { Loader2Icon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
