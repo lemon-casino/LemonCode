@@ -177,7 +177,15 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
             </>
           ) : (
             // 无账号体系时头像写死为品牌 L 徽标，与左上角品牌一致（app-logo.svg 自带配色）。
-            <img src={appLogoUrl} alt="LCode" className="size-full select-none" draggable={false} />
+            // v12 图案是满幅方形构图：圆形裁切 + 内缩，避免方角顶满头像位。
+            <span className="flex size-full items-center justify-center overflow-hidden rounded-full">
+              <img
+                src={appLogoUrl}
+                alt="LCode"
+                className="size-[86%] select-none"
+                draggable={false}
+              />
+            </span>
           )}
         </AvatarFallback>
       </Avatar>
