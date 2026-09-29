@@ -252,7 +252,7 @@
     "apps/lcode-cli/packages/tui/package.json": "51decf6f5c4286c694c4b15ef0ca16129dee0283951b4929c43e0ed9aa12f468",
     "apps/lcode-cli/tools/prompt-trajectory/package.json": "6ab89bba2dba20f07cf913e34acb4bda59d9563d196995a25f867f34281df02b",
     "apps/lcode-cli/tools/typescript/package.json": "2f33883fe33cc9d878a3d6d78a0d262eb0db134fc02042ed7563c3dc50d797f7",
-    "package.json": "e47a930a80187601382dfaa565463a95105f3f107aca853f606874f7b928047a",
+    "package.json": "a6a0e3f7a16eb71cbc31b0fea890d3b7d7f72ddd7cf8b95dee7020b720d0da07",
     "packages/client/package.json": "6cfcb57428c4728a98b7cf4504d29304cf6e9e547e136f0ab1edcef8f821b452",
     "packages/desktop/package.json": "b68388d3a85da919fbb58ff079ee0f0b426eaef17fe6f35b8d3553f6065ba826",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
@@ -1480,7 +1480,8 @@
     "packages/ui/src/components/ai-elements/tool.tsx": "a563de75d2a1945463981a415f591ac6c09885bf45823946dd03c963dc206e9c",
     "packages/ui/src/components/ai-elements/toolbar.tsx": "aa52a585ca7fd4e26357a037f8109abc31b0579eae4c553bc05b5f6ed32731f2",
     "packages/ui/src/components/ui/accordion.tsx": "4a72f846da91bdeac1dbba849572132b98c8b96f0b03e611f46d0f3e41791947",
-    "packages/ui/src/components/ui/alert-dialog.tsx": "c3306b00d84fb85c6be27ed3e7f5cfae3b54879a5b56d88c3c743f33a0fdfdc9",
+    "packages/ui/src/components/ui/alert-dialog-layering.test.ts": "142a27fa7e29fc221bcb293ee12a49481412a3d711ce2996744ca2a573f01c6d",
+    "packages/ui/src/components/ui/alert-dialog.tsx": "47feb2654239ae2a7d650b8e78896cfe30d6020f77f63fca2f87a6aa0c0b15c8",
     "packages/ui/src/components/ui/alert.tsx": "5f29338fc9b767994b39849edeac71ee91dc1fd4a875252b40c5cf9001b1c0a7",
     "packages/ui/src/components/ui/avatar.tsx": "5d87a3860936de1795099bc995ca64b2d5a9179caa74385b4e5de5fd3ee59725",
     "packages/ui/src/components/ui/badge.tsx": "d4966b2604bc7acf38bd3aecc899b08a6aec8b62552f680d4e1fd4616d2198b9",
@@ -20811,8 +20812,12 @@
           "sha256": "7491484a7866cebb34653bfe579029a66372ad865eb4663416d55a36139110e2"
         },
         {
+          "file": "packages/ui/src/components/ui/alert-dialog-layering.test.ts",
+          "sha256": "142a27fa7e29fc221bcb293ee12a49481412a3d711ce2996744ca2a573f01c6d"
+        },
+        {
           "file": "packages/ui/src/components/ui/alert-dialog.tsx",
-          "sha256": "c3306b00d84fb85c6be27ed3e7f5cfae3b54879a5b56d88c3c743f33a0fdfdc9"
+          "sha256": "47feb2654239ae2a7d650b8e78896cfe30d6020f77f63fca2f87a6aa0c0b15c8"
         },
         {
           "file": "packages/ui/src/components/ui/alert.tsx",
