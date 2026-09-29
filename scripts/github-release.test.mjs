@@ -6,6 +6,7 @@ import { join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
+import "./github-actions-environment.test.mjs";
 import "./release-artifacts.test.mjs";
 import { verifyReleaseVersion } from "./verify-release-version.mjs";
 import {

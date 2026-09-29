@@ -6,9 +6,15 @@
    `3.14.3`；CLI 子项目的独立版本不随桌面版本改写。正式 tag 使用 `v<version>`。
 2. 每次推送 `main` 构建六种本机目标：macOS/Windows/Linux 的 x64 与 arm64。
    分支构建只保留 Actions 构建产物；`v*` tag 的构建必须先验证 tag 和
-   `package.json` 版本完全一致，禁止把旧源码打成新版本。
+   `package.json` 版本完全一致，禁止把旧源码打成新版本。Windows arm64 固定使用
+   `windows-11-vs2026-arm`，不依赖 `windows-11-arm` 在迁移窗口内漂移到不同 Visual Studio
+   镜像。
 3. 发行矩阵复用 `pnpm bundle:desktop -- --os <os> --arch <arch>`。所有 job 使用
-   `mise.toml` 指定的 Node/pnpm 版本。Linux x64 必须在依赖安装前用无第三方依赖的校验
+   `mise.toml` 指定的 Node/pnpm 版本。workflow 内由 JavaScript 实现的 GitHub Actions 必须
+   使用声明 `node24` runtime 的主版本：`actions/checkout@v7`、`actions/setup-node@v7`、
+   `actions/upload-artifact@v7`、`actions/download-artifact@v8` 与 `pnpm/action-setup@v6`；
+   不得依赖 runner 将 Node 20 action 强制提升到 Node 24 的兼容模式。Linux x64 必须在依赖
+   安装前用无第三方依赖的校验
    针对 checkout 中已提交的 `pnpm-lock.yaml` 与许可清单执行 NOTICE 基线验证；随后才以
    `pnpm install --frozen-lockfile` 安装依赖。平台安装器若临时改写工作区 lockfile，workflow
    必须先打印该 diff，再把这个单一输入恢复为已验证的 `HEAD` 内容，最后运行完整
@@ -26,6 +32,11 @@
    arm64 清单，则直接采用上游清单，不重复维护第二份内容。
 4. 每个构建只上传目标架构、目标版本的安装包与对应更新清单；缺任何目标文件立即失败。
    仅当六个目标全部成功时才进入 GitHub Release job。Release job 必须先验证
+   自己的运行环境：它是与平台构建隔离的独立 job，不得假定继承 `build` 的
+   `node_modules`。凡发布校验脚本直接导入工作区依赖（例如 `yaml`），必须先安装仓库锁定
+   的 pnpm，再使用 committed `pnpm-lock.yaml` 执行
+   `pnpm install --frozen-lockfile --ignore-scripts`；安装失败时不得进入产物校验、上传或公开
+   Release。依赖就绪后再验证
    `THIRD-PARTY-NOTICES.md` 与 inventory 输入新鲜度，再要求当前 `reviewRequired`
    与 `third-party/release-review-baseline.json` 中显式登记的已知未解决项逐项一致；
    新增、删除、重复、理由变化或基线损坏都立即失败。该基线只是自动发布接受的
@@ -149,6 +160,12 @@ sequenceDiagram
   manifest 的 SHA-512 为准。
 - 六个 matrix target 的临时 artifact 均包含自己的架构清单；测试逐一解析六份清单，断言
   文件集合、原生架构后缀、size 与 SHA-512 都只来自本 target 的最终安装包。
+- 发布汇总 job 在运行 `stage-release-artifacts.mjs --verify-collected` 前已经配置固定版本 pnpm，
+  并完成 frozen、无生命周期脚本的依赖安装；独立 job 的空 `node_modules` 不会再导致
+  `yaml` 解析器缺失。
+- workflow 中 checkout、Node/pnpm setup 与 artifact 上传/下载 action 均使用 Node 24 runtime
+  主版本，日志不再出现“Node.js 20 is deprecated”兼容警告。
+- Windows arm64 使用明确的 Visual Studio 2026 runner 标签，不再触发默认镜像迁移提示。
 - Windows x64/arm64 只能从各自清单选中 EXE；macOS x64/arm64 只能选中 DMG；Linux 两种
   架构按当前 updater 类型分别只能选中 AppImage、DEB、RPM 或 Pacman 包。六类选择都要求
   size/SHA-512，错格式、缺字段或非法值不进入下载；macOS 下载字节不匹配时不进入 ready，
