@@ -1961,6 +1961,7 @@ app.whenReady().then(async () => {
   // 启动自动更新检查（后台执行，不阻塞主界面）
   // Preview 身份无论连接哪个后端都不自动更新：stable feed 上只分发正式 LCode 安装包，
   // 不向 Preview 渠道提供更新。
+  // 更新源固定走 cfworker-remote 更新清单服务（code.lemon.vin），不再跟随产品 endpoint。
   void initAutoUpdater({
     enabled: LCODE_PRODUCT_FLAVOR === "production",
     onBeforeQuitAndInstall: async () => {
@@ -1973,7 +1974,6 @@ app.whenReady().then(async () => {
     settingService: mainSettingService,
     locale: currentApplicationLocale,
     deviceMid,
-    resolveEndpointOrigin: resolveCurrentLCodeEndpointOrigin,
     updateFeedSource: resolveUpdateFeedSourceFromStartupConfig({
       argv: process.argv,
       env: process.env,

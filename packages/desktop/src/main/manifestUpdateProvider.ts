@@ -1,7 +1,7 @@
 import { posix } from "node:path";
 import type { CustomPublishOptions, PackageFileInfo } from "builder-util-runtime";
 import {
-  DEFAULT_LCODE_ENDPOINT_ORIGIN,
+  LCODE_UPDATE_SERVICE_ORIGIN,
   normalizeLCodeEndpointOrigin,
   type ElectronReleaseChannel,
 } from "@lcode/shared";
@@ -29,7 +29,6 @@ interface ManifestUpdateProviderOptions extends CustomPublishOptions {
   deviceMid?: string;
   releasePlatform?: string;
   releaseChannel?: ElectronReleaseChannel;
-  resolveEndpointOrigin?: () => string | Promise<string>;
   resolveReleaseChannel?: () => ElectronReleaseChannel | Promise<ElectronReleaseChannel>;
 }
 
@@ -182,7 +181,7 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
   private readonly options: ManifestUpdateProviderOptions;
   private readonly releasePlatform: string;
   private readonly linuxExtensions: readonly string[] | null;
-  private resolveBaseUrl = new URL(DEFAULT_LCODE_ENDPOINT_ORIGIN);
+  private resolveBaseUrl = new URL(LCODE_UPDATE_SERVICE_ORIGIN);
 
   constructor(
     options: ManifestUpdateProviderOptions,
@@ -194,7 +193,7 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
     this.linuxExtensions = getLinuxUpdateExtensions(updater);
     this.releasePlatform = options.releasePlatform?.trim() || getElectronReleasePlatform();
     this.resolveBaseUrl = new URL(
-      normalizeLCodeEndpointOrigin(options.endpointOrigin ?? DEFAULT_LCODE_ENDPOINT_ORIGIN),
+      normalizeLCodeEndpointOrigin(options.endpointOrigin ?? LCODE_UPDATE_SERVICE_ORIGIN),
     );
   }
 
@@ -244,10 +243,9 @@ export class ManifestUpdateProvider extends Provider<UpdateInfo> {
   }
 
   private async resolveEndpointOrigin(): Promise<string> {
-    const resolved =
-      (await this.options.resolveEndpointOrigin?.()) ??
-      this.options.endpointOrigin ??
-      DEFAULT_LCODE_ENDPOINT_ORIGIN;
+    // 更新源固定为 cfworker-remote 更新清单服务；不再解析产品服务端 endpoint
+    // （specs/github-actions-desktop-release.md 规则 6）。
+    const resolved = this.options.endpointOrigin ?? LCODE_UPDATE_SERVICE_ORIGIN;
     return normalizeLCodeEndpointOrigin(resolved);
   }
 

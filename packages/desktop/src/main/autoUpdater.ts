@@ -2,12 +2,11 @@
 import type { ISettingService } from "@lcode/services";
 import {
   DEFAULT_LOCALE,
-  DEFAULT_LCODE_ENDPOINT_ORIGIN,
   desktopMenuMessageIds,
   formatDesktopMenuMessage,
   getDesktopMenuMessage,
+  LCODE_UPDATE_SERVICE_ORIGIN,
   PlatformChannels,
-  resolveRuntimeLCodeEndpointOrigin,
   LCODE_VERSION,
   type ElectronReleaseChannel,
   type Locale,
@@ -115,7 +114,6 @@ interface InitAutoUpdaterOptions {
   locale?: Locale;
   updateFeedSource?: RuntimeUpdateFeedSource;
   deviceMid?: string;
-  resolveEndpointOrigin?: () => string | Promise<string>;
 }
 
 let quitAndInstallInFlight = false;
@@ -756,12 +754,13 @@ function applyManifestUpdateProvider(options: InitAutoUpdaterOptions): void {
   autoUpdater.setFeedURL({
     provider: "custom",
     updateProvider: ManifestUpdateProvider,
-    endpointOrigin: DEFAULT_LCODE_ENDPOINT_ORIGIN,
+    // 更新源固定为 cfworker-remote 提供的更新清单服务（契约 cfworker-remote/PROTOCOL.md §1.3，
+    // specs/github-actions-desktop-release.md 规则 6）；不再解析产品服务端 endpoint，
+    // 清单与安装包都由该域名代理回 GitHub Release。
+    endpointOrigin: LCODE_UPDATE_SERVICE_ORIGIN,
     ...(manifestUrl ? { manifestUrl } : {}),
     releasePlatform: getElectronReleasePlatform(),
     deviceMid: options.deviceMid,
-    resolveEndpointOrigin:
-      options.resolveEndpointOrigin ?? (() => resolveRuntimeLCodeEndpointOrigin(process.env)),
     resolveReleaseChannel: async () => {
       availableUpdateChannel = await resolveUpdateReleaseChannel(options.settingService);
       return availableUpdateChannel;
@@ -770,7 +769,7 @@ function applyManifestUpdateProvider(options: InitAutoUpdaterOptions): void {
   logger.info(
     manifestUrl
       ? `[auto-update] service manifest provider applied platform=${getElectronReleasePlatform()} manifestUrl=${redactUpdateFeedUrlForLog(manifestUrl)}`
-      : `[auto-update] service manifest provider applied platform=${getElectronReleasePlatform()}`,
+      : `[auto-update] service manifest provider applied platform=${getElectronReleasePlatform()} updateOrigin=${LCODE_UPDATE_SERVICE_ORIGIN}`,
   );
 }
 

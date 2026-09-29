@@ -55,6 +55,7 @@
 - 端点:`GET /`(移动端 SPA)、`GET /p/:roomId`(配对深链,同一 SPA)、`WS /connect/host`(桌面,凭接入 Key)、`WS /connect/client`(手机,凭一次性 capability 或设备凭据)。可选 `POST /api/health` 供设置页「测试连接」。
 - DO 内状态仅限:roomId、capHash、过期时间、已配对设备凭据哈希(含设备名)、双向 socket 引用、失败计数。TTL 到期与房间关闭即清理;不落 KV/R2 的业务数据。
 - 透传规则:授权前仅允许配对控制帧;授权后所有帧双向透传,不解析、不缓存消息内容;心跳由两端各自与 DO 维持,DO 负责断连检测与对端通知。
+- 桌面更新清单服务(2026-09-29 追加,契约见 cfworker-remote/PROTOCOL.md 更新章节):`GET /api/v1/releases/electron/manifest?platform=<os>-<arch>&channel=<1|3>` 按 stable/preview 通道代理 GitHub Release 上的 `latest-<os>-<arch>.yml` 并把文件 URL 改写到 `GET /api/v1/releases/download/<文件名>`(302 回 GitHub 资产);无状态、带短缓存,不改动版本与校验和。桌面端自动更新源随之从产品服务端切换到该域名(`https://code.lemon.vin`),发布 specs/github-actions-desktop-release.md 同步要求 Release 上传 `latest-<os>-<arch>.yml`。
 
 ## 桌面端改动
 

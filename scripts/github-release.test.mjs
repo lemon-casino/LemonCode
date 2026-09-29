@@ -45,12 +45,12 @@ test("release tag must match the packaged version", () => {
 
 test("six native targets get exact architecture and version artifacts", async () => {
   const targets = [
-    ["mac", "x64", 2],
-    ["mac", "arm64", 2],
-    ["win", "x64", 1],
-    ["win", "arm64", 1],
-    ["linux", "x64", 4],
-    ["linux", "arm64", 4],
+    ["mac", "x64", 3],
+    ["mac", "arm64", 3],
+    ["win", "x64", 2],
+    ["win", "arm64", 2],
+    ["linux", "x64", 5],
+    ["linux", "arm64", 5],
   ];
   for (const [os, arch, count] of targets) {
     assert.equal(expectedArtifactNames("3.14.2", os, arch).length, count);
@@ -60,12 +60,18 @@ test("six native targets get exact architecture and version artifacts", async ()
     "LCode-3.14.2-linux-amd64.deb",
     "LCode-3.14.2-linux-x86_64.rpm",
     "LCode-3.14.2-linux-x64.pkg.tar.zst",
+    "latest-linux-x64.yml",
   ]);
   assert.deepEqual(expectedArtifactNames("3.14.2", "linux", "arm64"), [
     "LCode-3.14.2-linux-arm64.AppImage",
     "LCode-3.14.2-linux-arm64.deb",
     "LCode-3.14.2-linux-aarch64.rpm",
     "LCode-3.14.2-linux-aarch64.pkg.tar.zst",
+    "latest-linux-arm64.yml",
+  ]);
+  assert.deepEqual(expectedArtifactNames("3.14.2", "win", "x64"), [
+    "LCode-3.14.2-win-x64.exe",
+    "latest-win-x64.yml",
   ]);
 
   const directory = await mkdtemp(join(tmpdir(), "lcode-release-assets-"));
@@ -76,6 +82,8 @@ test("six native targets get exact architecture and version artifacts", async ()
     for (const name of expectedArtifactNames("3.14.2", "mac", "arm64")) {
       await writeFile(join(distDir, name), name);
     }
+    // dist 里的清单源文件名固定为 electron-builder 的 latest*.yml，staging 时重命名。
+    await writeFile(join(distDir, "latest-mac.yml"), "latest-mac");
     await writeFile(join(distDir, "LCode-3.14.1-mac-arm64.dmg"), "old");
     await writeFile(join(distDir, "LCode-3.14.2-mac-x64.dmg"), "wrong arch");
     const names = await stageReleaseArtifacts({
@@ -87,6 +95,8 @@ test("six native targets get exact architecture and version artifacts", async ()
     });
     assert.deepEqual(names, expectedArtifactNames("3.14.2", "mac", "arm64"));
     assert.deepEqual(await readFile(join(outputDir, names[0]), "utf8"), names[0]);
+    // 更新清单按 latest-<os>-<arch>.yml 重命名落位。
+    assert.equal(await readFile(join(outputDir, "latest-mac-arm64.yml"), "utf8"), "latest-mac");
     await assert.rejects(
       stageReleaseArtifacts({ version: "3.14.2", os: "win", arch: "x64", distDir, outputDir }),
       /missing.*win-x64/iu,
@@ -110,6 +120,7 @@ test("Linux staging requires each native package name for its target", async () 
       "LCode-3.14.2-linux-arm64.deb",
       "LCode-3.14.2-linux-aarch64.rpm",
       "LCode-3.14.2-linux-aarch64.pkg.tar.zst",
+      "latest-linux.yml",
     ];
     for (const name of names) await writeFile(join(distDir, name), name);
     for (const arch of ["x64", "arm64"]) {
@@ -350,7 +361,7 @@ test("release rejects missing or unexpected platform installers", async () => {
         }
       }
     }
-    assert.equal((await verifyCollectedArtifacts({ version: "3.14.2", directory })).length, 14);
+    assert.equal((await verifyCollectedArtifacts({ version: "3.14.2", directory })).length, 20);
     await writeFile(join(directory, "LCode-3.14.1-win-x64.exe"), "stale");
     await assert.rejects(
       verifyCollectedArtifacts({ version: "3.14.2", directory }),

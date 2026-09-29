@@ -14,15 +14,23 @@ const linuxPackageArchitectures = {
   x64: { AppImage: "x86_64", deb: "amd64", rpm: "x86_64", "pkg.tar.zst": "x64" },
   arm64: { AppImage: "arm64", deb: "arm64", rpm: "aarch64", "pkg.tar.zst": "aarch64" },
 };
+// electron-builder 在 dist 生成的更新清单（内含安装包 sha512）是应用内更新服务的唯一
+// 校验和来源；按 latest-<os>-<arch>.yml 重命名收集，供 cfworker-remote 清单服务代理。
+const updateManifests = {
+  mac: "latest-mac.yml",
+  win: "latest.yml",
+  linux: "latest-linux.yml",
+};
 
 export function expectedArtifactNames(version, os, arch) {
   if (!formats[os] || !architectures.includes(arch)) {
     throw new Error(`Unsupported desktop target: ${os}-${arch}`);
   }
-  return formats[os].map((extension) => {
+  const installers = formats[os].map((extension) => {
     const artifactArch = os === "linux" ? linuxPackageArchitectures[arch][extension] : arch;
     return `LCode-${version}-${os}-${artifactArch}.${extension}`;
   });
+  return [...installers, `latest-${os}-${arch}.yml`];
 }
 
 async function assertNonemptyFile(directory, name) {
@@ -34,11 +42,18 @@ async function assertNonemptyFile(directory, name) {
 
 export async function stageReleaseArtifacts({ version, os, arch, distDir, outputDir }) {
   const names = expectedArtifactNames(version, os, arch);
-  for (const name of names) await assertNonemptyFile(distDir, name);
+  const installers = names.slice(0, -1);
+  // dist 里的清单源文件名固定为 electron-builder 的 latest*.yml，落盘时重命名为
+  // latest-<os>-<arch>.yml（同一 OS 的 x64/arm64 构建各产出一份 latest.yml，按架构区分）。
+  const manifestSource = updateManifests[os];
+  const manifestTarget = names[names.length - 1];
+  for (const name of installers) await assertNonemptyFile(distDir, name);
+  await assertNonemptyFile(distDir, manifestSource);
   await mkdir(outputDir, { recursive: true });
-  for (const name of names) {
+  for (const name of installers) {
     await copyFile(resolve(distDir, name), resolve(outputDir, name));
   }
+  await copyFile(resolve(distDir, manifestSource), resolve(outputDir, manifestTarget));
   return names;
 }
 

@@ -14,7 +14,10 @@
    必须先打印该 diff，再把这个单一输入恢复为已验证的 `HEAD` 内容，最后运行完整
    `pnpm test:release`。临时改写不得改变“提交输入是否新鲜”的结论，也不得靠重生成 NOTICE
    掩盖。构建保持 production 产品身份，并跳过不属于桌面安装包的远端预构建。
-4. 每个构建只上传目标架构、目标版本的安装包；缺任何目标文件立即失败。
+   electron-builder 在 dist 生成的更新清单（Windows `latest.yml`、macOS `latest-mac.yml`、
+   Linux `latest-linux.yml`，内含安装包 sha512）是应用内更新服务的唯一校验和来源：
+   staging 脚本按 `latest-<os>-<arch>.yml` 重命名收集并上传到 Release，缺失即失败。
+4. 每个构建只上传目标架构、目标版本的安装包与对应更新清单；缺任何目标文件立即失败。
    仅当六个目标全部成功时才进入 GitHub Release job。Release job 必须先验证
    `THIRD-PARTY-NOTICES.md` 与 inventory 输入新鲜度，再要求当前 `reviewRequired`
    与 `third-party/release-review-baseline.json` 中显式登记的已知未解决项逐项一致；
@@ -29,8 +32,11 @@
    `GITHUB_TOKEN`，不借用开发者本地凭据。tag 推送由维护者在版本文件、许可证清单
    和验证提交后执行，不由 `GITHUB_TOKEN` 在工作流内自推 tag。
 6. 无 Apple 签名和公证凭据时，macOS 构建必须标明未签名；不得宣称 Gatekeeper
-   可直接通过。保持 electron-builder 原有 generic 更新服务配置，GitHub Release
-   是下载安装包的分发面，不冒充应用内自动更新源。
+   可直接通过。应用内自动更新源为 cfworker-remote（`https://code.lemon.vin`）提供的
+   更新清单服务：Worker 按 stable/preview 通道代理 GitHub Release 上的
+   `latest-<os>-<arch>.yml`（改写文件 URL 指向自身下载代理），安装包经 302 回
+   GitHub Release 资产；GitHub Release 仍是安装包与清单的唯一来源，Worker 无状态
+   不落存储，不修改清单里的版本与校验和。
 7. Electron runtime 下载若在解包阶段精确表现为 `ENOENT` 且缺少
    `LICENSE.electron.txt`，视为下载/解包损坏而非源码错误：打包脚本最多在既有重试预算内
    切换一次官方 Electron runtime mirror 后重试。其它 afterExtract/NOTICE 错误不得重试，
@@ -57,7 +63,7 @@ sequenceDiagram
   Git->>Matrix: checkout tag，核对 package.json.version
   Matrix->>Matrix: 原生构建 + 校验版本及架构 + 上传临时 artifact
   Matrix-->>Release: 全部成功后下载六组安装包
-  Release->>Release: 校验 14 个安装包与许可材料基线
+  Release->>Release: 校验 14 个安装包、6 份更新清单与许可材料基线
   Release->>Release: 创建/更新同名 tag 资产并公开发布
 ```
 
@@ -73,7 +79,8 @@ sequenceDiagram
   不参与该输入哈希，恢复已提交 lockfile 后再跑完整 release contract。测试必须证明 workflow
   顺序不会因 Linux 的 pnpm lockfile 重写而误报过期。
 - 当前材料复核项与显式 release baseline 完全一致时，`v<package version>` tag 在六目标
-  成功后无需人工步骤，自动创建或更新同名 GitHub Release、上传全部 14 个安装包并公开。
+  成功后无需人工步骤，自动创建或更新同名 GitHub Release、上传全部 14 个安装包与 6 份
+  更新清单并公开。
 - `node scripts/licenses.mjs check --strict` 仍保留“零未解决项”的更强人工门禁；自动发布的
   baseline-aware 校验不得改变它，也不得输出“许可完整”的结论。
 - 本地构建脚本版本元数据、安装包文件名、Release tag 一致。

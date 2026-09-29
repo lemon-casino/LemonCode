@@ -5,6 +5,8 @@ export const DEFAULT_BIGMODEL_API_ORIGIN = "https://bigmodel.cn";
 export const DEFAULT_ZAI_OAUTH_ORIGIN = "https://chat.z.ai";
 export const DEFAULT_ZAI_BUSINESS_BASE_URL = "https://api.z.ai";
 export const DEFAULT_ZAI_OAUTH_CLIENT_ID = "client_P8X5CMWmlaRO9gyO-KSqtg";
+/** 应用内自动更新源:cfworker-remote 提供的更新清单服务(契约 cfworker-remote/PROTOCOL.md §1.3)。 */
+export const LCODE_UPDATE_SERVICE_ORIGIN = "https://code.lemon.vin";
 
 // 构建仅注入公开链接；Node 调用方仍可显式传 env，避免读取另一进程的配置。
 declare const __LCODE_ENDPOINT_ENV__: Record<string, string | undefined> | undefined;
