@@ -51,8 +51,6 @@ interface SettingsSectionDefinition {
   contentTitleId?: string;
   titleBadgeId?: string;
   groupId: SettingsSectionGroupId;
-  /** 不进设置侧栏导航，但保留分区注册与直达意图解析（入口在别处，如 footer 快捷入口）。 */
-  navHidden?: boolean;
 }
 
 const BASE_SETTINGS_SECTION_GROUPS: Array<{
@@ -151,14 +149,12 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
   },
   // 远程控制紧跟「电脑控制」：同为“控制这台桌面”的入口（方向相反——手机镜像桌面），
   // 依赖桌面 Main 的配对/出站连接，仅桌面端可见。
-  // 入口在侧栏 footer（「连接使用」与设置按钮之间）；分区保留注册供直达意图与
-  // 上次停留分区解析，但不再进设置侧栏导航（specs/mobile-remote-control-cf-workers.md）。
+  // 与侧栏 footer 快捷入口并存；两处都落到同一 Main 配置与配对状态事实源。
   {
     id: "remoteControl",
     icon: Smartphone,
     titleId: "settings.remoteControl.title",
     groupId: "basics",
-    navHidden: true,
   },
   // 键盘快捷键紧跟「电脑控制」：同属本机操控/效率配置，收纳在基础设置尾部。
   {
@@ -225,13 +221,9 @@ export function createSettingsPageConfig(options: SettingsPageConfigOptions = {}
     if (section.id === "remoteControl" && !showRemoteControl) return false;
     return isSettingsSectionEnabled(section.id);
   });
-  // settingsSections 保留 navHidden 分区（直达意图、面包屑、上次停留分区解析仍有效）；
-  // 只有侧栏导航分组把它过滤掉。
   const settingsSectionGroups = BASE_SETTINGS_SECTION_GROUPS.map((group) => ({
     ...group,
-    sections: settingsSections.filter(
-      (section) => section.groupId === group.id && !section.navHidden,
-    ),
+    sections: settingsSections.filter((section) => section.groupId === group.id),
   })).filter((group) => group.sections.length > 0);
 
   return { settingsSectionGroups, settingsSections };

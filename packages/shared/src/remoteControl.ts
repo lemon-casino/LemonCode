@@ -6,6 +6,8 @@ import { nonEmptyStringSchema } from "./validation.js";
 
 /** 控制帧协议版本位;每条 socket 的第一个控制帧必须携带 proto:1(PROTOCOL.md §1.2)。 */
 export const REMOTE_CONTROL_PROTO_VERSION = 1;
+/** 官方托管远程控制服务；客户端不得内置该服务的共享接入密钥。 */
+export const DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL = "https://code.lemon.vin";
 /** 配对链接默认有效期 = 房间 TTL(PROTOCOL.md §4.2;不是 hostCapability 的 30s)。 */
 export const DEFAULT_REMOTE_CONTROL_PAIRING_TTL_MS = 300_000;
 /** room.create 携带的已授权设备凭据哈希上限(PROTOCOL.md §4.3.2)。 */
@@ -61,9 +63,7 @@ export const remoteControlRoomCreateFrameSchema = z
 export type RemoteControlRoomCreateFrame = z.infer<typeof remoteControlRoomCreateFrameSchema>;
 
 /** 桌面 → Worker:停止房间;所有 socket 关闭,手机侧 close 4007(§4.3.3)。 */
-export const remoteControlRoomStopFrameSchema = z
-  .object({ type: z.literal("room.stop") })
-  .strict();
+export const remoteControlRoomStopFrameSchema = z.object({ type: z.literal("room.stop") }).strict();
 export type RemoteControlRoomStopFrame = z.infer<typeof remoteControlRoomStopFrameSchema>;
 
 /** 桌面 → Worker:吊销设备;若正在桥接立即 close 4007 + bridge.detached(§4.3.3)。 */
@@ -263,6 +263,11 @@ export function normalizeRemoteControlWorkerBaseUrl(rawUrl: string): string | nu
     return parsed.origin;
   }
   return null;
+}
+
+/** 官方托管服务采用每房间 host token + Worker 限速，不使用可提取的客户端共享密钥。 */
+export function isDefaultRemoteControlWorkerBaseUrl(rawUrl: string): boolean {
+  return normalizeRemoteControlWorkerBaseUrl(rawUrl) === DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL;
 }
 
 // ============================================================================

@@ -14,6 +14,10 @@ import { pathToFileURL } from "node:url";
 import { collectRuntimeModuleClosureEntries } from "./runtime-dependency-closure.mjs";
 import { resolveDesktopProductIdentity } from "./desktop-product-identity.mjs";
 import {
+  readPackagedBuildVersion,
+  verifyPackagedProductIdentity,
+} from "./packaged-product-identity.mjs";
+import {
   findDesktopNativePackageViolations,
   parseAsarListWithPackState,
 } from "./desktop-native-package-policy.mjs";
@@ -780,6 +784,16 @@ async function main() {
 
   runTimedSync("bundle:verify-runtime-dependencies", () =>
     verifyPackagedRuntimeDependencies(os, arch),
+  );
+
+  runTimedSync("bundle:verify-product-identity", () =>
+    verifyPackagedProductIdentity({
+      os,
+      arch,
+      distRoot: desktopDistRoot,
+      version: readPackagedBuildVersion(desktopRoot),
+      identity: desktopProductIdentity,
+    }),
   );
 
   const artifactPath = findBuiltArtifact(os, arch);

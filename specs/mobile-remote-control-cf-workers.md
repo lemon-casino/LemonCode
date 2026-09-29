@@ -3,14 +3,14 @@
 ## 目标与边界
 
 1. 社区版自研移动端远程控制:桌面端(本项目构建)与手机之间用 Cloudflare Worker(`cfworker-remote` 仓库,经 GitHub 连接 Workers Builds 自动部署)做**隧道**。桌面端只做出站连接,无需公网 IP/端口转发,任意地点、任意时间可连。
-2. 交互形态对齐官方:提供「远程控制」设置段(2026-09-29 起入口从设置侧栏迁至侧栏 footer 快捷入口,见「桌面端改动」#1);桌面生成二维码或可复制链接,手机扫码/打开链接 → **双方授权** → 手机获得与官方一致的远程控制能力,且**权限与桌面使用者完全对等(镜像)**:桌面能使用的功能,手机同样可以使用,不另做缩减版界面或只读模式;断线后按 web-remote-replayable 恢复。
+2. 交互形态对齐官方:提供「基础设置 → 远程控制」设置段,同时保留侧栏 footer 快捷入口;桌面生成二维码或可复制链接,手机扫码/打开链接 → **双方授权** → 手机获得与官方一致的远程控制能力,且**权限与桌面使用者完全对等(镜像)**:桌面能使用的功能,手机同样可以使用,不另做缩减版界面或只读模式;断线后按 web-remote-replayable 恢复。
 3. Worker 只做鉴权、配对、心跳、桥接转发与房间生命周期管理,**不保存任务队列、快照、消息内容等业务状态**;桌面不为本功能另起 Agent、Local Host 或远程会话,手机 attachment 到已有窗口 Host,复用会话运行时。
 4. v1 明确不做:端到端加密(Worker 以 TLS 终止 + 鉴权转发,可见帧内容);离线推送;多桌面账号体系。
 
 ## 总体架构与所有者
 
 ```text
-┌────────────────────┐  WSS 出站 /connect/host(接入 Key + 房间注册)  ┌────────────────────┐  WSS /connect/client  ┌────────────────┐
+┌────────────────────┐  WSS 出站 /connect/host(每房间 host token)    ┌────────────────────┐  WSS /connect/client  ┌────────────────┐
 │ Desktop Main        │ ────────────────────────────────────────────▶ │ CF Worker           │ ◀─────────────────── │ 手机 Web(PWA) │
 │ (本项目构建)         │ ◀────────────────── 桥接帧(授权后) ─────────── │ cfworker-remote     │ ───────────────────▶ │ 扫码/链接打开    │
 │ 鉴权·配对·attachment │                                               │ DO:房间/桥/凭据哈希  │                      │ replayable 客户端│
@@ -25,6 +25,15 @@
 - **Desktop Main**:出站连接所有者、配对确认所有者、attachment 调度所有者。把手机侧帧泵入窗口 Host 的 attachment port;不承载任务/会话业务状态。
 - **窗口 Host(现有)**:会话运行时唯一所有者;手机作为带 `clientMode=web-remote-replayable` 档位的可信连接接入(v4 连接作用域既有权威面,不新增第二写入路径)。
 - **手机**:replayable 客户端;断线重连与恢复走既有 web-remote-replayable 语义。
+
+### 托管服务认证与多人隔离
+
+- 官方托管地址固定为 `https://code.lemon.vin`;本地未保存 Worker 地址或旧值为空时回填该地址。官方托管服务不要求用户填写接入 Key。
+- **禁止**把官方服务的全局共享 Key 写进源码、GitHub Actions、安装包、混淆字符串或客户端凭据库。客户端可解密/使用的共享秘密都可被提取,不能作为多人服务的安全边界。
+- 每次新建房间由 Desktop Main 独立生成 128-bit `roomId`、256-bit 一次性 capability 与 256-bit `hostToken`;`hostToken` 只放在 host WebSocket header 中,不进入二维码、配对 URL、Renderer、日志或持久化配置。DO 首次 host 接入时原子绑定其哈希,重连必须持同一 token,防止知道 roomId 的其他客户端替换 host。
+- 官方托管 Worker 采用显式 `public-rate-limited` host admission:无共享客户端秘密,按稳定安装 ID 与网络来源两层限速;任一限速 binding 缺失时 fail-closed。自建 Worker 默认仍为 `access-key` 模式,空 Key 拒绝连接。
+- `idFromName(roomId)` 只决定每房间 DO 路由;用户状态、设备凭据、失败计数和 socket 不得进入全局对象。随机 roomId + 每房间 hostToken 共同保证不同安装之间不冲突、不串房。
+- 单个 Desktop Main 进程仍只拥有一个活动配对房间;多个窗口同时点击开启时以最后一次用户意图为准,旧 start 在出站前返回 `PAIRING_REQUEST_SUPERSEDED`,不得留下孤儿隧道。不同安装/用户进程之间互不共享该状态。
 
 ## 双方授权与配对时序
 
@@ -52,15 +61,16 @@
 ## cfworker-remote 设计(空仓库起步)
 
 - 技术形态:Workers + Durable Objects(每房间一个 DO 实例)+ Workers Static Assets(托管移动端 SPA);`wrangler.jsonc` 声明 DO binding,GitHub 连接后由 Workers Builds 在 push 时自动部署。
-- 端点:`GET /`(移动端 SPA)、`GET /p/:roomId`(配对深链,同一 SPA)、`WS /connect/host`(桌面,凭接入 Key)、`WS /connect/client`(手机,凭一次性 capability 或设备凭据)。可选 `POST /api/health` 供设置页「测试连接」。
+- 端点:`GET /`(移动端 SPA)、`GET /p/:roomId`(配对深链,同一 SPA)、`WS /connect/host`(桌面,官方托管模式凭每房间 hostToken + 限速;自建模式另需接入 Key)、`WS /connect/client`(手机,凭一次性 capability 或设备凭据)。可选 `POST /api/health` 供设置页「测试连接」。
 - DO 内状态仅限:roomId、capHash、过期时间、已配对设备凭据哈希(含设备名)、双向 socket 引用、失败计数。TTL 到期与房间关闭即清理;不落 KV/R2 的业务数据。
 - 透传规则:授权前仅允许配对控制帧;授权后所有帧双向透传,不解析、不缓存消息内容;心跳由两端各自与 DO 维持,DO 负责断连检测与对端通知。
 - 桌面更新清单服务(2026-09-29 追加,契约见 cfworker-remote/PROTOCOL.md 更新章节):`GET /api/v1/releases/electron/manifest?platform=<os>-<arch>&channel=<1|3>` 按 stable/preview 通道代理 GitHub Release 上的 `latest-<os>-<arch>.yml` 并把文件 URL 改写到 `GET /api/v1/releases/download/<文件名>`(302 回 GitHub 资产);无状态、带短缓存,不改动版本与校验和。桌面端自动更新源随之从产品服务端切换到该域名(`https://code.lemon.vin`),发布 specs/github-actions-desktop-release.md 同步要求 Release 上传 `latest-<os>-<arch>.yml`。
 
 ## 桌面端改动
 
-1. **设置(基础设置 → 远程控制)**:启用开关;Worker 域名;接入 Key(凭据保存复用 `remoteWorkspaceHistory` 的凭据集中管理机制,不进明文配置);安全隐私——允许新设备配对开关、已授权设备列表(名称/授权时间/最近在线)+吊销、配对链接有效期、空闲自动断开;「测试连接」。对应 `packages/ui/src/settings/settingsPageConfig.ts` 的 `BASE_SETTINGS_SECTIONS`(basics 组)新增 section。
-   - **入口迁移(2026-09-29,同日二改)**:分区入口从设置侧栏「基础设置」组迁到侧栏 footer——`WorkspaceSidebarFooter` 中「连接使用」账户入口与「设置」齿轮之间、齿轮之前的手机图标按钮,**点击弹出「移动端远程控制」配对弹框(向上 Popover),不再跳转设置页**。配对块独立为 `MobileRemoteControlPanel`(自持 `useRemoteControl` 装配与镜像 target fail-closed 判定,配对交互本体仍是 `RemotePairingPanel`);设置段 `RemoteControlSettingsSection` 不再承载配对分区,只保留连接配置与安全隐私。弹框内提供「远程控制设置」出口,经 `setPendingSettingsSection("remoteControl")` + `openSettingsTab()` 直达分区。设置侧栏导航不再列出该分区(`settingsPageConfig` 以 `navHidden` 标记保留分区注册,`settingsSections` 解析、面包屑、上次停留分区记忆与直达意图均不受影响)。入口平台门禁与分区注册同源(仅桌面平台三布尔任一为真);Web/手机视图既不注册分区也不显示 footer 入口。
+1. **设置(基础设置 → 远程控制)**:启用开关;Worker 域名;自建 Worker 接入 Key(凭据保存复用 `remoteWorkspaceHistory` 的凭据集中管理机制,不进明文配置);安全隐私——允许新设备配对开关、已授权设备列表(名称/授权时间/最近在线)+吊销、配对链接有效期、空闲自动断开;「测试连接」。对应 `packages/ui/src/settings/settingsPageConfig.ts` 的 `BASE_SETTINGS_SECTIONS`(basics 组)注册 section。
+   - **双入口规则(2026-09-29)**:`remoteControl` 必须显示在设置侧栏「基础设置」组;同时保留 `WorkspaceSidebarFooter` 中「连接使用」与设置齿轮之间的手机图标快捷入口。快捷入口继续弹出 `MobileRemoteControlPanel`;弹框内「远程控制设置」仍经 `setPendingSettingsSection("remoteControl")` + `openSettingsTab()` 直达同一分区。两处入口只复用同一 `useRemoteControl`/Main 配置事实源,不复制状态。入口平台门禁与分区注册同源(仅桌面平台三布尔任一为真);Web/手机视图均不注册分区、不显示 footer 入口。
+   - 官方托管地址为空时使用 `https://code.lemon.vin`,且 Key 输入禁用并明确显示“托管服务无需接入 Key”;切换到自建 Worker 后才要求接入 Key。主开关的前置条件为“有效 Worker 地址 + (官方托管模式或已保存自建 Key)”。
 2. **配对面板**:对齐截图形态(等待手机连接/已就绪/停止/刷新二维码/复制链接);「开启等待」驱动 Main 出站注册并生成二维码;「停止」关闭房间并断开出站。
 3. **Attachment 接线**:Main 收到配对完成事件后,经 `attachRemoteWorkspaceSessionHost`(`desktopRemoteSessions.ts:832`,现为已实现无调用方)把手机接入窗口 Host——这将是该入口的首个生产调用方;Main 维护「Worker WS ↔ attachment port」的帧泵,只做转发。
 4. Main 在桌面退出/禁用功能时主动关闭房间并断开出站;接入 Key 与设备吊销列表本地持久化。
@@ -93,13 +103,18 @@
 - 设置禁用后,桌面立即断开出站连接且不再重连;主开关关闭时不产生任何出站请求。
 - Worker 不持久化任务队列、快照、消息内容(仅鉴权哈希与房间映射,TTL 清理);房间关闭后 DO 状态清空。
 - 中英文、桌面窄窗口与手机窄屏均可用;扫码与复制链接两条路径等价。
-- 桌面端侧栏 footer 在「连接使用」与「设置」之间显示远程控制快捷入口,点击向上弹出「移动端远程控制」配对弹框(二维码/复制链接/停止/刷新在弹框内完成,不跳设置页);设置侧栏「基础设置」组不再出现该分区,弹框内「远程控制设置」可直达分区;Web/手机视图无此入口,直达意图不得把分区解析回退成 general。
+- 桌面端设置侧栏「基础设置」组显示「远程控制」;侧栏 footer 也保留远程控制快捷入口,点击向上弹出「移动端远程控制」配对弹框(二维码/复制链接/停止/刷新在弹框内完成);两处入口读写同一配置与配对状态。Web/手机视图无此入口,直达意图不得把分区解析回退成 general。
+- 全新安装或旧配置中 Worker 地址为空时,设置页与 Main 回读均为 `https://code.lemon.vin`;不填写接入 Key 可启用、测试并连接官方托管服务。自建 Worker 未配置 Key 时继续 fail-closed。
+- 安装包、Actions 产物和仓库扫描不得包含官方托管服务共享 Key;已披露的旧 Key 必须在 Worker 侧轮换或删除。
+- 同时创建多个随机 roomId 时路由到不同 DO;同房间第二个不同 hostToken 的 host 升级被拒,不得替换原 host。官方托管 host 注册超过安装/网络限额返回 429,限速 binding 缺失返回 503。
+- 同一 Desktop Main 的两个窗口并发开启时只创建最后一个房间,前一个请求明确返回 superseded;停止/退出期间尚未完成的 start 不得随后复活连接。
 - `cfworker-remote` push 到 GitHub 后,Workers Builds 自动部署,无需本地 wrangler。
 
 ## 开放问题(实现前需对齐)
 
 1. 手机 attachment 的 scope 语义:**已定**——本地工作区镜像以 `scope:{kind:"local"}` 第二 attachment 挂到窗口 Host(`attachLocalWorkspaceSessionHost`,注册表按 attachmentId 键控、与 Renderer 共存);远程工作区继续走 `kind:"remote"` 三元组入口。镜像目标为判别联合(`remotePairingMirrorTargetSchema`)。
 2. 移动端 SPA 载体:已定——采用 `packages/web` 完整构建产物做镜像 UI,不做裁剪版。
-3. Cloudflare 免费额度对 WS 并发/时长/消息量的限制,以及是否需要付费兜底。
+3. Cloudflare 套餐容量与成本:房间模型可水平扩展,但上线前仍需按并发 WebSocket、DO 请求/存储和真实帧量压测并设置费用告警;限速只用于滥用防护,不替代容量规划。
 4. RPC PersistentProtocol 可靠层(已实现未接线)是否在本项目 v2 接入隧道两端,替换纯透传的 SocketProtocol 语义。
 5. 端到端加密是否排期(v1 不做,Worker 可见帧内容需在设置页隐私说明中如实标注)。
+6. 大规模公共服务的账号级配额与滥用追责:安装 ID 不是身份凭据,Cloudflare Rate Limiting binding 也是边缘节点内的宽松、最终一致保护。若要按用户计费、封禁或保证硬配额,需由可信账号服务签发短期、限定 roomId/安装 ID 的 host admission token,并增加 Analytics Engine/费用告警；不得重新引入客户端共享 Key。

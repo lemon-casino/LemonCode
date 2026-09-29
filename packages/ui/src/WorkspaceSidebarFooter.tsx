@@ -155,6 +155,7 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   const avatarFallbackText = getAvatarFallbackText(user);
   const avatarKey = user?.avatarUrl ?? user?.id ?? "guest";
   const showAuthRestoreLoading = !user && isRestoringOAuthSession;
+  const showGuestBrandAvatar = !user && !showAuthRestoreLoading;
   const usageSummaryState = useWorkspaceSidebarFooterUsageSummaryState({
     enabled: true,
     workspaceIdentity,
@@ -162,9 +163,19 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
   });
   const profileContent = (
     <>
-      <Avatar key={avatarKey} size="default">
+      <Avatar
+        key={avatarKey}
+        size="default"
+        className={showGuestBrandAvatar ? "after:hidden" : undefined}
+        data-lcode-brand-avatar={showGuestBrandAvatar ? "transparent" : undefined}
+      >
         {user?.avatarUrl ? <AvatarImage src={user.avatarUrl} alt={profileBadge} /> : null}
-        <AvatarFallback className="bg-background text-foreground">
+        <AvatarFallback
+          className={cn(
+            "text-foreground",
+            showGuestBrandAvatar ? "bg-transparent" : "bg-background",
+          )}
+        >
           {user ? (
             avatarFallbackText
           ) : showAuthRestoreLoading ? (
@@ -176,8 +187,8 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
               <span className="sr-only">{intl.formatMessage({ id: "common.loading" })}</span>
             </>
           ) : (
-            // 无账号体系时头像写死为品牌 L 徽标，与左上角品牌一致（app-logo.svg 自带配色）。
-            // v12 图案是满幅方形构图：圆形裁切 + 内缩，避免方角顶满头像位。
+            // 旧实现沿用 AvatarFallback 的主题底色与描边，透明 V12 在浅/深主题上都会出现圆形贴片。
+            // 品牌态单独关闭底色与伪元素边框；真实用户头像和 OAuth 恢复态仍保留通用头像样式。
             <span className="flex size-full items-center justify-center overflow-hidden rounded-full">
               <img
                 src={appLogoUrl}

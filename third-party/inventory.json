@@ -252,7 +252,7 @@
     "apps/lcode-cli/packages/tui/package.json": "51decf6f5c4286c694c4b15ef0ca16129dee0283951b4929c43e0ed9aa12f468",
     "apps/lcode-cli/tools/prompt-trajectory/package.json": "6ab89bba2dba20f07cf913e34acb4bda59d9563d196995a25f867f34281df02b",
     "apps/lcode-cli/tools/typescript/package.json": "2f33883fe33cc9d878a3d6d78a0d262eb0db134fc02042ed7563c3dc50d797f7",
-    "package.json": "86ce7f683e289b7e7cce549d5e7ac420a19ed4c7036d0b8c88f20ae7ca617369",
+    "package.json": "3a9eca0a4a61820f8f0728370e68008bbb0bb3ff993ab4c718e8ab9bd7dbbb35",
     "packages/client/package.json": "6cfcb57428c4728a98b7cf4504d29304cf6e9e547e136f0ab1edcef8f821b452",
     "packages/desktop/package.json": "b68388d3a85da919fbb58ff079ee0f0b426eaef17fe6f35b8d3553f6065ba826",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
@@ -1504,7 +1504,7 @@
     "packages/ui/src/components/ui/input.tsx": "946d37bdf07c81e70ad13242b904c27618d5d09f7c17a74f6b6c8cb613fa93dc",
     "packages/ui/src/components/ui/kbd.tsx": "a7fabb33892c759337ae5c936d3b62f27fb2356a5a6340dbff8bfbac6f0a359f",
     "packages/ui/src/components/ui/label.tsx": "717bd1167a7c8c136abfe0b3e23e8cfcb38abbe51b04c74d6d01ba1ea0b53fa5",
-    "packages/ui/src/components/ui/LCodeAboutLogo.tsx": "e1e2b93963025e1e95d9da3787dcc2a64f09dd7d4f0e363a7dea407ffc84b04f",
+    "packages/ui/src/components/ui/LCodeAboutLogo.tsx": "916563e770789e91a39f3010740f88c46bd3e09cbeb8a245553147b3ce97e46e",
     "packages/ui/src/components/ui/lightweight-diff-preview.tsx": "54aeef56cde6fe0683c9fb255f0391e9e4fe01952da0820297c36dc0a7525425",
     "packages/ui/src/components/ui/pdf-viewer.tsx": "19ba82ab97a84599bb99178de85a4d5c6a89da6924ba55a0dc14f33286187fdc",
     "packages/ui/src/components/ui/popover.tsx": "e23c9238865ba7e85965ebed89e7328cfbdbbdcc2264156c775d51e9e264b484",
@@ -20796,7 +20796,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/LCodeAboutLogo.tsx",
-          "sha256": "a516f684892f2db67100a73c9e416877ee80962d34a61d6a904c1ed2b45fb90c"
+          "sha256": "46a8f1a785cad4873c5e0888ee0659f2811587e3d25c273b8d74fbe076a98add"
         },
         {
           "file": "packages/ui/src/components/ui/README.md",

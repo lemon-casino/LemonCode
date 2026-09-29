@@ -68,7 +68,12 @@ export interface RemoteControlTunnelDelegate {
 export interface RemoteControlTunnelStartParams {
   /** 已由 normalizeRemoteControlWorkerBaseUrl 规范化的 origin。 */
   workerBaseUrl: string;
-  accessKey: string;
+  /** 自建 Worker 的部署接入 Key；官方托管服务必须为空，避免分发共享秘密。 */
+  accessKey?: string;
+  /** 匿名托管服务限速使用的稳定安装 ID，不是认证秘密。 */
+  clientId: string;
+  /** 每房间独立的 host 重连凭据；不进二维码、Renderer 或持久化配置。 */
+  hostToken: string;
   roomId: string;
   capHash: string;
   ttlMs: number;
@@ -176,19 +181,23 @@ export function createRemoteControlTunnelSession(
   options: RemoteControlTunnelOptions = {},
 ): RemoteControlTunnelSession {
   const heartbeatIntervalMs = options.heartbeatIntervalMs ?? REMOTE_CONTROL_HEARTBEAT_INTERVAL_MS;
-  const reconnectGraceMs =
-    options.reconnectGraceMs ?? REMOTE_CONTROL_HOST_RECONNECT_GRACE_MS;
+  const reconnectGraceMs = options.reconnectGraceMs ?? REMOTE_CONTROL_HOST_RECONNECT_GRACE_MS;
   const reconnectRetryDelayMs =
     options.reconnectRetryDelayMs ?? REMOTE_CONTROL_RECONNECT_RETRY_DELAY_MS;
   const setTimeoutImpl = options.setTimeoutImpl ?? ((callback, ms) => setTimeout(callback, ms));
   const clearTimeoutImpl = options.clearTimeoutImpl ?? ((timer) => clearTimeout(timer));
   const nowImpl = options.nowImpl ?? (() => Date.now());
   const createSocket =
-    options.createSocket ??
-    ((url, headers) => defaultCreateSocket(url, headers));
+    options.createSocket ?? ((url, headers) => defaultCreateSocket(url, headers));
 
   const upgradeUrl = `${params.workerBaseUrl}/connect/host?roomId=${encodeURIComponent(params.roomId)}`;
-  const upgradeHeaders = { "x-lcode-remote-access-key": params.accessKey };
+  const upgradeHeaders: Record<string, string> = {
+    "x-lcode-client-id": params.clientId,
+    "x-lcode-host-token": params.hostToken,
+  };
+  if (params.accessKey) {
+    upgradeHeaders["x-lcode-remote-access-key"] = params.accessKey;
+  }
   /**
    * 房间设备表的可变快照:吊销即移除,重连重发的 room.create 不再携带被吊销设备的
    * credHash——否则 host socket 断开窗口内丢失的 device.revoke 会让 Worker 侧凭据
@@ -515,7 +524,9 @@ export function createRemoteControlTunnelSession(
     stopRoom() {
       // 先发 room.stop(一条 WS RTT 内生效,§4.3.3)再以 1000 收口;失败也继续关闭。
       try {
-        socket?.sendText(JSON.stringify(remoteControlRoomStopFrameSchema.parse({ type: "room.stop" })));
+        socket?.sendText(
+          JSON.stringify(remoteControlRoomStopFrameSchema.parse({ type: "room.stop" })),
+        );
       } catch {
         // 发送失败不阻塞停止语义。
       }

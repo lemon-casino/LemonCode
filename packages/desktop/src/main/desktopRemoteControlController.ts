@@ -7,6 +7,8 @@
 import { createHash, randomBytes } from "node:crypto";
 import {
   buildRemotePairingUrl,
+  DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL,
+  isDefaultRemoteControlWorkerBaseUrl,
   HostMessageTypes,
   normalizeRemoteControlWorkerBaseUrl,
   PlatformChannels,
@@ -42,6 +44,7 @@ import {
 
 /** pairing.requested 的桌面侧裁决窗口;超时只撤面板 pending 态,Worker 侧自带配对超时。 */
 const PAIRING_DECISION_TIMEOUT_MS = 120_000;
+const RANDOM_ID_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 
 export interface RemoteControlControllerLogger {
   info: (...args: unknown[]) => void;
@@ -136,8 +139,22 @@ export function createRemoteControlController(options: RemoteControlControllerOp
   /** 当前会话生效的空闲自动断开时长;桥结束/断开后按它重新布防(§3.4)。 */
   let activeIdleDisconnectMs = 0;
   let disposed = false;
+  /** 多窗口共用一个 Main controller；代数让并发 start/stop 只允许最后一次意图落地。 */
+  let pairingOperationGeneration = 0;
+  let clientIdPromise: Promise<string> | null = null;
   /** 最近一次推送的配对状态;config-get 快照用它回复"订阅前已发生的状态"(§6.3)。 */
   let lastPairingStatePush: RemotePairingStatePush | null = null;
+
+  async function loadOrCreateClientId(): Promise<string> {
+    clientIdPromise ??= (async () => {
+      const stored = await store.loadClientId();
+      if (stored && RANDOM_ID_PATTERN.test(stored)) return stored;
+      const clientId = randomBytes(32).toString("base64url");
+      await store.saveClientId(clientId);
+      return clientId;
+    })();
+    return clientIdPromise;
+  }
 
   function pushState(state: RemotePairingStatePush): void {
     const validated = remotePairingStatePushSchema.parse(state);
@@ -247,7 +264,11 @@ export function createRemoteControlController(options: RemoteControlControllerOp
     }
   }
 
-  async function stopPairing(reason: string): Promise<void> {
+  async function stopPairingInternal(
+    reason: string,
+    invalidatePendingStart: boolean,
+  ): Promise<void> {
+    if (invalidatePendingStart) pairingOperationGeneration += 1;
     clearPendingRequestTimer();
     pendingRequest = null;
     // teardownBridge 会按 activeIdleDisconnectMs 重新布防空闲定时器;
@@ -263,13 +284,24 @@ export function createRemoteControlController(options: RemoteControlControllerOp
     pushState({ state: "stopped" });
   }
 
+  async function stopPairing(reason: string): Promise<void> {
+    return stopPairingInternal(reason, true);
+  }
+
   async function startPairing(
     request: RemotePairingStartRequest,
   ): Promise<RemotePairingStartResult> {
+    const operationGeneration = ++pairingOperationGeneration;
+    const superseded = (): RemotePairingStartResult => ({
+      success: false,
+      error: "PAIRING_REQUEST_SUPERSEDED",
+    });
+    const isCurrentOperation = () => operationGeneration === pairingOperationGeneration;
     if (disposed) {
       return { success: false, error: "REMOTE_CONTROL_DISPOSED" };
     }
     const persistedConfig = await store.loadConfig();
+    if (!isCurrentOperation()) return superseded();
     if (!persistedConfig.enabled) {
       return { success: false, error: "REMOTE_CONTROL_DISABLED" };
     }
@@ -277,27 +309,35 @@ export function createRemoteControlController(options: RemoteControlControllerOp
     if (!workerBaseUrl) {
       return { success: false, error: "WORKER_BASE_URL_INVALID" };
     }
-    const accessKey = await store.loadAccessKey();
-    if (!accessKey) {
+    const managedService = isDefaultRemoteControlWorkerBaseUrl(workerBaseUrl);
+    const accessKey = managedService ? null : await store.loadAccessKey();
+    if (!isCurrentOperation()) return superseded();
+    if (!managedService && !accessKey) {
       return { success: false, error: "ACCESS_KEY_MISSING" };
     }
 
     // 重复 start 视为"刷新二维码":旧 room.stop + 新 roomId/capability(PROTOCOL.md §4.2.3)。
-    void stopPairing("pairing-restart");
+    await stopPairingInternal("pairing-restart", false);
     // stopPairing 推过 stopped;重新开启等待会紧跟 waiting,面板无需特殊处理。
 
     const roomId = randomBytes(16).toString("base64url");
     const capability = randomBytes(32).toString("base64url");
+    const hostToken = randomBytes(32).toString("base64url");
+    const clientId = await loadOrCreateClientId();
+    if (!isCurrentOperation()) return superseded();
     const capHash = createHash("sha256").update(capability).digest("base64url");
     const expiresAt = now() + persistedConfig.pairingTtlMs;
     const pairingUrl = buildRemotePairingUrl({ workerBaseUrl, roomId, capability });
     const mirrorTarget = request.target;
     const devices = await store.loadDevices();
+    if (!isCurrentOperation()) return superseded();
 
     const tunnel = createTunnelSession(
       {
         workerBaseUrl,
-        accessKey,
+        accessKey: accessKey ?? undefined,
+        clientId,
+        hostToken,
         roomId,
         capHash,
         ttlMs: persistedConfig.pairingTtlMs,
@@ -651,14 +691,19 @@ export function createRemoteControlController(options: RemoteControlControllerOp
     if (!config.enabled) return { success: false, error: "DISABLED" };
     const base = normalizeRemoteControlWorkerBaseUrl(config.workerBaseUrl);
     if (!base) return { success: false, error: "WORKER_BASE_URL_INVALID" };
-    const accessKey = await store.loadAccessKey();
-    if (!accessKey) return { success: false, error: "ACCESS_KEY_MISSING" };
+    const managedService = isDefaultRemoteControlWorkerBaseUrl(base);
+    const accessKey = managedService ? null : await store.loadAccessKey();
+    if (!managedService && !accessKey) return { success: false, error: "ACCESS_KEY_MISSING" };
+    const clientId = await loadOrCreateClientId();
     const startedAt = now();
     try {
       const fetchHealth = options.fetchHealth ?? ((url, init) => fetch(url, init));
       const response = await fetchHealth(`${base}/api/health`, {
         method: "POST",
-        headers: { "x-lcode-remote-access-key": accessKey },
+        headers: {
+          "x-lcode-client-id": clientId,
+          ...(accessKey ? { "x-lcode-remote-access-key": accessKey } : {}),
+        },
         signal: AbortSignal.timeout(8000),
       });
       const latencyMs = Math.max(0, now() - startedAt);
@@ -680,8 +725,12 @@ export function createRemoteControlController(options: RemoteControlControllerOp
     request: RemoteControlConfigSetRequest,
   ): Promise<RemoteControlConfigSetResult> {
     const persisted = await store.loadConfig();
+    let requestedWorkerBaseUrl: string | undefined;
     if (request.workerBaseUrl !== undefined) {
-      if (!normalizeRemoteControlWorkerBaseUrl(request.workerBaseUrl)) {
+      requestedWorkerBaseUrl = request.workerBaseUrl.trim()
+        ? (normalizeRemoteControlWorkerBaseUrl(request.workerBaseUrl) ?? undefined)
+        : DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL;
+      if (!requestedWorkerBaseUrl) {
         return { success: false, error: "WORKER_BASE_URL_INVALID" };
       }
     }
@@ -696,7 +745,7 @@ export function createRemoteControlController(options: RemoteControlControllerOp
     }
     const next = {
       enabled: request.enabled ?? persisted.enabled,
-      workerBaseUrl: request.workerBaseUrl ?? persisted.workerBaseUrl,
+      workerBaseUrl: requestedWorkerBaseUrl ?? persisted.workerBaseUrl,
       pairingTtlMs: request.pairingTtlMs ?? persisted.pairingTtlMs,
       allowNewDevices: request.allowNewDevices ?? persisted.allowNewDevices,
       idleDisconnectMs: request.idleDisconnectMs ?? persisted.idleDisconnectMs,
@@ -713,6 +762,7 @@ export function createRemoteControlController(options: RemoteControlControllerOp
   function dispose(reason: string): void {
     if (disposed) return;
     disposed = true;
+    pairingOperationGeneration += 1;
     clearPendingRequestTimer();
     clearIdleDisconnectTimer();
     pendingRequest = null;

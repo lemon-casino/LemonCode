@@ -15,11 +15,15 @@
    `pnpm test:release`。临时改写不得改变“提交输入是否新鲜”的结论，也不得靠重生成 NOTICE
    掩盖。构建保持 production 产品身份，并跳过不属于桌面安装包的远端预构建。
    electron-builder 在 dist 生成的更新清单（Windows `latest.yml`、macOS `latest-mac.yml`、
-   Linux `latest-linux.yml`，内含安装包 sha512）是应用内更新服务的唯一校验和来源：
-   staging 脚本按 `latest-<os>-<arch>.yml` 重命名收集并上传到 Release，缺失即失败。
+   Linux `latest-linux.yml`，内含安装包 sha512）是应用内更新服务的首选元数据来源：
+   staging 脚本保留其 release notes 等扩展字段，但必须针对 staging 时的最终安装包重新
+   计算 size 与 SHA-512，再按 `latest-<os>-<arch>.yml` 收集并上传到 Release；由此兼容
+   在 staging 前完成且会改变归档字节的仓库外内签，源清单缺失或目标文件集合不匹配即失败。
    已知上游例外（2026-09-29 v3.16.2 CI 实证）：electron-builder 只为 Linux x64 生成
-   清单，arm64 构建不产出——`latest-linux-arm64.yml` 属可选收集，存在则上传、缺席不失败
-   （Worker 对 `linux-aarch64` 按契约 404，arm64 Linux 与既有行为一致走手动更新）。
+   `latest-linux.yml`。Linux arm64 staging 必须从本 job 已精确校验的四个安装包重新读取
+   文件大小并计算 SHA-512（base64），生成等价的 `latest-linux-arm64.yml`；不得复制 x64
+   清单、引用另一架构或让 Worker 以 404 退回手动更新。若后续 electron-builder 原生生成
+   arm64 清单，则直接采用上游清单，不重复维护第二份内容。
 4. 每个构建只上传目标架构、目标版本的安装包与对应更新清单；缺任何目标文件立即失败。
    仅当六个目标全部成功时才进入 GitHub Release job。Release job 必须先验证
    `THIRD-PARTY-NOTICES.md` 与 inventory 输入新鲜度，再要求当前 `reviewRequired`
@@ -34,8 +38,12 @@
 5. Actions 的发行上传权限只给 Release job；构建 job 仅可读。发布使用 tag 自带的
    `GITHUB_TOKEN`，不借用开发者本地凭据。tag 推送由维护者在版本文件、许可证清单
    和验证提交后执行，不由 `GITHUB_TOKEN` 在工作流内自推 tag。
-6. 无 Apple 签名和公证凭据时，macOS 构建必须标明未签名；不得宣称 Gatekeeper
-   可直接通过。应用内自动更新源为 cfworker-remote（`https://code.lemon.vin`）提供的
+6. 发布与更新清单门禁不得依赖 Apple/Windows 签名凭据；未配置凭据时六个平台仍须完成
+   安装包、六份清单和 Release 构建。无 Apple 签名和公证凭据时，macOS 构建必须标明
+   未签名，不得宣称 Gatekeeper 可直接通过；维护者可在仓库外以内签方式处理最终产物，
+   但任何会改变归档字节的签名或重打包都必须在公开前重新生成对应清单校验和，禁止发布
+   与最终下载物不一致的 manifest。运行时不关闭 macOS/Windows 的系统签名校验。
+   应用内自动更新源为 cfworker-remote（`https://code.lemon.vin`）提供的
    更新清单服务：Worker 按 stable/preview 通道代理 GitHub Release 上的
    `latest-<os>-<arch>.yml`（改写文件 URL 指向自身下载代理），安装包经 302 回
    GitHub Release 资产；GitHub Release 仍是安装包与清单的唯一来源，Worker 无状态
@@ -66,7 +74,7 @@ sequenceDiagram
   Git->>Matrix: checkout tag，核对 package.json.version
   Matrix->>Matrix: 原生构建 + 校验版本及架构 + 上传临时 artifact
   Matrix-->>Release: 全部成功后下载六组安装包
-  Release->>Release: 校验 14 个安装包、更新清单与许可材料基线
+  Release->>Release: 校验 14 个安装包、六份更新清单与许可材料基线
   Release->>Release: 创建/更新同名 tag 资产并公开发布
 ```
 
@@ -82,8 +90,11 @@ sequenceDiagram
   不参与该输入哈希，恢复已提交 lockfile 后再跑完整 release contract。测试必须证明 workflow
   顺序不会因 Linux 的 pnpm lockfile 重写而误报过期。
 - 当前材料复核项与显式 release baseline 完全一致时，`v<package version>` tag 在六目标
-  成功后无需人工步骤，自动创建或更新同名 GitHub Release、上传全部 14 个安装包与 5~6 份
-  更新清单（Linux arm64 上游不生成，缺席不失败）并公开。
+  成功后无需人工步骤，自动创建或更新同名 GitHub Release、上传全部 14 个安装包与六份
+  更新清单并公开；Linux arm64 即使上游不生成，也必须由 staging 确定性补齐。
+- 不配置平台签名凭据时，发布契约、清单生成和 Worker 查询均保持可用；仓库外内签若改变
+  安装包或 macOS ZIP 的字节，必须在替换 Release 资产前重算清单，客户端下载仍以最终
+  manifest 的 SHA-512 为准。
 - `node scripts/licenses.mjs check --strict` 仍保留“零未解决项”的更强人工门禁；自动发布的
   baseline-aware 校验不得改变它，也不得输出“许可完整”的结论。
 - 本地构建脚本版本元数据、安装包文件名、Release tag 一致。

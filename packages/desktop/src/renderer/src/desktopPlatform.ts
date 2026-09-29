@@ -1,5 +1,6 @@
 import { recordArmsCustomEventForE2E } from "@lcode/ui";
 import {
+  DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL,
   DEFAULT_REMOTE_CONTROL_PAIRING_TTL_MS,
   DesktopCommandIds,
   buildLocalMediaPreviewUrl,
@@ -55,7 +56,7 @@ export function createDesktopPlatform(options: {
       ? () => window.lcode.getRemoteControlConfig!()
       : async () => ({
           enabled: false,
-          workerBaseUrl: "",
+          workerBaseUrl: DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL,
           hasAccessKey: false,
           // 缺省面复用 shared 常量,避免与 main 侧 persistSchema 默认值漂移。
           pairingTtlMs: DEFAULT_REMOTE_CONTROL_PAIRING_TTL_MS,

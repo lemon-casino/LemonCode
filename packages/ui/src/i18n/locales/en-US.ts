@@ -2104,31 +2104,33 @@ const enUS: Record<string, string> = {
   "settings.remoteControl.enable.description":
     "Mirror this desktop on your phone through a Cloudflare Worker tunnel: the phone gets exactly the same capabilities as the desktop user. The desktop only makes outbound connections to the Worker.",
   "settings.remoteControl.enable.missingPrerequisites":
-    "Set the Worker domain and save the access key before enabling remote control.",
+    "Set a valid Worker domain. A self-hosted Worker also requires a saved access key.",
   "settings.remoteControl.enable.enabledToast": "Remote control enabled",
   "settings.remoteControl.enable.disabledToast":
     "Remote control disabled; the desktop will disconnect from the Worker",
   "settings.remoteControl.workerBaseUrl.title": "Worker domain",
   "settings.remoteControl.workerBaseUrl.description":
-    "Deployed address of the cfworker-remote Worker, domain only, e.g. https://your-worker.workers.dev",
+    "Leave blank to use the hosted service at https://code.lemon.vin, or enter a self-hosted cfworker-remote address.",
   "settings.remoteControl.workerBaseUrl.invalid":
     "Invalid Worker domain: use an https:// address (http://localhost is allowed for local debugging)",
   "settings.remoteControl.accessKey.title": "Access key",
   "settings.remoteControl.accessKey.description":
-    "The access key configured when deploying the Worker. It is stored in the credential vault, never written to plain config, and only used to authenticate the desktop against the Worker.",
+    "Only required for a self-hosted Worker. It is stored in the credential vault and never written to plain config; the hosted service does not distribute a shared client secret.",
   "settings.remoteControl.accessKey.placeholder": "Paste access key",
   "settings.remoteControl.accessKey.save": "Save key",
   "settings.remoteControl.accessKey.saved": "Access key saved",
   "settings.remoteControl.accessKey.configured":
     "Access key configured (no longer shown in plain text)",
   "settings.remoteControl.accessKey.notConfigured": "No access key configured yet",
+  "settings.remoteControl.accessKey.managedService":
+    "The hosted service requires no access key (no shared secret is embedded in the client)",
   "settings.remoteControl.config.save": "Save",
   "settings.remoteControl.config.saved": "Settings saved",
   "settings.remoteControl.config.saveFailed": "Failed to save, please try again",
   "settings.remoteControl.config.saveFailedWithReason": "Failed to save: {error}",
   "settings.remoteControl.testConnection.title": "Test connection",
   "settings.remoteControl.testConnection.description":
-    "Send one health check to the Worker with the current domain and access key",
+    "Send a health check to the current Worker; a self-hosted Worker also uses the saved access key",
   "settings.remoteControl.testConnection.action": "Test connection",
   "settings.remoteControl.testConnection.success": "Connected ({latencyMs}ms)",
   "settings.remoteControl.testConnection.failed": "Connection failed: {error}",

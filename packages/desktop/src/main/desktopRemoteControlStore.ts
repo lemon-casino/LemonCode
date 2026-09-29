@@ -3,6 +3,7 @@
  * 不进明文配置;这里复用 Main 进程既有 createCredentialService(加密落盘 + 文件锁),
  * 与 packages/ui/src/root/useRemoteWorkspaceHistory.ts 的 credentialService 是同一存储契约。 */
 import {
+  DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL,
   remoteControlPersistedDeviceSchema,
   REMOTE_CONTROL_MAX_PERSISTED_DEVICES,
   DEFAULT_REMOTE_CONTROL_PAIRING_TTL_MS,
@@ -11,6 +12,7 @@ import {
 import { z } from "zod";
 
 export const REMOTE_CONTROL_ACCESS_KEY_CREDENTIAL_KEY = "remoteControl.accessKey";
+export const REMOTE_CONTROL_CLIENT_ID_CREDENTIAL_KEY = "remoteControl.clientId";
 export const REMOTE_CONTROL_CONFIG_CREDENTIAL_KEY = "remoteControl.config";
 export const REMOTE_CONTROL_DEVICES_CREDENTIAL_KEY = "remoteControl.devices";
 
@@ -29,7 +31,7 @@ export interface RemoteControlStoreLogger {
 export const remoteControlPersistedConfigSchema = z
   .object({
     enabled: z.boolean().default(false),
-    workerBaseUrl: z.string().default(""),
+    workerBaseUrl: z.string().default(DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL),
     pairingTtlMs: z.number().int().positive().default(DEFAULT_REMOTE_CONTROL_PAIRING_TTL_MS),
     allowNewDevices: z.boolean().default(true),
     idleDisconnectMs: z.number().int().nonnegative().default(0),
@@ -40,6 +42,8 @@ export type RemoteControlPersistedConfig = z.infer<typeof remoteControlPersisted
 export interface RemoteControlStore {
   loadAccessKey(): Promise<string | null>;
   saveAccessKey(accessKey: string): Promise<void>;
+  loadClientId(): Promise<string | null>;
+  saveClientId(clientId: string): Promise<void>;
   loadConfig(): Promise<RemoteControlPersistedConfig>;
   saveConfig(config: RemoteControlPersistedConfig): Promise<void>;
   loadDevices(): Promise<RemoteControlPersistedDevice[]>;
@@ -67,6 +71,20 @@ export function createRemoteControlStore(options: {
       await credentialService.save(REMOTE_CONTROL_ACCESS_KEY_CREDENTIAL_KEY, accessKey);
     },
 
+    async loadClientId() {
+      try {
+        const value = await credentialService.load(REMOTE_CONTROL_CLIENT_ID_CREDENTIAL_KEY);
+        return value && value.length > 0 ? value : null;
+      } catch (error) {
+        logger.warn("[remote-control-store] load client id failed:", error);
+        return null;
+      }
+    },
+
+    async saveClientId(clientId) {
+      await credentialService.save(REMOTE_CONTROL_CLIENT_ID_CREDENTIAL_KEY, clientId);
+    },
+
     async loadConfig() {
       try {
         const raw = await credentialService.load(REMOTE_CONTROL_CONFIG_CREDENTIAL_KEY);
@@ -79,7 +97,11 @@ export function createRemoteControlStore(options: {
           logger.warn("[remote-control-store] persisted config invalid, fallback to defaults");
           return remoteControlPersistedConfigSchema.parse({});
         }
-        return parsed.data;
+        // 旧版本把未配置地址持久化成空串；迁移为空即回到官方托管服务，避免升级后
+        // 仍被当作“未配置”而要求用户手工填写。
+        return parsed.data.workerBaseUrl.trim()
+          ? parsed.data
+          : { ...parsed.data, workerBaseUrl: DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL };
       } catch (error) {
         logger.warn("[remote-control-store] load config failed:", error);
         return remoteControlPersistedConfigSchema.parse({});
@@ -88,10 +110,7 @@ export function createRemoteControlStore(options: {
 
     async saveConfig(config) {
       const validated = remoteControlPersistedConfigSchema.parse(config);
-      await credentialService.save(
-        REMOTE_CONTROL_CONFIG_CREDENTIAL_KEY,
-        JSON.stringify(validated),
-      );
+      await credentialService.save(REMOTE_CONTROL_CONFIG_CREDENTIAL_KEY, JSON.stringify(validated));
     },
 
     async loadDevices() {
@@ -122,10 +141,7 @@ export function createRemoteControlStore(options: {
       const bounded = [...devices]
         .sort((a, b) => b.lastSeenAt - a.lastSeenAt)
         .slice(0, REMOTE_CONTROL_MAX_PERSISTED_DEVICES);
-      await credentialService.save(
-        REMOTE_CONTROL_DEVICES_CREDENTIAL_KEY,
-        JSON.stringify(bounded),
-      );
+      await credentialService.save(REMOTE_CONTROL_DEVICES_CREDENTIAL_KEY, JSON.stringify(bounded));
     },
   };
 }

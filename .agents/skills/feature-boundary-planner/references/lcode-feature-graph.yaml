@@ -513,6 +513,67 @@ nodes:
     codeSeeds:
       - symbol: createLCodeAgentConnectionScope
         file: packages/services/src/lcode-agent/lcodeAgentConnectionScope.ts
+  - id: capability.mobile-remote-control
+    kind: capability
+    label: Mobile remote control through cfworker-remote
+    aliases:
+      - remote control
+      - mobile pairing
+      - cfworker-remote
+      - 远程控制
+      - 手机远控
+    codeSeeds:
+      - file: packages/ui/src/settings/MobileRemoteControlPanel.tsx
+        symbol: MobileRemoteControlPanel
+      - file: packages/desktop/src/main/desktopRemoteControlController.ts
+        symbol: createRemoteControlController
+    invariants:
+      - "The Desktop footer shortcut and Basics settings section share the same Main-owned config and
+        pairing state; Web and mobile surfaces do not register Desktop-only settings."
+  - id: surface.remote-control-settings
+    kind: ui-surface
+    label: Basics remote control settings and footer pairing shortcut
+    codeSeeds:
+      - file: packages/ui/src/settings/settingsPageConfig.ts
+        symbol: createSettingsPageConfig
+      - file: packages/ui/src/settings/RemoteControlSettingsSection.tsx
+        symbol: RemoteControlSettingsSection
+      - file: packages/ui/src/WorkspaceSidebarFooter.tsx
+        symbol: WorkspaceSidebarFooter
+  - id: state.desktop-remote-control
+    kind: state-owner
+    label: Desktop remote control configuration and active pairing state
+    codeSeeds:
+      - file: packages/desktop/src/main/desktopRemoteControlController.ts
+        symbol: createRemoteControlController
+      - file: packages/shared/src/remoteControl.ts
+        symbol: DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL
+    invariants:
+      - "The hosted service defaults to https://code.lemon.vin and never embeds a shared client key;
+        self-hosted Workers keep write-only access-key credentials."
+      - "Each room has an independent random roomId, capability and host token; the host token stays in
+        Main memory and never enters pairing URLs, Renderer IPC or persisted config."
+      - "One Desktop Main owns one active pairing room; concurrent window starts are generation-gated so
+        only the latest user intent can create a tunnel."
+  - id: persistence.remote-control-credentials
+    kind: persistence
+    label: Desktop credential-backed remote control config, installation id and authorized devices
+    codeSeeds:
+      - file: packages/desktop/src/main/desktopRemoteControlStore.ts
+        symbol: createRemoteControlStore
+  - id: boundary.cfworker-remote-room
+    kind: delivery-boundary
+    label: Per-room cfworker-remote Durable Object tunnel
+    codeSeeds:
+      - file: cfworker-remote/src/index.ts
+        symbol: authorizeHostRequest
+      - file: cfworker-remote/src/room.ts
+        symbol: Room
+    invariants:
+      - "Hosted admission is public-rate-limited and fails closed when either limiter binding is missing;
+        self-hosted admission defaults to access-key mode."
+      - "idFromName(roomId) isolates room state, while the DO atomically binds the first host-token hash
+        and rejects a different token before replacing the host socket."
   - id: boundary.desktop-continuous
     kind: delivery-boundary
     label: Desktop continuous delivery
@@ -769,6 +830,30 @@ edges:
   - from: capability.conversation-runtime
     to: service.lcode-agent-connection-scope
     type: attaches-through
+    rank: must-inspect
+  - from: capability.mobile-remote-control
+    to: surface.remote-control-settings
+    type: configured-through
+    rank: must-inspect
+  - from: surface.remote-control-settings
+    to: state.desktop-remote-control
+    type: reads-and-commits-through
+    rank: must-inspect
+  - from: state.desktop-remote-control
+    to: persistence.remote-control-credentials
+    type: persists-through
+    rank: must-inspect
+  - from: state.desktop-remote-control
+    to: boundary.cfworker-remote-room
+    type: registers-and-bridges-through
+    rank: must-inspect
+  - from: capability.mobile-remote-control
+    to: service.lcode-agent-connection-scope
+    type: attaches-phone-through
+    rank: must-inspect
+  - from: boundary.cfworker-remote-room
+    to: boundary.web-remote-replayable
+    type: forwards-replayable-frames-through
     rank: must-inspect
   - from: service.conversation-topic-publisher
     to: boundary.desktop-continuous

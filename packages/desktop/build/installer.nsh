@@ -139,6 +139,18 @@
 !macroend
 
 !ifndef BUILD_UNINSTALLER
+  !include getProcessInfo.nsh
+
+  Var pid
+  Var /GLOBAL IsPowerShellAvailable
+
+  !macro customCheckAppRunning
+    ; electron-builder 默认的 PowerShell 分支会忽略可执行文件名，并按安装目录前缀匹配进程。
+    ; ZCode 与 LCode 并列安装时，这个边界可能误判另一品牌；固定走精确进程名分支，只关闭当前产品。
+    StrCpy $IsPowerShellAvailable "1"
+    !insertmacro _CHECK_APP_RUNNING
+  !macroend
+
   Var LCodeInstallerLogPath
   Var LCodeInstallerLogUnavailable
   Var LCodeInstallerProcessRole

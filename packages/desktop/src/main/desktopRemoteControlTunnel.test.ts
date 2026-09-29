@@ -58,7 +58,10 @@ function makeSocketFactory() {
     sockets,
     urls,
     headers,
-    createSocket: (url: string, requestHeaders: Record<string, string>): RemoteControlTunnelSocket => {
+    createSocket: (
+      url: string,
+      requestHeaders: Record<string, string>,
+    ): RemoteControlTunnelSocket => {
       const id = ++seq;
       urls.push(url);
       headers.push(requestHeaders);
@@ -114,6 +117,8 @@ function baseParams() {
   return {
     workerBaseUrl: "https://tunnel.example.com",
     accessKey: "ak_test_access_key_value_123456",
+    clientId: "client_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    hostToken: "host_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     roomId: "roomId-00000000",
     capHash: "caphash-00000000",
     ttlMs: 300_000,
@@ -141,7 +146,7 @@ function makeDelegate() {
   return { events, delegate };
 }
 
-test("升级 URL 携带接入 Key header 与 roomId;open 后首帧为 proto:1 的 room.create 并启动心跳", () => {
+test("升级 URL 携带接入 Key、安装 ID、每房间 host token 与 roomId", () => {
   const factory = makeSocketFactory();
   const clock = makeClock();
   const { events, delegate } = makeDelegate();
@@ -153,6 +158,8 @@ test("升级 URL 携带接入 Key header 与 roomId;open 后首帧为 proto:1 �
   });
   assert.equal(factory.urls[0], "https://tunnel.example.com/connect/host?roomId=roomId-00000000");
   assert.equal(factory.headers[0]!["x-lcode-remote-access-key"], "ak_test_access_key_value_123456");
+  assert.equal(factory.headers[0]!["x-lcode-client-id"], baseParams().clientId);
+  assert.equal(factory.headers[0]!["x-lcode-host-token"], baseParams().hostToken);
 
   factory.sockets[0]!.emitOpen();
   const firstFrame = JSON.parse(factory.sockets[0]!.sentText[0]!) as Record<string, unknown>;
@@ -169,6 +176,17 @@ test("升级 URL 携带接入 Key header 与 roomId;open 后首帧为 proto:1 �
   assert.equal(JSON.parse(factory.sockets[0]!.sentText[1]!).type, "ping");
   assert.equal(events.length, 0);
   session.dispose();
+});
+
+test("官方托管模式不发送共享接入 Key，但仍发送安装 ID 与每房间 host token", () => {
+  const factory = makeSocketFactory();
+  const params = { ...baseParams(), accessKey: undefined };
+  createRemoteControlTunnelSession(params, makeDelegate().delegate, {
+    createSocket: factory.createSocket,
+  });
+  assert.equal(factory.headers[0]!["x-lcode-remote-access-key"], undefined);
+  assert.equal(factory.headers[0]!["x-lcode-client-id"], params.clientId);
+  assert.equal(factory.headers[0]!["x-lcode-host-token"], params.hostToken);
 });
 
 test("room.ready/pairing.requested → accept 幂等;reject 携带 reason", () => {
@@ -243,7 +261,9 @@ test("bridge.open 后二进制双向可用;桥接前二进制被丢弃", () => {
   socket.emitBinary(phoneFrame);
   assert.ok(!events.some((event) => event.kind === "bridge-binary"));
 
-  socket.emitText(JSON.stringify({ type: "bridge.open", proto: 1, deviceId: "device-1", resumed: false }));
+  socket.emitText(
+    JSON.stringify({ type: "bridge.open", proto: 1, deviceId: "device-1", resumed: false }),
+  );
   socket.emitBinary(phoneFrame);
   assert.ok(events.some((event) => event.kind === "bridge.open"));
 
@@ -275,7 +295,11 @@ test("device.revoke 与 room.stop 语义:stop 发送后 1000 关闭且不再重�
   assert.deepEqual(socket.closed, [{ code: 1000, reason: "room stopped by desktop" }]);
   socket.emitClose(1000, "room stopped by desktop");
   assert.ok(!factory.urls.includes("second") && factory.sockets.length === 1);
-  assert.ok(events.some((event) => event.kind === "closed" && (event.payload as { code: number }).code === 1000));
+  assert.ok(
+    events.some(
+      (event) => event.kind === "closed" && (event.payload as { code: number }).code === 1000,
+    ),
+  );
   assert.equal(session.isRunning(), false);
 });
 

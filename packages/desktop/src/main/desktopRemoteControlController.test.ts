@@ -1,9 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type {
-  RemoteControlPersistedDevice,
-  RemotePairingStatePush,
-} from "@lcode/shared";
+import type { RemoteControlPersistedDevice, RemotePairingStatePush } from "@lcode/shared";
+import { DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL } from "@lcode/shared";
 import { createRemoteControlController } from "./desktopRemoteControlController.js";
 import {
   REMOTE_CONTROL_ACCESS_KEY_CREDENTIAL_KEY,
@@ -137,8 +135,7 @@ function makeController(options?: {
   const controller = createRemoteControlController({
     logger: { info() {}, warn() {}, error() {} },
     credentialService: service,
-    attachRemoteWorkspaceSessionHost: (options?.attach ??
-      okAttach.attach) as unknown as AttachFn,
+    attachRemoteWorkspaceSessionHost: (options?.attach ?? okAttach.attach) as unknown as AttachFn,
     attachLocalWorkspaceSessionHost: (options?.attachLocal ??
       okAttach.attach) as unknown as LocalAttachFn,
     broadcast: (channel, payload) => broadcasts.push({ channel, payload }),
@@ -161,7 +158,10 @@ const MIRROR_TARGET = {
   workspaceIdentity: "wi-1",
 };
 
-async function enableAndStart(controller: ReturnType<typeof makeController>["controller"], target?: typeof MIRROR_TARGET) {
+async function enableAndStart(
+  controller: ReturnType<typeof makeController>["controller"],
+  target?: typeof MIRROR_TARGET,
+) {
   const setResult = await controller.setConfig({
     enabled: true,
     workerBaseUrl: "https://tunnel.example.com",
@@ -199,6 +199,44 @@ test("startPairing 生成 roomId/capability 二维码载荷,room.ready 推送 wa
   assert.ok(states.some((state) => state.state === "waiting" && state.roomId === result.roomId));
 });
 
+test("全新安装默认使用托管 Worker，空 Key 可启动且每个房间生成独立 host token", async () => {
+  const { controller, tunnels } = makeController();
+  const initial = await controller.getConfig();
+  assert.equal(initial.workerBaseUrl, DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL);
+  assert.equal(initial.hasAccessKey, false);
+  assert.deepEqual(await controller.setConfig({ workerBaseUrl: "" }), { success: true });
+  assert.equal(
+    (await controller.getConfig()).workerBaseUrl,
+    DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL,
+  );
+
+  assert.deepEqual(await controller.setConfig({ enabled: true }), { success: true });
+  const first = await controller.startPairing({ target: MIRROR_TARGET });
+  assert.ok(first.success);
+  assert.equal(tunnels[0]!.params.accessKey, undefined);
+  assert.match(tunnels[0]!.params.clientId, /^[A-Za-z0-9_-]{43}$/);
+  assert.match(tunnels[0]!.params.hostToken, /^[A-Za-z0-9_-]{43}$/);
+
+  const firstHostToken = tunnels[0]!.params.hostToken;
+  const second = await controller.startPairing({ target: MIRROR_TARGET });
+  assert.ok(second.success);
+  assert.notEqual(tunnels[1]!.params.hostToken, firstHostToken);
+  assert.equal(tunnels[1]!.params.clientId, tunnels[0]!.params.clientId);
+});
+
+test("多窗口并发开启时仅最后一次请求创建房间，不遗留孤儿隧道", async () => {
+  const { controller, tunnels } = makeController();
+  assert.deepEqual(await controller.setConfig({ enabled: true }), { success: true });
+
+  const [first, second] = await Promise.all([
+    controller.startPairing({ target: MIRROR_TARGET }),
+    controller.startPairing({ target: MIRROR_TARGET }),
+  ]);
+  assert.deepEqual(first, { success: false, error: "PAIRING_REQUEST_SUPERSEDED" });
+  assert.equal(second.success, true);
+  assert.equal(tunnels.length, 1);
+});
+
 test("allowNewDevices=false 时 pairing.requested 未等用户裁决即被自动拒绝", async () => {
   const { controller, tunnels, broadcasts } = makeController();
   await controller.setConfig({
@@ -225,7 +263,9 @@ test("allowNewDevices=false 时 pairing.requested 未等用户裁决即被自动
   assert.equal(tunnels[0]!.stopped, true); // 旧房间已因重建被 stop
   assert.equal(tunnels.length, 2); // 新房间已生成(新 roomId/新二维码)
   const states = broadcasts.map((entry) => entry.payload);
-  assert.ok(states.some((state) => state.state === "error" && state.error === "NEW_DEVICE_REJECTED"));
+  assert.ok(
+    states.some((state) => state.state === "error" && state.error === "NEW_DEVICE_REJECTED"),
+  );
   // 新房间完成 room.ready 注册后面板回到 waiting(新二维码可扫)。
   tunnels[1]!.delegate.onRoomReady({
     type: "room.ready",
@@ -321,7 +361,9 @@ test("pairing.requested → 用户 accept → 设备凭据哈希持久化;吊销
   });
   // 持久化是异步 fire-and-forget;等待一个微任务排空。
   await new Promise((resolve) => setTimeout(resolve, 0));
-  const persisted = JSON.parse(map.get(REMOTE_CONTROL_DEVICES_CREDENTIAL_KEY) ?? "[]") as RemoteControlPersistedDevice[];
+  const persisted = JSON.parse(
+    map.get(REMOTE_CONTROL_DEVICES_CREDENTIAL_KEY) ?? "[]",
+  ) as RemoteControlPersistedDevice[];
   assert.equal(persisted.length, 1);
   assert.equal(persisted[0]!.deviceId, "device-1");
   assert.equal(persisted[0]!.credHash, "credhash-1");
@@ -469,7 +511,11 @@ test("不同设备在已有桥时再桥接:fail-closed 停房并报 ROOM_BUSY", 
   // v1 每房间最多 1 条桥(§3.2 4008):不允许静默叠加第二个 attachment/写入路径。
   assert.equal(okAttach.calls.length, 1);
   assert.equal(tunnel.stopped, true);
-  assert.ok(broadcasts.some((entry) => entry.payload.state === "error" && entry.payload.error === "ROOM_BUSY"));
+  assert.ok(
+    broadcasts.some(
+      (entry) => entry.payload.state === "error" && entry.payload.error === "ROOM_BUSY",
+    ),
+  );
 });
 
 test("attach fail-closed code 原样映射到 UI 并停止房间", async () => {
@@ -487,7 +533,12 @@ test("attach fail-closed code 原样映射到 UI 并停止房间", async () => {
     deviceId: "device-1",
     resumed: false,
   });
-  assert.ok(broadcasts.some((entry) => entry.payload.state === "error" && entry.payload.error === "REMOTE_SESSION_MISSING"));
+  assert.ok(
+    broadcasts.some(
+      (entry) =>
+        entry.payload.state === "error" && entry.payload.error === "REMOTE_SESSION_MISSING",
+    ),
+  );
   assert.equal(tunnels[0]!.stopped, true);
 });
 
@@ -501,7 +552,11 @@ test("无镜像目标时桥 fail-closed 关闭(MIRROR_TARGET_MISSING)", async ()
     deviceId: "device-1",
     resumed: false,
   });
-  assert.ok(broadcasts.some((entry) => entry.payload.state === "error" && entry.payload.error === "MIRROR_TARGET_MISSING"));
+  assert.ok(
+    broadcasts.some(
+      (entry) => entry.payload.state === "error" && entry.payload.error === "MIRROR_TARGET_MISSING",
+    ),
+  );
   assert.equal(tunnels[0]!.stopped, true);
 });
 

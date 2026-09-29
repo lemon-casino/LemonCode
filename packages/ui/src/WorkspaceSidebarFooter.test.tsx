@@ -92,7 +92,7 @@ test("未传 remoteControlPanel 时不渲染远程控制入口（Web/手机平�
   assert.doesNotMatch(markup, /footer-remote-control-button/);
 });
 
-test("无账号体系时身份区回退品牌名，头像写死为品牌 L 徽标", () => {
+test("无账号体系时身份区回退品牌名，品牌 L 徽标容器在全部主题保持透明", () => {
   // renderToStaticMarkup 不执行 effect，getSystemUsername 未返回时回退 "LCode"；
   // 真实用户名路径由运行时验证（dev 实例 CDP）覆盖。
   const markup = renderFooter({});
@@ -101,4 +101,7 @@ test("无账号体系时身份区回退品牌名，头像写死为品牌 L 徽�
   // 品牌 L 徽标（app-logo.svg）作为默认头像，替代通用 User 图标。
   assert.match(markup, /src="[^"]*app-logo\.svg"/);
   assert.match(markup, /alt="LCode"/);
+  assert.match(markup, /data-lcode-brand-avatar="transparent"/);
+  assert.match(markup, /after:hidden/);
+  assert.match(markup, /bg-transparent/);
 });

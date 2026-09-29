@@ -3,9 +3,13 @@
 // 以 Main 回读（config-get）为准，不在 Renderer 维护第二份配置事实。
 // 接入 Key 明文只允许停留在输入框里直到保存动作结束，成功/失败都立即清空，
 // 界面只回显 Main 给出的 hasAccessKey（契约 PROTOCOL.md §6.3：永不回明文）。
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { LoaderCircle } from "lucide-react";
-import { normalizeRemoteControlWorkerBaseUrl } from "@lcode/shared";
+import {
+  DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL,
+  isDefaultRemoteControlWorkerBaseUrl,
+  normalizeRemoteControlWorkerBaseUrl,
+} from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { Switch } from "@/components/ui/switch.js";
@@ -25,9 +29,7 @@ interface RemoteControlConnectionSettingsProps {
   config: RemoteControlConfig | null;
   configLoading: boolean;
   configSaving: boolean;
-  saveConfig: (
-    patch: RemoteControlConfigPatch,
-  ) => Promise<{ success: boolean; error?: string }>;
+  saveConfig: (patch: RemoteControlConfigPatch) => Promise<{ success: boolean; error?: string }>;
   testConnection: () => Promise<RemoteControlTestResult | null>;
   testingConnection: boolean;
   /** 平台是否实现了契约外的可选「测试连接」能力;未实现时按钮禁用而不是点了没反应。 */
@@ -44,29 +46,43 @@ export function RemoteControlConnectionSettings({
   testSupported,
 }: RemoteControlConnectionSettingsProps) {
   const { intl } = useLCodeIntl();
-  const [workerBaseUrlDraft, setWorkerBaseUrlDraft] = useState("");
+  const [workerBaseUrlDraft, setWorkerBaseUrlDraft] = useState(
+    DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL,
+  );
+  const workerBaseUrlTouched = useRef(false);
   const [accessKeyDraft, setAccessKeyDraft] = useState("");
   const [testResult, setTestResult] = useState<RemoteControlTestResult | null>(null);
 
-  // 配置以 Main 回读为准；草稿只在为空时回填，不覆盖用户正在编辑的内容，
+  // 配置以 Main 回读为准；用户尚未编辑时回填，不覆盖正在编辑的内容，
   // 避免设置页开着时 Main 的回读把输入冲掉。
   useEffect(() => {
-    if (config) {
-      setWorkerBaseUrlDraft((current) => (current === "" ? config.workerBaseUrl : current));
+    if (config && !workerBaseUrlTouched.current) {
+      setWorkerBaseUrlDraft(config.workerBaseUrl);
     }
   }, [config]);
 
-  // 注意 ?? 优先级低于 !==，右侧必须加括号；否则 config 未加载时 dirty 恒真，
-  // 空输入也会点亮保存按钮。
+  // 空输入明确表示恢复官方托管地址，不把“空”持久化为第二种默认状态。
+  const normalizedWorkerBaseUrlDraft = workerBaseUrlDraft.trim()
+    ? normalizeRemoteControlWorkerBaseUrl(workerBaseUrlDraft)
+    : DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL;
   const workerBaseUrlDirty =
-    normalizeRemoteControlWorkerBaseUrl(workerBaseUrlDraft) !==
-    (config?.workerBaseUrl ?? "");
+    normalizedWorkerBaseUrlDraft !==
+    (config?.workerBaseUrl ?? DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL);
+  const managedService = isDefaultRemoteControlWorkerBaseUrl(
+    normalizedWorkerBaseUrlDraft ?? workerBaseUrlDraft,
+  );
 
   const handleEnabledChange = useCallback(
     async (enabled: boolean) => {
       if (!config) return;
-      // fail-closed：没有域名或接入 Key 时不允许打开主开关，避免 Main 拿不完整配置出站。
-      if (enabled && !(config.workerBaseUrl && config.hasAccessKey)) {
+      // 官方托管服务不分发共享 Key；自建 Worker 仍须先保存部署 Key。
+      if (
+        enabled &&
+        !(
+          config.workerBaseUrl &&
+          (isDefaultRemoteControlWorkerBaseUrl(config.workerBaseUrl) || config.hasAccessKey)
+        )
+      ) {
         toast(intl.formatMessage({ id: "settings.remoteControl.enable.missingPrerequisites" }));
         return;
       }
@@ -105,7 +121,7 @@ export function RemoteControlConnectionSettings({
 
   const handleSaveWorkerBaseUrl = useCallback(async () => {
     // 与 Main/Worker 同口径（@lcode/shared）：仅接受 https，或 localhost 系的 http。
-    const normalized = normalizeRemoteControlWorkerBaseUrl(workerBaseUrlDraft);
+    const normalized = normalizedWorkerBaseUrlDraft;
     if (!normalized) {
       toast(intl.formatMessage({ id: "settings.remoteControl.workerBaseUrl.invalid" }));
       return;
@@ -119,9 +135,10 @@ export function RemoteControlConnectionSettings({
       successMessageId: "settings.remoteControl.config.saved",
     });
     if (saved) {
+      workerBaseUrlTouched.current = false;
       setWorkerBaseUrlDraft(normalized);
     }
-  }, [intl, saveConfig, workerBaseUrlDraft]);
+  }, [intl, normalizedWorkerBaseUrlDraft, saveConfig]);
 
   const handleSaveAccessKey = useCallback(async () => {
     const accessKey = accessKeyDraft.trim();
@@ -204,9 +221,12 @@ export function RemoteControlConnectionSettings({
           <Input
             size="lg"
             value={workerBaseUrlDraft}
-            placeholder="https://your-worker.workers.dev"
+            placeholder={DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL}
             data-testid="remote-control-worker-base-url"
-            onChange={(event) => setWorkerBaseUrlDraft(event.currentTarget.value)}
+            onChange={(event) => {
+              workerBaseUrlTouched.current = true;
+              setWorkerBaseUrlDraft(event.currentTarget.value);
+            }}
             onKeyDown={(event) => {
               if (event.key === "Enter" && workerBaseUrlDirty) {
                 void handleSaveWorkerBaseUrl();
@@ -223,7 +243,7 @@ export function RemoteControlConnectionSettings({
           <Button
             type="button"
             size="lg"
-            disabled={configSaving || accessKeyDraft.trim() === ""}
+            disabled={managedService || configSaving || accessKeyDraft.trim() === ""}
             onClick={() => void handleSaveAccessKey()}
           >
             {intl.formatMessage({ id: "settings.remoteControl.accessKey.save" })}
@@ -235,6 +255,7 @@ export function RemoteControlConnectionSettings({
               size="lg"
               type="password"
               autoComplete="off"
+              disabled={managedService}
               value={accessKeyDraft}
               placeholder={intl.formatMessage({
                 id: "settings.remoteControl.accessKey.placeholder",
@@ -253,9 +274,11 @@ export function RemoteControlConnectionSettings({
               data-testid="remote-control-access-key-state"
             >
               {intl.formatMessage({
-                id: config?.hasAccessKey
-                  ? "settings.remoteControl.accessKey.configured"
-                  : "settings.remoteControl.accessKey.notConfigured",
+                id: managedService
+                  ? "settings.remoteControl.accessKey.managedService"
+                  : config?.hasAccessKey
+                    ? "settings.remoteControl.accessKey.configured"
+                    : "settings.remoteControl.accessKey.notConfigured",
               })}
             </div>
           </div>
@@ -263,7 +286,9 @@ export function RemoteControlConnectionSettings({
       />
       <SettingsRow
         label={intl.formatMessage({ id: "settings.remoteControl.testConnection.title" })}
-        description={intl.formatMessage({ id: "settings.remoteControl.testConnection.description" })}
+        description={intl.formatMessage({
+          id: "settings.remoteControl.testConnection.description",
+        })}
         control={
           <Button
             type="button"

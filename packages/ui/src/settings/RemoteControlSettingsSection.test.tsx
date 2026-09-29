@@ -26,7 +26,7 @@ const bridgePlatformStub = {
   revokeRemoteDevice: async (_deviceId: string) => {},
   getRemoteControlConfig: async () => ({
     enabled: false,
-    workerBaseUrl: "",
+    workerBaseUrl: "https://code.lemon.vin",
     hasAccessKey: false,
     pairingTtlMs: 300_000,
     allowNewDevices: true,
@@ -80,7 +80,7 @@ test("resolveRemoteControlBridge 缺任一必需能力即整体 fail-closed", ()
   assert.equal(resolveRemoteControlBridge(incomplete as unknown as IPlatformService), null);
 });
 
-test("remoteControl 分区仅桌面注册，入口在 footer 而非设置侧栏导航", () => {
+test("remoteControl 分区仅桌面注册，并同时出现在基础设置导航", () => {
   // Web 默认配置（无桌面平台能力）不出现远程控制。
   assert.equal(
     SETTINGS_SECTIONS.some((section) => section.id === "remoteControl"),
@@ -88,16 +88,10 @@ test("remoteControl 分区仅桌面注册，入口在 footer 而非设置侧栏�
   );
 
   const desktopConfig = createSettingsPageConfig({ isDesktop: true });
-  // 分区保留注册：直达意图（footer 快捷入口）、面包屑与上次停留分区解析仍可落回本分区。
+  // 分区保留注册：footer 快捷入口、设置导航、面包屑与上次停留分区共用同一分区。
   assert.ok(desktopConfig.settingsSections.some((section) => section.id === "remoteControl"));
-  // 侧栏导航分组不再列出（入口已迁到侧栏 footer，specs/mobile-remote-control-cf-workers.md）。
-  for (const group of desktopConfig.settingsSectionGroups) {
-    assert.equal(
-      group.sections.some((section) => section.id === "remoteControl"),
-      false,
-      `导航分组 ${group.id} 不应再列出 remoteControl`,
-    );
-  }
+  const basics = desktopConfig.settingsSectionGroups.find((group) => group.id === "basics");
+  assert.ok(basics?.sections.some((section) => section.id === "remoteControl"));
 
   // 上次停留分区记忆的往返解析必须落回本分区，而不是被当成未知 id 回退 general。
   assert.equal(resolveSettingsSection("remoteControl"), "remoteControl");
@@ -109,7 +103,7 @@ test("平台能力缺失时渲染 desktopOnly 提示，不渲染任何控件", (
   assert.doesNotMatch(markup, /remote-control-enabled-switch/);
 });
 
-test("能力齐备时渲染启用开关、域名/Key 输入、测试连接与安全隐私，不再承载手机配对", () => {
+test("官方托管服务使用默认域名且无需 Key，自建入口与安全隐私仍可见", () => {
   const markup = renderSection(bridgePlatformStub);
   // 启用开关 + Worker 域名 + 接入 Key + 测试连接。
   assert.match(markup, /data-testid="remote-control-enabled-switch"/);
@@ -122,8 +116,9 @@ test("能力齐备时渲染启用开关、域名/Key 输入、测试连接与安
   assert.match(markup, /data-testid="remote-control-allow-new-devices"/);
   assert.match(markup, /正在读取已授权设备/);
   assert.match(markup, /未做端到端加密/);
-  // 尚未从 Main 拿到配置前接入 Key 显示未配置，且开关禁用（配置只回读 hasAccessKey）。
-  assert.match(markup, /尚未配置接入 Key/);
+  // 官方托管服务不把共享密钥放进客户端；自建 Worker 才需要填写 Key。
+  assert.match(markup, /官方托管服务无需接入 Key/);
+  assert.match(markup, /value="https:\/\/code\.lemon\.vin"/);
   assert.match(markup, /disabled=""/);
   // 手机配对已独立为 MobileRemoteControlPanel（侧栏 footer 弹框），设置段不再渲染配对 UI。
   assert.doesNotMatch(markup, /data-testid="remote-control-pairing-panel"/);

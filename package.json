@@ -1,6 +1,6 @@
 {
   "name": "lcode",
-  "version": "3.16.2",
+  "version": "3.16.3",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
@@ -16,7 +16,7 @@
     "prepare:desktop-runtime": "pnpm --filter @lcode/desktop prepare:runtime-assets",
     "dep:graph": "node scripts/dependency-graph.mjs",
     "dep:refs": "node scripts/dep-refs.mjs",
-    "test:release": "node --test scripts/github-release.test.mjs",
+    "test:release": "node --test scripts/github-release.test.mjs packages/desktop/scripts/packaged-product-identity.test.mjs packages/desktop/scripts/windows-installer-brand-isolation.test.mjs",
     "verify:pre-push": "pnpm run lint && pnpm run architecture:check -- --changed",
     "build": "pnpm -r build",
     "build:desktop-agent:bytecode": "node scripts/build-desktop-agent-bytecode.mjs",

@@ -1986,29 +1986,31 @@ const zhCN: Record<string, string> = {
   "settings.remoteControl.enable.description":
     "通过 Cloudflare Worker 隧道让手机镜像这台桌面：手机获得与桌面使用者完全一致的操作能力。开启后桌面只向 Worker 发起出站连接。",
   "settings.remoteControl.enable.missingPrerequisites":
-    "请先填写 Worker 域名并保存接入 Key，再开启远程控制。",
+    "请先填写有效的 Worker 域名；自建 Worker 还需保存接入 Key。",
   "settings.remoteControl.enable.enabledToast": "已开启远程控制",
   "settings.remoteControl.enable.disabledToast": "已关闭远程控制，桌面将断开与 Worker 的连接",
   "settings.remoteControl.workerBaseUrl.title": "Worker 域名",
   "settings.remoteControl.workerBaseUrl.description":
-    "cfworker-remote Worker 的部署地址，只填域名，例如 https://your-worker.workers.dev",
+    "留空使用官方托管服务 https://code.lemon.vin；也可填写自建 cfworker-remote 地址。",
   "settings.remoteControl.workerBaseUrl.invalid":
     "Worker 域名无效：需为 https:// 地址（本地调试可用 http://localhost）",
   "settings.remoteControl.accessKey.title": "接入 Key",
   "settings.remoteControl.accessKey.description":
-    "部署 Worker 时设置的接入 Key。保存进系统凭据存储，不写入明文配置，仅用于桌面与 Worker 之间的鉴权。",
+    "仅自建 Worker 需要。保存进系统凭据存储，不写入明文配置；官方托管服务不向客户端分发共享密钥。",
   "settings.remoteControl.accessKey.placeholder": "粘贴接入 Key",
   "settings.remoteControl.accessKey.save": "保存 Key",
   "settings.remoteControl.accessKey.saved": "接入 Key 已保存",
   "settings.remoteControl.accessKey.configured": "已配置接入 Key（不再明文显示）",
   "settings.remoteControl.accessKey.notConfigured": "尚未配置接入 Key",
+  "settings.remoteControl.accessKey.managedService":
+    "官方托管服务无需接入 Key（客户端不内置共享密钥）",
   "settings.remoteControl.config.save": "保存",
   "settings.remoteControl.config.saved": "设置已保存",
   "settings.remoteControl.config.saveFailed": "保存失败，请重试",
   "settings.remoteControl.config.saveFailedWithReason": "保存失败：{error}",
   "settings.remoteControl.testConnection.title": "测试连接",
   "settings.remoteControl.testConnection.description":
-    "用当前域名和接入 Key 向 Worker 发起一次健康检查",
+    "用当前域名向 Worker 发起健康检查；自建 Worker 会同时使用已保存的接入 Key",
   "settings.remoteControl.testConnection.action": "测试连接",
   "settings.remoteControl.testConnection.success": "连接成功（{latencyMs}ms）",
   "settings.remoteControl.testConnection.failed": "连接失败：{error}",

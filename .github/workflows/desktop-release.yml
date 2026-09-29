@@ -182,7 +182,7 @@ jobs:
             echo "LCODE_CUA_MAC_NODE_SHA256=$node_sha256"
             echo "LCODE_CUA_HELPER_BUILD_ID=$GITHUB_SHA:$GITHUB_RUN_ID:$GITHUB_RUN_ATTEMPT"
           } >> "$GITHUB_ENV"
-      - name: Package desktop app
+      - name: Package and verify desktop app identity
         run: pnpm bundle:desktop -- --os ${{ matrix.os }} --arch ${{ matrix.arch }}
       - name: Stage versioned installers
         run: node scripts/stage-release-artifacts.mjs ${{ steps.version.outputs.version }} ${{ matrix.os }} ${{ matrix.arch }}
