@@ -1120,9 +1120,6 @@ export function ModelProviderSection({
           // 空态（未添加任何供应商）引导出口：直达「添加供应商」模板选择。
           onAddProvider={() => setTemplatePickerOpen(true)}
           codingPlanAuthError={oauthError}
-          codingPlanPurchaseTokenAuthenticatedByProviderId={
-            codingPlanPurchaseTokenAuthenticatedByProviderId
-          }
           presetSubscriptionProviderId={presetSubscriptionProviderId}
           codingPlanStatusSyncProviderId={codingPlanStatusSyncProviderId}
           codingPlanDisconnectProviderId={codingPlanDisconnectProviderId}

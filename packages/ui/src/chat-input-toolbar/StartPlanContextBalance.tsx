@@ -1,5 +1,4 @@
-import { CodingPlanEntryButton } from "@/settings/CodingPlanEntryButton.js";
-import { Loader2Icon, RocketIcon } from "lucide-react";
+import { Loader2Icon } from "lucide-react";
 import type { UsageEntitlementSnapshot, UsageQuotaLimit } from "@lcode/shared";
 import { cn } from "@/components/lib/utils.js";
 import type { useLCodeIntl } from "@/i18n/IntlProvider.js";
@@ -138,21 +137,7 @@ export function ChatStartPlanBalancePanel({
             <Loader2Icon className="size-3.5 shrink-0 animate-spin text-foreground-subtle" />
           ) : null}
         </div>
-        {config.onUpgradeClick ? (
-          <CodingPlanEntryButton
-            type="button"
-            size="xs"
-            className="h-6 shrink-0 gap-1 px-2 text-ui-sm"
-            onClick={(event) => {
-              event.preventDefault();
-              event.stopPropagation();
-              config.onUpgradeClick?.();
-            }}
-          >
-            <RocketIcon className="size-3" />
-            {intl.formatMessage({ id: "chat.quota.action.upgrade" })}
-          </CodingPlanEntryButton>
-        ) : null}
+
       </div>
       <div className={cn("grid gap-2", getContextQuotaMeterGridClass(limits.length))}>
         {limits.map((limit) => (
