@@ -19,6 +19,7 @@ import {
 } from "@/lib/providerSettingsFormTypes.js";
 import { ArrowRightIcon, AstroidIcon, UsersIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { Button } from "@/components/ui/button.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
   type CodingPlanStatus,
@@ -253,6 +254,7 @@ export function ModelProviderSectionDetail({
   onOpenBigModelRegistration,
   onCodingPlanPurchaseComplete,
   onSelectNavItem,
+  onAddProvider,
   providerSettingsView: providerSettingsViewOverride,
 }: {
   selectedNavItem: ModelProviderNavItem | null;
@@ -261,6 +263,8 @@ export function ModelProviderSectionDetail({
   connectionSelections?: ProviderFamilyConnectionSelectionSettings;
   startPlanSubscriptionCount?: number;
   presetLoading: boolean;
+  /** 空态引导出口：没有任何可选供应商时，提供直达「添加供应商」的按钮。 */
+  onAddProvider?: () => void;
   codingPlanPurchaseTokenAuthenticatedByProviderId: Partial<
     Record<BuiltinModelProviderId, boolean>
   >;
@@ -400,7 +404,27 @@ export function ModelProviderSectionDetail({
   }, [selectedItemKey]);
 
   if (!selectedNavItem) {
-    return <ModelProviderLoadingCard loadingLabel={loadingLabel} />;
+    // 首刷加载期间保持 loading 卡片；加载完成后仍无可选供应商是正常空态
+    // （全新安装/未添加任何自定义供应商），必须渲染空态引导而不是加载卡片——
+    // 否则页面会永远停在“加载中”（v3.16.2 用户反馈：未添加供应商时模型设置一直转圈）。
+    if (presetLoading) {
+      return <ModelProviderLoadingCard loadingLabel={loadingLabel} />;
+    }
+    return (
+      <div className="flex min-h-64 flex-col items-center justify-center gap-3 text-ui-base">
+        <p className="font-medium text-foreground">
+          {intl.formatMessage({ id: "settings.modelProvider.emptyTitle" })}
+        </p>
+        <p className="text-foreground-subtle">
+          {intl.formatMessage({ id: "settings.modelProvider.emptyDescription" })}
+        </p>
+        {onAddProvider ? (
+          <Button type="button" variant="outline" onClick={onAddProvider}>
+            {intl.formatMessage({ id: "settings.modelProvider.addProviderAction" })}
+          </Button>
+        ) : null}
+      </div>
+    );
   }
 
   if (selectedNavItem.type === "preset") {

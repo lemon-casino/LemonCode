@@ -2579,6 +2579,9 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.catalogProviderSearch": "Search providers",
   "settings.modelProvider.catalogProviderEmpty": "No providers found",
   "settings.modelProvider.addProviderAction": "Add provider",
+  "settings.modelProvider.emptyTitle": "No model providers yet",
+  "settings.modelProvider.emptyDescription":
+    'Click "Add provider" to configure one, then pick it in chat.',
   "settings.modelProvider.templatePickerTitle": "Add provider",
   "settings.modelProvider.templateGroup.zhipu": "Zhipu",
   "settings.modelProvider.templateGroup.other": "Other",
