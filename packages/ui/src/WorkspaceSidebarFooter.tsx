@@ -199,6 +199,16 @@ export const WorkspaceSidebarFooter = memo(function WorkspaceSidebarFooterCompon
             </span>
           )}
         </AvatarFallback>
+        {/* 品牌徽标外圈顺时针流动光环（样式见 styles.css 的 .lcode-brand-avatar-halo）：
+            颜色只取 --color-brand，与 6 套主题搭配。只在品牌徽标态叠加——
+            真实用户头像与 OAuth 恢复态不加装饰，避免把身份判断误读成状态。 */}
+        {showGuestBrandAvatar ? (
+          <span
+            aria-hidden
+            className="lcode-brand-avatar-halo"
+            data-lcode-brand-avatar-halo="true"
+          />
+        ) : null}
       </Avatar>
       <div className="min-w-0 flex-1 overflow-hidden text-left">
         <div className="flex min-w-0 items-center gap-1.5">

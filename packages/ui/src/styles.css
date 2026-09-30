@@ -1514,6 +1514,54 @@ body {
 }
 
 /*
+ *  footer 身份区品牌徽标（app-logo.svg）外圈光环。
+ *  颜色只取 --color-brand：Zai 对随品牌黑/白，暖纸褐、午夜蓝、森林绿各自跟随主题主色，
+ *  不新增主题变量，6 套主题无需各自写规则。
+ *  光带是同一品牌色的彗星渐变（尾部 14% → 头部 92%），沿 1.5px 环形掩膜顺时针流动；
+ *  掩膜只保留描边，旋转光场不覆盖图标本体。光环需留在头像 32px 盒内——
+ *  footer 触发按钮 overflow-hidden 且 pl-0，向外发光会被左侧裁掉。
+ */
+.lcode-brand-avatar-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  padding: 1.5px;
+  overflow: hidden;
+  pointer-events: none;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+}
+
+.lcode-brand-avatar-halo::before {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  background: conic-gradient(
+    from 0deg,
+    color-mix(in oklab, var(--color-brand) 14%, transparent) 0deg 200deg,
+    color-mix(in oklab, var(--color-brand) 42%, transparent) 268deg,
+    color-mix(in oklab, var(--color-brand) 92%, transparent) 352deg,
+    color-mix(in oklab, var(--color-brand) 14%, transparent) 360deg
+  );
+  animation: lcode-brand-avatar-halo-flow 3.6s linear infinite;
+}
+
+@keyframes lcode-brand-avatar-halo-flow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 减少动效时保留静态光环（等同品牌描边），只停掉流动。 */
+@media (prefers-reduced-motion: reduce) {
+  .lcode-brand-avatar-halo::before {
+    animation: none;
+  }
+}
+
+/*
  *  通用 animate-pulse 只让 14px 的 SVG 以 2 秒周期改变透明度，运行时虽然处于 running，
  * 但视觉上几乎像静止。把专用呼吸动画挂到图标外层，同时改变透明度和缩放，确保操作状态可感知。
  */
@@ -2065,168 +2113,168 @@ body {
     background: none;
   }
 }
-/* 瓦片脸：身份色不随表情改变，动作只作用于眼睛，机身始终静止。 */
-.wf-face {
-  min-width: 20px;
-  min-height: 20px;
+/* 晶核保留身份色，状态由独立轮廓编码；布局盒服从调用方的 14/16px，避免旧最小尺寸撑开药丸。 */
+.wf-agent-avatar {
+  display: block;
   flex-shrink: 0;
-  --wf-face-body: #54b9a6;
-  --wf-face-eye: #ffffff;
-  --wf-face-x: 0px;
-  --wf-face-y: 0px;
+  overflow: hidden;
+  fill: none;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  --wf-avatar-status: var(--color-foreground-subtlest);
+  --wf-avatar-ink: var(--color-foreground);
 }
-.wf-face-eyes {
-  transform: translate(var(--wf-face-x), var(--wf-face-y));
-  transition: transform 360ms ease-in-out;
+.wf-agent-avatar[data-avatar-status="running"] {
+  --wf-avatar-status: var(--color-warning);
 }
-.wf-face-lids {
-  transform-box: fill-box;
-  transform-origin: center;
+.wf-agent-avatar[data-avatar-status="done"] {
+  --wf-avatar-status: var(--color-success);
 }
-.wf-face [data-eye-expression] {
-  display: none;
+.wf-agent-avatar[data-avatar-status="cancelled"] {
+  --wf-avatar-status: var(--color-foreground-subtle);
 }
-.wf-face[data-expression="dots"] [data-eye-expression="dots"],
-.wf-face[data-expression="pill"] [data-eye-expression="pill"] {
-  display: inline;
+.wf-agent-avatar[data-avatar-status="failed"] {
+  --wf-avatar-status: var(--color-destructive);
 }
-.wf-face[data-expression="happy"] [data-eye-expression="happy"] {
-  display: inline;
+.wf-agent-avatar-outline,
+.wf-agent-avatar-spark {
+  fill: none;
+  stroke: var(--wf-avatar-status);
 }
-.wf-face[data-expression="sleepy"] [data-eye-expression="sleepy"] {
-  display: inline;
+.wf-agent-avatar-crystal {
+  fill: var(--wf-avatar-identity);
+  stroke: none;
 }
-.wf-face[data-expression="focused"] [data-eye-expression="focused"] {
-  display: inline;
+.wf-agent-avatar-hollow {
+  fill: color-mix(in oklab, var(--wf-avatar-identity) 12%, var(--color-surface));
+  stroke: var(--wf-avatar-identity);
 }
-.wf-face[data-expression="sad"] [data-eye-expression="sad"] {
-  display: inline;
+.wf-agent-avatar-facet {
+  fill: color-mix(in oklab, var(--wf-avatar-identity) 64%, var(--color-foreground-inverse));
+  stroke: none;
 }
-.wf-face[data-expression="confused"] [data-eye-expression="confused"] {
-  display: inline;
+.wf-agent-avatar-check,
+.wf-agent-avatar-cross {
+  fill: none;
+  stroke: var(--wf-avatar-ink);
+  stroke-width: 2;
 }
-
-.wf-face[data-motion="blink"] .wf-face-lids {
-  animation: wf-face-blink var(--wf-face-blink-time, 230ms) ease-in-out var(--wf-face-blinks, 2);
+.wf-agent-avatar-stop {
+  fill: var(--wf-avatar-status);
+  stroke: none;
 }
-.wf-face[data-motion="morph"] .wf-face-lids {
-  animation: wf-face-morph 180ms ease-in-out;
+.wf-agent-avatar-scan {
+  stroke: var(--color-foreground-inverse);
+  stroke-width: 1.5;
 }
-.wf-face[data-motion="hop"] .wf-face-bounce {
-  animation: wf-face-hop 240ms ease-in-out var(--wf-face-hops, 2);
-}
-.wf-face-closed {
+.wf-agent-avatar-spark {
   opacity: 0;
 }
-.wf-face[data-motion="blink"] .wf-face-closed {
-  animation: wf-face-closed-blink var(--wf-face-blink-time, 230ms) ease-in-out
-    var(--wf-face-blinks, 2);
+.wf-agent-avatar-orbit,
+.wf-agent-avatar-fragments,
+.wf-agent-avatar-spark {
+  transform-box: view-box;
+  transform-origin: 10px 10px;
 }
-.wf-face[data-motion="morph"] .wf-face-closed {
-  animation: wf-face-closed-morph 180ms ease-in-out;
+@media (prefers-reduced-motion: no-preference) {
+  .wf-agent-avatar-node {
+    animation: wf-avatar-node 2800ms ease-in-out infinite;
+    animation-delay: var(--wf-avatar-phase);
+  }
+  .wf-agent-avatar-node:nth-child(2) {
+    animation-delay: calc(var(--wf-avatar-phase) - 280ms);
+  }
+  .wf-agent-avatar-node:nth-child(3) {
+    animation-delay: calc(var(--wf-avatar-phase) - 560ms);
+  }
+  .wf-agent-avatar-orbit {
+    animation: wf-avatar-orbit 1600ms linear infinite;
+    animation-delay: var(--wf-avatar-phase);
+  }
+  .wf-agent-avatar-orbit-inner {
+    animation-direction: reverse;
+    animation-duration: 2400ms;
+  }
+  .wf-agent-avatar-scan {
+    animation: wf-avatar-scan 1600ms ease-in-out infinite;
+    animation-delay: var(--wf-avatar-phase);
+  }
+  .wf-agent-avatar-check {
+    animation: wf-avatar-check 320ms var(--wf-ease, ease) both;
+  }
+  .wf-agent-avatar-spark {
+    animation: wf-avatar-spark 480ms var(--wf-ease, ease) both;
+  }
+  .wf-agent-avatar-fragments {
+    animation: wf-avatar-fault 5600ms ease-in-out infinite;
+    animation-delay: var(--wf-avatar-phase);
+  }
 }
-@keyframes wf-face-blink {
+@keyframes wf-avatar-node {
   0%,
-  70%,
+  50%,
   100% {
-    transform: scaleY(1);
+    opacity: 0.4;
+  }
+  12%,
+  24% {
     opacity: 1;
   }
-  35% {
-    transform: scaleY(0.333333);
-    opacity: 0;
+}
+@keyframes wf-avatar-orbit {
+  to {
+    transform: rotate(360deg);
   }
 }
-@keyframes wf-face-closed-blink {
-  0%,
-  70%,
-  100% {
-    opacity: 0;
-  }
-  35% {
-    opacity: 1;
-  }
-}
-@keyframes wf-face-morph {
+@keyframes wf-avatar-scan {
   0%,
   100% {
-    transform: scaleY(1);
-    opacity: 1;
-  }
-  40%,
-  50% {
-    transform: scaleY(0.333333);
-    opacity: 0;
-  }
-}
-@keyframes wf-face-closed-morph {
-  0%,
-  100% {
-    opacity: 0;
-  }
-  40%,
-  50% {
-    opacity: 1;
-  }
-}
-.wf-face[data-motion="float"] .wf-face-bounce {
-  animation: wf-face-float 600ms ease-in-out var(--wf-face-floats, 1);
-}
-.wf-face[data-motion="shake"] .wf-face-bounce {
-  animation: wf-face-shake 90ms linear var(--wf-face-shakes, 3);
-}
-@keyframes wf-face-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  30% {
-    transform: translateY(-0.5px);
-  }
-  70% {
-    transform: translateY(0.5px);
-  }
-}
-@keyframes wf-face-shake {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-  25% {
-    transform: translate(-0.9px, -0.35px);
-  }
-  75% {
-    transform: translate(0.9px, 0.35px);
-  }
-}
-.wf-face[data-motion="dots-wave"] [data-eye-expression="dots"] circle {
-  animation: wf-face-dot-float 500ms ease-in-out both;
-}
-.wf-face[data-motion="dots-wave"] [data-eye-expression="dots"] circle:nth-child(2) {
-  animation-delay: 200ms;
-}
-.wf-face[data-motion="dots-wave"] [data-eye-expression="dots"] circle:nth-child(3) {
-  animation-delay: 400ms;
-}
-@keyframes wf-face-dot-float {
-  0%,
-  100% {
-    transform: translateY(0);
+    transform: translateY(-2px);
+    opacity: 0.35;
   }
   50% {
-    transform: translateY(-1.5px);
+    transform: translateY(2px);
+    opacity: 1;
   }
 }
-@keyframes wf-face-hop {
+@keyframes wf-avatar-check {
+  from {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes wf-avatar-spark {
   0%,
   100% {
-    transform: translateY(0);
+    opacity: 0;
+    transform: scale(0.8);
   }
   35% {
-    transform: translateY(-1px);
+    opacity: 1;
+    transform: scale(1);
   }
-  70% {
-    transform: translateY(0.7px);
+}
+@keyframes wf-avatar-fault {
+  0%,
+  86%,
+  100% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  89%,
+  95% {
+    opacity: 0.55;
+    transform: translateX(-0.5px);
+  }
+  92%,
+  98% {
+    opacity: 1;
+    transform: translateX(0.5px);
   }
 }
 @keyframes wf-arrive {
@@ -2331,13 +2379,7 @@ body {
   .wf-preview-doc {
     animation: none;
   }
-  /* 瓦片脸：动作归零、不跟随指针；表情本身仍按状态显示——它是信息不是装饰。 */
-  .wf-face [data-eye-expression="dots"] circle,
-  .wf-face-body,
-  .wf-face-lids,
-  .wf-face-closed,
-  .wf-face-eyes,
-  .wf-face-bounce {
+  .wf-agent-avatar * {
     animation: none;
     transition: none;
   }

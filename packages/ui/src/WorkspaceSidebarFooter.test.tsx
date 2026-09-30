@@ -104,4 +104,14 @@ test("无账号体系时身份区回退品牌名，品牌 L 徽标容器在全�
   assert.match(markup, /data-lcode-brand-avatar="transparent"/);
   assert.match(markup, /after:hidden/);
   assert.match(markup, /bg-transparent/);
+  // 品牌徽标态常驻光环（配色与旋转由 styles.css 的 .lcode-brand-avatar-halo 承担）。
+  assert.match(markup, /data-lcode-brand-avatar-halo="true"/);
+  assert.match(markup, /lcode-brand-avatar-halo/);
+});
+
+test("已登录用户头像不叠加品牌光环（光环只属于品牌徽标态）", () => {
+  const markup = renderFooter({
+    user: { id: "user-1", username: "luna", displayName: "Luna" },
+  });
+  assert.doesNotMatch(markup, /lcode-brand-avatar-halo/);
 });
