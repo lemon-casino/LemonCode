@@ -17,11 +17,16 @@
 
 ```mermaid
 sequenceDiagram
-  participant UI as 设置或首次引导
+  participant Welcome as 首次引导
+  participant UI as 设置
   participant Route as 工作区服务路由
   participant Host as GitBackupService
   participant Store as Profile 持久化与互斥
   participant OSS as 用户 OSS
+  Welcome->>Host: markOnboardingComplete（只提交引导记录）
+  Host->>Store: 持锁原子保存完成记录
+  Host-->>Welcome: 提交成功
+  Welcome->>UI: 当前工作区仍匹配时打开 gitBackup 设置
   UI->>Route: 校验后提交配置与目标 identity/path
   Route->>Host: configure
   Host->>Store: 加密凭据写入新引用
@@ -37,7 +42,7 @@ sequenceDiagram
 
 ## 产品规则
 
-1. 默认关闭；首次引导加载服务完成记录后才显示。跳过只持久化完成记录，不启用。开启必须以 `configure` 的完成引导选项在一次 Host 提交中保存有效配置、显式目标及完成记录，任何提交失败都不能留下已启用计划；失败保留表单并显示错误。
+1. 默认关闭；首次引导加载服务完成记录后才显示。弹框仅介绍备份，不填写配置。“开启自动备份”先持久化已看过引导，再关闭弹框并打开当前工作区的「设置 / 数据与统计 / Git 自动备份」；不启用调度、不注册工作区、不保存凭据。跳过只持久化完成记录，不打开设置。完成记录写入失败时保留弹框并显示错误；晚到完成不为已切换的工作区打开设置。实际配置、目的地选择与启用都在设置页完成。
 2. 设置读入已保存配置。OSS 与间隔修改使用明确保存动作；未保存表单不会被状态刷新覆盖。启用开关保存成功后才更新，不允许缺少有效配置或工作区时开启。
 3. 间隔必须为 5 到 1440 的整数分钟。校验 AccessKey、bucket、region 和对象前缀，支持 `cn-hangzhou` 与 `oss-cn-hangzhou`，不接受自定义 URL、路径穿越或非法 bucket。
 4. 自动备份只处理已加入列表。保存当前工作区或开启会幂等加入；可以移除目标。关闭不会丢失配置、密钥或已加入列表；不会新增上传，已开始的运行允许完成，页面准确说明。
@@ -52,7 +57,7 @@ sequenceDiagram
 
 ## 迁移
 
-旧浏览器 `git-backup-config` 从未形成真实服务配置，不能因迁移自动开启或产生上传。首次读取仅转为待确认草稿；显式保存成功后清除旧凭据。旧 onboarding 标记可迁移为服务完成记录，失败不删除旧记录。Host 保存成功后，浏览器禁止删除旧数据不能将已提交结果误报失败；保留旧数据供以后清理。引导读取失败重试成功时，表单必须从新读入的配置初始化；保存失败时保留已填写草稿。旧 Host 缺少 channel 时页面显示不可用，不显示假成功。RPC 中新增方法无需改变 Agent stdio 协议。
+旧浏览器 `git-backup-config` 从未形成真实服务配置，不能因迁移自动开启或产生上传。首次读取仅转为待确认草稿；显式保存成功后清除旧凭据。旧 onboarding 标记可迁移为服务完成记录，失败不删除旧记录。Host 保存成功后，浏览器禁止删除旧数据不能将已提交结果误报失败；保留旧数据供以后清理。引导读取失败重试成功时重新读取完成记录，不初始化配置表单；设置页保存失败时保留已填写草稿。已接受的位置变更或清除立即投影历史失效，即使随后读回失败也不显示旧地址成功；同位置密钥轮换及无关槽保存保留历史。旧 Host 缺少 channel 时页面显示不可用，不显示假成功。RPC 中新增方法无需改变 Agent stdio 协议。
 
 ## OSS / MinIO 多目的地扩展（2026-09-30）
 
@@ -61,8 +66,8 @@ sequenceDiagram
 - 在现有 Host 服务中增加 MinIO；每个 profile 提供 OSS、MinIO 两个独立配置槽，不增加 UI 上传器、另一个调度器或任意数量的同类账户。
 - 总开关 `enabled` 控制自动调度；`destinationEnabled` 分别选择 OSS / MinIO，两者可以同时启用或只启用一个。保存配置不自动选择新目的地、不自动开启总开关。开启总开关要求至少一个选中的有效目的地及已加入工作区。
 - 保留共享间隔、工作区列表和加密密钥。每个目的地的凭据、可用性、上次尝试、上次成功和错误分别持久化；配置位置或账户改变后清除该目的地旧位置的成功投影。
-- 设置提供存储类型选择器、各目的地开关、独立编辑草稿、测试和当前目的地手动备份，以及“备份到所有已启用目的地”。切换类型不丢失另一目的地未保存草稿，测试结果按类型和草稿版本隔离。
-- 首次引导继续兼容原 OSS 表单，原子保存 OSS 与引导完成，不覆盖 MinIO 配置或启用状态。旧浏览器 OSS 草稿仅在 OSS 明确保存后清理；保存 MinIO 不清理。
+- 设置提供存储类型选择器、各目的地开关、独立编辑草稿、测试和当前目的地手动备份，以及“备份到所有已启用目的地”。切换类型不丢失另一目的地未保存草稿，测试结果按类型和草稿版本隔离。明确确认后可以清空当前目的地的已保存配置并关闭其开关，不删除固定槽、工作区、密钥或远端对象。
+- 首次引导仅跳转统一设置页，不再显示 OSS 表单；跳转和跳过都不覆盖 OSS / MinIO 配置或启用状态。旧浏览器 OSS 草稿在设置页读取，仅在 OSS 明确保存后清理；保存 MinIO 不清理。
 
 ### 请求与凭据
 
@@ -100,13 +105,16 @@ sequenceDiagram
 - 每个工作区 admission 时冻结配置及凭据；运行期间关闭某目的地或总开关不取消已经接受的运行，下一工作区 admission 重新读取配置。删除工作区等既有规则不变。
 - 同一工作区只捕获 / 加密一次，OSS 与 MinIO 使用同一相对 backup ID，各自前缀独立。一个目的地失败不阻止其他目的地完成；每个目的地只有三个 payload 都成功后才上传自己的 manifest。
 - 等待所有目的地及其 payload settled 后才能释放执行锁。全部选中目的地成功才返回总体成功；部分失败明确拒绝并携带不含凭据的目的地结果，同时持久化成功目的地的记录。失败目的地不写完成清单，不回滚成功目的地、不删除远端对象、不增加自动重试队列。
-- 全局上次成功只表示某次选择的目的地全部成功；目的地面板分别显示成功与失败，不能以一方成功掩盖另一方失败。多工作区周期错误不能被后来成功覆盖。
+- 全局上次成功只表示某次接受的目的地全部成功，持久化其目的地归属（包括未选中目的地的显式手动备份），不按当前开关猜测历史归属。修改或清除历史涉及的位置时清除全局旧成功，保存无关槽不清除。缺少归属的旧 v2 历史按已有目的地成功记录推断；无法判定时保守清除。
+- 结果在同一文档锁下比较 admission 与当前的位置 / 账户；旧位置的晚到成功和失败都不进入替换配置的独立或全局状态，但原调用仍返回其真实结果。更换位置同时清除涉及的全局错误；周期末重新过滤失败的位置归属，不能重写已经失效的旧错误。多工作区周期的当前有效错误不能被后来成功覆盖。
 - 桌面 `desktop-continuous` 与手机 `web-remote-replayable` 均沿用现有 RPC 和同一持久化所有者；不增加 Agent stdio 协议、手机运行时或恢复队列。
 
 ### 迁移和验收
 
 - 旧仅 OSS 文档 / `_backup.version: 1` 在既有文件锁内一次性迁移到版本 2。保留原总开关、间隔、到期时间、工作区、引导完成及精确 OSS credentialReference，不重新按路径计算；旧已保存 OSS 默认被选中，MinIO 默认关闭。
+- 无 `_backup` 的旧 Host JSON 若仍含 OSS 明文 Secret，必须先将该值写入新的不可变凭据引用，再原子提交脱敏文档；不得覆盖已有旧引用的其他值。凭据写入或文档提交失败保留原 JSON、回滚新引用并返回脱敏错误，不能先抹去唯一密钥。旧 JSON 已脱敏时保留其旧引用。
 - 历史成功只归入 OSS，不伪造 MinIO 成功。迁移后移动 profile 仍使用已保存引用。旧 RPC 客户端的 OSS configure/test/start 调用保留兼容默认语义。
+- 回归覆盖明文迁移及凭据 / 文档失败回滚、未选中显式备份后更换或清除位置、晚到旧位置失败及周期末错误过滤、欢迎弹框只跳转且不写配置、失败不跳转与过期工作区不跳转。
 - 测试覆盖：旧文档迁移 / 重启、独立凭据和失败回滚、OSS-only / MinIO-only / 两者、任一失败仍完成另一方、慢请求 settled 后释放锁、各自 manifest-last、无目标拒绝、停止与多 Host 去重、endpoint 改变不复用 Secret。
 - MinIO 测试覆盖 SigV4 已知向量 / 独立签名确认、bucket HEAD、路径编码、端口、HTTP/HTTPS、失败 / 超时 / 重定向，不使用真实服务器或用户凭据。
 - 页面交互覆盖类型切换草稿保留、独立开关失败、保存 MinIO 不覆盖 OSS、单个与全部手动备份、部分失败状态、断连防本地 fallback、手机无溢出。实际执行现有测试、类型 / Lint / 架构检查与 Web 构建，诚实记录未使用真实 OSS / MinIO 或原生桌面对话框。
@@ -119,3 +127,17 @@ sequenceDiagram
 - UI 单测与交互验收：加载失败重试、保存并重新打开、测试结果随编辑失效、错误消息有详情、开关失败回滚、当前工作区手动备份、私钥取消/失败、首次引导保存失败、晚到请求和断连防误路由。
 - 页面 E2E 场景：桌面宽度及手机宽度下保存、测试、开关、手动备份与公钥展示可操作，表单标签可访问，长路径与错误不溢出；Web/手机断连状态无本机 fallback。网络可用测试桩，不触碰用户 OSS。
 - 实际执行目标测试、`pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed`，分别报告结果和未覆盖范围。
+
+## 验证记录（2026-09-30）
+
+- 服务、签名、快照、迁移、RPC 与远端 Host 路由：84 项通过。命令：`pnpm exec node --import tsx --test --test-timeout=30000 packages/services/src/git-backup/*.test.ts packages/client/src/remoteServiceAccess.gitBackup.test.ts packages/desktop/src/renderer/src/remoteWorkspaceSessionServices.gitBackup.test.ts`。
+- UI 草稿、状态投影、引导生命周期、组件与完整工作区路由：51 项通过。从 `packages/ui` 执行 `pnpm exec tsx --test src/hooks/useGitBackup.test.ts src/hooks/useGitBackupOnboarding.test.ts src/hooks/gitBackupLegacyConfig.test.ts src/GitBackupWelcomeDialog.test.tsx src/settings/GitBackupSection.test.tsx src/root/rootWorkspaceShellTarget.test.ts`。
+- Web 重连与配对：`pnpm --filter @lcode/web test`，21 项通过；Web 文件导出：`node --test packages/web/src/saveWebFile.test.mjs`，9 项通过。以上合计 165 项，无失败或跳过。
+- `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 通过；Lint 为 0 警告 / 0 错误，架构为 0 基线 / 0 新增违规。`services` 和 `ui` 是 legacy unmanaged 模块，架构检查不等同于完整的边界审计。
+- `pnpm --filter @lcode/web build` 通过（19.30 秒）。保留既有大 chunk、无效动态导入和插件耗时警告。当前 Node 为 24.14.1，仓库固定版本为 24.14.0，pnpm 报 patch 版本提示。
+- 35 个本轮相关文件的 scoped 格式检查通过，`git diff --check` 通过；未把全仓库格式检查视为通过。格式器直接写入部分文件失败后，使用同版本 `oxfmt` 的 format API 完成格式化并重新检查。
+- 功能图 YAML、69 个唯一节点、101 条关系的端点与 rank、4 个备份节点的当前源码引用已验证。
+- 模拟服务页面实际验证：弹框无配置表单；开启进入设置且只变更引导完成记录；失败保留弹框且不跳转、重试成功；跳过不进入设置；390px 下明暗主题无横向溢出；未选中目的地手动备份后更换 bucket，即使提交后读回失败也立即清除旧成功记录。浏览器工具鼠标点击未可靠送达、截图超时，改以页面按钮事件验证逻辑；不计作完整鼠标 / 像素级 E2E。
+- 所有网络均为测试桩，无真实 OSS / MinIO 上传、真实手机 attachment 或原生文件保存对话框验证。没有提交、推送、发布或打包安装程序。
+- 状态所有者仍是文件系统 Host；欢迎 UI 只提交完成标记，设置通过既有 RPC 提交配置，接受结果按位置归属过滤。相关模块为 services、client、desktop、ui、web；不新增 Main 或手机状态所有者。
+- 相对当前 HEAD 的备份核心实现、单测和浏览器 fixture 范围（包含前序 OSS 修复，不含其他任务）为 6 个已跟踪文件 +1171/-603、33 个新增文件 7063 行，净 +7631 行；不将整个工作区的其他未提交改动计入本任务。

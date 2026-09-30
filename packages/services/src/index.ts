@@ -66,10 +66,27 @@ export { IGitService } from "./git/git.js";
 export { IGitCheckpointService } from "./git/gitCheckpoint.js";
 
 // Git backup service (LCode 满血版新增)
-export { IGitBackupService } from "./git-backup/gitBackup.js";
+export {
+  IGitBackupService,
+  normalizeGitBackupOssConfig,
+  normalizeGitBackupMinioConfig,
+  getGitBackupDestinationSelection,
+  getSelectedGitBackupProviders,
+  getGitBackupAggregateProviders,
+  getGitBackupDestinationLocation,
+  gitBackupWorkspaceKey,
+} from "./git-backup/gitBackup.js";
 export type {
   GitBackupConfig,
+  GitBackupWorkspaceTarget,
   GitBackupOssConfig,
+  GitBackupMinioConfig,
+  GitBackupProvider,
+  GitBackupDestinationConfig,
+  GitBackupDestinationSelection,
+  GitBackupDestinationStatus,
+  GitBackupDestinationResult,
+  GitBackupConfigUpdate,
   GitBackupManifest,
   GitBackupStatus,
 } from "./git-backup/gitBackup.js";

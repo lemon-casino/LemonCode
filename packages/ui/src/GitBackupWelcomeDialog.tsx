@@ -1,166 +1,136 @@
-import { useCallback, useState } from "react";
+import { HardDriveUpload, Loader2 } from "lucide-react";
+import type { GitBackupWorkspaceTarget, IGitBackupService } from "@lcode/services";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
-import { Input } from "@/components/ui/input.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog.js";
+import { useGitBackupRouting } from "@/hooks/useGitBackupRouting.js";
+import { useGitBackupOnboarding } from "@/hooks/useGitBackupOnboarding.js";
 
 interface GitBackupWelcomeDialogProps {
-  open: boolean;
-  onComplete: (config: {
-    enabled: boolean;
-    oss?: {
-      accessKeyId: string;
-      accessKeySecret: string;
-      bucket: string;
-      region: string;
-      pathPrefix?: string;
-    };
-  }) => void;
+  workspacePath?: string | null;
+  workspaceIdentity?: string;
+  remoteSessionId?: string | null;
+  remoteTarget?: unknown;
+  allowLegacyMigration?: boolean;
+  onOpenSettings: () => void;
 }
 
-export function GitBackupWelcomeDialog({ open, onComplete }: GitBackupWelcomeDialogProps) {
-  const { intl } = useLCodeIntl();
-  const [showOssForm, setShowOssForm] = useState(false);
-  const [accessKeyId, setAccessKeyId] = useState("");
-  const [accessKeySecret, setAccessKeySecret] = useState("");
-  const [bucket, setBucket] = useState("");
-  const [region, setRegion] = useState("");
-  const [pathPrefix, setPathPrefix] = useState("");
+export function GitBackupWelcomeDialog(props: GitBackupWelcomeDialogProps) {
+  if (!props.workspacePath) return null;
+  return <WorkspaceGitBackupWelcome {...props} workspacePath={props.workspacePath} />;
+}
 
-  const handleEnable = useCallback(() => {
-    if (!showOssForm) {
-      setShowOssForm(true);
-      return;
-    }
-    onComplete({
-      enabled: true,
-      oss: {
-        accessKeyId,
-        accessKeySecret,
-        bucket,
-        region,
-        pathPrefix: pathPrefix || undefined,
-      },
-    });
-  }, [showOssForm, accessKeyId, accessKeySecret, bucket, region, pathPrefix, onComplete]);
-
-  const handleSkip = useCallback(() => {
-    onComplete({ enabled: false });
-  }, [onComplete]);
-
-  if (!open) return null;
-
-  const ossFormValid = accessKeyId.trim() && accessKeySecret.trim() && bucket.trim() && region.trim();
-
+function WorkspaceGitBackupWelcome({
+  workspacePath,
+  workspaceIdentity,
+  remoteSessionId,
+  remoteTarget,
+  allowLegacyMigration = false,
+  onOpenSettings,
+}: GitBackupWelcomeDialogProps & { workspacePath: string }) {
+  const routing = useGitBackupRouting({
+    workspacePath,
+    workspaceIdentity,
+    remoteSessionId,
+    remoteTarget,
+  });
+  if (!routing.service || !routing.target) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="w-full max-w-lg rounded-xl bg-popover p-6 shadow-2xl">
-        <div className="mb-4 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand/10">
-            <svg
-              className="h-5 w-5 text-brand"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"
-              />
-            </svg>
-          </div>
-          <h2 className="text-xl font-semibold text-foreground">
+    <GitBackupWelcomeController
+      key={routing.controllerKey}
+      service={routing.service}
+      workspace={routing.target}
+      allowLegacyMigration={allowLegacyMigration && routing.connectionKind === "local-ready"}
+      onOpenSettings={onOpenSettings}
+    />
+  );
+}
+
+function GitBackupWelcomeController({
+  service,
+  workspace,
+  allowLegacyMigration,
+  onOpenSettings,
+}: {
+  service: IGitBackupService;
+  workspace: GitBackupWorkspaceTarget;
+  allowLegacyMigration: boolean;
+  onOpenSettings: () => void;
+}) {
+  const state = useGitBackupOnboarding(service, workspace, allowLegacyMigration, onOpenSettings);
+  if (!state.open || state.loading) return null;
+  return <GitBackupWelcomeView state={state} />;
+}
+
+export function GitBackupWelcomeView({
+  state,
+}: {
+  state: ReturnType<typeof useGitBackupOnboarding>;
+}) {
+  const { intl } = useLCodeIntl();
+  return (
+    <Dialog
+      open={state.open}
+      onOpenChange={(open) => {
+        if (!open && !state.busy) void state.complete("skip");
+      }}
+    >
+      <DialogContent
+        showCloseButton={false}
+        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-lg"
+        onInteractOutside={(event) => event.preventDefault()}
+      >
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-ui-lg">
+            <HardDriveUpload className="size-5 shrink-0" aria-hidden="true" />
             {intl.formatMessage({ id: "gitBackup.welcome.title" })}
-          </h2>
-        </div>
-
-        <p className="mb-6 text-ui-caption text-foreground-subtle leading-relaxed">
-          {intl.formatMessage({ id: "gitBackup.welcome.description" })}
-        </p>
-
-        {showOssForm && (
-          <div className="mb-6 space-y-3 rounded-lg border border-border p-4">
-            <h3 className="text-ui-base font-medium">
-              {intl.formatMessage({ id: "settings.gitBackup.ossConfig" })}
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-ui-xs text-foreground-subtle">
-                  {intl.formatMessage({ id: "settings.gitBackup.ossConfig.accessKeyId" })}
-                </label>
-                <Input
-                  value={accessKeyId}
-                  onChange={(e) => setAccessKeyId(e.target.value)}
-                  placeholder="LTAI..."
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-ui-xs text-foreground-subtle">
-                  {intl.formatMessage({ id: "settings.gitBackup.ossConfig.accessKeySecret" })}
-                </label>
-                <Input
-                  type="password"
-                  value={accessKeySecret}
-                  onChange={(e) => setAccessKeySecret(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-ui-xs text-foreground-subtle">
-                  {intl.formatMessage({ id: "settings.gitBackup.ossConfig.bucket" })}
-                </label>
-                <Input
-                  value={bucket}
-                  onChange={(e) => setBucket(e.target.value)}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-ui-xs text-foreground-subtle">
-                  {intl.formatMessage({ id: "settings.gitBackup.ossConfig.region" })}
-                </label>
-                <Input
-                  value={region}
-                  onChange={(e) => setRegion(e.target.value)}
-                  placeholder={intl.formatMessage({
-                    id: "settings.gitBackup.ossConfig.regionPlaceholder",
-                  })}
-                />
-              </div>
-            </div>
-            <div className="space-y-1">
-              <label className="text-ui-xs text-foreground-subtle">
-                {intl.formatMessage({ id: "settings.gitBackup.ossConfig.pathPrefix" })}
-              </label>
-              <Input
-                value={pathPrefix}
-                onChange={(e) => setPathPrefix(e.target.value)}
-                placeholder="lcode-backups"
-              />
-            </div>
-          </div>
-        )}
-
-        <div className="flex justify-end gap-3">
-          <Button variant="ghost" onClick={handleSkip}>
+          </DialogTitle>
+          <DialogDescription>
+            {intl.formatMessage({ id: "gitBackup.welcome.description" })}
+          </DialogDescription>
+        </DialogHeader>
+        {state.error ? (
+          <p role="alert" className="break-words text-ui-caption text-destructive">
+            {intl.formatMessage(
+              {
+                id: state.ready ? "gitBackup.welcome.saveFailed" : "settings.gitBackup.loadFailed",
+              },
+              { error: state.error },
+            )}
+          </p>
+        ) : null}
+        <DialogFooter>
+          {!state.ready ? (
+            <Button variant="outline" disabled={state.busy} onClick={() => void state.reload()}>
+              {intl.formatMessage({ id: "common.retry" })}
+            </Button>
+          ) : null}
+          <Button variant="ghost" disabled={state.busy} onClick={() => void state.complete("skip")}>
             {intl.formatMessage({ id: "gitBackup.welcome.skipForNow" })}
           </Button>
           <Button
-            variant="default"
-            onClick={handleEnable}
-            disabled={showOssForm && !ossFormValid}
+            disabled={state.busy || !state.ready}
+            onClick={() => void state.complete("settings")}
           >
+            {state.busy ? (
+              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+            ) : (
+              <HardDriveUpload className="size-4" aria-hidden="true" />
+            )}
             {intl.formatMessage({ id: "gitBackup.welcome.enableNow" })}
           </Button>
-        </div>
-
-        {!showOssForm && (
-          <p className="mt-4 text-center text-ui-xs text-foreground-subtlest">
-            {intl.formatMessage({ id: "gitBackup.welcome.skipNote" })}
-          </p>
-        )}
-      </div>
-    </div>
+        </DialogFooter>
+        <p className="text-ui-caption text-foreground-subtle">
+          {intl.formatMessage({ id: "gitBackup.welcome.skipNote" })}
+        </p>
+      </DialogContent>
+    </Dialog>
   );
 }

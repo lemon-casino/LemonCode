@@ -5,17 +5,12 @@
 </div>
 
 <p align="center">
-  <strong>补齐 Git 自动备份功能，支持阿里云 OSS，用户完全掌控。</strong>
+  <strong>补齐 Git 自动备份功能，支持阿里云 OSS 和 MinIO，可单独或同时备份，用户完全掌控。</strong>
 </p>
 
 <p align="center">
   基于 <a href="https://github.com/zai-org/ZCode">zai-org/ZCode</a> 的社区增强 Fork
 </p>
-
-<div align="center">
-  <img src="public/screenshots/git-backup-welcome.png" alt="Git 自动备份引导" width="600" />
-  <p><em>首次启动时的 Git 自动备份配置引导</em></p>
-</div>
 
 ---
 
@@ -25,37 +20,42 @@ LCode 官方开源版本缺少了一项重要功能：**Git 仓库自动备份**
 
 我们认为，一个优秀的 AI 编程工作台应该具备代码资产保护能力。意外丢失代码是每个开发者的噩梦——磁盘故障、误操作 `git reset --hard`、甚至 AI 误删文件，都可能造成不可挽回的损失。
 
-LCode 满血版补齐了这个缺失的功能。你的 `.git` 仓库会被安全地自动备份到**你自己的**阿里云 OSS 存储桶，使用非对称加密保护，密钥完全由你持有。
+LCode 满血版补齐了这个缺失的功能。你的 `.git` 仓库可自动备份到**你自己的**阿里云 OSS 或 MinIO 存储桶，也可同时备份到两者；使用非对称加密保护，密钥完全由你持有。
 
 ## Git 自动备份
 
 ### 工作原理
 
-1. **首次启动时引导配置**——主动询问你是否开启自动备份，并引导你填写自己的阿里云 OSS 凭证
-2. **扫描 `.git` 目录**——打包 objects、refs、reflog 等完整仓库历史
-3. **本地加密**——使用 AES-256-CTR 加密数据，RSA-OAEP 包裹对称密钥，密钥对在你的设备上生成
-4. **上传到你的 OSS**——备份文件上传到你自己的阿里云 OSS 存储桶，不经过任何第三方服务器
-5. **生成备份清单**——每次备份生成 `repo_backup_manifest`，记录文件清单和哈希校验
+1. **首次启动时介绍功能**：弹框中不填写配置。“开启自动备份”只记录已看过引导并进入 **设置 → 数据与统计 → Git 自动备份**，不会启用上传或修改已有配置。OSS 和 MinIO 统一在设置中配置，Secret 使用 Host 的加密凭据存储，不保存在浏览器 localStorage。
+2. **明确选择工作区**：设置中保存或开启时，将当前工作区加入自动备份列表。只备份已加入列表的工作区，应用及对应 Host 运行期间按保存的间隔执行。
+3. **扫描 `.git` 目录**：打包 objects、refs、reflog 等完整仓库数据。归档使用 `repo_backup_manifest/v1` 长度编码格式，不是 ZIP 或 tar；清单与归档使用同一份文件字节并校验扫描期间的变化。
+4. **本地加密**：使用 AES-256-CTR 加密仓库文件内容，RSA-OAEP-SHA256 包裹对称密钥。密钥对由备份所属 Host 生成，私钥不随备份上传；请主动导出并妥善保管恢复所需的私钥。
+5. **上传到选中的存储**：OSS、MinIO 可分别启用或同时启用。每次读取并加密一份快照，各目的地数据上传全部成功后，最后上传自己的清单作为完成标记。一方失败不阻止另一方完成，但部分成功会明确报告失败并显示各自结果。
+6. **状态与控制**：设置可切换存储类型编辑配置、独立测试连接、备份到当前存储或全部已启用存储，以及移除工作区。总开关控制自动调度；关闭后已接受的备份允许完成。测试连接只发送 bucket HEAD，不写入测试对象，也不证明上传权限。
+
+> 备份不包含未提交的工作区文件。v1 清单中的工作区路径、文件名、大小和哈希为明文元数据，仅仓库文件内容加密。当前明确拒绝 `.git` 指针文件、linked worktree、外部 object alternates、依赖 promisor remote 的 partial clone、外部 include 配置和符号链接，避免把不完整备份误报为成功。单次归档上限为 256 MiB / 100,000 个文件，超出时会明确报错。
+>
+> v1 沿用 AES-CTR，提供加密但不提供认证防篡改；清单哈希不等于可信认证。归档不保存文件权限，无法可靠还原 hook 等文件的执行权限。当前没有内置恢复命令，请勿将此备份当作唯一的灾难恢复方案。
 
 ### 我们的设计原则
 
-| 设计原则 | LCode 满血版 |
-| --- | --- |
-| 备份前主动告知用户 | **是**，首次启动明确询问，需要用户主动确认开启 |
-| 用户持有全部加密密钥 | **是**，RSA 密钥对在本地生成，私钥从不离开你的设备 |
-| 关闭开关真的有效 | **是**，关闭后完全停止，不会静默重启或绕过设置 |
-| 备份存储由用户决定 | **是**，上传到你自己的阿里云 OSS，凭证由你配置和管理 |
-| 不填写配置即不启用 | **是**，跳过引导后与官方开源版完全一致，无任何额外行为 |
+| 设计原则             | LCode 满血版                                                               |
+| -------------------- | -------------------------------------------------------------------------- |
+| 备份前主动告知用户   | **是**，首次启动明确询问，需要用户主动确认开启                             |
+| 用户持有全部加密密钥 | **是**，RSA 密钥对在备份所属 Host 生成，私钥不随备份上传，仅由用户主动导出 |
+| 关闭开关真的有效     | **是**，关闭后停止后续自动调度，已开始的备份允许完成，不会自行重新开启     |
+| 备份存储由用户决定   | **是**，上传到你自己的阿里云 OSS 或 MinIO，凭证由你配置和管理              |
+| 不填写配置即不启用   | **是**，跳过引导后与官方开源版完全一致，无任何额外行为                     |
 
 ### 如何使用
 
 1. 启动 LCode 满血版，首次运行时会弹出引导对话框
-2. 选择"开启自动备份"，填写你的阿里云 OSS 配置：
-   - AccessKey ID / Secret
-   - Bucket 名称
-   - Region（如 `oss-cn-hangzhou`）
-3. 完成！后续备份自动进行
-4. 也可以选择"暂不开启"，随时在 **设置 → Git 自动备份** 中配置
+2. 选择“开启自动备份”，直接进入 **设置 → 数据与统计 → Git 自动备份**；弹框不填写配置，也不会提前开启自动备份
+3. 在设置中选择存储类型并保存配置，当前工作区会加入备份列表。OSS 填写 AccessKey ID / Secret、已有 bucket 和 region（如 `oss-cn-hangzhou`）；保存本身不启用自动调度
+4. 也可以选择"暂不开启"，随时在 **设置 → 数据与统计 → Git 自动备份** 中配置；请导出并妥善保管私钥
+5. 在设置的存储类型中选择 OSS 或 MinIO，分别保存配置并开启目的地开关；可只开一个，也可同时开启两个，再打开总自动备份开关
+6. MinIO 填写 S3 API 地址（例如 `https://minio.example.com:9000`，不是控制台地址）、AccessKey ID / Secret、已有 bucket 和 region（默认 `us-east-1`）。支持 HTTP，但建议 HTTPS；请求从所属 Host 发出，沿用其代理和自定义证书
+7. 手动操作可只备份当前存储，也可备份到所有已启用目的地；总自动开关关闭时仍可手动执行。旧 OSS 配置会保留原开关、凭据、工作区和调度时间，MinIO 默认关闭
 
 > 如果你不需要这个功能，跳过即可。满血版不会做任何你不知道的事情。
 
@@ -123,28 +123,28 @@ git merge upstream/main
 pnpm bootstrap
 ```
 
-| 入口 | 用途 | 开发命令 |
-| --- | --- | --- |
-| Desktop | Electron 桌面应用 | `pnpm dev:desktop` |
-| Web / LCode 命令行版 | 终端与浏览器工作台 | `pnpm dev:web` |
-| Agent CLI | 终端 Agent 运行时 | `pnpm --filter @lcode/cli dev` |
+| 入口                 | 用途               | 开发命令                       |
+| -------------------- | ------------------ | ------------------------------ |
+| Desktop              | Electron 桌面应用  | `pnpm dev:desktop`             |
+| Web / LCode 命令行版 | 终端与浏览器工作台 | `pnpm dev:web`                 |
+| Agent CLI            | 终端 Agent 运行时  | `pnpm --filter @lcode/cli dev` |
 
 详细的开发、配置、打包说明请参考 [官方 README](https://github.com/zai-org/ZCode/blob/main/README.md)。
 
 ## 仓库结构
 
-| 目录 | 职责 |
-| --- | --- |
-| `packages/desktop` | Electron Main、Host、Renderer 与桌面打包 |
-| `packages/web` | Web 客户端 |
-| `packages/server` | HTTP / WebSocket 服务与远程连接 |
-| `packages/ui` | 共享 React 组件、hooks 与 Zustand 状态 |
-| `packages/services` | 业务服务与持久化 |
-| `packages/services/src/git-backup` | **Git 自动备份服务（满血版新增）** |
-| `packages/lcode-cua` | **自研 Computer Use 运行时（满血版新增）** |
-| `cfworker-remote/` | **手机远程控制 Cloudflare Worker 隧道（满血版新增，独立仓库）** |
-| `packages/shared` | 共享协议和类型 |
-| `apps/lcode-cli` | Agent CLI、TUI、运行时与工具 |
+| 目录                               | 职责                                                            |
+| ---------------------------------- | --------------------------------------------------------------- |
+| `packages/desktop`                 | Electron Main、Host、Renderer 与桌面打包                        |
+| `packages/web`                     | Web 客户端                                                      |
+| `packages/server`                  | HTTP / WebSocket 服务与远程连接                                 |
+| `packages/ui`                      | 共享 React 组件、hooks 与 Zustand 状态                          |
+| `packages/services`                | 业务服务与持久化                                                |
+| `packages/services/src/git-backup` | **Git 自动备份服务（满血版新增）**                              |
+| `packages/lcode-cua`               | **自研 Computer Use 运行时（满血版新增）**                      |
+| `cfworker-remote/`                 | **手机远程控制 Cloudflare Worker 隧道（满血版新增，独立仓库）** |
+| `packages/shared`                  | 共享协议和类型                                                  |
+| `apps/lcode-cli`                   | Agent CLI、TUI、运行时与工具                                    |
 
 ## 背景
 

@@ -1,221 +1,398 @@
-import { createHash } from "node:crypto";
-import { readdir, stat, readFile, writeFile, mkdir } from "node:fs/promises";
-import { join, relative } from "node:path";
-import { existsSync } from "node:fs";
+import { createHash, randomBytes } from "node:crypto";
+import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
+import { acquireFileLock } from "@lcode/shared/node";
+import { createServiceLogger } from "../logger/serviceLogger.js";
 import type {
-  GitBackupConfig,
   GitBackupManifest,
-  GitBackupManifestEntry,
-  GitBackupStatus,
+  GitBackupConfig,
+  GitBackupProvider,
+  GitBackupDestinationResult,
+  GitBackupMinioConfig,
+  GitBackupOssConfig,
+  GitBackupWorkspaceTarget,
   IGitBackupService,
 } from "./gitBackup.js";
+import {
+  gitBackupWorkspaceKey,
+  getSelectedGitBackupProviders,
+  getGitBackupDestinationLocation,
+} from "./gitBackup.js";
 import { ensureKeyPair, encryptBuffer, readPrivateKey } from "./gitBackupEncryption.js";
-import { uploadToOss } from "./gitBackupOssClient.js";
+import { testOssConnection, type OssRequestOptions } from "./gitBackupOssClient.js";
+import { testMinioConnection } from "./gitBackupMinioClient.js";
+import { uploadBackupDestination, backupDestinationFailure } from "./gitBackupDestinations.js";
+import { captureGitSnapshot, type GitBackupSnapshotOptions } from "./gitBackupSnapshot.js";
+import {
+  createBackupStore,
+  validateBackupTarget,
+  EMPTY_BACKUP_DESTINATION_STATE,
+  type GitBackupAdmission,
+  type BackupCredentials,
+} from "./gitBackupStore.js";
 
-const CONFIG_FILE = "git-backup-config.json";
-const ONBOARDING_FLAG = "git-backup-onboarding-done";
-
-function getConfigPath(dataDir: string): string {
-  return join(dataDir, CONFIG_FILE);
+export interface GitBackupServiceOptions extends OssRequestOptions, GitBackupSnapshotOptions {
+  credentialService?: BackupCredentials;
+  schedulerPollMs?: number;
 }
 
-function getOnboardingPath(dataDir: string): string {
-  return join(dataDir, ONBOARDING_FLAG);
-}
+export type GitBackupServiceRuntime = IGitBackupService & { dispose(): void };
 
-const DEFAULT_CONFIG: GitBackupConfig = {
-  enabled: false,
-  intervalMinutes: 60,
-  oss: null,
-};
+export function createGitBackupService(
+  dataDir: string,
+  options: GitBackupServiceOptions = {},
+): GitBackupServiceRuntime {
+  const store = createBackupStore(dataDir, options.credentialService);
+  const logger = createServiceLogger("git-backup");
+  let schedulerFailureLogged = false;
+  const now = options.now ?? Date.now;
+  let disposed = false;
+  let polling = false;
 
-async function loadConfig(dataDir: string): Promise<GitBackupConfig> {
-  const configPath = getConfigPath(dataDir);
-  if (!existsSync(configPath)) {
-    return { ...DEFAULT_CONFIG };
-  }
-  const raw = await readFile(configPath, "utf-8");
-  return { ...DEFAULT_CONFIG, ...JSON.parse(raw) };
-}
-
-async function saveConfig(dataDir: string, config: GitBackupConfig): Promise<void> {
-  await mkdir(dataDir, { recursive: true });
-  await writeFile(getConfigPath(dataDir), JSON.stringify(config, null, 2), "utf-8");
-}
-
-async function collectGitFiles(gitDir: string): Promise<GitBackupManifestEntry[]> {
-  const entries: GitBackupManifestEntry[] = [];
-
-  async function walk(dir: string): Promise<void> {
-    const items = await readdir(dir, { withFileTypes: true });
-    for (const item of items) {
-      const fullPath = join(dir, item.name);
-      if (item.isDirectory()) {
-        await walk(fullPath);
-      } else if (item.isFile()) {
-        const fileStat = await stat(fullPath);
-        const content = await readFile(fullPath);
-        const sha256 = createHash("sha256").update(content).digest("hex");
-        entries.push({
-          path: relative(gitDir, fullPath),
-          size: fileStat.size,
-          sha256,
-        });
-      }
+  async function executionLock(): Promise<(() => Promise<void>) | null> {
+    await mkdir(dataDir, { recursive: true });
+    try {
+      // 活跃进程锁不会按时间过期；非阻塞申请避免多个 Host 排队重复执行同一周期。
+      return await acquireFileLock(join(dataDir, "git-backup-execution"), [10], 100, 30);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "LCODE_FILE_LOCK_TIMEOUT") return null;
+      throw error;
     }
   }
 
-  await walk(gitDir);
-  return entries;
-}
-
-async function packGitDir(gitDir: string): Promise<Buffer> {
-  const entries = await readdir(gitDir, { withFileTypes: true, recursive: true });
-  const chunks: Buffer[] = [];
-
-  for (const entry of entries) {
-    if (!entry.isFile()) continue;
-    // @types/node 25.6.0 移除了已废弃的 Dirent.path 别名（parentPath 自 v20.12.0 起为正式 API），运行时行为不变。
-    const fullPath = join(entry.parentPath, entry.name);
-    const relPath = relative(gitDir, fullPath);
-    const content = await readFile(fullPath);
-    const header = Buffer.from(`${relPath}\0${content.length}\0`);
-    chunks.push(header, content);
-  }
-
-  return Buffer.concat(chunks);
-}
-
-export function createGitBackupService(dataDir: string): IGitBackupService {
-  let schedulerTimer: ReturnType<typeof setInterval> | null = null;
-  let lastStatus: Partial<GitBackupStatus> = {};
-
-  function clearScheduler(): void {
-    if (schedulerTimer) {
-      clearInterval(schedulerTimer);
-      schedulerTimer = null;
-    }
-  }
-
-  return {
-    async configure(partial) {
-      const current = await loadConfig(dataDir);
-      const updated = { ...current, ...partial };
-
-      if (!updated.enabled) {
-        clearScheduler();
+  async function recordResults(
+    admission: GitBackupAdmission,
+    target: GitBackupWorkspaceTarget,
+    attemptedAt: string,
+    results: GitBackupDestinationResult[],
+    manifest?: GitBackupManifest,
+  ) {
+    await store.updateState((state, current) => {
+      const destinations = { ...state.destinations };
+      // 旧地址的成功和失败都不能污染替换配置，独立与全局结果必须使用同一过滤条件。
+      const currentResults = results.filter(
+        (result) =>
+          getGitBackupDestinationLocation(admission.config[result.provider]) ===
+          getGitBackupDestinationLocation(current[result.provider]),
+      );
+      const sameLocations = currentResults.length === results.length;
+      for (const result of currentResults) {
+        const provider = result.provider;
+        const previous = destinations[provider] ?? { ...EMPTY_BACKUP_DESTINATION_STATE };
+        destinations[provider] = {
+          ...previous,
+          lastAttemptAt: attemptedAt,
+          ...(result.ok && manifest
+            ? {
+                lastBackupAt: manifest.createdAt,
+                lastBackupFiles: manifest.totalFiles,
+                lastBackupSize: manifest.totalSize,
+                lastWorkspacePath: target.workspacePath,
+              }
+            : {}),
+          error: result.ok ? null : (result.error ?? "Git backup failed"),
+        };
       }
-
-      await saveConfig(dataDir, updated);
-    },
-
-    async getConfig() {
-      return loadConfig(dataDir);
-    },
-
-    async getStatus(): Promise<GitBackupStatus> {
-      const config = await loadConfig(dataDir);
+      const successful = results.every((result) => result.ok) && manifest && sameLocations;
       return {
-        enabled: config.enabled,
-        configured: config.oss !== null,
-        lastBackupAt: lastStatus.lastBackupAt ?? null,
-        lastBackupFiles: lastStatus.lastBackupFiles ?? 0,
-        lastBackupSize: lastStatus.lastBackupSize ?? 0,
-        nextBackupAt: lastStatus.nextBackupAt ?? null,
-        running: lastStatus.running ?? false,
-        error: lastStatus.error ?? null,
+        ...state,
+        running: false,
+        destinations,
+        ...(successful
+          ? {
+              lastBackupAt: manifest.createdAt,
+              lastBackupFiles: manifest.totalFiles,
+              lastBackupSize: manifest.totalSize,
+              lastWorkspacePath: target.workspacePath,
+              lastBackupProviders: results.map((result) => result.provider),
+            }
+          : {}),
+        ...(currentResults.length
+          ? {
+              error: currentResults.some((result) => !result.ok)
+                ? backupDestinationFailure(currentResults).message
+                : null,
+              errorProviders: currentResults
+                .filter((result) => !result.ok)
+                .map((result) => result.provider),
+            }
+          : {}),
       };
-    },
+    });
+  }
 
-    async startBackup(workspacePath: string): Promise<GitBackupManifest> {
-      const config = await loadConfig(dataDir);
-      if (!config.oss) {
-        throw new Error(
-          "OSS not configured. Please configure your Alibaba Cloud OSS credentials first.",
+  async function backup(
+    target: GitBackupWorkspaceTarget,
+    provider?: GitBackupProvider,
+    onFailure?: (
+      config: GitBackupConfig | undefined,
+      results: GitBackupDestinationResult[],
+      message: string,
+    ) => void,
+  ): Promise<GitBackupManifest> {
+    await store.updateState((state) => ({
+      ...state,
+      running: true,
+      error: null,
+      errorProviders: [],
+    }));
+    let admission: GitBackupAdmission | undefined;
+    let results: GitBackupDestinationResult[] = [];
+    const attemptedAt = new Date(now()).toISOString();
+    let recorded = false;
+    try {
+      admission = await store.loadAdmission(provider);
+      if (!admission.destinations.length)
+        throw new Error("Backup destinations are not configured or no destination is selected");
+      const ready = admission.destinations.filter((destination) => destination.config);
+      if (!ready.length)
+        throw backupDestinationFailure(
+          admission.destinations.map((destination) => ({
+            provider: destination.provider,
+            ok: false,
+            error: destination.error,
+          })),
         );
-      }
-
-      lastStatus.running = true;
-      lastStatus.error = null;
-
-      try {
-        const gitDir = join(workspacePath, ".git");
-        if (!existsSync(gitDir)) {
-          throw new Error(`No .git directory found at ${workspacePath}`);
-        }
-
-        const entries = await collectGitFiles(gitDir);
-        const totalSize = entries.reduce((sum, e) => sum + e.size, 0);
-
-        const manifest: GitBackupManifest = {
-          version: "repo_backup_manifest/v1",
-          workspacePath,
-          createdAt: new Date().toISOString(),
-          totalFiles: entries.length,
-          totalSize,
-          entries,
-        };
-
-        const keyPair = await ensureKeyPair(dataDir);
-        const packed = await packGitDir(gitDir);
-        const { encryptedData, encryptedKey, iv } = encryptBuffer(packed, keyPair.publicKey);
-
-        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-        const prefix = config.oss.pathPrefix ? `${config.oss.pathPrefix}/` : "";
-        const baseName = `${prefix}backup-${timestamp}`;
-
-        await Promise.all([
-          uploadToOss(config.oss, `${baseName}/data.enc`, encryptedData),
-          uploadToOss(config.oss, `${baseName}/key.enc`, encryptedKey),
-          uploadToOss(config.oss, `${baseName}/iv.bin`, iv),
-          uploadToOss(
-            config.oss,
-            `${baseName}/manifest.json`,
-            Buffer.from(JSON.stringify(manifest, null, 2)),
-            "application/json",
-          ),
-        ]);
-
-        lastStatus = {
+      const snapshot = await captureGitSnapshot(target.workspacePath, options);
+      const manifest: GitBackupManifest = {
+        version: "repo_backup_manifest/v1",
+        ...target,
+        createdAt: attemptedAt,
+        totalFiles: snapshot.entries.length,
+        totalSize: snapshot.entries.reduce((sum, entry) => sum + entry.size, 0),
+        entries: snapshot.entries,
+      };
+      const keyPair = await ensureKeyPair(dataDir);
+      const payload = encryptBuffer(snapshot.packed, keyPair.publicKey);
+      const workspaceHash = createHash("sha256")
+        .update(gitBackupWorkspaceKey(target))
+        .digest("hex")
+        .slice(0, 24);
+      const timestamp = attemptedAt.replace(/[:.]/g, "-");
+      const relativeKey = `${workspaceHash}/backup-${timestamp}-${randomBytes(8).toString("hex")}`;
+      // 各目的地独立完成；全部 settled 后才能记录总结果和释放跨 Host 执行锁。
+      results = await Promise.all(
+        admission.destinations.map((destination) =>
+          destination.config
+            ? uploadBackupDestination(
+                destination.provider,
+                destination.config,
+                relativeKey,
+                payload,
+                manifest,
+                options,
+              )
+            : Promise.resolve({
+                provider: destination.provider,
+                ok: false,
+                error: destination.error,
+              }),
+        ),
+      );
+      await recordResults(admission, target, attemptedAt, results, manifest);
+      recorded = true;
+      if (results.some((result) => !result.ok)) throw backupDestinationFailure(results);
+      return manifest;
+    } catch (error) {
+      if (!recorded && admission?.destinations.length) {
+        results = admission.destinations.map((destination) => ({
+          provider: destination.provider,
+          ok: false,
+          error:
+            destination.error ?? (error instanceof Error ? error.message : "Git backup failed"),
+        }));
+        await recordResults(admission, target, attemptedAt, results);
+      } else if (!recorded) {
+        await store.updateState((state) => ({
+          ...state,
           running: false,
-          lastBackupAt: manifest.createdAt,
-          lastBackupFiles: manifest.totalFiles,
-          lastBackupSize: manifest.totalSize,
-          error: null,
-        };
+          error: error instanceof Error ? error.message : "Git backup failed",
+        }));
+      }
+      onFailure?.(
+        admission?.config,
+        results,
+        error instanceof Error ? error.message : "Git backup failed",
+      );
+      throw error;
+    }
+  }
 
-        return manifest;
-      } catch (err) {
-        lastStatus.running = false;
-        lastStatus.error = err instanceof Error ? err.message : String(err);
-        throw err;
+  async function poll(): Promise<void> {
+    if (disposed || polling) return;
+    polling = true;
+    let release: (() => Promise<void>) | null = null;
+    try {
+      const initial = await store.loadConfig();
+      const initialState = await store.loadState();
+      schedulerFailureLogged = false;
+      if (!initial.enabled || !initial.workspaces.length) return;
+      if (initialState.nextDueAt !== null && initialState.nextDueAt > now()) return;
+      release = await executionLock();
+      if (!release || disposed) return;
+      const config = await store.loadConfig();
+      const state = await store.loadState();
+      if (
+        !config.enabled ||
+        !getSelectedGitBackupProviders(config).length ||
+        !config.workspaces.length ||
+        (state.nextDueAt !== null && state.nextDueAt > now())
+      )
+        return;
+      const cycleStarted = now();
+      const failures: Array<{
+        config?: GitBackupConfig;
+        results: GitBackupDestinationResult[];
+        message: string;
+      }> = [];
+      for (const target of config.workspaces) {
+        // 停止只允许已开始的运行完成；每个下一个目标 admission 前重新读取权威配置。
+        const fresh = await store.loadConfig();
+        if (disposed || !fresh.enabled) break;
+        const currentTarget = fresh.workspaces.find(
+          (item) => gitBackupWorkspaceKey(item) === gitBackupWorkspaceKey(target),
+        );
+        if (!currentTarget) continue;
+        const previousFailures = failures.length;
+        try {
+          await backup(currentTarget, undefined, (config, results, message) => {
+            failures.push({ config, results, message });
+          });
+        } catch (error) {
+          // 仅已记录的备份失败可继续下个工作区；持久化失败必须交给周期错误处理。
+          if (failures.length === previousFailures) throw error;
+        }
+      }
+      await store.updateState((latest, current) => {
+        // 周期结束时配置可能再次变化，不能把先前工作区的旧位置错误重新写回来。
+        const validFailures = failures.flatMap((failure) => {
+          if (!failure.config || !failure.results.length)
+            return [{ message: failure.message, providers: [] as GitBackupProvider[] }];
+          const results = failure.results.filter(
+            (result) =>
+              !result.ok &&
+              getGitBackupDestinationLocation(failure.config![result.provider]) ===
+                getGitBackupDestinationLocation(current[result.provider]),
+          );
+          return results.length
+            ? [
+                {
+                  message: backupDestinationFailure(results).message,
+                  providers: results.map((result) => result.provider),
+                },
+              ]
+            : [];
+        });
+        return {
+          ...latest,
+          running: false,
+          ...(validFailures.length
+            ? {
+                error: `${validFailures.length} workspace backup(s) failed: ${validFailures.map((failure) => failure.message).join("; ")}`,
+                errorProviders: [...new Set(validFailures.flatMap((failure) => failure.providers))],
+              }
+            : {}),
+          nextDueAt: current.enabled
+            ? Math.max(now(), cycleStarted) + current.intervalMinutes * 60_000
+            : null,
+        };
+      });
+    } catch (error) {
+      if (!schedulerFailureLogged) {
+        // 未持有执行锁时不能写另一 owner 状态；只记录无凭据和路径的诊断。
+        logger.warn(undefined, "Scheduler could not read or process backup state");
+        schedulerFailureLogged = true;
+      }
+      if (release)
+        await store
+          .updateState((state) => ({
+            ...state,
+            running: false,
+            error: error instanceof Error ? error.message : "Git backup scheduler failed",
+          }))
+          .catch(() => undefined);
+    } finally {
+      await release?.();
+      polling = false;
+    }
+  }
+
+  const timer = setInterval(() => {
+    void poll();
+  }, options.schedulerPollMs ?? 5_000);
+  timer.unref();
+  void poll();
+  return {
+    configure(partial, workspace, configureOptions) {
+      return store.configure(partial, workspace, now(), configureOptions);
+    },
+    removeWorkspace(target) {
+      return store.removeWorkspace(target);
+    },
+    getConfig() {
+      return store.loadConfig();
+    },
+    async getStatus() {
+      const state = await store.loadState();
+      if (state.running) {
+        const release = await executionLock();
+        if (release) {
+          try {
+            // 崩溃后的持久化 running 只能在确认没有活跃执行锁时清理，不能靠超时猜测。
+            await store.updateState((current) =>
+              current.running
+                ? { ...current, running: false, error: "Previous Git backup was interrupted" }
+                : current,
+            );
+          } finally {
+            await release();
+          }
+        }
+      }
+      return store.getStatus();
+    },
+    async startBackup(workspacePath, workspaceIdentity, provider) {
+      if (disposed) throw new Error("Git backup service is disposed");
+      const target = validateBackupTarget({ workspacePath, workspaceIdentity });
+      const release = await executionLock();
+      if (!release) throw new Error("A Git backup is already running for this profile");
+      try {
+        return await backup(target, provider);
+      } finally {
+        await release();
       }
     },
-
-    async stopBackup() {
-      clearScheduler();
-      const config = await loadConfig(dataDir);
-      config.enabled = false;
-      await saveConfig(dataDir, config);
-      lastStatus.running = false;
+    stopBackup() {
+      return store.configure({ enabled: false }, undefined, now());
     },
-
-    async exportPrivateKey() {
+    async testConnection(config, provider = "oss") {
+      try {
+        const resolved = await store.resolveDestination(provider, config);
+        return provider === "minio"
+          ? await testMinioConnection(resolved as GitBackupMinioConfig, options)
+          : await testOssConnection(resolved as GitBackupOssConfig, options);
+      } catch (error) {
+        return {
+          ok: false,
+          error: error instanceof Error ? error.message : "Backup connection failed",
+        };
+      }
+    },
+    exportPrivateKey() {
       return readPrivateKey(dataDir);
     },
-
     async getPublicKey() {
-      const keyPair = await ensureKeyPair(dataDir);
-      return keyPair.publicKey;
+      return (await ensureKeyPair(dataDir)).publicKey;
     },
-
-    async hasCompletedOnboarding() {
-      return existsSync(getOnboardingPath(dataDir));
+    hasCompletedOnboarding() {
+      return store.hasCompletedOnboarding();
     },
-
-    async markOnboardingComplete() {
-      await mkdir(dataDir, { recursive: true });
-      await writeFile(getOnboardingPath(dataDir), new Date().toISOString(), "utf-8");
+    markOnboardingComplete() {
+      return store.markOnboardingComplete();
+    },
+    dispose() {
+      disposed = true;
+      clearInterval(timer);
     },
   };
 }
