@@ -1,4 +1,5 @@
 import { requestPluginReferenceCatalog } from "#src/lcode-agent/pluginReferenceCatalogRequest.js";
+import { gitFileMutationJournalSchema } from "@lcode/shared";
 import {
   localTtftFactsSchema,
   sessionDebugSnapshotSchema,
@@ -4342,6 +4343,15 @@ export function createLCodeAgentService(
       });
     },
 
+    async getWorkspaceFileMutationJournal(params) {
+      const client = await getClient(params);
+      return await client.request(
+        lcodeProtocolMethods.workspaceFileMutationJournal,
+        { workspace: buildWorkspaceRef(params), paths: params.paths },
+        gitFileMutationJournalSchema,
+      );
+    },
+
     async generateWorkspaceText(params: LCodeAgentGenerateWorkspaceTextParams) {
       const client = await getClient(params);
       // Worker 自己读取 LCode Built-in / Personal Config；Host 只在执行前确保账号状态形成的
@@ -4411,6 +4421,7 @@ export function createLCodeAgentService(
         {
           workspace: buildWorkspaceRef(params),
           selection: params.selection,
+          ...(params.mode ? { mode: params.mode } : {}),
         },
         lcodeProviderTestModelConnectivityResultSchema,
         { signal: params.signal },

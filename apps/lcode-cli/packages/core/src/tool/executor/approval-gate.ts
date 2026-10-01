@@ -6,6 +6,10 @@ import {
 } from "@lcode/contracts";
 import type { ExecutableToolCall, ToolEntry } from "../types.js";
 import type { ToolExecutorDeps } from "./types.js";
+import {
+  resolveRuntimePermissionCapability,
+  resolveRuntimePermissionContext,
+} from "./permission-capability.js";
 
 interface ResolvedToolApproval {
   gate: "ask" | "proceed";
@@ -42,7 +46,18 @@ export function resolveToolApproval(
 ): ResolvedToolApproval {
   // `permission` 类型上是必填，但 executor 也会被只声明了一部分字段的 entry 驱动
   // （测试桩、动态注册的工具）。周边代码靠 spread 而不是读字段来容忍这一点，gate 同理。
-  const optionsPolicy = resolveOptionsPolicy(entry.permission?.askOptions?.allowAlways);
+  const permission = resolveRuntimePermissionCapability(
+    entry,
+    executionInput,
+    resolveRuntimePermissionContext(deps),
+  ).permission;
+  const optionsPolicy =
+    permission?.approvalSource === "user"
+      ? "no-always-allow"
+      : resolveOptionsPolicy(permission?.askOptions?.allowAlways);
+
+  // 用户专属审批不能由工具 prepareApproval 的 proceed 再放行；与动态能力使用同一输入。
+  if (permission?.approvalSource === "user") return { gate: "ask", optionsPolicy };
 
   if (!entry.prepareApproval) {
     return { gate: "ask", ...(optionsPolicy ? { optionsPolicy } : {}) };

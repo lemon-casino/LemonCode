@@ -1,4 +1,5 @@
 import { querySessionDebug } from "./session-debug.js";
+import { workspaceFileMutationJournal } from "./workspace-file-mutation-journal.js";
 import {
   lcodePluginsCancelOperationParamsSchema,
   lcodeProtocolMethods,
@@ -637,6 +638,8 @@ export class LCodeProtocolAgentServer {
         return await this.withWorkspaceGenerateTextSignal(request, (signal) =>
           generateWorkspaceText(this.context, request.params, signal),
         );
+      case lcodeProtocolMethods.workspaceFileMutationJournal:
+        return await workspaceFileMutationJournal(this.context, request.params);
       case lcodeProtocolMethods.workspaceCancelGenerateText:
         return this.cancelWorkspaceGenerateText(request.params);
       case lcodeProtocolMethods.providerTestModelConnectivity:

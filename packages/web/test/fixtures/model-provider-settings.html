@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="zh-CN" class="dark theme-zai-dark" data-lcode-browser-theme-surface="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="connect-src 'self' ws://localhost:* ws://127.0.0.1:*; img-src 'self' data: blob:; font-src 'self' data:;"
+    />
+    <title>Model Provider Settings E2E Fixture</title>
+    <style>
+      html[data-lcode-browser-theme-surface] {
+        background: var(--color-background) !important;
+        color: var(--color-foreground);
+      }
+      #root .fixture-page {
+        box-sizing: border-box;
+        height: 100%;
+        width: 100%;
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 24px;
+        overflow: auto;
+        min-width: 0;
+      }
+      .fixture-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 0;
+      }
+      .fixture-controls label {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+      .fixture-controls select {
+        max-width: 100%;
+        padding: 6px;
+        color: var(--color-foreground);
+        background: var(--color-input);
+        border: 1px solid var(--color-input-border);
+        border-radius: 8px;
+      }
+      .fixture-metrics {
+        padding: 12px 0;
+      }
+      .fixture-metrics dl {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px 24px;
+      }
+      .fixture-metrics dd {
+        margin: 0;
+      }
+      .fixture-detail {
+        position: relative;
+        min-width: 0;
+        margin: 16px 0;
+      }
+      .fixture-state {
+        min-width: 0;
+        padding: 16px 0;
+        border-top: 1px solid var(--color-border);
+      }
+      .fixture-state pre {
+        max-height: 280px;
+        margin: 8px 0;
+        overflow: auto;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      @media (max-width: 480px) {
+        #root .fixture-page {
+          padding: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./model-provider-settings.tsx"></script>
+  </body>
+</html>

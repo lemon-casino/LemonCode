@@ -226,6 +226,9 @@ export function createDefaultSubagentPort(
       const childClientPorts = deriveChildClientPorts(
         {
           permissionBroker: this.permissionBroker,
+          ...(this.config.runtimeFeatures?.browserUse === true
+            ? { browserControlPort: this.browserControlPort }
+            : {}),
           ...(this.providerRuntimeHeadersPort === undefined
             ? {}
             : { providerRuntimeHeadersPort: this.providerRuntimeHeadersPort }),
@@ -287,6 +290,12 @@ export function createDefaultSubagentPort(
           maxTurns: request.maxTurns ?? this.config.subagents?.maxTurns ?? 4,
           parentSessionId: this.sessionId,
           taskType: "subagent_child",
+          // Browser Use 支持 child 独立资源；Computer Use 仍由其专用 scope 策略拒绝。
+          runtimeFeatures: {
+            nodeRepl: this.config.runtimeFeatures?.nodeRepl,
+            browserUse: this.config.runtimeFeatures?.browserUse,
+            browserDocumentationRoot: this.config.runtimeFeatures?.browserDocumentationRoot,
+          },
           // 动态工作流灰度门必须结构性继承：
           // 父会话关着而子代理开着，等于 Agent 工具变成绕过灰度的后门。默认路径（child 继承
           // 父 registry 可见的工具名）本来就够，但**自定义 agent profile 显式写
@@ -395,35 +404,35 @@ export function createDefaultSubagentPort(
         },
       );
 
-      const resumesExistingChild = request.resumeFromStore === true;
-      if (resumesExistingChild) {
-        await childRuntime.resumeFromStore({
-          traceContext: request.traceContext,
-        });
-      } else {
-        // 父会话过去先发布 SubagentSpawned，child 的首轮 executeTurn 才落库。
-        // 并发派生时目录查询会在两者之间读到少一个 child。这里把持久化提升为发布前闸门。
-        await childRuntime.ensureSessionPersistedForExternalActivity(request.prompt, {
-          traceContext: request.traceContext,
-        });
-      }
-      await notifySessionReady();
-      if (!resumesExistingChild) {
-        // 新 child 的最终模型可能来自继承、lite 或 profile 显式覆盖。它既是首轮
-        // 实时投影事实，也是冷恢复必须保留的 transcript 边界；resume 不重复写入。
-        childRuntime.recordPendingModelChange({
-          toModel: childSelection,
-          toModelLabel: `${childSelection.providerId}/${childSelection.modelId}`,
-        });
-        await childRuntime.emitModelSelected({
-          modelSelection: childSelection,
-          effectiveReasoningLevel: childModel.options.reasoningLevel,
-          previousModelSelection: null,
-          traceContext: request.traceContext,
-        });
-      }
-      request.registerMessageSink?.(createSubagentMessageSink(childRuntime, request));
       try {
+        const resumesExistingChild = request.resumeFromStore === true;
+        if (resumesExistingChild) {
+          await childRuntime.resumeFromStore({
+            traceContext: request.traceContext,
+          });
+        } else {
+          // 父会话过去先发布 SubagentSpawned，child 的首轮 executeTurn 才落库。
+          // 并发派生时目录查询会在两者之间读到少一个 child。这里把持久化提升为发布前闸门。
+          await childRuntime.ensureSessionPersistedForExternalActivity(request.prompt, {
+            traceContext: request.traceContext,
+          });
+        }
+        await notifySessionReady();
+        if (!resumesExistingChild) {
+          // 新 child 的最终模型可能来自继承、lite 或 profile 显式覆盖。它既是首轮
+          // 实时投影事实，也是冷恢复必须保留的 transcript 边界；resume 不重复写入。
+          childRuntime.recordPendingModelChange({
+            toModel: childSelection,
+            toModelLabel: `${childSelection.providerId}/${childSelection.modelId}`,
+          });
+          await childRuntime.emitModelSelected({
+            modelSelection: childSelection,
+            effectiveReasoningLevel: childModel.options.reasoningLevel,
+            previousModelSelection: null,
+            traceContext: request.traceContext,
+          });
+        }
+        request.registerMessageSink?.(createSubagentMessageSink(childRuntime, request));
         return await childRuntime.executeTurn(request.prompt, undefined, {
           abortSignal: options?.signal,
           // 子 Runtime 的首轮输入来自父 Agent，而不是真实用户直接输入；保留源事实，避免
@@ -438,11 +447,16 @@ export function createDefaultSubagentPort(
           reason: cancelled ? "subagent_cancelled" : "subagent_terminal",
           traceContext: request.traceContext,
         });
-        if (cancelled) {
-          await childRuntime.cancelRunningRuntimeBackgroundTasks({
-            reason: "subagent_cancelled",
-            traceContext: request.traceContext,
-          });
+        try {
+          if (cancelled) {
+            await childRuntime.cancelRunningRuntimeBackgroundTasks({
+              reason: "subagent_cancelled",
+              traceContext: request.traceContext,
+            });
+          }
+        } finally {
+          // 完成后 SendMessage 会创建新的 child runtime；旧 lease 先收口，借用的 MCP 不关闭。
+          await childRuntime.closeBrowserSession();
         }
       }
     },

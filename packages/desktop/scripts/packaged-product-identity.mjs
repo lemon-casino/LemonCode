@@ -47,13 +47,23 @@ function assertTarget(os, arch) {
   }
 }
 
-export function resolvePackagedProductLayout({ os, arch, distRoot, version, identity }) {
+export function resolvePackagedProductLayout({
+  os,
+  arch,
+  distRoot,
+  version,
+  identity,
+  artifactSuffix = "",
+}) {
   assertTarget(os, arch);
   assertCrossBrandIdentity(identity);
   const productName = identity.productName.trim();
   const normalizedVersion = String(version ?? "").trim();
   if (!normalizedVersion)
     throw new Error("Packaged product identity verification requires version");
+  if (artifactSuffix !== "" && artifactSuffix !== "_TEST") {
+    throw new Error(`Unsupported desktop artifact suffix: ${artifactSuffix}`);
+  }
 
   if (os === "mac") {
     const applicationPath = resolve(
@@ -65,8 +75,14 @@ export function resolvePackagedProductLayout({ os, arch, distRoot, version, iden
       applicationPath,
       executablePath: resolve(applicationPath, "Contents", "MacOS", productName),
       artifactPaths: {
-        dmg: resolve(distRoot, `${productName}-${normalizedVersion}-mac-${arch}.dmg`),
-        zip: resolve(distRoot, `${productName}-${normalizedVersion}-mac-${arch}.zip`),
+        dmg: resolve(
+          distRoot,
+          `${productName}-${normalizedVersion}-mac-${arch}${artifactSuffix}.dmg`,
+        ),
+        zip: resolve(
+          distRoot,
+          `${productName}-${normalizedVersion}-mac-${arch}${artifactSuffix}.zip`,
+        ),
       },
     };
   }
@@ -79,7 +95,10 @@ export function resolvePackagedProductLayout({ os, arch, distRoot, version, iden
         `${productName}.exe`,
       ),
       artifactPaths: {
-        nsis: resolve(distRoot, `${productName}-${normalizedVersion}-win-${arch}.exe`),
+        nsis: resolve(
+          distRoot,
+          `${productName}-${normalizedVersion}-win-${arch}${artifactSuffix}.exe`,
+        ),
       },
     };
   }
@@ -94,13 +113,19 @@ export function resolvePackagedProductLayout({ os, arch, distRoot, version, iden
     artifactPaths: {
       AppImage: resolve(
         distRoot,
-        `${productName}-${normalizedVersion}-linux-${artifactArch.AppImage}.AppImage`,
+        `${productName}-${normalizedVersion}-linux-${artifactArch.AppImage}${artifactSuffix}.AppImage`,
       ),
-      deb: resolve(distRoot, `${productName}-${normalizedVersion}-linux-${artifactArch.deb}.deb`),
-      rpm: resolve(distRoot, `${productName}-${normalizedVersion}-linux-${artifactArch.rpm}.rpm`),
+      deb: resolve(
+        distRoot,
+        `${productName}-${normalizedVersion}-linux-${artifactArch.deb}${artifactSuffix}.deb`,
+      ),
+      rpm: resolve(
+        distRoot,
+        `${productName}-${normalizedVersion}-linux-${artifactArch.rpm}${artifactSuffix}.rpm`,
+      ),
       pacman: resolve(
         distRoot,
-        `${productName}-${normalizedVersion}-linux-${artifactArch.pacman}.pkg.tar.zst`,
+        `${productName}-${normalizedVersion}-linux-${artifactArch.pacman}${artifactSuffix}.pkg.tar.zst`,
       ),
     },
   };
@@ -175,9 +200,17 @@ export function verifyPackagedProductIdentity({
   distRoot,
   version,
   identity,
+  artifactSuffix = "",
   readNativeIdentity = readDefaultNativeIdentity,
 }) {
-  const layout = resolvePackagedProductLayout({ os, arch, distRoot, version, identity });
+  const layout = resolvePackagedProductLayout({
+    os,
+    arch,
+    distRoot,
+    version,
+    identity,
+    artifactSuffix,
+  });
   assertNonemptyFile(layout.executablePath, `${os} unpacked executable`);
   for (const [format, path] of Object.entries(layout.artifactPaths)) {
     assertNonemptyFile(path, `${os} ${format} artifact`);

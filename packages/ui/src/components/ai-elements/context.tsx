@@ -152,8 +152,11 @@ export type ContextContentProps = ComponentProps<typeof HoverCardContent>;
 
 export const ContextContent = ({ className, ...props }: ContextContentProps) => (
   <HoverCardContent
+    collisionPadding={8}
+    // 用量与额度明细叠加后会超出横屏高度；只约束此浮层，复用 Radix 可用空间并让末尾操作可滚达。
+    // 内容内已有 padding 保留焦点边界，额度确认 Dialog 仍走原 Portal，不随滚动容器裁切。
     className={cn(
-      "!w-64 overflow-hidden rounded-lg border border-border bg-tooltip p-0 text-tooltip-foreground shadow-none ring-0 outline-0",
+      "!w-64 max-h-[min(var(--radix-hover-card-content-available-height,100dvh),calc(100dvh-1rem))] max-w-[min(var(--radix-hover-card-content-available-width,100dvw),calc(100dvw-1rem))] overflow-y-auto overscroll-contain rounded-lg border border-border bg-tooltip p-0 text-tooltip-foreground shadow-none ring-0 outline-0",
       className,
     )}
     {...props}

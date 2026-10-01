@@ -1,4 +1,5 @@
 import type { ModelId, ProviderId } from "./config/index.js";
+import { resolveTemporaryModel, type TemporaryModelResolution } from "./temporary-model.js";
 import {
   ProviderRegistry,
   type ModelSelection,
@@ -116,6 +117,12 @@ export class ProviderRegistryService {
 
   validateSelection(selection: ModelSelection): ModelSelectionValidation {
     return this.#registry.validateSelection(selection);
+  }
+
+  resolveTemporaryModel(selection: ModelSelection): TemporaryModelResolution {
+    this.#assertNotDisposed();
+    if (!this.#snapshot) throw new Error("ProviderRegistryService 尚未就绪");
+    return resolveTemporaryModel(this.#snapshot, selection);
   }
 
   onDidChange(listener: (event: ProviderRegistryServiceChangedEvent) => void): () => void {

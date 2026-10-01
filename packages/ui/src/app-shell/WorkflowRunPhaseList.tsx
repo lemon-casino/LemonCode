@@ -221,7 +221,7 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
       status:
         pill.status === "running"
           ? "running"
-          : pill.status === "done" || pill.status === "failed"
+          : pill.status === "done" || pill.status === "failed" || pill.status === "cancelled"
             ? "completed"
             : "waiting",
       ...(pill.runtimeName === undefined ? {} : { name: pill.runtimeName }),

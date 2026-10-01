@@ -21,9 +21,11 @@ import { bashOutputDisplaySchema } from "../bash-output-display.js";
 export * from "../background-bash-output.js";
 import { executionOutputPreviewSchema } from "../execution-output-preview.js";
 import { z } from "zod";
+export { gitFileMutationJournalSchema } from "../gitCommitReview.js";
 export * from "../process-diagnostic.js";
 import { errorAttributionSchema } from "../lcode-protocol-v4/snapshot.js";
 import { modelSelectionSchema } from "../model-selection.js";
+import { MODEL_CONNECTIVITY_ERROR_CODES } from "../model-provider-types.js";
 import { completeModelPropertiesDataSchema } from "../model-config.js";
 import { accountProviderUnavailableReasonSchema } from "../account-provider-state.js";
 import { modelExecutionSchema } from "../model-execution.js";
@@ -84,6 +86,21 @@ const nonEmptyString = z.string().trim().min(1);
 const jsonObjectSchema = z.record(z.string(), z.unknown());
 const timestampMsSchema = z.number().int().nonnegative();
 const protocolInstantSchema = z.union([timestampMsSchema, nonEmptyString, z.date()]);
+
+// CLI 后台结果已进入父 runtime 的事实；V4 仍只发布现有 backgroundWorks delta。
+// 按生命周期而非 workId 单独结算，避免 SendMessage / workflow resume 被旧通知误清除。
+export const lcodeBackgroundTaskResultConsumedPayloadSchema = z
+  .object({
+    workId: nonEmptyString,
+    lifecycleId: nonEmptyString,
+    messageId: nonEmptyString,
+    sourceCommandId: nonEmptyString,
+    delivery: z.enum(["activeLoop", "continuation"]),
+  })
+  .strict();
+export type LCodeBackgroundTaskResultConsumedPayload = z.infer<
+  typeof lcodeBackgroundTaskResultConsumedPayloadSchema
+>;
 
 // Tool result display 不受模型文本 budget 约束；Node REPL 图片必须在 Agent/App 协议边界
 // 做严格限长，避免截图把 continuous 或 replayable 消息扩成无界载荷。
@@ -2072,6 +2089,13 @@ const lcodeWorkspaceModelToolSchema = z
   })
   .strict();
 
+export const lcodeWorkspaceFileMutationJournalParamsSchema = z
+  .object({
+    workspace: lcodeWorkspaceRefSchema,
+    paths: z.array(z.string().min(1)).min(1).max(100),
+  })
+  .strict();
+
 export const lcodeWorkspaceGenerateTextParamsSchema = z
   .object({
     workspace: lcodeWorkspaceRefSchema,
@@ -2133,11 +2157,23 @@ export const lcodeProviderTestModelConnectivityParamsSchema = z
   .object({
     workspace: lcodeWorkspaceRefSchema,
     selection: modelSelectionSchema,
+    mode: z.literal("temporary").optional(),
   })
   .strict();
-export const lcodeProviderTestModelConnectivityResultSchema = z
-  .object({ success: z.literal(true) })
-  .strict();
+export const lcodeProviderTestModelConnectivityResultSchema = z.discriminatedUnion("success", [
+  z.object({ success: z.literal(true) }).strict(),
+  z
+    .object({
+      success: z.literal(false),
+      error: z
+        .object({
+          message: z.string(),
+          code: z.enum(MODEL_CONNECTIVITY_ERROR_CODES).optional(),
+        })
+        .strict(),
+    })
+    .strict(),
+]);
 export type LCodeProviderTestModelConnectivityParams = z.infer<
   typeof lcodeProviderTestModelConnectivityParamsSchema
 >;
@@ -3610,6 +3646,7 @@ export const lcodeProtocolMethods = {
   // LLM 执行面在 CLI，直连不可行；消费仅 services 内部
   // （commit message），待 v4 workspace 查询/命令面覆盖后移除。
   workspaceGenerateText: "workspace/generateText",
+  workspaceFileMutationJournal: "workspace/fileMutationJournal",
   workspaceCancelGenerateText: "workspace/cancelGenerateText",
   providerTestModelConnectivity: "provider/testModelConnectivity",
   mcpList: "mcp/list",

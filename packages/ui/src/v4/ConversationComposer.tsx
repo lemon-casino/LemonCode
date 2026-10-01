@@ -93,6 +93,7 @@ import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { advanceComposerDraftRevision } from "@/v4/composer/composerDraftRevision.js";
 import type { AppSlashCommand } from "@/slashCommandHelpers.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
+import { ConversationCommitMessageButton } from "@/v4/composer/ConversationCommitMessageButton.js";
 import { logger } from "@/logger.js";
 import { runUserAction, startUserAction } from "@/lib/userActionTelemetry.js";
 import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
@@ -107,6 +108,8 @@ import {
 } from "@/lib/chatAttachments.js";
 import { resolveChatPlaceholderKey } from "@/lib/chatPlaceholder.js";
 import { resolveChatEnterShortcut } from "@/lib/mobileTextInput.js";
+import { isCoarseTouchDevice } from "@/lib/pickerFocus.js";
+import { isEditorSurfaceHidden } from "@/prompt-editor/editorFocus.js";
 import { appendPromptHistoryEntry } from "@/lib/promptHistory.js";
 import {
   persistPromptHistoryEntries,
@@ -433,6 +436,8 @@ interface ConversationComposerProps {
   /** queue 撤回 admission 读取的完整 composer 占用态；附件包含上传中状态。 */
   onDraftStateChange?: (state: { hasContent: boolean; busy: boolean }) => void;
   onStop: () => void;
+  onGenerateCommitSummary?: () => void;
+  commitSummaryPending?: boolean;
   /** 目录选中模型（providerId/modelId）；thought/revision 由宿主从最新投影补齐。 */
   onSelectModel: (
     provider: string,
@@ -532,6 +537,8 @@ function ConversationComposerImpl({
   onTextChange,
   onDraftStateChange,
   onStop,
+  onGenerateCommitSummary,
+  commitSummaryPending = false,
   onSelectModel,
   onSelectThought,
   onSelectSpeed,
@@ -1150,36 +1157,64 @@ function ConversationComposerImpl({
   const appliedExternalTextInsertRequestRef = useRef<number | null>(null);
   // 决策入参经 ref 读取，避免把 autoFocusEnabled/disabled/viewport 灌进 scope effect 依赖，
   // 触发多余的草稿重恢复（disabled 变化本不应重放草稿）。
+  const composerSurfaceRef = useRef<HTMLDivElement>(null);
+  const focusFrameRef = useRef<number | null>(null);
   const focusOptsRef = useRef<ComposerAutoFocusOptions>({
     autoFocusEnabled,
     disabled,
-    isMobileViewport: false,
+    isCoarseTouchDevice: isCoarseTouchDevice(),
   });
   focusOptsRef.current = {
     autoFocusEnabled,
     disabled,
-    isMobileViewport: false,
+    isCoarseTouchDevice: isCoarseTouchDevice(),
   };
   const flushPendingFocus = useCallback(() => {
     if (!pendingFocusRef.current) return;
-    if (resolveComposerAutoFocus(focusOptsRef.current) !== "focus-now") return;
-    if (!inputApiRef.current) return;
-    pendingFocusRef.current = false;
-    // 程序性聚焦与用户点击输入框会触发同一个 DOM focus 事件；置位后由 handleEditorFocus
-    // 消费，避免把「切会话 / 挂载回焦 / 上下文块移除后回焦」误报成 send_input_focus。
-    programmaticFocusRef.current = true;
-    // Lexical root 可能晚一帧就绪，聚焦排到下一帧（与草稿回填同款时序）。
-    if (typeof requestAnimationFrame === "function") {
-      requestAnimationFrame(() => inputApiRef.current?.focus());
-    } else {
-      inputApiRef.current.focus();
+    const decide = () =>
+      resolveComposerAutoFocus({
+        ...focusOptsRef.current,
+        isCoarseTouchDevice: isCoarseTouchDevice(),
+        isSurfaceHidden: isEditorSurfaceHidden(composerSurfaceRef.current),
+      });
+    const decision = decide();
+    if (decision === "skip") {
+      pendingFocusRef.current = false;
+      return;
     }
+    if (decision !== "focus-now" || !inputApiRef.current) return;
+    if (focusFrameRef.current !== null) cancelAnimationFrame(focusFrameRef.current);
+    const focus = () => {
+      focusFrameRef.current = null;
+      // request 与下一帧之间可打开抽屉/设置或切换 pane；旧自动聚焦不能穿透新的 inert 边界。
+      if (!pendingFocusRef.current) return;
+      const currentDecision = decide();
+      if (currentDecision === "defer") return;
+      pendingFocusRef.current = false;
+      if (currentDecision !== "focus-now") return;
+      programmaticFocusRef.current = true;
+      inputApiRef.current?.focus();
+    };
+    if (typeof requestAnimationFrame === "function")
+      focusFrameRef.current = requestAnimationFrame(focus);
+    else focus();
   }, []);
   const requestComposerFocus = useCallback(() => {
-    if (resolveComposerAutoFocus(focusOptsRef.current) === "skip") return;
+    if (resolveComposerAutoFocus(focusOptsRef.current) === "skip") {
+      pendingFocusRef.current = false;
+      return;
+    }
     pendingFocusRef.current = true;
     flushPendingFocus();
   }, [flushPendingFocus]);
+  useEffect(
+    () => () => {
+      pendingFocusRef.current = false;
+      if (focusFrameRef.current !== null) cancelAnimationFrame(focusFrameRef.current);
+      focusFrameRef.current = null;
+    },
+    [draftScopeId, workspaceKey],
+  );
 
   const handleCodeCommentRemoved = useCallback(
     (comment: Parameters<typeof removeCodeCommentPreview>[0]) => {
@@ -2363,33 +2398,63 @@ function ConversationComposerImpl({
       }),
     [onSelectModel],
   );
+  // 模型配置原来与发送共用 shrink-0 trailing，极窄时被 overflow-hidden 裁掉。
+  // 配置移入共享滚动插槽，仍使用同一受控草稿；发送/停止独立固定在滚动区外。
+  const modelControlsNode = useMemo(
+    () => (
+      <V4ComposerModelControls
+        workspacePath={workspacePath}
+        workspaceIdentity={workspaceIdentity}
+        modelSelectionView={modelSelectionView}
+        modelSelectionState={modelSelectionState}
+        modelSelectionReload={modelSelectionReload}
+        sessionId={sessionId ?? null}
+        provider={provider}
+        draftMode={draftMode}
+        draftConfig={draftConfig}
+        usage={composerUsage}
+        sessionSnapshot={snapshot}
+        disabled={disabled}
+        activeConfigPicker={activeConfigPicker}
+        onConfigPickerOpenChange={handleConfigPickerOpenChange}
+        onSelectModel={handleSelectModelTrace}
+        onSelectThought={onSelectThought}
+        onSelectSpeed={onSelectSpeed}
+        onSwitchMode={onSwitchMode}
+        onRecoverCustomModelSelection={onRecoverCustomModelSelection}
+        onSendCompressionCommand={onSendCompressionCommand}
+      />
+    ),
+    [
+      workspacePath,
+      workspaceIdentity,
+      modelSelectionView,
+      modelSelectionState,
+      modelSelectionReload,
+      sessionId,
+      provider,
+      draftMode,
+      draftConfig,
+      composerUsage,
+      snapshot?.control.phase,
+      snapshot?.rows.window,
+      snapshot?.sessionId,
+      snapshot?.subagents,
+      snapshot?.workflowRuns,
+      disabled,
+      activeConfigPicker,
+      handleConfigPickerOpenChange,
+      handleSelectModelTrace,
+      onSelectThought,
+      onSelectSpeed,
+      onSwitchMode,
+      onRecoverCustomModelSelection,
+      onSendCompressionCommand,
+    ],
+  );
   const submitControlNode = useMemo(
     () => (
-      <div className="flex min-w-0 items-center gap-1">
-        <span className="flex min-w-0 shrink items-center gap-1 overflow-hidden empty:hidden">
-          <V4ComposerModelControls
-            workspacePath={workspacePath}
-            workspaceIdentity={workspaceIdentity}
-            modelSelectionView={modelSelectionView}
-            modelSelectionState={modelSelectionState}
-            modelSelectionReload={modelSelectionReload}
-            sessionId={sessionId ?? null}
-            provider={provider}
-            draftMode={draftMode}
-            draftConfig={draftConfig}
-            usage={composerUsage}
-            sessionSnapshot={snapshot}
-            disabled={disabled}
-            activeConfigPicker={activeConfigPicker}
-            onConfigPickerOpenChange={handleConfigPickerOpenChange}
-            onSelectModel={handleSelectModelTrace}
-            onSelectThought={onSelectThought}
-            onSelectSpeed={onSelectSpeed}
-            onSwitchMode={onSwitchMode}
-            onRecoverCustomModelSelection={onRecoverCustomModelSelection}
-            onSendCompressionCommand={onSendCompressionCommand}
-          />
-        </span>
+      <div className="flex shrink-0 items-center gap-1">
         {showStopControl ? (
           <ControlHintTooltip title={stopTooltipTitle} shortcut="Esc">
             <Button
@@ -2425,10 +2490,17 @@ function ConversationComposerImpl({
             </Button>
           </ControlHintTooltip>
         )}
+        <ConversationCommitMessageButton
+          onClick={onGenerateCommitSummary}
+          pending={commitSummaryPending}
+          disabled={disabled || showStopControl}
+        />
       </div>
     ),
     [
       canSend,
+      onGenerateCommitSummary,
+      commitSummaryPending,
       activeConfigPicker,
       composerUsage,
       snapshot?.control.phase,
@@ -2530,6 +2602,7 @@ function ConversationComposerImpl({
     // 视觉上会被误认为输入卡标题栏；将 surface 边界收窄到工作区头和编辑器后，桌面与手机
     // Web 仍共享同一 DOM 顺序，同时恢复错误提示与输入卡之间的独立层级。
     <div
+      ref={composerSurfaceRef}
       data-testid={TID_V4_COMPOSER}
       data-input-routing={mode}
       aria-hidden={isBlockedByInteraction ? true : undefined}
@@ -2622,6 +2695,7 @@ function ConversationComposerImpl({
           appSlashCommands={appSlashCommands}
           enableMentionPanel
           leadingActions={leadingActionsNode}
+          trailingActions={modelControlsNode}
           submitControl={submitControlNode}
           className="p-0"
           onChange={handleEditorChange}

@@ -21,6 +21,7 @@ import {
   createLCodeAgentConnectionScope,
   IFileService,
   IGitService,
+  IGitBackupService,
   ISystemService,
   ITerminalService,
   IProviderProvisioningTargetService,
@@ -395,6 +396,10 @@ export function createHttpServer(
             .register(IGitService, connection.services.gitService)
             .register(ISystemService, connection.services.systemService)
             .register(ITerminalService, connection.services.terminalService);
+          // legacy remote 也只能透传目标 Host 的备份 owner，不能沿用本机服务。
+          if (connection.services.gitBackupService) {
+            remoteServices.register(IGitBackupService, connection.services.gitBackupService);
+          }
 
           setupChannelServer(ws.raw as WebSocket, remoteServices, "web-remote-replayable");
         },

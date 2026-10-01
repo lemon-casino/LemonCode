@@ -68,6 +68,17 @@ export async function recheckPermissionHookModifiedInput(input: {
       permissionDecision: decision,
     };
   }
+  // 自动审批 Hook 不能通过改写普通 Bash 输入悄悄加上保留授权；要求重新发起用户可见请求。
+  if (decision.approvalSource === "user") {
+    return {
+      brokerResult: {
+        decision: "deny",
+        reason:
+          "Preview retention requires explicit user approval for this input. Retry as a separate request.",
+      },
+      permissionDecision: decision,
+    };
+  }
   if (
     decision.decision !== "ask" ||
     (decision.ruleId !== "rule.project.ask" &&

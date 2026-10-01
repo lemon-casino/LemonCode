@@ -51,6 +51,7 @@ import {
   drainRuntimeCommandQueue,
   enqueueRuntimeCommand,
   getActiveForegroundExecutionId,
+  isForegroundExecutionIdleForPromotion,
   hasActiveOrQueuedTurnWork,
   releaseForegroundPromotionLease,
   stopActiveForegroundExecution,
@@ -258,6 +259,7 @@ export function installAgentRuntimeMethods(ctor: AgentRuntimeConstructor): void 
   proto.trackResidencyBlockingWork = trackResidencyBlockingWork;
   proto.acquireForegroundPromotionLease = acquireForegroundPromotionLease;
   proto.getActiveForegroundExecutionId = getActiveForegroundExecutionId;
+  proto.isForegroundExecutionIdleForPromotion = isForegroundExecutionIdleForPromotion;
   proto.getExecutionFailoverLineageId = getExecutionFailoverLineageId;
   proto.setExecutionFailoverTarget = setExecutionFailoverTarget;
   proto.getExecutionFailoverPolicyPort = getExecutionFailoverPolicyPort;

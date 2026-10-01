@@ -1,7 +1,17 @@
-import type { ModelToolSideEffectScope } from "@lcode/contracts";
+import type { ModelToolSideEffectScope, PermissionBrokerResult } from "@lcode/contracts";
 import type { PermissionToolCapability } from "../../permission/service.js";
 import type { ToolEntry, ToolRuntimePermissionCapabilityContext } from "../types.js";
 import type { ToolExecutorDeps } from "./types.js";
+
+export function scopePermissionApprovalResult(
+  result: PermissionBrokerResult,
+  approvalSource: PermissionToolCapability["approvalSource"],
+): PermissionBrokerResult {
+  // 用户保留授权只绑定本次调用；偏斜客户端也不能给后续请求写入宽泛 allow。
+  return approvalSource === "user"
+    ? { ...result, permissionUpdates: undefined, sessionPermissionUpdates: undefined }
+    : result;
+}
 
 export function resolveRuntimePermissionCapability(
   entry: ToolEntry,

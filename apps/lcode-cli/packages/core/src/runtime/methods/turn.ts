@@ -61,6 +61,7 @@ import {
 } from "./goal-state-reminder.js";
 import { scheduleProjectMemoryExtraction } from "../helpers/project-memory-extraction.js";
 import { appendBrowserTurnScreenshot } from "./browser-turn-screenshot.js";
+import { cleanupTurnBackgroundBash } from "./background.js";
 import { clearBrowserTurnState } from "../../repl/browser-turn-state.js";
 import { applySubmissionExecutionState, createTurnModel } from "./turn-model.js";
 import { rebuildContextPrefix } from "./context-refresh.js";
@@ -703,6 +704,9 @@ export async function executeTurnCommand(
             loopState.stableBoundaryAssistantMessageId,
           );
         }
+        // 主轮成功时先结算本轮临时后台 Bash，预览服务显式保留；
+        // 进程生命周期由 Runtime 拥有，UI 只消费之后的完成事实。
+        await cleanupTurnBackgroundBash(this, turnId, turnTraceContext);
         const completeEvent = this.createEvent(
           SessionEventType.TurnComplete,
           {
@@ -773,6 +777,8 @@ export async function executeTurnCommand(
         return result;
       } catch (error) {
         turnFailureHandled = true;
+        // 临时预览在失败/取消时同样属于本轮资源，不能只在成功路径清理后留住后台服务。
+        await cleanupTurnBackgroundBash(this, turnId, turnTraceContext);
         const coreError = createTurnFailureError(error, turnAbortSignal, "Turn execution failed");
         const preserveQueueAutoDrainOnCancel =
           coreError.type === CoreErrorType.TurnCancelled &&

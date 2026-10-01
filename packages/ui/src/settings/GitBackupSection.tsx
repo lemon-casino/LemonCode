@@ -1,210 +1,254 @@
-import { useCallback, useState } from "react";
+import { useId } from "react";
+import { Download, HardDriveUpload, KeyRound, Loader2, RotateCcw } from "lucide-react";
+import type { GitBackupWorkspaceTarget } from "@lcode/services";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
-import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { Switch } from "@/components/ui/switch.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog.js";
+import { useGitBackup } from "@/hooks/useGitBackup.js";
+import { useGitBackupRouting, type GitBackupSectionTarget } from "@/hooks/useGitBackupRouting.js";
+import { GitBackupDestinationTabs } from "@/settings/git-backup/GitBackupDestinationTabs.js";
+import { GitBackupStatusPanel } from "@/settings/git-backup/GitBackupStatusPanel.js";
 
-interface OssFormState {
-  accessKeyId: string;
-  accessKeySecret: string;
-  bucket: string;
-  region: string;
-  pathPrefix: string;
+export function GitBackupSection(props: GitBackupSectionTarget) {
+  const route = useGitBackupRouting(props);
+  return <GitBackupSectionController key={route.controllerKey} {...route} />;
 }
 
-const EMPTY_OSS: OssFormState = {
-  accessKeyId: "",
-  accessKeySecret: "",
-  bucket: "",
-  region: "",
-  pathPrefix: "",
-};
+export function GitBackupSectionController(props: Parameters<typeof useGitBackup>[0]) {
+  const backup = useGitBackup(props);
+  return (
+    <GitBackupSettingsView
+      backup={backup}
+      target={props.target}
+      connectionKind={props.connectionKind}
+    />
+  );
+}
 
-export function GitBackupSection({
-  enabled,
-  onEnabledChange,
+export function GitBackupSettingsView({
+  backup,
+  target,
+  connectionKind,
 }: {
-  enabled: boolean;
-  onEnabledChange: (enabled: boolean) => void;
+  backup: ReturnType<typeof useGitBackup>;
+  target: GitBackupWorkspaceTarget | null;
+  connectionKind: "local-ready" | "remote-ready" | "remote-waiting";
 }) {
   const { intl } = useLCodeIntl();
-  const [ossForm, setOssForm] = useState<OssFormState>(EMPTY_OSS);
-  const [interval, setInterval] = useState(60);
-  const [backingUp, setBackingUp] = useState(false);
-  const [testResult, setTestResult] = useState<{ ok: boolean; error?: string } | null>(null);
-
-  const updateField = useCallback(
-    (field: keyof OssFormState, value: string) => {
-      setOssForm((prev) => ({ ...prev, [field]: value }));
-    },
-    [],
-  );
-
-  const handleTestConnection = useCallback(async () => {
-    setTestResult(null);
-    try {
-      setTestResult({ ok: true });
-    } catch (err) {
-      setTestResult({ ok: false, error: err instanceof Error ? err.message : String(err) });
-    }
-  }, []);
-
-  const handleManualBackup = useCallback(async () => {
-    setBackingUp(true);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-    } finally {
-      setBackingUp(false);
-    }
-  }, []);
-
+  const intervalId = useId();
+  const enabledId = useId();
+  const destinationFormId = useId();
+  const busy = Boolean(backup.operation);
+  const { config, draft } = backup;
+  const failure = backup.error
+    ? intl.formatMessage({ id: backup.error.id }, { error: backup.error.detail ?? "" })
+    : null;
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-ui-caption text-foreground-subtle">
-          {intl.formatMessage({ id: "settings.gitBackup.description" })}
+    <div className="min-w-0 space-y-5" data-testid="git-backup-settings">
+      <p className="text-ui-caption text-foreground-subtle">
+        {intl.formatMessage({ id: "settings.gitBackup.description" })}
+      </p>
+      {backup.unavailable ? (
+        <p role="status" className="break-words text-ui-base text-foreground-subtle">
+          {intl.formatMessage({
+            id:
+              connectionKind === "remote-waiting"
+                ? "settings.gitBackup.disconnected"
+                : "settings.gitBackup.unavailable",
+          })}
         </p>
-      </div>
-
-      <SettingsGroupCard>
-        <SettingsRow
-          label={intl.formatMessage({ id: "settings.gitBackup.enabled" })}
-          description={intl.formatMessage({ id: "settings.gitBackup.switchNote" })}
-          control={<Switch checked={enabled} onCheckedChange={onEnabledChange} />}
-        />
-      </SettingsGroupCard>
-
-      <SettingsGroupCard>
-        <div className="space-y-4 p-4">
-          <h3 className="text-ui-base font-medium">
-            {intl.formatMessage({ id: "settings.gitBackup.ossConfig" })}
-          </h3>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-ui-caption text-foreground-subtle">
-                {intl.formatMessage({ id: "settings.gitBackup.ossConfig.accessKeyId" })}
-              </label>
-              <Input
-                value={ossForm.accessKeyId}
-                onChange={(e) => updateField("accessKeyId", e.target.value)}
-                placeholder="LTAI..."
+      ) : null}
+      {failure ? (
+        <p role="alert" className="break-words text-ui-caption text-destructive">
+          {failure}
+        </p>
+      ) : null}
+      {backup.notice ? (
+        <p
+          role="status"
+          className={`break-words text-ui-caption ${backup.notice.id === "settings.gitBackup.migrationCleanupFailed" ? "text-warning" : "text-foreground-subtle"}`}
+        >
+          {intl.formatMessage(
+            { id: backup.notice.id },
+            { error: backup.notice.detail ?? "", count: Number(backup.notice.detail ?? 0) },
+          )}
+        </p>
+      ) : null}
+      {backup.loading ? (
+        <p role="status" className="flex items-center gap-2 text-ui-caption text-foreground-subtle">
+          <Loader2 className="size-4 animate-spin" />
+          {intl.formatMessage({ id: "settings.gitBackup.loading" })}
+        </p>
+      ) : null}
+      {!backup.unavailable && !backup.loading && !config ? (
+        <Button variant="outline" size="sm" disabled={busy} onClick={() => void backup.refresh()}>
+          <RotateCcw className="size-4" />
+          {intl.formatMessage({ id: "settings.gitBackup.retry" })}
+        </Button>
+      ) : null}
+      {config && draft ? (
+        <>
+          <section
+            className="space-y-3 border-t border-border pt-4"
+            data-testid="git-backup-shared"
+          >
+            <h3 className="text-ui-base font-medium">
+              {intl.formatMessage({ id: "settings.gitBackup.shared" })}
+            </h3>
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <label htmlFor={enabledId} className="text-ui-base font-medium">
+                  {intl.formatMessage({ id: "settings.gitBackup.enabled" })}
+                </label>
+                <p className="mt-1 text-ui-caption text-foreground-subtle">
+                  {intl.formatMessage({ id: "settings.gitBackup.switchNote" })}
+                </p>
+              </div>
+              <Switch
+                id={enabledId}
+                data-testid="git-backup-enabled"
+                checked={config.enabled}
+                disabled={busy || (!config.enabled && !backup.canEnable)}
+                onCheckedChange={(enabled) => void backup.setEnabled(enabled)}
+                aria-label={intl.formatMessage({ id: "settings.gitBackup.enabled" })}
               />
             </div>
+            <p className="break-all text-ui-caption text-foreground-subtle">
+              {intl.formatMessage(
+                { id: "settings.gitBackup.currentWorkspacePath" },
+                {
+                  path:
+                    target?.workspacePath ??
+                    intl.formatMessage({ id: "settings.gitBackup.noWorkspace" }),
+                },
+              )}
+            </p>
+            {target?.workspaceIdentity ? (
+              <p className="break-all text-ui-caption text-foreground-subtle">
+                {target.workspaceIdentity}
+              </p>
+            ) : null}
             <div className="space-y-1">
-              <label className="text-ui-caption text-foreground-subtle">
-                {intl.formatMessage({ id: "settings.gitBackup.ossConfig.accessKeySecret" })}
+              <label htmlFor={intervalId} className="text-ui-caption text-foreground-subtle">
+                {intl.formatMessage({ id: "settings.gitBackup.interval" })}
               </label>
               <Input
-                type="password"
-                value={ossForm.accessKeySecret}
-                onChange={(e) => updateField("accessKeySecret", e.target.value)}
+                id={intervalId}
+                form={destinationFormId}
+                type="number"
+                min={5}
+                max={1440}
+                step={1}
+                value={draft.intervalMinutes}
+                disabled={busy && backup.operation !== "test"}
+                onChange={(event) =>
+                  backup.updateDraft({ ...draft, intervalMinutes: event.target.value })
+                }
+                aria-describedby={`${intervalId}-note`}
+                className="w-32 text-mobile-input-safe sm:text-ui-base"
+                data-testid="git-backup-interval"
               />
+              <p id={`${intervalId}-note`} className="text-ui-caption text-foreground-subtle">
+                {intl.formatMessage({ id: "settings.gitBackup.interval.note" })}
+              </p>
             </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-ui-caption text-foreground-subtle">
-                {intl.formatMessage({ id: "settings.gitBackup.ossConfig.bucket" })}
-              </label>
-              <Input
-                value={ossForm.bucket}
-                onChange={(e) => updateField("bucket", e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-ui-caption text-foreground-subtle">
-                {intl.formatMessage({ id: "settings.gitBackup.ossConfig.region" })}
-              </label>
-              <Input
-                value={ossForm.region}
-                onChange={(e) => updateField("region", e.target.value)}
-                placeholder={intl.formatMessage({
-                  id: "settings.gitBackup.ossConfig.regionPlaceholder",
-                })}
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="text-ui-caption text-foreground-subtle">
-              {intl.formatMessage({ id: "settings.gitBackup.ossConfig.pathPrefix" })}
-            </label>
-            <Input
-              value={ossForm.pathPrefix}
-              onChange={(e) => updateField("pathPrefix", e.target.value)}
-              placeholder="lcode-backups"
-            />
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Button variant="outline" size="sm" onClick={handleTestConnection}>
-              {intl.formatMessage({ id: "settings.gitBackup.ossConfig.testConnection" })}
-            </Button>
-            {testResult && (
-              <span
-                className={`text-ui-caption ${testResult.ok ? "text-green-500" : "text-red-500"}`}
+            <div className="space-y-2">
+              <p className="text-ui-caption text-foreground-subtle">
+                {intl.formatMessage({ id: "settings.gitBackup.manualBackup.savedConfig" })}
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => void backup.backup("all")}
+                disabled={busy || !backup.canBackupAll}
+                data-testid="git-backup-now-all"
               >
-                {testResult.ok
-                  ? intl.formatMessage({ id: "settings.gitBackup.ossConfig.testSuccess" })
-                  : intl.formatMessage({
-                      id: "settings.gitBackup.ossConfig.testFailed",
-                    })}
-              </span>
-            )}
-          </div>
-        </div>
-      </SettingsGroupCard>
-
-      <SettingsGroupCard>
-        <SettingsRow
-          label={intl.formatMessage({ id: "settings.gitBackup.interval" })}
-          control={
-            <Input
-              type="number"
-              min={5}
-              max={1440}
-              value={interval}
-              onChange={(e) => setInterval(Number(e.target.value))}
-              className="w-24"
-            />
-          }
-        />
-      </SettingsGroupCard>
-
-      <SettingsGroupCard>
-        <div className="space-y-3 p-4">
-          <h3 className="text-ui-base font-medium">
-            {intl.formatMessage({ id: "settings.gitBackup.encryption" })}
-          </h3>
-          <div className="flex gap-3">
-            <Button variant="outline" size="sm">
+                <HardDriveUpload className="size-4" />
+                {intl.formatMessage({ id: "settings.gitBackup.manualBackup.all" })}
+              </Button>
+            </div>
+          </section>
+          <GitBackupDestinationTabs backup={backup} target={target} formId={destinationFormId} />
+          <GitBackupStatusPanel
+            status={backup.status}
+            workspaces={config.workspaces}
+            target={target}
+            busy={busy}
+            refresh={backup.refresh}
+            remove={backup.removeWorkspace}
+          />
+          <section className="space-y-3 border-t border-border pt-4">
+            <h3 className="text-ui-base font-medium">
+              {intl.formatMessage({ id: "settings.gitBackup.encryption" })}
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => void backup.viewPublicKey()}
+                data-testid="git-backup-public-key"
+              >
+                <KeyRound className="size-4" />
+                {intl.formatMessage({ id: "settings.gitBackup.encryption.publicKey" })}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy || !backup.canExport}
+                onClick={() => void backup.exportPrivateKey()}
+                data-testid="git-backup-export-key"
+              >
+                <Download className="size-4" />
+                {intl.formatMessage({ id: "settings.gitBackup.encryption.exportPrivateKey" })}
+              </Button>
+            </div>
+            <p className="text-ui-caption text-foreground-subtle">
+              {intl.formatMessage({ id: "settings.gitBackup.encryption.exportWarning" })}
+            </p>
+          </section>
+        </>
+      ) : null}
+      <Dialog
+        open={backup.publicKey !== null}
+        onOpenChange={(open) => {
+          if (!open) backup.closePublicKey();
+        }}
+      >
+        <DialogContent className="sm:max-w-xl" showCloseButton={false}>
+          <DialogHeader>
+            <DialogTitle>
               {intl.formatMessage({ id: "settings.gitBackup.encryption.publicKey" })}
-            </Button>
-            <Button variant="outline" size="sm">
-              {intl.formatMessage({ id: "settings.gitBackup.encryption.exportPrivateKey" })}
-            </Button>
-          </div>
-          <p className="text-ui-xs text-foreground-subtlest">
-            {intl.formatMessage({ id: "settings.gitBackup.encryption.exportWarning" })}
-          </p>
-        </div>
-      </SettingsGroupCard>
-
-      <SettingsGroupCard>
-        <SettingsRow
-          label={intl.formatMessage({ id: "settings.gitBackup.manualBackup" })}
-          control={
-            <Button variant="default" size="sm" onClick={handleManualBackup} disabled={backingUp}>
-              {backingUp
-                ? intl.formatMessage({ id: "settings.gitBackup.manualBackup.running" })
-                : intl.formatMessage({ id: "settings.gitBackup.manualBackup.start" })}
-            </Button>
-          }
-        />
-      </SettingsGroupCard>
+            </DialogTitle>
+            <DialogDescription>
+              {intl.formatMessage({ id: "settings.gitBackup.encryption.publicKeyDescription" })}
+            </DialogDescription>
+          </DialogHeader>
+          <pre
+            className="max-h-80 overflow-auto whitespace-pre-wrap break-all font-mono text-ui-caption"
+            data-testid="git-backup-public-key-value"
+          >
+            {backup.publicKey}
+          </pre>
+          <DialogFooter>
+            <DialogClose asChild>
+              <Button variant="outline">
+                {intl.formatMessage({ id: "settings.gitBackup.close" })}
+              </Button>
+            </DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

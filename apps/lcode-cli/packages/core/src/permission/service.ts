@@ -46,6 +46,7 @@ export interface PermissionContext {
 export interface PermissionToolCapability {
   allowedInPlanMode?: boolean;
   alwaysAsk?: boolean;
+  approvalSource?: "user";
   readOnly?: boolean;
   destructive?: boolean;
   requiresUserInteraction?: boolean;
@@ -73,6 +74,7 @@ export interface PermissionDecisionResult {
    * allow 覆盖）靠这个结构化标记识别"不可抹掉的确认"，而不是去匹配 ruleId 字符串。
    */
   alwaysAsk?: boolean;
+  approvalSource?: "user";
 }
 
 // -----------------------------------------------
@@ -92,7 +94,6 @@ export class PermissionService {
   grantSessionPermission(updates: PermissionUpdate[]): void {
     this.sessionRules = applyPermissionUpdates(this.sessionRules, updates);
   }
-
 
   checkPermission(
     context: PermissionContext,
@@ -362,7 +363,10 @@ export class PermissionService {
     }
     // 会话免确认：阻断分支之后、ask 之前。命中即放行，不发 permission 事件、不弹窗；
     // 与 gate 本身一样不看模式（yolo / plan / build 一致）。
-    if (this.matchesProjectRules(this.sessionRules, "allow", context, capability, rulePolicy)) {
+    if (
+      capability.approvalSource !== "user" &&
+      this.matchesProjectRules(this.sessionRules, "allow", context, capability, rulePolicy)
+    ) {
       return this.allow(
         context,
         capability,
@@ -387,7 +391,9 @@ export class PermissionService {
       context,
       capability,
       "tool.alwaysAsk",
-      `Tool ${context.toolName} always requires explicit approval`,
+      capability.approvalSource === "user" && capability.permissionReason
+        ? capability.permissionReason
+        : `Tool ${context.toolName} always requires explicit approval`,
     );
   }
 
@@ -587,7 +593,10 @@ export class PermissionService {
     return {
       allowedInPlanMode: toolCapability?.allowedInPlanMode ?? false,
       alwaysAsk:
-        toolCapability?.permission?.alwaysAsk ?? toolCapability?.alwaysAsk ?? false,
+        (toolCapability?.permission?.approvalSource ?? toolCapability?.approvalSource) === "user" ||
+        (toolCapability?.permission?.alwaysAsk ?? toolCapability?.alwaysAsk ?? false),
+      approvalSource: toolCapability?.permission?.approvalSource ?? toolCapability?.approvalSource,
+      permissionReason: toolCapability?.permission?.reason,
       readOnly: toolCapability?.readOnly ?? this.isReadOnlyTool(context.toolName),
       destructive: toolCapability?.destructive ?? this.isDestructiveTool(context.toolName),
       requiresUserInteraction:
@@ -654,6 +663,7 @@ export class PermissionService {
       ruleId,
       sideEffectScope: capability.sideEffectScope,
       ...(capability.alwaysAsk ? { alwaysAsk: true } : {}),
+      ...(capability.approvalSource ? { approvalSource: capability.approvalSource } : {}),
     };
   }
 }
@@ -661,6 +671,8 @@ export class PermissionService {
 interface ResolvedPermissionCapability {
   allowedInPlanMode: boolean;
   alwaysAsk: boolean;
+  approvalSource?: "user";
+  permissionReason?: string;
   readOnly: boolean;
   destructive: boolean;
   requiresUserInteraction: boolean;

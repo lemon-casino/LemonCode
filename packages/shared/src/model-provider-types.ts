@@ -68,14 +68,20 @@ export function isCodingPlanModelProviderId(id: string): boolean {
   );
 }
 
-/** 一个正式 Model 的连通性测试结果。 */
+export const MODEL_CONNECTIVITY_ERROR_CODES = [
+  "provider-unavailable",
+  "model-unavailable",
+  "model-not-found",
+] as const;
+
+/** 一个正式 Model 执行链的连通性测试结果。 */
 export type ModelConnectivityResult =
   | { readonly success: true }
   | {
       readonly success: false;
       readonly error: {
         readonly message: string;
-        /** 设置连接测试边界已确认的资格失败；其他执行错误保留原消息。 */
-        readonly code?: "provider-unavailable" | "model-unavailable";
+        /** model-not-found 仅表示目标 Environment 从供应商结构化响应确认模型失效，可作清理依据。 */
+        readonly code?: (typeof MODEL_CONNECTIVITY_ERROR_CODES)[number];
       };
     };

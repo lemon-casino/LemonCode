@@ -7,7 +7,7 @@ import type {
   RemoteTarget,
   UserInfo,
 } from "@lcode/shared";
-import { useState } from "react";
+import { useState, type RefObject } from "react";
 import { TID_WORKSPACE_HEADER } from "@lcode/shared";
 import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
 import { cn } from "@/components/lib/utils.js";
@@ -52,6 +52,9 @@ export function WorkspaceHeader({
 
   isDesktop,
   simplifyForNarrowRemote = false,
+  isNarrowWebLayout = false,
+  sidePaneTriggerRef,
+  sidePaneControlsId,
   isSidebarVisible,
   isTerminalOpen,
   isSidePaneOpen,
@@ -96,6 +99,9 @@ export function WorkspaceHeader({
   windowsWindowControlsRightPaddingPx?: number;
   isDesktop?: boolean;
   simplifyForNarrowRemote?: boolean;
+  isNarrowWebLayout?: boolean;
+  sidePaneTriggerRef?: RefObject<HTMLButtonElement | null>;
+  sidePaneControlsId?: string;
   isSidebarVisible: boolean;
   isTerminalOpen: boolean;
   isSidePaneOpen: boolean;
@@ -115,7 +121,8 @@ export function WorkspaceHeader({
   allowOpenWorkspace?: boolean;
 }) {
   const [selectedEditor, setSelectedEditor] = useState<EditorInfo | null>(null);
-  const shouldOffsetHeaderForWindowControls = !isSidebarVisible;
+  const shouldOffsetHeaderForWindowControls =
+    Boolean(isDesktop || isMacDesktop || isWindowsDesktop) && !isSidebarVisible;
   // Linux 与 Windows 共用内联窗控，不再预留旧悬浮窗控的标题栏区域。
   const usesInlineWindowControls = Boolean(isWindowsDesktop || (isDesktop && !isMacDesktop));
 
@@ -137,7 +144,8 @@ export function WorkspaceHeader({
       data-testid={TID_WORKSPACE_HEADER}
       data-workspace-header-variant={variant}
       className={cn(
-        "@container/workspace-header relative flex w-full shrink-0 h-12 border-b",
+        "@container/workspace-header relative flex w-full shrink-0 border-b",
+        isNarrowWebLayout && variant === "task" ? "min-h-12" : "h-12",
         variant === "draft" ? "border-transparent" : "border-border/50",
       )}
     >
@@ -159,6 +167,10 @@ export function WorkspaceHeader({
           "flex h-12 flex-1 min-w-0 items-center justify-between gap-2 overflow-hidden p-2 [app-region:drag] transition-[padding] duration-300",
           // 旧 caption 菜单移除后不能继续清零右边距，否则终端按钮会贴住面板边框。
           headerWindowControlsPaddingClass,
+          // 手机把完整标题/任务菜单和动作分行，不裁剪终端/帮助，也不借能力开关省宽度。
+          isNarrowWebLayout &&
+            variant === "task" &&
+            "h-auto flex-wrap [&>div:first-child]:w-full [&>div:last-child]:ml-auto",
         )}
       >
         {variant === "task" ? (
@@ -211,8 +223,11 @@ export function WorkspaceHeader({
           isDesktop={isDesktop}
           isTerminalOpen={isTerminalOpen}
           isSidePaneOpen={isSidePaneOpen}
+          isNarrowWebLayout={isNarrowWebLayout}
           onToggleTerminal={onToggleTerminal}
           onToggleSidePane={onToggleSidePane}
+          sidePaneTriggerRef={sidePaneTriggerRef}
+          sidePaneControlsId={sidePaneControlsId}
           toggleSidePaneShortcutLabel={toggleSidePaneShortcutLabel}
           simplifyForNarrowRemote={simplifyForNarrowRemote}
           hideHelpMenu={false}

@@ -64,7 +64,7 @@
 - 端点:`GET /`(移动端 SPA)、`GET /p/:roomId`(配对深链,同一 SPA)、`WS /connect/host`(桌面,官方托管模式凭每房间 hostToken + 限速;自建模式另需接入 Key)、`WS /connect/client`(手机,凭一次性 capability 或设备凭据)。可选 `POST /api/health` 供设置页「测试连接」。
 - DO 内状态仅限:roomId、capHash、过期时间、已配对设备凭据哈希(含设备名)、双向 socket 引用、失败计数。TTL 到期与房间关闭即清理;不落 KV/R2 的业务数据。
 - 透传规则:授权前仅允许配对控制帧;授权后所有帧双向透传,不解析、不缓存消息内容;心跳由两端各自与 DO 维持,DO 负责断连检测与对端通知。
-- 桌面更新清单服务(2026-09-29 追加,契约见 cfworker-remote/PROTOCOL.md 更新章节):`GET /api/v1/releases/electron/manifest?platform=<os>-<arch>&channel=<1|3>` 按 stable/preview 通道代理 GitHub Release 上的 `latest-<os>-<arch>.yml` 并把文件 URL 改写到 `GET /api/v1/releases/download/<文件名>`(302 回 GitHub 资产);无状态、带短缓存,不改动版本与校验和。桌面端自动更新源随之从产品服务端切换到该域名(`https://code.lemon.vin`),发布 specs/github-actions-desktop-release.md 同步要求 Release 上传 `latest-<os>-<arch>.yml`。
+- 桌面更新清单服务(2026-09-29 追加,契约见 cfworker-remote/PROTOCOL.md 更新章节):`GET /api/v1/releases/electron/manifest?platform=<os>-<arch>&channel=<1|3>` 代理 GitHub Release 上的 `latest-<os>-<arch>.yml` 并把文件 URL 改写到 `GET /api/v1/releases/download/<tag>/<文件名>`(确定性 302 回指定 GitHub 资产);stable 直接读取 GitHub `releases/latest/download`，不依赖 Releases API 匿名限额，preview 才查询 release 列表；旧单文件下载路径保留短期兼容。服务无状态、带短缓存,不改动版本与校验和。桌面端自动更新源随之从产品服务端切换到该域名(`https://code.lemon.vin`),发布 specs/github-actions-desktop-release.md 同步要求 Release 上传 `latest-<os>-<arch>.yml`。
 
 ## 桌面端改动
 
@@ -142,3 +142,7 @@ sequenceDiagram
 4. RPC PersistentProtocol 可靠层(已实现未接线)是否在本项目 v2 接入隧道两端,替换纯透传的 SocketProtocol 语义。
 5. 端到端加密是否排期(v1 不做,Worker 可见帧内容需在设置页隐私说明中如实标注)。
 6. 大规模公共服务的账号级配额与滥用追责:安装 ID 不是身份凭据,Cloudflare Rate Limiting binding 也是边缘节点内的宽松、最终一致保护。若要按用户计费、封禁或保证硬配额,需由可信账号服务签发短期、限定 roomId/安装 ID 的 host admission token,并增加 Analytics Engine/费用告警；不得重新引入客户端共享 Key。
+
+## 手机布局关联规范（2026-09-30）
+
+[手机远控布局与输入可达性](./mobile-remote-layout.md) 定义 Web `<768px` 首屏单列、左右面板的唯一显隐所有者与跨断点保活、抽屉焦点/关闭顺序，以及设置列与动态高度、单行工具条终态、editable 安全字号、长浮层滚动和无 hover 消息动作的验收。该修复只改变客户端 presentation/局部显隐/焦点，不以缩减功能替代手机适配，不改变本规范的权限镜像、workspace 身份隔离、Host/Runtime/owner-lease、鉴权或 desktop-continuous/web-remote-replayable 边界。浏览器 fixture、真机和软键盘验证须分别报告，未执行不得写成通过。

@@ -72,6 +72,10 @@ export function stringifyWorkspaceCheckpointArtifact(
       },
     ],
     kind: "workspace_file_before_change",
+    // 新记录明确来源；旧 checkpoint 继续可回退，但不能据此猜测会话提交归属。
+    ...(result.toolName === "Write" || result.toolName === "Edit"
+      ? { provenance: "builtin_file_tool" as const }
+      : {}),
     toolCallId: result.toolCallId,
     toolName: result.toolName,
     version: 1,

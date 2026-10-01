@@ -30,7 +30,7 @@ export function ThemeSelect({
 }) {
   return (
     <Select value={value} onValueChange={(nextValue) => onValueChange(nextValue as BundledTheme)}>
-      <SelectTrigger size="lg" className="w-64 min-w-0 justify-between">
+      <SelectTrigger size="lg" className="w-64 min-w-0 max-w-full justify-between">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
@@ -120,27 +120,36 @@ export function SettingsRow({
   controlLayout?: "default" | "wide";
 }) {
   return (
-    <div className="border-t border-border px-4 py-3 first:border-t-0">
+    <div className="min-w-0 border-t border-border px-4 py-3 first:border-t-0">
       <div
         className={cn(
-          "grid items-center gap-4",
+          // 手机还要扣除导航 rail；固定控件列会把说明挤成一字一行，md 起才恢复既有双列。
+          "grid min-w-0 grid-cols-1 items-center gap-4",
           controlLayout === "wide"
-            ? "grid-cols-1 sm:grid-cols-[minmax(0,1fr)_280px]"
-            : "grid-cols-[minmax(0,1fr)_192px]",
+            ? "md:grid-cols-[minmax(0,1fr)_280px]"
+            : "md:grid-cols-[minmax(0,1fr)_192px]",
         )}
       >
-        <div className="min-w-0">
+        <div className="min-w-0 [overflow-wrap:anywhere]">
           <div className="text-ui-base font-medium text-foreground">{label}</div>
           {description ? (
             <div className="mt-1 text-ui-base leading-6 text-foreground-subtle">{description}</div>
           ) : null}
         </div>
-        <div className="flex w-full flex-nowrap items-center justify-end gap-2">
+        <div
+          className={cn(
+            "flex w-full min-w-0 max-w-full flex-wrap items-center justify-start gap-2 [overflow-wrap:anywhere] md:flex-nowrap md:justify-end",
+            // control 包含定宽 Select 和嵌套按钮组；仅窄屏约束真实控件，不裁切焦点或 Portal 菜单。
+            "max-md:[&>*]:min-w-0 max-md:[&>*]:max-w-full max-md:[&_.flex:has(>[data-slot=button])]:flex-wrap max-md:[&_[data-slot=button]]:h-auto max-md:[&_[data-slot=button]]:min-h-8 max-md:[&_[data-slot=button]]:max-w-full max-md:[&_[data-slot=button]]:whitespace-normal",
+          )}
+        >
           {controlLayout === "wide" ? detail : null}
           {control}
         </div>
       </div>
-      {detail && controlLayout !== "wide" ? <div className="mt-3">{detail}</div> : null}
+      {detail && controlLayout !== "wide" ? (
+        <div className="mt-3 min-w-0 max-w-full [overflow-wrap:anywhere]">{detail}</div>
+      ) : null}
     </div>
   );
 }

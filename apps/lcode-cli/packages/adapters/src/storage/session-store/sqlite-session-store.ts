@@ -664,6 +664,7 @@ export class SqliteSessionStore
   async sessionEntries(input: {
     sessionID: SessionId;
     type?: SessionEntryType | string;
+    limit?: number;
   }): Promise<SessionEntryInfo[]> {
     return sessionEntryRepository.sessionEntries(this.db, input);
   }

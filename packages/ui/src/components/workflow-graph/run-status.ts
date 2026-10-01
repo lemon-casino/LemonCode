@@ -31,7 +31,7 @@ export interface WorkflowRunOverlay {
 }
 
 /**
- * 引擎相位 → 四值 `StepRunStatus`。
+ * 引擎相位 → 五值 `StepRunStatus`。
  *
  * 词汇表按**引擎实际发出的**事件写：queued / dispatched / executing / waiting / repairing / nudged /
  * settled。`executing` / `waiting` 是 driver 的观察：
@@ -39,6 +39,8 @@ export interface WorkflowRunOverlay {
  *
  * queued / dispatched / waiting 归入 pending 是有意的：这三段都是「还没有请求在 provider 那里跑」——
  * FIFO 与 per-run 上限的等待、会话就绪但首个请求尚未准入、闸门排队或退避。真正在动由 executing 说。
+ *
+ * `settled` 的三值直接照抄 `outcome`：取消不并入失败（见 `StepRunStatus`）。
  */
 export function statusOfRunNode(node: WorkflowRunNode): StepRunStatus {
   switch (node.phase) {
@@ -47,10 +49,11 @@ export function statusOfRunNode(node: WorkflowRunNode): StepRunStatus {
     case "nudged":
       return "running";
     case "settled":
-      // 失败与取消都画成 failed（journal 里两者语义不同，但叠加视图只用四值词汇表）。
       // outcome 缺省在引擎里不可达（settled 必带 outcome）；真出现时按「已结束」处理，
       // 因为谎报 pending（没开始）比少一格颜色更糟，而谎报 failed 会造成假警报。
-      return node.outcome === "failed" || node.outcome === "cancelled" ? "failed" : "done";
+      if (node.outcome === "failed") return "failed";
+      if (node.outcome === "cancelled") return "cancelled";
+      return "done";
     default:
       return "pending";
   }
@@ -64,7 +67,8 @@ export function statusOfRunNode(node: WorkflowRunNode): StepRunStatus {
  *   - 既有已结算又有排队 → running：开始了、没结束。旧规则把它读成 pending（「还没开始」），
  *     是同一个混淆换了件衣服。
  *   - 全部排队 → pending。
- *   - 全部结算：任一 failed → failed，否则 done。
+ *   - 全部结算：任一 failed → failed；否则任一 cancelled → cancelled；否则 done。
+ *     failed 优先于 cancelled：一个真出错的分支比一个被停掉的分支更需要被看见。
  *
  * 四条都是 any 判定，所以先按站点折、再按参与者折与直接按实例折结果相同——两级折叠不会漂移。
  * 输入既可以是实例状态（`statusOfRunNode`），也可以是站点状态（本函数的输出），词汇表相同。
@@ -75,9 +79,13 @@ export function aggregateRunStatuses(
   if (statuses.length === 0) return undefined;
   if (statuses.includes("running")) return "running";
   const queued = statuses.includes("pending");
-  const settled = statuses.some((status) => status === "done" || status === "failed");
+  const settled = statuses.some(
+    (status) => status === "done" || status === "failed" || status === "cancelled",
+  );
   if (queued) return settled ? "running" : "pending";
-  return statuses.includes("failed") ? "failed" : "done";
+  if (statuses.includes("failed")) return "failed";
+  if (statuses.includes("cancelled")) return "cancelled";
+  return "done";
 }
 
 /**

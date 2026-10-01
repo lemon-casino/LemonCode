@@ -20,11 +20,8 @@ export type ToolSideEffectScope =
  * 且范围落在这个集合里，就是一笔写入。判定放在 contracts 是因为产生标记的执行器（core）与消费它的
  * driver（bootstrap）都要用同一条规则。
  */
-export const WORKSPACE_MUTATING_SIDE_EFFECT_SCOPES: ReadonlySet<ToolSideEffectScope> = new Set<ToolSideEffectScope>([
-  "workspace",
-  "git",
-  "system",
-]);
+export const WORKSPACE_MUTATING_SIDE_EFFECT_SCOPES: ReadonlySet<ToolSideEffectScope> =
+  new Set<ToolSideEffectScope>(["workspace", "git", "system"]);
 
 /** 一次工具调用（按解析后的能力）是否会改写工作区。缺席的范围按会改写处理（保守：未声明即不可信）。 */
 export function isWorkspaceMutatingToolCall(capability: {
@@ -41,10 +38,8 @@ export function isWorkspaceMutatingToolCall(capability: {
  * 只服务于协议本身、不看也不动外部世界的副作用范围：`session` 是把结果 / 问题交回调用方
  * （dynamic-workflow 的 `submit_result`、`escalate` 就在这一档），`userInteraction` 是问用户。
  */
-const PROTOCOL_ONLY_SIDE_EFFECT_SCOPES: ReadonlySet<ToolSideEffectScope> = new Set<ToolSideEffectScope>([
-  "session",
-  "userInteraction",
-]);
+const PROTOCOL_ONLY_SIDE_EFFECT_SCOPES: ReadonlySet<ToolSideEffectScope> =
+  new Set<ToolSideEffectScope>(["session", "userInteraction"]);
 
 /**
  * 一次工具调用是否**看或动了外部世界**（读文件、跑命令、访问网络……）。
@@ -103,6 +98,8 @@ export interface ToolPermissionSpec {
    * disallowed tool stays denied.
    */
   alwaysAsk?: true;
+  /** 仅客户端用户应答可授权；模式、宽泛规则和自动 Hook 不能代答这次请求。 */
+  approvalSource?: "user";
   /**
    * Narrows the options offered when this tool asks. `allowAlways: false` suppresses the
    * persistent project rule: a tool whose input is different code on every call cannot

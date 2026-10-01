@@ -2113,168 +2113,183 @@ body {
     background: none;
   }
 }
-/* 晶核保留身份色，状态由独立轮廓编码；布局盒服从调用方的 14/16px，避免旧最小尺寸撑开药丸。 */
+/* 固定紫色插画会脱离所选主题；色相复用主色与背景，浅色身体仍配深色五官以保持对比。 */
 .wf-agent-avatar {
   display: block;
   flex-shrink: 0;
   overflow: hidden;
   fill: none;
-  stroke-width: 1.5;
   stroke-linecap: round;
   stroke-linejoin: round;
-  --wf-avatar-status: var(--color-foreground-subtlest);
-  --wf-avatar-ink: var(--color-foreground);
+  --wf-ghost-paper: var(--color-neutral-50);
+  --wf-ghost-ink: var(--color-neutral-800);
+  --wf-ghost-accent: color-mix(in oklab, var(--color-brand) 75%, var(--color-background));
+  --wf-ghost-blush: color-mix(in oklab, var(--wf-ghost-accent) 62%, var(--wf-ghost-ink));
+  --wf-ghost-tear: color-mix(in oklab, var(--wf-ghost-accent) 52%, var(--wf-ghost-ink));
 }
-.wf-agent-avatar[data-avatar-status="running"] {
-  --wf-avatar-status: var(--color-warning);
+.wf-ghost-tint-top {
+  stop-color: color-mix(in oklab, var(--wf-ghost-accent) 6%, var(--wf-ghost-paper));
 }
-.wf-agent-avatar[data-avatar-status="done"] {
-  --wf-avatar-status: var(--color-success);
+.wf-ghost-tint-bottom {
+  stop-color: color-mix(in oklab, var(--wf-ghost-accent) 32%, var(--wf-ghost-paper));
 }
-.wf-agent-avatar[data-avatar-status="cancelled"] {
-  --wf-avatar-status: var(--color-foreground-subtle);
+.wf-ghost-body {
+  stroke: color-mix(in oklab, var(--wf-ghost-accent) 65%, var(--wf-ghost-paper));
+  stroke-width: 0.25;
 }
-.wf-agent-avatar[data-avatar-status="failed"] {
-  --wf-avatar-status: var(--color-destructive);
-}
-.wf-agent-avatar-outline,
-.wf-agent-avatar-spark {
+.wf-ghost-shine,
+.wf-ghost-glint {
   fill: none;
-  stroke: var(--wf-avatar-status);
+  stroke: var(--wf-ghost-paper);
+  stroke-width: 0.35;
 }
-.wf-agent-avatar-crystal {
-  fill: var(--wf-avatar-identity);
-  stroke: none;
+.wf-ghost-arms {
+  stroke: var(--wf-ghost-accent);
+  stroke-width: 0.35;
+  opacity: 0.3;
 }
-.wf-agent-avatar-hollow {
-  fill: color-mix(in oklab, var(--wf-avatar-identity) 12%, var(--color-surface));
-  stroke: var(--wf-avatar-identity);
+.wf-ghost-blush {
+  fill: var(--wf-ghost-blush);
+  opacity: 0.36;
 }
-.wf-agent-avatar-facet {
-  fill: color-mix(in oklab, var(--wf-avatar-identity) 64%, var(--color-foreground-inverse));
-  stroke: none;
+.wf-ghost-face {
+  fill: var(--wf-ghost-ink);
 }
-.wf-agent-avatar-check,
-.wf-agent-avatar-cross {
+.wf-ghost-feature {
   fill: none;
-  stroke: var(--wf-avatar-ink);
-  stroke-width: 2;
+  stroke: var(--wf-ghost-ink);
+  stroke-width: 0.55;
 }
-.wf-agent-avatar-stop {
-  fill: var(--wf-avatar-status);
-  stroke: none;
+.wf-ghost-tongue {
+  fill: var(--wf-ghost-blush);
 }
-.wf-agent-avatar-scan {
-  stroke: var(--color-foreground-inverse);
-  stroke-width: 1.5;
+.wf-ghost-tear {
+  fill: var(--wf-ghost-tear);
 }
-.wf-agent-avatar-spark {
-  opacity: 0;
-}
-.wf-agent-avatar-orbit,
-.wf-agent-avatar-fragments,
-.wf-agent-avatar-spark {
+.wf-ghost-character,
+.wf-ghost-gaze,
+.wf-ghost-eyes,
+.wf-ghost-tear {
   transform-box: view-box;
   transform-origin: 10px 10px;
 }
+.wf-agent-avatar[data-avatar-status="cancelled"] .wf-ghost-character {
+  transform: rotate(-5deg);
+}
 @media (prefers-reduced-motion: no-preference) {
-  .wf-agent-avatar-node {
-    animation: wf-avatar-node 2800ms ease-in-out infinite;
+  .wf-agent-avatar[data-avatar-status="pending"] .wf-ghost-character {
+    animation: wf-ghost-curious 3600ms ease-in-out infinite;
     animation-delay: var(--wf-avatar-phase);
   }
-  .wf-agent-avatar-node:nth-child(2) {
-    animation-delay: calc(var(--wf-avatar-phase) - 280ms);
-  }
-  .wf-agent-avatar-node:nth-child(3) {
-    animation-delay: calc(var(--wf-avatar-phase) - 560ms);
-  }
-  .wf-agent-avatar-orbit {
-    animation: wf-avatar-orbit 1600ms linear infinite;
+  .wf-agent-avatar[data-avatar-status="running"] .wf-ghost-character {
+    animation: wf-ghost-float 1800ms ease-in-out infinite;
     animation-delay: var(--wf-avatar-phase);
   }
-  .wf-agent-avatar-orbit-inner {
-    animation-direction: reverse;
-    animation-duration: 2400ms;
-  }
-  .wf-agent-avatar-scan {
-    animation: wf-avatar-scan 1600ms ease-in-out infinite;
+  .wf-ghost-eyes {
+    animation: wf-ghost-blink 3600ms ease-in-out infinite;
     animation-delay: var(--wf-avatar-phase);
   }
-  .wf-agent-avatar-check {
-    animation: wf-avatar-check 320ms var(--wf-ease, ease) both;
+  .wf-agent-avatar[data-avatar-status="pending"] .wf-ghost-gaze {
+    animation: wf-ghost-glance 3600ms ease-in-out infinite;
+    animation-delay: var(--wf-avatar-phase);
   }
-  .wf-agent-avatar-spark {
-    animation: wf-avatar-spark 480ms var(--wf-ease, ease) both;
+  .wf-agent-avatar[data-avatar-status="running"] .wf-ghost-gaze {
+    animation: wf-ghost-glance 1800ms ease-in-out infinite;
+    animation-delay: var(--wf-avatar-phase);
   }
-  .wf-agent-avatar-fragments {
-    animation: wf-avatar-fault 5600ms ease-in-out infinite;
+  .wf-agent-avatar[data-avatar-status="done"] .wf-ghost-character {
+    animation: wf-ghost-nod 600ms var(--wf-ease, ease) both;
+  }
+  .wf-agent-avatar[data-avatar-status="failed"] .wf-ghost-character {
+    animation: wf-ghost-sigh 5600ms ease-in-out infinite;
+    animation-delay: var(--wf-avatar-phase);
+  }
+  .wf-ghost-tear {
+    animation: wf-ghost-tear 3600ms ease-in-out infinite;
     animation-delay: var(--wf-avatar-phase);
   }
 }
-@keyframes wf-avatar-node {
-  0%,
-  50%,
-  100% {
-    opacity: 0.4;
-  }
-  12%,
-  24% {
-    opacity: 1;
-  }
-}
-@keyframes wf-avatar-orbit {
-  to {
-    transform: rotate(360deg);
-  }
-}
-@keyframes wf-avatar-scan {
+@keyframes wf-ghost-curious {
   0%,
   100% {
-    transform: translateY(-2px);
-    opacity: 0.35;
+    transform: rotate(-2deg);
   }
   50% {
-    transform: translateY(2px);
-    opacity: 1;
+    transform: translateY(-0.2px) rotate(2deg);
   }
 }
-@keyframes wf-avatar-check {
-  from {
-    stroke-dasharray: 1;
-    stroke-dashoffset: 1;
-  }
-  to {
-    stroke-dasharray: 1;
-    stroke-dashoffset: 0;
-  }
-}
-@keyframes wf-avatar-spark {
+@keyframes wf-ghost-float {
   0%,
+  100% {
+    transform: translateY(0.15px) rotate(-1deg);
+  }
+  50% {
+    transform: translateY(-0.3px) rotate(1deg);
+  }
+}
+@keyframes wf-ghost-glance {
+  0%,
+  100% {
+    transform: translateX(-0.25px);
+  }
+  50% {
+    transform: translateX(0.25px);
+  }
+}
+@keyframes wf-ghost-blink {
+  0%,
+  20%,
+  26%,
+  76%,
+  82%,
+  100% {
+    transform: scaleY(1);
+  }
+  23%,
+  79% {
+    transform: scaleY(0.08);
+  }
+}
+@keyframes wf-ghost-nod {
+  0%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  40% {
+    transform: translateY(-0.6px) rotate(-3deg);
+  }
+  70% {
+    transform: translateY(0.15px) rotate(2deg);
+  }
+}
+@keyframes wf-ghost-sigh {
+  0%,
+  72%,
+  100% {
+    transform: translateY(0) rotate(0);
+  }
+  83% {
+    transform: translateY(0.3px) rotate(-2deg);
+  }
+  91% {
+    transform: translateY(0.3px) rotate(1deg);
+  }
+}
+@keyframes wf-ghost-tear {
+  0%,
+  15%,
   100% {
     opacity: 0;
-    transform: scale(0.8);
+    transform: translateY(-0.25px);
   }
-  35% {
+  30%,
+  55% {
     opacity: 1;
-    transform: scale(1);
+    transform: translateY(0);
   }
-}
-@keyframes wf-avatar-fault {
-  0%,
-  86%,
-  100% {
-    opacity: 1;
-    transform: translateX(0);
-  }
-  89%,
-  95% {
-    opacity: 0.55;
-    transform: translateX(-0.5px);
-  }
-  92%,
-  98% {
-    opacity: 1;
-    transform: translateX(0.5px);
+  85% {
+    opacity: 0;
+    transform: translateY(1.8px);
   }
 }
 @keyframes wf-arrive {

@@ -263,6 +263,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   automationsActive = false,
   pluginStoreActive = false,
   onFileTreeOpenChange,
+  hideTopSpacer = false,
 }: {
   workspacePath: string;
   workspaceRemoteSessionId?: string;
@@ -315,6 +316,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   automationsActive?: boolean;
   pluginStoreActive?: boolean;
   onFileTreeOpenChange?: (open: boolean) => void;
+  hideTopSpacer?: boolean;
 }) {
   const { intl, localePreference, setLocalePreference } = useLCodeIntl();
   const handleTaskRowSelect = useCallback(
@@ -1247,7 +1249,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
       // 这里用设计系统的结构面 token 固定侧栏层级，避免不同合成器把左侧容器混成异常灰块。
       className="flex h-full flex-col overflow-hidden"
     >
-      <div className="h-12 [app-region:drag]"></div>
+      <div className={cn("h-12 shrink-0 [app-region:drag]", hideTopSpacer && "hidden")} />
       <div className="relative flex-1 min-h-0 overflow-hidden">
         <div
           className={cn(
@@ -1255,6 +1257,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
             isFileTreeOpen && "-translate-x-full pointer-events-none",
           )}
           aria-hidden={isFileTreeOpen}
+          inert={isFileTreeOpen ? true : undefined}
         >
           <div className={cn("flex flex-col gap-1 px-2", isWindowsDesktop ? "py-2" : "py-3")}>
             <WorkspaceNewTaskTooltip disabledReason={workspaceReadOnlyReason}>
@@ -1671,6 +1674,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
             isFileTreeOpen ? "translate-x-0" : "translate-x-full pointer-events-none",
           )}
           aria-hidden={!isFileTreeOpen}
+          inert={!isFileTreeOpen ? true : undefined}
         >
           {fileTreeTarget ? (
             <WorkspaceFileTree

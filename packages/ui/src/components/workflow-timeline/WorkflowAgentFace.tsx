@@ -1,20 +1,7 @@
-import { useEffect, useRef, type CSSProperties } from "react";
-import {
-  BASE_EXPRESSION,
-  faceState,
-  startFaceMotion,
-} from "@/components/workflow-timeline/workflow-face-motion.js";
-export { faceState } from "@/components/workflow-timeline/workflow-face-motion.js";
+import { useId, type CSSProperties } from "react";
 import { cn } from "@/components/lib/utils.js";
 import type { StepRunStatus } from "@/components/workflow-graph/types.js";
 
-/**
- * 瓦片脸：应用图标的圆角方块去掉 Z、
- * 加上两只眼。子代理的头像就是它——药丸、名册格、侧栏折叠头像串共用这一张脸。
- *
- * 身份是机身色：九个固定 HEX 颜色按 `avatarIndex` 取，第十个起循环；没有编号退回名字散列。
- * 状态定义基础表情，独立随机动作仅更新 SVG 属性。
- */
 export const FACE_COLORS = [
   "#54B9A6",
   "#F19D38",
@@ -27,14 +14,16 @@ export const FACE_COLORS = [
   "#EA4045",
 ] as const;
 
-/** 名字散列选色（31 进制取模 360 后映射到九色板）；只在没有 `avatarIndex` 时兜底。 */
-export function avatarColor(name: string): string {
+function nameHash(name: string): number {
   let hash = 0;
   for (const char of name) hash = (hash * 31 + (char.codePointAt(0) ?? 0)) % 360;
-  return FACE_COLORS[hash % FACE_COLORS.length]!;
+  return hash;
 }
 
-/** 代理的颜色：编号优先（九色环循环），缺席时退回名字散列。药丸悬停描边与脸共用它。 */
+export function avatarColor(name: string): string {
+  return FACE_COLORS[nameHash(name) % FACE_COLORS.length]!;
+}
+
 export function agentColor(avatarIndex: number | undefined, name: string): string {
   if (avatarIndex === undefined) return avatarColor(name);
   return FACE_COLORS[
@@ -42,53 +31,73 @@ export function agentColor(avatarIndex: number | undefined, name: string): strin
   ]!;
 }
 
-const EXPRESSIONS = ["pill", "happy", "sleepy", "focused", "sad", "confused"] as const;
-
-// 直接在 20 格内绘制参考眼型；共享左右起点，换脸时保持底部和视线位置。
-function Eyes() {
+function GhostEyes() {
   return (
-    <g className="wf-face-eyes">
-      <g className="wf-face-bounce">
-        <g className="wf-face-lids">
-          <g data-eye-expression="dots" fill="var(--wf-face-eye)">
-            {[5, 10, 15].map((cx) => (
-              <circle key={cx} cx={cx} cy={10} r={1.5} />
-            ))}
-          </g>
-          {EXPRESSIONS.map((expression) => (
-            <g key={expression} data-eye-expression={expression} fill="var(--wf-face-eye)">
-              {[7, 13].map((x, i) => {
-                if (expression === "pill" || expression === "confused") {
-                  const short = expression === "confused" && i === 1;
-                  return (
-                    <rect key={x} x={x} y={short ? 8 : 6} width={4} height={short ? 4 : 6} rx={2} />
-                  );
-                }
-                const paths = {
-                  happy: "M0 11 V8 A2 2 0 0 1 4 8 V11 Z",
-                  sleepy:
-                    i === 0 ? "M0 8 L4 7 V9 A2 2 0 0 1 0 9 Z" : "M0 7 L4 8 V9 A2 2 0 0 1 0 9 Z",
-                  focused:
-                    i === 0 ? "M0 6 L4 8 V10 A2 2 0 0 1 0 10 Z" : "M0 8 L4 6 V10 A2 2 0 0 1 0 10 Z",
-                  sad:
-                    i === 0 ? "M0 8 L4 6 V10 A2 2 0 0 1 0 10 Z" : "M0 6 L4 8 V10 A2 2 0 0 1 0 10 Z",
-                };
-                return <path key={x} transform={`translate(${x} 0)`} d={paths[expression]} />;
-              })}
-            </g>
-          ))}
-        </g>
-        {/* 闭眼单独画横胶囊，避免纵向缩放把端部圆角压成细线。 */}
-        <g className="wf-face-closed" fill="var(--wf-face-eye)">
-          {[7, 13].map((x) => (
-            <rect key={x} x={x} y={8} width={4} height={2} rx={1} />
-          ))}
-        </g>
+    <g className="wf-ghost-gaze">
+      <g className="wf-ghost-eyes">
+        <ellipse cx={7} cy={10} rx={1.05} ry={1.5} />
+        <ellipse cx={13} cy={10} rx={1.05} ry={1.5} />
+        <path className="wf-ghost-glint" d="M6.65 9.05v.4 M12.65 9.05v.4" />
       </g>
     </g>
   );
 }
 
+function GhostExpression({ status }: { status: StepRunStatus }) {
+  switch (status) {
+    case "pending":
+      return (
+        <>
+          <GhostEyes />
+          <path className="wf-ghost-feature" d="M6.3 7.3q.7-.45 1.5-.05" />
+          <ellipse className="wf-ghost-mouth-curious" cx={10} cy={13} rx={0.55} ry={0.6} />
+        </>
+      );
+    case "running":
+      return (
+        <>
+          <GhostEyes />
+          <path className="wf-ghost-feature" d="M5.8 7.6q1.2 0 2.4.5 M11.8 8.1q1.2-.5 2.4-.5" />
+          <path className="wf-ghost-feature wf-ghost-mouth-focused" d="M9.1 13.1q.9-.4 1.8-.2" />
+        </>
+      );
+    case "done":
+      return (
+        <>
+          <path
+            className="wf-ghost-feature wf-ghost-eyes-happy"
+            d="M5.9 10.2q1.1-1.6 2.2 0 M11.9 10.2q1.1-1.6 2.2 0"
+          />
+          <path className="wf-ghost-smile" d="M8.2 12.2q1.8 1 3.6 0c0 3-3.6 3-3.6 0Z" />
+          <path className="wf-ghost-tongue" d="M9 14.2q1-1 2 0-1 .6-2 0Z" />
+        </>
+      );
+    case "cancelled":
+      return (
+        <>
+          <path
+            className="wf-ghost-feature wf-ghost-eyes-resting"
+            d="M5.9 10q1.1.8 2.2 0 M11.9 10q1.1.8 2.2 0"
+          />
+          <path className="wf-ghost-feature" d="M9.2 13q.8.2 1.6 0" />
+        </>
+      );
+    case "failed":
+      return (
+        <>
+          <GhostEyes />
+          <path className="wf-ghost-feature" d="M5.6 7.8q1.4 0 2.6-1 M11.8 6.8q1.2 1 2.6 1" />
+          <path className="wf-ghost-feature wf-ghost-mouth-worried" d="M8.8 13.6q1.2-1.4 2.4 0" />
+          <g className="wf-ghost-tear">
+            <path d="M14.8 11.8c.6.8 1 1.6.2 2-1 .2-1.2-.8-.2-2Z" />
+            <path className="wf-ghost-glint" d="M14.65 12.8q-.2.4 0 .6" />
+          </g>
+        </>
+      );
+  }
+}
+
+/** 状态符号只属于药丸右侧尾槽；头像仅派生表情，避免对勾与状态圈遮住五官。 */
 export function WorkflowAgentFace({
   avatarIndex,
   className,
@@ -100,26 +109,44 @@ export function WorkflowAgentFace({
   name: string;
   status: StepRunStatus | undefined;
 }) {
-  const ref = useRef<SVGSVGElement>(null);
-  const state = faceState(status);
-  useEffect(() => {
-    if (ref.current) return startFaceMotion(ref.current, state);
-  }, [state]);
-  const style = { "--wf-face-body": agentColor(avatarIndex, name) } as CSSProperties;
+  const gradientId = `wf-ghost-${useId()}`;
+  const identity = avatarIndex ?? nameHash(name);
+  const phase = (((identity * 137) % 1600) + 1600) % 1600;
+  const style = { "--wf-avatar-phase": `-${phase}ms` } as CSSProperties;
+  const resolvedStatus = status ?? "pending";
   return (
     <svg
       aria-hidden
-      className={cn("wf-face overflow-visible", className)}
-      data-face-state={state}
-      data-expression={BASE_EXPRESSION[state]}
-      data-motion="idle"
+      className={cn("wf-agent-avatar", className)}
+      data-avatar-status={resolvedStatus}
+      data-avatar-variant="cloud-ghost"
       data-subagent-avatar
-      ref={ref}
+      focusable="false"
       style={style}
       viewBox="0 0 20 20"
     >
-      <rect className="wf-face-body" fill="var(--wf-face-body)" height={20} rx={7} width={20} />
-      <Eyes />
+      <defs>
+        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+          <stop className="wf-ghost-tint-top" offset="0" />
+          <stop className="wf-ghost-tint-bottom" offset="1" />
+        </linearGradient>
+      </defs>
+      <g className="wf-ghost-character" key={resolvedStatus}>
+        <path
+          className="wf-ghost-body"
+          d="M3.2 14C3 9.4 3.6 3.4 8.8 2.8c4-.8 7.6 1.6 7.8 6 .2 2.4-.2 4.8 1 6.8 .6 1.6-1.2 2.2-2.8.4-1 2.2-2.6 2.2-4 .4-1.2 1.8-3 2-4.2 0-2.8 2-4.4.4-3.4-2.4Z"
+          fill={`url(#${gradientId})`}
+        />
+        <path className="wf-ghost-shine" d="M6 5.4Q7.8 4 9.4 4" />
+        <path className="wf-ghost-arms" d="M4.2 13q.8.6 1 1.4 M15.6 13q-.8.6-1 1.4" />
+        <g className="wf-ghost-blush">
+          <ellipse cx={5.6} cy={12.2} rx={1.4} ry={0.8} />
+          <ellipse cx={14.4} cy={12.2} rx={1.4} ry={0.8} />
+        </g>
+        <g className="wf-ghost-face">
+          <GhostExpression status={resolvedStatus} />
+        </g>
+      </g>
     </svg>
   );
 }

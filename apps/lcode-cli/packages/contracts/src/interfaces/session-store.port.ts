@@ -1162,6 +1162,7 @@ export interface SessionStorePort {
   sessionEntries?(input: {
     sessionID: SessionId;
     type?: SessionEntryType | string;
+    limit?: number;
   }): Promise<SessionEntryInfo[]>;
   // ── session_input 账本（可选方法，旧宿主可不实现）──
   /** admission：输入已被接受（排队/待注入），durable 记账。幂等（同 id 重入更新 payload）。 */

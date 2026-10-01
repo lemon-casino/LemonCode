@@ -1109,6 +1109,7 @@ async function resumeTerminalAgentInBackground(
               parentToolCallId: resumeRequest.parentToolCallId,
               prompt: resumeRequest.prompt,
               resumed: true,
+              lifecycleId: lifecycle.runTraceContext.spanId,
               status: "running",
             },
           );
@@ -1597,6 +1598,7 @@ function createRuntimeTaskSnapshot(input: {
 }): RuntimeTaskSnapshot {
   return {
     taskId: input.lifecycle.agentId,
+    lifecycleId: input.lifecycle.runTraceContext.spanId,
     agentId: input.lifecycle.agentId,
     agentType: input.request.agentType,
     childSessionId: input.lifecycle.childSessionId,
@@ -1974,6 +1976,7 @@ async function emitBackgroundTaskCompletedEvent(
     traceContext,
     {
       taskId: task.taskId,
+      lifecycleId: task.lifecycleId,
       toolCallId: String(request.parentToolCallId),
       toolName: "Agent",
       taskKind: "subagent",
@@ -2000,6 +2003,7 @@ async function emitRuntimeTaskBackgroundCompletedEvent(
     task.parentSessionId,
     {
       taskId: task.taskId,
+      lifecycleId: task.lifecycleId,
       toolCallId: String(task.parentToolCallId ?? task.taskId),
       toolName: "Agent",
       taskKind: "subagent",
@@ -2067,12 +2071,16 @@ function enqueueBackgroundNotification(
   }
 
   const task = registry.get(taskId);
-  if (!task || task.notified) {
+  if (
+    !task ||
+    task.notified ||
+    !isRuntimeTaskExecutionCurrent(task, { agentId: taskId, runTraceContext: traceContext })
+  ) {
     options.logger?.debug("Skipped duplicate subagent background notification", {
       ...traceContextToLogContext(traceContext),
       event: "subagent.background.notification.duplicate",
       module: "core.subagent",
-      reason: task ? "already_notified" : "task_missing",
+      reason: !task ? "task_missing" : task.notified ? "already_notified" : "stale_execution",
       taskId,
     });
     return false;

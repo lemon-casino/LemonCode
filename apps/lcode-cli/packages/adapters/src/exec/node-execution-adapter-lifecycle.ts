@@ -347,7 +347,9 @@ export class NodeExecutionAdapterLifecycle extends NodeExecutionAdapterRun {
   ): Promise<BackgroundExecutionSnapshot | undefined> {
     const record = this.backgroundTasks.get(taskId);
     if (!record) return undefined;
-    if (record.status !== "running") return this.snapshot(record);
+    // cancelBackgroundTask 先写 cancelled 再 abort；此时进程可能尚未退出。
+    // 等待结算必须看实际 ExecutionResult，不能只看可见状态，否则 TurnComplete 会早于退出。
+    if (record.result) return this.snapshot(record);
     if (options.signal?.aborted) return this.snapshot(record);
 
     if (!options.signal) return await record.completion;

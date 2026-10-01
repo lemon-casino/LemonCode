@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { StringDecoder } from "node:string_decoder";
 import { DEFAULT_GIT_COMMAND_TIMEOUT_MS, DEFAULT_GIT_OUTPUT_BYTES } from "../config.js";
 import {
   createGitEnvironmentProvider,
@@ -6,6 +7,7 @@ import {
 } from "./gitEnvironmentProvider.js";
 
 export interface GitCommandExecutionOptions {
+  stdin?: string;
   cwd: string;
   args: string[];
   timeoutMs?: number;
@@ -101,6 +103,10 @@ export function createGitCommandProvider(options?: {
       return await new Promise<GitCommandExecutionResult>((resolve) => {
         let stdout = "";
         let stderr = "";
+        // Git 管道块可能在中文/emoji 的 UTF-8 字节中间结束；逐块 toString 会改写 blob，
+        // 使冻结审核的哈希校验把有效中文误判为二进制。两条流分别连续解码，保留原字节限额。
+        const stdoutDecoder = new StringDecoder("utf8");
+        const stderrDecoder = new StringDecoder("utf8");
         let stdoutBytes = 0;
         let stderrBytes = 0;
         let timedOut = false;
@@ -113,7 +119,7 @@ export function createGitCommandProvider(options?: {
         const child = spawn(binaryPath, command.args, {
           cwd: command.cwd,
           env,
-          stdio: ["ignore", "pipe", "pipe"],
+          stdio: [command.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
           windowsHide: true,
         });
 
@@ -149,6 +155,8 @@ export function createGitCommandProvider(options?: {
             return;
           }
           settled = true;
+          result.stdout += stdoutDecoder.end();
+          result.stderr += stderrDecoder.end();
           clearTimeout(timer);
           child.stdout?.off("data", appendStdoutChunk);
           child.stderr?.off("data", appendStderrChunk);
@@ -206,12 +214,11 @@ export function createGitCommandProvider(options?: {
             return;
           }
 
-          const text = chunk.toString("utf-8");
           if (target === "stdout") {
-            stdout += text;
+            stdout += stdoutDecoder.write(chunk);
             stdoutBytes += byteLength;
           } else {
-            stderr += text;
+            stderr += stderrDecoder.write(chunk);
             stderrBytes += byteLength;
           }
         };
@@ -227,6 +234,11 @@ export function createGitCommandProvider(options?: {
           stderr = error instanceof Error ? error.message : String(error);
           settle(buildResult(-2, null));
         });
+        if (command.stdin !== undefined) {
+          // Git 提前退出（如取消或非法参数）会关闭 stdin；由 close 的 exitCode 报错，不能产生未捕获 EPIPE。
+          child.stdin?.on("error", () => {});
+          child.stdin?.end(command.stdin);
+        }
         child.stdout?.on("data", appendStdoutChunk);
         child.stderr?.on("data", appendStderrChunk);
         child.once("close", (exitCode, signal) => {

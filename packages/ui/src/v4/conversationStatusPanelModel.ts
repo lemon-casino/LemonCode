@@ -146,7 +146,7 @@ function buildGitModel({
   const removed = gitWorktreeChangeSummary?.removed ?? 0;
   // v4 之前只要是 Git repository 就创建 Git model，导致 clean repo
   // 也挂出右上角状态卡；旧 ChatView 只在 worktree 有行级变化时展示 Git Tools。
-  if (added + removed <= 0) {
+  if (added + removed <= 0 && !gitSummary.isDirty && gitDirtyFileCount <= 0) {
     return null;
   }
   const isClean =

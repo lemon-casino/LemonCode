@@ -29,8 +29,14 @@ export type WorkflowHandoffData = WorkflowCausalityGraphData["handoffs"][number]
 export type WorkflowPhaseData = NonNullable<WorkflowCausalityGraphData["phases"]>[number];
 export type WorkflowPhaseEdgeData = NonNullable<WorkflowCausalityGraphData["phaseEdges"]>[number];
 
-/** Per-step run state for the live-execution view; keyed by step id. */
-export type StepRunStatus = "pending" | "running" | "done" | "failed";
+/**
+ * Per-step run state for the live-execution view; keyed by step id.
+ *
+ * 五值词汇（见 `specs/workflow-run-status-presentation.md`）。`cancelled` 与 `failed` 分开是有意的：
+ * 停止是可恢复的动作，画成红色故障会让用户以为自己把脚本跑坏了。颜色只是三层表达里的一层，
+ * 形状与动效同样承担区分。
+ */
+export type StepRunStatus = "pending" | "running" | "done" | "failed" | "cancelled";
 
 /**
  * 按 step id 索引的状态表。**偏表**：没有观察到实例的 step 没有条目。缺席与 `pending` 是两件事——前者是

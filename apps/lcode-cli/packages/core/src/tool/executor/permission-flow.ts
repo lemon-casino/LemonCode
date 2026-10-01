@@ -26,6 +26,7 @@ import {
 import {
   resolveRuntimePermissionCapability,
   resolveRuntimePermissionContext,
+  scopePermissionApprovalResult,
 } from "./permission-capability.js";
 import { buildDefaultPermissionUpdates } from "./permission-suggestions.js";
 import { recheckPermissionHookModifiedInput } from "./permission-input-recheck.js";
@@ -289,7 +290,7 @@ export async function resolveToolPermission(
   }
 
   const resolvedPermission = {
-    ...brokerResult,
+    ...scopePermissionApprovalResult(brokerResult, permissionDecision.approvalSource),
     resolvedAt: brokerResult.resolvedAt ?? new Date(),
   };
   const permissionWaitMs = Math.max(0, Math.round(Date.now() - permissionWaitStartedAt));

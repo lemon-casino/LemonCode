@@ -9,7 +9,8 @@ import {
   type TurnId,
 } from "@lcode/contracts";
 import type { V4ConversationFileChangesResult } from "@lcode/shared/lcode-protocol-v4";
-import { applyPatch, structuredPatch, type StructuredPatch } from "diff";
+import { structuredPatch } from "diff";
+import { resolveWorkspaceCheckpointAfterContent as resolveCheckpointAfterContent } from "../checkpoint-file-content.js";
 
 interface FileChangeAggregate {
   afterContent?: string;
@@ -269,27 +270,6 @@ function createFinalPatch(path: string, beforeContent: string, afterContent: str
       timeout: 5_000,
     })?.hunks ?? []
   );
-}
-
-function resolveCheckpointAfterContent(
-  file: ReturnType<typeof parseWorkspaceCheckpointArtifact>["files"][number],
-): string | undefined {
-  if (typeof file.afterContent === "string") return file.afterContent;
-  if (!file.existedBefore && file.beforeContent === null && file.structuredPatch.length === 0) {
-    return undefined;
-  }
-  const patch: StructuredPatch = {
-    oldFileName: file.path,
-    newFileName: file.path,
-    oldHeader: undefined,
-    newHeader: undefined,
-    hunks: file.structuredPatch,
-  };
-  const patched = applyPatch(file.beforeContent ?? "", patch, {
-    autoConvertLineEndings: false,
-    fuzzFactor: 0,
-  });
-  return typeof patched === "string" ? patched : undefined;
 }
 
 function countPatchLines(hunks: readonly DiffHunk[]): { additions: number; deletions: number } {

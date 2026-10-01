@@ -7,7 +7,6 @@ import {
   isStartPlanModelProviderId,
   isIndividualCodingPlanModelProviderId,
   resolveModelProviderFamilySpecByProviderId,
-  type ModelConnectivityResult,
   type OAuthProviderId,
 } from "@lcode/shared";
 import {
@@ -38,6 +37,7 @@ import {
 } from "./ProviderFamilyModeHeader.js";
 import { useUsageEntitlement } from "@/hooks/useUsageEntitlement.js";
 import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
+import type { TestProviderModelConnectivity } from "@/hooks/useModelProviders.js";
 import type { ProviderApiKeyProbeResult, ProviderSettingsView } from "@lcode/services";
 import type { SavePersonalModelDraftInput } from "@lcode/provider";
 import { resolveAccountProviderInspectionAccess } from "@/lib/accountProviderAccess.js";
@@ -255,7 +255,7 @@ export function ModelProviderSectionDetail({
   onDeletePersonalModel?: (providerId: string, modelId: string) => Promise<unknown>;
   onDelete: (provider: ProviderSettingsFormProvider) => Promise<void>;
   onReorderProviderModels?: (providerId: string, modelIds: string[]) => Promise<void>;
-  onTestModel: (providerId: string, modelId: string) => Promise<ModelConnectivityResult>;
+  onTestModel: TestProviderModelConnectivity;
   onListRemoteModels?: (providerId: string) => Promise<readonly string[]>;
   onProbeApiKeys?: (
     providerId: string,

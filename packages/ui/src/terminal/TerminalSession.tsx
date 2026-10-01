@@ -9,6 +9,7 @@ import type { IServiceAccessor } from "@lcode/services";
 import type { IDisposable } from "@lcode/rpc";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
+import { isCoarseTouchDevice } from "@/lib/pickerFocus.js";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -296,7 +297,14 @@ export function TerminalSession({
     focusRAFRef.current = requestAnimationFrame(() => {
       focusRAFRef.current = 0;
       const term = termRef.current;
-      if (!isVisibleRef.current || !term) {
+      // 手机抽屉/底部终端打开不应自动唤起软键盘；隐藏背景的迟到 RAF 也不能越过 inert。
+      // 用户直接点击 xterm 的输入行为不变，桌面键盘工作流继续自动回焦。
+      if (
+        !isVisibleRef.current ||
+        !term ||
+        isCoarseTouchDevice() ||
+        containerRef.current?.closest('[inert], [hidden], [aria-hidden="true"]')
+      ) {
         return;
       }
 

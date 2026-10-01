@@ -20,8 +20,11 @@ export function WorkspaceHeaderActionSection({
   isDesktop,
   isTerminalOpen,
   isSidePaneOpen,
+  isNarrowWebLayout = false,
   onToggleTerminal,
   onToggleSidePane,
+  sidePaneTriggerRef,
+  sidePaneControlsId,
   toggleSidePaneShortcutLabel,
   onSelectedEditorChange,
   simplifyForNarrowRemote = false,
@@ -67,10 +70,12 @@ export function WorkspaceHeaderActionSection({
         </>
       ) : null}
       {/* 远程控制移动端只保留图标，避免 diff 数字把按钮撑宽导致标题拥挤。 */}
-      {!isSidePaneOpen ? (
+      {!isSidePaneOpen || isNarrowWebLayout ? (
         <WorkspaceSidePaneToggleButton
           isSidePaneOpen={isSidePaneOpen}
           onToggleSidePane={onToggleSidePane}
+          buttonRef={sidePaneTriggerRef}
+          ariaControls={sidePaneControlsId}
           shortcutLabel={toggleSidePaneShortcutLabel}
           useWindowsCaptionSpacing={useWindowsCaptionSpacing}
         />

@@ -78,6 +78,21 @@ function resolveBashPermissionCapability(
   input: unknown,
   context?: ToolRuntimePermissionCapabilityContext,
 ): ToolRuntimePermissionCapability | undefined {
+  const parsed = BashInputSchema.safeParse(input);
+  if (parsed.success && parsed.data.keep_alive_after_task === true) {
+    // 模型的保留参数只是请求，不是用户授权；不能被完全访问或只读 Bash 判定静默放行。
+    return {
+      needsApproval: true,
+      permission: {
+        needsApproval: true,
+        alwaysAsk: true,
+        approvalSource: "user",
+        askOptions: { allowAlways: false },
+        reason:
+          "Keep this preview running after task completion? This approval applies only to this command.",
+      },
+    };
+  }
   const command = readStringProperty(input, "command");
   if (!command || !isRuntimeReadOnlyBashCommand(command, context)) return undefined;
   return {

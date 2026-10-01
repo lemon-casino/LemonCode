@@ -1,24 +1,67 @@
-export function selectedModelIds(rows: readonly string[], selected: ReadonlySet<string>): string[] {
-  return rows.filter((id) => selected.has(id));
+import type { ModelConnectivityResult } from "@lcode/shared";
+
+export const MODEL_PROBE_CONCURRENCY = 4;
+
+export interface SyncModelProbeResult {
+  readonly id: string;
+  readonly success: boolean;
+  readonly stage?: "probe" | "save";
+  readonly message?: string;
 }
 
-export async function runSequentialModelMutation<T>({
-  items,
-  shouldContinue,
-  run,
-  onProgress,
+export function normalizeModelIds(ids: readonly string[]): string[] {
+  return [...new Set(ids.map((id) => id.trim()).filter(Boolean))];
+}
+
+export function filterModelIds(ids: readonly string[], query: string): string[] {
+  const normalized = query.trim().toLowerCase();
+  return ids.filter((id) => id.toLowerCase().includes(normalized));
+}
+
+export function selectedModelIds(rows: readonly string[], selected: ReadonlySet<string>): string[] {
+  return normalizeModelIds(rows).filter((id) => selected.has(id));
+}
+
+export async function probeAndSyncModel({
+  id,
+  signal,
+  isConfigured,
+  probe,
+  add,
+  setEnabled,
 }: {
-  items: readonly T[];
-  shouldContinue: () => boolean;
-  run: (item: T) => Promise<void>;
-  onProgress: (completed: number) => void;
-}): Promise<void> {
-  onProgress(0);
-  for (const [index, item] of items.entries()) {
-    if (!shouldContinue()) return;
-    await run(item);
-    if (shouldContinue()) onProgress(index + 1);
+  id: string;
+  signal: AbortSignal;
+  isConfigured: () => boolean;
+  probe: () => Promise<ModelConnectivityResult>;
+  add: () => Promise<void>;
+  setEnabled: (enabled: boolean) => Promise<void>;
+}): Promise<SyncModelProbeResult> {
+  if (signal.aborted) return { id, success: false };
+  const wasConfigured = isConfigured();
+  let result: ModelConnectivityResult;
+  try {
+    result = await probe();
+  } catch (error) {
+    result = { success: false, error: { message: errorMessage(error) } };
   }
+  // 临时检测不拥有成员；关闭后的迟到响应或被其他入口删除的旧成员都不能再写配置。
+  if (signal.aborted || (wasConfigured && !isConfigured())) return { id, success: false };
+  try {
+    if (isConfigured()) await setEnabled(result.success);
+    else if (result.success) await add();
+  } catch (error) {
+    return { id, success: false, stage: "save", message: errorMessage(error) };
+  }
+  return {
+    id,
+    success: result.success,
+    ...(result.success ? {} : { stage: "probe", message: result.error?.message }),
+  };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export async function runCancelablePool<TInput, TResult>({

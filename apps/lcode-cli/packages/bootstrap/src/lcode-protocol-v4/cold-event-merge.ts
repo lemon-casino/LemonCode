@@ -160,6 +160,7 @@ const MEMORY_ONLY_EVENT_TYPES = new Set<string>([
   SessionEventType.BackgroundTaskStarted,
   SessionEventType.BackgroundTaskUpdated,
   SessionEventType.BackgroundTaskCompleted,
+  SessionEventType.BackgroundTaskResultConsumed,
   // workflow run 进度：权威事实在 dwf_event journal 与内存事件里，durable transcript（message/part）
   // 从不合成它，所以它与 BackgroundTask* 同类——memory-only 权威。不分类的后果不是丢事件
   // （兜底分支同样保留），而是每次冷恢复刷一条 unclassified 诊断，把"真的漏了词汇表"这个
@@ -781,6 +782,21 @@ export function mergeColdConversationEvents(input: MergeInput): ColdEventMergeRe
   );
 
   input.memoryEvents.forEach((event, index) => {
+    if (event.type === SessionEventType.BackgroundTaskResultConsumed) {
+      const messageId = stringField(event.payload, "messageId");
+      const durableTurnId = messageId ? turnByMessageId.get(messageId) : undefined;
+      if (durableTurnId) {
+        // cold 正文先合成全部 TurnStarted；若消费事件追加到末尾，continuation
+        // 已结束却又留下 resultPending。用同一持久 messageId 把消费放回该轮起点，
+        // 不按文本或时间猜归属；该轮的 running 事务和消费墓碑共同拒绝迟到终态。
+        const events = prefixEventsByTurnId.get(durableTurnId) ?? [];
+        events.push({ ...event, turnId: durableTurnId as TurnId });
+        prefixEventsByTurnId.set(durableTurnId, events);
+      } else {
+        supplements.push(event);
+      }
+      return;
+    }
     if (HOOK_LIFECYCLE_EVENT_TYPES.has(event.type)) {
       const invocationId = stringField(event.payload, "hookInvocationId");
       // invocation 扫描会把 startup/resume SessionStart 的临时 runtime turn 修正为

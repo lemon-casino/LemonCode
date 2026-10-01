@@ -329,9 +329,11 @@ export function ImagePreviewDialog({
   const downloadActiveImage = async () => {
     if (!activeItem?.src || activeItemIsVideo || isDownloading) return;
     setIsDownloading(true);
+    // Web 新增字节下载能力并不支持原生路径与 sourceUrl；图片必须保留原有浏览器 fallback。
+    const saveNativeFile = platform?.canSelectFilePath ? platform.saveFile : undefined;
     try {
-      if (platform?.saveFile && isHttpSource(activeItem.src)) {
-        const result = await platform.saveFile({
+      if (saveNativeFile && isHttpSource(activeItem.src)) {
+        const result = await saveNativeFile({
           sourceUrl: activeItem.src,
           suggestedName: `${safeDownloadBaseName(activeItem)}.png`,
         });
@@ -346,7 +348,7 @@ export function ImagePreviewDialog({
         blob = await readBoundedImageBlob(activeItem.src);
       } catch (error) {
         if (
-          !platform?.saveFile &&
+          !saveNativeFile &&
           isHttpSource(activeItem.src) &&
           !(error instanceof ImageDownloadError && error.code === "file_too_large")
         ) {
@@ -359,8 +361,8 @@ export function ImagePreviewDialog({
       }
       const extension = imageExtensionByMediaType[blob.type.toLowerCase()] ?? "png";
       const filename = `${safeDownloadBaseName(activeItem)}.${extension}`;
-      if (platform?.saveFile) {
-        const result = await platform.saveFile({
+      if (saveNativeFile) {
+        const result = await saveNativeFile({
           data: await blob.arrayBuffer(),
           suggestedName: filename,
         });

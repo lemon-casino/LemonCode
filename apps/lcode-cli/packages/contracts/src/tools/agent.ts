@@ -28,7 +28,7 @@ export const AgentInputSchema = z.object({
     .boolean()
     .optional()
     .describe(
-      "Set to true to run this agent in the background. You will be notified when it completes.",
+      "Set to true to run this agent in the background. End your turn when independent work is done; a completion notification will deliver its result. Do not poll it with TaskOutput.",
     ),
 });
 

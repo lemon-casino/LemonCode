@@ -9,7 +9,7 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { memo, useCallback, useMemo, useState, type CSSProperties } from "react";
+import { memo, useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   TID_V4_QUEUE,
   TID_V4_QUEUE_ITEM,
@@ -21,12 +21,12 @@ import {
   testId,
 } from "@lcode/shared";
 import type { QueueState } from "@lcode/shared/lcode-protocol-v4";
-import { ArrowUpFromLine, GripVertical, PencilIcon, Trash2Icon } from "lucide-react";
+import { ArrowUpFromLine, GripVertical, LoaderCircle, PencilIcon, Trash2Icon } from "lucide-react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
-import { runUserAction, runUserActionAsync } from "@/lib/userActionTelemetry.js";
+import { runUserActionAsync } from "@/lib/userActionTelemetry.js";
 
 interface ConversationQueuePanelProps {
   queue: QueueState;
@@ -37,7 +37,7 @@ interface ConversationQueuePanelProps {
   /** 正在等待 delete ACK / composer restore 的目标项；仅锁该 row。 */
   pendingEditQueueItemId?: string | null;
   /** 立即发送队列项（sendQueuedNow command，stop 当前 + 消费该项）。 */
-  onSendNow?: (queueItemId: string) => void;
+  onSendNow?: (queueItemId: string) => Promise<void> | void;
   /** 拖拽排序项（reorderQueueItem，移动到锚点前；null=队尾）。 */
   onMoveItem?: (queueItemId: string, beforeQueueItemId: string | null) => void;
   /** 暂停队列恢复：CLI setAutoDrain(true)，idle 立即消费、busy 仅武装。 */
@@ -117,7 +117,7 @@ interface QueueRowProps {
   onDeleteItem?: (queueItemId: string) => void;
   onEditItem?: (queueItemId: string) => Promise<void> | void;
   editPending: boolean;
-  onSendNow?: (queueItemId: string) => void;
+  onSendNow?: (queueItemId: string) => Promise<void> | void;
 }
 
 const QueueRow = memo(function QueueRow({
@@ -130,8 +130,31 @@ const QueueRow = memo(function QueueRow({
   onSendNow,
   editPending,
 }: QueueRowProps) {
+  const [sendPending, setSendPending] = useState(false);
+  const [sendFailed, setSendFailed] = useState(false);
+  const sendPendingRef = useRef(false);
   const dispatchLocked = item.dispatch.state !== "queued";
-  const rowLocked = dispatchLocked || editPending;
+  const rowLocked = dispatchLocked || editPending || sendPending;
+  const handleSendNow = async () => {
+    if (!onSendNow || sendPendingRef.current || rowLocked) return;
+    // UI 只锁一次点击，不移除权威队列项；ACK 或 transport 失败后仍可人工重试。
+    sendPendingRef.current = true;
+    setSendPending(true);
+    setSendFailed(false);
+    try {
+      await runUserActionAsync({
+        input: { featureId: "conversation.queue.item", action: "send_now", trigger: "button" },
+        operation: () => Promise.resolve(onSendNow(item.queueItemId)),
+        completed: { resultSource: "authority_ack" },
+        failureStage: "queue_send_now",
+      });
+    } catch {
+      setSendFailed(true);
+    } finally {
+      sendPendingRef.current = false;
+      setSendPending(false);
+    }
+  };
   const isCompact = item.kind === "compact";
   const {
     attributes,
@@ -174,7 +197,7 @@ const QueueRow = memo(function QueueRow({
       data-dispatch-state={item.dispatch.state}
       data-edit-pending={editPending ? "true" : "false"}
       className={cn(
-        "relative flex items-center gap-2 rounded-xl px-1.5 py-1 pr-1 transition-colors hover:bg-hover/30",
+        "relative flex flex-wrap items-center gap-2 rounded-xl px-1.5 py-1 pr-1 transition-colors hover:bg-hover/30",
         isDragging ? "bg-hover/40 shadow-sm" : null,
         editPending ? "opacity-60" : null,
       )}
@@ -215,21 +238,21 @@ const QueueRow = memo(function QueueRow({
           data-testid={testId(TID_V4_QUEUE_ITEM_SEND_NOW, item.queueItemId)}
           data-queue-item-id={item.queueItemId}
           disabled={rowLocked}
-          onClick={() =>
-            runUserAction({
-              input: {
-                featureId: "conversation.queue.item",
-                action: "send_now",
-                trigger: "button",
-              },
-              operation: () => onSendNow(item.queueItemId),
-              completed: { resultSource: "optimistic_projection" },
-              failureStage: "queue_send_now",
-            })
-          }
+          aria-busy={sendPending}
+          onClick={() => void handleSendNow()}
         >
-          <ArrowUpFromLine className="size-3.5" />
-          {intl.formatMessage({ id: isCompact ? "chat.queue.runNow" : "chat.queue.sendNow" })}
+          {sendPending ? (
+            <LoaderCircle className="size-3.5 animate-spin motion-reduce:animate-none" />
+          ) : (
+            <ArrowUpFromLine className="size-3.5" />
+          )}
+          {intl.formatMessage({
+            id: sendPending
+              ? "chat.queue.sendingNow"
+              : isCompact
+                ? "chat.queue.runNow"
+                : "chat.queue.sendNow",
+          })}
         </Button>
       ) : null}
       {onEditItem && !isCompact ? (
@@ -263,6 +286,11 @@ const QueueRow = memo(function QueueRow({
             <Trash2Icon className="size-4" />
           </Button>
         </ControlHintTooltip>
+      ) : null}
+      {sendFailed ? (
+        <span role="alert" className="w-full px-2 text-ui-sm text-destructive">
+          {intl.formatMessage({ id: "chat.queue.sendNowFailed" })}
+        </span>
       ) : null}
     </li>
   );

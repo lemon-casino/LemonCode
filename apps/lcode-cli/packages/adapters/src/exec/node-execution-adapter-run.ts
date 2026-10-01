@@ -106,6 +106,7 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
     let executionSettled = false;
     let childReadyForTermination = false;
     let terminationRequested = false;
+    let processTreeTermination: Promise<void> | undefined;
     let stopRequested = false;
     let forceExitTimer: NodeJS.Timeout | undefined;
     let progressTimer: NodeJS.Timeout | undefined;
@@ -135,7 +136,8 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
       terminationRequested = true;
       // root shell exit 不代表其进程组和继承 pipe 的后代已经退出。
       // cancel/close 必须在组长 exit 后仍能清理整个 execution，避免 orphan。
-      this.terminateProcessTree(startedChild, useBashMergedOutput);
+      processTreeTermination =
+        this.terminateProcessTree(startedChild, useBashMergedOutput) ?? undefined;
       if (file) {
         finishExit({ code: timedOut ? 143 : 137 });
         return;
@@ -309,6 +311,8 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
       const inputFailure = this.writeChildInput(spawnedChild, request.stdin);
 
       const exitState = await exitPromise;
+      // Bash 直写文件会提前合成 root exit；必须等待本次杀树结果再发布完成，不能误报预览已关闭。
+      await processTreeTermination;
       if (!file) {
         await this.drainChildOutput(
           spawnedChild,
@@ -383,6 +387,7 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
       this.emitResult(options, result);
       return result;
     } finally {
+      await processTreeTermination;
       if (!exited)
         finishResourceTelemetry({ error: new Error("Execution ended before child exit") });
       executionSettled = true;

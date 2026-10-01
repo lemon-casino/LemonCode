@@ -43,18 +43,25 @@ export function pillInstanceKey(pill: Pick<TimelinePill, "instance">): string | 
 }
 
 export function rosterCounts(pills: readonly TimelinePill[]): RosterCounts {
-  const counts: RosterCounts = { done: 0, failed: 0, pending: 0, running: 0 };
+  const counts: RosterCounts = { cancelled: 0, done: 0, failed: 0, pending: 0, running: 0 };
   for (const pill of pills) counts[pillStatusOf(pill)] += 1;
   return counts;
 }
 
 /** 注意力序：「还有 n 个」那一叠脸先露最要紧的；名单的组也按它排。 */
-export const ATTENTION_ORDER: readonly StepRunStatus[] = ["failed", "running", "pending", "done"];
+export const ATTENTION_ORDER: readonly StepRunStatus[] = [
+  "failed",
+  "running",
+  "cancelled",
+  "pending",
+  "done",
+];
 const ATTENTION_RANK: Record<StepRunStatus, number> = {
   failed: 0,
   running: 1,
-  pending: 2,
-  done: 3,
+  cancelled: 2,
+  pending: 3,
+  done: 4,
 };
 
 /** 稳定的注意力排序：同一档内保持参与者序。 */
@@ -95,7 +102,7 @@ export function stationRoster(
 export interface RosterMore {
   /** 没被钉住的参与者数。 */
   count: number;
-  /** 叠着的脸：其余里按注意力序的前几个（failed → running → pending → done）。 */
+  /** 叠着的脸：其余里按注意力序的前几个（failed → running → cancelled → pending → done）。 */
   deck: TimelinePill[];
   /** 藏在这一行后面的 failed 数（钉住的不算）——卡上这一行唯一会说的状态。 */
   failed: number;

@@ -65,6 +65,7 @@ export function serializeRegistryProviderConfig(
     },
     ...(config.builtinModelIds == null ? {} : { builtinModelIds: [...config.builtinModelIds] }),
     ...(config.personalModelIds == null ? {} : { personalModelIds: [...config.personalModelIds] }),
+    ...(config.excludedModelIds == null ? {} : { excludedModelIds: [...config.excludedModelIds] }),
     ...(config.modelOrder == null ? {} : { modelOrder: [...config.modelOrder] }),
     ...(config.visibility === undefined ? {} : { visibility: config.visibility }),
   };
@@ -246,11 +247,13 @@ export class ProviderConfigResolver {
       const personalIdsInOrder = uniqueInOrder(personalModelIds).filter(
         (modelId) => !builtinIds.has(modelId),
       );
+      const excludedIds = new Set(config.excludedModelIds ?? []);
+      // 删除只过滤投影，不改写继承身份；刷新模板及重新添加仍需同一份原始成员事实。
       const orderedModelIds = resolveOwnedOrder(
         builtinIdsInOrder,
         personalIdsInOrder,
         config.modelOrder ?? [],
-      );
+      ).filter((modelId) => !excludedIds.has(modelId));
       const accessEntitled =
         config.access?.type !== "zhipu-account" || config.access.entitled === true;
       // 账号权益与当前连接是两件事。非当前账号仍保留设置展示，不向普通 Registry 发布模型。

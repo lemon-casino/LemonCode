@@ -12,3 +12,4 @@ export * from "./resolver.js";
 export * from "./registry.js";
 export * from "./registry-service.js";
 export * from "./sources.js";
+export * from "./temporary-model.js";

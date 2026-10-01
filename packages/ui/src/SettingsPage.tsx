@@ -1367,8 +1367,8 @@ export function SettingsPage({
           data-testid={TID_SETTINGS_PAGE}
           data-active-section={activeSection}
           // 隐式 auto 行会按 Memory viewer 的内容高度撑出窗口，随后被 DesktopWindowFrame 裁切且没有滚动条。
-          // 固定为单个 minmax(0, 1fr) 行，让普通设置页和内部滚动 viewer 都以窗口剩余高度为边界。
-          className="relative grid h-screen min-h-full w-full grid-cols-[68px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] lg:grid-cols-[268px_minmax(0,1fr)]"
+          // 固定为单个 minmax(0, 1fr) 行；继承外壳动态视口高度，避免内层 100vh 把末尾控件挤到可视区外。
+          className="relative grid h-full min-h-0 w-full grid-cols-[68px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] lg:grid-cols-[268px_minmax(0,1fr)]"
         >
           {isWindowsDesktop ? <WindowsTopLeftLogo /> : null}
 
@@ -1381,8 +1381,8 @@ export function SettingsPage({
               <DesktopWindowControls />
             </div>
           ) : null}
-          <aside className="min-w-0">
-            <div className="flex h-full flex-col">
+          <aside className="min-h-0 min-w-0">
+            <div className="flex h-full min-h-0 flex-col">
               <div className="h-12 [app-region:drag]"></div>
               <div className="px-2 pb-3 pt-3">
                 {onBack ? (
@@ -1439,7 +1439,7 @@ export function SettingsPage({
 
               <nav
                 aria-label={intl.formatMessage({ id: "settings.navLabel" })}
-                className="flex-1 overflow-y-auto px-2 pb-3"
+                className="min-h-0 flex-1 overflow-y-auto px-2 pb-3"
               >
                 <div className="space-y-4">
                   {settingsSectionGroups.map((group, groupIndex) => {
@@ -1548,7 +1548,7 @@ export function SettingsPage({
           <section
             data-settings-content-frame="true"
             className={cn(
-              "flex min-h-0 flex-col",
+              "flex min-h-0 min-w-0 flex-col",
               // 桌面平台统一复用主工作区的面板 inset；左侧仍与导航相接，顶部由独立拖拽留白承接。
               isDesktop ? "p-1 pl-0 pt-0" : "p-0",
             )}
@@ -1560,7 +1560,7 @@ export function SettingsPage({
             <div
               data-settings-panel-frame="true"
               className={cn(
-                "relative flex flex-col min-h-0 h-full border border-border bg-background",
+                "relative flex flex-col min-h-0 min-w-0 h-full border border-border bg-background",
                 // Windows 设置页已有 4px 外层留白，不再承担系统窗口外沿；圆角与主工作区统一为 5px。
                 isWindowsDesktop ? "rounded-[5px]" : "rounded-xl",
               )}
@@ -1585,7 +1585,7 @@ export function SettingsPage({
                 onItemsChange={setSettingsBreadcrumbItems}
                 sectionLabel={settingsBreadcrumbSectionLabel}
               >
-                <div className="flex min-h-0 flex-1 flex-col">
+                <div className="flex min-h-0 min-w-0 flex-1 flex-col">
                   <div className="flex h-12 shrink-0">
                     <div
                       // Settings 窄布局会像左侧导航一样在 max-lg 收成 icon rail。
@@ -1608,7 +1608,7 @@ export function SettingsPage({
                       />
                     </div>
                   </div>
-                  <main className="min-h-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
+                  <main className="min-h-0 min-w-0 flex-1 overflow-y-auto [scrollbar-gutter:stable]">
                     <div
                       className={cn(
                         SETTINGS_FRAME_CONTENT_CLASSNAME,
@@ -1953,7 +1953,12 @@ export function SettingsPage({
                         ) : activeSection === "remoteControl" ? (
                           <RemoteControlSettingsSection />
                         ) : activeSection === "gitBackup" ? (
-                          <GitBackupSection enabled={false} onEnabledChange={() => {}} />
+                          <GitBackupSection
+                            workspacePath={activeWorkspacePath}
+                            workspaceIdentity={activeWorkspaceIdentity}
+                            remoteSessionId={activeWorkspaceTab?.remoteSessionId}
+                            remoteTarget={activeWorkspaceTab?.remoteTarget}
+                          />
                         ) : null}
                       </div>
                     </div>

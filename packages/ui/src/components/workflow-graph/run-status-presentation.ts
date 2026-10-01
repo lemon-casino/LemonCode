@@ -8,10 +8,14 @@ import type { StepRunStatus } from "@/components/workflow-graph/types.js";
  *
  * running 用 warning（活动色）而不是 primary：primary 跨主题反色（亮色下近黑），读作「强调」
  * 而非「在动」；活动色让给真正在动的东西（灯、行进虚线、转圈）。
+ *
+ * cancelled 是中性实点：形状上与空环（还没开始）不同，颜色上与红（真出错）不同——
+ * 停止是结算，不是故障。
  */
 export const STATUS_DOT: Record<StepRunStatus, string> = {
   done: "bg-success",
   failed: "bg-destructive ring-2 ring-destructive/30",
+  cancelled: "bg-foreground-subtle",
   pending: "border-[1.5px] border-foreground-subtlest bg-transparent",
   running: "animate-pulse bg-warning motion-reduce:animate-none",
 };
@@ -27,17 +31,18 @@ export const DRAFT_FEEDBACK_DOT = {
 } as const;
 
 /**
- * run **整体**状态的视觉词汇表（五值），从四值 `STATUS_DOT` 派生
+ * run **整体**状态的视觉词汇表（五值），从 `STATUS_DOT` 派生
  * （终态 = completed / errored / stopped）。
  * `stopped` 走中性色而不是 destructive：停下（用户取消、进程亡故、模型侧错误）是可恢复的
- * 状态，不是脚本故障；只有 `errored` 才是 destructive。
+ * 状态，不是脚本故障；只有 `errored` 才是 destructive。它与「还没开始」也不再共用一个空环——
+ * 一个 ended 的 run 与一个 pending 的 run 是两件事，前者用中性实点。
  */
 export const RUN_STATUS_DOT: Record<WorkflowRunState["status"], string> = {
   pending: STATUS_DOT.pending,
   running: STATUS_DOT.running,
   completed: STATUS_DOT.done,
   errored: STATUS_DOT.failed,
-  stopped: STATUS_DOT.pending,
+  stopped: STATUS_DOT.cancelled,
 };
 
 /** 状态词的语义色。与状态点同一套判断，只是换成文字通道（状态永远有词，不只靠颜色）。 */

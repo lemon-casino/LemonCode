@@ -7,6 +7,7 @@ import {
   type Provider,
   type ProviderModel,
   type ProviderRegistryView,
+  type TemporaryModelResolution,
 } from "@lcode/provider";
 import { createRegistrySelectionProtocolError } from "./provider-registry-selection.js";
 
@@ -22,6 +23,7 @@ export interface ProviderRegistryModelSource {
   getProvider(providerId: string): Provider | undefined;
   getModel(providerId: string, modelId: string): ProviderModel | undefined;
   validateSelection(selection: ModelSelection): ModelSelectionValidation;
+  resolveTemporaryModel?(selection: ModelSelection): TemporaryModelResolution;
   onDidChange(listener: () => void): () => void;
 }
 
@@ -55,7 +57,36 @@ export class ApiProviderModelRuntime {
     if (!provider) throw new Error("Registry Selection 校验与 Provider 索引结果不一致");
     const registryModel = this.#registry.getModel(providerId, modelId);
     if (!registryModel) throw new Error("Registry Selection 校验与 Model 索引结果不一致");
-    return this.#createRegistryModel(provider, registryModel, target);
+    return this.#createRegistryModel(
+      provider,
+      registryModel,
+      target,
+      resolveProviderSaveGeneration(this.#registry, providerId).providerSaveGeneration,
+    );
+  };
+
+  // 每次探测独立解析并冻结配置；不能临时替换共享 factory，否则并发会话会拿到探测模型。
+  readonly temporaryModelFactory: RuntimeModelFactory = (target): Model => {
+    if (!this.#started) throw new Error("ApiProviderModelRuntime 必须先 start() 再创建 Model");
+    const resolved = this.#registry.resolveTemporaryModel?.(target.selection);
+    if (!resolved) throw new Error("当前 Environment 未提供临时 Model 解析能力");
+    const speed = resolved.model.config.optionSpecs.speed?.values[0];
+    return this.#createRegistryModel(
+      resolved.provider,
+      resolved.model,
+      {
+        ...target,
+        selection: {
+          providerId: resolved.provider.providerId,
+          modelId: resolved.model.modelId,
+          options: {
+            reasoningLevel: resolved.model.config.optionSpecs.reasoningLevel.values[0]!,
+            ...(speed ? { speed } : {}),
+          },
+        },
+      },
+      resolved.providerSaveGeneration,
+    );
   };
 
   start(): void {
@@ -71,10 +102,11 @@ export class ApiProviderModelRuntime {
     provider: Provider,
     registryModel: ProviderModel,
     target: Parameters<RuntimeModelFactory>[0],
+    providerSaveGeneration: string | undefined,
   ): Model {
     const config = registryModel.config;
     // 输出预算属于单次请求，由 Agent 执行链显式决定，不能在 ModelFactory 中静默绑定。
-    // Selection 已在上面的 Registry 边界完成校验，Factory 不再承担任何缺省修复。
+    // 正式选择已通过 Registry 校验；临时选择来自本次完整解析，两者都显式带最低/所选档位。
     const normalReasoningLevel = target.selection.options!.reasoningLevel!;
     const speed = target.selection.options?.speed;
     return this.#modelAdapter.createModel({
@@ -82,7 +114,7 @@ export class ApiProviderModelRuntime {
       modelId: registryModel.modelId,
       providerConfig: provider.config,
       // 创建时冻结。只有本供应商自己的保存代次变化才清失败 Key。
-      ...resolveProviderSaveGeneration(this.#registry, provider.providerId),
+      ...(providerSaveGeneration === undefined ? {} : { providerSaveGeneration }),
       modelConfig: config,
       ...(provider.config.access.type === "zhipu-account" &&
       provider.config.access.mode === "off-peak"

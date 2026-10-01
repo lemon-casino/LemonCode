@@ -25,6 +25,47 @@ rules:
     - invariant-only
     - evidence-only
 nodes:
+  - id: capability.model-provider-settings
+    kind: capability
+    label: Model catalog synchronization and editable model membership
+    aliases:
+      - model settings
+      - sync models
+      - check and add models
+      - 模型设置
+      - 同步模型
+      - 模型去重
+      - 删除内置模型
+      - 并发检测
+      - 搜索模型
+      - 删除失效模型
+    codeSeeds:
+      - file: packages/ui/src/settings/model-provider-section/SyncModelsDialog.tsx
+        symbol: SyncModelsDialog
+      - file: packages/ui/src/hooks/useModelProviders.ts
+        symbol: useModelProviders
+    invariants:
+      - "Settings writes stay with the Local Host Provider Settings owner, not the active remote workspace."
+      - "Temporary connectivity probes do not publish models; only successful results enter the existing provider mutation queue."
+      - "Personal excludedModelIds records keep deleted inherited models absent until explicitly added again."
+  - id: service.provider-settings-owner
+    kind: state-owner
+    label: Provider settings and personal model membership owner
+    codeSeeds:
+      - file: packages/provider/src/facades.ts
+        symbol: ProviderSettingsFacade
+      - file: packages/provider/src/config-service.ts
+        symbol: ProviderConfigService
+      - file: packages/services/src/model-provider/providerFacadeServices.ts
+        symbol: IProviderSettingsService
+  - id: boundary.provider-connectivity
+    kind: service
+    label: Environment model connectivity execution boundary
+    codeSeeds:
+      - file: apps/lcode-cli/packages/bootstrap/src/lcode-protocol/workspace-model-runtime.ts
+        symbol: testProviderModelConnectivity
+      - file: apps/lcode-cli/packages/bootstrap/src/lcode-protocol/transport.ts
+        symbol: LCodeProtocolNdjsonConnection
   - id: capability.model-selection
     kind: capability
     label: Model selection
@@ -749,7 +790,77 @@ nodes:
     codeSeeds:
       - file: scripts/stage-release-artifacts.mjs
         symbol: stageReleaseArtifacts
+  - id: capability.git-auto-backup
+    kind: capability
+    label: Git automatic backup to OSS and MinIO
+    aliases: [Git 自动备份, Git backup, OSS, MinIO, 多目的地备份]
+    codeSeeds:
+      - file: packages/services/src/git-backup/gitBackup.ts
+        symbol: IGitBackupService
+    invariants:
+      - "One Host owns configuration, credentials, workspace targets, scheduling and destination results; UI owns only drafts and projections."
+      - "A shared snapshot is encrypted once; each selected destination commits its own manifest last, and partial success is not full success."
+  - id: surface.git-backup-settings
+    kind: ui-surface
+    label: Git backup shared settings and independent provider tabs
+    codeSeeds:
+      - file: packages/ui/src/settings/GitBackupSection.tsx
+        symbol: GitBackupSection
+      - file: packages/ui/src/settings/git-backup/GitBackupDestinationTabs.tsx
+        symbol: GitBackupDestinationTabs
+    invariants:
+      - "Provider tabs change only the displayed destination; both destinations may remain selected and drafts share one hook owner."
+  - id: surface.git-backup-onboarding
+    kind: ui-surface
+    label: Git backup introduction and settings handoff
+    codeSeeds:
+      - file: packages/ui/src/GitBackupWelcomeDialog.tsx
+        symbol: GitBackupWelcomeDialog
+  - id: service.git-backup-host
+    kind: state-owner
+    label: Profile filesystem Host backup owner
+    codeSeeds:
+      - file: packages/services/src/git-backup/gitBackupService.ts
+        symbol: createGitBackupService
+      - file: packages/services/src/git-backup/gitBackupStore.ts
+        symbol: createBackupStore
 edges:
+  - from: capability.model-provider-settings
+    to: service.provider-settings-owner
+    type: projects-state-and-sends-intent-to
+    rank: must-inspect
+  - from: service.provider-settings-owner
+    to: boundary.provider-connectivity
+    type: validates-models-through
+    rank: must-inspect
+  - from: service.provider-settings-owner
+    to: service.host-model-selection
+    type: publishes-candidates-for
+    rank: should-inspect
+  - from: capability.git-auto-backup
+    to: surface.git-backup-settings
+    type: renders-in
+    rank: must-inspect
+  - from: capability.git-auto-backup
+    to: surface.git-backup-onboarding
+    type: renders-in
+    rank: should-inspect
+  - from: surface.git-backup-settings
+    to: service.git-backup-host
+    type: projects-state-and-sends-intent-to
+    rank: must-inspect
+  - from: surface.git-backup-onboarding
+    to: service.git-backup-host
+    type: projects-state-and-sends-intent-to
+    rank: must-inspect
+  - from: service.git-backup-host
+    to: boundary.workspace-key
+    type: isolates-by
+    rank: invariant-only
+  - from: service.git-backup-host
+    to: boundary.web-remote-replayable
+    type: reads-owner-through
+    rank: invariant-only
   - from: capability.desktop-software-update
     to: surface.desktop-update-status
     type: renders-in

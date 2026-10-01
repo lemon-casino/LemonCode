@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "inputHashEncoding": "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
   "scope": "Production dependency union across current workspace projects, copied source/assets and native tools; not a per-installer SBOM or a certification of all licensing obligations.",
-  "noticesSha256": "bb008781a7bffe794c694d4a8da4f392733342ee843174a8271454811fd985e7",
+  "noticesSha256": "4c2d339768a8964bfdbaf4e13350cf2a2c212ea21e5024949427bdfd2b04b38d",
   "inputs": {
     ".agents/skills/agent-browser/references/authentication.md": "03776b640f377e030c419aa5ad53ec4de5babe69dc37b495d432cd318727ca03",
     ".agents/skills/agent-browser/references/commands.md": "532584b4c03bdbd47acde121edadbffd83a8f3a020f7750f923c6dd789302604",
@@ -252,7 +252,7 @@
     "apps/lcode-cli/packages/tui/package.json": "51decf6f5c4286c694c4b15ef0ca16129dee0283951b4929c43e0ed9aa12f468",
     "apps/lcode-cli/tools/prompt-trajectory/package.json": "6ab89bba2dba20f07cf913e34acb4bda59d9563d196995a25f867f34281df02b",
     "apps/lcode-cli/tools/typescript/package.json": "2f33883fe33cc9d878a3d6d78a0d262eb0db134fc02042ed7563c3dc50d797f7",
-    "package.json": "a6a0e3f7a16eb71cbc31b0fea890d3b7d7f72ddd7cf8b95dee7020b720d0da07",
+    "package.json": "b4f931c3a05a2e3ade20d25fd8dcda31e472ff8828e440d9adffc3b78ba9973d",
     "packages/client/package.json": "6cfcb57428c4728a98b7cf4504d29304cf6e9e547e136f0ab1edcef8f821b452",
     "packages/desktop/package.json": "b68388d3a85da919fbb58ff079ee0f0b426eaef17fe6f35b8d3553f6065ba826",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
@@ -1429,7 +1429,7 @@
     "packages/rpc/src/remote.ts": "a11e072d5df7e1c1ce64814a68f72afc081246b364f0da409b5c9d22bc815957",
     "packages/rpc/src/serialization.ts": "9720698411e17c31869c4bc974c381e4201bf3d51cf8e849ea7375eb54399dc6",
     "packages/server/package.json": "47bc3b110296320aaa4ea77eb4707107111e3be8da4026ffd4c1bc844d0d9c4f",
-    "packages/services/package.json": "02f5914184b2cd36e70e7f87fa6941e924b7e1cecda6c77c85abcee678b9e1e9",
+    "packages/services/package.json": "a6e702392b3b9ea01e8346df3f7d4e64d69ec44fdd60e2c629521e8507a170e4",
     "packages/shared/package.json": "ddd531f64a2f324b493ee7fec2885ca7c6ae46b113e9a3422588ad997007bc8c",
     "packages/shared/src/lcode-protocol-v4/wire-codec.ts": "4e895f7c3ea4067ad9540649e779661055c46c09be7247fb33533489f814cd2c",
     "packages/ui/package.json": "9a8b8b435afccf93662d16b2d112c6c5953dcee389d05bf211f011b76a479737",
@@ -1443,12 +1443,12 @@
     "packages/ui/src/components/ai-elements/commit.tsx": "57cc52241eea3920b3e63477e8a47d289de57628ee89d396f49428eaba57743a",
     "packages/ui/src/components/ai-elements/confirmation.tsx": "4a1693a6c9bf09f354b7324aba576b8fb955033aa214344e42cfb05bc6386d79",
     "packages/ui/src/components/ai-elements/connection.tsx": "e6729f466f42adaf231cd5f227f7af982baeede93784743178c46e86a4370450",
-    "packages/ui/src/components/ai-elements/context.tsx": "e6365859c135848e2b0ebcf30418c460cc1bdd9b8b99d374ba1c92cf34c9a3df",
+    "packages/ui/src/components/ai-elements/context.tsx": "239ce15fb526e028697b62612d1a6c7de11a10a2a5d9f225683279b0143eed80",
     "packages/ui/src/components/ai-elements/controls.tsx": "0b30ada54959b867c65f7de5e4952abdb0f1d8eba9fd3432d92467637435aaef",
     "packages/ui/src/components/ai-elements/conversation.tsx": "b31e60c84ae740b6d3ecc9ea3537d30f6a223c033f9756e1a4cf463e03555c49",
     "packages/ui/src/components/ai-elements/diagram-preview-dialog.tsx": "d07c5b8872fa3328b747a836eaf7de172fee7e3c7ecdb5193d24f8ab9e8ddc37",
     "packages/ui/src/components/ai-elements/edge.tsx": "ae9887130a408ec2ef3e17248532b7a373fe7561160e0fff4a242630c3a4e57e",
-    "packages/ui/src/components/ai-elements/image-preview-dialog.tsx": "561b506a6ef733c9a2855b975ac5a502650b82bb89e2560e0db6bf93128baab7",
+    "packages/ui/src/components/ai-elements/image-preview-dialog.tsx": "b6d434bcc0a35ddfe2ef337e9816951940575151344db48f1ef8d905a7e6ab9b",
     "packages/ui/src/components/ai-elements/image-thumbnail-gallery.tsx": "185766c039c6c4852ae12360360f7cf29e844a1463358b8cc2c6de972dcdaf43",
     "packages/ui/src/components/ai-elements/image.tsx": "2c9261c73aeb51b4c26388e0eefa0c39c997c9b5e359b09224dc17f8bfcf1101",
     "packages/ui/src/components/ai-elements/markdown-blockquote.tsx": "0c76599780a464136703d40d07172dcc62730dee1ce01a155100cf4712440a7f",
@@ -1527,8 +1527,8 @@
     "packages/ui/src/components/ui/tooltip.tsx": "301dbf3a6f8b1bc496f9bdc6fbc5fe6202ed373182897f39cd1ecd19b00fdfbe",
     "packages/ui/src/components/ui/usePdfZoomOverlay.ts": "c8c91b003ce2fded32c7a2369dc6eac43aa4b9dc9c830a0f5ceccb21d366b610",
     "packages/ui/src/lib/builtinSkillI18n.ts": "0a177a74855a0b4fa344bc633bfbf4dcc4b14d577f3c73b931cf279f74df7485",
-    "packages/ui/src/styles.css": "7136aaba203d8e2de9a3b46793a7d1e1dada4cc0ace62a34d0832d3b6b4d4602",
-    "packages/web/package.json": "3687e3ce852e660776b6f3a7a0875f2cca3b8922af8603487a6b085b190676a1",
+    "packages/ui/src/styles.css": "7f97829d9205c7c75294b45a71aa89286b3756cc123e385fe5546536fb81133b",
+    "packages/web/package.json": "43a45b12d01939ef99e0f1a12c657df194a2d1d3e7d819053c8079708b88efa5",
     "packages/web/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
     "packages/web/public/material-icons/abap.svg": "1335bd7eb9a0ed49deb622330d680c2e97731726a7a5eee8e4f46dc1e5db4de4",
     "packages/web/public/material-icons/abc.svg": "d1a68020e8f020ef29dca5f94dc8613b7ae8fb5b212d8b1cc23b0f975ac7acda",
@@ -2675,7 +2675,7 @@
     "packages/web/public/material-icons/zeabur.svg": "8bb7c84934202e9b24842ddb1ca69d316b9d69f1a4f5ebc9bbcce78eb2cea1a7",
     "packages/web/public/material-icons/zig.svg": "37be0ce02cf471b18d86150b3c38e80caa7c16c49a15078e7db6f1f41788d101",
     "packages/web/public/material-icons/zip.svg": "dad79a45f756542d37abd422502ecfbea15720b92ea1c9d80ef0439ab6b9448a",
-    "pnpm-lock.yaml": "32bb264ceff6f92fb2ee82b97830a194d1846e3a30d4df0cfe06634cff0b804f",
+    "pnpm-lock.yaml": "0377af4ca1f63bbc6c7573b0ed7c87832c6469c87629cd56128aa3d01bbf323c",
     "pnpm-workspace.yaml": "75f1aaa4a90c88712c9db16f6ba935ee68151545143b9112e5952b9c4caf99cb",
     "scripts/license-texts/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "scripts/native-search-tools-config.mjs": "51483e7c154b76d431703e22b28c6b4687245bf15662e5246ed976d561d086ae",
@@ -8697,6 +8697,18 @@
         {
           "member": "README.md (license section)",
           "sha256": "fd9a050fb486b88c9944eed4e7e91b9e7ad27de1e0be767309e962107969003c"
+        }
+      ]
+    },
+    {
+      "name": "aws4fetch",
+      "version": "1.0.20",
+      "license": "MIT",
+      "repository": "git+https://github.com/mhart/aws4fetch.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "a9455541e8a4e4766d146a7552ac547c04bfb7a8718f5af516f1b9e346e82a77"
         }
       ]
     },
@@ -20981,7 +20993,7 @@
         },
         {
           "file": "packages/ui/src/styles.css",
-          "sha256": "4f99ea3d1ffea35f1b3076be9a6d18987f833194e5180289aac1b283694a800d"
+          "sha256": "ec015c0a0e52726c688240bf2790ccab9df55b10d1cb3b8022dc7d8c2b227195"
         }
       ]
     },
@@ -21183,7 +21195,7 @@
         },
         {
           "file": "packages/ui/src/components/ai-elements/context.tsx",
-          "sha256": "e6365859c135848e2b0ebcf30418c460cc1bdd9b8b99d374ba1c92cf34c9a3df"
+          "sha256": "239ce15fb526e028697b62612d1a6c7de11a10a2a5d9f225683279b0143eed80"
         },
         {
           "file": "packages/ui/src/components/ai-elements/controls.tsx",
@@ -21203,7 +21215,7 @@
         },
         {
           "file": "packages/ui/src/components/ai-elements/image-preview-dialog.tsx",
-          "sha256": "cc1e33d6ff9060cdfe7a9a106bf50e7775cdedeed9450f50e50c000cd9e6f6d8"
+          "sha256": "7d662bddc095258848d172be3571807af904282b4ebaf808b514112bd75d9e6c"
         },
         {
           "file": "packages/ui/src/components/ai-elements/image-thumbnail-gallery.tsx",

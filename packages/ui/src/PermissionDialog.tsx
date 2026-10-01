@@ -495,7 +495,20 @@ export function PermissionDialog({
       ),
     [blockKind, codePreviewSettings, intl, rawFileSummaries, theme, toolCall, workspacePath],
   );
-  const displayReason = useMemo(() => getPermissionDisplayReason(request), [request]);
+  const displayReason = useMemo(() => {
+    const input = readRawToolCallInput(request.raw);
+    // 保留预览是用户的单次生命周期选择，不能让模型 description 遮住实际授权含义。
+    const flag = isPlainRecord(input) ? input.keep_alive_after_task : undefined;
+    const retainsPreview =
+      preview.scope === "command" &&
+      (flag === true ||
+        flag === 1 ||
+        (typeof flag === "string" &&
+          ["true", "1", "yes", "y", "on"].includes(flag.trim().toLowerCase())));
+    return retainsPreview
+      ? intl.formatMessage({ id: "chat.permission.retainPreview" })
+      : getPermissionDisplayReason(request);
+  }, [intl, preview.scope, request]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [feedback, setFeedback] = useState("");
   const [workflowModifiedInput, setWorkflowModifiedInput] = useState<unknown>(undefined);
@@ -572,12 +585,7 @@ export function PermissionDialog({
       // 模型收不到 workflow_refine_feedback 的升级递送。
       const trimmedFeedback =
         !refineOption && selectedKind.startsWith("reject") ? feedback.trim() : "";
-      onRespond(
-        request.requestId,
-        option,
-        trimmedFeedback || undefined,
-        workflowModifiedInput,
-      );
+      onRespond(request.requestId, option, trimmedFeedback || undefined, workflowModifiedInput);
     },
     [feedback, onRespond, refineOption, request.requestId, responding, workflowModifiedInput],
   );

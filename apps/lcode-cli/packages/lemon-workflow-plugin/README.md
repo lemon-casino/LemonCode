@@ -7,6 +7,11 @@ Official built-in content plugin for LCode. It provides:
 - `caveman`: terse response guidance from Julius Brussee's Caveman project.
 - `dynamic-workflows`: LCode workflow authoring and recovery guidance.
 
+`/lemon` applies Ponytail selectively to workflow topology and to engineering actors that already
+belong in the task. Caveman applies only to short user-visible progress and completion summaries;
+structured actor results, evidence, errors, safety warnings, reports, and artifacts stay complete.
+Neither skill creates a dedicated actor, proxy, engine, hook, or second workflow state owner.
+
 The plugin has no MCP server or separate runtime. Workflow execution and persistence remain owned by
 LCode's existing dynamic workflow runtime and run journal.
 

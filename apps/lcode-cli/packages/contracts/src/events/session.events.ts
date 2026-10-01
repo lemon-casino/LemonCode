@@ -61,6 +61,7 @@ import type {
   StreamRecoveryTailDiscardedPayload,
   StreamingToolLedgerPayload,
 } from "./stream-recovery.events.js";
+import type { LCodeBackgroundTaskResultConsumedPayload } from "@lcode/shared";
 import type {
   ExecutionFailoverChangeCause,
   ExecutionFailoverState,
@@ -142,6 +143,7 @@ export const SessionEventType = {
   BackgroundTaskStarted: "background_task_started",
   BackgroundTaskUpdated: "background_task_updated",
   BackgroundTaskCompleted: "background_task_completed",
+  BackgroundTaskResultConsumed: "background_task_result_consumed",
   // workflow run 的实时进度：一条引擎 RunEvent 一条事件，追加到**父会话**（run 自己没有会话）。
   // v4 侧归约成 workflowRuns 状态键；v3 侧在 shouldExposeSessionEventToProtocol 剥离。
   // 命名刻意带 dynamic_：legacy `Workflow` 工具的 script run 事件（workflow_started /
@@ -902,6 +904,8 @@ export type BackgroundTaskStatus =
 
 export interface BackgroundTaskPayloadBase {
   taskId: string;
+  /** 新 runtime 的后台执行代次；旧事件缺席时保持既有投影语义。 */
+  lifecycleId?: string;
   toolCallId?: ToolCallId | string;
   toolName?: string;
   // "workflow" = workflow run（CreateWorkflow）。追踪器的行为已按 per-tool lifecycleProvider
@@ -940,6 +944,8 @@ export type BackgroundTaskUpdatedPayload = BackgroundTaskPayloadBase;
 export type BackgroundTaskCompletedPayload = BackgroundTaskPayloadBase & {
   status: Exclude<BackgroundTaskStatus, "running">;
 };
+
+export type BackgroundTaskResultConsumedPayload = LCodeBackgroundTaskResultConsumedPayload;
 
 /**
  * 一条 workflow run 进度事件（父会话）。字段与 {@link DynamicWorkflowRunEvent} 同形——
@@ -1234,6 +1240,7 @@ export type SessionEventPayload =
   | BackgroundTaskStartedPayload
   | BackgroundTaskUpdatedPayload
   | BackgroundTaskCompletedPayload
+  | BackgroundTaskResultConsumedPayload
   | DynamicWorkflowRunProgressPayload
   | PermissionRequestedPayload
   | PermissionResolvedPayload

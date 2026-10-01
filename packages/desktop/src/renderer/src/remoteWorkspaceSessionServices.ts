@@ -10,6 +10,8 @@ export function buildRemoteWorkspaceSessionServices(
     mediaPreviewService: remoteServices.mediaPreviewService,
     gitService: remoteServices.gitService,
     gitCheckpointService: remoteServices.gitCheckpointService,
+    // 备份读写属于远端文件系统，不能把远端 path 交给本机 profile 的服务。
+    gitBackupService: remoteServices.gitBackupService,
     systemService: remoteServices.systemService,
     terminalService: remoteServices.terminalService,
     // 远端附件必须由当前 workspace host 上传并改写路径；沿用本地服务会把

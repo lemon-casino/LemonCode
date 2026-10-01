@@ -219,6 +219,9 @@ export function createChildClientPorts(
 ): ClientFacingPorts {
   return deriveChildClientPorts(
     {
+      ...(this.config.runtimeFeatures?.browserUse === true
+        ? { browserControlPort: this.browserControlPort }
+        : {}),
       ...(this.permissionBroker === undefined ? {} : { permissionBroker: this.permissionBroker }),
       ...(this.providerRuntimeHeadersPort === undefined
         ? {}

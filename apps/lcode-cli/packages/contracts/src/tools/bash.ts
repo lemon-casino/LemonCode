@@ -60,6 +60,12 @@ export const BashInputSchema = z
     run_in_background: semanticBoolean()
       .optional()
       .describe("Set to true to run this command in the background."),
+    /** Requests one-time user approval to retain the server beyond this task. */
+    keep_alive_after_task: semanticBoolean()
+      .optional()
+      .describe(
+        "Defaults to false. Only request true with run_in_background when the user explicitly asks to keep a preview server running after task completion; this requires one-time user approval even in full-access mode.",
+      ),
     /**
      * Set this to true to dangerously override sandbox mode and run commands without sandboxing.
      */
@@ -69,7 +75,11 @@ export const BashInputSchema = z
         "Set this to true to dangerously override sandbox mode and run commands without sandboxing.",
       ),
   })
-  .strict();
+  .strict()
+  .refine((input) => !input.keep_alive_after_task || input.run_in_background === true, {
+    message: "keep_alive_after_task requires run_in_background=true",
+    path: ["keep_alive_after_task"],
+  });
 
 export type BashInput = z.infer<typeof BashInputSchema>;
 

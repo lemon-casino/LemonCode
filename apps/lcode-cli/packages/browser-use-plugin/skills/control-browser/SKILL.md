@@ -1,6 +1,6 @@
 ---
 name: control-browser
-description: "Use when opening, navigating, inspecting, testing, clicking, typing, filling, screenshotting, or verifying web pages and local HTTP targets (localhost, 127.0.0.1, ::1) inside LCode, including browser/web-UI automation, rendered-page scraping, frontend checks, and visible page-state reading. Prefer this over Computer Use for anything that stays inside a web page, unless the user explicitly asks for Computer Use. Main agent only."
+description: "Use when opening, navigating, inspecting, testing, clicking, typing, filling, screenshotting, or verifying web pages and local HTTP targets (localhost, 127.0.0.1, ::1) inside LCode, including browser/web-UI automation, rendered-page scraping, frontend checks, and visible page-state reading. Prefer this over Computer Use for anything that stays inside a web page, unless the user explicitly asks for Computer Use. Available in main sessions, subagents, and workflow actors."
 ---
 
 # Browser automation (agent.browsers)
@@ -12,6 +12,8 @@ If this skill is available in the session, treat it as required reading before b
 ## How it works
 
 The browser registry is driven from the Node REPL MCP `js` tool. In this environment its callable id normally appears as `mcp__node_repl__js`. The MCP frontend is shared for a workspace, but every `js` call runs in a fresh JavaScript kernel, so variables, imports, module cache, `browser`, and `tab` bindings do not persist. Persistent BrowserControl tabs are the continuity boundary and must be recovered from current tab facts.
+
+Subagents and workflow actors use their own browser resource scope through the parent's Host. Recover tabs from your current registry; child runtime shutdown releases its scope. Browser Use availability does not grant Computer Use access to subagents.
 
 ## Bootstrap every JavaScript call
 

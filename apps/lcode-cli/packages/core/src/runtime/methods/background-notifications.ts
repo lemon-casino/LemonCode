@@ -1,6 +1,9 @@
-import { createMessageId, traceContextToLogContext } from "../deps.js";
+import { createMessageId, SessionEventType, traceContextToLogContext } from "../deps.js";
 import type { MessageId, TraceContext } from "../deps.js";
-import type { BackgroundResultOriginMeta } from "@lcode/contracts";
+import type {
+  BackgroundResultOriginMeta,
+  BackgroundTaskResultConsumedPayload,
+} from "@lcode/contracts";
 import { createRuntimeCommandId, type TaskNotificationRuntimeCommand } from "../command-queue.js";
 import { runtimeInputMetadata } from "../../agent/runtime-input-presentation.js";
 import type { AgentRuntimeInternal } from "../internal.js";
@@ -51,6 +54,7 @@ export function enqueueBackgroundTaskNotification(
     source: "background_task",
     originMeta: notification.originMeta,
     taskId: notification.taskId,
+    taskLifecycleId: task?.lifecycleId,
     text: notification.text,
     toolName: notification.toolName,
     traceContext: notification.traceContext,
@@ -208,6 +212,27 @@ export async function persistBackgroundTaskNotificationBatch(
           status: "failed",
         });
       });
+    // 根因：active-loop 不发 TurnStarted，旧 V4 只更新通知对应的工具行，
+    // 已进入父任务的结果会永久残留 resultPending。单条/批量在此共用消费事实，
+    // 只在通知持久化成功后发射，并使用入队时固定的代次保护 resume 的新工作。
+    const workId = command.taskId ?? command.originMeta?.workId;
+    if (workId && command.taskLifecycleId) {
+      const payload: BackgroundTaskResultConsumedPayload = {
+        workId,
+        lifecycleId: command.taskLifecycleId,
+        messageId: String(messageID),
+        sourceCommandId: String(command.id),
+        delivery: midTurn ? "activeLoop" : "continuation",
+      };
+      await this.appendEvent(
+        this.createEvent(
+          SessionEventType.BackgroundTaskResultConsumed,
+          payload,
+          command.traceContext,
+        ),
+        command.traceContext,
+      );
+    }
   }
   return {
     ...(backgroundSource ? { backgroundSource } : {}),

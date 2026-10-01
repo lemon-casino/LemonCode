@@ -10,7 +10,6 @@ import {
   DesktopCommandIds,
   isStartPlanModelProviderId,
   type BuiltinModelProviderId,
-  type ModelConnectivityResult,
   type ProviderFamilyConnectionSelection,
   type ProviderFamilyConnectionSelectionSettings,
   type ProviderFamilyDomain,
@@ -1028,13 +1027,6 @@ export function ModelProviderSection({
     [displayOrder, modelProviders, saveDisplayOrder],
   );
 
-  const handleTestModel = useCallback(
-    async (providerId: string, modelId: string): Promise<ModelConnectivityResult> => {
-      return testModelConnectivity(providerId, modelId);
-    },
-    [testModelConnectivity],
-  );
-
   // 首屏慢网时之前直接 return null，导致整块模型供应商页空白，
   // 已有的左侧分组 loading 和刷新按钮 loading 都没有机会渲染。
   // 这里改为始终先渲染布局壳子，再按分组展示 loading，避免用户误以为页面坏了。
@@ -1132,7 +1124,7 @@ export function ModelProviderSection({
           // Provider 的左栏排序权限被误复用成模型排序门禁，导致 Built-in / Account
           // Provider 的 Effective 模型无法写入 Personal modelOrder。模型调序独立于成员来源。
           onReorderProviderModels={reorderProviderModels}
-          onTestModel={handleTestModel}
+          onTestModel={testModelConnectivity}
           onListRemoteModels={(providerId) =>
             listRemoteModels(providerId).then((catalog) => catalog.models)
           }

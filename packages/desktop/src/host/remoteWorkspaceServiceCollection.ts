@@ -4,6 +4,7 @@ import {
   IFileService,
   IGitService,
   IGitCheckpointService,
+  IGitBackupService,
   ISystemService,
   ITerminalService,
   ISettingService,
@@ -363,6 +364,10 @@ export function createRemoteWorkspaceServiceCollection(params: {
       createSettingsSyncService({ settingService: localSettingService }),
     )
     .register(IPromptAttachmentTransferService, params.promptAttachmentTransferService);
+  // 手机 attachment 没有 Renderer 合并层；这里只转发远端 owner，缺失时保持不可用。
+  if (params.connectionServices.gitBackupService) {
+    services.register(IGitBackupService, params.connectionServices.gitBackupService);
+  }
   registerHostApiNetworkTransportForDispose(services, hostApiNetworkTransport);
   registerRemoteProviderProvisioningExecutor(services, remoteProviderProvisioningService);
   return services;

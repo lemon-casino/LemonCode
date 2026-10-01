@@ -3,7 +3,6 @@ import { createNodeContextSourceAdapter } from "@lcode/adapters/context";
 import { createNodeExecutionAdapter } from "@lcode/adapters/exec";
 import { createNodeFileSystemAdapter } from "@lcode/adapters/fs";
 import { createNodeWebFetchHttpClientAdapter } from "@lcode/adapters/http";
-import { createNodeSkillAdapter } from "@lcode/adapters/skills";
 import type { ConfigResult } from "@lcode/adapters/config";
 import { createInMemorySessionEventStore } from "@lcode/adapters/storage";
 import {
@@ -34,11 +33,11 @@ import {
   type SessionEventSink,
   type SessionId,
   type SessionStorePort,
+  type SkillPort,
   type ToolArtifactStorePort,
   type TraceContext,
   type WorkflowDefinition,
 } from "@lcode/contracts";
-import { collectDisabledPaths } from "../skill-command-overrides.js";
 import type { PrepareUserExecutionBoundary, LCodeAppOptions } from "./types.js";
 import { createWorkflowMethods, type WorkflowFacade } from "./workflow-methods.js";
 
@@ -66,6 +65,7 @@ interface CreateWorkflowFacadeDeps {
   runtimeConfig: AgentRuntimeConfig;
   sessionId: SessionId;
   sessionStore: SessionStorePort;
+  skillPort?: SkillPort;
   storageRoot: string;
   traceContext: TraceContext;
   workingDirectory: string;
@@ -130,6 +130,7 @@ export function createWorkflowFacade(deps: CreateWorkflowFacadeDeps): WorkflowFa
         };
       } finally {
         unsubscribe?.();
+        await childRuntime.closeBrowserSession();
       }
     },
   };
@@ -327,15 +328,8 @@ function createWorkflowChildRuntime(
       contextSourcePort:
         deps.appOptions.contextSourcePort ??
         createNodeContextSourceAdapter({ env: deps.appOptions.env }),
-      skillPort:
-        deps.configResult.config.features.skill && deps.configResult.config.skills.enabled
-          ? (deps.appOptions.skillPort ??
-            createNodeSkillAdapter({
-              extraRoots: deps.configResult.config.skills.roots,
-              // workflow 子 agent 复用同一套 skill 发现逻辑，也必须继承主配置里的禁用路径。
-              disabledPaths: collectDisabledPaths(deps.configResult.config.skillOverrides),
-            }))
-          : undefined,
+      // 复用主会话有效 SkillPort，保持插件根与用户禁用规则一致。
+      skillPort: deps.skillPort,
       mcpPort: deps.mcpPort,
       eventSink: deps.eventSink,
       modelFactory: deps.modelFactory,

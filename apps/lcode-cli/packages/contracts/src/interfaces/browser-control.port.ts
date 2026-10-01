@@ -535,6 +535,8 @@ export interface BrowserControlListInput {
 }
 
 export interface BrowserControlPort {
+  /** 父 runtime 派生受控子作用域；保留子资源身份，路由与撤销由端口所有者负责。 */
+  createChildScope?(input: { parentSessionId: string; sessionId: string }): BrowserControlPort;
   /** 只返回完成握手且当前 context 可达的 backend，不允许伪造 stub。 */
   list(input: BrowserControlListInput): Promise<BrowserBackendDescriptor[]>;
   execute(input: BrowserControlExecuteInput): Promise<BrowserCommandResult>;

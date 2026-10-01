@@ -282,6 +282,11 @@ export interface ExecutionPort {
     options?: ExecutionRunOptions,
   ): Promise<BackgroundExecutionStartResult>;
   getBackgroundTask?(taskId: string): Promise<BackgroundExecutionSnapshot | undefined>;
+  /** Wait for the underlying process to settle, including after cancellation was requested. */
+  waitForBackgroundTask?(
+    taskId: string,
+    options?: { signal?: AbortSignal },
+  ): Promise<BackgroundExecutionSnapshot | undefined>;
   /** 只读已登记的后台 Bash，固定读取文件尾部 8 KiB。 */
   readBackgroundBashOutput?(taskId: string, sessionId: string): Promise<BackgroundBashOutputResult>;
   cancelBackgroundTask?(taskId: string): Promise<BackgroundExecutionSnapshot | undefined>;

@@ -4,12 +4,14 @@ interface WorkspaceShellTargetTab {
   workspacePath: string;
   remoteSessionId?: string;
   workspaceIdentity?: string;
+  remoteTarget?: unknown;
 }
 
 interface RootWorkspaceShellTarget {
   workspaceShellPath: string | null;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
+  remoteTarget?: unknown;
 }
 
 function normalizeOptionalString(value?: string | null): string | undefined {
@@ -34,6 +36,8 @@ export function resolveRootWorkspaceShellTarget({
       workspaceShellPath: activeWorkspaceTab.workspacePath,
       workspaceIdentity: normalizeOptionalString(activeWorkspaceTab.workspaceIdentity),
       workspaceRemoteSessionId: normalizeOptionalString(activeWorkspaceTab.remoteSessionId),
+      // 恢复阶段可能尚无 identity/session；备份入口仍须保留远端标记，避免使用本机凭据。
+      remoteTarget: activeWorkspaceTab.remoteTarget,
     };
   }
 
@@ -58,5 +62,6 @@ export function resolveRootWorkspaceShellTarget({
     workspaceShellPath: activeWorkspacePath,
     workspaceIdentity,
     workspaceRemoteSessionId: normalizeOptionalString(coveredWorkspaceTab?.remoteSessionId),
+    remoteTarget: coveredWorkspaceTab?.remoteTarget,
   };
 }

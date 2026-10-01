@@ -13,7 +13,7 @@
 // **父 runtime** 调用（`AgentRuntime.createChildClientPorts`），`parentSessionId` 由父自己填，
 // 调用方给不了错的值。
 
-import type { PermissionBrokerPort, SessionId } from "../deps.js";
+import type { BrowserControlPort, PermissionBrokerPort, SessionId } from "../deps.js";
 import type { ProviderRuntimeHeadersPort } from "../types.js";
 import type { SubagentInteractionOriginContext } from "../../subagent/interaction-origin.js";
 import { createSubagentInteractionBroker } from "./subagent-interaction-broker.js";
@@ -22,6 +22,7 @@ import { createSubagentInteractionBroker } from "./subagent-interaction-broker.j
 export interface ClientFacingPorts {
   permissionBroker?: PermissionBrokerPort;
   providerRuntimeHeadersPort?: ProviderRuntimeHeadersPort;
+  browserControlPort?: BrowserControlPort;
 }
 
 /**
@@ -44,6 +45,15 @@ export function deriveChildClientPorts(
   context: ChildClientPortsContext & { parentSessionId: SessionId },
 ): ClientFacingPorts {
   return {
+    // Browser 的 tab owner 仍是 child；由宿主端口登记父子路由，不能只改写 sessionId。
+    ...(parent.browserControlPort?.createChildScope === undefined
+      ? {}
+      : {
+          browserControlPort: parent.browserControlPort.createChildScope({
+            parentSessionId: context.parentSessionId,
+            sessionId: context.childSessionId,
+          }),
+        }),
     ...(parent.permissionBroker === undefined
       ? {}
       : { permissionBroker: createSubagentInteractionBroker(parent.permissionBroker, context) }),

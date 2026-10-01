@@ -543,7 +543,7 @@ export interface IPlatformService {
   /** 打开系统多文件选择框，返回选中的文件路径；取消时返回空数组 */
   selectFiles?(): Promise<string[]>;
 
-  /** 使用宿主原生另存为对话框写入文件；普通 Web 端不实现 */
+  /** Desktop 使用原生另存为；Web 可仅接受字节并发起下载，不返回路径或落盘/取消确认。 */
   saveFile?(payload: SaveFileRequest): Promise<SaveFileResult>;
 
   /**

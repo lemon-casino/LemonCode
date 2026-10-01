@@ -68,6 +68,8 @@ export interface TaskNotificationRuntimeCommand extends RuntimeCommandBase {
   readonly source: "background_task";
   readonly originMeta?: BackgroundResultOriginMeta;
   readonly taskId?: string;
+  /** 入队时固定执行代次，不能消费时再读取可能已 resume 的 registry 条目。 */
+  readonly taskLifecycleId?: string;
   readonly text: string;
   readonly toolName?: string;
 }

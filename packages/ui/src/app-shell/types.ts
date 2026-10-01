@@ -123,6 +123,7 @@ export interface GitChangeSummary {
 export type WorkspaceMainView = "chat" | "automations" | "plugin-store";
 
 export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackService"> {
+  isNarrowWebLayout: boolean;
   workspaceReadOnlyReason?: string;
   workspaceMainView: WorkspaceMainView;
   pluginStoreOpenVersion: number;
@@ -234,7 +235,10 @@ export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackS
   handleRefreshGit: () => void;
   handleBrowserUrlChange: (tabId: string, url: string) => void;
   handleBrowserPageMetadataChange: (tabId: string, metadata: BrowserSidePaneMetadata) => void;
+  handleOpenSidebar: () => void;
+  handleCloseSidebar: () => void;
   handleToggleSidebar: () => void;
+  handleCloseSidePane: () => void;
   handleToggleTerminal: () => void;
   handleToggleBrowser: () => void;
   handleOpenBrowserTab: () => void;

@@ -30,11 +30,13 @@ export async function admitPrompt(
   const promotionLeaseOnly =
     options?.requireIdle === true &&
     this.foregroundPromotionLease !== undefined &&
+    this.foregroundPromotionLease.promotedInputId === options.inputId &&
     this.activeForegroundExecution === undefined &&
     this.runtimeCommandDrainActive === false &&
-    this.runtimeCommandQueue.hasPending() === false &&
     this.activeTurn === undefined &&
     this.activeTurnStartReservation === undefined;
+  // lease 已把普通 drain 阻挡在原消息之后；后台通知仍在 FIFO 中不是前台 busy。
+  // 只有匹配 source inputId 的提升可越过这些通知，不能让其他输入借用 lease。
   const busy = this.hasActiveOrQueuedTurnWork() && !promotionLeaseOnly;
   if (busy) {
     if (options?.requireIdle === true || options?.modelExecution !== undefined) {

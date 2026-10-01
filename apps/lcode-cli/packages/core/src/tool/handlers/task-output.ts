@@ -52,6 +52,19 @@ const taskOutputHandler: ToolHandler = async (input, context) => {
     );
   }
 
+  if (isRunningBackgroundAgent(initialTask)) {
+    // 后台 Agent 的结果由终态通知交付。此前 block=true 会把父 turn 卡在轮询中，
+    // 既延迟通知唤醒，也容易让模型超时后重复查询同一任务。
+    throwIfAborted(context.abortSignal);
+    return taskOutputResult("not_ready", {
+      task_id: initialTask.taskId,
+      task_type: initialTask.type,
+      status: initialTask.status,
+      description: initialTask.description,
+      output: "",
+    });
+  }
+
   if (!parsed.block) {
     if (isTaskActive(initialTask.status)) {
       return taskOutputResult("not_ready", await projectTask(initialTask, context));
@@ -192,6 +205,11 @@ function formatTaskOutputModelContent(output: unknown): string {
     if (task.error) {
       blocks.push(`<error>${task.error}</error>`);
     }
+    if (task.task_type === "local_agent" && parsed.retrieval_status === "not_ready") {
+      blocks.push(
+        "<next_action>Do not call TaskOutput again for this background agent. End your turn; its result will arrive in an automatic task notification.</next_action>",
+      );
+    }
   }
   return blocks.join("\n\n");
 }
@@ -250,7 +268,13 @@ function delay(milliseconds: number): Promise<void> {
 
 const isTaskActive = (status: string): boolean => status === "running" || status === "pending";
 
+const isRunningBackgroundAgent = (task: RuntimeTaskSnapshot): boolean =>
+  task.type === "local_agent" && task.isBackgrounded === true && isTaskActive(task.status);
+
 function markTaskNotified(task: RuntimeTaskSnapshot, context: ToolExecutionContext): void {
+  // 后台 Agent 即使被主动查询了终态快照，也仍需投递唯一的自动通知；
+  // 把它标成 notified 会让父 turn 永远等不到应到的结果。
+  if (task.type === "local_agent" && task.isBackgrounded === true) return;
   context.runtimeTaskRegistry?.update(task.taskId, (current) =>
     current.notified ? current : { ...current, notified: true },
   );

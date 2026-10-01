@@ -13,6 +13,8 @@ import type {
   V4AttachmentPutResult,
   V4ConversationFileChangesParams,
   V4ConversationFileChangesResult,
+  V4ConversationRowsRangeParams,
+  V4ConversationRowsRangeResult,
   V4ConversationFileRewindPreviewParams,
   V4ConversationFileRewindPreviewResult,
   V4ConversationWorkflowRunArtifactDataParams,
@@ -46,6 +48,8 @@ export interface V4ConversationContextValue {
   layer: SessionDataLayer;
   sendCommand(envelope: CommandEnvelope): Promise<CommandAck>;
   fileChanges(params: V4ConversationFileChangesParams): Promise<V4ConversationFileChangesResult>;
+  /** 只读历史范围，用于恢复已完成会话及其子任务的候选文件，不创建第二个订阅。 */
+  rowsRange?(params: V4ConversationRowsRangeParams): Promise<V4ConversationRowsRangeResult>;
   fileRewindPreview(
     params: V4ConversationFileRewindPreviewParams,
   ): Promise<V4ConversationFileRewindPreviewResult>;
@@ -134,6 +138,7 @@ function ReadyV4ConversationProvider({
       layer,
       sendCommand: (envelope: CommandEnvelope) => transport.sendCommand(envelope),
       fileChanges: (params: V4ConversationFileChangesParams) => transport.fileChanges(params),
+      rowsRange: (params: V4ConversationRowsRangeParams) => transport.rowsRange(params),
       fileRewindPreview: (params: V4ConversationFileRewindPreviewParams) =>
         transport.fileRewindPreview(params),
       workflowRunEvents: (params: V4ConversationWorkflowRunEventsParams) =>
@@ -298,6 +303,7 @@ function ReadyV4PaneConversationProvider({
         sendCommand: (envelope: CommandEnvelope) => lease.transport.sendCommand(envelope),
         fileChanges: (params: V4ConversationFileChangesParams) =>
           lease.transport.fileChanges(params),
+        rowsRange: (params: V4ConversationRowsRangeParams) => lease.transport.rowsRange(params),
         fileRewindPreview: (params: V4ConversationFileRewindPreviewParams) =>
           lease.transport.fileRewindPreview(params),
         workflowRunEvents: (params: V4ConversationWorkflowRunEventsParams) =>

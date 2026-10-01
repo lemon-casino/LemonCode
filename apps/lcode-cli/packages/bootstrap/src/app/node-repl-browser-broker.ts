@@ -167,10 +167,7 @@ function authorizeRequest(request: NodeReplBrowserBrokerRequest, input: { token:
   }
   // 共享 MCP 子进程不能再绑定某一个 session，但 top-level MCP metadata 也不能
   // 直接取得 Browser 权限。私有 socket token 先证明请求来自宿主启动的 node_repl；sessionId
-  // 随后由 BrowserControlPort 的 requireSession 做权威校验，subagent 在到达端口前直接拒绝。
-  if (request.runtimeScope === "subagent") {
-    throw new Error("Browser is not available in subagent");
-  }
+  // 随后由 BrowserControlPort 的活跃根/子作用域做权威校验，runtimeScope 本身不授予权限。
 }
 
 async function executeRequest(

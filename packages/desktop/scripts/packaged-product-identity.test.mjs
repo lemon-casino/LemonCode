@@ -69,6 +69,35 @@ test("六个正式构建目标解析为独立的 LCode bundle、可执行文件�
   assert.match(linux.artifactPaths.pacman, /linux-aarch64\.pkg\.tar\.zst$/u);
 });
 
+test("测试后端 Preview 包的身份校验定位 _TEST 安装包", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lcode-preview-identity-"));
+  const identity = desktopProductIdentities.preview;
+  const layout = resolvePackagedProductLayout({
+    os: "win",
+    arch: "x64",
+    distRoot: directory,
+    version: "3.16.5",
+    identity,
+    artifactSuffix: "_TEST",
+  });
+  try {
+    assert.match(layout.artifactPaths.nsis, /LCode Preview-3\.16\.5-win-x64_TEST\.exe$/u);
+    await writeFixtureFiles([layout.executablePath, ...Object.values(layout.artifactPaths)]);
+    const result = verifyPackagedProductIdentity({
+      os: "win",
+      arch: "x64",
+      distRoot: directory,
+      version: "3.16.5",
+      identity,
+      artifactSuffix: "_TEST",
+      readNativeIdentity: () => ({ productName: "LCode Preview" }),
+    });
+    assert.equal(result.layout.artifactPaths.nsis, layout.artifactPaths.nsis);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("实际产物身份校验覆盖 macOS Bundle ID、Windows ProductName 和 Linux 包名", async () => {
   const directory = await mkdtemp(join(tmpdir(), "lcode-product-identity-"));
   const identity = desktopProductIdentities.production;

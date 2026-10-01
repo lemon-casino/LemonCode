@@ -172,12 +172,17 @@ function stationStatus(
   entered: boolean,
 ): StepRunStatus | undefined {
   if (run === undefined) return undefined;
-  if (nodeStatus === "running" || nodeStatus === "failed") return nodeStatus;
+  if (nodeStatus === "running" || nodeStatus === "failed" || nodeStatus === "cancelled") {
+    return nodeStatus;
+  }
   const live = run.status === "running" || run.status === "pending";
   if (current && live) return "running";
-  // 当前阶段随 run 的终态收场：失败发生在这一站（不管它有没有节点）；cancelled 与节点的画法
-  // 一致，同样是 failed。
-  if (current) return run.status === "completed" ? "done" : "failed";
+  // 当前阶段随 run 的终态收场。带硬事实的成员（上面三种）已经返回过了，走到这里说明是控制流
+  // 停在这一站：按 run 的收场方式给词——被停下的 run 不是失败，它与节点结算的取消同一画法。
+  if (current) {
+    if (run.status === "completed") return "done";
+    return run.status === "stopped" ? "cancelled" : "failed";
+  }
   if (nodeStatus !== undefined) return nodeStatus;
   return entered ? "done" : "pending";
 }
@@ -435,7 +440,7 @@ export function pillActivity(
     first ??= step.label;
     const status = statuses[id];
     if (status === "running") running ??= step.label;
-    else if (status === "done" || status === "failed") done = step.label;
+    else if (status === "done" || status === "failed" || status === "cancelled") done = step.label;
   }
   return { asks, label: running ?? done ?? first ?? "", reads };
 }

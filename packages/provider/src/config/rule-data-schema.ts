@@ -101,9 +101,12 @@ export const providerTemplateConfigRuleSchema = providerTemplateDataSchema.exten
     }),
 });
 export const builtinProviderConfigRuleSchema = providerConfigRuleSchema.extend({
-  config: providerConfigDataSchema.omit({ personalModelIds: true, modelOrder: true }).extend({
-    group: providerGroupDataSchema.exclude(["standard-personal"]),
-  }),
+  // 排除属于个人成员命令；Built-in 不能借模板刷新写入或清空用户删除记录。
+  config: providerConfigDataSchema
+    .omit({ personalModelIds: true, excludedModelIds: true, modelOrder: true })
+    .extend({
+      group: providerGroupDataSchema.exclude(["standard-personal"]),
+    }),
 });
 const personalProviderConfigRuleSchema = providerConfigRuleSchema
   .extend({

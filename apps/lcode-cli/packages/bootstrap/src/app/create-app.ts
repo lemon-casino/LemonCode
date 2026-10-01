@@ -556,7 +556,23 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
     // runtime 与 expert workflow facade 都**共享**父会话这一份 factory——Registry 视图更新后
     // 新建的 Model 才看得到，child 不各自冻结一份。
     const modelFactory = providerModelRuntime.modelFactory;
+    // 子运行时必须复用完整的有效端口；重新扫描 config roots 会遗漏插件技能和灰度禁用项。
+    const skillPort =
+      configResult.config.features.skill && configResult.config.skills.enabled
+        ? (options.skillPort ??
+          createNodeSkillAdapter({
+            extraRoots: configResult.config.skills.roots,
+            extraResolvedRoots: pluginOutcome.skillRoots,
+            disabledPaths: [
+              ...collectDisabledPaths(configResult.config.skillOverrides),
+              ...(runtimeConfig.dynamicWorkflowEnabled === false
+                ? collectDynamicWorkflowDisabledSkillPaths(pluginOutcome.skillRoots)
+                : []),
+            ],
+          }))
+        : undefined;
     const scriptWorkflowFacade = createScriptWorkflowBridge({
+      skillPort,
       agentTelemetry: modelTelemetry.agentExecution,
       appOptions: options,
       appVersion,
@@ -656,6 +672,7 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
                     : { modelSelection: effectiveSelection }),
                 },
                 deps: {
+                  skillPort,
                   agentTelemetry: modelTelemetry.agentExecution,
                   appOptions: options,
                   appVersion,
@@ -798,22 +815,7 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
       artifactStore,
       contextSourcePort:
         options.contextSourcePort ?? createNodeContextSourceAdapter({ env: options.env }),
-      skillPort:
-        configResult.config.features.skill && configResult.config.skills.enabled
-          ? (options.skillPort ??
-            createNodeSkillAdapter({
-              extraRoots: configResult.config.skills.roots,
-              extraResolvedRoots: pluginOutcome.skillRoots,
-              disabledPaths: [
-                ...collectDisabledPaths(configResult.config.skillOverrides),
-                // 动态工作流灰度关闭时不提供 dynamic-workflows 技能：
-                // 十个工具都不在场，再让模型读到「怎么写工作流脚本」只会诱导它去调不存在的工具。
-                ...(runtimeConfig.dynamicWorkflowEnabled === false
-                  ? collectDynamicWorkflowDisabledSkillPaths(pluginOutcome.skillRoots)
-                  : []),
-              ],
-            }))
-          : undefined,
+      skillPort,
       mcpPort,
       eventSink: options.eventSink,
       modelFactory,
@@ -880,6 +882,7 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
       traceContext,
     });
     const workflowFacade = createWorkflowFacade({
+      skillPort,
       agentTelemetry: modelTelemetry.agentExecution,
       appOptions: options,
       appVersion,
@@ -930,6 +933,7 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
       prepareResume,
       projectID,
       providerRegistry: options.providerRegistry,
+      temporaryModelFactory: providerModelRuntime.temporaryModelFactory,
       resolveUiLocale: (locale) => resolveEffectiveLocale(locale, options),
       runtime,
       sessionId,

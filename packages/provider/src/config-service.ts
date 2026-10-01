@@ -320,6 +320,7 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
         membership?.inheritedModelIds ?? builtinProvider?.builtinModelIds ?? [],
         provider.personalModelIds ?? [],
         modelIds,
+        provider.excludedModelIds ?? [],
       );
       return {
         providers: current.providers.set(providerId, provider.withModelOrder(modelOrder)),
@@ -346,24 +347,35 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
       const builtinModelIds =
         membership?.inheritedModelIds ??
         resolveProviderBuiltinModelIds(lcodeBuiltin, current.providers, normalizedProviderId);
-      if (builtinModelIds.includes(normalizedModelId)) {
-        throw new Error(`Model 已存在: ${normalizedProviderId}/${normalizedModelId}`);
-      }
       const currentModelIds = provider.personalModelIds ?? [];
-      if (currentModelIds.includes(normalizedModelId)) {
-        throw new Error(`Model 已存在: ${normalizedProviderId}/${normalizedModelId}`);
+      const excludedModelIds = provider.excludedModelIds ?? [];
+      const inherited = builtinModelIds.includes(normalizedModelId);
+      // 重复添加是成员幂等操作，不覆盖既有参数、模式、启停或顺序；检测成功另发启用命令。
+      if (
+        !excludedModelIds.includes(normalizedModelId) &&
+        (inherited || currentModelIds.includes(normalizedModelId))
+      ) {
+        return current;
       }
+      const nextExcluded = excludedModelIds.filter((id) => id !== normalizedModelId);
+      const nextModelIds = inherited
+        ? currentModelIds.filter((id) => id !== normalizedModelId)
+        : [...currentModelIds, normalizedModelId];
       return {
         providers: current.providers.set(
           normalizedProviderId,
-          provider.withPersonalModelIds([...currentModelIds, normalizedModelId]).withModelOrder(
+          provider
+            .withPersonalModelIds(nextModelIds)
+            .withExcludedModelIds(nextExcluded)
             // 添加不能重新按成员名单排序，否则会丢掉用户已经保存的顺序。
-            normalizeModelOrder(
-              builtinModelIds,
-              [...currentModelIds, normalizedModelId],
-              provider.modelOrder ?? [],
+            .withModelOrder(
+              normalizeModelOrder(
+                builtinModelIds,
+                nextModelIds,
+                provider.modelOrder ?? [],
+                nextExcluded,
+              ),
             ),
-          ),
         ),
         models: current.models.setExact(
           normalizedProviderId,
@@ -397,8 +409,14 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
       // 继承归属保护适用于 Facade 和底层直接调用，不能只在有动态上下文时检查。
       if (builtinModelIds.includes(currentId))
         throw new Error(`Built-in Model 不能重命名: ${normalizedProviderId}/${currentId}`);
-      if (!provider?.personalModelIds?.includes(currentId)) {
+      if (
+        provider?.excludedModelIds?.includes(currentId) ||
+        !provider?.personalModelIds?.includes(currentId)
+      ) {
         throw new Error(`Personal Model 不存在: ${normalizedProviderId}/${currentId}`);
+      }
+      if (provider.excludedModelIds?.includes(nextId)) {
+        throw new Error(`Model 已删除，请显式添加: ${normalizedProviderId}/${nextId}`);
       }
       if (provider.personalModelIds.includes(nextId)) {
         throw new Error(`Model 已存在: ${normalizedProviderId}/${nextId}`);
@@ -417,7 +435,14 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
           normalizedProviderId,
           provider
             .withPersonalModelIds(modelIds)
-            .withModelOrder(normalizeModelOrder(builtinModelIds, modelIds, requestedOrder)),
+            .withModelOrder(
+              normalizeModelOrder(
+                builtinModelIds,
+                modelIds,
+                requestedOrder,
+                provider.excludedModelIds ?? [],
+              ),
+            ),
         ),
         models: current.models.renameExactModel(normalizedProviderId, currentId, nextId),
         providerOrder: current.providerOrder,
@@ -442,7 +467,11 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
       const inherited =
         membership?.inheritedModelIds ??
         resolveProviderBuiltinModelIds(builtin, current.providers, id);
-      if (!inherited.includes(model) && !provider?.personalModelIds?.includes(model)) {
+      // 继承身份保留已删除项；迟到启停不能只凭继承存在性使它重新进入列表。
+      if (
+        provider?.excludedModelIds?.includes(model) ||
+        (!inherited.includes(model) && !provider?.personalModelIds?.includes(model))
+      ) {
         throw new Error(`Model 不存在: ${id}/${model}`);
       }
       // 启停曾复用完整草稿保存，可能覆盖其他编辑或被固定配置完整性阻挡。
@@ -489,6 +518,13 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
         membership?.inheritedModelIds ??
         resolveProviderBuiltinModelIds(lcodeBuiltin, current.providers, normalizedProviderId);
       const builtinSet = new Set(builtinModelIds);
+      // 即便草稿拿到最新 revision，也必须显式 add 才能解除删除记录。
+      if (provider?.excludedModelIds?.includes(originalId)) {
+        throw new Error(`Model 不存在: ${normalizedProviderId}/${originalId}`);
+      }
+      if (provider?.excludedModelIds?.includes(nextId)) {
+        throw new Error(`Model 已删除，请显式添加: ${normalizedProviderId}/${nextId}`);
+      }
       if (originalId !== nextId && builtinSet.has(originalId)) {
         throw new Error(`Built-in Model 不能重命名: ${normalizedProviderId}/${originalId}`);
       }
@@ -520,7 +556,14 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
           normalizedProviderId,
           provider
             .withPersonalModelIds(modelIds)
-            .withModelOrder(normalizeModelOrder(builtinModelIds, modelIds, requestedOrder)),
+            .withModelOrder(
+              normalizeModelOrder(
+                builtinModelIds,
+                modelIds,
+                requestedOrder,
+                provider.excludedModelIds ?? [],
+              ),
+            ),
         );
         models = models.renameExactModel(normalizedProviderId, originalId, nextId);
       }
@@ -547,27 +590,33 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
     const builtin = await this.#lcodeBuiltinSource.read();
     return this.#updatePersonal((current) => {
       assertMembershipCurrent(membership, normalizedProviderId, current);
-      const provider = current.providers.get(normalizedProviderId);
+      const provider = writableProviderOverlay(builtin, current, normalizedProviderId);
       const inherited =
         membership?.inheritedModelIds ??
         resolveProviderBuiltinModelIds(builtin, current.providers, normalizedProviderId);
-      if (inherited.includes(normalizedModelId))
-        throw new Error(`Built-in Model 不能删除: ${normalizedProviderId}/${normalizedModelId}`);
-      if (!provider?.personalModelIds?.includes(normalizedModelId)) {
-        throw new Error(`Personal Model 不存在: ${normalizedProviderId}/${normalizedModelId}`);
+      if (
+        !inherited.includes(normalizedModelId) &&
+        !provider.personalModelIds?.includes(normalizedModelId)
+      ) {
+        throw new Error(`Model 不存在: ${normalizedProviderId}/${normalizedModelId}`);
       }
+      // 个人删除事实与继承来源分离；同步移除成员/顺序/精确规则，刷新不能再复活模型。
+      const personalModelIds = (provider.personalModelIds ?? []).filter(
+        (id) => id !== normalizedModelId,
+      );
+      const excludedModelIds = [...(provider.excludedModelIds ?? []), normalizedModelId];
       return {
         providers: current.providers.set(
           normalizedProviderId,
           provider
-            .withPersonalModelIds(
-              provider.personalModelIds.filter((candidate) => candidate !== normalizedModelId),
-            )
+            .withPersonalModelIds(personalModelIds)
+            .withExcludedModelIds(excludedModelIds)
             .withModelOrder(
               normalizeModelOrder(
                 inherited,
-                provider.personalModelIds.filter((candidate) => candidate !== normalizedModelId),
+                personalModelIds,
                 provider.modelOrder ?? [],
+                excludedModelIds,
               ),
             ),
         ),
@@ -640,13 +689,19 @@ function normalizePersonalProviderMembership(
   if (!personal) return undefined;
   const builtinModelIds = uniqueInOrder(inheritedModelIds ?? builtin?.builtinModelIds ?? []);
   const builtinSet = new Set(builtinModelIds);
+  const excludedIds = new Set(personal.excludedModelIds ?? []);
   const personalModelIds = uniqueInOrder(personal.personalModelIds ?? []).filter(
-    (modelId) => !builtinSet.has(modelId),
+    (modelId) => !builtinSet.has(modelId) && !excludedIds.has(modelId),
   );
   let normalized = personal.withPersonalModelIds(personalModelIds);
   if (personal.modelOrder !== undefined && personal.modelOrder !== null) {
     normalized = normalized.withModelOrder(
-      normalizeModelOrder(builtinModelIds, personalModelIds, personal.modelOrder),
+      normalizeModelOrder(
+        builtinModelIds,
+        personalModelIds,
+        personal.modelOrder,
+        personal.excludedModelIds ?? [],
+      ),
     );
   }
   return normalized;
@@ -701,8 +756,14 @@ function normalizeModelOrder(
   builtinModelIds: readonly ModelId[],
   personalModelIds: readonly ModelId[],
   requested: readonly ModelId[],
+  excludedModelIds: readonly ModelId[] = [],
 ): ModelId[] {
-  return [...resolveOwnedOrder(builtinModelIds, personalModelIds, requested)];
+  const excluded = new Set(excludedModelIds);
+  return resolveOwnedOrder(
+    builtinModelIds,
+    personalModelIds,
+    requested.map((id) => normalizeId("modelId", id)),
+  ).filter((id) => !excluded.has(id));
 }
 
 function nextPersonalProviderId(

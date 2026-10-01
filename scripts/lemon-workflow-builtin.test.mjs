@@ -96,6 +96,22 @@ test("lemon loads qualified skills and selects a review scope with actual change
   assert.match(prompt, /无.*差异.*不.*审查/u);
 });
 
+test("lemon applies Ponytail to engineering actors and Caveman only to user-facing summaries", async () => {
+  const command = await readRepoFile(
+    "apps/lcode-cli/packages/lemon-workflow-plugin/commands/lemon.md",
+  );
+
+  assert.match(command, /规划、编码、重构或代码审查 actor/u);
+  assert.match(command, /精简 Ponytail persona/u);
+  assert.match(command, /先理解.*完整.*路径.*复用.*最小正确实现/su);
+  assert.match(command, /不要为 Ponytail 单独创建 actor/u);
+  assert.match(command, /Caveman.*`log\(\)`.*最终短摘要/su);
+  assert.match(command, /typed result.*证据.*精确错误.*安全警告.*artifact.*保持完整/su);
+  assert.match(command, /用户要求详细报告.*正常完整表达/su);
+  assert.match(command, /不要为 Caveman 单独创建 actor/u);
+  assert.match(command, /不要.*Caveman proxy.*engine.*rewriter.*生命周期 hook/su);
+});
+
 test("built desktop agent discovers /lemon and all three skills without user installation", async (t) => {
   const platform = `${process.platform}-${process.arch}`;
   const builtCli = join(repoRoot, "packages/desktop/bundled-agents", platform, "glm/lcode.cjs");

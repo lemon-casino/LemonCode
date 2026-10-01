@@ -40,6 +40,17 @@ LCode 的源码构建、桌面安装包、CLI SEA 和远端 Agent 资源必须�
     为审查证据。若两种范围均无内容，或历史不足以比较，则报告确切原因，不派发
     审查代理、也不编造发现。用户明确指定未提交文件、某个提交或基准时，严格使用
     指定范围，不自动回退；所有代理和最终报告使用同一个已宣布的比较基准。
+11. Ponytail 是工程决策规则，不是独立专业角色。`/lemon` 在编排拓扑时避免无收益的
+    actor 和阶段；为任务本来需要的规划、编码、重构和代码审查 actor 写入精简 Ponytail
+    persona：先理解完整路径，再依次选择不新增、复用仓库现有实现、标准库或平台能力、
+    已安装依赖、最小正确实现。不得因精简而删除信任边界校验、防数据丢失错误处理、
+    安全、无障碍或用户明确要求的验证。不为 Ponytail 单独新建 actor，不复制完整
+    `SKILL.md` 到每个 prompt。
+12. Caveman 是用户可见表达规则，不是内部结果压缩器。它只约束简短 `log()` 进度和最终短摘要；
+    actor 之间的指令、typed result、证据、代码、命令、路径、数字、精确错误、测试结果、
+    安全警告、`report()` 项和 artifact 保持完整。用户要求详细报告，或精简会产生歧义时，
+    使用正常完整表达。不为 Caveman 单独新建 actor，不接入或启用 Caveman proxy、
+    engine、rewriter 或生命周期 hook。
 
 ## 状态所有者与边界
 
@@ -48,6 +59,8 @@ LCode 的源码构建、桌面安装包、CLI SEA 和远端 Agent 资源必须�
 - `DynamicWorkflowRunService`、run journal 与现有 workflow tools 继续唯一持有 run 状态、恢复判定、
   owner/lease、问题等待和后台追踪。
 - `/lemon` 只提供模型执行约束，不持久化 run，不复制 journal，不建立第二条恢复路径。
+- Ponytail 和 Caveman 的作用域由 `/lemon` 在生成的 script/persona 中表达；不属于
+  Runtime 可变状态，不新增运行时开关、队列、缓存或转发层。
 - Git 内容差异仍由现有 `git.*` workflow world reads 持有；命令仅选择审查基准，
   workflow 不保存第二份 Git 状态，也不修改共享 Git 原语的缺省语义。
 
@@ -57,6 +70,7 @@ sequenceDiagram
   participant Command as /lemon
   participant Tools as Workflow tools
   participant Runs as DynamicWorkflowRunService
+  participant Actor as Workflow actor
 
   User->>Command: 新任务或恢复请求
   alt 明确恢复现有 run
@@ -67,8 +81,12 @@ sequenceDiagram
     Command->>Tools: ResumeWorkflowRun(run_id)
     Tools->>Runs: 同一 run ID 恢复
   else 新任务
-    Command->>Tools: CreateWorkflow(script)
+    Note over Command: Ponytail 选择最小拓扑并写入工程 actor persona
+    Command->>Tools: CreateWorkflow(script + scoped personas)
     Tools->>Runs: 创建并追踪新 run
+    Runs->>Actor: ask（工程角色带 Ponytail 约束）
+    Actor-->>Runs: 完整 typed result / 证据 / 错误
+    Runs-->>User: Caveman 短进度/短摘要；完整 report/artifact
   end
 ```
 
@@ -113,3 +131,7 @@ prod/lockfile 双图校验，通过逐 workspace 查询降低同时打开的文�
    不混入已提交的变更；显式要求未提交差异时不自动回退。
 10. 只有生成文件的状态标记、无内容差异和无父提交时，报告无法审查的具体范围，
     不把空的 `git.changedFiles()` 当成“代码已审查、没有问题”。
+11. 编码任务只为本来需要的规划、实现和审查 actor 写入精简 Ponytail persona；不新增
+    Ponytail actor，不用完整 skill 文本膨胀每个子会话，且安全、错误处理、无障碍和要求的验证不被删除。
+12. Caveman 只精简用户可见的进度和短摘要；子 actor 之间的 typed result、证据、精确错误、安全警告、
+    详细报告与 artifact 不压缩。workflow 不新增 Caveman actor，不启动 proxy 或 hook。

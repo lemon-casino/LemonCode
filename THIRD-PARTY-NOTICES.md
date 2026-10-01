@@ -926,6 +926,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - await-to-js@3.0.0 — MIT
 
+- aws4fetch@1.0.20 — MIT
+
 - axios@1.13.6 — MIT
 
 - bail@2.0.2 — MIT
@@ -9033,6 +9035,35 @@ MIT © [Dima Grossman](http://blog.grossman.io) && Tomer Barnea
 [depstat-image]: https://david-dm.org/scopsy/await-to-js.svg?style=flat-square
 
 [download-badge]: http://img.shields.io/npm/dm/await-to-js.svg?style=flat-square
+
+````
+
+### Notice a9455541e8a4e4766d146a7552ac547c04bfb7a8718f5af516f1b9e346e82a77
+
+- aws4fetch@1.0.20: LICENSE
+
+
+
+````text
+Copyright 2018 Michael Hart (michael.hart.au@gmail.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of
+this software and associated documentation files (the "Software"), to deal in
+the Software without restriction, including without limitation the rights to
+use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+of the Software, and to permit persons to whom the Software is furnished to do
+so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
 
 ````
 

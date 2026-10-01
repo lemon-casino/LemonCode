@@ -82,3 +82,23 @@ packages/desktop/src/scheduler/schedulerProtocol.js.map
 # 品牌迁移一次性工具与运行时数据（工作流草稿/运行快照）不入库
 .zcode/
 .lcode/
+
+# 永久页面回归测试桩需覆盖用户全局 test/ 忽略，其他测试目录保持原规则。
+!/packages/web/test/
+/packages/web/test/*
+!/packages/web/test/fixtures/
+/packages/web/test/fixtures/*
+!/packages/web/test/fixtures/git-backup.html
+!/packages/web/test/fixtures/git-backup.tsx
+!/packages/web/test/fixtures/git-backup-service.ts
+!/packages/web/test/fixtures/git-backup-platform.ts
+!/packages/web/test/fixtures/model-provider-settings.html
+!/packages/web/test/fixtures/model-provider-settings.tsx
+!/packages/web/test/fixtures/model-provider-settings-service.ts
+
+# 模型成员生命周期回归需随功能提交，不受用户全局 test/ 规则影响。
+!/packages/provider/test/
+/packages/provider/test/*
+!/packages/provider/test/model-membership.test.ts
+!/packages/provider/test/model-membership-schema.test.ts
+!/packages/provider/test/model-membership.fixture.ts

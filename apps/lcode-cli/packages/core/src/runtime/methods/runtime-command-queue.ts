@@ -463,17 +463,14 @@ async function completeForegroundExecutionFailoverTarget(
       );
       return;
     } catch (error) {
-      this.logger?.warn(
-        "Execution failover foreground target cleanup failed; retry scheduled",
-        {
-          ...traceContextToLogContext(traceContext),
-          attempt,
-          errorMessage: error instanceof Error ? error.message : String(error),
-          event: "model.failover.foreground_target_cleanup_retry_scheduled",
-          foregroundExecutionId: state.foregroundExecutionId,
-          module: "core.runtime",
-        },
-      );
+      this.logger?.warn("Execution failover foreground target cleanup failed; retry scheduled", {
+        ...traceContextToLogContext(traceContext),
+        attempt,
+        errorMessage: error instanceof Error ? error.message : String(error),
+        event: "model.failover.foreground_target_cleanup_retry_scheduled",
+        foregroundExecutionId: state.foregroundExecutionId,
+        module: "core.runtime",
+      });
       await waitForRetry(FOREGROUND_EXECUTION_CLEANUP_RETRY_DELAY_MS);
     }
   }
@@ -525,4 +522,16 @@ export function stopActiveForegroundExecution(
 
 export function getActiveForegroundExecutionId(this: AgentRuntimeInternal): string | undefined {
   return this.activeForegroundExecution?.foregroundExecutionId;
+}
+
+/** promotion lease 已阻止其他 FIFO 项起跑；此处只读旧前台及其真实收尾，不把 lease 当成 busy。 */
+export function isForegroundExecutionIdleForPromotion(this: AgentRuntimeInternal): boolean {
+  // execution id 在 durable policy 清理前已移出实时目标；仅看 id 会提前宣告 idle，
+  // 随后的 requireIdle admission 又被仍在 finally 的 drain 拒绝。
+  return (
+    this.activeForegroundExecution === undefined &&
+    !this.runtimeCommandDrainActive &&
+    this.activeTurn === undefined &&
+    this.activeTurnStartReservation === undefined
+  );
 }

@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  MODEL_PROBE_CONCURRENCY,
+  filterModelIds,
+  normalizeModelIds,
   runCancelablePool,
-  runSequentialModelMutation,
   selectedModelIds,
 } from "./syncModelOperations.js";
 
@@ -16,39 +18,49 @@ test("selection snapshot keeps only checked rows in visible order", () => {
   assert.deepEqual(selectedModelIds(rows, new Set()), []);
 });
 
-test("one sync submits every selected model even when the parent updates between saves", async () => {
-  const selected = selectedModelIds(
-    ["remote-a", "remote-b", "remote-c"],
-    new Set(["remote-a", "remote-c"]),
-  );
-  const saved: string[] = [];
-  const progress: number[] = [];
-  await runSequentialModelMutation({
-    items: selected,
-    shouldContinue: () => true,
-    run: async (id) => {
-      saved.push(id);
-      await Promise.resolve();
-    },
-    onProgress: (completed) => progress.push(completed),
-  });
-  assert.deepEqual(saved, ["remote-a", "remote-c"]);
-  assert.deepEqual(progress, [0, 1, 2]);
+test("catalog and selection normalize duplicate IDs without merging API aliases", () => {
+  const rows = [" model-a ", "model-a", "", "model-b", "Model-A", "model-a-preview"];
+  assert.deepEqual(normalizeModelIds(rows), ["model-a", "model-b", "Model-A", "model-a-preview"]);
+  assert.deepEqual(selectedModelIds(rows, new Set(["model-a", "model-b"])), ["model-a", "model-b"]);
 });
 
-test("sequential sync stops scheduling after close", async () => {
-  let open = true;
-  const saved: string[] = [];
-  await runSequentialModelMutation({
-    items: ["a", "b", "c"],
-    shouldContinue: () => open,
+test("search trims queries and matches model IDs case-insensitively without changing IDs", () => {
+  const rows = ["deepseek-flash", "DeepSeek-V4-Pro", "gpt-5", "claude-model"];
+  assert.deepEqual(filterModelIds(rows, " DEEPseek "), ["deepseek-flash", "DeepSeek-V4-Pro"]);
+  assert.deepEqual(filterModelIds(rows, "V4"), ["DeepSeek-V4-Pro"]);
+  assert.deepEqual(filterModelIds(rows, "missing"), []);
+  assert.deepEqual(filterModelIds(rows, "  "), rows);
+});
+
+test("search leaves selection unchanged until selecting results replaces the scope", () => {
+  const rows = ["deepseek-flash", "deepseek-pro", "gpt-5"];
+  const selected = new Set(rows);
+  const matching = filterModelIds(rows, "deepseek");
+  assert.deepEqual(selectedModelIds(rows, selected), rows);
+  assert.deepEqual(selectedModelIds(rows, new Set(matching)), ["deepseek-flash", "deepseek-pro"]);
+  assert.deepEqual(filterModelIds(rows, ""), rows);
+});
+
+test("default probe pool starts four requests before any one finishes", async () => {
+  const started: string[] = [];
+  const releases: Array<() => void> = [];
+  let continuing = true;
+  const running = runCancelablePool({
+    items: ["a", "b", "c", "d", "e"],
+    concurrency: MODEL_PROBE_CONCURRENCY,
+    shouldContinue: () => continuing,
     run: async (id) => {
-      saved.push(id);
-      open = false;
+      started.push(id);
+      await new Promise<void>((resolve) => releases.push(resolve));
+      return id;
     },
-    onProgress: () => {},
+    onResult: () => {},
   });
-  assert.deepEqual(saved, ["a"]);
+  assert.deepEqual(started, ["a", "b", "c", "d"]);
+  continuing = false;
+  releases.forEach((release) => release());
+  await running;
+  assert.deepEqual(started, ["a", "b", "c", "d"]);
 });
 
 test("probe pool never exceeds the configured concurrency", async () => {

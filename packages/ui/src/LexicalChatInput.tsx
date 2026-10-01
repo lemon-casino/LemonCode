@@ -59,6 +59,11 @@ import { recordInputLag } from "./lib/uiPerfArmsTelemetry.js";
 import { navigatePromptHistory } from "./lib/promptHistory.js";
 import type { MentionItemData } from "@/mentions/mentionTypes.js";
 import type { ComposerMentionPrefill } from "@/store/lcodeSessionStoreTypes.js";
+import {
+  focusEditorIfVisible,
+  getProgrammaticEditorUpdateTags,
+} from "@/prompt-editor/editorFocus.js";
+import { isCoarseTouchDevice } from "@/lib/pickerFocus.js";
 
 /** 旧 useChatComposer 已删；粘贴事件收口为最小结构类型（ClipboardEvent 结构兼容）。 */
 export interface ChatComposerPasteEvent {
@@ -202,7 +207,7 @@ function replaceEditorText(editor: LexicalEditor, text: string) {
 
       root.getLastChild()?.selectEnd();
     },
-    { tag: PROGRAMMATIC_UPDATE_TAG },
+    { tag: getProgrammaticEditorUpdateTags(editor) },
   );
 }
 
@@ -242,7 +247,7 @@ function replaceEditorTextWithPluginMentions(editor: LexicalEditor, text: string
       }
       root.getLastChild()?.selectEnd();
     },
-    { tag: PROGRAMMATIC_UPDATE_TAG },
+    { tag: getProgrammaticEditorUpdateTags(editor) },
   );
 }
 
@@ -262,7 +267,7 @@ function replaceEditorWithMention(
       root.append(paragraph);
       trailing.selectEnd();
     },
-    { tag: PROGRAMMATIC_UPDATE_TAG },
+    { tag: getProgrammaticEditorUpdateTags(editor) },
   );
 }
 
@@ -309,14 +314,17 @@ function prependEditorMentionIfMissing(
       separator.selectEnd();
       inserted = true;
     },
-    { discrete: true, tag: PROGRAMMATIC_UPDATE_TAG },
+    { discrete: true, tag: getProgrammaticEditorUpdateTags(editor) },
   );
   return inserted;
 }
 
 function replaceEditorStateJson(editor: LexicalEditor, editorStateJson: string) {
   const editorState = editor.parseEditorState(editorStateJson);
-  editor.setEditorState(editorState, { tag: PROGRAMMATIC_UPDATE_TAG });
+  // setEditorState 仅接受单个 tag；放在同一 update 中保留程序化来源及 DOM 选区门禁。
+  editor.update(() => editor.setEditorState(editorState), {
+    tag: getProgrammaticEditorUpdateTags(editor),
+  });
 }
 
 function resetEditor(editor: LexicalEditor) {
@@ -350,7 +358,7 @@ function replaceEditorWithSkillMention(
       root.append(paragraph);
       root.getLastChild()?.selectEnd();
     },
-    { tag: PROGRAMMATIC_UPDATE_TAG },
+    { tag: getProgrammaticEditorUpdateTags(editor) },
   );
 }
 
@@ -378,7 +386,7 @@ function replaceEditorWithSlashCommandMention(
       root.append(paragraph);
       root.getLastChild()?.selectEnd();
     },
-    { tag: PROGRAMMATIC_UPDATE_TAG },
+    { tag: getProgrammaticEditorUpdateTags(editor) },
   );
 }
 
@@ -417,7 +425,7 @@ function appendEditorFileMention(
       );
       paragraph.selectEnd();
     },
-    { tag: PROGRAMMATIC_UPDATE_TAG },
+    { tag: getProgrammaticEditorUpdateTags(editor) },
   );
 }
 
@@ -439,7 +447,7 @@ function appendEditorPlainText(editor: LexicalEditor, text: string) {
       paragraph.append($createTextNode(text));
       paragraph.selectEnd();
     },
-    { tag: PROGRAMMATIC_UPDATE_TAG },
+    { tag: getProgrammaticEditorUpdateTags(editor) },
   );
 }
 
@@ -721,7 +729,7 @@ function KeyboardPlugin({
         () => {
           selectAfterPromptMentionById(mentionId);
         },
-        { tag: PROGRAMMATIC_UPDATE_TAG },
+        { tag: getProgrammaticEditorUpdateTags(editor) },
       );
     };
 
@@ -902,7 +910,7 @@ function E2ELexicalInputBridgePlugin({ inputTestId }: { inputTestId?: string }) 
     }
 
     const bridge = {
-      focus: () => editor.focus(),
+      focus: () => focusEditorIfVisible(editor),
       getEditorState: () => editor.getEditorState(),
       getText: () => getEditorMarkdown(editor.getEditorState()),
       setText: (text: string) => replaceEditorText(editor, text),
@@ -1175,7 +1183,7 @@ function LeadingChineseSlashAliasPlugin({ disabled }: { disabled?: boolean }) {
 
           selection.insertText(STANDARD_SLASH_TRIGGER);
         },
-        { tag: PROGRAMMATIC_UPDATE_TAG },
+        { tag: getProgrammaticEditorUpdateTags(editor) },
       );
     };
 
@@ -1251,7 +1259,7 @@ function insertEditorMention(
       target.insertNodes([$createPromptMentionNode(mention), trailing]);
       trailing.selectEnd();
     },
-    { tag: PROGRAMMATIC_UPDATE_TAG },
+    { tag: getProgrammaticEditorUpdateTags(editor) },
   );
 }
 
@@ -1269,7 +1277,7 @@ function EditorApiPlugin({
 
     editorApiRef.current = {
       clear: () => resetEditor(editor),
-      focus: () => editor.focus(),
+      focus: () => focusEditorIfVisible(editor),
       getEditorState: () => editor.getEditorState(),
       getMarkdown: () => getEditorMarkdown(editor.getEditorState()),
       getText: () => getEditorMarkdown(editor.getEditorState()),
@@ -1429,9 +1437,10 @@ export function LexicalChatInput({
   const handleSubmit = useCallback(
     (text: string) => {
       const submitResult = onSubmit(text);
-      requestAnimationFrame(() => {
-        editorApiRef?.current?.focus();
-      });
+      // 手机发送后不程序化重开键盘；显式输入本身仍保留现有焦点。
+      if (!isCoarseTouchDevice()) {
+        requestAnimationFrame(() => editorApiRef?.current?.focus());
+      }
       return submitResult;
     },
     [editorApiRef, onSubmit],
@@ -1458,7 +1467,8 @@ export function LexicalChatInput({
     <ContentEditable
       // mention node 使用固定行高的 inline-flex chip，普通正文如果继承浏览器 normal line-height，
       // 在 token 后继续输入文字时会按不同 line box 计算基线；这里显式收口正文行高。
-      className="min-h-10 max-h-40 overflow-y-auto text-ui-base leading-5 text-foreground outline-none"
+      // 兼容下限必须落在真实 editable；粗指针横屏仍需 16px，不能仅按 md 宽度判断。
+      className="min-h-10 max-h-40 overflow-y-auto text-ui-base [@media(hover:none)_and_(pointer:coarse)]:text-mobile-input-safe leading-5 text-foreground outline-none"
       data-testid={inputTestId}
       onFocus={onFocus}
       {...contentEditableProps}

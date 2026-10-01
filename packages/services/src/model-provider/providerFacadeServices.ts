@@ -71,7 +71,7 @@ export interface IProviderSettingsService {
     modelId: ModelId,
     enabled: boolean,
   ): Promise<ProviderSettingsView>;
-  /** 测试已经保存并进入目标 Environment Registry 的正式 Model。 */
+  /** 缺省测试已发布 Model；temporary 由目标 Environment 只读解析一次性 Model。 */
   testModelConnectivity(
     input: ProviderSettingsConnectivityRequest,
   ): Promise<ModelConnectivityResult>;
@@ -91,6 +91,7 @@ export interface ProviderSettingsConnectivityTestInput {
   readonly workspaceIdentity?: string;
   readonly providerId: ProviderId;
   readonly modelId: ModelId;
+  readonly mode?: "temporary";
 }
 
 export interface ProviderSettingsConnectivityRequest {
@@ -98,6 +99,7 @@ export interface ProviderSettingsConnectivityRequest {
   readonly workspaceIdentity?: string;
   readonly providerId: ProviderId;
   readonly modelId: ModelId;
+  readonly mode?: "temporary";
 }
 
 export type ProviderSettingsConnectivityTester = (
@@ -186,6 +188,7 @@ export function createProviderSettingsService(
       await facade.waitForProviderOperations(input.providerId);
       // 禁用对象仍存在于配置视图，但不进入执行 Registry；不能把未发布误报成配置丢失。
       // 只消费操作完成后的公共资格，不另查 Key、权益，也不替代目标 Environment 最终校验。
+      // 临时检测不能依赖由已发布模型反推的 provider.executable，否则空/全禁用列表永远无法检测。
       const provider = facade
         .getView()
         .providers.find((item) => item.providerId === input.providerId);
@@ -193,13 +196,17 @@ export function createProviderSettingsService(
       const unavailable =
         !provider || !provider.enabled
           ? "provider-unavailable"
-          : !model || !model.enabled || model.issues.length > 0
-            ? "model-unavailable"
-            : !provider.executable
+          : input.mode === "temporary"
+            ? provider.issues.length > 0
               ? "provider-unavailable"
-              : !model.executable
-                ? "model-unavailable"
-                : undefined;
+              : undefined
+            : !model || !model.enabled || model.issues.length > 0
+              ? "model-unavailable"
+              : !provider.executable
+                ? "provider-unavailable"
+                : !model.executable
+                  ? "model-unavailable"
+                  : undefined;
       if (unavailable) {
         return {
           success: false,
@@ -217,6 +224,7 @@ export function createProviderSettingsService(
         ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
         providerId: input.providerId,
         modelId: input.modelId,
+        ...(input.mode ? { mode: input.mode } : {}),
       });
     },
     listRemoteModels: async (providerId) => {

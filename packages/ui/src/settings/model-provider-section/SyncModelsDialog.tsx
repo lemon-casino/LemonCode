@@ -3,6 +3,7 @@ import { RefreshCwIcon, ShieldCheckIcon } from "lucide-react";
 import { TID_MODEL_PROVIDER_SYNC_MODELS_DIALOG } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
+import { Input } from "@/components/ui/input.js";
 import {
   Dialog,
   DialogContent,
@@ -13,22 +14,17 @@ import {
 } from "@/components/ui/dialog.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
+  MODEL_PROBE_CONCURRENCY,
+  filterModelIds,
+  normalizeModelIds,
   runCancelablePool,
-  runSequentialModelMutation,
   selectedModelIds,
+  type SyncModelProbeResult,
 } from "./syncModelOperations.js";
-
-const MODEL_PROBE_CONCURRENCY = 4;
 
 export interface SyncModelItem {
   readonly id: string;
   readonly enabled: boolean;
-}
-
-export interface SyncModelProbeResult {
-  readonly id: string;
-  readonly success: boolean;
-  readonly message?: string;
 }
 
 interface SyncModelsDialogProps {
@@ -36,29 +32,30 @@ interface SyncModelsDialogProps {
   configuredModels: readonly SyncModelItem[];
   onOpenChange: (open: boolean) => void;
   onLoadRemoteModels: () => Promise<readonly string[]>;
-  onAddModel: (id: string) => Promise<void>;
   onProbeModel: (id: string, signal: AbortSignal) => Promise<SyncModelProbeResult>;
 }
-
-type SyncOperation = "load" | "probe" | "sync";
 
 export function SyncModelsDialog(props: SyncModelsDialogProps) {
   const { intl } = useLCodeIntl();
   const [remoteIds, setRemoteIds] = useState<readonly string[]>([]);
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+  const [query, setQuery] = useState("");
   const [results, setResults] = useState<Record<string, SyncModelProbeResult>>({});
-  const [busy, setBusy] = useState<SyncOperation | null>(null);
+  const [checking, setChecking] = useState<ReadonlySet<string>>(new Set());
+  const [busy, setBusy] = useState<"load" | "probe" | null>(null);
   const [progress, setProgress] = useState<{ completed: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const operationIdRef = useRef(0);
   const operationAbortRef = useRef<AbortController | null>(null);
   const openRef = useRef(props.open);
   const loadRemoteModelsRef = useRef(props.onLoadRemoteModels);
+  const configuredModelsRef = useRef(props.configuredModels);
 
   useEffect(() => {
-    // 修复：保存模型会换掉父层目录回调；仅更新回调引用，不能重新加载并清空勾选/检测结果。
+    // 保存引起的父层投影刷新只更新引用，不能重新拉目录并清空勾选和检测结果。
     loadRemoteModelsRef.current = props.onLoadRemoteModels;
-  }, [props.onLoadRemoteModels]);
+    configuredModelsRef.current = props.configuredModels;
+  }, [props.onLoadRemoteModels, props.configuredModels]);
 
   const beginOperation = useCallback(() => {
     operationAbortRef.current?.abort();
@@ -80,21 +77,27 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
     operationAbortRef.current = null;
     operationIdRef.current += 1;
     setBusy(null);
-    setProgress(null);
     props.onOpenChange(false);
   }, [props.onOpenChange]);
 
   const load = useCallback(async () => {
     const { operationId } = beginOperation();
     setBusy("load");
+    setRemoteIds([]);
+    setSelected(new Set(normalizeModelIds(configuredModelsRef.current.map((model) => model.id))));
+    setResults({});
+    setChecking(new Set());
     setProgress(null);
     setError(null);
     try {
-      const ids = await loadRemoteModelsRef.current();
+      const ids = normalizeModelIds(await loadRemoteModelsRef.current());
       if (!isCurrentOperation(operationId)) return;
       setRemoteIds(ids);
-      setSelected(new Set(ids));
-      setResults({});
+      setSelected(
+        new Set(
+          normalizeModelIds([...ids, ...configuredModelsRef.current.map((model) => model.id)]),
+        ),
+      );
     } catch (cause) {
       if (isCurrentOperation(operationId)) {
         setError(cause instanceof Error ? cause.message : String(cause));
@@ -107,75 +110,76 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
   useEffect(() => {
     openRef.current = props.open;
     if (props.open) {
+      setQuery("");
       void load();
-      return;
     }
-    operationAbortRef.current?.abort();
-    operationAbortRef.current = null;
-    operationIdRef.current += 1;
+    return () => {
+      // 切换供应商会直接卸载组件；不能只在 open=false 时取消旧检测及其入库动作。
+      openRef.current = false;
+      operationAbortRef.current?.abort();
+      operationAbortRef.current = null;
+      operationIdRef.current += 1;
+    };
   }, [load, props.open]);
 
   const configured = useMemo(
-    () => new Map(props.configuredModels.map((model) => [model.id, model])),
+    () => new Map(props.configuredModels.map((model) => [model.id.trim(), model])),
     [props.configuredModels],
   );
   const rows = useMemo(
-    () => [...new Set([...remoteIds, ...configured.keys()])],
+    () => normalizeModelIds([...remoteIds, ...configured.keys()]),
     [configured, remoteIds],
   );
+  const selectedIds = selectedModelIds(rows, selected);
+  const visibleRows = useMemo(() => filterModelIds(rows, query), [rows, query]);
+  const searching = query.trim().length > 0;
 
-  const run = async (
-    operation: Exclude<SyncOperation, "load">,
-    action: (operationId: number, signal: AbortSignal) => Promise<void>,
-  ) => {
+  const probeSelected = async () => {
+    if (busy !== null || selectedIds.length === 0) return;
+    const ids = selectedIds;
     const { operationId, signal } = beginOperation();
-    setBusy(operation);
-    setProgress(null);
+    setBusy("probe");
+    setProgress({ completed: 0, total: ids.length });
     setError(null);
+    setResults((current) =>
+      Object.fromEntries(Object.entries(current).filter(([id]) => !selected.has(id))),
+    );
     try {
-      await action(operationId, signal);
-    } catch (cause) {
-      if (isCurrentOperation(operationId)) {
-        setError(cause instanceof Error ? cause.message : String(cause));
-      }
+      await runCancelablePool({
+        items: ids,
+        concurrency: MODEL_PROBE_CONCURRENCY,
+        shouldContinue: () => !signal.aborted && isCurrentOperation(operationId),
+        run: async (id): Promise<SyncModelProbeResult> => {
+          setChecking((current) => new Set([...current, id]));
+          try {
+            return await props.onProbeModel(id, signal);
+          } catch (cause) {
+            return {
+              id,
+              success: false,
+              message: cause instanceof Error ? cause.message : String(cause),
+            };
+          }
+        },
+        onResult: (result) => {
+          setResults((current) => ({ ...current, [result.id]: result }));
+          setChecking((current) => {
+            const next = new Set(current);
+            next.delete(result.id);
+            return next;
+          });
+          setProgress((current) =>
+            current ? { ...current, completed: current.completed + 1 } : current,
+          );
+        },
+      });
     } finally {
       if (isCurrentOperation(operationId)) {
         setBusy(null);
-        setProgress(null);
+        setChecking(new Set());
       }
     }
   };
-
-  const mutateSequentially = async (
-    ids: readonly string[],
-    operationId: number,
-    mutate: (id: string) => Promise<void>,
-  ) => {
-    await runSequentialModelMutation({
-      items: ids,
-      shouldContinue: () => isCurrentOperation(operationId),
-      run: mutate,
-      onProgress: (completed) => setProgress({ completed, total: ids.length }),
-    });
-  };
-
-  const probe = async (ids: readonly string[], operationId: number, signal: AbortSignal) => {
-    setProgress({ completed: 0, total: ids.length });
-    await runCancelablePool({
-      items: ids,
-      concurrency: MODEL_PROBE_CONCURRENCY,
-      shouldContinue: () => !signal.aborted && isCurrentOperation(operationId),
-      run: (id) => props.onProbeModel(id, signal),
-      onResult: (result) => {
-        setResults((current) => ({ ...current, [result.id]: result }));
-        setProgress((current) =>
-          current ? { ...current, completed: current.completed + 1 } : current,
-        );
-      },
-    });
-  };
-
-  const selectedIds = selectedModelIds(rows, selected);
 
   return (
     <Dialog
@@ -185,17 +189,33 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
         else close();
       }}
     >
-      <DialogContent className="max-w-2xl" data-testid={TID_MODEL_PROVIDER_SYNC_MODELS_DIALOG}>
-        <DialogHeader>
+      <DialogContent
+        className="flex max-h-[calc(100dvh-2rem)] flex-col sm:max-w-2xl"
+        data-testid={TID_MODEL_PROVIDER_SYNC_MODELS_DIALOG}
+      >
+        <DialogHeader className="shrink-0 pr-8">
           <DialogTitle>
             {intl.formatMessage({ id: "settings.modelProvider.syncModels" })}
           </DialogTitle>
           <DialogDescription>
-            {intl.formatMessage({ id: "settings.modelProvider.syncModelsDescription" })}
+            {intl.formatMessage(
+              { id: "settings.modelProvider.syncModelsDescription" },
+              {
+                concurrency: MODEL_PROBE_CONCURRENCY,
+              },
+            )}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <Input
+          type="search"
+          value={query}
+          placeholder={intl.formatMessage({ id: "settings.modelProvider.syncModelsSearch" })}
+          aria-label={intl.formatMessage({ id: "settings.modelProvider.syncModelsSearch" })}
+          onChange={(event) => setQuery(event.target.value)}
+          className="shrink-0 text-mobile-input-safe sm:text-ui-base"
+        />
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
           <Button
             type="button"
             variant="outline"
@@ -211,10 +231,14 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
           <Button
             type="button"
             variant="outline"
-            disabled={busy !== null || rows.length === 0}
-            onClick={() => setSelected(new Set(rows))}
+            disabled={busy !== null || visibleRows.length === 0}
+            onClick={() => setSelected(new Set(visibleRows))}
           >
-            {intl.formatMessage({ id: "settings.modelProvider.syncModelsSelectAll" })}
+            {intl.formatMessage({
+              id: searching
+                ? "settings.modelProvider.syncModelsSelectResults"
+                : "settings.modelProvider.syncModelsSelectAll",
+            })}
           </Button>
           <Button
             type="button"
@@ -224,6 +248,21 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
           >
             {intl.formatMessage({ id: "settings.modelProvider.syncModelsClearSelection" })}
           </Button>
+          <span className="text-ui-sm text-foreground-subtle">
+            {searching
+              ? `${intl.formatMessage(
+                  { id: "settings.modelProvider.syncModelsSearchResults" },
+                  { count: visibleRows.length },
+                )} · `
+              : null}
+            {intl.formatMessage(
+              { id: "settings.modelProvider.syncModelsSelection" },
+              {
+                selected: selectedIds.length,
+                total: rows.length,
+              },
+            )}
+          </span>
         </div>
 
         {progress ? (
@@ -232,22 +271,30 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
           </p>
         ) : null}
 
-        <div className="max-h-80 overflow-y-auto rounded-xl border border-border bg-surface">
-          {rows.length === 0 && busy !== "load" ? (
+        <div className="min-h-0 max-h-80 overflow-y-auto rounded-xl border border-border bg-surface">
+          {visibleRows.length === 0 && busy !== "load" ? (
             <div className="px-4 py-8 text-center text-ui-base text-foreground-subtle">
-              {intl.formatMessage({ id: "settings.modelProvider.syncModelsEmpty" })}
+              {intl.formatMessage({
+                id: searching
+                  ? "settings.modelProvider.syncModelsNoResults"
+                  : "settings.modelProvider.syncModelsEmpty",
+              })}
             </div>
           ) : null}
-          {rows.map((id) => {
+          {visibleRows.map((id) => {
             const model = configured.get(id);
             const result = results[id];
+            const pending = checking.has(id);
             return (
               <label
                 key={id}
-                className="flex min-h-10 items-center gap-3 border-b border-border px-3 py-2 last:border-b-0"
+                className="flex min-h-10 items-start gap-3 border-b border-border px-3 py-2 last:border-b-0"
               >
                 <Checkbox
+                  className="mt-0.5"
                   checked={selected.has(id)}
+                  disabled={busy !== null}
+                  aria-label={id}
                   onCheckedChange={(checked) =>
                     setSelected((current) => {
                       const next = new Set(current);
@@ -257,31 +304,44 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
                     })
                   }
                 />
-                <span className="min-w-0 flex-1 truncate font-mono text-ui-base">{id}</span>
-                <span className="text-ui-sm text-foreground-subtle">
-                  {intl.formatMessage({
-                    id: model
-                      ? model.enabled
-                        ? "settings.modelProvider.syncModelsConfigured"
-                        : "settings.modelProvider.syncModelsDisabled"
-                      : remoteIds.includes(id)
-                        ? "settings.modelProvider.syncModelsRemote"
-                        : "settings.modelProvider.syncModelsLocalOnly",
-                  })}
+                <span className="min-w-0 flex-1">
+                  <span className="block break-all font-mono text-ui-base">{id}</span>
+                  {result?.message ? (
+                    <span className="mt-1 block break-words text-ui-sm text-destructive">
+                      {result.message}
+                    </span>
+                  ) : null}
                 </span>
-                {result ? (
-                  <span
-                    className={
-                      result.success ? "text-ui-sm text-success" : "text-ui-sm text-destructive"
-                    }
-                  >
+                <span className="flex shrink-0 flex-col items-end gap-1">
+                  <span className="text-ui-sm text-foreground-subtle">
                     {intl.formatMessage({
-                      id: result.success
-                        ? "settings.modelProvider.syncModelsProbeSuccess"
-                        : "settings.modelProvider.syncModelsFailed",
+                      id: model
+                        ? model.enabled
+                          ? "settings.modelProvider.syncModelsConfigured"
+                          : "settings.modelProvider.syncModelsDisabled"
+                        : "settings.modelProvider.syncModelsRemote",
                     })}
                   </span>
-                ) : null}
+                  {pending ? (
+                    <span className="text-ui-sm text-foreground-subtle">
+                      {intl.formatMessage({ id: "settings.modelProvider.syncModelsChecking" })}
+                    </span>
+                  ) : result ? (
+                    <span
+                      className={
+                        result.success ? "text-ui-sm text-success" : "text-ui-sm text-destructive"
+                      }
+                    >
+                      {intl.formatMessage({
+                        id: result.success
+                          ? "settings.modelProvider.syncModelsProbeSuccess"
+                          : result.stage === "save"
+                            ? "settings.modelProvider.syncModelsSaveFailed"
+                            : "settings.modelProvider.syncModelsFailed",
+                      })}
+                    </span>
+                  ) : null}
+                </span>
               </label>
             );
           })}
@@ -299,26 +359,23 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
           </Button>
           <Button
             type="button"
-            variant="secondary"
             disabled={busy !== null || selectedIds.length === 0}
-            onClick={() =>
-              void run("probe", (operationId, signal) => probe(selectedIds, operationId, signal))
-            }
+            onClick={() => void probeSelected()}
           >
-            <ShieldCheckIcon data-icon="inline-start" />
-            {intl.formatMessage({ id: "settings.modelProvider.syncModelsProbe" })}
-          </Button>
-          <Button
-            type="button"
-            disabled={busy !== null || selectedIds.length === 0}
-            onClick={() =>
-              void run("sync", async (operationId, signal) => {
-                await mutateSequentially(selectedIds, operationId, props.onAddModel);
-                if (isCurrentOperation(operationId)) await probe(selectedIds, operationId, signal);
-              })
-            }
-          >
-            {intl.formatMessage({ id: "settings.modelProvider.syncModelsConfigure" })}
+            {busy === "probe" ? (
+              <RefreshCwIcon data-icon="inline-start" className="animate-spin" />
+            ) : (
+              <ShieldCheckIcon data-icon="inline-start" />
+            )}
+            {intl.formatMessage(
+              {
+                id:
+                  rows.length > 0 && selectedIds.length === rows.length
+                    ? "settings.modelProvider.syncModelsCheckAll"
+                    : "settings.modelProvider.syncModelsCheckSelected",
+              },
+              { count: selectedIds.length },
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,4 +1,4 @@
-import type { ComponentProps, ReactNode } from "react";
+import type { ComponentProps, ReactNode, RefObject } from "react";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -14,6 +14,9 @@ interface DesktopTopOverlayActionButtonProps {
   side?: ComponentProps<typeof ControlHintTooltip>["side"];
   buttonClassName?: string;
   testId?: string;
+  buttonRef?: RefObject<HTMLButtonElement | null>;
+  ariaExpanded?: boolean;
+  ariaControls?: string;
 }
 
 export function DesktopTopOverlayActionButton({
@@ -27,10 +30,14 @@ export function DesktopTopOverlayActionButton({
   side = "bottom",
   buttonClassName,
   testId,
+  buttonRef,
+  ariaExpanded,
+  ariaControls,
 }: DesktopTopOverlayActionButtonProps) {
   return (
     <ControlHintTooltip title={title} shortcut={shortcut} side={side}>
       <Button
+        ref={buttonRef}
         type="button"
         variant="ghost"
         size="icon-md"
@@ -39,6 +46,8 @@ export function DesktopTopOverlayActionButton({
         className={cn("[app-region:no-drag] transition-colors", buttonClassName)}
         data-testid={testId}
         aria-label={ariaLabel}
+        aria-expanded={ariaExpanded}
+        aria-controls={ariaControls}
         disabled={disabled}
         // 顶部浮层的新建任务入口会复用带可选 provider 参数的业务函数。
         // 如果直接交给 React onClick，MouseEvent 会被当成 provider 传下去，并在日志 IPC 克隆时抛错。

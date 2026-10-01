@@ -77,6 +77,7 @@ import type { ProjectMemoryRecallIndex } from "../memory/recall/index.js";
 import type { RuntimeCommandQueue } from "./command-queue.js";
 import type {
   ModelConnectivityTestInput,
+  ModelConnectivityTestOptions,
   WorkspaceGenerateTextInput,
   WorkspaceGenerateTextResult,
 } from "./methods/workspace-generate-text.js";
@@ -544,6 +545,8 @@ export interface AgentRuntime {
    */
   isSessionPersisted(): boolean;
   getActiveForegroundExecutionId(): string | undefined;
+  /** Core 前台及 durable command 收尾已释放；不把已持有的 promotion lease / 待处理通知当成 busy。 */
+  isForegroundExecutionIdleForPromotion(): boolean;
   getExecutionFailoverLineageId(): string | undefined;
   setExecutionFailoverTarget(input: SetExecutionFailoverTargetInput): Promise<"applied" | "stale">;
   getExecutionFailoverPolicyPort(): ExecutionFailoverPolicyPort;
@@ -787,7 +790,7 @@ export interface AgentRuntime {
   ): Promise<WorkspaceGenerateTextResult>;
   testModelConnectivity(
     input: ModelConnectivityTestInput,
-    options?: { abortSignal?: AbortSignal; traceContext?: TraceContext },
+    options?: ModelConnectivityTestOptions,
   ): Promise<void>;
   isProjectMemoryEnabled(): boolean;
   /** 缺省等待最多 60 秒；null 等待全部已调度提取结束，不设置 drain deadline。 */

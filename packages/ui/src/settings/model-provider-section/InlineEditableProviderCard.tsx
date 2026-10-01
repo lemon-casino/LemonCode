@@ -9,6 +9,10 @@ import {
 } from "@/lib/providerSettingsFormTypes.js";
 import type { ModelConnectivityResult } from "@lcode/shared";
 import type { ProviderApiKeyProbeResult } from "@lcode/services";
+import type {
+  ModelConnectivityOptions,
+  TestProviderModelConnectivity,
+} from "@/hooks/useModelProviders.js";
 import {
   isApiKeyAccess,
   type ProviderApiKey,
@@ -180,7 +184,7 @@ export function InlineEditableProviderCard({
   ) => Promise<unknown>;
   onDeletePersonalModel?: (providerId: string, modelId: string) => Promise<unknown>;
   onDelete?: () => void | Promise<void>;
-  onTestModel?: (providerId: string, modelId: string) => Promise<ModelConnectivityResult>;
+  onTestModel?: TestProviderModelConnectivity;
   onListRemoteModels?: (providerId: string) => Promise<readonly string[]>;
   onProbeApiKeys?: (
     providerId: string,
@@ -641,7 +645,7 @@ export function InlineEditableProviderCard({
   }, []);
 
   const handleTestModel = useCallback(
-    async (model: string): Promise<ModelConnectivityResult> => {
+    async (model: string, options?: ModelConnectivityOptions): Promise<ModelConnectivityResult> => {
       if (!onTestModel) {
         return Promise.resolve({
           success: false,
@@ -653,14 +657,16 @@ export function InlineEditableProviderCard({
       // revision 边界。现在只 flush 本卡片唯一的 Provider 草稿；Service 会等待同一 Provider
       // 操作队列和 Registry 刷新完成，再按正式 providerId/modelId 创建 Model。
       await commitPendingDraft("connectivity-test");
-      return onTestModel(provider.providerId, model);
+      return onTestModel(provider.providerId, model, options);
     },
     [commitPendingDraft, onTestModel, provider.providerId],
   );
-  const handleListRemoteModels = useCallback(() => {
+  const handleListRemoteModels = useCallback(async () => {
     if (!onListRemoteModels) throw new Error("当前设置入口未装配模型同步能力");
+    // 同步入口也必须等连接草稿保存，否则刚修改的地址或 Key 仍按旧配置拉取目录。
+    await commitPendingDraft("sync-models");
     return onListRemoteModels(provider.providerId);
-  }, [onListRemoteModels, provider.providerId]);
+  }, [commitPendingDraft, onListRemoteModels, provider.providerId]);
 
   const handleModelCommit = useCallback(
     async (
@@ -705,24 +711,21 @@ export function InlineEditableProviderCard({
       if (!model) {
         return;
       }
-      if (!model.builtin) {
-        const operation = async () => {
-          if (!onDeletePersonalModel) throw new Error("当前设置入口未装配 Personal Model 删除能力");
-          await onDeletePersonalModel(provider.providerId, model.modelId);
-        };
-        const saving = options?.silentFeedback
-          ? runSilentSaveOperation(operation)
-          : runSaveOperation(operation, { modelId: model.modelId, operation: "delete" });
-        await saving.catch((error) => {
-          logger.warn("[ModelProviderSection] 删除 Personal Model 失败", {
-            providerId: provider.providerId,
-            modelId: model.modelId,
-            error,
-          });
-          throw error;
+      const operation = async () => {
+        if (!onDeletePersonalModel) throw new Error("当前设置入口未装配 Personal Model 删除能力");
+        await onDeletePersonalModel(provider.providerId, model.modelId);
+      };
+      const saving = options?.silentFeedback
+        ? runSilentSaveOperation(operation)
+        : runSaveOperation(operation, { modelId: model.modelId, operation: "delete" });
+      await saving.catch((error) => {
+        logger.warn("[ModelProviderSection] 删除 Personal Model 失败", {
+          providerId: provider.providerId,
+          modelId: model.modelId,
+          error,
         });
-        return;
-      }
+        throw error;
+      });
     },
     [models, onDeletePersonalModel, provider.providerId, runSaveOperation, runSilentSaveOperation],
   );

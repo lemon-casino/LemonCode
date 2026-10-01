@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/dropdown-menu.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useServices } from "@/hooks/useServices.js";
+import type { ModelConnectivityOptions } from "@/hooks/useModelProviders.js";
 import { TECHNICAL_INPUT_ATTRIBUTES } from "@/lib/technicalInputAttributes.js";
 import { ModelRowInput } from "./ProviderFormControls.js";
 import { PresetProviderApiKeyBanner } from "./PresetProviderApiKeyBanner.js";
@@ -61,7 +62,9 @@ import { useProviderModelDraft } from "@/settings/model-provider-section/useProv
 import { ProviderLogo } from "@/settings/model-provider-section/ProviderLogo.js";
 import type { ProviderConfigObject } from "@lcode/provider";
 import { ProviderApiKeyManagerDialog } from "./ProviderApiKeyManagerDialog.js";
-import { SyncModelsDialog, type SyncModelProbeResult } from "./SyncModelsDialog.js";
+import { SyncModelsDialog } from "./SyncModelsDialog.js";
+import { RemoveInvalidModelsDialog } from "./RemoveInvalidModelsDialog.js";
+import { normalizeModelIds, probeAndSyncModel } from "./syncModelOperations.js";
 
 export { formatModelContextWindowLabel } from "@/lib/tokenNumberFormat.js";
 export {
@@ -390,7 +393,10 @@ export function ProviderModelsSection({
   providerEnabled?: boolean;
   providerAccess?: ProviderConfigObject["access"];
   models: ProviderSettingsFormModel[];
-  onTestModel?: (model: string) => Promise<ModelConnectivityResult>;
+  onTestModel?: (
+    model: string,
+    options?: ModelConnectivityOptions,
+  ) => Promise<ModelConnectivityResult>;
   onModelCommit: (
     originalModelId: string,
     model: ProviderSettingsFormModel,
@@ -414,6 +420,8 @@ export function ProviderModelsSection({
   const { providerSettingsService } = useServices();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
+  const [removeInvalidIds, setRemoveInvalidIds] = useState<readonly string[] | null>(null);
+  const modelDialogOpen = addDialogOpen || syncDialogOpen || removeInvalidIds !== null;
   const [addSaving, setAddSaving] = useState(false);
   const addSavingRef = useRef(false);
   const [addCommitError, setAddCommitError] = useState<string | null>(null);
@@ -518,35 +526,26 @@ export function ProviderModelsSection({
         },
         { silentFeedback: true },
       );
-      configuredModelIdsRef.current.add(id);
     },
     [onAddModel],
   );
 
   const probeSyncedModel = useCallback(
-    async (id: string, signal: AbortSignal): Promise<SyncModelProbeResult> => {
-      await addSyncedModel(id);
-      if (signal.aborted) return { id, success: false };
-      let result: ModelConnectivityResult;
-      try {
-        result = onTestModel
-          ? await onTestModel(id)
-          : { success: false, error: { message: "Connectivity test unavailable" } };
-      } catch (error) {
-        result = {
-          success: false,
-          error: { message: error instanceof Error ? error.message : String(error) },
-        };
-      }
-      if (!result.success && !signal.aborted) {
-        await onModelEnabledChange?.(id, false, { silentFeedback: true });
-      }
-      return {
+    (id: string, signal: AbortSignal) =>
+      probeAndSyncModel({
         id,
-        success: result.success,
-        ...(result.success ? {} : { message: result.error?.message }),
-      };
-    },
+        signal,
+        isConfigured: () => configuredModelIdsRef.current.has(id),
+        probe: async () => {
+          if (!onTestModel) throw new Error("Connectivity test unavailable");
+          return onTestModel(id, { mode: "temporary" });
+        },
+        add: () => addSyncedModel(id),
+        setEnabled: async (enabled) => {
+          if (!onModelEnabledChange) throw new Error("Model enable operation unavailable");
+          await onModelEnabledChange(id, enabled, { silentFeedback: true });
+        },
+      }),
     [addSyncedModel, onModelEnabledChange, onTestModel],
   );
 
@@ -556,13 +555,27 @@ export function ProviderModelsSection({
         <span className="text-ui-base text-foreground-subtle">
           {intl.formatMessage({ id: "settings.modelProvider.models" })}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="default"
+            data-testid="model-provider-remove-invalid-button"
+            disabled={!providerEnabled || !onTestModel || models.length === 0 || modelDialogOpen}
+            onClick={() => {
+              setRemoveInvalidIds(normalizeModelIds(models.map((model) => model.modelId)));
+            }}
+          >
+            <Trash2 data-icon="inline-start" aria-hidden="true" />
+            {intl.formatMessage({ id: "settings.modelProvider.removeInvalid.title" })}
+          </Button>
           {onListRemoteModels ? (
             <Button
               type="button"
               variant="outline"
               size="default"
               data-testid={TID_MODEL_PROVIDER_SYNC_MODELS_BUTTON}
+              disabled={modelDialogOpen}
               onClick={() => setSyncDialogOpen(true)}
             >
               <RefreshCwIcon data-icon="inline-start" aria-hidden="true" />
@@ -575,6 +588,7 @@ export function ProviderModelsSection({
             size="default"
             className="rounded-lg"
             data-testid={TID_MODEL_PROVIDER_ADD_MODEL_BUTTON}
+            disabled={modelDialogOpen}
             onClick={openAddDialog}
           >
             <Plus data-icon="inline-start" aria-hidden="true" />
@@ -582,6 +596,14 @@ export function ProviderModelsSection({
           </Button>
         </div>
       </div>
+      {removeInvalidIds !== null && onTestModel ? (
+        <RemoveInvalidModelsDialog
+          modelIds={removeInvalidIds}
+          onClose={() => setRemoveInvalidIds(null)}
+          onTestModel={onTestModel}
+          onDeleteModel={onDeleteModel}
+        />
+      ) : null}
       {onListRemoteModels ? (
         <SyncModelsDialog
           open={syncDialogOpen}
@@ -591,7 +613,6 @@ export function ProviderModelsSection({
           }))}
           onOpenChange={setSyncDialogOpen}
           onLoadRemoteModels={onListRemoteModels}
-          onAddModel={addSyncedModel}
           onProbeModel={probeSyncedModel}
         />
       ) : null}
@@ -636,7 +657,9 @@ export function ProviderModelsSection({
                       })
                     }
                     settingsRevision={settingsRevision}
-                    onDelete={!model.builtin ? () => onDeleteModel(model.modelId) : undefined}
+                    onDelete={() => {
+                      void Promise.resolve(onDeleteModel(model.modelId)).catch(() => undefined);
+                    }}
                     onEnabledChange={(enabled) => {
                       void Promise.resolve(onModelEnabledChange?.(model.modelId, enabled)).catch(
                         () => undefined,

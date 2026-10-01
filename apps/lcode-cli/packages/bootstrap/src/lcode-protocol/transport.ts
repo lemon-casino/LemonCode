@@ -41,6 +41,7 @@ interface LCodeProtocolNdjsonConnectionOptions {
 export class LCodeProtocolNdjsonConnection {
   private buffer = "";
   private processing: Promise<void> = Promise.resolve();
+  private readonly independentRequests = new Set<Promise<void>>();
   private lastQueuedMessageStarted: Promise<void> = Promise.resolve();
   private readonly closedPromise: Promise<void>;
   private resolveClosed!: () => void;
@@ -105,7 +106,8 @@ export class LCodeProtocolNdjsonConnection {
     this.notifyTransportClosed(new Error("LCode Protocol client connection closed"));
     // EOF 保留短请求半关闭响应，但挂起 handler 不能让进程永久保活。
     this.drainTimer = setTimeout(() => this.finish(), PROTOCOL_EOF_DRAIN_MS);
-    void this.processing.then(
+    // 探测不占普通队列，但半关闭仍需等其短响应；同一个 drain deadline 约束所有在途任务。
+    void Promise.all([this.processing, ...this.independentRequests]).then(
       () => this.finish(),
       (error: Error) => this.fail(error),
     );
@@ -176,6 +178,23 @@ export class LCodeProtocolNdjsonConnection {
         .catch((error: unknown) => {
           this.fail(error instanceof Error ? error : new Error(String(error)));
         });
+      return;
+    }
+    if (
+      "id" in message &&
+      "method" in message &&
+      message.method === lcodeProtocolMethods.providerTestModelConnectivity
+    ) {
+      // 只等到达时已有的配置屏障，不把网络探测结束串回 processing。
+      // 否则 UI 四路调度会被 stdio 再次串行化，后续配置保存也会被慢探测阻塞。
+      const barrier = this.processing;
+      const handling = barrier
+        .then(() => this.handleMessage(message))
+        .catch((error: unknown) => {
+          this.fail(error instanceof Error ? error : new Error(String(error)));
+        });
+      this.independentRequests.add(handling);
+      void handling.then(() => this.independentRequests.delete(handling));
       return;
     }
     let markStarted!: () => void;

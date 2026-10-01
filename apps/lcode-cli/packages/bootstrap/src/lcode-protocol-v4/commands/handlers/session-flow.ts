@@ -91,6 +91,7 @@ export async function enqueueDeferredInputForBusyWork(
 
 /** 等 idle 超时（active turn 的 finally 5s 内未释放锁）→ 放弃重发并报错。 */
 export class V4SessionIdleTimeoutError extends Error {
+  readonly reasonCode = "fault.command.sessionIdleTimeout";
   constructor(sessionId: string) {
     super(`v4 timed out waiting for session idle: ${sessionId}`);
     this.name = "V4SessionIdleTimeoutError";
@@ -396,7 +397,8 @@ async function waitForSessionIdle(record: V4SessionRecordView): Promise<void> {
   const deadline = Date.now() + IDLE_POLL_TIMEOUT_MS;
   while (
     record.activeAbortController !== undefined ||
-    record.app.runtime?.getActiveForegroundExecutionId?.() !== undefined
+    record.app.runtime?.getActiveForegroundExecutionId?.() !== undefined ||
+    record.app.runtime?.isForegroundExecutionIdleForPromotion?.() === false
   ) {
     if (Date.now() >= deadline) {
       throw new V4SessionIdleTimeoutError(record.app.sessionId);
@@ -423,16 +425,28 @@ export async function preemptActiveTurnAndWait(
     preserveQueueAutoDrainOnCancel: options.preserveQueueAutoDrainOnCancel === true,
     reason: options.abortMessage,
   });
+  // Core 与旧 compact/goal runner 的取消域可能同时存在；只取消 Core 会让外层
+  // controller 一直占住 idle barrier。取消两个已捕获的域，释放仍由各自 finally 完成。
+  bootstrapAbortController?.abort(new Error(options.abortMessage));
   if (bootstrapAbortController || runtimeStop?.kind === "stopped") {
     const pausedGoal = await pauseActiveGoal(host, record);
-    if (runtimeStop?.kind !== "stopped") {
-      bootstrapAbortController?.abort(new Error(options.abortMessage));
-    }
     if (pausedGoal) {
       await host.afterLegacyStateMutation?.(record, options.goalPausedMutationReason);
     }
   }
-  await waitForSessionIdle(record);
+  try {
+    await waitForSessionIdle(record);
+  } catch (error) {
+    host.logger?.warn?.("v4 queue handoff did not release execution authority", {
+      event: "v4.queue_handoff.await_idle_failed",
+      sessionId: record.app.sessionId,
+      bootstrapPending: record.activeAbortController !== undefined,
+      bootstrapAborted: record.activeAbortController?.signal.aborted ?? null,
+      foregroundExecutionId: record.app.runtime?.getActiveForegroundExecutionId?.() ?? null,
+      foregroundIdle: record.app.runtime?.isForegroundExecutionIdleForPromotion?.() ?? null,
+    });
+    throw error;
+  }
   return runtimeStop?.kind === "stopped";
 }
 

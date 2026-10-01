@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN" class="dark theme-zai-dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Git Backup UI Regression Fixture</title>
+    <style>
+      body {
+        margin: 0;
+        background: var(--color-background);
+        color: var(--color-foreground);
+      }
+      .fixture-page {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 24px;
+        min-width: 0;
+      }
+      .fixture-controls {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        padding: 16px 0;
+      }
+      .fixture-controls label {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+      }
+      .fixture-controls select {
+        max-width: 100%;
+        padding: 6px;
+        background: var(--color-input);
+        border: 1px solid var(--color-input-border);
+        border-radius: 4px;
+      }
+      .fixture-state {
+        border-block: 1px solid var(--color-border);
+        padding: 16px 0;
+        margin-bottom: 20px;
+      }
+      .fixture-state dl {
+        display: grid;
+        grid-template-columns: max-content minmax(0, 1fr);
+        gap: 8px 16px;
+      }
+      .fixture-state dd {
+        margin: 0;
+        overflow-wrap: anywhere;
+      }
+      @media (max-width: 480px) {
+        .fixture-page {
+          padding: 16px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="./git-backup.tsx"></script>
+  </body>
+</html>

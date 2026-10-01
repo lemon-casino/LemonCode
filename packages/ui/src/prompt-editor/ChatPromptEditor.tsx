@@ -62,6 +62,7 @@ export function ChatPromptEditor({
   dragAttachmentHint,
   topContent,
   leadingActions,
+  trailingActions,
   attachmentAction,
   betweenCancelAndSubmitAction,
   submitControl,
@@ -116,6 +117,8 @@ export function ChatPromptEditor({
   dragAttachmentHint?: string;
   topContent?: ReactNode;
   leadingActions?: ReactNode;
+  /** 配置控件属于非主动作滚动区，宽屏仍靠右；submitControl 只承载固定的发送/停止。 */
+  trailingActions?: ReactNode;
   attachmentAction?: {
     label: string;
     onSelect: () => void;
@@ -395,9 +398,17 @@ export function ChatPromptEditor({
           enableMentionPanel={enableMentionPanel}
           enableSlashPanel={enableSlashPanel}
         />
-        <div ref={toolbarRef} className="group/toolbar flex items-end gap-3">
-          <div className="flex min-w-0 flex-1 items-center" data-composer-leading-actions>
-            <div className="flex shrink-0 items-center gap-1" data-composer-leading-content>
+        <div
+          ref={toolbarRef}
+          className={cn("group/toolbar flex items-end", trailingActions ? "gap-1" : "gap-3")}
+        >
+          <div
+            className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain"
+            data-composer-leading-actions
+            role="group"
+            aria-label={intl.formatMessage({ id: "chat.composer.toolbarActions" })}
+          >
+            <div className="flex w-max min-w-full items-center gap-1" data-composer-leading-content>
               {hasActionMenu ? (
                 <ChatPromptActionMenu
                   actionMenuTitle={actionMenuTitle}
@@ -418,6 +429,14 @@ export function ChatPromptEditor({
               {leadingActions}
               {onModeSwitchContainerChange ? (
                 <span ref={onModeSwitchContainerChange} className="flex shrink-0 items-center" />
+              ) : null}
+              {trailingActions ? (
+                <span
+                  className="ml-auto flex shrink-0 items-center gap-1"
+                  data-composer-config-actions
+                >
+                  {trailingActions}
+                </span>
               ) : null}
             </div>
           </div>

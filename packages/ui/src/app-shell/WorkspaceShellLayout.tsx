@@ -1,5 +1,14 @@
 /* eslint-disable max-lines -- workspace shell 当前集中编排 sidebar、chat、terminal 和 browser pane 的布局联动，先保持单文件收口，避免为满足行数限制打散关键布局状态。*/
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { WorkspacePanelDrawer } from "@/app-shell/WorkspacePanelDrawer.js";
+import {
+  WorkspaceShellSurface,
+  WorkspaceSidebarPanel,
+  WorkspaceContentColumn,
+  WorkspaceBodyPanelGroup,
+  WorkspaceDrawerBackdrop,
+  WorkspaceTopNavigation,
+} from "@/app-shell/WorkspaceShellSurface.js";
 import type {
   CSSProperties,
   KeyboardEvent as ReactKeyboardEvent,
@@ -114,7 +123,6 @@ const CONVERSATION_AUTO_COLLAPSE_SIDEBAR_WIDTH_PX = 360;
 const CONVERSATION_AUTO_COLLAPSE_RESIZE_IDLE_MS = 300;
 // 性能修复：ResizablePanelGroup 收到深相等的新 panelIds 数组，
 // 会跟随 chat streaming render 重算布局上下文；固定数组语义上不会随消息变化。
-const WORKSPACE_BODY_PANEL_IDS = ["conversation-column", "browser"];
 const WORKSPACE_CONVERSATION_PANEL_IDS = ["conversation", "terminal"];
 
 type WorkspaceSidebarResizeSession = {
@@ -184,6 +192,7 @@ function persistWorkspaceSidebarWidthPx(widthPx: number) {
 }
 
 export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent({
+  isNarrowWebLayout,
   services,
   workspaceReadOnlyReason,
   workspaceMainView,
@@ -289,7 +298,10 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   handleRefreshGit,
   handleBrowserUrlChange,
   handleBrowserPageMetadataChange,
+  handleOpenSidebar,
+  handleCloseSidebar,
   handleToggleSidebar,
+  handleCloseSidePane,
   handleToggleTerminal,
   handleToggleBrowser,
   handleOpenBrowserTab,
@@ -327,9 +339,26 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   taskFindDialogProps,
 }: WorkspaceShellLayoutProps) {
   const { intl } = useLCodeIntl();
+  const sidebarDrawerId = useId();
+  const sidePaneDrawerId = useId();
+  const sidebarTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const sidePaneTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const isSidebarDrawerOpen = isNarrowWebLayout && isSidebarVisible;
+  const isSidePaneDrawerOpen = isNarrowWebLayout && workspaceMainView === "chat" && isSidePaneOpen;
+  const isPanelDrawerOpen = isSidebarDrawerOpen || isSidePaneDrawerOpen;
+  const closeNarrowSidebarAfterNavigation = useCallback(() => {
+    if (isNarrowWebLayout) handleCloseSidebar();
+  }, [handleCloseSidebar, isNarrowWebLayout]);
+  const onSidebarDrawerOpenChange = useCallback(
+    (open: boolean) => {
+      if (!open) handleCloseSidebar();
+    },
+    [handleCloseSidebar],
+  );
   const isOfficeMode = useIsOfficeMode();
   const baseServices = useBaseWorkspaceServices();
   const tabStoreApi = useTabStoreApi();
+  const isNativeDesktop = Boolean(isDesktop || isMacDesktop || isWindowsDesktop);
   const isLinuxDesktop = Boolean(isDesktop && !isMacDesktop && !isWindowsDesktop);
   // Windows/Linux 也需要外层留白，避免独立面板贴住窗口边缘；桌面统一使用 4px 间距。
   const hasDesktopPanelInset = isMacDesktop || isWindowsDesktop || isLinuxDesktop;
@@ -359,6 +388,12 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     : undefined;
   // v4 pane 绑定持久化（输出中刷新恢复）：renderer 刷新后恢复上次选中的
   // session；CLI/host 进程未死，pane 重订阅即拿 snapshot+续流。
+  useEffect(() => {
+    if (!isWorkspaceVisible && isNarrowWebLayout) {
+      // 设置层覆盖时关闭本地抽屉，避免返回后带着旧焦点约束；不关闭 tabs 或触发偏好写入。
+      handleCloseSidebar();
+    }
+  }, [handleCloseSidebar, isNarrowWebLayout, isWorkspaceVisible]);
   usePaneSessionPersistence({
     workspaceKey,
     activeSessionId: activeTaskId,
@@ -409,6 +444,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     panelRef: sidePanePanelRef,
     panelElementRef: sidePanePanelElementRef,
     isVisible: isSidePaneVisible,
+    onPanelResize: rememberSidePaneSize,
   } = useAnimatedResizablePanel({
     // 截图 surface 由 browser-use tab 自己的 fixed 承载层提供尺寸，不能再把整个右侧
     // ResizablePanel 撑开；否则自动化页会闪出空白的 tab 栏，且面板过渡期间 guest surface
@@ -417,6 +453,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     expandedSize: SIDE_PANE_DEFAULT_EXPANDED_SIZE,
     rememberExpandedSize: true,
     resizeOnInitialVisibleMount: false,
+    resizeEnabled: !isNarrowWebLayout,
   });
   const workspaceSessionActionDisabled =
     Boolean(workspaceReadOnlyReason) || reloadSessionDisabled || reloadSessionPending;
@@ -438,7 +475,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   }, [handleToggleSidebar, handleToggleSidePane, isSidebarVisible, isSidePaneOpen, workspaceKey]);
 
   useEffect(() => {
-    if (workspaceMainView !== "chat") {
+    if (workspaceMainView !== "chat" || isNarrowWebLayout) {
       return;
     }
 
@@ -523,7 +560,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       }
       window.removeEventListener("resize", handleWindowResize);
     };
-  }, [workspaceMainView]);
+  }, [isNarrowWebLayout, workspaceMainView]);
 
   useEffect(() => {
     workspaceSidebarPanelWidthPxRef.current = workspaceSidebarPanelWidthPx;
@@ -550,7 +587,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   );
 
   useEffect(() => {
-    if (readStoredWorkspaceSidebarWidthPx() !== null) {
+    if (isNarrowWebLayout || readStoredWorkspaceSidebarWidthPx() !== null) {
       return;
     }
 
@@ -575,7 +612,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     workspaceSidebarPanelWidthPxRef.current = migratedWidthPx;
     setWorkspaceSidebarPanelWidthPx(migratedWidthPx);
     persistWorkspaceSidebarWidthPx(migratedWidthPx);
-  }, []);
+  }, [isNarrowWebLayout]);
 
   const applyWorkspaceSidebarWidth = useCallback(
     (nextWidthPx: number, options: { persist: boolean }) => {
@@ -802,13 +839,17 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     },
     [workspaceIdentity, workspaceTabs],
   );
-  const openFileTreeRequest = useCallback((request: Omit<SidebarFileTreeOpenRequest, "id">) => {
-    fileTreeOpenRequestIdRef.current += 1;
-    setFileTreeOpenRequest({
-      id: fileTreeOpenRequestIdRef.current,
-      ...request,
-    });
-  }, []);
+  const openFileTreeRequest = useCallback(
+    (request: Omit<SidebarFileTreeOpenRequest, "id">) => {
+      fileTreeOpenRequestIdRef.current += 1;
+      setFileTreeOpenRequest({
+        id: fileTreeOpenRequestIdRef.current,
+        ...request,
+      });
+      if (isNarrowWebLayout) handleOpenSidebar();
+    },
+    [handleOpenSidebar, isNarrowWebLayout],
+  );
   const showChatMainView = useCallback(() => {
     onWorkspaceMainViewChange("chat");
   }, [onWorkspaceMainViewChange]);
@@ -827,8 +868,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       }
       showChatMainView();
       onCreateTask(request);
+      closeNarrowSidebarAfterNavigation();
     },
-    [onCreateTask, showChatMainView, workspaceReadOnlyReason],
+    [closeNarrowSidebarAfterNavigation, onCreateTask, showChatMainView, workspaceReadOnlyReason],
   );
   const shellWorkbenchBinding = useMemo<WorkbenchSessionBinding | null>(
     () =>
@@ -914,8 +956,17 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       } else {
         handleSelectTask(targetWorkspacePath, taskId, targetWorkspaceIdentity);
       }
+      closeNarrowSidebarAfterNavigation();
     },
-    [handleSelectTask, intl, shellWorkbenchBinding, showChatMainView, tabStoreApi, workspaceTabs],
+    [
+      closeNarrowSidebarAfterNavigation,
+      handleSelectTask,
+      intl,
+      shellWorkbenchBinding,
+      showChatMainView,
+      tabStoreApi,
+      workspaceTabs,
+    ],
   );
   // 中枢直接启动 accepted 后切到新会话（run 卡已在顶部）：复用运行历史那条导航，
   // target 恒带工作流所属项目坐标（不变式 7），remoteSessionId 决定连接 endpoint。
@@ -1093,9 +1144,22 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
         createSource,
         localProjectId,
       );
+      closeNarrowSidebarAfterNavigation();
     },
-    [handleStartDraftInWorkspace, showChatMainView],
+    [closeNarrowSidebarAfterNavigation, handleStartDraftInWorkspace, showChatMainView],
   );
+  const handleCreateConversationTaskFromSidebar = useCallback(() => {
+    (onCreateConversationTask ?? handleCreateTaskInChat)();
+    closeNarrowSidebarAfterNavigation();
+  }, [closeNarrowSidebarAfterNavigation, handleCreateTaskInChat, onCreateConversationTask]);
+  const handleOpenAutomationsFromSidebar = useCallback(() => {
+    handleOpenAutomations();
+    closeNarrowSidebarAfterNavigation();
+  }, [closeNarrowSidebarAfterNavigation, handleOpenAutomations]);
+  const handleOpenPluginsFromSidebar = useCallback(() => {
+    handleOpenPluginStore();
+    closeNarrowSidebarAfterNavigation();
+  }, [closeNarrowSidebarAfterNavigation, handleOpenPluginStore]);
   const handleCreateProjectDraft = useCallback(
     (path: string, identity?: string) =>
       handleStartDraftInWorkspaceInChat(path, identity, undefined, "project"),
@@ -1426,8 +1490,13 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           desktopWindowChromeState?.supportsNativeRoundedCorners ?? null,
       })}
       showWindowControls={usesInlineWindowControls}
-      isVisible={isSidePaneVisible}
-      onCloseSidePane={handleToggleSidePane}
+      isVisible={isNarrowWebLayout ? isSidePaneDrawerOpen : isSidePaneVisible}
+      isNarrowWebLayout={isNarrowWebLayout}
+      isWorkspaceVisible={isWorkspaceVisible}
+      drawerId={sidePaneDrawerId}
+      drawerTriggerRef={sidePaneTriggerRef}
+      drawerFallbackFocusRef={sidebarTriggerRef}
+      onCloseSidePane={handleCloseSidePane}
       toggleSidePaneShortcutLabel={toggleSidePaneShortcutLabel}
       sidePaneState={sidePaneState}
       recentClosedSidePaneTabs={recentClosedSidePaneTabs}
@@ -1442,6 +1511,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       activeGitSourceId={activeGitSourceId}
       panelRef={sidePanePanelRef}
       panelElementRef={sidePanePanelElementRef}
+      onPanelResize={rememberSidePaneSize}
       browserNavigationRequest={browserNavigationRequest}
       browserRestoreUrls={browserRestoreUrls}
       screenshotSurfaceRequest={screenshotSurfaceRequest}
@@ -1487,13 +1557,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     updateState?.kind === "update-available" ||
     updateState?.kind === "download-progress" ||
     updateState?.kind === "update-downloaded";
-  // Draft 之前维护一套独立轻量 header，导致 side pane、caption 安全区和拖拽入口
-  // 与 Task Header 分叉。桌面端统一复用 WorkspaceHeader，只由 variant 裁剪 task 专属内容；
-  // 手机远控无 active task 时仍不渲染桌面 chrome，继续遵守 replayable overlay 边界。
-  const shouldRenderMainViewHeader =
-    workspaceMainView !== "automations" && workspaceMainView !== "plugin-store";
+  // 草稿和已有任务复用同一 Header，Web 草稿也保留面板/终端/帮助入口；不借布局裁剪能力。
   const shouldRenderWorkspaceHeader =
-    shouldRenderMainViewHeader && (activeTaskId !== null || isDesktop);
+    workspaceMainView !== "automations" && workspaceMainView !== "plugin-store";
   // ErrorBoundary resetKeys 的数组如果每次 render 都重新创建，
   // 即使 workspace/task 没变化也会在 React DevTools Components 轨道里持续表现为子树 props 变化。
   const workspaceOnlyResetKeys = useMemo(() => [workspaceKey], [workspaceKey]);
@@ -1515,99 +1581,99 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       isWindowsDesktop={isWindowsDesktop}
       headerTestId={TID_APP_HEADER}
     >
-      <div
+      <WorkspaceShellSurface
         ref={workspaceShellRef}
-        data-workspace-shell="true"
         style={workspaceShellSplitStyle}
-        className={cn(
-          "relative flex h-full min-h-0 w-full overflow-hidden",
-          // 窗口原生 resize 时，外层 react-resizable-panels 会把每一帧
-          // 都写进 layout store，连带侧栏 tooltip/menu 子树反复 commit。这里改成
-          // CSS 变量驱动的专用 split，普通窗口 resize 只走浏览器布局，不触发 React 状态。
-        )}
+        isNarrowWebLayout={isNarrowWebLayout}
+        isNativeDesktop={isNativeDesktop}
       >
-        <div
+        <WorkspaceSidebarPanel
           ref={workspaceSidebarPanelElementRef}
-          data-panel=""
-          data-workspace-sidebar-panel="true"
           id="sidebar"
-          className={cn(
-            "w-[var(--workspace-sidebar-panel-width)] max-w-[50%] flex-none overflow-hidden duration-200 ease-out transition-[width,opacity] data-[workspace-sidebar-resizing=true]:transition-opacity",
-            // 拖动侧栏宽度时如果继续过渡 width，会让指针移动和实际宽度之间产生滞后。
-            // 拖拽 active 通过 DOM 标记切 transition，避免 pointerdown/up 为了切 class 重渲染整棵 workspace。
-            isSidebarPanelVisible ? "opacity-100" : "pointer-events-none opacity-0",
-          )}
+          isNarrowWebLayout={isNarrowWebLayout}
+          open={isSidebarPanelVisible}
         >
-          <aside
-            ref={sidebarContainerRef}
-            className="h-full overflow-hidden select-none"
-            aria-hidden={!isSidebarPanelVisible}
+          <WorkspacePanelDrawer
+            id={sidebarDrawerId}
+            enabled={isNarrowWebLayout && isWorkspaceVisible}
+            open={isSidebarPanelVisible}
+            label={intl.formatMessage({ id: "workspaceSidebar.navigation" })}
+            closeLabel={intl.formatMessage({ id: "common.close" })}
+            onOpenChange={onSidebarDrawerOpenChange}
+            triggerRef={sidebarTriggerRef}
           >
-            <ScopedErrorBoundary
-              scope="workspace-sidebar"
-              resetKeys={workspaceOnlyResetKeys}
-              variant="panel"
-              className="h-full"
+            <aside
+              ref={sidebarContainerRef}
+              className="h-full overflow-hidden select-none"
+              aria-hidden={!isSidebarPanelVisible}
             >
-              {/* session workbench groups：桌面和普通 web app 可分屏。 */}
-              <V4SplitPaneEntryProvider
-                enabled
-                canOpenSession={canOpenSessionInSplitPane}
-                onOpenSession={handleOpenSessionInSplitPane}
+              <ScopedErrorBoundary
+                scope="workspace-sidebar"
+                resetKeys={workspaceOnlyResetKeys}
+                variant="panel"
+                className="h-full"
               >
-                <WorkflowRunOpenProvider onOpenRun={handleOpenSidebarWorkflowRun}>
-                  <WorkspaceSidebar
-                    workspacePath={workspaceAbsPath}
-                    workspaceRemoteSessionId={workspaceRemoteSessionId}
-                    activePreviewPath={activePreviewPath}
-                    onSelectTask={handleSelectTaskInChat}
-                    onStartDraftInWorkspace={handleCreateProjectDraft}
-                    onOpenCodeViewer={handleOpenCodeViewer}
-                    onOpenBrowserUrl={handleOpenBrowserUrl}
-                    fileTreeOpenRequest={fileTreeOpenRequest}
-                    onCreateTask={handleCreateTaskInChat}
-                    onCreateConversationTask={onCreateConversationTask ?? handleCreateTaskInChat}
-                    onOpenFolderFromWorkspaceMenu={onOpenWorkspace}
-                    onOpenRemoteWorkspace={onOpenRemoteWorkspace}
-                    theme={theme}
-                    onConnectRemote={onConnectRemote}
-                    onSelectRemoteProject={onSelectRemoteProject}
-                    onCancelRemoteProject={onCancelRemoteProject}
-                    onReconnectRemoteWorkspace={onReconnectRemoteWorkspace}
-                    reconnectingRemoteWorkspaceKeys={reconnectingRemoteWorkspaceKeys}
-                    remoteWorkspaceErrorByWorkspaceKey={remoteWorkspaceErrorByWorkspaceKey}
-                    reconnectingRemoteWorkspaceLogsByWorkspaceKey={
-                      reconnectingRemoteWorkspaceLogsByWorkspaceKey
-                    }
-                    onLogout={onLogout}
-                    onLogin={onLogin}
-                    user={user}
-                    isDesktop={isDesktop}
-                    isMacDesktop={isMacDesktop}
-                    isWindowsDesktop={isWindowsDesktop}
-                    isSidebarVisible={isSidebarVisible}
-                    onToggleSidebar={handleToggleSidebar}
-                    toggleSidebarShortcutLabel={toggleSidebarShortcutLabel}
-                    canGoBack={canPrimaryNavigationBack}
-                    canGoForward={canTaskNavForward}
-                    onGoBack={primaryNavigationBack}
-                    onGoForward={handleTaskNavForward}
-                    goBackShortcutLabel={goBackShortcutLabel}
-                    goForwardShortcutLabel={goForwardShortcutLabel}
-                    onOpenCommandCenter={handleOpenCommandCenter}
-                    onOpenAutomations={handleOpenAutomations}
-                    automationsActive={workspaceMainView === "automations"}
-                    onOpenPluginStore={handleOpenPluginStore}
-                    pluginStoreActive={workspaceMainView === "plugin-store"}
-                    onFileTreeOpenChange={setIsSidebarFileTreeOpen}
-                  />
-                </WorkflowRunOpenProvider>
-              </V4SplitPaneEntryProvider>
-            </ScopedErrorBoundary>
-          </aside>
-        </div>
+                {/* session workbench groups：桌面和普通 web app 可分屏。 */}
+                <V4SplitPaneEntryProvider
+                  enabled
+                  canOpenSession={canOpenSessionInSplitPane}
+                  onOpenSession={handleOpenSessionInSplitPane}
+                >
+                  <WorkflowRunOpenProvider onOpenRun={handleOpenSidebarWorkflowRun}>
+                    <WorkspaceSidebar
+                      workspacePath={workspaceAbsPath}
+                      workspaceRemoteSessionId={workspaceRemoteSessionId}
+                      activePreviewPath={activePreviewPath}
+                      onSelectTask={handleSelectTaskInChat}
+                      onStartDraftInWorkspace={handleCreateProjectDraft}
+                      onOpenCodeViewer={handleOpenCodeViewer}
+                      onOpenBrowserUrl={handleOpenBrowserUrl}
+                      fileTreeOpenRequest={fileTreeOpenRequest}
+                      onCreateTask={handleCreateTaskInChat}
+                      onCreateConversationTask={handleCreateConversationTaskFromSidebar}
+                      onOpenFolderFromWorkspaceMenu={onOpenWorkspace}
+                      onOpenRemoteWorkspace={onOpenRemoteWorkspace}
+                      theme={theme}
+                      onConnectRemote={onConnectRemote}
+                      onSelectRemoteProject={onSelectRemoteProject}
+                      onCancelRemoteProject={onCancelRemoteProject}
+                      onReconnectRemoteWorkspace={onReconnectRemoteWorkspace}
+                      reconnectingRemoteWorkspaceKeys={reconnectingRemoteWorkspaceKeys}
+                      remoteWorkspaceErrorByWorkspaceKey={remoteWorkspaceErrorByWorkspaceKey}
+                      reconnectingRemoteWorkspaceLogsByWorkspaceKey={
+                        reconnectingRemoteWorkspaceLogsByWorkspaceKey
+                      }
+                      onLogout={onLogout}
+                      onLogin={onLogin}
+                      user={user}
+                      isDesktop={isDesktop}
+                      isMacDesktop={isMacDesktop}
+                      isWindowsDesktop={isWindowsDesktop}
+                      isSidebarVisible={isSidebarVisible}
+                      onToggleSidebar={handleToggleSidebar}
+                      toggleSidebarShortcutLabel={toggleSidebarShortcutLabel}
+                      canGoBack={canPrimaryNavigationBack}
+                      canGoForward={canTaskNavForward}
+                      onGoBack={primaryNavigationBack}
+                      onGoForward={handleTaskNavForward}
+                      goBackShortcutLabel={goBackShortcutLabel}
+                      goForwardShortcutLabel={goForwardShortcutLabel}
+                      onOpenCommandCenter={handleOpenCommandCenter}
+                      onOpenAutomations={handleOpenAutomationsFromSidebar}
+                      automationsActive={workspaceMainView === "automations"}
+                      onOpenPluginStore={handleOpenPluginsFromSidebar}
+                      pluginStoreActive={workspaceMainView === "plugin-store"}
+                      onFileTreeOpenChange={setIsSidebarFileTreeOpen}
+                      hideTopSpacer={!isNativeDesktop}
+                    />
+                  </WorkflowRunOpenProvider>
+                </V4SplitPaneEntryProvider>
+              </ScopedErrorBoundary>
+            </aside>
+          </WorkspacePanelDrawer>
+        </WorkspaceSidebarPanel>
 
-        {isSidebarVisible ? (
+        {isSidebarVisible && !isNarrowWebLayout ? (
           <div
             role="separator"
             tabIndex={0}
@@ -1631,26 +1697,21 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           />
         ) : null}
         {/* 右侧主工作区：上方 header，下面左侧会话+终端，右侧共享 browser/code-viewer 槽位 */}
-        <div
-          data-panel=""
+        <WorkspaceContentColumn
           id="content"
-          className={cn(
-            "flex min-w-[320px] flex-1 flex-col",
-            hasDesktopPanelInset ? "p-1 pl-0 pt-0" : "p-0",
-          )}
+          isNarrowWebLayout={isNarrowWebLayout}
+          hasDesktopPanelInset={Boolean(hasDesktopPanelInset)}
         >
           {
             hasDesktopPanelInset && (
               <div className="h-1 w-full [app-region:drag]" />
             ) /* 修复 macOS 顶部窗口控制按钮被 header 遮挡无法点击的问题 */
           }
-          <ResizablePanelGroup
-            layoutId="workspace-body-layout"
-            panelIds={WORKSPACE_BODY_PANEL_IDS}
-            className="min-h-0 flex-1"
-          >
+          <WorkspaceBodyPanelGroup isNarrowWebLayout={isNarrowWebLayout}>
             <ResizablePanel
               id="conversation-column"
+              inert={isPanelDrawerOpen ? true : undefined}
+              aria-hidden={isPanelDrawerOpen ? true : undefined}
               minSize="35%"
               defaultSize={isSidePaneVisible ? "52%" : undefined}
             >
@@ -1725,6 +1786,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                           isWindowsDesktop={isWindowsDesktop}
                           windowsWindowControlsRightPaddingPx={windowsWindowControlsRightPaddingPx}
                           isDesktop={isDesktop}
+                          isNarrowWebLayout={isNarrowWebLayout}
+                          sidePaneTriggerRef={sidePaneTriggerRef}
+                          sidePaneControlsId={sidePaneDrawerId}
                           isSidebarVisible={isSidebarVisible}
                           isTerminalOpen={isTerminalOpen}
                           isSidePaneOpen={isSidePaneOpen}
@@ -1931,42 +1995,51 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
             {/* Browser Guest Host 必须与主视图路由解耦，避免 automations/plugin
                     切换时卸载 Guest；截图请求期间由上层临时展开真实面板承载可合成的 WebContents。 */}
             {sidePanePanel}
-          </ResizablePanelGroup>
-        </div>
-        <ScopedErrorBoundary
-          scope="desktop-top-overlay"
-          resetKeys={workspaceSidebarVisibilityResetKeys}
-          variant="silent"
-        >
-          <DesktopTopOverlay
-            newTaskDisabledReason={workspaceReadOnlyReason}
-            workspaceAbsPath={workspaceAbsPath}
-            isMacDesktop={isMacDesktop}
-            isMacFullscreen={isMacFullscreen}
-            macWindowControlsLeftPaddingPx={macWindowControlsLeftPaddingPx}
-            windowsWindowControlsRightPaddingPx={windowsWindowControlsRightPaddingPx}
-            isWindowsDesktop={isWindowsDesktop}
-            isDesktop={isDesktop}
-            isSidebarVisible={isSidebarVisible}
-            updateReadyVersion={updateReadyVersion}
-            updateState={updateState}
-            toggleSidebarShortcutLabel={toggleSidebarShortcutLabel}
-            newTaskShortcutLabel={newTaskShortcutLabel}
-            goBackShortcutLabel={goBackShortcutLabel}
-            goForwardShortcutLabel={goForwardShortcutLabel}
-            canTaskNavBack={canPrimaryNavigationBack}
-            canTaskNavForward={canTaskNavForward}
-            canGoBack={canGoBack}
-            canGoForward={canGoForward}
-            showNewTaskButton={showTopOverlayNewTaskButton}
-            platform={platform}
-            onToggleSidebar={handleToggleSidebar}
-            onCreateTask={handleCreateTaskInChat}
-            onGoBack={primaryNavigationBack}
-            onGoForward={handleTaskNavForward}
-          />
-        </ScopedErrorBoundary>
-      </div>
+          </WorkspaceBodyPanelGroup>
+        </WorkspaceContentColumn>
+        <WorkspaceDrawerBackdrop
+          open={isPanelDrawerOpen}
+          onClose={isSidebarDrawerOpen ? handleCloseSidebar : handleCloseSidePane}
+        />
+        <WorkspaceTopNavigation isNativeDesktop={isNativeDesktop} blocked={isPanelDrawerOpen}>
+          <ScopedErrorBoundary
+            scope="desktop-top-overlay"
+            resetKeys={workspaceSidebarVisibilityResetKeys}
+            variant="silent"
+          >
+            <DesktopTopOverlay
+              newTaskDisabledReason={workspaceReadOnlyReason}
+              workspaceAbsPath={workspaceAbsPath}
+              isMacDesktop={isMacDesktop}
+              isMacFullscreen={isMacFullscreen}
+              macWindowControlsLeftPaddingPx={macWindowControlsLeftPaddingPx}
+              windowsWindowControlsRightPaddingPx={windowsWindowControlsRightPaddingPx}
+              isWindowsDesktop={isWindowsDesktop}
+              isDesktop={isDesktop}
+              isSidebarVisible={isSidebarVisible}
+              updateReadyVersion={updateReadyVersion}
+              updateState={updateState}
+              toggleSidebarShortcutLabel={toggleSidebarShortcutLabel}
+              newTaskShortcutLabel={newTaskShortcutLabel}
+              goBackShortcutLabel={goBackShortcutLabel}
+              goForwardShortcutLabel={goForwardShortcutLabel}
+              canTaskNavBack={canPrimaryNavigationBack}
+              canTaskNavForward={canTaskNavForward}
+              canGoBack={canGoBack}
+              canGoForward={canGoForward}
+              showNewTaskButton={showTopOverlayNewTaskButton}
+              platform={platform}
+              sidebarTriggerRef={sidebarTriggerRef}
+              sidebarControlsId={sidebarDrawerId}
+              inert={isPanelDrawerOpen}
+              onToggleSidebar={handleToggleSidebar}
+              onCreateTask={handleCreateTaskInChat}
+              onGoBack={primaryNavigationBack}
+              onGoForward={handleTaskNavForward}
+            />
+          </ScopedErrorBoundary>
+        </WorkspaceTopNavigation>
+      </WorkspaceShellSurface>
     </DesktopWindowFrame>
   );
 });

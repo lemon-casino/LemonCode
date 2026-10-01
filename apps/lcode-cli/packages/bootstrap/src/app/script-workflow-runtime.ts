@@ -377,6 +377,8 @@ export class ScriptWorkflowRuntime {
       throw error;
     } finally {
       unsubscribe?.();
+      // legacy child 不由动态 driver dispose；结束时也必须撤销其浏览器作用域。
+      await childRuntime.closeBrowserSession();
     }
   }
 

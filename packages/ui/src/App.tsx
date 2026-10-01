@@ -6,6 +6,7 @@ import { useLCodeStore } from "@/store/StoreProvider.js";
 import { getVisibleTaskMetas, useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import { useTaskQueryCacheStore } from "@/store/taskQueryCacheStore.js";
 import { useAppPanels } from "@/hooks/useAppPanels.js";
+import { useNarrowWebLayout } from "@/hooks/useNarrowWebLayout.js";
 import { useGitAutoRefresh } from "@/hooks/useGitAutoRefresh.js";
 import { useGitRepository } from "@/hooks/useGitRepository.js";
 import { useAppKeyboard } from "@/hooks/useAppKeyboard.js";
@@ -132,6 +133,9 @@ export function App({
   const toggleSidePaneShortcutLabel = useShortcutCommandLabel("toggleSidePane");
   const openWorkspaceShortcutLabel = useShortcutCommandLabel("openWorkspace");
   const isLinuxDesktop = Boolean(isDesktop && !isMacDesktop && !isWindowsDesktop);
+  const isNarrowWebLayout = useNarrowWebLayout(
+    Boolean(isDesktop || isMacDesktop || isWindowsDesktop),
+  );
   const supportsEmbeddedBrowser = explicitSupportsEmbeddedBrowser ?? Boolean(isDesktop);
   const { intl, locale, setLocale } = useLCodeIntl();
   const isOfficeMode = useIsOfficeMode();
@@ -244,7 +248,10 @@ export function App({
     handleOpenWorkflowWorkspace,
     handleOpenWorkflowArtifact,
     handleToggleTerminal,
+    handleOpenSidebar,
+    handleCloseSidebar,
     handleToggleSidebar,
+    handleCloseSidePane,
     handleToggleSidePaneCollapse,
     handleCloseCodeViewer,
     handleCloseGit,
@@ -263,6 +270,7 @@ export function App({
     activeTaskId,
     sidePaneOwnerId,
     isDesktop,
+    isNarrowWebLayout,
     isWorkspaceVisible,
     supportsEmbeddedBrowser,
     platform,
@@ -1126,6 +1134,7 @@ export function App({
           workspace-scoped services 会切成断连代理，不能让反馈提交跟随远程 session 失效。 */}
       <FeedbackHost feedbackService={baseFeedbackService} platform={platform} />
       <WorkspaceShellLayout
+        isNarrowWebLayout={isNarrowWebLayout}
         services={services}
         workspaceReadOnlyReason={workspaceReadOnlyReason}
         workspaceMainView={workspaceMainView}
@@ -1240,7 +1249,10 @@ export function App({
         handleOpenGitReview={handleOpenGitReview}
         handleBrowserUrlChange={handleBrowserUrlChange}
         handleBrowserPageMetadataChange={handleBrowserPageMetadataChange}
+        handleOpenSidebar={handleOpenSidebar}
+        handleCloseSidebar={handleCloseSidebar}
         handleToggleSidebar={handleToggleSidebar}
+        handleCloseSidePane={handleCloseSidePane}
         handleToggleTerminal={handleToggleTerminalIfWritable}
         handleToggleBrowser={handleToggleBrowser}
         handleOpenBrowserTab={handleOpenBrowserTab}

@@ -3,6 +3,7 @@ import type { IFileService } from "./file/file.js";
 import type { IMediaPreviewService } from "./media-preview/mediaPreview.js";
 import type { IGitService } from "./git/git.js";
 import type { IGitCheckpointService } from "./git/gitCheckpoint.js";
+import type { IGitBackupService } from "./git-backup/gitBackup.js";
 import type { ISystemService } from "./system/system.js";
 import type { ITerminalService } from "./terminal/terminal.js";
 import type { ISettingService } from "./setting/setting.js";
@@ -45,6 +46,8 @@ export interface IServiceAccessor {
   readonly mediaPreviewService?: IMediaPreviewService;
   readonly gitService: IGitService;
   readonly gitCheckpointService: IGitCheckpointService;
+  /** 旧 Host / 测试 double 可缺省；不可回退到其它文件系统的备份服务。 */
+  readonly gitBackupService?: IGitBackupService;
   readonly systemService: ISystemService;
   readonly terminalService: ITerminalService;
   readonly settingService: ISettingService;

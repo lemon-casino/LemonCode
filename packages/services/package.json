@@ -17,11 +17,12 @@
     "lint:fix": "oxlint --fix"
   },
   "dependencies": {
+    "@lcode/lcode-cua": "workspace:*",
     "@lcode/provider": "workspace:*",
     "@lcode/provider-node": "workspace:*",
     "@lcode/rpc": "workspace:*",
     "@lcode/shared": "workspace:*",
-    "@lcode/lcode-cua": "workspace:*",
+    "aws4fetch": "1.0.20",
     "croner": "^10.0.1",
     "ignore": "^5.3.2",
     "node-forge": "^1.4.0",

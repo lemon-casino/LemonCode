@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo, useRef } from "react";
 import type { ProviderSettingsFormProvider } from "@/lib/providerSettingsFormTypes.js";
 import type { ModelConnectivityResult } from "@lcode/shared";
-import type { ProviderSettingsView } from "@lcode/services";
+import type { IProviderSettingsService, ProviderSettingsView } from "@lcode/services";
 import { useServices } from "@/hooks/useServices.js";
 import { logger } from "@/logger.js";
 import { useProviderSettingsServiceView } from "@/hooks/useProviderSettingsView.js";
@@ -14,6 +14,17 @@ import { persistProviderDisplayOrder } from "@/lib/providerDisplayOrderPersisten
 import { persistPersonalProviderDeletion } from "@/lib/providerPersonalPersistence.js";
 import { persistPersonalProvider } from "@/lib/providerPersonalSave.js";
 import type { ProviderOrderView } from "@/lib/modelProviderOrdering.js";
+
+export type ModelConnectivityOptions = Pick<
+  Parameters<IProviderSettingsService["testModelConnectivity"]>[0],
+  "mode"
+>;
+
+export type TestProviderModelConnectivity = (
+  providerId: string,
+  modelId: string,
+  options?: ModelConnectivityOptions,
+) => Promise<ModelConnectivityResult>;
 
 export function useModelProviders(target: {
   workspacePath: string;
@@ -180,7 +191,11 @@ export function useModelProviders(target: {
   );
 
   const testModelConnectivity = useCallback(
-    async (providerId: string, modelId: string): Promise<ModelConnectivityResult> => {
+    async (
+      providerId: string,
+      modelId: string,
+      options?: ModelConnectivityOptions,
+    ): Promise<ModelConnectivityResult> => {
       const connectivityWorkspacePath = target.connectivityWorkspacePath?.trim();
       if (
         !connectivityWorkspacePath &&
@@ -199,6 +214,7 @@ export function useModelProviders(target: {
         workspacePath: connectivityWorkspacePath || target.workspacePath,
         providerId,
         modelId,
+        ...(options?.mode ? { mode: options.mode } : {}),
       });
     },
     [

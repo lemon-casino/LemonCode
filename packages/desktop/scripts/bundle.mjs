@@ -12,7 +12,10 @@ import process from "node:process";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { collectRuntimeModuleClosureEntries } from "./runtime-dependency-closure.mjs";
-import { resolveDesktopProductIdentity } from "./desktop-product-identity.mjs";
+import {
+  resolveDesktopArtifactSuffix,
+  resolveDesktopProductIdentity,
+} from "./desktop-product-identity.mjs";
 import {
   readPackagedBuildVersion,
   verifyPackagedProductIdentity,
@@ -793,6 +796,8 @@ async function main() {
       distRoot: desktopDistRoot,
       version: readPackagedBuildVersion(desktopRoot),
       identity: desktopProductIdentity,
+      // 修复依据：测试后端安装包实际带 _TEST；身份校验必须定位同一个真实产物。
+      artifactSuffix: resolveDesktopArtifactSuffix(process.env),
     }),
   );
 

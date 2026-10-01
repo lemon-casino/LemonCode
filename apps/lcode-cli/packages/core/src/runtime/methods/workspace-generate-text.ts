@@ -15,6 +15,7 @@ import type {
   TraceContext,
 } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
+import type { RuntimeModelFactory } from "../types.js";
 import { createRefreshRuntimeHeadersBeforeModelAttempt } from "./model-runtime-headers.js";
 import { recordModelUsageFact } from "./usage-observability.js";
 import { createRuntimeModel } from "./runtime-model.js";
@@ -49,16 +50,26 @@ export interface ModelConnectivityTestInput {
   selection: ModelSelection;
 }
 
+export interface ModelConnectivityTestOptions {
+  abortSignal?: AbortSignal;
+  traceContext?: TraceContext;
+  /** 仅当前调用的已授权临时模型工厂，不覆盖 Runtime 共享 Factory。 */
+  rawModelFactory?: RuntimeModelFactory;
+}
+
 export async function testModelConnectivity(
   this: AgentRuntimeInternal,
   input: ModelConnectivityTestInput,
-  options?: { abortSignal?: AbortSignal; traceContext?: TraceContext },
+  options?: ModelConnectivityTestOptions,
 ): Promise<void> {
-  const baseModel = createRuntimeModel(this, { selection: input.selection });
+  const baseModel = createRuntimeModel(this, {
+    selection: input.selection,
+    rawModelFactory: options?.rawModelFactory,
+  });
   // 连接探测不需要生成正文；复用辅助生成的 5,000 预算会等待多余推理和输出。
   // 独立限制为 1 Token，仍使用最低公开档位，不改变其他辅助调用的预算。
   const model = baseModel.bind({
-    reasoningLevel: baseModel.optionSpecs.reasoningLevel.values[0]!,
+    ...auxiliaryModelOptions(baseModel),
     maxOutputTokens: CONNECTIVITY_PROBE_MAX_OUTPUT_TOKENS,
   });
   const traceContext = createChildTraceContext(options?.traceContext ?? this.rootTraceContext, {
@@ -68,8 +79,12 @@ export async function testModelConnectivity(
       querySource: "provider_settings_connectivity",
     },
   });
-  const abortSignal =
-    options?.abortSignal ?? AbortSignal.timeout(WORKSPACE_GENERATE_TEXT_TIMEOUT_MS);
+  // 调用方 signal 只增加取消入口，不能覆盖探测 deadline，否则并发网络挂起后永远占用检测槽位。
+  const deadlineSignal = AbortSignal.timeout(WORKSPACE_GENERATE_TEXT_TIMEOUT_MS);
+  const abortSignal = options?.abortSignal
+    ? AbortSignal.any([options.abortSignal, deadlineSignal])
+    : deadlineSignal;
+  abortSignal.throwIfAborted();
   const request: ModelRequest = {
     abortSignal,
     messages: [

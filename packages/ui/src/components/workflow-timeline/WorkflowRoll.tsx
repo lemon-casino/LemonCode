@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from "react";
-import { CircleCheckIcon, CircleXIcon, LoaderCircleIcon } from "lucide-react";
+import { CircleCheckIcon, CircleSlashIcon, CircleXIcon, LoaderCircleIcon } from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import type { StepRunStatus } from "@/components/workflow-graph/types.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
@@ -8,7 +8,8 @@ import type { TimelinePill } from "./timeline-model.js";
 
 /**
  * 门后的名单：侧板名册站里没被钉住
- * 的人，每人一次，按状态分组、组序即注意力序（failed → running → pending → done），组内参与者序。
+ * 的人，每人一次，按状态分组、组序即注意力序（failed → running → cancelled → pending → done），
+ * 组内参与者序。
  * 组头是计数行的那一项——图标、人数、状态词、语义色，右边一条细线拉到边——所以门开着时计数行不必
  * 再出现一次。行由调用方渲染（各面自己的接线），这里只排两列、发入场延迟。
  */
@@ -17,6 +18,7 @@ export const ROW_STAGGER_MS = 8;
 export const ROW_STAGGER_CAP_MS = 400;
 
 const GROUP_TONE: Record<StepRunStatus, string> = {
+  cancelled: "text-foreground-subtle",
   done: "text-success",
   failed: "text-destructive",
   pending: "text-foreground-subtlest",
@@ -31,6 +33,7 @@ function GroupIcon({ status }: { status: StepRunStatus }) {
     );
   }
   if (status === "failed") return <CircleXIcon aria-hidden className="size-2.5" />;
+  if (status === "cancelled") return <CircleSlashIcon aria-hidden className="size-2.5" />;
   return <span aria-hidden className="size-2 rounded-full border-[1.5px] border-current" />;
 }
 

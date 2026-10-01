@@ -1,5 +1,13 @@
 /* eslint-disable max-lines */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type SetStateAction,
+} from "react";
 import { createUuid } from "@lcode/shared";
 import type { EmbeddedBrowserOpenUrlRequest, IPlatformService } from "@lcode/shared";
 import type { CodeViewerSource } from "@/lib/codeViewer.js";
@@ -136,6 +144,7 @@ export function useAppPanels(options: {
   /** 草稿态与正式任务共用稳定 id，作为侧栏对话隔离边界。 */
   sidePaneOwnerId: string | null;
   isDesktop?: boolean;
+  isNarrowWebLayout?: boolean;
   /**
    * 展示语义：视图当前是否呈现给用户（设置页覆盖时为 false）。
    * 本 hook 刻意不消费它——Browser View 事件是 main 侧权威转发，订阅不能受可见性影响，
@@ -167,6 +176,7 @@ export function useAppPanels(options: {
     activeTaskId,
     sidePaneOwnerId,
     isDesktop,
+    isNarrowWebLayout = false,
     supportsEmbeddedBrowser: explicitSupportsEmbeddedBrowser,
     defaultWhiteboardNamePrefix,
     platform,
@@ -195,14 +205,22 @@ export function useAppPanels(options: {
   const [sidePaneState, setSidePaneState] = useState<WorkspaceSidePaneState | null>(
     initialSidePaneMemoryState.sidePaneState,
   );
-  const [isSidePaneCollapsed, setIsSidePaneCollapsed] = useState(
+  const restoredSidePaneCollapsed =
     getSidePaneCollapsedPreference(initialSidePaneMemoryState, sidePaneOwnerId) ??
-      initialSidePaneMemoryState.isSidePaneCollapsed,
+    initialSidePaneMemoryState.isSidePaneCollapsed;
+  const [isSidePaneCollapsed, setIsSidePaneCollapsedState] = useState(
+    isNarrowWebLayout || restoredSidePaneCollapsed,
   );
-  // 交互说明：侧栏显隐按钮放在 App 外层，而不是 Sidebar 内部。
-  // 这样即使侧栏被隐藏，入口也仍然留在左上角，不会出现"收起后没有地方再展开"的问题；
-  // 同时这里统一处理 macOS 红绿灯安全区，避免按钮和系统窗口控件重叠。
-  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+  // 首屏窄 Web 不能先占用侧栏宽度再等 resize；显隐仍只由本 hook 持有。
+  const [isSidebarVisible, setIsSidebarVisibleState] = useState(!isNarrowWebLayout);
+  const narrowWebLayoutRef = useRef(isNarrowWebLayout);
+  narrowWebLayoutRef.current = isNarrowWebLayout;
+  const sidebarVisibleRef = useRef(isSidebarVisible);
+  const sidePaneCollapsedRef = useRef(isSidePaneCollapsed);
+  const setIsSidebarVisible = useCallback((visible: boolean) => {
+    sidebarVisibleRef.current = visible;
+    setIsSidebarVisibleState(visible);
+  }, []);
   const [browserNavigationRequest, setBrowserNavigationRequest] =
     useState<BrowserNavigationRequest | null>(null);
   const [allRecentClosedSidePaneTabs, setAllRecentClosedSidePaneTabs] = useState<
@@ -217,12 +235,36 @@ export function useAppPanels(options: {
   const activeSidePaneMemoryKeyRef = useRef<string | null>(sidePaneMemoryKey);
   const latestSidePaneMemoryRef = useRef({
     sidePaneState,
-    isSidePaneCollapsed,
+    isSidePaneCollapsed: restoredSidePaneCollapsed,
   });
-  latestSidePaneMemoryRef.current = {
-    sidePaneState,
-    isSidePaneCollapsed,
-  };
+  latestSidePaneMemoryRef.current.sidePaneState = sidePaneState;
+
+  const collapseSidePaneForLayout = useCallback(() => {
+    // 断点/互斥只改变当前展示，不能把手机临时收起写成对话偏好或 workspace 恢复值。
+    sidePaneCollapsedRef.current = true;
+    setIsSidePaneCollapsedState(true);
+  }, []);
+  const setIsSidePaneCollapsed = useCallback(
+    (value: SetStateAction<boolean>) => {
+      const collapsed = typeof value === "function" ? value(sidePaneCollapsedRef.current) : value;
+      sidePaneCollapsedRef.current = collapsed;
+      latestSidePaneMemoryRef.current = {
+        ...latestSidePaneMemoryRef.current,
+        isSidePaneCollapsed: collapsed,
+      };
+      if (!collapsed && narrowWebLayoutRef.current) setIsSidebarVisible(false);
+      setIsSidePaneCollapsedState(collapsed);
+    },
+    [setIsSidebarVisible],
+  );
+  const previousNarrowWebLayoutRef = useRef(isNarrowWebLayout);
+  useLayoutEffect(() => {
+    const enteringNarrow = isNarrowWebLayout && !previousNarrowWebLayoutRef.current;
+    previousNarrowWebLayoutRef.current = isNarrowWebLayout;
+    if (!enteringNarrow) return;
+    setIsSidebarVisible(false);
+    collapseSidePaneForLayout();
+  }, [collapseSidePaneForLayout, isNarrowWebLayout, setIsSidebarVisible]);
 
   const revealSidePaneForCurrentOwner = useCallback(() => {
     setIsSidePaneCollapsed(false);
@@ -235,7 +277,7 @@ export function useAppPanels(options: {
       sidePaneOwnerIdRef.current,
       false,
     );
-  }, []);
+  }, [setIsSidePaneCollapsed]);
 
   const commitSidePaneState = useCallback(
     (updater: (current: WorkspaceSidePaneState | null) => WorkspaceSidePaneState | null) => {
@@ -279,11 +321,13 @@ export function useAppPanels(options: {
     const restored = readTaskSidePaneMemoryState(sidePaneMemoryKey);
     activeSidePaneMemoryKeyRef.current = sidePaneMemoryKey;
     commitSidePaneState(() => restored.sidePaneState);
-    setIsSidePaneCollapsed(
+    const restoredCollapsed =
       getSidePaneCollapsedPreference(restored, sidePaneOwnerIdRef.current) ??
-        restored.isSidePaneCollapsed,
-    );
-  }, [commitSidePaneState, sidePaneMemoryKey]);
+      restored.isSidePaneCollapsed;
+    latestSidePaneMemoryRef.current.isSidePaneCollapsed = restoredCollapsed;
+    if (narrowWebLayoutRef.current) collapseSidePaneForLayout();
+    else setIsSidePaneCollapsed(restoredCollapsed);
+  }, [collapseSidePaneForLayout, commitSidePaneState, setIsSidePaneCollapsed, sidePaneMemoryKey]);
 
   useEffect(() => {
     return () => {
@@ -333,7 +377,12 @@ export function useAppPanels(options: {
         preferredTabId,
         collapsedPreference,
       );
-      setIsSidePaneCollapsed(resolved.isSidePaneCollapsed);
+      // 恢复 tabs/scope 不是打开抽屉的用户意图；保留偏好但窄 Web 不随恢复抢占主区。
+      latestSidePaneMemoryRef.current.isSidePaneCollapsed = resolved.isSidePaneCollapsed;
+      if (narrowWebLayoutRef.current) {
+        // 同一拍「导航到任务 + 打开详情」已是明确意图，不能被恢复 effect 关回去；只收起空 scope。
+        if (!resolved.sidePaneState?.activeTabId) collapseSidePaneForLayout();
+      } else setIsSidePaneCollapsed(resolved.isSidePaneCollapsed);
       logger.debug("[App] 同步对话右侧面板 scope", {
         activeTabId: resolved.sidePaneState?.activeTabId ?? null,
         activeTaskId,
@@ -344,7 +393,14 @@ export function useAppPanels(options: {
       });
       return resolved.sidePaneState;
     });
-  }, [activeTaskId, activeWorkspaceKey, commitSidePaneState, sidePaneOwnerId]);
+  }, [
+    activeTaskId,
+    activeWorkspaceKey,
+    collapseSidePaneForLayout,
+    commitSidePaneState,
+    setIsSidePaneCollapsed,
+    sidePaneOwnerId,
+  ]);
 
   const handleOpenCodeViewer = useCallback(
     (source: CodeViewerSource) => {
@@ -1237,30 +1293,39 @@ export function useAppPanels(options: {
     });
   }, [isOfficeMode, workspaceAbsPath]);
 
+  const handleOpenSidebar = useCallback(() => {
+    if (narrowWebLayoutRef.current) collapseSidePaneForLayout();
+    setIsSidebarVisible(true);
+  }, [collapseSidePaneForLayout, setIsSidebarVisible]);
+  const handleCloseSidebar = useCallback(() => {
+    setIsSidebarVisible(false);
+  }, [setIsSidebarVisible]);
   const handleToggleSidebar = useCallback(() => {
-    setIsSidebarVisible((visible) => !visible);
-  }, []);
+    if (sidebarVisibleRef.current) handleCloseSidebar();
+    else handleOpenSidebar();
+  }, [handleCloseSidebar, handleOpenSidebar]);
 
-  const handleToggleSidePaneCollapse = useCallback(() => {
-    setIsSidePaneCollapsed((collapsed) => {
-      const nextCollapsed = !collapsed;
-      // tabs 按 workspace 复用，但顶部收起是用户对当前对话的明确选择；
-      // 记录 owner 偏好，避免切换对话后 scope 解析又被可见 tab 自动展开覆盖。
+  const changeSidePaneCollapsedPreference = useCallback(
+    (collapsed: boolean) => {
+      setIsSidePaneCollapsed(collapsed);
+      // 仅显式展开/关闭沿用现有偏好入口；断点收敛和左右互斥不经过这里。
       saveTaskSidePaneCollapsedPreference(
         activeSidePaneMemoryKeyRef.current,
         sidePaneOwnerIdRef.current,
-        nextCollapsed,
+        collapsed,
       );
-      latestSidePaneMemoryRef.current = {
-        ...latestSidePaneMemoryRef.current,
-        isSidePaneCollapsed: nextCollapsed,
-      };
       logger.info(
-        `[App] ${nextCollapsed ? "收起" : "展开"}右侧面板 workspace=${workspaceAbsPath} tabs=${sidePaneState?.tabs.length ?? 0}`,
+        `[App] ${collapsed ? "收起" : "展开"}右侧面板 workspace=${workspaceAbsPath} tabs=${latestSidePaneMemoryRef.current.sidePaneState?.tabs.length ?? 0}`,
       );
-      return nextCollapsed;
-    });
-  }, [sidePaneState, workspaceAbsPath]);
+    },
+    [setIsSidePaneCollapsed, workspaceAbsPath],
+  );
+  const handleCloseSidePane = useCallback(() => {
+    if (!sidePaneCollapsedRef.current) changeSidePaneCollapsedPreference(true);
+  }, [changeSidePaneCollapsedPreference]);
+  const handleToggleSidePaneCollapse = useCallback(() => {
+    changeSidePaneCollapsedPreference(!sidePaneCollapsedRef.current);
+  }, [changeSidePaneCollapsedPreference]);
 
   const handleCloseCodeViewer = useCallback(() => {
     logger.info(`[App] 关闭右侧面板 mode=code-viewer workspace=${workspaceAbsPath}`);
@@ -1601,7 +1666,10 @@ export function useAppPanels(options: {
     handleOpenWorkflowWorkspace,
     handleOpenWorkflowArtifact,
     handleToggleTerminal,
+    handleOpenSidebar,
+    handleCloseSidebar,
     handleToggleSidebar,
+    handleCloseSidePane,
     handleToggleSidePaneCollapse,
     handleCloseCodeViewer,
     handleCloseGit,

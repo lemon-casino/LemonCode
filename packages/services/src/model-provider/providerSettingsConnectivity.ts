@@ -4,6 +4,7 @@ import type { ProviderSettingsConnectivityTester } from "./providerFacadeService
 interface FormalModelConnectivityInput {
   readonly workspacePath: string;
   readonly workspaceIdentity?: string;
+  readonly mode?: "temporary";
   readonly selection: {
     readonly providerId: string;
     readonly modelId: string;
@@ -12,10 +13,10 @@ interface FormalModelConnectivityInput {
 
 type FormalModelConnectivityExecutor = (
   input: FormalModelConnectivityInput,
-) => Promise<{ readonly success: true }>;
+) => Promise<ModelConnectivityResult>;
 
 /**
- * 设置页只负责把已经落盘并进入 Registry 的 ModelSelection 交给目标 Environment。
+ * 设置页只传模型身份和可选临时模式，配置解析归目标 Environment 所有。
  * Provider 鉴权、headers、reasoning 映射和流消费全部由正式 Model 执行链负责。
  */
 export function createProviderSettingsConnectivityTester(dependencies: {
@@ -23,15 +24,15 @@ export function createProviderSettingsConnectivityTester(dependencies: {
 }): ProviderSettingsConnectivityTester {
   return async (input) => {
     try {
-      await dependencies.testModelConnectivity({
+      return await dependencies.testModelConnectivity({
         workspacePath: input.workspacePath,
         ...(input.workspaceIdentity ? { workspaceIdentity: input.workspaceIdentity } : {}),
+        ...(input.mode ? { mode: input.mode } : {}),
         selection: {
           providerId: input.providerId,
           modelId: input.modelId,
         },
       });
-      return { success: true };
     } catch (error) {
       return {
         success: false,

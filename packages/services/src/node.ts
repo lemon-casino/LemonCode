@@ -21,6 +21,7 @@ export {
 } from "@lcode/provider-node";
 
 export { createFileService } from "./file/fileService.js";
+export { createGitBackupService } from "./git-backup/gitBackupService.js";
 export {
   attributeHostProcessTree,
   createProcessResourceSampler,
@@ -331,6 +332,8 @@ import type { WorkspaceFileSearchFilter } from "./file/workspaceFileMentionFilte
 import { createGitService } from "./git/gitService.js";
 import { GitCommitMessageGenerator } from "./git/gitCommitMessageGenerator.js";
 import { createGitCheckpointService } from "./git/gitCheckpointService.js";
+import { IGitBackupService } from "./git-backup/gitBackup.js";
+import { createGitBackupService } from "./git-backup/gitBackupService.js";
 import { createSystemService } from "./system/systemService.js";
 import { createTerminalService } from "./terminal/terminalService.js";
 import { createSettingServiceWithMigrations } from "./setting/settingService.js";
@@ -674,6 +677,8 @@ export function getOffPeakRequestAuthBuilder(
   return offPeakRequestAuthBuilders.get(services);
 }
 const managedHostApiNetworkTransports = new WeakMap<ServiceCollection, HostApiNetworkTransport>();
+// dispose 不属于 RPC 契约；Host 退出只释放调度，不改写用户的 enabled 配置。
+const managedGitBackupDisposers = new WeakMap<ServiceCollection, () => void>();
 
 export function registerManagedCuaHelperHostForDispose(
   services: ServiceCollection,
@@ -2207,6 +2212,7 @@ export function createLocalServices(options: {
   });
   const gitService = createGitService({
     commitMessageGenerator: gitCommitMessageGenerator,
+    mutationJournalReader: (params) => lcodeAgentService.getWorkspaceFileMutationJournal(params),
   });
   // task wrapper 由 LCode task service adapter 提供；核心 session 状态由 LCode agent server 维护。
   const lcodeTaskService = createLCodeTaskServiceAdapter({
@@ -2461,6 +2467,15 @@ export function createLocalServices(options: {
     )
     .register(IPromptAttachmentTransferService, createLocalPromptAttachmentTransferService());
 
+  const gitBackupOwner = createGitBackupService(join(resolveAppConfigDir(), "git-backup"), {
+    credentialService,
+    fetch: hostApiNetworkTransport.fetch,
+  });
+  // 通用 Channel 会暴露实例方法；显式移除 Host 私有 dispose，避免远控调用关闭调度。
+  const { dispose: disposeGitBackup, ...gitBackupService } = gitBackupOwner;
+  services.register(IGitBackupService, gitBackupService);
+  managedGitBackupDisposers.set(services, () => disposeGitBackup.call(gitBackupOwner));
+
   // 即使初始配置关闭也必须登记 lifecycle disposer：terminal fence 需要早于任意延迟 setting/acquire
   // 恢复，不能把"当前还没有 Helper"误当成"不需要生命周期所有者"。dispose 时串行 stop host。
   registerManagedCuaHelperHostForDispose(services, {
@@ -2598,6 +2613,8 @@ function readTelemetryOAuthUserId(rawUserInfo: string | null): string {
 }
 
 export function disposeServiceResources(services: ServiceCollection): void {
+  managedGitBackupDisposers.get(services)?.();
+  managedGitBackupDisposers.delete(services);
   // host process 退出前以前没有统一遍历本地服务做资源回收，
   // terminal/task wrapper 这类会拉起子进程的服务只能等宿主进程自己结束，时序上可能留下短暂残留。
   // 这里集中调用各服务的本地 disposeAll 钩子，把“退出 app = 回收所有托管资源”落成机械动作。
@@ -2632,6 +2649,8 @@ export function disposeServiceResources(services: ServiceCollection): void {
 }
 
 export async function disposeServiceResourcesAndWait(services: ServiceCollection): Promise<void> {
+  managedGitBackupDisposers.get(services)?.();
+  managedGitBackupDisposers.delete(services);
   // app 关闭时 host 需要等 agent 进程树完成 graceful + force 清理。
   // 旧的同步 dispose 会在 host 退出时丢掉强杀 timer，导致 lcode-cli/app-server 变成孤儿进程。
   const disposableServices = [

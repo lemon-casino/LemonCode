@@ -1030,6 +1030,9 @@ importers:
       '@lcode/shared':
         specifier: workspace:*
         version: link:../shared
+      aws4fetch:
+        specifier: 1.0.20
+        version: 1.0.20
       croner:
         specifier: ^10.0.1
         version: 10.0.1
@@ -1309,6 +1312,9 @@ importers:
       '@lcode/client':
         specifier: workspace:*
         version: link:../client
+      '@lcode/services':
+        specifier: workspace:*
+        version: link:../services
       '@lcode/shared':
         specifier: workspace:*
         version: link:../shared
@@ -5654,6 +5660,9 @@ packages:
   await-to-js@3.0.0:
     resolution: {integrity: sha512-zJAaP9zxTcvTHRlejau3ZOY4V7SRpiByf3/dxx2uyKxxor19tpmpV2QRsTKikckwhaPmr2dVpxxMr7jOCYVp5g==}
     engines: {node: '>=6.0.0'}
+
+  aws4fetch@1.0.20:
+    resolution: {integrity: sha512-/djoAN709iY65ETD6LKCtyyEI04XIBP5xVvfmNxsEP0uJB5tyaGBztSryRr4HqMStr9R06PisQE7m9zDTXKu6g==}
 
   axios@1.13.6:
     resolution: {integrity: sha512-ChTCHMouEe2kn713WHbQGcuYrr6fXTBiu460OTwWrWob16g1bXn4vtz07Ope7ewMozJAnEquLk5lWQWtBig9DQ==}
@@ -14632,6 +14641,8 @@ snapshots:
   at-least-node@1.0.0: {}
 
   await-to-js@3.0.0: {}
+
+  aws4fetch@1.0.20: {}
 
   axios@1.13.6:
     dependencies:

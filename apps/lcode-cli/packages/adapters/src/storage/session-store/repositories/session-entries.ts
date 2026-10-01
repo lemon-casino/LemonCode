@@ -53,7 +53,7 @@ export function saveSessionEntry(db: DatabaseSync, input: SessionEntryInfo): voi
 
 export function sessionEntries(
   db: DatabaseSync,
-  input: { sessionID: SessionId; type?: SessionEntryType | string },
+  input: { sessionID: SessionId; type?: SessionEntryType | string; limit?: number },
 ): SessionEntryInfo[] {
   const rows = input.type
     ? db
@@ -61,19 +61,26 @@ export function sessionEntries(
           `
           select * from session_entry
           where session_id = ? and type = ?
-          order by time_created, rowid
+          order by time_created, rowid limit ?
           `,
         )
-        .all(input.sessionID, input.type)
+        .all(
+          input.sessionID,
+          input.type,
+          input.limit === undefined ? -1 : Math.max(1, Math.min(10_000, Math.trunc(input.limit))),
+        )
     : db
         .prepare(
           `
           select * from session_entry
           where session_id = ?
-          order by time_created, rowid
+          order by time_created, rowid limit ?
           `,
         )
-        .all(input.sessionID);
+        .all(
+          input.sessionID,
+          input.limit === undefined ? -1 : Math.max(1, Math.min(10_000, Math.trunc(input.limit))),
+        );
 
   return (rows as unknown as SessionEntryRow[]).map(decodeSessionEntryRow);
 }

@@ -160,7 +160,7 @@ export function SpineLamp({ status, track = 0 }: { status: StepRunStatus; track?
   );
 }
 
-/** 折叠节头上的头像串：谁在这一站，一眼可见；子代理是按编号定色的瓦片脸，工作区是终端字形。 */
+/** 折叠节头上的头像串：子代理复用随主题配色、按状态变换表情的小幽灵，工作区是终端字形。 */
 export function AvatarCluster({
   pills,
   nameOf,

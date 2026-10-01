@@ -143,7 +143,10 @@ export class NodeExecutionAdapterProcess extends NodeExecutionAdapterResults {
     };
   }
 
-  protected terminateProcessTree(child: ChildProcess, useBashProcessTreeStop: boolean): void {
+  protected terminateProcessTree(
+    child: ChildProcess,
+    useBashProcessTreeStop: boolean,
+  ): Promise<void> | void {
     if (!child.pid) {
       child.kill("SIGTERM");
       return;
@@ -165,6 +168,7 @@ export class NodeExecutionAdapterProcess extends NodeExecutionAdapterResults {
         // 直写后不再等待 pipe EOF，shutdown 必须显式等待 taskkill 收尾，避免提前释放资源。
         this.pendingBashProcessTreeKills.set(completion, killer);
         void completion.finally(() => this.pendingBashProcessTreeKills.delete(completion));
+        return completion;
       }
       return;
     }
@@ -191,12 +195,13 @@ export class NodeExecutionAdapterProcess extends NodeExecutionAdapterResults {
         // shutdown 等待实际查表与信号发送，不能在异步杀树刚启动时就释放清理所有权。
         void signalPosixProcessTree(rootPid, "SIGKILL").then(resolve);
       }, BASH_SIGTERM_TO_SIGKILL_MS);
-      timer.unref?.();
+      // 当前 execution 要等待杀树完成；清理计时器必须保活，不能让等待中的 Promise 悬空。
     });
     this.pendingBashProcessTreeKills.set(escalation, timer);
     void escalation.finally(() => {
       this.pendingBashProcessTreeKills.delete(escalation);
     });
+    return escalation;
   }
 
   protected destroyChildOutputStreams(child: ChildProcess): void {

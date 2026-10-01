@@ -152,11 +152,33 @@ The dynamic-workflow timeline draws with a feature-scoped token family:
   Rail and arc stroke ramp: not yet taken vs control has passed. The marching segment
   overlays `--color-warning` dashes; there is no third stroke colour.
 - Station lamps and agent pills use the semantic status colours (`--color-success`,
-  `--color-warning` for running, `--color-destructive`); agent avatars use the fixed nine-color HEX palette,
-  assigned by instance index (name hash fallback), and never encode status.
+  `--color-warning` for running, `--color-destructive`). Ghost avatar colours derive from the current
+  theme's brand/background tokens and neutrals, never from status or a fixed per-instance palette.
+- Run status is a five-word vocabulary: pending, running, done, stopped, failed. Expression, motion,
+  and a separate status mark communicate it; the 14–16 px avatars must never rely on hue alone.
+- Agent avatars use the approved cloud-ghost character: a soft rounded body with a scalloped hem,
+  dark eyes, blush, and expressive brows and mouth. Curious eyes for pending, a focused gaze for
+  running, smiling eyes for done, closed resting eyes for stopped, and a worried face with a small
+  cheek-side tear for failed. Body, outline, blush, and tear follow one shared theme-derived palette:
+  silver in Zai, warm cream in Sepia, soft blue in Midnight Blue, and soft green in Forest. Do not pin
+  lavender or repeat per-theme override blocks. Keep the body light and the eyes neutral-dark for
+  at least 4.5:1 contrast, including dark themes. Changing theme updates CSS without remounting the
+  avatar; changing status never changes its palette. Instance identity only staggers motion.
+- Keep the face unobstructed. Checks, crosses, loading rings, and stop symbols belong only in the
+  pill's existing right-hand `wf-pill-tail` slot, after the name. Never draw them on or around the
+  avatar, and never add a status badge or mask over its eyes or body. The hover-open arrow continues
+  to share that right slot. Destructive red belongs to real failure only, never to a user-initiated
+  stop. Run termination does not overwrite node facts.
+- Avatar layout boxes follow the caller's 14–16 px size, with no 20 px minimum. Geometry and motion
+  stay inside the viewBox. Motion runs on internal layers without per-avatar timers or React updates,
+  uses stable identity-based phase offsets, and is disabled for reduced motion. Pending may blink
+  and glance, running gently floats and looks around, done nods once then rests, stopped is entirely
+  still, and failed has a restrained tear/sigh. Each state retains its static expression.
 - A compile-feedback row (a script that did not compile, so nothing ran) uses a hollow lamp:
   `--color-warning` while it is the latest draft, `--color-foreground-subtlest` once a newer
   draft exists. Never `--color-destructive`, which on this feature belongs to a run that errored.
+  It creates no agent avatar and colours none.
+- Full rules and the state-to-channel table live in `specs/workflow-run-status-presentation.md`.
 
 ### Overlay and utility colors
 

@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState } from "react";
-import type { PanelImperativeHandle } from "react-resizable-panels";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { PanelImperativeHandle, PanelSize } from "react-resizable-panels";
 
 const PANEL_FLEX_GROW_TRANSITION_CLASSES = ["transition-[flex-grow]", "duration-200", "ease-out"];
 const PANEL_FLEX_GROW_TRANSITION_FALLBACK_MS = 240;
@@ -40,12 +40,15 @@ export function useAnimatedResizablePanel({
   expandedSize,
   rememberExpandedSize = false,
   resizeOnInitialVisibleMount = true,
+  resizeEnabled = true,
 }: {
   open: boolean;
   alwaysMounted?: boolean;
   expandedSize?: string;
   rememberExpandedSize?: boolean;
   resizeOnInitialVisibleMount?: boolean;
+  /** 抽屉只改 CSS 几何，暂停 split resize，保留最后一次宽布局尺寸。 */
+  resizeEnabled?: boolean;
 }) {
   const panelRef = useRef<PanelImperativeHandle | null>(null);
   const panelElementRef = useRef<HTMLDivElement | null>(null);
@@ -56,6 +59,24 @@ export function useAnimatedResizablePanel({
   useEffect(() => {
     expandedSizeRef.current = expandedSize;
   }, [expandedSize]);
+
+  const onPanelResize = useCallback(
+    (size: PanelSize) => {
+      // RRP 在约束变更/卸载时先注销 Panel；teardown 中 getSize 会访问已删除的 Group。
+      // 在有效 resize 回调记录宽屏比例，窄屏和关闭动画不覆盖用户最后展开尺寸。
+      if (
+        resizeEnabled &&
+        rememberExpandedSize &&
+        open &&
+        isVisible &&
+        Number.isFinite(size.asPercentage) &&
+        size.asPercentage > 0
+      ) {
+        expandedSizeRef.current = `${size.asPercentage}%`;
+      }
+    },
+    [isVisible, open, rememberExpandedSize, resizeEnabled],
+  );
 
   useEffect(() => {
     if (alwaysMounted) {
@@ -79,7 +100,7 @@ export function useAnimatedResizablePanel({
 
   useEffect(() => {
     const panel = panelRef.current;
-    if (!panel) {
+    if (!resizeEnabled || !panel) {
       return;
     }
     const panelElement = panelElementRef.current;
@@ -127,11 +148,12 @@ export function useAnimatedResizablePanel({
       window.cancelAnimationFrame(rafId);
       cleanupTransition?.();
     };
-  }, [isVisible, rememberExpandedSize, resizeOnInitialVisibleMount]);
+  }, [isVisible, rememberExpandedSize, resizeEnabled, resizeOnInitialVisibleMount]);
 
   return {
     panelRef,
     panelElementRef,
     isVisible,
+    onPanelResize,
   };
 }

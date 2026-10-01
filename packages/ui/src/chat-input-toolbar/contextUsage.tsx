@@ -54,6 +54,8 @@ import {
 import { runContextPanelActionWithClose } from "@/chat-input-toolbar/contextPanelAction.js";
 import { coordinateCodingPlanQuotaResetAutoPlay } from "@/chat-input-toolbar/codingPlanQuotaResetAutoPlay.js";
 import { formatCompactTokenNumber } from "@/lib/tokenNumberFormat.js";
+import { getContextBreakdownTone } from "@/chat-input-toolbar/contextUsagePalette.js";
+import { buildSessionUsageGroupModel } from "@/chat-input-toolbar/sessionUsageGroups.js";
 import type { SessionUsageState } from "@lcode/shared/lcode-protocol-v4";
 import {
   readDisplayableSessionTokenTotal,
@@ -78,13 +80,6 @@ interface ContextUsageBreakdownSegment {
   source: ContextUsageBreakdownSource;
 }
 
-const CONTEXT_PROGRESS_TONE_COLORS = [
-  "var(--color-usage-chart-1)",
-  "color-mix(in oklab, var(--color-usage-chart-1) 78%, var(--color-surface))",
-  "color-mix(in oklab, var(--color-usage-chart-1) 58%, var(--color-surface))",
-  "color-mix(in oklab, var(--color-usage-chart-1) 42%, var(--color-surface))",
-  "color-mix(in oklab, var(--color-usage-chart-1) 28%, var(--color-surface))",
-] as const;
 const PERCENT_MAX = 100;
 const CACHE_HIT_RATE_DISPLAY_THRESHOLD = 0.78;
 
@@ -141,11 +136,9 @@ function formatContextCacheHitRateLabel(
   }).format(Math.max(0, hitRate));
 }
 
-function getBreakdownToneStyle(index: number): CSSProperties {
+function getBreakdownToneStyle(source: ContextUsageBreakdownSource): CSSProperties {
   return {
-    backgroundColor:
-      CONTEXT_PROGRESS_TONE_COLORS[Math.min(index, CONTEXT_PROGRESS_TONE_COLORS.length - 1)] ??
-      CONTEXT_PROGRESS_TONE_COLORS[0],
+    backgroundColor: getContextBreakdownTone(source),
   };
 }
 
@@ -199,10 +192,10 @@ function buildContextUsageBreakdownSegments(
 }
 
 function buildContextUsageProgressSegments(segments: readonly ContextUsageBreakdownSegment[]) {
-  return segments.map((segment, index) => ({
+  return segments.map((segment) => ({
     id: segment.source,
     percent: segment.percent,
-    style: getBreakdownToneStyle(index),
+    style: getBreakdownToneStyle(segment.source),
   }));
 }
 
@@ -378,8 +371,9 @@ export function ChatContextUsage({
     [codingPlanUsageRemainingWithClose],
   );
   const resetSourceKey = resetCodingPlanState?.displayedProviderId ?? null;
-  // MCP 与不足三张的主额度同排；主额度占满三列时才在下一行贯穿，浮层始终保持统一宽度。
-  const contextPanelWidthClass = "!w-80";
+  // MCP 与不足三张的主额度同排；主额度占满三列时才在下一行贯穿。
+  // 保留 320px 首选宽度，但手机视口仍须留出两侧余量，最终可用宽高由 ContextContent 约束。
+  const contextPanelWidthClass = "!w-[min(20rem,calc(100dvw-1rem))]";
   const resetUi = useCodingPlanQuotaResetUi({
     sourceKey: resetSourceKey,
     preferredProviderId: resetCodingPlanState?.displayedEntitlement?.providerId,
@@ -869,6 +863,7 @@ export function ChatContextUsage({
       : intl.formatMessage({
           id: "settings.modelProvider.startPlan.balance.title",
         }));
+  const sessionUsageGroups = buildSessionUsageGroupModel(childCount);
   const sessionSummaryLabel =
     sessionTokenTotal === null
       ? null
@@ -972,81 +967,97 @@ export function ChatContextUsage({
         side="top"
         sideOffset={2}
       >
-        <ContextContentBody className="space-y-3">
+        <ContextContentBody className="min-w-0 space-y-3 [overflow-wrap:anywhere]">
           {/* 默认 ai-elements Header 会硬编码标题并把摘要拆到独立头部。
           工具栏上下文 hover 只需要一块紧凑信息面板，摘要和明细统一放在 body 里。 */}
           {sessionTokenTotal !== null && sessionUsage ? (
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between gap-3 text-ui-base font-medium">
-                <span>
-                  {intl.formatMessage({
-                    id: incompleteTotal
-                      ? "chat.sessionUsage.partialTitle"
-                      : "chat.sessionUsage.title",
-                  })}
-                </span>
-                <span className="font-mono tabular-nums">
-                  {incompleteTotal ? "≥" : ""}
-                  {numberFormatter.format(sessionTokenTotal)}
-                </span>
-              </div>
-              {childCount > 0 ? (
-                <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
-                  <span>{intl.formatMessage({ id: "chat.sessionUsage.subagents" })}</span>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between gap-3 text-ui-base font-medium text-foreground">
+                  <span>
+                    {intl.formatMessage({
+                      id: incompleteTotal
+                        ? "chat.sessionUsage.partialTitle"
+                        : "chat.sessionUsage.title",
+                    })}
+                  </span>
                   <span className="font-mono tabular-nums">
-                    {numberFormatter.format(childTokenTotal)}
+                    {incompleteTotal ? "≥" : ""}
+                    {numberFormatter.format(sessionTokenTotal)}
                   </span>
                 </div>
-              ) : null}
-              {childCurrentOutputTokens !== null ? (
-                <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
-                  <span>{intl.formatMessage({ id: "chat.sessionUsage.childCurrentOutput" })}</span>
-                  <span className="font-mono tabular-nums">
-                    {numberFormatter.format(childCurrentOutputTokens)}
-                  </span>
+              </div>
+              <div className="space-y-2 border-t border-border pt-3">
+                <div className="flex items-center gap-2 text-ui-xs font-medium uppercase tracking-wide text-foreground-subtle">
+                  <span
+                    aria-hidden="true"
+                    className="size-2 shrink-0 rounded-full bg-[var(--color-usage-chart-1)]"
+                  />
+                  <span>{intl.formatMessage({ id: "chat.sessionUsage.mainGroup" })}</span>
                 </div>
-              ) : null}
-              <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
-                <span>
-                  {intl.formatMessage({
-                    id: childCount > 0 ? "chat.sessionUsage.mainInput" : "chat.sessionUsage.input",
-                  })}
-                </span>
-                <span className="font-mono tabular-nums">
-                  {numberFormatter.format(sessionUsage.inputTokens)}
-                </span>
+                <div className="space-y-1.5 pl-4">
+                  <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                    <span>{intl.formatMessage({ id: "chat.sessionUsage.mainInput" })}</span>
+                    <span className="font-mono tabular-nums">
+                      {numberFormatter.format(sessionUsage.inputTokens)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                    <span>{intl.formatMessage({ id: "chat.sessionUsage.mainOutput" })}</span>
+                    <span className="font-mono tabular-nums">
+                      {numberFormatter.format(sessionUsage.outputTokens)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                    <span>{intl.formatMessage({ id: "chat.sessionUsage.mainSpeed" })}</span>
+                    <span className="font-mono tabular-nums">
+                      {liveOutputRate === null
+                        ? "-"
+                        : `${numberFormatter.format(liveOutputRate)} token/s`}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
-                <span>
-                  {intl.formatMessage({
-                    id:
-                      childCount > 0 ? "chat.sessionUsage.mainOutput" : "chat.sessionUsage.output",
-                  })}
-                </span>
-                <span className="font-mono tabular-nums">
-                  {numberFormatter.format(sessionUsage.outputTokens)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
-                <span>
-                  {intl.formatMessage({
-                    id: childCount > 0 ? "chat.sessionUsage.mainSpeed" : "chat.sessionUsage.speed",
-                  })}
-                </span>
-                <span className="font-mono tabular-nums">
-                  {liveOutputRate === null
-                    ? "-"
-                    : `${numberFormatter.format(liveOutputRate)} token/s`}
-                </span>
-              </div>
-              {childCount > 0 ? (
-                <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
-                  <span>{intl.formatMessage({ id: "chat.sessionUsage.childSpeed" })}</span>
-                  <span className="font-mono tabular-nums">
-                    {childLiveOutputRate === null
-                      ? "-"
-                      : `${numberFormatter.format(childLiveOutputRate)} token/s`}
-                  </span>
+              {sessionUsageGroups.child ? (
+                <div className="space-y-2 border-t border-border pt-3">
+                  <div className="flex items-center gap-2 text-ui-xs font-medium uppercase tracking-wide text-foreground-subtle">
+                    <span
+                      aria-hidden="true"
+                      className="size-2 shrink-0 rounded-full bg-[var(--color-usage-chart-2)]"
+                    />
+                    <span>
+                      {intl.formatMessage(
+                        { id: "chat.sessionUsage.childGroup" },
+                        { count: childCount },
+                      )}
+                    </span>
+                  </div>
+                  <div className="space-y-1.5 pl-4">
+                    <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                      <span>{intl.formatMessage({ id: "chat.sessionUsage.subagents" })}</span>
+                      <span className="font-mono tabular-nums">
+                        {numberFormatter.format(childTokenTotal)}
+                      </span>
+                    </div>
+                    {childCurrentOutputTokens !== null ? (
+                      <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                        <span>
+                          {intl.formatMessage({ id: "chat.sessionUsage.childCurrentOutput" })}
+                        </span>
+                        <span className="font-mono tabular-nums">
+                          {numberFormatter.format(childCurrentOutputTokens)}
+                        </span>
+                      </div>
+                    ) : null}
+                    <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                      <span>{intl.formatMessage({ id: "chat.sessionUsage.childSpeed" })}</span>
+                      <span className="font-mono tabular-nums">
+                        {childLiveOutputRate === null
+                          ? "-"
+                          : `${numberFormatter.format(childLiveOutputRate)} token/s`}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               ) : null}
             </div>
@@ -1058,11 +1069,12 @@ export function ChatContextUsage({
                 sessionTokenTotal !== null && "border-t border-border pt-3",
               )}
             >
-              <div className="flex min-w-0 mb-3 items-center gap-3">
-                <span className="shrink-0 text-ui-base font-medium text-foreground">
+              {/* 窄屏与大字号下标题、完整摘要可换行；不能让两个 shrink-0 项越过浮层边界。 */}
+              <div className="mb-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                <span className="min-w-0 text-ui-base font-medium text-foreground">
                   {intl.formatMessage({ id: "chat.contextUsage.title" })}
                 </span>
-                <span className="ml-auto shrink-0 text-right font-mono text-ui-sm text-foreground-subtle">
+                <span className="ml-auto min-w-0 max-w-full text-right font-mono text-ui-sm text-foreground-subtle">
                   {compactTokenUsageLabel}
                 </span>
               </div>
@@ -1084,7 +1096,7 @@ export function ChatContextUsage({
                   className="space-y-1.5"
                 >
                   <div className="grid gap-1.5">
-                    {breakdownSegments.map((segment, index) => (
+                    {breakdownSegments.map((segment) => (
                       <div
                         className="flex min-w-0 items-center gap-2 text-ui-sm"
                         key={segment.source}
@@ -1092,7 +1104,7 @@ export function ChatContextUsage({
                         <span
                           aria-hidden="true"
                           className="size-2 shrink-0 rounded-sm border border-border"
-                          style={getBreakdownToneStyle(index)}
+                          style={getBreakdownToneStyle(segment.source)}
                         />
                         <span className="min-w-0 truncate text-foreground-subtle">
                           {intl.formatMessage({

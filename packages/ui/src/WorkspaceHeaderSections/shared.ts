@@ -8,6 +8,8 @@ import type {
   UserInfo,
 } from "@lcode/shared";
 
+import type { RefObject } from "react";
+
 export interface WorkspaceHeaderState {
   selectedProvider: LCodeProvider;
 }
@@ -67,8 +69,11 @@ export interface WorkspaceHeaderActionSectionProps {
   isDesktop?: boolean;
   isTerminalOpen: boolean;
   isSidePaneOpen: boolean;
+  isNarrowWebLayout?: boolean;
   onToggleTerminal: () => void;
   onToggleSidePane: () => void;
+  sidePaneTriggerRef?: RefObject<HTMLButtonElement | null>;
+  sidePaneControlsId?: string;
   toggleSidePaneShortcutLabel?: string;
   onSelectedEditorChange?: (editor: EditorInfo | null) => void;
   simplifyForNarrowRemote?: boolean;

@@ -1,5 +1,6 @@
 import {
   AMEND_WORKFLOW_TOOL_NAME,
+  BashInputSchema,
   CREATE_WORKFLOW_TOOL_NAME,
   RESUME_WORKFLOW_RUN_TOOL_NAME,
 } from "@lcode/contracts";
@@ -54,8 +55,11 @@ export function registerRuntimeBackgroundTask(
   const taskType = runtimeTaskTypeForToolCall(toolCall);
   if (!taskType || !deps.runtimeTaskRegistry) return;
   const existing = deps.runtimeTaskRegistry.get(taskId);
-  const description = runtimeTaskDescription(toolCall, output) ?? defaultRuntimeTaskDescription(taskType);
+  const description =
+    runtimeTaskDescription(toolCall, output) ?? defaultRuntimeTaskDescription(taskType);
   const outputFile = backgroundTaskOutputMetadata(output).outputFile;
+  const parsedBashInput =
+    taskType === "local_bash" ? BashInputSchema.safeParse(toolCall.input) : undefined;
   // 同进程 cancel 终态 → 未重启即 resume（dwf 的 resume 重臂，
   // v4 命令路径与工具路径在 trackBackgroundTask 汇合同病）时，既有条目携带上一轮 claim 的
   // notified:true，重建若原样保留，claimRuntimeBackgroundTaskNotification 会据此拒收——
@@ -88,6 +92,11 @@ export function registerRuntimeBackgroundTask(
     agentType: existing?.agentType ?? taskType,
     description: existing?.description ?? description,
     isBackgrounded: true,
+    keepAliveAfterTask:
+      taskType === "local_bash"
+        ? parsedBashInput?.success === true && parsedBashInput.data.keep_alive_after_task === true
+        : existing?.keepAliveAfterTask,
+    cleanupOnTurnComplete: rearm ? false : existing?.cleanupOnTurnComplete,
     outputFile: outputFile ?? existing?.outputFile,
     parentToolCallId: existing?.parentToolCallId ?? toolCall.id,
     startedAt: existing?.startedAt ?? new Date(),
@@ -111,7 +120,8 @@ export function registerRuntimeBackgroundTask(
     return;
   }
   // 首次登记或新生命：剥掉继承来的 branchGeneration，交给 register 按当前 active 分支盖章。
-  const { branchGeneration: _previousLife, ...fresh } = next;
+  const { branchGeneration: _previousLife, lifecycleId: _previousLifecycle, ...fresh } = next;
+  // workId / 工具锚点跨恢复保持；结算代次属于新生命，必须由 registry 重新生成。
   deps.runtimeTaskRegistry.register(fresh);
 }
 
@@ -130,8 +140,7 @@ export function updateRuntimeBackgroundTask(
       : {
           ...current,
           completedAt: runtimeTaskCompletedAt(status, snapshot) ?? current.completedAt,
-          description:
-            runtimeTaskDescription(toolCall, undefined, snapshot) ?? current.description,
+          description: runtimeTaskDescription(toolCall, undefined, snapshot) ?? current.description,
           error: runtimeTaskError(snapshot) ?? current.error,
           exitCode: runtimeTaskExitCode(snapshot) ?? current.exitCode,
           isBackgrounded: true,

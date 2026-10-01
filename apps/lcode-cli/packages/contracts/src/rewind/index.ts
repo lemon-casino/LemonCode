@@ -101,6 +101,7 @@ export const workspaceCheckpointArtifactSchema = z
   .object({
     version: z.literal(1),
     kind: z.literal("workspace_file_before_change"),
+    provenance: z.literal("builtin_file_tool").optional(),
     createdAt: z.string().min(1),
     toolCallId: z.string().min(1),
     toolName: z.string().min(1),

@@ -5,16 +5,19 @@ import {
   lcodeProviderTestModelConnectivityParamsSchema,
   lcodeWorkspaceReadPresentationParamsSchema,
   type LCodeWorkspaceRef,
+  type LCodeProviderTestModelConnectivityResult,
 } from "@lcode/shared";
 import type { LCodeApp, LCodeAppOptions } from "../app/types.js";
 import { listProtocolSlashCommands } from "./slash-commands.js";
 import {
   parseParams,
+  ProtocolRequestError,
   type LCodeProtocolAgentServerContext,
   type LCodeProtocolSessionRecord,
 } from "./server-types.js";
 import { runSessionModelConfigMutation } from "../lcode-protocol-v4/model-config-mutation.js";
 import { createProviderRuntimeHeadersPort } from "./provider-runtime-headers.js";
+import { classifyModelConnectivityFailure } from "./connectivity-failure.js";
 
 export async function readWorkspacePresentation(
   context: LCodeProtocolAgentServerContext,
@@ -38,7 +41,7 @@ export async function testProviderModelConnectivity(
   context: LCodeProtocolAgentServerContext,
   rawParams: unknown,
   abortSignal?: AbortSignal,
-) {
+): Promise<LCodeProviderTestModelConnectivityResult> {
   const params = parseParams(lcodeProviderTestModelConnectivityParamsSchema, rawParams);
   // 旧 Personal Config 跨进程 watcher 可能永久漏掉原子写事件；连接测试若不先
   // 主动刷新，会反复查询旧 Registry。这里复用正式 Registry refresh，不旁路创建配置事实。
@@ -57,10 +60,17 @@ export async function testProviderModelConnectivity(
     }));
   try {
     await app.testModelConnectivity(
-      { selection: params.selection as ModelSelection },
+      {
+        selection: params.selection as ModelSelection,
+        ...(params.mode ? { mode: params.mode } : {}),
+      },
       { abortSignal },
     );
     return { success: true as const };
+  } catch (error) {
+    // RPC 参数/反向请求故障仍由协议归一化；仅模型执行错误形成可供设置页消费的安全结果。
+    if (error instanceof ProtocolRequestError) throw error;
+    return classifyModelConnectivityFailure(error, abortSignal);
   } finally {
     if (!active) await app.close?.();
   }

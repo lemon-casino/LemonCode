@@ -21,6 +21,7 @@ import { SSHDialog } from "@/SSHDialog.js";
 import { SettingsPage } from "@/SettingsPage.js";
 import { WelcomeScreen, type LoginCompleteReason } from "@/WelcomeScreen.js";
 import { setDefaultFileDisplayBasePath } from "@/lib/fileDisplay.js";
+import { setPendingSettingsSection } from "@/lib/settingsNavigation.js";
 import { readRendererLaunchTimings, shouldReportLaunchToInput } from "@/lib/launchToInputReport.js";
 import { reportUiLaunchToInput } from "@/lib/uiPerfArmsTelemetry.js";
 import { countAllUnreadTasks } from "@/lib/unreadTaskCount.js";
@@ -225,39 +226,6 @@ function RootInner({
     () => services.modelSelectionService.getView(),
     [services.modelSelectionService],
   );
-  const [gitBackupWelcomeOpen, setGitBackupWelcomeOpen] = useState(() => {
-    try {
-      return !localStorage.getItem("git-backup-onboarding-done");
-    } catch {
-      return false;
-    }
-  });
-  const handleGitBackupWelcomeComplete = useCallback(
-    (config: {
-      enabled: boolean;
-      oss?: {
-        accessKeyId: string;
-        accessKeySecret: string;
-        bucket: string;
-        region: string;
-        pathPrefix?: string;
-      };
-    }) => {
-      try {
-        localStorage.setItem("git-backup-onboarding-done", "1");
-        if (config.enabled && config.oss) {
-          localStorage.setItem(
-            "git-backup-config",
-            JSON.stringify({ enabled: true, oss: config.oss }),
-          );
-        }
-      } catch {
-        /* noop */
-      }
-      setGitBackupWelcomeOpen(false);
-    },
-    [],
-  );
   const [remoteConnectionDialogOpen, setRemoteConnectionDialogOpen] = useState(false);
   const [remoteConnectionOpenPreference, setRemoteConnectionOpenPreference] =
     useState<RemoteConnectionOpenPreference | null>(null);
@@ -362,6 +330,7 @@ function RootInner({
     workspaceShellPath,
     workspaceIdentity: workspaceShellIdentity,
     workspaceRemoteSessionId: workspaceShellRemoteSessionId,
+    remoteTarget: workspaceShellRemoteTarget,
   } = resolveRootWorkspaceShellTarget({
     activeWorkspaceTab,
     activeWorkspacePath,
@@ -397,6 +366,11 @@ function RootInner({
   const addTab = useTabStore((state) => state.addTab);
   const activateTabByPath = useTabStore((state) => state.activateTabByPath);
   const tabStoreApi = useTabStoreApi();
+  const handleOpenGitBackupSettings = useCallback(() => {
+    // 设置 tab 只覆盖当前工作区，保留原 tab 的 identity、attachment 与 remoteTarget 路由。
+    setPendingSettingsSection("gitBackup");
+    tabStoreApi.getState().openSettingsTab();
+  }, [tabStoreApi]);
   const refreshProviderState = useRootProviderStateRefresh(services);
   useRootProviderSettingsSnapshot(services);
   useEffect(() => {
@@ -1119,8 +1093,12 @@ function RootInner({
           />
         </ScopedErrorBoundary>
         <GitBackupWelcomeDialog
-          open={gitBackupWelcomeOpen}
-          onComplete={handleGitBackupWelcomeComplete}
+          workspacePath={workspaceShellPath}
+          workspaceIdentity={workspaceShellIdentity}
+          remoteSessionId={workspaceShellRemoteSessionId}
+          remoteTarget={workspaceShellRemoteTarget}
+          allowLegacyMigration
+          onOpenSettings={handleOpenGitBackupSettings}
         />
       </OccupationOnboarding>
     </RootShell>

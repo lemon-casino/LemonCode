@@ -73,6 +73,7 @@ import {
   WORKFLOW_REFINE_PERMISSION_OPTION_ID,
   LCODE_FILE_STREAMING_TOOL_INPUT_PREVIEW_MIN_INTERVAL_MS,
   lcodeBackgroundTaskNotificationToolUpdateStatus,
+  lcodeBackgroundTaskResultConsumedPayloadSchema,
 } from "@lcode/shared";
 import type {
   AssistantTextRow,
@@ -429,6 +430,8 @@ export class ProductProjection {
   private openForegroundToolCallIds = new Set<string>();
   private fileToolInputPreviewByCallId = new Map<string, FileToolInputPreviewState>();
   private subagentRowIdByAgentId = new Map<string, number>();
+  private backgroundLifecycleByWorkId = new Map<string, string>();
+  private consumedBackgroundLifecycles = new Set<string>();
   private hookRowIdByInvocationId = new Map<string, number>();
   // resume SessionStart 没有 turnId；先保留在 CLI projection，下一条真实 user-intent
   // TurnStarted 到达后再分配 rowId/turnId。不得构造 session-hooks:* synthetic turn。
@@ -1099,6 +1102,8 @@ export class ProductProjection {
       ]),
     );
     clone.subagentRowIdByAgentId = new Map(this.subagentRowIdByAgentId);
+    clone.backgroundLifecycleByWorkId = new Map(this.backgroundLifecycleByWorkId);
+    clone.consumedBackgroundLifecycles = new Set(this.consumedBackgroundLifecycles);
     clone.hookRowIdByInvocationId = new Map(this.hookRowIdByInvocationId);
     clone.pendingSessionHookInvocations = new Map(
       [...this.pendingSessionHookInvocations].map(([invocationId, pending]) => [
@@ -1157,6 +1162,8 @@ export class ProductProjection {
     this.openForegroundToolCallIds = candidate.openForegroundToolCallIds;
     this.fileToolInputPreviewByCallId = candidate.fileToolInputPreviewByCallId;
     this.subagentRowIdByAgentId = candidate.subagentRowIdByAgentId;
+    this.backgroundLifecycleByWorkId = candidate.backgroundLifecycleByWorkId;
+    this.consumedBackgroundLifecycles = candidate.consumedBackgroundLifecycles;
     this.hookRowIdByInvocationId = candidate.hookRowIdByInvocationId;
     this.pendingSessionHookInvocations = candidate.pendingSessionHookInvocations;
     this.rewoundHookInvocationIds = candidate.rewoundHookInvocationIds;
@@ -1446,6 +1453,8 @@ export class ProductProjection {
       case SessionEventType.BackgroundTaskUpdated:
       case SessionEventType.BackgroundTaskCompleted:
         return this.onBackgroundTaskLifecycle(event);
+      case SessionEventType.BackgroundTaskResultConsumed:
+        return this.onBackgroundTaskResultConsumed(event);
       case SessionEventType.DynamicWorkflowRunProgress:
         return this.onDynamicWorkflowRunProgress(event);
       case SessionEventType.SubagentSpawned:
@@ -1963,7 +1972,10 @@ export class ProductProjection {
     // background Agent 的 ToolCallResult 只是 launch ACK，先把工具行收口成
     // success；子 Agent 的真实终态随后只作为 model-only task-notification 开新轮。
     // V4 过去没有按 tool-use-id 消费这条权威事实，因此 429 后卡片会永久停在 completed。
-    const deltas: ConversationDelta[] = this.applyBackgroundTaskNotification(fact);
+    const deltas: ConversationDelta[] = [
+      ...this.applyBackgroundTaskNotification(fact),
+      ...this.removeConsumedBackgroundWorks(),
+    ];
     const sharedContextRef = fact.sharedContextRefs?.[0];
     if (
       sharedContextRef &&
@@ -4158,6 +4170,11 @@ export class ProductProjection {
     // 因而不会产生 tracker 的 BackgroundTaskStarted。SubagentSpawned 已是单一启动事实，
     // 这里在同一次 V4 transaction 内补齐可取消 work，避免再引入第二个可失败事件。
     const previous = this.snapshot.backgroundWorks;
+    const lifecycleId = this.stringPayload(payload, "lifecycleId");
+    if (lifecycleId) {
+      this.backgroundLifecycleByWorkId.set(agentId, lifecycleId);
+      if (this.consumedBackgroundLifecycles.has(lifecycleId)) return undefined;
+    }
     const existing = previous.find((work) => work.workId === agentId);
     const title =
       this.stringPayload(payload, "description") ??
@@ -4247,12 +4264,42 @@ export class ProductProjection {
     return [{ op: existing ? "row.upserted" : "row.appended", row }];
   }
 
+  private onBackgroundTaskResultConsumed(event: SessionEvent): ConversationDelta[] {
+    const parsed = lcodeBackgroundTaskResultConsumedPayloadSchema.safeParse(event.payload);
+    if (!parsed.success) return [];
+    const { workId, lifecycleId } = parsed.data;
+    this.consumedBackgroundLifecycles.add(lifecycleId);
+    // outer-drain 已持久化结果，但 continuation 尚未 TurnStarted；保留待处理条目，
+    // 在新轮进入 running 的同一事务再移除，防止中间完成态提前生成 Git 草稿。
+    if (parsed.data.delivery === "continuation") return [];
+    const currentLifecycle = this.backgroundLifecycleByWorkId.get(workId);
+    // 旧结果可以晚于同一 workId 的 resume 消费，不能抹掉新一代 running work。
+    if (currentLifecycle && currentLifecycle !== lifecycleId) return [];
+    const previous = this.snapshot.backgroundWorks;
+    const backgroundWorks = previous.filter((work) => work.workId !== workId);
+    return backgroundWorks.length === previous.length
+      ? []
+      : [{ op: "state.updated", patch: { backgroundWorks } }];
+  }
+
+  private removeConsumedBackgroundWorks(): ConversationDelta[] {
+    const previous = this.snapshot.backgroundWorks;
+    const backgroundWorks = previous.filter((work) => {
+      const lifecycleId = this.backgroundLifecycleByWorkId.get(work.workId);
+      return !lifecycleId || !this.consumedBackgroundLifecycles.has(lifecycleId);
+    });
+    return backgroundWorks.length === previous.length
+      ? []
+      : [{ op: "state.updated", patch: { backgroundWorks } }];
+  }
+
   // cancelBackgroundWork：后台任务生命周期（BackgroundTaskStarted/Updated/Completed）
   // → 维护 snapshot.backgroundWorks（后台工作面读它渲染 + cancel 入口）。
   // taskId≡workId 无需翻译；status 归一到 summary 的 4 值封闭枚举。
   private onBackgroundTaskLifecycle(event: SessionEvent): ConversationDelta[] {
     const payload = event.payload as {
       taskId?: string;
+      lifecycleId?: string;
       toolName?: string;
       taskKind?: string;
       command?: string;
@@ -4264,6 +4311,18 @@ export class ProductProjection {
     };
     const workId = payload.taskId;
     if (!workId) return [];
+    if (payload.lifecycleId) {
+      const previousLifecycle = this.backgroundLifecycleByWorkId.get(workId);
+      if (
+        event.type !== SessionEventType.BackgroundTaskStarted &&
+        previousLifecycle &&
+        previousLifecycle !== payload.lifecycleId
+      )
+        return [];
+      this.backgroundLifecycleByWorkId.set(workId, payload.lifecycleId);
+      // 通知入队可早于终态事件发布；已消费代次的迟到终态不得复活 resultPending。
+      if (this.consumedBackgroundLifecycles.has(payload.lifecycleId)) return [];
+    }
     const prev = this.snapshot.backgroundWorks;
     const existing = prev.find((work) => work.workId === workId);
     const legacyKind = resolveLCodeBackgroundTaskControlKind(payload);
@@ -4305,7 +4364,10 @@ export class ProductProjection {
       kind,
       title,
       status,
-      startedAt: existing?.startedAt ?? this.ms(event),
+      startedAt:
+        event.type === SessionEventType.BackgroundTaskStarted
+          ? this.ms(event)
+          : (existing?.startedAt ?? this.ms(event)),
       ...(status === "running" ? {} : { endedAt: this.ms(event) }),
       ...(typeof payload.cancellable === "boolean"
         ? { cancellable: payload.cancellable }

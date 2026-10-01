@@ -68,11 +68,13 @@ const AGENT_TOOL_OUTPUT_SCHEMA = {
         },
         outputFile: {
           type: "string",
-          description: "Path to the output file for checking agent progress",
+          description:
+            "Runtime artifact path; the parent model must await the completion notification",
         },
         canReadOutputFile: {
           type: "boolean",
-          description: "Whether the calling agent has Read/Bash tools to check progress",
+          description:
+            "Whether the caller has file tools; this does not permit polling the Agent output",
         },
       },
       required: ["status", "agentId", "description", "prompt", "outputFile"],
@@ -108,11 +110,11 @@ function buildAgentProviderDescription(
     "",
     "## When to use",
     "",
-    "Reach for this when the task matches an available agent type, when you have independent work to run in parallel, or when answering would mean reading across several files — delegate it and you keep the conclusion, not the file dumps. For a single-fact lookup where you already know the file, symbol, or value, search directly. Once you've delegated a search, don't also run it yourself — wait for the result.",
+    "Reach for this when the task matches an available agent type, when you have independent work to run in parallel, or when answering would mean reading across several files — delegate it and you keep the conclusion, not the file dumps. For a single-fact lookup where you already know the file, symbol, or value, search directly. Once you've delegated a search, don't also run it yourself — use the foreground tool result or the background completion notification.",
     "",
     "- The agent's final message is returned to you as the tool result; it is not shown to the user — relay what matters.",
     "- A new Agent call starts fresh, so the prompt must be self-contained.",
-    "- `run_in_background: true` runs the agent asynchronously; you'll be notified when it completes.",
+    "- `run_in_background: true` runs the agent asynchronously; you'll be notified when it completes. Do not wait for it or poll it with TaskOutput. Finish independent work, then end your turn to receive the notification.",
     "- When you launch multiple agents for independent work, send them in a single message with multiple tool uses so they run concurrently.",
     // 只保留「用户点名工作流」这一种情形：工作流一律由用户显式请求触发，与系统提示词其余
     // 部分一致。不能把「结果层层喂给下一步的多代理编排」也划给 CreateWorkflow，
@@ -154,14 +156,15 @@ function formatAgentOutputForModel(output: unknown): string {
     "Async agent launched successfully.",
     `agentId: ${data.agentId} (internal ID - do not mention to user. Use SendMessage with to: '${data.agentId}' to continue this agent.)`,
     "The agent is working in the background. You will be notified automatically when it completes.",
+    "Do not wait for this agent with TaskOutput or poll it. Finish independent work, then end your turn so the completion notification can arrive.",
   ];
 
   if (data.canReadOutputFile) {
     return [
       ...launchLines,
       "Do not duplicate this agent's work - avoid working with the same files or topics it is using. Work on non-overlapping tasks, or briefly tell the user what you launched and end your response.",
-      `output_file: ${data.outputFile}`,
-      "Do NOT Read or tail this file via the shell tool. If the user asks for progress, say the agent is still running; you'll get a completion notification.",
+      // .output 是完整子会话记录，不是进度摘要；模型不需要路径即可收到终态通知。
+      "Do NOT Read or tail the Agent output file via the shell tool. If the user asks for progress, say the agent is still running; you'll get a completion notification.",
     ].join("\n");
   }
 

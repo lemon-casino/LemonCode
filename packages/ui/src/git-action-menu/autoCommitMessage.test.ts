@@ -7,8 +7,13 @@ import {
   buildGitCommitMessageConversationContext,
   createAutoGitCommitMessageGateState,
   resolveLatestCompletedGitCommitMessageTurn,
+  shouldAutoOpenGitCommitDialog,
 } from "./autoCommitMessage.js";
 import { buildGitChangesFingerprint } from "./currentSessionFileScope.js";
+import {
+  captureGitWorkingTreeSnapshot,
+  changedGitPathsSinceSnapshot,
+} from "./autoGitWorkingTreeSnapshot.js";
 
 const gitSummary: GitRepositorySummary = {
   workspacePath: "C:/repo/packages/ui",
@@ -59,6 +64,47 @@ function fileChange(overrides: Partial<GitFileChange> = {}): GitFileChange {
   };
 }
 
+test("auto-open consumes each generated draft key once", () => {
+  assert.equal(
+    shouldAutoOpenGitCommitDialog({
+      actionAvailable: true,
+      commitDialogOpen: false,
+      consumedDraftKey: null,
+      draftKey: "draft-1",
+    }),
+    true,
+  );
+  assert.equal(
+    shouldAutoOpenGitCommitDialog({
+      actionAvailable: true,
+      commitDialogOpen: false,
+      consumedDraftKey: "draft-1",
+      draftKey: "draft-1",
+    }),
+    false,
+  );
+  assert.equal(
+    shouldAutoOpenGitCommitDialog({
+      actionAvailable: true,
+      commitDialogOpen: false,
+      consumedDraftKey: "draft-1",
+      draftKey: "draft-2",
+    }),
+    true,
+  );
+});
+
+test("auto-open does not reopen or replace an already open commit dialog", () => {
+  assert.equal(
+    shouldAutoOpenGitCommitDialog({
+      actionAvailable: true,
+      commitDialogOpen: true,
+      consumedDraftKey: null,
+      draftKey: "draft-1",
+    }),
+    false,
+  );
+});
 test("auto commit message gate requires a live running edge and settled success", () => {
   const completedTurn = resolveLatestCompletedGitCommitMessageTurn([completedHeader()]);
   assert.ok(completedTurn);
@@ -147,6 +193,42 @@ test("auto commit message gate clears on disable and scope change", () => {
   assert.equal(switched.target, undefined);
 });
 
+test("Git 仓库摘要晚于 running 到达时保留武装并只生成一次", () => {
+  const completedTurn = resolveLatestCompletedGitCommitMessageTurn([completedHeader()]);
+  assert.ok(completedTurn);
+  const running = advanceAutoGitCommitMessageGate(createAutoGitCommitMessageGateState(), {
+    enabled: true,
+    repositoryAvailable: false,
+    scopeKey: "workspace/session",
+    phase: "running",
+    settled: false,
+    completedTurn: null,
+  });
+  assert.equal(running.state.armed, true);
+
+  const waiting = advanceAutoGitCommitMessageGate(running.state, {
+    enabled: true,
+    repositoryAvailable: false,
+    scopeKey: "workspace/session",
+    phase: "completedSuccess",
+    settled: true,
+    completedTurn,
+  });
+  assert.equal(waiting.state.armed, true);
+  assert.equal(waiting.target, undefined);
+
+  const ready = advanceAutoGitCommitMessageGate(waiting.state, {
+    enabled: true,
+    repositoryAvailable: true,
+    scopeKey: "workspace/session",
+    phase: "completedSuccess",
+    settled: true,
+    completedTurn,
+  });
+  assert.equal(ready.state.armed, false);
+  assert.equal(ready.target?.turnId, "turn-1");
+});
+
 test("completed turn must have active file changes and a stable identity", () => {
   assert.equal(
     resolveLatestCompletedGitCommitMessageTurn([
@@ -164,6 +246,50 @@ test("completed turn must have active file changes and a stable identity", () =>
     resolveLatestCompletedGitCommitMessageTurn([completedHeader({ entityId: undefined })]),
     null,
   );
+});
+
+test("workflow completion may use a live Git baseline when parent turn has no file summary", () => {
+  const header = completedHeader({ fileChanges: undefined });
+  assert.equal(resolveLatestCompletedGitCommitMessageTurn([header]), null);
+  assert.equal(resolveLatestCompletedGitCommitMessageTurn([header], true)?.turnId, "turn-1");
+  assert.equal(
+    resolveLatestCompletedGitCommitMessageTurn([completedHeader({ entityId: undefined })], true),
+    null,
+  );
+});
+
+test("Git baseline selects only new or content-changed dirty paths", async () => {
+  let stage: "before" | "after" = "before";
+  const existing = fileChange({ path: "C:/repo/existing.ts", repoRelativePath: "existing.ts" });
+  const changed = fileChange({ path: "C:/repo/changed.ts", repoRelativePath: "changed.ts" });
+  const newFile = fileChange({ path: "C:/repo/new.ts", repoRelativePath: "new.ts" });
+  const reverted = fileChange({ path: "C:/repo/reverted.ts", repoRelativePath: "reverted.ts" });
+  const service = {
+    refresh: async () => ({
+      summary: gitSummary,
+      identity: null,
+      unstagedChanges:
+        stage === "before" ? [existing, changed, reverted] : [existing, changed, newFile],
+      stagedChanges: [],
+      branchComparison: null,
+    }),
+    getDiff: async ({ path }: { path: string }) => ({
+      path,
+      availability: "patch" as const,
+      patch: `${path}:${path.endsWith("changed.ts") ? stage : "stable"}`,
+      beforeContent: null,
+      afterContent: null,
+    }),
+  };
+  const baseline = await captureGitWorkingTreeSnapshot(service, "C:/repo");
+  assert.ok(baseline);
+  stage = "after";
+  const final = await captureGitWorkingTreeSnapshot(service, "C:/repo");
+  assert.ok(final);
+  assert.deepEqual(changedGitPathsSinceSnapshot(baseline, final), [
+    "C:/repo/changed.ts",
+    "C:/repo/new.ts",
+  ]);
 });
 
 test("conversation context preserves user and assistant intent through the target turn", () => {

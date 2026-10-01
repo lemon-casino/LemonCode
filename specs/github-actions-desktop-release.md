@@ -119,9 +119,13 @@ sequenceDiagram
   participant Release as GitHub Release
   participant OS as 平台安装接管
   Main->>Worker: 请求 latest-<os>-<arch>.yml
-  Worker->>Release: 读取对应 Release 清单
+  alt stable
+    Worker->>Release: 直接读取 releases/latest/download 清单
+  else preview
+    Worker->>Release: 经 Releases API 选择 prerelease 清单
+  end
   Release-->>Worker: 当前架构安装包 URL + 最终 size/SHA-512
-  Worker-->>Main: 改写后的同架构清单
+  Worker-->>Main: 改写为含 v<version> 的同架构下载 URL
   Main->>Main: 按当前安装类型选择包；强制 size + SHA-512
   UI->>Main: 下载更新
   alt macOS
@@ -129,7 +133,7 @@ sequenceDiagram
   else Windows / Linux
     Main->>Worker: electron-updater 下载同一已准入文件
   end
-  Worker-->>Release: 302 到不可变 Release 资产
+  Worker-->>Release: 按 tag + 文件名确定性 302 到不可变 Release 资产
   Release-->>Main: 安装包字节流
   Main->>Main: 校验 size 与 SHA-512
   UI->>Main: 安装更新

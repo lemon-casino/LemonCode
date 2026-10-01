@@ -3,6 +3,7 @@ import {
   ArrowUpRightIcon,
   CircleCheckIcon,
   CircleHelpIcon,
+  CircleSlashIcon,
   CircleXIcon,
   LoaderCircleIcon,
   TerminalIcon,
@@ -18,9 +19,9 @@ export { agentColor, avatarColor } from "@/components/workflow-timeline/Workflow
  * 子代理药丸：带色头像 +
  * 名字 + 右侧状态标记。卡片的站下与侧栏的行都是它——同一个特性只有一枚药丸。
  *
- * 头像是瓦片脸（`WorkflowAgentFace`）：机身色按代理编号取九色环，表情读 status。
- * 工作区没有身份，所以没有颜色，只有终端字形。`pending` 与无状态逐像素相同（不变式 3）：
- * 没有标记、名字用次淡色、脸睡着。
+ * 头像是云朵小幽灵（`WorkflowAgentFace`）：配色跟随界面主题，状态只改变五官与动作。
+ * 工作区没有身份，所以没有颜色，只有终端字形。`pending` 与无状态逐像素相同：
+ * 没有标记、名字用次淡色、小幽灵好奇张望。对勾、叉号与状态圈只在右侧尾槽，不覆盖头像。
  *
  * 可打开（`open` 在场）时整枚药丸就是按钮：悬停四件事同时落地（底色抬一级、头像色相的
  * 内描边、头像放大加深、尾槽里 ↗ 顶替状态标记），点一下直接开那个子代理的 transcript。不可
@@ -31,7 +32,7 @@ export { agentColor, avatarColor } from "@/components/workflow-timeline/Workflow
  * （↗ 隐身时不能仍占位：否则子代理的标记会比工作区的偏左一格）。
  */
 
-/** 车道字形：agent 车道是瓦片脸（编号定色、status 定表情），工作区 / 未解析车道是图标。 */
+/** 车道字形：agent 车道复用小幽灵，工作区 / 未解析车道是图标。 */
 export function LaneGlyph({
   laneClass,
   className,
@@ -59,7 +60,7 @@ export function LaneGlyph({
   return <Glyph aria-hidden className={className} />;
 }
 
-/** 状态标记：转圈 / 对勾 / 叉；`pending` 与 undefined 没有标记。状态变化时新标记弹入；可打开的药丸悬停时它让位给 ↗。 */
+/** 状态标记：转圈 / 对勾 / 停止符 / 叉；`pending` 与 undefined 没有标记。状态变化时新标记弹入；可打开的药丸悬停时它让位给 ↗。 */
 export function PillStatusMark({ status }: { status: StepRunStatus | undefined }) {
   const { intl } = useLCodeIntl();
   if (status === undefined || status === "pending") return null;
@@ -72,6 +73,8 @@ export function PillStatusMark({ status }: { status: StepRunStatus | undefined }
         // 运行圆环使用中性色，避免正常加载被读成警告。
         status === "running" && "text-foreground-subtle",
         status === "done" && "text-foreground-subtle",
+        // 停止与已结算同色：停下不是故障，红色只留给 failed。
+        status === "cancelled" && "text-foreground-subtle",
         status === "failed" && "text-destructive",
       )}
       data-testid="workflow-pill-status"
@@ -86,6 +89,8 @@ export function PillStatusMark({ status }: { status: StepRunStatus | undefined }
         />
       ) : status === "done" ? (
         <CircleCheckIcon aria-hidden className="size-3.5" />
+      ) : status === "cancelled" ? (
+        <CircleSlashIcon aria-hidden className="size-3.5" />
       ) : (
         <CircleXIcon aria-hidden className="size-3.5" />
       )}

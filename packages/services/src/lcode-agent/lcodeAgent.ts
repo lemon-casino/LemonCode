@@ -1,4 +1,5 @@
 import type { BackgroundBashOutputResult, SessionDebugSnapshot } from "@lcode/shared";
+import type { GitFileMutationJournal } from "@lcode/shared";
 /* eslint-disable max-lines -- LCode agent service 接口集中声明 protocol/session/workspace 方法，拆分会增加 service descriptor 迁移成本。 */
 import type { Event, IDisposable } from "@lcode/rpc";
 import { ServiceChannels } from "@lcode/shared";
@@ -319,6 +320,7 @@ export interface LCodeAgentGenerateWorkspaceTextParams extends LCodeAgentWorkspa
 
 export interface LCodeAgentTestModelConnectivityParams extends LCodeAgentWorkspaceTarget {
   selection: LCodeProviderTestModelConnectivityParams["selection"];
+  mode?: LCodeProviderTestModelConnectivityParams["mode"];
   signal?: AbortSignal;
 }
 
@@ -684,6 +686,9 @@ export interface ILCodeAgentService {
   generateWorkspaceText(
     params: LCodeAgentGenerateWorkspaceTextParams,
   ): Promise<LCodeWorkspaceGenerateTextResult>;
+  getWorkspaceFileMutationJournal(
+    params: LCodeAgentWorkspaceTarget & { paths: string[] },
+  ): Promise<GitFileMutationJournal>;
   testModelConnectivity(
     params: LCodeAgentTestModelConnectivityParams,
   ): Promise<LCodeProviderTestModelConnectivityResult>;

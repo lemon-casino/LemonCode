@@ -252,6 +252,18 @@ function shouldEnqueueRuntimeBackgroundTaskNotification(
     return false;
   }
   const registryTask = runtime.runtimeTaskRegistry.get(input.taskId);
+  // 主 turn 收尾取消的 Bash 是 Runtime 自己的结算动作；若把取消结果回灌为
+  // background notification，会在“任务完成”后再次唤醒模型，破坏完成边界。
+  if (input.toolName === "Bash" && registryTask?.cleanupOnTurnComplete === true) {
+    runtime.logger?.info?.("Suppressed turn-completion Bash notification", {
+      ...traceContextToLogContext(input.traceContext),
+      event: "runtime.background_task_notification.suppressed",
+      module: "core.runtime",
+      reason: "turn_complete_cleanup",
+      taskId: input.taskId,
+    });
+    return false;
+  }
   if (
     !shouldSuppressSealedSubagentBashNotification({
       isSubagentChildRuntime: runtime.config.taskType === "subagent_child",

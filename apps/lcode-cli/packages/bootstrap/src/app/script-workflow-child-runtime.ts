@@ -3,7 +3,6 @@ import { createNodeContextSourceAdapter } from "@lcode/adapters/context";
 import { createNodeExecutionAdapter } from "@lcode/adapters/exec";
 import { createNodeFileSystemAdapter } from "@lcode/adapters/fs";
 import { createNodeWebFetchHttpClientAdapter } from "@lcode/adapters/http";
-import { createNodeSkillAdapter } from "@lcode/adapters/skills";
 import type { ConfigResult } from "@lcode/adapters/config";
 import {
   AgentRuntime,
@@ -27,6 +26,7 @@ import {
   type ModelRequestAdmission,
   type SessionId,
   type SessionStorePort,
+  type SkillPort,
   type ToolArtifactStorePort,
   type ToolOperationAdmissionPort,
   type TraceContext,
@@ -34,7 +34,6 @@ import {
   type WorkflowEscalatePort,
   type WorkflowSubmitPort,
 } from "@lcode/contracts";
-import { collectDisabledPaths } from "../skill-command-overrides.js";
 import { parseProviderQualifiedModelSelection } from "./provider-registry-selection.js";
 import type { LCodeAppOptions } from "./types.js";
 
@@ -58,6 +57,7 @@ export interface ScriptWorkflowAgentRuntimeDeps {
   runtimeConfig: AgentRuntimeConfig;
   sessionId: SessionId;
   sessionStore: SessionStorePort;
+  skillPort?: SkillPort;
   storageRoot: string;
   workingDirectory: string;
 }
@@ -249,15 +249,8 @@ function createRuntimeDeps(
     ...deps.runtime.createChildClientPorts(clientPortsContext),
     permissionService: deps.permissionService,
     sessionStore: deps.sessionStore,
-    skillPort:
-      deps.configResult.config.features.skill && deps.configResult.config.skills.enabled
-        ? (deps.appOptions.skillPort ??
-          createNodeSkillAdapter({
-            extraRoots: deps.configResult.config.skills.roots,
-            // 脚本 workflow child runtime 不能绕过用户禁用的 SKILL.md 路径。
-            disabledPaths: collectDisabledPaths(deps.configResult.config.skillOverrides),
-          }))
-        : undefined,
+    // 主装配已纳入 plugin roots 与禁用路径，child 不重建缺少插件的扫描器。
+    skillPort: deps.skillPort,
     traceContext,
   };
 }

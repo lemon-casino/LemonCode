@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- Side pane 当前集中承载 tabs、browser/git/code-viewer 内容；完整拆分需按 pane 功能边界继续推进。 */
 import { ServiceProvider } from "@/hooks/useServices.js";
+import { WorkspacePanelDrawer } from "@/app-shell/WorkspacePanelDrawer.js";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 import type { IServiceAccessor } from "@lcode/services";
@@ -294,6 +295,7 @@ export function AnimatedSidePanePanel({
   activeGitSourceId,
   panelRef,
   panelElementRef,
+  onPanelResize,
   browserNavigationRequest,
   browserRestoreUrls,
   screenshotSurfaceRequest: screenshotSurfaceRequestProp = null,
@@ -336,6 +338,11 @@ export function AnimatedSidePanePanel({
   showWindowControls,
   onCloseSidePane,
   toggleSidePaneShortcutLabel,
+  isNarrowWebLayout = false,
+  isWorkspaceVisible = true,
+  drawerId,
+  drawerTriggerRef,
+  drawerFallbackFocusRef,
 }: {
   services: IServiceAccessor;
   frameClassName?: string;
@@ -343,6 +350,11 @@ export function AnimatedSidePanePanel({
   showWindowControls?: boolean;
   onCloseSidePane?: () => void;
   toggleSidePaneShortcutLabel?: string;
+  isNarrowWebLayout?: boolean;
+  isWorkspaceVisible?: boolean;
+  drawerId?: string;
+  drawerTriggerRef?: RefObject<HTMLButtonElement | null>;
+  drawerFallbackFocusRef?: RefObject<HTMLButtonElement | null>;
   isDesktop?: boolean;
   isWindowsDesktop?: boolean;
   isVisible: boolean;
@@ -359,6 +371,7 @@ export function AnimatedSidePanePanel({
   activeGitSourceId: GitChangeSourceId;
   panelRef: RefObject<PanelImperativeHandle | null>;
   panelElementRef: RefObject<HTMLDivElement | null>;
+  onPanelResize?: (size: import("react-resizable-panels").PanelSize) => void;
   browserNavigationRequest: BrowserNavigationRequest | null;
   browserRestoreUrls: Record<string, string>;
   screenshotSurfaceRequest?: BrowserViewScreenshotSurfacePreparePayload | null;
@@ -405,7 +418,7 @@ export function AnimatedSidePanePanel({
   const isOfficeMode = useIsOfficeMode();
   const developerToolsEnabled = useDeveloperToolsVisibility();
   const isDragCollapsible = !isVisible;
-  const isResizeDisabled = !isVisible;
+  const isResizeDisabled = isNarrowWebLayout || !isVisible;
   const workspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
   const tabs = sidePaneState?.tabs ?? EMPTY_SIDE_PANE_TABS;
   const screenshotSurfaceRequest = screenshotSurfaceRequestProp;
@@ -508,6 +521,12 @@ export function AnimatedSidePanePanel({
       widthUnlockTimerRef.current = null;
     }
 
+    if (isNarrowWebLayout) {
+      // 抽屉没有 split 宽度动画；沿用锁宽会把桌面宽度带入手机，导致内容溢出。
+      setLockedContentWidthPx(null);
+      return;
+    }
+
     if (previousIsVisible && !isVisible) {
       const currentPanelWidthPx = Math.round(
         panelElementRef.current?.getBoundingClientRect().width ?? 0,
@@ -530,7 +549,7 @@ export function AnimatedSidePanePanel({
         widthUnlockTimerRef.current = null;
       }, SIDE_PANE_CONTENT_WIDTH_LOCK_DURATION_MS);
     }
-  }, [isVisible, panelElementRef]);
+  }, [isNarrowWebLayout, isVisible, panelElementRef]);
 
   useEffect(() => {
     return () => {
@@ -541,7 +560,7 @@ export function AnimatedSidePanePanel({
   }, []);
 
   const lockedContentStyle: CSSProperties | undefined =
-    lockedContentWidthPx !== null
+    !isNarrowWebLayout && lockedContentWidthPx !== null
       ? {
           width: `${lockedContentWidthPx}px`,
         }
@@ -801,7 +820,7 @@ export function AnimatedSidePanePanel({
     .filter((itemId) => !isOfficeMode || (itemId !== "terminal" && itemId !== "review"))
     .map((itemId) => openTabLauncherItemById[itemId]);
   const closeSidePaneButton =
-    isVisible && onCloseSidePane ? (
+    isVisible && !isNarrowWebLayout && onCloseSidePane ? (
       <div className="flex shrink-0 items-center gap-0.5 [app-region:no-drag]">
         <WorkspaceSidePaneToggleButton
           isSidePaneOpen
@@ -1339,7 +1358,7 @@ export function AnimatedSidePanePanel({
 
   return (
     <>
-      {isVisible ? (
+      {isVisible && !isNarrowWebLayout ? (
         <ResizableHandle
           data-workspace-side-pane-resize-handle="true"
           className={cn(
@@ -1354,11 +1373,15 @@ export function AnimatedSidePanePanel({
       ) : null}
       <ResizablePanel
         id="browser"
+        data-workspace-side-pane-panel="true"
+        aria-hidden={!isVisible}
+        inert={!isVisible && !isScreenshotSurfaceActive ? true : undefined}
         panelRef={panelRef}
         elementRef={panelElementRef}
+        onResize={onPanelResize}
         defaultSize={panelLayout.defaultSize}
-        minSize={panelLayout.minSize}
-        maxSize={panelLayout.maxSize}
+        minSize={isNarrowWebLayout ? "0px" : panelLayout.minSize}
+        maxSize={isNarrowWebLayout ? "100%" : panelLayout.maxSize}
         collapsedSize={panelLayout.collapsedSize}
         // 右侧面板常驻声明成 collapsible 时，拖到最小宽度会被库判定为 collapse。
         // 这里改成只在显式关闭时允许折叠，避免用户只是想拖到最小宽度时面板自动收起。
@@ -1373,7 +1396,21 @@ export function AnimatedSidePanePanel({
           isVisible || isScreenshotSurfaceActive ? "opacity-100" : "pointer-events-none opacity-0",
         )}
       >
-        {panelContent}
+        <WorkspacePanelDrawer
+          id={drawerId ?? "workspace-side-pane"}
+          enabled={isNarrowWebLayout && isWorkspaceVisible}
+          open={isVisible}
+          label={intl.formatMessage({ id: "sidePane.panelTitle" })}
+          closeLabel={intl.formatMessage({ id: "sidePane.collapse" })}
+          onOpenChange={(open) => {
+            if (!open) onCloseSidePane?.();
+          }}
+          triggerRef={drawerTriggerRef}
+          fallbackFocusRef={drawerFallbackFocusRef}
+          keepInactiveContentInteractive={isScreenshotSurfaceActive}
+        >
+          {panelContent}
+        </WorkspacePanelDrawer>
       </ResizablePanel>
     </>
   );

@@ -9,10 +9,7 @@ import {
   NODE_REPL_BROWSER_BROKER_TOKEN_ENV,
   nodeReplBrowserBrokerResponseSchema,
 } from "@lcode/shared/node-repl-browser-broker";
-import {
-  BROWSER_UNAVAILABLE_IN_SUBAGENT_MESSAGE,
-  NODE_REPL_BROWSER_BRIDGE_SYMBOL,
-} from "./runtime-bridge.js";
+import { NODE_REPL_BROWSER_BRIDGE_SYMBOL } from "./runtime-bridge.js";
 
 const MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
 type BrokerResponse = ReturnType<typeof nodeReplBrowserBrokerResponseSchema.parse>;
@@ -45,13 +42,8 @@ export function createBrowserBridgeGlobals(input: {
     return active;
   };
   const assertAvailable = (): ActiveNodeReplCall => {
-    const active = assertActive();
-    // 共享 node_repl 子进程会同时服务 main/subagent。即使每次调用都是新内核，
-    // Browser 权限也必须按当前调用的可信 metadata 拒绝，不能从 session id 或代码内容猜测。
-    if (active.requestMeta.runtime_scope === "subagent") {
-      throw new Error(BROWSER_UNAVAILABLE_IN_SUBAGENT_MESSAGE);
-    }
-    return active;
+    // Browser 子代理能力由私有 broker 的活跃父子作用域校验，不能在共享内核一概拒绝。
+    return assertActive();
   };
   const transport: BrowserClientTransport = {
     list: async () => {

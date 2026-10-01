@@ -34,6 +34,7 @@ import { parsePairingDeepLink, type PairingDeepLinkRoute } from "./remote/pairin
 import { MobilePairingPage } from "./remote/MobilePairingPage.js";
 import type { MobileDataServices } from "./remote/pairingSockets.js";
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
+import { saveWebFile } from "./saveWebFile.js";
 
 function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): Theme {
   const saved = localStorage.getItem("lcode-theme");
@@ -213,6 +214,7 @@ function createWebPlatform(): IPlatformService {
     // Web 端无法打开系统文件选择框
     selectFile: () => Promise.resolve(null),
     selectFiles: () => Promise.resolve([]),
+    saveFile: saveWebFile,
     getPathForFile: () => null,
     createTempTextAttachment: () =>
       Promise.reject(new Error("Temporary text attachments require a desktop host")),

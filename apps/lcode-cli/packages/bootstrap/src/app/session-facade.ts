@@ -28,7 +28,10 @@ import { loadSessionTranscriptFromStore } from "../session-transcript.js";
 import { createSubagentObservation } from "./subagent-observation.js";
 import { getLocaleConfigPath } from "./locale-selection.js";
 import { isClosableSessionStore } from "./session-store.js";
-import type { ProviderRegistryModelSource } from "./provider-registry-model-runtime.js";
+import type {
+  ProviderRegistryModelSource,
+  RuntimeModelFactory,
+} from "./provider-registry-model-runtime.js";
 import {
   completeAuxiliaryRegistryModelSelection,
   getRegistryBackedModel,
@@ -115,6 +118,7 @@ interface CreateSessionFacadeDeps {
   prepareResume(traceContext?: TraceContext): Promise<void>;
   projectID: ProjectId;
   providerRegistry: ProviderRegistryModelSource;
+  temporaryModelFactory?: RuntimeModelFactory;
   resolveUiLocale(locale: UiLocale): SupportedLocale;
   runtime: AgentRuntime;
   sessionResourceCloseTimeoutMs?: number;
@@ -408,16 +412,20 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
       );
     },
     testModelConnectivity: async (input, options) => {
-      // 连接测试用的 Model 也要先绑定最低档位，否则严格 Factory 会先因缺档位失败。
-      const selection = completeAuxiliaryRegistryModelSelection(
-        deps.providerRegistry,
-        input.selection,
-      );
+      const temporary = input.mode === "temporary";
+      if (temporary && !deps.temporaryModelFactory) {
+        throw new Error("当前 Environment 未提供临时 Model 解析能力");
+      }
+      // 普通检测仍经严格 Registry；临时模型在单次 factory 内解析并绑定最低档位，不写会话选择。
+      const selection = temporary
+        ? input.selection
+        : completeAuxiliaryRegistryModelSelection(deps.providerRegistry, input.selection);
       await deps.runtime.testModelConnectivity(
-        { ...input, selection },
+        { selection },
         {
           abortSignal: options?.abortSignal,
           traceContext: options?.traceContext ?? deps.traceContext,
+          ...(temporary ? { rawModelFactory: deps.temporaryModelFactory } : {}),
         },
       );
     },

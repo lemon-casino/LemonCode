@@ -1,4 +1,6 @@
-import { createConfig } from "@lcode/adapters/config";
+import { createConfig, resolvePath } from "@lcode/adapters/config";
+import { join } from "node:path";
+import { createNodeToolArtifactStore } from "@lcode/adapters/storage";
 import { createNodeModelSelectionFacade } from "@lcode/provider-node";
 import { createNodeLoggerFactory } from "@lcode/adapters/logging";
 import {
@@ -247,6 +249,16 @@ export async function runLCodeProtocolAgent(
     );
     options.lifecycle?.signal.throwIfAborted();
     const server = (serverForCleanup = new LCodeProtocolAgentServer({
+      readWorkspaceCheckpointArtifact: async (uri) => {
+        const storageRoot = resolvePath(configResult.config.storage.dir);
+        const store = createNodeToolArtifactStore({
+          rootDir: join(storageRoot, "cli", "artifacts"),
+          imageCacheRootDir: join(storageRoot, "cli", "image-cache"),
+          pdfCacheRootDir: join(storageRoot, "cli", "pdf-cache"),
+          videoCacheRootDir: join(storageRoot, "cli", "video-cache"),
+        });
+        return (await store.readToolResultArtifact({ uri })).content;
+      },
       createLCodeApp: (appOptions = {}) =>
         createLCodeApp({
           ...applyProtocolProviderRegistry(

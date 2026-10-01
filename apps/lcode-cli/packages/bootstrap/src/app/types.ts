@@ -535,7 +535,7 @@ export interface LCodeApp {
     toolCalls?: ModelToolCall[];
   }>;
   testModelConnectivity(
-    input: { selection: ModelSelection },
+    input: { selection: ModelSelection; mode?: "temporary" },
     options?: { abortSignal?: AbortSignal; traceContext?: TraceContext },
   ): Promise<void>;
   expertWorkflowStatus(options?: {

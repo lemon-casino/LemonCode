@@ -124,7 +124,7 @@ export function AnimatedTerminalPanel({
           className={cn("h-full overflow-hidden bg-background", frameClassName)}
         >
           {hasRenderedTerminal ? (
-            <div aria-hidden={!isVisible} className="h-full">
+            <div aria-hidden={!isVisible} inert={!isVisible ? true : undefined} className="h-full">
               {/* terminal 首次展开前不渲染，避免无意义初始化；
                   首次展开后保持挂载，收起时只隐藏不卸载，这样下一次展开就能直接复用现有会话。 */}
               <ScopedErrorBoundary

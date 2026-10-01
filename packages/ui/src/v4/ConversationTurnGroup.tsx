@@ -1412,6 +1412,7 @@ function ConversationTurnGroupImpl({
             />
           ) : null}
           {canRenderAssistantActions && latestAssistantTextRow ? (
+            // 无 hover 的手机沿用附件动作常显规则；仅改变显隐，不放宽 fork/retry 的原资格。
             // 文件 summary 是整轮完成后的聚合结果；轮尾工具栏如果跟着
             // assistant text 内联渲染，会插到 summary 前面，读起来像 summary 不是本轮收尾。
             <ConversationAssistantTextActions
@@ -1426,10 +1427,10 @@ function ConversationTurnGroupImpl({
               onFeedbackChange={onFeedbackChange}
               hookInvocations={unit.hookInvocations}
               turnId={unit.turnId}
-              className="opacity-0 transition-opacity group-hover/assistant-turn:opacity-100 focus-within:opacity-100"
+              className="opacity-0 transition-opacity group-hover/assistant-turn:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100"
             />
           ) : hasHookActions ? (
-            <MessageActions className="opacity-0 transition-opacity group-hover/assistant-turn:opacity-100 focus-within:opacity-100">
+            <MessageActions className="opacity-0 transition-opacity group-hover/assistant-turn:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
               <ConversationHookDetailsAction rows={unit.hookInvocations} turnId={unit.turnId} />
             </MessageActions>
           ) : null}

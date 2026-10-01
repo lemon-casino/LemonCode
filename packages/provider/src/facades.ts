@@ -437,13 +437,11 @@ export class ProviderSettingsFacade {
       (item) => item.providerId === providerId,
     );
     if (!provider) throw new Error(`Provider 不存在: ${providerId}`);
-    // 配置成员与可执行模型不是同一名单：禁用、无权益和不完整模型仍可编辑。
+    // 投影已过滤删除项；成员命令必须读取未过滤的继承身份，避免重新添加变成个人副本。
     // Account 的空/替换名单也必须原样使用，不能再与静态 Built-in 取并集。
     return Object.freeze({
       providerId,
-      inheritedModelIds: Object.freeze(
-        provider.models.filter((model) => model.source === "builtin").map((model) => model.modelId),
-      ),
+      inheritedModelIds: provider.config.builtinModelIds ?? Object.freeze([]),
       personalRevision: snapshot.config.personalRevision,
       assertCurrent: () => {
         if (this.#source.getSnapshot() !== snapshot)

@@ -4,6 +4,10 @@ import { isPathInWorkspaceScope, normalizeGitPath, toWorkspaceRelativeGitPath } 
 import { filterCommitMessageFilesByCurrentSession } from "./commitMessageFileScope.js";
 import type { IGitService } from "./git.js";
 import type { GitCommitMessageGenerator } from "./gitCommitMessageGenerator.js";
+import { CommitReviewService, type MutationJournalReader } from "./commitReviewService.js";
+import { CommitReviewRepo } from "./repo/commitReviewRepo.js";
+import { createGitCommandProvider } from "./providers/gitCommandProvider.js";
+import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import {
   createGitCliRepo,
   type GitBranchComparisonChange,
@@ -12,6 +16,8 @@ import {
   type GitStatusEntry,
   type GitStatusSnapshot,
 } from "./repo/gitCliRepo.js";
+
+const logger = createServiceLogger("git-commit-review");
 
 function toAbsolutePath(repoRoot: string, repoRelativePath: string): string {
   return resolve(repoRoot, ...normalizeGitPath(repoRelativePath).split("/"));
@@ -170,8 +176,16 @@ function getCommitMessageDiffQueries(
 export function createGitService(options?: {
   repo?: GitCliRepo;
   commitMessageGenerator?: GitCommitMessageGenerator;
+  mutationJournalReader?: MutationJournalReader;
 }): IGitService {
   const repo = options?.repo ?? createGitCliRepo();
+  const reviews = options?.commitMessageGenerator
+    ? new CommitReviewService(
+        new CommitReviewRepo(repo, createGitCommandProvider()),
+        options.commitMessageGenerator,
+        options.mutationJournalReader,
+      )
+    : null;
 
   return {
     async getRepositorySummary(params) {
@@ -271,6 +285,29 @@ export function createGitService(options?: {
         throw new Error("There are no changes available to commit.");
       }
 
+      if (params.review && reviews) {
+        try {
+          return await reviews.generate({
+            ...params,
+            includeUnstaged,
+            paths: [...new Set(files.map((file) => file.path))],
+          });
+        } catch (error) {
+          // 二进制/超限/模型失败仍需提示任务完成，不能让自动弹窗消失；此结果不具备提交权限。
+          logger.warn(undefined, "提交审核生成失败，返回不可提交结果", {
+            fileCount: files.length,
+            errorName: error instanceof Error ? error.name : "unknown",
+          });
+          return {
+            message: "",
+            providerId: "",
+            model: "",
+            reviewError:
+              error instanceof Error ? error.message : "提交审核不可用，请改用手动提交。",
+          };
+        }
+      }
+
       const diffQueries = getCommitMessageDiffQueries(files, includeUnstaged);
       const diffResults = await Promise.allSettled(
         diffQueries.map((query) =>
@@ -299,6 +336,19 @@ export function createGitService(options?: {
     },
 
     async commit(params) {
+      if (params.review) {
+        if (!reviews) throw new Error("提交审核不可用。");
+        const committed = await reviews.commit(params);
+        try {
+          repo.invalidate(params.workspacePath);
+          return { ...committed, summary: (await repo.getStatus(params.workspacePath)).summary };
+        } catch {
+          return {
+            ...committed,
+            warning: committed.warning ?? "提交已成功，但状态刷新失败，请刷新后查看。",
+          };
+        }
+      }
       const result = await repo.commit(params.workspacePath, params.message, params.paths, {
         stagedOnly: params.stagedOnly,
       });

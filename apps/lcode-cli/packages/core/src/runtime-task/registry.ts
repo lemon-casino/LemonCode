@@ -42,11 +42,17 @@ export interface RuntimeTaskMessageSink {
 }
 
 export interface RuntimeTaskSnapshot extends SubagentTaskSnapshot {
+  /** 唯一后台生命周期：workId 跨 resume 不变，本 id 每次执行更换。 */
+  lifecycleId?: string;
   /** task 注册时所属 active conversation branch；用于迟到 completion fencing。 */
   branchGeneration?: number;
   exitCode?: number;
   type: RuntimeTaskType;
   isBackgrounded?: boolean;
+  /** Only an explicitly retained Bash may survive its owning turn's successful completion. */
+  keepAliveAfterTask?: boolean;
+  /** Runtime-owned cancellation must not enqueue another model turn. */
+  cleanupOnTurnComplete?: boolean;
   messageSink?: RuntimeTaskMessageSink;
   /** 当前 child 实际在用的完整 selection；只供 execution failover stale/same-target guard。 */
   modelSelection?: ModelSelection;
@@ -118,6 +124,7 @@ export class InMemoryRuntimeTaskRegistry implements RuntimeTaskRegistry {
   register(task: RuntimeTaskSnapshot): void {
     const stamped = {
       ...task,
+      lifecycleId: task.lifecycleId ?? crypto.randomUUID(),
       branchGeneration: task.branchGeneration ?? this.activeBranchGeneration,
     };
     this.tasks.set(stamped.taskId, stamped);

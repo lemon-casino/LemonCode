@@ -1,4 +1,5 @@
 import type { Locale } from "./protocol.js";
+import type { GitCommitReview, GitCommitReviewSelection } from "./gitCommitReview.js";
 
 export type GitHeadRefType = "branch" | "detached";
 
@@ -202,17 +203,21 @@ export interface GitDiscardPathsRequest extends GitPathMutationRequest {
 }
 
 export interface GitCommitRequest extends GitRepositoryRequest {
+  workspaceIdentity?: string;
   message: string;
   paths?: string[];
   stagedOnly?: boolean;
+  review?: GitCommitReviewSelection;
 }
 
 export interface GitCommitResult {
+  warning?: string;
   commitHash: string;
   summary: GitRepositorySummary;
 }
 
 export interface GitGenerateCommitMessageRequest extends GitRepositoryRequest {
+  review?: boolean;
   workspaceIdentity?: string;
   locale?: Locale;
   includeUnstaged?: boolean;
@@ -232,6 +237,8 @@ export interface GitCommitMessageConversationMessage {
 }
 
 export interface GitGenerateCommitMessageResult {
+  reviewError?: string;
+  review?: GitCommitReview;
   message: string;
   providerId: string;
   model: string;

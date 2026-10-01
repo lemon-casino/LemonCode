@@ -56,7 +56,8 @@ export async function runPermissionRequestHooks(
   traceContext: TraceContext,
   signal?: AbortSignal,
 ): Promise<PermissionBrokerResult | undefined> {
-  if (!deps.hookRunner) return undefined;
+  // 用户专属生命周期确认不能由自动 PermissionRequest Hook 应答；其它工具仍保留原审批链。
+  if (!deps.hookRunner || permissionDecision.approvalSource === "user") return undefined;
   const hookResult = await deps.hookRunner.run(
     {
       cwd: deps.getWorkingDirectory(),
