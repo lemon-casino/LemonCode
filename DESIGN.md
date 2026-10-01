@@ -153,27 +153,41 @@ The dynamic-workflow timeline draws with a feature-scoped token family:
   overlays `--color-warning` dashes; there is no third stroke colour.
 - Station lamps and agent pills use the semantic status colours (`--color-success`,
   `--color-warning` for running, `--color-destructive`). Ghost avatar colours derive from the current
-  theme's brand/background tokens and neutrals, never from status or a fixed per-instance palette.
+  theme's brand and neutral tokens, never from status or a fixed per-instance palette. Do not mix
+  the surrounding surface into the body until its silhouette disappears.
 - Run status is a five-word vocabulary: pending, running, done, stopped, failed. Expression, motion,
-  and a separate status mark communicate it; the 14–16 px avatars must never rely on hue alone.
+  and a separate status mark communicate it; the avatars must never rely on hue alone.
 - Agent avatars use the approved cloud-ghost character: a soft rounded body with a scalloped hem,
   dark eyes, blush, and expressive brows and mouth. Curious eyes for pending, a focused gaze for
   running, smiling eyes for done, closed resting eyes for stopped, and a worried face with a small
-  cheek-side tear for failed. Body, outline, blush, and tear follow one shared theme-derived palette:
-  silver in Zai, warm cream in Sepia, soft blue in Midnight Blue, and soft green in Forest. Do not pin
-  lavender or repeat per-theme override blocks. Keep the body light and the eyes neutral-dark for
-  at least 4.5:1 contrast, including dark themes. Changing theme updates CSS without remounting the
-  avatar; changing status never changes its palette. Instance identity only staggers motion.
+  cheek-side tear for failed. Keep the palette coordinated but distinct from the pill: silver in
+  Zai, warm cream in Sepia, soft blue in Midnight Blue, and soft green in Forest. Derive a deeper
+  neutral-tinted outline separately, with a restrained warm blush and cool tear for detail. Do not
+  pin lavender or repeat per-theme override blocks. Keep the light body's contrast with dark eyes
+  at least 4.5:1, and the outline against the pill surface at least 3:1. Avoid global opacity, neon
+  colour, or a surrounding badge. A soft decorative halo flows slowly clockwise behind the body,
+  with a low-opacity track and a fading comet arc derived from theme colours, never semantic status
+  colours. It stays inside the avatar frame without covering facial details, is absent on cancelled
+  nodes, becomes static for reduced motion, and may continue behind the completed smile. No blur/filter
+  is needed.
+  Changing theme updates CSS without remounting the avatar; changing status never changes its palette.
+  Instance identity only staggers motion.
 - Keep the face unobstructed. Checks, crosses, loading rings, and stop symbols belong only in the
   pill's existing right-hand `wf-pill-tail` slot, after the name. Never draw them on or around the
-  avatar, and never add a status badge or mask over its eyes or body. The hover-open arrow continues
+  avatar. The decorative halo is separate from these semantic marks and sits behind the body; never
+  add a status badge or mask over its eyes. The hover-open arrow continues
   to share that right slot. Destructive red belongs to real failure only, never to a user-initiated
   stop. Run termination does not overwrite node facts.
-- Avatar layout boxes follow the caller's 14–16 px size, with no 20 px minimum. Geometry and motion
-  stay inside the viewBox. Motion runs on internal layers without per-avatar timers or React updates,
+- Agent avatar frames match the pill height: 32 px in regular pills and the more-row deck, 24 px
+  in sidebar rows. A tightened `1 1 18 18` viewBox makes the visible body about 80–90% of that height;
+  enlarging transparent padding does not count. Reduce only agent-side left padding/gaps to preserve
+  room for names, keeping pill heights and the right tail unchanged. Collapsed clusters and non-agent
+  icons retain their compact sizes. All geometry, strokes, and motion stay inside the viewBox.
+  Motion runs on internal layers without per-avatar timers or React updates,
   uses stable identity-based phase offsets, and is disabled for reduced motion. Pending may blink
-  and glance, running gently floats and looks around, done nods once then rests, stopped is entirely
-  still, and failed has a restrained tear/sigh. Each state retains its static expression.
+  and glance, running gently floats and looks around, done nods once then rests while the decorative
+  halo continues, stopped is entirely still, and failed has a restrained tear/sigh. Reduced motion
+  stops both character and halo movement while preserving each static expression.
 - A compile-feedback row (a script that did not compile, so nothing ran) uses a hollow lamp:
   `--color-warning` while it is the latest draft, `--color-foreground-subtlest` once a newer
   draft exists. Never `--color-destructive`, which on this feature belongs to a run that errored.

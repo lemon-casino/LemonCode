@@ -110,10 +110,12 @@ export function WorkflowAgentFace({
   status: StepRunStatus | undefined;
 }) {
   const gradientId = `wf-ghost-${useId()}`;
+  const haloGradientId = `${gradientId}-halo`;
   const identity = avatarIndex ?? nameHash(name);
   const phase = (((identity * 137) % 1600) + 1600) % 1600;
   const style = { "--wf-avatar-phase": `-${phase}ms` } as CSSProperties;
   const resolvedStatus = status ?? "pending";
+  const hasHalo = resolvedStatus !== "cancelled";
   return (
     <svg
       aria-hidden
@@ -123,14 +125,37 @@ export function WorkflowAgentFace({
       data-subagent-avatar
       focusable="false"
       style={style}
-      viewBox="0 0 20 20"
+      viewBox="1 1 18 18"
     >
       <defs>
         <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
           <stop className="wf-ghost-tint-top" offset="0" />
           <stop className="wf-ghost-tint-bottom" offset="1" />
         </linearGradient>
+        {hasHalo ? (
+          <linearGradient
+            id={haloGradientId}
+            gradientUnits="userSpaceOnUse"
+            x1={10}
+            y1={1.9}
+            x2={18.1}
+            y2={10}
+          >
+            <stop className="wf-ghost-halo-tint" offset="0" stopOpacity={0} />
+            <stop className="wf-ghost-halo-tint" offset="0.55" stopOpacity={0.35} />
+            <stop className="wf-ghost-halo-tint" offset="1" stopOpacity={0.85} />
+          </linearGradient>
+        ) : null}
       </defs>
+      {hasHalo ? (
+        <g className="wf-ghost-halo" data-avatar-halo="decorative">
+          <circle className="wf-ghost-halo-track" cx={10} cy={10} r={8.1} />
+          <g className="wf-ghost-halo-flow" stroke={`url(#${haloGradientId})`}>
+            <path className="wf-ghost-halo-soft" d="M10 1.9a8.1 8.1 0 0 1 8.1 8.1" />
+            <path className="wf-ghost-halo-light" d="M10 1.9a8.1 8.1 0 0 1 8.1 8.1" />
+          </g>
+        </g>
+      ) : null}
       <g className="wf-ghost-character" key={resolvedStatus}>
         <path
           className="wf-ghost-body"

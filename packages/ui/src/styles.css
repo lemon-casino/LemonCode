@@ -2113,7 +2113,7 @@ body {
     background: none;
   }
 }
-/* 固定紫色插画会脱离所选主题；色相复用主色与背景，浅色身体仍配深色五官以保持对比。 */
+/* 身体与背景同色混合会丢失轮廓；主色配独立中性描边，深色五官和少量冷暖细节保留反差。 */
 .wf-agent-avatar {
   display: block;
   flex-shrink: 0;
@@ -2122,20 +2122,22 @@ body {
   stroke-linecap: round;
   stroke-linejoin: round;
   --wf-ghost-paper: var(--color-neutral-50);
-  --wf-ghost-ink: var(--color-neutral-800);
-  --wf-ghost-accent: color-mix(in oklab, var(--color-brand) 75%, var(--color-background));
-  --wf-ghost-blush: color-mix(in oklab, var(--wf-ghost-accent) 62%, var(--wf-ghost-ink));
-  --wf-ghost-tear: color-mix(in oklab, var(--wf-ghost-accent) 52%, var(--wf-ghost-ink));
+  --wf-ghost-ink: var(--color-neutral-900);
+  --wf-ghost-accent: color-mix(in oklab, var(--color-brand) 60%, var(--color-neutral-400));
+  --wf-ghost-rim: color-mix(in oklab, var(--color-brand) 40%, var(--color-neutral-500));
+  --wf-ghost-blush: color-mix(in oklab, var(--color-rose-400) 65%, var(--wf-ghost-accent));
+  --wf-ghost-tear: color-mix(in oklab, var(--color-sky-600) 75%, var(--wf-ghost-accent));
+  --wf-ghost-halo-color: color-mix(in oklab, var(--color-brand) 78%, var(--color-neutral-500));
 }
 .wf-ghost-tint-top {
-  stop-color: color-mix(in oklab, var(--wf-ghost-accent) 6%, var(--wf-ghost-paper));
+  stop-color: color-mix(in oklab, var(--wf-ghost-accent) 10%, var(--wf-ghost-paper));
 }
 .wf-ghost-tint-bottom {
-  stop-color: color-mix(in oklab, var(--wf-ghost-accent) 32%, var(--wf-ghost-paper));
+  stop-color: color-mix(in oklab, var(--wf-ghost-accent) 40%, var(--wf-ghost-paper));
 }
 .wf-ghost-body {
-  stroke: color-mix(in oklab, var(--wf-ghost-accent) 65%, var(--wf-ghost-paper));
-  stroke-width: 0.25;
+  stroke: var(--wf-ghost-rim);
+  stroke-width: 0.5;
 }
 .wf-ghost-shine,
 .wf-ghost-glint {
@@ -2144,13 +2146,13 @@ body {
   stroke-width: 0.35;
 }
 .wf-ghost-arms {
-  stroke: var(--wf-ghost-accent);
-  stroke-width: 0.35;
-  opacity: 0.3;
+  stroke: var(--wf-ghost-rim);
+  stroke-width: 0.4;
+  opacity: 0.65;
 }
 .wf-ghost-blush {
   fill: var(--wf-ghost-blush);
-  opacity: 0.36;
+  opacity: 0.5;
 }
 .wf-ghost-face {
   fill: var(--wf-ghost-ink);
@@ -2158,7 +2160,7 @@ body {
 .wf-ghost-feature {
   fill: none;
   stroke: var(--wf-ghost-ink);
-  stroke-width: 0.55;
+  stroke-width: 0.65;
 }
 .wf-ghost-tongue {
   fill: var(--wf-ghost-blush);
@@ -2166,17 +2168,40 @@ body {
 .wf-ghost-tear {
   fill: var(--wf-ghost-tear);
 }
+.wf-ghost-halo {
+  pointer-events: none;
+}
+.wf-ghost-halo-track {
+  stroke: var(--wf-ghost-halo-color);
+  stroke-width: 0.45;
+  opacity: 0.14;
+}
+.wf-ghost-halo-tint {
+  stop-color: var(--wf-ghost-halo-color);
+}
+.wf-ghost-halo-soft {
+  stroke-width: 1.35;
+  opacity: 0.2;
+}
+.wf-ghost-halo-light {
+  stroke-width: 0.6;
+}
 .wf-ghost-character,
 .wf-ghost-gaze,
 .wf-ghost-eyes,
-.wf-ghost-tear {
+.wf-ghost-tear,
+.wf-ghost-halo-flow {
   transform-box: view-box;
-  transform-origin: 10px 10px;
+  transform-origin: 50% 50%;
 }
 .wf-agent-avatar[data-avatar-status="cancelled"] .wf-ghost-character {
   transform: rotate(-5deg);
 }
 @media (prefers-reduced-motion: no-preference) {
+  .wf-agent-avatar:not([data-avatar-status="cancelled"]) .wf-ghost-halo-flow {
+    animation: wf-ghost-halo-flow 4800ms linear infinite;
+    animation-delay: var(--wf-avatar-phase);
+  }
   .wf-agent-avatar[data-avatar-status="pending"] .wf-ghost-character {
     animation: wf-ghost-curious 3600ms ease-in-out infinite;
     animation-delay: var(--wf-avatar-phase);
@@ -2207,6 +2232,11 @@ body {
   .wf-ghost-tear {
     animation: wf-ghost-tear 3600ms ease-in-out infinite;
     animation-delay: var(--wf-avatar-phase);
+  }
+}
+@keyframes wf-ghost-halo-flow {
+  to {
+    transform: rotate(360deg);
   }
 }
 @keyframes wf-ghost-curious {

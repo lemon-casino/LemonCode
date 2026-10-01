@@ -44,7 +44,7 @@ test("each status renders a distinct cloud-ghost expression", () => {
     assert.match(markup, new RegExp(`data-avatar-status="${status}"`));
     assert.match(markup, /data-subagent-avatar/);
     assert.match(markup, /aria-hidden="true"/);
-    assert.match(markup, /viewBox="0 0 20 20"/);
+    assert.match(markup, /viewBox="1 1 18 18"/);
     assert.match(markup, /wf-agent-avatar size-3\.5/);
     assertUnobstructedGhost(markup);
     return [...markup.matchAll(/\bd="([^"]+)"/g)].map((match) => match[1]).join("|");
@@ -58,6 +58,26 @@ test("undefined status renders exactly like pending", () => {
 
 test("all five faces are free of overlaid status symbols", () => {
   for (const status of STATUSES) assertUnobstructedGhost(render(status));
+});
+
+test("the decorative halo paints behind the face without taking over the right-hand status", () => {
+  for (const status of STATUSES.filter((value) => value !== "cancelled")) {
+    const markup = render(status);
+    assert.match(markup, /data-avatar-halo="decorative"/);
+    assert.match(markup, /wf-ghost-halo-flow/);
+    assert.ok(
+      markup.indexOf('data-avatar-halo="decorative"') <
+        markup.indexOf('class="wf-ghost-character"'),
+    );
+    assert.doesNotMatch(markup, /role="img"|aria-label=|<mask|<filter/);
+  }
+});
+
+test("a stopped ghost has no halo or unused halo gradient", () => {
+  const markup = render("cancelled");
+  assert.doesNotMatch(markup, /data-avatar-halo|wf-ghost-halo|id="[^"]+-halo"/);
+  assert.equal([...markup.matchAll(/<linearGradient /g)].length, 1);
+  assert.match(markup, /wf-ghost-eyes-resting/);
 });
 
 test("the ghost leaves its palette to the theme for every state and identity", () => {
@@ -77,9 +97,13 @@ test("ghost colours derive from shared theme tokens without fixed lavender or st
   assert.ok(start >= 0 && end > start);
   const palette = styles.slice(start, end);
   assert.match(palette, /var\(--color-brand\)/);
-  assert.match(palette, /var\(--color-background\)/);
+  assert.doesNotMatch(palette, /var\(--color-background\)/);
   assert.match(palette, /--wf-ghost-paper:\s*var\(--color-neutral-50\)/);
-  assert.match(palette, /--wf-ghost-ink:\s*var\(--color-neutral-800\)/);
+  assert.match(palette, /--wf-ghost-ink:\s*var\(--color-neutral-900\)/);
+  assert.match(palette, /--wf-ghost-rim:\s*color-mix\(/);
+  assert.match(palette, /var\(--color-rose-400\)/);
+  assert.match(palette, /var\(--color-sky-600\)/);
+  assert.match(palette, /\.wf-ghost-body\s*\{[^}]*stroke:\s*var\(--wf-ghost-rim\)/);
   assert.doesNotMatch(
     palette,
     /#[0-9a-f]{3,8}\b|--wf-avatar-identity|--color-(?:success|warning|destructive)|theme-/i,
@@ -123,7 +147,7 @@ test("only the current expression is mounted", () => {
   assert.match(render("failed"), /wf-ghost-mouth-worried/);
 });
 
-test("each avatar references its own gradient, even for repeated identities", () => {
+test("body and halo gradients remain local to each avatar, even for repeated identities", () => {
   const markup = renderToStaticMarkup(
     <>
       {STATUSES.map((status) => (
@@ -132,10 +156,14 @@ test("each avatar references its own gradient, even for repeated identities", ()
     </>,
   );
   const ids = [...markup.matchAll(/<linearGradient id="([^"]+)"/g)].map((match) => match[1]);
-  const references = [...markup.matchAll(/fill="url\(#([^)]+)\)"/g)].map((match) => match[1]);
-  assert.equal(ids.length, STATUSES.length);
-  assert.equal(new Set(ids).size, STATUSES.length);
-  assert.deepEqual(references, ids);
+  const references = [...markup.matchAll(/(?:fill|stroke)="url\(#([^)]+)\)"/g)].map(
+    (match) => match[1],
+  );
+  const expectedCount =
+    STATUSES.length + STATUSES.filter((status) => status !== "cancelled").length;
+  assert.equal(ids.length, expectedCount);
+  assert.equal(new Set(ids).size, expectedCount);
+  assert.deepEqual(new Set(references), new Set(ids));
 });
 
 const pills: TimelinePill[] = STATUSES.map((status, avatarIndex) => ({
@@ -171,6 +199,11 @@ test("both pill sizes consume the five-state ghost with status marks only after 
       );
       assertIntegratedAvatars(markup, [status]);
       assert.match(markup, new RegExp(`data-pill-size="${size}"`));
+      const faceClass = markup.match(/<svg[^>]*class="([^"]*)"[^>]*data-subagent-avatar/)?.[1];
+      assert.ok(faceClass);
+      assert.match(faceClass, size === "md" ? /\bsize-8\b/ : /\bsize-6\b/);
+      assert.doesNotMatch(faceClass, /\bsize-(?:4|3\.5)\b/);
+      assert.match(markup, size === "md" ? /\bh-8\b/ : /\bh-6\b/);
       const namePosition = markup.indexOf('class="wf-pill-name');
       assert.ok(markup.indexOf("</svg>") < namePosition);
       const marks = [...markup.matchAll(/data-testid="workflow-pill-status"/g)];
@@ -180,6 +213,20 @@ test("both pill sizes consume the five-state ghost with status marks only after 
         assert.ok(namePosition < tailPosition);
         assert.ok(tailPosition < marks[0]!.index!);
       }
+    }
+  }
+});
+
+test("workspace and unresolved glyphs retain their compact sizes", () => {
+  for (const laneClass of ["workspace", "unresolved"] as const) {
+    for (const size of ["md", "row"] as const) {
+      const markup = renderToStaticMarkup(
+        <LCodeIntlProvider initialLocale="zh-CN">
+          <WorkflowAgentPill name="脚本" laneClass={laneClass} status="done" size={size} />
+        </LCodeIntlProvider>,
+      );
+      assert.doesNotMatch(markup, /data-subagent-avatar|wf-ghost-halo/);
+      assert.match(markup, size === "md" ? /size-4/ : /size-3\.5/);
     }
   }
 });
@@ -213,6 +260,7 @@ test("the more-row deck uses ghost expressions without status overlays", () => {
   );
   assert.match(markup, /workflow-more-deck/);
   assertIntegratedAvatars(markup, STATUSES.slice(1, 4));
+  assert.equal([...markup.matchAll(/wf-more-face size-8/g)].length, 3);
 });
 
 test("collapsed phase clusters use the same unobstructed ghost", () => {
