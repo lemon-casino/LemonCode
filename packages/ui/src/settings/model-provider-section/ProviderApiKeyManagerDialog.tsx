@@ -1,7 +1,12 @@
-import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import { EyeIcon, EyeOffIcon, PlusIcon, ShieldCheckIcon, Trash2Icon } from "lucide-react";
-import type { ProviderApiKey } from "@zcode/provider";
-import type { ProviderApiKeyProbeResult } from "@zcode/services";
+import { useId } from "react";
+import {
+  EyeIcon,
+  EyeOffIcon,
+  ImportIcon,
+  PlusIcon,
+  ShieldCheckIcon,
+  Trash2Icon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button.js";
 import {
   Dialog,
@@ -11,130 +16,36 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog.js";
-import { Input } from "@/components/ui/input.js";
-import { Switch } from "@/components/ui/switch.js";
 import { useZCodeIntl } from "@/i18n/IntlProvider.js";
-import { createProviderApiKeyOperationGuard, normalizeProviderApiKeys } from "./providerApiKeys.js";
+import { ProviderApiKeyImportPanel } from "./ProviderApiKeyImportPanel.js";
+import { ProviderApiKeyPageList } from "./ProviderApiKeyPageList.js";
+import {
+  useProviderApiKeyManager,
+  type ProviderApiKeyManagerProps,
+} from "./useProviderApiKeyManager.js";
 
-type ProbeState = ProviderApiKeyProbeResult["status"] | "pending";
-
-export function ProviderApiKeyManagerDialog({
-  open,
-  scopeKey,
-  apiKeys,
-  onOpenChange,
-  onSave,
-  onProbe,
-}: {
-  open: boolean;
-  scopeKey: string;
-  apiKeys: readonly ProviderApiKey[];
-  onOpenChange: (open: boolean) => void;
-  onSave: (apiKeys: readonly ProviderApiKey[]) => Promise<void>;
-  onProbe: (keyIds: readonly string[]) => Promise<readonly ProviderApiKeyProbeResult[]>;
-}) {
+export function ProviderApiKeyManagerDialog(props: ProviderApiKeyManagerProps) {
   const { intl } = useZCodeIntl();
-  const [draft, setDraft] = useState<ProviderApiKey[]>(() => [...apiKeys]);
-  const [visible, setVisible] = useState(false);
-  const [busy, setBusy] = useState<"save" | "probe" | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [probeStates, setProbeStates] = useState<Record<string, ProbeState>>({});
-  const apiKeysRef = useRef(apiKeys);
-  apiKeysRef.current = apiKeys;
-  const operationGuardRef = useRef<ReturnType<typeof createProviderApiKeyOperationGuard> | null>(
-    null,
-  );
-  if (operationGuardRef.current === null) {
-    operationGuardRef.current = createProviderApiKeyOperationGuard(null);
-  }
-  const operationGuard = operationGuardRef.current;
-
-  useLayoutEffect(() => {
-    operationGuard.setScope(open ? scopeKey : null);
-    if (!open) {
-      setBusy(null);
-      return () => operationGuard.invalidate();
-    }
-    // 修复：供应商切换时立即建立新的本地状态边界，旧探测结果不能写入新供应商。
-    setDraft([...apiKeysRef.current]);
-    setProbeStates({});
-    setError(null);
-    setBusy(null);
-    return () => operationGuard.invalidate();
-  }, [open, operationGuard, scopeKey]);
-
-  const normalized = useMemo(() => normalizeProviderApiKeys(draft), [draft]);
-  const updateKey = (id: string, patch: Partial<ProviderApiKey>) => {
-    setDraft((current) => current.map((key) => (key.id === id ? { ...key, ...patch } : key)));
-    setProbeStates((current) => {
-      const next = { ...current };
-      delete next[id];
-      return next;
-    });
-  };
-
-  const addKey = () => {
-    const id = `key-${Date.now()}-${draft.length + 1}`;
-    setDraft((current) => [
-      ...current,
-      { id, label: `API Key ${current.length + 1}`, apiKey: "", enabled: true },
-    ]);
-  };
-
-  const save = async () => {
-    const operation = operationGuard.begin();
-    setBusy("save");
-    setError(null);
-    try {
-      await onSave(normalized);
-      if (!operationGuard.isCurrent(operation)) return;
-      onOpenChange(false);
-    } catch (saveError) {
-      if (!operationGuard.isCurrent(operation)) return;
-      setError(saveError instanceof Error ? saveError.message : String(saveError));
-    } finally {
-      if (operationGuard.isCurrent(operation)) setBusy(null);
-    }
-  };
-
-  const probe = async () => {
-    const keys = normalizeProviderApiKeys(draft);
-    if (keys.length === 0) {
-      setError(intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.empty" }));
-      return;
-    }
-    const operation = operationGuard.begin();
-    setBusy("probe");
-    setError(null);
-    setProbeStates(Object.fromEntries(keys.map((key) => [key.id, "pending"])));
-    try {
-      // 检测必须读取目标 Environment 已接受的配置，先保存同一份草稿再发起并发探测。
-      await onSave(keys);
-      if (!operationGuard.isCurrent(operation)) return;
-      const results = await onProbe(keys.map((key) => key.id));
-      if (!operationGuard.isCurrent(operation)) return;
-      const nextStates = Object.fromEntries(results.map((result) => [result.keyId, result.status]));
-      const invalidIds = new Set(
-        results.filter((result) => result.status === "invalid").map((result) => result.keyId),
-      );
-      const next = keys.map((key) => (invalidIds.has(key.id) ? { ...key, enabled: false } : key));
-      setDraft(next);
-      if (invalidIds.size > 0) {
-        await onSave(next);
-        if (!operationGuard.isCurrent(operation)) return;
-      }
-      setProbeStates(nextStates);
-    } catch (probeError) {
-      if (!operationGuard.isCurrent(operation)) return;
-      setError(probeError instanceof Error ? probeError.message : String(probeError));
-    } finally {
-      if (operationGuard.isCurrent(operation)) setBusy(null);
-    }
-  };
-
+  const manager = useProviderApiKeyManager(props);
+  const importPanelId = useId();
+  const disabled = manager.busy !== null;
   return (
-    <Dialog open={open} onOpenChange={(next) => busy === null && onOpenChange(next)}>
-      <DialogContent className="max-w-2xl">
+    <Dialog open={props.open} onOpenChange={(next) => manager.canClose && props.onOpenChange(next)}>
+      <DialogContent
+        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl"
+        onDragOver={(event) => {
+          if (!event.dataTransfer.types.includes("Files")) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = disabled ? "none" : "copy";
+        }}
+        onDrop={(event) => {
+          if (!event.dataTransfer.types.includes("Files")) return;
+          event.preventDefault();
+          event.stopPropagation();
+          const files = Array.from(event.dataTransfer.files);
+          if (files.length > 0) void manager.importKeys(files);
+        }}
+      >
         <DialogHeader>
           <DialogTitle>
             {intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.title" })}
@@ -143,125 +54,117 @@ export function ProviderApiKeyManagerDialog({
             {intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.description" })}
           </DialogDescription>
         </DialogHeader>
-
         <div className="flex items-center justify-between gap-2">
-          <Button type="button" variant="outline" onClick={addKey} disabled={busy !== null}>
-            <PlusIcon data-icon="inline-start" />
-            {intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.add" })}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" onClick={manager.addKey} disabled={disabled}>
+              <PlusIcon data-icon="inline-start" />
+              {intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.add" })}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              aria-expanded={manager.importOpen}
+              aria-controls={importPanelId}
+              onClick={() => manager.setImportOpen((current) => !current)}
+            >
+              <ImportIcon data-icon="inline-start" />
+              {intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.import.title" })}
+            </Button>
+          </div>
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
             aria-label={intl.formatMessage({
-              id: visible
+              id: manager.visible
                 ? "settings.modelProvider.hideApiKey"
                 : "settings.modelProvider.showApiKey",
             })}
-            onClick={() => setVisible((current) => !current)}
+            onClick={() => manager.setVisible((current) => !current)}
           >
-            {visible ? <EyeOffIcon /> : <EyeIcon />}
+            {manager.visible ? <EyeOffIcon /> : <EyeIcon />}
           </Button>
         </div>
-
-        <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
-          {draft.length === 0 ? (
-            <div className="rounded-xl border border-border bg-surface px-4 py-6 text-center text-ui-base text-foreground-subtle">
-              {intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.empty" })}
-            </div>
-          ) : (
-            draft.map((key, index) => (
-              <div
-                key={key.id}
-                className="grid grid-cols-1 items-center gap-2 rounded-xl border border-border bg-surface p-3 sm:grid-cols-[minmax(7rem,0.35fr)_minmax(12rem,1fr)_auto_auto]"
-              >
-                <Input
-                  size="lg"
-                  value={key.label ?? ""}
-                  aria-label={intl.formatMessage(
-                    { id: "settings.modelProvider.apiKeyManager.label" },
-                    { index: index + 1 },
-                  )}
-                  placeholder={`API Key ${index + 1}`}
-                  disabled={busy !== null}
-                  onChange={(event) => updateKey(key.id, { label: event.target.value })}
-                />
-                <div className="min-w-0">
-                  <Input
-                    size="lg"
-                    type={visible ? "text" : "password"}
-                    value={key.apiKey}
-                    className="font-mono"
-                    aria-label={`API Key ${index + 1}`}
-                    disabled={busy !== null}
-                    onChange={(event) => updateKey(key.id, { apiKey: event.target.value })}
-                  />
-                  {probeStates[key.id] ? (
-                    <p
-                      className={`mt-1 text-ui-sm ${
-                        probeStates[key.id] === "valid"
-                          ? "text-success"
-                          : probeStates[key.id] === "invalid"
-                            ? "text-destructive"
-                            : "text-foreground-subtle"
-                      }`}
-                    >
-                      {intl.formatMessage({
-                        id: `settings.modelProvider.apiKeyManager.status.${probeStates[key.id]}`,
-                      })}
-                    </p>
-                  ) : null}
-                </div>
-                <Switch
-                  checked={key.enabled !== false}
-                  disabled={busy !== null}
-                  aria-label={intl.formatMessage({
-                    id: "settings.modelProvider.apiKeyManager.enabled",
-                  })}
-                  onCheckedChange={(enabled) => updateKey(key.id, { enabled })}
-                />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={busy !== null}
-                  aria-label={intl.formatMessage({ id: "common.delete" })}
-                  onClick={() =>
-                    setDraft((current) => current.filter((item) => item.id !== key.id))
-                  }
-                >
-                  <Trash2Icon />
-                </Button>
-              </div>
-            ))
-          )}
-        </div>
-
-        {error ? (
-          <p role="alert" className="text-ui-sm text-destructive">
-            {error}
+        {manager.importOpen ? (
+          <div id={importPanelId} key={props.scopeKey}>
+            <ProviderApiKeyImportPanel
+              disabled={disabled}
+              importing={manager.busy === "import"}
+              onImportText={manager.importKeys}
+              onImportFiles={manager.importKeys}
+              onImportClipboard={() => manager.importKeys({ clipboard: true })}
+            />
+          </div>
+        ) : null}
+        {manager.importSummary ? (
+          <p role="status" className="text-ui-sm text-foreground-subtle">
+            {intl.formatMessage(
+              { id: "settings.modelProvider.apiKeyManager.import.summary" },
+              manager.importSummary,
+            )}
           </p>
         ) : null}
-
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={disabled || manager.invalidCount === 0}
+            onClick={() => void manager.removeInvalid()}
+          >
+            <Trash2Icon data-icon="inline-start" />
+            {intl.formatMessage(
+              { id: "settings.modelProvider.apiKeyManager.removeInvalid" },
+              { count: manager.invalidCount },
+            )}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="text-destructive"
+            disabled={disabled || manager.draft.length === 0}
+            onClick={manager.removeAll}
+          >
+            <Trash2Icon data-icon="inline-start" />
+            {intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.removeAll" })}
+          </Button>
+        </div>
+        <ProviderApiKeyPageList
+          draft={manager.draft}
+          page={manager.page}
+          setPage={manager.setPage}
+          visible={manager.visible}
+          disabled={disabled}
+          getProbeState={manager.getProbeState}
+          updateKey={manager.updateKey}
+          removeKey={manager.removeKey}
+        />
+        {manager.error ? (
+          <p role="alert" className="text-ui-sm text-destructive">
+            {manager.error}
+          </p>
+        ) : null}
         <DialogFooter>
           <Button
             type="button"
             variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={busy !== null}
+            onClick={() => props.onOpenChange(false)}
+            disabled={!manager.canClose}
           >
             {intl.formatMessage({ id: "common.cancel" })}
           </Button>
           <Button
             type="button"
             variant="secondary"
-            onClick={() => void probe()}
-            disabled={busy !== null}
+            onClick={() => void manager.probe()}
+            disabled={disabled}
           >
             <ShieldCheckIcon data-icon="inline-start" />
             {intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.probe" })}
           </Button>
-          <Button type="button" onClick={() => void save()} disabled={busy !== null}>
+          <Button type="button" onClick={() => void manager.save()} disabled={disabled}>
             {intl.formatMessage({ id: "common.save" })}
           </Button>
         </DialogFooter>
