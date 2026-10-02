@@ -2617,6 +2617,18 @@ const zhCN: Record<string, string> = {
   "settings.modelProvider.apiKeyManager.empty": "至少添加一个 API Key。",
   "settings.modelProvider.apiKeyManager.label": "API Key {index} 名称",
   "settings.modelProvider.apiKeyManager.enabled": "启用 API Key",
+  "settings.modelProvider.apiKeyManager.probe.preparing": "正在准备检测…",
+  "settings.modelProvider.apiKeyManager.probe.finishing": "正在应用检测结果…",
+  "settings.modelProvider.apiKeyManager.probe.running":
+    "已检测 {completed} / {total} 个 Key（最多 8 路并发）",
+  "settings.modelProvider.apiKeyManager.probe.stopping":
+    "正在停止检测… 已完成 {completed} / {total}",
+  "settings.modelProvider.apiKeyManager.probe.complete": "检测完成：{completed} / {total}",
+  "settings.modelProvider.apiKeyManager.probe.stopped":
+    "检测已停止：{completed} / {total}，未检测项保持原状态",
+  "settings.modelProvider.apiKeyManager.probe.counts":
+    "有效 {valid} · 无效 {invalid} · 失败 {failed}",
+  "settings.modelProvider.apiKeyManager.probe.stop": "停止检测",
   "settings.modelProvider.apiKeyManager.probe": "并发检测",
   "settings.modelProvider.apiKeyManager.summary": "{enabled}/{total} 已启用",
   "settings.modelProvider.apiKeyManager.status.pending": "检测中",

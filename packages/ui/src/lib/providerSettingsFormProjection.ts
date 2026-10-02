@@ -2,7 +2,7 @@ import type { ProviderSettingsView } from "@lcode/services";
 import type { ProviderSettingsFormProvider } from "@/lib/providerSettingsFormTypes.js";
 import type { ProviderOrderView } from "@/lib/modelProviderOrdering.js";
 
-/** 把正式 Settings View 复制成当前编辑会话使用的可变表单状态。 */
+/** 表单包裹只读 Settings 配置；显式编辑按叶子补丁复制，避免深拷贝十万条 Key。 */
 export function projectProviderSettingsViewToFormProviders(
   view: ProviderSettingsView,
 ): ProviderSettingsFormProvider[] {
@@ -21,16 +21,16 @@ function projectProviderSettingsProviders(
     accountState: provider.accountState,
     hasPersonalConfig: provider.personalConfig !== undefined,
     issues: provider.issues,
-    personalConfig: structuredClone(provider.personalConfig ?? {}),
-    config: structuredClone(provider.effectiveConfig),
+    personalConfig: provider.personalConfig ?? {},
+    config: provider.effectiveConfig,
     models: provider.models.map((model) => ({
       kind: model.kind,
       modelId: model.modelId,
       builtin: model.builtin,
-      inheritedConfig: structuredClone(model.effectiveBuiltinConfig),
-      personalConfig: structuredClone(model.personalExactConfig ?? {}),
+      inheritedConfig: model.effectiveBuiltinConfig,
+      personalConfig: model.personalExactConfig ?? {},
       useRecommendedConfig: model.useRecommendedConfig,
-      config: structuredClone(model.effectiveConfig),
+      config: model.effectiveConfig,
       hasPersonalConfig: model.personalExactConfig !== undefined,
       executable: model.executable,
       selectable: model.selectable,

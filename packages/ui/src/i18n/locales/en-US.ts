@@ -2796,6 +2796,18 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.apiKeyManager.empty": "Add at least one API key.",
   "settings.modelProvider.apiKeyManager.label": "API key {index} label",
   "settings.modelProvider.apiKeyManager.enabled": "Enable API key",
+  "settings.modelProvider.apiKeyManager.probe.preparing": "Preparing key checks…",
+  "settings.modelProvider.apiKeyManager.probe.finishing": "Applying check results…",
+  "settings.modelProvider.apiKeyManager.probe.running":
+    "Checked {completed} / {total} keys (up to 8 concurrent)",
+  "settings.modelProvider.apiKeyManager.probe.stopping":
+    "Stopping checks… {completed} / {total} completed",
+  "settings.modelProvider.apiKeyManager.probe.complete": "Checks complete: {completed} / {total}",
+  "settings.modelProvider.apiKeyManager.probe.stopped":
+    "Checks stopped: {completed} / {total}; unchecked keys are unchanged",
+  "settings.modelProvider.apiKeyManager.probe.counts":
+    "Valid {valid} · Invalid {invalid} · Failed {failed}",
+  "settings.modelProvider.apiKeyManager.probe.stop": "Stop checks",
   "settings.modelProvider.apiKeyManager.probe": "Check concurrently",
   "settings.modelProvider.apiKeyManager.summary": "{enabled}/{total} enabled",
   "settings.modelProvider.apiKeyManager.status.pending": "Checking",

@@ -64,6 +64,7 @@ export class ProviderRuntime {
   readonly configService: ProviderConfigRuntime["configService"];
   readonly registryService: ProviderRegistryService;
   readonly providerSettings: IProviderSettingsService;
+  readonly #providerSettingsRuntime: IProviderSettingsService & { dispose(): void };
   readonly modelSelection: IModelSelectionService;
   readonly #configRuntime: ProviderConfigRuntime;
   readonly #disposeAccountSource?: () => void;
@@ -101,11 +102,12 @@ export class ProviderRuntime {
     );
     const ensureReady = () => this.start();
     const settingsFacade = new ProviderSettingsFacade(this.registryService, mutations);
-    this.providerSettings = createProviderSettingsService(
+    this.#providerSettingsRuntime = createProviderSettingsService(
       settingsFacade,
       ensureReady,
       dependencies.testConnectivity,
     );
+    this.providerSettings = this.#providerSettingsRuntime;
     this.#modelSelectionRuntime = createModelSelectionService(
       createNodeModelSelectionFacade(this.registryService),
       ensureReady,
@@ -129,6 +131,7 @@ export class ProviderRuntime {
     if (this.#disposed) return;
     this.#disposed = true;
     this.#disposeBuiltinRecovery();
+    this.#providerSettingsRuntime.dispose();
     this.#modelSelectionRuntime.dispose();
     this.registryService.dispose();
     this.#disposeAccountSource?.();

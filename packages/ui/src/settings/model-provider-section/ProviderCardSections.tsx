@@ -1,8 +1,10 @@
+import type { ProviderApiKeyProbeRunOptions } from "@/hooks/providerApiKeyProbe.js";
 /* eslint-disable max-lines -- 模型供应商卡片仍在迁移期集中维护多个紧耦合区块，后续拆分时再移除。 */
 import {
   useCallback,
   useEffect,
   useRef,
+  useMemo,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type RefObject,
@@ -307,11 +309,17 @@ export function ProviderApiKeySection({
   presetApiKeyUrl?: string;
   onOpenPresetApiKey?: () => void;
   onSaveApiKeys: (apiKeys: readonly ProviderApiKey[]) => Promise<void>;
-  onProbeApiKeys: (keyIds: readonly string[]) => Promise<readonly ProviderApiKeyProbeResult[]>;
+  onProbeApiKeys: (
+    keyIds: readonly string[],
+    options?: ProviderApiKeyProbeRunOptions,
+  ) => Promise<readonly ProviderApiKeyProbeResult[]>;
 }) {
   const { intl } = useLCodeIntl();
   const [managerOpen, setManagerOpen] = useState(false);
-  const enabledCount = apiKeys.filter((key) => key.enabled !== false).length;
+  const enabledCount = useMemo(
+    () => apiKeys.reduce((count, key) => count + Number(key.enabled !== false), 0),
+    [apiKeys],
+  );
 
   return (
     <div>

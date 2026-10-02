@@ -121,6 +121,9 @@ packages/desktop/src/scheduler/schedulerProtocol.js.map
 !/packages/web/test/fixtures/workflow-stress-data.ts
 !/packages/web/test/fixtures/workflow-stress-metrics.ts
 !/packages/web/test/workflow-stress-runtime.test.ts
+!/packages/web/test/api-key-probe.test.mjs
+!/packages/web/test/fixtures/api-key-probe.html
+!/packages/web/test/fixtures/api-key-probe.tsx
 
 # 模型成员生命周期回归需随功能提交，不受用户全局 test/ 规则影响。
 !/packages/provider/test/

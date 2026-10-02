@@ -237,6 +237,8 @@ function createFixture() {
     return provider;
   };
   const service: IProviderSettingsService = {
+    onDidProbeApiKeys: () => ({ dispose: () => {} }),
+    cancelApiKeyProbe: async () => {},
     onDidChange: (listener) => ({ dispose: facade.onDidChange(listener) }),
     getView: async () => {
       await ready;

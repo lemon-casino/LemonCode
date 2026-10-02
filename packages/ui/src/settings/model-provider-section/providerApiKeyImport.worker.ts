@@ -38,6 +38,9 @@ self.onmessage = async (event: MessageEvent<ProviderApiKeyWorkerRequest>) => {
       duplicates = result.duplicates;
     } else if (task.kind === "normalize") {
       keys = normalizeProviderApiKeys(snapshot);
+    } else if (task.kind === "disableInvalid") {
+      const invalid = new Set(task.invalidIds);
+      keys = snapshot.map((key) => (invalid.has(key.id) ? { ...key, enabled: false } : key));
     } else {
       keys = removeInvalidProviderApiKeys(snapshot, new Set(task.invalidIds));
     }

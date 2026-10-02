@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- Model Provider 详情页当前集中编排 Plan Card、API Key 表单和 OAuth 套餐态；后续稳定后再按 family/API/OAuth 拆分。 */
+import type { ProviderApiKeyProbeRunOptions } from "@/hooks/providerApiKeyProbe.js";
 import {
   BIGMODEL_PROVIDER_ID,
   ZAI_PROVIDER_ID,
@@ -260,6 +261,7 @@ export function ModelProviderSectionDetail({
   onProbeApiKeys?: (
     providerId: string,
     keyIds: readonly string[],
+    options?: ProviderApiKeyProbeRunOptions,
   ) => Promise<readonly ProviderApiKeyProbeResult[]>;
   onRetryCodingPlan?: () => void | Promise<void>;
   onCodingPlanLogin: (

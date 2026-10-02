@@ -3,6 +3,7 @@ import {
   resolveApiKeyAccessKeys,
   type ProviderConfigObject,
 } from "@lcode/provider";
+import { runProviderApiKeyProbe, type ProviderApiKeyProbeOptions } from "./providerApiKeyProbe.js";
 
 export interface ProviderRemoteModelCatalog {
   readonly models: readonly string[];
@@ -19,6 +20,7 @@ export interface ProviderCatalogClient {
   probeApiKeys(
     config: ProviderConfigObject,
     keyIds?: readonly string[],
+    options?: ProviderApiKeyProbeOptions,
   ): Promise<readonly ProviderApiKeyProbeResult[]>;
 }
 
@@ -52,41 +54,36 @@ export function createProviderCatalogClient(
       );
     },
 
-    async probeApiKeys(config, keyIds) {
+    async probeApiKeys(config, keyIds, options) {
       const request = resolveCatalogRequest(config);
       const selected = new Set(keyIds?.map((id) => id.trim()).filter(Boolean));
       const keys = resolveApiKeyAccessKeys(requireApiKeyAccess(config)).filter(
         (key) => selected.size === 0 || selected.has(key.id),
       );
-      return Promise.all(
-        keys.map(async (key): Promise<ProviderApiKeyProbeResult> => {
-          try {
-            const response = await transport(request.url, {
-              method: "GET",
-              headers: createCatalogHeaders(request.apiType, key.apiKey, config.api?.headers),
-            });
-            await response.body?.cancel().catch(() => undefined);
-            if (response.ok) return { keyId: key.id, status: "valid" };
-            if (response.status === 401 || response.status === 403) {
-              return {
-                keyId: key.id,
-                status: "invalid",
-                message: `HTTP ${response.status}`,
-              };
-            }
+      return runProviderApiKeyProbe(
+        keys,
+        async (key, signal) => {
+          const response = await transport(request.url, {
+            method: "GET",
+            headers: createCatalogHeaders(request.apiType, key.apiKey, config.api?.headers),
+            signal,
+          });
+          await response.body?.cancel().catch(() => undefined);
+          if (response.ok) return { keyId: key.id, status: "valid" };
+          if (response.status === 401 || response.status === 403) {
             return {
               keyId: key.id,
-              status: "error",
+              status: "invalid",
               message: `HTTP ${response.status}`,
             };
-          } catch (error) {
-            return {
-              keyId: key.id,
-              status: "error",
-              message: error instanceof Error ? error.message : String(error),
-            };
           }
-        }),
+          return {
+            keyId: key.id,
+            status: "error",
+            message: `HTTP ${response.status}`,
+          };
+        },
+        options,
       );
     },
   };

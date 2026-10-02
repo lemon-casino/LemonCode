@@ -1,3 +1,4 @@
+import type { ProviderApiKeyProbeRunOptions } from "@/hooks/providerApiKeyProbe.js";
 /* oxlint-disable eslint(max-lines) -- provider 卡片同时承载名称、连接、鉴权、模型和映射编辑；本阶段先维持单组件，后续再按表单域拆分。 */
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
@@ -189,6 +190,7 @@ export function InlineEditableProviderCard({
   onProbeApiKeys?: (
     providerId: string,
     keyIds: readonly string[],
+    options?: ProviderApiKeyProbeRunOptions,
   ) => Promise<readonly ProviderApiKeyProbeResult[]>;
   onReorderModelIds?: (modelIds: string[]) => Promise<void>;
   readOnlyEndpoints?: boolean;
@@ -872,9 +874,9 @@ export function InlineEditableProviderCard({
             presetApiKeyUrl={presetApiKeyUrl}
             onOpenPresetApiKey={onOpenPresetApiKey}
             onSaveApiKeys={handleSaveApiKeys}
-            onProbeApiKeys={(keyIds) => {
+            onProbeApiKeys={(keyIds, options) => {
               if (!onProbeApiKeys) throw new Error("当前设置入口未装配 API Key 检测能力");
-              return onProbeApiKeys(provider.providerId, keyIds);
+              return onProbeApiKeys(provider.providerId, keyIds, options);
             }}
           />
         ) : null}

@@ -25,6 +25,7 @@ import {
   type ProviderCatalogClient,
   type ProviderRemoteModelCatalog,
 } from "./providerCatalogClient.js";
+import type { ProviderApiKeyProbeProgress } from "./providerApiKeyProbe.js";
 
 export type {
   ProviderSettingsProviderView,
@@ -33,9 +34,15 @@ export type {
   ProviderSettingsView,
 } from "@lcode/provider";
 export type { ProviderApiKeyProbeResult, ProviderRemoteModelCatalog };
+export type { ProviderApiKeyProbeProgress };
+export interface ProviderApiKeyProbeEvent extends ProviderApiKeyProbeProgress {
+  readonly providerId: ProviderId;
+  readonly operationId: string;
+}
 
 export interface IProviderSettingsService {
   readonly onDidChange: Event<ProviderSettingsView>;
+  readonly onDidProbeApiKeys: Event<ProviderApiKeyProbeEvent>;
   getView(): Promise<ProviderSettingsView>;
   refresh(reason: string): Promise<ProviderSettingsView>;
   createPersonalProvider(
@@ -79,7 +86,9 @@ export interface IProviderSettingsService {
   probeApiKeys(
     providerId: ProviderId,
     keyIds?: readonly string[],
+    options?: { readonly operationId: string; readonly streamResults?: boolean },
   ): Promise<readonly ProviderApiKeyProbeResult[]>;
+  cancelApiKeyProbe(providerId: ProviderId, operationId: string): Promise<void>;
 }
 
 export const IProviderSettingsService = createServiceDescriptor<IProviderSettingsService>(
@@ -125,9 +134,19 @@ export function createProviderSettingsService(
   ensureReady: () => Promise<void> = async () => {},
   testConnectivity?: ProviderSettingsConnectivityTester,
   catalogClient: ProviderCatalogClient = createProviderCatalogClient(),
-): IProviderSettingsService {
+): IProviderSettingsService & { dispose(): void } {
+  const probes = new Map<
+    string | symbol,
+    { providerId: ProviderId; controller: AbortController }
+  >();
+  const probeListeners = new Set<(event: ProviderApiKeyProbeEvent) => void>();
+  let disposed = false;
   return {
     onDidChange: toEvent((listener) => facade.onDidChange(listener)),
+    onDidProbeApiKeys: toEvent((listener) => {
+      probeListeners.add(listener);
+      return () => probeListeners.delete(listener);
+    }),
     getView: async () => {
       await ensureReady();
       return facade.getView();
@@ -234,12 +253,44 @@ export function createProviderSettingsService(
       if (!provider) throw new Error(`Provider 不存在: ${providerId}`);
       return catalogClient.listModels(provider.effectiveConfig);
     },
-    probeApiKeys: async (providerId, keyIds) => {
-      await ensureReady();
-      await facade.waitForProviderOperations(providerId);
-      const provider = facade.getView().providers.find((item) => item.providerId === providerId);
-      if (!provider) throw new Error(`Provider 不存在: ${providerId}`);
-      return catalogClient.probeApiKeys(provider.effectiveConfig, keyIds);
+    probeApiKeys: async (providerId, keyIds, options) => {
+      if (disposed) throw new Error("Provider Settings Service 已 dispose");
+      const controller = new AbortController();
+      const operationId = options?.operationId;
+      const owner = operationId ?? Symbol();
+      if (operationId && probes.has(operationId))
+        throw new Error("API Key probe is already running");
+      // 在首个 await 前登记 owner，取消命令也能中断等待配置事务的检测。
+      probes.set(owner, { providerId, controller });
+      try {
+        await ensureReady();
+        await facade.waitForProviderOperations(providerId);
+        if (controller.signal.aborted) return [];
+        const provider = facade.getView().providers.find((item) => item.providerId === providerId);
+        if (!provider) throw new Error(`Provider 不存在: ${providerId}`);
+        const results = await catalogClient.probeApiKeys(provider.effectiveConfig, keyIds, {
+          signal: controller.signal,
+          onProgress: operationId
+            ? (progress) => {
+                for (const listener of probeListeners)
+                  listener({ ...progress, providerId, operationId });
+              }
+            : undefined,
+        });
+        return options?.streamResults ? [] : results;
+      } finally {
+        probes.delete(owner);
+      }
+    },
+    cancelApiKeyProbe: async (providerId, operationId) => {
+      const probe = probes.get(operationId);
+      if (probe?.providerId === providerId) probe.controller.abort();
+    },
+    dispose: () => {
+      disposed = true;
+      for (const probe of probes.values()) probe.controller.abort();
+      probes.clear();
+      probeListeners.clear();
     },
   };
 }

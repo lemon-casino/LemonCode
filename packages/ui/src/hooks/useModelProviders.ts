@@ -14,6 +14,7 @@ import { persistProviderDisplayOrder } from "@/lib/providerDisplayOrderPersisten
 import { persistPersonalProviderDeletion } from "@/lib/providerPersonalPersistence.js";
 import { persistPersonalProvider } from "@/lib/providerPersonalSave.js";
 import type { ProviderOrderView } from "@/lib/modelProviderOrdering.js";
+import { probeProviderApiKeys, type ProviderApiKeyProbeRunOptions } from "./providerApiKeyProbe.js";
 
 export type ModelConnectivityOptions = Pick<
   Parameters<IProviderSettingsService["testModelConnectivity"]>[0],
@@ -233,8 +234,8 @@ export function useModelProviders(target: {
   );
 
   const probeApiKeys = useCallback(
-    (providerId: string, keyIds?: readonly string[]) =>
-      providerSettingsService.probeApiKeys(providerId, keyIds),
+    (providerId: string, keyIds?: readonly string[], options?: ProviderApiKeyProbeRunOptions) =>
+      probeProviderApiKeys(providerSettingsService, providerId, keyIds, options),
     [providerSettingsService],
   );
 

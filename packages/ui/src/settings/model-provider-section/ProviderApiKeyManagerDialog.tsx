@@ -137,10 +137,31 @@ export function ProviderApiKeyManagerDialog(props: ProviderApiKeyManagerProps) {
           setPage={manager.setPage}
           visible={manager.visible}
           disabled={disabled}
+          navigationDisabled={disabled && manager.busy !== "probe"}
           getProbeState={manager.getProbeState}
           updateKey={manager.updateKey}
           removeKey={manager.removeKey}
         />
+        {manager.probeProgress ? (
+          <div
+            className="space-y-1 text-ui-sm text-foreground-subtle"
+            role="status"
+            data-api-key-probe-progress
+          >
+            <p>
+              {intl.formatMessage(
+                { id: `settings.modelProvider.apiKeyManager.probe.${manager.probeProgress.phase}` },
+                manager.probeProgress,
+              )}
+            </p>
+            <p>
+              {intl.formatMessage(
+                { id: "settings.modelProvider.apiKeyManager.probe.counts" },
+                manager.probeProgress,
+              )}
+            </p>
+          </div>
+        ) : null}
         {manager.error ? (
           <p role="alert" className="text-ui-sm text-destructive">
             {manager.error}
@@ -155,15 +176,31 @@ export function ProviderApiKeyManagerDialog(props: ProviderApiKeyManagerProps) {
           >
             {intl.formatMessage({ id: "common.cancel" })}
           </Button>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => void manager.probe()}
-            disabled={disabled}
-          >
-            <ShieldCheckIcon data-icon="inline-start" />
-            {intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.probe" })}
-          </Button>
+          {manager.busy === "probe" ? (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={manager.stopProbe}
+              disabled={
+                manager.probeProgress?.phase === "stopping" ||
+                manager.probeProgress?.phase === "finishing" ||
+                manager.probeProgress?.phase === "stopped" ||
+                manager.probeProgress?.phase === "complete"
+              }
+            >
+              {intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.probe.stop" })}
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => void manager.probe()}
+              disabled={disabled}
+            >
+              <ShieldCheckIcon data-icon="inline-start" />
+              {intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.probe" })}
+            </Button>
+          )}
           <Button type="button" onClick={() => void manager.save()} disabled={disabled}>
             {intl.formatMessage({ id: "common.save" })}
           </Button>

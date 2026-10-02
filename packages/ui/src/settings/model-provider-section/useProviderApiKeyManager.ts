@@ -1,7 +1,8 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { ProviderApiKey } from "@lcode/provider";
 import type { ProviderApiKeyProbeResult } from "@lcode/services";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
+import type { ProviderApiKeyProbeRunOptions } from "@/hooks/providerApiKeyProbe.js";
 import { createProviderApiKeyOperationGuard } from "./providerApiKeys.js";
 import { createProviderApiKeyId, ProviderApiKeyImportError } from "./providerApiKeyImport.js";
 import { API_KEY_PAGE_SIZE, getProviderApiKeyPage } from "./providerApiKeyList.js";
@@ -14,7 +15,10 @@ export interface ProviderApiKeyManagerProps {
   apiKeys: readonly ProviderApiKey[];
   onOpenChange: (open: boolean) => void;
   onSave: (apiKeys: readonly ProviderApiKey[]) => Promise<void>;
-  onProbe: (keyIds: readonly string[]) => Promise<readonly ProviderApiKeyProbeResult[]>;
+  onProbe: (
+    keyIds: readonly string[],
+    options?: ProviderApiKeyProbeRunOptions,
+  ) => Promise<readonly ProviderApiKeyProbeResult[]>;
 }
 
 export function useProviderApiKeyManager({
@@ -26,7 +30,7 @@ export function useProviderApiKeyManager({
   onProbe,
 }: ProviderApiKeyManagerProps) {
   const { intl } = useLCodeIntl();
-  const [draft, setDraft] = useState<ProviderApiKey[]>(() => [...apiKeys]);
+  const [draft, setDraft] = useState<ProviderApiKey[]>(() => (open ? [...apiKeys] : []));
   const [visible, setVisible] = useState(false);
   const [busy, setBusy] = useState<"save" | "probe" | "import" | "cleanup" | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -35,8 +39,15 @@ export function useProviderApiKeyManager({
     null,
   );
   const [requestedPage, setPage] = useState(1);
-  const [probeStates, setProbeStates] = useState<Record<string, ProviderApiKeyProbeState>>({});
-  const [ignoredProbeIds, setIgnoredProbeIds] = useState<ReadonlySet<string>>(new Set());
+  const probeStates = useRef(new Map<string, ProviderApiKeyProbeState>());
+  const [probeProgress, setProbeProgress] = useState<{
+    total: number;
+    completed: number;
+    valid: number;
+    invalid: number;
+    failed: number;
+    phase: "preparing" | "running" | "stopping" | "finishing" | "complete" | "stopped";
+  } | null>(null);
   const [invalidIds, setInvalidIds] = useState<ReadonlySet<string>>(new Set());
   const apiKeysRef = useRef(apiKeys);
   apiKeysRef.current = apiKeys;
@@ -54,8 +65,8 @@ export function useProviderApiKeyManager({
     setVisible(false);
     setPage(1);
     setBusy(null);
-    setProbeStates({});
-    setIgnoredProbeIds(new Set());
+    probeStates.current = new Map();
+    setProbeProgress(null);
     setInvalidIds(new Set());
     return () => {
       // 关闭/切换供应商同时取消后台计算与代次；旧操作不能把十万条结果提交到新草稿。
@@ -65,7 +76,7 @@ export function useProviderApiKeyManager({
   }, [open, scopeKey, guard]);
 
   const page = getProviderApiKeyPage(draft.length, requestedPage);
-  const canClose = busy === null || busy === "import" || busy === "cleanup";
+  const canClose = busy !== "save";
   const begin = (kind: NonNullable<typeof busy>) => {
     const operation = guard.begin();
     activeWorker.current?.abort();
@@ -121,24 +132,30 @@ export function useProviderApiKeyManager({
     }
   };
 
-  const clearProbeForKey = (id: string) => {
-    setIgnoredProbeIds((current) => new Set(current).add(id));
-    if (invalidIds.has(id))
-      setInvalidIds((current) => {
-        const next = new Set(current);
-        next.delete(id);
-        return next;
-      });
-  };
-  const updateKey = (index: number, patch: Partial<ProviderApiKey>) => {
-    const key = draft[index];
-    if (!key || busy !== null) return;
-    // 只复制数组并替换定位到的单行，不再在每次输入时全量规范化/渲染十万个 Key。
-    const next = [...draft];
-    next[index] = { ...key, ...patch };
-    setDraft(next);
-    if (patch.apiKey !== undefined && patch.apiKey !== key.apiKey) clearProbeForKey(key.id);
-  };
+  const clearProbeForKey = useCallback(
+    (id: string) => {
+      probeStates.current.delete(id);
+      if (invalidIds.has(id))
+        setInvalidIds((current) => {
+          const next = new Set(current);
+          next.delete(id);
+          return next;
+        });
+    },
+    [invalidIds],
+  );
+  const updateKey = useCallback(
+    (index: number, patch: Partial<ProviderApiKey>) => {
+      const key = draft[index];
+      if (!key || busy !== null) return;
+      // 只复制数组并替换定位到的单行，不再在每次输入时全量规范化/渲染十万个 Key。
+      const next = [...draft];
+      next[index] = { ...key, ...patch };
+      setDraft(next);
+      if (patch.apiKey !== undefined && patch.apiKey !== key.apiKey) clearProbeForKey(key.id);
+    },
+    [draft, busy, clearProbeForKey],
+  );
   const addKey = () => {
     setDraft([
       ...draft,
@@ -151,16 +168,19 @@ export function useProviderApiKeyManager({
     ]);
     setPage(getProviderApiKeyPage(draft.length + 1, Number.MAX_SAFE_INTEGER).page);
   };
-  const removeKey = (index: number) => {
-    const key = draft[index];
-    if (!key) return;
-    setDraft(draft.slice(0, index).concat(draft.slice(index + 1)));
-    clearProbeForKey(key.id);
-  };
+  const removeKey = useCallback(
+    (index: number) => {
+      const key = draft[index];
+      if (!key) return;
+      setDraft(draft.slice(0, index).concat(draft.slice(index + 1)));
+      clearProbeForKey(key.id);
+    },
+    [draft, clearProbeForKey],
+  );
   const removeAll = () => {
     setDraft([]);
-    setProbeStates({});
-    setIgnoredProbeIds(new Set());
+    probeStates.current = new Map();
+    setProbeProgress(null);
     setInvalidIds(new Set());
     setImportSummary(null);
     setPage(1);
@@ -201,7 +221,29 @@ export function useProviderApiKeyManager({
     }
   };
   const probe = async () => {
+    if (busy !== null) return;
     const { operation, signal } = begin("probe");
+    probeStates.current = new Map();
+    setInvalidIds(new Set());
+    const invalid = new Set<string>();
+    const counts = { completed: 0, valid: 0, invalid: 0, failed: 0 };
+    let total = draft.length;
+    const admitResults = (results: readonly ProviderApiKeyProbeResult[]) => {
+      if (!guard.isCurrent(operation)) return;
+      for (const result of results) {
+        if (probeStates.current.has(result.keyId)) continue;
+        probeStates.current.set(result.keyId, result.status);
+        counts.completed++;
+        if (result.status === "invalid") {
+          invalid.add(result.keyId);
+          counts.invalid++;
+        } else if (result.status === "valid") counts.valid++;
+        else counts.failed++;
+      }
+      // 只发布计数；结果 Map 增量写入，不在每批响应时复制十万项状态。
+      setProbeProgress({ total, ...counts, phase: signal.aborted ? "stopping" : "running" });
+    };
+    setProbeProgress({ total, ...counts, phase: "preparing" });
     try {
       const { keys } = await runProviderApiKeyWorker(draft, { kind: "normalize" }, signal);
       if (!guard.isCurrent(operation)) return;
@@ -209,40 +251,68 @@ export function useProviderApiKeyManager({
         setError(intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.empty" }));
         return;
       }
+      total = keys.length;
       // 检测读取服务已接受的配置，继续复用先保存再检测的唯一写入路径。
       await onSave(keys);
       if (!guard.isCurrent(operation)) return;
-      const results = await onProbe(keys.map((key) => key.id));
+      if (signal.aborted) return;
+      const results = await onProbe([], {
+        operationId: createProviderApiKeyId(),
+        signal,
+        onProgress: (progress) => {
+          total = progress.total;
+          admitResults(progress.results);
+        },
+      });
       if (!guard.isCurrent(operation)) return;
-      const states: Record<string, ProviderApiKeyProbeState> = {};
-      const invalid = new Set<string>();
       for (let index = 0; index < results.length; index += 2_000) {
-        for (const result of results.slice(index, index + 2_000)) {
-          states[result.keyId] = result.status;
-          if (result.status === "invalid") invalid.add(result.keyId);
-        }
+        admitResults(results.slice(index, index + 2_000));
         await yieldToBrowser();
         if (!guard.isCurrent(operation)) return;
       }
-      const next = keys.map((key) => (invalid.has(key.id) ? { ...key, enabled: false } : key));
+      let next = keys;
+      setInvalidIds(invalid);
+      setProbeProgress({ total, ...counts, phase: "finishing" });
       if (invalid.size > 0) {
+        const finalizer = new AbortController();
+        activeWorker.current = finalizer;
+        next = (
+          await runProviderApiKeyWorker(
+            keys,
+            { kind: "disableInvalid", invalidIds: [...invalid] },
+            finalizer.signal,
+          )
+        ).keys;
+        if (!guard.isCurrent(operation)) return;
+        setDraft(next);
         await onSave(next);
         if (!guard.isCurrent(operation)) return;
       }
       setDraft(next);
-      setProbeStates(states);
-      setIgnoredProbeIds(new Set());
       setInvalidIds(invalid);
+      setProbeProgress({ total, ...counts, phase: signal.aborted ? "stopped" : "complete" });
     } catch (failure) {
       if (!guard.isCurrent(operation)) return;
+      if (signal.aborted) {
+        setProbeProgress({ total, ...counts, phase: "stopped" });
+        return;
+      }
       if (failure instanceof ProviderApiKeyImportError) importFailure(failure);
       else setError(failure instanceof Error ? failure.message : String(failure));
     } finally {
-      if (guard.isCurrent(operation)) setBusy(null);
+      if (guard.isCurrent(operation)) {
+        if (signal.aborted) setProbeProgress({ total, ...counts, phase: "stopped" });
+        setBusy(null);
+      }
     }
   };
+  const stopProbe = () => {
+    if (busy !== "probe") return;
+    setProbeProgress((current) => (current ? { ...current, phase: "stopping" } : null));
+    activeWorker.current?.abort();
+  };
   const getProbeState = (id: string) =>
-    busy === "probe" ? "pending" : ignoredProbeIds.has(id) ? undefined : probeStates[id];
+    probeStates.current.get(id) ?? (busy === "probe" ? "pending" : undefined);
 
   return {
     draft,
@@ -265,6 +335,8 @@ export function useProviderApiKeyManager({
     invalidCount: invalidIds.size,
     save,
     probe,
+    stopProbe,
+    probeProgress,
     getProbeState,
   };
 }

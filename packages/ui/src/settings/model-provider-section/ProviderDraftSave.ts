@@ -126,9 +126,7 @@ export function resolvePendingProviderDraftSave({
       : {}),
   };
 
-  if (!labelChanged && JSON.stringify(config) === JSON.stringify(provider.config)) {
-    return null;
-  }
+  // 上面已逐字段判断修改；不要为端点/名称编辑再次序列化整份十万 Key 配置。
   return {
     ...provider,
     ...(labelChanged ? { providerName: label || null, providerNameUpdate: label || null } : {}),

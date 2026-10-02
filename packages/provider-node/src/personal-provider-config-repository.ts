@@ -12,6 +12,7 @@ import {
   decodeProviderConfigFile,
   encodeProviderConfigFile,
 } from "./provider-config-file-codec.js";
+import { ProviderConfigSnapshotCache } from "./providerConfigSnapshotCache.js";
 
 export interface NodePersonalProviderConfigRepositoryOptions {
   readonly filePath: string;
@@ -28,6 +29,7 @@ export interface PersonalProviderConfigRecoveryEvent {
 export class NodePersonalProviderConfigRepository implements PersonalProviderConfigRepository {
   readonly #filePath: string;
   readonly #stateFilePath: string;
+  readonly #snapshotCache: ProviderConfigSnapshotCache;
   readonly #importLegacy?: () => Promise<ProviderConfigLayerUpdate | null>;
   readonly #onRecovery?: (event: PersonalProviderConfigRecoveryEvent) => void;
   readonly #onPollingError?: (error: unknown) => void;
@@ -45,6 +47,7 @@ export class NodePersonalProviderConfigRepository implements PersonalProviderCon
     if (!options.filePath.trim()) throw new Error("Personal Provider Config filePath 不能为空");
     this.#filePath = options.filePath;
     this.#stateFilePath = `${options.filePath}.runtime.json`;
+    this.#snapshotCache = new ProviderConfigSnapshotCache([this.#filePath, this.#stateFilePath]);
     this.#importLegacy = options.importLegacy;
     this.#onRecovery = options.onRecovery;
     this.#onPollingError = options.onPollingError;
@@ -57,7 +60,7 @@ export class NodePersonalProviderConfigRepository implements PersonalProviderCon
   async read(): Promise<ProviderConfigLayerSnapshot> {
     this.#assertNotDisposed();
     try {
-      const snapshot = await this.#readCurrent();
+      const snapshot = await this.#snapshotCache.read(() => this.#readCurrent(), true);
       this.#observedRevision ??= snapshot.revision;
       return snapshot;
     } catch (error) {
@@ -119,6 +122,7 @@ export class NodePersonalProviderConfigRepository implements PersonalProviderCon
   dispose(): void {
     if (this.#disposed) return;
     this.#disposed = true;
+    this.#snapshotCache.clear();
     if (this.#pollingTimer) clearTimeout(this.#pollingTimer);
     this.#pollingTimer = null;
     this.#listeners.clear();
@@ -165,16 +169,22 @@ export class NodePersonalProviderConfigRepository implements PersonalProviderCon
   }
 
   async #writeLocked(update: ProviderConfigLayerUpdate): Promise<ProviderConfigLayerUpdate> {
+    this.#snapshotCache.clear();
     // 同一入口写入规则与默认选择；先严格验证整份结果，不能落盘后才发现来源越权/坏值。
     // 使用与读取相同的规范形态再计算版本，避免外层规则键顺序使“写成功”的版本读回就变化。
     const canonical = decodeProviderConfigFile(encodeProviderConfigFile(update));
     const encoded = encodeProviderConfigFile(canonical);
     await atomicWritePrivateTextFile(this.#filePath, JSON.stringify(encoded, null, 2));
+    this.#snapshotCache.clear();
     this.#writeGeneration += 1;
     return canonical;
   }
 
-  async #readPollingSnapshot(): Promise<ProviderConfigLayerSnapshot> {
+  #readPollingSnapshot(): Promise<ProviderConfigLayerSnapshot> {
+    return this.#snapshotCache.read(() => this.#loadPollingSnapshot());
+  }
+
+  async #loadPollingSnapshot(): Promise<ProviderConfigLayerSnapshot> {
     const [file, saveGenerations] = await Promise.all([
       readJsonFileIfExists(this.#filePath),
       readSaveGenerations(this.#stateFilePath),

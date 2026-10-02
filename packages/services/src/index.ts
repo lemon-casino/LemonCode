@@ -9,6 +9,8 @@ export {
   type ProviderSettingsProviderView,
   type ProviderSettingsView,
   type ProviderApiKeyProbeResult,
+  type ProviderApiKeyProbeProgress,
+  type ProviderApiKeyProbeEvent,
   type ProviderRemoteModelCatalog,
 } from "./model-provider/providerFacadeServices.js";
 export {

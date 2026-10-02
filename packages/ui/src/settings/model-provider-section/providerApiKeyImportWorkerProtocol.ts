@@ -5,6 +5,7 @@ export const API_KEY_TRANSFER_BATCH_SIZE = 2_000;
 export type ProviderApiKeyWorkerTask =
   | { kind: "import"; source: string | File[] }
   | { kind: "normalize" }
+  | { kind: "disableInvalid"; invalidIds: string[] }
   | { kind: "removeInvalid"; invalidIds: string[] };
 export type ProviderApiKeyWorkerRequest =
   | { type: "seed"; keys: ProviderApiKey[] }
