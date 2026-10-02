@@ -252,7 +252,7 @@
     "apps/lcode-cli/packages/tui/package.json": "51decf6f5c4286c694c4b15ef0ca16129dee0283951b4929c43e0ed9aa12f468",
     "apps/lcode-cli/tools/prompt-trajectory/package.json": "6ab89bba2dba20f07cf913e34acb4bda59d9563d196995a25f867f34281df02b",
     "apps/lcode-cli/tools/typescript/package.json": "2f33883fe33cc9d878a3d6d78a0d262eb0db134fc02042ed7563c3dc50d797f7",
-    "package.json": "af3c7d9cb967edd2ab2f5bc8a67247675aacfffe72ee4c7698c3cdd4d524cd50",
+    "package.json": "1a532bb06f648b202b3a7a9cb7663757a222b6565a3ae4f5a44caa8ce8c027d0",
     "packages/client/package.json": "6cfcb57428c4728a98b7cf4504d29304cf6e9e547e136f0ab1edcef8f821b452",
     "packages/desktop/package.json": "b68388d3a85da919fbb58ff079ee0f0b426eaef17fe6f35b8d3553f6065ba826",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
@@ -1424,7 +1424,7 @@
     "packages/rpc/src/logging-middleware.ts": "20edfd8e5d054097186f2498ec4e9c08c61740ed003fc69eecea8176a15fe025",
     "packages/rpc/src/network-telemetry-middleware.ts": "18a7cde46e6c65e0138af0623d07bf883ce278acf44654bc5144ecaadd36a536",
     "packages/rpc/src/persistent-protocol.ts": "80609595b89188272d743e557502c6cad3858f828acae31c2ef64206bb3c8978",
-    "packages/rpc/src/protocol.ts": "4743279ebe11deb978f3d67d2ece3503bcb618f0c01314908f53ee1505b085cd",
+    "packages/rpc/src/protocol.ts": "e82ff4da175c4e7ef68c7411ae1e36af50c342c88b2527c773327c17d70f5ea8",
     "packages/rpc/src/proxy-channel.ts": "1f81da70701f1ae95856c3a94abca456fd8352e7860013609d19f567bfdc94fb",
     "packages/rpc/src/remote.ts": "a11e072d5df7e1c1ce64814a68f72afc081246b364f0da409b5c9d22bc815957",
     "packages/rpc/src/serialization.ts": "9720698411e17c31869c4bc974c381e4201bf3d51cf8e849ea7375eb54399dc6",
@@ -31211,7 +31211,7 @@
         },
         {
           "file": "packages/rpc/src/protocol.ts",
-          "sha256": "70b9647eff9572122f3fd5de22ed80a47cc50d5a653d32f0481b62fa35f3e4d5"
+          "sha256": "dfc6f63dd7f1ee45ff83c16fd2e0d5fd056f07c7f2bedd14379dd9223ee6c9c8"
         },
         {
           "file": "packages/rpc/src/proxy-channel.ts",
