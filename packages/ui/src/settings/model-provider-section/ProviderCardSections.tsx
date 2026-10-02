@@ -297,6 +297,8 @@ export function ProviderConnectionSection({
 export function ProviderApiKeySection({
   providerId,
   apiKeys,
+  apiKeySummary,
+  apiKeysOmitted,
   readOnly,
   presetApiKeyUrl,
   onOpenPresetApiKey,
@@ -305,6 +307,8 @@ export function ProviderApiKeySection({
 }: {
   providerId: string;
   apiKeys: readonly ProviderApiKey[];
+  apiKeySummary?: { readonly total: number; readonly enabled: number };
+  apiKeysOmitted?: true;
   readOnly?: boolean;
   presetApiKeyUrl?: string;
   onOpenPresetApiKey?: () => void;
@@ -316,6 +320,7 @@ export function ProviderApiKeySection({
 }) {
   const { intl } = useLCodeIntl();
   const [managerOpen, setManagerOpen] = useState(false);
+  const { providerSettingsService } = useServices();
   const enabledCount = useMemo(
     () => apiKeys.reduce((count, key) => count + Number(key.enabled !== false), 0),
     [apiKeys],
@@ -345,7 +350,10 @@ export function ProviderApiKeySection({
         <span className="text-ui-sm text-foreground-subtle">
           {intl.formatMessage(
             { id: "settings.modelProvider.apiKeyManager.summary" },
-            { enabled: enabledCount, total: apiKeys.length },
+            {
+              enabled: apiKeySummary?.enabled ?? enabledCount,
+              total: apiKeySummary?.total ?? apiKeys.length,
+            },
           )}
         </span>
       </Button>
@@ -353,6 +361,9 @@ export function ProviderApiKeySection({
         open={managerOpen}
         scopeKey={providerId}
         apiKeys={apiKeys}
+        loadApiKeysJson={
+          apiKeysOmitted ? () => providerSettingsService.getApiKeysJson(providerId) : undefined
+        }
         onOpenChange={setManagerOpen}
         onSave={onSaveApiKeys}
         onProbe={onProbeApiKeys}

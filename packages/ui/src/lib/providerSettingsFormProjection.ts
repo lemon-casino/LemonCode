@@ -19,6 +19,8 @@ function projectProviderSettingsProviders(
     executable: provider.executable,
     enabled: provider.enabled,
     accountState: provider.accountState,
+    apiKeySummary: provider.apiKeySummary,
+    apiKeysOmitted: provider.apiKeysOmitted,
     hasPersonalConfig: provider.personalConfig !== undefined,
     issues: provider.issues,
     personalConfig: provider.personalConfig ?? {},

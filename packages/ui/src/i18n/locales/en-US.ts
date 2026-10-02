@@ -2752,6 +2752,7 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.showApiKey": "Show API key",
   "settings.modelProvider.hideApiKey": "Hide API key",
   "settings.modelProvider.apiKeyManager.title": "Manage API keys",
+  "settings.modelProvider.apiKeyManager.loadFailed": "Unable to load API keys. Close this dialog and try again.",
   "settings.modelProvider.apiKeyManager.description":
     "Configure multiple keys for one provider with ordered failover.",
   "settings.modelProvider.apiKeyManager.add": "Add key",

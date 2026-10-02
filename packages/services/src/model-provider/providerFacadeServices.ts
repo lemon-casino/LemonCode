@@ -26,6 +26,8 @@ import {
   type ProviderRemoteModelCatalog,
 } from "./providerCatalogClient.js";
 import type { ProviderApiKeyProbeProgress } from "./providerApiKeyProbe.js";
+import { compactProviderSettingsView } from "./providerSettingsCompactView.js";
+import { isApiKeyAccess, resolveApiKeyAccessKeys } from "@lcode/provider";
 
 export type {
   ProviderSettingsProviderView,
@@ -43,7 +45,10 @@ export interface ProviderApiKeyProbeEvent extends ProviderApiKeyProbeProgress {
 export interface IProviderSettingsService {
   readonly onDidChange: Event<ProviderSettingsView>;
   readonly onDidProbeApiKeys: Event<ProviderApiKeyProbeEvent>;
+  /** 大 Key 列表以 apiKeySummary/apiKeysOmitted 表示，管理窗口再按需读取。 */
   getView(): Promise<ProviderSettingsView>;
+  /** 完整 Key 按需传输为 JSON 文本，Renderer 在 Worker 中解析。 */
+  getApiKeysJson(providerId: ProviderId): Promise<string>;
   refresh(reason: string): Promise<ProviderSettingsView>;
   createPersonalProvider(
     input?: Parameters<ProviderSettingsFacade["createPersonalProvider"]>[0],
@@ -142,22 +147,33 @@ export function createProviderSettingsService(
   const probeListeners = new Set<(event: ProviderApiKeyProbeEvent) => void>();
   let disposed = false;
   return {
-    onDidChange: toEvent((listener) => facade.onDidChange(listener)),
+    onDidChange: toEvent((listener) =>
+      facade.onDidChange((view) => listener(compactProviderSettingsView(view))),
+    ),
     onDidProbeApiKeys: toEvent((listener) => {
       probeListeners.add(listener);
       return () => probeListeners.delete(listener);
     }),
     getView: async () => {
       await ensureReady();
-      return facade.getView();
+      return compactProviderSettingsView(facade.getView());
+    },
+    getApiKeysJson: async (providerId) => {
+      await ensureReady();
+      await facade.waitForProviderOperations(providerId);
+      const provider = facade.getView().providers.find((item) => item.providerId === providerId);
+      if (!provider) throw new Error(`Provider 不存在: ${providerId}`);
+      const access = provider.effectiveConfig.access;
+      return JSON.stringify(isApiKeyAccess(access) ? resolveApiKeyAccessKeys(access) : []);
     },
     refresh: async (reason) => {
       await ensureReady();
-      return facade.refresh(reason);
+      return compactProviderSettingsView(await facade.refresh(reason));
     },
     createPersonalProvider: async (input) => {
       await ensureReady();
-      return facade.createPersonalProvider(input);
+      const result = await facade.createPersonalProvider(input);
+      return { ...result, view: compactProviderSettingsView(result.view) };
     },
     resolveModelConfig: async (input) => {
       await ensureReady();
@@ -165,39 +181,47 @@ export function createProviderSettingsService(
     },
     savePersonalProviderOverlay: async (providerId, config, metadata) => {
       await ensureReady();
-      return facade.savePersonalProviderOverlay(providerId, config, metadata);
+      return compactProviderSettingsView(
+        await facade.savePersonalProviderOverlay(providerId, config, metadata),
+      );
     },
     deletePersonalProvider: async (providerId) => {
       await ensureReady();
-      return facade.deletePersonalProvider(providerId);
+      return compactProviderSettingsView(await facade.deletePersonalProvider(providerId));
     },
     reorderPersonalProviders: async (providerIds) => {
       await ensureReady();
-      return facade.reorderPersonalProviders(providerIds);
+      return compactProviderSettingsView(await facade.reorderPersonalProviders(providerIds));
     },
     reorderPersonalModels: async (providerId, modelIds) => {
       await ensureReady();
-      return facade.reorderPersonalModels(providerId, modelIds);
+      return compactProviderSettingsView(await facade.reorderPersonalModels(providerId, modelIds));
     },
     addPersonalModel: async (providerId, modelId, config, useRecommendedConfig) => {
       await ensureReady();
-      return facade.addPersonalModel(providerId, modelId, config, useRecommendedConfig);
+      return compactProviderSettingsView(
+        await facade.addPersonalModel(providerId, modelId, config, useRecommendedConfig),
+      );
     },
     renamePersonalModel: async (providerId, currentModelId, nextModelId) => {
       await ensureReady();
-      return facade.renamePersonalModel(providerId, currentModelId, nextModelId);
+      return compactProviderSettingsView(
+        await facade.renamePersonalModel(providerId, currentModelId, nextModelId),
+      );
     },
     deletePersonalModel: async (providerId, modelId) => {
       await ensureReady();
-      return facade.deletePersonalModel(providerId, modelId);
+      return compactProviderSettingsView(await facade.deletePersonalModel(providerId, modelId));
     },
     savePersonalModelDraft: async (input) => {
       await ensureReady();
-      return facade.savePersonalModelDraft(input);
+      return compactProviderSettingsView(await facade.savePersonalModelDraft(input));
     },
     setPersonalModelEnabled: async (providerId, modelId, enabled) => {
       await ensureReady();
-      return facade.setPersonalModelEnabled(providerId, modelId, enabled);
+      return compactProviderSettingsView(
+        await facade.setPersonalModelEnabled(providerId, modelId, enabled),
+      );
     },
     testModelConnectivity: async (input) => {
       await ensureReady();

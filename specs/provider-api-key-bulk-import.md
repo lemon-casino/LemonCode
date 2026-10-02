@@ -152,3 +152,16 @@ sequenceDiagram
 - 安装版只读排查发现配置约 37MB、最大列表 100,926 条 Key，渲染进程超过 3GB。最近退出日志约 4 秒完成清理；“关闭后打不开”完整场景尚未复现。此次没有修改真实用户配置或替换安装程序，源码合并后需要重新构建/更新安装版才能生效。
 
 检测回归入口：`pnpm exec tsx --test packages/services/src/model-provider/providerApiKeyProbe.test.ts packages/services/src/model-provider/providerCatalogClient.test.ts packages/services/src/model-provider/providerSettingsApiKeyProbe.test.ts packages/services/src/model-provider/providerRuntimeLargeKeys.test.ts packages/provider-node/src/providerConfigSnapshotCache.test.ts`；浏览器入口：`pnpm --dir packages/web exec node --test test/api-key-probe.test.mjs`（可用 `LCODE_TEST_BROWSER_PATH` 指定本机浏览器）。
+
+## 启动与模型删除的 RPC 大列表修复（2026-10-02）
+
+- 安装版 `ac31bd72` 的 Host/数据库已就绪后，Renderer 仍反复接收并解析整份 Key 列表。Settings 的多层配置、模型选择、刷新响应和每次模型删除通知都携带大列表，缓存磁盘读取未消除这段开销。
+- Settings Service 超过 250 条的列表现在只传数量、启用数量及 `apiKeysOmitted` 标记；模型选择只保留一个有效主 Key 及选择配置。执行 Registry 与磁盘仍保存完整列表。打开管理窗口才通过 `getApiKeysJson` 读取 JSON 文本，在 Worker 解析并按 2,000 条分块接收。加载可取消、关闭，失败禁止保存空草稿。
+- 完整 Electron 复测还定位到通信层先对二进制消息执行 `Object.keys`，枚举数千万字节索引，单次阻塞 Renderer 约 1.4s。现在先辨识流控标记及状态，仅对合法流控对象检查字段数量；MessagePort 和远程帧泵保持原有非法消息校验。32MiB 二进制回归禁止枚举索引，流控、额外字段和非法状态校验均通过。
+- 摘要表单保存显式请求保留现有个人 Key；Facade 在该供应商操作队列中读取当前事实，既保留完整列表，也避免旧主 Key 恢复已经清空的列表。显式提交空数组仍可删除全部。已冻结的内部列表在 Overlay 组合时复用，外部可变输入仍防御复制。
+- 100,000 条合成 Key 的真实 RPC 编解码回归：Settings 响应约 52.4MB → 39.9KB，串行测量约 1,228ms → 2.54ms；模型删除约 832ms。响应、变更通知和模型选择均有体积上界断言，验证修改地址、删除模型不丢 Key，以及旧摘要不能恢复已删除凭据。
+- 隔离 Electron、独立临时数据、同一配套 Agent 下，安装版代码的首次启动画面等待约 27.4s，修改后的代码约 5.3s（首次欢迎页场景）。配置工作方向后另测主工作区约 6.8s 可操作。完整 Desktop 生产构建通过；这些合成测量不代表所有用户机器的启动时间，正式安装程序未被替换。
+- 最新完整 Desktop 复测十万 Key：工作区约 6.6s 可操作、模型设置约 7.3s 就绪。连续删除三个模型在后台约 4.7s 完成，期间仍能在约 144ms 打开管理窗口并关闭；随后读取完整列表约 679ms，最多 25 行 DOM，末页为第 4,000 页，磁盘仍保留 100,000 条。该交互段记录到 64ms 和 51ms Long Task，未再出现通信层约 1.4s 的阻塞。
+- 实际浏览器验证延迟读取期间关闭、迟到结果丢弃、十万条 ID/标签/禁用状态保留、末页分页和加载失败禁止保存；并发检测回归继续通过。开发构建检测翻页/停止曾观察到 83ms Long Task，未声称全部操作零长任务。
+
+新增回归入口：`packages/services/src/model-provider/providerSettingsLargeKeys.test.ts` 与 `packages/web/test/api-key-probe.test.mjs`。

@@ -16,9 +16,12 @@ export async function persistPersonalProvider(params: {
   return params.providerSettingsService.savePersonalProviderOverlay(
     params.provider.providerId,
     structuredClone(providerFields),
-    params.provider.providerNameUpdate === undefined && params.provider.enabledUpdate === undefined
+    params.provider.providerNameUpdate === undefined &&
+      params.provider.enabledUpdate === undefined &&
+      !params.provider.apiKeysOmitted
       ? undefined
       : {
+          ...(params.provider.apiKeysOmitted ? { preserveApiKeys: true } : {}),
           ...(params.provider.providerNameUpdate === undefined
             ? {}
             : { providerName: params.provider.providerNameUpdate }),

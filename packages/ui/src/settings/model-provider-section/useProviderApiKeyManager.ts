@@ -13,6 +13,7 @@ export interface ProviderApiKeyManagerProps {
   open: boolean;
   scopeKey: string;
   apiKeys: readonly ProviderApiKey[];
+  loadApiKeysJson?: () => Promise<string>;
   onOpenChange: (open: boolean) => void;
   onSave: (apiKeys: readonly ProviderApiKey[]) => Promise<void>;
   onProbe: (
@@ -25,6 +26,7 @@ export function useProviderApiKeyManager({
   open,
   scopeKey,
   apiKeys,
+  loadApiKeysJson,
   onOpenChange,
   onSave,
   onProbe,
@@ -32,8 +34,9 @@ export function useProviderApiKeyManager({
   const { intl } = useLCodeIntl();
   const [draft, setDraft] = useState<ProviderApiKey[]>(() => (open ? [...apiKeys] : []));
   const [visible, setVisible] = useState(false);
-  const [busy, setBusy] = useState<"save" | "probe" | "import" | "cleanup" | null>(null);
+  const [busy, setBusy] = useState<"load" | "save" | "probe" | "import" | "cleanup" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(!loadApiKeysJson);
   const [importOpen, setImportOpen] = useState(false);
   const [importSummary, setImportSummary] = useState<{ added: number; duplicates: number } | null>(
     null,
@@ -51,6 +54,8 @@ export function useProviderApiKeyManager({
   const [invalidIds, setInvalidIds] = useState<ReadonlySet<string>>(new Set());
   const apiKeysRef = useRef(apiKeys);
   apiKeysRef.current = apiKeys;
+  const loadKeysRef = useRef(loadApiKeysJson);
+  loadKeysRef.current = loadApiKeysJson;
   const activeWorker = useRef<AbortController | null>(null);
   const guardRef = useRef<ReturnType<typeof createProviderApiKeyOperationGuard> | null>(null);
   if (guardRef.current === null) guardRef.current = createProviderApiKeyOperationGuard(null);
@@ -58,7 +63,9 @@ export function useProviderApiKeyManager({
 
   useLayoutEffect(() => {
     guard.setScope(open ? scopeKey : null);
-    setDraft(open ? [...apiKeysRef.current] : []);
+    const loadKeys = open ? loadKeysRef.current : undefined;
+    setLoaded(!loadKeys);
+    setDraft(open && !loadKeys ? [...apiKeysRef.current] : []);
     setImportOpen(false);
     setImportSummary(null);
     setError(null);
@@ -68,6 +75,32 @@ export function useProviderApiKeyManager({
     probeStates.current = new Map();
     setProbeProgress(null);
     setInvalidIds(new Set());
+    if (loadKeys) {
+      const operation = guard.begin();
+      const controller = new AbortController();
+      activeWorker.current = controller;
+      setBusy("load");
+      void loadKeys()
+        .then(async (json) => {
+          if (!guard.isCurrent(operation)) return;
+          const result = await runProviderApiKeyWorker(
+            [],
+            { kind: "load", json },
+            controller.signal,
+          );
+          if (guard.isCurrent(operation)) {
+            setDraft(result.keys);
+            setLoaded(true);
+          }
+        })
+        .catch(() => {
+          if (guard.isCurrent(operation))
+            setError(intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.loadFailed" }));
+        })
+        .finally(() => {
+          if (guard.isCurrent(operation)) setBusy(null);
+        });
+    }
     return () => {
       // 关闭/切换供应商同时取消后台计算与代次；旧操作不能把十万条结果提交到新草稿。
       activeWorker.current?.abort();
@@ -206,6 +239,7 @@ export function useProviderApiKeyManager({
   };
 
   const save = async () => {
+    if (!loaded || busy !== null) return;
     const { operation, signal } = begin("save");
     try {
       const result = await runProviderApiKeyWorker(draft, { kind: "normalize" }, signal);
@@ -315,6 +349,7 @@ export function useProviderApiKeyManager({
     probeStates.current.get(id) ?? (busy === "probe" ? "pending" : undefined);
 
   return {
+    loaded,
     draft,
     visible,
     setVisible,

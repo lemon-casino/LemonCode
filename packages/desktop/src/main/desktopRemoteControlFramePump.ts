@@ -19,9 +19,9 @@ function isFlowControlMessage(value: unknown): value is RemoteControlFlowControl
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
   return (
-    Object.keys(record).length === 2 &&
     record.__lcodeRpcControl === "connection-flow-v1" &&
-    (record.state === "saturated" || record.state === "drained")
+    (record.state === "saturated" || record.state === "drained") &&
+    Object.keys(record).length === 2
   );
 }
 

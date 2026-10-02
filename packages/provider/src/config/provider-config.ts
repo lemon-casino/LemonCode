@@ -402,11 +402,16 @@ function freezeProviderLogo(
   return logo ? Object.freeze({ ...logo }) : logo;
 }
 
+const ownedApiKeyLists = new WeakSet<readonly ProviderApiKey[]>();
+
 function freezeProviderApiKeys(
   apiKeys: readonly ProviderApiKey[] | null | undefined,
 ): readonly ProviderApiKey[] | null | undefined {
   if (!apiKeys) return apiKeys;
-  return Object.freeze(apiKeys.map((entry) => Object.freeze({ ...entry })));
+  if (ownedApiKeyLists.has(apiKeys)) return apiKeys;
+  const frozen = Object.freeze(apiKeys.map((entry) => Object.freeze({ ...entry })));
+  ownedApiKeyLists.add(frozen);
+  return frozen;
 }
 
 function freezeModelIds(

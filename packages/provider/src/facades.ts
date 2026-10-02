@@ -158,6 +158,9 @@ export interface ProviderSettingsProviderView extends Pick<
   readonly effectiveBuiltinConfig?: ProviderConfigObject;
   readonly personalConfig?: ProviderConfigObject;
   readonly effectiveConfig: ProviderConfigObject;
+  /** 大列表在 Settings RPC 中按需读取；摘要不包含完整 Key。 */
+  readonly apiKeySummary?: { readonly total: number; readonly enabled: number };
+  readonly apiKeysOmitted?: true;
   readonly issues: readonly ConfigValidationIssue[];
   readonly models: readonly ProviderSettingsModelView[];
 }
@@ -322,16 +325,33 @@ export class ProviderSettingsFacade {
   savePersonalProviderOverlay(
     providerId: ProviderId,
     config: ProviderConfigObject,
-    metadata?: Pick<ProviderConfigRule, "providerName" | "templateId" | "enabled">,
+    metadata?: Pick<ProviderConfigRule, "providerName" | "templateId" | "enabled"> & {
+      readonly preserveApiKeys?: boolean;
+    },
   ): Promise<ProviderSettingsView> {
-    return this.#mutateProvider(providerId, "save-provider", (target) =>
-      target.savePersonalProviderOverlay(
+    return this.#mutateProvider(providerId, "save-provider", (target) => {
+      const snapshot = requireSnapshot(this.#source);
+      const personalAccess = snapshot.config.personalProviders.get(providerId)?.access;
+      // 摘要不是清空指令。队列轮到本次操作后再补回当前个人 Key，避免旧 UI 覆盖新 Key。
+      const preserveKeys =
+        metadata?.preserveApiKeys &&
+        personalAccess &&
+        personalAccess.type !== "zhipu-account" &&
+        config.access?.type !== "zhipu-account" &&
+        config.access?.apiKeys === undefined;
+      const { apiKey: _primary, ...nonKeyAccess } =
+        config.access?.type !== "zhipu-account" ? (config.access ?? {}) : {};
+      const input = preserveKeys
+        ? { ...config, access: { ...personalAccess.toJSON(), ...nonKeyAccess } }
+        : config;
+      const { preserveApiKeys: _preserve, ...providerMetadata } = metadata ?? {};
+      return target.savePersonalProviderOverlay(
         providerId,
-        parseProviderConfig(config),
-        this.#modelMembership(providerId),
-        metadata,
-      ),
-    );
+        parseProviderConfig(input),
+        this.#modelMembership(providerId, snapshot),
+        metadata ? providerMetadata : undefined,
+      );
+    });
   }
 
   deletePersonalProvider(providerId: ProviderId): Promise<ProviderSettingsView> {
@@ -573,7 +593,8 @@ export function projectModelSelectionProviderView(
     providerId: provider.providerId,
     providerName: provider.providerName,
     templateId: provider.templateId,
-    config: serializeRegistryProviderConfig(provider.config),
+    // 候选只描述选择资格；执行仍从 Registry 读取完整凭据池。
+    config: serializeRegistryProviderConfig(provider.config, false),
     models: Object.freeze(
       provider.models.map((model) =>
         Object.freeze({

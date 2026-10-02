@@ -28,7 +28,7 @@ export function ProviderApiKeyManagerDialog(props: ProviderApiKeyManagerProps) {
   const { intl } = useLCodeIntl();
   const manager = useProviderApiKeyManager(props);
   const importPanelId = useId();
-  const disabled = manager.busy !== null;
+  const disabled = manager.busy !== null || !manager.loaded;
   return (
     <Dialog open={props.open} onOpenChange={(next) => manager.canClose && props.onOpenChange(next)}>
       <DialogContent
@@ -54,6 +54,11 @@ export function ProviderApiKeyManagerDialog(props: ProviderApiKeyManagerProps) {
             {intl.formatMessage({ id: "settings.modelProvider.apiKeyManager.description" })}
           </DialogDescription>
         </DialogHeader>
+        {manager.busy === "load" ? (
+          <p role="status" className="text-ui-sm text-foreground-subtle">
+            {intl.formatMessage({ id: "common.loading" })}
+          </p>
+        ) : null}
         <div className="flex items-center justify-between gap-2">
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" onClick={manager.addKey} disabled={disabled}>

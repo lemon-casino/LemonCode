@@ -36,6 +36,9 @@ self.onmessage = async (event: MessageEvent<ProviderApiKeyWorkerRequest>) => {
       keys = result.draft.slice(snapshot.length);
       added = result.added;
       duplicates = result.duplicates;
+    } else if (task.kind === "load") {
+      // Host 已规范化过持久 Key；保留原 ID、标签及禁用状态，解析放在 Worker。
+      keys = JSON.parse(task.json) as ProviderApiKey[];
     } else if (task.kind === "normalize") {
       keys = normalizeProviderApiKeys(snapshot);
     } else if (task.kind === "disableInvalid") {

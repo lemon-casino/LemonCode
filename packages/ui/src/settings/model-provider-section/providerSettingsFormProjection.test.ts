@@ -7,6 +7,44 @@ import {
   applyProviderApiKeysToDraft,
   resolvePendingProviderDraftSave,
 } from "./ProviderDraftSave.js";
+import { persistPersonalProvider } from "../../lib/providerPersonalSave.js";
+
+test("summary-backed endpoint saves request key preservation without sending the key pool", async () => {
+  const [provider] = projectProviderSettingsViewToFormProviders({
+    revision: 1,
+    providerTemplates: [],
+    providerOrder: [],
+    providers: [
+      {
+        providerId: "test",
+        enabled: true,
+        executable: true,
+        issues: [],
+        models: [],
+        effectiveConfig: { access: { type: "api-key", apiKey: "fixture-primary" } },
+        personalConfig: { access: { type: "api-key", apiKey: "fixture-primary" } },
+        apiKeySummary: { total: 100_000, enabled: 80_000 },
+        apiKeysOmitted: true,
+      },
+    ],
+  });
+  assert.deepEqual(provider!.apiKeySummary, { total: 100_000, enabled: 80_000 });
+  let saved = false;
+  await persistPersonalProvider({
+    provider: provider!,
+    providerSettingsService: {
+      savePersonalProviderOverlay: async (id, config, metadata) => {
+        assert.equal(id, "test");
+        assert.deepEqual(metadata, { preserveApiKeys: true });
+        assert.ok(isApiKeyAccess(config.access));
+        assert.equal(config.access.apiKeys, undefined);
+        saved = true;
+        return { revision: 2, providerTemplates: [], providerOrder: [], providers: [] };
+      },
+    },
+  });
+  assert.equal(saved, true);
+});
 
 test("large settings projections share immutable configuration; editing a key draft preserves the accepted snapshot", () => {
   const keys = Object.freeze(

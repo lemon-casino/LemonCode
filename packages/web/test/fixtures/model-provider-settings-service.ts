@@ -237,13 +237,14 @@ function createFixture() {
     return provider;
   };
   const service: IProviderSettingsService = {
+    getApiKeysJson: async (providerId) => {
+      const access = (await providerView(providerId)).effectiveConfig.access;
+      return JSON.stringify(isApiKeyAccess(access) ? resolveApiKeyAccessKeys(access) : []);
+    },
     onDidProbeApiKeys: () => ({ dispose: () => {} }),
     cancelApiKeyProbe: async () => {},
     onDidChange: (listener) => ({ dispose: facade.onDidChange(listener) }),
-    getView: async () => {
-      await ready;
-      return facade.getView();
-    },
+    getView: () => ready.then(() => facade.getView()),
     refresh: async (reason) => {
       await ready;
       record(`reload ${reason}`);

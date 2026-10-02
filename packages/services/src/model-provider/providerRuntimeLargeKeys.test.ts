@@ -97,7 +97,13 @@ test(
       (entry) => entry.providerId === "large-test",
     );
     assert.ok(isApiKeyAccess(provider?.effectiveConfig.access));
-    assert.equal(provider.effectiveConfig.access.apiKeys?.length, 100_000);
+    assert.equal(provider.apiKeysOmitted, true);
+    assert.equal(provider.apiKeySummary?.total, 100_000);
+    assert.equal(provider.effectiveConfig.access.apiKeys, undefined);
+    assert.equal(
+      JSON.parse(await second.providerSettings.getApiKeysJson("large-test")).length,
+      100_000,
+    );
     assert.equal(await readFile(personalFilePath, "utf8"), text);
     t.diagnostic(
       `Synthetic Provider Runtime startup ${Math.round(startupMs)}ms; active probe shutdown ${Math.round(shutdownMs)}ms; reopen succeeded`,

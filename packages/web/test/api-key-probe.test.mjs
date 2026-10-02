@@ -3,6 +3,60 @@ import test from "node:test";
 import { startWorkflowProgressBrowser } from "./workflow-execution-progress-browser.mjs";
 
 test(
+  "lazy 100k-key reads are closeable, preserve identities, and cannot save a failed or cancelled load",
+  { timeout: 90_000 },
+  async (t) => {
+    const { browser, port } = await startWorkflowProgressBrowser(t);
+    const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(`http://127.0.0.1:${port}/test/fixtures/api-key-probe.html?lazy=1`);
+    const dialog = page.getByRole("dialog");
+    const button = (name) => dialog.getByRole("button", { name, exact: true });
+    await page.waitForFunction(() => window.__keyProbe.loads() === 1);
+    assert.equal(await button("保存").isDisabled(), true);
+    assert.equal(await button("取消").isDisabled(), false);
+    await button("取消").click();
+    await page.getByRole("dialog").waitFor({ state: "detached" });
+    await page.evaluate(() => window.__keyProbe.releaseLoad());
+    assert.equal(await page.locator("[data-api-key-row]").count(), 0);
+    assert.equal(await page.evaluate(() => window.__keyProbe.saves()), 0);
+    await page.getByRole("button", { name: "Reopen", exact: true }).click();
+    await page.waitForFunction(
+      () =>
+        document.querySelectorAll("[data-api-key-row]").length === 25 &&
+        !document.querySelector('[role="dialog"] button[aria-expanded]')?.disabled,
+    );
+    assert.match(await dialog.innerText(), /100000/);
+    await button("末页").click();
+    assert.equal(await dialog.getByRole("spinbutton").inputValue(), "4000");
+    await button("保存").click();
+    await dialog.waitFor({ state: "detached" });
+    assert.equal(
+      await page.evaluate(() =>
+        window.__keyProbe
+          .saved()
+          .every(
+            (key, i) =>
+              key.id === String(i) && key.label === `Key ${i}` && key.enabled === (i % 3 !== 1),
+          ),
+      ),
+      true,
+    );
+    await page.evaluate(() => window.__keyProbe.failLoad(true));
+    await page.getByRole("button", { name: "Reopen", exact: true }).click();
+    await dialog.getByRole("alert").waitFor();
+    assert.match(await dialog.getByRole("alert").innerText(), /无法加载 API Key/);
+    assert.doesNotMatch(await dialog.getByRole("alert").innerText(), /sensitive/);
+    assert.equal(await button("保存").isDisabled(), true);
+    await button("取消").click();
+    await dialog.waitFor({ state: "detached" });
+    assert.equal(await page.evaluate(() => window.__keyProbe.saved().length), 100_000);
+    assert.deepEqual(errors, []);
+  },
+);
+
+test(
   "100k-key checks remain pageable, stoppable and closeable, preserving only confirmed results",
   { timeout: 180_000 },
   async (t) => {

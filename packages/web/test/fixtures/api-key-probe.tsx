@@ -35,6 +35,16 @@ const initial = Array.from({ length: 100_000 }, (_, index) => ({
   enabled: index % 3 !== 1,
 }));
 saved = initial;
+const lazy = new URLSearchParams(location.search).has("lazy");
+const initialJson = JSON.stringify(initial);
+let holdLoad = true;
+let failLoad = false;
+const pendingLoads: Array<(json: string) => void> = [];
+const loadApiKeysJson = async () => {
+  if (failLoad) throw new Error("sensitive fixture failure");
+  if (holdLoad) return new Promise<string>((resolve) => pendingLoads.push(resolve));
+  return initialJson;
+};
 
 function Fixture() {
   const [open, setOpen] = useState(true);
@@ -46,6 +56,14 @@ function Fixture() {
       saves: () => saves,
       saved: () => saved,
       inFlight: () => inFlight,
+      loads: () => pendingLoads.length,
+      releaseLoad: () => {
+        holdLoad = false;
+        pendingLoads.splice(0).forEach((resolve) => resolve(initialJson));
+      },
+      failLoad: (fail: boolean) => {
+        failLoad = fail;
+      },
       reopen: () => setOpen(true),
       switchScope: () => setScope("fixture-b"),
       unmount: () => setMounted(false),
@@ -64,6 +82,7 @@ function Fixture() {
           open={open}
           scopeKey={scope}
           apiKeys={keys}
+          loadApiKeysJson={lazy ? loadApiKeysJson : undefined}
           onOpenChange={setOpen}
           onSave={async (next) => {
             saved = next;

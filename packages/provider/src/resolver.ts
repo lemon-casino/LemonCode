@@ -38,7 +38,15 @@ export type RegistryProviderConfigObject = z.infer<typeof completeProviderConfig
 
 export function serializeRegistryProviderConfig(
   config: RegistryProviderConfig,
+  includeApiKeys = true,
 ): RegistryProviderConfigObject {
+  const primaryApiKey =
+    config.access.type === "zhipu-account"
+      ? undefined
+      : includeApiKeys
+        ? config.access.apiKey
+        : (config.access.apiKeys?.find((key) => key.enabled !== false)?.apiKey ??
+          config.access.apiKey);
   return {
     group: config.group,
     ...(config.logo === undefined ? {} : { logo: config.logo }),
@@ -46,8 +54,10 @@ export function serializeRegistryProviderConfig(
       config.access.type !== "zhipu-account"
         ? {
             type: config.access.type,
-            ...(config.access.apiKey === undefined ? {} : { apiKey: config.access.apiKey }),
-            ...(config.access.apiKeys == null ? {} : { apiKeys: [...config.access.apiKeys] }),
+            ...(primaryApiKey === undefined ? {} : { apiKey: primaryApiKey }),
+            ...(!includeApiKeys || config.access.apiKeys == null
+              ? {}
+              : { apiKeys: [...config.access.apiKeys] }),
             ...(config.access.apiKeyManagementUrl === undefined
               ? {}
               : { apiKeyManagementUrl: config.access.apiKeyManagementUrl }),

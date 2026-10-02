@@ -51,9 +51,10 @@ function isMessagePortFlowControl(value: unknown): value is MessagePortFlowContr
   if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
   const record = value as Record<string, unknown>;
   return (
-    Object.keys(record).length === 2 &&
     record.__lcodeRpcControl === "connection-flow-v1" &&
-    (record.state === "saturated" || record.state === "drained")
+    (record.state === "saturated" || record.state === "drained") &&
+    // 二进制 RPC 消息可能有数千万个字节，不能先枚举 TypedArray 的全部索引。
+    Object.keys(record).length === 2
   );
 }
 

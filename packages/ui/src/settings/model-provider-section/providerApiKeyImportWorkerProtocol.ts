@@ -4,6 +4,7 @@ import type { ProviderApiKeyImportError } from "./providerApiKeyImport.js";
 export const API_KEY_TRANSFER_BATCH_SIZE = 2_000;
 export type ProviderApiKeyWorkerTask =
   | { kind: "import"; source: string | File[] }
+  | { kind: "load"; json: string }
   | { kind: "normalize" }
   | { kind: "disableInvalid"; invalidIds: string[] }
   | { kind: "removeInvalid"; invalidIds: string[] };

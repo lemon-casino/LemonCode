@@ -22,6 +22,8 @@ export interface ProviderSettingsFormProvider extends Pick<
   /** Registry 根据当前 Official、Personal 与 Account Facts 得出的状态。 */
   executable: boolean;
   accountState?: AccountProviderState;
+  apiKeySummary?: ProviderSettingsProviderView["apiKeySummary"];
+  apiKeysOmitted?: true;
   issues?: readonly ConfigValidationIssue[];
   hasPersonalConfig: boolean;
   /** Renderer 只修改并提交这一份稀疏 Personal Overlay。 */

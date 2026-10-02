@@ -2575,6 +2575,7 @@ const zhCN: Record<string, string> = {
   "settings.modelProvider.showApiKey": "显示 API Key",
   "settings.modelProvider.hideApiKey": "隐藏 API Key",
   "settings.modelProvider.apiKeyManager.title": "管理 API Key",
+  "settings.modelProvider.apiKeyManager.loadFailed": "无法加载 API Key，请关闭窗口后重试。",
   "settings.modelProvider.apiKeyManager.description":
     "同一供应商可配置多个 Key；请求按启用顺序自动降级。",
   "settings.modelProvider.apiKeyManager.add": "添加 Key",
