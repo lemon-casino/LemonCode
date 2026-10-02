@@ -2578,6 +2578,42 @@ const zhCN: Record<string, string> = {
   "settings.modelProvider.apiKeyManager.description":
     "同一供应商可配置多个 Key；请求按启用顺序自动降级。",
   "settings.modelProvider.apiKeyManager.add": "添加 Key",
+  "settings.modelProvider.apiKeyManager.import.title": "批量导入",
+  "settings.modelProvider.apiKeyManager.import.input": "粘贴 API Key 或 JSON",
+  "settings.modelProvider.apiKeyManager.import.hint":
+    "自动识别空格、换行、Tab、逗号、分号分隔的文本和 JSON 数组/对象。JSON 支持 apiKey、api_key、key、token 字段及名称、启停状态。",
+  "settings.modelProvider.apiKeyManager.import.placeholder":
+    '每行一个 Key，或粘贴 JSON，如 ["key-1", "key-2"]',
+  "settings.modelProvider.apiKeyManager.import.apply": "导入到列表",
+  "settings.modelProvider.apiKeyManager.import.file": "选择文件导入",
+  "settings.modelProvider.apiKeyManager.import.clipboard": "从剪贴板导入",
+  "settings.modelProvider.apiKeyManager.import.dropHint":
+    "支持十万条及以上 Key；大段粘贴自动开始导入，也可拖入文本或 JSON 文件。每批最大 128 MiB，自动去重，保存后生效。",
+  "settings.modelProvider.apiKeyManager.import.reading": "正在后台处理…",
+  "settings.modelProvider.apiKeyManager.import.summary":
+    "已新增 {added} 个 Key，跳过 {duplicates} 个重复项。保存后生效。",
+  "settings.modelProvider.apiKeyManager.import.error.empty":
+    "未找到 API Key，请粘贴内容或选择包含 Key 的文件。",
+  "settings.modelProvider.apiKeyManager.import.error.invalidJson": "JSON 格式有误，请检查后重试。",
+  "settings.modelProvider.apiKeyManager.import.error.invalidFormat":
+    "无法识别内容，请使用分隔文本、JSON Key 数组或包含 apiKey / api_key / key / token 的对象；Key 不能为空白分隔的多条值。",
+  "settings.modelProvider.apiKeyManager.import.error.tooLarge":
+    "导入内容过大，每批最多支持 128 MiB。",
+  "settings.modelProvider.apiKeyManager.import.error.readFailed": "文件读取失败，请重新选择文件。",
+  "settings.modelProvider.apiKeyManager.import.error.workerFailed":
+    "后台处理失败，请重新打开弹窗后重试。",
+  "settings.modelProvider.apiKeyManager.import.error.clipboardFailed":
+    "无法读取剪贴板，请直接粘贴或选择文件导入。",
+  "settings.modelProvider.apiKeyManager.removeAll": "删除全部",
+  "settings.modelProvider.apiKeyManager.removeInvalid": "删除无效 Key（{count}）",
+  "settings.modelProvider.apiKeyManager.pagination.summary":
+    "共 {total} 个 Key · 第 {page}/{pages} 页 · 每页 25 条",
+  "settings.modelProvider.apiKeyManager.pagination.label": "API Key 分页",
+  "settings.modelProvider.apiKeyManager.pagination.first": "首页",
+  "settings.modelProvider.apiKeyManager.pagination.previous": "上一页",
+  "settings.modelProvider.apiKeyManager.pagination.next": "下一页",
+  "settings.modelProvider.apiKeyManager.pagination.last": "末页",
+  "settings.modelProvider.apiKeyManager.pagination.jump": "跳转到页码",
   "settings.modelProvider.apiKeyManager.empty": "至少添加一个 API Key。",
   "settings.modelProvider.apiKeyManager.label": "API Key {index} 名称",
   "settings.modelProvider.apiKeyManager.enabled": "启用 API Key",

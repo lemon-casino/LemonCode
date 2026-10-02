@@ -2755,6 +2755,44 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.apiKeyManager.description":
     "Configure multiple keys for one provider with ordered failover.",
   "settings.modelProvider.apiKeyManager.add": "Add key",
+  "settings.modelProvider.apiKeyManager.import.title": "Bulk import",
+  "settings.modelProvider.apiKeyManager.import.input": "Paste API keys or JSON",
+  "settings.modelProvider.apiKeyManager.import.hint":
+    "Automatically detects text separated by spaces, newlines, tabs, commas or semicolons, and JSON arrays/objects. JSON supports apiKey, api_key, key or token, with labels and enabled states.",
+  "settings.modelProvider.apiKeyManager.import.placeholder":
+    'One key per line, or JSON such as ["key-1", "key-2"]',
+  "settings.modelProvider.apiKeyManager.import.apply": "Import to list",
+  "settings.modelProvider.apiKeyManager.import.file": "Choose files",
+  "settings.modelProvider.apiKeyManager.import.clipboard": "Import from clipboard",
+  "settings.modelProvider.apiKeyManager.import.dropHint":
+    "Supports 100,000+ keys. Large pastes start importing automatically, or drop text/JSON files here. Up to 128 MiB per batch. Duplicates are skipped; save to apply.",
+  "settings.modelProvider.apiKeyManager.import.reading": "Processing in the background…",
+  "settings.modelProvider.apiKeyManager.import.summary":
+    "Added {added} keys, skipped {duplicates} duplicates. Save to apply.",
+  "settings.modelProvider.apiKeyManager.import.error.empty":
+    "No API keys found. Paste keys or choose a file containing keys.",
+  "settings.modelProvider.apiKeyManager.import.error.invalidJson":
+    "Invalid JSON. Check the format and try again.",
+  "settings.modelProvider.apiKeyManager.import.error.invalidFormat":
+    "Unrecognized content. Use separated text, a JSON key array, or objects with apiKey / api_key / key / token. Each JSON key must be a single value without whitespace.",
+  "settings.modelProvider.apiKeyManager.import.error.tooLarge":
+    "Import is too large. Each batch supports up to 128 MiB.",
+  "settings.modelProvider.apiKeyManager.import.error.readFailed":
+    "Could not read the file. Please choose it again.",
+  "settings.modelProvider.apiKeyManager.import.error.workerFailed":
+    "Background processing failed. Reopen the dialog and try again.",
+  "settings.modelProvider.apiKeyManager.import.error.clipboardFailed":
+    "Could not read the clipboard. Paste directly or choose a file instead.",
+  "settings.modelProvider.apiKeyManager.removeAll": "Delete all",
+  "settings.modelProvider.apiKeyManager.removeInvalid": "Delete invalid keys ({count})",
+  "settings.modelProvider.apiKeyManager.pagination.summary":
+    "{total} keys · Page {page}/{pages} · 25 per page",
+  "settings.modelProvider.apiKeyManager.pagination.label": "API key pagination",
+  "settings.modelProvider.apiKeyManager.pagination.first": "First page",
+  "settings.modelProvider.apiKeyManager.pagination.previous": "Previous page",
+  "settings.modelProvider.apiKeyManager.pagination.next": "Next page",
+  "settings.modelProvider.apiKeyManager.pagination.last": "Last page",
+  "settings.modelProvider.apiKeyManager.pagination.jump": "Go to page",
   "settings.modelProvider.apiKeyManager.empty": "Add at least one API key.",
   "settings.modelProvider.apiKeyManager.label": "API key {index} label",
   "settings.modelProvider.apiKeyManager.enabled": "Enable API key",
