@@ -11,6 +11,7 @@ export function createBashProviderDescription(input: {
     "Executes a bash command and returns its output.",
     "",
     "- Working directory persists between calls, but prefer absolute paths — `cd` in a compound command can trigger a permission prompt. Shell state (env vars, functions) does not persist; the shell is initialized from the user's profile.",
+    "- On Windows, Node/package-manager shims can reparse arguments through CMD even when this tool uses Git Bash. Avoid complex `node -e` / `tsx -e` code arguments: quotes, `=>`, and `>` can create unintended files. In Git Bash, use a quoted heredoc to feed `node --input-type=module -` via stdin; under CMD, use a script file. Do not use the Browser/Computer Node REPL for general scripting.",
     `- IMPORTANT: Avoid using this tool to run ${avoidCommands} commands, unless explicitly instructed or after you have verified that a dedicated tool cannot accomplish your task. Instead, use the appropriate dedicated tool as this will provide a much better experience for the user.`,
     `- \`timeout\` is in milliseconds: default ${input.defaultTimeoutMs}, max ${input.maxTimeoutMs}.`,
     "- `run_in_background` runs the command detached. By default, a background Bash is stopped when its owning task completes. No `&` needed.",

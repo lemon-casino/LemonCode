@@ -1,9 +1,8 @@
-import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 import { withPinnedNodePath } from "./mise-toolchain-env.mjs";
-import { quoteArgsForWindowsShell } from "./spawn-command.mjs";
+import { spawnCommand } from "./spawn-command.mjs";
 
 const requestedEnv = process.argv[2]?.trim().toLowerCase();
 const agentBytecode = process.argv.slice(3).includes("--agent-bytecode");
@@ -17,10 +16,7 @@ const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 function run(command, args) {
   return new Promise((resolveRun, rejectRun) => {
-    // Windows 下 shell:true 只按空格拼接参数；仓库路径含空格（如 E:\Z Code\...）时
-    // node <script> 的脚本路径会被 cmd 截断成 E:\Z 并报 Cannot find module，因此先补引号。
-    const spawnArgs = process.platform === "win32" ? quoteArgsForWindowsShell(args) : args;
-    const child = spawn(command, spawnArgs, {
+    const child = spawnCommand(command, args, {
       cwd: repoRoot,
       env: withPinnedNodePath(
         {
@@ -31,8 +27,6 @@ function run(command, args) {
         process.execPath,
       ),
       stdio: "inherit",
-      // Windows .cmd/.bat executables (pnpm.cmd, npm.cmd, etc.) require shell: true
-      shell: process.platform === "win32",
     });
 
     child.on("error", rejectRun);
@@ -58,14 +52,9 @@ try {
   // Preserve its runtime-asset preparation and stale `out` cleanup explicitly
   // before rebuilding bundles or starting Electron.
   await run(pnpmCommand, ["--filter", "@lcode/desktop", "pre-dev"]);
-  // On Windows, use "node" (resolved via PATHEXT) to avoid "C:\Program Files\..." space issues
-  await run(process.platform === "win32" ? "node" : process.execPath, [
-    resolve(repoRoot, "scripts/build-desktop-agent-cli.mjs"),
-  ]);
+  await run(process.execPath, [resolve(repoRoot, "scripts/build-desktop-agent-cli.mjs")]);
   if (agentBytecode) {
-    await run(process.platform === "win32" ? "node" : process.execPath, [
-      resolve(repoRoot, "scripts/build-desktop-agent-bytecode.mjs"),
-    ]);
+    await run(process.execPath, [resolve(repoRoot, "scripts/build-desktop-agent-bytecode.mjs")]);
   }
   await run(pnpmCommand, ["--filter", "@lcode/desktop", "dev:runtime"]);
 } catch (error) {

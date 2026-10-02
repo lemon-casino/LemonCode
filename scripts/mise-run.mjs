@@ -1,6 +1,5 @@
-import { spawn } from "node:child_process";
-
 import { withPinnedNodePath } from "./mise-toolchain-env.mjs";
+import { resolveRunCommand, spawnCommand } from "./spawn-command.mjs";
 
 const [requestedCommand, ...args] = process.argv.slice(2);
 if (!requestedCommand) {
@@ -8,14 +7,17 @@ if (!requestedCommand) {
   process.exit(1);
 }
 
-// Windows 上 pnpm 是 .cmd 文件；其他平台直接使用 pnpm 可执行入口。
-const command =
-  process.platform === "win32" && requestedCommand === "pnpm" ? "pnpm.cmd" : requestedCommand;
-const child = spawn(command, args, {
+const env = withPinnedNodePath(process.env, process.execPath);
+
+// Node shim 可能再次进入 CMD；沿用启动器的真实 runtime，避免内联代码被二次解析。
+// Windows 上的 pnpm/npm 优先走磁盘真实 .cjs 入口，跳过 Volta 等 shim 的参数重解析。
+const resolved = resolveRunCommand(requestedCommand, {
+  env,
+  nodeExecutablePath: process.execPath,
+});
+const child = spawnCommand(resolved.command, [...resolved.args, ...args], {
   cwd: process.cwd(),
-  env: withPinnedNodePath(process.env, process.execPath),
-  // Windows 的 .cmd 入口需要 shell 才能被 Node spawn。
-  shell: process.platform === "win32",
+  env,
   stdio: "inherit",
 });
 
