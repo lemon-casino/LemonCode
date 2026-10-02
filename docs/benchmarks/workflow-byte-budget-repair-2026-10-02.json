@@ -1,0 +1,71 @@
+{
+  "recordedAt": "2026-10-02T02:06:38.270Z",
+  "node": "v24.14.1",
+  "actors": 256,
+  "rounds": [
+    {
+      "round": 1,
+      "order": ["baseline", "optimized"],
+      "baseline": {
+        "wallMs": 156.50789999999995,
+        "cpuUserMs": 140,
+        "cpuSystemMs": 16,
+        "checksum": 51724509
+      },
+      "optimized": {
+        "wallMs": 5.998000000000047,
+        "cpuUserMs": 0,
+        "cpuSystemMs": 16,
+        "checksum": 51724509
+      }
+    },
+    {
+      "round": 2,
+      "order": ["optimized", "baseline"],
+      "optimized": {
+        "wallMs": 4.363499999999931,
+        "cpuUserMs": 0,
+        "cpuSystemMs": 0,
+        "checksum": 51770965
+      },
+      "baseline": {
+        "wallMs": 159.87570000000005,
+        "cpuUserMs": 203,
+        "cpuSystemMs": 15,
+        "checksum": 51770965
+      }
+    },
+    {
+      "round": 3,
+      "order": ["baseline", "optimized"],
+      "baseline": {
+        "wallMs": 151.12650000000008,
+        "cpuUserMs": 157,
+        "cpuSystemMs": 0,
+        "checksum": 51870235
+      },
+      "optimized": {
+        "wallMs": 4.342599999999948,
+        "cpuUserMs": 0,
+        "cpuSystemMs": 0,
+        "checksum": 51870235
+      }
+    }
+  ],
+  "snapshotsPerRound": 200,
+  "comparisonsPerSnapshot": "one snapshot frame byte count + two subscriber coalesce/payload byte counts",
+  "sourceHashes": {
+    "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/conversation-topic-workflow-bytes.ts": "13f4340cbdadcfe07f83d535d51616d35793b7d7bbc7808d1ab531c9794a7477",
+    "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/conversation-topic-queries.ts": "587239ff1fe7074fbde3b054dd3872fd848213d913bba18158d70af7d8f5c1f3",
+    "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/conversation-topic-buffer.ts": "64932462fcc2c5b5ed73560b6dd604daa4f0a5f41a59717ab7738f2ae4b4a23d",
+    "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/product-projection-workflow.ts": "e547a2c52407f0215fb09f9c987c6a655cc21572877286967e32f80b15ad7eb4",
+    "packages/shared/src/lcode-protocol-v4/workflow-runs-reducer.ts": "2009fdcecd6917a3e42e6aa721e53cae94b741d69a64639b6b45977c1a98ec1f"
+  },
+  "notes": [
+    "One short offline byte-budget phase comparison, not runtime throughput or capacity acceptance.",
+    "Identical precomputed production reducer state references for both arms; reducer preparation excluded, including shared sequence optimization.",
+    "600 distinct immutable workflow versions; optimized arm first touch populates the cache; each arm covers each version once.",
+    "Baseline executes the old exact shared utf8JsonByteLength/coalesce calculation; optimized arm also retains existing limit checks.",
+    "No models, sessions, network, schedule changes or dist build; all byte checksums exactly equal."
+  ]
+}

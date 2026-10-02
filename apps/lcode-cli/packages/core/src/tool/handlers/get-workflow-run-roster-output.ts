@@ -63,6 +63,9 @@ export function toGetWorkflowRunSubagents(subagents: readonly DynamicWorkflowRun
       stepsFailed: subagent.stepsFailed,
       tokens: subagent.tokens,
       ...(subagent.lastProgressAt === undefined ? {} : { lastProgressAt: subagent.lastProgressAt }),
+      ...(subagent.lastDeliveredAt === undefined
+        ? {}
+        : { lastDeliveredAt: subagent.lastDeliveredAt }),
     })),
     truncated: kept.length < subagents.length,
   };
@@ -79,6 +82,9 @@ function toCurrentAsk(ask: DynamicWorkflowRunSubagentAsk): GetWorkflowRunSubagen
     // 没有 node-progress，这两件事必须可分辨，所以这里绝不 `?? 0`。
     ...(ask.turn === undefined ? {} : { turn: ask.turn }),
     ...(ask.toolCalls === undefined ? {} : { toolCalls: ask.toolCalls }),
+    ...(ask.activity === undefined ? {} : { activity: ask.activity }),
+    ...(ask.phase === undefined ? {} : { phase: ask.phase }),
+    ...(ask.queue === undefined ? {} : { queue: ask.queue }),
     ...(ask.lastTool === undefined
       ? {}
       : {
@@ -96,6 +102,8 @@ function toWait(wait: DynamicWorkflowRunSubagentWait): NonNullable<GetWorkflowRu
     cause: wait.cause,
     ...(wait.reason === undefined ? {} : { reason: wait.reason }),
     ...(wait.retryAfterMs === undefined ? {} : { retryAfterMs: wait.retryAfterMs }),
+    ...(wait.attempt === undefined ? {} : { attempt: wait.attempt }),
+    ...(wait.nextRetryAt === undefined ? {} : { nextRetryAt: wait.nextRetryAt }),
     ...(wait.since === undefined ? {} : { since: wait.since }),
   };
 }

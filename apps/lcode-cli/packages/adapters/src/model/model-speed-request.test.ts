@@ -46,12 +46,28 @@ test("custom providers inherit multilevel reasoning and speed from the built-in 
     ]);
     assert.deepEqual(config.optionSpecs?.speed?.values, ["standard", "fast"]);
   }
-  assert.deepEqual(modelConfig("openai-responses", "grok-4.7").optionSpecs?.reasoningLevel?.values, [
-    "low",
-    "medium",
-    "high",
-    "xhigh",
-  ]);
+  assert.deepEqual(
+    modelConfig("openai-responses", "grok-4.7").optionSpecs?.reasoningLevel?.values,
+    ["low", "medium", "high", "xhigh"],
+  );
+  // 新型号不能落回通用 disabled（映射成 none）；单项/批量检测均取这里的最低项。
+  for (const apiType of ["openai-chat-completions", "openai-responses"] as const) {
+    for (const modelId of ["gpt-6.1-sol", "openai/gpt-6.1-sol", "gpt-6.1-sol:custom"]) {
+      assert.deepEqual(modelConfig(apiType, modelId).optionSpecs?.reasoningLevel?.values, [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max",
+      ]);
+    }
+    for (const modelId of ["gpt-6.1", "gpt-6.1-luna", "gpt-6.1-solstice"]) {
+      assert.equal(
+        modelConfig(apiType, modelId).optionSpecs?.reasoningLevel?.values?.[0],
+        "disabled",
+      );
+    }
+  }
 });
 
 for (const [apiType, expectedField, expectedValue] of [
@@ -77,23 +93,25 @@ for (const [apiType, expectedField, expectedValue] of [
         },
       },
     );
-    const binding = execution.bindModel({
-      providerId: "user-custom-provider",
-      modelId: "custom-reasoning-model",
-      providerConfig: new ProviderConfig({
-        group: "standard-personal",
-        access: new ApiKeyAccessConfig({ apiKey: "test-only-key" }),
-        api: new ProviderApiConfig({ type: apiType, baseUrl: "https://example.test/v1" }),
-      }) as RegistryProviderConfig,
-      supportsJsonSchemaOutput: false,
-      optionSpecs: {
-        reasoningLevel: { map: optionSpecs.reasoningLevel!.map! },
-        maxOutputTokens: { map: optionSpecs.maxOutputTokens!.map! },
-        speed: { map: optionSpecs.speed!.map! },
-      },
-    }).resolveRequest({
-      options: { reasoningLevel: "high", maxOutputTokens: 2048, speed: "fast" },
-    });
+    const binding = execution
+      .bindModel({
+        providerId: "user-custom-provider",
+        modelId: "custom-reasoning-model",
+        providerConfig: new ProviderConfig({
+          group: "standard-personal",
+          access: new ApiKeyAccessConfig({ apiKey: "test-only-key" }),
+          api: new ProviderApiConfig({ type: apiType, baseUrl: "https://example.test/v1" }),
+        }) as RegistryProviderConfig,
+        supportsJsonSchemaOutput: false,
+        optionSpecs: {
+          reasoningLevel: { map: optionSpecs.reasoningLevel!.map! },
+          maxOutputTokens: { map: optionSpecs.maxOutputTokens!.map! },
+          speed: { map: optionSpecs.speed!.map! },
+        },
+      })
+      .resolveRequest({
+        options: { reasoningLevel: "high", maxOutputTokens: 2048, speed: "fast" },
+      });
     const model = binding.model as unknown as { doGenerate(input: never): Promise<unknown> };
     await assert.rejects(
       model.doGenerate({
@@ -121,11 +139,32 @@ for (const [apiType, expectedField, expectedValue] of [
       maxOutputTokens: { map: specs.maxOutputTokens!.map! },
       speed: { map: specs.speed!.map! },
     });
-    const body = maps.apply({}, {
-      reasoningLevel: "high",
-      maxOutputTokens: 2048,
-      speed: "standard",
-    });
+    const body = maps.apply(
+      {},
+      {
+        reasoningLevel: "high",
+        maxOutputTokens: 2048,
+        speed: "standard",
+      },
+    );
     assert.equal(body[expectedField], undefined);
+    if (apiType !== "anthropic-messages") {
+      const specs = modelConfig(apiType, "gpt-6.1-sol").optionSpecs!;
+      const options = {
+        reasoningLevel: specs.reasoningLevel!.values![0]!,
+        maxOutputTokens: specs.maxOutputTokens!.max!,
+        speed: specs.speed!.values![0]!,
+      };
+      const maps = compileModelOptionMaps({
+        reasoningLevel: { map: specs.reasoningLevel!.map! },
+        maxOutputTokens: { map: specs.maxOutputTokens!.map! },
+        speed: { map: specs.speed!.map! },
+      });
+      const probeBody = maps.apply({}, options);
+      assert.equal(options.reasoningLevel, "low");
+      assert.deepEqual({ ...(probeBody.reasoning as Record<string, unknown>) }, { effort: "low" });
+      if (apiType === "openai-chat-completions") assert.equal(probeBody.reasoning_effort, "low");
+      assert.equal(probeBody[expectedField], undefined);
+    }
   });
 }

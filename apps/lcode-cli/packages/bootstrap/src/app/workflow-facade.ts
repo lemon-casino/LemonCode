@@ -312,7 +312,9 @@ function createWorkflowChildRuntime(
           outputRootDir: join(deps.storageRoot, "cli", "exec"),
           processEnv: deps.appOptions.env ?? process.env,
         }),
-      fileSystemPort: deps.appOptions.fileSystemPort ?? createNodeFileSystemAdapter(),
+      // 优先复用主装配已登记治理根的端口；旧 facade 调用方仍保留既有 fallback。
+      fileSystemPort:
+        deps.fileSystemPort ?? deps.appOptions.fileSystemPort ?? createNodeFileSystemAdapter(),
       httpClientPort:
         deps.appOptions.httpClientPort ??
         createNodeWebFetchHttpClientAdapter({

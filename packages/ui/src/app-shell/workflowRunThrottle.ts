@@ -18,24 +18,24 @@ const EVENT_KEY_PREFIX = `${I18N_PREFIX}event.`;
 type FormatMessage = (descriptor: { id: string }, values?: Record<string, string>) => string;
 
 /**
- * 限流原因 → 短标签的 i18n 键（reason 是开放字符串，这里只映射已知的几类，其余
- * 归入「瞬态错误」；完全陌生的值原样显示——不认识不等于不显示）。
+ * 等待原因 → 短标签的 i18n 键；断流、网络与服务错误要可区分。
+ * 未知 provider 文本可能携带请求信息，只显示归一化通用原因，不透传原始错误。
  */
 const REASON_LABEL_KEY: Readonly<Record<string, string>> = {
   rate_limited: "throttle.reason.rateLimited",
   provider_overloaded: "throttle.reason.overloaded",
   offpeak_queued: "throttle.reason.offpeak",
-  server_error: "throttle.reason.transient",
-  network_error: "throttle.reason.transient",
-  timeout: "throttle.reason.transient",
-  stream_idle_timeout: "throttle.reason.transient",
-  stale_connection: "throttle.reason.transient",
-  proxy_error: "throttle.reason.transient",
+  server_error: "throttle.reason.server",
+  network_error: "throttle.reason.network",
+  timeout: "throttle.reason.timeout",
+  stream_idle_timeout: "throttle.reason.stream",
+  stale_connection: "throttle.reason.staleConnection",
+  proxy_error: "throttle.reason.proxy",
 };
 
 export function throttleReasonLabel(reason: string, formatMessage: FormatMessage): string {
   const key = REASON_LABEL_KEY[reason];
-  return key === undefined ? reason : formatMessage({ id: `${I18N_PREFIX}${key}` });
+  return formatMessage({ id: `${I18N_PREFIX}${key ?? "throttle.reason.transient"}` });
 }
 
 // ── 收到时刻登记 ──
@@ -117,6 +117,16 @@ export function workflowRunConcurrencyEventLine(
     ...(detail === undefined ? {} : { detail }),
   });
   switch (event.type) {
+    case "node-admission": {
+      // 调度等待与 provider slot 分属不同所有者；只有明确 cause 才显示具体队列原因。
+      const kind = payload.cause === "actor-fifo" || payload.cause === "run-capacity"
+        ? payload.cause
+        : payload.cause === null ? "dispatched" : "queued";
+      return withDetail(
+        formatMessage({ id: `chat.toolCall.workflow.activity.${kind}` }),
+        refText(payload.instance),
+      );
+    }
     // node-waiting：cause=slot 是在闸门前排队，没有别的可说；cause=backoff 带 runner 的
     // 退避原因与时长——徽标不显示这些细节，事件日志是它们唯一的落点。
     case "node-waiting": {

@@ -17,6 +17,7 @@ export const SortableWorkspaceSidebarItem = memo(function SortableWorkspaceSideb
   isExpanded,
   activateTab,
   closeTab,
+  onRemoveLocalProject,
   toggleWorkspaceExpanded,
   onSelectTask,
   onStartDraftInWorkspace,
@@ -38,6 +39,7 @@ export const SortableWorkspaceSidebarItem = memo(function SortableWorkspaceSideb
   isExpanded: boolean;
   activateTab: (tabId: string) => void;
   closeTab: (tabId: string) => void;
+  onRemoveLocalProject?: (projectId: string) => Promise<void>;
   toggleWorkspaceExpanded: (workspacePath: string) => void;
   onSelectTask: (
     targetWorkspacePath: string,
@@ -111,6 +113,7 @@ export const SortableWorkspaceSidebarItem = memo(function SortableWorkspaceSideb
       isExpanded={isExpanded}
       activateTab={activateTab}
       closeTab={closeTab}
+      onRemoveLocalProject={onRemoveLocalProject}
       toggleWorkspaceExpanded={toggleWorkspaceExpanded}
       onSelectTask={onSelectTask}
       onStartDraftInWorkspace={onStartDraftInWorkspace}

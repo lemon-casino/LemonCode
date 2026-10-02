@@ -9,28 +9,39 @@
 5. 工作流和普通子代理会话采用相同的统计口径；只读子代理面板没有主 Composer，在时间线顶部显示该子会话自身的已结算累计、正在流式输出的本次估算量与最近一次可见输出速度，不能借用父会话的用量。估算量只统计正在输出的可见正文/思考，不叠加到准确累计；静默时保留同一运行内上一次速度，不用计时器伪造新速率或声称覆盖不可见推理。
 6. 父会话的合计 = 自身已完成请求的准确累计 + 已启动直属子会话的准确累计。按 sessionId 去重，同一工作流修订链中的实际子会话分别计入，不能叠加继承前驱用量的 workflow run `spentTokens`，也不能把子会话的上下文水位当作累计。子会话尚未收到快照或旧记录缺少用量时只展示已知分项，不将未知数当成准确合计；子代理正在输出的本次估算量和流式估算速度与已入账累计分别显示，并行时分别汇总当前各流。父/子会话切换与面板卸载要释放视图租约；各自最近速率仅在当前活动轮次可复用，不得串到另一会话或子代理。
 
+7. 实时可见速率与请求平均速率必须明确区分。`ModelNetworkStatus.model_request_completed` 已携带同一次成功请求的 `usage.outputTokens` 与 `durationMs`，投影直接消费该事实，平均输出速率为 `outputTokens * 1000 / durationMs`（包含该请求的首字等待，排除此前失败尝试、重试退避和工具执行耗时）。供应商归一化后的 outputTokens 已包含推理分类，不能再相加 reasoningTokens，也不能使用 inputTokens、缓存或会话累计差值计算。没有正数输出用量或有效正耗时时不产生平均值。
+8. `usage.modelOutput` 是 ProductProjection 派生的可选状态：当前产品轮次、当前请求 id、最近已完成请求的 id/输出 Token/耗时/完成时间。仅接纳属于该会话当前轮次的 main_turn、subagent、workflow_child 请求；标题、压缩、工具内部等请求不能覆盖。新轮次清空，失败和停止清除当前请求，迟到/重复或旧请求不得覆盖新请求。请求结算后的平均值可以在终态显示，但只能称“最近请求平均速度”，不是历史实时速度。旧快照缺字段继续可读；冷恢复没有真实请求时长时保持未知，不从整轮工时或消息间隔反推，不新增数据库字段、持久化账本、UI 缓存或读取调试日志的路径。
+9. 普通 Composer、工作流父会话与只读子会话共用速度呈现：当前请求有可见样本时显示实时估算；结算后优先显示已知平均值，并标注“均”；没有实时样本的在飞请求显示“模型处理中，实时速度不可用”（紧凑入口显示“等待用量”）。若同时有上次平均值，保留它并在展开面板/只读统计条显示当前不可用提示，不暗示当前请求同速消耗。父会话可展示已知并行实时速率之和；不同时间窗的子请求平均值不能相加，父入口只显示本会话/直属子会话中最近完成的一次已知请求平均值，展开后仍按主/子分组。中英文、桌面窄窗口和手机使用同一语义与控件；未知值不伪装成 `0 token/s`。
+
 ## 所有者、接口与时序
 
 ```text
 CLI ModelComplete -> ProductProjection.usage.cumulative -> snapshot/delta -> Composer 总量
 persisted assistant request usage -> cold seed -----^  (只在无 live 用量事实时补充)
 CLI ModelStreaming -> ProductProjection.rows.window -> snapshot/delta -> Renderer 瞬时采样 -> 近似 token/s
-             运行中无增量 / 工具阶段 -> 保留本次运行最近一次速率
-                     CLI stop/complete -> 非运行态 -> 清除速度
+             同一请求中无增量 -> 保留最近一次可见观测速率
+             新协议工具阶段 / CLI stop/complete -> 清除实时读数，改用已知请求均速
 SessionDataLayer（窗口连接） -> 每个已订阅会话采样/有界暂存 -> Composer/只读子面板读当前会话轮次
             切换视图 -> 保温订阅继续采样；保温过期 -> 不延长订阅，待同轮次 live 快照验证
 父 snapshot.subagents + workflowRuns(已启动 actor) -> 去重的 child sessionId
     -> SessionDataLayer 引用计数租约 -> child snapshot.usage.cumulative + child rows
     -> 父 Composer 已知合计 / 分项速度；child 只读面板展示自身用量
 desktop: continuous ---- live delta ---------┐
-mobile: replayable --- snapshot + gap repair -┴-> 同一会话快照，不持久化速度
+mobile: replayable --- snapshot + gap repair -┴-> 同一会话快照，不持久化可见采样
+
+adapter started / completed(usage + duration) -> ProductProjection.usage.modelOutput
+    -> desktop continuous / mobile replayable -> 同一速度展示组件
+    started: 按会话/轮次/请求隔离 -> 可见实时估算或等待用量
+    completed: 清除当前请求 -> 最近已完成请求平均值（不与累计或推理分类再相加）
+    failed / stopped: 清除当前请求；新轮次: 清空上一轮派生读数
 ```
 
 - CLI projection 是会话累计的唯一写入者；Renderer 仅计算 `input + output`，对非法/缺失快照隐藏读数。原有 `ChatContextUsage` 面板和 Composer 控件继续消费同一 `SessionUsageState`。
 - Renderer 的速度采样按同一快照的 `sessionId + logEpoch + turnId + assistantResponseId` 隔离；`ConversationSnapshot` 同时提供 rows、phase 与 sessionId，外层 draft/task 路由身份不得与它拼接成一次观测。`SessionDataLayer` 在已有投影 store 推送后更新窗口级会话采样器，Composer 与只读面板只读同一采样器；速率不是权威会话用量。活动中无可见输出或切走视图时保留本轮最近一次正速率，终态、新轮次与旧连接重连时失效；离开视图不得替别的会话显示读数。采样器按会话数量限制内存，释放连接时清空，无需协议新字段或第二条持久化写入路径。
 - 冷恢复读取旧转录的用量是对同一 projection 的 seed，不能与 live ModelComplete 再叠加；带 fork provenance 的继承记录不属于当前会话请求。
 - 子运行时完整 ModelComplete 携带 `querySource=subagent/workflow_child`；投影的累计使用当前事件所属的 sessionId 判定，不能复用只判断 `main_turn` 的上下文窗口更新门禁；晚到 seed 不得覆盖已入账的 live 累计。
-- 流式估算覆盖文本与思考，不声称覆盖工具 JSON、隐藏的推理 token 或供应商特有的非文本输出；因此始终显示近似标记。缓存 token 不参与速度估算。
+- 流式估算覆盖文本与思考，不声称覆盖工具 JSON、隐藏的推理 token 或供应商特有的非文本输出；因此标签始终说明估算（数字不加 `~`）。缓存 token 不参与速度估算。
+- 规则 3～6 中保留最近可见读数的行为用于同一请求静默期及不携带请求事实的旧协议。新协议另按 activeRequestId 隔离采样：工具阶段使用已知均速，新请求尚未积累样本时显示等待用量；终态可保留有明确标签的请求均速，但不能保留实时读数。
 - Renderer 只持有对子会话投影的租约和瞬时速度采样；不回写父投影或累积第二份会话账本。只对真实启动的 actor 建租约，订阅失败/缺快照不产生虚构值；子快照到达、增量、重连和释放遵循既有 SessionDataLayer 生命周期。普通和工作流子会话 id 跨来源去重，不对 run 继承用量求和。
 
 ## 验收
@@ -46,3 +57,5 @@ mobile: replayable --- snapshot + gap repair -┴-> 同一会话快照，不持�
 - 标准子代理与工作流代理共用只读统计条；并行子代理各自统计，父 Composer 显示去重后的已知合计及单列子代理估算速度；切换会话和子会话终止后不残留速度。未启动 actor 不创建失败订阅，旧数据不完整时不冒称准确合计。
 - 已完成的子代理有回答但旧进程没有投影 `ModelComplete` 用量时，子代理详情不显示累计 0，父面板将其计为未知；升级后的运行时按子会话事件入账，重连/冷恢复从持久化请求用量还原正数，父面板同步显示正确的子代理累计。
 - 上下文来源图例不再使用难以区分的单一蓝色阶；每个来源在列表与进度条中使用相同的固定主题色，来源占比变化和排序变化后颜色保持不变。
+- 隐藏推理且只有工具调用的请求没有正文/思考样本时，不再留空；成功结算 100 个输出 Token、耗时 2000ms 显示 `均 50/s`，不会再次加推理 Token。工具阶段和任务终态只称最近请求均速；新请求处理中仍有明确不可用提示。无耗时、零/负数/非法用量、标题/压缩/外部会话/旧轮次/迟到旧请求不产生或覆盖读数。
+- 同样的请求统计经 desktop continuous 与 mobile replayable 的在线帧和恢复快照可校验、重组，旧快照没有新字段仍有效；重复请求完成不重复结算。并行子请求的平均值只取最近完成记录，不简单求和。

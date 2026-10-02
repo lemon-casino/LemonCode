@@ -1,7 +1,6 @@
 import { join } from "node:path";
 import { createNodeContextSourceAdapter } from "@lcode/adapters/context";
 import { createNodeExecutionAdapter } from "@lcode/adapters/exec";
-import { createNodeFileSystemAdapter } from "@lcode/adapters/fs";
 import { createNodeWebFetchHttpClientAdapter } from "@lcode/adapters/http";
 import type { ConfigResult } from "@lcode/adapters/config";
 import {
@@ -228,7 +227,8 @@ function createRuntimeDeps(
         outputRootDir: join(deps.storageRoot, "cli", "exec"),
         processEnv: deps.appOptions.env ?? process.env,
       }),
-    fileSystemPort: deps.appOptions.fileSystemPort ?? createNodeFileSystemAdapter(),
+    // 新建 adapter 会丢失主会话已登记的治理根；script/DWF child 必须共享同一写入边界。
+    fileSystemPort: deps.fileSystemPort,
     httpClientPort:
       deps.httpClientPort ??
       deps.appOptions.httpClientPort ??

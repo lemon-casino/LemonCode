@@ -8,9 +8,11 @@ export * from "../background-bash-output.js";
 export * from "./rows.js";
 export * from "./toolDisplay.js";
 export * from "./create-workflow-display.js";
+export * from "./workflow-orchestration-advice.js";
 export * from "./workflow-observation-display.js";
 export * from "./snapshot.js";
 export * from "./workflow-runs.js";
+export * from "./workflow-activity.js";
 export * from "./workflow-runs-reducer.js";
 export * from "./workflow-artifact.js";
 // ⚠ 与上一行只差一个 s，且两个 artifact 不同义：单数 = 引擎内部的「脚本顶层返回值」的

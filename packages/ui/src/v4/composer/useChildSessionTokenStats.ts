@@ -1,10 +1,7 @@
 import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import type { SessionDataLayer } from "@/v4/sessionDataLayer.js";
-import {
-  aggregateChildSessionUsage,
-  isLiveOutputPhase,
-  readLiveOutputObservation,
-} from "./sessionTokenStats.js";
+import { aggregateChildSessionUsage, readLiveOutputObservation } from "./sessionTokenStats.js";
+import { combineOutputSpeeds, readSessionOutputSpeed } from "./sessionOutputSpeed.js";
 
 export function useChildSessionTokenStats(
   layer: SessionDataLayer,
@@ -57,17 +54,16 @@ export function useChildSessionTokenStats(
     (sum, { sample }) => sum + sample.estimatedTokens,
     0,
   );
-  const observedRates = snapshots.flatMap((snapshot) => {
-    if (!snapshot || !isLiveOutputPhase(snapshot.control.phase)) return [];
-    const rate = layer.liveOutputRates.read(snapshot);
-    return rate === null ? [] : [rate];
-  });
+  const outputSpeed = combineOutputSpeeds(
+    snapshots.map((snapshot) =>
+      readSessionOutputSpeed(snapshot, layer.liveOutputRates.read(snapshot)),
+    ),
+  );
   return {
     usage,
     currentOutputTokens: activeSamples.length ? currentOutputTokens : null,
-    liveOutputRate: observedRates.length
-      ? observedRates.reduce((sum, rate) => sum + rate, 0)
-      : null,
+    liveOutputRate: outputSpeed.liveRate,
+    outputSpeed,
     childCount: leases.length,
   };
 }

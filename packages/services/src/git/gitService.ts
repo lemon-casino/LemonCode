@@ -1,12 +1,30 @@
 import { resolve } from "node:path";
-import type { GitBranchComparison, GitFileChange, GitChangeSectionId } from "@lcode/shared";
+import {
+  gitCommitRequestSchema,
+  gitCreateTagRequestSchema,
+  gitCreateTagResultSchema,
+  gitGenerateCommitMessageRequestSchema,
+  gitPublishStateSchema,
+  gitPushRequestSchema,
+  gitRepositoryRequestSchema,
+  gitRemoteListResultSchema,
+  gitTagListResultSchema,
+  type GitBranchComparison,
+  type GitFileChange,
+  type GitChangeSectionId,
+} from "@lcode/shared";
+import { GitPublishRepo } from "./repo/gitPublishRepo.js";
+import { commitWithPublishState } from "./gitServiceCommit.js";
 import { isPathInWorkspaceScope, normalizeGitPath, toWorkspaceRelativeGitPath } from "./config.js";
 import { filterCommitMessageFilesByCurrentSession } from "./commitMessageFileScope.js";
 import type { IGitService } from "./git.js";
 import type { GitCommitMessageGenerator } from "./gitCommitMessageGenerator.js";
 import { CommitReviewService, type MutationJournalReader } from "./commitReviewService.js";
 import { CommitReviewRepo } from "./repo/commitReviewRepo.js";
-import { createGitCommandProvider } from "./providers/gitCommandProvider.js";
+import {
+  createGitCommandProvider,
+  type GitCommandProvider,
+} from "./providers/gitCommandProvider.js";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import {
   createGitCliRepo,
@@ -175,13 +193,16 @@ function getCommitMessageDiffQueries(
 
 export function createGitService(options?: {
   repo?: GitCliRepo;
+  commandProvider?: GitCommandProvider;
   commitMessageGenerator?: GitCommitMessageGenerator;
   mutationJournalReader?: MutationJournalReader;
 }): IGitService {
-  const repo = options?.repo ?? createGitCliRepo();
+  const command = options?.commandProvider ?? createGitCommandProvider();
+  const repo = options?.repo ?? createGitCliRepo({ commandProvider: command });
+  const publish = new GitPublishRepo(repo, command);
   const reviews = options?.commitMessageGenerator
     ? new CommitReviewService(
-        new CommitReviewRepo(repo, createGitCommandProvider()),
+        new CommitReviewRepo(repo, command),
         options.commitMessageGenerator,
         options.mutationJournalReader,
       )
@@ -265,7 +286,8 @@ export function createGitService(options?: {
       await repo.discard(params.workspacePath, params.paths, params.staged ?? false);
     },
 
-    async generateCommitMessage(params) {
+    async generateCommitMessage(input) {
+      const params = gitGenerateCommitMessageRequestSchema.parse(input);
       if (!options?.commitMessageGenerator) {
         throw new Error("Commit message generation is not available.");
       }
@@ -280,11 +302,13 @@ export function createGitService(options?: {
         repoRoot: status.resolution.repoRoot,
         workspaceInRepoPath: status.resolution.workspaceInRepoPath,
         currentSessionFilePaths: params.currentSessionFilePaths,
+        excludedFilePaths: params.excludedFilePaths,
       });
       if (files.length === 0) {
         throw new Error("There are no changes available to commit.");
       }
 
+      let reviewError: string | undefined;
       if (params.review && reviews) {
         try {
           return await reviews.generate({
@@ -293,18 +317,12 @@ export function createGitService(options?: {
             paths: [...new Set(files.map((file) => file.path))],
           });
         } catch (error) {
-          // 二进制/超限/模型失败仍需提示任务完成，不能让自动弹窗消失；此结果不具备提交权限。
-          logger.warn(undefined, "提交审核生成失败，返回不可提交结果", {
+          // 中文依据：审核授权与纪要独立；内容/归属审核失败不能阻止生成可编辑消息。
+          logger.warn(undefined, "提交审核生成失败，继续生成无提交权限的纪要", {
             fileCount: files.length,
             errorName: error instanceof Error ? error.name : "unknown",
           });
-          return {
-            message: "",
-            providerId: "",
-            model: "",
-            reviewError:
-              error instanceof Error ? error.message : "提交审核不可用，请改用手动提交。",
-          };
+          reviewError = error instanceof Error ? error.message : "提交审核不可用，请改用手动提交。";
         }
       }
 
@@ -324,44 +342,69 @@ export function createGitService(options?: {
           : [],
       );
 
-      return await options.commitMessageGenerator.generate({
-        workspacePath: params.workspacePath,
-        ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
-        ...(params.locale ? { locale: params.locale } : {}),
-        branchName: status.summary.branchName,
-        files,
-        diffs,
-        ...(params.conversationContext ? { conversationContext: params.conversationContext } : {}),
-      });
+      try {
+        const generated = await options.commitMessageGenerator.generate({
+          workspacePath: params.workspacePath,
+          ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
+          ...(params.locale ? { locale: params.locale } : {}),
+          branchName: status.summary.branchName,
+          files,
+          diffs,
+          ...(params.conversationContext
+            ? { conversationContext: params.conversationContext }
+            : {}),
+        });
+        return { ...generated, ...(reviewError ? { reviewError } : {}) };
+      } catch (error) {
+        if (!reviewError) throw error;
+        logger.warn(undefined, "提交审核与纪要生成均失败", {
+          fileCount: files.length,
+          errorName: error instanceof Error ? error.name : "unknown",
+        });
+        return {
+          message: "",
+          providerId: "",
+          model: "",
+          reviewError: `${reviewError}\n提交纪要生成失败：${error instanceof Error ? error.message : "模型不可用"}`,
+        };
+      }
     },
 
     async commit(params) {
-      if (params.review) {
-        if (!reviews) throw new Error("提交审核不可用。");
-        const committed = await reviews.commit(params);
-        try {
-          repo.invalidate(params.workspacePath);
-          return { ...committed, summary: (await repo.getStatus(params.workspacePath)).summary };
-        } catch {
-          return {
-            ...committed,
-            warning: committed.warning ?? "提交已成功，但状态刷新失败，请刷新后查看。",
-          };
-        }
-      }
-      const result = await repo.commit(params.workspacePath, params.message, params.paths, {
-        stagedOnly: params.stagedOnly,
-      });
-      const status = await repo.getStatus(params.workspacePath);
-      return {
-        commitHash: result.commitHash,
-        summary: status.summary,
-      };
+      return commitWithPublishState(
+        repo,
+        reviews,
+        publish.state,
+        gitCommitRequestSchema.parse(params),
+      );
     },
 
     async push(params) {
-      const result = await repo.push(params.workspacePath);
-      return result;
+      return publish.push(gitPushRequestSchema.parse(params));
+    },
+
+    async getPublishState(params) {
+      return gitPublishStateSchema.parse(
+        await publish.state.capture(gitRepositoryRequestSchema.parse(params).workspacePath),
+      );
+    },
+
+    async listRemotes(params) {
+      return gitRemoteListResultSchema.parse(
+        await publish.listRemotes(gitRepositoryRequestSchema.parse(params)),
+      );
+    },
+
+    async listTags(params) {
+      return gitTagListResultSchema.parse(
+        await publish.listTags(gitRepositoryRequestSchema.parse(params)),
+      );
+    },
+
+    async createTag(params) {
+      return gitCreateTagResultSchema.parse(
+        await publish.createTag(gitCreateTagRequestSchema.parse(params)),
+      );
     },
 
     async getIdentity(params) {

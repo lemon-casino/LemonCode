@@ -1,7 +1,7 @@
 /* eslint-disable max-lines */
-import { mkdtemp, readFile, rm, stat } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { isAbsolute, join, resolve, sep } from "node:path";
+import { readFile, stat } from "node:fs/promises";
+import { commitWithGit } from "./gitCommitRepo.js";
+import { isAbsolute, resolve, sep } from "node:path";
 import type {
   GitBranchMutationAction,
   GitBranchMutationIssue,
@@ -25,7 +25,6 @@ import {
   DEFAULT_GIT_PUSH_OUTPUT_BYTES,
   DEFAULT_GIT_PUSH_TIMEOUT_MS,
   getGitNullDevicePath,
-  normalizeGitPath,
   normalizeWorkspaceInRepoPath,
 } from "../config.js";
 import {
@@ -507,33 +506,6 @@ function parseRemoteList(stdout: string): string[] {
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
-}
-
-interface GitIndexEntry {
-  mode: string;
-  objectHash: string;
-  stage: string;
-  path: string;
-}
-
-function parseGitIndexEntries(stdout: string): GitIndexEntry[] {
-  return stdout
-    .split("\0")
-    .filter((record) => record.length > 0)
-    .map((record) => {
-      const tabIndex = record.indexOf("\t");
-      if (tabIndex < 0) {
-        throw new Error("Failed to parse staged Git index entry.");
-      }
-
-      const [mode, objectHash, stage] = record.slice(0, tabIndex).trim().split(/\s+/);
-      const path = normalizeGitPath(record.slice(tabIndex + 1));
-      if (!mode || !objectHash || !stage || !path) {
-        throw new Error("Failed to parse staged Git index entry.");
-      }
-
-      return { mode, objectHash, stage, path };
-    });
 }
 
 export function createGitCliRepo(options?: { commandProvider?: GitCommandProvider }): GitCliRepo {
@@ -1485,154 +1457,16 @@ export function createGitCliRepo(options?: { commandProvider?: GitCommandProvide
       invalidate(workspacePath);
     },
 
-    async commit(
-      workspacePath: string,
-      message: string,
-      paths?: string[],
-      options?: { stagedOnly?: boolean },
-    ): Promise<{ commitHash: string }> {
+    async commit(workspacePath, message, paths, options) {
       const resolution = ensureRepositoryAvailable(
         await this.resolveRepository(workspacePath),
         "commit changes",
       );
-      const trimmedMessage = message.trim();
-      if (trimmedMessage.length === 0) {
-        throw new Error("Commit message cannot be empty");
+      try {
+        return await commitWithGit(commandProvider, resolution, message, paths, options);
+      } finally {
+        invalidate(workspacePath);
       }
-      const repoPaths =
-        paths && paths.length > 0
-          ? Array.from(
-              new Set(await Promise.all(paths.map((path) => normalizeInputPath(resolution, path)))),
-            )
-          : [];
-
-      if (options?.stagedOnly && repoPaths.length > 0) {
-        const scopedStatusResult = await commandProvider.run({
-          cwd: resolution.repoRoot,
-          args: ["status", "--porcelain=v2", "-z", "--", ...repoPaths],
-          timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
-          maxOutputBytes: DEFAULT_GIT_OUTPUT_BYTES,
-        });
-        ensureGitCommandSucceeded("git status selected paths", scopedStatusResult);
-
-        const cleanupRepoPaths = Array.from(
-          new Set([
-            ...repoPaths,
-            ...parseStatusPorcelain(scopedStatusResult.stdout)
-              .entries.filter((entry) => repoPaths.includes(entry.path))
-              .map((entry) => entry.originalPath)
-              .filter((path): path is string => Boolean(path)),
-          ]),
-        );
-        const stagedEntriesResult = await commandProvider.run({
-          cwd: resolution.repoRoot,
-          args: ["ls-files", "--stage", "-z", "--", ...repoPaths],
-          timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
-          maxOutputBytes: DEFAULT_GIT_OUTPUT_BYTES,
-        });
-        ensureGitCommandSucceeded("git ls-files selected staged entries", stagedEntriesResult);
-        const stagedEntries = parseGitIndexEntries(stagedEntriesResult.stdout);
-        if (stagedEntries.some((entry) => entry.stage !== "0")) {
-          throw new Error("Cannot commit selected staged paths while index conflicts exist.");
-        }
-
-        const headResult = await commandProvider.run({
-          cwd: resolution.repoRoot,
-          args: ["rev-parse", "--verify", "HEAD"],
-          timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
-        });
-        const parentHash = headResult.exitCode === 0 ? headResult.stdout.trim() : null;
-        const tempIndexDir = await mkdtemp(join(tmpdir(), "lcode-git-index-"));
-        const tempIndexPath = join(tempIndexDir, "index");
-        const tempIndexEnv = { GIT_INDEX_FILE: tempIndexPath };
-
-        try {
-          const readTreeResult = await commandProvider.run({
-            cwd: resolution.repoRoot,
-            args: parentHash ? ["read-tree", parentHash] : ["read-tree", "--empty"],
-            env: tempIndexEnv,
-            timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
-          });
-          ensureGitCommandSucceeded("git read-tree selected commit base", readTreeResult);
-
-          if (cleanupRepoPaths.length > 0) {
-            const removeResult = await commandProvider.run({
-              cwd: resolution.repoRoot,
-              args: ["update-index", "--force-remove", "--", ...cleanupRepoPaths],
-              env: tempIndexEnv,
-              timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
-            });
-            ensureGitCommandSucceeded("git update-index remove selected paths", removeResult);
-          }
-
-          for (const entry of stagedEntries) {
-            const addResult = await commandProvider.run({
-              cwd: resolution.repoRoot,
-              args: [
-                "update-index",
-                "--add",
-                "--cacheinfo",
-                entry.mode,
-                entry.objectHash,
-                entry.path,
-              ],
-              env: tempIndexEnv,
-              timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
-            });
-            ensureGitCommandSucceeded("git update-index add selected paths", addResult);
-          }
-
-          const scopedCommitResult = await commandProvider.run({
-            cwd: resolution.repoRoot,
-            args: ["commit", "-m", trimmedMessage],
-            env: tempIndexEnv,
-            timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
-            maxOutputBytes: DEFAULT_GIT_OUTPUT_BYTES,
-          });
-          ensureGitCommandSucceeded("git commit selected staged paths", scopedCommitResult);
-
-          const hashResult = await commandProvider.run({
-            cwd: resolution.repoRoot,
-            args: ["rev-parse", "HEAD"],
-            timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
-          });
-          ensureGitCommandSucceeded("git rev-parse selected commit HEAD", hashResult);
-          const commitHash = hashResult.stdout.trim();
-
-          // 提交当前会话文件时不能把真实 index 整体替换成临时 index。
-          // 这里只把已提交的路径同步到新 HEAD，保留其它已暂存文件继续等待用户手动提交。
-          const resetSelectedResult = await commandProvider.run({
-            cwd: resolution.repoRoot,
-            args: ["reset", "--quiet", "HEAD", "--", ...cleanupRepoPaths],
-            timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
-          });
-          ensureGitCommandSucceeded("git reset selected committed paths", resetSelectedResult);
-          invalidate(workspacePath);
-          return { commitHash };
-        } finally {
-          await rm(tempIndexDir, { recursive: true, force: true });
-        }
-      }
-
-      const commitResult = await commandProvider.run({
-        cwd: resolution.repoRoot,
-        args:
-          repoPaths.length > 0
-            ? ["commit", "-m", trimmedMessage, "--", ...repoPaths]
-            : ["commit", "-m", trimmedMessage],
-        timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
-        maxOutputBytes: DEFAULT_GIT_OUTPUT_BYTES,
-      });
-      ensureGitCommandSucceeded("git commit", commitResult);
-      invalidate(workspacePath);
-
-      const hashResult = await commandProvider.run({
-        cwd: resolution.repoRoot,
-        args: ["rev-parse", "HEAD"],
-        timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
-      });
-      ensureGitCommandSucceeded("git rev-parse HEAD", hashResult);
-      return { commitHash: hashResult.stdout.trim() };
     },
 
     async push(workspacePath: string): Promise<GitPushResult> {

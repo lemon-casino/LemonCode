@@ -61,11 +61,12 @@ function formatListSavedWorkflowsModelContent(output: unknown): ModelMessageCont
 
   const { workflows, invalid } = parsed.data;
 
-  if (workflows.length === 0 && invalid === undefined) {
-    // 「这个项目没存过 workflow」必须说成一句话：空容器容易被读成「工具没答上来」。
+  if (workflows.length === 0 && (invalid?.length ?? 0) === 0) {
+    // 草稿与运行历史不等于可复用模板；空目录不能被模型解释成“从未运行过工作流”。
     return [
       '<saved_workflows count="0">',
-      `No workflows are saved in this project yet. Saved definitions live in ${SAVED_WORKFLOW_PROJECT_DIR}/.`,
+      `No reusable workflow templates were found in the project or global archive (${SAVED_WORKFLOW_PROJECT_DIR}/ and ~/.lcode/workflows/).`,
+      "This list excludes drafts and run history. Running a workflow does not automatically save it as a template; use ListWorkflowRuns for run history.",
       "</saved_workflows>",
     ].join("\n");
   }

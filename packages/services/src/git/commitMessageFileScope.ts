@@ -86,6 +86,7 @@ export function filterCommitMessageFilesByCurrentSession(params: {
   repoRoot: string;
   workspaceInRepoPath: string;
   currentSessionFilePaths?: readonly string[];
+  excludedFilePaths?: readonly string[];
 }): GitFileChange[] {
   const scope = buildCommitMessageFileScope({
     workspacePath: params.workspacePath,
@@ -93,5 +94,14 @@ export function filterCommitMessageFilesByCurrentSession(params: {
     workspaceInRepoPath: params.workspaceInRepoPath,
     currentSessionFilePaths: params.currentSessionFilePaths,
   });
-  return params.files.filter((file) => isCommitMessageFileInScope(file, scope));
+  const excluded = buildCommitMessageFileScope({
+    ...params,
+    currentSessionFilePaths: params.excludedFilePaths,
+  });
+  // 中文依据：必须先排除再捕获审核/生成 prompt；全部排除返回空集合，不能借空 scope 回退整个仓库。
+  return params.files.filter(
+    (file) =>
+      isCommitMessageFileInScope(file, scope) &&
+      (!excluded || !isCommitMessageFileInScope(file, excluded)),
+  );
 }

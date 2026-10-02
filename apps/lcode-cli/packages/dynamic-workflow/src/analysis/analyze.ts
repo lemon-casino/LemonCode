@@ -13,6 +13,7 @@ import { projectControlFlow, type ControlFlowGraph } from "./flow-graph.js";
 import { projectHandoffGraph, type HandoffGraph } from "./handoff-graph.js";
 import type { AnalysisCore } from "./core.js";
 import type { SiteGraph } from "./types.js";
+import { projectOrchestrationAdvice, type WorkflowOrchestrationAdvice } from "./orchestration-advice.js";
 
 /**
  * Result of analyzing a workflow script: the same diagnostics `compileWorkflowScript`
@@ -29,6 +30,8 @@ import type { SiteGraph } from "./types.js";
 export interface AnalyzeResult {
   diagnostics: CompileDiagnostic[];
   ok: boolean;
+  /** Non-blocking control-wait facts. Never contribute to diagnostics or `ok`. */
+  orchestrationAdvice?: WorkflowOrchestrationAdvice[];
   /**
    * The all-in-one analysis artifact: taint
    * facts + temporal trace, position-free. `graph` and `causality` are pure projections
@@ -113,6 +116,7 @@ export function analyzeWorkflowScript(scriptText: string): AnalyzeResult {
     graph,
     handoff: projectHandoffGraph(core, causality, graph),
     ok: authoring.length === 0,
+    orchestrationAdvice: authoring.length === 0 ? projectOrchestrationAdvice(core) : [],
   };
 }
 

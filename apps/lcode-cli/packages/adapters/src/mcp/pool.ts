@@ -1,4 +1,9 @@
-import { randomUUID } from "node:crypto";
+import {
+  connectionKey,
+  createConnectionContext,
+  type McpConnectionContext,
+} from "./pool-identity.js";
+export type { McpConnectionContext } from "./pool-identity.js";
 import type {
   Logger,
   McpCallToolOptions,
@@ -20,13 +25,6 @@ interface CreateMcpAdapterForPoolInput {
   config: McpServerConfig;
   serverName: string;
   workingDirectory?: string;
-}
-
-export interface McpConnectionContext {
-  mcpConnectionId: string;
-  mcpIsolation: "session" | "workspace";
-  sessionId?: string;
-  workspaceKey?: string;
 }
 
 export interface McpConnectionPoolOptions {
@@ -342,7 +340,7 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
       async close(): Promise<void> {
         if (leaseClosed) return;
         leaseClosed = true;
-        for (const serverName of [...leased.keys()]) release(serverName);
+        for (const serverName of Array.from(leased.keys())) release(serverName);
       },
       async connectConfiguredServers(
         servers: Record<string, McpServerConfig>,
@@ -353,7 +351,7 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
           configuredServers.set(serverName, config);
         }
         const configuredNames = new Set(Object.keys(servers));
-        for (const serverName of [...leased.keys()]) {
+        for (const serverName of Array.from(leased.keys())) {
           if (!configuredNames.has(serverName)) release(serverName);
         }
         await Promise.all(
@@ -415,50 +413,4 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
       };
     },
   };
-}
-
-function createConnectionContext(input: {
-  config: McpServerConfig;
-  connectOptions: McpConnectOptions;
-  sessionId?: string;
-}): McpConnectionContext {
-  const mcpIsolation = input.config.isolation === "workspace" ? "workspace" : "session";
-  const workspaceKey = resolveWorkspaceKey(input.connectOptions);
-  return {
-    mcpConnectionId: randomUUID(),
-    mcpIsolation,
-    ...(workspaceKey ? { workspaceKey } : {}),
-    ...(mcpIsolation === "session" && input.sessionId ? { sessionId: input.sessionId } : {}),
-  };
-}
-
-function resolveWorkspaceKey(connectOptions: McpConnectOptions): string | undefined {
-  return (
-    connectOptions.workspaceIdentity?.trim() || connectOptions.workingDirectory?.trim() || undefined
-  );
-}
-
-function connectionKey(input: {
-  config: McpServerConfig;
-  connectOptions: McpConnectOptions;
-  leaseId: string;
-  serverName: string;
-}): string {
-  // 默认 session isolation；只有明确声明 workspace 的无状态 server 才允许跨 session 复用。
-  const scope =
-    input.config.isolation === "workspace"
-      ? (resolveWorkspaceKey(input.connectOptions) ?? "")
-      : input.leaseId;
-  return [input.serverName, scope, stableStringify(input.config)].join("\u0000");
-}
-
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
-  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
-  const record = value as Record<string, unknown>;
-  return `{${Object.keys(record)
-    .toSorted()
-    .filter((key) => record[key] !== undefined)
-    .map((key) => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
-    .join(",")}}`;
 }

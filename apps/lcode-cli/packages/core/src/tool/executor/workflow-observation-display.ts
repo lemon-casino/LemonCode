@@ -23,12 +23,14 @@ import {
   RESUME_WORKFLOW_RUN_TOOL_NAME,
   ResumeWorkflowRunOutputSchema,
   WORKFLOW_OBSERVATION_DISPLAY_MAX_ACTORS,
+  WORKFLOW_OBSERVATION_DISPLAY_MAX_ARGS,
   WORKFLOW_OBSERVATION_DISPLAY_MAX_LOG_CHARS,
   WORKFLOW_OBSERVATION_DISPLAY_MAX_LOG_ENTRIES,
   WORKFLOW_OBSERVATION_DISPLAY_MAX_META_CHARS,
   WORKFLOW_OBSERVATION_DISPLAY_MAX_MODELS,
   WORKFLOW_OBSERVATION_DISPLAY_MAX_PHASES,
   WORKFLOW_OBSERVATION_DISPLAY_MAX_RESULT_CHARS,
+  WORKFLOW_OBSERVATION_DISPLAY_MAX_RUNS,
   WORKFLOW_OBSERVATION_DISPLAY_MAX_SUBAGENTS,
   type GetWorkflowRunOutput,
   type GetWorkflowRunToolResultDisplayPayload,
@@ -128,7 +130,7 @@ function createGetWorkflowRunDisplay(
 
 /**
  * 工具面的嵌套子代理 → 卡面的扁平行。`currentAsk` 里那几件事就是这一行的后半截；
- * 等待原因的自由文本不上卡（卡只需要「等槽位 / 在退避」和还要等多久），其余字段
+ * 等待只保留归一化原因和源时间，原始供应商消息不上卡；其余字段
  * **缺席即缺席**——`0 tool calls` 与「不知道」是两件事。
  */
 function toDisplaySubagent(
@@ -146,10 +148,19 @@ function toDisplaySubagent(
     ...(ask?.turn === undefined ? {} : { turn: ask.turn }),
     ...(ask?.toolCalls === undefined ? {} : { toolCalls: ask.toolCalls }),
     ...(ask?.lastTool === undefined ? {} : { lastTool: ask.lastTool }),
+    ...(ask?.activity === undefined ? {} : { activity: ask.activity }),
+    ...(ask?.phase === undefined ? {} : { askPhase: ask.phase }),
+    ...(ask?.queue === undefined ? {} : { queue: ask.queue }),
+    ...(subagent.lastDeliveredAt === undefined
+      ? {}
+      : { lastDeliveredAt: subagent.lastDeliveredAt }),
     ...(subagent.wait === undefined
       ? {}
       : {
           waitCause: subagent.wait.cause,
+          ...(subagent.wait.attempt === undefined ? {} : { retryAttempt: subagent.wait.attempt }),
+          ...(subagent.wait.nextRetryAt === undefined ? {} : { nextRetryAt: subagent.wait.nextRetryAt }),
+          ...(subagent.wait.reason ? { waitReason: subagent.wait.reason.slice(0, 64) } : {}),
           ...(subagent.wait.retryAfterMs === undefined
             ? {}
             : { retryAfterMs: subagent.wait.retryAfterMs }),
@@ -236,26 +247,36 @@ function createSavedWorkflowListDisplay(
   const data = parsed.data;
   let truncated = false;
 
-  const boundMeta = (value: string | undefined): string | undefined => {
+  const boundMeta = (
+    value: string | undefined,
+    maxBytes = WORKFLOW_OBSERVATION_DISPLAY_MAX_META_CHARS,
+  ): string | undefined => {
     if (value === undefined) return undefined;
-    const bounded = boundDisplayText(value, WORKFLOW_OBSERVATION_DISPLAY_MAX_META_CHARS);
+    const bounded = boundDisplayText(value, maxBytes);
     if (bounded.truncated) truncated = true;
     return bounded.value;
   };
 
-  const workflows = data.workflows.map((entry) => ({
-    name: entry.name,
-    description: boundMeta(entry.description),
-    whenToUse: boundMeta(entry.whenToUse),
-    scope: entry.scope,
-    path: entry.path,
+  // 原因：列表/参数未限长、错误原因误用 2048 上限，会被 CLI/shared 严格契约整卡拒收。
+  // 按既有契约保留前缀，任一裁剪并入 truncated；文本仍走 UTF-8 安全限长。
+  const workflows = data.workflows.slice(0, WORKFLOW_OBSERVATION_DISPLAY_MAX_RUNS).map((entry) => {
     // args 只保留名字：声明细节（类型/描述/默认值）归保存确认窗，列表卡不重复。
-    argNames: entry.args === undefined ? [] : Object.keys(entry.args),
-  }));
+    const argNames = entry.args === undefined ? [] : Object.keys(entry.args);
+    if (argNames.length > WORKFLOW_OBSERVATION_DISPLAY_MAX_ARGS) truncated = true;
+    return {
+      name: entry.name,
+      description: boundMeta(entry.description),
+      whenToUse: boundMeta(entry.whenToUse),
+      scope: entry.scope,
+      path: entry.path,
+      argNames: argNames.slice(0, WORKFLOW_OBSERVATION_DISPLAY_MAX_ARGS),
+    };
+  });
+  if (workflows.length < data.workflows.length) truncated = true;
 
   const invalid = data.invalid?.map((entry) => ({
     path: entry.path,
-    reason: boundMeta(entry.reason),
+    reason: boundMeta(entry.reason, WORKFLOW_OBSERVATION_DISPLAY_MAX_LOG_CHARS),
   }));
 
   return {

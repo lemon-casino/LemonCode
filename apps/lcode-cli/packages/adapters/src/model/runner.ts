@@ -98,9 +98,7 @@ export class AiSdkModelAdapter {
         ...(options.network ? { network: options.network } : {}),
         ...(options.env ? { env: options.env } : {}),
       },
-      {
-        ...(options.logger ? { logger: options.logger } : {}),
-      },
+      options.logger ? { logger: options.logger } : {},
     );
     this.runtime = options.runtime ?? defaultRuntime;
     this.env = options.env ?? process.env;

@@ -1,94 +1,27 @@
-import { querySessionDebug } from "./session-debug.js";
-import { workspaceFileMutationJournal } from "./workspace-file-mutation-journal.js";
 import {
-  lcodePluginsCancelOperationParamsSchema,
-  lcodeProtocolMethods,
-  lcodeWorkspaceCancelGenerateTextParamsSchema,
-  lcodeWorkspaceHookTrustGrantParamsSchema,
-} from "@lcode/shared";
+  requestClient,
+  resolveClientRequest,
+  rejectClientRequest,
+  cleanupClientRequest,
+  type ProtocolClientRequestState,
+  type LCodeProtocolOutboundMessage,
+} from "./server-client-requests.js";
+import { dispatchRequest, type LCodeProtocolPostResponseBatch } from "./server-dispatch.js";
+
 import type { BrowserControlPort } from "@lcode/contracts";
 import { InMemoryWorkspaceHookPolicyProvider } from "@lcode/core";
-import {
-  V4_METHODS,
-  V4_NOTIFICATIONS,
-  parseConversationTopic,
-  parseSessionsIndexTopic,
-  parseWorkspaceConfigTopic,
-} from "@lcode/shared/lcode-protocol-v4";
+import { parseConversationTopic } from "@lcode/shared/lcode-protocol-v4";
 import type {
   LCodeProtocolError,
   LCodeProtocolMessage,
   LCodeProtocolMethod,
-  LCodeProtocolNotification,
   LCodeProtocolRequest,
   LCodeProtocolRequestId,
   LCodeProtocolResponse,
 } from "@lcode/shared";
-import {
-  cancelBackgroundTask,
-  closeSession,
-  compactSession,
-  createSession,
-  forkSession,
-  generateWorkspaceText,
-  goalSession,
-  getTaskTokenUsage,
-  getUsageStats,
-  listSessions,
-  listSessionSubagents,
-  readEvents,
-  readMessages,
-  readSession,
-  resumeSession,
-  sendPrompt,
-  setMode,
-  setModel,
-  setThoughtLevel,
-  stopSession,
-  subscribeSession,
-} from "./server-operations.js";
-import { listChildProcesses } from "./process-child-processes.js";
+
 import { ProtocolRuntimeResources } from "./runtime-resources.js";
-import {
-  readWorkspacePresentation,
-  testProviderModelConnectivity,
-} from "./workspace-model-runtime.js";
-import {
-  addPluginMarketplace,
-  configurePlugin,
-  describePlugin,
-  getPluginsOverview,
-  installPlugin,
-  listPlugins,
-  removePluginMarketplace,
-  resetPluginConfig,
-  restoreBuiltinPlugin,
-  setPluginEnabled,
-  uninstallPlugin,
-  updatePlugin,
-  updatePluginMarketplace,
-  validatePlugin,
-} from "./plugins.js";
-import {
-  getPluginReferenceCatalog,
-  resolveSuggestedPluginReference,
-} from "./plugin-reference-catalog.js";
-import { getSkillReferenceCatalog } from "./skill-reference-catalog.js";
-import {
-  deleteSavedWorkflowOp,
-  getSavedWorkflowOp,
-  listSavedWorkflowRunsOp,
-  listSavedWorkflowsOp,
-  moveSavedWorkflowOp,
-  updateSavedWorkflowMetaOp,
-} from "./saved-workflows.js";
-import { listMcpServers } from "./mcp.js";
-import { updateInteractionPreferences } from "./interaction-preferences.js";
-import { updateAccountProviderConfig } from "./account-provider-config.js";
-import { updateModelIoPreferences } from "./model-io-preferences.js";
-import { updateOffPeakToolPolicy } from "./off-peak-tool-policy.js";
-import { updateDynamicWorkflowPolicy } from "./dynamic-workflow-policy.js";
-import { grantWorkspaceHookTrustForProtocol } from "./workspace-hook-trust.js";
+
 import {
   V4InteractionRegistry,
   resolveV4InteractionRegistryOptionsFromEnv,
@@ -108,7 +41,6 @@ import {
   isResponse,
   ProtocolRequestError,
   type ParamsSchema,
-  parseParams,
   toProtocolError,
   type LCodeProtocolClientRequestOptions,
   type LCodeProtocolAgentDependencies,
@@ -118,28 +50,6 @@ import {
 import { createInMemorySessionEventStore } from "@lcode/contracts";
 
 export type { LCodeProtocolAgentDependencies, LCodeProtocolSessionRecord };
-
-const MAX_CLIENT_REQUEST_REANNOUNCE_INTERVAL_MS = 10_000;
-
-type LCodeProtocolOutboundMessage = LCodeProtocolNotification | LCodeProtocolRequest;
-
-/**
- * Trust store 落盘后各 session 的 coordinator
- * 内存镜像（仅创建时 load）不会自动更新，已信任 Hook 继续被拒、banner pendingCount
- * 停留旧值。pretrust 授权成功后按 workspaceKey 通知所有匹配的活跃 session 重载。
- * 独立导出为纯调度函数（不触网、不发事件），便于回归测试直接构造 sessions Map。
- */
-async function notifyWorkspaceHookTrustGrantSessions(input: {
-  grantedWorkspaceKey?: string;
-  sessions: Map<string, LCodeProtocolSessionRecord>;
-}): Promise<void> {
-  if (!input.grantedWorkspaceKey) return;
-  await Promise.all(
-    [...input.sessions.values()]
-      .filter((record) => record.workspace.workspaceKey === input.grantedWorkspaceKey)
-      .map((record) => record.app.reloadWorkspaceHookTrust()),
-  );
-}
 
 function collectResidencySessionIds(params: unknown): string[] {
   if (!params || typeof params !== "object") return [];
@@ -168,40 +78,11 @@ function collectResidencySessionIds(params: unknown): string[] {
   return [...sessionIds];
 }
 
-function getPluginOperationId(params: unknown): string | undefined {
-  if (!params || typeof params !== "object") return undefined;
-  const operationId = (params as { operationId?: unknown }).operationId;
-  return typeof operationId === "string" && operationId.trim().length > 0
-    ? operationId.trim()
-    : undefined;
-}
-
-function getOperationId(params: unknown): string | undefined {
-  if (!params || typeof params !== "object") return undefined;
-  const operationId = (params as { operationId?: unknown }).operationId;
-  return typeof operationId === "string" && operationId.trim().length > 0
-    ? operationId.trim()
-    : undefined;
-}
-
-interface LCodeProtocolPostResponseBatch {
-  readonly messages: readonly LCodeProtocolOutboundMessage[];
-  commit(): boolean;
-}
-
-interface PendingClientRequest<T> {
-  method: string;
-  reject: (error: Error) => void;
-  resolve: (value: T) => void;
-  resultSchema: ParamsSchema<T>;
-  requestKeys: Set<string>;
-  signal?: AbortSignal;
-  timeout?: ReturnType<typeof setTimeout>;
-  reannounceTimer?: ReturnType<typeof setTimeout>;
-  abortHandler?: () => void;
-}
-
 export class LCodeProtocolAgentServer {
+  private readonly clientRequests: ProtocolClientRequestState = {
+    pendingClientRequests: new Map(),
+    nextClientRequestId: 1,
+  };
   private readonly runtimeResources: ProtocolRuntimeResources;
   private shutdownPromise?: Promise<void>;
   readonly browserControlPort: BrowserControlPort;
@@ -213,12 +94,8 @@ export class LCodeProtocolAgentServer {
   get officialMcpAuthRequestContext(): Pick<LCodeProtocolAgentServerContext, "requestClient"> {
     return this.context;
   }
-
-  private messageSink?: (message: LCodeProtocolOutboundMessage) => void;
-  private clientDisconnectError?: Error;
   private readonly context: LCodeProtocolAgentServerContext;
   private readonly logger;
-  private readonly pendingClientRequests = new Map<string, PendingClientRequest<unknown>>();
   private readonly pluginOperationControllers = new Map<string, AbortController>();
   private readonly workspaceGenerateTextControllers = new Map<string, AbortController>();
   /**
@@ -229,7 +106,6 @@ export class LCodeProtocolAgentServer {
     LCodeProtocolRequestId,
     LCodeProtocolPostResponseBatch
   >();
-  private nextClientRequestId = 1;
 
   constructor(deps: LCodeProtocolAgentDependencies) {
     this.runtimeResources = new ProtocolRuntimeResources(deps.createLCodeApp);
@@ -255,7 +131,7 @@ export class LCodeProtocolAgentServer {
         // 才开启。
         dynamicWorkflowEnabled: false,
       },
-      notify: (notification) => this.messageSink?.(notification),
+      notify: (notification) => this.clientRequests.messageSink?.(notification),
       requestClient: (method, params, resultSchema, options) =>
         this.requestClient(method, params, resultSchema, options),
       sessions: new Map<string, LCodeProtocolSessionRecord>(),
@@ -340,17 +216,17 @@ export class LCodeProtocolAgentServer {
 
   setNotificationSink(sink: (message: LCodeProtocolOutboundMessage) => void): void {
     this.runtimeResources.assertServing();
-    this.clientDisconnectError = undefined;
-    this.messageSink = sink;
+    this.clientRequests.clientDisconnectError = undefined;
+    this.clientRequests.messageSink = sink;
   }
 
   disconnectClient(error: Error): void {
-    this.clientDisconnectError = error;
+    this.clientRequests.clientDisconnectError = error;
     // 连接关闭后反向请求已不可能收到响应，必须先结束 pending，
     // 否则正在物化 Session 的 handler 会阻塞 connection 的关闭流程。
-    const pendingRequests = new Set(this.pendingClientRequests.values());
+    const pendingRequests = new Set(this.clientRequests.pendingClientRequests.values());
     for (const pending of pendingRequests) {
-      this.cleanupClientRequest(pending);
+      cleanupClientRequest(this.clientRequests, pending);
       pending.reject(error);
     }
   }
@@ -361,7 +237,7 @@ export class LCodeProtocolAgentServer {
     this.shutdownPromise = this.runtimeResources.close();
     const error = new Error("LCode Protocol runtime stopping");
     this.disconnectClient(error);
-    this.messageSink = undefined;
+    this.clientRequests.messageSink = undefined;
     this.clearPostResponseMessages();
     for (const controller of this.pluginOperationControllers.values()) controller.abort(error);
     for (const controller of this.workspaceGenerateTextControllers.values())
@@ -409,11 +285,12 @@ export class LCodeProtocolAgentServer {
   ): Promise<LCodeProtocolError | LCodeProtocolResponse | undefined> {
     this.runtimeResources.assertServing();
     if (isResponse(message)) {
-      this.resolveClientRequest(message.id, message.result);
+      resolveClientRequest(this.clientRequests, message.id, message.result);
       return undefined;
     }
     if (isErrorResponse(message)) {
-      this.rejectClientRequest(
+      rejectClientRequest(
+        this.clientRequests,
         message.id,
         new ProtocolRequestError(message.error.code, message.error.message, message.error.data),
       );
@@ -456,340 +333,16 @@ export class LCodeProtocolAgentServer {
     }
   }
 
-  private async dispatchRequest(request: LCodeProtocolRequest) {
-    switch (request.method) {
-      // ── v4 conversation 通道（竖切，与旧 session/* 并存）──
-      case V4_METHODS.connectionFlow: {
-        this.requireV4Gateway().setConnectionFlowState(request.params);
-        return {};
-      }
-      case V4_METHODS.conversationSubscribe: {
-        // 同一 subscribe 方法按 topic 前缀分派：
-        // sessions-index/* → 列表订阅；workspace-config/* → 配置目录订阅；否则 conversation。
-        const gateway = this.requireV4Gateway();
-        const topic = (request.params as { topic?: unknown } | null)?.topic;
-        let dispatch;
-        if (typeof topic === "string" && parseSessionsIndexTopic(topic) !== null) {
-          dispatch = await gateway.subscribeSessionsIndexReserved(request.params);
-        } else if (typeof topic === "string" && parseWorkspaceConfigTopic(topic) !== null) {
-          dispatch = await gateway.subscribeWorkspaceConfigReserved(request.params);
-        } else {
-          dispatch = await gateway.subscribeReserved(request.params);
-        }
-        if (dispatch.initialWires.length > 0) {
-          this.postResponseOutbox.set(request.id, {
-            messages: dispatch.initialWires.map((wire) => ({
-              method: V4_NOTIFICATIONS.conversationFrame,
-              params: wire,
-            })),
-            commit: dispatch.commit,
-          });
-        }
-        return { ack: dispatch.ack };
-      }
-      case V4_METHODS.conversationResync: {
-        // same-sub recovery 与 subscribe 共用确定性 post-response outbox；公共
-        // response 仍 strict ACK-only，physical recovery 只能在 ACK line 后发送。
-        const dispatch = this.requireV4Gateway().resyncReserved(request.params);
-        if (dispatch.initialWires.length > 0) {
-          this.postResponseOutbox.set(request.id, {
-            messages: dispatch.initialWires.map((wire) => ({
-              method: V4_NOTIFICATIONS.conversationFrame,
-              params: wire,
-            })),
-            commit: dispatch.commit,
-          });
-        }
-        return { ack: dispatch.ack };
-      }
-      case V4_METHODS.conversationUnsubscribe: {
-        // topic + subscriptionId + connectionId 精确命中唯一 publisher；禁止按裸
-        // subId 对 conversation/sessions-index/workspace-config 广撒网。
-        this.requireV4Gateway().unsubscribe(request.params);
-        return {};
-      }
-      // ── 行分页 query（独立分支，便于与帧分派改动合并）──
-      case V4_METHODS.conversationRowsRange:
-        return await this.requireV4Gateway().rowsRange(request.params);
-      case V4_METHODS.conversationPlans:
-        return await this.requireV4Gateway().plans(request.params);
-      case V4_METHODS.backgroundBashOutput:
-        return await this.requireV4Gateway().backgroundBashOutput(request.params);
-      case V4_METHODS.conversationFileChanges:
-        return await this.requireV4Gateway().fileChanges(request.params);
-      case V4_METHODS.conversationFileRewindPreview:
-        return await this.requireV4Gateway().fileRewindPreview(request.params);
-      // workflow run 事件日志分页（只读、无状态、超时重发安全；新方法天然偏斜安全）。
-      case V4_METHODS.conversationWorkflowRunEvents:
-        return await this.requireV4Gateway().workflowRunEvents(request.params);
-      // dwf run 枚举（重启后的发现查询）。
-      case V4_METHODS.conversationWorkflowRuns:
-        return await this.requireV4Gateway().workflowRuns(request.params);
-      // dwf 用户面产物的三个读面。同族：只读、无状态、
-      // 超时重发安全；ArtifactRead 的授权在宿主端口侧，网关只校参数与分块。
-      case V4_METHODS.conversationWorkflowRunArtifacts:
-        return await this.requireV4Gateway().workflowRunArtifacts(request.params);
-      case V4_METHODS.conversationWorkflowRunArtifactData:
-        return await this.requireV4Gateway().workflowRunArtifactData(request.params);
-      case V4_METHODS.conversationWorkflowRunArtifactRead:
-        return await this.requireV4Gateway().workflowRunArtifactRead(request.params);
-      // dwf 工作区 transcript 的两个读面。同族。
-      case V4_METHODS.conversationWorkflowRunWorkspace:
-        return await this.requireV4Gateway().workflowRunWorkspace(request.params);
-      case V4_METHODS.conversationWorkflowRunNodeResult:
-        return await this.requireV4Gateway().workflowRunNodeResult(request.params);
-      // 附件只能走小 RPC transaction，禁止 full-data attachment/put 单行。
-      case V4_METHODS.attachmentBegin:
-        return await this.requireV4Gateway().attachmentBegin(request.params);
-      case V4_METHODS.attachmentChunk:
-        return await this.requireV4Gateway().attachmentChunk(request.params);
-      case V4_METHODS.attachmentCommit:
-        return await this.requireV4Gateway().attachmentCommit(request.params);
-      case V4_METHODS.attachmentAbort:
-        await this.requireV4Gateway().attachmentAbort(request.params);
-        return {};
-      case V4_METHODS.attachmentRead:
-        return await this.requireV4Gateway().attachmentRead(request.params);
-      case V4_METHODS.conversationAttachmentRead:
-        return await this.requireV4Gateway().conversationAttachmentRead(request.params);
-      case V4_METHODS.conversationAttachmentStat:
-        return await this.requireV4Gateway().conversationAttachmentStat(request.params);
-      case V4_METHODS.attachmentPreviewSource:
-        return await this.requireV4Gateway().attachmentPreviewSource(request.params);
-      // ── usage query（additive）：与旧 usage/stats、session/usage 同一数据访问
-      // 层（usage store 聚合），仅换 v4 名字空间——不经 v4Gateway（无会话投影依赖），
-      // 也不经旧 op 分派（无桥）。旧 case 保留到旧词删除（老 host 版本兼容）。──
-      case V4_METHODS.usageStats:
-        return await getUsageStats(this.context, request.params);
-      case V4_METHODS.conversationUsage:
-        return await getTaskTokenUsage(this.context, request.params);
-      case V4_METHODS.command:
-        return this.requireV4Gateway().handleCommand(request.params);
-      case V4_METHODS.commandsQuery:
-        return this.requireV4Gateway().queryCommands(request.params);
-      case lcodeProtocolMethods.sessionCreate:
-        return await createSession(this.context, request.params, request.trace);
-      case lcodeProtocolMethods.sessionResume:
-        return await resumeSession(this.context, request.params);
-      case lcodeProtocolMethods.sessionList:
-        return await listSessions(this.context, request.params);
-      case lcodeProtocolMethods.sessionSubagents:
-        return await listSessionSubagents(this.context, request.params);
-      case lcodeProtocolMethods.sessionRead:
-        return await readSession(this.context, request.params);
-      case lcodeProtocolMethods.sessionMessages:
-        return await readMessages(this.context, request.params);
-      case lcodeProtocolMethods.sessionEvents:
-        return await readEvents(this.context, request.params);
-      case lcodeProtocolMethods.sessionSubscribe:
-        return await subscribeSession(this.context, request.params);
-      case lcodeProtocolMethods.sessionSend:
-        return await sendPrompt(this.context, request.params);
-      case lcodeProtocolMethods.sessionStop:
-        return await stopSession(this.context, request.params);
-      case lcodeProtocolMethods.sessionCancelBackgroundTask:
-        return await cancelBackgroundTask(this.context, request.params);
-      case lcodeProtocolMethods.sessionFork:
-        return await forkSession(this.context, request.params);
-      case lcodeProtocolMethods.sessionCompact:
-        return await compactSession(this.context, request.params);
-      case lcodeProtocolMethods.sessionGoal:
-        return await goalSession(this.context, request.params);
-      case lcodeProtocolMethods.sessionSetModel:
-        return await setModel(this.context, request.params);
-      case lcodeProtocolMethods.sessionSetThoughtLevel:
-        return await setThoughtLevel(this.context, request.params);
-      case lcodeProtocolMethods.sessionSetMode:
-        return await setMode(this.context, request.params);
-      case lcodeProtocolMethods.sessionClose:
-        return await closeSession(this.context, request.params);
-      case lcodeProtocolMethods.workspaceReadPresentation:
-        return await readWorkspacePresentation(this.context, request.params);
-      case lcodeProtocolMethods.workspaceHookTrustGrant: {
-        const grantResult = await grantWorkspaceHookTrustForProtocol(request.params, {
-          appVersion: this.context.deps.version,
-          policyProvider: this.context.deps.workspaceHookPolicyProvider,
-        });
-        if (grantResult.accepted) {
-          await notifyWorkspaceHookTrustGrantSessions({
-            // dispatch 层的 params 是弱类型；grant 内部已用同一 schema parse 过，这里
-            // safeParse 只为取出 workspaceKey 做匹配，失败即跳过通知（防御，正常必成功）。
-            grantedWorkspaceKey: lcodeWorkspaceHookTrustGrantParamsSchema.safeParse(request.params)
-              .success
-              ? lcodeWorkspaceHookTrustGrantParamsSchema.parse(request.params).workspace
-                  .workspaceKey
-              : undefined,
-            sessions: this.context.sessions,
-          });
-        }
-        return grantResult;
-      }
-      case lcodeProtocolMethods.providerUpdateAccountConfig:
-        return await updateAccountProviderConfig(this.context, request.params);
-      case lcodeProtocolMethods.workspaceUpdateInteractionPreferences:
-        return await updateInteractionPreferences(this.context, request.params);
-      case lcodeProtocolMethods.workspaceUpdateModelIoPreferences:
-        return await updateModelIoPreferences(this.context, request.params);
-      case lcodeProtocolMethods.workspaceUpdateOffPeakToolPolicy:
-        return await updateOffPeakToolPolicy(this.context, request.params);
-      case lcodeProtocolMethods.workspaceUpdateDynamicWorkflowPolicy:
-        return await updateDynamicWorkflowPolicy(this.context, request.params);
-      case lcodeProtocolMethods.workspaceGenerateText:
-        return await this.withWorkspaceGenerateTextSignal(request, (signal) =>
-          generateWorkspaceText(this.context, request.params, signal),
-        );
-      case lcodeProtocolMethods.workspaceFileMutationJournal:
-        return await workspaceFileMutationJournal(this.context, request.params);
-      case lcodeProtocolMethods.workspaceCancelGenerateText:
-        return this.cancelWorkspaceGenerateText(request.params);
-      case lcodeProtocolMethods.providerTestModelConnectivity:
-        return await testProviderModelConnectivity(this.context, request.params);
-      case lcodeProtocolMethods.mcpList:
-        return await listMcpServers(this.context, request.params);
-      case lcodeProtocolMethods.pluginsList:
-        return await listPlugins(this.context, request.params);
-      case lcodeProtocolMethods.pluginsReferenceCatalogWithCategory:
-        return await getPluginReferenceCatalog(this.context, request.params, true);
-      case lcodeProtocolMethods.pluginsReferenceCatalog:
-        return await getPluginReferenceCatalog(this.context, request.params);
-      case lcodeProtocolMethods.skillsReferenceCatalog:
-        return await getSkillReferenceCatalog(this.context, request.params);
-      case lcodeProtocolMethods.workflowsList:
-        return await listSavedWorkflowsOp(this.context, request.params);
-      case lcodeProtocolMethods.workflowsGet:
-        return await getSavedWorkflowOp(this.context, request.params);
-      case lcodeProtocolMethods.workflowsUpdateMeta:
-        return await updateSavedWorkflowMetaOp(this.context, request.params);
-      case lcodeProtocolMethods.workflowsDelete:
-        return await deleteSavedWorkflowOp(this.context, request.params);
-      case lcodeProtocolMethods.workflowsRuns:
-        return await listSavedWorkflowRunsOp(this.context, request.params);
-      case lcodeProtocolMethods.workflowsMove:
-        return await moveSavedWorkflowOp(this.context, request.params);
-      case lcodeProtocolMethods.pluginsResolveSuggestedReference:
-        return await this.withPluginOperationSignal(request, (signal) =>
-          resolveSuggestedPluginReference(this.context, request.params, signal),
-        );
-      case lcodeProtocolMethods.pluginsSetEnabled:
-        return await this.withPluginOperationSignal(request, (signal) =>
-          setPluginEnabled(this.context, request.params, signal),
-        );
-      case lcodeProtocolMethods.pluginsOverview:
-        return await getPluginsOverview(this.context, request.params);
-      case lcodeProtocolMethods.processChildProcesses:
-        return listChildProcesses(this.context.deps.mcpTelemetry?.listProcesses() ?? []);
-      case lcodeProtocolMethods.runtimeCapabilities:
-        return { independentPlanState: true };
-      case lcodeProtocolMethods.pluginsMarketplaceAdd:
-        return await this.withPluginOperationSignal(request, (signal) =>
-          addPluginMarketplace(this.context, request.params, signal),
-        );
-      case lcodeProtocolMethods.pluginsMarketplaceRemove:
-        return await removePluginMarketplace(this.context, request.params);
-      case lcodeProtocolMethods.pluginsMarketplaceUpdate:
-        return await this.withPluginOperationSignal(request, (signal) =>
-          updatePluginMarketplace(this.context, request.params, signal),
-        );
-      case lcodeProtocolMethods.pluginsInstall:
-        return await this.withPluginOperationSignal(request, (signal) =>
-          installPlugin(this.context, request.params, signal),
-        );
-      case lcodeProtocolMethods.pluginsCancelOperation:
-        return this.cancelPluginOperation(request.params);
-      case lcodeProtocolMethods.pluginsUninstall:
-        return await uninstallPlugin(this.context, request.params);
-      case lcodeProtocolMethods.pluginsUpdate:
-        return await updatePlugin(this.context, request.params);
-      case lcodeProtocolMethods.pluginsRestoreBuiltin:
-        return await restoreBuiltinPlugin(this.context, request.params);
-      case lcodeProtocolMethods.pluginsConfigure:
-        return await configurePlugin(this.context, request.params);
-      case lcodeProtocolMethods.pluginsResetConfig:
-        return await resetPluginConfig(this.context, request.params);
-      case lcodeProtocolMethods.pluginsValidate:
-        return await validatePlugin(this.context, request.params);
-      case lcodeProtocolMethods.pluginsDescribe:
-        return await describePlugin(this.context, request.params);
-      case lcodeProtocolMethods.usageStats:
-        return await getUsageStats(this.context, request.params);
-      case lcodeProtocolMethods.sessionDebug:
-        return querySessionDebug(this.context, request.params);
-      case lcodeProtocolMethods.sessionUsage:
-        return await getTaskTokenUsage(this.context, request.params);
-      default:
-        throw new ProtocolRequestError(-32601, `Method not found: ${request.method}`);
-    }
-  }
-
-  private requireV4Gateway() {
-    if (!this.context.v4Gateway) {
-      throw new ProtocolRequestError(-32603, "v4 gateway is not initialized");
-    }
-    return this.context.v4Gateway;
-  }
-
-  private async withPluginOperationSignal<T>(
-    request: LCodeProtocolRequest,
-    run: (signal?: AbortSignal) => Promise<T>,
-  ): Promise<T> {
-    const operationId = getPluginOperationId(request.params);
-    if (!operationId) return await run();
-
-    const controller = new AbortController();
-    this.pluginOperationControllers.set(operationId, controller);
-    try {
-      return await run(controller.signal);
-    } finally {
-      if (this.pluginOperationControllers.get(operationId) === controller) {
-        this.pluginOperationControllers.delete(operationId);
-      }
-    }
-  }
-
-  private cancelPluginOperation(rawParams: unknown) {
-    const params = parseParams(lcodePluginsCancelOperationParamsSchema, rawParams);
-    const controller = this.pluginOperationControllers.get(params.operationId);
-    if (!controller) return { operationId: params.operationId, cancelled: false };
-    // 插件同步的可取消能力必须保留在 V4 server；仅按 operationId 中止对应链路。
-    controller.abort();
-    this.pluginOperationControllers.delete(params.operationId);
-    return { operationId: params.operationId, cancelled: true };
-  }
-
-  private async withWorkspaceGenerateTextSignal<T>(
-    request: LCodeProtocolRequest,
-    run: (signal?: AbortSignal) => Promise<T>,
-  ): Promise<T> {
-    const operationId = getOperationId(request.params);
-    if (!operationId) return await run();
-
-    if (this.workspaceGenerateTextControllers.has(operationId)) {
-      // 重复 operationId 会覆盖首个请求的 AbortController，导致首个请求失去取消能力。
-      // 活跃 operationId 必须保持唯一；请求结束后 finally 会释放，之后才允许复用。
-      throw new ProtocolRequestError(
-        -32600,
-        `Workspace generate operation is already active: ${operationId}`,
-      );
-    }
-
-    const controller = new AbortController();
-    this.workspaceGenerateTextControllers.set(operationId, controller);
-    try {
-      return await run(controller.signal);
-    } finally {
-      if (this.workspaceGenerateTextControllers.get(operationId) === controller) {
-        this.workspaceGenerateTextControllers.delete(operationId);
-      }
-    }
-  }
-
-  private cancelWorkspaceGenerateText(rawParams: unknown) {
-    const params = parseParams(lcodeWorkspaceCancelGenerateTextParamsSchema, rawParams);
-    const controller = this.workspaceGenerateTextControllers.get(params.operationId);
-    if (!controller) return { operationId: params.operationId, cancelled: false };
-    controller.abort(new DOMException("Workspace model request cancelled", "AbortError"));
-    this.workspaceGenerateTextControllers.delete(params.operationId);
-    return { operationId: params.operationId, cancelled: true };
+  private dispatchRequest(request: LCodeProtocolRequest) {
+    return dispatchRequest(
+      {
+        context: this.context,
+        postResponseOutbox: this.postResponseOutbox,
+        pluginOperationControllers: this.pluginOperationControllers,
+        workspaceGenerateTextControllers: this.workspaceGenerateTextControllers,
+      },
+      request,
+    );
   }
 
   private ok(id: LCodeProtocolRequestId, result: unknown): LCodeProtocolResponse {
@@ -811,127 +364,6 @@ export class LCodeProtocolAgentServer {
     resultSchema: ParamsSchema<T>,
     options?: LCodeProtocolClientRequestOptions,
   ): Promise<T> {
-    if (this.clientDisconnectError) {
-      throw this.clientDisconnectError;
-    }
-    if (!this.messageSink) {
-      throw new ProtocolRequestError(-32020, `No LCode Protocol client is attached for ${method}`);
-    }
-
-    return new Promise<T>((resolve, reject) => {
-      let active = true;
-      const pending: PendingClientRequest<T> = {
-        method,
-        reject,
-        resolve,
-        resultSchema,
-        requestKeys: new Set(),
-        signal: options?.signal,
-      };
-      const cleanup = () => {
-        active = false;
-        this.cleanupClientRequest(pending);
-      };
-      pending.abortHandler = () => {
-        cleanup();
-        reject(new ProtocolRequestError(-32021, `Client request cancelled: ${method}`));
-      };
-      if (options?.signal?.aborted) {
-        pending.abortHandler();
-        return;
-      }
-      if (options?.timeoutMs !== undefined) {
-        pending.timeout = setTimeout(() => {
-          cleanup();
-          reject(
-            new ProtocolRequestError(-32022, `Client request timed out: ${method}`, {
-              timeoutMs: options.timeoutMs,
-            }),
-          );
-        }, options.timeoutMs);
-      }
-      options?.signal?.addEventListener("abort", pending.abortHandler, { once: true });
-      const sendClientRequest = () => {
-        if (!active) {
-          return;
-        }
-        const id = `server-${this.nextClientRequestId++}`;
-        const key = String(id);
-        pending.requestKeys.add(key);
-        this.pendingClientRequests.set(key, pending as PendingClientRequest<unknown>);
-        this.messageSink?.({
-          id,
-          method,
-          params,
-          ...(options?.trace ? { trace: options.trace } : {}),
-        });
-      };
-      sendClientRequest();
-      const reannounceIntervalMs =
-        options?.reannounceIntervalMs !== undefined &&
-        Number.isFinite(options.reannounceIntervalMs) &&
-        options.reannounceIntervalMs > 0
-          ? Math.floor(options.reannounceIntervalMs)
-          : undefined;
-      if (reannounceIntervalMs !== undefined) {
-        let nextReannounceIntervalMs = reannounceIntervalMs;
-        const scheduleReannounce = () => {
-          pending.reannounceTimer = setTimeout(() => {
-            if (!active) {
-              return;
-            }
-            sendClientRequest();
-            nextReannounceIntervalMs = Math.min(
-              nextReannounceIntervalMs * 2,
-              MAX_CLIENT_REQUEST_REANNOUNCE_INTERVAL_MS,
-            );
-            scheduleReannounce();
-          }, nextReannounceIntervalMs);
-        };
-        scheduleReannounce();
-      }
-    });
-  }
-
-  private resolveClientRequest(id: LCodeProtocolRequestId, result: unknown): void {
-    const key = String(id);
-    const pending = this.pendingClientRequests.get(key);
-    if (!pending) {
-      return;
-    }
-    this.cleanupClientRequest(pending);
-    try {
-      pending.resolve(pending.resultSchema.parse(result));
-    } catch (error) {
-      pending.reject(
-        error instanceof Error ? error : new Error(`Invalid response: ${pending.method}`),
-      );
-    }
-  }
-
-  private rejectClientRequest(id: LCodeProtocolRequestId, error: Error): void {
-    const key = String(id);
-    const pending = this.pendingClientRequests.get(key);
-    if (!pending) {
-      return;
-    }
-    this.cleanupClientRequest(pending);
-    pending.reject(error);
-  }
-
-  private cleanupClientRequest<T>(pending: PendingClientRequest<T>): void {
-    if (pending.timeout) {
-      clearTimeout(pending.timeout);
-    }
-    if (pending.reannounceTimer) {
-      clearTimeout(pending.reannounceTimer);
-    }
-    if (pending.abortHandler) {
-      pending.signal?.removeEventListener("abort", pending.abortHandler);
-    }
-    for (const requestKey of pending.requestKeys) {
-      this.pendingClientRequests.delete(requestKey);
-    }
-    pending.requestKeys.clear();
+    return requestClient(this.clientRequests, method, params, resultSchema, options);
   }
 }

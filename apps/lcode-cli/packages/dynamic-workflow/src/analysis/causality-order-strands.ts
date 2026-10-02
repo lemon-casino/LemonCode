@@ -1,4 +1,5 @@
 import ts from "typescript";
+import type { ScriptLoc } from "../compiler/compile.js";
 import { isGlobalLibValue } from "./callbacks.js";
 import { boundIdentifiers } from "./causality-order-functions.js";
 import type { TraceState } from "./causality-order-state.js";
@@ -47,6 +48,10 @@ export interface AwaitedOperand {
   /** `state.strands.length` where the operand's evaluation began. */
   mark: number;
   operand: ts.Expression;
+  /** Only an explicit await supplies a source location for non-blocking advice. */
+  loc?: ScriptLoc;
+  ask?: string;
+  join?: string;
 }
 
 /** The frame a fresh settle lands in: the innermost open one. */

@@ -1,6 +1,6 @@
 import type { GitRepositorySummary } from "@lcode/shared";
 
-type GitActionMenuPrimaryActionId = "commit" | "push";
+type GitActionMenuPrimaryActionId = "commit" | "push" | "publish";
 
 export function canUseGitActionMenu(
   summary: Pick<GitRepositorySummary, "isGitAvailable" | "isRepository">,
@@ -13,8 +13,7 @@ export function resolveGitActionMenuPrimaryAction(options: {
   commitEnabled: boolean;
   pushEnabled: boolean;
 }): GitActionMenuPrimaryActionId | null {
-  // 关键业务逻辑：主按钮只承载提交或推送；创建分支保留在下拉菜单里。
-  // 这样干净仓库仍可通过菜单创建分支，但不会把“提交或推送”误触发为创建分支。
+  // 干净且已同步的仓库仍需显式创建/发布 Tag；入口只打开同一弹框，不产生 Git 副作用。
   if (options.actionAvailable && options.commitEnabled) {
     return "commit";
   }
@@ -23,7 +22,7 @@ export function resolveGitActionMenuPrimaryAction(options: {
     return "push";
   }
 
-  return null;
+  return options.actionAvailable ? "publish" : null;
 }
 
 export function canPushGitBranch(

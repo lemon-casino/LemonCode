@@ -1,6 +1,7 @@
 import {
   AMEND_WORKFLOW_TOOL_NAME,
   CREATE_WORKFLOW_TOOL_NAME,
+  MEMORY_REVIEW_TOOL_NAME,
   RESOLVE_WORKFLOW_QUESTION_TOOL_NAME,
   RESPOND_TO_COORDINATOR_TOOL_NAME,
   RESUME_WORKFLOW_RUN_TOOL_NAME,
@@ -44,6 +45,8 @@ const WORKFLOW_CHILD_DISALLOWED_TOOLS = [
   // 先例）：那一份是 driver 侧 persona 工具面的减法；这一份按 taskType 覆盖全部 workflow
   // child，不依赖 driver 记得写。
   RESOLVE_WORKFLOW_QUESTION_TOOL_NAME,
+  // 工作流child不自行开展会话记忆维护，避免派生费用与原工作区证据混入。
+  MEMORY_REVIEW_TOOL_NAME,
 ] as const;
 
 /**

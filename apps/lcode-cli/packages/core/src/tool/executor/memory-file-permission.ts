@@ -1,3 +1,9 @@
+import {
+  MEMORY_REVIEW_TOOL_NAME,
+  MEMORY_HISTORY_TOOL_NAME,
+  MemoryReviewInputSchema,
+  MemoryHistoryInputSchema,
+} from "@lcode/contracts";
 import type { PermissionDecisionResult } from "../../permission/service.js";
 import {
   resolveContainedMemoryFilePath,
@@ -19,6 +25,18 @@ interface MemoryFilePermissionInput extends MemoryFileTargetInput {
 export function applyMemoryFilePermission(
   input: MemoryFilePermissionInput,
 ): PermissionDecisionResult {
+  if (input.memoryRoot && isManagedMemoryOperation(input)) {
+    if (preservesExistingPermissionDecision(input.decision)) return input.decision;
+    return {
+      ...input.decision,
+      allowed: true,
+      decision: "allow",
+      escalated: false,
+      reason:
+        "Enabled workspace memory maintenance uses independent verification and version-checked storage",
+      ruleId: "memory.managed",
+    };
+  }
   const target = resolveMemoryFileTarget(input);
   if (!target || !input.memoryRoot) return input.decision;
 
@@ -49,9 +67,7 @@ export function targetsMemoryFile(input: MemoryFileTargetInput): boolean {
   return resolveMemoryFileTarget(input) !== undefined;
 }
 
-function resolveMemoryFileTarget(
-  input: MemoryFileTargetInput,
-): string | undefined {
+function resolveMemoryFileTarget(input: MemoryFileTargetInput): string | undefined {
   if (input.toolName !== "Write" && input.toolName !== "Edit") return undefined;
   if (!input.memoryRoot) return undefined;
 
@@ -69,6 +85,18 @@ function filePathFromInput(input: unknown): string | undefined {
   if (!input || typeof input !== "object") return undefined;
   const filePath = (input as Record<string, unknown>).file_path;
   return typeof filePath === "string" && filePath.length > 0 ? filePath : undefined;
+}
+
+function isManagedMemoryOperation(input: MemoryFileTargetInput): boolean {
+  if (input.toolName === MEMORY_REVIEW_TOOL_NAME) {
+    const parsed = MemoryReviewInputSchema.safeParse(input.executionInput);
+    return parsed.success && parsed.data.action === "create";
+  }
+  if (input.toolName === MEMORY_HISTORY_TOOL_NAME) {
+    const parsed = MemoryHistoryInputSchema.safeParse(input.executionInput);
+    return parsed.success && parsed.data.action === "undo";
+  }
+  return false;
 }
 
 function preservesExistingPermissionDecision(decision: PermissionDecisionResult): boolean {

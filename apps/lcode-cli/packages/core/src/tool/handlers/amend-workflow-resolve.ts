@@ -31,6 +31,7 @@ import {
 } from "./amend-workflow-source.js";
 import { resolveModelReference } from "./model-reference.js";
 import { workflowRunNotFoundFailure } from "./workflow-run-introspection.js";
+import { stripWorkflowAdvice, withWorkflowAdvice } from "./workflow-script-advice.js";
 
 export {
   AMEND_WORKFLOW_ERROR_CODE,
@@ -63,6 +64,13 @@ export function predecessorNotFoundFailure(runId: string): ToolHandlerFailure {
  * 则无从沿用，当场失败——不能退化成「只 typecheck」，因为没有可编译的东西。
  */
 export async function resolveAmendWorkflowInput(
+  input: unknown,
+  context: ToolInputResolutionContext,
+): Promise<ToolInputResolutionResult> {
+  return withWorkflowAdvice(await resolveAmendWorkflowSource(stripWorkflowAdvice(input), context));
+}
+
+async function resolveAmendWorkflowSource(
   input: unknown,
   context: ToolInputResolutionContext,
 ): Promise<ToolInputResolutionResult> {

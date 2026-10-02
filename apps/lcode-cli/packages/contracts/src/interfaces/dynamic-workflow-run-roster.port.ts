@@ -8,6 +8,12 @@
 // 三组字段挂在 `DynamicWorkflowRunDetail` 上，由读面在 `getRunDetail` 里读时派生；
 // 契约与不变式见下方各类型的注释。
 
+import type {
+  WorkflowNodeActivity,
+  WorkflowNodeQueue,
+  WorkflowRunNode,
+} from "@lcode/shared/lcode-protocol-v4";
+
 // 一条贯穿三组的纪律：**时间只有一个来源**，即 `dwf_event.time_created`（事件落 journal 的
 // 时刻）。读者现取 `Date.now()` 兜底是错的——那会把一次冷读里一周前的整段历史全标成「刚刚」，
 // 而这三组字段存在的全部理由就是让「多久以前」可信。没有这个列的老 journal 一律让时间字段
@@ -45,9 +51,9 @@ export interface DynamicWorkflowRunPhaseView {
 /**
  * 一个子代理此刻的处境。**读的顺序就是写的顺序**，前一条命中即定案：
  *
- * run 未终态：`parked`（有它自己的问题停在那儿等答案）→ `waiting`（当前 ask 的最后一条生命
- * 周期事件是 `node-waiting`：在等槽位或在退避）→ `executing`（有 ask 行还在跑）→ `failed`
- * （最后一条已结算的 ask 失败了）→ `idle`。
+ * run 未终态：`parked`（问题待答）→ `waiting`（已入队、准备派发、暂停或等待供应商）→
+ * `executing`（节点明确 executing/repairing/nudged）→ `failed`（最后一次 ask 失败）→ `idle`。
+ * journal running 仅代表未结算，不代表已派发；详细原因由 currentAsk.phase/queue 与 wait 说明。
  *
  * run 已终态：三个活着的词全部退场——`unfinished`（还有 ask 行标着 running，即进程死在它
  * 下面）→ `failed` → `done`。
@@ -72,7 +78,7 @@ export interface DynamicWorkflowRunSubagentLastTool {
   at?: number;
 }
 
-/** 子代理此刻正在跑的那一次 ask（有 ask 行还是 `running` 时在场）。 */
+/** 子代理当前未结算的队首 ask；phase 区分排队、准备、执行、等待与暂停。 */
 export interface DynamicWorkflowRunSubagentAsk {
   siteId: string;
   ordinal: number;
@@ -93,6 +99,9 @@ export interface DynamicWorkflowRunSubagentAsk {
   turn?: number;
   toolCalls?: number;
   lastTool?: DynamicWorkflowRunSubagentLastTool;
+  activity?: WorkflowNodeActivity;
+  phase?: WorkflowRunNode["phase"];
+  queue?: WorkflowNodeQueue;
 }
 
 /** 当前 ask 正在等什么（最后一条 `node-waiting` 的观察）。 */
@@ -101,6 +110,8 @@ export interface DynamicWorkflowRunSubagentWait {
   cause: "slot" | "backoff";
   reason?: string;
   retryAfterMs?: number;
+  attempt?: number;
+  nextRetryAt?: number;
   /**
    * **进入本次等待**的时刻（即最近一条非 waiting 生命周期事件之后的第一条
    * `node-waiting`），不是最后一条的时刻：退避阶梯会连发好几条，而读者问的是「它卡了多久」。
@@ -131,6 +142,8 @@ export interface DynamicWorkflowRunSubagentView {
   tokens: number;
   /** 最后一次被观察到在动的时刻（它名下任一节点的最后一条进度类事件）。 */
   lastProgressAt?: number;
+  /** 该 actor 已观察到的最近一次非缓存成功交付，与当前 ask 的活动独立。 */
+  lastDeliveredAt?: number;
 }
 
 /**

@@ -46,6 +46,7 @@ import {
   type WorkflowScriptLocation,
 } from "./workflow-script-notes.js";
 import { analyzeScript } from "./workflow-script-analysis.js";
+import { formatWorkflowAdvice, workflowAdviceOutput } from "./workflow-script-advice.js";
 import { describeWorkflowScriptPath } from "./workflow-script-path.js";
 
 const AMEND_WORKFLOW_TIMEOUT_MS = 15_000;
@@ -161,7 +162,8 @@ const amendWorkflowHandler: ToolHandler = async (input, context) => {
     return {
       diagnostics,
       ok,
-      response: `The revised workflow script compiled cleanly.\n\n${EXECUTION_UNAVAILABLE_NOTE}`,
+      response: `The revised workflow script compiled cleanly.\n\n${EXECUTION_UNAVAILABLE_NOTE}${formatWorkflowAdvice(analysis, location)}`,
+      ...workflowAdviceOutput(analysis),
       ...(causalityGraph === undefined ? {} : { causalityGraph }),
     } satisfies CreateWorkflowOutput;
   }
@@ -223,7 +225,8 @@ const amendWorkflowHandler: ToolHandler = async (input, context) => {
     ok,
     // 文案照 CreateWorkflow 的 backgrounded 引导：给出 id、说明仍在跑、结果以通知形式回来、
     // 显式劝阻默认轮询。
-    response: `${superseded} ${started} It is still running — you will be notified with the final output when it completes. Do not wait for it or poll it with TaskOutput; continue with other work unless the user asked you to wait.${describeWorkflowConcurrencyLimit(parsed.max_concurrency ?? undefined, port.concurrencyCeiling?.())}${describeWorkflowSubagentModel(parsed.subagent_model ?? undefined)}${location === undefined ? "" : workflowAmendedScriptSentence(location)}`,
+    response: `${superseded} ${started} It is still running — you will be notified with the final output when it completes. Do not wait for it or poll it with TaskOutput; continue with other work unless the user asked you to wait.${describeWorkflowConcurrencyLimit(parsed.max_concurrency ?? undefined, port.concurrencyCeiling?.())}${describeWorkflowSubagentModel(parsed.subagent_model ?? undefined)}${location === undefined ? "" : workflowAmendedScriptSentence(location)}${formatWorkflowAdvice(analysis, location)}`,
+    ...workflowAdviceOutput(analysis),
     status: "backgrounded",
     backgroundTaskId: amended.runId,
     ...(causalityGraph === undefined ? {} : { causalityGraph }),

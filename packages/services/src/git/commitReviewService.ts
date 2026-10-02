@@ -10,6 +10,7 @@ import {
   type Locale,
 } from "@lcode/shared";
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
+import { COMMIT_REVIEW_PROMPT_DATA_CHARS } from "./commitReviewModel.js";
 import type { GitCommitMessageGenerator } from "./gitCommitMessageGenerator.js";
 import {
   mergedSessionCommitPlan,
@@ -87,22 +88,15 @@ export class CommitReviewService {
       : planSessionCommits(snapshot.files, journal);
     let groups = await this.describe(plan);
     // 不能把截断的 diff 称为完整 AI 审核；大改动保守合并，明确要求人工读完冻结预览。
-    if (JSON.stringify(groups).length > 64_000) {
+    if (
+      JSON.stringify({ groups, warnings: plan.warnings }).length > COMMIT_REVIEW_PROMPT_DATA_CHARS
+    ) {
       plan = mergedSessionCommitPlan(snapshot.files, "review-truncated");
       groups = await this.describe(plan);
     }
-    let budget = 60_000;
-    const promptGroups = groups.map((group) => ({
-      ...group,
-      files: group.files.map((file) => {
-        const patch = file.patch.slice(0, Math.max(0, budget));
-        budget -= patch.length;
-        return { ...file, patch };
-      }),
-    }));
     const output = await this.model.review({
       ...params,
-      groups: promptGroups,
+      groups,
       warnings: plan.warnings,
     });
     if (output.decision === "merge") {
@@ -153,7 +147,10 @@ export class CommitReviewService {
     );
   }
 
-  async commit(params: GitCommitRequest): Promise<GitCommitResult> {
+  async commit(
+    params: GitCommitRequest,
+    assertBeforeCommit?: () => Promise<void>,
+  ): Promise<GitCommitResult> {
     const selected = gitCommitReviewSelectionSchema.parse(params.review);
     const entry = this.entries.get(selected.id);
     if (
@@ -166,7 +163,7 @@ export class CommitReviewService {
     if (done) return done;
     if (entry.pending) {
       await entry.pending;
-      return this.commit(params);
+      return this.commit(params, assertBeforeCommit);
     }
     const next = entry.review.groups.find((group) => !entry.done.has(group.id));
     if (!next || next.id !== selected.groupId)
@@ -174,8 +171,12 @@ export class CommitReviewService {
     if (next.requiresConfirmation && !selected.acknowledged)
       throw new Error("请先确认已人工检查合并范围及 AI 警告。");
     const planned = entry.plan.groups.find((group) => group.id === next.id)!;
-    entry.pending = this.repo
-      .commit(entry.snapshot, planned.files, params.message)
+    // 中文依据：先记录 admission，再校验新提交的发布版本；已完成 review/group 重试必须返回事实，不能被旧 expectedState 拦截。
+    entry.pending = Promise.resolve()
+      .then(async () => {
+        await assertBeforeCommit?.();
+        return this.repo.commit(entry.snapshot, planned.files, params.message);
+      })
       .then((result) => {
         // ref 成功事实必须先记录，再刷新 UI 或推送；网络重试不能再次创建同一候选提交。
         const committed = { ...result, summary: entry.snapshot.summary };

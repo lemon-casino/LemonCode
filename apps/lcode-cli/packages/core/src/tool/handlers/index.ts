@@ -59,6 +59,8 @@ import { taskOutputToolEntry } from "./task-output.js";
 import { taskStopToolEntry } from "./task-stop.js";
 import { readSessionContextToolEntry } from "./read-session-context.js";
 import { sessionHistorySearchToolEntry } from "./session-history-search.js";
+import { memorySearchToolEntry, memoryReviewToolEntry } from "./memory.js";
+import { memoryHistoryToolEntry } from "./memory-history.js";
 import { amendWorkflowToolEntry } from "./amend-workflow.js";
 import { createWorkflowToolEntry } from "./create-workflow.js";
 import { saveWorkflowToolEntry } from "./save-workflow.js";
@@ -107,6 +109,9 @@ export const builtInTools: ToolEntry[] = [
   taskStopToolEntry,
   sessionHistorySearchToolEntry,
   readSessionContextToolEntry,
+  memorySearchToolEntry,
+  memoryReviewToolEntry,
+  memoryHistoryToolEntry,
   agentToolEntry,
   taskToolEntry,
   skillToolEntry,

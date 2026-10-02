@@ -15,8 +15,15 @@
 import type { ToolCallGetWorkflowRunDisplay } from "@lcode/shared/lcode-protocol-v4";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
+  workflowActivityText,
+  workflowActivityTiming,
+} from "@/components/workflow-timeline/WorkflowExecutionActivity.js";
+import { workflowNodeActivity } from "@/components/workflow-timeline/timeline-activity.js";
+import { throttleReasonLabel } from "@/app-shell/workflowRunThrottle.js";
+import {
   formatWorkflowAge,
   formatWorkflowDuration,
+  formatWorkflowTimestamp,
   formatWorkflowTokenCount,
 } from "@/lib/workflowObservationFormat.js";
 import {
@@ -28,6 +35,7 @@ type WorkflowRunSubagentView = NonNullable<ToolCallGetWorkflowRunDisplay["subage
 type FormatMessage = ReturnType<typeof useLCodeIntl>["intl"]["formatMessage"];
 
 const I18N_PREFIX = "chat.toolCall.workflow.getRun.";
+const ACTIVITY_PREFIX = "chat.toolCall.workflow.activity.";
 
 /**
  * 相位词的语义色。词永远在场，颜色只是第二通道（DESIGN：状态不能只靠颜色）：
@@ -113,10 +121,12 @@ export function WorkflowRunSubagentRoster({
 /** 那几个进度读数任意一个在场，就说明这一行背后有一次 ask（扁平载荷没有 `currentAsk` 标记）。 */
 function hasCurrentAsk(subagent: WorkflowRunSubagentView): boolean {
   return (
+    subagent.askPhase !== undefined ||
     subagent.startedAt !== undefined ||
     subagent.turn !== undefined ||
     subagent.toolCalls !== undefined ||
     subagent.lastTool !== undefined ||
+    subagent.activity !== undefined ||
     subagent.instructionsHead !== undefined
   );
 }
@@ -126,84 +136,96 @@ function subagentActivity(
   generatedAt: number | undefined,
   formatMessage: FormatMessage,
 ): string[] {
+  const ended = subagent.state === "unfinished" || subagent.state === "done" || subagent.state === "failed";
+  // 新字段明确 admission/暂停；旧卡保留七态原词和历史统计，缺相位时不额外宣称实时执行。
+  const phase = subagent.askPhase ?? (subagent.state === "waiting" ? "waiting" : undefined);
+  const activity = workflowNodeActivity({
+    phase,
+    queue: subagent.queue,
+    activity: subagent.activity,
+    toolCalls: subagent.toolCalls,
+    ...(subagent.waitCause === undefined ? {} : {
+      wait: {
+        cause: subagent.waitCause,
+        since: subagent.waitSince,
+        attempt: subagent.retryAttempt,
+        reason: subagent.waitReason,
+        nextRetryAt: subagent.nextRetryAt,
+      },
+    }),
+  }, { ended, asking: subagent.state === "parked", deliveredAt: subagent.lastDeliveredAt });
+  const cells: string[] = [];
   if (subagent.state === "parked" && subagent.parkedOn !== undefined) {
-    // 只有 qid，没有提问时刻：卡面载荷不带 pendingQuestions，所以这一行说不出「等了多久」。
-    return [formatMessage({ id: `${I18N_PREFIX}subagent.parkedOn` }, { qid: subagent.parkedOn })];
+    cells.push(formatMessage({ id: `${I18N_PREFIX}subagent.parkedOn` }, { qid: subagent.parkedOn }));
+  } else if (subagent.state === "unfinished" && hasCurrentAsk(subagent)) {
+    cells.push(formatMessage({ id: `${I18N_PREFIX}subagent.inFlightAtStop` }));
+  } else if (!ended && (hasCurrentAsk(subagent) || subagent.state === "waiting")) {
+    cells.push(workflowActivityText(activity, formatMessage, generatedAt));
   }
-  if (subagent.state === "waiting") return waitCells(subagent, generatedAt, formatMessage);
-  if (subagent.state === "unfinished" && hasCurrentAsk(subagent)) {
-    return [formatMessage({ id: `${I18N_PREFIX}subagent.inFlightAtStop` })];
+  const timing = workflowActivityTiming(activity, generatedAt);
+  if (timing !== undefined) {
+    cells.push(`${formatMessage({ id: `${ACTIVITY_PREFIX}${timing.sinceKey}` })}: ${formatWorkflowTimestamp(timing.since)}`);
+    if (timing.elapsed !== undefined)
+      cells.push(`${formatMessage({ id: `${ACTIVITY_PREFIX}${timing.elapsedKey}` })}: ${timing.elapsed}`);
   }
-  if (hasCurrentAsk(subagent)) {
-    const cells = executingCells(subagent, generatedAt, formatMessage);
-    // 一次 ask 在飞但一个读数也没有（老 journal）：退回已结算步数，别留下一行只有相位词。
-    return cells.length > 0 ? cells : settledCells(subagent, formatMessage);
+  if ((activity.kind === "slot" || activity.kind === "backoff") && activity.toolName !== undefined) {
+    cells.push(workflowActivityText({ kind: "tool", toolName: activity.toolName }, formatMessage, generatedAt));
   }
-  return settledCells(subagent, formatMessage);
+  if (activity.reason !== undefined) cells.push(throttleReasonLabel(activity.reason, formatMessage));
+  // 老卡只带相对重试等待时仍按生成截面显示；不能换成 Date.now() 或用 observedAt 充当生成时刻。
+  if (activity.kind === "backoff" && subagent.nextRetryAt === undefined && subagent.retryAfterMs !== undefined) {
+    cells.push(formatMessage({ id: `${I18N_PREFIX}subagent.retryIn` }, {
+      duration: formatWorkflowDuration(subagent.retryAfterMs),
+    }));
+  }
+  // 等待分支原来提前返回，抹掉了同一 ask 的成功请求/并行工具；历史统计与当前活动分别追加。
+  cells.push(...observedCells(subagent, generatedAt, formatMessage));
+  if (cells.length === 0 || !hasCurrentAsk(subagent)) cells.push(...settledCells(subagent, formatMessage));
+  return cells;
 }
 
-function executingCells(
+function observedCells(
   subagent: WorkflowRunSubagentView,
   generatedAt: number | undefined,
   formatMessage: FormatMessage,
 ): string[] {
   const cells: string[] = [];
-  const onStep = formatWorkflowAge(generatedAt, subagent.startedAt);
-  if (onStep !== undefined) {
-    cells.push(formatMessage({ id: `${I18N_PREFIX}subagent.onStep` }, { age: onStep }));
+  if (subagent.state === "executing" && (subagent.askPhase === "executing" || subagent.askPhase === "repairing" || subagent.askPhase === "nudged")) {
+    const onStep = formatWorkflowAge(generatedAt, subagent.startedAt);
+    if (onStep !== undefined)
+      cells.push(formatMessage({ id: `${I18N_PREFIX}subagent.onStep` }, { age: onStep }));
   }
   if (subagent.turn !== undefined) {
     cells.push(formatMessage({ id: `${I18N_PREFIX}subagent.turn` }, { count: subagent.turn }));
   }
-  if (subagent.toolCalls !== undefined) {
-    cells.push(
-      formatMessage(
-        {
-          id: `${I18N_PREFIX}subagent.${subagent.toolCalls === 1 ? "toolCallsOne" : "toolCalls"}`,
-        },
-        { count: subagent.toolCalls },
-      ),
-    );
+  const activity = subagent.activity;
+  if (activity !== undefined)
+    cells.push(`${formatMessage({ id: `${ACTIVITY_PREFIX}requestsCompleted` })}: ${activity.requestsCompleted}`);
+  for (const [key, timestamp] of [
+    ["observedAt", activity?.observedAt],
+    ["lastRequestCompletedAt", activity?.lastRequestCompletedAt],
+    ["deliveredAt", subagent.lastDeliveredAt],
+  ] as const) {
+    if (timestamp === undefined) continue;
+    const age = formatWorkflowAge(generatedAt, timestamp);
+    const value = age === undefined ? formatWorkflowTimestamp(timestamp) : formatMessage({ id: `${I18N_PREFIX}age` }, { age });
+    cells.push(`${formatMessage({ id: `${ACTIVITY_PREFIX}${key}` })}: ${value}`);
+  }
+  const toolCalls = activity?.toolCalls ?? subagent.toolCalls;
+  if (toolCalls !== undefined) {
+    cells.push(formatMessage(
+      { id: `${I18N_PREFIX}subagent.${toolCalls === 1 ? "toolCallsOne" : "toolCalls"}` },
+      { count: toolCalls },
+    ));
   }
   if (subagent.lastTool !== undefined) {
     const { name, target, at } = subagent.lastTool;
     const age = formatWorkflowAge(generatedAt, at);
-    cells.push(
-      [
-        formatMessage({ id: `${I18N_PREFIX}subagent.lastTool` }, { name }),
-        target,
-        age === undefined ? undefined : formatMessage({ id: `${I18N_PREFIX}age` }, { age }),
-      ]
-        .filter((part): part is string => part !== undefined && part.length > 0)
-        .join(" "),
-    );
-  }
-  return cells;
-}
-
-function waitCells(
-  subagent: WorkflowRunSubagentView,
-  generatedAt: number | undefined,
-  formatMessage: FormatMessage,
-): string[] {
-  if (subagent.waitCause === undefined) return [];
-  const cells = [
-    formatMessage({
-      id: `${I18N_PREFIX}subagent.${subagent.waitCause === "slot" ? "waitingSlot" : "waitingBackoff"}`,
-    }),
-  ];
-  // 「等了多久」贴着原因，「还要等多久」收尾：两个时长挨在一起时读者分不清哪个是哪个。
-  const waited = formatWorkflowAge(generatedAt, subagent.waitSince);
-  if (waited !== undefined) {
-    cells.push(formatMessage({ id: `${I18N_PREFIX}subagent.waitedFor` }, { age: waited }));
-  }
-  if (subagent.retryAfterMs !== undefined) {
-    cells.push(
-      formatMessage(
-        { id: `${I18N_PREFIX}subagent.retryIn` },
-        { duration: formatWorkflowDuration(subagent.retryAfterMs) },
-      ),
-    );
+    cells.push([
+      formatMessage({ id: `${I18N_PREFIX}subagent.lastTool` }, { name }),
+      target,
+      age === undefined ? undefined : formatMessage({ id: `${I18N_PREFIX}age` }, { age }),
+    ].filter((part): part is string => part !== undefined && part.length > 0).join(" "));
   }
   return cells;
 }

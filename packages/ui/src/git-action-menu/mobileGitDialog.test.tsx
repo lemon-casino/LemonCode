@@ -3,17 +3,12 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { DialogContent } from "../components/ui/dialog.js";
 
-const source = await readFile(new URL("../GitActionMenu.tsx", import.meta.url), "utf8");
-const pushDialog = source.slice(
-  source.indexOf("function GitPushDialog("),
-  source.indexOf("export function GitActionMenu("),
-);
-const commitDialog = source.slice(
-  source.indexOf("function GitCommitDialog("),
-  source.indexOf("interface GitPushDialogProps"),
-);
+const commitDialog = await readFile(new URL("./GitCommitDialog.tsx", import.meta.url), "utf8");
+const feedback = await readFile(new URL("./GitPublishFeedback.tsx", import.meta.url), "utf8");
+const reviewPanel = await readFile(new URL("./GitCommitReviewPanel.tsx", import.meta.url), "utf8");
+const controller = await readFile(new URL("../GitActionMenu.tsx", import.meta.url), "utf8");
 
-// 源码/元素接线只证明具体 Dialog 的约束没有被通用 primitive 合并掉，不等于真实浏览器滚动通过。
+// 接线测试只证明使用同一有界 Dialog primitive；真实视口/滚动由 Web 夹具验证。
 function dialogContentClass(dialogSource: string): string {
   const className = dialogSource.match(/<DialogContent\b[\s\S]*?className="([^"]+)"/)?.[1];
   assert.ok(className);
@@ -21,37 +16,42 @@ function dialogContentClass(dialogSource: string): string {
   return portal.props.children[1].props.className;
 }
 
-test("push dialog bounds width and height locally and scrolls all the way through its footer", () => {
-  const className = dialogContentClass(pushDialog);
-  assert.ok(className.includes("w-[calc(100%-2rem)]"));
-  assert.match(className, /\bmax-w-lg\b/);
-  assert.match(className, /max-h-\[85dvh\]/);
-  assert.match(className, /\boverflow-y-auto\b/);
-  assert.doesNotMatch(className, /\boverflow-(?:hidden|clip)\b/);
-  assert.ok(pushDialog.indexOf("<DialogFooter") < pushDialog.indexOf("</DialogContent>"));
-});
-
-test("commit dialog retains the existing review scroll boundary with a narrow viewport margin", () => {
+test("commit and publish share the same bounded scrollable dialog on mobile", () => {
   const className = dialogContentClass(commitDialog);
+  assert.ok(className.includes("w-[calc(100%-2rem)]"));
+  assert.match(className, /\bmax-w-md\b/);
   assert.match(className, /max-h-\[85dvh\]/);
   assert.match(className, /\boverflow-y-auto\b/);
-  assert.match(className, /\bmax-w-md\b/);
-  assert.ok(className.includes("w-[calc(100%-2rem)]"));
   assert.match(commitDialog, /<GitCommitReviewPanel/);
-  assert.match(commitDialog, /!reviewCanSubmit/);
-  assert.match(commitDialog, /!hasIdentity && state\?\.identity !== null/);
+  assert.match(commitDialog, /<GitPublishPreview/);
+  assert.match(commitDialog, /<GitPublishResults/);
+  assert.doesNotMatch(controller, /GitPushDialog|openPushDialog/);
 });
 
-test("push details preserve long branches, full error text and the original action guards", () => {
-  assert.match(pushDialog, /\[overflow-wrap:anywhere\]/);
-  assert.match(pushDialog, /\bflex-wrap\b/);
-  assert.match(pushDialog, /\{currentBranchLabel\}/);
-  assert.match(pushDialog, /gitSummary\.trackingBranchName/);
-  assert.match(pushDialog, /<Textarea[\s\S]*?readOnly[\s\S]*?>\s*\{error\}/);
-  assert.match(pushDialog, /navigator\.clipboard\.writeText\(error\)/);
-  assert.match(pushDialog, /onClick=\{onSubmit\}\s*disabled=\{mutationPending \|\| !pushEnabled\}/);
-  assert.equal((pushDialog.match(/onClick=\{\(\) => onOpenChange\(false\)\}/g) ?? []).length, 2);
-  assert.equal((pushDialog.match(/disabled=\{mutationPending\}/g) ?? []).length, 2);
-  assert.match(pushDialog, /id: "common\.close"/);
-  assert.match(pushDialog, /id: "common\.cancel"/);
+test("publication preserves readable full errors and retries only failed pushes", () => {
+  assert.match(feedback, /\[overflow-wrap:anywhere\]/);
+  assert.match(feedback, /\bflex-wrap\b/);
+  assert.match(feedback, /row\.message/);
+  assert.match(feedback, /row\.status === "failed"/);
+  assert.match(feedback, /row\.kind === "branch" \|\| row\.kind === "tag"/);
+  assert.match(controller, /platform\.writeClipboardText/);
+  assert.doesNotMatch(controller, /navigator\.clipboard/);
+});
+
+test("keyboard action cannot select publishing or bypass regeneration/review guards", () => {
+  assert.match(commitDialog, /!reviewCanSubmit/);
+  assert.match(commitDialog, /props\.requiresRegeneration/);
+  assert.match(commitDialog, /!hasIdentity && state\?\.identity !== null/);
+  assert.match(commitDialog, /matchesPrimaryShortcut\(event, "Enter"\)/);
+  assert.match(commitDialog, /if \(!commitActionDisabled\) props\.onSubmit\(\)/);
+  assert.doesNotMatch(commitDialog, /triggerSelectedAction/);
+});
+
+test("large frozen reviews keep confirmation and manual fallback before a bounded file list", () => {
+  const acknowledge = reviewPanel.indexOf('data-testid="git-review-acknowledge"');
+  const manualFallback = reviewPanel.indexOf('data-testid="git-review-manual-fallback"');
+  const files = reviewPanel.indexOf('data-testid="git-review-files"');
+  assert.ok(acknowledge >= 0 && acknowledge < files);
+  assert.ok(manualFallback >= 0 && manualFallback < files);
+  assert.match(reviewPanel, /max-h-72 space-y-2 overflow-y-auto overscroll-contain/);
 });

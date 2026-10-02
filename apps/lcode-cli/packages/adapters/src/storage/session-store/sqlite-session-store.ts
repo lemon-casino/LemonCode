@@ -1,82 +1,38 @@
 import * as permissionFullAccessRepository from "./repositories/permission-full-access.js";
 import { DatabaseSync } from "node:sqlite";
 import type {
-  CollaborationMode,
   ClaimLegacySessionWorkspaceInput,
   RepairLegacyRemoteSessionWorkspaceInput,
   RepairRemoteSessionPathsInput,
-  CreateScriptWorkflowActivityInput,
-  CreateScriptWorkflowRunInput,
-  CreateSessionTaskLinkInput,
   CreateSessionInput,
   FileDiff,
-  ForkCommitBundle,
-  ForkChildSessionMetadata,
-  GoalStatus,
-  InputHistoryAttachment,
-  InputHistoryEntry,
-  InputHistoryKind,
   InputHistoryStorePort,
   ListSessionsInput,
-  AppUsageQueryInput,
-  AppUsageQueryResult,
   LocalSettingStorePort,
   MessageId,
   MessageInfo,
   MessagePart,
   MessageWithParts,
-  ModelUsageRecord,
   PartId,
-  PermissionRuleset,
-  ProjectId,
   SessionEntryInfo,
   SessionEntryType,
-  ScriptWorkflowActivityRecord,
-  ScriptWorkflowDefinitionRecord,
-  ScriptWorkflowEventRecord,
-  ScriptWorkflowRunRecord,
-  ScriptWorkflowRunStatus,
   ScriptWorkflowStorePort,
-  SessionGoal,
   SessionId,
   SessionInfo,
   SessionInputDelivery,
   SessionInputRecord,
   SessionInputStatus,
-  SessionTaskLinkRecord,
   SessionRevert,
   ReadSessionTranscriptSnapshotInput,
+  ReadSessionTranscriptWindowInput,
   SessionTranscriptSnapshot,
+  SessionTranscriptWindow,
   SessionStorePort,
-  SharedContextImportCommitBundle,
-  SharedContextImportTransition,
-  TaskUsageQueryInput,
-  TaskUsageQueryResult,
-  TodoItem,
-  ToolUsageRecord,
-  TurnUsageRecord,
-  UpsertScriptWorkflowDefinitionInput,
-  UpdateScriptWorkflowActivityInput,
   UpdateSessionInput,
-  UpdateScriptWorkflowRunInput,
   UsageStorePort,
 } from "@lcode/contracts";
 // 端口留在领域包 @lcode/dynamic-workflow，这里只做类型引用：adapters 运行时不依赖它。
 import type { JournalStorePort } from "@lcode/dynamic-workflow";
-import {
-  accountSessionTargetUsage,
-  clearSessionTarget,
-  cloneSessionTargetForFork,
-  createSessionTarget,
-  finishSessionTargetRun,
-  heartbeatSessionTargetRun,
-  readSessionTarget,
-  recoverInterruptedSessionTargetRun,
-  setSessionTarget,
-  startSessionTargetRun,
-  updateSessionTargetSummaryTitle,
-  updateSessionTargetStatus,
-} from "../session-target.js";
 import { SqliteSessionMigrationError } from "./errors.js";
 import {
   DEFAULT_SQLITE_STARTUP_LOCK_TIMEOUT_MS,
@@ -93,135 +49,23 @@ import { ensureParentDir, getDefaultSessionDbPath } from "./paths.js";
 import { maybeThrowStorageFsFault } from "../fs-fault-injection.js";
 import * as debugRepository from "./repositories/debug.js";
 import { createDwfJournalStore } from "./repositories/dwf-journal.js";
-import * as inputHistoryRepository from "./repositories/input-history.js";
-import * as localSettingsRepository from "./repositories/local-settings.js";
 import * as messageRepository from "./repositories/messages.js";
-import * as scriptWorkflowActivityRepository from "./repositories/script-workflow-activities.js";
-import * as scriptWorkflowRunRepository from "./repositories/script-workflow-runs.js";
 import * as sessionEntryRepository from "./repositories/session-entries.js";
 import * as sessionInputRepository from "./repositories/session-inputs.js";
 import * as sessionRepository from "./repositories/sessions.js";
-import * as todoRepository from "./repositories/todos.js";
 import * as transcriptSnapshotRepository from "./repositories/transcript-snapshot.js";
-import * as usageRepository from "./repositories/usage.js";
+import { readTranscriptWindow } from "./repositories/transcript-window.js";
 
-function forkChildSessionId(entry: SessionEntryInfo): SessionId | null {
-  if (!entry.data || typeof entry.data !== "object" || Array.isArray(entry.data)) return null;
-  const ack = (entry.data as Record<string, unknown>).ack;
-  if (!ack || typeof ack !== "object" || Array.isArray(ack)) return null;
-  const result = (ack as Record<string, unknown>).result;
-  if (!result || typeof result !== "object" || Array.isArray(result)) return null;
-  const sessionId = (result as Record<string, unknown>).sessionId;
-  return typeof sessionId === "string" && sessionId.length > 0 ? (sessionId as SessionId) : null;
-}
+import { sessionForkMethods } from "./store-fork.js";
+import { sharedContextMethods } from "./store-shared-context.js";
+import { sessionTargetMethods } from "./store-target.js";
+import { auxiliaryStoreMethods } from "./store-auxiliary.js";
+import type { StoreMethods } from "./store-access.js";
 
-function assertForkBundleChildLocal(bundle: ForkCommitBundle): void {
-  const childId = String(bundle.child.id);
-  const commandResult = bundle.commandFact.ack.result as unknown;
-  const result =
-    commandResult && typeof commandResult === "object" && !Array.isArray(commandResult)
-      ? (commandResult as Record<string, unknown>)
-      : null;
-  const sessionId = typeof result?.sessionId === "string" ? result.sessionId.trim() : "";
-  const isForkResult =
-    result?.type === "forkAssistant" ||
-    result?.type === "createSelectionSideSession" ||
-    (result?.type === "editUserQuery" && result.disposition === "fork");
-  if (!isForkResult || !sessionId || sessionId !== childId) {
-    // 缺失或非 fork 的 command result 会留下无法重放到 child 的幂等事实。
-    throw new Error("Fork bundle command result is missing, invalid, or not child-local");
-  }
-  const messageIds = new Set(bundle.messages.map((message) => String(message.info.id)));
-  const assertMessage = (value: unknown, field: string) => {
-    if (typeof value === "string" && !messageIds.has(value)) {
-      throw new Error(`Fork bundle ${field} is not child-local: ${value}`);
-    }
-  };
-  const targetIds = new Set<string>();
-  if (bundle.goal) targetIds.add(bundle.goal.source.targetID);
-  for (const message of bundle.messages) {
-    if (String(message.info.sessionID) !== childId) {
-      throw new Error("Fork bundle message session is not child-local");
-    }
-    if (message.info.role === "assistant" && !messageIds.has(String(message.info.parentID))) {
-      throw new Error("Fork bundle assistant parent is not child-local");
-    }
-    const anchor = message.info.anchor;
-    for (const id of anchor?.orderedMessageIds ?? []) {
-      assertMessage(id, "anchor orderedMessageId");
-    }
-    assertMessage(anchor?.boundaryMessageId, "anchor boundaryMessageId");
-    if (anchor?.goalBoundary?.kind === "snapshot") {
-      if (String(anchor.goalBoundary.target.sessionID) !== childId) {
-        throw new Error("Fork bundle anchor goal session is not child-local");
-      }
-      targetIds.add(anchor.goalBoundary.target.targetID);
-    }
-    for (const part of message.parts) {
-      if (
-        String(part.sessionID) !== childId ||
-        String(part.messageID) !== String(message.info.id)
-      ) {
-        throw new Error("Fork bundle part owner is not child-local");
-      }
-      if (part.type === "timeline") {
-        assertMessage(part.anchorMessageId, "timeline anchorMessageId");
-        if (part.timelineType === "context_compaction") {
-          assertMessage(part.summaryMessageId, "timeline summaryMessageId");
-        }
-        if (part.timelineType === "goal_verification") targetIds.add(part.targetId);
-      }
-      if (part.type === "compaction") {
-        assertMessage(part.tail_start_id, "compaction tail_start_id");
-        assertMessage(part.summaryMessageId, "compaction summaryMessageId");
-        const boundary = part.compactBoundary;
-        assertMessage(boundary?.lastSummarizedMessageId, "compact lastSummarizedMessageId");
-        for (const id of boundary?.summaryMessageIds ?? []) {
-          assertMessage(id, "compact summaryMessageId");
-        }
-        for (const id of boundary?.attachmentMessageIds ?? []) {
-          assertMessage(id, "compact attachmentMessageId");
-        }
-        for (const id of boundary?.hookResultMessageIds ?? []) {
-          assertMessage(id, "compact hookResultMessageId");
-        }
-        assertMessage(boundary?.preservedSegment?.headMessageId, "compact preserved head");
-        assertMessage(boundary?.preservedSegment?.anchorMessageId, "compact preserved anchor");
-        assertMessage(boundary?.preservedSegment?.tailMessageId, "compact preserved tail");
-      }
-      if (part.type === "tool" && part.state.status === "completed") {
-        for (const attachment of part.state.attachments ?? []) {
-          if (
-            String(attachment.sessionID) !== childId ||
-            String(attachment.messageID) !== String(message.info.id)
-          ) {
-            throw new Error("Fork bundle tool attachment owner is not child-local");
-          }
-        }
-      }
-    }
-  }
-  if (bundle.goal && String(bundle.goal.source.sessionID) !== childId) {
-    throw new Error("Fork bundle goal session is not child-local");
-  }
-  for (const entry of bundle.entries) {
-    if (String(entry.sessionID) !== childId) {
-      throw new Error("Fork bundle verifier entry session is not child-local");
-    }
-    const data =
-      entry.data && typeof entry.data === "object" && !Array.isArray(entry.data)
-        ? (entry.data as Record<string, unknown>)
-        : {};
-    const payload =
-      data.payload && typeof data.payload === "object" && !Array.isArray(data.payload)
-        ? (data.payload as Record<string, unknown>)
-        : {};
-    assertMessage(payload.anchorAssistantMessageId, "verifier assistant anchor");
-    if (typeof payload.targetId === "string" && !targetIds.has(payload.targetId)) {
-      throw new Error("Fork bundle verifier target is not child-local");
-    }
-  }
-}
+type ForkMethods = StoreMethods<typeof sessionForkMethods>;
+type SharedContextMethods = StoreMethods<typeof sharedContextMethods>;
+type TargetMethods = StoreMethods<typeof sessionTargetMethods>;
+type AuxiliaryMethods = StoreMethods<typeof auxiliaryStoreMethods>;
 
 const deferredStartup = Symbol("deferredSqliteStartup");
 
@@ -233,6 +77,50 @@ export class SqliteSessionStore
     ScriptWorkflowStorePort,
     UsageStorePort
 {
+  // 方法由下方 descriptor 安装，declare 不生成实例字段；连接/缓存仍由本类独占。
+  declare createForkedSessionWithMetadata: ForkMethods["createForkedSessionWithMetadata"];
+  declare commitForkBundle: ForkMethods["commitForkBundle"];
+  declare commitSharedContextImportBundle: SharedContextMethods["commitSharedContextImportBundle"];
+  declare transitionSharedContextImport: SharedContextMethods["transitionSharedContextImport"];
+  declare readTodos: TargetMethods["readTodos"];
+  declare updateTodos: TargetMethods["updateTodos"];
+  declare readTarget: TargetMethods["readTarget"];
+  declare setTarget: TargetMethods["setTarget"];
+  declare cloneTargetForFork: TargetMethods["cloneTargetForFork"];
+  declare createTarget: TargetMethods["createTarget"];
+  declare updateTargetStatus: TargetMethods["updateTargetStatus"];
+  declare startTargetRun: TargetMethods["startTargetRun"];
+  declare heartbeatTargetRun: TargetMethods["heartbeatTargetRun"];
+  declare finishTargetRun: TargetMethods["finishTargetRun"];
+  declare recoverInterruptedTargetRun: TargetMethods["recoverInterruptedTargetRun"];
+  declare accountTargetUsage: TargetMethods["accountTargetUsage"];
+  declare updateTargetSummaryTitle: TargetMethods["updateTargetSummaryTitle"];
+  declare clearTarget: TargetMethods["clearTarget"];
+  declare recordModelUsage: AuxiliaryMethods["recordModelUsage"];
+  declare upsertTurnUsage: AuxiliaryMethods["upsertTurnUsage"];
+  declare upsertToolUsage: AuxiliaryMethods["upsertToolUsage"];
+  declare pruneUsage: AuxiliaryMethods["pruneUsage"];
+  declare queryAppUsage: AuxiliaryMethods["queryAppUsage"];
+  declare queryTaskUsage: AuxiliaryMethods["queryTaskUsage"];
+  declare recordInputHistory: AuxiliaryMethods["recordInputHistory"];
+  declare recallPreviousInputHistory: AuxiliaryMethods["recallPreviousInputHistory"];
+  declare getProjectPermission: AuxiliaryMethods["getProjectPermission"];
+  declare saveProjectPermission: AuxiliaryMethods["saveProjectPermission"];
+  declare getProjectPermissionMode: AuxiliaryMethods["getProjectPermissionMode"];
+  declare saveProjectPermissionMode: AuxiliaryMethods["saveProjectPermissionMode"];
+  declare upsertScriptWorkflowDefinition: AuxiliaryMethods["upsertScriptWorkflowDefinition"];
+  declare createScriptWorkflowRun: AuxiliaryMethods["createScriptWorkflowRun"];
+  declare updateScriptWorkflowRun: AuxiliaryMethods["updateScriptWorkflowRun"];
+  declare getScriptWorkflowRun: AuxiliaryMethods["getScriptWorkflowRun"];
+  declare listScriptWorkflowRuns: AuxiliaryMethods["listScriptWorkflowRuns"];
+  declare createScriptWorkflowActivity: AuxiliaryMethods["createScriptWorkflowActivity"];
+  declare updateScriptWorkflowActivity: AuxiliaryMethods["updateScriptWorkflowActivity"];
+  declare findCachedScriptWorkflowActivity: AuxiliaryMethods["findCachedScriptWorkflowActivity"];
+  declare listScriptWorkflowActivities: AuxiliaryMethods["listScriptWorkflowActivities"];
+  declare appendScriptWorkflowEvent: AuxiliaryMethods["appendScriptWorkflowEvent"];
+  declare listScriptWorkflowEvents: AuxiliaryMethods["listScriptWorkflowEvents"];
+  declare createSessionTaskLink: AuxiliaryMethods["createSessionTaskLink"];
+
   private readonly db: DatabaseSync;
   private readonly dbPath: string;
   private readonly forkCommitFaultAt?: ForkCommitFaultStage;
@@ -315,270 +203,6 @@ export class SqliteSessionStore
     return sessionRepository.createSession(this.db, input);
   }
 
-  async createForkedSessionWithMetadata(
-    input: CreateSessionInput,
-    metadata: ForkChildSessionMetadata,
-  ): Promise<SessionInfo> {
-    this.throwBeforeWrite();
-    if (!input.parentID || String(input.parentID) !== metadata.parentSessionId) {
-      throw new Error("Fork child metadata parent does not match session parentID");
-    }
-    const orderedMessageIds = metadata.forkTarget.orderedMessageIds;
-    // compact 覆盖首轮 query 时，input 前稳定前缀合法为空；boundaryMessageId 仍记录
-    // 被编辑 input，供幂等事实定位，但不会被复制进 child。
-    const validBoundary =
-      metadata.forkTarget.boundaryMessageId.trim().length > 0 &&
-      (orderedMessageIds.length === 0 ||
-        orderedMessageIds.at(-1) === metadata.forkTarget.boundaryMessageId);
-    if (!metadata.sourceCommandId.trim() || !validBoundary) {
-      throw new Error("Fork child metadata is invalid");
-    }
-
-    // command key 是 (parentSessionId, sourceCommandId)；session_entry.id 是全库主键，
-    // 必须把 parent 纳入 id，避免两个 session 恰好复用 commandId 时互相覆盖事实。
-    const entryId = `v4_command_fact:child:${metadata.parentSessionId}:${metadata.sourceCommandId}`;
-    this.db.exec("begin immediate");
-    try {
-      const existing = sessionEntryRepository
-        .sessionEntries(this.db, {
-          sessionID: input.parentID,
-          type: "v4/command_fact",
-        })
-        .find((entry) => entry.id === entryId);
-      if (existing) {
-        const childSessionId = forkChildSessionId(existing);
-        if (!childSessionId) {
-          throw new Error(`Fork child command fact is corrupt: ${entryId}`);
-        }
-        const child = sessionRepository.getSession(this.db, childSessionId);
-        if (!child) {
-          throw new Error(`Fork child session is missing: ${childSessionId}`);
-        }
-        this.db.exec("commit");
-        return child;
-      }
-
-      const child = sessionRepository.createSession(this.db, input);
-      const now = Date.now();
-      sessionEntryRepository.saveSessionEntry(this.db, {
-        id: entryId,
-        sessionID: input.parentID,
-        type: "v4/command_fact",
-        time: { created: now, updated: now },
-        data: {
-          source: "child",
-          ack: {
-            commandId: metadata.sourceCommandId,
-            status: "accepted",
-            revisionAtDecision: 0,
-            result: { type: "forkAssistant", sessionId: String(child.id) },
-          },
-          metadata,
-        },
-      });
-      this.db.exec("commit");
-      return child;
-    } catch (error) {
-      this.db.exec("rollback");
-      throw error;
-    }
-  }
-
-  async commitForkBundle(bundle: ForkCommitBundle): Promise<SessionInfo> {
-    this.throwBeforeWrite();
-    const { child, commandFact, initialInput } = bundle;
-    if (
-      !child.parentID ||
-      String(child.parentID) !== commandFact.parentSessionId ||
-      (initialInput && String(initialInput.sessionID) !== String(child.id)) ||
-      commandFact.ack.commandId !== commandFact.sourceCommandId
-    ) {
-      throw new Error("Fork commit bundle identity is invalid");
-    }
-    const entryId = `v4_command_fact:child:${commandFact.parentSessionId}:${commandFact.sourceCommandId}`;
-    this.db.exec("begin immediate");
-    try {
-      const existing = sessionEntryRepository
-        .sessionEntries(this.db, {
-          sessionID: child.parentID,
-          type: "v4/command_fact",
-        })
-        .find((entry) => entry.id === entryId);
-      if (existing) {
-        const existingChildId = forkChildSessionId(existing);
-        const existingChild = existingChildId
-          ? sessionRepository.getSession(this.db, existingChildId)
-          : null;
-        if (!existingChild) throw new Error(`Fork bundle command fact is corrupt: ${entryId}`);
-        this.db.exec("commit");
-        return existingChild;
-      }
-
-      assertForkBundleChildLocal(bundle);
-      const persistedChild = sessionRepository.createSession(this.db, child);
-      this.maybeThrowForkCommitFault("afterChild");
-      for (const message of bundle.messages) {
-        const messageSource = bundle.copySources?.messages[message.info.id];
-        await messageRepository.saveMessage(
-          this.db,
-          message.info,
-          messageSource ? { sessionID: child.parentID, id: messageSource } : undefined,
-        );
-        for (const part of message.parts) {
-          const partSource = bundle.copySources?.parts[part.id];
-          await messageRepository.savePart(
-            this.db,
-            part,
-            partSource ? { sessionID: child.parentID, id: partSource } : undefined,
-          );
-        }
-      }
-      this.maybeThrowForkCommitFault("afterMessages");
-      if (bundle.goal) {
-        cloneSessionTargetForFork(this.db, {
-          source: bundle.goal.source,
-          sessionID: child.id,
-          status: bundle.goal.status,
-        });
-      }
-      this.maybeThrowForkCommitFault("afterGoal");
-      for (const entry of bundle.entries) {
-        sessionEntryRepository.saveSessionEntry(this.db, entry);
-      }
-      this.maybeThrowForkCommitFault("afterEntries");
-      if (initialInput) {
-        await sessionInputRepository.saveSessionInput(this.db, initialInput);
-      }
-      this.maybeThrowForkCommitFault("afterInput");
-      const now = Date.now();
-      sessionEntryRepository.saveSessionEntry(this.db, {
-        id: entryId,
-        sessionID: child.parentID,
-        type: "v4/command_fact",
-        time: { created: now, updated: now },
-        data: {
-          source: "child",
-          ack: commandFact.ack,
-          metadata: commandFact.metadata,
-        },
-      });
-      this.maybeThrowForkCommitFault("afterCommandFact");
-      this.maybeThrowForkCommitFault("beforeCommit");
-      this.db.exec("commit");
-      return persistedChild;
-    } catch (error) {
-      this.db.exec("rollback");
-      throw error;
-    }
-  }
-
-  async commitSharedContextImportBundle(
-    bundle: SharedContextImportCommitBundle,
-  ): Promise<SessionInfo> {
-    this.throwBeforeWrite();
-    const { session, contextMessage, provenance } = bundle;
-    if (
-      String(contextMessage.info.sessionID) !== String(session.id) ||
-      String(provenance.sessionID) !== String(session.id) ||
-      // session_entry.id 是全库主键，saveSessionEntry 的 on conflict(id)
-      // 会把 session_id 改绑到后写入者。provenance id 若不含 session 命名空间，同一个
-      // share 导入到第二个会话时会夺走第一个会话的条目（旧会话 transcript 静默丢失）。
-      // 这里在唯一写入口做守卫，覆盖所有调用方，而不是只修某一个构造点。
-      !provenance.id.includes(String(session.id)) ||
-      contextMessage.info.role !== "user" ||
-      contextMessage.info.visibility !== "model-only" ||
-      contextMessage.info.source !== "shared_context"
-    ) {
-      throw new Error("Shared context import bundle identity is invalid");
-    }
-    this.db.exec("begin immediate");
-    try {
-      const existing = sessionRepository.getSession(this.db, session.id);
-      if (existing) {
-        const entry = sessionEntryRepository
-          .sessionEntries(this.db, { sessionID: session.id, type: provenance.type })
-          .find((candidate) => candidate.id === provenance.id);
-        if (!entry) throw new Error("Shared context import session is incomplete");
-        this.db.exec("commit");
-        return existing;
-      }
-      const persisted = sessionRepository.createSession(this.db, session);
-      await messageRepository.saveMessage(this.db, contextMessage.info);
-      for (const part of contextMessage.parts) {
-        await messageRepository.savePart(this.db, part);
-      }
-      sessionEntryRepository.saveSessionEntry(this.db, provenance);
-      this.db.exec("commit");
-      return persisted;
-    } catch (error) {
-      this.db.exec("rollback");
-      throw error;
-    }
-  }
-
-  async transitionSharedContextImport(input: SharedContextImportTransition): Promise<boolean> {
-    this.throwBeforeWrite();
-    this.db.exec("begin immediate");
-    try {
-      const entry = sessionEntryRepository
-        .sessionEntries(this.db, { sessionID: input.sessionID, type: "v4/shared_context_import" })
-        .find((candidate) => {
-          const data = candidate.data;
-          return Boolean(
-            data &&
-            typeof data === "object" &&
-            !Array.isArray(data) &&
-            (data as Record<string, unknown>).contextId === input.contextId,
-          );
-        });
-      if (!entry) {
-        this.db.exec("rollback");
-        return false;
-      }
-      const data = entry.data as Record<string, unknown>;
-      const expected = Array.isArray(input.expectedStatus)
-        ? input.expectedStatus
-        : [input.expectedStatus];
-      if (!expected.includes(data.status as SharedContextImportTransition["status"])) {
-        this.db.exec("rollback");
-        return false;
-      }
-      sessionEntryRepository.saveSessionEntry(this.db, {
-        ...entry,
-        time: { ...entry.time, updated: Date.now() },
-        data: {
-          ...data,
-          status: input.status,
-          ...(input.sourceId ? { sourceId: input.sourceId } : {}),
-        },
-      });
-      const contextMessage = (
-        await messageRepository.messages(this.db, { sessionID: input.sessionID })
-      ).find((message) => {
-        const metadata = message.info.metadata;
-        return Boolean(
-          metadata &&
-          typeof metadata === "object" &&
-          (metadata as Record<string, unknown>).contextId === input.contextId,
-        );
-      });
-      if (contextMessage) {
-        await messageRepository.saveMessage(this.db, {
-          ...contextMessage.info,
-          metadata: {
-            ...(contextMessage.info.metadata ?? {}),
-            sharedContextStatus: input.status,
-          },
-        });
-      }
-      this.db.exec("commit");
-      return true;
-    } catch (error) {
-      this.db.exec("rollback");
-      throw error;
-    }
-  }
-
   async updateSession(input: UpdateSessionInput): Promise<SessionInfo> {
     this.throwBeforeWrite();
     return sessionRepository.updateSession(this.db, input);
@@ -654,6 +278,12 @@ export class SqliteSessionStore
     input: ReadSessionTranscriptSnapshotInput,
   ): Promise<SessionTranscriptSnapshot> {
     return transcriptSnapshotRepository.readTranscriptSnapshot(this.db, input);
+  }
+
+  async readTranscriptWindow(
+    input: ReadSessionTranscriptWindowInput,
+  ): Promise<SessionTranscriptWindow> {
+    return readTranscriptWindow(this.db, input);
   }
 
   async saveSessionEntry(input: SessionEntryInfo): Promise<void> {
@@ -736,179 +366,6 @@ export class SqliteSessionStore
     return sessionInputRepository.getSessionInputById(this.db, id);
   }
 
-  async readTodos(input: { sessionID: SessionId }): Promise<TodoItem[]> {
-    return todoRepository.readTodos(this.db, input);
-  }
-
-  async updateTodos(input: { sessionID: SessionId; todos: TodoItem[] }): Promise<void> {
-    this.throwBeforeWrite();
-    return todoRepository.updateTodos(this.db, input);
-  }
-
-  async readTarget(input: { sessionID: SessionId }): Promise<SessionGoal | null> {
-    return readSessionTarget(this.db, input);
-  }
-
-  async setTarget(input: {
-    objective: string;
-    sessionID: SessionId;
-    status?: GoalStatus;
-    tokenBudget?: number | null;
-  }): Promise<SessionGoal> {
-    return setSessionTarget(this.db, {
-      objective: input.objective,
-      sessionID: input.sessionID,
-      status: input.status ?? "active",
-      tokenBudget: input.tokenBudget,
-    });
-  }
-
-  async cloneTargetForFork(input: {
-    source: SessionGoal;
-    sessionID: SessionId;
-    status?: GoalStatus;
-  }): Promise<SessionGoal> {
-    this.throwBeforeWrite();
-    return cloneSessionTargetForFork(this.db, {
-      source: input.source,
-      sessionID: input.sessionID,
-      status: input.status ?? input.source.status,
-    });
-  }
-
-  async createTarget(input: {
-    objective: string;
-    sessionID: SessionId;
-    tokenBudget?: number | null;
-  }): Promise<SessionGoal | null> {
-    return createSessionTarget(this.db, input);
-  }
-
-  async updateTargetStatus(input: {
-    sessionID: SessionId;
-    status: GoalStatus;
-  }): Promise<SessionGoal | null> {
-    return updateSessionTargetStatus(this.db, input);
-  }
-
-  async startTargetRun(input: {
-    sessionID: SessionId;
-    targetID: string;
-    inputID: string;
-    startedAtMs: number;
-  }): Promise<SessionGoal | null> {
-    return startSessionTargetRun(this.db, input);
-  }
-
-  async heartbeatTargetRun(input: {
-    sessionID: SessionId;
-    targetID: string;
-    inputID: string;
-    seenAtMs: number;
-  }): Promise<SessionGoal | null> {
-    return heartbeatSessionTargetRun(this.db, input);
-  }
-
-  async finishTargetRun(input: {
-    sessionID: SessionId;
-    targetID: string;
-    inputID: string;
-    endedAtMs: number;
-    status?: GoalStatus;
-    tokensUsedDelta?: number;
-  }): Promise<SessionGoal | null> {
-    return finishSessionTargetRun(this.db, input);
-  }
-
-  async recoverInterruptedTargetRun(input: { sessionID: SessionId }): Promise<SessionGoal | null> {
-    return recoverInterruptedSessionTargetRun(this.db, input);
-  }
-
-  async accountTargetUsage(input: {
-    sessionID: SessionId;
-    targetID: string;
-    tokensUsedDelta?: number;
-    timeUsedSecondsDelta?: number;
-  }): Promise<SessionGoal | null> {
-    return accountSessionTargetUsage(this.db, input);
-  }
-
-  async updateTargetSummaryTitle(input: {
-    sessionID: SessionId;
-    targetID: string;
-    summaryTitle: string;
-  }): Promise<SessionGoal | null> {
-    return updateSessionTargetSummaryTitle(this.db, input);
-  }
-
-  async clearTarget(input: { sessionID: SessionId }): Promise<boolean> {
-    return clearSessionTarget(this.db, input);
-  }
-
-  async recordModelUsage(input: ModelUsageRecord): Promise<void> {
-    return usageRepository.recordModelUsage(this.db, input);
-  }
-
-  async upsertTurnUsage(input: TurnUsageRecord): Promise<void> {
-    return usageRepository.upsertTurnUsage(this.db, input);
-  }
-
-  async upsertToolUsage(input: ToolUsageRecord): Promise<void> {
-    return usageRepository.upsertToolUsage(this.db, input);
-  }
-
-  async pruneUsage(input?: { beforeTime?: number }): Promise<void> {
-    return usageRepository.pruneUsage(this.db, input);
-  }
-
-  async queryAppUsage(input: AppUsageQueryInput): Promise<AppUsageQueryResult> {
-    return usageRepository.queryAppUsage(this.db, input);
-  }
-
-  async queryTaskUsage(input: TaskUsageQueryInput): Promise<TaskUsageQueryResult> {
-    return usageRepository.queryTaskUsage(this.db, input);
-  }
-
-  async recordInputHistory(input: {
-    projectID: ProjectId;
-    sessionID?: SessionId;
-    text: string;
-    attachments?: InputHistoryAttachment[];
-    kind: InputHistoryKind;
-    time?: { created?: number };
-  }): Promise<InputHistoryEntry | null> {
-    return inputHistoryRepository.recordInputHistory(this.db, input);
-  }
-
-  async recallPreviousInputHistory(input: {
-    projectID: ProjectId;
-    skip?: number;
-  }): Promise<InputHistoryEntry | null> {
-    return inputHistoryRepository.recallPreviousInputHistory(this.db, input);
-  }
-
-  async getProjectPermission(projectID: ProjectId): Promise<PermissionRuleset | null> {
-    return localSettingsRepository.getProjectPermission(this.db, projectID);
-  }
-
-  async saveProjectPermission(input: {
-    projectID: ProjectId;
-    permission: PermissionRuleset;
-  }): Promise<PermissionRuleset> {
-    return localSettingsRepository.saveProjectPermission(this.db, input);
-  }
-
-  getProjectPermissionMode(projectID: ProjectId): CollaborationMode | null {
-    return localSettingsRepository.getProjectPermissionMode(this.db, projectID);
-  }
-
-  saveProjectPermissionMode(input: {
-    mode: CollaborationMode;
-    projectID: ProjectId;
-  }): CollaborationMode {
-    return localSettingsRepository.saveProjectPermissionMode(this.db, input);
-  }
-
   async setRevert(input: {
     sessionID: SessionId;
     revert: SessionRevert;
@@ -919,84 +376,6 @@ export class SqliteSessionStore
 
   async clearRevert(sessionID: SessionId): Promise<void> {
     return sessionRepository.clearRevert(this.db, sessionID);
-  }
-
-  async upsertScriptWorkflowDefinition(
-    input: UpsertScriptWorkflowDefinitionInput,
-  ): Promise<ScriptWorkflowDefinitionRecord> {
-    return scriptWorkflowRunRepository.upsertScriptWorkflowDefinition(this.db, input);
-  }
-
-  async createScriptWorkflowRun(
-    input: CreateScriptWorkflowRunInput,
-  ): Promise<ScriptWorkflowRunRecord> {
-    return scriptWorkflowRunRepository.createScriptWorkflowRun(this.db, input);
-  }
-
-  async updateScriptWorkflowRun(
-    input: UpdateScriptWorkflowRunInput,
-  ): Promise<ScriptWorkflowRunRecord> {
-    return scriptWorkflowRunRepository.updateScriptWorkflowRun(this.db, input);
-  }
-
-  async getScriptWorkflowRun(runId: string): Promise<ScriptWorkflowRunRecord | null> {
-    return scriptWorkflowRunRepository.getScriptWorkflowRun(this.db, runId);
-  }
-
-  async listScriptWorkflowRuns(input?: {
-    cwd?: string;
-    limit?: number;
-    statuses?: readonly ScriptWorkflowRunStatus[];
-  }): Promise<ScriptWorkflowRunRecord[]> {
-    return scriptWorkflowRunRepository.listScriptWorkflowRuns(this.db, input);
-  }
-
-  async createScriptWorkflowActivity(
-    input: CreateScriptWorkflowActivityInput,
-  ): Promise<ScriptWorkflowActivityRecord> {
-    return scriptWorkflowActivityRepository.createScriptWorkflowActivity(this.db, input);
-  }
-
-  async updateScriptWorkflowActivity(
-    input: UpdateScriptWorkflowActivityInput,
-  ): Promise<ScriptWorkflowActivityRecord> {
-    return scriptWorkflowActivityRepository.updateScriptWorkflowActivity(this.db, input);
-  }
-
-  async findCachedScriptWorkflowActivity(input: {
-    callPath: string;
-    inputHash: string;
-    runId: string;
-  }): Promise<ScriptWorkflowActivityRecord | null> {
-    return scriptWorkflowActivityRepository.findCachedScriptWorkflowActivity(this.db, input);
-  }
-
-  async listScriptWorkflowActivities(input: {
-    runId: string;
-  }): Promise<ScriptWorkflowActivityRecord[]> {
-    return scriptWorkflowActivityRepository.listScriptWorkflowActivities(this.db, input);
-  }
-
-  async appendScriptWorkflowEvent(input: {
-    activityId?: string;
-    id: string;
-    payload?: unknown;
-    phase?: string;
-    runId: string;
-    type: string;
-  }): Promise<ScriptWorkflowEventRecord> {
-    return scriptWorkflowActivityRepository.appendScriptWorkflowEvent(this.db, input);
-  }
-
-  async listScriptWorkflowEvents(input: {
-    limit?: number;
-    runId: string;
-  }): Promise<ScriptWorkflowEventRecord[]> {
-    return scriptWorkflowActivityRepository.listScriptWorkflowEvents(this.db, input);
-  }
-
-  async createSessionTaskLink(input: CreateSessionTaskLinkInput): Promise<SessionTaskLinkRecord> {
-    return scriptWorkflowActivityRepository.createSessionTaskLink(this.db, input);
   }
 
   /**
@@ -1014,6 +393,18 @@ export class SqliteSessionStore
 
   debugCounts(sessionID?: SessionId): SessionStoreDebugCounts {
     return debugRepository.debugCounts(this.db, sessionID);
+  }
+}
+
+// 保持既有 class prototype 方法描述符和调用 arity；拆出的职责借用同一实例，不复制连接/缓存。
+for (const methods of [
+  sessionForkMethods,
+  sharedContextMethods,
+  sessionTargetMethods,
+  auxiliaryStoreMethods,
+]) {
+  for (const [name, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(methods))) {
+    Object.defineProperty(SqliteSessionStore.prototype, name, { ...descriptor, enumerable: false });
   }
 }
 

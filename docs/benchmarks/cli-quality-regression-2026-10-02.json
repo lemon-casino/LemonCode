@@ -1,0 +1,1197 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-02",
+  "status": "passed-after-test-entrypoint-correction",
+  "nodeVersion": "v24.14.1",
+  "pinnedNodeVersion": "24.14.0",
+  "scope": "One independent full CLI offline regression followed by an authorized debug-only launcher correction and one previously uncovered pure statistics file. No repeated agent-directed results counted.",
+  "countsRule": "Select the latest authorized result per group. Preserve the initial failures separately. The debug 9 cases replace its initial 9; append only the two new pure statistics cases.",
+  "totals": {
+    "files": 155,
+    "executedGroups": 14,
+    "passedGroups": 14,
+    "failedGroups": 0,
+    "noTestGroups": 3,
+    "counts": {
+      "tests": 722,
+      "suites": 0,
+      "pass": 722,
+      "fail": 0,
+      "skip": 0,
+      "cancel": 0,
+      "todo": 0
+    },
+    "allAttemptWallMs": 241157.5931,
+    "selectedGroupDurationMs": 240241.69329999998
+  },
+  "groups": [
+    {
+      "name": "adapters",
+      "fileCount": 34,
+      "files": [
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/browser/session-command.test.ts",
+          "sha256": "dd1de7373f74ab0ade6ae78dc61935988a86a2afd79444d3e164d0b3e47e0ffd",
+          "bytes": 5926
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/config/file-config.test.ts",
+          "sha256": "d0d633ecbc5b08e6f0df3ad43a605caec8329c207c6ac1e083b6a1ad052448fa",
+          "bytes": 4639
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/config/session-recall-config.test.ts",
+          "sha256": "ff53f747f681ad474f94a670d351544b6793585006d3dd09f63e018cc5c38533",
+          "bytes": 1052
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/exec/nul-redirection.test.ts",
+          "sha256": "00e26761aa3ef9e998ea3bd7209f37ed5fc9b430e35e3bfba6202480d7cbaed9",
+          "bytes": 3570
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/exec/preview-process-cleanup.test.ts",
+          "sha256": "499a2ad5064842493b6b62e9efec727129658a0abfe619c3cfa558a6ff152e59",
+          "bytes": 3601
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/exec/preview-process-settlement.test.ts",
+          "sha256": "5d2474b6a73b38ac18699cee5b5680824f8d2a12b7b9483768e3e36c662ec428",
+          "bytes": 3900
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/fs/directory-listing.test.ts",
+          "sha256": "647253a66076ac37eb9c331a0c4b6bc4bd647555d5160fb503bf838ce5bbb0e5",
+          "bytes": 4227
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/fs/file-operations.test.ts",
+          "sha256": "abfb8dd7ae24fc0694cb4eff0bbbfa30dc4de390596e030436ed5f4d655db4cd",
+          "bytes": 4644
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/fs/search.test.ts",
+          "sha256": "ef54d5c73bdd25694f7e0633bfb9cc39ae6aa4f5cd4fff6f1d403bba9a717bb6",
+          "bytes": 8270
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/mcp/adapter.test.ts",
+          "sha256": "2d96f8055c56db961f025c0461cfc0390f2681073c08ccf684bd2f7907b2352e",
+          "bytes": 4523
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/mcp/oauth-interactive-provider.test.ts",
+          "sha256": "3889489acf120d51bebb7f8f96158b0cc32a5f8da2a0e975e117a104a4a79405",
+          "bytes": 6139
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/mcp/official-auth.test.ts",
+          "sha256": "f0ded7f546ddd56ffa8a3010f470c2057684d3f43bfd460e12b9dcac127f6b9b",
+          "bytes": 5113
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/mcp/pool.test.ts",
+          "sha256": "c324b6acd483b616778a9100a6f902d1d57178628c2c6d125dea52c777500762",
+          "bytes": 6155
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/model/anthropic-stream-compat.test.ts",
+          "sha256": "bdc306558db09ed3494138cb531bb3d3e4395d299569281dd0c25da7caba566c",
+          "bytes": 1329
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/model/model-execution-api-key-failover.test.ts",
+          "sha256": "b8a626cd116b48af697df1b49b2438beaed00217914971355e14bea81ec84a52",
+          "bytes": 9889
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/model/model-selection-speed.test.ts",
+          "sha256": "d7785296875a693d132d4f3b33d1a9756d35af5a81c86b0cf6cd829801cd82fd",
+          "bytes": 2154
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/model/model-speed-request.test.ts",
+          "sha256": "45f6c4743feda5d037f139a3b91b19ff397f5cda082fb7c723d60332dcc15fa3",
+          "bytes": 6417
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/model/reasoning-history-normalization.test.ts",
+          "sha256": "ea92c67187decf7f25457bf91304e7f61fba1fa6dc0bd45a8f32b0c893f3ef2c",
+          "bytes": 3289
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/model/runner-event-order.test.ts",
+          "sha256": "8438d913ea062dcfc1f3adef52718bb1bbefe79f880c820ec85031da25ce0536",
+          "bytes": 9971
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/model/runner-failover-yield.test.ts",
+          "sha256": "c472ba2c35c3ba80cc440d3e4fa69366374389bbf083d523395bfbe818db5bd7",
+          "bytes": 37488
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/model/runner-runtime-headers.test.ts",
+          "sha256": "11677ccf76b8f6293fb9031af42acf467cec3ba1eec62796b2d6584cf015cd92",
+          "bytes": 2979
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/model/ui-tars-action-codec.test.ts",
+          "sha256": "c0346295f122951095b31aa8348fb563a13df941a21e7d3d3c93897d814ee59e",
+          "bytes": 5231
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/model/ui-tars-model-executor.test.ts",
+          "sha256": "df897195872680694b463cfa99faaa464596f2d8da574bba65f8ad4f61ca8681",
+          "bytes": 23799
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/model/ui-tars-provider-wire.test.ts",
+          "sha256": "ad701fe596eaf930a13a6a8d7b9ed4e9e3a81578bba5f8fd9c1bf1acca5bc663",
+          "bytes": 9065
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/plugins/lint-baseline.test.ts",
+          "sha256": "50d521f9b8e36feed11c365f9136df7670a90f7f5d52d0053a9401d26e837ad6",
+          "bytes": 8647
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/plugins/zip-extract.test.ts",
+          "sha256": "d899bfdbd26a3bd94d25bf25cd82ab22eb3c9bf710e94ac98575db12b87f16e0",
+          "bytes": 3574
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/skills/skill-loading.test.ts",
+          "sha256": "4c5a53c2d2bd290411cbd401b90359e9cdb7490a44a62e19f73cd4209761b7b8",
+          "bytes": 3799
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/storage/artifact-store.test.ts",
+          "sha256": "8971d5cf989297013b11cd23938bdf2c92a1d1a34bc5783fb853973e5d7d8d34",
+          "bytes": 2828
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/storage/session-store/migration-runner.test.ts",
+          "sha256": "523789e3e4d71e26fc8ac1405232a44dc545e1cff5214a5c99ea36a6661904a8",
+          "bytes": 5586
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/storage/session-store/repositories/dwf-journal-model-provenance.test.ts",
+          "sha256": "07c2868bb55f788df1677603d67845e36c9aa9313bff05f0b9952aa51e87c75f",
+          "bytes": 3496
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/storage/session-store/store-accounting.test.ts",
+          "sha256": "a133ff4d0b82f21443b0ef7b24ae73964aec67fccf0b29e6c3c1adbe8fd609d6",
+          "bytes": 4745
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/storage/session-store/store-transactions.test.ts",
+          "sha256": "b25dca96905dca71d1716e1201e5036ce7644fc68ed484386fbefa74dbb86f31",
+          "bytes": 6916
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/storage/session-store/transcript-snapshot.test.ts",
+          "sha256": "8c75c75d84ebfc133ce447b2599c3c3cc44abe929ecf4d772047d006ffa77ebf",
+          "bytes": 4485
+        },
+        {
+          "path": "apps/lcode-cli/packages/adapters/src/storage/workspace-hook-trust-store.test.ts",
+          "sha256": "073896970b13e191ef73870b64950a38100d5b10339aba216b520b7138496337",
+          "bytes": 3624
+        }
+      ],
+      "command": "node --import tsx --test --test-concurrency=1 [listed files]",
+      "status": "passed",
+      "counts": {
+        "tests": 171,
+        "suites": 0,
+        "pass": 171,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 49572.289600000004,
+      "exitCode": 0,
+      "attemptKind": "initial-full-regression"
+    },
+    {
+      "name": "bootstrap",
+      "fileCount": 51,
+      "files": [
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/child-skill-inheritance.test.ts",
+          "sha256": "1338d72c450082520862413a2c386a8b244391d60884fe8a4427da94c7a4b8ec",
+          "bytes": 3813
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/dynamic-workflow-run-activity-time.test.ts",
+          "sha256": "7e5730513503280125043fdb96215241aa9801d8955d80f2d710d77a8f8e4491",
+          "bytes": 1702
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/dynamic-workflow-run-launch-anchor.test.ts",
+          "sha256": "7b8c3bc80679e178d57c2a538de44a0f76ae11dbfeb68f2d6524a180f8d1c985",
+          "bytes": 3767
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/dynamic-workflow-run-launch-failover.test.ts",
+          "sha256": "e1586d1dbe53e41c77603a4e38a5a14c1b11fbc0a954f270a592a65a3eeba38a",
+          "bytes": 10937
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/dynamic-workflow-run-lifecycle.test.ts",
+          "sha256": "75d715d87daf03caf27d87d7ef457cba4ad463d023b92c2bab9c3aee0c93aa9f",
+          "bytes": 3010
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/dynamic-workflow-run-submit.test.ts",
+          "sha256": "bbbaca2c52754a13b414c7b00f76b9112119b24e06ee960360056cadb965703f",
+          "bytes": 515
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/provider-registry-selection.test.ts",
+          "sha256": "83052b3a72d6b49ce478a9843280a7312d4b8c68ff71cad10172f3ecac1ca406",
+          "bytes": 1547
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/provider-save-generation.test.ts",
+          "sha256": "0efd4cf36bd5260e52b0d37ba318760d71d7e191c78ed019c47649010961a4cc",
+          "bytes": 3941
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/provider-temporary-model.test.ts",
+          "sha256": "ca9ebe2e20850876c71566b01c61faa54e8af2e54d442625fbed2b7938d97b3e",
+          "bytes": 9889
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/runtime-session-recall-config.test.ts",
+          "sha256": "e73b96acee4d3c3cf553e9d6b31717b3083cfe8ae134cccc996be73ba2108fe1",
+          "bytes": 1445
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/session-facade-close.test.ts",
+          "sha256": "f52633b1168d4bc71f32d52a53c663377c819d985b71650fad24f5f9e69c1f28",
+          "bytes": 7397
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/standalone-account-provider-runtime.test.ts",
+          "sha256": "c54a321ea9da002ace1fb643b4edc4a1673a9d8e74b5ef84ba3a1b2919196ad5",
+          "bytes": 3229
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/workflow-activity-roster.test.ts",
+          "sha256": "b7980bd5dba4ffee5a1832b460d5cb82f559f6a1916e9a6493a417549566aed2",
+          "bytes": 7186
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/workflow-actor-model.test.ts",
+          "sha256": "a8114bc7287b1e7cb90b6bd09ed0a96dae741e277db20b33db146bc3fc517aa1",
+          "bytes": 7735
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/workflow-actor-tools.test.ts",
+          "sha256": "e31d630bfcf84d95be203714dff84733451736da939adef0039bd35e8be08ad9",
+          "bytes": 1160
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/workflow-driver-activity-wiring.test.ts",
+          "sha256": "25c3f3d395ed9b55c10c3a85572aed3c5219d642adcd844d4a6cd3c3405a51bf",
+          "bytes": 11612
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/workflow-driver-activity.test.ts",
+          "sha256": "daa15aa471c9f7f810f67ab497266f338e0da8f8f3ca03e2d69c8c6678b25e3f",
+          "bytes": 22975
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/workflow-driver-controls.test.ts",
+          "sha256": "da7b00a252d4e39c337466b8403b188045a2667113ebf3f431396e68aa4d99f8",
+          "bytes": 12602
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/workflow-driver-model-failure.test.ts",
+          "sha256": "7854eb1296ca593fd7a951dbe29bf5dfd8b494cea9009504ab436dde2f1c1d05",
+          "bytes": 2122
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/workflow-driver-session-identity.test.ts",
+          "sha256": "6e86624bdbf9f1d8eeb6950c4a63d84f868e3112a9497ff77c7f0eeb53912ffa",
+          "bytes": 3620
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/workflow-driver-turns.test.ts",
+          "sha256": "bebfc8a1fda9606baabbc79b9c09fa305ba1c8e8aaf2c77c59f69a7a0063380c",
+          "bytes": 9023
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/workflow-import-reuse.test.ts",
+          "sha256": "766a034293328dc912406955a48bcaf45fc1db7ffcacf9b4329cc6d3e3ae7f3f",
+          "bytes": 5471
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/workflow-model-progress.test.ts",
+          "sha256": "17759551c6c6b950345b37de9a993f9566d0c402e7a37716f5b24ffbe1880ffd",
+          "bytes": 2732
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/workflow-revision-causality.test.ts",
+          "sha256": "74b019d5a6c66f921f39a1d6f5d1a6d45ffa7a148e7abfcb71c5beb2f038e1e1",
+          "bytes": 1096
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/app/workflow-tool-operation-admission.test.ts",
+          "sha256": "c476d987a7f664086e86f5950415139d3eaf02a1ea5b6496be340dc77d81bc39",
+          "bytes": 2389
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/checkpoint-file-content.test.ts",
+          "sha256": "4e256d9baa4c06ca3d6394211579888c8f52e04566970e00e30b40586cac88b9",
+          "bytes": 824
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/background-result-consumption.test.ts",
+          "sha256": "ef91b67f0f161c69fe8363fa682093e6bfe8506612e663a65575341b2f964676",
+          "bytes": 8658
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/command-inbox-contract.test.ts",
+          "sha256": "74becb96ea559cb4338aa15d006f2a15a87ba48800794e53b836ef77f9727293",
+          "bytes": 3814
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/commands/handlers/queue-handoff.test.ts",
+          "sha256": "2c18e36a7f899fad72ca184c81d9f5ad1b9e85e945949fc4a494fa0ac087ef6c",
+          "bytes": 4838
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/commands/input-intent-model-selection.test.ts",
+          "sha256": "a405b14ca289f55edaae795898cb5e806c31afe21dc288139cd4b07e4075c6a6",
+          "bytes": 1730
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/conversation-telemetry-contract.test.ts",
+          "sha256": "9b8cd8535fcc0b8adf0d3e7a92cd7ca51ed69228162abada7de31b81e1535556",
+          "bytes": 5535
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/conversation-topic-contract.test.ts",
+          "sha256": "cf95e17c64f4ddf910e83c1459c6479718f00c54d998b1d513bb7711c52e4a62",
+          "bytes": 4845
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/execution-failover.test.ts",
+          "sha256": "cd39575ecfcab1bc3931699f0c99fba2245eaaadd1a2e3fea3fb154cf4999f59",
+          "bytes": 10254
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/model-output-statistics.test.ts",
+          "sha256": "a1f180ecf8a50580490968737f0132328e56eb7c6e9cdd19445b8d436bcdb90f",
+          "bytes": 8421
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/product-projection-state.test.ts",
+          "sha256": "6483e0a0149d3325b914988668d6bfcfc91c2159415b5cba12fb0408b707eefd",
+          "bytes": 11029
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/transcript-hydration-refactor.test.ts",
+          "sha256": "37ea88cf8b14048181195cc5509f8576a101f521bd195ef4c3f83540a43deb9e",
+          "bytes": 8284
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/turn-file-changes.test.ts",
+          "sha256": "7b316db5f8e2b540c0f1868cae17158e4046e018b3b09dea56e17b967f53dda9",
+          "bytes": 4919
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/v4-gateway-contract.test.ts",
+          "sha256": "2f2769b0df544e71d85d097cbb2391d874e75c89c44662a38949eb582734705f",
+          "bytes": 7503
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/workflow-activity-projection.test.ts",
+          "sha256": "3929bc20bfc1aa81c016b0aab7ec06c1637b3f43027270364dd191cf90127fba",
+          "bytes": 7265
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/workflow-observation-compatibility.test.ts",
+          "sha256": "5a3eb667539a6b0b8bd26373d05c23822a19ae97c70e9bca010e31af248a5c6c",
+          "bytes": 8396
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol/browser-control-broker.test.ts",
+          "sha256": "8374b86974c09d1d9bb697a341300307b8947ccff344a15ee5a085be4f457394",
+          "bytes": 8263
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol/connectivity-failure.test.ts",
+          "sha256": "4ac59bf7f8e392c657f0d233ed1385269eb6de988d0d4f277ad5667b8e5ec97a",
+          "bytes": 6723
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol/connectivity-network.test.ts",
+          "sha256": "2ba55eb55b39351547d4cb8642420bf92f49a8331459e2ca6e002ddccd26f7cc",
+          "bytes": 14656
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol/interaction-response-refactor.test.ts",
+          "sha256": "6a5a0de68f1d5131443ea54efe027d282be30c81a459d99a5f424d1bf47b967b",
+          "bytes": 4927
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol/protocol-refactor.test.ts",
+          "sha256": "fd9322c7c15e3bd50e08bd56e34f09e88d9b20185d9ea555a37ce006887a4e26",
+          "bytes": 6571
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol/provider-runtime-headers.test.ts",
+          "sha256": "3e563d38626488bd99b28d36bc476c28f68f327b7855f0449a0549bd2c4ddc40",
+          "bytes": 2751
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol/runtime-cleanup.test.ts",
+          "sha256": "15d7da0129b3e70b0f04b4ebb7b9eab414b83cf4399b97f64801dddce31b2c1b",
+          "bytes": 4390
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol/session-usage-cumulative.test.ts",
+          "sha256": "d4a95ec9c8360dd70f29694d28b9de2589755b209c4db91ff287d25c708ab4a7",
+          "bytes": 4785
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol/storage-startup.test.ts",
+          "sha256": "cc8bfa4cc4ade813a14b423b0cd5622da0221789f82ef9ba1cf1a3667b53d36d",
+          "bytes": 3697
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol/transport-connectivity.test.ts",
+          "sha256": "14f47af33dd155c9dc1e1e4a5d0388ce8c91e3d7486312c22bafe5a8eef340a4",
+          "bytes": 10051
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol/workspace-file-mutation-journal.test.ts",
+          "sha256": "03ca3c9e0b0c8b782561e6e60adcfa97e1781f3a480ea390b91f548e8245d7ba",
+          "bytes": 3588
+        }
+      ],
+      "command": "node --import tsx --test --test-concurrency=1 [listed files]",
+      "status": "passed",
+      "counts": {
+        "tests": 219,
+        "suites": 0,
+        "pass": 219,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 83193.42189999999,
+      "exitCode": 0,
+      "attemptKind": "initial-full-regression"
+    },
+    {
+      "name": "cli",
+      "fileCount": 2,
+      "files": [
+        {
+          "path": "apps/lcode-cli/packages/cli/src/plugin-host-command.test.ts",
+          "sha256": "a0bd3ab6bbb92cd5fad032b2e0e8b53cb924559000b34ab138d93b7e8243703e",
+          "bytes": 3610
+        },
+        {
+          "path": "apps/lcode-cli/packages/cli/src/run.test.ts",
+          "sha256": "66615e8e79ea79cff46d61e442973b7824425f0fe7e799bd6605856cf729d664",
+          "bytes": 6877
+        }
+      ],
+      "command": "node --import tsx --test --test-concurrency=1 [listed files]",
+      "status": "passed",
+      "counts": {
+        "tests": 6,
+        "suites": 0,
+        "pass": 6,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 3615.2906000000075,
+      "exitCode": 0,
+      "attemptKind": "initial-full-regression"
+    },
+    {
+      "name": "contracts",
+      "fileCount": 7,
+      "files": [
+        {
+          "path": "apps/lcode-cli/packages/contracts/src/events/event-reducer-goal.test.ts",
+          "sha256": "00c730ac0c06678d8f67e9bf5d8c3c7806c43cbc011ed58dbc88fb44686f9714",
+          "bytes": 2846
+        },
+        {
+          "path": "apps/lcode-cli/packages/contracts/src/events/event-reducer.test.ts",
+          "sha256": "81f5a105ae8505323a9745d889e12dad314ff4d30bc51e4de42f86f064ea3fa9",
+          "bytes": 10372
+        },
+        {
+          "path": "apps/lcode-cli/packages/contracts/src/interfaces/browser-control.test.ts",
+          "sha256": "0c7baa661d660883bfd81c2b5743d0250fee5d9a33216de8cea485df47d155fc",
+          "bytes": 2709
+        },
+        {
+          "path": "apps/lcode-cli/packages/contracts/src/interfaces/dynamic-workflow-run.test.ts",
+          "sha256": "457bda5d293264b105d940d09565367a6ae6bb1ca47811a5f83d626f1059982a",
+          "bytes": 3065
+        },
+        {
+          "path": "apps/lcode-cli/packages/contracts/src/model/model-protocol.test.ts",
+          "sha256": "d85b36febf0e002cebbaa602037927c7a62f52677f48d77a41af38a62f8381e9",
+          "bytes": 4928
+        },
+        {
+          "path": "apps/lcode-cli/packages/contracts/src/tools/bash-lifetime.test.ts",
+          "sha256": "d232e9a4cdf599728df12e3ceae4fe9489f3b1ccef2d777ea9660a63088ceeb2",
+          "bytes": 583
+        },
+        {
+          "path": "apps/lcode-cli/packages/contracts/src/workflow/workflow-contracts.test.ts",
+          "sha256": "faa6347ff790e465c9e72054065e47118c6c15d280544a54f32a952884e39660",
+          "bytes": 6258
+        }
+      ],
+      "command": "node --import tsx --test --test-concurrency=1 [listed files]",
+      "status": "passed",
+      "counts": {
+        "tests": 21,
+        "suites": 0,
+        "pass": 21,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 2871.5525999999954,
+      "exitCode": 0,
+      "attemptKind": "initial-full-regression"
+    },
+    {
+      "name": "core",
+      "fileCount": 45,
+      "files": [
+        {
+          "path": "apps/lcode-cli/packages/core/src/agent/message-history.test.ts",
+          "sha256": "33a6dcf06d18dff9d8fadda7c2e36c6ea501b4519e626085fa41cd974d6049fd",
+          "bytes": 5260
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/hooks/runner.test.ts",
+          "sha256": "7a55f45d8b71f49120b0d082efa550c883554667bf871a8e0027c8b862beca19",
+          "bytes": 4045
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/mcp/bridge.test.ts",
+          "sha256": "f4603470fac31b1d38fe25c860d6b4c60ad1b8e409b3e5d1d830626d08071bdb",
+          "bytes": 5021
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/memory/extraction.test.ts",
+          "sha256": "8906ea97f2ef84abb4d5f22b2d1efe3ccb1ba96c63e798291058dfb0c13c866a",
+          "bytes": 1442
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/memory/recall/project-memory-recall.test.ts",
+          "sha256": "e57bca7e47e1d6fc3b0e6661adda73a18967d84b9597f497225a969872153d80",
+          "bytes": 16462
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/agent-runtime-close.test.ts",
+          "sha256": "3ac588a91812dc4995c5f5b876f49db329027ec73a27a9bee1852886c800af07",
+          "bytes": 9009
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/background-result-consumption.test.ts",
+          "sha256": "f266ca0c77a779ee7c3c9ef6f6631b661dce4c82124634ff214adf9fde805bb0",
+          "bytes": 4394
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/background-turn-cleanup.test.ts",
+          "sha256": "3dc0c1292e529fe208724f6b2f5ca2192085da14f7e49613db4a98a8445cf56d",
+          "bytes": 2130
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/dynamic-workflow-run-settings.test.ts",
+          "sha256": "d063849e1dcc8b851dce98234c169991fa1ad8fcc1df84782f144ce2ca036aca",
+          "bytes": 2234
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/lint-compact-lifecycle.test.ts",
+          "sha256": "5dff50f88fe11fff737c5bb764beaac828b4bdebb021c36532bd601b32061319",
+          "bytes": 4780
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/lint-fork-rewind.test.ts",
+          "sha256": "6e7bad9c2cc48415d043d01447aa5d610b6efcf38cfd952e224ac92f19da3959",
+          "bytes": 7597
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/lint-refactor-invariants.test.ts",
+          "sha256": "adc20e64af9f5cf607caf9465ed08cccac952d94d78fcaecf69c29c6cdfeedb5",
+          "bytes": 4772
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/lint-turn-lifecycle.test.ts",
+          "sha256": "3f14f897fa7e6dcdba6301251745e0622a8719c81d117deb9260272d6ffe9288",
+          "bytes": 5450
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/model-connectivity.test.ts",
+          "sha256": "6b48975f60677894ce1dbe5872b072009cb48d445bda66db7d9416e5c190a055",
+          "bytes": 5398
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/model-failover-policy.test.ts",
+          "sha256": "5347b8e0585d281f6c9e3c46630e4a0119824420a6c40659c0e024b4065a9459",
+          "bytes": 82242
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/model-runtime-headers.test.ts",
+          "sha256": "b4c3c2972cf0d99e18b1e69b8d3e26a19a03c48c0600215538fa2f64fef21936",
+          "bytes": 4678
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/prompt-admission-promotion.test.ts",
+          "sha256": "6bcae289b19d65cabe02f201701f0e0dfb59ad5e50982ef55d4fd34c75222f1f",
+          "bytes": 2586
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/runtime-command-queue.test.ts",
+          "sha256": "ea0f2e7257e6f6bae6c628f80187e850ee11964c786ec7a02acad6b5f9d2ae8a",
+          "bytes": 1909
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/runtime-command-submit.test.ts",
+          "sha256": "e43ce888517056be17fc7213d13f4af3e57aa9c64db86d11b1ecceb6c8264030",
+          "bytes": 868
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/streaming-tool-coordinator.test.ts",
+          "sha256": "5e0151bfd70d5fb21188700d793873794793e5c1093115f11a29521fbe480de9",
+          "bytes": 5498
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/subagent-browser.test.ts",
+          "sha256": "1ccdc60436b9110876650e676175564907d0481a9a600f9aa93caa66b461916c",
+          "bytes": 5337
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/subagent-speed.test.ts",
+          "sha256": "50032f1906e54f5a322587dba64361b3cdb8d12439364ce027155b87a21b6640",
+          "bytes": 573
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/turn-memory-recall.test.ts",
+          "sha256": "6ebb562d05de30506e1851db2e90bb7b95bc254153ac4475a1ab6e8a4026ef98",
+          "bytes": 13928
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/turn-model-step-retry-continuation.test.ts",
+          "sha256": "f92ad78fdb439b7cd5d67da496cbc69b8b6d67bd5c8a936d1118a5e7ea42f527",
+          "bytes": 8359
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/runtime/methods/turn-session-history-recall.test.ts",
+          "sha256": "26c4d60b3c036ac074bc247e9877fc5bc70c4dacca372aac10036230f6a5d529",
+          "bytes": 9431
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/session-context/session-history-recall-evaluation.test.ts",
+          "sha256": "d64970a7f5907d24f9de7cdd489c6dc26eb385f49eb99ec96a1f262a357bfc3c",
+          "bytes": 2964
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/session-context/session-history-search-snapshot.test.ts",
+          "sha256": "4496e1011b64c3b3223beeabc71916a8bb208195b9b6550cb9cbef06317e16cb",
+          "bytes": 3702
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/session-context/session-history-search.test.ts",
+          "sha256": "503a062555e2ca8d01a491abebdaba943bdd1ed92fa492aeb7dc2d8be82dae86",
+          "bytes": 11723
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/subagent/runner-failover-lifecycle.test.ts",
+          "sha256": "21afc51a268a036c41f06bbc3903cb4896fae915e1785b5877115ba53d207c7d",
+          "bytes": 28185
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/tool/executor/background-tasks.test.ts",
+          "sha256": "5030d8c34a0ea0b0ae834894c13f6d759febea2efea9ee3cc90e70fa673cc570",
+          "bytes": 7257
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/tool/executor/bash-preview-retention.test.ts",
+          "sha256": "11e7d3f6634580239f5adf38b5f473343205418b416c141c0fca98eff68308d4",
+          "bytes": 8870
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/tool/executor/call-runner.test.ts",
+          "sha256": "f5ecd8e4218bf0cc59e1fe51f9379c223b5285d23f2aa997bb994d8beb8625e8",
+          "bytes": 3751
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/tool/executor/operation-admission.test.ts",
+          "sha256": "06a88fee799edee4ecca7a3d8335731218c9bc5cfa858253c67183cf0f46b449",
+          "bytes": 2782
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/tool/executor/workflow-activity-display.test.ts",
+          "sha256": "24e72b4d9ad6a354576e16af0686e943a058d3ef5cf6e0d3a48d0d9bd53e7c7f",
+          "bytes": 6256
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/tool/handlers/amend-workflow-source.test.ts",
+          "sha256": "fba3df765060a1506cd346de6d43311b66ec136641a77ef1b3dedb0e05bcbf8f",
+          "bytes": 10642
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/tool/handlers/background-agent-result-delivery.test.ts",
+          "sha256": "97743a02ce6fc85f6e35d226e582352ddb31232aa01d5f035982d6b578fe697c",
+          "bytes": 4539
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/tool/handlers/bash-read.test.ts",
+          "sha256": "78f9c474674f64327442c543716f954faf5aaed8bae79779938915a9bb118833",
+          "bytes": 6303
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/tool/handlers/model-reference.test.ts",
+          "sha256": "423726cab1ff6968d4bb8c44c7ba1d24c0a56d77d36b12d1907499cb86f429c6",
+          "bytes": 911
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/tool/handlers/read-session-context.test.ts",
+          "sha256": "d774f2eb627a7ec7a20f25a67c7e6aac70c0861fa5df5f2a0c693f266b9bb9b1",
+          "bytes": 12270
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/tool/handlers/session-history-search-format.test.ts",
+          "sha256": "1d1589200786d2fd798851e6cc874b90aa25b612a13a41313c12b2c646846427",
+          "bytes": 2498
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/tool/handlers/session-history-search.test.ts",
+          "sha256": "5b7c8350762fa9c17c26d6082e20d04f59701e580570dea6e97b615dd2b12ecb",
+          "bytes": 11788
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/tool/handlers/workflow-authoring-execution.test.ts",
+          "sha256": "c604571977bb7273980c1a390949a85a20924300f37c7676d146740239cbd95d",
+          "bytes": 6554
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/tool/handlers/workflow-script-advice.test.ts",
+          "sha256": "4b75c44a68a759768cac97283aca8237e029b65cb43f7fa388afef0372b099ae",
+          "bytes": 9107
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/tool/handlers/workflow-tool-description.test.ts",
+          "sha256": "d12724c110fea27ee4375cb4a46a90a01824c59fba1a539659817feb14b48a44",
+          "bytes": 1929
+        },
+        {
+          "path": "apps/lcode-cli/packages/core/src/workflow/lifecycle.test.ts",
+          "sha256": "2288222413a35779bcddfa6cb15a1748e8780931fe4851139c30e56853b075c2",
+          "bytes": 4086
+        }
+      ],
+      "command": "node --import tsx --test --test-concurrency=1 [listed files]",
+      "status": "passed",
+      "counts": {
+        "tests": 235,
+        "suites": 0,
+        "pass": 235,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 81233.07629999999,
+      "exitCode": 0,
+      "attemptKind": "initial-full-regression"
+    },
+    {
+      "name": "dynamic-workflow",
+      "fileCount": 5,
+      "files": [
+        {
+          "path": "apps/lcode-cli/packages/dynamic-workflow/src/analysis/orchestration-advice.test.ts",
+          "sha256": "ae332e062cbe481625a7dc882ccf51dcf4378780d0991fc4b93e1cb3f99eddc1",
+          "bytes": 6956
+        },
+        {
+          "path": "apps/lcode-cli/packages/dynamic-workflow/src/engine/engine-activity.test.ts",
+          "sha256": "68157908491880376581f842e75481f4ffd84fe40501c32be0ca8b7ee5b84302",
+          "bytes": 3822
+        },
+        {
+          "path": "apps/lcode-cli/packages/dynamic-workflow/src/engine/model-provenance-carry-forward.test.ts",
+          "sha256": "683591e3fd885a81a07f9802cd5db195799a0febf9b832d77071c2968b01cfaf",
+          "bytes": 2687
+        },
+        {
+          "path": "apps/lcode-cli/packages/dynamic-workflow/src/engine/scheduler-admission.test.ts",
+          "sha256": "8a5516a89633f6b390f7efb4070f63da04613526efcd7d787cc68db479821fb9",
+          "bytes": 21655
+        },
+        {
+          "path": "apps/lcode-cli/packages/dynamic-workflow/src/engine/scheduler-controls.test.ts",
+          "sha256": "60937c4f00edf723ac8922b3b2686e784ad7c6e81af47c703fc2629331bbd423",
+          "bytes": 8361
+        }
+      ],
+      "command": "node --import tsx --test --test-concurrency=1 [listed files]",
+      "status": "passed",
+      "counts": {
+        "tests": 36,
+        "suites": 0,
+        "pass": 36,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 5246.521799999988,
+      "exitCode": 0,
+      "attemptKind": "initial-full-regression"
+    },
+    {
+      "name": "dynamic-workflow-runtime",
+      "fileCount": 1,
+      "files": [
+        {
+          "path": "apps/lcode-cli/packages/dynamic-workflow-runtime/src/harness-activity.test.ts",
+          "sha256": "ef60c12be0a371eb3963a1568257460b00fc8ab7b9316d4effb99a1beded8da1",
+          "bytes": 2267
+        }
+      ],
+      "command": "node --import tsx --test --test-concurrency=1 [listed files]",
+      "status": "passed",
+      "counts": {
+        "tests": 1,
+        "suites": 0,
+        "pass": 1,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 871.3023999999859,
+      "exitCode": 0,
+      "attemptKind": "initial-full-regression"
+    },
+    {
+      "name": "node-repl-host",
+      "fileCount": 1,
+      "files": [
+        {
+          "path": "apps/lcode-cli/packages/node-repl-host/src/server.cua-env.test.ts",
+          "sha256": "5b62879bbcbb2a11378d7abe25bb6b28f1003a5839634340aa885dbc4baa268f",
+          "bytes": 2015
+        }
+      ],
+      "command": "node --import tsx --test --test-concurrency=1 [listed files]",
+      "status": "passed",
+      "counts": {
+        "tests": 1,
+        "suites": 0,
+        "pass": 1,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 561.9294999999984,
+      "exitCode": 0,
+      "attemptKind": "initial-full-regression"
+    },
+    {
+      "name": "telemetry",
+      "fileCount": 2,
+      "files": [
+        {
+          "path": "apps/lcode-cli/packages/telemetry/src/agent-trace-runtime.test.ts",
+          "sha256": "c6655bf9b8dfd41dfcc784517f7a3727a69cee664be79a03401aa1d9f65d70eb",
+          "bytes": 9291
+        },
+        {
+          "path": "apps/lcode-cli/packages/telemetry/src/model-api-recorder.test.ts",
+          "sha256": "b5c4f96ab1d5d4ac1199396333a5ff9ec94ce3ab394fa0acdcc2e2a599579108",
+          "bytes": 5927
+        }
+      ],
+      "command": "node --import tsx --test --test-concurrency=1 [listed files]",
+      "status": "passed",
+      "counts": {
+        "tests": 8,
+        "suites": 0,
+        "pass": 8,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 921.1173000000126,
+      "exitCode": 0,
+      "attemptKind": "initial-full-regression"
+    },
+    {
+      "name": "shared-types",
+      "fileCount": 0,
+      "files": [],
+      "command": null,
+      "status": "no-tests",
+      "counts": {
+        "tests": 0,
+        "suites": 0,
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 0,
+      "exitCode": null,
+      "attemptKind": "initial-full-regression"
+    },
+    {
+      "name": "i18n",
+      "fileCount": 0,
+      "files": [],
+      "command": null,
+      "status": "no-tests",
+      "counts": {
+        "tests": 0,
+        "suites": 0,
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 0,
+      "exitCode": null,
+      "attemptKind": "initial-full-regression"
+    },
+    {
+      "name": "tui",
+      "fileCount": 0,
+      "files": [],
+      "command": null,
+      "status": "no-tests",
+      "counts": {
+        "tests": 0,
+        "suites": 0,
+        "pass": 0,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 0,
+      "exitCode": null,
+      "attemptKind": "initial-full-regression"
+    },
+    {
+      "name": "debug",
+      "fileCount": 2,
+      "files": [
+        {
+          "path": "apps/lcode-cli/packages/debug/server/analyzer.test.ts",
+          "sha256": "8d3a97fc4407712f0cdefa8c75f2894d23ef5800cc43f5076cf279741260acd2",
+          "bytes": 6248
+        },
+        {
+          "path": "apps/lcode-cli/packages/debug/src/panels.test.tsx",
+          "sha256": "24fa7ec3c776e101b3929036eec4b4199de083795a1e1d95e44267a32df22313",
+          "bytes": 6379
+        }
+      ],
+      "command": "node --import tsx --test --test-concurrency=1 [listed files]",
+      "config": {
+        "TSX_TSCONFIG_PATH": "apps/lcode-cli/packages/debug/tsconfig.json"
+      },
+      "status": "passed",
+      "counts": {
+        "tests": 9,
+        "suites": 0,
+        "pass": 9,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 783.8946000000001,
+      "exitCode": 0,
+      "attemptKind": "authorized-entrypoint-correction"
+    },
+    {
+      "name": "workflow-efficiency",
+      "fileCount": 2,
+      "files": [
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/scripts/benchmarks/workflow-efficiency/driver.test.ts",
+          "sha256": "94a7a59d37aa4061e9792848f02b84c65cba5ba46bb3163f1c1b0d6374153928",
+          "bytes": 4209
+        },
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/scripts/benchmarks/workflow-efficiency/pure.test.ts",
+          "sha256": "e06943eba6401977cc58ad2b1f89bef3b6b84bb92e4b7a20386accc7f67090e6",
+          "bytes": 7352
+        }
+      ],
+      "command": "node --import tsx --test --test-concurrency=1 [listed files]",
+      "status": "passed",
+      "counts": {
+        "tests": 9,
+        "suites": 0,
+        "pass": 9,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 2653.2198000000208,
+      "exitCode": 0,
+      "attemptKind": "initial-full-regression"
+    },
+    {
+      "name": "workflow-stress",
+      "fileCount": 1,
+      "files": [
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/scripts/benchmarks/workflow-stress/stress.test.ts",
+          "sha256": "27ac30f6373e4f60fc1b3ca9acceb01669b1c995fd16398f50eb5d132a4a3e78",
+          "bytes": 2646
+        }
+      ],
+      "command": "node --import tsx --test --test-concurrency=1 [listed files]",
+      "status": "passed",
+      "counts": {
+        "tests": 3,
+        "suites": 0,
+        "pass": 3,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 7213.799700000003,
+      "exitCode": 0,
+      "attemptKind": "initial-full-regression"
+    },
+    {
+      "name": "subagent-browser-bridge",
+      "fileCount": 1,
+      "files": [
+        {
+          "path": "apps/lcode-cli/packages/bootstrap/scripts/subagent-browser-bridge.test.ts",
+          "sha256": "30428d8192af0b84624efa5e1c603e862e6339a0bc7fe8e79d1f475696fe39c7",
+          "bytes": 4516
+        }
+      ],
+      "command": "node --import tsx --test --test-concurrency=1 [listed files]",
+      "status": "passed",
+      "counts": {
+        "tests": 1,
+        "suites": 0,
+        "pass": 1,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 1220.4775000000081,
+      "exitCode": 0,
+      "attemptKind": "initial-full-regression"
+    },
+    {
+      "name": "session-recall-stats",
+      "fileCount": 1,
+      "files": [
+        {
+          "path": "apps/lcode-cli/scripts/session-recall-benchmark-stats.test.mjs",
+          "sha256": "002cf5dd34a62afc5e4f38ac07d93d5b7a9677194d5d399a4cb5f1b3b0898830",
+          "bytes": 1293
+        }
+      ],
+      "command": "node --import tsx --test --test-concurrency=1 [listed files]",
+      "status": "passed",
+      "counts": {
+        "tests": 2,
+        "suites": 0,
+        "pass": 2,
+        "fail": 0,
+        "skip": 0,
+        "cancel": 0,
+        "todo": 0
+      },
+      "durationMs": 283.79970000000003,
+      "exitCode": 0,
+      "attemptKind": "nonoverlapping-supplement"
+    }
+  ],
+  "initialAttempt": {
+    "tests": 720,
+    "pass": 717,
+    "fail": 3,
+    "failedGroup": "debug",
+    "error": "ReferenceError: React is not defined",
+    "cause": "Root-cwd test runner did not select the debug package react-jsx tsconfig; corrected only the launcher for that group.",
+    "sourceChangedForCorrection": false
+  },
+  "notCovered": [
+    "real native Computer Use execution",
+    "user-profile stdio handshake",
+    "new release package, installation or deployment"
+  ],
+  "additionalSeparateChecks": {
+    "shared": {
+      "pass": 17,
+      "fail": 0,
+      "skip": 0
+    },
+    "ui": {
+      "pass": 58,
+      "fail": 0,
+      "skip": 0
+    },
+    "web": {
+      "pass": 62,
+      "fail": 0,
+      "skip": 0
+    },
+    "builtinPlugins": {
+      "pass": 26,
+      "fail": 0,
+      "skip": 0
+    },
+    "browserBenchmarkRegressions": {
+      "pass": 9,
+      "fail": 0,
+      "skip": 0
+    },
+    "postFormatSeams": {
+      "pass": 66,
+      "fail": 0,
+      "skip": 0,
+      "notAddedToUniqueTotal": true
+    }
+  },
+  "evidence": {
+    "fullLocalReportSha256": "dffe166f895b7e4c1c04f2108c3194858e30e34d98bdc717c9618f335ae9c937",
+    "rawFailureLogsRetainedLocally": true,
+    "pathsInDeliverable": "repository-relative only",
+    "formattingAfterThisSnapshot": "Six workflow files received SHA-guarded AST/token/comment-equivalent formatting and a separate 66-case seam regression. Repeats are not added to the unique test total."
+  }
+}

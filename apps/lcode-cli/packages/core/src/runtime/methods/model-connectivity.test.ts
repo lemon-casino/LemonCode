@@ -85,7 +85,13 @@ test("temporary connectivity uses an invocation-local raw factory and keeps runt
   );
   assert.equal(h.ordinaryCalls(), 0);
   assert.equal(h.runtime.modelFactory, h.modelFactory);
-  assert.deepEqual(h.bindings, [{ reasoningLevel: "low", speed: "normal", maxOutputTokens: 1 }]);
+  assert.deepEqual(h.bindings, [
+    {
+      reasoningLevel: "low",
+      speed: "normal",
+      maxOutputTokens: h.model.optionSpecs.maxOutputTokens.max,
+    },
+  ]);
   assert.deepEqual(h.requests[0]?.messages, [
     { role: "system", content: "You are LCode connectivity probe." },
     { role: "user", content: "hi" },

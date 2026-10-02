@@ -1,5 +1,3 @@
-import { isAbsolute } from "node:path";
-
 import type {
   ModelInputMessage,
   ModelMessageContent,
@@ -12,16 +10,13 @@ import type {
 
 import { modelContentForToolResult, isErrorForToolResult } from "../runtime/helpers/tool-result.js";
 import { projectMessagesForModelMediaPolicy } from "../runtime/helpers/media-budget.js";
-import {
-  analyzeBashCommand,
-  isBashCommandPermissionSafe,
-} from "../tool/handlers/bash-command-parser.js";
 import { isRuntimeReadOnlyBashCommand } from "../tool/handlers/bash-semantics.js";
 import type { ExecutableToolCall, ToolExecutionResult } from "../tool/types.js";
-import { resolveContainedMemoryFilePath, resolveSafeMemoryFilePath } from "./memory-file-path.js";
+import { resolveSafeMemoryFilePath } from "./memory-file-path.js";
 import { auxiliaryModelOptions } from "../model/auxiliary-model-options.js";
 
 interface MemoryAgentLoopResult {
+  failedToolCalls: number;
   messages: ModelInputMessage[];
   turns: number;
 }
@@ -54,6 +49,7 @@ export async function runMemoryAgentLoop(input: {
 }): Promise<MemoryAgentLoopResult> {
   const messages = input.messages.map(cloneModelMessage);
   let turns = 0;
+  let failedToolCalls = 0;
 
   for (; turns < input.maxTurns; turns += 1) {
     input.abortSignal?.throwIfAborted();
@@ -80,42 +76,47 @@ export async function runMemoryAgentLoop(input: {
       break;
     }
 
-    const toolMessages = await Promise.all(
-      toolCalls.map(async (toolCall): Promise<ModelInputMessage> => {
-        const decision = evaluateMemoryAgentToolPolicy({
-          rootDir: input.rootDir,
-          toolCall,
-          tools: input.tools,
-          workingDirectory: input.workingDirectory,
-          workspaceRoot: input.workspaceRoot,
-        });
-        if (!decision.allowed) {
-          return {
-            content: decision.reason,
-            isError: true,
-            role: "tool",
-            toolCallId: toolCall.id,
-            toolName: toolCall.name,
-          };
-        }
-
-        const result = await input.executeTool(
-          { id: toolCall.id, input: toolCall.input, name: toolCall.name },
-          { abortSignal: input.abortSignal },
-        );
-        return {
-          content: modelContentForToolResult(result),
-          isError: isErrorForToolResult(result),
+    // 同一 response 的 Read/Write/Edit 共享 read-state；并行会让同文件写入互相覆盖或误报未读。
+    for (const toolCall of toolCalls) {
+      input.abortSignal?.throwIfAborted();
+      const decision = evaluateMemoryAgentToolPolicy({
+        rootDir: input.rootDir,
+        toolCall,
+        tools: input.tools,
+        workingDirectory: input.workingDirectory,
+        workspaceRoot: input.workspaceRoot,
+      });
+      if (!decision.allowed) {
+        failedToolCalls += 1;
+        messages.push({
+          content: decision.reason,
+          isError: true,
           role: "tool",
           toolCallId: toolCall.id,
           toolName: toolCall.name,
-        };
-      }),
-    );
-    messages.push(...toolMessages);
+        });
+        continue;
+      }
+
+      const result = await input.executeTool(
+        { id: toolCall.id, input: toolCall.input, name: toolCall.name },
+        { abortSignal: input.abortSignal },
+      );
+      // 工具返回与关停可能同拍完成，最后一轮也不能将已取消的提取报告为成功。
+      input.abortSignal?.throwIfAborted();
+      const isError = isErrorForToolResult(result);
+      if (isError) failedToolCalls += 1;
+      messages.push({
+        content: modelContentForToolResult(result),
+        isError,
+        role: "tool",
+        toolCallId: toolCall.id,
+        toolName: toolCall.name,
+      });
+    }
   }
 
-  return { messages, turns };
+  return { failedToolCalls, messages, turns };
 }
 
 function evaluateMemoryAgentToolPolicy(
@@ -141,14 +142,13 @@ function evaluateMemoryAgentToolPolicy(
 
   if (input.toolCall.name === "Bash") {
     const command = stringProperty(input.toolCall.input, "command");
-    // Memory Agent 直接复用既有只读分类器，避免在此处二次收窄安全 env、redirect 和后台执行。
+    // Shell 删除绕过受控写入与日志；首版仅复用只读分类器，删除留给用户外部编辑器。
     if (
       command &&
-      (isRuntimeReadOnlyBashCommand(command, {
+      isRuntimeReadOnlyBashCommand(command, {
         workingDirectory: input.workingDirectory,
         workspaceRoot: input.workspaceRoot,
-      }) ||
-        isContainedMarkdownBashRemoval(command, input))
+      })
     ) {
       return { allowed: true };
     }
@@ -176,53 +176,6 @@ function isContainedMarkdownMutation(input: MemoryAgentToolPolicyInput): boolean
     );
   } catch {
     return false;
-  }
-}
-
-function isContainedMarkdownBashRemoval(
-  command: string,
-  input: MemoryAgentToolPolicyInput,
-): boolean {
-  const analysis = analyzeBashCommand(command);
-  if (!isBashCommandPermissionSafe(analysis) || analysis.commands.length !== 1) return false;
-  const invocation = analysis.commands[0];
-  if (!invocation || invocation.argv[0] !== "rm") return false;
-  if (invocation.redirects.length > 0 || invocation.envAssignments.length > 0) return false;
-
-  let afterOptions = false;
-  let pathCount = 0;
-  for (const argument of invocation.argv.slice(1)) {
-    if (!afterOptions) {
-      if (argument === "--") {
-        afterOptions = true;
-        continue;
-      }
-      if (argument.startsWith("-")) {
-        if (argument === "--recursive" || /^-[a-zA-Z]*[rR]/u.test(argument)) return false;
-        continue;
-      }
-    }
-    if (/[*?[]/u.test(argument)) return false;
-    if (!isAbsolute(argument) || !argument.endsWith(".md")) return false;
-    if (resolveContainedPath(argument, input) === undefined) return false;
-    pathCount += 1;
-  }
-  return pathCount > 0;
-}
-
-function resolveContainedPath(
-  filePath: string,
-  input: Pick<MemoryAgentToolPolicyInput, "rootDir" | "workingDirectory" | "workspaceRoot">,
-): string | undefined {
-  try {
-    return resolveContainedMemoryFilePath({
-      filePath,
-      rootDir: input.rootDir,
-      workingDirectory: input.workingDirectory,
-      workspaceRoot: input.workspaceRoot,
-    });
-  } catch {
-    return undefined;
   }
 }
 
@@ -273,7 +226,7 @@ function stringProperty(value: unknown, property: string): string | undefined {
 function denyMemoryAgentBash(rootDir: string): MemoryAgentToolPolicyDecision {
   return {
     allowed: false,
-    reason: `Only read-only shell commands and rm with all paths inside ${rootDir} are permitted in this context (ls, find, grep, cat, stat, wc, head, tail, and similar)`,
+    reason: `Only read-only shell commands are permitted in this context (ls, find, grep, cat, stat, wc, head, tail, and similar). Automatic deletion is not supported; files in ${rootDir} must be removed by the user in an external editor.`,
   };
 }
 

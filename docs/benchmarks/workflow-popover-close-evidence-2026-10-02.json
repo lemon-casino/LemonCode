@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-02",
+  "scope": "Official in-app browser; real existing workflow-execution-progress fixture and production Radix Popover; no production source change.",
+  "scenario": "next-ask, phase A, locale zh-CN, 1280x720",
+  "observation": {
+    "escapeReturnedWhilePortalConnected": true,
+    "immediatePortalState": "closed",
+    "immediateFocusRemainedInsidePortal": true,
+    "eventsPerformanceMs": [
+      { "event": "trigger aria-expanded changed", "time": 102200.79999999702 },
+      { "event": "portal data-state closed", "time": 102200.89999999106 },
+      { "event": "portal animationend", "time": 102296 },
+      { "event": "portal detached", "time": 102302.19999998808 },
+      { "event": "focusin returned to original phase-A trigger", "time": 102302.59999999404 }
+    ],
+    "afterClosePortalConnected": false,
+    "afterCloseActiveElementIsOriginalTrigger": true,
+    "diagnosticObserverRemoved": true
+  },
+  "confirmedFinding": "Awaiting keyboard Escape is not equivalent to waiting for the exit animation, Portal teardown and focus restoration to complete. The prior E2E immediately changed the scenario after Escape.",
+  "notConfirmed": "The initial test timeout did not capture a complete old-trigger-focus closing a newer Popover chain; a single isolated rerun passed. This observation does not claim every timeout has that cause.",
+  "repairContract": "Capture the opened content ID and its unique aria-controls trigger, press Escape, wait for that exact Portal to detach and for the original closed trigger to regain focus before changing scenarios. No fixed sleep, higher timeout, blanket focus prevention, retries, or production Popover change."
+}

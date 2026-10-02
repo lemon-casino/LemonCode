@@ -6,6 +6,10 @@ import { z } from "zod";
 import { toToolJsonSchema } from "./json-schema.js";
 import { SAVED_WORKFLOW_MAX_NAME_CHARS, SavedWorkflowScopeSchema } from "./saved-workflow.js";
 import { WorkflowActorModelOverridesSchema } from "./workflow-actor-model-config.js";
+import {
+  WorkflowOrchestrationAdviceBundleSchema,
+  WorkflowOrchestrationAdviceListSchema,
+} from "./workflow-orchestration-advice.js";
 
 export const CREATE_WORKFLOW_TOOL_NAME = "CreateWorkflow";
 
@@ -162,6 +166,8 @@ export const CreateWorkflowInputSchema = CreateWorkflowModelInputSchema.extend({
    * 加它，好让行号能直接粘进一次对该文件的 `Edit`。
    */
   script_line_offset: z.number().int().nonnegative().optional(),
+  /** Host-derived confirmation facts; resolver discards authored values. Not a model parameter. */
+  orchestration_advice: WorkflowOrchestrationAdviceBundleSchema.optional(),
   /** Approval UI overrides; never authored by the model. */
   actor_model_overrides: WorkflowActorModelOverridesSchema.optional(),
 }).strict();
@@ -479,6 +485,8 @@ export const CreateWorkflowOutputSchema = z
     ok: z.boolean(),
     response: z.string(),
     causalityGraph: CreateWorkflowCausalityGraphSchema.optional(),
+    /** Non-blocking source facts, separate from diagnostics and the frozen display shape. */
+    orchestrationAdvice: WorkflowOrchestrationAdviceListSchema.optional(),
     /** 仅在启动了后台 run 时出现；不是通用状态字段，故只收这一个字面量。 */
     status: z.literal("backgrounded").optional(),
     /** 后台任务 id ≡ taskId ≡ runId（取消与状态查询都以它为键）。 */

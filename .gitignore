@@ -95,6 +95,32 @@ packages/desktop/src/scheduler/schedulerProtocol.js.map
 !/packages/web/test/fixtures/model-provider-settings.html
 !/packages/web/test/fixtures/model-provider-settings.tsx
 !/packages/web/test/fixtures/model-provider-settings-service.ts
+!/packages/web/test/git-publish-cases.mjs
+!/packages/web/test/git-publish-editing-cases.mjs
+!/packages/web/test/platform-clipboard.test.mjs
+!/packages/web/test/fixtures/git-publish-fixture-service.ts
+!/packages/web/test/session-output-speed.test.mjs
+!/packages/web/test/fixtures/session-output-speed.html
+!/packages/web/test/fixtures/session-output-speed.tsx
+!/packages/web/test/workflow-execution-progress.test.mjs
+!/packages/web/test/workflow-execution-progress-browser.mjs
+!/packages/web/test/fixtures/workflow-execution-progress.html
+!/packages/web/test/fixtures/workflow-execution-progress.tsx
+!/packages/web/test/fixtures/workflow-execution-progress-data.ts
+!/packages/web/test/fixtures/workflow-execution-progress-runtime.ts
+!/packages/web/test/fixtures/workflow-avatar.html
+!/packages/web/test/fixtures/workflow-avatar.tsx
+!/packages/web/test/fixtures/workflow-avatar-checks.ts
+!/packages/web/test/fixtures/saved-workflow-list.html
+!/packages/web/test/fixtures/saved-workflow-list.tsx
+!/packages/web/test/fixtures/saved-workflow-list-card.tsx
+!/packages/web/test/fixtures/saved-workflow-list-service.ts
+!/packages/web/test/fixtures/workflow-stress.html
+!/packages/web/test/fixtures/workflow-stress.tsx
+!/packages/web/test/fixtures/workflow-stress-runtime.ts
+!/packages/web/test/fixtures/workflow-stress-data.ts
+!/packages/web/test/fixtures/workflow-stress-metrics.ts
+!/packages/web/test/workflow-stress-runtime.test.ts
 
 # 模型成员生命周期回归需随功能提交，不受用户全局 test/ 规则影响。
 !/packages/provider/test/
@@ -102,3 +128,11 @@ packages/desktop/src/scheduler/schedulerProtocol.js.map
 !/packages/provider/test/model-membership.test.ts
 !/packages/provider/test/model-membership-schema.test.ts
 !/packages/provider/test/model-membership.fixture.ts
+
+# CLI debug 源码属于受检模块，覆盖用户全局 debug/ 忽略；构建产物仍排除。
+!/apps/lcode-cli/packages/debug/
+/apps/lcode-cli/packages/debug/*
+!/apps/lcode-cli/packages/debug/src/
+!/apps/lcode-cli/packages/debug/src/**
+!/apps/lcode-cli/packages/debug/server/
+!/apps/lcode-cli/packages/debug/server/**

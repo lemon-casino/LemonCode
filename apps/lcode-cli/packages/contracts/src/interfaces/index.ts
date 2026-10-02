@@ -1,6 +1,7 @@
 // Ports - interface definitions for adapters
 export * from "./execution.port.js";
 export * from "./file-system.port.js";
+export * from "./project-memory.port.js";
 export * from "./context-source.port.js";
 export * from "./http-client.port.js";
 export * from "./image-processor.port.js";

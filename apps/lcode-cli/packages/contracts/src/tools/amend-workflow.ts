@@ -8,6 +8,7 @@
 
 import { z } from "zod";
 import { toToolJsonSchema } from "./json-schema.js";
+import { WorkflowOrchestrationAdviceBundleSchema } from "./workflow-orchestration-advice.js";
 import {
   WORKFLOW_RUN_LIFECYCLE_STATUSES,
   WORKFLOW_RUN_STOP_REASONS,
@@ -152,6 +153,8 @@ export const AmendWorkflowInputSchema = AmendWorkflowModelInputSchema.extend({
    * 同一个姿态：解析结果，不是可填的参数，模型的 JSON schema 不列它。
    */
   script_line_offset: z.number().int().nonnegative().optional(),
+  /** Host-derived confirmation facts; resolver discards authored values. Not a model parameter. */
+  orchestration_advice: WorkflowOrchestrationAdviceBundleSchema.optional(),
   /** Approval UI overrides; never authored by the model. */
   actor_model_overrides: WorkflowActorModelOverridesSchema.optional(),
   /** Lossless predecessor selection resolved by the host; never authored by the model. */

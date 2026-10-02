@@ -142,7 +142,7 @@ function readMessageRows(
   return admitRows(rows);
 }
 
-function readPartRows(
+export function readPartRows(
   db: DatabaseSync,
   sessionID: string,
   messageIDs: readonly string[],
@@ -244,7 +244,7 @@ function readPartRows(
   return admitRows(rows);
 }
 
-function admitRows<Row extends { data: string | null; data_bytes: number }>(
+export function admitRows<Row extends { data: string | null; data_bytes: number }>(
   candidates: readonly Row[],
 ): { rows: Array<Row & { data: string }>; loadedDataBytes: number; truncated: boolean } {
   const rows: Array<Row & { data: string }> = [];
@@ -259,7 +259,9 @@ function admitRows<Row extends { data: string | null; data_bytes: number }>(
   return { rows, loadedDataBytes, truncated: false };
 }
 
-function normalizeLimits(input: SessionTranscriptSnapshotLimits): SessionTranscriptSnapshotLimits {
+export function normalizeLimits(
+  input: SessionTranscriptSnapshotLimits,
+): SessionTranscriptSnapshotLimits {
   return {
     maxMessageRows: positiveLimit(
       input.maxMessageRows,

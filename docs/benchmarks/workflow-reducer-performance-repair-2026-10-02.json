@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "mode": "synthetic-reducer-only-microbenchmark",
+  "node": "v24.14.1",
+  "actors": 256,
+  "nodes": 256,
+  "eventsPerRound": 1000,
+  "warmupRoundsPerVersion": 1,
+  "rounds": [
+    {
+      "order": "old-current",
+      "oldMs": 192.88720000000012,
+      "currentMs": 4.404899999999998,
+      "speedup": 43.78923471588463
+    },
+    {
+      "order": "current-old",
+      "oldMs": 209.52739999999994,
+      "currentMs": 2.6508000000001175,
+      "speedup": 79.0430813339334
+    },
+    {
+      "order": "old-current",
+      "oldMs": 193.7355,
+      "currentMs": 2.205400000000054,
+      "speedup": 87.84596898521595
+    },
+    {
+      "order": "current-old",
+      "oldMs": 203.1796999999999,
+      "currentMs": 2.1719000000000506,
+      "speedup": 93.5492886412796
+    },
+    {
+      "order": "old-current",
+      "oldMs": 205.46209999999996,
+      "currentMs": 1.4251000000003842,
+      "speedup": 144.17381236400573
+    }
+  ],
+  "beforeSourceSha256": "d4cce25f5a2eafd405fb664f5d4a62db0adb5bb15c00687f38d6168835493838",
+  "afterSourceSha256": "2009fdcecd6917a3e42e6aa721e53cae94b741d69a64639b6b45977c1a98ec1f",
+  "beforeMatchesOpeningSnapshot": true,
+  "statesEquivalentEveryRound": true,
+  "limitations": [
+    "Reducer-only, no driver/publisher/transport/React or wall-clock input pacing",
+    "Concurrent repository work is not isolated",
+    "Not an end-to-end capacity result"
+  ]
+}

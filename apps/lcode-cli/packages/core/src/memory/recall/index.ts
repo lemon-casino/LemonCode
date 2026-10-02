@@ -1,4 +1,9 @@
-export { formatMemoryManifest, scanMemoryManifest } from "./manifest.js";
+export {
+  collectMemoryCandidatePaths,
+  formatMemoryManifest,
+  scanMemoryCandidatePaths,
+  scanMemoryManifest,
+} from "./manifest.js";
 export { ProjectMemoryRecallIndex, formatMemoryRecallAttachment } from "./project-memory-recall.js";
 export { rankMemoryDocuments } from "./ranking.js";
 export { tokenizeMemoryRecallText } from "./tokenizer.js";
@@ -15,9 +20,13 @@ export {
 } from "./constants.js";
 export type {
   IndexedMemoryDocument,
+  MemoryCandidateScanResult,
+  MemoryCandidateScanStats,
   MemoryManifestEntry,
+  MemoryMatchExplanation,
   MemoryRecallResult,
   MemoryRecallType,
+  ProjectMemoryRecallHealth,
   ProjectMemoryRecallOutcome,
   RankedMemoryDocument,
 } from "./types.js";

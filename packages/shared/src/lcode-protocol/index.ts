@@ -23,6 +23,15 @@ import { executionOutputPreviewSchema } from "../execution-output-preview.js";
 import { z } from "zod";
 export { gitFileMutationJournalSchema } from "../gitCommitReview.js";
 export * from "../process-diagnostic.js";
+export {
+  workflowNodeActivitySchema,
+  workflowNodeWaitSchema,
+  workflowNodeQueueSchema,
+  workflowNodePhaseSchema,
+  type WorkflowNodeActivity,
+  type WorkflowNodeWait,
+  type WorkflowNodeQueue,
+} from "../lcode-protocol-v4/workflow-activity.js";
 import { errorAttributionSchema } from "../lcode-protocol-v4/snapshot.js";
 import { modelSelectionSchema } from "../model-selection.js";
 import { MODEL_CONNECTIVITY_ERROR_CODES } from "../model-provider-types.js";

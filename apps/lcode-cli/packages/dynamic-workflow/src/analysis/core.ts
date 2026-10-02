@@ -27,6 +27,8 @@ import type { NamePattern } from "./types.js";
 
 /** An `ask` site, AST-free. `within` is the enclosing promoted fan-out, when any. */
 export interface CoreAskSite {
+  /** Optional-chain calls may not issue; advice must not call them certain later work. */
+  optional?: true;
   id: string;
   order: number;
   label: string;

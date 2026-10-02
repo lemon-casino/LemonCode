@@ -8,6 +8,12 @@ import { z } from "zod";
 import { modelSelectionSchema } from "../model-selection.js";
 
 import { workflowRunArtifactSummarySchema } from "./workflow-artifacts.js";
+import {
+  workflowNodeActivitySchema,
+  workflowNodePhaseSchema,
+  workflowNodeQueueSchema,
+  workflowNodeWaitSchema,
+} from "./workflow-activity.js";
 
 // ── workflowRuns：dwf 引擎 run 的实时运行态──
 // 与 subagents 同一个模式：运行态属于 conversation 权威投影，而不是 renderer 的查询缓存。
@@ -169,16 +175,7 @@ export const workflowRunNodeSchema = z.object({
   siteId: z.string().min(1).max(64),
   ordinal: z.number().int().nonnegative(),
   kind: z.enum(["ask", "world-read"]).optional(),
-  phase: z.enum([
-    "queued",
-    "dispatched",
-    "executing",
-    "waiting",
-    "repairing",
-    "nudged",
-    "paused",
-    "settled",
-  ]),
+  phase: workflowNodePhaseSchema,
   /** 同一脚本节点的尝试代次；旧运行日志缺席即第一次。 */
   attempt: z.number().int().positive().optional(),
   outcome: z.enum(["ok", "failed", "cancelled"]).optional(),
@@ -214,8 +211,8 @@ export const workflowRunNodeSchema = z.object({
    * 这次 ask 走到第几个已解析轮次（1 起，nudge 轮次计入），以及累计工具调用数与最近一次
    * 工具调用——随 `node-progress` 到达，每个已解析轮次一条。
    *
-   * 三者一起回答「它在动吗」：一个卡在 `executing` 十分钟的 ask，只有这几个读数能分出
-   * 「在干一件长活」与「已经死了」。**没有 `node-progress` 的旧 journal 上三键全缺席**，
+   * 这些是已解析轮次的读数，不是请求级 heartbeat，不能据其缺席判断死锁。
+   * 长 ask 内的活动另由 `activity` 描述。**没有 `node-progress` 的旧 journal 上三键全缺席**，
    * 读面必须把缺席显示成「不知道」，而不是显示成 0 —— 0 是「一个工具都没调过」的事实。
    *
    * 归约是**后来者覆盖**而不是取 max（与 `phases[].rounds` 相反）：同一实例在 resume 里被
@@ -224,6 +221,11 @@ export const workflowRunNodeSchema = z.object({
   turn: z.number().int().positive().optional(),
   toolCalls: z.number().int().nonnegative().optional(),
   lastTool: workflowRunNodeLastToolSchema.optional(),
+  activity: workflowNodeActivitySchema.optional(),
+  wait: workflowNodeWaitSchema.optional(),
+  queue: workflowNodeQueueSchema.optional(),
+  /** 原节点结算的 journal 时刻；冷恢复缺时钟时不补当前时间。 */
+  settledAt: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
 });
 export type WorkflowRunNode = z.infer<typeof workflowRunNodeSchema>;
 

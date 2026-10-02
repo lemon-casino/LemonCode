@@ -188,6 +188,10 @@ export interface ToolExecutionContext {
   clientMode?: "desktop-continuous" | "web-remote-replayable";
   deliveryKind?: "desktop-continuous" | "web-remote-replayable";
   memoryRoot?: string;
+  /** 后台记忆复盘冻结的已完成会话边界；不属于模型工具输入。 */
+  reviewBoundary?: { sessionId: string; messageId: string };
+  /** 自动维护只读取本轮增量；显式跨会话复盘不设置此字段。 */
+  reviewMode?: "incremental";
   runtimeScope?: ToolRuntimeScope;
   providerVisibleToolNames?: readonly string[];
   sessionId: SessionId;
@@ -268,6 +272,8 @@ export type ToolHandler<TInput = unknown, TOutput = unknown> = (
 
 export interface ToolEntry extends ToolContractDeclaration {
   aliases?: readonly string[];
+  /** 受信内置工具的受限边界；不可由工具输入或远端描述声明。 */
+  configuredHooks?: "skip";
   /**
    * Host-issued atomicity policy for model content. Only an authority-verified
    * registration path may set this; executor code must never infer it from a

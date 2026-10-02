@@ -9,7 +9,6 @@ import type {
   ToolExecutionContext,
   ToolHandler,
   ToolEntry,
-  ToolInputValidationResult,
 } from "../types.js";
 import {
   CoreErrorType,
@@ -20,12 +19,7 @@ import {
   ReadOutputJsonSchema,
   ReadOutputSchema,
   createCoreError,
-  getReadPdfPagesValidationFailure,
   isFileSystemPortError,
-  type ReadInput,
-  type ReadImageOutput,
-  type ReadVideoOutput,
-  type ModelMessageContent,
   type ReadOutput,
   type ReadTextOutput,
   type FileSystemStatResult,
@@ -37,10 +31,10 @@ import { createReadFileStateMetadata } from "../read-file-state-metadata.js";
 import { inferImageMimeFromPath, readImageFile } from "./read-image.js";
 import { inferVideoMimeFromPath } from "../../runtime/helpers/attachment-video.js";
 import { readVideoFile } from "./read-video.js";
-import { formatReadTextOutput, readTextFileForModel } from "./read-text.js";
+import { readTextFileForModel } from "./read-text.js";
+import { formatReadModelContent } from "./read-model-content.js";
+import { parseReadInput, validateReadInput } from "./read-input.js";
 import {
-  formatReadPdfOutput,
-  formatReadPdfPagesOutput,
   isPdfPath,
   READ_PDF_TOOL_TIMEOUT_MS,
   readPdfFile,
@@ -52,8 +46,6 @@ import {
 
 export { addReadLineNumbers } from "./read-text.js";
 
-const FILE_UNCHANGED_STUB =
-  "Wasted call — file unchanged since your last Read. Refer to that earlier tool_result instead.";
 const READ_PROVIDER_DESCRIPTION = [
   "Reads a file from the local filesystem.",
   "",
@@ -68,75 +60,6 @@ const READ_PROVIDER_DESCRIPTION = [
 ].join("\n");
 
 const fallbackReadFileStates = new WeakMap<ToolExecutionContext, ReadFileStateMap>();
-
-function formatReadModelContent(output: unknown): ModelMessageContent {
-  const parsed = ReadOutputSchema.safeParse(output);
-  if (!parsed.success) {
-    return stringifyReadOutputFallback(output);
-  }
-
-  return formatReadOutput(parsed.data);
-}
-
-function formatReadOutput(output: ReadOutput): ModelMessageContent {
-  switch (output.type) {
-    case "text":
-      return formatReadTextOutput(output);
-    case "file_unchanged":
-      return FILE_UNCHANGED_STUB;
-    case "image":
-      return formatReadImageOutput(output);
-    case "video":
-      return formatReadVideoOutput(output);
-    case "pdf":
-      return formatReadPdfOutput(output);
-    case "parts":
-      return formatReadPdfPagesOutput(output);
-    case "notebook":
-      return stringifyReadOutputFallback(output);
-  }
-}
-
-function formatReadImageOutput(output: ReadImageOutput): ModelMessageContent {
-  const imageBlock = {
-    type: "image" as const,
-    mediaType: output.mimeType,
-    dataUrl: `data:${output.mimeType};base64,${output.base64}`,
-    source: {
-      id: "read-image",
-      kind: "inline" as const,
-      mimeType: output.mimeType,
-      placeholder: "Read image",
-      sizeBytes: output.originalSize,
-    },
-  };
-  // 尺寸提示拼进 tool result 会让 provider-visible content 随是否缩放而改变；
-  // 图片结果只保留媒体 block，dimensions 继续留在结构化 output 供 UI 和调试使用。
-  return [imageBlock];
-}
-
-// 与图片同构：tool result 只保留媒体 block；OpenAI 系 provider 由
-// tool-result-media-projection 拆成后置 user part（AI SDK tool result 无 video part 变体）。
-function formatReadVideoOutput(output: ReadVideoOutput): ModelMessageContent {
-  const videoBlock = {
-    type: "video" as const,
-    mediaType: output.mimeType,
-    dataUrl: `data:${output.mimeType};base64,${output.base64}`,
-    source: {
-      id: "read-video",
-      kind: "inline" as const,
-      mimeType: output.mimeType,
-      placeholder: "Read video",
-      sizeBytes: output.originalSize,
-    },
-  };
-  return [videoBlock];
-}
-
-function stringifyReadOutputFallback(output: unknown): string {
-  if (typeof output === "string") return output;
-  return JSON.stringify(output) ?? "";
-}
 
 const readHandler: ToolHandler = async (input, context) => {
   const { file_path, offset, limit, pages } = parseReadInput(input);
@@ -249,65 +172,6 @@ const readHandler: ToolHandler = async (input, context) => {
     throw error;
   }
 };
-
-function parseReadInput(input: unknown): ReadInput {
-  const parsed = ReadInputSchema.safeParse(input);
-  if (parsed.success) return parsed.data as ReadInput;
-
-  const toolUseErrorMessage = getReadInputToolUseErrorMessage(parsed.error);
-  if (!toolUseErrorMessage) {
-    throw parsed.error;
-  }
-
-  // Read 输入预检失败应以 <tool_use_error> 文本进入 provider；
-  // 直接透出 ZodError JSON 会让 binary/device preflight 与 capture 偏离。
-  throw createCoreError(
-    CoreErrorType.ToolExecutionFailed,
-    `<tool_use_error>${toolUseErrorMessage}</tool_use_error>`,
-    {
-      cause: parsed.error,
-      context: {
-        code: "read_input_preflight_failed",
-      },
-      recoverable: true,
-    },
-  );
-}
-
-function validateReadInput(input: unknown): ToolInputValidationResult {
-  if (typeof input !== "object" || input === null || Array.isArray(input)) {
-    return { result: true };
-  }
-
-  const candidate = input as { file_path?: unknown; pages?: unknown };
-  if (typeof candidate.file_path !== "string" || typeof candidate.pages !== "string") {
-    return { result: true };
-  }
-
-  // PDF pages 的语义约束只存在于 runtime schema 时，JSON Schema 会接受任意
-  // string，导致错误调用穿过 Hook 和权限后才在 handler 抛出裸 ZodError。
-  const failure = getReadPdfPagesValidationFailure(candidate.file_path, candidate.pages);
-  return failure ? { result: false, ...failure } : { result: true };
-}
-
-function getReadInputToolUseErrorMessage(error: unknown): string | undefined {
-  const issues = (error as { issues?: unknown }).issues;
-  if (!Array.isArray(issues)) return undefined;
-
-  for (const issue of issues) {
-    if (!isReadInputToolUseIssue(issue)) continue;
-    return issue.message;
-  }
-  return undefined;
-}
-
-function isReadInputToolUseIssue(issue: unknown): issue is { message: string } {
-  if (!issue || typeof issue !== "object") return false;
-  const record = issue as { code?: unknown; message?: unknown; path?: unknown };
-  if (record.code !== "custom" || typeof record.message !== "string") return false;
-  if (!Array.isArray(record.path)) return false;
-  return record.path.length === 1 && record.path[0] === "file_path";
-}
 
 function createReadTrace(context: ToolExecutionContext): TraceContext {
   return {

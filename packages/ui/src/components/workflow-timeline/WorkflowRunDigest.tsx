@@ -14,6 +14,8 @@ import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/typ
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { WorkflowRunCardSummary } from "@/ToolCallBlocks/fileSummaryTypes.js";
 import { buildWorkflowTimeline, type TimelinePill } from "./timeline-model.js";
+import type { WorkflowTimelineDisplay } from "./timeline-activity.js";
+import { WorkflowConnectionNotice } from "./WorkflowExecutionActivity.js";
 import { workflowCardDetail } from "./timeline-summary.js";
 import {
   WORKFLOW_RUN_ENDED_KIND_ID,
@@ -30,6 +32,8 @@ import { timelineHeight, WorkflowTimeline } from "./WorkflowTimeline.js";
 
 /** 下方运行卡默认展开，无箭头但仍可收起；状态由标题表达。 */
 export interface WorkflowRunDigestProps {
+  /** 父投影的连接展示状态；缺省兼容旧宿主。 */
+  display?: WorkflowTimelineDisplay;
   name: string;
   runId: string;
   /** 该 run 的发起图（按发起 toolCallId 查到）；缺席即画不出阶段线（行窗口没带发起行）。 */
@@ -74,6 +78,7 @@ export interface WorkflowRunDigestProps {
 }
 
 export function WorkflowRunDigest({
+  display,
   graph,
   name,
   onOpenArtifact,
@@ -97,9 +102,9 @@ export function WorkflowRunDigest({
   const model = useMemo(
     () =>
       graph !== undefined && graph.steps.length > 0 && run !== undefined
-        ? buildWorkflowTimeline(graph, run)
+        ? buildWorkflowTimeline(graph, run, { syncing: display?.syncing, stale: display?.stale })
         : undefined,
-    [graph, run],
+    [graph, run, display?.syncing, display?.stale],
   );
   const hasRail = model !== undefined && model.stations.length > 0;
   const shown = useMemo(
@@ -240,6 +245,7 @@ export function WorkflowRunDigest({
         }
         {...(onOpenRun === undefined ? {} : { onOpenDetails: () => onOpenRun() })}
       />
+      <WorkflowConnectionNotice connection={model?.connection} />
       {shown === undefined || !hasRail ? null : (
         // 收起时只隐藏代理，保留阶段线作为运行进度概览。
         <div

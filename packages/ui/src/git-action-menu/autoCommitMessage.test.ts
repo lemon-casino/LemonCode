@@ -5,6 +5,7 @@ import type { ConversationRow } from "@lcode/shared/lcode-protocol-v4";
 import {
   advanceAutoGitCommitMessageGate,
   buildGitCommitMessageConversationContext,
+  buildGitCommitMessageScopeKey,
   createAutoGitCommitMessageGateState,
   resolveLatestCompletedGitCommitMessageTurn,
   shouldAutoOpenGitCommitDialog,
@@ -117,7 +118,7 @@ test("auto commit message gate requires a live running edge and settled success"
     settled: true,
     completedTurn,
   });
-  assert.equal(cold.target, undefined);
+  assert.equal(cold.target, null);
 
   const running = advanceAutoGitCommitMessageGate(cold.state, {
     enabled: true,
@@ -179,7 +180,10 @@ test("auto commit message gate clears on disable and scope change", () => {
     settled: true,
     completedTurn: resolveLatestCompletedGitCommitMessageTurn([completedHeader()]),
   });
-  assert.deepEqual(disabled.state, { scopeKey: "workspace/session-a", armed: false });
+  assert.deepEqual(disabled.state, {
+    scopeKey: buildGitCommitMessageScopeKey("workspace/session-a"),
+    armed: false,
+  });
   assert.equal(disabled.target, null);
 
   const switched = advanceAutoGitCommitMessageGate(armed.state, {
@@ -190,7 +194,18 @@ test("auto commit message gate clears on disable and scope change", () => {
     completedTurn: resolveLatestCompletedGitCommitMessageTurn([completedHeader()]),
   });
   assert.equal(switched.state.armed, false);
-  assert.equal(switched.target, undefined);
+  assert.equal(switched.target, null);
+
+  const recovered = advanceAutoGitCommitMessageGate(armed.state, {
+    enabled: true,
+    scopeKey: "workspace/session-a",
+    logEpoch: "new-log",
+    phase: "completedSuccess",
+    settled: true,
+    completedTurn: resolveLatestCompletedGitCommitMessageTurn([completedHeader()]),
+  });
+  assert.equal(recovered.state.armed, false);
+  assert.equal(recovered.target, null);
 });
 
 test("Git 仓库摘要晚于 running 到达时保留武装并只生成一次", () => {

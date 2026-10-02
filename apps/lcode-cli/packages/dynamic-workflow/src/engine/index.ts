@@ -32,6 +32,7 @@ export {
   type ArtifactRef,
   type ArtifactVersionRecord,
   type AskMessage,
+  type AskActivity,
   type AskLastTool,
   type AskProgress,
   type AskSpec,

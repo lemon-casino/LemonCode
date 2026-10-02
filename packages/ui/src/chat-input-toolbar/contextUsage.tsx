@@ -62,6 +62,8 @@ import {
   readSessionTokenTotal,
   type ChildSessionUsage,
 } from "@/v4/composer/sessionTokenStats.js";
+import { combineOutputSpeeds, type SessionOutputSpeed } from "@/v4/composer/sessionOutputSpeed.js";
+import { SessionOutputSpeedValue } from "@/v4/composer/SessionOutputSpeedValue.js";
 import {
   CONTEXT_QUOTA_RESET_URGENT_SECONDS,
   ContextQuotaResetOpportunityReminderContent,
@@ -237,10 +239,12 @@ export function ChatContextUsage({
   taskUsage,
   sessionUsage,
   liveOutputRate = null,
+  outputSpeed,
   childUsage,
   childCount = 0,
   childCurrentOutputTokens = null,
   childLiveOutputRate = null,
+  childOutputSpeed,
   selectedProvider: _selectedProvider,
   intl,
   locale,
@@ -255,10 +259,12 @@ export function ChatContextUsage({
   } | null;
   sessionUsage?: SessionUsageState["cumulative"];
   liveOutputRate?: number | null;
+  outputSpeed?: SessionOutputSpeed;
   childUsage?: ChildSessionUsage;
   childCount?: number;
   childCurrentOutputTokens?: number | null;
   childLiveOutputRate?: number | null;
+  childOutputSpeed?: SessionOutputSpeed;
   selectedProvider: LCodeProvider;
   intl: ReturnType<typeof useLCodeIntl>["intl"];
   locale: string;
@@ -796,10 +802,17 @@ export function ChatContextUsage({
   const childTokenTotal = (childUsage?.inputTokens ?? 0) + (childUsage?.outputTokens ?? 0);
   const sessionTokenTotal = readDisplayableSessionTokenTotal(ownSessionTotal, childTokenTotal);
   const incompleteTotal = (childUsage?.unknownCount ?? 0) > 0;
-  const combinedLiveOutputRate =
-    liveOutputRate === null && childLiveOutputRate === null
-      ? null
-      : (liveOutputRate ?? 0) + (childLiveOutputRate ?? 0);
+  const mainSpeed = outputSpeed ?? { liveRate: liveOutputRate, average: null, pending: false };
+  const childSpeed = childOutputSpeed ?? {
+    liveRate: childLiveOutputRate,
+    average: null,
+    pending: false,
+  };
+  const combinedOutputSpeed = combineOutputSpeeds([mainSpeed, childSpeed]);
+  const hasOutputSpeed =
+    combinedOutputSpeed.liveRate !== null ||
+    combinedOutputSpeed.average !== null ||
+    combinedOutputSpeed.pending;
   const contextUsageLabel = useMemo(() => {
     if (!renderableTaskUsage) {
       return null;
@@ -840,7 +853,7 @@ export function ChatContextUsage({
     !hasCodingPlanUsageRemaining &&
     !hasStartPlanBalance &&
     sessionTokenTotal === null &&
-    combinedLiveOutputRate === null
+    !hasOutputSpeed
   ) {
     return null;
   }
@@ -913,9 +926,13 @@ export function ChatContextUsage({
           <ContextTrigger
             aria-label={[
               sessionSummaryLabel,
-              combinedLiveOutputRate === null
-                ? null
-                : intl.formatMessage({ id: "chat.sessionUsage.speed" }),
+              combinedOutputSpeed.liveRate !== null
+                ? intl.formatMessage({ id: "chat.sessionUsage.speed" })
+                : combinedOutputSpeed.average !== null
+                  ? intl.formatMessage({ id: "chat.sessionUsage.averageSpeed" })
+                  : combinedOutputSpeed.pending
+                    ? intl.formatMessage({ id: "chat.sessionUsage.speedPending" })
+                    : null,
               triggerLabel,
             ]
               .filter(Boolean)
@@ -928,19 +945,20 @@ export function ChatContextUsage({
             data-chat-toolbar-popover-trigger="true"
             data-testid={TID_CHAT_CONTEXT_USAGE_TRIGGER}
             summary={
-              sessionTokenTotal === null && combinedLiveOutputRate === null ? undefined : (
-                <span className="inline-flex items-center gap-1.5 font-mono text-ui-xs tabular-nums">
+              sessionTokenTotal === null && !hasOutputSpeed ? undefined : (
+                <span className="inline-flex min-w-0 flex-wrap items-center gap-1.5 font-mono text-ui-xs tabular-nums">
                   {sessionTokenTotal === null ? null : (
                     <span>
                       {incompleteTotal ? "≥" : ""}
                       {formatCompactTokenNumber(locale, sessionTokenTotal)}
                     </span>
                   )}
-                  {combinedLiveOutputRate !== null ? (
-                    <span className="text-foreground-subtle">
-                      {formatCompactTokenNumber(locale, combinedLiveOutputRate)}/s
-                    </span>
-                  ) : null}
+                  <SessionOutputSpeedValue
+                    speed={combinedOutputSpeed}
+                    intl={intl}
+                    locale={locale}
+                    compact
+                  />
                 </span>
               )
             }
@@ -970,7 +988,7 @@ export function ChatContextUsage({
         <ContextContentBody className="min-w-0 space-y-3 [overflow-wrap:anywhere]">
           {/* 默认 ai-elements Header 会硬编码标题并把摘要拆到独立头部。
           工具栏上下文 hover 只需要一块紧凑信息面板，摘要和明细统一放在 body 里。 */}
-          {sessionTokenTotal !== null && sessionUsage ? (
+          {(sessionTokenTotal !== null || hasOutputSpeed) && sessionUsage ? (
             <div className="space-y-3">
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between gap-3 text-ui-base font-medium text-foreground">
@@ -983,7 +1001,7 @@ export function ChatContextUsage({
                   </span>
                   <span className="font-mono tabular-nums">
                     {incompleteTotal ? "≥" : ""}
-                    {numberFormatter.format(sessionTokenTotal)}
+                    {sessionTokenTotal === null ? "-" : numberFormatter.format(sessionTokenTotal)}
                   </span>
                 </div>
               </div>
@@ -1008,13 +1026,15 @@ export function ChatContextUsage({
                       {numberFormatter.format(sessionUsage.outputTokens)}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 text-ui-sm text-foreground-subtle">
                     <span>{intl.formatMessage({ id: "chat.sessionUsage.mainSpeed" })}</span>
-                    <span className="font-mono tabular-nums">
-                      {liveOutputRate === null
-                        ? "-"
-                        : `${numberFormatter.format(liveOutputRate)} token/s`}
-                    </span>
+                    {mainSpeed.liveRate === null &&
+                    mainSpeed.average === null &&
+                    !mainSpeed.pending ? (
+                      "-"
+                    ) : (
+                      <SessionOutputSpeedValue speed={mainSpeed} intl={intl} locale={locale} />
+                    )}
                   </div>
                 </div>
               </div>
@@ -1049,13 +1069,15 @@ export function ChatContextUsage({
                         </span>
                       </div>
                     ) : null}
-                    <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 text-ui-sm text-foreground-subtle">
                       <span>{intl.formatMessage({ id: "chat.sessionUsage.childSpeed" })}</span>
-                      <span className="font-mono tabular-nums">
-                        {childLiveOutputRate === null
-                          ? "-"
-                          : `${numberFormatter.format(childLiveOutputRate)} token/s`}
-                      </span>
+                      {childSpeed.liveRate === null &&
+                      childSpeed.average === null &&
+                      !childSpeed.pending ? (
+                        "-"
+                      ) : (
+                        <SessionOutputSpeedValue speed={childSpeed} intl={intl} locale={locale} />
+                      )}
                     </div>
                   </div>
                 </div>

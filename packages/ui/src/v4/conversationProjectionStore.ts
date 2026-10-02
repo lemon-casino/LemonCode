@@ -104,6 +104,8 @@ export interface OptimisticCommand {
 
 export interface ConversationStoreState {
   status: ConversationStoreStatus;
+  /** 仅展示：从现有 initial/recovery 闸门派生，不构成新的连接或工作流状态所有者。 */
+  syncing?: boolean;
   snapshot: ConversationSnapshot | null;
   subscriptionId: string | null;
   lastError: string | null;
@@ -138,6 +140,7 @@ export interface SessionOpenRendererTiming {
 
 const INITIAL_STATE: ConversationStoreState = {
   status: "connecting",
+  syncing: true,
   snapshot: null,
   subscriptionId: null,
   lastError: null,
@@ -381,7 +384,14 @@ export class ConversationProjectionStore {
   }
 
   private setState(patch: Partial<ConversationStoreState>): void {
-    this.state = { ...this.state, ...patch };
+    const next = { ...this.state, ...patch };
+    // subscribe ACK 不代表 initial 已应用，same-sub recovery 也不切 status。
+    // 从同一 owner 的现有闸门派生提示，避免历史 activity 在恢复期间被误读成实时输出。
+    const syncing = next.status === "connecting" || (next.status === "live" && (
+      this.awaitingInitial !== null || this.recovery !== null || !this.subscriptionHasAppliedBase
+    ));
+    if (Object.keys(patch).length === 0 && this.state.syncing === syncing) return;
+    this.state = { ...next, syncing };
     for (const listener of this.listeners) listener();
   }
 
@@ -443,21 +453,21 @@ export class ConversationProjectionStore {
       this.discardRecovery();
       this.runtimeRecycleRetryAttempt = 0;
       this.initialSubscribeAckAt = monotonicNow();
+      this.subscriptionHasAppliedBase = Boolean(
+        snapshot && result.ack.mode === "resume" && result.ack.logEpoch === snapshot.logEpoch,
+      );
+      // 公共 result 已是 ACK-only；initial 与 online 统一走 notification。
+      // 先设置同代闸门再发布，避免 ACK 与首帧之间闪现「已同步」；activate 仍在 subId 入 store 后。
+      this.awaitingInitial = {
+        subscriptionId: result.ack.subscriptionId,
+        mode: result.ack.mode,
+      };
       this.setState({
         status: "live",
         subscriptionId: result.ack.subscriptionId,
         lastError: null,
         openTiming: result.ack.openTiming,
       });
-      this.subscriptionHasAppliedBase = Boolean(
-        snapshot && result.ack.mode === "resume" && result.ack.logEpoch === snapshot.logEpoch,
-      );
-      // 公共 result 已是 ACK-only；initial 与 online 统一走 notification。
-      // subscriptionId 必须先入 store，activate 才能同步释放同一 read 中暂存的 own initial。
-      this.awaitingInitial = {
-        subscriptionId: result.ack.subscriptionId,
-        mode: result.ack.mode,
-      };
       this.transport.activate(result.ack.subscriptionId);
       logger.lifecycle.info("v4 conversation store connect completed", {
         durationMs: roundedDuration(subscribeStartedAt, monotonicNow()),
@@ -639,6 +649,8 @@ export class ConversationProjectionStore {
       online: deliveryKind === "online",
       frameReceivedAt,
     });
+    // aligned resume 可能不修改 snapshot，闸门收口仍要发布 display-only 同步变化。
+    this.setState({});
   }
 
   private applyFrame(
@@ -821,6 +833,7 @@ export class ConversationProjectionStore {
       frameDeadline: null,
     };
     this.recovery = recovery;
+    this.setState({});
     this.issueRecovery(recovery, false);
   }
 
@@ -900,6 +913,7 @@ export class ConversationProjectionStore {
         this.issueRecovery(recovery, false);
       } else {
         this.recovery = null;
+        this.setState({});
       }
       return;
     }

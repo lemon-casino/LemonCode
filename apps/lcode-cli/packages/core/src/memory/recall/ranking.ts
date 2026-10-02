@@ -30,6 +30,8 @@ export function rankMemoryDocuments(input: {
   const ranked = input.documents
     .map((document) => ({
       document,
+      matchedTerms: queryTokens.filter((token) => document.termFrequencies.has(token)),
+      metadataMatches: queryTokens.filter((token) => document.metadataTokens.has(token)),
       score:
         calculateBm25Score({
           averageDocumentLength,

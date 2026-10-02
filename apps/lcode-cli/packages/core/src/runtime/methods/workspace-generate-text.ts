@@ -23,7 +23,6 @@ import { normalizeStreamError } from "../helpers/index.js";
 import { auxiliaryModelOptions } from "../../model/auxiliary-model-options.js";
 
 const WORKSPACE_GENERATE_TEXT_TIMEOUT_MS = 60_000;
-const CONNECTIVITY_PROBE_MAX_OUTPUT_TOKENS = 1;
 // 探测请求使用固定最小 prompt，避免多余推理开销；不可改写角色、文本或混入会话历史。
 const CONNECTIVITY_PROBE_SYSTEM = "You are LCode connectivity probe.";
 const CONNECTIVITY_PROBE_USER = "hi";
@@ -66,11 +65,11 @@ export async function testModelConnectivity(
     selection: input.selection,
     rawModelFactory: options?.rawModelFactory,
   });
-  // 连接探测不需要生成正文；复用辅助生成的 5,000 预算会等待多余推理和输出。
-  // 独立限制为 1 Token，仍使用最低公开档位，不改变其他辅助调用的预算。
+  // 固定 1 Token 会被要求更高输出下限的接口拒绝，不能据此判定模型不可用。
+  // 预算沿用正式执行链的模型配置上限；最低档位、最小提示和 deadline 控制探测开销。
   const model = baseModel.bind({
     ...auxiliaryModelOptions(baseModel),
-    maxOutputTokens: CONNECTIVITY_PROBE_MAX_OUTPUT_TOKENS,
+    maxOutputTokens: baseModel.optionSpecs.maxOutputTokens.max,
   });
   const traceContext = createChildTraceContext(options?.traceContext ?? this.rootTraceContext, {
     attributes: {

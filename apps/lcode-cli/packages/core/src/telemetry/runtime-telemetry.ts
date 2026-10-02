@@ -11,8 +11,6 @@ import type {
   DetachedOperationSpanWriter,
   DetachedOperationTraceStart,
   MessageId,
-  ModelAttemptSpanWriter,
-  ModelCallSpanWriter,
   SessionId,
   SessionTaskType,
   SyntheticUserMessageSource,
@@ -176,45 +174,6 @@ const NOOP_DETACHED: DetachedOperationSpanWriter = {
   finishCompleted() {},
   finishFailed() {},
   setResultType() {},
-};
-
-const NOOP_ATTEMPT: ModelAttemptSpanWriter = {
-  ...NOOP_SCOPE,
-  finishAbandoned() {},
-  finishCancelled() {},
-  finishCompleted() {},
-  finishFailed() {},
-  markFirstContent() {},
-  markFirstProviderEvent() {},
-  markFirstText() {},
-  markStreamStalled() {},
-  setCacheReadTokens() {},
-  setCacheWriteTokens() {},
-  setEffectiveReasoningBudgetTokens() {},
-  setEffectiveReasoningControl() {},
-  setEffectiveReasoningLevel() {},
-  setEffectiveReasoningState() {},
-  setFinishReason() {},
-  setHttpStatusCode() {},
-  setInputTokens() {},
-  setOutputTokens() {},
-  setProviderErrorCode() {},
-  setProviderErrorMessage() {},
-  setProviderRequestId() {},
-  setReasoningTokens() {},
-  setResponseModel() {},
-  setRetryAfterMs() {},
-  setStreamOutputCommitted() {},
-};
-
-const NOOP_CALL: ModelCallSpanWriter = {
-  ...NOOP_SCOPE,
-  finishAbandoned() {},
-  finishCancelled() {},
-  finishCompleted() {},
-  finishFailed() {},
-  markFallbackSelected() {},
-  startAttempt: () => NOOP_ATTEMPT,
 };
 
 const NOOP_AGENT_EXECUTION_TELEMETRY: AgentExecutionTelemetryPort = {

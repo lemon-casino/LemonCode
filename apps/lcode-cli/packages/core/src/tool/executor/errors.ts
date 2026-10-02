@@ -17,12 +17,22 @@ export function createErrorResult(
       : undefined;
   // 根因：通用错误层按 tool name 拼接 provider 文案会反向依赖具体工具。
   // handler 只返回自己的 code/message；这里统一组装 envelope，并保留裸 message 给 UI 和日志。
+  const inputValidationContent = getInitialInputValidationModelContent(error);
   const modelContent =
-    getInitialInputValidationModelContent(error) ??
+    inputValidationContent ??
     (handlerFailure ? `<tool_use_error>${handlerFailure.message}</tool_use_error>` : undefined);
   // subagent/turn/model 错误常把真实 provider 原因包在 cause 链里；
   // tool result 是父模型和 UI hover 的共同来源，必须在这里统一投影成可读摘要。
   const projectedError = projectExecutionErrorPayload(error);
+  // 中文依据：首次 schema 错误已有具体字段问题，但旧 UI 只收到泛化的 inputSchema
+  // 失败；复用原模型反馈和同一有界摘要器，不披露输入值、不改变校验/修复生命周期。
+  const validationMessage = inputValidationContent
+    ? projectExecutionErrorPayload({
+        message: inputValidationContent
+          .replace(/^<tool_use_error>/u, "")
+          .replace(/<\/tool_use_error>$/u, ""),
+      }).message
+    : undefined;
   const reasonSource =
     isCoreError(error) &&
     (error.context?.reasonSource === "plan_approval_feedback" ||
@@ -35,7 +45,7 @@ export function createErrorResult(
   const message =
     reasonSource !== undefined || options?.preserveReasonFormatting === true
       ? error.message
-      : projectedError.message;
+      : (validationMessage ?? projectedError.message);
   return {
     toolCallId: toolCall.id,
     toolName: toolCall.name,

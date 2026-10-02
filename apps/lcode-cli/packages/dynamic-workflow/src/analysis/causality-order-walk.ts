@@ -123,9 +123,22 @@ export function walkNode(state: TraceState, node: ts.Node, chain: readonly strin
     // oracle adds whatever labels the awaited VALUE carries. The operand goes to the
     // barrier as well: it is where the STRANDS this await joins are named.
     const claim = settlesAt(state, node, node.getStart(scriptFile));
+    // Promise.race 等表达式会包含 ask，但不必等待它完成；提示只记录直接、非可选的 ask/tuple join。
+    const directAsk = (expression: ts.Node): string | undefined =>
+      ts.isCallExpression(expression) && !ts.isOptionalChain(expression)
+        ? state.askByCall.get(expression)
+        : undefined;
+    const ask = directAsk(node.expression);
+    const join = state.fullJoinByCall.get(node.expression);
+    const tuple = ts.isCallExpression(node.expression) ? node.expression.arguments[0] : undefined;
+    const directJoin = join !== undefined && tuple !== undefined && ts.isArrayLiteralExpression(tuple) &&
+      tuple.elements.every((element) => directAsk(element) !== undefined);
     barrier(state, [...issuesSince(state, mark), ...claim.certain], claim.maybe, chain, {
       mark: spawned,
       operand: node.expression,
+      loc: locOf(state, node),
+      ...(ask === undefined ? {} : { ask }),
+      ...(directJoin ? { join } : {}),
     });
     return;
   }

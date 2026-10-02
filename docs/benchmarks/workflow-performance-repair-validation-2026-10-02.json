@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-02",
+  "status": "passed-after-popover-test-synchronization-fix",
+  "nodeVersion": "v24.14.1",
+  "pinnedNodeVersion": "24.14.0",
+  "countsRule": "Normalized file path and observer caseId; never sum stage/rerun counts. Every attempt retained. Latest pass does not erase the initial failure or establish a root cause.",
+  "unique": {
+    "files": 233,
+    "cases": 1201,
+    "suites": 5,
+    "cliFiles": 194,
+    "cliCases": 996
+  },
+  "attemptCounts": {
+    "caseAttempts": 1203,
+    "repeatedCaseAttempts": 2
+  },
+  "firstOutcomes": {
+    "passed": 1200,
+    "failed": 1,
+    "skipped": 0,
+    "cancelled": 0,
+    "todo": 0
+  },
+  "latestOutcomes": {
+    "passed": 1201,
+    "failed": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "todo": 0
+  },
+  "firstFailure": {
+    "file": "packages/web/test/workflow-execution-progress.test.mjs",
+    "assertionLineAtFailure": 165,
+    "name": "workflow activity, retry explanations and recovery remain accurate on desktop and phone",
+    "message": "Timeout 30000ms waiting for opened workflow-activity-details Popover",
+    "originalUnmodifiedRerun": "passed once in isolation; not counted as an additional unique case",
+    "rootCauseAtTimeOfRerun": "not established by the original log",
+    "subsequentBrowserEvidence": "docs/benchmarks/workflow-popover-close-evidence-2026-10-02.json"
+  },
+  "suites": [
+    {
+      "name": "shared",
+      "tests": 45,
+      "pass": 45
+    },
+    {
+      "name": "UI workflow",
+      "tests": 89,
+      "pass": 89
+    },
+    {
+      "name": "Bootstrap",
+      "tests": 238,
+      "pass": 238,
+      "partOfCliUnique": true
+    },
+    {
+      "name": "registry",
+      "tests": 17,
+      "pass": 17,
+      "partOfCliUnique": true
+    },
+    {
+      "name": "debug",
+      "tests": 9,
+      "pass": 9,
+      "partOfCliUnique": true
+    },
+    {
+      "name": "CLI remainder",
+      "tests": 732,
+      "pass": 732,
+      "partOfCliUnique": true
+    },
+    {
+      "name": "Web",
+      "tests": 62,
+      "firstPass": 61,
+      "firstFail": 1,
+      "latestPass": 62
+    },
+    {
+      "name": "browser benchmark unit tests",
+      "tests": 9,
+      "pass": 9
+    }
+  ],
+  "checks": {
+    "cliForcedTypecheck": {
+      "tasks": 27,
+      "passed": 27,
+      "cached": 0
+    },
+    "cliForcedLint": {
+      "tasks": 14,
+      "passed": 14,
+      "cached": 0,
+      "errors": 0,
+      "warnings": 0
+    },
+    "rootTypecheck": "passed",
+    "rootLint": {
+      "errors": 0,
+      "warnings": 0
+    },
+    "architecture": {
+      "violations": 0,
+      "baseline": 0,
+      "new": 0
+    },
+    "registryCheck": "passed without rewriting generated data",
+    "fullCliCheck": "passed; final standard check reused typecheck cache after the earlier forced 27-task validation"
+  },
+  "independentReviews": {
+    "reducer": {
+      "differentialCases": 15303,
+      "confirmedBlockers": 0
+    },
+    "uiIndex": {
+      "comparisons": 1800,
+      "focusedTests": 22,
+      "weakCacheCollectionObserved": true,
+      "confirmedBlockers": 0
+    },
+    "publisherBytes": {
+      "focusedTests": 14,
+      "confirmedBlockers": 0,
+      "boundary": "Owner-created immutable states; untrusted mutable identities and unknown payloads fall back to native JSON"
+    }
+  },
+  "evidence": {
+    "fullLocalReportSha256": "11eee65f3568f2e03b5014d35952d2500f73d55b8508970ca3f0aede1b57da1f",
+    "rawFailureLogsRetainedLocally": true,
+    "testInventoryStableAcrossEachAttempt": true,
+    "newCliFilesVsPreviousRun": {
+      "total": 39,
+      "preexistingParallelMemoryWork": 34,
+      "thisRepairRegistryAndByteBudget": 2,
+      "other": 3
+    },
+    "note": "Counts include existing tests from parallel workspace work and are not a count of new tests written for this repair."
+  },
+  "notCovered": [
+    "Real provider/native Computer Use/user-profile application smoke tests",
+    "Release packaging, installation, deployment and real-phone or macOS/Linux hardware testing",
+    "Unrelated Git/services tests outside the existing complete Web suite and agreed workflow/CLI scope"
+  ],
+  "subsequentSynchronizationFix": {
+    "files": [
+      "packages/web/test/workflow-execution-progress.test.mjs",
+      "packages/web/test/workflow-execution-progress-browser.mjs"
+    ],
+    "productionPopoverChanged": false,
+    "fixedSleepOrRetryAdded": false,
+    "originalTestBudgetMs": 180000,
+    "measuredTestWallMs": 58741,
+    "attemptsAfterFix": 1,
+    "pass": 1,
+    "fail": 0,
+    "skipped": 0,
+    "cancelled": 0,
+    "uniqueCaseTotalUnchanged": true,
+    "viewportLanguageThemeCombinations": 8,
+    "scenarios": 26,
+    "closeCalls": 142,
+    "allCloseStagesCompleted": true,
+    "sourceHashes": [
+      {
+        "path": "packages/web/test/workflow-execution-progress.test.mjs",
+        "sha256": "4b136340414fbdca475c47decd2169178b1a54025bd11d803db83401ebcd5966"
+      },
+      {
+        "path": "packages/web/test/workflow-execution-progress-browser.mjs",
+        "sha256": "1fa439bdaebf41f73755a426a9d659911d6a94387f67c441154bc71253a88275"
+      }
+    ],
+    "evidence": "docs/benchmarks/workflow-popover-close-evidence-2026-10-02.json",
+    "limitation": "Real observation establishes Escape completion precedes Portal teardown/focus restoration. Original timeout log did not establish the complete causal chain, and it remains retained."
+  }
+}

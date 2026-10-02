@@ -3,11 +3,14 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
+import { stripVTControlCharacters } from "node:util";
 import test from "node:test";
 import { chromium } from "playwright-core";
+import { runGitPublishCases } from "./git-publish-cases.mjs";
+import { runGitPublishEditingCases } from "./git-publish-editing-cases.mjs";
 
 // 实际共享组件 + 桩 Host 服务；不读取用户仓库、不调用模型、不提交 Git。
-test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回归", { timeout: 120_000 }, async (t) => {
+test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回归", { timeout: 300_000 }, async (t) => {
   const socket = createServer();
   socket.listen(0, "127.0.0.1");
   await once(socket, "listening");
@@ -53,7 +56,8 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
   const ready = await new Promise((resolve) => {
     const timeout = setTimeout(() => resolve(false), 45_000);
     const check = () => {
-      if (output.includes("Local:")) {
+      // Vite 在支持颜色的终端中会在 Local 与冒号之间插入 ANSI，不能误判已启动服务。
+      if (stripVTControlCharacters(output).includes("Local:")) {
         clearTimeout(timeout);
         resolve(true);
       }
@@ -227,6 +231,36 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
       assert.equal((await calls()).length, 0);
     },
   );
+  await t.test("旧自动草稿滞留时切换会话或日志代次，不弹出、不带入消息与文件范围", async () => {
+    for (const [method, value] of [
+      ["switchSession", "b"],
+      ["logEpoch", "epoch-b"],
+    ]) {
+      await loaded();
+      await fixture("automatic");
+      await generated();
+      await fixture(method, value);
+      await page.evaluate(
+        () =>
+          new Promise((resolve) => {
+            requestAnimationFrame(() => requestAnimationFrame(resolve));
+          }),
+      );
+      assert.equal(await dialog.count(), 0);
+      assert.equal((await calls()).length, 0);
+      await page.getByTestId("git-action-trigger").click();
+      await input.waitFor();
+      assert.equal(await input.inputValue(), "");
+      assert.match(await dialog.innerText(), /3\s*个文件/);
+      await page.keyboard.press("Escape");
+      await dialog.waitFor({ state: "hidden" });
+      await button.click();
+      await generated();
+      const session = method === "switchSession" ? "b" : "a";
+      assert.equal(await input.inputValue(), `修复 ${session} 的布局适配`);
+      assert.deepEqual((await calls())[0].currentSessionFilePaths, [`${session}.ts`]);
+    }
+  });
   await t.test("桌面/390px、浅/深色：复选框居中对齐首行，整行可点击且无横溢出", async () => {
     for (const width of [1280, 390])
       for (const theme of ["theme-zai-light", "dark theme-zai-dark"]) {
@@ -259,6 +293,44 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
         assert.equal(await checkbox.getAttribute("data-state"), "checked");
       }
   });
+  page.setDefaultTimeout(5_000);
+  await t.test("桌面/手机：审核不可用仍预填自动/手动纪要，但按钮与快捷键不能提交", async () => {
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      for (const automatic of [true, false]) {
+        await loaded();
+        if (automatic) await fixture("automatic", true);
+        else {
+          await fixture("reviewUnavailable");
+          await button.click();
+        }
+        await generated();
+        assert.match(await input.inputValue(), /中文提交纪要|布局适配/);
+        assert.match(await dialog.innerText(), /内容审核不可用/);
+        assert.equal(
+          await page.getByTestId("git-commit-action-item-commit").getAttribute("aria-disabled"),
+          "true",
+        );
+        await page.keyboard.press("Control+Enter");
+        assert.equal(await dialog.isVisible(), true);
+        assert.equal(
+          (
+            await page.evaluate(() =>
+              globalThis.__gitCommitFixture.publish.calls.filter(
+                (call) => call.method === "commit",
+              ),
+            )
+          ).length,
+          0,
+        );
+        await input.fill("用户确认前保留的纪要");
+        await fixture("automatic", true);
+        assert.equal(await input.inputValue(), "用户确认前保留的纪要");
+      }
+    }
+  });
+  await runGitPublishCases(t, { page, url });
+  await runGitPublishEditingCases(t, { page, url });
   assert.deepEqual(errors, []);
   assert.ok(visibleLogs.length > 0, "实际可见事件必须有日志，不用打开请求冒充已显示");
 });

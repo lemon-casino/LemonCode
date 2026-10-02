@@ -92,6 +92,7 @@ export function replayRunProgressFromEvents(
       event: entry.event,
       runId: row.runId,
       sequence: entry.sequence,
+      occurredAt: entry.timeCreated,
       ...toolCallId,
       ...launchInputId,
       ...resumedFrom,
@@ -118,6 +119,7 @@ export function replayRunProgressFromEvents(
       runId: row.runId,
       // 替换时沿用被替换那条的 sequence（水位与 live 一致）；追加时接在最后一条之后。
       sequence: trailingSettle?.sequence ?? (last?.sequence ?? 0) + 1,
+      occurredAt: trailingSettle?.timeCreated,
       ...toolCallId,
       ...launchInputId,
       ...resumedFrom,

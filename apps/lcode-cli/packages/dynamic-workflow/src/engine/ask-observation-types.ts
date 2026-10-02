@@ -6,6 +6,22 @@
  * 上限。公开面不变——types.ts 原地再导出这里的每一个名字，导入路径仍是 `./types.js`。
  */
 
+/** 请求、可见输出与工具的纯观察；不代表 ask 已交付，也不替代 AskProgress.turn。 */
+export interface AskActivity {
+  kind: "model" | "text" | "reasoning" | "tool" | "unknown";
+  /** 源事件的 epoch 毫秒；节流、重放不能改成发出或接收摘要的时刻。 */
+  observedAt: number;
+  /** 当前活动状态的源起点（epoch 毫秒）。 */
+  since: number;
+  /** 本 ask 内已观察 started 且成功 completed 的物理请求数。 */
+  requestsCompleted: number;
+  /** 复用 AskStats 的工具调用计数，不另立账本。 */
+  toolCalls: number;
+  requestId?: string;
+  toolName?: string;
+  lastRequestCompletedAt?: number;
+}
+
 /** driver 每完成一次 ask 上报的用量统计。 */
 export interface AskStats {
   tokens: number;

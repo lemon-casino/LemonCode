@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { cp, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import test from "node:test";
@@ -18,7 +18,7 @@ import {
   collectSeaOfficialPluginAssets,
   seaOfficialPluginAssetPrefix,
 } from "../apps/lcode-cli/packages/cli/scripts/sea-official-plugin-assets.mjs";
-import { stageAgentBundle } from "../packages/desktop/scripts/stage-agent-bundle.mjs";
+import "./computer-use-plugin-staging-cases.mjs";
 import { findOfficialCuaFrameContentPair } from "../packages/lcode-cua/frame-contract.js";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -362,38 +362,6 @@ test("SEA embeds every computer-use seed asset in its hashed manifest", async ()
     }
   } finally {
     await rm(stagingDirectory, { force: true, recursive: true });
-  }
-});
-
-test("clean desktop staging carries computer-use beside node_repl consumers", async () => {
-  const tempRepoRoot = await mkdtemp(join(tmpdir(), "lcode-cua-desktop-"));
-  try {
-    const tempBundle = join(tempRepoRoot, "apps/lcode-cli/packages/cli/dist/lcode.cjs");
-    await mkdir(dirname(tempBundle), { recursive: true });
-    await writeFile(tempBundle, "// fixture bundle\n");
-    await cp(
-      join(repoRoot, "apps/lcode-cli/packages/lemon-workflow-plugin"),
-      join(tempRepoRoot, "apps/lcode-cli/packages/lemon-workflow-plugin"),
-      { recursive: true },
-    );
-    await cp(pluginRoot, join(tempRepoRoot, "apps/lcode-cli/packages/lcode-cua-plugin"), {
-      recursive: true,
-    });
-
-    stageAgentBundle({ repoRoot: tempRepoRoot, platformKey: "win32-x64", log: () => {} });
-    const stagedRoot = join(
-      tempRepoRoot,
-      "packages/desktop/bundled-agents/win32-x64/glm/packages/lcode-cua-plugin",
-    );
-    for (const relativePath of requiredPluginAssets) {
-      assert.equal(
-        (await stat(join(stagedRoot, ...relativePath.split("/")))).isFile(),
-        true,
-        `desktop bundle omits ${relativePath}`,
-      );
-    }
-  } finally {
-    await rm(tempRepoRoot, { force: true, recursive: true });
   }
 });
 

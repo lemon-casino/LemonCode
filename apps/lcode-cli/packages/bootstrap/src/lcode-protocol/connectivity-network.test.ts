@@ -317,7 +317,7 @@ test(
       for (const { body, headers } of calls) {
         assert.equal(headers.authorization, "Bearer fixture-key");
         assert.equal(headers["x-fixture"], "frozen-header");
-        assert.equal(body.max_tokens, 1);
+        assert.equal(body.max_tokens, modelConfig.optionSpecs?.maxOutputTokens?.max);
         assert.equal(body.reasoning_effort, "low");
         assert.equal(body.service_tier, "normal");
         assert.equal(body.stream, true);

@@ -24,7 +24,6 @@ import {
   type LCodeProtocolRequest,
   type LCodeProtocolRequestId,
   type LCodeProtocolTrace,
-  type LCodeSessionMode,
   type LCodeSessionPersistence,
   type LCodeWorkspaceRef,
 } from "@lcode/shared";

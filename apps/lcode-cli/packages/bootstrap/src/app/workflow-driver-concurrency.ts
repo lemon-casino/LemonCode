@@ -16,6 +16,7 @@ import {
 } from "@lcode/contracts";
 import type { AgentRuntime } from "@lcode/core";
 import type {
+  AskActivity,
   AskLastTool,
   AskProgress,
   AskWaitInfo,
@@ -23,6 +24,11 @@ import type {
   RunStallInfo,
 } from "@lcode/dynamic-workflow";
 import { createActorToolActivity, type ActorToolCounts } from "./workflow-driver-tool-activity.js";
+import { activitySourceTime, createActivityScope } from "./workflow-driver-activity-scope.js";
+import {
+  activityRequestChain,
+  createAskActivitySummary,
+} from "./workflow-driver-activity-summary.js";
 import {
   workflowConcurrencyKey,
   type WorkflowConcurrencyPort,
@@ -35,6 +41,7 @@ const NON_FAILURE_RETRY_REASONS: ReadonlySet<string> = new Set([
 ]);
 
 interface ActorModelActivityHandlers {
+  onActivity?(instance: InstanceRef, activity: AskActivity): void;
   /** 该 ask 的下一个模型请求在等：等槽位（`cause: "slot"`）或退避中（`cause: "backoff"`）。 */
   onWaiting(info: AskWaitInfo): void;
   /** 该 ask 的模型请求真的发出去了（首个请求、或一段等待之后的那次）。 */
@@ -62,6 +69,12 @@ export interface ActorModelActivity {
   readonly admission: ModelRequestAdmission | undefined;
   /** 换 ask 时归零：上一个 ask 的 waiting / executing 相位与工具计数都不能带到下一个 ask。 */
   reset(): void;
+  /** executeTurn 开始前绑定其 queryId；TurnStarted 提供真实 turnId。 */
+  beginTurn(queryId: string): void;
+  endTurn(): void;
+  /** 结算前排出已有源事实；取消/释放只撤销，不制造终态活动。 */
+  flush(): void;
+  suspend(): void;
   /** 本 ask 至今观察到的工具调用计数（喂给 AskStats）。 */
   toolCounts(): ActorToolCounts;
   /** 本 ask 至今最近一次开跑的工具调用（喂给 `node-progress` 的 lastTool）。 */
@@ -110,6 +123,7 @@ export function createActorModelActivity(input: {
   runId: string;
   /** 当前在飞 ask 的实例（结算 / 取消后为 undefined）；只有工具活动的上报需要它。 */
   live?: () => InstanceRef | undefined;
+  clock?: WorkflowClock;
   handlers: ActorModelActivityHandlers;
 }): ActorModelActivity {
   const chains = new Map<string, Chain>();
@@ -121,13 +135,21 @@ export function createActorModelActivity(input: {
   let waitSeq = 0;
   let unsubscribeEvents: (() => void) | undefined;
   const { handlers, live, port, runId } = input;
-  // 同一条会话事件流的第二个读者：工具调用。实现单独成文件（判定与计数都在那里），这里只把它
-  // 编进同一个生命周期，好让 driver 侧仍然只有一个观察对象。
+  const scope = createActivityScope(() => live?.());
+  const summary = createAskActivitySummary({
+    live: () => live?.(),
+    instance: scope.instance,
+    clock: input.clock,
+    toolCalls: () => toolActivity.counts().toolCalls,
+    emit: (instance, activity) => handlers.onActivity?.(instance, activity),
+  });
+  // 一个订阅先做 ask/turn 归属检查；工具计数、副作用判定与摘要读同一条已认领事件。
   const toolActivity = createActorToolActivity({
     onMutating: () => {
-      const instance = live?.();
+      const instance = scope.instance();
       if (instance !== undefined) handlers.onMutating?.(instance);
     },
+    onActivity: (activity) => summary.tool(activity),
   });
 
   const anyExecuting = (): boolean => {
@@ -193,6 +215,24 @@ export function createActorModelActivity(input: {
       reportedWait = undefined;
       turnsResolved = 0;
       toolActivity.reset();
+      scope.reset();
+      summary.reset();
+    },
+    beginTurn: (queryId) => {
+      chains.clear();
+      executing = false;
+      reportedWait = undefined;
+      scope.beginTurn(queryId);
+      summary.beginTurn();
+    },
+    endTurn: () => {
+      scope.endTurn();
+      summary.endTurn();
+    },
+    flush: () => summary.flush(),
+    suspend: () => {
+      scope.endTurn();
+      summary.suspend();
     },
     toolCounts: () => toolActivity.counts(),
     lastTool: () => toolActivity.lastTool(),
@@ -206,14 +246,30 @@ export function createActorModelActivity(input: {
       };
     },
     observe: (runtime, sessionId) => {
-      toolActivity.observe(runtime, sessionId);
       if (typeof (runtime as Partial<AgentRuntime>).subscribeEvents !== "function") return;
       unsubscribeEvents = runtime.subscribeEvents({
         onSessionEvent: (event: SessionEvent) => {
-          if (event.type !== SessionEventType.ModelNetworkStatus || event.sessionId !== sessionId)
+          if (event.sessionId !== sessionId || !scope.accepts(event)) return;
+          toolActivity.consume(event);
+          if (event.type === SessionEventType.ModelStreaming) {
+            summary.stream(event);
             return;
+          }
+          if (
+            event.type === SessionEventType.TurnComplete ||
+            event.type === SessionEventType.TurnError
+          ) {
+            summary.finish(activitySourceTime(event.timestamp));
+            scope.endTurn();
+            return;
+          }
+          if (event.type !== SessionEventType.ModelNetworkStatus) return;
           const status = event.payload as ModelNetworkStatusEvent;
-          const key = chainKey(status);
+          const observed = summary.network(status);
+          if (observed === undefined) return;
+          if (observed.completed) handlers.onRequestCompleted?.();
+          if (!observed.current) return;
+          const key = activityRequestChain(status);
           switch (status.type) {
             case "model_request_queued":
               setWaiting(key, "queued", { cause: "slot" });
@@ -236,7 +292,6 @@ export function createActorModelActivity(input: {
               return;
             }
             case "model_request_completed":
-              handlers.onRequestCompleted?.();
               endChain(key);
               return;
             case "model_request_failed":
@@ -250,6 +305,8 @@ export function createActorModelActivity(input: {
       });
     },
     unsubscribe: () => {
+      scope.endTurn();
+      summary.suspend();
       toolActivity.unsubscribe();
       unsubscribeEvents?.();
       unsubscribeEvents = undefined;
@@ -265,13 +322,6 @@ function sameWait(a: AskWaitInfo, b: AskWaitInfo): boolean {
     a.delayMs === b.delayMs &&
     a.retryAfterMs === b.retryAfterMs
   );
-}
-
-function chainKey(status: ModelNetworkStatusEvent): string {
-  const parts = [status.querySource, status.queryId, status.toolCallId].map((part) =>
-    part === undefined ? "" : String(part),
-  );
-  return parts.some((part) => part.length > 0) ? parts.join("|") : status.requestId;
 }
 
 // ————————————————————————————— run 级 stall 时钟—————————————————————————————

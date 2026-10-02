@@ -40,6 +40,8 @@ export interface TraceState {
   readonly askByCall: ReadonlyMap<ts.Node, string>;
   readonly readByCall: ReadonlyMap<ts.Node, string>;
   readonly actorByCall: ReadonlyMap<ts.Node, string>;
+  /** Direct full joins, indexed from the shared site table rather than reparsed by advice. */
+  readonly fullJoinByCall: ReadonlyMap<ts.Node, string>;
   /** Per-element callback calls by CALL node (the fan-out region opens there). */
   readonly candByCall: ReadonlyMap<ts.Node, IterationCandidate>;
   /** Their inline literals (an iteration construct for the admission test). */
@@ -205,6 +207,7 @@ export function createTraceState(
     events: [],
     fnStack: [],
     frames: [{ region: root, settled: new Set<string>() }],
+    fullJoinByCall: new Map(table.joins.filter((site) => site.method === "all").map((site) => [site.call, site.id])),
     issued: new Set<string>(),
     iterationAncestorCache: new Map<ts.Node, Set<ts.Node>>(),
     joined: new Set<string>(),

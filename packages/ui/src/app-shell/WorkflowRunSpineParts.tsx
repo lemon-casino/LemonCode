@@ -19,6 +19,24 @@ import { MarchLight } from "@/components/workflow-timeline/WorkflowMarchLight.js
 import type { SpineSection } from "@/app-shell/workflowRunSpine.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
+/** 代理药丸的静态任务数，与活动请求数分开命名，不拿 ask 数冒充请求数。 */
+export function WorkflowPillStepCounts({ asks, reads }: { asks: number; reads: number }) {
+  const { intl } = useLCodeIntl();
+  const counts: string[] = [];
+  if (asks > 0) {
+    counts.push(intl.formatMessage({ id: "chat.toolCall.workflow.graph.card.tasks" }, { count: asks }));
+  }
+  if (reads > 0) {
+    counts.push(intl.formatMessage({ id: "chat.toolCall.workflow.graph.card.reads" }, { count: reads }));
+  }
+  if (counts.length === 0) return null;
+  return (
+    <span className="shrink-0 font-mono text-ui-xs tabular-nums text-foreground-subtlest">
+      {counts.join(" · ")}
+    </span>
+  );
+}
+
 /** 折叠节头上最多几枚头像；其余进 `+n`。 */
 const CLUSTER_MAX = 3;
 
@@ -160,7 +178,7 @@ export function SpineLamp({ status, track = 0 }: { status: StepRunStatus; track?
   );
 }
 
-/** 折叠节头上的头像串：子代理复用随主题配色、按状态变换表情的小幽灵，工作区是终端字形。 */
+/** 折叠节头上的头像串：子代理复用随主题配色、按状态变换表情的三叶小机灵，工作区是终端字形。 */
 export function AvatarCluster({
   pills,
   nameOf,

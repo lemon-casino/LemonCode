@@ -1,4 +1,11 @@
-import type { MessageId, MessageWithParts, ToolPart } from "@lcode/contracts";
+import {
+  MEMORY_HISTORY_TOOL_NAME,
+  MEMORY_REVIEW_APPLY_TOOL_NAME,
+  MEMORY_REVIEW_TOOL_NAME,
+  type MessageId,
+  type MessageWithParts,
+  type ToolPart,
+} from "@lcode/contracts";
 import { resolveContainedMemoryFilePath } from "./memory-file-path.js";
 import { formatMemoryManifest } from "./recall/manifest.js";
 import type { MemoryManifestEntry } from "./recall/types.js";
@@ -51,18 +58,71 @@ export function buildMemoryExtractionPrompt(input: {
   return [
     `You are now acting as the memory extraction subagent. Analyze the most recent ~${input.messageCount} messages above and use them to update your persistent memory systems.`,
     "",
-    "Available tools: Read, Grep, Glob, read-only Bash (ls/find/cat/stat/wc/head/tail and similar), and Edit/Write for paths inside the memory directory only, and Bash rm with paths inside the memory directory only. All other tools \u2014 MCP, Agent, write-capable Bash, etc \u2014 will be denied.",
+    "Available tools: Read, Grep, Glob, read-only Bash (ls/find/cat/stat/wc/head/tail and similar), and Edit/Write for Markdown paths inside the memory directory only. All other tools \u2014 MCP, Agent, write-capable Bash, deletion commands, etc \u2014 will be denied.",
     "",
-    "You have a limited turn budget. Edit requires a prior Read of the same file, so the efficient strategy is: turn 1 \u2014 issue all Read calls in parallel for every file you might update; turn 2 \u2014 issue all Write/Edit calls in parallel. Do not interleave reads and writes across multiple turns.",
+    "You have a limited turn budget. Read each existing file before changing it. Tools in each response execute sequentially in declaration order; place each Read before its dependent Write/Edit and keep writes sequential, especially for the same file.",
     "",
     `You MUST only use content from the last ~${input.messageCount} messages to update your persistent memories. Do not waste any turns attempting to investigate or verify that content further \u2014 no grepping source files, no reading code to confirm a pattern exists, no git commands.${existingMemories}`,
     "",
     "If nothing is worth saving, output only 'Nothing to save.' Do not explain why.",
     "",
-    "If the user explicitly asks you to remember something, save it immediately as whichever type fits best. If they ask you to forget something, find and remove the relevant entry.",
+    "If the user explicitly asks you to remember something, save it immediately as whichever type fits best. Automatic deletion is not supported in this version. If they ask you to forget something, leave it unchanged for the user to remove in an external editor; do not claim it was deleted.",
     "",
     "Apply the memory types, what-not-to-save criteria, and frontmatter format from the Memory section of your system prompt \u2014 it is already in your context above.",
   ].join("\n");
+}
+
+export function isMemoryReviewOperation(toolName: string, input: unknown): boolean {
+  if (toolName === MEMORY_REVIEW_APPLY_TOOL_NAME) return true;
+  if (!input || typeof input !== "object" || Array.isArray(input)) return false;
+  const action = (input as Record<string, unknown>).action;
+  return (
+    (toolName === MEMORY_REVIEW_TOOL_NAME &&
+      (action === "create" || action === "read" || action === "list")) ||
+    (toolName === MEMORY_HISTORY_TOOL_NAME && action === "undo")
+  );
+}
+
+export function messagesAfterLastMemoryReviewTurn(
+  messages: readonly MessageWithParts[],
+): readonly MessageWithParts[] {
+  const lastReviewIndex = messages.findLastIndex((message) =>
+    message.parts.some(
+      (part) => part.type === "tool" && isMemoryReviewOperation(part.tool, part.state.input),
+    ),
+  );
+  if (lastReviewIndex < 0) return messages;
+  // 不能只移走 ToolPart：同轮用户输入、通知和 assistant 正文都可能转述未采用的提案。
+  // 以持久真实 user 边界裁后缀；每个快照重算，冷恢复/旧 cursor 也不会重新学习该轮。
+  const nextUserIndex = messages.findIndex(
+    (message, index) => index > lastReviewIndex && isRealUserReviewBoundary(message),
+  );
+  // compact 摘要是旧上下文的派生文本，可能重述提案；不能经 hydrator 再把它带回提取请求。
+  return nextUserIndex < 0
+    ? []
+    : messages
+        .slice(nextUserIndex)
+        .filter(
+          (message) =>
+            !message.info.summary &&
+            message.info.semantics?.kind !== "compact_summary" &&
+            !message.parts.some((part) => part.type === "compaction"),
+        );
+}
+
+function isRealUserReviewBoundary(message: MessageWithParts): boolean {
+  return (
+    isNonMetaUserMessage(message) &&
+    !message.info.summary &&
+    (message.info.semantics?.origin === undefined ||
+      message.info.semantics.origin === "real_user") &&
+    (message.info.anchor?.origin === undefined || message.info.anchor.origin === "realUser") &&
+    message.parts.some(
+      (part) =>
+        part.type === "file" ||
+        (part.type === "text" && part.synthetic !== true && part.ignored !== true),
+    )
+  );
 }
 
 function evaluateMemoryExtraction(
@@ -96,7 +156,10 @@ export function createMemoryExtractionScheduler<
   const shutdownController = new AbortController();
 
   const processSnapshot = async (snapshot: TSnapshot): Promise<void> => {
-    const decision = evaluateMemoryExtraction(snapshot, cursor);
+    const durableMessages = messagesAfterLastMemoryReviewTurn(snapshot.durableMessages);
+    const safeSnapshot =
+      durableMessages === snapshot.durableMessages ? snapshot : { ...snapshot, durableMessages };
+    const decision = evaluateMemoryExtraction(safeSnapshot, cursor);
     const snapshotEnd = snapshot.boundaryMessageId;
 
     if (decision.decision === "skip") {
@@ -109,7 +172,7 @@ export function createMemoryExtractionScheduler<
       status = await execute({
         abortSignal: shutdownController.signal,
         messageCount: decision.messageCount,
-        snapshot,
+        snapshot: safeSnapshot,
       });
     } catch {
       return;
@@ -235,7 +298,8 @@ function containsDirectMemoryWrite(
   for (const message of messages) {
     if (message.info.role !== "assistant") continue;
     for (const part of message.parts) {
-      if (!isMemoryMutationToolPart(part)) continue;
+      // 失败或尚未完成的 Write/Edit 没有保存记忆，不能因此跳过提取并推进 cursor。
+      if (!isMemoryMutationToolPart(part) || part.state.status !== "completed") continue;
       const filePath = part.state.input.file_path;
       if (typeof filePath !== "string" || filePath.length === 0) continue;
       if (

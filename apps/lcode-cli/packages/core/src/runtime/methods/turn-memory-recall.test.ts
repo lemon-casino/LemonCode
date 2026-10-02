@@ -248,7 +248,7 @@ test("memory recall appends one turn-local overlay and never commits it to canon
   await appendProjectMemoryRecallForTurn(runtime, secondTurn);
   assert.equal(secondTurn.turnRequestState.entries.length, 2);
   assert.equal(canonicalEntries.length, 1);
-  assert.equal(reads, 1, "unchanged mtime reuses the runtime-owned cache");
+  assert.equal(reads, 2, "each turn revalidates content even when mtime is unchanged");
 });
 
 test("failed recall marks the attempt before I/O and is not retried in the same turn", async () => {
@@ -262,6 +262,7 @@ test("failed recall marks the attempt before I/O and is not retried in the same 
       },
     } as unknown as FileSystemPort,
     logger: {
+      debug() {},
       warn(_message: string, metadata: Record<string, unknown>) {
         warningMetadata = metadata;
       },
@@ -276,7 +277,8 @@ test("failed recall marks the attempt before I/O and is not retried in the same 
   assert.equal(state.memoryRecallAttempted, true);
   assert.equal(listAttempts, 1);
   assert.equal(state.turnRequestState.entries.length, 1);
-  assert.equal(warningMetadata?.errorName, "Error");
+  assert.equal(warningMetadata?.event, "memory.recall.incomplete");
+  assert.equal(warningMetadata?.failedDirectories, 1);
   assert.equal("errorMessage" in (warningMetadata ?? {}), false);
   assert.doesNotMatch(JSON.stringify(warningMetadata), /scan failed/u);
 });

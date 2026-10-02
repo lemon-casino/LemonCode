@@ -197,7 +197,13 @@ export function barrier(
 
   // `joins` rides the FIRST event this barrier emits: it is a property of the barrier, not
   // of either certainty side, and the control-flow projection reads it as one set.
-  const withJoins = joined.length === 0 ? {} : { joins: joined };
+  // 提示只读显式 await 的原始位置；合成屏障不补位置，避免把 may 等待说成可优化事实。
+  const source = {
+    ...(awaited?.loc === undefined ? {} : { loc: awaited.loc }),
+    ...(awaited?.ask === undefined ? {} : { ask: awaited.ask }),
+    ...(awaited?.join === undefined ? {} : { join: awaited.join }),
+  };
+  const withJoins = { ...source, ...(joined.length === 0 ? {} : { joins: joined }) };
   if (freshCertain.length > 0) {
     events.push({ at: "settle", maybe: false, regions: chain, steps: freshCertain, ...withJoins });
   }
@@ -207,7 +213,7 @@ export function barrier(
       maybe: true,
       regions: chain,
       steps: freshMaybe,
-      ...(freshCertain.length > 0 ? {} : withJoins),
+      ...(freshCertain.length > 0 ? source : withJoins),
     });
   }
   if (freshCertain.length > 0 || freshMaybe.length > 0) return;
@@ -215,7 +221,7 @@ export function barrier(
   // strand's parked exits reconnect, so it is recorded even with no steps to its name.
   const joinOnly = (): void => {
     if (joined.length === 0) return;
-    events.push({ at: "settle", joins: joined, maybe: false, regions: chain, steps: [] });
+    events.push({ at: "settle", joins: joined, maybe: false, regions: chain, steps: [], ...source });
   };
   if (allCertain.length > 0 || allMaybe.length > 0) {
     joinOnly(); // already settled: adds no step

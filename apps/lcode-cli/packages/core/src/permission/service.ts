@@ -1,85 +1,37 @@
-// ============================================================
-// Permission Service - Permission checking and decision making
-// ============================================================
-
+// PermissionService remains the sole owner of session permission grants.
 import {
   AMEND_WORKFLOW_TOOL_NAME,
-  PermissionCapabilityGroup,
-  type PermissionCapabilityGroup as PermissionCapabilityGroupType,
-  type PermissionRuleValue,
   type PermissionRuleset,
   type PermissionUpdate,
-  type CollaborationMode,
-  type ModelToolSideEffectScope,
   type RiskLevel,
-  type ToolPermissionSpec,
 } from "@lcode/contracts";
-import { OFFICIAL_CUA_PERMISSION_RULE_TOOL_NAME } from "@lcode/shared";
 import { resolvePlanModeTransitionPermission } from "./plan-mode-policy.js";
-import { webFetchRuleSubjects, wildcardToRegExp } from "./rule-matching.js";
 import { isPreapprovedWorkflowDraftWrite } from "./workflow-draft-path.js";
 import { applyPermissionUpdates } from "../tool/executor/permission-rules.js";
-import { isWebFetchPreapprovedUrl } from "../tool/webfetch-preapproved.js";
 import type { ToolPermissionRulePolicy } from "../tool/types.js";
+import {
+  defaultPermissionConfig,
+  type PermissionBehavior,
+  type PermissionConfig,
+  type PermissionContext,
+  type PermissionDecisionResult,
+  type PermissionToolCapability,
+  type ResolvedPermissionCapability,
+} from "./service-types.js";
+import { matchesProjectRules, isPreapprovedWebFetchRequest } from "./project-rules.js";
+import { getRiskLevel, resolveCapability } from "./capability.js";
 
-// -----------------------------------------------
-// Types
-// -----------------------------------------------
+export { defaultPermissionConfig } from "./service-types.js";
+export type {
+  PermissionBehavior,
+  PermissionConfig,
+  PermissionContext,
+  PermissionDecisionResult,
+  PermissionToolCapability,
+} from "./service-types.js";
 
 /** 草稿免确认的规则号。 */
 const WORKFLOW_DRAFT_PREAPPROVED_RULE_ID = "tool.workflowDraft.preapproved";
-
-export interface PermissionContext {
-  toolName: string;
-  input: unknown;
-  riskLevel: RiskLevel;
-  mode: CollaborationMode;
-  planEnabled?: boolean;
-  prePlanMode?: Exclude<CollaborationMode, "plan">;
-  /**
-   * 会话工作目录。判定相对路径的落点用（目前只有 workflow 草稿免确认这一条），
-   * 可选：拿不到工作目录的调用方照常按其余规则判定，不会因此少一层确认。
-   */
-  workingDirectory?: string;
-}
-
-export interface PermissionToolCapability {
-  allowedInPlanMode?: boolean;
-  alwaysAsk?: boolean;
-  approvalSource?: "user";
-  readOnly?: boolean;
-  destructive?: boolean;
-  requiresUserInteraction?: boolean;
-  sideEffectScope?: ModelToolSideEffectScope;
-  riskLevel?: RiskLevel;
-  needsApproval?: boolean;
-  permissionCapabilityGroup?: PermissionCapabilityGroupType;
-  permission?: ToolPermissionSpec;
-}
-
-export type PermissionBehavior = "allow" | "ask" | "deny";
-
-export interface PermissionDecisionResult {
-  decision: PermissionBehavior;
-  allowed: boolean;
-  reason?: string;
-  modifiedInput?: unknown;
-  escalated: boolean;
-  mode: CollaborationMode;
-  ruleId: string;
-  riskLevel: RiskLevel;
-  sideEffectScope?: ModelToolSideEffectScope;
-  /**
-   * 该 ask 来自工具的 alwaysAsk 声明，不是模式或规则推导出来的。下游（PreToolUse hook 的
-   * allow 覆盖）靠这个结构化标记识别"不可抹掉的确认"，而不是去匹配 ruleId 字符串。
-   */
-  alwaysAsk?: boolean;
-  approvalSource?: "user";
-}
-
-// -----------------------------------------------
-// Permission Service
-// -----------------------------------------------
 
 export class PermissionService {
   /**
@@ -101,7 +53,9 @@ export class PermissionService {
     projectRules?: PermissionRuleset | null,
     rulePolicy?: ToolPermissionRulePolicy,
   ): PermissionDecisionResult {
-    const capability = this.resolveCapability(context, toolCapability);
+    const capability = resolveCapability(context, toolCapability, (name, capability) =>
+      this.getRiskLevel(name, capability),
+    );
     const planModeTransition = resolvePlanModeTransitionPermission(context);
 
     if (planModeTransition) {
@@ -156,7 +110,7 @@ export class PermissionService {
       );
     }
 
-    if (this.matchesProjectRules(projectRules, "deny", context, capability, rulePolicy)) {
+    if (matchesProjectRules(projectRules, "deny", context, capability, rulePolicy)) {
       return this.deny(
         context,
         capability,
@@ -165,7 +119,7 @@ export class PermissionService {
       );
     }
 
-    if (this.matchesProjectRules(projectRules, "ask", context, capability, rulePolicy)) {
+    if (matchesProjectRules(projectRules, "ask", context, capability, rulePolicy)) {
       return this.ask(
         context,
         capability,
@@ -178,7 +132,7 @@ export class PermissionService {
       return this.checkPlanMode(context, capability);
     }
 
-    if (this.matchesProjectRules(projectRules, "allow", context, capability, rulePolicy)) {
+    if (matchesProjectRules(projectRules, "allow", context, capability, rulePolicy)) {
       return this.allow(
         context,
         capability,
@@ -187,7 +141,7 @@ export class PermissionService {
       );
     }
 
-    if (this.isPreapprovedWebFetchRequest(context)) {
+    if (isPreapprovedWebFetchRequest(context)) {
       return this.allow(
         context,
         capability,
@@ -231,95 +185,6 @@ export class PermissionService {
     return this.checkBuildMode(context, capability);
   }
 
-  private matchesProjectRules(
-    ruleset: PermissionRuleset | null | undefined,
-    behavior: PermissionBehavior,
-    context: PermissionContext,
-    capability: ResolvedPermissionCapability,
-    rulePolicy?: ToolPermissionRulePolicy,
-  ): boolean {
-    const rules = ruleset?.[behavior];
-    if (!Array.isArray(rules)) return false;
-    const toolRules = rules.filter((rule) =>
-      this.matchesRuleScope(rule, context.toolName, capability),
-    );
-    if (toolRules.length === 0) return false;
-    if (rulePolicy) return rulePolicy.evaluateRules(behavior, toolRules);
-    return toolRules.some((rule) => this.matchesRule(rule, context, capability));
-  }
-
-  private matchesRule(
-    rule: PermissionRuleValue,
-    context: PermissionContext,
-    capability: ResolvedPermissionCapability,
-  ): boolean {
-    if (!this.matchesRuleScope(rule, context.toolName, capability)) return false;
-    if (!rule.ruleContent) return true;
-
-    const subjects = this.ruleSubjects(context.input, context.toolName);
-    if (subjects.length === 0) return false;
-
-    return subjects.some((subject) => this.matchesRuleContent(subject, rule.ruleContent!));
-  }
-
-  private matchesRuleToolName(ruleToolName: string, contextToolName: string): boolean {
-    if (ruleToolName === contextToolName) return true;
-    return contextToolName === "Write" && ruleToolName === "Edit";
-  }
-
-  private matchesRuleScope(
-    rule: PermissionRuleValue,
-    contextToolName: string,
-    capability: ResolvedPermissionCapability,
-  ): boolean {
-    if (rule.toolName === OFFICIAL_CUA_PERMISSION_RULE_TOOL_NAME) {
-      // 保留 key 只有在当前 tool entry 另行携带宿主验证后的 official_cua
-      // capability 时才匹配。同名第三方 MCP、authority 漂移以及旧普通 tool
-      // 都不能把可解析的 wire/storage 字符串升级成可信能力。
-      return capability.permissionCapabilityGroup === PermissionCapabilityGroup.OfficialCua;
-    }
-    return this.matchesRuleToolName(rule.toolName, contextToolName);
-  }
-
-  private ruleSubjects(input: unknown, toolName: string): string[] {
-    if (typeof input === "string") return [input];
-    if (!input || typeof input !== "object") return [];
-
-    const record = input as Record<string, unknown>;
-    if (toolName === "WebFetch" && typeof record.url === "string") {
-      return webFetchRuleSubjects(record.url);
-    }
-
-    for (const key of ["command", "url", "file_path", "path", "pattern", "patch_text"]) {
-      const value = record[key];
-      if (typeof value === "string") return [value];
-    }
-
-    return [];
-  }
-
-  private isPreapprovedWebFetchRequest(context: PermissionContext): boolean {
-    if (context.toolName !== "WebFetch") return false;
-    if (!context.input || typeof context.input !== "object") return false;
-    const url = (context.input as Record<string, unknown>).url;
-    return typeof url === "string" && isWebFetchPreapprovedUrl(url);
-  }
-
-  private matchesRuleContent(subject: string, ruleContent: string): boolean {
-    if (ruleContent.endsWith(":*")) {
-      const prefix = ruleContent.slice(0, -2);
-      return (
-        subject === prefix || subject.startsWith(`${prefix} `) || subject.startsWith(`${prefix}\t`)
-      );
-    }
-
-    if (ruleContent.includes("*")) {
-      return wildcardToRegExp(ruleContent).test(subject);
-    }
-
-    return subject === ruleContent;
-  }
-
   /**
    * 工具自报 alwaysAsk 时的判定：ask 压过所有"放行"分支（yolo 直通、plan 的 readOnly 直通），
    * 但**压不过"阻断"**——所以这里先自己走一遍硬阻断判定。
@@ -353,7 +218,7 @@ export class PermissionService {
         `Tool ${context.toolName} is explicitly disallowed`,
       );
     }
-    if (this.matchesProjectRules(projectRules, "deny", context, capability, rulePolicy)) {
+    if (matchesProjectRules(projectRules, "deny", context, capability, rulePolicy)) {
       return this.deny(
         context,
         capability,
@@ -365,7 +230,7 @@ export class PermissionService {
     // 与 gate 本身一样不看模式（yolo / plan / build 一致）。
     if (
       capability.approvalSource !== "user" &&
-      this.matchesProjectRules(this.sessionRules, "allow", context, capability, rulePolicy)
+      matchesProjectRules(this.sessionRules, "allow", context, capability, rulePolicy)
     ) {
       return this.allow(
         context,
@@ -543,80 +408,7 @@ export class PermissionService {
   }
 
   getRiskLevel(toolName: string, toolCapability?: PermissionToolCapability): RiskLevel {
-    if (toolCapability?.riskLevel) {
-      return toolCapability.riskLevel;
-    }
-
-    if (this.isReadOnlyTool(toolName)) {
-      return "low";
-    }
-
-    if (this.isWriteTool(toolName)) {
-      return "medium";
-    }
-
-    if (this.isDestructiveTool(toolName)) {
-      return "high";
-    }
-
-    return "medium";
-  }
-
-  private isReadOnlyTool(name: string): boolean {
-    return new Set([
-      "Read",
-      "Glob",
-      "Grep",
-      "WebSearch",
-      "WebFetch",
-      "TodoRead",
-      "TodoWrite",
-      "AskUserQuestion",
-      "Agent",
-      "Task",
-      "Skill",
-    ]).has(name);
-  }
-
-  private isWriteTool(name: string): boolean {
-    return new Set(["Write", "Edit", "ApplyPatch", "Bash"]).has(name);
-  }
-
-  private isDestructiveTool(name: string): boolean {
-    return new Set(["Bash"]).has(name);
-  }
-
-  private resolveCapability(
-    context: PermissionContext,
-    toolCapability?: PermissionToolCapability,
-  ): ResolvedPermissionCapability {
-    return {
-      allowedInPlanMode: toolCapability?.allowedInPlanMode ?? false,
-      alwaysAsk:
-        (toolCapability?.permission?.approvalSource ?? toolCapability?.approvalSource) === "user" ||
-        (toolCapability?.permission?.alwaysAsk ?? toolCapability?.alwaysAsk ?? false),
-      approvalSource: toolCapability?.permission?.approvalSource ?? toolCapability?.approvalSource,
-      permissionReason: toolCapability?.permission?.reason,
-      readOnly: toolCapability?.readOnly ?? this.isReadOnlyTool(context.toolName),
-      destructive: toolCapability?.destructive ?? this.isDestructiveTool(context.toolName),
-      requiresUserInteraction:
-        toolCapability?.requiresUserInteraction ??
-        (toolCapability?.permission?.sideEffectScope ?? toolCapability?.sideEffectScope) ===
-          "userInteraction",
-      sideEffectScope:
-        toolCapability?.permission?.sideEffectScope ??
-        toolCapability?.sideEffectScope ??
-        (this.isReadOnlyTool(context.toolName) ? "none" : "workspace"),
-      riskLevel:
-        toolCapability?.permission?.riskLevel ??
-        this.getRiskLevel(context.toolName, toolCapability),
-      needsApproval:
-        toolCapability?.permission?.needsApproval ??
-        toolCapability?.needsApproval ??
-        !this.isReadOnlyTool(context.toolName),
-      permissionCapabilityGroup: toolCapability?.permissionCapabilityGroup,
-      permissionName: toolCapability?.permission?.permission,
-    };
+    return getRiskLevel(toolName, toolCapability);
   }
 
   private allow(
@@ -667,36 +459,3 @@ export class PermissionService {
     };
   }
 }
-
-interface ResolvedPermissionCapability {
-  allowedInPlanMode: boolean;
-  alwaysAsk: boolean;
-  approvalSource?: "user";
-  permissionReason?: string;
-  readOnly: boolean;
-  destructive: boolean;
-  requiresUserInteraction: boolean;
-  sideEffectScope: ModelToolSideEffectScope;
-  riskLevel: RiskLevel;
-  needsApproval: boolean;
-  permissionCapabilityGroup?: PermissionCapabilityGroupType;
-  permissionName?: string;
-}
-
-// -----------------------------------------------
-// Configuration
-// -----------------------------------------------
-
-export interface PermissionConfig {
-  allowedTools: Set<string>;
-  disallowedTools: Set<string>;
-  autoApproveHighRisk: boolean;
-  allowMediumRiskInAutoMode: boolean;
-}
-
-export const defaultPermissionConfig: PermissionConfig = {
-  allowedTools: new Set(),
-  disallowedTools: new Set(),
-  autoApproveHighRisk: false,
-  allowMediumRiskInAutoMode: false,
-};

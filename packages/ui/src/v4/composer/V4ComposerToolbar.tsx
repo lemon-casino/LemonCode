@@ -78,6 +78,7 @@ import {
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { logger } from "@/logger.js";
 import { useLiveOutputRate } from "@/v4/composer/useLiveOutputRate.js";
+import { readSessionOutputSpeed } from "@/v4/composer/sessionOutputSpeed.js";
 import { useChildSessionTokenStats } from "@/v4/composer/useChildSessionTokenStats.js";
 import { collectChildSessionIds } from "@/v4/composer/sessionTokenStats.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
@@ -388,6 +389,7 @@ function V4ComposerModelControlsImpl({
 }: V4ComposerToolbarProps) {
   const { intl, locale } = useLCodeIntl();
   const liveOutputRate = useLiveOutputRate(sessionSnapshot);
+  const outputSpeed = readSessionOutputSpeed(sessionSnapshot, liveOutputRate);
   const observedSessionId = sessionSnapshot?.sessionId ?? sessionId;
   const { layer } = useV4Conversation();
   const childIds = useMemo(
@@ -1031,10 +1033,12 @@ function V4ComposerModelControlsImpl({
         taskUsage={taskUsage}
         sessionUsage={usage?.cumulative}
         liveOutputRate={liveOutputRate}
+        outputSpeed={outputSpeed}
         childUsage={childStats.usage}
         childCount={childStats.childCount}
         childCurrentOutputTokens={childStats.currentOutputTokens}
         childLiveOutputRate={childStats.liveOutputRate}
+        childOutputSpeed={childStats.outputSpeed}
         startPlanBalance={contextStartPlanBalance}
         selectedProvider={displayProvider}
         intl={intl}

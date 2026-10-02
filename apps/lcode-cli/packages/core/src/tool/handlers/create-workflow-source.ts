@@ -24,6 +24,7 @@ import {
 } from "./saved-workflows/index.js";
 import { writeWorkflowDraft } from "./workflow-drafts.js";
 import { readWorkflowScriptFile } from "./workflow-path-source.js";
+import { stripWorkflowAdvice, withWorkflowAdvice } from "./workflow-script-advice.js";
 
 /** 业务失败的错误码，与既有 handler failure 惯例同一形状。 */
 const CREATE_WORKFLOW_FAILURE_CODE = 400;
@@ -119,6 +120,15 @@ export const SUBAGENT_MODEL_UNAVAILABLE =
  * `subagent_model` 都是顶层字段，三条来源同样处理。
  */
 export async function resolveCreateWorkflowInput(
+  input: unknown,
+  cwd: string,
+  ceiling?: number,
+  catalog?: ModelCatalogPort,
+): Promise<ToolInputResolutionResult> {
+  return withWorkflowAdvice(await resolveCreateWorkflowSource(stripWorkflowAdvice(input), cwd, ceiling, catalog));
+}
+
+async function resolveCreateWorkflowSource(
   input: unknown,
   cwd: string,
   ceiling?: number,

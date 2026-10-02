@@ -1,5 +1,6 @@
 import type { WorkflowRunState } from "@lcode/shared/lcode-protocol-v4";
 import { phaseBinder } from "./instance-phases.js";
+import { workflowRunNodeIndex } from "./run-node-index.js";
 import { aggregateRunStatuses, statusOfRunNode } from "./run-status.js";
 import {
   IMPLICIT_PHASE_ID,
@@ -225,22 +226,8 @@ export function liveParticipantView(
     }
     return sites;
   };
-  // 实时事件每次都会重算视图；按站点/车道建一次索引，避免每张卡都遍历整条 run 的节点表。
-  const nodesBySite = new Map<string, Map<string, WorkflowRunState["nodes"]>>();
-  for (const node of run.nodes) {
-    if (node.actorSiteId === undefined) continue;
-    let byLane = nodesBySite.get(node.siteId);
-    if (byLane === undefined) {
-      byLane = new Map();
-      nodesBySite.set(node.siteId, byLane);
-    }
-    let bucket = byLane.get(node.actorSiteId);
-    if (bucket === undefined) {
-      bucket = [];
-      byLane.set(node.actorSiteId, bucket);
-    }
-    bucket.push(node);
-  }
+  // 同一 site/lane 可有 256 个实例；状态查找必须继续按 ordinal 收窄，不能每个实例重扫整条车道。
+  const nodeIndex = workflowRunNodeIndex(run.nodes);
   const actorsByLane = new Map<string, WorkflowRunState["actors"]>();
   for (const actor of run.actors) {
     let bucket = actorsByLane.get(actor.siteId);
@@ -250,7 +237,7 @@ export function liveParticipantView(
     }
     bucket.push(actor);
   }
-  const nodesFor = (siteId: string, lane: string) => nodesBySite.get(siteId)?.get(lane) ?? [];
+  const nodesFor = nodeIndex.forLane;
   /**
    * 这张卡名下的实例：车道上在**这张卡的站点**留下过节点、且该节点的戳落在这张卡的阶段的
    * actor；在这些站点上还一个节点都没有的 actor（建了还没被 ask，或还没走到这一站）则按它
@@ -280,8 +267,8 @@ export function liveParticipantView(
     const sites = sitesOf(participant);
     const values: StepRunStatus[] = [];
     for (const site of sites) {
-      for (const node of nodesFor(site, participant.lane)) {
-        if (node.actorOrdinal === ordinal && binder.has(participant.phase, node.phaseName)) {
+      for (const node of nodeIndex.forActor(site, participant.lane, ordinal)) {
+        if (binder.has(participant.phase, node.phaseName)) {
           values.push(statusOfRunNode(node));
         }
       }

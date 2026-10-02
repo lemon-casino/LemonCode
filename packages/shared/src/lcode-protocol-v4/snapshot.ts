@@ -206,6 +206,24 @@ export const sessionUsageStateSchema = z.object({
     cacheReadTokens: z.number(),
     cacheWriteTokens: z.number(),
   }),
+  // 请求均速来自实际请求完成事实，不从会话累计或可见文本反推隐藏推理用量。
+  modelOutput: z
+    .object({
+      turnId: z.string().min(1),
+      activeRequestId: z.string().min(1).nullable(),
+      lastRequest: z
+        .object({
+          requestId: z.string().min(1),
+          outputTokens: z.number().finite().positive(),
+          durationMs: z.number().finite().positive(),
+          completedAt: z.number().finite().nonnegative(),
+        })
+        .strict()
+        .nullable(),
+    })
+    .strict()
+    .nullable()
+    .optional(),
 });
 export type SessionUsageState = z.infer<typeof sessionUsageStateSchema>;
 

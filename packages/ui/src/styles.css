@@ -1797,11 +1797,19 @@ body {
   box-shadow: 0 0 0 1.5px var(--color-background);
   transition: margin-left var(--wf-t-base) var(--wf-ease);
 }
+.wf-more-face.wf-agent-avatar {
+  border-radius: 0;
+  box-shadow: none;
+}
 .wf-more-deck > * + * {
   margin-left: -5px;
 }
 .wf-more-row:hover .wf-more-deck > * + *,
 .wf-more-row:focus-visible .wf-more-deck > * + * {
+  margin-left: -2px;
+}
+/* 外圈占据头像边缘，代理间只叠透明留白，不能继续用旧头像的负间距。 */
+.wf-more-deck > .wf-agent-avatar + .wf-agent-avatar {
   margin-left: -2px;
 }
 .wf-pill-go-rest {
@@ -2113,7 +2121,7 @@ body {
     background: none;
   }
 }
-/* 身体与背景同色混合会丢失轮廓；主色配独立中性描边，深色五官和少量冷暖细节保留反差。 */
+/* 面板保持明亮、五官保持深色，避免主题切换把角色反转成黑色屏幕脸。 */
 .wf-agent-avatar {
   display: block;
   flex-shrink: 0;
@@ -2121,205 +2129,452 @@ body {
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
-  --wf-ghost-paper: var(--color-neutral-50);
-  --wf-ghost-ink: var(--color-neutral-900);
-  --wf-ghost-accent: color-mix(in oklab, var(--color-brand) 60%, var(--color-neutral-400));
-  --wf-ghost-rim: color-mix(in oklab, var(--color-brand) 40%, var(--color-neutral-500));
-  --wf-ghost-blush: color-mix(in oklab, var(--color-rose-400) 65%, var(--wf-ghost-accent));
-  --wf-ghost-tear: color-mix(in oklab, var(--color-sky-600) 75%, var(--wf-ghost-accent));
-  --wf-ghost-halo-color: color-mix(in oklab, var(--color-brand) 78%, var(--color-neutral-500));
+  --wf-sprout-paper: var(--color-neutral-50);
+  --wf-sprout-ink: var(--color-neutral-900);
+  --wf-sprout-blue: var(--color-sky-400);
+  --wf-sprout-yellow: var(--color-yellow-300);
+  --wf-sprout-green: var(--color-green-400);
+  --wf-sprout-leaf-rim: color-mix(in oklab, var(--color-neutral-600) 78%, var(--wf-sprout-green));
+  /* 身体与绿叶共用色源会让所有主题都偏绿；身体独立取主色，叶片保持品牌三色。 */
+  --wf-sprout-body-accent: color-mix(in oklab, var(--color-brand) 70%, var(--color-neutral-400));
+  --wf-sprout-shell: color-mix(in oklab, var(--wf-sprout-body-accent) 50%, var(--wf-sprout-paper));
+  --wf-sprout-body-shade: color-mix(
+    in oklab,
+    var(--wf-sprout-body-accent) 70%,
+    var(--wf-sprout-paper)
+  );
+  --wf-sprout-rim: color-mix(in oklab, var(--color-neutral-600) 80%, var(--wf-sprout-body-accent));
+  --wf-sprout-blush: color-mix(in oklab, var(--color-rose-400) 68%, var(--wf-sprout-yellow));
+  --wf-sprout-cool-rim: color-mix(in oklab, var(--color-neutral-600) 70%, var(--wf-sprout-blue));
+  --wf-sprout-halo-color: color-mix(in oklab, var(--color-brand) 62%, var(--color-sky-600));
+  --wf-sprout-duration: 2850ms;
+  --wf-sprout-angle: 20deg;
 }
-.wf-ghost-tint-top {
-  stop-color: color-mix(in oklab, var(--wf-ghost-accent) 10%, var(--wf-ghost-paper));
+.wf-sprout-leaf {
+  stroke: var(--wf-sprout-leaf-rim);
+  stroke-width: 1.8;
 }
-.wf-ghost-tint-bottom {
-  stop-color: color-mix(in oklab, var(--wf-ghost-accent) 40%, var(--wf-ghost-paper));
+.wf-sprout-leaf-blue {
+  fill: var(--wf-sprout-blue);
+  stroke: var(--wf-sprout-cool-rim);
 }
-.wf-ghost-body {
-  stroke: var(--wf-ghost-rim);
-  stroke-width: 0.5;
+.wf-sprout-leaf-yellow {
+  fill: var(--wf-sprout-yellow);
 }
-.wf-ghost-shine,
-.wf-ghost-glint {
+.wf-sprout-leaf-green {
+  fill: var(--wf-sprout-green);
+}
+.wf-sprout-ears {
+  fill: var(--wf-sprout-body-shade);
+  stroke: var(--wf-sprout-rim);
+  stroke-width: 1.8;
+}
+.wf-sprout-body-shade {
+  fill: var(--wf-sprout-body-shade);
+}
+.wf-sprout-body {
+  fill: var(--wf-sprout-shell);
+  stroke: var(--wf-sprout-rim);
+  stroke-width: 2.4;
+}
+.wf-sprout-faceplate {
+  fill: color-mix(in oklab, var(--wf-sprout-yellow) 12%, var(--wf-sprout-paper));
+}
+.wf-sprout-shine {
   fill: none;
-  stroke: var(--wf-ghost-paper);
-  stroke-width: 0.35;
+  stroke: var(--wf-sprout-paper);
+  stroke-width: 2.2;
+  opacity: 0.8;
 }
-.wf-ghost-arms {
-  stroke: var(--wf-ghost-rim);
-  stroke-width: 0.4;
+.wf-sprout-blush {
+  fill: var(--wf-sprout-blush);
   opacity: 0.65;
 }
-.wf-ghost-blush {
-  fill: var(--wf-ghost-blush);
-  opacity: 0.5;
+.wf-sprout-face {
+  fill: var(--wf-sprout-ink);
 }
-.wf-ghost-face {
-  fill: var(--wf-ghost-ink);
-}
-.wf-ghost-feature {
+.wf-sprout-feature,
+.wf-sprout-brows {
   fill: none;
-  stroke: var(--wf-ghost-ink);
-  stroke-width: 0.65;
+  stroke: var(--wf-sprout-ink);
+  stroke-width: 2.9;
 }
-.wf-ghost-tongue {
-  fill: var(--wf-ghost-blush);
+.wf-sprout-brows {
+  stroke-width: 1.8;
 }
-.wf-ghost-tear {
-  fill: var(--wf-ghost-tear);
+.wf-sprout-tongue {
+  fill: var(--wf-sprout-blush);
 }
-.wf-ghost-halo {
-  pointer-events: none;
+.wf-sprout-keyboard-case,
+.wf-sprout-rain-cloud {
+  fill: color-mix(in oklab, var(--wf-sprout-blue) 24%, var(--wf-sprout-paper));
+  stroke: var(--wf-sprout-cool-rim);
+  stroke-width: 1.8;
 }
-.wf-ghost-halo-track {
-  stroke: var(--wf-ghost-halo-color);
-  stroke-width: 0.45;
-  opacity: 0.14;
+.wf-sprout-keyboard-edge {
+  stroke: var(--wf-sprout-cool-rim);
+  stroke-width: 1.8;
 }
-.wf-ghost-halo-tint {
-  stop-color: var(--wf-ghost-halo-color);
-}
-.wf-ghost-halo-soft {
-  stroke-width: 1.35;
-  opacity: 0.2;
-}
-.wf-ghost-halo-light {
+.wf-sprout-keys {
+  fill: var(--wf-sprout-paper);
+  stroke: var(--wf-sprout-cool-rim);
   stroke-width: 0.6;
 }
-.wf-ghost-character,
-.wf-ghost-gaze,
-.wf-ghost-eyes,
-.wf-ghost-tear,
-.wf-ghost-halo-flow {
-  transform-box: view-box;
-  transform-origin: 50% 50%;
+.wf-sprout-typing-hand {
+  fill: var(--wf-sprout-shell);
+  stroke: var(--wf-sprout-rim);
+  stroke-width: 1.6;
 }
-.wf-agent-avatar[data-avatar-status="cancelled"] .wf-ghost-character {
-  transform: rotate(-5deg);
+.wf-sprout-arm {
+  fill: none;
+  stroke-width: 3.5;
+}
+.wf-sprout-rain-drops {
+  stroke: var(--wf-sprout-blue);
+  stroke-width: 2.4;
+}
+.wf-sprout-rain-drop {
+  opacity: 0.8;
+}
+.wf-sprout-puddle {
+  fill: var(--wf-sprout-blue);
+  opacity: 0.2;
+}
+.wf-sprout-jump-shadow {
+  fill: var(--wf-sprout-rim);
+  opacity: 0.15;
+}
+.wf-sprout-halo {
+  pointer-events: none;
+}
+.wf-sprout-halo-track {
+  stroke: var(--wf-sprout-halo-color);
+  stroke-width: 2;
+  opacity: 0.4;
+}
+.wf-sprout-halo-flow {
+  stroke-width: 2.8;
+  stroke-dasharray: 18 82;
+  stroke-dashoffset: 12;
+  opacity: 0.95;
+}
+.wf-sprout-halo-tint {
+  stop-color: var(--wf-sprout-halo-color);
+}
+.wf-sprout-halo-tint-secondary {
+  stop-color: color-mix(in oklab, var(--color-brand) 60%, var(--color-green-600));
+}
+.wf-sprout-character,
+.wf-sprout-hair,
+.wf-sprout-leaf,
+.wf-sprout-jump-shadow {
+  transform-box: view-box;
+}
+.wf-sprout-character {
+  transform-origin: 48px 72px;
+}
+.wf-sprout-hair,
+.wf-sprout-leaf {
+  transform-origin: 48px 33px;
+}
+.wf-sprout-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.wf-sprout-jump-shadow {
+  transform-origin: 48px 91px;
+}
+.wf-agent-avatar[data-avatar-status="running"] {
+  --wf-sprout-duration: 1650ms;
+  --wf-sprout-angle: 24deg;
+}
+.wf-agent-avatar[data-avatar-status="failed"] {
+  --wf-sprout-duration: 4400ms;
+  --wf-sprout-angle: 16deg;
+}
+.wf-agent-avatar[data-avatar-status="done"] {
+  --wf-sprout-duration: 3600ms;
+  --wf-sprout-angle: 26deg;
+}
+.wf-agent-avatar[data-avatar-status="cancelled"] .wf-sprout-hair {
+  transform: rotate(-12deg);
+}
+.wf-agent-avatar[data-avatar-status="cancelled"] .wf-sprout-character {
+  transform: rotate(-2deg);
 }
 @media (prefers-reduced-motion: no-preference) {
-  .wf-agent-avatar:not([data-avatar-status="cancelled"]) .wf-ghost-halo-flow {
-    animation: wf-ghost-halo-flow 4800ms linear infinite;
+  .wf-agent-avatar:not([data-avatar-status="cancelled"]) .wf-sprout-halo-flow {
+    animation: wf-sprout-halo-flow 5500ms linear infinite;
     animation-delay: var(--wf-avatar-phase);
   }
-  .wf-agent-avatar[data-avatar-status="pending"] .wf-ghost-character {
-    animation: wf-ghost-curious 3600ms ease-in-out infinite;
+  .wf-agent-avatar:is(
+      [data-avatar-status="pending"],
+      [data-avatar-status="running"],
+      [data-avatar-status="failed"]
+    )
+    .wf-sprout-character {
+    animation: wf-sprout-jelly var(--wf-sprout-duration) ease-in-out infinite;
     animation-delay: var(--wf-avatar-phase);
   }
-  .wf-agent-avatar[data-avatar-status="running"] .wf-ghost-character {
-    animation: wf-ghost-float 1800ms ease-in-out infinite;
+  .wf-agent-avatar:is(
+      [data-avatar-status="pending"],
+      [data-avatar-status="running"],
+      [data-avatar-status="failed"]
+    )
+    .wf-sprout-hair {
+    animation: wf-sprout-sway var(--wf-sprout-duration) cubic-bezier(0.45, 0, 0.3, 1) infinite;
     animation-delay: var(--wf-avatar-phase);
   }
-  .wf-ghost-eyes {
-    animation: wf-ghost-blink 3600ms ease-in-out infinite;
+  .wf-agent-avatar:is(
+      [data-avatar-status="pending"],
+      [data-avatar-status="running"],
+      [data-avatar-status="failed"]
+    )
+    .wf-sprout-leaf {
+    animation: wf-sprout-leaf var(--wf-sprout-duration) ease-in-out infinite;
     animation-delay: var(--wf-avatar-phase);
   }
-  .wf-agent-avatar[data-avatar-status="pending"] .wf-ghost-gaze {
-    animation: wf-ghost-glance 3600ms ease-in-out infinite;
+  .wf-agent-avatar:is(
+      [data-avatar-status="pending"],
+      [data-avatar-status="running"],
+      [data-avatar-status="failed"]
+    )
+    .wf-sprout-leaf-yellow {
+    animation-delay: calc(var(--wf-avatar-phase) - 230ms);
+  }
+  .wf-agent-avatar:is(
+      [data-avatar-status="pending"],
+      [data-avatar-status="running"],
+      [data-avatar-status="failed"]
+    )
+    .wf-sprout-leaf-green {
+    animation-delay: calc(var(--wf-avatar-phase) - 410ms);
+  }
+  .wf-sprout-eyes {
+    animation: wf-sprout-blink 5200ms ease-in-out infinite;
     animation-delay: var(--wf-avatar-phase);
   }
-  .wf-agent-avatar[data-avatar-status="running"] .wf-ghost-gaze {
-    animation: wf-ghost-glance 1800ms ease-in-out infinite;
+  .wf-agent-avatar[data-avatar-status="running"] .wf-sprout-gaze {
+    animation: wf-sprout-gaze 2600ms ease-in-out infinite;
     animation-delay: var(--wf-avatar-phase);
   }
-  .wf-agent-avatar[data-avatar-status="done"] .wf-ghost-character {
-    animation: wf-ghost-nod 600ms var(--wf-ease, ease) both;
-  }
-  .wf-agent-avatar[data-avatar-status="failed"] .wf-ghost-character {
-    animation: wf-ghost-sigh 5600ms ease-in-out infinite;
+  .wf-sprout-typing-hand {
+    animation: wf-sprout-type 520ms ease-in-out infinite;
     animation-delay: var(--wf-avatar-phase);
   }
-  .wf-ghost-tear {
-    animation: wf-ghost-tear 3600ms ease-in-out infinite;
+  .wf-sprout-key-active {
+    animation: wf-sprout-key 520ms ease-in-out infinite;
+    animation-delay: var(--wf-avatar-phase);
+  }
+  .wf-sprout-hand-right,
+  .wf-sprout-key-right {
+    animation-delay: calc(var(--wf-avatar-phase) - 260ms);
+  }
+  .wf-sprout-rain-drop {
+    animation: wf-sprout-rain 1400ms linear infinite;
+    animation-delay: var(--wf-avatar-phase);
+  }
+  .wf-sprout-rain-drop:nth-child(2n) {
+    animation-delay: calc(var(--wf-avatar-phase) - 420ms);
+  }
+  .wf-sprout-rain-drop:nth-child(3n) {
+    animation-delay: calc(var(--wf-avatar-phase) - 930ms);
+  }
+  .wf-sprout-rain-drop:nth-child(5n) {
+    animation-delay: calc(var(--wf-avatar-phase) - 690ms);
+  }
+  .wf-sprout-rain-cloud {
+    animation: wf-sprout-cloud 4400ms ease-in-out infinite;
+    animation-delay: var(--wf-avatar-phase);
+  }
+  .wf-agent-avatar[data-avatar-status="done"] .wf-sprout-character {
+    animation: wf-sprout-celebrate 3600ms ease-in-out infinite;
+    animation-delay: var(--wf-avatar-phase);
+  }
+  .wf-agent-avatar[data-avatar-status="done"] .wf-sprout-hair {
+    animation: wf-sprout-celebrate-hair 3600ms ease-in-out infinite;
+    animation-delay: var(--wf-avatar-phase);
+  }
+  .wf-sprout-jump-shadow {
+    animation: wf-sprout-shadow 3600ms ease-in-out infinite;
     animation-delay: var(--wf-avatar-phase);
   }
 }
-@keyframes wf-ghost-halo-flow {
+@keyframes wf-sprout-halo-flow {
   to {
-    transform: rotate(360deg);
+    stroke-dashoffset: -88;
   }
 }
-@keyframes wf-ghost-curious {
+@keyframes wf-sprout-sway {
   0%,
   100% {
-    transform: rotate(-2deg);
+    transform: rotate(calc(-1 * var(--wf-sprout-angle)));
   }
-  50% {
-    transform: translateY(-0.2px) rotate(2deg);
+  25% {
+    transform: rotate(calc(0.7 * var(--wf-sprout-angle)));
+  }
+  43% {
+    transform: rotate(var(--wf-sprout-angle));
+  }
+  65% {
+    transform: rotate(calc(-0.6 * var(--wf-sprout-angle)));
+  }
+  82% {
+    transform: rotate(calc(-0.9 * var(--wf-sprout-angle)));
   }
 }
-@keyframes wf-ghost-float {
+@keyframes wf-sprout-leaf {
   0%,
   100% {
-    transform: translateY(0.15px) rotate(-1deg);
+    transform: rotate(-2.5deg);
   }
   50% {
-    transform: translateY(-0.3px) rotate(1deg);
+    transform: rotate(2.5deg);
   }
 }
-@keyframes wf-ghost-glance {
+@keyframes wf-sprout-jelly {
   0%,
   100% {
-    transform: translateX(-0.25px);
+    transform: translateY(0) scale(1, 1);
   }
-  50% {
-    transform: translateX(0.25px);
+  30% {
+    transform: translateY(1px) scale(1.035, 0.965);
+  }
+  65% {
+    transform: translateY(-1.3px) scale(0.98, 1.02);
   }
 }
-@keyframes wf-ghost-blink {
+@keyframes wf-sprout-blink {
   0%,
-  20%,
-  26%,
-  76%,
-  82%,
+  40%,
+  45%,
   100% {
     transform: scaleY(1);
   }
-  23%,
-  79% {
-    transform: scaleY(0.08);
+  42%,
+  43% {
+    transform: scaleY(0.12);
   }
 }
-@keyframes wf-ghost-nod {
+@keyframes wf-sprout-gaze {
   0%,
   100% {
-    transform: translateY(0) rotate(0);
+    transform: translateX(-1.5px);
   }
-  40% {
-    transform: translateY(-0.6px) rotate(-3deg);
-  }
-  70% {
-    transform: translateY(0.15px) rotate(2deg);
+  45%,
+  60% {
+    transform: translateX(1.5px);
   }
 }
-@keyframes wf-ghost-sigh {
+@keyframes wf-sprout-type {
+  0%,
+  100% {
+    transform: translateY(-1.2px);
+  }
+  45%,
+  65% {
+    transform: translateY(1.1px);
+  }
+}
+@keyframes wf-sprout-key {
+  0%,
+  100% {
+    fill: var(--wf-sprout-paper);
+  }
+  45%,
+  65% {
+    fill: var(--wf-sprout-yellow);
+  }
+}
+@keyframes wf-sprout-rain {
+  0% {
+    opacity: 0;
+    transform: translate(1px, -6px);
+  }
+  18%,
+  64% {
+    opacity: 0.78;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-2px, 11px);
+  }
+}
+@keyframes wf-sprout-cloud {
+  0%,
+  100% {
+    transform: translateX(-1px);
+  }
+  50% {
+    transform: translateX(1px);
+  }
+}
+@keyframes wf-sprout-celebrate {
   0%,
   72%,
   100% {
-    transform: translateY(0) rotate(0);
+    transform: translateY(0) scale(1, 1);
   }
-  83% {
-    transform: translateY(0.3px) rotate(-2deg);
+  8% {
+    transform: translateY(3px) scale(1.12, 0.86);
   }
-  91% {
-    transform: translateY(0.3px) rotate(1deg);
+  18% {
+    transform: translateY(-12px) scale(0.94, 1.05);
+  }
+  24% {
+    transform: translateY(-16px) scale(0.97, 1.025);
+  }
+  31% {
+    transform: translateY(-13px) scale(0.97, 1.02);
+  }
+  42% {
+    transform: translateY(2.5px) scale(1.12, 0.86);
+  }
+  52% {
+    transform: translateY(-6px) scale(0.98, 1.02);
+  }
+  63% {
+    transform: translateY(1px) scale(1.025, 0.98);
   }
 }
-@keyframes wf-ghost-tear {
+@keyframes wf-sprout-celebrate-hair {
   0%,
-  15%,
+  57%,
   100% {
-    opacity: 0;
-    transform: translateY(-0.25px);
+    transform: rotate(0);
   }
-  30%,
-  55% {
-    opacity: 1;
-    transform: translateY(0);
+  11% {
+    transform: rotate(-26deg);
   }
-  85% {
-    opacity: 0;
-    transform: translateY(1.8px);
+  23% {
+    transform: rotate(26deg);
+  }
+  35% {
+    transform: rotate(-14.3deg);
+  }
+  47% {
+    transform: rotate(7.8deg);
+  }
+}
+@keyframes wf-sprout-shadow {
+  0%,
+  72%,
+  100% {
+    transform: scaleX(1);
+    opacity: 0.15;
+  }
+  8%,
+  42% {
+    transform: scaleX(1.13);
+    opacity: 0.2;
+  }
+  24% {
+    transform: scaleX(0.62);
+    opacity: 0.07;
+  }
+  52% {
+    transform: scaleX(0.82);
+    opacity: 0.1;
   }
 }
 @keyframes wf-arrive {

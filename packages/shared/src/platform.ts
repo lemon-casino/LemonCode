@@ -526,13 +526,16 @@ export type CuaOsSupport =
  * 定义需要宿主环境（Electron main / Web server）参与的操作。
  * Desktop 和 Web 各自提供不同的实现，UI 层通过此接口统一消费。
  *
- * 设计原则：只放"必须穿越进程边界且不适合做成 RPC service"的操作，
- * 比如 native dialog、窗口生命周期控制等。
+ * 设计原则：只放不适合做成业务 RPC service 的宿主或当前设备能力，
+ * 比如 native dialog、窗口生命周期控制、当前设备剪贴板等。
  * 业务服务（文件、终端、凭据等）走 IServiceAccessor 的 RPC 通道。
  */
 export interface IPlatformService {
   /** 当前平台的文件选择框是否能返回 agent 可访问的本地绝对路径 */
   canSelectFilePath?: boolean;
+
+  /** 写入当前设备剪贴板；手机远控不转发到桌面 Host，能力缺失或权限拒绝必须报错。 */
+  writeClipboardText?(text: string): Promise<void>;
 
   /** 打开系统目录选择框，返回选中路径或 null */
   selectDirectory(): Promise<string | null>;

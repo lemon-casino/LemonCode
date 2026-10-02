@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": 31,
+  "revision": 32,
   "config": {
     "providerConfigRules": {
       "templateRules": [
@@ -1419,6 +1419,16 @@
               },
               "maxOutputTokens": {
                 "max": 128000
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*gpt-6\\.1-sol(?:[.\\-:/\\[].*)?",
+          "config": {
+            "optionSpecs": {
+              "reasoningLevel": {
+                "values": ["low", "medium", "high", "xhigh", "max"]
               }
             }
           }

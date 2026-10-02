@@ -10,6 +10,11 @@
 // 一件已经查出来的事实到不了模型。
 
 import { z } from "zod";
+import {
+  WorkflowNodeActivitySchema,
+  WorkflowNodePhaseSchema,
+  WorkflowNodeQueueSchema,
+} from "./workflow-activity.js";
 
 /**
  * 情势截面的界。每一条都与已有的某条界同值，不另起一套：
@@ -60,7 +65,8 @@ export const GetWorkflowRunSubagentLastToolSchema = z
   .strict();
 
 /**
- * 子代理此刻正在跑的那一次 ask。`turn` / `toolCalls` **缺席读作「不知道」**，`0` 读作
+ * 子代理当前未结算的队首 ask；phase/queue 区分排队、准备、执行与暂停。
+ * `turn` / `toolCalls` **缺席读作「不知道」**，`0` 读作
  * 「一个工具都没调过」——老 journal 没有 `node-progress`，两者必须可分辨。
  */
 export const GetWorkflowRunSubagentAskSchema = z
@@ -76,6 +82,9 @@ export const GetWorkflowRunSubagentAskSchema = z
     turn: z.number().int().nonnegative().optional(),
     toolCalls: z.number().int().nonnegative().optional(),
     lastTool: GetWorkflowRunSubagentLastToolSchema.optional(),
+    activity: WorkflowNodeActivitySchema.optional(),
+    phase: WorkflowNodePhaseSchema.optional(),
+    queue: WorkflowNodeQueueSchema.optional(),
   })
   .strict();
 
@@ -85,6 +94,8 @@ export const GetWorkflowRunSubagentWaitSchema = z
     cause: z.enum(["slot", "backoff"]),
     reason: z.string().max(GET_WORKFLOW_RUN_ROSTER_LIMITS.maxWaitReasonLength).optional(),
     retryAfterMs: z.number().nonnegative().optional(),
+    attempt: z.number().int().positive().optional(),
+    nextRetryAt: z.number().int().nonnegative().optional(),
     since: z.number().optional(),
   })
   .strict();
@@ -111,6 +122,7 @@ export const GetWorkflowRunSubagentSchema = z
     stepsFailed: z.number().int().nonnegative(),
     tokens: z.number().int().nonnegative(),
     lastProgressAt: z.number().optional(),
+    lastDeliveredAt: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
   })
   .strict();
 

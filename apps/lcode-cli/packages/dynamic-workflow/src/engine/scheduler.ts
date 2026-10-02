@@ -28,6 +28,7 @@ import {
 } from "./scheduler-types.js";
 import { handleSubmitAttempted, handleTurnEnded, type SubmitSeam } from "./scheduler-submit.js";
 import { dispatchAsk, type SchedulerDispatchSeam } from "./scheduler-dispatch.js";
+import { clearActorAdmission, observeActorAdmission } from "./scheduler-admission.js";
 import type {
   ActorId,
   ActorRef,
@@ -344,6 +345,7 @@ export class AskScheduler {
     if (node === undefined || node.paused || this.host.isRunSettled()) return false;
     // 先标记代次、再中断 turn：同步到来的旧回报会看到 paused，不能结算新尝试。
     node.paused = true;
+    node.lastAdmission = undefined;
     if (node.dispatched) this.host.driver.cancelAsk(node.instance);
     if (node.actor.current === node) {
       node.actor.current = undefined;
@@ -375,6 +377,7 @@ export class AskScheduler {
     };
     node.paused = false;
     node.dispatched = false;
+    node.lastAdmission = undefined;
     node.repairsRemaining = REPAIR_ATTEMPTS;
     node.nudgesRemaining = NUDGE_ATTEMPTS;
     node.actor.paused = undefined;
@@ -420,19 +423,26 @@ export class AskScheduler {
   }
 
   private pumpAll(): void {
+    // 前项结束或暂停释放名额后仍按原 actorOrder 派发；未获名额的 actor 也必须刷新排队原因。
     for (const actor of this.actorOrder) this.pumpActor(actor);
   }
 
   private pumpActor(actor: Actor): void {
     if (this.host.isRunSettled()) return;
-    if (actor.paused !== undefined) return;
-    if (actor.current !== undefined) return;
-    if (actor.liveQueue.length === 0) return;
-    if (this.activeAsks >= this.host.caps.maxConcurrency) return;
+    if (
+      actor.paused !== undefined || actor.current !== undefined ||
+      actor.liveQueue.length === 0 || this.activeAsks >= this.host.caps.maxConcurrency
+    ) {
+      observeActorAdmission(this.host, actor, this.activeAsks);
+      return;
+    }
     const node = actor.liveQueue.shift()!;
     actor.current = node;
     this.activeAsks++;
     void dispatchAsk(this.dispatchSeam, node);
+    clearActorAdmission(this.host, node);
+    // 先沿用原派发顺序占位，再观察剩余队列，避免把已获名额但仍在建会话的 current 误标为排队。
+    observeActorAdmission(this.host, actor, this.activeAsks);
   }
 
   // ——————————————————————————————— 内部：结算 ———————————————————————————————

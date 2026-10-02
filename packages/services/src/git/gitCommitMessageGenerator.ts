@@ -13,7 +13,7 @@ import {
 } from "./commitReviewModel.js";
 import { validateGeneratedGitCommitMessage } from "./gitCommitMessageValidation.js";
 
-const MAX_PROMPT_FILES = 20;
+const MAX_FILE_SUMMARY_CHARS = 12_000;
 const MAX_DIFF_FILES = 8;
 const MAX_DIFF_CHARS = 12_000;
 const MAX_DIFF_CHARS_PER_FILE = 2_000;
@@ -112,12 +112,12 @@ export class GitCommitMessageGenerator {
     if (!validation.ok) {
       // 模型可能重复 prompt 或返回解释性长文本，直接塞给 UI 会让错误提示失控。
       // 这里只保留短 preview 给用户，完整模型调用细节由 agent runtime 的模型日志记录。
-      this.options.logger?.debug(undefined, "模型生成的 Git 提交消息不合规", {
+      this.options.logger?.warn(undefined, "模型返回的 Git 提交消息未通过格式校验", {
         workspacePath: params.workspacePath,
         providerId: selection.providerId,
         model: selection.modelId,
         reason: validation.reason,
-        preview: validation.preview,
+        textLength: rawMessage.length,
       });
       throw new GitCommitMessageGenerationError(
         "模型没有返回可用的 Conventional Commit 提交消息。",
@@ -197,11 +197,17 @@ function buildGitCommitMessageGenerationPrompt(params: {
 }): string {
   const normalizedBranchName = params.branchName?.trim() || "(detached or unknown)";
   const language = resolveCommitMessageLanguage(params.locale);
-  const visibleFiles = params.files.slice(0, MAX_PROMPT_FILES);
-  const omittedFileCount = Math.max(0, params.files.length - visibleFiles.length);
-  const fileSummary = visibleFiles
-    .map((file) => `- ${file.kind} ${file.repoRelativePath} (+${file.added}/-${file.removed})`)
-    .join("\n");
+  // 中文依据：纪要不能因文件数被拒绝；模型只受内容预算约束，明确提供全范围统计与省略量。
+  const lines: string[] = [];
+  let fileSummaryChars = 0;
+  for (const file of params.files) {
+    const line = `- ${file.kind} ${file.repoRelativePath} (+${file.added}/-${file.removed})`;
+    if (fileSummaryChars + line.length + 1 > MAX_FILE_SUMMARY_CHARS) break;
+    lines.push(line);
+    fileSummaryChars += line.length + 1;
+  }
+  const omittedFileCount = params.files.length - lines.length;
+  const fileSummary = lines.join("\n");
   const diffSummary = buildDiffSummary(params.diffs);
   const conversationSummary = buildConversationContextSummary(params.conversationContext);
 
@@ -218,6 +224,7 @@ function buildGitCommitMessageGenerationPrompt(params: {
     "- Use the current session conversation context only to infer user intent.",
     "- Do not mention the conversation, chat, prompt, or user request explicitly.",
     "- Do not explain your reasoning.",
+    "- Do not wrap the subject in Markdown inline code, bold markers, quotes, or a code fence.",
     "- Do not repeat these instructions.",
     "",
     `Current branch: ${normalizedBranchName}`,
@@ -227,6 +234,7 @@ function buildGitCommitMessageGenerationPrompt(params: {
     conversationSummary || "(not provided)",
     "",
     "Changed files:",
+    `Total selected file entries: ${params.files.length}; +${params.files.reduce((sum, file) => sum + file.added, 0)}/-${params.files.reduce((sum, file) => sum + file.removed, 0)}. Excerpts below may omit files to fit the content budget; do not claim full review.`,
     fileSummary || "- (no file summary available)",
     omittedFileCount > 0 ? `- ... ${omittedFileCount} more files` : "",
     "",

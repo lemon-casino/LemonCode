@@ -207,6 +207,12 @@ test("desktop dev bundle stages the plugin beside the agent", async () => {
     await mkdir(dirname(tempBundle), { recursive: true });
     await writeFile(tempBundle, "// fixture bundle\n");
     await cp(pluginRoot, tempPluginRoot, { recursive: true });
+    // 完整 staging 同时需要自研 Computer Use；夹具不能只准备 lemon 或依赖用户缓存。
+    await cp(
+      join(repoRoot, "apps/lcode-cli/packages/lcode-cua-plugin"),
+      join(tempRepoRoot, "apps/lcode-cli/packages/lcode-cua-plugin"),
+      { recursive: true },
+    );
 
     stageAgentBundle({ repoRoot: tempRepoRoot, platformKey: "win32-x64", log: () => {} });
     const stagedRoot = join(
@@ -220,10 +226,24 @@ test("desktop dev bundle stages the plugin beside the agent", async () => {
         `desktop bundle omits ${relativePath}`,
       );
     }
-    assert.equal(
-      await readFile(join(stagedRoot, "commands/lemon.md"), "utf8"),
-      await readRepoFile("apps/lcode-cli/packages/lemon-workflow-plugin/commands/lemon.md"),
+    for (const relativePath of requiredPluginAssets) {
+      assert.deepEqual(
+        await readFile(join(stagedRoot, relativePath)),
+        await readFile(join(pluginRoot, relativePath)),
+        `desktop bundle changes ${relativePath}`,
+      );
+    }
+    const cuaManifest = JSON.parse(
+      await readFile(
+        join(
+          tempRepoRoot,
+          "packages/desktop/bundled-agents/win32-x64/glm/packages/lcode-cua-plugin/.lcode-plugin/plugin.json",
+        ),
+        "utf8",
+      ),
     );
+    assert.equal(cuaManifest.name, "computer-use");
+    assert.deepEqual(cuaManifest.author, { name: "Lemon" });
   } finally {
     await rm(tempRepoRoot, { recursive: true, force: true });
   }

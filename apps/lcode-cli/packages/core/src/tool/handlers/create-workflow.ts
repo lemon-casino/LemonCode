@@ -43,6 +43,7 @@ import {
   type WorkflowScriptLocation,
 } from "./workflow-script-notes.js";
 import { analyzeScript } from "./workflow-script-analysis.js";
+import { formatWorkflowAdvice, workflowAdviceOutput } from "./workflow-script-advice.js";
 import { describeWorkflowScriptPath } from "./workflow-script-path.js";
 
 const CREATE_WORKFLOW_TOOL_NAME = "CreateWorkflow";
@@ -117,7 +118,8 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
     return {
       diagnostics,
       ok,
-      response: `The workflow script compiled cleanly.\n\n${EXECUTION_UNAVAILABLE_NOTE}`,
+      response: `The workflow script compiled cleanly.\n\n${EXECUTION_UNAVAILABLE_NOTE}${formatWorkflowAdvice(analysis, location)}`,
+      ...workflowAdviceOutput(analysis),
       ...(causalityGraph === undefined ? {} : { causalityGraph }),
     } satisfies CreateWorkflowOutput;
   }
@@ -188,7 +190,8 @@ const createWorkflowHandler: ToolHandler = async (input, context) => {
     // 模型拿到 backgrounded 输出后立刻用 TaskOutput 阻塞等待，
     // 把异步 run 变成了同步等待——文案必须显式劝阻默认轮询（用户显式要求等待时
     // TaskOutput 仍然可用，这里只改默认引导，不改工具语义）。
-    response: `The workflow script compiled cleanly and the run started in the background with ID: ${runId}. It is still running — you will be notified with the final output when it completes. Do not wait for it or poll it with TaskOutput; continue with other work unless the user asked you to wait.${describeWorkflowConcurrencyLimit(parsed.max_concurrency, port.concurrencyCeiling?.())}${describeWorkflowSubagentModel(parsed.subagent_model)}${location === undefined ? "" : workflowLaunchedScriptSentence(location)}`,
+    response: `The workflow script compiled cleanly and the run started in the background with ID: ${runId}. It is still running — you will be notified with the final output when it completes. Do not wait for it or poll it with TaskOutput; continue with other work unless the user asked you to wait.${describeWorkflowConcurrencyLimit(parsed.max_concurrency, port.concurrencyCeiling?.())}${describeWorkflowSubagentModel(parsed.subagent_model)}${location === undefined ? "" : workflowLaunchedScriptSentence(location)}${formatWorkflowAdvice(analysis, location)}`,
+    ...workflowAdviceOutput(analysis),
     status: "backgrounded",
     backgroundTaskId: runId,
     ...(causalityGraph === undefined ? {} : { causalityGraph }),

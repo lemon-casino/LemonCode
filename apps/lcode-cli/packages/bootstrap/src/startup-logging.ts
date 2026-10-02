@@ -1,5 +1,5 @@
 import { performance } from "node:perf_hooks";
-import type { LogContext, Logger, LoggerFactory, LogLevel } from "@lcode/contracts";
+import type { LogContext, Logger } from "@lcode/contracts";
 
 interface StartupTimerLogOptions {
   context?: LogContext;

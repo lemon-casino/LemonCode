@@ -36,6 +36,10 @@ export {
   deriveWorkflowCausalityFor,
   type AnalyzeResult,
 } from "./analysis/analyze.js";
+export {
+  projectOrchestrationAdvice,
+  type WorkflowOrchestrationAdvice,
+} from "./analysis/orchestration-advice.js";
 export { collectSites, type SiteTable } from "./analysis/sites.js";
 export {
   collectWorldRunCommands,
@@ -194,6 +198,7 @@ export {
   type ArtifactRef,
   type ArtifactVersionRecord,
   type AskMessage,
+  type AskActivity,
   type AskLastTool,
   type AskProgress,
   type AskSpec,

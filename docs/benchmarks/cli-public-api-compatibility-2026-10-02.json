@@ -1,0 +1,346 @@
+{
+  "kind": "public-export-name-compatibility",
+  "entries": 48,
+  "baselineExports": 4933,
+  "passed": true,
+  "missing": [],
+  "summaries": [
+    {
+      "package": "adapters",
+      "entry": ".",
+      "before": 303,
+      "after": 303,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./storage",
+      "before": 38,
+      "after": 38,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./fs",
+      "before": 5,
+      "after": 5,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./context",
+      "before": 3,
+      "after": 3,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./exec",
+      "before": 10,
+      "after": 10,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./http",
+      "before": 4,
+      "after": 4,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./image",
+      "before": 1,
+      "after": 1,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./pdf",
+      "before": 2,
+      "after": 2,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./provider",
+      "before": 0,
+      "after": 0,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./model",
+      "before": 74,
+      "after": 74,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./logging",
+      "before": 18,
+      "after": 18,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./config",
+      "before": 30,
+      "after": 30,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./skills",
+      "before": 3,
+      "after": 3,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./commands",
+      "before": 3,
+      "after": 3,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./plugins",
+      "before": 40,
+      "after": 40,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./auth",
+      "before": 46,
+      "after": 46,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./browser",
+      "before": 8,
+      "after": 8,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./mcp",
+      "before": 10,
+      "after": 10,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./mailbox",
+      "before": 3,
+      "after": 3,
+      "missing": []
+    },
+    {
+      "package": "adapters",
+      "entry": "./workflow",
+      "before": 8,
+      "after": 8,
+      "missing": []
+    },
+    {
+      "package": "bootstrap",
+      "entry": ".",
+      "before": 89,
+      "after": 89,
+      "missing": []
+    },
+    {
+      "package": "bootstrap",
+      "entry": "./v4-replay",
+      "before": 5,
+      "after": 5,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": ".",
+      "before": 1854,
+      "after": 1854,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./browser-control",
+      "before": 35,
+      "after": 35,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./interfaces",
+      "before": 466,
+      "after": 466,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./events",
+      "before": 132,
+      "after": 132,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./compact",
+      "before": 28,
+      "after": 28,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./rewind",
+      "before": 19,
+      "after": 19,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./model",
+      "before": 97,
+      "after": 97,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./errors",
+      "before": 11,
+      "after": 11,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./capabilities",
+      "before": 0,
+      "after": 0,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./config",
+      "before": 20,
+      "after": 20,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./hooks",
+      "before": 63,
+      "after": 63,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./skills",
+      "before": 16,
+      "after": 16,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./commands",
+      "before": 20,
+      "after": 20,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./plugins",
+      "before": 28,
+      "after": 28,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./workflow",
+      "before": 123,
+      "after": 123,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./tools",
+      "before": 703,
+      "after": 703,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./tools/node-repl",
+      "before": 8,
+      "after": 8,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./mcp",
+      "before": 34,
+      "after": 34,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./tools/websearch",
+      "before": 14,
+      "after": 14,
+      "missing": []
+    },
+    {
+      "package": "contracts",
+      "entry": "./telemetry",
+      "before": 69,
+      "after": 69,
+      "missing": []
+    },
+    {
+      "package": "core",
+      "entry": ".",
+      "before": 419,
+      "after": 419,
+      "missing": []
+    },
+    {
+      "package": "core",
+      "entry": "./repl",
+      "before": 8,
+      "after": 8,
+      "missing": []
+    },
+    {
+      "package": "core",
+      "entry": "./browser-client",
+      "before": 34,
+      "after": 34,
+      "missing": []
+    },
+    {
+      "package": "core",
+      "entry": "./create-workflow-graph-bounds",
+      "before": 1,
+      "after": 1,
+      "missing": []
+    },
+    {
+      "package": "core",
+      "entry": "./session-history-search",
+      "before": 6,
+      "after": 6,
+      "missing": []
+    },
+    {
+      "package": "telemetry",
+      "entry": ".",
+      "before": 22,
+      "after": 22,
+      "missing": []
+    }
+  ],
+  "limitation": "Export-name presence is checked; signature compatibility and runtime behavior are covered by separate typecheck and regression suites, not inferred from names."
+}

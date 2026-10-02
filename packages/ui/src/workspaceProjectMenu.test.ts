@@ -50,3 +50,12 @@ test("closed persisted projects remain selectable and their secondary folders ar
   assert.equal(result[0]?.label, "App suite");
   assert.equal(result[0]?.workspacePath, "C:\\work\\app");
 });
+
+test("removing a project definition makes its still-open source folder selectable again", () => {
+  const result = buildWorkspaceProjectMenuTabs({
+    localProjects: [],
+    workspaceTabs: [{ workspacePath: "C:\\work\\app", label: "app" }],
+  });
+
+  assert.deepEqual(result, [{ workspacePath: "C:\\work\\app", label: "app" }]);
+});

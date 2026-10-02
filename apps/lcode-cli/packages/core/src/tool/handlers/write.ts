@@ -17,6 +17,7 @@ import {
   type TraceContext,
 } from "@lcode/contracts";
 import { createStructuredPatch } from "../diff.js";
+import { normalizeLineEndings } from "../edit-matchers.js";
 import { stampMemoryOriginSessionId } from "../../memory/origin-session.js";
 import { resolveWorkspacePath } from "../path-policy.js";
 import {
@@ -130,7 +131,10 @@ const writeHandler: ToolHandler = async (input, context) => {
       lineEndings: originalLineEndings,
       createParents: true,
       atomic: true,
-      expectedRevision: originalRevision,
+      // not_found 只证明读取时不存在；提交时必须仍不存在，不能覆盖竞态中新建的文件。
+      ...(originalFile === null
+        ? { expectedMissing: true }
+        : { expectedRevision: originalRevision }),
       trace: createWriteTrace(context),
     },
     { signal: context.abortSignal },
@@ -292,7 +296,11 @@ function assertWritableExistingFileIsFresh(
   }
 
   if (!hasReadStateChanged(lastRead, currentRead)) return;
-  if (isStrictFullRead(lastRead) && lastRead.content === currentRead.content) return;
+  if (
+    isStrictFullRead(lastRead) &&
+    normalizeLineEndings(lastRead.content) === normalizeLineEndings(currentRead.content)
+  )
+    return;
 
   throw createCoreError(CoreErrorType.ToolExecutionFailed, WRITE_STALE_MESSAGE, {
     context: {
@@ -307,6 +315,12 @@ function hasReadStateChanged(
   lastRead: ReadFileStateEntry,
   currentRead: FileSystemReadTextResult,
 ): boolean {
+  // 外部编辑可保留 mtime/size；完整已读正文必须先比较，不能用刚读到的新 hash 替旧模型授权覆盖。
+  if (
+    isStrictFullRead(lastRead) &&
+    normalizeLineEndings(lastRead.content) !== normalizeLineEndings(currentRead.content)
+  )
+    return true;
   const currentRevisionId = currentRead.revision?.id;
   if (lastRead.revisionId && currentRevisionId && lastRead.revisionId !== currentRevisionId) {
     return true;

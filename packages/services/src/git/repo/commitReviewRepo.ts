@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { copyFile, lstat, mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdtemp, open, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import type {
@@ -16,6 +16,8 @@ import {
   publishCommitReviewRef,
 } from "./commitReviewTransaction.js";
 import { canonicalizeCommitReviewJournal } from "./commitReviewJournal.js";
+import { batchGitPathspecs } from "./gitPathspecBatches.js";
+import { readCommitReviewWorktree } from "./commitReviewWorktree.js";
 import type { GitCliRepo, GitResolvedRepository } from "./gitCliTypes.js";
 import {
   normalizeInputPath,
@@ -25,7 +27,6 @@ import {
 
 const MAX_TEXT_BYTES = 1_048_576;
 const MAX_REVIEW_BYTES = 2_097_152;
-const MAX_REVIEW_FILES = 100;
 const digest = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 
 export interface CommitReviewSnapshot {
@@ -77,6 +78,18 @@ export class CommitReviewRepo {
     return null;
   }
 
+  private async gitPaths(
+    cwd: string,
+    args: string[],
+    paths: string[],
+    options: Partial<GitCommandExecutionOptions> = {},
+  ) {
+    const outputs: string[] = [];
+    for (const batch of batchGitPathspecs(paths))
+      outputs.push(await this.git(cwd, [...args, "--", ...batch], options));
+    return outputs.join("");
+  }
+
   private async ref(cwd: string): Promise<string> {
     const result = await this.command.run({ cwd, args: ["symbolic-ref", "-q", "HEAD"] });
     if (result.exitCode === 0) return result.stdout.trim();
@@ -85,7 +98,7 @@ export class CommitReviewRepo {
   }
 
   private async treeEntries(cwd: string, tree: string, paths: string[]) {
-    const raw = await this.git(cwd, ["ls-tree", "-r", "-z", tree, "--", ...paths]);
+    const raw = await this.gitPaths(cwd, ["ls-tree", "-r", "-z", tree], paths);
     return new Map(
       raw
         .split("\0")
@@ -144,10 +157,10 @@ export class CommitReviewRepo {
       const env = { GIT_INDEX_FILE: index };
       await this.git(cwd, head ? ["read-tree", head] : ["read-tree", "--empty"], { env });
       if (includeUnstaged) {
-        await this.git(cwd, ["add", "-A", "--", ...paths], { env });
+        await this.gitPaths(cwd, ["add", "-A"], paths, { env });
       } else {
-        const staged = await this.git(cwd, ["ls-files", "--stage", "-z", "--", ...paths]);
-        await this.git(cwd, ["update-index", "--force-remove", "--", ...paths], { env });
+        const staged = await this.gitPaths(cwd, ["ls-files", "--stage", "-z"], paths);
+        await this.gitPaths(cwd, ["update-index", "--force-remove"], paths, { env });
         for (const line of staged.split("\0").filter(Boolean)) {
           const tab = line.indexOf("\t");
           const [mode, oid, stage] = line.slice(0, tab).split(" ");
@@ -170,22 +183,10 @@ export class CommitReviewRepo {
     const [head, ref, staged, status] = await Promise.all([
       this.head(cwd),
       this.ref(cwd),
-      this.git(cwd, ["ls-files", "--stage", "-z", "--", ...paths]),
-      this.git(cwd, ["status", "--porcelain=v2", "-z", "--", ...paths]),
+      this.gitPaths(cwd, ["ls-files", "--stage", "-z"], paths),
+      this.gitPaths(cwd, ["status", "--porcelain=v2", "-z"], paths),
     ]);
-    const contents = await Promise.all(
-      paths.map(async (path) => {
-        try {
-          const info = await lstat(join(cwd, path));
-          if (!info.isFile() || info.size > MAX_TEXT_BYTES)
-            throw new Error("提交审核仅支持有界普通文本文件。");
-          return [path, info.mode & 0o111, digest(await readFile(join(cwd, path)))];
-        } catch (error) {
-          if ((error as NodeJS.ErrnoException).code === "ENOENT") return [path, null];
-          throw error;
-        }
-      }),
-    );
+    const contents = await readCommitReviewWorktree(cwd, paths, MAX_TEXT_BYTES);
     return {
       head,
       ref,
@@ -199,8 +200,8 @@ export class CommitReviewRepo {
     inputPaths: string[],
     includeUnstaged: boolean,
   ): Promise<CommitReviewSnapshot> {
-    if (inputPaths.length === 0 || inputPaths.length > MAX_REVIEW_FILES)
-      throw new Error("请为提交审核选择 1–100 个文件。");
+    // 中文依据：文件数不能阻止纪要/审核；只拒绝空范围，内容安全校验仍单独执行。
+    if (inputPaths.length === 0) throw new Error("请为提交审核选择至少一个文件。");
     this.repo.invalidate(workspacePath);
     const status = await this.repo.getStatus(workspacePath);
     const resolution = ensureRepositoryAvailable(status.resolution, "commit review");

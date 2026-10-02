@@ -61,13 +61,17 @@ export function buildSubagentViews(input: {
   return actors.map((actor) => {
     const asks = asksOf(nodes, actor);
     const settled = asks.filter((ask) => ask.status !== NODE_ROW_RUNNING);
-    // 同一个子代理的 ask 是串行的，所以「在跑的那一条」至多一条；真有多条时取 actorSeq
-    // 最大的那条——它是最近被派下去的。
-    const runningAsk = asks.filter((ask) => ask.status === NODE_ROW_RUNNING).at(-1);
+    // 准入即落 running，后续 FIFO 排队行也属于它；取最早未结算项才是当前执行或阻塞队首。
+    const runningAsk = asks.find((ask) => ask.status === NODE_ROW_RUNNING);
+    const currentNode =
+      runningAsk === undefined
+        ? undefined
+        : reduced.get(instanceKey(runningAsk.siteId, runningAsk.ordinal));
     const trace =
       runningAsk === undefined
         ? undefined
         : index.nodes.get(instanceKey(runningAsk.siteId, runningAsk.ordinal));
+    const wait = currentNode?.phase === "waiting" ? (currentNode.wait ?? trace?.wait) : undefined;
     const parkedOn = pendingQuestions?.find(
       (question) => question.actor === instanceKey(actor.siteId, actor.ordinal),
     )?.qid;
@@ -80,19 +84,29 @@ export function buildSubagentViews(input: {
       state: subagentStateOf({
         terminal,
         running: runningAsk !== undefined,
-        waiting: trace?.lastLifecycleType === "node-waiting",
+        phase: currentNode?.phase,
         parked: parkedOn !== undefined,
         lastAskFailed,
       }),
       ...phaseNameField({ actor, runningAsk, settled, reduced, run }),
       ...(runningAsk === undefined ? {} : { currentAsk: currentAskOf(runningAsk, reduced, trace) }),
-      ...(trace?.wait === undefined ? {} : { wait: trace.wait }),
+      ...(wait === undefined
+        ? {}
+        : {
+            wait: {
+              ...wait,
+              ...(trace?.wait?.retryAfterMs === undefined
+                ? {}
+                : { retryAfterMs: trace.wait.retryAfterMs }),
+            },
+          }),
       ...(parkedOn === undefined ? {} : { parkedOn }),
       stepsSettled: settled.length,
       stepsFailed: settled.filter((ask) => ask.status === "failed").length,
       // 只累计已结算 ask 的 token：在飞的那条还没有账（`stats` 由 driver 在结算时回填）。
       tokens: settled.reduce((total, ask) => total + (ask.stats?.tokens ?? 0), 0),
       ...lastProgressField(asks, index),
+      ...lastDeliveryField(asks, index),
     };
   });
 }
@@ -104,18 +118,22 @@ export function buildSubagentViews(input: {
 function subagentStateOf(input: {
   terminal: boolean;
   running: boolean;
-  waiting: boolean;
+  phase: WorkflowRunNode["phase"] | undefined;
   parked: boolean;
   lastAskFailed: boolean;
 }): DynamicWorkflowRunSubagentState {
-  const { terminal, running, waiting, parked, lastAskFailed } = input;
+  const { terminal, running, phase, parked, lastAskFailed } = input;
   if (terminal) {
     // 终态 run 上三个活着的词全部退场：还标着 running 的行只说明进程死在了它下面。
     if (running) return "unfinished";
     return lastAskFailed ? "failed" : "done";
   }
   if (parked) return "parked";
-  if (running) return waiting ? "waiting" : "executing";
+  if (running) {
+    return phase === "executing" || phase === "repairing" || phase === "nudged"
+      ? "executing"
+      : "waiting";
+  }
   return lastAskFailed ? "failed" : "idle";
 }
 
@@ -135,6 +153,9 @@ function currentAskOf(
     ...(trace?.dispatchedAt === undefined ? {} : { startedAt: trace.dispatchedAt }),
     ...(node?.turn === undefined ? {} : { turn: node.turn }),
     ...(node?.toolCalls === undefined ? {} : { toolCalls: node.toolCalls }),
+    ...(node?.activity === undefined ? {} : { activity: node.activity }),
+    ...(node?.phase === undefined ? {} : { phase: node.phase }),
+    ...(node?.queue === undefined ? {} : { queue: node.queue }),
     ...(lastTool === undefined
       ? {}
       : {
@@ -169,6 +190,18 @@ function phaseNameField(input: {
     (entry) => entry.siteId === actor.siteId && entry.ordinal === actor.ordinal,
   )?.phaseName;
   return born === undefined ? {} : { phaseName: born };
+}
+
+/** 最近交付独立于当前 ask；只读取该 actor 的真实非缓存成功结算。 */
+function lastDeliveryField(
+  asks: readonly NodeRecord[],
+  index: RosterEventIndex,
+): Pick<DynamicWorkflowRunSubagentView, "lastDeliveredAt"> {
+  let latest: number | undefined;
+  for (const ask of asks) {
+    latest = laterOf(latest, index.nodes.get(instanceKey(ask.siteId, ask.ordinal))?.lastDeliveredAt);
+  }
+  return latest === undefined ? {} : { lastDeliveredAt: latest };
 }
 
 /** 它最后一次被观察到在动的时刻：名下任一 ask 的最后一条进度类事件。 */

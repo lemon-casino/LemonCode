@@ -1,6 +1,7 @@
 # 保持脚本文件 LF 换行，避免 Windows CRLF 导致 shebang 解析失败
 *.mjs text eol=lf
 *.sh  text eol=lf
+apps/lcode-cli/packages/core/src/tool/handlers/generated/bash-command-registry.ts text eol=lf
 
 # 上游许可原文与生成的声明按字节保存，不能自动转换换行或裁剪空白。
 # 原文中的 License / ======= 是 Markdown 标题，不是合并冲突。

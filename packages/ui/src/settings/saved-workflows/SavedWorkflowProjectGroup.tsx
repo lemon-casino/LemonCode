@@ -38,7 +38,11 @@ import type {
   SavedWorkflowsOpenArtifactParams,
   SavedWorkflowsOpenRunParams,
 } from "@/settings/saved-workflows/savedWorkflowContract.js";
-import { selectSavedWorkflowState, useSavedWorkflowStore } from "@/store/savedWorkflowStore.js";
+import {
+  isSavedWorkflowListEmpty,
+  selectSavedWorkflowState,
+  useSavedWorkflowStore,
+} from "@/store/savedWorkflowStore.js";
 
 // 组把加载态回报给页的类型定义在 savedWorkflowContract；这里再导出，历史 import 路径不变。
 export type {
@@ -95,14 +99,7 @@ export function SavedWorkflowProjectGroup({
   const agentService = services.lcodeAgentService;
   const fileWatcherService = services.fileWatcherService;
 
-  const workspaceKey = useMemo(
-    () =>
-      resolveWorkspaceKey({
-        workspacePath: project.workspacePath,
-        ...(project.workspaceIdentity ? { workspaceIdentity: project.workspaceIdentity } : {}),
-      }),
-    [project.workspacePath, project.workspaceIdentity],
-  );
+  const workspaceKey = resolveWorkspaceKey(project);
 
   const { target, projectTarget, launchTarget } = useSavedWorkflowProjectTargets(
     project,
@@ -143,8 +140,8 @@ export function SavedWorkflowProjectGroup({
     refresh,
   });
 
-  // 加载态回报给页；空 = 已加载且没有合法工作流也没有坏文件；count = 合法工作流条数。
-  const empty = state.loaded && state.entries.length === 0 && state.invalid.length === 0;
+  // 失败或刷新中的空数组不代表空目录，不能让页隐藏错误或显示项目空态。
+  const empty = isSavedWorkflowListEmpty(state);
   const count = state.loaded ? state.entries.length : 0;
   useEffect(() => {
     onStateChange(workspaceKey, { loaded: state.loaded, empty, count });
@@ -344,9 +341,8 @@ export function SavedWorkflowProjectGroup({
     );
   }
 
-  // 列表态：已加载且既无合法工作流也无坏文件的组不渲染（空组隐藏），但仍已回报状态给页。
+  // 只隐藏成功完成的空组；首载、重试和失败必须保留可见状态。
   if (empty) return null;
-  if (!state.loaded && state.entries.length === 0 && state.invalid.length === 0) return null;
 
   const invalidCount = state.invalid.length;
 
@@ -380,6 +376,18 @@ export function SavedWorkflowProjectGroup({
         </Button>
       </div>
 
+      {state.loading || !state.loaded ? (
+        <p role="status" className="mt-4 text-ui-sm text-foreground-subtlest">
+          {intl.formatMessage({ id: "workflows.hub.loading" })}
+        </p>
+      ) : null}
+
+      {state.error !== null ? (
+        <p role="alert" className="mt-4 break-words text-ui-sm text-destructive">
+          {intl.formatMessage({ id: "workflows.hub.loadError" }, { error: state.error })}
+        </p>
+      ) : null}
+
       {state.entries.length > 0 ? (
         <div
           data-testid={testId(TID_WORKFLOWS_LIST, workspaceKey)}
@@ -401,12 +409,6 @@ export function SavedWorkflowProjectGroup({
             />
           ))}
         </div>
-      ) : null}
-
-      {state.error ? (
-        <p className="mt-4 text-ui-sm text-destructive">
-          {intl.formatMessage({ id: "workflows.hub.loadError" }, { error: state.error })}
-        </p>
       ) : null}
 
       {invalidCount === 0 ? null : (

@@ -143,6 +143,7 @@ PID 缺失或在有界期限内仍存活时，重启必须 fail closed，保留�
 - Desktop 开发 staging、Desktop release staging 与 standalone SEA 必须从同一份仓库源码复制/嵌入该包。三条路径都至少校验 manifest、文档、SDK client 和 skill；任一文件缺失、manifest name/version 不匹配或 SEA 哈希清单不包含该包时终止构建，不得回退读取已安装 cache。
 - official definition resolver 只允许解析受控的仓库/staging root candidate，并沿用现有 seed 完整性校验；用户 cache 是安装输出，不是源码候选。Computer Use 默认启用状态和远程 workspace 能力边界不因本发布修复改变：没有 `node-repl-host` 与本地 Helper 的环境仍不得宣称可用。
 - 验收必须覆盖：空临时目录中的 staging 可独立得到完整 plugin；SEA collector 产出带哈希的四项 seed；official definition resolver 在仓库源码与 staged tree 中解析相同公开 id/version；SDK 只通过注入的 node_repl bridge 调用 broker，bridge 缺失时 fail closed。
+- 调用完整 Desktop staging 的隔离夹具必须同时准备仓库内 lemon 与 Computer Use 两个内容包，包括 `.lcode-plugin/plugin.json`。暂存后逐文件核对必需资源与源码一致，并逐项删除夹具中的 Computer Use manifest、文档、SDK client、skill 来确认缺失即拒绝；不从用户 cache 补齐、不跳过自研插件、不用空文件冒充实现。
 
 ### node_repl 凭据恢复边界
 

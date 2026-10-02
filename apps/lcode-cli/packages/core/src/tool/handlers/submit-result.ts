@@ -75,12 +75,23 @@ const submitResultHandler: ToolHandler = async (input, context) => {
  */
 export function createSubmitResultToolEntry(resultSchema?: JsonSchema): ToolEntry {
   const typed = resultSchema !== undefined;
+  // 中文依据：非严格解码模型会只补报错字段、再次遗漏原必填项；清单从同一冻结 schema
+  // 派生，只指导完整重交，不能替模型填值或放宽引擎校验。
+  const requiredFields = Array.isArray(resultSchema?.required)
+    ? resultSchema.required.filter((field): field is string => typeof field === "string")
+    : [];
   return {
     capability: "Submit the structured terminal result for a workflow subagent's ask",
     metadata: {
       name: SUBMIT_RESULT_TOOL_NAME,
       description: typed
-        ? "Submit the structured result for the current ask. The `result` argument must match this tool's schema."
+        ? [
+            "Submit the complete structured result for the current ask. The `result` argument must match this tool's schema; do not submit a partial object or add undeclared fields.",
+            ...(requiredFields.length
+              ? [`Required fields inside result: ${JSON.stringify(requiredFields)}.`]
+              : []),
+            "After a validation rejection, resubmit the entire corrected result, preserving every required field, not just the fields named in the error.",
+          ].join(" ")
         : "Submit the structured result for the current ask. The required JSON shape is described in the ask instructions.",
       readOnly: false,
       destructive: false,

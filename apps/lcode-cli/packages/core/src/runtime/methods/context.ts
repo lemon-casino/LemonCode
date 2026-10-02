@@ -162,6 +162,8 @@ export async function loadProjectMemoryRoot(
     return undefined;
   }
   await ensureMemoryDirectoryExists(this.fileSystemPort, memoryRoot, traceContext, this.logger);
+  // 初始化与 resume 共用已解析的 Project Memory 根；profile memoryRoot 不能登记为治理根。
+  await this.fileSystemPort.projectMemory?.registerRoot(memoryRoot);
   return memoryRoot;
 }
 

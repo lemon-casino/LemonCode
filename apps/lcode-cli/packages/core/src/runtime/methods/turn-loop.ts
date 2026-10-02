@@ -322,6 +322,16 @@ export async function appendProjectMemoryRecallForTurn(
         systemReminderAttachmentEntry("memory_recall", outcome.attachment),
       ]);
     }
+    if ((outcome.scan?.failedDirectories ?? 0) > 0 || (outcome.health?.failedFileCount ?? 0) > 0) {
+      // 部分扫描失败是显式健康事实，不应被当作完整的无匹配结果，也不能把原始路径写日志。
+      runtime.logger?.warn("Project memory recall was incomplete", {
+        ...traceContextToLogContext(state.turnTraceContext),
+        event: "memory.recall.incomplete",
+        failedDirectories: outcome.scan?.failedDirectories ?? 0,
+        failedFileCount: outcome.health?.failedFileCount ?? 0,
+        module: "core.runtime",
+      });
+    }
     runtime.logger?.debug("Project memory recall completed", {
       ...traceContextToLogContext(state.turnTraceContext),
       candidateCount: outcome.candidateCount,

@@ -114,11 +114,11 @@ export async function startProcessProviderRegistryRuntime(
     ...(options.standalone
       ? {
           importLegacy: () =>
-            readLegacyCliPersonalProviderConfig({
-              ...(options.standalone?.legacyCliUserConfigFilePath
+            readLegacyCliPersonalProviderConfig(
+              options.standalone?.legacyCliUserConfigFilePath
                 ? { filePath: options.standalone.legacyCliUserConfigFilePath }
-                : {}),
-            }),
+                : {},
+            ),
         }
       : {}),
   });

@@ -233,6 +233,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onCreateTask,
   onCreateConversationTask,
   onOpenFolderFromWorkspaceMenu,
+  onRemoveLocalProject,
   onOpenRemoteWorkspace,
   theme,
   onConnectRemote: _onConnectRemote,
@@ -282,6 +283,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onCreateTask: (request?: CreateTaskRequest) => void;
   onCreateConversationTask: () => void;
   onOpenFolderFromWorkspaceMenu: () => void;
+  onRemoveLocalProject?: (projectId: string) => Promise<void>;
   onOpenRemoteWorkspace?: () => void;
   theme: Theme;
   onConnectRemote: (options: RemoteTarget, requestId?: string) => Promise<string>;
@@ -1527,6 +1529,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                                             })}
                                             activateTab={activateTab}
                                             closeTab={closeTab}
+                                            onRemoveLocalProject={onRemoveLocalProject}
                                             toggleWorkspaceExpanded={toggleWorkspaceExpanded}
                                             onSelectTask={onSelectTask}
                                             onStartDraftInWorkspace={onStartDraftInWorkspace}

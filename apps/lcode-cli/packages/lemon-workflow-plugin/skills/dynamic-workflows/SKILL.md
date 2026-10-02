@@ -136,6 +136,99 @@ critique. Keep the persistent reviewer for continuity and add an independent one
 **No nesting.** Subagents cannot call `CreateWorkflow`. If a task is big enough to want its own
 workflow, model it as more subagents here.
 
+### One ask, one bounded delivery
+
+For every non-trivial ask name **one deliverable**, relevant spec/input paths, the allowed
+and excluded scope, and the **stop condition**. Stop when the facts needed for this decision
+are established. Return a short conclusion, evidence paths, the contract the next step needs
+and unresolved blockers; do not send whole histories/source trees or keep investigating an
+unrelated domain. Missing evidence is a blocker, not permission to fake a completed result.
+Slice by an independently acceptable behavior, not an arbitrary file count. Safety invariants
+remain part of acceptance; shrinking the delivery never removes them.
+
+Do not combine investigation, an interface decision, implementation and final whole-project
+acceptance into one ask. Reuse the domain actor for its follow-up slice; separate actors do
+independent investigations. A second ask on the same actor still queues FIFO.
+
+**Counterexample: freeze the whole interface first.** Merely declaring the UI actor does not
+start its work. This delays a read-only consumer investigation that needs no new contract:
+
+```ts
+const service = agent("Service researcher");
+const ui = agent("UI researcher");
+const design = await service.ask("Inspect every layer, freeze all future APIs, implement shared and service changes, and run all checks.");
+const consumers = await ui.ask("Inspect current UI consumers and tests; do not edit.");
+```
+
+Instead, issue both read-only asks before awaiting either. Their join is real: a **single
+writer** needs both to decide the minimum contract (types, errors, owner and safety rules),
+not every possible future interface. Implementations still wait for that contract. Baseline
+checks finish before any write; a branch runs its targeted checks when ready; final integration
+checks wait for all related writes. Tell actors which suite the script will run so they do not
+repeat it. Keep necessary independent safety review. A blocker only holds the branches that
+need it; it must not cancel unrelated investigation already in flight.
+
+The following executable ordering example assumes a small example repository whose package.json
+already defines `check:baseline` and `check:acceptance`; substitute the real repository's checks
+before use (§5). It is not a fixed role/phase template: keep only the roles the task needs.
+The test harness delays deliveries and admits one or two asks at a time; the script never sets
+concurrency or calls a real provider during that test.
+
+<!-- bounded-delivery-example -->
+```ts
+interface Investigation {
+  conclusion: string;
+  evidence: string[];
+  blockers: string[];
+}
+interface Contract {
+  ready: boolean;
+  contractPath: string;
+  blockers: string[];
+}
+
+phase("Inspect service and UI needs independently");
+const service = agent("Service researcher");
+const ui = agent("UI researcher");
+const serviceFacts = service.ask<Investigation>(
+  "Goal: locate the existing service contract for specs/feature.md. Scope: read src/service.ts and its public dependencies only; no edits. Stop once owner, error and safety constraints are evidenced. Return conclusion, paths and blockers; do not freeze future APIs.",
+);
+const uiFacts = ui.ask<Investigation>(
+  "Goal: locate current consumers and UI test entrypoints for specs/feature.md. Scope: read src/ui.ts and its tests only; no edits. Stop once consumer requirements are evidenced. Return conclusion, paths and blockers; do not guess the new API.",
+);
+const baseline = await world.run("npm", ["run", "check:baseline"]);
+const [serviceInput, uiInput] = await Promise.all([serviceFacts, uiFacts]);
+if (baseline.exitCode !== 0 || serviceInput.blockers.length > 0 || uiInput.blockers.length > 0) {
+  return { conclusion: "Contract work is blocked; no implementation started.", findings: [], verified: [], notCovered: ["implementation and final acceptance"] };
+}
+
+phase("Agree only the contract this change needs");
+const contract = await service.ask<Contract>(
+  `Goal: decide the minimum public contract from ${JSON.stringify({ serviceInput, uiInput })}. Scope: you alone may edit specs/feature.md and src/contract.ts; no service/UI implementation. Stop when current types, errors, single state owner and safety rules are specified with contract tests, or return ready=false with blockers. Do not run the full acceptance suite.`,
+);
+if (!contract.ready) {
+  return { conclusion: "Contract unresolved; dependent implementations were not started.", findings: [], verified: ["baseline checked"], notCovered: contract.blockers };
+}
+
+phase("Implement and check each ready slice");
+const serviceSlice = service.ask(
+  `Goal: implement the service behavior against ${contract.contractPath}. Scope: src/service.ts and its tests only; do not edit the shared contract, spec or UI. Add the behavior test before implementation; stop after the targeted service check passes or report its blocker. The script runs final acceptance once; do not repeat it.`,
+);
+const uiSlice = ui.ask(
+  `Goal: implement the UI behavior against ${contract.contractPath}. Scope: src/ui.ts and its tests only; do not edit the shared contract, spec or service. Add the interaction test before implementation; stop after targeted UI checks pass or report their blocker. The script runs final acceptance once; do not repeat it.`,
+);
+const slices = await Promise.all([serviceSlice, uiSlice]);
+
+phase("Check the final code after both slices finish");
+const acceptance = await world.run("npm", ["run", "check:acceptance"], { timeoutMs: 1_800_000 });
+return {
+  conclusion: acceptance.exitCode === 0 ? "Final acceptance passed." : "The change is unverified: final acceptance failed.",
+  findings: slices,
+  verified: acceptance.exitCode === 0 ? ["baseline and final acceptance"] : ["baseline"],
+  notCovered: acceptance.exitCode === 0 ? [] : [acceptance.stderr],
+};
+```
+
 ## 3. Fresh eyes
 
 The author of a plan or a draft cannot see its gaps, because they filled them while
@@ -882,6 +975,13 @@ re-streaming twenty thousand tokens to change one line is slow enough that some 
 stall on it, while the `Edit` that fixes it costs a few lines. (If the response names no
 file — a checkout the tool could not write to — then fix the script and resubmit it inline,
 as before.)
+
+A confirmation can also show **non-blocking orchestration advice** with source locations.
+It describes a known control wait, not proof that the work is independent. Check whether a
+read-only investigation or a per-branch continuation can start earlier, but preserve file,
+permission, external-effect dependencies and same-actor context/FIFO. Advice is separate from
+compilation diagnostics: it does not rewrite the script, add model calls or change concurrency.
+No advice does not prove optimal scheduling; uncertain shapes are deliberately left alone.
 
 On a clean compile the run starts in the background and you get a run ID. **Do not poll it.**
 The completion notification arrives on its own and carries the final return value plus every

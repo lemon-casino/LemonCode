@@ -133,6 +133,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   isActiveWorkspace,
   isExpanded,
   closeTab,
+  onRemoveLocalProject,
   toggleWorkspaceExpanded,
   onSelectTask,
   onStartDraftInWorkspace,
@@ -157,6 +158,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   isExpanded: boolean;
   activateTab: (tabId: string) => void;
   closeTab: (tabId: string) => void;
+  onRemoveLocalProject?: (projectId: string) => Promise<void>;
   toggleWorkspaceExpanded: (workspacePath: string) => void;
   onSelectTask: (
     targetWorkspacePath: string,
@@ -374,6 +376,25 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
       }
     }
 
+    if (!isRemoteWorkspace && tab.localProjectId && onRemoveLocalProject) {
+      try {
+        // 多文件夹项目的 tab 和项目定义是两份状态。必须先删除权威项目定义，
+        // 否则 tab 虽从左侧关闭，会话选择器仍会从 localProjects 把它重新列出，
+        // 并继续隐藏属于该项目的旧单文件夹 workspace。
+        await onRemoveLocalProject(tab.localProjectId);
+      } catch (error) {
+        logger.error("[WorkspaceSidebarItem] 删除本地项目定义失败", {
+          error,
+          localProjectId: tab.localProjectId,
+          workspaceKey,
+        });
+        toast(intl.formatMessage({ id: "workspaceSidebar.removeProjectFailed" }), {
+          variant: "warning",
+        });
+        return;
+      }
+    }
+
     closeTab(tab.id);
     releaseWorkspaceRuntimeAfterProjectRemoval({
       tab: {
@@ -421,7 +442,9 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
     intl,
     isExpanded,
     isRemoteWorkspace,
+    onRemoveLocalProject,
     tab.id,
+    tab.localProjectId,
     tab.workspaceIdentity,
     tab.workspacePath,
     lcodeTaskService,

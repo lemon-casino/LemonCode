@@ -22,7 +22,8 @@ export async function runPreToolUseHooks(
   traceContext: TraceContext,
   signal?: AbortSignal,
 ): Promise<HookRunResult> {
-  if (!deps.hookRunner) return { additionalContexts: [] };
+  // 记忆审查不得因一个只读工具请求执行用户配置的脚本；声明由受信工具注册表拥有。
+  if (!deps.hookRunner || entry.configuredHooks === "skip") return { additionalContexts: [] };
   return deps.hookRunner.run(
     {
       cwd: deps.getWorkingDirectory(),
@@ -57,7 +58,12 @@ export async function runPermissionRequestHooks(
   signal?: AbortSignal,
 ): Promise<PermissionBrokerResult | undefined> {
   // 用户专属生命周期确认不能由自动 PermissionRequest Hook 应答；其它工具仍保留原审批链。
-  if (!deps.hookRunner || permissionDecision.approvalSource === "user") return undefined;
+  if (
+    !deps.hookRunner ||
+    permissionDecision.approvalSource === "user" ||
+    deps.registry?.get(toolCall.name)?.configuredHooks === "skip"
+  )
+    return undefined;
   const hookResult = await deps.hookRunner.run(
     {
       cwd: deps.getWorkingDirectory(),
@@ -132,7 +138,9 @@ export async function runPostToolUseHooks(
   traceContext: TraceContext,
   signal?: AbortSignal,
 ): Promise<HookRunResult> {
-  if (!deps.hookRunner) return { additionalContexts: [] };
+  if (!deps.hookRunner || deps.registry?.get(toolCall.name)?.configuredHooks === "skip") {
+    return { additionalContexts: [] };
+  }
   return deps.hookRunner.run(
     {
       artifactRefs: artifactPath ? [artifactPath] : undefined,
@@ -165,7 +173,9 @@ export async function runPostToolUseFailureHooks(
   traceContext: TraceContext,
   signal?: AbortSignal,
 ): Promise<HookRunResult> {
-  if (!deps.hookRunner) return { additionalContexts: [] };
+  if (!deps.hookRunner || deps.registry?.get(toolCall.name)?.configuredHooks === "skip") {
+    return { additionalContexts: [] };
+  }
   const normalized = error instanceof Error ? error : new Error(String(error));
   return deps.hookRunner.run(
     {

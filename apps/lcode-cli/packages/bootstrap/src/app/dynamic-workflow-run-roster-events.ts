@@ -2,7 +2,7 @@
 // 情势截面的**事件索引**：一趟扫过 journal 事件，得到一切「多久以前」
 // ============================================================
 // 阶段表、子代理花名册、健康三组读面
-// 要的时间只有一个来源——`StoredEvent.timeCreated`，即事件落 journal 的时刻。节点行
+// 生命周期时间来自 `StoredEvent.timeCreated`，即事件落 journal 的时刻。节点行
 // （`NodeRecord`）没有任何时间列，所以「这次 ask 什么时候开始的」「它上次动是什么时候」
 // 只能从事件轨上取。
 //
@@ -46,6 +46,8 @@ const NODE_LIFECYCLE_EVENT_TYPES: ReadonlySet<string> = new Set([
   "node-waiting",
   "node-repairing",
   "node-nudged",
+  "node-paused",
+  "node-retried",
   "node-settled",
 ]);
 
@@ -59,14 +61,19 @@ export interface RosterWaitTrace {
   cause: "slot" | "backoff";
   reason?: string;
   retryAfterMs?: number;
+  attempt?: number;
+  nextRetryAt?: number;
   since?: number;
 }
 
 /** 一个节点实例在事件轨上留下的痕迹。 */
 export interface RosterNodeTrace {
+  attempt?: number;
+  /** 最近真实成功交付的源时间，后续排队/重试不冒充或擦掉已发生的交付。 */
+  lastDeliveredAt?: number;
   /** 本世最后一次 `node-dispatched` 的时刻（`node-queued` 会清掉：重新排队是新的一世）。 */
   dispatchedAt?: number;
-  /** 最后一条生命周期事件的 type；子代理的 `waiting` 判据只看它是不是 `node-waiting`。 */
+  /** 最后一条生命周期事件的 type；用于清理旧等待，不能用 journal 行替代。 */
   lastLifecycleType?: string;
   /** 仅当此刻正处在 waiting 时在场（任何别的生命周期事件都会清掉它）。 */
   wait?: RosterWaitTrace;
@@ -120,10 +127,29 @@ export function indexRosterEvents(events: readonly StoredEvent[], now: number): 
   let concurrencyReason: string | undefined;
   let concurrencySince: number | undefined;
   let lastPhaseName: string | undefined;
+  let lastSequence = -1;
 
   for (const stored of events) {
+    if (stored.sequence <= lastSequence) continue;
+    lastSequence = stored.sequence;
     const { event } = stored;
     const at = timeOf(stored, now);
+    const instance = "instance" in event ? event.instance : undefined;
+    const key = instance === undefined ? undefined : instanceKey(instance.siteId, instance.ordinal);
+    const trace: RosterNodeTrace | undefined = key === undefined ? undefined : (nodes.get(key) ?? {});
+    if (instance !== undefined && trace !== undefined) {
+      const attempt = instance.attempt ?? 1;
+      if (attempt < (trace.attempt ?? 1)) continue;
+      if (attempt > (trace.attempt ?? 1)) {
+        trace.wait = undefined;
+        trace.dispatchedAt = undefined;
+        trace.lastLifecycleType = undefined;
+        trace.lastToolAt = undefined;
+      }
+      trace.attempt = attempt;
+      if ((event.type === "node-waiting" || event.type === "node-executing") &&
+        (trace.lastLifecycleType === "node-paused" || trace.lastLifecycleType === "node-settled")) continue;
+    }
 
     if (PROGRESS_EVENT_TYPES.has(event.type)) {
       lastProgressAt = laterOf(lastProgressAt, at);
@@ -146,10 +172,7 @@ export function indexRosterEvents(events: readonly StoredEvent[], now: number): 
       lastPhaseName = trackPhase(phases, event.name, lastPhaseName, at);
       continue;
     }
-    if (!("instance" in event)) continue;
-
-    const key = instanceKey(event.instance.siteId, event.instance.ordinal);
-    const trace = nodes.get(key) ?? {};
+    if (key === undefined || trace === undefined) continue;
     if (PROGRESS_EVENT_TYPES.has(event.type)) {
       trace.lastActivityAt = laterOf(trace.lastActivityAt, at);
     }
@@ -159,11 +182,13 @@ export function indexRosterEvents(events: readonly StoredEvent[], now: number): 
     if (event.type === "node-waiting") {
       // 已经在等就保留**进入那一刻**：退避阶梯会连发好几条 node-waiting，而读者问的是
       // 「它卡了多久」，不是「最后一条观察是什么时候发的」。原因与重试间隔则取最新的一条。
-      const since = trace.wait?.since ?? at;
+      const since = (trace.wait?.cause === event.cause ? trace.wait.since : undefined) ?? at;
       trace.wait = {
         cause: event.cause,
         ...(event.reason === undefined ? {} : { reason: event.reason }),
         ...(event.retryAfterMs === undefined ? {} : { retryAfterMs: event.retryAfterMs }),
+        ...(event.attempt === undefined ? {} : { attempt: event.attempt }),
+        ...(event.delayMs === undefined || at === undefined ? {} : { nextRetryAt: at + event.delayMs }),
         ...(since === undefined ? {} : { since }),
       };
     }
@@ -172,6 +197,11 @@ export function indexRosterEvents(events: readonly StoredEvent[], now: number): 
     }
     if (event.type === "node-settled") {
       settlements.push({ key, outcome: event.outcome, cached: event.cached === true });
+      const deliveredAt = stored.timeCreated;
+      if (event.outcome === "ok" && event.cached !== true &&
+        typeof deliveredAt === "number" && Number.isSafeInteger(deliveredAt) && deliveredAt >= 0) {
+        trace.lastDeliveredAt = laterOf(trace.lastDeliveredAt, deliveredAt);
+      }
     }
     nodes.set(key, trace);
   }
@@ -211,7 +241,7 @@ function trackPhase(
 function trackLifecycle(trace: RosterNodeTrace, type: string, at: number | undefined): void {
   trace.lastLifecycleType = type;
   if (type !== "node-waiting") trace.wait = undefined;
-  if (type === "node-queued") trace.dispatchedAt = undefined;
+  if (type === "node-queued" || type === "node-retried") trace.dispatchedAt = undefined;
   if (type === "node-dispatched" && at !== undefined) trace.dispatchedAt = at;
 }
 

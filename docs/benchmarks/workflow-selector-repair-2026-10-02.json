@@ -1,0 +1,342 @@
+{
+  "node": "v24.14.1",
+  "scope": "selector-only; no source/reducer/wire/schema/React/DOM/paint; no browser/throughput claim",
+  "method": "before frozen sources and current after loaded in distinct tsx namespaces; 15 warmup + 7 alternating-order batches; no source writes; same nodes window; fresh case allocates outside timing; no p95 claim",
+  "beforeSourceManifest": {
+    "capturedAt": "2026-10-02T01:52:20.677Z",
+    "node": "v24.14.1",
+    "files": [
+      {
+        "path": "packages/ui/src/components/workflow-timeline/timeline-model.ts",
+        "sha256": "e84bcf3d8e453e14114f0f2088dc8fa4dd44883e68a61ce0b92b6e8cdad79dc0"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-timeline/timeline-activity.ts",
+        "sha256": "d9a1c10208db693e10aeb11af640a0266ce93e26fd394cd9d89dd0e018fb506c"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-timeline/timeline-observation.ts",
+        "sha256": "60f77a8909ab5749fa7024842a8ef5e009afdee5c918879f1523fdb08e10a131"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-timeline/timeline-bands.ts",
+        "sha256": "123a5db86895396c88e6b9e13f98429912941b89a86dc2a94c1db89316f83ccc"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-timeline/roster-model.ts",
+        "sha256": "734008a6b8c0dcf3f428be9f6c65320d976645716814208db6fe6de50a381720"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-graph/participant-model.ts",
+        "sha256": "3d53cef6f45381d48574962567c9698328554959b0713f7ee39039bcd53132e0"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-graph/instance-phases.ts",
+        "sha256": "e6fe289a51f0feee38f3cf10d7fde515bf91e716fdd3da9fd70483d798936910"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-graph/run-status.ts",
+        "sha256": "7a0bb4a770c6f5c018d17546f75a3200b463e02eb3509f6c50df1f2914950527"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-graph/lane-name.ts",
+        "sha256": "e400f4c3edf1ded3cb7ecc81650d357c8bf2be62fcbd2b1114030ca631deddff"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-graph/name-pattern.ts",
+        "sha256": "2f674aace444f765298f2531b9c880db7d7d7d34833fd09cd6a649d8ed9269f3"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-graph/phase-name.ts",
+        "sha256": "9bd6759fe03c73df01bf956a38b70f54700c19f939187ff57beaf3c7f9efda87"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-graph/phase-model.ts",
+        "sha256": "0497a10ea1df352cf9103e9459af40e900c40767135ac8aaed1890ba123ceeb1"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-graph/types.ts",
+        "sha256": "2d7122956a465049f706458026925ed5deacdb7978da043f19a1dbeb288593a7"
+      },
+      {
+        "path": "packages/web/test/fixtures/workflow-stress-data.ts",
+        "sha256": "c71cc979207f72fe1e50e72dd4e80e2ca052cf8b42417364c585188a44becc8f"
+      }
+    ]
+  },
+  "afterSourceHashes": [
+    {
+      "path": "packages/ui/src/components/workflow-timeline/timeline-model.ts",
+      "sha256": "fac8059ad702762f86e093e7e26b42ec2856766cd7d5c70588d9365cf179465d"
+    },
+    {
+      "path": "packages/ui/src/components/workflow-timeline/timeline-activity.ts",
+      "sha256": "b073c38e6435a07db7747bf89bd282d57bf961077e0ad450c15e5d69f2787c5c"
+    },
+    {
+      "path": "packages/ui/src/components/workflow-timeline/timeline-observation.ts",
+      "sha256": "a57e8f3a6a1dfd5040dc4ba34f4ebfe241524ec85f5756e4c4c262866c9b0907"
+    },
+    {
+      "path": "packages/ui/src/components/workflow-timeline/timeline-bands.ts",
+      "sha256": "123a5db86895396c88e6b9e13f98429912941b89a86dc2a94c1db89316f83ccc"
+    },
+    {
+      "path": "packages/ui/src/components/workflow-timeline/roster-model.ts",
+      "sha256": "734008a6b8c0dcf3f428be9f6c65320d976645716814208db6fe6de50a381720"
+    },
+    {
+      "path": "packages/ui/src/components/workflow-graph/participant-model.ts",
+      "sha256": "13b9088a4af6c1038e97894edb2380a1448027c74fe25cbc9d887835791eeb21"
+    },
+    {
+      "path": "packages/ui/src/components/workflow-graph/instance-phases.ts",
+      "sha256": "e6fe289a51f0feee38f3cf10d7fde515bf91e716fdd3da9fd70483d798936910"
+    },
+    {
+      "path": "packages/ui/src/components/workflow-graph/run-status.ts",
+      "sha256": "7a0bb4a770c6f5c018d17546f75a3200b463e02eb3509f6c50df1f2914950527"
+    },
+    {
+      "path": "packages/ui/src/components/workflow-graph/lane-name.ts",
+      "sha256": "e400f4c3edf1ded3cb7ecc81650d357c8bf2be62fcbd2b1114030ca631deddff"
+    },
+    {
+      "path": "packages/ui/src/components/workflow-graph/name-pattern.ts",
+      "sha256": "2f674aace444f765298f2531b9c880db7d7d7d34833fd09cd6a649d8ed9269f3"
+    },
+    {
+      "path": "packages/ui/src/components/workflow-graph/phase-name.ts",
+      "sha256": "9bd6759fe03c73df01bf956a38b70f54700c19f939187ff57beaf3c7f9efda87"
+    },
+    {
+      "path": "packages/ui/src/components/workflow-graph/phase-model.ts",
+      "sha256": "0497a10ea1df352cf9103e9459af40e900c40767135ac8aaed1890ba123ceeb1"
+    },
+    {
+      "path": "packages/ui/src/components/workflow-graph/types.ts",
+      "sha256": "2d7122956a465049f706458026925ed5deacdb7978da043f19a1dbeb288593a7"
+    },
+    {
+      "path": "packages/ui/src/components/workflow-graph/run-node-index.ts",
+      "sha256": "c3934711390d62adffd14c97e6fe789baea246c699b0db64cab5fc50509d81e8"
+    }
+  ],
+  "equivalenceChecks": 9,
+  "results": [
+    {
+      "label": "buildWorkflowTimeline 12 actors / 256 nodes; same immutable input",
+      "warmups": 15,
+      "batchSize": 20,
+      "before": {
+        "batches": 7,
+        "medianMs": 0.5354349999999982,
+        "minMs": 0.4988550000000004,
+        "maxMs": 0.6988249999999994,
+        "samplesMs": [
+          0.5002949999999998, 0.5059349999999995, 0.5895250000000004, 0.5354349999999982,
+          0.6988249999999994, 0.4988550000000004, 0.6370599999999996
+        ]
+      },
+      "after": {
+        "batches": 7,
+        "medianMs": 0.16037000000000035,
+        "minMs": 0.14926499999999976,
+        "maxMs": 0.229910000000001,
+        "samplesMs": [
+          0.17288499999999943, 0.229910000000001, 0.15056999999999904, 0.15789499999999917,
+          0.14926499999999976, 0.16037000000000035, 0.16432499999999947
+        ]
+      }
+    },
+    {
+      "label": "buildWorkflowTimeline 64 actors / 256 nodes; same immutable input",
+      "warmups": 15,
+      "batchSize": 20,
+      "before": {
+        "batches": 7,
+        "medianMs": 2.0544849999999997,
+        "minMs": 1.887760000000003,
+        "maxMs": 2.5114300000000016,
+        "samplesMs": [
+          2.0034400000000003, 2.131800000000001, 2.0931299999999964, 2.030754999999999,
+          2.0544849999999997, 2.5114300000000016, 1.887760000000003
+        ]
+      },
+      "after": {
+        "batches": 7,
+        "medianMs": 0.37539999999999907,
+        "minMs": 0.2932000000000016,
+        "maxMs": 0.5118400000000008,
+        "samplesMs": [
+          0.32520999999999844, 0.37539999999999907, 0.5118400000000008, 0.48087999999999625,
+          0.30559499999999956, 0.44172999999999546, 0.2932000000000016
+        ]
+      }
+    },
+    {
+      "label": "buildWorkflowTimeline 256 actors / 256 nodes; same immutable input",
+      "warmups": 15,
+      "batchSize": 20,
+      "before": {
+        "batches": 7,
+        "medianMs": 6.568889999999999,
+        "minMs": 6.4442450000000004,
+        "maxMs": 6.828584999999999,
+        "samplesMs": [
+          6.7836449999999955, 6.568889999999999, 6.734824999999989, 6.4442450000000004,
+          6.828584999999999, 6.529885000000002, 6.54020999999999
+        ]
+      },
+      "after": {
+        "batches": 7,
+        "medianMs": 0.7942549999999983,
+        "minMs": 0.7188800000000015,
+        "maxMs": 1.0680600000000027,
+        "samplesMs": [
+          0.8353350000000092, 0.7942549999999983, 1.0680600000000027, 0.7461699999999951,
+          0.7677400000000034, 0.7188800000000015, 0.8413400000000024
+        ]
+      }
+    },
+    {
+      "label": "256 liveParticipantView only",
+      "warmups": 15,
+      "batchSize": 20,
+      "before": {
+        "batches": 7,
+        "medianMs": 0.3081450000000018,
+        "minMs": 0.2930399999999963,
+        "maxMs": 0.5434499999999958,
+        "samplesMs": [
+          0.2955400000000054, 0.29791500000000043, 0.2930399999999963, 0.3919300000000021,
+          0.5434499999999958, 0.4725850000000037, 0.3081450000000018
+        ]
+      },
+      "after": {
+        "batches": 7,
+        "medianMs": 0.15723000000000412,
+        "minMs": 0.14485499999999546,
+        "maxMs": 0.25422999999999546,
+        "samplesMs": [
+          0.1523149999999987, 0.15723000000000412, 0.14584999999999582, 0.25422999999999546,
+          0.19023500000000695, 0.17465499999999565, 0.14485499999999546
+        ]
+      }
+    },
+    {
+      "label": "256 workflowPillActivity calls; preselected candidate",
+      "warmups": 15,
+      "batchSize": 20,
+      "before": {
+        "batches": 7,
+        "medianMs": 3.9462999999999964,
+        "minMs": 3.7561400000000047,
+        "maxMs": 4.231719999999996,
+        "samplesMs": [
+          4.1172250000000075, 4.231719999999996, 3.9462999999999964, 3.8543949999999993,
+          3.858989999999994, 3.951949999999988, 3.7561400000000047
+        ]
+      },
+      "after": {
+        "batches": 7,
+        "medianMs": 0.06556499999999232,
+        "minMs": 0.05807999999999538,
+        "maxMs": 0.07264500000001135,
+        "samplesMs": [
+          0.0697800000000143, 0.07264500000001135, 0.06556499999999232, 0.06344000000001415,
+          0.06526000000001204, 0.05807999999999538, 0.0707149999999956
+        ]
+      }
+    },
+    {
+      "label": "pane: 5 pinned pillActivity calls",
+      "warmups": 15,
+      "batchSize": 50,
+      "before": {
+        "batches": 7,
+        "medianMs": 0.06337199999999939,
+        "minMs": 0.06025199999999131,
+        "maxMs": 0.09211599999999635,
+        "samplesMs": [
+          0.07374000000000706, 0.07369799999999486, 0.062251999999998586, 0.06289600000000065,
+          0.09211599999999635, 0.06337199999999939, 0.06025199999999131
+        ]
+      },
+      "after": {
+        "batches": 7,
+        "medianMs": 0.06692400000000816,
+        "minMs": 0.06339399999999841,
+        "maxMs": 0.07074599999999918,
+        "samplesMs": [
+          0.06692400000000816, 0.06839999999999236, 0.06486400000000686, 0.0648700000000008,
+          0.07074599999999918, 0.06339399999999841, 0.06767399999999725
+        ]
+      }
+    },
+    {
+      "label": "roster: 4 stationRoster + 2 rosterMore (both surfaces)",
+      "warmups": 15,
+      "batchSize": 50,
+      "before": {
+        "batches": 7,
+        "medianMs": 0.05824200000000019,
+        "minMs": 0.05612199999999575,
+        "maxMs": 0.09735799999999471,
+        "samplesMs": [
+          0.09735799999999471, 0.05824200000000019, 0.059539999999997234, 0.05612199999999575,
+          0.06151600000000144, 0.05761599999999817, 0.057316000000000714
+        ]
+      },
+      "after": {
+        "batches": 7,
+        "medianMs": 0.06990999999999986,
+        "minMs": 0.057366000000001804,
+        "maxMs": 0.09859800000000178,
+        "samplesMs": [
+          0.09859800000000178, 0.09503200000000106, 0.057366000000001804, 0.06990999999999986,
+          0.059669999999996434, 0.05834600000000137, 0.07394800000000032
+        ]
+      }
+    },
+    {
+      "label": "256 model; unique pre-cloned wire-like nodes/actors per call; includes cold index",
+      "warmups": 15,
+      "batchSize": 20,
+      "before": {
+        "batches": 7,
+        "medianMs": 8.196685000000025,
+        "minMs": 7.940430000000015,
+        "maxMs": 9.843034999999986,
+        "samplesMs": [
+          9.843034999999986, 8.323984999999993, 8.147540000000003, 8.399940000000015,
+          7.960110000000009, 8.196685000000025, 7.940430000000015
+        ]
+      },
+      "after": {
+        "batches": 7,
+        "medianMs": 0.9817200000000185,
+        "minMs": 0.8797450000000027,
+        "maxMs": 1.2017700000000104,
+        "samplesMs": [
+          1.2017700000000104, 1.164449999999988, 0.9817200000000185, 0.9073949999999968,
+          0.9499450000000251, 0.8797450000000027, 0.9817649999999958
+        ]
+      }
+    }
+  ],
+  "identityPropertyReads": {
+    "before": {
+      "model": 660993,
+      "participant": 67586,
+      "activity": 460544
+    },
+    "after": {
+      "model": 3840,
+      "participant": 2304,
+      "activity": 1024
+    }
+  },
+  "selectorWallMs": 4295.9159,
+  "consume": 950120
+}

@@ -96,6 +96,48 @@ export interface GitIdentity {
 
 export interface GitRepositoryRequest {
   workspacePath: string;
+  workspaceIdentity?: string;
+}
+
+export interface GitPublishState {
+  headCommitHash: string | null;
+  branchName: string | null;
+  indexFingerprint: string;
+  worktreeFingerprint: string;
+}
+
+export interface GitRemoteInfo {
+  name: string;
+  url: string;
+}
+
+export interface GitRemoteListResult {
+  remotes: GitRemoteInfo[];
+}
+
+export interface GitTagInfo {
+  name: string;
+  commitHash: string;
+}
+
+export interface GitUnsupportedTagInfo {
+  name: string;
+  objectType: "tree" | "blob";
+}
+
+export interface GitTagListResult {
+  tags: GitTagInfo[];
+  unsupportedTags?: GitUnsupportedTagInfo[];
+}
+
+export interface GitCreateTagRequest extends GitRepositoryRequest {
+  name: string;
+  ref?: string;
+  expectedState?: GitPublishState;
+}
+
+export interface GitCreateTagResult extends GitTagInfo {
+  created: boolean;
 }
 
 export type GitCommitGraphRefKind = "branch" | "remote" | "tag" | "head";
@@ -203,25 +245,26 @@ export interface GitDiscardPathsRequest extends GitPathMutationRequest {
 }
 
 export interface GitCommitRequest extends GitRepositoryRequest {
-  workspaceIdentity?: string;
   message: string;
   paths?: string[];
   stagedOnly?: boolean;
   review?: GitCommitReviewSelection;
+  expectedState?: GitPublishState;
 }
 
 export interface GitCommitResult {
   warning?: string;
   commitHash: string;
   summary: GitRepositorySummary;
+  publishState?: GitPublishState;
 }
 
 export interface GitGenerateCommitMessageRequest extends GitRepositoryRequest {
   review?: boolean;
-  workspaceIdentity?: string;
   locale?: Locale;
   includeUnstaged?: boolean;
   currentSessionFilePaths?: string[];
+  excludedFilePaths?: string[];
   conversationContext?: GitCommitMessageConversationContext;
 }
 
@@ -244,9 +287,16 @@ export interface GitGenerateCommitMessageResult {
   model: string;
 }
 
-export interface GitPushRequest extends GitRepositoryRequest {}
+export interface GitPushRequest extends GitRepositoryRequest {
+  remote?: string;
+  branch?: string;
+  tag?: string;
+  tagCommitHash?: string;
+  expectedState?: GitPublishState;
+}
 
 export interface GitPushResult {
+  warning?: string;
   branchName: string | null;
   trackingBranchName: string | null;
   remoteName: string | null;

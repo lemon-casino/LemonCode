@@ -63,7 +63,7 @@ export function WorkflowMoreRow({
       aria-label={title}
       aria-expanded={door?.open}
       className={cn(
-        "wf-pill wf-agent-pill wf-more-row wf-arrive flex h-8 min-w-0 items-center gap-2 rounded-full pl-2 pr-2.5 text-ui-sm",
+        "wf-pill wf-agent-pill wf-more-row wf-arrive flex h-8 min-w-0 items-center gap-1 rounded-full pl-0.5 pr-2.5 text-ui-sm",
         door?.open === true ? "bg-surface-hover" : "bg-surface",
         onOpen !== undefined &&
           "wf-pill-open cursor-pointer text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
@@ -79,7 +79,11 @@ export function WorkflowMoreRow({
       <span className="wf-more-deck flex shrink-0 items-center" data-testid="workflow-more-deck">
         {more.deck.map((pill) => (
           <LaneGlyph
-            className="wf-more-face size-4 shrink-0 text-foreground-subtle"
+            className={cn(
+              "wf-more-face",
+              pill.laneClass === "agent" ? "size-8" : "size-4",
+              "shrink-0 text-foreground-subtle",
+            )}
             key={pill.key}
             avatarIndex={pill.avatarIndex}
             laneClass={pill.laneClass}

@@ -33,10 +33,14 @@ import {
   Rounds,
   SpineLamp,
   SpinePieces,
+  WorkflowPillStepCounts,
 } from "@/app-shell/WorkflowRunSpineParts.js";
 import { spineSections } from "@/app-shell/workflowRunSpine.js";
 import type { WorkflowActorInstance } from "@/app-shell/workflowRunPanel.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
+import { useNowTicker } from "@/components/workflow-graph/use-now-ticker.js";
+import { WorkflowConnectionNotice } from "@/components/workflow-timeline/WorkflowExecutionActivity.js";
+import { workflowActivityNeedsClock } from "@/components/workflow-timeline/timeline-activity.js";
 
 /**
  * 运行详情页的脊线：卡上的横向时间线在
@@ -165,15 +169,14 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
     head.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "start" });
   }, [landed]);
 
-  // 等待时长要自己走：一个在等答案的 run **恰恰不发事件**。定时器只在有问题时存在。
-  const [now, setNow] = useState(() => Date.now());
-  const hasQuestions = pendingQuestions.length > 0;
-  useEffect(() => {
-    if (!hasQuestions) return undefined;
-    setNow(Date.now());
-    const timer = setInterval(() => setNow(Date.now()), QUESTION_TICK_MS);
-    return () => clearInterval(timer);
-  }, [hasQuestions]);
+  // 父清单共用一个秒针；倒计时只读权威 deadline，不为每个 child 建 timer/订阅。
+  const hasActivityClock = model.stations.some((station) => station.pills.some((pill) =>
+    workflowActivityNeedsClock(pill.activity),
+  ));
+  const now = useNowTicker(
+    model.connection === undefined && (hasActivityClock || pendingQuestions.length > 0),
+    hasActivityClock ? 1_000 : QUESTION_TICK_MS,
+  );
 
   const questionsByInstance = useMemo(() => {
     const byKey = new Map<string, WorkflowRunPendingQuestion[]>();
@@ -191,7 +194,7 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
     for (const station of model.stations) {
       for (const pill of station.pills) {
         const key = pillKey(pill);
-        if (key !== undefined) keys.add(key);
+        if (key !== undefined && pill.asking === true) keys.add(key);
       }
     }
     return keys;
@@ -259,6 +262,8 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
         : undefined;
     return {
       avatarIndex: pill.avatarIndex,
+      activityNow: now,
+      ...(pill.activity === undefined ? {} : { activity: pill.activity }),
       laneClass: pill.laneClass,
       name: label,
       status: pill.status,
@@ -270,28 +275,13 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
   const renderPill = (pill: TimelinePill, focusPhaseName?: string) => {
     const activity = pillActivity(graph, run, pill);
     const key = pillKey(pill);
-    const questions = key === undefined ? [] : (questionsByInstance.get(key) ?? []);
-    const counts: string[] = [];
-    if (activity.asks > 0) {
-      counts.push(
-        format({ id: "chat.toolCall.workflow.graph.card.tasks" }, { count: activity.asks }),
-      );
-    }
-    if (activity.reads > 0) {
-      counts.push(
-        format({ id: "chat.toolCall.workflow.graph.card.reads" }, { count: activity.reads }),
-      );
-    }
+    const questions = key === undefined || pill.asking !== true ? [] : (questionsByInstance.get(key) ?? []);
     // 可打开的药丸是 <button>：块级父元素里它只包住内容，行宽会随名字长短参差。
     // 纵向 flex 容器让每一行拉满本列宽度（与卡上站下的药丸列同一机制）。
     return (
       <div className="flex min-w-0 flex-col" key={pill.key}>
         <WorkflowAgentPill {...pillProps(pill, focusPhaseName)}>
-          {counts.length === 0 ? null : (
-            <span className="shrink-0 font-mono text-ui-xs tabular-nums text-foreground-subtlest">
-              {counts.join(" · ")}
-            </span>
-          )}
+          <WorkflowPillStepCounts asks={activity.asks} reads={activity.reads} />
         </WorkflowAgentPill>
         {/* 问题挂在提问者下面，再退一步（26px）：它属于这一行，不属于这一站。 */}
         {questions.map((question) => (
@@ -312,6 +302,9 @@ export const WorkflowRunPhaseList = memo(function WorkflowRunPhaseList({
       data-testid="workflow-run-phases"
       ref={rootRef}
     >
+      {model.connection === undefined ? null : (
+        <div className="px-3 pb-2"><WorkflowConnectionNotice connection={model.connection} /></div>
+      )}
       {run?.truncated === true ? <WorkflowRunCoverageNotice /> : null}
       {model.stations.map((station, index) => {
         const expanded = open.has(station.id);

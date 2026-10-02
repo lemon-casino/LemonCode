@@ -1,6 +1,7 @@
 import { useId, type CSSProperties } from "react";
 import { cn } from "@/components/lib/utils.js";
 import type { StepRunStatus } from "@/components/workflow-graph/types.js";
+import { SproutKeyboard, SproutRain } from "./WorkflowSproutProps.js";
 
 export const FACE_COLORS = [
   "#54B9A6",
@@ -31,73 +32,67 @@ export function agentColor(avatarIndex: number | undefined, name: string): strin
   ]!;
 }
 
-function GhostEyes() {
+function SproutEyes() {
   return (
-    <g className="wf-ghost-gaze">
-      <g className="wf-ghost-eyes">
-        <ellipse cx={7} cy={10} rx={1.05} ry={1.5} />
-        <ellipse cx={13} cy={10} rx={1.05} ry={1.5} />
-        <path className="wf-ghost-glint" d="M6.65 9.05v.4 M12.65 9.05v.4" />
+    <g className="wf-sprout-gaze">
+      <g className="wf-sprout-eyes">
+        <ellipse cx={37} cy={52} rx={3.2} ry={4.2} />
+        <ellipse cx={59} cy={52} rx={3.2} ry={4.2} />
       </g>
     </g>
   );
 }
 
-function GhostExpression({ status }: { status: StepRunStatus }) {
+function SproutExpression({ status }: { status: StepRunStatus }) {
   switch (status) {
-    case "pending":
-      return (
-        <>
-          <GhostEyes />
-          <path className="wf-ghost-feature" d="M6.3 7.3q.7-.45 1.5-.05" />
-          <ellipse className="wf-ghost-mouth-curious" cx={10} cy={13} rx={0.55} ry={0.6} />
-        </>
-      );
-    case "running":
-      return (
-        <>
-          <GhostEyes />
-          <path className="wf-ghost-feature" d="M5.8 7.6q1.2 0 2.4.5 M11.8 8.1q1.2-.5 2.4-.5" />
-          <path className="wf-ghost-feature wf-ghost-mouth-focused" d="M9.1 13.1q.9-.4 1.8-.2" />
-        </>
-      );
     case "done":
       return (
         <>
           <path
-            className="wf-ghost-feature wf-ghost-eyes-happy"
-            d="M5.9 10.2q1.1-1.6 2.2 0 M11.9 10.2q1.1-1.6 2.2 0"
+            className="wf-sprout-feature wf-sprout-eyes-happy"
+            d="M32 53q5-7 10 0 M54 53q5-7 10 0"
           />
-          <path className="wf-ghost-smile" d="M8.2 12.2q1.8 1 3.6 0c0 3-3.6 3-3.6 0Z" />
-          <path className="wf-ghost-tongue" d="M9 14.2q1-1 2 0-1 .6-2 0Z" />
+          <path d="M41.5 59.5q6.5 4 13 0c0 11.5-13 11.5-13 0Z" />
+          <path className="wf-sprout-tongue" d="M44 66q4-3 8 0-4 3-8 0Z" />
         </>
       );
     case "cancelled":
       return (
         <>
           <path
-            className="wf-ghost-feature wf-ghost-eyes-resting"
-            d="M5.9 10q1.1.8 2.2 0 M11.9 10q1.1.8 2.2 0"
+            className="wf-sprout-feature wf-sprout-eyes-resting"
+            d="M32 53q5 4 10 0 M54 53q5 4 10 0"
           />
-          <path className="wf-ghost-feature" d="M9.2 13q.8.2 1.6 0" />
+          <path className="wf-sprout-feature" d="M44 62q4 1.5 8 0" />
         </>
       );
     case "failed":
       return (
         <>
-          <GhostEyes />
-          <path className="wf-ghost-feature" d="M5.6 7.8q1.4 0 2.6-1 M11.8 6.8q1.2 1 2.6 1" />
-          <path className="wf-ghost-feature wf-ghost-mouth-worried" d="M8.8 13.6q1.2-1.4 2.4 0" />
-          <g className="wf-ghost-tear">
-            <path d="M14.8 11.8c.6.8 1 1.6.2 2-1 .2-1.2-.8-.2-2Z" />
-            <path className="wf-ghost-glint" d="M14.65 12.8q-.2.4 0 .6" />
-          </g>
+          <SproutEyes />
+          <path className="wf-sprout-brows" d="M31.5 45q4-4 8-.5 M55 45.5q4-1.4 8 0" />
+          <path className="wf-sprout-feature" d="M42.5 62q2.8-2.8 5.5 0 2.7 2.8 5.5 0" />
+        </>
+      );
+    case "running":
+      return (
+        <>
+          <SproutEyes />
+          <path className="wf-sprout-brows" d="M32 44q4-1.7 8 0 M55 44q4-1.7 8 0" />
+          <path className="wf-sprout-feature" d="M44 60.8q4 4.3 8 0" />
+        </>
+      );
+    case "pending":
+      return (
+        <>
+          <SproutEyes />
+          <path className="wf-sprout-feature" d="M43 61q5 5.5 10 0" />
         </>
       );
   }
 }
 
-/** 状态符号只属于药丸右侧尾槽；头像仅派生表情，避免对勾与状态圈遮住五官。 */
+/** 状态符号只属于药丸右侧尾槽；外侧光环是装饰，停止时保留轮廓但不流动。 */
 export function WorkflowAgentFace({
   avatarIndex,
   className,
@@ -109,68 +104,81 @@ export function WorkflowAgentFace({
   name: string;
   status: StepRunStatus | undefined;
 }) {
-  const gradientId = `wf-ghost-${useId()}`;
-  const haloGradientId = `${gradientId}-halo`;
+  const haloGradientId = `wf-sprout-${useId()}-halo`;
   const identity = avatarIndex ?? nameHash(name);
   const phase = (((identity * 137) % 1600) + 1600) % 1600;
   const style = { "--wf-avatar-phase": `-${phase}ms` } as CSSProperties;
   const resolvedStatus = status ?? "pending";
-  const hasHalo = resolvedStatus !== "cancelled";
   return (
     <svg
       aria-hidden
       className={cn("wf-agent-avatar", className)}
       data-avatar-status={resolvedStatus}
-      data-avatar-variant="cloud-ghost"
+      data-avatar-variant="d2-sprout"
       data-subagent-avatar
       focusable="false"
       style={style}
-      viewBox="1 1 18 18"
+      viewBox="-8 -25 112 128"
     >
       <defs>
-        <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-          <stop className="wf-ghost-tint-top" offset="0" />
-          <stop className="wf-ghost-tint-bottom" offset="1" />
+        <linearGradient id={haloGradientId} x1="0" y1="0" x2="1" y2="1">
+          <stop className="wf-sprout-halo-tint" offset="0" />
+          <stop className="wf-sprout-halo-tint-secondary" offset="1" />
         </linearGradient>
-        {hasHalo ? (
-          <linearGradient
-            id={haloGradientId}
-            gradientUnits="userSpaceOnUse"
-            x1={10}
-            y1={1.9}
-            x2={18.1}
-            y2={10}
-          >
-            <stop className="wf-ghost-halo-tint" offset="0" stopOpacity={0} />
-            <stop className="wf-ghost-halo-tint" offset="0.55" stopOpacity={0.35} />
-            <stop className="wf-ghost-halo-tint" offset="1" stopOpacity={0.85} />
-          </linearGradient>
-        ) : null}
       </defs>
-      {hasHalo ? (
-        <g className="wf-ghost-halo" data-avatar-halo="decorative">
-          <circle className="wf-ghost-halo-track" cx={10} cy={10} r={8.1} />
-          <g className="wf-ghost-halo-flow" stroke={`url(#${haloGradientId})`}>
-            <path className="wf-ghost-halo-soft" d="M10 1.9a8.1 8.1 0 0 1 8.1 8.1" />
-            <path className="wf-ghost-halo-light" d="M10 1.9a8.1 8.1 0 0 1 8.1 8.1" />
+      <g className="wf-sprout-halo" data-avatar-halo="decorative">
+        <rect className="wf-sprout-halo-track" x={-5} y={-22} width={106} height={123} rx={22} />
+        <rect
+          className="wf-sprout-halo-flow"
+          x={-5}
+          y={-22}
+          width={106}
+          height={123}
+          rx={22}
+          pathLength={100}
+          stroke={`url(#${haloGradientId})`}
+        />
+      </g>
+      <g className="wf-sprout-artwork" key={resolvedStatus}>
+        {resolvedStatus === "failed" ? <SproutRain /> : null}
+        {resolvedStatus === "done" ? (
+          <ellipse className="wf-sprout-jump-shadow" cx={48} cy={91} rx={21} ry={3} />
+        ) : null}
+        <g className="wf-sprout-character">
+          <g className="wf-sprout-hair">
+            <path
+              className="wf-sprout-leaf wf-sprout-leaf-blue"
+              d="M48 33C32 29 28 17 35 10c13 1 20 12 13 23Z"
+            />
+            <path
+              className="wf-sprout-leaf wf-sprout-leaf-yellow"
+              d="M48 32C45 16 57 8 68 14c0 14-10 22-20 18Z"
+            />
+            <path
+              className="wf-sprout-leaf wf-sprout-leaf-green"
+              d="M46 33C34 41 22 34 23 25c12-7 23-4 23 8Z"
+            />
+          </g>
+          <g className="wf-sprout-ears">
+            <rect x={7} y={48} width={10} height={18} rx={5} />
+            <rect x={79} y={48} width={10} height={18} rx={5} />
+          </g>
+          <rect className="wf-sprout-body" x={14} y={31} width={68} height={52} rx={21} />
+          <path
+            className="wf-sprout-body-shade"
+            d="M20 67c4 11 14 15 28 15s24-4 28-15c-12 8-43 8-56 0Z"
+          />
+          <rect className="wf-sprout-faceplate" x={22} y={41} width={52} height={31} rx={14} />
+          <path className="wf-sprout-shine" d="M25 38q5-3 11-3 M43 78h10" />
+          <g className="wf-sprout-blush">
+            <ellipse cx={30} cy={59} rx={3.8} ry={2.5} />
+            <ellipse cx={66} cy={59} rx={3.8} ry={2.5} />
+          </g>
+          <g className="wf-sprout-face">
+            <SproutExpression status={resolvedStatus} />
           </g>
         </g>
-      ) : null}
-      <g className="wf-ghost-character" key={resolvedStatus}>
-        <path
-          className="wf-ghost-body"
-          d="M3.2 14C3 9.4 3.6 3.4 8.8 2.8c4-.8 7.6 1.6 7.8 6 .2 2.4-.2 4.8 1 6.8 .6 1.6-1.2 2.2-2.8.4-1 2.2-2.6 2.2-4 .4-1.2 1.8-3 2-4.2 0-2.8 2-4.4.4-3.4-2.4Z"
-          fill={`url(#${gradientId})`}
-        />
-        <path className="wf-ghost-shine" d="M6 5.4Q7.8 4 9.4 4" />
-        <path className="wf-ghost-arms" d="M4.2 13q.8.6 1 1.4 M15.6 13q-.8.6-1 1.4" />
-        <g className="wf-ghost-blush">
-          <ellipse cx={5.6} cy={12.2} rx={1.4} ry={0.8} />
-          <ellipse cx={14.4} cy={12.2} rx={1.4} ry={0.8} />
-        </g>
-        <g className="wf-ghost-face">
-          <GhostExpression status={resolvedStatus} />
-        </g>
+        {resolvedStatus === "running" ? <SproutKeyboard /> : null}
       </g>
     </svg>
   );

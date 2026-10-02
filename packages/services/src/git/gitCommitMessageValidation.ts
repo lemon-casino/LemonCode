@@ -13,8 +13,14 @@ export function validateGeneratedGitCommitMessage(
     message = message.slice(1, -1);
   message = message.trim().slice(0, 1000).trim();
   if (!message) return { ok: false, reason: "empty" };
-  const subject = message.split(/\r?\n/, 1)[0]?.trim() ?? "";
+  const subjectEnd = message.search(/\r?\n/);
+  const rawSubject = (subjectEnd < 0 ? message : message.slice(0, subjectEnd)).trim();
+  // 中文依据：真实模型会把正确标题包为 Markdown 行内代码/加粗；仅去掉成对首行包装，
+  // 不扫描解释性正文找标题、不补造 type，正文中的代码和格式必须保持原样。
+  const inlineCode = /^(`{1,2})([^`\r\n]+)\1$/.exec(rawSubject);
+  const bold = /^\*\*([^\r\n]+)\*\*$/.exec(rawSubject);
+  const subject = (inlineCode?.[2] ?? bold?.[1] ?? rawSubject).trim();
   if (!CONVENTIONAL_COMMIT_RE.test(subject))
     return { ok: false, reason: "invalid", preview: subject || message.slice(0, 120) };
-  return { ok: true, message };
+  return { ok: true, message: subject + (subjectEnd < 0 ? "" : message.slice(subjectEnd)) };
 }

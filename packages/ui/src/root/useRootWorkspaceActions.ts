@@ -533,6 +533,32 @@ export function useRootWorkspaceActions({
     ],
   );
 
+  const handleRemoveLocalProject = useCallback(
+    async (projectId: string) => {
+      if (!supportsSettings) {
+        return;
+      }
+
+      const normalizedProjectId = projectId.trim();
+      if (!normalizedProjectId) {
+        return;
+      }
+
+      const settings = await services.settingService.get();
+      const nextLocalProjects = settings.localProjects.filter(
+        (project) => project.id !== normalizedProjectId,
+      );
+      if (nextLocalProjects.length === settings.localProjects.length) {
+        return;
+      }
+
+      // “移除项目”只删除多文件夹项目定义，不删除源码目录，也不清理 recentProjects。
+      // 这样项目成员目录如果仍有旧 tab 或历史记录，会立即恢复为可独立选择的文件夹。
+      await updateAppSettings({ localProjects: nextLocalProjects });
+    },
+    [services.settingService, supportsSettings, updateAppSettings],
+  );
+
   const handleCreateScratchWorkspace = useCallback(
     async (name: string) => {
       if (!allowOpenWorkspace) {
@@ -582,6 +608,7 @@ export function useRootWorkspaceActions({
     handleCreateConversationTask,
     handleOpenWorkspace,
     handleCreateLocalProject,
+    handleRemoveLocalProject,
     handleCreateScratchWorkspace,
     handleCreateTask,
     handleBackFromSettings,

@@ -36,8 +36,9 @@ import type {
   ArtifactPresetOp,
   WorldReadOp,
 } from "../facade/registry.js";
-import type { AskProgress, AskStats } from "./ask-observation-types.js";
+import type { AskActivity, AskProgress, AskStats } from "./ask-observation-types.js";
 import type { JournalStorePort } from "./journal-types.js";
+import type { NodeAdmissionEvent, NodeQueuedEvent } from "./node-admission-types.js";
 
 // ————————————————————————————————————————————————————————————————
 // 身份（identity）
@@ -523,6 +524,8 @@ export interface WorkflowReportSink {
    * ——两条事件的先后是读面的契约。run 已结算后到达的调用被忽略。
    */
   askProgress(instance: InstanceRef, progress: AskProgress): void;
+  /** 请求/流/工具的有界源活动；只记事件，不结算节点、不增加用量或交付数。 */
+  askActivity(instance: InstanceRef, activity: AskActivity): void;
   /** 用量统计：累计 run 用量并广播 usage/instance 更新。 */
   askStats(instance: InstanceRef, stats: AskStats): void;
   /** driver 侧不可恢复错误，结算该 ask 为失败。 */
@@ -669,22 +672,8 @@ export type RunEvent =
       persona?: PersonaSpec;
       phaseName?: string;
     }
-  | {
-      type: "node-queued";
-      instance: InstanceRef;
-      kind: NodeKind;
-      actor?: ActorRef;
-      actorSeq?: number;
-      phaseName?: string;
-      /**
-       * 作者指令的**开头** {@link INSTRUCTIONS_HEAD_MAX_CHARS} 个字符（去两端空白，不加省略号），
-       * 只在 ask 节点上在场。事件轨上「这个子代理在干什么」的唯一答案：完整指令只活在
-       * `dwf_node.input_json` 里，而读面（run 详情、GetWorkflowRun）不为一行摘要去读那张表。
-       *
-       * 取的是**准入时刻**的指令，也就是引擎尾注追加之前的那一份——尾注是引擎的话，不是作者的。
-       */
-      instructionsHead?: string;
-    }
+  | NodeQueuedEvent
+  | NodeAdmissionEvent
   | { type: "node-dispatched"; instance: InstanceRef }
   | { type: "node-paused"; instance: InstanceRef }
   | {
@@ -721,6 +710,8 @@ export type RunEvent =
    * 本条先于 `usage-updated`，于是读到新用量的人一定已经读到了挣来它的那次进度。
    */
   | ({ type: "node-progress"; instance: InstanceRef } & AskProgress)
+  /** 实时活动观察，不改变节点生命周期、进度轮数或用量账本。 */
+  | { type: "node-activity"; instance: InstanceRef; activity: AskActivity }
   /** run 级 token 用量更新：直接携带已花总量（journal 的 spent_tokens 同步写入，二者永远相等）。 */
   | { type: "usage-updated"; spentTokens: number }
   | { type: "log"; message: string }
@@ -944,7 +935,7 @@ export {
   LAST_TOOL_NAME_MAX_CHARS,
   LAST_TOOL_TARGET_MAX_CHARS,
 } from "./ask-observation-types.js";
-export type { AskLastTool, AskProgress, AskStats } from "./ask-observation-types.js";
+export type { AskActivity, AskLastTool, AskProgress, AskStats } from "./ask-observation-types.js";
 
 // ————————————————————————————————————————————————————————————————
 // 导入缓存（amend-resume）

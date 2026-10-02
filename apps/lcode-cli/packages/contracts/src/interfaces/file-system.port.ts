@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { ExecutionContext, TraceContext } from "../tracing/tracer.js";
+import type { ProjectMemoryPort } from "./project-memory.port.js";
 
 export type FileSystemErrorCode =
   | "not_found"
@@ -171,6 +172,8 @@ export interface FileSystemWriteTextRequest {
   createParents?: boolean;
   atomic?: boolean;
   expectedRevision?: FileSystemRevision;
+  /** Require the target to remain absent; mutually exclusive with expectedRevision. */
+  expectedMissing?: boolean;
   trace?: TraceContext;
 }
 
@@ -283,6 +286,8 @@ export interface FileSystemOperationOptions {
 }
 
 export interface FileSystemPort {
+  /** Optional managed Project Memory capability; absent adapters fail closed for review mutations. */
+  projectMemory?: ProjectMemoryPort;
   createDirectory(
     request: FileSystemCreateDirectoryRequest,
     options?: FileSystemOperationOptions,

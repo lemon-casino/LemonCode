@@ -62,6 +62,8 @@ import {
   RUN_STATUS_TEXT,
 } from "@/components/workflow-graph/run-status-presentation.js";
 import { useNowTicker } from "@/components/workflow-graph/use-now-ticker.js";
+import type { WorkflowTimelineDisplay } from "@/components/workflow-timeline/timeline-activity.js";
+import { workflowActivitySummaryText } from "@/components/workflow-timeline/WorkflowExecutionActivity.js";
 import {
   Collapsible,
   CollapsibleContent,
@@ -126,6 +128,8 @@ interface ConversationStatusPanelProps {
   runningSubagents?: readonly LCodeSessionRunningSubagent[];
   /** 本会话 `snapshot.workflowRuns.runs`；与 backgroundWorks 在模型层按 workId ≡ runId 联接。 */
   workflowRuns?: readonly WorkflowRunState[];
+  /** 与聊天时间线共用父订阅的 display-only 时效闸门。 */
+  workflowDisplay?: WorkflowTimelineDisplay;
   /**
    * 已结束的 workflow run 条数（journal 口径，`countEndedWorkflowRuns`）。
    * 面板不自己算：它手上的投影是 memory-only 的活状态，重启后为空，而这条计数恰恰要在重启后
@@ -406,7 +410,7 @@ function GitStatusSection({
   const canOpenReview = Boolean(onOpenGitReview && gitSummary.isRepository);
 
   return (
-    <div className={cn(!model.git && "hidden")}>
+    <div className={cn(!gitSummary.isRepository && "hidden")}>
       <StatusSection
         section="environment"
         separated={separated}
@@ -1273,6 +1277,15 @@ function WorkflowStatusSection({
                 <span className="line-clamp-2 text-ui-base leading-5 text-[var(--color-foreground)]">
                   {displayName}
                 </span>
+                {run.activitySummary === undefined ? null : (
+                  <span
+                    className="min-w-0 break-words text-ui-sm text-foreground-subtle"
+                    data-testid="workflow-status-activity"
+                    data-workflow-connection={run.activitySummary.connection}
+                  >
+                    {workflowActivitySummaryText(run.activitySummary, intl.formatMessage)}
+                  </span>
+                )}
                 <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-ui-base">
                   {run.status ? (
                     <>
@@ -1586,11 +1599,13 @@ function getCompletedPlanItem(plan: ConversationStatusPanelModel["plan"]) {
 }
 
 function StatusSummaryRow({
+  canRenderGit,
   endedWorkflowRunCount,
   gitWorktreeChangeSummary,
   model,
   onVariantChange,
 }: {
+  canRenderGit: boolean;
   /** 已结束 run 的目录计数；宿主给 0 表示目录入口不可渲染（缺会话或缺回调）。 */
   endedWorkflowRunCount: number;
   gitWorktreeChangeSummary?: { added: number; removed: number } | null;
@@ -1711,6 +1726,15 @@ function StatusSummaryRow({
         {endedWorkflowRunCount}
       </span>
     </StatusSummaryMetric>
+  ) : canRenderGit ? (
+    // 干净仓库没有统计投影，mini 仍需可点击的最低优先级摘要，不能只剩空壳。
+    <StatusSummaryMetric
+      icon={<FileDiffIcon className="size-4 text-[var(--color-foreground-subtle)]" />}
+    >
+      <span className="min-w-0 truncate">
+        {intl.formatMessage({ id: "git.actionMenu.trigger" })}
+      </span>
+    </StatusSummaryMetric>
   ) : null;
 
   if (!summaryMetric) {
@@ -1750,6 +1774,7 @@ function ConversationStatusPanelImpl({
   backgroundWorks = EMPTY_BACKGROUND_WORKS,
   runningSubagents = EMPTY_RUNNING_SUBAGENTS,
   workflowRuns = EMPTY_WORKFLOW_RUNS,
+  workflowDisplay,
   endedWorkflowRunCount = 0,
   endedSubagentCount = 0,
   rootSessionId,
@@ -1793,6 +1818,7 @@ function ConversationStatusPanelImpl({
         backgroundWorks,
         runningSubagents,
         workflowRuns,
+        workflowDisplay,
       }),
     [
       isOfficeMode,
@@ -1805,6 +1831,7 @@ function ConversationStatusPanelImpl({
       plan,
       runningSubagents,
       workflowRuns,
+      workflowDisplay,
       workspacePath,
     ],
   );
@@ -1826,7 +1853,10 @@ function ConversationStatusPanelImpl({
     [miniWidth],
   );
   const canMountGit = Boolean(gitSummary && onRefreshGit);
-  const canRenderGit = Boolean(model.git && canMountGit);
+  // 发布 Tag 不要求工作树有改动；干净、已同步仓库仍必须能主动打开同一提交/发布弹框。
+  const canRenderGit = Boolean(
+    gitSummary?.isGitAvailable && gitSummary.isRepository && canMountGit,
+  );
   const canRenderGoal = Boolean(model.goal);
   const canRenderSessionPlans = Boolean(model.sessionPlans);
   const canRenderPlan = Boolean(model.plan);
@@ -1896,9 +1926,8 @@ function ConversationStatusPanelImpl({
     <div
       className={cn(
         "pointer-events-none absolute top-0 z-20 pt-4",
-        // 修复依据：干净仓库没有可见状态卡，但仍需让同一 GitActionMenu 实例
-        // 在任务完成后消费自动草稿；只隐藏 shell，不卸载弹窗控制器。
-        !model.hasContent && !canRenderEndedWorkflows && "hidden",
+        // 干净仓库也有手动发布入口；不可用仓库仍只隐藏 shell，不卸载自动草稿控制器。
+        !model.hasContent && !canRenderEndedWorkflows && !canRenderGit && "hidden",
         // 旧 ChatView 的 inline 面板直接钉在右侧，正文列通过独立 translate 让位。
         // v4 若继续用 inset-x-0 + justify-end，会让面板容器宽铺满并改变宽屏下的横向对齐。
         layoutMode === "inline"
@@ -2113,6 +2142,7 @@ function ConversationStatusPanelImpl({
           )}
         >
           <StatusSummaryRow
+            canRenderGit={canRenderGit}
             model={model}
             // 与页脚同一道门（canRenderEndedWorkflows）：缺会话或缺回调时目录打不开，
             // 胶囊也就不该报一个点了没反应的数。

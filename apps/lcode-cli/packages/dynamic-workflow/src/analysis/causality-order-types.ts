@@ -92,6 +92,12 @@ export interface IssueEvent {
 /** An `await` barrier: these steps' promises are known to have settled here. */
 export interface SettleEvent {
   at: "settle";
+  /** Explicit await location; absent for synthetic barriers and older serialized cores. */
+  loc?: ScriptLoc;
+  /** Direct non-optional ask; no alias/combinator inference for authoring advice. */
+  ask?: string;
+  /** A directly awaited Promise.all tuple of direct asks. */
+  join?: string;
   /**
    * EMPTY when the barrier only joined strands: awaiting a strand whose summary is
    * already settled (or empty) settles nothing new, but the join itself is a control-flow

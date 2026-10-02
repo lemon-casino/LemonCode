@@ -1,5 +1,6 @@
 import type { WorkflowRunState } from "@lcode/shared/lcode-protocol-v4";
 import { phaseNameMatches } from "@/components/workflow-graph/phase-name.js";
+import { workflowRunNodeIndex } from "@/components/workflow-graph/run-node-index.js";
 import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
 
 type PhaseEntry = NonNullable<WorkflowRunState["phases"]>[number];
@@ -34,21 +35,12 @@ export function siteIdsOf(
 /** 运行节点按站点索引一次，每站只迭代自己的候选。 */
 export function nodesBySiteOf(
   run: WorkflowRunState | undefined,
-): ReadonlyMap<string, WorkflowRunState["nodes"]> {
-  const bySite = new Map<string, WorkflowRunState["nodes"]>();
-  for (const node of run?.nodes ?? []) {
-    let bucket = bySite.get(node.siteId);
-    if (bucket === undefined) {
-      bucket = [];
-      bySite.set(node.siteId, bucket);
-    }
-    bucket.push(node);
-  }
-  return bySite;
+): ReadonlyMap<string, readonly WorkflowRunState["nodes"][number][]> {
+  return workflowRunNodeIndex(run?.nodes).bySite;
 }
 
 export function observePhase(
-  nodesBySite: ReadonlyMap<string, WorkflowRunState["nodes"]>,
+  nodesBySite: ReadonlyMap<string, readonly WorkflowRunState["nodes"][number][]>,
   siteIds: ReadonlySet<string>,
   entry: PhaseEntry | undefined,
   belongs: (node: WorkflowRunState["nodes"][number]) => boolean,

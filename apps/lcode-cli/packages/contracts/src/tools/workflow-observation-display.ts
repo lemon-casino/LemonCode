@@ -1,4 +1,9 @@
 import { z } from "zod";
+import {
+  WorkflowNodeActivitySchema,
+  WorkflowNodePhaseSchema,
+  WorkflowNodeQueueSchema,
+} from "./workflow-activity.js";
 
 import {
   CREATE_WORKFLOW_DISPLAY_MAX_DIAGNOSTICS,
@@ -65,7 +70,14 @@ export const getWorkflowRunToolResultDisplaySubagentSchema = z
     turn: z.number().int().nonnegative().optional(),
     toolCalls: z.number().int().nonnegative().optional(),
     lastTool: GetWorkflowRunSubagentLastToolSchema.optional(),
-    /** 在等什么（原因文本不上卡：卡只需要「等槽位」还是「在退避」和还要等多久）。 */
+    activity: WorkflowNodeActivitySchema.optional(),
+    askPhase: WorkflowNodePhaseSchema.optional(),
+    queue: WorkflowNodeQueueSchema.optional(),
+    lastDeliveredAt: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+    retryAttempt: z.number().int().positive().optional(),
+    nextRetryAt: z.number().int().nonnegative().optional(),
+    waitReason: z.string().min(1).max(64).optional(),
+    /** 等待原因只用归一化短代码，不携带供应商错误正文。 */
     waitCause: z.enum(["slot", "backoff"]).optional(),
     retryAfterMs: z.number().nonnegative().optional(),
     waitSince: z.number().optional(),

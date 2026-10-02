@@ -8,6 +8,7 @@ import {
 import { Button } from "@/components/ui/button.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
+import { isSavedWorkflowListEmpty } from "@/store/savedWorkflowStore.js";
 import type { AutomationWorkspaceOption } from "@/settings/automationWorkspaceOptions.js";
 import { SavedWorkflowCard } from "@/settings/saved-workflows/SavedWorkflowCard.js";
 import { SavedWorkflowDetailView } from "@/settings/saved-workflows/SavedWorkflowDetailView.js";
@@ -189,6 +190,23 @@ export function SavedWorkflowGlobalGroup(props: SavedWorkflowGlobalGroupProps) {
         )}
       </div>
 
+      {/* 缓存列表仍可用时也必须显示刷新错误，不能把错误放在「无条目」分支。 */}
+      {state.loading || !state.loaded ? (
+        <p role="status" className="mt-5 text-ui-sm text-foreground-subtlest">
+          {intl.formatMessage({ id: "workflows.hub.loading" })}
+        </p>
+      ) : null}
+
+      {state.errorCode === -32602 ? (
+        <p role="alert" className="mt-5 text-ui-base text-foreground-subtlest">
+          {intl.formatMessage({ id: "workflows.hub.global.unsupported" })}
+        </p>
+      ) : state.error !== null ? (
+        <p role="alert" className="mt-5 break-words text-ui-sm text-destructive">
+          {intl.formatMessage({ id: "workflows.hub.global.noLocalRuntime" })} {state.error}
+        </p>
+      ) : null}
+
       {state.entries.length > 0 ? (
         <div
           data-testid={testId(TID_WORKFLOWS_LIST, "global")}
@@ -210,19 +228,13 @@ export function SavedWorkflowGlobalGroup(props: SavedWorkflowGlobalGroupProps) {
             />
           ))}
         </div>
-      ) : state.errorCode === -32602 ? (
-        <p className="mt-5 text-ui-base text-foreground-subtlest">
-          {intl.formatMessage({ id: "workflows.hub.global.unsupported" })}
-        </p>
-      ) : state.error ? (
-        <p className="mt-5 text-ui-sm text-destructive">
-          {intl.formatMessage({ id: "workflows.hub.global.noLocalRuntime" })} {state.error}
-        </p>
-      ) : (
+      ) : null}
+
+      {isSavedWorkflowListEmpty(state) ? (
         <p className="mt-5 text-ui-base text-foreground-subtlest">
           {intl.formatMessage({ id: "workflows.hub.global.empty" })}
         </p>
-      )}
+      ) : null}
 
       {state.invalid.length > 0 ? (
         <div

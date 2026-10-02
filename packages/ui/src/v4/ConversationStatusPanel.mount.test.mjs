@@ -26,6 +26,37 @@ test("无行级统计时也挂载 Git 自动弹窗控制器", () => {
   // 交互回归约束：空文件或二进制文件可能是脏文件，但 added/removed 都是零。
   assert.match(source, /const canMountGit = Boolean\(gitSummary && onRefreshGit\)/u);
   assert.match(source, /\{canMountGit \? \(\s*<GitStatusSection/u);
-  assert.match(source, /<div className=\{cn\(!model\.git && "hidden"\)\}>/u);
+  assert.match(
+    source,
+    /const canRenderGit = Boolean\(\s*gitSummary\?\.isGitAvailable && gitSummary\.isRepository && canMountGit,?\s*\)/u,
+  );
+  assert.doesNotMatch(source, /<div className=\{cn\(!model\.git && "hidden"\)\}>/u);
+  assert.match(
+    source,
+    /!model\.hasContent && !canRenderEndedWorkflows && !canRenderGit && "hidden"/u,
+  );
   assert.match(source, /if \(!model\.hasContent && !canRenderEndedWorkflows && !canMountGit\) \{/u);
+});
+
+test("干净仓库 mini 胶囊仍有可展开的发布入口", () => {
+  const summary = source.slice(
+    source.indexOf("function StatusSummaryRow("),
+    source.indexOf("function ConversationStatusPanelImpl("),
+  );
+  assert.equal(summary.includes("canRenderGit ? ("), true);
+  assert.equal(summary.includes('id: "git.actionMenu.trigger"'), true);
+  assert.equal(source.includes("canRenderGit={canRenderGit}"), true);
+});
+
+test("workflow 次级摘要复用父投影与已有详情、停止入口", async () => {
+  const section = source.slice(source.indexOf("function WorkflowStatusSection("), source.indexOf("function SubagentStatusSection("));
+  assert.match(section, /workflowActivitySummaryText\(run\.activitySummary, intl\.formatMessage\)/u);
+  assert.match(section, /data-testid="workflow-status-activity"/u);
+  assert.match(section, /data-workflow-run-details-trigger="true"/u);
+  assert.match(section, /<RunningWorkCancelButton/u);
+  assert.doesNotMatch(section, /useConversationProjection|useChildSession|workflow-activity-open/u);
+  const session = await readFile(new URL("./SessionPane.tsx", import.meta.url), "utf8");
+  const props = session.slice(session.indexOf("<ConversationStatusPanel"));
+  assert.match(props, /workflowDisplay=\{workflowDisplay\}/u);
+  assert.match(session, /workflowProjectionDisplay\(\{ status: state\.status, syncing: state\.syncing \}\)/u);
 });

@@ -8,7 +8,8 @@
 // Boundary B 的另外两半——`executeWorldRead` 与 `executeArtifactPublish`——分别住在
 // workflow-world-read.ts 与 workflow-artifact-publish.ts，本文件只做转发。两者与这里没有
 // 共同状态（不碰会话、turn、submit 桥接），所以分开之后本文件只剩「会话与 turn 的编排」
-// 这一件事。
+// 这一件事。turn 执行与收尾在 workflow-driver-turn.ts，关闭重试在 workflow-driver-cleanup.ts；
+// 两者只借用现有 SessionState，本文件仍唯一持有会话、交互索引与 dispose / 创建计数。
 //
 // 三条时序（本文件的核心不变式）：
 //   1. accept：模型调用 submit_result → handler 阻塞在 port.respond → 本 driver 上报
@@ -49,7 +50,7 @@ import type {
   WorkflowEscalatePort,
   WorkflowSubmitPort,
 } from "@lcode/contracts";
-import type { AgentRuntime, TurnResult } from "@lcode/core";
+import type { AgentRuntime } from "@lcode/core";
 import {
   GENERIC_SUBMIT_PROFILE,
   refToString,
@@ -59,7 +60,6 @@ import {
   type ArtifactPublishRequest,
   type ArtifactVersionRecord,
   type AskMessage,
-  type WorkflowImageRef,
   type InstanceRef,
   type JournalStorePort,
   type PersonaSpec,
@@ -74,13 +74,17 @@ import { executeArtifactPublish } from "./workflow-artifact-publish.js";
 import { qualityEpilogue } from "./workflow-ask-epilogue.js";
 import { ensureSubmitProfileFits } from "./workflow-driver-submit-profile.js";
 import { executeWorldRead } from "./workflow-world-read.js";
-import { verifyWorkflowImageRefs, workflowImageTurnAttachments } from "./workflow-image-refs.js";
+import {
+  closeActorRuntimeAfterTurn,
+  prepareActorRuntimeForDispose,
+  type ActorRuntimeCleanupHost,
+} from "./workflow-driver-cleanup.js";
 import {
   createActorModelActivity,
   createRunStallClock,
   type RunStallClock,
 } from "./workflow-driver-concurrency.js";
-import { handleModelTurnFailure, type ModelFailureHost } from "./workflow-driver-model-failure.js";
+import { runWorkflowTurn, type WorkflowTurnHost } from "./workflow-driver-turn.js";
 import {
   makeSessionEscalatePort,
   respondToParkedEscalation,
@@ -92,40 +96,18 @@ import {
   TYPED_TOOL_EPILOGUE,
   defer,
   effectiveActorName,
-  isTurnCancelled,
   mapViolations,
-  mintActorSessionId,
+  resolveActorSessionId,
   rejectWith,
-  reportTurnObservations,
   sameAskAttempt,
   schemaEpilogue,
-  toWorkflowError,
 } from "./workflow-driver-helpers.js";
-import {
-  countSessionTranscript,
-  journalAskMessageBoundary,
-  seedActorSession,
-} from "./workflow-driver-transcript.js";
+import { seedActorSession } from "./workflow-driver-transcript.js";
 import type {
   AgentRuntimeWorkflowDriverDeps,
   Deferred,
   SessionState,
 } from "./workflow-driver-types.js";
-
-const ACTOR_RUNTIME_CLOSE_RETRY_MS = 1_000;
-
-/** actor release 重试属于持久关闭工作；生产 timer 不能 unref 后随进程提前消失。 */
-export function createActorRuntimeCloseRetryTimer(
-  callback: () => void,
-  delayMs: number,
-): ReturnType<typeof setTimeout> {
-  return setTimeout(callback, delayMs);
-}
-
-function scheduleActorRuntimeCloseRetry(callback: () => void, delayMs: number): () => void {
-  const timer = createActorRuntimeCloseRetryTimer(callback, delayMs);
-  return () => clearTimeout(timer);
-}
 
 /**
  * WorkflowDriver 的真实实现。构造经 {@link createAgentRuntimeWorkflowDriver}（绑定 deps，回填 sink）。
@@ -156,8 +138,10 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
    * 经闭包回到本类——私有状态不外露，桥接函数也不需要知道类的形状。
    */
   private readonly escalationHost: EscalationHost;
-  /** 交给模型侧失败收容（workflow-driver-model-failure.ts）的宿主面：同一套按引用共享的思路。 */
-  private readonly modelFailureHost: ModelFailureHost;
+  /** turn 执行、收尾与模型失败收容借用同一 SessionState，不能另起状态 owner。 */
+  private readonly turnHost: WorkflowTurnHost;
+  /** close/retry 只借用会话状态；删除 sessions 与判定 dispose 完成仍回到本类。 */
+  private readonly cleanupHost: ActorRuntimeCleanupHost;
   /** run 级 stall 时钟：所有 actor 的成功 / 重试节拍汇到这一只表。 */
   private readonly stallClock: RunStallClock;
 
@@ -173,12 +157,18 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
       nextEscalationSeq: () => ++this.escalationSeq,
       record: (event) => this.record(event),
     };
-    this.modelFailureHost = {
+    this.turnHost = {
       deps,
       sink,
       isDisposed: () => this.disposed,
       runTurn: (state, instance, input, epilogueStart) =>
-        this.runTurn(state, instance, input, epilogueStart),
+        runWorkflowTurn(this.turnHost, state, instance, input, epilogueStart),
+      withdrawEscalations: (state) => this.withdrawEscalations(state),
+    };
+    this.cleanupHost = {
+      deps,
+      ownsSession: (state) => this.sessions.get(state.sessionId) === state,
+      completeActorRuntimeClose: (state) => this.completeActorRuntimeClose(state),
     };
     this.stallClock = createRunStallClock({
       ...(deps.clock?.now === undefined ? {} : { now: deps.clock.now }),
@@ -206,24 +196,12 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
         "Cannot create an actor session after driver dispose.",
       );
     }
-    const sessionId = mintActorSessionId(this.deps.runId ?? "run", actor);
-    // resume 会话身份互证：journal 的 dwf_actor.session_id 是**记录**，铸造函数才是权威
-    // （按 (runId, actorRef) 纯确定，重挂时必然铸出同一个 id）。两者不一致只可能是铸造规则
-    // 漂移（改名/第二处实现）——后果是重水化读错会话、详情页打开不存在的会话，离成因很远，
-    // 所以在重挂的第一步就大声失败，携结构化 mismatch（与两个哈希不匹配错误同形）。
     const journaled = this.journal.getActor(
       this.deps.runId ?? "run",
       actor.siteId,
       actor.ordinal,
     )?.sessionId;
-    if (journaled !== undefined && journaled !== sessionId) {
-      throw new WorkflowError(
-        "DriverError",
-        `Subagent session identity mismatch for ${refToString(actor)}: the journaled session ` +
-          `id and the minted one differ.`,
-        { mismatch: { expected: journaled, got: sessionId } },
-      );
-    }
+    const sessionId = resolveActorSessionId(this.deps.runId ?? "run", actor, journaled);
     const ref: SessionRef = { id: sessionId };
     // 会话级 submit 端口：closure 绑定本会话，模型无法覆盖路由身份（instance 取自 currentInstance）。
     const submitPort = this.makeSubmitPort(sessionId);
@@ -246,7 +224,9 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
       port: this.deps.concurrency,
       runId: this.deps.runId ?? "run",
       live,
+      clock: this.deps.clock,
       handlers: {
+        onActivity: (instance, activity) => this.sink.askActivity(instance, activity),
         // 子代理的第一笔工作区写入 ⇒ 引擎关导入缓存。
         onMutating: (instance) => this.sink.askMutating(instance),
         onWaiting: (info) => {
@@ -315,8 +295,8 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
       if (this.disposed) {
         // dispose 可能在 runtimeFactory/seed 的 await 中完成第一轮扫描；迟到 runtime
         // 必须先移交 sessions owner，再走同一 close/retry 链，不能成为无主资源。
-        this.prepareActorRuntimeForDispose(state);
-        this.closeActorRuntimeAfterTurn(state);
+        prepareActorRuntimeForDispose(state);
+        closeActorRuntimeAfterTurn(this.cleanupHost, state);
       }
       return ref;
     } catch (error) {
@@ -328,8 +308,8 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
         this.deps.registerResidencyBlockingWork?.(state.runtimeCloseCompletion.promise);
         this.sessions.set(sessionId, state);
         runtimeTransferred = true;
-        this.prepareActorRuntimeForDispose(state);
-        this.closeActorRuntimeAfterTurn(state);
+        prepareActorRuntimeForDispose(state);
+        closeActorRuntimeAfterTurn(this.cleanupHost, state);
       }
       throw error;
     } finally {
@@ -356,7 +336,7 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
     state.accepted = false;
     state.cancelled = false;
     state.pendingSubmit = undefined;
-    // per-ask 预算归零（nudge 走的是 runTurn，不经这里——nudge 仍在同一个 ask 里）。
+    // per-ask 预算归零（nudge 走的是 runWorkflowTurn，不经这里——nudge 仍在同一个 ask 里）。
     state.escalationsUsed = 0;
     state.abortController = new AbortController();
     // 上一个 ask 的 waiting / executing 相位、工具计数都不能带到这个 ask 上；瞬态重驱计数同理。
@@ -382,7 +362,14 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
     // 尾注边界：GUI 据此把尾注折进披露。指令正文
     // 之后全是引擎文本，边界就是正文长度；模型收到的仍是全文，持久 text part 也是。
     // fire-and-forget：绝不在 startAsk 内 await turn 完成（Boundary B 契约）。
-    this.runTurn(state, instance, input, message.instructions.length, message.attachments);
+    runWorkflowTurn(
+      this.turnHost,
+      state,
+      instance,
+      input,
+      message.instructions.length,
+      message.attachments,
+    );
   }
 
   respondToSubmit(instance: InstanceRef, verdict: EngineSubmitVerdict): void {
@@ -391,6 +378,8 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
       return;
     switch (verdict.kind) {
       case "accept": {
+        state.modelActivity.flush();
+        state.modelActivity.suspend();
         // 标记 accept：该 ask 的 turn resolve 时不再上报 askTurnEnded（引擎已 settleOk）。
         state.accepted = true;
         const deferred = state.pendingSubmit;
@@ -399,6 +388,7 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
         return;
       }
       case "reject": {
+        state.modelActivity.flush();
         // 同 turn 内修复：handler 收到 {accept:false} 会抛错 → error tool_result → 模型重试。
         const deferred = state.pendingSubmit;
         state.pendingSubmit = undefined;
@@ -408,7 +398,7 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
       case "nudge": {
         // turn 已结束、无 parked deferred：在同一持久 runtime 上发起一次全新 turn 促其提交。
         // nudge 整条都是引擎文本：边界 0。
-        this.runTurn(state, instance, NUDGE_PROMPT, 0);
+        runWorkflowTurn(this.turnHost, state, instance, NUDGE_PROMPT, 0);
         return;
       }
     }
@@ -421,6 +411,7 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
     // 引擎主动取消（repair/nudge 预算耗尽、run 取消/失败）：中止在飞 turn，并解开可能挂起的 submit
     // deferred，避免 handler 永久阻塞；标记 cancelled 使 turn reject 不再上报 askFailed。
     state.cancelled = true;
+    state.modelActivity.suspend();
     const deferred = state.pendingSubmit;
     state.pendingSubmit = undefined;
     deferred?.reject(new WorkflowError("Cancelled", "The ask was cancelled by the engine."));
@@ -451,66 +442,14 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
       this.disposeCompletion = defer<void>();
       this.deps.registerResidencyBlockingWork?.(this.disposeCompletion.promise);
       for (const state of this.sessions.values()) {
-        this.prepareActorRuntimeForDispose(state);
+        prepareActorRuntimeForDispose(state);
       }
       this.concurrencyUnsubscribe?.();
       this.instanceToSession.clear();
       this.qidToSession.clear();
     }
-    for (const state of this.sessions.values()) this.closeActorRuntimeAfterTurn(state);
+    for (const state of this.sessions.values()) closeActorRuntimeAfterTurn(this.cleanupHost, state);
     this.resolveDisposeCompletionIfClosed();
-  }
-
-  private closeActorRuntimeAfterTurn(state: SessionState): void {
-    if (state.runtimeCloseReady) {
-      this.closeActorRuntime(state);
-      return;
-    }
-    if (state.runtimeCloseWaitingForTurn) return;
-    state.runtimeCloseWaitingForTurn = true;
-    const close = (): void => {
-      state.runtimeCloseWaitingForTurn = false;
-      state.runtimeCloseReady = true;
-      this.closeActorRuntime(state);
-    };
-    if (state.turn === undefined) close();
-    else void state.turn.then(close, close);
-  }
-
-  private closeActorRuntime(state: SessionState): void {
-    if (this.sessions.get(state.sessionId) !== state || state.runtimeCloseInFlight) return;
-    state.cancelRuntimeCloseRetry?.();
-    state.cancelRuntimeCloseRetry = undefined;
-    const closeBrowserSession = state.runtime.closeBrowserSession;
-    if (typeof closeBrowserSession !== "function") {
-      // 纯 replay/minimal stub 没有 runtime 资源；把它视为已关闭，不能为测试桩无限重试。
-      this.completeActorRuntimeClose(state);
-      return;
-    }
-    const closeAttempt = Promise.resolve().then(() => closeBrowserSession.call(state.runtime));
-    state.runtimeCloseInFlight = closeAttempt;
-    void closeAttempt.then(
-      () => {
-        if (state.runtimeCloseInFlight !== closeAttempt) return;
-        state.runtimeCloseInFlight = undefined;
-        this.completeActorRuntimeClose(state);
-      },
-      (error: unknown) => {
-        if (state.runtimeCloseInFlight !== closeAttempt) return;
-        state.runtimeCloseInFlight = undefined;
-        this.deps.logger?.warn?.("Dynamic workflow actor runtime close failed", {
-          errorMessage: error instanceof Error ? error.message : String(error),
-          event: "dynamic_workflow.actor_runtime.close_failed",
-          module: "bootstrap.app",
-          sessionId: state.sessionId,
-        });
-        const schedule = this.deps.clock?.schedule ?? scheduleActorRuntimeCloseRetry;
-        state.cancelRuntimeCloseRetry = schedule(() => {
-          state.cancelRuntimeCloseRetry = undefined;
-          this.closeActorRuntime(state);
-        }, ACTOR_RUNTIME_CLOSE_RETRY_MS);
-      },
-    );
   }
 
   private completeActorRuntimeClose(state: SessionState): void {
@@ -519,12 +458,6 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
     if (this.sessions.get(state.sessionId) === state) this.sessions.delete(state.sessionId);
     state.runtimeCloseCompletion?.resolve();
     this.resolveDisposeCompletionIfClosed();
-  }
-
-  private prepareActorRuntimeForDispose(state: SessionState): void {
-    state.modelActivity.unsubscribe();
-    state.cancelRedrive?.();
-    state.cancelRedrive = undefined;
   }
 
   private resolveDisposeCompletionIfClosed(): void {
@@ -568,114 +501,6 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
    */
   async executeArtifactPublish(request: ArtifactPublishRequest): Promise<ArtifactVersionRecord> {
     return await executeArtifactPublish(this.deps, request);
-  }
-
-  // ——————————————————————————————— 内部：turn 编排 ———————————————————————————————
-
-  private runTurn(
-    state: SessionState,
-    instance: InstanceRef,
-    input: string,
-    epilogueStart: number,
-    attachments?: WorkflowImageRef[],
-  ): void {
-    const abortSignal = state.abortController?.signal;
-    const previous = state.turn;
-    const execute = (): Promise<void> => {
-      if (this.disposed || !sameAskAttempt(state.currentInstance, instance) || state.cancelled)
-        return Promise.resolve();
-      state.turnGeneration++;
-      const start = () =>
-        state.runtime.executeTurn(input, workflowImageTurnAttachments(attachments), {
-          ...(abortSignal ? { abortSignal } : {}),
-          epilogueStart,
-        });
-      return Promise.resolve()
-        .then(() =>
-          attachments?.length
-            ? verifyWorkflowImageRefs(attachments, this.deps.artifactStore).then((valid) => {
-                if (!valid) throw new Error("Workflow image reference is unavailable");
-                return start();
-              })
-            : start(),
-        )
-        .then(
-          (result) => this.onTurnResolved(state, instance, result),
-          (error) => this.onTurnRejected(state, instance, error),
-        );
-    };
-    // 旧 turn 的工具与转录收尾必须退出，同一持久 runtime 才能接新尝试。
-    state.turn = previous === undefined ? execute() : previous.then(execute, execute);
-  }
-
-  private onTurnResolved(
-    state: SessionState,
-    instance: InstanceRef,
-    result: TurnResult,
-  ): void | Promise<void> {
-    if (!sameAskAttempt(state.currentInstance, instance) || state.cancelled) return;
-    // 一次 turn 解析的两条回报（进度先于用量），顺序与载荷都在 reportTurnObservations 里。
-    reportTurnObservations(this.sink, state, instance, result);
-    if (this.deps.actorTranscriptStore === undefined) {
-      // 无转录存取面：原样的同步路径，一个 await 都不多欠（边界记账整体缺席，见 deps 字段注释）。
-      this.reportTurnOutcome(state, instance, result);
-      return;
-    }
-    return this.settleExchange(state, instance, result);
-  }
-
-  /**
-   * 报告一个 turn 的终局，并回答「这次 ask 的交换到此为止了吗」。
-   *
-   * accept 之外只有一条路：把最终文本交给引擎（typed → nudge 或耗尽失败；untyped → 据此结算）。
-   * nudge 时引擎会在**本调用栈内**经 respondToSubmit 起一轮全新 turn，于是 turnGeneration 变了——
-   * 那正是"交换尚未结束"的判据（repair 轮不在此列：它们在同一个 turn 里，本方法根本不会被调用）。
-   */
-  private reportTurnOutcome(
-    state: SessionState,
-    instance: InstanceRef,
-    result: TurnResult,
-  ): boolean {
-    // 已提交并被引擎 accept：ask 已结算，turn 结束只是确认，不再上报 askTurnEnded。
-    if (!sameAskAttempt(state.currentInstance, instance) || state.cancelled || state.accepted)
-      return true;
-    const generation = state.turnGeneration;
-    this.sink.askTurnEnded(instance, result.response);
-    return state.turnGeneration === generation;
-  }
-
-  /**
-   * 一次交换的收尾：数消息 → 报终局 → 交换真的结束了就把边界写进 ask 的 journal 行。
-   *
-   * **先数后报**，顺序是载荷性的：报出去之后引擎可能立刻在同一个会话上派发这个 actor 的下一个
-   * ask（per-actor FIFO 只保证串行，不保证之间有空隙），那一轮的消息会落进同一个会话，把本次
-   * 计数撑大。先数下来，读到的就是这次交换结束那一刻的长度。
-   */
-  private async settleExchange(
-    state: SessionState,
-    instance: InstanceRef,
-    result: TurnResult,
-  ): Promise<void> {
-    const boundary = await countSessionTranscript(this.deps, state, instance);
-    if (!sameAskAttempt(state.currentInstance, instance) || state.cancelled) return;
-    const ended = this.reportTurnOutcome(state, instance, result);
-    if (!ended || boundary === undefined) return;
-    journalAskMessageBoundary(this.deps, state, instance, boundary);
-  }
-
-  private onTurnRejected(state: SessionState, instance: InstanceRef, error: unknown): void {
-    if (!sameAskAttempt(state.currentInstance, instance) || state.cancelled) return;
-    // turn 死了就没有人再读工具结果了：停驻中的升级问答必须一并撤下，否则它们会永远留在
-    // 快照的 pendingQuestions 里，请主代理去回答一个没有听众的问题。
-    this.withdrawEscalations(state);
-    if (state.cancelled || isTurnCancelled(error)) {
-      // 引擎发起的取消（abort）：引擎已结算该 ask，driver 不重复上报。
-      return;
-    }
-    // 模型侧错误的收容住在 workflow-driver-model-failure.ts（策略表判 stop / context_exceeded /
-    // 瞬态重驱）；不是模型层错误才是 driver 侧失败。
-    if (handleModelTurnFailure(this.modelFailureHost, state, instance, error)) return;
-    this.sink.askFailed(instance, toWorkflowError(error));
   }
 
   // ——————————————————————————————— 内部：submit 桥接 ———————————————————————————————
@@ -753,5 +578,6 @@ export function createAgentRuntimeWorkflowDriver(
   return (sink) => new AgentRuntimeWorkflowDriver(deps, sink);
 }
 
+export { createActorRuntimeCloseRetryTimer } from "./workflow-driver-cleanup.js";
 export { mintActorSessionId } from "./workflow-driver-helpers.js";
 export type { ActorRuntimeFactory } from "./workflow-driver-types.js";

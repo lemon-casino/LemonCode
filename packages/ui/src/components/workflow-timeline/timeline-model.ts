@@ -1,4 +1,9 @@
 import type { WorkflowRunState } from "@lcode/shared/lcode-protocol-v4";
+import {
+  workflowPillActivity,
+  type WorkflowPillActivity,
+  type WorkflowTimelineDisplay,
+} from "./timeline-activity.js";
 import { laneRefsById, type LaneRef } from "@/components/workflow-graph/lane-name.js";
 import {
   collapseStatuses,
@@ -8,6 +13,7 @@ import {
   withImplicitPhase,
 } from "@/components/workflow-graph/participant-model.js";
 import { phaseBinder } from "@/components/workflow-graph/instance-phases.js";
+import { workflowRunNodeIndex } from "@/components/workflow-graph/run-node-index.js";
 import type { PhaseNaming } from "@/components/workflow-graph/phase-name.js";
 import { phaseMembers } from "@/components/workflow-graph/phase-model.js";
 import { workflowRunOverlay } from "@/components/workflow-graph/run-status.js";
@@ -80,6 +86,8 @@ export interface TimelinePill {
   stepIds: string[];
   /** 该实例有待答的升级问题（`run.pendingQuestions`）；名册的钉位规则读它。 */
   asking?: true;
+  /** 父投影按站点、实例与阶段收窄的次级说明；不改变五态或订阅子会话。 */
+  activity?: WorkflowPillActivity;
 }
 
 export interface TimelineStation {
@@ -156,6 +164,8 @@ export interface WorkflowTimelineModel {
   live: boolean;
   /** 流式草稿：站由笔逐字写出，子代理只计数不画（`draft-scan.ts`）。分析器的模型没有它。 */
   draft?: { agents: number };
+  /** 只读连接提示，不属于 run 生命周期。 */
+  connection?: "syncing" | "stale";
 }
 
 /**
@@ -190,6 +200,7 @@ function stationStatus(
 export function buildWorkflowTimeline(
   input: WorkflowCausalityGraphData,
   run: WorkflowRunState | undefined,
+  display: WorkflowTimelineDisplay = {},
 ): WorkflowTimelineModel {
   const graph = withImplicitPhase(input);
   const phases = graph.phases ?? [];
@@ -198,8 +209,10 @@ export function buildWorkflowTimeline(
   const overlay = workflowRunOverlay(run, graph);
   const live = liveParticipantView(graph, run);
   const binder = phaseBinder(graph, run);
+  const nodeIndex = workflowRunNodeIndex(run?.nodes);
   const nodesBySite = nodesBySiteOf(run);
   const laneRefs = laneRefsById(graph.lanes);
+  const siteByStep = new Map(graph.steps.map((step) => [step.id, step.source ?? step.id]));
   const sessionByInstance = new Map(
     (run?.actors ?? []).map((actor) => [`${actor.siteId}@${actor.ordinal}`, actor.sessionId]),
   );
@@ -286,6 +299,22 @@ export function buildWorkflowTimeline(
       if (lane.laneClass === "agent" && !avatarIndexes.has(avatarKey)) {
         avatarIndexes.set(avatarKey, avatarIndexes.size);
       }
+      // 同一 helper 的 ask 可在多个阶段复用，活动不能只按 actor 查最近一条，否则未来阶段会被旧 ask 点亮。
+      const sites = new Set(participant.steps.map((id) => siteByStep.get(id) ?? id));
+      const nodes = [...sites].flatMap((site) =>
+        (lane.laneClass === "agent"
+          ? nodeIndex.forActor(site, participant.lane, slot?.ordinal)
+          : (nodesBySite.get(site) ?? [])
+        ).filter((node) => binder.has(phase.id, node.phaseName)),
+      );
+      const asking =
+        instance !== undefined &&
+        askingInstances.has(`${participant.lane}@${instance.ordinal}`) &&
+        nodes.some((node) => node.phase !== "settled" && node.phase !== "paused");
+      const activity =
+        run === undefined || lane.laneClass !== "agent"
+          ? undefined
+          : workflowPillActivity(nodes, run, instance !== undefined, asking, display);
       return {
         ...(lane.laneClass === "agent" ? { avatarIndex: avatarIndexes.get(avatarKey)! } : {}),
         key: participant.id,
@@ -307,9 +336,8 @@ export function buildWorkflowTimeline(
           ? { workspace: { phaseId: phase.id } }
           : {}),
         stepIds: [...participant.steps],
-        ...(instance !== undefined && askingInstances.has(`${participant.lane}@${instance.ordinal}`)
-          ? { asking: true as const }
-          : {}),
+        ...(asking ? { asking: true as const } : {}),
+        ...(activity === undefined ? {} : { activity }),
       };
     });
     return {
@@ -416,7 +444,16 @@ export function buildWorkflowTimeline(
     }),
   }));
 
-  return { arcs, bands, live: run !== undefined, rails, runningIndex, stations };
+  const connection = display.syncing ? "syncing" : display.stale ? "stale" : undefined;
+  return {
+    arcs,
+    bands,
+    live: run !== undefined,
+    rails,
+    runningIndex,
+    stations,
+    ...(connection === undefined ? {} : { connection }),
+  };
 }
 
 /** 一枚药丸「正在做什么」：优先正在跑的 step 的 label，其次最后一个已结算的，再次第一个。 */
@@ -424,7 +461,7 @@ export function pillActivity(
   graph: WorkflowCausalityGraphData,
   run: WorkflowRunState | undefined,
   pill: TimelinePill,
-): { label: string; asks: number; reads: number } {
+): { label: string; asks: number; reads: number; activity?: WorkflowPillActivity } {
   const stepsById = new Map(graph.steps.map((step) => [step.id, step]));
   const statuses = run === undefined ? {} : workflowRunOverlay(run, graph).statuses;
   let asks = 0;
@@ -442,5 +479,10 @@ export function pillActivity(
     if (status === "running") running ??= step.label;
     else if (status === "done" || status === "failed" || status === "cancelled") done = step.label;
   }
-  return { asks, label: running ?? done ?? first ?? "", reads };
+  return {
+    asks,
+    label: running ?? done ?? first ?? "",
+    reads,
+    ...(pill.activity === undefined ? {} : { activity: pill.activity }),
+  };
 }

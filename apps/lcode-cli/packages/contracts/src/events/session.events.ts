@@ -958,6 +958,8 @@ export interface DynamicWorkflowRunProgressPayload {
   toolCallId?: ToolCallId | string;
   /** journal sequence（`appendEvent` 单调分配）；事件日志的 cursor 与它同一把尺。 */
   sequence: number;
+  /** 同一条 journal 记录的源时间；旧记录缺时钟时保持缺席。 */
+  occurredAt?: number;
   /** 引擎事件种类：run-started / actor-created / node-* / usage-updated / log / report / phase-entered / run-settled。 */
   eventType: string;
   payload: Record<string, unknown>;

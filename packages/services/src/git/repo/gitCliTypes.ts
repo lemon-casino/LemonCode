@@ -96,7 +96,7 @@ export interface GitCliRepo {
     message: string,
     paths?: string[],
     options?: { stagedOnly?: boolean },
-  ): Promise<{ commitHash: string }>;
+  ): Promise<{ commitHash: string; warning?: string }>;
   push(workspacePath: string): Promise<GitPushResult>;
   getIdentity(workspacePath: string): Promise<GitIdentity>;
 }

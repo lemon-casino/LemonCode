@@ -1,0 +1,591 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-02",
+  "status": "completed-with-retained-mobile-anomaly",
+  "mode": "post-repair-real-browser",
+  "baselineReport": "docs/benchmarks/workflow-stress-browser-2026-10-02.json",
+  "environment": {
+    "browser": "LCode in-app browser",
+    "buildMode": "vite-development-react-profiler",
+    "concurrentWork": "Offline regression suites ran on the same machine; no simultaneous sustained Node pressure test.",
+    "measurementBoundaryUnchanged": true,
+    "profilerCaveat": "The existing Profiler covers shared children, not one parent selector call; RAF covers actual rendered-frame intervals.",
+    "fixtureChanged": false,
+    "performanceSloAsserted": false
+  },
+  "samples": [
+    {
+      "id": "256-desktop-repair",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "pageTimeOriginAtStart": 1790906832079.8,
+      "pageTimeOriginAtEnd": 1790906832079.8,
+      "functionalPassed": true,
+      "uiStatusTimersRemaining": 0,
+      "measuredComponentsMounted": false,
+      "result": {
+        "actors": 256,
+        "profile": "desktop-continuous",
+        "requestedWarmupMs": 10000,
+        "warmupWallMs": 10005.79999999702,
+        "phase": "stopped",
+        "targetDeltasPerSecondPerActor": 20,
+        "inputDeltas": 524032,
+        "measuredInputDeltas": 472832,
+        "activity": {
+          "inputDeltas": 524032,
+          "activity": 31649,
+          "ordinary": 21167,
+          "boundary": 10482,
+          "lifecycle": 9968,
+          "rotations": 10
+        },
+        "projectionUpdates": 2042,
+        "logicalFrames": 2042,
+        "logicalFrameBytes": 211191072,
+        "maxNodes": 256,
+        "maxActiveNodes": 256,
+        "truncated": true,
+        "sourceObservedAt": 1790907034650,
+        "measuredWallMs": 92387.69999998808,
+        "commits": {
+          "count": 3948,
+          "totalMs": 24988.600000590086,
+          "meanMs": 6.32943262426294,
+          "maxMs": 51.20000000298023,
+          "recentP50Ms": 5.5999999940395355,
+          "recentP95Ms": 25.099999994039536,
+          "over50Ms": 2,
+          "over50Ratio": 0.0005065856129685917,
+          "sampleCount": 2048,
+          "sampleCap": 2048,
+          "quantileWindow": "most recent bounded samples; totals/max/ratio cover whole measurement"
+        },
+        "raf": {
+          "count": 5351,
+          "totalMs": 92357.56799999998,
+          "meanMs": 17.25987067837787,
+          "maxMs": 116.69999999999709,
+          "recentP50Ms": 12.5,
+          "recentP95Ms": 41.69999999998254,
+          "over50Ms": 88,
+          "over50Ratio": 0.01644552420108391,
+          "sampleCount": 2048,
+          "sampleCap": 2048,
+          "quantileWindow": "most recent bounded samples; totals/max/ratio cover whole measurement"
+        },
+        "rafCoverage": {
+          "firstFrameOffsetMs": 22.831999994043144,
+          "lastFrameOffsetMs": 92380.39999999403,
+          "beforeFirstFrameMs": 22.831999994043144,
+          "afterLastFrameMs": 7.299999994051177,
+          "intervalCoveredMs": 92357.56799999998,
+          "unobservedEndpointMs": 30.13199998809432,
+          "intervalCoverageRatio": 0.9996738526883113,
+          "timingBoundary": "RAF timestamps cover first through last observed frame only; signed endpoint offsets expose timing gaps without altering wall time or inventing frames"
+        },
+        "errors": 0,
+        "recoveries": 1,
+        "recoveryConsistencyFailures": 0,
+        "staleChecks": 1,
+        "openedDetails": 1,
+        "rafRemaining": 0,
+        "errorListenersRemaining": 0,
+        "subscriptionsRemaining": 0,
+        "transportListenersRemaining": 0,
+        "sourceTimersRemaining": 0,
+        "recoveryTimersRemaining": 0,
+        "storeStatus": "closed",
+        "storeSyncing": false
+      },
+      "achievedDeltasPerSecondPerActor": 19.991838740440972
+    },
+    {
+      "id": "12-desktop-repair",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "pageTimeOriginAtStart": 1790906832079.8,
+      "pageTimeOriginAtEnd": 1790906832079.8,
+      "functionalPassed": true,
+      "uiStatusTimersRemaining": 0,
+      "measuredComponentsMounted": false,
+      "result": {
+        "actors": 12,
+        "profile": "desktop-continuous",
+        "requestedWarmupMs": 10000,
+        "warmupWallMs": 10001.90000000596,
+        "phase": "stopped",
+        "targetDeltasPerSecondPerActor": 20,
+        "inputDeltas": 21888,
+        "measuredInputDeltas": 19488,
+        "activity": {
+          "inputDeltas": 21888,
+          "activity": 1325,
+          "ordinary": 892,
+          "boundary": 433,
+          "lifecycle": 1450,
+          "rotations": 9
+        },
+        "projectionUpdates": 835,
+        "logicalFrames": 835,
+        "logicalFrameBytes": 42502617,
+        "maxNodes": 256,
+        "maxActiveNodes": 12,
+        "truncated": true,
+        "sourceObservedAt": 1790907207423,
+        "measuredWallMs": 81224.40000000596,
+        "commits": {
+          "count": 1668,
+          "totalMs": 16818.700000718236,
+          "meanMs": 10.083153477648823,
+          "maxMs": 49.70000000298023,
+          "recentP50Ms": 6.799999997019768,
+          "recentP95Ms": 29.69999997317791,
+          "over50Ms": 0,
+          "over50Ratio": 0,
+          "sampleCount": 1668,
+          "sampleCap": 2048,
+          "quantileWindow": "most recent bounded samples; totals/max/ratio cover whole measurement"
+        },
+        "raf": {
+          "count": 4855,
+          "totalMs": 81207.63400000002,
+          "meanMs": 16.726598146240992,
+          "maxMs": 100,
+          "recentP50Ms": 12.599999999976717,
+          "recentP95Ms": 37.5,
+          "over50Ms": 108,
+          "over50Ratio": 0.022245108135942326,
+          "sampleCount": 2048,
+          "sampleCap": 2048,
+          "quantileWindow": "most recent bounded samples; totals/max/ratio cover whole measurement"
+        },
+        "rafCoverage": {
+          "firstFrameOffsetMs": 6.065999999991618,
+          "lastFrameOffsetMs": 81213.70000000001,
+          "beforeFirstFrameMs": 6.065999999991618,
+          "afterLastFrameMs": 10.700000005948823,
+          "intervalCoveredMs": 81207.63400000002,
+          "unobservedEndpointMs": 16.76600000594044,
+          "intervalCoverageRatio": 0.999793584193839,
+          "timingBoundary": "RAF timestamps cover first through last observed frame only; signed endpoint offsets expose timing gaps without altering wall time or inventing frames"
+        },
+        "errors": 0,
+        "recoveries": 1,
+        "recoveryConsistencyFailures": 0,
+        "staleChecks": 1,
+        "openedDetails": 1,
+        "rafRemaining": 0,
+        "errorListenersRemaining": 0,
+        "subscriptionsRemaining": 0,
+        "transportListenersRemaining": 0,
+        "sourceTimersRemaining": 0,
+        "recoveryTimersRemaining": 0,
+        "storeStatus": "closed",
+        "storeSyncing": false
+      },
+      "achievedDeltasPerSecondPerActor": 19.993991953155465
+    },
+    {
+      "id": "64-desktop-repair",
+      "viewport": {
+        "width": 1280,
+        "height": 720
+      },
+      "pageTimeOriginAtStart": 1790908232210.4,
+      "pageTimeOriginAtEnd": 1790908232210.4,
+      "functionalPassed": true,
+      "uiStatusTimersRemaining": 0,
+      "measuredComponentsMounted": false,
+      "result": {
+        "actors": 64,
+        "profile": "desktop-continuous",
+        "requestedWarmupMs": 10000,
+        "warmupWallMs": 10003.29999999702,
+        "phase": "stopped",
+        "targetDeltasPerSecondPerActor": 20,
+        "inputDeltas": 130048,
+        "measuredInputDeltas": 117248,
+        "activity": {
+          "inputDeltas": 130048,
+          "activity": 7855,
+          "ordinary": 5258,
+          "boundary": 2597,
+          "lifecycle": 3286,
+          "rotations": 10
+        },
+        "projectionUpdates": 1904,
+        "logicalFrames": 1904,
+        "logicalFrameBytes": 118654283,
+        "maxNodes": 256,
+        "maxActiveNodes": 64,
+        "truncated": true,
+        "sourceObservedAt": 1790908388845,
+        "measuredWallMs": 91643.29999999702,
+        "commits": {
+          "count": 3728,
+          "totalMs": 23397.69999976456,
+          "meanMs": 6.27620708148191,
+          "maxMs": 55.599999994039536,
+          "recentP50Ms": 5.5999999940395355,
+          "recentP95Ms": 22.30000001192093,
+          "over50Ms": 1,
+          "over50Ratio": 0.0002682403433476395,
+          "sampleCount": 2048,
+          "sampleCap": 2048,
+          "quantileWindow": "most recent bounded samples; totals/max/ratio cover whole measurement"
+        },
+        "raf": {
+          "count": 5827,
+          "totalMs": 91536.702,
+          "meanMs": 15.709061609747726,
+          "maxMs": 116.69999999999709,
+          "recentP50Ms": 12.5,
+          "recentP95Ms": 33.29999999998836,
+          "over50Ms": 51,
+          "over50Ratio": 0.008752359704822379,
+          "sampleCount": 2048,
+          "sampleCap": 2048,
+          "quantileWindow": "most recent bounded samples; totals/max/ratio cover whole measurement"
+        },
+        "rafCoverage": {
+          "firstFrameOffsetMs": 35.49799999404058,
+          "lastFrameOffsetMs": 91572.19999999405,
+          "beforeFirstFrameMs": 35.49799999404058,
+          "afterLastFrameMs": 71.10000000297441,
+          "intervalCoveredMs": 91536.702,
+          "unobservedEndpointMs": 106.597999997015,
+          "intervalCoverageRatio": 0.9988368162211856,
+          "timingBoundary": "RAF timestamps cover first through last observed frame only; signed endpoint offsets expose timing gaps without altering wall time or inventing frames"
+        },
+        "errors": 0,
+        "recoveries": 1,
+        "recoveryConsistencyFailures": 0,
+        "staleChecks": 1,
+        "openedDetails": 1,
+        "rafRemaining": 0,
+        "errorListenersRemaining": 0,
+        "subscriptionsRemaining": 0,
+        "transportListenersRemaining": 0,
+        "sourceTimersRemaining": 0,
+        "recoveryTimersRemaining": 0,
+        "storeStatus": "closed",
+        "storeSyncing": false
+      },
+      "achievedDeltasPerSecondPerActor": 19.990550318463647
+    },
+    {
+      "id": "64-replayable-390px-repair",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "pageTimeOriginAtStart": 1790908232210.4,
+      "pageTimeOriginAtEnd": 1790908232210.4,
+      "functionalPassed": true,
+      "performanceAssessment": "Anomalous observed long-frame gap; no stable throughput conclusion. Cause not established by this sample.",
+      "layout": {
+        "viewportWidth": 390,
+        "pageScrollWidth": 390,
+        "realPhone": false
+      },
+      "uiStatusTimersRemaining": 0,
+      "measuredComponentsMounted": false,
+      "result": {
+        "actors": 64,
+        "profile": "web-remote-replayable",
+        "requestedWarmupMs": 10000,
+        "warmupWallMs": 10004.79999999702,
+        "phase": "stopped",
+        "targetDeltasPerSecondPerActor": 20,
+        "inputDeltas": 160320,
+        "measuredInputDeltas": 147520,
+        "activity": {
+          "inputDeltas": 160320,
+          "activity": 10878,
+          "ordinary": 7672,
+          "boundary": 3206,
+          "lifecycle": 3747,
+          "rotations": 12
+        },
+        "projectionUpdates": 2325,
+        "logicalFrames": 2325,
+        "logicalFrameBytes": 145327971,
+        "maxNodes": 256,
+        "maxActiveNodes": 64,
+        "truncated": true,
+        "sourceObservedAt": 1790908696993,
+        "measuredWallMs": 147213,
+        "commits": {
+          "count": 4704,
+          "totalMs": 30842.200001627207,
+          "meanMs": 6.556590136400342,
+          "maxMs": 91.7999999821186,
+          "recentP50Ms": 5.799999997019768,
+          "recentP95Ms": 25.799999997019768,
+          "over50Ms": 9,
+          "over50Ratio": 0.001913265306122449,
+          "sampleCount": 2048,
+          "sampleCap": 2048,
+          "quantileWindow": "most recent bounded samples; totals/max/ratio cover whole measurement"
+        },
+        "raf": {
+          "count": 9197,
+          "totalMs": 140532.06800000003,
+          "meanMs": 15.28020745895401,
+          "maxMs": 27203.899999999965,
+          "recentP50Ms": 8.400000000023283,
+          "recentP95Ms": 33.29999999998836,
+          "over50Ms": 41,
+          "over50Ratio": 0.004457975426769599,
+          "sampleCount": 2048,
+          "sampleCap": 2048,
+          "quantileWindow": "most recent bounded samples; totals/max/ratio cover whole measurement"
+        },
+        "rafCoverage": {
+          "firstFrameOffsetMs": 27.931999994034413,
+          "lastFrameOffsetMs": 140559.99999999406,
+          "beforeFirstFrameMs": 27.931999994034413,
+          "afterLastFrameMs": 6653.000000005937,
+          "intervalCoveredMs": 140532.06800000003,
+          "unobservedEndpointMs": 6680.931999999972,
+          "intervalCoverageRatio": 0.9546172416838189,
+          "timingBoundary": "RAF timestamps cover first through last observed frame only; signed endpoint offsets expose timing gaps without altering wall time or inventing frames"
+        },
+        "errors": 0,
+        "recoveries": 1,
+        "recoveryConsistencyFailures": 0,
+        "staleChecks": 1,
+        "openedDetails": 1,
+        "rafRemaining": 0,
+        "errorListenersRemaining": 0,
+        "subscriptionsRemaining": 0,
+        "transportListenersRemaining": 0,
+        "sourceTimersRemaining": 0,
+        "recoveryTimersRemaining": 0,
+        "storeStatus": "closed",
+        "storeSyncing": false
+      },
+      "achievedDeltasPerSecondPerActor": 15.657584588317608
+    },
+    {
+      "id": "64-replayable-390px-repair-diagnostic-repeat",
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "pageTimeOriginAtStart": 1790908232210.4,
+      "pageTimeOriginAtEnd": 1790908232210.4,
+      "functionalPassed": true,
+      "repeatReason": "Single diagnostic repeat of the retained 27-second RAF-gap sample with visibility and long-task observation, not a replacement of that sample.",
+      "durationNote": "The measurement continued while the conversation was paused and ended after user continuation. Actual duration is 1196.093 seconds, not a fixed 60-second repeat.",
+      "layout": {
+        "viewportWidth": 390,
+        "pageScrollWidth": 390,
+        "realPhone": false
+      },
+      "uiStatusTimersRemaining": 0,
+      "measuredComponentsMounted": false,
+      "diagnostics": {
+        "observerScope": "Installed before Start through Stop; includes setup and warmup, not only the measurement window.",
+        "longTaskSampleCap": 256,
+        "totalLongTasks": 167,
+        "retainedLongTasks": 167,
+        "maxLongTaskMs": 460,
+        "totalLongTaskMs": 21183,
+        "visibilityEvents": [],
+        "finalVisibility": "visible",
+        "observersStopped": true,
+        "conclusion": "The prior 27-second frame gap did not recur in this sample. Its root cause is not established; one repeated sample cannot prove absence of long-frame issues."
+      },
+      "result": {
+        "actors": 64,
+        "profile": "web-remote-replayable",
+        "requestedWarmupMs": 10000,
+        "warmupWallMs": 10007.199999988079,
+        "phase": "stopped",
+        "targetDeltasPerSecondPerActor": 20,
+        "inputDeltas": 1543744,
+        "measuredInputDeltas": 1530944,
+        "activity": {
+          "inputDeltas": 1543744,
+          "activity": 92778,
+          "ordinary": 61905,
+          "boundary": 30873,
+          "lifecycle": 24930,
+          "rotations": 120
+        },
+        "projectionUpdates": 22476,
+        "logicalFrames": 22476,
+        "logicalFrameBytes": 1581550817,
+        "maxNodes": 256,
+        "maxActiveNodes": 64,
+        "truncated": true,
+        "sourceObservedAt": 1790910023040,
+        "measuredWallMs": 1196092.600000009,
+        "commits": {
+          "count": 48144,
+          "totalMs": 275758.7000012994,
+          "meanMs": 5.727789548049588,
+          "maxMs": 263.59999999403954,
+          "recentP50Ms": 5.799999982118607,
+          "recentP95Ms": 25.099999994039536,
+          "over50Ms": 17,
+          "over50Ratio": 0.00035310734463276836,
+          "sampleCount": 2048,
+          "sampleCap": 2048,
+          "quantileWindow": "most recent bounded samples; totals/max/ratio cover whole measurement"
+        },
+        "raf": {
+          "count": 106994,
+          "totalMs": 1195797.834,
+          "meanMs": 11.176307400414977,
+          "maxMs": 1016.5999999998603,
+          "recentP50Ms": 8.400000000139698,
+          "recentP95Ms": 37.5,
+          "over50Ms": 372,
+          "over50Ratio": 0.0034768304764753164,
+          "sampleCount": 2048,
+          "sampleCap": 2048,
+          "quantileWindow": "most recent bounded samples; totals/max/ratio cover whole measurement"
+        },
+        "rafCoverage": {
+          "firstFrameOffsetMs": 9.166000002995133,
+          "lastFrameOffsetMs": 1195807.000000003,
+          "beforeFirstFrameMs": 9.166000002995133,
+          "afterLastFrameMs": 285.6000000059139,
+          "intervalCoveredMs": 1195797.834,
+          "unobservedEndpointMs": 294.76600000890903,
+          "intervalCoverageRatio": 0.9997535592143878,
+          "timingBoundary": "RAF timestamps cover first through last observed frame only; signed endpoint offsets expose timing gaps without altering wall time or inventing frames"
+        },
+        "errors": 0,
+        "recoveries": 1,
+        "recoveryConsistencyFailures": 0,
+        "staleChecks": 1,
+        "openedDetails": 1,
+        "rafRemaining": 0,
+        "errorListenersRemaining": 0,
+        "subscriptionsRemaining": 0,
+        "transportListenersRemaining": 0,
+        "sourceTimersRemaining": 0,
+        "recoveryTimersRemaining": 0,
+        "storeStatus": "closed",
+        "storeSyncing": false
+      },
+      "achievedDeltasPerSecondPerActor": 19.99928768056906
+    }
+  ],
+  "sourceFingerprint": {
+    "schemaVersion": 1,
+    "sourceFrozen": true,
+    "files": [
+      {
+        "path": "packages/shared/src/lcode-protocol-v4/workflow-runs-reducer.ts",
+        "sha256": "2009fdcecd6917a3e42e6aa721e53cae94b741d69a64639b6b45977c1a98ec1f"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-graph/run-node-index.ts",
+        "sha256": "c3934711390d62adffd14c97e6fe789baea246c699b0db64cab5fc50509d81e8"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-graph/participant-model.ts",
+        "sha256": "13b9088a4af6c1038e97894edb2380a1448027c74fe25cbc9d887835791eeb21"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-timeline/timeline-model.ts",
+        "sha256": "fac8059ad702762f86e093e7e26b42ec2856766cd7d5c70588d9365cf179465d"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-timeline/timeline-activity.ts",
+        "sha256": "b073c38e6435a07db7747bf89bd282d57bf961077e0ad450c15e5d69f2787c5c"
+      },
+      {
+        "path": "packages/ui/src/components/workflow-timeline/timeline-observation.ts",
+        "sha256": "a57e8f3a6a1dfd5040dc4ba34f4ebfe241524ec85f5756e4c4c262866c9b0907"
+      },
+      {
+        "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/conversation-topic-workflow-bytes.ts",
+        "sha256": "13f4340cbdadcfe07f83d535d51616d35793b7d7bbc7808d1ab531c9794a7477"
+      },
+      {
+        "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/product-projection-workflow.ts",
+        "sha256": "e547a2c52407f0215fb09f9c987c6a655cc21572877286967e32f80b15ad7eb4"
+      },
+      {
+        "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/conversation-topic-buffer.ts",
+        "sha256": "64932462fcc2c5b5ed73560b6dd604daa4f0a5f41a59717ab7738f2ae4b4a23d"
+      },
+      {
+        "path": "apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/conversation-topic-queries.ts",
+        "sha256": "587239ff1fe7074fbde3b054dd3872fd848213d913bba18158d70af7d8f5c1f3"
+      }
+    ]
+  },
+  "fixtureFingerprint": [
+    {
+      "path": "packages/web/test/fixtures/workflow-stress.html",
+      "sha256": "059134a47d970eca6fd6cbd3c4adfa63321ffa42fadef76ab954202b06f12251"
+    },
+    {
+      "path": "packages/web/test/fixtures/workflow-stress.tsx",
+      "sha256": "a48daa315528c8ae489c8bfa2bf33a73cfb095a7a164ce7aa0365e156541a99d"
+    },
+    {
+      "path": "packages/web/test/fixtures/workflow-stress-data.ts",
+      "sha256": "c71cc979207f72fe1e50e72dd4e80e2ca052cf8b42417364c585188a44becc8f"
+    },
+    {
+      "path": "packages/web/test/fixtures/workflow-stress-runtime.ts",
+      "sha256": "7e54fdcbdc023a3d48bcc5e812a2618795ccc66c694ecc9427036eafa6e651d3"
+    },
+    {
+      "path": "packages/web/test/fixtures/workflow-stress-metrics.ts",
+      "sha256": "0302f83136c7cb5ea5de9a31d52d966bb4a596d2f2545cbb24d73ae584f3719e"
+    }
+  ],
+  "preMeasurementDiagnostics": {
+    "schemaVersion": 1,
+    "phase": "diagnostic-before-source-freeze",
+    "eligibleForPerformanceComparison": false,
+    "observations": [
+      {
+        "kind": "start-control",
+        "result": "DOM click produced no state change; role click timed out; snapshot-confirmed element click via page DOM triggered fixture start.",
+        "countedAsFunctionalPass": false
+      },
+      {
+        "kind": "page-reset",
+        "result": "Between diagnostic calls the selected scenario and result reset; later performance.timeOrigin changed while source files were actively being edited. No stable 256-actor baseline sample was accepted.",
+        "cause": "Not attributed beyond observed page reset during active development."
+      },
+      {
+        "kind": "raf-unavailable",
+        "actors": 12,
+        "measuredWallMs": 32417.30000001192,
+        "rafCount": 0,
+        "documentVisibility": "visible",
+        "result": "Stopped and cleaned up; not used for render-performance claims. Later standalone real RAF probe succeeded."
+      }
+    ],
+    "policy": "No requestAnimationFrame/clock replacement, background override, fake frames, input-rate reduction, or higher safety budgets. Formal samples require verified actor/profile, real RAF, stable page and frozen source."
+  },
+  "summary": {
+    "requestedScenariosMeasured": true,
+    "functionalSamplesPassed": 5,
+    "diagnosticRepeatCount": 1,
+    "allTestResourcesClosed": true,
+    "retainedAnomalies": [
+      "First 390px sample observed a 27203.9ms RAF gap and a 6653ms final unobserved endpoint. Root cause not established; raw sample retained."
+    ],
+    "diagnosticRepeat": "1196.093s actual measurement, 19.999 delta/s/actor, maximum observed RAF interval 1016.6ms, no visibility-change/freeze/resume events recorded; the prior 27-second gap did not recur. This is not evidence of zero long-frame risk.",
+    "throughputAndFrameClaimScope": "Single-machine development build; individual actual-duration samples, no production or statistical SLO.",
+    "noLoadOrBudgetChanges": true,
+    "previewServerStopped": true,
+    "testTabClosed": true
+  }
+}

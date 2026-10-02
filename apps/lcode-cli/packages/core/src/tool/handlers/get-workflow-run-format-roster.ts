@@ -210,17 +210,26 @@ function subagentActivityCell(
   now: number,
   askedAtByQid: ReadonlyMap<string, number>,
 ): string {
+  const parts: string[] = [];
   if (subagent.state === "parked" && subagent.parkedOn !== undefined) {
     const waited = formatRelativeAge(now, askedAtByQid.get(subagent.parkedOn));
     const forHow = waited === undefined ? "" : ` for ${waited.replace(/ ago$/u, "")}`;
-    return `on question ${escapeWorkflowRunText(subagent.parkedOn)}${forHow}`;
+    parts.push(`on question ${escapeWorkflowRunText(subagent.parkedOn)}${forHow}`);
+  } else if (subagent.state === "waiting") {
+    parts.push(waitCell(subagent, now));
+  } else if (subagent.state === "unfinished" && subagent.currentAsk !== undefined) {
+    const phase = subagent.currentAsk.phase;
+    const state = phase === "queued" ? "queued" : phase === "paused" ? "paused" : "unfinished";
+    parts.push(`${askAddress(subagent.currentAsk)} was ${state} when the run stopped`);
   }
-  if (subagent.state === "waiting") return waitCell(subagent, now);
-  if (subagent.state === "unfinished" && subagent.currentAsk !== undefined) {
-    return `${askAddress(subagent.currentAsk)} was in flight at the stop`;
+  if (subagent.currentAsk !== undefined) {
+    parts.push(executingCell(subagent, now));
+  } else {
+    parts.push(settledCell(subagent));
   }
-  if (subagent.currentAsk !== undefined) return executingCell(subagent, now);
-  return settledCell(subagent);
+  const delivered = formatRelativeAge(now, subagent.lastDeliveredAt);
+  if (delivered !== undefined) parts.push(`last observed delivery ${delivered}`);
+  return parts.filter(Boolean).join(", ");
 }
 
 function askAddress(ask: NonNullable<GetWorkflowRunSubagent["currentAsk"]>): string {
@@ -233,10 +242,29 @@ function executingCell(subagent: GetWorkflowRunSubagent, now: number): string {
   const ask = subagent.currentAsk!;
   const parts = [askAddress(ask)];
   const onStep = formatRelativeAge(now, ask.startedAt);
-  if (onStep !== undefined) parts.push(`${onStep.replace(/ ago$/u, "")} on this step`);
+  if (onStep !== undefined && subagent.state === "executing") {
+    parts.push(`${onStep.replace(/ ago$/u, "")} on this step`);
+  }
   if (ask.turn !== undefined) parts.push(`turn ${ask.turn}`);
-  if (ask.toolCalls !== undefined)
-    parts.push(`${ask.toolCalls} tool call${ask.toolCalls === 1 ? "" : "s"}`);
+  const activity = ask.activity;
+  if (activity !== undefined) {
+    if (subagent.state === "executing") {
+      const label = activity.kind === "model" ? "model request in progress; no visible output" :
+        activity.kind === "tool" ? `tool ${escapeWorkflowRunText(activity.toolName ?? "unknown")}` :
+        activity.kind === "unknown" ? "current activity unknown" : `${activity.kind} output observed`;
+      parts.push(label);
+    } else if (subagent.state === "waiting" && ask.phase === "waiting" && activity.kind === "tool") {
+      parts.push(`concurrent tool ${escapeWorkflowRunText(activity.toolName ?? "unknown")}`);
+    }
+    parts.push(`${activity.requestsCompleted} successful requests`);
+    const age = formatRelativeAge(now, activity.observedAt);
+    if (age !== undefined) parts.push(`last observed activity ${age}`);
+    const successful = formatRelativeAge(now, activity.lastRequestCompletedAt);
+    if (successful !== undefined) parts.push(`last successful request ${successful}`);
+  }
+  const toolCalls = activity?.toolCalls ?? ask.toolCalls;
+  if (toolCalls !== undefined)
+    parts.push(`${toolCalls} tool call${toolCalls === 1 ? "" : "s"}`);
   if (ask.lastTool !== undefined) {
     const target =
       ask.lastTool.target === undefined ? "" : ` ${escapeWorkflowRunText(ask.lastTool.target)}`;
@@ -249,18 +277,30 @@ function executingCell(subagent: GetWorkflowRunSubagent, now: number): string {
 }
 
 function waitCell(subagent: GetWorkflowRunSubagent, now: number): string {
+  const ask = subagent.currentAsk;
+  if (ask?.phase === "paused") return "task paused";
+  if (ask?.phase === "dispatched") return "dispatched; model execution not yet observed";
+  if (ask?.phase === "queued") {
+    const queue = ask.queue;
+    if (queue === undefined) return "queued; admission reason unknown";
+    const age = formatRelativeAge(now, queue.since);
+    const duration = age === undefined ? "" : ` for ${age.replace(/ ago$/u, "")}`;
+    if (queue.cause === "run-capacity") return `waiting for run capacity${duration}`;
+    const prior = queue.blockedBy === undefined ? "" :
+      ` ${escapeWorkflowRunText(queue.blockedBy.siteId)}@${queue.blockedBy.ordinal}`;
+    return `waiting for this actor's earlier ask${prior}${duration}`;
+  }
   const wait = subagent.wait;
-  if (wait === undefined) return "";
+  if (wait === undefined) return "current activity unknown";
   const waited = formatRelativeAge(now, wait.since);
   const forHow = waited === undefined ? "" : ` for ${waited.replace(/ ago$/u, "")}`;
   if (wait.cause === "slot") return `waiting for a slot${forHow}`;
   const after = wait.reason === undefined ? "" : ` after ${escapeWorkflowRunText(wait.reason)}`;
-  const retry =
-    wait.retryAfterMs === undefined
-      ? ""
-      : `, retry in ${formatWorkflowRunDuration(wait.retryAfterMs)}`;
+  const delay = wait.nextRetryAt === undefined ? wait.retryAfterMs : Math.max(0, wait.nextRetryAt - now);
+  const retry = delay === undefined ? "" : `, retry in ${formatWorkflowRunDuration(delay)}`;
+  const attempt = wait.attempt === undefined ? "" : `, retry ${Math.max(1, wait.attempt - 1)}`;
   // 「等了多久」贴着原因，「还要等多久」收尾：两个时长挨在一起时读者分不清哪个是哪个。
-  return `backoff${after}${forHow}${retry}`;
+  return `backoff${after}${forHow}${attempt}${retry}`;
 }
 
 function settledCell(subagent: GetWorkflowRunSubagent): string {

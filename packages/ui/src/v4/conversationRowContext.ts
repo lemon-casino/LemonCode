@@ -8,6 +8,7 @@ import type { OpenAutomationsMain } from "@/lib/taskNavigationHistory.js";
 import type { MessageFileLinkTarget } from "@/components/ai-elements/message.js";
 import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
 import type { WorkflowRunSettingsChange } from "@/components/workflow-timeline/workflowRunSettings.js";
+import type { WorkflowTimelineDisplay } from "@/components/workflow-timeline/timeline-activity.js";
 import type { WorkflowDraftPosition, WorkflowRunCardSummary } from "@/ToolCallBlocks/shared.js";
 import type { Theme } from "@/useTheme.js";
 import type { ModelSelectionView } from "@lcode/services";
@@ -143,6 +144,8 @@ export interface ConversationRowRenderContext {
    * 实时状态词与进度，联接一次就把它们算完（`workflowRunCardJoin.ts`）。
    */
   workflowRunByToolCallId?: ReadonlyMap<string, WorkflowRunCardSummary>;
+  /** 同一父投影 owner 的连接时效；只限定卡片活动说明，不改变 run 生命周期。 */
+  workflowDisplay?: WorkflowTimelineDisplay;
   /**
    * runId 键的同源联接表（`workflowRunCardJoin.buildWorkflowRunByRunId`）。给
    * ResumeWorkflowRun 的工具行用：投影里 run.toolCallId 跨 resume 沿用**原始

@@ -1,16 +1,9 @@
 import { createHash } from "node:crypto";
-import {
-  mkdtemp,
-  mkdir,
-  readFile,
-  readdir,
-  rm,
-  stat,
-  writeFile,
-} from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { assertRegistryCurrent, buildFileHashParts } from "./bash-command-registry-content.mjs";
 
 const FIG_VERSION = "2.692.3";
 const MAX_GENERATED_BYTES = 3 * 1024 * 1024;
@@ -98,11 +91,7 @@ if (check) {
       readFile(temporaryOutput),
       readFile(DEFAULT_OUTPUT),
     ]);
-    if (!actual.equals(expected)) {
-      throw new Error(
-        "Generated Bash command registry is stale. Run `pnpm --dir apps/lcode-cli registry:generate`.",
-      );
-    }
+    assertRegistryCurrent(actual, expected);
   } finally {
     await rm(temporaryDirectory, { force: true, recursive: true });
   }
@@ -201,10 +190,9 @@ async function hashBuildFiles(directory) {
   const hash = createHash("sha256");
   for (const filePath of files) {
     const relativePath = filePath.slice(directory.length + 1);
-    hash.update(relativePath);
-    hash.update("\0");
-    hash.update(await readFile(filePath));
-    hash.update("\0");
+    for (const part of buildFileHashParts(relativePath, await readFile(filePath))) {
+      hash.update(part);
+    }
   }
   return hash.digest("hex");
 }
@@ -224,7 +212,8 @@ async function listFiles(directory) {
 }
 
 function renderGeneratedModule(registry, contentHash, stats) {
-  return `/* eslint-disable */\n` +
+  return (
+    `/* eslint-disable */\n` +
     `// 此文件由 scripts/generate-bash-command-registry.mjs 确定性生成，请勿手改。\n` +
     `// Source: @withfig/autocomplete@${FIG_VERSION} (ISC); hash: ${contentHash}.\n` +
     `// Skipped: imports=${stats.skippedImport}, dynamicSubcommands=${stats.skippedDynamicSubcommands}, invalidNodes=${stats.skippedInvalidNodes}, loadSpecNodes=${stats.skippedLoadSpecNodes}.\n` +
@@ -232,5 +221,6 @@ function renderGeneratedModule(registry, contentHash, stats) {
     `export type BashCommandRegistryNode = readonly [readonly string[], readonly BashCommandRegistryOption[], number, readonly BashCommandRegistryNode[]];\n` +
     `export const BASH_COMMAND_REGISTRY_VERSION = "fig-${FIG_VERSION}";\n` +
     `export const BASH_COMMAND_REGISTRY_HASH = "${contentHash}";\n` +
-    `export const BASH_COMMAND_REGISTRY: Readonly<Record<string, BashCommandRegistryNode>> = ${JSON.stringify(registry)};\n`;
+    `export const BASH_COMMAND_REGISTRY: Readonly<Record<string, BashCommandRegistryNode>> = ${JSON.stringify(registry)};\n`
+  );
 }

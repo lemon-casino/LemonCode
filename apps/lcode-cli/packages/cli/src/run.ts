@@ -1,9 +1,23 @@
+import { runDoctor } from "./doctor-command.js";
+import {
+  pluginsCommandFlags,
+  commandName,
+  isForceMcsSupportedInvocation,
+  isPresentationSurfaceSupportedInvocation,
+  globalOptions,
+  normalizeOutputFormat,
+  normalizeLocaleOption,
+  normalizePromptMode,
+  normalizeBrowserUse,
+  normalizePresentationSurface,
+  normalizeTargetRequest,
+  buildHeadlessTargetCommand,
+} from "./run-options.js";
 import { extractDisallowedToolsArgs, parseGlobalArgs } from "./arguments.js";
 import { createNodeLoggerFactory } from "@lcode/adapters";
-import { getRuntimeInfo, type PresentationSurface } from "@lcode/core";
-import { color, formatJson, supportsColor } from "@lcode/core";
-import { getLCodeCopy, isUiLocale, type UiLocale } from "@lcode/i18n";
-import type { RunContext, GlobalOptions, GlobalOutputFormat } from "@lcode/shared-types";
+import type { PresentationSurface } from "@lcode/core";
+import type { UiLocale } from "@lcode/i18n";
+import type { RunContext, GlobalOptions } from "@lcode/shared-types";
 import {
   applyCliRuntimeEnvSanitization,
   loadCliDotenv,
@@ -18,11 +32,10 @@ import { runEmbeddedSearchCli } from "./internal-search/embedded-search-cli.js";
 import { runCommandsCommand } from "./commands-command.js";
 import { resolveCliCwd } from "./cwd.js";
 import { runLoginCommand, runLogoutCommand } from "./login-command.js";
-import { CLI_COMMAND_NAME, CLI_PROCESS_NAME } from "./process-name.js";
 import { isPluginHostInvocation, runPluginHostCommand } from "./plugin-host-command.js";
 import { isDwfChildInvocation, runDwfChildCommand } from "./dwf-child-command.js";
 import { runPrompt } from "./prompt-command.js";
-import { runPluginsCommand, type PluginsCommandFlags } from "./plugins-command.js";
+import { runPluginsCommand } from "./plugins-command.js";
 import { runSkillsCommand } from "./skills-command.js";
 import { runTuiCommand } from "./tui-command.js";
 import type {
@@ -38,10 +51,8 @@ declare const __CLI_VERSION__: string | undefined;
 
 const version = typeof __CLI_VERSION__ === "string" ? __CLI_VERSION__ : "0.0.0";
 
-const EMPTY_TARGET_ERROR = "--target requires non-empty text.";
 const DEFAULT_HEADLESS_PROMPT_MODE: CliPermissionMode = "yolo";
 const FORCE_MCS_SCOPE_ERROR = "--force-mcs can only be used with --prompt, --target, or tui.";
-const TARGET_REPLACE_REQUIRES_TARGET_ERROR = "--target-replace requires --target.";
 const TARGET_CONFLICTS_WITH_PROMPT_ERROR =
   '--target cannot be used with --prompt. Use either --target <objective> or --prompt "/goal <objective>".';
 const BROWSER_EXECUTABLE_REQUIRES_HEADLESS_ERROR =
@@ -52,182 +63,12 @@ const SURFACE_SCOPE_ERROR =
   "--surface can only be used with --prompt, --target, app-server, or agent-server.";
 const MEMORY_BENCH_SCOPE_ERROR = "--memory-bench can only be used with -p/--prompt.";
 
-const pluginsCommandFlags = (
-  values: ReturnType<typeof parseGlobalArgs>["values"],
-): PluginsCommandFlags => ({
-  ...(values.all === true ? { all: true } : {}),
-  ...(values.available === true ? { available: true } : {}),
-  ...(values["keep-data"] === true ? { keepData: true } : {}),
-  ...(typeof values.scope === "string" ? { scope: values.scope } : {}),
-  ...(Array.isArray(values.sparse) ? { sparse: values.sparse as string[] } : {}),
-});
-
-const commandName = (positionals: string[]): string => positionals[0] ?? "tui";
-
-const isForceMcsSupportedInvocation = (input: {
-  positionals: string[];
-  prompt?: string;
-  targetRequest?: CliTargetRequest;
-}): boolean =>
-  typeof input.prompt === "string" ||
-  input.targetRequest !== undefined ||
-  commandName(input.positionals) === "tui";
-
-const isPresentationSurfaceSupportedInvocation = (input: {
-  positionals: string[];
-  prompt?: string;
-  targetRequest?: CliTargetRequest;
-}): boolean => {
-  const command = commandName(input.positionals);
-  return (
-    typeof input.prompt === "string" ||
-    input.targetRequest !== undefined ||
-    command === "app-server" ||
-    command === "agent-server"
-  );
-};
-
-const globalOptions = (
-  values: ReturnType<typeof parseGlobalArgs>["values"],
-  locale: UiLocale | undefined,
-  detectedLocale: GlobalOptions["detectedLocale"],
-  browserUse: GlobalOptions["browserUse"],
-  browserExecutable: GlobalOptions["browserExecutable"],
-  outputFormat: GlobalOptions["outputFormat"],
-): GlobalOptions => {
-  return {
-    browserExecutable,
-    browserUse,
-    detectedLocale,
-    force: values.force === true,
-    json: values.json === true,
-    locale,
-    ...(values["memory-bench"] === true ? { memoryBench: true } : {}),
-    noColor: values["no-color"] === true,
-    ...(outputFormat ? { outputFormat } : {}),
-    verbose: values.verbose === true,
-  };
-};
-
-const OUTPUT_FORMATS: readonly GlobalOutputFormat[] = ["text", "json", "stream-json"];
-
-/**
- * Validate --output-format. Rejecting an unknown value matters more than it
- * looks: a caller that misspells it would otherwise get plain text back and
- * silently parse nothing.
- */
-const normalizeOutputFormat = (value: string | undefined): GlobalOutputFormat | undefined => {
-  if (value === undefined) return undefined;
-  if ((OUTPUT_FORMATS as readonly string[]).includes(value)) return value as GlobalOutputFormat;
-  throw new Error(
-    `--output-format must be one of ${OUTPUT_FORMATS.join(", ")} (received: ${value}).`,
-  );
-};
-
-const normalizeLocaleOption = (value: string | undefined): UiLocale | undefined => {
-  if (value === undefined) return undefined;
-  if (isUiLocale(value)) return value;
-  throw new Error(getLCodeCopy().cli.errors.localeUnsupported(value));
-};
-
-const normalizePromptMode = (value: string | undefined): CliPermissionMode | undefined => {
-  if (value === undefined) return undefined;
-  const mode = value.toLowerCase();
-  if (mode === "build" || mode === "plan" || mode === "edit" || mode === "yolo") return mode;
-  throw new Error(`Unsupported --mode value: ${value}. Supported modes: build, edit, plan, yolo.`);
-};
-
-const normalizeBrowserUse = (value: string | undefined): GlobalOptions["browserUse"] => {
-  if (value === undefined) return undefined;
-  if (value.toLowerCase() === "headless") return "headless";
-  throw new Error(`Unsupported --browser-use value: ${value}. Supported value: headless.`);
-};
-
-const normalizePresentationSurface = (value: string | undefined): PresentationSurface => {
-  if (value === undefined || value.toLowerCase() === "terminal") return "terminal";
-  if (value.toLowerCase() === "desktop") return "lcode_desktop";
-  throw new Error(`Unsupported --surface value: ${value}. Supported surfaces: terminal, desktop.`);
-};
-
-const normalizeTargetRequest = (
-  values: ReturnType<typeof parseGlobalArgs>["values"],
-): CliTargetRequest | undefined => {
-  const rawTarget = values.target as string | undefined;
-  const replaceExisting = values["target-replace"] === true;
-  if (rawTarget === undefined) {
-    if (replaceExisting) {
-      throw new Error(TARGET_REPLACE_REQUIRES_TARGET_ERROR);
-    }
-    return undefined;
-  }
-
-  const objective = rawTarget.trim();
-  if (objective.length === 0) {
-    throw new Error(EMPTY_TARGET_ERROR);
-  }
-
-  return {
-    objective,
-    replaceExisting,
-  };
-};
-
-const buildHeadlessTargetCommand = (targetRequest: CliTargetRequest): string =>
-  targetRequest.replaceExisting
-    ? `/goal replace ${targetRequest.objective}`
-    : `/goal ${targetRequest.objective}`;
-
 const writeHelp = (
   stdout: NodeJS.WriteStream,
   locale?: UiLocale,
   detectedLocale?: GlobalOptions["detectedLocale"],
 ): void => {
   stdout.write(formatCliHelp(version, locale, detectedLocale));
-};
-
-const runDoctor = (ctx: RunContext, options: GlobalOptions, workingDirectory: string): number => {
-  const runtime = getRuntimeInfo();
-  const payload = {
-    cli: {
-      name: CLI_COMMAND_NAME,
-      processName: CLI_PROCESS_NAME,
-      version,
-    },
-    runtime: {
-      arch: runtime.arch,
-      cwd: workingDirectory,
-      execPath: runtime.execPath,
-      node: runtime.node,
-      platform: runtime.platform,
-      processTitle: process.title,
-      sea: runtime.sea,
-    },
-    packaging: {
-      default: "node-bundle",
-      sea: "optional",
-    },
-  };
-
-  if (options.json) {
-    ctx.stdout.write(formatJson(payload));
-    return 0;
-  }
-
-  const colors = supportsColor(ctx.stdout, options.noColor);
-  ctx.stdout.write(`${color.bold("lcode doctor", colors)}\n`);
-  ctx.stdout.write(`version: ${payload.cli.version}\n`);
-  ctx.stdout.write(`process: ${payload.runtime.processTitle}\n`);
-  ctx.stdout.write(`node: ${payload.runtime.node}\n`);
-  ctx.stdout.write(`platform: ${payload.runtime.platform}/${payload.runtime.arch}\n`);
-  ctx.stdout.write(`sea: ${payload.runtime.sea ? "yes" : "no"} (${payload.packaging.sea})\n`);
-  ctx.stdout.write(`default artifact: ${payload.packaging.default}\n`);
-
-  if (options.verbose) {
-    ctx.stdout.write(`execPath: ${payload.runtime.execPath}\n`);
-    ctx.stdout.write(`cwd: ${payload.runtime.cwd}\n`);
-  }
-
-  return 0;
 };
 
 const runLCodeProtocolCommand = async (
@@ -532,7 +373,7 @@ export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<
         parsed.values["prepare-storage"] === true,
       );
     case "doctor":
-      return runDoctor(ctx, options, workingDirectory);
+      return runDoctor(ctx, options, workingDirectory, version);
     case "login":
       return await runLoginCommand(
         ctx,

@@ -5,6 +5,7 @@ import type {
 } from "@lcode/shared/lcode-protocol-v4";
 import type { WorkflowCausalityGraphData } from "@/components/workflow-graph/types.js";
 import { buildWorkflowTimeline } from "@/components/workflow-timeline/timeline-model.js";
+import { workflowProjectionDisplay } from "@/components/workflow-timeline/timeline-activity.js";
 import { workflowSubagentModelCardLabel } from "@/components/workflow-timeline/subagent-model-label.js";
 import { workflowSummaryParts } from "@/components/workflow-timeline/timeline-summary.js";
 import { WorkflowRunArtifactsSection } from "@/app-shell/WorkflowRunArtifactsSection.js";
@@ -143,8 +144,8 @@ const WorkflowRunContent = memo(function WorkflowRunContent({
 
   // 一个模型，三处消费：清单与摘要行都从它出发。
   const model = useMemo(
-    () => (graph === undefined ? undefined : buildWorkflowTimeline(graph, run)),
-    [graph, run],
+    () => (graph === undefined ? undefined : buildWorkflowTimeline(graph, run, workflowProjectionDisplay({ status: state.status, syncing: state.syncing }))),
+    [graph, run, state.status, state.syncing],
   );
   // 子代理模型：状态头第一行不再摆芯片，
   // 模型名成了摘要行的第一段——这一行本来就是「这条 run 的几个数」。强度与规范串进 tooltip。

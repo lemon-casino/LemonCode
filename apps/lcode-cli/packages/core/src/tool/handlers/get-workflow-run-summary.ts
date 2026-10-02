@@ -92,9 +92,9 @@ function stepsClause(run: WorkflowRunSummaryFacts, terminal: boolean): string {
   const leftover = run.health.leftoverRunning;
   if (terminal && leftover !== undefined && leftover > 0) {
     // 进程死在这些步下面：它们不是「在跑」，而是一具尸体上的标记——读者据此知道恢复会重派它们。
-    return `${settled} of ${run.usage.nodesObserved} dispatched steps settled; ${leftover} ${
+    return `${settled} of ${run.usage.nodesObserved} observed steps settled; ${leftover} ${
       leftover === 1 ? "was" : "were"
-    } still running when the owning process exited and will be re-dispatched on resume`;
+    } unfinished when the run stopped; eligible work is reconsidered only on explicit resume`;
   }
   if (terminal) {
     const failed = run.usage.nodesFailed > 0 ? `, ${run.usage.nodesFailed} failed` : "";
@@ -102,18 +102,16 @@ function stepsClause(run: WorkflowRunSummaryFacts, terminal: boolean): string {
       run.usage.spentTokens,
     )} tokens`;
   }
-  const running =
-    run.usage.nodesRunning > 0 ? `, ${run.usage.nodesRunning} running${runningBreakdown(run)}` : "";
-  return `${settled} of ${run.usage.nodesObserved} dispatched steps settled${running}`;
+  // running 行在 admission 时就存在，只代表未结算，不能把排队项计成实际执行。
+  const unfinished = run.usage.nodesRunning > 0 ? `, ${run.usage.nodesRunning} unsettled` : "";
+  return `${settled} of ${run.usage.nodesObserved} observed steps settled${unfinished}${runningBreakdown(run)}`;
 }
 
 /**
  * 在飞那几步分别在干什么（花名册的相位计数）。花名册读不出时整个括号不出现。
  *
- * **不变式**：一个处在活相位的子代理（`executing` / `waiting` / `parked`）名下恰有一条还标着
- * `running` 的 ask 行——`waiting` 是那条 ask 在等槽位或在退避，`parked` 是它停在一个问题上，
- * 两者的行都还没结算。所以这三个数是 `usage.nodesRunning` 的一个**划分**，加起来必须等于它。
- * 括号里的数与括号外的数对不上，只可能是造数据的人手搓了一份现实中不存在的 journal。
+ * 名册按 actor 取当前队首，journal 的 nodesRunning 还包含该 actor 后续排队项。
+ * 这里按子代理计数，不能宣称它们是全部未结算节点的划分。
  */
 function runningBreakdown(run: WorkflowRunSummaryFacts): string {
   const counts = { executing: 0, waiting: 0, parked: 0 };
@@ -125,7 +123,7 @@ function runningBreakdown(run: WorkflowRunSummaryFacts): string {
   const parts = (Object.keys(counts) as (keyof typeof counts)[])
     .filter((key) => counts[key] > 0)
     .map((key) => `${counts[key]} ${key}`);
-  return parts.length === 0 ? "" : ` (${parts.join(", ")})`;
+  return parts.length === 0 ? "" : ` (agents: ${parts.join(", ")})`;
 }
 
 /**

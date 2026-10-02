@@ -62,6 +62,24 @@ export function mintActorSessionId(runId: string, actor: ActorRef): SessionId {
   );
 }
 
+/** journal 身份漂移会让恢复读错会话；必须在构造 runtime 或复制转录之前拒绝。 */
+export function resolveActorSessionId(
+  runId: string,
+  actor: ActorRef,
+  journaledSessionId: string | undefined,
+): SessionId {
+  const sessionId = mintActorSessionId(runId, actor);
+  if (journaledSessionId !== undefined && journaledSessionId !== sessionId) {
+    throw new WorkflowError(
+      "DriverError",
+      `Subagent session identity mismatch for ${refToString(actor)}: the journaled session ` +
+        `id and the minted one differ.`,
+      { mismatch: { expected: journaledSessionId, got: sessionId } },
+    );
+  }
+  return sessionId;
+}
+
 /**
  * 把任意串折叠进 `[A-Za-z0-9.\-_]`，其中 `_` 只作为转义输出出现。
  *

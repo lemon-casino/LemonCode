@@ -31,6 +31,9 @@ import {
   type SessionId,
   type ToolCallScheduledPayload,
   type ToolCallStartedPayload,
+  type ToolCallResultPayload,
+  type ToolCallErrorPayload,
+  type ToolCallProgressPayload,
 } from "@lcode/contracts";
 import type { AgentRuntime } from "@lcode/core";
 import type { AskLastTool } from "@lcode/dynamic-workflow";
@@ -42,6 +45,7 @@ import { summarizeToolCall } from "./workflow-driver-tool-target.js";
  * 溢出时丢最老的一手（Map 按插入序遍历）：新的调用才是「它正在做什么」的答案。
  */
 const MAX_PENDING_SCHEDULED_CALLS = 64;
+const MAX_RECENT_COMPLETED_CALLS = 256;
 
 /** 一个 ask 内观察到的工具调用计数（`AskStats` 的两个字段就是它）。 */
 export interface ActorToolCounts {
@@ -58,14 +62,24 @@ interface ActorToolActivity {
   counts(): ActorToolCounts;
   /** 本 ask 至今**最近**一次真正开跑的工具调用；一次都没有时缺席。 */
   lastTool(): AskLastTool | undefined;
-  /** 订阅 runtime 的 `ToolCallStarted` 会话事件；最小 stub runtime 没有 subscribeEvents 时空操作。 */
+  /** 消费已通过 ask/turn 归属检查的工具事件；计数与 cache gate 仍由本对象唯一拥有。 */
+  consume(event: SessionEvent): void;
+  /** 订阅 runtime 的工具会话事件；最小 stub runtime 没有 subscribeEvents 时空操作。 */
   observe(runtime: AgentRuntime, sessionId: SessionId): void;
   unsubscribe(): void;
+}
+
+export interface ActorToolObservation {
+  phase: "started" | "progress" | "completed";
+  toolCallId: string;
+  toolName?: string;
+  timestamp: Date;
 }
 
 export function createActorToolActivity(handlers: {
   /** 当前 ask 的子代理即将执行一个会改写工作区的工具（每个 ask 至多一次）。 */
   onMutating(): void;
+  onActivity?(activity: ActorToolObservation): void;
 }): ActorToolActivity {
   let reported = false;
   let toolCalls = 0;
@@ -73,7 +87,66 @@ export function createActorToolActivity(handlers: {
   let lastTool: AskLastTool | undefined;
   /** toolCallId → scheduled 时的名字与入参，等 started 来认领。 */
   const scheduled = new Map<string, ToolCallSummaryHold>();
+  const completed = new Set<string>();
+  const active = new Map<string, string | undefined>();
   let unsubscribeEvents: (() => void) | undefined;
+  const consume = (event: SessionEvent): void => {
+    if (event.type === SessionEventType.ToolCallScheduled) {
+      holdScheduled(scheduled, event.payload as ToolCallScheduledPayload);
+      return;
+    }
+    if (event.type === SessionEventType.ToolCallStarted) {
+      const capability = event.payload as ToolCallStartedPayload;
+      const id = String(capability.toolCallId);
+      // 重复 started 不能膨胀统计；保留原 cache gate，不能把活动摘要变成第二份副作用账。
+      if (active.has(id) || completed.has(id)) return;
+      const hold = scheduled.get(id);
+      scheduled.delete(id);
+      const summary = summarizeToolCall({
+        ...(hold === undefined ? {} : { input: hold.input }),
+        toolName: capability.toolName ?? hold?.toolName,
+      });
+      lastTool = summary ?? lastTool;
+      active.set(id, summary?.name);
+      toolCalls++;
+      if (isWorldTouchingToolCall(capability)) worldToolCalls++;
+      if (isWorkspaceMutatingToolCall(capability) && !reported) {
+        reported = true;
+        handlers.onMutating();
+      }
+      handlers.onActivity?.({
+        phase: "started",
+        toolCallId: id,
+        toolName: summary?.name,
+        timestamp: event.timestamp,
+      });
+      return;
+    }
+    if (
+      event.type !== SessionEventType.ToolCallResult &&
+      event.type !== SessionEventType.ToolCallError &&
+      event.type !== SessionEventType.ToolCallProgress
+    )
+      return;
+    const payload = event.payload as
+      | ToolCallResultPayload
+      | ToolCallErrorPayload
+      | ToolCallProgressPayload;
+    const id = String(payload.toolCallId);
+    if (!active.has(id)) return;
+    const name = active.get(id);
+    const phase = event.type === SessionEventType.ToolCallProgress ? "progress" : "completed";
+    if (phase === "completed") {
+      active.delete(id);
+      completed.add(id);
+      while (completed.size > MAX_RECENT_COMPLETED_CALLS) {
+        const oldest = completed.values().next().value;
+        if (oldest === undefined) break;
+        completed.delete(oldest);
+      }
+    }
+    handlers.onActivity?.({ phase, toolCallId: id, toolName: name, timestamp: event.timestamp });
+  };
   return {
     reset: () => {
       reported = false;
@@ -81,33 +154,17 @@ export function createActorToolActivity(handlers: {
       worldToolCalls = 0;
       lastTool = undefined;
       scheduled.clear();
+      completed.clear();
+      active.clear();
     },
     counts: () => ({ toolCalls, worldToolCalls }),
     lastTool: () => lastTool,
+    consume,
     observe: (runtime, sessionId) => {
       if (typeof (runtime as Partial<AgentRuntime>).subscribeEvents !== "function") return;
       unsubscribeEvents = runtime.subscribeEvents({
         onSessionEvent: (event: SessionEvent) => {
-          if (event.sessionId !== sessionId) return;
-          if (event.type === SessionEventType.ToolCallScheduled) {
-            holdScheduled(scheduled, event.payload as ToolCallScheduledPayload);
-            return;
-          }
-          if (event.type !== SessionEventType.ToolCallStarted) return;
-          const capability = event.payload as ToolCallStartedPayload;
-          const hold = scheduled.get(String(capability.toolCallId));
-          scheduled.delete(String(capability.toolCallId));
-          lastTool =
-            summarizeToolCall({
-              ...(hold === undefined ? {} : { input: hold.input }),
-              toolName: capability.toolName ?? hold?.toolName,
-            }) ?? lastTool;
-          toolCalls++;
-          if (isWorldTouchingToolCall(capability)) worldToolCalls++;
-          if (!isWorkspaceMutatingToolCall(capability)) return;
-          if (reported) return;
-          reported = true;
-          handlers.onMutating();
+          if (event.sessionId === sessionId) consume(event);
         },
       });
     },

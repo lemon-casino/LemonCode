@@ -3,10 +3,13 @@ import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatCompactTokenNumber } from "@/lib/tokenNumberFormat.js";
 import { readChildSessionTokenTotal, readLiveOutputObservation } from "./sessionTokenStats.js";
 import { useLiveOutputRate } from "./useLiveOutputRate.js";
+import { readSessionOutputSpeed } from "./sessionOutputSpeed.js";
+import { SessionOutputSpeedValue } from "./SessionOutputSpeedValue.js";
 
 export function ReadOnlySessionTokenStats({ snapshot }: { snapshot: ConversationSnapshot }) {
   const { intl, locale } = useLCodeIntl();
   const rate = useLiveOutputRate(snapshot);
+  const outputSpeed = readSessionOutputSpeed(snapshot, rate);
   const currentOutput = readLiveOutputObservation(snapshot)?.sample.estimatedTokens ?? null;
   const total = readChildSessionTokenTotal(snapshot);
   return (
@@ -37,14 +40,7 @@ export function ReadOnlySessionTokenStats({ snapshot }: { snapshot: Conversation
           </strong>
         </span>
       )}
-      {rate === null ? null : (
-        <span title={intl.formatMessage({ id: "chat.sessionUsage.speed" })}>
-          {intl.formatMessage({ id: "chat.sessionUsage.speed" })}{" "}
-          <strong className="font-mono font-medium tabular-nums text-foreground">
-            {formatCompactTokenNumber(locale, rate)} token/s
-          </strong>
-        </span>
-      )}
+      <SessionOutputSpeedValue speed={outputSpeed} intl={intl} locale={locale} />
     </div>
   );
 }

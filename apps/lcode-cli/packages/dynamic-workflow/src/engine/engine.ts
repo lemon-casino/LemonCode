@@ -36,6 +36,7 @@ import {
 import type {
   ActorId,
   ArtifactRef,
+  AskActivity,
   AskProgress,
   AskSpec,
   AskStats,
@@ -580,6 +581,12 @@ export class WorkflowEngine implements WorkflowHostApi, WorkflowReportSink {
   askProgress(instance: InstanceRef, progress: AskProgress): void {
     if (this.runSettled || !this.scheduler.isLive(instance)) return;
     this.record({ type: "node-progress", instance, ...progress });
+  }
+
+  /** 活动只走现有观察漏斗；旧尝试、暂停与终态不能被迟到事件重新点亮。 */
+  askActivity(instance: InstanceRef, activity: AskActivity): void {
+    if (this.runSettled || !this.scheduler.isLive(instance)) return;
+    this.record({ type: "node-activity", instance, activity });
   }
 
   askStats(instance: InstanceRef, stats: AskStats): void {

@@ -27,6 +27,7 @@ export interface SavedWorkflowWorkspaceState {
   /** 扫过的目录（本地绝对路径），全局组据此 watch；未加载或列表未回时为 null。 */
   dir: string | null;
   loading: boolean;
+  /** 至少完成一次请求（含失败），让页级 spinner 不遮住错误；成功与否看 error。 */
   loaded: boolean;
   error: string | null;
   /** 列表调用的 JSON-RPC 错误码（有则填）；全局组用 -32602 区分「旧 agent 不支持」与其他错误。 */
@@ -110,6 +111,8 @@ export const useSavedWorkflowStore = create<SavedWorkflowStoreState>((set) => ({
     }));
     const request = fetchWorkspace(target, agentService)
       .then(({ list, runs }) => {
+        // bypass 刷新会替换请求身份；旧扫描的列表或错误都不能覆盖新结果或提前结束 loading。
+        if (inFlight.get(key) !== request) return;
         set((state) => ({
           byWorkspaceKey: {
             ...state.byWorkspaceKey,
@@ -127,6 +130,7 @@ export const useSavedWorkflowStore = create<SavedWorkflowStoreState>((set) => ({
         }));
       })
       .catch((error: unknown) => {
+        if (inFlight.get(key) !== request) return;
         const message = error instanceof Error ? error.message : String(error);
         logger.warn("[savedWorkflowStore] 拉取已保存工作流失败", { error: message });
         set((state) => ({
@@ -149,6 +153,17 @@ export const useSavedWorkflowStore = create<SavedWorkflowStoreState>((set) => ({
     return request;
   },
 }));
+
+// loaded 包含失败；数组为空也可能是初载、刷新或坏文件，不能单凭它们宣称目录为空。
+export function isSavedWorkflowListEmpty(state: SavedWorkflowWorkspaceState): boolean {
+  return (
+    state.loaded &&
+    !state.loading &&
+    state.error === null &&
+    state.entries.length === 0 &&
+    state.invalid.length === 0
+  );
+}
 
 export function selectSavedWorkflowState(
   state: SavedWorkflowStoreState,

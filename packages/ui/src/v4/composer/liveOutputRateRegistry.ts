@@ -11,6 +11,7 @@ import {
 
 interface SessionRate {
   turnKey: string;
+  requestId: string | null;
   tracker: LiveOutputTracker | null;
   rate: number | null;
 }
@@ -35,7 +36,11 @@ export class LiveOutputRateRegistry {
   read(snapshot: ConversationSnapshot | null | undefined): number | null {
     if (!snapshot || !isLiveOutputPhase(snapshot.control.phase)) return null;
     const entry = this.rates.get(snapshot.sessionId);
-    return entry && entry.turnKey === readTurnKey(snapshot) ? entry.rate : null;
+    return entry &&
+      entry.turnKey === readTurnKey(snapshot) &&
+      entry.requestId === (snapshot.usage?.modelOutput?.activeRequestId ?? null)
+      ? entry.rate
+      : null;
   }
 
   observe(snapshot: ConversationSnapshot, at = Date.now()): void {
@@ -51,22 +56,25 @@ export class LiveOutputRateRegistry {
 
     const previous = this.rates.get(snapshot.sessionId);
     const sameTurn = previous?.turnKey === turnKey;
+    const requestId = snapshot.usage?.modelOutput?.activeRequestId ?? null;
+    // 新请求尚无可见增量时不能把上一请求的保留读数称为实时；旧协议无请求事实仍兼容。
+    const sameRequest = sameTurn && previous.requestId === requestId;
     const observation = readLiveOutputObservation(snapshot);
     const tracker = observation
-      ? recordStreamingOutputSample(sameTurn ? previous.tracker : null, observation.sample, at)
-      : sameTurn
+      ? recordStreamingOutputSample(sameRequest ? previous.tracker : null, observation.sample, at)
+      : sameRequest
         ? previous.tracker
         : null;
     const measured = observation ? readStreamingOutputRate(tracker, at) : null;
-    const rate = retainObservedOutputRate(sameTurn ? previous.rate : null, measured);
+    const rate = retainObservedOutputRate(sameRequest ? previous.rate : null, measured);
     this.rates.delete(snapshot.sessionId);
-    this.rates.set(snapshot.sessionId, { turnKey, tracker, rate });
+    this.rates.set(snapshot.sessionId, { turnKey, requestId, tracker, rate });
     // Bug 原因：切换 pane 会销毁局部 hook 的采样器；按连接保留有界会话状态，
     // 但不为了计速延长 SessionDataLayer 的订阅或缓存历史终态。
     if (this.rates.size > this.maxSessions) {
       this.rates.delete(this.rates.keys().next().value!);
     }
-    if (!sameTurn || previous.rate !== rate) this.notify();
+    if (!sameRequest || previous.rate !== rate) this.notify();
   }
 
   invalidate(sessionId: string): void {

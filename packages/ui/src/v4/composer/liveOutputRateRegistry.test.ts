@@ -72,6 +72,24 @@ test("terminal, new turn and reconnect clear the previous run, not another sessi
   assert.equal(rates.read(liveSnapshot("b", "turn-next", 13)), null);
 });
 
+test("新协议按请求隔离可见采样，新请求不能复用旧速度", () => {
+  const rates = new LiveOutputRateRegistry();
+  const request = (id: string | null, tokens: number, responseId = "response-1") =>
+    ({
+      ...liveSnapshot("a", "turn-a", tokens, { responseId }),
+      usage: { modelOutput: { turnId: "turn-a", activeRequestId: id, lastRequest: null } },
+    }) as ConversationSnapshot;
+  rates.observe(request("request-1", 1), 1_000);
+  rates.observe(request("request-1", 13), 1_600);
+  assert.equal(rates.read(request("request-1", 13)), 20);
+  assert.equal(rates.read(request("request-2", 13)), null);
+  rates.observe(request(null, 13), 1_700);
+  rates.observe(request("request-2", 1, "response-2"), 1_800);
+  assert.equal(rates.read(request("request-2", 1, "response-2")), null);
+  rates.observe(request("request-2", 7, "response-2"), 2_400);
+  assert.equal(rates.read(request("request-2", 7, "response-2")), 10);
+});
+
 test("offscreen gap keeps the last rate but starts a fresh measurement window", () => {
   const rates = new LiveOutputRateRegistry();
   rates.observe(liveSnapshot("a", "turn-a", 1), 1_000);

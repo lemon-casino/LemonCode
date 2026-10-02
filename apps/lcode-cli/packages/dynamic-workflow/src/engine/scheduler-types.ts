@@ -94,6 +94,8 @@ export interface AskNode {
   settled: boolean;
   dispatched: boolean;
   paused?: boolean;
+  /** 只去重排队观察；不作为准入、派发或恢复的依据，重试不能沿用上一尝试。 */
+  lastAdmission?: Extract<RunEvent, { type: "node-admission"; cause: "actor-fifo" | "run-capacity" }>;
   lastStats?: AskStats;
 }
 

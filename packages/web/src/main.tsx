@@ -71,10 +71,7 @@ function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): The
         : saved === "light"
           ? "zai-light"
           : saved;
-  document.documentElement.classList.toggle(
-    "dark",
-    BOOTSTRAP_THEME_BASES[appliedTheme] === "dark",
-  );
+  document.documentElement.classList.toggle("dark", BOOTSTRAP_THEME_BASES[appliedTheme] === "dark");
   // toggle 其余 theme-* 为 false 等价清空，防 SPA 内重放引导时残留上一个主题类。
   for (const themeId of Object.keys(BOOTSTRAP_THEME_BASES)) {
     document.documentElement.classList.toggle(`theme-${themeId}`, themeId === appliedTheme);
@@ -209,6 +206,10 @@ async function renderConversationSharePage(): Promise<void> {
 function createWebPlatform(): IPlatformService {
   return {
     canSelectFilePath: false,
+    async writeClipboardText(text) {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard is unavailable");
+      await navigator.clipboard.writeText(text);
+    },
     // Web 端无法打开系统目录选择框
     selectDirectory: () => Promise.resolve(null),
     // Web 端无法打开系统文件选择框

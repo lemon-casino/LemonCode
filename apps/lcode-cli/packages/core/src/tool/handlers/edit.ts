@@ -431,7 +431,11 @@ function getEditableReadStateFailure(
   }
 
   if (!hasReadStateChanged(lastRead, currentRead)) return undefined;
-  if (isStrictFullRead(lastRead) && lastRead.content === currentRead.content) return undefined;
+  if (
+    isStrictFullRead(lastRead) &&
+    normalizeLineEndings(lastRead.content) === normalizeLineEndings(currentRead.content)
+  )
+    return undefined;
 
   return editFailure(EditErrorCode.STALE_FILE, EDIT_STALE_MESSAGE);
 }
@@ -445,6 +449,12 @@ function hasReadStateChanged(
   lastRead: ReadFileStateEntry,
   currentRead: FileSystemReadTextResult,
 ): boolean {
+  // 外部编辑可保留 mtime/size；完整已读正文必须先比较，不能用刚读到的新 hash 替旧模型授权覆盖。
+  if (
+    isStrictFullRead(lastRead) &&
+    normalizeLineEndings(lastRead.content) !== normalizeLineEndings(currentRead.content)
+  )
+    return true;
   const currentMtimeMs = currentRead.revision?.mtimeMs;
   if (lastRead.mtimeMs !== undefined && currentMtimeMs !== undefined) {
     // 亚毫秒级精度，只在当前文件的整数毫秒晚于 Read 记录或大小变化时判 stale，减少误报。
@@ -513,7 +523,8 @@ async function writeEditResult(input: {
       lineEndings: input.read?.lineEndings ?? detectLineEndings(input.originalFile),
       createParents: true,
       atomic: true,
-      expectedRevision: input.read?.revision,
+      // 新建分支只有缺失 stat，提交时仍须不存在，避免覆盖检查后由其他 writer 新建的文件。
+      ...(input.read ? { expectedRevision: input.read.revision } : { expectedMissing: true }),
       trace: createEditTrace(input.context),
     },
     { signal: input.context.abortSignal },

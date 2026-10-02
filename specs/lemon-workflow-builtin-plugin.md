@@ -114,6 +114,8 @@ prod/lockfile 双图校验，通过逐 workspace 查询降低同时打开的文�
 - `skills/dynamic-workflows/examples.md`
 - `skills/dynamic-workflows/patterns.md`
 
+Desktop 共享 staging 同时暂存 `lemon-workflow-plugin` 和仓库自研的 `lcode-cua-plugin`。隔离测试必须从仓库源码准备两个完整内容包，包含各自的隐藏 manifest 目录，不能只拷贝 lemon 后调用完整 staging，也不能从用户插件缓存补齐 Computer Use。正向验收逐文件比较暂存内容与源码；任一 Computer Use 必需资源缺失时，仍须由原 staging 校验明确拒绝，不把插件改成可选或创建空占位文件。
+
 ## 验收场景
 
 1. 全新用户目录启动源码或安装包，无需 `/reload-plugins` 即可发现 `/lemon` 和三个技能。
@@ -135,3 +137,10 @@ prod/lockfile 双图校验，通过逐 workspace 查询降低同时打开的文�
     Ponytail actor，不用完整 skill 文本膨胀每个子会话，且安全、错误处理、无障碍和要求的验证不被删除。
 12. Caveman 只精简用户可见的进度和短摘要；子 actor 之间的 typed result、证据、精确错误、安全警告、
     详细报告与 artifact 不压缩。workflow 不新增 Caveman actor，不启动 proxy 或 hook。
+13. 完整 Desktop staging 的隔离夹具包含仓库内 lemon 和 Computer Use；两包必需文件暂存后与源码逐字节一致，任一 CUA 必需文件缺失时拒绝而不是读取用户缓存。
+
+## 暂存夹具修复记录（2026-10-02）
+
+此前失败路径是临时仓库中的 `apps/lcode-cli/packages/lcode-cua-plugin/.lcode-plugin/plugin.json`；仓库自研插件本身的四项必需资源齐全。修复 `scripts/lemon-workflow-builtin.test.mjs` 的双插件输入准备，将 CUA 暂存完整性和缺失拒绝用例拆到 `scripts/computer-use-plugin-staging-cases.mjs`，由既有 `computer-use-plugin-builtin.test.mjs` 导入，原执行入口保持不变。生产 SDK、Helper 和 staging 校验未改。
+
+实际运行 `node --import tsx --test scripts/lemon-workflow-builtin.test.mjs scripts/computer-use-plugin-builtin.test.mjs`：26/26 通过，0 skip。根 `pnpm typecheck`、`pnpm lint` 和 `pnpm architecture:check --changed` 通过；三个测试文件定向格式检查通过。测试仅用隔离目录和受控 bridge，不等同实际桌面动作、安装或发布验收。

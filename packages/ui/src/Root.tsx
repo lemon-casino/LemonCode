@@ -482,6 +482,7 @@ function RootInner({
     handleCreateConversationTask,
     handleOpenWorkspace,
     handleCreateLocalProject,
+    handleRemoveLocalProject,
     handleCreateScratchWorkspace,
     handleCreateTask,
     handleBackFromSettings,
@@ -1056,6 +1057,7 @@ function RootInner({
             handleResolveConversationWorkspace={handleResolveConversationWorkspace}
             handleOpenWorkspace={handleOpenWorkspace}
             handleCreateLocalProject={handleCreateLocalProject}
+            handleRemoveLocalProject={handleRemoveLocalProject}
             localProjects={appSettings?.localProjects ?? []}
             handleOpenRemoteWorkspace={
               allowRemoteWorkspace ? handleOpenRemoteConnection : undefined

@@ -17,6 +17,10 @@ export function createDesktopPlatform(options: {
 }): IPlatformService {
   return {
     canSelectFilePath: true,
+    async writeClipboardText(text) {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard is unavailable");
+      await navigator.clipboard.writeText(text);
+    },
     createLocalMediaPreviewUrl: buildLocalMediaPreviewUrl,
     isLocalDevelopmentRuntime: options.isLocalDevelopmentRuntime,
     selectDirectory: () => window.lcode.selectDirectory(),

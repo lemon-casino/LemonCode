@@ -133,6 +133,7 @@ export function ConversationWorkflowDigests({
             : undefined;
         const card = (
           <WorkflowRunDigest
+            {...(context.workflowDisplay === undefined ? {} : { display: context.workflowDisplay })}
             graph={digest.graph}
             key={digest.key}
             name={name}

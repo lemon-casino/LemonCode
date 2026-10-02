@@ -1,0 +1,3501 @@
+{
+  "schemaVersion": 1,
+  "benchmarkVersion": 1,
+  "date": "2026-10-02",
+  "status": "completed",
+  "settings": {
+    "selection": {
+      "providerId": "new-provider-2",
+      "modelId": "gpt-6-astra",
+      "options": {
+        "reasoningLevel": "max",
+        "speed": "fast"
+      }
+    },
+    "maxOutputTokens": 5000,
+    "armTimeoutMs": 600000,
+    "pairOrders": [
+      "AB",
+      "BA",
+      "AB",
+      "BA",
+      "AB"
+    ],
+    "plannedLogicalRequests": 30,
+    "armA": "old_serial_A_then_B_then_C",
+    "armB": "early_parallel_A_and_B_then_C",
+    "tools": [],
+    "resultCache": false,
+    "outputRetention": "in_memory_only",
+    "ttfdDefinition": "first_engine_node_settled_ok_after_exact_synthetic_validation",
+    "totalDefinition": "engine_construction_to_final_validation_and_settlement_monotonic_ms",
+    "requestDurationDefinition": "adapter duration includes attempt setup/admission; observed request duration is started-to-terminal",
+    "backoffDefinition": "scheduled delay only; actual sleep not instrumented",
+    "reasoningUsageDefinition": "subset_of_output_never_added_to_total",
+    "fixtures": [
+      {
+        "pair": 1,
+        "fingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "6d8074df04728511eeb019d05ea00e8c2dbd3004e09d275b0593d1e10f3edfe3",
+            "expectedSha256": "252d6d9638c2729bc382bd9038099b7f8fab5f4d2064224ea39e1b42826db2db"
+          },
+          {
+            "task": "B",
+            "promptSha256": "755cb4253856644ca9c6c36cb5f7ef4e976ec0c9c2fc9c3941ff4577799cc453",
+            "expectedSha256": "b6da12240d9e7acc3005c1158b0c4225311bdc5da63cc97f698cb343b0669d73"
+          },
+          {
+            "task": "C",
+            "promptSha256": "55ac0a0b9f1b2b97071f6c1bfd50342f70a2a60033e3a770b373d9586fa81853",
+            "expectedSha256": "a22fcde33a305ed9f3493d2994751293c234cabbb594cb8e1a836c392c44140f"
+          }
+        ]
+      },
+      {
+        "pair": 2,
+        "fingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "c5829f95c127cd1194d14f9d9700e9090fb3970234b9fe63b8607790eb23072f",
+            "expectedSha256": "ef030de4eb2869da7299ea0b333b9fd0b32f7bb1b03a67af7b914b943f85526e"
+          },
+          {
+            "task": "B",
+            "promptSha256": "159b02c1b5144f7f2e720e7a0b778cb32c06aec7839b46c2880033e1e9e82118",
+            "expectedSha256": "225534afdad0160100d311ba75700d4eb0cdca7481634a92f451dd2d5e3ed63e"
+          },
+          {
+            "task": "C",
+            "promptSha256": "eba248f88c4cc0499718269ae72e41b9e549301df546dc3c9c5f4fe4d05c10c9",
+            "expectedSha256": "fc39bd0ce36cea974fcf5b0573ee172bceea5c8ee5c9fdc7585be8307295a891"
+          }
+        ]
+      },
+      {
+        "pair": 3,
+        "fingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "507b4213fc3947ad90a58813333a72f75dddca26d5b034b9edd728ad84164c39",
+            "expectedSha256": "4d0028999b13aa24c60b9b0e677cb1b3900e38498d56a10bfe46c7a4dae2a5ae"
+          },
+          {
+            "task": "B",
+            "promptSha256": "94f829cb2e19e13bf746925969da328abbe257615a09ca3031a285de012e15d7",
+            "expectedSha256": "3b890bf148a0a0126583eb39e7113c29517671f2fade74515bdf971713e48e0b"
+          },
+          {
+            "task": "C",
+            "promptSha256": "062903fbcc24e294424d348b1dca95fff97ebb8d457b1eff8e8c7042a8805652",
+            "expectedSha256": "dc1587a6aec5c6c186b674fe6f4fdcc46499a722e7812f5e301d7b63f67989c9"
+          }
+        ]
+      },
+      {
+        "pair": 4,
+        "fingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "681679a3612e3d63503d1032b286306a602d32e56164de5a1c5979b7936e06b3",
+            "expectedSha256": "f73ef2a61f153ecd0a77f0f35e6f3c37473f34f89374532f4e0cc184895a2633"
+          },
+          {
+            "task": "B",
+            "promptSha256": "cc59c87526207767037721f295ed227288ffb2ec3ea5d7f86565387e8ce3b92a",
+            "expectedSha256": "7f4e593448c137081c8231c7e2d9c91ee9eecdcdb5e81fab745c3a5f1c1b389e"
+          },
+          {
+            "task": "C",
+            "promptSha256": "1a2987a20af9effd42d39dc5d835bb397d8ed677d825d26443c963e8771d3e3c",
+            "expectedSha256": "16daca8623c4a88ebf32bab8c6d3e7bffcc6154fc384e5ea3309fdef704bec5f"
+          }
+        ]
+      },
+      {
+        "pair": 5,
+        "fingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "6bb7ff4a8040e1329a221f08796d37d1db8d6aedb932467975f1b750d144befb",
+            "expectedSha256": "0aadabf891a6be47d96422854fec536e424dd75d51e1cce1c075d7c2bd9a0590"
+          },
+          {
+            "task": "B",
+            "promptSha256": "f9b2dad82c195207ddc3ec6223aedb083301a7986ed92c3ab6f72467d8af550e",
+            "expectedSha256": "04dc0d6ed26a36e4687878791813eb96eaab7c0c95d854180b6e503d5c812e22"
+          },
+          {
+            "task": "C",
+            "promptSha256": "5dc6d0cf890ad81745256bc21cfc18144b051abf39f604cbf057f6c7d19d5299",
+            "expectedSha256": "4f43f830be6712e2fa955c743cdc88c24b80b6917b0e963cd1bccf8574d38d8a"
+          }
+        ]
+      }
+    ]
+  },
+  "preparation": [
+    {
+      "pair": 1,
+      "arm": "A",
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "6d8074df04728511eeb019d05ea00e8c2dbd3004e09d275b0593d1e10f3edfe3",
+            "expectedSha256": "252d6d9638c2729bc382bd9038099b7f8fab5f4d2064224ea39e1b42826db2db"
+          },
+          {
+            "task": "B",
+            "promptSha256": "755cb4253856644ca9c6c36cb5f7ef4e976ec0c9c2fc9c3941ff4577799cc453",
+            "expectedSha256": "b6da12240d9e7acc3005c1158b0c4225311bdc5da63cc97f698cb343b0669d73"
+          },
+          {
+            "task": "C",
+            "promptSha256": "55ac0a0b9f1b2b97071f6c1bfd50342f70a2a60033e3a770b373d9586fa81853",
+            "expectedSha256": "a22fcde33a305ed9f3493d2994751293c234cabbb594cb8e1a836c392c44140f"
+          }
+        ]
+      }
+    },
+    {
+      "pair": 1,
+      "arm": "B",
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "6d8074df04728511eeb019d05ea00e8c2dbd3004e09d275b0593d1e10f3edfe3",
+            "expectedSha256": "252d6d9638c2729bc382bd9038099b7f8fab5f4d2064224ea39e1b42826db2db"
+          },
+          {
+            "task": "B",
+            "promptSha256": "755cb4253856644ca9c6c36cb5f7ef4e976ec0c9c2fc9c3941ff4577799cc453",
+            "expectedSha256": "b6da12240d9e7acc3005c1158b0c4225311bdc5da63cc97f698cb343b0669d73"
+          },
+          {
+            "task": "C",
+            "promptSha256": "55ac0a0b9f1b2b97071f6c1bfd50342f70a2a60033e3a770b373d9586fa81853",
+            "expectedSha256": "a22fcde33a305ed9f3493d2994751293c234cabbb594cb8e1a836c392c44140f"
+          }
+        ]
+      }
+    },
+    {
+      "pair": 2,
+      "arm": "B",
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "c5829f95c127cd1194d14f9d9700e9090fb3970234b9fe63b8607790eb23072f",
+            "expectedSha256": "ef030de4eb2869da7299ea0b333b9fd0b32f7bb1b03a67af7b914b943f85526e"
+          },
+          {
+            "task": "B",
+            "promptSha256": "159b02c1b5144f7f2e720e7a0b778cb32c06aec7839b46c2880033e1e9e82118",
+            "expectedSha256": "225534afdad0160100d311ba75700d4eb0cdca7481634a92f451dd2d5e3ed63e"
+          },
+          {
+            "task": "C",
+            "promptSha256": "eba248f88c4cc0499718269ae72e41b9e549301df546dc3c9c5f4fe4d05c10c9",
+            "expectedSha256": "fc39bd0ce36cea974fcf5b0573ee172bceea5c8ee5c9fdc7585be8307295a891"
+          }
+        ]
+      }
+    },
+    {
+      "pair": 2,
+      "arm": "A",
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "c5829f95c127cd1194d14f9d9700e9090fb3970234b9fe63b8607790eb23072f",
+            "expectedSha256": "ef030de4eb2869da7299ea0b333b9fd0b32f7bb1b03a67af7b914b943f85526e"
+          },
+          {
+            "task": "B",
+            "promptSha256": "159b02c1b5144f7f2e720e7a0b778cb32c06aec7839b46c2880033e1e9e82118",
+            "expectedSha256": "225534afdad0160100d311ba75700d4eb0cdca7481634a92f451dd2d5e3ed63e"
+          },
+          {
+            "task": "C",
+            "promptSha256": "eba248f88c4cc0499718269ae72e41b9e549301df546dc3c9c5f4fe4d05c10c9",
+            "expectedSha256": "fc39bd0ce36cea974fcf5b0573ee172bceea5c8ee5c9fdc7585be8307295a891"
+          }
+        ]
+      }
+    },
+    {
+      "pair": 3,
+      "arm": "A",
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "507b4213fc3947ad90a58813333a72f75dddca26d5b034b9edd728ad84164c39",
+            "expectedSha256": "4d0028999b13aa24c60b9b0e677cb1b3900e38498d56a10bfe46c7a4dae2a5ae"
+          },
+          {
+            "task": "B",
+            "promptSha256": "94f829cb2e19e13bf746925969da328abbe257615a09ca3031a285de012e15d7",
+            "expectedSha256": "3b890bf148a0a0126583eb39e7113c29517671f2fade74515bdf971713e48e0b"
+          },
+          {
+            "task": "C",
+            "promptSha256": "062903fbcc24e294424d348b1dca95fff97ebb8d457b1eff8e8c7042a8805652",
+            "expectedSha256": "dc1587a6aec5c6c186b674fe6f4fdcc46499a722e7812f5e301d7b63f67989c9"
+          }
+        ]
+      }
+    },
+    {
+      "pair": 3,
+      "arm": "B",
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "507b4213fc3947ad90a58813333a72f75dddca26d5b034b9edd728ad84164c39",
+            "expectedSha256": "4d0028999b13aa24c60b9b0e677cb1b3900e38498d56a10bfe46c7a4dae2a5ae"
+          },
+          {
+            "task": "B",
+            "promptSha256": "94f829cb2e19e13bf746925969da328abbe257615a09ca3031a285de012e15d7",
+            "expectedSha256": "3b890bf148a0a0126583eb39e7113c29517671f2fade74515bdf971713e48e0b"
+          },
+          {
+            "task": "C",
+            "promptSha256": "062903fbcc24e294424d348b1dca95fff97ebb8d457b1eff8e8c7042a8805652",
+            "expectedSha256": "dc1587a6aec5c6c186b674fe6f4fdcc46499a722e7812f5e301d7b63f67989c9"
+          }
+        ]
+      }
+    },
+    {
+      "pair": 4,
+      "arm": "B",
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "681679a3612e3d63503d1032b286306a602d32e56164de5a1c5979b7936e06b3",
+            "expectedSha256": "f73ef2a61f153ecd0a77f0f35e6f3c37473f34f89374532f4e0cc184895a2633"
+          },
+          {
+            "task": "B",
+            "promptSha256": "cc59c87526207767037721f295ed227288ffb2ec3ea5d7f86565387e8ce3b92a",
+            "expectedSha256": "7f4e593448c137081c8231c7e2d9c91ee9eecdcdb5e81fab745c3a5f1c1b389e"
+          },
+          {
+            "task": "C",
+            "promptSha256": "1a2987a20af9effd42d39dc5d835bb397d8ed677d825d26443c963e8771d3e3c",
+            "expectedSha256": "16daca8623c4a88ebf32bab8c6d3e7bffcc6154fc384e5ea3309fdef704bec5f"
+          }
+        ]
+      }
+    },
+    {
+      "pair": 4,
+      "arm": "A",
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "681679a3612e3d63503d1032b286306a602d32e56164de5a1c5979b7936e06b3",
+            "expectedSha256": "f73ef2a61f153ecd0a77f0f35e6f3c37473f34f89374532f4e0cc184895a2633"
+          },
+          {
+            "task": "B",
+            "promptSha256": "cc59c87526207767037721f295ed227288ffb2ec3ea5d7f86565387e8ce3b92a",
+            "expectedSha256": "7f4e593448c137081c8231c7e2d9c91ee9eecdcdb5e81fab745c3a5f1c1b389e"
+          },
+          {
+            "task": "C",
+            "promptSha256": "1a2987a20af9effd42d39dc5d835bb397d8ed677d825d26443c963e8771d3e3c",
+            "expectedSha256": "16daca8623c4a88ebf32bab8c6d3e7bffcc6154fc384e5ea3309fdef704bec5f"
+          }
+        ]
+      }
+    },
+    {
+      "pair": 5,
+      "arm": "A",
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "6bb7ff4a8040e1329a221f08796d37d1db8d6aedb932467975f1b750d144befb",
+            "expectedSha256": "0aadabf891a6be47d96422854fec536e424dd75d51e1cce1c075d7c2bd9a0590"
+          },
+          {
+            "task": "B",
+            "promptSha256": "f9b2dad82c195207ddc3ec6223aedb083301a7986ed92c3ab6f72467d8af550e",
+            "expectedSha256": "04dc0d6ed26a36e4687878791813eb96eaab7c0c95d854180b6e503d5c812e22"
+          },
+          {
+            "task": "C",
+            "promptSha256": "5dc6d0cf890ad81745256bc21cfc18144b051abf39f604cbf057f6c7d19d5299",
+            "expectedSha256": "4f43f830be6712e2fa955c743cdc88c24b80b6917b0e963cd1bccf8574d38d8a"
+          }
+        ]
+      }
+    },
+    {
+      "pair": 5,
+      "arm": "B",
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "6bb7ff4a8040e1329a221f08796d37d1db8d6aedb932467975f1b750d144befb",
+            "expectedSha256": "0aadabf891a6be47d96422854fec536e424dd75d51e1cce1c075d7c2bd9a0590"
+          },
+          {
+            "task": "B",
+            "promptSha256": "f9b2dad82c195207ddc3ec6223aedb083301a7986ed92c3ab6f72467d8af550e",
+            "expectedSha256": "04dc0d6ed26a36e4687878791813eb96eaab7c0c95d854180b6e503d5c812e22"
+          },
+          {
+            "task": "C",
+            "promptSha256": "5dc6d0cf890ad81745256bc21cfc18144b051abf39f604cbf057f6c7d19d5299",
+            "expectedSha256": "4f43f830be6712e2fa955c743cdc88c24b80b6917b0e963cd1bccf8574d38d8a"
+          }
+        ]
+      }
+    }
+  ],
+  "arms": [
+    {
+      "pair": 1,
+      "arm": "A",
+      "success": true,
+      "failureReason": null,
+      "engineStatus": "completed",
+      "cleanupCompleted": true,
+      "metrics": {
+        "ttfdMs": 5033.849,
+        "totalMs": 10770.217,
+        "logicalRequests": 3,
+        "requestsStarted": 3,
+        "requestsCompleted": 3,
+        "requestsFailed": 0,
+        "acceptedTasks": 3,
+        "cachedNodes": 0,
+        "tasks": [
+          {
+            "task": "A",
+            "queuedAtMs": 3.848,
+            "dispatchedAtMs": 4.33,
+            "requestCallAtMs": 4.861,
+            "firstTextAtMs": 4097.795,
+            "settledAtMs": 5033.849,
+            "validationMs": 0.055700000000797445,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "6d8074df04728511eeb019d05ea00e8c2dbd3004e09d275b0593d1e10f3edfe3"
+          },
+          {
+            "task": "B",
+            "queuedAtMs": 5034.094,
+            "dispatchedAtMs": 5034.264,
+            "requestCallAtMs": 5034.324,
+            "firstTextAtMs": 8301.948,
+            "settledAtMs": 8490.566,
+            "validationMs": 0.019400000001041917,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "755cb4253856644ca9c6c36cb5f7ef4e976ec0c9c2fc9c3941ff4577799cc453"
+          },
+          {
+            "task": "C",
+            "queuedAtMs": 8490.802,
+            "dispatchedAtMs": 8490.877,
+            "requestCallAtMs": 8490.915,
+            "firstTextAtMs": 10473.335,
+            "settledAtMs": 10769.327,
+            "validationMs": 0.03539999999884458,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "55ac0a0b9f1b2b97071f6c1bfd50342f70a2a60033e3a770b373d9586fa81853"
+          }
+        ],
+        "requests": [
+          {
+            "id": 1,
+            "task": "A",
+            "attempt": 1,
+            "startedAtMs": 12.047,
+            "finishedAtMs": 5032.465,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 5023,
+            "observedRequestDurationMs": 5020.418,
+            "outputTokensPerSecondRequestWall": 57.963,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 14,
+            "timeToFirstContentMs": 4089,
+            "timeToFirstTextMs": 4089,
+            "usage": {
+              "inputTokens": 383,
+              "outputTokens": 291,
+              "totalTokens": 674,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 204
+            }
+          },
+          {
+            "id": 2,
+            "task": "B",
+            "attempt": 1,
+            "startedAtMs": 5034.8,
+            "finishedAtMs": 8490.314,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 3456,
+            "observedRequestDurationMs": 3455.514,
+            "outputTokensPerSecondRequestWall": 47.46,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 1,
+            "timeToFirstContentMs": 3267,
+            "timeToFirstTextMs": 3267,
+            "usage": {
+              "inputTokens": 309,
+              "outputTokens": 164,
+              "totalTokens": 473,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 138
+            }
+          },
+          {
+            "id": 3,
+            "task": "C",
+            "attempt": 1,
+            "startedAtMs": 8491.38,
+            "finishedAtMs": 10768.973,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 2277,
+            "observedRequestDurationMs": 2277.593,
+            "outputTokensPerSecondRequestWall": 56.2,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 2,
+            "timeToFirstContentMs": 1982,
+            "timeToFirstTextMs": 1982,
+            "usage": {
+              "inputTokens": 241,
+              "outputTokens": 128,
+              "totalTokens": 369,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 97
+            }
+          }
+        ],
+        "usage": {
+          "requests": 3,
+          "knownSums": {
+            "inputTokens": 933,
+            "outputTokens": 583,
+            "totalTokens": 1516,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 439
+          },
+          "completeTotals": {
+            "inputTokens": 933,
+            "outputTokens": 583,
+            "totalTokens": 1516,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 439
+          },
+          "coverage": {
+            "inputTokens": 3,
+            "outputTokens": 3,
+            "totalTokens": 3,
+            "cacheReadTokens": 3,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 3
+          }
+        },
+        "admission": {
+          "scheduler": [],
+          "providerQueuedCount": 0,
+          "measuredQueuedMs": 0,
+          "unresolvedQueuedCount": 0
+        },
+        "backoff": {
+          "actualSleepMs": null,
+          "scheduled": [],
+          "byReason": {}
+        },
+        "tools": {
+          "allowed": 0,
+          "executed": 0,
+          "executionMs": 0,
+          "scope": "synthetic_no_tools"
+        },
+        "concurrency": [],
+        "eventCounts": {
+          "run-started": 1,
+          "run-launched": 1,
+          "actor-created": 3,
+          "node-queued": 3,
+          "node-dispatched": 3,
+          "node-executing": 3,
+          "node-progress": 3,
+          "usage-updated": 3,
+          "node-settled": 3,
+          "run-settled": 1
+        }
+      },
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "6d8074df04728511eeb019d05ea00e8c2dbd3004e09d275b0593d1e10f3edfe3",
+            "expectedSha256": "252d6d9638c2729bc382bd9038099b7f8fab5f4d2064224ea39e1b42826db2db"
+          },
+          {
+            "task": "B",
+            "promptSha256": "755cb4253856644ca9c6c36cb5f7ef4e976ec0c9c2fc9c3941ff4577799cc453",
+            "expectedSha256": "b6da12240d9e7acc3005c1158b0c4225311bdc5da63cc97f698cb343b0669d73"
+          },
+          {
+            "task": "C",
+            "promptSha256": "55ac0a0b9f1b2b97071f6c1bfd50342f70a2a60033e3a770b373d9586fa81853",
+            "expectedSha256": "a22fcde33a305ed9f3493d2994751293c234cabbb594cb8e1a836c392c44140f"
+          }
+        ],
+        "governorFinal": {
+          "ceiling": 14,
+          "cap": 14,
+          "inFlight": 0,
+          "waiters": 0,
+          "epoch": 0
+        }
+      }
+    },
+    {
+      "pair": 1,
+      "arm": "B",
+      "success": true,
+      "failureReason": null,
+      "engineStatus": "completed",
+      "cleanupCompleted": true,
+      "metrics": {
+        "ttfdMs": 3646.59,
+        "totalMs": 8515.549,
+        "logicalRequests": 3,
+        "requestsStarted": 3,
+        "requestsCompleted": 3,
+        "requestsFailed": 0,
+        "acceptedTasks": 3,
+        "cachedNodes": 0,
+        "tasks": [
+          {
+            "task": "A",
+            "queuedAtMs": 3.073,
+            "dispatchedAtMs": 3.745,
+            "requestCallAtMs": 4.079,
+            "firstTextAtMs": 2952.601,
+            "settledAtMs": 3646.59,
+            "validationMs": 0.04039999999986321,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "6d8074df04728511eeb019d05ea00e8c2dbd3004e09d275b0593d1e10f3edfe3"
+          },
+          {
+            "task": "B",
+            "queuedAtMs": 3.638,
+            "dispatchedAtMs": 6.894,
+            "requestCallAtMs": 6.934,
+            "firstTextAtMs": 5927.061,
+            "settledAtMs": 5991.475,
+            "validationMs": 0.059799999999995634,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "755cb4253856644ca9c6c36cb5f7ef4e976ec0c9c2fc9c3941ff4577799cc453"
+          },
+          {
+            "task": "C",
+            "queuedAtMs": 5991.825,
+            "dispatchedAtMs": 5991.946,
+            "requestCallAtMs": 5992.012,
+            "firstTextAtMs": 8284.424,
+            "settledAtMs": 8514.549,
+            "validationMs": 0.04079999999885331,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "55ac0a0b9f1b2b97071f6c1bfd50342f70a2a60033e3a770b373d9586fa81853"
+          }
+        ],
+        "requests": [
+          {
+            "id": 1,
+            "task": "A",
+            "attempt": 1,
+            "startedAtMs": 9.732,
+            "finishedAtMs": 3645.792,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 3639,
+            "observedRequestDurationMs": 3636.06,
+            "outputTokensPerSecondRequestWall": 64.63,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 12,
+            "timeToFirstContentMs": 2946,
+            "timeToFirstTextMs": 2946,
+            "usage": {
+              "inputTokens": 383,
+              "outputTokens": 235,
+              "totalTokens": 618,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 148
+            }
+          },
+          {
+            "id": 2,
+            "task": "B",
+            "attempt": 1,
+            "startedAtMs": 9.843,
+            "finishedAtMs": 5991.001,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 5983,
+            "observedRequestDurationMs": 5981.158,
+            "outputTokensPerSecondRequestWall": 29.76,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 11,
+            "timeToFirstContentMs": 5920,
+            "timeToFirstTextMs": 5920,
+            "usage": {
+              "inputTokens": 309,
+              "outputTokens": 178,
+              "totalTokens": 487,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 152
+            }
+          },
+          {
+            "id": 3,
+            "task": "C",
+            "attempt": 1,
+            "startedAtMs": 5992.734,
+            "finishedAtMs": 8514.117,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 2521,
+            "observedRequestDurationMs": 2521.383,
+            "outputTokensPerSecondRequestWall": 55.922,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 2,
+            "timeToFirstContentMs": 2292,
+            "timeToFirstTextMs": 2292,
+            "usage": {
+              "inputTokens": 241,
+              "outputTokens": 141,
+              "totalTokens": 382,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 110
+            }
+          }
+        ],
+        "usage": {
+          "requests": 3,
+          "knownSums": {
+            "inputTokens": 933,
+            "outputTokens": 554,
+            "totalTokens": 1487,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 410
+          },
+          "completeTotals": {
+            "inputTokens": 933,
+            "outputTokens": 554,
+            "totalTokens": 1487,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 410
+          },
+          "coverage": {
+            "inputTokens": 3,
+            "outputTokens": 3,
+            "totalTokens": 3,
+            "cacheReadTokens": 3,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 3
+          }
+        },
+        "admission": {
+          "scheduler": [],
+          "providerQueuedCount": 0,
+          "measuredQueuedMs": 0,
+          "unresolvedQueuedCount": 0
+        },
+        "backoff": {
+          "actualSleepMs": null,
+          "scheduled": [],
+          "byReason": {}
+        },
+        "tools": {
+          "allowed": 0,
+          "executed": 0,
+          "executionMs": 0,
+          "scope": "synthetic_no_tools"
+        },
+        "concurrency": [],
+        "eventCounts": {
+          "run-started": 1,
+          "run-launched": 1,
+          "actor-created": 3,
+          "node-queued": 3,
+          "node-dispatched": 3,
+          "node-executing": 3,
+          "node-progress": 3,
+          "usage-updated": 3,
+          "node-settled": 3,
+          "run-settled": 1
+        }
+      },
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "6d8074df04728511eeb019d05ea00e8c2dbd3004e09d275b0593d1e10f3edfe3",
+            "expectedSha256": "252d6d9638c2729bc382bd9038099b7f8fab5f4d2064224ea39e1b42826db2db"
+          },
+          {
+            "task": "B",
+            "promptSha256": "755cb4253856644ca9c6c36cb5f7ef4e976ec0c9c2fc9c3941ff4577799cc453",
+            "expectedSha256": "b6da12240d9e7acc3005c1158b0c4225311bdc5da63cc97f698cb343b0669d73"
+          },
+          {
+            "task": "C",
+            "promptSha256": "55ac0a0b9f1b2b97071f6c1bfd50342f70a2a60033e3a770b373d9586fa81853",
+            "expectedSha256": "a22fcde33a305ed9f3493d2994751293c234cabbb594cb8e1a836c392c44140f"
+          }
+        ],
+        "governorFinal": {
+          "ceiling": 14,
+          "cap": 14,
+          "inFlight": 0,
+          "waiters": 0,
+          "epoch": 0
+        }
+      }
+    },
+    {
+      "pair": 2,
+      "arm": "B",
+      "success": true,
+      "failureReason": null,
+      "engineStatus": "completed",
+      "cleanupCompleted": true,
+      "metrics": {
+        "ttfdMs": 4116.266,
+        "totalMs": 7215.85,
+        "logicalRequests": 3,
+        "requestsStarted": 3,
+        "requestsCompleted": 3,
+        "requestsFailed": 0,
+        "acceptedTasks": 3,
+        "cachedNodes": 0,
+        "tasks": [
+          {
+            "task": "A",
+            "queuedAtMs": 3.484,
+            "dispatchedAtMs": 4.212,
+            "requestCallAtMs": 4.584,
+            "firstTextAtMs": 4135.785,
+            "settledAtMs": 4850.007,
+            "validationMs": 0.03990000000067084,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "c5829f95c127cd1194d14f9d9700e9090fb3970234b9fe63b8607790eb23072f"
+          },
+          {
+            "task": "B",
+            "queuedAtMs": 4.064,
+            "dispatchedAtMs": 7.709,
+            "requestCallAtMs": 7.757,
+            "firstTextAtMs": 3904.351,
+            "settledAtMs": 4116.266,
+            "validationMs": 0.020799999999326246,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "159b02c1b5144f7f2e720e7a0b778cb32c06aec7839b46c2880033e1e9e82118"
+          },
+          {
+            "task": "C",
+            "queuedAtMs": 4850.244,
+            "dispatchedAtMs": 4850.313,
+            "requestCallAtMs": 4850.351,
+            "firstTextAtMs": 6942.489,
+            "settledAtMs": 7215.255,
+            "validationMs": 0.034300000001167064,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "eba248f88c4cc0499718269ae72e41b9e549301df546dc3c9c5f4fe4d05c10c9"
+          }
+        ],
+        "requests": [
+          {
+            "id": 1,
+            "task": "A",
+            "attempt": 1,
+            "startedAtMs": 10.12,
+            "finishedAtMs": 4849.706,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 4842,
+            "observedRequestDurationMs": 4839.586,
+            "outputTokensPerSecondRequestWall": 53.517,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 13,
+            "timeToFirstContentMs": 4128,
+            "timeToFirstTextMs": 4129,
+            "usage": {
+              "inputTokens": 383,
+              "outputTokens": 259,
+              "totalTokens": 642,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 172
+            }
+          },
+          {
+            "id": 2,
+            "task": "B",
+            "attempt": 1,
+            "startedAtMs": 10.223,
+            "finishedAtMs": 4115.481,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 4106,
+            "observedRequestDurationMs": 4105.258,
+            "outputTokensPerSecondRequestWall": 41.654,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 13,
+            "timeToFirstContentMs": 3896,
+            "timeToFirstTextMs": 3896,
+            "usage": {
+              "inputTokens": 309,
+              "outputTokens": 171,
+              "totalTokens": 480,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 148
+            }
+          },
+          {
+            "id": 3,
+            "task": "C",
+            "attempt": 1,
+            "startedAtMs": 4850.812,
+            "finishedAtMs": 7214.965,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 2365,
+            "observedRequestDurationMs": 2364.153,
+            "outputTokensPerSecondRequestWall": 49.489,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 1,
+            "timeToFirstContentMs": 2092,
+            "timeToFirstTextMs": 2092,
+            "usage": {
+              "inputTokens": 238,
+              "outputTokens": 117,
+              "totalTokens": 355,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 86
+            }
+          }
+        ],
+        "usage": {
+          "requests": 3,
+          "knownSums": {
+            "inputTokens": 930,
+            "outputTokens": 547,
+            "totalTokens": 1477,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 406
+          },
+          "completeTotals": {
+            "inputTokens": 930,
+            "outputTokens": 547,
+            "totalTokens": 1477,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 406
+          },
+          "coverage": {
+            "inputTokens": 3,
+            "outputTokens": 3,
+            "totalTokens": 3,
+            "cacheReadTokens": 3,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 3
+          }
+        },
+        "admission": {
+          "scheduler": [],
+          "providerQueuedCount": 0,
+          "measuredQueuedMs": 0,
+          "unresolvedQueuedCount": 0
+        },
+        "backoff": {
+          "actualSleepMs": null,
+          "scheduled": [],
+          "byReason": {}
+        },
+        "tools": {
+          "allowed": 0,
+          "executed": 0,
+          "executionMs": 0,
+          "scope": "synthetic_no_tools"
+        },
+        "concurrency": [],
+        "eventCounts": {
+          "run-started": 1,
+          "run-launched": 1,
+          "actor-created": 3,
+          "node-queued": 3,
+          "node-dispatched": 3,
+          "node-executing": 3,
+          "node-progress": 3,
+          "usage-updated": 3,
+          "node-settled": 3,
+          "run-settled": 1
+        }
+      },
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "c5829f95c127cd1194d14f9d9700e9090fb3970234b9fe63b8607790eb23072f",
+            "expectedSha256": "ef030de4eb2869da7299ea0b333b9fd0b32f7bb1b03a67af7b914b943f85526e"
+          },
+          {
+            "task": "B",
+            "promptSha256": "159b02c1b5144f7f2e720e7a0b778cb32c06aec7839b46c2880033e1e9e82118",
+            "expectedSha256": "225534afdad0160100d311ba75700d4eb0cdca7481634a92f451dd2d5e3ed63e"
+          },
+          {
+            "task": "C",
+            "promptSha256": "eba248f88c4cc0499718269ae72e41b9e549301df546dc3c9c5f4fe4d05c10c9",
+            "expectedSha256": "fc39bd0ce36cea974fcf5b0573ee172bceea5c8ee5c9fdc7585be8307295a891"
+          }
+        ],
+        "governorFinal": {
+          "ceiling": 14,
+          "cap": 14,
+          "inFlight": 0,
+          "waiters": 0,
+          "epoch": 0
+        }
+      }
+    },
+    {
+      "pair": 2,
+      "arm": "A",
+      "success": true,
+      "failureReason": null,
+      "engineStatus": "completed",
+      "cleanupCompleted": true,
+      "metrics": {
+        "ttfdMs": 4039.385,
+        "totalMs": 12274.349,
+        "logicalRequests": 3,
+        "requestsStarted": 3,
+        "requestsCompleted": 3,
+        "requestsFailed": 0,
+        "acceptedTasks": 3,
+        "cachedNodes": 0,
+        "tasks": [
+          {
+            "task": "A",
+            "queuedAtMs": 2.583,
+            "dispatchedAtMs": 3.086,
+            "requestCallAtMs": 3.455,
+            "firstTextAtMs": 3324.002,
+            "settledAtMs": 4039.385,
+            "validationMs": 0.04539999999997235,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "c5829f95c127cd1194d14f9d9700e9090fb3970234b9fe63b8607790eb23072f"
+          },
+          {
+            "task": "B",
+            "queuedAtMs": 4039.6,
+            "dispatchedAtMs": 4039.723,
+            "requestCallAtMs": 4039.79,
+            "firstTextAtMs": 8641.512,
+            "settledAtMs": 8839.516,
+            "validationMs": 0.01809999999932188,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "159b02c1b5144f7f2e720e7a0b778cb32c06aec7839b46c2880033e1e9e82118"
+          },
+          {
+            "task": "C",
+            "queuedAtMs": 8839.884,
+            "dispatchedAtMs": 8840.051,
+            "requestCallAtMs": 8840.121,
+            "firstTextAtMs": 11986.325,
+            "settledAtMs": 12272.861,
+            "validationMs": 0.029799999998431304,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "eba248f88c4cc0499718269ae72e41b9e549301df546dc3c9c5f4fe4d05c10c9"
+          }
+        ],
+        "requests": [
+          {
+            "id": 1,
+            "task": "A",
+            "attempt": 1,
+            "startedAtMs": 8.462,
+            "finishedAtMs": 4038.364,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 4032,
+            "observedRequestDurationMs": 4029.902,
+            "outputTokensPerSecondRequestWall": 66.007,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 11,
+            "timeToFirstContentMs": 3318,
+            "timeToFirstTextMs": 3318,
+            "usage": {
+              "inputTokens": 383,
+              "outputTokens": 266,
+              "totalTokens": 649,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 179
+            }
+          },
+          {
+            "id": 2,
+            "task": "B",
+            "attempt": 1,
+            "startedAtMs": 4040.577,
+            "finishedAtMs": 8839.279,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 4798,
+            "observedRequestDurationMs": 4798.702,
+            "outputTokensPerSecondRequestWall": 31.675,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 1,
+            "timeToFirstContentMs": 4601,
+            "timeToFirstTextMs": 4601,
+            "usage": {
+              "inputTokens": 309,
+              "outputTokens": 152,
+              "totalTokens": 461,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 129
+            }
+          },
+          {
+            "id": 3,
+            "task": "C",
+            "attempt": 1,
+            "startedAtMs": 8840.933,
+            "finishedAtMs": 12272.635,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 3432,
+            "observedRequestDurationMs": 3431.702,
+            "outputTokensPerSecondRequestWall": 41.379,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 2,
+            "timeToFirstContentMs": 3146,
+            "timeToFirstTextMs": 3146,
+            "usage": {
+              "inputTokens": 238,
+              "outputTokens": 142,
+              "totalTokens": 380,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 111
+            }
+          }
+        ],
+        "usage": {
+          "requests": 3,
+          "knownSums": {
+            "inputTokens": 930,
+            "outputTokens": 560,
+            "totalTokens": 1490,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 419
+          },
+          "completeTotals": {
+            "inputTokens": 930,
+            "outputTokens": 560,
+            "totalTokens": 1490,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 419
+          },
+          "coverage": {
+            "inputTokens": 3,
+            "outputTokens": 3,
+            "totalTokens": 3,
+            "cacheReadTokens": 3,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 3
+          }
+        },
+        "admission": {
+          "scheduler": [],
+          "providerQueuedCount": 0,
+          "measuredQueuedMs": 0,
+          "unresolvedQueuedCount": 0
+        },
+        "backoff": {
+          "actualSleepMs": null,
+          "scheduled": [],
+          "byReason": {}
+        },
+        "tools": {
+          "allowed": 0,
+          "executed": 0,
+          "executionMs": 0,
+          "scope": "synthetic_no_tools"
+        },
+        "concurrency": [],
+        "eventCounts": {
+          "run-started": 1,
+          "run-launched": 1,
+          "actor-created": 3,
+          "node-queued": 3,
+          "node-dispatched": 3,
+          "node-executing": 3,
+          "node-progress": 3,
+          "usage-updated": 3,
+          "node-settled": 3,
+          "run-settled": 1
+        }
+      },
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "c5829f95c127cd1194d14f9d9700e9090fb3970234b9fe63b8607790eb23072f",
+            "expectedSha256": "ef030de4eb2869da7299ea0b333b9fd0b32f7bb1b03a67af7b914b943f85526e"
+          },
+          {
+            "task": "B",
+            "promptSha256": "159b02c1b5144f7f2e720e7a0b778cb32c06aec7839b46c2880033e1e9e82118",
+            "expectedSha256": "225534afdad0160100d311ba75700d4eb0cdca7481634a92f451dd2d5e3ed63e"
+          },
+          {
+            "task": "C",
+            "promptSha256": "eba248f88c4cc0499718269ae72e41b9e549301df546dc3c9c5f4fe4d05c10c9",
+            "expectedSha256": "fc39bd0ce36cea974fcf5b0573ee172bceea5c8ee5c9fdc7585be8307295a891"
+          }
+        ],
+        "governorFinal": {
+          "ceiling": 14,
+          "cap": 14,
+          "inFlight": 0,
+          "waiters": 0,
+          "epoch": 0
+        }
+      }
+    },
+    {
+      "pair": 3,
+      "arm": "A",
+      "success": true,
+      "failureReason": null,
+      "engineStatus": "completed",
+      "cleanupCompleted": true,
+      "metrics": {
+        "ttfdMs": 9683.91,
+        "totalMs": 15563.558,
+        "logicalRequests": 3,
+        "requestsStarted": 3,
+        "requestsCompleted": 3,
+        "requestsFailed": 0,
+        "acceptedTasks": 3,
+        "cachedNodes": 0,
+        "tasks": [
+          {
+            "task": "A",
+            "queuedAtMs": 3.203,
+            "dispatchedAtMs": 3.699,
+            "requestCallAtMs": 4.176,
+            "firstTextAtMs": 8911.656,
+            "settledAtMs": 9683.91,
+            "validationMs": 0.05889999999999418,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "507b4213fc3947ad90a58813333a72f75dddca26d5b034b9edd728ad84164c39"
+          },
+          {
+            "task": "B",
+            "queuedAtMs": 9684.13,
+            "dispatchedAtMs": 9684.236,
+            "requestCallAtMs": 9684.296,
+            "firstTextAtMs": 12751.811,
+            "settledAtMs": 12976.303,
+            "validationMs": 0.01689999999871361,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "94f829cb2e19e13bf746925969da328abbe257615a09ca3031a285de012e15d7"
+          },
+          {
+            "task": "C",
+            "queuedAtMs": 12976.503,
+            "dispatchedAtMs": 12976.576,
+            "requestCallAtMs": 12976.621,
+            "firstTextAtMs": 15268.878,
+            "settledAtMs": 15562.995,
+            "validationMs": 0.024399999998422572,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "062903fbcc24e294424d348b1dca95fff97ebb8d457b1eff8e8c7042a8805652"
+          }
+        ],
+        "requests": [
+          {
+            "id": 1,
+            "task": "A",
+            "attempt": 1,
+            "startedAtMs": 11.447,
+            "finishedAtMs": 9682.991,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 9675,
+            "observedRequestDurationMs": 9671.544,
+            "outputTokensPerSecondRequestWall": 39.704,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 14,
+            "timeToFirstContentMs": 8904,
+            "timeToFirstTextMs": 8904,
+            "usage": {
+              "inputTokens": 383,
+              "outputTokens": 384,
+              "totalTokens": 767,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 297
+            }
+          },
+          {
+            "id": 2,
+            "task": "B",
+            "attempt": 1,
+            "startedAtMs": 9684.853,
+            "finishedAtMs": 12976.059,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 3291,
+            "observedRequestDurationMs": 3291.206,
+            "outputTokensPerSecondRequestWall": 43.753,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 1,
+            "timeToFirstContentMs": 3067,
+            "timeToFirstTextMs": 3067,
+            "usage": {
+              "inputTokens": 309,
+              "outputTokens": 144,
+              "totalTokens": 453,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 124
+            }
+          },
+          {
+            "id": 3,
+            "task": "C",
+            "attempt": 1,
+            "startedAtMs": 12977.398,
+            "finishedAtMs": 15562.788,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 2586,
+            "observedRequestDurationMs": 2585.39,
+            "outputTokensPerSecondRequestWall": 56.084,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 2,
+            "timeToFirstContentMs": 2292,
+            "timeToFirstTextMs": 2292,
+            "usage": {
+              "inputTokens": 235,
+              "outputTokens": 145,
+              "totalTokens": 380,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 114
+            }
+          }
+        ],
+        "usage": {
+          "requests": 3,
+          "knownSums": {
+            "inputTokens": 927,
+            "outputTokens": 673,
+            "totalTokens": 1600,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 535
+          },
+          "completeTotals": {
+            "inputTokens": 927,
+            "outputTokens": 673,
+            "totalTokens": 1600,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 535
+          },
+          "coverage": {
+            "inputTokens": 3,
+            "outputTokens": 3,
+            "totalTokens": 3,
+            "cacheReadTokens": 3,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 3
+          }
+        },
+        "admission": {
+          "scheduler": [],
+          "providerQueuedCount": 0,
+          "measuredQueuedMs": 0,
+          "unresolvedQueuedCount": 0
+        },
+        "backoff": {
+          "actualSleepMs": null,
+          "scheduled": [],
+          "byReason": {}
+        },
+        "tools": {
+          "allowed": 0,
+          "executed": 0,
+          "executionMs": 0,
+          "scope": "synthetic_no_tools"
+        },
+        "concurrency": [],
+        "eventCounts": {
+          "run-started": 1,
+          "run-launched": 1,
+          "actor-created": 3,
+          "node-queued": 3,
+          "node-dispatched": 3,
+          "node-executing": 3,
+          "node-progress": 3,
+          "usage-updated": 3,
+          "node-settled": 3,
+          "run-settled": 1
+        }
+      },
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "507b4213fc3947ad90a58813333a72f75dddca26d5b034b9edd728ad84164c39",
+            "expectedSha256": "4d0028999b13aa24c60b9b0e677cb1b3900e38498d56a10bfe46c7a4dae2a5ae"
+          },
+          {
+            "task": "B",
+            "promptSha256": "94f829cb2e19e13bf746925969da328abbe257615a09ca3031a285de012e15d7",
+            "expectedSha256": "3b890bf148a0a0126583eb39e7113c29517671f2fade74515bdf971713e48e0b"
+          },
+          {
+            "task": "C",
+            "promptSha256": "062903fbcc24e294424d348b1dca95fff97ebb8d457b1eff8e8c7042a8805652",
+            "expectedSha256": "dc1587a6aec5c6c186b674fe6f4fdcc46499a722e7812f5e301d7b63f67989c9"
+          }
+        ],
+        "governorFinal": {
+          "ceiling": 14,
+          "cap": 14,
+          "inFlight": 0,
+          "waiters": 0,
+          "epoch": 0
+        }
+      }
+    },
+    {
+      "pair": 3,
+      "arm": "B",
+      "success": true,
+      "failureReason": null,
+      "engineStatus": "completed",
+      "cleanupCompleted": true,
+      "metrics": {
+        "ttfdMs": 3033.837,
+        "totalMs": 6811.335,
+        "logicalRequests": 3,
+        "requestsStarted": 3,
+        "requestsCompleted": 3,
+        "requestsFailed": 0,
+        "acceptedTasks": 3,
+        "cachedNodes": 0,
+        "tasks": [
+          {
+            "task": "A",
+            "queuedAtMs": 3.357,
+            "dispatchedAtMs": 4.022,
+            "requestCallAtMs": 4.517,
+            "firstTextAtMs": 3910.917,
+            "settledAtMs": 4665.831,
+            "validationMs": 0.06989999999950669,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "507b4213fc3947ad90a58813333a72f75dddca26d5b034b9edd728ad84164c39"
+          },
+          {
+            "task": "B",
+            "queuedAtMs": 3.866,
+            "dispatchedAtMs": 7.954,
+            "requestCallAtMs": 8.001,
+            "firstTextAtMs": 2872.743,
+            "settledAtMs": 3033.837,
+            "validationMs": 0.01929999999993015,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "94f829cb2e19e13bf746925969da328abbe257615a09ca3031a285de012e15d7"
+          },
+          {
+            "task": "C",
+            "queuedAtMs": 4666.193,
+            "dispatchedAtMs": 4666.31,
+            "requestCallAtMs": 4666.377,
+            "firstTextAtMs": 6553.949,
+            "settledAtMs": 6810.344,
+            "validationMs": 0.028800000000046566,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "062903fbcc24e294424d348b1dca95fff97ebb8d457b1eff8e8c7042a8805652"
+          }
+        ],
+        "requests": [
+          {
+            "id": 1,
+            "task": "A",
+            "attempt": 1,
+            "startedAtMs": 10.729,
+            "finishedAtMs": 4665.351,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 4657,
+            "observedRequestDurationMs": 4654.622,
+            "outputTokensPerSecondRequestWall": 58.222,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 15,
+            "timeToFirstContentMs": 3902,
+            "timeToFirstTextMs": 3903,
+            "usage": {
+              "inputTokens": 383,
+              "outputTokens": 271,
+              "totalTokens": 654,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 184
+            }
+          },
+          {
+            "id": 2,
+            "task": "B",
+            "attempt": 1,
+            "startedAtMs": 10.913,
+            "finishedAtMs": 3033.151,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 3024,
+            "observedRequestDurationMs": 3022.238,
+            "outputTokensPerSecondRequestWall": 47.978,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 15,
+            "timeToFirstContentMs": 2864,
+            "timeToFirstTextMs": 2864,
+            "usage": {
+              "inputTokens": 309,
+              "outputTokens": 145,
+              "totalTokens": 454,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 125
+            }
+          },
+          {
+            "id": 3,
+            "task": "C",
+            "attempt": 1,
+            "startedAtMs": 4667.075,
+            "finishedAtMs": 6810.022,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 2143,
+            "observedRequestDurationMs": 2142.947,
+            "outputTokensPerSecondRequestWall": 55.998,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 2,
+            "timeToFirstContentMs": 1887,
+            "timeToFirstTextMs": 1887,
+            "usage": {
+              "inputTokens": 235,
+              "outputTokens": 120,
+              "totalTokens": 355,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 89
+            }
+          }
+        ],
+        "usage": {
+          "requests": 3,
+          "knownSums": {
+            "inputTokens": 927,
+            "outputTokens": 536,
+            "totalTokens": 1463,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 398
+          },
+          "completeTotals": {
+            "inputTokens": 927,
+            "outputTokens": 536,
+            "totalTokens": 1463,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 398
+          },
+          "coverage": {
+            "inputTokens": 3,
+            "outputTokens": 3,
+            "totalTokens": 3,
+            "cacheReadTokens": 3,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 3
+          }
+        },
+        "admission": {
+          "scheduler": [],
+          "providerQueuedCount": 0,
+          "measuredQueuedMs": 0,
+          "unresolvedQueuedCount": 0
+        },
+        "backoff": {
+          "actualSleepMs": null,
+          "scheduled": [],
+          "byReason": {}
+        },
+        "tools": {
+          "allowed": 0,
+          "executed": 0,
+          "executionMs": 0,
+          "scope": "synthetic_no_tools"
+        },
+        "concurrency": [],
+        "eventCounts": {
+          "run-started": 1,
+          "run-launched": 1,
+          "actor-created": 3,
+          "node-queued": 3,
+          "node-dispatched": 3,
+          "node-executing": 3,
+          "node-progress": 3,
+          "usage-updated": 3,
+          "node-settled": 3,
+          "run-settled": 1
+        }
+      },
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "507b4213fc3947ad90a58813333a72f75dddca26d5b034b9edd728ad84164c39",
+            "expectedSha256": "4d0028999b13aa24c60b9b0e677cb1b3900e38498d56a10bfe46c7a4dae2a5ae"
+          },
+          {
+            "task": "B",
+            "promptSha256": "94f829cb2e19e13bf746925969da328abbe257615a09ca3031a285de012e15d7",
+            "expectedSha256": "3b890bf148a0a0126583eb39e7113c29517671f2fade74515bdf971713e48e0b"
+          },
+          {
+            "task": "C",
+            "promptSha256": "062903fbcc24e294424d348b1dca95fff97ebb8d457b1eff8e8c7042a8805652",
+            "expectedSha256": "dc1587a6aec5c6c186b674fe6f4fdcc46499a722e7812f5e301d7b63f67989c9"
+          }
+        ],
+        "governorFinal": {
+          "ceiling": 14,
+          "cap": 14,
+          "inFlight": 0,
+          "waiters": 0,
+          "epoch": 0
+        }
+      }
+    },
+    {
+      "pair": 4,
+      "arm": "B",
+      "success": true,
+      "failureReason": null,
+      "engineStatus": "completed",
+      "cleanupCompleted": true,
+      "metrics": {
+        "ttfdMs": 3566.055,
+        "totalMs": 7100.683,
+        "logicalRequests": 3,
+        "requestsStarted": 3,
+        "requestsCompleted": 3,
+        "requestsFailed": 0,
+        "acceptedTasks": 3,
+        "cachedNodes": 0,
+        "tasks": [
+          {
+            "task": "A",
+            "queuedAtMs": 3.567,
+            "dispatchedAtMs": 4.115,
+            "requestCallAtMs": 4.6,
+            "firstTextAtMs": 2883.168,
+            "settledAtMs": 3566.055,
+            "validationMs": 0.04489999999987049,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "681679a3612e3d63503d1032b286306a602d32e56164de5a1c5979b7936e06b3"
+          },
+          {
+            "task": "B",
+            "queuedAtMs": 3.959,
+            "dispatchedAtMs": 9.158,
+            "requestCallAtMs": 9.212,
+            "firstTextAtMs": 3421.724,
+            "settledAtMs": 3603.215,
+            "validationMs": 0.028699999999844295,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "cc59c87526207767037721f295ed227288ffb2ec3ea5d7f86565387e8ce3b92a"
+          },
+          {
+            "task": "C",
+            "queuedAtMs": 3603.551,
+            "dispatchedAtMs": 3603.659,
+            "requestCallAtMs": 3603.721,
+            "firstTextAtMs": 6403.6,
+            "settledAtMs": 7099.701,
+            "validationMs": 0.033399999998437124,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "1a2987a20af9effd42d39dc5d835bb397d8ed677d825d26443c963e8771d3e3c"
+          }
+        ],
+        "requests": [
+          {
+            "id": 1,
+            "task": "A",
+            "attempt": 1,
+            "startedAtMs": 12.044,
+            "finishedAtMs": 3565.054,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 3555,
+            "observedRequestDurationMs": 3553.01,
+            "outputTokensPerSecondRequestWall": 66.423,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 15,
+            "timeToFirstContentMs": 2874,
+            "timeToFirstTextMs": 2874,
+            "usage": {
+              "inputTokens": 383,
+              "outputTokens": 236,
+              "totalTokens": 619,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 149
+            }
+          },
+          {
+            "id": 2,
+            "task": "B",
+            "attempt": 1,
+            "startedAtMs": 12.17,
+            "finishedAtMs": 3602.865,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 3593,
+            "observedRequestDurationMs": 3590.695,
+            "outputTokensPerSecondRequestWall": 50.13,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 14,
+            "timeToFirstContentMs": 3412,
+            "timeToFirstTextMs": 3412,
+            "usage": {
+              "inputTokens": 309,
+              "outputTokens": 180,
+              "totalTokens": 489,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 154
+            }
+          },
+          {
+            "id": 3,
+            "task": "C",
+            "attempt": 1,
+            "startedAtMs": 3604.342,
+            "finishedAtMs": 7099.365,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 3495,
+            "observedRequestDurationMs": 3495.023,
+            "outputTokensPerSecondRequestWall": 49.785,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 2,
+            "timeToFirstContentMs": 2800,
+            "timeToFirstTextMs": 2800,
+            "usage": {
+              "inputTokens": 241,
+              "outputTokens": 174,
+              "totalTokens": 415,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 137
+            }
+          }
+        ],
+        "usage": {
+          "requests": 3,
+          "knownSums": {
+            "inputTokens": 933,
+            "outputTokens": 590,
+            "totalTokens": 1523,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 440
+          },
+          "completeTotals": {
+            "inputTokens": 933,
+            "outputTokens": 590,
+            "totalTokens": 1523,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 440
+          },
+          "coverage": {
+            "inputTokens": 3,
+            "outputTokens": 3,
+            "totalTokens": 3,
+            "cacheReadTokens": 3,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 3
+          }
+        },
+        "admission": {
+          "scheduler": [],
+          "providerQueuedCount": 0,
+          "measuredQueuedMs": 0,
+          "unresolvedQueuedCount": 0
+        },
+        "backoff": {
+          "actualSleepMs": null,
+          "scheduled": [],
+          "byReason": {}
+        },
+        "tools": {
+          "allowed": 0,
+          "executed": 0,
+          "executionMs": 0,
+          "scope": "synthetic_no_tools"
+        },
+        "concurrency": [],
+        "eventCounts": {
+          "run-started": 1,
+          "run-launched": 1,
+          "actor-created": 3,
+          "node-queued": 3,
+          "node-dispatched": 3,
+          "node-executing": 3,
+          "node-progress": 3,
+          "usage-updated": 3,
+          "node-settled": 3,
+          "run-settled": 1
+        }
+      },
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "681679a3612e3d63503d1032b286306a602d32e56164de5a1c5979b7936e06b3",
+            "expectedSha256": "f73ef2a61f153ecd0a77f0f35e6f3c37473f34f89374532f4e0cc184895a2633"
+          },
+          {
+            "task": "B",
+            "promptSha256": "cc59c87526207767037721f295ed227288ffb2ec3ea5d7f86565387e8ce3b92a",
+            "expectedSha256": "7f4e593448c137081c8231c7e2d9c91ee9eecdcdb5e81fab745c3a5f1c1b389e"
+          },
+          {
+            "task": "C",
+            "promptSha256": "1a2987a20af9effd42d39dc5d835bb397d8ed677d825d26443c963e8771d3e3c",
+            "expectedSha256": "16daca8623c4a88ebf32bab8c6d3e7bffcc6154fc384e5ea3309fdef704bec5f"
+          }
+        ],
+        "governorFinal": {
+          "ceiling": 14,
+          "cap": 14,
+          "inFlight": 0,
+          "waiters": 0,
+          "epoch": 0
+        }
+      }
+    },
+    {
+      "pair": 4,
+      "arm": "A",
+      "success": true,
+      "failureReason": null,
+      "engineStatus": "completed",
+      "cleanupCompleted": true,
+      "metrics": {
+        "ttfdMs": 4906.514,
+        "totalMs": 11853.5,
+        "logicalRequests": 3,
+        "requestsStarted": 3,
+        "requestsCompleted": 3,
+        "requestsFailed": 0,
+        "acceptedTasks": 3,
+        "cachedNodes": 0,
+        "tasks": [
+          {
+            "task": "A",
+            "queuedAtMs": 3.855,
+            "dispatchedAtMs": 4.232,
+            "requestCallAtMs": 4.96,
+            "firstTextAtMs": 4214.502,
+            "settledAtMs": 4906.514,
+            "validationMs": 0.08260000000063883,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "681679a3612e3d63503d1032b286306a602d32e56164de5a1c5979b7936e06b3"
+          },
+          {
+            "task": "B",
+            "queuedAtMs": 4906.829,
+            "dispatchedAtMs": 4906.981,
+            "requestCallAtMs": 4907.057,
+            "firstTextAtMs": 8297.858,
+            "settledAtMs": 8535.077,
+            "validationMs": 0.018900000000940054,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "cc59c87526207767037721f295ed227288ffb2ec3ea5d7f86565387e8ce3b92a"
+          },
+          {
+            "task": "C",
+            "queuedAtMs": 8535.359,
+            "dispatchedAtMs": 8535.441,
+            "requestCallAtMs": 8535.482,
+            "firstTextAtMs": 11535.464,
+            "settledAtMs": 11852.947,
+            "validationMs": 0.020699999999123975,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "1a2987a20af9effd42d39dc5d835bb397d8ed677d825d26443c963e8771d3e3c"
+          }
+        ],
+        "requests": [
+          {
+            "id": 1,
+            "task": "A",
+            "attempt": 1,
+            "startedAtMs": 11.85,
+            "finishedAtMs": 4905.146,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 4896,
+            "observedRequestDurationMs": 4893.296,
+            "outputTokensPerSecondRequestWall": 50.886,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 14,
+            "timeToFirstContentMs": 4206,
+            "timeToFirstTextMs": 4207,
+            "usage": {
+              "inputTokens": 383,
+              "outputTokens": 249,
+              "totalTokens": 632,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 162
+            }
+          },
+          {
+            "id": 2,
+            "task": "B",
+            "attempt": 1,
+            "startedAtMs": 4907.728,
+            "finishedAtMs": 8534.823,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 3627,
+            "observedRequestDurationMs": 3627.095,
+            "outputTokensPerSecondRequestWall": 55.416,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 1,
+            "timeToFirstContentMs": 3390,
+            "timeToFirstTextMs": 3390,
+            "usage": {
+              "inputTokens": 309,
+              "outputTokens": 201,
+              "totalTokens": 510,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 175
+            }
+          },
+          {
+            "id": 3,
+            "task": "C",
+            "attempt": 1,
+            "startedAtMs": 8535.945,
+            "finishedAtMs": 11852.727,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 3317,
+            "observedRequestDurationMs": 3316.782,
+            "outputTokensPerSecondRequestWall": 59.093,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 2,
+            "timeToFirstContentMs": 3000,
+            "timeToFirstTextMs": 3000,
+            "usage": {
+              "inputTokens": 241,
+              "outputTokens": 196,
+              "totalTokens": 437,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 159
+            }
+          }
+        ],
+        "usage": {
+          "requests": 3,
+          "knownSums": {
+            "inputTokens": 933,
+            "outputTokens": 646,
+            "totalTokens": 1579,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 496
+          },
+          "completeTotals": {
+            "inputTokens": 933,
+            "outputTokens": 646,
+            "totalTokens": 1579,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 496
+          },
+          "coverage": {
+            "inputTokens": 3,
+            "outputTokens": 3,
+            "totalTokens": 3,
+            "cacheReadTokens": 3,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 3
+          }
+        },
+        "admission": {
+          "scheduler": [],
+          "providerQueuedCount": 0,
+          "measuredQueuedMs": 0,
+          "unresolvedQueuedCount": 0
+        },
+        "backoff": {
+          "actualSleepMs": null,
+          "scheduled": [],
+          "byReason": {}
+        },
+        "tools": {
+          "allowed": 0,
+          "executed": 0,
+          "executionMs": 0,
+          "scope": "synthetic_no_tools"
+        },
+        "concurrency": [],
+        "eventCounts": {
+          "run-started": 1,
+          "run-launched": 1,
+          "actor-created": 3,
+          "node-queued": 3,
+          "node-dispatched": 3,
+          "node-executing": 3,
+          "node-progress": 3,
+          "usage-updated": 3,
+          "node-settled": 3,
+          "run-settled": 1
+        }
+      },
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "681679a3612e3d63503d1032b286306a602d32e56164de5a1c5979b7936e06b3",
+            "expectedSha256": "f73ef2a61f153ecd0a77f0f35e6f3c37473f34f89374532f4e0cc184895a2633"
+          },
+          {
+            "task": "B",
+            "promptSha256": "cc59c87526207767037721f295ed227288ffb2ec3ea5d7f86565387e8ce3b92a",
+            "expectedSha256": "7f4e593448c137081c8231c7e2d9c91ee9eecdcdb5e81fab745c3a5f1c1b389e"
+          },
+          {
+            "task": "C",
+            "promptSha256": "1a2987a20af9effd42d39dc5d835bb397d8ed677d825d26443c963e8771d3e3c",
+            "expectedSha256": "16daca8623c4a88ebf32bab8c6d3e7bffcc6154fc384e5ea3309fdef704bec5f"
+          }
+        ],
+        "governorFinal": {
+          "ceiling": 14,
+          "cap": 14,
+          "inFlight": 0,
+          "waiters": 0,
+          "epoch": 0
+        }
+      }
+    },
+    {
+      "pair": 5,
+      "arm": "A",
+      "success": true,
+      "failureReason": null,
+      "engineStatus": "completed",
+      "cleanupCompleted": true,
+      "metrics": {
+        "ttfdMs": 5386.197,
+        "totalMs": 13106.327,
+        "logicalRequests": 3,
+        "requestsStarted": 3,
+        "requestsCompleted": 3,
+        "requestsFailed": 0,
+        "acceptedTasks": 3,
+        "cachedNodes": 0,
+        "tasks": [
+          {
+            "task": "A",
+            "queuedAtMs": 2.652,
+            "dispatchedAtMs": 3,
+            "requestCallAtMs": 3.322,
+            "firstTextAtMs": 4499.447,
+            "settledAtMs": 5386.197,
+            "validationMs": 0.13940000000002328,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "6bb7ff4a8040e1329a221f08796d37d1db8d6aedb932467975f1b750d144befb"
+          },
+          {
+            "task": "B",
+            "queuedAtMs": 5386.608,
+            "dispatchedAtMs": 5386.782,
+            "requestCallAtMs": 5386.856,
+            "firstTextAtMs": 8928.595,
+            "settledAtMs": 9835.462,
+            "validationMs": 0.025899999998728163,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "f9b2dad82c195207ddc3ec6223aedb083301a7986ed92c3ab6f72467d8af550e"
+          },
+          {
+            "task": "C",
+            "queuedAtMs": 9835.657,
+            "dispatchedAtMs": 9835.724,
+            "requestCallAtMs": 9835.76,
+            "firstTextAtMs": 12861.333,
+            "settledAtMs": 13105.734,
+            "validationMs": 0.023199999999633292,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "5dc6d0cf890ad81745256bc21cfc18144b051abf39f604cbf057f6c7d19d5299"
+          }
+        ],
+        "requests": [
+          {
+            "id": 1,
+            "task": "A",
+            "attempt": 1,
+            "startedAtMs": 9.656,
+            "finishedAtMs": 5384.726,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 5377,
+            "observedRequestDurationMs": 5375.07,
+            "outputTokensPerSecondRequestWall": 55.627,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 11,
+            "timeToFirstContentMs": 4493,
+            "timeToFirstTextMs": 4493,
+            "usage": {
+              "inputTokens": 383,
+              "outputTokens": 299,
+              "totalTokens": 682,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 212
+            }
+          },
+          {
+            "id": 2,
+            "task": "B",
+            "attempt": 1,
+            "startedAtMs": 5387.699,
+            "finishedAtMs": 9835.164,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 4448,
+            "observedRequestDurationMs": 4447.465,
+            "outputTokensPerSecondRequestWall": 48.342,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 2,
+            "timeToFirstContentMs": 3541,
+            "timeToFirstTextMs": 3541,
+            "usage": {
+              "inputTokens": 309,
+              "outputTokens": 215,
+              "totalTokens": 524,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 192
+            }
+          },
+          {
+            "id": 3,
+            "task": "C",
+            "attempt": 1,
+            "startedAtMs": 9836.134,
+            "finishedAtMs": 13105.485,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 3269,
+            "observedRequestDurationMs": 3269.351,
+            "outputTokensPerSecondRequestWall": 48.939,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 1,
+            "timeToFirstContentMs": 3025,
+            "timeToFirstTextMs": 3025,
+            "usage": {
+              "inputTokens": 238,
+              "outputTokens": 160,
+              "totalTokens": 398,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 126
+            }
+          }
+        ],
+        "usage": {
+          "requests": 3,
+          "knownSums": {
+            "inputTokens": 930,
+            "outputTokens": 674,
+            "totalTokens": 1604,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 530
+          },
+          "completeTotals": {
+            "inputTokens": 930,
+            "outputTokens": 674,
+            "totalTokens": 1604,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 530
+          },
+          "coverage": {
+            "inputTokens": 3,
+            "outputTokens": 3,
+            "totalTokens": 3,
+            "cacheReadTokens": 3,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 3
+          }
+        },
+        "admission": {
+          "scheduler": [],
+          "providerQueuedCount": 0,
+          "measuredQueuedMs": 0,
+          "unresolvedQueuedCount": 0
+        },
+        "backoff": {
+          "actualSleepMs": null,
+          "scheduled": [],
+          "byReason": {}
+        },
+        "tools": {
+          "allowed": 0,
+          "executed": 0,
+          "executionMs": 0,
+          "scope": "synthetic_no_tools"
+        },
+        "concurrency": [],
+        "eventCounts": {
+          "run-started": 1,
+          "run-launched": 1,
+          "actor-created": 3,
+          "node-queued": 3,
+          "node-dispatched": 3,
+          "node-executing": 3,
+          "node-progress": 3,
+          "usage-updated": 3,
+          "node-settled": 3,
+          "run-settled": 1
+        }
+      },
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "6bb7ff4a8040e1329a221f08796d37d1db8d6aedb932467975f1b750d144befb",
+            "expectedSha256": "0aadabf891a6be47d96422854fec536e424dd75d51e1cce1c075d7c2bd9a0590"
+          },
+          {
+            "task": "B",
+            "promptSha256": "f9b2dad82c195207ddc3ec6223aedb083301a7986ed92c3ab6f72467d8af550e",
+            "expectedSha256": "04dc0d6ed26a36e4687878791813eb96eaab7c0c95d854180b6e503d5c812e22"
+          },
+          {
+            "task": "C",
+            "promptSha256": "5dc6d0cf890ad81745256bc21cfc18144b051abf39f604cbf057f6c7d19d5299",
+            "expectedSha256": "4f43f830be6712e2fa955c743cdc88c24b80b6917b0e963cd1bccf8574d38d8a"
+          }
+        ],
+        "governorFinal": {
+          "ceiling": 14,
+          "cap": 14,
+          "inFlight": 0,
+          "waiters": 0,
+          "epoch": 0
+        }
+      }
+    },
+    {
+      "pair": 5,
+      "arm": "B",
+      "success": true,
+      "failureReason": null,
+      "engineStatus": "completed",
+      "cleanupCompleted": true,
+      "metrics": {
+        "ttfdMs": 3741.356,
+        "totalMs": 7213.589,
+        "logicalRequests": 3,
+        "requestsStarted": 3,
+        "requestsCompleted": 3,
+        "requestsFailed": 0,
+        "acceptedTasks": 3,
+        "cachedNodes": 0,
+        "tasks": [
+          {
+            "task": "A",
+            "queuedAtMs": 2.806,
+            "dispatchedAtMs": 3.253,
+            "requestCallAtMs": 3.683,
+            "firstTextAtMs": 3703.194,
+            "settledAtMs": 4404.413,
+            "validationMs": 0.036499999999250576,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "6bb7ff4a8040e1329a221f08796d37d1db8d6aedb932467975f1b750d144befb"
+          },
+          {
+            "task": "B",
+            "queuedAtMs": 3.145,
+            "dispatchedAtMs": 8.745,
+            "requestCallAtMs": 8.802,
+            "firstTextAtMs": 3540.045,
+            "settledAtMs": 3741.356,
+            "validationMs": 0.02410000000054424,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "f9b2dad82c195207ddc3ec6223aedb083301a7986ed92c3ab6f72467d8af550e"
+          },
+          {
+            "task": "C",
+            "queuedAtMs": 4404.589,
+            "dispatchedAtMs": 4404.647,
+            "requestCallAtMs": 4404.684,
+            "firstTextAtMs": 6970.402,
+            "settledAtMs": 7212.861,
+            "validationMs": 0.020000000000436557,
+            "validated": true,
+            "outcome": "accepted",
+            "failureReason": null,
+            "promptSha256": "5dc6d0cf890ad81745256bc21cfc18144b051abf39f604cbf057f6c7d19d5299"
+          }
+        ],
+        "requests": [
+          {
+            "id": 1,
+            "task": "A",
+            "attempt": 1,
+            "startedAtMs": 11.509,
+            "finishedAtMs": 4404.154,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 4396,
+            "observedRequestDurationMs": 4392.645,
+            "outputTokensPerSecondRequestWall": 70.117,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 12,
+            "timeToFirstContentMs": 3695,
+            "timeToFirstTextMs": 3695,
+            "usage": {
+              "inputTokens": 383,
+              "outputTokens": 308,
+              "totalTokens": 691,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 221
+            }
+          },
+          {
+            "id": 2,
+            "task": "B",
+            "attempt": 1,
+            "startedAtMs": 11.625,
+            "finishedAtMs": 3740.428,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 3731,
+            "observedRequestDurationMs": 3728.803,
+            "outputTokensPerSecondRequestWall": 55.514,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 12,
+            "timeToFirstContentMs": 3531,
+            "timeToFirstTextMs": 3531,
+            "usage": {
+              "inputTokens": 309,
+              "outputTokens": 207,
+              "totalTokens": 516,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 184
+            }
+          },
+          {
+            "id": 3,
+            "task": "C",
+            "attempt": 1,
+            "startedAtMs": 4405.315,
+            "finishedAtMs": 7212.664,
+            "status": "completed",
+            "reason": null,
+            "adapterAttemptDurationMs": 2808,
+            "observedRequestDurationMs": 2807.349,
+            "outputTokensPerSecondRequestWall": 53.075,
+            "admissionQueuedMs": null,
+            "wasQueued": false,
+            "timeToFirstProviderEventMs": 1,
+            "timeToFirstContentMs": 2566,
+            "timeToFirstTextMs": 2566,
+            "usage": {
+              "inputTokens": 238,
+              "outputTokens": 149,
+              "totalTokens": 387,
+              "cacheReadTokens": 0,
+              "cacheWriteTokens": null,
+              "reasoningTokens": 115
+            }
+          }
+        ],
+        "usage": {
+          "requests": 3,
+          "knownSums": {
+            "inputTokens": 930,
+            "outputTokens": 664,
+            "totalTokens": 1594,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 520
+          },
+          "completeTotals": {
+            "inputTokens": 930,
+            "outputTokens": 664,
+            "totalTokens": 1594,
+            "cacheReadTokens": 0,
+            "cacheWriteTokens": null,
+            "reasoningTokens": 520
+          },
+          "coverage": {
+            "inputTokens": 3,
+            "outputTokens": 3,
+            "totalTokens": 3,
+            "cacheReadTokens": 3,
+            "cacheWriteTokens": 0,
+            "reasoningTokens": 3
+          }
+        },
+        "admission": {
+          "scheduler": [],
+          "providerQueuedCount": 0,
+          "measuredQueuedMs": 0,
+          "unresolvedQueuedCount": 0
+        },
+        "backoff": {
+          "actualSleepMs": null,
+          "scheduled": [],
+          "byReason": {}
+        },
+        "tools": {
+          "allowed": 0,
+          "executed": 0,
+          "executionMs": 0,
+          "scope": "synthetic_no_tools"
+        },
+        "concurrency": [],
+        "eventCounts": {
+          "run-started": 1,
+          "run-launched": 1,
+          "actor-created": 3,
+          "node-queued": 3,
+          "node-dispatched": 3,
+          "node-executing": 3,
+          "node-progress": 3,
+          "usage-updated": 3,
+          "node-settled": 3,
+          "run-settled": 1
+        }
+      },
+      "preparation": {
+        "node": "v24.14.1",
+        "platform": "win32",
+        "arch": "x64",
+        "availableParallelism": 16,
+        "implementation": "public-dist-WorkflowEngine-with-app-free-synthetic-driver",
+        "subprocessHarness": "benchmark-worker-no-app-session",
+        "hashes": {
+          "adapterPublicEntry": "b8508c0fb91743fb94cc01ebc5db8162d0dcb50ae82a972a443cedb1c669407c",
+          "enginePublicEntry": "2c195a9fb2bf57bcb5fe8054c2cdfe89cb7371c919670484ca6f10a10c0ed397",
+          "governorSource": "6983bbc32da565cb92fb14c0dd6729714eb5de21947561c3c2b3741ec6ab81f5",
+          "governorCeilingSource": "71862fb8a632871d17061549af2478f15d79a6b6bee01dd8b96cc851f2749fac",
+          "productionRetryBindingSource": "a7c19013f098cf92bce4373efa6b95099a3758c0edabe0d12c9dca50ce808a79",
+          "adapterModelTree": "0f3c2183a3afe2af15c46e07dda964e54f8afbac6a3b3327ac5efea193c84839",
+          "engineTree": "edde59ae108a52b53bd73145bb911870b698d20c3231c2a2607b6fb40455a3c3",
+          "contractsModelTree": "219cba8fcd621aaed18765b27176805f7f87cfd830e67119409cfe63e70ceb65",
+          "benchmarkCodeSha256": "d75ddf0b0055cb5d8dd138b7cfdfdfdc752162ca794b657054c53803f102a665"
+        },
+        "selection": {
+          "providerId": "new-provider-2",
+          "modelId": "gpt-6-astra",
+          "options": {
+            "reasoningLevel": "max",
+            "speed": "fast"
+          }
+        },
+        "maxOutputTokens": 5000,
+        "wireReasoningEffort": "max",
+        "wireServiceTier": "priority",
+        "credentials": "existing_adapter_in_memory_only",
+        "modelIoRecording": false,
+        "adapterRetrySettings": {
+          "backoffFactor": 2,
+          "baseDelayMs": 2000,
+          "jitter": true,
+          "maxAttempts": 11,
+          "maxDelayMs": 60000
+        },
+        "engineMaxConcurrency": 14,
+        "governorInitialCeiling": 14,
+        "governorScope": "fresh_benchmark_process_per_arm",
+        "retryBudget": "production_workflow_unbounded_with_arm_abort",
+        "armTimeoutMs": 600000,
+        "stageFingerprints": [
+          {
+            "task": "A",
+            "promptSha256": "6bb7ff4a8040e1329a221f08796d37d1db8d6aedb932467975f1b750d144befb",
+            "expectedSha256": "0aadabf891a6be47d96422854fec536e424dd75d51e1cce1c075d7c2bd9a0590"
+          },
+          {
+            "task": "B",
+            "promptSha256": "f9b2dad82c195207ddc3ec6223aedb083301a7986ed92c3ab6f72467d8af550e",
+            "expectedSha256": "04dc0d6ed26a36e4687878791813eb96eaab7c0c95d854180b6e503d5c812e22"
+          },
+          {
+            "task": "C",
+            "promptSha256": "5dc6d0cf890ad81745256bc21cfc18144b051abf39f604cbf057f6c7d19d5299",
+            "expectedSha256": "4f43f830be6712e2fa955c743cdc88c24b80b6917b0e963cd1bccf8574d38d8a"
+          }
+        ],
+        "governorFinal": {
+          "ceiling": 14,
+          "cap": 14,
+          "inFlight": 0,
+          "waiters": 0,
+          "epoch": 0
+        }
+      }
+    }
+  ],
+  "summary": {
+    "arms": 10,
+    "successfulArms": 10,
+    "acceptedTasks": 30,
+    "plannedTasksForAttemptedArms": 30,
+    "successfulPairs": 5,
+    "pairs": [
+      {
+        "pair": 1,
+        "complete": true,
+        "eligible": true,
+        "totalSpeedup": 1.265,
+        "ttfdSpeedup": 1.38
+      },
+      {
+        "pair": 2,
+        "complete": true,
+        "eligible": true,
+        "totalSpeedup": 1.701,
+        "ttfdSpeedup": 0.981
+      },
+      {
+        "pair": 3,
+        "complete": true,
+        "eligible": true,
+        "totalSpeedup": 2.285,
+        "ttfdSpeedup": 3.192
+      },
+      {
+        "pair": 4,
+        "complete": true,
+        "eligible": true,
+        "totalSpeedup": 1.669,
+        "ttfdSpeedup": 1.376
+      },
+      {
+        "pair": 5,
+        "complete": true,
+        "eligible": true,
+        "totalSpeedup": 1.817,
+        "ttfdSpeedup": 1.44
+      }
+    ],
+    "totalSpeedup": {
+      "count": 5,
+      "median": 1.701,
+      "min": 1.265,
+      "max": 2.285
+    },
+    "ttfdSpeedup": {
+      "count": 5,
+      "median": 1.38,
+      "min": 0.981,
+      "max": 3.192
+    },
+    "byArm": {
+      "A": {
+        "totalMs": {
+          "count": 5,
+          "median": 12274.349,
+          "min": 10770.217,
+          "max": 15563.558
+        },
+        "ttfdMs": {
+          "count": 5,
+          "median": 5033.849,
+          "min": 4039.385,
+          "max": 9683.91
+        }
+      },
+      "B": {
+        "totalMs": {
+          "count": 5,
+          "median": 7213.589,
+          "min": 6811.335,
+          "max": 8515.549
+        },
+        "ttfdMs": {
+          "count": 5,
+          "median": 3646.59,
+          "min": 3033.837,
+          "max": 4116.266
+        }
+      }
+    }
+  },
+  "limitations": [
+    "Controlled three-task orchestration plus real provider; not a full application or conversation benchmark.",
+    "WorkflowEngine and adapter use existing public dist; governor uses production source/default ceiling.",
+    "Each arm starts a fresh process/governor and blank in-memory journal; no production sessions or caches.",
+    "Two independent investigations and one dependent integration; no tools, workspace reads, title, maintenance, or UI.",
+    "Prompt, validator, output cap and logical task counts are identical within pairs; no validation repair or selective reruns.",
+    "Provider retries preserve production workflow policy but all requests share a 10-minute arm abort deadline.",
+    "Provider-side prompt caching and external provider load are not controlled; actual reported cache usage is separate.",
+    "First text is not a validated delivery. Missing usage is null; reasoning tokens are an output subset.",
+    "Scheduled retry delay is not actual sleep; overlapping request durations are not summed as wall time.",
+    "Five exploratory pairs do not establish stable p95, statistical significance, or complex-session splitting reliability.",
+    "No persistent provider payloads or outputs; no raw errors, endpoints, credentials, or local paths in this report."
+  ]
+}

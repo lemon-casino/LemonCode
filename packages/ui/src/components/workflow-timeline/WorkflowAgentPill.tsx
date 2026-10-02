@@ -12,6 +12,8 @@ import { cn } from "@/components/lib/utils.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { LaneClass, StepRunStatus } from "@/components/workflow-graph/types.js";
 import { WorkflowAgentFace, agentColor } from "@/components/workflow-timeline/WorkflowAgentFace.js";
+import type { WorkflowPillActivity } from "./timeline-activity.js";
+import { WorkflowExecutionActivity, workflowActivityText } from "./WorkflowExecutionActivity.js";
 
 export { agentColor, avatarColor } from "@/components/workflow-timeline/WorkflowAgentFace.js";
 
@@ -19,9 +21,9 @@ export { agentColor, avatarColor } from "@/components/workflow-timeline/Workflow
  * 子代理药丸：带色头像 +
  * 名字 + 右侧状态标记。卡片的站下与侧栏的行都是它——同一个特性只有一枚药丸。
  *
- * 头像是云朵小幽灵（`WorkflowAgentFace`）：配色跟随界面主题，状态只改变五官与动作。
+ * 头像是 D2 三叶小机灵（`WorkflowAgentFace`）：配色跟随界面主题，状态派生五官、道具与动作。
  * 工作区没有身份，所以没有颜色，只有终端字形。`pending` 与无状态逐像素相同：
- * 没有标记、名字用次淡色、小幽灵好奇张望。对勾、叉号与状态圈只在右侧尾槽，不覆盖头像。
+ * 没有标记、名字用次淡色、三叶小机灵好奇张望。对勾、叉号与状态圈只在右侧尾槽，不覆盖头像。
  *
  * 可打开（`open` 在场）时整枚药丸就是按钮：悬停四件事同时落地（底色抬一级、头像色相的
  * 内描边、头像放大加深、尾槽里 ↗ 顶替状态标记），点一下直接开那个子代理的 transcript。不可
@@ -32,7 +34,7 @@ export { agentColor, avatarColor } from "@/components/workflow-timeline/Workflow
  * （↗ 隐身时不能仍占位：否则子代理的标记会比工作区的偏左一格）。
  */
 
-/** 车道字形：agent 车道复用小幽灵，工作区 / 未解析车道是图标。 */
+/** 车道字形：agent 车道复用三叶小机灵，工作区 / 未解析车道是图标。 */
 export function LaneGlyph({
   laneClass,
   className,
@@ -108,6 +110,8 @@ export interface WorkflowAgentPillOpen {
 
 export function WorkflowAgentPill({
   children,
+  activity,
+  activityNow = 0,
   avatarIndex,
   className,
   enterDelayMs,
@@ -121,6 +125,10 @@ export function WorkflowAgentPill({
   trailing,
 }: {
   avatarIndex?: number | undefined;
+  /** 父投影的次级活动；不改变头像/五态，不订阅 actor 会话。 */
+  activity?: WorkflowPillActivity;
+  /** 同一个清单/时间线共享的秒针，只有重试等待时走动。 */
+  activityNow?: number;
   /** 入场延迟（一列药丸依次落地，每枚错 30 ms）；缺席即立刻。 */
   enterDelayMs?: number;
   /** 已本地化的显示名（运行时名 > 车道显示名）。 */
@@ -140,6 +148,10 @@ export function WorkflowAgentPill({
   /** `row`（24 px、静止时没有底色、悬停才成药丸）给侧板名单的两列；缺省 32 px。 */
   size?: "md" | "row";
 }) {
+  const { intl } = useLCodeIntl();
+  const activityText = activity === undefined
+    ? undefined
+    : workflowActivityText(activity, intl.formatMessage.bind(intl), activityNow, true);
   const tinted = laneClass === "agent";
   // 有延迟的入场要 backwards 填充：等待期间保持起始帧，否则药丸先满显再闪一下重新进场。
   // 不用 both：forwards 会把 transform 留在元素上。
@@ -162,17 +174,24 @@ export function WorkflowAgentPill({
         status={status}
         className={cn(
           "shrink-0",
-          size === "row" ? "size-3.5" : "size-4",
+          tinted ? (size === "row" ? "size-6" : "size-8") : size === "row" ? "size-3.5" : "size-4",
           tinted ? "text-[var(--wf-avatar)]" : "text-foreground-subtle",
         )}
       />
       <span
         className={cn(
-          "wf-pill-name min-w-0 flex-1 truncate",
+          "wf-pill-name min-w-0 flex-1",
+          activityText === undefined ? "truncate" : "flex flex-col justify-center leading-none",
+          activityText !== undefined && size !== "row" && "gap-0.5",
           settled ? "text-foreground" : "text-foreground-subtle",
         )}
       >
-        {name}
+        <span className="truncate">{name}</span>
+        {activityText === undefined ? null : (
+          <span className="truncate text-ui-xs leading-none text-foreground-subtle" data-testid="workflow-activity-summary">
+            {activityText}
+          </span>
+        )}
       </span>
       {children}
       {hasTail ? (
@@ -196,16 +215,23 @@ export function WorkflowAgentPill({
       {trailing}
     </>
   );
-  return (
+  const pill = (
     <Root
       aria-label={open?.label}
       className={cn(
         "wf-pill wf-agent-pill wf-arrive flex rounded-full min-w-0 items-center",
-        size === "row"
-          ? "h-6 gap-1.5 pl-1 pr-1.5 text-ui-sm"
-          : "h-8 gap-2 bg-surface pl-2 pr-2.5 text-ui-sm",
+        size === "row" ? "h-6 pr-1.5 text-ui-sm" : "h-8 bg-surface pr-2.5 text-ui-sm",
+        // 头像与行等高，收回左侧留白补偿宽度，避免放大后挤掉名字和右侧状态槽。
+        tinted
+          ? size === "row"
+            ? "gap-1 pl-0"
+            : "gap-1 pl-0.5"
+          : size === "row"
+            ? "gap-1.5 pl-1"
+            : "gap-2 pl-2",
         open !== undefined &&
           "wf-pill-open cursor-pointer text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/40",
+        activity !== undefined && "flex-1",
         className,
       )}
       data-agent-open={open === undefined ? undefined : "true"}
@@ -214,10 +240,19 @@ export function WorkflowAgentPill({
       data-testid="workflow-agent-pill"
       onClick={open?.onOpen}
       style={style}
-      title={open === undefined ? (inertTitle ?? title ?? name) : (title ?? name)}
+      title={activityText === undefined
+        ? (open === undefined ? (inertTitle ?? title ?? name) : (title ?? name))
+        : `${title ?? name} · ${activityText}`}
       {...(open === undefined ? {} : { type: "button" as const })}
     >
       {body}
     </Root>
+  );
+  if (activity === undefined) return pill;
+  return (
+    <span className="flex min-w-0 items-center gap-0.5" data-testid="workflow-activity-pill" data-activity-kind={activity.kind}>
+      {pill}
+      <WorkflowExecutionActivity activity={activity} name={name} now={activityNow} />
+    </span>
   );
 }

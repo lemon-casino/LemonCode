@@ -181,6 +181,7 @@ export async function runWorkflowScript(options: RunWorkflowOptions): Promise<Ru
     askSubmitAttempted: (instance, payload) => engine.askSubmitAttempted(instance, payload),
     askTurnEnded: (instance, finalText) => engine.askTurnEnded(instance, finalText),
     askProgress: (instance, progress) => engine.askProgress(instance, progress),
+    askActivity: (instance, activity) => engine.askActivity(instance, activity),
     askStats: (instance, stats) => engine.askStats(instance, stats),
     askFailed: (instance, error) => engine.askFailed(instance, error),
     // 确定性模型侧错误 → 整个 run 停下，同样只是转发。

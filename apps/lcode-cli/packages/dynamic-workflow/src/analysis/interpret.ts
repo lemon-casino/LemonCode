@@ -115,6 +115,7 @@ function mintCore(
   };
 
   const asks: CoreAskSite[] = table.asks.map((site) => ({
+    ...(ts.isOptionalChain(site.call) ? { optional: true as const } : {}),
     id: site.id,
     label: site.label,
     ...(site.labelPattern === undefined ? {} : { labelPattern: site.labelPattern }),

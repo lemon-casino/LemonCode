@@ -9,6 +9,11 @@ import type {
 } from "@lcode/shared/lcode-protocol-v4";
 import { extractPlanToolCallContent, getPlanDirectoryTitle } from "@/lib/planToolCall.js";
 import { workflowRunStepCounts } from "@/v4/workflowRunCardJoin.js";
+import {
+  workflowRunActivitySummary,
+  type WorkflowActivitySummary,
+  type WorkflowTimelineDisplay,
+} from "@/components/workflow-timeline/timeline-activity.js";
 
 export interface ConversationStatusPanelGitModel {
   branchName: string | null;
@@ -64,6 +69,8 @@ export interface ConversationStatusPanelWorkflowRun {
   status?: "pending" | "running";
   nodesSettled?: number;
   nodesTotal?: number;
+  /** 已有父投影按 actor 汇总的次级活动，不新增订阅或运行状态所有者。 */
+  activitySummary?: WorkflowActivitySummary;
   /**
    * 展示名。**`title ≡ workId` 即「未命名」**，渲染层据此换成 i18n 兜底名：core 的
    * `workflowTaskSubject` 兜底链最终落到 taskId（≡ runId ≡ workId），而投影把非空
@@ -129,6 +136,7 @@ interface BuildConversationStatusPanelModelInput {
   backgroundWorks?: readonly BackgroundWorkSummary[];
   runningSubagents?: readonly RunningSubagentSummary[];
   workflowRuns?: readonly WorkflowRunState[];
+  workflowDisplay?: WorkflowTimelineDisplay;
 }
 
 function buildGitModel({
@@ -234,6 +242,7 @@ function buildSessionPlansModel(
 function buildRunningWorkflowRuns(
   runs: readonly WorkflowRunState[] | undefined,
   workflowWorkByWorkId: ReadonlyMap<string, BackgroundWorkSummary>,
+  display: WorkflowTimelineDisplay | undefined,
 ): ConversationStatusPanelWorkflowRun[] {
   const rows: ConversationStatusPanelWorkflowRun[] = [];
   const joinedWorkIds = new Set<string>();
@@ -249,6 +258,7 @@ function buildRunningWorkflowRuns(
       status: run.status,
       // 计数与聊天紧凑卡同源（唯一实现在 workflowRunCardJoin.ts）。
       ...workflowRunStepCounts(run),
+      activitySummary: workflowRunActivitySummary(run, display),
       ...(work ? { title: work.title, startedAt: work.startedAt } : {}),
       ...(work?.status === "running"
         ? {
@@ -360,7 +370,11 @@ export function buildConversationStatusPanelModel(
     });
   }
 
-  const runningWorkflowRuns = buildRunningWorkflowRuns(input.workflowRuns, workflowWorkByWorkId);
+  const runningWorkflowRuns = buildRunningWorkflowRuns(
+    input.workflowRuns,
+    workflowWorkByWorkId,
+    input.workflowDisplay,
+  );
 
   return {
     git,

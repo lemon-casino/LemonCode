@@ -31,7 +31,11 @@ import type {
   SavedWorkflowsOpenArtifactParams,
   SavedWorkflowsOpenRunParams,
 } from "@/settings/saved-workflows/savedWorkflowContract.js";
-import { selectSavedWorkflowState, useSavedWorkflowStore } from "@/store/savedWorkflowStore.js";
+import {
+  isSavedWorkflowListEmpty,
+  selectSavedWorkflowState,
+  useSavedWorkflowStore,
+} from "@/store/savedWorkflowStore.js";
 
 interface UseSavedWorkflowGlobalGroupParams {
   refreshSeq: number;
@@ -104,7 +108,7 @@ export function useSavedWorkflowGlobalGroup({
     refresh,
   });
 
-  const empty = state.loaded && state.entries.length === 0 && state.invalid.length === 0;
+  const empty = isSavedWorkflowListEmpty(state);
   const count = state.loaded ? state.entries.length : 0;
   useEffect(() => {
     onStateChange("global", { loaded: state.loaded, empty, count });

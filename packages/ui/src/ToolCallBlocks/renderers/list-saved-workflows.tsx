@@ -40,6 +40,7 @@ interface InvalidSavedWorkflowEntry {
 interface ListSavedWorkflowsResult {
   workflows: SavedWorkflowEntry[];
   invalid: InvalidSavedWorkflowEntry[];
+  truncated: boolean;
 }
 
 function parseJsonCandidate(value: unknown): unknown {
@@ -65,13 +66,10 @@ function readResultRecord(value: unknown): ListSavedWorkflowsResult | null {
 
   const workflows: SavedWorkflowEntry[] = [];
   for (const entry of normalized.workflows) {
-    if (!isPlainRecord(entry)) {
-      continue;
-    }
+    // 非法 legacy 条目不能被静默滤成零条，否则解析失败会冒充“没有模板”。
+    if (!isPlainRecord(entry)) return null;
     const name = readTrimmedString(entry.name);
-    if (name === undefined) {
-      continue;
-    }
+    if (name === undefined) return null;
     workflows.push({
       name,
       description: readTrimmedString(entry.description),
@@ -83,20 +81,17 @@ function readResultRecord(value: unknown): ListSavedWorkflowsResult | null {
   }
 
   const invalid: InvalidSavedWorkflowEntry[] = [];
-  if (Array.isArray(normalized.invalid)) {
+  if (normalized.invalid !== undefined) {
+    if (!Array.isArray(normalized.invalid)) return null;
     for (const entry of normalized.invalid) {
-      if (!isPlainRecord(entry)) {
-        continue;
-      }
+      if (!isPlainRecord(entry)) return null;
       const path = readTrimmedString(entry.path);
-      if (path === undefined) {
-        continue;
-      }
+      if (path === undefined) return null;
       invalid.push({ path, reason: readTrimmedString(entry.reason) });
     }
   }
 
-  return { workflows, invalid };
+  return { workflows, invalid, truncated: normalized.truncated === true };
 }
 
 /**
@@ -123,6 +118,7 @@ function readListSavedWorkflowsResult(
         path: entry.path,
         reason: entry.reason,
       })),
+      truncated: display.truncated === true,
     };
   }
 
@@ -156,21 +152,32 @@ export function ListSavedWorkflowsToolCallBlock(context: ToolCallBlockRenderCont
   const kindLabel = intl.formatMessage({
     id: context.isRunning
       ? "chat.toolCall.workflow.list.listing"
-      : "chat.toolCall.workflow.list.listed",
+      : toolCall.status === "failed"
+        ? "chat.toolCall.workflow.list.failed"
+        : "chat.toolCall.workflow.list.listed",
   });
   const scopeProjectLabel = intl.formatMessage({
     id: "chat.permission.workflow.saved.scope.project",
   });
   const scopeGlobalLabel = intl.formatMessage({ id: "chat.toolCall.workflow.scope.global" });
   const emptyLabel = intl.formatMessage({ id: "chat.toolCall.workflow.list.empty" });
+  const emptyHint = intl.formatMessage({ id: "chat.toolCall.workflow.list.emptyHint" });
+  const truncatedLabel = intl.formatMessage({ id: "chat.toolCall.workflow.list.truncated" });
+  const hasResult =
+    !context.isRunning && toolCall.status !== "failed" && toolCall.status !== "stopped";
 
   const workflowCount = result?.workflows.length ?? 0;
   const invalidCount = result?.invalid.length ?? 0;
-  // 轻量 intl 没有 ICU 复数，单复数各用独立 message key（同 workflow.error/errors 的先例）。
+  const truncated = result?.truncated === true;
+  const isEmpty = hasResult && workflowCount === 0 && invalidCount === 0 && !truncated;
+  // 截断只说明已展示条数，不能把有界 display 的长度冒充模板总数。
   const countLabel = intl.formatMessage(
     {
-      id:
-        workflowCount === 1
+      id: truncated
+        ? workflowCount === 1
+          ? "chat.toolCall.workflow.list.partialCountOne"
+          : "chat.toolCall.workflow.list.partialCount"
+        : workflowCount === 1
           ? "chat.toolCall.workflow.list.countOne"
           : "chat.toolCall.workflow.list.count",
     },
@@ -189,15 +196,31 @@ export function ListSavedWorkflowsToolCallBlock(context: ToolCallBlockRenderCont
   // ToolLayout 是 memo 组件：内联 JSX prop 每次渲染都是新引用，会让记忆化失效。
   const primaryText = useMemo(
     () => (
-      <span className="truncate text-foreground-subtlest">
-        {workflowCount === 0 ? emptyLabel : countLabel}
+      <span className="flex min-w-0 flex-wrap items-center gap-x-2 text-foreground-subtlest">
+        <span className="truncate">
+          {isEmpty
+            ? emptyLabel
+            : workflowCount === 0 && invalidCount > 0
+              ? invalidLabel
+              : countLabel}
+        </span>
+        {truncated ? <span className="text-ui-xs">{truncatedLabel}</span> : null}
       </span>
     ),
-    [countLabel, emptyLabel, workflowCount],
+    [
+      countLabel,
+      emptyLabel,
+      invalidCount,
+      invalidLabel,
+      isEmpty,
+      truncated,
+      truncatedLabel,
+      workflowCount,
+    ],
   );
 
   const renderContent = useCallback(() => {
-    if (!result) {
+    if (!result || !hasResult) {
       return null;
     }
 
@@ -245,9 +268,13 @@ export function ListSavedWorkflowsToolCallBlock(context: ToolCallBlockRenderCont
           </div>
         ))}
 
-        {result.workflows.length === 0 ? (
-          <p className="text-ui-sm text-foreground-subtlest">{emptyLabel}</p>
+        {isEmpty ? (
+          <div className="space-y-1 text-ui-sm text-foreground-subtlest">
+            <p>{emptyLabel}</p>
+            <p>{emptyHint}</p>
+          </div>
         ) : null}
+        {truncated ? <p className="text-ui-sm text-foreground-subtlest">{truncatedLabel}</p> : null}
 
         {result.invalid.length === 0 ? null : (
           <div className="space-y-0.5 rounded-lg border border-warning/40 px-2.5 py-2">
@@ -255,21 +282,39 @@ export function ListSavedWorkflowsToolCallBlock(context: ToolCallBlockRenderCont
             {result.invalid.map((entry) => (
               <p
                 key={entry.path}
-                className="min-w-0 truncate font-mono text-ui-xs text-foreground-subtlest"
+                className="min-w-0 whitespace-pre-wrap break-all font-mono text-ui-xs text-foreground-subtlest"
                 title={entry.reason ?? entry.path}
               >
                 {entry.path}
+                {entry.reason ? ` — ${entry.reason}` : ""}
               </p>
             ))}
           </div>
         )}
       </div>
     );
-  }, [emptyLabel, invalidLabel, result, scopeGlobalLabel, scopeProjectLabel]);
+  }, [
+    emptyHint,
+    emptyLabel,
+    hasResult,
+    invalidLabel,
+    isEmpty,
+    result,
+    scopeGlobalLabel,
+    scopeProjectLabel,
+    truncated,
+    truncatedLabel,
+  ]);
 
   // 读不出结构化结果（老会话、失败、降级路径）就交回通用卡，而不是画一张空列表。
-  if (!result) {
-    return <FallbackToolCallBlock {...context} iconOverride={LIST_SAVED_WORKFLOWS_TOOL_ICON} />;
+  if (!result || !hasResult) {
+    return (
+      <FallbackToolCallBlock
+        {...context}
+        iconOverride={LIST_SAVED_WORKFLOWS_TOOL_ICON}
+        kindLabelOverride={context.kindLabelOverride ?? kindLabel}
+      />
+    );
   }
 
   return (

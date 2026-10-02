@@ -224,7 +224,7 @@
     ".agents/skills/react-best-practices/rules/server-parallel-nested-fetching.md": "4d9c44e579e1286013acf5cb5f65b04297d2b68909f44f8163804656514a78ff",
     ".agents/skills/react-best-practices/rules/server-serialization.md": "4d025c42043c56e6355196a2e885d168cdb15248d0797146c9db838a57b34946",
     ".agents/skills/react-best-practices/SKILL.md": "b7d246acb440bee224ab33614979a5b8debe5fdb13d0304967aa19358eb69d9f",
-    "apps/lcode-cli/package.json": "15c7c043d61508b74660d26deb515351cb8564f213b6f6e159343e0bcbb3e61b",
+    "apps/lcode-cli/package.json": "809733bdb6575ba8d4930ca5b08acd56b02068ecddeb427bdeffa22d3e00b12e",
     "apps/lcode-cli/packages/adapters/package.json": "6f0f045ddf3a549459a233b909ad817bf74db97979ae39fdfe3021e39850ec04",
     "apps/lcode-cli/packages/bootstrap/package.json": "a9a499d43c2081b7c9eca4f6acdf6c02fd1335b0472a48a4e232980e45be00af",
     "apps/lcode-cli/packages/browser-use-plugin/package.json": "2434064a2dc441850f30e5087c091f55f47290b8e9e6608aa0471ad4c61f16d3",
@@ -232,7 +232,7 @@
     "apps/lcode-cli/packages/contracts/package.json": "ef808b9e4604720302578ec8b168e897cf27fd026d95063af8310032afecffb5",
     "apps/lcode-cli/packages/core/package.json": "893c9d22fbbade4ba7e8b64855880e3ad480ec0fce85354c893cc5e098b6d9e4",
     "apps/lcode-cli/packages/core/src/tool/handlers/generated/bash-command-registry.ts": "60fa5acd9f5c357f4e51b1d1e944ee39da92680e4bc5e98dd708f1457fcf612b",
-    "apps/lcode-cli/packages/debug/package.json": "16e6a402d995d3a56ed6e97665cd81f0dd22f03280350d5e0a70c14a2cc4b2ca",
+    "apps/lcode-cli/packages/debug/package.json": "7e82ce1c18978c242fc515c00b72671ea557b94713ec37827836eb3e03efaa3c",
     "apps/lcode-cli/packages/dynamic-workflow-runtime/package.json": "4e75c72bf57a1a86c0a99fe46be49ae11f9b88b698f24ee14e3c6ad49d7507c7",
     "apps/lcode-cli/packages/dynamic-workflow/package.json": "ee2df00089565896b65b619003a08def2f2003bc27a2d59fdc00d7696da048dd",
     "apps/lcode-cli/packages/i18n/package.json": "65da7979171302940d83661b617a51a3200a74ecfe18946626f97473e9be2e7c",
@@ -252,7 +252,7 @@
     "apps/lcode-cli/packages/tui/package.json": "51decf6f5c4286c694c4b15ef0ca16129dee0283951b4929c43e0ed9aa12f468",
     "apps/lcode-cli/tools/prompt-trajectory/package.json": "6ab89bba2dba20f07cf913e34acb4bda59d9563d196995a25f867f34281df02b",
     "apps/lcode-cli/tools/typescript/package.json": "2f33883fe33cc9d878a3d6d78a0d262eb0db134fc02042ed7563c3dc50d797f7",
-    "package.json": "b4f931c3a05a2e3ade20d25fd8dcda31e472ff8828e440d9adffc3b78ba9973d",
+    "package.json": "af3c7d9cb967edd2ab2f5bc8a67247675aacfffe72ee4c7698c3cdd4d524cd50",
     "packages/client/package.json": "6cfcb57428c4728a98b7cf4504d29304cf6e9e547e136f0ab1edcef8f821b452",
     "packages/desktop/package.json": "b68388d3a85da919fbb58ff079ee0f0b426eaef17fe6f35b8d3553f6065ba826",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
@@ -1527,7 +1527,7 @@
     "packages/ui/src/components/ui/tooltip.tsx": "301dbf3a6f8b1bc496f9bdc6fbc5fe6202ed373182897f39cd1ecd19b00fdfbe",
     "packages/ui/src/components/ui/usePdfZoomOverlay.ts": "c8c91b003ce2fded32c7a2369dc6eac43aa4b9dc9c830a0f5ceccb21d366b610",
     "packages/ui/src/lib/builtinSkillI18n.ts": "0a177a74855a0b4fa344bc633bfbf4dcc4b14d577f3c73b931cf279f74df7485",
-    "packages/ui/src/styles.css": "7f97829d9205c7c75294b45a71aa89286b3756cc123e385fe5546536fb81133b",
+    "packages/ui/src/styles.css": "b0c19c5b8f74d8ad6014035239f866fda3eb0f98eabc55d091ea64b50d24a8fa",
     "packages/web/package.json": "43a45b12d01939ef99e0f1a12c657df194a2d1d3e7d819053c8079708b88efa5",
     "packages/web/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
     "packages/web/public/material-icons/abap.svg": "1335bd7eb9a0ed49deb622330d680c2e97731726a7a5eee8e4f46dc1e5db4de4",
@@ -20993,7 +20993,7 @@
         },
         {
           "file": "packages/ui/src/styles.css",
-          "sha256": "ec015c0a0e52726c688240bf2790ccab9df55b10d1cb3b8022dc7d8c2b227195"
+          "sha256": "b0c19c5b8f74d8ad6014035239f866fda3eb0f98eabc55d091ea64b50d24a8fa"
         }
       ]
     },

@@ -1,1105 +1,41 @@
-// Session Store Port：为会话输入、消息和投影提供稳定的存储边界。
-// ============================================================
-
-import type {
-  MessageId,
-  PartId,
-  ProjectId,
-  SessionId,
-  ToolCallId,
-  TraceId,
-  TurnId,
-  WorkspaceId,
-} from "./shared.js";
-import type {
-  CompactBoundaryPayload,
-  CompactPhase,
-  CompactReason,
-  CompactTimelineDisplay,
-  CompactTimelineStatus,
-  CompactTrigger,
-} from "../compact/index.js";
-import type {
-  ModelId,
-  ModelProviderId,
-  ModelSelection,
-  ModelToolSideEffectScope,
-} from "../model/index.js";
+import type { MessageId, PartId, ProjectId, SessionId } from "./shared.js";
 import type { TodoItem } from "../tools/todo.js";
 import type { SessionGoal, GoalStatus } from "../tools/target.js";
 import type { PermissionRuleset } from "./permission.port.js";
 import type { CollaborationMode } from "./session.port.js";
-import type { EnvInfo } from "./context-source.port.js";
-
-export const SESSION_TASK_TYPES = [
-  "interactive",
-  "fork",
-  "selection_side_chat",
-  "workflow_parent",
-  "workflow_child",
-  "subagent_child",
-  "nested_workflow_child",
-] as const;
-export type SessionTaskType = (typeof SESSION_TASK_TYPES)[number];
-
-export const SESSION_TITLE_SOURCES = ["default", "first_input", "generated", "custom"] as const;
-export type SessionTitleSource = (typeof SESSION_TITLE_SOURCES)[number];
-
-export const MESSAGE_VISIBILITIES = ["user-visible", "model-only"] as const;
-export type MessageVisibility = (typeof MESSAGE_VISIBILITIES)[number];
-
-export const SYNTHETIC_USER_MESSAGE_SOURCES = [
-  "background_task",
-  "fork",
-  "goal_state_change",
-  "goal-continuation",
-  "plugin_reference",
-  "rewind",
-  "selection_side_chat",
-  "subagent",
-  "subagent_message",
-  "todo_reminder",
-  // 中枢直接启动已保存工作流时落的那条 user 消息的来源。
-  // 它虽是 synthetic（GUI 用元数据画启动卡而非显示文本），语义上却是用户真实动作：
-  // origin=real_user、kind=user_prompt，与其余「运行时注入的提醒」类来源不同档。
-  "workflow_launch",
-  "shared_context",
-] as const;
-export type SyntheticUserMessageSource = (typeof SYNTHETIC_USER_MESSAGE_SOURCES)[number];
-
-export type MessageSemanticsOrigin =
-  | "real_user"
-  | "agent_runtime"
-  | "system"
-  | "migration"
-  | "import";
-
-export type MessageSemanticsKind =
-  | "user_prompt"
-  | "slash_command"
-  | "system_reminder"
-  | "background_notification"
-  | "subagent_notification"
-  | "todo_reminder"
-  | "rewind_notice"
-  | "fork_notice"
-  | "timeline_event"
-  | "compact_summary"
-  | "shared_context"
-  | "assistant_response";
-
-export interface MessageSemantics {
-  origin: MessageSemanticsOrigin;
-  kind: MessageSemanticsKind;
-  source?: string;
-  commandName?: string;
-  uiVisibility: "visible" | "hidden" | "debug";
-  providerVisibility: "visible" | "hidden";
-  transcriptVisibility: "visible" | "hidden";
-}
-
-// v4 投影锚点词表（userInput.origin）。
-// 与 MessageSemanticsOrigin 并存不互替：semantics.origin 是旧读侧语义，
-// anchor.origin 是新协议 row 派生依据；老值由读侧只读映射。
-export const MESSAGE_ANCHOR_ORIGINS = [
-  "realUser",
-  "backgroundResult",
-  "goalContinuation",
-  "mailbox",
-  "synthetic",
-] as const;
-export type MessageAnchorOrigin = (typeof MESSAGE_ANCHOR_ORIGINS)[number];
-
-/**
- * stable fork 的 fork 点 goal 事实。undefined 只表示旧数据；新数据必须显式写 none
- * 或完整快照，避免 fork 时读取 parent 当前 goal 冒充历史状态。
- */
-export type StableForkGoalBoundaryMetadata =
-  | { kind: "none" }
-  | {
-      kind: "snapshot";
-      target: SessionGoal;
-      verificationEntryIds: string[];
-    };
-
-/**
- * v4 transcript 锚点（清单）：全部 optional，
- * 走 message JSON blob 的 additive 演进，历史数据留空、读侧宽容降级。
- * sourceCommandId 是命令幂等的 transcript 兜底查重键，
- * 由 v4 command inbox 铺路后写入（接线）。
- */
-export interface MessageProjectionAnchor {
-  turnId?: TurnId;
-  origin?: MessageAnchorOrigin;
-  sourceCommandId?: string;
-  /** 最终 assistant 固化当前 query 的历史轮次，供 cold hydration 精确恢复。 */
-  historyRoundCount?: number;
-  /** 新数据的 stable fork 固定边界；历史消息缺省，由唯一 resolver 无歧义时惰性补写。 */
-  productTurnId?: string;
-  orderedMessageIds?: MessageId[];
-  boundaryMessageId?: MessageId;
-  goalBoundary?: StableForkGoalBoundaryMetadata;
-}
-
-export interface SessionInfo {
-  id: SessionId;
-  projectID: ProjectId;
-  workspaceID?: WorkspaceId;
-  parentID?: SessionId;
-  traceID?: TraceId;
-  taskType: SessionTaskType;
-  slug: string;
-  directory: string;
-  path?: string;
-  title: string;
-  titleSource?: SessionTitleSource;
-  titleMessageID?: MessageId;
-  version: string;
-  shareURL?: string;
-  summaryAdditions?: number;
-  summaryDeletions?: number;
-  summaryFiles?: number;
-  summaryDiffs?: FileDiff[];
-  revert?: SessionRevert;
-  permission?: PermissionRuleset;
-  time: {
-    created: number;
-    updated: number;
-    titleUpdated?: number;
-    compacting?: number;
-    archived?: number;
-  };
-}
-
-export interface CreateSessionInput {
-  id: SessionId;
-  projectID: ProjectId;
-  workspaceID?: WorkspaceId;
-  parentID?: SessionId;
-  traceID?: TraceId;
-  taskType?: SessionTaskType;
-  slug: string;
-  directory: string;
-  path?: string;
-  title: string;
-  titleSource?: SessionTitleSource;
-  titleMessageID?: MessageId;
-  version: string;
-  shareURL?: string;
-  permission?: PermissionRuleset;
-  time?: {
-    created?: number;
-    updated?: number;
-  };
-}
-
-/** V4 stable fork resolver 固定的目标 product turn segment。 */
-export interface StableForkTargetMetadata {
-  productTurnId: string;
-  transcriptTurnId: string;
-  orderedMessageIds: string[];
-  boundaryMessageId: string;
-}
-
-/** 与 child session 同事务落盘的命令幂等事实。 */
-export interface ForkChildSessionMetadata {
-  parentSessionId: string;
-  sourceCommandId: string;
-  forkTarget: StableForkTargetMetadata;
-}
-
-export type ForkCommandResult =
-  | { type: "forkAssistant"; sessionId: string }
-  | { type: "createSelectionSideSession"; sessionId: string }
-  | { type: "editUserQuery"; disposition: "fork"; sessionId: string };
-
-/**
- * conversation fork 的唯一原子提交载荷。core 在内存完成 remap；adapter 不参与业务裁决，
- * 只保证 child/copy/goal/entries/input/parent command fact 全有或全无。
- */
-export interface ForkCommitBundle {
-  child: CreateSessionInput;
-  messages: MessageWithParts[];
-  entries: SessionEntryInfo[];
-  /** 存储复制来源（目标 ID -> 父记录 ID）；只保留旧磁盘快照，不参与模型选择。 */
-  copySources?: { messages: Record<string, string>; parts: Record<string, string> };
-  goal?: { source: SessionGoal; status: GoalStatus };
-  initialInput?: {
-    id: string;
-    sessionID: SessionId;
-    kind: string;
-    delivery: SessionInputDelivery;
-    payload: { text: string; [key: string]: unknown };
-  };
-  commandFact: {
-    parentSessionId: string;
-    sourceCommandId: string;
-    ack: {
-      commandId: string;
-      status: "accepted";
-      revisionAtDecision: number;
-      result: ForkCommandResult;
-    };
-    metadata: Record<string, unknown>;
-  };
-}
-
-export interface UpdateSessionInput {
-  id: SessionId;
-  directory?: string;
-  path?: string | null;
-  timeUpdated?: number;
-  title?: string;
-  titleSource?: SessionTitleSource;
-  titleMessageID?: MessageId | null;
-  expectedTitleSources?: readonly SessionTitleSource[];
-  shareURL?: string | null;
-  summary?: {
-    additions?: number;
-    deletions?: number;
-    files?: number;
-    diffs?: FileDiff[];
-  } | null;
-  revert?: SessionRevert | null;
-  permission?: PermissionRuleset | null;
-  timeCompacting?: number | null;
-  timeArchived?: number | null;
-}
-
-export interface FileDiff {
-  path: string;
-  additions: number;
-  deletions: number;
-  oldPath?: string;
-  newPath?: string;
-}
-
-export interface SessionRevert {
-  messageID: MessageId;
-  partID?: PartId;
-  snapshot?: string;
-  diff?: string;
-  kind?: "conversation_rewind";
-  scope?: "conversation" | "workspace" | "both";
-  targetMessageID?: MessageId;
-  createdMessageID?: MessageId;
-  keptMessageIDs?: MessageId[];
-  /**
-   * append-only conversation branch 的 cut 游标：本次 rewind 提交前最后一条持久消息。
-   * active branch = keptMessageIDs + 该消息之后新追加的消息。旧 createdMessageID 仅用于兼容。
-   */
-  branchCutAfterMessageID?: MessageId;
-  /** 每次 destructive conversation rewind 单调递增，用于隔离旧分支异步结果。 */
-  branchGeneration?: number;
-}
-
-export interface ListSessionsInput {
-  projectID?: ProjectId;
-  /** undefined = 不按 identity 过滤；null = 仅本地/legacy 空 identity；字符串 = 精确 workspace identity。 */
-  workspaceID?: WorkspaceId | null;
-  directory?: string;
-  path?: string;
-  roots?: boolean;
-  taskTypes?: SessionTaskType[];
-  includeArchived?: boolean;
-  limit?: number;
-}
-
-export const SESSION_TRANSCRIPT_SNAPSHOT_MAX_MESSAGE_ROWS = 256;
-export const SESSION_TRANSCRIPT_SNAPSHOT_MAX_PART_ROWS = 1_024;
-export const SESSION_TRANSCRIPT_SNAPSHOT_MAX_DATA_BYTES = 262_144;
-
-export interface SessionTranscriptSnapshotLimits {
-  maxMessageRows: number;
-  maxPartRows: number;
-  /** Combined UTF-8 bytes of admitted message/part JSON data columns. */
-  maxDataBytes: number;
-}
-
-export interface ReadSessionTranscriptSnapshotInput {
-  sessionID: SessionId;
-  limits: SessionTranscriptSnapshotLimits;
-}
-
-export interface SessionTranscriptSnapshot {
-  session: SessionInfo | null;
-  messages: MessageWithParts[];
-  loadedMessageCount: number;
-  loadedPartCount: number;
-  loadedDataBytes: number;
-  truncated: boolean;
-}
-
-export interface ClaimLegacySessionWorkspaceInput {
-  sessionIDs: SessionId[];
-  directory: string;
-  workspaceID: WorkspaceId;
-}
-
-export interface RepairLegacyRemoteSessionWorkspaceInput {
-  sessionID: SessionId;
-  projectID: ProjectId;
-  legacyWorkspaceDirectory: string;
-  workspaceID: WorkspaceId;
-  workspacePath: string;
-}
-
-export interface RepairRemoteSessionPathsInput {
-  sessionID: SessionId;
-  workspaceID: WorkspaceId;
-  expectedDirectory: string;
-  expectedPath: string | null;
-  directory: string;
-  path: string | null;
-  timeUpdated: number;
-}
-
-export type OutputFormat =
-  | { type: "text" }
-  | { type: "json_schema"; schema: Record<string, unknown>; retryCount?: number };
-
-export interface MessageSummary {
-  title?: string;
-  body?: string;
-  diffs: FileDiff[];
-}
-
-export interface MessageContextSnapshot {
-  envInfo?: EnvInfo;
-}
-
-export interface UserMessageInfo {
-  id: MessageId;
-  sessionID: SessionId;
-  role: "user";
-  time: {
-    created: number;
-  };
-  format?: OutputFormat;
-  summary?: MessageSummary;
-  agent: string;
-  /** 未绑定会话的合成消息、缺少模型信息的旧消息不伪造请求来源。 */
-  modelSelection?: ModelSelection;
-  system?: string;
-  tools?: Record<string, boolean>;
-  contextSnapshot?: MessageContextSnapshot;
-  synthetic?: boolean;
-  source?: SyntheticUserMessageSource;
-  visibility?: MessageVisibility;
-  semantics?: MessageSemantics;
-  anchor?: MessageProjectionAnchor;
-  metadata?: Record<string, unknown>;
-}
-
-export interface AssistantErrorInfo {
-  name: string;
-  data?: Record<string, unknown>;
-}
-
-export interface TokenUsageInfo {
-  total?: number;
-  input: number;
-  output: number;
-  reasoning: number;
-  cache: {
-    read: number;
-    write: number;
-  };
-}
-
-export interface AssistantMessageInfo {
-  id: MessageId;
-  sessionID: SessionId;
-  role: "assistant";
-  time: {
-    created: number;
-    completed?: number;
-  };
-  error?: AssistantErrorInfo;
-  parentID: MessageId;
-  /** 真正模型输出应携带来源；历史恢复的合成时间线允许没有执行模型。 */
-  modelId?: ModelId;
-  providerId?: ModelProviderId;
-  mode: string;
-  /** 当前输出对应的 Plan 状态；旧记录缺失时按旧 mode 解释，不回填历史。 */
-  planEnabled?: boolean;
-  agent: string;
-  path: {
-    cwd: string;
-    root: string;
-  };
-  summary?: boolean;
-  cost: number;
-  tokens: TokenUsageInfo;
-  structured?: unknown;
-  reasoningLevel?: string;
-  finish?: string;
-  semantics?: MessageSemantics;
-  anchor?: MessageProjectionAnchor;
-  /** 附加领域语义（fork copy 的 forkOrigin provenance 等）。 */
-  metadata?: Record<string, unknown>;
-}
-
-export type MessageInfo = UserMessageInfo | AssistantMessageInfo;
-
-export interface TextPart {
-  id: PartId;
-  sessionID: SessionId;
-  messageID: MessageId;
-  type: "text";
-  text: string;
-  synthetic?: boolean;
-  ignored?: boolean;
-  time?: {
-    start: number;
-    end?: number;
-  };
-  metadata?: Record<string, unknown>;
-}
-
-export interface ReasoningPart {
-  id: PartId;
-  sessionID: SessionId;
-  messageID: MessageId;
-  type: "reasoning";
-  text: string;
-  metadata?: Record<string, unknown>;
-  time: {
-    start: number;
-    end?: number;
-  };
-}
-
-export type FilePartSource =
-  | {
-      type: "file";
-      path: string;
-      text: { value: string; start: number; end: number };
-    }
-  | {
-      type: "symbol";
-      path: string;
-      range: unknown;
-      name: string;
-      kind: number;
-      text: { value: string; start: number; end: number };
-    }
-  | {
-      type: "resource";
-      clientName: string;
-      uri: string;
-      text: { value: string; start: number; end: number };
-    };
-
-export interface AttachmentStorageMetadata {
-  sizeBytes?: number;
-  sha256?: string;
-  image?: {
-    maxDimension?: number;
-    originalWidth?: number;
-    originalHeight?: number;
-    width?: number;
-    height?: number;
-    resized?: boolean;
-    transformedSizeBytes?: number;
-  };
-  storageKind?: "inline" | "artifact" | "local_ref" | "remote_ref" | "metadata_only";
-  artifactUri?: string;
-  originalUrl?: string;
-  recoverability?: "provider_ready" | "rebuildable" | "preview_only" | "metadata_only" | "missing";
-  preview?: {
-    text?: string;
-    truncated?: boolean;
-    originalBytes?: number;
-    startLine?: number;
-    totalLines?: number;
-    truncatedByTokenCap?: boolean;
-    partialViewNotice?: string;
-  };
-  errorCode?: string;
-}
-
-export interface FilePart {
-  id: PartId;
-  sessionID: SessionId;
-  messageID: MessageId;
-  type: "file";
-  mime: string;
-  filename?: string;
-  url: string;
-  source?: FilePartSource;
-  metadata?: AttachmentStorageMetadata;
-}
-
-export interface AgentPart {
-  id: PartId;
-  sessionID: SessionId;
-  messageID: MessageId;
-  type: "agent";
-  name: string;
-  source?: {
-    value: string;
-    start: number;
-    end: number;
-  };
-}
-
-export interface CompactionPart {
-  id: PartId;
-  sessionID: SessionId;
-  messageID: MessageId;
-  type: "compaction";
-  auto: boolean;
-  trigger?: CompactTrigger;
-  phase?: CompactPhase;
-  compactReason?: CompactReason;
-  overflow?: boolean;
-  tail_start_id?: MessageId;
-  compactBoundary?: CompactBoundaryPayload;
-  operationId?: string;
-  timelineStatus?: CompactTimelineStatus;
-  timelineDisplay?: CompactTimelineDisplay;
-  timelineText?: string;
-  replace?: boolean;
-  reason?: string;
-  boundaryId?: string;
-  summaryMessageId?: MessageId;
-  preCompactTokenCount?: number;
-  postCompactTokenCount?: number;
-  truePostCompactTokenCount?: number;
-  attempt?: number;
-  maxAttempts?: number;
-  time?: {
-    start?: number;
-    end?: number;
-  };
-}
-
-export type TimelinePartDisplay = "separator" | "worklog";
-
-export type TimelinePartStatus =
-  | "started"
-  | "completed"
-  | "failed"
-  | "interrupted"
-  | "cancelled"
-  | string;
-
-export interface TimelineModelSelection extends ModelSelection {
-  label?: string;
-}
-
-export interface TimelinePartBase {
-  id: PartId;
-  sessionID: SessionId;
-  messageID: MessageId;
-  type: "timeline";
-  display: TimelinePartDisplay;
-  status?: TimelinePartStatus;
-  anchorMessageId?: MessageId;
-  anchorTurnId?: TurnId;
-  /** 用户命令产生的 marker 查重锚点；auto/system marker 缺省。 */
-  sourceCommandId?: string;
-  /**
-   * fork copy 降级 provenance：anchor 指向未被复制的消息/父轮时，
-   * 本地 anchor 必须清空（不得参与 child 落位），原引用降级到 origin* 仅供溯源。
-   */
-  originAnchorMessageId?: MessageId;
-  originAnchorTurnId?: TurnId;
-  time?: {
-    start?: number;
-    end?: number;
-  };
-}
-
-export interface ContextCompactionTimelinePart extends TimelinePartBase {
-  timelineType: "context_compaction";
-  operationId: string;
-  trigger: CompactTrigger;
-  phase?: CompactPhase;
-  compactReason?: CompactReason;
-  boundaryId?: string;
-  summaryMessageId?: MessageId;
-  preCompactTokenCount?: number;
-  postCompactTokenCount?: number;
-  truePostCompactTokenCount?: number;
-  attempt?: number;
-  maxAttempts?: number;
-  reason?: string;
-}
-
-export interface GoalVerificationTimelinePart extends TimelinePartBase {
-  timelineType: "goal_verification";
-  targetId: string;
-  verificationId: string;
-  goalIteration?: number;
-  verification?: {
-    passed: boolean;
-    reason: string;
-    nextAction?: string | null;
-  };
-}
-
-export interface SessionForkTimelinePart extends TimelinePartBase {
-  timelineType: "session_fork";
-  parentSessionId: SessionId;
-  targetMessageId: MessageId;
-  targetCheckpointId?: string;
-  restoredFileCount?: number;
-}
-
-export interface ModelChangeTimelinePart extends TimelinePartBase {
-  timelineType: "model_change";
-  fromModel?: TimelineModelSelection;
-  /** 回滚再升级后模型配置可缺失；不能因此丢掉整条历史内容。 */
-  toModel?: TimelineModelSelection & { label: string };
-}
-
-export type TimelinePart =
-  | ContextCompactionTimelinePart
-  | GoalVerificationTimelinePart
-  | SessionForkTimelinePart
-  | ModelChangeTimelinePart;
-
-export type TimelinePartDraft = TimelinePart extends infer Part
-  ? Part extends TimelinePart
-    ? Omit<Part, "id" | "messageID" | "sessionID" | "type">
-    : never
-  : never;
-
-export interface SubtaskPart {
-  id: PartId;
-  sessionID: SessionId;
-  messageID: MessageId;
-  type: "subtask";
-  prompt: string;
-  description: string;
-  agent: string;
-  model?: {
-    providerId: ModelProviderId;
-    modelId: ModelId;
-  };
-  command?: string;
-}
-
-export interface RetryPart {
-  id: PartId;
-  sessionID: SessionId;
-  messageID: MessageId;
-  type: "retry";
-  attempt: number;
-  error: AssistantErrorInfo;
-  time: {
-    created: number;
-  };
-}
-
-export interface StepStartPart {
-  id: PartId;
-  sessionID: SessionId;
-  messageID: MessageId;
-  type: "step-start";
-  snapshot?: string;
-}
-
-export interface StepFinishPart {
-  id: PartId;
-  sessionID: SessionId;
-  messageID: MessageId;
-  type: "step-finish";
-  reason: string;
-  snapshot?: string;
-  cost: number;
-  tokens: TokenUsageInfo;
-}
-
-export interface SnapshotPart {
-  id: PartId;
-  sessionID: SessionId;
-  messageID: MessageId;
-  type: "snapshot";
-  snapshot: string;
-}
-
-export interface PatchPart {
-  id: PartId;
-  sessionID: SessionId;
-  messageID: MessageId;
-  type: "patch";
-  hash: string;
-  files: string[];
-}
-
-export interface ToolStatePending {
-  status: "pending";
-  input: Record<string, unknown>;
-  raw: string;
-}
-
-export interface ToolStateRunning {
-  status: "running";
-  input: Record<string, unknown>;
-  title?: string;
-  metadata?: Record<string, unknown>;
-  time: {
-    start: number;
-  };
-}
-
-export interface ToolStateCompleted {
-  status: "completed";
-  input: Record<string, unknown>;
-  output: string;
-  title: string;
-  metadata: Record<string, unknown>;
-  time: {
-    start: number;
-    end: number;
-    compacted?: number;
-  };
-  attachments?: FilePart[];
-}
-
-export interface ToolStateError {
-  status: "error";
-  input: Record<string, unknown>;
-  error: string;
-  metadata?: Record<string, unknown>;
-  time: {
-    start: number;
-    end: number;
-  };
-}
-
-export type ToolState = ToolStatePending | ToolStateRunning | ToolStateCompleted | ToolStateError;
-
-export interface ToolPart {
-  id: PartId;
-  sessionID: SessionId;
-  messageID: MessageId;
-  type: "tool";
-  callID: string;
-  /** 同一 assistant 内本地工具的声明序号；旧记录可缺失，不能用落盘顺序代替。 */
-  declarationIndex?: number;
-  tool: string;
-  state: ToolState;
-  metadata?: Record<string, unknown>;
-}
-
-export type MessagePart =
-  | TextPart
-  | ReasoningPart
-  | FilePart
-  | AgentPart
-  | CompactionPart
-  | TimelinePart
-  | SubtaskPart
-  | RetryPart
-  | StepStartPart
-  | StepFinishPart
-  | SnapshotPart
-  | PatchPart
-  | ToolPart;
-
-export interface MessageWithParts {
-  info: MessageInfo;
-  parts: MessagePart[];
-}
-
-/** 分享导入的单事务载荷：新 session、唯一 model-only 上下文和 provenance 全有或全无。 */
-export interface SharedContextImportCommitBundle {
-  session: CreateSessionInput;
-  contextMessage: MessageWithParts;
-  provenance: SessionEntryInfo;
-}
-
-export type SharedContextImportStatus = "pending" | "reserved" | "attached" | "discarded";
-
-export interface SharedContextImportTransition {
-  sessionID: SessionId;
-  contextId: string;
-  expectedStatus: SharedContextImportStatus | readonly SharedContextImportStatus[];
-  status: SharedContextImportStatus;
-  /** queue/input identity or accepted user message identity for audit/recovery. */
-  sourceId?: string;
-}
-
-export const SESSION_ENTRY_TARGET_COMPLETION_VERIFICATION =
-  "target_completion_verification" as const;
-export const SESSION_ENTRY_BASH_SHELL_SELECTION = "runtime/bash_shell_selection" as const;
-export const SESSION_ENTRY_MODEL_SELECTION = "runtime/model_selection" as const;
-export const SESSION_ENTRY_EXECUTION_STATE = "runtime/execution_state" as const;
-export const SESSION_ENTRY_USER_INPUT_AUTO_RESOLUTION =
-  "runtime/user_input_auto_resolution" as const;
-export const SESSION_ENTRY_WORKSPACE_CHECKPOINT = "runtime/workspace_checkpoint" as const;
-export const SESSION_ENTRY_WORKSPACE_FILE_REWIND = "runtime/workspace_file_rewind" as const;
-
-export const SESSION_ENTRY_TYPES = [
-  SESSION_ENTRY_TARGET_COMPLETION_VERIFICATION,
-  SESSION_ENTRY_BASH_SHELL_SELECTION,
-  SESSION_ENTRY_MODEL_SELECTION,
-  SESSION_ENTRY_EXECUTION_STATE,
-  SESSION_ENTRY_USER_INPUT_AUTO_RESOLUTION,
-  SESSION_ENTRY_WORKSPACE_CHECKPOINT,
-  SESSION_ENTRY_WORKSPACE_FILE_REWIND,
-] as const;
-
-export type SessionEntryType = (typeof SESSION_ENTRY_TYPES)[number];
-
-export interface SessionEntryInfo {
-  id: string;
-  sessionID: SessionId;
-  type: SessionEntryType | string;
-  // session entry 既承载用户/工具活动，也承载 session-local 配置快照。
-  // 配置恢复或切换只应更新 entry 自己的版本，不能把任务活动时间伪装成“刚刚”。
-  touchSession?: boolean;
-  time: {
-    created: number;
-    updated: number;
-  };
-  /**
-   * 逻辑 payload，不等同于数据库 JSON。runtime/model_selection 的读写为公共
-   * ModelSelection（无选择沿用 null）；SQLite adapter 负责 modelSelection 包装，
-   * 旧平铺字段仅供一次性迁移/回滚，不能暴露给普通消费者或复制到 fork 子记录。
-   */
-  data: unknown;
-}
-
-// ── session_input 账本──
-// 输入的 durable 生命周期：admitted（已接受，排队/待注入）→ promoted（已消费成
-// transcript user message，与消息持久化同事务）/ cancelled（用户删除队列项等）/
-// discarded（session_resumed=重启不保留队列；user_cleared=heldQueue 清空发送）/
-// failed（已接受但运行时无法启动；保留终态，重启时禁止再改写成 discarded）。
-// id = input/command id（admission 时即存在）；promoted_message_id 是 nullable 外键——
-// messageId 在 drain 时才生成。startNow 也必须先经过 durable admission：即使 CLI 在 ACK 后、
-// user message 原子 promotion 前崩溃，恢复端也能把输入明确标成 discarded。
-export type SessionInputDelivery = "startNow" | "guide" | "queue";
-
-export type SessionInputStatus = "admitted" | "promoted" | "cancelled" | "discarded" | "failed";
-
-export interface SessionInputRecord {
-  id: string;
-  sessionID: SessionId;
-  kind: string;
-  delivery: SessionInputDelivery;
-  payload: { text: string; [key: string]: unknown };
-  admittedSequence: number;
-  promotedSequence?: number;
-  promotedMessageID?: MessageId;
-  status: SessionInputStatus;
-  statusReason?: string;
-  time: { created: number; updated: number };
-}
-
-export type UsageQuerySource =
-  | "main_turn"
-  | "compact"
-  | "session_title"
-  | "goal_completion_verification"
-  | "subagent"
-  | "workflow_child"
-  | "unknown";
-
-export type UsageStatus = "running" | "completed" | "error" | "cancelled";
-
-export interface ModelUsageRecord {
-  id: string;
-  logicalRequestId: string;
-  attemptIndex?: number;
-  sessionID: SessionId;
-  turnID?: TurnId;
-  traceID?: TraceId;
-  spanID?: string;
-  assistantMessageID?: MessageId;
-  parentUserMessageID?: MessageId;
-  querySource: UsageQuerySource | string;
-  providerId: ModelProviderId | string;
-  modelId: ModelId | string;
-  reasoningLevel?: string;
-  agent?: string;
-  mode?: string;
-  taskType?: SessionTaskType;
-  status: UsageStatus;
-  startedAt: number;
-  firstTokenAt?: number;
-  completedAt?: number;
-  durationMs?: number;
-  timeToFirstTokenMs?: number;
-  finishReason?: string;
-  toolCallCount?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  reasoningTokens?: number;
-  cacheCreationInputTokens?: number;
-  cacheReadInputTokens?: number;
-  providerTotalTokens?: number;
-  computedTotalTokens?: number;
-  retryCount?: number;
-  retryable?: boolean;
-  cancelledByUser?: boolean;
-  contextExceeded?: boolean;
-  errorType?: string;
-  errorCode?: string;
-  errorMessage?: string;
-  rawUsage?: unknown;
-  providerMetadata?: unknown;
-}
-
-export interface TurnUsageRecord {
-  sessionID: SessionId;
-  turnID: TurnId;
-  traceID?: TraceId;
-  userMessageID?: MessageId;
-  status: UsageStatus;
-  startedAt: number;
-  firstModelStartAt?: number;
-  firstTokenAt?: number;
-  completedAt?: number;
-  durationMs?: number;
-  timeToFirstTokenMs?: number;
-  modelRequestCount?: number;
-  modelRetryCount?: number;
-  toolCallCount?: number;
-  toolErrorCount?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  reasoningTokens?: number;
-  cacheCreationInputTokens?: number;
-  cacheReadInputTokens?: number;
-  computedTotalTokens?: number;
-  retryable?: boolean;
-  cancelledByUser?: boolean;
-  contextExceeded?: boolean;
-  errorType?: string;
-  errorCode?: string;
-}
-
-export interface ToolUsageRecord {
-  id: string;
-  sessionID: SessionId;
-  turnID?: TurnId;
-  traceID?: TraceId;
-  toolCallID: ToolCallId | string;
-  toolName: string;
-  sideEffectScope?: ModelToolSideEffectScope | string;
-  readOnly?: boolean;
-  destructive?: boolean;
-  approvalStatus?: "none" | "requested" | "allowed" | "denied";
-  status: UsageStatus;
-  startedAt: number;
-  firstOutputAt?: number;
-  completedAt?: number;
-  durationMs?: number;
-  timeToFirstOutputMs?: number;
-  exitCode?: number;
-  outputBytes?: number;
-  stdoutBytes?: number;
-  stderrBytes?: number;
-  truncated?: boolean;
-  retryCount?: number;
-  retryable?: boolean;
-  cancelledByUser?: boolean;
-  errorType?: string;
-  errorCode?: string;
-  errorMessage?: string;
-}
-
-export interface AppUsageQueryInput {
-  /** 含 (since, until] 的下界（unix ms）。 */
-  since: number;
-  /** 上界（unix ms），通常为 now。 */
-  until: number;
-  /** 调用端时区相对 UTC 的固定偏移（ms），用于按本地日归桶。 */
-  tzOffsetMs: number;
-}
-
-export interface AppUsageTotalsRow {
-  totalTokens: number;
-  inputTokens: number;
-  outputTokens: number;
-  reasoningTokens: number;
-  cacheCreationTokens: number;
-  cacheReadTokens: number;
-  modelRequestCount: number;
-  modelErrorCount: number;
-  avgTimeToFirstTokenMs: number | null;
-}
-
-export interface AppUsageTurnTotalsRow {
-  totalSessions: number;
-  totalTurns: number;
-  avgTurnDurationMs: number | null;
-  longestSessionMs: number;
-}
-
-export interface AppUsageToolTotalsRow {
-  toolCallCount: number;
-  toolErrorCount: number;
-}
-
-export interface AppUsageModelRow {
-  modelId: string | null;
-  totalTokens: number;
-  inputTokens: number;
-  outputTokens: number;
-  requestCount: number;
-}
-
-export interface AppUsageToolRow {
-  toolName: string;
-  callCount: number;
-  errorCount: number;
-  avgDurationMs: number | null;
-}
-
-export interface AppUsageDayRow {
-  dayIndex: number;
-  totalTokens: number;
-  turnCount: number;
-  toolCallCount: number;
-}
-
-export interface AppUsageDayModelRow {
-  dayIndex: number;
-  modelId: string | null;
-  totalTokens: number;
-}
-
-export interface AppUsageQueryResult {
-  totals: AppUsageTotalsRow;
-  turnTotals: AppUsageTurnTotalsRow;
-  toolTotals: AppUsageToolTotalsRow;
-  models: AppUsageModelRow[];
-  tools: AppUsageToolRow[];
-  days: AppUsageDayRow[];
-  dayModels: AppUsageDayModelRow[];
-}
-
-export interface TaskUsageQueryInput {
-  sessionID: SessionId;
-}
-
-export interface TaskUsageQueryResult {
-  sessionID: SessionId;
-  totalTokens: number;
-  inputTokens: number;
-  outputTokens: number;
-  reasoningTokens: number;
-  cacheCreationTokens: number;
-  cacheReadTokens: number;
-  modelRequestCount: number;
-  modelErrorCount: number;
-  inputBaselineBySource: Record<string, number>;
-}
-
-export interface UsageStorePort {
-  recordModelUsage(input: ModelUsageRecord): Promise<void>;
-  upsertTurnUsage(input: TurnUsageRecord): Promise<void>;
-  upsertToolUsage(input: ToolUsageRecord): Promise<void>;
-  pruneUsage(input?: { beforeTime?: number }): Promise<void>;
-  queryAppUsage(input: AppUsageQueryInput): Promise<AppUsageQueryResult>;
-  queryTaskUsage(input: TaskUsageQueryInput): Promise<TaskUsageQueryResult>;
-}
+import type {
+  CreateSessionInput,
+  SessionInfo,
+  UpdateSessionInput,
+  ListSessionsInput,
+  ClaimLegacySessionWorkspaceInput,
+  RepairLegacyRemoteSessionWorkspaceInput,
+  RepairRemoteSessionPathsInput,
+  SessionRevert,
+  FileDiff,
+} from "./session-store/session-records.js";
+import type {
+  ForkChildSessionMetadata,
+  ForkCommitBundle,
+  SharedContextImportCommitBundle,
+  SharedContextImportTransition,
+} from "./session-store/session-transactions.js";
+import type { MessageInfo } from "./session-store/messages.js";
+import type {
+  MessagePart,
+  MessageWithParts,
+  ReadSessionTranscriptSnapshotInput,
+  ReadSessionTranscriptWindowInput,
+  SessionTranscriptSnapshot,
+  SessionTranscriptWindow,
+} from "./session-store/transcript.js";
+import type {
+  SessionEntryInfo,
+  SessionEntryType,
+  SessionInputDelivery,
+  SessionInputStatus,
+  SessionInputRecord,
+} from "./session-store/session-ledger.js";
 
 export interface LocalSettingStorePort {
   getProjectPermissionMode(
@@ -1158,6 +94,8 @@ export interface SessionStorePort {
   readTranscriptSnapshot?(
     input: ReadSessionTranscriptSnapshotInput,
   ): Promise<SessionTranscriptSnapshot>;
+  /** 原子读取截至锚点的有界最近窗口；缺能力时自动复盘跳过，禁止全量兜底。 */
+  readTranscriptWindow?(input: ReadSessionTranscriptWindowInput): Promise<SessionTranscriptWindow>;
   saveSessionEntry?(input: SessionEntryInfo): Promise<void>;
   sessionEntries?(input: {
     sessionID: SessionId;
@@ -1292,3 +230,150 @@ export interface SessionStorePort {
   }): Promise<void>;
   clearRevert(sessionID: SessionId): Promise<void>;
 }
+
+export { SESSION_TASK_TYPES, SESSION_TITLE_SOURCES } from "./session-store/session-records.js";
+
+export type {
+  SessionTaskType,
+  SessionTitleSource,
+  SessionInfo,
+  CreateSessionInput,
+  UpdateSessionInput,
+  FileDiff,
+  SessionRevert,
+  ListSessionsInput,
+  ClaimLegacySessionWorkspaceInput,
+  RepairLegacyRemoteSessionWorkspaceInput,
+  RepairRemoteSessionPathsInput,
+} from "./session-store/session-records.js";
+
+export {
+  MESSAGE_VISIBILITIES,
+  SYNTHETIC_USER_MESSAGE_SOURCES,
+  MESSAGE_ANCHOR_ORIGINS,
+} from "./session-store/message-semantics.js";
+
+export type {
+  MessageVisibility,
+  SyntheticUserMessageSource,
+  MessageSemanticsOrigin,
+  MessageSemanticsKind,
+  MessageSemantics,
+  MessageAnchorOrigin,
+  StableForkGoalBoundaryMetadata,
+  MessageProjectionAnchor,
+} from "./session-store/message-semantics.js";
+
+export type {
+  OutputFormat,
+  MessageSummary,
+  MessageContextSnapshot,
+  UserMessageInfo,
+  AssistantErrorInfo,
+  TokenUsageInfo,
+  AssistantMessageInfo,
+  MessageInfo,
+} from "./session-store/messages.js";
+
+export type {
+  TextPart,
+  ReasoningPart,
+  FilePartSource,
+  AttachmentStorageMetadata,
+  FilePart,
+  AgentPart,
+  CompactionPart,
+  SubtaskPart,
+  RetryPart,
+  StepStartPart,
+  StepFinishPart,
+  SnapshotPart,
+  PatchPart,
+} from "./session-store/message-content-parts.js";
+
+export type {
+  TimelinePartDisplay,
+  TimelinePartStatus,
+  TimelineModelSelection,
+  TimelinePartBase,
+  ContextCompactionTimelinePart,
+  GoalVerificationTimelinePart,
+  SessionForkTimelinePart,
+  ModelChangeTimelinePart,
+  TimelinePart,
+  TimelinePartDraft,
+} from "./session-store/message-timeline.js";
+
+export type {
+  ToolStatePending,
+  ToolStateRunning,
+  ToolStateCompleted,
+  ToolStateError,
+  ToolState,
+  ToolPart,
+} from "./session-store/message-tool-parts.js";
+
+export {
+  SESSION_TRANSCRIPT_SNAPSHOT_MAX_MESSAGE_ROWS,
+  SESSION_TRANSCRIPT_SNAPSHOT_MAX_PART_ROWS,
+  SESSION_TRANSCRIPT_SNAPSHOT_MAX_DATA_BYTES,
+} from "./session-store/transcript.js";
+
+export type {
+  SessionTranscriptSnapshotLimits,
+  ReadSessionTranscriptSnapshotInput,
+  ReadSessionTranscriptWindowInput,
+  SessionTranscriptSnapshot,
+  SessionTranscriptWindow,
+  MessagePart,
+  MessageWithParts,
+} from "./session-store/transcript.js";
+
+export type {
+  StableForkTargetMetadata,
+  ForkChildSessionMetadata,
+  ForkCommandResult,
+  ForkCommitBundle,
+  SharedContextImportCommitBundle,
+  SharedContextImportStatus,
+  SharedContextImportTransition,
+} from "./session-store/session-transactions.js";
+
+export {
+  SESSION_ENTRY_TARGET_COMPLETION_VERIFICATION,
+  SESSION_ENTRY_BASH_SHELL_SELECTION,
+  SESSION_ENTRY_MODEL_SELECTION,
+  SESSION_ENTRY_EXECUTION_STATE,
+  SESSION_ENTRY_USER_INPUT_AUTO_RESOLUTION,
+  SESSION_ENTRY_WORKSPACE_CHECKPOINT,
+  SESSION_ENTRY_WORKSPACE_FILE_REWIND,
+  SESSION_ENTRY_TYPES,
+} from "./session-store/session-ledger.js";
+
+export type {
+  SessionEntryType,
+  SessionEntryInfo,
+  SessionInputDelivery,
+  SessionInputStatus,
+  SessionInputRecord,
+} from "./session-store/session-ledger.js";
+
+export type {
+  UsageQuerySource,
+  UsageStatus,
+  ModelUsageRecord,
+  TurnUsageRecord,
+  ToolUsageRecord,
+  AppUsageQueryInput,
+  AppUsageTotalsRow,
+  AppUsageTurnTotalsRow,
+  AppUsageToolTotalsRow,
+  AppUsageModelRow,
+  AppUsageToolRow,
+  AppUsageDayRow,
+  AppUsageDayModelRow,
+  AppUsageQueryResult,
+  TaskUsageQueryInput,
+  TaskUsageQueryResult,
+  UsageStorePort,
+} from "./session-store/usage.js";

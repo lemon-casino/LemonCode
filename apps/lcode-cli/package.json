@@ -23,9 +23,11 @@
     "prompt-trajectory:prompt": "pnpm --filter @lcode/prompt-trajectory record:prompt --",
     "registry:check": "node scripts/generate-bash-command-registry.mjs --check",
     "registry:generate": "node scripts/generate-bash-command-registry.mjs",
+    "registry:test": "node --test scripts/generate-bash-command-registry.test.mjs",
     "release": "node ../../node_modules/release-it/bin/release-it.js --config .release-it.json",
     "release:dry": "pnpm run release --release-version",
     "sea": "pnpm --filter @lcode/cli sea",
+    "test:debug": "pnpm --dir ../.. --filter debug test",
     "typecheck": "turbo run typecheck"
   },
   "dependencies": {

@@ -37,6 +37,8 @@
 - Provider Settings Service 拥有远端目录读取和 Key 检测；UI 通过 `useModelProviders` 调用服务，不直接发送供应商网络请求。
 - `testModelConnectivity` 和 `provider/testModelConnectivity` 增加可选 `mode: "temporary"`。缺省仍只接受已发布的正式模型；临时模式由目标 Environment 根据权威 Provider 配置及同一套模型推荐/个人规则解析一次性 Model，允许未加入列表和已禁用的模型，不写配置、不修改全局 Registry、会话选中项或模板源。供应商禁用、配置不完整、鉴权不可用仍失败，不能绕过资格校验。协议继续使用严格 schema。
 - 临时 Model 复用正式 Adapter、API Key 轮询、自定义 headers、最低 reasoning/speed 档位与固定最小探测请求；不新增简化 HTTP 成功判定。连通性成功只证明最小生成请求完成，不宣称工具调用等所有能力均已验证。
+- 单项检测、同步模型及失效模型清理共用的连通性入口，按正式执行链使用目标模型 `optionSpecs.maxOutputTokens.max` 作为请求输出预算，不强加固定的 1 Token 或其他探测专用 Token 数。保留最低 reasoning/speed 档位、最小探测提示、60 秒 deadline 和调用方取消；预算是上限，不要求模型输出到该长度。供应商的参数校验失败不能据此判定 API Key 错误或模型不存在。
+- `gpt-6.1-sol` 的智能配置声明 `low / medium / high / xhigh / max`，不继承通用的 `disabled`、`none` 或缺失的 `max`。兼容带命名空间和既有分隔符后缀的模型 ID，不将规则扩散到其他未确认的型号；仅修正已知 reasoning 能力，不推断上下文、工具或输出容量。检测仍按声明顺序选择最低项 `low`，正式执行、单项检测和批量检测读取同一个权威规则；保留个人手动配置优先级，不静默改写用户配置。
 - 请求运行时只读取配置列表，并仅维护进程内鉴权失败游标；该游标不是持久化配置事实。个人配置每次成功保存后，Repository 在共享运行 sidecar 中只更新该供应商的保存代次，Registry 将代次传播到新建 Model。相同保存代次继续跳过已鉴权失败的 Key；只有该供应商重新保存后才建立新的运行时状态。保存其他供应商、修改其他模型或账号刷新不得清掉当前供应商的失败游标。
 - UI 只拥有勾选、检测进度、结果和操作代次。Settings 继续使用现有 Local Host 作用域，不因为切换到远程工作区而将请求发送到另一套 Provider 配置。
 
@@ -99,3 +101,23 @@
 - 未执行全量生产构建、打包或真实外部供应商/账号验证；macOS/Linux 和手机远程 attachment 传输未在本机重跑。此功能的共用界面通过隔离页面验证，未修改用户真实供应商配置。
 
 改动涉及既有 `ui`、`provider`、`services`、`shared`、`lcode-cli` 模块，以及 `web` 测试夹具；持久状态所有者和队列路径不变。按任务独占路径统计净增约 4,302 行（含 14 个新增测试/夹具文件，不计原先已改动的共享装配、翻译、图谱和忽略文件，避免把其他工作计入本次）。
+
+## 连通性输出预算修复（2026-10-01）
+
+- 移除共用检测入口固定的 1 Token 预算，改用目标模型声明的输出上限；其他辅助生成预算、配置所有者、请求顺序和取消逻辑不变。按用户要求不新增回归用例，仅更新两处既有测试的旧预算断言。
+- 既有 Core 检测与 NDJSON/正式 Adapter 本地 HTTP 检测共 5 项通过，验证请求使用夹具模型配置的预算，未调用真实外部供应商。
+- 根 `pnpm typecheck`、`pnpm lint`、架构检查通过；CLI `typecheck` 全部 27 项任务通过，本次三个代码文件的定向 Lint、格式检查通过。CLI 全量 Lint 仍有未改动文件的 `max-lines` 等存量违规，未放宽规则。
+- 未构建桌面安装包、重启应用或修改用户供应商配置。
+
+## gpt-6.1-sol 检测档位修复（2026-10-01）
+
+- 原因：缺少该型号的内置能力规则，智能配置退回 `disabled / low / medium / high / xhigh`；现有辅助选项选择器取最低项，OpenAI-compatible 映射把 `disabled` 转成 `none`，被目标接口参数校验拒绝。这不构成 API Key 无效或模型不存在的证据。
+- 修改既有 Built-in Model Rules 的 reasoning 枚举，配置 revision 从 31 升至 32，沿原 source/revision 刷新链分发，不另加探测专用模型名判断、错误文本重试或配置迁移。Registry/Repository 仍是配置所有者，Core 只消费同一份已解析能力。
+- 请求顺序保持 `权威规则解析 → 最低支持档位绑定 → 原 Adapter/参数映射 → 原检测结果`；deadline、取消、并发上限和输出预算不变，不改变 desktop/mobile Host 或恢复协议。
+- 验证扩充既有 Adapter 配置与请求断言，覆盖 Responses/Chat Completions、原始/命名空间/后缀 ID、`low` 的实际映射和其他型号不误匹配；执行既有 Core/本地 HTTP 连通性用例，不调用真实外部供应商或修改真实 Key。本次不打包、安装或发布。
+
+### 本次实际验证
+
+- 配置/Adapter、Core 连通性及 NDJSON→正式 Adapter→本地 HTTP 定向用例 12/12 通过；新断言在配置修复前复现 `disabled` 回退，修复后两种 API 映射均为 `low`。没有向真实外部供应商发请求。
+- 根 `pnpm typecheck`、`pnpm lint` 通过；CLI `typecheck` 27/27 任务通过（约 49.5 秒，包含既有依赖构建），CLI 本次测试文件的定向 Lint/格式检查通过。CLI 全量 Lint 仍被本次未修改文件的 `max-lines` 等存量问题阻断，不能称全量通过。
+- 架构检查 baseline 0 / new 0；变更仅涉及既有配置规则和 CLI 测试，无新增跨模块依赖、状态所有者或请求路径。两处任务独占文件净增 49 行（含格式整理），另更新本 spec；未打包桌面、安装、推送、发布或改写用户配置。用户若有个人手动档位覆写，仍保持原优先级，需要自行选择接口支持的档位。

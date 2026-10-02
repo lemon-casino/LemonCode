@@ -9,6 +9,7 @@
     "lint": "oxlint src server scripts",
     "lint:fix": "oxlint --write src server scripts",
     "start": "node dist-server/server/index.js",
+    "test": "tsx --tsconfig tsconfig.json --test --test-concurrency=1 server/analyzer.test.ts src/panels.test.tsx",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit"
   },
   "dependencies": {

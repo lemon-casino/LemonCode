@@ -26,6 +26,7 @@ test("an old cancelled turn cannot fail a retried ask or start alongside it", as
   const sink = {
     askFailed: (instance: InstanceRef) => failed.push(instance),
     askProgress: () => {},
+    askActivity: () => {},
     askStats: () => {},
     askTurnEnded: () => {},
     askSubmitAttempted: () => {},
@@ -77,6 +78,7 @@ test("workflow image refs become actual turn images and missing refs do not star
   const sink = {
     askFailed: (instance: InstanceRef) => failed.push(instance),
     askProgress: () => {},
+    askActivity: () => {},
     askStats: () => {},
     askTurnEnded: () => {},
     askSubmitAttempted: () => {},
@@ -113,11 +115,11 @@ test("workflow image refs become actual turn images and missing refs do not star
     },
   );
   await new Promise<void>((resolve) => setImmediate(resolve));
-  assert.equal((calls[0]?.[1] as Array<{ type: string; content: string }>)[0]?.type, "image");
-  assert.equal(
-    (calls[0]?.[1] as Array<{ type: string; content: string }>)[0]?.content,
-    "lcode-artifact://image",
-  );
+  const firstCall = calls[0];
+  assert.ok(firstCall);
+  const attachments = firstCall[1] as Array<{ type: string; content: string }>;
+  assert.equal(attachments[0]?.type, "image");
+  assert.equal(attachments[0]?.content, "lcode-artifact://image");
   driver.startAsk(
     session,
     { siteId: "ask#2", ordinal: 1 },
@@ -144,6 +146,7 @@ test("dispose retains failed actor runtimes and retries without closing successf
   const sink = {
     askFailed: () => {},
     askProgress: () => {},
+    askActivity: () => {},
     askStats: () => {},
     askTurnEnded: () => {},
     askSubmitAttempted: () => {},
@@ -237,6 +240,7 @@ test("dispose waits for an in-flight actor runtime factory and closes its late r
   const sink = {
     askFailed: () => {},
     askProgress: () => {},
+    askActivity: () => {},
     askStats: () => {},
     askTurnEnded: () => {},
     askSubmitAttempted: () => {},
@@ -308,6 +312,7 @@ test("seed failure during dispose keeps the created runtime owned until close su
   const sink = {
     askFailed: () => {},
     askProgress: () => {},
+    askActivity: () => {},
     askStats: () => {},
     askTurnEnded: () => {},
     askSubmitAttempted: () => {},

@@ -10,6 +10,11 @@
 // 限长常量与 CLI 构造侧一一对应；display 不经过 result budget。
 
 import { z } from "zod";
+import {
+  workflowNodeActivitySchema,
+  workflowNodePhaseSchema,
+  workflowNodeQueueSchema,
+} from "./workflow-activity.js";
 
 /** `stopped` 的原因。 */
 export const WORKFLOW_RUN_STOP_REASONS = [
@@ -82,6 +87,13 @@ const workflowRunSubagentViewSchema = z
     turn: z.number().int().nonnegative().optional(),
     toolCalls: z.number().int().nonnegative().optional(),
     lastTool: workflowRunLastToolSchema.optional(),
+    activity: workflowNodeActivitySchema.optional(),
+    askPhase: workflowNodePhaseSchema.optional(),
+    queue: workflowNodeQueueSchema.optional(),
+    lastDeliveredAt: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
+    retryAttempt: z.number().int().positive().optional(),
+    nextRetryAt: z.number().int().nonnegative().optional(),
+    waitReason: z.string().min(1).max(64).optional(),
     waitCause: z.enum(["slot", "backoff"]).optional(),
     retryAfterMs: z.number().nonnegative().optional(),
     waitSince: z.number().optional(),
@@ -129,6 +141,11 @@ const workflowRunSummaryRowSchema = z
     labelSource: z.enum(["name", "script"]),
     status: z.enum(WORKFLOW_RUN_OBSERVATION_STATUSES),
     stopReason: z.enum(WORKFLOW_RUN_STOP_REASONS).optional(),
+    // Bug 原因：CLI 的列表卡已携带修订关系，而消费侧 strict schema 漏声明，
+    // 导致 live / cold / recovery 整帧拒收，重连仍以 recoveryFailed 结束。
+    // 与 ListWorkflowRunsRunSchema 同形；可选保留旧记录兼容，不放宽未知字段校验。
+    resumedFrom: z.string().min(1).optional(),
+    supersededBy: z.string().min(1).optional(),
     ownedByThisSession: z.boolean(),
     possiblyInterrupted: z.boolean().optional(),
     createdAt: z.number(),

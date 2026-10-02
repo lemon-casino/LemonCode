@@ -12,6 +12,7 @@ import { buildWorkflowTimeline } from "@/components/workflow-timeline/timeline-m
 import { workflowPhasesDetail } from "@/components/workflow-timeline/timeline-summary.js";
 import { WorkflowCardHeader } from "@/components/workflow-timeline/WorkflowCardChrome.js";
 import { WorkflowTimeline } from "@/components/workflow-timeline/WorkflowTimeline.js";
+import { WorkflowOrchestrationAdvice } from "@/components/workflow-timeline/WorkflowOrchestrationAdvice.js";
 import {
   formatWorkflowArgValue,
   isWorkflowAmendPredecessorLive,
@@ -312,6 +313,8 @@ export function WorkflowPermissionBlock({
       )}
 
       {model === undefined ? null : <WorkflowTimeline className="py-1" model={model} />}
+
+      <WorkflowOrchestrationAdvice raw={request.raw} />
 
       {scriptText ? (
         <Collapsible open={scriptOpen} onOpenChange={setScriptOpen}>

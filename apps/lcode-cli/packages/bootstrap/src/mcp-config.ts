@@ -144,7 +144,7 @@ function injectLCodeCuaBrokerMcpServers(
 function injectCuaCredentialsIntoNodeRepl(
   config: McpServerConfig,
   socketPath: string,
-  token: string | undefined,
+  _token: string | undefined,
 ): McpServerConfig {
   if (config.type !== "stdio") return config;
   const captured = getCapturedLCodeCuaBrokerCredentials();

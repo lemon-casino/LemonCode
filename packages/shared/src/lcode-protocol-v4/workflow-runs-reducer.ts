@@ -42,6 +42,8 @@ import {
 import { reduceConcurrencyChanged, withoutCooldown } from "./workflow-runs-concurrency.js";
 import { readRunIdField, readWorkflowRunStopReason } from "./workflow-runs-lineage.js";
 import { carryNodeProgress, reduceNodeProgress } from "./workflow-runs-node-progress.js";
+import { carryNodeActivity, reduceNodeActivity } from "./workflow-runs-node-activity.js";
+import { reduceNodeAdmission } from "./workflow-runs-node-admission.js";
 import { upsertBoundedRunNode } from "./workflow-runs-node-window.js";
 import { reducePhaseEntered, reduceRunLaunched } from "./workflow-runs-phases.js";
 import { reduceRunStarted } from "./workflow-runs-started.js";
@@ -76,6 +78,7 @@ export interface WorkflowRunProgressEnvelope {
   runId?: string;
   toolCallId?: string;
   sequence?: number;
+  occurredAt?: number;
   eventType?: string;
   payload?: Record<string, unknown>;
   actorSessionId?: string;
@@ -101,6 +104,9 @@ export function reduceWorkflowRunsState(
 
   const prior: WorkflowRunsState = previous ?? { revision: 0, runs: [] };
   const existing = prior.runs.find((run) => run.runId === runId);
+  // journal 序号跨恢复单调；旧生命周期重放也不能先抹掉新活动，再挡住它的恢复事件。
+  if (typeof envelope.sequence === "number" && existing !== undefined &&
+    sequence <= existing.lastEventSequence) return null;
   const base: WorkflowRunState = existing ?? {
     runId,
     ...(envelope.toolCallId ? { toolCallId: envelope.toolCallId } : {}),
@@ -114,12 +120,22 @@ export function reduceWorkflowRunsState(
   const next = applyWorkflowRunEvent(base, envelope.eventType, payload, {
     ...(envelope.actorSessionId === undefined ? {} : { actorSessionId: envelope.actorSessionId }),
     ...(envelope.toolCallId === undefined ? {} : { toolCallId: envelope.toolCallId }),
+    ...(envelope.occurredAt === undefined ? {} : { occurredAt: envelope.occurredAt }),
     // 单调：迟到/重放的事件不会把水位拉回去。
     sequence: Math.max(base.lastEventSequence, sequence),
   });
 
-  // 幂等：语义无变化不产 delta（同一条事件重放不抬 revision）。
-  if (existing !== undefined && JSON.stringify(existing) === JSON.stringify(next)) return null;
+  // 单调 journal 水位已变化时整份 run 必不相等，避免每次活动序列化所有代理和节点。
+  // 无序号旧记录及非标准数值仍走原幂等比较，保持兼容输入的归约语义。
+  const sequenceAdvanced =
+    Number.isSafeInteger(base.lastEventSequence) &&
+    Number.isSafeInteger(next.lastEventSequence) &&
+    next.lastEventSequence > base.lastEventSequence;
+  if (
+    existing !== undefined &&
+    !sequenceAdvanced &&
+    JSON.stringify(existing) === JSON.stringify(next)
+  ) return null;
 
   const runs = existing
     ? prior.runs.map((run) => (run.runId === runId ? next : run))
@@ -139,6 +155,7 @@ function applyWorkflowRunEvent(
   derived: {
     actorSessionId?: string;
     toolCallId?: string;
+    occurredAt?: number;
     sequence: number;
   },
 ): WorkflowRunState {
@@ -195,6 +212,11 @@ function applyWorkflowRunEvent(
       );
       const incomingAttempt = readAttempt(payload.instance);
       if ((previousNode?.attempt ?? 1) > incomingAttempt) return run;
+      // 等待/执行是观察，不得让暂停、结算或旧尝试重新进入活动态。
+      if ((eventType === "node-waiting" || eventType === "node-executing") &&
+        (previousNode?.phase === "paused" || previousNode?.phase === "settled" ||
+          (previousNode?.attempt ?? 1) !== incomingAttempt ||
+          (run.status !== "running" && run.status !== "pending"))) return run;
       const actorRef = workflowInstanceRef(payload.actor);
       const kind =
         payload.kind === "ask" || payload.kind === "world-read" ? payload.kind : previousNode?.kind;
@@ -224,6 +246,7 @@ function applyWorkflowRunEvent(
         // 任务摘要与进度读数：node-queued 取载荷、其余事件向前携带，出生事件清掉上一世的计数。
         // 规则在同族的 workflow-runs-node-progress.ts（那里也讲了为什么必须显式携带）。
         ...carryNodeProgress(eventType, payload, previousNode),
+        ...carryNodeActivity(eventType, payload, previousNode, derived.occurredAt),
       };
       const upsertedNodes = upsertBoundedRunNode(run.nodes, node, WORKFLOW_RUNS_LIMITS.maxNodes);
       // 步数：一个实例**首次**派发计一步。重放同一条 node-dispatched 时 previousNode 已在
@@ -239,13 +262,17 @@ function applyWorkflowRunEvent(
         ...(upsertedNodes.truncated || run.truncated ? { truncated: true } : {}),
       });
     }
-    /**
-     * node-progress：一次 ask 的某个轮次解析完了（driver 每个已解析轮次发一条）。
-     *
-     * **不是生命周期事件**：它不落相位、不计步、不动 actor 状态，只把三个读数写到那个节点上。
-     * 所以它刻意不在上面那组 case 里，也不进 NODE_EVENT_PHASE 表。规则在
-     * workflow-runs-node-progress.ts。
-     */
+    // 准入与活动是只读观察，不改变生命周期、actor 状态或已交付步数。
+    case "node-admission": {
+      const ref = workflowInstanceRef(payload.instance);
+      if (!ref) return run;
+      return reduceNodeAdmission(run, ref, readAttempt(payload.instance), payload, derived.occurredAt);
+    }
+    case "node-activity": {
+      const ref = workflowInstanceRef(payload.instance);
+      if (!ref) return run;
+      return reduceNodeActivity(run, ref, readAttempt(payload.instance), payload.activity);
+    }
     case "node-progress": {
       const ref = workflowInstanceRef(payload.instance);
       if (!ref) return run;

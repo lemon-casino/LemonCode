@@ -20,6 +20,14 @@ test("prompt facade keeps declarations while dropping compiler documentation", (
   );
 });
 
+test("authoring names one deliverable, a stop condition and real dependency boundaries", () => {
+  assert.match(CREATE_WORKFLOW_TOOL_DESCRIPTION, /one deliverable/u);
+  assert.match(CREATE_WORKFLOW_TOOL_DESCRIPTION, /scope.*stop condition/u);
+  assert.match(CREATE_WORKFLOW_TOOL_DESCRIPTION, /independent.*investigations.*before awaiting/u);
+  assert.match(CREATE_WORKFLOW_TOOL_DESCRIPTION, /same.actor.*FIFO/u);
+  assert.match(CREATE_WORKFLOW_TOOL_DESCRIPTION, /single writer/u);
+});
+
 test("workflow tool descriptions stay within their prompt budgets", () => {
   assert.ok(CREATE_WORKFLOW_TOOL_DESCRIPTION.length <= 15_000);
   assert.ok(AMEND_WORKFLOW_TOOL_DESCRIPTION.length <= 3_000);

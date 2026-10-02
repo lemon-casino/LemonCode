@@ -93,7 +93,8 @@ function scheduleTransientRedrive(
   host.sink.askWaiting(instance, {
     cause: "backoff",
     reason: inspected.reason,
-    attempt,
+    // 等待事件与 runner 同报“即将开始的尝试”；内部重试计数仍从 1 起，不改变退避曲线。
+    attempt: attempt + 1,
     delayMs,
     ...(retryAfterMs === undefined ? {} : { retryAfterMs }),
   });
