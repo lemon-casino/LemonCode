@@ -40,7 +40,7 @@ test("project menu combines persisted projects with legacy and remote workspace 
   );
 });
 
-test("closed persisted projects remain selectable and their secondary folders are not duplicated", () => {
+test("a project referenced by a secondary folder remains selectable without duplicating the folder", () => {
   const result = buildWorkspaceProjectMenuTabs({
     localProjects: projects,
     workspaceTabs: [{ workspacePath: "C:\\work\\docs", label: "docs" }],
@@ -49,6 +49,40 @@ test("closed persisted projects remain selectable and their secondary folders ar
   assert.equal(result.length, 1);
   assert.equal(result[0]?.label, "App suite");
   assert.equal(result[0]?.workspacePath, "C:\\work\\app");
+});
+
+test("persisted projects remain selectable before startup restores tabs or after tabs close", () => {
+  const result = buildWorkspaceProjectMenuTabs({
+    localProjects: projects,
+    workspaceTabs: [],
+  });
+
+  assert.deepEqual(result, [
+    {
+      workspacePath: "C:\\work\\app",
+      label: "App suite",
+      workspacePurpose: "project",
+      localProjectId: "project-1",
+    },
+  ]);
+  assert.equal(projects.length, 1);
+});
+
+test("a same-path remote tab does not hide or become the saved local project", () => {
+  const remoteTab = {
+    workspacePath: "C:\\work\\app",
+    workspaceIdentity: "fixture-remote-project",
+    remoteSessionId: "fixture-attachment",
+    label: "remote",
+  };
+  const result = buildWorkspaceProjectMenuTabs({
+    localProjects: projects,
+    workspaceTabs: [remoteTab],
+  });
+  assert.equal(result.length, 2);
+  assert.equal(result[0]?.localProjectId, "project-1");
+  assert.equal(result[0]?.workspaceIdentity, undefined);
+  assert.deepEqual(result[1], remoteTab);
 });
 
 test("removing a project definition makes its still-open source folder selectable again", () => {

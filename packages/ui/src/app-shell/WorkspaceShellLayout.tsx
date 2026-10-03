@@ -1547,6 +1547,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       recentClosedSidePaneTabs={recentClosedSidePaneTabs}
       isBrowserOpen={isBrowserOpen}
       supportsEmbeddedBrowser={supportsEmbeddedBrowser}
+      ownerWorkspaceKey={workspaceKey}
       workspaceAbsPath={executionPath}
       workspaceIdentity={executionIdentity}
       workspaceRemoteSessionId={workspaceRemoteSessionId}

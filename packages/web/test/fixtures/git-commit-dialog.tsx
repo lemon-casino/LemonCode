@@ -14,7 +14,7 @@ import type {
   GitFileChange,
   GitRepositorySummary,
 } from "@lcode/shared";
-import { gitCommitReviewModeSchema } from "@lcode/shared";
+import { gitCommitReviewModeSchema, replaceRemoteWorkspaceIdentityPath } from "@lcode/shared";
 import type { ConversationRow } from "@lcode/shared/lcode-protocol-v4";
 import { GitActionMenu } from "@/GitActionMenu.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
@@ -22,6 +22,7 @@ import { useSettings } from "@/hooks/useSettingService.js";
 import { useProjectExecutionPolicy } from "@/hooks/useProjectExecutionPolicy.js";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
 import { TabStoreProvider } from "@/store/TabStoreProvider.js";
+import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
 import { LCodeIntlProvider } from "@/i18n/IntlProvider.js";
 import { useSessionCommitMessageFiles } from "@/hooks/useSessionCommitMessageFiles.js";
 import {
@@ -46,9 +47,13 @@ import type { GitCommitReview } from "@lcode/shared";
 import "@lcode/ui/styles.css";
 
 const workspacePath = "/fixture/repo";
+const useProductionSidePane = new URLSearchParams(window.location.search).has("shellPreview");
 const showStatusPanel = new URLSearchParams(window.location.search).has("panel");
-const workspaceIdentity =
-  new URLSearchParams(window.location.search).get("identity") ?? "fixture-host/repo";
+const workspaceIdentity = new URLSearchParams(window.location.search).has("pathOnly")
+  ? undefined
+  : (new URLSearchParams(window.location.search).get("identity") ?? "fixture-host/repo");
+const previewRemoteSessionId =
+  useProductionSidePane && workspaceIdentity ? "fixture-preview-attachment" : undefined;
 let dirtyPaths = ["a.ts", "b.ts", "workflow.ts"];
 let loadFailure: Error | null = null;
 let holdGenerate = false;
@@ -62,6 +67,7 @@ const calls: Parameters<IGitService["generateCommitMessage"]>[0][] = [];
 let fixtureIntegration: WorktreeIntegration | null = null;
 const mergeCalls: WorktreeIntegrateRequest[] = [];
 const rowsQueries: string[] = [];
+const diffQueries: Parameters<IGitService["getDiff"]>[0][] = [];
 function summary(): GitRepositorySummary {
   return {
     workspacePath,
@@ -131,7 +137,9 @@ const gitService = {
     const position = review.groups.findIndex((group) => !committed.has(group.id));
     return { review, position: position < 0 ? review.groups.length : position };
   },
-  async getDiff({ path }) {
+  async getDiff(params) {
+    diffQueries.push(params);
+    const { path } = params;
     return {
       path,
       availability: "patch",
@@ -289,6 +297,21 @@ const services = {
     },
   },
 } as unknown as IServiceAccessor;
+if (useProductionSidePane) {
+  const registry = useRemoteWorkspaceSessionStore.getState();
+  registry.registerBaseServices(services);
+  if (previewRemoteSessionId && workspaceIdentity) {
+    // 远程 identity 必须有已注册的 attachment 桩，不能让差异请求回落到本地服务。
+    registry.registerSession({ sessionId: previewRemoteSessionId, services });
+    registry.bindWorkspaceIdentity(workspaceIdentity, previewRemoteSessionId);
+    const executionIdentity = replaceRemoteWorkspaceIdentityPath(
+      workspaceIdentity,
+      "/fixture/worktrees/a",
+    );
+    if (executionIdentity)
+      registry.bindWorkspaceIdentity(executionIdentity, previewRemoteSessionId);
+  }
+}
 const conversation = {
   async rowsRange({ sessionId }: { sessionId: string }) {
     rowsQueries.push(sessionId);
@@ -338,6 +361,13 @@ function FixtureApp() {
   const [sessionId, setSessionId] = useState("a");
   const [executionBindingId, setExecutionBindingId] = useState<string | undefined>();
   const executionWorkspacePath = executionBindingId ? "/fixture/worktrees/a" : workspacePath;
+  const executionWorkspaceIdentity =
+    executionBindingId && useProductionSidePane
+      ? workspaceIdentity
+        ? (replaceRemoteWorkspaceIdentityPath(workspaceIdentity, executionWorkspacePath) ??
+          undefined)
+        : undefined
+      : workspaceIdentity;
   const [logEpoch, setLogEpoch] = useState("epoch-a");
   const [enabled, setEnabled] = useState(true);
   const [revision, setRevision] = useState(0);
@@ -348,7 +378,7 @@ function FixtureApp() {
     null,
   );
   const scopeKey = buildGitCommitMessageScopeKey(
-    JSON.stringify([workspaceIdentity, "remote-fixture", sessionId]),
+    JSON.stringify([workspaceIdentity?.trim() || workspacePath, "remote-fixture", sessionId]),
     logEpoch,
   );
   const eligible = canGenerateSessionCommitSummary({
@@ -375,6 +405,7 @@ function FixtureApp() {
     calls,
     mergeCalls,
     rowsQueries,
+    diffQueries,
     publish: publishFixture.controls,
     clipboardCopies,
     groups: (enabled: boolean) => {
@@ -458,6 +489,18 @@ function FixtureApp() {
   return (
     <div className="p-4 text-foreground">
       <FixtureReviewPreview
+        panel={
+          useProductionSidePane
+            ? {
+                workspacePath,
+                workspaceIdentity,
+                executionPath: executionWorkspacePath,
+                executionIdentity: executionWorkspaceIdentity,
+                remoteSessionId: previewRemoteSessionId,
+                sessionId,
+              }
+            : undefined
+        }
         onSource={(source) =>
           Object.assign(globalThis.__gitCommitFixture, { previewSource: source })
         }
@@ -492,8 +535,9 @@ function FixtureApp() {
       <div className={hidden ? "hidden" : ""}>
         {showStatusPanel ? (
           <ConversationStatusPanel
+            workspaceRemoteSessionId={previewRemoteSessionId}
             workspacePath={executionWorkspacePath}
-            workspaceIdentity={workspaceIdentity}
+            workspaceIdentity={executionWorkspaceIdentity}
             originWorkspacePath={workspacePath}
             originWorkspaceIdentity={workspaceIdentity}
             executionSessionId={sessionId}
@@ -510,8 +554,9 @@ function FixtureApp() {
         ) : (
           <GitActionMenu
             key={scopeKey}
+            workspaceRemoteSessionId={previewRemoteSessionId}
             workspacePath={executionWorkspacePath}
-            workspaceIdentity={workspaceIdentity}
+            workspaceIdentity={executionWorkspaceIdentity}
             originWorkspacePath={workspacePath}
             originWorkspaceIdentity={workspaceIdentity}
             executionSessionId={sessionId}

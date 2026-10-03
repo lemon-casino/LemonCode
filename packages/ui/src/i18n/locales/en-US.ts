@@ -4728,8 +4728,13 @@ const enUS: Record<string, string> = {
   "chat.queue.drag": "Drag to reorder",
   "chat.queue.sendNow": "Steer",
   "chat.queue.sendingNow": "Starting",
-  "chat.queue.sendNowFailed":
-    "Could not start now. Retry, or withdraw and select a model again if a model error appears.",
+  "chat.queue.sendNowFailed": "Could not start now. Your message is kept. Try again later.",
+  "chat.queue.sendNowWaiting":
+    "The current task is still finishing or releasing resources. Your message is kept. Retry when it finishes.",
+  "chat.queue.sendNowBusy": "Another message is starting. Your message is kept. Try again later.",
+  "chat.queue.sendNowModelUnavailable":
+    "The queued model is unavailable. Withdraw the message, choose a model, and send again.",
+  "chat.queue.sendNowChanged": "The session state changed. Your message is kept. Try again.",
   "chat.queue.runNow": "Run now",
   "chat.queue.edit": "Edit",
   "chat.queue.editDraftConflict":
@@ -4759,13 +4764,13 @@ const enUS: Record<string, string> = {
   "chat.executionSwitch.speedOption": "speed: {value}",
   "chat.executionSwitch.optionSeparator": ", ",
   "chat.executionSwitch.waitingSafeBoundary":
-    "Current {currentModel} / switching to {targetModel} at the next safe step",
-  "chat.executionSwitch.switching": "Safely switching {currentModel} to {targetModel}...",
-  "chat.executionSwitch.active": "Safely switched: {fromModel} → {toModel}",
+    "Switching: {currentModel} → {targetModel}; finishing the old request or waiting for tools",
+  "chat.executionSwitch.switching": "Switching: {currentModel} → {targetModel}",
+  "chat.executionSwitch.active": "Switched: {fromModel} → {toModel}",
   "chat.executionSwitch.blocked":
-    "Safe switch to {targetModel} is blocked; current model: {currentModel}",
+    "Switch to {targetModel} is blocked; current model: {currentModel}",
   "chat.executionSwitch.armFailed":
-    "The model choice was kept, but this run could not schedule a safe switch",
+    "The model choice was kept, but this run could not start the switch",
   "chat.preparing": "Preparing...",
   "chat.remoteGenerating": "Another device is sending a message...",
   "chat.reasoning.thinking": "Thinking",

@@ -56,6 +56,12 @@ nodes:
         symbol: prepareProtocolExecution
       - file: packages/ui/src/hooks/useActiveExecutionWorkspace.ts
         symbol: useActiveExecutionWorkspace
+      - file: packages/ui/src/hooks/useAppPanels.ts
+        symbol: useAppPanels
+      - file: packages/ui/src/app-shell/WorkspaceShellLayout.tsx
+        symbol: WorkspaceShellLayout
+      - file: packages/ui/src/app-shell/AnimatedSidePanePanel.tsx
+        symbol: AnimatedSidePanePanel
       - file: packages/ui/src/worktree/DraftWorkspaceExecutionControls.tsx
         symbol: DraftWorkspaceExecutionControls
       - file: packages/ui/src/worktree/ProjectWorktreeManagementDialog.tsx
@@ -80,6 +86,7 @@ nodes:
         symbol: GroupedTaskRow
     invariants:
       - "Original workspace scope owns project association and configuration; the registered execution scope owns filesystem operations."
+      - "Side pane tabs are owned and filtered by the original workspace identity and conversation; execution paths and identities remain the scope of Git, file and terminal operations."
       - "Preparation is idempotent before session materialization; missing or archived bindings cannot silently resume in the original checkout."
       - "The single composer execution selector saves the original project's mode. Only frozen admission intent overrides later defaults; choosing a mode does not prepare a worktree."
       - "Project worktree management is a persistent project-menu entry using that project's Environment services. Sidebar icons derive only from actual session executionBindingId, including memoized and grouped rows."
@@ -385,6 +392,13 @@ nodes:
         symbol: AppSettings
       - file: packages/shared/src/validationAppSettings.ts
         symbol: appSettingsSchema
+      - file: packages/ui/src/root/useRootWorkspaceActions.ts
+        symbol: useRootWorkspaceActions
+      - file: packages/ui/src/workspaceProjectMenu.ts
+        symbol: buildWorkspaceProjectMenuTabs
+    invariants:
+      - Saved projects outlive window tabs, startup gates and failed or deferred restores; only an
+        explicit project removal command deletes registry entries and their restore indexes.
   - id: service.workspace-identity-builder
     kind: service
     label: Remote workspace identity builder

@@ -1,10 +1,10 @@
 import {
-  findLocalProjectForWorkspace,
   localProjectPathKey,
   type LocalProject,
   type RemoteTarget,
   type WorkspacePurpose,
 } from "@lcode/shared";
+import { isWorkspaceReferenceForLocalProject } from "./localProjectLifecycle.js";
 
 export interface WorkspaceProjectMenuTab {
   workspacePath: string;
@@ -35,11 +35,9 @@ export function buildWorkspaceProjectMenuTabs({
       if (isRemoteWorkspaceTab(tab) || tab.workspacePurpose === "conversation") {
         return false;
       }
-      return (
-        findLocalProjectForWorkspace(localProjects, tab.workspacePath, tab.localProjectId)?.id ===
-        project.id
-      );
+      return isWorkspaceReferenceForLocalProject(project, tab);
     });
+    // 启动门禁、延迟恢复或关闭 tab 不代表项目已删除；菜单始终从注册表投影。
     return {
       ...(openedTab ?? {
         workspacePath: project.primaryFolderPath,

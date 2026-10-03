@@ -161,6 +161,7 @@ import {
   registerSessionReferencePointerTarget,
 } from "@/v4/sessionReferenceDragDrop.js";
 import { buildExecutionFailoverCommandPayload } from "@/v4/executionFailoverUi.js";
+import { QueueSendNowError } from "@/v4/queueSendNowFailure.js";
 import { buildEditUserQueryPayload } from "@/v4/editUserQueryPayload.js";
 import { ReadOnlySessionTokenStats } from "@/v4/composer/ReadOnlySessionTokenStats.js";
 import { shouldIgnoreEscapeForStopGeneration } from "@/v4/composer/escapeStop.js";
@@ -4061,14 +4062,14 @@ export function SessionPane({
             status: ack.status,
             reasonCode: ack.reasonCode ?? null,
           });
-          throw new Error(intl.formatMessage({ id: "chat.queue.sendNowFailed" }));
+          throw new QueueSendNowError(ack.status === "stale" ? "stale" : ack.reasonCode);
         }
       } catch (error) {
         logger.lifecycle.warn("[v4-pane] 队列立即发送未完成", { sessionId, queueItemId });
-        throw new Error(intl.formatMessage({ id: "chat.queue.sendNowFailed" }), { cause: error });
+        throw error instanceof QueueSendNowError ? error : new QueueSendNowError();
       }
     },
-    [dispatchCommand, focusTimelineToLatest, intl, sessionId, workspaceKey],
+    [dispatchCommand, focusTimelineToLatest, sessionId, workspaceKey],
   );
 
   const handleReorderQueueItem = useCallback(
@@ -4270,8 +4271,8 @@ export function SessionPane({
     [dispatchCommand, intl, sessionId],
   );
 
-  // Composer 选择仍先表达“下一次提交”。若已有执行，Runtime 在当前请求、工具和文件写入
-  // 到达安全边界后应用同一完整选择；健康的在途物理请求不会被 UI 强制中断。
+  // Composer 保存下一次提交的完整选择，同时通知活动执行立即结束旧模型请求。
+  // 请求取消由 Runtime 的独立 controller 处理；工具和文件写入先收尾，UI 不伪造 idle。
   const handleSelectModel = useCallback(
     (modelProvider: string, model: string, sourceModel: ModelSelectionSource | null) => {
       const resolvedProvider =

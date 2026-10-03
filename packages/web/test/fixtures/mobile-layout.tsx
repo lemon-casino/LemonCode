@@ -271,6 +271,7 @@ function Fixture() {
                   recentClosedSidePaneTabs={panels.recentClosedSidePaneTabs}
                   isBrowserOpen={false}
                   supportsEmbeddedBrowser={false}
+                  ownerWorkspaceKey={workspacePath}
                   workspaceAbsPath={workspacePath}
                   activeTaskId="mobile-fixture-session"
                   sidePaneOwnerId="mobile-fixture-session"

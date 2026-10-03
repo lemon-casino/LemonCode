@@ -19,6 +19,12 @@ export interface LocalProjectCreateRequest {
   sourceFolderPaths: string[];
 }
 
+export interface LocalProjectRemoveRequest {
+  /** 新版 tab 会持久化项目 ID；旧 tab 缺失时由 workspacePath 回退识别。 */
+  projectId?: string;
+  workspacePath: string;
+}
+
 function stripTrailingPathSeparators(value: string): string {
   if (value === "/" || /^[A-Za-z]:[\\/]$/.test(value)) {
     return value;

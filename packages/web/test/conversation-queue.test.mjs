@@ -131,6 +131,67 @@ test(
         true,
       );
     });
+    await t.test("桌面和手机按 ACK 原因显示反馈，保留队列消息并允许重试", async () => {
+      const cases = [
+        ["fault.command.sessionIdleTimeout", /当前任务仍在结束或清理资源/],
+        ["guard.queuePromotionBusy", /另一条消息正在启动/],
+        ["guard.queueItemReserved", /另一条消息正在启动/],
+        ["restoreWarning", /排队消息的模型不可用/],
+        ["stale", /会话状态已变化/],
+        ["unknown", /未能立即启动，消息已保留/],
+      ];
+      for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 800 });
+        for (const [reason, expected] of cases) {
+          await page.getByRole("button", { name: "立即", exact: true }).click();
+          await page.getByRole("button", { name: "启动中", exact: true }).waitFor();
+          assert.equal(await page.getByRole("alert").count(), 0);
+          await fixture("settle", true, reason);
+          const alert = page.getByRole("alert");
+          await alert.waitFor();
+          assert.match(await alert.innerText(), expected);
+          assert.equal(
+            await page.locator('[data-queue-item-id="queued"][data-kind="sendText"]').count(),
+            1,
+          );
+          assert.equal(
+            await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+            true,
+          );
+        }
+      }
+    });
+    await t.test("立即切换状态保留完整选型，完成后更新，手机上可阅读且不溢出", async () => {
+      for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 800 });
+        await fixture("showSwitch", "waitingSafeBoundary");
+        const waiting = page.locator('[data-execution-switch-status="waitingSafeBoundary"]');
+        await waiting.waitFor();
+        const text = await waiting.innerText();
+        assert.match(text, /正在切换：provider-a\/model-a/);
+        assert.match(text, /provider-b\/model-b/);
+        assert.match(text, /正在结束旧请求或等待工具完成/);
+        assert.doesNotMatch(text, /等待安全切换/);
+        assert.match(text, /推理强度/);
+        assert.match(text, /速度：快速/);
+        assert.equal(
+          await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+          true,
+        );
+        const clipped = await waiting
+          .locator("span")
+          .evaluate(
+            (span) => span.scrollWidth > span.clientWidth || span.scrollHeight > span.clientHeight,
+          );
+        assert.equal(clipped, false);
+        await fixture("showSwitch", "active");
+        const active = page.locator('[data-execution-switch-status="active"]');
+        await active.waitFor();
+        assert.match(await active.innerText(), /已切换/);
+        await fixture("showSwitch", null);
+        await active.waitFor({ state: "detached" });
+      }
+    });
     assert.deepEqual(errors, []);
   },
 );

@@ -58,6 +58,7 @@ export async function closeRetryYieldRecoveryStepIfNeeded(
     assistantCreatedAt: number;
     assistantMessageId: MessageId;
     failedStepClosed: boolean;
+    finish?: "user_model_switch_recovered";
     model: RegularTurnLoopState["model"];
     modelTraceContext: RegularTurnLoopState["turnTraceContext"];
   },
@@ -66,7 +67,7 @@ export async function closeRetryYieldRecoveryStepIfNeeded(
   await closeFailedModelStep.call(this, state, {
     assistantCreatedAt: input.assistantCreatedAt,
     assistantMessageId: input.assistantMessageId,
-    finish: "provider_retry_yield_recovered",
+    finish: input.finish ?? "provider_retry_yield_recovered",
     model: input.model,
     modelTraceContext: input.modelTraceContext,
   });

@@ -39,7 +39,9 @@ export const SortableWorkspaceSidebarItem = memo(function SortableWorkspaceSideb
   isExpanded: boolean;
   activateTab: (tabId: string) => void;
   closeTab: (tabId: string) => void;
-  onRemoveLocalProject?: (projectId: string) => Promise<void>;
+  onRemoveLocalProject?: (
+    request: import("@lcode/shared").LocalProjectRemoveRequest,
+  ) => Promise<void>;
   toggleWorkspaceExpanded: (workspacePath: string) => void;
   onSelectTask: (
     targetWorkspacePath: string,

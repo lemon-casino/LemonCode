@@ -97,7 +97,9 @@ export interface AppProps {
   onCreateLocalProject: (
     request: import("@lcode/shared").LocalProjectCreateRequest,
   ) => Promise<void>;
-  onRemoveLocalProject?: (projectId: string) => Promise<void>;
+  onRemoveLocalProject?: (
+    request: import("@lcode/shared").LocalProjectRemoveRequest,
+  ) => Promise<void>;
   localProjects: import("@lcode/shared").LocalProject[];
   onOpenRemoteWorkspace?: () => void;
   onCreateScratchWorkspace: (name: string) => Promise<string | null>;

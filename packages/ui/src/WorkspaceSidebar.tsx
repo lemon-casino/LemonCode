@@ -288,7 +288,9 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onCreateTask: (request?: CreateTaskRequest) => void;
   onCreateConversationTask: () => void;
   onOpenFolderFromWorkspaceMenu: () => void;
-  onRemoveLocalProject?: (projectId: string) => Promise<void>;
+  onRemoveLocalProject?: (
+    request: import("@lcode/shared").LocalProjectRemoveRequest,
+  ) => Promise<void>;
   onOpenRemoteWorkspace?: () => void;
   theme: Theme;
   onConnectRemote: (options: RemoteTarget, requestId?: string) => Promise<string>;

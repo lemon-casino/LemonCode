@@ -19,6 +19,7 @@ import {
 } from "./model-failover-policy.js";
 import type { RegularTurnLoopState } from "./turn-loop-state.js";
 import { createTurnModel } from "./turn-model.js";
+import { throwIfTurnAborted } from "../helpers/index.js";
 
 const MAX_EXECUTION_FAILOVER_TRANSITIONS = 2;
 const NETWORK_REASONS = new Set([
@@ -52,6 +53,8 @@ export async function activateExecutionFailoverAtSafeBoundary(
   let beforeActivateCompleted = false;
   let accumulatedResult: ExecutionFailoverActivationResult = "none";
   while (true) {
+    // 用户 Stop 可在请求取消后的持久化窗口到达，不能再激活目标并重新开始任务。
+    throwIfTurnAborted(state.turnAbortSignal);
     const before = runtime.executionFailoverPolicyPort.resolve(scope);
     let result: ExecutionFailoverActivationResult = "none";
     let activationError: unknown;
@@ -78,10 +81,12 @@ export async function activateExecutionFailoverAtSafeBoundary(
     if (activationError instanceof ExecutionFailoverPreparedRollbackError) {
       throw activationError.rollbackCause;
     }
+    throwIfTurnAborted(state.turnAbortSignal);
     if (after && before?.sourceCommandId !== after.sourceCommandId) {
       // latest-wins 仍受“本安全边界已访问/预算耗尽”约束；把目标留在 waiting，
       // 下一次干净边界再应用，不能把用户显式切回误记为永久 blocked。
-      if (mustDeferTargetToNextSafeBoundary(state, after)) return accumulatedResult;
+      if (mustDeferTargetToNextSafeBoundary(state, after, options.reasonCode))
+        return accumulatedResult;
       continue;
     }
     if (activationError !== undefined) throw activationError;
@@ -90,7 +95,7 @@ export async function activateExecutionFailoverAtSafeBoundary(
       after !== undefined &&
       after.status !== "blocked" &&
       !sameExecutionModelSelection(modelSelectionFromModel(state.model), after.modelSelection) &&
-      !mustDeferTargetToNextSafeBoundary(state, after)
+      !mustDeferTargetToNextSafeBoundary(state, after, options.reasonCode)
     ) {
       // retain/release 等同源 mutation 也会让旧 prepare 主动让位，但它没有替换模型目标。
       // 队列稳定后必须在本边界重试 B，否则调用方会拿 A 多发一次物理请求。
@@ -105,12 +110,21 @@ export async function activateExecutionFailoverAtSafeBoundary(
 function mustDeferTargetToNextSafeBoundary(
   state: RegularTurnLoopState,
   target: ExecutionFailoverPolicyTarget,
+  reasonCode?: ExecutionFailoverReasonCode,
 ): boolean {
   return (
     state.executionFailoverUnsafePolicies.has(policyTargetKey(target)) ||
-    state.executionFailoverTransitionCount >= MAX_EXECUTION_FAILOVER_TRANSITIONS ||
-    state.executionFailoverVisitedModels.has(executionModelSelectionIdentity(target.modelSelection))
+    (!isUserRequestedSwitch(reasonCode) &&
+      ((state.executionFailoverAutomaticTransitionCount ?? 0) >=
+        MAX_EXECUTION_FAILOVER_TRANSITIONS ||
+        state.executionFailoverVisitedModels.has(
+          executionModelSelectionIdentity(target.modelSelection),
+        )))
   );
+}
+
+function isUserRequestedSwitch(reasonCode?: ExecutionFailoverReasonCode): boolean {
+  return reasonCode === undefined || reasonCode === "userRequested";
 }
 
 function mergeActivationResult(
@@ -216,6 +230,7 @@ async function activateExecutionFailoverAtSafeBoundaryOnce(
       executionModelSelectionIdentity(target.modelSelection),
     );
     const applied = await runtime.executionFailoverPolicyPort.applyActive({
+      abortSignal: state.turnAbortSignal,
       commit: application.commit,
       prepare: async () => {
         await options.beforeActivate?.();
@@ -258,8 +273,19 @@ async function activateExecutionFailoverAtSafeBoundaryOnce(
   const targetKey = executionModelSelectionIdentity(target.modelSelection);
   const nextModel = candidate.model;
   const attempt = state.executionFailoverTransitionCount + 1;
-  const application = createTargetModelApplication(runtime, state, nextModel, targetKey, attempt);
+  const automaticCount =
+    (state.executionFailoverAutomaticTransitionCount ?? 0) +
+    (isUserRequestedSwitch(options.reasonCode) ? 0 : 1);
+  const application = createTargetModelApplication(
+    runtime,
+    state,
+    nextModel,
+    targetKey,
+    attempt,
+    automaticCount,
+  );
   const activated = await runtime.executionFailoverPolicyPort.activate({
+    abortSignal: state.turnAbortSignal,
     attempt,
     ...(options.beforeActivate ? { beforeActivate: options.beforeActivate } : {}),
     commit: application.commit,
@@ -342,10 +368,16 @@ function evaluateExecutionFailoverCandidate(
   ) {
     return { kind: "deferred" };
   }
-  if (state.executionFailoverTransitionCount >= MAX_EXECUTION_FAILOVER_TRANSITIONS) {
+  // 旧设计把手动改选也当成故障循环：两次后、或选回已用模型时不再取消旧请求。
+  // 手动指令仍校验安全和能力，但次数/visited 仅限制自动故障交接。
+  if (
+    !isUserRequestedSwitch(input.reasonCode) &&
+    (state.executionFailoverAutomaticTransitionCount ?? 0) >= MAX_EXECUTION_FAILOVER_TRANSITIONS
+  ) {
     return { kind: "blocked", reason: "target.transition_budget_exhausted" };
   }
   if (
+    !isUserRequestedSwitch(input.reasonCode) &&
     state.executionFailoverVisitedModels.has(executionModelSelectionIdentity(target.modelSelection))
   ) {
     return { kind: "blocked", reason: "target.already_visited" };
@@ -379,6 +411,7 @@ function createTargetModelApplication(
   model: Model,
   targetKey: string,
   transitionCount?: number,
+  automaticTransitionCount?: number,
 ): {
   commit: () => void;
   prepare: () => Promise<void>;
@@ -411,17 +444,18 @@ function createTargetModelApplication(
       if (transitionCount !== undefined) {
         state.executionFailoverTransitionCount = transitionCount;
       }
+      if (automaticTransitionCount !== undefined) {
+        state.executionFailoverAutomaticTransitionCount = automaticTransitionCount;
+      }
       if (runtime.executionFailoverScopeLifetime === "runtime") {
         // 仅 runtime-lifetime child 写回自己的私有 selection，普通 subagent/profile 不受影响。
         runtime.setSessionModelSelection(selection);
       }
-      runtime.activeForegroundExecution &&=
-        runtime.executionFailoverScope === undefined
-          ? {
-              ...runtime.activeForegroundExecution,
-              currentModelSelection: selection,
-            }
-          : runtime.activeForegroundExecution;
+      if (runtime.activeForegroundExecution && runtime.executionFailoverScope === undefined) {
+        // 根因：spread 会替换 command 持有的 owner，finally 的身份校验因此无法释放它。
+        // 模型变化只更新原 owner 的字段，取消授权与收尾仍共享同一执行对象。
+        runtime.activeForegroundExecution.currentModelSelection = selection;
+      }
       // Adapter 统一请求入口会按 source/target model 只移除签名或 redacted 私有块，
       // 普通 reasoning 仍保留；Core 不复制 provider 原始请求，也不粗暴删除推理正文。
       state.turnRequestState.entries = contextEntries;

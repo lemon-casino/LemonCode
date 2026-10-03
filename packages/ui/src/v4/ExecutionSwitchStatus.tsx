@@ -109,7 +109,9 @@ export function ExecutionSwitchStatus({
       data-execution-switch-status={display.kind}
       className="flex min-w-0 items-center px-3 pb-1.5 text-ui-sm text-foreground-subtle"
     >
-      <span className="min-w-0 truncate">{message}</span>
+      <span className="min-w-0 break-words" title={message}>
+        {message}
+      </span>
     </div>
   );
 }

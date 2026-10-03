@@ -36,6 +36,12 @@ import {
 } from "./model-failover-router.js";
 import type { RegularTurnLoopState } from "./turn-loop-state.js";
 import { runRegularTurnLoop } from "./turn-loop.js";
+import { runRuntimeCommand } from "./runtime-command-execution.js";
+import {
+  isForegroundExecutionIdleForPromotion,
+  stopActiveForegroundExecution,
+} from "./runtime-foreground-execution.js";
+import { admitPrompt } from "./prompt-admission.js";
 
 const traceContext = {} as TraceContext;
 const selectionA: ModelSelection = { providerId: "provider-a", modelId: "model-a" };
@@ -879,6 +885,95 @@ test("an active foreground target is reapplied to later turns without a duplicat
   assert.equal(events.length, eventCountAfterTransition);
 });
 
+for (const outcome of ["success", "error", "cancelled"] as const) {
+  test(`safe model activation and reapplication release the execution owner after ${outcome}`, async () => {
+    const { port, runtime } = createPolicyRuntime();
+    const modelA = createModel(selectionA, 200_000);
+    const modelB = createModel(selectionB, 200_000);
+    let resolved = false;
+    let rejected = false;
+    let preservedOwner = false;
+    const nextCommands: unknown[] = [];
+    Object.assign(runtime, {
+      contextBuilder: null,
+      contextInitialized: false,
+      failoverModelFactory: () => modelB,
+      pendingSessionStoreDependentCloseWork: new Set<Promise<void>>(),
+      trackResidencyBlockingWork: <T>(work: Promise<T>) => work,
+      runtimeCommandQueue: {
+        consumeCancelPending: () => false,
+        clearCancelPending: () => undefined,
+        hasPending: () => false,
+      },
+      reserveTurnStart: () => undefined,
+      enqueueRuntimeCommand: (command: unknown) => nextCommands.push(command),
+      hasActiveOrQueuedTurnWork: () => runtime.activeForegroundExecution !== undefined,
+      executeTurnCommand: async () => {
+        const owner = runtime.activeForegroundExecution!;
+        await port.setTarget({
+          modelSelection: selectionB,
+          observedTargets: {
+            foregroundExecutionId: owner.foregroundExecutionId,
+            backgroundWorkIds: [],
+          },
+          sourceCommandId: "activate-b",
+          traceContext,
+        });
+        await activateExecutionFailoverAtSafeBoundary(runtime, createLoopState(modelA));
+        await activateExecutionFailoverAtSafeBoundary(runtime, createLoopState(modelA));
+        preservedOwner = runtime.activeForegroundExecution === owner;
+        assert.deepEqual(owner.currentModelSelection, selectionB);
+        await port.setTarget({
+          modelSelection: selectionC,
+          observedTargets: {
+            foregroundExecutionId: owner.foregroundExecutionId,
+            backgroundWorkIds: [],
+          },
+          sourceCommandId: "waiting-c",
+          traceContext,
+        });
+        if (outcome === "cancelled") {
+          stopActiveForegroundExecution.call(runtime, { preserveQueueAutoDrainOnCancel: true });
+          assert.equal(owner.controller.signal.aborted, true);
+          assert.equal(owner.preserveQueueAutoDrainOnCancel, true);
+        }
+        if (outcome !== "success") throw new Error(outcome);
+        return {};
+      },
+    });
+    await runRuntimeCommand.call(runtime, {
+      mode: "prompt",
+      id: "foreground-handoff",
+      input: "original input",
+      createdAt: new Date(),
+      priority: "next",
+      traceContext,
+      resolve: () => {
+        resolved = true;
+      },
+      reject: () => {
+        rejected = true;
+      },
+    } as never);
+    assert.equal(preservedOwner, true, "model switching must preserve the runtime command owner");
+    assert.equal(resolved, outcome === "success");
+    assert.equal(rejected, outcome !== "success");
+    assert.equal(runtime.activeForegroundExecution, undefined);
+    assert.equal(
+      runtime.executionFailoverState,
+      undefined,
+      "the old waiting target must be cleared",
+    );
+    assert.equal(isForegroundExecutionIdleForPromotion.call(runtime), true);
+    const next = await admitPrompt.call(runtime, "next queued input", undefined, {
+      requireIdle: true,
+      inputId: "next-input",
+    });
+    assert.equal(next.kind, "started");
+    assert.equal(nextCommands.length, 1);
+  });
+}
+
 test("active reapply does not apply an older target after a newer command is admitted", async () => {
   const { port, runtime } = createPolicyRuntime();
   const modelA = createModel(selectionA, 100_000);
@@ -1411,7 +1506,7 @@ test("retry yield uses the same unsafe, transition budget, and visited fences as
     });
     const state = createLoopState(modelA);
     if (blockedBy === "unsafe") markExecutionFailoverUnsafe(runtime, state);
-    if (blockedBy === "transition_budget") state.executionFailoverTransitionCount = 2;
+    if (blockedBy === "transition_budget") state.executionFailoverAutomaticTransitionCount = 2;
     if (blockedBy === "visited") {
       state.executionFailoverVisitedModels.add(executionModelSelectionIdentity(selectionB));
     }
@@ -1423,7 +1518,11 @@ test("retry yield uses the same unsafe, transition budget, and visited fences as
       retryFailure,
     );
     assert.equal(decision.shouldYield, false, blockedBy);
-    assert.equal(canActivateExecutionFailoverAtSafeBoundary(runtime, state), false, blockedBy);
+    assert.equal(
+      canActivateExecutionFailoverAtSafeBoundary(runtime, state, "provider.rate_limited"),
+      false,
+      blockedBy,
+    );
   }
 });
 

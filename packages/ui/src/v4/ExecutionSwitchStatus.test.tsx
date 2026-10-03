@@ -70,11 +70,11 @@ test("distinguishes a same-model reasoning and speed switch in localized status 
 
   assert.match(
     markup,
-    /已安全切换：provider-a\/model-a（推理强度：高，速度：标准） → provider-a\/model-a（推理强度：中，速度：快速）/,
+    /已切换：provider-a\/model-a（推理强度：高，速度：标准） → provider-a\/model-a（推理强度：中，速度：快速）/,
   );
 });
 
-test("keeps custom option values visible while waiting for the safe boundary", () => {
+test("explains immediate switching while retaining full custom model options", () => {
   const markup = renderStatus({
     locale: "en-US",
     status: "waitingSafeBoundary",
@@ -92,6 +92,6 @@ test("keeps custom option values visible while waiting for the safe boundary", (
 
   assert.match(
     markup,
-    /Current provider-a\/model-a \(reasoning: High, speed: Standard\) \/ switching to provider-a\/model-a \(reasoning: custom-depth, speed: turbo\) at the next safe step/,
+    /Switching: provider-a\/model-a \(reasoning: High, speed: Standard\) → provider-a\/model-a \(reasoning: custom-depth, speed: turbo\); finishing the old request or waiting for tools/,
   );
 });

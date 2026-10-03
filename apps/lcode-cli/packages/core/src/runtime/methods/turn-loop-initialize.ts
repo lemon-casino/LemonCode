@@ -67,6 +67,7 @@ export function createRegularTurnLoopState(
       executionModelSelectionIdentity(modelSelectionFromModel(loopModel)),
     ]),
     executionFailoverTransitionCount: 0,
+    executionFailoverAutomaticTransitionCount: 0,
     executionFailoverUnsafePolicies: new Set(),
     input,
     memoryRecallAttempted: false,

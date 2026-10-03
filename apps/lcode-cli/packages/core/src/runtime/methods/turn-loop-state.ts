@@ -90,9 +90,11 @@ export interface RegularTurnLoopState {
   currentUserMessageId: MessageId;
   drainedSteerForNextRequest?: DrainedPendingInputDiagnostics;
   events: SessionEvent[];
-  /** 当前逻辑执行已访问的完整 ModelSelection 身份；防止 A→B→A 循环。 */
+  /** 当前逻辑执行已访问的完整 ModelSelection；限制自动故障循环，不限制用户主动选择。 */
   executionFailoverVisitedModels: Set<string>;
   executionFailoverTransitionCount: number;
+  /** 自动故障交接单独计数，手动改选不消耗或清零此预算。 */
+  executionFailoverAutomaticTransitionCount?: number;
   /** 工具执行结果不确定时，只封锁对应 source command + target 身份。 */
   executionFailoverUnsafePolicies: Set<string>;
   input: string;

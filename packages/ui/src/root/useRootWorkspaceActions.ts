@@ -4,10 +4,12 @@ import {
   DesktopCommandIds,
   createLocalProject,
   createUuid,
-  hasLocalProjectPrimaryFolderConflict,
+  isSameLocalProjectPath,
+  localProjectPathKey,
   type AppSettings,
   type IPlatformService,
   type LocalProjectCreateRequest,
+  type LocalProjectRemoveRequest,
   type RemoteTarget,
   type UserInfo,
   type LCodeTaskClientMode,
@@ -21,6 +23,7 @@ import { isRendererReloadNavigation } from "@/lib/rendererNavigation.js";
 import { parseWslUncWorkspacePath } from "@/lib/wslUncWorkspace.js";
 import { logger } from "@/logger.js";
 import { openFolderFromWorkspaceEntry } from "@/root/openWorkspaceFolderEntry.js";
+import { buildLocalProjectRemovalPatch } from "@/localProjectLifecycle.js";
 import { useConversationWorkspaceActions } from "@/root/useConversationWorkspaceActions.js";
 import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import {
@@ -505,9 +508,15 @@ export function useRootWorkspaceActions({
         name: request.name,
         sourceFolderPaths: request.sourceFolderPaths,
       });
-      if (hasLocalProjectPrimaryFolderConflict(settings.localProjects, project.primaryFolderPath)) {
+      const conflictingProject = settings.localProjects.find((candidate) =>
+        isSameLocalProjectPath(candidate.primaryFolderPath, project.primaryFolderPath),
+      );
+      // 已保存但未打开的项目仍有效，不能根据窗口 tab 自动删除并替换它。
+      if (conflictingProject) {
         throw new Error(intl.formatMessage({ id: "chat.empty.createProject.duplicatePrimary" }));
       }
+
+      const primaryFolderKey = localProjectPathKey(project.primaryFolderPath);
 
       // 项目定义必须先成为设置事实，再打开 tab。反过来会在设置写失败时留下一个
       // 看似属于项目、实际无法恢复源文件夹的半创建会话。
@@ -515,7 +524,9 @@ export function useRootWorkspaceActions({
         localProjects: [project, ...settings.localProjects],
         recentProjects: [
           project.primaryFolderPath,
-          ...settings.recentProjects.filter((path) => path !== project.primaryFolderPath),
+          ...settings.recentProjects.filter(
+            (path) => localProjectPathKey(path) !== primaryFolderKey,
+          ),
         ].slice(0, 10),
       });
       await handleSelectProject(project.primaryFolderPath, {
@@ -534,27 +545,24 @@ export function useRootWorkspaceActions({
   );
 
   const handleRemoveLocalProject = useCallback(
-    async (projectId: string) => {
+    async (request: LocalProjectRemoveRequest) => {
       if (!supportsSettings) {
         return;
       }
 
-      const normalizedProjectId = projectId.trim();
-      if (!normalizedProjectId) {
+      if (!request.projectId?.trim() && !request.workspacePath.trim()) {
         return;
       }
 
       const settings = await services.settingService.get();
-      const nextLocalProjects = settings.localProjects.filter(
-        (project) => project.id !== normalizedProjectId,
-      );
-      if (nextLocalProjects.length === settings.localProjects.length) {
+      const patch = buildLocalProjectRemovalPatch(settings, request);
+      if (!patch) {
         return;
       }
 
-      // “移除项目”只删除多文件夹项目定义，不删除源码目录，也不清理 recentProjects。
-      // 这样项目成员目录如果仍有旧 tab 或历史记录，会立即恢复为可独立选择的文件夹。
-      await updateAppSettings({ localProjects: nextLocalProjects });
+      // 只删除应用中的项目元数据，不碰源码目录；同时清理 recent/session 索引，
+      // 防止选择器、启动恢复和新建冲突校验继续把已移除项目当成有效项目。
+      await updateAppSettings(patch);
     },
     [services.settingService, supportsSettings, updateAppSettings],
   );

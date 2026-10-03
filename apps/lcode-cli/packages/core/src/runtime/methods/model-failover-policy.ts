@@ -59,6 +59,7 @@ export interface SetExecutionFailoverTargetInput {
 export interface ExecutionFailoverPolicyPort {
   acquireLineageLease(leaseId: string): Promise<ExecutionFailoverLineageLease | undefined>;
   activate(input: {
+    abortSignal?: AbortSignal;
     attempt: number;
     beforeActivate?: () => Promise<void>;
     commit: () => void;
@@ -87,6 +88,7 @@ export interface ExecutionFailoverPolicyPort {
   }): Promise<ModelRetryYieldDecision>;
   complete(scope: ExecutionFailoverScope, traceContext: TraceContext): Promise<void>;
   applyActive(input: {
+    abortSignal?: AbortSignal;
     commit: () => void;
     prepare: () => Promise<void>;
     rollbackPrepared?: () => Promise<void>;
@@ -104,6 +106,8 @@ export interface ExecutionFailoverPolicyPort {
   reset(): Promise<void>;
   resolve(scope: ExecutionFailoverScope): ExecutionFailoverPolicyTarget | undefined;
   settle(): Promise<void>;
+  /** 仅通知已提交的策略变化；订阅者按自己的精确执行 scope 读取，不持有第二份策略。 */
+  subscribe(listener: () => void): () => void;
   setTarget(input: SetExecutionFailoverTargetInput): Promise<"applied" | "stale">;
 }
 
@@ -117,6 +121,8 @@ export class ExecutionFailoverPreparedRollbackError extends Error {
     this.name = "ExecutionFailoverPreparedRollbackError";
   }
 }
+
+const policyListeners = new WeakMap<AgentRuntimeInternal, Set<() => void>>();
 
 export function createExecutionFailoverPolicyPort(
   owner: AgentRuntimeInternal,
@@ -139,6 +145,17 @@ export function createExecutionFailoverPolicyPort(
     reset: () => mutatePolicy(owner, () => resetPolicy(owner)),
     resolve: (scope) => resolveTarget(owner.executionFailoverState, scope),
     settle: () => settlePolicyMutations(owner),
+    subscribe: (listener) => {
+      let listeners = policyListeners.get(owner);
+      if (!listeners) {
+        listeners = new Set();
+        policyListeners.set(owner, listeners);
+      }
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
     setTarget: (input) => mutatePolicy(owner, () => replacePolicy(owner, input)),
   };
 }
@@ -162,6 +179,7 @@ async function decideRetryYield(
 async function applyActiveTarget(
   owner: AgentRuntimeInternal,
   input: {
+    abortSignal?: AbortSignal;
     commit: () => void;
     prepare: () => Promise<void>;
     rollbackPrepared?: () => Promise<void>;
@@ -180,11 +198,11 @@ async function applyActiveTarget(
   ) {
     return false;
   }
-  if (mutation.hasQueuedSuccessor()) return false;
+  if (mutation.hasQueuedSuccessor() || input.abortSignal?.aborted) return false;
   await input.prepare();
   // prepare 期间到达的新命令属于同一个尚未提交的安全边界。持久 actor 的 prepare
   // 可能已写 journal，必须先补偿回边界起点，再让最新目标继续，避免 journal B / runtime A。
-  if (mutation.hasQueuedSuccessor()) {
+  if (mutation.hasQueuedSuccessor() || input.abortSignal?.aborted) {
     await rollbackSupersededPreparation(input.rollbackPrepared);
     return false;
   }
@@ -361,6 +379,7 @@ async function replacePolicy(
 async function activateTarget(
   owner: AgentRuntimeInternal,
   input: {
+    abortSignal?: AbortSignal;
     attempt: number;
     beforeActivate?: () => Promise<void>;
     commit: () => void;
@@ -378,13 +397,13 @@ async function activateTarget(
   if (!state || state.sourceCommandId !== input.target.sourceCommandId) return false;
   const resolved = resolveTarget(state, input.scope);
   if (!resolved || resolved.status === "blocked") return false;
-  if (mutation.hasQueuedSuccessor()) return false;
+  if (mutation.hasQueuedSuccessor() || input.abortSignal?.aborted) return false;
   await input.beforeActivate?.();
-  if (mutation.hasQueuedSuccessor()) return false;
+  if (mutation.hasQueuedSuccessor() || input.abortSignal?.aborted) return false;
   // journal / durable selection 必须先成功；失败时 policy 仍保持 waiting，下一安全边界可重试。
   await input.prepare();
   // 不能因 actor journal 已写入就把中间 B 提交为 active；最新命令仍是本边界唯一权威。
-  if (mutation.hasQueuedSuccessor()) {
+  if (mutation.hasQueuedSuccessor() || input.abortSignal?.aborted) {
     await rollbackSupersededPreparation(input.rollbackPrepared);
     return false;
   }
@@ -431,7 +450,7 @@ async function activateTarget(
   owner.executionFailoverState = next;
   // event append 是最后一个异步提交窗；期间进入的新目标仍必须阻止旧模型落到 loop/session。
   // 已追加事件需要先成为 owner 的 revision 基线，后继命令才能用更高 revision 覆盖它。
-  if (mutation.hasQueuedSuccessor()) {
+  if (mutation.hasQueuedSuccessor() || input.abortSignal?.aborted) {
     await rollbackSupersededPreparation(input.rollbackPrepared);
     return false;
   }
@@ -1000,7 +1019,21 @@ function mutatePolicy<T>(
   const context: PolicyMutationContext = {
     hasQueuedSuccessor: () => ownTail !== undefined && owner.executionFailoverMutation !== ownTail,
   };
-  const run = () => mutation(context);
+  const run = async () => {
+    const value = await mutation(context);
+    for (const listener of policyListeners.get(owner) ?? []) {
+      try {
+        listener();
+      } catch (error) {
+        // 观察者不能使已经持久提交的策略反向失败，也不能破坏串行 mutation 的释放。
+        owner.logger?.warn("Model switch request observer failed", {
+          event: "model.switch.request_observer_failed",
+          errorMessage: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    return value;
+  };
   const result = owner.executionFailoverMutation.then(run, run);
   ownTail = result.then(
     () => undefined,

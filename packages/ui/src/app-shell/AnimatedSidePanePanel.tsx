@@ -286,6 +286,7 @@ export function AnimatedSidePanePanel({
   recentClosedSidePaneTabs,
   isBrowserOpen,
   supportsEmbeddedBrowser = true,
+  ownerWorkspaceKey,
   workspaceAbsPath,
   workspaceIdentity,
   workspaceRemoteSessionId,
@@ -362,6 +363,8 @@ export function AnimatedSidePanePanel({
   recentClosedSidePaneTabs: RecentClosedSidePaneTab[];
   isBrowserOpen: boolean;
   supportsEmbeddedBrowser?: boolean;
+  /** 与 useAppPanels 相同的原项目身份；执行目录不能用来筛选标签页。 */
+  ownerWorkspaceKey: string;
   workspaceAbsPath: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
@@ -419,7 +422,9 @@ export function AnimatedSidePanePanel({
   const developerToolsEnabled = useDeveloperToolsVisibility();
   const isDragCollapsible = !isVisible;
   const isResizeDisabled = isNarrowWebLayout || !isVisible;
-  const workspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
+  // 工作树执行身份与原项目不同；此前按执行身份筛选，已创建的审核标签页会被误隐藏。
+  // 归属由 useAppPanels 冻结，显示层沿用同一 owner；文件/Git 操作仍用下方执行目录参数。
+  const workspaceKey = ownerWorkspaceKey;
   const tabs = sidePaneState?.tabs ?? EMPTY_SIDE_PANE_TABS;
   const screenshotSurfaceRequest = screenshotSurfaceRequestProp;
   const isScreenshotSurfaceActive = Boolean(screenshotSurfaceRequest);

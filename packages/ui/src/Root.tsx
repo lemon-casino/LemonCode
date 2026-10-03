@@ -575,6 +575,10 @@ function RootInner({
     buildPersistPatch: buildPersistedTabPatch,
   });
 
+  // 项目注册表是持久化事实，打开标签页只是窗口投影。启动门禁尚未放行时，
+  // hook 的“无需恢复”完成态也可能为 true；据此清理空 tab 会误删项目及恢复记录。
+  // 启动不产生项目删除命令，只有用户明确移除才沿 handleRemoveLocalProject 持久化。
+
   useEffect(() => {
     if (!isDesktop || !hasCompletedFullRestore) return;
     // Bug 原因：active-first 的单 workspace 只是 Renderer 首屏投影，若立刻对外同步，

@@ -55,6 +55,7 @@ export async function recoverFailedModelStep(
     error: unknown;
     latestStreamSnapshot: RuntimeModelStreamSnapshot;
     failedRequestId: string | undefined;
+    userRequestedSwitch?: boolean;
   },
 ): Promise<ModelStepResult> {
   const {
@@ -70,6 +71,8 @@ export async function recoverFailedModelStep(
     streamingToolCoordinator,
   } = execution;
   const { error, latestStreamSnapshot, failedRequestId } = failure;
+  const userRequestedSwitch =
+    failure.userRequestedSwitch === true && !state.turnAbortSignal.aborted;
   let finalError = error;
   await recordMainTurnModelUsage(this, state, {
     assistantMessageId,
@@ -78,9 +81,11 @@ export async function recoverFailedModelStep(
     modelTraceContext,
     networkEventStartIndex,
     startedAt: modelStartedAt,
-    status: state.turnAbortSignal.aborted ? "cancelled" : "error",
+    status: state.turnAbortSignal.aborted || userRequestedSwitch ? "cancelled" : "error",
   });
-  const failoverReason = classifyExecutionFailoverFailure(error, state.turnAbortSignal);
+  const failoverReason = userRequestedSwitch
+    ? "userRequested"
+    : classifyExecutionFailoverFailure(error, state.turnAbortSignal);
   const retryYieldClaim = readExecutionFailoverRetryYieldClaim(error);
   const retryYieldClaimWasCurrent = retryYieldClaim
     ? isExecutionFailoverRetryYieldClaimCurrent(this, retryYieldClaim)
@@ -90,7 +95,8 @@ export async function recoverFailedModelStep(
     failoverReason !== "provider.context_capacity" &&
     hasExecutionFailoverTarget(this, state) &&
     canActivateExecutionFailoverAtSafeBoundary(this, state, failoverReason);
-  const shouldAttemptFailureFailover = eligibleFailureFailover || retryYieldClaim !== undefined;
+  const shouldAttemptFailureFailover =
+    eligibleFailureFailover || retryYieldClaim !== undefined || userRequestedSwitch;
   const toolCallCountBeforeStreamRecovery = state.toolCallCount;
   const streamRecovery = await streamingToolCoordinator.recoverFromModelFailure(
     error,
@@ -116,7 +122,8 @@ export async function recoverFailedModelStep(
       if (
         activation !== "activated" &&
         streamRecovery.providerFailoverOverrideUsed &&
-        retryYieldClaim === undefined
+        retryYieldClaim === undefined &&
+        !userRequestedSwitch
       ) {
         throw finalError;
       }
@@ -133,6 +140,18 @@ export async function recoverFailedModelStep(
       reasonCode: failoverReason,
     });
     if (failover.activated) {
+      return "continue";
+    }
+    if (userRequestedSwitch) {
+      // B→C 在取消后覆盖且不可激活时，从已持久 checkpoint 继续 A；不重放工具或停止 Turn。
+      await closeRetryYieldRecoveryStepIfNeeded.call(this, state, {
+        assistantCreatedAt,
+        assistantMessageId,
+        failedStepClosed: failover.failedStepClosed,
+        model,
+        modelTraceContext,
+        finish: "user_model_switch_recovered",
+      });
       return "continue";
     }
     if (retryYieldClaim) {

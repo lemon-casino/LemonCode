@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { runUserActionAsync } from "@/lib/userActionTelemetry.js";
+import { queueSendNowFailureMessageId } from "./queueSendNowFailure.js";
 
 interface ConversationQueuePanelProps {
   queue: QueueState;
@@ -131,7 +132,7 @@ const QueueRow = memo(function QueueRow({
   editPending,
 }: QueueRowProps) {
   const [sendPending, setSendPending] = useState(false);
-  const [sendFailed, setSendFailed] = useState(false);
+  const [sendFailureMessageId, setSendFailureMessageId] = useState<string | null>(null);
   const sendPendingRef = useRef(false);
   const dispatchLocked = item.dispatch.state !== "queued";
   const rowLocked = dispatchLocked || editPending || sendPending;
@@ -140,7 +141,7 @@ const QueueRow = memo(function QueueRow({
     // UI 只锁一次点击，不移除权威队列项；ACK 或 transport 失败后仍可人工重试。
     sendPendingRef.current = true;
     setSendPending(true);
-    setSendFailed(false);
+    setSendFailureMessageId(null);
     try {
       await runUserActionAsync({
         input: { featureId: "conversation.queue.item", action: "send_now", trigger: "button" },
@@ -148,8 +149,8 @@ const QueueRow = memo(function QueueRow({
         completed: { resultSource: "authority_ack" },
         failureStage: "queue_send_now",
       });
-    } catch {
-      setSendFailed(true);
+    } catch (error) {
+      setSendFailureMessageId(queueSendNowFailureMessageId(error));
     } finally {
       sendPendingRef.current = false;
       setSendPending(false);
@@ -287,9 +288,9 @@ const QueueRow = memo(function QueueRow({
           </Button>
         </ControlHintTooltip>
       ) : null}
-      {sendFailed ? (
+      {sendFailureMessageId ? (
         <span role="alert" className="w-full px-2 text-ui-sm text-destructive">
-          {intl.formatMessage({ id: "chat.queue.sendNowFailed" })}
+          {intl.formatMessage({ id: sendFailureMessageId })}
         </span>
       ) : null}
     </li>

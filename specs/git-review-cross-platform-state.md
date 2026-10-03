@@ -30,6 +30,38 @@ sequenceDiagram
   P->>H: 人工明确确认后沿原 Git/Worktree 命令执行
 ```
 
+## 工作树审核与右侧面板归属
+
+- `useAppPanels` 是窗口内右侧标签页和展开状态的唯一所有者。标签页归属始终使用原项目的 `workspaceIdentity?.trim() || workspacePath` 与会话 owner；显示层必须使用相同的原项目身份过滤，不能用实际工作树身份替代。
+- `AnimatedSidePanePanel` 显式接收 `ownerWorkspaceKey`，用于标签页可见性、会话引用和面板状态边界；原有 `workspaceAbsPath`、`workspaceIdentity` 继续表示实际执行目录，供 Git、差异、文件和终端操作使用。保留项目和会话隔离，不能通过取消过滤让标签页可见。
+- 点击“查看变更与管理文件范围”沿原导航桥登记返回入口、隐藏审核窗口、创建并激活变更标签页。工作树标签页必须立即可见，返回后保留草稿、排除选择和审核阶段。切换会话或日志代次仍使旧返回入口失效。
+- 仅修正窗口内显示归属，无持久化迁移，也不改变 Host 的审核事实、远程 identity、连接路由、desktop-continuous 或 web-remote-replayable 语义。
+
+```mermaid
+sequenceDiagram
+  participant R as 提交审核窗口
+  participant N as 窗口导航桥
+  participant O as useAppPanels 原项目与会话 owner
+  participant V as 右侧面板投影
+  participant G as 实际执行目录 Git 服务
+  R->>N: 查看变更、登记返回 token
+  N->>R: 隐藏审核窗口
+  N->>O: 打开带实际工作树路径的变更页
+  O-->>V: 标签页（原项目身份、会话归属）
+  V->>V: 按 ownerWorkspaceKey 和会话显示
+  V->>G: 按实际工作树路径和 identity 读取差异
+  V->>N: 返回审核
+  N->>R: 恢复原审核阶段和草稿
+```
+
+### 面板回归验收
+
+- 本地目录与独立工作树的实际导航桥、`useAppPanels` 和 `AnimatedSidePanePanel` 联动：从审核窗口打开变更页后有可见的标签、文件列表和返回入口，不出现空标签页启动屏。
+- 使用路径 fallback 的本地工作树和具有不同原项目/执行 identity 的远程工作树，均按原项目显示标签页，差异请求仍发送实际执行路径及 identity。
+- 在 1280px 与 390px 页面验证打开、排除、返回、重新打开，草稿和排除范围不丢失；窄屏使用现有抽屉。
+- 切换会话后旧变更页和返回入口不可见；再次切回可恢复该会话的标签页，但旧返回 token 不恢复。项目身份改变不能显示其它项目的标签页。
+- 原一万文件分页、搜索和批量排除回归保留；新增浏览器场景必须经过生产面板 owner 与可见性过滤，不能仅用 `setSource` 桩替代导航路由。
+
 ## 验收
 
 - 桌面修改草稿、上一版、范围，手机即时更新；手机编辑阶段/分组桌面更新。互相不触发模型、提交、合并或弹框自动打开。
@@ -51,3 +83,12 @@ sequenceDiagram
 - 格式检查覆盖全部 72 个相关文件；`git diff --check` 按 Windows CRLF 换行规则通过。一次页面 load 超过原测试 5 秒上限，以及一次源码注释热更新干扰交互的中途失败均保留事实，最终新进程完整重跑通过，未增大测试超时或删除断言。
 - 相关文件统计：72 个文件，新增 4605 行、删除 1089 行，净增 3516 行。按相关文件统计，语言和协议等共用文件含保留的既有改动。
 - 提交复核修正两处中文文案的 UTF-8 损坏：格式化脚本曾逐块将 Buffer 转成字符串，分块边界可能截断多字节字符。提交暂存改为收集完整字节后统一解码，确认本批相关文件无新增替换字符；语言和协议共用文件按审核相关字段拆分暂存，其他任务有效改动保留。
+
+## 2026-10-03 工作树审核导航修复验证
+
+- 已确认原因：标签页由 `useAppPanels` 按原项目身份登记，显示层却按实际工作树身份过滤，导致点击入口后审核窗口关闭但变更标签页不可见。显示层改用显式 `ownerWorkspaceKey`；实际执行路径、远程 identity、attachment 路由和项目/会话过滤仍保留。
+- `TSX_TSCONFIG_PATH=packages/ui/tsconfig.json node --import tsx --test packages/ui/src/app-shell/workspaceSidePaneOwnership.test.ts packages/ui/src/app-shell/mobileWorkspacePanels.test.tsx`：11 项通过。覆盖原项目与执行 scope 分离、项目/会话隔离、窄屏面板与恢复行为；Windows 下通过 PowerShell 设置环境变量。
+- 使用本机 Chrome，依次执行 `node --test packages/web/test/git-commit-dialog.test.mjs` 和 `node --test packages/web/test/worktree-ui.test.mjs`：分别 42 项和 25 项通过，失败 0。新增场景运行实际导航桥、面板所有者和显示过滤；验证本地路径 fallback、不同 identity 的远程工作树、1280px/390px、打开/排除/返回/恢复、差异实际路径与 attachment，以及切换会话后的可见性和旧返回 token 失效。原万级文件和工作树合并回归通过。
+- 最终 `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 通过；Lint 0 警告、0 错误，架构 baseline 0、新增 0、总违规 0。`pnpm --filter @lcode/desktop build:no-runtime-assets` 通过，构建保留原有大 chunk 提示。
+- 初次浏览器运行遇到随机端口被 Chrome 禁用，并行测试/构建运行遇到导航超时和浏览器退出。远程面板测试桩起初缺少 attachment 注册，已补齐而未修改生产路由保护；单元测试需指定 UI tsconfig 解析路径别名。最终依次完整重跑通过，未增大超时或删除断言。
+- 浏览器中的模型和 Git 操作用确定性服务桩，不对用户仓库执行提交、合并或发布。桌面生产构建已生成，未覆盖已安装应用；未进行实体手机或 macOS/Linux 实机测试。

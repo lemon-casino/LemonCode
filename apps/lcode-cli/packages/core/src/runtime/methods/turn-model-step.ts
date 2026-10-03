@@ -32,6 +32,7 @@ import {
 } from "./turn-model-step-failover.js";
 import { recoverFailedModelStep } from "./turn-model-step-failure.js";
 import { commitModelStepResult } from "./turn-model-step-result.js";
+import { createModelSwitchRequest } from "./model-switch-request.js";
 export {
   closeFailedModelStepAndActivateFailover,
   closeRetryYieldRecoveryStepIfNeeded,
@@ -243,9 +244,11 @@ async function runModelBackedTurnStepImpl(
     streamingToolCoordinator,
   };
   let result: RuntimeModelTextResult;
+  const switchRequest = createModelSwitchRequest(this, state);
   try {
+    switchRequest.signal.throwIfAborted();
     result = await this.runModelTextRequest({
-      abortSignal: state.turnAbortSignal,
+      abortSignal: switchRequest.signal,
       assistantMessageId,
       events: state.events,
       maxOutputTokens: requestMaxOutputTokens,
@@ -276,12 +279,19 @@ async function runModelBackedTurnStepImpl(
       traceContext: modelTraceContext,
     });
     throwIfTurnAborted(state.turnAbortSignal);
+    // provider 若在 abort 后仍返回结果，也必须消费已接受的切换，不能把旧结果当作 Turn 完成。
+    switchRequest.signal.throwIfAborted();
   } catch (error) {
+    // 先解除旧 step 观察，恢复和工具收尾不能被后续选择借旧请求 controller 再次取消。
+    switchRequest.close();
     return await recoverFailedModelStep.call(this, state, options, execution, {
       error,
+      userRequestedSwitch: switchRequest.interrupted,
       latestStreamSnapshot,
       failedRequestId: latestFailedModelRequestId ?? latestModelRequestId,
     });
+  } finally {
+    switchRequest.close();
   }
 
   return await commitModelStepResult.call(this, state, options, execution, result);
