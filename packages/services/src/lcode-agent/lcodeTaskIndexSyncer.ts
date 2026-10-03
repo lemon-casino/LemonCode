@@ -7,6 +7,7 @@ import {
   isLCodeGoalContinuationReminderText,
   isLCodeModelOnlySyntheticUserMessage,
   resolveWorkspaceKey,
+  resolveWorktreeProjectScope,
   resolveLCodeVisibleSessionTitle,
   LCODE_AGENT_PROVIDER_NOT_READY_CODE,
   LCODE_AGENT_PROVIDER,
@@ -1672,6 +1673,12 @@ export function createLCodeTaskIndexSyncer(
     const meta = buildMetaFromSnapshot(snapshot, options);
     // 旧 child 标签页的显式 resume 仍会同步快照；只读详情不能重新写成主任务。
     if (snapshot.session.sessionKind === "subagent_child") return meta;
+    const workspace = snapshot.session.workspace;
+    const reconciledWorktreeScope = Boolean(
+      workspace.executionBindingId &&
+      workspace.originWorkspacePath &&
+      (await taskIndexRepo.reconcileWorktreeTaskScope({ taskId: meta.taskId, workspace })),
+    );
     // 同时把 snapshot.messages 里可见的聊天正文索引下去，
     // 让 TaskSearchDialog 正文搜索能命中；旧 sqlite 行下次到这里时自然回填。
     const searchableText = buildSearchableTextFromSnapshot(snapshot);
@@ -1689,7 +1696,7 @@ export function createLCodeTaskIndexSyncer(
     // sqlite 行仍然要写，让后续标题更新走 applyAgentPatch 时能找到对应行；那次
     // 标题触发的广播才是用户首次在列表里看到这个会话的时刻，标题直接就是 prompt 文本，不会闪。
     if (!hasUserVisibleContent(snapshot)) {
-      if (initializedGroupedOrder) {
+      if (initializedGroupedOrder || reconciledWorktreeScope) {
         // 预热 session 从 draft 提升时，grouped 顺序会先于首标题落库。
         // 即使暂时没有可广播的 task meta，也必须通知 renderer 重拉 structure；
         // 否则 sessions-index 已显示 task、structure 仍缺序，当前进程会把它补到末尾。
@@ -1715,7 +1722,7 @@ export function createLCodeTaskIndexSyncer(
       // sessions-index 可见帧可能早于首次 grouped sort_order 落库。
       // 首次初始化必须用 task_created 通知运行中的 grouped structure 缓存失效；
       // 重复 snapshot 没有新增顺序，仍保留调用方原本的 status/title 语义。
-      initializedGroupedOrder ? "task_created" : options.broadcastReason,
+      initializedGroupedOrder || reconciledWorktreeScope ? "task_created" : options.broadcastReason,
       options.unreadSignal ? { unreadSignal: options.unreadSignal } : undefined,
     );
     return persisted;
@@ -1828,8 +1835,7 @@ function buildMetaFromSnapshot(
     taskId: snapshot.session.sessionId,
     traceId: snapshot.session.traceId ?? generateTraceId(snapshot.session.sessionId),
     title: deriveTitleFromSnapshot(snapshot),
-    workspacePath: snapshot.session.workspace.workspacePath,
-    workspaceIdentity: snapshot.session.workspace.workspaceIdentity,
+    ...resolveWorktreeProjectScope(snapshot.session.workspace),
     createdAt: snapshot.session.createdAt,
     updatedAt: snapshot.session.updatedAt,
     mode: fromLCodeMode(snapshot.session.mode),

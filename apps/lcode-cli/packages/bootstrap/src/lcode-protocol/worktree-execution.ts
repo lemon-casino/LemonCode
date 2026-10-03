@@ -69,6 +69,7 @@ export async function prepareProtocolExecution(
     lcodeProtocolMethods.worktreePrepareExecution,
     {
       taskId: input.taskId,
+      taskName: input.execution.taskName,
       requestId: input.requestId,
       workspacePath: origin.workspacePath,
       workspaceIdentity: origin.workspaceIdentity,

@@ -29,6 +29,7 @@ import {
   parseLCodeBackgroundTaskNotificationText,
   parseModelPickerValue as parseSharedModelSelection,
   resolveWorkspaceKey,
+  resolveWorktreeProjectScope,
   resolveLCodeVisibleSessionTitle,
   textFromLCodeMessageParts,
   LCODE_AGENT_PROVIDER,
@@ -1299,8 +1300,7 @@ export function createLCodeTaskServiceAdapter(
   function snapshotToMeta(snapshot: LCodeSessionStateSnapshot): LCodeTaskMeta {
     const target = {
       taskId: snapshot.session.sessionId,
-      workspacePath: snapshot.session.workspace.workspacePath,
-      workspaceIdentity: snapshot.session.workspace.workspaceIdentity,
+      ...resolveWorktreeProjectScope(snapshot.session.workspace),
     };
     rememberTaskTarget(target);
     return applyOverlayToMeta(
@@ -1308,8 +1308,7 @@ export function createLCodeTaskServiceAdapter(
         taskId: snapshot.session.sessionId,
         traceId: snapshot.session.traceId ?? generateTraceId(snapshot.session.sessionId),
         title: deriveTitleFromSnapshot(snapshot),
-        workspacePath: snapshot.session.workspace.workspacePath,
-        workspaceIdentity: snapshot.session.workspace.workspaceIdentity,
+        ...resolveWorktreeProjectScope(snapshot.session.workspace),
         createdAt: snapshot.session.createdAt,
         updatedAt: snapshot.session.updatedAt,
         mode: fromLCodeMode(snapshot.session.mode),
@@ -1398,7 +1397,19 @@ export function createLCodeTaskServiceAdapter(
     const meta = snapshotToMeta(snapshot);
     // 旧污染标签页的显式恢复不能把只读 child 再次写进主任务索引。
     if (snapshot.session.sessionKind === "subagent_child") return meta;
-    return syncTaskIndexMeta(meta);
+    const workspace = snapshot.session.workspace;
+    // 手机 replayable 与桌面 continuous 共用相同的项目归属，不能再次写回 checkout。
+    const reconciled = Boolean(
+      workspace.executionBindingId &&
+      workspace.originWorkspacePath &&
+      (await taskIndexRepo.reconcileWorktreeTaskScope({ taskId: meta.taskId, workspace })),
+    );
+    const indexed = await syncTaskIndexMeta(meta);
+    if (reconciled) {
+      // 迁移成员关系后需要同时通知已打开窗口刷新分组结构，不能仅更新当前会话正文。
+      emitWorkspaceTaskListChanged(indexed, indexed, "task_created");
+    }
+    return indexed;
   }
 
   async function updateIndexedTaskState(
@@ -2517,7 +2528,7 @@ export function createLCodeTaskServiceAdapter(
       const projectionDurationMs = Date.now() - projectionStartedAt;
       // session owner 的快照刷新索引投影；syncTaskMeta 继续保留用户手动标题。
       const indexStartedAt = Date.now();
-      const indexedMeta = await syncTaskIndexMeta(lcodeSnapshot.meta);
+      const indexedMeta = await syncTaskIndexSnapshot(snapshot);
       const indexDurationMs = Date.now() - indexStartedAt;
       logger.info(undefined, "[lcode-task-service] 历史快照读取完成", {
         clientMode: params.clientMode ?? "unknown",

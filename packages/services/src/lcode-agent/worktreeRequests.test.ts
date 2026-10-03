@@ -3,6 +3,7 @@ import test from "node:test";
 import { handleWorktreeRequest } from "./worktreeRequests.js";
 import { createWorktreeService } from "../worktree/node.js";
 import type { IWorktreeService } from "../worktree/contract.js";
+import { worktreeGetBindingParamsSchema } from "@lcode/shared";
 
 const workspace = { workspacePath: "/project", workspaceIdentity: "host-a" };
 test("worktree requests reject malformed and cross-environment input before service IO", async () => {
@@ -115,7 +116,10 @@ test("writer RPC maps protocol fields through the real strict service contract",
       });
       const service = {
         ...validated,
-        getBinding: async () => ({ id: "binding", status: "ready", ...scope }),
+        getBinding: async (params: unknown) => {
+          worktreeGetBindingParamsSchema.parse(params);
+          return { id: "binding", status: "ready", ...scope };
+        },
         getIntegration: async () => ({
           id: "operation",
           bindingId: "binding",
@@ -123,6 +127,12 @@ test("writer RPC maps protocol fields through the real strict service contract",
           checkoutPath: scope.workspacePath,
         }),
       } as unknown as IWorktreeService;
+      const connectionScope = {
+        ...origin,
+        commands: [],
+        clock: true,
+        __lcodeTrustedV4Connection: { connectionId: "fixture" },
+      };
       for (const sessionId of ["new-session", "existing-session"]) {
         assert.deepEqual(
           await handleWorktreeRequest(
@@ -135,7 +145,7 @@ test("writer RPC maps protocol fields through the real strict service contract",
                 ? { repair: { parentSessionId: "parent", operationId: "operation" } }
                 : {}),
             },
-            origin,
+            connectionScope,
             service,
           ),
           { permitId: "permit" },

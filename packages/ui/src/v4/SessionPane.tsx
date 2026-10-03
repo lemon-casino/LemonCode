@@ -5239,7 +5239,10 @@ export function SessionPane({
       draftConfig={draftConfig}
       composerDraft={composerDraft}
       replaceComposerDraft={replaceComposerDraft}
-      submissionReady={composerSubmissionReady}
+      submissionReady={
+        composerSubmissionReady &&
+        !(sessionId === null && Boolean(draftExecution?.requestId || draftExecution?.error))
+      }
       updateComposerContent={updateComposerContent}
       createSubmissionFromComposer={createSubmissionFromComposer}
       contextHeader={
@@ -5267,7 +5270,6 @@ export function SessionPane({
       sessionReferenceTargetSessionId={effectiveSessionId}
       disabled={
         connecting ||
-        (sessionId === null && Boolean(draftExecution?.requestId || draftExecution?.error)) ||
         draftRuntimeRebuilding ||
         queueEditActiveForCurrentComposer ||
         quotaBanner.state.blocksSubmit

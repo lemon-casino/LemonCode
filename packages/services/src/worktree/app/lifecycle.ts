@@ -12,6 +12,7 @@ import { registerWorktreeSessionAlias } from "./sessionAliases.js";
 import type { CheckoutCoordinator } from "../nodeTypes.js";
 import { assertPreparationActive, preparationProgress } from "./preparation.js";
 import { captureForkSource } from "./forkSource.js";
+import { reserveTaskBranch } from "./branchNaming.js";
 
 export function bindingKey(context: WorktreeContext, scope: WorktreeScope & { taskId: string }) {
   return context.store.key(
@@ -199,7 +200,7 @@ export function createWorktreeLifecycle(
           createdAt: now,
           updatedAt: now,
         };
-        await store.saveBinding(binding);
+        binding = await reserveTaskBranch(context, binding, params.taskName);
       }
       await store.savePreparationRequest(
         params.workspaceIdentity?.trim() || resolve(params.workspacePath),

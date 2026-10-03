@@ -35,7 +35,7 @@ test("worktree preparation returns fixed execution path after the owner answers"
   } as unknown as LCodeProtocolAgentServerContext;
   const prepared = await prepareProtocolExecution(context, {
     workspace: original,
-    execution: { mode: "worktree" },
+    execution: { mode: "worktree", taskName: "修复模型切换" },
     taskId,
     requestId: "request",
   });
@@ -43,6 +43,7 @@ test("worktree preparation returns fixed execution path after the owner answers"
   assert.equal(prepared.workspace.originWorkspacePath, "/origin");
   assert.equal(prepared.workspace.executionBindingId, "binding");
   assert.equal((request as { taskId: string }).taskId, taskId);
+  assert.equal((request as { taskName: string }).taskName, "修复模型切换");
 });
 
 test("local execution does not request or silently create a worktree", async () => {

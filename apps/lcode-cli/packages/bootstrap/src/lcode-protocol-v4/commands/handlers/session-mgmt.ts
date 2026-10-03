@@ -49,7 +49,10 @@ async function createSession(
   }
   const { sessionId } = await host.createSessionRecord({
     workspaceId: payload.workspaceId,
-    execution: payload.execution,
+    // 中文依据：创建工作树先于首条 turn，命名必须使用本次冻结输入，不能回读 UI 草稿。
+    execution: payload.execution?.mode === "worktree" && payload.firstInput
+      ? { ...payload.execution, taskName: payload.firstInput.text.slice(0, 256) }
+      : payload.execution,
     executionRequestId: envelope.commandId,
     mcpServers: payload.mcpServers,
     offPeakToolEnabled: payload.offPeakToolEnabled,

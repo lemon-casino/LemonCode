@@ -175,6 +175,11 @@ test("真实 ConversationComposer 的新旧会话回车及按钮发送", { timeo
           await editor.press("Enter");
           const card = page.getByTestId("worktree-preparation-card");
           await card.locator('[data-step="environment"][data-state="running"]').waitFor();
+          assert.equal(await editor.innerText(), "");
+          assert.equal(await editor.getAttribute("contenteditable"), "true");
+          await editor.fill("准备期间编辑的下一条草稿");
+          await editor.press("Enter");
+          assert.equal(await page.evaluate(() => globalThis.__sendFixture.calls.length), 1);
           await page
             .getByTestId("worktree-pending-input")
             .getByText("工作树聊天区首发", { exact: true })
@@ -220,6 +225,13 @@ test("真实 ConversationComposer 的新旧会话回车及按钮发送", { timeo
           await card
             .getByText(english ? "Worktree created" : "已创建工作树", { exact: true })
             .waitFor();
+          await page.getByTestId("worktree-task-location").waitFor();
+          assert.equal(await card.count(), 1);
+          assert.equal(await editor.innerText(), "准备期间编辑的下一条草稿");
+          await page.getByTestId("worktree-task-location").getByRole("button").click();
+          await page.getByTestId("worktree-task-dialog").waitFor();
+          await page.getByTestId("git-review-dismiss").click();
+          assert.equal(await card.count(), 1);
           assert.equal(
             await page
               .locator('[data-v4-timeline-message-layer="true"]')
@@ -289,6 +301,31 @@ test("真实 ConversationComposer 的新旧会话回车及按钮发送", { timeo
       .getByTestId("worktree-pending-input")
       .getByText("失败后保留首发", { exact: true })
       .waitFor();
+  });
+  await t.test("准备失败不能覆盖等待期间新写的下一条草稿", async () => {
+    await page.goto(`${url}?worktree`);
+    await page.evaluate(() => {
+      Object.assign(globalThis.__sendFixture, { prepare: true, hold: true });
+    });
+    const editor = page.getByTestId("v4-composer-input");
+    await editor.fill("准备中的首发");
+    await editor.press("Enter");
+    await page
+      .getByTestId("worktree-preparation-card")
+      .locator('[data-step="environment"][data-state="running"]')
+      .waitFor();
+    await editor.fill("继续修复下一条草稿");
+    await page.evaluate(() => {
+      const f = globalThis.__sendFixture;
+      f.preparation.status = "failed";
+      f.preparation.preparation.stage = "failed";
+      f.fail = true;
+      f.release();
+    });
+    await page.getByRole("alert").waitFor();
+    assert.equal(await editor.innerText(), "继续修复下一条草稿");
+    assert.equal(await editor.getAttribute("contenteditable"), "true");
+    assert.equal(await page.evaluate(() => globalThis.__sendFixture.calls.length), 1);
   });
   await t.test("聊天区改用本地等待取消结算，保留输入且不创建侧栏会话", async () => {
     await page.goto(`${url}?worktree`);

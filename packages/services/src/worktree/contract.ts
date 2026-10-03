@@ -22,6 +22,7 @@ export interface WorktreeCapabilities {
 export interface WorktreePrepareRequest extends WorktreeScope {
   requestId: string;
   taskId: string;
+  taskName?: string;
   projectId?: string;
   baseRef?: string;
   sourceFolderPaths?: string[];

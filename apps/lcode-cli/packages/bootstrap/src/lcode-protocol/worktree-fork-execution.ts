@@ -40,12 +40,14 @@ export async function prepareForkWorktree(
       )
     : record.executionMcpServers;
   const taskId = String(createSessionId(commandId));
+  const parentSession = await context.deps.sessionStore?.getSession(record.app.sessionId);
   const binding = await context.requestClient(
     lcodeProtocolMethods.worktreePrepareExecution,
     {
       ...origin,
       requestId: commandId,
       taskId,
+      taskName: parentSession?.title.slice(0, 256) || "分叉会话",
       forkSource: {
         workspacePath: source.workspacePath,
         workspaceIdentity: source.workspaceIdentity,

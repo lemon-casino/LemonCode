@@ -4,6 +4,7 @@ import type { LCodeTaskIndexSyncer } from "#src/lcode-agent/lcodeTaskIndexSyncer
 import { createServiceLogger } from "#src/logger/serviceLogger.js";
 import {
   createSessionTraceId,
+  resolveWorktreeProjectScope,
   type LCodeSessionStateSnapshot,
   type LCodeWorkspaceTaskListChanged,
 } from "@lcode/shared";
@@ -256,8 +257,8 @@ export function createLCodeSessionService({
       // syncer 的 shadow 订阅刷新。createSession 成功后立刻 ensure，保证后续 runtime
       // 事件首条到达前订阅已就位。
       notifySyncer({
-        workspacePath: snapshot.session.workspace.workspacePath,
-        workspaceIdentity: snapshot.session.workspace.workspaceIdentity,
+        // 工作树 runtime 的 cwd 与项目不同，索引订阅仍由原项目 Host 持有。
+        ...resolveWorktreeProjectScope(snapshot.session.workspace),
         sessionId: snapshot.session.sessionId,
       });
       // 立刻把初始 snapshot 也同步到 sqlite + 广播，让 UI 列表第一时间看到新会话行。

@@ -37,6 +37,12 @@ export async function handleWorktreeRequest(
   service?: IWorktreeService,
 ): Promise<unknown> {
   if (!service) throw new Error("Worktree execution is not available on this Host.");
+  // 原因：client 可由 commands/query 启动，workspace 实参还带 commands/clock/可信载体。
+  // 路由字段不能展开进严格服务请求；只投影 scope，原 identity 校验继续保留。
+  const originScope: WorktreeScope = {
+    workspacePath: workspace.workspacePath,
+    ...(workspace.workspaceIdentity ? { workspaceIdentity: workspace.workspaceIdentity } : {}),
+  };
   const requireScope = (scope: WorktreeScope) => {
     // 中文依据：反向 RPC 只能访问当前 Agent 的所属 Environment，不按同名路径跨 Host 回退。
     if (!sameScope(scope, workspace))
@@ -61,7 +67,7 @@ export async function handleWorktreeRequest(
         : worktreeCompleteRepairParamsSchema
     ).parse(params);
     requireScope(request);
-    const binding = await service.getBinding({ ...workspace, taskId: request.parentSessionId });
+    const binding = await service.getBinding({ ...originScope, taskId: request.parentSessionId });
     const operation = await service.getIntegration({ operationId: request.operationId });
     if (!binding || !operation || operation.bindingId !== binding.id || binding.status !== "ready")
       throw new Error("Conflict repair does not belong to the parent session binding.");
@@ -89,7 +95,7 @@ export async function handleWorktreeRequest(
     const request = checkoutAcquireWriterParamsSchema.parse(params);
     if (request.repair) {
       const binding = await service.getBinding({
-        ...workspace,
+        ...originScope,
         taskId: request.repair.parentSessionId,
       });
       const operation = await service.getIntegration({ operationId: request.repair.operationId });
@@ -102,7 +108,7 @@ export async function handleWorktreeRequest(
       )
         throw new Error("Conflict repair writer scope does not match the frozen operation.");
     } else if (!sameScope(request, workspace)) {
-      const binding = await service.getBinding({ ...workspace, taskId: request.sessionId });
+      const binding = await service.getBinding({ ...originScope, taskId: request.sessionId });
       if (!binding || binding.status !== "ready" || !sameScope(request, binding))
         throw new Error("Checkout writer scope does not match the task binding.");
     }

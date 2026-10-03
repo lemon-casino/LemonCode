@@ -1,10 +1,34 @@
 import { z } from "zod";
 import { sessionExecutionModeSchema } from "./worktreePolicy.js";
 
+/** 项目索引使用绑定来源；文件操作仍使用调用者的实际 workspace scope。 */
+export function resolveWorktreeProjectScope(workspace: {
+  workspacePath: string;
+  workspaceIdentity?: string;
+  executionBindingId?: string;
+  originWorkspacePath?: string;
+  originWorkspaceIdentity?: string;
+}): { workspacePath: string; workspaceIdentity?: string } {
+  // 工作树 checkout 不属于已添加的项目列表。只有绑定引用允许把索引投影回原项目。
+  if (workspace.executionBindingId && workspace.originWorkspacePath) {
+    return {
+      workspacePath: workspace.originWorkspacePath,
+      ...(workspace.originWorkspaceIdentity
+        ? { workspaceIdentity: workspace.originWorkspaceIdentity }
+        : {}),
+    };
+  }
+  return {
+    workspacePath: workspace.workspacePath,
+    ...(workspace.workspaceIdentity ? { workspaceIdentity: workspace.workspaceIdentity } : {}),
+  };
+}
+
 const text = z.string().trim().min(1);
 export const executionIntentSchema = z
   .object({
     mode: sessionExecutionModeSchema,
+    taskName: z.string().max(256).optional(),
     baseRef: text.optional(),
     originWorkspacePath: text.optional(),
     originWorkspaceIdentity: text.optional(),
@@ -100,6 +124,7 @@ export const worktreePrepareExecutionParamsSchema = z
     taskId: text,
     projectId: text.optional(),
     baseRef: text.optional(),
+    taskName: z.string().max(256).optional(),
     sourceFolderPaths: z.array(text).optional(),
     setupCommands: z.array(text).optional(),
     copyIgnoredPaths: z.array(text).optional(),

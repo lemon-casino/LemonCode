@@ -12,10 +12,12 @@ import {
   LCODE_AGENT_PROVIDER,
   lcodeTaskMetaSchema,
   resolveWorkspaceKey,
+  resolveWorktreeProjectScope,
   CRON_DEFAULT_GROUP_ID,
   OFF_PEAK_DEFAULT_GROUP_ID,
   type LCodeProvider,
   type LCodeTaskMeta,
+  type LCodeWorkspaceRef,
 } from "@lcode/shared";
 import type {
   LCodeTaskListQuery,
@@ -1267,6 +1269,85 @@ export class TaskIndexRepo {
       throw new Error(`task index 写入后缺少 task: ${record.meta.taskId}`);
     }
     return rowToMeta(persisted);
+  }
+
+  async reconcileWorktreeTaskScope(params: {
+    taskId: string;
+    workspace: Pick<
+      LCodeWorkspaceRef,
+      | "workspacePath"
+      | "workspaceIdentity"
+      | "executionBindingId"
+      | "originWorkspacePath"
+      | "originWorkspaceIdentity"
+    >;
+  }): Promise<boolean> {
+    if (!params.workspace.executionBindingId || !params.workspace.originWorkspacePath) return false;
+    const source = { ...params.workspace, taskId: params.taskId };
+    const target = { ...resolveWorktreeProjectScope(params.workspace), taskId: params.taskId };
+    if (workspaceKey(source) === workspaceKey(target)) return false;
+    await this.ensureReady();
+    return this.enqueueWrite(target, () => {
+      // 历史快照曾按 checkout 写索引。只迁移已知执行 identity 下的同一会话，不能按裸 taskId 搜索。
+      const row = this.getTaskRow(source);
+      if (!row) return false;
+      const database = this.getDatabase();
+      database.exec("BEGIN IMMEDIATE");
+      try {
+        if (!this.getTaskRow(target)) {
+          this.writeRecord({
+            meta: {
+              ...rowToMeta(row),
+              workspacePath: target.workspacePath,
+              workspaceIdentity: target.workspaceIdentity,
+            },
+            pinned: row.pinned === 1,
+            archived: row.archived === 1,
+            deleted: row.deleted === 1,
+            titleOverridden: row.title_overridden === 1,
+            searchableText: row.searchable_text,
+          });
+          database
+            .prepare("UPDATE tasks SET last_unread_at = ? WHERE workspace_key = ? AND task_id = ?")
+            .run(row.last_unread_at, workspaceKey(target), params.taskId);
+        }
+        // 原项目已存在产品状态或排序时优先保留；迁移和删除在同一个事务中提交。
+        database
+          .prepare(`UPDATE OR IGNORE task_group_members
+          SET workspace_key = ?, workspace_path = ?, workspace_identity = ?
+          WHERE workspace_key = ? AND task_id = ?`)
+          .run(
+            workspaceKey(target),
+            target.workspacePath,
+            target.workspaceIdentity ?? null,
+            workspaceKey(source),
+            params.taskId,
+          );
+        database
+          .prepare("DELETE FROM task_group_members WHERE workspace_key = ? AND task_id = ?")
+          .run(workspaceKey(source), params.taskId);
+        for (const oldKey of [taskOrderNodeKey(source), taskNodeKey(source)]) {
+          database
+            .prepare(
+              "UPDATE OR IGNORE task_group_view_node_orders SET node_key = ? WHERE node_type = 'task' AND node_key = ?",
+            )
+            .run(taskOrderNodeKey(target), oldKey);
+          database
+            .prepare(
+              "DELETE FROM task_group_view_node_orders WHERE node_type = 'task' AND node_key = ?",
+            )
+            .run(oldKey);
+        }
+        database
+          .prepare("DELETE FROM tasks WHERE workspace_key = ? AND task_id = ?")
+          .run(workspaceKey(source), params.taskId);
+        database.exec("COMMIT");
+        return true;
+      } catch (error) {
+        database.exec("ROLLBACK");
+        throw error;
+      }
+    });
   }
 
   async syncTaskMeta(params: {

@@ -25,6 +25,8 @@ import {
 } from "@/v4/V4ConversationContext.js";
 import { LiveOutputRateRegistry } from "@/v4/composer/liveOutputRateRegistry.js";
 import { platform } from "./git-backup-platform.js";
+import { WorktreeManagementActions } from "@/worktree/WorktreeManagementActions.js";
+import { createReviewWorkspaceFixture } from "./review-workspace-service.js";
 import "@lcode/ui/styles.css";
 
 const query = new URLSearchParams(location.search);
@@ -65,6 +67,7 @@ const services = {
   lcodeAgentService: {},
   broadcastService: {},
   promptAttachmentTransferService: {},
+  gitService: createReviewWorkspaceFixture(),
 } as unknown as IServiceAccessor;
 const context = {
   layer: { liveOutputRates: new LiveOutputRateRegistry() },
@@ -195,7 +198,7 @@ function App() {
         current.editorStateJson === content.editorStateJson &&
         current.mention === content.mention
           ? current
-          : { ...current, ...content },
+          : { ...current, editorStateJson: undefined, mention: undefined, ...content },
       );
     },
     [],
@@ -219,7 +222,12 @@ function App() {
       updateComposerContent={updateContent}
       replaceComposerDraft={replaceDraft}
       createSubmissionFromComposer={() => createComposerSubmissionConfig(config, view)}
-      submissionReady={createComposerSubmissionConfig(config, view) !== null}
+      submissionReady={
+        createComposerSubmissionConfig(config, view) !== null &&
+        !(!sessionId && Boolean(executionDraft?.requestId || executionDraft?.error))
+      }
+      // 与真实 pane 一致：准备门禁只阻止再次发送，编辑下一条草稿仍可用。
+      disabled={false}
       modelSelectionView={view}
       modelSelectionState={{ status: "ready", view }}
       attachmentPut={async () => {
@@ -246,6 +254,8 @@ function App() {
             originalWorkspacePath: workspacePath,
             workspacePath: "/fixture/worktrees/task",
             checkoutPath: "/fixture/worktrees/task",
+            branch: "lcode/task-聊天区首发",
+            targetBranch: "main",
             status: "preparing",
             preparation: {
               stage: "environment",
@@ -286,6 +296,13 @@ function App() {
   return (
     <main className="@container/conversation flex h-dvh max-w-full flex-col bg-background text-foreground">
       <aside data-testid="session-list">{sessionId ?? ""}</aside>
+      {sessionId && fixture.preparation ? (
+        <WorktreeManagementActions
+          workspacePath={workspacePath}
+          sessionId={sessionId}
+          busy={false}
+        />
+      ) : null}
       {error ? <p role="alert">{error}</p> : null}
       <div data-testid="sent-messages" className="flex min-h-0 flex-1 flex-col">
         <ConversationTimeline

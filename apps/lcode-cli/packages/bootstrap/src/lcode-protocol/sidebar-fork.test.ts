@@ -116,6 +116,7 @@ test("new worktree fork refuses running sources and rejects foreign bindings bef
     executionMcpServers: [],
   } as unknown as LCodeProtocolSessionRecord;
   const context = {
+    deps: { sessionStore: { getSession: async () => ({ title: "优化模型设置" }) } },
     requestClient: async () => {
       throw new Error("must not prepare a busy source");
     },
@@ -134,4 +135,5 @@ test("new worktree fork refuses running sources and rejects foreign bindings bef
     (calls[1] as { forkSource: { workspacePath: string } }).forkSource.workspacePath,
     "/origin",
   );
+  assert.equal((calls[1] as { taskName: string }).taskName, "优化模型设置");
 });

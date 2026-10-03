@@ -33,6 +33,23 @@ sequenceDiagram
 
 ## 恢复与失败
 
+Host 的反向许可/修复桥接必须显式投影原 workspace scope，再调用严格 WorktreeService contract。启动 Host client 的首条请求可能是命令查询，携带 `commands`、`clock` 和可信 connection carrier；这些路由字段不能通过对象展开混入 getBinding。原项目 identity 的归属校验及实际 checkout 的 writer 校验保持不变，桌面 continuous 和手机 replayable 的冷恢复复用同一路径。
+
+任务索引和列表广播始终按 snapshot 中经过绑定证明的 originWorkspacePath/originWorkspaceIdentity 归属项目；workspacePath/workspaceIdentity 继续表示真实执行位置。完整快照写入前，TaskIndexRepo 在事务内对账已知执行 scope 的旧错放记录，迁移分组和排序；原项目已有行的产品状态优先，不按裸 taskId 或同路径跨 Host 查找。旧会话在原项目目录首帧可重新显示，打开/收口时完整快照幂等清理错误 scope 的旧行。没有 executionBindingId 或 origin 引用的本地会话沿原路径。
+
+```mermaid
+sequenceDiagram
+  participant Session as CLI 会话 owner
+  participant Syncer as Host 索引同步器
+  participant Repo as TaskIndexRepo
+  participant UI as 桌面与手机侧栏
+  Session->>Syncer: 完整快照（执行位置与绑定来源）
+  Syncer->>Repo: 对账同 identity 的执行 scope 旧行
+  Repo->>Repo: 事务迁移产品状态、分组与顺序
+  Syncer->>Repo: 写入原项目索引
+  Syncer->>UI: 原项目列表事件（迁移时刷新分组结构）
+```
+
 恢复先读取 session entry 并向 WorktreeService 对账，校验 bindingId、taskId 和实际执行路径；目录丢失、归档、登记丢失或身份不符时拒绝续写。旧会话没有 entry 时保持原路径和原行为。执行位置不接受 resume 请求覆盖。
 
 准备失败不运行 firstInput。运行期许可申请失败需要报告真实失败，不能让 session reservation 泄漏。许可释放失败保留失败证据，不能把锁超时当成写进程已退出。手机与 Desktop 复用同一 runtime 和绑定，不另建 Host 或输入队列。
@@ -54,3 +71,5 @@ UI 用 `waitForRequestId` 等待 CLI owner 的持久结算，child 的结束投�
 3. 首轮存储绑定引用；冷恢复对账成功且实际路径不变，缺失/归档/路径更改拒绝。
 4. writer acquire 在执行前，release 在工具收尾后；失败和取消释放已获许可，未获许可不伪造 release。
 5. 队列输入和自动续跑使用相同 Core 边界；已有本地会话和无注入的 CLI 行为兼容。
+6. 启动 client 的首条请求包含 commands/clock/可信 connection carrier 时，工作树及修复许可仍通过真实严格服务；跨 identity、外部 checkout 和错误 binding 仍拒绝。
+7. 工作树 snapshot 的索引、事件和分组位于原项目；已有错放行经完整快照修复时保留标题覆盖、置顶/归档/未读状态及分组顺序，重试不重复迁移，远程同路径不同 identity 不能串行。

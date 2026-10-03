@@ -28,6 +28,12 @@ committed code is used for ordinary new sessions; explicit forks capture current
 described below. Source folders must reside in the same repository. Managed paths
 are checked against canonical roots, symlinks and native Git registration before removal.
 
+`prepare.taskName` is an optional bounded naming hint. The service preserves Chinese in
+`lcode/task-<name>` and allocates numeric suffixes (`-2`, `-3`) under a common-directory
+inter-process naming lock, considering native Git refs and persisted binding reservations.
+The chosen name is saved before checkout creation and never changes on retry or restore.
+Existing bindings retain their names; display text never replaces stable task identity.
+
 Explicit setup commands and ignored-file allowlists run before a binding becomes ready.
 The service records completed steps; an interrupted or failed command requires explicit
 retry. The creation fingerprint freezes source scope, project membership and requested

@@ -645,6 +645,8 @@ function ConversationComposerImpl({
   const sendShortcut = resolveChatEnterShortcut({ enterSubmits });
   const updateText = useCallback(
     (next: string) => {
+      // 相同文本的程序化恢复不是新编辑，不能让旧 ACK 的清理边界误判为下一条草稿。
+      if (textRef.current === next) return;
       textRef.current = next;
       contentRevisionRef.current += 1;
       advanceComposerDraftRevision(workspacePath, workspaceIdentity);
@@ -1307,6 +1309,9 @@ function ConversationComposerImpl({
       previousTarget.scopeId !== draftScopeId ||
       previousTarget.workspacePath !== workspacePath ||
       previousTarget.workspaceIdentity !== workspaceIdentity;
+    // 原因：请求在途时 callback 变化曾触发同 scope 恢复，把已提交正文写回编辑器。
+    // 真实 scope promotion 仍读取新 owner 草稿，后续输入因此能随会话交接。
+    if (!targetChanged && suppressDraftPersistRef.current) return;
     let transferredDraft: ReturnType<typeof snapshotDraftOfEditor> | null = null;
     if (targetChanged && !suppressDraftPersistRef.current) {
       if (draftPersistTimerRef.current !== null) {
@@ -1703,10 +1708,11 @@ function ConversationComposerImpl({
           }
         }
         claimSubmittedDraft();
-        if (requestedDelivery === "startNow") {
+        if (draftMode || requestedDelivery === "startNow") {
           // 原子抢占需要等旧 turn 退出并提交新 TurnStarted ACK；
           // 若编辑器也等整条链路才清空，用户会误以为快捷键未生效。
-          // 先清空可见正文；命令拒绝时用冻结 editor state 原样恢复。
+          // 草稿首发还需等待工作树准备；先清空可见正文，下一条输入仍可编辑。
+          // 命令拒绝时只恢复未继续编辑的冻结 editor state。
           inputApiRef.current?.clear();
           updateText("");
           cleanupRevision = contentRevisionRef.current;
@@ -1812,6 +1818,7 @@ function ConversationComposerImpl({
       conversationSelectionReferences,
       conversationTelemetry,
       draftConfig,
+      draftMode,
       createSubmissionFromComposer,
       submissionReady,
       getCodeCommentContexts,
