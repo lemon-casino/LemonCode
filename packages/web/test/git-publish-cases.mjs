@@ -58,7 +58,7 @@ export async function runGitPublishCases(t, { page, url }) {
     await settle();
   };
 
-  await t.test("关闭保留编辑草稿，重新打开不复活冻结审核与发布结果", async () => {
+  await t.test("关闭保留编辑草稿与冻结审核，重新打开不重复执行", async () => {
     await load();
     await fixture("automatic");
     await input.waitFor();
@@ -67,9 +67,35 @@ export async function runGitPublishCases(t, { page, url }) {
     await dialog.waitFor({ state: "hidden" });
     await open();
     assert.equal(await input.inputValue(), "fix: 用户保留的提交纪要");
-    assert.equal(await page.getByTestId("git-review-acknowledge").count(), 0);
+    assert.equal(await page.getByTestId("git-review-acknowledge").count(), 1);
     assert.equal(await page.getByTestId("git-publish-results").count(), 0);
     assert.deepEqual(await calls(), []);
+  });
+
+  await t.test("发布预览关闭重开保留选项；结果可返回只读预览而不重复发布", async () => {
+    await load();
+    await open();
+    await publishOptions();
+    await configureBranches();
+    await preview();
+    await page.getByTestId("git-review-dismiss").click();
+    await dialog.waitFor({ state: "hidden" });
+    await page.getByTestId("git-action-trigger").click();
+    await page.getByTestId("git-publish-summary").waitFor();
+    assert.deepEqual(await calls(), []);
+    await page.getByTestId("git-publish-back").click();
+    assert.equal(
+      await page.getByTestId("git-publish-branch-enabled").getAttribute("data-state"),
+      "checked",
+    );
+    await preview();
+    await confirm();
+    const executed = await calls();
+    await page.getByTestId("git-publish-results-back").click();
+    assert.equal(await page.getByTestId("git-publish-confirm").count(), 0);
+    await page.getByTestId("git-publish-back").click();
+    await page.getByTestId("git-publish-results").waitFor();
+    assert.deepEqual(await calls(), executed);
   });
 
   await t.test("一次提交、多远端分步结果；失败重试不重复提交或创建 Tag", async () => {
@@ -236,7 +262,7 @@ export async function runGitPublishCases(t, { page, url }) {
     await fixture("tracked");
     const expand = page.getByRole("button", { name: "展开状态", exact: true });
     await expand.waitFor();
-    assert.match(await expand.innerText(), /提交与发布/);
+    assert.match(await expand.innerText(), /提交审核/);
     await expand.click();
     await open();
     await publishOptions();

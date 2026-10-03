@@ -82,6 +82,30 @@ test("合并候选需人工确认；identity 不匹配不能提交；并发重�
     includeUnstaged: true,
   });
   assert.equal(generated.review.mode, "merged");
+  assert.equal(
+    f.service.read({
+      workspacePath: "/repo",
+      workspaceIdentity: "one",
+      reviewId: generated.review.id,
+    })?.position,
+    0,
+  );
+  assert.equal(
+    f.service.read({
+      workspacePath: "/repo",
+      workspaceIdentity: "two",
+      reviewId: generated.review.id,
+    }),
+    null,
+  );
+  assert.equal(
+    f.service.read({
+      workspacePath: "/other",
+      workspaceIdentity: "one",
+      reviewId: generated.review.id,
+    }),
+    null,
+  );
   const request = {
     workspacePath: "/repo",
     workspaceIdentity: "one",
@@ -94,6 +118,14 @@ test("合并候选需人工确认；identity 不匹配不能提交；并发重�
   );
   await Promise.all([f.service.commit(request), f.service.commit(request)]);
   assert.equal(f.count(), 1);
+  assert.equal(
+    f.service.read({
+      workspacePath: "/repo",
+      workspaceIdentity: "one",
+      reviewId: generated.review.id,
+    })?.position,
+    1,
+  );
 });
 test("审核期间文件变化时不发布 review，也不调用 commit", async () => {
   const f = fixture();

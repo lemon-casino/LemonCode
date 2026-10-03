@@ -19,6 +19,8 @@ import { useActiveExecutionWorkspace } from "@/hooks/useActiveExecutionWorkspace
 import { useFileMentionProvider } from "@/mentions/providers/fileMentionProvider.js";
 import { platform } from "./git-backup-platform.js";
 import { WorktreeWorkflowScenario } from "./worktree-ui-scenarios.js";
+import { FixtureReviewPreview } from "./review-preview.js";
+import { createReviewWorkspaceFixture } from "./review-workspace-service.js";
 import "@/styles.css";
 
 const origin = "/fixture/repo";
@@ -46,8 +48,30 @@ const binding: WorktreeBinding = {
   updatedAt: "2026-01-01",
 };
 const calls: { method: string; params: unknown }[] = [];
-let operation: WorktreeIntegration | null = null;
 const candidate = "c".repeat(40);
+const createFixtureIntegration = (): WorktreeIntegration => ({
+  id: "operation",
+  bindingId: binding.id,
+  requestId: "merge",
+  sourceHead: "s".repeat(40),
+  targetHead: "t".repeat(40),
+  mergeBase: "b".repeat(40),
+  targetBranch: "L-GO",
+  targetPath: origin,
+  checkoutPath: "/fixture/integration",
+  candidateHead: candidate,
+  status: "awaiting-review",
+  conflictPaths: [],
+  diff: "+ feature",
+  validationCommands: ["fixture-check"],
+  validationResults: [],
+  createdAt: "now",
+  updatedAt: "now",
+});
+let operation: WorktreeIntegration | null = new URLSearchParams(location.search).has("seedReview")
+  ? createFixtureIntegration()
+  : null;
+if (operation) binding.latestIntegrationId = operation.id;
 const fixture = {
   calls,
   failSave: false,
@@ -60,6 +84,8 @@ const fixture = {
   failRemote: true,
   failIntegration: false,
   conflicted: false,
+  conflictCount: 1,
+  ignoredCount: 0,
   targetHead: candidate,
   operation: () => operation,
   chooseScope: (_identity?: string) => {},
@@ -90,6 +116,17 @@ const services = {
     },
   },
   gitService: {
+    ...createReviewWorkspaceFixture(),
+    getDiff: async ({ path }: { path: string }) => {
+      calls.push({ method: "diff", params: { path } });
+      return {
+        path,
+        availability: "patch",
+        patch: "+fixture",
+        beforeContent: "",
+        afterContent: "fixture",
+      };
+    },
     getPublishState: async (params: unknown) => {
       calls.push({ method: "publishState", params });
       return {
@@ -144,28 +181,13 @@ const services = {
       calls.push({ method: "integrate", params });
       if (fixture.failIntegration) throw new Error("fixture-integration-unavailable");
       binding.latestIntegrationId = "operation";
-      operation = {
-        id: "operation",
-        bindingId: binding.id,
-        requestId: "merge",
-        sourceHead: "s".repeat(40),
-        targetHead: "t".repeat(40),
-        mergeBase: "b".repeat(40),
-        targetBranch: "L-GO",
-        targetPath: origin,
-        checkoutPath: "/fixture/integration",
-        candidateHead: candidate,
-        status: "awaiting-review",
-        conflictPaths: [],
-        diff: "+ feature",
-        validationCommands: ["fixture-check"],
-        validationResults: [],
-        createdAt: "now",
-        updatedAt: "now",
-      };
+      operation = createFixtureIntegration();
       if (fixture.conflicted) {
         operation.status = "conflicted";
-        operation.conflictPaths = ["file.txt"];
+        operation.conflictPaths =
+          fixture.conflictCount === 1
+            ? ["file.txt"]
+            : Array.from({ length: fixture.conflictCount }, (_, i) => `file-${i}.txt`);
         operation.candidateHead = undefined;
       }
       if (params.sourceCommits)
@@ -220,6 +242,13 @@ const services = {
       if (!params.acknowledgeIgnoredFiles)
         throw new Error("Ignored files require explicit acknowledgement");
       binding.status = "archived";
+      binding.snapshot = {
+        commit: "snapshot",
+        indexTree: "index",
+        head: "base",
+        createdAt: "2026-01-01",
+        ignoredPaths: Array.from({ length: fixture.ignoredCount }, (_, i) => `ignored-${i}.env`),
+      };
       return structuredClone(binding);
     },
     restore: async (params: unknown) => {
@@ -333,6 +362,7 @@ createRoot(document.getElementById("root")!).render(
       <TabStoreProvider>
         <LCodeIntlProvider initialLocale={location.search.includes("english") ? "en-US" : "zh-CN"}>
           <TooltipProvider>
+            <FixtureReviewPreview />
             {new URLSearchParams(location.search).has("scenario") ? (
               <WorktreeWorkflowScenario
                 mode={new URLSearchParams(location.search).get("scenario")!}

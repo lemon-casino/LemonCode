@@ -23,6 +23,12 @@ export function WorktreeIntegrationEvidence({
   ];
   return (
     <div className="space-y-2 text-ui-sm" data-testid="worktree-integration-evidence">
+      <p role="status">
+        {intl.formatMessage(
+          { id: `worktree.integration.${operation.status}` },
+          { branch: operation.targetBranch },
+        )}
+      </p>
       {operation.sourceReceipts?.length ? (
         <div className="space-y-1" data-testid="worktree-source-receipts">
           <p>
@@ -53,6 +59,24 @@ export function WorktreeIntegrationEvidence({
           ) : null,
         )}
       </dl>
+      {operation.conflictPaths.length ? (
+        <p>
+          {intl.formatMessage(
+            { id: "worktree.conflictFileCount" },
+            {
+              count: operation.conflictPaths.length,
+              shown: Math.min(20, operation.conflictPaths.length),
+            },
+          )}
+        </p>
+      ) : null}
+      {operation.conflictPaths.length ? (
+        <ul className="list-inside list-disc break-all font-mono">
+          {operation.conflictPaths.slice(0, 20).map((path) => (
+            <li key={path}>{path}</li>
+          ))}
+        </ul>
+      ) : null}
       {platform && (!workspaceIdentity || !parseRemoteWorkspaceIdentity(workspaceIdentity)) ? (
         <Button
           type="button"
@@ -84,7 +108,13 @@ export function WorktreeIntegrationEvidence({
   );
 }
 
-export function WorktreeSnapshotSummary({ snapshot }: { snapshot?: WorktreeSnapshot }) {
+export function WorktreeSnapshotSummary({
+  snapshot,
+  onOpenFiles,
+}: {
+  snapshot?: WorktreeSnapshot;
+  onOpenFiles?: () => void;
+}) {
   const { intl } = useLCodeIntl();
   if (!snapshot?.ignoredPaths.length) return null;
   return (
@@ -95,11 +125,18 @@ export function WorktreeSnapshotSummary({ snapshot }: { snapshot?: WorktreeSnaps
           { count: snapshot.ignoredPaths.length },
         )}
       </summary>
-      <ul className="list-inside list-disc break-all font-mono">
-        {snapshot.ignoredPaths.map((path) => (
-          <li key={path}>{path}</li>
-        ))}
-      </ul>
+      <p>{intl.formatMessage({ id: "worktree.ignoredListDescription" })}</p>
+      {onOpenFiles ? (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          data-testid="worktree-open-omissions"
+          onClick={onOpenFiles}
+        >
+          {intl.formatMessage({ id: "worktree.openOmissions" })}
+        </Button>
+      ) : null}
     </details>
   );
 }

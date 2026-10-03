@@ -55,9 +55,21 @@ export interface TextCodeViewerSource extends CodeViewerWorkspaceScope {
 
 export interface PatchCodeViewerSource extends CodeViewerWorkspaceScope {
   type: "patch";
+  /** 仅当前窗口有效的审核返回入口；无对应注册时不展示按钮。 */
+  reviewReturnToken?: string;
+  reviewFiles?: readonly ReviewPreviewFile[];
+  reviewMetadataOnly?: boolean;
   title: string;
   path?: string;
   patch: string;
+}
+
+export interface ReviewPreviewFile {
+  path: string;
+  patch?: string;
+  staged?: boolean;
+  added?: number;
+  removed?: number;
 }
 
 export interface MultiFileDiffCodeViewerSource extends CodeViewerWorkspaceScope {

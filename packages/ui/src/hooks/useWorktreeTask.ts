@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorktreeBinding, WorktreeIntegration } from "@lcode/services";
 import { useServices } from "./useServices.js";
-import { getErrorMessage } from "@/lib/errorMessage.js";
+import { getCheckoutOperationErrorMessage } from "@/lib/checkoutOperationError.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useWorktreeLifecycleStore } from "@/store/worktreeLifecycleStore.js";
 
 export function useWorktreeTask(
@@ -11,6 +12,8 @@ export function useWorktreeTask(
   revision?: string,
 ) {
   const { worktreeService, gitService } = useServices();
+  const { intl } = useLCodeIntl();
+  const directoryBusyMessage = intl.formatMessage({ id: "git.commitWorkflow.directoryBusy" });
   const scope = `${workspaceIdentity?.trim() || workspacePath}\0${taskId ?? ""}`;
   const ticket = useRef(0);
   const [state, setState] = useState<{
@@ -45,10 +48,10 @@ export function useWorktreeTask(
           ...(previous.scope === scope ? previous : { binding: null, operation: null }),
           scope,
           loading: false,
-          error: getErrorMessage(error),
+          error: getCheckoutOperationErrorMessage(error, directoryBusyMessage),
         }));
     }
-  }, [scope, taskId, workspacePath, workspaceIdentity, worktreeService]);
+  }, [scope, taskId, workspacePath, workspaceIdentity, worktreeService, directoryBusyMessage]);
   useEffect(() => {
     void refresh();
     return () => {
@@ -70,13 +73,15 @@ export function useWorktreeTask(
         useWorktreeLifecycleStore.getState().invalidate(workspacePath, workspaceIdentity);
         await refresh();
         setState((previous) =>
-          previous.scope === ownScope ? { ...previous, error: getErrorMessage(error) } : previous,
+          previous.scope === ownScope
+            ? { ...previous, error: getCheckoutOperationErrorMessage(error, directoryBusyMessage) }
+            : previous,
         );
       } finally {
         setPending(false);
       }
     },
-    [pending, refresh, scope, workspacePath, workspaceIdentity],
+    [pending, refresh, scope, workspacePath, workspaceIdentity, directoryBusyMessage],
   );
   return { ...current, pending, refresh, perform, worktreeService, gitService };
 }

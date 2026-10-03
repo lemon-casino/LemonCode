@@ -1,3 +1,4 @@
+import { resolveProjectExecutionPolicy } from "@lcode/shared";
 import { useState } from "react";
 import type { AppSettings } from "@lcode/shared";
 import { useSettings } from "@/hooks/useSettingService.js";
@@ -92,6 +93,10 @@ export function ProjectExecutionPolicySettings({
   const { intl } = useLCodeIntl();
   const scope = workspaceIdentity?.trim() || workspacePath;
   const preferences = settings?.projectExecutionPreferences?.[scope];
+  const effectivePolicy = resolveProjectExecutionPolicy(settings ?? {}, {
+    workspacePath,
+    workspaceIdentity,
+  });
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   type Preferences = NonNullable<AppSettings["projectExecutionPreferences"]>[string];
@@ -135,7 +140,24 @@ export function ProjectExecutionPolicySettings({
           key={row.field}
           className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-ui-sm"
         >
-          <span>{intl.formatMessage({ id: row.label })}</span>
+          <span className="min-w-0 space-y-1">
+            <span className="block">{intl.formatMessage({ id: row.label })}</span>
+            {!loading ? (
+              <span
+                className="block text-foreground-subtle"
+                data-testid={`project-policy-effective-${row.field}`}
+              >
+                {intl.formatMessage(
+                  { id: "worktree.effectiveSetting" },
+                  {
+                    value: intl.formatMessage({
+                      id: `worktree.mode.${row.field === "executionMode" ? effectivePolicy.executionMode : effectivePolicy[row.field] ? "enabled" : "disabled"}`,
+                    }),
+                  },
+                )}
+              </span>
+            ) : null}
+          </span>
           <Select
             value={preferences?.[row.field] ?? "inherit"}
             disabled={loading || pending}

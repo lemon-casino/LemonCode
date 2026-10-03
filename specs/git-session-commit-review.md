@@ -1,5 +1,7 @@
 # 多会话补丁拆分与 AI 提交审核
 
+当前界面生命周期与跨端状态以 [工作树界面](worktree-ui.md) 和 [跨端审核编辑状态](git-review-cross-platform-state.md) 为准：关闭只隐藏控制器，scope/logEpoch 切换拒绝旧响应；历史验证记录中的“关闭后失效”描述属于先前版本，不再作为现行关闭规则。
+
 ## 已确认的产品规则
 
 - 沿用任务实时完成后的自动提交信息入口；普通、计划、工作流一致。生成、审核不自动暂存、提交或推送，用户确认才执行。
@@ -16,15 +18,15 @@
 
 ## 所有者与接口
 
-| 事实                      | 唯一所有者                                    | 接口/边界                                                                                                                        |
-| ------------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| 每次工具文件修改          | CLI 已有 workspace checkpoint / session entry | 复用持久化检查点，不增加数据库；新增严格只读 `workspace/fileMutationJournal` 返回目标 identity 内的逐次内容证据                  |
-| journal 查询              | CLI bootstrap                                 | 精确 identity 隔离，本地无 identity 才按路径；限制会话数、条目数和内容字节；不足/不可读显式 incomplete，不恢复新会话、不启动模型 |
-| HEAD/index/工作树与候选树 | 目标 Host 的 Git repo adapter                 | 临时 index 捕获不可变 Git tree，不改变真实 index/工作区；内容/HEAD/index 均参与版本校验                                          |
-| 审核快照、分组与消费状态  | 目标 `IGitService`                            | `generateCommitMessage(review=true)` 返回审核快照引用、分组和 AI 意见；`commit(review)` 验证快照、分组顺序和确认，再提交         |
-| 会话分组算法              | services Git 纯函数                           | 唯一内容链 → 会话依赖图 → 有序候选；任何不足保守合并，不引用 Runtime 实现                                                        |
-| AI 审核                   | 既有 GitCommitMessageGenerator                | 同一目标模型/语言；严格 JSON schema；模型只能返回既有 group id 与允许的意见                                                      |
-| 弹窗选择、输入、人工确认  | UI GitActionMenu / hook                       | 展示当前候选 diff、关联会话、合并原因与警告；不拥有服务端审核事实、不直接调用 repo                                               |
+| 事实                      | 唯一所有者                                    | 接口/边界                                                                                                                                  |
+| ------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 每次工具文件修改          | CLI 已有 workspace checkpoint / session entry | 复用持久化检查点，不增加数据库；新增严格只读 `workspace/fileMutationJournal` 返回目标 identity 内的逐次内容证据                            |
+| journal 查询              | CLI bootstrap                                 | 精确 identity 隔离，本地无 identity 才按路径；限制会话数、条目数和内容字节；不足/不可读显式 incomplete，不恢复新会话、不启动模型           |
+| HEAD/index/工作树与候选树 | 目标 Host 的 Git repo adapter                 | 临时 index 捕获不可变 Git tree，不改变真实 index/工作区；内容/HEAD/index 均参与版本校验                                                    |
+| 审核快照、分组与消费状态  | 目标 `IGitService`                            | `generateCommitMessage(review=true)` 返回审核快照引用、分组和 AI 意见；`commit(review)` 验证快照、分组顺序和确认，再提交                   |
+| 会话分组算法              | services Git 纯函数                           | 唯一内容链 → 会话依赖图 → 有序候选；任何不足保守合并，不引用 Runtime 实现                                                                  |
+| AI 审核                   | 既有 GitCommitMessageGenerator                | 同一目标模型/语言；严格 JSON schema；模型只能返回既有 group id 与允许的意见                                                                |
+| 弹窗选择、输入、人工确认  | UI GitActionMenu / hook                       | 展示审核摘要、关联会话、合并原因与警告；冻结 diff 与文件范围在独立 PreviewPane 中查看，并可返回审核；不拥有服务端审核事实、不直接调用 repo |
 
 审核引用仅在所属 Git 服务生命周期内有效，服务重启后重新审核。不把 UI 草稿持久化成任务完成事实。快照身份绑定 `workspaceIdentity?.trim() || workspacePath`，远程请求保留 `remoteSessionId` 的现有目标 Environment 路由。
 

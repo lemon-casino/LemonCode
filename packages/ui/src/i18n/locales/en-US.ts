@@ -909,12 +909,12 @@ const enUS: Record<string, string> = {
     "The frontend validation is satisfied. The real commit will work once the service layer is connected.",
   "git.commit.placeholder":
     "Enter a commit message (UI placeholder only, no real git commit will run yet)",
-  "git.actionMenu.trigger": "Commit and publish",
-  "git.actionMenu.trigger.ariaLabel": "Commit and publish",
+  "git.actionMenu.trigger": "Commit review",
+  "git.actionMenu.trigger.ariaLabel": "Commit review",
   "git.actionMenu.push": "Push",
-  "git.actionMenu.commitDialog.title": "Commit and publish",
+  "git.actionMenu.commitDialog.title": "Commit review",
   "git.actionMenu.commitDialog.description":
-    "Save the current uncommitted workspace changes as a commit.",
+    "Review changes on the project checkout branch, then confirm the commit.",
   "git.actionMenu.commitDialog.currentBranchLabel": "Current branch",
   "git.actionMenu.commitDialog.changesLabel": "Changes",
   "git.actionMenu.commitDialog.changesValue": "{count} files",
@@ -984,9 +984,9 @@ const enUS: Record<string, string> = {
   "git.review.fileScope": "Files in commit scope",
   "git.review.regenerationRequired":
     "The file scope or saved review changed. Your text is retained; regenerate the review before committing.",
-  "git.publish.options": "Publish options",
+  "git.publish.options": "Remote and Tag publishing",
   "git.publish.safeDefault":
-    "Commit is the default. Ctrl/Cmd+Enter never publishes. Preview and confirm any publication explicitly.",
+    "Branches are not pushed and Tags are not created by default. Preview and confirm the publishing plan before running it.",
   "git.publish.loading": "Loading remotes and local tags…",
   "git.publish.reload": "Reload remotes and tags",
   "git.publish.pushBranch": "Push branch",
@@ -2043,9 +2043,9 @@ const enUS: Record<string, string> = {
   "settings.toolGroupingChangesDescription":
     "Group consecutive Write, Edit, and ApplyPatch calls into a Changes section.",
   "settings.lcodeInteractionBehavior": "Interaction behavior",
-  "settings.autoGenerateGitCommitMessage": "Generate a commit message when a task finishes",
+  "settings.autoGenerateGitCommitMessage": "Generate a commit draft when a task finishes",
   "settings.autoGenerateGitCommitMessageDescription":
-    "Use the current model to prepare a commit-message draft after a focused coding task completes successfully. This does not stage or commit changes and uses model quota.",
+    "Global default; projects can override it. When the coding chat you are viewing finishes successfully with changes to commit, the current model prepares a commit draft and change review, using model quota. Local chats can commit after review; worktree chats can also merge after review. Opening the review automatically is a separate setting. Commits, merges, and remote publishing require confirmation. Background completion does not generate a draft automatically.",
   "settings.lcodeInteractionBehaviorDescription":
     "While LCode is running, add follow-up actions to the queue or guide them to run after the next tool call.",
   "settings.lcodeInteractionBehavior.option.queue": "Queue",
@@ -7174,12 +7174,39 @@ const enUS: Record<string, string> = {
     "This target does not support frozen commit review. Update it or explicitly use ordinary manual commit.",
   "git.review.stale":
     "Git state changed and the draft expired. Regenerate the review before committing.",
+  "git.commitWorkflow.local.title": "Commit review",
+  "git.commitWorkflow.local.description":
+    "Review changes on the project branch, then confirm the commit. Remote publishing requires a separate preview and confirmation.",
+  "git.commitWorkflow.local.hint":
+    "This chat uses the shared project directory. Chats and Git writes in this directory run in sequence; review which changes belong in the commit.",
+  "git.commitWorkflow.local.branchLabel": "Project checkout branch",
+  "git.commitWorkflow.local.commit": "Confirm commit",
+  "git.commitWorkflow.worktree.title": "Commit and merge review",
+  "git.commitWorkflow.worktree.description":
+    "Save worktree commits, review the merge result, then confirm updating the project target branch.",
+  "git.commitWorkflow.worktree.hint":
+    "This chat uses a separate worktree. Saving commits alone does not update the project target branch.",
+  "git.commitWorkflow.worktree.branchLabel": "Source worktree branch",
+  "git.commitWorkflow.worktree.commit": "Commit worktree changes only",
+  "git.commitWorkflow.worktree.publishHint":
+    "This publishes the source worktree branch. To publish the project target branch after merging, use worktree and merge management.",
+  "git.commitWorkflow.directory": "Execution directory:",
+  "git.commitWorkflow.loading": "Loading commit review…",
+  "git.commitWorkflow.directoryBusy":
+    "This directory is in use by another chat or Git operation. Wait for it to finish, then retry.",
+  "git.publish.branchScope": "Publishing branch: {branch}",
+  "worktree.sourceToTarget": "Source worktree: {source} → Project target: {target}",
+  "worktree.prepareMergeHint":
+    "Saves reviewed worktree commits and prepares a merge result. The project target branch updates only after another review and confirmation.",
+  "worktree.remotePublishHint":
+    "This publishes the project target branch after merging. Remote publishing requires its own preview and confirmation.",
+  "worktree.effectiveSetting": "Effective setting: {value}",
   "worktree.defaultMode": "Default execution location for new chats",
   "worktree.defaultModeDescription":
     "Projects can override this setting. A chat keeps its execution location after it starts.",
-  "worktree.autoOpenReview": "Open review when a commit message is ready",
+  "worktree.autoOpenReview": "Open review automatically when a commit draft is ready",
   "worktree.autoOpenReviewDescription":
-    "Independent of generation. When disabled, open review manually to use the generated message.",
+    "Projects can override this. Controls automatic opening after draft generation; you can still open review manually. Commits and merges require confirmation.",
   "worktree.projectMode": "New chat location for this project",
   "worktree.projectSettings": "Project execution and commit settings",
   "worktree.projectSettingsDescription":
@@ -7196,14 +7223,14 @@ const enUS: Record<string, string> = {
   "worktree.retry": "Retry",
   "worktree.preparing": "Preparing worktree…",
   "worktree.unavailable": "Worktrees are unavailable for this directory",
-  "worktree.manage": "Manage worktree",
+  "worktree.manage": "Worktree and merge management",
   "worktree.sourceUnavailable": "Cannot read the source commit",
   "worktree.restore": "Restore worktree",
   "worktree.validationCommands": "Project validation commands (one per line)",
   "worktree.validationCommandsHint": "Use commands provided by this project",
-  "worktree.integrate": "Merge committed work",
+  "worktree.integrate": "Prepare merge of saved commits",
   "worktree.integrateDescription":
-    "Review and commit in the worktree first. A separate directory prepares the merge; review and validate the candidate before updating the target branch.",
+    "Prepares the merge result without updating the project target branch. Review the diff and complete validation, then confirm the merge.",
   "worktree.conflictInstructions":
     "Resolve conflicts in the integration directory above, then continue. The original project remains in its current state.",
   "worktree.resolveWithAI": "Resolve conflicts with AI",
@@ -7213,7 +7240,7 @@ const enUS: Record<string, string> = {
   "worktree.noValidation":
     "No project validation commands are configured for this candidate. I understand and agree to continue.",
   "worktree.validate": "Validate candidate",
-  "worktree.publish": "Merge into target branch",
+  "worktree.publish": "Confirm merge into {branch}",
   "worktree.retryPublish": "Reconcile and retry merge",
   "worktree.repairRunning":
     "Resolving conflicts in the integration checkout. The result still requires review.",
@@ -7222,10 +7249,10 @@ const enUS: Record<string, string> = {
     "The target branch or commit changed. Review a new publication plan on the current branch.",
   "worktree.sourceReceiptCount": "Saved {count} source commits",
   "worktree.sourceCommit": "Source commit",
-  "worktree.targetBaseline": "Target branch and baseline",
-  "worktree.targetBranch": "Integration target branch",
+  "worktree.targetBaseline": "Project target branch and review baseline",
+  "worktree.targetBranch": "Project merge target branch",
   "worktree.targetCheckoutHint":
-    "The original project must already have this branch checked out. Selecting it does not switch the project.",
+    "The project must already have this branch checked out. The default is the project branch recorded when the worktree was created. Changing this target does not switch the project branch and requires a new review.",
   "worktree.cancelIntegration": "Cancel integration and keep work",
   "worktree.integration.cancelled": "Cancelled; commits and integration directory retained",
   "worktree.mergeBase": "Common ancestor",
@@ -7242,14 +7269,16 @@ const enUS: Record<string, string> = {
   "worktree.binding.restoring": "Restoring worktree",
   "worktree.binding.missing":
     "Worktree directory is missing; restore it or repair its original location",
-  "worktree.integration.preparing": "Preparing merge candidate",
+  "worktree.integration.preparing": "Preparing the merge result; target branch unchanged",
   "worktree.integration.conflicted": "Merge conflicts need attention",
-  "worktree.integration.awaiting-review": "Candidate is ready for review",
-  "worktree.integration.validating": "Running project validation",
-  "worktree.integration.validation-failed": "Project validation failed; target unchanged",
-  "worktree.integration.ready": "Candidate prepared; awaiting merge approval",
-  "worktree.integration.publishing": "Updating target branch",
-  "worktree.integration.published": "Merged into target branch",
+  "worktree.integration.awaiting-review":
+    "Merge result prepared, awaiting review; target branch unchanged",
+  "worktree.integration.validating": "Validating the merge result; target branch unchanged",
+  "worktree.integration.validation-failed": "Merge validation failed; target branch unchanged",
+  "worktree.integration.ready":
+    "Merge result reviewed, awaiting confirmation to merge into {branch}",
+  "worktree.integration.publishing": "Merging into {branch}",
+  "worktree.integration.published": "Merged into {branch}",
   "worktree.integration.failed": "Merge incomplete; resolve the error and retry",
   "worktree.advanced": "Worktree setup and validation",
   "worktree.advancedDescription":
@@ -7260,14 +7289,54 @@ const enUS: Record<string, string> = {
   "worktree.refresh": "Refresh status",
   "worktree.approveRemainingGroups": "I reviewed and approve the remaining {count} commit groups",
   "worktree.commitAndMerge": "Commit and prepare merge into {branch}",
-  "worktree.integration.committing-source": "Committing reviewed source groups",
+  "worktree.integration.committing-source": "Saving worktree commits; target branch unchanged",
   "worktree.integration.source-commit-failed":
-    "Source commits incomplete; completed receipts are preserved",
+    "Worktree commits incomplete; successful commits retained and target branch unchanged",
   "worktree.projectWorktrees": "Project worktrees",
   "worktree.projectWorktreesDescription":
     "Includes worktrees prepared for unsent or abandoned drafts. Archive and restore them here.",
   "worktree.noWorktrees": "No worktrees yet",
   "worktree.loading": "Loading…",
+  "git.review.returnToDialog": "Return to review",
+  "git.review.searchFiles": "Search file paths",
+  "git.review.filePage": "{total} files, {matched} matching · Page {current}/{pages}",
+  "git.review.previousPage": "Previous page",
+  "git.review.nextPage": "Next page",
+  "git.review.scopeCounts": "{selected} selected / {total} files, {excluded} excluded",
+  "git.review.excludePage": "Exclude files on this page",
+  "git.review.restoreAll": "Restore all excluded files",
+  "git.review.liveDiff": "Live diff; generate a frozen review before committing.",
+  "git.review.loadingDiff": "Loading this file’s diff…",
+  "git.review.noFiles": "No matching files",
+  "git.review.openFileWorkspace": "Review frozen diffs for {count} files",
+  "git.review.manageFileScope": "View changes and manage file scope",
+  "git.review.stages": "Review stages",
+  "git.review.stageCommit": "Commit review",
+  "git.review.stageMerge": "Merge review",
+  "git.review.back": "Back",
+  "git.review.currentStage": "Return to current stage",
+  "git.review.stageReadOnly":
+    "Reviewing an earlier stage. Completed operations are preserved and cannot be repeated.",
+  "worktree.stage.prepare": "Prepare",
+  "worktree.stage.review": "Candidate review",
+  "worktree.stage.confirm": "Confirm merge",
+  "worktree.stage.complete": "Complete",
+  "git.review.returnToResults": "Return to results",
+  "git.review.excludeMatching": "Exclude matching files ({count})",
+  "git.review.sync.loading": "Loading shared review state…",
+  "git.review.sync.saving": "Syncing review edits…",
+  "git.review.sync.error":
+    "Review state is not synced. Local edits are preserved. Reconnect and retry.",
+  "git.review.sync.conflict":
+    "Another device changed the same content. Local edits are preserved. Choose which version to use.",
+  "git.review.sync.retry": "Retry sync",
+  "git.review.sync.useHost": "Use synced content",
+  "git.review.sync.useLocal": "Keep and sync local edits",
+  "worktree.conflictFileCount":
+    "{count} conflicted files; showing {shown}. Review the complete scope in the merge diff.",
+  "worktree.openOmissions": "View all omitted paths",
+  "worktree.ignoredListDescription":
+    "This list shows unsaved ignored paths without reading their contents.",
 };
 
 export default enUS;

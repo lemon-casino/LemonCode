@@ -8,7 +8,9 @@ export function GitPublishPreview({
   disabled,
   onConfirm,
   onCancel,
+  readOnly = false,
 }: {
+  readOnly?: boolean;
   plan: PublishPlan;
   disabled: boolean;
   onConfirm: () => void;
@@ -33,11 +35,6 @@ export function GitPublishPreview({
       </p>
       {plan.commit ? (
         <>
-          <ul className="max-h-32 overflow-y-auto font-mono">
-            {plan.files.map((path) => (
-              <li key={path}>{path}</li>
-            ))}
-          </ul>
           <p className="whitespace-pre-wrap font-mono">{plan.commit.message}</p>
         </>
       ) : null}
@@ -100,17 +97,19 @@ export function GitPublishPreview({
           data-testid="git-publish-back"
           onClick={onCancel}
         >
-          {text("back")}
+          {readOnly ? intl.formatMessage({ id: "git.review.returnToResults" }) : text("back")}
         </Button>
-        <Button
-          type="button"
-          disabled={disabled}
-          className="h-auto min-h-8 whitespace-normal"
-          data-testid="git-publish-confirm"
-          onClick={onConfirm}
-        >
-          {text("confirm")}
-        </Button>
+        {!readOnly ? (
+          <Button
+            type="button"
+            disabled={disabled}
+            className="h-auto min-h-8 whitespace-normal"
+            data-testid="git-publish-confirm"
+            onClick={onConfirm}
+          >
+            {text("confirm")}
+          </Button>
+        ) : null}
       </div>
     </section>
   );
@@ -120,7 +119,9 @@ export function GitPublishResults({
   run,
   onRetry,
   onReset,
+  onBack,
 }: {
+  onBack?: () => void;
   run: PublishRun;
   onRetry: (id: string) => void;
   onReset: () => void;
@@ -189,6 +190,17 @@ export function GitPublishResults({
           </li>
         ))}
       </ul>
+      {onBack ? (
+        <Button
+          type="button"
+          variant="outline"
+          disabled={run.running}
+          data-testid="git-publish-results-back"
+          onClick={onBack}
+        >
+          {intl.formatMessage({ id: "git.review.back" })}
+        </Button>
+      ) : null}
       <Button
         type="button"
         variant="outline"

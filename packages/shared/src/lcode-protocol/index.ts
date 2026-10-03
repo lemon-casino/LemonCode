@@ -23,6 +23,8 @@ import { executionOutputPreviewSchema } from "../execution-output-preview.js";
 import { z } from "zod";
 import { executionIntentSchema } from "../worktreeExecution.js";
 export * from "../worktreeExecution.js";
+// 审核编辑状态由 Host Git RPC 所有；共享严格校验，不进入 Agent 会话队列。
+export * from "../gitReviewWorkspace.js";
 export { gitFileMutationJournalSchema } from "../gitCommitReview.js";
 export * from "../process-diagnostic.js";
 export {

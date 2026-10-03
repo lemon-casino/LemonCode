@@ -1,38 +1,50 @@
+import { useState, type ReactNode } from "react";
 import type { WorktreeIntegration } from "@lcode/services";
 import { useWorktreePublication } from "@/hooks/useWorktreePublication.js";
 import { GitPublishOptionsPanel } from "@/git-action-menu/GitPublishOptionsPanel.js";
 import { GitPublishPreview, GitPublishResults } from "@/git-action-menu/GitPublishFeedback.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 export function WorktreePublication({
   operation,
   workspaceIdentity,
   disabled,
+  renderReview,
 }: {
   operation: WorktreeIntegration;
   workspaceIdentity?: string;
   disabled: boolean;
+  renderReview?: (publication: ReactNode) => ReactNode;
 }) {
   const publish = useWorktreePublication(operation, workspaceIdentity);
-  return (
+  const { intl } = useLCodeIntl();
+  const [showPreview, setShowPreview] = useState(false);
+  const content = (
     <section data-testid="worktree-remote-publication">
-      {publish.run ? (
+      {publish.run && !showPreview ? (
         <GitPublishResults
           run={publish.run}
           onRetry={(id) => void publish.retry(id)}
-          onReset={publish.reset}
+          onReset={() => {
+            setShowPreview(false);
+            publish.reset();
+          }}
+          onBack={() => setShowPreview(true)}
         />
       ) : publish.plan ? (
         <GitPublishPreview
           plan={publish.plan}
           disabled={disabled || publish.pending}
           onConfirm={() => void publish.confirm()}
-          onCancel={publish.cancelPreview}
+          onCancel={publish.run ? () => setShowPreview(false) : publish.cancelPreview}
+          readOnly={Boolean(publish.run)}
         />
       ) : (
         <GitPublishOptionsPanel
           expanded={publish.expanded}
           options={publish.options}
           branchName={operation.targetBranch}
+          contextDescription={intl.formatMessage({ id: "worktree.remotePublishHint" })}
           {...publish.catalog}
           loading={publish.pending}
           error={publish.error}
@@ -61,4 +73,5 @@ export function WorktreePublication({
       ) : null}
     </section>
   );
+  return renderReview ? renderReview(content) : content;
 }

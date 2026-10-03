@@ -1,60 +1,97 @@
-import { useState } from "react";
-import { ArchiveIcon, GitMergeIcon, FolderGit2Icon, LoaderIcon } from "lucide-react";
+import { useState, useEffect, type ReactNode } from "react";
+import { LoaderIcon } from "lucide-react";
 import { useProjectExecutionPolicy } from "@/hooks/useProjectExecutionPolicy.js";
 import { useWorktreeTask } from "@/hooks/useWorktreeTask.js";
+import { useReviewDiffNavigation } from "@/hooks/useReviewDiffNavigation.js";
+import { useReviewWorkspaceState } from "@/hooks/useReviewWorkspaceState.js";
+import { useWorktreeReviewStage } from "@/hooks/useWorktreeReviewStage.js";
+import { ReviewWorkspaceSyncStatus } from "@/git-action-menu/ReviewWorkspaceSyncStatus.js";
+import { WorktreeValidationResults } from "./WorktreeValidationResults.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.js";
-import { Textarea } from "@/components/ui/textarea.js";
+import { WorktreeReviewDialog } from "./WorktreeReviewDialog.js";
+import { WorktreeArchiveControl } from "./WorktreeArchiveControl.js";
+import { WorktreePreparation } from "./WorktreePreparation.js";
+import { WorktreeReviewStageNavigation } from "./WorktreeReviewStageNavigation.js";
 import { WorktreePublication } from "./WorktreePublication.js";
-import { WorktreeTargetSelect } from "./WorktreeTargetSelect.js";
 import {
   WorktreeIntegrationEvidence,
   WorktreeSnapshotSummary,
 } from "./WorktreeIntegrationEvidence.js";
+import { integrationReviewFiles } from "./worktreeReviewStages.js";
 
 export function WorktreeTaskActions({
   workspacePath,
   workspaceIdentity,
+  workspaceRemoteSessionId,
   sessionId,
   busy,
   revision,
   onResolveConflicts,
   defaultOpen = false,
+  renderContent,
+  onHideReview,
+  onShowReview,
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
+  workspaceRemoteSessionId?: string;
   sessionId: string;
   busy: boolean;
   revision?: string;
   defaultOpen?: boolean;
   onResolveConflicts?: (operationId: string) => Promise<void>;
+  renderContent?: (content: ReactNode) => ReactNode;
+  onHideReview?: () => void;
+  onShowReview?: () => void;
 }) {
   const { intl } = useLCodeIntl();
   const { policy } = useProjectExecutionPolicy(workspacePath, workspaceIdentity);
-  const task = useWorktreeTask(workspacePath, workspaceIdentity, sessionId, revision);
+  const sharedReview = useReviewWorkspaceState(workspacePath, workspaceIdentity, sessionId);
+  const task = useWorktreeTask(
+    workspacePath,
+    workspaceIdentity,
+    sessionId,
+    `${revision ?? ""}/${sharedReview.snapshot.fieldRevisions.integrationId}/${sharedReview.snapshot.fieldRevisions.worktreeView}`,
+  );
+  const { binding, operation, pending, worktreeService } = task;
   const [open, setOpen] = useState(defaultOpen);
-  const [commands, setCommands] = useState<string | null>(null);
+  const commands = sharedReview.data.validationCommands;
+  const setCommands = (value: string) => sharedReview.patch({ validationCommands: value });
   const [approvedHead, setApprovedHead] = useState<string | null>(null);
   const [skipValidation, setSkipValidation] = useState(false);
   const [acknowledgeIgnoredFiles, setAcknowledgeIgnoredFiles] = useState(false);
-  const [target, setTarget] = useState<{ bindingId: string; branch: string } | null>(null);
-  const { binding, operation, pending, worktreeService } = task;
+  const { stage, currentStage, phaseKey, readOnly, setView } = useWorktreeReviewStage(
+    sharedReview,
+    binding,
+    operation,
+    task.loading,
+  );
+  useEffect(() => {
+    setApprovedHead(null);
+  }, [sharedReview.data.targetBranch, commands, operation?.candidateHead]);
+  const diffNavigation = useReviewDiffNavigation(
+    JSON.stringify([workspaceIdentity?.trim() || workspacePath, sessionId]),
+    onHideReview ?? (() => setOpen(false)),
+    onShowReview ?? (() => setOpen(true)),
+  );
   if (!binding || !worktreeService)
     return task.error ? (
       <p role="alert" className="text-ui-sm text-destructive">
         {task.error}
       </p>
     ) : null;
-  const locked = busy || pending;
-  const targetBranch =
-    target?.bindingId === binding.id
-      ? target.branch
-      : (operation?.targetBranch ?? binding.targetBranch);
-  const activeIntegration =
+  const locked = busy || pending || readOnly || sharedReview.status !== "ready";
+  const text = (key: string) => intl.formatMessage({ id: `worktree.${key}` });
+  const activeIntegration = Boolean(
     operation &&
-    !["published", "failed", "cancelled", "source-commit-failed"].includes(operation.status);
+    !["published", "failed", "cancelled", "source-commit-failed"].includes(operation.status),
+  );
+  const targetBranch =
+    (activeIntegration ? operation?.targetBranch : sharedReview.data.targetBranch) ??
+    operation?.targetBranch ??
+    binding.targetBranch;
   const validationCommands = (commands ?? policy.validationCommands.join("\n"))
     .split(/\r?\n/u)
     .map((line) => line.trim())
@@ -70,8 +107,7 @@ export function WorktreeTaskActions({
         workspacePath: binding.workspacePath,
         workspaceIdentity: binding.workspaceIdentity,
       });
-      if (!capability.head)
-        throw new Error(intl.formatMessage({ id: "worktree.sourceUnavailable" }));
+      if (!capability.head) throw new Error(text("sourceUnavailable"));
       await worktreeService.integrate({
         requestId: crypto.randomUUID(),
         bindingId: binding.id,
@@ -80,322 +116,287 @@ export function WorktreeTaskActions({
         validationCommands,
       });
     });
-  return (
-    <>
-      <div
-        className="flex min-w-0 flex-wrap items-center gap-2 px-2 py-1 text-ui-sm"
-        data-testid="worktree-task-location"
-      >
-        <FolderGit2Icon className="size-4 shrink-0" />
-        <span className="min-w-0 flex-1 truncate font-mono" title={binding.workspacePath}>
-          {binding.workspacePath}
-        </span>
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          onClick={() => {
-            setOpen(true);
-            void task.refresh();
-          }}
-        >
-          {intl.formatMessage({ id: "worktree.manage" })}
-        </Button>
-      </div>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent
-          className="max-h-[85dvh] w-[calc(100%-2rem)] max-w-2xl overflow-y-auto"
-          data-testid="worktree-task-dialog"
-        >
-          <DialogTitle>{intl.formatMessage({ id: "worktree.manage" })}</DialogTitle>
-          <DialogDescription className="break-all font-mono text-ui-sm">
-            {binding.branch} → {targetBranch}
-            <br />
-            {binding.workspacePath}
-          </DialogDescription>
-          <p className="text-ui-sm text-foreground-subtle">
-            {intl.formatMessage({ id: `worktree.binding.${binding.status}` })}
-          </p>
-          {binding.status === "archived" ? (
-            <Button
-              type="button"
-              disabled={locked}
-              onClick={() =>
-                void task.perform(() =>
-                  worktreeService.restore({
-                    bindingId: binding.id,
-                    requestId: crypto.randomUUID(),
-                  }),
-                )
-              }
-            >
-              {intl.formatMessage({ id: "worktree.restore" })}
-            </Button>
-          ) : (
-            <>
-              <WorktreeTargetSelect
-                workspacePath={binding.originalWorkspacePath}
-                workspaceIdentity={binding.originalWorkspaceIdentity}
-                value={targetBranch}
-                onChange={(branch) => {
-                  setTarget({ bindingId: binding.id, branch });
-                  setApprovedHead(null);
-                }}
-                disabled={locked || Boolean(activeIntegration)}
-              />
-              <label className="space-y-1 text-ui-sm">
-                <span>{intl.formatMessage({ id: "worktree.validationCommands" })}</span>
-                <Textarea
-                  value={commands ?? policy.validationCommands.join("\n")}
-                  onChange={(event) => setCommands(event.target.value)}
-                  disabled={
-                    locked ||
-                    Boolean(
-                      operation &&
-                      operation.status !== "published" &&
-                      operation.status !== "cancelled" &&
-                      operation.status !== "failed",
-                    )
-                  }
-                  className="font-mono text-ui-sm"
-                  placeholder={intl.formatMessage({ id: "worktree.validationCommandsHint" })}
-                />
-              </label>
-              <Button
-                type="button"
-                data-testid="worktree-integrate"
-                variant="outline"
-                disabled={locked || binding.status !== "ready" || Boolean(activeIntegration)}
-                onClick={() => void integrate()}
-              >
-                <GitMergeIcon className="size-4" />
-                {intl.formatMessage({ id: "worktree.integrate" })}
-              </Button>
-              <p className="text-ui-sm text-foreground-subtle">
-                {intl.formatMessage({ id: "worktree.integrateDescription" })}
-              </p>
-            </>
+  const content = (
+    <div className="min-w-0 space-y-3">
+      <ReviewWorkspaceSyncStatus
+        status={sharedReview.status}
+        onRetry={() => void sharedReview.retry()}
+        onResolve={sharedReview.resolve}
+      />
+      <WorktreeReviewStageNavigation
+        stage={stage}
+        currentStage={currentStage}
+        onStage={(index) => setView({ key: phaseKey, stage: index })}
+        onCurrent={() => setView(null)}
+      />
+      <p className="text-ui-sm text-foreground-subtle">{text(`binding.${binding.status}`)}</p>
+      {stage === 0 ? (
+        <WorktreePreparation
+          binding={binding}
+          targetBranch={targetBranch}
+          commands={commands ?? policy.validationCommands.join("\n")}
+          locked={locked}
+          activeIntegration={activeIntegration}
+          commandsLocked={Boolean(
+            operation && !["published", "cancelled", "failed"].includes(operation.status),
           )}
-          {operation ? (
-            <div
-              className="min-w-0 space-y-3 rounded-lg border border-border p-3"
-              data-testid="worktree-integration-status"
-            >
-              <p role="status" className="text-ui-sm">
-                {intl.formatMessage({ id: `worktree.integration.${operation.status}` })}
-              </p>
-              <WorktreeIntegrationEvidence
-                operation={operation}
-                workspaceIdentity={binding.originalWorkspaceIdentity}
-              />
-              {operation.conflictPaths.length ? (
-                <ul className="list-inside list-disc break-all font-mono text-ui-sm">
-                  {operation.conflictPaths.map((path) => (
-                    <li key={path}>{path}</li>
-                  ))}
-                </ul>
-              ) : null}
-              {operation.status === "conflicted" ? (
-                <>
-                  <p className="text-ui-sm text-foreground-subtle">
-                    {intl.formatMessage({ id: "worktree.conflictInstructions" })}
-                  </p>
-                  {onResolveConflicts ? (
-                    <Button
-                      type="button"
-                      disabled={pending}
-                      onClick={() => void task.perform(() => onResolveConflicts(operation.id))}
-                    >
-                      {intl.formatMessage({ id: "worktree.resolveWithAI" })}
-                    </Button>
-                  ) : null}
-                  <Button
-                    type="button"
-                    disabled={locked}
-                    variant="outline"
-                    onClick={() =>
-                      void task.perform(() =>
-                        worktreeService.continueIntegration({ operationId: operation.id }),
-                      )
-                    }
-                  >
-                    {intl.formatMessage({ id: "worktree.continue" })}
-                  </Button>
-                </>
-              ) : null}
-              {operation.diff ? (
-                <details>
-                  <summary className="cursor-pointer text-ui-sm">
-                    {intl.formatMessage({ id: "worktree.reviewDiff" })}
-                  </summary>
-                  <pre className="max-h-64 overflow-auto whitespace-pre-wrap break-all font-mono text-ui-sm">
-                    {operation.diff}
-                  </pre>
-                </details>
-              ) : null}
-              {operation.validationResults.map((result, index) => (
-                <details key={index}>
-                  <summary className="break-all font-mono text-ui-sm">
-                    {result.command} — {result.exitCode}
-                  </summary>
-                  <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-all font-mono text-ui-sm">
-                    {result.output}
-                  </pre>
-                </details>
-              ))}
-              {operation.candidateHead &&
-              (operation.status === "awaiting-review" ||
-                operation.status === "ready" ||
-                operation.status === "validation-failed" ||
-                operation.status === "publishing") ? (
-                <>
-                  <label className="flex items-start gap-2 text-ui-sm">
-                    <Checkbox
-                      data-testid="worktree-approve-candidate"
-                      checked={approvedHead === operation.candidateHead}
-                      onCheckedChange={(checked) =>
-                        setApprovedHead(checked === true ? operation.candidateHead! : null)
-                      }
-                    />
-                    <span>{intl.formatMessage({ id: "worktree.approveCandidate" })}</span>
-                  </label>
-                  {!operation.validationCommands.length ? (
-                    <label className="flex items-start gap-2 text-ui-sm">
-                      <Checkbox
-                        checked={skipValidation}
-                        onCheckedChange={(checked) => setSkipValidation(checked === true)}
-                      />
-                      <span>{intl.formatMessage({ id: "worktree.noValidation" })}</span>
-                    </label>
-                  ) : null}
-                  {operation.status === "awaiting-review" ||
-                  operation.status === "validation-failed" ? (
-                    <Button
-                      type="button"
-                      data-testid="worktree-validate"
-                      disabled={
-                        locked ||
-                        approvedHead !== operation.candidateHead ||
-                        (!operation.validationCommands.length && !skipValidation)
-                      }
-                      onClick={() =>
-                        void task.perform(() =>
-                          worktreeService.continueIntegration({
-                            operationId: operation.id,
-                            approvedCandidateHead: operation.candidateHead,
-                          }),
-                        )
-                      }
-                    >
-                      {intl.formatMessage({ id: "worktree.validate" })}
-                    </Button>
-                  ) : (
-                    <Button
-                      type="button"
-                      data-testid="worktree-publish"
-                      disabled={locked || !canPublish}
-                      onClick={() =>
-                        void task.perform(() =>
-                          worktreeService.publishIntegration({
-                            operationId: operation.id,
-                            approvedCandidateHead: operation.candidateHead!,
-                          }),
-                        )
-                      }
-                    >
-                      {intl.formatMessage({
-                        id:
-                          operation.status === "publishing"
-                            ? "worktree.retryPublish"
-                            : "worktree.publish",
-                      })}
-                    </Button>
-                  )}
-                </>
-              ) : null}
-              {operation.error ? (
-                <p role="alert" className="break-words text-ui-sm text-destructive">
-                  {operation.error}
-                </p>
-              ) : null}
-              {!["publishing", "published", "cancelled"].includes(operation.status) ? (
+          onCommands={setCommands}
+          onTarget={(branch) => {
+            sharedReview.patch({ targetBranch: branch });
+            setApprovedHead(null);
+          }}
+          onRestore={() =>
+            void task.perform(() =>
+              worktreeService.restore({ bindingId: binding.id, requestId: crypto.randomUUID() }),
+            )
+          }
+          onIntegrate={() => void integrate()}
+        />
+      ) : null}
+      {operation &&
+      (stage > 0 || ["cancelled", "failed", "source-commit-failed"].includes(operation.status)) ? (
+        <div
+          className="min-w-0 space-y-3 rounded-lg border border-border p-3"
+          data-testid="worktree-integration-status"
+        >
+          <WorktreeIntegrationEvidence
+            operation={operation}
+            workspaceIdentity={binding.originalWorkspaceIdentity}
+          />
+          {operation.status === "conflicted" ? (
+            <>
+              <p className="text-ui-sm text-foreground-subtle">{text("conflictInstructions")}</p>
+              {onResolveConflicts ? (
                 <Button
                   type="button"
-                  variant="outline"
                   disabled={locked}
-                  data-testid="worktree-cancel-integration"
-                  onClick={() =>
-                    void task.perform(() =>
-                      worktreeService.continueIntegration({
-                        operationId: operation.id,
-                        cancel: true,
-                      }),
-                    )
-                  }
+                  onClick={() => void task.perform(() => onResolveConflicts(operation.id))}
                 >
-                  {intl.formatMessage({ id: "worktree.cancelIntegration" })}
+                  {text("resolveWithAI")}
                 </Button>
               ) : null}
-            </div>
-          ) : null}
-          {operation?.status === "published" ? (
-            <WorktreePublication
-              key={operation.id}
-              operation={operation}
-              workspaceIdentity={binding.originalWorkspaceIdentity}
-              disabled={locked}
-            />
-          ) : null}
-          <WorktreeSnapshotSummary snapshot={binding.snapshot} />
-          {binding.status !== "archived" ? (
-            <div className="space-y-2 border-t border-border pt-3">
-              <label className="flex items-start gap-2 text-ui-sm">
-                <Checkbox
-                  checked={acknowledgeIgnoredFiles}
-                  onCheckedChange={(checked) => setAcknowledgeIgnoredFiles(checked === true)}
-                />
-                <span>{intl.formatMessage({ id: "worktree.archiveIgnored" })}</span>
-              </label>
               <Button
                 type="button"
                 variant="outline"
                 disabled={locked}
                 onClick={() =>
                   void task.perform(() =>
-                    worktreeService.archive({
-                      bindingId: binding.id,
-                      requestId: crypto.randomUUID(),
-                      acknowledgeIgnoredFiles,
-                    }),
+                    worktreeService.continueIntegration({ operationId: operation.id }),
                   )
                 }
               >
-                <ArchiveIcon className="size-4" />
-                {intl.formatMessage({ id: "worktree.archive" })}
+                {text("continue")}
               </Button>
-            </div>
+            </>
           ) : null}
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={pending}
-            onClick={() => void task.refresh()}
-          >
-            {intl.formatMessage({ id: "worktree.refresh" })}
-          </Button>
-          {pending ? (
-            <span role="status" className="flex items-center gap-2 text-ui-sm">
-              <LoaderIcon className="size-4 animate-spin" />
-              {intl.formatMessage({ id: "worktree.working" })}
-            </span>
+          {operation.diff || operation.conflictPaths.length ? (
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="worktree-open-diff"
+              disabled={!diffNavigation.available}
+              onClick={() =>
+                diffNavigation.openDiff({
+                  type: "patch",
+                  title: text("reviewDiff"),
+                  patch: "",
+                  reviewFiles: operation.diff
+                    ? integrationReviewFiles(
+                        operation.diff,
+                        operation.checkoutPath,
+                        operation.conflictPaths,
+                      )
+                    : operation.conflictPaths.map((path) => ({ path })),
+                  workspacePath: operation.checkoutPath,
+                  workspaceIdentity: binding.originalWorkspaceIdentity,
+                  workspaceRemoteSessionId,
+                })
+              }
+            >
+              {text("reviewDiff")}
+            </Button>
           ) : null}
-          {task.error ? (
+          <WorktreeValidationResults results={operation.validationResults} />
+          {operation.candidateHead &&
+          ["awaiting-review", "ready", "validation-failed", "publishing"].includes(
+            operation.status,
+          ) ? (
+            <>
+              <label className="flex items-start gap-2 text-ui-sm">
+                <Checkbox
+                  data-testid="worktree-approve-candidate"
+                  disabled={locked}
+                  checked={approvedHead === operation.candidateHead}
+                  onCheckedChange={(checked) =>
+                    setApprovedHead(checked === true ? operation.candidateHead! : null)
+                  }
+                />
+                <span>{text("approveCandidate")}</span>
+              </label>
+              {!operation.validationCommands.length ? (
+                <label className="flex items-start gap-2 text-ui-sm">
+                  <Checkbox
+                    disabled={locked}
+                    checked={skipValidation}
+                    onCheckedChange={(checked) => setSkipValidation(checked === true)}
+                  />
+                  <span>{text("noValidation")}</span>
+                </label>
+              ) : null}
+              {operation.status === "awaiting-review" ||
+              operation.status === "validation-failed" ? (
+                <Button
+                  type="button"
+                  data-testid="worktree-validate"
+                  disabled={
+                    locked ||
+                    approvedHead !== operation.candidateHead ||
+                    (!operation.validationCommands.length && !skipValidation)
+                  }
+                  onClick={() =>
+                    void task.perform(() =>
+                      worktreeService.continueIntegration({
+                        operationId: operation.id,
+                        approvedCandidateHead: operation.candidateHead,
+                      }),
+                    )
+                  }
+                >
+                  {text("validate")}
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  data-testid="worktree-publish"
+                  disabled={locked || !canPublish}
+                  onClick={() =>
+                    void task.perform(() =>
+                      worktreeService.publishIntegration({
+                        operationId: operation.id,
+                        approvedCandidateHead: operation.candidateHead!,
+                      }),
+                    )
+                  }
+                >
+                  {intl.formatMessage(
+                    {
+                      id:
+                        operation.status === "publishing"
+                          ? "worktree.retryPublish"
+                          : "worktree.publish",
+                    },
+                    { branch: operation.targetBranch },
+                  )}
+                </Button>
+              )}
+            </>
+          ) : null}
+          {operation.error ? (
             <p role="alert" className="break-words text-ui-sm text-destructive">
-              {task.error}
+              {operation.error}
             </p>
           ) : null}
-        </DialogContent>
-      </Dialog>
-    </>
+          {!["publishing", "published", "cancelled"].includes(operation.status) ? (
+            <Button
+              type="button"
+              variant="outline"
+              disabled={locked}
+              data-testid="worktree-cancel-integration"
+              onClick={() =>
+                void task.perform(() =>
+                  worktreeService.continueIntegration({ operationId: operation.id, cancel: true }),
+                )
+              }
+            >
+              {text("cancelIntegration")}
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+      <WorktreeSnapshotSummary
+        snapshot={binding.snapshot}
+        onOpenFiles={
+          diffNavigation.available
+            ? () =>
+                diffNavigation.openDiff({
+                  type: "patch",
+                  title: text("openOmissions"),
+                  patch: "",
+                  reviewFiles: binding.snapshot?.ignoredPaths.map((path) => ({ path, patch: "" })),
+                  reviewMetadataOnly: true,
+                  workspacePath: binding.workspacePath,
+                  workspaceIdentity: binding.originalWorkspaceIdentity,
+                  workspaceRemoteSessionId,
+                })
+            : undefined
+        }
+      />
+      {binding.status !== "archived" && !readOnly ? (
+        <WorktreeArchiveControl
+          disabled={locked}
+          acknowledged={acknowledgeIgnoredFiles}
+          onChange={setAcknowledgeIgnoredFiles}
+          onArchive={() =>
+            void task.perform(() =>
+              worktreeService.archive({
+                bindingId: binding.id,
+                requestId: crypto.randomUUID(),
+                acknowledgeIgnoredFiles,
+              }),
+            )
+          }
+        />
+      ) : null}
+      <Button type="button" variant="ghost" disabled={pending} onClick={() => void task.refresh()}>
+        {text("refresh")}
+      </Button>
+      {pending ? (
+        <span role="status" className="flex items-center gap-2 text-ui-sm">
+          <LoaderIcon className="size-4 animate-spin" />
+          {text("working")}
+        </span>
+      ) : null}
+      {task.error ? (
+        <p role="alert" className="break-words text-ui-sm text-destructive">
+          {task.error}
+        </p>
+      ) : null}
+    </div>
+  );
+  // 控制器位于模态内容之上：隐藏窗口不会卸载发布执行器或清空确认状态。
+  const renderReview = (publication?: ReactNode) => {
+    const reviewContent = (
+      <>
+        {content}
+        {!readOnly ? publication : null}
+      </>
+    );
+    if (renderContent) return renderContent(reviewContent);
+    return (
+      <WorktreeReviewDialog
+        binding={binding}
+        targetBranch={targetBranch}
+        open={open}
+        onOpenChange={setOpen}
+        onManage={() => {
+          diffNavigation.clearReturn();
+          setOpen(true);
+          void task.refresh();
+        }}
+      >
+        {reviewContent}
+      </WorktreeReviewDialog>
+    );
+  };
+  return operation?.status === "published" ? (
+    <WorktreePublication
+      key={operation.id}
+      operation={operation}
+      workspaceIdentity={binding.originalWorkspaceIdentity}
+      disabled={locked}
+      renderReview={renderReview}
+    />
+  ) : (
+    renderReview()
   );
 }

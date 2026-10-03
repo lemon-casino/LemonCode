@@ -44,13 +44,19 @@ test("干净仓库 mini 胶囊仍有可展开的发布入口", () => {
     source.indexOf("function ConversationStatusPanelImpl("),
   );
   assert.equal(summary.includes("canRenderGit ? ("), true);
-  assert.equal(summary.includes('id: "git.actionMenu.trigger"'), true);
+  // 标题跟随实际执行绑定，文案由浏览器回归验证；这里仅约束入口仍然挂载。
   assert.equal(source.includes("canRenderGit={canRenderGit}"), true);
 });
 
 test("workflow 次级摘要复用父投影与已有详情、停止入口", async () => {
-  const section = source.slice(source.indexOf("function WorkflowStatusSection("), source.indexOf("function SubagentStatusSection("));
-  assert.match(section, /workflowActivitySummaryText\(run\.activitySummary, intl\.formatMessage\)/u);
+  const section = source.slice(
+    source.indexOf("function WorkflowStatusSection("),
+    source.indexOf("function SubagentStatusSection("),
+  );
+  assert.match(
+    section,
+    /workflowActivitySummaryText\(run\.activitySummary, intl\.formatMessage\)/u,
+  );
   assert.match(section, /data-testid="workflow-status-activity"/u);
   assert.match(section, /data-workflow-run-details-trigger="true"/u);
   assert.match(section, /<RunningWorkCancelButton/u);
@@ -58,5 +64,8 @@ test("workflow 次级摘要复用父投影与已有详情、停止入口", async
   const session = await readFile(new URL("./SessionPane.tsx", import.meta.url), "utf8");
   const props = session.slice(session.indexOf("<ConversationStatusPanel"));
   assert.match(props, /workflowDisplay=\{workflowDisplay\}/u);
-  assert.match(session, /workflowProjectionDisplay\(\{ status: state\.status, syncing: state\.syncing \}\)/u);
+  assert.match(
+    session,
+    /workflowProjectionDisplay\(\{ status: state\.status, syncing: state\.syncing \}\)/u,
+  );
 });

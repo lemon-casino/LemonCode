@@ -18,6 +18,7 @@ import { commitWithPublishState } from "./gitServiceCommit.js";
 import { isPathInWorkspaceScope, normalizeGitPath, toWorkspaceRelativeGitPath } from "./config.js";
 import { filterCommitMessageFilesByCurrentSession } from "./commitMessageFileScope.js";
 import type { IGitService } from "./git.js";
+import { GitReviewWorkspaceState } from "./gitReviewWorkspaceState.js";
 import type { GitCommitMessageGenerator } from "./gitCommitMessageGenerator.js";
 import { CommitReviewService, type MutationJournalReader } from "./commitReviewService.js";
 import { CommitReviewRepo } from "./repo/commitReviewRepo.js";
@@ -196,10 +197,12 @@ export function createGitService(options?: {
   commandProvider?: GitCommandProvider;
   commitMessageGenerator?: GitCommitMessageGenerator;
   mutationJournalReader?: MutationJournalReader;
+  reviewStateDataDir?: string;
 }): IGitService {
   const command = options?.commandProvider ?? createGitCommandProvider();
   const repo = options?.repo ?? createGitCliRepo({ commandProvider: command });
   const publish = new GitPublishRepo(repo, command);
+  const reviewWorkspace = new GitReviewWorkspaceState(options?.reviewStateDataDir);
   // 持久提交事实与模型可用性无关；没有生成器时仍可对账已提交的审核组。
   const reviews = new CommitReviewService(
     new CommitReviewRepo(repo, command),
@@ -208,6 +211,12 @@ export function createGitService(options?: {
   );
 
   return {
+    getReviewWorkspace: (params) => reviewWorkspace.read(params),
+    updateReviewWorkspace: (params) => reviewWorkspace.update(params),
+    onDynamicReviewWorkspace: (params) => reviewWorkspace.subscribe(params),
+    async getCommitReview(params) {
+      return reviews.read(params);
+    },
     async getRepositorySummary(params) {
       const status = await repo.getStatus(params.workspacePath);
       return status.summary;

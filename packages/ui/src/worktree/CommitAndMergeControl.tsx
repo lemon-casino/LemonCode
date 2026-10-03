@@ -1,8 +1,9 @@
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import type { GitCommitRequest, GitCommitReview } from "@lcode/shared";
 import type { WorktreeIntegration, WorktreeIntegrateRequest } from "@lcode/services";
 import { useProjectExecutionPolicy } from "@/hooks/useProjectExecutionPolicy.js";
 import { useWorktreeTask } from "@/hooks/useWorktreeTask.js";
+import { useReviewWorkspaceState } from "@/hooks/useReviewWorkspaceState.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
@@ -12,9 +13,14 @@ import { WorktreeTargetSelect } from "./WorktreeTargetSelect.js";
 export function CommitAndMergeControl({
   workspacePath,
   workspaceIdentity,
+  workspaceRemoteSessionId,
+  renderDialog,
+  onHideReview,
+  onShowReview,
   originWorkspacePath,
   originWorkspaceIdentity,
   sessionId,
+  reviewRevision,
   review,
   position,
   currentMessage,
@@ -23,9 +29,14 @@ export function CommitAndMergeControl({
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
+  workspaceRemoteSessionId?: string;
+  renderDialog?: (prepare: ReactNode, merge: ReactNode, operationId?: string) => ReactNode;
+  onHideReview?: () => void;
+  onShowReview?: () => void;
   originWorkspacePath: string;
   originWorkspaceIdentity?: string;
   sessionId: string;
+  reviewRevision?: string;
   review: GitCommitReview | null;
   position: number;
   currentMessage: string;
@@ -34,19 +45,35 @@ export function CommitAndMergeControl({
 }) {
   const { intl } = useLCodeIntl();
   const { policy } = useProjectExecutionPolicy(originWorkspacePath, originWorkspaceIdentity);
-  const task = useWorktreeTask(originWorkspacePath, originWorkspaceIdentity, sessionId);
+  const sharedReview = useReviewWorkspaceState(
+    originWorkspacePath,
+    originWorkspaceIdentity,
+    sessionId,
+  );
+  const task = useWorktreeTask(
+    originWorkspacePath,
+    originWorkspaceIdentity,
+    sessionId,
+    `${sharedReview.snapshot.fieldRevisions.integrationId}/${reviewRevision ?? ""}`,
+  );
   const { binding, worktreeService } = task;
   const [approvedReview, setApprovedReview] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
-  const [target, setTarget] = useState<{ bindingId: string; branch: string } | null>(null);
   const request = useRef<{ key: string; params: WorktreeIntegrateRequest } | null>(null);
   const remaining = review?.groups.slice(position) ?? [];
   if (!binding || !worktreeService) return null;
-  const targetBranch = target?.bindingId === binding.id ? target.branch : binding.targetBranch;
+  const targetBranch =
+    task.operation?.targetBranch ?? sharedReview.data.targetBranch ?? binding.targetBranch;
   const reviewKey = JSON.stringify([review?.id, position, currentMessage, targetBranch]);
   const submit = () =>
     task.perform(async () => {
-      if (!review || approvedReview !== reviewKey || !remaining.length) return;
+      if (
+        sharedReview.read().status !== "ready" ||
+        !review ||
+        approvedReview !== reviewKey ||
+        !remaining.length
+      )
+        return;
       if (request.current?.key !== reviewKey) {
         const state = await task.gitService.getPublishState({ workspacePath, workspaceIdentity });
         if (!state.headCommitHash)
@@ -70,16 +97,23 @@ export function CommitAndMergeControl({
         };
       }
       const operation = await worktreeService.integrate(request.current.params);
+      sharedReview.patch({ integrationId: operation.id, mergeView: null });
       onCommitted(operation);
       setCompleted(true);
     });
-  return (
+  const preparation = (
     <div
       className="space-y-2 border-t border-border px-4 py-3"
       data-testid="commit-and-merge-control"
     >
       <p className="break-all text-ui-sm">
-        {binding.branch} → {targetBranch}
+        {intl.formatMessage(
+          { id: "worktree.sourceToTarget" },
+          { source: binding.branch, target: targetBranch },
+        )}
+      </p>
+      <p className="text-ui-sm text-foreground-subtle">
+        {intl.formatMessage({ id: "worktree.prepareMergeHint" })}
       </p>
       {review && remaining.length ? (
         <>
@@ -88,10 +122,10 @@ export function CommitAndMergeControl({
             workspaceIdentity={originWorkspaceIdentity}
             value={targetBranch}
             onChange={(branch) => {
-              setTarget({ bindingId: binding.id, branch });
+              sharedReview.patch({ targetBranch: branch });
               setApprovedReview(null);
             }}
-            disabled={disabled || task.pending}
+            disabled={disabled || task.pending || sharedReview.status !== "ready"}
           />
           <label className="flex items-start gap-2 text-ui-sm">
             <Checkbox
@@ -123,14 +157,33 @@ export function CommitAndMergeControl({
           {task.error}
         </p>
       ) : null}
+    </div>
+  );
+  const worktreeProps = {
+    workspacePath: originWorkspacePath,
+    workspaceIdentity: originWorkspaceIdentity,
+    workspaceRemoteSessionId,
+    sessionId,
+    busy: disabled || task.pending,
+    onHideReview,
+    onShowReview,
+    revision: task.operation ? `${task.operation.id}/${task.operation.status}` : undefined,
+  };
+  if (renderDialog)
+    return (
       <WorktreeTaskActions
+        {...worktreeProps}
+        renderContent={(content) => renderDialog(preparation, content, task.operation?.id)}
+      />
+    );
+  return (
+    <>
+      {preparation}
+      <WorktreeTaskActions
+        {...worktreeProps}
         key={completed ? "completed" : "initial"}
-        workspacePath={originWorkspacePath}
-        workspaceIdentity={originWorkspaceIdentity}
-        sessionId={sessionId}
-        busy={disabled || task.pending}
         defaultOpen={completed}
       />
-    </div>
+    </>
   );
 }

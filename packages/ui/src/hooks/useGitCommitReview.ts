@@ -47,6 +47,13 @@ export function useGitCommitReview(scope: string) {
     (value: boolean) => setState((prior) => (prior ? { ...prior, acknowledged: value } : prior)),
     [],
   );
+  const hydrate = useCallback(
+    (review: GitCommitReview, position: number) => {
+      epoch.current++;
+      setState({ scope, review, error: null, position, acknowledged: false });
+    },
+    [scope],
+  );
   const advance = useCallback(
     (id: string, groupId: string) =>
       setState((prior) => {
@@ -72,6 +79,7 @@ export function useGitCommitReview(scope: string) {
     clear,
     begin,
     adopt,
+    hydrate,
     acknowledge,
     advance,
   };

@@ -92,8 +92,9 @@ export async function runGitPublishEditingCases(t, { page, url }) {
     await page.getByTestId("git-commit-generate-button").click();
     await generated();
     await input.fill("fix: 人工审核说明");
-    await page.getByTestId("git-review-expand-all").click();
+    await page.getByTestId("git-review-open-files").click();
     await page.getByTestId("git-review-exclude-a.ts").click();
+    await page.getByTestId("code-viewer-return-review").click();
     assert.equal(await input.inputValue(), "fix: 人工审核说明");
     assert.equal(
       await page.getByTestId("git-commit-action-item-commit").getAttribute("aria-disabled"),
@@ -103,8 +104,9 @@ export async function runGitPublishEditingCases(t, { page, url }) {
     await generated();
     const requests = await page.evaluate(() => globalThis.__gitCommitFixture.calls);
     assert.deepEqual(requests.at(-1).excludedFilePaths, ["a.ts"]);
-    assert.equal(await page.getByTestId("git-review-exclude-a.ts").count(), 0);
+    await page.getByTestId("git-scope-open-files").click();
     await page.getByTestId("git-review-restore-a.ts").click();
+    await page.getByTestId("code-viewer-return-review").click();
     assert.equal(
       await page.getByTestId("git-commit-action-item-commit").getAttribute("aria-disabled"),
       "true",
@@ -122,8 +124,8 @@ export async function runGitPublishEditingCases(t, { page, url }) {
     await page.getByTestId("git-review-next").click();
     assert.match(await dialog.innerText(), /审核组 2/);
     await page.getByTestId("git-review-prev").click();
-    await page.getByTestId("git-review-collapse-all").click();
-    await page.getByTestId("git-review-expand-all").click();
+    await page.getByTestId("git-review-open-files").click();
+    await page.getByTestId("code-viewer-return-review").click();
     await check("git-review-acknowledge");
     await input.press("Control+Enter");
     await page.waitForFunction(() => globalThis.__gitCommitFixture.publish.calls.length === 1);

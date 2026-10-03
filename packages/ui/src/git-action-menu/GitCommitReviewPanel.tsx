@@ -16,24 +16,24 @@ export function GitCommitReviewPanel({
   review,
   position,
   browsePosition,
-  expandedFiles,
   acknowledged,
   disabled,
+  navigationDisabled,
   onBrowse,
-  onExpandedFilesChange,
-  onExclude,
   onAcknowledge,
   onManualFallback,
+  onOpenFiles,
+  canOpenFiles,
 }: {
+  onOpenFiles: () => void;
+  canOpenFiles: boolean;
   review: GitCommitReview;
   position: number;
   browsePosition: number;
-  expandedFiles: readonly string[];
   acknowledged: boolean;
   disabled: boolean;
+  navigationDisabled: boolean;
   onBrowse: (position: number) => void;
-  onExpandedFilesChange: (paths: string[]) => void;
-  onExclude: (path: string) => void;
   onAcknowledge: (value: boolean) => void;
   onManualFallback: () => void;
 }) {
@@ -93,31 +93,33 @@ export function GitCommitReviewPanel({
               { current: position + 1, total: review.groups.length },
             )}
       </p>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          data-testid="git-review-prev"
-          disabled={disabled || browsePosition <= 0}
-          onClick={() => onBrowse(browsePosition - 1)}
-        >
-          {intl.formatMessage({ id: "git.review.previous" })}
-        </Button>
-        <span className="text-foreground-subtle">
-          {browsePosition + 1} / {review.groups.length}
-        </span>
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          data-testid="git-review-next"
-          disabled={disabled || browsePosition >= review.groups.length - 1}
-          onClick={() => onBrowse(browsePosition + 1)}
-        >
-          {intl.formatMessage({ id: "git.review.next" })}
-        </Button>
-      </div>
+      {review.groups.length > 1 ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            data-testid="git-review-prev"
+            disabled={navigationDisabled || browsePosition <= 0}
+            onClick={() => onBrowse(browsePosition - 1)}
+          >
+            {intl.formatMessage({ id: "git.review.previous" })}
+          </Button>
+          <span className="text-foreground-subtle">
+            {browsePosition + 1} / {review.groups.length}
+          </span>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            data-testid="git-review-next"
+            disabled={navigationDisabled || browsePosition >= review.groups.length - 1}
+            onClick={() => onBrowse(browsePosition + 1)}
+          >
+            {intl.formatMessage({ id: "git.review.next" })}
+          </Button>
+        </div>
+      ) : null}
       {!authoritative ? (
         <p className="text-warning">{intl.formatMessage({ id: "git.review.browseOnly" })}</p>
       ) : null}
@@ -129,69 +131,19 @@ export function GitCommitReviewPanel({
           {!authoritative ? (
             <p className="whitespace-pre-wrap break-words font-mono">{group.message}</p>
           ) : null}
-          <div className="flex flex-wrap gap-1">
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              data-testid="git-review-expand-all"
-              onClick={() => onExpandedFilesChange(group.files.map((file) => file.path))}
-            >
-              {intl.formatMessage({ id: "git.review.expandAll" })}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              data-testid="git-review-collapse-all"
-              onClick={() => onExpandedFilesChange([])}
-            >
-              {intl.formatMessage({ id: "git.review.collapseAll" })}
-            </Button>
-          </div>
-          <div
-            data-testid="git-review-files"
-            className="max-h-72 space-y-2 overflow-y-auto overscroll-contain pr-1"
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            data-testid="git-review-open-files"
+            disabled={!canOpenFiles}
+            onClick={onOpenFiles}
           >
-            {group.files.map((file) => (
-              <details
-                key={`${group.id}:${file.path}`}
-                open={expandedFiles.includes(file.path)}
-                className="min-w-0 rounded-xl border border-border p-2"
-                onToggle={(event) => {
-                  if (event.currentTarget.open !== expandedFiles.includes(file.path))
-                    onExpandedFilesChange(
-                      event.currentTarget.open
-                        ? [...expandedFiles, file.path]
-                        : expandedFiles.filter((path) => path !== file.path),
-                    );
-                }}
-              >
-                <summary className="cursor-pointer break-all font-mono">
-                  {file.path} <span className="text-diff-added">+{file.added}</span>{" "}
-                  <span className="text-diff-removed">−{file.removed}</span>
-                </summary>
-                <div className="flex justify-end">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    disabled={disabled}
-                    data-testid={`git-review-exclude-${file.path}`}
-                    onClick={() => onExclude(file.path)}
-                  >
-                    {intl.formatMessage({ id: "git.review.exclude" })}
-                  </Button>
-                </div>
-                <pre
-                  className="mt-2 max-h-44 max-w-full overflow-auto whitespace-pre font-mono text-ui-sm"
-                  tabIndex={0}
-                >
-                  {file.patch}
-                </pre>
-              </details>
-            ))}
-          </div>
+            {intl.formatMessage(
+              { id: "git.review.openFileWorkspace" },
+              { count: group.files.length },
+            )}
+          </Button>
         </>
       ) : null}
       <p className="text-foreground-subtle">{intl.formatMessage({ id: "git.review.frozen" })}</p>

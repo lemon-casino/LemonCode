@@ -2228,6 +2228,7 @@ export function createLocalServices(options: {
     logger: createServiceLogger("git-commit-message"),
   });
   const rawGitService = createGitService({
+    reviewStateDataDir: join(resolveAppConfigDir(), "git-review-workspaces"),
     commitMessageGenerator: gitCommitMessageGenerator,
     mutationJournalReader: (params) => lcodeAgentService.getWorkspaceFileMutationJournal(params),
   });

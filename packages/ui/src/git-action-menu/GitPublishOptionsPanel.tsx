@@ -26,6 +26,7 @@ export interface PublishOptionsPanelProps {
   disabled: boolean;
   canCommit: boolean;
   allowCommitPreview?: boolean;
+  contextDescription?: string;
   remainingGroups: number;
   presets: PublishPreset[];
   presetName: string;
@@ -65,6 +66,15 @@ export function GitPublishOptionsPanel(props: PublishOptionsPanelProps) {
       {props.expanded ? (
         <div className="min-w-0 space-y-3 px-4 pb-4 text-ui-sm">
           <p className="text-foreground-subtle">{text("safeDefault")}</p>
+          <p className="break-all">
+            {intl.formatMessage(
+              { id: "git.publish.branchScope" },
+              { branch: props.branchName ?? intl.formatMessage({ id: "git.head.detached" }) },
+            )}
+          </p>
+          {props.contextDescription ? (
+            <p className="text-foreground-subtle">{props.contextDescription}</p>
+          ) : null}
           {props.loading ? (
             <p role="status" className="flex items-center gap-2">
               <LoaderIcon className="size-4 animate-spin" />

@@ -8,6 +8,8 @@ import test from "node:test";
 import { chromium } from "playwright-core";
 import { runGitPublishCases } from "./git-publish-cases.mjs";
 import { runGitPublishEditingCases } from "./git-publish-editing-cases.mjs";
+import { runGitReviewNavigationCases } from "./git-review-navigation-cases.mjs";
+import { runGitReviewCrossPlatformCases } from "./git-review-cross-platform-cases.mjs";
 
 // 实际共享组件 + 桩 Host 服务；不读取用户仓库、不调用模型、不提交 Git。
 test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回归", { timeout: 300_000 }, async (t) => {
@@ -84,6 +86,8 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
     if (message.text().includes("提交弹窗已显示")) visibleLogs.push(message.text());
   });
   const url = `http://127.0.0.1:${port}/test/fixtures/git-commit-dialog.html`;
+  await runGitReviewNavigationCases(t, { page, url });
+  await runGitReviewCrossPlatformCases(t, { browser, url });
   const button = page.getByTestId("v4-composer-commit-summary");
   const dialog = page.getByTestId("git-commit-dialog");
   const input = page.getByTestId("git-commit-message-input");
@@ -104,6 +108,61 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
     );
   };
   const calls = () => page.evaluate(() => globalThis.__gitCommitFixture.calls);
+
+  await t.test("本地与工作树文案跟随真实会话绑定，不跟随项目默认；中英文和手机均一致", async () => {
+    for (const english of [false, true]) {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await page.goto(url + (english ? "?english" : ""));
+      await button.waitFor();
+      const trigger = page.getByTestId("git-action-trigger");
+      const title = page.getByTestId("git-commit-workflow-title");
+      const summary = page.getByTestId("git-commit-execution-summary");
+      await trigger.click();
+      assert.equal(await title.innerText(), english ? "Commit review" : "提交审核");
+      assert.match(
+        await summary.innerText(),
+        english ? /shared project directory/ : /共享项目目录/,
+      );
+      assert.equal(await page.getByTestId("commit-and-merge-control").count(), 0);
+      assert.match(
+        await page.getByTestId("git-commit-action-item-commit").innerText(),
+        english ? /^Confirm commit/ : /^确认提交/,
+      );
+      await page.getByTestId("git-commit-close").click();
+      await fixture("executionMode", "worktree");
+      await page
+        .getByRole("button", {
+          name: english ? "Commit and merge review" : "提交与合并审核",
+          exact: true,
+        })
+        .waitFor();
+      await trigger.click();
+      assert.equal(await title.innerText(), english ? "Commit and merge review" : "提交与合并审核");
+      assert.match(await summary.innerText(), /\/fixture\/worktrees\/a/);
+      assert.match(
+        await page.getByTestId("git-commit-action-item-commit").innerText(),
+        english ? /worktree changes only/ : /仅提交工作树更改/,
+      );
+      await page.getByTestId("commit-and-merge-control").waitFor();
+      assert.match(await dialog.innerText(), english ? /Project target: L-GO/ : /原项目目标：L-GO/);
+      await page.getByTestId("git-publish-toggle").click();
+      assert.match(await dialog.innerText(), english ? /source worktree branch/ : /来源工作树分支/);
+      assert.equal(
+        await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+        true,
+      );
+      await page.getByTestId("git-commit-close").click();
+      await fixture("executionMode", "local");
+      await page
+        .getByRole("button", { name: english ? "Commit review" : "提交审核", exact: true })
+        .waitFor();
+      await trigger.click();
+      assert.equal(await title.innerText(), english ? "Commit review" : "提交审核");
+      assert.match(await summary.innerText(), /\/fixture\/repo/);
+      assert.equal(await page.getByTestId("commit-and-merge-control").count(), 0);
+      assert.equal((await calls()).length, 0);
+    }
+  });
 
   await t.test("设置关闭隐藏；已完成会话切换不调用 AI，无关脏文件不显示", async () => {
     await loaded();
@@ -194,6 +253,41 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
     await dialog.getByRole("button", { name: "重试读取变更" }).click();
     await generated();
     assert.equal((await calls()).length, 1);
+  });
+  await t.test("目录占用错误显示中英文提示，保留其它失败细节且不自动调用模型", async () => {
+    const busy = "Checkout is busy; wait for its current writer to finish";
+    for (const english of [false, true]) {
+      for (const [message, code] of [
+        ["fixture-checkout-busy", "LCODE_CHECKOUT_BUSY"],
+        [busy, undefined],
+      ]) {
+        await page.goto(url + (english ? "?english" : ""));
+        await page.getByTestId("git-action-trigger").waitFor();
+        await fixture("failLoad", message, code);
+        await page.getByTestId("git-action-trigger").click();
+        await dialog.getByRole("alert").waitFor();
+        assert.match(
+          await dialog.innerText(),
+          english ? /directory is in use/ : /目录正被其他会话/,
+        );
+        assert.doesNotMatch(await dialog.innerText(), /fixture-checkout-busy|Checkout is busy/);
+        await dialog
+          .getByRole("button", {
+            name: english ? "Retry loading changes" : "重试读取变更",
+            exact: true,
+          })
+          .click();
+        await page.getByTestId("git-commit-message-input").waitFor();
+        assert.equal((await calls()).length, 0);
+      }
+      await page.goto(url + (english ? "?english" : ""));
+      await page.getByTestId("git-action-trigger").waitFor();
+      await fixture("failLoad", "fixture-detailed-failure", "OTHER_ERROR");
+      await page.getByTestId("git-action-trigger").click();
+      await dialog.getByRole("alert").waitFor();
+      assert.match(await dialog.innerText(), /fixture-detailed-failure/);
+      assert.equal((await calls()).length, 0);
+    }
   });
   await t.test("生成失败保留原因并阻止未经审核提交；显式重试成功", async () => {
     await loaded();

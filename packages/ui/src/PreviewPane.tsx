@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { nanoid } from "nanoid";
 import { Button } from "@/components/ui/button.js";
+import { ReviewDiffReturnButton } from "@/git-action-menu/ReviewDiffReturnButton.js";
+import { ReviewFileWorkspace } from "@/git-action-menu/ReviewFileWorkspace.js";
 import { toast } from "@/components/ui/toast.js";
 import { cn } from "@/components/lib/utils.js";
 import type { FileBinaryPreview, FileMediaPreview, FileTextSlice } from "@lcode/shared";
@@ -477,7 +479,30 @@ function buildCodeViewerBreadcrumb(
   };
 }
 
-export function PreviewPane({
+type PreviewPaneProps = {
+  source: CodeViewerSource | null;
+  onClose: () => void;
+  workspacePath?: string;
+  onOpenBrowserUrl?: (url: string) => void;
+  onOpenCodeViewer?: (source: CodeViewerSource) => void;
+  renderHeavyContent?: boolean;
+  markdownSelectionTarget?: MarkdownSelectionTarget;
+};
+
+export function PreviewPane(props: PreviewPaneProps) {
+  if (props.source?.type === "patch" && props.source.reviewFiles) {
+    return (
+      <ReviewFileWorkspace
+        key={props.source.reviewReturnToken ?? props.source.title}
+        source={props.source}
+        renderDiff={(source) => <PreviewPaneViewer {...props} source={source} />}
+      />
+    );
+  }
+  return <PreviewPaneViewer {...props} />;
+}
+
+function PreviewPaneViewer({
   source: rawSource,
   workspacePath,
   onOpenBrowserUrl,
@@ -1566,6 +1591,9 @@ export function PreviewPane({
         </div>
 
         <div className="flex shrink-0 pr-1.5 items-center gap-2">
+          <ReviewDiffReturnButton
+            token={source.type === "patch" ? source.reviewReturnToken : undefined}
+          />
           {canOpenDiffFilePreview ? (
             <Button
               type="button"

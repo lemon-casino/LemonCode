@@ -329,17 +329,17 @@ export interface WorkflowActorSessionSidePaneTab {
   siteId: string;
   ordinal: number;
   /** 脚本里写下的名字（`agent("reviewer")`）；分析拿不到字面量时缺席，标题走本地化兜底。 */
-    actorName?: string;
-    /** 从阶段药丸进入时聚焦该阶段的 ask，不参与 tab 身份。 */
-    focusPhaseName?: string;
+  actorName?: string;
+  /** 从阶段药丸进入时聚焦该阶段的 ask，不参与 tab 身份。 */
+  focusPhaseName?: string;
 }
 
 export interface OpenWorkflowActorSessionSideTabRequest {
   parentSessionId: string;
   runId: string;
   /** 打开时已知的会话 id；未启动的槽位缺席。 */
-    actorSessionId?: string;
-    focusPhaseName?: string;
+  actorSessionId?: string;
+  focusPhaseName?: string;
   siteId: string;
   ordinal: number;
   actorName?: string;
@@ -873,8 +873,8 @@ function createWorkflowActorSessionSidePaneTab(
     ...(options.actorSessionId ? { actorSessionId: options.actorSessionId } : {}),
     siteId: options.siteId,
     ordinal: options.ordinal,
-      ...(options.actorName ? { actorName: options.actorName } : {}),
-      ...(options.focusPhaseName ? { focusPhaseName: options.focusPhaseName } : {}),
+    ...(options.actorName ? { actorName: options.actorName } : {}),
+    ...(options.focusPhaseName ? { focusPhaseName: options.focusPhaseName } : {}),
   };
 }
 
@@ -975,6 +975,8 @@ function getCodeViewerTabSourceKey(source: CodeViewerSource): string | null {
   }
 
   if (source.type === "patch") {
+    if (source.reviewFiles && source.reviewReturnToken)
+      return `${scopedKeyPrefix}review-files:${source.reviewReturnToken}`;
     // file diff 之前只按 path 复用 tab，导致同一个文件在不同轮次产生的不同 patch
     // 会互相覆盖，看起来像“diff 面板只能打开一个 tab”。这里把 patch 内容摘要纳入 key，
     // 让不同 diff 可以并排保留，同时同一份 diff 重复点击仍然复用已有 tab。

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { resolve } from "node:path";
 import {
   gitCommitReviewSelectionSchema,
+  gitCommitReviewReadSchema,
   gitFileMutationJournalSchema,
   type GitCommitRequest,
   type GitCommitReview,
@@ -147,6 +148,22 @@ export class CommitReviewService {
         message: "",
       })),
     );
+  }
+
+  read(params: { workspacePath: string; workspaceIdentity?: string; reviewId: string }) {
+    params = gitCommitReviewReadSchema.parse(params);
+    const entry = this.entries.get(params.reviewId);
+    if (
+      !entry ||
+      entry.key !== key(params) ||
+      entry.workspacePath !== resolve(params.workspacePath)
+    )
+      return null;
+    const position = entry.review.groups.findIndex((group) => !entry.done.has(group.id));
+    return {
+      review: structuredClone(entry.review),
+      position: position < 0 ? entry.review.groups.length : position,
+    };
   }
 
   async commit(

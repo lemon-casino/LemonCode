@@ -158,6 +158,22 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
           ?.setupCommands?.length === 2,
     );
     const settings = await fixture("settings");
+    assert.match(
+      await page.getByTestId("project-policy-effective-executionMode").innerText(),
+      /本地目录/,
+    );
+    assert.match(
+      await page.getByTestId("project-policy-effective-autoGenerateGitCommitMessage").innerText(),
+      /开启/,
+    );
+    assert.match(
+      await page.getByTestId("project-policy-effective-autoOpenGitCommitReview").innerText(),
+      /关闭/,
+    );
+    assert.match(
+      await page.getByTestId("project-execution-policy").innerText(),
+      /任务完成后生成提交草稿/,
+    );
     assert.equal(settings.projectExecutionPreferences.other.executionMode, "worktree");
     assert.deepEqual(settings.projectExecutionPreferences["/fixture/repo"], {
       executionMode: "local",
@@ -180,7 +196,7 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
     await page.getByText("项目工作树", { exact: true }).click();
     await page
       .getByTestId("project-worktree-list")
-      .getByRole("button", { name: "工作树管理", exact: true })
+      .getByRole("button", { name: "工作树与合并管理", exact: true })
       .click();
     const dialog = page.getByTestId("worktree-task-dialog");
     await dialog.waitFor();
@@ -242,6 +258,14 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
     await load("?english");
     await select("draft-execution-mode", "Worktree");
     await page.getByText("Worktree setup and validation", { exact: true }).click();
+    assert.match(
+      await page.getByTestId("project-execution-policy").innerText(),
+      /Generate a commit draft when a task finishes/,
+    );
+    assert.equal(
+      await page.getByTestId("global-auto-open-review").getAttribute("aria-label"),
+      "Open review automatically when a commit draft is ready",
+    );
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
       true,
@@ -256,12 +280,16 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
       await page.getByText("项目工作树", { exact: true }).click();
       await page
         .getByTestId("project-worktree-list")
-        .getByRole("button", { name: "工作树管理", exact: true })
+        .getByRole("button", { name: "工作树与合并管理", exact: true })
         .click();
       const dialog = page.getByTestId("worktree-task-dialog");
       await dialog.getByTestId("worktree-integrate").click();
       const validate = dialog.getByTestId("worktree-validate");
       await validate.waitFor();
+      assert.match(
+        await dialog.getByTestId("worktree-integration-status").innerText(),
+        /合并结果已准备，等待审核；目标分支尚未更新/,
+      );
       const evidence = await dialog.getByTestId("worktree-integration-evidence").innerText();
       assert.match(evidence, /来源提交/);
       assert.match(evidence, /共同祖先/);
@@ -275,6 +303,7 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
       await dialog.getByTestId("worktree-approve-candidate").check();
       await validate.click();
       await dialog.getByTestId("worktree-publish").waitFor();
+      assert.equal(await dialog.getByTestId("worktree-publish").innerText(), "确认合并到 L-GO");
       await configure({ failPublication: true });
       await dialog.getByTestId("worktree-publish").click();
       await dialog.getByText("fixture-publication-response-lost").waitFor();
@@ -283,7 +312,13 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
       await dialog.getByTestId("worktree-publish").click();
       const publish = dialog.getByTestId("worktree-remote-publication");
       await publish.waitFor();
+      assert.match(
+        await dialog.getByTestId("worktree-integration-status").innerText(),
+        /已合并到 L-GO/,
+      );
       await publish.getByTestId("git-publish-toggle").click();
+      assert.match(await publish.innerText(), /发布分支：L-GO/);
+      assert.match(await publish.innerText(), /已合并的原项目目标分支/);
       await page.waitForFunction(
         () => !document.querySelector('[data-testid="git-publish-branch-enabled"]').disabled,
       );
@@ -297,6 +332,13 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
       assert.equal((await calls()).filter((call) => call.method === "push").length, 0);
       await publish.getByTestId("git-publish-confirm").click();
       await publish.getByText("fixture-remote-offline").waitFor();
+      await page.getByTestId("git-review-dismiss").click();
+      await dialog.waitFor({ state: "hidden" });
+      await page.getByRole("button", { name: "工作树与合并管理", exact: true }).click();
+      await publish.getByText("fixture-remote-offline").waitFor();
+      await publish.getByTestId("git-publish-results-back").click();
+      assert.equal(await publish.getByTestId("git-publish-confirm").count(), 0);
+      await publish.getByTestId("git-publish-back").click();
       await configure({ failRemote: false });
       await publish.getByTestId("git-publish-retry-branch-backup").click();
       await page.waitForFunction(

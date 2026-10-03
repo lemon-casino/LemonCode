@@ -1,6 +1,10 @@
 # Worktree service
 
 WorktreeService is the only owner of bindings, archive snapshots and integration operations.
+Review draft text, file exclusions and browsing stages are owned separately by the target
+Host GitReviewWorkspaceState, exposed through the existing Git RPC contract. They never
+authorize source commits or target publication. UI approvals remain local to the device,
+and all execution still passes this service's candidate/checkout/version checks.
 The host supplies its existing application data directory and Git command port. The storage
 management service is not a business persistence API. Each record is an atomic private JSON
 file; commands take an inter-process file lock before re-reading and writing it.

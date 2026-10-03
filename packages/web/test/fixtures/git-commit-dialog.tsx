@@ -1,12 +1,19 @@
 /// <reference types="vite/client" />
 import { StrictMode, useState } from "react";
 import { createRoot } from "react-dom/client";
-import type { IServiceAccessor, IGitService } from "@lcode/services";
+import type {
+  IServiceAccessor,
+  IGitService,
+  WorktreeBinding,
+  WorktreeIntegration,
+  WorktreeIntegrateRequest,
+} from "@lcode/services";
 import type { GitFileChange, GitRepositorySummary } from "@lcode/shared";
 import type { ConversationRow } from "@lcode/shared/lcode-protocol-v4";
 import { GitActionMenu } from "@/GitActionMenu.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
+import { TabStoreProvider } from "@/store/TabStoreProvider.js";
 import { LCodeIntlProvider } from "@/i18n/IntlProvider.js";
 import { useSessionCommitMessageFiles } from "@/hooks/useSessionCommitMessageFiles.js";
 import {
@@ -25,6 +32,9 @@ import { buildGitChangesFingerprint } from "@/git-action-menu/currentSessionFile
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { platform } from "./git-backup-platform.js";
 import { createPublishFixture } from "./git-publish-fixture-service.js";
+import { FixtureReviewPreview } from "./review-preview.js";
+import { createReviewWorkspaceFixture } from "./review-workspace-service.js";
+import type { GitCommitReview } from "@lcode/shared";
 import "@lcode/ui/styles.css";
 
 const workspacePath = "/fixture/repo";
@@ -32,7 +42,7 @@ const showStatusPanel = new URLSearchParams(window.location.search).has("panel")
 const workspaceIdentity =
   new URLSearchParams(window.location.search).get("identity") ?? "fixture-host/repo";
 let dirtyPaths = ["a.ts", "b.ts", "workflow.ts"];
-let failLoad = false;
+let loadFailure: Error | null = null;
 let holdGenerate = false;
 let failGenerate = false;
 let reviewUnavailable = false;
@@ -41,6 +51,8 @@ let requestSequence = 0;
 let groupedReview = false;
 let hasTracking = false;
 const calls: Parameters<IGitService["generateCommitMessage"]>[0][] = [];
+let fixtureIntegration: WorktreeIntegration | null = null;
+const mergeCalls: WorktreeIntegrateRequest[] = [];
 const rowsQueries: string[] = [];
 function summary(): GitRepositorySummary {
   return {
@@ -80,12 +92,52 @@ const fixturePlatform = {
   },
 };
 const publishFixture = createPublishFixture(summary);
+const fixtureReviews = new Map<string, GitCommitReview>();
 const gitService = {
   ...publishFixture.service,
+  ...createReviewWorkspaceFixture(),
+  async getCommitReview({ reviewId }: { reviewId: string }) {
+    const review = fixtureReviews.get(reviewId);
+    if (!review) return null;
+    const committed = new Set(
+      publishFixture.controls.calls
+        .filter((call) => call.method === "commit")
+        .map((call) => (call.params as { review?: { id: string; groupId: string } }).review)
+        .filter((selection) => selection?.id === reviewId)
+        .map((selection) => selection!.groupId),
+    );
+    for (const receipt of fixtureIntegration?.sourceReceipts ?? [])
+      if (receipt.reviewId === reviewId) committed.add(receipt.groupId);
+    const position = review.groups.findIndex((group) => !committed.has(group.id));
+    return { review, position: position < 0 ? review.groups.length : position };
+  },
+  async getDiff({ path }) {
+    return {
+      path,
+      availability: "patch",
+      patch: `diff --git a/${path} b/${path}\n--- a/${path}\n+++ b/${path}\n@@ -1 +1 @@\n-before\n+after\n`,
+      beforeContent: "before",
+      afterContent: "after",
+    };
+  },
+  async getLocalBranches() {
+    return {
+      headRefType: "branch",
+      currentBranchName: "L-GO",
+      branches: ["L-GO", "fixture"].map((name) => ({
+        name,
+        isCurrent: name === "L-GO",
+        upstreamName: null,
+        commitHash: "base",
+        commitTimestampMs: null,
+      })),
+    };
+  },
   async refresh(params) {
-    if (params.includeIdentity && failLoad) {
-      failLoad = false;
-      throw new Error("fixture-load-failure");
+    if (params.includeIdentity && loadFailure) {
+      const error = loadFailure;
+      loadFailure = null;
+      throw error;
     }
     return {
       summary: summary(),
@@ -124,34 +176,89 @@ const gitService = {
     );
     if (included.length === 0) throw new Error("fixture-empty-review: 没有可审核的文件");
     const groups = groupedReview ? ["first", "second"] : ["group"];
-    return {
-      message,
-      providerId: "fixture",
-      model: "fixture",
-      review: {
-        id: `review-${calls.length}`,
-        mode: groupedReview ? "ordered" : "merged",
-        warnings: groupedReview ? ["fixture-review-warning"] : [],
-        groups: groups.map((id, position) => ({
-          id,
-          label: groupedReview ? `审核组 ${position + 1}` : "当前会话变更",
-          sessionIds: [params.conversationContext?.sessionId ?? "fixture"],
-          message: position === 0 ? message : "feat: 第二组修改",
-          dependsOn: position === 0 ? [] : [groups[position - 1]],
-          requiresConfirmation: true,
-          files: included.map((path) => ({
-            path,
-            added: 1,
-            removed: 0,
-            patch: `diff --git a/${path} b/${path}\n+fixture change`,
-          })),
+    const review: GitCommitReview = {
+      id: `review-${calls.length}`,
+      mode: groupedReview ? "ordered" : "merged",
+      warnings: groupedReview ? ["fixture-review-warning"] : [],
+      groups: groups.map((id, position) => ({
+        id,
+        label: groupedReview ? `审核组 ${position + 1}` : "当前会话变更",
+        sessionIds: [params.conversationContext?.sessionId ?? "fixture"],
+        message: position === 0 ? message : "feat: 第二组修改",
+        dependsOn: position === 0 ? [] : [groups[position - 1]],
+        requiresConfirmation: true,
+        files: included.map((path) => ({
+          path,
+          added: 1,
+          removed: 0,
+          patch: `diff --git a/${path} b/${path}\n+fixture change`,
         })),
-      },
+      })),
     };
+    fixtureReviews.set(review.id, review);
+    return { message, providerId: "fixture", model: "fixture", review };
   },
 } as IGitService;
 const services = {
   gitService,
+  settingService: {
+    // 全局默认故意设置为工作树，验证既有本地会话的文案只依据实际绑定。
+    get: async () => ({
+      defaultSessionExecutionMode: "worktree",
+      autoGenerateGitCommitMessage: true,
+    }),
+  },
+  worktreeService: {
+    getIntegration: async () => fixtureIntegration,
+    integrate: async (params: WorktreeIntegrateRequest) => {
+      mergeCalls.push(params);
+      fixtureIntegration = {
+        id: "fixture-integration",
+        bindingId: "fixture-binding",
+        requestId: params.requestId,
+        sourceHead: "s".repeat(40),
+        targetHead: "t".repeat(40),
+        mergeBase: "b".repeat(40),
+        targetBranch: params.targetBranch,
+        targetPath: workspacePath,
+        checkoutPath: "/fixture/integration",
+        candidateHead: "c".repeat(40),
+        status: "awaiting-review",
+        conflictPaths: [],
+        diff: "diff --git a/a.ts b/a.ts\n--- a/a.ts\n+++ b/a.ts\n@@ -1 +1 @@\n-before\n+after\n",
+        validationCommands: ["fixture-check"],
+        validationResults: [],
+        createdAt: "now",
+        updatedAt: "now",
+        sourceReceipts: params.sourceCommits?.map((command) => ({
+          reviewId: command.review!.id,
+          groupId: command.review!.groupId,
+          commitHash: "s".repeat(40),
+        })),
+      };
+      return fixtureIntegration;
+    },
+    getBinding: async () =>
+      ({
+        id: "fixture-binding",
+        taskId: "a",
+        requestId: "fixture-request",
+        originalWorkspacePath: workspacePath,
+        originalWorkspaceIdentity: workspaceIdentity,
+        workspacePath: "/fixture/worktrees/a",
+        checkoutPath: "/fixture/worktrees/a",
+        repositoryRoot: workspacePath,
+        commonDirectory: `${workspacePath}/.git`,
+        branch: "fixture",
+        targetBranch: "L-GO",
+        baseCommit: "base",
+        sourceFolderPaths: [],
+        status: "ready",
+        createdAt: "now",
+        updatedAt: "now",
+        latestIntegrationId: fixtureIntegration?.id,
+      }) satisfies WorktreeBinding,
+  },
   lcodeAgentService: {
     async listSessionSubagents({ sessionId }: { sessionId: string }) {
       return {
@@ -208,6 +315,8 @@ const conversation = {
 function FixtureApp() {
   const [panelVariant, setPanelVariant] = useState<"mini" | "panel" | null>("mini");
   const [sessionId, setSessionId] = useState("a");
+  const [executionBindingId, setExecutionBindingId] = useState<string | undefined>();
+  const executionWorkspacePath = executionBindingId ? "/fixture/worktrees/a" : workspacePath;
   const [logEpoch, setLogEpoch] = useState("epoch-a");
   const [enabled, setEnabled] = useState(true);
   const [revision, setRevision] = useState(0);
@@ -243,6 +352,7 @@ function FixtureApp() {
   });
   (globalThis as typeof globalThis & { __gitCommitFixture: unknown }).__gitCommitFixture = {
     calls,
+    mergeCalls,
     rowsQueries,
     publish: publishFixture.controls,
     clipboardCopies,
@@ -258,14 +368,20 @@ function FixtureApp() {
       setRequest(null);
       setPending(null);
     },
+    executionMode: (mode: "local" | "worktree") => {
+      setExecutionBindingId(mode === "worktree" ? "fixture-binding" : undefined);
+      setRequest(null);
+      setPending(null);
+      setAutomaticDraft(null);
+    },
     setting: (value: boolean) => setEnabled(value),
     logEpoch: (value: string) => setLogEpoch(value),
     dirty: (paths: string[]) => {
       dirtyPaths = paths;
       setRevision((value) => value + 1);
     },
-    failLoad: () => {
-      failLoad = true;
+    failLoad: (message = "fixture-load-failure", code?: string) => {
+      loadFailure = Object.assign(new Error(message), { code });
     },
     failGenerate: () => {
       failGenerate = true;
@@ -284,7 +400,7 @@ function FixtureApp() {
     rerender: () => setRevision((value) => value + 1),
     automatic: (unavailable = false) => {
       const message = "自动生成的中文提交纪要";
-      setAutomaticDraft({
+      const automatic: AutoGeneratedGitCommitMessageDraft = {
         key: `automatic-${++requestSequence}`,
         scopeKey,
         message,
@@ -312,11 +428,18 @@ function FixtureApp() {
           ],
         },
         ...(unavailable ? { review: undefined, reviewError: "内容审核不可用，请重新审核" } : {}),
-      });
+      };
+      if (automatic.review) fixtureReviews.set(automatic.review.id, automatic.review);
+      setAutomaticDraft(automatic);
     },
   };
   return (
     <div className="p-4 text-foreground">
+      <FixtureReviewPreview
+        onSource={(source) =>
+          Object.assign(globalThis.__gitCommitFixture, { previewSource: source })
+        }
+      />
       <p data-testid="session">{sessionId}</p>
       <textarea data-testid="composer-draft" defaultValue="待发送的草稿不能改变" />
       <div className="flex items-center justify-end gap-1">
@@ -345,8 +468,13 @@ function FixtureApp() {
       <div className={hidden ? "hidden" : ""}>
         {showStatusPanel ? (
           <ConversationStatusPanel
-            workspacePath={workspacePath}
+            workspacePath={executionWorkspacePath}
             workspaceIdentity={workspaceIdentity}
+            originWorkspacePath={workspacePath}
+            originWorkspaceIdentity={workspaceIdentity}
+            executionSessionId={sessionId}
+            reviewEpoch={logEpoch}
+            executionBindingId={executionBindingId}
             gitSummary={summary()}
             onRefreshGit={() => setRevision((value) => value + 1)}
             commitDialogScopeKey={scopeKey}
@@ -358,8 +486,13 @@ function FixtureApp() {
         ) : (
           <GitActionMenu
             key={scopeKey}
-            workspacePath={workspacePath}
+            workspacePath={executionWorkspacePath}
             workspaceIdentity={workspaceIdentity}
+            originWorkspacePath={workspacePath}
+            originWorkspaceIdentity={workspaceIdentity}
+            executionSessionId={sessionId}
+            reviewEpoch={logEpoch}
+            executionBindingId={executionBindingId}
             dialogScopeKey={scopeKey}
             gitSummary={summary()}
             manualCommitMessageRequest={request}
@@ -379,11 +512,15 @@ createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <ServiceProvider services={services}>
       <PlatformProvider platform={fixturePlatform}>
-        <LCodeIntlProvider initialLocale="zh-CN">
+        <LCodeIntlProvider
+          initialLocale={new URLSearchParams(location.search).has("english") ? "en-US" : "zh-CN"}
+        >
           <TooltipProvider>
-            <V4ConversationContext.Provider value={conversation}>
-              <FixtureApp />
-            </V4ConversationContext.Provider>
+            <TabStoreProvider>
+              <V4ConversationContext.Provider value={conversation}>
+                <FixtureApp />
+              </V4ConversationContext.Provider>
+            </TabStoreProvider>
           </TooltipProvider>
         </LCodeIntlProvider>
       </PlatformProvider>

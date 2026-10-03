@@ -1,5 +1,6 @@
-import { useCallback, useReducer, useRef } from "react";
+import { useCallback } from "react";
 import type { CommitMessageDraft } from "../git-action-menu/commitDraft.js";
+import type { useReviewWorkspaceState } from "./useReviewWorkspaceState.js";
 
 const EMPTY_DRAFT: CommitMessageDraft = Object.freeze({
   message: "",
@@ -8,17 +9,15 @@ const EMPTY_DRAFT: CommitMessageDraft = Object.freeze({
   requiresRegeneration: false,
 });
 
-/** GitActionMenu 的局部草稿；只在本控制器生命周期保留，不持久化审核、确认或执行事实。 */
-export function useGitCommitDraft(scope: string) {
-  const drafts = useRef(new Map<string, CommitMessageDraft>());
-  const [, redraw] = useReducer((revision: number) => revision + 1, 0);
-  const read = useCallback(() => drafts.current.get(scope) ?? EMPTY_DRAFT, [scope]);
+/** 草稿读写沿 Host 审核状态的唯一 admission，确认和执行事实仍由各自 owner 持有。 */
+export function useGitCommitDraft(workspace: ReturnType<typeof useReviewWorkspaceState>) {
+  const { read: readWorkspace, patch } = workspace;
+  const read = useCallback(() => readWorkspace().data.draft, [readWorkspace]);
   const update = useCallback(
     (next: CommitMessageDraft) => {
-      drafts.current.set(scope, next);
-      redraw();
+      patch({ draft: next });
     },
-    [scope],
+    [patch],
   );
   const edit = useCallback(
     (message: string) => update({ ...read(), message, edited: true }),

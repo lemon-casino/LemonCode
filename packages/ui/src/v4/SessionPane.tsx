@@ -5504,6 +5504,7 @@ export function SessionPane({
       {readOnly && snapshot ? <ReadOnlySessionTokenStats snapshot={snapshot} /> : null}
       {sessionId && !readOnly ? (
         <WorktreeTaskActions
+          workspaceRemoteSessionId={remoteSessionId ?? undefined}
           key={sessionId}
           workspacePath={workspacePath}
           workspaceIdentity={workspaceIdentity}
@@ -5535,11 +5536,14 @@ export function SessionPane({
         ) : null}
         {!isDraft ? (
           <ConversationStatusPanel
+            workspaceRemoteSessionId={remoteSessionId ?? undefined}
             workspacePath={executionWorkspacePath}
             workspaceIdentity={executionWorkspaceIdentity}
             originWorkspacePath={workspacePath}
             originWorkspaceIdentity={workspaceIdentity}
             executionSessionId={sessionId ?? undefined}
+            reviewEpoch={snapshot?.logEpoch}
+            executionBindingId={snapshot?.executionWorkspace?.executionBindingId}
             gitSummary={effectiveGitSummary}
             gitDirtyFileCount={gitDirtyFileCount}
             gitWorktreeReviewSourceId={gitWorktreeReviewSourceId}

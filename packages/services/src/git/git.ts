@@ -33,8 +33,22 @@ import type {
 } from "@lcode/shared";
 import { ServiceChannels } from "@lcode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
+import type { Event } from "@lcode/rpc";
+import type {
+  GitReviewWorkspaceScope,
+  GitReviewWorkspaceSnapshot,
+  GitReviewWorkspaceUpdate,
+  GitReviewWorkspaceUpdateResult,
+  GitCommitReview,
+} from "@lcode/shared";
 
 export interface IGitService {
+  getReviewWorkspace(params: GitReviewWorkspaceScope): Promise<GitReviewWorkspaceSnapshot>;
+  updateReviewWorkspace(params: GitReviewWorkspaceUpdate): Promise<GitReviewWorkspaceUpdateResult>;
+  onDynamicReviewWorkspace(params: GitReviewWorkspaceScope): Event<GitReviewWorkspaceSnapshot>;
+  getCommitReview(
+    params: GitRepositoryRequest & { reviewId: string },
+  ): Promise<{ review: GitCommitReview; position: number } | null>;
   getRepositorySummary(params: GitRepositoryRequest): Promise<GitRepositorySummary>;
   getWorkspaceRepositoryInfo(params: GitRepositoryRequest): Promise<GitWorkspaceRepositoryInfo>;
   getLocalBranches(params: GitRepositoryRequest): Promise<GitLocalBranchListResult>;
