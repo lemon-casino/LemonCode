@@ -1,4 +1,24 @@
 import { z } from "zod";
+import { modelSelectionSchema } from "../model-selection.js";
+
+export const selectionSideSessionPayloadSchema = z.object({
+  firstInput: z
+    .object({
+      text: z.string().trim().min(1),
+      modelSelection: modelSelectionSchema.optional(),
+    })
+    .optional(),
+});
+
+export const sidebarForkPayloadSchema = z
+  .object({ workspaceMode: z.enum(["same", "worktree"]) })
+  .strict();
+export const sidebarForkResultSchema = z.object({
+  type: z.literal("forkSession"),
+  sessionId: z.string(),
+  workspacePath: z.string(),
+  workspaceIdentity: z.string().optional(),
+});
 
 /** V4 stable assistant fork 的固定 logical-turn 边界。 */
 export const stableForkTargetSchema = z

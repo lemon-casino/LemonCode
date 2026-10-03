@@ -27,6 +27,11 @@ import {
   lcodeProtocolMcpServerSchema,
 } from "../lcode-protocol/index.js";
 import { sharedContextRefSchema } from "./shared-context-ref.js";
+import {
+  sidebarForkPayloadSchema,
+  sidebarForkResultSchema,
+  selectionSideSessionPayloadSchema,
+} from "./fork.js";
 import { setExecutionFailoverTargetPayloadSchema } from "./execution-failover.js";
 export type { SharedContextRef } from "./shared-context-ref.js";
 
@@ -58,15 +63,7 @@ export const commandPayloadSchemas = {
   }),
   // 父会话由 envelope.sessionId 指定；服务端从父 record 派生完整运行配置。
   // firstInput 存在时，child 创建完成后立即启动首条普通输入；缺省则保持空副屏。
-  createSelectionSideSession: z.object({
-    firstInput: z
-      .object({
-        text: z.string().trim().min(1),
-        // 提交推荐只覆盖新 child 的完整选择，缺省保留父 runtime 继承。
-        modelSelection: modelSelectionSchema.optional(),
-      })
-      .optional(),
-  }),
+  createSelectionSideSession: selectionSideSessionPayloadSchema,
   // 按 inputRouting 裁决：startNow / enqueue / guide / choice。
   // heldQueueDisposition：held 状态（inputRouting.mode=choice）下必带；
   // clear→清空 queue 后 startNow，keep→保留 queue 立即 startNow。
@@ -143,6 +140,7 @@ export const commandPayloadSchemas = {
   compact: z.object({}),
   // running 时对稳定 assistant row 可用。
   forkAssistant: z.object({ target: conversationRowTargetSchema }),
+  forkSession: sidebarForkPayloadSchema,
   applyFileRewind: z.object({ target: conversationRowTargetSchema }),
   editUserQuery: z.object({
     target: conversationRowTargetSchema,
@@ -318,6 +316,7 @@ export const BACKGROUND_WORK_CANCEL_REJECTED_FAULT_PREFIX =
 export const COMMANDS_REQUIRING_BASE_REVISION: ReadonlySet<CommandType> = new Set([
   "applyFileRewind",
   "forkAssistant",
+  "forkSession",
   "editUserQuery",
   "retryTurn",
   "setAssistantFeedback",
@@ -390,6 +389,7 @@ export function parseCommandEnvelope(
 
 // ── ACK ──
 export const commandResultSchema = z.discriminatedUnion("type", [
+  sidebarForkResultSchema,
   z.object({
     type: z.literal("resolveWorktreeConflicts"),
     operationId: z.string(),

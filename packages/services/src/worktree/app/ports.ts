@@ -7,6 +7,10 @@ export interface WorktreeStore {
   lock<T>(key: string, action: () => Promise<T>): Promise<T>;
   readBinding(id: string): Promise<WorktreeBinding | null>;
   saveBinding(binding: WorktreeBinding): Promise<void>;
+  readPreparationRequest(scope: string, requestId: string): Promise<string | null>;
+  savePreparationRequest(scope: string, requestId: string, bindingId: string): Promise<void>;
+  isPreparationCancelled(id: string): Promise<boolean>;
+  cancelPreparation(id: string): Promise<void>;
   listBindings(): Promise<WorktreeBinding[]>;
   readOperation(id: string): Promise<WorktreeIntegration | null>;
   saveOperation(operation: WorktreeIntegration): Promise<void>;
@@ -35,7 +39,11 @@ export interface WorktreeGit extends WorktreeGitPort {
   ): Promise<{ root: string; commonDirectory: string; head: string; branch: string }>;
   registered(root: string, path: string): Promise<boolean>;
   assertIdle(path: string): Promise<void>;
-  snapshot(binding: WorktreeBinding, acknowledgeIgnored: boolean): Promise<WorktreeSnapshot>;
+  snapshot(
+    binding: WorktreeBinding,
+    acknowledgeIgnored: boolean,
+    includeIgnored?: boolean,
+  ): Promise<WorktreeSnapshot>;
   restoreFiles(binding: WorktreeBinding): Promise<void>;
   matchesSnapshot(binding: WorktreeBinding, checkIgnored?: boolean): Promise<boolean>;
 }
@@ -46,6 +54,12 @@ export interface WorktreeContext {
   store: WorktreeStore;
   git: WorktreeGit;
   fault(point: string): Promise<void>;
-  runSetup(checkout: string, command: string): Promise<{ exitCode: number; output: string }>;
+  runSetup(
+    checkout: string,
+    command: string,
+    onOutput?: (output: string) => Promise<void>,
+  ): Promise<{ exitCode: number; output: string }>;
+  detectSetup(checkout: string): Promise<string[]>;
+  detectValidation(checkout: string): Promise<string[]>;
   copyIgnoredFiles(source: string, checkout: string, paths: string[]): Promise<void>;
 }

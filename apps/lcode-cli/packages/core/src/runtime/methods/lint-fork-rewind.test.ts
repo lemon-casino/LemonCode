@@ -155,6 +155,48 @@ test("invalid stable fork boundary fails before child commit", async () => {
   assert.equal(commits, 0);
 });
 
+test("isolated fork commits the child path and new binding in the same atomic bundle", async () => {
+  const { runtime, parent, messages, target } = forkFixture();
+  let bundle: ForkCommitBundle | undefined;
+  runtime.sessionStore = {
+    getSession: async () => parent,
+    messages: async () => messages,
+    commitForkBundle: async (input: ForkCommitBundle) => {
+      bundle = input;
+      return { ...parent, ...input.child };
+    },
+  } as unknown as SessionStorePort;
+  runtime.appendEvent = async () => {
+    throw false;
+  };
+  const path = resolve("isolated-fork-workspace");
+  await forkStableConversationAtMessage.call(runtime, {
+    sourceCommandId: "isolated-command",
+    target,
+    goalBoundary: { kind: "none" },
+    commandResultType: "forkSession",
+    forkWorkspace: {
+      directory: path,
+      path,
+      workspaceID: "fork-identity",
+      binding: {
+        workspaceKey: "fork-identity",
+        workspacePath: path,
+        workspaceIdentity: "fork-identity",
+        executionBindingId: "binding-new",
+        originWorkspacePath: parent.path ?? parent.directory,
+      },
+    },
+  });
+  assert.equal(bundle?.child.path, path);
+  assert.equal(bundle?.child.workspaceID, "fork-identity");
+  const entry = bundle?.entries.find((entry) => entry.type === "runtime/worktree_binding");
+  assert.equal((entry?.data as { executionBindingId: string }).executionBindingId, "binding-new");
+  assert.equal((entry?.data as { bindingOwnerTaskId?: string }).bindingOwnerTaskId, undefined);
+  assert.equal(bundle?.commandFact?.ack.result?.type, "forkSession");
+  assert.notEqual(parent.path, path);
+});
+
 async function rewindFixture() {
   const { runtime, storedEvents } = createMockRuntime();
   runtime.workspaceRoot = resolve("mock-workspace");

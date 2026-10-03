@@ -81,6 +81,8 @@ export async function forkStableConversationAtMessage(
     revisionAtDecision: options.revisionAtDecision,
     sourceCommandId: options.sourceCommandId,
     target: options.target,
+    forkWorkspace: options.forkWorkspace,
+    commandResultType: options.commandResultType,
     targetMessageId: options.target.boundaryMessageId as MessageId,
     traceContext: options.traceContext ?? this.rootTraceContext,
   });

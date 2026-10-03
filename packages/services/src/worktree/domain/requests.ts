@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { gitCommitRequestSchema, worktreePrepareExecutionParamsSchema } from "@lcode/shared";
+import {
+  gitCommitRequestSchema,
+  worktreePrepareExecutionParamsSchema,
+  worktreeGetBindingParamsSchema,
+} from "@lcode/shared";
 
 const text = z.string().trim().min(1);
 const id = z.string().regex(/^[a-f0-9]{32}$/);
@@ -9,7 +13,7 @@ const commands = z.array(text.max(8192)).max(64);
 export const worktreeRequests = {
   getCapabilities: z.object({ ...scope, sourceFolderPaths: z.array(text).optional() }).strict(),
   prepare: worktreePrepareExecutionParamsSchema,
-  getBinding: z.object({ ...scope, taskId: text }).strict(),
+  getBinding: worktreeGetBindingParamsSchema,
   list: z.object(scope).strict(),
   integrate: z
     .object({

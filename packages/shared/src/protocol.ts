@@ -317,7 +317,9 @@ export interface AppSettings {
   toolGroupingChangesEnabled?: boolean;
   /** LCode 运行中继续输入时，是排队到下一轮，还是引导到下一次工具调用后运行 */
   lcodeInteractionBehavior?: LCodeInteractionBehavior;
-  /** 当前聚焦编码任务成功完成后，使用现有 Git 生成器准备提交信息草稿。 */
+  /** 任务完成后的提交审核；缺失时兼容旧生成/弹窗配置，默认关闭。 */
+  gitCommitReviewMode?: import("./worktreePolicy.js").GitCommitReviewMode;
+  /** @deprecated 仅用于旧配置兼容读取，新界面写 gitCommitReviewMode。 */
   autoGenerateGitCommitMessage?: boolean;
   /** 新会话执行位置默认值；已有会话沿持久绑定恢复。 */
   defaultSessionExecutionMode?: import("./worktreePolicy.js").SessionExecutionMode;
@@ -326,6 +328,7 @@ export interface AppSettings {
     string,
     import("./worktreePolicy.js").ProjectExecutionPreference
   >;
+  /** @deprecated 仅用于旧配置兼容读取，新界面写 gitCommitReviewMode。 */
   autoOpenGitCommitReview?: boolean;
   /** Agent 提问五分钟无人回答时是否允许自动继续；缺失按开启兼容旧配置。 */
   askUserQuestionAutoResolutionEnabled?: boolean;

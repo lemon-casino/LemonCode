@@ -27,6 +27,7 @@ export function TaskListItemContextMenu({
   onViewModelTrajectory,
   disableTaskActions = false,
   disabledReason,
+  forkMenu,
 }: {
   intl: {
     formatMessage: (desc: { id: string }, values?: Record<string, string>) => string;
@@ -57,9 +58,11 @@ export function TaskListItemContextMenu({
   onViewModelTrajectory?: () => void;
   disableTaskActions?: boolean;
   disabledReason?: string;
+  forkMenu?: React.ReactNode;
 }) {
   return (
     <ContextMenuContent className="w-52">
+      {forkMenu}
       <TaskActionMenuContent
         intl={intl}
         isPinned={isPinned}

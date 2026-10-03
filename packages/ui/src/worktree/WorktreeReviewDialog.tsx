@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button.js";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.js";
 import { ReviewDialogDismiss } from "@/git-action-menu/ReviewDialogDismiss.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
+import { LiveWorktreePreparationCard } from "./WorktreePreparationCard.js";
 
 export function WorktreeReviewDialog({
   binding,
@@ -25,6 +26,11 @@ export function WorktreeReviewDialog({
   const manage = intl.formatMessage({ id: "worktree.manage" });
   return (
     <>
+      {binding.preparation ? (
+        <div className="px-2 py-1">
+          <LiveWorktreePreparationCard binding={binding} />
+        </div>
+      ) : null}
       <div
         className="flex min-w-0 flex-wrap items-center gap-2 px-2 py-1 text-ui-sm"
         data-testid="worktree-task-location"

@@ -50,6 +50,7 @@ export const operationRecord = z
     conflictPaths: z.array(z.string()),
     diff: z.string().optional(),
     validationCommands: z.array(z.string()),
+    validationSource: z.enum(["explicit", "detected", "none"]).optional(),
     validationResults: z.array(
       z.object({ command: z.string(), exitCode: z.number(), output: z.string() }),
     ),

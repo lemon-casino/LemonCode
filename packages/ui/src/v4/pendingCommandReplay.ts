@@ -13,7 +13,8 @@ export type PendingCommandReplay =
         | "resolveInteraction"
         | "respondWorkspaceHookReview"
         | "toggleWorkspaceHookReviewItem"
-        | "revokeWorkspaceHookTrust";
+        | "revokeWorkspaceHookTrust"
+        | "forkSession";
       digest: string;
     };
 
@@ -43,7 +44,8 @@ export function pendingCommandReplayFor(envelope: CommandEnvelope): PendingComma
     envelope.type === "resolveInteraction" ||
     envelope.type === "respondWorkspaceHookReview" ||
     envelope.type === "toggleWorkspaceHookReviewItem" ||
-    envelope.type === "revokeWorkspaceHookTrust"
+    envelope.type === "revokeWorkspaceHookTrust" ||
+    envelope.type === "forkSession"
   ) {
     return {
       kind: "sensitiveDigest",

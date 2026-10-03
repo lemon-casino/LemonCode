@@ -578,6 +578,10 @@ export function WorkspacePinnedTasksSection({
         </ContextMenuTrigger>
         {contextMenuItem && contextMenuServices ? (
           <TaskListItemContextMenuContent
+            onForkCreated={(path, taskId, identity) => {
+              setContextMenuItemKey(null);
+              onSelectTask(path, taskId, identity);
+            }}
             workspacePath={contextMenuItem.workspacePath}
             remoteSessionId={
               contextMenuItem.workspaceIdentity

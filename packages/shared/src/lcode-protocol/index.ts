@@ -10,7 +10,7 @@ import {
 // 已连根删除的死词（词表+schema+两侧实现）：session/steer、session/rewind、
 // session/rewindCascade、session/previewFileRewind、session/applyFileRewind、
 // prompt/enhance 全簇（含 promptEnhanceResult 通知）、plugins/marketplace/list；
-// session/fork 客户端链已删（op+schema 留存 = v4 forkSessionAtMessage 钩子消费）。
+// session/fork 客户端链已删（op+schema 留存 = v4 stable fork 钩子消费）；侧栏分叉走 V4 forkSession。
 // 消费者：services 旧栈（lcodeProtocolClient/lcodeAgent/lcodeAgentService/lcodeSession*）、
 // CLI bootstrap 旧协议 server（lcode-protocol/server-operations、plugins、session-mapper 等）、
 // UI 旧投影（lcodeSessionProjection 等读路径）。
@@ -50,6 +50,7 @@ import {
   browserSessionContextKindSchema,
 } from "../browser-use/backend.js";
 import { browserCommandResultSchema } from "../browser-use/result.js";
+// 与持久化设置共用 schema（含 custom）；自定义交互 Shell 不覆盖 Agent Bash 方言。
 import { integratedTerminalShellSelectionSchema } from "../validationAppSettings.js";
 import { lcodeTaskModeSchema } from "../lcode-task-mode-schema.js";
 import { OFFICIAL_MCP_AUTH_PORT_FAILURE_REASONS } from "../official-mcp-auth.js";

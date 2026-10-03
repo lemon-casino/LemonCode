@@ -22,6 +22,7 @@ export interface WorkspaceHeaderReloadSessionOptions {
 }
 
 export interface WorkspaceHeaderTitleSectionProps {
+  onForkCreated?: (workspacePath: string, sessionId: string, workspaceIdentity?: string) => void;
   variant?: WorkspaceHeaderVariant;
   readOnlyReason?: string;
   workspaceAbsPath: string;

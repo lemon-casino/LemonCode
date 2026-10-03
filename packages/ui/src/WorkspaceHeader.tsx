@@ -19,6 +19,7 @@ import {
 import type { WorkspaceHeaderVariant } from "@/WorkspaceHeaderSections/shared.js";
 
 export function WorkspaceHeader({
+  onForkCreated,
   variant = "task",
 
   draftDropTargetController,
@@ -66,6 +67,7 @@ export function WorkspaceHeader({
   reloadSessionDisabled,
   reloadSessionPending,
 }: {
+  onForkCreated?: (workspacePath: string, sessionId: string, workspaceIdentity?: string) => void;
   variant?: WorkspaceHeaderVariant;
   draftDropTargetController?: ConversationDropTargetController | null;
   readOnlyReason?: string;
@@ -175,6 +177,7 @@ export function WorkspaceHeader({
       >
         {variant === "task" ? (
           <WorkspaceHeaderTitleSection
+            onForkCreated={onForkCreated}
             variant={variant}
             readOnlyReason={readOnlyReason}
             workspaceAbsPath={workspaceAbsPath}

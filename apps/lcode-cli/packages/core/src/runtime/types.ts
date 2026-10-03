@@ -667,6 +667,13 @@ export type StableConversationForkGoalBoundary = StableForkGoalBoundaryMetadata;
 export type StableConversationForkChildMetadata = ForkChildSessionMetadata;
 
 export interface StableConversationForkOptions {
+  forkWorkspace?: {
+    directory: string;
+    path: string;
+    workspaceID?: string;
+    binding: LCodeWorkspaceRef;
+  };
+  commandResultType?: "forkAssistant" | "forkSession";
   forkedSessionId?: SessionId;
   modelSelection?: ModelSelection;
   goalBoundary: StableConversationForkGoalBoundary;

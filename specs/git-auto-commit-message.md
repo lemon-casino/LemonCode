@@ -1,17 +1,17 @@
-# 任务完成后自动生成 Git 提交信息
+# 任务完成后的提交草稿与审核
 
 ## 产品行为
 
-- 提供全局设置“任务完成后自动生成提交信息”，默认关闭，避免用户未授权的模型调用与额外 Token 成本。
+- 提供全局设置“任务完成后的提交审核”，默认关闭，另可选择“仅生成草稿”或“生成并打开审核”；项目可继承或覆盖，兼容规则见 [审核设置](git-commit-review-settings.md)。
 - 仅当前聚焦、可写、非侧聊会话在本 renderer 观察到 `running -> completedSuccess` 后进入自动生成流程。
 - 普通、计划、工作流任务均按同一规则处理：当前会话实时完成、子 Agent/工作流等会继续产出任务结果的后台工作结束，并且本次执行确实留下 Git 工作区文件改动时生成。后台 Bash 不阻塞弹窗：临时命令在完成边界由 Runtime 停止；只有经用户单次确认保留的预览服务继续运行，模型的 `keep_alive_after_task` 不是保留授权。详见 [预览生命周期](background-bash-lifecycle.md)。纯计划说明、只读工作流、预先存在但本次未改动的脏文件不触发。
 - 完成轮的 `active fileChanges` 是主轮次改动的直接证据；工作流 actor、子 Agent 或 Bash 改动可能不在主轮次摘要中，须以执行开始和结束时目标仓库的 Git 文件差异补足，不得把“主轮次摘要缺席”当作“任务未改文件”。
-- 自动流程生成提交信息草稿后，若 Git 状态指纹仍然匹配，则自动打开当前 Git 提交弹窗并预填草稿；不暂存、不提交、不推送。用户仍需在弹窗中检查并确认。
+- 自动流程生成提交信息草稿后，若 Git 状态指纹仍然匹配且模式为“生成并打开审核”，则自动打开当前 Git 提交弹窗并预填草稿；“仅生成草稿”保留草稿供手动打开。用户仍需在弹窗中检查并确认提交或发布。
 - 状态面板处于 mini 模式、Git 区块收起、仓库原本干净或 Git 文件行级增删数为零时，提交弹窗控制器仍须保持挂载；面板展示状态只能隐藏入口，不能阻断自动草稿的消费。
 - Git 摘要加载晚于会话 `running` 边沿时，仍须记录本次运行；完成后等到仓库状态确认可用再生成，不能因异步摘要暂缺丢失唯一完成边沿。
 - 后台结果进入父任务后，V4 必须移除对应 `backgroundWorks` 条目。结果在主 turn 内被消费、或多条结果合并启动 continuation，均须逐项结算；不能只更新工具卡或只消费批次代表任务。真实未消费的 `resultPending` 仍阻塞自动草稿。
 - 手动“生成/重新生成”与提交信息留空后生成继续复用现有 `IGitService.generateCommitMessage` 路径。
-- 发送/停止按钮之后提供“生成提交纪要”图标入口，同样受 `autoGenerateGitCommitMessage` 开关控制：关闭时不显示。开启后，仅可写主会话存在相关文件修改记录且当前 Git 仍有相应变更时显示；无变更、只读、侧聊和草稿不显示。普通、计划和工作流任务复用同一入口。
+- 既有手动生成入口的提示与无障碍名称统一为“生成提交草稿并打开审核”，生成中为“正在生成提交草稿”，英文同步使用 commit draft / review。生效审核模式为关闭时不显示此图标；两个生成模式下，仅可写主会话存在相关文件修改记录且当前 Git 仍有相应变更时显示；无变更、只读、侧聊和草稿不显示。通用 Git 手动审核入口不受此设置限制。普通、计划和工作流任务复用同一入口。
 - 切换或重新打开已完成任务可恢复手动入口，但不补发自动生成。点击后立即打开原 Git 提交窗口，刷新当前会话文件范围并调用一次 AI 提交信息/冻结审核；生成中禁止重复点击。未完成的主任务、子 Agent 或工作流期间入口不可生成；保留的 Bash 预览不阻塞。
 - 手动入口与自动入口共用 `GitActionMenu` 弹窗所有者、审核服务和输入状态，不另造提交窗口；已有输入不得被后来到达的自动结果覆盖。跨会话文件只能作为候选范围，归属仍由冻结审核处理。
 - 弹窗记录打开请求、DOM 挂载/可见、数据就绪、失败、关闭原因及卸载等受控生命周期日志；“请求打开”不等同于“可见”。自动草稿仅在可见或用户主动关闭后消费，不能在打开请求前消费。加载失败保留窗口与可重试错误，不静默关闭；异步结果在关闭、卸载、切换会话或仓库后失效。
@@ -34,7 +34,7 @@
 | 提交消息输入与提交动作 | `GitActionMenu`                                                      | 继续拥有弹窗状态；自动草稿只触发一次打开请求，不能覆盖已打开弹窗中的用户输入。                                                                                                                                               |
 | 手动入口与请求绑定     | `SessionPane` / `GitActionMenu`                                      | Pane 派生开关、当前会话变更范围和可用性，冻结带 workspace identity、remote session、sessionId、logEpoch 的请求；Menu 接受一次请求并统一打开、生成、显示及关闭。当前请求完成前拒绝重复请求，旧 scope 的结果不能更新新 scope。 |
 | 面板显示与折叠状态     | `ConversationStatusPanel`                                            | 只决定入口是否可见；不得卸载当前会话的 `GitActionMenu` 弹窗控制器。                                                                                                                                                          |
-| 设置持久化             | `ISettingService` / `AppSettings`                                    | `autoGenerateGitCommitMessage` 缺失时按关闭处理。                                                                                                                                                                            |
+| 设置持久化             | `ISettingService` / `AppSettings`                                    | `gitCommitReviewMode` 三档与项目覆盖；缺失新值时兼容旧字段，详见审核设置规范。                                                                                                                                               |
 
 ## 事件顺序
 
@@ -51,7 +51,7 @@ CLI session owner                         SessionPane / Git service
     -> IGitService.generateCommitMessage
     -> IGitService.refresh (after fingerprint)
     -> 指纹一致时发布 SessionPane 自动草稿
-    -> GitActionMenu 消费新草稿 key，自动打开提交弹窗
+    -> GitActionMenu 在 draft-and-review 模式消费新草稿 key 并自动打开；draft 保留供手动审核
     -> 按当前 Git 状态校验指纹并预填提交信息
     -> 用户确认
     -> 现有 stage -> commit -> optional push
@@ -170,7 +170,7 @@ Desktop        -> continuous 同一 state.updated delta
 - 纯状态机测试：武装、成功终态、冷恢复、后台阻塞、禁用与 scope 切换。
 - 投影链路测试（bootstrap `turn-file-changes.test.ts`）：完成轮 `ModelComplete.fileChanges` 落 turnHeader 且满足闸门前置；中间工具步与 `files=0` 不投影。
 - 文件指纹测试：任务范围过滤、顺序稳定、staged/unstaged/增删变化失效。
-- AppSettings schema 测试：默认关闭，patch 接受布尔值。
+- AppSettings schema 测试：生效模式默认关闭，patch 接受严格三档枚举；旧布尔配置仅作兼容输入。
 - 交互场景：完成后自动生成、打开提交弹窗预填、用户编辑不被覆盖、Git 变化后草稿失效。
 - 交互场景：mini / 窄屏 auto / Git 区块收起时完成任务，弹窗仍自动打开；Git 摘要晚于运行边沿加载时不漏触发。
 - 交互场景：任务中启动预览服务，完成时服务仍运行，Git 提交弹窗照常打开且内容预填；用户仍可手动停止服务。

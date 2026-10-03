@@ -922,8 +922,8 @@ const enUS: Record<string, string> = {
   "git.actionMenu.commitDialog.messagePlaceholder": "Commit message (leave empty to generate)",
   "git.actionMenu.commitDialog.messageHelper": "Generate fills the message before you commit.",
   "git.actionMenu.commitDialog.generate": "Generate message",
-  "git.commitSummary.generate": "Generate commit summary and open commit dialog",
-  "git.commitSummary.generating": "Generating commit summary",
+  "git.commitSummary.generate": "Generate a commit draft and open review",
+  "git.commitSummary.generating": "Generating commit draft",
   "git.commitSummary.loadFailed": "Unable to load commit changes: {error}",
   "git.commitSummary.retry": "Retry loading changes",
   "git.actionMenu.commitDialog.regenerate": "Regenerate",
@@ -2043,9 +2043,12 @@ const enUS: Record<string, string> = {
   "settings.toolGroupingChangesDescription":
     "Group consecutive Write, Edit, and ApplyPatch calls into a Changes section.",
   "settings.lcodeInteractionBehavior": "Interaction behavior",
-  "settings.autoGenerateGitCommitMessage": "Generate a commit draft when a task finishes",
-  "settings.autoGenerateGitCommitMessageDescription":
-    "Global default; projects can override it. When the coding chat you are viewing finishes successfully with changes to commit, the current model prepares a commit draft and change review, using model quota. Local chats can commit after review; worktree chats can also merge after review. Opening the review automatically is a separate setting. Commits, merges, and remote publishing require confirmation. Background completion does not generate a draft automatically.",
+  "settings.gitCommitReviewMode": "Commit review after task completion",
+  "settings.gitCommitReviewModeDescription":
+    "Global default; projects can override it. When the coding chat you are viewing finishes successfully with changes to commit, the current model can generate a draft, using model quota. Choose Draft only to review it later. Local chats can commit after review; worktree chats can also merge. Commits, merges, and remote publishing require confirmation. Background completion does not generate a draft automatically. You can still open review manually when this is off.",
+  "settings.gitCommitReviewMode.off": "Off",
+  "settings.gitCommitReviewMode.draft": "Draft only",
+  "settings.gitCommitReviewMode.draft-and-review": "Generate and open review",
   "settings.lcodeInteractionBehaviorDescription":
     "While LCode is running, add follow-up actions to the queue or guide them to run after the next tool call.",
   "settings.lcodeInteractionBehavior.option.queue": "Queue",
@@ -7204,30 +7207,63 @@ const enUS: Record<string, string> = {
   "worktree.defaultMode": "Default execution location for new chats",
   "worktree.defaultModeDescription":
     "Projects can override this setting. A chat keeps its execution location after it starts.",
-  "worktree.autoOpenReview": "Open review automatically when a commit draft is ready",
-  "worktree.autoOpenReviewDescription":
-    "Projects can override this. Controls automatic opening after draft generation; you can still open review manually. Commits and merges require confirmation.",
-  "worktree.projectMode": "New chat location for this project",
-  "worktree.projectSettings": "Project execution and commit settings",
+  "worktree.projectSettings": "Project commit review settings",
   "worktree.projectSettingsDescription":
-    "Applies to this project. Inherit uses global settings. Existing chats keep their execution location.",
+    "Configure commit review after task completion here. Choose the execution location above the composer. The project remembers it; existing chats keep their location.",
   "worktree.mode.local": "Local directory",
   "worktree.mode.worktree": "Worktree",
   "worktree.mode.inherit": "Inherit global",
   "worktree.mode.enabled": "Enabled",
   "worktree.mode.disabled": "Disabled",
-  "worktree.executionMode": "Chat execution location",
+  "worktree.executionMode": "Execution location",
+  "worktree.executionModeDescription":
+    "The project remembers your choice for this and future new chats. Existing chats keep their execution location.",
+  "worktree.draftModeSource.global": "Following the global default",
+  "worktree.draftModeSource.project": "Using the project's saved choice",
+  "worktree.draftModeSource.session": "This new chat's execution location is fixed",
   "worktree.base": "Base",
   "worktree.baseDescription":
     "Select the new worktree base without switching the original branch. Uncommitted changes are not copied.",
   "worktree.retry": "Retry",
   "worktree.preparing": "Preparing worktree…",
+  "taskList.fork.title": "Fork",
+  "taskList.fork.sameWorktree": "Fork conversation in the same worktree",
+  "taskList.fork.sameLocal": "Fork conversation in the same local directory",
+  "taskList.fork.newWorktree": "Fork conversation in a new worktree",
+  "taskList.fork.shared": "Copy conversation history and share the current files.",
+  "taskList.fork.isolated": "Copy current code and non-ignored changes into an isolated directory.",
+  "taskList.fork.pending": "Preparing conversation fork…",
+  "taskList.fork.failed": "Conversation fork failed",
+  "taskList.fork.unknown":
+    "The fork result is not confirmed. Check the conversation list before creating another.",
+  "worktree.preparation.title": "Creating worktree",
+  "worktree.preparation.ready": "Worktree created",
+  "worktree.preparation.failed": "Worktree preparation failed",
+  "worktree.preparation.cancelled": "Worktree preparation cancelled",
+  "worktree.preparation.details": "More details",
+  "worktree.preparation.steps": "Worktree preparation stages",
+  "worktree.preparation.workspace": "Preparing workspace",
+  "worktree.preparation.checkout": "Checking out project files",
+  "worktree.preparation.environment": "Preparing project environment",
+  "worktree.preparation.readyDescription":
+    "The execution directory is ready. Task checks and merge validation run separately.",
+  "worktree.preparation.cancelledDescription":
+    "This input did not run. It is preserved for editing and sending again.",
+  "worktree.preparation.noEnvironment":
+    "No dependency setup was detected. The agent will prepare the project as needed during the task.",
+  "worktree.preparation.truncated": "The log is long. Only its most recent content is shown.",
+  "worktree.preparation.waiting": "Waiting for preparation details from the Host…",
+  "worktree.preparation.cancelling":
+    "Cancellation requested. Waiting for the current step to finish; this input will not run.",
+  "worktree.preparation.local": "Use local directory",
+  "worktree.preparation.cancel": "Cancel",
+  "worktree.preparation.retry": "Retry preparation",
+  "worktree.preparation.automaticValidation":
+    "Project checks are detected automatically for the merge candidate. Review the check plan before running it. If no checks are found, explicitly confirm skipping validation.",
   "worktree.unavailable": "Worktrees are unavailable for this directory",
   "worktree.manage": "Worktree and merge management",
   "worktree.sourceUnavailable": "Cannot read the source commit",
   "worktree.restore": "Restore worktree",
-  "worktree.validationCommands": "Project validation commands (one per line)",
-  "worktree.validationCommandsHint": "Use commands provided by this project",
   "worktree.integrate": "Prepare merge of saved commits",
   "worktree.integrateDescription":
     "Prepares the merge result without updating the project target branch. Review the diff and complete validation, then confirm the merge.",
@@ -7265,6 +7301,7 @@ const enUS: Record<string, string> = {
   "worktree.binding.preparing": "Preparing worktree",
   "worktree.binding.ready": "Worktree is ready",
   "worktree.binding.failed": "Worktree preparation failed",
+  "worktree.binding.cancelled": "Worktree preparation cancelled",
   "worktree.binding.archived": "Archived; snapshot can be restored",
   "worktree.binding.restoring": "Restoring worktree",
   "worktree.binding.missing":
@@ -7280,12 +7317,6 @@ const enUS: Record<string, string> = {
   "worktree.integration.publishing": "Merging into {branch}",
   "worktree.integration.published": "Merged into {branch}",
   "worktree.integration.failed": "Merge incomplete; resolve the error and retry",
-  "worktree.advanced": "Worktree setup and validation",
-  "worktree.advancedDescription":
-    "One entry per line. Only these commands run and these ignored paths are copied when preparing a worktree. Secrets such as .env are never copied by default.",
-  "worktree.setupCommands": "Setup commands",
-  "worktree.copyIgnoredPaths": "Ignored paths to copy explicitly",
-  "worktree.saveAdvanced": "Save worktree configuration",
   "worktree.refresh": "Refresh status",
   "worktree.approveRemainingGroups": "I reviewed and approve the remaining {count} commit groups",
   "worktree.commitAndMerge": "Commit and prepare merge into {branch}",
@@ -7293,6 +7324,7 @@ const enUS: Record<string, string> = {
   "worktree.integration.source-commit-failed":
     "Worktree commits incomplete; successful commits retained and target branch unchanged",
   "worktree.projectWorktrees": "Project worktrees",
+  "worktree.backToProjectWorktrees": "Back to project worktrees",
   "worktree.projectWorktreesDescription":
     "Includes worktrees prepared for unsent or abandoned drafts. Archive and restore them here.",
   "worktree.noWorktrees": "No worktrees yet",

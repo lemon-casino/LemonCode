@@ -94,7 +94,7 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
   const fixture = async (method, ...args) =>
     page.evaluate(
       ({ method, args }) => {
-        globalThis.__gitCommitFixture[method](...args);
+        return globalThis.__gitCommitFixture[method](...args);
       },
       { method, args },
     );
@@ -114,6 +114,10 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto(url + (english ? "?english" : ""));
       await button.waitFor();
+      assert.equal(
+        await button.getAttribute("aria-label"),
+        english ? "Generate a commit draft and open review" : "生成提交草稿并打开审核",
+      );
       const trigger = page.getByTestId("git-action-trigger");
       const title = page.getByTestId("git-commit-workflow-title");
       const summary = page.getByTestId("git-commit-execution-summary");
@@ -188,6 +192,8 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
     await button.click();
     await dialog.waitFor();
     await page.waitForFunction(() => globalThis.__gitCommitFixture.calls.length === 1);
+    assert.equal(await button.getAttribute("aria-label"), "正在生成提交草稿");
+    assert.equal(await button.isDisabled(), true);
     await fixture("rerender");
     assert.equal((await calls()).length, 1);
     await fixture("release");
@@ -325,6 +331,56 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
       assert.equal((await calls()).length, 0);
     },
   );
+  await t.test("统一审核模式控制自动开窗，保留草稿和关闭模式下的手动审核", async () => {
+    for (const mode of ["off", "draft", "draft-and-review"]) {
+      await page.goto(url + `?reviewMode=${mode}`);
+      await page.getByTestId("git-action-trigger").waitFor();
+      await page.waitForFunction(
+        (mode) => document.querySelector('[data-testid="review-mode"]').textContent === mode,
+        mode,
+      );
+      await fixture("automatic");
+      await page.waitForFunction(
+        () => document.querySelector('[data-testid="automatic-ready"]').textContent.length > 0,
+      );
+      if (mode === "draft-and-review") {
+        await generated();
+      } else {
+        await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+        assert.equal(await dialog.count(), 0);
+        await page.getByTestId("git-action-trigger").click();
+        await input.waitFor();
+      }
+      assert.equal(await input.inputValue(), "自动生成的中文提交纪要");
+      assert.equal((await calls()).length, 0);
+      await page.getByTestId("git-commit-close").click();
+      await dialog.waitFor({ state: "hidden" });
+      await fixture("reviewMode", "draft-and-review");
+      await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+      assert.equal(await dialog.count(), 0);
+      assert.equal((await calls()).length, 0);
+      const writes = await page.evaluate(
+        () =>
+          globalThis.__gitCommitFixture.publish.calls.filter((call) =>
+            ["commit", "push"].includes(call.method),
+          ).length,
+      );
+      assert.equal(writes, 0);
+    }
+    await page.goto(url + "?reviewMode=draft");
+    await page.getByTestId("git-action-trigger").waitFor();
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="review-mode"]').textContent === "draft",
+    );
+    await fixture("automatic");
+    await page.waitForFunction(
+      () => document.querySelector('[data-testid="automatic-ready"]').textContent.length > 0,
+    );
+    await fixture("reviewMode", "draft-and-review");
+    await generated();
+    assert.equal(await input.inputValue(), "自动生成的中文提交纪要");
+    assert.equal((await calls()).length, 0);
+  });
   await t.test("旧自动草稿滞留时切换会话或日志代次，不弹出、不带入消息与文件范围", async () => {
     for (const [method, value] of [
       ["switchSession", "b"],

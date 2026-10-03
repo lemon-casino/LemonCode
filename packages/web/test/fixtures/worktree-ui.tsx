@@ -2,12 +2,7 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { IServiceAccessor, WorktreeBinding, WorktreeIntegration } from "@lcode/services";
 import type { AppSettings, GitRepositorySummary } from "@lcode/shared";
-import { DraftWorkspaceExecutionControls } from "@/worktree/DraftWorkspaceExecutionControls.js";
 import { WorktreeBadge } from "@/worktree/WorktreeBadge.js";
-import {
-  GlobalExecutionPolicySettings,
-  ProjectExecutionPolicySettings,
-} from "@/worktree/ExecutionPolicySettings.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
 import { TabStoreProvider } from "@/store/TabStoreProvider.js";
@@ -20,6 +15,9 @@ import { useFileMentionProvider } from "@/mentions/providers/fileMentionProvider
 import { platform } from "./git-backup-platform.js";
 import { WorktreeWorkflowScenario } from "./worktree-ui-scenarios.js";
 import { FixtureReviewPreview } from "./review-preview.js";
+import { WorktreeSidebarRows } from "./worktree-sidebar-rows.js";
+import { WorktreeFixturePage } from "./worktree-ui-page.js";
+import { installForkPreparationFixture } from "./worktree-fork-preparation.js";
 import { createReviewWorkspaceFixture } from "./review-workspace-service.js";
 import "@/styles.css";
 
@@ -30,6 +28,18 @@ let settings: AppSettings = {
   autoOpenGitCommitReview: true,
   projectExecutionPreferences: { other: { executionMode: "worktree" } },
 };
+if (new URLSearchParams(location.search).has("legacyReview")) {
+  settings.autoGenerateGitCommitMessage = true;
+  settings.autoOpenGitCommitReview = false;
+  settings.projectExecutionPreferences![origin] = { autoOpenGitCommitReview: "enabled" };
+}
+if (new URLSearchParams(location.search).has("legacySetup")) {
+  settings.projectExecutionPreferences![origin] = {
+    setupCommands: ["pnpm install", "pnpm build"],
+    copyIgnoredPaths: ["cache/data"],
+    validationCommands: ["pnpm test"],
+  };
+}
 const binding: WorktreeBinding = {
   id: "binding",
   taskId: "orphan",
@@ -75,6 +85,8 @@ if (operation) binding.latestIntegrationId = operation.id;
 const fixture = {
   calls,
   failSave: false,
+  holdSave: false,
+  releaseSave: () => {},
   failBranches: false,
   failRead: false,
   holdRead: false,
@@ -90,7 +102,17 @@ const fixture = {
   operation: () => operation,
   chooseScope: (_identity?: string) => {},
   chooseTask: (_task: string | null) => {},
+  hideDraft: () => {},
   settings: () => settings,
+  chooseDraft: (intent: { mode?: "local" | "worktree"; baseRef?: string }) =>
+    useDraftExecutionStore.getState().choose(origin, intent),
+  resetDraft: () => useDraftExecutionStore.getState().reset(origin),
+  externalMode: (mode: "local" | "worktree") => {
+    settings.projectExecutionPreferences![origin] = {
+      ...settings.projectExecutionPreferences![origin],
+      executionMode: mode,
+    };
+  },
   begin: (scope = origin) =>
     useDraftExecutionStore
       .getState()
@@ -108,6 +130,10 @@ const services = {
     get: async () => structuredClone(settings),
     update: async (patch: Partial<AppSettings>) => {
       calls.push({ method: "settings.update", params: patch });
+      if (fixture.holdSave)
+        await new Promise<void>((resolve) => {
+          fixture.releaseSave = resolve;
+        });
       if (fixture.failSave) throw new Error("fixture-save-failed");
       const preferences = { ...settings.projectExecutionPreferences };
       for (const [key, value] of Object.entries(patch.projectExecutionPreferences ?? {}))
@@ -285,6 +311,7 @@ const services = {
     },
   },
 } as unknown as IServiceAccessor;
+installForkPreparationFixture(services, calls, binding);
 const summary: GitRepositorySummary = {
   workspacePath: origin,
   repoRoot: origin,
@@ -335,25 +362,10 @@ function ActiveExecution() {
   );
 }
 function Fixture() {
-  const [identity, setIdentity] = useState<string | undefined>();
-  fixture.chooseScope = setIdentity;
   return (
-    <main className="w-full max-w-3xl space-y-6 p-4">
-      <DraftWorkspaceExecutionControls
-        workspacePath={origin}
-        workspaceIdentity={identity}
-        gitSummary={summary}
-        dirtyFileCount={0}
-        onRefreshGit={() => {}}
-      />
-      <section data-testid="global-policy">
-        <GlobalExecutionPolicySettings />
-      </section>
-      <section data-testid="project-policy">
-        <ProjectExecutionPolicySettings workspacePath={origin} workspaceIdentity={identity} />
-      </section>
+    <WorktreeFixturePage workspacePath={origin} gitSummary={summary} controller={fixture}>
       <ActiveExecution />
-    </main>
+    </WorktreeFixturePage>
   );
 }
 createRoot(document.getElementById("root")!).render(
@@ -373,6 +385,8 @@ createRoot(document.getElementById("root")!).render(
                   operation!.conflictPaths = [];
                 }}
               />
+            ) : new URLSearchParams(location.search).has("sidebar") ? (
+              <WorktreeSidebarRows />
             ) : (
               <Fixture />
             )}

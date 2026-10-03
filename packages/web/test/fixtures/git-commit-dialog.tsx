@@ -8,10 +8,18 @@ import type {
   WorktreeIntegration,
   WorktreeIntegrateRequest,
 } from "@lcode/services";
-import type { GitFileChange, GitRepositorySummary } from "@lcode/shared";
+import type {
+  AppSettings,
+  GitCommitReviewMode,
+  GitFileChange,
+  GitRepositorySummary,
+} from "@lcode/shared";
+import { gitCommitReviewModeSchema } from "@lcode/shared";
 import type { ConversationRow } from "@lcode/shared/lcode-protocol-v4";
 import { GitActionMenu } from "@/GitActionMenu.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
+import { useSettings } from "@/hooks/useSettingService.js";
+import { useProjectExecutionPolicy } from "@/hooks/useProjectExecutionPolicy.js";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
 import { TabStoreProvider } from "@/store/TabStoreProvider.js";
 import { LCodeIntlProvider } from "@/i18n/IntlProvider.js";
@@ -93,6 +101,18 @@ const fixturePlatform = {
 };
 const publishFixture = createPublishFixture(summary);
 const fixtureReviews = new Map<string, GitCommitReview>();
+let settings: AppSettings = {
+  // 项目默认执行方式故意设为工作树；既有本地会话的文案仍须依据实际绑定。
+  defaultSessionExecutionMode: "worktree",
+  autoGenerateGitCommitMessage: true,
+  ...(new URLSearchParams(location.search).has("reviewMode")
+    ? {
+        gitCommitReviewMode: gitCommitReviewModeSchema.parse(
+          new URLSearchParams(location.search).get("reviewMode"),
+        ),
+      }
+    : {}),
+};
 const gitService = {
   ...publishFixture.service,
   ...createReviewWorkspaceFixture(),
@@ -202,11 +222,10 @@ const gitService = {
 const services = {
   gitService,
   settingService: {
-    // 全局默认故意设置为工作树，验证既有本地会话的文案只依据实际绑定。
-    get: async () => ({
-      defaultSessionExecutionMode: "worktree",
-      autoGenerateGitCommitMessage: true,
-    }),
+    get: async () => structuredClone(settings),
+    update: async (patch: Partial<AppSettings>) => {
+      settings = { ...settings, ...patch };
+    },
   },
   worktreeService: {
     getIntegration: async () => fixtureIntegration,
@@ -313,6 +332,8 @@ const conversation = {
 } as unknown as V4ConversationContextValue;
 
 function FixtureApp() {
+  const { update } = useSettings();
+  const reviewPolicy = useProjectExecutionPolicy(workspacePath, workspaceIdentity).policy;
   const [panelVariant, setPanelVariant] = useState<"mini" | "panel" | null>("mini");
   const [sessionId, setSessionId] = useState("a");
   const [executionBindingId, setExecutionBindingId] = useState<string | undefined>();
@@ -375,6 +396,7 @@ function FixtureApp() {
       setAutomaticDraft(null);
     },
     setting: (value: boolean) => setEnabled(value),
+    reviewMode: (mode: GitCommitReviewMode) => update({ gitCommitReviewMode: mode }),
     logEpoch: (value: string) => setLogEpoch(value),
     dirty: (paths: string[]) => {
       dirtyPaths = paths;
@@ -441,6 +463,8 @@ function FixtureApp() {
         }
       />
       <p data-testid="session">{sessionId}</p>
+      <p data-testid="review-mode">{reviewPolicy.gitCommitReviewMode}</p>
+      <p data-testid="automatic-ready">{automaticDraft?.key}</p>
       <textarea data-testid="composer-draft" defaultValue="待发送的草稿不能改变" />
       <div className="flex items-center justify-end gap-1">
         <button type="button">发送</button>

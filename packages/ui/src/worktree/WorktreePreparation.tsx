@@ -1,7 +1,6 @@
 import type { WorktreeBinding } from "@lcode/services";
 import { GitMergeIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { Textarea } from "@/components/ui/textarea.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { WorktreeTargetSelect } from "./WorktreeTargetSelect.js";
 
@@ -11,8 +10,6 @@ export function WorktreePreparation({
   commands,
   locked,
   activeIntegration,
-  commandsLocked,
-  onCommands,
   onTarget,
   onRestore,
   onIntegrate,
@@ -22,8 +19,6 @@ export function WorktreePreparation({
   commands: string;
   locked: boolean;
   activeIntegration: boolean;
-  commandsLocked: boolean;
-  onCommands: (commands: string) => void;
   onTarget: (branch: string) => void;
   onRestore: () => void;
   onIntegrate: () => void;
@@ -44,16 +39,14 @@ export function WorktreePreparation({
         onChange={onTarget}
         disabled={locked || activeIntegration}
       />
-      <label className="space-y-1 text-ui-sm">
-        <span>{intl.formatMessage({ id: "worktree.validationCommands" })}</span>
-        <Textarea
-          value={commands}
-          onChange={(event) => onCommands(event.target.value)}
-          disabled={locked || commandsLocked}
-          className="font-mono text-ui-sm"
-          placeholder={intl.formatMessage({ id: "worktree.validationCommandsHint" })}
-        />
-      </label>
+      <p className="text-ui-sm text-foreground-subtle">
+        {intl.formatMessage({ id: "worktree.preparation.automaticValidation" })}
+      </p>
+      {commands.trim() ? (
+        <pre className="max-h-32 overflow-auto whitespace-pre-wrap break-all font-mono text-ui-sm">
+          {commands}
+        </pre>
+      ) : null}
       <Button
         type="button"
         data-testid="worktree-integrate"

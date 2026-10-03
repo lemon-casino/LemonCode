@@ -71,6 +71,8 @@ export const SETTINGS_USER_ACTION_FEATURES = {
   "settings.update": ["toggle_preview_updates", "toggle_auto_update"],
   "settings.notification": ["toggle_notification", "toggle_notification_sound"],
   "settings.conversation": [
+    "change_git_commit_review_mode",
+    "change_execution_mode",
     "change_interaction_behavior",
     "toggle_ask_user_auto_resolution",
     "toggle_model_io_retention",

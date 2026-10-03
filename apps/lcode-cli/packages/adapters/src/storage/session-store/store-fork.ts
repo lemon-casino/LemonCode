@@ -33,6 +33,7 @@ function assertForkBundleChildLocal(bundle: ForkCommitBundle): void {
   const sessionId = typeof result?.sessionId === "string" ? result.sessionId.trim() : "";
   const isForkResult =
     result?.type === "forkAssistant" ||
+    result?.type === "forkSession" ||
     result?.type === "createSelectionSideSession" ||
     (result?.type === "editUserQuery" && result.disposition === "fork");
   if (!isForkResult || !sessionId || sessionId !== childId) {

@@ -1,4 +1,6 @@
 import type { LCodeTaskMeta } from "@lcode/shared";
+import { TaskForkMenu } from "@/TaskForkMenu.js";
+import type { TaskForkNavigation } from "@/hooks/useTaskFork.js";
 import {
   ContextMenuContent,
   ContextMenuItem,
@@ -27,6 +29,8 @@ export function GroupedTaskContextMenuContent({
   onCopyText,
   onOpenTaskFeedback,
   disabledReason,
+  remoteSessionId,
+  onForkCreated,
 }: {
   task: LCodeTaskMeta;
   currentGroupId?: string;
@@ -46,9 +50,17 @@ export function GroupedTaskContextMenuContent({
   onCopyText: (label: string, text: string | null) => void;
   onOpenTaskFeedback: () => void;
   disabledReason?: string;
+  remoteSessionId?: string;
+  onForkCreated: TaskForkNavigation;
 }) {
   return (
     <ContextMenuContent className="w-56">
+      <TaskForkMenu
+        task={task}
+        remoteSessionId={remoteSessionId}
+        onCreated={onForkCreated}
+        disabled={Boolean(disabledReason)}
+      />
       <ContextMenuSub>
         <ContextMenuSubTrigger disabled={Boolean(disabledReason)} title={disabledReason}>
           {intl.formatMessage({ id: "taskGroup.moveToGroup" })}

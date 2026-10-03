@@ -40,6 +40,7 @@ import { useTaskInteractionAutoResolutionSnooze } from "@/hooks/useTaskInteracti
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { isWorkspaceReadOnly } from "@/store/tabStore.js";
 import { TaskTitleOverflowText } from "@/components/TaskTitleOverflowText.js";
+import { WorktreeBadge } from "@/worktree/WorktreeBadge.js";
 
 function GroupedTaskRowComponent({
   task,
@@ -175,6 +176,7 @@ function GroupedTaskRowComponent({
       )}
     >
       <span className={TASK_GROUP_ROW_LINE_CLASS}>
+        <WorktreeBadge bindingId={task.executionBindingId} />
         <TaskTitleOverflowText
           as="span"
           className="text-foreground"
@@ -238,6 +240,7 @@ function GroupedTaskRowComponent({
   if (dragOverlay) return taskRow;
 
   const [contextMenuOpen, setContextMenuOpen] = useState(false);
+  const [contextMenuVersion, setContextMenuVersion] = useState(0);
   const [taskRowHovered, setTaskRowHovered] = useState(false);
   const [taskRowFocusWithin, setTaskRowFocusWithin] = useState(false);
   const [isHoverNone] = useState(
@@ -379,6 +382,7 @@ function GroupedTaskRowComponent({
       )}
     >
       <span className={TASK_GROUP_ROW_LINE_CLASS}>
+        <WorktreeBadge bindingId={task.executionBindingId} />
         <TaskTitleOverflowText as="span" className="text-foreground" title={taskTitle}>
           {/* grouped task 标题超出时不要显示省略号，右侧渐隐能保留标题连续性，避免和右侧状态元信息挤在一起。*/}
           {taskTitle}
@@ -463,7 +467,7 @@ function GroupedTaskRowComponent({
 
   // grouped row 不能用原生 button 承载整行；行内还有菜单、关闭、文件树等 button，外层继续用 role=button，避免嵌套 button 破坏键盘和右键菜单语义。
   return (
-    <ContextMenu onOpenChange={setContextMenuOpen}>
+    <ContextMenu key={contextMenuVersion} onOpenChange={setContextMenuOpen}>
       {tooltipsDisabled ? (
         // overlay 拖拽时指针下方的真实 row 仍可能被 Radix 识别为 hover，跳过 TooltipTrigger 避免底层 row 或 action 弹出悬浮提示。
         <ContextMenuTrigger asChild>{interactiveTaskRow}</ContextMenuTrigger>
@@ -502,6 +506,12 @@ function GroupedTaskRowComponent({
       {contextMenuOpen ? (
         // 右键菜单内容带 Radix Presence/Portal，拖拽重排时常驻挂载会触发嵌套更新循环；仅在菜单打开时挂载内容，配合路径懒加载避免拖拽过程刷 task path RPC。
         <GroupedTaskContextMenuContent
+          remoteSessionId={remoteSessionId}
+          onForkCreated={(path, taskId, identity) => {
+            setContextMenuOpen(false);
+            setContextMenuVersion((value) => value + 1);
+            onSelectTask(path, taskId, identity);
+          }}
           task={task}
           currentGroupId={currentGroupId}
           groups={groups}

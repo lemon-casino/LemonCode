@@ -10,6 +10,8 @@ import type { WorktreeContext } from "./ports.js";
 import { prepareWorktreeEnvironment } from "./setup.js";
 import { registerWorktreeSessionAlias } from "./sessionAliases.js";
 import type { CheckoutCoordinator } from "../nodeTypes.js";
+import { assertPreparationActive, preparationProgress } from "./preparation.js";
+import { captureForkSource } from "./forkSource.js";
 
 export function bindingKey(context: WorktreeContext, scope: WorktreeScope & { taskId: string }) {
   return context.store.key(
@@ -82,6 +84,31 @@ export function createWorktreeLifecycle(
     if (!params.taskId.trim() || !params.requestId.trim())
       throw new Error("Worktree request and task IDs are required");
     const id = bindingKey(context, params);
+    if (params.cancel) {
+      return store.lock(store.key(`preparation-claim:${id}`), async () => {
+        const binding = await store.readBinding(id);
+        if (!binding || binding.requestId !== params.requestId)
+          throw new Error("Preparation request does not match its owner");
+        if (binding.status === "ready" || binding.status === "cancelled") return binding;
+        if (!["preparing", "failed"].includes(binding.status))
+          throw new Error("Worktree cannot be cancelled in its current state");
+        await store.cancelPreparation(id);
+        if (binding.status === "failed") {
+          try {
+            await assertPreparationActive(context, binding);
+          } catch {
+            /* 已持久取消，返回事实而非再次失败。 */
+          }
+          return (await store.readBinding(id))!;
+        }
+        return {
+          ...binding,
+          preparation: binding.preparation
+            ? { ...binding.preparation, cancelRequested: true }
+            : undefined,
+        };
+      });
+    }
     if (params.parentBinding) return registerWorktreeSessionAlias(context, params, id, ready);
     const creationFingerprint = store.key(
       JSON.stringify({
@@ -90,10 +117,14 @@ export function createWorktreeLifecycle(
         projectId: params.projectId ?? "",
         baseRef: params.baseRef?.trim() || "HEAD",
         sourceFolderPaths: (params.sourceFolderPaths ?? []).map((path) => resolve(path)),
+        forkSource: params.forkSource,
       }),
     );
     return store.lock(id, async () => {
       let binding = await store.readBinding(id);
+      // 归档恢复只能取回文件，不能把已取消的首条输入请求重新变成可执行请求。
+      if (binding && (binding.status === "cancelled" || (await store.isPreparationCancelled(id))))
+        throw new Error("Worktree preparation cancelled; submit a new request");
       if (await store.readAlias(id))
         throw new Error("Forked session already uses its parent worktree");
       if (binding && binding.creationFingerprint !== creationFingerprint)
@@ -150,6 +181,13 @@ export function createWorktreeLifecycle(
             mappedPath(info.root, checkoutPath, path),
           ),
           status: "preparing",
+          preparation: {
+            stage: "workspace",
+            log: "Preparing workspace.\n",
+            logTruncated: false,
+            cancelRequested: false,
+            environmentSource: params.setupCommands ? "explicit" : "none",
+          },
           setup: {
             commands: params.setupCommands ?? [],
             copyIgnoredPaths: params.copyIgnoredPaths ?? [],
@@ -163,74 +201,161 @@ export function createWorktreeLifecycle(
         };
         await store.saveBinding(binding);
       }
-      await store.assertManagedPath(binding.checkoutPath);
-      const registered = await git.registered(binding.repositoryRoot, binding.checkoutPath);
-      if (!registered) {
-        if (await store.exists(binding.checkoutPath))
-          throw new Error("Worktree destination already exists and is not registered");
-        if (binding.status !== "preparing")
-          throw new Error("Worktree directory is missing; explicit recovery is required");
-        const ref = await git.run({
-          cwd: binding.repositoryRoot,
-          args: ["show-ref", "--verify", `refs/heads/${binding.branch}`],
-        });
-        if (ref.exitCode === 0)
-          throw new Error(
-            "Task branch exists without its managed worktree; manual reconciliation required",
-          );
-        await git.command(binding.repositoryRoot, [
-          "worktree",
-          "add",
-          "-b",
-          binding.branch,
-          binding.checkoutPath,
-          binding.baseCommit,
-        ]);
-        await context.fault("prepare.after-add");
-      }
-      await ready(binding);
-      if (params.retrySetup && binding.setup && binding.setup.status !== "completed") {
-        const commands = params.setupCommands ?? binding.setup.commands;
-        const copyIgnoredPaths = params.copyIgnoredPaths ?? binding.setup.copyIgnoredPaths;
-        const changedCommands = JSON.stringify(commands) !== JSON.stringify(binding.setup.commands);
-        const changedPaths =
-          JSON.stringify(copyIgnoredPaths) !== JSON.stringify(binding.setup.copyIgnoredPaths);
-        binding = {
-          ...binding,
-          setup: {
-            ...binding.setup,
-            commands,
-            copyIgnoredPaths,
-            copied: binding.setup.copied && !changedPaths,
-            nextCommand: changedCommands ? 0 : binding.setup.nextCommand,
-            results: changedCommands ? [] : binding.setup.results,
-          },
-        };
-        await store.saveBinding(binding);
-      }
-      const setupLease = await coordinator.acquire({
-        workspacePath: binding.checkoutPath,
-        ownerId: `setup:${binding.id}`,
-      });
+      await store.savePreparationRequest(
+        params.workspaceIdentity?.trim() || resolve(params.workspacePath),
+        params.requestId,
+        id,
+      );
       try {
-        binding = await prepareWorktreeEnvironment(context, binding, Boolean(params.retrySetup));
-        binding = {
-          ...binding,
-          status: "ready",
-          updatedAt: new Date().toISOString(),
-          error: undefined,
-        };
-        await store.saveBinding(binding);
-        return binding;
-      } finally {
-        await coordinator.release(setupLease);
+        await assertPreparationActive(context, binding);
+        if (params.forkSource && !binding.forkSnapshot) {
+          binding = await captureForkSource(context, coordinator, binding, params.forkSource);
+          await store.saveBinding(binding);
+        }
+        await store.assertManagedPath(binding.checkoutPath);
+        const registered = await git.registered(binding.repositoryRoot, binding.checkoutPath);
+        if (!registered) {
+          if (await store.exists(binding.checkoutPath))
+            throw new Error("Worktree destination already exists and is not registered");
+          if (binding.status !== "preparing")
+            throw new Error("Worktree directory is missing; explicit recovery is required");
+          const ref = await git.run({
+            cwd: binding.repositoryRoot,
+            args: ["show-ref", "--verify", `refs/heads/${binding.branch}`],
+          });
+          if (ref.exitCode === 0)
+            throw new Error(
+              "Task branch exists without its managed worktree; manual reconciliation required",
+            );
+          binding = await preparationProgress(
+            context,
+            binding,
+            "checkout",
+            `Checking out ${binding.baseCommit}.\n`,
+          );
+          await git.command(binding.repositoryRoot, [
+            "worktree",
+            "add",
+            "-b",
+            binding.branch,
+            binding.checkoutPath,
+            binding.baseCommit,
+          ]);
+          await context.fault("prepare.after-add");
+        }
+        if (binding.forkSnapshot && !binding.forkFilesRestored) {
+          await git.restoreFiles({ ...binding, snapshot: binding.forkSnapshot });
+          binding = { ...binding, forkFilesRestored: true };
+          await store.saveBinding(binding);
+        }
+        await ready(binding);
+        await assertPreparationActive(context, binding);
+        binding = await preparationProgress(
+          context,
+          binding,
+          "environment",
+          `Worktree created at ${binding.checkoutPath}.\n`,
+        );
+        if (
+          !params.setupCommands &&
+          binding.setup?.status === "pending" &&
+          !binding.setup.commands.length
+        ) {
+          const commands = await context.detectSetup(binding.checkoutPath);
+          binding = {
+            ...binding,
+            setup: { ...binding.setup, commands },
+            preparation: {
+              ...binding.preparation!,
+              environmentSource: commands.length ? "detected" : "none",
+            },
+          };
+          await store.saveBinding(binding);
+        }
+        if (params.retrySetup && binding.setup && binding.setup.status !== "completed") {
+          const commands = params.setupCommands ?? binding.setup.commands;
+          const copyIgnoredPaths = params.copyIgnoredPaths ?? binding.setup.copyIgnoredPaths;
+          const changedCommands =
+            JSON.stringify(commands) !== JSON.stringify(binding.setup.commands);
+          const changedPaths =
+            JSON.stringify(copyIgnoredPaths) !== JSON.stringify(binding.setup.copyIgnoredPaths);
+          binding = {
+            ...binding,
+            setup: {
+              ...binding.setup,
+              commands,
+              copyIgnoredPaths,
+              copied: binding.setup.copied && !changedPaths,
+              nextCommand: changedCommands ? 0 : binding.setup.nextCommand,
+              results: changedCommands ? [] : binding.setup.results,
+            },
+          };
+          await store.saveBinding(binding);
+        }
+        const setupLease = await coordinator.acquire({
+          workspacePath: binding.checkoutPath,
+          ownerId: `setup:${binding.id}`,
+        });
+        try {
+          binding = await prepareWorktreeEnvironment(context, binding, Boolean(params.retrySetup));
+          // 取消与就绪用同一短锁裁决，避免最后一步完成后取消仍被误认为可切回本地。
+          binding = await store.lock(store.key(`preparation-claim:${id}`), async () => {
+            await assertPreparationActive(context, binding!);
+            return preparationProgress(
+              context,
+              { ...binding!, status: "ready", error: undefined },
+              "ready",
+              "Workspace ready. Task checks have not run.\n",
+            );
+          });
+          return binding;
+        } finally {
+          await coordinator.release(setupLease);
+        }
+      } catch (error) {
+        const latest = (await store.readBinding(id)) ?? binding;
+        if (await store.isPreparationCancelled(id)) {
+          await assertPreparationActive(context, latest);
+        }
+        if (latest.status !== "cancelled")
+          await preparationProgress(
+            context,
+            {
+              ...latest,
+              status: "failed",
+              error: error instanceof Error ? error.message : String(error),
+            },
+            "failed",
+            `Preparation failed: ${error instanceof Error ? error.message : String(error)}\n`,
+          );
+        throw error;
       }
     });
   }
-  async function getBinding(params: WorktreeScope & { taskId: string }) {
+  async function getBinding(params: WorktreeScope & { taskId?: string; requestId?: string }) {
     const identity = params.workspaceIdentity?.trim() || resolve(params.workspacePath);
+    if (!params.taskId) {
+      const id = params.requestId
+        ? await store.readPreparationRequest(identity, params.requestId)
+        : null;
+      if (!id) return null;
+      const binding = await store.readBinding(id);
+      if (
+        !binding ||
+        binding.requestId !== params.requestId ||
+        (binding.originalWorkspaceIdentity?.trim() || resolve(binding.originalWorkspacePath)) !==
+          identity
+      )
+        throw new Error("Preparation request scope mismatch");
+      return {
+        ...binding,
+        preparation: binding.preparation
+          ? { ...binding.preparation, cancelRequested: await store.isPreparationCancelled(id) }
+          : undefined,
+      };
+    }
     let binding =
-      (await store.readBinding(bindingKey(context, params))) ??
+      (await store.readBinding(bindingKey(context, { ...params, taskId: params.taskId }))) ??
       (await store.listBindings()).find(
         (candidate) =>
           candidate.taskId === params.taskId &&
@@ -244,7 +369,17 @@ export function createWorktreeLifecycle(
       );
       if (alias) binding = (await store.readBinding(alias.bindingId)) ?? undefined;
     }
-    if (!binding || binding.status === "archived") return binding ?? null;
+    if (!binding || ["archived", "preparing", "failed", "cancelled"].includes(binding.status)) {
+      if (binding?.preparation)
+        binding = {
+          ...binding,
+          preparation: {
+            ...binding.preparation,
+            cancelRequested: await store.isPreparationCancelled(binding.id),
+          },
+        };
+      return binding ?? null;
+    }
     try {
       await ready(binding);
       return binding;

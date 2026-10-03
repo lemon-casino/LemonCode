@@ -21,6 +21,7 @@ export interface ForkChildSessionMetadata {
 
 export type ForkCommandResult =
   | { type: "forkAssistant"; sessionId: string }
+  | { type: "forkSession"; sessionId: string; workspacePath: string; workspaceIdentity?: string }
   | { type: "createSelectionSideSession"; sessionId: string }
   | { type: "editUserQuery"; disposition: "fork"; sessionId: string };
 

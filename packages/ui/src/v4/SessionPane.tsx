@@ -1545,14 +1545,17 @@ export function SessionPane({
   const executionPolicy = resolveProjectExecutionPolicy(
     sharedSettings ?? {},
     { workspacePath, workspaceIdentity },
-    draftExecution?.mode,
+    // 执行选择统一保存到项目；仅首次请求冻结的意图优先，保证准备失败重试仍使用原目录。
+    draftExecution?.frozen ? draftExecution.mode : undefined,
   );
   const executionIntentRef = useRef({
     mode: executionPolicy.executionMode,
     baseRef: draftExecution?.baseRef,
     originWorkspacePath: workspacePath,
     originWorkspaceIdentity: workspaceIdentity,
-    setupCommands: executionPolicy.setupCommands,
+    setupCommands: executionPolicy.setupCommandsConfigured
+      ? executionPolicy.setupCommands
+      : undefined,
     copyIgnoredPaths: executionPolicy.copyIgnoredPaths,
   });
   executionIntentRef.current = {
@@ -1560,11 +1563,13 @@ export function SessionPane({
     baseRef: draftExecution?.baseRef,
     originWorkspacePath: workspacePath,
     originWorkspaceIdentity: workspaceIdentity,
-    setupCommands: executionPolicy.setupCommands,
+    setupCommands: executionPolicy.setupCommandsConfigured
+      ? executionPolicy.setupCommands
+      : undefined,
     copyIgnoredPaths: executionPolicy.copyIgnoredPaths,
   };
   const autoGitCommitMessageEnabled = Boolean(
-    executionPolicy.autoGenerateGitCommitMessage &&
+    executionPolicy.gitCommitReviewMode !== "off" &&
     focused &&
     !readOnly &&
     !selectionSideChat &&
@@ -2147,7 +2152,7 @@ export function SessionPane({
     remoteSessionId,
     selectionSideChat,
     sessionId,
-    executionPolicy.autoGenerateGitCommitMessage,
+    executionPolicy.gitCommitReviewMode,
     snapshot?.backgroundWorks,
     snapshot?.control.phase,
     snapshot?.logEpoch,
@@ -2336,7 +2341,7 @@ export function SessionPane({
   ]);
 
   const manualCommitSummaryEnabled = canGenerateSessionCommitSummary({
-    enabled: executionPolicy.autoGenerateGitCommitMessage,
+    enabled: executionPolicy.gitCommitReviewMode !== "off",
     sessionId,
     readOnly: Boolean(readOnly),
     sideChat: Boolean(selectionSideChat),

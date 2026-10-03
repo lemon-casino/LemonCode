@@ -16,6 +16,7 @@ import {
   Ellipsis,
   Folder,
   FolderOpen,
+  GitBranchIcon,
   House,
   InfoIcon,
   ListTree,
@@ -89,6 +90,8 @@ import {
 } from "@/lib/workspaceRemovalSafety.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { toast } from "@/components/ui/toast.js";
+import { ServiceProvider } from "@/hooks/useServices.js";
+import { ProjectWorktreeManagementDialog } from "@/worktree/ProjectWorktreeManagementDialog.js";
 
 export type SortableBindings = Pick<ReturnType<typeof useSortable>, "attributes" | "listeners">;
 
@@ -259,6 +262,11 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   const shouldShowRemoteConnectingBorderBeam = isReconnectPending;
   const [isRemoteErrorCopied, setIsRemoteErrorCopied] = useState(false);
   const [remoteSkillSyncOpen, setRemoteSkillSyncOpen] = useState(false);
+  const [projectWorktreesOpen, setProjectWorktreesOpen] = useState(false);
+  const showProjectWorktrees =
+    tab.workspacePurpose !== "conversation" &&
+    Boolean(services.worktreeService) &&
+    !isDisconnectedRemoteWorkspace;
   const [remoteMcpSyncOpen, setRemoteMcpSyncOpen] = useState(false);
   const [remotePluginSyncOpen, setRemotePluginSyncOpen] = useState(false);
   const [workspaceRowHovered, setWorkspaceRowHovered] = useState(false);
@@ -944,6 +952,20 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
                           </DropdownMenuTrigger>
                         </ControlHintTooltip>
                         <DropdownMenuContent align="end" onClick={handleActionMenuClick}>
+                          {showProjectWorktrees ? (
+                            <DropdownMenuItem
+                              data-testid={testId(
+                                "project-worktrees-menu",
+                                tab.workspaceIdentity?.trim() || tab.workspacePath,
+                              )}
+                              disabled={Boolean(readOnlyReason)}
+                              onMouseDown={(event) => event.stopPropagation()}
+                              onSelect={() => setProjectWorktreesOpen(true)}
+                            >
+                              <GitBranchIcon className="h-3.5 w-3.5" />
+                              {intl.formatMessage({ id: "worktree.projectWorktrees" })}
+                            </DropdownMenuItem>
+                          ) : null}
                           <RemoteSyncMenuItems
                             canSyncSkills={showRemoteSkillSyncAction}
                             canSyncMcp={showRemoteSkillSyncAction}
@@ -1159,6 +1181,18 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
           />
         </CollapsibleContent>
       </Collapsible>
+      {showProjectWorktrees ? (
+        <ServiceProvider services={services}>
+          <ProjectWorktreeManagementDialog
+            key={tab.workspaceIdentity?.trim() || tab.workspacePath}
+            workspacePath={tab.workspacePath}
+            workspaceIdentity={tab.workspaceIdentity}
+            workspaceRemoteSessionId={tab.remoteSessionId}
+            open={projectWorktreesOpen}
+            onOpenChange={setProjectWorktreesOpen}
+          />
+        </ServiceProvider>
+      ) : null}
       <RemoteSyncDialogs
         canSyncSkills={showRemoteSkillSyncAction}
         canSyncMcp={showRemoteSkillSyncAction}

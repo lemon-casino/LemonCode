@@ -729,6 +729,10 @@ export function WorkspaceTimelineTasksSection({
         </ContextMenuTrigger>
         {contextMenuItem && contextMenuWorkspaceServices && contextMenuItemKey ? (
           <TaskListItemContextMenuContent
+            onForkCreated={(path, taskId, identity) => {
+              setContextMenuItemKey(null);
+              onSelectTask(path, taskId, identity);
+            }}
             workspacePath={contextMenuItem.workspacePath}
             remoteSessionId={contextMenuWorkspaceServices.remoteSessionId}
             task={contextMenuItem}

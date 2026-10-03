@@ -263,8 +263,18 @@ export interface V4CommandCoreHost {
       goalBoundary: StableForkGoalBoundaryMetadata;
       sourceCommandId: string;
       revisionAtDecision: number;
+      workspaceMode?: "same" | "worktree";
+      commandResultType?: "forkAssistant" | "forkSession";
     },
-  ): Promise<{ forkedSessionId: string }>;
+  ): Promise<{ forkedSessionId: string; workspacePath?: string; workspaceIdentity?: string }>;
+  forkSession?(
+    sessionId: string,
+    options: {
+      workspaceMode: "same" | "worktree";
+      sourceCommandId: string;
+      revisionAtDecision: number;
+    },
+  ): Promise<{ sessionId: string; workspacePath: string; workspaceIdentity?: string }>;
   /** @deprecated 仅旧宿主结构兼容；新 editUserQuery 永不调用，显式 forkAssistant 不受影响。 */
   forkConversationBeforeInput?(
     sessionId: string,

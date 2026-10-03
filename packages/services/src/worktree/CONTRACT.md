@@ -24,25 +24,36 @@ sequenceDiagram
 
 Task identity determines one binding. Repeated creation reconciles the original operation;
 it never creates another checkout or silently falls back to the source directory. Only
-committed input is used. Source folders must reside in the same repository. Managed paths
+committed code is used for ordinary new sessions; explicit forks capture current files as
+described below. Source folders must reside in the same repository. Managed paths
 are checked against canonical roots, symlinks and native Git registration before removal.
 
 Explicit setup commands and ignored-file allowlists run before a binding becomes ready.
 The service records completed steps; an interrupted or failed command requires explicit
 retry. The creation fingerprint freezes source scope, project membership and requested
-base independently from retryable setup configuration. No files or commands are selected
-implicitly. Setup copies reject traversals and links, with 10,000-file / 64-MiB limits.
+base independently from retryable setup configuration. Absent explicit setup, the Host
+selects bounded dependency commands from unambiguous lockfiles; explicit empty setup
+disables detection. Setup copies reject traversals and links, with 10,000-file / 64-MiB limits.
 
-A fork keeps its existing checkout. `prepare(parentBinding)` writes only a durable
+Preparation stages, bounded logs and cancellation are durable Host facts, queried by
+original workspace identity and request ID. Cancel and ready share a short decision lock;
+cancellation waits for the current step, then prevents first input. A cancelled request
+cannot be retried. The renderer preserves the original input for manual resubmission.
+
+A same-directory fork keeps its existing checkout. `prepare(parentBinding)` writes only a durable
 child-to-owner alias after validating the real parent chain and original workspace. It
 does not clone lifecycle state or create another directory. A child cannot switch trees,
 and `getBinding` resolves both original and actual execution scopes through the same
 root owner, including after restart. Archive and alias registration serialize against
-that root binding.
+that root binding. A new-worktree fork snapshots source HEAD, index and non-ignored
+working files under the source checkout permit, then restores them once into a new
+binding. It rejects busy, conflicted or changed sources without changing the source index.
 
 Integration freezes source and target commits, merges in a separate detached checkout,
 and exposes conflicts there. Manual or explicitly requested AI changes must be committed
-in that checkout and their exact candidate reviewed before validation/publication. Target
+in that checkout and their exact candidate reviewed before validation/publication.
+The candidate detects conventional project checks before review unless explicitly
+configured; unavailable checks require explicit UI skip acknowledgement. Target
 publication obtains the same checkout permit used by runtime, rechecks branch/HEAD/dirty
 state, persists publishing, and runs native fast-forward. Lost replies reconcile by exact
 commit ancestry; unknown states retain files and fail without resetting user changes.

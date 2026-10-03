@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- LCode Protocol 的 session/workspace 方法共享同一个 server context 与 snapshot helpers，迁移期先集中维护。 */
 import { observeSessionDebug } from "./session-debug.js";
+import type { LCodeAgentMcpServer } from "@lcode/shared";
 import {
   TASK_LIST_SESSION_TYPES,
   isTaskListSessionType,
@@ -2360,6 +2361,7 @@ export async function registerForkedSession(
       followupMode?: "queue" | "guide";
     };
     inheritLatestTarget: boolean;
+    mcpServers?: LCodeAgentMcpServer[];
   },
 ) {
   const parentMode = options.runtimeConfig.mode;
@@ -2373,7 +2375,7 @@ export async function registerForkedSession(
   const inheritedExecution = await restoreProtocolExecution(context, {
     taskId: fork.forkedSessionId,
     workspace: record.workspace,
-    mcpServers: record.executionMcpServers,
+    mcpServers: options.mcpServers ?? record.executionMcpServers,
     persistedWorkspace: buildWorkspaceRef({
       workspacePath: forkedSession.path ?? forkedSession.directory,
       workspaceIdentity: forkedSession.workspaceID,

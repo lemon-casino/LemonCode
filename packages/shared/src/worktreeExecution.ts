@@ -26,6 +26,16 @@ export const worktreeSnapshotSchema = z
   })
   .strict();
 export type WorktreeSnapshot = z.infer<typeof worktreeSnapshotSchema>;
+export const worktreePreparationSchema = z
+  .object({
+    stage: z.enum(["workspace", "checkout", "environment", "ready", "failed", "cancelled"]),
+    activeStep: z.enum(["workspace", "checkout", "environment"]).optional(),
+    log: z.string().max(65536),
+    logTruncated: z.boolean(),
+    cancelRequested: z.boolean(),
+    environmentSource: z.enum(["explicit", "detected", "none"]),
+  })
+  .strict();
 export const worktreeExecutionBindingSchema = z
   .object({
     id: text,
@@ -43,7 +53,16 @@ export const worktreeExecutionBindingSchema = z
     baseCommit: text,
     targetBranch: z.string(),
     sourceFolderPaths: z.array(text),
-    status: z.enum(["preparing", "ready", "failed", "archived", "restoring", "missing"]),
+    status: z.enum([
+      "preparing",
+      "ready",
+      "failed",
+      "cancelled",
+      "archived",
+      "restoring",
+      "missing",
+    ]),
+    preparation: worktreePreparationSchema.optional(),
     createdAt: text,
     updatedAt: text,
     error: z.string().optional(),
@@ -53,6 +72,8 @@ export const worktreeExecutionBindingSchema = z
       .regex(/^[a-f0-9]{32,64}$/)
       .optional(),
     snapshot: worktreeSnapshotSchema.optional(),
+    forkSnapshot: worktreeSnapshotSchema.optional(),
+    forkFilesRestored: z.boolean().optional(),
     setup: z
       .object({
         commands: z.array(text),
@@ -83,13 +104,24 @@ export const worktreePrepareExecutionParamsSchema = z
     setupCommands: z.array(text).optional(),
     copyIgnoredPaths: z.array(text).optional(),
     retrySetup: z.boolean().optional(),
+    cancel: z.boolean().optional(),
+    forkSource: z
+      .object({ workspacePath: text, workspaceIdentity: text.optional() })
+      .strict()
+      .optional(),
     parentBinding: z
       .object({ bindingId: text, bindingOwnerTaskId: text, parentTaskId: text })
       .strict()
       .optional(),
   })
   .strict();
-export const worktreeGetBindingParamsSchema = z.object({ ...scope, taskId: text }).strict();
+export const worktreeGetBindingParamsSchema = z
+  .object({ ...scope, taskId: text.optional(), requestId: text.optional() })
+  .strict()
+  .refine(
+    (value) => Boolean(value.taskId || value.requestId),
+    "Task or preparation request is required",
+  );
 export const worktreeGetBindingResultSchema = z
   .object({ binding: worktreeExecutionBindingSchema.nullable() })
   .strict();

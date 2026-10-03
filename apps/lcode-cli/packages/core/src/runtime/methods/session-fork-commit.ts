@@ -1,6 +1,7 @@
 import { resolveExecutionState } from "@lcode/shared";
+import type { LCodeWorkspaceRef } from "@lcode/shared";
 import { buildExecutionStateEntry, readRuntimeExecutionState } from "../execution-state.js";
-import { type ForkCommitBundle } from "@lcode/contracts";
+import { type ForkCommitBundle, type WorkspaceId } from "@lcode/contracts";
 import {
   RewindStrategy,
   SESSION_ENTRY_TARGET_COMPLETION_VERIFICATION,
@@ -53,6 +54,13 @@ export async function commitAtomicConversationFork(
     target?: StableConversationForkTarget;
     traceContext: TraceContext;
     kind?: "fork" | "selection_side_chat";
+    forkWorkspace?: {
+      directory: string;
+      path: string;
+      workspaceID?: string;
+      binding: LCodeWorkspaceRef;
+    };
+    commandResultType?: "forkAssistant" | "forkSession";
   },
 ): Promise<WorkspaceForkResult> {
   const store = runtime.sessionStore;
@@ -160,7 +168,16 @@ export async function commitAtomicConversationFork(
   });
   const clonedEntries = entries.map((entry) => cloneVerifierEntryForAtomicFork(entry, identities));
   const modelSelectionEntry = buildModelSelectionEntry(childSessionId, modelSelection);
-  const worktreeBindingEntry = buildForkWorktreeBindingEntry(runtime, childSessionId);
+  const worktreeBindingEntry = options.forkWorkspace
+    ? {
+        id: `${childSessionId}:worktree-binding`,
+        sessionID: childSessionId,
+        type: "runtime/worktree_binding",
+        touchSession: false,
+        time: { created: Date.now(), updated: Date.now() },
+        data: options.forkWorkspace.binding,
+      }
+    : buildForkWorktreeBindingEntry(runtime, childSessionId);
   if (kind === "selection_side_chat") {
     copiedMessages.push(buildSelectionSideChatBoundary(runtime, childSessionId, modelSelection));
   } else {
@@ -174,17 +191,29 @@ export async function commitAtomicConversationFork(
       }),
     );
   }
-  const commandFact = options.commandFact ?? {
+  const commandFact: ForkCommitBundle["commandFact"] = options.commandFact ?? {
     parentSessionId: String(runtime.sessionId),
     sourceCommandId: options.sourceCommandId,
     ack: {
       commandId: options.sourceCommandId,
       status: "accepted" as const,
       revisionAtDecision: options.revisionAtDecision ?? 0,
-      result: {
-        type: kind === "selection_side_chat" ? "createSelectionSideSession" : "forkAssistant",
-        sessionId: String(childSessionId),
-      },
+      result:
+        kind === "selection_side_chat"
+          ? { type: "createSelectionSideSession", sessionId: String(childSessionId) }
+          : options.commandResultType === "forkSession"
+            ? {
+                type: "forkSession",
+                sessionId: String(childSessionId),
+                workspacePath:
+                  options.forkWorkspace?.path ??
+                  options.parentSession.path ??
+                  options.parentSession.directory,
+                workspaceIdentity: options.forkWorkspace
+                  ? options.forkWorkspace.workspaceID
+                  : options.parentSession.workspaceID,
+              }
+            : { type: "forkAssistant", sessionId: String(childSessionId) },
     },
     metadata: {
       forkOrigin: {
@@ -202,7 +231,16 @@ export async function commitAtomicConversationFork(
         }
       : undefined;
   const committedChild = await store.commitForkBundle({
-    child: buildForkedSessionInput(runtime, options.parentSession, childSessionId, kind),
+    child: {
+      ...buildForkedSessionInput(runtime, options.parentSession, childSessionId, kind),
+      ...(options.forkWorkspace
+        ? {
+            directory: options.forkWorkspace.directory,
+            path: options.forkWorkspace.path,
+            workspaceID: options.forkWorkspace.workspaceID as WorkspaceId | undefined,
+          }
+        : {}),
+    },
     messages: copiedMessages,
     copySources: {
       messages: Object.fromEntries(

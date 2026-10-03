@@ -25,6 +25,26 @@ rules:
     - invariant-only
     - evidence-only
 nodes:
+  - id: capability.git-commit-review-policy
+    kind: capability
+    label: Unified commit review mode after task completion
+    aliases: [任务完成后的提交审核, 仅生成草稿, 生成并打开审核, gitCommitReviewMode]
+    codeSeeds:
+      - file: packages/ui/src/worktree/ExecutionPolicySettings.tsx
+        symbol: GlobalExecutionPolicySettings
+      - file: packages/ui/src/worktree/ExecutionPolicySettings.tsx
+        symbol: ProjectExecutionPolicySettings
+      - file: packages/shared/src/worktreePolicy.ts
+        symbol: resolveGlobalGitCommitReviewMode
+      - file: packages/shared/src/worktreePolicy.ts
+        symbol: resolveProjectExecutionPolicy
+      - file: packages/services/src/setting/settingService.ts
+        symbol: createSettingService
+    invariants:
+      - "AppSettings is the single settings owner. UI writes one off/draft/draft-and-review mode;
+        projects may inherit it by original workspace identity/path."
+      - "Legacy per-field overrides remain compatibility inputs until the project chooses a unified
+        mode. Reading or saving settings does not generate drafts, commit, merge, or publish."
   - id: capability.session-worktree
     kind: capability
     label: Session execution in a managed Git worktree
@@ -36,9 +56,30 @@ nodes:
         symbol: prepareProtocolExecution
       - file: packages/ui/src/hooks/useActiveExecutionWorkspace.ts
         symbol: useActiveExecutionWorkspace
+      - file: packages/ui/src/worktree/DraftWorkspaceExecutionControls.tsx
+        symbol: DraftWorkspaceExecutionControls
+      - file: packages/ui/src/worktree/ProjectWorktreeManagementDialog.tsx
+        symbol: ProjectWorktreeManagementDialog
+      - file: packages/ui/src/WorkspaceSidebarItem.tsx
+        symbol: WorkspaceSidebarItem
+      - file: packages/ui/src/worktree/WorktreeBadge.tsx
+        symbol: WorktreeBadge
+      - file: packages/ui/src/worktree/WorktreePreparationCard.tsx
+        symbol: WorktreePreparationCard
+      - file: packages/ui/src/TaskForkMenu.tsx
+        symbol: TaskForkMenu
+      - file: apps/lcode-cli/packages/bootstrap/src/lcode-protocol/v4-bridge-sidebar-fork.ts
+        symbol: createSidebarForkHost
+      - file: packages/ui/src/TaskListItem.tsx
+        symbol: MemoTaskItem
+      - file: packages/ui/src/workspace-grouped-tasks/task-row.tsx
+        symbol: GroupedTaskRow
     invariants:
       - "Original workspace scope owns project association and configuration; the registered execution scope owns filesystem operations."
       - "Preparation is idempotent before session materialization; missing or archived bindings cannot silently resume in the original checkout."
+      - "The single composer execution selector saves the original project's mode. Only frozen admission intent overrides later defaults; choosing a mode does not prepare a worktree."
+      - "Project worktree management is a persistent project-menu entry using that project's Environment services. Sidebar icons derive only from actual session executionBindingId, including memoized and grouped rows."
+      - "Preparation progress and cancellation are durable Host facts. Same-directory forks share their root binding; isolated forks snapshot the current source under its writer permit and atomically persist a new child binding."
   - id: service.worktree-owner
     kind: state-owner
     label: Environment worktree binding and operation owner

@@ -73,15 +73,15 @@ export function createWorktreeGit(port: WorktreeGitPort): WorktreeGit {
         .split("\0")
         .some((line) => line.startsWith("worktree ") && resolve(line.slice(9)) === resolve(path));
     },
-    async snapshot(binding: WorktreeBinding, acknowledgeIgnored) {
+    async snapshot(binding: WorktreeBinding, acknowledgeIgnored, includeIgnored = true) {
       const cwd = binding.checkoutPath;
       await assertIdle(cwd);
       const head = await command(cwd, ["rev-parse", "HEAD"]);
-      const ignoredPaths = (
-        await command(cwd, ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"])
-      )
-        .split("\0")
-        .filter(Boolean);
+      const ignoredPaths = includeIgnored
+        ? (await command(cwd, ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"]))
+            .split("\0")
+            .filter(Boolean)
+        : [];
       if (ignoredPaths.length && !acknowledgeIgnored)
         throw new Error(
           `Archive omits ignored files; explicit acknowledgement required (${ignoredPaths.length})`,

@@ -91,7 +91,9 @@ export function CommitAndMergeControl({
             bindingId: binding.id,
             expectedSourceHead: state.headCommitHash,
             targetBranch,
-            validationCommands: policy.validationCommands,
+            validationCommands: policy.validationCommands.length
+              ? policy.validationCommands
+              : undefined,
             sourceCommits,
           },
         };

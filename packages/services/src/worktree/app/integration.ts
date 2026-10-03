@@ -49,8 +49,19 @@ export function createWorktreeIntegration(
       candidateHead,
       "--",
     ]);
+    const validationCommands =
+      operation.validationSource && operation.validationSource !== "explicit"
+        ? await context.detectValidation(operation.checkoutPath)
+        : operation.validationCommands;
     return save({
       ...operation,
+      validationCommands,
+      validationSource:
+        !operation.validationSource || operation.validationSource === "explicit"
+          ? "explicit"
+          : validationCommands.length
+            ? "detected"
+            : "none",
       status: "awaiting-review",
       candidateHead,
       conflictPaths: [],
@@ -117,6 +128,7 @@ export function createWorktreeIntegration(
           status: params.sourceCommits?.length ? "committing-source" : "preparing",
           conflictPaths: [],
           validationCommands: params.validationCommands ?? [],
+          validationSource: params.validationCommands ? "explicit" : "detected",
           validationResults: [],
           createdAt: now,
           updatedAt: now,
@@ -233,7 +245,11 @@ export function createWorktreeIntegration(
         )
           throw new Error("Integration is not ready for candidate review");
         if (params.validationCommands)
-          operation = { ...operation, validationCommands: params.validationCommands };
+          operation = {
+            ...operation,
+            validationCommands: params.validationCommands,
+            validationSource: "explicit",
+          };
         const conflicts = await git.command(operation.checkoutPath, [
           "diff",
           "--name-only",

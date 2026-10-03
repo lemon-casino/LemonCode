@@ -134,6 +134,27 @@ function sessionInput(id: string): CreateSessionInput {
   };
 }
 
+test("sidebar fork result is durable, child-local and idempotent", async () => {
+  const store = createSqliteSessionStore({ dbPath: ":memory:" });
+  try {
+    await store.createSession(sessionInput("parent"));
+    const bundle = forkBundle();
+    bundle.commandFact.ack.result = {
+      type: "forkSession",
+      sessionId: String(bundle.child.id),
+      workspacePath: bundle.child.path ?? bundle.child.directory,
+    };
+    const child = await store.commitForkBundle(bundle);
+    assert.equal((await store.commitForkBundle(bundle)).id, child.id);
+    const entries = await store.sessionEntries({
+      sessionID: bundle.commandFact.parentSessionId as SessionId,
+    });
+    assert.ok(entries.some((entry) => JSON.stringify(entry.data).includes('"forkSession"')));
+  } finally {
+    store.close();
+  }
+});
+
 function forkBundle(): ForkCommitBundle {
   const sessionID = "child" as SessionId;
   const messageID = "msg-child" as MessageId;

@@ -667,7 +667,6 @@ export function SettingsPage({
   const memoryEnabled = sharedSettings?.memoryEnabled === true;
   const sessionRecallEnabled = sharedSettings?.sessionRecallEnabled === true;
   const nativeSearchEnhancementsEnabled = sharedSettings?.nativeSearchEnhancementsEnabled !== false;
-  const autoGenerateGitCommitMessage = sharedSettings?.autoGenerateGitCommitMessage === true;
   const askUserQuestionAutoResolutionEnabled =
     sharedSettings?.askUserQuestionAutoResolutionEnabled !== false;
   const modelIoFullRetentionEnabled = sharedSettings?.modelIoFullRetentionEnabled === true;
@@ -871,21 +870,6 @@ export function SettingsPage({
         action: "toggle_ask_user_auto_resolution",
         trigger: "switch",
         operation: () => updateSharedSettings({ askUserQuestionAutoResolutionEnabled: enabled }),
-        completed: {
-          resultSource: "shared_settings",
-          stateAfter: enabled ? "enabled" : "disabled",
-        },
-      });
-    },
-    [updateSharedSettings],
-  );
-  const handleAutoGenerateGitCommitMessageChange = useCallback(
-    async (enabled: boolean) => {
-      await runSettingsActionAsync({
-        featureId: "settings.conversation",
-        action: "toggle_auto_generate_commit_message",
-        trigger: "switch",
-        operation: () => updateSharedSettings({ autoGenerateGitCommitMessage: enabled }),
         completed: {
           resultSource: "shared_settings",
           stateAfter: enabled ? "enabled" : "disabled",
@@ -1715,7 +1699,6 @@ export function SettingsPage({
                             toolGroupingTerminalEnabled={toolGroupingTerminalEnabled}
                             toolGroupingChangesEnabled={toolGroupingChangesEnabled}
                             lcodeInteractionBehavior={lcodeInteractionBehavior}
-                            autoGenerateGitCommitMessage={autoGenerateGitCommitMessage}
                             askUserQuestionAutoResolutionEnabled={
                               askUserQuestionAutoResolutionEnabled
                             }
@@ -1763,9 +1746,6 @@ export function SettingsPage({
                               handleToolGroupingChangesEnabledChange
                             }
                             onLCodeInteractionBehaviorChange={handleLCodeInteractionBehaviorChange}
-                            onAutoGenerateGitCommitMessageChange={
-                              handleAutoGenerateGitCommitMessageChange
-                            }
                             onAskUserQuestionAutoResolutionEnabledChange={
                               handleAskUserQuestionAutoResolutionEnabledChange
                             }

@@ -126,9 +126,14 @@ packages/desktop/src/scheduler/schedulerProtocol.js.map
 !/packages/web/test/fixtures/api-key-probe.tsx
 !/packages/web/test/worktree-ui.test.mjs
 !/packages/web/test/worktree-workflow-cases.mjs
+!/packages/web/test/worktree-review-settings-cases.mjs
+!/packages/web/test/worktree-fork-preparation-cases.mjs
+!/packages/web/test/fixtures/worktree-fork-preparation.tsx
 !/packages/web/test/fixtures/worktree-ui.html
 !/packages/web/test/fixtures/worktree-ui.tsx
 !/packages/web/test/fixtures/worktree-ui-scenarios.tsx
+!/packages/web/test/fixtures/worktree-sidebar-rows.tsx
+!/packages/web/test/fixtures/worktree-ui-page.tsx
 
 # 模型成员生命周期回归需随功能提交，不受用户全局 test/ 规则影响。
 !/packages/provider/test/

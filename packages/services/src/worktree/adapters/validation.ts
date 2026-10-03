@@ -1,9 +1,10 @@
 import { spawn } from "node:child_process";
 
-/** Commands come from the explicitly confirmed integration request. */
+/** Commands come from the Host preparation plan or the approved integration candidate. */
 export function runWorktreeValidation(
   checkoutPath: string,
   command: string,
+  onOutput?: (output: string) => Promise<void>,
 ): Promise<{ exitCode: number; output: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, {
@@ -14,9 +15,31 @@ export function runWorktreeValidation(
     });
     let output = "";
     let timedOut = false;
-    const append = (chunk: Buffer) => {
-      output = `${output}${chunk.toString("utf8")}`.slice(-64 * 1024);
+    let progress: Promise<void> | undefined;
+    let pendingOutput = "";
+    let progressError: unknown;
+    const append = (chunk: string) => {
+      output = `${output}${chunk}`.slice(-64 * 1024);
+      if (!onOutput || progressError) return;
+      // 大量输出只保留有界待写缓冲，不为每个 chunk 创建无限 Promise 队列。
+      pendingOutput = `${pendingOutput}${chunk}`.slice(-64 * 1024);
+      if (!progress)
+        progress = (async () => {
+          while (pendingOutput) {
+            const buffered = pendingOutput;
+            pendingOutput = "";
+            await onOutput(buffered);
+          }
+        })()
+          .catch((error) => {
+            progressError = error;
+          })
+          .finally(() => {
+            progress = undefined;
+          });
     };
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
     child.stdout.on("data", append);
     child.stderr.on("data", append);
     const timeout = setTimeout(() => {
@@ -33,8 +56,13 @@ export function runWorktreeValidation(
       clearTimeout(timeout);
       reject(error);
     });
-    child.once("close", (code) => {
+    child.once("close", async (code) => {
       clearTimeout(timeout);
+      await progress;
+      if (progressError) {
+        reject(progressError);
+        return;
+      }
       resolve({ exitCode: timedOut ? 124 : (code ?? 1), output });
     });
   });

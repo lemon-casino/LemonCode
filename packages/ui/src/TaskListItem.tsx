@@ -24,6 +24,8 @@ import {
 } from "@/lib/taskListItemPresentation.js";
 import { getTaskListAttention, getTaskListRowActivity } from "@/v4/taskListRowActivity.js";
 import { TaskListItemContextMenu } from "@/TaskListItemContextMenu.js";
+import { TaskForkMenu } from "@/TaskForkMenu.js";
+import type { TaskForkNavigation } from "@/hooks/useTaskFork.js";
 import { TaskInteractionBadge } from "@/TaskInteractionBadge.js";
 import { useTaskListItemContextActions } from "@/useTaskListItemContextActions.js";
 import { useFeedbackStore } from "@/feedback/feedbackStore.js";
@@ -101,6 +103,8 @@ function areTaskListItemTaskFieldsEqual(left: LCodeTaskMeta, right: LCodeTaskMet
     left.taskId === right.taskId &&
     left.workspacePath === right.workspacePath &&
     left.workspaceIdentity === right.workspaceIdentity &&
+    // 工作树首次准备的绑定可能单独到达；漏比较该字段会让侧栏图标一直停留在原本地状态。
+    left.executionBindingId === right.executionBindingId &&
     left.provider === right.provider &&
     left.title === right.title &&
     left.forkedFromTaskId === right.forkedFromTaskId &&
@@ -665,6 +669,7 @@ export const MemoTaskItem = memo(function TaskListItem({
                 </span>
               </ControlHintTooltip>
             ) : null}
+            <WorktreeBadge bindingId={task.executionBindingId} />
             <TaskTitleOverflowText
               className="text-ui-base text-foreground"
               title={taskTitleWithChanges}
@@ -673,7 +678,6 @@ export const MemoTaskItem = memo(function TaskListItem({
                       grouped task 已改为右侧渐隐。这里统一 task 列表标题溢出策略，避免同一侧栏里出现两种截断语义。 */}
               {taskTitle}
             </TaskTitleOverflowText>
-            <WorktreeBadge bindingId={task.executionBindingId} />
             {task.pendingInteraction ? (
               <TaskInteractionBadge
                 interaction={task.pendingInteraction}
@@ -758,6 +762,7 @@ export const MemoTaskItem = memo(function TaskListItem({
                   </span>
                 </ControlHintTooltip>
               ) : null}
+              <WorktreeBadge bindingId={task.executionBindingId} />
               <TaskTitleOverflowText
                 className="text-ui-base text-foreground"
                 title={taskTitleWithChanges}
@@ -766,7 +771,6 @@ export const MemoTaskItem = memo(function TaskListItem({
                         使用 mask 渐隐而不是省略号，和 grouped task row 保持一致。 */}
                 {taskTitle}
               </TaskTitleOverflowText>
-              <WorktreeBadge bindingId={task.executionBindingId} />
               {changeSummaryNode ? (
                 <span
                   className={cn(
@@ -843,6 +847,7 @@ export function TaskListItemContextMenuContent({
   onMarkTaskAsUnread,
   disableTaskActions = false,
   disabledReason,
+  onForkCreated,
 }: {
   workspacePath: string;
   remoteSessionId?: string;
@@ -855,6 +860,7 @@ export function TaskListItemContextMenuContent({
   onMarkTaskAsUnread: (taskId: string) => void;
   disableTaskActions?: boolean;
   disabledReason?: string;
+  onForkCreated?: TaskForkNavigation;
 }) {
   const workspaceActionsDisabled = useOptionalTabStore(
     (state) =>
@@ -940,6 +946,16 @@ export function TaskListItemContextMenuContent({
 
   return (
     <TaskListItemContextMenu
+      forkMenu={
+        onForkCreated ? (
+          <TaskForkMenu
+            task={task}
+            remoteSessionId={remoteSessionId}
+            onCreated={onForkCreated}
+            disabled={workspaceActionsDisabled}
+          />
+        ) : null
+      }
       intl={intl}
       isPinned={isPinned}
       fileManagerLabel={fileManagerLabel}

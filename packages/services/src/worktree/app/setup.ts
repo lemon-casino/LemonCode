@@ -1,5 +1,6 @@
 import type { WorktreeBinding } from "../contract.js";
 import type { WorktreeContext } from "./ports.js";
+import { assertPreparationActive, preparationProgress } from "./preparation.js";
 
 export async function prepareWorktreeEnvironment(
   context: WorktreeContext,
@@ -10,6 +11,7 @@ export async function prepareWorktreeEnvironment(
   if (["running", "failed"].includes(binding.setup.status) && !retry)
     throw new Error("Worktree setup needs explicit retry after failure or interrupted execution");
   let value = binding;
+  await assertPreparationActive(context, value);
   let setup = { ...binding.setup, status: "pending" as const };
   if (!setup.copied) {
     try {
@@ -33,6 +35,7 @@ export async function prepareWorktreeEnvironment(
     await context.store.saveBinding(value);
   }
   for (let index = setup.nextCommand; index < setup.commands.length; index += 1) {
+    await assertPreparationActive(context, value);
     const command = setup.commands[index]!;
     value = {
       ...value,
@@ -40,13 +43,25 @@ export async function prepareWorktreeEnvironment(
       updatedAt: new Date().toISOString(),
     };
     await context.store.saveBinding(value);
+    value = await preparationProgress(context, value, "environment", `$ ${command}\n`);
     let result;
+    let streamed = false;
     try {
-      result = await context.runSetup(value.checkoutPath, command);
+      result = await context.runSetup(value.checkoutPath, command, async (output) => {
+        streamed = true;
+        value = await preparationProgress(context, value, "environment", output);
+      });
     } catch (error) {
       result = { exitCode: 1, output: error instanceof Error ? error.message : String(error) };
     }
     const results = [...setup.results, { command, ...result }];
+    value = await preparationProgress(
+      context,
+      value,
+      "environment",
+      `${streamed ? "" : result.output.slice(-65536)}\nExit code: ${result.exitCode}\n`,
+    );
+    await assertPreparationActive(context, value);
     if (result.exitCode !== 0) {
       await context.store.saveBinding({
         ...value,
@@ -61,5 +76,12 @@ export async function prepareWorktreeEnvironment(
     value = { ...value, setup, updatedAt: new Date().toISOString() };
     await context.store.saveBinding(value);
   }
+  if (!setup.commands.length)
+    value = await preparationProgress(
+      context,
+      value,
+      "environment",
+      "No dependency setup selected; project preparation remains part of the task.\n",
+    );
   return { ...value, setup: { ...setup, status: "completed" as const } };
 }

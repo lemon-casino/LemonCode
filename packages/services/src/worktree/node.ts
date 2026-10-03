@@ -8,6 +8,7 @@ import { createCheckoutCoordinator } from "./adapters/coordinator.js";
 import { runWorktreeValidation } from "./adapters/validation.js";
 import { createSetupFileCopier } from "./adapters/setupFiles.js";
 import { validateWorktreeRequests } from "./app/validatedService.js";
+import { detectWorktreeSetup, detectWorktreeValidation } from "./adapters/environment.js";
 
 export { createCheckoutCoordinator, CheckoutBusyError } from "./adapters/coordinator.js";
 export function createWorktreeService(options: WorktreeServiceOptions): IWorktreeService {
@@ -22,6 +23,8 @@ export function createWorktreeService(options: WorktreeServiceOptions): IWorktre
         fault: options.fault ?? (async () => {}),
         commitSource: options.commitSource,
         runSetup: options.validate ?? runWorktreeValidation,
+        detectSetup: detectWorktreeSetup,
+        detectValidation: detectWorktreeValidation,
         copyIgnoredFiles: createSetupFileCopier(git),
       },
       {

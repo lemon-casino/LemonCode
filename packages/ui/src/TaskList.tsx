@@ -450,6 +450,10 @@ export const TaskList = memo(function TaskList({
               </ContextMenuTrigger>
               {contextMenuTask ? (
                 <TaskListItemContextMenuContent
+                  onForkCreated={(_path, taskId) => {
+                    setContextMenuTaskId(null);
+                    onSelectTask(taskId);
+                  }}
                   workspacePath={workspacePath}
                   remoteSessionId={remoteSessionId}
                   task={contextMenuTask}

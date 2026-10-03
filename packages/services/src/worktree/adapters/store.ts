@@ -74,6 +74,30 @@ export function createWorktreeStore(dataDir: string): WorktreeStore {
     async saveBinding(binding: WorktreeBinding) {
       await write("bindings", binding.id, bindingRecord.parse(binding));
     },
+    async readPreparationRequest(scope, requestId) {
+      const id = createHash("sha256")
+        .update(JSON.stringify([scope, requestId]))
+        .digest("hex")
+        .slice(0, 32);
+      const value = await read("requests", id);
+      if (value === null) return null;
+      if (typeof value !== "string" || !/^[a-f0-9]{32}$/.test(value))
+        throw new Error("Invalid preparation request record");
+      return value;
+    },
+    async savePreparationRequest(scope, requestId, bindingId) {
+      const id = createHash("sha256")
+        .update(JSON.stringify([scope, requestId]))
+        .digest("hex")
+        .slice(0, 32);
+      await write("requests", id, bindingId);
+    },
+    async isPreparationCancelled(id) {
+      return (await read("cancellations", id)) === true;
+    },
+    async cancelPreparation(id) {
+      await write("cancellations", id, true);
+    },
     async listBindings() {
       let files: string[];
       try {

@@ -7,9 +7,11 @@ import { useReviewWorkspaceState } from "@/hooks/useReviewWorkspaceState.js";
 import { useWorktreeReviewStage } from "@/hooks/useWorktreeReviewStage.js";
 import { ReviewWorkspaceSyncStatus } from "@/git-action-menu/ReviewWorkspaceSyncStatus.js";
 import { WorktreeValidationResults } from "./WorktreeValidationResults.js";
+import { WorktreeReadStatus } from "./WorktreeReadStatus.js";
+import { LiveWorktreePreparationCard } from "./WorktreePreparationCard.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
-import { Checkbox } from "@/components/ui/checkbox.js";
+import { WorktreeCandidateApproval } from "./WorktreeCandidateApproval.js";
 import { WorktreeReviewDialog } from "./WorktreeReviewDialog.js";
 import { WorktreeArchiveControl } from "./WorktreeArchiveControl.js";
 import { WorktreePreparation } from "./WorktreePreparation.js";
@@ -58,7 +60,6 @@ export function WorktreeTaskActions({
   const { binding, operation, pending, worktreeService } = task;
   const [open, setOpen] = useState(defaultOpen);
   const commands = sharedReview.data.validationCommands;
-  const setCommands = (value: string) => sharedReview.patch({ validationCommands: value });
   const [approvedHead, setApprovedHead] = useState<string | null>(null);
   const [skipValidation, setSkipValidation] = useState(false);
   const [acknowledgeIgnoredFiles, setAcknowledgeIgnoredFiles] = useState(false);
@@ -76,12 +77,12 @@ export function WorktreeTaskActions({
     onHideReview ?? (() => setOpen(false)),
     onShowReview ?? (() => setOpen(true)),
   );
-  if (!binding || !worktreeService)
-    return task.error ? (
-      <p role="alert" className="text-ui-sm text-destructive">
-        {task.error}
-      </p>
-    ) : null;
+  if (!binding || !worktreeService) {
+    const { error, loading } = task;
+    const status = <WorktreeReadStatus error={error} loading={Boolean(renderContent) && loading} />;
+    // 嵌入项目管理窗口时，首次读取绑定尚未完成也保留外壳与返回入口，避免选择条目后窗口短暂消失。
+    return renderContent ? renderContent(status) : status;
+  }
   const locked = busy || pending || readOnly || sharedReview.status !== "ready";
   const text = (key: string) => intl.formatMessage({ id: `worktree.${key}` });
   const activeIntegration = Boolean(
@@ -113,11 +114,14 @@ export function WorktreeTaskActions({
         bindingId: binding.id,
         expectedSourceHead: capability.head,
         targetBranch,
-        validationCommands,
+        validationCommands: validationCommands.length ? validationCommands : undefined,
       });
     });
   const content = (
     <div className="min-w-0 space-y-3">
+      {renderContent && binding.preparation ? (
+        <LiveWorktreePreparationCard binding={binding} onSettled={task.refresh} />
+      ) : null}
       <ReviewWorkspaceSyncStatus
         status={sharedReview.status}
         onRetry={() => void sharedReview.retry()}
@@ -137,10 +141,6 @@ export function WorktreeTaskActions({
           commands={commands ?? policy.validationCommands.join("\n")}
           locked={locked}
           activeIntegration={activeIntegration}
-          commandsLocked={Boolean(
-            operation && !["published", "cancelled", "failed"].includes(operation.status),
-          )}
-          onCommands={setCommands}
           onTarget={(branch) => {
             sharedReview.patch({ targetBranch: branch });
             setApprovedHead(null);
@@ -216,81 +216,35 @@ export function WorktreeTaskActions({
               {text("reviewDiff")}
             </Button>
           ) : null}
-          <WorktreeValidationResults results={operation.validationResults} />
-          {operation.candidateHead &&
-          ["awaiting-review", "ready", "validation-failed", "publishing"].includes(
-            operation.status,
-          ) ? (
-            <>
-              <label className="flex items-start gap-2 text-ui-sm">
-                <Checkbox
-                  data-testid="worktree-approve-candidate"
-                  disabled={locked}
-                  checked={approvedHead === operation.candidateHead}
-                  onCheckedChange={(checked) =>
-                    setApprovedHead(checked === true ? operation.candidateHead! : null)
-                  }
-                />
-                <span>{text("approveCandidate")}</span>
-              </label>
-              {!operation.validationCommands.length ? (
-                <label className="flex items-start gap-2 text-ui-sm">
-                  <Checkbox
-                    disabled={locked}
-                    checked={skipValidation}
-                    onCheckedChange={(checked) => setSkipValidation(checked === true)}
-                  />
-                  <span>{text("noValidation")}</span>
-                </label>
-              ) : null}
-              {operation.status === "awaiting-review" ||
-              operation.status === "validation-failed" ? (
-                <Button
-                  type="button"
-                  data-testid="worktree-validate"
-                  disabled={
-                    locked ||
-                    approvedHead !== operation.candidateHead ||
-                    (!operation.validationCommands.length && !skipValidation)
-                  }
-                  onClick={() =>
-                    void task.perform(() =>
-                      worktreeService.continueIntegration({
-                        operationId: operation.id,
-                        approvedCandidateHead: operation.candidateHead,
-                      }),
-                    )
-                  }
-                >
-                  {text("validate")}
-                </Button>
-              ) : (
-                <Button
-                  type="button"
-                  data-testid="worktree-publish"
-                  disabled={locked || !canPublish}
-                  onClick={() =>
-                    void task.perform(() =>
-                      worktreeService.publishIntegration({
-                        operationId: operation.id,
-                        approvedCandidateHead: operation.candidateHead!,
-                      }),
-                    )
-                  }
-                >
-                  {intl.formatMessage(
-                    {
-                      id:
-                        operation.status === "publishing"
-                          ? "worktree.retryPublish"
-                          : "worktree.publish",
-                    },
-                    { branch: operation.targetBranch },
-                  )}
-                </Button>
-              )}
-            </>
-          ) : null}
+          <WorktreeValidationResults
+            results={operation.validationResults}
+            commands={operation.validationCommands}
+          />
+          <WorktreeCandidateApproval
+            operation={operation}
+            locked={locked}
+            approvedHead={approvedHead}
+            skipValidation={skipValidation}
+            canPublish={Boolean(canPublish)}
+            onApprove={setApprovedHead}
+            onSkip={setSkipValidation}
+            onValidate={() =>
+              void task.perform(() =>
+                worktreeService.continueIntegration({
+                  operationId: operation.id,
+                  approvedCandidateHead: operation.candidateHead,
+                }),
+              )
+            }
+            onPublish={() =>
+              void task.perform(() =>
+                worktreeService.publishIntegration({
+                  operationId: operation.id,
+                  approvedCandidateHead: operation.candidateHead!,
+                }),
+              )
+            }
+          />
           {operation.error ? (
             <p role="alert" className="break-words text-ui-sm text-destructive">
               {operation.error}

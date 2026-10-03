@@ -7,6 +7,8 @@ import { stripVTControlCharacters } from "node:util";
 import test from "node:test";
 import { chromium } from "playwright-core";
 import { runWorktreeWorkflowCases } from "./worktree-workflow-cases.mjs";
+import { runWorktreeReviewSettingsCases } from "./worktree-review-settings-cases.mjs";
+import { runForkPreparationCases } from "./worktree-fork-preparation-cases.mjs";
 
 // 使用真实共享组件和真实 hook，只有 Host 边界替换为确定性服务桩。
 test("工作树选择、策略、生命周期与实际文件目录交互", { timeout: 240_000 }, async (t) => {
@@ -77,8 +79,21 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
   });
   const page = await browser.newPage({ viewport: { width: 1280, height: 900 } });
   const errors = [];
-  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("pageerror", (error) => {
+    errors.push(error.message);
+    t.diagnostic(error.stack ?? error.message);
+  });
   const url = `http://127.0.0.1:${port}/test/fixtures/worktree-ui.html`;
+  if (process.env.LCODE_WORKTREE_TEST_CASES === "preparation-fork") {
+    await runForkPreparationCases({
+      t,
+      page,
+      url,
+      calls: () => page.evaluate(() => globalThis.__worktreeFixture.calls),
+    });
+    assert.deepEqual(errors, []);
+    return;
+  }
   const fixture = (method, ...args) =>
     page.evaluate(({ method, args }) => globalThis.__worktreeFixture[method](...args), {
       method,
@@ -87,19 +102,31 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
   const configure = (values) =>
     page.evaluate((values) => Object.assign(globalThis.__worktreeFixture, values), values);
   const calls = () => page.evaluate(() => globalThis.__worktreeFixture.calls);
+  const openProjectWorktrees = async () => {
+    await page.getByTestId("project-menu-trigger").click();
+    await page.getByRole("menuitem", { name: "项目工作树", exact: true }).click();
+  };
   const select = async (testId, name) => {
     await page.getByTestId(testId).click();
     await page.getByRole("option", { name, exact: true }).click();
+    await page.waitForFunction(
+      (id) => !document.querySelector(`[data-testid="${id}"]`).disabled,
+      testId,
+    );
   };
   const load = async (suffix = "") => {
     await page.goto(url + suffix);
+    if (suffix.includes("sidebar")) {
+      await page.getByTestId("sidebar-rows").waitFor();
+      return;
+    }
     await page.getByTestId("draft-execution-mode").waitFor();
     await page.waitForFunction(
       () => !document.querySelector('[data-testid="draft-execution-mode"]').disabled,
     );
   };
 
-  await t.test("模式和基线只保存意图，不创建树、不切分支；读取失败可重试", async () => {
+  await t.test("模式保存项目值、基线保存草稿，不创建树、不切分支；读取失败可重试", async () => {
     await load();
     assert.match(await page.getByTestId("draft-execution-mode").innerText(), /本地/);
     await select("draft-execution-mode", "独立工作树");
@@ -131,74 +158,73 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
     assert.equal((await fixture("draft")).retryRevision, 1);
     assert.equal((await fixture("draft")).baseRef, "feature");
   });
-  await t.test("全局默认与项目覆盖独立；高级配置保存失败保留内容且仅发送字段补丁", async () => {
-    await load();
-    await select("global-execution-mode", "独立工作树");
-    await page.getByTestId("worktree-base-trigger").waitFor();
-    await select("project-policy-executionMode", "本地目录");
-    await page.getByTestId("worktree-base-trigger").waitFor({ state: "hidden" });
-    await select("project-policy-autoGenerateGitCommitMessage", "开启");
-    await select("project-policy-autoOpenGitCommitReview", "关闭");
-    await page.getByText("工作树准备与验证", { exact: true }).click();
-    await page.getByTestId("project-policy-setupCommands").fill("pnpm install\npnpm build");
-    await page.getByTestId("project-policy-copyIgnoredPaths").fill("cache/data");
-    await page.getByTestId("project-policy-validationCommands").fill("pnpm test");
-    await configure({ failSave: true });
-    await page.getByRole("button", { name: "保存工作树配置", exact: true }).click();
-    await page.getByText("fixture-save-failed").waitFor();
-    assert.equal(
-      await page.getByTestId("project-policy-setupCommands").inputValue(),
-      "pnpm install\npnpm build",
-    );
-    await configure({ failSave: false });
-    await page.getByRole("button", { name: "保存工作树配置", exact: true }).click();
-    await page.waitForFunction(
-      () =>
-        globalThis.__worktreeFixture.settings().projectExecutionPreferences["/fixture/repo"]
-          ?.setupCommands?.length === 2,
-    );
-    const settings = await fixture("settings");
-    assert.match(
-      await page.getByTestId("project-policy-effective-executionMode").innerText(),
-      /本地目录/,
-    );
-    assert.match(
-      await page.getByTestId("project-policy-effective-autoGenerateGitCommitMessage").innerText(),
-      /开启/,
-    );
-    assert.match(
-      await page.getByTestId("project-policy-effective-autoOpenGitCommitReview").innerText(),
-      /关闭/,
-    );
-    assert.match(
-      await page.getByTestId("project-execution-policy").innerText(),
-      /任务完成后生成提交草稿/,
-    );
-    assert.equal(settings.projectExecutionPreferences.other.executionMode, "worktree");
-    assert.deepEqual(settings.projectExecutionPreferences["/fixture/repo"], {
-      executionMode: "local",
-      autoGenerateGitCommitMessage: "enabled",
-      autoOpenGitCommitReview: "disabled",
-      setupCommands: ["pnpm install", "pnpm build"],
-      copyIgnoredPaths: ["cache/data"],
-      validationCommands: ["pnpm test"],
-    });
-    const last = (await calls()).filter((call) => call.method === "settings.update").at(-1).params;
-    assert.deepEqual(Object.keys(last.projectExecutionPreferences), ["/fixture/repo"]);
-    assert.deepEqual(Object.keys(last.projectExecutionPreferences["/fixture/repo"]).sort(), [
-      "copyIgnoredPaths",
-      "setupCommands",
-      "validationCommands",
-    ]);
-  });
+  await t.test(
+    "全局默认与项目覆盖独立；移除技术表单但保留旧配置，设置失败可重试且仅发字段补丁",
+    async () => {
+      await load("?legacySetup");
+      await select("global-execution-mode", "独立工作树");
+      await page.getByTestId("worktree-base-trigger").waitFor();
+      await select("draft-execution-mode", "本地目录");
+      await page.getByTestId("worktree-base-trigger").waitFor({ state: "hidden" });
+      await select("project-policy-gitCommitReviewMode", "仅生成草稿");
+      assert.equal(await page.getByText("工作树准备与验证", { exact: true }).count(), 0);
+      assert.equal(await page.getByTestId("project-policy-setupCommands").count(), 0);
+      assert.equal(await page.getByTestId("project-policy-copyIgnoredPaths").count(), 0);
+      assert.equal(await page.getByTestId("project-policy-validationCommands").count(), 0);
+      await configure({ failSave: true });
+      await select("project-policy-gitCommitReviewMode", "生成并打开审核");
+      await page.getByText("fixture-save-failed").waitFor();
+      assert.match(
+        await page.getByTestId("project-policy-gitCommitReviewMode").innerText(),
+        /仅生成草稿/,
+      );
+      await configure({ failSave: false });
+      await select("project-policy-gitCommitReviewMode", "生成并打开审核");
+      const settings = await fixture("settings");
+      assert.match(await page.getByTestId("draft-execution-mode").innerText(), /本地目录/);
+      assert.match(
+        await page.getByTestId("project-policy-effective-gitCommitReviewMode").innerText(),
+        /生成并打开审核/,
+      );
+      assert.match(
+        await page.getByTestId("project-execution-policy").innerText(),
+        /任务完成后的提交审核/,
+      );
+      assert.equal(settings.projectExecutionPreferences.other.executionMode, "worktree");
+      assert.deepEqual(settings.projectExecutionPreferences["/fixture/repo"], {
+        executionMode: "local",
+        gitCommitReviewMode: "draft-and-review",
+        setupCommands: ["pnpm install", "pnpm build"],
+        copyIgnoredPaths: ["cache/data"],
+        validationCommands: ["pnpm test"],
+      });
+      const last = (await calls())
+        .filter((call) => call.method === "settings.update")
+        .at(-1).params;
+      assert.deepEqual(Object.keys(last.projectExecutionPreferences), ["/fixture/repo"]);
+      assert.deepEqual(Object.keys(last.projectExecutionPreferences["/fixture/repo"]).sort(), [
+        "gitCommitReviewMode",
+      ]);
+    },
+  );
+  await runWorktreeReviewSettingsCases({ t, page, load, select, fixture, configure, calls });
   await t.test("准备后放弃草稿仍有管理入口；归档明确确认忽略文件并可恢复", async () => {
     await load();
-    await page.getByText("项目工作树", { exact: true }).click();
+    await fixture("hideDraft");
+    assert.equal(await page.getByTestId("draft-composer-header").count(), 0);
+    await openProjectWorktrees();
     await page
       .getByTestId("project-worktree-list")
       .getByRole("button", { name: "工作树与合并管理", exact: true })
       .click();
-    const dialog = page.getByTestId("worktree-task-dialog");
+    const dialog = page.getByTestId("project-worktree-management-dialog");
+    assert.equal(await page.getByRole("dialog").count(), 1);
+    await dialog.getByRole("button", { name: "返回项目工作树", exact: true }).click();
+    await page
+      .getByTestId("project-worktree-list")
+      .getByRole("button", { name: "工作树与合并管理", exact: true })
+      .click();
+    assert.equal(await page.getByRole("dialog").count(), 1);
     await dialog.waitFor();
     await dialog.getByRole("button", { name: "保存快照并归档", exact: true }).click();
     await dialog.getByText("Ignored files require explicit acknowledgement").waitFor();
@@ -257,14 +283,14 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
     await page.setViewportSize({ width: 390, height: 844 });
     await load("?english");
     await select("draft-execution-mode", "Worktree");
-    await page.getByText("Worktree setup and validation", { exact: true }).click();
+    assert.equal(await page.getByText("Worktree setup and validation", { exact: true }).count(), 0);
     assert.match(
       await page.getByTestId("project-execution-policy").innerText(),
-      /Generate a commit draft when a task finishes/,
+      /Commit review after task completion/,
     );
     assert.equal(
-      await page.getByTestId("global-auto-open-review").getAttribute("aria-label"),
-      "Open review automatically when a commit draft is ready",
+      await page.getByTestId("settings-git-commit-review-mode-select").getAttribute("aria-label"),
+      "Commit review after task completion",
     );
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -277,12 +303,12 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
     async () => {
       await page.setViewportSize({ width: 1280, height: 900 });
       await load();
-      await page.getByText("项目工作树", { exact: true }).click();
+      await openProjectWorktrees();
       await page
         .getByTestId("project-worktree-list")
         .getByRole("button", { name: "工作树与合并管理", exact: true })
         .click();
-      const dialog = page.getByTestId("worktree-task-dialog");
+      const dialog = page.getByTestId("project-worktree-management-dialog");
       await dialog.getByTestId("worktree-integrate").click();
       const validate = dialog.getByTestId("worktree-validate");
       await validate.waitFor();
@@ -332,9 +358,9 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
       assert.equal((await calls()).filter((call) => call.method === "push").length, 0);
       await publish.getByTestId("git-publish-confirm").click();
       await publish.getByText("fixture-remote-offline").waitFor();
-      await page.getByTestId("git-review-dismiss").click();
+      await page.getByTestId("project-worktrees-close").click();
       await dialog.waitFor({ state: "hidden" });
-      await page.getByRole("button", { name: "工作树与合并管理", exact: true }).click();
+      await openProjectWorktrees();
       await publish.getByText("fixture-remote-offline").waitFor();
       await publish.getByTestId("git-publish-results-back").click();
       assert.equal(await publish.getByTestId("git-publish-confirm").count(), 0);
@@ -368,5 +394,6 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
     },
   );
   await runWorktreeWorkflowCases({ t, page, url, calls, configure, select });
+  await runForkPreparationCases({ t, page, url, calls });
   assert.deepEqual(errors, []);
 });

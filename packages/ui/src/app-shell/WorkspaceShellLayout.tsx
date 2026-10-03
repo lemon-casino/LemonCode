@@ -1800,6 +1800,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                         className="border-b"
                       >
                         <WorkspaceHeader
+                          onForkCreated={(path, id, identity) =>
+                            handleSelectTaskInChat(path, id, identity)
+                          }
                           reserveWindowControls={!isSidePaneVisible}
                           variant={activeTaskId === null ? "draft" : "task"}
                           draftDropTargetController={

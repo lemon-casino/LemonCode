@@ -10,9 +10,10 @@ export function WorktreeBadge({ bindingId }: { bindingId?: string }) {
       className="shrink-0 text-foreground-subtle"
       title={label}
       aria-label={label}
+      role="img"
       data-testid="task-worktree-badge"
     >
-      <FolderGit2Icon className="size-3.5" />
+      <FolderGit2Icon className="size-3.5" aria-hidden="true" />
     </span>
   );
 }

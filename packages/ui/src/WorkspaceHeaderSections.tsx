@@ -18,6 +18,7 @@ import { useGlobalTaskList } from "@/hooks/useGlobalTaskList.js";
 import { useBaseWorkspaceServices, useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { useTaskListItemContextActions } from "@/useTaskListItemContextActions.js";
 import { TaskActionMenuContent } from "@/TaskActionMenuContent.js";
+import { TaskForkMenu } from "@/TaskForkMenu.js";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -71,6 +72,7 @@ function shouldShowRemoteSkillSyncAction(params: {
 }
 
 export function WorkspaceHeaderTitleSection({
+  onForkCreated,
   variant,
   readOnlyReason,
   workspaceAbsPath,
@@ -505,6 +507,18 @@ export function WorkspaceHeaderTitleSection({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-48">
+              {activeTaskMeta && onForkCreated ? (
+                <TaskForkMenu
+                  dropdown
+                  task={activeTaskMeta}
+                  remoteSessionId={remoteSessionId}
+                  onCreated={(path, taskId, identity) => {
+                    setTaskMenuOpen(false);
+                    onForkCreated(path, taskId, identity);
+                  }}
+                  disabled={Boolean(readOnlyReason) || disableTaskTargetActions}
+                />
+              ) : null}
               {showRemoteSkillSyncAction && remoteTarget ? (
                 <>
                   <RemoteSyncMenuItems

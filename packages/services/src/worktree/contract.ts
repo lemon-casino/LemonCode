@@ -28,6 +28,8 @@ export interface WorktreePrepareRequest extends WorktreeScope {
   setupCommands?: string[];
   copyIgnoredPaths?: string[];
   retrySetup?: boolean;
+  cancel?: boolean;
+  forkSource?: WorktreeScope;
   parentBinding?: { bindingId: string; bindingOwnerTaskId: string; parentTaskId: string };
 }
 export interface WorktreeIntegration {
@@ -66,6 +68,7 @@ export interface WorktreeIntegration {
   conflictPaths: string[];
   diff?: string;
   validationCommands: string[];
+  validationSource?: "explicit" | "detected" | "none";
   validationResults: { command: string; exitCode: number; output: string }[];
   createdAt: string;
   updatedAt: string;
@@ -89,7 +92,9 @@ export interface IWorktreeService {
     params: WorktreeScope & { sourceFolderPaths?: string[] },
   ): Promise<WorktreeCapabilities>;
   prepare(params: WorktreePrepareRequest): Promise<WorktreeBinding>;
-  getBinding(params: WorktreeScope & { taskId: string }): Promise<WorktreeBinding | null>;
+  getBinding(
+    params: WorktreeScope & { taskId?: string; requestId?: string },
+  ): Promise<WorktreeBinding | null>;
   list(params: WorktreeScope): Promise<WorktreeBinding[]>;
   integrate(params: WorktreeIntegrateRequest): Promise<WorktreeIntegration>;
   continueIntegration(params: {

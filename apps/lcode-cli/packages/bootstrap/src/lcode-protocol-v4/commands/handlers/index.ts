@@ -13,8 +13,10 @@ import { selectionSideSessionHandlers } from "./selection-side-session.js";
 import { assistantFeedbackHandlers } from "./assistant-feedback.js";
 import { executionFailoverHandlers } from "./execution-failover.js";
 import { worktreeRepairHandlers } from "./worktree-repair.js";
+import { sidebarForkHandlers } from "./sidebar-fork.js";
 
 export const NATIVE_HANDLERS = {
+  ...sidebarForkHandlers,
   ...worktreeRepairHandlers,
   ...sessionFlowHandlers,
   ...queueHandlers,

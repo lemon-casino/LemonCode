@@ -25,6 +25,8 @@ import {
   resolveInputCommandForAdmission,
   buildForkInitialInput,
 } from "./v4-bridge-admission-input.js";
+import { createSidebarForkHost } from "./v4-bridge-sidebar-fork.js";
+import { prepareForkWorktree } from "./worktree-fork-execution.js";
 
 export function createV4ForkHost(
   context: LCodeProtocolAgentServerContext,
@@ -34,8 +36,15 @@ export function createV4ForkHost(
   | "forkStableConversation"
   | "forkConversationBeforeInput"
   | "recordForkStartFailure"
+  | "forkSession"
 > {
-  return {
+  const host: Pick<
+    V4CommandCoreHost,
+    | "createSelectionSideSession"
+    | "forkStableConversation"
+    | "forkConversationBeforeInput"
+    | "recordForkStartFailure"
+  > = {
     createSelectionSideSession: async (sessionId, options) => {
       const record = context.sessions.get(sessionId);
       if (!record) throw new Error("proto.sessionNotFound");
@@ -90,7 +99,23 @@ export function createV4ForkHost(
           : undefined,
         cloneModelSelection(record.app.runtime.getSessionModelSelection()),
       );
+      const prepared =
+        options.workspaceMode === "worktree"
+          ? await prepareForkWorktree(context, record, sourceCommandId)
+          : undefined;
       const fork = await record.app.runtime.forkStableConversationAtMessage({
+        ...(prepared
+          ? {
+              forkedSessionId: prepared.taskId as SessionId,
+              forkWorkspace: {
+                directory: prepared.workspace.workspacePath,
+                path: prepared.workspace.workspacePath,
+                workspaceID: prepared.workspace.workspaceIdentity,
+                binding: prepared.workspace,
+              },
+            }
+          : {}),
+        commandResultType: options.commandResultType,
         modelSelection,
         target,
         goalBoundary,
@@ -99,6 +124,7 @@ export function createV4ForkHost(
         traceContext: record.traceContext,
       });
       await registerCommittedForkBestEffort(context, record, fork, {
+        ...(prepared ? { mcpServers: prepared.mcpServers } : {}),
         commandId: sourceCommandId,
         runtimeConfig: {
           mode: stableForkMode(boundary.info.mode, record.app.getMode()),
@@ -110,7 +136,15 @@ export function createV4ForkHost(
         // core 已按 copied message/verifier 边界复制 goal；禁止再用 parent 当前 target 覆盖。
         inheritLatestTarget: false,
       });
-      return { forkedSessionId: String(fork.forkedSessionId) };
+      return {
+        forkedSessionId: String(fork.forkedSessionId),
+        ...(prepared
+          ? {
+              workspacePath: prepared.workspace.workspacePath,
+              workspaceIdentity: prepared.workspace.workspaceIdentity,
+            }
+          : {}),
+      };
     },
 
     forkConversationBeforeInput: async (sessionId, { editTarget, envelope, admission }) => {
@@ -254,4 +288,5 @@ export function createV4ForkHost(
       });
     },
   };
+  return { ...host, ...createSidebarForkHost(context, host.forkStableConversation!) };
 }
