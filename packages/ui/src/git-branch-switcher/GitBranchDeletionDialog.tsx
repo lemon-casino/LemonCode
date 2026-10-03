@@ -29,6 +29,7 @@ export function GitBranchDeleteButton({
       type="button"
       variant="ghost"
       size="icon-sm"
+      className="shrink-0 self-center"
       data-testid="git-branch-delete"
       data-branch-name={branch.name}
       aria-label={intl.formatMessage({ id: "git.branchDelete.action" }, { name: branch.name })}

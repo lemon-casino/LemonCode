@@ -138,58 +138,72 @@ export function DraftWorkspaceExecutionControls({
               </Button>
             </PopoverTrigger>
             <PopoverContent
+              data-testid="worktree-base-picker"
               side="top"
-              align="end"
-              className="max-h-64 w-72 max-w-[calc(100vw-2rem)] overflow-y-auto p-2"
+              align="start"
+              className="max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] gap-0 rounded-lg bg-menu p-0"
             >
-              <p className="px-2 pb-2 text-ui-sm text-foreground-subtle">
+              <p className="shrink-0 border-b border-border px-3 py-2 text-ui-sm text-foreground-subtle">
                 {intl.formatMessage({ id: "worktree.baseDescription" })}
               </p>
-              {branches.loading ? (
-                <LoaderIcon className="m-2 size-4 animate-spin" />
-              ) : branches.error ? (
-                <div role="alert" className="p-2 text-ui-sm text-destructive">
-                  {branches.error}
-                  <Button variant="ghost" size="sm" onClick={() => void branches.refresh()}>
-                    {intl.formatMessage({ id: "worktree.retry" })}
-                  </Button>
-                </div>
-              ) : (
-                <>
-                  <Button
-                    variant="ghost"
-                    className="w-full justify-start text-ui-sm"
-                    onClick={() => {
-                      choose(scope, { baseRef: undefined });
-                      setBaseOpen(false);
-                    }}
-                  >
-                    HEAD
-                  </Button>
-                  {branches.result?.branches.map((branch) => (
-                    <div key={branch.name} className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        className="w-full justify-start truncate text-ui-sm"
-                        onClick={() => {
-                          choose(scope, { baseRef: branch.name });
-                          setBaseOpen(false);
-                        }}
+              {/* 通用 Popover 的 gap 与不收缩的整行按钮会裁掉删除入口；固定说明，只让紧凑列表滚动。 */}
+              <div
+                data-testid="worktree-base-list"
+                className="flex min-h-0 max-h-64 flex-col gap-0.5 overflow-x-hidden overflow-y-auto p-1"
+              >
+                {branches.loading ? (
+                  <LoaderIcon className="m-2 size-4 animate-spin" />
+                ) : branches.error ? (
+                  <div role="alert" className="p-2 text-ui-sm text-destructive">
+                    {branches.error}
+                    <Button variant="ghost" size="sm" onClick={() => void branches.refresh()}>
+                      {intl.formatMessage({ id: "worktree.retry" })}
+                    </Button>
+                  </div>
+                ) : (
+                  <>
+                    <Button
+                      variant="ghost"
+                      className="w-full justify-start text-ui-sm"
+                      onClick={() => {
+                        choose(scope, { baseRef: undefined });
+                        setBaseOpen(false);
+                      }}
+                    >
+                      HEAD
+                    </Button>
+                    {branches.result?.branches.map((branch) => (
+                      <div
+                        key={branch.name}
+                        data-testid="git-branch-row"
+                        data-branch-name={branch.name}
+                        className="flex min-w-0 shrink-0 items-center gap-1"
                       >
-                        {branch.name}
-                      </Button>
-                      <GitBranchDeleteButton
-                        branch={branch}
-                        disabled={frozen}
-                        onRequest={(selected) => {
-                          setDeletingBranch({ scope, branch: selected });
-                          setBaseOpen(false);
-                        }}
-                      />
-                    </div>
-                  ))}
-                </>
-              )}
+                        <Button
+                          variant="ghost"
+                          className="h-auto min-h-7 min-w-0 flex-1 shrink justify-start whitespace-normal px-2 py-1.5 text-left text-ui-sm"
+                          onClick={() => {
+                            choose(scope, { baseRef: branch.name });
+                            setBaseOpen(false);
+                          }}
+                        >
+                          <span data-testid="git-branch-name" className="min-w-0 break-all">
+                            {branch.name}
+                          </span>
+                        </Button>
+                        <GitBranchDeleteButton
+                          branch={branch}
+                          disabled={frozen}
+                          onRequest={(selected) => {
+                            setDeletingBranch({ scope, branch: selected });
+                            setBaseOpen(false);
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </>
+                )}
+              </div>
             </PopoverContent>
           </Popover>
         ) : (

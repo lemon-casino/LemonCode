@@ -3,10 +3,18 @@ export function createWorktreeBranchFixture(
   failBranches: () => boolean,
 ) {
   const deleted = new Set<string>();
+  const branchNames = new URLSearchParams(location.search).has("longBranches")
+    ? [
+        "L-GO",
+        "occupied",
+        `lcode/task-${"中文English功能".repeat(12)}`,
+        ...Array.from({ length: 30 }, (_, index) => `lcode/task-列表末尾功能-${index}`),
+      ]
+    : ["L-GO", "feature"];
   return {
     deleteBranch: async (params: { branchName: string; expectedCommitHash: string }) => {
       calls.push({ method: "deleteBranch", params });
-      if (params.branchName === "L-GO") return { ok: false, code: "in-use" };
+      if (["L-GO", "occupied"].includes(params.branchName)) return { ok: false, code: "in-use" };
       deleted.add(params.branchName);
       return { ok: true };
     },
@@ -16,11 +24,12 @@ export function createWorktreeBranchFixture(
       return {
         headRefType: "branch",
         currentBranchName: "L-GO",
-        branches: ["L-GO", "feature"]
+        branches: branchNames
           .filter((name) => !deleted.has(name))
           .map((name) => ({
             name,
             isCurrent: name === "L-GO",
+            checkedOutPath: name === "occupied" ? "/fixture/other-worktree" : null,
             upstreamName: null,
             commitHash: "a".repeat(40),
             commitTimestampMs: null,

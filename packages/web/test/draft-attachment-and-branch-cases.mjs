@@ -68,6 +68,102 @@ export async function runDraftAttachmentCases({ t, page, url, calls, select }) {
 }
 
 export async function runBranchDeletionCases({ t, page, url, calls, select }) {
+  await t.test("两种分支列表的长名称和删除入口完整显示，列表末尾可操作", async () => {
+    const longName = `lcode/task-${"中文English功能".repeat(12)}`;
+    for (const [width, height] of [
+      [1280, 900],
+      [1143, 723],
+      [390, 844],
+      [320, 640],
+    ]) {
+      await page.setViewportSize({ width, height });
+      for (const english of [false, true]) {
+        for (const worktree of [true, false]) {
+          await page.goto(`${url}?longBranches${english ? "&english" : ""}`);
+          await page.evaluate((dark) => {
+            document.documentElement.classList.remove("dark", "theme-zai-dark", "theme-zai-light");
+            document.documentElement.classList.add(dark ? "theme-zai-dark" : "theme-zai-light");
+            if (dark) document.documentElement.classList.add("dark");
+            document.documentElement.style.setProperty("--ui-font-size", "18px");
+          }, english);
+          if (worktree) await select("draft-execution-mode", english ? "Worktree" : "独立工作树");
+          const trigger = page.getByTestId(
+            worktree ? "worktree-base-trigger" : "git-branch-switcher-trigger",
+          );
+          await trigger.click();
+          const picker = page.getByTestId(worktree ? "worktree-base-picker" : "git-branch-picker");
+          const list = page.getByTestId(worktree ? "worktree-base-list" : "git-branch-list");
+          const remove = (name) =>
+            picker.locator(`[data-testid="git-branch-delete"][data-branch-name="${name}"]`);
+          await remove(longName).waitFor();
+          assert.equal(await remove("L-GO").isEnabled(), false);
+          assert.equal(await remove("occupied").isEnabled(), false);
+          const row = picker.locator(
+            `[data-testid="git-branch-row"][data-branch-name="${longName}"]`,
+          );
+          const label = row.getByTestId("git-branch-name");
+          await label.scrollIntoViewIfNeeded();
+          const geometry = await row.evaluate((element) => {
+            const name = element.querySelector('[data-testid="git-branch-name"]');
+            const button = element.querySelector('[data-testid="git-branch-delete"]');
+            const container = element.closest('[data-slot="popover-content"]');
+            const rowBox = element.getBoundingClientRect();
+            const actionBox = button.getBoundingClientRect();
+            const popupBox = container.getBoundingClientRect();
+            return {
+              nameFits:
+                name.scrollWidth <= name.clientWidth + 1 &&
+                name.scrollHeight <= name.clientHeight + 1,
+              actionFits: actionBox.left >= rowBox.left && actionBox.right <= rowBox.right + 1,
+              popupFits:
+                popupBox.left >= -1 &&
+                popupBox.right <= innerWidth + 1 &&
+                popupBox.top >= -1 &&
+                popupBox.bottom <= innerHeight + 1,
+              label: name.textContent,
+              whiteSpace: getComputedStyle(name).whiteSpace,
+            };
+          });
+          assert.equal(geometry.label, longName);
+          assert.equal(geometry.nameFits, true, JSON.stringify(geometry));
+          assert.equal(geometry.actionFits, true, JSON.stringify(geometry));
+          assert.equal(geometry.popupFits, true, JSON.stringify(geometry));
+          assert.notEqual(geometry.whiteSpace, "nowrap");
+          assert.equal(
+            await picker.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+            true,
+          );
+          await list.evaluate((element) => {
+            element.scrollTop = element.scrollHeight;
+          });
+          const last = remove("lcode/task-列表末尾功能-29");
+          assert.equal(
+            await last.evaluate((element) => {
+              const list = element.closest(
+                '[data-testid="worktree-base-list"], [data-testid="git-branch-list"]',
+              );
+              const action = element.getBoundingClientRect();
+              const viewport = list.getBoundingClientRect();
+              return action.top >= viewport.top - 1 && action.bottom <= viewport.bottom + 1;
+            }),
+            true,
+          );
+          await last.click();
+          const dialog = page.getByTestId("git-branch-delete-dialog");
+          await dialog.waitFor();
+          assert.match(await dialog.innerText(), /lcode\/task-列表末尾功能-29/);
+          assert.equal(
+            (await calls()).some((call) => ["deleteBranch", "switchBranch"].includes(call.method)),
+            false,
+          );
+          await dialog
+            .getByRole("button", { name: english ? "Cancel" : "取消", exact: true })
+            .click();
+          if (worktree) assert.match(await trigger.innerText(), /L-GO/);
+        }
+      }
+    }
+  });
   await t.test("基线删除需确认，占用分支不能删除，手机也可操作", async () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto(url);

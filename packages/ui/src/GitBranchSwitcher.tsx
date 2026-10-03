@@ -1,14 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import type { GitRepositorySummary } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command.js";
+import { Command, CommandInput } from "@/components/ui/command.js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
 import { cn } from "@/components/lib/utils.js";
 import {
@@ -16,10 +9,8 @@ import {
   GitBranchSwitchAssistDialog,
 } from "@/git-branch-switcher/GitBranchDialogs.js";
 import { GitGraphDialog } from "@/git-graph/GitGraphDialog.js";
-import {
-  GitBranchDeleteButton,
-  GitBranchDeletionDialog,
-} from "@/git-branch-switcher/GitBranchDeletionDialog.js";
+import { GitBranchDeletionDialog } from "@/git-branch-switcher/GitBranchDeletionDialog.js";
+import { GitBranchPickerList } from "@/git-branch-switcher/GitBranchPickerList.js";
 import type { GitLocalBranch } from "@lcode/shared";
 import { useGitBranchSwitcher } from "@/hooks/useGitBranchSwitcher.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
@@ -191,6 +182,7 @@ export function GitBranchSwitcher({
         <Popover open={open} onOpenChange={setOpen}>
           <PopoverTrigger asChild>
             <Button
+              data-testid="git-branch-switcher-trigger"
               type="button"
               variant="ghost"
               size={"default"}
@@ -225,10 +217,14 @@ export function GitBranchSwitcher({
             </Button>
           </PopoverTrigger>
           <PopoverContent
+            data-testid="git-branch-picker"
             align="start"
             side={popoverSide}
             avoidCollisions={avoidPopoverCollisions}
-            className={cn("w-80 gap-0 bg-menu p-0", popoverClassName)}
+            className={cn(
+              "max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] gap-0 rounded-lg bg-menu p-0",
+              popoverClassName,
+            )}
             onOpenAutoFocus={(event) => {
               event.preventDefault();
               if (isCoarseTouchDevice()) {
@@ -258,7 +254,7 @@ export function GitBranchSwitcher({
             }}
           >
             <Command
-              className="bg-transparent p-0 text-foreground"
+              className="min-h-0 h-auto bg-transparent p-0 text-foreground [&>[data-slot=command-input-wrapper]]:shrink-0"
               filter={branchSearchFilter}
               onKeyDown={handleContentKeyDown}
             >
@@ -268,59 +264,23 @@ export function GitBranchSwitcher({
                 })}
                 className="h-8"
               />
-              <CommandList ref={commandListRef} className={cn("max-h-72", branchListClassName)}>
-                <CommandEmpty className="px-4 py-5 text-foreground-subtle">
-                  {loadingBranches
-                    ? intl.formatMessage({ id: "common.loading" })
-                    : intl.formatMessage({ id: "git.branchSwitcher.empty" })}
-                </CommandEmpty>
-                <CommandGroup
-                  heading={intl.formatMessage({
-                    id: "git.branchSwitcher.section.branches",
-                  })}
-                  className="space-y-0.5 p-1 **:[[cmdk-group-heading]]:px-3 **:[[cmdk-group-heading]]:py-2 **:[[cmdk-group-heading]]:text-ui-base **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group-heading]]:text-foreground-subtle"
-                >
-                  {(branchesResult?.branches ?? []).map((branch) => {
-                    const isCurrent = branch.name === displayedCurrentBranchName;
-                    return (
-                      <CommandItem
-                        key={branch.name}
-                        value={branch.name}
-                        data-checked={isCurrent ? "true" : undefined}
-                        data-branch-current={isCurrent ? "true" : undefined}
-                        disabled={mutationPending}
-                        className={cn("items-start gap-3 rounded-lg px-3 py-2 text-ui-base")}
-                        onSelect={() => {
-                          void switchBranch(branch.name);
-                        }}
-                      >
-                        <GitBranchIcon className="mt-0.5 size-4 text-foreground-subtle" />
-                        <div className="min-w-0 flex-1 flex flex-col gap-1 text-left">
-                          <div className="truncate text-ui-base font-medium text-foreground">
-                            {branch.name}
-                          </div>
-                          {isCurrent && currentBranchDirtyLabel ? (
-                            <p className="pt-0.5 text-ui-base text-foreground-subtle">
-                              {currentBranchDirtyLabel}
-                            </p>
-                          ) : null}
-                        </div>
-                        <GitBranchDeleteButton
-                          branch={branch}
-                          disabled={mutationPending}
-                          onRequest={(selected) => {
-                            setDeletingBranch({ scope: deletionScope, branch: selected });
-                            setOpen(false);
-                          }}
-                        />
-                      </CommandItem>
-                    );
-                  })}
-                </CommandGroup>
-              </CommandList>
+              <GitBranchPickerList
+                listRef={commandListRef}
+                branches={branchesResult?.branches ?? []}
+                currentBranchName={displayedCurrentBranchName}
+                currentBranchDirtyLabel={currentBranchDirtyLabel}
+                loading={loadingBranches}
+                disabled={mutationPending}
+                className={branchListClassName}
+                onSelect={(name) => void switchBranch(name)}
+                onDelete={(selected) => {
+                  setDeletingBranch({ scope: deletionScope, branch: selected });
+                  setOpen(false);
+                }}
+              />
             </Command>
             {showFooterActions ? (
-              <div className="border-t border-border p-1">
+              <div className="shrink-0 border-t border-border p-1">
                 <Button
                   type="button"
                   variant="ghost"
