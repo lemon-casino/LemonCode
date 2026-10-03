@@ -1,3 +1,4 @@
+import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import { useCallback, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { IServiceAccessor, ModelSelectionView, WorktreeBinding } from "@lcode/services";
@@ -66,13 +67,18 @@ const services = {
   clientConfigService: { getSnapshot: async () => ({ pluginStoreOrder: null }) },
   lcodeAgentService: {},
   broadcastService: {},
-  promptAttachmentTransferService: {},
+  promptAttachmentTransferService: {
+    cleanup: async () => {},
+    cancel: async () => {},
+    adopt: async () => {},
+  },
   gitService: createReviewWorkspaceFixture(),
 } as unknown as IServiceAccessor;
 const context = {
   layer: { liveOutputRates: new LiveOutputRateRegistry() },
 } as unknown as V4ConversationContextValue;
 const fixture = {
+  uploads: [] as { draftId?: string; sessionId?: string }[],
   calls: [] as { text: string; options: unknown }[],
   fail: false,
   hold: false,
@@ -141,6 +147,12 @@ function snapshot(sessionId: string): ConversationSnapshot {
 }
 
 function App() {
+  Object.assign(fixture, {
+    newTask: () =>
+      useLCodeSessionStore
+        .getState()
+        .startDraft(workspacePath, undefined, undefined, { resetDraft: true }),
+  });
   const [sessionId, setSessionId] = useState(initialSessionId);
   const [messages, setMessages] = useState<string[]>([]);
   const [draft, setDraft] = useState<V4ComposerDraft>({
@@ -230,8 +242,10 @@ function App() {
       disabled={false}
       modelSelectionView={view}
       modelSelectionState={{ status: "ready", view }}
-      attachmentPut={async () => {
-        throw new Error("unexpected attachment upload");
+      attachmentPut={async (params, options) => {
+        fixture.uploads.push(params);
+        options?.onProgress?.({ phase: "committing", uploadedBytes: 1, totalBytes: 1 });
+        return { ref: "artifact://fixture-pasted-image" };
       }}
       onSendText={async (text, options) => {
         fixture.calls.push({ text, options });

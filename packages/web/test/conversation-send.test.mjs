@@ -1,3 +1,4 @@
+import { runDraftAttachmentCases } from "./draft-attachment-and-branch-cases.mjs";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
@@ -353,5 +354,6 @@ test("真实 ConversationComposer 的新旧会话回车及按钮发送", { timeo
       "local",
     );
   });
+  await runDraftAttachmentCases({ t, page, url });
   assert.deepEqual(errors, []);
 });

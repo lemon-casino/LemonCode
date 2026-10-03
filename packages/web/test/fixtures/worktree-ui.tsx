@@ -1,3 +1,4 @@
+import { createWorktreeBranchFixture } from "./worktree-branch-deletion.js";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { IServiceAccessor, WorktreeBinding, WorktreeIntegration } from "@lcode/services";
@@ -180,21 +181,7 @@ const services = {
         throw new Error("fixture-remote-offline");
       return {};
     },
-    getLocalBranches: async (params: unknown) => {
-      calls.push({ method: "branches", params });
-      if (fixture.failBranches) throw new Error("fixture-branches-failed");
-      return {
-        headRefType: "branch",
-        currentBranchName: "L-GO",
-        branches: ["L-GO", "feature"].map((name) => ({
-          name,
-          isCurrent: name === "L-GO",
-          upstreamName: null,
-          commitHash: "base",
-          commitTimestampMs: null,
-        })),
-      };
-    },
+    ...createWorktreeBranchFixture(calls, () => fixture.failBranches),
     switchBranch: async (params: unknown) => {
       calls.push({ method: "switchBranch", params });
       throw new Error("unexpected Git mutation");

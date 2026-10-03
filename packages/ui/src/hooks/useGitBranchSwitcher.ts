@@ -26,6 +26,7 @@ import { logger } from "@/logger.js";
 
 interface UseGitBranchSwitcherOptions {
   workspacePath: string;
+  workspaceIdentity?: string;
   // gitSummary 是 HEAD 的真实来源(由文件 watcher 实时回灌)。传入它的当前分支/HEAD 类型，
   // 用于在底层 HEAD 变化时丢弃可能过期的本地分支快照。
   currentBranchName: string | null;
@@ -35,6 +36,7 @@ interface UseGitBranchSwitcherOptions {
 
 export function useGitBranchSwitcher({
   workspacePath,
+  workspaceIdentity,
   currentBranchName,
   headRefType,
   onRefreshGit,
@@ -68,7 +70,7 @@ export function useGitBranchSwitcher({
     setLoadingBranches(true);
 
     try {
-      const nextResult = await gitService.getLocalBranches({ workspacePath });
+      const nextResult = await gitService.getLocalBranches({ workspacePath, workspaceIdentity });
       setBranchesResult(nextResult);
     } catch (error: unknown) {
       const message = getErrorMessage(error);
@@ -82,7 +84,7 @@ export function useGitBranchSwitcher({
     } finally {
       setLoadingBranches(false);
     }
-  }, [gitService, intl, workspacePath]);
+  }, [gitService, intl, workspacePath, workspaceIdentity]);
 
   useEffect(() => {
     setOpen(false);
@@ -394,6 +396,7 @@ export function useGitBranchSwitcher({
     switchAssistState,
     branchesResult,
     loadingBranches,
+    refreshBranches: loadBranches,
     mutationPending,
     switchBranch,
     createBranchAndSwitch,

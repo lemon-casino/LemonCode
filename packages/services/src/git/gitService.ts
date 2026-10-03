@@ -1,3 +1,4 @@
+import { deleteBranchRequest } from "./repo/gitBranchDeletion.js";
 import { resolve } from "node:path";
 import {
   gitCommitRequestSchema,
@@ -226,9 +227,9 @@ export function createGitService(options?: {
       return await repo.getWorkspaceRepositoryInfo(params.workspacePath);
     },
 
-    async getLocalBranches(params) {
-      return await repo.listLocalBranches(params.workspacePath);
-    },
+    deleteBranch: (params) => deleteBranchRequest(repo, params),
+
+    getLocalBranches: (params) => repo.listLocalBranches(params.workspacePath),
 
     async getCommitGraph(params) {
       const snapshot = await repo.getCommitGraph(

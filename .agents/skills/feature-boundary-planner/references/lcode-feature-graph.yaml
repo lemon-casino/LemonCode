@@ -91,6 +91,7 @@ nodes:
       - file: packages/ui/src/workspace-grouped-tasks/task-row.tsx
         symbol: GroupedTaskRow
     invariants:
+      - "Draft attachments upload without creating a session or worktree; first send alone admits the worktree create command."
       - "Original workspace scope owns project association and configuration; the registered execution scope owns filesystem operations."
       - "Side pane tabs are owned and filtered by the original workspace identity and conversation; execution paths and identities remain the scope of Git, file and terminal operations."
       - "Worktree management owns lifecycle UI only. A scoped window navigation request opens the existing session commit controller; terminal integration records do not lock new source commits."

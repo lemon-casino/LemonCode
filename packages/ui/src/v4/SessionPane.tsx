@@ -131,8 +131,6 @@ import {
   hasDraftWorktreePreparation,
   SessionWorktreePreparation,
 } from "@/worktree/WorktreeConversationPreparation.js";
-import { useComposerAttachmentUploadStore } from "@/store/composerAttachmentUploadStore.js";
-import { V4_DRAFT_SCOPE_ROOT } from "@/v4/composer/composerDraftStore.js";
 import { WorktreeManagementActions } from "@/worktree/WorktreeManagementActions.js";
 import { useWorktreeConflictResolver } from "@/hooks/useCommitReviewNavigation.js";
 import { useWorktreeTask } from "@/hooks/useWorktreeTask.js";
@@ -1533,11 +1531,6 @@ export function SessionPane({
   );
   const { settings: sharedSettings, loading: executionSettingsLoading } = useSettings();
   const draftExecution = useDraftExecutionStore((state) => state.drafts[workspaceKey]);
-  const worktreeAttachmentRequested = useComposerAttachmentUploadStore(
-    (state) => (state.scopes[workspaceKey + "\0" + V4_DRAFT_SCOPE_ROOT]?.length ?? 0) > 0,
-  );
-  const worktreeAttachmentRequestedRef = useRef(worktreeAttachmentRequested);
-  worktreeAttachmentRequestedRef.current = worktreeAttachmentRequested;
   const worktreeDraftEnvelopeRef = useRef<CommandEnvelope | null>(null);
   const failedWorktreeEnvelopeRef = useRef<CommandEnvelope | null>(null);
   // 仅创建成功的 owner 清理草稿；打开同项目另一会话不应清掉尚未发送的工作树意图。
@@ -1692,7 +1685,7 @@ export function SessionPane({
         useDraftExecutionStore.getState().begin(
           executionScope,
           envelope.commandId,
-          worktreeAttachmentRequestedRef.current && !payload.firstInput,
+          false,
           {
             mode: "worktree",
             baseRef: (envelope.payload as { execution?: { baseRef?: string } }).execution?.baseRef,
@@ -3089,9 +3082,7 @@ export function SessionPane({
       sessionId === null &&
       draftAgentStartupAllowed &&
       !executionSettingsLoading &&
-      (executionPolicy.executionMode === "local" ||
-        worktreeAttachmentRequested ||
-        draftExecution?.attachmentPreparation === true),
+      executionPolicy.executionMode === "local",
     workspaceKey,
     paneId: paneId + ":" + executionPolicy.executionMode + ":" + (draftExecution?.baseRef ?? ""),
     invalidationVersion: draftRuntimeInvalidationVersion,
@@ -3546,7 +3537,7 @@ export function SessionPane({
         return;
       }
       if (!sessionId) {
-        // 草稿附件在 composer 中已绑定预热 session 完成预传。
+        // 草稿附件由上传事务提前写入 workspace artifact；工作树只在首发时创建。
         // 这里只提交 ready ref，禁止在 send click 内再启动上传。
         const prewarm = prewarmBindingRef.current;
         if (prewarm?.beginPromotion()) {
@@ -3601,12 +3592,16 @@ export function SessionPane({
           { ...draftConfigRef.current, modelSelection: submission.modelSelection },
           appFollowupMode,
         );
-        if (readyAttachments.length === 0 && !sharedContextRefs?.length) {
+        if (!sharedContextRefs?.length) {
           const ack = await dispatchSubmissionCommand(
             "createSession",
             {
               workspaceId: workspaceKey,
-              firstInput: { text: effectiveText, ...submission },
+              firstInput: {
+                text: effectiveText,
+                ...submission,
+                ...(readyAttachments.length ? { attachments: readyAttachments } : {}),
+              },
               ...draftConfigPayload,
             },
             null,
@@ -3631,9 +3626,7 @@ export function SessionPane({
           );
           return;
         }
-        // 本地 desktop localPath 是零拷贝 ready，不依赖 attachment transaction；极短窗口内
-        // 预热 session 可能还未返回。此时仍可先创建空 session，再提交现成 ref，发送点击内
-        // 不做任何附件上传，也不会让非 ready 附件绕过 composer 门禁。
+        // 已导入的共享上下文需要实际 session provenance；仅此场景保留 create + send 两步。
         const createAck = await dispatchSubmissionCommand(
           "createSession",
           { workspaceId: workspaceKey, ...draftConfigPayload },

@@ -2,6 +2,7 @@ import { BufferWriter, serialize } from "@lcode/rpc";
 import { ServiceChannels } from "@lcode/shared";
 import {
   PROTOCOL_V4_LIMITS,
+  v4AttachmentPutParamsSchema,
   type V4AttachmentBeginResult,
   type V4AttachmentChunkResult,
   type V4AttachmentPutParams,
@@ -126,6 +127,7 @@ export async function uploadAttachmentTransaction(
   options: AttachmentUploadOptions = {},
 ): Promise<V4AttachmentPutResult> {
   throwIfAborted(options.signal);
+  v4AttachmentPutParamsSchema.parse(input);
   const decodedBytes = decodedBase64ByteLength(input.dataBase64);
   if (decodedBytes > PROTOCOL_V4_LIMITS.attachmentMaxBytes) {
     throw new Error("proto.payloadTooLarge");
@@ -133,7 +135,12 @@ export async function uploadAttachmentTransaction(
   const bytes = decodeBase64(input.dataBase64);
   if (bytes.byteLength !== decodedBytes) throw new Error("proto.invalidBase64");
   const uploadId = createUploadId();
-  const common = { ...workspace, sessionId: input.sessionId, uploadId };
+  const common = {
+    ...workspace,
+    ...(input.sessionId ? { sessionId: input.sessionId } : {}),
+    ...(input.draftId ? { draftId: input.draftId } : {}),
+    uploadId,
+  };
   const totalChunks = Math.ceil(bytes.byteLength / ATTACHMENT_UPLOAD_CHUNK_BYTES);
   const beginParams: LCodeAgentAttachmentBeginParams = {
     ...common,

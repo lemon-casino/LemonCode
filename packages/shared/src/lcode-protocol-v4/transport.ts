@@ -776,15 +776,36 @@ export type V4ConversationUsageResult = z.infer<typeof v4ConversationUsageResult
 // ── 附件上行事务 ──
 // UI 高层仍用 put(input)->ref；这份 full-data schema 只描述 renderer 内部调用，绝不作为
 // production RPC method。wire 只能用 begin/chunk/commit/abort。
+// 草稿上传不需要 runtime；显式区分 target，禁止伪造 session 或绕过 cold-resume。
+function validateAttachmentUploadTarget(
+  value: { sessionId?: string; draftId?: string },
+  context: z.RefinementCtx,
+): void {
+  if (Boolean(value.sessionId) === Boolean(value.draftId)) {
+    context.addIssue({
+      code: "custom",
+      message: "exactly one attachment upload target is required",
+      path: ["draftId"],
+    });
+  }
+}
+
 export const v4AttachmentPutParamsSchema = z
   .object({
-    sessionId: z.string().min(1),
+    sessionId: z.string().min(1).optional(),
+    draftId: z
+      .string()
+      .min(1)
+      .max(128)
+      .regex(/^[A-Za-z0-9_-]+$/)
+      .optional(),
     fileName: z.string().min(1),
     mime: z.string().min(1),
     // base64（不带 data: 前缀）；解码后字节数 ≤ PROTOCOL_V4_LIMITS.attachmentMaxBytes。
     dataBase64: z.string().min(1),
   })
-  .strict();
+  .strict()
+  .superRefine(validateAttachmentUploadTarget);
 export type V4AttachmentPutParams = z.infer<typeof v4AttachmentPutParamsSchema>;
 export const v4AttachmentPutResultSchema = z.object({
   ref: z.string().min(1),
@@ -802,7 +823,13 @@ export const v4AttachmentBeginParamsSchema = z
   .object({
     connectionId: z.string().min(1),
     uploadId: v4AttachmentUploadIdSchema,
-    sessionId: z.string().min(1),
+    sessionId: z.string().min(1).optional(),
+    draftId: z
+      .string()
+      .min(1)
+      .max(128)
+      .regex(/^[A-Za-z0-9_-]+$/)
+      .optional(),
     fileName: z
       .string()
       .min(1)
@@ -823,6 +850,7 @@ export const v4AttachmentBeginParamsSchema = z
   })
   .strict()
   .superRefine((value, context) => {
+    validateAttachmentUploadTarget(value, context);
     if ((value.totalBytes === 0) !== (value.totalChunks === 0)) {
       context.addIssue({
         code: "custom",
@@ -877,12 +905,19 @@ export const v4AttachmentChunkParamsSchema = z
   .object({
     connectionId: z.string().min(1),
     uploadId: v4AttachmentUploadIdSchema,
-    sessionId: z.string().min(1),
+    sessionId: z.string().min(1).optional(),
+    draftId: z
+      .string()
+      .min(1)
+      .max(128)
+      .regex(/^[A-Za-z0-9_-]+$/)
+      .optional(),
     chunkIndex: z.number().int().nonnegative(),
     dataBase64: z.string(),
   })
   .strict()
   .superRefine((value, context) => {
+    validateAttachmentUploadTarget(value, context);
     const decodedBytes = decodedBase64ByteLength(value.dataBase64);
     if (decodedBytes === null) {
       context.addIssue({ code: "custom", message: "invalid base64", path: ["dataBase64"] });
@@ -913,9 +948,16 @@ const v4AttachmentTerminalParamsSchema = z
   .object({
     connectionId: z.string().min(1),
     uploadId: v4AttachmentUploadIdSchema,
-    sessionId: z.string().min(1),
+    sessionId: z.string().min(1).optional(),
+    draftId: z
+      .string()
+      .min(1)
+      .max(128)
+      .regex(/^[A-Za-z0-9_-]+$/)
+      .optional(),
   })
-  .strict();
+  .strict()
+  .superRefine(validateAttachmentUploadTarget);
 export const v4AttachmentCommitParamsSchema = v4AttachmentTerminalParamsSchema;
 export type V4AttachmentCommitParams = z.infer<typeof v4AttachmentCommitParamsSchema>;
 export const v4AttachmentCommitResultSchema = v4AttachmentPutResultSchema.strict();

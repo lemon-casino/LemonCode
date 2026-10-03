@@ -988,6 +988,18 @@ const zhCN: Record<string, string> = {
   "git.publish.error.tagExists": "同名本地 Tag 已指向不同提交，不会移动或覆盖已有 Tag。",
   "git.publish.error.tagsRequired": "请选择一个或多个本地 Tag；列表变化后请重新读取。",
   "git.publish.error.presets": "保存发布预设失败：{error}",
+  "git.branchDelete.action": "删除分支 {name}",
+  "git.branchDelete.inUse": "此分支正在工作树中使用，不能删除",
+  "git.branchDelete.title": "删除本地分支",
+  "git.branchDelete.description":
+    "删除本地分支“{name}”？仅删除已合并的分支，远端分支与工作树保留。",
+  "git.branchDelete.confirm": "删除分支",
+  "git.branchDelete.error.invalid": "分支名称或确认版本无效，请刷新后重试。",
+  "git.branchDelete.error.in-use": "此分支已被工作树使用，不能删除。",
+  "git.branchDelete.error.changed": "分支已变化或不存在，请刷新列表后重新确认。",
+  "git.branchDelete.error.unmerged": "分支仍有未合并提交，请先合并后再删除。",
+  "git.branchDelete.error.git-failed":
+    "Git 未能删除分支。请刷新列表，检查是否被工作树使用或仍有未合并提交。",
   "git.branchSwitcher.label": "分支",
   "git.branchSwitcher.trigger.ariaLabel": "切换 Git 分支",
   "git.branchSwitcher.searchPlaceholder": "搜索分支",

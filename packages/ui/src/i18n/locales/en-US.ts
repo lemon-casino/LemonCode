@@ -1070,6 +1070,22 @@ const enUS: Record<string, string> = {
   "git.publish.error.tagsRequired":
     "Select one or more existing local tags. Reload if the list changed.",
   "git.publish.error.presets": "Could not save publish presets: {error}",
+  "git.branchDelete.action": "Delete branch {name}",
+  "git.branchDelete.inUse": "This branch is checked out in a worktree and cannot be deleted",
+  "git.branchDelete.title": "Delete local branch",
+  "git.branchDelete.description":
+    "Delete local branch “{name}”? Only merged branches can be deleted. Remote branches and worktrees are kept.",
+  "git.branchDelete.confirm": "Delete branch",
+  "git.branchDelete.error.invalid":
+    "Invalid branch name or confirmation revision. Refresh and try again.",
+  "git.branchDelete.error.in-use":
+    "This branch is checked out in a worktree and cannot be deleted.",
+  "git.branchDelete.error.changed":
+    "The branch has changed or no longer exists. Refresh and confirm again.",
+  "git.branchDelete.error.unmerged":
+    "This branch has unmerged commits. Merge them before deleting it.",
+  "git.branchDelete.error.git-failed":
+    "Git could not delete this branch. Refresh and check for worktree use or unmerged commits.",
   "git.branchSwitcher.label": "Branch",
   "git.branchSwitcher.trigger.ariaLabel": "Switch Git branch",
   "git.branchSwitcher.searchPlaceholder": "Search branches",

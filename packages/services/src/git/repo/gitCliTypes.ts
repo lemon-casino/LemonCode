@@ -1,5 +1,6 @@
 import type {
   GitBranchMutationResult,
+  GitDeleteBranchResult,
   GitChangeKind,
   GitCommitGraphCommit,
   GitDiffQuery,
@@ -80,6 +81,11 @@ export interface GitCliRepo {
   ): Promise<GitCommitGraphSnapshot>;
   getIgnoredPaths(workspacePath: string, paths: string[]): Promise<string[]>;
   listLocalBranches(workspacePath: string): Promise<GitLocalBranchListResult>;
+  deleteBranch(
+    workspacePath: string,
+    branchName: string,
+    expectedCommitHash: string,
+  ): Promise<GitDeleteBranchResult>;
   switchBranch(workspacePath: string, targetBranchName: string): Promise<GitBranchMutationResult>;
   createBranchAndSwitch(
     workspacePath: string,

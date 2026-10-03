@@ -56,6 +56,11 @@ export interface LCodeProtocolAgentDependencies {
   /** 兼容旧测试/嵌入调用；新代码应通过 sessionResidentPoolOptions 设置 low-water。 */
   sessionResidentTargetCount?: number;
   sessionStore?: SessionStorePort;
+  /** Workspace 草稿 artifact：不创建会话/runtime，不触发环境准备。 */
+  putDraftAttachment?: (
+    draftId: string,
+    input: { fileName: string; mime: string; bytes: Uint8Array },
+  ) => Promise<{ ref: string }>;
   readWorkspaceCheckpointArtifact?: (uri: string) => Promise<string>;
   version?: string;
   /** 受信 Host 管理的 Hook policy；workspace/project 配置不得覆盖。 */

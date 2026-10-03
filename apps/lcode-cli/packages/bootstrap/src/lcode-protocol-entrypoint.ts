@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import type { SessionId } from "@lcode/contracts";
 import { createConfig, resolvePath } from "@lcode/adapters/config";
 import { join } from "node:path";
 import { createNodeToolArtifactStore } from "@lcode/adapters/storage";
@@ -248,17 +250,28 @@ export async function runLCodeProtocolAgent(
       activeProviderRegistryRuntime.runtime.registryService,
     );
     options.lifecycle?.signal.throwIfAborted();
+    const storageRoot = resolvePath(configResult.config.storage.dir);
+    const workspaceArtifacts = createNodeToolArtifactStore({
+      rootDir: join(storageRoot, "cli", "artifacts"),
+      imageCacheRootDir: join(storageRoot, "cli", "image-cache"),
+      pdfCacheRootDir: join(storageRoot, "cli", "pdf-cache"),
+      videoCacheRootDir: join(storageRoot, "cli", "video-cache"),
+    });
     const server = (serverForCleanup = new LCodeProtocolAgentServer({
-      readWorkspaceCheckpointArtifact: async (uri) => {
-        const storageRoot = resolvePath(configResult.config.storage.dir);
-        const store = createNodeToolArtifactStore({
-          rootDir: join(storageRoot, "cli", "artifacts"),
-          imageCacheRootDir: join(storageRoot, "cli", "image-cache"),
-          pdfCacheRootDir: join(storageRoot, "cli", "pdf-cache"),
-          videoCacheRootDir: join(storageRoot, "cli", "video-cache"),
+      putDraftAttachment: async (draftId, input) => {
+        // 上传只需要存储端口；原先依赖 session app 会提前运行工作树 setup。
+        const artifact = await workspaceArtifacts.writeToolResultArtifact({
+          sessionId: `draft-${draftId}` as SessionId,
+          toolCallId: `draft-upload-${randomUUID()}`,
+          toolName: "prompt-attachment:upload",
+          content: `data:${input.mime};base64,${Buffer.from(input.bytes).toString("base64")}`,
+          contentType: "text/plain",
+          retention: "project",
         });
-        return (await store.readToolResultArtifact({ uri })).content;
+        return { ref: artifact.uri };
       },
+      readWorkspaceCheckpointArtifact: async (uri) =>
+        (await workspaceArtifacts.readToolResultArtifact({ uri })).content,
       createLCodeApp: (appOptions = {}) =>
         createLCodeApp({
           ...applyProtocolProviderRegistry(

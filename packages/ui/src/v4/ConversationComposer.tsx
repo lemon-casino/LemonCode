@@ -578,6 +578,17 @@ function ConversationComposerImpl({
   });
   const draftScopeId = sessionId ?? V4_DRAFT_SCOPE_ROOT;
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
+  const draftResetVersion = useLCodeSessionStore(
+    (state) => state.getWorkspaceState(workspacePath, workspaceIdentity).draftResetVersion ?? 0,
+  );
+  const renderedDraftResetRef = useRef(draftResetVersion);
+  renderedDraftResetRef.current = draftResetVersion;
+  const lastDraftResetRef = useRef({ workspaceKey, version: draftResetVersion });
+  const draftWasResetRef = useRef(false);
+  draftWasResetRef.current =
+    lastDraftResetRef.current.workspaceKey === workspaceKey &&
+    lastDraftResetRef.current.version !== draftResetVersion;
+
   const configPickerScopeKey = `${workspaceKey}\0${draftScopeId}`;
   const [text, setText] = useState("");
   const [pending, setPending] = useState(false);
@@ -1126,6 +1137,13 @@ function ConversationComposerImpl({
   const persistDraftNow = useCallback(
     (scopeId: string) => {
       if (suppressDraftPersistRef.current) return;
+      // 新任务可能先卸载旧编辑器；旧 debounce / unmount 写回不得覆盖新草稿。
+      if (
+        scopeId === V4_DRAFT_SCOPE_ROOT &&
+        (useLCodeSessionStore.getState().getWorkspaceState(workspacePath, workspaceIdentity)
+          .draftResetVersion ?? 0) !== renderedDraftResetRef.current
+      )
+        return;
       const content = snapshotDraftOfEditor();
       if (scopeId === draftScopeRef.current) {
         updateComposerContent(content);
@@ -1224,6 +1242,37 @@ function ConversationComposerImpl({
     [draftScopeId, workspaceKey],
   );
 
+  useEffect(() => {
+    const previous = lastDraftResetRef.current;
+    lastDraftResetRef.current = { workspaceKey, version: draftResetVersion };
+    if (
+      previous.workspaceKey !== workspaceKey ||
+      previous.version === draftResetVersion ||
+      sessionId
+    )
+      return;
+    // 显式 New task 不复用未发送附件；取消控制器后，迟到上传不能复活旧内容。
+    if (draftPersistTimerRef.current !== null) window.clearTimeout(draftPersistTimerRef.current);
+    draftPersistTimerRef.current = null;
+    inputApiRef.current?.clear();
+    updateText("");
+    attachmentsApi.clearAttachments();
+    replaceComposerDraft({
+      ...ownerDraftRef.current.draft,
+      text: "",
+      editorStateJson: undefined,
+      mention: undefined,
+    });
+    requestComposerFocus();
+  }, [
+    workspaceKey,
+    draftResetVersion,
+    sessionId,
+    updateText,
+    attachmentsApi.clearAttachments,
+    replaceComposerDraft,
+    requestComposerFocus,
+  ]);
   const handleCodeCommentRemoved = useCallback(
     (comment: Parameters<typeof removeCodeCommentPreview>[0]) => {
       removeCodeCommentPreview(comment, services?.broadcastService);
@@ -1311,7 +1360,7 @@ function ConversationComposerImpl({
       previousTarget.workspaceIdentity !== workspaceIdentity;
     // 原因：请求在途时 callback 变化曾触发同 scope 恢复，把已提交正文写回编辑器。
     // 真实 scope promotion 仍读取新 owner 草稿，后续输入因此能随会话交接。
-    if (!targetChanged && suppressDraftPersistRef.current) return;
+    if (!targetChanged && (suppressDraftPersistRef.current || draftWasResetRef.current)) return;
     let transferredDraft: ReturnType<typeof snapshotDraftOfEditor> | null = null;
     if (targetChanged && !suppressDraftPersistRef.current) {
       if (draftPersistTimerRef.current !== null) {
@@ -1360,7 +1409,15 @@ function ConversationComposerImpl({
         }),
       );
     };
+    const resetAtRestore = renderedDraftResetRef.current;
     const applyDraft = () => {
+      // 旧恢复帧可能晚于 New task；按真实 reset 版本拒绝写入新草稿。
+      if (
+        draftScopeId === V4_DRAFT_SCOPE_ROOT &&
+        (useLCodeSessionStore.getState().getWorkspaceState(workspacePath, workspaceIdentity)
+          .draftResetVersion ?? 0) !== resetAtRestore
+      )
+        return;
       const api = inputApiRef.current;
       if (!api) return;
       restoreDraftInto(api);

@@ -20,7 +20,8 @@ interface UploadMetadata {
 interface StagedUpload {
   key: string;
   connectionId: string;
-  sessionId: string;
+  sessionId?: string;
+  draftId?: string;
   uploadId: string;
   metadata: UploadMetadata;
   chunks: Uint8Array[];
@@ -31,7 +32,8 @@ interface StagedUpload {
 
 interface CommittedUpload {
   connectionId: string;
-  sessionId: string;
+  sessionId?: string;
+  draftId?: string;
   uploadId: string;
   metadata: UploadMetadata;
   nextChunkIndex: number;
@@ -41,14 +43,15 @@ interface CommittedUpload {
 
 interface AttachmentUploadRegistryOptions {
   now: () => number;
+  putDraftAttachment?: AttachmentUploadRegistryOptions["putSessionAttachment"];
   putSessionAttachment: (
     sessionId: string,
     input: { fileName: string; mime: string; bytes: Uint8Array },
   ) => Promise<{ ref: string }>;
 }
 
-function uploadKey(connectionId: string, sessionId: string, uploadId: string): string {
-  return `${connectionId}\0${sessionId}\0${uploadId}`;
+function uploadKey(params: { connectionId: string; sessionId?: string; draftId?: string; uploadId: string }): string {
+  return JSON.stringify([params.connectionId, params.draftId ? "draft" : "session", params.draftId ?? params.sessionId, params.uploadId]);
 }
 
 function metadataOf(params: V4AttachmentBeginParams): UploadMetadata {
@@ -94,7 +97,7 @@ export class AttachmentUploadRegistry {
 
   begin(params: V4AttachmentBeginParams): V4AttachmentBeginResult {
     this.pruneExpired();
-    const key = uploadKey(params.connectionId, params.sessionId, params.uploadId);
+    const key = uploadKey(params);
     const metadata = metadataOf(params);
     const committed = this.committed.get(key);
     if (committed) {
@@ -133,6 +136,7 @@ export class AttachmentUploadRegistry {
       key,
       connectionId: params.connectionId,
       sessionId: params.sessionId,
+      draftId: params.draftId,
       uploadId: params.uploadId,
       metadata,
       chunks: [],
@@ -145,7 +149,7 @@ export class AttachmentUploadRegistry {
 
   chunk(params: V4AttachmentChunkParams): V4AttachmentChunkResult {
     this.pruneExpired();
-    const key = uploadKey(params.connectionId, params.sessionId, params.uploadId);
+    const key = uploadKey(params);
     const upload = this.staged.get(key);
     if (!upload) throw new Error("fault.attachment.uploadNotFound");
     if (upload.commitPromise) throw new Error("fault.attachment.commitInProgress");
@@ -178,7 +182,7 @@ export class AttachmentUploadRegistry {
 
   async commit(params: V4AttachmentCommitParams): Promise<V4AttachmentCommitResult> {
     this.pruneExpired();
-    const key = uploadKey(params.connectionId, params.sessionId, params.uploadId);
+    const key = uploadKey(params);
     const committed = this.committed.get(key);
     if (committed) return { ref: committed.ref };
     const upload = this.staged.get(key);
@@ -196,7 +200,7 @@ export class AttachmentUploadRegistry {
 
   async abort(params: V4AttachmentCommitParams): Promise<void> {
     this.pruneExpired();
-    const key = uploadKey(params.connectionId, params.sessionId, params.uploadId);
+    const key = uploadKey(params);
     const upload = this.staged.get(key);
     if (upload?.commitPromise) {
       await upload.commitPromise;
@@ -251,7 +255,10 @@ export class AttachmentUploadRegistry {
       bytes.set(chunk, offset);
       offset += chunk.byteLength;
     }
-    const { ref } = await this.options.putSessionAttachment(upload.sessionId, {
+    const put = upload.draftId ? this.options.putDraftAttachment : this.options.putSessionAttachment;
+    const targetId = upload.draftId ?? upload.sessionId;
+    if (!put || !targetId) throw new Error("fault.attachment.putUnsupported");
+    const { ref } = await put(targetId, {
       fileName: upload.metadata.fileName,
       mime: upload.metadata.mime,
       bytes,
@@ -260,6 +267,7 @@ export class AttachmentUploadRegistry {
     this.committed.set(upload.key, {
       connectionId: upload.connectionId,
       sessionId: upload.sessionId,
+      draftId: upload.draftId,
       uploadId: upload.uploadId,
       metadata: upload.metadata,
       nextChunkIndex: upload.chunks.length,

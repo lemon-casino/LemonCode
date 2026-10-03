@@ -52,6 +52,7 @@ export function createV4ReadHost(
 ): Pick<
   V4GatewayHost,
   | "putSessionAttachment"
+  | "putDraftAttachment"
   | "readBackgroundBashOutput"
   | "readSessionAttachment"
   | "statSessionAttachment"
@@ -67,6 +68,7 @@ export function createV4ReadHost(
   | "previewConversationFileRewind"
 > {
   return {
+    putDraftAttachment: context.deps.putDraftAttachment,
     // gateway 已完成逐片总量/checksum 校验，只把完整 bytes 原子写 artifact。
     putSessionAttachment: async (sessionId, input) => {
       const record = context.sessions.get(sessionId);

@@ -44,6 +44,13 @@ export const gitPublishStateSchema = z
     worktreeFingerprint: z.string().regex(/^[0-9a-f]{64}$/),
   })
   .strict();
+export const gitDeleteBranchRequestSchema = gitRepositoryRequestSchema
+  .extend({
+    branchName: z.string().min(1).max(255),
+    expectedCommitHash: z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/i),
+  })
+  .strict();
+
 export const gitPushRequestSchema = gitRepositoryRequestSchema
   .extend({
     remote: refName.optional(),

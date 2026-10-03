@@ -458,7 +458,9 @@ export interface LCodeAgentCommandsQueryParams extends LCodeAgentWorkspaceTarget
 }
 
 /** UI 不携带 connectionId；connection scope 以 trusted carrier 注入 wire identity。 */
-export interface LCodeAgentAttachmentBeginParams extends LCodeAgentSessionTarget {
+export interface LCodeAgentAttachmentBeginParams extends LCodeAgentWorkspaceTarget {
+  sessionId?: string;
+  draftId?: string;
   uploadId: string;
   fileName: string;
   mime: string;
@@ -467,13 +469,17 @@ export interface LCodeAgentAttachmentBeginParams extends LCodeAgentSessionTarget
   checksum: string;
 }
 
-export interface LCodeAgentAttachmentChunkParams extends LCodeAgentSessionTarget {
+export interface LCodeAgentAttachmentChunkParams extends LCodeAgentWorkspaceTarget {
+  sessionId?: string;
+  draftId?: string;
   uploadId: string;
   chunkIndex: number;
   dataBase64: string;
 }
 
-export interface LCodeAgentAttachmentTerminalParams extends LCodeAgentSessionTarget {
+export interface LCodeAgentAttachmentTerminalParams extends LCodeAgentWorkspaceTarget {
+  sessionId?: string;
+  draftId?: string;
   uploadId: string;
 }
 

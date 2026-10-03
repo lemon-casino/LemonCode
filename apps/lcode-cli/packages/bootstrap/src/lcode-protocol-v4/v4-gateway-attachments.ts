@@ -38,11 +38,13 @@ export async function attachmentBegin(
   rawParams: unknown,
 ): Promise<V4AttachmentBeginResult> {
   const params = v4AttachmentBeginParamsSchema.parse(rawParams);
-  if (!gateway.host.putSessionAttachment) {
-    throw new Error("fault.attachment.putUnsupported");
-  }
-  if (!gateway.host.sessionExists(params.sessionId)) {
-    await gateway.coldResume.ensureResumed(params.sessionId);
+  // 粘贴曾通过预热创建工作树，随后上传又路由到原目录，触发 sessionNotFound。
+  // 草稿 target 只写 artifact；真正的 session 仍保留 cold-resume 与归属校验。
+  if (params.draftId) {
+    if (!gateway.host.putDraftAttachment) throw new Error("fault.attachment.putUnsupported");
+  } else {
+    if (!gateway.host.putSessionAttachment || !params.sessionId) throw new Error("fault.attachment.putUnsupported");
+    if (!gateway.host.sessionExists(params.sessionId)) await gateway.coldResume.ensureResumed(params.sessionId);
   }
   return gateway.attachmentUploads.begin(params);
 }

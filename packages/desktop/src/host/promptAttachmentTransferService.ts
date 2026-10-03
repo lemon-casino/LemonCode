@@ -86,7 +86,13 @@ export function createRemotePromptAttachmentTransferService(
       try {
         const materialized = await materializeRemotePromptAttachments(
           {
-            taskId: params.sessionId,
+            taskId:
+              params.sessionId ??
+              (params.draftId
+                ? `draft-${params.draftId}`
+                : (() => {
+                    throw new Error("Missing attachment target");
+                  })()),
             // 暂存目录同时带 workspace identity 与 remote session 维度，避免同一路径、
             // 不同远端身份或 attached session 的 eager attachment 互相覆盖。
             traceId: `${workspaceKey}\u0000${params.remoteSessionId ?? ""}\u0000${params.operationId}`,

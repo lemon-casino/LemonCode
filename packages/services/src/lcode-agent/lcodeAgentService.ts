@@ -5174,7 +5174,8 @@ export function createLCodeAgentService(
       const wireParams = {
         connectionId: trusted.connectionId,
         uploadId: params.uploadId,
-        sessionId: params.sessionId,
+        ...(params.sessionId ? { sessionId: params.sessionId } : {}),
+        ...(params.draftId ? { draftId: params.draftId } : {}),
         fileName: params.fileName,
         mime: params.mime,
         totalBytes: params.totalBytes,
@@ -5192,7 +5193,8 @@ export function createLCodeAgentService(
       const wireParams = {
         connectionId: trusted.connectionId,
         uploadId: params.uploadId,
-        sessionId: params.sessionId,
+        ...(params.sessionId ? { sessionId: params.sessionId } : {}),
+        ...(params.draftId ? { draftId: params.draftId } : {}),
         chunkIndex: params.chunkIndex,
         dataBase64: params.dataBase64,
       };
@@ -5207,7 +5209,8 @@ export function createLCodeAgentService(
       const wireParams = {
         connectionId: trusted.connectionId,
         uploadId: params.uploadId,
-        sessionId: params.sessionId,
+        ...(params.sessionId ? { sessionId: params.sessionId } : {}),
+        ...(params.draftId ? { draftId: params.draftId } : {}),
       };
       assertV4AttachmentNdjsonEnvelope(V4_METHODS.attachmentCommit, wireParams);
       return client.request(
@@ -5224,7 +5227,8 @@ export function createLCodeAgentService(
       const wireParams = {
         connectionId: trusted.connectionId,
         uploadId: params.uploadId,
-        sessionId: params.sessionId,
+        ...(params.sessionId ? { sessionId: params.sessionId } : {}),
+        ...(params.draftId ? { draftId: params.draftId } : {}),
       };
       assertV4AttachmentNdjsonEnvelope(V4_METHODS.attachmentAbort, wireParams);
       await client.request(V4_METHODS.attachmentAbort, wireParams, v4AttachmentAbortResultSchema);

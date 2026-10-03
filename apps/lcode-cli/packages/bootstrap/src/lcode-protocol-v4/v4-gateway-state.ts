@@ -199,6 +199,10 @@ export function createGatewayState(
     }),
     attachmentUploads: new AttachmentUploadRegistry({
       now,
+      putDraftAttachment: async (draftId, input) => {
+        if (!state.host.putDraftAttachment) throw new Error("fault.attachment.putUnsupported");
+        return state.host.putDraftAttachment(draftId, input);
+      },
       putSessionAttachment: async (sessionId, input) => {
         if (!state.host.putSessionAttachment) {
           throw new Error("fault.attachment.putUnsupported");

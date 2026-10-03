@@ -13,7 +13,8 @@ export interface PromptAttachmentTransferProgress {
 
 export interface PromptAttachmentStageParams {
   operationId: string;
-  sessionId: string;
+  sessionId?: string;
+  draftId?: string;
   workspacePath: string;
   workspaceIdentity?: string;
   remoteSessionId?: string;

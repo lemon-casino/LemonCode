@@ -37,6 +37,7 @@ import { logger } from "@/logger.js";
 import {
   exposeComposerAttachmentScopeKeyForE2E,
   readComposerAttachmentScope,
+  registerComposerAttachmentScopeClearer,
   updateComposerAttachmentScope,
   useComposerAttachmentUploadStore,
   type ComposerAttachmentUploadItem,
@@ -61,6 +62,7 @@ export type {
 
 interface UploadTarget {
   sessionId: string | null;
+  draftId?: string;
   workspacePath: string;
   workspaceIdentity?: string;
   remoteSessionId?: string;
@@ -209,6 +211,8 @@ export function useComposerAttachments(
   exposeComposerAttachmentScopeKeyForE2E(scopeKey);
 
   const targetsRef = useRef(new Map<string, UploadTarget>());
+  // 草稿只保留上传 namespace，不能为了粘贴图片提前创建 runtime / 工作树。
+  const draftUploadIdRef = useRef(nanoid());
   const uploadQueueRef = useRef<UploadQueueEntry[]>([]);
   const activeUploadsRef = useRef(0);
   const controllersRef = useRef(new Map<string, AbortController>());
@@ -242,6 +246,7 @@ export function useComposerAttachments(
 
   targetsRef.current.set(scopeKey, {
     sessionId: attachmentSessionId,
+    ...(!attachmentSessionId ? { draftId: draftUploadIdRef.current } : {}),
     workspacePath,
     workspaceIdentity,
     remoteSessionId,
@@ -324,7 +329,7 @@ export function useComposerAttachments(
         const item = readComposerAttachmentScope(targetScopeKey).find(
           (candidate) => candidate.id === attachmentId,
         );
-        if (!item || !target.sessionId) return;
+        if (!item || (!target.sessionId && !target.draftId)) return;
         if (item.localPath && isRemoteAttachmentTarget(target)) {
           if (!target.remoteSessionId) {
             updateItem(targetScopeKey, attachmentId, (current) => ({
@@ -348,7 +353,7 @@ export function useComposerAttachments(
           );
           const result = await target.transferService.stage({
             operationId: item.operationId,
-            sessionId: target.sessionId,
+            ...(target.sessionId ? { sessionId: target.sessionId } : { draftId: target.draftId }),
             workspacePath: target.workspacePath,
             ...(target.workspaceIdentity ? { workspaceIdentity: target.workspaceIdentity } : {}),
             remoteSessionId: target.remoteSessionId,
@@ -384,7 +389,7 @@ export function useComposerAttachments(
         const serialized = await serializeChatComposerAttachment(item);
         const ref = await uploadComposerAttachment(
           target.attachmentPut,
-          target.sessionId,
+          target.sessionId ?? { draftId: target.draftId! },
           serialized,
           {
             signal: controller.signal,
@@ -499,7 +504,7 @@ export function useComposerAttachments(
       const waitingForRemoteSession = Boolean(
         target && item.localPath && isRemoteAttachmentTarget(target) && !target.remoteSessionId,
       );
-      if (!target?.sessionId || waitingForRemoteSession) {
+      if ((!target?.sessionId && !target?.draftId) || waitingForRemoteSession) {
         updateItem(entry.scopeKey, entry.attachmentId, (current) => ({
           ...current,
           uploadStatus: "waitingSession",
@@ -516,7 +521,7 @@ export function useComposerAttachments(
     const current = readComposerAttachmentScope(scopeKey);
     const remoteTargetReady =
       !isRemoteAttachmentTarget({ remoteSessionId, workspaceIdentity }) || Boolean(remoteSessionId);
-    if (attachmentSessionId && remoteTargetReady) {
+    if (remoteTargetReady) {
       for (const item of current) {
         if (item.uploadStatus === "waitingSession") {
           updateItem(scopeKey, item.id, (candidate) => ({
@@ -551,6 +556,7 @@ export function useComposerAttachments(
         if (!target) continue;
         for (const item of items) {
           if (
+            (target.draftId && item.uploadStatus === "ready" && !item.staged) ||
             item.referenceOwnership === "session" ||
             item.localZeroCopy ||
             item.uploadStatus === "failed"
@@ -660,7 +666,11 @@ export function useComposerAttachments(
           ...attachment,
           referenceOwnership: "composer",
           operationId: `prompt-attachment-${attachment.id}`,
-          uploadStatus: localZeroCopy ? "ready" : target?.sessionId ? "queued" : "waitingSession",
+          uploadStatus: localZeroCopy
+            ? "ready"
+            : target?.sessionId || target?.draftId
+              ? "queued"
+              : "waitingSession",
           uploadProgress: localZeroCopy ? 100 : 0,
           ...(localZeroCopy && attachment.localPath
             ? {
@@ -963,7 +973,7 @@ export function useComposerAttachments(
       void target?.transferService.cleanup(current.operationId).catch(() => {});
       updateItem(scopeKey, id, (item) => ({
         ...item,
-        uploadStatus: target?.sessionId ? "queued" : "waitingSession",
+        uploadStatus: target?.sessionId || target?.draftId ? "queued" : "waitingSession",
         uploadProgress: 0,
         uploadError: undefined,
         uploadErrorKind: undefined,
@@ -974,7 +984,7 @@ export function useComposerAttachments(
         adopted: false,
         showComplete: false,
       }));
-      if (target?.sessionId) enqueueUpload(scopeKey, id);
+      if (target?.sessionId || target?.draftId) enqueueUpload(scopeKey, id);
     },
     [enqueueUpload, scopeKey, updateItem],
   );
@@ -1014,6 +1024,11 @@ export function useComposerAttachments(
       setAttachmentError(null);
     },
     [commitScope, scopeKey, setAttachmentError],
+  );
+
+  useEffect(
+    () => registerComposerAttachmentScopeClearer(scopeKey, () => clearAttachments()),
+    [scopeKey, clearAttachments],
   );
 
   const restoreSessionOwnedAttachments = useCallback(

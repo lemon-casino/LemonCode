@@ -213,6 +213,7 @@ export interface WorkspaceLCodeUIState {
   taskListCache: LCodeTaskMeta[] | null;
   /** 新建草稿时递增，驱动输入框在切到草稿态后主动聚焦 */
   draftFocusVersion: number;
+  draftResetVersion: number;
 }
 
 export interface LCodeSessionStoreState {
@@ -267,6 +268,7 @@ export interface LCodeSessionStoreState {
     options?: {
       groupedDraftPlacement?: GroupedDraftTaskPlacement;
       createSource?: SessionCreateSource;
+      resetDraft?: boolean;
     },
   ) => void;
   clearGroupedDraftTask: (workspacePath: string, workspaceIdentity?: string) => void;
@@ -546,6 +548,7 @@ export function createDefaultWorkspaceState(
     taskListVersion: 0,
     taskListCache: null,
     draftFocusVersion: 0,
+    draftResetVersion: 0,
   };
 }
 

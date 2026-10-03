@@ -1,5 +1,7 @@
 import type {
   GitBranchMutationResult,
+  GitDeleteBranchRequest,
+  GitDeleteBranchResult,
   GitBranchComparison,
   GitCommitGraphRequest,
   GitCommitGraphResult,
@@ -52,6 +54,7 @@ export interface IGitService {
   getRepositorySummary(params: GitRepositoryRequest): Promise<GitRepositorySummary>;
   getWorkspaceRepositoryInfo(params: GitRepositoryRequest): Promise<GitWorkspaceRepositoryInfo>;
   getLocalBranches(params: GitRepositoryRequest): Promise<GitLocalBranchListResult>;
+  deleteBranch(params: GitDeleteBranchRequest): Promise<GitDeleteBranchResult>;
   getCommitGraph(params: GitCommitGraphRequest): Promise<GitCommitGraphResult>;
   switchBranch(params: GitSwitchBranchRequest): Promise<GitBranchMutationResult>;
   createBranchAndSwitch(params: GitCreateBranchRequest): Promise<GitBranchMutationResult>;

@@ -1,5 +1,9 @@
 import { useState } from "react";
-import type { GitRepositorySummary } from "@lcode/shared";
+import {
+  GitBranchDeleteButton,
+  GitBranchDeletionDialog,
+} from "@/git-branch-switcher/GitBranchDeletionDialog.js";
+import type { GitLocalBranch, GitRepositorySummary } from "@lcode/shared";
 import { GitBranchIcon, LoaderIcon, Settings2Icon } from "lucide-react";
 import { GitBranchSwitcher } from "@/GitBranchSwitcher.js";
 import { useProjectExecutionPolicy } from "@/hooks/useProjectExecutionPolicy.js";
@@ -56,6 +60,10 @@ export function DraftWorkspaceExecutionControls({
     }
   };
   const [baseOpen, setBaseOpen] = useState(false);
+  const [deletingBranch, setDeletingBranch] = useState<{
+    scope: string;
+    branch: GitLocalBranch;
+  } | null>(null);
   const branches = useWorktreeBaseBranches(workspacePath, workspaceIdentity, baseOpen);
   const pending = Boolean(selection?.requestId);
   const frozen = pending || selection?.frozen;
@@ -159,17 +167,26 @@ export function DraftWorkspaceExecutionControls({
                     HEAD
                   </Button>
                   {branches.result?.branches.map((branch) => (
-                    <Button
-                      key={branch.name}
-                      variant="ghost"
-                      className="w-full justify-start truncate text-ui-sm"
-                      onClick={() => {
-                        choose(scope, { baseRef: branch.name });
-                        setBaseOpen(false);
-                      }}
-                    >
-                      {branch.name}
-                    </Button>
+                    <div key={branch.name} className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        className="w-full justify-start truncate text-ui-sm"
+                        onClick={() => {
+                          choose(scope, { baseRef: branch.name });
+                          setBaseOpen(false);
+                        }}
+                      >
+                        {branch.name}
+                      </Button>
+                      <GitBranchDeleteButton
+                        branch={branch}
+                        disabled={frozen}
+                        onRequest={(selected) => {
+                          setDeletingBranch({ scope, branch: selected });
+                          setBaseOpen(false);
+                        }}
+                      />
+                    </div>
                   ))}
                 </>
               )}
@@ -178,6 +195,7 @@ export function DraftWorkspaceExecutionControls({
         ) : (
           <GitBranchSwitcher
             workspacePath={workspacePath}
+            workspaceIdentity={workspaceIdentity}
             gitSummary={gitSummary}
             dirtyFileCount={dirtyFileCount}
             onRefreshGit={onRefreshGit}
@@ -207,6 +225,19 @@ export function DraftWorkspaceExecutionControls({
           />
         </PopoverContent>
       </Popover>
+      <GitBranchDeletionDialog
+        key={scope}
+        workspacePath={workspacePath}
+        workspaceIdentity={workspaceIdentity}
+        branch={deletingBranch?.scope === scope ? deletingBranch.branch : null}
+        onClose={() => setDeletingBranch(null)}
+        onDeleted={(name) => {
+          setDeletingBranch(null);
+          if (selection?.baseRef === name) choose(scope, { baseRef: undefined });
+          void branches.refresh();
+          onRefreshGit();
+        }}
+      />
       {modeError?.scope === scope ? (
         <span role="alert" className="basis-full break-words text-ui-sm text-destructive">
           {modeError.message}

@@ -205,9 +205,22 @@ export interface GitBranchComparison {
   changes: GitFileChange[];
 }
 
+export interface GitDeleteBranchRequest extends GitRepositoryRequest {
+  branchName: string;
+  expectedCommitHash: string;
+}
+export type GitDeleteBranchResult =
+  | { ok: true }
+  | {
+      ok: false;
+      code: "invalid" | "in-use" | "changed" | "unmerged" | "git-failed";
+      detail?: string;
+    };
+
 export interface GitLocalBranch {
   name: string;
   isCurrent: boolean;
+  checkedOutPath?: string | null;
   upstreamName: string | null;
   commitHash: string | null;
   commitTimestampMs: number | null;

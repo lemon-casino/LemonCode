@@ -579,7 +579,7 @@ sequenceDiagram
 
 - 核实更正：`packages/services/src/storage/contract.ts` 是磁盘占用与清理服务，不是业务持久化仓库。工作树 binding/operation 由 WorktreeService 唯一持有，使用当前 Environment 的 app config root 下 worktrees 专用目录、原子 JSON 文件和跨进程锁；通过持久化 port 隔离 IO，不调用存储清理服务管理业务状态。
 - 全局执行字段 `defaultSessionExecutionMode` 缺省 local；项目覆盖 `projectExecutionPreferences` 按原项目 identity/path 定位。执行覆盖为 inherit/local/worktree，纯解析器返回生效值和来源。提交审核使用第 13.1 节统一三档；旧提交生成与弹窗字段仅作兼容输入，缺失新字段时保持现有实际行为。
-- 工作树新会话禁用自动 prewarm；首次发送或明确添加需要会话的附件时，沿既有 create command 传 execution intent。准备后执行位置冻结；CLI 预分配会话 ID，通过 typed requestClient 请求目标 Host 准备绑定；ready 后才物化并执行，失败保留同一请求并由用户明确重试准备。放弃草稿后保留的工作树可在项目工作树列表归档或恢复。
+- 工作树新会话禁用自动 prewarm；首次发送时沿既有 create command 传 execution intent；附件只通过 workspace 草稿上传，不提前创建工作树。准备后执行位置冻结；CLI 预分配会话 ID，通过 typed requestClient 请求目标 Host 准备绑定；ready 后才物化并执行，失败保留同一请求并由用户明确重试准备。放弃草稿后保留的工作树可在项目工作树列表归档或恢复。
 - 重启/继续前查询已登记 binding，实际目录丢失、Git 登记不符或身份不符时阻止执行。CLI 持久化原项目关联和 binding 引用，工作目录、工具、Git 与恢复均使用执行目录。
 - checkout writer 许可由目标 Host 协调器持有，CLI 经同一反向协议申请/释放；同一目录的可写轮次与目标发布共享许可，独立工作树可并行。进程存活时不能凭超时抢锁。
 - 分叉延续来源执行位置，SessionStore 原子保存 parent 与 binding owner 引用；Host 根据可信 CLI 的 prepare.parentBinding 登记 child alias，根 binding 仍是唯一状态所有者。禁止跨项目、无真实已登记父引用或已经绑定的 child 换树。

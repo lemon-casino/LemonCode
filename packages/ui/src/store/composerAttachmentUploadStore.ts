@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { AttachmentRef } from "@lcode/shared/lcode-protocol-v4";
 import { shouldExposeE2EStoreBridge } from "@/lib/e2eStoreBridge.js";
+import { revokeChatComposerAttachment } from "@/lib/chatAttachments.js";
 import type { ChatComposerAttachment } from "@/lib/chatAttachments.js";
 
 export type ComposerAttachmentUploadStatus =
@@ -86,4 +87,25 @@ export function updateComposerAttachmentScope(
       },
     };
   });
+}
+
+// 这里只注册取消句柄，附件事实仍仅保存在 scopes；新任务可以在编辑器切换前取消旧上传。
+const scopeClearers = new Map<string, Set<() => void>>();
+export function registerComposerAttachmentScopeClearer(
+  scopeKey: string,
+  clear: () => void,
+): () => void {
+  const clearers = scopeClearers.get(scopeKey) ?? new Set();
+  clearers.add(clear);
+  scopeClearers.set(scopeKey, clearers);
+  return () => {
+    clearers.delete(clear);
+    if (!clearers.size) scopeClearers.delete(scopeKey);
+  };
+}
+export function discardComposerAttachmentScope(scopeKey: string): void {
+  for (const clear of scopeClearers.get(scopeKey) ?? []) clear();
+  // 未挂载的草稿仍在唯一 owner 中；移除后迟到 updateItem 找不到原项，不能复活新任务附件。
+  for (const item of readComposerAttachmentScope(scopeKey)) revokeChatComposerAttachment(item);
+  updateComposerAttachmentScope(scopeKey, () => []);
 }

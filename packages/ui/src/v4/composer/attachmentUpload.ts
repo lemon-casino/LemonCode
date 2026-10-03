@@ -39,7 +39,7 @@ function base64ByteLength(dataBase64: string): number {
 /** 单个附件 → AttachmentRef（需要上传时经 chunk transaction）。返回 null = 无内容可发（丢弃）。 */
 export async function uploadComposerAttachment(
   put: AttachmentPutFn,
-  sessionId: string,
+  target: string | { draftId: string },
   attachment: LCodePromptAttachment,
   options?: AttachmentUploadOptions,
 ): Promise<AttachmentRef | null> {
@@ -70,7 +70,15 @@ export async function uploadComposerAttachment(
     );
     return null;
   }
-  const { ref } = await put({ sessionId, fileName, mime, dataBase64 }, options);
+  const { ref } = await put(
+    {
+      ...(typeof target === "string" ? { sessionId: target } : target),
+      fileName,
+      mime,
+      dataBase64,
+    },
+    options,
+  );
   return {
     ref,
     fileName,

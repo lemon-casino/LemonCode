@@ -1,5 +1,6 @@
 /* eslint-disable max-lines */
 import { readFile, stat } from "node:fs/promises";
+import { deleteLocalBranch } from "./gitBranchDeletion.js";
 import { commitWithGit } from "./gitCommitRepo.js";
 import { isAbsolute, resolve, sep } from "node:path";
 import type {
@@ -352,7 +353,7 @@ function parseBranchRefRecords(stdout: string, currentBranchName: string | null)
     .split("\n")
     .filter((line) => line.length > 0)
     .map((line): GitLocalBranch | null => {
-      const [name, upstreamName, commitHash, commitTimestamp] = line.split("\0");
+      const [name, upstreamName, commitHash, commitTimestamp, checkedOutPath] = line.split("\0");
       if (!name) {
         return null;
       }
@@ -361,6 +362,7 @@ function parseBranchRefRecords(stdout: string, currentBranchName: string | null)
       return {
         name,
         isCurrent: name === currentBranchName,
+        checkedOutPath: checkedOutPath || null,
         upstreamName: upstreamName || null,
         commitHash: commitHash || null,
         commitTimestampMs: Number.isNaN(timestampSeconds) ? null : timestampSeconds * 1000,
@@ -946,6 +948,20 @@ export function createGitCliRepo(options?: { commandProvider?: GitCommandProvide
         .map((pair) => pair.absolutePath);
     },
 
+    async deleteBranch(workspacePath, branchName, expectedCommitHash) {
+      const resolution = await this.resolveRepository(workspacePath);
+      if (!resolution.isGitAvailable || !resolution.isRepository)
+        return { ok: false, code: "git-failed" };
+      const result = await deleteLocalBranch(
+        commandProvider,
+        resolution.repoRoot,
+        branchName,
+        expectedCommitHash,
+      );
+      if (result.ok) this.invalidate(workspacePath);
+      return result;
+    },
+
     async listLocalBranches(workspacePath: string): Promise<GitLocalBranchListResult> {
       const status = await this.getStatus(workspacePath);
       if (!status.resolution.isGitAvailable || !status.resolution.isRepository) {
@@ -961,7 +977,7 @@ export function createGitCliRepo(options?: { commandProvider?: GitCommandProvide
         args: [
           "for-each-ref",
           "refs/heads",
-          "--format=%(refname:short)%00%(upstream:short)%00%(objectname)%00%(committerdate:unix)",
+          "--format=%(refname:short)%00%(upstream:short)%00%(objectname)%00%(committerdate:unix)%00%(worktreepath)",
         ],
         timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
         maxOutputBytes: DEFAULT_GIT_OUTPUT_BYTES,

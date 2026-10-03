@@ -171,6 +171,11 @@ export interface V4GatewayHost {
   /** canonical goal complete 已进入 projection；宿主副作用必须 detached，禁止阻塞 ingest。 */
   onTargetCompleted?(sessionId: string, event: SessionEvent): void;
   /** 完整 chunk transaction commit 后一次性写 session artifact。 */
+  /** Workspace 草稿 artifact：不创建会话/runtime，不触发环境准备。 */
+  putDraftAttachment?: (
+    draftId: string,
+    input: { fileName: string; mime: string; bytes: Uint8Array },
+  ) => Promise<{ ref: string }>;
   putSessionAttachment?(
     sessionId: string,
     input: { fileName: string; mime: string; bytes: Uint8Array },

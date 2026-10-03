@@ -1,3 +1,4 @@
+import { runBranchDeletionCases } from "./draft-attachment-and-branch-cases.mjs";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
@@ -380,6 +381,7 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
       );
     },
   );
+  await runBranchDeletionCases({ t, page, url, calls, select });
   await runWorktreeWorkflowCases({ t, page, url, calls, configure, select });
   await runForkPreparationCases({ t, page, url, calls });
   assert.deepEqual(errors, []);

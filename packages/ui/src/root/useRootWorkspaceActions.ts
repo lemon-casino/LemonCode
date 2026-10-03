@@ -1,3 +1,6 @@
+import { pendingCommandRegistry } from "@/v4/pendingCommandRegistry.js";
+import { discardComposerAttachmentScope } from "@/store/composerAttachmentUploadStore.js";
+import { useDraftExecutionStore } from "@/store/draftExecutionStore.js";
 /* eslint-disable max-lines -- Root workspace action hook 集中编排项目、远程和 conversation 入口；合并期保持动作边界完整，后续按领域拆分。 */
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -41,7 +44,11 @@ import {
 import { resolveWorkbenchNewTaskTarget } from "@/v4/workbenchNewTaskTarget.js";
 import type { WorkbenchNewTaskTarget } from "@/v4/workbenchNewTaskTarget.js";
 import { useWorkbenchGroupStore } from "@/v4/workbenchGroupStore.js";
-import { persistV4ComposerDraft, V4_DRAFT_SCOPE_ROOT } from "@/v4/composer/composerDraftStore.js";
+import {
+  readV4ComposerDraft,
+  persistV4ComposerDraft,
+  V4_DRAFT_SCOPE_ROOT,
+} from "@/v4/composer/composerDraftStore.js";
 
 interface OpenRemoteConnectionPreference {
   preferredKind?: RemoteTarget["kind"];
@@ -257,6 +264,35 @@ export function useRootWorkspaceActions({
       // group / paneLayout 中继续拆一个 draft；目标 workspace 取 focused pane。
       useWorkbenchGroupStore.getState().deactivateActiveGroup();
       usePaneLayoutStore.getState().resetToPrimaryPane();
+      const draftScope = newTaskTarget.workspaceIdentity?.trim() || newTaskTarget.workspacePath;
+      const executionDraft = useDraftExecutionStore.getState().drafts[draftScope];
+      const hasAcceptedCreation = Boolean(
+        executionDraft?.requestId ||
+        (executionDraft?.creationEnvelope &&
+          pendingCommandRegistry
+            .list(null)
+            .some((entry) => entry.commandId === executionDraft.creationEnvelope?.commandId)),
+      );
+      if (!hasAcceptedCreation) {
+        discardComposerAttachmentScope(`${draftScope}\0${V4_DRAFT_SCOPE_ROOT}`);
+        // 原先重复新建只 focus 同一草稿，图片和旧正文一直留在输入框，表现为按钮无效。
+        persistV4ComposerDraft(
+          newTaskTarget.workspacePath,
+          newTaskTarget.workspaceIdentity ?? undefined,
+          V4_DRAFT_SCOPE_ROOT,
+          {
+            ...readV4ComposerDraft(
+              newTaskTarget.workspacePath,
+              newTaskTarget.workspaceIdentity ?? undefined,
+              V4_DRAFT_SCOPE_ROOT,
+            ),
+            text: "",
+            editorStateJson: undefined,
+            mention: undefined,
+          },
+        );
+        useDraftExecutionStore.getState().reset(draftScope);
+      }
       useLCodeSessionStore
         .getState()
         .startDraft(
@@ -265,6 +301,7 @@ export function useRootWorkspaceActions({
           newTaskTarget.workspaceIdentity ?? undefined,
           {
             groupedDraftPlacement,
+            resetDraft: !hasAcceptedCreation,
             createSource: typeof request === "string" ? undefined : request?.createSource,
           },
         );

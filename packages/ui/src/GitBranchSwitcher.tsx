@@ -16,6 +16,11 @@ import {
   GitBranchSwitchAssistDialog,
 } from "@/git-branch-switcher/GitBranchDialogs.js";
 import { GitGraphDialog } from "@/git-graph/GitGraphDialog.js";
+import {
+  GitBranchDeleteButton,
+  GitBranchDeletionDialog,
+} from "@/git-branch-switcher/GitBranchDeletionDialog.js";
+import type { GitLocalBranch } from "@lcode/shared";
 import { useGitBranchSwitcher } from "@/hooks/useGitBranchSwitcher.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
@@ -30,6 +35,7 @@ import { ChevronDownIcon, GitBranchIcon, GitGraph, LoaderIcon, PlusIcon } from "
 
 interface GitBranchSwitcherProps {
   workspacePath: string;
+  workspaceIdentity?: string;
   gitSummary: GitRepositorySummary;
   dirtyFileCount: number;
   onRefreshGit: () => void;
@@ -45,6 +51,7 @@ interface GitBranchSwitcherProps {
 
 export function GitBranchSwitcher({
   workspacePath,
+  workspaceIdentity,
   gitSummary,
   dirtyFileCount,
   onRefreshGit,
@@ -61,6 +68,11 @@ export function GitBranchSwitcher({
   const numberFormatter = new Intl.NumberFormat(locale);
   const commandListRef = useRef<HTMLDivElement | null>(null);
   const [gitGraphDialogOpen, setGitGraphDialogOpen] = useState(false);
+  const deletionScope = workspaceIdentity?.trim() || workspacePath;
+  const [deletingBranch, setDeletingBranch] = useState<{
+    scope: string;
+    branch: GitLocalBranch;
+  } | null>(null);
   const {
     open,
     setOpen,
@@ -75,6 +87,7 @@ export function GitBranchSwitcher({
     switchAssistState,
     branchesResult,
     loadingBranches,
+    refreshBranches,
     mutationPending,
     switchBranch,
     createBranchAndSwitch,
@@ -83,6 +96,7 @@ export function GitBranchSwitcher({
     commitAndSwitchBranch,
   } = useGitBranchSwitcher({
     workspacePath,
+    workspaceIdentity,
     currentBranchName: gitSummary.branchName,
     headRefType: gitSummary.headRefType,
     onRefreshGit,
@@ -291,6 +305,14 @@ export function GitBranchSwitcher({
                             </p>
                           ) : null}
                         </div>
+                        <GitBranchDeleteButton
+                          branch={branch}
+                          disabled={mutationPending}
+                          onRequest={(selected) => {
+                            setDeletingBranch({ scope: deletionScope, branch: selected });
+                            setOpen(false);
+                          }}
+                        />
                       </CommandItem>
                     );
                   })}
@@ -351,6 +373,19 @@ export function GitBranchSwitcher({
         }}
         onSubmit={() => {
           void createBranchAndSwitch();
+        }}
+      />
+
+      <GitBranchDeletionDialog
+        key={workspaceIdentity?.trim() || workspacePath}
+        workspacePath={workspacePath}
+        workspaceIdentity={workspaceIdentity}
+        branch={deletingBranch?.scope === deletionScope ? deletingBranch.branch : null}
+        onClose={() => setDeletingBranch(null)}
+        onDeleted={() => {
+          setDeletingBranch(null);
+          void refreshBranches();
+          onRefreshGit();
         }}
       />
 

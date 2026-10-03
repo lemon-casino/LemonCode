@@ -517,6 +517,7 @@ export function createWorkspaceSlice(set: SetFn) {
       options?: {
         groupedDraftPlacement?: GroupedDraftTaskPlacement;
         createSource?: SessionCreateSource;
+        resetDraft?: boolean;
       },
     ) => {
       const normalizedProvider = provider
@@ -616,6 +617,7 @@ export function createWorkspaceSlice(set: SetFn) {
               // Electron 菜单和按钮点击会先拿走焦点，导致用户看到草稿已打开，但光标要过一拍才回来。
               // 这里在每次进入草稿态时递增版本号，让 ChatView 能在状态切换完成后主动 focus 到 Lexical 输入框。
               draftFocusVersion: current.draftFocusVersion + 1,
+              draftResetVersion: (current.draftResetVersion ?? 0) + (options?.resetDraft ? 1 : 0),
               optimisticMessages: [],
               // 新建任务态（taskId=null）现在也有自己的未发送草稿。
               // 这里切到草稿态时只重置“本次创建任务的瞬时状态”，不主动清空 null 作用域草稿，

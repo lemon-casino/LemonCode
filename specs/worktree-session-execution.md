@@ -5,7 +5,7 @@
 ## 所有者与不变量
 
 - WorktreeService 持有创建请求和绑定事实。CLI 会话只保存绑定引用；`runtime/worktree_binding` session entry 与执行路径必须在首次用户执行前持久化，恢复不能把绑定缺失当作本地会话。
-- V4 `createSession` 是唯一用户创建入口。工作树模式禁用自动草稿预热；首次发送或显式添加需要会话的附件才创建工作树。明确的空创建仍固定执行位置，不能稍后切换已有 runtime 的 cwd。
+- V4 `createSession` 是唯一用户创建入口。工作树模式禁用自动草稿预热；首次发送才创建工作树；附件在 workspace 草稿范围上传，不创建会话或工作树。明确的空创建仍固定执行位置，不能稍后切换已有 runtime 的 cwd。
 - 首次执行先用 commandId 生成稳定 taskId，等待 prepare 完成，再物化 runtime。相同创建请求重试不能生成第二个任务目录。
 - 工作树路径是 Agent、Git、文件、终端、搜索、技能、Hook、checkpoint 和 rewind 的执行根。原路径只承载项目归属、设置及合并目标。
 - filesystem MCP 的同仓库允许目录改映射至工作树；不能保留原仓库祖先目录授权。无法安全映射的显式外部目录拒绝工作树创建，不静默扩大权限。
