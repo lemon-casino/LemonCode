@@ -200,7 +200,21 @@ export class SqliteSessionStore
 
   async createSession(input: CreateSessionInput): Promise<SessionInfo> {
     this.throwBeforeWrite();
-    return sessionRepository.createSession(this.db, input);
+    if (!input.initialEntries?.length) return sessionRepository.createSession(this.db, input);
+    this.db.exec("begin immediate");
+    try {
+      const session = sessionRepository.createSession(this.db, input);
+      for (const entry of input.initialEntries) {
+        if (entry.sessionID !== input.id)
+          throw new Error("Initial entry must belong to the created session");
+        sessionEntryRepository.saveSessionEntry(this.db, entry);
+      }
+      this.db.exec("commit");
+      return session;
+    } catch (error) {
+      this.db.exec("rollback");
+      throw error;
+    }
   }
 
   async updateSession(input: UpdateSessionInput): Promise<SessionInfo> {

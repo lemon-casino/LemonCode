@@ -48,12 +48,16 @@ export function useFileMentionProvider(
   emptyText: string,
   title: string,
   defaultPreviewLimit?: number,
+  executionSourceFolderPaths?: readonly string[],
 ): MentionCategoryResult {
   const { fileService } = useServices();
   const localProject = useLocalProjectForWorkspace(workspacePath, workspaceIdentity);
   const sourceFolderPaths = useMemo(
-    () => localProject?.sourceFolderPaths ?? [workspacePath],
-    [localProject, workspacePath],
+    () =>
+      executionSourceFolderPaths?.length
+        ? executionSourceFolderPaths
+        : (localProject?.sourceFolderPaths ?? [workspacePath]),
+    [executionSourceFolderPaths, localProject, workspacePath],
   );
   const sourceFolderSignature = sourceFolderPaths.join("\0");
   const limit =

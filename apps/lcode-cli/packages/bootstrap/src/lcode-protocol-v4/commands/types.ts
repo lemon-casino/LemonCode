@@ -75,6 +75,11 @@ export interface V4SessionRecordView {
 }
 
 export interface V4CommandCoreHost {
+  /** 明确操作创建隐藏修复 runtime；父会话的 cwd 不变。 */
+  resolveWorktreeConflicts?(
+    sessionId: string,
+    input: { operationId: string; requestId: string; waitForRequestId?: string },
+  ): Promise<{ sessionId: string }>;
   /** 会话查找（同一注册表对象引用；不存在返回 undefined → handler 拒绝）。 */
   getRecord(sessionId: string): V4SessionRecordView | undefined;
   logger?: V4CommandLogger;
@@ -228,6 +233,8 @@ export interface V4CommandCoreHost {
    */
   createSessionRecord?(params: {
     workspaceId: string;
+    execution?: CommandPayloadMap["createSession"]["execution"];
+    executionRequestId?: string;
     mcpServers?: CommandPayloadMap["createSession"]["mcpServers"];
     /** host 判定的 Off-Peak 工具面门禁；缺省不注册工具。 */
     offPeakToolEnabled?: boolean;

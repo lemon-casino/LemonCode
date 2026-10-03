@@ -17,6 +17,15 @@ modules:
   - id: services
     roots: [packages/services/src]
     managed: false
+  - id: worktree
+    roots: [packages/services/src/worktree]
+    managed: true
+    requires: [shared, services]
+    publicEntrypoints:
+      [packages/services/src/worktree/contract.ts, packages/services/src/worktree/node.ts]
+    layers: { domain: domain, app: app, adapters: adapters }
+    layerOrder: [domain, app, adapters]
+    owner: workspace-execution
   - id: session
     roots: [packages/services/src/session]
     managed: false

@@ -3,6 +3,7 @@ import {
   ServiceCollection,
   IFileService,
   IGitService,
+  IWorktreeService,
   IGitCheckpointService,
   IGitBackupService,
   ISystemService,
@@ -312,6 +313,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
   const services = new ServiceCollection()
     .register(IFileService, params.connectionServices.fileService)
     .register(IGitService, params.connectionServices.gitService)
+    .register(IWorktreeService, params.connectionServices.worktreeService)
     .register(IGitCheckpointService, params.connectionServices.gitCheckpointService)
     .register(ISystemService, params.connectionServices.systemService)
     .register(ITerminalService, params.connectionServices.terminalService)

@@ -45,6 +45,7 @@ import {
   LCODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
   lcodeProtocolErrorCodes,
   lcodeProtocolMethods,
+  lcodeWorkspaceRefSchema,
   lcodeSessionCancelBackgroundTaskParamsSchema,
   lcodeSessionCompactParamsSchema,
   lcodeSessionCloseParamsSchema,
@@ -70,6 +71,7 @@ import {
   getConversationMessageProjectionPolicy,
   parseRemoteWorkspaceIdentity,
   type LCodeSessionCreateParams,
+  type WorktreeRepairContext,
   type LCodeDeliveryKind,
   type IntegratedTerminalShellSelection,
   type LCodeSessionRuntimePreferencesScope,
@@ -119,6 +121,15 @@ import {
 import { runSessionModelConfigMutation } from "../lcode-protocol-v4/model-config-mutation.js";
 import { runWithSessionResidencyFinalization } from "./session-residency.js";
 
+import {
+  prepareProtocolExecution,
+  restoreProtocolExecution,
+  WorktreePreparationError,
+  WORKTREE_BINDING_ENTRY,
+} from "./worktree-execution.js";
+import { originWorkspaceRef } from "./workspace.js";
+import { createProtocolCheckoutExecutionPort } from "./checkout-execution-port.js";
+
 const PLAN_MODE_GOAL_CONTINUATION_SKIPPED_MESSAGE = "Plan mode 下已记录 goal，但不会自动继续。";
 const SLOW_SNAPSHOT_LOG_THRESHOLD_MS = 1000;
 
@@ -137,7 +148,7 @@ type LCodeSessionRecordParams = (
       // 共用 record 初始化函数；resume 兼容分支也必须声明该策略字段。
       titleGenerationEnabled?: LCodeSessionCreateParams["titleGenerationEnabled"];
     })
-) & { taskType?: SessionTaskType };
+) & { taskType?: SessionTaskType; worktreeRepair?: WorktreeRepairContext };
 
 interface SessionStartupPreferences {
   memoryEnabled: boolean;
@@ -1235,6 +1246,40 @@ export async function createSessionRecordForV4(
   }));
 }
 
+/** 用户明确触发的集成修复采用独立 runtime；不修改父会话的任何执行绑定。 */
+export async function createWorktreeRepairRecord(
+  context: LCodeProtocolAgentServerContext,
+  parent: LCodeProtocolSessionRecord,
+  repair: WorktreeRepairContext,
+  sessionId: SessionId,
+): Promise<LCodeProtocolSessionRecord> {
+  const existing = context.sessions.get(sessionId);
+  if (existing) return existing;
+  const selection = parent.app.runtime.getSessionModelSelection();
+  if (!selection) throw new Error("Select an available model before repairing conflicts");
+  const record = await materializeSessionRecord(
+    context,
+    {
+      workspace: buildWorkspaceRef({ workspacePath: repair.workspacePath }),
+      worktreeRepair: repair,
+      parentSessionId: parent.app.sessionId,
+      taskType: "worktree_repair",
+      model: selection,
+      mode: parent.app.getMode(),
+      persistence: "deferred",
+      titleGenerationEnabled: false,
+      toolAllowlist: ["Read", "Write", "Edit", "Bash", "Grep", "Glob"],
+      mcpServers: [],
+    },
+    sessionId,
+    false,
+    { kind: "inherit", parent },
+  );
+  context.assertServing?.();
+  context.sessions.set(sessionId, record);
+  return record;
+}
+
 async function createSessionWithProjection<T>(
   context: LCodeProtocolAgentServerContext,
   rawParams: unknown,
@@ -1253,8 +1298,23 @@ async function createSessionWithProjection<T>(
       "sessionId is only supported for imported history creates",
     );
   }
-  const sessionId = (params.sessionId ?? createSessionId()) as SessionId;
-  const workspace = params.workspace;
+  const sessionId = (params.sessionId ?? createSessionId(params.executionRequestId)) as SessionId;
+  const existing = context.sessions.get(sessionId);
+  if (existing) {
+    if (originWorkspaceRef(existing.workspace).workspaceKey !== params.workspace.workspaceKey)
+      throw new Error("Existing session creation belongs to a different workspace");
+    return (await project(existing)).value;
+  }
+  const preparedExecution = await prepareProtocolExecution(context, {
+    workspace: params.workspace,
+    execution: params.execution,
+    taskId: sessionId,
+    requestId: params.executionRequestId ?? sessionId,
+    mcpServers: params.mcpServers,
+  }).catch((error: unknown) => {
+    throw new WorktreePreparationError(error);
+  });
+  const workspace = preparedExecution.workspace;
   context.logger?.info("LCode Protocol session/create started", {
     event: "lcode_protocol.session_create.started",
     hasInitialModel: params.model !== undefined,
@@ -1270,7 +1330,7 @@ async function createSessionWithProjection<T>(
   const recordStartedAt = Date.now();
   const record = await materializeSessionRecord(
     context,
-    { ...params, workspace },
+    { ...params, workspace, mcpServers: preparedExecution.mcpServers },
     sessionId,
     false,
     { kind: "host" },
@@ -1447,7 +1507,14 @@ export async function activateSessionForResume(
     );
   }
   session = await repairLegacyRemoteSessionWorkspaceForResume(context, session);
-  const workspace =
+  if (session.taskType === "worktree_repair") {
+    // 隐藏修复 runtime 依赖冻结 operation 的许可；重启后不能作为普通本地会话恢复并运行 Hook。
+    throw new ProtocolRequestError(
+      lcodeProtocolErrorCodes.sessionUnavailable,
+      "Conflict repair was interrupted; start a new repair or continue manually in the integration checkout",
+    );
+  }
+  const requestedWorkspace =
     params.workspace ??
     buildWorkspaceRef({
       // V4 历史会话冷订阅只传 sessionId；远端会话若在这里仅用目录
@@ -1456,6 +1523,16 @@ export async function activateSessionForResume(
       workspaceIdentity: session.workspaceID,
       workspacePath: session.path ?? session.directory,
     });
+  const restoredExecution = await restoreProtocolExecution(context, {
+    taskId: params.sessionId,
+    workspace: requestedWorkspace,
+    mcpServers: params.mcpServers,
+    persistedWorkspace: buildWorkspaceRef({
+      workspacePath: session.path ?? session.directory,
+      workspaceIdentity: session.workspaceID,
+    }),
+  });
+  const workspace = restoredExecution.workspace;
   let persistedMessages = await readPersistedSessionMessages(context, params.sessionId);
   const mode = derivePersistedSessionMode(persistedMessages);
   // shell 设置变更只对新 session 生效；冷恢复必须使用创建时落库的
@@ -1476,6 +1553,7 @@ export async function activateSessionForResume(
       // 反复对它们发 session/resume。fork 路径一直带着 taskType，这里必须同样带。
       taskType: session.taskType,
       workspace,
+      mcpServers: restoredExecution.mcpServers,
     },
     params.sessionId as SessionId,
     true,
@@ -1629,6 +1707,8 @@ export async function listSessions(context: LCodeProtocolAgentServerContext, raw
       : store
         ? await store.listSessions({
             directory: params.workspace?.workspacePath,
+            workspaceID: params.workspace?.workspaceIdentity as WorkspaceId | undefined,
+            includeWorktreeOrigins: true,
             includeArchived: params.includeArchived,
             limit: params.limit ?? 50,
             taskTypes: [...TASK_LIST_SESSION_TYPES],
@@ -1636,32 +1716,48 @@ export async function listSessions(context: LCodeProtocolAgentServerContext, raw
         : []
   ).filter((session): session is SessionInfo => {
     if (!session) return false;
-    return (
-      (params.includeArchived || session.time.archived === undefined) &&
-      (!params.workspace ||
-        (session.workspaceID?.trim() || session.path || session.directory) ===
-          (params.workspace.workspaceIdentity?.trim() || params.workspace.workspacePath))
-    );
+    return params.includeArchived || session.time.archived === undefined;
   });
   const storedIds = new Set(stored.map((session) => String(session.id)));
-  const sessions = stored.map((session) =>
-    mapSessionInfo({
-      session,
-      workspace:
-        params.workspace ?? buildWorkspaceRef({ workspacePath: session.path ?? session.directory }),
+  const sessions = await Promise.all(
+    stored.map(async (session) => {
+      const entries = await store?.sessionEntries?.({
+        sessionID: session.id,
+        type: WORKTREE_BINDING_ENTRY,
+      });
+      const reference = lcodeWorkspaceRefSchema.safeParse(entries?.at(-1)?.data);
+      return mapSessionInfo({
+        session,
+        workspace: reference.success
+          ? originWorkspaceRef(reference.data)
+          : (params.workspace ??
+            buildWorkspaceRef({
+              workspacePath: session.path ?? session.directory,
+              workspaceIdentity: session.workspaceID,
+            })),
+      });
     }),
   );
-  if (params.sessionIds) return { sessions };
+  if (params.sessionIds)
+    return {
+      sessions: sessions.filter(
+        (session) =>
+          !params.workspace || session.workspace.workspaceKey === params.workspace.workspaceKey,
+      ),
+    };
   for (const record of context.sessions.values()) {
     if (record.persistence === "deferred") continue;
     if (!isTaskListSessionType(record.taskType)) continue;
     if (storedIds.has(record.app.sessionId)) continue;
-    if (params.workspace && params.workspace.workspaceKey !== record.workspace.workspaceKey)
+    if (
+      params.workspace &&
+      params.workspace.workspaceKey !== originWorkspaceRef(record.workspace).workspaceKey
+    )
       continue;
     sessions.push(
       mapSessionInfo({
         app: record.app,
-        workspace: record.workspace,
+        workspace: originWorkspaceRef(record.workspace),
         taskType: record.taskType,
         parentSessionId: record.parentSessionId,
       }),
@@ -2274,6 +2370,15 @@ export async function registerForkedSession(
   if (!forkedSession) {
     throw new Error(`Persisted child session not found: ${fork.forkedSessionId}`);
   }
+  const inheritedExecution = await restoreProtocolExecution(context, {
+    taskId: fork.forkedSessionId,
+    workspace: record.workspace,
+    mcpServers: record.executionMcpServers,
+    persistedWorkspace: buildWorkspaceRef({
+      workspacePath: forkedSession.path ?? forkedSession.directory,
+      workspaceIdentity: forkedSession.workspaceID,
+    }),
+  });
   const forkRecord = await materializeSessionRecord(
     context,
     {
@@ -2283,7 +2388,8 @@ export async function registerForkedSession(
       model: optionalModelSelectionFromString(parentModel),
       ...(fork.parentSessionId ? { parentSessionId: fork.parentSessionId } : {}),
       taskType: forkedSession.taskType,
-      workspace: record.workspace,
+      workspace: inheritedExecution.workspace,
+      mcpServers: inheritedExecution.mcpServers,
     },
     fork.forkedSessionId as SessionId,
     true,
@@ -3362,6 +3468,7 @@ async function createRecord(
       // params.mcpServers 注入 runtimeConfig，导致日志里 runtimeHasMcpConfig=false，工具永远不启动。
       // MCP 是 runtime 启动期配置，因此必须在 session 创建/恢复边界一次性写入 runtimeConfig.mcp。
       ...(runtimeMcp ? { mcp: runtimeMcp } : {}),
+      ...(params.worktreeRepair ? { mcp: { enabled: false, servers: {} } } : {}),
       // 之前只有 TUI 路径（tui-prompt-handler）注入 titleGeneration，
       // LCode Protocol app-server 创建的 session（desktop/web/mobile）没有传，导致
       // shouldAttemptSessionTitleGeneration 的 `if (!config.titleGeneration) return false`
@@ -3373,11 +3480,17 @@ async function createRecord(
       // 身份隔离与路径执行分开：core 只把 identity 写入 session.workspace_id，
       // workingDirectory 仍是远端机器上的实际路径；本地 workspace 保持 undefined。
       workspaceIdentity: workspace.workspaceIdentity as WorkspaceId | undefined,
+      ...(workspace.executionBindingId ? { workspaceBinding: workspace } : {}),
     },
     // LCode Protocol app-server 以前没有注入可等待的交互 broker，
     // core 遇到 permission / AskUserQuestion 只能走默认拒绝，UI 永远收不到阻塞请求。
     // 这里把阻塞交互转换成 server-to-client JSON-RPC request，由 app 通过 response 释放 runtime。
     permissionBroker: createProtocolInteractionBroker(context),
+    checkoutExecutionPort: createProtocolCheckoutExecutionPort(
+      context,
+      workspace,
+      params.worktreeRepair,
+    ),
     automationPort: createProtocolAutomationPort(context, () => ownSessionRecord),
     // 只接入 Host 已开放的工具面；缺省不注入。复用现行异步工厂，
     // 不恢复旧 deferred ModelAdapter/Registry overlay，也不改变 Session Selection。
@@ -3425,6 +3538,7 @@ async function createRecord(
     traceContext,
     updatedAt: now,
     workspace,
+    executionMcpServers: params.mcpServers,
   };
   const unsubscribeSessionEvents = app.runtime.subscribeEvents({
     onSessionEvent: (event) => onSessionEvent(context, record, event),

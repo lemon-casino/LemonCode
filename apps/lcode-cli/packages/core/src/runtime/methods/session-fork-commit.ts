@@ -22,6 +22,7 @@ import {
   resolveForkModelSelection,
   buildModelSelectionEntry,
   buildForkedSessionInput,
+  buildForkWorktreeBindingEntry,
 } from "./session-fork-common.js";
 import {
   collectForkGoalSnapshots,
@@ -159,6 +160,7 @@ export async function commitAtomicConversationFork(
   });
   const clonedEntries = entries.map((entry) => cloneVerifierEntryForAtomicFork(entry, identities));
   const modelSelectionEntry = buildModelSelectionEntry(childSessionId, modelSelection);
+  const worktreeBindingEntry = buildForkWorktreeBindingEntry(runtime, childSessionId);
   if (kind === "selection_side_chat") {
     copiedMessages.push(buildSelectionSideChatBoundary(runtime, childSessionId, modelSelection));
   } else {
@@ -214,6 +216,7 @@ export async function commitAtomicConversationFork(
     // 运行态，冷恢复却会回到 workspace 默认 thought。entry 的磁盘包装由 adapter 负责。
     // Plan 必须与权限一并进入原子的 child bundle，不能只复制创建时的旧 permission。
     entries: [
+      ...(worktreeBindingEntry ? [worktreeBindingEntry] : []),
       ...clonedEntries.map((item) => item.entry),
       modelSelectionEntry,
       buildExecutionStateEntry(childSessionId, executionState),

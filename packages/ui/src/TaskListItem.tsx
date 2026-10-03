@@ -53,6 +53,7 @@ import { TaskTitleOverflowText } from "@/components/TaskTitleOverflowText.js";
 import { createTaskWorkbenchDragPreview } from "@/lib/taskWorkbenchDragPreview.js";
 import { runUserAction } from "@/lib/userActionTelemetry.js";
 import { TaskRowActionButton } from "@/workspace-grouped-tasks/task-row-action-button.js";
+import { WorktreeBadge } from "@/worktree/WorktreeBadge.js";
 import { TaskWorkflowRunLines } from "@/components/workflow-run-line/TaskWorkflowRunLines.js";
 
 type TaskListItemIntl = {
@@ -672,6 +673,7 @@ export const MemoTaskItem = memo(function TaskListItem({
                       grouped task 已改为右侧渐隐。这里统一 task 列表标题溢出策略，避免同一侧栏里出现两种截断语义。 */}
               {taskTitle}
             </TaskTitleOverflowText>
+            <WorktreeBadge bindingId={task.executionBindingId} />
             {task.pendingInteraction ? (
               <TaskInteractionBadge
                 interaction={task.pendingInteraction}
@@ -764,6 +766,7 @@ export const MemoTaskItem = memo(function TaskListItem({
                         使用 mask 渐隐而不是省略号，和 grouped task row 保持一致。 */}
                 {taskTitle}
               </TaskTitleOverflowText>
+              <WorktreeBadge bindingId={task.executionBindingId} />
               {changeSummaryNode ? (
                 <span
                   className={cn(

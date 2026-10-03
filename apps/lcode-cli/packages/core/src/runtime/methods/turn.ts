@@ -44,6 +44,7 @@ import { prepareTurnInput } from "./turn-input-preparation.js";
 import { createRegularTurnLoopState } from "./turn-loop-initialize.js";
 import { completeRegularTurn } from "./turn-complete.js";
 import { completeHookBlockedTurn, failRegularTurn } from "./turn-outcomes.js";
+import { acquireCheckoutExecutionLease } from "./checkout-execution-lease.js";
 export { executeTurn } from "./runtime-command-submit.js";
 
 const TARGET_RUN_HEARTBEAT_MS = 15_000;
@@ -91,6 +92,7 @@ export async function executeTurnCommand(
   let userMessageId: MessageId | undefined;
   let loopState: RegularTurnLoopState | undefined;
   let shouldRetryTitleGenerationAfterTurn = false;
+  let checkoutLease: { release(): Promise<void> } | undefined;
   // 线上“已工作 N 秒”但没有终态的根因候选是：内层 Turn try/catch 之前的 await
   // 拒绝直接穿出。记录当前阶段并区分是否已被内层处理，便于生产日志还原卡点。
   let turnFailureHandled = false;
@@ -106,6 +108,8 @@ export async function executeTurnCommand(
     runWithContextAsync(turnTraceContext, async () => {
       const executionStartedAt = performance.timeOrigin + performance.now();
       beginLocalTurnPreparation(turnTraceContext, "execution")();
+      throwIfTurnAborted(turnAbortSignal);
+      checkoutLease = await acquireCheckoutExecutionLease(this, String(turnId), turnAbortSignal);
       throwIfTurnAborted(turnAbortSignal);
       const admittedModel = await prepareTurnExecutionModel.call(
         this,
@@ -380,5 +384,6 @@ export async function executeTurnCommand(
         turnId: String(turnId),
       });
     }
+    await checkoutLease?.release();
   });
 }

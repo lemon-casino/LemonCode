@@ -26,6 +26,7 @@ import {
   type LCodeProtocolTrace,
   type LCodeSessionPersistence,
   type LCodeWorkspaceRef,
+  type LCodeAgentMcpServer,
 } from "@lcode/shared";
 import type { LCodeApp, LCodeAppOptions } from "../app/types.js";
 import type { V4InteractionRegistry } from "../lcode-protocol-v4/interaction-registry.js";
@@ -103,6 +104,8 @@ export interface LCodeProtocolSessionRecord {
   unsubscribe?: () => void;
   updatedAt: number;
   workspace: LCodeWorkspaceRef;
+  /** Materialized tool configuration; forks inherit the already mapped execution roots. */
+  executionMcpServers?: LCodeAgentMcpServer[];
   activeAbortController?: AbortController;
   /** background runner 释放 ready lock 后，持久化/snapshot/broadcast 尚未完成的引用计数。 */
   residencyFinalizationCount?: number;

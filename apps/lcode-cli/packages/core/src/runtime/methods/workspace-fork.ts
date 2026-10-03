@@ -7,12 +7,7 @@ import {
   createPartId,
   parseWorkspaceCheckpointArtifact,
 } from "../deps.js";
-import type {
-  MessageId,
-  SessionId,
-  TraceContext,
-  WorkspaceCheckpointArtifact,
-} from "../deps.js";
+import type { MessageId, SessionId, TraceContext, WorkspaceCheckpointArtifact } from "../deps.js";
 import {
   selectCheckpointsForMessages,
   formatWorkspaceForkAtMessageNoticeBody,
@@ -28,6 +23,7 @@ import {
 } from "./session-fork.js";
 import type { WorkspaceRewindRestoredFile, WorkspaceForkResult } from "../types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
+import { acquireCheckoutExecutionLease } from "./checkout-execution-lease.js";
 
 export async function restoreWorkspaceCheckpointFiles(
   runtime: AgentRuntimeInternal,
@@ -41,43 +37,53 @@ export async function restoreWorkspaceCheckpointFiles(
     });
   }
 
-  const restoredFiles: WorkspaceRewindRestoredFile[] = [];
-  for (const file of files) {
-    throwIfTurnAborted(abortSignal);
-    if (!file.existedBefore || file.beforeContent === null) {
-      await runtime.fileSystemPort.removeFile(
+  // UI rewind 可以在没有普通 turn 的情况下执行；文件恢复也必须经过同一 writer 协调。
+  const checkoutLease = await acquireCheckoutExecutionLease(
+    runtime,
+    `rewind:${traceContext.traceId}`,
+    abortSignal ?? new AbortController().signal,
+  );
+  try {
+    const restoredFiles: WorkspaceRewindRestoredFile[] = [];
+    for (const file of files) {
+      throwIfTurnAborted(abortSignal);
+      if (!file.existedBefore || file.beforeContent === null) {
+        await runtime.fileSystemPort.removeFile(
+          {
+            path: file.path,
+            missingOk: true,
+            trace: traceContext,
+          },
+          { signal: abortSignal },
+        );
+        restoredFiles.push({
+          action: "delete",
+          path: file.path,
+        });
+        continue;
+      }
+
+      const write = await runtime.fileSystemPort.writeTextFile(
         {
           path: file.path,
-          missingOk: true,
+          content: file.beforeContent,
+          createParents: true,
+          atomic: true,
           trace: traceContext,
         },
         { signal: abortSignal },
       );
       restoredFiles.push({
-        action: "delete",
+        action: "restore",
+        bytesWritten: write.bytesWritten,
         path: file.path,
       });
-      continue;
     }
 
-    const write = await runtime.fileSystemPort.writeTextFile(
-      {
-        path: file.path,
-        content: file.beforeContent,
-        createParents: true,
-        atomic: true,
-        trace: traceContext,
-      },
-      { signal: abortSignal },
-    );
-    restoredFiles.push({
-      action: "restore",
-      bytesWritten: write.bytesWritten,
-      path: file.path,
-    });
+    return restoredFiles;
+  } finally {
+    await checkoutLease?.release();
   }
-
-  return restoredFiles;
 }
 
 export async function forkWorkspaceAtMessage(

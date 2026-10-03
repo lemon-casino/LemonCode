@@ -31,6 +31,7 @@ export const sessionSummarySchema = z.object({
   workspaceId: z.string(),
   // fork 树。
   parentSessionId: z.string().optional(),
+  executionBindingId: z.string().min(1).optional(),
   title: z.string(),
   // custom = 用户显式重命名；default/generated 都不是产品语义上的手动标题。
   // optional 是为了兼容旧 sessions-index frame / 旧持久化摘要。

@@ -10,8 +10,12 @@ export interface GitWorkingTreeSnapshot {
 export async function captureGitWorkingTreeSnapshot(
   gitService: GitSnapshotReader,
   workspacePath: string,
+  workspaceIdentity?: string,
 ): Promise<GitWorkingTreeSnapshot | null> {
-  const refreshed = await gitService.refresh({ workspacePath });
+  const refreshed = await gitService.refresh({
+    workspacePath,
+    ...(workspaceIdentity ? { workspaceIdentity } : {}),
+  });
   if (!refreshed.summary.isGitAvailable || !refreshed.summary.isRepository) return null;
 
   const files = [...refreshed.unstagedChanges, ...refreshed.stagedChanges];
@@ -22,6 +26,7 @@ export async function captureGitWorkingTreeSnapshot(
       // 执行前后比较目标 Host 提供的 Git diff，不把任务开始前的脏文件误归给本次任务。
       const diff = await gitService.getDiff({
         workspacePath,
+        ...(workspaceIdentity ? { workspaceIdentity } : {}),
         path: file.path,
         sourceId: file.isStaged ? "staged" : "unstaged",
       });

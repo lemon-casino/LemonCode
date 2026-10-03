@@ -43,6 +43,9 @@ type ModelSelectedHost = Pick<
  * 在种子之后时日志值优先）。幂等：可在 ensurePublisher / hydration 后重复调用。
  */
 export function seedConfig(host: SeedConfigHost, seed: SessionConfigSeed): void {
+  if (seed.executionWorkspace) {
+    host.snapshot = { ...host.snapshot, executionWorkspace: { ...seed.executionWorkspace } };
+  }
   const config = { ...host.snapshot.config };
   let changed = false;
   if (!config.permissionGrant && seed.permissionGrant) {

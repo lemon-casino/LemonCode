@@ -1329,6 +1329,9 @@ interface LexicalChatInputProps {
   triggerPanelContainer?: HTMLElement | null;
   workspacePath: string;
   workspaceIdentity?: string;
+  fileWorkspacePath?: string;
+  fileWorkspaceIdentity?: string;
+  fileSourceFolderPaths?: readonly string[];
   taskId: string | null;
   /** 仅影响 Skill 引用目录；草稿可使用 prewarm Session runtime。 */
   skillCatalogSessionId?: string | null;
@@ -1364,6 +1367,9 @@ export function LexicalChatInput({
   triggerPanelContainer,
   workspacePath,
   workspaceIdentity,
+  fileWorkspacePath,
+  fileWorkspaceIdentity,
+  fileSourceFolderPaths,
   taskId,
   skillCatalogSessionId,
   inputTestId,
@@ -1528,6 +1534,9 @@ export function LexicalChatInput({
           <MentionPlugin
             workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity}
+            fileWorkspacePath={fileWorkspacePath}
+            fileWorkspaceIdentity={fileWorkspaceIdentity}
+            fileSourceFolderPaths={fileSourceFolderPaths}
             sessionId={skillCatalogSessionId ?? taskId}
             provider={activeTaskProvider}
             container={triggerPanelContainer}

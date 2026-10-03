@@ -25,6 +25,7 @@ export interface PublishOptionsPanelProps {
   error: string | null;
   disabled: boolean;
   canCommit: boolean;
+  allowCommitPreview?: boolean;
   remainingGroups: number;
   presets: PublishPreset[];
   presetName: string;
@@ -356,21 +357,23 @@ export function GitPublishOptionsPanel(props: PublishOptionsPanelProps) {
             >
               {text("previewOnly")}
             </Button>
-            <Button
-              type="button"
-              className="h-auto min-h-8 whitespace-normal"
-              data-testid="git-publish-commit-preview"
-              disabled={
-                disabled ||
-                props.loading ||
-                Boolean(props.error) ||
-                !props.canCommit ||
-                props.remainingGroups > 1
-              }
-              onClick={() => props.onPreview(true)}
-            >
-              {text("previewCommit")}
-            </Button>
+            {props.allowCommitPreview !== false ? (
+              <Button
+                type="button"
+                className="h-auto min-h-8 whitespace-normal"
+                data-testid="git-publish-commit-preview"
+                disabled={
+                  disabled ||
+                  props.loading ||
+                  Boolean(props.error) ||
+                  !props.canCommit ||
+                  props.remainingGroups > 1
+                }
+                onClick={() => props.onPreview(true)}
+              >
+                {text("previewCommit")}
+              </Button>
+            ) : null}
           </div>
         </div>
       ) : null}

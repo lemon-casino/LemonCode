@@ -1,10 +1,12 @@
 import type { MessageId, PartId, ProjectId, SessionId, TraceId, WorkspaceId } from "../shared.js";
 import type { PermissionRuleset } from "../permission.port.js";
+import type { SessionEntryInfo } from "./session-ledger.js";
 
 export const SESSION_TASK_TYPES = [
   "interactive",
   "fork",
   "selection_side_chat",
+  "worktree_repair",
   "workflow_parent",
   "workflow_child",
   "subagent_child",
@@ -63,6 +65,8 @@ export interface CreateSessionInput {
   version: string;
   shareURL?: string;
   permission?: PermissionRuleset;
+  /** 与 session 行同事务写入；绑定引用不能在崩溃后与执行路径脱离。 */
+  initialEntries?: SessionEntryInfo[];
   time?: {
     created?: number;
     updated?: number;
@@ -119,6 +123,8 @@ export interface SessionRevert {
 }
 
 export interface ListSessionsInput {
+  /** 原项目列表包含已绑定工作树的会话；仅用于展示，执行路径不会改写。 */
+  includeWorktreeOrigins?: boolean;
   projectID?: ProjectId;
   /** undefined = 不按 identity 过滤；null = 仅本地/legacy 空 identity；字符串 = 精确 workspace identity。 */
   workspaceID?: WorkspaceId | null;

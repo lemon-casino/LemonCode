@@ -27,6 +27,7 @@ import {
   restoreWorkspaceFileRewindEntries,
 } from "./workspace-checkpoint-persistence.js";
 import { mainTurnCacheHitAggregateFromMessages } from "./turn-model-step-usage.js";
+import { acquireCheckoutExecutionLease } from "./checkout-execution-lease.js";
 import {
   syncPersistedSessionTitleForResume,
   extractPersistedEnvInfo,
@@ -250,15 +251,25 @@ export async function resumeFromStore(
     traceContext,
   );
   await this.appendEvent(resumedEvent, traceContext);
-  const sessionStartHookResult = await this.runSessionStartHooks(
-    "resume",
-    traceContext,
-    options?.abortSignal,
+  // 冷恢复 Hook 早于第一轮执行，也可能写文件，必须与普通 turn 共用 checkout writer。
+  const checkoutLease = await acquireCheckoutExecutionLease(
+    this,
+    `resume:${traceContext.traceId}`,
+    options?.abortSignal ?? new AbortController().signal,
   );
-  this.injectHookAdditionalContextIntoMessageHistory(
-    HookEventName.SessionStart,
-    sessionStartHookResult.additionalContexts,
-  );
+  try {
+    const sessionStartHookResult = await this.runSessionStartHooks(
+      "resume",
+      traceContext,
+      options?.abortSignal,
+    );
+    this.injectHookAdditionalContextIntoMessageHistory(
+      HookEventName.SessionStart,
+      sessionStartHookResult.additionalContexts,
+    );
+  } finally {
+    await checkoutLease?.release();
+  }
 
   if (messages.length > 0 && activeMessages.length === 0) {
     this.logger?.warn("Session resume produced zero active messages", {

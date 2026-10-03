@@ -23,6 +23,7 @@ import { uuidv7 } from "@lcode/shared";
 import { createMessageId, traceContextToLogContext } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { emitControlOnlyUserTurn, persistWorkflowLaunchUserMessage } from "./control-only-turn.js";
+import { acquireCheckoutExecutionLease } from "./checkout-execution-lease.js";
 
 /**
  * `startSavedWorkflowRun` 的结构化结果。成功给 run 的两把关联键（`runId` ≡ backgroundTaskId ≡
@@ -141,133 +142,142 @@ export async function startSavedWorkflowRun(
     return { ok: false, reason: "start_failed", message: "dynamic workflow port unavailable" };
   }
 
-  // 提交前先初始化上下文并持久化父会话。actor 的 session_task_link 通过
-  // parent_session_id 引用父会话；父行不存在时，首个 actor 的创建会因外键约束失败。
-  // 父会话以工作流名为首输入标题，后续启动轮会幂等复用。提交失败时由 GUI 在收到
-  // rejected ACK 后通过 deleteSession 回收空会话。
-  await this.ensureContextInitialized(traceContext);
-  await this.ensureSessionPersisted(found.name, traceContext);
-
-  // (3) toolCallId：`launch-` 前缀，日志与工具卡可辨于模型工具调用 id（`tool_*`）与 resume 重臂。
-  const toolCallId = `launch-${randomUUID()}`;
-  const hasArgs = Object.keys(validated.args).length > 0;
-  // 发起锚点：直接启动没有用户轮，铸一个 UUID v7 同时充当
-  // run 的 `run-launched.inputId` 与下面 controlOnly 启动轮的 inputId——启动轮 run 卡与子代理的
-  // agent_step 因此挂在同一个 message 下。
-  const launchInputId = uuidv7();
-  // 提交的声明阶段表读与启动轮 display 同一个「分析结果 → 有界显示图」投影（阶段来自控制流层，
-  // 只传因果图就没有阶段），再过同一个 createWorkflowPhaseNames——两条路上同一脚本画同一条侧栏轨道。
-  const launchGraph = boundGraphOfAnalysis(analysis);
-  const phaseNames = createWorkflowPhaseNames(launchGraph);
-  // 「同时在跑」表的下标指向 `phaseNames`，所以它必须来自同一张图、同一次投影。
-  const phaseAlongside =
-    phaseNames === undefined ? undefined : createWorkflowPhaseAlongside(launchGraph);
-
-  // (3b) 工作副本。中枢直接启动与 `CreateWorkflow` 的 saved 来源是同一件事，所以拷贝也按同一条
-  // 规矩写：逐字节（元数据块一起）、保存的定义本身一个字都不动。写不成就没有 `scriptPath`——run 照常起，
-  // 只是终态通知里没有可编辑的文件可指。
-  const draft = await writeWorkflowDraft({ cwd, name: found.name, source: found.source });
-
-  // (4) 提交启动。提交失败（拒绝 / 抛错）在启动轮之前退出——绝不吞成带 runId 的成功。
-  let runId: string;
+  const checkoutLease = await acquireCheckoutExecutionLease(
+    this,
+    `workflow-launch:${traceContext.traceId}`,
+    new AbortController().signal,
+  );
   try {
-    const submitted = await port.submit({
-      scriptText: found.script,
-      cwd,
-      name: found.name,
-      ...(hasArgs ? { args: validated.args } : {}),
-      parentSessionId: this.sessionId,
-      toolCallId,
-      launchInputId,
-      ...(phaseNames === undefined ? {} : { phaseNames }),
-      ...(phaseAlongside === undefined ? {} : { phaseAlongside }),
-      ...(draft === undefined ? {} : { scriptPath: draft.path }),
-      trace: traceContext,
-    });
-    runId = submitted.runId;
-  } catch (error) {
-    return { ok: false, reason: "start_failed", message: describeError(error) };
-  }
+    // 提交前先初始化上下文并持久化父会话。actor 的 session_task_link 通过
+    // parent_session_id 引用父会话；父行不存在时，首个 actor 的创建会因外键约束失败。
+    // 父会话以工作流名为首输入标题，后续启动轮会幂等复用。提交失败时由 GUI 在收到
+    // rejected ACK 后通过 deleteSession 回收空会话。
+    await this.ensureContextInitialized(traceContext);
+    await this.ensureSessionPersisted(found.name, traceContext);
 
-  const launchText = buildLaunchMessageText(found.name, found.scope, runId, validated.args);
-  // 图与脚本随启动轮走：run 详情侧板与轮尾 run 卡按 toolCallId 找「发起行」取 display.causalityGraph
-  // 与 input.script，直接启动没有工具行，就把同一份 display 与脚本挂在启动元数据上
-  // （否则直接启动的 run 侧板无图、无脚本）。display 走与 CreateWorkflow 同一个「分析结果 → 显示图」
-  // 投影，三层（站点 / 阶段 / 子代理卡）一并在场——这里曾手拼实参而只传了因果图，
-  // 图有站点却没有阶段与子代理卡，侧板因此只剩一条空脊线。
-  const display = displayOfAnalysis(analysis);
-  const meta = boundWorkflowLaunchMeta({
-    runId,
-    toolCallId,
-    name: found.name,
-    scope: found.scope,
-    path: found.path,
-    ...(hasArgs ? { args: validated.args } : {}),
-    description: found.meta.description,
-    ...(display?.kind === "create_workflow" ? { display } : {}),
-    script: found.script,
-  });
+    // (3) toolCallId：`launch-` 前缀，日志与工具卡可辨于模型工具调用 id（`tool_*`）与 resume 重臂。
+    const toolCallId = `launch-${randomUUID()}`;
+    const hasArgs = Object.keys(validated.args).length > 0;
+    // 发起锚点：直接启动没有用户轮，铸一个 UUID v7 同时充当
+    // run 的 `run-launched.inputId` 与下面 controlOnly 启动轮的 inputId——启动轮 run 卡与子代理的
+    // agent_step 因此挂在同一个 message 下。
+    const launchInputId = uuidv7();
+    // 提交的声明阶段表读与启动轮 display 同一个「分析结果 → 有界显示图」投影（阶段来自控制流层，
+    // 只传因果图就没有阶段），再过同一个 createWorkflowPhaseNames——两条路上同一脚本画同一条侧栏轨道。
+    const launchGraph = boundGraphOfAnalysis(analysis);
+    const phaseNames = createWorkflowPhaseNames(launchGraph);
+    // 「同时在跑」表的下标指向 `phaseNames`，所以它必须来自同一张图、同一次投影。
+    const phaseAlongside =
+      phaseNames === undefined ? undefined : createWorkflowPhaseAlongside(launchGraph);
 
-  // ④ 之后的失败只记日志不回滚：run 已在飞，可在侧板取消；把它撤回反而制造一个无归属的孤儿 run。
-  try {
-    // (5) 启动轮：user 可见消息（synthetic + workflowLaunch 元数据）+ history + controlOnly turn
-    // 边界；会话标题 = 工作流名（ensureSessionPersisted 以名为首输入标题）。
-    const messageId = createMessageId();
-    await emitControlOnlyUserTurn.call(this, {
-      messageId,
-      titleInput: found.name,
-      historyText: launchText,
-      turnInput: launchText,
-      traceContext,
-      inputId: launchInputId,
-      inputSource: "workflow_launch",
-      workflowLaunch: meta,
-      persistMessage: () =>
-        persistWorkflowLaunchUserMessage.call(this, {
-          messageID: messageId,
-          text: launchText,
-          meta,
-          traceContext,
-        }),
-    });
+    // (3b) 工作副本。中枢直接启动与 `CreateWorkflow` 的 saved 来源是同一件事，所以拷贝也按同一条
+    // 规矩写：逐字节（元数据块一起）、保存的定义本身一个字都不动。写不成就没有 `scriptPath`——run 照常起，
+    // 只是终态通知里没有可编辑的文件可指。
+    const draft = await writeWorkflowDraft({ cwd, name: found.name, source: found.source });
 
-    // (6) 后台追踪：合成一个 CreateWorkflow 描述子走 executor 的同一条 trackBackgroundTask
-    // （runtime-task registry 登记 = 会话回收护栏、BackgroundTaskStarted、终态 waiter、结算通知）。
-    // `input.name` 喂通知主题（workflowTaskSubject），`name: CreateWorkflow` 让 per-tool 生命周期
-    // 分派归 "workflow"——完成通知 / 取消 / 恢复 / 详情侧板零改动。
-    const toolCall: ExecutableToolCall = {
-      id: toolCallId,
-      name: CREATE_WORKFLOW_TOOL_NAME,
-      input: {
+    // (4) 提交启动。提交失败（拒绝 / 抛错）在启动轮之前退出——绝不吞成带 runId 的成功。
+    let runId: string;
+    try {
+      const submitted = await port.submit({
+        scriptText: found.script,
+        cwd,
         name: found.name,
-        saved: {
-          name: found.name,
-          scope: found.scope,
-          ...(hasArgs ? { args: validated.args } : {}),
-        },
-      },
-    };
-    await this.executor.trackExternalBackgroundTask(
-      toolCall,
-      { backgroundTaskId: runId, status: "backgrounded" },
-      traceContext,
-      undefined,
-    );
-  } catch (error) {
-    this.logger?.error(
-      "Saved workflow launched but post-submit bookkeeping failed",
-      error instanceof Error ? error : new Error(String(error)),
-      {
-        ...traceContextToLogContext(traceContext),
-        event: "dynamic_workflow.launch.post_submit_failed",
-        module: "core.runtime",
-        runId,
+        ...(hasArgs ? { args: validated.args } : {}),
+        parentSessionId: this.sessionId,
         toolCallId,
-      },
-    );
-  }
+        launchInputId,
+        ...(phaseNames === undefined ? {} : { phaseNames }),
+        ...(phaseAlongside === undefined ? {} : { phaseAlongside }),
+        ...(draft === undefined ? {} : { scriptPath: draft.path }),
+        trace: traceContext,
+      });
+      runId = submitted.runId;
+    } catch (error) {
+      return { ok: false, reason: "start_failed", message: describeError(error) };
+    }
 
-  return { ok: true, runId, toolCallId };
+    const launchText = buildLaunchMessageText(found.name, found.scope, runId, validated.args);
+    // 图与脚本随启动轮走：run 详情侧板与轮尾 run 卡按 toolCallId 找「发起行」取 display.causalityGraph
+    // 与 input.script，直接启动没有工具行，就把同一份 display 与脚本挂在启动元数据上
+    // （否则直接启动的 run 侧板无图、无脚本）。display 走与 CreateWorkflow 同一个「分析结果 → 显示图」
+    // 投影，三层（站点 / 阶段 / 子代理卡）一并在场——这里曾手拼实参而只传了因果图，
+    // 图有站点却没有阶段与子代理卡，侧板因此只剩一条空脊线。
+    const display = displayOfAnalysis(analysis);
+    const meta = boundWorkflowLaunchMeta({
+      runId,
+      toolCallId,
+      name: found.name,
+      scope: found.scope,
+      path: found.path,
+      ...(hasArgs ? { args: validated.args } : {}),
+      description: found.meta.description,
+      ...(display?.kind === "create_workflow" ? { display } : {}),
+      script: found.script,
+    });
+
+    // ④ 之后的失败只记日志不回滚：run 已在飞，可在侧板取消；把它撤回反而制造一个无归属的孤儿 run。
+    try {
+      // (5) 启动轮：user 可见消息（synthetic + workflowLaunch 元数据）+ history + controlOnly turn
+      // 边界；会话标题 = 工作流名（ensureSessionPersisted 以名为首输入标题）。
+      const messageId = createMessageId();
+      await emitControlOnlyUserTurn.call(this, {
+        messageId,
+        titleInput: found.name,
+        historyText: launchText,
+        turnInput: launchText,
+        traceContext,
+        inputId: launchInputId,
+        inputSource: "workflow_launch",
+        workflowLaunch: meta,
+        persistMessage: () =>
+          persistWorkflowLaunchUserMessage.call(this, {
+            messageID: messageId,
+            text: launchText,
+            meta,
+            traceContext,
+          }),
+      });
+
+      // (6) 后台追踪：合成一个 CreateWorkflow 描述子走 executor 的同一条 trackBackgroundTask
+      // （runtime-task registry 登记 = 会话回收护栏、BackgroundTaskStarted、终态 waiter、结算通知）。
+      // `input.name` 喂通知主题（workflowTaskSubject），`name: CreateWorkflow` 让 per-tool 生命周期
+      // 分派归 "workflow"——完成通知 / 取消 / 恢复 / 详情侧板零改动。
+      const toolCall: ExecutableToolCall = {
+        id: toolCallId,
+        name: CREATE_WORKFLOW_TOOL_NAME,
+        input: {
+          name: found.name,
+          saved: {
+            name: found.name,
+            scope: found.scope,
+            ...(hasArgs ? { args: validated.args } : {}),
+          },
+        },
+      };
+      await this.executor.trackExternalBackgroundTask(
+        toolCall,
+        { backgroundTaskId: runId, status: "backgrounded" },
+        traceContext,
+        undefined,
+      );
+    } catch (error) {
+      this.logger?.error(
+        "Saved workflow launched but post-submit bookkeeping failed",
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          ...traceContextToLogContext(traceContext),
+          event: "dynamic_workflow.launch.post_submit_failed",
+          module: "core.runtime",
+          runId,
+          toolCallId,
+        },
+      );
+    }
+
+    return { ok: true, runId, toolCallId };
+  } finally {
+    await checkoutLease?.release();
+  }
 }
 
 /**

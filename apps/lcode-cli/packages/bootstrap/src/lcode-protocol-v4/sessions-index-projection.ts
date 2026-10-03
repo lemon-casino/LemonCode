@@ -16,6 +16,7 @@ export interface SessionSummaryDeriveExtra {
   createdAt: number;
   lastActivityAt: number;
   parentSessionId?: string;
+  executionBindingId?: string;
 }
 
 const MAX_PREVIEW_CHARS = 120;
@@ -77,6 +78,7 @@ function deriveSessionSummary(
     sessionId: snapshot.sessionId,
     workspaceId: extra.workspaceId,
     ...(extra.parentSessionId ? { parentSessionId: extra.parentSessionId } : {}),
+    ...(extra.executionBindingId ? { executionBindingId: extra.executionBindingId } : {}),
     title: snapshot.meta.title,
     titleSource: snapshot.meta.titleSource,
     phase: snapshot.control.phase,
@@ -106,6 +108,7 @@ function summariesEqual(a: SessionSummary, b: SessionSummary): boolean {
     a.sessionId === b.sessionId &&
     a.workspaceId === b.workspaceId &&
     a.parentSessionId === b.parentSessionId &&
+    a.executionBindingId === b.executionBindingId &&
     a.title === b.title &&
     a.titleSource === b.titleSource &&
     a.phase === b.phase &&

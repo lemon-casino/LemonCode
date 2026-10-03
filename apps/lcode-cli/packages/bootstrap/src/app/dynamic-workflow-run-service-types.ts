@@ -60,6 +60,10 @@ export interface DynamicWorkflowActorRuntimeInput {
 }
 
 export interface DynamicWorkflowRunServiceDeps {
+  acquireCheckoutWriterLease?: (
+    runId: string,
+    signal: AbortSignal,
+  ) => Promise<{ release(): Promise<void> } | undefined>;
   /** durable journal（dwf_* 表）。缺失即不构造本服务，见文件头不变式 3。 */
   journal: JournalStorePort;
   /**

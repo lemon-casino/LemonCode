@@ -12,6 +12,15 @@ export function buildWorkspaceRef(input: {
   };
 }
 
+export function originWorkspaceRef(workspace: LCodeWorkspaceRef): LCodeWorkspaceRef {
+  return workspace.originWorkspacePath
+    ? buildWorkspaceRef({
+        workspacePath: workspace.originWorkspacePath,
+        workspaceIdentity: workspace.originWorkspaceIdentity,
+      })
+    : workspace;
+}
+
 /**
  * 将 V4 workspaceId 的本地路径/远程 identity 双形态统一还原为 workspace ref。
  */

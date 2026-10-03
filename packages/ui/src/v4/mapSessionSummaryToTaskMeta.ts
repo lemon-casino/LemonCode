@@ -55,6 +55,7 @@ export function mapSessionSummaryToTaskMeta(
   return attachTaskListRowActivity(
     {
       taskId: summary.sessionId,
+      ...(summary.executionBindingId ? { executionBindingId: summary.executionBindingId } : {}),
       traceId: (previous?.traceId ?? `session-${summary.sessionId}`) as TraceId,
       title,
       ...(titleOverridden ? { titleOverridden } : {}),

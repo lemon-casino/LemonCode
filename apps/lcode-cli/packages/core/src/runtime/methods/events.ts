@@ -312,6 +312,20 @@ export async function ensureSessionPersisted(
       permission: {
         mode: this.config.mode ?? "build",
       },
+      ...(this.config.workspaceBinding
+        ? {
+            initialEntries: [
+              {
+                id: `${this.sessionId}:worktree-binding`,
+                sessionID: this.sessionId,
+                type: "runtime/worktree_binding",
+                touchSession: false,
+                time: { created: Date.now(), updated: Date.now() },
+                data: this.config.workspaceBinding,
+              },
+            ],
+          }
+        : {}),
     });
     // 初始模型过去只写进首条 user message，没有写稳定的 session selection。
     // 冷恢复从末尾 assistant 反推时只能得到 provider/model，必选 reasoning 会丢失，

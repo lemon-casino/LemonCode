@@ -2730,7 +2730,8 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.removeInvalid.removed": "Invalid, removed",
   "settings.modelProvider.removeInvalid.unconfirmed": "Unconfirmed, kept",
   "settings.modelProvider.removeInvalid.deleteFailed": "Removal failed",
-  "settings.modelProvider.removeInvalid.unknownReason": "No explicit confirmation that the model is invalid",
+  "settings.modelProvider.removeInvalid.unknownReason":
+    "No explicit confirmation that the model is invalid",
   "settings.modelProvider.removeInvalid.summary":
     "Checked {total}: {valid} available and kept, {removed} invalid and removed, {unconfirmed} unconfirmed and kept, {deleteFailed} removal failures.",
   "settings.modelProvider.removeInvalid.noneRemoved":
@@ -2752,7 +2753,8 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.showApiKey": "Show API key",
   "settings.modelProvider.hideApiKey": "Hide API key",
   "settings.modelProvider.apiKeyManager.title": "Manage API keys",
-  "settings.modelProvider.apiKeyManager.loadFailed": "Unable to load API keys. Close this dialog and try again.",
+  "settings.modelProvider.apiKeyManager.loadFailed":
+    "Unable to load API keys. Close this dialog and try again.",
   "settings.modelProvider.apiKeyManager.description":
     "Configure multiple keys for one provider with ordered failover.",
   "settings.modelProvider.apiKeyManager.add": "Add key",
@@ -5203,10 +5205,13 @@ const enUS: Record<string, string> = {
   "chat.toolCall.workflow.activity.requestsCompleted": "Successful requests",
   "chat.toolCall.workflow.activity.toolCalls": "Tool calls",
   "chat.permission.workflow.advice.title": "Orchestration advice (does not block confirmation)",
-  "chat.permission.workflow.advice.await-before-later-asks": "Later agent calls start after this wait completes. Check whether any independent work could start earlier.",
-  "chat.permission.workflow.advice.join-before-per-item-work": "All branches finish before later per-item work starts. Check whether each item could start when its own result is ready.",
+  "chat.permission.workflow.advice.await-before-later-asks":
+    "Later agent calls start after this wait completes. Check whether any independent work could start earlier.",
+  "chat.permission.workflow.advice.join-before-per-item-work":
+    "All branches finish before later per-item work starts. Check whether each item could start when its own result is ready.",
   "chat.permission.workflow.advice.locations": "Waiting on {waiting} · Later calls {delayed}",
-  "chat.permission.workflow.advice.caution": "This shows control-flow waiting, not proof of independence. Files, permissions, external side effects and same-agent FIFO may require sequential execution. The script is never rewritten automatically.",
+  "chat.permission.workflow.advice.caution":
+    "This shows control-flow waiting, not proof of independence. Files, permissions, external side effects and same-agent FIFO may require sequential execution. The script is never rewritten automatically.",
   "chat.toolCall.workflow.graph.phase.unphased": "Ungrouped",
   "chat.toolCall.workflow.graph.phase.workflow": "Workflow",
   "chat.toolCall.workflow.timeline.rounds": "visited {count} times",
@@ -5286,7 +5291,8 @@ const enUS: Record<string, string> = {
   "chat.toolCall.workflow.list.partialCount": "Showing {count} templates",
   "chat.toolCall.workflow.list.partialCountOne": "Showing {count} template",
   "chat.toolCall.workflow.list.empty": "No reusable templates in the project or global archive",
-  "chat.toolCall.workflow.list.emptyHint": "This list contains explicitly saved templates, not drafts or run history. Running a workflow does not automatically save it as a template.",
+  "chat.toolCall.workflow.list.emptyHint":
+    "This list contains explicitly saved templates, not drafts or run history. Running a workflow does not automatically save it as a template.",
   "chat.toolCall.workflow.list.invalid": "{count} template files could not be read",
   "chat.toolCall.workflow.list.invalidOne": "{count} template file could not be read",
   "chat.toolCall.workflow.list.truncated": "Some templates or details are not shown",
@@ -7168,6 +7174,100 @@ const enUS: Record<string, string> = {
     "This target does not support frozen commit review. Update it or explicitly use ordinary manual commit.",
   "git.review.stale":
     "Git state changed and the draft expired. Regenerate the review before committing.",
+  "worktree.defaultMode": "Default execution location for new chats",
+  "worktree.defaultModeDescription":
+    "Projects can override this setting. A chat keeps its execution location after it starts.",
+  "worktree.autoOpenReview": "Open review when a commit message is ready",
+  "worktree.autoOpenReviewDescription":
+    "Independent of generation. When disabled, open review manually to use the generated message.",
+  "worktree.projectMode": "New chat location for this project",
+  "worktree.projectSettings": "Project execution and commit settings",
+  "worktree.projectSettingsDescription":
+    "Applies to this project. Inherit uses global settings. Existing chats keep their execution location.",
+  "worktree.mode.local": "Local directory",
+  "worktree.mode.worktree": "Worktree",
+  "worktree.mode.inherit": "Inherit global",
+  "worktree.mode.enabled": "Enabled",
+  "worktree.mode.disabled": "Disabled",
+  "worktree.executionMode": "Chat execution location",
+  "worktree.base": "Base",
+  "worktree.baseDescription":
+    "Select the new worktree base without switching the original branch. Uncommitted changes are not copied.",
+  "worktree.retry": "Retry",
+  "worktree.preparing": "Preparing worktree…",
+  "worktree.unavailable": "Worktrees are unavailable for this directory",
+  "worktree.manage": "Manage worktree",
+  "worktree.sourceUnavailable": "Cannot read the source commit",
+  "worktree.restore": "Restore worktree",
+  "worktree.validationCommands": "Project validation commands (one per line)",
+  "worktree.validationCommandsHint": "Use commands provided by this project",
+  "worktree.integrate": "Merge committed work",
+  "worktree.integrateDescription":
+    "Review and commit in the worktree first. A separate directory prepares the merge; review and validate the candidate before updating the target branch.",
+  "worktree.conflictInstructions":
+    "Resolve conflicts in the integration directory above, then continue. The original project remains in its current state.",
+  "worktree.resolveWithAI": "Resolve conflicts with AI",
+  "worktree.continue": "Continue after resolving conflicts",
+  "worktree.reviewDiff": "Review the complete merge diff",
+  "worktree.approveCandidate": "I reviewed all source changes and the current merge candidate",
+  "worktree.noValidation":
+    "No project validation commands are configured for this candidate. I understand and agree to continue.",
+  "worktree.validate": "Validate candidate",
+  "worktree.publish": "Merge into target branch",
+  "worktree.retryPublish": "Reconcile and retry merge",
+  "worktree.repairRunning":
+    "Resolving conflicts in the integration checkout. The result still requires review.",
+  "worktree.stopRepair": "Stop conflict repair",
+  "worktree.publishTargetChanged":
+    "The target branch or commit changed. Review a new publication plan on the current branch.",
+  "worktree.sourceReceiptCount": "Saved {count} source commits",
+  "worktree.sourceCommit": "Source commit",
+  "worktree.targetBaseline": "Target branch and baseline",
+  "worktree.targetBranch": "Integration target branch",
+  "worktree.targetCheckoutHint":
+    "The original project must already have this branch checked out. Selecting it does not switch the project.",
+  "worktree.cancelIntegration": "Cancel integration and keep work",
+  "worktree.integration.cancelled": "Cancelled; commits and integration directory retained",
+  "worktree.mergeBase": "Common ancestor",
+  "worktree.integrationDirectory": "Integration directory",
+  "worktree.ignoredOmissions": "Ignored files not saved ({count})",
+  "worktree.archiveIgnored":
+    "Ignored files will not be saved. Allow removing them from this worktree after the snapshot.",
+  "worktree.archive": "Save snapshot and archive",
+  "worktree.working": "Working…",
+  "worktree.binding.preparing": "Preparing worktree",
+  "worktree.binding.ready": "Worktree is ready",
+  "worktree.binding.failed": "Worktree preparation failed",
+  "worktree.binding.archived": "Archived; snapshot can be restored",
+  "worktree.binding.restoring": "Restoring worktree",
+  "worktree.binding.missing":
+    "Worktree directory is missing; restore it or repair its original location",
+  "worktree.integration.preparing": "Preparing merge candidate",
+  "worktree.integration.conflicted": "Merge conflicts need attention",
+  "worktree.integration.awaiting-review": "Candidate is ready for review",
+  "worktree.integration.validating": "Running project validation",
+  "worktree.integration.validation-failed": "Project validation failed; target unchanged",
+  "worktree.integration.ready": "Candidate prepared; awaiting merge approval",
+  "worktree.integration.publishing": "Updating target branch",
+  "worktree.integration.published": "Merged into target branch",
+  "worktree.integration.failed": "Merge incomplete; resolve the error and retry",
+  "worktree.advanced": "Worktree setup and validation",
+  "worktree.advancedDescription":
+    "One entry per line. Only these commands run and these ignored paths are copied when preparing a worktree. Secrets such as .env are never copied by default.",
+  "worktree.setupCommands": "Setup commands",
+  "worktree.copyIgnoredPaths": "Ignored paths to copy explicitly",
+  "worktree.saveAdvanced": "Save worktree configuration",
+  "worktree.refresh": "Refresh status",
+  "worktree.approveRemainingGroups": "I reviewed and approve the remaining {count} commit groups",
+  "worktree.commitAndMerge": "Commit and prepare merge into {branch}",
+  "worktree.integration.committing-source": "Committing reviewed source groups",
+  "worktree.integration.source-commit-failed":
+    "Source commits incomplete; completed receipts are preserved",
+  "worktree.projectWorktrees": "Project worktrees",
+  "worktree.projectWorktreesDescription":
+    "Includes worktrees prepared for unsent or abandoned drafts. Archive and restore them here.",
+  "worktree.noWorktrees": "No worktrees yet",
+  "worktree.loading": "Loading…",
 };
 
 export default enUS;

@@ -41,7 +41,7 @@ import { DesktopTopOverlay } from "@/DesktopTopOverlay.js";
 import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
 import { WorkspacePluginPreview } from "@/WorkspacePluginPreview.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
-import { GitBranchSwitcher } from "@/GitBranchSwitcher.js";
+import { DraftWorkspaceExecutionControls } from "@/worktree/DraftWorkspaceExecutionControls.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
 
 import { AUTOMATIONS_TOAST_ANCHOR_ID, AutomationsSection } from "@/settings/AutomationsSection.js";
@@ -226,6 +226,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   allowRemoteWorkspace = true,
   remoteWorkspaceSessions = EMPTY_REMOTE_WORKSPACE_SESSIONS,
   workspaceAbsPath,
+  executionWorkspace,
+  executionBinding,
   workspaceRemoteSessionId,
   workspaceIdentity,
   isWorkspaceVisible = true,
@@ -383,6 +385,10 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   );
   const [isSidebarFileTreeOpen, setIsSidebarFileTreeOpen] = useState(false);
   const workspaceKey = workspaceIdentity?.trim() || workspaceAbsPath;
+  const executionPath = executionWorkspace?.workspacePath ?? workspaceAbsPath;
+  const executionIdentity =
+    executionWorkspace === undefined ? workspaceIdentity : executionWorkspace?.workspaceIdentity;
+  const executionReady = executionWorkspace !== null;
   const screenshotSurfaceRequest = useBrowserScreenshotSurfaceRequest(sidePaneState?.tabs ?? []);
   const screenshotSurfaceTab = screenshotSurfaceRequest
     ? findScreenshotSurfaceTabForRender(sidePaneState?.tabs ?? [], screenshotSurfaceRequest)
@@ -417,10 +423,28 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
     () => readStoredWorkspaceSidebarWidthPx() ?? WORKSPACE_SIDEBAR_DEFAULT_WIDTH_PX,
   );
   const workspaceSidebarPanelWidthPxRef = useRef(workspaceSidebarPanelWidthPx);
-  const openWorkspaceKeys = useMemo(
-    () => workspaceTabs.map((tab) => tab.workspaceIdentity?.trim() || tab.workspacePath),
-    [workspaceTabs],
+  const [visitedExecutionScopes, setVisitedExecutionScopes] = useState<Record<string, string[]>>(
+    {},
   );
+  const executionKey = executionIdentity?.trim() || executionPath;
+  useEffect(() => {
+    if (!executionReady) return;
+    setVisitedExecutionScopes((previous) =>
+      previous[workspaceKey]?.includes(executionKey)
+        ? previous
+        : { ...previous, [workspaceKey]: [...(previous[workspaceKey] ?? []), executionKey] },
+    );
+  }, [executionReady, executionKey, workspaceKey]);
+  const openWorkspaceKeys = useMemo(() => {
+    const keys = workspaceTabs.map((tab) => tab.workspaceIdentity?.trim() || tab.workspacePath);
+    return [
+      ...new Set([
+        ...keys,
+        ...keys.flatMap((key) => visitedExecutionScopes[key] ?? []),
+        ...(executionReady ? [executionKey] : []),
+      ]),
+    ];
+  }, [workspaceTabs, executionReady, executionKey, visitedExecutionScopes]);
   // 保活回收：workspace tab 真正关闭（从 openWorkspaceKeys 移除）时，回收属于该 workspace 的
   // side pane terminal 常驻 session（杀 PTY + 销 xterm），避免孤儿进程泄漏。
   // 切 workspace 不会让 workspaceKey 离开这个集合，所以保活的 session 不受影响。
@@ -817,6 +841,21 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       targetWorkspaceIdentity?: string,
       targetWorkspaceRemoteSessionId?: string,
     ) => {
+      // 工作树目录没有独立项目 tab；按会话实际 scope 识别所属文件树，保留远程连接。
+      if (
+        executionReady &&
+        isWorkspaceFilePathInside(executionPath, targetPath) &&
+        (!targetWorkspaceIdentity || targetWorkspaceIdentity === executionIdentity) &&
+        (!targetWorkspaceRemoteSessionId ||
+          targetWorkspaceRemoteSessionId === workspaceRemoteSessionId)
+      ) {
+        return {
+          workspacePath: executionPath,
+          workspaceIdentity: executionIdentity,
+          remoteSessionId: workspaceRemoteSessionId,
+          label: projectName,
+        };
+      }
       const matches = workspaceTabs.filter(
         (tab) =>
           isWorkspaceFilePathInside(tab.workspacePath, targetPath) &&
@@ -838,7 +877,15 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
         })[0] ?? null
       );
     },
-    [workspaceIdentity, workspaceTabs],
+    [
+      executionReady,
+      executionPath,
+      executionIdentity,
+      workspaceRemoteSessionId,
+      projectName,
+      workspaceIdentity,
+      workspaceTabs,
+    ],
   );
   const openFileTreeRequest = useCallback(
     (request: Omit<SidebarFileTreeOpenRequest, "id">) => {
@@ -1261,17 +1308,12 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
             remoteSessionId={workspaceRemoteSessionId ?? undefined}
           />
         ) : !isOfficeMode && activeWorkspacePurpose === "project" ? (
-          <GitBranchSwitcher
+          <DraftWorkspaceExecutionControls
+            workspaceIdentity={workspaceIdentity}
             workspacePath={workspaceAbsPath}
             gitSummary={gitState.summary}
             dirtyFileCount={gitDirtyFileCount}
             onRefreshGit={handleRefreshGit}
-            className="px-0 pt-0"
-            popoverClassName="w-72"
-            branchListClassName="max-h-48"
-            // 输入框区域在底部，Radix 碰撞避让会把分支菜单翻到下方。
-            // 这里锁定上方弹出，避免菜单遮挡输入区并保持操作方向稳定。
-            avoidPopoverCollisions={false}
           />
         ) : null}
       </>
@@ -1390,6 +1432,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           target: {
             workspacePath: target.path,
             workspaceName: target.label || getPathLeaf(target.path),
+            workspaceIdentity: target.workspaceIdentity,
+            workspaceRemoteSessionId: target.workspaceRemoteSessionId,
             revealPath: target.path,
             temporaryExternalDirectory: true,
           },
@@ -1503,8 +1547,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       recentClosedSidePaneTabs={recentClosedSidePaneTabs}
       isBrowserOpen={isBrowserOpen}
       supportsEmbeddedBrowser={supportsEmbeddedBrowser}
-      workspaceAbsPath={workspaceAbsPath}
-      workspaceIdentity={workspaceIdentity}
+      workspaceAbsPath={executionPath}
+      workspaceIdentity={executionIdentity}
       workspaceRemoteSessionId={workspaceRemoteSessionId}
       activeTaskId={activeTaskId}
       sidePaneOwnerId={sidePaneOwnerId}
@@ -1552,7 +1596,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       onSelectGitSource={setGitSelectedSourceId}
     />
   );
-  const sidePanePanel = renderSidePanePanel();
+  const sidePanePanel = executionReady ? renderSidePanePanel() : null;
   const hasUpdateStatusButton =
     updateReadyVersion !== null ||
     updateState?.kind === "update-available" ||
@@ -1623,6 +1667,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                   <WorkflowRunOpenProvider onOpenRun={handleOpenSidebarWorkflowRun}>
                     <WorkspaceSidebar
                       workspacePath={workspaceAbsPath}
+                      executionWorkspace={executionWorkspace}
+                      executionBinding={executionBinding}
                       workspaceRemoteSessionId={workspaceRemoteSessionId}
                       activePreviewPath={activePreviewPath}
                       onSelectTask={handleSelectTaskInChat}
@@ -1964,7 +2010,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                     </div>
                   </section>
                 </ResizablePanel>
-                {workspaceMainView !== "automations" && workspaceMainView !== "plugin-store" ? (
+                {executionReady &&
+                workspaceMainView !== "automations" &&
+                workspaceMainView !== "plugin-store" ? (
                   <AnimatedTerminalPanel
                     frameClassName={cn(
                       isSidePaneVisible
@@ -1981,8 +2029,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                       "rounded-t-[var(--workspace-panel-radius)] border-t",
                     )}
                     services={services}
-                    workspaceAbsPath={workspaceAbsPath}
-                    workspaceIdentity={workspaceIdentity}
+                    workspaceAbsPath={executionPath}
+                    workspaceIdentity={executionIdentity}
                     openWorkspaceKeys={openWorkspaceKeys}
                     isVisible={isTerminalVisible}
                     isWindowsDesktop={isWindowsDesktop}

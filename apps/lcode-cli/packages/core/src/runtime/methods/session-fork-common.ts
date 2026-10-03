@@ -101,6 +101,24 @@ export function buildForkedSessionInput(
   };
 }
 
+export function buildForkWorktreeBindingEntry(
+  runtime: AgentRuntimeInternal,
+  childSessionId: SessionId,
+): SessionEntryInfo | undefined {
+  const binding = runtime.config.workspaceBinding;
+  if (!binding) return undefined;
+  const now = Date.now();
+  return {
+    id: `${childSessionId}:worktree-binding`,
+    sessionID: childSessionId,
+    type: "runtime/worktree_binding",
+    touchSession: false,
+    time: { created: now, updated: now },
+    // Fork 沿用当前 checkout，记录真正所有者，不能把 child 冒充成新工作树的任务。
+    data: { ...binding, bindingOwnerTaskId: binding.bindingOwnerTaskId ?? runtime.sessionId },
+  };
+}
+
 export function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)

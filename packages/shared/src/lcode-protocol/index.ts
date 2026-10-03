@@ -21,6 +21,8 @@ import { bashOutputDisplaySchema } from "../bash-output-display.js";
 export * from "../background-bash-output.js";
 import { executionOutputPreviewSchema } from "../execution-output-preview.js";
 import { z } from "zod";
+import { executionIntentSchema } from "../worktreeExecution.js";
+export * from "../worktreeExecution.js";
 export { gitFileMutationJournalSchema } from "../gitCommitReview.js";
 export * from "../process-diagnostic.js";
 export {
@@ -1584,6 +1586,8 @@ export type LCodeSessionSubagentsResult = z.infer<typeof lcodeSessionSubagentsRe
 export const lcodeSessionCreateParamsSchema = z
   .object({
     sessionId: nonEmptyString.optional(),
+    execution: executionIntentSchema.optional(),
+    executionRequestId: nonEmptyString.optional(),
     workspace: lcodeWorkspaceRefSchema,
     parentSessionId: nonEmptyString.optional(),
     mode: lcodeSessionModeSchema.optional(),
@@ -3608,6 +3612,12 @@ export const lcodeProtocolMethods = {
   runtimeCapabilities: "runtime/capabilities",
   computerUseOperationEvent: "computer-use/operation-event",
   sessionCreate: "session/create",
+  worktreePrepareExecution: "worktree/prepareExecution",
+  worktreePrepareRepair: "worktree/prepareRepair",
+  worktreeCompleteRepair: "worktree/completeRepair",
+  worktreeGetBinding: "worktree/getBinding",
+  checkoutAcquireWriter: "checkout/acquireWriter",
+  checkoutReleaseWriter: "checkout/releaseWriter",
   sessionResume: "session/resume",
   sessionList: "session/list",
   sessionSubagents: "session/subagents",

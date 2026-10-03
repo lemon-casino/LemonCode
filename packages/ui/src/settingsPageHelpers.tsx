@@ -32,6 +32,7 @@ import { SettingsBadge, SettingsGroupCard, SettingsRow } from "@/settings/Settin
 import { DataBaseDirControl } from "@/settings/DataBaseDirControl.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
+import { GlobalExecutionPolicySettings } from "@/worktree/ExecutionPolicySettings.js";
 import { ProactiveSuggestionsSetting } from "@/settings/ProactiveSuggestionsSetting.js";
 import { normalizeInterfaceMode, type InterfaceMode } from "@/lib/interfaceMode.js";
 import {
@@ -704,6 +705,7 @@ export function GeneralSectionContent({
       </SettingsGroupCard>
 
       <SettingsGroupCard>
+        <GlobalExecutionPolicySettings />
         <SettingsRow
           label={intl.formatMessage({ id: "settings.autoGenerateGitCommitMessage" })}
           description={intl.formatMessage({

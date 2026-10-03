@@ -21,7 +21,7 @@ import type {
   WorkspaceHookBundleSnapshot,
   WorkspaceId,
 } from "@lcode/contracts";
-import type { LCodeProviderAccountAccess } from "@lcode/shared";
+import type { LCodeProviderAccountAccess, LCodeWorkspaceRef } from "@lcode/shared";
 import type { EffectiveModelSelectionResult } from "@lcode/shared/model-selection";
 import type { RuntimeMessageEntry } from "../agent/message-history.js";
 import type {
@@ -249,6 +249,8 @@ export interface AgentRuntimeConfig {
   workspacePath?: string;
   /** 仅用于持久化隔离；文件与命令执行仍使用 workingDirectory。 */
   workspaceIdentity?: WorkspaceId;
+  /** Worktree owner 的持久绑定引用；只用于恢复对账，不是第二份生命周期状态。 */
+  workspaceBinding?: LCodeWorkspaceRef;
   envInfo?: EnvInfo; // Optional, will be auto-detected if not provided
   currentDate?: string; // YYYY-MM-DD, resolved by adapter when omitted
   userInstructions?: UserInstructionsOptions; // AGENTS.md
@@ -315,6 +317,14 @@ export interface MemoryRuntimeConfig {
 }
 
 export interface AgentRuntimeDeps {
+  /** 原 CommandInbox 接受后、真实执行前申请；直到本轮工具收尾才释放。 */
+  checkoutExecutionPort?: {
+    acquire(input: {
+      sessionId: string;
+      turnId: string;
+      signal: AbortSignal;
+    }): Promise<{ release(): Promise<void> }>;
+  };
   agentTelemetry?: AgentExecutionTelemetryPort;
   agentTelemetryCausation?: AgentTelemetryCausation;
   agentTelemetryCausationMode?: "child" | "linked_root";

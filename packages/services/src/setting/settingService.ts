@@ -1,6 +1,7 @@
 import { access, readFile, mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { withFileLock } from "@lcode/shared/node";
 import type {
   AppSettings,
   ProviderFamilyDomain,
@@ -255,13 +256,15 @@ export function createSettingServiceWithMigrations(): {
     const runCurrentUpdate = () => {
       const currentGeneration = ++writeQueueGeneration;
       const shouldCommit = () => currentGeneration === writeQueueGeneration;
-      return withSettingsWriteQueueTimeout(
-        (enterCommitPhase) => runUpdate(shouldCommit, enterCommitPhase),
-        () => {
-          if (writeQueueGeneration === currentGeneration) {
-            writeQueueGeneration += 1;
-          }
-        },
+      return withFileLock(`${getSettingsFile()}.lock`, () =>
+        withSettingsWriteQueueTimeout(
+          (enterCommitPhase) => runUpdate(shouldCommit, enterCommitPhase),
+          () => {
+            if (writeQueueGeneration === currentGeneration) {
+              writeQueueGeneration += 1;
+            }
+          },
+        ),
       );
     };
     const queued = updateQueue.then(
@@ -314,6 +317,18 @@ export function createSettingServiceWithMigrations(): {
         const merged = appSettingsSchema.parse({
           ...current,
           ...validatedPatch,
+          // 中文依据：项目只提交本次 scope/字段补丁；在同一文件锁内重读合并，避免多个窗口互相覆盖配置。
+          projectExecutionPreferences: validatedPatch.projectExecutionPreferences
+            ? Object.fromEntries(
+                Object.entries({
+                  ...current.projectExecutionPreferences,
+                  ...validatedPatch.projectExecutionPreferences,
+                }).map(([scope, preference]) => [
+                  scope,
+                  { ...current.projectExecutionPreferences?.[scope], ...preference },
+                ]),
+              )
+            : current.projectExecutionPreferences,
         });
 
         // 打开工作区后会几乎同时写 recentProjects 和 lastWorkspaceSession。

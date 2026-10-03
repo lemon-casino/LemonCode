@@ -3,6 +3,48 @@ import type { GitCommandProvider } from "../providers/gitCommandProvider.js";
 import { runCommitReviewHook } from "./commitReviewHooks.js";
 import { ensureGitCommandSucceeded } from "./gitCliHelpers.js";
 
+export async function publishReviewedCommitTransaction(
+  command: GitCommandProvider,
+  input: {
+    cwd: string;
+    candidateIndex: string;
+    ref: string;
+    commitHash: string;
+    oldHead: string | null;
+    lockPath: string;
+    indexPath: string;
+    completeReceipt?: (warning?: string) => Promise<void>;
+  },
+  markPublished: () => void,
+) {
+  let warning = await publishCommitReviewRef(
+    command,
+    input.cwd,
+    input.candidateIndex,
+    input.ref,
+    input.commitHash,
+    input.oldHead,
+  );
+  markPublished();
+  warning = await finishCommitReviewTransaction(
+    command,
+    input.cwd,
+    input.candidateIndex,
+    input.lockPath,
+    input.indexPath,
+    warning,
+  );
+  try {
+    await input.completeReceipt?.(warning);
+  } catch {
+    // 引用已发布，收据写入故障必须保留提交成功事实并阻止继续集成。
+    warning = [warning, "提交已保存，但持久化收据收尾失败，请刷新并重新核实。"]
+      .filter(Boolean)
+      .join("\n");
+  }
+  return warning;
+}
+
 export async function publishCommitReviewRef(
   command: GitCommandProvider,
   cwd: string,

@@ -200,13 +200,12 @@ export function createGitService(options?: {
   const command = options?.commandProvider ?? createGitCommandProvider();
   const repo = options?.repo ?? createGitCliRepo({ commandProvider: command });
   const publish = new GitPublishRepo(repo, command);
-  const reviews = options?.commitMessageGenerator
-    ? new CommitReviewService(
-        new CommitReviewRepo(repo, command),
-        options.commitMessageGenerator,
-        options.mutationJournalReader,
-      )
-    : null;
+  // 持久提交事实与模型可用性无关；没有生成器时仍可对账已提交的审核组。
+  const reviews = new CommitReviewService(
+    new CommitReviewRepo(repo, command),
+    options?.commitMessageGenerator,
+    options?.mutationJournalReader,
+  );
 
   return {
     async getRepositorySummary(params) {

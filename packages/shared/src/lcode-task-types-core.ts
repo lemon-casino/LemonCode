@@ -264,6 +264,8 @@ export interface LCodeTaskPendingInteraction {
 export interface LCodeTaskMeta {
   /** UI taskId 与 LCode agent sessionId 保持一致，用于列表选择、日志关联和恢复会话。 */
   taskId: string;
+  /** 会话 owner 投影的执行绑定，仅用于工作树标识，不替代原项目归属。 */
+  executionBindingId?: string;
   /** session/任务级观测 traceId，不用于区分单次用户输入 */
   traceId: TraceId;
   /** 任务标题（用户输入或从首条消息截取） */

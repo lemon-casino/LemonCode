@@ -9,6 +9,10 @@ import type {
   ConversationInputIntent,
 } from "@lcode/shared/lcode-protocol-v4";
 import { PROTOCOL_V4_LIMITS, parseCommandEnvelope } from "@lcode/shared/lcode-protocol-v4";
+import {
+  worktreePreparationFingerprint,
+  isExplicitWorktreePreparationRetry,
+} from "./worktree-preparation-retry.js";
 
 interface InFlightEntry {
   ack: CommandAck;
@@ -79,6 +83,7 @@ export class CommandInbox {
   private readonly inFlight = new Map<string, Map<string, InFlightEntry>>();
   private readonly liveInputs = new Map<string, Map<string, LiveInputEntry>>();
   private readonly settled = new Map<string, Map<string, CommandAck>>();
+  private readonly failedWorktreePreparations = new Map<string, string>();
   private readonly admissionSeq = new Map<string, number>();
   private readonly keyGates = new AsyncGateRegistry();
   private readonly sessionGates = new AsyncGateRegistry();
@@ -105,7 +110,8 @@ export class CommandInbox {
       const pinned = this.inFlight.get(bucketKey)?.get(envelope.commandId);
       if (pinned) return this.ackOnly(this.retryAck(await pinned.final));
       const existing = await this.lookupExact(key);
-      if (existing) return this.ackOnly(this.retryAck(existing));
+      if (existing && !this.allowWorktreeRetry(envelope, existing))
+        return this.ackOnly(this.retryAck(existing));
 
       // 固定锁序：key gate → per-session admission gate。session gate 持有到 settle，
       // 因而同 session 不同 commandId 以 CLI 实际执行 admission 的顺序串行。
@@ -118,7 +124,7 @@ export class CommandInbox {
           return this.ackOnly(this.retryAck(await afterWaitPinned.final));
         }
         const afterWait = await this.lookupExact(key);
-        if (afterWait) {
+        if (afterWait && !this.allowWorktreeRetry(envelope, afterWait)) {
           releaseSession();
           return this.ackOnly(this.retryAck(afterWait));
         }
@@ -159,6 +165,16 @@ export class CommandInbox {
               ...decision.ack,
               ...final,
             };
+            const preparationFingerprint = worktreePreparationFingerprint(envelope);
+            if (
+              ack.status === "failed" &&
+              ack.reasonCode === "fault.command.worktreePreparationFailed" &&
+              preparationFingerprint
+            ) {
+              this.failedWorktreePreparations.set(envelope.commandId, preparationFingerprint);
+            } else {
+              this.failedWorktreePreparations.delete(envelope.commandId);
+            }
             this.inFlight.get(bucketKey)?.delete(envelope.commandId);
             if (live) {
               live.ack = ack;
@@ -281,6 +297,14 @@ export class CommandInbox {
     return ack.status === "failed" ? ack : { ...ack, status: "duplicate" };
   }
 
+  private allowWorktreeRetry(envelope: CommandEnvelope, ack: CommandAck): boolean {
+    return isExplicitWorktreePreparationRetry(
+      envelope,
+      ack,
+      this.failedWorktreePreparations.get(envelope.commandId),
+    );
+  }
+
   private queryUnavailableAck(key: CommandKey, _error: unknown): CommandAck {
     return {
       commandId: key.commandId,
@@ -325,6 +349,7 @@ export class CommandInbox {
       const oldest = bucket.keys().next().value;
       if (oldest === undefined) break;
       bucket.delete(oldest);
+      if (bucketKey === GLOBAL_BUCKET) this.failedWorktreePreparations.delete(oldest);
     }
   }
 

@@ -25,6 +25,40 @@ rules:
     - invariant-only
     - evidence-only
 nodes:
+  - id: capability.session-worktree
+    kind: capability
+    label: Session execution in a managed Git worktree
+    aliases: [worktree, git worktree, 工作树, 会话执行目录]
+    codeSeeds:
+      - file: packages/shared/src/worktreeExecution.ts
+        symbol: worktreeExecutionBindingSchema
+      - file: apps/lcode-cli/packages/bootstrap/src/lcode-protocol/worktree-execution.ts
+        symbol: prepareProtocolExecution
+      - file: packages/ui/src/hooks/useActiveExecutionWorkspace.ts
+        symbol: useActiveExecutionWorkspace
+    invariants:
+      - "Original workspace scope owns project association and configuration; the registered execution scope owns filesystem operations."
+      - "Preparation is idempotent before session materialization; missing or archived bindings cannot silently resume in the original checkout."
+  - id: service.worktree-owner
+    kind: state-owner
+    label: Environment worktree binding and operation owner
+    codeSeeds:
+      - file: packages/services/src/worktree/contract.ts
+        symbol: IWorktreeService
+      - file: packages/services/src/worktree/node.ts
+        symbol: createWorktreeService
+    invariants:
+      - "Binding and operation records belong to the target Host; remote identity and connection routing must remain intact."
+  - id: boundary.checkout-writer
+    kind: service
+    label: Canonical checkout execution permit
+    codeSeeds:
+      - file: packages/services/src/worktree/adapters/coordinator.ts
+        symbol: createCheckoutCoordinator
+      - file: apps/lcode-cli/packages/core/src/runtime/methods/checkout-execution-lease.ts
+        symbol: acquireCheckoutExecutionLease
+    invariants:
+      - "CommandInbox remains the input owner. Checkout permits serialize actual writers and are retained until their processes settle."
   - id: capability.model-provider-settings
     kind: capability
     label: Model catalog synchronization and editable model membership
@@ -825,6 +859,22 @@ nodes:
       - file: packages/services/src/git-backup/gitBackupStore.ts
         symbol: createBackupStore
 edges:
+  - from: capability.session-worktree
+    to: service.worktree-owner
+    type: prepared-by
+    rank: must-inspect
+  - from: capability.session-worktree
+    to: boundary.checkout-writer
+    type: executes-through
+    rank: must-inspect
+  - from: capability.session-worktree
+    to: boundary.workspace-key
+    type: isolated-by
+    rank: must-inspect
+  - from: boundary.checkout-writer
+    to: service.conversation-command-inbox
+    type: preserves-admission-owner
+    rank: invariant-only
   - from: capability.model-provider-settings
     to: service.provider-settings-owner
     type: projects-state-and-sends-intent-to

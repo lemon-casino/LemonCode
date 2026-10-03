@@ -25,6 +25,7 @@ import { recordUserInputAutoResolutionUpdate } from "./interaction-auto-resoluti
 import { recordDynamicWorkflowRunProgress } from "./dynamic-workflow-run-progress.js";
 import { trackResumedDynamicWorkflowRun } from "./dynamic-workflow-run-track.js";
 import { startSavedWorkflowRun } from "./dynamic-workflow-run-start.js";
+import { acquireCheckoutWriterLease } from "./checkout-execution-lease.js";
 import { amendWorkflowRunSettings } from "./dynamic-workflow-run-settings.js";
 import { getProjection } from "./config.js";
 import { getSessionId } from "./config.js";
@@ -237,6 +238,7 @@ export function installAgentRuntimeMethods(ctor: AgentRuntimeConstructor): void 
   proto.recordDynamicWorkflowRunProgress = recordDynamicWorkflowRunProgress;
   proto.trackResumedDynamicWorkflowRun = trackResumedDynamicWorkflowRun;
   proto.startSavedWorkflowRun = startSavedWorkflowRun;
+  proto.acquireCheckoutWriterLease = acquireCheckoutWriterLease;
   proto.amendWorkflowRunSettings = amendWorkflowRunSettings;
   proto.getProjection = getProjection;
   proto.getSessionId = getSessionId;

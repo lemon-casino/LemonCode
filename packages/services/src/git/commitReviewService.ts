@@ -28,7 +28,8 @@ export type MutationJournalReader = (params: {
 type ReviewRepo = Pick<
   CommitReviewRepo,
   "capture" | "describe" | "assertCurrent" | "commit" | "canonicalizeJournal"
->;
+> &
+  Partial<Pick<CommitReviewRepo, "recoverCommit">>;
 interface ReviewEntry {
   key: string;
   workspacePath: string;
@@ -46,7 +47,7 @@ export class CommitReviewService {
   private readonly entries = new Map<string, ReviewEntry>();
   constructor(
     private readonly repo: ReviewRepo,
-    private readonly model: Pick<GitCommitMessageGenerator, "review">,
+    private readonly model: Pick<GitCommitMessageGenerator, "review"> | undefined,
     private readonly journal?: MutationJournalReader,
   ) {}
 
@@ -57,6 +58,7 @@ export class CommitReviewService {
     paths: string[];
     includeUnstaged: boolean;
   }) {
+    if (!this.model) throw new Error("提交审核生成不可用，请选择可用模型。");
     const snapshot = await this.repo.capture(
       params.workspacePath,
       params.paths,
@@ -152,6 +154,8 @@ export class CommitReviewService {
     assertBeforeCommit?: () => Promise<void>,
   ): Promise<GitCommitResult> {
     const selected = gitCommitReviewSelectionSchema.parse(params.review);
+    const recovered = await this.repo.recoverCommit?.(params);
+    if (recovered) return recovered;
     const entry = this.entries.get(selected.id);
     if (
       !entry ||
@@ -175,7 +179,12 @@ export class CommitReviewService {
     entry.pending = Promise.resolve()
       .then(async () => {
         await assertBeforeCommit?.();
-        return this.repo.commit(entry.snapshot, planned.files, params.message);
+        return this.repo.commit(entry.snapshot, planned.files, params.message, {
+          reviewId: selected.id,
+          groupId: selected.groupId,
+          workspacePath: params.workspacePath,
+          workspaceIdentity: params.workspaceIdentity,
+        });
       })
       .then((result) => {
         // ref 成功事实必须先记录，再刷新 UI 或推送；网络重试不能再次创建同一候选提交。

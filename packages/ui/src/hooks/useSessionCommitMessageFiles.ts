@@ -11,6 +11,8 @@ export function useSessionCommitMessageFiles(options: {
   sessionId: string | null;
   workspacePath: string;
   workspaceIdentity?: string;
+  originWorkspacePath?: string;
+  originWorkspaceIdentity?: string;
   remoteSessionId?: string | null;
   candidatePathsKey: string;
   childSessionIdsKey: string;
@@ -23,6 +25,8 @@ export function useSessionCommitMessageFiles(options: {
     workspacePath,
     workspaceIdentity,
     remoteSessionId,
+    originWorkspacePath,
+    originWorkspaceIdentity,
     candidatePathsKey,
     childSessionIdsKey,
     refreshKey,
@@ -42,8 +46,8 @@ export function useSessionCommitMessageFiles(options: {
       if (rowsRange) {
         // 工作流主会话常没有 fileChanges，读取宿主确认的子任务目录补足，不能扩大成整个仓库。
         const directory = await lcodeAgentService.listSessionSubagents({
-          workspacePath,
-          workspaceIdentity,
+          workspacePath: originWorkspacePath ?? workspacePath,
+          workspaceIdentity: originWorkspaceIdentity ?? workspaceIdentity,
           sessionId,
           remoteSessionId: remoteSessionId ?? undefined,
         });
@@ -56,7 +60,7 @@ export function useSessionCommitMessageFiles(options: {
         for (const path of paths) candidates.add(path);
       }
       if (!alive) return;
-      const current = await gitService.refresh({ workspacePath });
+      const current = await gitService.refresh({ workspacePath, workspaceIdentity });
       if (!alive) return;
       const paths =
         candidates.size && current.summary.isGitAvailable && current.summary.isRepository

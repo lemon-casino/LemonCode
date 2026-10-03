@@ -18,6 +18,7 @@ import {
 import { runSessionModelConfigMutation } from "../lcode-protocol-v4/model-config-mutation.js";
 import { createProviderRuntimeHeadersPort } from "./provider-runtime-headers.js";
 import { classifyModelConnectivityFailure } from "./connectivity-failure.js";
+import { originWorkspaceRef } from "./workspace.js";
 
 export async function readWorkspacePresentation(
   context: LCodeProtocolAgentServerContext,
@@ -82,7 +83,8 @@ export async function createWorkspaceLCodeApp(
   options: Omit<LCodeAppOptions, "providerRegistry">,
 ): Promise<LCodeApp> {
   const providerRuntimeHeadersPort =
-    options.providerRuntimeHeadersPort ?? createProviderRuntimeHeadersPort(context, workspace);
+    options.providerRuntimeHeadersPort ??
+    createProviderRuntimeHeadersPort(context, originWorkspaceRef(workspace));
   return context.deps.createLCodeApp({
     ...options,
     platform: context.deps.platform,

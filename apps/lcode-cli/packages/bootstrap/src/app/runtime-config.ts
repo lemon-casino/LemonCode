@@ -94,6 +94,20 @@ export function resolveAppRuntimeConfig(input: {
     ...(options.runtimeConfig?.mcp?.servers ?? configResult.config.mcp.servers),
     ...builtInMcpServers,
   };
+  if (options.runtimeConfig?.workspaceBinding) {
+    for (const [name, server] of Object.entries(configuredMcpServers)) {
+      if (
+        server.type === "stdio" &&
+        (server.args ?? []).some((argument) =>
+          argument.includes("@modelcontextprotocol/server-filesystem"),
+        ) &&
+        !options.runtimeConfig.mcp?.servers?.[name]
+      ) {
+        // 用户/插件默认 MCP 不经过协议目录映射；不能让它在独立工作树中重新授权原目录。
+        throw new Error("Worktree filesystem MCP requires explicitly mapped workspace directories");
+      }
+    }
+  }
   const trustedOfficialCuaServerNames = resolveTrustedOfficialCuaServerNames(
     configuredMcpServers,
     pluginMcpServers ?? {},

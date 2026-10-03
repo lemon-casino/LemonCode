@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { chmod, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -9,6 +9,35 @@ import { createGitService } from "./gitService.js";
 import { GitCommitMessageGenerator } from "./gitCommitMessageGenerator.js";
 
 const run = promisify(execFile);
+test("持久审核收据在重启且模型不可用时恢复提交事实；未确认收尾保持警告", async (t) => {
+  const { root, git, service } = await fixture(t);
+  const draft = await service.generateCommitMessage({
+    workspacePath: root,
+    review: true,
+    currentSessionFilePaths: [join(root, "x.ts")],
+  });
+  const request = {
+    workspacePath: root,
+    message: "feat: A",
+    review: { id: draft.review!.id, groupId: draft.review!.groups[0]!.id, acknowledged: true },
+  };
+  const result = await service.commit(request);
+  const restarted = createGitService();
+  assert.equal((await restarted.commit(request)).commitHash, result.commitHash);
+  const directory = join(root, ".git", "lcode", "commit-receipts");
+  const [name] = await readdir(directory);
+  const receipt = JSON.parse(await readFile(join(directory, name!), "utf8"));
+  await writeFile(join(directory, name!), JSON.stringify({ ...receipt, stage: "prepared" }));
+  const interrupted = await createGitService().commit(request);
+  assert.equal(interrupted.commitHash, result.commitHash);
+  assert.match(interrupted.warning!, /收尾/);
+  assert.equal((await git("rev-list", "--count", "HEAD")).trim(), "2");
+  await writeFile(
+    join(directory, name!),
+    JSON.stringify({ ...receipt, warning: "post-commit-followup-required" }),
+  );
+  assert.equal((await createGitService().commit(request)).warning, "post-commit-followup-required");
+});
 async function fixture(t: TestContext, stale = false, crlf = false) {
   const root = await mkdtemp(join(tmpdir(), "lcode-review-service-test-"));
   t.after(() => rm(root, { recursive: true, force: true }));

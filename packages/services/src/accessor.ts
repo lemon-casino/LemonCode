@@ -2,6 +2,7 @@ import { IOffPeakTaskService } from "./session/offPeakTask.js";
 import type { IFileService } from "./file/file.js";
 import type { IMediaPreviewService } from "./media-preview/mediaPreview.js";
 import type { IGitService } from "./git/git.js";
+import type { IWorktreeService } from "./worktree/contract.js";
 import type { IGitCheckpointService } from "./git/gitCheckpoint.js";
 import type { IGitBackupService } from "./git-backup/gitBackup.js";
 import type { ISystemService } from "./system/system.js";
@@ -45,6 +46,8 @@ export interface IServiceAccessor {
   readonly fileService: IFileService;
   readonly mediaPreviewService?: IMediaPreviewService;
   readonly gitService: IGitService;
+  /** 旧 Host 不支持时保持 unavailable，不能在本机代替远端创建工作树。 */
+  readonly worktreeService?: IWorktreeService;
   readonly gitCheckpointService: IGitCheckpointService;
   /** 旧 Host / 测试 double 可缺省；不可回退到其它文件系统的备份服务。 */
   readonly gitBackupService?: IGitBackupService;

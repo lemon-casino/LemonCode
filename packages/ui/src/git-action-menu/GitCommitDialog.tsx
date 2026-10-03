@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, type ReactNode } from "react";
 import type { GitCommitReview } from "@lcode/shared";
 import { GitBranchIcon, GitCommitIcon, LoaderIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
@@ -25,6 +25,7 @@ import type { PublishRun } from "./publishExecution.js";
 
 export interface GitCommitDialogProps {
   open: boolean;
+  worktreeActions?: ReactNode;
   loading: boolean;
   state: GitCommitDialogState | null;
   workspacePath: string;
@@ -202,6 +203,7 @@ export function GitCommitDialog(props: GitCommitDialogProps) {
                 <span className="text-diff-removed">−{number.format(displayRemoved)}</span>
               </div>
             </div>
+            {props.worktreeActions}
             <GitCommitMessageEditor
               message={props.message}
               previousMessage={props.previousMessage}

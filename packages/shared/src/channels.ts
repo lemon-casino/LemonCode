@@ -90,6 +90,7 @@ export const ServiceChannels = {
   Terminal: "terminal",
   /** Git 服务 */
   Git: "git",
+  Worktree: "worktree",
   /** Git checkpoint 服务 */
   GitCheckpoint: "git-checkpoint",
   Setting: "setting",

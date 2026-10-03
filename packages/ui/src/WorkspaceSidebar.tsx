@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- 归档视图开关沿用现有 sidebar 结构，先保持同文件收口。 */
+import { resolveWorktreeFileTarget } from "./worktreeFileTarget.js";
 import {
   memo,
   useCallback,
@@ -223,6 +224,8 @@ function resolveSidebarTaskViewMode(params: {
 
 export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   workspacePath,
+  executionWorkspace,
+  executionBinding,
   workspaceRemoteSessionId,
   activePreviewPath,
   onSelectTask,
@@ -267,6 +270,8 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   hideTopSpacer = false,
 }: {
   workspacePath: string;
+  executionWorkspace?: import("@lcode/shared").LCodeWorkspaceRef | null;
+  executionBinding?: import("@lcode/services").WorktreeBinding;
   workspaceRemoteSessionId?: string;
   activePreviewPath?: string | null;
   onSelectTask: (
@@ -403,6 +408,9 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   );
   const [isFileTreeOpen, setIsFileTreeOpen] = useState(false);
   const [fileTreeTarget, setFileTreeTarget] = useState<SidebarFileTreeTarget | null>(null);
+  const resolvedFileTreeTarget = fileTreeTarget
+    ? resolveWorktreeFileTarget(fileTreeTarget, executionBinding)
+    : null;
   const [groupedStickyHeader, setGroupedStickyHeader] = useState<ReactNode | null>(null);
   const [taskOrganizeBy, setTaskOrganizeBy] = useState<TaskOrganizeBy>(
     () => readSidebarTaskPreferences().organizeBy,
@@ -1679,14 +1687,14 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
           aria-hidden={!isFileTreeOpen}
           inert={!isFileTreeOpen ? true : undefined}
         >
-          {fileTreeTarget ? (
+          {resolvedFileTreeTarget && executionWorkspace !== null ? (
             <WorkspaceFileTree
-              workspacePath={fileTreeTarget.workspacePath}
-              workspaceName={fileTreeTarget.workspaceName}
-              workspaceIdentity={fileTreeTarget.workspaceIdentity}
-              workspaceRemoteSessionId={fileTreeTarget.workspaceRemoteSessionId}
-              revealPath={fileTreeTarget.revealPath}
-              temporaryExternalDirectory={fileTreeTarget.temporaryExternalDirectory}
+              workspacePath={resolvedFileTreeTarget.workspacePath}
+              workspaceName={resolvedFileTreeTarget.workspaceName}
+              workspaceIdentity={resolvedFileTreeTarget.workspaceIdentity}
+              workspaceRemoteSessionId={resolvedFileTreeTarget.workspaceRemoteSessionId}
+              revealPath={resolvedFileTreeTarget.revealPath}
+              temporaryExternalDirectory={resolvedFileTreeTarget.temporaryExternalDirectory}
               canOpenLocalFileManager={isDesktop}
               activePreviewPath={activePreviewPath}
               onClose={() => setIsFileTreeOpen(false)}
@@ -1697,9 +1705,9 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                 // 同时不切换当前 workspace，避免"Add to chat"丢给错误的 composer。
                 onOpenCodeViewer?.({
                   ...source,
-                  workspacePath: fileTreeTarget.workspacePath,
-                  workspaceIdentity: fileTreeTarget.workspaceIdentity,
-                  workspaceRemoteSessionId: fileTreeTarget.workspaceRemoteSessionId,
+                  workspacePath: resolvedFileTreeTarget.workspacePath,
+                  workspaceIdentity: resolvedFileTreeTarget.workspaceIdentity,
+                  workspaceRemoteSessionId: resolvedFileTreeTarget.workspaceRemoteSessionId,
                 });
               }}
             />

@@ -10,7 +10,7 @@ import type { V4GatewayHost } from "../lcode-protocol-v4/v4-gateway.js";
 //
 // 不做桥接：依赖方向只允许 旧目录 → v4 目录。
 // 本文件在旧目录，import v4 executor 合法；v4 目录禁止反向 import 本目录任何模块。
-import { parseRemoteWorkspaceIdentity } from "@lcode/shared";
+import { parseRemoteWorkspaceIdentity, lcodeWorkspaceRefSchema } from "@lcode/shared";
 
 import { type SessionSummary } from "@lcode/shared/lcode-protocol-v4";
 
@@ -70,6 +70,7 @@ export function createV4SessionIndexHost(
       const selection =
         record.app.runtime.getSessionModelSelection() ?? record.restoredModelSelection;
       return {
+        executionWorkspace: record.workspace,
         modelSelection: cloneModelSelection(selection),
         provider: selection?.providerId ?? "",
         model: selection?.modelId ?? "",
@@ -110,7 +111,9 @@ export function createV4SessionIndexHost(
       const record = context.sessions.get(sessionId);
       return !record || !isTaskListSessionType(record.taskType)
         ? null
-        : record.workspace.workspaceKey;
+        : record.workspace.originWorkspaceIdentity?.trim() ||
+            record.workspace.originWorkspacePath ||
+            record.workspace.workspaceKey;
     },
 
     getSessionIndexMeta: (sessionId) => {
@@ -119,6 +122,9 @@ export function createV4SessionIndexHost(
       return {
         createdAt: record.createdAt,
         lastActivityAt: record.updatedAt,
+        ...(record.workspace.executionBindingId
+          ? { executionBindingId: record.workspace.executionBindingId }
+          : {}),
         ...(record.parentSessionId ? { parentSessionId: String(record.parentSessionId) } : {}),
       };
     },
@@ -127,7 +133,10 @@ export function createV4SessionIndexHost(
       [...context.sessions.values()]
         .filter(
           (record) =>
-            isTaskListSessionType(record.taskType) && record.workspace.workspaceKey === workspaceId,
+            isTaskListSessionType(record.taskType) &&
+            (record.workspace.originWorkspaceIdentity?.trim() ||
+              record.workspace.originWorkspacePath ||
+              record.workspace.workspaceKey) === workspaceId,
         )
         .map((record) => record.app.sessionId),
 
@@ -196,6 +205,7 @@ function createStoredSessionSummaryReader(context: LCodeProtocolAgentServerConte
         }
       }
       const stored = await context.deps.sessionStore.listSessions({
+        includeWorktreeOrigins: true,
         directory: persistedWorkspacePath,
         includeArchived: false,
         limit: 200,
@@ -204,18 +214,31 @@ function createStoredSessionSummaryReader(context: LCodeProtocolAgentServerConte
         taskTypes: [...TASK_LIST_SESSION_TYPES],
         workspaceID: parsedRemote ? (workspaceId as WorkspaceId) : null,
       });
-      return stored.map((session) => ({
-        sessionId: String(session.id),
-        workspaceId,
-        ...(session.parentID ? { parentSessionId: String(session.parentID) } : {}),
-        title: session.title ?? "",
-        titleSource: normalizeStoredTitleSource(session.titleSource),
-        phase: "completedSuccess" as const,
-        sessionEnded: true,
-        hasBackgroundWork: false,
-        lastActivityAt: session.time?.updated ?? 0,
-        createdAt: session.time?.created ?? 0,
-      }));
+      return await Promise.all(
+        stored.map(async (session) => {
+          const entries =
+            (await context.deps.sessionStore!.sessionEntries?.({
+              sessionID: session.id,
+              type: "runtime/worktree_binding",
+            })) ?? [];
+          const binding = lcodeWorkspaceRefSchema.safeParse(entries.at(-1)?.data);
+          return {
+            sessionId: String(session.id),
+            workspaceId,
+            ...(binding.success && binding.data.executionBindingId
+              ? { executionBindingId: binding.data.executionBindingId }
+              : {}),
+            ...(session.parentID ? { parentSessionId: String(session.parentID) } : {}),
+            title: session.title ?? "",
+            titleSource: normalizeStoredTitleSource(session.titleSource),
+            phase: "completedSuccess" as const,
+            sessionEnded: true,
+            hasBackgroundWork: false,
+            lastActivityAt: session.time?.updated ?? 0,
+            createdAt: session.time?.created ?? 0,
+          };
+        }),
+      );
     } catch (error) {
       context.logger?.warn("sessions-index stored summaries failed", {
         error: error instanceof Error ? error.message : String(error),

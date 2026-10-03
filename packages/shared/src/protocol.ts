@@ -319,6 +319,14 @@ export interface AppSettings {
   lcodeInteractionBehavior?: LCodeInteractionBehavior;
   /** 当前聚焦编码任务成功完成后，使用现有 Git 生成器准备提交信息草稿。 */
   autoGenerateGitCommitMessage?: boolean;
+  /** 新会话执行位置默认值；已有会话沿持久绑定恢复。 */
+  defaultSessionExecutionMode?: import("./worktreePolicy.js").SessionExecutionMode;
+  /** 按原项目 identity/path 保存覆盖；工作树目录不另建项目偏好。 */
+  projectExecutionPreferences?: Record<
+    string,
+    import("./worktreePolicy.js").ProjectExecutionPreference
+  >;
+  autoOpenGitCommitReview?: boolean;
   /** Agent 提问五分钟无人回答时是否允许自动继续；缺失按开启兼容旧配置。 */
   askUserQuestionAutoResolutionEnabled?: boolean;
   /** 是否完整保留 Model I/O；开启后不轮转、不限额重置、不压缩或裁剪，鉴权信息仍会脱敏。 */

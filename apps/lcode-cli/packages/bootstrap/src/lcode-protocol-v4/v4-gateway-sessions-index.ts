@@ -86,12 +86,14 @@ export function resolveIndexMeta(
   createdAt: number;
   lastActivityAt: number;
   parentSessionId?: string;
+  executionBindingId?: string;
 } {
   const meta = gateway.host.getSessionIndexMeta?.(sessionId);
   return {
     createdAt: meta?.createdAt ?? 0,
     lastActivityAt: meta?.lastActivityAt ?? gateway.now(),
     ...(meta?.parentSessionId ? { parentSessionId: meta.parentSessionId } : {}),
+    ...(meta?.executionBindingId ? { executionBindingId: meta.executionBindingId } : {}),
   };
 }
 

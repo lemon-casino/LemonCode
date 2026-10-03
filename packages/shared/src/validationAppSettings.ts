@@ -1,5 +1,6 @@
 /* oxlint-disable eslint(max-lines) -- AppSettings schema 聚合历史迁移、默认值和 patch 校验，拆分会削弱设置迁移的单一入口。 */
 import { z } from "zod";
+import { projectExecutionPreferencesSchema, sessionExecutionModeSchema } from "./worktreePolicy.js";
 import {
   LOCAL_PROJECT_NAME_MAX_LENGTH,
   LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT,
@@ -503,6 +504,9 @@ const appSettingsObjectSchema = z.object({
   toolGroupingChangesEnabled: z.boolean().default(false),
   lcodeInteractionBehavior: lcodeInteractionBehaviorSchema.default("queue"),
   autoGenerateGitCommitMessage: z.boolean().default(false),
+  defaultSessionExecutionMode: sessionExecutionModeSchema.default("local"),
+  projectExecutionPreferences: projectExecutionPreferencesSchema.default({}),
+  autoOpenGitCommitReview: z.boolean().default(true),
   askUserQuestionAutoResolutionEnabled: z.boolean().default(true),
   modelIoFullRetentionEnabled: z.boolean().default(false),
   startPlanRecommendationDismissed: z.boolean().default(false),
@@ -574,6 +578,9 @@ export const appSettingsPatchSchema = z.object({
   toolGroupingChangesEnabled: z.boolean().optional(),
   lcodeInteractionBehavior: lcodeInteractionBehaviorSchema.optional(),
   autoGenerateGitCommitMessage: z.boolean().optional(),
+  defaultSessionExecutionMode: sessionExecutionModeSchema.optional(),
+  projectExecutionPreferences: projectExecutionPreferencesSchema.optional(),
+  autoOpenGitCommitReview: z.boolean().optional(),
   askUserQuestionAutoResolutionEnabled: z.boolean().optional(),
   modelIoFullRetentionEnabled: z.boolean().optional(),
   startPlanRecommendationDismissed: z.boolean().optional(),

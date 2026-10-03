@@ -9,6 +9,7 @@ import { useAppPanels } from "@/hooks/useAppPanels.js";
 import { useNarrowWebLayout } from "@/hooks/useNarrowWebLayout.js";
 import { useGitAutoRefresh } from "@/hooks/useGitAutoRefresh.js";
 import { useGitRepository } from "@/hooks/useGitRepository.js";
+import { useActiveExecutionWorkspace } from "@/hooks/useActiveExecutionWorkspace.js";
 import { useAppKeyboard } from "@/hooks/useAppKeyboard.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useWorkspaceActiveTaskState } from "@/hooks/useWorkspaceActiveTaskState.js";
@@ -424,8 +425,17 @@ export function App({
     setGitRefreshVersion((value) => value + 1);
   }, []);
   const openSettingsTab = useTabStore((state) => state.openSettingsTab);
+  const execution = useActiveExecutionWorkspace(
+    workspaceAbsPath,
+    workspaceIdentity,
+    activeTaskId,
+    workspaceRemoteSessionId,
+    gitRefreshVersion,
+  );
+  const executionWorkspace = execution.workspace;
   const gitState = useGitRepository({
-    workspacePath: workspaceAbsPath,
+    workspacePath: executionWorkspace?.workspacePath ?? "",
+    enabled: Boolean(executionWorkspace),
     activeTaskId,
     includeExtendedData: hasGitTab,
     // 关键逻辑：真实 Git 只在 workspace 变化、Git pane 打开、或用户显式点刷新时重拉。
@@ -433,15 +443,15 @@ export function App({
     refreshToken: gitRefreshVersion,
     remoteSessionId: workspaceRpcTarget.remoteSessionId ?? null,
     remoteTarget: workspaceRpcTarget.remoteTarget,
-    workspaceIdentity,
+    workspaceIdentity: executionWorkspace?.workspaceIdentity,
   });
   useGitAutoRefresh({
-    workspacePath: workspaceAbsPath,
-    workspaceIdentity,
+    workspacePath: executionWorkspace?.workspacePath ?? "",
+    workspaceIdentity: executionWorkspace?.workspaceIdentity,
     remoteSessionId: workspaceRpcTarget.remoteSessionId ?? null,
     gitSummary: gitState.summary,
     gitSummaryWorkspaceKey: gitState.workspaceKey,
-    enabled: isWorkspaceVisible,
+    enabled: isWorkspaceVisible && Boolean(executionWorkspace),
     onRefreshGit: handleRefreshGit,
   });
   const activeGitSourceId =
@@ -1176,6 +1186,8 @@ export function App({
         workspaceAbsPath={workspaceAbsPath}
         workspaceRemoteSessionId={workspaceRemoteSessionId}
         workspaceIdentity={workspaceIdentity}
+        executionWorkspace={executionWorkspace ?? null}
+        executionBinding={execution.binding}
         isWorkspaceVisible={isWorkspaceVisible}
         isDesktop={isDesktop}
         isMacDesktop={isMacDesktop}

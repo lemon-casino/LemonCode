@@ -1,4 +1,6 @@
 import { requestPluginReferenceCatalog } from "#src/lcode-agent/pluginReferenceCatalogRequest.js";
+import { handleWorktreeRequest, isWorktreeRequest } from "./worktreeRequests.js";
+import { createWorktreeClientLeases } from "./worktreeClientLeases.js";
 import { gitFileMutationJournalSchema } from "@lcode/shared";
 import {
   localTtftFactsSchema,
@@ -859,6 +861,7 @@ interface CreateLCodeAgentServiceOptions extends Omit<
 > {
   /** 仅供 MCP 状态探测进程使用，不能把空闲回收传给 chat。 */
   mcpStatusIdleTimeoutMs?: number;
+  worktreeService?: import("../worktree/contract.js").IWorktreeService;
   accountProviderConfigSource?: ProviderSource<AccountProviderConfigSnapshot>;
   accountRequestAuthService?: IAccountRequestAuthService;
   /** Desktop Host 请求 Main 登记 Agent 已授权的精确本地视频路径。 */
@@ -1052,7 +1055,19 @@ function resolveOffPeakToolSelection(
 export function createLCodeAgentService(
   options?: CreateLCodeAgentServiceOptions,
 ): ILCodeAgentService & { disposeAllAndWait(): Promise<void> } {
-  const processManager = new LCodeAgentProcessManager(options);
+  const worktreeLeases = new WeakMap<
+    LCodeProtocolClient,
+    ReturnType<typeof createWorktreeClientLeases>
+  >();
+  const exitedWorktreeClients = new WeakSet<LCodeProtocolClient>();
+  const settleWorktreeClient = async (client: LCodeProtocolClient) => {
+    exitedWorktreeClients.add(client);
+    await worktreeLeases.get(client)?.disposeAfterProcessExit();
+  };
+  const processManager = new LCodeAgentProcessManager({
+    ...options,
+    onProcessCleanupCompleted: settleWorktreeClient,
+  });
   // Windows indicator 与 macOS producer lifecycle client 共用已校验、去重的 sideband facts。
   const cuaOperationTurnTracker =
     options?.cuaOperationStateReporter || options?.onCuaPipSessionLifecycle
@@ -2101,6 +2116,44 @@ export function createLCodeAgentService(
         }
       }),
       client.onRequest((request) => {
+        if (isWorktreeRequest(request.method)) {
+          if (lane !== "chat") {
+            client.respondError(request.id, {
+              code: -32603,
+              message: "Checkout execution requires the task runtime lane",
+            });
+            return;
+          }
+          if (exitedWorktreeClients.has(client)) return;
+          let clientWorktree = worktreeLeases.get(client);
+          if (!clientWorktree && options?.worktreeService) {
+            clientWorktree = createWorktreeClientLeases(
+              options.worktreeService,
+              `agent-${randomUUID()}`,
+            );
+            worktreeLeases.set(client, clientWorktree);
+          }
+          void handleWorktreeRequest(
+            request.method,
+            request.params,
+            workspace,
+            clientWorktree?.service,
+          )
+            .then(
+              (result) => client.respond(request.id, result),
+              (error: unknown) =>
+                client.respondError(request.id, {
+                  code: -32603,
+                  message: error instanceof Error ? error.message : String(error),
+                }),
+            )
+            .catch((error: unknown) =>
+              logger.debug(undefined, "工作树响应发送失败", {
+                error: error instanceof Error ? error.message : String(error),
+              }),
+            );
+          return;
+        }
         if (request.method === lcodeProtocolMethods.sessionRequestRuntimePreferences) {
           const reportResponseFailure = (error: unknown): void => {
             logger.debug(undefined, "运行时偏好响应发送失败", {

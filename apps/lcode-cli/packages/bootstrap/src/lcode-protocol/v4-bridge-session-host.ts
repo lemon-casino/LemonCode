@@ -7,8 +7,10 @@ import { hasSessionModelProvider } from "./workspace-model-runtime.js";
 import {
   afterStateMutation,
   createSessionRecordForV4,
+  createWorktreeRepairRecord,
   ensureSessionModelAvailableForNextTurn,
 } from "./server-operations.js";
+import { createWorktreeRepairRunner } from "./worktree-repair.js";
 
 import type {
   LCodeProtocolAgentServerContext,
@@ -25,8 +27,12 @@ export function createV4SessionHost(
   | "afterLegacyStateMutation"
   | "closeSession"
   | "createSessionRecord"
+  | "resolveWorktreeConflicts"
 > {
   return {
+    resolveWorktreeConflicts: createWorktreeRepairRunner(context, (parent, repair, sessionId) =>
+      createWorktreeRepairRecord(context, parent, repair, sessionId),
+    ),
     // ── 过渡钩子──────────────────────────────
     ensureModelReady: (record) =>
       ensureSessionModelAvailableForNextTurn(context, record as LCodeProtocolSessionRecord),
@@ -71,6 +77,8 @@ export function createV4SessionHost(
     // 语义决策（draft persistence / firstInput 走原生 prompt turn）在原生 handler。
     createSessionRecord: async ({
       workspaceId,
+      execution,
+      executionRequestId,
       mcpServers,
       offPeakToolEnabled,
       dynamicWorkflowEnabled,
@@ -86,6 +94,8 @@ export function createV4SessionHost(
       // 本地 workspacePath 处理。
       const created = await createSessionRecordForV4(context, {
         workspace: resolveWorkspaceRefFromId(workspaceId),
+        execution,
+        executionRequestId,
         // 一律 deferred（draft 不进 sqlite）；提升时机归原生 prompt-turn。
         persistence: "deferred",
         // MCP 是 runtime 创建期配置；v4 createSession 必须与 legacy

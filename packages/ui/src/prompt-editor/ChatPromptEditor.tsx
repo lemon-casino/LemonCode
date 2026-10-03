@@ -41,6 +41,9 @@ function runAfterFrame(callback: () => void) {
 export function ChatPromptEditor({
   workspacePath,
   workspaceIdentity,
+  fileWorkspacePath,
+  fileWorkspaceIdentity,
+  fileSourceFolderPaths,
   taskId,
   skillCatalogSessionId,
   initialValue,
@@ -95,6 +98,9 @@ export function ChatPromptEditor({
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
+  fileWorkspacePath?: string;
+  fileWorkspaceIdentity?: string;
+  fileSourceFolderPaths?: readonly string[];
   taskId: string | null;
   /** 仅供 Composer Skill catalog；可为草稿的 prewarm Session。 */
   skillCatalogSessionId?: string | null;
@@ -310,8 +316,8 @@ export function ChatPromptEditor({
           inputApiRef: resolvedInputApiRef,
           currentMarkdown,
           payload: workspaceFilePayload,
-          workspacePath,
-          workspaceIdentity,
+          workspacePath: fileWorkspacePath ?? workspacePath,
+          workspaceIdentity: fileWorkspacePath ? fileWorkspaceIdentity : workspaceIdentity,
           onTextChange: handleTextChange,
         });
         return;
@@ -327,6 +333,8 @@ export function ChatPromptEditor({
       handleTextChange,
       onDrop,
       resolvedInputApiRef,
+      fileWorkspacePath,
+      fileWorkspaceIdentity,
       workspaceIdentity,
       workspacePath,
     ],
@@ -385,6 +393,9 @@ export function ChatPromptEditor({
           triggerPanelContainer={resolvedTriggerPanelContainer}
           workspacePath={workspacePath}
           workspaceIdentity={workspaceIdentity}
+          fileWorkspacePath={fileWorkspacePath}
+          fileWorkspaceIdentity={fileWorkspaceIdentity}
+          fileSourceFolderPaths={fileSourceFolderPaths}
           taskId={taskId}
           skillCatalogSessionId={skillCatalogSessionId}
           inputTestId={inputTestId}

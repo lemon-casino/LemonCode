@@ -45,6 +45,7 @@ const lcodeTaskChangeSummaryRealtimeSchema = z
   .strict();
 const taskMetaRealtimeSchema = z.object({
   taskId: nonEmptyString,
+  executionBindingId: nonEmptyString.optional(),
   traceId: nonEmptyString,
   title: z.string(),
   titleOverridden: z.boolean().optional(),

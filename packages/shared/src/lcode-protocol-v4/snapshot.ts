@@ -10,6 +10,7 @@ import {
   lcodeInteractionRequestOriginSchema,
   lcodePermissionResponseSchema,
   lcodeSessionContextCacheUsageSchema,
+  lcodeWorkspaceRefSchema,
 } from "../lcode-protocol-legacy-types.js";
 import { timestampSchema } from "./core.js";
 import { conversationRowSchema } from "./rows.js";
@@ -489,6 +490,8 @@ export const workspaceHookAdmissionStateSchema = z.object({
 export type WorkspaceHookAdmissionSnapshotState = z.infer<typeof workspaceHookAdmissionStateSchema>;
 
 export const conversationSnapshotSchema = z.object({
+  /** 固定执行位置；项目归属仍使用 sessions-index 的 workspaceId。 */
+  executionWorkspace: lcodeWorkspaceRefSchema.optional(),
   protocolVersion: z.literal(1),
   sessionId: z.string(),
   logEpoch: z.string(),

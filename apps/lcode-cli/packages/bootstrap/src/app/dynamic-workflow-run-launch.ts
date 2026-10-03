@@ -128,6 +128,18 @@ interface LaunchDynamicWorkflowRunInput {
 export async function launchDynamicWorkflowRun(
   input: LaunchDynamicWorkflowRunInput,
 ): Promise<RunSettlement> {
+  // 直接启动和恢复工作流都绕过普通 turn；统一在真实引擎执行前取得同一个 checkout writer。
+  const lease = await input.deps.acquireCheckoutWriterLease?.(input.runId, input.signal);
+  try {
+    return await executeDynamicWorkflowRun(input);
+  } finally {
+    await lease?.release();
+  }
+}
+
+async function executeDynamicWorkflowRun(
+  input: LaunchDynamicWorkflowRunInput,
+): Promise<RunSettlement> {
   const {
     args,
     caps,
@@ -422,8 +434,11 @@ export function toProgressPayload(input: {
     runId,
     ...(toolCallId === undefined ? {} : { toolCallId }),
     sequence,
-    ...(typeof input.occurredAt === "number" && Number.isSafeInteger(input.occurredAt) && input.occurredAt >= 0
-      ? { occurredAt: input.occurredAt } : {}),
+    ...(typeof input.occurredAt === "number" &&
+    Number.isSafeInteger(input.occurredAt) &&
+    input.occurredAt >= 0
+      ? { occurredAt: input.occurredAt }
+      : {}),
     eventType: protocolEvent.type,
     // `run-settled` 多带一位 `resumable`：
     // resume 门的谓词只在 CLI 有，投影与 UI 只搬运这一位、绝不自行按 status 推导。

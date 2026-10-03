@@ -15,6 +15,7 @@ const SELECTION_SIDE_CHAT_RESTRICTED_COMMANDS = new Set<CommandEnvelope["type"]>
   "retryTurn",
   "forkAssistant",
   "discardSharedContext",
+  "resolveWorktreeConflicts",
 ]);
 
 class V4SelectionSideChatRestrictedCommandError extends Error {

@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { CommandEnvelope, ConversationInputIntent } from "@lcode/shared/lcode-protocol-v4";
+import type {
+  CommandEnvelope,
+  CommandPayloadMap,
+  ConversationInputIntent,
+} from "@lcode/shared/lcode-protocol-v4";
 import { CommandInbox, queueItemIdForCommand } from "./command-inbox.js";
 
 function command(commandId: string): CommandEnvelope {
@@ -21,6 +25,55 @@ function fixture() {
     now: () => 1_000,
   });
 }
+
+test("failed worktree preparation permits only explicit same-command setup retry", async () => {
+  const inbox = fixture();
+  const payload: CommandPayloadMap["createSession"] = {
+    workspaceId: "/origin",
+    execution: { mode: "worktree", baseRef: "main" },
+    firstInput: { text: "preserve this first input" },
+  };
+  const create: CommandEnvelope = {
+    ...command("create-tree"),
+    type: "createSession",
+    sessionId: null,
+    payload,
+  };
+  const first = await inbox.handle(create);
+  assert.equal(first.kind, "execute");
+  if (first.kind !== "execute") return;
+  first.settle({ status: "failed", reasonCode: "fault.command.worktreePreparationFailed" });
+  const automaticRetry = await inbox.handle(create);
+  assert.equal(automaticRetry.kind, "ack");
+  if (automaticRetry.kind === "ack") assert.equal(automaticRetry.ack.status, "failed");
+  const changedBase = await inbox.handle({
+    ...create,
+    payload: { ...payload, execution: { mode: "worktree", baseRef: "other", retrySetup: true } },
+  });
+  assert.equal(changedBase.kind, "ack");
+  const retry = await inbox.handle({
+    ...create,
+    payload: { ...payload, execution: { mode: "worktree", baseRef: "main", retrySetup: true } },
+  });
+  assert.equal(retry.kind, "execute");
+  if (retry.kind !== "execute") return;
+  assert.equal(retry.envelope.commandId, create.commandId);
+  assert.deepEqual(
+    (retry.envelope.payload as CommandPayloadMap["createSession"]).firstInput,
+    payload.firstInput,
+  );
+  retry.settle({
+    status: "accepted",
+    result: { type: "createSession", sessionId: "same-tree-task" },
+  });
+  const afterSuccess = await inbox.handle(create);
+  assert.equal(afterSuccess.kind, "ack");
+  if (afterSuccess.kind === "ack")
+    assert.deepEqual(afterSuccess.ack.result, {
+      type: "createSession",
+      sessionId: "same-tree-task",
+    });
+});
 
 test("command inbox gates duplicates on the final ACK and preserves session FIFO", async () => {
   const inbox = fixture();

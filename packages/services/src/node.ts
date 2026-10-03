@@ -9,6 +9,11 @@ import {
   PERSONAL_PROVIDER_CONFIG_FILE_NAME,
 } from "@lcode/provider-node";
 import { getAppConfigDir as resolveAppConfigDir } from "./paths.js";
+import { IWorktreeService } from "./worktree/contract.js";
+import { createWorktreeService, createCheckoutCoordinator } from "./worktree/node.js";
+import { coordinateGitCheckoutWrites } from "./git/gitCheckoutCoordination.js";
+import { createWorktreeGitPort } from "./git/worktreeGitPort.js";
+export { createWorktreeService, createCheckoutCoordinator } from "./worktree/node.js";
 import {
   buildLocalMediaPreviewUrl,
   isProviderProvisioningAccountCredentialKey,
@@ -1963,7 +1968,19 @@ export function createLocalServices(options: {
           resolveOffPeakClientConfig: () => codingPlanSubscriptionService.getOffPeakClientConfig(),
           resolveOffPeakTaskService: () => offPeakTaskServiceForAgent,
         };
+  const worktreeOptions = {
+    dataDir: join(resolveAppConfigDir(), "worktrees"),
+    git: createWorktreeGitPort(),
+  };
+  const checkoutCoordinator = createCheckoutCoordinator(worktreeOptions);
+  const worktreeService = createWorktreeService({
+    ...worktreeOptions,
+    coordinator: checkoutCoordinator,
+    // 源组合提交已持有源 checkout 许可；通过同一 Git owner 执行，避免再次申请导致自锁。
+    commitSource: (request) => rawGitService.commit(request),
+  });
   const lcodeAgentService = createLCodeAgentService({
+    worktreeService,
     ...(agentAccountProviderConfigSource
       ? { accountProviderConfigSource: agentAccountProviderConfigSource }
       : {}),
@@ -2210,10 +2227,11 @@ export function createLocalServices(options: {
     },
     logger: createServiceLogger("git-commit-message"),
   });
-  const gitService = createGitService({
+  const rawGitService = createGitService({
     commitMessageGenerator: gitCommitMessageGenerator,
     mutationJournalReader: (params) => lcodeAgentService.getWorkspaceFileMutationJournal(params),
   });
+  const gitService = coordinateGitCheckoutWrites(rawGitService, checkoutCoordinator);
   // task wrapper 由 LCode task service adapter 提供；核心 session 状态由 LCode agent server 维护。
   const lcodeTaskService = createLCodeTaskServiceAdapter({
     lcodeAgentService,
@@ -2318,6 +2336,7 @@ export function createLocalServices(options: {
     .register(IFileService, fileService)
     .register(IMediaPreviewService, mediaPreviewService)
     .register(IGitService, gitService)
+    .register(IWorktreeService, worktreeService)
     .register(IGitCheckpointService, gitCheckpointService)
     .register(ISystemService, systemService)
     .register(ITerminalService, createTerminalService({ settingService }))

@@ -222,6 +222,8 @@ export function createAppDynamicWorkflowPort(
               : undefined;
           },
           resolveExecutionFailoverLineageId: () => getRuntime().getExecutionFailoverLineageId(),
+          acquireCheckoutWriterLease: (runId, signal) =>
+            getRuntime().acquireCheckoutWriterLease(`workflow:${runId}`, signal),
           acquireExecutionFailoverLineageLease: async (leaseId) => {
             const policyPort = getRuntime().getExecutionFailoverPolicyPort();
             const lease = await policyPort.acquireLineageLease(leaseId);

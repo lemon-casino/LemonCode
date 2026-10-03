@@ -2,6 +2,7 @@ import type { LCodeToolExecResource } from "@lcode/shared";
 import type { AiSdkModelAdapter } from "@lcode/adapters/model";
 import type {
   AgentRuntimeConfig,
+  AgentRuntimeDeps,
   ExecuteTurnOptions,
   ProviderRuntimeHeadersPort,
   PresentationSurface,
@@ -131,6 +132,7 @@ export interface LCodeAppOptions {
   /** 由宿主提供 per-app lease；产出的端口归 app 所有。 */
   mcpPortFactory?: (input: { workingDirectory?: string }) => McpPort;
   permissionBroker?: PermissionBrokerPort;
+  checkoutExecutionPort?: AgentRuntimeDeps["checkoutExecutionPort"];
   eventSink?: SessionEventSink;
   env?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform | string;

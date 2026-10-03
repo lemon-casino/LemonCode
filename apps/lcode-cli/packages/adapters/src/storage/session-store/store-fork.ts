@@ -177,6 +177,11 @@ export const sessionForkMethods = {
       }
 
       const child = sessionRepository.createSession(this.db, input);
+      for (const entry of input.initialEntries ?? []) {
+        if (entry.sessionID !== child.id)
+          throw new Error("Initial session entry must belong to its session");
+        sessionEntryRepository.saveSessionEntry(this.db, entry);
+      }
       const now = Date.now();
       sessionEntryRepository.saveSessionEntry(this.db, {
         id: entryId,

@@ -21,6 +21,7 @@ import {
   createLCodeAgentConnectionScope,
   IFileService,
   IGitService,
+  IWorktreeService,
   IGitBackupService,
   ISystemService,
   ITerminalService,
@@ -394,6 +395,7 @@ export function createHttpServer(
           const remoteServices = new ServiceCollection()
             .register(IFileService, connection.services.fileService)
             .register(IGitService, connection.services.gitService)
+            .register(IWorktreeService, connection.services.worktreeService)
             .register(ISystemService, connection.services.systemService)
             .register(ITerminalService, connection.services.terminalService);
           // legacy remote 也只能透传目标 Host 的备份 owner，不能沿用本机服务。

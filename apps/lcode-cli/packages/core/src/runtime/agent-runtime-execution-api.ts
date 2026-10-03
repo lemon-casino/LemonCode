@@ -58,6 +58,11 @@ import type {
 } from "./types.js";
 
 export interface AgentRuntimeExecutionApi {
+  /** Shared checkout writer lifecycle for direct workflow execution outside a model turn. */
+  acquireCheckoutWriterLease(
+    executionId: string,
+    signal: AbortSignal,
+  ): Promise<{ release(): Promise<void> } | undefined>;
   getContextBuilder(): ContextBuilder;
   /** Composer 使用的 Session Skill 快照；同一 runtime 冻结，runtime 重建后重新发现。 */
   getSkillCatalog(traceContext: TraceContext): Promise<SkillLoadOutcome>;

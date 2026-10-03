@@ -3,6 +3,9 @@ import { localTtftContextSchema, localTtftClockSchema } from "../localTtft.js";
 // conversation rewind 无独立命令（裁决：= editUserQuery 的 UI 入口）；
 // workspace-only 文件撤销走 applyFileRewind，不截断聊天历史。
 import { z } from "zod";
+import { executionIntentSchema } from "../worktreeExecution.js";
+import { createSessionRequestedConfigSchema } from "./create-session-command.js";
+import { resolveWorktreeConflictsPayloadSchema } from "./worktree-command.js";
 import { conversationRowTargetSchema, timestampSchema } from "./core.js";
 import { attachmentRefSchema, workflowImageAttachmentRefSchema } from "./attachment-ref.js";
 import { v4ConversationFileRewindPreviewResultSchema } from "./transport.js";
@@ -27,24 +30,13 @@ import { sharedContextRefSchema } from "./shared-context-ref.js";
 import { setExecutionFailoverTargetPayloadSchema } from "./execution-failover.js";
 export type { SharedContextRef } from "./shared-context-ref.js";
 
-const createSessionRequestedConfigSchema = z.object({
-  modelSelection: modelSelectionSchema.optional(),
-  provider: z.string().optional(),
-  model: z.string().optional(),
-  thought: z.string().optional(),
-  followupMode: z.enum(["queue", "guide"]).optional(),
-  // createSession.config 表达“请求覆盖字段”，不能复用 snapshot 的
-  // sessionConfigStateSchema.partial()；snapshot 为兼容旧快照给 mode 设了 default("build")，
-  // 会把“没传 mode”误变成“请求切回 build”，覆盖 workspace 默认 yolo。
-  mode: z.string().optional(),
-  planEnabled: z.boolean().optional(),
-});
-
 // ── 命令 payload 全集 ──
 export const commandPayloadSchemas = {
+  resolveWorktreeConflicts: resolveWorktreeConflictsPayloadSchema,
   // firstInput 缺省 → phase=draft 空会话；携带 → 直接 turnHeader+userInput rows。
   createSession: z.object({
     workspaceId: z.string(),
+    execution: executionIntentSchema.optional(),
     firstInput: z
       .object({
         text: z.string(),
@@ -398,6 +390,11 @@ export function parseCommandEnvelope(
 
 // ── ACK ──
 export const commandResultSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("resolveWorktreeConflicts"),
+    operationId: z.string(),
+    sessionId: z.string(),
+  }),
   z.object({
     type: z.enum(["createSession", "createSelectionSideSession", "forkAssistant"]),
     sessionId: z.string(),

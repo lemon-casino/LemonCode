@@ -11,13 +11,20 @@ import type { GitRepositorySummary, GitFileMutationJournal } from "@lcode/shared
 import { describeCommitReviewFiles } from "./commitReviewDiff.js";
 import { assertCommitReviewPolicy } from "./commitReviewPolicy.js";
 import { prepareCommitReviewMessage } from "./commitReviewHooks.js";
-import {
-  finishCommitReviewTransaction,
-  publishCommitReviewRef,
-} from "./commitReviewTransaction.js";
+import { publishReviewedCommitTransaction } from "./commitReviewTransaction.js";
 import { canonicalizeCommitReviewJournal } from "./commitReviewJournal.js";
 import { batchGitPathspecs } from "./gitPathspecBatches.js";
+import {
+  readCommitReviewHead,
+  readCommitReviewText,
+  parseCommitReviewTreeEntries,
+} from "./commitReviewText.js";
 import { readCommitReviewWorktree } from "./commitReviewWorktree.js";
+import {
+  recoverReviewedCommit,
+  prepareReviewCommitReceipt,
+  type CommitReviewAuthorization,
+} from "./commitReviewReceipt.js";
 import type { GitCliRepo, GitResolvedRepository } from "./gitCliTypes.js";
 import {
   normalizeInputPath,
@@ -43,6 +50,9 @@ export interface CommitReviewSnapshot {
 }
 
 export class CommitReviewRepo {
+  async recoverCommit(params: import("@lcode/shared").GitCommitRequest) {
+    return recoverReviewedCommit(this.command, this.repo, params);
+  }
   constructor(
     private readonly repo: GitCliRepo,
     private readonly command: GitCommandProvider,
@@ -65,17 +75,7 @@ export class CommitReviewRepo {
   }
 
   private async head(cwd: string): Promise<string | null> {
-    const result = await this.command.run({ cwd, args: ["rev-parse", "--verify", "HEAD"] });
-    if (result.exitCode === 0) return result.stdout.trim();
-    // 未初始化提交与 Git 执行失败必须区分，不能把任意错误当作空 HEAD。
-    const unborn = await this.command.run({ cwd, args: ["symbolic-ref", "-q", "HEAD"] });
-    if (unborn.exitCode !== 0 || result.timedOut) throw new Error("无法读取 Git HEAD。");
-    const exists = await this.command.run({
-      cwd,
-      args: ["show-ref", "--verify", "--quiet", unborn.stdout.trim()],
-    });
-    if (exists.exitCode !== 1 || exists.timedOut) throw new Error("无法读取 Git HEAD。");
-    return null;
+    return readCommitReviewHead(this.command, cwd);
   }
 
   private async gitPaths(
@@ -98,32 +98,13 @@ export class CommitReviewRepo {
   }
 
   private async treeEntries(cwd: string, tree: string, paths: string[]) {
-    const raw = await this.gitPaths(cwd, ["ls-tree", "-r", "-z", tree], paths);
-    return new Map(
-      raw
-        .split("\0")
-        .filter(Boolean)
-        .map((line) => {
-          const tab = line.indexOf("\t");
-          const [mode, type, oid] = line.slice(0, tab).split(" ");
-          if (type !== "blob" || (mode !== "100644" && mode !== "100755"))
-            throw new Error("提交审核仅支持普通文本文件，不支持符号链接或子模块。");
-          return [line.slice(tab + 1), { mode: mode!, oid: oid! }] as const;
-        }),
+    return parseCommitReviewTreeEntries(
+      await this.gitPaths(cwd, ["ls-tree", "-r", "-z", tree], paths),
     );
   }
 
-  private async text(cwd: string, oid: string): Promise<string> {
-    const content = await this.git(cwd, ["cat-file", "blob", oid], {
-      maxOutputBytes: MAX_TEXT_BYTES,
-    });
-    if (
-      content.includes("\0") ||
-      (await this.git(cwd, ["hash-object", "--stdin"], { stdin: content })).trim() !== oid
-    ) {
-      throw new Error("提交审核仅支持可完整读取的 UTF-8 文本，二进制不能按行拆分。");
-    }
-    return content;
+  private text(cwd: string, oid: string) {
+    return readCommitReviewText((args, options) => this.git(cwd, args, options), oid);
   }
 
   private async indexPath(cwd: string) {
@@ -288,6 +269,7 @@ export class CommitReviewRepo {
     snapshot: CommitReviewSnapshot,
     files: readonly CommitReviewContent[],
     message: string,
+    authorization?: CommitReviewAuthorization,
   ): Promise<{ commitHash: string; warning?: string }> {
     if (
       !message.trim() ||
@@ -377,23 +359,31 @@ export class CommitReviewRepo {
           messagePath,
         ])
       ).trim();
-      // 中文依据：临时 index 冻结候选，真实 index 锁阻止并发 stage/checkout；ref CAS 拒绝其它窗口推进 HEAD。
-      let warning = await publishCommitReviewRef(
+      const completeReceipt = await prepareReviewCommitReceipt(
         this.command,
-        cwd,
-        candidateIndex,
-        snapshot.ref,
-        commitHash,
-        snapshot.head,
+        authorization,
+        snapshot,
+        {
+          commitHash,
+          tree,
+          indexPath: realIndex,
+        },
       );
-      committed = true;
-      warning = await finishCommitReviewTransaction(
+      // 中文依据：临时 index 冻结候选，真实 index 锁阻止并发 stage/checkout；ref CAS 拒绝其它窗口推进 HEAD。
+      let warning = await publishReviewedCommitTransaction(
         this.command,
-        cwd,
-        candidateIndex,
-        lockPath,
-        indexPath,
-        warning,
+        {
+          cwd,
+          candidateIndex,
+          ref: snapshot.ref,
+          commitHash,
+          oldHead: snapshot.head,
+          lockPath,
+          indexPath,
+        },
+        () => {
+          committed = true;
+        },
       );
       snapshot.head = commitHash;
       try {
@@ -407,6 +397,14 @@ export class CommitReviewRepo {
         snapshot.version = nextVersion.version;
       } catch {
         warning ??= "提交已成功，但无法更新审核快照，请刷新并重新审核剩余改动。";
+      }
+      // 所有后置检查结束后才完成收据，崩溃窗口保留 prepared，不能误判为可继续集成。
+      try {
+        await completeReceipt?.(warning);
+      } catch {
+        warning = [warning, "持久化收据未完成，请人工核实暂存区与提交。"]
+          .filter(Boolean)
+          .join("\n");
       }
       if (warning) snapshot.version = "invalid";
       this.repo.invalidate(snapshot.resolution.workspacePath);

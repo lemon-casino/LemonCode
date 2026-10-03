@@ -124,6 +124,8 @@ export interface GitChangeSummary {
 export type WorkspaceMainView = "chat" | "automations" | "plugin-store";
 
 export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackService"> {
+  executionWorkspace?: import("@lcode/shared").LCodeWorkspaceRef | null;
+  executionBinding?: import("@lcode/services").WorktreeBinding;
   isNarrowWebLayout: boolean;
   workspaceReadOnlyReason?: string;
   workspaceMainView: WorkspaceMainView;

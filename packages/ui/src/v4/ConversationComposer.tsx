@@ -410,6 +410,9 @@ interface ConversationComposerProps {
   /** 当前 composer 是否运行在手机 Web 远控壳中。 */
   workspacePath: string;
   workspaceIdentity?: string;
+  executionWorkspacePath?: string;
+  executionWorkspaceIdentity?: string;
+  executionSourceFolderPaths?: readonly string[];
   remoteSessionId?: string;
   /** SessionPane 从目标 Host 原子读取的选择事实；Composer 不自行解析 Host。 */
   modelSelectionView?: ModelSelectionView | null;
@@ -522,6 +525,9 @@ function ConversationComposerImpl({
   autoFocusEnabled = true,
   workspacePath,
   workspaceIdentity,
+  executionWorkspacePath,
+  executionWorkspaceIdentity,
+  executionSourceFolderPaths,
   remoteSessionId,
   modelSelectionView = null,
   modelSelectionState = MODEL_SELECTION_LOADING_STATE,
@@ -1948,8 +1954,8 @@ function ConversationComposerImpl({
         inputApiRef,
         currentMarkdown: inputApiRef.current?.getMarkdown() ?? textRef.current,
         payload: event.detail,
-        workspacePath,
-        workspaceIdentity,
+        workspacePath: executionWorkspacePath ?? workspacePath,
+        workspaceIdentity: executionWorkspacePath ? executionWorkspaceIdentity : workspaceIdentity,
         onTextChange: updateText,
       });
     };
@@ -1957,7 +1963,14 @@ function ConversationComposerImpl({
     return () => {
       window.removeEventListener(WORKSPACE_FILE_ADD_TO_CHAT_EVENT, handleWorkspaceFileAddToChat);
     };
-  }, [listenAddToChatEvents, updateText, workspaceIdentity, workspacePath]);
+  }, [
+    listenAddToChatEvents,
+    updateText,
+    workspaceIdentity,
+    workspacePath,
+    executionWorkspacePath,
+    executionWorkspaceIdentity,
+  ]);
 
   // 动态 placeholder（旧 chatViewPlaceholder 语义）：无历史 → newTask；
   // 有历史空闲 → followUpAsk；有历史处理中 → followUpQueue。
@@ -2662,6 +2675,9 @@ function ConversationComposerImpl({
         <ChatPromptEditor
           workspacePath={workspacePath}
           workspaceIdentity={workspaceIdentity}
+          fileWorkspacePath={executionWorkspacePath}
+          fileWorkspaceIdentity={executionWorkspaceIdentity}
+          fileSourceFolderPaths={executionSourceFolderPaths}
           taskId={sessionId}
           skillCatalogSessionId={skillCatalogSessionId}
           placeholder={placeholder}

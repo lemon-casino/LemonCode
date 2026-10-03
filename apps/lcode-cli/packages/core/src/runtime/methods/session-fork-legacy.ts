@@ -13,7 +13,11 @@ import type { MessageId, SessionId, SessionInfo, TraceContext } from "../deps.js
 import { formatConversationForkNoticeBody } from "../helpers/index.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import type { StableConversationForkChildMetadata, WorkspaceForkResult } from "../types.js";
-import { stableForkError, buildForkedSessionInput } from "./session-fork-common.js";
+import {
+  stableForkError,
+  buildForkedSessionInput,
+  buildForkWorktreeBindingEntry,
+} from "./session-fork-common.js";
 import {
   conversationHistoryBeforeInput,
   forkSourceMessagesForSession,
@@ -41,6 +45,8 @@ export async function createForkedSession(
 
   const forkedSessionId = options.forkedSessionId ?? createSessionId();
   const input = buildForkedSessionInput(runtime, options.parentSession, forkedSessionId);
+  const worktreeBindingEntry = buildForkWorktreeBindingEntry(runtime, forkedSessionId);
+  if (worktreeBindingEntry) input.initialEntries = [worktreeBindingEntry];
   // legacy workspace fork 兼容分支。V4 stable/compact-edit 入口直接构建完整 bundle，
   // 不得经过这里的 child-only metadata 原语，否则会重新引入逐条补写窗口。
   if (options.stableForkMetadata) {

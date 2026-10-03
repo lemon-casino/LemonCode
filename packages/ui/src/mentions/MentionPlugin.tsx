@@ -59,6 +59,9 @@ interface MentionPluginProps {
   container?: HTMLElement | null;
   workspacePath: string;
   workspaceIdentity?: string;
+  fileWorkspacePath?: string;
+  fileWorkspaceIdentity?: string;
+  fileSourceFolderPaths?: readonly string[];
   /** 已有 Session 的 id；null/undefined = 新建草稿。决定 Plugins 分组的 catalog authority。 */
   sessionId?: string | null;
   disabled?: boolean;
@@ -130,6 +133,9 @@ function shouldFreezeMentionRecalcWhileComposing(isComposing: boolean, userAgent
 export function MentionPlugin({
   workspacePath,
   workspaceIdentity,
+  fileWorkspacePath,
+  fileWorkspaceIdentity,
+  fileSourceFolderPaths,
   sessionId,
   provider,
   container,
@@ -179,13 +185,14 @@ export function MentionPlugin({
     ? MENTION_FILES_ONLY_DEFAULT_PREVIEW_LIMIT
     : MENTION_DEFAULT_GROUP_PREVIEW_LIMIT;
   const fileResult = useFileMentionProvider(
-    workspacePath,
-    workspaceIdentity,
+    fileWorkspacePath ?? workspacePath,
+    fileWorkspacePath ? fileWorkspaceIdentity : workspaceIdentity,
     deferredActiveQuery,
     isOpen && isContextTrigger,
     intl.formatMessage({ id: "chat.mention.files.empty" }),
     intl.formatMessage({ id: "chat.mention.files.title" }),
     fileDefaultPreviewLimit,
+    fileSourceFolderPaths,
   );
   const whiteboardResult = useWhiteboardMentionProvider(
     workspacePath,

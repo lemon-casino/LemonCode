@@ -63,6 +63,8 @@ export interface LCodeAgentProcessManagerOptions {
   presentationSurface?: LCodeAgentPresentationSurface;
   requestTimeoutMs?: number;
   processLifecycleReporter?: RuntimeProcessLifecycleReporter;
+  /** 仅在 disposeAndWait 已确认进程树退出后结算 Host 所有的外部资源。 */
+  onProcessCleanupCompleted?: (client: LCodeProtocolClient) => Promise<void>;
   /**
    * 进程泳道标识。同一 workspace 的不同泳道各走独立 manager 实例；lane 会写入
    * runtimeIdentity 与 spawn/exit 日志，便于排障区分。
@@ -446,14 +448,12 @@ export function resolveDefaultLCodeAgentCommand(
     return applyPresentationSurfaceToCommand(
       {
         command,
-        args:
-        parseArgsJson(process.env.LCODE_AGENT_SERVER_ARGS_JSON) ??
-        parseArgsJson(process.env.ZCODE_AGENT_SERVER_ARGS_JSON) ??
-        ["app-server", "--stdio"],
+        args: parseArgsJson(process.env.LCODE_AGENT_SERVER_ARGS_JSON) ??
+          parseArgsJson(process.env.ZCODE_AGENT_SERVER_ARGS_JSON) ?? ["app-server", "--stdio"],
         cwd:
-        process.env.LCODE_AGENT_SERVER_CWD?.trim() ||
-        process.env.ZCODE_AGENT_SERVER_CWD?.trim() ||
-        context.workspacePath,
+          process.env.LCODE_AGENT_SERVER_CWD?.trim() ||
+          process.env.ZCODE_AGENT_SERVER_CWD?.trim() ||
+          context.workspacePath,
       },
       context.presentationSurface,
     );
@@ -578,6 +578,7 @@ export class LCodeAgentProcessManager {
   private readonly presentationSurface: LCodeAgentProcessManagerOptions["presentationSurface"];
   private readonly requestTimeoutMs: number | undefined;
   private readonly processLifecycleReporter: RuntimeProcessLifecycleReporter | undefined;
+  private readonly onProcessCleanupCompleted: LCodeAgentProcessManagerOptions["onProcessCleanupCompleted"];
   private readonly resolveSpawnEnv: LCodeAgentProcessManagerOptions["resolveSpawnEnv"];
   private readonly waitForSpawnAdmission: LCodeAgentProcessManagerOptions["waitForSpawnAdmission"];
   private readonly spawnFallbackCwd: string | undefined;
@@ -598,6 +599,7 @@ export class LCodeAgentProcessManager {
     this.presentationSurface = options?.presentationSurface;
     this.requestTimeoutMs = options?.requestTimeoutMs;
     this.processLifecycleReporter = options?.processLifecycleReporter;
+    this.onProcessCleanupCompleted = options?.onProcessCleanupCompleted;
     this.resolveSpawnEnv = options?.resolveSpawnEnv;
     this.waitForSpawnAdmission = options?.waitForSpawnAdmission;
     this.spawnFallbackCwd = options?.spawnFallbackCwd;
@@ -757,7 +759,9 @@ export class LCodeAgentProcessManager {
     let cleanupCompleted = false;
     const cleanupPromise = managed.client
       .disposeAndWait()
-      .then(() => {
+      .then(async () => {
+        // stdio 关闭不证明后台写入结束；复用既有进程树回收成功边界再释放 checkout。
+        await this.onProcessCleanupCompleted?.(managed.client);
         cleanupCompleted = true;
         log("LCode agent process cleanup completed", {
           workspaceKey: managed.runtimeIdentity.workspaceKey,

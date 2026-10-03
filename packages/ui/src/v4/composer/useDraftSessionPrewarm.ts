@@ -88,7 +88,10 @@ function startDraftSessionPrewarm(params: {
       if (!ack) {
         return;
       }
-      if (ack.status !== "accepted" || ack.result?.type !== "createSession") {
+      if (
+        (ack.status !== "accepted" && ack.status !== "duplicate") ||
+        ack.result?.type !== "createSession"
+      ) {
         logger.warn("[v4-draft-prewarm] createSession 被拒，回落无预热路径", {
           status: ack.status,
           reasonCode: ack.reasonCode ?? null,

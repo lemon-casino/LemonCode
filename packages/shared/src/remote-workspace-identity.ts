@@ -111,3 +111,13 @@ export function parseRemoteWorkspaceIdentity(
 export function isRemoteWorkspaceIdentity(identity: string): boolean {
   return parseRemoteWorkspaceIdentity(identity) !== null;
 }
+
+/** 工作树只替换路径段，保留原 Environment authority，不在业务代码复制身份格式。 */
+export function replaceRemoteWorkspaceIdentityPath(
+  identity: string,
+  workspacePath: string,
+): string | null {
+  const parsed = parseRemoteWorkspaceIdentity(identity);
+  if (!parsed) return null;
+  return `${identity.slice(0, identity.length - parsed.workspacePath.length)}${normalizeWorkspacePathForIdentity(workspacePath)}`;
+}

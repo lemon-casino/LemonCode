@@ -34,6 +34,10 @@ export const lcodeSyntheticUserMessageSourceSchema = z.enum([
 export const lcodeWorkspaceRefSchema = z
   .object({
     workspacePath: nonEmptyString,
+    executionBindingId: nonEmptyString.optional(),
+    bindingOwnerTaskId: nonEmptyString.optional(),
+    originWorkspacePath: nonEmptyString.optional(),
+    originWorkspaceIdentity: nonEmptyString.optional(),
     workspaceIdentity: nonEmptyString.optional(),
     remoteSessionId: nonEmptyString.optional(),
     workspaceKey: nonEmptyString,
@@ -88,6 +92,7 @@ export const lcodeSessionKindSchema = z.enum([
   "workflow_child",
   "subagent_child",
   "nested_workflow_child",
+  "worktree_repair",
 ]);
 export const lcodeSessionGoalSchema = z
   .object({
