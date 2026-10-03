@@ -16,7 +16,7 @@ import { platform } from "./git-backup-platform.js";
 import { WorktreeWorkflowScenario } from "./worktree-ui-scenarios.js";
 import { FixtureReviewPreview } from "./review-preview.js";
 import { WorktreeSidebarRows } from "./worktree-sidebar-rows.js";
-import { WorktreeFixturePage } from "./worktree-ui-page.js";
+import { WorktreeFixturePage, fixtureGitRefresh } from "./worktree-ui-page.js";
 import {
   installForkPreparationFixture,
   beginFixtureDraftExecution,
@@ -143,6 +143,8 @@ const services = {
   },
   gitService: {
     ...createReviewWorkspaceFixture(),
+    refresh: async ({ workspacePath }: { workspacePath: string }) =>
+      fixtureGitRefresh(workspacePath),
     getDiff: async ({ path }: { path: string }) => {
       calls.push({ method: "diff", params: { path } });
       return {

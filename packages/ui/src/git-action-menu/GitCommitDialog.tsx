@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { GitCommitReview, SessionExecutionMode } from "@lcode/shared";
-import { GitCommitIcon, LoaderIcon } from "lucide-react";
+import type { WorktreeIntegration } from "@lcode/services";
+import { LoaderIcon } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
-import { Command, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command.js";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog.js";
 import { hasGitCommitIdentity } from "@/git-branch-switcher/switchAssist.js";
 import { getGitBranchCommitTotals } from "@/git-branch-switcher/display.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
-import { formatCommandShortcutLabel, matchesPrimaryShortcut } from "@/lib/keyboardShortcuts.js";
+import { matchesPrimaryShortcut } from "@/lib/keyboardShortcuts.js";
 import {
   getCommitDialogFiles,
   getCommitDialogStagePaths,
@@ -20,6 +20,8 @@ import { GitCommitMessageEditor } from "./GitCommitMessageEditor.js";
 import { GitCommitFileScope } from "./GitCommitFileScope.js";
 import { GitCommitReviewPanel } from "./GitCommitReviewPanel.js";
 import { selectCommitReviewGroup } from "./commitReviewModel.js";
+import { GitCommitConfirmAction } from "./GitCommitConfirmAction.js";
+import { commitMergeState } from "./commitMergeState.js";
 import { GitPublishOptionsPanel, type PublishOptionsPanelProps } from "./GitPublishOptionsPanel.js";
 import { GitPublishPreview, GitPublishResults } from "./GitPublishFeedback.js";
 import type { PublishPlan } from "./publishModel.js";
@@ -30,11 +32,12 @@ export interface GitCommitDialogProps {
   worktreeActions?: ReactNode;
   worktreeMergeActions?: ReactNode;
   mergeOperationId?: string;
+  mergeOperationStatus?: WorktreeIntegration["status"];
   mergeView?: { operationId: string; source: boolean } | null;
   onMergeViewChange?: (value: { operationId: string; source: boolean } | null) => void;
   syncBlocked?: boolean;
   syncStatus?: ReactNode;
-  onOpenFiles: () => void;
+  onOpenFiles: (readOnly?: boolean) => void;
   onOpenScopeFiles: () => void;
   canOpenFiles: boolean;
   executionMode?: SessionExecutionMode;
@@ -113,14 +116,18 @@ export function GitCommitDialog(props: GitCommitDialogProps) {
   }, [open, reportVisible]);
   const [worktreeView, setWorktreeView] = useState<{ id: string; source: boolean } | null>(null);
   const [showPublicationPreview, setShowPublicationPreview] = useState(false);
-  const showMerge = Boolean(
-    props.mergeOperationId &&
-    !(props.onMergeViewChange
-      ? props.mergeView?.operationId === props.mergeOperationId && props.mergeView.source
-      : worktreeView?.id === props.mergeOperationId && worktreeView.source),
+  const { showMerge, sourceLocked } = commitMergeState(
+    props.mergeOperationId && props.mergeOperationStatus
+      ? { id: props.mergeOperationId, status: props.mergeOperationStatus }
+      : undefined,
+    props.onMergeViewChange
+      ? props.mergeView
+      : worktreeView
+        ? { operationId: worktreeView.id, source: worktreeView.source }
+        : null,
   );
   const actionPending = mutationPending || generationPending;
-  const locked = actionPending || Boolean(props.plan || props.run || props.mergeOperationId);
+  const locked = actionPending || sourceLocked || Boolean(props.plan || props.run);
   const hasIdentity = hasGitCommitIdentity(state?.identity ?? null);
   const selectedFiles = state
     ? getCommitDialogFiles(state, props.includeUnstaged, props.excludedFiles)
@@ -226,8 +233,37 @@ export function GitCommitDialog(props: GitCommitDialogProps) {
                 }
               />
             ) : null}
+            {!showMerge ? (
+              <GitCommitFileScope
+                includeUnstaged={props.includeUnstaged}
+                hasUnstaged={Boolean(state.unstagedFiles.length)}
+                fileCount={stagePaths.length}
+                totalCount={allFiles.length}
+                excludedCount={props.excludedFiles.length}
+                onOpenFiles={() =>
+                  sourceLocked ? props.onOpenFiles(true) : props.onOpenScopeFiles()
+                }
+                canOpenFiles={props.canOpenFiles}
+                disabled={locked}
+                readOnly={sourceLocked}
+                onIncludeUnstagedChange={props.onIncludeUnstagedChange}
+              />
+            ) : null}
             {showMerge ? (
-              props.worktreeMergeActions
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mx-4 my-3"
+                  data-testid="git-merge-open-source-files"
+                  disabled={!props.canOpenFiles}
+                  onClick={() => props.onOpenFiles(true)}
+                >
+                  {intl.formatMessage({ id: "git.review.viewSourceFiles" })}
+                </Button>
+                <div className="px-4 pb-3">{props.worktreeMergeActions}</div>
+              </>
             ) : (
               <>
                 {props.worktreeActions}
@@ -274,21 +310,10 @@ export function GitCommitDialog(props: GitCommitDialogProps) {
                     onBrowse={props.onBrowse}
                     onAcknowledge={props.onReviewAcknowledge}
                     onManualFallback={props.onManualFallback}
-                    onOpenFiles={props.onOpenFiles}
+                    onOpenFiles={() => props.onOpenFiles(sourceLocked)}
                     canOpenFiles={props.canOpenFiles}
                   />
                 ) : null}
-                <GitCommitFileScope
-                  includeUnstaged={props.includeUnstaged}
-                  hasUnstaged={Boolean(state.unstagedFiles.length)}
-                  fileCount={stagePaths.length}
-                  totalCount={allFiles.length}
-                  excludedCount={props.excludedFiles.length}
-                  onOpenFiles={props.onOpenScopeFiles}
-                  canOpenFiles={props.canOpenFiles}
-                  disabled={locked}
-                  onIncludeUnstagedChange={props.onIncludeUnstagedChange}
-                />
                 {!hasIdentity ? (
                   <p className="px-4 py-2 text-ui-sm text-warning">
                     {intl.formatMessage({ id: "git.actionMenu.commitDialog.identityMissing" })}
@@ -302,34 +327,12 @@ export function GitCommitDialog(props: GitCommitDialogProps) {
                     {props.error}
                   </p>
                 ) : null}
-                <div className="border-t border-border px-2.5 py-2">
-                  <Command
-                    data-testid="git-commit-action-command"
-                    value="commit"
-                    shouldFilter={false}
-                    className="bg-transparent"
-                  >
-                    <CommandList className="max-h-none">
-                      <CommandItem
-                        value="commit"
-                        data-testid="git-commit-action-item-commit"
-                        disabled={commitActionDisabled}
-                        onSelect={() => {
-                          if (!commitActionDisabled) props.onSubmit();
-                        }}
-                        className="min-h-9"
-                      >
-                        {mutationPending ? (
-                          <LoaderIcon className="size-4 animate-spin" />
-                        ) : (
-                          <GitCommitIcon className="size-4" />
-                        )}
-                        <span className="min-w-0 flex-1">{workflowText("commit")}</span>
-                        <CommandShortcut>{formatCommandShortcutLabel("⏎")}</CommandShortcut>
-                      </CommandItem>
-                    </CommandList>
-                  </Command>
-                </div>
+                <GitCommitConfirmAction
+                  disabled={commitActionDisabled}
+                  pending={mutationPending}
+                  label={workflowText("commit")}
+                  onSubmit={props.onSubmit}
+                />
                 {!props.plan && !props.run ? (
                   <GitPublishOptionsPanel
                     {...props.publish}

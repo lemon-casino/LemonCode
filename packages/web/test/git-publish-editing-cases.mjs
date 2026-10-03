@@ -31,7 +31,8 @@ export async function runGitPublishEditingCases(t, { page, url }) {
   };
   const load = async (query = "") => {
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.goto(url + query);
+    // 已出现整页 load 超时；审核开始条件是 DOM 与真实入口就绪，不能绑在外围资源加载上。
+    await page.goto(url + query, { waitUntil: "domcontentloaded" });
     await page.getByTestId("git-action-trigger").waitFor();
   };
   const open = async () => {

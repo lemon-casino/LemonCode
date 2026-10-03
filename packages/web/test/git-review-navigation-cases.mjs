@@ -7,6 +7,71 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
       method,
       args,
     });
+  await t.test(
+    "历史取消、失败和完成记录恢复来源入口；活动合并保留只读来源和空结果入口",
+    async () => {
+      for (const width of [1280, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        for (const status of [
+          "cancelled",
+          "failed",
+          "source-commit-failed",
+          "published",
+          "ready",
+        ]) {
+          await page.goto(`${url}?seedIntegration=${status}`);
+          await fixture("executionMode", "worktree");
+          await fixture("dirty", ["a.ts", "b.ts"]);
+          await page.getByTestId("git-action-trigger").click();
+          await dialog.waitFor();
+          if (status === "ready") {
+            await page.getByTestId("git-merge-open-source-files").waitFor();
+            await page.getByTestId("git-merge-open-source-files").click();
+            await page.getByTestId("review-file-workspace").waitFor();
+            assert.equal(await page.getByTestId("review-exclude-page").count(), 0);
+            await page.getByTestId("code-viewer-return-review").click();
+            await page.getByTestId("worktree-open-diff").waitFor();
+            await page.getByTestId("git-review-stage-back").click();
+            await page.getByTestId("git-scope-open-files").waitFor();
+            assert.equal(await page.getByTestId("git-commit-message-input").isDisabled(), true);
+          } else {
+            await page.getByTestId("git-scope-open-files").waitFor();
+            assert.equal(await page.getByTestId("git-commit-message-input").isDisabled(), false);
+            assert.equal(await page.getByTestId("git-merge-open-source-files").count(), 0);
+          }
+          assert.equal(await page.getByText("保存快照并归档", { exact: true }).count(), 0);
+        }
+      }
+    },
+  );
+  await t.test("本地审核优先显示文件范围，发布折叠，差异返回保留草稿", async () => {
+    for (const width of [1280, 390]) {
+      for (const locale of ["zh-CN", "en-US"]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(url + (locale === "en-US" ? "?english" : ""));
+        await fixture("dirty", ["a.ts", "b.ts"]);
+        await page.getByTestId("git-action-trigger").click();
+        const scope = page.getByTestId("git-scope-open-files");
+        const message = page.getByTestId("git-commit-message-input");
+        await scope.waitFor();
+        assert.ok((await scope.boundingBox()).y < (await message.boundingBox()).y);
+        assert.equal(
+          await page.getByTestId("git-publish-toggle").getAttribute("aria-expanded"),
+          "false",
+        );
+        await message.fill("fix: local review draft");
+        await scope.click();
+        await page.getByTestId("review-file-workspace").waitFor();
+        await page.getByTestId("review-exclude-page").click();
+        await page.getByTestId("code-viewer-return-review").click();
+        assert.equal(await message.inputValue(), "fix: local review draft");
+        assert.equal(
+          await page.getByTestId("git-commit-action-item-commit").getAttribute("aria-disabled"),
+          "true",
+        );
+      }
+    }
+  });
   await t.test("遮罩不关闭，X 与手动重开保留冻结审核及编辑内容", async () => {
     for (const english of [false, true]) {
       await page.setViewportSize({ width: english ? 390 : 1280, height: 900 });

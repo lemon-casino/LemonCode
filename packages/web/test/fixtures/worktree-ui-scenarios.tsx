@@ -3,6 +3,7 @@ import type { WorktreeIntegration } from "@lcode/services";
 import type { GitCommitReview } from "@lcode/shared";
 import { CommitAndMergeControl } from "@/worktree/CommitAndMergeControl.js";
 import { WorktreeTaskActions } from "@/worktree/WorktreeTaskActions.js";
+import { WorktreeManagementActions } from "@/worktree/WorktreeManagementActions.js";
 
 export function WorktreeWorkflowScenario({
   mode,
@@ -53,6 +54,13 @@ export function WorktreeWorkflowScenario({
             }
           />
         </>
+      ) : mode === "management" ? (
+        <WorktreeManagementActions
+          workspacePath="/fixture/repo"
+          sessionId="orphan"
+          busy={false}
+          defaultOpen
+        />
       ) : (
         <WorktreeTaskActions
           workspacePath="/fixture/repo"

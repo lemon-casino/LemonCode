@@ -130,7 +130,7 @@ export async function runWorktreeWorkflowCases({ t, page, url, calls, configure,
     await page.getByRole("textbox", { name: "搜索文件路径" }).fill("file-");
     assert.equal(await page.getByTestId("review-workspace-files").locator("li").count(), 50);
     await page.getByTestId("code-viewer-return-review").click();
-    await page.goto(url + "?scenario=review");
+    await page.goto(url + "?scenario=management");
     await configure({ ignoredCount: 10_000 });
     await dialog.getByRole("checkbox").check();
     await dialog.getByRole("button", { name: "保存快照并归档", exact: true }).click();
@@ -140,5 +140,81 @@ export async function runWorktreeWorkflowCases({ t, page, url, calls, configure,
     assert.equal(await page.getByTestId("review-workspace-files").locator("li").count(), 50);
     assert.equal((await calls()).filter((call) => call.method === "diff").length, 0);
     await page.getByTestId("code-viewer-return-review").click();
+  });
+}
+
+export async function runWorktreeManagementCases({
+  t,
+  page,
+  load,
+  openProjectWorktrees,
+  calls,
+  fixture,
+}) {
+  await t.test("管理只显示生命周期，提交入口打开当前会话统一审核且不执行 Git 写入", async () => {
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await load();
+      await openProjectWorktrees();
+      await page
+        .getByTestId("project-worktree-list")
+        .getByRole("button", { name: "工作树管理", exact: true })
+        .click();
+      const management = page.getByTestId("project-worktree-management-dialog");
+      await management.getByTestId("worktree-management-content").waitFor();
+      assert.equal(await management.getByTestId("worktree-integrate").count(), 0);
+      assert.equal(await management.getByTestId("worktree-approve-candidate").count(), 0);
+      const before = (await calls()).filter((call) =>
+        ["integrate", "publishIntegration", "archive", "restore"].includes(call.method),
+      );
+      await management.getByTestId("worktree-open-commit-review").click();
+      await management.waitFor({ state: "hidden" });
+      const review = page.getByTestId("git-commit-dialog");
+      await review.getByTestId("git-scope-open-files").waitFor();
+      assert.equal(
+        await page.evaluate(() => globalThis.__worktreeFixture.lastReviewNavigation.sessionId),
+        "orphan",
+      );
+      assert.equal(await page.getByRole("dialog").count(), 1);
+      assert.equal(await review.getByTestId("worktree-management-content").count(), 0);
+      assert.deepEqual(
+        (await calls()).filter((call) =>
+          ["integrate", "publishIntegration", "archive", "restore"].includes(call.method),
+        ),
+        before,
+      );
+      await page.getByTestId("git-review-dismiss").click();
+    }
+  });
+  await t.test("准备后放弃草稿仍有管理入口；归档明确确认忽略文件并可恢复", async () => {
+    await load();
+    await fixture("hideDraft");
+    assert.equal(await page.getByTestId("draft-composer-header").count(), 0);
+    await openProjectWorktrees();
+    await page
+      .getByTestId("project-worktree-list")
+      .getByRole("button", { name: "工作树管理", exact: true })
+      .click();
+    const dialog = page.getByTestId("project-worktree-management-dialog");
+    assert.equal(await page.getByRole("dialog").count(), 1);
+    await dialog.getByRole("button", { name: "返回项目工作树", exact: true }).click();
+    await page
+      .getByTestId("project-worktree-list")
+      .getByRole("button", { name: "工作树管理", exact: true })
+      .click();
+    assert.equal(await page.getByRole("dialog").count(), 1);
+    await dialog.waitFor();
+    await dialog.getByRole("button", { name: "保存快照并归档", exact: true }).click();
+    await dialog.getByText("Ignored files require explicit acknowledgement").waitFor();
+    assert.equal(
+      (await calls()).find((call) => call.method === "archive").params.acknowledgeIgnoredFiles,
+      false,
+    );
+    await dialog.getByRole("checkbox").last().check();
+    await dialog.getByRole("button", { name: "保存快照并归档", exact: true }).click();
+    await dialog.getByRole("button", { name: "恢复工作树", exact: true }).waitFor();
+    await dialog.getByRole("button", { name: "恢复工作树", exact: true }).click();
+    await dialog.getByRole("button", { name: "保存快照并归档", exact: true }).waitFor();
+    assert.equal((await calls()).filter((call) => call.method === "restore").length, 1);
   });
 }

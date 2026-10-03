@@ -6849,7 +6849,7 @@ const zhCN: Record<string, string> = {
   "git.commitWorkflow.worktree.branchLabel": "来源工作树分支",
   "git.commitWorkflow.worktree.commit": "仅提交工作树更改",
   "git.commitWorkflow.worktree.publishHint":
-    "此处发布的是来源工作树分支。合并后发布原项目目标分支，请在工作树与合并管理中操作。",
+    "此处发布的是来源工作树分支。合并后发布原项目目标分支，请进入合并结果审核。",
   "git.commitWorkflow.directory": "执行目录：",
   "git.commitWorkflow.loading": "正在读取提交审核内容…",
   "git.commitWorkflow.directoryBusy": "此目录正被其他会话或 Git 操作占用，请等待该操作结束后重试。",
@@ -6909,7 +6909,13 @@ const zhCN: Record<string, string> = {
   "worktree.preparation.automaticValidation":
     "合并候选会自动识别项目已有检查，无需填写命令；执行前可查看检查计划。未识别到检查时，需要明确确认跳过验证。",
   "worktree.unavailable": "当前目录不支持工作树",
-  "worktree.manage": "工作树与合并管理",
+  "worktree.manage": "工作树管理",
+  "worktree.managementDescription":
+    "管理此会话的执行目录、归档和恢复。提交及合并使用同一审核入口。",
+  "worktree.restoreFromManagement": "此工作树已归档。请在工作树管理中恢复后继续审核。",
+  "worktree.targetLocalChanges":
+    "目标目录存在会妨碍合并的本地改动。请先保存下列涉及文件，再重试；其他改动可保留。",
+  "worktree.targetChangedReview": "目标分支已更新。请取消旧合并操作，基于最新目标重新准备并审核。",
   "worktree.sourceUnavailable": "无法读取工作树来源提交",
   "worktree.restore": "恢复工作树",
   "worktree.integrate": "准备合并已提交成果",
@@ -6982,6 +6988,8 @@ const zhCN: Record<string, string> = {
   "git.review.noFiles": "没有匹配的文件",
   "git.review.openFileWorkspace": "查看 {count} 个文件的冻结差异",
   "git.review.manageFileScope": "查看变更与管理文件范围",
+  "git.review.viewSourceFiles": "查看来源改动",
+  "git.review.sourceReadOnly": "来源提交已冻结，此处只读。可查看原审核范围，不能修改已确认内容。",
   "git.review.stages": "审核阶段",
   "git.review.stageCommit": "提交审核",
   "git.review.stageMerge": "合并审核",

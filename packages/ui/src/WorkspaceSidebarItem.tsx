@@ -1195,6 +1195,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
             workspaceRemoteSessionId={tab.remoteSessionId}
             open={projectWorktreesOpen}
             onOpenChange={setProjectWorktreesOpen}
+            onSelectSession={handleSelectTask}
           />
         </ServiceProvider>
       ) : null}

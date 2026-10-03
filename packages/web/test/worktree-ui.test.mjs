@@ -6,7 +6,10 @@ import { fileURLToPath } from "node:url";
 import { stripVTControlCharacters } from "node:util";
 import test from "node:test";
 import { chromium } from "playwright-core";
-import { runWorktreeWorkflowCases } from "./worktree-workflow-cases.mjs";
+import {
+  runWorktreeWorkflowCases,
+  runWorktreeManagementCases,
+} from "./worktree-workflow-cases.mjs";
 import { runWorktreeReviewSettingsCases } from "./worktree-review-settings-cases.mjs";
 import { runForkPreparationCases } from "./worktree-fork-preparation-cases.mjs";
 
@@ -211,37 +214,7 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
     },
   );
   await runWorktreeReviewSettingsCases({ t, page, load, select, fixture, configure, calls });
-  await t.test("准备后放弃草稿仍有管理入口；归档明确确认忽略文件并可恢复", async () => {
-    await load();
-    await fixture("hideDraft");
-    assert.equal(await page.getByTestId("draft-composer-header").count(), 0);
-    await openProjectWorktrees();
-    await page
-      .getByTestId("project-worktree-list")
-      .getByRole("button", { name: "工作树与合并管理", exact: true })
-      .click();
-    const dialog = page.getByTestId("project-worktree-management-dialog");
-    assert.equal(await page.getByRole("dialog").count(), 1);
-    await dialog.getByRole("button", { name: "返回项目工作树", exact: true }).click();
-    await page
-      .getByTestId("project-worktree-list")
-      .getByRole("button", { name: "工作树与合并管理", exact: true })
-      .click();
-    assert.equal(await page.getByRole("dialog").count(), 1);
-    await dialog.waitFor();
-    await dialog.getByRole("button", { name: "保存快照并归档", exact: true }).click();
-    await dialog.getByText("Ignored files require explicit acknowledgement").waitFor();
-    assert.equal(
-      (await calls()).find((call) => call.method === "archive").params.acknowledgeIgnoredFiles,
-      false,
-    );
-    await dialog.getByRole("checkbox").last().check();
-    await dialog.getByRole("button", { name: "保存快照并归档", exact: true }).click();
-    await dialog.getByRole("button", { name: "恢复工作树", exact: true }).waitFor();
-    await dialog.getByRole("button", { name: "恢复工作树", exact: true }).click();
-    await dialog.getByRole("button", { name: "保存快照并归档", exact: true }).waitFor();
-    assert.equal((await calls()).filter((call) => call.method === "restore").length, 1);
-  });
+  await runWorktreeManagementCases({ t, page, load, openProjectWorktrees, calls, fixture });
   await t.test("切换会话读取实际工作树，多根文件搜索不回原目录；刷新失败禁用入口", async () => {
     await load();
     await page.waitForFunction(
@@ -309,9 +282,10 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
       await openProjectWorktrees();
       await page
         .getByTestId("project-worktree-list")
-        .getByRole("button", { name: "工作树与合并管理", exact: true })
+        .getByRole("button", { name: "工作树管理", exact: true })
         .click();
-      const dialog = page.getByTestId("project-worktree-management-dialog");
+      await page.getByTestId("worktree-open-commit-review").click();
+      const dialog = page.getByTestId("git-commit-dialog");
       await dialog.getByTestId("worktree-integrate").click();
       const validate = dialog.getByTestId("worktree-validate");
       await validate.waitFor();
@@ -345,6 +319,16 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
         await dialog.getByTestId("worktree-integration-status").innerText(),
         /已合并到 L-GO/,
       );
+      await page.getByTestId("git-review-dismiss").click();
+      await openProjectWorktrees();
+      const management = page.getByTestId("project-worktree-management-dialog");
+      await management.getByText("已合并到 L-GO", { exact: true }).waitFor();
+      assert.equal(
+        await management.getByRole("button", { name: "保存快照并归档", exact: true }).isEnabled(),
+        true,
+      );
+      await management.getByTestId("worktree-open-commit-review").click();
+      await publish.waitFor();
       await publish.getByTestId("git-publish-toggle").click();
       assert.match(await publish.innerText(), /发布分支：L-GO/);
       assert.match(await publish.innerText(), /已合并的原项目目标分支/);
@@ -361,9 +345,9 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
       assert.equal((await calls()).filter((call) => call.method === "push").length, 0);
       await publish.getByTestId("git-publish-confirm").click();
       await publish.getByText("fixture-remote-offline").waitFor();
-      await page.getByTestId("project-worktrees-close").click();
+      await page.getByTestId("git-review-dismiss").click();
       await dialog.waitFor({ state: "hidden" });
-      await openProjectWorktrees();
+      await page.getByTestId("git-action-trigger").click();
       await publish.getByText("fixture-remote-offline").waitFor();
       await publish.getByTestId("git-publish-results-back").click();
       assert.equal(await publish.getByTestId("git-publish-confirm").count(), 0);

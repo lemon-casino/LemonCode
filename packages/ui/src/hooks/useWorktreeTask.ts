@@ -14,6 +14,25 @@ export function useWorktreeTask(
   const { worktreeService, gitService } = useServices();
   const { intl } = useLCodeIntl();
   const directoryBusyMessage = intl.formatMessage({ id: "git.commitWorkflow.directoryBusy" });
+  const targetBlockedMessage = intl.formatMessage({ id: "worktree.targetLocalChanges" });
+  const targetChangedMessage = intl.formatMessage({ id: "worktree.targetChangedReview" });
+  const describeError = useCallback(
+    (error: unknown) => {
+      const message = getCheckoutOperationErrorMessage(error, directoryBusyMessage);
+      const marker = "Target checkout cannot be updated without overwriting local changes.";
+      if (
+        message === "Target HEAD changed; create and review a new integration" ||
+        message === "Target changed during validation"
+      )
+        return targetChangedMessage;
+      if (message === "Target has uncommitted or untracked changes; publication is blocked")
+        return targetBlockedMessage;
+      return message.startsWith(marker)
+        ? `${targetBlockedMessage}${message.slice(marker.length)}`
+        : message;
+    },
+    [directoryBusyMessage, targetBlockedMessage, targetChangedMessage],
+  );
   const scope = `${workspaceIdentity?.trim() || workspacePath}\0${taskId ?? ""}`;
   const ticket = useRef(0);
   const [state, setState] = useState<{
@@ -48,10 +67,10 @@ export function useWorktreeTask(
           ...(previous.scope === scope ? previous : { binding: null, operation: null }),
           scope,
           loading: false,
-          error: getCheckoutOperationErrorMessage(error, directoryBusyMessage),
+          error: describeError(error),
         }));
     }
-  }, [scope, taskId, workspacePath, workspaceIdentity, worktreeService, directoryBusyMessage]);
+  }, [scope, taskId, workspacePath, workspaceIdentity, worktreeService, describeError]);
   useEffect(() => {
     void refresh();
     return () => {
@@ -73,15 +92,13 @@ export function useWorktreeTask(
         useWorktreeLifecycleStore.getState().invalidate(workspacePath, workspaceIdentity);
         await refresh();
         setState((previous) =>
-          previous.scope === ownScope
-            ? { ...previous, error: getCheckoutOperationErrorMessage(error, directoryBusyMessage) }
-            : previous,
+          previous.scope === ownScope ? { ...previous, error: describeError(error) } : previous,
         );
       } finally {
         setPending(false);
       }
     },
-    [pending, refresh, scope, workspacePath, workspaceIdentity, directoryBusyMessage],
+    [pending, refresh, scope, workspacePath, workspaceIdentity, describeError],
   );
-  return { ...current, pending, refresh, perform, worktreeService, gitService };
+  return { ...current, pending, refresh, perform, worktreeService, gitService, describeError };
 }

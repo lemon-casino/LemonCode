@@ -14,6 +14,7 @@ export function WorktreeReviewDialog({
   onOpenChange,
   onManage,
   children,
+  management = false,
 }: {
   binding: WorktreeBinding;
   targetBranch: string;
@@ -21,9 +22,12 @@ export function WorktreeReviewDialog({
   onOpenChange: (open: boolean) => void;
   onManage: () => void;
   children: ReactNode;
+  management?: boolean;
 }) {
   const { intl } = useLCodeIntl();
-  const manage = intl.formatMessage({ id: "worktree.manage" });
+  const manage = intl.formatMessage({
+    id: management ? "worktree.manage" : "git.commitWorkflow.worktree.title",
+  });
   return (
     <>
       {binding.preparation ? (
@@ -54,10 +58,12 @@ export function WorktreeReviewDialog({
           <ReviewDialogDismiss onClose={() => onOpenChange(false)} />
           <DialogTitle className="pr-8 text-ui-base">{manage}</DialogTitle>
           <DialogDescription className="break-all pr-8 font-mono text-ui-sm">
-            {intl.formatMessage(
-              { id: "worktree.sourceToTarget" },
-              { source: binding.branch, target: targetBranch },
-            )}
+            {management
+              ? binding.branch
+              : intl.formatMessage(
+                  { id: "worktree.sourceToTarget" },
+                  { source: binding.branch, target: targetBranch },
+                )}
             <br />
             {binding.workspacePath}
           </DialogDescription>

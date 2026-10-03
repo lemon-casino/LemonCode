@@ -7198,7 +7198,7 @@ const enUS: Record<string, string> = {
   "git.commitWorkflow.worktree.branchLabel": "Source worktree branch",
   "git.commitWorkflow.worktree.commit": "Commit worktree changes only",
   "git.commitWorkflow.worktree.publishHint":
-    "This publishes the source worktree branch. To publish the project target branch after merging, use worktree and merge management.",
+    "This publishes the source worktree branch. To publish the project target branch after merging, open the merge result review.",
   "git.commitWorkflow.directory": "Execution directory:",
   "git.commitWorkflow.loading": "Loading commit review…",
   "git.commitWorkflow.directoryBusy":
@@ -7267,7 +7267,15 @@ const enUS: Record<string, string> = {
   "worktree.preparation.automaticValidation":
     "Project checks are detected automatically for the merge candidate. Review the check plan before running it. If no checks are found, explicitly confirm skipping validation.",
   "worktree.unavailable": "Worktrees are unavailable for this directory",
-  "worktree.manage": "Worktree and merge management",
+  "worktree.manage": "Worktree management",
+  "worktree.managementDescription":
+    "Manage this session's execution directory, archive, and restore. Use the shared review entry for commits and merges.",
+  "worktree.restoreFromManagement":
+    "This worktree is archived. Restore it in worktree management to continue reviewing.",
+  "worktree.targetLocalChanges":
+    "Local changes in the target prevent this merge. Save the affected files below, then retry. Other changes can stay.",
+  "worktree.targetChangedReview":
+    "The target branch has changed. Cancel the old integration and prepare a new review against the latest target.",
   "worktree.sourceUnavailable": "Cannot read the source commit",
   "worktree.restore": "Restore worktree",
   "worktree.integrate": "Prepare merge of saved commits",
@@ -7348,6 +7356,9 @@ const enUS: Record<string, string> = {
   "git.review.noFiles": "No matching files",
   "git.review.openFileWorkspace": "Review frozen diffs for {count} files",
   "git.review.manageFileScope": "View changes and manage file scope",
+  "git.review.viewSourceFiles": "View source changes",
+  "git.review.sourceReadOnly":
+    "The source commit is frozen. You can inspect its review scope, but cannot change confirmed content.",
   "git.review.stages": "Review stages",
   "git.review.stageCommit": "Commit review",
   "git.review.stageMerge": "Merge review",

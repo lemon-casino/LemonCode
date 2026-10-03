@@ -79,6 +79,12 @@ import { getErrorMessage } from "@/lib/errorMessage.js";
 import { getCheckoutOperationErrorMessage } from "@/lib/checkoutOperationError.js";
 import { runUserAction } from "@/lib/userActionTelemetry.js";
 import { logger } from "@/logger.js";
+import type { WorktreeIntegration } from "@lcode/services";
+import { useCommitReviewNavigation } from "@/hooks/useCommitReviewNavigation.js";
+import {
+  commitReviewNavigationKey,
+  useCommitReviewNavigationStore,
+} from "@/store/commitReviewNavigationStore.js";
 
 interface GitActionMenuProps {
   workspacePath: string;
@@ -319,7 +325,7 @@ export function GitActionMenu({
       },
     },
   );
-  const openReviewFiles = (all = false) => {
+  const openReviewFiles = (all = false, readOnly = false) => {
     const frozen = all ? undefined : reviewUI.review?.groups[browsePosition]?.files;
     const unstaged = new Set(commitDialogState?.unstagedFiles.map((file) => file.repoRelativePath));
     const files =
@@ -334,15 +340,18 @@ export function GitActionMenu({
             ).values(),
           ]
         : []);
-    diffNavigation.openDiff({
-      type: "patch",
-      title: intl.formatMessage({ id: "git.review.fileScope" }),
-      patch: "",
-      reviewFiles: files,
-      workspacePath,
-      workspaceIdentity,
-      workspaceRemoteSessionId,
-    });
+    diffNavigation.openDiff(
+      {
+        type: "patch",
+        title: intl.formatMessage({ id: "git.review.fileScope" }),
+        patch: "",
+        reviewFiles: files,
+        workspacePath,
+        workspaceIdentity,
+        workspaceRemoteSessionId,
+      },
+      readOnly,
+    );
   };
 
   const loadCommitDialogState = useCallback(
@@ -1198,13 +1207,37 @@ export function GitActionMenu({
     });
   }, [primaryActionDisabled, openCommitDialog]);
 
-  const renderDialog = (prepare?: ReactNode, merge?: ReactNode, operationId?: string) => (
+  useCommitReviewNavigation(
+    originWorkspacePath ?? workspacePath,
+    originWorkspaceIdentity ?? workspaceIdentity,
+    executionSessionId,
+    actionAvailable && workspaceReview.status === "ready",
+    () => {
+      void openCommitDialog();
+    },
+  );
+  const resolveConflicts = useCommitReviewNavigationStore(
+    (state) =>
+      state.resolvers[
+        commitReviewNavigationKey(
+          originWorkspacePath ?? workspacePath,
+          originWorkspaceIdentity ?? workspaceIdentity,
+          executionSessionId ?? "",
+        )
+      ]?.action,
+  );
+  const renderDialog = (
+    prepare?: ReactNode,
+    merge?: ReactNode,
+    operation?: WorktreeIntegration | null,
+  ) => (
     <GitCommitDialog
       open={commitDialogOpen && Boolean(lifecycle.current)}
       executionMode={executionMode}
       worktreeActions={prepare}
       worktreeMergeActions={merge}
-      mergeOperationId={operationId}
+      mergeOperationId={operation?.id}
+      mergeOperationStatus={operation?.status}
       mergeView={workspaceReview.data.mergeView}
       onMergeViewChange={(value) => workspaceReview.patch({ mergeView: value })}
       syncBlocked={workspaceReview.status !== "ready"}
@@ -1218,7 +1251,7 @@ export function GitActionMenu({
       loading={commitDialogLoading}
       state={commitDialogState}
       workspacePath={workspacePath}
-      onOpenFiles={() => openReviewFiles()}
+      onOpenFiles={(readOnly) => openReviewFiles(false, readOnly)}
       onOpenScopeFiles={() => openReviewFiles(true)}
       canOpenFiles={diffNavigation.available}
       message={draftUI.draft.message}
@@ -1400,6 +1433,7 @@ export function GitActionMenu({
           }
           onHideReview={() => setCommitDialogOpen(false)}
           onShowReview={() => setCommitDialogOpen(true)}
+          onResolveConflicts={resolveConflicts}
           onCommitted={(operation) => {
             workspaceReview.patch({
               integrationId: operation.id,
@@ -1420,7 +1454,7 @@ export function GitActionMenu({
             onRefreshGit();
             void loadCommitDialogState();
           }}
-          renderDialog={(prepare, merge, operationId) => renderDialog(prepare, merge, operationId)}
+          renderDialog={renderDialog}
         />
       ) : (
         renderDialog()

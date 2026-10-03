@@ -47,11 +47,12 @@ test("keyboard action cannot select publishing or bypass regeneration/review gua
   assert.doesNotMatch(commitDialog, /triggerSelectedAction/);
 });
 
-test("large frozen reviews keep confirmation and manual fallback before a bounded file list", () => {
+test("large frozen reviews retain confirmation and navigate to the independent file workspace", () => {
+  // 文件清单已移到独立区域；弹窗只保留确认和导航，万级分页由浏览器场景验证。
   const acknowledge = reviewPanel.indexOf('data-testid="git-review-acknowledge"');
   const manualFallback = reviewPanel.indexOf('data-testid="git-review-manual-fallback"');
-  const files = reviewPanel.indexOf('data-testid="git-review-files"');
+  const files = reviewPanel.indexOf('data-testid="git-review-open-files"');
   assert.ok(acknowledge >= 0 && acknowledge < files);
   assert.ok(manualFallback >= 0 && manualFallback < files);
-  assert.match(reviewPanel, /max-h-72 space-y-2 overflow-y-auto overscroll-contain/);
+  assert.doesNotMatch(reviewPanel, /data-testid="git-review-files"|<pre\b/);
 });

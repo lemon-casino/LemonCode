@@ -14,6 +14,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
+import { GitActionMenu } from "@/GitActionMenu.js";
+import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 
 export function WorktreeFixturePage({
   workspacePath,
@@ -29,7 +31,11 @@ export function WorktreeFixturePage({
   const [identity, setIdentity] = useState<string | undefined>();
   const [draftVisible, setDraftVisible] = useState(true);
   const [managementOpen, setManagementOpen] = useState(false);
+  const [reviewProjectSelected, setReviewProjectSelected] = useState(false);
   const { intl } = useLCodeIntl();
+  const activeSessionId = useLCodeSessionStore(
+    (state) => state.getWorkspaceState(workspacePath, identity).activeTaskId,
+  );
   controller.chooseScope = setIdentity;
   controller.hideDraft = () => setDraftVisible(false);
   return (
@@ -50,7 +56,27 @@ export function WorktreeFixturePage({
         workspaceIdentity={identity}
         open={managementOpen}
         onOpenChange={setManagementOpen}
+        onSelectSession={(sessionId) => {
+          controller.lastReviewNavigation = {
+            workspacePath,
+            workspaceIdentity: identity,
+            sessionId,
+          };
+          setReviewProjectSelected(true);
+          useLCodeSessionStore.getState().setActiveTaskId(workspacePath, sessionId, identity);
+        }}
       />
+      {reviewProjectSelected && activeSessionId ? (
+        <GitActionMenu
+          workspacePath="/fixture/worktrees/task"
+          originWorkspacePath={workspacePath}
+          originWorkspaceIdentity={identity}
+          executionSessionId={activeSessionId}
+          executionBindingId="binding"
+          gitSummary={{ ...gitSummary, workspacePath: "/fixture/worktrees/task" }}
+          onRefreshGit={() => {}}
+        />
+      ) : null}
       {draftVisible ? (
         <div
           className="flex min-w-0 flex-wrap items-center gap-0"
@@ -93,4 +119,42 @@ export function WorktreeFixturePage({
       {children}
     </main>
   );
+}
+
+export function fixtureGitRefresh(workspacePath: string) {
+  return {
+    summary: {
+      workspacePath,
+      repoRoot: workspacePath,
+      workspaceInRepoPath: ".",
+      autoRefreshWatchPaths: [],
+      branchName: "worktree/task",
+      trackingBranchName: null,
+      headRefType: "branch",
+      ahead: 0,
+      behind: 0,
+      isDirty: true,
+      isGitAvailable: true,
+      isRepository: true,
+    },
+    identity: {
+      userName: "Fixture",
+      userEmail: "fixture@example.invalid",
+      nameSource: "local",
+      emailSource: "local",
+      scopeLabel: "fixture",
+    },
+    unstagedChanges: [
+      {
+        path: "file.txt",
+        repoRelativePath: "file.txt",
+        workspaceRelativePath: "file.txt",
+        kind: "modified",
+        section: "unstaged",
+        added: 1,
+        removed: 0,
+      },
+    ],
+    stagedChanges: [],
+  };
 }

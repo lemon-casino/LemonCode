@@ -11,7 +11,6 @@ export function WorktreePreparation({
   locked,
   activeIntegration,
   onTarget,
-  onRestore,
   onIntegrate,
 }: {
   binding: WorktreeBinding;
@@ -20,15 +19,14 @@ export function WorktreePreparation({
   locked: boolean;
   activeIntegration: boolean;
   onTarget: (branch: string) => void;
-  onRestore: () => void;
   onIntegrate: () => void;
 }) {
   const { intl } = useLCodeIntl();
   if (binding.status === "archived")
     return (
-      <Button type="button" disabled={locked} onClick={onRestore}>
-        {intl.formatMessage({ id: "worktree.restore" })}
-      </Button>
+      <p className="text-ui-sm text-foreground-subtle">
+        {intl.formatMessage({ id: "worktree.restoreFromManagement" })}
+      </p>
     );
   return (
     <>

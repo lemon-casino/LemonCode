@@ -13,6 +13,21 @@ export function createWorktreePublication(
   },
 ) {
   const { git, store } = context;
+  async function assertTargetCanAdvance(path: string, head: string, candidate: string) {
+    // status 只刷新干净文件的 stat 缓存，不改变暂存内容；恢复原文后直接 dry-run 会误判缓存未更新。
+    await git.command(path, ["status", "--porcelain", "--untracked-files=all"]);
+    // 全目录 dirty 会误拦截无关改动；让原生 Git 预检查实际索引和覆盖风险，dry-run 不写文件或 index。
+    const result = await git.run({
+      cwd: path,
+      args: ["read-tree", "--dry-run", "-m", "-u", head, candidate],
+      maxOutputBytes: 8 * 1024 * 1024,
+    });
+    if (result.exitCode !== 0 || result.timedOut || result.outputTruncated) {
+      throw new Error(
+        `Target checkout cannot be updated without overwriting local changes.\n${result.stderr.trim()}`,
+      );
+    }
+  }
   return async function publishIntegration(params: {
     operationId: string;
     approvedCandidateHead: string;
@@ -41,14 +56,6 @@ export function createWorktreePublication(
           throw new Error("Target branch changed after integration review");
         if (operation.status === "published") return operation;
         await git.assertIdle(operation.targetPath);
-        if (
-          await git.command(operation.targetPath, [
-            "status",
-            "--porcelain",
-            "--untracked-files=all",
-          ])
-        )
-          throw new Error("Target has uncommitted or untracked changes; publication is blocked");
         if (operation.status === "publishing") {
           const included = await git.run({
             cwd: operation.targetPath,
@@ -65,6 +72,7 @@ export function createWorktreePublication(
           });
           throw new Error("Target HEAD changed; create and review a new integration");
         }
+        await assertTargetCanAdvance(operation.targetPath, target.head, operation.candidateHead);
         await git.assertIdle(operation.checkoutPath);
         if (
           await git.command(operation.checkoutPath, [
@@ -87,14 +95,11 @@ export function createWorktreePublication(
         const checked = await git.inspect(operation.targetPath);
         if (checked.head !== operation.targetHead || checked.branch !== operation.targetBranch)
           throw new Error("Target changed during validation");
-        if (
-          await git.command(operation.targetPath, [
-            "status",
-            "--porcelain",
-            "--untracked-files=all",
-          ])
-        )
-          throw new Error("Target became dirty during validation");
+        await assertTargetCanAdvance(
+          operation.targetPath,
+          checked.head,
+          params.approvedCandidateHead,
+        );
         operation = await options.save({ ...operation, status: "publishing" });
         await context.fault("publish.before-merge");
         await git.command(operation.targetPath, [

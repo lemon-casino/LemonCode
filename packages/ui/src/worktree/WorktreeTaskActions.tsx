@@ -13,14 +13,10 @@ import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
 import { WorktreeCandidateApproval } from "./WorktreeCandidateApproval.js";
 import { WorktreeReviewDialog } from "./WorktreeReviewDialog.js";
-import { WorktreeArchiveControl } from "./WorktreeArchiveControl.js";
 import { WorktreePreparation } from "./WorktreePreparation.js";
 import { WorktreeReviewStageNavigation } from "./WorktreeReviewStageNavigation.js";
 import { WorktreePublication } from "./WorktreePublication.js";
-import {
-  WorktreeIntegrationEvidence,
-  WorktreeSnapshotSummary,
-} from "./WorktreeIntegrationEvidence.js";
+import { WorktreeIntegrationEvidence } from "./WorktreeIntegrationEvidence.js";
 import { integrationReviewFiles } from "./worktreeReviewStages.js";
 
 export function WorktreeTaskActions({
@@ -44,7 +40,7 @@ export function WorktreeTaskActions({
   revision?: string;
   defaultOpen?: boolean;
   onResolveConflicts?: (operationId: string) => Promise<void>;
-  renderContent?: (content: ReactNode) => ReactNode;
+  renderContent?: (content: ReactNode, preparation?: ReactNode) => ReactNode;
   onHideReview?: () => void;
   onShowReview?: () => void;
 }) {
@@ -62,7 +58,6 @@ export function WorktreeTaskActions({
   const commands = sharedReview.data.validationCommands;
   const [approvedHead, setApprovedHead] = useState<string | null>(null);
   const [skipValidation, setSkipValidation] = useState(false);
-  const [acknowledgeIgnoredFiles, setAcknowledgeIgnoredFiles] = useState(false);
   const { stage, currentStage, phaseKey, readOnly, setView } = useWorktreeReviewStage(
     sharedReview,
     binding,
@@ -117,6 +112,20 @@ export function WorktreeTaskActions({
         validationCommands: validationCommands.length ? validationCommands : undefined,
       });
     });
+  const preparation = (
+    <WorktreePreparation
+      binding={binding}
+      targetBranch={targetBranch}
+      commands={commands ?? policy.validationCommands.join("\n")}
+      locked={locked}
+      activeIntegration={activeIntegration}
+      onTarget={(branch) => {
+        sharedReview.patch({ targetBranch: branch });
+        setApprovedHead(null);
+      }}
+      onIntegrate={() => void integrate()}
+    />
+  );
   const content = (
     <div className="min-w-0 space-y-3">
       {renderContent && binding.preparation ? (
@@ -134,25 +143,7 @@ export function WorktreeTaskActions({
         onCurrent={() => setView(null)}
       />
       <p className="text-ui-sm text-foreground-subtle">{text(`binding.${binding.status}`)}</p>
-      {stage === 0 ? (
-        <WorktreePreparation
-          binding={binding}
-          targetBranch={targetBranch}
-          commands={commands ?? policy.validationCommands.join("\n")}
-          locked={locked}
-          activeIntegration={activeIntegration}
-          onTarget={(branch) => {
-            sharedReview.patch({ targetBranch: branch });
-            setApprovedHead(null);
-          }}
-          onRestore={() =>
-            void task.perform(() =>
-              worktreeService.restore({ bindingId: binding.id, requestId: crypto.randomUUID() }),
-            )
-          }
-          onIntegrate={() => void integrate()}
-        />
-      ) : null}
+      {stage === 0 ? preparation : null}
       {operation &&
       (stage > 0 || ["cancelled", "failed", "source-commit-failed"].includes(operation.status)) ? (
         <div
@@ -189,7 +180,7 @@ export function WorktreeTaskActions({
               </Button>
             </>
           ) : null}
-          {operation.diff || operation.conflictPaths.length ? (
+          {operation.candidateHead || operation.conflictPaths.length ? (
             <Button
               type="button"
               variant="outline"
@@ -236,18 +227,20 @@ export function WorktreeTaskActions({
                 }),
               )
             }
-            onPublish={() =>
+            onPublish={() => {
+              // 合并完成会解除来源锁；保留用户正在查看的结果，避免完成响应隐藏在途发布。
+              sharedReview.patch({ mergeView: { operationId: operation.id, source: false } });
               void task.perform(() =>
                 worktreeService.publishIntegration({
                   operationId: operation.id,
                   approvedCandidateHead: operation.candidateHead!,
                 }),
-              )
-            }
+              );
+            }}
           />
           {operation.error ? (
             <p role="alert" className="break-words text-ui-sm text-destructive">
-              {operation.error}
+              {task.describeError(operation.error)}
             </p>
           ) : null}
           {!["publishing", "published", "cancelled"].includes(operation.status) ? (
@@ -266,40 +259,6 @@ export function WorktreeTaskActions({
             </Button>
           ) : null}
         </div>
-      ) : null}
-      <WorktreeSnapshotSummary
-        snapshot={binding.snapshot}
-        onOpenFiles={
-          diffNavigation.available
-            ? () =>
-                diffNavigation.openDiff({
-                  type: "patch",
-                  title: text("openOmissions"),
-                  patch: "",
-                  reviewFiles: binding.snapshot?.ignoredPaths.map((path) => ({ path, patch: "" })),
-                  reviewMetadataOnly: true,
-                  workspacePath: binding.workspacePath,
-                  workspaceIdentity: binding.originalWorkspaceIdentity,
-                  workspaceRemoteSessionId,
-                })
-            : undefined
-        }
-      />
-      {binding.status !== "archived" && !readOnly ? (
-        <WorktreeArchiveControl
-          disabled={locked}
-          acknowledged={acknowledgeIgnoredFiles}
-          onChange={setAcknowledgeIgnoredFiles}
-          onArchive={() =>
-            void task.perform(() =>
-              worktreeService.archive({
-                bindingId: binding.id,
-                requestId: crypto.randomUUID(),
-                acknowledgeIgnoredFiles,
-              }),
-            )
-          }
-        />
       ) : null}
       <Button type="button" variant="ghost" disabled={pending} onClick={() => void task.refresh()}>
         {text("refresh")}
@@ -325,7 +284,7 @@ export function WorktreeTaskActions({
         {!readOnly ? publication : null}
       </>
     );
-    if (renderContent) return renderContent(reviewContent);
+    if (renderContent) return renderContent(reviewContent, preparation);
     return (
       <WorktreeReviewDialog
         binding={binding}

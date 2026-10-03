@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.js";
 import { ProjectWorktreeList } from "./ProjectWorktreeList.js";
-import { WorktreeTaskActions } from "./WorktreeTaskActions.js";
+import { WorktreeManagementActions } from "./WorktreeManagementActions.js";
 
 export function ProjectWorktreeManagementDialog({
   workspacePath,
@@ -19,12 +19,14 @@ export function ProjectWorktreeManagementDialog({
   workspaceRemoteSessionId,
   open,
   onOpenChange,
+  onSelectSession,
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSelectSession?: (sessionId: string) => void;
 }) {
   const { intl } = useLCodeIntl();
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -68,7 +70,7 @@ export function ProjectWorktreeManagementDialog({
   );
   // 管理入口不依赖新会话工具栏；隐藏窗口时保留所选控制器，避免在途动作和差异返回入口被卸载。
   return selectedSessionId ? (
-    <WorktreeTaskActions
+    <WorktreeManagementActions
       key={selectedSessionId}
       workspacePath={workspacePath}
       workspaceIdentity={workspaceIdentity}
@@ -78,6 +80,7 @@ export function ProjectWorktreeManagementDialog({
       renderContent={renderDialog}
       onHideReview={() => onOpenChange(false)}
       onShowReview={() => onOpenChange(true)}
+      onSelectSession={onSelectSession}
     />
   ) : (
     renderDialog(

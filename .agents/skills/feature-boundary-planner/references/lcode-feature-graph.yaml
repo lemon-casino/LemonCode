@@ -66,6 +66,12 @@ nodes:
         symbol: DraftWorkspaceExecutionControls
       - file: packages/ui/src/worktree/ProjectWorktreeManagementDialog.tsx
         symbol: ProjectWorktreeManagementDialog
+      - file: packages/ui/src/worktree/WorktreeManagementActions.tsx
+        symbol: WorktreeManagementActions
+      - file: packages/ui/src/hooks/useCommitReviewNavigation.ts
+        symbol: useCommitReviewNavigation
+      - file: packages/ui/src/git-action-menu/commitMergeState.ts
+        symbol: commitMergeState
       - file: packages/ui/src/WorkspaceSidebarItem.tsx
         symbol: WorkspaceSidebarItem
       - file: packages/ui/src/worktree/WorktreeBadge.tsx
@@ -87,6 +93,7 @@ nodes:
     invariants:
       - "Original workspace scope owns project association and configuration; the registered execution scope owns filesystem operations."
       - "Side pane tabs are owned and filtered by the original workspace identity and conversation; execution paths and identities remain the scope of Git, file and terminal operations."
+      - "Worktree management owns lifecycle UI only. A scoped window navigation request opens the existing session commit controller; terminal integration records do not lock new source commits."
       - "Preparation is idempotent before session materialization; missing or archived bindings cannot silently resume in the original checkout."
       - "The single composer execution selector saves the original project's mode. Only frozen admission intent overrides later defaults; choosing a mode does not prepare a worktree."
       - "Project worktree management is a persistent project-menu entry using that project's Environment services. Sidebar icons derive only from actual session executionBindingId, including memoized and grouped rows."

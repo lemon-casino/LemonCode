@@ -65,6 +65,29 @@ let groupedReview = false;
 let hasTracking = false;
 const calls: Parameters<IGitService["generateCommitMessage"]>[0][] = [];
 let fixtureIntegration: WorktreeIntegration | null = null;
+const seedStatus = new URLSearchParams(location.search).get("seedIntegration");
+if (
+  ["cancelled", "failed", "source-commit-failed", "published", "ready"].includes(seedStatus ?? "")
+) {
+  fixtureIntegration = {
+    id: "historical-operation",
+    requestId: "historical-request",
+    bindingId: "fixture-binding",
+    sourceHead: "s".repeat(40),
+    targetHead: "t".repeat(40),
+    candidateHead: "c".repeat(40),
+    targetBranch: "L-GO",
+    targetPath: workspacePath,
+    checkoutPath: "/fixture/integration",
+    status: seedStatus as WorktreeIntegration["status"],
+    conflictPaths: [],
+    diff: "",
+    validationCommands: ["fixture-check"],
+    validationResults: [],
+    createdAt: "now",
+    updatedAt: "now",
+  };
+}
 const mergeCalls: WorktreeIntegrateRequest[] = [];
 const rowsQueries: string[] = [];
 const diffQueries: Parameters<IGitService["getDiff"]>[0][] = [];

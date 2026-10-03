@@ -14,6 +14,7 @@ import {
 import { areConfigOptionsEquivalent } from "@/lib/configOptionsEquality.js";
 import type { LCodeUiError } from "@/lib/lcodeUiError.js";
 import { pushNavEntry } from "@/lib/taskNavigationHistory.js";
+import { useCommitReviewNavigationStore } from "./commitReviewNavigationStore.js";
 import { resolveTaskRestorePreloadConfigOptions } from "@/lib/taskModelRecovery.js";
 import type {
   LCodeSessionStoreState,
@@ -234,6 +235,8 @@ function resolveActiveTaskConfigOptionsOnSwitch(
 export function createWorkspaceSlice(set: SetFn) {
   return {
     setActiveTaskId: (workspacePath: string, id: string | null, workspaceIdentity?: string) => {
+      // 用户重新导航时撤销尚未消费的审核打开意图，避免稍后切回时弹出旧窗口。
+      useCommitReviewNavigationStore.getState().cancel();
       set((state) => {
         const workspaceUpdate = updateWorkspaceState(
           state,

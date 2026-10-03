@@ -133,7 +133,8 @@ import {
 } from "@/worktree/WorktreeConversationPreparation.js";
 import { useComposerAttachmentUploadStore } from "@/store/composerAttachmentUploadStore.js";
 import { V4_DRAFT_SCOPE_ROOT } from "@/v4/composer/composerDraftStore.js";
-import { WorktreeTaskActions } from "@/worktree/WorktreeTaskActions.js";
+import { WorktreeManagementActions } from "@/worktree/WorktreeManagementActions.js";
+import { useWorktreeConflictResolver } from "@/hooks/useCommitReviewNavigation.js";
 import { useWorktreeTask } from "@/hooks/useWorktreeTask.js";
 import { waitForWorktreeRepair } from "@/v4/worktreeRepair.js";
 import { WorktreeRepairPanel } from "@/worktree/WorktreeRepairPanel.js";
@@ -1972,6 +1973,13 @@ export function SessionPane({
       }
     },
     [dispatchCommand, layer, sessionId],
+  );
+
+  useWorktreeConflictResolver(
+    workspacePath,
+    workspaceIdentity,
+    sessionId,
+    handleResolveWorktreeConflicts,
   );
 
   const handleFetchFileChanges = useCallback(
@@ -5529,7 +5537,7 @@ export function SessionPane({
       />
       {readOnly && snapshot ? <ReadOnlySessionTokenStats snapshot={snapshot} /> : null}
       {sessionId && !readOnly ? (
-        <WorktreeTaskActions
+        <WorktreeManagementActions
           workspaceRemoteSessionId={remoteSessionId ?? undefined}
           key={sessionId}
           workspacePath={workspacePath}
@@ -5537,7 +5545,6 @@ export function SessionPane({
           sessionId={sessionId}
           busy={snapshot?.control.phase === "running"}
           revision={snapshot?.control.phase}
-          onResolveConflicts={handleResolveWorktreeConflicts}
         />
       ) : null}
 

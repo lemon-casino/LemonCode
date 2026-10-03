@@ -35,6 +35,7 @@ test("integration freezes source, validates elsewhere and refuses dirty or stale
   const f = await fixture(t);
   const a = await f.service.prepare({ workspacePath: f.repo, taskId: "A", requestId: "A" });
   await writeFile(join(a.workspacePath, "feature.txt"), "feature\n");
+  await writeFile(join(a.workspacePath, "file.txt"), "feature edit\n");
   await f.command(a.workspacePath, "add", ".");
   await f.command(a.workspacePath, "commit", "-m", "feature");
   const sourceHead = await f.command(a.workspacePath, "rev-parse", "HEAD");
@@ -51,7 +52,7 @@ test("integration freezes source, validates elsewhere and refuses dirty or stale
       operationId: operation.id,
       approvedCandidateHead: operation.candidateHead!,
     }),
-    /dirty|uncommitted/i,
+    /local changes|overwritten/i,
   );
   await writeFile(join(f.repo, "file.txt"), "baseline\n");
   const result = await f.service.publishIntegration({
@@ -69,6 +70,89 @@ test("integration freezes source, validates elsewhere and refuses dirty or stale
     ).status,
     "published",
   );
+});
+
+test("publication keeps unrelated tracked and untracked target edits intact", async (t) => {
+  const f = await fixture(t);
+  const binding = await f.service.prepare({ workspacePath: f.repo, taskId: "B", requestId: "B" });
+  await writeFile(join(binding.workspacePath, "feature.txt"), "feature\n");
+  await f.command(binding.workspacePath, "add", "feature.txt");
+  await f.command(binding.workspacePath, "commit", "-m", "feature");
+  const op = await f.service.integrate({
+    bindingId: binding.id,
+    requestId: "merge-B",
+    expectedSourceHead: await f.command(binding.workspacePath, "rev-parse", "HEAD"),
+    targetBranch: "main",
+  });
+  await writeFile(join(f.repo, "file.txt"), "unrelated working edit\n");
+  await writeFile(join(f.repo, "local draft.txt"), "untracked draft\n");
+  const beforeStatus = await f.command(f.repo, "status", "--porcelain");
+  const beforeIndex = await f.command(f.repo, "write-tree");
+  const result = await f.service.publishIntegration({
+    operationId: op.id,
+    approvedCandidateHead: op.candidateHead!,
+  });
+  assert.equal(result.status, "published");
+  assert.equal(await f.command(f.repo, "status", "--porcelain"), beforeStatus);
+  assert.equal(await readFile(join(f.repo, "file.txt"), "utf8"), "unrelated working edit\n");
+  assert.equal(await readFile(join(f.repo, "local draft.txt"), "utf8"), "untracked draft\n");
+  assert.equal(await readFile(join(f.repo, "feature.txt"), "utf8"), "feature\n");
+  assert.notEqual(await f.command(f.repo, "write-tree"), beforeIndex);
+  assert.equal(await f.command(f.repo, "diff", "--cached", "--name-only"), "");
+});
+
+test("publication refuses an untracked overwrite without changing target HEAD or index", async (t) => {
+  const f = await fixture(t);
+  const binding = await f.service.prepare({ workspacePath: f.repo, taskId: "C", requestId: "C" });
+  await writeFile(join(binding.workspacePath, "collision.txt"), "source\n");
+  await f.command(binding.workspacePath, "add", ".");
+  await f.command(binding.workspacePath, "commit", "-m", "collision");
+  const op = await f.service.integrate({
+    bindingId: binding.id,
+    requestId: "merge-C",
+    expectedSourceHead: await f.command(binding.workspacePath, "rev-parse", "HEAD"),
+    targetBranch: "main",
+  });
+  await writeFile(join(f.repo, "collision.txt"), "keep local\n");
+  const before = await f.command(f.repo, "rev-parse", "HEAD");
+  const index = await f.command(f.repo, "write-tree");
+  await assert.rejects(
+    f.service.publishIntegration({ operationId: op.id, approvedCandidateHead: op.candidateHead! }),
+    /local changes|overwritten/i,
+  );
+  assert.equal(await f.command(f.repo, "rev-parse", "HEAD"), before);
+  assert.equal(await f.command(f.repo, "write-tree"), index);
+  assert.equal(await readFile(join(f.repo, "collision.txt"), "utf8"), "keep local\n");
+});
+
+test("publication rechecks overwrite risks introduced during candidate validation", async (t) => {
+  const f = await fixture(t);
+  const service = createWorktreeService({
+    ...f.options,
+    validate: async () => {
+      await writeFile(join(f.repo, "file.txt"), "edit during validation\n");
+      return { exitCode: 0, output: "validated" };
+    },
+  });
+  const binding = await service.prepare({ workspacePath: f.repo, taskId: "D", requestId: "D" });
+  await writeFile(join(binding.workspacePath, "file.txt"), "source edit\n");
+  await f.command(binding.workspacePath, "commit", "-am", "source");
+  const op = await service.integrate({
+    bindingId: binding.id,
+    requestId: "merge-D",
+    expectedSourceHead: await f.command(binding.workspacePath, "rev-parse", "HEAD"),
+    targetBranch: "main",
+    validationCommands: ["test-command"],
+  });
+  const before = await f.command(f.repo, "rev-parse", "HEAD");
+  const index = await f.command(f.repo, "write-tree");
+  await assert.rejects(
+    service.publishIntegration({ operationId: op.id, approvedCandidateHead: op.candidateHead! }),
+    /local changes|overwritten/i,
+  );
+  assert.equal(await f.command(f.repo, "rev-parse", "HEAD"), before);
+  assert.equal(await f.command(f.repo, "write-tree"), index);
+  assert.equal(await readFile(join(f.repo, "file.txt"), "utf8"), "edit during validation\n");
 });
 
 test("conflicts remain in integration checkout and manual resolution requires review", async (t) => {

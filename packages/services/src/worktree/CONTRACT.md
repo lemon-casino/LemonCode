@@ -54,8 +54,10 @@ and exposes conflicts there. Manual or explicitly requested AI changes must be c
 in that checkout and their exact candidate reviewed before validation/publication.
 The candidate detects conventional project checks before review unless explicitly
 configured; unavailable checks require explicit UI skip acknowledgement. Target
-publication obtains the same checkout permit used by runtime, rechecks branch/HEAD/dirty
-state, persists publishing, and runs native fast-forward. Lost replies reconcile by exact
+publication obtains the same checkout permit used by runtime, rechecks branch/HEAD and
+uses native read-tree dry-run to reject unsafe overwrites before and after validation.
+Unrelated working changes remain intact; no automatic stash or target commit is performed.
+It persists publishing and runs native fast-forward. Lost replies reconcile by exact
 commit ancestry; unknown states retain files and fail without resetting user changes.
 
 The target can be explicitly selected for a new request, but must already be checked out

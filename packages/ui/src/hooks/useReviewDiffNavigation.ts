@@ -26,7 +26,7 @@ export function useReviewDiffNavigation(
     if (entry && owner.token) nav.registerReturn(owner.token, { ...entry });
   }, [owner, actions?.disabled, actions?.excludedFiles]);
   const openDiff = useCallback(
-    (source: PatchCodeViewerSource) => {
+    (source: PatchCodeViewerSource, readOnly = false) => {
       const nav = useReviewDiffNavigationStore.getState();
       if (!nav.openPreview || current.current.owner !== owner) return;
       clearReturn();
@@ -38,7 +38,7 @@ export function useReviewDiffNavigation(
           clearReturn();
           current.current.reopen();
         },
-        ...(current.current.actions ? { files: () => current.current.actions! } : {}),
+        ...(!readOnly && current.current.actions ? { files: () => current.current.actions! } : {}),
       });
       current.current.hide();
       nav.openPreview({ ...source, reviewReturnToken: token });
