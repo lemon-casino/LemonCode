@@ -4,6 +4,7 @@ import {
   MODEL_PROBE_CONCURRENCY,
   filterModelIds,
   normalizeModelIds,
+  probeTargetIds,
   runCancelablePool,
   selectedModelIds,
 } from "./syncModelOperations.js";
@@ -39,6 +40,23 @@ test("search leaves selection unchanged until selecting results replaces the sco
   assert.deepEqual(selectedModelIds(rows, selected), rows);
   assert.deepEqual(selectedModelIds(rows, new Set(matching)), ["deepseek-flash", "deepseek-pro"]);
   assert.deepEqual(filterModelIds(rows, ""), rows);
+});
+
+test("search scopes the submit target to matches intersected with selection", () => {
+  const rows = ["deepseek-flash", "deepseek-pro", "gpt-5", "claude-model"];
+  const visible = filterModelIds(rows, "deepseek");
+  // 默认全选：搜索时只提交匹配项，数量即搜索命中数。
+  assert.deepEqual(probeTargetIds(rows, visible, new Set(rows), true), [
+    "deepseek-flash",
+    "deepseek-pro",
+  ]);
+  // 取消部分勾选后匹配项被排除，数量随之收缩；全部取消则禁用提交。
+  assert.deepEqual(probeTargetIds(rows, visible, new Set(["deepseek-pro"]), true), [
+    "deepseek-pro",
+  ]);
+  assert.deepEqual(probeTargetIds(rows, visible, new Set(), true), []);
+  // 无查询（含纯空白）时仍取全局勾选快照，不受过滤影响。
+  assert.deepEqual(probeTargetIds(rows, filterModelIds(rows, "  "), new Set(rows), false), rows);
 });
 
 test("default probe pool starts four requests before any one finishes", async () => {

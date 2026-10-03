@@ -2562,6 +2562,7 @@ const zhCN: Record<string, string> = {
     "未删除任何模型。只有明确确认失效的模型才会被删除。",
   "settings.modelProvider.syncModelsCheckSelected": "检测并添加所选（{count}）",
   "settings.modelProvider.syncModelsCheckAll": "检测并添加全部（{count}）",
+  "settings.modelProvider.syncModelsCheckSearch": "检测并添加指定模型（{count}）",
   "settings.modelProvider.syncModelsSelection": "已选 {selected}/{total}",
   "settings.modelProvider.syncModelsChecking": "检测中",
   "settings.modelProvider.syncModelsFailed": "检测失败",
