@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from "react";
 import type { GitRepositorySummary } from "@lcode/shared";
 import { DraftWorkspaceExecutionControls } from "@/worktree/DraftWorkspaceExecutionControls.js";
+import { DraftWorktreeConversation } from "@/worktree/WorktreeConversationPreparation.js";
 import { ProjectWorktreeManagementDialog } from "@/worktree/ProjectWorktreeManagementDialog.js";
 import {
   GlobalExecutionPolicySettings,
@@ -70,6 +71,15 @@ export function WorktreeFixturePage({
             onRefreshGit={() => {}}
           />
         </div>
+      ) : null}
+      {draftVisible ? (
+        <section data-testid="fixture-conversation-stream">
+          <DraftWorktreeConversation
+            key={identity ?? workspacePath}
+            workspacePath={workspacePath}
+            workspaceIdentity={identity}
+          />
+        </section>
       ) : null}
       <section data-testid="global-policy">
         <GlobalExecutionPolicySettings />

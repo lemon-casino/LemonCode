@@ -126,6 +126,11 @@ import { useDraftModelReadinessGate } from "@/v4/composer/useDraftModelReadiness
 import { useSettings } from "@/hooks/useSettingService.js";
 import { resolveProjectExecutionPolicy } from "@lcode/shared";
 import { useDraftExecutionStore } from "@/store/draftExecutionStore.js";
+import {
+  DraftWorktreeConversation,
+  hasDraftWorktreePreparation,
+  SessionWorktreePreparation,
+} from "@/worktree/WorktreeConversationPreparation.js";
 import { useComposerAttachmentUploadStore } from "@/store/composerAttachmentUploadStore.js";
 import { V4_DRAFT_SCOPE_ROOT } from "@/v4/composer/composerDraftStore.js";
 import { WorktreeTaskActions } from "@/worktree/WorktreeTaskActions.js";
@@ -4559,6 +4564,19 @@ export function SessionPane({
   // 提交时先 stop barrier 再 rewind/rerun；UI 不应再用 completed gate 把入口整轮隐藏。
   const editActionsEnabled = !readOnly && !selectionSideChat && Boolean(sessionId);
   const isDraft = sessionId === null;
+  const showingWorktreePreparation = isDraft && hasDraftWorktreePreparation(draftExecution);
+  const initialWorktreePreparationSlot = useMemo(
+    () =>
+      sessionId && isWorktreeSession ? (
+        <SessionWorktreePreparation
+          key={`${workspaceKey}:${sessionId}`}
+          workspacePath={workspacePath}
+          workspaceIdentity={workspaceIdentity}
+          sessionId={sessionId}
+        />
+      ) : undefined,
+    [workspaceKey, workspacePath, workspaceIdentity, sessionId, isWorktreeSession],
+  );
   // 滚动恢复必须使用与 sessionId 匹配的 lease projection。切换 session 的 render 与
   // passive effect 不在同一时刻，旧 lease 的 rows 若提前交给 timeline，会让新记忆按旧
   // 内容高度 clamp，后续目标 rows 到达时也无法区分这次临时落点。
@@ -5230,7 +5248,7 @@ export function SessionPane({
           </>
         ) : undefined
       }
-      centered={isDraft}
+      centered={isDraft && !showingWorktreePreparation}
       blockingRequestId={blockingInteractionId}
       listenAddToChatEvents={focused}
       externalTextInsertRequest={focused && sessionId === null ? composerTextInsertRequest : null}
@@ -5418,7 +5436,9 @@ export function SessionPane({
         />
       ) : null}
       {/* 办公模式显示主动任务推荐；编程模式保留原有小型场景入口。 */}
-      {isDraft && (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
+      {isDraft &&
+      !showingWorktreePreparation &&
+      (!isOfficeMode || sharedSettings?.proactiveSuggestionsEnabled === true) ? (
         <ConversationDraftSuggestedPromptsContainer
           className={isOfficeMode ? "mt-4" : "mt-6"}
           proactive={isOfficeMode}
@@ -5679,10 +5699,16 @@ export function SessionPane({
                 view: shareDraft?.view,
               })}
               headerSlot={
-                // unsupportedRowCount 也要开这个门：整份副本的行都被本 build 跳过时
+                showingWorktreePreparation ? (
+                  <DraftWorktreeConversation
+                    key={workspaceKey}
+                    workspacePath={workspacePath}
+                    workspaceIdentity={workspaceIdentity}
+                  />
+                ) : // unsupportedRowCount 也要开这个门：整份副本的行都被本 build 跳过时
                 // rows 为空，但只读块必须留下来显示「需要更新 LCode」，不能整块消失。
                 importedShare &&
-                (importedShare.rows.length > 0 || importedShare.unsupportedRowCount > 0) ? (
+                  (importedShare.rows.length > 0 || importedShare.unsupportedRowCount > 0) ? (
                   <ConversationShareImportNotice
                     rows={importedShare.rows}
                     unsupportedRowCount={importedShare.unsupportedRowCount}
@@ -5700,14 +5726,15 @@ export function SessionPane({
                   />
                 ) : null
               }
+              initialUserInputSlot={initialWorktreePreparationSlot}
               emptyState={
-                isDraft ? (
+                isDraft && !showingWorktreePreparation ? (
                   <div data-testid={TID_CHAT_EMPTY} className="w-full">
                     <ConversationDraftEmptyState />
                   </div>
                 ) : null
               }
-              centerEmptyStateWithDock={isDraft}
+              centerEmptyStateWithDock={isDraft && !showingWorktreePreparation}
               summaryPanelLayout={statusPanelLayout}
               conversationFindQuery={!isDraft && focused ? conversationFindQuery : ""}
               conversationFindActiveIndex={!isDraft && focused ? conversationFindActiveIndex : -1}

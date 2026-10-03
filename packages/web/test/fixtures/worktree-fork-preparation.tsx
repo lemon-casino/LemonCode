@@ -8,6 +8,24 @@ import { useDraftExecutionStore } from "@/store/draftExecutionStore.js";
 import { createCommandEnvelope } from "@/v4/commandFactory.js";
 const emptyEvent = () => ({ dispose() {} });
 
+export function beginFixtureDraftExecution(scope: string) {
+  const envelope = {
+    ...createCommandEnvelope({
+      type: "createSession",
+      sessionId: null,
+      payload: {
+        workspaceId: scope,
+        execution: { mode: "worktree", baseRef: "feature" },
+        firstInput: { text: "fixture first input" },
+      },
+    }),
+    commandId: "same-request",
+  };
+  useDraftExecutionStore
+    .getState()
+    .begin(scope, envelope.commandId, true, { mode: "worktree", baseRef: "feature" }, envelope);
+}
+
 export function installForkPreparationFixture(
   services: IServiceAccessor,
   calls: { method: string; params: unknown }[],

@@ -8,9 +8,11 @@ export function useWorktreePreparation(
   workspacePath: string,
   workspaceIdentity: string | undefined,
   requestId: string | undefined,
+  taskId?: string,
+  pending = false,
 ) {
   const { worktreeService } = useServices();
-  const scope = JSON.stringify([workspaceIdentity?.trim() || workspacePath, requestId]);
+  const scope = JSON.stringify([workspaceIdentity?.trim() || workspacePath, requestId, taskId]);
   const [state, setState] = useState<{
     scope: string;
     binding: WorktreeBinding | null;
@@ -22,17 +24,19 @@ export function useWorktreePreparation(
     const own = ++ticket.current;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const read = async () => {
-      if (!requestId || !worktreeService) return;
+      if ((!requestId && !taskId) || !worktreeService) return;
       let again = true;
       try {
         const binding = await worktreeService.getBinding({
           workspacePath,
           workspaceIdentity,
           requestId,
+          taskId,
         });
         if (ticket.current !== own) return;
         setState({ scope, binding });
-        again = !binding || binding.status === "preparing";
+        // 同一 commandId 重试可能先读到旧失败快照；在途请求未收口时不能据此停止读取。
+        again = pending || !binding || binding.status === "preparing";
       } catch (reason) {
         if (ticket.current !== own) return;
         setState((value) => ({
@@ -48,7 +52,16 @@ export function useWorktreePreparation(
       ++ticket.current;
       clearTimeout(timer);
     };
-  }, [scope, requestId, workspacePath, workspaceIdentity, worktreeService, revision]);
+  }, [
+    scope,
+    requestId,
+    taskId,
+    pending,
+    workspacePath,
+    workspaceIdentity,
+    worktreeService,
+    revision,
+  ]);
   return {
     ...(state.scope === scope ? state : { scope, binding: null, error: undefined }),
     refresh: () => setRevision((value) => value + 1),

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { CheckoutLease, IWorktreeService } from "../worktree/contract.js";
 import { createWorktreeClientLeases } from "./worktreeClientLeases.js";
+import { createWorktreeService } from "../worktree/node.js";
 
 function fixture() {
   const held = new Map<string, CheckoutLease>();
@@ -78,4 +79,54 @@ test("failed process cleanup preserves tokens for an explicit retry", async () =
   f.setFailRelease(false);
   await client.disposeAfterProcessExit();
   assert.equal(f.held.size, 0);
+});
+
+test("confirmed exit and an in-flight grant release through the real strict service", async (t) => {
+  for (const delayed of [false, true]) {
+    await t.test(delayed ? "grant after exit" : "exit after grant", async () => {
+      let resume!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        resume = resolve;
+      });
+      const releases: unknown[] = [];
+      const service = createWorktreeService({
+        dataDir: "/unused-fixture",
+        git: {
+          run: async () => {
+            throw new Error("unexpected Git IO");
+          },
+        },
+        coordinator: {
+          acquire: async (params) => {
+            if (delayed) await gate;
+            return {
+              token: "permit",
+              workspacePath: params.workspacePath,
+              ownerId: params.ownerId,
+            };
+          },
+          release: async (params) => {
+            releases.push(params);
+          },
+        },
+      });
+      const client = createWorktreeClientLeases(service, "client");
+      const acquiring = client.service.acquireCheckout({
+        workspacePath: "/repo",
+        ownerId: "session",
+      });
+      if (delayed) {
+        const rejected = assert.rejects(acquiring, /exited/);
+        const cleanup = client.disposeAfterProcessExit();
+        resume();
+        await rejected;
+        await cleanup;
+      } else {
+        await acquiring;
+        await client.disposeAfterProcessExit();
+      }
+      await client.disposeAfterProcessExit();
+      assert.deepEqual(releases, [{ token: "permit", ownerId: "client:session" }]);
+    });
+  }
 });

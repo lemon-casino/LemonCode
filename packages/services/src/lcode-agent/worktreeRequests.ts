@@ -107,8 +107,11 @@ export async function handleWorktreeRequest(
         throw new Error("Checkout writer scope does not match the task binding.");
     }
     try {
+      // 根因：协议请求含 requestId/sessionId/repair，整体展开会被服务的严格 schema 拒绝，
+      // 已接纳的输入因此在消息落盘前中断。按服务 contract 转换，关联和权限字段留在桥接层。
       const lease = await service.acquireCheckout({
-        ...request,
+        workspacePath: request.workspacePath,
+        ...(request.workspaceIdentity ? { workspaceIdentity: request.workspaceIdentity } : {}),
         ownerId: `${originKey}:${request.sessionId}`,
         waitMs: 250,
       });

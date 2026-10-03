@@ -15,7 +15,7 @@ export function createWorktreeClientLeases(service: IWorktreeService, clientId: 
         leases.set(lease.token, lease);
         if (exited) {
           // 退出与申请响应交错时，不能遗失已经授予的 OS 锁或让旧 client 继续执行。
-          await service.releaseCheckout(lease);
+          await service.releaseCheckout({ token: lease.token, ownerId: lease.ownerId });
           leases.delete(lease.token);
           throw new Error("Agent process exited before checkout grant");
         }
@@ -39,7 +39,8 @@ export function createWorktreeClientLeases(service: IWorktreeService, clientId: 
       await Promise.allSettled(pending);
       // 释放失败的 token 保留在本 owner 中，重复的进程回收仍可重试。
       for (const [token, lease] of leases) {
-        await service.releaseCheckout(lease);
+        // 票据还包含 workspacePath；整体传入会被严格请求校验拒绝，退出后留下目录锁。
+        await service.releaseCheckout({ token, ownerId: lease.ownerId });
         leases.delete(token);
       }
     },

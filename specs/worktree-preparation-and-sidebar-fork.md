@@ -3,6 +3,9 @@
 ## 产品规则
 
 - 首次提交工作树会话时，显示准备工作空间、检出文件、环境准备和就绪的真实阶段；完成后保留可折叠详情。创建就绪不等于任务测试或合并验证通过。
+- 准备进度属于聊天消息区，不放入输入框、项目/分支工具栏或设置弹层。首发请求在途时在聊天区展示冻结请求的用户输入预览及其下方的准备卡，隐藏欢迎页和推荐入口，输入框按正常会话布局停靠底部。附件提前准备但尚未发送文本时只展示准备卡，不制造空消息。未接受的预览没有 rowId、历史操作或持久化记录，不冒充 CLI 已接受消息。
+- 准备失败继续在同一聊天区域显示原输入和错误；重试复用原 commandId。取消或改用本地必须等 Host 结算取消，保留输入供用户重新发送。请求成功物化后移除待发送预览，展示 CLI 的真实消息；准备详情只跟随实际绑定，在首次真实用户消息之后保留一张就绪卡。长会话未加载到起点时不将卡插入最近消息，同目录分叉不重复展示父会话的创建过程。
+- 本地目录不显示工作树准备卡；已有本地会话也不因项目默认切为工作树而改变模式。新的真实会话经原 sessions-index 和 task-index 通路进入左侧列表，工作树图标来自 executionBindingId；准备阶段不另造 accepted 会话或接纳队列。
 - 无需填写准备命令。优先使用已有显式项目配置；无配置时根据受支持的项目清单与锁文件选择依赖准备，无法确定时明确跳过，后续由任务 Agent 按项目规则处理。不得猜测任意脚本、复制整个 node_modules 或忽略目录。
 - 准备结果、阶段和有界日志由目标 Host WorktreeService 持久化。桌面、Web、手机使用同一事实；UI 查询快照，不以本地计时器生成成功或百分比。重连读取最新记录；日志保留上限且显示截断。
 - 取消请求在 Host 登记，正在执行的步骤收尾后结算为取消，不执行 firstInput。改用本地目录仅在后端确认取消后解除原请求冻结，保留输入，用户再次发送；已就绪/已接受的会话不得改 cwd 或补发输入。
@@ -18,6 +21,10 @@
 
 WorktreeService 拥有绑定、准备阶段/日志、取消记录、文件快照和许可；CLI 拥有会话/历史及原子分叉结果；项目设置拥有显式准备配置；UI 只拥有展开状态、未接受草稿和待确认的操作意图。协议 schema 与服务 contract 同步更新，不新增 Renderer 接受队列或另起手机 Agent。
 
+聊天区从 `draftExecutionStore.creationEnvelope` 派生首发预览，沿 `useWorktreePreparation` 读取同一 Host 的准备记录。就绪卡按实际 session/task binding 查询，不另存日志副本。桌面 continuous 与手机 replayable 的消息及侧栏仍由同一 CLI 会话投影驱动；UI 位置调整不改变 ACK、写入许可或恢复语义。
+
+相同 commandId 的重试可能先读到上次失败的 Host 快照；原请求在途期间继续读取，不把旧终态误当作新尝试已结算。ACK 收口后按 Host 最新终态停止读取，仍不重放命令或用计时器推进阶段。
+
 ```mermaid
 sequenceDiagram
   participant UI as 桌面/Web/手机
@@ -25,12 +32,14 @@ sequenceDiagram
   participant WT as Host WorktreeService
   participant Store as 原子 SessionStore
   UI->>CLI: createSession 或稳定历史 fork（commandId）
+  UI->>UI: 聊天区显示冻结输入预览与准备卡
   CLI->>WT: 准备唯一工作树（真实来源与固定起点）
   WT->>WT: 持久阶段/日志；检出；环境准备
   UI->>WT: 读取准备快照 / 请求取消
   WT-->>CLI: ready 或 cancelled/failed
   CLI->>Store: ready 后物化会话 / 原子提交 fork bundle
   CLI-->>UI: 既有 ACK 与会话目录投影
+  UI->>UI: 移除预览，显示真实消息及绑定就绪详情
   UI->>UI: 在原项目内导航到子会话；文件操作使用子会话执行绑定
 ```
 
@@ -42,6 +51,7 @@ sequenceDiagram
 4. 稳定历史分叉不复制 active work/queue；相同 commandId 不生成第二个 child，旧消息分叉兼容。
 5. 实际右键/更多菜单、两种模式说明、成功导航、错误可见、中英文、桌面/390px、键盘、长路径与日志上限。
 6. 桌面 continuous 与手机 replayable 均读取 Host 同一持久准备记录；不同远程 identity 同路径不能串状态。
+7. 桌面/390px、中英文：准备卡在聊天消息层、首发预览下方，与输入框工具栏无包含关系；准备时欢迎页与推荐隐藏，输入框停靠底部，长输入/路径/日志不撑宽页面。成功后首条真实用户消息只出现一次，详情在它之后；续发及长历史不重复插卡。本地首发与旧会话无准备卡，真实 sessions-index 在两种模式下均含新会话且身份正确。
 
 ## 验证记录
 
@@ -64,3 +74,12 @@ sequenceDiagram
 | `git diff --check`                           | exit 0；沿仓库当前换行设置执行，关闭 safecrlf 提示，不更改配置                                                                                                                                                      |
 
 实测为 Windows、Node 24.14.1、pnpm 10.33.2；mise 要求 Node 24.14.0，未切换工具链。浏览器使用本机 Chrome，无模型调用或用户仓库提交。macOS/Linux、真实手机及 SSH/WSL/Docker 连接未作端到端实测；远程身份与重连通过边界测试验证。以上为提交前验证记录，后续提交状态以 Git 历史为准。
+
+## 2026-10-03 聊天区准备与发送回归
+
+- 将准备步骤、日志、取消及重试从输入框工具栏移到共享 ConversationTimeline 的消息层。首次请求在途时按冻结输入展示只读预览并隐藏欢迎页/推荐；ACK 物化后使用真实用户行，在历史起点的首条用户消息下显示同一 Host 的就绪详情。同目录分叉不重复显示父工作树创建过程；未加载到会话起点不向最近续发插卡。
+- 相同请求失败重试期间继续读取 Host 阶段，避免第一次读到旧失败快照后停止轮询。请求 ID、首发文本、实际绑定和原项目身份保持原有所有权，没有新增接纳队列。
+- 新增真实严格服务/Git/V4/Core 集成中的 sessions-index 验证：发送前桌面 continuous 已订阅的索引会推进，发送后手机 replayable 快照包含原项目的新会话；本地摘要无绑定，工作树摘要携带实际 executionBindingId。发送故障的原因与修复见 [发送与目录写入许可回归](checkout-writer-send-regression.md)。
+- 相关 CLI 许可、严格服务桥接、进程清理与真实执行回归 26/26 通过。`pnpm --dir packages/web exec node --test test/conversation-send.test.mjs test/worktree-ui.test.mjs` 在本机 Chrome 下 50/50 通过（两个顶级测试各 25 项）；覆盖实际 Composer/Timeline、回车/按钮、新旧会话、失败保留输入、等待 ACK、聊天区准备、取消及重试、长历史和同目录分叉，以及既有审核/管理/侧栏流程。1280px/390px、中英文均验证，准备截图保存在 desktop 的 `.e2e-artifacts/chat-preparation/`。浏览器的 Host、消息和会话注册由 fixture 驱动，真实后端及索引另由集成测试覆盖；未调用真实模型。
+- `pnpm typecheck`、`pnpm lint` 通过；架构检查 0 violations / 0 baseline / 0 new。初次 Lint 发现 fixture 超过 400 行，提取已存在 fixture 模块中的首发构造后通过，没有放宽规则。特性图 YAML、节点唯一性、关系端点和新增导出种子验证通过。
+- `pnpm --filter @lcode/desktop build:no-runtime-assets` 成功，沿当前 test/Preview 后端配置生成桌面构建；直接检查新的 Host bundle 确认 acquireCheckout 仅包含服务字段，Renderer 也包含聊天区准备组件。未产出安装包、未替换正在运行的 `D:\LCode`；该安装包中仍是旧的整包传参。未进行完整安装版 UI E2E、实体手机、macOS/Linux 或真实远程连接验证。

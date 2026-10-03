@@ -1298,6 +1298,9 @@ const UserInputRowView = memo(function UserInputRowView({
           </MessageAction>
         ) : null}
       </MessageActions>
+      {context.afterUserInput?.rowId === row.rowId ? (
+        <div className="mt-5 min-w-0 w-full">{context.afterUserInput.content}</div>
+      ) : null}
     </RowShell>
   );
 });

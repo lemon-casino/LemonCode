@@ -306,6 +306,8 @@ interface ConversationTimelineProps {
    * 所以它落在 emptyState 分支之外。
    */
   headerSlot?: ReactNode;
+  /** 会话创建详情只插在已加载到起点的第一条真实用户输入之后。 */
+  initialUserInputSlot?: ReactNode;
   /** 草稿态让 emptyState 与同一个 bottomDock 作为整体居中，不重挂 composer。 */
   centerEmptyStateWithDock?: boolean;
   /** 窄屏/粗指针视口保留紧凑居中布局，不复用桌面草稿安全间距。 */
@@ -371,6 +373,7 @@ function ConversationTimelineImpl({
   backgroundScrollLocked = false,
   emptyState,
   headerSlot,
+  initialUserInputSlot,
   centerEmptyStateWithDock = false,
   compactEmptyStateWithDock = false,
   summaryPanelLayout = "none",
@@ -388,6 +391,20 @@ function ConversationTimelineImpl({
   hideTurnNavigator = false,
 }: ConversationTimelineProps) {
   const { intl } = useLCodeIntl();
+  // 原因：虚拟窗口常从最近消息开始；不能把准备详情放到任意窗口的第一条续发下面。
+  const initialUserInputRowId = canLoadOlder
+    ? undefined
+    : rows.find((row) => row.kind === "userInput" && row.origin === "realUser")?.rowId;
+  const renderRowContext = useMemo<ConversationRowRenderContext>(
+    () =>
+      initialUserInputSlot && initialUserInputRowId !== undefined
+        ? {
+            ...rowContext,
+            afterUserInput: { rowId: initialUserInputRowId, content: initialUserInputSlot },
+          }
+        : rowContext,
+    [rowContext, initialUserInputSlot, initialUserInputRowId],
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const headerSlotRef = useRef<HTMLDivElement>(null);
   // headerSlot 高度参与虚拟窗口换算（scrollMargin），必须随内容与宽度变化实时跟进，
@@ -1841,7 +1858,7 @@ function ConversationTimelineImpl({
                       <ConversationTurnGroup
                         unit={unit}
                         apiRetry={null}
-                        context={rowContext}
+                        context={renderRowContext}
                         onFork={onFork}
                         onRetry={onRetry}
                         onFeedbackChange={onFeedbackChange}
@@ -1871,7 +1888,7 @@ function ConversationTimelineImpl({
                   <ConversationTurnGroup
                     unit={liveUnit}
                     apiRetry={apiRetry}
-                    context={rowContext}
+                    context={renderRowContext}
                     onFork={onFork}
                     onRetry={onRetry}
                     onFeedbackChange={onFeedbackChange}

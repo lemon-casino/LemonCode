@@ -17,7 +17,10 @@ import { WorktreeWorkflowScenario } from "./worktree-ui-scenarios.js";
 import { FixtureReviewPreview } from "./review-preview.js";
 import { WorktreeSidebarRows } from "./worktree-sidebar-rows.js";
 import { WorktreeFixturePage } from "./worktree-ui-page.js";
-import { installForkPreparationFixture } from "./worktree-fork-preparation.js";
+import {
+  installForkPreparationFixture,
+  beginFixtureDraftExecution,
+} from "./worktree-fork-preparation.js";
 import { createReviewWorkspaceFixture } from "./review-workspace-service.js";
 import "@/styles.css";
 
@@ -113,10 +116,7 @@ const fixture = {
       executionMode: mode,
     };
   },
-  begin: (scope = origin) =>
-    useDraftExecutionStore
-      .getState()
-      .begin(scope, "same-request", true, { mode: "worktree", baseRef: "feature" }),
+  begin: (scope = origin) => beginFixtureDraftExecution(scope),
   fail: (scope = origin) =>
     useDraftExecutionStore
       .getState()

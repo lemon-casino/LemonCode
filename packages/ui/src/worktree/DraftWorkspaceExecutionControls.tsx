@@ -18,7 +18,6 @@ import {
 } from "@/components/ui/select.js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
 import { ProjectExecutionPolicySettings } from "./ExecutionPolicySettings.js";
-import { DraftWorktreePreparation } from "./DraftWorktreePreparation.js";
 
 export function DraftWorkspaceExecutionControls({
   workspacePath,
@@ -37,7 +36,6 @@ export function DraftWorkspaceExecutionControls({
   const scope = workspaceIdentity?.trim() || workspacePath;
   const selection = useDraftExecutionStore((store) => store.drafts[scope]);
   const choose = useDraftExecutionStore((store) => store.choose);
-  const retry = useDraftExecutionStore((store) => store.retry);
   const { policy, loading, update } = useProjectExecutionPolicy(
     workspacePath,
     workspaceIdentity,
@@ -214,20 +212,7 @@ export function DraftWorkspaceExecutionControls({
           {modeError.message}
         </span>
       ) : null}
-      {selection?.creationEnvelope || pending ? (
-        <DraftWorktreePreparation
-          key={scope}
-          workspacePath={workspacePath}
-          workspaceIdentity={workspaceIdentity}
-        />
-      ) : selection?.error ? (
-        <span role="alert" className="max-w-full break-words text-ui-sm text-destructive">
-          {selection.error}
-          <Button type="button" variant="ghost" size="sm" onClick={() => retry(scope)}>
-            {intl.formatMessage({ id: "worktree.retry" })}
-          </Button>
-        </span>
-      ) : worktree && !supportedRepository ? (
+      {worktree && !supportedRepository ? (
         <span role="alert" className="text-ui-sm text-warning">
           {intl.formatMessage({ id: "worktree.unavailable" })}
         </span>

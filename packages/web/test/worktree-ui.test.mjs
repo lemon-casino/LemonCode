@@ -154,7 +154,10 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
     assert.equal(await page.getByTestId("draft-execution-mode").isDisabled(), true);
     assert.equal(await page.getByTestId("worktree-base-trigger").isDisabled(), true);
     await fixture("fail");
-    await page.getByRole("button", { name: "重试", exact: true }).click();
+    await page
+      .getByTestId("fixture-conversation-stream")
+      .getByRole("button", { name: "重试准备", exact: true })
+      .click();
     assert.equal((await fixture("draft")).retryRevision, 1);
     assert.equal((await fixture("draft")).baseRef, "feature");
   });

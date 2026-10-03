@@ -29,6 +29,20 @@ export async function runForkPreparationCases({ t, page, url, calls }) {
     await page.goto(url);
     await fixture("beginPreparation");
     const card = page.getByTestId("worktree-preparation-card");
+    assert.equal(
+      await page
+        .getByTestId("draft-composer-header")
+        .getByTestId("worktree-preparation-card")
+        .count(),
+      0,
+    );
+    assert.equal(
+      await page
+        .getByTestId("fixture-conversation-stream")
+        .getByTestId("worktree-preparation-card")
+        .count(),
+      1,
+    );
     await card.locator('[data-step="checkout"][data-state="running"]').waitFor();
     assert.equal(await card.locator('[data-step="workspace"]').getAttribute("data-state"), "done");
     await card.getByRole("button", { name: "更多详情" }).click();

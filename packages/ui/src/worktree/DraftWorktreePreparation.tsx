@@ -16,7 +16,13 @@ export function DraftWorktreePreparation({
   const scope = workspaceIdentity?.trim() || workspacePath;
   const selection = useDraftExecutionStore((state) => state.drafts[scope]);
   const requestId = selection?.creationEnvelope?.commandId ?? selection?.requestId;
-  const state = useWorktreePreparation(workspacePath, workspaceIdentity, requestId);
+  const state = useWorktreePreparation(
+    workspacePath,
+    workspaceIdentity,
+    requestId,
+    undefined,
+    Boolean(selection?.requestId),
+  );
   const { worktreeService } = useServices();
   const { update } = useProjectExecutionPolicy(workspacePath, workspaceIdentity);
   const [intent, setIntent] = useState<"cancel" | "local" | null>(null);

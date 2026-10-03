@@ -66,6 +66,10 @@ nodes:
         symbol: WorktreeBadge
       - file: packages/ui/src/worktree/WorktreePreparationCard.tsx
         symbol: WorktreePreparationCard
+      - file: packages/ui/src/worktree/WorktreeConversationPreparation.tsx
+        symbol: DraftWorktreeConversation
+      - file: packages/ui/src/worktree/WorktreeConversationPreparation.tsx
+        symbol: SessionWorktreePreparation
       - file: packages/ui/src/TaskForkMenu.tsx
         symbol: TaskForkMenu
       - file: apps/lcode-cli/packages/bootstrap/src/lcode-protocol/v4-bridge-sidebar-fork.ts
@@ -80,6 +84,7 @@ nodes:
       - "The single composer execution selector saves the original project's mode. Only frozen admission intent overrides later defaults; choosing a mode does not prepare a worktree."
       - "Project worktree management is a persistent project-menu entry using that project's Environment services. Sidebar icons derive only from actual session executionBindingId, including memoized and grouped rows."
       - "Preparation progress and cancellation are durable Host facts. Same-directory forks share their root binding; isolated forks snapshot the current source under its writer permit and atomically persist a new child binding."
+      - "Preparation is shown in the chat stream below the frozen first-input preview. After materialization, actual rows replace the preview and ready details follow the initial real input; composer controls never own preparation progress."
   - id: service.worktree-owner
     kind: state-owner
     label: Environment worktree binding and operation owner
