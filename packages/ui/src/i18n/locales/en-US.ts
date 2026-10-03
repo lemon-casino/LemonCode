@@ -2741,6 +2741,7 @@ const enUS: Record<string, string> = {
     "No models were removed. Only explicitly confirmed invalid models can be removed.",
   "settings.modelProvider.syncModelsCheckSelected": "Check and add selected ({count})",
   "settings.modelProvider.syncModelsCheckAll": "Check and add all ({count})",
+  "settings.modelProvider.syncModelsCheckSearch": "Check and add searched models ({count})",
   "settings.modelProvider.syncModelsSelection": "Selected {selected}/{total}",
   "settings.modelProvider.syncModelsChecking": "Checking",
   "settings.modelProvider.syncModelsFailed": "Check failed",

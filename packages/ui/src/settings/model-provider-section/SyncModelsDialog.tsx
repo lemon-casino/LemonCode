@@ -17,6 +17,7 @@ import {
   MODEL_PROBE_CONCURRENCY,
   filterModelIds,
   normalizeModelIds,
+  probeTargetIds,
   runCancelablePool,
   selectedModelIds,
   type SyncModelProbeResult,
@@ -133,16 +134,19 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
   const selectedIds = selectedModelIds(rows, selected);
   const visibleRows = useMemo(() => filterModelIds(rows, query), [rows, query]);
   const searching = query.trim().length > 0;
+  // 搜索时提交范围收缩为“匹配项 ∩ 勾选”，数量与“检测并添加指定模型”文案一致。
+  const targetIds = probeTargetIds(rows, visibleRows, selected, searching);
 
-  const probeSelected = async () => {
-    if (busy !== null || selectedIds.length === 0) return;
-    const ids = selectedIds;
+  const runProbe = async () => {
+    if (busy !== null || targetIds.length === 0) return;
+    const ids = targetIds;
+    const targetSet = new Set(ids);
     const { operationId, signal } = beginOperation();
     setBusy("probe");
     setProgress({ completed: 0, total: ids.length });
     setError(null);
     setResults((current) =>
-      Object.fromEntries(Object.entries(current).filter(([id]) => !selected.has(id))),
+      Object.fromEntries(Object.entries(current).filter(([id]) => !targetSet.has(id))),
     );
     try {
       await runCancelablePool({
@@ -359,8 +363,8 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
           </Button>
           <Button
             type="button"
-            disabled={busy !== null || selectedIds.length === 0}
-            onClick={() => void probeSelected()}
+            disabled={busy !== null || targetIds.length === 0}
+            onClick={() => void runProbe()}
           >
             {busy === "probe" ? (
               <RefreshCwIcon data-icon="inline-start" className="animate-spin" />
@@ -369,12 +373,13 @@ export function SyncModelsDialog(props: SyncModelsDialogProps) {
             )}
             {intl.formatMessage(
               {
-                id:
-                  rows.length > 0 && selectedIds.length === rows.length
+                id: searching
+                  ? "settings.modelProvider.syncModelsCheckSearch"
+                  : rows.length > 0 && selectedIds.length === rows.length
                     ? "settings.modelProvider.syncModelsCheckAll"
                     : "settings.modelProvider.syncModelsCheckSelected",
               },
-              { count: selectedIds.length },
+              { count: targetIds.length },
             )}
           </Button>
         </DialogFooter>

@@ -22,6 +22,16 @@ export function selectedModelIds(rows: readonly string[], selected: ReadonlySet<
   return normalizeModelIds(rows).filter((id) => selected.has(id));
 }
 
+export function probeTargetIds(
+  rows: readonly string[],
+  visibleRows: readonly string[],
+  selected: ReadonlySet<string>,
+  searching: boolean,
+): string[] {
+  // 搜索时提交范围收缩为匹配项与勾选交集，避免默认全选的隐藏模型被误检测；未搜索时即全局勾选快照。
+  return normalizeModelIds(searching ? visibleRows : rows).filter((id) => selected.has(id));
+}
+
 export async function probeAndSyncModel({
   id,
   signal,
