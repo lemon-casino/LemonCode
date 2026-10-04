@@ -1,6 +1,7 @@
 import type { WorktreeBinding } from "../contract.js";
 import type { CheckoutCoordinator } from "../nodeTypes.js";
 import type { WorktreeContext } from "./ports.js";
+import { createWorktreeDiscard } from "./discard.js";
 
 export function createWorktreeArchive(
   context: WorktreeContext,
@@ -8,6 +9,7 @@ export function createWorktreeArchive(
   ready: (binding: WorktreeBinding) => Promise<void>,
 ) {
   const { store, git } = context;
+  const discard = createWorktreeDiscard(context, coordinator, ready);
   async function binding(id: string) {
     const value = await store.readBinding(id);
     if (!value) throw new Error("Worktree binding not found");
@@ -25,9 +27,13 @@ export function createWorktreeArchive(
     bindingId: string;
     requestId: string;
     acknowledgeIgnoredFiles?: boolean;
+    discard?: { branch: string; checkoutPath: string };
   }) {
     if (!params.requestId.trim()) throw new Error("Archive request ID is required");
+    if (params.discard) return discard(params);
     const original = await binding(params.bindingId);
+    if (["deleting", "deleted"].includes(original.status))
+      throw new Error("Worktree has been deleted; create a new task");
     if (original.status === "archived") return original;
     if (!(await store.exists(original.checkoutPath))) {
       if (!original.snapshot) throw new Error("Missing worktree has no saved archive snapshot");
@@ -78,6 +84,8 @@ export function createWorktreeArchive(
     if (!params.requestId.trim()) throw new Error("Restore request ID is required");
     return store.lock(params.bindingId, async () => {
       let value = await binding(params.bindingId);
+      if (["deleting", "deleted"].includes(value.status))
+        throw new Error("Worktree has been deleted; create a new task");
       if (value.status === "ready") {
         await ready(value);
         return value;
@@ -85,12 +93,14 @@ export function createWorktreeArchive(
       if (!value.snapshot || !["archived", "restoring"].includes(value.status))
         throw new Error("Worktree is not an archived snapshot");
       const snapshotHead = value.snapshot.head;
+      // 归档已释放分支占用，用户可删除分支；从快照 HEAD 重建，不能强行移动新出现的同名分支。
       const head = await git.command(value.repositoryRoot, [
-        "rev-parse",
-        "--verify",
+        "for-each-ref",
+        "--format=%(objectname)",
+        "--",
         `refs/heads/${value.branch}`,
       ]);
-      if (head !== value.snapshot.head)
+      if (head && head !== value.snapshot.head)
         throw new Error("Archived task branch changed; restore would overwrite newer work");
       const exists = await store.exists(value.checkoutPath);
       if (exists && value.status !== "restoring")
@@ -101,8 +111,9 @@ export function createWorktreeArchive(
         await git.command(value.repositoryRoot, [
           "worktree",
           "add",
+          ...(!head ? ["-b", value.branch] : []),
           value.checkoutPath,
-          value.branch,
+          head ? value.branch : snapshotHead,
         ]);
       const lease = await coordinator.acquire({
         workspacePath: value.checkoutPath,

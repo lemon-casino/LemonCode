@@ -25,8 +25,9 @@ export function createWorktreeApplication(
       const identity = params.workspaceIdentity?.trim() || resolve(params.workspacePath);
       return (await context.store.listBindings()).filter(
         (binding) =>
+          binding.status !== "deleted" &&
           (binding.originalWorkspaceIdentity?.trim() || resolve(binding.originalWorkspacePath)) ===
-          identity,
+            identity,
       );
     },
     integrate: integration.integrate,

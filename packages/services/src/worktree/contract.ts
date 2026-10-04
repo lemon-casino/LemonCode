@@ -113,6 +113,8 @@ export interface IWorktreeService {
     bindingId: string;
     requestId: string;
     acknowledgeIgnoredFiles?: boolean;
+    /** 显式确认后永久放弃；不创建快照，移除目录、任务分支和绑定快照 refs。 */
+    discard?: { branch: string; checkoutPath: string };
   }): Promise<WorktreeBinding>;
   restore(params: { bindingId: string; requestId: string }): Promise<WorktreeBinding>;
   acquireCheckout(

@@ -16,9 +16,20 @@ export function useWorktreeTask(
   const directoryBusyMessage = intl.formatMessage({ id: "git.commitWorkflow.directoryBusy" });
   const targetBlockedMessage = intl.formatMessage({ id: "worktree.targetLocalChanges" });
   const targetChangedMessage = intl.formatMessage({ id: "worktree.targetChangedReview" });
+  const outputLimitMessage = intl.formatMessage({ id: "worktree.archiveOutputLimit" });
+  const timeoutMessage = intl.formatMessage({ id: "worktree.operationTimedOut" });
+  const runningMessage = intl.formatMessage({ id: "worktree.deleteRunning" });
+  const deleteChangedMessage = intl.formatMessage({ id: "worktree.deleteChanged" });
   const describeError = useCallback(
     (error: unknown) => {
       const message = getCheckoutOperationErrorMessage(error, directoryBusyMessage);
+      if (message.startsWith("Git worktree command output exceeded limit:"))
+        return outputLimitMessage;
+      if (message.startsWith("Git worktree command timed out:")) return timeoutMessage;
+      if (message === "Worktree integration is running; stop it before deleting")
+        return runningMessage;
+      if (message === "Task branch changed during deletion; preserve the newer work")
+        return deleteChangedMessage;
       const marker = "Target checkout cannot be updated without overwriting local changes.";
       if (
         message === "Target HEAD changed; create and review a new integration" ||
@@ -31,7 +42,15 @@ export function useWorktreeTask(
         ? `${targetBlockedMessage}${message.slice(marker.length)}`
         : message;
     },
-    [directoryBusyMessage, targetBlockedMessage, targetChangedMessage],
+    [
+      directoryBusyMessage,
+      targetBlockedMessage,
+      targetChangedMessage,
+      outputLimitMessage,
+      timeoutMessage,
+      runningMessage,
+      deleteChangedMessage,
+    ],
   );
   const scope = `${workspaceIdentity?.trim() || workspacePath}\0${taskId ?? ""}`;
   const ticket = useRef(0);
@@ -79,7 +98,7 @@ export function useWorktreeTask(
   }, [refresh, revision]);
   const perform = useCallback(
     async (action: () => Promise<unknown>) => {
-      if (pending) return;
+      if (pending) return false;
       const ownScope = scope;
       setPending(true);
       setState((previous) => ({ ...previous, error: undefined }));
@@ -87,6 +106,7 @@ export function useWorktreeTask(
         await action();
         useWorktreeLifecycleStore.getState().invalidate(workspacePath, workspaceIdentity);
         await refresh();
+        return true;
       } catch (error) {
         // mutation 失败可能发生在副作用已完成之后；先对账持久阶段，再保留错误供用户重试。
         useWorktreeLifecycleStore.getState().invalidate(workspacePath, workspaceIdentity);
@@ -94,6 +114,7 @@ export function useWorktreeTask(
         setState((previous) =>
           previous.scope === ownScope ? { ...previous, error: describeError(error) } : previous,
         );
+        return false;
       } finally {
         setPending(false);
       }

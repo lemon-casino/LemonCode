@@ -19,3 +19,14 @@ export async function readPreparation(
     return service.prepare({ workspacePath, taskId: binding.taskId, requestId, cancel: true });
   return binding;
 }
+
+export async function discardTaskWorktree(
+  service: IWorktreeService,
+  binding: import("./contract.js").WorktreeBinding,
+) {
+  return service.archive({
+    bindingId: binding.id,
+    requestId: "discard-confirmed-example",
+    discard: { branch: binding.branch, checkoutPath: binding.checkoutPath },
+  });
+}

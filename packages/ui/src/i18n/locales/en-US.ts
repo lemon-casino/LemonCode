@@ -7338,10 +7338,35 @@ const enUS: Record<string, string> = {
   "worktree.integration.cancelled": "Cancelled; commits and integration directory retained",
   "worktree.mergeBase": "Common ancestor",
   "worktree.integrationDirectory": "Integration directory",
-  "worktree.ignoredOmissions": "Ignored files not saved ({count})",
+  "worktree.ignoredOmissions": "Ignored files or directories not saved ({count})",
   "worktree.archiveIgnored":
     "Ignored files will not be saved. Allow removing them from this worktree after the snapshot.",
   "worktree.archive": "Save snapshot and archive",
+  "worktree.archiveSuccess":
+    "Snapshot saved and checkout removed. The branch is no longer occupied; restore when needed.",
+  "worktree.discard": "Delete worktree",
+  "worktree.discardTitle": "Delete this worktree?",
+  "worktree.discardDescription":
+    "Delete the directories, task branch and archive snapshots below, including uncommitted changes, untracked files, ignored files and unmerged commits. This cannot be undone. Chat history remains; other chats using this worktree will also lose access to the directory. The original project and changes already merged into the target branch remain.",
+  "worktree.discardDirectory": "Directory to delete",
+  "worktree.discardBranch": "Branch to delete",
+  "worktree.discardConfirm": "Delete",
+  "worktree.discardPending": "Deleting…",
+  "worktree.discardSuccess": "Worktree directory and task branch deleted.",
+  "worktree.sessionMissing":
+    "This chat was deleted or has no saved session record. Manage or delete the worktree directly without opening commit review.",
+  "worktree.sessionReadFailed":
+    "Unable to check the chat record. Worktree management remains available; refresh to retry review.",
+  "worktree.archiveOutputLimit":
+    "The archive file list is too large. The worktree was kept. Preserve your files and retry, or delete the worktree here.",
+  "worktree.operationTimedOut":
+    "Git operation timed out. Completion is unconfirmed; refresh before retrying.",
+  "worktree.deleteRunning":
+    "The directory is in use. Stop the related tasks before deleting the worktree.",
+  "worktree.deleteChanged":
+    "The task branch changed during deletion. Newer work was kept; inspect the branch before proceeding.",
+  "worktree.binding.deleting": "Deletion incomplete; retry to finish",
+  "worktree.binding.deleted": "Worktree deleted",
   "worktree.working": "Working…",
   "worktree.binding.preparing": "Preparing worktree",
   "worktree.binding.ready": "Worktree is ready",

@@ -17,7 +17,11 @@ export async function reserveTaskBranch(
     ]);
     const occupied = new Set(refs.split(/\r?\n/u).map(normalize));
     for (const reserved of await store.listBindings()) {
-      if (normalize(reserved.commonDirectory) === normalize(binding.commonDirectory))
+      // 已删除绑定只保留防回退墓碑，不再保留名称；新任务可以复用已释放的中文分支名。
+      if (
+        reserved.status !== "deleted" &&
+        normalize(reserved.commonDirectory) === normalize(binding.commonDirectory)
+      )
         occupied.add(normalize(reserved.branch));
     }
     const base = taskBranchName(taskName);

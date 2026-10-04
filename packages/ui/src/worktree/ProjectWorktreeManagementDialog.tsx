@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog.js";
 import { ProjectWorktreeList } from "./ProjectWorktreeList.js";
 import { WorktreeManagementActions } from "./WorktreeManagementActions.js";
+import type { WorktreeBinding } from "@lcode/services";
 
 export function ProjectWorktreeManagementDialog({
   workspacePath,
@@ -21,6 +22,7 @@ export function ProjectWorktreeManagementDialog({
   onOpenChange,
   onSelectSession,
   initialSessionId,
+  onWorktreeDeleted,
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
@@ -29,11 +31,13 @@ export function ProjectWorktreeManagementDialog({
   onOpenChange: (open: boolean) => void;
   onSelectSession?: (sessionId: string) => void;
   initialSessionId?: string;
+  onWorktreeDeleted?: (binding: WorktreeBinding) => void;
 }) {
   const { intl } = useLCodeIntl();
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     initialSessionId ?? null,
   );
+  const [deleteRequested, setDeleteRequested] = useState(false);
   const renderDialog = (content: ReactNode) => (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
@@ -85,6 +89,8 @@ export function ProjectWorktreeManagementDialog({
       onHideReview={() => onOpenChange(false)}
       onShowReview={() => onOpenChange(true)}
       onSelectSession={onSelectSession}
+      defaultDeleteOpen={deleteRequested}
+      onWorktreeDeleted={onWorktreeDeleted}
     />
   ) : (
     renderDialog(
@@ -92,7 +98,14 @@ export function ProjectWorktreeManagementDialog({
         workspacePath={workspacePath}
         workspaceIdentity={workspaceIdentity}
         enabled={open}
-        onSelect={setSelectedSessionId}
+        onSelect={(sessionId) => {
+          setDeleteRequested(false);
+          setSelectedSessionId(sessionId);
+        }}
+        onDelete={(sessionId) => {
+          setDeleteRequested(true);
+          setSelectedSessionId(sessionId);
+        }}
       />,
     )
   );

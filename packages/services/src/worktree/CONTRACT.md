@@ -75,7 +75,19 @@ Archive saves a snapshot commit (working files plus non-ignored untracked files)
 original index tree behind a durable ref before removing the managed checkout. Ignored
 omissions require explicit acknowledgement. Restore reconstructs the original HEAD,
 working files and index without overwriting an existing directory. Snapshot and task refs
-remain reachable. There is no automatic deletion or ref garbage collection.
+remain reachable. A removed task branch can be recreated from the saved HEAD on restore;
+an existing changed branch is never moved. Ignored directories are recorded as ranges
+instead of enumerating every dependency file.
+
+`archive(discard)` explicitly confirms the binding's branch and checkout path and deletes
+the checkout, unmerged task branch and owned snapshot refs without creating a snapshot.
+It serializes with integration and checkout writers, cancels unpublished review candidates,
+and preserves `deleting` / `deleted` tombstones so old sessions cannot silently execute in
+the original project. Interrupted deletion retries only against the captured task branch
+HEAD. Deleted bindings release naming reservations and are omitted from project lists,
+but remain readable via getBinding. Directory removal has a separate long file-operation
+budget; lease contention still fails promptly instead of waiting for a running task.
+This management operation does not require an active or persisted chat session.
 
 Checkout permits are canonical-directory locks across Host processes. Live owners never
 expire by elapsed time. Runtime releases only after its writers stop; UI state is not a

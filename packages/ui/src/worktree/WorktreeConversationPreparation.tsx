@@ -67,6 +67,11 @@ export function SessionWorktreePreparation({
 }) {
   const state = useWorktreePreparation(workspacePath, workspaceIdentity, undefined, sessionId);
   // 同目录分叉解析到父绑定，父工作树的创建过程不能冒充本会话的创建过程。
-  if (state.binding?.taskId !== sessionId || !state.binding.preparation) return null;
+  if (
+    state.binding?.taskId !== sessionId ||
+    !state.binding.preparation ||
+    ["deleting", "deleted"].includes(state.binding.status)
+  )
+    return null;
   return <WorktreePreparationCard binding={state.binding} error={state.error} />;
 }

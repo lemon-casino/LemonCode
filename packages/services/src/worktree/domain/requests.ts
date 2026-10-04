@@ -40,7 +40,12 @@ export const worktreeRequests = {
   getIntegration: z.object({ operationId: id }).strict(),
   publishIntegration: z.object({ operationId: id, approvedCandidateHead: commit }).strict(),
   archive: z
-    .object({ bindingId: id, requestId: text, acknowledgeIgnoredFiles: z.boolean().optional() })
+    .object({
+      bindingId: id,
+      requestId: text,
+      acknowledgeIgnoredFiles: z.boolean().optional(),
+      discard: z.object({ branch: text, checkoutPath: text }).strict().optional(),
+    })
     .strict(),
   restore: z.object({ bindingId: id, requestId: text }).strict(),
   acquireCheckout: z

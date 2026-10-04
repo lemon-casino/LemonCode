@@ -11,9 +11,22 @@ export function createWorktreeGit(port: WorktreeGitPort): WorktreeGit {
     args: string[],
     extra?: { stdin?: string; env?: Record<string, string> },
   ) {
-    const result = await port.run({ cwd, args, ...extra, maxOutputBytes: 8 * 1024 * 1024 });
-    if (result.exitCode !== 0 || result.timedOut || result.outputTruncated)
-      throw new Error(result.stderr.trim() || "Git worktree command failed");
+    const result = await port.run({
+      cwd,
+      args,
+      ...extra,
+      maxOutputBytes: 8 * 1024 * 1024,
+      // 删除含数十万个依赖文件的目录属于长文件操作，不能被普通 Git 命令的 15 秒预算中断。
+      ...(args[0] === "worktree" && args[1] === "remove" ? { timeoutMs: 10 * 60_000 } : {}),
+    });
+    // 根因：大依赖目录的忽略文件输出被截断时 stderr 为空，旧实现吞掉了真正的失败原因。
+    if (result.timedOut) throw new Error(`Git worktree command timed out: ${args[0]}`);
+    if (result.outputTruncated)
+      throw new Error(`Git worktree command output exceeded limit: ${args[0]}`);
+    if (result.exitCode !== 0)
+      throw new Error(
+        result.stderr.trim() || `Git worktree command failed: ${args[0]} (${result.exitCode})`,
+      );
     return result.stdout.trim();
   }
   async function inspect(path: string) {
@@ -78,7 +91,17 @@ export function createWorktreeGit(port: WorktreeGitPort): WorktreeGit {
       await assertIdle(cwd);
       const head = await command(cwd, ["rev-parse", "HEAD"]);
       const ignoredPaths = includeIgnored
-        ? (await command(cwd, ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"]))
+        ? // 忽略目录整体省略，不逐文件枚举 node_modules；否则数十万个依赖文件会超过输出上限。
+          (
+            await command(cwd, [
+              "ls-files",
+              "--others",
+              "--ignored",
+              "--exclude-standard",
+              "--directory",
+              "-z",
+            ])
+          )
             .split("\0")
             .filter(Boolean)
         : [];
@@ -137,7 +160,14 @@ export function createWorktreeGit(port: WorktreeGitPort): WorktreeGit {
       if ((await workingTree(cwd, head)) !== expectedTree) return false;
       if (checkIgnored) {
         const ignored = (
-          await command(cwd, ["ls-files", "--others", "--ignored", "--exclude-standard", "-z"])
+          await command(cwd, [
+            "ls-files",
+            "--others",
+            "--ignored",
+            "--exclude-standard",
+            "--directory",
+            "-z",
+          ])
         )
           .split("\0")
           .filter(Boolean)

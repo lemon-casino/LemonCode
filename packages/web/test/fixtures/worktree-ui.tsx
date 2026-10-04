@@ -1,4 +1,5 @@
 import { createWorktreeBranchFixture } from "./worktree-branch-deletion.js";
+import { createWorktreeLifecycleFixture } from "./worktree-lifecycle-fixture.js";
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { IServiceAccessor, WorktreeBinding, WorktreeIntegration } from "@lcode/services";
@@ -93,6 +94,8 @@ const fixture = {
   releaseSave: () => {},
   failBranches: false,
   failList: false,
+  failArchive: false,
+  sessionMissing: false,
   holdList: false,
   releaseList: () => {},
   failRead: false,
@@ -189,7 +192,10 @@ const services = {
       () => fixture.failBranches,
       () => ({
         name: binding.branch,
-        checkoutPath: binding.status === "archived" ? null : binding.checkoutPath,
+        checkoutPath: ["archived", "deleted"].includes(binding.status)
+          ? null
+          : binding.checkoutPath,
+        deleted: binding.status === "deleted",
       }),
     ),
     switchBranch: async (params: unknown) => {
@@ -263,29 +269,11 @@ const services = {
           fixture.releaseList = resolve;
         });
       if (fixture.failList) throw new Error("fixture-list-failed");
-      return [structuredClone(binding)];
+      return binding.status === "deleted" ? [] : [structuredClone(binding)];
     },
     getBinding: async (params: { taskId: string }) =>
       params.taskId === "local" ? null : structuredClone(binding),
-    archive: async (params: { acknowledgeIgnoredFiles?: boolean }) => {
-      calls.push({ method: "archive", params });
-      if (!params.acknowledgeIgnoredFiles)
-        throw new Error("Ignored files require explicit acknowledgement");
-      binding.status = "archived";
-      binding.snapshot = {
-        commit: "snapshot",
-        indexTree: "index",
-        head: "base",
-        createdAt: "2026-01-01",
-        ignoredPaths: Array.from({ length: fixture.ignoredCount }, (_, i) => `ignored-${i}.env`),
-      };
-      return structuredClone(binding);
-    },
-    restore: async (params: unknown) => {
-      calls.push({ method: "restore", params });
-      binding.status = "ready";
-      return structuredClone(binding);
-    },
+    ...createWorktreeLifecycleFixture(calls, binding, () => fixture),
   },
   lcodeSessionService: {
     readSession: async ({ sessionId }: { sessionId: string }) => {
@@ -316,6 +304,12 @@ const services = {
   },
 } as unknown as IServiceAccessor;
 installForkPreparationFixture(services, calls, binding);
+services.lcodeTaskService.getTaskMeta = async () =>
+  fixture.sessionMissing
+    ? null
+    : ({ taskId: binding.taskId } as Awaited<
+        ReturnType<typeof services.lcodeTaskService.getTaskMeta>
+      >);
 const summary: GitRepositorySummary = {
   workspacePath: origin,
   repoRoot: origin,

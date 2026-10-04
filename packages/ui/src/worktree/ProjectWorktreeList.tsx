@@ -1,17 +1,20 @@
 import { useProjectWorktrees } from "@/hooks/useProjectWorktrees.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
+import { Trash2Icon } from "lucide-react";
 
 export function ProjectWorktreeList({
   workspacePath,
   workspaceIdentity,
   enabled,
   onSelect,
+  onDelete,
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
   enabled: boolean;
   onSelect: (sessionId: string) => void;
+  onDelete?: (sessionId: string) => void;
 }) {
   const { intl } = useLCodeIntl();
   const trees = useProjectWorktrees(workspacePath, workspaceIdentity, enabled);
@@ -25,17 +28,32 @@ export function ProjectWorktreeList({
       {trees.bindings.length ? (
         trees.bindings.map((binding) => (
           <div key={binding.id} className="min-w-0 rounded-md border border-border p-1">
-            <p className="truncate px-2" title={binding.branch}>
+            <p className="break-all px-2" title={binding.branch}>
               {binding.branch}
             </p>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => onSelect(binding.taskId)}
-            >
-              {intl.formatMessage({ id: "worktree.manage" })}
-            </Button>
+            <div className="flex items-center justify-between">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onSelect(binding.taskId)}
+              >
+                {intl.formatMessage({ id: "worktree.manage" })}
+              </Button>
+              {onDelete ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  data-testid="project-worktree-delete"
+                  aria-label={intl.formatMessage({ id: "worktree.discard" })}
+                  title={intl.formatMessage({ id: "worktree.discard" })}
+                  onClick={() => onDelete(binding.taskId)}
+                >
+                  <Trash2Icon className="size-4" />
+                </Button>
+              ) : null}
+            </div>
           </div>
         ))
       ) : !trees.loading ? (

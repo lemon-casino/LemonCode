@@ -1,6 +1,7 @@
 import { runBranchDeletionCases } from "./draft-attachment-and-branch-cases.mjs";
 import { runBranchPickerCases } from "./branch-picker-cases.mjs";
 import assert from "node:assert/strict";
+import { runWorktreeDeletionCases } from "./worktree-deletion-cases.mjs";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { once } from "node:events";
@@ -130,6 +131,8 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
       () => !document.querySelector('[data-testid="draft-execution-mode"]').disabled,
     );
   };
+
+  await runWorktreeDeletionCases({ t, page, load, configure, calls, openProjectWorktrees });
 
   await t.test("模式保存项目值、基线保存草稿，不创建树、不切分支；读取失败可重试", async () => {
     await load();

@@ -7,6 +7,7 @@ export interface WorktreeGitPort {
     stdin?: string;
     env?: Record<string, string>;
     maxOutputBytes?: number;
+    timeoutMs?: number;
   }): Promise<{
     stdout: string;
     stderr: string;

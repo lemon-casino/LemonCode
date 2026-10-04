@@ -123,6 +123,8 @@ export function createWorktreeLifecycle(
     );
     return store.lock(id, async () => {
       let binding = await store.readBinding(id);
+      if (binding && ["deleting", "deleted"].includes(binding.status))
+        throw new Error("Worktree has been deleted; create a new task");
       // 归档恢复只能取回文件，不能把已取消的首条输入请求重新变成可执行请求。
       if (binding && (binding.status === "cancelled" || (await store.isPreparationCancelled(id))))
         throw new Error("Worktree preparation cancelled; submit a new request");
@@ -370,7 +372,8 @@ export function createWorktreeLifecycle(
       );
       if (alias) binding = (await store.readBinding(alias.bindingId)) ?? undefined;
     }
-    if (!binding || ["archived", "preparing", "failed", "cancelled"].includes(binding.status)) {
+    // 删除墓碑与归档同样不检查已释放的目录，仅实际执行状态需要校验 checkout。
+    if (!binding || !["ready", "restoring", "missing"].includes(binding.status)) {
       if (binding?.preparation)
         binding = {
           ...binding,

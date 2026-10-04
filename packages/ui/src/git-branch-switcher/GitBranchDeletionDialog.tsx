@@ -156,6 +156,7 @@ export function GitBranchDeletionDialog({
           workspaceRemoteSessionId={workspaceRemoteSessionId}
           initialSessionId={management.taskId}
           open={management.open}
+          onWorktreeDeleted={(binding) => onDeleted(binding.branch)}
           onOpenChange={(open) => {
             // 隐藏保留管理控制器，避免在途归档或差异返回被卸载；关闭后重新读取 Git 占用。
             setManagement((previous) => (previous ? { ...previous, open } : null));

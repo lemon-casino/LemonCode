@@ -11,6 +11,9 @@ import { WorktreeReviewDialog } from "./WorktreeReviewDialog.js";
 import { commitMergeState } from "@/git-action-menu/commitMergeState.js";
 import { useWorktreeLifecycleStore } from "@/store/worktreeLifecycleStore.js";
 import { useReviewWorkspaceState } from "@/hooks/useReviewWorkspaceState.js";
+import { useWorktreeSessionAvailability } from "@/hooks/useWorktreeSessionAvailability.js";
+import { WorktreeDiscardControl } from "./WorktreeDiscardControl.js";
+import type { WorktreeBinding } from "@lcode/services";
 
 export function WorktreeManagementActions({
   workspacePath,
@@ -23,7 +26,9 @@ export function WorktreeManagementActions({
   onHideReview,
   onShowReview,
   defaultOpen = false,
+  defaultDeleteOpen = false,
   onSelectSession,
+  onWorktreeDeleted,
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
@@ -35,13 +40,21 @@ export function WorktreeManagementActions({
   onHideReview?: () => void;
   onShowReview?: () => void;
   defaultOpen?: boolean;
+  defaultDeleteOpen?: boolean;
   onSelectSession?: (sessionId: string) => void;
+  onWorktreeDeleted?: (binding: WorktreeBinding) => void;
 }) {
   const { intl } = useLCodeIntl();
   const lifecycleRevision = useWorktreeLifecycleStore(
     (state) => state.revisions[workspaceIdentity?.trim() || workspacePath] ?? 0,
   );
   const sharedReview = useReviewWorkspaceState(workspacePath, workspaceIdentity, sessionId);
+  const sessionAvailability = useWorktreeSessionAvailability(
+    workspacePath,
+    workspaceIdentity,
+    sessionId,
+    lifecycleRevision,
+  );
   // 管理窗口隐藏后仍挂载；订阅原有失效/阶段版本，再读服务事实，避免合并后重开仍显示旧状态。
   const task = useWorktreeTask(
     workspacePath,
@@ -72,11 +85,23 @@ export function WorktreeManagementActions({
   }
   const locked =
     busy || task.pending || commitMergeState(operation ?? undefined, null).sourceLocked;
+  const deleted = binding.status === "deleted";
   const content = (
     <div className="space-y-3 text-ui-sm" data-testid="worktree-management-content">
       <p className="break-all font-mono">{binding.workspacePath}</p>
       <p className="break-all">{binding.branch}</p>
       <p>{intl.formatMessage({ id: `worktree.binding.${binding.status}` })}</p>
+      <WorktreeReadStatus loading={task.pending} error={task.error} />
+      {binding.status === "archived" ? (
+        <p role="status" className="text-foreground-subtle" data-testid="worktree-archive-success">
+          {intl.formatMessage({ id: "worktree.archiveSuccess" })}
+        </p>
+      ) : null}
+      {deleted ? (
+        <p role="status" data-testid="worktree-discard-success">
+          {intl.formatMessage({ id: "worktree.discardSuccess" })}
+        </p>
+      ) : null}
       <p className="text-foreground-subtle">
         {intl.formatMessage({ id: "worktree.managementDescription" })}
       </p>
@@ -84,7 +109,7 @@ export function WorktreeManagementActions({
         type="button"
         variant="outline"
         data-testid="worktree-open-commit-review"
-        disabled={task.pending || binding.status !== "ready"}
+        disabled={task.pending || binding.status !== "ready" || sessionAvailability !== "available"}
         onClick={() => {
           navigation.clearReturn();
           hide();
@@ -93,6 +118,16 @@ export function WorktreeManagementActions({
       >
         {intl.formatMessage({ id: "git.commitWorkflow.worktree.title" })}
       </Button>
+      {sessionAvailability === "missing" ? (
+        <p className="text-foreground-subtle" data-testid="worktree-session-missing">
+          {intl.formatMessage({ id: "worktree.sessionMissing" })}
+        </p>
+      ) : null}
+      {sessionAvailability === "error" ? (
+        <p className="text-foreground-subtle">
+          {intl.formatMessage({ id: "worktree.sessionReadFailed" })}
+        </p>
+      ) : null}
       {operation ? (
         <p role="status">
           {intl.formatMessage(
@@ -119,7 +154,7 @@ export function WorktreeManagementActions({
             : undefined
         }
       />
-      {binding.status === "archived" ? (
+      {deleted || binding.status === "deleting" ? null : binding.status === "archived" ? (
         <Button
           type="button"
           disabled={locked}
@@ -147,6 +182,30 @@ export function WorktreeManagementActions({
           }
         />
       )}
+      {!deleted ? (
+        <WorktreeDiscardControl
+          defaultOpen={defaultDeleteOpen}
+          binding={binding}
+          operation={operation}
+          disabled={busy || task.pending}
+          pending={task.pending}
+          error={task.error}
+          onDiscard={() =>
+            task.perform(() =>
+              worktreeService
+                .archive({
+                  bindingId: binding.id,
+                  requestId: crypto.randomUUID(),
+                  discard: { branch: binding.branch, checkoutPath: binding.checkoutPath },
+                })
+                .then((deletedBinding) => {
+                  if (deletedBinding.status === "deleted") onWorktreeDeleted?.(deletedBinding);
+                  return deletedBinding;
+                }),
+            )
+          }
+        />
+      ) : null}
       <Button
         type="button"
         variant="ghost"
@@ -155,7 +214,6 @@ export function WorktreeManagementActions({
       >
         {intl.formatMessage({ id: "worktree.refresh" })}
       </Button>
-      <WorktreeReadStatus loading={task.pending} error={task.error} />
     </div>
   );
   if (renderContent) return renderContent(content);

@@ -1,7 +1,7 @@
 export function createWorktreeBranchFixture(
   calls: { method: string; params: unknown }[],
   failBranches: () => boolean,
-  managed?: () => { name: string; checkoutPath: string | null },
+  managed?: () => { name: string; checkoutPath: string | null; deleted?: boolean },
 ) {
   const deleted = new Set<string>();
   const query = new URLSearchParams(location.search);
@@ -29,7 +29,7 @@ export function createWorktreeBranchFixture(
         headRefType: "branch",
         currentBranchName: "L-GO",
         branches: branchNames
-          .filter((name) => !deleted.has(name))
+          .filter((name) => !deleted.has(name) && !(managed?.().deleted && name === managed().name))
           .map((name) => ({
             name,
             isCurrent: name === "L-GO",
