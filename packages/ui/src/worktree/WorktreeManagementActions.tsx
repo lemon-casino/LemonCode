@@ -190,20 +190,20 @@ export function WorktreeManagementActions({
           disabled={busy || task.pending}
           pending={task.pending}
           error={task.error}
-          onDiscard={() =>
-            task.perform(() =>
-              worktreeService
-                .archive({
-                  bindingId: binding.id,
-                  requestId: crypto.randomUUID(),
-                  discard: { branch: binding.branch, checkoutPath: binding.checkoutPath },
-                })
-                .then((deletedBinding) => {
-                  if (deletedBinding.status === "deleted") onWorktreeDeleted?.(deletedBinding);
-                  return deletedBinding;
-                }),
-            )
-          }
+          onDiscard={async () => {
+            let deletedBinding: WorktreeBinding | undefined;
+            const success = await task.perform(async () => {
+              deletedBinding = await worktreeService.archive({
+                bindingId: binding.id,
+                requestId: crypto.randomUUID(),
+                discard: { branch: binding.branch, checkoutPath: binding.checkoutPath },
+              });
+            });
+            // 完成生命周期对账后才通知返回列表，避免删除仍在途时卸载控制器或显示旧条目。
+            if (success && deletedBinding?.status === "deleted")
+              onWorktreeDeleted?.(deletedBinding);
+            return success;
+          }}
         />
       ) : null}
       <Button

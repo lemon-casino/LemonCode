@@ -999,7 +999,7 @@ const zhCN: Record<string, string> = {
     "当前连接不支持工作树管理。请在占用目录切换分支，或通过 Git 处理工作树后刷新分支列表。",
   "git.branchDelete.occupiedLabel": "工作树占用",
   "git.branchDelete.managedDescription":
-    "可进入对应工作树管理，审核改动后合并或保存快照并归档。归档后重新检查分支；未合并的提交仍受保护。",
+    "可进入对应工作树管理，审核改动后合并，或保存快照并释放目录。释放后重新检查分支；未合并的提交仍受保护。",
   "git.branchDelete.externalDescription":
     "此目录未登记为本应用管理的工作树。请在该目录切换分支，或通过 Git 处理工作树后刷新分支列表。",
   "git.branchPicker.headDescription": "当前检出的提交",
@@ -6936,13 +6936,14 @@ const zhCN: Record<string, string> = {
   "worktree.unavailable": "当前目录不支持工作树",
   "worktree.manage": "工作树管理",
   "worktree.managementDescription":
-    "管理此会话的执行目录、归档和恢复。提交及合并使用同一审核入口。",
-  "worktree.restoreFromManagement": "此工作树已归档。请在工作树管理中恢复后继续审核。",
+    "管理工作树目录和文件快照。目录与快照由关联会话共享，提交及合并使用同一审核入口。",
+  "worktree.restoreFromManagement":
+    "此工作树目录已释放，快照仍保留在项目工作树中。恢复目录后可继续执行和审核。",
   "worktree.targetLocalChanges":
     "目标目录存在会妨碍合并的本地改动。请先保存下列涉及文件，再重试；其他改动可保留。",
   "worktree.targetChangedReview": "目标分支已更新。请取消旧合并操作，基于最新目标重新准备并审核。",
   "worktree.sourceUnavailable": "无法读取工作树来源提交",
-  "worktree.restore": "恢复工作树",
+  "worktree.restore": "恢复工作树目录",
   "worktree.integrate": "准备合并已提交成果",
   "worktree.integrateDescription":
     "仅准备合并结果，不更新原项目目标分支。审核合并差异并完成验证后，再确认合并。",
@@ -6970,12 +6971,17 @@ const zhCN: Record<string, string> = {
   "worktree.integrationDirectory": "集成目录",
   "worktree.ignoredOmissions": "未保存的忽略文件或目录（{count} 项）",
   "worktree.archiveIgnored": "我已了解忽略文件不会保存，允许在快照后移除工作树中的忽略文件",
-  "worktree.archive": "保存快照并归档",
-  "worktree.archiveSuccess": "已保存快照并移除工作树目录，分支占用已释放。需要时可恢复。",
+  "worktree.archive": "保存快照并释放目录",
+  "worktree.archiveDescription":
+    "保存工作树文件快照后移除目录，不归档会话。同一工作树的所有会话都需恢复目录后才能继续执行。快照可在项目工作树中查看和恢复。",
+  "worktree.snapshotTitle": "已保存的工作树快照",
+  "worktree.snapshotSavedAt": "保存时间：{time}",
+  "worktree.archiveSuccess":
+    "快照已保存在项目工作树中，目录和分支占用已释放。会话未归档，恢复目录后所有关联会话可继续执行。",
   "worktree.discard": "删除工作树",
   "worktree.discardTitle": "删除这个工作树？",
   "worktree.discardDescription":
-    "将删除以下目录、任务分支及其归档快照，包括未提交改动、未跟踪文件、忽略文件和未合并的提交，无法恢复。聊天记录保留；使用同一工作树的其他会话也将无法继续在该目录执行。原项目目录和已合并到目标分支的内容保留。",
+    "将删除以下目录、任务分支及其文件快照，包括未提交改动、未跟踪文件、忽略文件和未合并的提交，无法恢复。聊天记录保留；使用同一工作树的其他会话也将无法继续在该目录执行。原项目目录和已合并到目标分支的内容保留。",
   "worktree.discardDirectory": "删除目录",
   "worktree.discardBranch": "删除分支",
   "worktree.discardConfirm": "删除",
@@ -6985,7 +6991,7 @@ const zhCN: Record<string, string> = {
     "此会话已删除或没有保存的会话记录。可以直接管理或删除工作树，无需打开提交审核。",
   "worktree.sessionReadFailed": "暂时无法核实会话记录。可以管理工作树；刷新后可重试打开审核。",
   "worktree.archiveOutputLimit":
-    "归档文件清单过大，未移除工作树。可保留文件后重试，或在此窗口选择删除工作树。",
+    "快照文件清单过大，未移除工作树。可保留文件后重试，或在此窗口选择删除工作树。",
   "worktree.operationTimedOut": "Git 操作超时，未确认操作完成，请刷新后重试。",
   "worktree.deleteRunning": "目录正在使用中，请先停止相关任务，再删除工作树。",
   "worktree.deleteChanged": "删除期间任务分支发生了变化，已保留后续改动。请检查分支后处理。",
@@ -6996,7 +7002,7 @@ const zhCN: Record<string, string> = {
   "worktree.binding.ready": "工作树可用",
   "worktree.binding.failed": "工作树准备失败",
   "worktree.binding.cancelled": "工作树准备已取消",
-  "worktree.binding.archived": "已归档，快照可恢复",
+  "worktree.binding.archived": "目录已释放，快照可恢复",
   "worktree.binding.restoring": "正在恢复",
   "worktree.binding.missing": "工作树目录丢失，请恢复或处理原路径",
   "worktree.integration.preparing": "正在准备合并结果，目标分支尚未更新",
@@ -7017,7 +7023,7 @@ const zhCN: Record<string, string> = {
   "worktree.projectWorktrees": "项目工作树",
   "worktree.backToProjectWorktrees": "返回项目工作树",
   "worktree.projectWorktreesDescription":
-    "包含未发送或已放弃草稿准备的工作树，可在这里归档和恢复。",
+    "管理项目工作树及已保存的文件快照。释放目录后的工作树仍保留在此处，可查看快照、恢复目录或删除；与会话归档分别管理。",
   "worktree.noWorktrees": "暂无工作树",
   "worktree.loading": "正在读取…",
   "git.review.returnToDialog": "返回审核",

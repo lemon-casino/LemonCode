@@ -116,27 +116,37 @@ export function WorktreeSnapshotSummary({
   onOpenFiles?: () => void;
 }) {
   const { intl } = useLCodeIntl();
-  if (!snapshot?.ignoredPaths.length) return null;
+  // 快照属于工作树而非会话归档；即使没有遗漏文件，也必须展示已保存的快照证据。
+  if (!snapshot) return null;
   return (
-    <details className="text-ui-sm" data-testid="worktree-ignored-omissions">
-      <summary className="cursor-pointer">
-        {intl.formatMessage(
-          { id: "worktree.ignoredOmissions" },
-          { count: snapshot.ignoredPaths.length },
-        )}
-      </summary>
-      <p>{intl.formatMessage({ id: "worktree.ignoredListDescription" })}</p>
-      {onOpenFiles ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          data-testid="worktree-open-omissions"
-          onClick={onOpenFiles}
-        >
-          {intl.formatMessage({ id: "worktree.openOmissions" })}
-        </Button>
+    <div className="space-y-2 text-ui-sm" data-testid="worktree-snapshot-summary">
+      <p>{intl.formatMessage({ id: "worktree.snapshotTitle" })}</p>
+      <p className="break-all font-mono">{snapshot.commit}</p>
+      <p className="text-foreground-subtle">
+        {intl.formatMessage({ id: "worktree.snapshotSavedAt" }, { time: snapshot.createdAt })}
+      </p>
+      {snapshot.ignoredPaths.length ? (
+        <details data-testid="worktree-ignored-omissions">
+          <summary className="cursor-pointer">
+            {intl.formatMessage(
+              { id: "worktree.ignoredOmissions" },
+              { count: snapshot.ignoredPaths.length },
+            )}
+          </summary>
+          <p>{intl.formatMessage({ id: "worktree.ignoredListDescription" })}</p>
+          {onOpenFiles ? (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              data-testid="worktree-open-omissions"
+              onClick={onOpenFiles}
+            >
+              {intl.formatMessage({ id: "worktree.openOmissions" })}
+            </Button>
+          ) : null}
+        </details>
       ) : null}
-    </details>
+    </div>
   );
 }

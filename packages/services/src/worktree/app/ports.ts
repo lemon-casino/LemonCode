@@ -15,6 +15,7 @@ export interface WorktreeStore {
   readOperation(id: string): Promise<WorktreeIntegration | null>;
   saveOperation(operation: WorktreeIntegration): Promise<void>;
   assertManagedPath(path: string): Promise<void>;
+  removeCheckout(path: string): Promise<void>;
   exists(path: string): Promise<boolean>;
   readAlias(id: string): Promise<WorktreeSessionAlias | null>;
   saveAlias(alias: WorktreeSessionAlias): Promise<void>;

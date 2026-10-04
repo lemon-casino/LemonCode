@@ -2,6 +2,7 @@ import type { WorktreeBinding } from "../contract.js";
 import type { CheckoutCoordinator } from "../nodeTypes.js";
 import type { WorktreeContext } from "./ports.js";
 import { createWorktreeDiscard } from "./discard.js";
+import { removeManagedCheckout } from "./removeCheckout.js";
 
 export function createWorktreeArchive(
   context: WorktreeContext,
@@ -35,42 +36,47 @@ export function createWorktreeArchive(
     if (["deleting", "deleted"].includes(original.status))
       throw new Error("Worktree has been deleted; create a new task");
     if (original.status === "archived") return original;
-    if (!(await store.exists(original.checkoutPath))) {
-      if (!original.snapshot) throw new Error("Missing worktree has no saved archive snapshot");
-      return store.lock(original.id, async () => {
-        const archived = {
-          ...(await binding(original.id)),
-          status: "archived" as const,
-          updatedAt: new Date().toISOString(),
-        };
-        await store.saveBinding(archived);
-        return archived;
-      });
-    }
+    if (!(await store.exists(original.checkoutPath)) && !original.snapshot)
+      throw new Error("Missing worktree has no saved archive snapshot");
     return store.lock(original.id, async () => {
       let value = await binding(original.id);
       if (value.status === "archived") return value;
+      const exists = await store.exists(value.checkoutPath);
       const lease = await coordinator.acquire({
-        workspacePath: value.checkoutPath,
+        workspacePath: exists ? value.checkoutPath : value.repositoryRoot,
         ownerId: `archive:${params.requestId}`,
       });
       try {
-        await ready(value);
-        const snapshot = await git.snapshot(value, Boolean(params.acknowledgeIgnoredFiles));
-        value = { ...value, snapshot, updatedAt: new Date().toISOString() };
-        await store.saveBinding(value);
-        await context.fault("archive.after-snapshot");
-        await ready(value);
-        if (!(await git.matchesSnapshot(value, true)))
-          throw new Error(
-            "Worktree changed after its archive snapshot; preserve changes and retry",
-          );
-        await git.command(value.repositoryRoot, [
-          "worktree",
-          "remove",
-          "--force",
-          value.checkoutPath,
-        ]);
+        if (exists && (await git.registered(value.repositoryRoot, value.checkoutPath))) {
+          await ready(value);
+          const snapshot = await git.snapshot(value, Boolean(params.acknowledgeIgnoredFiles));
+          value = { ...value, snapshot, updatedAt: new Date().toISOString() };
+          await store.saveBinding(value);
+          await context.fault("archive.after-snapshot");
+          await ready(value);
+          if (!(await git.matchesSnapshot(value, true)))
+            throw new Error(
+              "Worktree changed after its archive snapshot; preserve changes and retry",
+            );
+        } else {
+          // 归档 remove 部分失败后 .git 已消失；沿持久快照继续清理，而非再次要求不存在的登记。
+          if (!value.snapshot) throw new Error("Managed worktree registration is missing");
+          const repository = await git.inspect(value.repositoryRoot);
+          if (
+            repository.root !== value.repositoryRoot ||
+            repository.commonDirectory !== value.commonDirectory
+          )
+            throw new Error("Worktree repository ownership has changed");
+          const head = await git.command(value.repositoryRoot, [
+            "for-each-ref",
+            "--format=%(objectname)",
+            "--",
+            `refs/heads/${value.branch}`,
+          ]);
+          if (head && head !== value.snapshot.head)
+            throw new Error("Archived task branch changed; preserve the newer work");
+        }
+        await removeManagedCheckout(context, value);
         await context.fault("archive.after-remove");
         value = { ...value, status: "archived", updatedAt: new Date().toISOString() };
         await store.saveBinding(value);

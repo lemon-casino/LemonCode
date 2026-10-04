@@ -88,6 +88,12 @@ HEAD. Deleted bindings release naming reservations and are omitted from project 
 but remain readable via getBinding. Directory removal has a separate long file-operation
 budget; lease contention still fails promptly instead of waiting for a running task.
 This management operation does not require an active or persisted chat session.
+Git removal can unregister a checkout before failing to remove its contents. Archive and
+discard share one removal path under the checkout lease: reconcile native registration,
+recheck the canonical managed path, reject any remaining `.git` marker, then remove residual
+contents with bounded filesystem retries. An interrupted discard journal or archive snapshot
+allows cleanup to resume after restart; registration absence alone is not deletion evidence.
+Success requires both native registration and the managed directory to be gone.
 
 Checkout permits are canonical-directory locks across Host processes. Live owners never
 expire by elapsed time. Runtime releases only after its writers stop; UI state is not a

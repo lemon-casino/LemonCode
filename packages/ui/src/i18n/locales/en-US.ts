@@ -1083,7 +1083,7 @@ const enUS: Record<string, string> = {
     "This connection does not support worktree management. Switch the branch in its checkout or manage the worktree through Git, then refresh the branch list.",
   "git.branchDelete.occupiedLabel": "In use by a worktree",
   "git.branchDelete.managedDescription":
-    "Open the corresponding worktree to review and merge changes or save a snapshot and archive it. Check the branch again after archiving; unmerged commits remain protected.",
+    "Open the corresponding worktree to review and merge changes, or save a snapshot and release its directory. Check the branch again after releasing it; unmerged commits remain protected.",
   "git.branchDelete.externalDescription":
     "This directory is not registered as an app-managed worktree. Switch its branch or manage the worktree through Git, then refresh the branch list.",
   "git.branchPicker.headDescription": "Currently checked-out commit",
@@ -7300,15 +7300,15 @@ const enUS: Record<string, string> = {
   "worktree.unavailable": "Worktrees are unavailable for this directory",
   "worktree.manage": "Worktree management",
   "worktree.managementDescription":
-    "Manage this session's execution directory, archive, and restore. Use the shared review entry for commits and merges.",
+    "Manage the worktree directory and file snapshots shared by its chats. Use the shared review entry for commits and merges.",
   "worktree.restoreFromManagement":
-    "This worktree is archived. Restore it in worktree management to continue reviewing.",
+    "This worktree directory was released. Its snapshot remains in Project worktrees. Restore the directory to continue running or reviewing.",
   "worktree.targetLocalChanges":
     "Local changes in the target prevent this merge. Save the affected files below, then retry. Other changes can stay.",
   "worktree.targetChangedReview":
     "The target branch has changed. Cancel the old integration and prepare a new review against the latest target.",
   "worktree.sourceUnavailable": "Cannot read the source commit",
-  "worktree.restore": "Restore worktree",
+  "worktree.restore": "Restore worktree directory",
   "worktree.integrate": "Prepare merge of saved commits",
   "worktree.integrateDescription":
     "Prepares the merge result without updating the project target branch. Review the diff and complete validation, then confirm the merge.",
@@ -7341,13 +7341,17 @@ const enUS: Record<string, string> = {
   "worktree.ignoredOmissions": "Ignored files or directories not saved ({count})",
   "worktree.archiveIgnored":
     "Ignored files will not be saved. Allow removing them from this worktree after the snapshot.",
-  "worktree.archive": "Save snapshot and archive",
+  "worktree.archive": "Save snapshot and release directory",
+  "worktree.archiveDescription":
+    "Save a file snapshot and remove the worktree directory without archiving chats. All chats sharing this worktree require the directory to be restored before running again. View and restore the snapshot in Project worktrees.",
+  "worktree.snapshotTitle": "Saved worktree snapshot",
+  "worktree.snapshotSavedAt": "Saved at: {time}",
   "worktree.archiveSuccess":
-    "Snapshot saved and checkout removed. The branch is no longer occupied; restore when needed.",
+    "Snapshot saved in Project worktrees. The directory and branch occupancy were released. Chats remain unarchived; restore the directory to continue running any linked chat.",
   "worktree.discard": "Delete worktree",
   "worktree.discardTitle": "Delete this worktree?",
   "worktree.discardDescription":
-    "Delete the directories, task branch and archive snapshots below, including uncommitted changes, untracked files, ignored files and unmerged commits. This cannot be undone. Chat history remains; other chats using this worktree will also lose access to the directory. The original project and changes already merged into the target branch remain.",
+    "Delete the directories, task branch and file snapshots below, including uncommitted changes, untracked files, ignored files and unmerged commits. This cannot be undone. Chat history remains; other chats using this worktree will also lose access to the directory. The original project and changes already merged into the target branch remain.",
   "worktree.discardDirectory": "Directory to delete",
   "worktree.discardBranch": "Branch to delete",
   "worktree.discardConfirm": "Delete",
@@ -7358,7 +7362,7 @@ const enUS: Record<string, string> = {
   "worktree.sessionReadFailed":
     "Unable to check the chat record. Worktree management remains available; refresh to retry review.",
   "worktree.archiveOutputLimit":
-    "The archive file list is too large. The worktree was kept. Preserve your files and retry, or delete the worktree here.",
+    "The snapshot file list is too large. The worktree was kept. Preserve your files and retry, or delete the worktree here.",
   "worktree.operationTimedOut":
     "Git operation timed out. Completion is unconfirmed; refresh before retrying.",
   "worktree.deleteRunning":
@@ -7372,7 +7376,7 @@ const enUS: Record<string, string> = {
   "worktree.binding.ready": "Worktree is ready",
   "worktree.binding.failed": "Worktree preparation failed",
   "worktree.binding.cancelled": "Worktree preparation cancelled",
-  "worktree.binding.archived": "Archived; snapshot can be restored",
+  "worktree.binding.archived": "Directory released; snapshot can be restored",
   "worktree.binding.restoring": "Restoring worktree",
   "worktree.binding.missing":
     "Worktree directory is missing; restore it or repair its original location",
@@ -7396,7 +7400,7 @@ const enUS: Record<string, string> = {
   "worktree.projectWorktrees": "Project worktrees",
   "worktree.backToProjectWorktrees": "Back to project worktrees",
   "worktree.projectWorktreesDescription":
-    "Includes worktrees prepared for unsent or abandoned drafts. Archive and restore them here.",
+    "Manage project worktrees and saved file snapshots. Released worktrees remain here for viewing snapshots, restoring directories or deleting. Chat archives are managed separately.",
   "worktree.noWorktrees": "No worktrees yet",
   "worktree.loading": "Loading…",
   "git.review.returnToDialog": "Return to review",

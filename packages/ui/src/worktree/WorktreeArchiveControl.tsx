@@ -17,6 +17,9 @@ export function WorktreeArchiveControl({
   const { intl } = useLCodeIntl();
   return (
     <div className="space-y-2 border-t border-border pt-3">
+      <p className="text-ui-sm text-foreground-subtle">
+        {intl.formatMessage({ id: "worktree.archiveDescription" })}
+      </p>
       <label className="flex items-start gap-2 text-ui-sm">
         <Checkbox
           disabled={disabled}

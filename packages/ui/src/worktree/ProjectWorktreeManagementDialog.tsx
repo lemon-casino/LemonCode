@@ -90,7 +90,12 @@ export function ProjectWorktreeManagementDialog({
       onShowReview={() => onOpenChange(true)}
       onSelectSession={onSelectSession}
       defaultDeleteOpen={deleteRequested}
-      onWorktreeDeleted={onWorktreeDeleted}
+      onWorktreeDeleted={(binding) => {
+        // 删除完成就退出已删除项的详情；重新挂载列表读取 owner，用户无需返回后再删一次。
+        setDeleteRequested(false);
+        setSelectedSessionId((current) => (current === selectedSessionId ? null : current));
+        onWorktreeDeleted?.(binding);
+      }}
     />
   ) : (
     renderDialog(

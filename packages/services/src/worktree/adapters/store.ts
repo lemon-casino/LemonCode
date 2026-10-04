@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { access, lstat, mkdir, readFile, readdir, realpath } from "node:fs/promises";
+import { access, lstat, mkdir, readFile, readdir, realpath, rm } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { atomicWritePrivateTextFile, withFileLock } from "@lcode/shared/node";
 import type { WorktreeBinding, WorktreeIntegration } from "../contract.js";
@@ -129,6 +129,18 @@ export function createWorktreeStore(dataDir: string): WorktreeStore {
       await write("operations", operation.id, operationRecord.parse(operation));
     },
     assertManagedPath,
+    async removeCheckout(path) {
+      // Git 可能已经解除登记但留下依赖目录；仅清理未重定向、没有新仓库标记的受管残留。
+      await assertManagedPath(path);
+      try {
+        await lstat(join(path, ".git"));
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        await rm(path, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        return;
+      }
+      throw new Error("Residual worktree contains a Git marker; preserve the existing directory");
+    },
     async exists(path) {
       try {
         await access(path);

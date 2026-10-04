@@ -1,6 +1,7 @@
 import type { WorktreeBinding, WorktreeIntegration, IWorktreeService } from "../contract.js";
 import type { CheckoutCoordinator } from "../nodeTypes.js";
 import type { WorktreeContext } from "./ports.js";
+import { removeManagedCheckout } from "./removeCheckout.js";
 
 /** 强制放弃仍由生命周期 owner 收口；保留墓碑，防止原会话回退到本地目录或重新创建。 */
 export function createWorktreeDiscard(
@@ -48,9 +49,9 @@ export function createWorktreeDiscard(
       const exists = await store.exists(value.checkoutPath);
       const registered = await git.registered(value.repositoryRoot, value.checkoutPath);
       if (exists) {
-        if (!registered)
+        if (!registered && !value.deletion && !value.snapshot)
           throw new Error("Worktree ownership is missing; preserve the existing directory");
-        await ready(value);
+        if (registered) await ready(value);
       }
       const lease = await coordinator.acquire({
         workspacePath: exists ? value.checkoutPath : value.repositoryRoot,
@@ -60,19 +61,22 @@ export function createWorktreeDiscard(
       let integrationLease;
       try {
         // 取得许可后再检查目录与分支；Renderer 的 busy 标记不能替代真实 writer 判定。
-        if (exists) await ready(value);
+        if (exists && registered) await ready(value);
         if (operation) {
           await store.assertManagedPath(operation.checkoutPath);
           if (operation.checkoutPath !== store.checkout(operation.id))
             throw new Error("Integration checkout path does not match its record");
           if (await store.exists(operation.checkoutPath)) {
-            const info = await git.inspect(operation.checkoutPath);
-            if (
-              info.root !== operation.checkoutPath ||
-              info.commonDirectory !== value.commonDirectory ||
-              info.branch
-            )
-              throw new Error("Integration checkout ownership has changed");
+            if (await git.registered(value.repositoryRoot, operation.checkoutPath)) {
+              const info = await git.inspect(operation.checkoutPath);
+              if (
+                info.root !== operation.checkoutPath ||
+                info.commonDirectory !== value.commonDirectory ||
+                info.branch
+              )
+                throw new Error("Integration checkout ownership has changed");
+            } else if (!value.deletion)
+              throw new Error("Integration checkout ownership is missing");
             integrationLease = await coordinator.acquire({
               workspacePath: operation.checkoutPath,
               ownerId: `discard-integration:${params.requestId}`,
@@ -105,21 +109,13 @@ export function createWorktreeDiscard(
               status: "cancelled",
               updatedAt: new Date().toISOString(),
             });
-          if (await git.registered(value.repositoryRoot, operation.checkoutPath))
-            await git.command(value.repositoryRoot, [
-              "worktree",
-              "remove",
-              "--force",
-              operation.checkoutPath,
-            ]);
+          await removeManagedCheckout(context, {
+            id: operation.id,
+            checkoutPath: operation.checkoutPath,
+            repositoryRoot: value.repositoryRoot,
+          });
         }
-        if (registered)
-          await git.command(value.repositoryRoot, [
-            "worktree",
-            "remove",
-            "--force",
-            value.checkoutPath,
-          ]);
+        await removeManagedCheckout(context, value);
         await context.fault("discard.after-remove");
         const currentHead = await git.command(value.repositoryRoot, [
           "for-each-ref",

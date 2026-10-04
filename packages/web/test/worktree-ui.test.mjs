@@ -329,7 +329,9 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
       const management = page.getByTestId("project-worktree-management-dialog");
       await management.getByText("已合并到 L-GO", { exact: true }).waitFor();
       assert.equal(
-        await management.getByRole("button", { name: "保存快照并归档", exact: true }).isEnabled(),
+        await management
+          .getByRole("button", { name: "保存快照并释放目录", exact: true })
+          .isEnabled(),
         true,
       );
       await management.getByTestId("worktree-open-commit-review").click();

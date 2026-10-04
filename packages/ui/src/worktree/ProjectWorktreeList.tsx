@@ -31,6 +31,9 @@ export function ProjectWorktreeList({
             <p className="break-all px-2" title={binding.branch}>
               {binding.branch}
             </p>
+            <p className="px-2 text-ui-sm text-foreground-subtle">
+              {intl.formatMessage({ id: `worktree.binding.${binding.status}` })}
+            </p>
             <div className="flex items-center justify-between">
               <Button
                 type="button"
