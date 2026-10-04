@@ -17,6 +17,7 @@ import {
 } from "@lcode/shared";
 import { GitPublishRepo } from "./repo/gitPublishRepo.js";
 import { commitWithPublishState } from "./gitServiceCommit.js";
+import { readOptionalBranchComparison } from "./gitBranchComparisonRead.js";
 import { isPathInWorkspaceScope, normalizeGitPath, toWorkspaceRelativeGitPath } from "./config.js";
 import { filterCommitMessageFilesByCurrentSession } from "./commitMessageFileScope.js";
 import type { IGitService } from "./git.js";
@@ -426,14 +427,12 @@ export function createGitService(options?: {
       const identityPromise = params.includeIdentity
         ? repo.getIdentity(params.workspacePath)
         : Promise.resolve(null);
-      const branchComparisonPromise = params.includeBranchComparison
-        ? repo.getBranchComparison(params.workspacePath)
-        : Promise.resolve(null);
-      const [status, identity, branchComparisonSnapshot] = await Promise.all([
+      const [status, identity, branchComparisonResult] = await Promise.all([
         statusPromise,
         identityPromise,
-        branchComparisonPromise,
+        readOptionalBranchComparison(repo, params),
       ]);
+      const branchComparisonSnapshot = branchComparisonResult.snapshot;
       const branchComparison: GitBranchComparison | null = branchComparisonSnapshot
         ? {
             baseRef: branchComparisonSnapshot.baseRef,
@@ -454,6 +453,7 @@ export function createGitService(options?: {
         unstagedChanges: getChangesForSource(status, "unstaged"),
         stagedChanges: getChangesForSource(status, "staged"),
         branchComparison,
+        branchComparisonError: branchComparisonResult.error,
       };
     },
   };

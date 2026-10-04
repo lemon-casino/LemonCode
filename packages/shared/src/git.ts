@@ -328,6 +328,8 @@ export interface GitRefreshResult {
   unstagedChanges: GitFileChange[];
   stagedChanges: GitFileChange[];
   branchComparison: GitBranchComparison | null;
+  /** 可选上游比较失败不影响本地状态；旧 Host 不携带此字段。 */
+  branchComparisonError?: string;
 }
 
 export type GitCheckpointScope = "workspace";

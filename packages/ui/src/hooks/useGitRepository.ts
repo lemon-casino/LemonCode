@@ -55,6 +55,7 @@ export interface GitPaneDataset {
   readonly: boolean;
   sections: GitPaneSection[];
   comparisonLabel?: string | null;
+  error?: string | null;
   turnIndex?: number | null;
 }
 
@@ -262,6 +263,7 @@ function buildRepositoryDatasets(options: {
   unstagedChanges: GitFileChange[];
   stagedChanges: GitFileChange[];
   branchComparison: GitBranchComparison;
+  branchComparisonError?: string;
 }): RepositoryDatasets {
   return {
     unstaged: {
@@ -279,6 +281,7 @@ function buildRepositoryDatasets(options: {
       readonly: true,
       sections: buildSectionsForSource("branch", options.branchComparison.changes),
       comparisonLabel: options.branchComparison.comparisonLabel,
+      error: options.branchComparisonError ?? null,
     },
   };
 }
@@ -476,35 +479,46 @@ export function useGitRepository(options: {
     // 关键业务逻辑：header 常驻时只需要 summary + staged/unstaged 统计；
     // branch comparison 与 identity 只在真正展开 Git pane 后再拉取，避免首屏预取整套 Git pane 数据。
     void refreshPromise
-      .then(({ summary, identity, unstagedChanges, stagedChanges, branchComparison }) => {
-        if (disposed || requestVersionRef.current !== requestVersion) {
-          return;
-        }
-
-        const repositoryDatasets = buildRepositoryDatasets({
+      .then(
+        ({
+          summary,
+          identity,
           unstagedChanges,
           stagedChanges,
-          branchComparison: branchComparison ?? EMPTY_BRANCH_COMPARISON,
-        });
-        const datasets: Record<GitChangeSourceId, GitPaneDataset> = {
-          ...repositoryDatasets,
-          "last-turn": createEmptyDataset("last-turn", true),
-        };
+          branchComparison,
+          branchComparisonError,
+        }) => {
+          if (disposed || requestVersionRef.current !== requestVersion) {
+            return;
+          }
 
-        setRepositoryState({
-          workspaceKey,
-          summary,
-          identity: identity ?? EMPTY_IDENTITY,
-          placeholder: {
-            enabled: false,
-          },
-          loading: false,
-          error: null,
-          revision: requestVersion,
-          sourceOptions: buildSourceOptions(datasets),
-          datasets,
-        });
-      })
+          const repositoryDatasets = buildRepositoryDatasets({
+            unstagedChanges,
+            stagedChanges,
+            branchComparison: branchComparison ?? EMPTY_BRANCH_COMPARISON,
+            // 上游比较错误只属于 branch 数据集，不能回写仓库级错误并清空本地改动。
+            branchComparisonError,
+          });
+          const datasets: Record<GitChangeSourceId, GitPaneDataset> = {
+            ...repositoryDatasets,
+            "last-turn": createEmptyDataset("last-turn", true),
+          };
+
+          setRepositoryState({
+            workspaceKey,
+            summary,
+            identity: identity ?? EMPTY_IDENTITY,
+            placeholder: {
+              enabled: false,
+            },
+            loading: false,
+            error: null,
+            revision: requestVersion,
+            sourceOptions: buildSourceOptions(datasets),
+            datasets,
+          });
+        },
+      )
       .catch((error: unknown) => {
         if (disposed || requestVersionRef.current !== requestVersion) {
           return;

@@ -92,6 +92,9 @@ packages/desktop/src/scheduler/schedulerProtocol.js.map
 !/packages/web/test/fixtures/local-project-persistence.html
 !/packages/web/test/fixtures/local-project-persistence.tsx
 !/packages/web/test/local-project-persistence.test.mjs
+!/packages/web/test/git-review-source-errors.test.mjs
+!/packages/web/test/fixtures/git-review-source-errors.html
+!/packages/web/test/fixtures/git-review-source-errors.tsx
 !/packages/web/test/fixtures/git-backup.html
 !/packages/web/test/fixtures/git-backup.tsx
 !/packages/web/test/fixtures/git-backup-service.ts

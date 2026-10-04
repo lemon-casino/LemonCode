@@ -104,6 +104,7 @@ export function GitPane({
     [currentDataset],
   );
   const normalizedFileChangeFindQuery = fileChangeFindQuery.trim();
+  const currentError = gitState.error ?? currentDataset.error;
 
   const emptyStateCopy = useMemo(() => {
     if (currentSourceOption.id === "last-turn") {
@@ -122,13 +123,10 @@ export function GitPane({
       };
     }
 
-    if (gitState.error) {
+    if (currentError) {
       return {
         title: intl.formatMessage({ id: "git.error.title" }),
-        description: intl.formatMessage(
-          { id: "git.error.description" },
-          { message: gitState.error },
-        ),
+        description: intl.formatMessage({ id: "git.error.description" }, { message: currentError }),
       };
     }
 
@@ -156,7 +154,7 @@ export function GitPane({
     };
   }, [
     currentSourceOption.id,
-    gitState.error,
+    currentError,
     gitState.loading,
     gitState.summary.isGitAvailable,
     gitState.summary.isRepository,
