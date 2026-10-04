@@ -18,16 +18,23 @@ export async function runGitPublishEditingCases(t, { page, url }) {
     await page.getByTestId(`git-publish-tag-mode-${mode}`).click();
   };
   const selectPreset = async () => {
+    await openPresets();
     await page.getByTestId("git-publish-preset-select").click();
     await page.getByRole("option", { name: "发布预览", exact: true }).click();
   };
   const assertNoPreset = async () => {
+    await openPresets();
     const selector = page.getByTestId("git-publish-preset-select");
     if ((await selector.count()) > 0 && (await selector.isEnabled())) {
       await selector.click();
       assert.equal(await page.getByRole("option", { name: "发布预览", exact: true }).count(), 0);
       await page.keyboard.press("Escape");
     }
+  };
+  const openPresets = async () => {
+    const presets = page.getByTestId("git-publish-presets");
+    if (!(await presets.evaluate((element) => element.open)))
+      await presets.locator("summary").click();
   };
   const load = async (query = "") => {
     await page.setViewportSize({ width: 1280, height: 900 });
@@ -166,6 +173,11 @@ export async function runGitPublishEditingCases(t, { page, url }) {
     await page.getByTestId("git-publish-branch-origin").fill("release/preview");
     await tagMode("create-and-push");
     await page.getByTestId("git-publish-tag-name").fill("v1.10.1");
+    assert.equal(
+      await page.getByTestId("git-publish-presets").evaluate((element) => element.open),
+      false,
+    );
+    await openPresets();
     await page.getByTestId("git-publish-preset-name").fill("发布预览");
     await page.getByTestId("git-publish-preset-save").click();
     await load("?identity=fixture-preset-a");

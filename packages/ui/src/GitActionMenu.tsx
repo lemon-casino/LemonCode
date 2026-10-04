@@ -1238,6 +1238,7 @@ export function GitActionMenu({
       worktreeMergeActions={merge}
       mergeOperationId={operation?.id}
       mergeOperationStatus={operation?.status}
+      mergeTargetBranch={operation?.targetBranch}
       mergeView={workspaceReview.data.mergeView}
       onMergeViewChange={(value) => workspaceReview.patch({ mergeView: value })}
       syncBlocked={workspaceReview.status !== "ready"}

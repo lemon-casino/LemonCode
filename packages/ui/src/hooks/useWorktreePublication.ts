@@ -4,12 +4,8 @@ import type { GitRemoteInfo, GitTagInfo, GitUnsupportedTagInfo } from "@lcode/sh
 import { useServices } from "./useServices.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { getErrorMessage } from "@/lib/errorMessage.js";
-import {
-  createPublishOptions,
-  freezePublishPlan,
-  validatePublishOptions,
-  type PublishPlan,
-} from "@/git-action-menu/publishModel.js";
+import { createPublishOptions, type PublishPlan } from "@/git-action-menu/publishModel.js";
+import { worktreePublicationPlan } from "@/worktree/worktreePublicationPlan.js";
 import {
   executePublishPlan,
   retryPublishStep,
@@ -23,7 +19,7 @@ import {
   type PublishPreset,
 } from "@/git-action-menu/publishPresets.js";
 
-/** 原 Git 发布执行器解释冻结的集成 HEAD；此 hook 只拥有当前弹窗的计划和结果。 */
+/** 原 Git 发布执行器解释本次预览冻结的目标 HEAD；此 hook 只拥有当前弹窗的计划和结果。 */
 export function useWorktreePublication(operation: WorktreeIntegration, workspaceIdentity?: string) {
   const { gitService } = useServices();
   const { intl } = useLCodeIntl();
@@ -100,22 +96,17 @@ export function useWorktreePublication(operation: WorktreeIntegration, workspace
         gitService.listTags(request),
       ]);
       if (!isCurrent()) return;
-      // 发布从目标目录冻结，不能复用任务分支或随后出现的新 HEAD。
-      if (
-        operation.status !== "published" ||
-        state.headCommitHash !== operation.candidateHead ||
-        state.branchName !== operation.targetBranch
-      )
-        throw new Error(intl.formatMessage({ id: "worktree.publishTargetChanged" }));
-      const invalid = validatePublishOptions(options, {
+      const result = worktreePublicationPlan({
+        operation,
+        workspaceIdentity,
+        options,
         state,
         remotes: remotes.remotes,
         tags: tags.tags,
         unsupportedTags: tags.unsupportedTags,
-        withCommit: false,
       });
-      if (invalid) throw new Error(intl.formatMessage({ id: `git.publish.error.${invalid}` }));
-      setPlan(freezePublishPlan({ request, options, state, tags: tags.tags, files: [] }));
+      if (result.error) throw new Error(intl.formatMessage({ id: result.error }));
+      setPlan(result.plan!);
     });
   const confirm = () =>
     perform(async (isCurrent) => {

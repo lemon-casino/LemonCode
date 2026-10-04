@@ -43,7 +43,7 @@ test("keyboard action cannot select publishing or bypass regeneration/review gua
   assert.match(commitDialog, /props\.requiresRegeneration/);
   assert.match(commitDialog, /!hasIdentity && state\?\.identity !== null/);
   assert.match(commitDialog, /matchesPrimaryShortcut\(event, "Enter"\)/);
-  assert.match(commitDialog, /if \(!commitActionDisabled\) props\.onSubmit\(\)/);
+  assert.match(commitDialog, /if \(!showMerge && !commitActionDisabled\) props\.onSubmit\(\)/);
   assert.doesNotMatch(commitDialog, /triggerSelectedAction/);
 });
 

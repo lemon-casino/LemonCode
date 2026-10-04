@@ -12,9 +12,9 @@ import {
 } from "@/components/ui/select.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { getTagSuggestions, TAG_MODES, type PublishOptions } from "./publishModel.js";
-import type { PublishPreset } from "./publishPresets.js";
+import { GitPublishPresets, type GitPublishPresetControls } from "./GitPublishPresets.js";
 
-export interface PublishOptionsPanelProps {
+export interface PublishOptionsPanelProps extends GitPublishPresetControls {
   expanded: boolean;
   options: PublishOptions;
   branchName: string | null;
@@ -27,19 +27,14 @@ export interface PublishOptionsPanelProps {
   canCommit: boolean;
   allowCommitPreview?: boolean;
   contextDescription?: string;
+  title?: string;
+  previewLabel?: string;
+  commitUnavailableHint?: string;
   remainingGroups: number;
-  presets: PublishPreset[];
-  presetName: string;
-  selectedPreset: string;
   onToggle: () => void;
   onReload: () => void;
   onChange: (options: PublishOptions) => void;
   onPreview: (withCommit: boolean) => void;
-  onPresetNameChange: (name: string) => void;
-  onPresetSelect: (name: string) => void;
-  onPresetSave: () => void;
-  onPresetApply: () => void;
-  onPresetDelete: () => void;
 }
 
 export function GitPublishOptionsPanel(props: PublishOptionsPanelProps) {
@@ -60,8 +55,10 @@ export function GitPublishOptionsPanel(props: PublishOptionsPanelProps) {
         disabled={disabled}
         onClick={props.onToggle}
       >
-        {text("options")}
-        <ChevronDownIcon className={props.expanded ? "size-4 rotate-180" : "size-4"} />
+        <span className="min-w-0 break-all text-left">{props.title ?? text("options")}</span>
+        <ChevronDownIcon
+          className={props.expanded ? "size-4 shrink-0 rotate-180" : "size-4 shrink-0"}
+        />
       </Button>
       {props.expanded ? (
         <div className="min-w-0 space-y-3 px-4 pb-4 text-ui-sm">
@@ -145,6 +142,7 @@ export function GitPublishOptionsPanel(props: PublishOptionsPanelProps) {
                         <Input
                           data-testid={`git-publish-branch-${remote.name}`}
                           value={selected.branch}
+                          title={selected.branch}
                           disabled={!options.pushBranch || disabled}
                           aria-label={intl.formatMessage(
                             { id: "git.publish.targetBranchFor" },
@@ -161,6 +159,14 @@ export function GitPublishOptionsPanel(props: PublishOptionsPanelProps) {
                             })
                           }
                         />
+                        {selected.branch.length > 32 ? (
+                          <span
+                            className="block break-all text-foreground-subtle"
+                            data-testid={`git-publish-full-branch-${remote.name}`}
+                          >
+                            {selected.branch}
+                          </span>
+                        ) : null}
                       </label>
                     ) : null}
                   </div>
@@ -279,74 +285,7 @@ export function GitPublishOptionsPanel(props: PublishOptionsPanelProps) {
                 </div>
               ) : null}
             </div>
-            <div className="space-y-2 border-t border-border pt-3">
-              <p className="font-medium">{text("presets")}</p>
-              <Input
-                data-testid="git-publish-preset-name"
-                aria-label={text("presetName")}
-                placeholder={text("presetName")}
-                maxLength={80}
-                value={props.presetName}
-                onChange={(event) => props.onPresetNameChange(event.target.value)}
-                className="text-mobile-input-safe md:text-ui-base"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                data-testid="git-publish-preset-save"
-                disabled={!props.presetName.trim()}
-                onClick={props.onPresetSave}
-              >
-                {text("presetSave")}
-              </Button>
-              {props.presets.length ? (
-                <>
-                  <Select
-                    value={props.selectedPreset || undefined}
-                    onValueChange={props.onPresetSelect}
-                    disabled={disabled}
-                  >
-                    <SelectTrigger
-                      data-testid="git-publish-preset-select"
-                      aria-label={text("presets")}
-                      className="w-full min-w-0"
-                    >
-                      <SelectValue placeholder={text("presetSelect")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {props.presets.map((preset) => (
-                        <SelectItem key={preset.name} value={preset.name}>
-                          {preset.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      data-testid="git-publish-preset-apply"
-                      disabled={!props.selectedPreset}
-                      onClick={props.onPresetApply}
-                    >
-                      {text("presetApply")}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      data-testid="git-publish-preset-delete"
-                      disabled={!props.selectedPreset}
-                      onClick={props.onPresetDelete}
-                    >
-                      {text("presetDelete")}
-                    </Button>
-                  </div>
-                </>
-              ) : null}
-            </div>
+            <GitPublishPresets {...props} />
           </fieldset>
           {props.remainingGroups > 1 ? (
             <p className="text-warning">
@@ -354,6 +293,11 @@ export function GitPublishOptionsPanel(props: PublishOptionsPanelProps) {
                 { id: "git.publish.remainingGroups" },
                 { count: props.remainingGroups },
               )}
+            </p>
+          ) : null}
+          {props.allowCommitPreview !== false && !props.canCommit && props.commitUnavailableHint ? (
+            <p className="text-foreground-subtle" data-testid="git-publish-commit-unavailable">
+              {props.commitUnavailableHint}
             </p>
           ) : null}
           <div className="flex flex-wrap gap-2">
@@ -365,7 +309,7 @@ export function GitPublishOptionsPanel(props: PublishOptionsPanelProps) {
               disabled={disabled || props.loading || Boolean(props.error)}
               onClick={() => props.onPreview(false)}
             >
-              {text("previewOnly")}
+              {props.previewLabel ?? text("previewOnly")}
             </Button>
             {props.allowCommitPreview !== false ? (
               <Button

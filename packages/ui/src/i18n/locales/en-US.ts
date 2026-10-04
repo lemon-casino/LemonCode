@@ -992,7 +992,7 @@ const enUS: Record<string, string> = {
   "git.publish.pushBranch": "Push branch",
   "git.publish.remotes": "Remote repositories",
   "git.publish.noRemotes": "No remotes configured. You can still create a local tag.",
-  "git.publish.targetBranch": "Target branch",
+  "git.publish.targetBranch": "Remote target branch",
   "git.publish.targetBranchFor": "Target branch on {remote}",
   "git.publish.tags": "Tag handling",
   "git.publish.tagMode.none": "No tag",
@@ -1002,7 +1002,7 @@ const enUS: Record<string, string> = {
   "git.publish.tagName": "New tag name",
   "git.publish.manualTag": "No plain semantic version tag found. Enter a custom tag name.",
   "git.publish.lightweight":
-    "Creates a lightweight tag at the final HEAD. Does not change version files or start a release pipeline.",
+    "Creates a lightweight tag at the final HEAD without changing version files. Pushing tags may trigger remote build or release pipelines.",
   "git.publish.noTags": "No local tags available.",
   "git.publish.unsupportedTags":
     "These tags target non-commit objects and cannot be published here. Other tags remain available.",
@@ -7239,7 +7239,7 @@ const enUS: Record<string, string> = {
   "worktree.prepareMergeHint":
     "Saves reviewed worktree commits and prepares a merge result. The project target branch updates only after another review and confirmation.",
   "worktree.remotePublishHint":
-    "This publishes the project target branch after merging. Remote publishing requires its own preview and confirmation.",
+    "Publishes the latest commit on the project target branch. The preview shows the actual commit; remote publishing requires separate confirmation.",
   "worktree.effectiveSetting": "Effective setting: {value}",
   "worktree.defaultMode": "Default execution location for new chats",
   "worktree.defaultModeDescription":
@@ -7327,7 +7327,7 @@ const enUS: Record<string, string> = {
     "Resolving conflicts in the integration checkout. The result still requires review.",
   "worktree.stopRepair": "Stop conflict repair",
   "worktree.publishTargetChanged":
-    "The target branch or commit changed. Review a new publication plan on the current branch.",
+    "The merge target is unavailable for publishing. Confirm the merge is complete and the project has the target branch checked out, then preview again.",
   "worktree.sourceReceiptCount": "Saved {count} source commits",
   "worktree.sourceCommit": "Source commit",
   "worktree.targetBaseline": "Project target branch and review baseline",
@@ -7446,6 +7446,13 @@ const enUS: Record<string, string> = {
   "worktree.openOmissions": "View all omitted paths",
   "worktree.ignoredListDescription":
     "This list shows unsaved ignored paths without reading their contents.",
+  "git.publish.noCommitChanges":
+    "No files to commit in the selected scope. Preview publishing the existing commit instead.",
+  "git.review.mergeResult": "Merge result: {branch}",
+  "git.review.returnSource": "Return to worktree commit",
+  "git.review.openMergedPublication": "View merge result and publish {branch}",
+  "worktree.publishBranch": "Publish {branch}",
+  "worktree.previewPublishBranch": "Preview publishing {branch}",
 };
 
 export default enUS;

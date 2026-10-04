@@ -338,7 +338,7 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
       await publish.waitFor();
       await publish.getByTestId("git-publish-toggle").click();
       assert.match(await publish.innerText(), /发布分支：L-GO/);
-      assert.match(await publish.innerText(), /已合并的原项目目标分支/);
+      assert.match(await publish.innerText(), /原项目目标分支当前的最新提交/);
       await page.waitForFunction(
         () => !document.querySelector('[data-testid="git-publish-branch-enabled"]').disabled,
       );
@@ -378,7 +378,14 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
       await configure({ targetHead: "d".repeat(40) });
       await publish.getByTestId("git-publish-new-plan").click();
       await publish.getByTestId("git-publish-preview").click();
-      await publish.getByText("目标分支或提交已变化，请在当前分支重新审核发布计划。").waitFor();
+      await publish.getByTestId("git-publish-summary").waitFor();
+      assert.ok(
+        (await publish.getByTestId("git-publish-summary").innerText()).includes("d".repeat(40)),
+      );
+      await configure({ targetHead: "e".repeat(40) });
+      await publish.getByTestId("git-publish-confirm").click();
+      await publish.getByTestId("git-publish-results").waitFor();
+      assert.match(await publish.getByTestId("git-publish-results").innerText(), /内容已变化/);
       assert.equal((await calls()).filter((call) => call.method === "push").length, 3);
       await page.setViewportSize({ width: 390, height: 844 });
       assert.equal(

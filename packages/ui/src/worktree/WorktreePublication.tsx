@@ -44,6 +44,14 @@ export function WorktreePublication({
           expanded={publish.expanded}
           options={publish.options}
           branchName={operation.targetBranch}
+          title={intl.formatMessage(
+            { id: "worktree.publishBranch" },
+            { branch: operation.targetBranch },
+          )}
+          previewLabel={intl.formatMessage(
+            { id: "worktree.previewPublishBranch" },
+            { branch: operation.targetBranch },
+          )}
           contextDescription={intl.formatMessage({ id: "worktree.remotePublishHint" })}
           {...publish.catalog}
           loading={publish.pending}

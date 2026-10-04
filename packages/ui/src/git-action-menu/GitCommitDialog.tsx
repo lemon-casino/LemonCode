@@ -15,6 +15,7 @@ import {
 } from "./commitDialogModel.js";
 import { GitCommitExecutionSummary } from "./GitCommitExecutionSummary.js";
 import { GitReviewStageNavigation } from "./GitReviewStageNavigation.js";
+import { GitMergeReviewContent } from "./GitMergeReviewContent.js";
 import { ReviewDialogDismiss } from "./ReviewDialogDismiss.js";
 import { GitCommitMessageEditor } from "./GitCommitMessageEditor.js";
 import { GitCommitFileScope } from "./GitCommitFileScope.js";
@@ -33,6 +34,7 @@ export interface GitCommitDialogProps {
   worktreeMergeActions?: ReactNode;
   mergeOperationId?: string;
   mergeOperationStatus?: WorktreeIntegration["status"];
+  mergeTargetBranch?: string;
   mergeView?: { operationId: string; source: boolean } | null;
   onMergeViewChange?: (value: { operationId: string; source: boolean } | null) => void;
   syncBlocked?: boolean;
@@ -159,7 +161,6 @@ export function GitCommitDialog(props: GitCommitDialogProps) {
     !stagePaths.length ||
     (!hasIdentity && state?.identity !== null);
   const canCommit = !commitActionDisabled && hasIdentity && Boolean(props.message.trim());
-  const remainingGroups = review ? review.groups.length - reviewPosition : 0;
   const workflowText = (field: string) =>
     intl.formatMessage({ id: `git.commitWorkflow.${executionMode}.${field}` });
   return (
@@ -200,29 +201,36 @@ export function GitCommitDialog(props: GitCommitDialogProps) {
             className="min-w-0"
             onSubmit={(event) => {
               event.preventDefault();
-              if (!commitActionDisabled) props.onSubmit();
+              if (!showMerge && !commitActionDisabled) props.onSubmit();
             }}
             onKeyDownCapture={(event) => {
               if (!matchesPrimaryShortcut(event, "Enter")) return;
-              // 快捷键只允许普通提交；发布选项、焦点与摘要不能把默认动作升级为网络发布。
+              // 合并结果不属于来源提交表单；快捷键既不能提交隐藏的来源改动，也不能升级为网络发布。
               event.preventDefault();
               event.stopPropagation();
-              if (!commitActionDisabled) props.onSubmit();
+              if (!showMerge && !commitActionDisabled) props.onSubmit();
             }}
           >
-            <GitCommitExecutionSummary
-              workspacePath={props.workspacePath}
-              executionMode={executionMode}
-              summary={state.summary}
-              locked={locked}
-              fileCount={allFiles.length}
-              added={displayAdded}
-              removed={displayRemoved}
-              onRefreshGit={props.onRefreshGit}
-            />
+            {/* 合并结果属于原项目目标目录；来源分支切换器只在来源提交视图展示，避免发布对象混淆。 */}
+            {!showMerge ? (
+              <GitCommitExecutionSummary
+                workspacePath={props.workspacePath}
+                executionMode={executionMode}
+                summary={state.summary}
+                locked={locked}
+                fileCount={allFiles.length}
+                added={displayAdded}
+                removed={displayRemoved}
+                onRefreshGit={props.onRefreshGit}
+              />
+            ) : null}
             {props.mergeOperationId ? (
               <GitReviewStageNavigation
                 showMerge={showMerge}
+                publishedTarget={
+                  props.mergeOperationStatus === "published" ? props.mergeTargetBranch : undefined
+                }
+                disabled={Boolean(props.syncBlocked || actionPending || props.plan || props.run)}
                 onBack={() =>
                   props.onMergeViewChange
                     ? props.onMergeViewChange({
@@ -250,20 +258,12 @@ export function GitCommitDialog(props: GitCommitDialogProps) {
               />
             ) : null}
             {showMerge ? (
-              <>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="mx-4 my-3"
-                  data-testid="git-merge-open-source-files"
-                  disabled={!props.canOpenFiles}
-                  onClick={() => props.onOpenFiles(true)}
-                >
-                  {intl.formatMessage({ id: "git.review.viewSourceFiles" })}
-                </Button>
-                <div className="px-4 pb-3">{props.worktreeMergeActions}</div>
-              </>
+              <GitMergeReviewContent
+                canOpenFiles={props.canOpenFiles}
+                onOpenFiles={() => props.onOpenFiles(true)}
+              >
+                {props.worktreeMergeActions}
+              </GitMergeReviewContent>
             ) : (
               <>
                 {props.worktreeActions}
@@ -342,7 +342,12 @@ export function GitCommitDialog(props: GitCommitDialogProps) {
                     branchName={state.summary.branchName}
                     disabled={actionPending}
                     canCommit={canCommit}
-                    remainingGroups={remainingGroups}
+                    commitUnavailableHint={
+                      !stagePaths.length
+                        ? intl.formatMessage({ id: "git.publish.noCommitChanges" })
+                        : undefined
+                    }
+                    remainingGroups={review ? review.groups.length - reviewPosition : 0}
                   />
                 ) : null}
                 {props.plan && (!props.run || showPublicationPreview) ? (

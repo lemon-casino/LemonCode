@@ -919,7 +919,7 @@ const zhCN: Record<string, string> = {
   "git.publish.pushBranch": "推送分支",
   "git.publish.remotes": "远程仓库",
   "git.publish.noRemotes": "未配置远端，仍可仅创建本地 Tag。",
-  "git.publish.targetBranch": "目标分支",
+  "git.publish.targetBranch": "远端目标分支",
   "git.publish.targetBranchFor": "{remote} 的目标分支",
   "git.publish.tags": "Tag 处理方式",
   "git.publish.tagMode.none": "不处理 Tag",
@@ -928,7 +928,8 @@ const zhCN: Record<string, string> = {
   "git.publish.tagMode.push-existing": "推送已有 Tag",
   "git.publish.tagName": "新 Tag 名称",
   "git.publish.manualTag": "没有可识别的正式语义化版本 Tag，请手动输入名称。",
-  "git.publish.lightweight": "在最终 HEAD 创建轻量 Tag，不修改版本文件，也不触发发布流水线。",
+  "git.publish.lightweight":
+    "在最终 HEAD 创建轻量 Tag，不修改版本文件。推送 Tag 可能触发远端的构建或发布流水线。",
   "git.publish.noTags": "没有可选的本地 Tag。",
   "git.publish.unsupportedTags": "以下 Tag 为非提交目标，不支持发布；其它 Tag 仍可正常使用。",
   "git.publish.tagCreated": "已新建本地 Tag。",
@@ -6882,7 +6883,8 @@ const zhCN: Record<string, string> = {
   "worktree.sourceToTarget": "来源工作树：{source} → 原项目目标：{target}",
   "worktree.prepareMergeHint":
     "此操作保存已审核的工作树提交并准备合并结果；原项目目标分支需再次审核和确认后才更新。",
-  "worktree.remotePublishHint": "此处发布的是已合并的原项目目标分支。远端发布需单独预览和确认。",
+  "worktree.remotePublishHint":
+    "此处发布原项目目标分支当前的最新提交，预览会显示实际提交。远端发布需单独确认。",
   "worktree.effectiveSetting": "当前生效：{value}",
   "worktree.defaultMode": "新会话默认执行方式",
   "worktree.defaultModeDescription": "项目可以单独覆盖，新会话开始后执行位置保持固定。",
@@ -6958,7 +6960,8 @@ const zhCN: Record<string, string> = {
   "worktree.retryPublish": "核实并重试合并",
   "worktree.repairRunning": "正在独立集成目录修复冲突，完成后仍需审核候选。",
   "worktree.stopRepair": "停止冲突修复",
-  "worktree.publishTargetChanged": "目标分支或提交已变化，请在当前分支重新审核发布计划。",
+  "worktree.publishTargetChanged":
+    "合并目标当前不可发布。请确认合并已完成且原项目检出目标分支，然后重新预览。",
   "worktree.sourceReceiptCount": "已保存 {count} 个源提交",
   "worktree.sourceCommit": "来源提交",
   "worktree.targetBaseline": "原项目目标分支与审核基线",
@@ -7064,6 +7067,12 @@ const zhCN: Record<string, string> = {
     "共 {count} 个冲突文件，显示前 {shown} 个；完整范围可在合并差异中查看。",
   "worktree.openOmissions": "查看全部遗漏路径",
   "worktree.ignoredListDescription": "此列表只展示未保存的忽略路径，不读取文件内容。",
+  "git.publish.noCommitChanges": "当前所选范围没有待提交文件；可预览发布现有提交。",
+  "git.review.mergeResult": "合并结果：{branch}",
+  "git.review.returnSource": "返回工作树提交",
+  "git.review.openMergedPublication": "查看合并结果并发布 {branch}",
+  "worktree.publishBranch": "发布 {branch}",
+  "worktree.previewPublishBranch": "预览发布 {branch}",
 };
 
 export default zhCN;

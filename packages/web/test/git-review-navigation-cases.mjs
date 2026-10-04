@@ -7,6 +7,51 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
       method,
       args,
     });
+  await t.test("干净来源明确进入目标合并结果发布，来源与目标视图无混淆或隐式写入", async () => {
+    for (const width of [1280, 390]) {
+      for (const english of [false, true]) {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(`${url}?seedIntegration=published${english ? "&english" : ""}`);
+        await fixture("executionMode", "worktree");
+        await fixture("dirty", []);
+        await page.getByTestId("git-action-trigger").click();
+        const navigate = dialog.getByTestId("git-review-stage-back");
+        await navigate.waitFor();
+        assert.equal(
+          await navigate.innerText(),
+          english ? "View merge result and publish L-GO" : "查看合并结果并发布 L-GO",
+        );
+        await dialog.getByTestId("git-publish-toggle").click();
+        await dialog.getByTestId("git-publish-commit-unavailable").waitFor();
+        assert.equal(await dialog.getByTestId("git-publish-commit-preview").isDisabled(), true);
+        assert.equal(await dialog.getByTestId("git-publish-preview").isEnabled(), true);
+        await navigate.click();
+        const targetPublish = dialog.getByTestId("worktree-remote-publication");
+        await targetPublish.waitFor();
+        assert.equal(
+          await targetPublish.getByTestId("git-publish-toggle").innerText(),
+          english ? "Publish L-GO" : "发布 L-GO",
+        );
+        assert.equal(await dialog.getByTestId("git-commit-execution-summary").count(), 0);
+        await targetPublish.getByTestId("git-publish-toggle").click();
+        assert.equal(
+          await targetPublish.getByTestId("git-publish-preview").innerText(),
+          english ? "Preview publishing L-GO" : "预览发布 L-GO",
+        );
+        assert.equal(await targetPublish.getByTestId("git-publish-commit-preview").count(), 0);
+        assert.ok(
+          await dialog.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
+        );
+        await navigate.click();
+        await dialog.getByTestId("git-commit-execution-summary").waitFor();
+        assert.deepEqual(
+          await page.evaluate(() => globalThis.__gitCommitFixture.publish.calls),
+          [],
+        );
+        assert.deepEqual(await page.evaluate(() => globalThis.__gitCommitFixture.mergeCalls), []);
+      }
+    }
+  });
   await t.test(
     "历史取消、失败和完成记录恢复来源入口；活动合并保留只读来源和空结果入口",
     async () => {
@@ -38,6 +83,20 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
             await page.getByTestId("git-scope-open-files").waitFor();
             assert.equal(await page.getByTestId("git-commit-message-input").isDisabled(), false);
             assert.equal(await page.getByTestId("git-merge-open-source-files").count(), 0);
+            if (status === "published") {
+              assert.equal(
+                await page.getByTestId("git-review-stage-back").innerText(),
+                "查看合并结果并发布 L-GO",
+              );
+              await page.getByTestId("git-commit-message-input").fill("fix: new source work");
+              await page.getByTestId("git-review-stage-back").click();
+              await page.getByTestId("worktree-remote-publication").waitFor();
+              await page.getByTestId("git-commit-dialog").press("Control+Enter");
+              assert.deepEqual(
+                await page.evaluate(() => globalThis.__gitCommitFixture.publish.calls),
+                [],
+              );
+            }
           }
           assert.equal(await page.getByText("保存快照并归档", { exact: true }).count(), 0);
         }
