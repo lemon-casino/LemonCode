@@ -27,6 +27,7 @@ export function CommitAndMergeControl({
   position,
   currentMessage,
   disabled,
+  publicationDisabled,
   onCommitted,
 }: {
   workspacePath: string;
@@ -48,6 +49,7 @@ export function CommitAndMergeControl({
   position: number;
   currentMessage: string;
   disabled: boolean;
+  publicationDisabled?: boolean;
   onCommitted: (operation: WorktreeIntegration) => void;
 }) {
   const { intl } = useLCodeIntl();
@@ -189,7 +191,10 @@ export function CommitAndMergeControl({
     workspaceIdentity: originWorkspaceIdentity,
     workspaceRemoteSessionId,
     sessionId,
-    busy: disabled || task.pending,
+    // 来源范围失效不能锁住已合并目标的发布；同步和在途门禁仍由同一审核控制器传入。
+    busy:
+      task.pending ||
+      (task.operation?.status === "published" ? (publicationDisabled ?? disabled) : disabled),
     onHideReview,
     onShowReview,
     onResolveConflicts,

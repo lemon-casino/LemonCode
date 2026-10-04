@@ -1432,6 +1432,11 @@ export function GitActionMenu({
             Boolean(publishPlan || publishRun) ||
             draftUI.draft.requiresRegeneration
           }
+          publicationDisabled={
+            workspaceReview.status !== "ready" ||
+            triggerPending ||
+            Boolean(publishPlan || publishRun)
+          }
           onHideReview={() => setCommitDialogOpen(false)}
           onShowReview={() => setCommitDialogOpen(true)}
           onResolveConflicts={resolveConflicts}

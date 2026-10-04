@@ -89,8 +89,24 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
                 "查看合并结果并发布 L-GO",
               );
               await page.getByTestId("git-commit-message-input").fill("fix: new source work");
+              await page.getByTestId("git-scope-open-files").click();
+              await page.getByTestId("review-exclude-page").click();
+              await page.getByTestId("code-viewer-return-review").click();
+              assert.equal(
+                await page
+                  .getByTestId("git-commit-action-item-commit")
+                  .getAttribute("aria-disabled"),
+                "true",
+              );
               await page.getByTestId("git-review-stage-back").click();
               await page.getByTestId("worktree-remote-publication").waitFor();
+              assert.equal(
+                await page
+                  .getByTestId("worktree-remote-publication")
+                  .getByTestId("git-publish-toggle")
+                  .isEnabled(),
+                true,
+              );
               await page.getByTestId("git-commit-dialog").press("Control+Enter");
               assert.deepEqual(
                 await page.evaluate(() => globalThis.__gitCommitFixture.publish.calls),
