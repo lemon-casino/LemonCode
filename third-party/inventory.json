@@ -252,7 +252,7 @@
     "apps/lcode-cli/packages/tui/package.json": "51decf6f5c4286c694c4b15ef0ca16129dee0283951b4929c43e0ed9aa12f468",
     "apps/lcode-cli/tools/prompt-trajectory/package.json": "6ab89bba2dba20f07cf913e34acb4bda59d9563d196995a25f867f34281df02b",
     "apps/lcode-cli/tools/typescript/package.json": "2f33883fe33cc9d878a3d6d78a0d262eb0db134fc02042ed7563c3dc50d797f7",
-    "package.json": "1a532bb06f648b202b3a7a9cb7663757a222b6565a3ae4f5a44caa8ce8c027d0",
+    "package.json": "0489551666bc9b927f71037fc6fcc58b09f79b3c2c6d27af1172ff83f763007e",
     "packages/client/package.json": "6cfcb57428c4728a98b7cf4504d29304cf6e9e547e136f0ab1edcef8f821b452",
     "packages/desktop/package.json": "b68388d3a85da919fbb58ff079ee0f0b426eaef17fe6f35b8d3553f6065ba826",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
@@ -1527,7 +1527,7 @@
     "packages/ui/src/components/ui/tooltip.tsx": "301dbf3a6f8b1bc496f9bdc6fbc5fe6202ed373182897f39cd1ecd19b00fdfbe",
     "packages/ui/src/components/ui/usePdfZoomOverlay.ts": "c8c91b003ce2fded32c7a2369dc6eac43aa4b9dc9c830a0f5ceccb21d366b610",
     "packages/ui/src/lib/builtinSkillI18n.ts": "0a177a74855a0b4fa344bc633bfbf4dcc4b14d577f3c73b931cf279f74df7485",
-    "packages/ui/src/styles.css": "b0c19c5b8f74d8ad6014035239f866fda3eb0f98eabc55d091ea64b50d24a8fa",
+    "packages/ui/src/styles.css": "ec16527c7b4130e6bf1aa0faec907dfa51f6b6c5b5e9f8911935e9e6bf3bd69f",
     "packages/web/package.json": "43a45b12d01939ef99e0f1a12c657df194a2d1d3e7d819053c8079708b88efa5",
     "packages/web/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
     "packages/web/public/material-icons/abap.svg": "1335bd7eb9a0ed49deb622330d680c2e97731726a7a5eee8e4f46dc1e5db4de4",
@@ -20993,7 +20993,7 @@
         },
         {
           "file": "packages/ui/src/styles.css",
-          "sha256": "b0c19c5b8f74d8ad6014035239f866fda3eb0f98eabc55d091ea64b50d24a8fa"
+          "sha256": "ae6bcf9e6115347012ebd79f73a7f87b1a8ab016ceeb43e90b8f61d7a52ff80b"
         }
       ]
     },
