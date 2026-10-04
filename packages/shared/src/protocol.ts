@@ -90,7 +90,8 @@ export type IntegratedTerminalShellDialect =
   | "powershell"
   | "fish"
   | "sh"
-  | "nushell";
+  | "nushell"
+  | "custom";
 
 /** 设置页中内置终端 shell 的用户选择。 */
 export type IntegratedTerminalShellSelection =

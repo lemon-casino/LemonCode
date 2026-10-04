@@ -353,11 +353,12 @@ export function createSystemService(options: CreateSystemServiceOptions = {}): I
       return { homedir: homedir(), platform: process.platform };
     },
 
-    async listIntegratedTerminalShells(): Promise<IntegratedTerminalShellOption[]> {
+    async listIntegratedTerminalShells(path?: string): Promise<IntegratedTerminalShellOption[]> {
       return listIntegratedTerminalShellOptions({
         env,
         isExecutable: options.isExecutable,
         platform,
+        path,
       });
     },
 

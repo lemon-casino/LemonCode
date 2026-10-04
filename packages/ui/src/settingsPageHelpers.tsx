@@ -10,7 +10,6 @@ import {
   TID_SETTINGS_NATIVE_SEARCH_SWITCH,
 } from "@lcode/shared";
 import { useState, useCallback, useEffect } from "react";
-import { RefreshCw } from "lucide-react";
 import type { IPlatformService } from "@lcode/shared";
 import {
   TID_SETTINGS_LOCALE_SELECT_ITEM,
@@ -29,6 +28,7 @@ import { Input } from "@/components/ui/input.js";
 import { Button } from "@/components/ui/button.js";
 import { SettingsBadge, SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
 import { DataBaseDirControl } from "@/settings/DataBaseDirControl.js";
+import { IntegratedTerminalShellControl } from "@/settings/IntegratedTerminalShellControl.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
 import { GlobalExecutionPolicySettings } from "@/worktree/ExecutionPolicySettings.js";
@@ -65,6 +65,9 @@ export function GeneralSectionContent({
   integratedTerminalShellOptions = [],
   integratedTerminalShellLoading = false,
   onRefreshIntegratedTerminalShells = async () => {},
+  onResolveIntegratedTerminalShellPath = async () => [],
+  onSelectIntegratedTerminalShellFile,
+  onSelectIntegratedTerminalShellDirectory,
   nativeSearchEnhancementsEnabled,
   httpProxy = "",
   httpProxyNoProxy = "",
@@ -129,6 +132,9 @@ export function GeneralSectionContent({
   integratedTerminalShellOptions?: IntegratedTerminalShellOption[];
   integratedTerminalShellLoading?: boolean;
   onRefreshIntegratedTerminalShells?: () => Promise<void>;
+  onResolveIntegratedTerminalShellPath?: (path: string) => Promise<IntegratedTerminalShellOption[]>;
+  onSelectIntegratedTerminalShellFile?: () => Promise<string | null>;
+  onSelectIntegratedTerminalShellDirectory?: () => Promise<string | null>;
   nativeSearchEnhancementsEnabled: boolean;
   httpProxy?: string;
   httpProxyNoProxy?: string;
@@ -189,55 +195,10 @@ export function GeneralSectionContent({
 
   const normalizedTerminalFontFamily = localTerminalFontFamily.trim();
   const isTerminalFontFamilyDirty = normalizedTerminalFontFamily !== terminalFontFamily;
-  const integratedTerminalShellValue =
-    integratedTerminalShell.mode === "shell" ? integratedTerminalShell.id : "auto";
-  const selectedIntegratedTerminalShellOption =
-    integratedTerminalShell.mode === "shell"
-      ? (integratedTerminalShellOptions.find(
-          (option) => option.id === integratedTerminalShell.id,
-        ) ?? {
-          dialect: integratedTerminalShell.dialect,
-          id: integratedTerminalShell.id,
-          label: integratedTerminalShell.label,
-          path: integratedTerminalShell.path,
-          source: "system" as const,
-        })
-      : undefined;
-  const visibleIntegratedTerminalShellOptions = selectedIntegratedTerminalShellOption
-    ? [
-        selectedIntegratedTerminalShellOption,
-        ...integratedTerminalShellOptions.filter(
-          (option) => option.id !== selectedIntegratedTerminalShellOption.id,
-        ),
-      ]
-    : integratedTerminalShellOptions;
 
   const handleTerminalFontFamilySave = useCallback(async () => {
     await onTerminalFontFamilyChange(normalizedTerminalFontFamily);
   }, [normalizedTerminalFontFamily, onTerminalFontFamilyChange]);
-
-  const handleIntegratedTerminalShellChange = useCallback(
-    async (value: string) => {
-      if (value === "auto") {
-        await onIntegratedTerminalShellChange({ mode: "auto" });
-        return;
-      }
-      const option = visibleIntegratedTerminalShellOptions.find(
-        (candidate) => candidate.id === value,
-      );
-      if (!option) {
-        return;
-      }
-      await onIntegratedTerminalShellChange({
-        mode: "shell",
-        dialect: option.dialect,
-        id: option.id,
-        label: option.label,
-        path: option.path,
-      });
-    },
-    [onIntegratedTerminalShellChange, visibleIntegratedTerminalShellOptions],
-  );
 
   const [localHttpProxy, setLocalHttpProxy] = useState(httpProxy);
 
@@ -409,49 +370,16 @@ export function GeneralSectionContent({
               id: "settings.integratedTerminalShellDescription",
             })}
             control={
-              <div className="flex w-full min-w-0 items-center gap-2">
-                <Select
-                  value={integratedTerminalShellValue}
-                  onValueChange={(value) => {
-                    void handleIntegratedTerminalShellChange(value);
-                  }}
-                >
-                  <SelectTrigger size="lg" className="min-w-0 flex-1 justify-between">
-                    <SelectValue>
-                      {selectedIntegratedTerminalShellOption?.label ??
-                        intl.formatMessage({ id: "settings.integratedTerminalShell.auto" })}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">
-                      {intl.formatMessage({ id: "settings.integratedTerminalShell.auto" })}
-                    </SelectItem>
-                    {visibleIntegratedTerminalShellOptions.map((option) => (
-                      <SelectItem key={option.id} value={option.id} textValue={option.label}>
-                        <span className="flex min-w-0 flex-col">
-                          <span>{option.label}</span>
-                          <span className="text-ui-xs font-mono text-foreground-subtle">
-                            {option.path}
-                          </span>
-                        </span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  disabled={integratedTerminalShellLoading}
-                  aria-label={intl.formatMessage({
-                    id: "settings.integratedTerminalShell.refresh",
-                  })}
-                  title={intl.formatMessage({ id: "settings.integratedTerminalShell.refresh" })}
-                  onClick={() => void onRefreshIntegratedTerminalShells()}
-                >
-                  <RefreshCw className={integratedTerminalShellLoading ? "animate-spin" : ""} />
-                </Button>
-              </div>
+              <IntegratedTerminalShellControl
+                selection={integratedTerminalShell}
+                options={integratedTerminalShellOptions}
+                loading={integratedTerminalShellLoading}
+                onRefresh={onRefreshIntegratedTerminalShells}
+                onChange={onIntegratedTerminalShellChange}
+                onResolvePath={onResolveIntegratedTerminalShellPath}
+                onSelectFile={onSelectIntegratedTerminalShellFile}
+                onSelectDirectory={onSelectIntegratedTerminalShellDirectory}
+              />
             }
           />
         ) : null}

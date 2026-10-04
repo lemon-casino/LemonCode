@@ -1836,9 +1836,21 @@ const zhCN: Record<string, string> = {
   "settings.terminalFontFamilyPlaceholder": "留空自动继承，例如 MesloLGS NF, monospace",
   "settings.integratedTerminalShell": "内置终端 Shell",
   "settings.integratedTerminalShellDescription":
-    "探测本机已安装的 Shell。选择仅对新终端和新任务生效；不兼容的 Shell 不影响 Bash 工具。",
+    "探测已安装的 Shell，也可指定 Shell 文件或安装目录的绝对路径。选择仅对新终端和新任务生效；不兼容的 Shell 不影响 Bash 工具。",
   "settings.integratedTerminalShell.auto": "自动选择",
   "settings.integratedTerminalShell.refresh": "重新探测 Shell",
+  "settings.integratedTerminalShell.selectFile": "选择可执行文件",
+  "settings.integratedTerminalShell.selectDirectory": "选择目录",
+  "settings.integratedTerminalShell.pathLabel": "Shell 文件或目录路径",
+  "settings.integratedTerminalShell.pathPlaceholder": "Shell 文件或安装目录的绝对路径",
+  "settings.integratedTerminalShell.applyPath": "应用路径",
+  "settings.integratedTerminalShell.directoryShells": "目录中的 Shell",
+  "settings.integratedTerminalShell.chooseCandidate": "找到多个 Shell，请选择要使用的可执行文件。",
+  "settings.integratedTerminalShell.invalidPath":
+    "未找到可执行的 Shell。请选择有效文件或包含 Shell 的目录。",
+  "settings.integratedTerminalShell.probeFailed":
+    "无法读取 Shell 路径，请检查路径和访问权限后重试。",
+  "settings.integratedTerminalShell.saveFailed": "无法保存 Shell 设置，请重试。",
   "settings.nativeSearchEnhancements": "增强 Find 和 Grep",
   "settings.nativeSearchEnhancementsDescription":
     "在新建会话或应用重启后恢复的会话中使用增强 Find 和 Grep。当前会话保持现有设置；Windows 的 Find 保持不变。",

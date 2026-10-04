@@ -681,6 +681,9 @@ export function SettingsPage({
     homeDir: defaultHomeDir,
     loading: integratedTerminalShellLoading,
     refresh: refreshIntegratedTerminalShells,
+    resolvePath: resolveIntegratedTerminalShellPath,
+    selectFile: selectIntegratedTerminalShellFile,
+    selectDirectory: selectIntegratedTerminalShellDirectory,
   } = useIntegratedTerminalShellOptions();
   const [httpProxy, setHttpProxy] = useState("");
   const [httpProxyNoProxy, setHttpProxyNoProxy] = useState("");
@@ -1654,6 +1657,15 @@ export function SettingsPage({
                             integratedTerminalShellOptions={integratedTerminalShellOptions}
                             integratedTerminalShellLoading={integratedTerminalShellLoading}
                             onRefreshIntegratedTerminalShells={refreshIntegratedTerminalShells}
+                            onResolveIntegratedTerminalShellPath={
+                              resolveIntegratedTerminalShellPath
+                            }
+                            onSelectIntegratedTerminalShellFile={
+                              isDesktop ? selectIntegratedTerminalShellFile : undefined
+                            }
+                            onSelectIntegratedTerminalShellDirectory={
+                              isDesktop ? selectIntegratedTerminalShellDirectory : undefined
+                            }
                             nativeSearchEnhancementsEnabled={nativeSearchEnhancementsEnabled}
                             httpProxy={httpProxy}
                             httpProxyNoProxy={httpProxyNoProxy}

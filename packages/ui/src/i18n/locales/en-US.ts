@@ -1955,9 +1955,23 @@ const enUS: Record<string, string> = {
   "settings.terminalFontFamilyPlaceholder": "Leave blank to inherit, e.g. MesloLGS NF, monospace",
   "settings.integratedTerminalShell": "Integrated terminal shell",
   "settings.integratedTerminalShellDescription":
-    "Choose an installed host shell for new terminals and tasks. Incompatible shells do not affect the Bash tool.",
+    "Detect installed shells or specify an absolute shell file or installation directory path. Applies to new terminals and tasks; incompatible shells do not affect the Bash tool.",
   "settings.integratedTerminalShell.auto": "Auto",
   "settings.integratedTerminalShell.refresh": "Detect shells again",
+  "settings.integratedTerminalShell.selectFile": "Choose executable",
+  "settings.integratedTerminalShell.selectDirectory": "Choose directory",
+  "settings.integratedTerminalShell.pathLabel": "Shell file or directory path",
+  "settings.integratedTerminalShell.pathPlaceholder":
+    "Absolute path to a shell file or installation directory",
+  "settings.integratedTerminalShell.applyPath": "Apply path",
+  "settings.integratedTerminalShell.directoryShells": "Shells in directory",
+  "settings.integratedTerminalShell.chooseCandidate":
+    "Multiple shells found. Choose the executable to use.",
+  "settings.integratedTerminalShell.invalidPath":
+    "No executable shell found. Choose a valid file or a directory containing a shell.",
+  "settings.integratedTerminalShell.probeFailed":
+    "Unable to read the shell path. Check the path and access permissions, then retry.",
+  "settings.integratedTerminalShell.saveFailed": "Unable to save shell settings. Please retry.",
   "settings.nativeSearchEnhancements": "Enhanced Find and Grep",
   "settings.nativeSearchEnhancementsDescription":
     "Use enhanced Find and Grep in new sessions and sessions restored after an app restart. Active sessions keep their current setting; Find remains unchanged on Windows.",

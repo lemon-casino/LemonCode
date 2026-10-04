@@ -1,9 +1,10 @@
-import { access, stat } from "node:fs/promises";
-import { constants as fsConstants } from "node:fs";
 import { basename, posix, win32 } from "node:path";
 import type { IntegratedTerminalShellDialect, IntegratedTerminalShellOption } from "@lcode/shared";
-
-type ExecutableCheck = (path: string) => boolean | Promise<boolean>;
+import {
+  isIntegratedTerminalShellExecutable,
+  listSelectedIntegratedTerminalShellOptions,
+  type IntegratedTerminalShellProbeOptions,
+} from "./integratedTerminalShellPath.js";
 
 const WINDOWS_GIT_BASH_PATHS = [
   "C:\\Program Files\\Git\\bin\\bash.exe",
@@ -12,11 +13,14 @@ const WINDOWS_GIT_BASH_PATHS = [
 const POSIX_SHELLS = ["zsh", "bash", "fish", "sh", "nu"] as const;
 const POSIX_SHELL_DIRS = ["/bin", "/usr/bin", "/usr/local/bin", "/opt/homebrew/bin"] as const;
 
-export async function listIntegratedTerminalShellOptions(options: {
-  env: NodeJS.ProcessEnv;
-  isExecutable?: ExecutableCheck;
-  platform: NodeJS.Platform;
-}): Promise<IntegratedTerminalShellOption[]> {
+export async function listIntegratedTerminalShellOptions(
+  options: IntegratedTerminalShellProbeOptions & {
+    env: NodeJS.ProcessEnv;
+    path?: string;
+  },
+): Promise<IntegratedTerminalShellOption[]> {
+  if (options.path !== undefined)
+    return listSelectedIntegratedTerminalShellOptions(options.path, options);
   const result: IntegratedTerminalShellOption[] = [];
   const seen = new Set<string>();
   const windows = options.platform === "win32";
@@ -30,7 +34,7 @@ export async function listIntegratedTerminalShellOptions(options: {
     if (!candidate) return;
     const path = candidate.trim();
     const key = windows ? win32.normalize(path).toLowerCase() : path;
-    if (!path || seen.has(key) || !(await isExecutableCandidate(path, options.isExecutable)))
+    if (!path || seen.has(key) || !(await isIntegratedTerminalShellExecutable(path, options)))
       return;
     seen.add(key);
     result.push({ dialect, id: `${dialect}:${path}`, label, path, source });
@@ -62,7 +66,7 @@ export async function listIntegratedTerminalShellOptions(options: {
       await add(path, "Git Bash", "git-bash", "system");
     }
     for (const gitExe of windowsPathCandidates("git.exe", env)) {
-      if (!(await isExecutableCandidate(gitExe, options.isExecutable))) continue;
+      if (!(await isIntegratedTerminalShellExecutable(gitExe, options))) continue;
       for (const path of inferWindowsGitBashPathsFromGitExe(gitExe)) {
         await add(path, "Git Bash", "git-bash", "path");
       }
@@ -119,14 +123,4 @@ function windowsPathCandidates(command: string, env: NodeJS.ProcessEnv): string[
 function getWindowsEnvValue(env: NodeJS.ProcessEnv, key: string): string | undefined {
   const match = Object.keys(env).find((envKey) => envKey.toLowerCase() === key.toLowerCase());
   return match ? env[match] : undefined;
-}
-
-async function isExecutableCandidate(path: string, check?: ExecutableCheck): Promise<boolean> {
-  if (check) return check(path);
-  try {
-    await access(path, fsConstants.X_OK);
-    return (await stat(path)).isFile();
-  } catch {
-    return false;
-  }
 }

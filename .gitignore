@@ -131,6 +131,9 @@ packages/desktop/src/scheduler/schedulerProtocol.js.map
 !/packages/web/test/api-key-probe.test.mjs
 !/packages/web/test/fixtures/api-key-probe.html
 !/packages/web/test/fixtures/api-key-probe.tsx
+!/packages/web/test/integrated-terminal-shell.test.mjs
+!/packages/web/test/fixtures/integrated-terminal-shell.html
+!/packages/web/test/fixtures/integrated-terminal-shell.tsx
 !/packages/web/test/worktree-ui.test.mjs
 !/packages/web/test/worktree-workflow-cases.mjs
 !/packages/web/test/worktree-review-settings-cases.mjs

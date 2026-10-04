@@ -1,18 +1,11 @@
-import { access } from "node:fs/promises";
-import { constants as fsConstants } from "node:fs";
 import type { IntegratedTerminalShellSelection } from "@lcode/shared";
+import { isIntegratedTerminalShellExecutable } from "../system/integratedTerminalShellPath.js";
 
 export async function resolveConfiguredTerminalShell(
   selection: IntegratedTerminalShellSelection | undefined,
   autoShell: string,
-  isExecutable: (path: string) => Promise<boolean> = async (path) => {
-    try {
-      await access(path, fsConstants.X_OK);
-      return true;
-    } catch {
-      return false;
-    }
-  },
+  isExecutable: (path: string) => Promise<boolean> = (path) =>
+    isIntegratedTerminalShellExecutable(path, { platform: process.platform }),
 ): Promise<string> {
   if (selection?.mode !== "shell" || !(await isExecutable(selection.path))) return autoShell;
   return selection.path;
