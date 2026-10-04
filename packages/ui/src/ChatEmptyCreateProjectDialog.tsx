@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState, type DragEvent } from "react";
 import {
   LOCAL_PROJECT_NAME_MAX_LENGTH,
   LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT,
@@ -19,10 +19,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog.js";
 import { Input } from "@/components/ui/input.js";
+import { cn } from "@/components/lib/utils.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
+import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { getPathLeaf } from "@/lib/path.js";
-import { Folder, FolderPlus, X } from "lucide-react";
+import {
+  mergeLocalProjectFolderPaths,
+  resolveDroppedLocalProjectFolders,
+} from "@/createProjectFolderDrop.js";
+import { Folder, FolderPlus, LoaderCircle, X } from "lucide-react";
 
 export function ChatEmptyCreateProjectDialog({
   open,
@@ -35,18 +41,28 @@ export function ChatEmptyCreateProjectDialog({
 }) {
   const { intl } = useLCodeIntl();
   const platform = usePlatform();
+  const baseServices = useBaseWorkspaceServices();
   const [name, setName] = useState("");
   const [nameTouched, setNameTouched] = useState(false);
   const [sourceFolderPaths, setSourceFolderPaths] = useState<string[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const [checkingDroppedFolders, setCheckingDroppedFolders] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const dropRequestIdRef = useRef(0);
+  const dropPendingRef = useRef(false);
+  const canDropFolders = Boolean(platform.canSelectFilePath && platform.getPathForFile);
 
   const reset = () => {
     setName("");
     setNameTouched(false);
     setSourceFolderPaths([]);
     setSubmitting(false);
+    setDragActive(false);
+    setCheckingDroppedFolders(false);
     setError(null);
+    dropPendingRef.current = false;
+    dropRequestIdRef.current += 1;
   };
   const handleOpenChange = (nextOpen: boolean) => {
     if (!nextOpen && !submitting) {
@@ -59,16 +75,66 @@ export function ChatEmptyCreateProjectDialog({
     if (!path) {
       return;
     }
-    const pathKey = localProjectPathKey(path);
-    setSourceFolderPaths((current) =>
-      current.some((candidate) => localProjectPathKey(candidate) === pathKey)
-        ? current
-        : [...current, path],
-    );
-    if (!nameTouched && !name.trim()) {
-      setName(getPathLeaf(path));
+    const merged = mergeLocalProjectFolderPaths(sourceFolderPaths, [path]);
+    setSourceFolderPaths(merged.paths);
+    if (!nameTouched && !name.trim() && merged.addedPaths.length > 0) {
+      setName(getPathLeaf(merged.addedPaths[0]!));
     }
     setError(null);
+  };
+  const handleDrop = async (event: DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragActive(false);
+    if (!canDropFolders || dropPendingRef.current) return;
+
+    const files = Array.from(event.dataTransfer.files);
+    if (files.length === 0) return;
+
+    dropPendingRef.current = true;
+    const requestId = ++dropRequestIdRef.current;
+    setCheckingDroppedFolders(true);
+    setError(null);
+    try {
+      const resolved = await resolveDroppedLocalProjectFolders(
+        files,
+        (file) => platform.getPathForFile?.(file) ?? null,
+        async (path) => (await baseServices.fileService.stat({ path })).type,
+      );
+      if (requestId !== dropRequestIdRef.current) return;
+
+      const merged = mergeLocalProjectFolderPaths(sourceFolderPaths, resolved.folderPaths);
+      setSourceFolderPaths(merged.paths);
+      if (!nameTouched && !name.trim() && merged.addedPaths.length > 0) {
+        setName(getPathLeaf(merged.addedPaths[0]!));
+      }
+
+      if (merged.discardedForLimitCount > 0) {
+        setError(
+          intl.formatMessage(
+            { id: "chat.empty.createProject.folderLimit" },
+            { count: LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT },
+          ),
+        );
+      } else if (resolved.rejectedCount > 0) {
+        setError(intl.formatMessage({ id: "chat.empty.createProject.dropInvalid" }));
+      }
+    } finally {
+      if (requestId === dropRequestIdRef.current) {
+        dropPendingRef.current = false;
+        setCheckingDroppedFolders(false);
+      }
+    }
+  };
+  const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
+    if (!Array.from(event.dataTransfer.types).includes("Files")) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    setDragActive(true);
+  };
+  const handleDragLeave = (event: DragEvent<HTMLDivElement>) => {
+    if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+      setDragActive(false);
+    }
   };
   const handleSubmit = async () => {
     if (!name.trim() || sourceFolderPaths.length === 0 || submitting) {
@@ -105,6 +171,7 @@ export function ChatEmptyCreateProjectDialog({
             value={name}
             maxLength={LOCAL_PROJECT_NAME_MAX_LENGTH}
             data-testid={TID_CREATE_PROJECT_NAME}
+            disabled={submitting || checkingDroppedFolders}
             placeholder={intl.formatMessage({ id: "chat.empty.createProject.namePlaceholder" })}
             aria-label={intl.formatMessage({ id: "chat.empty.createProject.namePlaceholder" })}
             onChange={(event) => {
@@ -118,8 +185,27 @@ export function ChatEmptyCreateProjectDialog({
             <h3 className="text-ui-base font-medium text-foreground">
               {intl.formatMessage({ id: "chat.empty.createProject.sourceFolders" })}
             </h3>
-            <div className="grid min-h-36 gap-2 rounded-xl border border-card-border bg-surface p-3">
-              {sourceFolderPaths.length > 0 ? (
+            <div
+              className={cn(
+                "grid min-h-36 gap-2 rounded-xl border border-card-border bg-surface p-3 transition-colors",
+                dragActive ? "border-border-hover bg-surface-hover" : "",
+              )}
+              data-testid="create-project-folder-drop-zone"
+              aria-label={
+                canDropFolders
+                  ? intl.formatMessage({ id: "chat.empty.createProject.dropHint" })
+                  : undefined
+              }
+              aria-busy={checkingDroppedFolders}
+              onDragOver={canDropFolders ? handleDragOver : undefined}
+              onDragLeave={canDropFolders ? handleDragLeave : undefined}
+              onDrop={canDropFolders ? (event) => void handleDrop(event) : undefined}
+            >
+              {dragActive ? (
+                <div className="flex items-center justify-center text-ui-base font-medium text-foreground">
+                  {intl.formatMessage({ id: "chat.empty.createProject.dropActive" })}
+                </div>
+              ) : sourceFolderPaths.length > 0 ? (
                 <div className="grid content-start gap-1">
                   {sourceFolderPaths.map((path, index) => (
                     <div
@@ -139,6 +225,7 @@ export function ChatEmptyCreateProjectDialog({
                         type="button"
                         variant="ghost"
                         size="icon-sm"
+                        disabled={submitting || checkingDroppedFolders}
                         aria-label={intl.formatMessage({
                           id: "chat.empty.createProject.removeFolder",
                         })}
@@ -156,21 +243,36 @@ export function ChatEmptyCreateProjectDialog({
                 </div>
               ) : (
                 <div className="flex items-center justify-center text-ui-base text-foreground-subtle">
-                  {intl.formatMessage({ id: "chat.empty.createProject.addFromComputer" })}
+                  {intl.formatMessage({
+                    id: canDropFolders
+                      ? "chat.empty.createProject.dropHint"
+                      : "chat.empty.createProject.addFromComputer",
+                  })}
                 </div>
               )}
-              <div className="flex items-end justify-center">
+              <div className="flex items-center justify-center gap-3">
+                {canDropFolders && sourceFolderPaths.length > 0 && !dragActive ? (
+                  <span className="text-ui-sm text-foreground-subtle">
+                    {intl.formatMessage({ id: "chat.empty.createProject.dropMoreHint" })}
+                  </span>
+                ) : null}
                 <Button
                   type="button"
                   variant="secondary"
                   size="sm"
                   data-testid={TID_CREATE_PROJECT_ADD_FOLDER}
                   disabled={
-                    submitting || sourceFolderPaths.length >= LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT
+                    submitting ||
+                    checkingDroppedFolders ||
+                    sourceFolderPaths.length >= LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT
                   }
                   onClick={() => void handleAddFolder()}
                 >
-                  <FolderPlus className="size-4" />
+                  {checkingDroppedFolders ? (
+                    <LoaderCircle className="size-4 animate-spin" />
+                  ) : (
+                    <FolderPlus className="size-4" />
+                  )}
                   {intl.formatMessage({ id: "chat.empty.createProject.addFolder" })}
                 </Button>
               </div>
@@ -195,7 +297,9 @@ export function ChatEmptyCreateProjectDialog({
           <Button
             type="button"
             data-testid={TID_CREATE_PROJECT_SUBMIT}
-            disabled={!name.trim() || sourceFolderPaths.length === 0 || submitting}
+            disabled={
+              !name.trim() || sourceFolderPaths.length === 0 || submitting || checkingDroppedFolders
+            }
             onClick={() => void handleSubmit()}
           >
             {intl.formatMessage({ id: "chat.empty.createProject.submit" })}

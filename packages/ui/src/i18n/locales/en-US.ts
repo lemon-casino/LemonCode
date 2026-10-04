@@ -4669,6 +4669,12 @@ const enUS: Record<string, string> = {
   "chat.empty.createProject.namePlaceholder": "Project name",
   "chat.empty.createProject.sourceFolders": "Source folders",
   "chat.empty.createProject.addFromComputer": "Add folders from this computer",
+  "chat.empty.createProject.dropHint": "Drop folders here, or choose Add",
+  "chat.empty.createProject.dropMoreHint": "You can also drop more folders",
+  "chat.empty.createProject.dropActive": "Release to add folders",
+  "chat.empty.createProject.dropInvalid":
+    "Only accessible local folders can be added. Other dropped items were ignored.",
+  "chat.empty.createProject.folderLimit": "A project can contain up to {count} folders.",
   "chat.empty.createProject.addFolder": "Add",
   "chat.empty.createProject.primaryFolder": "Primary",
   "chat.empty.createProject.removeFolder": "Remove folder",
