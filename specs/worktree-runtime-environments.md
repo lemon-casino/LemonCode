@@ -137,6 +137,16 @@
 
 “尽量无需额外安装”不意味着首次无需网络，也不意味着编译器、SDK 或驱动已经由应用提供。
 
+### 5.4 P0-06 ADR：便携 mise 后端选型结论（2026-10-05 实测）
+
+- **后端与版本**：固定官方 `mise v2026.10.2`，单文件可执行，不依赖全局安装（`MISE_DATA_DIR`/`MISE_CONFIG_DIR` 指向应用目录即完成隔离）。
+- **平台范围**：官方发布资产覆盖全部目标平台——`windows-x64/arm64`（zip 59/61MB）、`macos-x64/arm64`（24/34MB）、`linux-x64/arm64` glibc+musl（28–31MB），共 10 个资产。Windows x64 已本机实测；其余平台按 §17 P5-03 门禁逐平台实测放行，不放行前不默认托管。
+- **配置隔离（关键机制）**：项目 cwd 的 `mise.toml` `[env]` 段与父级目录配置会被 walk-up 加载——显式 `exec node@版本` 不能阻止注入（实测 `EVIL=pwned` 泄漏）。缓解已实测：`--no-config`（或 `MISE_NO_CONFIG=1`）阻断全部项目/父级/全局配置加载，同时显式 `node@24.14.0` 仍正常解析到确切版本。托管路径统一用 `--no-config` + 应用生成的受限配置；全局配置注入反例（恶意全局 `config.toml`）同样未加载。
+- **下载与安装**：`mise install node@24.14.0 pnpm@10.33.2` 首装 24.8s；重跑幂等 0.1s。并发双进程安装同一新版本（node@22.20.0）双方 exit 0 且产物可用（内置互斥）。离线（不可达代理）exit 1、明确连接错误、不落半成品目录；不存在版本 exit 1。安装中断后重装可恢复。
+- **分发策略**：按需下载固定版本 + 固定摘要校验后缓存于 HostDataRoot，不随应用包分发。理由：全平台资产随包将增加数百 MB 压缩包体；按需路径已有明确离线失败语义（不静默用 PATH 兜底，符合 §5.2"无法随包的平台"行）。若后续包体预算允许再评估随包。
+- **包体**：mise.exe 解压后 ~188MB/平台（应用侧仅缓存实际使用的平台资产）。
+- **阻塞结论**：无阻塞，可进入 P1 托管开发。mise 沙盒标志继续不作安全边界（§5.3）；工具真实版本以 manifest 冻结 + `--no-config` 受限配置保证。
+
 ### 5.3 供应链与配置约束
 
 - 固定后端和资产摘要；OS/架构发布清单只列实测资产。
@@ -497,6 +507,8 @@ sequenceDiagram
 
 LCODE_ENV 是产品环境，不是 environmentId。不得为目录隔离随意改变 production/test、OAuth、远控 endpoint 或品牌。工作树中启动的开发 LCode 实例也不能接管控制它的 Host/session。
 
+P0-05 核实记录（2026-10-05，HEAD 3c436cc）：web dev 端口 5173 硬编码于 `packages/web/vite.config.ts:57`（`/ws`、`/api` 代理硬编码 3030）；desktop renderer 5174 strictPort 于 `packages/desktop/vite.config.ts:189`；desktop dev 启动链 = 根 dev:desktop:test → `scripts/dev-desktop-env.mjs`（注入 LCODE*ENV）→ `desktop/scripts/dev.mjs:89` 轮询 5174 后 spawn Electron（`ELECTRON_RENDERER_URL`）；HTTP server 默认 3030 于 `packages/server/src/http.ts:303-306`，`PORT`/`LCODE_SERVER_HOST`/`HOST` 可覆盖（`packages/server/src/entry-http.ts:16-17`）。数据根唯一来源 `LCODE_DATA_BASE_DIR`（兼容旧 ZCODE* 名，`packages/services/src/paths.ts:12-13,36-42`），config root = `{base}/.lcode/v2`；desktop 经 setting.json `dataBaseDir` → `setDataBaseDir` 注入并由 host 回注子进程（`desktopRuntimeEnv.ts:559`）；`LCODE_HOME` 仅 CUA Helper 路径回退，不是数据根。已天然参数化：server 端口/host、数据根、LCODE_ENV；需改造：web 5173 与代理目标、desktop 5174 与 dev.mjs 轮询地址（M3-04）。`paths.ts` 模块加载期捕获 env，进程内切换须走 `setDataBaseDir`。
+
 本次不构建桌面包。后续实现者仍应进行源码、CLI、服务、浏览器和必要的原生进程验证；用户执行最终桌面构建，不把未构建记作打包通过。
 
 ## 12. 服务、端口、数据与许可
@@ -690,14 +702,16 @@ flowchart LR
 
 ### P0：原型与技术选型
 
-| ID    | 任务与交付                        | 完成门禁                                       |
-| ----- | --------------------------------- | ---------------------------------------------- |
-| P0-01 | spawn/PTY/MCP/Hook入口和owner清单 | 每类有源码调用链                               |
-| P0-02 | 固定 mise 与 Node/pnpm 便携原型   | Windows x64 首测，目标平台矩阵，不依赖全局安装 |
-| P0-03 | 生成配置与父级/全局配置隔离试验   | 不加载未冻结 env/task/tools                    |
-| P0-04 | 下载、校验、共享锁、离线与取消    | 跨 Host 只发布一份有效产物                     |
-| P0-05 | 本项目端口/地址/数据清单          | dev:web/desktop/server实际启动者明确           |
-| P0-06 | 最终 ADR、资产/许可/包体策略      | 后端、平台范围、阻塞有结论                     |
+P0 已完成（2026-10-05，证据见下表与 §5.4/§11.2）。Windows x64 实测平台：Windows 11 x64（10.0.19045），mise v2026.10.2 官方 windows-x64 资产，隔离 `MISE_DATA_DIR`/`MISE_CONFIG_DIR` 测试目录，不依赖全局安装。
+
+| ID    | 任务与交付                        | 完成门禁                                       | 实测证据（2026-10-05）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| ----- | --------------------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0-01 | spawn/PTY/MCP/Hook入口和owner清单 | 每类有源码调用链                               | 四类消费者调用链与停止 owner 已核实到行级：spawn=`NodeExecutionAdapterRun.run`（`node-execution-adapter-run.ts:27`，spawn :206，停止 owner=请求级 requestStop→terminateProcessTree win32 taskkill/posix 杀组）；PTY=`terminalService.ts:354 create`→`nodePty.spawn` :246/:279，停止 owner=`cleanupTerminal`→pty.kill :347（`resolveTerminalEnv` :199-233 完全无 overlay 入口）；MCP=connectionKey `pool-identity.ts:32-44`，env 源 `buildMcpStdioEnv`（`network.ts:9-20`）仅 sanitize，停止 owner=`disconnectServer`→先杀进程树/Job Object（`adapter-cleanup.ts:52-90`）；Hook=复用 spawn 链（`configured-runner-callback.ts:31` 经 executionPort.run），overlay 仅 set。四类 env 终源全部是宿主 process.env；`ExecutionEnvOverlay`（contracts `execution.port.ts`）是现成注入点，PTY 唯一完全空白 |
+| P0-02 | 固定 mise 与 Node/pnpm 便携原型   | Windows x64 首测，目标平台矩阵，不依赖全局安装 | mise v2026.10.2 windows-x64 官方 zip 单目录解压即用；`exec node@24.14.0`/`pnpm@10.33.2` 返回精确版本，绝对路径落 `installs/node/24.14.0`；全平台资产 10 个（win/macos/linux × x64/arm64，见 §5.4），其余平台按 P5-03 逐平台放行                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| P0-03 | 生成配置与父级/全局配置隔离试验   | 不加载未冻结 env/task/tools                    | 反例实测：项目 cwd `mise.toml` `[env]` 与父级目录配置会被 walk-up 加载，显式版本 exec 不能阻止注入（EVIL 泄漏）；全局配置注入同样加载。缓解实测：`--no-config`/`MISE_NO_CONFIG=1` 阻断全部项目/父级/全局配置且显式版本仍解析；托管路径用 `--no-config` + 应用受限配置（§5.4）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| P0-04 | 下载、校验、共享锁、离线与取消    | 跨 Host 只发布一份有效产物                     | 首装 24.8s、重跑幂等 0.1s；并发双进程装同一新版本双方 exit 0 产物可用（内置互斥）；离线 exit 1 明确连接错误不落半成品；不存在版本 exit 1；中断后重装可恢复。应用侧跨 Host 互斥按 §8.3 用 withFileLock 模式实现（P1-04）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| P0-05 | 本项目端口/地址/数据清单          | dev:web/desktop/server实际启动者明确           | 全链核实见 §11.2 P0-05 核实记录；LCODE_DATA_BASE_DIR 是现成注入点，web/desktop 端口两处硬编码待 M3-04 参数化                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| P0-06 | 最终 ADR、资产/许可/包体策略      | 后端、平台范围、阻塞有结论                     | ADR 见 §5.4：按需下载固定 v2026.10.2+摘要校验；全平台资产清单；无阻塞。ADR 需用户确认（实施计划 §5.2 未决问题 1）                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 不能取得确切工具、隔离配置或可靠停止时不进入默认托管。改后端先改本文，不能增加无声 PATH fallback。
 
@@ -867,9 +881,13 @@ Python/uv、Go、Rust、其他JS manager按相同contract逐项扩展，每个�
 | 缓存GC            | 仅共享受管理工具和下载           | 活引用、完整性、native独立              |
 | 特性图            | 保留既有worktree/identity/writer | 模块建成后加入真实种子和关系            |
 
+P0 核实结论（2026-10-05）：mise版本与资产——固定 v2026.10.2，10 个全平台资产（§5.4）；pnpm安装来源——受控后端 `mise install pnpm@10.33.2` 实测成功，配置隔离依赖 `--no-config`；全局/父级配置——`--no-config`/`MISE_NO_CONFIG=1` 阻断项目/父级/全局 walk-up 已实测（含反例）；PTY profile——`resolveTerminalEnv` 当前无 overlay 入口，P2-04 增加 scope/env 参数（P0-01 清单）；开发数据与端口——LCODE_DATA_BASE_DIR 全链可注入，web/desktop 端口硬编码待 M3-04（§11.2 核实记录）；其余（重启证明/锁顺序/缓存GC/特性图）在 P1/P3/P4 任务门禁内落实。
+
 新环境owner尚不存在，因此不在feature graph中添加虚构导出。实现时创建模块后再更新图并校验。
 
 ### 本次文档变更记录
+
+2026-10-05（P0 完成）：回填 P0 实测证据与 ADR。新增 §5.4（ADR：固定 mise v2026.10.2、全平台 10 资产清单、--no-config 隔离机制、按需下载决策、无阻塞）；§11.2 补 P0-05 端口/数据核实记录；§17 P0 门禁表更新为已完成并附逐项实测证据（Windows x64 实测平台，其余平台按 P5-03 放行）；"实施前待核实事项"表补 P0 结论行。M0 原型试验在仓库外测试目录完成，未修改业务代码。实施计划见 worktree-runtime-environments-plan.md（M1 起按该计划推进）。ADR 中"按需下载 vs 随包分发"结论待用户确认（实施计划 §5.2 未决问题 1）。
 
 2026-10-05：将2026-10-03简版草案扩展为统一规范，更新基线；补充完整执行接线、工作树/Git生命周期、所有者、持久化、平台、实施任务及30项验收。全部环境功能仍待开发；本次没有业务代码实现或桌面构建。
 
