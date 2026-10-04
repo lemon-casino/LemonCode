@@ -86,6 +86,11 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
     if (message.text().includes("提交弹窗已显示")) visibleLogs.push(message.text());
   });
   const url = `http://127.0.0.1:${port}/test/fixtures/git-commit-dialog.html`;
+  if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "shared-host") {
+    await runGitReviewCrossPlatformCases(t, { browser, url });
+    assert.deepEqual(errors, []);
+    return;
+  }
   await runGitReviewNavigationCases(t, { page, url });
   await runGitReviewCrossPlatformCases(t, { browser, url });
   const button = page.getByTestId("v4-composer-commit-summary");

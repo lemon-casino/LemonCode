@@ -154,7 +154,7 @@ export async function runWorktreeReviewSettingsCases({
             baseBox.x >= modeBox.x + modeBox.width - 1 &&
               baseBox.x + baseBox.width <= settingsBox.x,
           );
-          assert.equal(await base.locator("span").getAttribute("title"), longBase);
+          assert.equal(await base.getAttribute("title"), longBase);
           assert.equal(
             await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
             true,

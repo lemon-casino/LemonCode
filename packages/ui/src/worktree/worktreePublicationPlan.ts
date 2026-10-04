@@ -13,7 +13,7 @@ import {
 } from "@/git-action-menu/publishModel.js";
 
 export function worktreePublicationPlan(input: {
-  operation: Pick<WorktreeIntegration, "status" | "targetPath" | "targetBranch">;
+  operation: Pick<WorktreeIntegration, "status" | "targetPath" | "targetBranch" | "repositoryPath">;
   workspaceIdentity?: string;
   state: GitPublishState;
   options: PublishOptions;
@@ -33,7 +33,11 @@ export function worktreePublicationPlan(input: {
   if (invalid) return { error: `git.publish.error.${invalid}` };
   return {
     plan: freezePublishPlan({
-      request: { workspacePath: operation.targetPath, workspaceIdentity: input.workspaceIdentity },
+      request: {
+        workspacePath: operation.repositoryPath ?? operation.targetPath,
+        workspaceIdentity: input.workspaceIdentity,
+        sourceBranch: operation.targetBranch,
+      },
       options,
       state,
       tags,

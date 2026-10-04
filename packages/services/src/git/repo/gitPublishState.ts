@@ -177,8 +177,23 @@ export class GitPublishStateReader {
     };
   }
 
-  async capture(workspacePath: string): Promise<GitPublishState> {
+  async capture(workspacePath: string, sourceBranch?: string): Promise<GitPublishState> {
     const cwd = await this.root(workspacePath);
+    if (sourceBranch) {
+      // 根因：合并目标与当前目录 HEAD 无关；显式发布只冻结该本地 ref，不能被原目录草稿阻断。
+      await this.git(cwd, ["check-ref-format", "--branch", sourceBranch]);
+      const ref = `refs/heads/${sourceBranch}^{commit}`;
+      const head = (await this.git(cwd, ["rev-parse", "--verify", ref])).trim();
+      if (head !== (await this.git(cwd, ["rev-parse", "--verify", ref])).trim())
+        throw new Error(CHANGED);
+      const fingerprint = digest(JSON.stringify(["local-branch", sourceBranch, head]));
+      return {
+        branchName: sourceBranch,
+        headCommitHash: head,
+        indexFingerprint: fingerprint,
+        worktreeFingerprint: fingerprint,
+      };
+    }
     // 中文依据：不复用 status/行数缓存；双重读取真实字节，捕获期间发生变化即拒绝，不靠等待掩盖并发。
     const first = await this.sample(cwd);
     const second = await this.sample(cwd);
@@ -186,7 +201,11 @@ export class GitPublishStateReader {
     return second;
   }
 
-  async assertCurrent(workspacePath: string, expected: GitPublishState): Promise<void> {
-    assertPublishState(expected, await this.capture(workspacePath));
+  async assertCurrent(
+    workspacePath: string,
+    expected: GitPublishState,
+    sourceBranch?: string,
+  ): Promise<void> {
+    assertPublishState(expected, await this.capture(workspacePath, sourceBranch));
   }
 }

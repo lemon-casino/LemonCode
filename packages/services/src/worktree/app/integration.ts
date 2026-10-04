@@ -1,6 +1,7 @@
 import type { WorktreeIntegrateRequest, WorktreeIntegration } from "../contract.js";
 import type { WorktreeContext } from "./ports.js";
 import type { CheckoutCoordinator } from "../nodeTypes.js";
+import { cleanupTemporaryTarget } from "./temporaryTarget.js";
 import { commitIntegrationSource } from "./sourceCommit.js";
 import { validateIntegrationCandidate } from "./validation.js";
 
@@ -101,16 +102,11 @@ export function createWorktreeIntegration(
           source.branch !== binding.branch
         )
           throw new Error("Task source HEAD or worktree ownership changed");
-        const target = await git.inspect(binding.repositoryRoot);
-        if (!params.targetBranch || target.branch !== params.targetBranch)
-          throw new Error(
-            "Integration target must be the branch currently checked out in the original directory",
-          );
-        await git.command(binding.repositoryRoot, [
-          "check-ref-format",
-          "--branch",
-          params.targetBranch,
-        ]);
+        if (params.targetBranch === binding.branch)
+          throw new Error("Integration source cannot target itself");
+        const target = await git.resolveTarget(binding.repositoryRoot, params.targetBranch);
+        // 根因：原实现把目标分支等同于原目录 HEAD；按真实注册解析，未检出目标不切换原项目。
+        const targetPath = target.path ?? store.checkout(store.key(`integration-target:${id}`));
         const now = new Date().toISOString();
         operation = {
           id,
@@ -122,8 +118,10 @@ export function createWorktreeIntegration(
             ? { sourceCommits: params.sourceCommits, sourceReceipts: [] }
             : {}),
           targetHead: target.head,
-          targetBranch: target.branch,
-          targetPath: target.root,
+          targetBranch: params.targetBranch,
+          targetPath,
+          repositoryPath: binding.repositoryRoot,
+          ...(target.path ? {} : { targetTemporary: true }),
           checkoutPath: store.checkout(id),
           status: params.sourceCommits?.length ? "committing-source" : "preparing",
           conflictPaths: [],
@@ -132,7 +130,11 @@ export function createWorktreeIntegration(
           validationResults: [],
           createdAt: now,
           updatedAt: now,
-          mergeBase: await git.command(target.root, ["merge-base", target.head, source.head]),
+          mergeBase: await git.command(binding.repositoryRoot, [
+            "merge-base",
+            target.head,
+            source.head,
+          ]),
         };
         await store.saveOperation(operation);
         await context.fault("integrate.after-record");
@@ -159,6 +161,20 @@ export function createWorktreeIntegration(
       if (["committing-source", "source-commit-failed"].includes(operation.status)) {
         operation = await commitIntegrationSource(context, coordinator, binding, operation);
         if (operation.status === "source-commit-failed") return operation;
+      }
+      if (operation.targetTemporary) {
+        await store.assertManagedPath(operation.targetPath);
+        if (!(await git.registered(binding.repositoryRoot, operation.targetPath))) {
+          if (await store.exists(operation.targetPath))
+            throw new Error("Temporary target destination is occupied");
+          await git.command(binding.repositoryRoot, [
+            "worktree",
+            "add",
+            "--detach",
+            operation.targetPath,
+            operation.targetHead,
+          ]);
+        }
       }
       await store.assertManagedPath(operation.checkoutPath);
       if (!(await git.registered(binding.repositoryRoot, operation.checkoutPath))) {
@@ -225,7 +241,24 @@ export function createWorktreeIntegration(
       if (params.cancel) {
         if (["publishing", "published"].includes(operation.status))
           throw new Error("Publication cannot be cancelled or rolled back");
-        return save({ ...operation, status: "cancelled", error: undefined });
+        operation = await save({ ...operation, status: "cancelled", error: undefined });
+        if (operation.targetTemporary && (await store.exists(operation.targetPath))) {
+          const lease = await coordinator.acquire({
+            workspacePath: operation.targetPath,
+            ownerId: `cancel-target:${operation.id}`,
+          });
+          try {
+            await cleanupTemporaryTarget(context, operation);
+          } catch (error) {
+            return save({
+              ...operation,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          } finally {
+            await coordinator.release(lease);
+          }
+        }
+        return operation;
       }
       if (operation.status === "published") return operation;
       const lease = await coordinator.acquire({

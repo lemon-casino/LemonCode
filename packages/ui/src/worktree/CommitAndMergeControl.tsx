@@ -7,6 +7,8 @@ import { useReviewWorkspaceState } from "@/hooks/useReviewWorkspaceState.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
+import { GitFailureAction } from "@/git-action-menu/GitFailureAction.js";
+import { worktreeFailureContext } from "@/git-action-menu/gitFailureDraft.js";
 import { WorktreeTaskActions } from "./WorktreeTaskActions.js";
 import { WorktreeTargetSelect } from "./WorktreeTargetSelect.js";
 import { commitMergeState } from "@/git-action-menu/commitMergeState.js";
@@ -116,7 +118,7 @@ export function CommitAndMergeControl({
         };
       }
       const operation = await worktreeService.integrate(request.current.params);
-      sharedReview.patch({ integrationId: operation.id, mergeView: null });
+      sharedReview.patch({ integrationId: operation.id, mergeView: null, worktreeView: null });
       onCommitted(operation);
       setCompleted(true);
     });
@@ -180,9 +182,25 @@ export function CommitAndMergeControl({
         mergePreparation
       )}
       {task.error ? (
-        <p role="alert" className="text-ui-sm text-destructive">
-          {task.error}
-        </p>
+        <>
+          <p role="alert" className="text-ui-sm text-destructive">
+            {task.error}
+          </p>
+          <GitFailureAction
+            workspacePath={originWorkspacePath}
+            workspaceIdentity={originWorkspaceIdentity}
+            sessionId={sessionId}
+            disabled={task.pending}
+            onTransferred={onHideReview}
+            context={worktreeFailureContext(
+              binding,
+              task.operation?.targetBranch === targetBranch ? task.operation : null,
+              task.rawError ?? task.error,
+              targetBranch,
+              sessionId,
+            )}
+          />
+        </>
       ) : null}
     </div>
   );
@@ -192,9 +210,7 @@ export function CommitAndMergeControl({
     workspaceRemoteSessionId,
     sessionId,
     // 来源范围失效不能锁住已合并目标的发布；同步和在途门禁仍由同一审核控制器传入。
-    busy:
-      task.pending ||
-      (task.operation?.status === "published" ? (publicationDisabled ?? disabled) : disabled),
+    busy: task.pending || (publicationDisabled ?? disabled),
     onHideReview,
     onShowReview,
     onResolveConflicts,

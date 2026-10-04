@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { WorktreeBinding, WorktreeIntegration } from "@lcode/services";
 import { useServices } from "./useServices.js";
 import { getCheckoutOperationErrorMessage } from "@/lib/checkoutOperationError.js";
+import { getErrorMessage } from "@/lib/errorMessage.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useWorktreeLifecycleStore } from "@/store/worktreeLifecycleStore.js";
 
@@ -59,6 +60,7 @@ export function useWorktreeTask(
     binding: WorktreeBinding | null;
     operation: WorktreeIntegration | null;
     error?: string;
+    rawError?: string;
     loading: boolean;
   }>({ scope, binding: null, operation: null, loading: false });
   const [pending, setPending] = useState(false);
@@ -87,6 +89,7 @@ export function useWorktreeTask(
           scope,
           loading: false,
           error: describeError(error),
+          rawError: getErrorMessage(error),
         }));
     }
   }, [scope, taskId, workspacePath, workspaceIdentity, worktreeService, describeError]);
@@ -101,7 +104,7 @@ export function useWorktreeTask(
       if (pending) return false;
       const ownScope = scope;
       setPending(true);
-      setState((previous) => ({ ...previous, error: undefined }));
+      setState((previous) => ({ ...previous, error: undefined, rawError: undefined }));
       try {
         await action();
         useWorktreeLifecycleStore.getState().invalidate(workspacePath, workspaceIdentity);
@@ -112,7 +115,9 @@ export function useWorktreeTask(
         useWorktreeLifecycleStore.getState().invalidate(workspacePath, workspaceIdentity);
         await refresh();
         setState((previous) =>
-          previous.scope === ownScope ? { ...previous, error: describeError(error) } : previous,
+          previous.scope === ownScope
+            ? { ...previous, error: describeError(error), rawError: getErrorMessage(error) }
+            : previous,
         );
         return false;
       } finally {

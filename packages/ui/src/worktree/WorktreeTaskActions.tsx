@@ -6,6 +6,8 @@ import { useReviewDiffNavigation } from "@/hooks/useReviewDiffNavigation.js";
 import { useReviewWorkspaceState } from "@/hooks/useReviewWorkspaceState.js";
 import { useWorktreeReviewStage } from "@/hooks/useWorktreeReviewStage.js";
 import { ReviewWorkspaceSyncStatus } from "@/git-action-menu/ReviewWorkspaceSyncStatus.js";
+import { GitFailureAction } from "@/git-action-menu/GitFailureAction.js";
+import { worktreeFailureContext } from "@/git-action-menu/gitFailureDraft.js";
 import { WorktreeValidationResults } from "./WorktreeValidationResults.js";
 import { WorktreeReadStatus } from "./WorktreeReadStatus.js";
 import { LiveWorktreePreparationCard } from "./WorktreePreparationCard.js";
@@ -104,20 +106,21 @@ export function WorktreeTaskActions({
         workspaceIdentity: binding.workspaceIdentity,
       });
       if (!capability.head) throw new Error(text("sourceUnavailable"));
-      await worktreeService.integrate({
+      const next = await worktreeService.integrate({
         requestId: crypto.randomUUID(),
         bindingId: binding.id,
         expectedSourceHead: capability.head,
         targetBranch,
         validationCommands: validationCommands.length ? validationCommands : undefined,
       });
+      sharedReview.patch({ integrationId: next.id, mergeView: null, worktreeView: null });
     });
   const preparation = (
     <WorktreePreparation
       binding={binding}
       targetBranch={targetBranch}
       commands={commands ?? policy.validationCommands.join("\n")}
-      locked={locked}
+      locked={busy || pending || sharedReview.status !== "ready" || (readOnly && activeIntegration)}
       activeIntegration={activeIntegration}
       onTarget={(branch) => {
         sharedReview.patch({ targetBranch: branch });
@@ -269,6 +272,31 @@ export function WorktreeTaskActions({
           {text("working")}
         </span>
       ) : null}
+      {task.error ||
+      operation?.error ||
+      operation?.status === "conflicted" ||
+      operation?.status === "validation-failed" ? (
+        <GitFailureAction
+          workspacePath={workspacePath}
+          workspaceIdentity={workspaceIdentity}
+          sessionId={sessionId}
+          disabled={pending}
+          onTransferred={() => {
+            onHideReview?.();
+            setOpen(false);
+          }}
+          context={worktreeFailureContext(
+            binding,
+            operation?.targetBranch === targetBranch ? operation : null,
+            task.rawError ??
+              task.error ??
+              operation?.error ??
+              text(`integration.${operation?.status}`),
+            targetBranch,
+            sessionId,
+          )}
+        />
+      ) : null}
       {task.error ? (
         <p role="alert" className="break-words text-ui-sm text-destructive">
           {task.error}
@@ -305,8 +333,14 @@ export function WorktreeTaskActions({
     <WorktreePublication
       key={operation.id}
       operation={operation}
+      sessionId={sessionId}
+      originWorkspacePath={workspacePath}
+      onTransferred={() => {
+        onHideReview?.();
+        setOpen(false);
+      }}
       workspaceIdentity={binding.originalWorkspaceIdentity}
-      disabled={locked}
+      disabled={busy || pending || sharedReview.status !== "ready"}
       renderReview={renderReview}
     />
   ) : (

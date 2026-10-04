@@ -42,3 +42,22 @@ test("冲突处理器按项目与会话隔离，旧组件清理不能移除新�
   assert.equal(navigation.getState().resolvers[b]?.token, "other");
   navigation.getState().removeResolver(b, "other");
 });
+
+test("失败草稿只交给匹配会话接收器，旧卸载不能移除新接收器", () => {
+  const key = commitReviewNavigationKey("/repo", "owner", "a");
+  const calls: string[] = [];
+  const action = (value: string) => {
+    calls.push(value);
+  };
+  navigation.getState().registerDraftReceiver(key, { token: "old", action });
+  navigation.getState().registerDraftReceiver(key, { token: "new", action });
+  navigation.getState().removeDraftReceiver(key, "old");
+  assert.equal(
+    navigation.getState().transferDraft(commitReviewNavigationKey("/repo", "other", "a"), "wrong"),
+    false,
+  );
+  assert.equal(navigation.getState().transferDraft(key, "diagnostic"), true);
+  assert.deepEqual(calls, ["diagnostic"]);
+  navigation.getState().removeDraftReceiver(key, "new");
+  assert.equal(navigation.getState().transferDraft(key, "late"), false);
+});

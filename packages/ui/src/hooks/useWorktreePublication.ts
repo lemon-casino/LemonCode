@@ -24,8 +24,8 @@ export function useWorktreePublication(operation: WorktreeIntegration, workspace
   const { gitService } = useServices();
   const { intl } = useLCodeIntl();
   const request = useMemo(
-    () => ({ workspacePath: operation.targetPath, workspaceIdentity }),
-    [operation.targetPath, workspaceIdentity],
+    () => ({ workspacePath: operation.repositoryPath ?? operation.targetPath, workspaceIdentity }),
+    [operation.repositoryPath, operation.targetPath, workspaceIdentity],
   );
   const scope = JSON.stringify([operation.id, operation.candidateHead, workspaceIdentity]);
   const active = useRef(scope);
@@ -91,7 +91,7 @@ export function useWorktreePublication(operation: WorktreeIntegration, workspace
   const preview = () =>
     perform(async (isCurrent) => {
       const [state, remotes, tags] = await Promise.all([
-        gitService.getPublishState(request),
+        gitService.getPublishState({ ...request, sourceBranch: operation.targetBranch }),
         gitService.listRemotes(request),
         gitService.listTags(request),
       ]);

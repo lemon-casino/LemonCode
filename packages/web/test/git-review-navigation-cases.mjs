@@ -7,6 +7,79 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
       method,
       args,
     });
+
+  await t.test("历史阶段返回后可选择新目标，旧发布仍绑定 L-GO，epoch 重建不重放合并", async () => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`${url}?seedIntegration=published`);
+    await fixture("executionMode", "worktree");
+    await fixture("dirty", []);
+    await page.getByTestId("git-action-trigger").click();
+    await dialog.getByTestId("git-review-stage-back").click();
+    await dialog.getByTestId("worktree-stage-back").click();
+    await dialog.getByTestId("git-review-stage-back").click();
+    await dialog.getByTestId("git-review-stage-back").click();
+    await dialog.getByTestId("worktree-remote-publication").waitFor();
+    assert.match(await dialog.innerText(), /发布 L-GO/);
+    await dialog.getByTestId("git-review-stage-back").click();
+    await dialog.getByTestId("worktree-target-branch").click();
+    await page.getByRole("option", { name: "main", exact: true }).click();
+    const prepare = dialog.getByTestId("worktree-integrate");
+    assert.equal(await prepare.isEnabled(), true);
+    await prepare.click();
+    await dialog.getByTestId("worktree-integration-status").waitFor();
+    assert.equal(
+      (await page.evaluate(() => globalThis.__gitCommitFixture.mergeCalls)).at(-1).targetBranch,
+      "main",
+    );
+    const before = await page.evaluate(() => globalThis.__gitCommitFixture.mergeCalls.length);
+    await fixture("logEpoch", "new-epoch");
+    await page.getByTestId("git-action-trigger").click();
+    await dialog.getByTestId("worktree-integration-status").waitFor();
+    assert.match(await dialog.innerText(), /main/);
+    assert.equal(
+      await page.evaluate(() => globalThis.__gitCommitFixture.mergeCalls.length),
+      before,
+    );
+  });
+  await t.test("本地审核读取失败及远端部分失败可转交，草稿保留且没有隐式 Git 操作", async () => {
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(url);
+      await fixture("failLoad", "fixture-error src/button.ts:12");
+      await page.getByTestId("git-action-trigger").click();
+      await dialog.getByTestId("git-failure-to-composer").click();
+      await dialog.waitFor({ state: "hidden" });
+      const draft = await page.getByTestId("composer-draft").inputValue();
+      assert.ok(draft.startsWith("待发送的草稿不能改变"));
+      assert.match(draft, /src\/button.ts:12/);
+      assert.deepEqual(await page.evaluate(() => globalThis.__gitCommitFixture.publish.calls), []);
+      await page.goto(url);
+      await page.getByTestId("git-action-trigger").click();
+      await dialog.getByTestId("git-publish-toggle").click();
+      await dialog.getByTestId("git-publish-remote-origin").check();
+      await dialog.getByTestId("git-publish-remote-backup").check();
+      await dialog.getByTestId("git-publish-branch-enabled").check();
+      await page.evaluate(() => globalThis.__gitCommitFixture.publish.failPush("backup"));
+      await dialog.getByTestId("git-publish-preview").click();
+      await dialog.getByTestId("git-publish-confirm").click();
+      await page.waitForFunction(
+        () =>
+          document
+            .querySelector('[data-testid="git-publish-results"]')
+            ?.getAttribute("aria-busy") === "false",
+      );
+      const calls = await page.evaluate(() => globalThis.__gitCommitFixture.publish.calls);
+      await dialog.getByTestId("git-failure-to-composer").click();
+      await dialog.waitFor({ state: "hidden" });
+      const report = await page.getByTestId("composer-draft").inputValue();
+      assert.match(report, /origin.*success/);
+      assert.match(report, /backup.*failed/);
+      assert.deepEqual(
+        await page.evaluate(() => globalThis.__gitCommitFixture.publish.calls),
+        calls,
+      );
+    }
+  });
   await t.test("干净来源明确进入目标合并结果发布，来源与目标视图无混淆或隐式写入", async () => {
     for (const width of [1280, 390]) {
       for (const english of [false, true]) {

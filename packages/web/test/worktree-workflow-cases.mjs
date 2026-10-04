@@ -1,6 +1,72 @@
 import assert from "node:assert/strict";
 
 export async function runWorktreeWorkflowCases({ t, page, url, calls, configure, select }) {
+  await t.test("合并准备、冲突、验证、落地和远端失败均可转交当前草稿，不重复执行", async () => {
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const phase of ["prepare", "conflict", "validate", "apply", "remote"]) {
+        await page.goto(url + "?scenario=review");
+        await configure({
+          failIntegration: phase === "prepare",
+          conflicted: phase === "conflict",
+          failValidation: phase === "validate",
+          failPublication: phase === "apply",
+        });
+        const dialog = page.getByTestId("worktree-task-dialog");
+        await dialog.getByTestId("worktree-integrate").click();
+        if (["validate", "apply", "remote"].includes(phase)) {
+          await dialog.getByTestId("worktree-approve-candidate").check();
+          await dialog.getByTestId("worktree-validate").click();
+        }
+        if (["apply", "remote"].includes(phase))
+          await dialog.getByTestId("worktree-publish").click();
+        if (phase === "remote") {
+          const publish = dialog.getByTestId("worktree-remote-publication");
+          await publish.getByTestId("git-publish-toggle").click();
+          await publish.getByTestId("git-publish-remote-origin").check();
+          await publish.getByTestId("git-publish-remote-backup").check();
+          await publish.getByTestId("git-publish-branch-enabled").check();
+          await publish.getByTestId("git-publish-preview").click();
+          await publish.getByTestId("git-publish-confirm").click();
+          await publish.getByText("fixture-remote-offline").waitFor();
+        }
+        const handoff = dialog.getByTestId("git-failure-to-composer");
+        await handoff.waitFor();
+        await page.waitForFunction(
+          () => !document.querySelector('[data-testid="git-failure-to-composer"]').disabled,
+        );
+        const before = (await calls()).filter((call) =>
+          ["integrate", "continueIntegration", "publishIntegration", "push"].includes(call.method),
+        );
+        await handoff.click();
+        await dialog.waitFor({ state: "hidden" });
+        await page.waitForFunction(() =>
+          document
+            .querySelector('[data-testid="failure-composer-draft"]')
+            .value.includes("请协助处理以下 Git 操作问题"),
+        );
+        const draft = await page.getByTestId("failure-composer-draft").inputValue();
+        assert.ok(draft.startsWith("原有的后续修改草稿"));
+        assert.match(draft, /L-GO/);
+        assert.match(draft, phase === "remote" ? /\/fixture\/repo/ : /worktree\/task/);
+        if (phase === "conflict") assert.match(draft, /file\.txt/);
+        if (phase === "validate") assert.match(draft, /src\/button\.ts:12/);
+        if (phase === "remote") {
+          assert.match(draft, /origin.*success/);
+          assert.match(draft, /backup.*failed/);
+          assert.match(draft, /merged into L-GO/);
+        }
+        assert.deepEqual(
+          (await calls()).filter((call) =>
+            ["integrate", "continueIntegration", "publishIntegration", "push"].includes(
+              call.method,
+            ),
+          ),
+          before,
+        );
+      }
+    }
+  });
   await t.test("阶段回退只读，关闭重开及外部差异往返保留候选确认", async () => {
     await page.goto(url + "?scenario=review");
     const dialog = page.getByTestId("worktree-task-dialog");

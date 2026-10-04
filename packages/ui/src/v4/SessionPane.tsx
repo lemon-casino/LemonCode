@@ -132,6 +132,7 @@ import {
   SessionWorktreePreparation,
 } from "@/worktree/WorktreeConversationPreparation.js";
 import { WorktreeManagementActions } from "@/worktree/WorktreeManagementActions.js";
+import { useGitFailureComposerBridge } from "@/hooks/useGitFailureHandoff.js";
 import { useWorktreeConflictResolver } from "@/hooks/useCommitReviewNavigation.js";
 import { useWorktreeTask } from "@/hooks/useWorktreeTask.js";
 import { waitForWorktreeRepair } from "@/v4/worktreeRepair.js";
@@ -1358,13 +1359,20 @@ export function SessionPane({
     (store) =>
       store.getWorkspaceState(workspacePath, workspaceIdentity).draftRuntimeInvalidationVersion,
   );
+  const gitFailureComposer = useGitFailureComposerBridge(
+    workspacePath,
+    workspaceIdentity,
+    sessionId,
+    focused && !readOnly,
+  );
   const handleExternalTextInsertApplied = useCallback(
     (requestId: number) => {
+      gitFailureComposer.consume(requestId);
       useLCodeSessionStore
         .getState()
         .clearComposerTextInsertRequest(workspacePath, requestId, workspaceIdentity);
     },
-    [workspaceIdentity, workspacePath],
+    [workspaceIdentity, workspacePath, gitFailureComposer.consume],
   );
   const composerBindingRef = useRef({ sessionId, workspaceKey });
   composerBindingRef.current = { sessionId, workspaceKey };
@@ -5256,7 +5264,11 @@ export function SessionPane({
       centered={isDraft && !showingWorktreePreparation}
       blockingRequestId={blockingInteractionId}
       listenAddToChatEvents={focused}
-      externalTextInsertRequest={focused && sessionId === null ? composerTextInsertRequest : null}
+      externalTextInsertRequest={
+        focused
+          ? (gitFailureComposer.request ?? (sessionId === null ? composerTextInsertRequest : null))
+          : null
+      }
       onExternalTextInsertApplied={handleExternalTextInsertApplied}
       autoFocusEnabled={focused}
       sessionReferenceDropEnabled={focused && !readOnly && !selectionSideChat}

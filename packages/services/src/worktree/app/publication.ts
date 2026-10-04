@@ -1,6 +1,7 @@
 import type { WorktreeIntegration } from "../contract.js";
 import type { CheckoutCoordinator } from "../nodeTypes.js";
 import type { WorktreeContext } from "./ports.js";
+import { cleanupTemporaryTarget } from "./temporaryTarget.js";
 import { validateIntegrationCandidate } from "./validation.js";
 
 export function createWorktreePublication(
@@ -33,9 +34,35 @@ export function createWorktreePublication(
     approvedCandidateHead: string;
   }) {
     const original = await options.read(params.operationId);
-    if (original.status === "published" && original.candidateHead === params.approvedCandidateHead)
-      return original;
     return store.lock(original.id, async () => {
+      const reconciled = await options.read(original.id);
+      if (reconciled.candidateHead !== params.approvedCandidateHead)
+        throw new Error("Exact integration candidate must be reviewed before publication");
+      if (reconciled.targetTemporary) {
+        await store.assertManagedPath(reconciled.targetPath);
+        if (
+          reconciled.targetPath !==
+            store.checkout(store.key(`integration-target:${reconciled.id}`)) ||
+          !reconciled.repositoryPath
+        )
+          throw new Error("Temporary target ownership does not match its record");
+        // 响应丢失时临时目录可能已清理；依据目标 ref 对账，不能重放合并或创建空目录。
+        if (!(await store.exists(reconciled.targetPath))) {
+          if (!["publishing", "published"].includes(reconciled.status))
+            throw new Error("Temporary target is missing before publication");
+          if (reconciled.status === "published") return reconciled;
+          const target = await git.resolveTarget(
+            reconciled.repositoryPath,
+            reconciled.targetBranch,
+          );
+          const included = await git.run({
+            cwd: reconciled.repositoryPath,
+            args: ["merge-base", "--is-ancestor", params.approvedCandidateHead, target.head],
+          });
+          if (included.exitCode !== 0) throw new Error("Target publication needs reconciliation");
+          return options.save({ ...reconciled, status: "published", error: undefined });
+        }
+      } else if (reconciled.status === "published") return reconciled;
       const lease = await options.coordinator.acquire({
         workspacePath: original.targetPath,
         ownerId: `publish:${original.id}`,
@@ -52,19 +79,48 @@ export function createWorktreePublication(
         if (!operation.candidateHead || operation.candidateHead !== params.approvedCandidateHead)
           throw new Error("Exact integration candidate must be reviewed before publication");
         const target = await git.inspect(operation.targetPath);
-        if (target.branch !== operation.targetBranch)
+        if (
+          target.branch !== operation.targetBranch &&
+          !(operation.targetTemporary && !target.branch)
+        )
           throw new Error("Target branch changed after integration review");
-        if (operation.status === "published") return operation;
+        const finish = async () => {
+          operation = await options.save({ ...operation, status: "published", error: undefined });
+          if (operation.targetTemporary) {
+            try {
+              // 只清理无改动的已确认目标，不强制移除；失败不抹掉合并成功事实。
+              await cleanupTemporaryTarget(context, operation);
+            } catch (error) {
+              operation = await options.save({
+                ...operation,
+                error: `Merge succeeded; temporary target cleanup failed: ${error instanceof Error ? error.message : String(error)}`,
+              });
+            }
+          }
+          return operation;
+        };
+        if (operation.status === "published") return finish();
         await git.assertIdle(operation.targetPath);
+        const selected = await git.resolveTarget(
+          operation.repositoryPath ?? operation.targetPath,
+          operation.targetBranch,
+        );
+        if (selected.path && selected.path !== operation.targetPath)
+          throw new Error("Target checkout changed; create and review a new integration");
         if (operation.status === "publishing") {
+          // 临时目录可能被手动切到候选提交；只有真实目标分支包含候选，才能对账为已合并。
           const included = await git.run({
             cwd: operation.targetPath,
-            args: ["merge-base", "--is-ancestor", operation.candidateHead, target.head],
+            args: ["merge-base", "--is-ancestor", operation.candidateHead, selected.head],
           });
-          if (included.exitCode === 0)
-            return options.save({ ...operation, status: "published", error: undefined });
+          if (
+            included.exitCode === 0 &&
+            target.branch === operation.targetBranch &&
+            target.head === selected.head
+          )
+            return finish();
         }
-        if (target.head !== operation.targetHead) {
+        if (selected.head !== operation.targetHead || target.head !== operation.targetHead) {
           await options.save({
             ...operation,
             status: "failed",
@@ -93,7 +149,17 @@ export function createWorktreePublication(
         if (operation.status !== "ready" && operation.status !== "publishing") return operation;
         // 验证命令可能耗时；发布前重读真实 ref 与文件，旧 UI 状态不能代替 Git 前置。
         const checked = await git.inspect(operation.targetPath);
-        if (checked.head !== operation.targetHead || checked.branch !== operation.targetBranch)
+        const selectedAfter = await git.resolveTarget(
+          operation.repositoryPath ?? operation.targetPath,
+          operation.targetBranch,
+        );
+        if (
+          (selectedAfter.path && selectedAfter.path !== operation.targetPath) ||
+          checked.head !== operation.targetHead ||
+          selectedAfter.head !== operation.targetHead ||
+          (checked.branch !== operation.targetBranch &&
+            !(operation.targetTemporary && !checked.branch))
+        )
           throw new Error("Target changed during validation");
         await assertTargetCanAdvance(
           operation.targetPath,
@@ -102,6 +168,8 @@ export function createWorktreePublication(
         );
         operation = await options.save({ ...operation, status: "publishing" });
         await context.fault("publish.before-merge");
+        if (operation.targetTemporary && !checked.branch)
+          await git.command(operation.targetPath, ["switch", operation.targetBranch]);
         await git.command(operation.targetPath, [
           "merge",
           "--ff-only",
@@ -113,7 +181,7 @@ export function createWorktreePublication(
           operation.candidateHead
         )
           throw new Error("Target publication needs reconciliation");
-        return options.save({ ...operation, status: "published", error: undefined });
+        return finish();
       } finally {
         if (candidateLease) await options.coordinator.release(candidateLease);
         await options.coordinator.release(lease);

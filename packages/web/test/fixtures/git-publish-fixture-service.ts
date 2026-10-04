@@ -28,8 +28,12 @@ export function createPublishFixture(summary: () => GitRepositorySummary) {
     ["v1.2.3", "b".repeat(40)],
     ["v1.10.0", state.headCommitHash!],
   ]);
-  const assertCurrent = (expected?: GitPublishState) => {
-    if (expected && JSON.stringify(expected) !== JSON.stringify(state)) {
+  const readState = (sourceBranch?: string) => ({
+    ...state,
+    ...(sourceBranch ? { branchName: sourceBranch } : {}),
+  });
+  const assertCurrent = (expected?: GitPublishState, sourceBranch?: string) => {
+    if (expected && JSON.stringify(expected) !== JSON.stringify(readState(sourceBranch))) {
       throw new Error("fixture-state-changed: Git 内容已变化，请重新确认。");
     }
   };
@@ -41,8 +45,8 @@ export function createPublishFixture(summary: () => GitRepositorySummary) {
     };
   };
   const service = {
-    async getPublishState() {
-      return { ...state };
+    async getPublishState(params) {
+      return readState(params.sourceBranch);
     },
     async listRemotes() {
       if (holdList) {
@@ -85,7 +89,7 @@ export function createPublishFixture(summary: () => GitRepositorySummary) {
     },
     async createTag(params) {
       calls.push({ method: "createTag", params });
-      assertCurrent(params.expectedState);
+      assertCurrent(params.expectedState, params.sourceBranch);
       if (params.ref && params.ref !== state.headCommitHash)
         throw new Error("fixture-tag-target-changed");
       if (unsupportedTags.some((tag) => tag.name === params.name))
@@ -97,7 +101,7 @@ export function createPublishFixture(summary: () => GitRepositorySummary) {
     },
     async push(params) {
       calls.push({ method: "push", params });
-      assertCurrent(params.expectedState);
+      assertCurrent(params.expectedState, params.sourceBranch);
       if (holdRemote === params.remote) {
         holdRemote = null;
         await new Promise<void>((resolve) => {

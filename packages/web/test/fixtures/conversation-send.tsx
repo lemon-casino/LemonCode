@@ -3,6 +3,8 @@ import { useCallback, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { IServiceAccessor, ModelSelectionView, WorktreeBinding } from "@lcode/services";
 import type { ConversationSnapshot, ConversationRow } from "@lcode/shared/lcode-protocol-v4";
+import { useGitFailureComposerBridge } from "@/hooks/useGitFailureHandoff.js";
+import { GitFailureAction } from "@/git-action-menu/GitFailureAction.js";
 import { ConversationComposer } from "@/v4/ConversationComposer.js";
 import { ConversationTimeline } from "@/v4/ConversationTimeline.js";
 import { DEFAULT_CODE_PREVIEW_SETTINGS } from "@/lib/codePreviewSettings.js";
@@ -66,6 +68,7 @@ const services = {
   settingService: { get: async () => ({}), update: async () => {} },
   clientConfigService: { getSnapshot: async () => ({ pluginStoreOrder: null }) },
   lcodeAgentService: {},
+  lcodeTaskService: { getTaskMeta: async ({ taskId }: { taskId: string }) => ({ taskId }) },
   broadcastService: {},
   promptAttachmentTransferService: {
     cleanup: async () => {},
@@ -220,6 +223,12 @@ function App() {
       setDraft({ ...replacement, updatedAt: Date.now() }),
     [],
   );
+  const failureBridge = useGitFailureComposerBridge(
+    workspacePath,
+    undefined,
+    sessionId,
+    query.has("handoff"),
+  );
   const composer = (
     <ConversationComposer
       centered={!sessionId && !preparing}
@@ -227,6 +236,8 @@ function App() {
       executionWorkspacePath={worktree ? "/fixture/worktrees/task" : workspacePath}
       executionSourceFolderPaths={worktree ? ["/fixture/worktrees/task"] : [workspacePath]}
       sessionId={sessionId}
+      externalTextInsertRequest={failureBridge.request}
+      onExternalTextInsertApplied={failureBridge.consume}
       snapshot={state}
       draftMode={!sessionId}
       draftConfig={config}
@@ -309,6 +320,21 @@ function App() {
   );
   return (
     <main className="@container/conversation flex h-dvh max-w-full flex-col bg-background text-foreground">
+      {query.has("handoff") ? (
+        <GitFailureAction
+          workspacePath={workspacePath}
+          sessionId={sessionId ?? undefined}
+          context={{
+            phase: "merge",
+            workspacePath: "/fixture/worktrees/task",
+            targetBranch: "L-GO",
+            targetPath: "/fixture/origin",
+            candidatePath: "/fixture/candidate",
+            error: "conflict: src/button.ts:12",
+            files: ["src/button.ts"],
+          }}
+        />
+      ) : null}
       <aside data-testid="session-list">{sessionId ?? ""}</aside>
       {sessionId && fixture.preparation ? (
         <WorktreeManagementActions

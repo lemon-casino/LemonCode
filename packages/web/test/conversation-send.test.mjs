@@ -176,7 +176,8 @@ test("真实 ConversationComposer 的新旧会话回车及按钮发送", { timeo
           await editor.press("Enter");
           const card = page.getByTestId("worktree-preparation-card");
           await card.locator('[data-step="environment"][data-state="running"]').waitFor();
-          assert.equal(await editor.innerText(), "");
+          // contenteditable 空段落的 innerText 含换行，按可见正文断言空草稿。
+          assert.equal((await editor.innerText()).trim(), "");
           assert.equal(await editor.getAttribute("contenteditable"), "true");
           await editor.fill("准备期间编辑的下一条草稿");
           await editor.press("Enter");
@@ -228,7 +229,7 @@ test("真实 ConversationComposer 的新旧会话回车及按钮发送", { timeo
             .waitFor();
           await page.getByTestId("worktree-task-location").waitFor();
           assert.equal(await card.count(), 1);
-          assert.equal(await editor.innerText(), "准备期间编辑的下一条草稿");
+          assert.equal((await editor.innerText()).trimEnd(), "准备期间编辑的下一条草稿");
           await page.getByTestId("worktree-task-location").getByRole("button").click();
           await page.getByTestId("worktree-task-dialog").waitFor();
           await page.getByTestId("git-review-dismiss").click();
@@ -323,7 +324,7 @@ test("真实 ConversationComposer 的新旧会话回车及按钮发送", { timeo
       f.fail = true;
       f.release();
     });
-    await page.getByRole("alert").waitFor();
+    await page.getByText("fixture-send-failed", { exact: true }).waitFor();
     assert.equal(await editor.innerText(), "继续修复下一条草稿");
     assert.equal(await editor.getAttribute("contenteditable"), "true");
     assert.equal(await page.evaluate(() => globalThis.__sendFixture.calls.length), 1);
@@ -353,6 +354,48 @@ test("真实 ConversationComposer 的新旧会话回车及按钮发送", { timeo
       ),
       "local",
     );
+  });
+
+  await t.test("Git 失败转交使用真实 Composer 追加并保留图片，桌面与窄屏均不自动发送", async () => {
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`${url}?existing&handoff`);
+      const editor = page.getByTestId("v4-composer-input");
+      await editor.fill("已有的下一条草稿");
+      await editor.evaluate((element) => {
+        const transfer = new DataTransfer();
+        transfer.items.add(
+          new File(
+            [
+              Uint8Array.from(
+                atob(
+                  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9Zl1sAAAAASUVORK5CYII=",
+                ),
+                (char) => char.charCodeAt(0),
+              ),
+            ],
+            "keep.png",
+            { type: "image/png" },
+          ),
+        );
+        element.dispatchEvent(
+          new ClipboardEvent("paste", { clipboardData: transfer, bubbles: true, cancelable: true }),
+        );
+      });
+      await page.waitForFunction(() => globalThis.__sendFixture.uploads.length === 1);
+      await page.getByTestId("git-failure-to-composer").click();
+      await page.waitForFunction(() =>
+        document
+          .querySelector('[data-testid="v4-composer-input"]')
+          ?.textContent.includes("src/button.ts:12"),
+      );
+      const text = await editor.innerText();
+      assert.ok(text.startsWith("已有的下一条草稿"));
+      assert.match(text, /L-GO/);
+      assert.equal(text.split("请协助处理以下 Git 操作问题").length, 2);
+      assert.equal(await page.getByRole("img", { name: "keep.png", exact: true }).count(), 1);
+      assert.equal(await page.evaluate(() => globalThis.__sendFixture.calls.length), 0);
+    }
   });
   await runDraftAttachmentCases({ t, page, url });
   assert.deepEqual(errors, []);

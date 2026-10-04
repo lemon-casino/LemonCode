@@ -2,7 +2,7 @@ import type {
   GitCommitRequest,
   GitPublishState,
   GitRemoteInfo,
-  GitRepositoryRequest,
+  GitPublicationRequest,
   GitTagInfo,
   GitUnsupportedTagInfo,
 } from "@lcode/shared";
@@ -18,7 +18,7 @@ export interface PublishOptions {
   tagStrategy: (typeof TAG_STRATEGIES)[number];
 }
 export interface PublishPlan {
-  request: GitRepositoryRequest;
+  request: GitPublicationRequest;
   options: PublishOptions;
   state: GitPublishState;
   tags: GitTagInfo[];
@@ -132,7 +132,7 @@ export function validatePublishOptions(
 }
 
 export function freezePublishPlan(input: {
-  request: GitRepositoryRequest;
+  request: GitPublicationRequest;
   options: PublishOptions;
   state: GitPublishState;
   tags: readonly GitTagInfo[];

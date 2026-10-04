@@ -1,6 +1,7 @@
 import type { WorktreeBinding, WorktreeIntegration, IWorktreeService } from "../contract.js";
 import type { CheckoutCoordinator } from "../nodeTypes.js";
 import type { WorktreeContext } from "./ports.js";
+import { cleanupTemporaryTarget } from "./temporaryTarget.js";
 import { removeManagedCheckout } from "./removeCheckout.js";
 
 /** 强制放弃仍由生命周期 owner 收口；保留墓碑，防止原会话回退到本地目录或重新创建。 */
@@ -109,6 +110,18 @@ export function createWorktreeDiscard(
               status: "cancelled",
               updatedAt: new Date().toISOString(),
             });
+          if (operation.targetTemporary && (await store.exists(operation.targetPath))) {
+            const targetLease = await coordinator.acquire({
+              workspacePath: operation.targetPath,
+              ownerId: `discard-target:${params.requestId}`,
+              waitMs: 250,
+            });
+            try {
+              await cleanupTemporaryTarget(context, operation);
+            } finally {
+              await coordinator.release(targetLease);
+            }
+          }
           await removeManagedCheckout(context, {
             id: operation.id,
             checkoutPath: operation.checkoutPath,

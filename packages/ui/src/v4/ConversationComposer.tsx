@@ -219,7 +219,7 @@ interface ExternalTextInsertRequest {
   requestId: number;
   text: string;
   mention?: ComposerMentionPrefill;
-  mode?: "replace" | "prepend-if-missing";
+  mode?: "replace" | "prepend-if-missing" | "append";
 }
 
 function restorePersistedComposerDraftIntoInput({
@@ -264,6 +264,7 @@ function applyExternalTextInsertRequestToComposer({
   inputApi: Pick<
     LexicalChatInputHandle,
     | "getMarkdown"
+    | "appendText"
     | "prependMentionIfMissing"
     | "setMention"
     | "setText"
@@ -279,6 +280,14 @@ function applyExternalTextInsertRequestToComposer({
   }
   if (!inputApi) {
     return appliedRequestId;
+  }
+  if (request.mode === "append") {
+    // 根因：失败预填不能替换现有富文本草稿；使用节点级追加保留提及、附件和当前编辑。
+    inputApi.appendText(`${inputApi.getMarkdown() ? "\n\n" : ""}${request.text}`);
+    updateText(inputApi.getMarkdown());
+    scheduleDraftPersist();
+    requestFocus();
+    return request.requestId;
   }
   if (request.mode === "prepend-if-missing" && request.mention) {
     if (!inputApi.prependMentionIfMissing(request.mention)) {

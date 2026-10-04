@@ -39,6 +39,7 @@ test("合并后新增提交允许重新预览，推送和 Tag 都使用原项目
   assert.deepEqual(plan.request, {
     workspacePath: "/project",
     workspaceIdentity: "remote:project",
+    sourceBranch: "L-GO",
   });
   assert.equal(plan.state.headCommitHash, "b".repeat(40));
   assert.equal(plan.commit, null);

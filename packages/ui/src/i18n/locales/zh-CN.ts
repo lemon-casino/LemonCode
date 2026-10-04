@@ -6861,6 +6861,9 @@ const zhCN: Record<string, string> = {
   "git.review.manual": "改用普通手动提交（当前所选整个文件）",
   "git.review.unavailable": "当前目标不支持冻结提交审核，请更新目标或明确选择普通手动提交。",
   "git.review.stale": "Git 状态已变化，提交草稿已过期。请重新生成审核后再提交。",
+  "git.failure.toComposer": "交给 AI 处理",
+  "git.failure.draftHint": "将失败详情追加到当前会话输入框，保留已有草稿，由你确认发送。",
+  "git.failure.composerUnavailable": "请先打开对应会话的输入框，再转交失败详情。",
   "git.commitWorkflow.local.title": "提交审核",
   "git.commitWorkflow.local.description":
     "审核当前项目分支的改动，确认后保存提交。远端发布需另行预览和确认。",
@@ -6967,7 +6970,7 @@ const zhCN: Record<string, string> = {
   "worktree.targetBaseline": "原项目目标分支与审核基线",
   "worktree.targetBranch": "原项目合并目标分支",
   "worktree.targetCheckoutHint":
-    "原项目需已检出此分支。目标默认为创建工作树时记录的项目分支；改选不会自动切换原项目，需重新审核。",
+    "按所选本地分支的实际工作树处理；未检出的分支使用临时目录，不切换原项目分支。",
   "worktree.cancelIntegration": "取消本次集成，保留成果",
   "worktree.integration.cancelled": "已取消，提交和集成目录已保留",
   "worktree.mergeBase": "共同祖先",

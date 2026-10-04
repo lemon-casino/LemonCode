@@ -125,13 +125,14 @@ export class GitPublishRepo {
 
   async createTag(params: GitCreateTagRequest): Promise<GitCreateTagResult> {
     const cwd = await this.state.root(params.workspacePath);
-    const expected = params.expectedState ?? (await this.state.capture(params.workspacePath));
+    const expected =
+      params.expectedState ?? (await this.state.capture(params.workspacePath, params.sourceBranch));
     await this.validateRef(cwd, `refs/tags/${params.name}`);
     if (!expected.headCommitHash) throw new Error("没有可创建 Tag 的 HEAD 提交。");
     if (params.ref && params.ref !== expected.headCommitHash)
       throw new Error("Tag 只能指向当前最终 HEAD 的完整提交哈希。");
     const existing = await this.tag(cwd, params.name);
-    await this.state.assertCurrent(params.workspacePath, expected);
+    await this.state.assertCurrent(params.workspacePath, expected, params.sourceBranch);
     const sameTarget = (value: ResolvedTag | null) => {
       // 中文依据：合法的 tree/blob Tag 也占用名称；仅 commit 同目标可幂等，绝不覆盖特殊 Tag。
       if (value?.objectType !== "commit" || value.commitHash !== expected.headCommitHash)
@@ -151,7 +152,7 @@ export class GitPublishRepo {
       if (!value) ensureGitCommandSucceeded("git create tag", result);
       sameTarget(value);
     } else sameTarget(value);
-    await this.state.assertCurrent(params.workspacePath, expected);
+    await this.state.assertCurrent(params.workspacePath, expected, params.sourceBranch);
     return {
       name: params.name,
       commitHash: expected.headCommitHash,
@@ -174,7 +175,8 @@ export class GitPublishRepo {
       return result;
     }
     const cwd = await this.state.root(params.workspacePath);
-    const expected = params.expectedState ?? (await this.state.capture(params.workspacePath));
+    const expected =
+      params.expectedState ?? (await this.state.capture(params.workspacePath, params.sourceBranch));
     const remotes = await this.listRemotes(params);
     if (!remotes.remotes.some(({ name }) => name === params.remote))
       throw new Error("所选 Git remote 不存在，不能使用任意 URL 推送。");
@@ -198,7 +200,7 @@ export class GitPublishRepo {
     if (params.tagCommitHash && selected?.commitHash !== params.tagCommitHash)
       throw new Error("Tag 目标已变化，请重新确认发布。");
     const beforeSummary = (await this.repo.getStatus(params.workspacePath)).summary;
-    await this.state.assertCurrent(params.workspacePath, expected);
+    await this.state.assertCurrent(params.workspacePath, expected, params.sourceBranch);
     await assertDestination();
     const source = selected?.objectHash ?? expected.headCommitHash;
     const result = await this.command.run({
@@ -224,7 +226,7 @@ export class GitPublishRepo {
     });
     let stateWarning: string | undefined;
     try {
-      await this.state.assertCurrent(params.workspacePath, expected);
+      await this.state.assertCurrent(params.workspacePath, expected, params.sourceBranch);
       await assertDestination();
       if (params.tag && (await this.tag(cwd, params.tag))?.objectHash !== selected?.objectHash)
         throw new Error("所选 Tag 已变化，请重新确认发布。");
@@ -241,9 +243,9 @@ export class GitPublishRepo {
           cwd,
           expected.branchName!,
           params.remote,
-          () => this.state.assertCurrent(params.workspacePath, expected),
+          () => this.state.assertCurrent(params.workspacePath, expected, params.sourceBranch),
         );
-        await this.state.assertCurrent(params.workspacePath, expected);
+        await this.state.assertCurrent(params.workspacePath, expected, params.sourceBranch);
       } catch (error) {
         warning = `推送已成功，但上游配置未完成或状态已变化：${detail(error)}`;
       }

@@ -38,6 +38,8 @@ import {
   GitCommitDialogLifecycle,
   type GitCommitDialogSource,
 } from "@/git-action-menu/gitCommitDialogLifecycle.js";
+import { GitFailureAction } from "@/git-action-menu/GitFailureAction.js";
+import { publicationFailureContext } from "@/git-action-menu/gitFailureDraft.js";
 import { GitCommitDialog } from "@/git-action-menu/GitCommitDialog.js";
 import {
   getCommitDialogFiles,
@@ -151,6 +153,12 @@ export function GitActionMenu({
     reviewEpoch
       ? JSON.stringify([executionSessionId ?? scopeKey, reviewEpoch])
       : (executionSessionId ?? scopeKey),
+  );
+  // 根因：epoch 草稿与会话合并导航原先混用 scope；合并状态统一读写会话 owner。
+  const workflowReview = useReviewWorkspaceState(
+    originWorkspacePath ?? workspacePath,
+    originWorkspaceIdentity ?? workspaceIdentity,
+    executionSessionId ?? scopeKey,
   );
   const draftUI = useGitCommitDraft(workspaceReview);
   const reviewUI = useGitCommitReview(draftScope);
@@ -1239,15 +1247,27 @@ export function GitActionMenu({
       mergeOperationId={operation?.id}
       mergeOperationStatus={operation?.status}
       mergeTargetBranch={operation?.targetBranch}
-      mergeView={workspaceReview.data.mergeView}
-      onMergeViewChange={(value) => workspaceReview.patch({ mergeView: value })}
-      syncBlocked={workspaceReview.status !== "ready"}
+      mergeView={workflowReview.data.mergeView}
+      onMergeViewChange={(value) => workflowReview.patch({ mergeView: value, worktreeView: null })}
+      syncBlocked={
+        workspaceReview.status !== "ready" ||
+        (executionMode === "worktree" && workflowReview.status !== "ready")
+      }
       syncStatus={
-        <ReviewWorkspaceSyncStatus
-          status={workspaceReview.status}
-          onRetry={() => void workspaceReview.retry()}
-          onResolve={workspaceReview.resolve}
-        />
+        <>
+          <ReviewWorkspaceSyncStatus
+            status={workspaceReview.status}
+            onRetry={() => void workspaceReview.retry()}
+            onResolve={workspaceReview.resolve}
+          />
+          {executionMode === "worktree" && workflowReview.status !== "ready" ? (
+            <ReviewWorkspaceSyncStatus
+              status={workflowReview.status}
+              onRetry={() => void workflowReview.retry()}
+              onResolve={workflowReview.resolve}
+            />
+          ) : null}
+        </>
       }
       loading={commitDialogLoading}
       state={commitDialogState}
@@ -1258,6 +1278,49 @@ export function GitActionMenu({
       message={draftUI.draft.message}
       previousMessage={draftUI.draft.previousMessage}
       error={commitError}
+      failureAction={
+        commitError ||
+        reviewUI.error ||
+        publishCatalog.error ||
+        publishRun?.stopReason ||
+        publishRun?.outcomes.some((step) => step.status === "failed") ? (
+          <div className="px-4 py-2">
+            <GitFailureAction
+              workspacePath={originWorkspacePath ?? workspacePath}
+              workspaceIdentity={originWorkspaceIdentity ?? workspaceIdentity}
+              sessionId={executionSessionId}
+              disabled={mutationPending || generationPending || Boolean(publishRun?.running)}
+              onTransferred={closeCommitDialog}
+              context={publicationFailureContext(
+                {
+                  phase:
+                    publishRun || publishPlan || publishCatalog.error
+                      ? "source-publication"
+                      : "source-review",
+                  workspacePath,
+                  workspaceIdentity,
+                  sessionId: executionSessionId,
+                  sourceBranch: commitDialogState?.summary.branchName ?? gitSummary.branchName,
+                  error:
+                    [commitError, reviewUI.error, publishCatalog.error]
+                      .filter(Boolean)
+                      .join("\n") || "Publication stopped; inspect step outcomes",
+                  files: commitDialogState
+                    ? getCommitDialogStagePaths(
+                        commitDialogState,
+                        commitIncludeUnstaged,
+                        excludedFiles,
+                      )
+                    : [],
+                },
+                publishPlan,
+                publishRun,
+                publishOptions,
+              )}
+            />
+          </div>
+        ) : undefined
+      }
       mutationPending={mutationPending}
       generationPending={generationPending}
       includeUnstaged={commitIncludeUnstaged}
@@ -1422,7 +1485,7 @@ export function GitActionMenu({
           originWorkspacePath={originWorkspacePath ?? workspacePath}
           originWorkspaceIdentity={originWorkspaceIdentity ?? workspaceIdentity}
           sessionId={executionSessionId}
-          reviewRevision={String(workspaceReview.snapshot.fieldRevisions.integrationId)}
+          reviewRevision={String(workflowReview.snapshot.fieldRevisions.integrationId)}
           review={reviewUI.review}
           position={reviewUI.position}
           currentMessage={draftUI.draft.message}
@@ -1433,17 +1496,21 @@ export function GitActionMenu({
             draftUI.draft.requiresRegeneration
           }
           publicationDisabled={
-            workspaceReview.status !== "ready" ||
-            triggerPending ||
-            Boolean(publishPlan || publishRun)
+            workflowReview.status !== "ready" ||
+            mutationPending ||
+            generationPending ||
+            Boolean(publishRun?.running)
           }
           onHideReview={() => setCommitDialogOpen(false)}
           onShowReview={() => setCommitDialogOpen(true)}
           onResolveConflicts={resolveConflicts}
           onCommitted={(operation) => {
-            workspaceReview.patch({
+            workflowReview.patch({
               integrationId: operation.id,
               mergeView: null,
+              worktreeView: null,
+            });
+            workspaceReview.patch({
               sourceReview: reviewUI.review ? { id: reviewUI.review.id } : null,
             });
             let nextPosition = reviewUI.position;

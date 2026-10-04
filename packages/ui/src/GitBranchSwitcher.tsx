@@ -232,11 +232,12 @@ export function GitBranchSwitcher({
             />
             {showFooterActions ? (
               <div className="shrink-0 border-t border-border p-1">
+                {/* 默认单行按钮会在窄屏和放大字号下撑宽菜单；让操作文字在可用宽度内完整换行。 */}
                 <Button
                   type="button"
                   variant="ghost"
                   size="lg"
-                  className="w-full justify-start px-2 text-foreground hover:bg-menu-hover hover:text-foreground"
+                  className="h-auto min-h-10 w-full min-w-0 justify-start whitespace-normal px-2 py-2 text-left text-foreground hover:bg-menu-hover hover:text-foreground"
                   disabled={mutationPending}
                   onClick={() => {
                     setOpen(false);
@@ -244,22 +245,26 @@ export function GitBranchSwitcher({
                   }}
                 >
                   <PlusIcon className="size-4 text-foreground-subtle" />
-                  {intl.formatMessage({
-                    id: "git.branchSwitcher.createAction",
-                  })}
+                  <span className="min-w-0 flex-1 break-words">
+                    {intl.formatMessage({
+                      id: "git.branchSwitcher.createAction",
+                    })}
+                  </span>
                 </Button>
                 <Button
                   type="button"
                   variant="ghost"
                   size="lg"
-                  className="w-full justify-start px-2 text-foreground hover:bg-menu-hover hover:text-foreground"
+                  className="h-auto min-h-10 w-full min-w-0 justify-start whitespace-normal px-2 py-2 text-left text-foreground hover:bg-menu-hover hover:text-foreground"
                   onClick={() => {
                     setOpen(false);
                     setGitGraphDialogOpen(true);
                   }}
                 >
                   <GitGraph className="size-4 text-foreground-subtle" />
-                  {intl.formatMessage({ id: "gitGraph.menuAction" })}
+                  <span className="min-w-0 flex-1 break-words">
+                    {intl.formatMessage({ id: "gitGraph.menuAction" })}
+                  </span>
                 </Button>
               </div>
             ) : null}

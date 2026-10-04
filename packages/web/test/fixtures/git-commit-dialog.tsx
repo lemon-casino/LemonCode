@@ -16,6 +16,8 @@ import type {
 } from "@lcode/shared";
 import { gitCommitReviewModeSchema, replaceRemoteWorkspaceIdentityPath } from "@lcode/shared";
 import type { ConversationRow } from "@lcode/shared/lcode-protocol-v4";
+import { useGitFailureDraftReceiver } from "@/hooks/useGitFailureHandoff.js";
+import { appendGitFailureDraft } from "@/git-action-menu/gitFailureDraft.js";
 import { GitActionMenu } from "@/GitActionMenu.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { useSettings } from "@/hooks/useSettingService.js";
@@ -175,7 +177,7 @@ const gitService = {
     return {
       headRefType: "branch",
       currentBranchName: "L-GO",
-      branches: ["L-GO", "fixture"].map((name) => ({
+      branches: ["L-GO", "main", "fixture"].map((name) => ({
         name,
         isCurrent: name === "L-GO",
         upstreamName: null,
@@ -259,6 +261,14 @@ const services = {
     },
   },
   worktreeService: {
+    getCapabilities: async () => ({
+      supported: true,
+      create: true,
+      integrate: true,
+      archive: true,
+      restore: true,
+      head: "s".repeat(40),
+    }),
     getIntegration: async () => fixtureIntegration,
     integrate: async (params: WorktreeIntegrateRequest) => {
       mergeCalls.push(params);
@@ -382,6 +392,10 @@ function FixtureApp() {
   const reviewPolicy = useProjectExecutionPolicy(workspacePath, workspaceIdentity).policy;
   const [panelVariant, setPanelVariant] = useState<"mini" | "panel" | null>("mini");
   const [sessionId, setSessionId] = useState("a");
+  const [composerDraft, setComposerDraft] = useState("待发送的草稿不能改变");
+  useGitFailureDraftReceiver(workspacePath, workspaceIdentity, sessionId, (text) =>
+    setComposerDraft((current) => appendGitFailureDraft(current, text)),
+  );
   const [executionBindingId, setExecutionBindingId] = useState<string | undefined>();
   const executionWorkspacePath = executionBindingId ? "/fixture/worktrees/a" : workspacePath;
   const executionWorkspaceIdentity =
@@ -531,7 +545,11 @@ function FixtureApp() {
       <p data-testid="session">{sessionId}</p>
       <p data-testid="review-mode">{reviewPolicy.gitCommitReviewMode}</p>
       <p data-testid="automatic-ready">{automaticDraft?.key}</p>
-      <textarea data-testid="composer-draft" defaultValue="待发送的草稿不能改变" />
+      <textarea
+        data-testid="composer-draft"
+        value={composerDraft}
+        onChange={(event) => setComposerDraft(event.target.value)}
+      />
       <div className="flex items-center justify-end gap-1">
         <button type="button">发送</button>
         <ConversationCommitMessageButton

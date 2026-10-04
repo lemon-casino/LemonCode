@@ -50,6 +50,9 @@ export interface WorktreeIntegration {
   targetHead: string;
   targetBranch: string;
   targetPath: string;
+  /** 原仓库访问路径；发布读取目标 ref，不依赖临时目标目录。 */
+  repositoryPath?: string;
+  targetTemporary?: boolean;
   checkoutPath: string;
   status:
     | "preparing"

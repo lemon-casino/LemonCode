@@ -36,7 +36,9 @@ export async function runGitReviewCrossPlatformCases(t, { browser, url }) {
         let body = "";
         for await (const chunk of request) body += chunk;
         const input = JSON.parse(body);
-        if (route.pathname === "/read") activeScope = input;
+        // 同一页面分别读取 epoch 来源草稿和会话合并状态；不能拿最后一次 read 当作草稿 owner。
+        if (route.pathname === "/update" && Object.hasOwn(input.patch, "draft"))
+          activeScope = input.scope;
         const result =
           route.pathname === "/read" ? await host.read(input) : await host.update(input);
         response.setHeader("Content-Type", "application/json");

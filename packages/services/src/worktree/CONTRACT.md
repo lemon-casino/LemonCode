@@ -66,9 +66,16 @@ Unrelated working changes remain intact; no automatic stash or target commit is 
 It persists publishing and runs native fast-forward. Lost replies reconcile by exact
 commit ancestry; unknown states retain files and fail without resetting user changes.
 
-The target can be explicitly selected for a new request, but must already be checked out
-in the original directory. `continueIntegration(cancel: true)` persists cancellation
-without removing commits, receipts or checkout files. Cancelled operations cannot be
+The target is an explicit local branch. Native worktree registration resolves its actual
+checkout. Unchecked targets use a detached managed temporary checkout; only final
+confirmation checks out that branch and fast-forwards it under the checkout permit.
+The original project branch is never switched. Successful temporary targets are safely
+removed; a cleanup failure retains the published fact and diagnostic. Operations record
+repositoryPath and targetTemporary, with old records preserving their original semantics.
+Remote publication reads the explicit target branch ref from repositoryPath, so it does
+not depend on the temporary checkout or the original directory current branch. `continueIntegration(cancel: true)` persists cancellation
+without removing commits, receipts or source/candidate checkout files; its owned clean temporary
+target can be removed. Cancelled operations cannot be
 validated or published. Publishing/published facts cannot be cancelled or rolled back.
 
 Archive saves a snapshot commit (working files plus non-ignored untracked files) and the

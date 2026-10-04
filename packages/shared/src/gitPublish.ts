@@ -36,6 +36,9 @@ export const gitRepositoryRequestSchema = z
     workspaceIdentity: z.string().optional(),
   })
   .strict();
+export const gitPublicationRequestSchema = gitRepositoryRequestSchema
+  .extend({ sourceBranch: refName.optional() })
+  .strict();
 export const gitPublishStateSchema = z
   .object({
     headCommitHash: oid.nullable(),
@@ -51,7 +54,7 @@ export const gitDeleteBranchRequestSchema = gitRepositoryRequestSchema
   })
   .strict();
 
-export const gitPushRequestSchema = gitRepositoryRequestSchema
+export const gitPushRequestSchema = gitPublicationRequestSchema
   .extend({
     remote: refName.optional(),
     branch: refName.optional(),
@@ -65,7 +68,8 @@ export const gitPushRequestSchema = gitRepositoryRequestSchema
       value.remote !== undefined ||
       value.branch !== undefined ||
       value.tag !== undefined ||
-      value.tagCommitHash !== undefined;
+      value.tagCommitHash !== undefined ||
+      value.sourceBranch !== undefined;
     if (explicit && (!value.remote || Boolean(value.branch) === Boolean(value.tag))) {
       ctx.addIssue({
         code: "custom",
@@ -76,7 +80,7 @@ export const gitPushRequestSchema = gitRepositoryRequestSchema
       ctx.addIssue({ code: "custom", message: "tagCommitHash requires a tag" });
     }
   });
-export const gitCreateTagRequestSchema = gitRepositoryRequestSchema
+export const gitCreateTagRequestSchema = gitPublicationRequestSchema
   .extend({
     name: refName,
     ref: oid.optional(),

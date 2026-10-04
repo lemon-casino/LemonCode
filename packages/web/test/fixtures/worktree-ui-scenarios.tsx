@@ -4,6 +4,8 @@ import type { GitCommitReview } from "@lcode/shared";
 import { CommitAndMergeControl } from "@/worktree/CommitAndMergeControl.js";
 import { WorktreeTaskActions } from "@/worktree/WorktreeTaskActions.js";
 import { WorktreeManagementActions } from "@/worktree/WorktreeManagementActions.js";
+import { useGitFailureDraftReceiver } from "@/hooks/useGitFailureHandoff.js";
+import { appendGitFailureDraft } from "@/git-action-menu/gitFailureDraft.js";
 
 export function WorktreeWorkflowScenario({
   mode,
@@ -14,6 +16,10 @@ export function WorktreeWorkflowScenario({
 }) {
   const [message, setMessage] = useState("edited first message");
   const [committed, setCommitted] = useState(false);
+  const [draft, setDraft] = useState("原有的后续修改草稿");
+  useGitFailureDraftReceiver("/fixture/repo", undefined, "orphan", (text) =>
+    setDraft((current) => appendGitFailureDraft(current, text)),
+  );
   const review: GitCommitReview = {
     id: "review",
     mode: "ordered",
@@ -30,6 +36,11 @@ export function WorktreeWorkflowScenario({
   };
   return (
     <main className="w-full max-w-3xl space-y-3 p-4">
+      <textarea
+        data-testid="failure-composer-draft"
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
+      />
       {mode === "commit" ? (
         <>
           <label>

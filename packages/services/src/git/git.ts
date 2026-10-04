@@ -21,6 +21,7 @@ import type {
   GitPushRequest,
   GitPushResult,
   GitPublishState,
+  GitPublicationRequest,
   GitRemoteListResult,
   GitTagListResult,
   GitCreateTagRequest,
@@ -70,7 +71,7 @@ export interface IGitService {
   ): Promise<GitGenerateCommitMessageResult>;
   commit(params: GitCommitRequest): Promise<GitCommitResult>;
   push(params: GitPushRequest): Promise<GitPushResult>;
-  getPublishState(params: GitRepositoryRequest): Promise<GitPublishState>;
+  getPublishState(params: GitPublicationRequest): Promise<GitPublishState>;
   listRemotes(params: GitRepositoryRequest): Promise<GitRemoteListResult>;
   listTags(params: GitRepositoryRequest): Promise<GitTagListResult>;
   createTag(params: GitCreateTagRequest): Promise<GitCreateTagResult>;

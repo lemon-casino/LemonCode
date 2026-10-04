@@ -13,6 +13,13 @@ interface NavigationRequest {
   token: string;
 }
 interface CommitReviewNavigationState {
+  draftReceivers: Record<string, { token: string; action: (text: string) => boolean | void }>;
+  registerDraftReceiver: (
+    key: string,
+    receiver: { token: string; action: (text: string) => boolean | void },
+  ) => void;
+  removeDraftReceiver: (key: string, token: string) => void;
+  transferDraft: (key: string, text: string) => boolean;
   resolvers: Record<string, { token: string; action: (operationId: string) => Promise<void> }>;
   registerResolver: (
     key: string,
@@ -27,6 +34,20 @@ interface CommitReviewNavigationState {
 
 // 只保存窗口内尚未消费的“打开界面”意图，不能作为提交、合并或人工审批事实。
 export const useCommitReviewNavigationStore = create<CommitReviewNavigationState>((set, get) => ({
+  draftReceivers: {},
+  registerDraftReceiver: (key, receiver) =>
+    set((state) => ({ draftReceivers: { ...state.draftReceivers, [key]: receiver } })),
+  removeDraftReceiver: (key, token) => {
+    if (get().draftReceivers[key]?.token !== token) return;
+    const { [key]: removed, ...draftReceivers } = get().draftReceivers;
+    void removed;
+    set({ draftReceivers });
+  },
+  transferDraft: (key, text) => {
+    const receiver = get().draftReceivers[key];
+    if (!receiver) return false;
+    return receiver.action(text) !== false;
+  },
   resolvers: {},
   registerResolver: (key, resolver) =>
     set((state) => ({ resolvers: { ...state.resolvers, [key]: resolver } })),

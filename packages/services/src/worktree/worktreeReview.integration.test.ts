@@ -51,11 +51,7 @@ test("cancelling preserves candidate and source commits, survives restart and pe
     /cancelled/,
   );
   await f.command(f.repo, "branch", "target");
-  await assert.rejects(
-    f.service.integrate({ ...f.request, requestId: "other-target", targetBranch: "target" }),
-    /currently checked out/,
-  );
-  await f.command(f.repo, "switch", "target");
+  assert.equal(await f.command(f.repo, "branch", "--show-current"), "main");
   const next = await f.service.integrate({
     ...f.request,
     requestId: "other-target",

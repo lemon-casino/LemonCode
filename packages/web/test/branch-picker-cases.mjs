@@ -81,8 +81,8 @@ export async function runBranchPickerCases({ t, page, url, calls, select }) {
         false,
       );
       await management.getByRole("checkbox").check();
-      await management.getByRole("button", { name: "保存快照并归档", exact: true }).click();
-      await management.getByRole("button", { name: "恢复工作树", exact: true }).waitFor();
+      await management.getByRole("button", { name: "保存快照并释放目录", exact: true }).click();
+      await management.getByRole("button", { name: "恢复工作树目录", exact: true }).waitFor();
       await management.getByTestId("project-worktrees-close").click();
       await trigger.click();
       assert.equal(await action("worktree/task").getAttribute("data-branch-action"), "delete");
@@ -110,7 +110,7 @@ export async function runBranchPickerCases({ t, page, url, calls, select }) {
     await page.evaluate(() => {
       globalThis.__worktreeFixture.failList = false;
     });
-    await occupied.getByRole("button", { name: "刷新", exact: true }).click();
+    await occupied.getByRole("button", { name: "刷新状态", exact: true }).click();
     await occupied.getByTestId("git-branch-open-worktree").waitFor();
     await occupied.getByRole("button", { name: "关闭", exact: true }).click();
     await page.evaluate(() => {

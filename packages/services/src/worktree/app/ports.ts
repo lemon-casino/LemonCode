@@ -38,6 +38,7 @@ export interface WorktreeGit extends WorktreeGitPort {
   inspect(
     path: string,
   ): Promise<{ root: string; commonDirectory: string; head: string; branch: string }>;
+  resolveTarget(root: string, branch: string): Promise<{ head: string; path?: string }>;
   registered(root: string, path: string): Promise<boolean>;
   assertIdle(path: string): Promise<void>;
   snapshot(

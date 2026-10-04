@@ -132,6 +132,17 @@ export async function runBranchDeletionCases({ t, page, url, calls, select }) {
           assert.equal(
             await picker.evaluate((element) => element.scrollWidth <= element.clientWidth + 1),
             true,
+            JSON.stringify(
+              await picker.evaluate((element) => ({
+                width: element.clientWidth,
+                scrollWidth: element.scrollWidth,
+                children: [...element.children].map((child) => ({
+                  tag: child.tagName,
+                  width: child.clientWidth,
+                  scrollWidth: child.scrollWidth,
+                })),
+              })),
+            ),
           );
           await list.evaluate((element) => {
             element.scrollTop = element.scrollHeight;

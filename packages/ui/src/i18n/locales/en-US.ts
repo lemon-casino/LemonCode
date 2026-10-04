@@ -7214,6 +7214,11 @@ const enUS: Record<string, string> = {
     "This target does not support frozen commit review. Update it or explicitly use ordinary manual commit.",
   "git.review.stale":
     "Git state changed and the draft expired. Regenerate the review before committing.",
+  "git.failure.toComposer": "Ask AI to resolve",
+  "git.failure.draftHint":
+    "Append failure details to this session’s composer, preserving your draft. Review and send when ready.",
+  "git.failure.composerUnavailable":
+    "Open this session’s composer before transferring failure details.",
   "git.commitWorkflow.local.title": "Commit review",
   "git.commitWorkflow.local.description":
     "Review changes on the project branch, then confirm the commit. Remote publishing requires a separate preview and confirmation.",
@@ -7333,7 +7338,7 @@ const enUS: Record<string, string> = {
   "worktree.targetBaseline": "Project target branch and review baseline",
   "worktree.targetBranch": "Project merge target branch",
   "worktree.targetCheckoutHint":
-    "The project must already have this branch checked out. The default is the project branch recorded when the worktree was created. Changing this target does not switch the project branch and requires a new review.",
+    "Use the selected local branch’s actual worktree, or a temporary checkout if it is not checked out. The original project branch stays unchanged.",
   "worktree.cancelIntegration": "Cancel integration and keep work",
   "worktree.integration.cancelled": "Cancelled; commits and integration directory retained",
   "worktree.mergeBase": "Common ancestor",

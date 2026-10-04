@@ -1,3 +1,4 @@
+import { validateFixtureCandidate } from "./worktree-validation-fixture.js";
 import { createWorktreeBranchFixture } from "./worktree-branch-deletion.js";
 import { createWorktreeLifecycleFixture } from "./worktree-lifecycle-fixture.js";
 import { useState } from "react";
@@ -105,6 +106,7 @@ const fixture = {
   failPublication: false,
   failRemote: true,
   failIntegration: false,
+  failValidation: false,
   conflicted: false,
   conflictCount: 1,
   ignoredCount: 0,
@@ -235,10 +237,7 @@ const services = {
         operation!.status = "cancelled";
         return structuredClone(operation);
       }
-      operation!.status = operation!.status === "conflicted" ? "awaiting-review" : "ready";
-      operation!.candidateHead = candidate;
-      operation!.conflictPaths = [];
-      operation!.validationResults = [{ command: "fixture-check", exitCode: 0, output: "checked" }];
+      operation = validateFixtureCandidate(operation!, candidate, fixture.failValidation);
       return structuredClone(operation);
     },
     publishIntegration: async (params: unknown) => {

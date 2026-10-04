@@ -30,6 +30,8 @@ export const operationRecord = z
     targetHead: digest,
     targetBranch: z.string().min(1),
     targetPath: z.string().min(1),
+    repositoryPath: z.string().min(1).optional(),
+    targetTemporary: z.boolean().optional(),
     checkoutPath: z.string().min(1),
     status: z.enum([
       "preparing",

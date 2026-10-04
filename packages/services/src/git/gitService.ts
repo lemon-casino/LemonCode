@@ -6,6 +6,7 @@ import {
   gitCreateTagResultSchema,
   gitGenerateCommitMessageRequestSchema,
   gitPublishStateSchema,
+  gitPublicationRequestSchema,
   gitPushRequestSchema,
   gitRepositoryRequestSchema,
   gitRemoteListResultSchema,
@@ -393,9 +394,9 @@ export function createGitService(options?: {
     },
 
     async getPublishState(params) {
-      return gitPublishStateSchema.parse(
-        await publish.state.capture(gitRepositoryRequestSchema.parse(params).workspacePath),
-      );
+      const { workspacePath, sourceBranch } = gitPublicationRequestSchema.parse(params);
+      const state = await publish.state.capture(workspacePath, sourceBranch);
+      return gitPublishStateSchema.parse(state);
     },
 
     async listRemotes(params) {

@@ -80,6 +80,27 @@ export function createWorktreeGit(port: WorktreeGitPort): WorktreeGit {
     command,
     inspect,
     assertIdle,
+    async resolveTarget(root, branch) {
+      await command(root, ["check-ref-format", "--branch", branch]);
+      const head = await command(root, ["rev-parse", "--verify", `refs/heads/${branch}^{commit}`]);
+      const list = await command(root, ["worktree", "list", "--porcelain", "-z"]);
+      let path: string | undefined;
+      for (const field of list.split("\0")) {
+        if (field.startsWith("worktree ")) path = field.slice(9);
+        if (field === `branch refs/heads/${branch}` && path) {
+          const target = await inspect(path);
+          if (
+            target.commonDirectory !== (await inspect(root)).commonDirectory ||
+            target.branch !== branch ||
+            target.head !== head
+          )
+            throw new Error("Target checkout changed while resolving the branch");
+          return { head, path: target.root };
+        }
+        if (!field) path = undefined;
+      }
+      return { head };
+    },
     async registered(root, path) {
       const list = await command(root, ["worktree", "list", "--porcelain", "-z"]);
       return list

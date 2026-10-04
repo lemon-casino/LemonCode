@@ -1,5 +1,7 @@
 import { useState, type ReactNode } from "react";
 import type { WorktreeIntegration } from "@lcode/services";
+import { GitFailureAction } from "@/git-action-menu/GitFailureAction.js";
+import { publicationFailureContext } from "@/git-action-menu/gitFailureDraft.js";
 import { useWorktreePublication } from "@/hooks/useWorktreePublication.js";
 import { GitPublishOptionsPanel } from "@/git-action-menu/GitPublishOptionsPanel.js";
 import { GitPublishPreview, GitPublishResults } from "@/git-action-menu/GitPublishFeedback.js";
@@ -10,17 +12,54 @@ export function WorktreePublication({
   workspaceIdentity,
   disabled,
   renderReview,
+  originWorkspacePath,
+  sessionId,
+  onTransferred,
 }: {
   operation: WorktreeIntegration;
   workspaceIdentity?: string;
   disabled: boolean;
+  originWorkspacePath: string;
+  sessionId: string;
+  onTransferred?: () => void;
   renderReview?: (publication: ReactNode) => ReactNode;
 }) {
-  const publish = useWorktreePublication(operation, workspaceIdentity);
+  const publish = useWorktreePublication(
+    { ...operation, repositoryPath: operation.repositoryPath ?? originWorkspacePath },
+    workspaceIdentity,
+  );
   const { intl } = useLCodeIntl();
   const [showPreview, setShowPreview] = useState(false);
   const content = (
     <section data-testid="worktree-remote-publication">
+      {publish.error ||
+      publish.run?.stopReason ||
+      publish.run?.outcomes.some((step) => step.status === "failed") ? (
+        <GitFailureAction
+          workspacePath={originWorkspacePath}
+          workspaceIdentity={workspaceIdentity}
+          sessionId={sessionId}
+          disabled={publish.pending || Boolean(publish.run?.running)}
+          onTransferred={onTransferred}
+          context={publicationFailureContext(
+            {
+              phase: "target-publication",
+              workspacePath: operation.repositoryPath ?? operation.targetPath,
+              sessionId,
+              workspaceIdentity,
+              targetPath: operation.targetPath,
+              targetBranch: operation.targetBranch,
+              sourceBranch: operation.targetBranch,
+              operationId: operation.id,
+              error: publish.error ?? "Publication stopped; inspect step outcomes",
+              completedSteps: [`merged into ${operation.targetBranch}: ${operation.candidateHead}`],
+            },
+            publish.plan,
+            publish.run,
+            publish.options,
+          )}
+        />
+      ) : null}
       {publish.run && !showPreview ? (
         <GitPublishResults
           run={publish.run}

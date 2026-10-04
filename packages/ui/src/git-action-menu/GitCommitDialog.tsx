@@ -1,3 +1,4 @@
+import { GitCommitLoadError } from "./GitCommitLoadError.js";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import type { GitCommitReview, SessionExecutionMode } from "@lcode/shared";
 import type { WorktreeIntegration } from "@lcode/services";
@@ -30,6 +31,7 @@ import type { PublishRun } from "./publishExecution.js";
 
 export interface GitCommitDialogProps {
   open: boolean;
+  failureAction?: ReactNode;
   worktreeActions?: ReactNode;
   worktreeMergeActions?: ReactNode;
   mergeOperationId?: string;
@@ -230,7 +232,7 @@ export function GitCommitDialog(props: GitCommitDialogProps) {
                 publishedTarget={
                   props.mergeOperationStatus === "published" ? props.mergeTargetBranch : undefined
                 }
-                disabled={Boolean(props.syncBlocked || actionPending || props.plan || props.run)}
+                disabled={Boolean(props.syncBlocked || actionPending || props.run?.running)}
                 onBack={() =>
                   props.onMergeViewChange
                     ? props.onMergeViewChange({
@@ -327,6 +329,7 @@ export function GitCommitDialog(props: GitCommitDialogProps) {
                     {props.error}
                   </p>
                 ) : null}
+                {props.failureAction}
                 <GitCommitConfirmAction
                   disabled={commitActionDisabled}
                   pending={mutationPending}
@@ -383,19 +386,12 @@ export function GitCommitDialog(props: GitCommitDialogProps) {
             </div>
           </form>
         ) : (
-          <div className="space-y-4 px-4 py-5">
-            <p role="alert" className="break-words text-ui-base text-destructive">
-              {props.error}
-            </p>
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="ghost" onClick={() => props.onOpenChange(false)}>
-                {intl.formatMessage({ id: "common.close" })}
-              </Button>
-              <Button type="button" onClick={props.onRetryLoad}>
-                {intl.formatMessage({ id: "git.commitSummary.retry" })}
-              </Button>
-            </div>
-          </div>
+          <GitCommitLoadError
+            error={props.error}
+            failureAction={props.failureAction}
+            onClose={() => props.onOpenChange(false)}
+            onRetry={props.onRetryLoad}
+          />
         )}
       </DialogContent>
     </Dialog>

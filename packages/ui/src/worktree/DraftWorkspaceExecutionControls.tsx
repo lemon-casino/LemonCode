@@ -76,7 +76,8 @@ export function DraftWorkspaceExecutionControls({
       data-testid="draft-execution-controls"
     >
       <div
-        className="flex min-w-0 flex-1 items-center gap-2"
+        // 英文“本地目录”与放大字号会挤压分支图标；空间不足时换行，避免设置按钮遮住分支入口。
+        className={`flex min-w-0 flex-1 items-center gap-2 ${worktree ? "" : "flex-wrap gap-y-1"}`}
         data-testid="draft-execution-location"
       >
         <Select
@@ -130,7 +131,7 @@ export function DraftWorkspaceExecutionControls({
             gitSummary={gitSummary}
             dirtyFileCount={dirtyFileCount}
             onRefreshGit={onRefreshGit}
-            className="min-w-0 px-0 pt-0"
+            className="min-w-14 px-0 pt-0"
             triggerClassName="min-w-0 max-w-full"
             popoverClassName="w-80 max-w-[calc(100vw-2rem)]"
             branchListClassName="max-h-64"

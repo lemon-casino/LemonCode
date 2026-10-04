@@ -99,6 +99,11 @@ export interface GitRepositoryRequest {
   workspaceIdentity?: string;
 }
 
+/** 显式发布某本地分支，不要求操作目录检出该分支。普通提交仍只使用 GitRepositoryRequest。 */
+export interface GitPublicationRequest extends GitRepositoryRequest {
+  sourceBranch?: string;
+}
+
 export interface GitPublishState {
   headCommitHash: string | null;
   branchName: string | null;
@@ -130,7 +135,7 @@ export interface GitTagListResult {
   unsupportedTags?: GitUnsupportedTagInfo[];
 }
 
-export interface GitCreateTagRequest extends GitRepositoryRequest {
+export interface GitCreateTagRequest extends GitPublicationRequest {
   name: string;
   ref?: string;
   expectedState?: GitPublishState;
@@ -300,7 +305,7 @@ export interface GitGenerateCommitMessageResult {
   model: string;
 }
 
-export interface GitPushRequest extends GitRepositoryRequest {
+export interface GitPushRequest extends GitPublicationRequest {
   remote?: string;
   branch?: string;
   tag?: string;
