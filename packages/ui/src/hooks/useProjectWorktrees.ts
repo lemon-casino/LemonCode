@@ -13,12 +13,13 @@ export function useProjectWorktrees(
   const scope = workspaceIdentity?.trim() || workspacePath;
   const revision = useWorktreeLifecycleStore((state) => state.revisions[scope]);
   const ticket = useRef(0);
+  // 初次启用即标记读取中，避免占用说明在 owner 返回前把空投影误报成外部工作树。
   const [state, setState] = useState<{
     scope: string;
     bindings: WorktreeBinding[];
     loading: boolean;
     error?: string;
-  }>({ scope, bindings: [], loading: false });
+  }>({ scope, bindings: [], loading: enabled && Boolean(worktreeService) });
   const refresh = useCallback(async () => {
     const ownTicket = ++ticket.current;
     if (!worktreeService) return;

@@ -1071,7 +1071,22 @@ const enUS: Record<string, string> = {
     "Select one or more existing local tags. Reload if the list changed.",
   "git.publish.error.presets": "Could not save publish presets: {error}",
   "git.branchDelete.action": "Delete branch {name}",
-  "git.branchDelete.inUse": "This branch is checked out in a worktree and cannot be deleted",
+  "git.branchDelete.inUse": "This branch is in use. Click to view its checkout.",
+  "git.branchDelete.inspect": "View checkout for branch {name}",
+  "git.branchDelete.inUseTitle": "This branch is in use",
+  "git.branchDelete.currentDescription":
+    "“{name}” is the current branch in this directory. Switch to another branch before deleting it.",
+  "git.branchDelete.occupiedDescription":
+    "“{name}” is checked out in the worktree below. Release the checkout before deleting this branch.",
+  "git.branchDelete.checkoutPath": "Checkout directory",
+  "git.branchDelete.managementUnavailable":
+    "This connection does not support worktree management. Switch the branch in its checkout or manage the worktree through Git, then refresh the branch list.",
+  "git.branchDelete.occupiedLabel": "In use by a worktree",
+  "git.branchDelete.managedDescription":
+    "Open the corresponding worktree to review and merge changes or save a snapshot and archive it. Check the branch again after archiving; unmerged commits remain protected.",
+  "git.branchDelete.externalDescription":
+    "This directory is not registered as an app-managed worktree. Switch its branch or manage the worktree through Git, then refresh the branch list.",
+  "git.branchPicker.headDescription": "Currently checked-out commit",
   "git.branchDelete.title": "Delete local branch",
   "git.branchDelete.description":
     "Delete local branch “{name}”? Only merged branches can be deleted. Remote branches and worktrees are kept.",

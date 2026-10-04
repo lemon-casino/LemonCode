@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { GitRepositorySummary } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
-import { Command, CommandInput } from "@/components/ui/command.js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
 import { cn } from "@/components/lib/utils.js";
 import {
@@ -10,14 +9,14 @@ import {
 } from "@/git-branch-switcher/GitBranchDialogs.js";
 import { GitGraphDialog } from "@/git-graph/GitGraphDialog.js";
 import { GitBranchDeletionDialog } from "@/git-branch-switcher/GitBranchDeletionDialog.js";
-import { GitBranchPickerList } from "@/git-branch-switcher/GitBranchPickerList.js";
+import {
+  GitBranchPickerContent,
+  focusBranchPickerSearch,
+} from "@/git-branch-switcher/GitBranchPickerContent.js";
 import type { GitLocalBranch } from "@lcode/shared";
 import { useGitBranchSwitcher } from "@/hooks/useGitBranchSwitcher.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
-import {
-  matchesGitBranchSearch,
-  resolveGitBranchTriggerLabel,
-} from "@/git-branch-switcher/display.js";
+import { resolveGitBranchTriggerLabel } from "@/git-branch-switcher/display.js";
 import {
   isCoarseTouchDevice,
   shouldRestoreChatInputFocusAfterPickerClose,
@@ -27,6 +26,7 @@ import { ChevronDownIcon, GitBranchIcon, GitGraph, LoaderIcon, PlusIcon } from "
 interface GitBranchSwitcherProps {
   workspacePath: string;
   workspaceIdentity?: string;
+  workspaceRemoteSessionId?: string;
   gitSummary: GitRepositorySummary;
   dirtyFileCount: number;
   onRefreshGit: () => void;
@@ -43,6 +43,7 @@ interface GitBranchSwitcherProps {
 export function GitBranchSwitcher({
   workspacePath,
   workspaceIdentity,
+  workspaceRemoteSessionId,
   gitSummary,
   dirtyFileCount,
   onRefreshGit,
@@ -127,10 +128,6 @@ export function GitBranchSwitcher({
       fallbackLabel: intl.formatMessage({ id: "git.branchSwitcher.label" }),
     });
   }, [gitSummary.headRefType, intl, switchAssistState, triggerLabel]);
-  const branchSearchFilter = useCallback(
-    (value: string, search: string) => (matchesGitBranchSearch(value, search) ? 1 : 0),
-    [],
-  );
 
   useEffect(() => {
     if (!open || !branchesResult?.branches.length) {
@@ -147,27 +144,6 @@ export function GitBranchSwitcher({
       window.cancelAnimationFrame(frameId);
     };
   }, [branchesResult, open]);
-
-  const handleContentKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key !== "Tab") {
-      return;
-    }
-
-    const highlightedItem =
-      event.currentTarget.querySelector<HTMLElement>(
-        '[data-slot="command-item"][data-selected="true"]:not([data-disabled=true])',
-      ) ??
-      event.currentTarget.querySelector<HTMLElement>(
-        '[data-slot="command-item"]:not([data-disabled=true])',
-      );
-
-    if (!highlightedItem) {
-      return;
-    }
-
-    event.preventDefault();
-    highlightedItem.click();
-  }, []);
 
   if (!isVisible) {
     return null;
@@ -191,8 +167,7 @@ export function GitBranchSwitcher({
                 id: "git.branchSwitcher.trigger.ariaLabel",
               })}
               className={cn(
-                "min-w-0 rounded-full text-ui-base/relaxed",
-                "max-w-full pl-3 pr-2",
+                "h-7 min-w-0 max-w-full gap-1 rounded-md px-1 text-ui-sm",
                 triggerClassName,
               )}
             >
@@ -201,7 +176,9 @@ export function GitBranchSwitcher({
                 className="size-4 text-foreground-subtle"
               />
               <>
-                <span className="min-w-0 max-w-25 truncate text-left">{triggerLabel}</span>
+                <span className="min-w-0 truncate text-left" title={triggerLabel}>
+                  {triggerLabel}
+                </span>
                 {loadingBranches || mutationPending ? (
                   <LoaderIcon
                     data-branch-switcher-trailing-icon="true"
@@ -225,21 +202,7 @@ export function GitBranchSwitcher({
               "max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] gap-0 rounded-lg bg-menu p-0",
               popoverClassName,
             )}
-            onOpenAutoFocus={(event) => {
-              event.preventDefault();
-              if (isCoarseTouchDevice()) {
-                // 手机触控设备打开分支列表时，自动聚焦搜索框会拉起系统键盘遮挡列表。
-                // 移动端保留触发器焦点，用户需要搜索时再手动点输入框；桌面端继续自动进入搜索。
-                return;
-              }
-
-              const target = event.currentTarget;
-              if (!(target instanceof HTMLElement)) {
-                return;
-              }
-              const searchInput = target.querySelector<HTMLElement>('[data-slot="command-input"]');
-              searchInput?.focus();
-            }}
+            onOpenAutoFocus={focusBranchPickerSearch}
             onCloseAutoFocus={(event) => {
               event.preventDefault();
               if (
@@ -253,32 +216,20 @@ export function GitBranchSwitcher({
               input?.focus();
             }}
           >
-            <Command
-              className="min-h-0 h-auto bg-transparent p-0 text-foreground [&>[data-slot=command-input-wrapper]]:shrink-0"
-              filter={branchSearchFilter}
-              onKeyDown={handleContentKeyDown}
-            >
-              <CommandInput
-                placeholder={intl.formatMessage({
-                  id: "git.branchSwitcher.searchPlaceholder",
-                })}
-                className="h-8"
-              />
-              <GitBranchPickerList
-                listRef={commandListRef}
-                branches={branchesResult?.branches ?? []}
-                currentBranchName={displayedCurrentBranchName}
-                currentBranchDirtyLabel={currentBranchDirtyLabel}
-                loading={loadingBranches}
-                disabled={mutationPending}
-                className={branchListClassName}
-                onSelect={(name) => void switchBranch(name)}
-                onDelete={(selected) => {
-                  setDeletingBranch({ scope: deletionScope, branch: selected });
-                  setOpen(false);
-                }}
-              />
-            </Command>
+            <GitBranchPickerContent
+              listRef={commandListRef}
+              branches={branchesResult?.branches ?? []}
+              currentBranchName={displayedCurrentBranchName}
+              currentBranchDirtyLabel={currentBranchDirtyLabel}
+              loading={loadingBranches}
+              disabled={mutationPending}
+              className={branchListClassName}
+              onSelect={(name) => void switchBranch(name)}
+              onDelete={(selected) => {
+                setDeletingBranch({ scope: deletionScope, branch: selected });
+                setOpen(false);
+              }}
+            />
             {showFooterActions ? (
               <div className="shrink-0 border-t border-border p-1">
                 <Button
@@ -340,8 +291,13 @@ export function GitBranchSwitcher({
         key={workspaceIdentity?.trim() || workspacePath}
         workspacePath={workspacePath}
         workspaceIdentity={workspaceIdentity}
+        workspaceRemoteSessionId={workspaceRemoteSessionId}
         branch={deletingBranch?.scope === deletionScope ? deletingBranch.branch : null}
         onClose={() => setDeletingBranch(null)}
+        onRefresh={() => {
+          void refreshBranches();
+          onRefreshGit();
+        }}
         onDeleted={() => {
           setDeletingBranch(null);
           void refreshBranches();

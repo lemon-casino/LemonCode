@@ -20,6 +20,7 @@ export function ProjectWorktreeManagementDialog({
   open,
   onOpenChange,
   onSelectSession,
+  initialSessionId,
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
@@ -27,9 +28,12 @@ export function ProjectWorktreeManagementDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSelectSession?: (sessionId: string) => void;
+  initialSessionId?: string;
 }) {
   const { intl } = useLCodeIntl();
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
+    initialSessionId ?? null,
+  );
   const renderDialog = (content: ReactNode) => (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent

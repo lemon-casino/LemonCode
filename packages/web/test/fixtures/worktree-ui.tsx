@@ -92,6 +92,9 @@ const fixture = {
   holdSave: false,
   releaseSave: () => {},
   failBranches: false,
+  failList: false,
+  holdList: false,
+  releaseList: () => {},
   failRead: false,
   holdRead: false,
   releaseRead: () => {},
@@ -181,7 +184,14 @@ const services = {
         throw new Error("fixture-remote-offline");
       return {};
     },
-    ...createWorktreeBranchFixture(calls, () => fixture.failBranches),
+    ...createWorktreeBranchFixture(
+      calls,
+      () => fixture.failBranches,
+      () => ({
+        name: binding.branch,
+        checkoutPath: binding.status === "archived" ? null : binding.checkoutPath,
+      }),
+    ),
     switchBranch: async (params: unknown) => {
       calls.push({ method: "switchBranch", params });
       throw new Error("unexpected Git mutation");
@@ -248,6 +258,11 @@ const services = {
     },
     list: async (params: unknown) => {
       calls.push({ method: "list", params });
+      if (fixture.holdList)
+        await new Promise<void>((resolve) => {
+          fixture.releaseList = resolve;
+        });
+      if (fixture.failList) throw new Error("fixture-list-failed");
       return [structuredClone(binding)];
     },
     getBinding: async (params: { taskId: string }) =>

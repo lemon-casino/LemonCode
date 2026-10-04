@@ -989,7 +989,20 @@ const zhCN: Record<string, string> = {
   "git.publish.error.tagsRequired": "请选择一个或多个本地 Tag；列表变化后请重新读取。",
   "git.publish.error.presets": "保存发布预设失败：{error}",
   "git.branchDelete.action": "删除分支 {name}",
-  "git.branchDelete.inUse": "此分支正在工作树中使用，不能删除",
+  "git.branchDelete.inUse": "此分支正在使用，点击查看占用情况",
+  "git.branchDelete.inspect": "查看分支 {name} 的占用情况",
+  "git.branchDelete.inUseTitle": "此分支正在使用",
+  "git.branchDelete.currentDescription": "“{name}”是当前目录使用的分支。请先切换到其他分支再删除。",
+  "git.branchDelete.occupiedDescription": "“{name}”正在下面的工作树中使用，释放占用前不能删除。",
+  "git.branchDelete.checkoutPath": "占用目录",
+  "git.branchDelete.managementUnavailable":
+    "当前连接不支持工作树管理。请在占用目录切换分支，或通过 Git 处理工作树后刷新分支列表。",
+  "git.branchDelete.occupiedLabel": "工作树占用",
+  "git.branchDelete.managedDescription":
+    "可进入对应工作树管理，审核改动后合并或保存快照并归档。归档后重新检查分支；未合并的提交仍受保护。",
+  "git.branchDelete.externalDescription":
+    "此目录未登记为本应用管理的工作树。请在该目录切换分支，或通过 Git 处理工作树后刷新分支列表。",
+  "git.branchPicker.headDescription": "当前检出的提交",
   "git.branchDelete.title": "删除本地分支",
   "git.branchDelete.description":
     "删除本地分支“{name}”？仅删除已合并的分支，远端分支与工作树保留。",

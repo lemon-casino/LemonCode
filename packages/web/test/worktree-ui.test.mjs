@@ -1,4 +1,5 @@
 import { runBranchDeletionCases } from "./draft-attachment-and-branch-cases.mjs";
+import { runBranchPickerCases } from "./branch-picker-cases.mjs";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
@@ -139,7 +140,7 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
     await page.getByText("fixture-branches-failed").waitFor();
     await configure({ failBranches: false });
     await page.getByRole("button", { name: "重试", exact: true }).click();
-    await page.getByRole("button", { name: "feature", exact: true }).click();
+    await page.locator('[data-testid="git-branch-row"][data-branch-name="feature"]').click();
     assert.match(await page.getByTestId("worktree-base-trigger").innerText(), /feature/);
     assert.equal(
       (await calls()).some((call) => ["prepare", "switchBranch"].includes(call.method)),
@@ -382,6 +383,7 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
     },
   );
   await runBranchDeletionCases({ t, page, url, calls, select });
+  await runBranchPickerCases({ t, page, url, calls, select });
   await runWorktreeWorkflowCases({ t, page, url, calls, configure, select });
   await runForkPreparationCases({ t, page, url, calls });
   assert.deepEqual(errors, []);

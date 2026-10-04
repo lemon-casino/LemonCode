@@ -1311,6 +1311,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
           <DraftWorkspaceExecutionControls
             workspaceIdentity={workspaceIdentity}
             workspacePath={workspaceAbsPath}
+            workspaceRemoteSessionId={workspaceRemoteSessionId ?? undefined}
             gitSummary={gitState.summary}
             dirtyFileCount={gitDirtyFileCount}
             onRefreshGit={handleRefreshGit}

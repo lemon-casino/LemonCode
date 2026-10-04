@@ -96,8 +96,8 @@ export async function runBranchDeletionCases({ t, page, url, calls, select }) {
           const remove = (name) =>
             picker.locator(`[data-testid="git-branch-delete"][data-branch-name="${name}"]`);
           await remove(longName).waitFor();
-          assert.equal(await remove("L-GO").isEnabled(), false);
-          assert.equal(await remove("occupied").isEnabled(), false);
+          assert.equal(await remove("L-GO").getAttribute("data-branch-action"), "in-use");
+          assert.equal(await remove("occupied").getAttribute("data-branch-action"), "in-use");
           const row = picker.locator(
             `[data-testid="git-branch-row"][data-branch-name="${longName}"]`,
           );
@@ -172,9 +172,14 @@ export async function runBranchDeletionCases({ t, page, url, calls, select }) {
     const remove = (name) =>
       page.locator(`[data-testid="git-branch-delete"][data-branch-name="${name}"]`);
     await remove("feature").waitFor();
-    await page.getByRole("button", { name: "feature", exact: true }).click();
+    await page.locator('[data-testid="git-branch-row"][data-branch-name="feature"]').click();
     await page.getByTestId("worktree-base-trigger").click();
-    assert.equal(await remove("L-GO").isEnabled(), false);
+    await remove("L-GO").click();
+    const occupied = page.getByTestId("git-branch-in-use-dialog");
+    await occupied.waitFor();
+    assert.equal(await occupied.getByRole("button", { name: "删除分支", exact: true }).count(), 0);
+    await occupied.getByRole("button", { name: "关闭", exact: true }).click();
+    await page.getByTestId("worktree-base-trigger").click();
     await remove("feature").click();
     const dialog = page.getByTestId("git-branch-delete-dialog");
     await dialog.getByRole("button", { name: "取消", exact: true }).click();

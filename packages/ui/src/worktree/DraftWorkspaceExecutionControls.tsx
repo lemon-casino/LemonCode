@@ -1,14 +1,9 @@
 import { useState } from "react";
-import {
-  GitBranchDeleteButton,
-  GitBranchDeletionDialog,
-} from "@/git-branch-switcher/GitBranchDeletionDialog.js";
-import type { GitLocalBranch, GitRepositorySummary } from "@lcode/shared";
-import { GitBranchIcon, LoaderIcon, Settings2Icon } from "lucide-react";
+import type { GitRepositorySummary } from "@lcode/shared";
+import { Settings2Icon } from "lucide-react";
 import { GitBranchSwitcher } from "@/GitBranchSwitcher.js";
 import { useProjectExecutionPolicy } from "@/hooks/useProjectExecutionPolicy.js";
 import { useWorktreeCapabilities } from "@/hooks/useWorktreeCapabilities.js";
-import { useWorktreeBaseBranches } from "@/hooks/useWorktreeBaseBranches.js";
 import { getErrorMessage } from "@/lib/errorMessage.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useDraftExecutionStore } from "@/store/draftExecutionStore.js";
@@ -22,16 +17,19 @@ import {
 } from "@/components/ui/select.js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
 import { ProjectExecutionPolicySettings } from "./ExecutionPolicySettings.js";
+import { WorktreeBaseBranchPicker } from "./WorktreeBaseBranchPicker.js";
 
 export function DraftWorkspaceExecutionControls({
   workspacePath,
   workspaceIdentity,
+  workspaceRemoteSessionId,
   gitSummary,
   dirtyFileCount,
   onRefreshGit,
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
+  workspaceRemoteSessionId?: string;
   gitSummary: GitRepositorySummary;
   dirtyFileCount: number;
   onRefreshGit: () => void;
@@ -59,12 +57,6 @@ export function DraftWorkspaceExecutionControls({
       setSavingMode(false);
     }
   };
-  const [baseOpen, setBaseOpen] = useState(false);
-  const [deletingBranch, setDeletingBranch] = useState<{
-    scope: string;
-    branch: GitLocalBranch;
-  } | null>(null);
-  const branches = useWorktreeBaseBranches(workspacePath, workspaceIdentity, baseOpen);
   const pending = Boolean(selection?.requestId);
   const frozen = pending || selection?.frozen;
   const worktree = policy.executionMode === "worktree";
@@ -118,105 +110,30 @@ export function DraftWorkspaceExecutionControls({
           </SelectContent>
         </Select>
         {worktree ? (
-          <Popover open={baseOpen && !frozen} onOpenChange={setBaseOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                data-testid="worktree-base-trigger"
-                variant="ghost"
-                size="sm"
-                className="h-7 min-w-0 max-w-full shrink gap-1 px-1 text-ui-sm"
-                disabled={frozen || !supportedRepository}
-              >
-                <GitBranchIcon className="size-4 shrink-0" />
-                <span
-                  className="truncate"
-                  title={selection?.baseRef ?? gitSummary.branchName ?? "HEAD"}
-                >
-                  {intl.formatMessage({ id: "worktree.base" })}:{" "}
-                  {selection?.baseRef ?? gitSummary.branchName ?? "HEAD"}
-                </span>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              data-testid="worktree-base-picker"
-              side="top"
-              align="start"
-              className="max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] gap-0 rounded-lg bg-menu p-0"
-            >
-              <p className="shrink-0 border-b border-border px-3 py-2 text-ui-sm text-foreground-subtle">
-                {intl.formatMessage({ id: "worktree.baseDescription" })}
-              </p>
-              {/* 通用 Popover 的 gap 与不收缩的整行按钮会裁掉删除入口；固定说明，只让紧凑列表滚动。 */}
-              <div
-                data-testid="worktree-base-list"
-                className="flex min-h-0 max-h-64 flex-col gap-0.5 overflow-x-hidden overflow-y-auto p-1"
-              >
-                {branches.loading ? (
-                  <LoaderIcon className="m-2 size-4 animate-spin" />
-                ) : branches.error ? (
-                  <div role="alert" className="p-2 text-ui-sm text-destructive">
-                    {branches.error}
-                    <Button variant="ghost" size="sm" onClick={() => void branches.refresh()}>
-                      {intl.formatMessage({ id: "worktree.retry" })}
-                    </Button>
-                  </div>
-                ) : (
-                  <>
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-start text-ui-sm"
-                      onClick={() => {
-                        choose(scope, { baseRef: undefined });
-                        setBaseOpen(false);
-                      }}
-                    >
-                      HEAD
-                    </Button>
-                    {branches.result?.branches.map((branch) => (
-                      <div
-                        key={branch.name}
-                        data-testid="git-branch-row"
-                        data-branch-name={branch.name}
-                        className="flex min-w-0 shrink-0 items-center gap-1"
-                      >
-                        <Button
-                          variant="ghost"
-                          className="h-auto min-h-7 min-w-0 flex-1 shrink justify-start whitespace-normal px-2 py-1.5 text-left text-ui-sm"
-                          onClick={() => {
-                            choose(scope, { baseRef: branch.name });
-                            setBaseOpen(false);
-                          }}
-                        >
-                          <span data-testid="git-branch-name" className="min-w-0 break-all">
-                            {branch.name}
-                          </span>
-                        </Button>
-                        <GitBranchDeleteButton
-                          branch={branch}
-                          disabled={frozen}
-                          onRequest={(selected) => {
-                            setDeletingBranch({ scope, branch: selected });
-                            setBaseOpen(false);
-                          }}
-                        />
-                      </div>
-                    ))}
-                  </>
-                )}
-              </div>
-            </PopoverContent>
-          </Popover>
+          <WorktreeBaseBranchPicker
+            key={scope}
+            workspacePath={workspacePath}
+            workspaceIdentity={workspaceIdentity}
+            workspaceRemoteSessionId={workspaceRemoteSessionId}
+            baseRef={selection?.baseRef}
+            currentBranchName={gitSummary.branchName}
+            frozen={Boolean(frozen)}
+            supported={supportedRepository}
+            onChoose={(baseRef) => choose(scope, { baseRef })}
+            onRefreshGit={onRefreshGit}
+          />
         ) : (
           <GitBranchSwitcher
             workspacePath={workspacePath}
             workspaceIdentity={workspaceIdentity}
+            workspaceRemoteSessionId={workspaceRemoteSessionId}
             gitSummary={gitSummary}
             dirtyFileCount={dirtyFileCount}
             onRefreshGit={onRefreshGit}
             className="min-w-0 px-0 pt-0"
             triggerClassName="min-w-0 max-w-full"
-            popoverClassName="w-72 max-w-[calc(100vw-2rem)]"
-            branchListClassName="max-h-48"
+            popoverClassName="w-80 max-w-[calc(100vw-2rem)]"
+            branchListClassName="max-h-64"
           />
         )}
       </div>
@@ -239,19 +156,6 @@ export function DraftWorkspaceExecutionControls({
           />
         </PopoverContent>
       </Popover>
-      <GitBranchDeletionDialog
-        key={scope}
-        workspacePath={workspacePath}
-        workspaceIdentity={workspaceIdentity}
-        branch={deletingBranch?.scope === scope ? deletingBranch.branch : null}
-        onClose={() => setDeletingBranch(null)}
-        onDeleted={(name) => {
-          setDeletingBranch(null);
-          if (selection?.baseRef === name) choose(scope, { baseRef: undefined });
-          void branches.refresh();
-          onRefreshGit();
-        }}
-      />
       {modeError?.scope === scope ? (
         <span role="alert" className="basis-full break-words text-ui-sm text-destructive">
           {modeError.message}
