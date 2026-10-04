@@ -132,6 +132,19 @@ body {
   }
 }
 
+/*
+ *  Tailwind v4 的 preflight 不再像 v3 那样给 button / [role="button"] 默认手型光标，
+ *  裸按钮悬停显示系统箭头，各组件只能零散补 cursor-pointer，全应用光标不一致。
+ *  这里在 base 层统一恢复“可按压即手型”：禁用态不显示手型；
+ *  cursor-grab / cursor-wait / cursor-default 等 utilities 层类仍可按交互语义覆盖。
+ */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+}
+
 /* === 主题变量 === */
 
 @theme {

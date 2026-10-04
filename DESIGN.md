@@ -425,6 +425,12 @@ Button rules:
 - Do not promote every action to primary.
 - Preserve a clear action hierarchy within each panel.
 
+Cursor rules:
+
+- All pressable controls use the pointer cursor by default; the global base layer in `packages/ui/src/styles.css` applies it to `button:not(:disabled)` and `[role="button"]:not([aria-disabled="true"])`. Do not add per-component `cursor-pointer` for plain buttons.
+- Disabled controls fall back to the default arrow cursor.
+- Override only with a stronger interaction semantics: `cursor-grab` / `cursor-grabbing` for drag handles, `cursor-wait` for pending actions, `cursor-default` for intentionally inert rows.
+
 ### Inputs
 
 - Default to `bg-input border-input-border text-foreground`
