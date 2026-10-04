@@ -50,6 +50,8 @@ export interface WorktreeGit extends WorktreeGitPort {
   matchesSnapshot(binding: WorktreeBinding, checkIgnored?: boolean): Promise<boolean>;
 }
 export interface WorktreeContext {
+  collectDiscardSessions?: (binding: WorktreeBinding) => Promise<string[]>;
+  discardSessions?: (binding: WorktreeBinding, sessionIds: string[]) => Promise<void>;
   commitSource?: (
     request: import("@lcode/shared").GitCommitRequest,
   ) => Promise<import("@lcode/shared").GitCommitResult>;

@@ -7356,7 +7356,7 @@ const enUS: Record<string, string> = {
   "worktree.discard": "Delete worktree",
   "worktree.discardTitle": "Delete this worktree?",
   "worktree.discardDescription":
-    "Delete the directories, task branch and file snapshots below, including uncommitted changes, untracked files, ignored files and unmerged commits. This cannot be undone. Chat history remains; other chats using this worktree will also lose access to the directory. The original project and changes already merged into the target branch remain.",
+    "Permanently delete the directories, task branch and file snapshots below, including uncommitted changes, untracked files, ignored files and unmerged commits. All chats sharing this worktree will also be deleted, including forks and chats previously removed from the list. This cannot be undone. The original project and changes already merged into the target branch remain.",
   "worktree.discardDirectory": "Directory to delete",
   "worktree.discardBranch": "Branch to delete",
   "worktree.discardConfirm": "Delete",

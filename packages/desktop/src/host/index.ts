@@ -15,6 +15,7 @@
  */
 import { createHostDatabaseStartup } from "./hostDatabaseStartup.js";
 import { randomUUID } from "node:crypto";
+import { removePhysicalWorktreeDirectory } from "./physicalWorktreeRemoval.js";
 import {
   MessagePortProtocol,
   ChannelServer,
@@ -2818,6 +2819,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
           log: (message, details) => logger.warn(message, details),
           establishOwner: () => {
             const initializedServices = createLocalServices({
+              removeWorktreeDirectory: removePhysicalWorktreeDirectory,
               parentPort,
               settingService,
               prepareLegacyAccountConnections,

@@ -4,7 +4,7 @@ import type { WorktreeContext } from "./ports.js";
 import { cleanupTemporaryTarget } from "./temporaryTarget.js";
 import { removeManagedCheckout } from "./removeCheckout.js";
 
-/** 强制放弃仍由生命周期 owner 收口；保留墓碑，防止原会话回退到本地目录或重新创建。 */
+/** 永久删除由生命周期 owner 收口；保留绑定墓碑，防止旧客户端重新创建。 */
 export function createWorktreeDiscard(
   context: WorktreeContext,
   coordinator: CheckoutCoordinator,
@@ -103,6 +103,23 @@ export function createWorktreeDiscard(
           };
           await store.saveBinding(value);
         }
+        if (!value.deletion!.sessionIds) {
+          // 先固定聊天清理范围；目录或 SQL 已删但回复丢失时仍可完成索引投影清理。
+          const aliases = (await store.listAliases()).filter(
+            (alias) => alias.bindingId === value.id,
+          );
+          const persisted = (await context.collectDiscardSessions?.(value)) ?? [];
+          value = {
+            ...value,
+            deletion: {
+              ...value.deletion!,
+              sessionIds: [
+                ...new Set([value.taskId, ...aliases.map((alias) => alias.taskId), ...persisted]),
+              ],
+            },
+          };
+          await store.saveBinding(value);
+        }
         if (operation) {
           if (!["published", "cancelled", "failed"].includes(operation.status))
             await store.saveOperation({
@@ -148,6 +165,7 @@ export function createWorktreeDiscard(
             `refs/lcode/${kind}/${value.id}`,
           ]);
         await context.fault("discard.after-branch");
+        await context.discardSessions?.(value, value.deletion!.sessionIds!);
         value = {
           ...value,
           status: "deleted",
@@ -158,6 +176,16 @@ export function createWorktreeDiscard(
         };
         await store.saveBinding(value);
         return value;
+      } catch (error) {
+        // 部分删除是持久事实；具体错误必须可见，重试不能因目录/分支已消失而失效。
+        if (value.deletion)
+          await store.saveBinding({
+            ...value,
+            status: "deleting",
+            error: error instanceof Error ? error.message : String(error),
+            updatedAt: new Date().toISOString(),
+          });
+        throw error;
       } finally {
         if (integrationLease) await coordinator.release(integrationLease);
         await coordinator.release(lease);

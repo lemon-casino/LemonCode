@@ -48,6 +48,15 @@ export interface LocalSettingStorePort {
 }
 
 export interface SessionStorePort {
+  /** 受信 Host 的工作树删除维护接口；查询和永久删除均校验绑定及源/执行身份。 */
+  worktreeCleanup?(input: {
+    executionBindingId: string;
+    originWorkspacePath: string;
+    originWorkspaceIdentity?: string;
+    workspacePath: string;
+    workspaceIdentity?: string;
+    sessionIds?: string[];
+  }): Promise<{ sessionIds: string[] }>;
   createSession(input: CreateSessionInput): Promise<SessionInfo>;
   /** legacy 兼容原语；V4 stable/compact-edit fork 禁止调用，统一走 commitForkBundle。 */
   createForkedSessionWithMetadata?(

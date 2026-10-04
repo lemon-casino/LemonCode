@@ -7,7 +7,11 @@ import type { WorktreeStore } from "../app/ports.js";
 import { bindingRecord, operationRecord } from "./records.js";
 import { createWorktreeAliases } from "./aliases.js";
 
-export function createWorktreeStore(dataDir: string): WorktreeStore {
+export function createWorktreeStore(
+  dataDir: string,
+  removeDirectory: (path: string) => Promise<void> = (path) =>
+    rm(path, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }),
+): WorktreeStore {
   const root = resolve(dataDir);
   const checkouts = join(root, "checkouts");
   function recordPath(kind: string, id: string) {
@@ -136,7 +140,8 @@ export function createWorktreeStore(dataDir: string): WorktreeStore {
         await lstat(join(path, ".git"));
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-        await rm(path, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+        // Electron 的 fs 将 .asar 当虚拟目录，递归删除可能永不返回；由宿主注入物理 fs。
+        await removeDirectory(path);
         return;
       }
       throw new Error("Residual worktree contains a Git marker; preserve the existing directory");

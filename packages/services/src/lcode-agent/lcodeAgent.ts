@@ -709,6 +709,11 @@ export interface ILCodeAgentService {
   closeSession(
     params: LCodeAgentSessionTarget & { expectedPersistence?: "deferred" | "immediate" },
   ): Promise<boolean>;
+  cleanupWorktreeSessions(
+    params: LCodeAgentWorkspaceTarget & {
+      cleanup: import("@lcode/shared").LCodeSessionWorktreeCleanupParams;
+    },
+  ): Promise<{ sessionIds: string[] }>;
   setModel(params: LCodeAgentSetModelParams): Promise<LCodeSessionStateSnapshot>;
   setThoughtLevel(params: LCodeAgentSetThoughtLevelParams): Promise<LCodeSessionStateSnapshot>;
   setMode(params: LCodeAgentSetModeParams): Promise<LCodeSessionStateSnapshot>;

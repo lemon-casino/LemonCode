@@ -81,6 +81,7 @@ import {
   lcodeToolExecResourceSchema,
   lcodeProcessResourceSampleSchema,
   lcodeSessionCloseResultSchema,
+  lcodeSessionWorktreeCleanupResultSchema,
   lcodeSessionCompactResultSchema,
   lcodeSessionEventsResultSchema,
   lcodeSessionGoalResultSchema,
@@ -4664,6 +4665,16 @@ export function createLCodeAgentService(
       );
       // 兼容尚未返回 closed 字段、但已成功执行普通 close 的 Agent。
       return result.closed ?? true;
+    },
+
+    async cleanupWorktreeSessions(params) {
+      // 管理删除不依赖供应商或模型就绪，不能走写入模型启动门控。
+      const client = await getReadOnlyClient(params);
+      return client.request(
+        lcodeProtocolMethods.sessionWorktreeCleanup,
+        params.cleanup,
+        lcodeSessionWorktreeCleanupResultSchema,
+      );
     },
 
     async setModel(params: LCodeAgentSetModelParams) {

@@ -152,6 +152,10 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
   }
 
   await runWorktreeDeletionCases({ t, page, load, configure, calls, openProjectWorktrees });
+  if (process.env.LCODE_WORKTREE_TEST_CASES === "deletion") {
+    assert.deepEqual(errors, []);
+    return;
+  }
 
   await t.test("模式保存项目值、基线保存草稿，不创建树、不切分支；读取失败可重试", async () => {
     await load();

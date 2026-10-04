@@ -98,7 +98,14 @@ export const worktreeExecutionBindingSchema = z
       .regex(/^[a-f0-9]{32,64}$/)
       .optional(),
     snapshot: worktreeSnapshotSchema.optional(),
-    deletion: z.object({ requestId: text, branchHead: text.optional() }).strict().optional(),
+    deletion: z
+      .object({
+        requestId: text,
+        branchHead: text.optional(),
+        sessionIds: z.array(text).optional(),
+      })
+      .strict()
+      .optional(),
     forkSnapshot: worktreeSnapshotSchema.optional(),
     forkFilesRestored: z.boolean().optional(),
     setup: z

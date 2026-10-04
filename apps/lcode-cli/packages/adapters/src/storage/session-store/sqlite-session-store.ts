@@ -60,6 +60,7 @@ import { sessionForkMethods } from "./store-fork.js";
 import { sharedContextMethods } from "./store-shared-context.js";
 import { sessionTargetMethods } from "./store-target.js";
 import { auxiliaryStoreMethods } from "./store-auxiliary.js";
+import { worktreeCleanupMethods } from "./store-worktree-cleanup.js";
 import type { StoreMethods } from "./store-access.js";
 
 type ForkMethods = StoreMethods<typeof sessionForkMethods>;
@@ -120,6 +121,7 @@ export class SqliteSessionStore
   declare appendScriptWorkflowEvent: AuxiliaryMethods["appendScriptWorkflowEvent"];
   declare listScriptWorkflowEvents: AuxiliaryMethods["listScriptWorkflowEvents"];
   declare createSessionTaskLink: AuxiliaryMethods["createSessionTaskLink"];
+  declare worktreeCleanup: StoreMethods<typeof worktreeCleanupMethods>["worktreeCleanup"];
 
   private readonly db: DatabaseSync;
   private readonly dbPath: string;
@@ -416,6 +418,7 @@ for (const methods of [
   sharedContextMethods,
   sessionTargetMethods,
   auxiliaryStoreMethods,
+  worktreeCleanupMethods,
 ]) {
   for (const [name, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(methods))) {
     Object.defineProperty(SqliteSessionStore.prototype, name, { ...descriptor, enumerable: false });

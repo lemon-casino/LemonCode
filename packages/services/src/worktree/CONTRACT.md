@@ -102,6 +102,13 @@ contents with bounded filesystem retries. An interrupted discard journal or arch
 allows cleanup to resume after restart; registration absence alone is not deletion evidence.
 Success requires both native registration and the managed directory to be gone.
 
+The Host injects physical directory removal (Electron original-fs; Node fs otherwise)
+after canonical/.git guards. Explicit discard also purges all chats sharing the binding,
+including aliases and hidden tasks. The CLI SessionStore owns permanent chat deletion;
+the worktree domain only calls collect/discard ports. IDs are journaled before removal
+for retry after a lost reply. Host task-index notifications follow durable chat deletion.
+Failure retains deleting plus a diagnostic; ordinary snapshot archive preserves chats.
+
 Checkout permits are canonical-directory locks across Host processes. Live owners never
 expire by elapsed time. Runtime releases only after its writers stop; UI state is not a
 writer proof. External editors remain outside the application permit boundary.

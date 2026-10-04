@@ -6987,7 +6987,7 @@ const zhCN: Record<string, string> = {
   "worktree.discard": "删除工作树",
   "worktree.discardTitle": "删除这个工作树？",
   "worktree.discardDescription":
-    "将删除以下目录、任务分支及其文件快照，包括未提交改动、未跟踪文件、忽略文件和未合并的提交，无法恢复。聊天记录保留；使用同一工作树的其他会话也将无法继续在该目录执行。原项目目录和已合并到目标分支的内容保留。",
+    "将永久删除以下目录、任务分支及其文件快照，包括未提交改动、未跟踪文件、忽略文件和未合并的提交。同一工作树关联的所有聊天记录也会删除，包括分叉会话和已从列表删除的会话，无法恢复。原项目目录和已合并到目标分支的内容保留。",
   "worktree.discardDirectory": "删除目录",
   "worktree.discardBranch": "删除分支",
   "worktree.discardConfirm": "删除",

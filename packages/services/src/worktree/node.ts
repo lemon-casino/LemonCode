@@ -12,7 +12,7 @@ import { detectWorktreeSetup, detectWorktreeValidation } from "./adapters/enviro
 
 export { createCheckoutCoordinator, CheckoutBusyError } from "./adapters/coordinator.js";
 export function createWorktreeService(options: WorktreeServiceOptions): IWorktreeService {
-  const store = createWorktreeStore(options.dataDir);
+  const store = createWorktreeStore(options.dataDir, options.removeDirectory);
   const git = createWorktreeGit(options.git);
   const coordinator = options.coordinator ?? createCheckoutCoordinator(options);
   return validateWorktreeRequests(
@@ -22,6 +22,8 @@ export function createWorktreeService(options: WorktreeServiceOptions): IWorktre
         git,
         fault: options.fault ?? (async () => {}),
         commitSource: options.commitSource,
+        collectDiscardSessions: options.collectDiscardSessions,
+        discardSessions: options.discardSessions,
         runSetup: options.validate ?? runWorktreeValidation,
         detectSetup: detectWorktreeSetup,
         detectValidation: detectWorktreeValidation,

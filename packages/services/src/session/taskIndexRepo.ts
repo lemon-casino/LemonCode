@@ -1141,6 +1141,16 @@ export class TaskIndexRepo {
   }
 
   private writeRecord(record: TaskIndexWriteRecord): LCodeTaskMeta {
+    if (
+      this.getDatabase()
+        .prepare("SELECT 1 FROM task_history_deletions WHERE workspace_key=? AND task_id=?")
+        .get(workspaceKey(record.meta), record.meta.taskId)
+    ) {
+      // 永久删除完成后的迟到 snapshot/stream 不能把标题或正文写回最小墓碑。
+      const tombstone = this.getTaskRow(record.meta);
+      if (!tombstone) throw new Error("Permanent task deletion tombstone is missing");
+      return rowToMeta(tombstone);
+    }
     // searchable_text 传 undefined 表示"不动现有值"。读一次 row 拿到当前值，
     // 否则 ON CONFLICT 时 excluded.searchable_text 会被赋成空字符串，把已索引正文清空。
     const existing =
@@ -1635,6 +1645,47 @@ export class TaskIndexRepo {
           titleOverridden: row.title_overridden === 1,
         });
         this.deleteTaskGroupingReferencesReady(row.workspace_key, row.task_id);
+        database.exec("COMMIT");
+        return meta;
+      } catch (error) {
+        database.exec("ROLLBACK");
+        throw error;
+      }
+    });
+  }
+
+  async purgeTaskHistory(params: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+    taskId: string;
+  }): Promise<LCodeTaskMeta> {
+    await this.ensureReady();
+    return this.enqueueWrite(params, () => {
+      const database = this.getDatabase();
+      database.exec("BEGIN IMMEDIATE");
+      try {
+        const row = this.getTaskRow(params);
+        // 永久删除不能再从 CLI seed；最小墓碑阻止旧 stream 重建，正文/标题投影同时清空。
+        const meta = this.writeRecord({
+          meta: {
+            ...params,
+            traceId: `lcode-${params.taskId}`,
+            title: "",
+            mode: "edit",
+            createdAt: row?.created_at ?? Date.now(),
+            updatedAt: Date.now(),
+          },
+          pinned: false,
+          archived: false,
+          deleted: true,
+          titleOverridden: false,
+          searchableText: "",
+          writeUnreadAt: true,
+        });
+        this.deleteTaskGroupingReferencesReady(workspaceKey(params), params.taskId);
+        database
+          .prepare("INSERT OR IGNORE INTO task_history_deletions VALUES(?,?)")
+          .run(workspaceKey(params), params.taskId);
         database.exec("COMMIT");
         return meta;
       } catch (error) {

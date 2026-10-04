@@ -1311,6 +1311,8 @@ function cuaHelperStartErrorDetail(error: unknown): string {
  *        用于 BroadcastService 跨窗口中转。传 null 则广播为空操作。
  */
 export function createLocalServices(options: {
+  /** Desktop 使用 original-fs，避免 ASAR 虚拟目录阻塞受管目录删除。 */
+  removeWorktreeDirectory?: (path: string) => Promise<void>;
   parentPort?: Parameters<typeof createBroadcastService>[0];
   /** Host 装配层注入的设置权威；与网络 transport 必须来自同一 Window Host 生命周期。 */
   settingService?: ISettingService;
@@ -1978,6 +1980,55 @@ export function createLocalServices(options: {
     coordinator: checkoutCoordinator,
     // 源组合提交已持有源 checkout 许可；通过同一 Git owner 执行，避免再次申请导致自锁。
     commitSource: (request) => rawGitService.commit(request),
+    removeDirectory: options.removeWorktreeDirectory,
+    collectDiscardSessions: async (binding) => {
+      const result = await lcodeAgentService.cleanupWorktreeSessions({
+        workspacePath: binding.originalWorkspacePath,
+        workspaceIdentity: binding.originalWorkspaceIdentity,
+        cleanup: {
+          executionBindingId: binding.id,
+          originWorkspacePath: binding.originalWorkspacePath,
+          originWorkspaceIdentity: binding.originalWorkspaceIdentity,
+          workspacePath: binding.workspacePath,
+          workspaceIdentity: binding.workspaceIdentity,
+          closeSessions: true,
+        },
+      });
+      // 已持有 checkout 许可；关闭该执行空间的 Agent，阻止残留 app/文件句柄继续写入。
+      await lcodeAgentService.disposeWorkspace({
+        workspacePath: binding.workspacePath,
+        workspaceIdentity: binding.workspaceIdentity,
+      });
+      return result.sessionIds;
+    },
+    discardSessions: async (binding, sessionIds) => {
+      await lcodeAgentService.cleanupWorktreeSessions({
+        workspacePath: binding.originalWorkspacePath,
+        workspaceIdentity: binding.originalWorkspaceIdentity,
+        cleanup: {
+          executionBindingId: binding.id,
+          originWorkspacePath: binding.originalWorkspacePath,
+          originWorkspaceIdentity: binding.originalWorkspaceIdentity,
+          workspacePath: binding.workspacePath,
+          workspaceIdentity: binding.workspaceIdentity,
+          sessionIds,
+        },
+      });
+      for (const taskId of sessionIds) {
+        await lcodeTaskService.deleteTask({
+          taskId,
+          workspacePath: binding.originalWorkspacePath,
+          workspaceIdentity: binding.originalWorkspaceIdentity,
+          purgeHistory: true,
+        });
+        await lcodeTaskService.deleteTask({
+          taskId,
+          workspacePath: binding.workspacePath,
+          workspaceIdentity: binding.workspaceIdentity,
+          purgeHistory: true,
+        });
+      }
+    },
   });
   const lcodeAgentService = createLCodeAgentService({
     worktreeService,

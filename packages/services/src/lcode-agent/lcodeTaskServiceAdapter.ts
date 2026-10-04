@@ -2852,8 +2852,10 @@ export function createLCodeTaskServiceAdapter(
     },
 
     async deleteTask(params): Promise<void> {
+      const meta = params.purgeHistory
+        ? await taskIndexRepo.purgeTaskHistory(params)
+        : await updateIndexedTaskState(params, { deleted: true });
       setOverlay(params, { deleted: true });
-      const meta = await updateIndexedTaskState(params, { deleted: true });
       // task_meta_changed 只会重拉普通 membership，不能表达持久删除语义；
       // sessions-index 后续仍会返回 CLI 中保留的 session，必须用 task_deleted 让 UI
       // 立即移除缓存并换代 deleted tombstone join，避免重启或 live upsert 后复活。

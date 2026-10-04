@@ -633,6 +633,8 @@ export interface ILCodeTaskService {
     taskId: string;
     workspacePath: string;
     workspaceIdentity?: string;
+    /** CLI 已永久删除记录后清空 Host 内容投影，保留删除墓碑。 */
+    purgeHistory?: boolean;
   }): Promise<void>;
 
   /** 仅删除写入时仍归档的任务；已恢复、已删除或不存在时返回 false，不清理 CLI 会话。 */

@@ -2028,6 +2028,23 @@ export const lcodeSessionCloseResultSchema = z
   })
   .strict();
 export type LCodeSessionCloseResult = z.infer<typeof lcodeSessionCloseResultSchema>;
+export const lcodeSessionWorktreeCleanupParamsSchema = z
+  .object({
+    executionBindingId: nonEmptyString,
+    originWorkspacePath: nonEmptyString,
+    originWorkspaceIdentity: nonEmptyString.optional(),
+    workspacePath: nonEmptyString,
+    workspaceIdentity: nonEmptyString.optional(),
+    sessionIds: z.array(nonEmptyString).optional(),
+    closeSessions: z.boolean().optional(),
+  })
+  .strict();
+export type LCodeSessionWorktreeCleanupParams = z.infer<
+  typeof lcodeSessionWorktreeCleanupParamsSchema
+>;
+export const lcodeSessionWorktreeCleanupResultSchema = z
+  .object({ sessionIds: z.array(nonEmptyString) })
+  .strict();
 export const lcodeWorkspaceReadPresentationParamsSchema = z
   .object({ workspace: lcodeWorkspaceRefSchema })
   .strict();
@@ -3646,6 +3663,7 @@ export const lcodeProtocolMethods = {
   sessionCompact: "session/compact",
   sessionGoal: "session/goal",
   sessionClose: "session/close",
+  sessionWorktreeCleanup: "session/worktreeCleanup",
   // setModel 仍被 lcodeSessionService 的 desktop 旧链路消费；replayable
   // switchModelConfig 已直接由目标 Environment Registry 解析 Selection。
   sessionSetModel: "session/setModel",
