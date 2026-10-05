@@ -134,6 +134,8 @@ P3-01/P3-02 已完成（提交 13806cf）：
 
 P3-04 已完成（提交 df14b3a）：端口参数化。`LCODE_WEB_PORT`（缺省 5173）、`LCODE_SERVER_PORT`（缺省 3030，同时作用于 /ws 与 /api 代理目标）、`LCODE_DESKTOP_PORT`（缺省 5174，`packages/desktop/vite.config.ts` 与 `scripts/dev.mjs` 轮询同一变量）。普通启动行为不变（全部带缺省值）。实测证据：`LCODE_WEB_PORT=5373` 启动 vite 后 `curl http://127.0.0.1:5373/` 返回 200。typecheck/lint 0、oxfmt 通过。
 
+P3-05 已完成（提交 c74188f）：环境资源目录映射。`environmentResourceDirs(dataDir, environmentId)`：per-env `resources/<id>/{temp,cache,data,logs}`（spec §8.3），environmentId 强制 32 hex 受管格式拒绝路径穿越；环境间 temp/data 互不重叠（ENV-12 数据隔离基础）；服务收据持久化测试覆盖损坏记录明确失败。测试 4/4；typecheck/lint 0/架构 0/oxfmt 通过。
+
 ## 4. 依赖顺序
 
 ### 4.1 里程碑依赖
