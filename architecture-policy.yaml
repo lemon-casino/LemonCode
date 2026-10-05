@@ -26,6 +26,15 @@ modules:
     layers: { domain: domain, app: app, adapters: adapters }
     layerOrder: [domain, app, adapters]
     owner: workspace-execution
+  - id: runtime-environment
+    roots: [packages/services/src/runtime-environment]
+    managed: true
+    requires: [shared, services]
+    publicEntrypoints:
+      [packages/services/src/runtime-environment/contract.ts, packages/services/src/runtime-environment/node.ts]
+    layers: { domain: domain, app: app, adapters: adapters }
+    layerOrder: [domain, app, adapters]
+    owner: workspace-execution
   - id: session
     roots: [packages/services/src/session]
     managed: false

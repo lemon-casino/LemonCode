@@ -3740,6 +3740,13 @@ export const lcodeProtocolMethods = {
   // browser-use 反向请求由 agent 发起，host 转给 main 中的 CDP executor。
   interactionBrowserList: "interaction/browserList",
   interactionBrowserExecute: "interaction/browserExecute",
+  // 运行环境方法族（specs/worktree-runtime-environments.md §9.1）：旧 Host 不认识这些
+  // 方法时返回 method-not-found，调用方据此降级为不支持托管，不得重试或假装成功。
+  runtimeEnvironmentCapabilities: "runtimeEnvironment/capabilities",
+  runtimeEnvironmentPrepare: "runtimeEnvironment/prepare",
+  runtimeEnvironmentGet: "runtimeEnvironment/get",
+  runtimeEnvironmentList: "runtimeEnvironment/list",
+  runtimeEnvironmentRelease: "runtimeEnvironment/release",
 } as const;
 
 export type LCodeProtocolMethod = (typeof lcodeProtocolMethods)[keyof typeof lcodeProtocolMethods];
@@ -3791,6 +3798,9 @@ export const lcodeStoragePathReadySchema = z
   .object({ method: z.literal("startup/storagePathReady"), reuse: z.boolean().optional() })
   .strict();
 export * from "../localTtft.js";
+
+// 运行环境协议 schema 唯一事实源；协议桥接与 UI 投影都从这里引用。
+export * from "../runtimeEnvironment.js";
 
 // 桌面本地 TTFT 的严格事实合同；检查点不能替代实际内容帧。
 export { localTtftFactsSchema } from "../localTtft.js";

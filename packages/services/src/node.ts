@@ -11,6 +11,8 @@ import {
 import { getAppConfigDir as resolveAppConfigDir } from "./paths.js";
 import { IWorktreeService } from "./worktree/contract.js";
 import { createWorktreeService, createCheckoutCoordinator } from "./worktree/node.js";
+import { IRuntimeEnvironmentService } from "./runtime-environment/contract.js";
+import { createRuntimeEnvironmentServiceHost } from "./runtime-environment/node.js";
 import { coordinateGitCheckoutWrites } from "./git/gitCheckoutCoordination.js";
 import { createWorktreeGitPort } from "./git/worktreeGitPort.js";
 export { createWorktreeService, createCheckoutCoordinator } from "./worktree/node.js";
@@ -1974,6 +1976,10 @@ export function createLocalServices(options: {
     dataDir: join(resolveAppConfigDir(), "worktrees"),
     git: createWorktreeGitPort(),
   };
+  // 运行环境资源放 HostDataRoot 下与 worktrees/ 同级；不改 worktreeOptions.dataDir（spec §8.3）。
+  const runtimeEnvironmentService = createRuntimeEnvironmentServiceHost(
+    join(resolveAppConfigDir(), "runtime-environments"),
+  );
   const checkoutCoordinator = createCheckoutCoordinator(worktreeOptions);
   const worktreeService = createWorktreeService({
     ...worktreeOptions,
@@ -2389,6 +2395,7 @@ export function createLocalServices(options: {
     .register(IMediaPreviewService, mediaPreviewService)
     .register(IGitService, gitService)
     .register(IWorktreeService, worktreeService)
+    .register(IRuntimeEnvironmentService, runtimeEnvironmentService)
     .register(IGitCheckpointService, gitCheckpointService)
     .register(ISystemService, systemService)
     .register(ITerminalService, createTerminalService({ settingService }))

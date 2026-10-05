@@ -3,6 +3,7 @@ import type { IFileService } from "./file/file.js";
 import type { IMediaPreviewService } from "./media-preview/mediaPreview.js";
 import type { IGitService } from "./git/git.js";
 import type { IWorktreeService } from "./worktree/contract.js";
+import type { IRuntimeEnvironmentService } from "./runtime-environment/contract.js";
 import type { IGitCheckpointService } from "./git/gitCheckpoint.js";
 import type { IGitBackupService } from "./git-backup/gitBackup.js";
 import type { ISystemService } from "./system/system.js";
@@ -48,6 +49,8 @@ export interface IServiceAccessor {
   readonly gitService: IGitService;
   /** 旧 Host 不支持时保持 unavailable，不能在本机代替远端创建工作树。 */
   readonly worktreeService?: IWorktreeService;
+  /** 托管运行环境（M1 起提供）；旧 wire/测试 double 可缺省，缺省=不支持托管。 */
+  readonly runtimeEnvironmentService?: IRuntimeEnvironmentService;
   readonly gitCheckpointService: IGitCheckpointService;
   /** 旧 Host / 测试 double 可缺省；不可回退到其它文件系统的备份服务。 */
   readonly gitBackupService?: IGitBackupService;
