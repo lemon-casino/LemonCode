@@ -521,6 +521,8 @@ P0-05 核实记录（2026-10-05，HEAD 3c436cc）：web dev 端口 5173 硬编�
 
 同环境同服务并发 start 返回同一收据。配置/revision 不同需明确 restart；旧进程停止后分配新 generation。依赖组是 DAG，部分失败不能把全组标为 ready。
 
+实现边界（P3-01/P3-02，2026-10-05）：ServiceDefinition/ServiceReceipt/资源租约落在本 runtime-environment 模块 domain（复用 worktree coordinator 的跨进程文件锁模式，canonical path 键，不按墙钟过期）；进程启停经既有执行 port（环境服务保存收据，PID 仅诊断不授权停止）；真实监听健康检查用 TCP connect 探测实际 bind，探测成功才标 running，停止以进程 owner 退出为准。
+
 ### 12.2 端口竞态
 
 1. 在实际 Host 上预留资源记录。
