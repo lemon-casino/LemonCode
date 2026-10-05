@@ -136,6 +136,8 @@ P3-04 已完成（提交 df14b3a）：端口参数化。`LCODE_WEB_PORT`（缺�
 
 P3-05 已完成（提交 c74188f）：环境资源目录映射。`environmentResourceDirs(dataDir, environmentId)`：per-env `resources/<id>/{temp,cache,data,logs}`（spec §8.3），environmentId 强制 32 hex 受管格式拒绝路径穿越；环境间 temp/data 互不重叠（ENV-12 数据隔离基础）；服务收据持久化测试覆盖损坏记录明确失败。测试 4/4；typecheck/lint 0/架构 0/oxfmt 通过。
 
+P3-03 已完成（提交 15863ca）：端口资源租约。`ServiceStageContext.acquireLease`（复用 app 层 `acquireResourceLease`，canonical path 键、不按墙钟过期，与 checkout writer 许可分开）：start 前对 `service-port:<envId>:<serviceId>` 加锁，busy 明确失败（不排队强抢、不触碰收据）；start 失败立即释放；进程退出经 onExit 回调与 stopped 证明一起释放；缺省不注入 = 单窗口场景不加锁。测试 +2（busy 不碰收据、失败/退出双路径释放），服务测试 8/8；typecheck/lint 0/架构 0/oxfmt 通过。
+
 ## 4. 依赖顺序
 
 ### 4.1 里程碑依赖
