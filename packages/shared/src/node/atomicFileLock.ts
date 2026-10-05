@@ -19,6 +19,62 @@ function isFileExistsError(error: unknown): boolean {
   return getErrorCode(error) === "EEXIST";
 }
 
+async function hasOnlySharedOwners(lockFile: string): Promise<boolean> {
+  const entries = await readdir(lockFile);
+  if (!entries.length || entries.some((entry) => !/^owner-.+\.json$/.test(entry))) return false;
+  const owners = await Promise.all(
+    entries.map(async (entry) => {
+      try {
+        const owner = JSON.parse(await readFile(join(lockFile, entry), "utf-8")) as {
+          mode?: unknown;
+          pid?: unknown;
+        };
+        if (typeof owner !== "object" || owner === null) return false;
+        return owner.mode === "shared" && Number.isSafeInteger(owner.pid) && Number(owner.pid) > 0;
+      } catch (error) {
+        // 其他共享 owner 可以同时释放；未知/损坏元数据不能被当成共享许可。
+        if (getErrorCode(error) === "ENOENT") return true;
+        if (error instanceof SyntaxError) return false;
+        throw error;
+      }
+    }),
+  );
+  return owners.every(Boolean);
+}
+
+async function tryJoinSharedLock(
+  lockFile: string,
+  ownerFile: string,
+  payload: string,
+): Promise<boolean> {
+  let joined = false;
+  try {
+    const before = await stat(lockFile);
+    if (!before.isDirectory() || !(await hasOnlySharedOwners(lockFile))) return false;
+    await writeFile(ownerFile, payload, { encoding: "utf-8", flag: "wx" });
+    joined = true;
+    const after = await stat(lockFile);
+    // 根因：整轮独占锁把本地项目的不同会话串行化。只允许加入同一目录实例的
+    // 共享 owner 集合；旧版独占 owner 或被替换的目录必须拒绝，不能越过管理操作。
+    if (
+      before.dev === after.dev &&
+      before.ino === after.ino &&
+      (await hasOnlySharedOwners(lockFile))
+    )
+      return true;
+  } catch (error) {
+    if (!["ENOENT", "EEXIST", "ENOTDIR"].includes(getErrorCode(error) ?? "")) {
+      if (joined) await rm(ownerFile, { force: true });
+      throw error;
+    }
+  }
+  if (joined) {
+    await rm(ownerFile, { force: true });
+    await rmdir(lockFile).catch(() => {});
+  }
+  return false;
+}
+
 interface FileLockMetadata {
   createdAt: number | null;
   pid: number | null;
@@ -177,6 +233,7 @@ export async function acquireFileLock(
   retryDelaysMs: readonly number[],
   ownerlessGraceMs: number,
   maxWaitMs: number,
+  options: { shared?: boolean } = {},
 ): Promise<() => Promise<void>> {
   const lockFile = `${filePath}.lock`;
   const token = `${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -185,6 +242,7 @@ export async function acquireFileLock(
     pid: process.pid,
     createdAt: Date.now(),
     token,
+    ...(options.shared ? { mode: "shared" } : {}),
   })}\n`;
   const startedAt = Date.now();
   const effectiveOwnerlessGraceMs = Math.min(
@@ -193,6 +251,15 @@ export async function acquireFileLock(
   );
   const observeLockInstance = createLockInstanceObserver();
   let lastRemovalError: unknown;
+  const release = async () => {
+    // 每个共享执行也有独立 owner 文件，只移除自己的 token，不释放其他会话。
+    await rm(ownerFile, { force: true });
+    try {
+      await rmdir(lockFile);
+    } catch (error) {
+      if (!["ENOENT", "ENOTEMPTY", "EEXIST"].includes(getErrorCode(error) ?? "")) throw error;
+    }
+  };
 
   for (let attempt = 0; ; attempt += 1) {
     let createdLock = false;
@@ -208,20 +275,14 @@ export async function acquireFileLock(
       if (
         currentLockStat.dev !== createdLockStat.dev ||
         currentLockStat.ino !== createdLockStat.ino ||
-        currentOwners.length !== 1 ||
-        currentOwners[0] !== `owner-${token}.json`
+        !currentOwners.includes(`owner-${token}.json`) ||
+        (options.shared ? !(await hasOnlySharedOwners(lockFile)) : currentOwners.length !== 1)
       ) {
         throw Object.assign(new Error("LCode file lock ownership changed during acquire"), {
           code: "EEXIST",
         });
       }
-      return async () => {
-        // 只删除本 writer 的唯一 owner 文件；锁已被接管时不会碰到后来 writer 的 token。
-        await rm(ownerFile, { force: true }).catch(() => {});
-        await rmdir(lockFile).catch(() => {
-          // best-effort cleanup
-        });
-      };
+      return release;
     } catch (error) {
       if (createdLock) {
         await rm(ownerFile, { force: true }).catch(() => {});
@@ -231,6 +292,8 @@ export async function acquireFileLock(
       if (!isFileExistsError(error) && !lostCreatedLock) {
         throw error;
       }
+
+      if (options.shared && (await tryJoinSharedLock(lockFile, ownerFile, payload))) return release;
 
       // 等待者自身已等待多久不能证明当前锁 stale，否则旧锁释放后可能误删
       // 后来 writer 的新锁。这里只回收 owner 已退出或无 PID 且超过短 grace 的锁，

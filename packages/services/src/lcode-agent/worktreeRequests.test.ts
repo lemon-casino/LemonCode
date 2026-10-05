@@ -151,7 +151,12 @@ test("writer RPC maps protocol fields through the real strict service contract",
           { permitId: "permit" },
         );
         const ownerId = `${origin.workspaceIdentity ?? origin.workspacePath}:${sessionId}`;
-        assert.deepEqual(acquired.at(-1), { ...scope, ownerId, waitMs: 250 });
+        assert.deepEqual(acquired.at(-1), {
+          ...scope,
+          ownerId,
+          waitMs: 250,
+          mode: scenario === "repair" ? "exclusive" : "shared",
+        });
         assert.deepEqual(
           await handleWorktreeRequest(
             "checkout/releaseWriter",

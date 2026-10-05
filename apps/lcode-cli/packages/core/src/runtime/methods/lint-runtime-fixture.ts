@@ -1,4 +1,4 @@
-import type { Model, ModelStreamEvent, SessionEvent, TraceContext } from "../deps.js";
+import type { Model, ModelStreamEvent, SessionEvent, SessionId, TraceContext } from "../deps.js";
 import { createSessionId } from "../deps.js";
 import { AgentRuntime } from "../agent-runtime.js";
 import type { AgentRuntimeInternal } from "../internal.js";
@@ -12,6 +12,7 @@ export function createMockRuntime(
     yield { type: "text_end", id: "answer" };
     yield { type: "finish", finishReason: "stop", usage: { inputTokens: 10, outputTokens: 2 } };
   },
+  sessionId: SessionId = createSessionId(),
 ): { runtime: AgentRuntimeInternal; model: Model; storedEvents: SessionEvent[] } {
   const storedEvents: SessionEvent[] = [];
   const model = {
@@ -36,7 +37,7 @@ export function createMockRuntime(
     generateText: async () => ({ text: "Mock result", finishReason: "stop", usage: {} }),
   } as unknown as Model;
   const runtime = new AgentRuntime(
-    createSessionId(),
+    sessionId,
     {
       compact: { enabled: false },
       memory: { enabled: false },

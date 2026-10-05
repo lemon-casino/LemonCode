@@ -91,6 +91,8 @@ export interface CheckoutLease {
   workspacePath: string;
   ownerId: string;
 }
+/** 普通会话共享执行；会修改目录生命周期/快照/发布的操作保持独占。 */
+export type CheckoutAccessMode = "shared" | "exclusive";
 export interface IWorktreeService {
   getCapabilities(
     params: WorktreeScope & { sourceFolderPaths?: string[] },
@@ -121,7 +123,7 @@ export interface IWorktreeService {
   }): Promise<WorktreeBinding>;
   restore(params: { bindingId: string; requestId: string }): Promise<WorktreeBinding>;
   acquireCheckout(
-    params: WorktreeScope & { ownerId: string; waitMs?: number },
+    params: WorktreeScope & { ownerId: string; waitMs?: number; mode?: CheckoutAccessMode },
   ): Promise<CheckoutLease>;
   releaseCheckout(params: { token: string; ownerId: string }): Promise<void>;
 }

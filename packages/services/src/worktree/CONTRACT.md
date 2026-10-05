@@ -109,9 +109,17 @@ the worktree domain only calls collect/discard ports. IDs are journaled before r
 for retry after a lost reply. Host task-index notifications follow durable chat deletion.
 Failure retains deleting plus a diagnostic; ordinary snapshot archive preserves chats.
 
-Checkout permits are canonical-directory locks across Host processes. Live owners never
-expire by elapsed time. Runtime releases only after its writers stop; UI state is not a
-writer proof. External editors remain outside the application permit boundary.
+Checkout permits coordinate canonical directories across Host processes. Ordinary runtime
+sessions acquire `mode: shared`, so different sessions in one local checkout or a same-tree
+fork can run together. Separate task worktrees use separate canonical roots. Management
+operations default to `exclusive`; archive, discard, fork snapshots, source commits and
+publication cannot acquire while any runtime writer remains. Conflict repair also remains
+exclusive. Repeating one owner's same-mode acquisition is idempotent; changing mode cannot
+reuse its token. Live owners never expire by elapsed time. Runtime releases only after its
+writers stop; UI state is not a writer proof. Shared and legacy exclusive owners use the same
+file-lock directory, preventing old/new Host versions from bypassing each other. External
+editors remain outside the application permit boundary. See
+[multi-session execution](../../../../specs/checkout-multi-session-concurrency.md).
 
 Validation: isolated real Git repositories cover idempotency, directory/index isolation,
 restart, conflict isolation, stale/dirty publication, archive/restore and crash recovery.

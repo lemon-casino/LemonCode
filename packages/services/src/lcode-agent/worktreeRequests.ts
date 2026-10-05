@@ -120,6 +120,9 @@ export async function handleWorktreeRequest(
         ...(request.workspaceIdentity ? { workspaceIdentity: request.workspaceIdentity } : {}),
         ownerId: `${originKey}:${request.sessionId}`,
         waitMs: 250,
+        // 独占整轮执行会阻塞同一本地项目的其他会话。普通 runtime 共享执行；
+        // 冻结集成目录的冲突修复仍独占，管理操作的缺省独占许可也保持不变。
+        mode: request.repair ? "exclusive" : "shared",
       });
       return { permitId: lease.token };
     } catch (error) {

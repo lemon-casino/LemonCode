@@ -128,6 +128,7 @@ test("new worktree fork refuses a source with an active writer", async (t) => {
   const lease = await f.service.acquireCheckout({
     workspacePath: f.repo,
     ownerId: "running-parent",
+    mode: "shared",
   });
   try {
     await assert.rejects(

@@ -148,6 +148,7 @@ test("actual target writer lease blocks publication; cancellation cleans only th
   const lease = await f.service.acquireCheckout({
     workspacePath: op.targetPath,
     ownerId: "writer",
+    mode: "shared",
   });
   const service = createWorktreeService({
     ...f.options,

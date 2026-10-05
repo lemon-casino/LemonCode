@@ -10,11 +10,18 @@ test("checkout permits share canonical Git roots, retry idempotently and keep li
   await mkdir(join(f.repo, "nested"));
   const first = createCheckoutCoordinator({ ...f.options, waitMs: 80 });
   const second = createCheckoutCoordinator({ ...f.options, waitMs: 80 });
-  const lease = await first.acquire({ workspacePath: join(f.repo, "nested"), ownerId: "writer" });
+  const lease = await first.acquire({
+    workspacePath: join(f.repo, "nested"),
+    ownerId: "writer",
+    mode: "shared",
+  });
   assert.equal(
-    (await first.acquire({ workspacePath: f.repo, ownerId: "writer" })).token,
+    (await first.acquire({ workspacePath: f.repo, ownerId: "writer", mode: "shared" })).token,
     lease.token,
   );
+  await assert.rejects(first.acquire({ workspacePath: f.repo, ownerId: "writer" }), {
+    code: "LCODE_CHECKOUT_BUSY",
+  });
   await assert.rejects(second.acquire({ workspacePath: f.repo, ownerId: "publish" }), {
     code: "LCODE_CHECKOUT_BUSY",
   });

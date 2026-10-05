@@ -1,5 +1,23 @@
 import type { IWorktreeService } from "./contract.js";
 
+export async function executeInSharedCheckout(
+  service: IWorktreeService,
+  workspacePath: string,
+  sessionId: string,
+  execute: () => Promise<void>,
+) {
+  const lease = await service.acquireCheckout({
+    workspacePath,
+    ownerId: sessionId,
+    mode: "shared",
+  });
+  try {
+    await execute();
+  } finally {
+    await service.releaseCheckout({ token: lease.token, ownerId: lease.ownerId });
+  }
+}
+
 export async function createTaskWorktree(service: IWorktreeService, workspacePath: string) {
   return service.prepare({
     workspacePath,

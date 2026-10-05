@@ -23,7 +23,7 @@ export function createCheckoutCoordinator(options: {
       const key = createHash("sha256")
         .update(process.platform === "win32" ? workspacePath.toLowerCase() : workspacePath)
         .digest("hex");
-      const ownerKey = JSON.stringify([key, params.ownerId]);
+      const ownerKey = JSON.stringify([key, params.ownerId, params.mode ?? "exclusive"]);
       const existing = pending.get(ownerKey);
       if (existing) return existing;
       const acquiring = (async () => {
@@ -34,6 +34,7 @@ export function createCheckoutCoordinator(options: {
           [50, 100, 200, 500],
           10_000,
           params.waitMs ?? options.waitMs ?? 30_000,
+          { shared: params.mode === "shared" },
         );
         const token = randomUUID();
         leases.set(token, { ownerId: params.ownerId, key: ownerKey, release });

@@ -163,7 +163,7 @@ test(
 );
 
 test(
-  "real bridge keeps shared checkout busy and independent worktrees writable",
+  "real bridge allows local sessions together while keeping management exclusive",
   { timeout: 30_000 },
   async (t) => {
     const f = await fixture(t);
@@ -197,10 +197,25 @@ test(
     t.after(async () => {
       await release("first", first);
     });
-    assert.deepEqual(await acquire("second"), { busy: true });
+    const second = await acquire("second");
+    assert.ok("permitId" in (second as object));
+    t.after(() => release("second", second).then(() => undefined));
+    await assert.rejects(
+      f.service.acquireCheckout({ workspacePath: f.repo, ownerId: "publish", waitMs: 80 }),
+      { code: "LCODE_CHECKOUT_BUSY" },
+    );
     const tree = await acquire("tree-owner", binding.workspacePath);
     await release("tree-owner", tree);
     await release("first", first);
-    await release("second", await acquire("second"));
+    await assert.rejects(
+      f.service.acquireCheckout({ workspacePath: f.repo, ownerId: "publish", waitMs: 80 }),
+      { code: "LCODE_CHECKOUT_BUSY" },
+    );
+    await release("second", second);
+    const exclusive = await f.service.acquireCheckout({
+      workspacePath: f.repo,
+      ownerId: "publish",
+    });
+    await f.service.releaseCheckout({ token: exclusive.token, ownerId: exclusive.ownerId });
   },
 );

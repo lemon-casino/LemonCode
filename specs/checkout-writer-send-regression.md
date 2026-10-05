@@ -8,11 +8,11 @@ Host `handleWorktreeRequest` 将完整的 `checkout/acquireWriter` 协议请求�
 
 ## 产品规则与边界
 
-- 新会话首发和旧会话续发，无论本地目录还是独立工作树，均能经过目录写入许可进入真实执行和消息投影。
-- Host 在协议与服务之间明确转换字段：服务只接收 `workspacePath`、可选 `workspaceIdentity`、Host 推导的 `ownerId` 与等待时长；`requestId`、`sessionId` 和 `repair` 留在协议层完成关联及权限校验，不传入服务。
+- 新会话首发和旧会话续发，无论本地目录还是独立工作树，均能经过共享执行许可进入真实执行和消息投影。
+- Host 在协议与服务之间明确转换字段：服务只接收 `workspacePath`、可选 `workspaceIdentity`、Host 推导的 `ownerId`、`mode` 与等待时长；`requestId`、`sessionId` 和 `repair` 留在协议层完成关联及权限校验，不传入服务。
 - 保留协议和服务严格校验，不通过放宽 schema 或绕过写入许可修复发送。
 - `ownerId` 仍由原工作区 identity/path 和会话 ID 推导；实际 checkout 使用请求中经过验证的路径与 identity。同路径不同 Host 不能串许可。
-- 本地共享目录仍串行等待真实 writer；独立工作树允许独立执行。冲突修复仅使用已冻结且归属于父绑定的 checkout。
+- 本地共享目录允许不同会话并行；独立工作树按各自实际目录独立执行。同一会话仍由 Core admission 串行。目录管理操作与冲突修复保留独占许可，详细边界见 [多会话执行](checkout-multi-session-concurrency.md)。
 - 进程确认退出及退出后的迟到许可，只向释放接口传入 `token`、`ownerId`，不将返回票据中的 `workspacePath` 混入严格请求。释放失败保留票据供原 owner 重试，不能遗留目录锁阻挡后续会话。
 - Core admission、Host WorktreeService 的唯一许可所有者、已有 ACK 以及桌面 continuous / 手机 replayable 投影语义均保持现有边界。
 
@@ -26,7 +26,7 @@ sequenceDiagram
   Core-->>UI: 既有 admission ACK
   Core->>Bridge: checkout/acquireWriter（requestId/sessionId/scope）
   Bridge->>Bridge: 校验 scope/真实绑定/repair 归属
-  Bridge->>WT: acquireCheckout（scope/ownerId/waitMs）
+  Bridge->>WT: acquireCheckout（scope/ownerId/mode/waitMs）
   WT-->>Core: 经 Bridge 返回 permitId 或 busy
   Core->>Core: 得到许可后写入用户消息并执行模型
   Core-->>UI: 既有消息/会话目录投影
@@ -37,7 +37,7 @@ sequenceDiagram
 
 1. 桥接真实严格校验服务：本地首发与续发、工作树、remote identity 均获取和释放许可，无未知字段。
 2. 冲突修复协议字段用于校验归属，服务接收的参数只包含服务 contract 字段。
-3. 同目录另一 writer 返回 busy，释放后可再次获得许可；独立工作树不受来源目录 writer 阻塞。
+3. 同目录普通 runtime writer 可以同时获得共享许可；独占管理操作与活跃 writer 互斥；独立工作树不受来源目录 writer 阻塞。
 4. 不允许跨工作区、伪造绑定或越过修复归属；其他服务错误继续向上抛出。
 5. 实际输入回车/发送按钮经共享 Composer 提交，成功后消息可见；发送失败保留草稿。新/旧本地及工作树分别验证，浏览器测试不调用真实模型。
 

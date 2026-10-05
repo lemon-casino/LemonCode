@@ -49,7 +49,12 @@ export const worktreeRequests = {
     .strict(),
   restore: z.object({ bindingId: id, requestId: text }).strict(),
   acquireCheckout: z
-    .object({ ...scope, ownerId: text, waitMs: z.number().int().min(1).max(30_000).optional() })
+    .object({
+      ...scope,
+      ownerId: text,
+      waitMs: z.number().int().min(1).max(30_000).optional(),
+      mode: z.enum(["shared", "exclusive"]).optional(),
+    })
     .strict(),
   releaseCheckout: z.object({ token: text, ownerId: text }).strict(),
 };

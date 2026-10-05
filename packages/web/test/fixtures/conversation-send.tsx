@@ -35,7 +35,7 @@ import "@lcode/ui/styles.css";
 const query = new URLSearchParams(location.search);
 const existing = query.has("existing");
 const worktree = query.has("worktree");
-const initialSessionId = existing ? "existing-session" : null;
+const initialSessionId = existing ? (query.get("session") ?? "existing-session") : null;
 const workspacePath = "/fixture/origin";
 const modelSelection = {
   providerId: "custom",

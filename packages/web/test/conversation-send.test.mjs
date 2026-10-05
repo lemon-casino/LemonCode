@@ -1,3 +1,4 @@
+import { runMultiSessionSendCases } from "./multi-session-send-cases.mjs";
 import { runDraftAttachmentCases } from "./draft-attachment-and-branch-cases.mjs";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -9,7 +10,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { chromium } from "playwright-core";
 
-test("真实 ConversationComposer 的新旧会话回车及按钮发送", { timeout: 120_000 }, async (t) => {
+test("真实 ConversationComposer 的新旧会话回车及按钮发送", { timeout: 240_000 }, async (t) => {
   const socket = createServer();
   socket.listen(0, "127.0.0.1");
   await once(socket, "listening");
@@ -121,6 +122,7 @@ test("真实 ConversationComposer 的新旧会话回车及按钮发送", { timeo
       }
     }
   }
+  await runMultiSessionSendCases(t, browser, url);
   await t.test("发送失败保留原输入，明确错误后可以重试", async () => {
     await page.goto(url);
     await page.getByTestId("v4-composer-input").waitFor();

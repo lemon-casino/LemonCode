@@ -99,6 +99,7 @@ test("discard checks explicit scope, canonical path and live writer before any r
   const lease = await coordinator.acquire({
     workspacePath: binding.checkoutPath,
     ownerId: "runtime",
+    mode: "shared",
   });
   const service = createWorktreeService({ ...f.options, coordinator });
   await assert.rejects(service.archive(request), { code: "LCODE_CHECKOUT_BUSY" });

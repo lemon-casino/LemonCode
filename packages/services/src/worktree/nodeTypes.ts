@@ -1,4 +1,4 @@
-import type { CheckoutLease, WorktreeScope } from "./contract.js";
+import type { CheckoutAccessMode, CheckoutLease, WorktreeScope } from "./contract.js";
 
 export interface WorktreeGitPort {
   run(params: {
@@ -17,7 +17,9 @@ export interface WorktreeGitPort {
   }>;
 }
 export interface CheckoutCoordinator {
-  acquire(params: WorktreeScope & { ownerId: string; waitMs?: number }): Promise<CheckoutLease>;
+  acquire(
+    params: WorktreeScope & { ownerId: string; waitMs?: number; mode?: CheckoutAccessMode },
+  ): Promise<CheckoutLease>;
   release(params: { token: string; ownerId: string }): Promise<void>;
 }
 export interface WorktreeServiceOptions {
