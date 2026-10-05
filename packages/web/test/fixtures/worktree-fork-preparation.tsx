@@ -66,6 +66,46 @@ export function installForkPreparationFixture(
         .getState()
         .begin(base.originalWorkspacePath, "ui-request", true, { mode: "worktree" }, envelope);
     },
+    /**
+     * P2-07a 五阶段投影：托管环境进入工具/依赖阶段时，准备卡展开五步并显示来源标注。
+     * toolSource 可切换（project-declaration / app-default / partial-host）。
+     */
+    beginManagedPreparation: (toolSource: string = "project-declaration") => {
+      const envelope = createCommandEnvelope({
+        type: "createSession",
+        sessionId: null,
+        payload: {
+          workspaceId: base.originalWorkspacePath,
+          execution: { mode: "worktree" },
+          firstInput: { text: "preserved input" },
+        },
+      });
+      control.preparation = {
+        ...base,
+        taskId: "draft-task",
+        requestId: envelope.commandId,
+        status: "preparing",
+        environmentRef: { environmentId: "a".repeat(32), revision: 1 },
+        preparation: {
+          stage: "environment",
+          activeStep: "environment",
+          runtimeStage: "installingTools",
+          toolSource: toolSource as "project-declaration",
+          log: "Preparing workspace\nChecking out files\nInstalling managed tools\n",
+          logTruncated: false,
+          cancelRequested: false,
+          environmentSource: "detected",
+        },
+      };
+      useDraftExecutionStore
+        .getState()
+        .begin(base.originalWorkspacePath, "ui-request", true, { mode: "worktree" }, envelope);
+    },
+    /** P2-07a：推进到依赖阶段（工具步完成后）。 */
+    advanceToDependencies: () => {
+      if (!control.preparation?.preparation) return;
+      control.preparation.preparation.runtimeStage = "preparingDependencies";
+    },
     finishCancel: () => {
       control.preparation!.status = "cancelled";
       control.preparation!.preparation!.stage = "cancelled";

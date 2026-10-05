@@ -84,6 +84,49 @@ export async function runForkPreparationCases({ t, page, url, calls }) {
     assert.equal(after.retryRevision, 1);
   });
 
+  await run("托管环境五阶段卡：工具/依赖步骤展开且来源标注可见，推进到依赖", async () => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(url);
+    await fixture("beginManagedPreparation");
+    const card = page.getByTestId("worktree-preparation-card");
+    // 五步展开：工具步 running，空间/检出 done。
+    await card.locator('[data-step="tools"][data-state="running"]').waitFor();
+    assert.equal(await card.locator('[data-step="workspace"]').getAttribute("data-state"), "done");
+    assert.equal(await card.locator('[data-step="checkout"]').getAttribute("data-state"), "done");
+    assert.equal(await card.locator('[data-step="dependencies"]').count(), 1);
+    // 来源标注：项目声明。
+    await card.getByText("工具版本来自项目声明。").waitFor();
+    // 推进到依赖阶段：工具步 done、依赖步 running，标注仍在。
+    await fixture("advanceToDependencies");
+    await card.locator('[data-step="dependencies"][data-state="running"]').waitFor();
+    assert.equal(await card.locator('[data-step="tools"]').getAttribute("data-state"), "done");
+    await card.getByText("工具版本来自项目声明。").waitFor();
+    // 卡片隐藏走既有取消链路：先点改用本地（登记 intent），Host 结算后草稿重置。
+    await card.getByRole("button", { name: "改用本地目录" }).click();
+    await fixture("finishCancel");
+    await card.waitFor({ state: "hidden" });
+  });
+
+  await run("工具来源标注随投影切换：应用默认与部分沿用本机", async () => {
+    await page.goto(url);
+    await page.evaluate(() => {
+      globalThis.__forkPreparationFixture.beginManagedPreparation("app-default");
+    });
+    const card = page.getByTestId("worktree-preparation-card");
+    await card.getByText("项目未声明工具版本，使用应用默认版本。").waitFor();
+    // 卡片隐藏走既有取消链路：先点改用本地（登记 intent），Host 结算后草稿重置。
+    await card.getByRole("button", { name: "改用本地目录" }).click();
+    await fixture("finishCancel");
+    await card.waitFor({ state: "hidden" });
+    await page.evaluate(() => {
+      globalThis.__forkPreparationFixture.beginManagedPreparation("partial-host");
+    });
+    await card.getByText("部分资源沿用本机环境，未完全隔离。").waitFor();
+    await card.getByRole("button", { name: "改用本地目录" }).click();
+    await fixture("finishCancel");
+    await card.waitFor({ state: "hidden" });
+  });
+
   await run("普通、置顶、时间线和分组菜单都能创建同目录会话分叉", async () => {
     for (const kind of ["default", "pinned", "timeline", "grouped"]) {
       await page.goto(url + "?sidebar");
