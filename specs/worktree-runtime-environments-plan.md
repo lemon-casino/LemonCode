@@ -1,6 +1,6 @@
 # 工作树运行环境开发计划
 
-状态：M0 已完成（ADR 回填主文档 §5.4）；M1 已完成（完成记录见 §3.2 末尾）；M2 已完成（P2-01～07 全部落地，含 E2E 断言扩展；进度记录见 §3.3 末尾）；M3～M5 未开始（macOS/Linux 门禁需对应平台环境）。
+状态：M0/M1/M2 已完成（完成记录见 §3.2/§3.3 末尾）；M3 进行中——P3-01/P3-02 已完成（进度记录见 §3.4 末尾；P3-03～06 未开始）；M4/M5 未开始（macOS/Linux 门禁需对应平台环境）。
 更新日期：2026-10-05。
 代码基线：L-GO 分支 `3c436cc`（`git rev-parse HEAD` = `3c436ccb5e34b86f9ec545b3cfc6f7db03d22eb6`，与 origin/L-GO 同步，`node scripts/check-workspace-freshness.mjs` 通过）。
 
@@ -122,6 +122,15 @@ M2 进度记录（2026-10-05，P2-01～P2-07 已完成；提交 ea3f393、4573ee
 | P5-04 | 桌面/390px/中英/键盘：长中文路径、日志有界、动作与输入可用                                                                            | `packages/ui` 共享组件（准备卡/详情/管理弹窗）响应式与 a11y 回归                                                                                | UI 局部状态不写业务事实（主文档 §7）                                                                               | 主文档 §15.1              | ENV-29：控件可用、输入正常、日志有界                                                             | 主文档 P5-04 门禁；ENV-29        |
 | P5-05 | 全纵向/故障回归：下载、进程、清理、失联可诊断                                                                                         | 全链路；故障注入测试                                                                                                                            | 各 owner 不变                                                                                                      | 主文档 §18/§19            | ENV-01～ENV-30 全量回归；风险表放行条件逐项核对                                                  | 主文档 P5-05 门禁                |
 | P5-06 | 开发/用户文档、发布说明：范围准确，未实现项保留                                                                                       | 主文档与相关 spec 收尾；`specs/` 文档                                                                                                           | 无                                                                                                                 | 全文                      | 文档与实际能力一致；"对外宣布完成条件"（主文档 §2.3）逐项核对后才可宣布                          | 主文档 P5-06 门禁                |
+
+### 3.7 M3 进度记录（2026-10-05）
+
+P3-01/P3-02 已完成（提交 13806cf）：
+
+- **P3-01 服务模型与资源租约**：domain `services.ts`（ServiceDefinition：稳定 serviceId/argv/cwd/端口需求/依赖 DAG/是否写源码；`nextGenerationAfter` 代际递增；`reconcileStartIntent` 并发 start 裁决——starting/running 复用同收据，revision 不同返回 needsRestart 不静默替换）。资源租约 `acquireResourceLease` 落 app 层 ports.ts（domain 禁 IO）：跨进程文件锁复用 worktree coordinator 模式，canonical path 键、不按墙钟过期。共享 `ManagedServiceReceipt` schema（generation/state/真实监听 urls/PID 仅诊断/healthCheckedAt/stoppedAt 退出证明）。
+- **P3-02 start/stop/健康/停止证明**（app `serviceStage.ts`）：start 流程 starting→真实 TCP connect 探测全部回报 URL→全通过才 running（无虚假 ready，0 验证通过即 failed 并真实停止进程）；stop 需进程 owner 退出确认，无确认不伪造 stopped（收据标 failed + "did not confirm"）；进程意外退出经 `onExit` 回调落盘 stopped 证明，running 收据不死后留存；写源码服务直接拒绝（需 checkout writer，spec §12.4）。收据持久化 `services/`（每环境每服务一份）。
+- 测试 6/6（真实监听验证、复用同收据、代际递增、无验证不 running、无确认不 stopped、意外退出结算）；全套 runtime-environment 66/66；typecheck/lint 0/架构 0/oxfmt 通过。spec §12.1 已补实现边界。
+- 未开始：P3-03（Host 端口组/地址映射）、P3-04（Vite 与本项目适配）、P3-05（独立数据根/SQLite）、P3-06（预览与手机可达）。
 
 ## 4. 依赖顺序
 
