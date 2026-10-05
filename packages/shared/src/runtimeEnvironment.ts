@@ -314,3 +314,31 @@ export const dependencyReceiptSchema = z
   })
   .strict();
 export type DependencyReceipt = z.infer<typeof dependencyReceiptSchema>;
+
+// ---- 托管服务（spec §12，M3 P3-01/P3-02）----
+
+/**
+ * 服务收据（spec §8.2/§12.1）：同环境同服务并发 start 返回同一收据；
+ * generation 随旧进程停止递增；PID 仅诊断，不独立授权停止。
+ * running 必须有真实监听证据（URL + 探测时间）；stopped 必须有进程 owner 退出证明。
+ */
+export const managedServiceReceiptSchema = z
+  .object({
+    environmentId,
+    revision,
+    serviceId: text,
+    generation: z.number().int().positive(),
+    state: z.enum(["starting", "running", "stopping", "stopped", "failed"]),
+    /** 真实监听地址；running 时必须存在（真实 bind 证据，非探测候选）。 */
+    urls: z.array(text),
+    pid: z.number().int().positive().optional(),
+    startedAt: text,
+    /** running 的健康证据：探测到实际监听的时间。 */
+    healthCheckedAt: text.optional(),
+    /** stopped 的停止证据：进程 owner 确认退出的时间。 */
+    stoppedAt: text.optional(),
+    exitCode: z.number().int().optional(),
+    error: z.string().max(8192).optional(),
+  })
+  .strict();
+export type ManagedServiceReceipt = z.infer<typeof managedServiceReceiptSchema>;

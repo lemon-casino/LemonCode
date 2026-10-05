@@ -4,6 +4,7 @@ import { atomicWritePrivateTextFile, withFileLock } from "@lcode/shared/node";
 import {
   dependencyReceiptSchema,
   frozenManifestSchema,
+  managedServiceReceiptSchema,
   runtimeEnvironmentRecordSchema,
   runtimePreparationOperationSchema,
   type DependencyReceipt,
@@ -13,9 +14,9 @@ import { scopeKeyHash, type RuntimeEnvironmentStore } from "../app/ports.js";
 
 /**
  * 环境持久化实现（spec: specs/worktree-runtime-environments.md §8.2/§8.3）。
- * records/operations/manifests/receipts 全部在 HostDataRoot 的 runtime-environments/ 下。
- * 严格校验：损坏/未知版本记录明确失败不修成 ready；短记录锁，不覆盖长安装。
- * port 类型在 app/ports.ts（层向：adapters→app 允许）。
+ * records/operations/manifests/receipts/services 全部在 HostDataRoot 的
+ * runtime-environments/ 下。严格校验：损坏/未知版本记录明确失败不修成 ready；
+ * 短记录锁，不覆盖长安装。port 类型在 app/ports.ts（层向：adapters→app 允许）。
  */
 
 export type { RuntimeEnvironmentStore };
@@ -27,6 +28,11 @@ function manifestRecordId(environmentId: string, revision: number): string {
 function receiptRecordId(environmentId: string): string {
   // 每环境一份最新依赖收据（重装覆盖写）；按 id 校验读写。
   return scopeKeyHash(["receipt", environmentId]);
+}
+
+function serviceRecordId(environmentId: string, serviceId: string): string {
+  // 每环境每服务一份最新收据（spec §12.1）；serviceId 是调用方受控字符串，进哈希前不落盘。
+  return scopeKeyHash(["service", environmentId, serviceId]);
 }
 
 export function createRuntimeEnvironmentStore(dataDir: string): RuntimeEnvironmentStore {
@@ -127,6 +133,16 @@ export function createRuntimeEnvironmentStore(dataDir: string): RuntimeEnvironme
       await atomicWritePrivateTextFile(
         recordPath("receipts", receiptRecordId(receipt.environmentId)),
         `${JSON.stringify(dependencyReceiptSchema.parse(receipt), null, 2)}\n`,
+      );
+    },
+    readServiceReceipt: (environmentId, serviceId) =>
+      readRecord("services", serviceRecordId(environmentId, serviceId), (value) =>
+        managedServiceReceiptSchema.parse(value),
+      ),
+    saveServiceReceipt: async (receipt) => {
+      await atomicWritePrivateTextFile(
+        recordPath("services", serviceRecordId(receipt.environmentId, receipt.serviceId)),
+        `${JSON.stringify(managedServiceReceiptSchema.parse(receipt), null, 2)}\n`,
       );
     },
   };
