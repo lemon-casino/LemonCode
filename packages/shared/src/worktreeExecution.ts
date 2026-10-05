@@ -54,10 +54,16 @@ export const worktreePreparationSchema = z
   .object({
     stage: z.enum(["workspace", "checkout", "environment", "ready", "failed", "cancelled"]),
     activeStep: z.enum(["workspace", "checkout", "environment"]).optional(),
+    /** 托管环境的阶段投影（P2-07a）：environmentRef 存在时 UI 显示工具/依赖子阶段。 */
+    runtimeStage: z.enum(["resolvingTools", "installingTools", "preparingDependencies"]).optional(),
     log: z.string().max(65536),
     logTruncated: z.boolean(),
     cancelRequested: z.boolean(),
     environmentSource: z.enum(["explicit", "detected", "none"]),
+    /** 工具来源标注（P2-07a）：项目声明/应用默认/用户覆盖/部分沿用本机。 */
+    toolSource: z
+      .enum(["project-declaration", "app-default", "user-override", "partial-host"])
+      .optional(),
   })
   .strict();
 export const worktreeExecutionBindingSchema = z

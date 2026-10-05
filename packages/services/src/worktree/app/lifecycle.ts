@@ -218,6 +218,15 @@ export function createWorktreeLifecycle(
         let frozenEnv: Record<string, string> | undefined;
         if (context.prepareRuntimeEnvironment) {
           if (!binding.environmentRef) {
+            // P2-07a：工具阶段投影（spec §15.1）——进入托管准备即标记，五阶段卡消费。
+            binding = await preparationProgress(context, binding, "environment", "");
+            binding = {
+              ...binding,
+              preparation: binding.preparation
+                ? { ...binding.preparation, runtimeStage: "installingTools" }
+                : binding.preparation,
+            };
+            await store.saveBinding(binding);
             const environment = await context.prepareRuntimeEnvironment({
               bindingId: binding.id,
               checkoutPath: binding.checkoutPath,
@@ -231,6 +240,14 @@ export function createWorktreeLifecycle(
                 environmentId: environment.environmentId,
                 revision: environment.revision,
               },
+            };
+            await store.saveBinding(binding);
+            // 工具来源标注（spec §15.1）——来源在准备时点冻结，UI 只读投影。
+            binding = {
+              ...binding,
+              preparation: binding.preparation
+                ? { ...binding.preparation, toolSource: environment.toolSource }
+                : binding.preparation,
             };
             await store.saveBinding(binding);
             binding = await preparationProgress(

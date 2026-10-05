@@ -39,8 +39,12 @@ export async function prepareWorktreeEnvironment(
   for (let index = setup.nextCommand; index < setup.commands.length; index += 1) {
     await assertPreparationActive(context, value);
     const command = setup.commands[index]!;
+    // P2-07a：依赖阶段投影（spec §15.1）——首条 setup 命令前标记，五阶段卡消费。
     value = {
       ...value,
+      preparation: value.preparation
+        ? { ...value.preparation, runtimeStage: "preparingDependencies" }
+        : value.preparation,
       setup: { ...setup, status: "running", nextCommand: index },
       updatedAt: new Date().toISOString(),
     };
@@ -49,10 +53,15 @@ export async function prepareWorktreeEnvironment(
     let result;
     let streamed = false;
     try {
-      result = await context.runSetup(value.checkoutPath, command, async (output) => {
-        streamed = true;
-        value = await preparationProgress(context, value, "environment", output);
-      }, frozenEnv);
+      result = await context.runSetup(
+        value.checkoutPath,
+        command,
+        async (output) => {
+          streamed = true;
+          value = await preparationProgress(context, value, "environment", output);
+        },
+        frozenEnv,
+      );
     } catch (error) {
       result = { exitCode: 1, output: error instanceof Error ? error.message : String(error) };
     }

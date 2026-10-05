@@ -83,5 +83,7 @@ export interface WorktreeContext {
     revision: number;
     /** setup/验证 spawn 用的冻结覆盖键值；来源 = resolveContext().envOverlay.set。 */
     env?: Record<string, string>;
+    /** 工具来源标注（spec §15.1 P2-07a）：准备时点冻结，UI 只读投影。 */
+    toolSource?: "project-declaration" | "app-default" | "user-override" | "partial-host";
   }>;
 }

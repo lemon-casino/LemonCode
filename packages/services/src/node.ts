@@ -2007,10 +2007,23 @@ export function createLocalServices(options: {
         environmentId: operation.environmentId,
         consumer: "worktree-setup",
       });
+      // 工具来源标注（spec §15.1 P2-07a）：全部工具来自项目声明→project-declaration；
+      // 全部来自应用默认→app-default；混合→partial-host（部分沿用本机/默认）。
+      const projectionTools = environment?.tools ?? [];
+      const declaredCount = projectionTools.filter(
+        (tool) => tool.source === "project-declaration",
+      ).length;
+      const toolSource =
+        projectionTools.length > 0 && declaredCount === projectionTools.length
+          ? ("project-declaration" as const)
+          : declaredCount === 0
+            ? ("app-default" as const)
+            : ("partial-host" as const);
       return {
         environmentId: operation.environmentId,
         revision: environment?.currentRevision ?? 1,
         env: context.envOverlay.set,
+        toolSource,
       };
     },
     // 源组合提交已持有源 checkout 许可；通过同一 Git owner 执行，避免再次申请导致自锁。

@@ -7322,6 +7322,16 @@ const enUS: Record<string, string> = {
   "worktree.preparation.workspace": "Preparing workspace",
   "worktree.preparation.checkout": "Checking out project files",
   "worktree.preparation.environment": "Preparing project environment",
+  "worktree.preparation.tools": "Preparing tool versions",
+  "worktree.preparation.dependencies": "Installing project dependencies",
+  "worktree.preparation.toolSource.project-declaration":
+    "Tool versions come from the project declaration.",
+  "worktree.preparation.toolSource.app-default":
+    "The project declares no tool versions; application defaults are used.",
+  "worktree.preparation.toolSource.user-override":
+    "Tool versions come from user override settings.",
+  "worktree.preparation.toolSource.partial-host":
+    "Some resources reuse the local host environment; isolation is partial.",
   "worktree.preparation.readyDescription":
     "The execution directory is ready. Task checks and merge validation run separately.",
   "worktree.preparation.cancelledDescription":

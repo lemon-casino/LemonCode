@@ -54,12 +54,31 @@ export function WorktreePreparationCard({
   const ready = stage === "ready";
   const cancelled = binding?.status === "cancelled";
   const failed = binding?.status === "failed" || Boolean(error);
-  const steps = ["workspace", "checkout", "environment"] as const;
-  const current = steps.indexOf(
-    (binding?.preparation?.activeStep ?? stage) as (typeof steps)[number],
-  );
+  // P2-07a 五阶段（spec §15.1）：托管环境投影存在时展开工具/依赖子阶段；
+  // 非托管准备保持原三步，不伪造托管阶段。
+  const runtimeStage = binding?.preparation?.runtimeStage;
+  const steps = (
+    runtimeStage
+      ? ["workspace", "checkout", "tools", "dependencies"]
+      : ["workspace", "checkout", "environment"]
+  ) as readonly string[];
+  const stepKeys = runtimeStage
+    ? { tools: "tools", dependencies: "dependencies" }
+    : { tools: "environment", dependencies: "environment" };
+  const runtimeStep =
+    runtimeStage === "resolvingTools" || runtimeStage === "installingTools"
+      ? "tools"
+      : runtimeStage === "preparingDependencies"
+        ? "dependencies"
+        : null;
+  const activeRaw = binding?.preparation?.activeStep ?? stage;
+  const current =
+    activeRaw === "environment" && runtimeStage
+      ? steps.indexOf(runtimeStep ?? "tools")
+      : steps.indexOf(activeRaw === "environment" ? "checkout" : activeRaw);
   const cancelling = binding?.preparation?.cancelRequested && !cancelled;
   const log = binding?.preparation?.log ?? "";
+  const toolSource = binding?.preparation?.toolSource;
   return (
     <section
       className="basis-full min-w-0 w-full rounded-xl border border-border px-3 py-2 text-ui-sm"
@@ -103,7 +122,11 @@ export function WorktreePreparationCard({
               ) : (
                 <span className="size-4 rounded-full border border-border" />
               )}
-              {text(step)}
+              {text(
+                step === "tools" || step === "dependencies"
+                  ? step
+                  : ((stepKeys as Record<string, string>)[step] ?? step),
+              )}
             </li>
           ))}
         </ol>
@@ -112,6 +135,9 @@ export function WorktreePreparationCard({
           {text(cancelled ? "cancelledDescription" : "readyDescription")}
         </p>
       )}
+      {toolSource ? (
+        <p className="mt-1 text-foreground-subtle">{text(`toolSource.${toolSource}`)}</p>
+      ) : null}
       {binding?.preparation?.environmentSource === "none" && (ready || stage === "environment") ? (
         <p className="mt-1 text-foreground-subtle">{text("noEnvironment")}</p>
       ) : null}
