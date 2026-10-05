@@ -76,6 +76,11 @@ export function startMcpStartup(
       trace: traceContext,
       workingDirectory: this.workingDirectory,
       workspaceIdentity: this.config.workspaceIdentity?.toString(),
+      // 托管运行环境引用进入连接 key（spec §9.3 P2-05）：revision 变化后旧连接
+      // 不复用为新环境的连接；缺省 = 非托管，旧行为不变。
+      ...(this.config.workspaceBinding?.environmentRef
+        ? { environmentRef: this.config.workspaceBinding.environmentRef }
+        : {}),
     })
     .then((snapshot) => {
       const statusCounts = Object.values(snapshot.statuses).reduce<Record<string, number>>(

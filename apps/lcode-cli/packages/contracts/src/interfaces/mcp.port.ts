@@ -215,6 +215,11 @@ export interface McpConnectOptions {
   workingDirectory?: string;
   /** 身份隔离使用 workspaceIdentity；本地缺省时才 fallback 到 workingDirectory。 */
   workspaceIdentity?: string;
+  /**
+   * 托管运行环境引用（spec: specs/worktree-runtime-environments.md §9.3，P2-05）。
+   * 进入连接 key：revision 变化后旧连接不复用为新环境的连接；缺省 = 非托管，旧行为不变。
+   */
+  environmentRef?: { environmentId: string; revision: number };
 }
 
 export interface McpCallToolRequest {

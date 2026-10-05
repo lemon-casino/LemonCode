@@ -36,10 +36,15 @@ export function connectionKey(input: {
   serverName: string;
 }): string {
   // 默认 session isolation；只有明确声明 workspace 的无状态 server 才允许跨 session 复用。
-  const scope =
+  let scope =
     input.config.isolation === "workspace"
       ? (resolveWorkspaceKey(input.connectOptions) ?? "")
       : input.leaseId;
+  // 托管运行环境进入 key（spec §9.3 P2-05）：revision 变化后旧连接不复用为新环境的连接。
+  // 缺省 = 非托管连接，旧行为不变。
+  if (input.connectOptions.environmentRef) {
+    scope += `\u0000env:${input.connectOptions.environmentRef.environmentId}@${input.connectOptions.environmentRef.revision}`;
+  }
   return [input.serverName, scope, stableStringify(input.config)].join("\u0000");
 }
 
