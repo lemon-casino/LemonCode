@@ -65,10 +65,15 @@ M2 起接入执行消费者与依赖安装。规格唯一来源：`specs/worktre
 非法迁移返回 `invalid: true` 且状态不变；cancelled 是结算态不复活；
 `PreparationStage` 是排除释放三态后的窄联合（operation.stage 域）。
 
-## 已知边界（M1 范围）
+## 已知边界（M2 P2-02 起部分收口）
 
-- `preparingDependencies` 阶段暂直通 ready：依赖安装用例在 M2（P2-06）接入。
-- `resolveContext` 的 envOverlay 当前为空（工具路径已冻结）；PATH 注入在 M2（P2-02）落位。
+- `resolveContext.envOverlay.set` 已组合冻结工具目录的 PATH 前缀（Windows 键 `Path`、其余 `PATH`）；
+  base="inherit" 保持宿主环境语义，不改 Host/Agent process.env。
+- 组合根 `prepareRuntimeEnvironment` port 返回展平 `env`（= envOverlay.set），由 lifecycle 透传给
+  setup 执行器（`runSetup(..., env)`）与 `runWorktreeValidation`（spawn 覆盖键值叠加）；
+  重试/恢复路径按当前 revision 重新解析冻结覆盖。
+- `preparingDependencies` 阶段仍直通 ready：依赖安装用例在 M2 P2-06 接入。
 - release 未含进程停止证明（M3 P3-02 接线）；当前 fence 后直接结算 released。
 - 协议方法族已注册（`runtimeEnvironment/*` 五方法 + 严格 schema），Host 桥接 strict parse
-  在 M2 P2-01 随 binding environmentRef 一起接线。
+  在 M2 P2-01 随 binding environmentRef 一起接线（已实现：CLI restore 对账见
+  `worktree-execution.ts`）。

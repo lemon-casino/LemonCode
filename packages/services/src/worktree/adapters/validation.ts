@@ -5,10 +5,14 @@ export function runWorktreeValidation(
   checkoutPath: string,
   command: string,
   onOutput?: (output: string) => Promise<void>,
+  /** 冻结上下文覆盖键值（spec: specs/worktree-runtime-environments.md §9.2）；合并进宿主环境，不改 Host process.env。 */
+  env?: Record<string, string>,
 ): Promise<{ exitCode: number; output: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, {
       cwd: checkoutPath,
+      // 冻结 env 只做覆盖键值叠加；宿主环境语义保持，不整体替换。
+      ...(env && Object.keys(env).length ? { env: { ...process.env, ...env } } : {}),
       shell: true,
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],

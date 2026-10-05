@@ -62,6 +62,8 @@ export interface WorktreeContext {
     checkout: string,
     command: string,
     onOutput?: (output: string) => Promise<void>,
+    /** 冻结上下文覆盖键值（如 PATH 前缀）；spawn 时合并进宿主环境，不改 Host process.env。 */
+    env?: Record<string, string>,
   ): Promise<{ exitCode: number; output: string }>;
   detectSetup(checkout: string): Promise<string[]>;
   detectValidation(checkout: string): Promise<string[]>;
@@ -76,5 +78,10 @@ export interface WorktreeContext {
     checkoutPath: string;
     requestId: string;
     purpose: "worktree";
-  }) => Promise<{ environmentId: string; revision: number }>;
+  }) => Promise<{
+    environmentId: string;
+    revision: number;
+    /** setup/验证 spawn 用的冻结覆盖键值；来源 = resolveContext().envOverlay.set。 */
+    env?: Record<string, string>;
+  }>;
 }

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { dirname } from "node:path";
 import type {
   FrozenManifest,
   RuntimeEnvironmentCapabilities,
@@ -315,6 +316,13 @@ export function createRuntimeEnvironmentService(
       for (const tool of manifest.tools) {
         if (tool.toolPath) toolPaths[tool.key] = tool.toolPath;
       }
+      // PATH 前缀 = 冻结工具目录（spec §9.2：实际 spawn 的工具版本与 manifest 一致）。
+      // base:"inherit" 表示 spawn 时继承宿主环境；set.PATH 在其上叠加工具目录前缀，
+      // 不修改 Host/Agent process.env（spec §16.1）。
+      const toolDirs = [...new Set(Object.values(toolPaths).map((toolPath) => dirname(toolPath)))];
+      const pathKey = process.platform === "win32" ? "Path" : "PATH";
+      const delimiter = process.platform === "win32" ? ";" : ":";
+      const hostPath = process.env[pathKey] ?? process.env.PATH ?? "";
       // 每命令一份不可变上下文；token 仅内部，不进协议与 UI（spec §9.2）。
       return {
         environmentId: record.environmentId,
@@ -326,7 +334,13 @@ export function createRuntimeEnvironmentService(
         },
         cwd: params.workspacePath,
         toolPaths,
-        envOverlay: { base: "inherit", set: {}, unset: [] },
+        envOverlay: {
+          base: "inherit",
+          set: toolDirs.length
+            ? { [pathKey]: [...toolDirs, hostPath].filter(Boolean).join(delimiter) }
+            : {},
+          unset: [],
+        },
         resourceLeaseToken: `lease-${randomUUID()}`,
       };
     },

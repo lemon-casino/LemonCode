@@ -209,6 +209,10 @@ test("resolveContext requires ready and returns frozen context; token internal",
     assert.equal(context.revision, 1);
     assert.equal(context.toolPaths.node, "/fake/tools/node-24.14.0");
     assert.match(context.resourceLeaseToken, /^lease-/);
+    // envOverlay.set 组合冻结工具目录的 PATH 前缀（spec §9.2）；Windows 键名 Path。
+    const pathKey = process.platform === "win32" ? "Path" : "PATH";
+    const overlayPath = context.envOverlay.set?.[pathKey];
+    assert.ok(overlayPath?.startsWith("/fake/tools"));
   });
 });
 

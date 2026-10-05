@@ -2000,9 +2000,17 @@ export function createLocalServices(options: {
         workspacePath: params.checkoutPath,
         environmentId: operation.environmentId,
       });
+      // 冻结上下文（spec §9.2）：setup/验证 spawn 用 envOverlay.set（PATH 工具目录前缀），
+      // 展平为覆盖键值；不改 Host process.env。
+      const context = await runtimeEnvironmentService.resolveContext({
+        workspacePath: params.checkoutPath,
+        environmentId: operation.environmentId,
+        consumer: "worktree-setup",
+      });
       return {
         environmentId: operation.environmentId,
         revision: environment?.currentRevision ?? 1,
+        env: context.envOverlay.set,
       };
     },
     // 源组合提交已持有源 checkout 许可；通过同一 Git owner 执行，避免再次申请导致自锁。

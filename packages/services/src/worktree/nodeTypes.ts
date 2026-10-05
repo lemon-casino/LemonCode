@@ -40,7 +40,12 @@ export interface WorktreeServiceOptions {
     checkoutPath: string;
     requestId: string;
     purpose: "worktree";
-  }) => Promise<{ environmentId: string; revision: number }>;
+  }) => Promise<{
+    environmentId: string;
+    revision: number;
+    /** setup/验证 spawn 用的冻结覆盖键值；来源 = resolveContext().envOverlay.set。 */
+    env?: Record<string, string>;
+  }>;
   dataDir: string;
   git: WorktreeGitPort;
   coordinator?: CheckoutCoordinator;

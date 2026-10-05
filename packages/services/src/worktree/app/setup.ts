@@ -6,6 +6,8 @@ export async function prepareWorktreeEnvironment(
   context: WorktreeContext,
   binding: WorktreeBinding,
   retry: boolean,
+  /** 冻结上下文覆盖键值（spec §9.2）；spawn 时合并进宿主环境，不改 Host process.env。 */
+  frozenEnv?: Record<string, string>,
 ) {
   if (!binding.setup || binding.setup.status === "completed") return binding;
   if (["running", "failed"].includes(binding.setup.status) && !retry)
@@ -50,7 +52,7 @@ export async function prepareWorktreeEnvironment(
       result = await context.runSetup(value.checkoutPath, command, async (output) => {
         streamed = true;
         value = await preparationProgress(context, value, "environment", output);
-      });
+      }, frozenEnv);
     } catch (error) {
       result = { exitCode: 1, output: error instanceof Error ? error.message : String(error) };
     }

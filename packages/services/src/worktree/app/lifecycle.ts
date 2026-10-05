@@ -9,12 +9,7 @@ import { assertPreparationActive, preparationProgress } from "./preparation.js";
 import { captureForkSource } from "./forkSource.js";
 import { reserveTaskBranch } from "./branchNaming.js";
 import { worktreeCapability, mappedSourcePath } from "./capability.js";
-
-export function bindingKey(context: WorktreeContext, scope: WorktreeScope & { taskId: string }) {
-  return context.store.key(
-    JSON.stringify([scope.workspaceIdentity?.trim() || resolve(scope.workspacePath), scope.taskId]),
-  );
-}
+import { bindingKey, createWorktreeBindingLookup } from "./bindingLookup.js";
 
 function mappedPath(root: string, checkout: string, path: string) {
   return mappedSourcePath(root, checkout, path);
@@ -220,27 +215,40 @@ export function createWorktreeLifecycle(
         // 托管运行环境：首次执行前持久化环境引用（spec §7 规则 3）。
         // 未注入 port = Host 不支持托管，保持现状语义；注入后失败则准备整体失败，
         // 不静默回退非托管执行（spec §9.5：缺能力明确报告，不伪造托管成功）。
-        if (context.prepareRuntimeEnvironment && !binding.environmentRef) {
-          const environment = await context.prepareRuntimeEnvironment({
-            bindingId: binding.id,
-            checkoutPath: binding.checkoutPath,
-            requestId: params.requestId,
-            purpose: "worktree",
-          });
-          binding = {
-            ...binding,
-            environmentRef: {
-              environmentId: environment.environmentId,
-              revision: environment.revision,
-            },
-          };
-          await store.saveBinding(binding);
-          binding = await preparationProgress(
-            context,
-            binding,
-            "environment",
-            `Managed runtime environment ${environment.environmentId} at revision ${environment.revision}.\n`,
-          );
+        let frozenEnv: Record<string, string> | undefined;
+        if (context.prepareRuntimeEnvironment) {
+          if (!binding.environmentRef) {
+            const environment = await context.prepareRuntimeEnvironment({
+              bindingId: binding.id,
+              checkoutPath: binding.checkoutPath,
+              requestId: params.requestId,
+              purpose: "worktree",
+            });
+            frozenEnv = environment.env;
+            binding = {
+              ...binding,
+              environmentRef: {
+                environmentId: environment.environmentId,
+                revision: environment.revision,
+              },
+            };
+            await store.saveBinding(binding);
+            binding = await preparationProgress(
+              context,
+              binding,
+              "environment",
+              `Managed runtime environment ${environment.environmentId} at revision ${environment.revision}.\n`,
+            );
+          } else {
+            // 已有引用（重试/恢复）：按当前 revision 重新解析冻结覆盖，保持 manifest 一致。
+            const environment = await context.prepareRuntimeEnvironment({
+              bindingId: binding.id,
+              checkoutPath: binding.checkoutPath,
+              requestId: params.requestId,
+              purpose: "worktree",
+            });
+            frozenEnv = environment.env;
+          }
         }
         if (
           !params.setupCommands &&
@@ -283,7 +291,12 @@ export function createWorktreeLifecycle(
           ownerId: `setup:${binding.id}`,
         });
         try {
-          binding = await prepareWorktreeEnvironment(context, binding, Boolean(params.retrySetup));
+          binding = await prepareWorktreeEnvironment(
+            context,
+            binding,
+            Boolean(params.retrySetup),
+            frozenEnv,
+          );
           // 取消与就绪用同一短锁裁决，避免最后一步完成后取消仍被误认为可切回本地。
           binding = await store.lock(store.key(`preparation-claim:${id}`), async () => {
             await assertPreparationActive(context, binding!);
@@ -318,65 +331,6 @@ export function createWorktreeLifecycle(
       }
     });
   }
-  async function getBinding(params: WorktreeScope & { taskId?: string; requestId?: string }) {
-    const identity = params.workspaceIdentity?.trim() || resolve(params.workspacePath);
-    if (!params.taskId) {
-      const id = params.requestId
-        ? await store.readPreparationRequest(identity, params.requestId)
-        : null;
-      if (!id) return null;
-      const binding = await store.readBinding(id);
-      if (
-        !binding ||
-        binding.requestId !== params.requestId ||
-        (binding.originalWorkspaceIdentity?.trim() || resolve(binding.originalWorkspacePath)) !==
-          identity
-      )
-        throw new Error("Preparation request scope mismatch");
-      return {
-        ...binding,
-        preparation: binding.preparation
-          ? { ...binding.preparation, cancelRequested: await store.isPreparationCancelled(id) }
-          : undefined,
-      };
-    }
-    let binding =
-      (await store.readBinding(bindingKey(context, { ...params, taskId: params.taskId }))) ??
-      (await store.listBindings()).find(
-        (candidate) =>
-          candidate.taskId === params.taskId &&
-          (candidate.workspaceIdentity?.trim() || resolve(candidate.workspacePath)) === identity,
-      );
-    if (!binding) {
-      const alias = (await store.listAliases()).find(
-        (entry) =>
-          entry.taskId === params.taskId &&
-          [entry.originalKey, entry.executionKey].includes(identity),
-      );
-      if (alias) binding = (await store.readBinding(alias.bindingId)) ?? undefined;
-    }
-    // 删除墓碑与归档同样不检查已释放的目录，仅实际执行状态需要校验 checkout。
-    if (!binding || !["ready", "restoring", "missing"].includes(binding.status)) {
-      if (binding?.preparation)
-        binding = {
-          ...binding,
-          preparation: {
-            ...binding.preparation,
-            cancelRequested: await store.isPreparationCancelled(binding.id),
-          },
-        };
-      return binding ?? null;
-    }
-    try {
-      await ready(binding);
-      return binding;
-    } catch (error) {
-      return {
-        ...binding,
-        status: "missing" as const,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
+  const getBinding = createWorktreeBindingLookup(context, ready);
   return { capability, prepare, getBinding, ready };
 }
