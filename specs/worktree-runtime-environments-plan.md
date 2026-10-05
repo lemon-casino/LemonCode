@@ -1,6 +1,6 @@
 # 工作树运行环境开发计划
 
-状态：M0 已完成（ADR 回填主文档 §5.4）；M1 已实现并通过验证（完成记录见 §3.2 末尾）；M2～M5 全部 planned。
+状态：M0 已完成（ADR 回填主文档 §5.4）；M1 已完成（完成记录见 §3.2 末尾）；M2 进行中——P2-01/P2-02/P2-04 已完成（进度记录见 §3.3 末尾），P2-03/05/06/07 未开始；M3～M5 未开始。
 更新日期：2026-10-05。
 代码基线：L-GO 分支 `3c436cc`（`git rev-parse HEAD` = `3c436ccb5e34b86f9ec545b3cfc6f7db03d22eb6`，与 origin/L-GO 同步，`node scripts/check-workspace-freshness.mjs` 通过）。
 
@@ -63,12 +63,13 @@ M1 完成记录（2026-10-05，基线 f586cfb，Windows 11 x64 实测）：
 - 验证（真实执行）：`pnpm typecheck` 通过；`pnpm lint` 0 警告 0 错误；`pnpm architecture:check --changed` 0 违规；oxfmt 通过；`npx tsx --test`（packages/services）48/48 通过（schema 5、声明解析 17、状态机 9、服务纵向与 store 17）。
 - M1 边界（主文档 §17 P1 备注）：仅代表环境 owner 与工具准备基础完成。Host 桥接 strict parse、binding environmentRef、依赖安装（preparingDependencies 当前直通 ready）、PATH overlay 按 P2-01/02/06 在 M2 接线。工具后端按 ADR 固定 mise v2026.10.2 + 全平台 8 资产 sha256，全部调用带 `--no-config` 阻断配置注入（P0-03 实测）。
 
-M1 完成记录（2026-10-05，基线 f586cfb，Windows 11 x64 实测）：
+M2 进度记录（2026-10-05，P2-01/P2-02/P2-04 已完成；提交 ea3f393、4573ee4、6bd4461）：
 
-- 已落地：`packages/services/src/runtime-environment/` managed 模块（contract / module / node / CONTRACT.md；domain 状态机 + 声明解析 + 工具选择 + engines 比较；app 服务 + ports + validatedService；adapters store + declarationsReader + toolBackend）；`packages/shared/src/runtimeEnvironment.ts` 严格 schema 与协议方法族 `runtimeEnvironment/capabilities|prepare|get|list|release` 注册进 `lcodeProtocolMethods`；组合根 `node.ts` 注册 `IRuntimeEnvironmentService`（数据目录 `<HostDataRoot>/runtime-environments/`，与 worktrees 同级，不改 worktreeOptions.dataDir）；accessor 增可选 `runtimeEnvironmentService`；`architecture-policy.yaml` 注册 managed 模块（公开入口 contract.ts / node.ts）。
-- 关键语义（均有单测锁定）：同 requestId 幂等复用操作与环境；cancel 结算持久化不复活；声明冲突 / 未知语法 / engines 违约 → 结构化 failed 不猜测；manifest 冻结 + 声明指纹；resolveContext 非消费态抛错、lease token 不进投影；release stale-revision 防护返回 releaseBlocked；reconcile 只读原操作不重放；capabilities 缺能力给 missingReason 不伪造托管。
-- 验证（真实执行）：`pnpm typecheck` 通过；`pnpm lint` 0 警告 0 错误；`pnpm architecture:check --changed` 0 违规；oxfmt 通过；`npx tsx --test`（packages/services）48/48 通过（schema 5、声明解析 17、状态机 9、服务纵向与 store 17）。
-- M1 边界（主文档 §17 P1 备注）：仅代表环境 owner 与工具准备基础完成。Host 桥接 strict parse、binding environmentRef、依赖安装（preparingDependencies 当前直通 ready）、PATH overlay 按 P2-01/02/06 在 M2 接线。工具后端按 ADR（主文档 §5.4）固定 mise v2026.10.2 + 全平台 8 资产 sha256，全部调用带 `--no-config` 阻断配置注入（P0-03 实测）。
+- P2-01 已完成：`worktreeExecutionBindingSchema` 增 optional `environmentRef`（environmentId+revision，strict）；`lcodeWorkspaceRefSchema` 增 optional `environmentRef`（CLI 持久化引用）；lifecycle 在环境阶段经注入 port `prepareRuntimeEnvironment` 准备环境并把引用写入 binding（port 未注入 = 旧语义不变）；组合根接线 RuntimeEnvironmentService；CLI `restoreProtocolExecution` 对账持久化引用与 Host binding（缺失/revision 不一致拒绝恢复，不回退原目录；旧会话无引用走原路径）；`@lcode/contracts` 新增 `ProjectExecutionContext` 与 `ProjectEnvironmentResolverPort`。测试：CLI worktree-execution 9/9（含 3 个新对账用例）。
+- P2-02 已完成：`resolveContext.envOverlay.set` 组合冻结工具目录 PATH 前缀（Windows `Path`/其余 `PATH`，base=inherit 不改宿主环境）；`prepareRuntimeEnvironment` port 返回展平 `env`；lifecycle 首次准备与重试/恢复均解析冻结覆盖并透传 `prepareWorktreeEnvironment` → `runSetup(..., env)` 与 `runWorktreeValidation(..., env)`（spawn 覆盖键值叠加）。测试：runtime-environment 48/48（含 PATH 组合断言）、worktree 集成回归 30/30。
+- P2-04 已完成：`ITerminalService.create` 增 optional `envOverlay`，`resolveTerminalEnv` 结果上最后叠加冻结覆盖键值；缺省 = 非托管终端保持现状。验证：typecheck/lint/架构全绿。
+- 未开始：P2-03（Bash/Hook 每次真实 spawn 前解析——依赖 CLI 侧 resolver 接线）、P2-05（MCP scope/key）、P2-06（依赖/可写资源隔离）、P2-07a/b（准备卡五阶段与输入链路 UI）。
+- M2 剩余工作的边界：P2-07a 需要准备阶段投影协议扩展 + UI 卡片 + E2E（独立大块）；P3～P5 的 macOS/Linux 门禁（P5-03 逐平台放行）本机 Windows x64 无法执行，需对应平台环境。
 
 ### 3.3 M2：执行消费者贯通
 
