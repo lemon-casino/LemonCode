@@ -157,3 +157,56 @@ test("generation helper and start intent reconcile", () => {
   assert.equal(nextGenerationAfter(null), 1);
   assert.equal(reconcileStartIntent({ existing: null, requestedRevision: 1 }).action, "start");
 });
+
+test("port lease: busy lease fails the start without touching receipts", async () => {
+  await withTempDir(async (dir) => {
+    const store = createRuntimeEnvironmentStore(dir);
+    const processes = fakeProcesses();
+    const context: ServiceStageContext = {
+      ...createContext(store, processes.port, async () => true),
+      acquireLease: async () => {
+        throw new Error("LCODE_FILE_LOCK_TIMEOUT");
+      },
+    };
+    const result = await startManagedService(context, RECORD, DEFINITION);
+    assert.equal(result.status, "failed");
+    assert.match(result.reason ?? "", /lease is busy/);
+    const latest = await store.readServiceReceipt(RECORD.environmentId, "dev-server");
+    assert.equal(latest, null);
+  });
+});
+
+test("port lease: released when start fails and when the process exits", async () => {
+  await withTempDir(async (dir) => {
+    const store = createRuntimeEnvironmentStore(dir);
+    const processes = fakeProcesses();
+    const released: string[] = [];
+    const leaseContext: ServiceStageContext = {
+      ...createContext(store, processes.port, async () => true),
+      acquireLease: async (params) => ({
+        token: "lease-1",
+        release: async () => {
+          released.push(params.resourceKey);
+        },
+      }),
+    };
+    // start 抛错：租约立即释放。
+    const failing: ServiceStageContext = {
+      ...leaseContext,
+      processes: {
+        ...processes.port,
+        start: async () => {
+          throw new Error("spawn failed");
+        },
+      },
+    };
+    const failed = await startManagedService(failing, RECORD, DEFINITION);
+    assert.equal(failed.status, "failed");
+    assert.deepEqual(released, [`service-port:${RECORD.environmentId}:dev-server`]);
+    // 正常 start：进程退出时释放租约。
+    const ok = await startManagedService(leaseContext, RECORD, DEFINITION);
+    assert.equal(ok.status, "started");
+    await processes.exits[0]!(0);
+    assert.equal(released.length, 2);
+  });
+});

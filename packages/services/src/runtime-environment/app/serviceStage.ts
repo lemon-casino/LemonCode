@@ -16,6 +16,14 @@ export interface ServiceStageContext {
   processes?: ServiceProcessPort;
   /** TCP 健康探测；测试注入。缺省用 node:net connect。 */
   probe?: (url: string) => Promise<boolean>;
+  /**
+   * 端口资源租约（spec §12.2，M3 P3-03）：start 前加锁、进程 owner 结算后释放；
+   * 同机跨窗口经持久锁协调。缺省 = 不加租约（单窗口场景）。
+   */
+  acquireLease?: (params: { resourceKey: string; ownerId: string }) => Promise<{
+    token: string;
+    release: () => Promise<void>;
+  }>;
   stamp: () => string;
 }
 
@@ -90,6 +98,22 @@ export async function startManagedService(
 
   const generation = nextGenerationAfter(previous);
   const startedAt = context.stamp();
+  // 端口资源租约（spec §12.2 M3 P3-03）：与 checkout writer 许可分开（spec §12.4）；
+  // 拿不到锁 = 另一窗口的真实 writer 在跑，明确失败不排队强抢。
+  let lease: { release: () => Promise<void> } | undefined;
+  if (context.acquireLease) {
+    try {
+      lease = await context.acquireLease({
+        resourceKey: `service-port:${record.environmentId}:${definition.serviceId}`,
+        ownerId: `service:${record.environmentId}:${definition.serviceId}`,
+      });
+    } catch (error) {
+      return {
+        status: "failed",
+        reason: `service port lease is busy: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+  }
   const starting: ManagedServiceReceipt = {
     environmentId: record.environmentId,
     revision: record.currentRevision,
@@ -116,6 +140,8 @@ export async function startManagedService(
       error: error instanceof Error ? error.message : String(error),
     };
     await context.store.saveServiceReceipt(failed);
+    // 进程未起成：立即释放端口租约，不占用资源等下一轮。
+    await lease?.release().catch(() => {});
     return { status: "failed", receipt: failed, reason: failed.error };
   }
   // 真实监听验证（spec §12.2 第 3/6 步）：对进程回报的 URL 逐个 TCP 探测，全部通过才标 running。
@@ -142,6 +168,7 @@ export async function startManagedService(
       stoppedAt: stopped ? context.stamp() : undefined,
     };
     await context.store.saveServiceReceipt(failed);
+    await lease?.release().catch(() => {});
     return { status: "failed", receipt: failed };
   }
   const running: ManagedServiceReceipt = {
@@ -156,17 +183,20 @@ export async function startManagedService(
     { environmentId: record.environmentId, serviceId: definition.serviceId, generation },
     async (exitCode) => {
       // 进程 owner 的退出证明落盘：running 收据不得在进程死后继续存在（spec §12.1）。
+      // 租约与进程同生命周期：退出即释放端口资源（spec §12.2）。
       const latest = await context.store.readServiceReceipt(
         record.environmentId,
         definition.serviceId,
       );
-      if (!latest || latest.generation !== generation) return;
-      await context.store.saveServiceReceipt({
-        ...latest,
-        state: "stopped",
-        stoppedAt: context.stamp(),
-        exitCode,
-      });
+      if (latest && latest.generation === generation) {
+        await context.store.saveServiceReceipt({
+          ...latest,
+          state: "stopped",
+          stoppedAt: context.stamp(),
+          exitCode,
+        });
+      }
+      await lease?.release().catch(() => {});
     },
   );
   return { status: "started", receipt: running };
