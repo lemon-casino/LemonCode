@@ -1,3 +1,4 @@
+import type { OpenGitReview } from "@/v4/gitTurnReview.js";
 import { resolveSelectionSideInheritedModel } from "@/lib/selectionSideInheritedModel.js";
 import { useStartPlanRecommendation } from "@/hooks/useStartPlanRecommendation.js";
 import type { SessionCreateSource } from "@lcode/shared";
@@ -384,7 +385,7 @@ export interface SessionPaneProps {
   summaryPanelVariantOverride?: ChatViewSummaryPanelVariant | null;
   onSummaryPanelVariantOverrideChange?: (variant: ChatViewSummaryPanelVariant | null) => void;
   onRefreshGit?: () => void;
-  onOpenGitReview?: (sourceId?: GitChangeSourceId) => void;
+  onOpenGitReview?: OpenGitReview;
   onOpenBrowserUrl?: (url: string) => void;
   onOpenAutomationsMain?: OpenAutomationsMain;
   onOpenCodeViewer?: (source: CodeViewerSource) => void;
@@ -3018,6 +3019,18 @@ export function SessionPane({
       workflowRunPendingQuestionsByRunId,
       workflowGraphByToolCallId,
       workflowDraftByToolCallId,
+      onReviewTurn:
+        onOpenGitReview && sessionId && snapshot?.logEpoch
+          ? (header) =>
+              onOpenGitReview("last-turn", {
+                sessionId,
+                workspacePath,
+                ...(workspaceIdentity ? { workspaceIdentity } : {}),
+                ...(remoteSessionId ? { remoteSessionId } : {}),
+                header,
+                logEpoch: snapshot.logEpoch,
+              })
+          : undefined,
       fetchFileChanges: handleFetchFileChanges,
       previewFileRewind: workspaceFileRewindEnabled ? handlePreviewFileRewind : undefined,
       applyFileRewind: workspaceFileRewindEnabled ? handleApplyFileRewind : undefined,
@@ -3075,6 +3088,9 @@ export function SessionPane({
       workflowDraftByToolCallId,
       workspaceFileRewindEnabled,
       handleFetchFileChanges,
+      onOpenGitReview,
+      workspacePath,
+      workspaceIdentity,
       handlePreviewFileRewind,
       handleApplyFileRewind,
       attachmentRead,

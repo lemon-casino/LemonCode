@@ -1,8 +1,20 @@
 import assert from "node:assert/strict";
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { publishFixture } from "./gitPublishTestHelpers.js";
+
+test("只读 Git 刷新和差异读取不会刷新 index 的 stat cache", async (t) => {
+  const fixture = await publishFixture(t);
+  const file = join(fixture.root, "a.txt");
+  const content = await readFile(file);
+  const before = await readFile(join(fixture.root, ".git", "index"));
+  // 内容不变而文件 stat 已更新时，普通 status/diff 会回写索引并触发自己的刷新监听。
+  await writeFile(file, content);
+  await fixture.service.refresh({ ...fixture.request, includeBranchComparison: true });
+  await fixture.service.getDiff({ ...fixture.request, path: "a.txt", sourceId: "unstaged" });
+  assert.deepEqual(await readFile(join(fixture.root, ".git", "index")), before);
+});
 
 test("refresh preserves local changes and diffs when the configured upstream ref is missing", async (t) => {
   const fixture = await publishFixture(t);

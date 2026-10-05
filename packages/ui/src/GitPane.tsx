@@ -104,19 +104,15 @@ export function GitPane({
     [currentDataset],
   );
   const normalizedFileChangeFindQuery = fileChangeFindQuery.trim();
-  const currentError = gitState.error ?? currentDataset.error;
+  const currentError =
+    currentSourceOption.id === "last-turn"
+      ? currentDataset.error
+      : (gitState.error ?? currentDataset.error);
+  const currentLoading =
+    currentSourceOption.id === "last-turn" ? currentDataset.loading : gitState.loading;
 
   const emptyStateCopy = useMemo(() => {
-    if (currentSourceOption.id === "last-turn") {
-      return {
-        title: intl.formatMessage({ id: "git.empty.lastTurnTitle" }),
-        description: intl.formatMessage({
-          id: "git.empty.lastTurnDescription",
-        }),
-      };
-    }
-
-    if (gitState.loading) {
+    if (currentLoading) {
       return {
         title: intl.formatMessage({ id: "common.loading" }),
         description: intl.formatMessage({ id: "git.loading.description" }),
@@ -125,8 +121,33 @@ export function GitPane({
 
     if (currentError) {
       return {
-        title: intl.formatMessage({ id: "git.error.title" }),
-        description: intl.formatMessage({ id: "git.error.description" }, { message: currentError }),
+        title: intl.formatMessage({
+          id: currentSourceOption.id === "last-turn" ? "git.error.historyTitle" : "git.error.title",
+        }),
+        description: intl.formatMessage(
+          {
+            id:
+              currentSourceOption.id === "last-turn"
+                ? "git.error.historyDescription"
+                : "git.error.description",
+          },
+          { message: currentError },
+        ),
+      };
+    }
+
+    if (currentSourceOption.id === "last-turn") {
+      return {
+        title: intl.formatMessage({
+          id: currentDataset.isSelectedTurn
+            ? "git.empty.selectedTurnTitle"
+            : "git.empty.lastTurnTitle",
+        }),
+        description: intl.formatMessage({
+          id: currentDataset.isSelectedTurn
+            ? "git.empty.selectedTurnDescription"
+            : "git.empty.lastTurnDescription",
+        }),
       };
     }
 
@@ -148,14 +169,21 @@ export function GitPane({
       };
     }
 
+    if (currentSourceOption.id === "staged" || currentSourceOption.id === "unstaged") {
+      return {
+        title: intl.formatMessage({ id: `git.empty.${currentSourceOption.id}Title` }),
+        description: intl.formatMessage({ id: `git.empty.${currentSourceOption.id}Description` }),
+      };
+    }
     return {
       title: intl.formatMessage({ id: "git.empty.title" }),
       description: intl.formatMessage({ id: "git.empty.description" }),
     };
   }, [
     currentSourceOption.id,
+    currentDataset.isSelectedTurn,
     currentError,
-    gitState.loading,
+    currentLoading,
     gitState.summary.isGitAvailable,
     gitState.summary.isRepository,
     intl,
@@ -455,7 +483,12 @@ export function GitPane({
           <SelectContent align="start">
             {gitState.sourceOptions.map((option) => (
               <SelectItem key={option.id} value={option.id} disabled={option.disabled}>
-                {intl.formatMessage({ id: getSourceMessageId(option.id) })}
+                {intl.formatMessage({
+                  id:
+                    option.id === "last-turn" && gitState.datasets["last-turn"].isSelectedTurn
+                      ? "git.source.selectedTurn"
+                      : getSourceMessageId(option.id),
+                })}
               </SelectItem>
             ))}
           </SelectContent>
@@ -466,15 +499,28 @@ export function GitPane({
             type="button"
             variant="ghost"
             size="lg"
-            disabled={gitState.loading}
+            disabled={Boolean(currentLoading)}
             onClick={onRefresh}
           >
-            <RefreshCw className={cn("size-3.5", gitState.loading && "animate-spin")} />
+            <RefreshCw className={cn("size-3.5", currentLoading && "animate-spin")} />
             {intl.formatMessage({ id: "git.action.refresh" })}
           </Button>
         </div>
       </div>
 
+      {currentSourceOption.id === "last-turn" && currentDataset.isSelectedTurn ? (
+        <div className="flex items-center justify-between gap-2 px-3 pb-2 text-ui-sm text-foreground-subtle">
+          <span>{intl.formatMessage({ id: "git.source.selectedTurnReadonly" })}</span>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => onSelectSource("last-turn")}
+          >
+            {intl.formatMessage({ id: "git.source.returnLastTurn" })}
+          </Button>
+        </div>
+      ) : null}
       <div className="min-h-0 flex-1">
         {currentChanges.length > 0 ? (
           <div ref={changeListScrollRef} className="h-full min-h-0 w-full overflow-auto">

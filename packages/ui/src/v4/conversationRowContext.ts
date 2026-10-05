@@ -36,6 +36,7 @@ export type ConversationFileChangesState = Exclude<
 >;
 
 export interface ConversationRowRenderContext {
+  onReviewTurn?: (header: TurnHeaderRow) => void;
   /** 只读的会话准备详情；Timeline 只挂在历史起点的首条真实输入之后。 */
   afterUserInput?: { rowId: number; content: ReactNode };
   logEpoch?: string;

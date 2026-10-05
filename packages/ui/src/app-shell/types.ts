@@ -1,3 +1,4 @@
+import type { OpenGitReview } from "@/v4/gitTurnReview.js";
 import type { RefObject } from "react";
 import type {
   LCodeProvider,
@@ -252,7 +253,7 @@ export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackS
   handleOpenDeveloperTools: () => void;
   handleOpenTerminalTab: () => void;
   handleToggleGit: () => void;
-  handleOpenGitReview: (sourceId?: GitChangeSourceId) => void;
+  handleOpenGitReview: OpenGitReview;
   handleToggleSidePane: () => void;
   handleOpenBrowserUrl: (url: string) => void;
   handleOpenCodeViewer: (source: CodeViewerSource) => void;

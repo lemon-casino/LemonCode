@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronRightIcon, Loader2Icon, Undo2Icon } from "lucide-react";
+import { ChevronRightIcon, FileSearchIcon, Loader2Icon, Undo2Icon } from "lucide-react";
 import type {
   CommandAck,
   ConversationRowTarget,
@@ -221,6 +221,19 @@ export function ConversationFileSummaryPanel({
               ) : null}
             </button>
           </CollapsibleTrigger>
+          {context.onReviewTurn ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={!target || header.state === "running" || isReverted}
+              onClick={() => context.onReviewTurn?.(header)}
+              title={intl.formatMessage({ id: "chat.changeSummary.reviewTurn" })}
+            >
+              <FileSearchIcon />
+              <span>{intl.formatMessage({ id: "chat.changeSummary.review" })}</span>
+            </Button>
+          ) : null}
           <Button
             type="button"
             variant="ghost"

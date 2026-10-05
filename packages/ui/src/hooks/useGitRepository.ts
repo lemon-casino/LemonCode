@@ -1,9 +1,6 @@
 /* eslint-disable max-lines */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
-  LCodePersistedFileChange,
-  LCodePersistedFileSnapshot,
-  LCodeTaskChangeSummary,
   GitBranchComparison,
   GitChangeSectionId,
   GitChangeSourceId,
@@ -12,7 +9,7 @@ import type {
   GitIdentity,
   GitRepositorySummary,
 } from "@lcode/shared";
-import { buildTurnChangeSummary, toWorkspaceRelativePath } from "@/lib/taskChangeSummary.js";
+import { createGitRefreshScheduler } from "@/hooks/gitRefreshScheduler.js";
 import { logger } from "@/logger.js";
 import { shouldEnableWorkspaceRpc } from "@/lib/workspaceRpcAvailability.js";
 import { useServices } from "@/hooks/useServices.js";
@@ -57,6 +54,8 @@ export interface GitPaneDataset {
   comparisonLabel?: string | null;
   error?: string | null;
   turnIndex?: number | null;
+  loading?: boolean;
+  isSelectedTurn?: boolean;
 }
 
 export interface GitPaneSourceOption {
@@ -112,18 +111,6 @@ function getErrorMessage(error: unknown): string {
 
 function sumSectionCount(sections: readonly GitPaneSection[]): number {
   return sections.reduce((count, section) => count + section.changes.length, 0);
-}
-
-function inferGitKind(added: number, removed: number): GitFileChange["kind"] {
-  if (added > 0 && removed === 0) {
-    return "added";
-  }
-
-  if (removed > 0 && added === 0) {
-    return "deleted";
-  }
-
-  return "modified";
 }
 
 function createEmptySummary(workspacePath: string): GitRepositorySummary {
@@ -286,65 +273,6 @@ function buildRepositoryDatasets(options: {
   };
 }
 
-function createLastTurnChange(
-  workspacePath: string,
-  snapshotByPath: Map<string, LCodePersistedFileSnapshot>,
-  file: LCodeTaskChangeSummary["files"][number],
-): GitPaneFileChange {
-  const relativePath = toWorkspaceRelativePath(workspacePath, file.path);
-  const snapshot = snapshotByPath.get(file.path);
-
-  return {
-    path: file.path,
-    repoRelativePath: relativePath,
-    workspaceRelativePath: relativePath,
-    kind: inferGitKind(file.added, file.removed),
-    section: "last-turn",
-    added: file.added,
-    removed: file.removed,
-    isStaged: false,
-    isUntracked: false,
-    isConflicted: false,
-    diff: {
-      path: file.path,
-      availability: snapshot ? "patch" : "unavailable",
-      patch: null,
-      beforeContent: snapshot?.beforeContent ?? null,
-      afterContent: snapshot?.afterContent ?? null,
-      summary: null,
-    },
-  };
-}
-
-function buildLastTurnDataset(options: {
-  workspacePath: string;
-  turnIndex: number | null;
-  fileChange: LCodePersistedFileChange | null;
-  summary: LCodeTaskChangeSummary | null;
-}): GitPaneDataset {
-  const snapshotByPath = new Map<string, LCodePersistedFileSnapshot>(
-    options.fileChange?.snapshots.map((snapshot) => [snapshot.path, snapshot]) ?? [],
-  );
-
-  return {
-    id: "last-turn",
-    readonly: true,
-    turnIndex: options.turnIndex,
-    // 关键业务逻辑：上一轮更改继续优先复用 LCode Agent 已持久化的单轮文件快照，
-    // 这样 Git pane 接入真实仓库数据后，agent 视角的只读审阅链路仍然保持独立稳定。
-    sections: options.summary
-      ? [
-          {
-            id: "last-turn",
-            changes: options.summary.files.map((file) =>
-              createLastTurnChange(options.workspacePath, snapshotByPath, file),
-            ),
-          },
-        ]
-      : [],
-  };
-}
-
 function shouldRefreshLiveGitData(
   previous: GitLiveDataRefreshInput | null,
   next: GitLiveDataRefreshInput,
@@ -378,6 +306,7 @@ export function useGitRepository(options: {
   enabled?: boolean;
   workspacePath: string;
   activeTaskId: string | null;
+  lastTurnDataset?: GitPaneDataset;
   includeExtendedData?: boolean;
   refreshToken?: string | number | boolean | null;
   remoteSessionId?: string | null;
@@ -408,145 +337,100 @@ export function useGitRepository(options: {
       remoteTarget,
     });
   const workspaceKey = workspaceIdentity?.trim() || workspacePath;
-  // store 收尾：per-turn 变更摘要 map（setPerTurnSummaries/setPerTurnFileChanges）
-  // 的写入链路随旧 ChatView 流订阅删除，store 不再保存该派生态（删除前也恒为空）。
-  // "last-turn" 数据集保留空态骨架，待 v4 投影的 per-turn 变更面接入后回填。
   const [repositoryState, setRepositoryState] = useState<GitPaneRepositoryState>(() =>
     createInitialState(workspacePath, { workspaceKey }),
   );
-  const requestVersionRef = useRef(0);
+  const revisionRef = useRef(0);
   const lastLiveRefreshInputRef = useRef<GitLiveDataRefreshInput | null>(null);
-  const lastFileChangeEntry = null;
-  const lastSummaryEntry = null;
+  const schedulerRef = useRef<ReturnType<typeof createGitRefreshScheduler> | null>(null);
 
   useEffect(() => {
-    const nextRefreshInput: GitLiveDataRefreshInput = {
+    lastLiveRefreshInputRef.current = null;
+    if (!workspaceRpcEnabled) {
+      setRepositoryState(createInitialState(workspacePath, { workspaceKey, loading: false }));
+      return;
+    }
+    const scheduler = createGitRefreshScheduler({
+      // 单次 RPC 同时提供 summary/staged/unstaged，避免一轮三次 git status。
+      read: (extended: boolean) =>
+        gitService.refresh({
+          workspacePath,
+          includeIdentity: extended,
+          includeBranchComparison: extended,
+        }),
+      onStart: () =>
+        setRepositoryState((current) =>
+          current.workspaceKey === workspaceKey && current.summary.workspacePath === workspacePath
+            ? { ...current, loading: true, error: null }
+            : createInitialState(workspacePath, { workspaceKey }),
+        ),
+      onResult: ({
+        summary,
+        identity,
+        unstagedChanges,
+        stagedChanges,
+        branchComparison,
+        branchComparisonError,
+      }) => {
+        const datasets = {
+          ...buildRepositoryDatasets({
+            unstagedChanges,
+            stagedChanges,
+            branchComparison: branchComparison ?? EMPTY_BRANCH_COMPARISON,
+            branchComparisonError,
+          }),
+          "last-turn": createEmptyDataset("last-turn", true),
+        };
+        setRepositoryState({
+          workspaceKey,
+          summary,
+          identity: identity ?? EMPTY_IDENTITY,
+          placeholder: { enabled: false },
+          loading: false,
+          error: null,
+          revision: ++revisionRef.current,
+          sourceOptions: buildSourceOptions(datasets),
+          datasets,
+        });
+      },
+      onError: (error: unknown) => {
+        const message = getErrorMessage(error);
+        logger.warn("[useGitRepository] 读取 Git 仓库状态失败", { workspacePath, error: message });
+        setRepositoryState(
+          createInitialState(workspacePath, {
+            workspaceKey,
+            loading: false,
+            error: message,
+            revision: ++revisionRef.current,
+          }),
+        );
+      },
+    });
+    schedulerRef.current = scheduler;
+    return () => {
+      // owner 切换才废弃请求；刷新 token 的变化仅合并后续读取，避免慢请求一直无法落地。
+      scheduler.dispose();
+      if (schedulerRef.current === scheduler) schedulerRef.current = null;
+      lastLiveRefreshInputRef.current = null;
+    };
+  }, [gitService, workspaceKey, workspacePath, workspaceRpcEnabled]);
+
+  useEffect(() => {
+    const next: GitLiveDataRefreshInput = {
       workspacePath,
       workspaceKey,
       includeExtendedData,
       refreshToken,
       workspaceRpcEnabled,
     };
-
-    if (!workspaceRpcEnabled) {
-      requestVersionRef.current += 1;
-      lastLiveRefreshInputRef.current = nextRefreshInput;
-      // 断连远端 workspace 可以展示 Git 面板空壳，但不能在 session 未恢复前
-      // 主动查询远端 Git，否则会把断连代理错误放大成每次首屏挂载的日志噪音。
-      setRepositoryState((current) =>
-        createInitialState(workspacePath, {
-          workspaceKey,
-          loading: false,
-          error: null,
-          revision: current.revision,
-        }),
-      );
-      return;
+    if (shouldRefreshLiveGitData(lastLiveRefreshInputRef.current, next)) {
+      schedulerRef.current?.request(includeExtendedData);
     }
-
-    const shouldRefresh = shouldRefreshLiveGitData(
-      lastLiveRefreshInputRef.current,
-      nextRefreshInput,
-    );
-    lastLiveRefreshInputRef.current = nextRefreshInput;
-    if (!shouldRefresh) {
-      return;
-    }
-
-    let disposed = false;
-    const requestVersion = requestVersionRef.current + 1;
-    requestVersionRef.current = requestVersion;
-
-    setRepositoryState((current) =>
-      current.workspaceKey === workspaceKey
-        ? {
-            ...current,
-            loading: true,
-            error: null,
-          }
-        : createInitialState(workspacePath, { workspaceKey }),
-    );
-
-    // agent 写文件会触发 Git 自动刷新。这里不能拆成 summary/unstaged/staged
-    // 三个 RPC，因为服务端每个 RPC 都会重新跑 git status，日志里会形成一轮一组三连。
-    // 统一走 refresh，让一次状态快照产出 header 和 Git pane 需要的基础数据。
-    const refreshPromise = gitService.refresh({
-      workspacePath,
-      includeIdentity: includeExtendedData,
-      includeBranchComparison: includeExtendedData,
-    });
-
-    // 关键业务逻辑：header 常驻时只需要 summary + staged/unstaged 统计；
-    // branch comparison 与 identity 只在真正展开 Git pane 后再拉取，避免首屏预取整套 Git pane 数据。
-    void refreshPromise
-      .then(
-        ({
-          summary,
-          identity,
-          unstagedChanges,
-          stagedChanges,
-          branchComparison,
-          branchComparisonError,
-        }) => {
-          if (disposed || requestVersionRef.current !== requestVersion) {
-            return;
-          }
-
-          const repositoryDatasets = buildRepositoryDatasets({
-            unstagedChanges,
-            stagedChanges,
-            branchComparison: branchComparison ?? EMPTY_BRANCH_COMPARISON,
-            // 上游比较错误只属于 branch 数据集，不能回写仓库级错误并清空本地改动。
-            branchComparisonError,
-          });
-          const datasets: Record<GitChangeSourceId, GitPaneDataset> = {
-            ...repositoryDatasets,
-            "last-turn": createEmptyDataset("last-turn", true),
-          };
-
-          setRepositoryState({
-            workspaceKey,
-            summary,
-            identity: identity ?? EMPTY_IDENTITY,
-            placeholder: {
-              enabled: false,
-            },
-            loading: false,
-            error: null,
-            revision: requestVersion,
-            sourceOptions: buildSourceOptions(datasets),
-            datasets,
-          });
-        },
-      )
-      .catch((error: unknown) => {
-        if (disposed || requestVersionRef.current !== requestVersion) {
-          return;
-        }
-
-        const message = getErrorMessage(error);
-        logger.warn("[useGitRepository] 读取 Git 仓库状态失败", {
-          workspacePath,
-          error: message,
-        });
-        setRepositoryState((current) => ({
-          ...createInitialState(workspacePath, {
-            workspaceKey,
-            loading: false,
-            error: message,
-            revision: current.revision,
-          }),
-        }));
-      });
-
-    return () => {
-      disposed = true;
-    };
+    lastLiveRefreshInputRef.current = next;
   }, [
     gitService,
     includeExtendedData,
     refreshToken,
-    workspaceIdentity,
     workspaceKey,
     workspacePath,
     workspaceRpcEnabled,
@@ -556,27 +440,20 @@ export function useGitRepository(options: {
     // useEffect 在 workspace 切换后的 commit 才会清理旧状态。render 阶段先按
     // workspaceKey 投影为空状态，避免旧机器的 Git 路径通过新远端 fileWatcherService 注册。
     const currentRepositoryState =
-      repositoryState.workspaceKey === workspaceKey
+      repositoryState.workspaceKey === workspaceKey &&
+      repositoryState.summary.workspacePath === workspacePath
         ? repositoryState
         : createInitialState(workspacePath, { workspaceKey });
     const datasets = {
       ...currentRepositoryState.datasets,
     };
-    const lastTurnIndex = lastFileChangeEntry?.[0] ?? lastSummaryEntry?.[0] ?? null;
-    const lastFileChange = lastFileChangeEntry?.[1] ?? null;
-    const lastTurnSummary = buildTurnChangeSummary(lastFileChange) ?? lastSummaryEntry?.[1] ?? null;
-
-    datasets["last-turn"] = buildLastTurnDataset({
-      workspacePath,
-      turnIndex: lastTurnIndex,
-      fileChange: lastFileChange,
-      summary: lastTurnSummary,
-    });
+    // 历史来源由 V4 只读查询提供，不能从当前 Git 状态或已废弃的 task map 推导。
+    datasets["last-turn"] = options.lastTurnDataset ?? createEmptyDataset("last-turn", true);
 
     return {
       ...currentRepositoryState,
       sourceOptions: buildSourceOptions(datasets),
       datasets,
     };
-  }, [lastFileChangeEntry, lastSummaryEntry, repositoryState, workspaceKey, workspacePath]);
+  }, [options.lastTurnDataset, repositoryState, workspaceKey, workspacePath]);
 }

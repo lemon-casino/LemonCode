@@ -521,6 +521,8 @@ export function createGitCliRepo(options?: { commandProvider?: GitCommandProvide
     return commandProvider.run({
       cwd: resolution.repoRoot,
       args: ["status", "--porcelain=v2", "--branch", `--untracked-files=${untrackedMode}`, "-z"],
+      // 审查只读操作不能回写 index stat cache，否则 metadata watcher 会触发自身刷新回环。
+      env: { GIT_OPTIONAL_LOCKS: "0" },
       timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
       maxOutputBytes: DEFAULT_GIT_OUTPUT_BYTES,
     });
@@ -848,12 +850,14 @@ export function createGitCliRepo(options?: { commandProvider?: GitCommandProvide
           commandProvider.run({
             cwd: resolution.repoRoot,
             args: ["diff", "--cached", "--numstat", "-z", "--find-renames", "--"],
+            env: { GIT_OPTIONAL_LOCKS: "0" },
             timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
             maxOutputBytes: DEFAULT_GIT_OUTPUT_BYTES,
           }),
           commandProvider.run({
             cwd: resolution.repoRoot,
             args: ["diff", "--numstat", "-z", "--find-renames", "--"],
+            env: { GIT_OPTIONAL_LOCKS: "0" },
             timeoutMs: DEFAULT_GIT_COMMAND_TIMEOUT_MS,
             maxOutputBytes: DEFAULT_GIT_OUTPUT_BYTES,
           }),
@@ -1296,6 +1300,7 @@ export function createGitCliRepo(options?: { commandProvider?: GitCommandProvide
       const staged = params.staged ?? params.sourceId === "staged";
       const diffResult = await commandProvider.run({
         cwd: resolution.repoRoot,
+        env: { GIT_OPTIONAL_LOCKS: "0" },
         args: staged
           ? ["diff", "--cached", "--no-ext-diff", "--no-color", "--binary", "--", repoRelativePath]
           : ["diff", "--no-ext-diff", "--no-color", "--binary", "--", repoRelativePath],

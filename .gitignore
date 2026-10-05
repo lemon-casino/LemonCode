@@ -95,6 +95,10 @@ packages/desktop/src/scheduler/schedulerProtocol.js.map
 !/packages/web/test/git-review-source-errors.test.mjs
 !/packages/web/test/fixtures/git-review-source-errors.html
 !/packages/web/test/fixtures/git-review-source-errors.tsx
+!/packages/web/test/git-review-live-turns.test.mjs
+!/packages/web/test/fixtures/git-review-live-turns.html
+!/packages/web/test/fixtures/git-review-live-turns.tsx
+
 !/packages/web/test/fixtures/git-backup.html
 !/packages/web/test/fixtures/git-backup.tsx
 !/packages/web/test/fixtures/git-backup-service.ts

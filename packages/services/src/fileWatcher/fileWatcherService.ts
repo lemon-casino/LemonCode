@@ -8,6 +8,7 @@ import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js";
 
 /** 防抖时间（ms）——批量文件变更（如 git checkout）时避免频繁刷新 */
 const DEBOUNCE_MS = 150;
+const MAX_WAIT_MS = 500;
 
 interface WatcherInstance {
   path: string;
@@ -15,6 +16,7 @@ interface WatcherInstance {
   changeEmitter: Emitter<FileWatchEvent>;
   /** 防抖定时器 */
   debounceTimer: ReturnType<typeof setTimeout> | null;
+  maxWaitTimer: ReturnType<typeof setTimeout> | null;
   /** 同一防抖窗口只含一个明确路径时才透传，避免过滤掉同批次里的目标文件事件 */
   pendingChangedPaths: Set<string>;
   hasUnknownChangedPath: boolean;
@@ -47,6 +49,7 @@ export function createFileWatcherService(options?: {
     const w = watchers.get(id);
     if (!w) return;
     if (w.debounceTimer) clearTimeout(w.debounceTimer);
+    if (w.maxWaitTimer) clearTimeout(w.maxWaitTimer);
     w.watcher.close();
     w.changeEmitter.dispose();
     watchers.delete(id);
@@ -66,16 +69,22 @@ export function createFileWatcherService(options?: {
           if (!instance) return;
 
           const changedPath = resolveFileWatchChangedPath(instance.path, fileName);
-          if (changedPath) {
+          if (changedPath && !instance.hasUnknownChangedPath) {
             instance.pendingChangedPaths.add(changedPath);
-          } else {
+            // 协议只需要“唯一明确路径”；批量上万个文件不应在合并窗口保存全部路径。
+            if (instance.pendingChangedPaths.size > 1) {
+              instance.hasUnknownChangedPath = true;
+              instance.pendingChangedPaths.clear();
+            }
+          } else if (!changedPath) {
             instance.hasUnknownChangedPath = true;
+            instance.pendingChangedPaths.clear();
           }
 
-          // 防抖：连续变更只触发一次刷新
-          if (instance.debounceTimer) clearTimeout(instance.debounceTimer);
-          instance.debounceTimer = setTimeout(() => {
-            instance.debounceTimer = null;
+          const flush = () => {
+            if (instance.debounceTimer) clearTimeout(instance.debounceTimer);
+            if (instance.maxWaitTimer) clearTimeout(instance.maxWaitTimer);
+            instance.debounceTimer = instance.maxWaitTimer = null;
             const onlyChangedPath =
               !instance.hasUnknownChangedPath && instance.pendingChangedPaths.size === 1
                 ? instance.pendingChangedPaths.values().next().value
@@ -86,7 +95,11 @@ export function createFileWatcherService(options?: {
               dirPath: instance.path,
               ...(onlyChangedPath ? { changedPath: onlyChangedPath } : {}),
             });
-          }, DEBOUNCE_MS);
+          };
+          // 连续写入曾不断重置尾沿 timer，Git/文件树永远收不到事件；最大等待保证批次中也广播。
+          if (instance.debounceTimer) clearTimeout(instance.debounceTimer);
+          instance.debounceTimer = setTimeout(flush, DEBOUNCE_MS);
+          instance.maxWaitTimer ??= setTimeout(flush, MAX_WAIT_MS);
         });
       } catch (error) {
         changeEmitter.dispose();
@@ -113,6 +126,7 @@ export function createFileWatcherService(options?: {
         watcher: fsWatcher,
         changeEmitter,
         debounceTimer: null,
+        maxWaitTimer: null,
         pendingChangedPaths: new Set(),
         hasUnknownChangedPath: false,
       });

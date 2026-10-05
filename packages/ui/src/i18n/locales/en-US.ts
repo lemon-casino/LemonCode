@@ -885,10 +885,25 @@ const enUS: Record<string, string> = {
   "git.selection.count": "{count} selected",
   "git.selection.toggle": "Toggle selection for {file}",
   "git.empty.title": "No changes are available in this source",
+  "git.source.selectedTurn": "Selected turn changes",
+  "git.source.selectedTurnReadonly": "This turn's historical diff · Read only",
+  "git.source.returnLastTurn": "View last turn changes",
+  "git.empty.selectedTurnTitle": "No changes in the selected turn",
+  "git.empty.selectedTurnDescription":
+    "This turn has no file changes or was reverted. Select another turn to review from the conversation.",
+  "chat.changeSummary.reviewTurn": "Review file changes from this turn",
   "git.empty.description":
     "Switch to another source, or wait until this workspace has new Git changes to inspect.",
+  "git.empty.stagedTitle": "No staged changes",
+  "git.empty.stagedDescription":
+    "Staged files are waiting to be committed. This list clears after a commit. Review committed history in Last turn changes or All branch changes.",
+  "git.empty.unstagedTitle": "No unstaged changes",
+  "git.empty.unstagedDescription":
+    "The working directory matches the index and has no untracked files. File changes refresh automatically. Switch sources to review staged or committed changes.",
   "git.loading.description": "Reading Git status and changed files for the current workspace.",
   "git.error.title": "Could not load Git changes",
+  "git.error.historyTitle": "Could not load this turn's historical changes",
+  "git.error.historyDescription": "Could not read historical changes: {message}",
   "git.error.description": "Git returned an error: {message}",
   "git.empty.gitUnavailableTitle": "Git is not available in this environment",
   "git.empty.gitUnavailableDescription":
@@ -896,9 +911,9 @@ const enUS: Record<string, string> = {
   "git.empty.notRepositoryTitle": "This workspace is not inside a Git repository",
   "git.empty.notRepositoryDescription":
     "Open a Git repository directory and this pane will show changes scoped to the current workspace.",
-  "git.empty.lastTurnTitle": "The current task has no last-turn file changes yet",
+  "git.empty.lastTurnTitle": "The latest finished turn has no file changes",
   "git.empty.lastTurnDescription":
-    "Once the agent writes files, this view will reuse the existing task snapshot as a read-only review surface.",
+    "This read-only view shows the latest finished turn in this conversation, including changes already committed. It is empty when no turn has finished, that turn wrote no files, or its changes were reverted.",
   "git.commit.identityTitle": "Commit identity",
   "git.commit.identityMissing":
     "Real user.name / user.email loading is not connected yet, so the commit button stays disabled for now.",

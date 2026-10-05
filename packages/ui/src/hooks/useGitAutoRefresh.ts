@@ -10,9 +10,9 @@ import {
 import { logger } from "@/logger.js";
 import { useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 
-// agent 批量写文件时，150ms watcher 防抖 + 350ms Git 防抖仍会把长批次拆成多轮
-// `git status`。这里把 Git 自动刷新延后到 1 分钟，降低大工作区里的重复 Git I/O。
-const GIT_AUTO_REFRESH_DEBOUNCE_MS = 60_000;
+// 原 60s 尾沿防抖被每次写入重置，连续任务永远无法刷新。短批合并并限制最大等待。
+const GIT_AUTO_REFRESH_DEBOUNCE_MS = 400;
+const GIT_AUTO_REFRESH_MAX_WAIT_MS = 2_000;
 
 interface GitWatcherRegistration {
   subscription: IDisposable;
@@ -27,6 +27,7 @@ export function useGitAutoRefresh({
   gitSummaryWorkspaceKey,
   enabled,
   onRefreshGit,
+  livePanelVisible = false,
 }: {
   workspacePath: string;
   workspaceIdentity?: string | null;
@@ -35,11 +36,11 @@ export function useGitAutoRefresh({
   gitSummaryWorkspaceKey: string;
   enabled: boolean;
   onRefreshGit: () => void;
+  livePanelVisible?: boolean;
 }) {
   const workspaceServices = useWorkspaceServices(workspacePath, remoteSessionId, workspaceIdentity);
   const { fileWatcherService, systemService } = workspaceServices;
   const refreshRef = useRef(onRefreshGit);
-  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentWorkspaceKey = workspaceIdentity?.trim() || workspacePath;
   const canWatchCurrentWorkspace = shouldEnableGitAutoRefreshForWorkspace({
     enabled,
@@ -104,22 +105,73 @@ export function useGitAutoRefresh({
   refreshRef.current = onRefreshGit;
 
   useEffect(() => {
+    if (
+      !canWatchCurrentWorkspace ||
+      !livePanelVisible ||
+      workspacePlatform !== "linux" ||
+      !gitSummary.isRepository ||
+      !gitSummary.isGitAvailable
+    )
+      return;
+    // Linux 禁止大型目录递归 watcher，metadata 无法覆盖普通编辑；仅审查可见时补充有界轮询。
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible") refreshRef.current();
+    }, 2_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") refreshRef.current();
+    };
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, [
+    canWatchCurrentWorkspace,
+    currentWorkspaceKey,
+    gitSummary.isGitAvailable,
+    gitSummary.isRepository,
+    livePanelVisible,
+    workspacePlatform,
+  ]);
+
+  useEffect(() => {
     let cancelled = false;
     const registrations: GitWatcherRegistration[] = [];
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    let maxWaitTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearTimers = () => {
+      if (debounceTimer !== null) clearTimeout(debounceTimer);
+      if (maxWaitTimer !== null) clearTimeout(maxWaitTimer);
+      debounceTimer = maxWaitTimer = null;
+    };
+    const flushRefresh = () => {
+      clearTimers();
+      if (!cancelled) refreshRef.current();
+    };
 
     const scheduleRefresh = (path: string) => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-      debounceTimerRef.current = setTimeout(() => {
-        debounceTimerRef.current = null;
+      if (cancelled) return;
+      if (debounceTimer !== null) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
         logger.debug("[GitAutoRefresh] Git 状态变更，刷新仓库状态", {
           workspacePath,
           path,
         });
-        refreshRef.current();
+        flushRefresh();
       }, GIT_AUTO_REFRESH_DEBOUNCE_MS);
+      maxWaitTimer ??= setTimeout(flushRefresh, GIT_AUTO_REFRESH_MAX_WAIT_MS);
     };
+    const onVisible = () => {
+      if (document.visibilityState === "visible") flushRefresh();
+    };
+    // 后台期间文件事件可能丢失；重新显示/聚焦使用同一 refresh 路径补齐 Git 快照。
+    if (watchPaths.length > 0) {
+      flushRefresh();
+      window.addEventListener("focus", onVisible);
+      document.addEventListener("visibilitychange", onVisible);
+    }
 
     // Git summary 每次刷新都会带回新的 autoRefreshWatchPaths 数组引用。
     // 监听路径内容没变时不能重建 watcher，否则 agent 批量写文件会出现 unwatch/watch 风暴。
@@ -159,10 +211,9 @@ export function useGitAutoRefresh({
 
     return () => {
       cancelled = true;
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-        debounceTimerRef.current = null;
-      }
+      clearTimers();
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
       for (const registration of registrations) {
         registration.subscription.dispose();
         void registration.unwatch().catch((error) => {
@@ -173,5 +224,5 @@ export function useGitAutoRefresh({
         });
       }
     };
-  }, [fileWatcherService, watchPaths, workspacePath]);
+  }, [currentWorkspaceKey, fileWatcherService, watchPaths, workspacePath]);
 }

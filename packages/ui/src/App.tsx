@@ -9,6 +9,8 @@ import { useAppPanels } from "@/hooks/useAppPanels.js";
 import { useNarrowWebLayout } from "@/hooks/useNarrowWebLayout.js";
 import { useGitAutoRefresh } from "@/hooks/useGitAutoRefresh.js";
 import { useGitRepository } from "@/hooks/useGitRepository.js";
+import { useSessionGitLastTurn } from "@/hooks/useSessionGitLastTurn.js";
+import type { GitTurnReviewRequest } from "@/v4/gitTurnReview.js";
 import { useActiveExecutionWorkspace } from "@/hooks/useActiveExecutionWorkspace.js";
 import { useAppKeyboard } from "@/hooks/useAppKeyboard.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
@@ -356,6 +358,8 @@ export function App({
   const [canOpenCommunityFromQuickPick, setCanOpenCommunityFromQuickPick] = useState(false);
   const [gitSelectedSourceId, setGitSelectedSourceId] = useState<GitChangeSourceId>("unstaged");
   const [gitRefreshVersion, setGitRefreshVersion] = useState(0);
+  const [gitHistoryRefreshVersion, setGitHistoryRefreshVersion] = useState(0);
+  const [turnReviewRequest, setTurnReviewRequest] = useState<GitTurnReviewRequest | null>(null);
   const { browserRestoreUrls, handleBrowserUrlChange } = useTaskSidePaneMemoryBridge({
     activeTaskId,
     gitSelectedSourceId,
@@ -423,6 +427,10 @@ export function App({
   const hasGitTab = sidePaneState?.tabs.some((tab) => tab.type === "git") ?? false;
   const handleRefreshGit = useCallback(() => {
     setGitRefreshVersion((value) => value + 1);
+    setGitHistoryRefreshVersion((value) => value + 1);
+  }, []);
+  const handleAutoRefreshGit = useCallback(() => {
+    setGitRefreshVersion((value) => value + 1);
   }, []);
   const openSettingsTab = useTabStore((state) => state.openSettingsTab);
   const execution = useActiveExecutionWorkspace(
@@ -433,10 +441,42 @@ export function App({
     gitRefreshVersion,
   );
   const executionWorkspace = execution.workspace;
+  const gitReviewSessionId = activeSessionId ?? activeTaskId;
+  const currentTurnReviewRequest =
+    turnReviewRequest?.sessionId === gitReviewSessionId &&
+    (turnReviewRequest.workspaceIdentity?.trim() || turnReviewRequest.workspacePath) ===
+      workspaceKey
+      ? turnReviewRequest
+      : null;
+  useEffect(() => {
+    // 点击另一 pane 的摘要会同时切换焦点和设置审查目标；只清理不匹配的新旧范围。
+    setTurnReviewRequest((current) =>
+      current &&
+      (current.sessionId !== gitReviewSessionId ||
+        (current.workspaceIdentity?.trim() || current.workspacePath) !== workspaceKey)
+        ? null
+        : current,
+    );
+  }, [gitReviewSessionId, workspaceKey]);
+  const handleSelectGitSource = useCallback((sourceId: GitChangeSourceId) => {
+    setTurnReviewRequest(null);
+    setGitSelectedSourceId(sourceId);
+  }, []);
+  const lastTurnDataset = useSessionGitLastTurn({
+    workspacePath: workspaceAbsPath,
+    workspaceIdentity,
+    remoteSessionId: workspaceRpcTarget.remoteSessionId ?? null,
+    executionWorkspacePath: executionWorkspace?.workspacePath ?? "",
+    sessionId: gitReviewSessionId,
+    enabled: hasGitTab && Boolean(executionWorkspace),
+    refreshToken: gitHistoryRefreshVersion,
+    reviewTurn: currentTurnReviewRequest,
+  });
   const gitState = useGitRepository({
     workspacePath: executionWorkspace?.workspacePath ?? "",
     enabled: Boolean(executionWorkspace),
     activeTaskId,
+    lastTurnDataset,
     includeExtendedData: hasGitTab,
     // 关键逻辑：真实 Git 只在 workspace 变化、Git pane 打开、或用户显式点刷新时重拉。
     // task 切换 / last-turn 摘要变化只更新本地衍生数据，不再顺带重跑 Git 命令。
@@ -452,7 +492,8 @@ export function App({
     gitSummary: gitState.summary,
     gitSummaryWorkspaceKey: gitState.workspaceKey,
     enabled: isWorkspaceVisible && Boolean(executionWorkspace),
-    onRefreshGit: handleRefreshGit,
+    livePanelVisible: isGitOpen && !isSidePaneCollapsed,
+    onRefreshGit: handleAutoRefreshGit,
   });
   const activeGitSourceId =
     gitState.sourceOptions.find((option) => option.id === gitSelectedSourceId)?.id ??
@@ -510,13 +551,14 @@ export function App({
     return null;
   }, [gitChangeSummaryBySourceId]);
   const handleOpenGitReview = useCallback(
-    (sourceId?: GitChangeSourceId) => {
+    (sourceId?: GitChangeSourceId, turn?: GitTurnReviewRequest) => {
       if (workspaceReadOnlyReason) {
         return;
       }
       if (sourceId) {
         setGitSelectedSourceId(sourceId);
       }
+      setTurnReviewRequest(turn ?? null);
       handleOpenGit();
     },
     [handleOpenGit, workspaceReadOnlyReason],
@@ -1300,7 +1342,7 @@ export function App({
         handleReopenClosedSidePaneTab={handleReopenClosedSidePaneTab}
         handleBrowserNavigationRequestHandled={handleBrowserNavigationRequestHandled}
         setIsTerminalOpen={setIsTerminalOpen}
-        setGitSelectedSourceId={setGitSelectedSourceId}
+        setGitSelectedSourceId={handleSelectGitSource}
         // taskFindDialogProps 是对象 prop，内联创建会让 shell 在流式刷新中每轮都看到新引用。
         taskFindDialogProps={taskFindDialogProps}
       />

@@ -1,3 +1,4 @@
+import type { OpenGitReview } from "@/v4/gitTurnReview.js";
 /* oxlint-disable eslint(max-lines) -- V4WorkspaceChatArea 是分屏 workbench 宿主，集中管理 pane layout/focus/session binding；拆散会让 store action 和 shell binding 链路跨文件跳转。 */
 import { useCallback, useMemo, useRef, type CSSProperties, type ReactNode } from "react";
 import type {
@@ -99,7 +100,7 @@ interface V4WorkspaceChatAreaProps {
   summaryPanelVariantOverride?: ChatViewSummaryPanelVariant | null;
   onSummaryPanelVariantOverrideChange?: (variant: ChatViewSummaryPanelVariant | null) => void;
   onRefreshGit?: () => void;
-  onOpenGitReview?: (sourceId?: GitChangeSourceId) => void;
+  onOpenGitReview?: OpenGitReview;
   onPaneActiveSessionChange?: (scope: PaneWorkspaceScope, sessionId: string) => void;
   onOpenBrowserUrl?: (url: string) => void;
   onOpenAutomationsMain?: OpenAutomationsMain;
