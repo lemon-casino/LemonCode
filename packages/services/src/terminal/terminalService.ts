@@ -351,7 +351,13 @@ export function createTerminalService(dependencies: {
   }
 
   const service: ITerminalService & { disposeAll(): void } = {
-    async create(params: { cols: number; rows: number; cwd?: string }): Promise<{
+    async create(params: {
+      cols: number;
+      rows: number;
+      cwd?: string;
+      /** 冻结运行环境覆盖键值（P2-04）；叠加到终端进程环境，不改 Host process.env。 */
+      envOverlay?: Record<string, string>;
+    }): Promise<{
       id: string;
       shell: string;
       fontFamily: string;
@@ -362,7 +368,10 @@ export function createTerminalService(dependencies: {
     }> {
       const id = String(nextId++);
       const cwd = resolveTerminalCwd(params.cwd);
-      const env = resolveTerminalEnv();
+      // 冻结覆盖键值最后叠加（覆盖 macOS PATH 补齐等基础修正）；缺省 = 非托管终端现状语义。
+      const env = params.envOverlay
+        ? { ...resolveTerminalEnv(), ...params.envOverlay }
+        : resolveTerminalEnv();
       const terminalProfileSettings = await dependencies.settingService.get().catch(() => ({
         terminalFontFamily: undefined,
         terminalInheritSystemProfile: true,

@@ -9,7 +9,17 @@ export interface TerminalWindowsPtyInfo {
 }
 
 export interface ITerminalService {
-  create(params: { cols: number; rows: number; cwd?: string }): Promise<{
+  create(params: {
+    cols: number;
+    rows: number;
+    cwd?: string;
+    /**
+     * 冻结运行环境覆盖键值（spec: specs/worktree-runtime-environments.md §9.3，P2-04）。
+     * 仅叠加到终端进程环境（如 PATH 工具目录前缀），不改 Host process.env；
+     * 缺省 = 非托管终端，保持现状语义。
+     */
+    envOverlay?: Record<string, string>;
+  }): Promise<{
     id: string;
     shell: string;
     fontFamily: string;
