@@ -38,17 +38,29 @@ export interface IRuntimeEnvironmentService {
    */
   prepare(params: RuntimeEnvironmentPrepareRequest): Promise<RuntimePreparationOperation>;
   /** 按 environmentId 或 requestId 查询投影；查询不产生执行。 */
-  get(params: RuntimeEnvironmentScopeRef & {
-    environmentId?: string;
-    requestId?: string;
-  }): Promise<RuntimeEnvironmentProjection | null>;
+  get(
+    params: RuntimeEnvironmentScopeRef & {
+      environmentId?: string;
+      requestId?: string;
+    },
+  ): Promise<RuntimeEnvironmentProjection | null>;
   list(params: RuntimeEnvironmentScopeRef): Promise<RuntimeEnvironmentProjection[]>;
   /** 每命令一份不可变冻结上下文；resourceLeaseToken 仅内部。 */
-  resolveContext(params: RuntimeEnvironmentScopeRef & {
-    environmentId: string;
-    /** 消费者标识（session/terminal/mcp/service/candidate），用于引用结算与诊断。 */
+  resolveContext(
+    params: RuntimeEnvironmentScopeRef & {
+      environmentId: string;
+      /** 消费者标识（session/terminal/mcp/service/candidate），用于引用结算与诊断。 */
+      consumer: string;
+    },
+  ): Promise<ResolvedProjectExecutionContext>;
+  /**
+   * P2-03：按 checkout cwd 解析所属托管环境（环境记录 scope 即 checkout 路径，
+   * 取最长前缀匹配，含 scope 等于 cwd）。无命中返回 null = 非托管语义，不是错误。
+   */
+  resolveContextForCwd(params: {
+    cwd: string;
     consumer: string;
-  }): Promise<ResolvedProjectExecutionContext>;
+  }): Promise<ResolvedProjectExecutionContext | null>;
   /**
    * release：回收收据或阻塞证据；重试指向原 environmentId，不新建资源。
    * expectedRevision 不匹配返回 stale-reference，不覆盖新代。

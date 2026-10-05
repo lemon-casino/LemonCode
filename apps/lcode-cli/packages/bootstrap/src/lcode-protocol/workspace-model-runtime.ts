@@ -19,6 +19,7 @@ import { runSessionModelConfigMutation } from "../lcode-protocol-v4/model-config
 import { createProviderRuntimeHeadersPort } from "./provider-runtime-headers.js";
 import { classifyModelConnectivityFailure } from "./connectivity-failure.js";
 import { originWorkspaceRef } from "./workspace.js";
+import { createProjectEnvironmentOverlayResolver } from "./project-environment-overlay.js";
 
 export async function readWorkspacePresentation(
   context: LCodeProtocolAgentServerContext,
@@ -87,6 +88,11 @@ export async function createWorkspaceLCodeApp(
     createProviderRuntimeHeadersPort(context, originWorkspaceRef(workspace));
   return context.deps.createLCodeApp({
     ...options,
+    // P2-03：每次真实 spawn 前按 cwd 解析所属托管环境的冻结 overlay；
+    // 无 Host 连接 / 旧 Host 不支持时按非托管继续（解析器内部 fail-open）。
+    resolveProjectEnvironmentOverlay:
+      options.resolveProjectEnvironmentOverlay ??
+      createProjectEnvironmentOverlayResolver(context),
     platform: context.deps.platform,
     providerRuntimeHeadersPort,
     runtimeConfig: {

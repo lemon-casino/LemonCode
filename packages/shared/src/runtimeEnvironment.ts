@@ -250,3 +250,46 @@ export const runtimeEnvironmentCapabilitiesResultSchema = z
 export type RuntimeEnvironmentCapabilitiesResult = z.infer<
   typeof runtimeEnvironmentCapabilitiesResultSchema
 >;
+
+// ---- 执行前上下文解析（P2-03：CLI 每次真实 spawn 前按 cwd 解析所属环境）----
+
+/**
+ * 按 checkout cwd 解析（环境记录 scope 即 checkout 路径，取最长前缀匹配）。
+ * 无命中返回 context: null —— 非托管 spawn 保持现有继承语义，不是错误。
+ */
+export const runtimeEnvironmentResolveContextParamsSchema = z
+  .object({
+    cwd: text,
+    /** 消费者标识（session/terminal/mcp/service），用于引用结算与诊断。 */
+    consumer: text,
+  })
+  .strict();
+export type RuntimeEnvironmentResolveContextParams = z.infer<
+  typeof runtimeEnvironmentResolveContextParamsSchema
+>;
+
+/** 冻结上下文 wire 投影：与 §9.2 相同字段，但 resourceLeaseToken 不出 Host（仅内部）。 */
+export const resolvedProjectContextWireSchema = z
+  .object({
+    environmentId,
+    revision,
+    manifestDigest: text,
+    cwd: text,
+    toolPaths: z.record(z.string(), text),
+    envOverlay: z
+      .object({
+        base: z.enum(["inherit", "empty"]).optional(),
+        set: z.record(z.string(), z.string()).optional(),
+        unset: z.array(text).optional(),
+      })
+      .strict(),
+  })
+  .strict();
+export type ResolvedProjectContextWire = z.infer<typeof resolvedProjectContextWireSchema>;
+
+export const runtimeEnvironmentResolveContextResultSchema = z
+  .object({ context: resolvedProjectContextWireSchema.nullable() })
+  .strict();
+export type RuntimeEnvironmentResolveContextResult = z.infer<
+  typeof runtimeEnvironmentResolveContextResultSchema
+>;

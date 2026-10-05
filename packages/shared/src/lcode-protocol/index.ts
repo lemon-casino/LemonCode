@@ -3747,6 +3747,7 @@ export const lcodeProtocolMethods = {
   runtimeEnvironmentGet: "runtimeEnvironment/get",
   runtimeEnvironmentList: "runtimeEnvironment/list",
   runtimeEnvironmentRelease: "runtimeEnvironment/release",
+  runtimeEnvironmentResolveContext: "runtimeEnvironment/resolveContext",
 } as const;
 
 export type LCodeProtocolMethod = (typeof lcodeProtocolMethods)[keyof typeof lcodeProtocolMethods];

@@ -374,7 +374,10 @@ function createSnapshotFileName(shellKind: ShellInitSnapshotShellKind): string {
 }
 
 function cacheKey(request: ShellInitSnapshotRequest): string {
-  return [request.rootDir, request.shellDialect, request.shellPath].join(":");
+  // 冻结运行环境（spec §9.3 P2-03）经 PATH 前缀区分；快照内含 export PATH，
+  // 缓存键必须包含 PATH，否则不同环境会复用彼此快照并覆盖冻结 PATH。
+  const pathValue = request.env.PATH ?? request.env.Path ?? "";
+  return [request.rootDir, request.shellDialect, request.shellPath, pathValue].join(":");
 }
 
 function shellQuoteAlways(value: string): string {

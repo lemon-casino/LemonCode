@@ -1,5 +1,3 @@
-import { randomUUID } from "node:crypto";
-import { dirname } from "node:path";
 import type {
   FrozenManifest,
   RuntimeEnvironmentCapabilities,
@@ -15,9 +13,10 @@ import type {
 } from "../contract.js";
 import type { RuntimeEnvironmentStore, ToolBackendPort, DeclarationReaderPort } from "./ports.js";
 import { environmentIdFor, operationIdFor } from "./ports.js";
-import { advanceStatus, isConsumableStatus } from "../domain/state.js";
+import { advanceStatus } from "../domain/state.js";
 import { digestDeclarations } from "../domain/declarations.js";
 import { selectToolsForFreeze } from "../domain/selectTools.js";
+import { buildFrozenContext, matchEnvironmentForCwd } from "./frozenContext.js";
 
 /**
  * 环境生命周期用例（spec: specs/worktree-runtime-environments.md §10）。
@@ -305,44 +304,22 @@ export function createRuntimeEnvironmentService(
     async resolveContext(params): Promise<ResolvedProjectExecutionContext> {
       const record = await readEnvironment(params.environmentId);
       if (!record) throw new Error(`Runtime environment ${params.environmentId} not found`);
-      if (!isConsumableStatus(record.status))
-        throw new Error(
-          `Runtime environment ${params.environmentId} is ${record.status}, not consumable`,
-        );
-      const manifest = await store.readManifest(record.environmentId, record.currentRevision);
-      if (!manifest)
-        throw new Error(`Runtime environment ${params.environmentId} has no frozen manifest`);
-      const toolPaths: Record<string, string> = {};
-      for (const tool of manifest.tools) {
-        if (tool.toolPath) toolPaths[tool.key] = tool.toolPath;
-      }
-      // PATH 前缀 = 冻结工具目录（spec §9.2：实际 spawn 的工具版本与 manifest 一致）。
-      // base:"inherit" 表示 spawn 时继承宿主环境；set.PATH 在其上叠加工具目录前缀，
-      // 不修改 Host/Agent process.env（spec §16.1）。
-      const toolDirs = [...new Set(Object.values(toolPaths).map((toolPath) => dirname(toolPath)))];
-      const pathKey = process.platform === "win32" ? "Path" : "PATH";
-      const delimiter = process.platform === "win32" ? ";" : ":";
-      const hostPath = process.env[pathKey] ?? process.env.PATH ?? "";
-      // 每命令一份不可变上下文；token 仅内部，不进协议与 UI（spec §9.2）。
-      return {
-        environmentId: record.environmentId,
-        revision: record.currentRevision,
-        manifestDigest: manifest.declarationDigest,
-        executionScope: {
-          workspacePath: params.workspacePath,
-          ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
-        },
-        cwd: params.workspacePath,
-        toolPaths,
-        envOverlay: {
-          base: "inherit",
-          set: toolDirs.length
-            ? { [pathKey]: [...toolDirs, hostPath].filter(Boolean).join(delimiter) }
-            : {},
-          unset: [],
-        },
-        resourceLeaseToken: `lease-${randomUUID()}`,
-      };
+      return buildFrozenContext(store, record, {
+        workspacePath: params.workspacePath,
+        ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
+      });
+    },
+
+    async resolveContextForCwd(params) {
+      // 按 cwd 匹配所属环境（最长前缀）；无命中返回 null = 非托管语义（spec §9.3 P2-03）。
+      const record = matchEnvironmentForCwd(await store.listEnvironments(), params.cwd);
+      if (!record) return null;
+      return buildFrozenContext(store, record, {
+        workspacePath: record.scope.workspacePath,
+        ...(record.scope.workspaceIdentity
+          ? { workspaceIdentity: record.scope.workspaceIdentity }
+          : {}),
+      });
     },
 
     async release(params) {

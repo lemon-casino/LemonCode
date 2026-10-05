@@ -2067,6 +2067,7 @@ export function createLocalServices(options: {
   });
   const lcodeAgentService = createLCodeAgentService({
     worktreeService,
+    runtimeEnvironmentService,
     ...(agentAccountProviderConfigSource
       ? { accountProviderConfigSource: agentAccountProviderConfigSource }
       : {}),

@@ -316,7 +316,7 @@ flowchart TD
 | capabilities             | scope / Host 路由                                   | 平台、后端、支持类别与缺失原因      |
 | prepare                  | requestId/binding/purpose/expected profile revision | 可查询 operation、环境引用          |
 | get/list                 | 授权 scope、环境/项目引用                           | 环境/资源投影与分页                 |
-| resolveContext           | scope/binding/env ref/用途/consumer/许可            | 冻结 cwd/工具 argv/env overlay/摘要 |
+| resolveContext           | scope/binding/env ref/用途/consumer/许可；CLI 执行前解析按 checkout cwd 定位（环境记录 scope 即 checkout 路径，取最长前缀匹配） | 冻结 cwd/工具 argv/env overlay/摘要 |
 | startService/stopService | requestId/env ref/service ID/expected generation    | 唯一服务收据或明确阻塞              |
 | reconcile                | 原操作/环境/进程引用                                | 实际对账，不创建新任务              |
 | release                  | requestId/binding/expected revision/生命周期授权    | 回收收据或阻塞证据                  |
@@ -366,6 +366,8 @@ cwd 越出绑定范围明确标记资源边界，不自动切换另一个环境�
 | 外部 MCP/HTTP           | 明确外部资源，不能承诺本机隔离              |
 
 只给准备命令追加 PATH 不算完成。绕过 execution port 的插件进程必须接线，或列为未托管项。
+
+CLI 执行前解析（P2-03 起）：执行适配器在每次 spawn 前按请求 cwd 向目标 Host 查询所属托管环境（环境记录 scope 含该 cwd 时命中，取最长匹配）；无命中或旧 Host 不支持时保持现有继承语义（不报错、不改行为）。冻结 overlay 与请求自带 overlay（如 Hook 插件变量）合并规则固定：请求自带 set 覆盖冻结 set，unset 取并集，base 默认继承。解析结果按 cwd 短时缓存（含 revision），缓存失效后下一条命令取新 revision，在途命令不受影响。应用内部 Helper 与 Agent 自身进程不在命中范围（cwd 不在托管 checkout 内）。
 
 ### 9.4 源码改动位置与新增模块规划
 

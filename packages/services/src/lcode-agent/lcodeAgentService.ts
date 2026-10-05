@@ -1,5 +1,9 @@
 import { requestPluginReferenceCatalog } from "#src/lcode-agent/pluginReferenceCatalogRequest.js";
 import { handleWorktreeRequest, isWorktreeRequest } from "./worktreeRequests.js";
+import {
+  handleRuntimeEnvironmentRequest,
+  isRuntimeEnvironmentRequest,
+} from "./runtimeEnvironmentRequests.js";
 import { createWorktreeClientLeases } from "./worktreeClientLeases.js";
 import { gitFileMutationJournalSchema } from "@lcode/shared";
 import {
@@ -863,6 +867,8 @@ interface CreateLCodeAgentServiceOptions extends Omit<
   /** 仅供 MCP 状态探测进程使用，不能把空闲回收传给 chat。 */
   mcpStatusIdleTimeoutMs?: number;
   worktreeService?: import("../worktree/contract.js").IWorktreeService;
+  /** 托管运行环境服务（P2-03：CLI 执行前按 cwd 解析冻结上下文）；旧 Host 可缺省。 */
+  runtimeEnvironmentService?: import("../runtime-environment/contract.js").IRuntimeEnvironmentService;
   accountProviderConfigSource?: ProviderSource<AccountProviderConfigSnapshot>;
   accountRequestAuthService?: IAccountRequestAuthService;
   /** Desktop Host 请求 Main 登记 Agent 已授权的精确本地视频路径。 */
@@ -2150,6 +2156,35 @@ export function createLCodeAgentService(
             )
             .catch((error: unknown) =>
               logger.debug(undefined, "工作树响应发送失败", {
+                error: error instanceof Error ? error.message : String(error),
+              }),
+            );
+          return;
+        }
+        if (isRuntimeEnvironmentRequest(request.method)) {
+          // 运行环境解析与工作树绑定同属任务执行链；同样要求 chat lane。
+          if (lane !== "chat") {
+            client.respondError(request.id, {
+              code: -32603,
+              message: "Runtime environment resolution requires the task runtime lane",
+            });
+            return;
+          }
+          void handleRuntimeEnvironmentRequest(
+            request.method,
+            request.params,
+            options?.runtimeEnvironmentService,
+          )
+            .then(
+              (result) => client.respond(request.id, result),
+              (error: unknown) =>
+                client.respondError(request.id, {
+                  code: -32603,
+                  message: error instanceof Error ? error.message : String(error),
+                }),
+            )
+            .catch((error: unknown) =>
+              logger.debug(undefined, "运行环境响应发送失败", {
                 error: error instanceof Error ? error.message : String(error),
               }),
             );

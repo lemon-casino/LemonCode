@@ -58,6 +58,7 @@ import type {
 import type { NodeReplBrowserBroker } from "./node-repl-browser-broker.js";
 import type { AgentTelemetryRuntimeOwner, WorkspaceHookPolicy } from "@lcode/contracts";
 import type { ProviderRegistryModelSource } from "./provider-registry-model-runtime.js";
+import type { ProjectEnvironmentOverlayResolver } from "./project-environment-execution.js";
 
 export interface WorkspaceHookReviewHostContext {
   taskId: string;
@@ -115,6 +116,11 @@ export interface LCodeAppOptions {
   officialPluginRoots?: string[];
   pluginStorageRoot?: string;
   executionPort?: ExecutionPort;
+  /**
+   * P2-03：执行前按 cwd 解析所属托管环境的冻结 overlay；缺省 = 非托管（旧行为）。
+   * 由协议入口在创建 session app 时注入；纯本地 CLI / 测试不传。
+   */
+  resolveProjectEnvironmentOverlay?: ProjectEnvironmentOverlayResolver;
   /** 资源遥测旁路；由协议宿主注入，主任务和 workflow 的执行适配器共用。 */
   onToolExecResource?: (sample: LCodeToolExecResource) => void;
   /** browser-use 控制端口；注入后 node_repl 的 agent.browsers.* 可用。缺省则不可用。 */
