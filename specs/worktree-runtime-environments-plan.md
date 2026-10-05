@@ -1,6 +1,6 @@
 # 工作树运行环境开发计划
 
-状态：M0/M1/M2 已完成（完成记录见 §3.2/§3.3 末尾）；M3 进行中——P3-01/P3-02 已完成（进度记录见 §3.4 末尾；P3-03～06 未开始）；M4/M5 未开始（macOS/Linux 门禁需对应平台环境）。
+状态：M0/M1/M2/M3 已完成（M3 进度记录见 §3.7：P3-01～06 全部落地；服务进程 port 的真实实现与 E2E 归 P5 全链路回归）；M4/M5 未开始（macOS/Linux 门禁需对应平台环境）。
 更新日期：2026-10-05。
 代码基线：L-GO 分支 `3c436cc`（`git rev-parse HEAD` = `3c436ccb5e34b86f9ec545b3cfc6f7db03d22eb6`，与 origin/L-GO 同步，`node scripts/check-workspace-freshness.mjs` 通过）。
 
@@ -137,6 +137,8 @@ P3-04 已完成（提交 df14b3a）：端口参数化。`LCODE_WEB_PORT`（缺�
 P3-05 已完成（提交 c74188f）：环境资源目录映射。`environmentResourceDirs(dataDir, environmentId)`：per-env `resources/<id>/{temp,cache,data,logs}`（spec §8.3），environmentId 强制 32 hex 受管格式拒绝路径穿越；环境间 temp/data 互不重叠（ENV-12 数据隔离基础）；服务收据持久化测试覆盖损坏记录明确失败。测试 4/4；typecheck/lint 0/架构 0/oxfmt 通过。
 
 P3-03 已完成（提交 15863ca）：端口资源租约。`ServiceStageContext.acquireLease`（复用 app 层 `acquireResourceLease`，canonical path 键、不按墙钟过期，与 checkout writer 许可分开）：start 前对 `service-port:<envId>:<serviceId>` 加锁，busy 明确失败（不排队强抢、不触碰收据）；start 失败立即释放；进程退出经 onExit 回调与 stopped 证明一起释放；缺省不注入 = 单窗口场景不加锁。测试 +2（busy 不碰收据、失败/退出双路径释放），服务测试 8/8；typecheck/lint 0/架构 0/oxfmt 通过。
+
+P3-06 已完成（提交 61214fd）：环境投影携带服务地址事实。`runtimeEnvironmentProjectionSchema` 增 optional `services[]`（serviceId/state/urls 只读；PID/诊断字段不出 Host，token 不进投影）；`projectEnvironment` 经每环境服务索引（`services/` 下的 index 记录，serviceId 哈希后不可反查）遍历落盘收据。手机预览沿既有平台 browser/proxy 通路消费该投影（P5-02 接线跨端同步），不在服务侧开公网或绑 0.0.0.0（spec §12.3）。typecheck/lint 0/架构 0。
 
 ## 4. 依赖顺序
 
