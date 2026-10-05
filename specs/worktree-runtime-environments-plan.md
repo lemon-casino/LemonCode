@@ -130,7 +130,9 @@ P3-01/P3-02 已完成（提交 13806cf）：
 - **P3-01 服务模型与资源租约**：domain `services.ts`（ServiceDefinition：稳定 serviceId/argv/cwd/端口需求/依赖 DAG/是否写源码；`nextGenerationAfter` 代际递增；`reconcileStartIntent` 并发 start 裁决——starting/running 复用同收据，revision 不同返回 needsRestart 不静默替换）。资源租约 `acquireResourceLease` 落 app 层 ports.ts（domain 禁 IO）：跨进程文件锁复用 worktree coordinator 模式，canonical path 键、不按墙钟过期。共享 `ManagedServiceReceipt` schema（generation/state/真实监听 urls/PID 仅诊断/healthCheckedAt/stoppedAt 退出证明）。
 - **P3-02 start/stop/健康/停止证明**（app `serviceStage.ts`）：start 流程 starting→真实 TCP connect 探测全部回报 URL→全通过才 running（无虚假 ready，0 验证通过即 failed 并真实停止进程）；stop 需进程 owner 退出确认，无确认不伪造 stopped（收据标 failed + "did not confirm"）；进程意外退出经 `onExit` 回调落盘 stopped 证明，running 收据不死后留存；写源码服务直接拒绝（需 checkout writer，spec §12.4）。收据持久化 `services/`（每环境每服务一份）。
 - 测试 6/6（真实监听验证、复用同收据、代际递增、无验证不 running、无确认不 stopped、意外退出结算）；全套 runtime-environment 66/66；typecheck/lint 0/架构 0/oxfmt 通过。spec §12.1 已补实现边界。
-- 未开始：P3-03（Host 端口组/地址映射）、P3-04（Vite 与本项目适配）、P3-05（独立数据根/SQLite）、P3-06（预览与手机可达）。
+- 未开始：P3-03（Host 端口组/地址映射）、P3-05（独立数据根/SQLite）、P3-06（预览与手机可达）。
+
+P3-04 已完成（提交 df14b3a）：端口参数化。`LCODE_WEB_PORT`（缺省 5173）、`LCODE_SERVER_PORT`（缺省 3030，同时作用于 /ws 与 /api 代理目标）、`LCODE_DESKTOP_PORT`（缺省 5174，`packages/desktop/vite.config.ts` 与 `scripts/dev.mjs` 轮询同一变量）。普通启动行为不变（全部带缺省值）。实测证据：`LCODE_WEB_PORT=5373` 启动 vite 后 `curl http://127.0.0.1:5373/` 返回 200。typecheck/lint 0、oxfmt 通过。
 
 ## 4. 依赖顺序
 
