@@ -1,6 +1,6 @@
 # 工作树运行环境开发计划
 
-状态：M0 已完成（ADR 回填主文档 §5.4）；M1 已完成（完成记录见 §3.2 末尾）；M2 核心纵向已完成——P2-01～07a 全部完成（进度记录见 §3.3 末尾；P2-07b 输入链路回归与 web E2E 34/34 通过），仅 P2-07 的 E2E 场景扩展与 M3～M5 未开始。
+状态：M0 已完成（ADR 回填主文档 §5.4）；M1 已完成（完成记录见 §3.2 末尾）；M2 已完成（P2-01～07 全部落地，含 E2E 断言扩展；进度记录见 §3.3 末尾）；M3～M5 未开始（macOS/Linux 门禁需对应平台环境）。
 更新日期：2026-10-05。
 代码基线：L-GO 分支 `3c436cc`（`git rev-parse HEAD` = `3c436ccb5e34b86f9ec545b3cfc6f7db03d22eb6`，与 origin/L-GO 同步，`node scripts/check-workspace-freshness.mjs` 通过）。
 
@@ -63,7 +63,7 @@ M1 完成记录（2026-10-05，基线 f586cfb，Windows 11 x64 实测）：
 - 验证（真实执行）：`pnpm typecheck` 通过；`pnpm lint` 0 警告 0 错误；`pnpm architecture:check --changed` 0 违规；oxfmt 通过；`npx tsx --test`（packages/services）48/48 通过（schema 5、声明解析 17、状态机 9、服务纵向与 store 17）。
 - M1 边界（主文档 §17 P1 备注）：仅代表环境 owner 与工具准备基础完成。Host 桥接 strict parse、binding environmentRef、依赖安装（preparingDependencies 当前直通 ready）、PATH overlay 按 P2-01/02/06 在 M2 接线。工具后端按 ADR 固定 mise v2026.10.2 + 全平台 8 资产 sha256，全部调用带 `--no-config` 阻断配置注入（P0-03 实测）。
 
-M2 进度记录（2026-10-05，P2-01～P2-07a 已完成；提交 ea3f393、4573ee4、6bd4461、ba9edac、88401f7、181db9e、bdb64f7）：
+M2 进度记录（2026-10-05，P2-01～P2-07 已完成；提交 ea3f393、4573ee4、6bd4461、ba9edac、88401f7、181db9e、bdb64f7、7924758）：
 
 - P2-01 已完成：`worktreeExecutionBindingSchema` 增 optional `environmentRef`（environmentId+revision，strict）；`lcodeWorkspaceRefSchema` 增 optional `environmentRef`（CLI 持久化引用）；lifecycle 在环境阶段经注入 port `prepareRuntimeEnvironment` 准备环境并把引用写入 binding（port 未注入 = 旧语义不变）；组合根接线 RuntimeEnvironmentService；CLI `restoreProtocolExecution` 对账持久化引用与 Host binding（缺失/revision 不一致拒绝恢复，不回退原目录；旧会话无引用走原路径）；`@lcode/contracts` 新增 `ProjectExecutionContext` 与 `ProjectEnvironmentResolverPort`。测试：CLI worktree-execution 9/9（含 3 个新对账用例）。
 - P2-02 已完成：`resolveContext.envOverlay.set` 组合冻结工具目录 PATH 前缀（Windows `Path`/其余 `PATH`，base=inherit 不改宿主环境）；`prepareRuntimeEnvironment` port 返回展平 `env`；lifecycle 首次准备与重试/恢复均解析冻结覆盖并透传 `prepareWorktreeEnvironment` → `runSetup(..., env)` 与 `runWorktreeValidation(..., env)`（spawn 覆盖键值叠加）。测试：runtime-environment 48/48（含 PATH 组合断言）、worktree 集成回归 30/30。
@@ -72,7 +72,8 @@ M2 进度记录（2026-10-05，P2-01～P2-07a 已完成；提交 ea3f393、4573e
 - P2-05 已完成（88401f7）：`McpConnectOptions` 增 optional `environmentRef`；`connectionKey` 把它并入 scope（revision 变化不复用旧连接，非托管 key 与托管 key 不碰撞，4 单测）；runtime MCP 启动经 `workspaceBinding.environmentRef`（P2-01 已持久化的 LCodeWorkspaceRef 字段）自动带上，缺省 = 非托管旧行为。验证：typecheck/lint 0/架构 0、connectionKey 4/4、oxfmt 通过。
 - P2-06 已完成（181db9e）：`preparingDependencies` 阶段落实（此前直通 ready）。domain `dependencies.ts`：安装计划（pnpm/npm/yarn/bun 锁 → frozen 命令；多锁歧义/无锁不猜测不伪造）、pnpm `clone-or-copy` 强制（不靠硬链接 auto）、收据新鲜度（声明指纹+锁摘要+Node 版本+平台 ABI，不匹配重装）。编排抽到 app `dependencyStage.ts`（service 保持有界）：冻结工具 PATH 前缀 + 环境私有 TEMP（`resources/<id>/temp`）+ clone-or-copy env 经 DependencyInstallPort 注入，进程属既有执行 owner；收据持久化 `receipts/`（strict schema），失败 `dependency-install-failed` 可重试。共享 `DependencyReceipt` schema。测试：dependencies 7/7（计划/歧义/收据失效），全套 60/60；typecheck/lint 0/架构 0/oxfmt 通过。
 - P2-07a 已完成（bdb64f7）：准备卡五阶段与工具来源标注。spec 先行（`worktree-preparation-and-sidebar-fork.md` 增五阶段与来源词表规则）；`worktreePreparationSchema` 增 optional `runtimeStage`（resolvingTools/installingTools/preparingDependencies）与 `toolSource`（project-declaration/app-default/user-override/partial-host）；lifecycle 在进入托管准备时标记 `installingTools`、setup 首条命令前标记 `preparingDependencies`（setup.ts）；组合根从环境投影推导 toolSource（全声明/全默认/混合→partial-host）；`WorktreePreparationCard` 托管时展开五步（空间→检出→工具→依赖→就绪），非托管保持原三步不伪造托管阶段；i18n 双语文案。验证：worktree 集成回归 17/17、web worktree-ui E2E 34/34、typecheck/lint 0/架构 0/oxfmt 通过。
-- 未开始：P2-07 的 E2E 场景扩展（五阶段/来源标注新断言）；M3～M5（macOS/Linux 门禁需对应平台）。
+- P2-07 已完成（7924758）：E2E 断言扩展。fixture 增 `beginManagedPreparation`/`advanceToDependencies`（托管环境投影：environmentRef + runtimeStage + toolSource 可切换）；两个新用例：五阶段卡（工具步 running、空间/检出 done、依赖步存在、来源标注可见、推进依赖后工具步 done）与来源标注切换（project-declaration/app-default/partial-host 三种文案）。注意：卡片隐藏必须走既有取消链路（先点"改用本地目录"登记 intent，Host 结算后草稿重置），直接调 finishCancel 不卸载卡——首版用例即因此失败。验证：preparation-fork E2E 10/10。
+- 未开始：M3（服务/端口/数据）、M4（工作树/候选/回收）、M5（跨端/迁移）——P5-03 的 macOS/Linux 逐平台放行门禁需对应平台环境。
 - M2 剩余工作的边界：P2-07a 需要准备阶段投影协议扩展 + UI 卡片 + E2E（独立大块）；P3～P5 的 macOS/Linux 门禁（P5-03 逐平台放行）本机 Windows x64 无法执行，需对应平台环境。
 
 ### 3.3 M2：执行消费者贯通
