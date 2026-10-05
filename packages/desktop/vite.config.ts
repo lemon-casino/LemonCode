@@ -186,7 +186,9 @@ export default defineConfig(({ mode }) => {
       },
       dedupe: ["react", "react-dom", "lucide-react"],
     },
-    server: { port: 5174, strictPort: true },
+    // M3 P3-04（spec §11.2）：renderer 端口可被环境变量覆盖（每环境并行实例），
+    // 缺省保持 5174 + strictPort，普通启动行为不变。
+    server: { port: Number(process.env.LCODE_DESKTOP_PORT ?? 5174), strictPort: true },
     define: {
       __LCODE_ENDPOINT_ENV__: JSON.stringify(pickProductEndpointEnv(env)),
       __LCODE_VERSION__: JSON.stringify(buildMetadata.appVersion),

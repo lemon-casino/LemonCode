@@ -54,7 +54,9 @@ export default defineConfig(({ mode }) => {
       },
     },
     server: {
-      port: 5173,
+      // M3 P3-04（spec §11.2）：端口可被环境变量覆盖（每环境并行实例），
+      // 缺省保持 5173，普通启动行为不变。
+      port: Number(process.env.LCODE_WEB_PORT ?? 5173),
       proxy: {
         // Web 登录本地调试时，OAuth token 交换必须先命中线上同源接口。
         // 该专用代理放在 `/api` 通配代理之前，避免被转发到本地 server 导致 404。
@@ -63,9 +65,9 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: true,
         },
-        // 将 /ws 和 /api 请求代理到 server（默认 3030 端口）
-        "/ws": { target: "ws://localhost:3030", ws: true },
-        "/api": { target: "http://localhost:3030" },
+        // 将 /ws 和 /api 请求代理到 server（缺省 3030，可按环境覆盖）
+        "/ws": { target: `ws://localhost:${process.env.LCODE_SERVER_PORT ?? 3030}`, ws: true },
+        "/api": { target: `http://localhost:${process.env.LCODE_SERVER_PORT ?? 3030}` },
       },
     },
     optimizeDeps: {
