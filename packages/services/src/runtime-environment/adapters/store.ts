@@ -163,3 +163,30 @@ export function runtimeEnvironmentDataDirs(dataDir: string): {
     packageStore: join(base, "package-store"),
   };
 }
+
+/**
+ * 单环境的资源目录映射（spec §8.3，M3 P3-05）：temp/cache/data/logs 按环境 ID 隔离，
+ * 永不进 checkout、不共享可写产物。environmentId 必须是受管 32 hex；防路径穿越，
+ * 拒绝把资源目录指到受管根之外。
+ */
+export function environmentResourceDirs(
+  dataDir: string,
+  environmentId: string,
+): {
+  environmentRoot: string;
+  temp: string;
+  cache: string;
+  data: string;
+  logs: string;
+} {
+  if (!/^[a-f0-9]{32}$/.test(environmentId))
+    throw new Error("Invalid runtime environment id for resource dirs");
+  const base = resolve(runtimeEnvironmentDataDirs(dataDir).root, "resources", environmentId);
+  return {
+    environmentRoot: base,
+    temp: join(base, "temp"),
+    cache: join(base, "cache"),
+    data: join(base, "data"),
+    logs: join(base, "logs"),
+  };
+}
