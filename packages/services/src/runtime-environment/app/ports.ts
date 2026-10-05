@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
-import type { FrozenManifest, RuntimeEnvironmentRecord, RuntimePreparationOperation } from "@lcode/shared";
+import type {
+  DependencyReceipt,
+  FrozenManifest,
+  RuntimeEnvironmentRecord,
+  RuntimePreparationOperation,
+} from "@lcode/shared";
 import type { ProjectDeclarations } from "../domain/declarations.js";
 
 /**
@@ -17,6 +22,9 @@ export interface RuntimeEnvironmentStore {
   saveOperation(operation: RuntimePreparationOperation): Promise<void>;
   readManifest(environmentId: string, revision: number): Promise<FrozenManifest | null>;
   saveManifest(environmentId: string, revision: number, manifest: FrozenManifest): Promise<void>;
+  /** 每环境一份最新依赖收据；重装覆盖写（spec §11.1 P2-06）。 */
+  readDependencyReceipt(environmentId: string): Promise<DependencyReceipt | null>;
+  saveDependencyReceipt(receipt: DependencyReceipt): Promise<void>;
   removeEnvironment(id: string): Promise<void>;
 }
 
@@ -35,8 +43,22 @@ export interface DeclarationReaderPort {
   read(cwd: string): Promise<ProjectDeclarations>;
 }
 
+/** 依赖安装执行 port（spec §7：进程属既有执行 owner，环境经 port 协调并保存收据）。 */
+export interface DependencyInstallPort {
+  install(params: {
+    cwd: string;
+    command: string;
+    /** 冻结覆盖键值（pnpm import method、TEMP/TMPDIR、cache 前缀）；spawn 时叠加。 */
+    env: Record<string, string>;
+    onOutput?: (output: string) => Promise<void>;
+  }): Promise<{ exitCode: number; output: string }>;
+}
+
 /** AGENTS.md 身份规则：去重/绑定/持久化一律按 identity key，不按原始路径拼写。 */
-export function identityKeyOf(scope: { workspacePath: string; workspaceIdentity?: string }): string {
+export function identityKeyOf(scope: {
+  workspacePath: string;
+  workspaceIdentity?: string;
+}): string {
   return scope.workspaceIdentity?.trim() || scope.workspacePath;
 }
 

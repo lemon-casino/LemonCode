@@ -293,3 +293,24 @@ export const runtimeEnvironmentResolveContextResultSchema = z
 export type RuntimeEnvironmentResolveContextResult = z.infer<
   typeof runtimeEnvironmentResolveContextResultSchema
 >;
+
+/**
+ * 依赖安装收据（spec §11.1，P2-06）：覆盖声明指纹/锁摘要/Node ABI（版本）/平台；
+ * 不匹配即重装，不能因目录存在跳过安装。
+ */
+export const dependencyReceiptSchema = z
+  .object({
+    environmentId,
+    manager: z.enum(["pnpm", "npm", "yarn", "bun"]),
+    command: text,
+    strategy: z.enum(["frozen", "non-frozen"]),
+    lockDigest: text,
+    declarationDigest: text,
+    nodeVersion: text,
+    platform: z.enum(["windows", "macos", "linux"]),
+    arch: z.enum(["x64", "arm64"]),
+    exitCode: z.number().int(),
+    finishedAt: text,
+  })
+  .strict();
+export type DependencyReceipt = z.infer<typeof dependencyReceiptSchema>;

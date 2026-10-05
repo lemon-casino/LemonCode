@@ -2,16 +2,18 @@ import { readFile, readdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { atomicWritePrivateTextFile, withFileLock } from "@lcode/shared/node";
 import {
+  dependencyReceiptSchema,
   frozenManifestSchema,
   runtimeEnvironmentRecordSchema,
   runtimePreparationOperationSchema,
+  type DependencyReceipt,
   type RuntimeEnvironmentRecord,
 } from "@lcode/shared";
 import { scopeKeyHash, type RuntimeEnvironmentStore } from "../app/ports.js";
 
 /**
  * 环境持久化实现（spec: specs/worktree-runtime-environments.md §8.2/§8.3）。
- * records/operations/manifests 全部在 HostDataRoot 的 runtime-environments/ 下。
+ * records/operations/manifests/receipts 全部在 HostDataRoot 的 runtime-environments/ 下。
  * 严格校验：损坏/未知版本记录明确失败不修成 ready；短记录锁，不覆盖长安装。
  * port 类型在 app/ports.ts（层向：adapters→app 允许）。
  */
@@ -20,6 +22,11 @@ export type { RuntimeEnvironmentStore };
 
 function manifestRecordId(environmentId: string, revision: number): string {
   return scopeKeyHash(["manifest", environmentId, revision]);
+}
+
+function receiptRecordId(environmentId: string): string {
+  // 每环境一份最新依赖收据（重装覆盖写）；按 id 校验读写。
+  return scopeKeyHash(["receipt", environmentId]);
 }
 
 export function createRuntimeEnvironmentStore(dataDir: string): RuntimeEnvironmentStore {
@@ -111,6 +118,16 @@ export function createRuntimeEnvironmentStore(dataDir: string): RuntimeEnvironme
     removeEnvironment: async (id) => {
       recordPath("records", id);
       await rm(recordPath("records", id), { force: true });
+    },
+    readDependencyReceipt: (environmentId) =>
+      readRecord("receipts", receiptRecordId(environmentId), (value) =>
+        dependencyReceiptSchema.parse(value),
+      ),
+    saveDependencyReceipt: async (receipt: DependencyReceipt) => {
+      await atomicWritePrivateTextFile(
+        recordPath("receipts", receiptRecordId(receipt.environmentId)),
+        `${JSON.stringify(dependencyReceiptSchema.parse(receipt), null, 2)}\n`,
+      );
     },
   };
 }

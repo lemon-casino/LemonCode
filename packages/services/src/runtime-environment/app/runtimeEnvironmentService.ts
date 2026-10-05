@@ -11,11 +11,18 @@ import type {
   RuntimeEnvironmentPrepareRequest,
   ResolvedProjectExecutionContext,
 } from "../contract.js";
-import type { RuntimeEnvironmentStore, ToolBackendPort, DeclarationReaderPort } from "./ports.js";
+import type {
+  RuntimeEnvironmentStore,
+  ToolBackendPort,
+  DeclarationReaderPort,
+  DependencyInstallPort,
+} from "./ports.js";
 import { environmentIdFor, operationIdFor } from "./ports.js";
 import { advanceStatus } from "../domain/state.js";
 import { digestDeclarations } from "../domain/declarations.js";
 import { selectToolsForFreeze } from "../domain/selectTools.js";
+import { runDependencyStage } from "./dependencyStage.js";
+import { projectEnvironment } from "./projection.js";
 import { buildFrozenContext, matchEnvironmentForCwd } from "./frozenContext.js";
 
 /**
@@ -36,6 +43,13 @@ export interface RuntimeEnvironmentServiceOptions {
   /** 应用默认工具（无声明时冻结来源标注 app-default，spec §6.1）。 */
   appDefaultTools?: ReadonlyArray<{ key: string; version: string }>;
   backendVersion?: string;
+  /**
+   * 依赖安装 port（spec §11.1，P2-06）；缺省 = 跳过依赖安装阶段（纯工具准备）。
+   * 进程属既有执行 owner；环境经 port 协调并保存收据。
+   */
+  dependencies?: DependencyInstallPort;
+  /** 环境资源根（如 HostDataRoot/runtime-environments/resources），用于环境私有 TEMP。 */
+  dependencyResourceRoot?: string;
 }
 
 const APP_DEFAULTS: ReadonlyArray<{ key: string; version: string }> = [
@@ -90,22 +104,8 @@ export function createRuntimeEnvironmentService(
     return failed;
   }
 
-  async function projection(
-    record: RuntimeEnvironmentRecord,
-  ): Promise<RuntimeEnvironmentProjection> {
-    const manifest = await store.readManifest(record.environmentId, record.currentRevision);
-    return {
-      environmentId: record.environmentId,
-      purpose: record.purpose,
-      status: record.status,
-      currentRevision: record.currentRevision,
-      tools: manifest?.tools ?? [],
-      ...(manifest ? { manifestDigest: manifest.declarationDigest } : {}),
-      ...(manifest ? { installStrategy: manifest.installStrategy } : {}),
-      ...(record.error ? { error: record.error } : {}),
-      updatedAt: record.updatedAt,
-    };
-  }
+  // UI 只读投影（spec §9.2）；实现见 projection.ts，manifest 缺失时工具列表为空。
+  const projection = (record: RuntimeEnvironmentRecord) => projectEnvironment(store, record);
 
   return {
     async getCapabilities(): Promise<RuntimeEnvironmentCapabilities> {
@@ -244,9 +244,28 @@ export function createRuntimeEnvironmentService(
         }
       }
 
-      // ready：状态机推进（依赖阶段 M2 接入实际安装用例，当前直接结算 ready）。
-      const afterInstall = advanceStatus(installing, "step").status;
-      const finalStatus = advanceStatus(afterInstall, "ready").status;
+      // preparingDependencies：依赖安装（spec §11.1，P2-06），编排在 dependencyStage.ts。
+      const preparing = advanceStatus(installing, "step").status;
+      await saveStage(operation, record, preparing);
+      const failedDependency = await runDependencyStage({
+        store,
+        install: options.dependencies,
+        resourceRoot: options.dependencyResourceRoot,
+        workspacePath: params.workspacePath,
+        environmentId: envId,
+        declarations: parsed,
+        declarationDigest: digest,
+        manifestOs: manifest.os,
+        manifestArch: manifest.arch,
+        frozenTools: tools,
+        installedToolPaths: installed,
+        stamp,
+        fail: (error) => failOperation(operation, record, error),
+      });
+      if (failedDependency) return failedDependency;
+
+      // ready：状态机推进（依赖收据成功或非冻结策略后结算）。
+      const finalStatus = advanceStatus(preparing, "ready").status;
       const finalManifest: FrozenManifest = {
         ...manifest,
         tools: manifest.tools.map((tool) =>
