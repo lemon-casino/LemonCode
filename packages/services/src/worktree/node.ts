@@ -24,6 +24,7 @@ export function createWorktreeService(options: WorktreeServiceOptions): IWorktre
         commitSource: options.commitSource,
         collectDiscardSessions: options.collectDiscardSessions,
         discardSessions: options.discardSessions,
+        prepareRuntimeEnvironment: options.prepareRuntimeEnvironment,
         runSetup: options.validate ?? runWorktreeValidation,
         detectSetup: detectWorktreeSetup,
         detectValidation: detectWorktreeValidation,

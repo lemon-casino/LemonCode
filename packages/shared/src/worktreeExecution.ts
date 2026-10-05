@@ -93,6 +93,14 @@ export const worktreeExecutionBindingSchema = z
     updatedAt: text,
     error: z.string().optional(),
     latestIntegrationId: text.optional(),
+    /** 托管运行环境引用（spec: specs/worktree-runtime-environments.md §7/§8.1）；首次执行前持久化。 */
+    environmentRef: z
+      .object({
+        environmentId: z.string().regex(/^[a-f0-9]{32}$/, "environmentId must be a 32-char hex id"),
+        revision: z.number().int().nonnegative(),
+      })
+      .strict()
+      .optional(),
     creationFingerprint: z
       .string()
       .regex(/^[a-f0-9]{32,64}$/)

@@ -292,3 +292,32 @@ export interface ExecutionPort {
   cancelBackgroundTask?(taskId: string): Promise<BackgroundExecutionSnapshot | undefined>;
   close?(): Promise<void>;
 }
+
+/**
+ * 冻结的项目执行上下文（spec: specs/worktree-runtime-environments.md §9.2）。
+ * 一命令一份不可变值；resourceLeaseToken 仅内部传递，不得进入投影或日志。
+ */
+export interface ProjectExecutionContext {
+  environmentId: string;
+  revision: number;
+  manifestDigest: string;
+  executionScope: { workspacePath: string; workspaceIdentity?: string };
+  cwd: string;
+  toolPaths: Readonly<Record<string, string>>;
+  envOverlay: ExecutionEnvOverlay;
+  resourceLeaseToken: string;
+}
+
+/**
+ * 环境解析 port（spec §9.3）：每次真实 spawn 前按绑定解析冻结上下文。
+ * 经 contracts 公共出口注入；不得引用运行环境服务实现。
+ */
+export interface ProjectEnvironmentResolverPort {
+  resolveContext(params: {
+    workspacePath: string;
+    workspaceIdentity?: string;
+    environmentId: string;
+    /** 消费者标识（session/terminal/mcp/service/candidate），用于引用结算与诊断。 */
+    consumer: string;
+  }): Promise<ProjectExecutionContext>;
+}

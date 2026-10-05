@@ -1,11 +1,6 @@
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { resolve } from "node:path";
 import { replaceRemoteWorkspaceIdentityPath } from "@lcode/shared";
-import type {
-  WorktreeBinding,
-  WorktreeCapabilities,
-  WorktreePrepareRequest,
-  WorktreeScope,
-} from "../contract.js";
+import type { WorktreeBinding, WorktreePrepareRequest, WorktreeScope } from "../contract.js";
 import type { WorktreeContext } from "./ports.js";
 import { prepareWorktreeEnvironment } from "./setup.js";
 import { registerWorktreeSessionAlias } from "./sessionAliases.js";
@@ -13,6 +8,7 @@ import type { CheckoutCoordinator } from "../nodeTypes.js";
 import { assertPreparationActive, preparationProgress } from "./preparation.js";
 import { captureForkSource } from "./forkSource.js";
 import { reserveTaskBranch } from "./branchNaming.js";
+import { worktreeCapability, mappedSourcePath } from "./capability.js";
 
 export function bindingKey(context: WorktreeContext, scope: WorktreeScope & { taskId: string }) {
   return context.store.key(
@@ -21,10 +17,7 @@ export function bindingKey(context: WorktreeContext, scope: WorktreeScope & { ta
 }
 
 function mappedPath(root: string, checkout: string, path: string) {
-  const child = relative(root, resolve(path));
-  if (child === ".." || child.startsWith(`..${sep}`) || isAbsolute(child))
-    throw new Error("Source folders outside the Git repository cannot use a worktree");
-  return resolve(checkout, child);
+  return mappedSourcePath(root, checkout, path);
 }
 
 export function createWorktreeLifecycle(
@@ -32,43 +25,8 @@ export function createWorktreeLifecycle(
   coordinator: CheckoutCoordinator,
 ) {
   const { git, store } = context;
-  async function capability(
-    params: WorktreeScope & { sourceFolderPaths?: string[] },
-  ): Promise<WorktreeCapabilities> {
-    try {
-      const info = await git.inspect(params.workspacePath);
-      for (const path of params.sourceFolderPaths ?? []) {
-        mappedPath(info.root, info.root, path);
-        const source = await git.inspect(path);
-        if (source.commonDirectory !== info.commonDirectory)
-          throw new Error("Source folders must belong to one Git repository");
-      }
-      const superproject = await git.command(info.root, [
-        "rev-parse",
-        "--show-superproject-working-tree",
-      ]);
-      if (superproject) throw new Error("Submodule worktrees are not supported");
-      return {
-        supported: true,
-        create: true,
-        integrate: Boolean(info.branch),
-        archive: true,
-        restore: true,
-        repositoryRoot: info.root,
-        currentBranch: info.branch,
-        head: info.head,
-      };
-    } catch (error) {
-      return {
-        supported: false,
-        create: false,
-        integrate: false,
-        archive: false,
-        restore: false,
-        reason: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
+  const capability = (params: WorktreeScope & { sourceFolderPaths?: string[] }) =>
+    worktreeCapability(git, params);
   async function ready(binding: WorktreeBinding) {
     await store.assertManagedPath(binding.checkoutPath);
     if (!(await git.registered(binding.repositoryRoot, binding.checkoutPath)))
@@ -259,6 +217,31 @@ export function createWorktreeLifecycle(
           "environment",
           `Worktree created at ${binding.checkoutPath}.\n`,
         );
+        // 托管运行环境：首次执行前持久化环境引用（spec §7 规则 3）。
+        // 未注入 port = Host 不支持托管，保持现状语义；注入后失败则准备整体失败，
+        // 不静默回退非托管执行（spec §9.5：缺能力明确报告，不伪造托管成功）。
+        if (context.prepareRuntimeEnvironment && !binding.environmentRef) {
+          const environment = await context.prepareRuntimeEnvironment({
+            bindingId: binding.id,
+            checkoutPath: binding.checkoutPath,
+            requestId: params.requestId,
+            purpose: "worktree",
+          });
+          binding = {
+            ...binding,
+            environmentRef: {
+              environmentId: environment.environmentId,
+              revision: environment.revision,
+            },
+          };
+          await store.saveBinding(binding);
+          binding = await preparationProgress(
+            context,
+            binding,
+            "environment",
+            `Managed runtime environment ${environment.environmentId} at revision ${environment.revision}.\n`,
+          );
+        }
         if (
           !params.setupCommands &&
           binding.setup?.status === "pending" &&

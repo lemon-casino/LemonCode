@@ -136,6 +136,74 @@ test("cold restore rejects a persisted execution path changed outside its bindin
   );
 });
 
+test("cold restore reconciles the persisted environment reference against its binding", async () => {
+  const envRef = { environmentId: "a".repeat(32), revision: 1 };
+  const reference = {
+    workspacePath: "/tree",
+    workspaceKey: "/tree",
+    executionBindingId: "binding",
+    originWorkspacePath: "/origin",
+    environmentRef: envRef,
+  };
+  const context = {
+    deps: { sessionStore: { sessionEntries: async () => [{ data: reference }] } },
+    requestClient: async () => ({ binding: { ...binding, environmentRef: envRef } }),
+  } as unknown as LCodeProtocolAgentServerContext;
+  const restored = await restoreProtocolExecution(context, {
+    taskId,
+    workspace: original,
+    persistedWorkspace: { workspacePath: "/tree", workspaceKey: "/tree" },
+  });
+  assert.deepEqual(restored.workspace.environmentRef, envRef);
+  // binding 环境引用缺失 → 拒绝恢复，不回退原目录（spec §8.1）。
+  const missingContext = {
+    deps: { sessionStore: { sessionEntries: async () => [{ data: reference }] } },
+    requestClient: async () => ({ binding }),
+  } as unknown as LCodeProtocolAgentServerContext;
+  await assert.rejects(
+    restoreProtocolExecution(missingContext, {
+      taskId,
+      workspace: original,
+      persistedWorkspace: { workspacePath: "/tree", workspaceKey: "/tree" },
+    }),
+    /environment reference/,
+  );
+  // revision 不一致（新代已冻结）同样拒绝旧引用。
+  const staleContext = {
+    deps: { sessionStore: { sessionEntries: async () => [{ data: reference }] } },
+    requestClient: async () => ({
+      binding: { ...binding, environmentRef: { ...envRef, revision: 2 } },
+    }),
+  } as unknown as LCodeProtocolAgentServerContext;
+  await assert.rejects(
+    restoreProtocolExecution(staleContext, {
+      taskId,
+      workspace: original,
+      persistedWorkspace: { workspacePath: "/tree", workspaceKey: "/tree" },
+    }),
+    /environment reference/,
+  );
+});
+
+test("old sessions without an environment reference restore along the original path", async () => {
+  const reference = {
+    workspacePath: "/tree",
+    workspaceKey: "/tree",
+    executionBindingId: "binding",
+    originWorkspacePath: "/origin",
+  };
+  const context = {
+    deps: { sessionStore: { sessionEntries: async () => [{ data: reference }] } },
+    requestClient: async () => ({ binding }),
+  } as unknown as LCodeProtocolAgentServerContext;
+  const restored = await restoreProtocolExecution(context, {
+    taskId,
+    workspace: original,
+    persistedWorkspace: { workspacePath: "/tree", workspaceKey: "/tree" },
+  });
+  assert.equal(restored.workspace.environmentRef, undefined);
+});
+
 test("preparation forwards setup authorization and retains remote attachment identity", async () => {
   let request: Record<string, unknown> | undefined;
   const context = {

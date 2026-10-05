@@ -1984,6 +1984,27 @@ export function createLocalServices(options: {
   const worktreeService = createWorktreeService({
     ...worktreeOptions,
     coordinator: checkoutCoordinator,
+    prepareRuntimeEnvironment: async (params) => {
+      // 托管环境准备失败必须让工作树准备整体失败，不静默回退非托管（spec §9.5）。
+      const operation = await runtimeEnvironmentService.prepare({
+        workspacePath: params.checkoutPath,
+        requestId: params.requestId,
+        purpose: params.purpose,
+        bindingId: params.bindingId,
+      });
+      if (operation.status !== "succeeded")
+        throw new Error(
+          `Runtime environment preparation failed: ${operation.error?.message ?? operation.status}`,
+        );
+      const environment = await runtimeEnvironmentService.get({
+        workspacePath: params.checkoutPath,
+        environmentId: operation.environmentId,
+      });
+      return {
+        environmentId: operation.environmentId,
+        revision: environment?.currentRevision ?? 1,
+      };
+    },
     // 源组合提交已持有源 checkout 许可；通过同一 Git owner 执行，避免再次申请导致自锁。
     commitSource: (request) => rawGitService.commit(request),
     removeDirectory: options.removeWorktreeDirectory,

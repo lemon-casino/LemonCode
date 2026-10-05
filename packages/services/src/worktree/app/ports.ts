@@ -66,4 +66,15 @@ export interface WorktreeContext {
   detectSetup(checkout: string): Promise<string[]>;
   detectValidation(checkout: string): Promise<string[]>;
   copyIgnoredFiles(source: string, checkout: string, paths: string[]): Promise<void>;
+  /**
+   * 托管运行环境生命周期 port（spec: specs/worktree-runtime-environments.md §7）。
+   * 环境事实 owner = RuntimeEnvironmentService；WorktreeService 只经此 port 调用，
+   * 不共享实现。未注入 = Host 不支持托管环境，保持现状语义。
+   */
+  prepareRuntimeEnvironment?: (params: {
+    bindingId: string;
+    checkoutPath: string;
+    requestId: string;
+    purpose: "worktree";
+  }) => Promise<{ environmentId: string; revision: number }>;
 }

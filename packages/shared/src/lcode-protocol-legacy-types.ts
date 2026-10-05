@@ -40,6 +40,17 @@ export const lcodeWorkspaceRefSchema = z
     originWorkspaceIdentity: nonEmptyString.optional(),
     workspaceIdentity: nonEmptyString.optional(),
     remoteSessionId: nonEmptyString.optional(),
+    /**
+     * 托管运行环境引用（spec: specs/worktree-runtime-environments.md §8.1）。
+     * 可选：旧会话无此字段走原路径；restore 时与 Host binding 的引用对账，不一致拒绝。
+     */
+    environmentRef: z
+      .object({
+        environmentId: z.string().regex(/^[a-f0-9]{32}$/),
+        revision: z.number().int().nonnegative(),
+      })
+      .strict()
+      .optional(),
     workspaceKey: nonEmptyString,
   })
   .strict();

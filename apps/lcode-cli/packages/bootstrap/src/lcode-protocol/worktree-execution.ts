@@ -30,6 +30,7 @@ function bindingWorkspace(binding: WorktreeExecutionBinding): LCodeWorkspaceRef 
     ...(binding.originalWorkspaceIdentity
       ? { originWorkspaceIdentity: binding.originalWorkspaceIdentity }
       : {}),
+    ...(binding.environmentRef ? { environmentRef: binding.environmentRef } : {}),
   };
 }
 
@@ -190,6 +191,20 @@ export async function restoreProtocolExecution(
   ) {
     throw new Error(
       "Persisted worktree execution path or binding identity does not match its owner",
+    );
+  }
+  // 环境引用对账（spec: specs/worktree-runtime-environments.md §8.1）：
+  // 持久化引用带 environmentRef 而当前 binding 缺失或不一致 → 拒绝恢复，不回退原目录；
+  // 旧会话（无环境引用）走原路径不报错。
+  if (
+    reference.environmentRef &&
+    (binding.environmentRef?.environmentId !== reference.environmentRef.environmentId ||
+      binding.environmentRef?.revision !== reference.environmentRef.revision)
+  ) {
+    throw new Error(
+      `Persisted worktree environment reference does not match its owner binding: ` +
+        `expected ${reference.environmentRef.environmentId}@${reference.environmentRef.revision}, ` +
+        `got ${binding.environmentRef?.environmentId ?? "none"}@${binding.environmentRef?.revision ?? "none"}`,
     );
   }
   return {

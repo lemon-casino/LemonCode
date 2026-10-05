@@ -31,6 +31,16 @@ export interface WorktreeServiceOptions {
   commitSource?: (
     request: import("@lcode/shared").GitCommitRequest,
   ) => Promise<import("@lcode/shared").GitCommitResult>;
+  /**
+   * 托管运行环境生命周期 port（spec: specs/worktree-runtime-environments.md §7）。
+   * 未注入 = Host 不支持托管环境；注入后环境准备失败则工作树准备整体失败。
+   */
+  prepareRuntimeEnvironment?: (params: {
+    bindingId: string;
+    checkoutPath: string;
+    requestId: string;
+    purpose: "worktree";
+  }) => Promise<{ environmentId: string; revision: number }>;
   dataDir: string;
   git: WorktreeGitPort;
   coordinator?: CheckoutCoordinator;

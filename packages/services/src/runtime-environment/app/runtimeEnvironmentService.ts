@@ -12,11 +12,7 @@ import type {
   RuntimeEnvironmentPrepareRequest,
   ResolvedProjectExecutionContext,
 } from "../contract.js";
-import type {
-  RuntimeEnvironmentStore,
-  ToolBackendPort,
-  DeclarationReaderPort,
-} from "./ports.js";
+import type { RuntimeEnvironmentStore, ToolBackendPort, DeclarationReaderPort } from "./ports.js";
 import { environmentIdFor, operationIdFor } from "./ports.js";
 import { advanceStatus, isConsumableStatus } from "../domain/state.js";
 import { digestDeclarations } from "../domain/declarations.js";
@@ -127,9 +123,7 @@ export function createRuntimeEnvironmentService(
           version: backendVersion,
           available: probe.available,
         },
-        ...(probe.available
-          ? {}
-          : { missingReason: probe.reason ?? "backend-not-installed" }),
+        ...(probe.available ? {} : { missingReason: probe.reason ?? "backend-not-installed" }),
       };
     },
 
@@ -138,9 +132,10 @@ export function createRuntimeEnvironmentService(
       const envId = environmentIdFor(params, params.bindingId, params.purpose);
       const at = stamp();
 
-      // 幂等复用：同 requestId 已有 operation 直接返回/结算取消，不新建环境（spec §10.3）。
+      // 幂等复用（spec §10.3）：succeeded/running 直接返回；cancelled 是结算态不复活；
+      // failed 复用同一 operationId/environmentId 重跑（重试指向原操作，不新建环境）。
       const existing = await store.readOperation(opId);
-      if (existing) {
+      if (existing && existing.status !== "failed") {
         if (!params.cancel) return existing;
         if (existing.status !== "running") return existing;
         const cancelled: RuntimePreparationOperation = {
@@ -208,7 +203,10 @@ export function createRuntimeEnvironmentService(
           stage: "resolvingTools",
           message: issues[0]!.message,
           retryable: issues[0]!.code === "configuration-conflict",
-          detail: { source: issues[0]!.source, ...(issues[0]!.field ? { field: issues[0]!.field } : {}) },
+          detail: {
+            source: issues[0]!.source,
+            ...(issues[0]!.field ? { field: issues[0]!.field } : {}),
+          },
         });
       }
 
@@ -253,7 +251,11 @@ export function createRuntimeEnvironmentService(
         ...manifest,
         tools: manifest.tools.map((tool) =>
           installed[tool.key]
-            ? { ...tool, toolPath: installed[tool.key], installStrategy: "managed-tool-store" as const }
+            ? {
+                ...tool,
+                toolPath: installed[tool.key],
+                installStrategy: "managed-tool-store" as const,
+              }
             : tool,
         ),
       };
@@ -291,8 +293,7 @@ export function createRuntimeEnvironmentService(
       const all = await store.listEnvironments();
       const result: RuntimeEnvironmentProjection[] = [];
       for (const record of all) {
-        const recordIdentity =
-          record.scope.workspaceIdentity?.trim() || record.scope.workspacePath;
+        const recordIdentity = record.scope.workspaceIdentity?.trim() || record.scope.workspacePath;
         const queryIdentity = params.workspaceIdentity?.trim() || params.workspacePath;
         if (recordIdentity !== queryIdentity) continue;
         result.push(await projection(record));
@@ -334,7 +335,10 @@ export function createRuntimeEnvironmentService(
       const record = await readEnvironment(params.environmentId);
       if (!record) return { status: "released" as const };
       // stale 防护：旧代 release 请求不得覆盖新代（spec §9.5）。
-      if (params.expectedRevision !== undefined && params.expectedRevision !== record.currentRevision)
+      if (
+        params.expectedRevision !== undefined &&
+        params.expectedRevision !== record.currentRevision
+      )
         return {
           status: "releaseBlocked" as const,
           reason: `stale-reference: expected revision ${params.expectedRevision}, current ${record.currentRevision}`,
@@ -359,7 +363,9 @@ export function createRuntimeEnvironmentService(
           updatedAt: stamp(),
         });
       });
-      return blocked ? { status: "releaseBlocked" as const, reason: blocked } : { status: "released" as const };
+      return blocked
+        ? { status: "releaseBlocked" as const, reason: blocked }
+        : { status: "released" as const };
     },
 
     async reconcile(params) {
