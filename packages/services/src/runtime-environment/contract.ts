@@ -1,20 +1,19 @@
 import type {
+  FrozenManifest,
+  RuntimeConsumerAcquireParams,
+  RuntimeConsumerReference,
+  RuntimeConsumerReleaseParams,
+  RuntimeConsumerReleaseResult,
+  RuntimeConsumerSessionDeletionParams,
   RuntimeEnvironmentCapabilities,
   RuntimeEnvironmentError,
   RuntimeEnvironmentProjection,
   RuntimeEnvironmentScope,
-  FrozenManifest,
   RuntimePreparationOperation,
 } from "@lcode/shared";
-
 import { createServiceDescriptor } from "../descriptors.js";
 
-/**
- * 运行环境服务公开契约（spec: specs/worktree-runtime-environments.md §9.1）。
- * 环境事实唯一 owner；WorktreeService 经注入 port 调用，不共享实现。
- */
-export interface RuntimeEnvironmentScopeRef extends RuntimeEnvironmentScope {}
-
+export type RuntimeEnvironmentScopeRef = RuntimeEnvironmentScope;
 export interface RuntimeEnvironmentPrepareRequest extends RuntimeEnvironmentScopeRef {
   requestId: string;
   purpose: "worktree" | "integration-candidate";
@@ -22,69 +21,60 @@ export interface RuntimeEnvironmentPrepareRequest extends RuntimeEnvironmentScop
   expectedRevision?: number;
   cancel?: boolean;
 }
-
 export interface RuntimeEnvironmentReleaseRequest extends RuntimeEnvironmentScopeRef {
   requestId: string;
   environmentId: string;
   expectedRevision?: number;
 }
+export interface RuntimeEnvironmentResolveRequest extends RuntimeEnvironmentScopeRef {
+  environmentId: string;
+  consumer: string;
+  expectedRevision?: number;
+  bindingId?: string;
+  cwd?: string;
+}
 
 export interface IRuntimeEnvironmentService {
-  /** 平台/后端/工具类别与缺失原因；缺能力不伪造托管成功。 */
   getCapabilities(params: RuntimeEnvironmentScopeRef): Promise<RuntimeEnvironmentCapabilities>;
-  /**
-   * prepare/retry/cancel：同 requestId 幂等复用操作与环境。
-   * cancel=true 只结算是当前操作，不复活首次输入。
-   */
   prepare(params: RuntimeEnvironmentPrepareRequest): Promise<RuntimePreparationOperation>;
-  /** 按 environmentId 或 requestId 查询投影；查询不产生执行。 */
   get(
-    params: RuntimeEnvironmentScopeRef & {
-      environmentId?: string;
-      requestId?: string;
-    },
+    params: RuntimeEnvironmentScopeRef & { environmentId?: string; requestId?: string },
   ): Promise<RuntimeEnvironmentProjection | null>;
   list(params: RuntimeEnvironmentScopeRef): Promise<RuntimeEnvironmentProjection[]>;
-  /** 每命令一份不可变冻结上下文；resourceLeaseToken 仅内部。 */
+  /** 只读冻结上下文；消费者必须由实际生命周期 owner 显式登记和结算。 */
   resolveContext(
-    params: RuntimeEnvironmentScopeRef & {
-      environmentId: string;
-      /** 消费者标识（session/terminal/mcp/service/candidate），用于引用结算与诊断。 */
-      consumer: string;
-    },
+    params: RuntimeEnvironmentResolveRequest,
   ): Promise<ResolvedProjectExecutionContext>;
-  /**
-   * P2-03：按 checkout cwd 解析所属托管环境（环境记录 scope 即 checkout 路径，
-   * 取最长前缀匹配，含 scope 等于 cwd）。无命中返回 null = 非托管语义，不是错误。
-   */
+  /** 仅本地受信调用可查询；协议授权必须先验证绑定，不能据 cwd 推断授权。 */
   resolveContextForCwd(params: {
     cwd: string;
     consumer: string;
+    workspaceIdentity?: string;
   }): Promise<ResolvedProjectExecutionContext | null>;
-  /**
-   * release：回收收据或阻塞证据；重试指向原 environmentId，不新建资源。
-   * expectedRevision 不匹配返回 stale-reference，不覆盖新代。
-   */
   release(params: RuntimeEnvironmentReleaseRequest): Promise<{
     status: "released" | "releaseBlocked";
     reason?: string;
   }>;
-  /** 崩溃/重启后对账：读原操作与环境记录，不重放安装、不新建任务。 */
   reconcile(params: RuntimeEnvironmentScopeRef & { requestId: string }): Promise<{
     operation: RuntimePreparationOperation | null;
     environment: RuntimeEnvironmentProjection | null;
   }>;
 }
 
-/**
- * 冻结执行上下文（spec §9.2 ResolvedProjectExecutionContext）。
- * 一命令一份不可变值；resourceLeaseToken 仅内部，不能发送给 UI。
- */
+/** 仅组合根注入给可信生命周期 owner，不注册为 UI RPC 服务。 */
+export interface RuntimeEnvironmentConsumerAuthority {
+  acquire(params: RuntimeConsumerAcquireParams): Promise<RuntimeConsumerReference>;
+  release(params: RuntimeConsumerReleaseParams): Promise<RuntimeConsumerReleaseResult>;
+  releaseSessionsAfterDeletion(
+    params: RuntimeConsumerSessionDeletionParams,
+  ): Promise<RuntimeConsumerReleaseResult>;
+}
+
 export interface ResolvedProjectExecutionContext {
   environmentId: string;
   revision: number;
   manifestDigest: string;
-  executionScope: { workspacePath: string; workspaceIdentity?: string };
+  executionScope: RuntimeEnvironmentScope;
   cwd: string;
   toolPaths: Readonly<Record<string, string>>;
   envOverlay: {
@@ -92,15 +82,14 @@ export interface ResolvedProjectExecutionContext {
     set?: Record<string, string>;
     unset?: string[];
   };
+  /** 内部执行载体；UI 投影不返回此字段。 */
   resourceLeaseToken: string;
 }
-
 export interface RuntimeEnvironmentManifestRecord {
   environmentId: string;
   revision: number;
   manifest: FrozenManifest;
 }
-
 export type {
   RuntimeEnvironmentCapabilities,
   RuntimeEnvironmentError,
@@ -108,6 +97,5 @@ export type {
   FrozenManifest,
   RuntimePreparationOperation,
 };
-
 export const IRuntimeEnvironmentService =
   createServiceDescriptor<IRuntimeEnvironmentService>("runtime-environment");

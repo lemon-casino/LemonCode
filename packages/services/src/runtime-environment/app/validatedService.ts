@@ -4,7 +4,6 @@ import {
   runtimeEnvironmentGetParamsSchema,
   runtimeEnvironmentListParamsSchema,
   runtimeEnvironmentReleaseParamsSchema,
-  runtimeEnvironmentResolveContextParamsSchema,
 } from "@lcode/shared";
 
 /**
@@ -20,8 +19,7 @@ export function validateRuntimeEnvironmentRequests(
     get: (params) => service.get(runtimeEnvironmentGetParamsSchema.parse(params)),
     list: (params) => service.list(runtimeEnvironmentListParamsSchema.parse(params)),
     resolveContext: (params) => service.resolveContext(params),
-    resolveContextForCwd: (params) =>
-      service.resolveContextForCwd(runtimeEnvironmentResolveContextParamsSchema.parse(params)),
+    resolveContextForCwd: (params) => service.resolveContextForCwd(params),
     release: (params) => service.release(runtimeEnvironmentReleaseParamsSchema.parse(params)),
     reconcile: (params) => service.reconcile(params),
   };

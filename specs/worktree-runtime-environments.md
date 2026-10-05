@@ -311,15 +311,15 @@ flowchart TD
 
 以下是拟新增方法族，最终按架构约束收敛：
 
-| 方法族                   | 关键输入                                            | 输出                                |
-| ------------------------ | --------------------------------------------------- | ----------------------------------- |
-| capabilities             | scope / Host 路由                                   | 平台、后端、支持类别与缺失原因      |
-| prepare                  | requestId/binding/purpose/expected profile revision | 可查询 operation、环境引用          |
-| get/list                 | 授权 scope、环境/项目引用                           | 环境/资源投影与分页                 |
+| 方法族                   | 关键输入                                                                                                                        | 输出                                |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| capabilities             | scope / Host 路由                                                                                                               | 平台、后端、支持类别与缺失原因      |
+| prepare                  | requestId/binding/purpose/expected profile revision                                                                             | 可查询 operation、环境引用          |
+| get/list                 | 授权 scope、环境/项目引用                                                                                                       | 环境/资源投影与分页                 |
 | resolveContext           | scope/binding/env ref/用途/consumer/许可；CLI 执行前解析按 checkout cwd 定位（环境记录 scope 即 checkout 路径，取最长前缀匹配） | 冻结 cwd/工具 argv/env overlay/摘要 |
-| startService/stopService | requestId/env ref/service ID/expected generation    | 唯一服务收据或明确阻塞              |
-| reconcile                | 原操作/环境/进程引用                                | 实际对账，不创建新任务              |
-| release                  | requestId/binding/expected revision/生命周期授权    | 回收收据或阻塞证据                  |
+| startService/stopService | requestId/env ref/service ID/expected generation                                                                                | 唯一服务收据或明确阻塞              |
+| reconcile                | 原操作/环境/进程引用                                                                                                            | 实际对账，不创建新任务              |
+| release                  | requestId/binding/expected revision/生命周期授权                                                                                | 回收收据或阻塞证据                  |
 
 UI 不可提交任意 env 文件、工具存储路径或 token 作为事实。保留现有通用命令 overlay 契约，但保留键和身份由 owner 校验。
 
@@ -564,6 +564,36 @@ PORT 不是通用接口；框架固定参数、renderer/debug/websocket 都需�
 | 清理受阻                 | 保留 deleting/releaseBlocked 和原因，可重试，不误报成功       |
 | 恢复代码                 | 按平台重新准备，可复用工具缓存，不恢复 PID/端口/running       |
 | 目录手工丢失             | missing 并拒绝原会话续写，不回退原目录                        |
+
+P4-01 实施合同（2026-10-06）：同目录分叉经 session alias 读取父 binding，环境引用随 workspace ref 保留；新树只使用新 binding 的环境，不复制来源环境引用。环境 owner 显式登记消费者，读取上下文本身不暗中创建无法结算的引用。
+
+- `session` 引用用实际 session/task ID（不是共享的 bindingOwnerTaskId），所有者为 binding；prepare/fork/restore 按相同身份幂等登记。关闭 app、归档和 transport 断开不删除会话引用；只有持久删除获确认或工作树删除事务明确结算对应会话后才释放。
+- `process` 引用用每个 app 的唯一 incarnation ID，ownerId 由 Host 的真实 Agent client 代际派生。环境 revision 不充当进程代际；ownerGeneration 由环境 owner 分配，lease 随该代际固定。登记重试返回同一 lease，不覆写另一个 owner。
+- 每个环境的引用登记、精确释放、回收 fence 共用同一持久短锁，持锁重读。释放必须同时匹配 environmentId/kind/id/ownerId/ownerGeneration/lease；迟到释放不能删除新代引用。同名消费者在不同环境中互不影响。released 引用保留墓碑，除显式带前一代际的重新登记外不复活。
+- Host 先按 attached workspace（identity 优先）和 sessionId 查询真实 worktree binding，再核对 environmentId/revision 及 cwd 的规范化目录边界。禁止仅凭 cwd 最长前缀授权，也不信任客户端自报 owner 或 lease；内部 lease 不出 Host 的 UI 投影。
+- 托管执行每次 run/start 都对账，不用 TTL 跳过 fence；Host 不可达、引用过期和回收中均拒绝 spawn。只有没有托管 environmentRef 的旧会话保持原行为。命令自带 overlay 不得覆盖或删除冻结 PATH、临时目录等 owner 字段。
+- 执行端口成功关闭后 CLI 发送精确释放；关闭失败保留引用。Host 仅在 `onProcessCleanupCompleted` 确认真实进程树退出后兜底释放该 client 的 process 引用，不释放 session 引用。已开始的登记与退出交错时，等待登记结算后再清理。
+- 环境 release 持锁写 fence 后检查活消费者与未证实停止的服务；仍有占用则保留 releaseBlocked 及有界诊断，不误报 released。P4-04 的目录回收和会话删除顺序仍须单独完成验收。
+
+```mermaid
+sequenceDiagram
+  participant CLI as CLI 会话与执行端口
+  participant Bridge as Host client 授权桥
+  participant Env as 环境 owner（每环境短锁）
+  participant Proc as 真实进程 owner
+  CLI->>Bridge: sessionId、binding、environmentRef、app incarnation
+  Bridge->>Bridge: 按 attached scope 校验 binding 与 cwd
+  Bridge->>Env: 幂等 retain session / acquire process
+  Env->>Env: 校验 revision/fence，持久化代际与 lease
+  Env-->>Bridge: 冻结上下文与内部票据
+  Bridge-->>CLI: 不含 lease 的上下文
+  CLI->>Proc: run/start
+  CLI->>Proc: close 并等待实际退出
+  Proc-->>CLI: 退出证明
+  CLI->>Bridge: 释放本 app 引用
+  Bridge->>Env: 精确 lease + ownerGeneration 释放
+  Note over Bridge,Proc: RPC 中断不释放；Host 收到进程树回收完成后执行同一清理
+```
 
 删除不要求关联会话活跃或 persisted。其他会话引用需要明确影响并结算执行，不成为永久不能删除的借口。
 

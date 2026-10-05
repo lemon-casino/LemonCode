@@ -91,15 +91,9 @@ export function createAppAdapters(
       processEnv: options.env ?? process.env,
     });
   const ownsExecutionPort = options.executionPort === undefined;
-  // P2-03：托管环境的冻结 overlay 在唯一 env 合成点（prepareChildSpawn）前合并。
-  // 回填到 options.executionPort：workflow child 经 deps.appOptions.executionPort 复用同一
-  // 包装端口（它与应用共享同一 options 对象），否则 child 会另建裸 adapter 绕过冻结环境。
-  const executionPort = options.resolveProjectEnvironmentOverlay
+  const executionPort = options.resolveProjectEnvironmentOverlay && !options.executionPort
     ? createProjectScopedExecutionPort(rawExecutionPort, options.resolveProjectEnvironmentOverlay)
     : rawExecutionPort;
-  if (options.resolveProjectEnvironmentOverlay && options.executionPort === undefined) {
-    options.executionPort = executionPort;
-  }
   const pdfDocumentPort =
     options.pdfDocumentPort ?? createPopplerPdfDocumentAdapter({ executionPort });
   // browser-use 控制端口：仅当宿主（desktop）注入时可用，无本地 fallback（纯 CLI 无浏览器底座）。

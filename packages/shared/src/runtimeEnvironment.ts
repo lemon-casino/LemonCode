@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { runtimeEnvironmentReferenceSchema } from "./runtimeConsumer.js";
 
 /**
  * 运行环境协议类型（spec: specs/worktree-runtime-environments.md §8/§9）。
@@ -8,6 +9,7 @@ import { z } from "zod";
 const text = z.string().trim().min(1);
 const environmentId = z.string().regex(/^[a-f0-9]{32}$/, "environmentId must be a 32-char hex id");
 const revision = z.number().int().nonnegative();
+const scope = { workspacePath: text, workspaceIdentity: text.optional() };
 
 /** 工作树/候选用途；后续可扩展实际本地 checkout（spec §8.1）。 */
 export const runtimeEnvironmentPurposeSchema = z.enum(["worktree", "integration-candidate"]);
@@ -144,7 +146,8 @@ export const runtimePreparationOperationSchema = z
   .strict();
 export type RuntimePreparationOperation = z.infer<typeof runtimePreparationOperationSchema>;
 
-/** UI 只读投影：不含 resourceLeaseToken 与本机工具存储路径（spec §9.2）。 */
+export * from "./runtimeConsumer.js";
+
 export const runtimeEnvironmentProjectionSchema = z
   .object({
     environmentId,
@@ -160,7 +163,7 @@ export const runtimeEnvironmentProjectionSchema = z
         z
           .object({
             serviceId: text,
-            state: z.enum(["starting", "running", "stopping", "stopped", "failed"]),
+            state: z.enum(["starting", "running", "stopping", "stopped", "failed", "unknown"]),
             urls: z.array(text),
           })
           .strict(),
@@ -191,8 +194,6 @@ export const runtimeEnvironmentCapabilitiesSchema = z
 export type RuntimeEnvironmentCapabilities = z.infer<typeof runtimeEnvironmentCapabilitiesSchema>;
 
 // ---- 协议方法族参数/结果（严格 schema，旧 Host 拒收未知字段；全部字段 optional 兼容）----
-
-const scope = { workspacePath: text, workspaceIdentity: text.optional() };
 
 export const runtimeEnvironmentPrepareParamsSchema = z
   .object({
@@ -265,15 +266,16 @@ export type RuntimeEnvironmentCapabilitiesResult = z.infer<
 
 // ---- 执行前上下文解析（P2-03：CLI 每次真实 spawn 前按 cwd 解析所属环境）----
 
-/**
- * 按 checkout cwd 解析（环境记录 scope 即 checkout 路径，取最长前缀匹配）。
- * 无命中返回 context: null —— 非托管 spawn 保持现有继承语义，不是错误。
- */
+/** 显式绑定托管环境的反向请求；旧会话不发送此请求。 */
 export const runtimeEnvironmentResolveContextParamsSchema = z
   .object({
     cwd: text,
-    /** 消费者标识（session/terminal/mcp/service），用于引用结算与诊断。 */
     consumer: text,
+    sessionId: text,
+    executionBindingId: text,
+    workspaceIdentity: text.optional(),
+    remoteSessionId: text.optional(),
+    environmentRef: runtimeEnvironmentReferenceSchema,
   })
   .strict();
 export type RuntimeEnvironmentResolveContextParams = z.infer<
@@ -287,6 +289,7 @@ export const resolvedProjectContextWireSchema = z
     revision,
     manifestDigest: text,
     cwd: text,
+    workspaceIdentity: text.optional(),
     toolPaths: z.record(z.string(), text),
     envOverlay: z
       .object({
@@ -300,7 +303,7 @@ export const resolvedProjectContextWireSchema = z
 export type ResolvedProjectContextWire = z.infer<typeof resolvedProjectContextWireSchema>;
 
 export const runtimeEnvironmentResolveContextResultSchema = z
-  .object({ context: resolvedProjectContextWireSchema.nullable() })
+  .object({ context: resolvedProjectContextWireSchema })
   .strict();
 export type RuntimeEnvironmentResolveContextResult = z.infer<
   typeof runtimeEnvironmentResolveContextResultSchema
@@ -340,7 +343,7 @@ export const managedServiceReceiptSchema = z
     revision,
     serviceId: text,
     generation: z.number().int().positive(),
-    state: z.enum(["starting", "running", "stopping", "stopped", "failed"]),
+    state: z.enum(["starting", "running", "stopping", "stopped", "failed", "unknown"]),
     /** 真实监听地址；running 时必须存在（真实 bind 证据，非探测候选）。 */
     urls: z.array(text),
     pid: z.number().int().positive().optional(),

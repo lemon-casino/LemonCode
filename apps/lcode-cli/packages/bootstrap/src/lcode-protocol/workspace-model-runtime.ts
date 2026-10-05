@@ -88,11 +88,11 @@ export async function createWorkspaceLCodeApp(
     createProviderRuntimeHeadersPort(context, originWorkspaceRef(workspace));
   return context.deps.createLCodeApp({
     ...options,
-    // P2-03：每次真实 spawn 前按 cwd 解析所属托管环境的冻结 overlay；
-    // 无 Host 连接 / 旧 Host 不支持时按非托管继续（解析器内部 fail-open）。
+    // 旧会话没有环境引用时不发新 RPC；显式托管引用的查询失败必须阻止执行。
     resolveProjectEnvironmentOverlay:
-      options.resolveProjectEnvironmentOverlay ??
-      createProjectEnvironmentOverlayResolver(context),
+      options.resolveProjectEnvironmentOverlay ?? (workspace.environmentRef
+        ? createProjectEnvironmentOverlayResolver(context, workspace, String(options.sessionId ?? ""))
+        : undefined),
     platform: context.deps.platform,
     providerRuntimeHeadersPort,
     runtimeConfig: {

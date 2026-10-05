@@ -6,11 +6,7 @@ import type {
   RuntimeEnvironmentRecord,
   RuntimePreparationOperation,
 } from "@lcode/shared";
-import type {
-  IRuntimeEnvironmentService,
-  RuntimeEnvironmentPrepareRequest,
-  ResolvedProjectExecutionContext,
-} from "../contract.js";
+import type { IRuntimeEnvironmentService, RuntimeEnvironmentPrepareRequest } from "../contract.js";
 import type {
   RuntimeEnvironmentStore,
   ToolBackendPort,
@@ -23,7 +19,8 @@ import { digestDeclarations } from "../domain/declarations.js";
 import { selectToolsForFreeze } from "../domain/selectTools.js";
 import { runDependencyStage } from "./dependencyStage.js";
 import { projectEnvironment } from "./projection.js";
-import { buildFrozenContext, matchEnvironmentForCwd } from "./frozenContext.js";
+import { queryFrozenContext, queryFrozenContextForCwd } from "./frozenContext.js";
+import { releaseRuntimeEnvironment } from "./consumerLifecycle.js";
 
 /**
  * 环境生命周期用例（spec: specs/worktree-runtime-environments.md §10）。
@@ -320,63 +317,9 @@ export function createRuntimeEnvironmentService(
       return result;
     },
 
-    async resolveContext(params): Promise<ResolvedProjectExecutionContext> {
-      const record = await readEnvironment(params.environmentId);
-      if (!record) throw new Error(`Runtime environment ${params.environmentId} not found`);
-      return buildFrozenContext(store, record, {
-        workspacePath: params.workspacePath,
-        ...(params.workspaceIdentity ? { workspaceIdentity: params.workspaceIdentity } : {}),
-      });
-    },
-
-    async resolveContextForCwd(params) {
-      // 按 cwd 匹配所属环境（最长前缀）；无命中返回 null = 非托管语义（spec §9.3 P2-03）。
-      const record = matchEnvironmentForCwd(await store.listEnvironments(), params.cwd);
-      if (!record) return null;
-      return buildFrozenContext(store, record, {
-        workspacePath: record.scope.workspacePath,
-        ...(record.scope.workspaceIdentity
-          ? { workspaceIdentity: record.scope.workspaceIdentity }
-          : {}),
-      });
-    },
-
-    async release(params) {
-      const record = await readEnvironment(params.environmentId);
-      if (!record) return { status: "released" as const };
-      // stale 防护：旧代 release 请求不得覆盖新代（spec §9.5）。
-      if (
-        params.expectedRevision !== undefined &&
-        params.expectedRevision !== record.currentRevision
-      )
-        return {
-          status: "releaseBlocked" as const,
-          reason: `stale-reference: expected revision ${params.expectedRevision}, current ${record.currentRevision}`,
-        };
-      let blocked: string | undefined;
-      await store.lock(record.environmentId, async () => {
-        const current = (await readEnvironment(params.environmentId)) ?? record;
-        const releasing = advanceStatus(current.status, "release");
-        if (releasing.invalid) {
-          blocked = `environment ${current.status} cannot release`;
-          return;
-        }
-        await store.saveEnvironment({
-          ...current,
-          status: "releasing",
-          updatedAt: stamp(),
-        });
-        // fence 已拒绝新消费者；进程停止证明由进程 owner 在 M2/M3 接线，当前直接结算。
-        await store.saveEnvironment({
-          ...current,
-          status: "released",
-          updatedAt: stamp(),
-        });
-      });
-      return blocked
-        ? { status: "releaseBlocked" as const, reason: blocked }
-        : { status: "released" as const };
-    },
+    resolveContext: (params) => queryFrozenContext(store, params),
+    resolveContextForCwd: (params) => queryFrozenContextForCwd(store, params),
+    release: (params) => releaseRuntimeEnvironment(store, params, stamp),
 
     async reconcile(params) {
       const operation = await store.readOperation(operationIdFor(params, params.requestId));

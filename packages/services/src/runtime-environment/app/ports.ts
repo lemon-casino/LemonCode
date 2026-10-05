@@ -16,7 +16,7 @@ import type { ProjectDeclarations } from "../domain/declarations.js";
 
 /** 环境持久化 port（spec §8.2/§8.3）。 */
 export interface RuntimeEnvironmentStore {
-  lock(key: string, action: () => Promise<void>): Promise<void>;
+  lock<T>(key: string, action: () => Promise<T>): Promise<T>;
   readEnvironment(id: string): Promise<RuntimeEnvironmentRecord | null>;
   saveEnvironment(record: RuntimeEnvironmentRecord): Promise<void>;
   listEnvironments(): Promise<RuntimeEnvironmentRecord[]>;
@@ -35,6 +35,12 @@ export interface RuntimeEnvironmentStore {
   saveServiceReceipt(receipt: ManagedServiceReceipt): Promise<void>;
   /** 已落收据的服务 ID 清单（投影遍历用，有界：每环境服务数量级）。 */
   listServiceIds(environmentId: string): Promise<string[]>;
+  /** 读写均由环境 owner 持有同一环境锁，列表含防迟到请求的 released 墓碑。 */
+  listConsumers(environmentId: string): Promise<import("@lcode/shared").RuntimeConsumerReference[]>;
+  saveConsumers(
+    environmentId: string,
+    references: import("@lcode/shared").RuntimeConsumerReference[],
+  ): Promise<void>;
   removeEnvironment(id: string): Promise<void>;
 }
 

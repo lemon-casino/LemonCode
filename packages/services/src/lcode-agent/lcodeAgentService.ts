@@ -1,7 +1,7 @@
 import { requestPluginReferenceCatalog } from "#src/lcode-agent/pluginReferenceCatalogRequest.js";
 import { handleWorktreeRequest, isWorktreeRequest } from "./worktreeRequests.js";
 import {
-  handleRuntimeEnvironmentRequest,
+  createRuntimeEnvironmentClient,
   isRuntimeEnvironmentRequest,
 } from "./runtimeEnvironmentRequests.js";
 import { createWorktreeClientLeases } from "./worktreeClientLeases.js";
@@ -869,6 +869,7 @@ interface CreateLCodeAgentServiceOptions extends Omit<
   worktreeService?: import("../worktree/contract.js").IWorktreeService;
   /** 托管运行环境服务（P2-03：CLI 执行前按 cwd 解析冻结上下文）；旧 Host 可缺省。 */
   runtimeEnvironmentService?: import("../runtime-environment/contract.js").IRuntimeEnvironmentService;
+  runtimeEnvironmentConsumers?: import("../runtime-environment/contract.js").RuntimeEnvironmentConsumerAuthority;
   accountProviderConfigSource?: ProviderSource<AccountProviderConfigSnapshot>;
   accountRequestAuthService?: IAccountRequestAuthService;
   /** Desktop Host 请求 Main 登记 Agent 已授权的精确本地视频路径。 */
@@ -1066,10 +1067,18 @@ export function createLCodeAgentService(
     LCodeProtocolClient,
     ReturnType<typeof createWorktreeClientLeases>
   >();
+  const runtimeClients = new WeakMap<
+    LCodeProtocolClient,
+    ReturnType<typeof createRuntimeEnvironmentClient>
+  >();
   const exitedWorktreeClients = new WeakSet<LCodeProtocolClient>();
   const settleWorktreeClient = async (client: LCodeProtocolClient) => {
     exitedWorktreeClients.add(client);
-    await worktreeLeases.get(client)?.disposeAfterProcessExit();
+    try {
+      await worktreeLeases.get(client)?.disposeAfterProcessExit();
+    } finally {
+      await runtimeClients.get(client)?.disposeAfterProcessExit();
+    }
   };
   const processManager = new LCodeAgentProcessManager({
     ...options,
@@ -2170,11 +2179,32 @@ export function createLCodeAgentService(
             });
             return;
           }
-          void handleRuntimeEnvironmentRequest(
-            request.method,
-            request.params,
-            options?.runtimeEnvironmentService,
-          )
+          if (exitedWorktreeClients.has(client)) return;
+          let runtimeClient = runtimeClients.get(client);
+          if (
+            !runtimeClient &&
+            options?.runtimeEnvironmentService &&
+            options.runtimeEnvironmentConsumers &&
+            options.worktreeService
+          ) {
+            runtimeClient = createRuntimeEnvironmentClient({
+              workspace,
+              clientId: `runtime-agent-${randomUUID()}`,
+              service: options.runtimeEnvironmentService,
+              consumers: options.runtimeEnvironmentConsumers,
+              worktrees: options.worktreeService,
+            });
+            runtimeClients.set(client, runtimeClient);
+          }
+          if (!runtimeClient) {
+            void client.respondError(request.id, {
+              code: -32601,
+              message: "Managed runtime environments are unavailable on this Host",
+            });
+            return;
+          }
+          void runtimeClient
+            .handle(request.method, request.params)
             .then(
               (result) => client.respond(request.id, result),
               (error: unknown) =>

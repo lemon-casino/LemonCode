@@ -12,6 +12,7 @@ import {
 import type { LCodeProtocolAgentServerContext } from "./server-types.js";
 import { buildWorkspaceRef } from "./workspace.js";
 import { filesystemMcpRoots, remapFilesystemMcpServers } from "./worktree-mcp-scope.js";
+import { retainRuntimeEnvironmentSession } from "./runtime-environment-session.js";
 
 export const WORKTREE_BINDING_ENTRY = "runtime/worktree_binding";
 export class WorktreePreparationError extends Error {
@@ -89,11 +90,13 @@ export async function prepareProtocolExecution(
     binding.originalWorkspaceIdentity !== origin.workspaceIdentity
   )
     throw new Error("Worktree binding origin mismatch");
+  const workspace = {
+    ...bindingWorkspace(binding),
+    ...(origin.remoteSessionId ? { remoteSessionId: origin.remoteSessionId } : {}),
+  };
+  await retainRuntimeEnvironmentSession(context, workspace, input.taskId);
   return {
-    workspace: {
-      ...bindingWorkspace(binding),
-      ...(origin.remoteSessionId ? { remoteSessionId: origin.remoteSessionId } : {}),
-    },
+    workspace,
     mcpServers: remapFilesystemMcpServers(input.mcpServers, binding, origin.workspacePath),
   };
 }
@@ -207,12 +210,14 @@ export async function restoreProtocolExecution(
         `got ${binding.environmentRef?.environmentId ?? "none"}@${binding.environmentRef?.revision ?? "none"}`,
     );
   }
+  const workspace = {
+    ...bindingWorkspace(binding),
+    ...(reference.bindingOwnerTaskId ? { bindingOwnerTaskId: reference.bindingOwnerTaskId } : {}),
+    ...(reference.remoteSessionId ? { remoteSessionId: reference.remoteSessionId } : {}),
+  };
+  await retainRuntimeEnvironmentSession(context, workspace, input.taskId);
   return {
-    workspace: {
-      ...bindingWorkspace(binding),
-      ...(reference.bindingOwnerTaskId ? { bindingOwnerTaskId: reference.bindingOwnerTaskId } : {}),
-      ...(reference.remoteSessionId ? { remoteSessionId: reference.remoteSessionId } : {}),
-    },
+    workspace,
     mcpServers: remapFilesystemMcpServers(input.mcpServers, binding, reference.originWorkspacePath),
   };
 }

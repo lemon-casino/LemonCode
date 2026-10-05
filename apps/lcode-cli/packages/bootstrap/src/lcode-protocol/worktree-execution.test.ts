@@ -145,9 +145,13 @@ test("cold restore reconciles the persisted environment reference against its bi
     originWorkspacePath: "/origin",
     environmentRef: envRef,
   };
+  const retained: unknown[] = [];
   const context = {
     deps: { sessionStore: { sessionEntries: async () => [{ data: reference }] } },
-    requestClient: async () => ({ binding: { ...binding, environmentRef: envRef } }),
+    requestClient: async (method: string, params: unknown) => {
+      if (method === "runtimeEnvironment/retainSession") { retained.push(params); return { retained: true }; }
+      return { binding: { ...binding, environmentRef: envRef } };
+    },
   } as unknown as LCodeProtocolAgentServerContext;
   const restored = await restoreProtocolExecution(context, {
     taskId,
@@ -155,6 +159,7 @@ test("cold restore reconciles the persisted environment reference against its bi
     persistedWorkspace: { workspacePath: "/tree", workspaceKey: "/tree" },
   });
   assert.deepEqual(restored.workspace.environmentRef, envRef);
+  assert.deepEqual(retained, [{ workspacePath: "/tree", executionBindingId: binding.id, sessionId: taskId, environmentRef: envRef }]);
   // binding 环境引用缺失 → 拒绝恢复，不回退原目录（spec §8.1）。
   const missingContext = {
     deps: { sessionStore: { sessionEntries: async () => [{ data: reference }] } },
@@ -237,6 +242,29 @@ test("preparation forwards setup authorization and retains remote attachment ide
   assert.deepEqual(request?.setupCommands, ["pnpm install"]);
   assert.deepEqual(request?.copyIgnoredPaths, ["local.config"]);
   assert.equal(request?.retrySetup, true);
+});
+
+test("managed fork restore retains the child identity, not the root binding owner", async () => {
+  const environmentRef = { environmentId: "a".repeat(32), revision: 1 };
+  const parent = { workspacePath: "/tree", workspaceKey: "/tree", executionBindingId: binding.id,
+    originWorkspacePath: "/origin", environmentRef };
+  const child = { ...parent, bindingOwnerTaskId: taskId };
+  const retained: Record<string, unknown>[] = [];
+  const context = {
+    deps: { sessionStore: {
+      sessionEntries: async ({ sessionID }: { sessionID: string }) => [{ data: sessionID === "child" ? child : parent }],
+      getSession: async (id: string) => ({ id, path: "/tree", directory: "/tree", ...(id === "child" ? { parentID: taskId } : {}) }),
+    } },
+    requestClient: async (method: string, params: Record<string, unknown>) => {
+      if (method === "runtimeEnvironment/retainSession") { retained.push(params); return { retained: true }; }
+      return method.includes("prepare") ? { ...binding, environmentRef } : { binding: { ...binding, environmentRef } };
+    },
+  } as unknown as LCodeProtocolAgentServerContext;
+  const restored = await restoreProtocolExecution(context, { taskId: "child", workspace: original, persistedWorkspace: parent });
+  assert.deepEqual(restored.workspace.environmentRef, environmentRef);
+  assert.equal(retained.length, 1);
+  assert.equal(retained[0]?.sessionId, "child");
+  assert.equal(restored.workspace.bindingOwnerTaskId, taskId);
 });
 
 test("fork restore registers the persisted child-parent relation and retains the root owner", async () => {

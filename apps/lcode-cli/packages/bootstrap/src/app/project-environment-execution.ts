@@ -1,65 +1,98 @@
 import type { ExecutionEnvOverlay, ExecutionPort, ExecutionRequest } from "@lcode/contracts";
 
-/**
- * 项目冻结环境覆盖（spec: specs/worktree-runtime-environments.md §9.3，P2-03）。
- * 解析器按 spawn cwd 查询所属托管环境；无命中返回 undefined，保持非托管继承语义。
- */
-export type ProjectEnvironmentOverlayResolver = (
-  cwd: string | undefined,
-) => Promise<ExecutionEnvOverlay | undefined>;
+export interface ProjectEnvironmentOverlayResolver {
+  (cwd: string | undefined): Promise<ExecutionEnvOverlay | undefined>;
+  /** 实际执行 owner 关闭成功后才能结算引用。 */
+  close?: () => Promise<void>;
+}
+const protectedKeys = new Set([
+  "PATH", "TEMP", "TMP", "TMPDIR", "LCODE_DATA_BASE_DIR", "LCODE_ENVIRONMENT_ID",
+  "LCODE_ENVIRONMENT_REVISION", "NPM_CONFIG_PACKAGE_IMPORT_METHOD", "NPM_CONFIG_STORE_DIR",
+]);
+const canonicalKey = (key: string, platform: NodeJS.Platform) =>
+  platform === "win32" ? key.toUpperCase() : key;
 
-/**
- * 合并规则（spec §9.3 固定）：请求自带 set 覆盖冻结 set（Hook 插件变量等优先）；
- * unset 取并集；base 以请求为准，缺省继承。
- */
+/** Hook 变量保留；托管 PATH/资源映射不能被请求 overlay 清除或替换。 */
 export function mergeProjectEnvOverlay(
   request: ExecutionRequest,
   frozen: ExecutionEnvOverlay,
+  platform: NodeJS.Platform = process.platform,
 ): ExecutionRequest {
   const own = request.env;
-  const set = { ...frozen.set, ...own?.set };
+  if (own?.base === "empty" && frozen.base !== "empty")
+    throw new Error("Managed execution cannot discard its frozen environment");
+  const ownerKeys = new Map(Object.entries(frozen.set ?? {}).map(([key, value]) =>
+    [canonicalKey(key, platform), { key, value }]));
+  for (const [key, value] of Object.entries(own?.set ?? {})) {
+    const owner = ownerKeys.get(canonicalKey(key, platform));
+    if (owner && protectedKeys.has(owner.key.toUpperCase()) && owner.value !== value)
+      throw new Error(`Managed execution cannot override ${owner.key}`);
+  }
+  for (const key of own?.unset ?? []) {
+    const owner = ownerKeys.get(canonicalKey(key, platform));
+    if (owner && protectedKeys.has(owner.key.toUpperCase()))
+      throw new Error(`Managed execution cannot remove ${owner.key}`);
+  }
+  const set: Record<string, string> = { ...frozen.set };
+  for (const [key, value] of Object.entries(own?.set ?? {})) {
+    for (const existing of Object.keys(set))
+      if (canonicalKey(existing, platform) === canonicalKey(key, platform)) delete set[existing];
+    set[key] = value;
+  }
   const unset = [...new Set([...(frozen.unset ?? []), ...(own?.unset ?? [])])];
-  const base = own?.base ?? frozen.base;
-  const env: ExecutionEnvOverlay = {
-    ...(base ? { base } : {}),
-    ...(Object.keys(set).length ? { set } : {}),
-    ...(unset.length ? { unset } : {}),
-  };
-  return { ...request, env };
+  return { ...request, env: {
+    base: own?.base ?? frozen.base ?? "inherit",
+    ...(Object.keys(set).length ? { set } : {}), ...(unset.length ? { unset } : {}),
+  } };
 }
 
-/**
- * 在执行端口外包装一层：每次 run/start（前台/后台/Hook 均经同一端口）前解析冻结覆盖并合并。
- * 解析失败按非托管继续，不阻塞 spawn（spec §9.5 兼容语义）。
- * 类实例不能靠对象展开复制原型方法，因此逐方法显式委托。
- */
 export function createProjectScopedExecutionPort(
   base: ExecutionPort,
   resolve: ProjectEnvironmentOverlayResolver,
 ): ExecutionPort {
-  const withOverlay = async (request: ExecutionRequest): Promise<ExecutionRequest> => {
-    try {
+  let closing = false;
+  let closePromise: Promise<void> | undefined;
+  const preparing = new Set<Promise<ExecutionRequest>>();
+  const prepare = (request: ExecutionRequest) => {
+    if (closing) return Promise.reject(new Error("Execution port is closing"));
+    const pending = (async () => {
       const frozen = await resolve(request.cwd);
+      if (closing) throw new Error("Execution port closed before spawn");
       return frozen ? mergeProjectEnvOverlay(request, frozen) : request;
-    } catch {
-      return request;
-    }
+    })();
+    preparing.add(pending);
+    return pending.finally(() => preparing.delete(pending));
   };
   const port: ExecutionPort = {
-    run: (request, options) => withOverlay(request).then((value) => base.run(value, options)),
+    async run(request, options) {
+      options?.signal?.throwIfAborted();
+      const resolved = await prepare(request);
+      options?.signal?.throwIfAborted();
+      if (closing) throw new Error("Execution port closed before spawn");
+      return base.run(resolved, options);
+    },
+    close() {
+      if (closePromise) return closePromise;
+      closing = true;
+      closePromise = (async () => {
+        await Promise.allSettled(preparing);
+        if (!base.close) throw new Error("Execution owner cannot confirm shutdown");
+        await base.close();
+        await resolve.close?.();
+      })();
+      return closePromise;
+    },
   };
-  if (base.start)
-    port.start = (request, options) =>
-      withOverlay(request).then((value) => base.start!(value, options));
-  if (base.getBackgroundTask)
-    port.getBackgroundTask = (taskId) => base.getBackgroundTask!(taskId);
-  if (base.waitForBackgroundTask)
-    port.waitForBackgroundTask = (taskId, options) => base.waitForBackgroundTask!(taskId, options);
-  if (base.readBackgroundBashOutput)
-    port.readBackgroundBashOutput = (taskId, sessionId) =>
-      base.readBackgroundBashOutput!(taskId, sessionId);
-  if (base.cancelBackgroundTask)
-    port.cancelBackgroundTask = (taskId) => base.cancelBackgroundTask!(taskId);
-  if (base.close) port.close = () => base.close!();
+  if (base.start) port.start = async (request, options) => {
+    options?.signal?.throwIfAborted();
+    const resolved = await prepare(request);
+    options?.signal?.throwIfAborted();
+    if (closing) throw new Error("Execution port closed before spawn");
+    return base.start!(resolved, options);
+  };
+  if (base.getBackgroundTask) port.getBackgroundTask = (id) => base.getBackgroundTask!(id);
+  if (base.waitForBackgroundTask) port.waitForBackgroundTask = (id, options) => base.waitForBackgroundTask!(id, options);
+  if (base.readBackgroundBashOutput) port.readBackgroundBashOutput = (id, sessionId) => base.readBackgroundBashOutput!(id, sessionId);
+  if (base.cancelBackgroundTask) port.cancelBackgroundTask = (id) => base.cancelBackgroundTask!(id);
   return port;
 }

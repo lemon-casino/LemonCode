@@ -1,14 +1,20 @@
-import { parseRemoteWorkspaceIdentity, type LCodeWorkspaceRef } from "@lcode/shared";
+import {
+  parseRemoteWorkspaceIdentity,
+  type LCodeWorkspaceRef,
+} from "@lcode/shared";
 
 export function buildWorkspaceRef(input: {
   workspaceIdentity?: string;
   workspacePath: string;
+  /** 托管运行环境引用（spec §8.1，M4 P4-01）：fork 复制 binding entry 时不丢字段。 */
+  environmentRef?: LCodeWorkspaceRef["environmentRef"];
 }): LCodeWorkspaceRef {
   const workspaceIdentity = input.workspaceIdentity?.trim() || undefined;
   return {
     workspaceIdentity,
     workspaceKey: workspaceIdentity ?? input.workspacePath,
     workspacePath: input.workspacePath,
+    ...(input.environmentRef ? { environmentRef: input.environmentRef } : {}),
   };
 }
 

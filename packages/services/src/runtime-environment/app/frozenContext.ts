@@ -1,75 +1,127 @@
 import { randomUUID } from "node:crypto";
-import { dirname, resolve, sep } from "node:path";
-import type { RuntimeEnvironmentRecord } from "@lcode/shared";
-import type { ResolvedProjectExecutionContext } from "../contract.js";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
+import { z } from "zod";
+import { runtimeEnvironmentScopeSchema, type RuntimeEnvironmentRecord } from "@lcode/shared";
+import type {
+  ResolvedProjectExecutionContext,
+  RuntimeEnvironmentResolveRequest,
+} from "../contract.js";
 import { isConsumableStatus } from "../domain/state.js";
-import type { RuntimeEnvironmentStore } from "./ports.js";
+import { identityKeyOf, type RuntimeEnvironmentStore } from "./ports.js";
 
-/**
- * 冻结上下文构建与 cwd 归属匹配（spec §9.2/§9.3，P2-03）。
- * 从 app service 抽出保持文件有界；纯查询：读 manifest 记录，不写状态、不创建资源。
- */
+const text = z.string().trim().min(1).max(4096);
+const querySchema = runtimeEnvironmentScopeSchema
+  .extend({
+    environmentId: z.string().regex(/^[a-f0-9]{32}$/),
+    consumer: text,
+    expectedRevision: z.number().int().positive().optional(),
+    bindingId: text.optional(),
+    cwd: text.optional(),
+  })
+  .strict();
+const cwdQuerySchema = z
+  .object({ cwd: text, consumer: text, workspaceIdentity: text.optional() })
+  .strict();
 
-/**
- * 按 checkout cwd 匹配所属环境：环境记录 scope 即 checkout 路径，
- * 命中条件为路径相等或位于其下（分隔符边界），取最长前缀；非消费态跳过。
- */
+function normalized(path: string): string {
+  const absolute = resolve(path);
+  return process.platform === "win32" ? absolute.toLowerCase() : absolute;
+}
+
+function contains(root: string, path: string): boolean {
+  const child = relative(normalized(root), normalized(path));
+  return child === "" || (child !== ".." && !child.startsWith(`..${sep}`) && !isAbsolute(child));
+}
+
+/** 匹配包含回收中记录；不能跳过 fence 后把受管目录误当作非托管。 */
 export function matchEnvironmentForCwd(
   records: RuntimeEnvironmentRecord[],
   cwd: string,
 ): RuntimeEnvironmentRecord | null {
-  const normalize = (value: string) =>
-    process.platform === "win32" ? resolve(value).toLowerCase() : resolve(value);
-  const target = normalize(cwd);
-  let best: RuntimeEnvironmentRecord | null = null;
-  let bestLength = -1;
-  for (const record of records) {
-    if (!isConsumableStatus(record.status)) continue;
-    const scopePath = normalize(record.scope.workspacePath);
-    if (target !== scopePath && !target.startsWith(scopePath + sep)) continue;
-    if (scopePath.length > bestLength) {
-      best = record;
-      bestLength = scopePath.length;
-    }
-  }
-  return best;
+  const matches = records.filter((record) => contains(record.scope.workspacePath, cwd));
+  matches.sort((left, right) => right.scope.workspacePath.length - left.scope.workspacePath.length);
+  if (
+    matches.length > 1 &&
+    normalized(matches[0]!.scope.workspacePath) === normalized(matches[1]!.scope.workspacePath)
+  )
+    throw new Error("scope-mismatch: ambiguous runtime environment path");
+  return matches[0] ?? null;
 }
 
-/** 每命令一份不可变冻结上下文；resourceLeaseToken 仅内部，不进协议与 UI（spec §9.2）。 */
+export async function queryFrozenContext(
+  store: RuntimeEnvironmentStore,
+  input: RuntimeEnvironmentResolveRequest,
+): Promise<ResolvedProjectExecutionContext> {
+  const params = querySchema.parse(input);
+  return store.lock(params.environmentId, async () => {
+    const record = await store.readEnvironment(params.environmentId);
+    if (!record) throw new Error("stale-reference: runtime environment not found");
+    if (
+      identityKeyOf(record.scope) !== identityKeyOf(params) ||
+      normalized(record.scope.workspacePath) !== normalized(params.workspacePath)
+    )
+      throw new Error("scope-mismatch: runtime environment scope differs");
+    if (params.bindingId !== undefined && params.bindingId !== record.bindingId)
+      throw new Error("scope-mismatch: runtime environment binding differs");
+    if (params.expectedRevision !== undefined && params.expectedRevision !== record.currentRevision)
+      throw new Error("stale-reference: runtime environment revision differs");
+    const cwd = params.cwd ?? params.workspacePath;
+    if (!isAbsolute(cwd) || !contains(record.scope.workspacePath, cwd))
+      throw new Error("scope-mismatch: execution cwd leaves the bound environment");
+    return buildFrozenContext(store, record, record.scope, cwd);
+  });
+}
+
+export async function queryFrozenContextForCwd(
+  store: RuntimeEnvironmentStore,
+  input: z.infer<typeof cwdQuerySchema>,
+): Promise<ResolvedProjectExecutionContext | null> {
+  const params = cwdQuerySchema.parse(input);
+  const records = (await store.listEnvironments()).filter(
+    (record) =>
+      (record.scope.workspaceIdentity?.trim() || "") === (params.workspaceIdentity?.trim() || ""),
+  );
+  const record = matchEnvironmentForCwd(records, params.cwd);
+  if (!record) return null;
+  return queryFrozenContext(store, {
+    ...record.scope,
+    environmentId: record.environmentId,
+    consumer: params.consumer,
+    cwd: params.cwd,
+  });
+}
+
+/** 只读上下文；环境事实和引用代际由各自 owner 在同一环境锁内裁决。 */
 export async function buildFrozenContext(
   store: RuntimeEnvironmentStore,
   record: RuntimeEnvironmentRecord,
   executionScope: { workspacePath: string; workspaceIdentity?: string },
+  cwd = executionScope.workspacePath,
 ): Promise<ResolvedProjectExecutionContext> {
   if (!isConsumableStatus(record.status))
     throw new Error(
       `Runtime environment ${record.environmentId} is ${record.status}, not consumable`,
     );
   const manifest = await store.readManifest(record.environmentId, record.currentRevision);
-  if (!manifest)
-    throw new Error(`Runtime environment ${record.environmentId} has no frozen manifest`);
+  if (!manifest) throw new Error("stale-reference: frozen manifest is missing");
   const toolPaths: Record<string, string> = {};
-  for (const tool of manifest.tools) {
-    if (tool.toolPath) toolPaths[tool.key] = tool.toolPath;
-  }
-  // PATH 前缀 = 冻结工具目录（spec §9.2：实际 spawn 的工具版本与 manifest 一致）。
-  // base:"inherit" 表示 spawn 时继承宿主环境；set.PATH 在其上叠加工具目录前缀，
-  // 不修改 Host/Agent process.env（spec §16.1）。
-  const toolDirs = [...new Set(Object.values(toolPaths).map((toolPath) => dirname(toolPath)))];
+  for (const tool of manifest.tools) if (tool.toolPath) toolPaths[tool.key] = tool.toolPath;
+  const toolDirs = [...new Set(Object.values(toolPaths).map((path) => dirname(path)))];
   const pathKey = process.platform === "win32" ? "Path" : "PATH";
   const delimiter = process.platform === "win32" ? ";" : ":";
-  const hostPath = process.env[pathKey] ?? process.env.PATH ?? "";
+  const inherited =
+    Object.entries(process.env).find(([key]) => key.toUpperCase() === "PATH")?.[1] ?? "";
   return {
     environmentId: record.environmentId,
     revision: record.currentRevision,
     manifestDigest: manifest.declarationDigest,
     executionScope,
-    cwd: executionScope.workspacePath,
+    cwd,
     toolPaths,
     envOverlay: {
       base: "inherit",
       set: toolDirs.length
-        ? { [pathKey]: [...toolDirs, hostPath].filter(Boolean).join(delimiter) }
+        ? { [pathKey]: [...toolDirs, inherited].filter(Boolean).join(delimiter) }
         : {},
       unset: [],
     },

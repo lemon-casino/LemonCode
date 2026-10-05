@@ -6,6 +6,7 @@ import {
   dependencyReceiptSchema,
   frozenManifestSchema,
   managedServiceReceiptSchema,
+  runtimeConsumerReferenceSchema,
   runtimeEnvironmentRecordSchema,
   runtimePreparationOperationSchema,
   type DependencyReceipt,
@@ -41,6 +42,30 @@ function serviceIndexRecordId(environmentId: string): string {
   return scopeKeyHash(["service-index", environmentId]);
 }
 
+const consumerListSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    consumers: z.array(runtimeConsumerReferenceSchema).max(4096),
+  })
+  .strict();
+
+function consumerRecordId(environmentId: string): string {
+  if (!/^[a-f0-9]{32}$/.test(environmentId)) throw new Error("Invalid consumer environment id");
+  return scopeKeyHash(["consumers", environmentId]);
+}
+
+function parseConsumers(value: unknown, environmentId: string) {
+  const record = consumerListSchema.parse(value);
+  const keys = new Set<string>();
+  for (const reference of record.consumers) {
+    const key = JSON.stringify([reference.kind, reference.id]);
+    if (reference.environmentId !== environmentId || keys.has(key))
+      throw new Error("Consumer record scope mismatch or duplicate identity");
+    keys.add(key);
+  }
+  return record;
+}
+
 export function createRuntimeEnvironmentStore(dataDir: string): RuntimeEnvironmentStore {
   const root = resolve(dataDir);
   const recordPath = (kind: string, id: string) => {
@@ -72,9 +97,8 @@ export function createRuntimeEnvironmentStore(dataDir: string): RuntimeEnvironme
   }
 
   return {
-    async lock(key, action) {
-      await withFileLock(recordPath("locks", key), action, { lockMaxWaitMs: 30_000 });
-    },
+    lock: (key, action) =>
+      withFileLock(recordPath("locks", key), action, { lockMaxWaitMs: 30_000 }),
     readEnvironment: (id) =>
       readRecord("records", id, (value) => {
         const record = runtimeEnvironmentRecordSchema.parse(value);
@@ -167,6 +191,19 @@ export function createRuntimeEnvironmentStore(dataDir: string): RuntimeEnvironme
         z.object({ serviceIds: z.array(z.string().min(1)) }).parse(value),
       );
       return index?.serviceIds ?? [];
+    },
+    listConsumers: async (environmentId) => {
+      const value = await readRecord("consumers", consumerRecordId(environmentId), (value) =>
+        parseConsumers(value, environmentId),
+      );
+      return value?.consumers ?? [];
+    },
+    saveConsumers: async (environmentId, consumers) => {
+      const value = parseConsumers({ schemaVersion: 1, consumers }, environmentId);
+      await atomicWritePrivateTextFile(
+        recordPath("consumers", consumerRecordId(environmentId)),
+        `${JSON.stringify(value)}\n`,
+      );
     },
   };
 }

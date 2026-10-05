@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { MessageWithParts } from "@lcode/contracts";
+import { createSessionId, type MessageWithParts } from "@lcode/contracts";
 import { createSidebarForkHost } from "./v4-bridge-sidebar-fork.js";
 import { prepareForkWorktree } from "./worktree-fork-execution.js";
 import type {
@@ -106,6 +106,33 @@ test("sidebar native command keeps decision revision, owner and workspace mode",
   } as CommandEnvelope);
   assert.deepEqual(received, { ...options, workspaceMode: "worktree" });
   assert.equal(result?.type, "forkSession");
+});
+
+test("new-tree fork retains its new environment, never the source reference", async () => {
+  const sourceRef = { environmentId: "a".repeat(32), revision: 1 };
+  const newRef = { environmentId: "b".repeat(32), revision: 1 };
+  const retained: Record<string, unknown>[] = [];
+  const record = {
+    workspace: { workspacePath: "/origin", workspaceKey: "/origin", environmentRef: sourceRef },
+    app: { sessionId: "parent" }, executionMcpServers: [],
+  } as unknown as LCodeProtocolSessionRecord;
+  const context = {
+    deps: { sessionStore: { getSession: async () => ({ title: "fork" }) } },
+    requestClient: async (method: string, params: Record<string, unknown>) => {
+      if (method === "worktree/getBinding") return { binding: null };
+      if (method === "runtimeEnvironment/retainSession") { retained.push(params); return { retained: true }; }
+      return {
+        status: "ready", taskId: String(createSessionId("new-tree")), id: "new-binding",
+        originalWorkspacePath: "/origin", workspacePath: "/new-tree", checkoutPath: "/new-tree",
+        repositoryRoot: "/origin", environmentRef: newRef,
+      };
+    },
+  } as unknown as LCodeProtocolAgentServerContext;
+  const prepared = await prepareForkWorktree(context, record, "new-tree");
+  assert.deepEqual(prepared.workspace.environmentRef, newRef);
+  assert.equal(retained.length, 1);
+  assert.deepEqual(retained[0]?.environmentRef, newRef);
+  assert.equal(retained[0]?.sessionId, prepared.taskId);
 });
 
 test("new worktree fork refuses running sources and rejects foreign bindings before child commit", async () => {

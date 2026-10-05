@@ -10,6 +10,7 @@ import type {
 } from "./server-types.js";
 import { buildWorkspaceRef } from "./workspace.js";
 import { filesystemMcpRoots, remapFilesystemMcpServers } from "./worktree-mcp-scope.js";
+import { retainRuntimeEnvironmentSession } from "./runtime-environment-session.js";
 
 export async function prepareForkWorktree(
   context: LCodeProtocolAgentServerContext,
@@ -81,6 +82,7 @@ export async function prepareForkWorktree(
     originWorkspaceIdentity: binding.originalWorkspaceIdentity,
     ...(source.remoteSessionId ? { remoteSessionId: source.remoteSessionId } : {}),
   };
+  await retainRuntimeEnvironmentSession(context, workspace, taskId);
   return {
     taskId,
     workspace,

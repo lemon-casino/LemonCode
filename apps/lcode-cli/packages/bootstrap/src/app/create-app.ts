@@ -153,7 +153,7 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
     const workflowDeps = {
       skillPort,
       agentTelemetry: modelTelemetry.agentExecution,
-      appOptions: options,
+      appOptions: { ...options, executionPort },
       appVersion,
       artifactStore,
       configResult,

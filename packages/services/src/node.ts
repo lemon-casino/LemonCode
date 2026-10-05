@@ -12,7 +12,7 @@ import { getAppConfigDir as resolveAppConfigDir } from "./paths.js";
 import { IWorktreeService } from "./worktree/contract.js";
 import { createWorktreeService, createCheckoutCoordinator } from "./worktree/node.js";
 import { IRuntimeEnvironmentService } from "./runtime-environment/contract.js";
-import { createRuntimeEnvironmentServiceHost } from "./runtime-environment/node.js";
+import { createRuntimeEnvironmentHost } from "./runtime-environment/node.js";
 import { coordinateGitCheckoutWrites } from "./git/gitCheckoutCoordination.js";
 import { createWorktreeGitPort } from "./git/worktreeGitPort.js";
 export { createWorktreeService, createCheckoutCoordinator } from "./worktree/node.js";
@@ -1977,9 +1977,8 @@ export function createLocalServices(options: {
     git: createWorktreeGitPort(),
   };
   // 运行环境资源放 HostDataRoot 下与 worktrees/ 同级；不改 worktreeOptions.dataDir（spec §8.3）。
-  const runtimeEnvironmentService = createRuntimeEnvironmentServiceHost(
-    join(resolveAppConfigDir(), "runtime-environments"),
-  );
+  const { service: runtimeEnvironmentService, consumers: runtimeEnvironmentConsumers } =
+    createRuntimeEnvironmentHost(join(resolveAppConfigDir(), "runtime-environments"));
   const checkoutCoordinator = createCheckoutCoordinator(worktreeOptions);
   const worktreeService = createWorktreeService({
     ...worktreeOptions,
@@ -2062,6 +2061,14 @@ export function createLocalServices(options: {
           sessionIds,
         },
       });
+      if (binding.environmentRef) {
+        await runtimeEnvironmentConsumers.releaseSessionsAfterDeletion({
+          workspacePath: binding.checkoutPath,
+          environmentId: binding.environmentRef.environmentId,
+          bindingId: binding.id,
+          sessionIds,
+        });
+      }
       for (const taskId of sessionIds) {
         await lcodeTaskService.deleteTask({
           taskId,
@@ -2081,6 +2088,7 @@ export function createLocalServices(options: {
   const lcodeAgentService = createLCodeAgentService({
     worktreeService,
     runtimeEnvironmentService,
+    runtimeEnvironmentConsumers,
     ...(agentAccountProviderConfigSource
       ? { accountProviderConfigSource: agentAccountProviderConfigSource }
       : {}),
