@@ -154,6 +154,18 @@ export const runtimeEnvironmentProjectionSchema = z
     tools: z.array(frozenToolSchema),
     manifestDigest: text.optional(),
     installStrategy: frozenManifestSchema.shape.installStrategy.optional(),
+    /** 托管服务地址事实（spec §12.3，M3 P3-06）：只读投影，手机预览经平台通路消费。 */
+    services: z
+      .array(
+        z
+          .object({
+            serviceId: text,
+            state: z.enum(["starting", "running", "stopping", "stopped", "failed"]),
+            urls: z.array(text),
+          })
+          .strict(),
+      )
+      .optional(),
     error: runtimeEnvironmentErrorSchema.optional(),
     updatedAt: text,
   })

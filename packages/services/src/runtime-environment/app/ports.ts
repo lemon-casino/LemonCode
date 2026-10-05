@@ -33,6 +33,8 @@ export interface RuntimeEnvironmentStore {
     serviceId: string,
   ): Promise<ManagedServiceReceipt | null>;
   saveServiceReceipt(receipt: ManagedServiceReceipt): Promise<void>;
+  /** 已落收据的服务 ID 清单（投影遍历用，有界：每环境服务数量级）。 */
+  listServiceIds(environmentId: string): Promise<string[]>;
   removeEnvironment(id: string): Promise<void>;
 }
 

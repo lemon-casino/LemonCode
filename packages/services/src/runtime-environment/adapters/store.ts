@@ -1,5 +1,6 @@
 import { readFile, readdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
+import { z } from "zod";
 import { atomicWritePrivateTextFile, withFileLock } from "@lcode/shared/node";
 import {
   dependencyReceiptSchema,
@@ -33,6 +34,11 @@ function receiptRecordId(environmentId: string): string {
 function serviceRecordId(environmentId: string, serviceId: string): string {
   // 每环境每服务一份最新收据（spec §12.1）；serviceId 是调用方受控字符串，进哈希前不落盘。
   return scopeKeyHash(["service", environmentId, serviceId]);
+}
+
+function serviceIndexRecordId(environmentId: string): string {
+  // 每环境服务 ID 索引（serviceId 哈希后不可反查，投影遍历靠它）。
+  return scopeKeyHash(["service-index", environmentId]);
 }
 
 export function createRuntimeEnvironmentStore(dataDir: string): RuntimeEnvironmentStore {
@@ -140,10 +146,27 @@ export function createRuntimeEnvironmentStore(dataDir: string): RuntimeEnvironme
         managedServiceReceiptSchema.parse(value),
       ),
     saveServiceReceipt: async (receipt) => {
+      // 每环境服务索引：serviceId 是调用方受控字符串，哈希后不可反查，落索引记录供投影遍历。
+      const indexId = serviceIndexRecordId(receipt.environmentId);
+      const existing = await readRecord("services", indexId, (value) =>
+        z.object({ serviceIds: z.array(z.string().min(1)) }).parse(value),
+      );
+      const serviceIds = existing?.serviceIds ?? [];
+      if (!serviceIds.includes(receipt.serviceId)) serviceIds.push(receipt.serviceId);
+      await atomicWritePrivateTextFile(
+        recordPath("services", indexId),
+        `${JSON.stringify({ serviceIds }, null, 2)}\n`,
+      );
       await atomicWritePrivateTextFile(
         recordPath("services", serviceRecordId(receipt.environmentId, receipt.serviceId)),
         `${JSON.stringify(managedServiceReceiptSchema.parse(receipt), null, 2)}\n`,
       );
+    },
+    listServiceIds: async (environmentId) => {
+      const index = await readRecord("services", serviceIndexRecordId(environmentId), (value) =>
+        z.object({ serviceIds: z.array(z.string().min(1)) }).parse(value),
+      );
+      return index?.serviceIds ?? [];
     },
   };
 }
