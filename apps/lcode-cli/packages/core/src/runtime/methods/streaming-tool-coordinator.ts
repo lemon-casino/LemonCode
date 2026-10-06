@@ -275,6 +275,9 @@ async function executeDuringStream(
     traceContext: options.traceContext,
   });
   const toolCall: ToolCall = {
+    ...(options.toolCall.inputError === undefined
+      ? {}
+      : { inputError: options.toolCall.inputError }),
     id: options.toolCall.id as ToolCallId,
     input: options.toolCall.input,
     name: toolName,

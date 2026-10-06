@@ -67,6 +67,8 @@ export async function executeTools(
   options?: ExecuteToolsOptions,
 ): Promise<ExecuteToolsResult> {
   const executableCalls: ExecutableToolCall[] = toolCalls.map((tc) => ({
+    // 会话调度到执行器的转换必须保留 adapter 的解析失败事实，避免占位 {} 被执行。
+    ...(tc.inputError === undefined ? {} : { inputError: tc.inputError }),
     id: tc.id,
     name: tc.name,
     input: tc.input,

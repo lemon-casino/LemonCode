@@ -1,4 +1,5 @@
 import type { ModelProviderId, ModelId } from "./protocol-identity.js";
+import type { ModelToolInputError } from "./tool-input-error.js";
 
 export type ModelMessageRole = "system" | "user" | "assistant" | "tool";
 
@@ -6,6 +7,8 @@ export interface ModelToolCall {
   id: string;
   name: string;
   input: unknown;
+  /** 适配器解析失败时的安全诊断；执行器必须拒绝占位 input，而非执行它。 */
+  inputError?: ModelToolInputError;
   providerExecuted?: boolean;
 }
 

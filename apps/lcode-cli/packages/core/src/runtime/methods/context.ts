@@ -321,6 +321,7 @@ export function extractToolCallsFromResult(
           id: tc.id,
           name: tc.name ?? tc.toolName,
           input: tc.input,
+          ...(tc.inputError === undefined ? {} : { inputError: tc.inputError }),
           providerExecuted: tc.providerExecuted,
         });
       }
@@ -335,6 +336,7 @@ export function extractToolCallsFromResult(
           id: tc.id,
           name: tc.name ?? tc.toolName,
           input: tc.input,
+          ...(tc.inputError === undefined ? {} : { inputError: tc.inputError }),
           providerExecuted: tc.providerExecuted,
         });
       }

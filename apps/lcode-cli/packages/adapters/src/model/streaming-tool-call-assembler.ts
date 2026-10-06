@@ -98,7 +98,7 @@ export class StreamingToolCallAssembler {
     });
     const normalizedToolCall = {
       ...toolCall,
-      input: normalizeModelToolInput(toolCall.input, {
+      ...normalizeModelToolInput(toolCall.input, {
         logger: this.logger,
         source: "streamText",
         toolName,

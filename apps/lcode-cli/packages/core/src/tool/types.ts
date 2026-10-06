@@ -14,6 +14,7 @@ import type {
   ImageProcessorPort,
   PdfDocumentPort,
   ModelMessageContent,
+  ModelToolInputError,
   ModelContentProtection,
   Model,
   CoordinatorResponsePort,
@@ -469,6 +470,7 @@ export interface ExecutableToolCall {
   id: string;
   name: string;
   input: unknown;
+  inputError?: ModelToolInputError;
 }
 
 // -----------------------------------------------

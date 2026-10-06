@@ -1,4 +1,5 @@
 export * from "./image-media.js";
+export { ModelToolInputErrorSchema, type ModelToolInputError } from "./tool-input-error.js";
 
 export * from "./model.js";
 

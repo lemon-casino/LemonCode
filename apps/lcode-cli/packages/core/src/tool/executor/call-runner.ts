@@ -134,16 +134,21 @@ async function executeToolCallImpl(
     return result;
   }
 
-  const preparedInitialInput = prepareInitialToolExecutionInput({
-    entry,
-    input: canonicalToolCall.input,
-    logger: deps.logger,
-  });
+  // 解析失败的 {} 只是安全占位；不得让 runtime schema 默认值/preprocess 将它接纳。
+  const preparedInitialInput =
+    canonicalToolCall.inputError === undefined
+      ? prepareInitialToolExecutionInput({
+          entry,
+          input: canonicalToolCall.input,
+          logger: deps.logger,
+        })
+      : { input: canonicalToolCall.input };
   let executionInput = preparedInitialInput.input;
   const initialInputValidation = validateInitialModelToolInput(
     executionInput,
     entry,
     preparedInitialInput.runtimeValidationIssues,
+    canonicalToolCall.inputError,
   );
   if (initialInputValidation) {
     const result = createErrorResult(canonicalToolCall, initialInputValidation);

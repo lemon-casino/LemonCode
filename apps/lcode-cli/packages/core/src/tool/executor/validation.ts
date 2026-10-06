@@ -1,4 +1,9 @@
-import { CoreErrorType, createCoreError, isCoreError } from "@lcode/contracts";
+import {
+  CoreErrorType,
+  createCoreError,
+  isCoreError,
+  ModelToolInputErrorSchema,
+} from "@lcode/contracts";
 import type { RuntimeInputValidationIssue } from "../input-normalization.js";
 import { createInitialInputValidationModelContent } from "../input-validation-model-content.js";
 import { validateJsonSchemaValue } from "../json-schema.js";
@@ -72,7 +77,24 @@ export function validateInitialModelToolInput(
   input: unknown,
   entry: ToolEntry,
   runtimeValidationIssues?: readonly RuntimeInputValidationIssue[],
+  inputError?: unknown,
 ): Error | undefined {
+  if (inputError !== undefined) {
+    // 根因：adapter 的空对象占位会触发误导的缺参提示，甚至通过宽松 schema。
+    // 严格校验安全诊断后直接拒绝，模型沿原 tool result 通道重交，不调用 handler。
+    const parsed = ModelToolInputErrorSchema.safeParse(inputError);
+    const reason = !parsed.success
+      ? "Model tool input error metadata is invalid."
+      : parsed.data.code === "null_input"
+        ? "Tool arguments must be a JSON object, but received null."
+        : "Tool arguments contain invalid or incomplete JSON.";
+    const message = `InputValidationError: ${entry.metadata.name} failed: ${reason} No tool action was performed. Retry this tool call with a complete JSON object; split large content into smaller calls if necessary.`;
+    return createInputValidationError(
+      entry,
+      [reason],
+      `<tool_use_error>${message}</tool_use_error>`,
+    );
+  }
   const validation = validateJsonSchemaValue(input, entry.inputSchema);
   if (validation.valid) return undefined;
 

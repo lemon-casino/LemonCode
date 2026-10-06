@@ -201,7 +201,7 @@ export function normalizeToolCalls(
       providerExecuted: value.providerExecuted,
       // 上游会把 JSON "null" 转成原生 null；显式 null 不能被
       // nullish fallback 擦成旧版 args，否则 runtime 与 provider-visible input 漂移。
-      input: normalizeModelToolInput(value.input !== undefined ? value.input : value.args, {
+      ...normalizeModelToolInput(value.input !== undefined ? value.input : value.args, {
         logger,
         source: "generateText",
         toolName: name,

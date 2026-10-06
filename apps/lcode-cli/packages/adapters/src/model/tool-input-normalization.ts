@@ -1,4 +1,4 @@
-import type { Logger } from "@lcode/contracts";
+import type { Logger, ModelToolCall, ModelToolInputError } from "@lcode/contracts";
 
 interface NormalizeModelToolInputOptions {
   logger?: Logger;
@@ -9,59 +9,67 @@ interface NormalizeModelToolInputOptions {
 export function normalizeModelToolInput(
   input: unknown,
   options: NormalizeModelToolInputOptions,
-): unknown {
+): Pick<ModelToolCall, "input" | "inputError"> {
   if (input === undefined) {
-    return {};
+    return { input: {} };
   }
   if (input === null) {
     // 上游会先把合法 JSON 字面量 "null" 解析成原生 null；
     // 这里必须与 string parse-null 使用相同恢复语义，且不能伪造原始长度。
-    warnAndRecoverMalformedToolInput(new TypeError("Model tool input must not be null"), options, {
-      inputType: "null",
-    });
-    return {};
+    return rejectMalformedToolInput(
+      new TypeError("Model tool input must not be null"),
+      options,
+      { code: "null_input" },
+      { inputType: "null" },
+    );
   }
   if (typeof input !== "string") {
-    return input;
+    return { input };
   }
   if (input.length === 0) {
-    return {};
+    return { input: {} };
   }
 
   try {
     const normalizedInput = JSON.parse(stripByteOrderMark(input));
     if (normalizedInput === null) {
-      // JSON null 虽然语法合法，但不能表示工具参数。与 malformed
-      // JSON 一样降级为空对象，让既有工具 schema 决定后续结果。
-      throw new TypeError("Model tool input must not be null");
+      return rejectMalformedToolInput(
+        new TypeError("Model tool input must not be null"),
+        options,
+        { code: "null_input", inputLength: input.length },
+        { inputLength: input.length },
+      );
     }
-    return normalizedInput;
+    return { input: normalizedInput };
   } catch (error) {
-    warnAndRecoverMalformedToolInput(error, options, {
-      inputLength: input.length,
-    });
-    // AI SDK 已提供 final tool-call；此处抛 invalid_model_response
-    // 会把参数错误错误地升级为整个模型请求失败。严格解析失败后只降级为
-    // 空对象，由普通工具 schema 决定返回 error result 还是继续执行。
-    return {};
+    // 根因：非法或截断的 JSON 被擦成 {}，既误报必填字段缺失，又可能执行无参数工具。
+    // 保留安全解析结果，由原 executor 闭合一次失败；不能把整个请求重放而重复 sibling 副作用。
+    return rejectMalformedToolInput(
+      error,
+      options,
+      { code: "invalid_json", inputLength: input.length },
+      { inputLength: input.length },
+    );
   }
 }
 
-function warnAndRecoverMalformedToolInput(
+function rejectMalformedToolInput(
   error: unknown,
   options: NormalizeModelToolInputOptions,
+  inputError: ModelToolInputError,
   inputContext: { inputLength: number } | { inputType: "null" },
-): void {
+): Pick<ModelToolCall, "input" | "inputError"> {
   options.logger?.warn("Model tool input JSON normalization failed", {
     event: "model.tool_input.normalize_failed",
     ...inputContext,
     module: "adapters.model.tool-input-normalization",
     parseErrorType: parseErrorType(error),
-    recovery: "empty_object",
+    recovery: "tool_error",
     source: options.source,
     status: "failed",
     toolName: options.toolName,
   });
+  return { input: {}, inputError };
 }
 
 function stripByteOrderMark(input: string): string {

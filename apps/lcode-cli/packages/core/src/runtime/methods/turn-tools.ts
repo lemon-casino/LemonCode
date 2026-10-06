@@ -54,6 +54,7 @@ export async function executeToolCallsForModelStep(
     throw new Error("Model-backed tool execution requires the loop Model");
   }
   const coreToolCalls: ToolCall[] = options.toolCalls.map((tc) => ({
+    ...(tc.inputError === undefined ? {} : { inputError: tc.inputError }),
     id: tc.id as ToolCallId,
     // Model step admission 已完成类型/ID 校验；这里保留可恢复的原始空白名称，
     // 让 executor 强制走 registry miss，而不是把 storage 占位值当成真实工具。
