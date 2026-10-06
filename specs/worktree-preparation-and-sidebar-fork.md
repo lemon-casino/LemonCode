@@ -88,3 +88,11 @@ sequenceDiagram
 - 相关 CLI 许可、严格服务桥接、进程清理与真实执行回归 26/26 通过。`pnpm --dir packages/web exec node --test test/conversation-send.test.mjs test/worktree-ui.test.mjs` 在本机 Chrome 下 50/50 通过（两个顶级测试各 25 项）；覆盖实际 Composer/Timeline、回车/按钮、新旧会话、失败保留输入、等待 ACK、聊天区准备、取消及重试、长历史和同目录分叉，以及既有审核/管理/侧栏流程。1280px/390px、中英文均验证，准备截图保存在 desktop 的 `.e2e-artifacts/chat-preparation/`。浏览器的 Host、消息和会话注册由 fixture 驱动，真实后端及索引另由集成测试覆盖；未调用真实模型。
 - `pnpm typecheck`、`pnpm lint` 通过；架构检查 0 violations / 0 baseline / 0 new。初次 Lint 发现 fixture 超过 400 行，提取已存在 fixture 模块中的首发构造后通过，没有放宽规则。特性图 YAML、节点唯一性、关系端点和新增导出种子验证通过。
 - `pnpm --filter @lcode/desktop build:no-runtime-assets` 成功，沿当前 test/Preview 后端配置生成桌面构建；直接检查新的 Host bundle 确认 acquireCheckout 仅包含服务字段，Renderer 也包含聊天区准备组件。未产出安装包、未替换正在运行的 `D:\LCode`；该安装包中仍是旧的整包传参。未进行完整安装版 UI E2E、实体手机、macOS/Linux 或真实远程连接验证。
+
+## 2026-10-06 准备卡阶段与 Windows E2E 探测修复
+
+- 非托管绑定没有 `runtimeStage` 时，`preparation.activeStep: "environment"` 必须映射到三步卡的 `environment`；只有存在托管运行环境子阶段时，通用 `environment` 才按 `runtimeStage` 映射到 `tools` 或 `dependencies`。UI 不得把已经进入环境准备的事实显示为仍在检出。
+- Web 浏览器夹具启动 Vite 后，测试先用 `stripVTControlCharacters` 归一化 stdout/stderr，再查找 `Local:`。该归一化只属于测试启动探测，不改变产品协议、日志或页面事实。
+- 验收：非托管准备卡显示 `workspace=done`、`checkout=done`、`environment=running`；Windows Vite ANSI 输出下三个受影响的 E2E 测试能够进入页面；托管五阶段卡、时间线深度测试与根 typecheck/lint/architecture 检查不回归。
+- 验证记录（2026-10-06，Windows、Node 24.14.1、pnpm 10.33.2、本机 Chrome，未调用真实模型）：`conversation-send` 36/36、`conversation-queue` 7/7、`session-output-speed` 1/1、`worktree-ui` 36/36、`conversation-timeline-depth` 3/3；全部在默认终端颜色下运行，不再依赖 `NO_COLOR`。根 `pnpm typecheck` 通过、`pnpm lint` 0 warnings/0 errors、`pnpm architecture:check --changed` 0 violations / 0 baseline / 0 new、本次 5 个改动文件 `oxfmt --check` 通过。
+- 修复实现：`WorktreePreparationCard` 仅在 `runtimeStage` 存在时才把通用 `environment` 映射到工具/依赖子阶段，非托管三步直接使用 `environment` 索引；`conversation-send` 改为复用既有 `startWorkflowProgressBrowser` 启动辅助（已含 ANSI 归一化与进程清理，避免重复实现并守住 400 行上限），`conversation-queue`/`session-output-speed` 各自在就绪探测前调用 `stripVTControlCharacters`。

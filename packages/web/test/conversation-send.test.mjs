@@ -1,76 +1,13 @@
 import { runMultiSessionSendCases } from "./multi-session-send-cases.mjs";
 import { runDraftAttachmentCases } from "./draft-attachment-and-branch-cases.mjs";
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { createServer } from "node:net";
-import { once } from "node:events";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { chromium } from "playwright-core";
+import { startWorkflowProgressBrowser } from "./workflow-execution-progress-browser.mjs";
 
 test("真实 ConversationComposer 的新旧会话回车及按钮发送", { timeout: 240_000 }, async (t) => {
-  const socket = createServer();
-  socket.listen(0, "127.0.0.1");
-  await once(socket, "listening");
-  const port = socket.address().port;
-  await new Promise((resolve) => socket.close(resolve));
-  const server = spawn(
-    process.execPath,
-    [
-      fileURLToPath(new URL("./bin/vite.js", import.meta.resolve("vite/package.json"))),
-      "--host",
-      "127.0.0.1",
-      "--port",
-      String(port),
-      "--strictPort",
-    ],
-    { cwd: fileURLToPath(new URL("../", import.meta.url)), windowsHide: true, stdio: "pipe" },
-  );
-  let output = "";
-  let browser;
-  server.stdout.on("data", (data) => {
-    output += data.toString();
-  });
-  server.stderr.on("data", (data) => {
-    output += data.toString();
-  });
-  t.after(async () => {
-    await browser?.close();
-    if (process.platform === "win32") {
-      const stop = spawn("taskkill", ["/PID", String(server.pid), "/T", "/F"], {
-        windowsHide: true,
-        stdio: "ignore",
-      });
-      await once(stop, "exit");
-    } else {
-      server.kill("SIGTERM");
-      if (server.exitCode === null) await once(server, "exit");
-    }
-  });
-  const ready = await new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(false), 45_000);
-    const check = () => {
-      if (output.includes("Local:")) {
-        clearTimeout(timer);
-        resolve(true);
-      }
-    };
-    server.stdout.on("data", check);
-    server.once("exit", () => {
-      clearTimeout(timer);
-      resolve(false);
-    });
-    check();
-  });
-  assert.ok(ready, output);
-  browser = await chromium.launch({
-    headless: true,
-    ...(process.env.LCODE_TEST_BROWSER_PATH
-      ? { executablePath: process.env.LCODE_TEST_BROWSER_PATH }
-      : {}),
-  });
+  const { browser, port } = await startWorkflowProgressBrowser(t);
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   page.setDefaultTimeout(7_000);
   // 首次访问会触发 Vite 编译共享 UI；页面加载与发送交互分别设置等待边界。

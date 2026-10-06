@@ -72,10 +72,12 @@ export function WorktreePreparationCard({
         ? "dependencies"
         : null;
   const activeRaw = binding?.preparation?.activeStep ?? stage;
+  // 修复依据：非托管三步里 environment 是合法步骤，此前误映射到 checkout，
+  // 会把已进入环境准备的事实显示成仍在检出（conversation-send E2E 与 spec §15.1 均要求 environment=running）。
   const current =
     activeRaw === "environment" && runtimeStage
       ? steps.indexOf(runtimeStep ?? "tools")
-      : steps.indexOf(activeRaw === "environment" ? "checkout" : activeRaw);
+      : steps.indexOf(activeRaw);
   const cancelling = binding?.preparation?.cancelRequested && !cancelled;
   const log = binding?.preparation?.log ?? "";
   const toolSource = binding?.preparation?.toolSource;
