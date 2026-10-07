@@ -4976,7 +4976,9 @@ const enUS: Record<string, string> = {
   "chat.statusPanel.sessionPlans": "Plans",
   "chat.statusPanel.planFallback": "Plan",
   "chat.statusPanel.openPlan": "Open plan: {title}",
-  "chat.statusPanel.todo": "Progress",
+  "chat.statusPanel.todo": "To-dos",
+  "chat.statusPanel.todoExecutionEnded":
+    "This turn has ended; {count} to-dos are still not marked complete.",
   "chat.statusPanel.todoCompletedExpanded": "Hide {count} completed",
   "chat.statusPanel.todoCompletedFold": "{count} completed",
   "chat.statusPanel.todoEarlierFold": "{count} earlier",

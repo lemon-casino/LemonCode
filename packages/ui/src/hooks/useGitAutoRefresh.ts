@@ -166,9 +166,10 @@ export function useGitAutoRefresh({
     const onVisible = () => {
       if (document.visibilityState === "visible") flushRefresh();
     };
-    // 后台期间文件事件可能丢失；重新显示/聚焦使用同一 refresh 路径补齐 Git 快照。
+    // 首次快照由仓库 hook 读取；注册 watcher 只观察，不反向触发刷新。
+    // 原建立时 flush 与执行目录失效组合后会产生无文件事件的 watch/unwatch 循环。
+    // 后台期间文件事件可能丢失，重新显示/聚焦仍走同一刷新路径。
     if (watchPaths.length > 0) {
-      flushRefresh();
       window.addEventListener("focus", onVisible);
       document.addEventListener("visibilitychange", onVisible);
     }

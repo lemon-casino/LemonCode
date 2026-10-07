@@ -7,11 +7,8 @@ import { getVisibleTaskMetas, useLCodeSessionStore } from "@/store/lcodeSessionS
 import { useTaskQueryCacheStore } from "@/store/taskQueryCacheStore.js";
 import { useAppPanels } from "@/hooks/useAppPanels.js";
 import { useNarrowWebLayout } from "@/hooks/useNarrowWebLayout.js";
-import { useGitAutoRefresh } from "@/hooks/useGitAutoRefresh.js";
-import { useGitRepository } from "@/hooks/useGitRepository.js";
-import { useSessionGitLastTurn } from "@/hooks/useSessionGitLastTurn.js";
+import { useWorkspaceGitState } from "@/hooks/useWorkspaceGitState.js";
 import type { GitTurnReviewRequest } from "@/v4/gitTurnReview.js";
-import { useActiveExecutionWorkspace } from "@/hooks/useActiveExecutionWorkspace.js";
 import { useAppKeyboard } from "@/hooks/useAppKeyboard.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useWorkspaceActiveTaskState } from "@/hooks/useWorkspaceActiveTaskState.js";
@@ -433,14 +430,6 @@ export function App({
     setGitRefreshVersion((value) => value + 1);
   }, []);
   const openSettingsTab = useTabStore((state) => state.openSettingsTab);
-  const execution = useActiveExecutionWorkspace(
-    workspaceAbsPath,
-    workspaceIdentity,
-    activeTaskId,
-    workspaceRemoteSessionId,
-    gitRefreshVersion,
-  );
-  const executionWorkspace = execution.workspace;
   const gitReviewSessionId = activeSessionId ?? activeTaskId;
   const currentTurnReviewRequest =
     turnReviewRequest?.sessionId === gitReviewSessionId &&
@@ -462,39 +451,22 @@ export function App({
     setTurnReviewRequest(null);
     setGitSelectedSourceId(sourceId);
   }, []);
-  const lastTurnDataset = useSessionGitLastTurn({
+  const { execution, gitState } = useWorkspaceGitState({
     workspacePath: workspaceAbsPath,
     workspaceIdentity,
-    remoteSessionId: workspaceRpcTarget.remoteSessionId ?? null,
-    executionWorkspacePath: executionWorkspace?.workspacePath ?? "",
-    sessionId: gitReviewSessionId,
-    enabled: hasGitTab && Boolean(executionWorkspace),
-    refreshToken: gitHistoryRefreshVersion,
-    reviewTurn: currentTurnReviewRequest,
-  });
-  const gitState = useGitRepository({
-    workspacePath: executionWorkspace?.workspacePath ?? "",
-    enabled: Boolean(executionWorkspace),
-    activeTaskId,
-    lastTurnDataset,
+    sessionId: activeTaskId,
+    reviewSessionId: gitReviewSessionId,
+    workspaceRemoteSessionId,
+    rpcTarget: workspaceRpcTarget,
+    gitRefreshToken: gitRefreshVersion,
+    historyRefreshToken: gitHistoryRefreshVersion,
     includeExtendedData: hasGitTab,
-    // 关键逻辑：真实 Git 只在 workspace 变化、Git pane 打开、或用户显式点刷新时重拉。
-    // task 切换 / last-turn 摘要变化只更新本地衍生数据，不再顺带重跑 Git 命令。
-    refreshToken: gitRefreshVersion,
-    remoteSessionId: workspaceRpcTarget.remoteSessionId ?? null,
-    remoteTarget: workspaceRpcTarget.remoteTarget,
-    workspaceIdentity: executionWorkspace?.workspaceIdentity,
-  });
-  useGitAutoRefresh({
-    workspacePath: executionWorkspace?.workspacePath ?? "",
-    workspaceIdentity: executionWorkspace?.workspaceIdentity,
-    remoteSessionId: workspaceRpcTarget.remoteSessionId ?? null,
-    gitSummary: gitState.summary,
-    gitSummaryWorkspaceKey: gitState.workspaceKey,
-    enabled: isWorkspaceVisible && Boolean(executionWorkspace),
     livePanelVisible: isGitOpen && !isSidePaneCollapsed,
-    onRefreshGit: handleAutoRefreshGit,
+    autoRefreshEnabled: isWorkspaceVisible,
+    reviewTurn: currentTurnReviewRequest,
+    onAutoRefresh: handleAutoRefreshGit,
   });
+  const executionWorkspace = execution.workspace;
   const activeGitSourceId =
     gitState.sourceOptions.find((option) => option.id === gitSelectedSourceId)?.id ??
     gitState.sourceOptions[0]?.id ??

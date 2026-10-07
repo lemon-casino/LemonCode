@@ -52,6 +52,7 @@ import type {
   BackgroundWorkSummary,
   GoalState,
   PlanState,
+  SessionPhase,
   ToolCallRow,
   WorkflowRunState,
 } from "@lcode/shared/lcode-protocol-v4";
@@ -130,6 +131,7 @@ interface ConversationStatusPanelProps {
   goal?: GoalState | null;
   sessionPlans?: readonly ToolCallRow[];
   plan?: PlanState | null;
+  executionPhase?: SessionPhase;
   backgroundWorks?: readonly BackgroundWorkSummary[];
   runningSubagents?: readonly LCodeSessionRunningSubagent[];
   /** 本会话 `snapshot.workflowRuns.runs`；与 backgroundWorks 在模型层按 workId ≡ runId 联接。 */
@@ -926,10 +928,12 @@ function buildSessionPlanOpenRequest(
 
 function PlanStatusSection({
   model,
+  executionPhase,
   popoverSide,
   separated,
 }: {
   model: ConversationStatusPanelModel;
+  executionPhase?: SessionPhase;
   popoverSide: "bottom" | "left";
   separated: boolean;
 }) {
@@ -937,6 +941,11 @@ function PlanStatusSection({
   const plan = model.plan;
   if (!plan) return null;
   const isCompleted = plan.totalCount > 0 && plan.completedCount >= plan.totalCount;
+  // 待办是 CLI 保存的独立事实；主轮结束或 Git 提交均不代表 TodoWrite 已标记全部完成。
+  const executionEnded =
+    executionPhase === "completedSuccess" ||
+    executionPhase === "completedInterrupted" ||
+    executionPhase === "error";
 
   return (
     <StatusSection
@@ -954,6 +963,17 @@ function PlanStatusSection({
         </span>
       )}
     >
+      {executionEnded && !isCompleted ? (
+        <p
+          data-testid="todo-execution-ended"
+          className="px-2 pb-2 text-ui-sm text-[var(--color-foreground-subtle)]"
+        >
+          {intl.formatMessage(
+            { id: "chat.statusPanel.todoExecutionEnded" },
+            { count: plan.waitingCount },
+          )}
+        </p>
+      ) : null}
       <PlanStatusItems
         key={plan.displayItems
           .map((item) => `${item.id}\u0000${item.content}\u0000${item.status}`)
@@ -1626,6 +1646,7 @@ function StatusSummaryRow({
   canRenderGit,
   executionBindingId,
   endedWorkflowRunCount,
+  endedSubagentCount,
   gitWorktreeChangeSummary,
   model,
   onVariantChange,
@@ -1634,6 +1655,7 @@ function StatusSummaryRow({
   executionBindingId?: string;
   /** 已结束 run 的目录计数；宿主给 0 表示目录入口不可渲染（缺会话或缺回调）。 */
   endedWorkflowRunCount: number;
+  endedSubagentCount: number;
   gitWorktreeChangeSummary?: { added: number; removed: number } | null;
   model: ConversationStatusPanelModel;
   onVariantChange?: (variant: ChatViewSummaryPanelVariant | null) => void;
@@ -1752,6 +1774,15 @@ function StatusSummaryRow({
         {endedWorkflowRunCount}
       </span>
     </StatusSummaryMetric>
+  ) : endedSubagentCount > 0 ? (
+    <StatusSummaryMetric
+      icon={<BotIcon className="size-4 text-[var(--color-foreground-subtle)]" />}
+    >
+      <span className="min-w-0 truncate">
+        {intl.formatMessage({ id: "chat.statusPanel.endedAgents" })}
+      </span>
+      <span className="shrink-0 text-[var(--color-foreground-subtle)]">{endedSubagentCount}</span>
+    </StatusSummaryMetric>
   ) : canRenderGit ? (
     // 干净仓库没有统计投影，mini 仍需可点击的最低优先级摘要，不能只剩空壳。
     <StatusSummaryMetric
@@ -1805,6 +1836,7 @@ function ConversationStatusPanelImpl({
   goal,
   sessionPlans,
   plan,
+  executionPhase,
   backgroundWorks = EMPTY_BACKGROUND_WORKS,
   runningSubagents = EMPTY_RUNNING_SUBAGENTS,
   workflowRuns = EMPTY_WORKFLOW_RUNS,
@@ -1950,9 +1982,8 @@ function ConversationStatusPanelImpl({
 
   // `model.hasContent` 只认**活的**内容（模型手上的投影都是活状态），所以「只剩历史」的
   // 会话会连整个胶囊一起消失——而那正是重启后打开一条旧对话的样子，run 目录的入口于是又没了。
-  // 已结束的 run 因此单独开这道门。（Agents 的已结束行有同一个洞：`endedSubagentCount` 也
-  // 没进 `hasContent`。那是既有行为，不在本轮一起翻。）
-  if (!model.hasContent && !canRenderEndedWorkflows && !canMountGit) {
+  // 只剩历史子智能体时也必须保留目录入口；失败/取消记录不能因没有活动工作而一起消失。
+  if (!model.hasContent && !canRenderEndedWorkflows && !canRenderEndedAgents && !canMountGit) {
     return null;
   }
 
@@ -1961,7 +1992,11 @@ function ConversationStatusPanelImpl({
       className={cn(
         "pointer-events-none absolute top-0 z-20 pt-4",
         // 干净仓库也有手动发布入口；不可用仓库仍只隐藏 shell，不卸载自动草稿控制器。
-        !model.hasContent && !canRenderEndedWorkflows && !canRenderGit && "hidden",
+        !model.hasContent &&
+          !canRenderEndedWorkflows &&
+          !canRenderEndedAgents &&
+          !canRenderGit &&
+          "hidden",
         // 旧 ChatView 的 inline 面板直接钉在右侧，正文列通过独立 translate 让位。
         // v4 若继续用 inset-x-0 + justify-end，会让面板容器宽铺满并改变宽屏下的横向对齐。
         layoutMode === "inline"
@@ -2110,6 +2145,7 @@ function ConversationStatusPanelImpl({
           {canRenderPlan ? (
             <PlanStatusSection
               model={model}
+              executionPhase={executionPhase}
               popoverSide={useVerticalFloatingPanels ? "bottom" : "left"}
               separated={canRenderGit || canRenderGoal || canRenderSessionPlans}
             />
@@ -2188,6 +2224,7 @@ function ConversationStatusPanelImpl({
             // 与页脚同一道门（canRenderEndedWorkflows）：缺会话或缺回调时目录打不开，
             // 胶囊也就不该报一个点了没反应的数。
             endedWorkflowRunCount={canRenderEndedWorkflows ? endedWorkflowRunCount : 0}
+            endedSubagentCount={canRenderEndedAgents ? endedSubagentCount : 0}
             gitWorktreeChangeSummary={gitWorktreeChangeSummary}
             onVariantChange={onVariantChange}
           />

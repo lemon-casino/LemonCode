@@ -153,6 +153,13 @@ packages/desktop/src/scheduler/schedulerProtocol.js.map
 !/packages/web/test/fixtures/conversation-send.html
 !/packages/web/test/fixtures/conversation-send.tsx
 
+# Git 刷新与会话/子智能体查看组合回归。
+!/packages/web/test/git-session-refresh.test.mjs
+!/packages/web/test/fixtures/git-session-refresh.html
+!/packages/web/test/fixtures/git-session-refresh.tsx
+!/packages/web/test/fixtures/git-session-refresh-runtime.ts
+!/packages/web/test/fixtures/git-session-refresh-remote.tsx
+
 # 模型成员生命周期回归需随功能提交，不受用户全局 test/ 规则影响。
 !/packages/provider/test/
 /packages/provider/test/*

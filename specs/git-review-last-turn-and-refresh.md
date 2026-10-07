@@ -46,6 +46,47 @@ sequenceDiagram
 5. 重新聚焦刷新，watch/unwatch 幂等且身份切换清理旧监听；打开扩展数据、effect 重挂载不会卡 loading。
 6. 浏览器实际运行共享 hooks、SessionDataLayer 与 GitPane，覆盖 desktop-continuous / web-remote-replayable、桌面和手机宽度、中英文。单测验证历史选择、patch、分页与刷新调度；执行 typecheck、lint、架构检查，不构建桌面安装包。
 
+## 提交后刷新循环与会话查看（2026-10-07）
+
+### 已确认问题与规则
+
+- 既有 App 把 Git 刷新版本传给执行目录 hook，刷新期间将目录投影为空；Git watcher 重新建立时立即刷新，形成无文件事件也持续运行的循环。Git 读取版本必须与工作树生命周期版本分离，不能使执行目录、Git 监听或子智能体详情反复卸载。
+- `useWorkspaceGitState` 统一 App 的执行目录、当前 Git、历史审查和监听编排，浏览器回归必须使用这条组合路径，不能只测独立 Git hook。执行目录只响应会话/目标 Host/工作区身份和工作树生命周期变化；只有这些变化才允许进入未就绪状态。旧 Host/身份/生命周期读取迟到时必须丢弃。
+- 监听注册是观察操作，不自动发起 Git 刷新。首次仓库读取由 Git hook 负责；文件事件、人工刷新、焦点恢复仍复用现有串行读取路径。提交后读取新的仓库状态，已建立的同范围监听与会话查看保持挂载。
+- 已结束的子智能体（含失败、取消）仍可进入目录并查看记录；只有历史子智能体、没有 Git/待办/运行工作时，状态面板也必须保留入口。
+- 待办列表保留 CLI 保存的真实状态与计数，不因提交或主轮成功而自动改成全部完成。标题统一为“待办”；执行进入 `completedSuccess`、`completedInterrupted` 或 `error` 后，如仍有未完成项，明确显示“本轮执行已结束，仍有 N 项待办未标记完成”。下一轮执行中不显示该提示。子智能体供应商错误保留为失败，不能被主轮成功覆盖。
+
+### 所有者与事件顺序
+
+```mermaid
+flowchart TD
+    Host[CLI / Host 会话与工作树 owner] -->|会话身份 / 生命周期| Location[执行目录 hook]
+    Location -->|实际执行路径与 identity| Git[Git 快照 hook / 串行读取]
+    Watch[文件事件 / 聚焦 / 手动操作] -->|只读刷新意图| Git
+    Git -->|同范围新快照| Panel[Git 与会话状态面板]
+    Host -->|desktop continuous / mobile replayable| Session[共享会话投影]
+    Session -->|真实待办 / 终态 / 子智能体历史| Panel
+    Panel -->|原工作区与会话身份| Child[已有子智能体查看入口]
+```
+
+Git 快照更新不回写 Location。投影与查看复用现有 owner/lease；不改命令 admission、不新增会话缓存、无持久化迁移。
+
+### 验收
+
+1. 使用真实组合 hook 与状态面板，覆盖本地目录、工作树、相同路径不同远端 identity；无文件事件时 Git/会话读取收敛，人工刷新与提交后不重读执行目录、不重建监听。
+2. 展开 Git/待办/子智能体，打开子智能体目录及记录，再完成提交；同一 DOM 与展开状态保持，失败记录可打开。仅有历史子智能体时也保留入口。
+3. 2/4 待办、主轮完成时保留 2/4 并显示未更新提示；成功/中断/错误均不伪造完成；下一轮开始后提示消失。
+4. 工作树生命周期实际变化、会话/Host 切换仍阻止旧路径操作，迟到响应不污染新范围。桌面宽度与手机 Web 宽度、中英文、continuous/replayable 共用上述语义。
+5. 执行相关单测、浏览器组合回归、类型检查、Lint 和架构检查；不构建桌面安装包。
+
+### 验证记录（2026-10-07）
+
+- `git-session-refresh.test.mjs`：5 个子场景通过。使用 App 共用编排、真实状态面板、子智能体目录和只读 `SessionPane`；覆盖本地/工作树、1280px/390px、中英文、continuous/replayable、提交后 DOM/展开状态保留、仅有历史时 mini 入口、真实生命周期失效、跨会话/Host/service 迟到响应丢弃。
+- `git-commit-dialog.test.mjs`：最终整组 46 个子场景通过；`git-review-source-errors.test.mjs` 4 个子场景通过；`git-review-live-turns.test.mjs` 4 个组合通过。
+- `worktree-ui.test.mjs`：全量重跑 35 个子场景中 34 个通过，一例停在 `page.goto` 的 load 超时。通过既有 `LCODE_WORKTREE_TEST_CASES=preparation-fork` 独立重跑准备/分叉 9 个子场景全部通过（含该超时项）；不将全量单次执行记录为全部通过。
+- 历史轮次/串行刷新/两种投递恢复单测 11 个通过；状态面板挂载约束 4 个通过。
+- `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed`、`pnpm verify:pre-push` 和本次文件的 `oxfmt --check` 通过；Lint 0 警告/0 错误，架构 baseline 0/new 0。未构建桌面包，也未把已保存的真实待办或子智能体失败记录改成成功。
+
 ## 本次验证记录（2026-10-05）
 
 - `packages/ui/src/v4/gitLastTurn.test.ts` 与 `packages/ui/src/hooks/gitRefreshScheduler.test.ts`：6 个场景通过，含最新结束空轮、分页纪元隔离、撤销投影、串行刷新和旧 owner 释放。

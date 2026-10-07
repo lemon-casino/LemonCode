@@ -33,9 +33,12 @@ test("无行级统计时也挂载 Git 自动弹窗控制器", () => {
   assert.doesNotMatch(source, /<div className=\{cn\(!model\.git && "hidden"\)\}>/u);
   assert.match(
     source,
-    /!model\.hasContent && !canRenderEndedWorkflows && !canRenderGit && "hidden"/u,
+    /!model\.hasContent && !canRenderEndedWorkflows && !canRenderEndedAgents && !canRenderGit && "hidden"/u,
   );
-  assert.match(source, /if \(!model\.hasContent && !canRenderEndedWorkflows && !canMountGit\) \{/u);
+  assert.match(
+    source,
+    /if \(!model\.hasContent && !canRenderEndedWorkflows && !canRenderEndedAgents && !canMountGit\) \{/u,
+  );
 });
 
 test("干净仓库 mini 胶囊仍有可展开的发布入口", () => {

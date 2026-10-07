@@ -11,7 +11,6 @@ export function useActiveExecutionWorkspace(
   workspaceIdentity: string | undefined,
   taskId: string | null,
   remoteSessionId?: string | null,
-  revision?: number,
 ) {
   const service = useLCodeSessionService(workspacePath, remoteSessionId, workspaceIdentity);
   const { worktreeService } = useWorkspaceServices(
@@ -19,14 +18,22 @@ export function useActiveExecutionWorkspace(
     remoteSessionId,
     workspaceIdentity,
   );
-  const scope = `${workspaceIdentity?.trim() || workspacePath}\0${taskId ?? ""}`;
+  const scope = JSON.stringify([
+    workspaceIdentity?.trim() || workspacePath,
+    workspacePath,
+    remoteSessionId ?? null,
+    taskId,
+  ]);
   const lifecycleRevision = useWorktreeLifecycleStore(
     (state) => state.revisions[workspaceIdentity?.trim() || workspacePath] ?? 0,
   );
-  const generation = `${revision ?? 0}:${lifecycleRevision}`;
+  // Git 刷新只更新仓库快照；只有真实工作树生命周期才能使已解析的目录失效。
+  const generation = lifecycleRevision;
   const [state, setState] = useState<{
     scope: string;
-    generation: string;
+    generation: number;
+    service?: typeof service;
+    worktreeService?: typeof worktreeService;
     workspace?: LCodeWorkspaceRef;
     binding?: WorktreeBinding;
     error?: string;
@@ -56,6 +63,8 @@ export function useActiveExecutionWorkspace(
         setState({
           scope,
           generation,
+          service,
+          worktreeService,
           workspace,
           ...(binding.status === "fulfilled" && binding.value ? { binding: binding.value } : {}),
         });
@@ -64,6 +73,8 @@ export function useActiveExecutionWorkspace(
         setState({
           scope,
           generation,
+          service,
+          worktreeService,
           error: error instanceof Error ? error.message : String(error),
         });
     });
@@ -80,7 +91,11 @@ export function useActiveExecutionWorkspace(
       binding: undefined,
       pending: false,
     };
-  return state.scope === scope && state.generation === generation
+  // 相同路径的远端 attachment / service 换代也属于 owner 切换，旧结果不能短暂冒充新目录。
+  return state.scope === scope &&
+    state.generation === generation &&
+    state.service === service &&
+    state.worktreeService === worktreeService
     ? { ...state, pending: !state.workspace && !state.error }
     : { workspace: undefined, binding: undefined, pending: true };
 }
