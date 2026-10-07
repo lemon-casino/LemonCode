@@ -22,6 +22,37 @@ export * from "../background-bash-output.js";
 import { executionOutputPreviewSchema } from "../execution-output-preview.js";
 import { z } from "zod";
 import { executionIntentSchema } from "../worktreeExecution.js";
+import {
+  runtimeEnvironmentProtocolCapabilitySchema,
+  runtimeEnvironmentActionSchema,
+  runtimeEnvironmentReferenceSchema,
+  runtimeEnvironmentScopeSchema,
+  runtimeEnvironmentCapabilitiesResultSchema,
+  runtimeEnvironmentPrepareParamsSchema,
+  runtimeEnvironmentPrepareResultSchema,
+  runtimeEnvironmentGetParamsSchema,
+  runtimeEnvironmentGetResultSchema,
+  runtimeEnvironmentListParamsSchema,
+  runtimeEnvironmentListResultSchema,
+  runtimeEnvironmentReleaseParamsSchema,
+  runtimeEnvironmentReleaseResultSchema,
+  runtimeEnvironmentResolveContextParamsSchema,
+  runtimeEnvironmentResolveContextResultSchema,
+  runtimeEnvironmentRetainSessionParamsSchema,
+  runtimeEnvironmentRetainSessionResultSchema,
+  runtimeEnvironmentReleaseConsumerParamsSchema,
+  runtimeEnvironmentReleaseConsumerResultSchema,
+  runtimeEnvironmentSnapshotParamsSchema,
+  runtimeEnvironmentSnapshotSchema,
+  runtimeEnvironmentReconcileParamsSchema,
+  runtimeEnvironmentReconcileResultSchema,
+  runtimeEnvironmentServiceActionParamsSchema,
+  runtimeEnvironmentServiceActionResultSchema,
+  runtimeEnvironmentResourceScanParamsSchema,
+  runtimeEnvironmentResourceScanResultSchema,
+  runtimeEnvironmentGarbageCollectionParamsSchema,
+  runtimeEnvironmentGarbageCollectionResultSchema,
+} from "../runtimeEnvironment.js";
 export * from "../worktreeExecution.js";
 // 审核编辑状态由 Host Git RPC 所有；共享严格校验，不进入 Agent 会话队列。
 export * from "../gitReviewWorkspace.js";
@@ -89,9 +120,15 @@ export const LCODE_PROTOCOL_NAME = "LCode Protocol" as const;
 export const LCODE_PROTOCOL_VERSION = 1 as const;
 // V4 wire 与 legacy 主协议并存；禁止为了 V4 physical framing 改写 legacy 版本。
 export const LCODE_PROTOCOL_V4_WIRE_VERSION = 3 as const;
-export const lcodeRuntimeCapabilitiesSchema = z.object({
-  independentPlanState: z.boolean().optional(),
-});
+export const lcodeRuntimeCapabilitiesSchema = z
+  .object({
+    independentPlanState: z.boolean().optional(),
+    /** additive；缺省表示旧端，不表示支持托管环境。 */
+    runtimeEnvironment: runtimeEnvironmentProtocolCapabilitySchema.optional(),
+    /** 客户端可声明希望使用的托管动作；Host 必须按 capability 逐项裁决。 */
+    runtimeEnvironmentActions: z.array(runtimeEnvironmentActionSchema).max(16).optional(),
+  })
+  .strict();
 export const lcodeProtocolErrorCodes = {
   sessionUnavailable: -32004,
 } as const;
@@ -2045,6 +2082,27 @@ export type LCodeSessionWorktreeCleanupParams = z.infer<
 export const lcodeSessionWorktreeCleanupResultSchema = z
   .object({ sessionIds: z.array(nonEmptyString) })
   .strict();
+/** 受信 Host restore 维护；不 hydrate，不接受 routing 或调用者指定的 session 子集。 */
+export const lcodeSessionWorktreeRebindParamsSchema = z
+  .object({
+    executionBindingId: nonEmptyString,
+    originWorkspacePath: nonEmptyString,
+    originWorkspaceIdentity: nonEmptyString.optional(),
+    workspacePath: nonEmptyString,
+    workspaceIdentity: nonEmptyString.optional(),
+    oldEnvironmentRef: runtimeEnvironmentReferenceSchema,
+    newEnvironmentRef: runtimeEnvironmentReferenceSchema,
+  })
+  .strict();
+export type LCodeSessionWorktreeRebindParams = z.infer<
+  typeof lcodeSessionWorktreeRebindParamsSchema
+>;
+export const lcodeSessionWorktreeRebindResultSchema = z
+  .object({ sessionIds: z.array(nonEmptyString) })
+  .strict();
+export type LCodeSessionWorktreeRebindResult = z.infer<
+  typeof lcodeSessionWorktreeRebindResultSchema
+>;
 export const lcodeWorkspaceReadPresentationParamsSchema = z
   .object({ workspace: lcodeWorkspaceRefSchema })
   .strict();
@@ -3664,6 +3722,7 @@ export const lcodeProtocolMethods = {
   sessionGoal: "session/goal",
   sessionClose: "session/close",
   sessionWorktreeCleanup: "session/worktreeCleanup",
+  sessionWorktreeRebind: "session/worktreeRebind",
   // setModel 仍被 lcodeSessionService 的 desktop 旧链路消费；replayable
   // switchModelConfig 已直接由目标 Environment Registry 解析 Selection。
   sessionSetModel: "session/setModel",
@@ -3746,10 +3805,16 @@ export const lcodeProtocolMethods = {
   runtimeEnvironmentPrepare: "runtimeEnvironment/prepare",
   runtimeEnvironmentGet: "runtimeEnvironment/get",
   runtimeEnvironmentList: "runtimeEnvironment/list",
+  runtimeEnvironmentSnapshot: "runtimeEnvironment/snapshot",
+  runtimeEnvironmentReconcile: "runtimeEnvironment/reconcile",
   runtimeEnvironmentRelease: "runtimeEnvironment/release",
   runtimeEnvironmentResolveContext: "runtimeEnvironment/resolveContext",
   runtimeEnvironmentReleaseConsumer: "runtimeEnvironment/releaseConsumer",
   runtimeEnvironmentRetainSession: "runtimeEnvironment/retainSession",
+  runtimeEnvironmentStartService: "runtimeEnvironment/startService",
+  runtimeEnvironmentStopService: "runtimeEnvironment/stopService",
+  runtimeEnvironmentResourceSummary: "runtimeEnvironment/resourceSummary",
+  runtimeEnvironmentGarbageCollect: "runtimeEnvironment/garbageCollect",
 } as const;
 
 export type LCodeProtocolMethod = (typeof lcodeProtocolMethods)[keyof typeof lcodeProtocolMethods];
@@ -3759,6 +3824,66 @@ export const lcodeProtocolEmptyResultSchema = z.object({}).strict();
 // 最新 V4 主链已不再依赖旧版全量方法表；这里仅保留仍被兼容测试和 browser broker
 // 消费的最小契约集合，避免重新引入已移除的 legacy 方法。
 export const lcodeProtocolSessionMethodContracts = {
+  [lcodeProtocolMethods.sessionWorktreeRebind]: {
+    params: lcodeSessionWorktreeRebindParamsSchema,
+    result: lcodeSessionWorktreeRebindResultSchema,
+  },
+  [lcodeProtocolMethods.runtimeEnvironmentCapabilities]: {
+    params: runtimeEnvironmentScopeSchema,
+    result: runtimeEnvironmentCapabilitiesResultSchema,
+  },
+  [lcodeProtocolMethods.runtimeEnvironmentPrepare]: {
+    params: runtimeEnvironmentPrepareParamsSchema,
+    result: runtimeEnvironmentPrepareResultSchema,
+  },
+  [lcodeProtocolMethods.runtimeEnvironmentGet]: {
+    params: runtimeEnvironmentGetParamsSchema,
+    result: runtimeEnvironmentGetResultSchema,
+  },
+  [lcodeProtocolMethods.runtimeEnvironmentList]: {
+    params: runtimeEnvironmentListParamsSchema,
+    result: runtimeEnvironmentListResultSchema,
+  },
+  [lcodeProtocolMethods.runtimeEnvironmentSnapshot]: {
+    params: runtimeEnvironmentSnapshotParamsSchema,
+    result: runtimeEnvironmentSnapshotSchema,
+  },
+  [lcodeProtocolMethods.runtimeEnvironmentReconcile]: {
+    params: runtimeEnvironmentReconcileParamsSchema,
+    result: runtimeEnvironmentReconcileResultSchema,
+  },
+  [lcodeProtocolMethods.runtimeEnvironmentRelease]: {
+    params: runtimeEnvironmentReleaseParamsSchema,
+    result: runtimeEnvironmentReleaseResultSchema,
+  },
+  [lcodeProtocolMethods.runtimeEnvironmentResolveContext]: {
+    params: runtimeEnvironmentResolveContextParamsSchema,
+    result: runtimeEnvironmentResolveContextResultSchema,
+  },
+  [lcodeProtocolMethods.runtimeEnvironmentRetainSession]: {
+    params: runtimeEnvironmentRetainSessionParamsSchema,
+    result: runtimeEnvironmentRetainSessionResultSchema,
+  },
+  [lcodeProtocolMethods.runtimeEnvironmentReleaseConsumer]: {
+    params: runtimeEnvironmentReleaseConsumerParamsSchema,
+    result: runtimeEnvironmentReleaseConsumerResultSchema,
+  },
+  [lcodeProtocolMethods.runtimeEnvironmentStartService]: {
+    params: runtimeEnvironmentServiceActionParamsSchema,
+    result: runtimeEnvironmentServiceActionResultSchema,
+  },
+  [lcodeProtocolMethods.runtimeEnvironmentStopService]: {
+    params: runtimeEnvironmentServiceActionParamsSchema,
+    result: runtimeEnvironmentServiceActionResultSchema,
+  },
+  [lcodeProtocolMethods.runtimeEnvironmentResourceSummary]: {
+    params: runtimeEnvironmentResourceScanParamsSchema,
+    result: runtimeEnvironmentResourceScanResultSchema,
+  },
+  [lcodeProtocolMethods.runtimeEnvironmentGarbageCollect]: {
+    params: runtimeEnvironmentGarbageCollectionParamsSchema,
+    result: runtimeEnvironmentGarbageCollectionResultSchema,
+  },
   [lcodeProtocolMethods.workspaceHookTrustGrant]: {
     params: lcodeWorkspaceHookTrustGrantParamsSchema,
     result: lcodeWorkspaceHookTrustGrantResultSchema,

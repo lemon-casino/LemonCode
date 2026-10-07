@@ -219,6 +219,31 @@ export class SessionResidentPool {
     }
   }
 
+  /** 维护与冷恢复共用同一 gate；禁止关闭仍被另一个协议 handler 持有的旧 record。 */
+  async withMaintenance<T>(sessionIds: readonly string[], operation: () => Promise<T>): Promise<T> {
+    const ids = [...new Set(sessionIds)];
+    for (const id of ids) {
+      if (this.inFlightDeactivations.has(id) || (this.operationLeaseCounts.get(id) ?? 0) > 0)
+        throw new Error("Worktree session has an active residency operation; retry maintenance");
+    }
+    let releaseGate!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      releaseGate = resolve;
+    });
+    this.activeOperationCount += 1;
+    for (const id of ids) this.inFlightDeactivations.set(id, gate);
+    try {
+      return await operation();
+    } finally {
+      for (const id of ids) {
+        if (this.inFlightDeactivations.get(id) === gate) this.inFlightDeactivations.delete(id);
+      }
+      this.activeOperationCount -= 1;
+      releaseGate();
+      this.rebalance();
+    }
+  }
+
   waitForDeactivation(sessionId: string): Promise<void> {
     return this.inFlightDeactivations.get(sessionId) ?? Promise.resolve();
   }

@@ -191,7 +191,7 @@ function deliveryProfileFor(clientMode: LCodeAgentV4ClientMode): HelloMessage["d
   return clientMode === "desktop-continuous" ? "continuous" : "replayable";
 }
 
-function createHello(context: LCodeAgentV4ConnectionContext): HelloMessage {
+function createHello(context: LCodeAgentV4ConnectionContext, upstream: HelloMessage): HelloMessage {
   const continuous = context.clientMode === "desktop-continuous";
   return {
     kind: "hello",
@@ -207,6 +207,10 @@ function createHello(context: LCodeAgentV4ConnectionContext): HelloMessage {
       compression: "none",
       workspaceHookReview: true,
       independentPlanState: true,
+      // attachment 只改交付方式；能力来自目标 Host，缺字段的旧 Host 不得升级为托管。
+      ...(upstream.capabilities.runtimeEnvironment
+        ? { runtimeEnvironment: upstream.capabilities.runtimeEnvironment }
+        : {}),
     },
     auth: {},
   };
@@ -646,10 +650,19 @@ export function createLCodeAgentConnectionScope(
       });
 
   const overrides: Partial<ILCodeAgentService> = {
+    async rebindWorktreeSessions(params) {
+      assertOpen();
+      // 环境重绑是 Host 生命周期维护，不允许 Renderer/手机把 CAS 伪装成普通 UI RPC。
+      if (role !== "trusted-host-relay")
+        throw new Error("fault.runtimeEnvironment.maintenanceForbidden");
+      return base.rebindWorktreeSessions(params);
+    },
     async helloConversationV4() {
       assertOpen();
+      const upstream = await base.helloConversationV4();
+      assertOpen();
       helloIssued = true;
-      return createHello(context);
+      return createHello(context, upstream);
     },
     async initializeConversationV4(clientHello) {
       assertOpen();

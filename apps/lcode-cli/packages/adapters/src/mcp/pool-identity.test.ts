@@ -4,6 +4,7 @@ import type { McpConnectOptions, McpServerConfig } from "@lcode/contracts";
 import { connectionKey } from "./pool-identity.js";
 
 const config: McpServerConfig = {
+  type: "stdio",
   command: "npx",
   args: ["-y", "@modelcontextprotocol/server-filesystem", "C:/root"],
 };

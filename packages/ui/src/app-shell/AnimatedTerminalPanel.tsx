@@ -4,6 +4,7 @@ import type { RefObject } from "react";
 import type { PanelImperativeHandle } from "react-resizable-panels";
 import type { IServiceAccessor } from "@lcode/services";
 import { Terminal } from "@/Terminal.js";
+import type { TerminalExecutionScope } from "@/hooks/useTerminalService.js";
 import { ScopedErrorBoundary } from "@/ErrorBoundary.js";
 import { cn } from "@/components/lib/utils.js";
 import { ResizableHandle, ResizablePanel } from "@/components/ui/resizable.js";
@@ -12,6 +13,7 @@ export function AnimatedTerminalPanel({
   services,
   workspaceAbsPath,
   workspaceIdentity,
+  executionScope,
   openWorkspaceKeys,
   isVisible,
   isWindowsDesktop,
@@ -24,6 +26,7 @@ export function AnimatedTerminalPanel({
   services: IServiceAccessor;
   workspaceAbsPath: string;
   workspaceIdentity?: string;
+  executionScope?: TerminalExecutionScope;
   openWorkspaceKeys?: string[];
   isVisible: boolean;
   isWindowsDesktop?: boolean;
@@ -137,6 +140,7 @@ export function AnimatedTerminalPanel({
                   services={services}
                   cwd={workspaceAbsPath}
                   workspaceIdentity={workspaceIdentity}
+                  executionScope={executionScope}
                   openWorkspaceKeys={openWorkspaceKeys}
                   isVisible={isVisible}
                   isPanelResizing={isTerminalPanelResizing}

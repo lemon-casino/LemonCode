@@ -42,15 +42,13 @@ test("longest scope prefix wins for nested environments", () => {
   assert.equal(matched?.environmentId, inner.environmentId);
 });
 
-test("non-consumable environments are skipped", () => {
+test("fenced and ready environments sharing a path do not fall back to another environment", () => {
   const failed = recordFor(1, "C:/proj", "failed");
-  const restoring = recordFor(2, "C:/proj", "releasing");
-  assert.equal(matchEnvironmentForCwd([failed, restoring], "C:/proj"), null);
+  const releasing = recordFor(2, "C:/proj", "releasing");
   const ready = recordFor(3, "C:/proj", "ready");
-  assert.equal(
-    matchEnvironmentForCwd([failed, ready], "C:/proj")?.environmentId,
-    ready.environmentId,
-  );
+  assert.throws(() => matchEnvironmentForCwd([failed, releasing], "C:/proj"), /ambiguous/);
+  assert.throws(() => matchEnvironmentForCwd([releasing, ready], "C:/proj"), /ambiguous/);
+  assert.equal(matchEnvironmentForCwd([failed], "C:/proj")?.environmentId, failed.environmentId);
 });
 
 test("no match returns null (non-managed semantics, not an error)", () => {

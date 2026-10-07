@@ -58,6 +58,7 @@ test("integration freezes source, validates elsewhere and refuses dirty or stale
   const result = await f.service.publishIntegration({
     operationId: operation.id,
     approvedCandidateHead: operation.candidateHead!,
+    skipValidation: true,
   });
   assert.equal(result.status, "published");
   assert.equal(await readFile(join(f.repo, "feature.txt"), "utf8"), "feature\n");
@@ -91,6 +92,7 @@ test("publication keeps unrelated tracked and untracked target edits intact", as
   const result = await f.service.publishIntegration({
     operationId: op.id,
     approvedCandidateHead: op.candidateHead!,
+    skipValidation: true,
   });
   assert.equal(result.status, "published");
   assert.equal(await f.command(f.repo, "status", "--porcelain"), beforeStatus);
@@ -181,6 +183,7 @@ test("conflicts remain in integration checkout and manual resolution requires re
       await f.service.publishIntegration({
         operationId: operation.id,
         approvedCandidateHead: resolved.candidateHead!,
+        skipValidation: true,
       })
     ).status,
     "published",
@@ -242,7 +245,7 @@ test("lost publication response reconciles without replaying commits", async (t)
       if (point === "publish.after-merge") throw new Error("lost response");
     },
   });
-  const request = { operationId: operation.id, approvedCandidateHead: operation.candidateHead! };
+  const request = { operationId: operation.id, approvedCandidateHead: operation.candidateHead!, skipValidation: true };
   await assert.rejects(service.publishIntegration(request), /lost response/);
   const head = await f.command(f.repo, "rev-parse", "HEAD");
   assert.equal((await f.service.publishIntegration(request)).status, "published");

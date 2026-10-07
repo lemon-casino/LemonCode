@@ -17,6 +17,8 @@ import type { ProjectDeclarations } from "../domain/declarations.js";
 /** 环境持久化 port（spec §8.2/§8.3）。 */
 export interface RuntimeEnvironmentStore {
   lock<T>(key: string, action: () => Promise<T>): Promise<T>;
+  /** 长准备独占租约与短记录锁分离；null 表示真实 owner 仍存活，不按超时接管。 */
+  claimPreparation(environmentId: string): Promise<(() => Promise<void>) | null>;
   readEnvironment(id: string): Promise<RuntimeEnvironmentRecord | null>;
   saveEnvironment(record: RuntimeEnvironmentRecord): Promise<void>;
   listEnvironments(): Promise<RuntimeEnvironmentRecord[]>;
@@ -46,10 +48,20 @@ export interface RuntimeEnvironmentStore {
 
 /** 工具后端 port（spec §5）：确切版本安装与可用性探测。 */
 export interface ToolBackendPort {
-  /** 确保后端本体就绪，返回后端可执行文件路径（缺失时按需下载）。 */
+  /** 只验证构建随包后端；缺失时失败，不下载或回退系统 PATH。 */
   ensureBackend(): Promise<string>;
-  /** 安装确切工具版本并返回其可执行文件绝对路径。 */
-  installTool(params: { key: string; version: string }): Promise<{ toolPath: string }>;
+  resolveVersion?(params: {
+    key: string;
+    constraint: string;
+    signal?: AbortSignal;
+  }): Promise<string>;
+  /** 安装确切版本；pnpm 使用同一冻结计划的 nodePath，取消等待真实退出。 */
+  installTool(params: {
+    key: string;
+    version: string;
+    nodePath?: string;
+    signal?: AbortSignal;
+  }): Promise<{ toolPath: string }>;
   /** 探测后端可用性（capabilities 用），不触发下载。 */
   probeBackend(): Promise<{ available: boolean; reason?: string }>;
 }
@@ -61,11 +73,21 @@ export interface DeclarationReaderPort {
 
 /** 依赖安装执行 port（spec §7：进程属既有执行 owner，环境经 port 协调并保存收据）。 */
 export interface DependencyInstallPort {
+  verifyManager?(params: {
+    manager: "npm" | "pnpm";
+    expectedVersion?: string;
+    toolPaths: Readonly<Record<string, string>>;
+    signal?: AbortSignal;
+  }): Promise<{ version: string; toolPath: string }>;
   install(params: {
     cwd: string;
     command: string;
     /** 冻结覆盖键值（pnpm import method、TEMP/TMPDIR、cache 前缀）；spawn 时叠加。 */
     env: Record<string, string>;
+    manager?: "node" | "pnpm" | "npm";
+    managerVersion?: string;
+    toolPaths?: Readonly<Record<string, string>>;
+    signal?: AbortSignal;
     onOutput?: (output: string) => Promise<void>;
   }): Promise<{ exitCode: number; output: string }>;
 }
@@ -81,6 +103,9 @@ export interface ServiceProcessPort {
     generation: number;
     argv: string[];
     cwd: string;
+    env?: Record<string, string>;
+    signal?: AbortSignal;
+    ports?: number[];
   }): Promise<{ pid?: number; urls: string[] }>;
   /** 停止并等待退出证明；无确认返回 undefined（不伪造 stopped）。 */
   stop(params: {

@@ -17,6 +17,10 @@ import { sessionsIndexDeltaSchema, sessionsIndexSnapshotSchema } from "./session
 import { WORKFLOW_RUN_STOP_REASONS } from "./workflow-observation-display.js";
 import { conversationSnapshotSchema } from "./snapshot.js";
 import { workspaceConfigDeltaSchema, workspaceConfigSnapshotSchema } from "./workspace-config.js";
+import {
+  runtimeEnvironmentProtocolCapabilitySchema,
+  type RuntimeEnvironmentAction,
+} from "../runtimeEnvironment.js";
 import { createTopicWireFrameSchema, topicWireFrameCandidateSchema } from "./wire.js";
 
 // ── 连接与握手 ──
@@ -29,6 +33,8 @@ export const hostCapabilitiesSchema = z.object({
   // Wire-compatible：旧 Host 缺失等价于 false；调用方必须用 === true 判断。
   workspaceHookReview: z.boolean().optional(),
   independentPlanState: z.boolean().optional(),
+  /** 缺省表示旧 Host；显式托管请求必须先检查此能力，不得静默降级。 */
+  runtimeEnvironment: runtimeEnvironmentProtocolCapabilitySchema.optional(),
 });
 export type HostCapabilities = z.infer<typeof hostCapabilitiesSchema>;
 
@@ -76,11 +82,19 @@ export function hostSupportsWorkspaceHookReview(capabilities: HostCapabilities):
   return capabilities.workspaceHookReview === true;
 }
 
-export function clientSupportsWorkspaceHookReview(clientHello: ClientHello): boolean {
-  return clientHello.capabilities?.workspaceHookReviewUi === true;
+export function hostSupportsRuntimeEnvironment(
+  capabilities: HostCapabilities,
+  action: RuntimeEnvironmentAction,
+): boolean {
+  const runtime = capabilities.runtimeEnvironment;
+  // 旧 Host 缺字段、旧协议或显式不可托管不能因残留 actions 被误判为支持。
+  return (
+    runtime?.managedEnvironments === true &&
+    runtime.protocolVersion === 1 &&
+    runtime.actions?.includes(action) === true
+  );
 }
 
-// ── 订阅 ──
 export const subscribeParamsSchema = z
   .object({
     // "conversation/<sessionId>" | "sessions-index/<workspaceId>" | ...

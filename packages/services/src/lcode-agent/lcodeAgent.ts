@@ -714,6 +714,12 @@ export interface ILCodeAgentService {
       cleanup: import("@lcode/shared").LCodeSessionWorktreeCleanupParams;
     },
   ): Promise<{ sessionIds: string[] }>;
+  /** 受信 Host 的环境恢复维护；不启动模型或 hydrate session。 */
+  rebindWorktreeSessions(
+    params: LCodeAgentWorkspaceTarget & {
+      rebind: import("@lcode/shared").LCodeSessionWorktreeRebindParams;
+    },
+  ): Promise<import("@lcode/shared").LCodeSessionWorktreeRebindResult>;
   setModel(params: LCodeAgentSetModelParams): Promise<LCodeSessionStateSnapshot>;
   setThoughtLevel(params: LCodeAgentSetThoughtLevelParams): Promise<LCodeSessionStateSnapshot>;
   setMode(params: LCodeAgentSetModeParams): Promise<LCodeSessionStateSnapshot>;

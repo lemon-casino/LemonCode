@@ -18,6 +18,7 @@ import { horizontalListSortingStrategy, SortableContext } from "@dnd-kit/sortabl
 import type { BrowserViewScreenshotSurfacePreparePayload, GitChangeSourceId } from "@lcode/shared";
 import { PreviewPane } from "@/PreviewPane.js";
 import { SidePaneTerminalPane } from "@/SidePaneTerminalPane.js";
+import type { TerminalExecutionScope } from "@/hooks/useTerminalService.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
 import { WorkspaceSidePaneToggleButton } from "@/WorkspaceSidePaneToggleButton.js";
 import { DesktopWindowControls } from "@/DesktopWindowControls.js";
@@ -290,6 +291,7 @@ export function AnimatedSidePanePanel({
   workspaceAbsPath,
   workspaceIdentity,
   workspaceRemoteSessionId,
+  terminalExecutionScope,
   activeTaskId,
   sidePaneOwnerId,
   gitState,
@@ -368,6 +370,7 @@ export function AnimatedSidePanePanel({
   workspaceAbsPath: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
+  terminalExecutionScope?: TerminalExecutionScope;
   activeTaskId: string | null;
   sidePaneOwnerId: string | null;
   gitState: ReturnType<typeof import("@/hooks/useGitRepository.js").useGitRepository>;
@@ -1283,7 +1286,38 @@ export function AnimatedSidePanePanel({
                             services={services}
                             sessionId={tab.id}
                             workspaceKey={workspaceKey}
-                            cwd={tab.cwd ?? workspaceAbsPath}
+                            // 默认 cwd 是原项目；由 Host 按本 tab 会话选择 checkout，不借活动 task 的目录。
+                            cwd={
+                              terminalExecutionScope &&
+                              (!tab.cwd || tab.cwd === terminalExecutionScope.workspacePath)
+                                ? undefined
+                                : (tab.cwd ?? workspaceAbsPath)
+                            }
+                            executionScope={
+                              terminalExecutionScope
+                                ? {
+                                    ...terminalExecutionScope,
+                                    sessionId: tab.ownerTaskId ?? undefined,
+                                    remoteSessionId:
+                                      tab.remoteSessionId ?? terminalExecutionScope.remoteSessionId,
+                                    // 隐藏旧 tab 仍归其创建会话，不能把当前 task 的 expected binding 套给它。
+                                    executionBindingId:
+                                      tab.ownerTaskId === terminalExecutionScope.sessionId
+                                        ? terminalExecutionScope.executionBindingId
+                                        : undefined,
+                                    environmentRef:
+                                      tab.ownerTaskId === terminalExecutionScope.sessionId
+                                        ? terminalExecutionScope.environmentRef
+                                        : undefined,
+                                  }
+                                : {
+                                    workspacePath: tab.cwd ?? workspaceAbsPath,
+                                    workspaceIdentity,
+                                    sessionId: tab.ownerTaskId ?? undefined,
+                                    remoteSessionId:
+                                      tab.remoteSessionId ?? workspaceRemoteSessionId,
+                                  }
+                            }
                             isVisible={isVisible && tab.id === visibleActiveTabId}
                             isWindowsDesktop={isWindowsDesktop}
                             onOpenBrowserUrl={onOpenBrowserUrl}

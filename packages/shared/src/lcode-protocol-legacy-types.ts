@@ -48,6 +48,8 @@ export const lcodeWorkspaceRefSchema = z
       .object({
         environmentId: z.string().regex(/^[a-f0-9]{32}$/),
         revision: z.number().int().nonnegative(),
+        /** 新 Host 可用来对账冻结清单；旧会话缺省保持可恢复。 */
+        manifestDigest: nonEmptyString.optional(),
       })
       .strict()
       .optional(),

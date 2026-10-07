@@ -1559,6 +1559,7 @@ export function SessionPane({
   );
   const executionIntentRef = useRef({
     mode: executionPolicy.executionMode,
+    environmentPolicy: executionPolicy.environmentPolicy,
     baseRef: draftExecution?.baseRef,
     originWorkspacePath: workspacePath,
     originWorkspaceIdentity: workspaceIdentity,
@@ -1569,6 +1570,7 @@ export function SessionPane({
   });
   executionIntentRef.current = {
     mode: executionPolicy.executionMode,
+    environmentPolicy: executionPolicy.environmentPolicy,
     baseRef: draftExecution?.baseRef,
     originWorkspacePath: workspacePath,
     originWorkspaceIdentity: workspaceIdentity,

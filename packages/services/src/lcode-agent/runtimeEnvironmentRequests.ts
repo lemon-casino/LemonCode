@@ -1,5 +1,29 @@
 import {
   lcodeProtocolMethods,
+  runtimeEnvironmentCapabilitiesSchema,
+  runtimeEnvironmentCapabilitiesResultSchema,
+  runtimeEnvironmentProtocolCapabilitySchema,
+  runtimeEnvironmentScopeSchema,
+  runtimeEnvironmentPrepareParamsSchema,
+  runtimeEnvironmentPrepareResultSchema,
+  runtimeEnvironmentGetParamsSchema,
+  runtimeEnvironmentGetResultSchema,
+  runtimeEnvironmentListParamsSchema,
+  runtimeEnvironmentListResultSchema,
+  runtimeEnvironmentSnapshotParamsSchema,
+  runtimeEnvironmentSnapshotSchema,
+  runtimeEnvironmentReconcileParamsSchema,
+  runtimeEnvironmentReconcileResultSchema,
+  runtimeEnvironmentReleaseParamsSchema,
+  runtimeEnvironmentReleaseResultSchema,
+  runtimeEnvironmentServiceActionParamsSchema,
+  runtimeEnvironmentServiceActionResultSchema,
+  runtimeEnvironmentResourceScanParamsSchema,
+  runtimeEnvironmentResourceScanResultSchema,
+  runtimeEnvironmentGarbageCollectionParamsSchema,
+  runtimeEnvironmentGarbageCollectionResultSchema,
+  type RuntimeEnvironmentProtocolCapability,
+  type RuntimeEnvironmentScope,
   runtimeEnvironmentReleaseConsumerParamsSchema,
   runtimeEnvironmentReleaseConsumerResultSchema,
   runtimeEnvironmentRetainSessionParamsSchema,
@@ -10,6 +34,7 @@ import {
   type ResolvedProjectContextWire,
 } from "@lcode/shared";
 import type {
+  IRuntimeEnvironmentHostService,
   IRuntimeEnvironmentService,
   RuntimeEnvironmentConsumerAuthority,
   ResolvedProjectExecutionContext,
@@ -19,26 +44,174 @@ import {
   assertRuntimeCwd,
   assertRuntimeWorkspacePath,
   authorizeRuntimeBinding,
+  authorizeRuntimeBindingIdentity,
   runtimeStorageScope,
+  sameRuntimeWorkspacePath,
   type RuntimeClientWorkspace,
 } from "./runtimeEnvironmentAuthorization.js";
 
+const publicMethods = new Set<string>([
+  lcodeProtocolMethods.runtimeEnvironmentCapabilities,
+  lcodeProtocolMethods.runtimeEnvironmentPrepare,
+  lcodeProtocolMethods.runtimeEnvironmentGet,
+  lcodeProtocolMethods.runtimeEnvironmentList,
+  lcodeProtocolMethods.runtimeEnvironmentSnapshot,
+  lcodeProtocolMethods.runtimeEnvironmentReconcile,
+  lcodeProtocolMethods.runtimeEnvironmentRelease,
+  lcodeProtocolMethods.runtimeEnvironmentStartService,
+  lcodeProtocolMethods.runtimeEnvironmentStopService,
+  lcodeProtocolMethods.runtimeEnvironmentResourceSummary,
+  lcodeProtocolMethods.runtimeEnvironmentGarbageCollect,
+]);
+export function isRuntimeEnvironmentPublicRequest(method: string): boolean {
+  return publicMethods.has(method);
+}
+
+/** 只投影真实服务能力；无服务/旧端无字段不等于托管支持。 */
+export async function readRuntimeEnvironmentProtocolCapability(
+  service: Pick<IRuntimeEnvironmentService, "getCapabilities"> | undefined,
+  scope: RuntimeEnvironmentScope,
+): Promise<RuntimeEnvironmentProtocolCapability | undefined> {
+  if (!service) return undefined;
+  try {
+    const caps = runtimeEnvironmentCapabilitiesSchema.parse(await service.getCapabilities(scope));
+    return runtimeEnvironmentProtocolCapabilitySchema.parse({
+      managedEnvironments: caps.managedEnvironments,
+      ...(caps.protocolVersion !== undefined ? { protocolVersion: caps.protocolVersion } : {}),
+      ...(caps.actions ? { actions: caps.actions } : {}),
+      ...(caps.platform ? { platform: caps.platform } : {}),
+      ...(caps.missingReason ? { missingReason: caps.missingReason } : {}),
+    });
+  } catch {
+    return {
+      managedEnvironments: false,
+      missingReason: "Runtime environment capability is unavailable on the target Host",
+    };
+  }
+}
+
+/** 反向管理请求与 UI 共用公开 facade；attachment 只授权 binding，不接受裸 cwd 推断。 */
+export async function handleRuntimeEnvironmentPublicRequest(
+  method: string,
+  raw: unknown,
+  workspace: RuntimeClientWorkspace,
+  service: IRuntimeEnvironmentService | undefined,
+  worktrees?: IWorktreeService,
+): Promise<unknown> {
+  const authorize = async <T extends RuntimeEnvironmentScope>(params: T): Promise<T> => {
+    const same = (scope: RuntimeEnvironmentScope) =>
+      (params.workspaceIdentity?.trim() || "") === (scope.workspaceIdentity?.trim() || "") &&
+      sameRuntimeWorkspacePath(params.workspacePath, scope.workspacePath);
+    if (same(workspace)) return params;
+    const owned = await worktrees?.list({
+      workspacePath: workspace.workspacePath,
+      ...(workspace.workspaceIdentity ? { workspaceIdentity: workspace.workspaceIdentity } : {}),
+    });
+    if (
+      !owned?.some(
+        (binding) =>
+          binding.status !== "deleted" &&
+          same(binding) &&
+          (binding.originalWorkspaceIdentity?.trim() || "") ===
+            (workspace.workspaceIdentity?.trim() || "") &&
+          sameRuntimeWorkspacePath(binding.originalWorkspacePath, workspace.workspacePath),
+      )
+    )
+      throw new Error(
+        "scope-mismatch: runtime management request differs from the attached workspace",
+      );
+    return params;
+  };
+  if (!service)
+    throw new Error(
+      "capability-unavailable: managed runtime environments are unavailable on this Host",
+    );
+  switch (method) {
+    case lcodeProtocolMethods.runtimeEnvironmentCapabilities:
+      return runtimeEnvironmentCapabilitiesResultSchema.parse({
+        capabilities: await service.getCapabilities(
+          await authorize(runtimeEnvironmentScopeSchema.parse(raw)),
+        ),
+      });
+    case lcodeProtocolMethods.runtimeEnvironmentPrepare:
+      return runtimeEnvironmentPrepareResultSchema.parse({
+        operation: await service.prepare(
+          await authorize(runtimeEnvironmentPrepareParamsSchema.parse(raw)),
+        ),
+      });
+    case lcodeProtocolMethods.runtimeEnvironmentGet:
+      return runtimeEnvironmentGetResultSchema.parse({
+        environment: await service.get(
+          await authorize(runtimeEnvironmentGetParamsSchema.parse(raw)),
+        ),
+      });
+    case lcodeProtocolMethods.runtimeEnvironmentList:
+      return runtimeEnvironmentListResultSchema.parse({
+        environments: await service.list(
+          await authorize(runtimeEnvironmentListParamsSchema.parse(raw)),
+        ),
+      });
+    case lcodeProtocolMethods.runtimeEnvironmentSnapshot:
+      return runtimeEnvironmentSnapshotSchema.parse(
+        await service.snapshot(await authorize(runtimeEnvironmentSnapshotParamsSchema.parse(raw))),
+      );
+    case lcodeProtocolMethods.runtimeEnvironmentReconcile:
+      return runtimeEnvironmentReconcileResultSchema.parse(
+        await service.reconcile(
+          await authorize(runtimeEnvironmentReconcileParamsSchema.parse(raw)),
+        ),
+      );
+    case lcodeProtocolMethods.runtimeEnvironmentRelease:
+      return runtimeEnvironmentReleaseResultSchema.parse(
+        await service.release(await authorize(runtimeEnvironmentReleaseParamsSchema.parse(raw))),
+      );
+    case lcodeProtocolMethods.runtimeEnvironmentStartService:
+      return runtimeEnvironmentServiceActionResultSchema.parse(
+        await service.startService(
+          await authorize(runtimeEnvironmentServiceActionParamsSchema.parse(raw)),
+        ),
+      );
+    case lcodeProtocolMethods.runtimeEnvironmentStopService:
+      return runtimeEnvironmentServiceActionResultSchema.parse(
+        await service.stopService(
+          await authorize(runtimeEnvironmentServiceActionParamsSchema.parse(raw)),
+        ),
+      );
+    case lcodeProtocolMethods.runtimeEnvironmentResourceSummary:
+      return runtimeEnvironmentResourceScanResultSchema.parse(
+        await service.resourceSummary(
+          await authorize(runtimeEnvironmentResourceScanParamsSchema.parse(raw)),
+        ),
+      );
+    case lcodeProtocolMethods.runtimeEnvironmentGarbageCollect:
+      return runtimeEnvironmentGarbageCollectionResultSchema.parse(
+        await service.garbageCollect(
+          await authorize(runtimeEnvironmentGarbageCollectionParamsSchema.parse(raw)),
+        ),
+      );
+    default:
+      throw new Error("Unknown runtime environment request");
+  }
+}
+
 export function isRuntimeEnvironmentRequest(method: string): boolean {
   return (
+    isRuntimeEnvironmentPublicRequest(method) ||
     method === lcodeProtocolMethods.runtimeEnvironmentResolveContext ||
     method === lcodeProtocolMethods.runtimeEnvironmentRetainSession ||
     method === lcodeProtocolMethods.runtimeEnvironmentReleaseConsumer
   );
 }
-function toWire(context: ResolvedProjectExecutionContext): ResolvedProjectContextWire {
+function toWire(
+  context: ResolvedProjectExecutionContext,
+  workspaceIdentity?: string,
+): ResolvedProjectContextWire {
   return {
     environmentId: context.environmentId,
     revision: context.revision,
     manifestDigest: context.manifestDigest,
     cwd: context.cwd,
-    ...(context.executionScope.workspaceIdentity
-      ? { workspaceIdentity: context.executionScope.workspaceIdentity }
-      : {}),
+    ...(workspaceIdentity ? { workspaceIdentity } : {}),
     toolPaths: { ...context.toolPaths },
     envOverlay: context.envOverlay,
   };
@@ -46,7 +219,7 @@ function toWire(context: ResolvedProjectExecutionContext): ResolvedProjectContex
 interface ClientOptions {
   workspace: RuntimeClientWorkspace;
   clientId: string;
-  service: IRuntimeEnvironmentService;
+  service: IRuntimeEnvironmentHostService;
   consumers: RuntimeEnvironmentConsumerAuthority;
   worktrees: IWorktreeService;
 }
@@ -104,6 +277,14 @@ export function createRuntimeEnvironmentClient(options: ClientOptions) {
       if ((request.remoteSessionId ?? "") !== (options.workspace.remoteSessionId ?? ""))
         throw new Error("scope-mismatch: runtime release attachment differs");
       if (!ticket) {
+        // 无 ticket 的迟到 close 仍须绑定授权，否则错 identity 能抢先写 closed 墓碑阻断合法 app。
+        const binding = await authorizeRuntimeBindingIdentity(
+          options.worktrees,
+          options.workspace,
+          request,
+        );
+        if (binding.environmentRef?.environmentId !== request.environmentId)
+          throw new Error("scope-mismatch: runtime release environment differs");
         closed.add(key);
         return { removed: 0, remaining: 0 };
       }
@@ -165,12 +346,28 @@ export function createRuntimeEnvironmentClient(options: ClientOptions) {
       ...scope,
       environmentId: reference.environmentId,
       expectedRevision: reference.revision,
+      ...((request.environmentRef.manifestDigest ?? binding.environmentRef?.manifestDigest)
+        ? {
+            expectedManifestDigest:
+              request.environmentRef.manifestDigest ?? binding.environmentRef?.manifestDigest,
+          }
+        : {}),
       bindingId: binding.id,
       consumer: request.consumer,
       cwd: request.cwd,
     });
     if (exited || closed.has(key)) throw new Error("runtime client closed before context delivery");
-    return runtimeEnvironmentResolveContextResultSchema.parse({ context: toWire(context) });
+    if (
+      context.environmentId !== request.environmentRef.environmentId ||
+      context.revision !== request.environmentRef.revision ||
+      (request.environmentRef.manifestDigest &&
+        context.manifestDigest !== request.environmentRef.manifestDigest)
+    )
+      throw new Error("stale-reference: runtime resolved context differs from the bound reference");
+    // storage scope 只有 Host 本地 checkoutPath，wire 必须恢复已授权的远端 execution identity。
+    return runtimeEnvironmentResolveContextResultSchema.parse({
+      context: toWire(context, request.workspaceIdentity),
+    });
   }
 
   return {

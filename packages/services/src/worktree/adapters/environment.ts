@@ -1,5 +1,34 @@
+import { createHash } from "node:crypto";
 import { lstat, readFile } from "node:fs/promises";
 import { join } from "node:path";
+
+/** 即使声明被 Git ignore，变化也必须使候选证据失效；固定清单和字节预算避免无界扫描。 */
+export async function worktreeDeclarationDigest(root: string): Promise<string> {
+  const hash = createHash("sha256");
+  let bytes = 0;
+  for (const name of [
+    "mise.toml", ".mise.toml", "mise.lock", ".tool-versions", ".node-version", ".nvmrc",
+    ".python-version", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "package-lock.json",
+    "npm-shrinkwrap.json", "yarn.lock", "bun.lock", "bun.lockb", ".npmrc", ".yarnrc.yml",
+    "go.mod", "go.sum", "go.work", "Cargo.toml", "Cargo.lock", "rust-toolchain", "rust-toolchain.toml",
+    "pyproject.toml", "uv.lock", "poetry.lock", "requirements.txt", "Pipfile", "Pipfile.lock",
+  ]) {
+    hash.update(`${name}\0`);
+    try {
+      const stat = await lstat(join(root, name));
+      if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`Unsafe environment declaration: ${name}`);
+      bytes += stat.size;
+      if (stat.size > 16 * 1024 * 1024 || bytes > 64 * 1024 * 1024)
+        throw new Error("Environment declarations exceed the bounded validation budget");
+      hash.update(await readFile(join(root, name)));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      hash.update("missing");
+    }
+    hash.update("\0");
+  }
+  return hash.digest("hex");
+}
 
 async function regularFile(root: string, name: string) {
   try {

@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveSpawnRuntimeOptions } from "../../../scripts/spawn-command.mjs";
+import { resolveMiseTarget, validateMiseRuntimeAssets } from "./prepare-mise-runtime-assets.mjs";
 
 export function resolveDesktopBuildCwd() {
   // tsup / vite 配置里的入口路径都是相对 desktop 包根目录声明的。
@@ -87,6 +88,10 @@ function runCommandAsync(step) {
 }
 
 export async function runDesktopProductionBuild({ cwd = resolveDesktopBuildCwd() } = {}) {
+  await validateMiseRuntimeAssets({
+    desktopRoot: cwd,
+    target: resolveMiseTarget(),
+  });
   await cleanDesktopProductionOutput({ cwd });
   for (const step of createDesktopProductionBuildPlan({ cwd })) {
     if (step.parallel) {

@@ -1,11 +1,13 @@
 import type { IServiceAccessor } from "@lcode/services";
 import { createUuid } from "@lcode/shared";
+import type { TerminalExecutionScope } from "@/hooks/terminalExecutionScope.js";
 
 export interface TerminalSessionDescriptor {
   id: string;
   workspaceKey: string;
   services: IServiceAccessor;
   cwd?: string;
+  executionScope?: TerminalExecutionScope;
   index: number;
   shellLabel: string | null;
 }
@@ -24,6 +26,7 @@ export function createTerminalSession(params: {
   workspaceKey: string;
   services: IServiceAccessor;
   cwd?: string;
+  executionScope?: TerminalExecutionScope;
   index: number;
 }): TerminalSessionDescriptor {
   return {
@@ -31,6 +34,7 @@ export function createTerminalSession(params: {
     workspaceKey: params.workspaceKey,
     services: params.services,
     cwd: params.cwd,
+    executionScope: params.executionScope,
     index: params.index,
     shellLabel: null,
   };
@@ -40,6 +44,7 @@ export function createWorkspaceTerminalState(params: {
   workspaceKey: string;
   services: IServiceAccessor;
   cwd?: string;
+  executionScope?: TerminalExecutionScope;
 }): {
   session: TerminalSessionDescriptor;
   workspace: TerminalWorkspaceState;
@@ -48,6 +53,7 @@ export function createWorkspaceTerminalState(params: {
     workspaceKey: params.workspaceKey,
     services: params.services,
     cwd: params.cwd,
+    executionScope: params.executionScope,
     index: 1,
   });
 
@@ -176,6 +182,7 @@ export function ensureWorkspaceTerminalState(
     workspaceKey: string;
     services: IServiceAccessor;
     cwd?: string;
+    executionScope?: TerminalExecutionScope;
   },
 ): TerminalPanelState {
   const existingWorkspace = state.workspaces[params.workspaceKey];

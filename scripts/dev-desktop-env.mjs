@@ -2,10 +2,17 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 import { withPinnedNodePath } from "./mise-toolchain-env.mjs";
+import {
+  assertRuntimeDevelopmentDataRoot,
+  withDefaultDevelopmentDataRoot,
+} from "./runtime-development-env.mjs";
 import { spawnCommand } from "./spawn-command.mjs";
 
 const requestedEnv = process.argv[2]?.trim().toLowerCase();
 const agentBytecode = process.argv.slice(3).includes("--agent-bytecode");
+const prepareOnly = process.argv.slice(3).includes("--prepare-only");
+const runtimeOnly = process.argv.slice(3).includes("--runtime-only");
+if (prepareOnly && runtimeOnly) throw new Error("Choose only one desktop development phase");
 if (requestedEnv !== "test" && requestedEnv !== "production") {
   console.error("Usage: node scripts/dev-desktop-env.mjs <test|production> [--agent-bytecode]");
   process.exit(1);
@@ -13,6 +20,15 @@ if (requestedEnv !== "test" && requestedEnv !== "production") {
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+const defaultDevelopmentDataRoot = resolve(
+  process.env.HOME || process.env.USERPROFILE || repoRoot,
+  ".lcode-dev-home",
+);
+assertRuntimeDevelopmentDataRoot(process.env);
+const runtimeEnv =
+  requestedEnv === "test"
+    ? withDefaultDevelopmentDataRoot(process.env, defaultDevelopmentDataRoot)
+    : process.env;
 
 function run(command, args) {
   return new Promise((resolveRun, rejectRun) => {
@@ -20,7 +36,7 @@ function run(command, args) {
       cwd: repoRoot,
       env: withPinnedNodePath(
         {
-          ...process.env,
+          ...runtimeEnv,
           LCODE_ENV: requestedEnv,
           LCODE_DESKTOP_AGENT_BYTECODE: agentBytecode ? "1" : "0",
         },
@@ -51,12 +67,14 @@ try {
   // `dev` lifecycle directly, so pnpm will not run `pre-dev` automatically.
   // Preserve its runtime-asset preparation and stale `out` cleanup explicitly
   // before rebuilding bundles or starting Electron.
-  await run(pnpmCommand, ["--filter", "@lcode/desktop", "pre-dev"]);
-  await run(process.execPath, [resolve(repoRoot, "scripts/build-desktop-agent-cli.mjs")]);
-  if (agentBytecode) {
-    await run(process.execPath, [resolve(repoRoot, "scripts/build-desktop-agent-bytecode.mjs")]);
+  if (!runtimeOnly) {
+    await run(pnpmCommand, ["--filter", "@lcode/desktop", "pre-dev"]);
+    await run(process.execPath, [resolve(repoRoot, "scripts/build-desktop-agent-cli.mjs")]);
+    if (agentBytecode) {
+      await run(process.execPath, [resolve(repoRoot, "scripts/build-desktop-agent-bytecode.mjs")]);
+    }
   }
-  await run(pnpmCommand, ["--filter", "@lcode/desktop", "dev:runtime"]);
+  if (!prepareOnly) await run(pnpmCommand, ["--filter", "@lcode/desktop", "dev:runtime"]);
 } catch (error) {
   console.error(error instanceof Error ? error.message : error);
   process.exit(1);

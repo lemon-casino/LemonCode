@@ -93,11 +93,12 @@ test("managed forks share one reference in-place and prepare from the new checko
     ...f.options,
     prepareRuntimeEnvironment: async (params: { bindingId: string; checkoutPath: string }) => {
       prepared.push({ ...params, declaration: await readFile(join(params.checkoutPath, ".node-version"), "utf8") });
-      return { environmentId: createHash("sha256").update(params.bindingId).digest("hex").slice(0, 32), revision: 1 };
+      return { environmentId: createHash("sha256").update(params.bindingId).digest("hex").slice(0, 32), revision: 1, manifestDigest: `manifest-${params.bindingId}` };
     },
+    resolveRuntimeEnvironment: async (params: { bindingId: string; environmentRef: { environmentId: string; revision: number } }) => ({ ...params.environmentRef, manifestDigest: `manifest-${params.bindingId}` }),
   };
   const service = createWorktreeService(options);
-  const owner = await service.prepare({ workspacePath: f.repo, taskId: "owner", requestId: "owner" });
+  const owner = await service.prepare({ workspacePath: f.repo, taskId: "owner", requestId: "owner", environmentPolicy: "managed" });
   const same = await service.prepare({
     workspacePath: f.repo, taskId: "child", requestId: "same",
     parentBinding: { bindingId: owner.id, bindingOwnerTaskId: "owner", parentTaskId: "owner" },
@@ -106,7 +107,7 @@ test("managed forks share one reference in-place and prepare from the new checko
   assert.equal(prepared.length, 1);
   await writeFile(join(owner.checkoutPath, ".node-version"), "22.20.0\n");
   const separate = await service.prepare({
-    workspacePath: f.repo, taskId: "new-tree", requestId: "new-tree",
+    workspacePath: f.repo, taskId: "new-tree", requestId: "new-tree", environmentPolicy: "managed",
     forkSource: { workspacePath: owner.workspacePath },
   });
   assert.equal(prepared.length, 2);

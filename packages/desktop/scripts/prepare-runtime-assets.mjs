@@ -6,11 +6,18 @@ import { fileURLToPath } from "node:url";
 import { resolveNativeSearchReleasePlan } from "../../../scripts/native-search-tools-config.mjs";
 import { runCommand } from "../../../scripts/spawn-command.mjs";
 import { getTargetPlatform } from "./target-platform.mjs";
+import { prepareMiseRuntimeAssets, resolveMiseTarget } from "./prepare-mise-runtime-assets.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const desktopRoot = resolve(scriptDir, "..");
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const target = getTargetPlatform();
+const miseTarget = {
+  os: target.os,
+  arch: target.arch,
+  libc: process.env.LCODE_MISE_LIBC ?? process.env.LCODE_TARGET_LIBC,
+};
+await prepareMiseRuntimeAssets({ target: resolveMiseTarget(miseTarget) });
 const nativeSearchReleasePlan = resolveNativeSearchReleasePlan({
   platform: target.os,
   arch: target.arch,
@@ -23,8 +30,9 @@ const shouldPrepareWindowsBrowserImportHelper =
 // 到屏幕底部，仍可用），所以无条件挂在 darwin 上不会让构建变脆。
 const shouldPrepareMacosWindowBounds = target.os === "darwin";
 
+// 修复依据：桌面包只消费目标平台资产；远端预构建会校验异构 mise 归档，可能让本地打包无期限等待。
 // 本机桌面包内置 agent 的 JS bundle（prepare:agent-bundle），运行时由 app 的 Electron Node runtime 执行。
-// 远端跨平台原生二进制仍由上面的 prepare:remote-assets 提供。
+// 远端跨平台原生二进制由显式 prepare:remote-assets 单独准备，桌面打包只准备目标平台资产。
 // native-search 归档随仓库分发，准备步骤只做本地解包校验，不需要任何下载源配置。
 const localRuntimeScripts = [
   "prepare:agent-bundle",
@@ -46,17 +54,6 @@ function runTimedPnpmScript(scriptName) {
       `[ci][timer] prepare-runtime-assets:${scriptName} end duration_ms=${Date.now() - startMs}`,
     );
   }
-}
-
-const shouldSkipRemoteAssets = process.env.LCODE_SKIP_REMOTE_ASSETS === "1";
-
-if (!shouldSkipRemoteAssets) {
-  runTimedPnpmScript("prepare:remote-assets");
-} else {
-  // Windows build job 的桌面安装包不依赖 mock-cdn remote 资产。
-  // 之前这里无条件执行 prepare:remote-assets，会在同一个 job 里串行下载/打包跨平台资源，
-  // 导致 CI 时间被白白拉长并逼近 1 小时上限。增加显式开关，只在需要时才准备 remote 资产。
-  console.log("[prepare:runtime-assets] skip prepare:remote-assets (LCODE_SKIP_REMOTE_ASSETS=1)");
 }
 
 for (const scriptName of localRuntimeScripts) {

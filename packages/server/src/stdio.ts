@@ -2,9 +2,11 @@ import { randomUUID } from "node:crypto";
 import { Emitter, VSBuffer, SocketProtocol, ChannelServer, type ISocket } from "@lcode/rpc";
 import {
   ILCodeAgentService,
+  IRuntimeEnvironmentService,
   createLCodeAgentConnectionScope,
   type ServiceCollection,
 } from "@lcode/services";
+import { createPublicRuntimeEnvironmentService } from "@lcode/services/node";
 
 /**
  * Wrap process.stdin/stdout as an ISocket for RPC communication.
@@ -65,12 +67,17 @@ export function createStdioServer(services: ServiceCollection) {
         role: "trusted-host-relay",
       })
     : undefined;
-  services.exposeOnChannelServer(
-    channelServer,
-    connectionScope
-      ? new Map([[ILCodeAgentService.channelName, connectionScope.service]])
-      : new Map(),
-  );
+  const overrides = new Map<string, unknown>();
+  if (connectionScope) overrides.set(ILCodeAgentService.channelName, connectionScope.service);
+  const runtimeEnvironmentService = services.getOptional(IRuntimeEnvironmentService);
+  if (runtimeEnvironmentService) {
+    // stdio 只是已有 Host 的服务通路，不把内部 env/lease resolver 注册为远端公共 RPC。
+    overrides.set(
+      IRuntimeEnvironmentService.channelName,
+      createPublicRuntimeEnvironmentService(runtimeEnvironmentService),
+    );
+  }
+  services.exposeOnChannelServer(channelServer, overrides);
   let stopPromise: Promise<void> | undefined;
   const stop = (): Promise<void> => {
     if (stopPromise) {

@@ -3,8 +3,26 @@
  */
 import { useState, useEffect, useCallback, useRef } from "react";
 import type { IDisposable } from "@lcode/rpc";
+import type { ITerminalService } from "@lcode/services";
+import { createScopedTerminal, type TerminalExecutionScope } from "./terminalExecutionScope.js";
+
+export type { TerminalExecutionScope } from "./terminalExecutionScope.js";
 import { logger } from "@/logger.js";
 import { useServices } from "./useServices.js";
+
+/** xterm 两条生命周期共用此 hook；活动会话变化不能重启已有 PTY，只影响下一次 create。 */
+export function useTerminalCreate(
+  terminalService: ITerminalService,
+  scope?: TerminalExecutionScope,
+): (params: Parameters<typeof createScopedTerminal>[1]) => ReturnType<ITerminalService["create"]> {
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  return useCallback(
+    (params: Parameters<typeof createScopedTerminal>[1]) =>
+      createScopedTerminal(terminalService, params, scopeRef.current),
+    [terminalService],
+  );
+}
 
 /**
  * 终端生命周期管理 hook
@@ -16,10 +34,12 @@ export function useTerminal(opts: {
   cols: number;
   rows: number;
   cwd?: string;
+  executionScope?: TerminalExecutionScope;
   onData?: (data: string) => void;
   onExit?: (code: number) => void;
 }) {
   const { terminalService } = useServices();
+  const createTerminal = useTerminalCreate(terminalService, opts.executionScope);
   const [terminalId, setTerminalId] = useState<string | null>(null);
   const disposablesRef = useRef<IDisposable[]>([]);
 
@@ -33,8 +53,7 @@ export function useTerminal(opts: {
     let cancelled = false;
     let id: string | null = null;
 
-    terminalService
-      .create({ cols: opts.cols, rows: opts.rows, cwd: opts.cwd })
+    createTerminal({ cols: opts.cols, rows: opts.rows, cwd: opts.cwd })
       .then(({ id: newId }) => {
         if (cancelled) {
           terminalService.dispose({ id: newId });
@@ -68,7 +87,7 @@ export function useTerminal(opts: {
       disposablesRef.current = [];
       if (id) terminalService.dispose({ id });
     };
-  }, [terminalService, opts.cols, opts.rows, opts.cwd]);
+  }, [createTerminal, terminalService, opts.cols, opts.rows, opts.cwd]);
 
   const write = useCallback(
     (data: string) => {

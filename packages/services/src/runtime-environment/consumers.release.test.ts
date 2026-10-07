@@ -30,6 +30,7 @@ async function fixture(t: TestContext) {
     purpose: "worktree",
     status: "ready",
     currentRevision: 7,
+    stateRevision: 1,
     createdAt: AT,
     updatedAt: AT,
   };
@@ -179,7 +180,7 @@ test("revision is reread after obtaining the same environment lock", async (t) =
   const { store, peer, record, request, stamp } = await fixture(t);
   const entered = deferred();
   const proceed = deferred();
-  const upgraded = { ...record, currentRevision: 8 };
+  const upgraded = { ...record, currentRevision: 8, stateRevision: 2 };
   const writer = store.lock(record.environmentId, async () => {
     entered.resolve();
     await proceed.promise;
@@ -202,7 +203,11 @@ test("release never claims pending preparation is fenced or settled", async (t) 
     "preparingDependencies",
     "cancelling",
   ] as const) {
-    const preparing = { ...record, status };
+    const preparing = {
+      ...record,
+      status,
+      stateRevision: ((await store.readEnvironment(record.environmentId))?.stateRevision ?? 0) + 1,
+    };
     await store.saveEnvironment(preparing);
     const blocked = await releaseRuntimeEnvironment(store, request, stamp);
     assert.equal(blocked.status, "releaseBlocked");
@@ -235,7 +240,7 @@ test("running, unknown and failed-without-exit service receipts block release", 
     urls: [],
     startedAt: AT,
   };
-  for (const state of ["starting", "running", "stopping", "unknown", "failed"] as const) {
+  for (const state of ["starting", "running", "stopping", "unknown", "failed", "stopped"] as const) {
     await store.saveEnvironment(record);
     await store.saveServiceReceipt({ ...base, state });
     const result = await releaseRuntimeEnvironment(store, request, stamp);

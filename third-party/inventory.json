@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "inputHashEncoding": "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
-  "scope": "Production dependency union across current workspace projects, copied source/assets and native tools; not a per-installer SBOM or a certification of all licensing obligations.",
-  "noticesSha256": "4c2d339768a8964bfdbaf4e13350cf2a2c212ea21e5024949427bdfd2b04b38d",
+  "scope": "Production dependency union across current workspace projects, copied source/assets, native search tools and the bundled mise backend; not a per-installer SBOM or a certification of all licensing obligations.",
+  "noticesSha256": "9ef386aed6d428c6ce678d10d92eeb80ab0284662124c93a6ddba36ceba38dbf",
   "inputs": {
     ".agents/skills/agent-browser/references/authentication.md": "03776b640f377e030c419aa5ad53ec4de5babe69dc37b495d432cd318727ca03",
     ".agents/skills/agent-browser/references/commands.md": "532584b4c03bdbd47acde121edadbffd83a8f3a020f7750f923c6dd789302604",
@@ -254,7 +254,7 @@
     "apps/lcode-cli/tools/typescript/package.json": "2f33883fe33cc9d878a3d6d78a0d262eb0db134fc02042ed7563c3dc50d797f7",
     "package.json": "0489551666bc9b927f71037fc6fcc58b09f79b3c2c6d27af1172ff83f763007e",
     "packages/client/package.json": "6cfcb57428c4728a98b7cf4504d29304cf6e9e547e136f0ab1edcef8f821b452",
-    "packages/desktop/package.json": "b68388d3a85da919fbb58ff079ee0f0b426eaef17fe6f35b8d3553f6065ba826",
+    "packages/desktop/package.json": "f30dd4e63c395ee523b6ecc66a019821edb0110a5c4f3a968649806d0775b6f7",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
     "packages/desktop/src/renderer/public/material-icons/abap.svg": "1335bd7eb9a0ed49deb622330d680c2e97731726a7a5eee8e4f46dc1e5db4de4",
     "packages/desktop/src/renderer/public/material-icons/abc.svg": "d1a68020e8f020ef29dca5f94dc8613b7ae8fb5b212d8b1cc23b0f975ac7acda",
@@ -1429,7 +1429,7 @@
     "packages/rpc/src/remote.ts": "a11e072d5df7e1c1ce64814a68f72afc081246b364f0da409b5c9d22bc815957",
     "packages/rpc/src/serialization.ts": "9720698411e17c31869c4bc974c381e4201bf3d51cf8e849ea7375eb54399dc6",
     "packages/server/package.json": "47bc3b110296320aaa4ea77eb4707107111e3be8da4026ffd4c1bc844d0d9c4f",
-    "packages/services/package.json": "a6e702392b3b9ea01e8346df3f7d4e64d69ec44fdd60e2c629521e8507a170e4",
+    "packages/services/package.json": "2481232b4e870f500f3b4ab7ca5242aee3b33b77f4825e80a0cdb345bce76be1",
     "packages/shared/package.json": "ddd531f64a2f324b493ee7fec2885ca7c6ae46b113e9a3422588ad997007bc8c",
     "packages/shared/src/lcode-protocol-v4/wire-codec.ts": "4e895f7c3ea4067ad9540649e779661055c46c09be7247fb33533489f814cd2c",
     "packages/ui/package.json": "9a8b8b435afccf93662d16b2d112c6c5953dcee389d05bf211f011b76a479737",
@@ -2675,13 +2675,15 @@
     "packages/web/public/material-icons/zeabur.svg": "8bb7c84934202e9b24842ddb1ca69d316b9d69f1a4f5ebc9bbcce78eb2cea1a7",
     "packages/web/public/material-icons/zig.svg": "37be0ce02cf471b18d86150b3c38e80caa7c16c49a15078e7db6f1f41788d101",
     "packages/web/public/material-icons/zip.svg": "dad79a45f756542d37abd422502ecfbea15720b92ea1c9d80ef0439ab6b9448a",
-    "pnpm-lock.yaml": "0377af4ca1f63bbc6c7573b0ed7c87832c6469c87629cd56128aa3d01bbf323c",
+    "pnpm-lock.yaml": "0acc88459cdc947cb8618656e9cf5272455b7ec1c684589360b5c3e0d2cd5d2f",
     "pnpm-workspace.yaml": "75f1aaa4a90c88712c9db16f6ba935ee68151545143b9112e5952b9c4caf99cb",
     "scripts/license-texts/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "scripts/native-search-tools-config.mjs": "51483e7c154b76d431703e22b28c6b4687245bf15662e5246ed976d561d086ae",
     "scripts/remote-native-search-tools-config.mjs": "472322a66f84c7452f96aa9e16e9c4e0600f7c2588a03dc6bc869229161b1cb2",
     "third-party/copied-components.json": "d775ff32583a5785e5c8b5011f1321b1e111581fd3c3eb47a64164dca72928d8",
     "third-party/embedded-components.json": "9586ccca15897f56d4ca1d703dffe9e02880fedd766c1dff93f7ac1f52ea891a",
+    "third-party/mise/LICENSE.txt": "4d22d6f9222adef0a45ef895bfdd6f71d6394b1784b1001a4bebb4298b8ddc69",
+    "third-party/mise/sources.json": "813e101f64ef00dfd0a2b6813513849ea6be8acb84a8b8d6ce2d20ac49aed1ea",
     "third-party/native-search/licenses/00373c9bf56a894b2ed67586596bc1e8b0630cabbaf1ab46c75fc754b6bcd1ce.txt": "00373c9bf56a894b2ed67586596bc1e8b0630cabbaf1ab46c75fc754b6bcd1ce",
     "third-party/native-search/licenses/01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f.txt": "01c266bced4a434da0051174d6bee16a4c82cf634e2679b6155d40d75012390f",
     "third-party/native-search/licenses/029d615cc92cc216eeefa50fea59bb9838e8e8f22a9f19ec5ee224a31ec9f383.txt": "029d615cc92cc216eeefa50fea59bb9838e8e8f22a9f19ec5ee224a31ec9f383",
@@ -32165,6 +32167,53 @@
         "sha256": "4573185d56580da2b890ba34a85a409257640f1c5632eade4300137266194d18"
       }
     ]
+  },
+  "mise": {
+    "schemaVersion": 1,
+    "scope": "mise v2026.10.2 official desktop release assets bundled by the desktop distribution build.",
+    "component": {
+      "id": "mise",
+      "version": "v2026.10.2",
+      "license": "MIT",
+      "source": "https://github.com/jdx/mise/tree/v2026.10.2",
+      "licenseSource": "https://raw.githubusercontent.com/jdx/mise/v2026.10.2/LICENSE",
+      "licenseFile": "third-party/mise/LICENSE.txt",
+      "licenseSha256": "4d22d6f9222adef0a45ef895bfdd6f71d6394b1784b1001a4bebb4298b8ddc69",
+      "assets": {
+        "windows-x64": {
+          "archive": "mise-v2026.10.2-windows-x64.zip",
+          "sha256": "6ce4281dc65a4dc22de2aed42db5e8859293a467964763b43fcc33fa0e6c4214"
+        },
+        "windows-arm64": {
+          "archive": "mise-v2026.10.2-windows-arm64.zip",
+          "sha256": "9c4abb29dc88d956f5d6f2e468bade7843c9e3242690a9dbb22b2bbac4d007be"
+        },
+        "macos-x64": {
+          "archive": "mise-v2026.10.2-macos-x64.tar.xz",
+          "sha256": "b8b23b39a05f1b36ebb49c5c556d549585f7e4b2d05ba9ff7c09bb026bf0fca7"
+        },
+        "macos-arm64": {
+          "archive": "mise-v2026.10.2-macos-arm64.tar.xz",
+          "sha256": "11df20cfebb7f52eb5c6f68c367eadc6cf22aca169566a8f5b2fa92bf1564540"
+        },
+        "linux-x64": {
+          "archive": "mise-v2026.10.2-linux-x64.tar.xz",
+          "sha256": "a5f2082b6694c6f27e6a528e55dfb5983998a4d73004d003dfbf03406b938d49"
+        },
+        "linux-x64-musl": {
+          "archive": "mise-v2026.10.2-linux-x64-musl.tar.xz",
+          "sha256": "e35412ea4e944f959cccfa5826d6f860a08417a00dc023579cab3561c5a72fa3"
+        },
+        "linux-arm64": {
+          "archive": "mise-v2026.10.2-linux-arm64.tar.xz",
+          "sha256": "2df2ecffe694802cae43865fe11b932db361a902b7d4c4726fb4aaaa2d6a2396"
+        },
+        "linux-arm64-musl": {
+          "archive": "mise-v2026.10.2-linux-arm64-musl.tar.xz",
+          "sha256": "32d89cc197a92016c7285c4fbdf067919b44097b7da65ff5722a3bc55b1cf793"
+        }
+      }
+    }
   },
   "reviewRequired": [
     {

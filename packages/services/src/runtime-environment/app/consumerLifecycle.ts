@@ -17,6 +17,8 @@ import type {
   RuntimeEnvironmentReleaseRequest,
 } from "../contract.js";
 import { advanceStatus } from "../domain/state.js";
+import { hasServiceExitProof } from "../domain/services.js";
+import { migrateEnvironmentSessions } from "./consumerMigration.js";
 import { identityKeyOf, type RuntimeEnvironmentStore } from "./ports.js";
 
 function reject(code: RuntimeEnvironmentError["code"], message: string): never {
@@ -70,6 +72,7 @@ export function createRuntimeConsumerAuthority(
   stamp: () => string,
 ): RuntimeEnvironmentConsumerAuthority {
   return {
+    migrateSessions: (params) => migrateEnvironmentSessions(store, params, stamp),
     async acquire(input) {
       const params = runtimeConsumerAcquireParamsSchema.parse(input);
       return store.lock(params.environmentId, async () => {
@@ -80,6 +83,8 @@ export function createRuntimeConsumerAuthority(
         if (params.revision !== record.currentRevision) {
           reject("stale-reference", "environment revision does not match");
         }
+        if (params.manifestDigest !== undefined && params.manifestDigest !== record.manifestDigest)
+          reject("stale-reference", "environment manifest does not match");
         if (
           params.kind === "session" &&
           (!record.bindingId || params.ownerId !== `binding:${record.bindingId}`)
@@ -206,6 +211,14 @@ export async function releaseRuntimeEnvironment(
         reason: "stale-reference: environment revision does not match",
       };
     }
+    if (
+      params.expectedManifestDigest !== undefined &&
+      params.expectedManifestDigest !== record.manifestDigest
+    )
+      return {
+        status: "releaseBlocked",
+        reason: "stale-reference: environment manifest does not match",
+      };
     if (record.status === "released") return { status: "released" };
     const transition = advanceStatus(record.status, "release");
     if (pendingPreparation.has(record.status) || transition.invalid) {
@@ -226,7 +239,7 @@ export async function releaseRuntimeEnvironment(
       // failed 不代表进程已退出；缺失/unknown 收据也不能作为停止证明（spec §12.1）。
       if (
         !receipt ||
-        !(receipt.state === "stopped" || (receipt.state === "failed" && receipt.stoppedAt))
+        !hasServiceExitProof(receipt)
       ) {
         services++;
       }

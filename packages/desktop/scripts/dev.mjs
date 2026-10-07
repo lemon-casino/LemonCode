@@ -6,9 +6,15 @@ import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { prepareDevElectronAppBundle } from "./devElectronAppBundle.mjs";
+import {
+  resolveDesktopPort,
+  assertRuntimeDevelopmentDataRoot,
+} from "../../../scripts/runtime-development-env.mjs";
 
 const root = resolve(import.meta.dirname, "..");
 const mainBundle = resolve(root, "out/main/index.js");
+const desktopPort = resolveDesktopPort(process.env);
+assertRuntimeDevelopmentDataRoot(process.env);
 const buildReadyMarkers = [
   { name: "main", path: resolve(root, "out/.main-build-ready") },
   { name: "host", path: resolve(root, "out/.host-build-ready") },
@@ -88,7 +94,6 @@ async function waitForReady() {
   // 这里轮询多个 loopback 地址，避免 dev 脚本和 Vite 实际监听地址不一致导致 Electron 永远不启动。
   // M3 P3-04（spec §11.2）：端口可被环境变量覆盖（每环境并行实例），缺省 5174 行为不变；
   // 必须与 packages/desktop/vite.config.ts 的 LCODE_DESKTOP_PORT 保持同一变量。
-  const desktopPort = process.env.LCODE_DESKTOP_PORT ?? "5174";
   const viteUrls = [
     `http://localhost:${desktopPort}`,
     `http://127.0.0.1:${desktopPort}`,

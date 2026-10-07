@@ -3,9 +3,13 @@ import { build, type Plugin } from "esbuild";
 import { validateRemoteServerBundle } from "./buildRemoteValidation.js";
 import { loadBuiltinProviderConfig } from "../../scripts/builtin-provider-config.mjs";
 import { stageThirdPartyNotices } from "../../scripts/third-party-notices.mjs";
+import { resolve } from "node:path";
+import { stageServerMiseRuntimeAssets } from "../../scripts/prepare-remote-mise-assets.mjs";
 
 const { version } = JSON.parse(readFileSync("../../package.json", "utf-8"));
 const { content: lcodeBuiltinProviderConfigJson } = await loadBuiltinProviderConfig();
+// 修复：独立 server 构建也要自带目标 mise；remote CDN 仍按平台拆成独立组件，不复制本机 runtime。
+await stageServerMiseRuntimeAssets({ runtimeRoot: resolve(import.meta.dirname, "dist/remote") });
 
 /**
  * Let esbuild bundle node-pty's JS code normally, but keep .node native

@@ -4,8 +4,9 @@
 
 1. 桌面发行版本只有根目录 `package.json` 的 `version` 一个所有者。首次发布为
    `3.14.3`；CLI 子项目的独立版本不随桌面版本改写。正式 tag 使用 `v<version>`。
-2. 每次推送 `main` 构建六种本机目标：macOS/Windows/Linux 的 x64 与 arm64。
-   分支构建只保留 Actions 构建产物；`v*` tag 的构建必须先验证 tag 和
+2. 仅推送 `v*` tag 时构建六种本机目标：macOS/Windows/Linux 的 x64 与 arm64。
+   本地 `bundle:desktop -- --os <os> --arch <arch>` 只准备指定目标安装包所需资源；
+   推送 `main` 不触发六平台桌面构建。tag 的构建必须先验证 tag 和
    `package.json` 版本完全一致，禁止把旧源码打成新版本。Windows arm64 固定使用
    `windows-11-vs2026-arm`，不依赖 `windows-11-arm` 在迁移窗口内漂移到不同 Visual Studio
    镜像。
@@ -19,7 +20,9 @@
    `pnpm install --frozen-lockfile` 安装依赖。平台安装器若临时改写工作区 lockfile，workflow
    必须先打印该 diff，再把这个单一输入恢复为已验证的 `HEAD` 内容，最后运行完整
    `pnpm test:release`。临时改写不得改变“提交输入是否新鲜”的结论，也不得靠重生成 NOTICE
-   掩盖。构建保持 production 产品身份，并跳过不属于桌面安装包的远端预构建。
+   掩盖。构建保持 production 产品身份，默认只准备各 job 目标安装包的 mise、agent 和
+   原生搜索资源；`prepare:remote-assets` 保留独立显式命令，`bootstrap:with-remote` 在
+   初始化本地桌面 runtime 后显式调用它；本地桌面打包和发行矩阵不调用它。
    electron-builder 在 dist 生成的更新清单（Windows `latest.yml`、macOS `latest-mac.yml`、
    Linux `latest-linux.yml`，内含安装包 sha512）是应用内更新服务的首选元数据来源：
    staging 脚本保留其 release notes 等扩展字段，但必须针对 staging 时的最终安装包重新
@@ -151,7 +154,7 @@ sequenceDiagram
 - 6 个 target 各自只接收自己的安装包；缺失、错架构、错版本或重复文件名都失败。
 - Linux 两种架构的四种格式分别按真实生成的后缀收集，x64 不接收 arm64/aarch64，
   arm64 不接收 x64/x86_64/amd64；既有非 Linux 命名与版本不改变。
-- `main` 构建不创建 Release；任一目标失败、NOTICE/输入过期、当前材料复核项偏离显式
+- 推送 `main` 不触发桌面构建或创建 Release；任一目标失败、NOTICE/输入过期、当前材料复核项偏离显式
   release baseline 时，tag 不创建 Release。
 - Linux x64 在 `pnpm install` 前验证 committed NOTICE 基线；安装后的平台临时状态
   不参与该输入哈希，恢复已提交 lockfile 后再跑完整 release contract。测试必须证明 workflow

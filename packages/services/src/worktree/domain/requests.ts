@@ -31,14 +31,15 @@ export const worktreeRequests = {
       cancel: z.boolean().optional(),
       approvedCandidateHead: commit.optional(),
       validationCommands: commands.optional(),
+      skipValidation: z.boolean().optional(),
     })
     .strict()
     .refine(
-      (params) => !params.cancel || (!params.approvedCandidateHead && !params.validationCommands),
+      (params) => !params.cancel || (!params.approvedCandidateHead && !params.validationCommands && params.skipValidation === undefined),
       "Cancellation cannot also approve or validate a candidate",
     ),
   getIntegration: z.object({ operationId: id }).strict(),
-  publishIntegration: z.object({ operationId: id, approvedCandidateHead: commit }).strict(),
+  publishIntegration: z.object({ operationId: id, approvedCandidateHead: commit, skipValidation: z.boolean().optional() }).strict(),
   archive: z
     .object({
       bindingId: id,

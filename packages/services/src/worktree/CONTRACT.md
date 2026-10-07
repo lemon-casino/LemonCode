@@ -1,6 +1,11 @@
 # Worktree service
 
-WorktreeService is the only owner of bindings, archive snapshots and integration operations.
+WorktreeService is the only owner of bindings, archive snapshots, integration operations and the deletion journal. Runtime-environment facts, consumers, service receipts and environment resources remain owned by the target Host RuntimeEnvironmentService; WorktreeService can only call them through injected lifecycle ports. It must not infer an environment from a path, PID or UI state.
+
+The public binding may contain an additive `environmentRef` (`environmentId`, non-negative preparation revision and optional manifest digest). A preparation revision of `0` is not executable, but remains a valid cleanup reference for an allocated, failed environment. Before managed execution the target Host re-reads identity, binding, positive revision, digest, canonical cwd and attachment; stale or missing facts fail closed. New `environmentPolicy: managed` requests require runtime ports and never fall back; absent/inherit/local requests retain local behavior even when ports are installed. Existing bindings and same-tree aliases cannot switch policy on retry. `list` accepts both origin and execution scopes, matching identity and canonical path together.
+
+`WorktreeRuntimePorts` is the single injected Host contract. Preparation borrows an existing exclusive checkout writer and returns the frozen env overlay plus exact manifest reference. `dependenciesPrepared` suppresses only detected duplicate dependency installation, never explicit setup commands. Failed preparation preserves revision-zero environment references and bounded structured `preparation.runtimeError`. `createWorktreeService` returns trusted Host actions; RPC registration must use the explicit `createPublicWorktreeService` whitelist, excluding `upgradeRuntimeEnvironment`. Upgrade owns its stable request journal, fence/stop, writer, new binding reference and session CAS; cancellation uses a separate short decision lock and never restores ready.
+
 Review draft text, file exclusions and browsing stages are owned separately by the target
 Host GitReviewWorkspaceState, exposed through the existing Git RPC contract. They never
 authorize source commits or target publication. UI approvals remain local to the device,
@@ -62,7 +67,13 @@ The candidate detects conventional project checks before review unless explicitl
 configured; unavailable checks require explicit UI skip acknowledgement. Target
 publication obtains the same checkout permit used by runtime, rechecks branch/HEAD and
 uses native read-tree dry-run to reject unsafe overwrites before and after validation.
-Unrelated working changes remain intact; no automatic stash or target commit is performed.
+Every candidate validation must persist a bounded `ValidationReceipt` linked to candidate
+HEAD/tree, source/target HEAD, candidate environment reference or explicit non-managed fact,
+manifest/declaration digest, command, exit code, output truncation and verified time. A
+missing, stale or failed prerequisite never becomes publishable `ready`; an explicit skip
+is a durable unverified fact. Candidate environment changes, lock/declaration changes or
+target changes invalidate prior receipts. Unrelated working changes remain intact; no
+automatic stash or target commit is performed.
 It persists publishing and runs native fast-forward. Lost replies reconcile by exact
 commit ancestry; unknown states retain files and fail without resetting user changes.
 
@@ -86,6 +97,14 @@ remain reachable. A removed task branch can be recreated from the saved HEAD on 
 an existing changed branch is never moved. Ignored directories are recorded as ranges
 instead of enumerating every dependency file.
 
+Restore is not complete when Git files are restored. After the snapshot/index/HEAD step,
+WorktreeService must request an environment `restore` operation on the actual target Host,
+obtain a new environmentId/revision and digest, persist the new binding reference, and
+rebind all same-tree sessions. Old service receipts, PIDs, URLs, running state and private
+data are never copied. If private data cannot be rebuilt, the operation remains pending or
+requires an explicit save/export/discard decision; code snapshot success must not be shown
+as full environment recovery.
+
 `archive(discard)` explicitly confirms the binding's branch and checkout path and deletes
 the checkout, unmerged task branch and owned snapshot refs without creating a snapshot.
 It serializes with integration and checkout writers, cancels unpublished review candidates,
@@ -108,6 +127,18 @@ including aliases and hidden tasks. The CLI SessionStore owns permanent chat del
 the worktree domain only calls collect/discard ports. IDs are journaled before removal
 for retry after a lost reply. Host task-index notifications follow durable chat deletion.
 Failure retains deleting plus a diagnostic; ordinary snapshot archive preserves chats.
+
+When an environment reference exists, discard/archive must call the injected environment
+release coordinator before declaring the binding removable. The coordinator fences new
+consumers, stops only processes owned by this binding, and returns releaseBlocked until
+all required stop proofs are known. The internal fence/stop phases do not wait for session
+entry deletion: discard orders deleting → fence → collect/close exact owner → stop proof →
+journal exact IDs → purge → directories/refs → cleanup/finalize → deleted. Logical consumer
+release is not physical resource deletion. The journal keeps the same requestId/sessionIds
+across retries. Archive instead uses archiving/archiveOperation, keeps session references and
+private data, and never invokes permanent chat purge. Restore and upgrade persist the new
+reference while still restoring/updating, then complete every same-tree session CAS and Host
+consumer migration before ready; both Git restore branches share that completion path.
 
 Checkout permits coordinate canonical directories across Host processes. Ordinary runtime
 sessions acquire `mode: shared`, so different sessions in one local checkout or a same-tree

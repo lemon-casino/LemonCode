@@ -13,7 +13,9 @@ export interface ServiceDefinition {
   purpose: string;
   argv: string[];
   cwd: string;
-  /** 服务声明的端口需求；预留 → 真实 bind 才算数（spec §12.2）。 */
+  /** 仅可信项目定义/组合根下发；客户端不能提交任意 env 或 argv。 */
+  env?: Record<string, string>;
+  /** 服务声明的端口需求；0 由进程 adapter 分配 loopback ephemeral，真实 bind 才算数。 */
   ports?: number[];
   /** 依赖的服务 ID（DAG）；部分失败不能把全组标 ready。 */
   dependsOn?: string[];
@@ -26,19 +28,43 @@ export function nextGenerationAfter(previous: ManagedServiceReceipt | null): num
   return (previous?.generation ?? 0) + 1;
 }
 
-/**
- * 并发 start 裁决（spec §12.1）：同环境同服务已有 starting/running 收据时直接复用，
- * 不重复起进程；revision 不同返回 needsRestart，由调用方明确 stop 后重新 start。
- */
+/** failed/stopped 标签本身不是退出证明；缺 stoppedAt 时保留 owner 和资源。 */
+export function hasServiceExitProof(receipt: ManagedServiceReceipt): boolean {
+  return (receipt.state === "stopped" || receipt.state === "failed") && Boolean(receipt.stoppedAt);
+}
+
+/** 同代复用还需 app 层确认本 Host 的 owner；仅凭持久 PID/URL 不能认领进程。 */
 export function reconcileStartIntent(params: {
   existing: ManagedServiceReceipt | null;
   requestedRevision: number;
-}): { action: "reuse" | "start" | "needsRestart"; receipt?: ManagedServiceReceipt } {
-  const { existing, requestedRevision } = params;
-  if (!existing) return { action: "start" };
-  if (existing.state === "starting" || existing.state === "running") {
-    if (existing.revision !== requestedRevision) return { action: "needsRestart" };
+  expectedGeneration?: number;
+}): { action: "reuse" | "start" | "needsRestart" | "blocked"; receipt?: ManagedServiceReceipt } {
+  const { existing, requestedRevision, expectedGeneration } = params;
+  if (expectedGeneration !== undefined && expectedGeneration !== existing?.generation)
+    return { action: "needsRestart", receipt: existing ?? undefined };
+  if (!existing || hasServiceExitProof(existing)) return { action: "start" };
+  if (existing.revision !== requestedRevision) return { action: "needsRestart", receipt: existing };
+  if (existing.state === "starting" || existing.state === "running")
     return { action: "reuse", receipt: existing };
+  // 根因：旧实现把 stopping/failed/unknown 全部当可启动，可能让同环境存在两个活进程树。
+  return { action: "blocked", receipt: existing };
+}
+
+/** 对外仅发布无凭据的 loopback origin，日志路径、查询参数和 token 不进入收据。 */
+export function serviceUrlOrigin(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    if (
+      !["http:", "https:"].includes(url.protocol) ||
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash
+    )
+      return undefined;
+    if (!["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)) return undefined;
+    return url.origin;
+  } catch {
+    return undefined;
   }
-  return { action: "start" };
 }

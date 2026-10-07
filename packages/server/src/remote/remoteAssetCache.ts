@@ -55,6 +55,8 @@ const REMOTE_ASSET_PROGRESS_PERCENT_STEP = 5;
 const CONTENT_ADDRESSED_COMPONENT_RELEASE_DIRS: Record<string, string> = {
   "server-bundle": "server-content",
   glm: "glm-content",
+  // mise 版本固定但 component 可重发，不能剥掉 +tarSHA 后复用另一份后端目录。
+  mise: "mise-content",
 };
 const REMOTE_ASSET_DIRECTORY_COMMIT_RETRY_DELAYS_MS = [
   50, 100, 200, 400, 800, 1_600, 3_200,
@@ -103,6 +105,10 @@ const REMOTE_COMPONENT_MOUNT_RULES: Record<string, ComponentMountRule> = {
   glm: {
     platformScoped: true,
     resolveExpectedMount: (platformArch) => `glm/${platformArch}`,
+  },
+  mise: {
+    platformScoped: true,
+    resolveExpectedMount: (platformArch) => `tools/${platformArch}/mise`,
   },
   bfs: {
     platformScoped: true,

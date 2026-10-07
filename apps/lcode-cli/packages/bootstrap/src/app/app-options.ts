@@ -33,6 +33,7 @@ import type {
   InputHistoryStorePort,
   LoggerFactory,
   McpPort,
+  McpConnectOptions,
   ModelSelection,
   PermissionBrokerPort,
   PluginMetadata,
@@ -121,6 +122,8 @@ export interface LCodeAppOptions {
    * 由协议入口在创建 session app 时注入；纯本地 CLI / 测试不传。
    */
   resolveProjectEnvironmentOverlay?: ProjectEnvironmentOverlayResolver;
+  /** 与 resolver 同源的冻结引用；包含 manifestDigest 以隔离 MCP 配置，不接受项目文件注入。 */
+  projectEnvironmentRef?: McpConnectOptions["environmentRef"];
   /** 资源遥测旁路；由协议宿主注入，主任务和 workflow 的执行适配器共用。 */
   onToolExecResource?: (sample: LCodeToolExecResource) => void;
   /** browser-use 控制端口；注入后 node_repl 的 agent.browsers.* 可用。缺省则不可用。 */

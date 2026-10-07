@@ -1,115 +1,164 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { test } from "node:test";
-import { parseProjectDeclarations } from "./domain/declarations.js";
+import type { DependencyReceipt } from "@lcode/shared";
+import { parseProjectDeclarations, type ProjectDeclarations } from "./domain/declarations.js";
 import {
   buildDependencyInstallPlan,
   isReceiptFresh,
   PNPM_IMPORT_METHOD_ENV,
 } from "./domain/dependencies.js";
 
-test("pnpm lock builds frozen pnpm install plan", () => {
-  const parsed = parseProjectDeclarations({ lockfileNames: ["pnpm-lock.yaml"] });
-  const plan = buildDependencyInstallPlan(parsed);
-  assert.equal(plan?.manager, "pnpm");
-  assert.equal(plan?.command, "pnpm install --frozen-lockfile");
-  assert.equal(plan?.lockDigest.length, 16);
-});
-
-test("npm/yarn/bun locks map to their managers", () => {
-  assert.equal(
-    buildDependencyInstallPlan(parseProjectDeclarations({ lockfileNames: ["package-lock.json"] }))
-      ?.manager,
-    "npm",
-  );
-  assert.equal(
-    buildDependencyInstallPlan(parseProjectDeclarations({ lockfileNames: ["yarn.lock"] }))?.manager,
-    "yarn",
-  );
-  assert.equal(
-    buildDependencyInstallPlan(parseProjectDeclarations({ lockfileNames: ["bun.lock"] }))?.manager,
-    "bun",
-  );
-});
-
-test("no lockfile returns null (no fake frozen install)", () => {
-  assert.equal(buildDependencyInstallPlan(parseProjectDeclarations({ lockfileNames: [] })), null);
-});
-
-test("ambiguous locks return null (do not guess manager)", () => {
-  const parsed = parseProjectDeclarations({
-    packageJson: "{}",
-    lockfileNames: ["pnpm-lock.yaml", "yarn.lock"],
+const sha = (value: string) => createHash("sha256").update(value).digest("hex");
+function declarations(lockfileNames: string[], packageManager?: string) {
+  return parseProjectDeclarations({
+    ...(packageManager ? { packageJson: JSON.stringify({ packageManager }) } : {}),
+    lockfileNames,
+    lockfileDigests: Object.fromEntries(
+      lockfileNames.map((name) => [name, sha(`contents:${name}`)]),
+    ),
   });
+}
+
+test("pnpm lock builds a frozen install using its real content digest", () => {
+  const plan = buildDependencyInstallPlan(declarations(["pnpm-lock.yaml"]));
+  assert.deepEqual(plan, {
+    manager: "pnpm",
+    command: "pnpm install --frozen-lockfile",
+    lockDigest: sha("contents:pnpm-lock.yaml"),
+  });
+});
+
+test("npm lock builds npm ci and preserves the bundled npm verification version", () => {
+  assert.deepEqual(buildDependencyInstallPlan(declarations(["package-lock.json"], "npm@10.9.0")), {
+    manager: "npm",
+    managerVersion: "10.9.0",
+    command: "npm ci",
+    lockDigest: sha("contents:package-lock.json"),
+  });
+});
+
+test("explicit packageManager chooses the matching lock regardless of lock order", () => {
+  for (const manager of ["npm", "pnpm"]) {
+    const name = manager === "npm" ? "package-lock.json" : "pnpm-lock.yaml";
+    for (const lockfileNames of [
+      ["pnpm-lock.yaml", "package-lock.json", "yarn.lock"],
+      ["yarn.lock", "package-lock.json", "pnpm-lock.yaml"],
+    ]) {
+      const plan = buildDependencyInstallPlan(declarations(lockfileNames, `${manager}@10.9.0`));
+      assert.equal(plan?.manager, manager);
+      assert.equal(plan?.managerVersion, "10.9.0");
+      assert.equal(plan?.lockDigest, sha(`contents:${name}`));
+    }
+  }
+});
+
+test("dependency planning also respects packageManager in injected memory declarations", () => {
+  const parsed: ProjectDeclarations = {
+    tools: [],
+    packageManager: { key: "npm", version: "10.9.0", source: "package.json#packageManager" },
+    lockfiles: [
+      { name: "pnpm-lock.yaml", digest: sha("pnpm-lock") },
+      { name: "package-lock.json", digest: sha("npm-lock") },
+    ],
+    ambiguousLocks: false,
+    issues: [],
+  };
+  assert.equal(buildDependencyInstallPlan(parsed)?.manager, "npm");
+  assert.equal(buildDependencyInstallPlan(parsed)?.lockDigest, sha("npm-lock"));
+});
+
+test("unsupported managers and mismatched locks never produce an install plan", () => {
+  for (const name of ["yarn.lock", "bun.lock", "bun.lockb"]) {
+    assert.equal(buildDependencyInstallPlan(declarations([name])), null);
+  }
+  assert.equal(buildDependencyInstallPlan(declarations(["pnpm-lock.yaml"], "npm@10.9.0")), null);
+  assert.equal(buildDependencyInstallPlan(declarations(["pnpm-lock.yaml"], "yarn@1.22.22")), null);
+});
+
+test("no lock returns null without pretending a frozen install occurred", () => {
+  assert.equal(buildDependencyInstallPlan(declarations([])), null);
+  assert.equal(buildDependencyInstallPlan(declarations([], "npm@10.9.0")), null);
+});
+
+test("ambiguous locks return null rather than preferring the first supported manager", () => {
+  const parsed = declarations(["pnpm-lock.yaml", "package-lock.json"]);
   assert.equal(parsed.ambiguousLocks, true);
   assert.equal(buildDependencyInstallPlan(parsed), null);
 });
 
-test("pnpm import method env forces clone-or-copy (no hardlink auto)", () => {
+test("missing or invalid digest cannot yield a frozen install plan", () => {
+  const parsed = parseProjectDeclarations({ lockfileNames: ["pnpm-lock.yaml"] });
+  assert.equal(buildDependencyInstallPlan(parsed), null);
+  parsed.issues = [];
+  assert.equal(buildDependencyInstallPlan(parsed), null);
+});
+
+test("pnpm import method explicitly avoids shared hardlinked dependencies", () => {
   assert.equal(PNPM_IMPORT_METHOD_ENV.npm_config_package_import_method, "clone-or-copy");
 });
 
 const identity = {
-  declarationDigest: "digest-1",
+  declarationDigest: sha("declarations-v1"),
   nodeVersion: "24.14.0",
   platform: "windows" as const,
   arch: "x64" as const,
 };
-
 const plan = {
   manager: "pnpm" as const,
   command: "pnpm install --frozen-lockfile",
-  lockDigest: "lock-1",
+  lockDigest: sha("lock-v1"),
+};
+const receipt: DependencyReceipt = {
+  environmentId: "e1",
+  manager: plan.manager,
+  command: plan.command,
+  strategy: "frozen",
+  lockDigest: plan.lockDigest,
+  ...identity,
+  exitCode: 0,
+  finishedAt: "2026-10-05T00:00:00.000Z",
 };
 
-test("fresh receipt with matching digest/ABI/platform is reusable", () => {
-  const receipt = {
-    environmentId: "e1",
-    manager: "pnpm" as const,
-    command: plan.command,
-    strategy: "frozen" as const,
-    lockDigest: plan.lockDigest,
-    declarationDigest: identity.declarationDigest,
-    nodeVersion: identity.nodeVersion,
-    platform: identity.platform,
-    arch: identity.arch,
-    exitCode: 0,
-    finishedAt: "2026-10-05T00:00:00.000Z",
-  };
+test("matching successful receipt remains reusable for legacy memory inputs", () => {
   assert.equal(isReceiptFresh(receipt, plan, identity), true);
 });
 
-test("stale receipt on lock change / ABI change / failure forces reinstall", () => {
-  const base = {
-    environmentId: "e1",
-    manager: "pnpm" as const,
-    command: plan.command,
-    strategy: "frozen" as const,
-    lockDigest: plan.lockDigest,
-    declarationDigest: identity.declarationDigest,
-    nodeVersion: identity.nodeVersion,
-    platform: identity.platform,
-    arch: identity.arch,
-    exitCode: 0,
-    finishedAt: "2026-10-05T00:00:00.000Z",
+test("lock/config/ABI/platform/command changes and failures invalidate the receipt", () => {
+  for (const changed of [
+    { lockDigest: sha("lock-v2") },
+    { declarationDigest: sha("config-v2") },
+    { nodeVersion: "20.0.0" },
+    { platform: "linux" as const },
+    { arch: "arm64" as const },
+    { manager: "npm" as const },
+    { command: "pnpm install" },
+    { exitCode: 1 },
+    { strategy: "non-frozen" as const },
+  ]) {
+    assert.equal(
+      isReceiptFresh({ ...receipt, ...changed }, plan, identity),
+      false,
+      JSON.stringify(changed),
+    );
+  }
+  assert.equal(isReceiptFresh(null, plan, identity), false);
+});
+
+test("frozen manager and manifest identity require explicit matching receipt evidence", () => {
+  const current = { ...identity, managerVersion: "10.33.2", manifestDigest: sha("manifest-v1") };
+  const verified = {
+    ...receipt,
+    managerVersion: current.managerVersion,
+    manifestDigest: current.manifestDigest,
   };
+  assert.equal(isReceiptFresh(receipt, plan, current), false);
+  assert.equal(isReceiptFresh(verified, plan, current), true);
+  assert.equal(isReceiptFresh(verified, plan, { ...current, managerVersion: "10.34.0" }), false);
   assert.equal(
-    isReceiptFresh({ ...base, lockDigest: "lock-2" }, plan, identity),
+    isReceiptFresh(verified, plan, { ...current, manifestDigest: sha("manifest-v2") }),
     false,
-    "lock digest change must invalidate",
   );
-  assert.equal(
-    isReceiptFresh({ ...base, nodeVersion: "20.0.0" }, plan, identity),
-    false,
-    "Node ABI change must invalidate",
-  );
-  assert.equal(
-    isReceiptFresh({ ...base, exitCode: 1 }, plan, identity),
-    false,
-    "failed install is never fresh",
-  );
-  assert.equal(
-    isReceiptFresh({ ...base, strategy: "non-frozen" }, plan, identity),
-    false,
-    "non-frozen receipt cannot satisfy frozen plan",
-  );
+  assert.equal(isReceiptFresh({ ...verified, managerVersion: undefined }, plan, current), false);
+  assert.equal(isReceiptFresh({ ...verified, manifestDigest: undefined }, plan, current), false);
 });

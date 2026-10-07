@@ -188,7 +188,7 @@ test("Actions builds every supported platform and publishes only completed tag b
   );
   assert.equal(include.find(({ os, arch }) => os === "mac" && arch === "arm64").runner, "macos-15");
   assert.deepEqual(workflow.on.push.tags, ["v*"]);
-  assert.deepEqual(workflow.on.push.branches, ["main"]);
+  assert.equal(workflow.on.push.branches, undefined);
   assert.equal(workflow.jobs.build.needs, "build-cua-linux-addon");
   assert.equal(
     workflow.jobs.build.steps.find(
@@ -206,6 +206,7 @@ test("Actions builds every supported platform and publishes only completed tag b
   assert.match(workflow.jobs.release.if, /github\.ref_type == 'tag'/u);
   assert.equal(workflow.jobs.release.permissions.contents, "write");
   assert.equal(workflow.jobs.build.permissions.contents, "read");
+  assert.equal(workflow.jobs.build.env.LCODE_SKIP_REMOTE_ASSETS, undefined);
   assert.equal(workflow.jobs.build.env.CSC_IDENTITY_AUTO_DISCOVERY, "false");
   assert.equal(workflow.jobs.build.env.LCODE_ENABLE_MAC_SIGN, "0");
   const releaseContractStep = workflow.jobs.build.steps.find(

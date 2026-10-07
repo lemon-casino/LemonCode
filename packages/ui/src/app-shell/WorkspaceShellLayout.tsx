@@ -61,6 +61,7 @@ import {
   useBrowserScreenshotSurfaceRequest,
 } from "@/browser-use/useBrowserScreenshotSurfaceRequest.js";
 import { AnimatedTerminalPanel } from "@/app-shell/AnimatedTerminalPanel.js";
+import type { TerminalExecutionScope } from "@/hooks/useTerminalService.js";
 import { SIDE_PANE_DEFAULT_EXPANDED_SIZE } from "@/app-shell/sidePaneLayout.js";
 import { useAnimatedResizablePanel } from "@/app-shell/useAnimatedResizablePanel.js";
 import { ensureTaskNavigationWorkspace } from "@/app-shell/taskNavigationWorkspace.js";
@@ -389,6 +390,27 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   const executionIdentity =
     executionWorkspace === undefined ? workspaceIdentity : executionWorkspace?.workspaceIdentity;
   const executionReady = executionWorkspace !== null;
+  const terminalExecutionScope = useMemo<TerminalExecutionScope>(
+    () => ({
+      // 授权用原项目身份，PTY cwd 仍用 executionPath；会话/绑定不是终端 tab ID。
+      workspacePath: workspaceAbsPath,
+      workspaceIdentity,
+      remoteSessionId: workspaceRemoteSessionId,
+      sessionId: activeTaskId ?? undefined,
+      executionBindingId: executionBinding?.id ?? executionWorkspace?.executionBindingId,
+      environmentRef: executionBinding?.environmentRef ?? executionWorkspace?.environmentRef,
+    }),
+    [
+      workspaceAbsPath,
+      workspaceIdentity,
+      workspaceRemoteSessionId,
+      activeTaskId,
+      executionBinding?.id,
+      executionBinding?.environmentRef,
+      executionWorkspace?.executionBindingId,
+      executionWorkspace?.environmentRef,
+    ],
+  );
   const screenshotSurfaceRequest = useBrowserScreenshotSurfaceRequest(sidePaneState?.tabs ?? []);
   const screenshotSurfaceTab = screenshotSurfaceRequest
     ? findScreenshotSurfaceTabForRender(sidePaneState?.tabs ?? [], screenshotSurfaceRequest)
@@ -1552,6 +1574,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       workspaceAbsPath={executionPath}
       workspaceIdentity={executionIdentity}
       workspaceRemoteSessionId={workspaceRemoteSessionId}
+      terminalExecutionScope={terminalExecutionScope}
       activeTaskId={activeTaskId}
       sidePaneOwnerId={sidePaneOwnerId}
       gitState={gitState}
@@ -2036,6 +2059,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                     services={services}
                     workspaceAbsPath={executionPath}
                     workspaceIdentity={executionIdentity}
+                    executionScope={terminalExecutionScope}
                     openWorkspaceKeys={openWorkspaceKeys}
                     isVisible={isTerminalVisible}
                     isWindowsDesktop={isWindowsDesktop}

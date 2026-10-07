@@ -13,7 +13,8 @@ export function createConnectionContext(input: {
   connectOptions: McpConnectOptions;
   sessionId?: string;
 }): McpConnectionContext {
-  const mcpIsolation = input.config.isolation === "workspace" ? "workspace" : "session";
+  const managed = input.config.type === "stdio" && input.config.projectEnvironment !== undefined;
+  const mcpIsolation = !managed && input.config.isolation === "workspace" ? "workspace" : "session";
   const workspaceKey = resolveWorkspaceKey(input.connectOptions);
   return {
     mcpConnectionId: randomUUID(),
@@ -36,14 +37,17 @@ export function connectionKey(input: {
   serverName: string;
 }): string {
   // 默认 session isolation；只有明确声明 workspace 的无状态 server 才允许跨 session 复用。
+  const managed = input.config.type === "stdio" && input.config.projectEnvironment !== undefined;
   let scope =
-    input.config.isolation === "workspace"
+    !managed && input.config.isolation === "workspace"
       ? (resolveWorkspaceKey(input.connectOptions) ?? "")
       : input.leaseId;
-  // 托管运行环境进入 key（spec §9.3 P2-05）：revision 变化后旧连接不复用为新环境的连接。
-  // 缺省 = 非托管连接，旧行为不变。
-  if (input.connectOptions.environmentRef) {
-    scope += `\u0000env:${input.connectOptions.environmentRef.environmentId}@${input.connectOptions.environmentRef.revision}`;
+  const environmentRef =
+    input.connectOptions.environmentRef ??
+    (input.config.type === "stdio" ? input.config.projectEnvironment?.environmentRef : undefined);
+  // 托管运行环境进入 key：环境代际或 manifest 摘要变化后不得复用旧 stdio 连接。
+  if (environmentRef) {
+    scope += `\u0000env:${environmentRef.environmentId}@${environmentRef.revision}:${environmentRef.manifestDigest ?? ""}`;
   }
   return [input.serverName, scope, stableStringify(input.config)].join("\u0000");
 }

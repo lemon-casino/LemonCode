@@ -4,6 +4,7 @@ import {
   IMediaPreviewService,
   IGitService,
   IWorktreeService,
+  IRuntimeEnvironmentService,
   IGitCheckpointService,
   IGitBackupService,
   ISystemService,
@@ -54,6 +55,7 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly mediaPreviewService: IMediaPreviewService;
   readonly gitService: IGitService;
   readonly worktreeService: IWorktreeService;
+  readonly runtimeEnvironmentService: IRuntimeEnvironmentService;
   readonly gitCheckpointService: IGitCheckpointService;
   readonly gitBackupService: IGitBackupService;
   readonly systemService: ISystemService;
@@ -109,6 +111,9 @@ export class RemoteServiceAccess implements IServiceAccessor {
     );
     this.worktreeService = ProxyChannel.toService<IWorktreeService>(
       channelClient.getChannel(IWorktreeService.channelName),
+    );
+    this.runtimeEnvironmentService = ProxyChannel.toService<IRuntimeEnvironmentService>(
+      channelClient.getChannel(IRuntimeEnvironmentService.channelName),
     );
     this.gitCheckpointService = ProxyChannel.toService<IGitCheckpointService>(
       channelClient.getChannel(IGitCheckpointService.channelName),

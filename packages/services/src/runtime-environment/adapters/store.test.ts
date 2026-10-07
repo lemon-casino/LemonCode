@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { createRuntimeEnvironmentStore } from "./store.js";
 import { environmentIdFor, operationIdFor } from "../app/ports.js";
 import { createRuntimeEnvironmentServiceForTests } from "../node.js";
-import type { IRuntimeEnvironmentService } from "../contract.js";
+import type { IRuntimeEnvironmentHostService } from "../contract.js";
 import type { ProjectDeclarations } from "../domain/declarations.js";
 import type { DeclarationReaderPort, ToolBackendPort } from "../app/ports.js";
 import type { RuntimeEnvironmentStore } from "./store.js";
@@ -57,7 +57,7 @@ function createService(
   store: RuntimeEnvironmentStore,
   backend: ToolBackendPort,
   declarations: DeclarationReaderPort,
-): IRuntimeEnvironmentService {
+): IRuntimeEnvironmentHostService {
   return createRuntimeEnvironmentServiceForTests({
     store,
     backend,

@@ -1,12 +1,14 @@
 import { useCallback } from "react";
 import type { IServiceAccessor } from "@lcode/services";
 import { TerminalSession } from "@/terminal/TerminalSession.js";
+import type { TerminalExecutionScope } from "@/hooks/useTerminalService.js";
 
 export function SidePaneTerminalPane({
   services,
   sessionId,
   workspaceKey,
   cwd,
+  executionScope,
   isVisible,
   isWindowsDesktop = false,
   onOpenBrowserUrl,
@@ -24,6 +26,7 @@ export function SidePaneTerminalPane({
    */
   workspaceKey?: string;
   cwd?: string;
+  executionScope?: TerminalExecutionScope;
   isVisible: boolean;
   isWindowsDesktop?: boolean;
   onOpenBrowserUrl: (url: string) => void;
@@ -41,6 +44,7 @@ export function SidePaneTerminalPane({
         workspaceKey={workspaceKey}
         services={services}
         cwd={cwd}
+        executionScope={executionScope}
         isVisible={isVisible}
         isWindowsDesktop={isWindowsDesktop}
         onShellLabelChange={handleShellLabelChange}

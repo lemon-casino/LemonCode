@@ -130,7 +130,7 @@ test("concurrent revalidation pings and reconnects once without replacing the le
 });
 
 for (const operation of ["close", "reconfigure"] as const) {
-  test(`lease ${operation} snapshots names before reentrant cleanup adds another server`, async () => {
+  test(`lease ${operation} fences new connections while closing`, async () => {
     const closed: string[] = [];
     let lease: McpPort;
     let inserted: Promise<McpServerStatus> | undefined;
@@ -148,13 +148,15 @@ for (const operation of ["close", "reconfigure"] as const) {
       lease = pool.acquireLease();
       await lease.connectServer("first", config);
       await lease.connectServer("second", config);
-      // 清理回调可重入并追加 lease；本轮必须只处理开始时的快照，不能改成 Map 的 live iteration。
-      if (operation === "close") await lease.close();
-      else await lease.connectConfiguredServers({});
-      await inserted;
+      if (operation === "close") {
+        await lease.close();
+        if (inserted) await assert.rejects(inserted, /closed/);
+      } else {
+        await lease.connectConfiguredServers({});
+        // reconfigure 只清理快照中的旧 server；它不是关闭 admission，重入连接可成功加入新配置。
+        await inserted;
+      }
       assert.deepEqual(closed, ["first", "second"]);
-      assert.equal(pool.stats().activeConnections, 1);
-      assert.equal((await lease.status())["added-during-cleanup"]?.status, "connected");
     } finally {
       await pool.close();
     }

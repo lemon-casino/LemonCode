@@ -2,6 +2,7 @@
 
 import type { JsonSchema } from "../model/index.js";
 import type { TraceContext } from "../tracing/tracer.js";
+import type { ExecutionEnvOverlay } from "./execution.port.js";
 import type { McpServerFailureKind, OfficialMcpAuthPortFailureReason } from "@lcode/shared";
 
 export type McpServerTransportType = "stdio" | "http" | "sse";
@@ -71,12 +72,26 @@ export interface McpOfficialProvenance {
   source: "plugin";
 }
 
+/** 仅宿主装配，公共配置 schema 禁止接收；不持久化、不作为插件权限凭证。 */
+export interface McpProjectEnvironment {
+  /** app incarnation 隔离每次 spawn 的授权闭包，不与其它 app 共用 consumer。 */
+  ownerId: string;
+  environmentRef?: McpConnectOptions["environmentRef"];
+  overlay: ExecutionEnvOverlay;
+  /** 包括 SDK probe sibling / 断连恢复，每次真实 spawn 前重新向 Host 授权。 */
+  authorizeSpawn(): Promise<void>;
+  /** SDK probe 回收为 best effort；失败必须回报 owner，禁止据此释放环境租约。 */
+  reportCloseFailure(error: unknown): void;
+}
+
 export interface McpStdioServerConfig extends McpServerConfigBase {
   type: "stdio";
   command: string;
   args?: string[];
   cwd?: string;
   env?: Record<string, string>;
+  /** 仅 bootstrap 注入的冻结执行参数，公共配置 schema 会拒绝该字段。 */
+  projectEnvironment?: McpProjectEnvironment;
   auth?: LCodeOfficialMcpAuthConfig;
   /** 宿主生成，禁止来自文件配置。 */
   official?: McpOfficialProvenance;
@@ -219,7 +234,7 @@ export interface McpConnectOptions {
    * 托管运行环境引用（spec: specs/worktree-runtime-environments.md §9.3，P2-05）。
    * 进入连接 key：revision 变化后旧连接不复用为新环境的连接；缺省 = 非托管，旧行为不变。
    */
-  environmentRef?: { environmentId: string; revision: number };
+  environmentRef?: { environmentId: string; revision: number; manifestDigest?: string };
 }
 
 export interface McpCallToolRequest {

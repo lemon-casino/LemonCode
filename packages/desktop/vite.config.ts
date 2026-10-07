@@ -8,6 +8,10 @@ import { resolveLCodeEndpointOrigin, pickProductEndpointEnv } from "@lcode/share
 import { pdfJsCMapsPlugin } from "../ui/vite/pdfJsCMapsPlugin.js";
 import { getBuildMetadata } from "./scripts/build-metadata.mjs";
 import { resolveDesktopProductFlavor } from "./scripts/desktop-product-identity.mjs";
+import {
+  assertRuntimeDevelopmentDataRoot,
+  resolveDesktopPort,
+} from "../../scripts/runtime-development-env.mjs";
 
 const buildMetadata = getBuildMetadata();
 const desktopRequire = createRequire(import.meta.url);
@@ -161,6 +165,8 @@ export default defineConfig(({ mode }) => {
   });
   const codingPlanWebviewOrigin =
     env.VITE_CODING_PLAN_WEBVIEW_ORIGIN ?? process.env.VITE_CODING_PLAN_WEBVIEW_ORIGIN ?? "";
+  assertRuntimeDevelopmentDataRoot(process.env);
+  const desktopPort = resolveDesktopPort(process.env);
   const plugins = [
     ...(e2eCoverageEnabled ? [createE2EUIRendererCoveragePlugin(repoRoot)] : []),
     pdfJsCMapsPlugin(),
@@ -188,7 +194,7 @@ export default defineConfig(({ mode }) => {
     },
     // M3 P3-04（spec §11.2）：renderer 端口可被环境变量覆盖（每环境并行实例），
     // 缺省保持 5174 + strictPort，普通启动行为不变。
-    server: { port: Number(process.env.LCODE_DESKTOP_PORT ?? 5174), strictPort: true },
+    server: { port: desktopPort, strictPort: true },
     define: {
       __LCODE_ENDPOINT_ENV__: JSON.stringify(pickProductEndpointEnv(env)),
       __LCODE_VERSION__: JSON.stringify(buildMetadata.appVersion),

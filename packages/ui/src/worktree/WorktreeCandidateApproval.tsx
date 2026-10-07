@@ -2,6 +2,7 @@ import type { WorktreeIntegration } from "@lcode/services";
 import { Button } from "@/components/ui/button.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
+import { candidateEvidenceState } from "./worktreeCandidateEvidence.js";
 
 export function WorktreeCandidateApproval({
   operation,
@@ -26,6 +27,11 @@ export function WorktreeCandidateApproval({
 }) {
   const { intl } = useLCodeIntl();
   const text = (key: string) => intl.formatMessage({ id: `worktree.${key}` });
+  const evidence = candidateEvidenceState(operation);
+  const needsValidation =
+    operation.status === "awaiting-review" ||
+    operation.status === "validation-failed" ||
+    (operation.status === "ready" && evidence === "missing");
   if (
     !operation.candidateHead ||
     !["awaiting-review", "ready", "validation-failed", "publishing"].includes(operation.status)
@@ -47,6 +53,7 @@ export function WorktreeCandidateApproval({
       {!operation.validationCommands.length ? (
         <label className="flex items-start gap-2 text-ui-sm">
           <Checkbox
+            data-testid="worktree-skip-validation"
             disabled={locked}
             checked={skipValidation}
             onCheckedChange={(checked) => onSkip(checked === true)}
@@ -54,7 +61,16 @@ export function WorktreeCandidateApproval({
           <span>{text("noValidation")}</span>
         </label>
       ) : null}
-      {operation.status === "awaiting-review" || operation.status === "validation-failed" ? (
+      {evidence !== "missing" ? (
+        <p className="text-ui-sm" data-testid="worktree-validation-receipt">
+          {text(`validationReceipt.${evidence}`)}
+        </p>
+      ) : operation.status === "ready" || operation.status === "publishing" ? (
+        <p role="alert" className="text-ui-sm text-warning">
+          {text("candidateEvidenceMissing")}
+        </p>
+      ) : null}
+      {needsValidation ? (
         <Button
           type="button"
           data-testid="worktree-validate"

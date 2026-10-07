@@ -17,6 +17,8 @@ export function changeTaskFindSelection(
   query: string,
   activeIndex: number,
 ): TaskFindNavigationState {
+  // 匹配结果回报可能重复同一选择；保留原引用，避免无变化的反馈再触发父级渲染。
+  if (state.query === query && state.activeIndex === activeIndex) return state;
   return {
     activeIndex,
     navigationRequestId: state.navigationRequestId,

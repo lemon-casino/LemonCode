@@ -13,6 +13,7 @@ import { useWorktreeLifecycleStore } from "@/store/worktreeLifecycleStore.js";
 import { useReviewWorkspaceState } from "@/hooks/useReviewWorkspaceState.js";
 import { useWorktreeSessionAvailability } from "@/hooks/useWorktreeSessionAvailability.js";
 import { WorktreeDiscardControl } from "./WorktreeDiscardControl.js";
+import { RuntimeEnvironmentDetails } from "./RuntimeEnvironmentDetails.js";
 import type { WorktreeBinding } from "@lcode/services";
 
 export function WorktreeManagementActions({
@@ -92,6 +93,18 @@ export function WorktreeManagementActions({
       <p className="break-all">{binding.branch}</p>
       <p>{intl.formatMessage({ id: `worktree.binding.${binding.status}` })}</p>
       <WorktreeReadStatus loading={task.pending} error={task.error} />
+      {!deleted ? (
+        <RuntimeEnvironmentDetails
+          binding={binding}
+          workspacePath={workspacePath}
+          workspaceIdentity={workspaceIdentity}
+          workspaceRemoteSessionId={workspaceRemoteSessionId}
+          sessionId={sessionAvailability === "available" ? sessionId : undefined}
+          disabled={locked}
+          onTransferred={hide}
+          onSettled={() => void task.refresh()}
+        />
+      ) : null}
       {binding.status === "archived" ? (
         <p role="status" className="text-foreground-subtle" data-testid="worktree-archive-success">
           {intl.formatMessage({ id: "worktree.archiveSuccess" })}

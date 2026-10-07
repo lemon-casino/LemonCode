@@ -1,7 +1,7 @@
-import { readFile, readdir, rm } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { z } from "zod";
-import { atomicWritePrivateTextFile, withFileLock } from "@lcode/shared/node";
+import { acquireFileLock, atomicWritePrivateTextFile, withFileLock } from "@lcode/shared/node";
 import {
   dependencyReceiptSchema,
   frozenManifestSchema,
@@ -66,7 +66,10 @@ function parseConsumers(value: unknown, environmentId: string) {
   return record;
 }
 
-export function createRuntimeEnvironmentStore(dataDir: string): RuntimeEnvironmentStore {
+export function createRuntimeEnvironmentStore(
+  dataDir: string,
+  onChanged?: (record: RuntimeEnvironmentRecord) => void,
+): RuntimeEnvironmentStore {
   const root = resolve(dataDir);
   const recordPath = (kind: string, id: string) => {
     if (!/^[a-f0-9]{32}$/.test(id)) throw new Error("Invalid runtime environment record id");
@@ -99,6 +102,16 @@ export function createRuntimeEnvironmentStore(dataDir: string): RuntimeEnvironme
   return {
     lock: (key, action) =>
       withFileLock(recordPath("locks", key), action, { lockMaxWaitMs: 30_000 }),
+    claimPreparation: async (id) => {
+      const path = recordPath("executions", id);
+      await mkdir(join(root, "executions"), { recursive: true });
+      try {
+        return await acquireFileLock(path, [10, 20], 100, 150);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === "LCODE_FILE_LOCK_TIMEOUT") return null;
+        throw error;
+      }
+    },
     readEnvironment: (id) =>
       readRecord("records", id, (value) => {
         const record = runtimeEnvironmentRecordSchema.parse(value);
@@ -106,10 +119,19 @@ export function createRuntimeEnvironmentStore(dataDir: string): RuntimeEnvironme
         return record;
       }),
     saveEnvironment: async (record) => {
+      const previous = await readRecord("records", record.environmentId, (value) =>
+        runtimeEnvironmentRecordSchema.parse(value),
+      );
+      // 所有写者持同一环境短锁；事实版本取落盘记录而不是调用方缓存，防旧帧覆盖新事实。
+      const next = runtimeEnvironmentRecordSchema.parse({
+        ...record,
+        stateRevision: (previous?.stateRevision ?? 0) + 1,
+      });
       await atomicWritePrivateTextFile(
         recordPath("records", record.environmentId),
-        `${JSON.stringify(runtimeEnvironmentRecordSchema.parse(record), null, 2)}\n`,
+        `${JSON.stringify(next, null, 2)}\n`,
       );
+      onChanged?.(next);
     },
     listEnvironments: async () => {
       let files: string[];
@@ -146,10 +168,18 @@ export function createRuntimeEnvironmentStore(dataDir: string): RuntimeEnvironme
         frozenManifestSchema.parse(value),
       ),
     saveManifest: async (environmentId, revision, manifest) => {
-      await atomicWritePrivateTextFile(
-        recordPath("manifests", manifestRecordId(environmentId, revision)),
-        `${JSON.stringify(frozenManifestSchema.parse(manifest), null, 2)}\n`,
+      const id = manifestRecordId(environmentId, revision);
+      const next = frozenManifestSchema.parse(manifest);
+      const previous = await readRecord("manifests", id, (value) =>
+        frozenManifestSchema.parse(value),
       );
+      if (previous && JSON.stringify(previous) !== JSON.stringify(next))
+        throw new Error("stale-reference: a published manifest is immutable");
+      if (!previous)
+        await atomicWritePrivateTextFile(
+          recordPath("manifests", id),
+          `${JSON.stringify(next, null, 2)}\n`,
+        );
     },
     removeEnvironment: async (id) => {
       recordPath("records", id);

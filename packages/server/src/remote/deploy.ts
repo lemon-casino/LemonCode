@@ -734,6 +734,11 @@ function resolveRequiredMockReleasePaths(
           requiredPaths.add(`glm/${platformArch}/packages/${relativePath}`);
         }
         break;
+      case "mise":
+        for (const member of ["bin/mise", "LICENSE", "README.md", "backend-manifest.json"]) {
+          requiredPaths.add(`tools/${platformArch}/mise/${member}`);
+        }
+        break;
       case "bfs":
         requiredPaths.add(`tools/${platformArch}/bfs/bfs`);
         break;

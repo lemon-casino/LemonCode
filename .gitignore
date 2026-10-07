@@ -99,6 +99,7 @@ packages/desktop/src/scheduler/schedulerProtocol.js.map
 !/packages/web/test/git-review-live-turns.test.mjs
 !/packages/web/test/fixtures/git-review-live-turns.html
 !/packages/web/test/fixtures/git-review-live-turns.tsx
+!/packages/web/test/conversation-timeline-depth.test.mjs
 
 !/packages/web/test/fixtures/git-backup.html
 !/packages/web/test/fixtures/git-backup.tsx

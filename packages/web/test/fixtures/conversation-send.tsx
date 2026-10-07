@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- 发送夹具同时覆盖 composer、工作树准备与时间线故障注入，保持一个可复用浏览器入口。 */
 import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import { useCallback, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -320,7 +321,7 @@ function App() {
   );
   return (
     <main className="@container/conversation flex h-dvh max-w-full flex-col bg-background text-foreground">
-      {query.has("handoff") ? (
+      {query.has("handoff") && !query.has("preparationFailure") ? (
         <GitFailureAction
           workspacePath={workspacePath}
           sessionId={sessionId ?? undefined}
@@ -332,6 +333,26 @@ function App() {
             candidatePath: "/fixture/candidate",
             error: "conflict: src/button.ts:12",
             files: ["src/button.ts"],
+            ...(query.has("environmentFailure")
+              ? {
+                  environmentError: {
+                    code: "dependency-install-failed" as const,
+                    stage: "preparingDependencies" as const,
+                    retryable: true,
+                    message: "fixture environment preparation failed",
+                    diagnostic: {
+                      environmentId: "a".repeat(32),
+                      purpose: "worktree" as const,
+                      revision: 2,
+                      manifestDigest: "fixture-manifest",
+                      command: "pnpm install",
+                      exitCode: 1,
+                      stderrTail: "token=fixture-private",
+                      paths: ["/fixture/worktrees/task"],
+                    },
+                  },
+                }
+              : {}),
           }}
         />
       ) : null}
@@ -366,6 +387,106 @@ function App() {
   );
 }
 
+function TimelineDepthFixture() {
+  const allRows = useMemo(() => {
+    const rows: ConversationRow[] = [];
+    for (let turn = 0; turn < 84; turn += 1) {
+      const rowId = turn * 4 + 1;
+      const base = { turnId: `turn-${turn}`, createdAt: turn, createdAtSeq: turn };
+      rows.push(
+        { ...base, rowId, kind: "userInput", origin: "realUser", text: `Question ${turn}` },
+        {
+          ...base,
+          rowId: rowId + 1,
+          kind: "reasoning",
+          text: `Reasoning ${turn} `.repeat(20),
+          state: "complete",
+        },
+        {
+          ...base,
+          rowId: rowId + 2,
+          kind: "toolCall",
+          toolCallId: `tool-${turn}`,
+          toolName: "Bash",
+          status: "success",
+          inputText: `command-${turn}`,
+        },
+        {
+          ...base,
+          rowId: rowId + 3,
+          kind: "assistantText",
+          text: `Answer ${turn} `.repeat(30),
+          state: "complete",
+        },
+      );
+    }
+    return rows;
+  }, []);
+  const [visibleCount, setVisibleCount] = useState(60);
+  const [session, setSession] = useState("first");
+  const [mounted, setMounted] = useState(true);
+  const [revision, setRevision] = useState(0);
+  const [findState, setFindState] = useState({ matchCount: 0, activeIndex: -1 });
+  const rows = allRows.slice(-visibleCount).map((row) => ({
+    ...row,
+    ...(revision ? { createdAtSeq: revision } : {}),
+  }));
+  const rowContext = useMemo(
+    () => ({
+      workspacePath,
+      theme: "system" as const,
+      codePreviewSettings: DEFAULT_CODE_PREVIEW_SETTINGS,
+    }),
+    [],
+  );
+  const handleFindMatchStateChange = useCallback(
+    (next: { matchCount: number; activeIndex?: number }) =>
+      setFindState({ matchCount: next.matchCount, activeIndex: next.activeIndex ?? -1 }),
+    [],
+  );
+  const handleLoadOlder = useCallback(
+    () => setVisibleCount((count) => Math.min(allRows.length, count + 60)),
+    [allRows.length],
+  );
+  const handleLoadAllOlder = useCallback(async () => {
+    setVisibleCount(allRows.length);
+    return { status: "hydrated" as const, logEpoch: "fixture" };
+  }, [allRows.length]);
+  Object.assign(globalThis, {
+    __timelineDepthFixture: {
+      loadOlder: () => setVisibleCount((count) => Math.min(allRows.length, count + 60)),
+      loadAll: () => setVisibleCount(allRows.length),
+      switchSession: () => setSession((current) => (current === "first" ? "second" : "first")),
+      retry: () => {
+        setMounted(false);
+        requestAnimationFrame(() => setMounted(true));
+      },
+      resizeRows: () => setRevision((current) => current + 1),
+    },
+  });
+  return (
+    <main className="@container/conversation flex h-dvh flex-col">
+      <output data-testid="timeline-depth-find-count">{findState.matchCount}</output>
+      {mounted ? (
+        <ConversationTimeline
+          rows={rows}
+          totalCount={allRows.length}
+          sessionKey={session}
+          scrollMemoryKey={`timeline-depth:${session}`}
+          rowContext={rowContext}
+          canLoadOlder={visibleCount < allRows.length}
+          onLoadOlder={handleLoadOlder}
+          onLoadAllOlder={handleLoadAllOlder}
+          conversationFindQuery="Question"
+          conversationFindActiveIndex={findState.activeIndex}
+          onConversationFindMatchStateChange={handleFindMatchStateChange}
+          sessionPhase="completedSuccess"
+        />
+      ) : null}
+    </main>
+  );
+}
+
 createRoot(document.getElementById("root")!).render(
   <ServiceProvider services={services}>
     <PlatformProvider platform={platform}>
@@ -373,7 +494,7 @@ createRoot(document.getElementById("root")!).render(
         <LCodeIntlProvider initialLocale={query.has("english") ? "en-US" : "zh-CN"}>
           <TooltipProvider>
             <V4ConversationContext value={context}>
-              <App />
+              {query.has("timelineDepth") ? <TimelineDepthFixture /> : <App />}
             </V4ConversationContext>
           </TooltipProvider>
         </LCodeIntlProvider>

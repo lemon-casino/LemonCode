@@ -22,11 +22,13 @@ import {
   IFileService,
   IGitService,
   IWorktreeService,
+  IRuntimeEnvironmentService,
   IGitBackupService,
   ISystemService,
   ITerminalService,
   IProviderProvisioningTargetService,
 } from "@lcode/services";
+import { createPublicRuntimeEnvironmentService } from "@lcode/services/node";
 import {
   formatLogPrefix,
   formatZodError,
@@ -103,6 +105,14 @@ function setupChannelServer(
   const overrides = new Map<string, unknown>();
   if (connectionScope) {
     overrides.set(ILCodeAgentService.channelName, connectionScope.service);
+  }
+  const runtimeEnvironmentService = services.getOptional(IRuntimeEnvironmentService);
+  if (runtimeEnvironmentService) {
+    // 只暴露公开管理面；内部 resolver 的 env/lease 不属于 Web 或 trusted relay RPC。
+    overrides.set(
+      IRuntimeEnvironmentService.channelName,
+      createPublicRuntimeEnvironmentService(runtimeEnvironmentService),
+    );
   }
   // Provisioning 携带跨 Environment 凭据，只允许 Desktop trusted host 使用；普通 Web
   // remote/replayable 客户端即使知道频道名，也不能获得 target 写入接口。
@@ -398,6 +408,13 @@ export function createHttpServer(
             .register(IWorktreeService, connection.services.worktreeService)
             .register(ISystemService, connection.services.systemService)
             .register(ITerminalService, connection.services.terminalService);
+          // 环境事实由目标 Host 独占；旧远端缺 channel 不得借用本机服务。
+          if (connection.services.runtimeEnvironmentService) {
+            remoteServices.register(
+              IRuntimeEnvironmentService,
+              connection.services.runtimeEnvironmentService,
+            );
+          }
           // legacy remote 也只能透传目标 Host 的备份 owner，不能沿用本机服务。
           if (connection.services.gitBackupService) {
             remoteServices.register(IGitBackupService, connection.services.gitBackupService);

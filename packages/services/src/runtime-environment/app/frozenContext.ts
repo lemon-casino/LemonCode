@@ -15,6 +15,7 @@ const querySchema = runtimeEnvironmentScopeSchema
     environmentId: z.string().regex(/^[a-f0-9]{32}$/),
     consumer: text,
     expectedRevision: z.number().int().positive().optional(),
+    expectedManifestDigest: text.optional(),
     bindingId: text.optional(),
     cwd: text.optional(),
   })
@@ -65,6 +66,11 @@ export async function queryFrozenContext(
       throw new Error("scope-mismatch: runtime environment binding differs");
     if (params.expectedRevision !== undefined && params.expectedRevision !== record.currentRevision)
       throw new Error("stale-reference: runtime environment revision differs");
+    if (
+      params.expectedManifestDigest !== undefined &&
+      params.expectedManifestDigest !== record.manifestDigest
+    )
+      throw new Error("stale-reference: runtime environment manifest differs");
     const cwd = params.cwd ?? params.workspacePath;
     if (!isAbsolute(cwd) || !contains(record.scope.workspacePath, cwd))
       throw new Error("scope-mismatch: execution cwd leaves the bound environment");
@@ -98,7 +104,7 @@ export async function buildFrozenContext(
   executionScope: { workspacePath: string; workspaceIdentity?: string },
   cwd = executionScope.workspacePath,
 ): Promise<ResolvedProjectExecutionContext> {
-  if (!isConsumableStatus(record.status))
+  if (!isConsumableStatus(record.status) || record.status === "needsUpdate")
     throw new Error(
       `Runtime environment ${record.environmentId} is ${record.status}, not consumable`,
     );
@@ -114,15 +120,29 @@ export async function buildFrozenContext(
   return {
     environmentId: record.environmentId,
     revision: record.currentRevision,
-    manifestDigest: manifest.declarationDigest,
+    manifestDigest: manifest.manifestDigest ?? manifest.declarationDigest,
     executionScope,
     cwd,
     toolPaths,
     envOverlay: {
       base: "inherit",
-      set: toolDirs.length
-        ? { [pathKey]: [...toolDirs, inherited].filter(Boolean).join(delimiter) }
-        : {},
+      set: {
+        ...(toolDirs.length
+          ? { [pathKey]: [...toolDirs, inherited].filter(Boolean).join(delimiter) }
+          : {}),
+        ...(manifest.resources
+          ? {
+              TEMP: manifest.resources.temp,
+              TMP: manifest.resources.temp,
+              TMPDIR: manifest.resources.temp,
+              npm_config_cache: manifest.resources.cache,
+              npm_config_store_dir: manifest.resources.packageStore,
+              npm_config_package_import_method: "clone-or-copy",
+              LCODE_DATA_BASE_DIR: manifest.resources.data,
+              LCODE_RUNTIME_ENVIRONMENT_ID: record.environmentId,
+            }
+          : {}),
+      },
       unset: [],
     },
     resourceLeaseToken: `lease-${randomUUID()}`,

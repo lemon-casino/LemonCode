@@ -10,10 +10,16 @@ import {
 import { verifyBuiltNativeSearchTools } from "../../../scripts/native-search-tools-verify.mjs";
 import { runCommand } from "../../../scripts/spawn-command.mjs";
 import { getTargetPlatform } from "./target-platform.mjs";
+import { resolveMiseTarget, validateMiseRuntimeAssets } from "./prepare-mise-runtime-assets.mjs";
 
 const desktopRoot = resolve(import.meta.dirname, "..");
 const target = getTargetPlatform();
 const bundledToolsRoot = join(desktopRoot, "bundled-tools", target.key);
+const miseTarget = resolveMiseTarget({
+  os: target.os,
+  arch: target.arch,
+  libc: process.env.LCODE_MISE_LIBC ?? process.env.LCODE_TARGET_LIBC,
+});
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const nativeSearchReleasePlan = resolveNativeSearchReleasePlan({
   platform: target.os,
@@ -36,6 +42,18 @@ const shouldRequireWindowsBrowserImportHelper =
 // ENOENT 后 fail-open：浮窗照常显示、只是不再跟随系统设置窗口，且全程无报错，问题只能靠翻日志发现。
 // 缺 Xcode CLT 时 build 脚本自身 warn 后 exit 0，这里仍保持 not ready，至多每次 dev 多跑一次秒级脚本。
 const shouldRequireMacosWindowBounds = target.os === "darwin";
+
+async function isMiseReady() {
+  try {
+    await validateMiseRuntimeAssets({ desktopRoot, target: miseTarget });
+    return true;
+  } catch (error) {
+    console.warn(
+      `[ensure-local-runtime-assets] bundled mise validation failed: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return false;
+  }
+}
 
 function isNativeSearchReady() {
   if (!nativeSearchBuildPlan) return true;
@@ -70,6 +88,11 @@ function isNativeSearchReady() {
 }
 
 const REQUIRED_LOCAL_RUNTIME_ASSETS = [
+  {
+    label: "bundled mise",
+    script: "prepare:mise",
+    isReady: isMiseReady,
+  },
   ...(nativeSearchReleasePlan.enabled
     ? [
         {

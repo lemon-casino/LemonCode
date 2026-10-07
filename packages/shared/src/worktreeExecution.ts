@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { sessionExecutionModeSchema } from "./worktreePolicy.js";
+import { sessionExecutionModeSchema, runtimeEnvironmentPolicySchema } from "./worktreePolicy.js";
+import { runtimeEnvironmentErrorSchema } from "./runtimeEnvironment.js";
+import {
+  runtimeEnvironmentBindingReferenceSchema,
+  runtimeEnvironmentReferenceSchema,
+} from "./runtimeConsumer.js";
 
 /** 项目索引使用绑定来源；文件操作仍使用调用者的实际 workspace scope。 */
 export function resolveWorktreeProjectScope(workspace: {
@@ -28,6 +33,8 @@ const text = z.string().trim().min(1);
 export const executionIntentSchema = z
   .object({
     mode: sessionExecutionModeSchema,
+    /** additive；旧端缺省 = 不请求托管，不能把 inherit 解释成 managed。 */
+    environmentPolicy: runtimeEnvironmentPolicySchema.optional(),
     taskName: z.string().max(256).optional(),
     baseRef: text.optional(),
     originWorkspacePath: text.optional(),
@@ -50,12 +57,68 @@ export const worktreeSnapshotSchema = z
   })
   .strict();
 export type WorktreeSnapshot = z.infer<typeof worktreeSnapshotSchema>;
+
+/** 候选环境与验证的精确收据；缺少该收据不能把 ready 解读为可发布。 */
+export const worktreeValidationReceiptSchema = z
+  .object({
+    candidateHead: text,
+    candidateTree: text,
+    environmentRef: runtimeEnvironmentReferenceSchema.optional(),
+    manifestDigest: text.optional(),
+    declarationDigest: text.optional(),
+    revision: z.number().int().positive().optional(),
+    sourceHead: text.optional(),
+    targetHead: text.optional(),
+    targetBranch: text.optional(),
+    environmentPolicy: z.enum(["managed", "local"]).optional(),
+    command: z.string().max(8192).nullable(),
+    outcome: z.enum(["passed", "failed", "skipped"]),
+    exitCode: z.number().int().nullable(),
+    output: z.string().max(65536),
+    outputTruncated: z.boolean().optional(),
+    skipAcknowledged: z.boolean().optional(),
+    verifiedAt: text,
+  })
+  .strict()
+  .superRefine((receipt, context) => {
+    if (receipt.outcome === "skipped" && receipt.skipAcknowledged !== true) {
+      context.addIssue({
+        code: "custom",
+        message: "skipped validation requires explicit acknowledgement",
+      });
+    }
+    if (receipt.outcome === "passed" && receipt.exitCode !== 0) {
+      context.addIssue({ code: "custom", message: "passed validation requires exitCode=0" });
+    }
+  });
+export type WorktreeValidationReceipt = z.infer<typeof worktreeValidationReceiptSchema>;
+
+/** 候选整体证据；目标/source 变更或环境收据不匹配时必须重新验证。 */
+export const worktreeCandidateEvidenceSchema = z
+  .object({
+    candidateHead: text,
+    candidateTree: text,
+    sourceHead: text,
+    targetHead: text,
+    targetBranch: text.optional(),
+    environmentPolicy: z.enum(["managed", "local"]).optional(),
+    environmentRef: runtimeEnvironmentReferenceSchema.optional(),
+    manifestDigest: text.optional(),
+    declarationDigest: text.optional(),
+    validationCommands: z.array(z.string().max(8192)).max(64).optional(),
+    validationReceipts: z.array(worktreeValidationReceiptSchema).max(128),
+    validatedAt: text,
+  })
+  .strict();
+export type WorktreeCandidateEvidence = z.infer<typeof worktreeCandidateEvidenceSchema>;
+
 export const worktreePreparationSchema = z
   .object({
     stage: z.enum(["workspace", "checkout", "environment", "ready", "failed", "cancelled"]),
     activeStep: z.enum(["workspace", "checkout", "environment"]).optional(),
     /** 托管环境的阶段投影（P2-07a）：environmentRef 存在时 UI 显示工具/依赖子阶段。 */
     runtimeStage: z.enum(["resolvingTools", "installingTools", "preparingDependencies"]).optional(),
+    runtimeError: runtimeEnvironmentErrorSchema.optional(),
     log: z.string().max(65536),
     logTruncated: z.boolean(),
     cancelRequested: z.boolean(),
@@ -88,8 +151,10 @@ export const worktreeExecutionBindingSchema = z
       "ready",
       "failed",
       "cancelled",
+      "archiving",
       "archived",
       "restoring",
+      "updating",
       "missing",
       "deleting",
       "deleted",
@@ -99,14 +164,30 @@ export const worktreeExecutionBindingSchema = z
     updatedAt: text,
     error: z.string().optional(),
     latestIntegrationId: text.optional(),
-    /** 托管运行环境引用（spec: specs/worktree-runtime-environments.md §7/§8.1）；首次执行前持久化。 */
-    environmentRef: z
+    /** 候选环境精确证据；旧 integration 记录缺失时继续可读，但不得被新发布路径视为 ready。 */
+    candidateEvidence: worktreeCandidateEvidenceSchema.optional(),
+    validationReceipts: z.array(worktreeValidationReceiptSchema).max(128).optional(),
+    /** 恢复/删除与环境回收分别结算；不把代码快照当作私有数据备份。 */
+    environmentRebuild: z
       .object({
-        environmentId: z.string().regex(/^[a-f0-9]{32}$/, "environmentId must be a 32-char hex id"),
-        revision: z.number().int().nonnegative(),
+        oldEnvironmentId: z
+          .string()
+          .regex(/^[a-f0-9]{32}$/)
+          .optional(),
+        oldEnvironmentRef: runtimeEnvironmentBindingReferenceSchema.optional(),
+        newEnvironmentRef: runtimeEnvironmentReferenceSchema.optional(),
+        sessionIds: z.array(text).optional(),
+        status: z.enum(["pending", "ready", "failed", "requires-data-decision"]).optional(),
+        dataDecision: z.enum(["save", "export", "discard"]).optional(),
       })
       .strict()
       .optional(),
+    /** 托管运行环境引用（spec: specs/worktree-runtime-environments.md §7/§8.1）；首次执行前持久化。 */
+    environmentRef: runtimeEnvironmentBindingReferenceSchema.optional(),
+    environmentPolicy: z.enum(["managed", "local"]).optional(),
+    archiveOperation: z.object({ requestId: text }).strict().optional(),
+    restoration: z.object({ requestId: text }).strict().optional(),
+    environmentUpgrade: z.object({ requestId: text }).strict().optional(),
     creationFingerprint: z
       .string()
       .regex(/^[a-f0-9]{32,64}$/)
@@ -146,6 +227,7 @@ export const worktreePrepareExecutionParamsSchema = z
     ...scope,
     requestId: text,
     taskId: text,
+    environmentPolicy: runtimeEnvironmentPolicySchema.optional(),
     projectId: text.optional(),
     baseRef: text.optional(),
     taskName: z.string().max(256).optional(),

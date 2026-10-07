@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "scope": "mise v2026.10.2 official desktop release assets bundled by the desktop distribution build.",
+  "component": {
+    "id": "mise",
+    "version": "v2026.10.2",
+    "license": "MIT",
+    "source": "https://github.com/jdx/mise/tree/v2026.10.2",
+    "licenseSource": "https://raw.githubusercontent.com/jdx/mise/v2026.10.2/LICENSE",
+    "licenseFile": "third-party/mise/LICENSE.txt",
+    "licenseSha256": "4d22d6f9222adef0a45ef895bfdd6f71d6394b1784b1001a4bebb4298b8ddc69",
+    "assets": {
+      "windows-x64": { "archive": "mise-v2026.10.2-windows-x64.zip", "sha256": "6ce4281dc65a4dc22de2aed42db5e8859293a467964763b43fcc33fa0e6c4214" },
+      "windows-arm64": { "archive": "mise-v2026.10.2-windows-arm64.zip", "sha256": "9c4abb29dc88d956f5d6f2e468bade7843c9e3242690a9dbb22b2bbac4d007be" },
+      "macos-x64": { "archive": "mise-v2026.10.2-macos-x64.tar.xz", "sha256": "b8b23b39a05f1b36ebb49c5c556d549585f7e4b2d05ba9ff7c09bb026bf0fca7" },
+      "macos-arm64": { "archive": "mise-v2026.10.2-macos-arm64.tar.xz", "sha256": "11df20cfebb7f52eb5c6f68c367eadc6cf22aca169566a8f5b2fa92bf1564540" },
+      "linux-x64": { "archive": "mise-v2026.10.2-linux-x64.tar.xz", "sha256": "a5f2082b6694c6f27e6a528e55dfb5983998a4d73004d003dfbf03406b938d49" },
+      "linux-x64-musl": { "archive": "mise-v2026.10.2-linux-x64-musl.tar.xz", "sha256": "e35412ea4e944f959cccfa5826d6f860a08417a00dc023579cab3561c5a72fa3" },
+      "linux-arm64": { "archive": "mise-v2026.10.2-linux-arm64.tar.xz", "sha256": "2df2ecffe694802cae43865fe11b932db361a902b7d4c4726fb4aaaa2d6a2396" },
+      "linux-arm64-musl": { "archive": "mise-v2026.10.2-linux-arm64-musl.tar.xz", "sha256": "32d89cc197a92016c7285c4fbdf067919b44097b7da65ff5722a3bc55b1cf793" }
+    }
+  }
+}

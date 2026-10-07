@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
-import type { IWorktreeService } from "../contract.js";
+import type { IWorktreeHostService, WorktreeCommandRunner } from "../contract.js";
+import { createWorktreeEnvironmentUpgrade } from "./upgrade.js";
 import type { CheckoutCoordinator } from "../nodeTypes.js";
 import type { WorktreeContext } from "./ports.js";
 import { createWorktreeLifecycle } from "./lifecycle.js";
@@ -11,23 +12,27 @@ export function createWorktreeApplication(
   context: WorktreeContext,
   options: {
     coordinator: CheckoutCoordinator;
-    validate(checkout: string, command: string): Promise<{ exitCode: number; output: string }>;
+    validate: WorktreeCommandRunner;
   },
-): IWorktreeService {
+): IWorktreeHostService {
   const lifecycle = createWorktreeLifecycle(context, options.coordinator);
   const archive = createWorktreeArchive(context, options.coordinator, lifecycle.ready);
   const integration = createWorktreeIntegration(context, options.coordinator, options.validate);
   return {
+    upgradeRuntimeEnvironment: createWorktreeEnvironmentUpgrade(context, options.coordinator, lifecycle.ready),
     getCapabilities: lifecycle.capability,
     prepare: lifecycle.prepare,
     getBinding: lifecycle.getBinding,
     async list(params) {
-      const identity = params.workspaceIdentity?.trim() || resolve(params.workspacePath);
+      const normalize = (path: string) => process.platform === "win32" ? resolve(path).toLowerCase() : resolve(path);
+      const path = normalize(params.workspacePath);
+      const identity = params.workspaceIdentity?.trim() || path;
+      const matches = (workspacePath: string, workspaceIdentity?: string) =>
+        normalize(workspacePath) === path && (workspaceIdentity?.trim() || normalize(workspacePath)) === identity;
       return (await context.store.listBindings()).filter(
-        (binding) =>
-          binding.status !== "deleted" &&
-          (binding.originalWorkspaceIdentity?.trim() || resolve(binding.originalWorkspacePath)) ===
-            identity,
+        (binding) => binding.status !== "deleted" &&
+          (matches(binding.originalWorkspacePath, binding.originalWorkspaceIdentity) ||
+            matches(binding.workspacePath, binding.workspaceIdentity)),
       );
     },
     integrate: integration.integrate,

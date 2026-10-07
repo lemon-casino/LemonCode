@@ -25,6 +25,13 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { resolveRemoteNativeSearchPrebuiltPlan } from "./remote-native-search-tools-config.mjs";
 import { prepareNativeSearchTools } from "./prepare-native-search-tools.mjs";
+import {
+  prepareRemoteMiseRuntimeAssets,
+  remoteMisePlatforms,
+  resolveRemoteMiseTarget,
+  validateRemoteMiseRuntimeAssets,
+} from "./prepare-remote-mise-assets.mjs";
+import { MISE_VERSION } from "../packages/desktop/scripts/prepare-mise-runtime-assets.mjs";
 import { stageNodeNotices, stageThirdPartyNotices } from "./third-party-notices.mjs";
 import {
   computeDeterministicSourceSha256 as computeComponentSourceSha256,
@@ -49,7 +56,7 @@ const LCODE_AGENT_RUNTIME = {
 const releaseDir = join(mockCdnDir, "releases", version);
 const nodeVersion = "v22.16.0";
 const componentSchemaVersion = 1;
-const remotePlatforms = ["linux-arm64", "linux-x64", "darwin-arm64", "darwin-x64"];
+const remotePlatforms = remoteMisePlatforms;
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 const isBootstrapWithRemote = process.env.LCODE_BOOTSTRAP_WITH_REMOTE === "1";
 
@@ -621,7 +628,8 @@ function resolveComponentSemanticVersion(componentVersion) {
 
 // glm 承载 lcode-cli app-server 协议 schema。即使 runtime 版本未变化，
 // lcode.cjs 也可能随 app 代码变更；跨 release 复用旧 glm 会让远端 agent 拒绝新协议字段。
-const nonReusableReleaseAssetIds = new Set(["server-bundle", "glm"]);
+// mise 由固定归档驱动独占准备；历史复制会在 skip 校验之前补齐缺件，违反只读跳过合同。
+const nonReusableReleaseAssetIds = new Set(["server-bundle", "glm", "mise"]);
 
 function readJsonFile(filePath) {
   try {
@@ -790,6 +798,8 @@ function buildReusableComponentRequiredPaths(componentId, platformKey) {
       return [platformKey.startsWith("win32-") ? "rg.exe" : "rg"];
     case "ugrep":
       return ["ugrep"];
+    case "mise":
+      return ["bin/mise", "LICENSE", "README.md", "backend-manifest.json"];
     default:
       return [];
   }
@@ -836,6 +846,12 @@ export function buildRemoteComponentDefinitions(platformKey) {
 
   return [
     ...baseComponents,
+    {
+      id: "mise",
+      semanticPrefix: MISE_VERSION,
+      mount: joinPosix("tools", platformKey, "mise"),
+      sourcePath: join(releaseDir, "tools", platformKey, "mise"),
+    },
     ...nativeSearchPlan.artifacts
       .toSorted((left, right) => left.toolId.localeCompare(right.toolId))
       .map((artifact) => ({
@@ -892,19 +908,31 @@ function tryReuseRemoteComponentArtifact({
   return previousComponent;
 }
 
-export function prepareRemoteComponentArtifact({
+export async function prepareRemoteComponentArtifact({
   mockCdnDir,
   platformKey,
   component,
   previousComponents = new Map(),
+  cacheDir,
+  backendApi,
 }) {
+  if (component.id === "mise") {
+    // 修复：缓存命中也要验证固定 mise，不能只信自报的 source hash 或旧组件 manifest。
+    await validateRemoteMiseRuntimeAssets({
+      root: component.sourcePath,
+      target: resolveRemoteMiseTarget(platformKey),
+      cacheDir,
+      backendApi,
+    });
+  }
   if (!existsSync(component.sourcePath)) {
     throw new Error(
       `Missing component source for ${component.id} (${platformKey}): ${component.sourcePath}`,
     );
   }
 
-  const sourceSha256 = computeComponentSourceSha256(component.sourcePath);
+  const archiveOptions = component.id === "mise" ? { executablePaths: ["bin/mise"] } : undefined;
+  const sourceSha256 = computeComponentSourceSha256(component.sourcePath, archiveOptions);
   const previousComponent = previousComponents.get(component.id);
   const reusedComponent = tryReuseRemoteComponentArtifact({
     mockCdnDir,
@@ -931,7 +959,7 @@ export function prepareRemoteComponentArtifact({
 
   // 同版本本地重跑时继续复用旧 tar 会让 manifest sha256 指向陈旧内容。
   // 这里先打临时包再把内容 hash 写进最终文件名，避免 CDN 缓存继续命中同名旧对象。
-  packComponentSourceAsArchive(component.sourcePath, stagingArtifactPath);
+  packComponentSourceAsArchive(component.sourcePath, stagingArtifactPath, archiveOptions);
   const artifactSha256 = computeFileSha256(stagingArtifactPath);
   const componentVersion = buildContentAddressedComponentVersion(
     component.semanticPrefix,
@@ -960,7 +988,7 @@ export function prepareRemoteComponentArtifact({
   };
 }
 
-function prepareRemoteComponentArtifacts() {
+async function prepareRemoteComponentArtifacts() {
   console.log("==> Packaging component artifacts and manifests");
 
   const componentRootDir = join(mockCdnDir, "components");
@@ -975,7 +1003,7 @@ function prepareRemoteComponentArtifacts() {
 
     for (const component of componentDefinitions) {
       if (!existsSync(component.sourcePath)) {
-        if (!canResolveIntranetDepsBaseUrl()) {
+        if (component.id !== "mise" && !canResolveIntranetDepsBaseUrl()) {
           console.warn(
             `  [skip] component ${component.id} (${platformKey}): source missing and intranet deps source is not configured`,
           );
@@ -983,7 +1011,7 @@ function prepareRemoteComponentArtifacts() {
         }
       }
       componentManifestEntries.push(
-        prepareRemoteComponentArtifact({
+        await prepareRemoteComponentArtifact({
           mockCdnDir,
           platformKey,
           component,
@@ -1028,13 +1056,16 @@ async function main() {
   copyNodePtyPrebuilds();
   stageRemoteAgentBundles();
   await prepareRemoteNativeSearchTools();
+  for (const platformKey of remotePlatforms) {
+    await prepareRemoteMiseRuntimeAssets({ platformKey, outputDir: join(releaseDir, "tools") });
+  }
   // 修复：server、pty、agent 均可独立下载，需在组件哈希计算前补齐各自的声明。
   await stageThirdPartyNotices(join(releaseDir, "server"), rootDir);
   for (const platformKey of remotePlatforms) {
     await stageThirdPartyNotices(join(releaseDir, "node-pty", platformKey), rootDir);
     await stageThirdPartyNotices(join(releaseDir, "glm", platformKey), rootDir);
   }
-  prepareRemoteComponentArtifacts();
+  await prepareRemoteComponentArtifacts();
 
   console.log(`==> Done! Mock CDN release ready at ${releaseDir}`);
 }

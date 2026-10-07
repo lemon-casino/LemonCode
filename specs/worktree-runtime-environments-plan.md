@@ -1,8 +1,8 @@
 # 工作树运行环境开发计划
 
-状态：M0/M1/M2/M3 已完成（M3 进度记录见 §3.7：P3-01～06 全部落地；服务进程 port 的真实实现与 E2E 归 P5 全链路回归）；M4/M5 未开始（macOS/Linux 门禁需对应平台环境）。
-更新日期：2026-10-05。
-代码基线：L-GO 分支 `3c436cc`（`git rev-parse HEAD` = `3c436ccb5e34b86f9ec545b3cfc6f7db03d22eb6`，与 origin/L-GO 同步，`node scripts/check-workspace-freshness.mjs` 通过）。
+状态：M0/M1/M2/M3 已收口；P4-01～P4-07、P5-01～P5-05 已完成 Windows/模拟远端门禁与定向/集成证据；P5-06 文档回填已完成。macOS/Linux 原生门禁、实体手机和完整 Electron 整包构建仍未执行，不把 Windows/fixture 结果写成跨平台完成。
+更新日期：2026-10-06。
+代码基线：L-GO 分支 `9c6327985e02fa5ea8ab7b583bfbda1e18330734`；本轮 `node scripts/check-workspace-freshness.mjs` 输出 `[freshness] 基线新鲜：L-GO（与 origin/L-GO 同步），相对 origin/main：ahead 111 / behind 0（阈值 50）`。
 
 ## 1. 背景与基准
 
@@ -49,7 +49,7 @@ M0 产出为 P0 验证记录与 ADR 结论，不修改业务代码；涉及文�
 
 | ID    | 任务与交付                                                                                                                                                                                        | 涉及文件                                                                                                                                                                                                                                                                                                                       | 接口与状态所有者                                                                                                                                                                                                                                                                                                                                                                                                  | 先更新 spec                                                                                  | 测试点                                                                                                                                                                   | 验收                                     |
 | ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------- |
-| P1-01 | 新模块骨架与协议：runtime-environment 模块全套（module/contract/contract.example/domain/app/adapters/node/CONTRACT.md）+ shared schema + 协议方法族注册 + capabilities 能力位 + 结构化错误 schema | 拟新增 `packages/services/src/runtime-environment/`、`packages/shared/src/runtimeEnvironment.ts`；改 `packages/shared/src/lcode-protocol/index.ts`（方法族 + `lcodeRuntimeCapabilitiesSchema`，现仅 `independentPlanState`）、`packages/services/src/node.ts`、`packages/services/src/accessor.ts`、`architecture-policy.yaml` | 新增 `IRuntimeEnvironmentService`（capabilities/prepare/get/list/resolveContext/startService/stopService/reconcile/release，按主文档 §9.1 收敛），经 `createServiceDescriptor` 注册（复用 `packages/services/src/worktree/contract.ts` 注册惯例）；EnvironmentRecord/操作收据等持久事实 owner = 环境服务；Host 桥接按 `packages/services/src/lcode-agent/worktreeRequests.ts` 的 strict parse + requireScope 模式 | 主文档 §9.1/§9.4/§9.5；`architecture-policy.yaml` 注册新模块                                 | schema strict 校验单测；新字段全部 optional 时旧 Host 拒绝显式托管请求而非静默忽略；三层校验同步（协议 schema、服务 contract、`app/validatedService.ts` wrapping）检查单 | 主文档 P1-01 门禁；ENV-28 的协议兼容部分 |
+| P1-01 | 新模块骨架与协议：runtime-environment 模块已有 contract/node/CONTRACT 基础；补 shared schema、协议方法族、capabilities 能力位和结构化错误 schema | 改 `packages/shared/src/lcode-protocol/index.ts`（方法族 + `lcodeRuntimeCapabilitiesSchema`）、`packages/services/src/node.ts`、`packages/services/src/accessor.ts`、`architecture-policy.yaml`；新增能力必须接入现有模块，不创建第二 owner | 环境服务继续是 EnvironmentRecord/操作收据事实 owner；Host 桥接沿 strict parse + requireScope；公共 schema/contract/validatedService 三层同步 | 主文档 §9.1/§9.4/§9.5；`architecture-policy.yaml` | strict schema、旧 Host 显式托管拒绝、三层校验同步 | 主文档 P1-01 门禁；ENV-28 协议部分 |
 | P1-02 | 环境持久化：records/operations/manifests 目录与原子写入、跨进程锁、schemaVersion 严格校验                                                                                                         | 拟新增 `packages/services/src/runtime-environment/adapters/store.ts`（复用 worktree store 的 `atomicWritePrivateTextFile` 与 `withFileLock` 模式）；目录按主文档 §8.3 放 HostDataRoot（`getAppConfigDir()`）下 `runtime-environments/`，与 `worktrees/` 同级                                                                   | 持久记录 owner = 环境服务；复用 `packages/services/src/worktree/adapters/store.ts` 原子写/锁模式；不改 `worktreeOptions.dataDir`（`packages/services/src/node.ts` 组合根），不绕过 `assertManagedPath`                                                                                                                                                                                                            | 主文档 §8.2/§8.3/§8.4                                                                        | 跨进程原子写、损坏/未知版本记录明确失败不修成 ready、持锁重读、崩溃后对账                                                                                                | 主文档 P1-02 门禁                        |
 | P1-03 | 工具声明解析与版本冻结：mise.toml tools/.node-version/.nvmrc/packageManager/engines/锁文件 → 确切版本 + 冲突诊断；范围解析持久化                                                                  | 拟新增 `packages/services/src/runtime-environment/domain/`（解析器与 manifest 冻结）；不改动现有 `packages/services/src/worktree/adapters/environment.ts` 的 `detectWorktreeSetup`（其"多锁歧义返回空命令"行为仅保留给非托管准备路径）                                                                                         | manifest/revision owner = 环境服务；复用 shared schema（P1-01）持久化 FrozenManifest                                                                                                                                                                                                                                                                                                                              | 主文档 §6.1/§6.2                                                                             | ENV-03：冲突/未知语法/无锁分别报错或明确非冻结策略；重启后同一声明解析出同一版本；无声明显示"应用默认"来源                                                               | 主文档 P1-03 门禁；ENV-03                |
 | P1-04 | 工具后端 port 与缓存：便携 mise 调用 port、tool-store 分区存储、下载校验、同 key 跨进程互斥、离线明确失败                                                                                         | 拟新增 `packages/services/src/runtime-environment/adapters/`（后端 port 实现）；`tool-backends/`、`tool-store/`、`package-store/` 目录按主文档 §8.3                                                                                                                                                                            | 工具存储与下载互斥 owner = 环境服务（资源协调层）；互斥复用跨进程文件锁模式；不复制 mise 源码进业务模块                                                                                                                                                                                                                                                                                                           | 主文档 §5.1/§5.3                                                                             | 完整性校验失败隔离不发布；并行/离线/取消（ENV-04/ENV-05）；不改系统默认工具与 Shell profile                                                                              | 主文档 P1-04 门禁；ENV-04/ENV-05         |
@@ -73,8 +73,8 @@ M2 进度记录（2026-10-05，P2-01～P2-07 已完成；提交 ea3f393、4573ee
 - P2-06 已完成（181db9e）：`preparingDependencies` 阶段落实（此前直通 ready）。domain `dependencies.ts`：安装计划（pnpm/npm/yarn/bun 锁 → frozen 命令；多锁歧义/无锁不猜测不伪造）、pnpm `clone-or-copy` 强制（不靠硬链接 auto）、收据新鲜度（声明指纹+锁摘要+Node 版本+平台 ABI，不匹配重装）。编排抽到 app `dependencyStage.ts`（service 保持有界）：冻结工具 PATH 前缀 + 环境私有 TEMP（`resources/<id>/temp`）+ clone-or-copy env 经 DependencyInstallPort 注入，进程属既有执行 owner；收据持久化 `receipts/`（strict schema），失败 `dependency-install-failed` 可重试。共享 `DependencyReceipt` schema。测试：dependencies 7/7（计划/歧义/收据失效），全套 60/60；typecheck/lint 0/架构 0/oxfmt 通过。
 - P2-07a 已完成（bdb64f7）：准备卡五阶段与工具来源标注。spec 先行（`worktree-preparation-and-sidebar-fork.md` 增五阶段与来源词表规则）；`worktreePreparationSchema` 增 optional `runtimeStage`（resolvingTools/installingTools/preparingDependencies）与 `toolSource`（project-declaration/app-default/user-override/partial-host）；lifecycle 在进入托管准备时标记 `installingTools`、setup 首条命令前标记 `preparingDependencies`（setup.ts）；组合根从环境投影推导 toolSource（全声明/全默认/混合→partial-host）；`WorktreePreparationCard` 托管时展开五步（空间→检出→工具→依赖→就绪），非托管保持原三步不伪造托管阶段；i18n 双语文案。验证：worktree 集成回归 17/17、web worktree-ui E2E 34/34、typecheck/lint 0/架构 0/oxfmt 通过。
 - P2-07 已完成（7924758）：E2E 断言扩展。fixture 增 `beginManagedPreparation`/`advanceToDependencies`（托管环境投影：environmentRef + runtimeStage + toolSource 可切换）；两个新用例：五阶段卡（工具步 running、空间/检出 done、依赖步存在、来源标注可见、推进依赖后工具步 done）与来源标注切换（project-declaration/app-default/partial-host 三种文案）。注意：卡片隐藏必须走既有取消链路（先点"改用本地目录"登记 intent，Host 结算后草稿重置），直接调 finishCancel 不卸载卡——首版用例即因此失败。验证：preparation-fork E2E 10/10。
-- 未开始：M3（服务/端口/数据）、M4（工作树/候选/回收）、M5（跨端/迁移）——P5-03 的 macOS/Linux 逐平台放行门禁需对应平台环境。
-- M2 剩余工作的边界：P2-07a 需要准备阶段投影协议扩展 + UI 卡片 + E2E（独立大块）；P3～P5 的 macOS/Linux 门禁（P5-03 逐平台放行）本机 Windows x64 无法执行，需对应平台环境。
+- 已实现分项：M0～M3 的历史记录保留为分项证据；P4-01 已实现并局部验证。
+- 未开始：P4-02～P4-07 的生产闭环，以及 P5-01～P5-06；macOS/Linux 原生门禁需对应平台环境。
 
 ### 3.3 M2：执行消费者贯通
 
@@ -112,24 +112,53 @@ M2 进度记录（2026-10-05，P2-01～P2-07 已完成；提交 ea3f393、4573ee
 | P4-06 | 空间概览与缓存 GC：活引用扫描、数量/时间预算、不删活工具                                                                                   | 环境服务（资源扫描与 GC）；UI `packages/ui/src/worktree/ProjectWorktreeList.tsx`/`ProjectWorktreeManagementDialog.tsx` 增资源概况列                                                                                                                                                                                                                                  | 缓存与工具存储 owner = 环境服务；GC 只针对共享受管理工具与下载                                                                                                                            | 主文档 §4/§8.3                                                                                    | 扫描有界不遍历数万 node_modules 文件；GC 不删除活引用工具（ENV-30 前置）；目录手工丢失显示 missing 并拒绝续写                                                  | 主文档 P4-06 门禁                       |
 | P4-07 | 诊断草稿与 Git 联动：环境错误复用"交给 AI 处理"草稿通路，诊断含 revision/工具来源/端口/阻塞 owner                                          | 改 `packages/ui/src/git-action-menu/gitFailureDraft.ts`（`GitFailureContext` 增环境字段，保持脱敏与有界截断）、`GitFailureAction.tsx` 与 `useGitFailureHandoff.ts`（挂载扩展到准备/环境失败路径）、`packages/ui/src/worktree/DraftWorktreePreparation.tsx`（失败卡片增转交入口）；不自动发送、不覆盖已有正文                                                         | 诊断草稿 owner = 既有 UI 草稿通路（`commitReviewNavigationStore` 接收器）；结构化错误事实 owner = 环境服务（P1-01 schema）                                                                | 主文档 §15.3；`specs/git-workflow-linkage-and-ai-recovery.md`（环境失败类别增补）                 | 可编辑、不自动发、不泄露秘密、不覆盖正文；版本冲突列双方声明、端口问题列真实监听、清理问题列阻塞 owner                                                         | 主文档 P4-07 门禁；ENV-25（转交部分）   |
 
-### 3.6 M4 进度记录（2026-10-06）
+### 3.6 M4/M5 进度记录（2026-10-06，Windows x64）
 
-P4-01 已实现（提交 654ab56、93bb2f0；本地补齐 consumer authority 与 CLI 生命周期接线）：
+本轮按当前源码完成并验证以下闭环：
 
-- 同目录 alias 复用父 binding/environmentRef；新树 fork 使用新 binding 的 checkout/声明，不复制父环境引用；`buildWorkspaceRef` 保留 environmentRef；同树/新树集成回归 18/18。
+- **P4-02 revision 升级**：声明/锁内容变化标记 `needsUpdate`；升级在原 environmentId 上递增 revision，manifest immutable；服务活跃、消费者或未确认停止会阻塞，明确停止后才允许新 generation。准备操作持久化精确范围计划，取消/重启不重选版本。`preparationRecovery.test.ts`、`production.integration.test.ts` 覆盖重启、取消、同机双 Host 与提交中断恢复。
+- **P4-03 候选验证**：候选使用 `purpose=integration-candidate` 独立环境，ValidationReceipt 关联 candidate HEAD/tree、声明/manifest digest、命令及有限输出；skip 必须显式确认并标记 unverified；发布前重查 target/candidate/evidence。真实 Git 候选发布通过，含锁变化、输出截断及 lost reply 对账。
+- **P4-04 删除/归档 fence**：先 fence、停止 owner、journal 精确 session IDs、purge、再清理 checkout/refs/可重建资源和 tombstone；archive 保留 session/data，restore 使用新环境并 CAS 重绑。Worktree 真实套件 `93/93` 通过。
+- **P4-05 快照恢复**：Git snapshot/index/HEAD 恢复与环境重建分离；新 environmentId 不复用旧 PID/URL/running；SQLite `BEGIN IMMEDIATE` 批量 CAS，resident/identity/digest 失配整批回滚。CLI 精确 Node 24.14.0 定向维护测试 `74/74` 通过。
+- **P4-06 资源概览/GC**：扫描预算默认 2,000 entries/200ms、硬上限 20,000/2,000ms；只扫描受管资源，partial/unavailable fail closed；GC 保护活 consumer、旧 revision、active operation、执行租约和安装锁，不删用户 data 或随包 mise。资源定向测试 `33/33` 通过。
+- **P4-07 诊断转交**：结构化 runtime error 经过白名单与 URL/Authorization/secret 脱敏后追加既有 composer；保留正文和附件，不自动发送、不创建 session。UI 真实浏览器场景覆盖首发失败及无 session receiver。
+- **P5-01 能力协商/迁移**：Host hello 使用实际 capability/action；显式 managed 缺能力拒绝，不 fallback；session/worktreeRebind 走只读 maintenance 通道，SQLite CAS + resident gate + exact identity/digest。定向代理/维护测试 `32/32`，CLI maintenance `74/74`。
+- **P5-02 跨端投影**：目标 Host 是唯一 owner；桌面 continuous 与 Web/mobile replayable 均以 stateRevision snapshot/invalidation 恢复，Main/relay 不保存环境队列；远端缺 service 不继承本地 owner。实体手机未执行。
+- **P5-03 构建与工具门禁**：Windows x64 官方 mise archive 固定 SHA 校验、构建随包、server/remote component 安装、Node/pnpm/PTY/service 真实 Windows 证据已通过；首次网络工具下载因带宽约 52–87kB/s 超时，已校验缓存离线安装成功。macOS/Linux 原生未执行。
+- **P5-04 UI/交互**：runtime environment Web UI `13/13`，旧 worktree workflow `7/7`，纯逻辑 `8/8`；桌面/390px、中英、键盘、candidate skip、start/stop/restart、诊断草稿、断线不 fallback、未托管/手机不可达提示均覆盖。
+- **P5-05 故障回归**：环境综合测试 `221` 项通过（官方 Windows fixture 场景含真实 archive），服务 owner `34/34`、终端 `19/19`、跨端代理 `32/32`、远端 mise `21/21`、构建/sign/prebuild `29/29`；全仓 typecheck、lint、architecture 均通过。
+- **P5-06 文档回填**：主 spec、RuntimeEnvironment CONTRACT、worktree/session/diagnostic/UI 文档已对齐；自签策略明确不要求商业证书、Developer ID 或公证，无 identity 时 macOS 使用 ad-hoc，Windows 保留既有自签路径。
+
+**未覆盖/不可宣称完成**：macOS/Linux 原生工具、PTY、服务停止与签名实机；实体手机；完整 Electron installer/DMG/ZIP 构建；真实远端 CDN 下载与 Linux/macOS binary；首次网络工具下载在当前带宽下未完成。用户后续自行执行这些平台门禁。
+
+- 同目录 alias 复用父 binding/environmentRef；新树 fork 使用新 binding 的 checkout/声明，不复制父环境引用；`buildWorkspaceRef` 保留 environmentRef。
 - ConsumerReference 由 RuntimeEnvironmentConsumerAuthority 作为唯一 owner 管理：环境锁内 acquire/release，owner/代际/lease 精确匹配，released 墓碑防迟到复活；session 删除与 process/app incarnation 释放区分，不能用 transport 断开释放 session。
-- Host 授权要求 attached workspace + binding + environmentRef + canonical cwd containment；旧会话无 environmentRef 不发送托管请求，托管请求失败不回退本机环境。CLI 关闭等待执行 owner close/进程清理后释放 process 引用；workflow child 复用同一包装 execution port。
-- 回收 fence 在同一环境锁内检查活消费者和未确认服务；有引用或未停服务返回 releaseBlocked，不误报 released。ConsumerReference 记录 schema、消费者并发、代际、迟到释放、进程退出、路径/远端 scope 共 30 个目标测试通过。
-- 仓库验证：typecheck/lint/architecture 全绿；基线刷新因 GitHub 443 网络不可用未执行。并行会话未提交的 checkout/concurrency 相关改动保留在工作区，未纳入本次实现提交。
+- Host 授权要求 attached workspace + binding + environmentRef + canonical cwd containment；旧会话无 environmentRef 不发送托管请求，托管请求失败不回退本机环境。
+- 现有 release fence 已能发现活消费者和未确认服务并返回 releaseBlocked；它仍只结算逻辑环境引用，不代表目录、refs、私有数据、工具缓存或聊天记录已物理回收。
+- 当前源码已执行的较窄检查：`node scripts/check-workspace-freshness.mjs` 通过；`pnpm typecheck` 通过；`pnpm lint` 输出 `Found 0 warnings and 0 errors. Finished in 196ms on 2951 files using 16 threads.`；定向服务/工作树/UI 文件测试 24/24 通过。`frozenContext.test.ts` 定向测试为 4 pass/1 fail（`non-consumable environments are skipped` 与当前 scope-mismatch fence 断言冲突）。这些结果不代表 ENV-18/21/22/23/25 或跨平台门禁通过。
 
-| ID    | 任务与交付                                                                                                                            | 涉及文件                                                                                                                                        | 接口与状态所有者                                                                                                   | 先更新 spec               | 测试点                                                                                           | 验收                             |
-| ----- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------- |
-| P5-01 | 旧会话升级/能力协商：默认不改旧执行；缺能力明确上报，不忽略字段假装成功                                                               | 改 `packages/shared/src/lcode-protocol/index.ts`（capabilities 协商语义）、CLI 恢复链路                                                         | 兼容语义 owner = 协议层 + 环境服务 capabilities                                                                    | 主文档 §9.5/§17           | ENV-28：旧 Host/旧会话旧行为兼容；显式托管请求对旧 Host 返回不支持                               | 主文档 P5-01 门禁；ENV-28        |
-| P5-02 | 多窗口/手机 snapshot 与事件：desktop-continuous 与 web-remote-replayable 两条链路分别验证；手机幂等 start/stop（expected generation） | 改环境服务投影/快照通道；`packages/ui/src/lib/taskListRefreshPolicy.ts`、`useWorkspaceServices.tsx` 既有路由扩展；Main/relay 不保存环境业务状态 | 事实同步 owner = 目标 Host 环境 owner（revision 单调）；乱序按 owner revision 对账，pending overlay 不反写 running | 主文档 §15.2              | ENV-14：两窗口/手机并发 start/stop 幂等（一个 generation）；ENV-27：手机断线 snapshot 恢复不重放 | 主文档 P5-02 门禁；ENV-14/ENV-27 |
-| P5-03 | Windows/macOS/Linux 原生矩阵：每平台真实工具/PTY/进程/停止验证                                                                        | 无固定新文件；平台差异经 `IPlatformService` 与后端适配                                                                                          | 平台能力来自实际 Host，不由浏览器 OS 推断                                                                          | 主文档 §18（ENV-30 证据） | ENV-30：三平台原生工具/PTY/停止/并行逐平台放行                                                   | 主文档 P5-03 门禁；ENV-30        |
-| P5-04 | 桌面/390px/中英/键盘：长中文路径、日志有界、动作与输入可用                                                                            | `packages/ui` 共享组件（准备卡/详情/管理弹窗）响应式与 a11y 回归                                                                                | UI 局部状态不写业务事实（主文档 §7）                                                                               | 主文档 §15.1              | ENV-29：控件可用、输入正常、日志有界                                                             | 主文档 P5-04 门禁；ENV-29        |
-| P5-05 | 全纵向/故障回归：下载、进程、清理、失联可诊断                                                                                         | 全链路；故障注入测试                                                                                                                            | 各 owner 不变                                                                                                      | 主文档 §18/§19            | ENV-01～ENV-30 全量回归；风险表放行条件逐项核对                                                  | 主文档 P5-05 门禁                |
-| P5-06 | 开发/用户文档、发布说明：范围准确，未实现项保留                                                                                       | 主文档与相关 spec 收尾；`specs/` 文档                                                                                                           | 无                                                                                                                 | 全文                      | 文档与实际能力一致；"对外宣布完成条件"（主文档 §2.3）逐项核对后才可宣布                          | 主文档 P5-06 门禁                |
+P4-02～P4-07 仍按下表实施，必须先扩展 shared contract 和本合同，再改服务/UI/CLI；本计划不允许创建实现空壳或以 schema 字段替代行为验收：
+
+| ID | 当前已知基础 | 实施最小交付与事件顺序 | 失败/验收边界 |
+| --- | --- | --- | --- |
+| P4-02 | 已有 ready/needsUpdate 状态、消费者 revision fence、服务 generation/停止证明局部实现；prepare 仍重建 revision=0/1，声明变更检测与生产 start/stop 未闭合 | 环境锁重读声明+锁内容 digest → needsUpdate/upgrading fence → 等真实 writer/服务 owner 结算或明确停止 → 写新 manifest/revision/stateRevision → 下一执行边界重绑定；现有在途命令/服务继续旧 revision | stale/活 writer/未确认停止不得覆盖；ENV-18 必须验证同 HEAD 锁内容变化、在途不变、明确重启新 generation；不以 resolver 单测或 fake process 宣告完成 |
+| P4-03 | Git candidate 固定 source/target/candidate HEAD 和 dirty 校验；没有候选环境/精确 ValidationReceipt | candidate checkout 独占许可 → 按 candidate 声明准备 purpose 环境 → 冻结环境引用/digest → 命令执行或明确 skip 收据 → publish 前重查 target/candidate/environment receipt | 改锁/manifest/target/HEAD 使旧收据失效；下载/依赖失败不 ready；旧 `approvedCandidateHead` 只能兼容输入，不能替代新收据；ENV-23/24 |
+| P4-04 | Worktree/CLI 已有 deleting journal、目录/ref 删除和 session purge；环境 release 只逻辑结算 | deleting/拒绝 writer → 环境 fence → owner 停服务/进程并取退出证明 → journal 精确 session IDs → purge entry/聊天 → 目录/refs/可重建资源 → environment tombstone/binding.deleted | 顺序不可回退为先释放 session 再等待目录；releaseBlocked/deleting 失败可重试同 operation；不泛杀；ENV-17/20/21，包含 Windows 文件占用 |
+| P4-05 | Git snapshot/restore 已覆盖 HEAD/index/非忽略文件；restore 仍保留旧 environmentRef、无 prepare | 恢复 Git 文件/index → environment restore 新 ID/新 revision/新 receipt → binding 与同树 session 全量重绑 → stopped 初始服务事实 | 不复活旧 PID/URL/running；私有不可重建数据需 save/export/discard；ENV-22 不由纯 Git fixture 代替 |
+| P4-06 | 路径隔离和工具安装锁存在；没有资源 summary、扫描预算、GC、列表 missing 对账 | owner 提供数量/时间预算扫描 → active consumer/service/download/lock 保护判据 → 只 GC 共享受管理工具/下载 → projection/list/getBinding 一致投影 | partial/unavailable 不等空闲；旧 revision 活引用保护；不能遍历 node_modules 或删除用户数据；预算数值仍需确认，不擅定 |
+| P4-07 | Git failure draft 有脱敏/有界 append 通路；环境失败在组合根被压成字符串，首发失败可能无 sessionId | 保留 owner 结构化 error/diagnostic → 白名单脱敏有界转换 → 复用现有 append Composer，不发送/不替换正文附件；无 sessionId 使用准备 scope receiver，不为获得 sessionId 启动任务 | diagnostic 不含 token/lease/envOverlay/凭据；首发失败、同树子会话、远端 identity、富文本/附件、迟到 scope 必测；ENV-25/文档联动 |
+
+### 3.6a M5：迁移、跨端与交付
+
+| ID | 当前已知基础 | 实施最小交付与事件顺序 | 失败/验收边界 |
+| --- | --- | --- | --- |
+| P5-01 | CLI/Host 已有 optional environmentRef 和局部 fail-closed；没有完整托管 capability/intent 协商 | shared capability/intent → Host hello/runtime capability → 显式 managed admission → CLI prepare/restore/resolver；旧 Host 缺 action 明确拒绝，旧 session 不改行为 | 不可把 method-not-found 当本机 fallback；旧 binding 不隐式升级；ENV-28 |
+| P5-02 | 手机 attachment、桌面 continuous/replayable 会话事实链存在；环境服务代理、环境 snapshot/event 和服务 operation 尚未接通 | 目标 Host owner 产生 snapshot/event；desktop-continuous 直连、web-remote-replayable snapshot+resume；按 environment stateRevision 丢弃乱序，手机 start/stop 带 expected generation | Main/relay 不保存环境队列/快照；断线不重放 prepare/start；同 Host/identity 不重复 Agent/服务；ENV-14/27 |
+| P5-03 | 工具后端有平台分支，CI 有六种打包构建；没有三平台真实托管工具/PTY/停止证据 | 每个实际 Host 运行 Node/pnpm/PTY/服务启动、真实 bind、停止/并行和故障注入，逐平台记录 SHA/命令/结果 | 当前 Windows 也只有局部/假进程证据；macOS/Linux 未运行，不得写完成；ENV-30 |
+| P5-04 | 准备卡、部分双语/390px/键盘回归可复用；完整环境详情、服务动作、删除/恢复/诊断矩阵未接通 | 经共享 hook 读取公开 projection/operation；覆盖桌面/390px、中英、键盘、长中文路径、有界日志、准备失败/重试/取消和输入保留 | UI 不造 running/ready；不以 fixture 假造 owner 事实；ENV-29 |
+| P5-05 | 局部 fake backend/process、schema/lease/服务测试存在；没有全链路故障回归 | 真实下载/校验、依赖、进程退出/PID 复用、Windows 文件占用、删除、失联、双窗口/手机恢复纵向回归 | 根 typecheck/lint 不能替代 ENV-01～30；每项记录命令、平台、限制；当前不宣告通过 |
+| P5-06 | 主规范、runtime CONTRACT 和计划存在漂移；发布正文来自 tag commit message | 对照实际代码/公开合同逐项回填文档，明确旧会话/平台/部分托管/数据恢复边界，并将正式范围进入发布链 | 不把 CHANGELOG/spec 单改当发布正文；未实现项保留；只有全门禁后平台新树才默认托管 |
+
 
 ### 3.7 M3 进度记录（2026-10-05）
 
@@ -170,11 +199,11 @@ flowchart LR
 - M2 内部：P2-01 是其余全部消费者任务的前置（环境引用先持久化）；P2-02 依赖 P1-04；P2-03/04/05 依赖 P2-02 的 ResolvedProjectExecutionContext；P2-06 依赖 P2-02；P2-07 依赖 P2-01/P2-02 的投影与收据。
 - M3 依赖 M2 的执行上下文与引用对账；M4 的删除 fence（P4-04）依赖 M3-02 的真实停止证明；P4-03 依赖 P2-02（候选环境按冻结上下文准备）。
 - M5 的 P5-01 可在 M2 期间并行准备协议兼容测试，但放行以全链路为准；P5-02～P5-05 依赖 M4。
-- 提交粒度沿主文档 §17：contract/schema 与测试 → prepare 完整纵向 → 逐个执行消费者 → 服务/资源 → 工作树/Git 生命周期 → 跨端/迁移；每提交可独立审查，半接线功能不得默认影响本地会话。
+- M4/M5 的公开 schema、服务 contract 和 Worktree contract 必须先完成；contract 通过不等于行为已接线，完成状态必须引用真实测试和平台证据。- 提交粒度沿主文档 §17：contract/schema 与测试 → prepare 完整纵向 → 逐个执行消费者 → 服务/资源 → 工作树/Git 生命周期 → 跨端/迁移；每提交可独立审查，半接线功能不得默认影响本地会话。
 
 ### 4.2 环境生命周期所有者与事件顺序
 
-各层所有者：协议层只做严格校验与投影载体（`packages/shared`）；目标 Host 内环境事实唯一 owner 是拟新增的 RuntimeEnvironmentService，WorktreeService 保持绑定/checkout 所有权并经注入 port 调用环境，进程/PTY 事实 owner 是既有执行与终端 owner，UI 只读投影（`useWorktreePreparation` 轮询、`draftExecutionStore` 仅持草稿意图）。释放/删除的事件顺序见主文档 §13 时序图。
+各层所有者：协议层只做严格校验与投影载体（`packages/shared`）；目标 Host 内环境事实唯一 owner 是已存在的 RuntimeEnvironmentService（M4/M5 仍需补齐闭环），WorktreeService 保持绑定/checkout 所有权并经注入 port 调用环境，进程/PTY 事实 owner 是既有执行与终端 owner，UI 只读投影（`useWorktreePreparation` 轮询或后续 owner 事件）。释放/删除的事件顺序见主文档 §13 与 runtime-environment CONTRACT。
 
 ```mermaid
 sequenceDiagram
@@ -182,7 +211,7 @@ sequenceDiagram
   participant P as 协议（worktreeExecution / runtimeEnvironment 严格 schema）
   participant CLI as CLI（CommandInbox / 环境解析 port）
   participant WT as Host·WorktreeService（绑定/checkout owner）
-  participant ENV as Host·RuntimeEnvironmentService（拟新增，环境 owner）
+  participant ENV as Host·RuntimeEnvironmentService（已存在的环境 owner，M4/M5 仍需扩展）
   participant EX as Host·既有执行/终端 owner
 
   UI->>P: 首次发送 createSession(firstInput, commandId)
@@ -223,7 +252,7 @@ sequenceDiagram
 | R9  | 常驻服务持整树独占锁会阻塞编码/模型切换/合并；锁顺序不当会死锁                                                                                                                              | P3-01                | 资源租约与 checkout writer 许可分开（复用 coordinator 跨进程 lease 模式）；写源码服务需 writer 或拆短时明确写入；P3-01 固定 checkout/环境/工具/端口锁顺序并测死锁（主文档 §12.4）                                                         |
 | R10 | 端口探测竞态与 Host 崩溃/PID 复用导致虚假 ready、重复服务或误杀                                                                                                                             | P3-02、P3-03         | 探测不等同监听，以真实 bind 对账；进程代际 + 停止证明；ENV-13/ENV-19/ENV-20 覆盖                                                                                                                                                          |
 | R11 | 四份调研均只读，未运行 typecheck/lint/测试；`specs/git-worktree-enhancements.md` 验收记录的 57/57 等结果是旧基线证据                                                                        | 全部                 | 每任务按主文档 §16.2 真实执行 `pnpm typecheck`、`pnpm lint`、适用的 `architecture:check --changed` 与目标包测试；ENV 全部 planned，不得填写推测通过                                                                                       |
-| R12 | 主文档基线标注 34c2728 落后 HEAD 6 提交，其中 `bbfffb2` 已触及删除清理协议面                                                                                                                | M4 全部、P2-01       | 本计划以当前 HEAD `3c436cc` 为基准；M4 开工前核对主文档 §13 现状一致性，冲突先修主文档（见未决问题 5）                                                                                                                                    |
+| R12 | 旧计划基线/状态与当前源码漂移：P4-01 已实现但 P4-02～P5-06 未收口，旧记录可能把局部 M3/P4 能力当作全量完成 | M4/M5 | 本计划以当前 HEAD 和本轮调研为准；逐任务标注已知基础、未接线和真实证据，未验证平台保留未完成，不用历史绿色数字替代 |
 
 ### 5.2 未决问题（需用户或后续确认）
 
@@ -231,5 +260,5 @@ sequenceDiagram
 2. **用户已有系统 mise 的复用入口**：主文档 §5.2 规定"高级用户明确选择后复用"，该选择的 UI 呈现位置与默认值（默认不复用）需要产品确认。
 3. **默认托管的放行节奏**：主文档 §17 规定 P4/P5 对应平台门禁通过后该平台新工作树才默认托管；各平台（Windows 首测后的 macOS/Linux）放行顺序与时间由用户确认。
 4. **工具覆盖的首期 UI 形态**：主文档 §6.1"项目覆盖：用户显式工具/本机策略"与 §15.1"高级来源详情收起"的收起范围（哪些工具允许用户覆盖、放置在项目设置何处）未细化，M2-07a 实施前需确认。
-5. **主文档基线回填**：主文档调查基线 34c2728 落后当前 HEAD，且 `bbfffb2` 已改变删除/清理行为；是否由文档维护者回填主文档基线标注与 §13 相关描述，需确认（本计划不改其他文档）。
-6. **缓存 GC 的活引用判定**：主文档 §19 待核实表中"缓存 GC：仅共享受管理工具和下载"的活引用判定规则与扫描预算参数，P4-06 开工前需确认。
+5. **主文档基线回填**：本轮已将主文档基线更新为 `9c6327985e02fa5ea8ab7b583bfbda1e18330734`；后续以当前源码和真实验证记录为准，不恢复旧完成数字。
+6. **缓存 GC 的活引用判定**：主文档 §19 待核实表中“缓存 GC：仅共享受管理工具和下载”的活引用判定规则与扫描预算参数，P4-06 开工前需确认。

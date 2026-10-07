@@ -1,248 +1,327 @@
-import { isIP } from "node:net";
 import type { ManagedServiceReceipt, RuntimeEnvironmentRecord } from "@lcode/shared";
 import type { ServiceDefinition } from "../domain/services.js";
-import { nextGenerationAfter, reconcileStartIntent } from "../domain/services.js";
-import type { RuntimeEnvironmentStore, ServiceProcessPort } from "./ports.js";
-
-/**
- * 托管服务 start/stop/健康/停止证明（spec: specs/worktree-runtime-environments.md §12.1/§12.2，M3 P3-02）。
- * running 必须有真实监听证据（TCP connect 实际 bind 地址，探测候选不算）；
- * stopped 必须有进程 owner 退出证明；PID 仅诊断不授权停止。
- * 并发 start 同收据；revision 变化返回 needsRestart，不超时强替（spec §6.2）。
- */
-
-export interface ServiceStageContext {
-  store: RuntimeEnvironmentStore;
-  processes?: ServiceProcessPort;
-  /** TCP 健康探测；测试注入。缺省用 node:net connect。 */
-  probe?: (url: string) => Promise<boolean>;
-  /**
-   * 端口资源租约（spec §12.2，M3 P3-03）：start 前加锁、进程 owner 结算后释放；
-   * 同机跨窗口经持久锁协调。缺省 = 不加租约（单窗口场景）。
-   */
-  acquireLease?: (params: { resourceKey: string; ownerId: string }) => Promise<{
-    token: string;
-    release: () => Promise<void>;
-  }>;
-  stamp: () => string;
-}
-
-function isLoopbackUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
-    const host = parsed.hostname;
-    return host === "localhost" || host === "127.0.0.1" || host === "[::1]" || host === "::1";
-  } catch {
-    return false;
-  }
-}
-
-/** TCP connect 探测实际监听（spec §12.2：探测候选不等同监听，这里对真实 URL 验证）。 */
-async function defaultProbe(url: string): Promise<boolean> {
-  if (!isLoopbackUrl(url)) return true; // 非本地地址不做 TCP 探测，仅格式校验。
-  const parsed = new URL(url);
-  const port = Number(parsed.port);
-  if (
-    !Number.isFinite(port) ||
-    (!isIP(parsed.hostname.replace(/^\[|\]$/g, "")) && parsed.hostname !== "localhost")
-  )
-    return true;
-  const { connect } = await import("node:net");
-  return new Promise((resolvePromise) => {
-    const socket = connect({
-      port,
-      host: parsed.hostname === "localhost" ? "127.0.0.1" : parsed.hostname.replace(/^\[|\]$/g, ""),
-    });
-    socket.once("connect", () => {
-      socket.destroy();
-      resolvePromise(true);
-    });
-    socket.once("error", () => {
-      socket.destroy();
-      resolvePromise(false);
-    });
-    socket.setTimeout(1_000, () => {
-      socket.destroy();
-      resolvePromise(false);
-    });
-  });
-}
+import {
+  hasServiceExitProof,
+  nextGenerationAfter,
+  reconcileStartIntent,
+  serviceUrlOrigin,
+} from "../domain/services.js";
+import type { ServiceProcessPort } from "./ports.js";
+import {
+  changedEnvironment,
+  defaultProbe,
+  failure,
+  markUnknown,
+  owned,
+  recordExit,
+  registerOwner,
+  retireOwner,
+  safeFailure,
+  sameGeneration,
+  saveServiceFact as save,
+  type ServiceStageContext,
+  type ServiceStageResult,
+  type ServiceIntent as Intent,
+  type ServiceOwner as Owner,
+} from "./serviceStageOwner.js";
+export type { ServiceStageContext, ServiceStageResult } from "./serviceStageOwner.js";
 
 export async function startManagedService(
   context: ServiceStageContext,
   record: RuntimeEnvironmentRecord,
   definition: ServiceDefinition,
-): Promise<
-  | { status: "started" | "reused"; receipt: ManagedServiceReceipt }
-  | { status: "needsRestart" | "failed"; receipt?: ManagedServiceReceipt; reason?: string }
-> {
-  const previous = await context.store.readServiceReceipt(
+  intent: Intent = {},
+): Promise<ServiceStageResult> {
+  const { store, processes } = context;
+  const admission = await store.lock(
     record.environmentId,
-    definition.serviceId,
-  );
-  const intent = reconcileStartIntent({
-    existing: previous,
-    requestedRevision: record.currentRevision,
-  });
-  if (intent.action === "reuse") return { status: "reused", receipt: intent.receipt! };
-  if (intent.action === "needsRestart")
-    return { status: "needsRestart", receipt: previous ?? undefined };
-  if (!context.processes)
-    return { status: "failed", reason: "service process port is not available on this Host" };
-  if (definition.writesSource)
-    return {
-      status: "failed",
-      reason: "source-writing services require the checkout writer permit (spec §12.4)",
-    };
-
-  const generation = nextGenerationAfter(previous);
-  const startedAt = context.stamp();
-  // 端口资源租约（spec §12.2 M3 P3-03）：与 checkout writer 许可分开（spec §12.4）；
-  // 拿不到锁 = 另一窗口的真实 writer 在跑，明确失败不排队强抢。
-  let lease: { release: () => Promise<void> } | undefined;
-  if (context.acquireLease) {
-    try {
-      lease = await context.acquireLease({
-        resourceKey: `service-port:${record.environmentId}:${definition.serviceId}`,
-        ownerId: `service:${record.environmentId}:${definition.serviceId}`,
+    async (): Promise<
+      | ServiceStageResult
+      | {
+          receipt: ManagedServiceReceipt;
+          owner: Owner;
+        }
+    > => {
+      const environment = await store.readEnvironment(record.environmentId);
+      const changed = changedEnvironment(environment, record);
+      if (changed) return changed;
+      if (environment!.status !== "ready")
+        return { status: "blocked", reason: "resource-busy: environment is fenced or not ready" };
+      const previous = await store.readServiceReceipt(record.environmentId, definition.serviceId);
+      const decision = reconcileStartIntent({
+        existing: previous,
+        requestedRevision: record.currentRevision,
+        expectedGeneration: intent.expectedGeneration,
       });
-    } catch (error) {
-      return {
-        status: "failed",
-        reason: `service port lease is busy: ${error instanceof Error ? error.message : String(error)}`,
-      };
-    }
-  }
-  const starting: ManagedServiceReceipt = {
-    environmentId: record.environmentId,
-    revision: record.currentRevision,
-    serviceId: definition.serviceId,
-    generation,
-    state: "starting",
-    urls: [],
-    startedAt,
-  };
-  await context.store.saveServiceReceipt(starting);
-  let handle;
-  try {
-    handle = await context.processes.start({
-      environmentId: record.environmentId,
-      serviceId: definition.serviceId,
-      generation,
-      argv: definition.argv,
-      cwd: definition.cwd,
-    });
-  } catch (error) {
-    const failed: ManagedServiceReceipt = {
-      ...starting,
-      state: "failed",
-      error: error instanceof Error ? error.message : String(error),
-    };
-    await context.store.saveServiceReceipt(failed);
-    // 进程未起成：立即释放端口租约，不占用资源等下一轮。
-    await lease?.release().catch(() => {});
-    return { status: "failed", receipt: failed, reason: failed.error };
-  }
-  // 真实监听验证（spec §12.2 第 3/6 步）：对进程回报的 URL 逐个 TCP 探测，全部通过才标 running。
-  const probe = context.probe ?? defaultProbe;
-  const verified: string[] = [];
-  for (const url of handle.urls) {
-    if (await probe(url)) verified.push(url);
-  }
-  if (handle.urls.length > 0 && verified.length === 0) {
-    // 一个地址都没验证通过：不标 running（无虚假 ready），按 failed 结算等待显式重试。
-    const stopped = await context.processes.stop({
-      environmentId: record.environmentId,
-      serviceId: definition.serviceId,
-      generation,
-      pid: handle.pid,
-    });
-    const failed: ManagedServiceReceipt = {
-      ...starting,
-      state: "failed",
-      urls: [...handle.urls],
-      pid: handle.pid,
-      error: "no listening address verified",
-      exitCode: stopped?.exitCode,
-      stoppedAt: stopped ? context.stamp() : undefined,
-    };
-    await context.store.saveServiceReceipt(failed);
-    await lease?.release().catch(() => {});
-    return { status: "failed", receipt: failed };
-  }
-  const running: ManagedServiceReceipt = {
-    ...starting,
-    state: "running",
-    urls: verified,
-    pid: handle.pid,
-    healthCheckedAt: context.stamp(),
-  };
-  await context.store.saveServiceReceipt(running);
-  void context.processes.onExit?.(
-    { environmentId: record.environmentId, serviceId: definition.serviceId, generation },
-    async (exitCode) => {
-      // 进程 owner 的退出证明落盘：running 收据不得在进程死后继续存在（spec §12.1）。
-      // 租约与进程同生命周期：退出即释放端口资源（spec §12.2）。
-      const latest = await context.store.readServiceReceipt(
-        record.environmentId,
-        definition.serviceId,
-      );
-      if (latest && latest.generation === generation) {
-        await context.store.saveServiceReceipt({
-          ...latest,
-          state: "stopped",
-          stoppedAt: context.stamp(),
-          exitCode,
-        });
+      if (decision.action === "needsRestart")
+        return { status: "needsRestart", receipt: previous ?? undefined };
+      if (previous && !hasServiceExitProof(previous) && !owned(context, previous))
+        return markUnknown(previous);
+      if (intent.onlyOwnedGeneration && (!previous || hasServiceExitProof(previous)))
+        return { status: "notRunning", receipt: previous ?? undefined };
+      if (previous && intent.operationId && previous.operationId === intent.operationId)
+        return { status: "reused", receipt: previous };
+      if (decision.action === "reuse") return { status: "reused", receipt: previous! };
+      if (decision.action === "blocked")
+        return {
+          status: "blocked",
+          receipt: previous!,
+          reason: "process-unknown: previous generation has no exit proof",
+        };
+      if (!processes?.onExit)
+        return {
+          status: "blocked",
+          reason: "capability-unavailable: process owner with exit observation is required",
+        };
+      if (definition.writesSource)
+        return {
+          status: "blocked",
+          reason: "resource-busy: source-writing services require a checkout writer permit",
+        };
+      for (const serviceId of definition.dependsOn ?? []) {
+        const dependency = await store.readServiceReceipt(record.environmentId, serviceId);
+        if (
+          !dependency ||
+          dependency.state !== "running" ||
+          dependency.revision !== record.currentRevision ||
+          !owned(context, dependency)
+        )
+          return {
+            status: "blocked",
+            reason: "resource-busy: a service dependency is not running under this owner",
+          };
       }
-      await lease?.release().catch(() => {});
+      const receipt = await save(context, {
+        environmentId: record.environmentId,
+        revision: record.currentRevision,
+        serviceId: definition.serviceId,
+        generation: nextGenerationAfter(previous),
+        state: "starting",
+        urls: [],
+        startedAt: context.stamp(),
+        operationId: intent.operationId,
+      });
+      const owner: Owner = {
+        abort: new AbortController(),
+        launch: Promise.withResolvers<void>(),
+        attempted: false,
+      };
+      registerOwner(processes, receipt, owner);
+      try {
+        // route 与 starting 同一 admission 锁发布，peer 不能看到尚无 owner route 的半登记。
+        await context.ownerChannel?.publish(receipt);
+      } catch {
+        owner.exit = {};
+        owner.launch.resolve();
+        const blocked = await save(context, {
+          ...receipt,
+          state: "failed",
+          stoppedAt: context.stamp(),
+          error: "process-unknown: service owner route could not be published",
+        });
+        return { status: "blocked", receipt: blocked, reason: blocked.error };
+      }
+      return { receipt, owner };
     },
   );
-  return { status: "started", receipt: running };
+  if ("status" in admission) return admission;
+  const { receipt, owner } = admission;
+  try {
+    if (context.acquireLease) {
+      try {
+        owner.lease = await context.acquireLease({
+          resourceKey: `service-port:${record.environmentId}:${definition.serviceId}`,
+          ownerId: `service:${record.environmentId}:${definition.serviceId}:${receipt.generation}`,
+        });
+      } catch {
+        throw failure("resource-busy");
+      }
+    }
+    if (owner.abort.signal.aborted) throw failure("cancelled");
+    await context.beforeStart?.(record, definition, owner.abort.signal);
+    const launch = context.prepareLaunch
+      ? await context.prepareLaunch(record, definition)
+      : definition;
+    const permitted = await store.lock(record.environmentId, async () => {
+      const current = await store.readServiceReceipt(record.environmentId, definition.serviceId);
+      const environment = await store.readEnvironment(record.environmentId);
+      return (
+        sameGeneration(current, receipt) &&
+        current.state === "starting" &&
+        environment?.status === "ready" &&
+        !changedEnvironment(environment, record) &&
+        !owner.abort.signal.aborted
+      );
+    });
+    if (!permitted) throw failure("cancelled");
+    processes!.onExit!(receipt, (code) => recordExit(context, receipt, owner, code));
+    owner.attempted = true;
+    let handle: Awaited<ReturnType<ServiceProcessPort["start"]>>;
+    try {
+      handle = await processes!.start({
+        environmentId: receipt.environmentId,
+        serviceId: receipt.serviceId,
+        generation: receipt.generation,
+        argv: launch.argv,
+        cwd: launch.cwd,
+        env: launch.env,
+        ports: launch.ports,
+        signal: owner.abort.signal,
+      });
+    } finally {
+      owner.launch.resolve();
+    }
+    const urls = handle.urls.map(serviceUrlOrigin);
+    // 根因：原条件只拒绝“全部失败”，空地址或部分失败也会虚报 running。
+    if (
+      !urls.length ||
+      urls.length > 16 ||
+      urls.some((url) => !url) ||
+      owner.exit ||
+      owner.abort.signal.aborted
+    )
+      throw failure("unhealthy");
+    const verified = urls as string[];
+    if (
+      !(await Promise.all(verified.map((url) => (context.probe ?? defaultProbe)(url)))).every(
+        Boolean,
+      )
+    )
+      throw failure("unhealthy");
+    const running = await store.lock(record.environmentId, async () => {
+      const current = await store.readServiceReceipt(record.environmentId, definition.serviceId);
+      const environment = await store.readEnvironment(record.environmentId);
+      if (
+        !sameGeneration(current, receipt) ||
+        current.state !== "starting" ||
+        owner.exit ||
+        owner.abort.signal.aborted ||
+        environment?.status !== "ready" ||
+        changedEnvironment(environment, record)
+      )
+        return undefined;
+      return save(context, {
+        ...current,
+        state: "running",
+        urls: verified,
+        pid: handle.pid,
+        healthCheckedAt: context.stamp(),
+      });
+    });
+    if (!running) throw failure("cancelled");
+    return { status: "started", receipt: running };
+  } catch (error) {
+    owner.failure = safeFailure(error);
+    owner.launch.resolve();
+    // start 抛错不能推断没有残留 child；只接受 owner.stop 或已收到的真实 close 证明。
+    let proof = owner.exit ?? (!owner.attempted ? {} : undefined);
+    if (!proof) {
+      try {
+        proof = await processes!.stop(receipt);
+      } catch {
+        /* 无退出证明，保留资源和阻塞态。 */
+      }
+      proof ??= owner.exit;
+    }
+    if (proof) owner.exit = proof;
+    const failed = await store.lock(record.environmentId, async () => {
+      const current = await store.readServiceReceipt(record.environmentId, definition.serviceId);
+      if (!sameGeneration(current, receipt)) return undefined;
+      return save(context, {
+        ...current,
+        state: "failed",
+        urls: [],
+        healthCheckedAt: undefined,
+        stoppedAt: proof ? (current.stoppedAt ?? context.stamp()) : undefined,
+        exitCode: proof?.exitCode,
+        error: owner.failure,
+      });
+    });
+    if (proof) await retireOwner(context, receipt, owner);
+    return { status: "failed", receipt: failed, reason: owner.failure };
+  }
 }
 
 export async function stopManagedService(
   context: ServiceStageContext,
   record: RuntimeEnvironmentRecord,
   serviceId: string,
-): Promise<
-  | { status: "stopped"; receipt: ManagedServiceReceipt }
-  | { status: "notRunning" | "stopFailed"; receipt?: ManagedServiceReceipt; reason?: string }
-> {
-  const current = await context.store.readServiceReceipt(record.environmentId, serviceId);
-  if (!current || ["stopped", "failed"].includes(current.state))
-    return { status: "notRunning", receipt: current ?? undefined };
-  if (current.state === "stopping") return { status: "stopFailed", receipt: current };
-  if (!context.processes) return { status: "stopFailed", reason: "process port unavailable" };
-  const stopping: ManagedServiceReceipt = { ...current, state: "stopping" };
-  await context.store.saveServiceReceipt(stopping);
-  try {
-    const result = await context.processes.stop({
-      environmentId: record.environmentId,
-      serviceId,
-      generation: current.generation,
-      pid: current.pid,
+  intent: Intent = {},
+): Promise<ServiceStageResult> {
+  const { store } = context;
+  const admission = await store.lock(
+    record.environmentId,
+    async (): Promise<
+      | ServiceStageResult
+      | {
+          receipt: ManagedServiceReceipt;
+          owner: Owner;
+        }
+    > => {
+      const environment = await store.readEnvironment(record.environmentId);
+      const changed = changedEnvironment(environment, record);
+      if (changed) return changed;
+      const receipt = await store.readServiceReceipt(record.environmentId, serviceId);
+      if (
+        intent.expectedGeneration !== undefined &&
+        receipt?.generation !== intent.expectedGeneration
+      )
+        return {
+          status: "needsRestart",
+          receipt: receipt ?? undefined,
+          reason: "stale-reference: service generation changed",
+        };
+      if (!receipt || hasServiceExitProof(receipt))
+        return { status: "notRunning", receipt: receipt ?? undefined };
+      const owner = owned(context, receipt);
+      if (!owner) return markUnknown(receipt);
+      owner.abort.abort();
+      const stopping =
+        receipt.state === "stopping"
+          ? receipt
+          : await save(context, {
+              ...receipt,
+              state: "stopping",
+              urls: [],
+              healthCheckedAt: undefined,
+            });
+      return { receipt: stopping, owner };
+    },
+  );
+  if ("status" in admission) return admission;
+  const { receipt, owner } = admission;
+  owner.stop ??= (async (): Promise<ServiceStageResult> => {
+    await owner.launch.promise;
+    let proof = owner.exit ?? (!owner.attempted ? {} : undefined);
+    if (!proof) {
+      try {
+        proof = await context.processes!.stop(receipt);
+      } catch {
+        /* owner 未确认退出，不冒充 stopped。 */
+      }
+      proof ??= owner.exit;
+    }
+    if (proof) owner.exit = proof;
+    const result = await store.lock(record.environmentId, async (): Promise<ServiceStageResult> => {
+      const current = await store.readServiceReceipt(record.environmentId, serviceId);
+      if (!sameGeneration(current, receipt))
+        return { status: "needsRestart", receipt: current ?? undefined };
+      if (hasServiceExitProof(current)) return { status: "stopped", receipt: current };
+      const next = await save(context, {
+        ...current,
+        state: proof ? "stopped" : "failed",
+        urls: [],
+        healthCheckedAt: undefined,
+        stoppedAt: proof ? context.stamp() : undefined,
+        exitCode: proof?.exitCode,
+        error: proof ? undefined : "process owner did not confirm exit",
+      });
+      return { status: proof ? "stopped" : "stopFailed", receipt: next, reason: next.error };
     });
-    // 停止证明来自进程 owner（spec §7 规则 7）；无退出结果不标 stopped。
-    const stopped: ManagedServiceReceipt = {
-      ...stopping,
-      state: result ? "stopped" : "failed",
-      stoppedAt: result ? context.stamp() : undefined,
-      exitCode: result?.exitCode,
-      ...(result ? {} : { error: "process owner did not confirm exit" }),
-    };
-    await context.store.saveServiceReceipt(stopped);
-    return result
-      ? { status: "stopped", receipt: stopped }
-      : { status: "stopFailed", receipt: stopped };
-  } catch (error) {
-    const failed: ManagedServiceReceipt = {
-      ...stopping,
-      state: "failed",
-      error: error instanceof Error ? error.message : String(error),
-    };
-    await context.store.saveServiceReceipt(failed);
-    return { status: "stopFailed", receipt: failed };
-  }
+    if (proof) await retireOwner(context, receipt, owner);
+    return result;
+  })().finally(() => {
+    owner.stop = undefined;
+  });
+  return owner.stop;
 }

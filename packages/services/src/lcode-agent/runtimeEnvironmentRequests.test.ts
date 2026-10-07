@@ -3,13 +3,19 @@ import { mkdtemp, mkdir, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, type TestContext } from "node:test";
-import { lcodeProtocolMethods as methods, type WorktreeExecutionBinding } from "@lcode/shared";
+import {
+  lcodeProtocolMethods as methods,
+  type WorktreeExecutionBinding,
+  type RuntimeEnvironmentResolveContextResult,
+} from "@lcode/shared";
 import type { IWorktreeService } from "../worktree/contract.js";
 import { createRuntimeEnvironmentStore } from "../runtime-environment/adapters/store.js";
 import { createRuntimeConsumerAuthority } from "../runtime-environment/app/consumerLifecycle.js";
 import { createRuntimeEnvironmentServiceForTests } from "../runtime-environment/node.js";
 import {
   createRuntimeEnvironmentClient,
+  handleRuntimeEnvironmentPublicRequest,
+  readRuntimeEnvironmentProtocolCapability,
   isRuntimeEnvironmentRequest,
 } from "./runtimeEnvironmentRequests.js";
 
@@ -36,7 +42,15 @@ async function fixture(t: TestContext) {
     requestId: "r",
     purpose: "worktree",
   });
-  const ref = { environmentId: operation.environmentId, revision: 1 };
+  const environment = await service.get({
+    workspacePath: checkout,
+    environmentId: operation.environmentId,
+  });
+  const ref = {
+    environmentId: operation.environmentId,
+    revision: 1,
+    manifestDigest: environment!.manifestDigest!,
+  };
   const binding: WorktreeExecutionBinding = {
     id: "binding",
     taskId: "parent",
@@ -137,6 +151,7 @@ test("foreign task, binding, revision, remote attachment and injected owner are 
     { sessionId: "foreign" },
     { executionBindingId: "foreign" },
     { environmentRef: { ...f.ref, revision: 2 } },
+    { environmentRef: { ...f.ref, manifestDigest: "wrong-digest" } },
     { environmentRef: { environmentId: "b".repeat(32), revision: 1 } },
     { workspaceIdentity: "foreign" },
     { remoteSessionId: "foreign" },
@@ -212,6 +227,153 @@ test("close before a pending grant settles releases the eventual grant and rejec
     ).length,
     0,
   );
+});
+
+test("digest is checked against the owner even when binding and request both carry the stale digest", async (t) => {
+  const f = await fixture(t);
+  const expected: unknown[] = [];
+  const resolve = f.service.resolveContext.bind(f.service);
+  f.service.resolveContext = (params) => {
+    expected.push(params.expectedManifestDigest);
+    return resolve(params);
+  };
+  const client = f.create("client-a");
+  const result = (await client.handle(
+    methods.runtimeEnvironmentResolveContext,
+    f.request,
+  )) as RuntimeEnvironmentResolveContextResult;
+  assert.equal(result.context.manifestDigest, f.ref.manifestDigest);
+  assert.deepEqual(expected, [f.ref.manifestDigest]);
+  await client.disposeAfterProcessExit();
+  f.binding.environmentRef = { ...f.ref, manifestDigest: "stale-digest" };
+  await assert.rejects(
+    f.create("client-b").handle(methods.runtimeEnvironmentResolveContext, {
+      ...f.request,
+      consumer: "app-2",
+      environmentRef: f.binding.environmentRef,
+    }),
+    /stale-reference/,
+  );
+});
+
+test("a foreign release cannot poison an app incarnation before its first acquire", async (t) => {
+  const f = await fixture(t);
+  const client = f.create("client-a");
+  await assert.rejects(
+    client.handle(methods.runtimeEnvironmentReleaseConsumer, {
+      ...f.closeRequest,
+      workspaceIdentity: "foreign",
+    }),
+    /scope-mismatch/,
+  );
+  await client.handle(methods.runtimeEnvironmentResolveContext, f.request);
+  await client.disposeAfterProcessExit();
+});
+
+test("a remote binding keeps execution identity and attachment authorization in the reverse resolver", async (t) => {
+  const f = await fixture(t);
+  f.binding.originalWorkspaceIdentity = "project-a";
+  f.binding.workspaceIdentity = "execution-a";
+  const client = createRuntimeEnvironmentClient({
+    service: f.service,
+    consumers: f.consumers,
+    worktrees: { getBinding: async () => f.binding } as unknown as IWorktreeService,
+    workspace: {
+      workspacePath: f.dir,
+      workspaceIdentity: "project-a",
+      remoteSessionId: "attachment-a",
+    },
+    clientId: "client-remote",
+  });
+  const request = {
+    ...f.request,
+    workspaceIdentity: "execution-a",
+    remoteSessionId: "attachment-a",
+  };
+  await assert.rejects(
+    client.handle(methods.runtimeEnvironmentResolveContext, {
+      ...request,
+      remoteSessionId: "attachment-b",
+    }),
+    /scope-mismatch/,
+  );
+  const result = (await client.handle(
+    methods.runtimeEnvironmentResolveContext,
+    request,
+  )) as RuntimeEnvironmentResolveContextResult;
+  assert.equal(result.context.workspaceIdentity, "execution-a");
+  await client.disposeAfterProcessExit();
+});
+
+test("same path on a foreign attached identity cannot authorize a binding returned by a stale lookup", async (t) => {
+  const f = await fixture(t);
+  f.binding.originalWorkspaceIdentity = "project-a";
+  f.binding.workspaceIdentity = "execution-a";
+  const client = f.create("wrong-local-client");
+  await assert.rejects(
+    client.handle(methods.runtimeEnvironmentResolveContext, {
+      ...f.request,
+      workspaceIdentity: "execution-a",
+    }),
+    /scope-mismatch/,
+  );
+  assert.deepEqual(await f.store.listConsumers(f.ref.environmentId), []);
+});
+
+test("public reverse requests route capability and management reads without opening raw cwd resolution", async (t) => {
+  const f = await fixture(t);
+  const scope = { workspacePath: f.checkout };
+  for (const method of [
+    methods.runtimeEnvironmentCapabilities,
+    methods.runtimeEnvironmentGet,
+    methods.runtimeEnvironmentList,
+    methods.runtimeEnvironmentSnapshot,
+    methods.runtimeEnvironmentReconcile,
+  ])
+    assert.ok(isRuntimeEnvironmentRequest(method));
+  const calls: unknown[] = [];
+  const publicService = {
+    ...f.service,
+    get: async (params: unknown) => {
+      calls.push(params);
+      return null;
+    },
+  };
+  assert.deepEqual(
+    await handleRuntimeEnvironmentPublicRequest(
+      methods.runtimeEnvironmentGet,
+      { ...scope, environmentId: f.ref.environmentId },
+      scope,
+      publicService,
+    ),
+    { environment: null },
+  );
+  await assert.rejects(
+    handleRuntimeEnvironmentPublicRequest(
+      methods.runtimeEnvironmentGet,
+      { ...scope, workspaceIdentity: "foreign", environmentId: f.ref.environmentId },
+      scope,
+      publicService,
+    ),
+    /scope-mismatch/,
+  );
+  await assert.rejects(
+    handleRuntimeEnvironmentPublicRequest(
+      methods.runtimeEnvironmentGet,
+      { ...scope, cwd: f.checkout, environmentId: f.ref.environmentId },
+      scope,
+      publicService,
+    ),
+  );
+  assert.equal(calls.length, 1);
+  await assert.rejects(
+    handleRuntimeEnvironmentPublicRequest(methods.runtimeEnvironmentList, scope, scope, undefined),
+    /capability-unavailable/,
+  );
+  const capability = await readRuntimeEnvironmentProtocolCapability(f.service, scope);
+  assert.equal(capability?.managedEnvironments, true);
+  assert.equal(capability?.actions?.includes("resolveContext"), true);
+  assert.equal(await readRuntimeEnvironmentProtocolCapability(undefined, scope), undefined);
 });
 
 test("release and resolve race cannot resurrect a closed incarnation or return a fenced context", async (t) => {

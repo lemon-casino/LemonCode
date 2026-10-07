@@ -141,6 +141,20 @@ export async function stageElectronNotices(extractedRoot, resources, version) {
   );
 }
 
+export async function readMiseNotices(root = repositoryRoot, { verify = false } = {}) {
+  const inventoryPath = resolve(root, "third-party/mise/sources.json");
+  const inventory = JSON.parse(await readFile(inventoryPath, "utf8"));
+  const component = inventory.component;
+  if (!component || component.id !== "mise" || component.version !== "v2026.10.2") {
+    throw new Error("Invalid mise license inventory");
+  }
+  const licensePath = resolve(root, component.licenseFile);
+  const bytes = await readFile(licensePath);
+  if (verify && hash(bytes) !== component.licenseSha256) {
+    throw new Error(`Changed mise license: ${component.licenseFile}`);
+  }
+  return { inventory, bytes };
+}
 export async function readNativeSearchNotices(root = repositoryRoot, { verify = false } = {}) {
   const inventoryPath = resolve(root, "third-party/native-search/sources.json");
   const inventory = JSON.parse(await readFile(inventoryPath, "utf8"));

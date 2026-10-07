@@ -1,3 +1,4 @@
+/* oxlint-disable max-lines -- 运行环境的 M1/M4/M5 公开 schema 必须由同一 shared contract 导出，避免协议、投影和收据分叉。 */
 import { z } from "zod";
 import { runtimeEnvironmentReferenceSchema } from "./runtimeConsumer.js";
 
@@ -51,6 +52,55 @@ export type RuntimePreparationOperationStatus = z.infer<
   typeof runtimePreparationOperationStatusSchema
 >;
 
+/** 对外诊断中的阻塞者只允许安全显示标签；ownerId、lease、token 永不进入此结构。 */
+export const runtimeEnvironmentBlockerSchema = z
+  .object({
+    kind: z.enum(["consumer", "service", "writer", "path"]),
+    label: z.string().trim().min(1).max(256),
+    path: z.string().trim().min(1).max(4096).optional(),
+  })
+  .strict();
+export type RuntimeEnvironmentBlocker = z.infer<typeof runtimeEnvironmentBlockerSchema>;
+
+export const runtimeEnvironmentDiagnosticSchema = z
+  .object({
+    purpose: runtimeEnvironmentPurposeSchema.optional(),
+    environmentId: environmentId.optional(),
+    revision: revision.optional(),
+    manifestDigest: z.string().trim().min(1).max(256).optional(),
+    toolSource: z
+      .enum(["project-declaration", "app-default", "user-override", "partial-host"])
+      .optional(),
+    paths: z.array(z.string().trim().min(1).max(4096)).max(16).optional(),
+    command: z.string().trim().min(1).max(4096).optional(),
+    exitCode: z.number().int().nullable().optional(),
+    stderrTail: z.string().max(8192).optional(),
+    logRef: z.string().trim().min(1).max(256).optional(),
+    listeners: z
+      .array(z.object({ serviceId: text, urls: z.array(text).max(16) }).strict())
+      .max(32)
+      .optional(),
+    blockers: z.array(runtimeEnvironmentBlockerSchema).max(32).optional(),
+    sideEffects: z
+      .array(
+        z.enum([
+          "environment-created",
+          "manifest-written",
+          "tool-installed",
+          "dependencies-installed",
+          "process-started",
+          "files-written",
+          "files-removed",
+          "session-cleanup-started",
+          "snapshot-written",
+        ]),
+      )
+      .max(16)
+      .optional(),
+  })
+  .strict();
+export type RuntimeEnvironmentDiagnostic = z.infer<typeof runtimeEnvironmentDiagnosticSchema>;
+
 /** 结构化错误（spec §9.5）：稳定 code + 阶段 + 可重试性，不降级为字符串。 */
 export const runtimeEnvironmentErrorCodeSchema = z.enum([
   "configuration-conflict",
@@ -63,8 +113,13 @@ export const runtimeEnvironmentErrorCodeSchema = z.enum([
   "stale-reference",
   "scope-mismatch",
   "resource-busy",
+  "port-bind-failed",
   "process-unknown",
   "release-blocked",
+  "environment-rebuild-failed",
+  "validation-stale",
+  "gc-incomplete",
+  "restore-data-required",
   "cancelled",
 ]);
 export type RuntimeEnvironmentErrorCode = z.infer<typeof runtimeEnvironmentErrorCodeSchema>;
@@ -76,13 +131,21 @@ export const runtimeEnvironmentErrorSchema = z
       "resolvingTools",
       "installingTools",
       "preparingDependencies",
+      "updating",
+      "startingService",
+      "stoppingService",
+      "validating",
+      "restoring",
+      "scanning",
+      "collectingGarbage",
       "cancelling",
       "releasing",
     ]),
     message: z.string().max(8192),
     retryable: z.boolean(),
-    /** 非敏感定位信息：声明来源、字段、路径摘要等；秘密一律不进入。 */
+    /** 非敏感定位信息：旧记录兼容字段；新的结构化诊断使用 diagnostic 白名单。 */
     detail: z.record(z.string(), z.string()).optional(),
+    diagnostic: runtimeEnvironmentDiagnosticSchema.optional(),
   })
   .strict();
 export type RuntimeEnvironmentError = z.infer<typeof runtimeEnvironmentErrorSchema>;
@@ -108,7 +171,13 @@ export const frozenManifestSchema = z
     arch: z.enum(["x64", "arm64"]),
     tools: z.array(frozenToolSchema),
     declarationDigest: text,
+    /** 对声明和锁文件内容的统一摘要；旧 manifest 缺省表示尚不能证明锁内容新鲜。 */
+    manifestDigest: text.optional(),
     installStrategy: z.enum(["frozen", "non-frozen"]),
+    resources: z
+      .object({ temp: text, cache: text, data: text, logs: text, packageStore: text })
+      .strict()
+      .optional(),
     createdAt: text,
   })
   .strict();
@@ -122,7 +191,20 @@ export const runtimeEnvironmentRecordSchema = z
     bindingId: text.optional(),
     purpose: runtimeEnvironmentPurposeSchema,
     status: runtimeEnvironmentStatusSchema,
+    /** 环境事实版本；与 currentRevision（冻结 manifest 代际）不同。 */
+    stateRevision: revision.optional(),
     currentRevision: revision,
+    manifestDigest: text.optional(),
+    activeOperationId: z
+      .string()
+      .regex(/^[a-f0-9]{32}$/)
+      .optional(),
+    lastOperationId: z
+      .string()
+      .regex(/^[a-f0-9]{32}$/)
+      .optional(),
+    fenceIntent: z.enum(["upgrade", "archive", "discard", "candidate-cancel"]).optional(),
+    resourceSummary: z.lazy(() => runtimeEnvironmentResourceSummarySchema).optional(),
     error: runtimeEnvironmentErrorSchema.optional(),
     createdAt: text,
     updatedAt: text,
@@ -139,6 +221,10 @@ export const runtimePreparationOperationSchema = z
     status: runtimePreparationOperationStatusSchema,
     stage: runtimeEnvironmentStatusSchema.exclude(["releasing", "releaseBlocked", "released"]),
     cancelRequested: z.boolean(),
+    requestFingerprint: text.optional(),
+    targetRevision: z.number().int().positive().optional(),
+    plan: frozenManifestSchema.optional(),
+    commitManifest: frozenManifestSchema.optional(),
     error: runtimeEnvironmentErrorSchema.optional(),
     createdAt: text,
     updatedAt: text,
@@ -148,15 +234,76 @@ export type RuntimePreparationOperation = z.infer<typeof runtimePreparationOpera
 
 export * from "./runtimeConsumer.js";
 
+/** 有界资源扫描的事实摘要；partial/unavailable 绝不等价于空闲或可删除。 */
+export const runtimeEnvironmentResourceSummarySchema = z
+  .object({
+    status: z.enum(["complete", "partial", "unavailable"]),
+    scannedAt: text.optional(),
+    scanBudget: z
+      .object({
+        maxEntries: z.number().int().positive(),
+        maxDurationMs: z.number().int().positive(),
+      })
+      .strict()
+      .optional(),
+    bytes: z.number().int().nonnegative().optional(),
+    fileCount: z.number().int().nonnegative().optional(),
+    protectedReferences: z.number().int().nonnegative().optional(),
+    reason: z.string().max(2048).optional(),
+  })
+  .strict();
+export type RuntimeEnvironmentResourceSummary = z.infer<
+  typeof runtimeEnvironmentResourceSummarySchema
+>;
+
+export const runtimeEnvironmentOperationKindSchema = z.enum([
+  "prepare",
+  "upgrade",
+  "release",
+  "restore",
+  "scan",
+  "gc",
+  "service",
+]);
+export type RuntimeEnvironmentOperationKind = z.infer<typeof runtimeEnvironmentOperationKindSchema>;
+
+/** 长操作的公共对账载体；不携带内部 lease、PID 授权或凭据。 */
+export const runtimeEnvironmentOperationSchema = z
+  .object({
+    operationId: text,
+    kind: runtimeEnvironmentOperationKindSchema,
+    status: z.enum(["running", "succeeded", "failed", "blocked", "unknown"]),
+    stateRevision: revision.optional(),
+    updatedAt: text,
+    error: runtimeEnvironmentErrorSchema.optional(),
+  })
+  .strict();
+export type RuntimeEnvironmentOperation = z.infer<typeof runtimeEnvironmentOperationSchema>;
+
+/** 环境持久记录的协议投影（token/lease 与本机路径细节不进协议，spec §9.2）。 */
 export const runtimeEnvironmentProjectionSchema = z
   .object({
     environmentId,
     purpose: runtimeEnvironmentPurposeSchema,
     status: runtimeEnvironmentStatusSchema,
     currentRevision: revision,
+    /** 环境 owner 的事实事件版本；服务状态/资源变化必须单调推进。 */
+    stateRevision: revision.optional(),
     tools: z.array(frozenToolSchema),
     manifestDigest: text.optional(),
     installStrategy: frozenManifestSchema.shape.installStrategy.optional(),
+    toolSource: z
+      .enum(["project-declaration", "app-default", "user-override", "partial-host"])
+      .optional(),
+    /** declaration/lock/manifest 对账摘要；秘密和展开配置不出投影。 */
+    declarationDigest: text.optional(),
+    resourceSummary: runtimeEnvironmentResourceSummarySchema.optional(),
+    availableServices: z
+      .array(
+        z.object({ serviceId: text, portIsolation: z.enum(["managed", "unmanaged"]) }).strict(),
+      )
+      .max(32)
+      .optional(),
     /** 托管服务地址事实（spec §12.3，M3 P3-06）：只读投影，手机预览经平台通路消费。 */
     services: z
       .array(
@@ -164,6 +311,9 @@ export const runtimeEnvironmentProjectionSchema = z
           .object({
             serviceId: text,
             state: z.enum(["starting", "running", "stopping", "stopped", "failed", "unknown"]),
+            generation: z.number().int().positive().optional(),
+            stateRevision: revision.optional(),
+            operationId: text.optional(),
             urls: z.array(text),
           })
           .strict(),
@@ -171,14 +321,130 @@ export const runtimeEnvironmentProjectionSchema = z
       .optional(),
     error: runtimeEnvironmentErrorSchema.optional(),
     updatedAt: text,
+    operation: runtimeEnvironmentOperationSchema.optional(),
   })
   .strict();
 export type RuntimeEnvironmentProjection = z.infer<typeof runtimeEnvironmentProjectionSchema>;
+
+export const runtimeEnvironmentResourceScanResultSchema = z
+  .object({
+    environmentId,
+    stateRevision: revision,
+    summary: runtimeEnvironmentResourceSummarySchema,
+  })
+  .strict();
+export type RuntimeEnvironmentResourceScanResult = z.infer<
+  typeof runtimeEnvironmentResourceScanResultSchema
+>;
+
+export const runtimeEnvironmentGarbageCollectionResultSchema = z
+  .object({
+    operationId: text,
+    status: z.enum(["succeeded", "partial", "blocked", "failed"]),
+    stateRevision: revision.optional(),
+    deletedEntries: z.number().int().nonnegative(),
+    protectedEntries: z.number().int().nonnegative(),
+    summary: runtimeEnvironmentResourceSummarySchema,
+    error: runtimeEnvironmentErrorSchema.optional(),
+  })
+  .strict();
+export type RuntimeEnvironmentGarbageCollectionResult = z.infer<
+  typeof runtimeEnvironmentGarbageCollectionResultSchema
+>;
+
+/** 环境 owner 产生的最新态/事件载体；两种 delivery 只改变传输，不改变事实。 */
+export const runtimeEnvironmentSnapshotSchema = z
+  .object({
+    protocolVersion: z.literal(1),
+    scope: runtimeEnvironmentScopeSchema,
+    stateRevision: revision,
+    environment: runtimeEnvironmentProjectionSchema.optional(),
+  })
+  .strict();
+export type RuntimeEnvironmentSnapshot = z.infer<typeof runtimeEnvironmentSnapshotSchema>;
+export const runtimeEnvironmentSnapshotParamsSchema = z
+  .object({ ...scope, environmentId })
+  .strict();
+export type RuntimeEnvironmentSnapshotParams = z.infer<
+  typeof runtimeEnvironmentSnapshotParamsSchema
+>;
+export const runtimeEnvironmentReconcileParamsSchema = z
+  .object({ ...scope, requestId: text })
+  .strict();
+export type RuntimeEnvironmentReconcileParams = z.infer<
+  typeof runtimeEnvironmentReconcileParamsSchema
+>;
+export const runtimeEnvironmentReconcileResultSchema = z
+  .object({
+    operation: runtimePreparationOperationSchema.nullable(),
+    environment: runtimeEnvironmentProjectionSchema.nullable(),
+  })
+  .strict();
+export type RuntimeEnvironmentReconcileResult = z.infer<
+  typeof runtimeEnvironmentReconcileResultSchema
+>;
+
+/** 事件按 stateRevision 对账；旧事件或乱序事件不得覆盖更新事实。 */
+export const runtimeEnvironmentEventSchema = z
+  .object({
+    environmentId,
+    stateRevision: revision,
+    kind: z.enum([
+      "projection.updated",
+      "operation.updated",
+      "service.updated",
+      "resource.updated",
+    ]),
+    operationId: text.optional(),
+    projection: runtimeEnvironmentProjectionSchema.optional(),
+  })
+  .strict();
+export type RuntimeEnvironmentEvent = z.infer<typeof runtimeEnvironmentEventSchema>;
+
+export const runtimeEnvironmentActionSchema = z.enum([
+  "prepare",
+  "resolveContext",
+  "retainSession",
+  "releaseConsumer",
+  "startService",
+  "stopService",
+  "reconcile",
+  "resourceSummary",
+  "garbageCollect",
+]);
+export type RuntimeEnvironmentAction = z.infer<typeof runtimeEnvironmentActionSchema>;
+
+/** 协议/Host 能力投影。缺字段代表旧 Host，不代表支持。 */
+export const runtimeEnvironmentProtocolCapabilitySchema = z
+  .object({
+    protocolVersion: z.number().int().positive().optional(),
+    managedEnvironments: z.boolean(),
+    actions: z.array(runtimeEnvironmentActionSchema).max(16).optional(),
+    platform: z.enum(["windows", "macos", "linux"]).optional(),
+    missingReason: z.string().trim().min(1).max(2048).optional(),
+  })
+  .strict()
+  .refine(
+    (value) => value.managedEnvironments || Boolean(value.missingReason),
+    "managedEnvironments=false requires missingReason",
+  )
+  .refine(
+    (value) =>
+      !value.managedEnvironments ||
+      value.protocolVersion === undefined ||
+      value.actions !== undefined,
+    "managedEnvironments with protocolVersion requires explicit actions",
+  );
+export type RuntimeEnvironmentProtocolCapability = z.infer<
+  typeof runtimeEnvironmentProtocolCapabilitySchema
+>;
 
 /** 能力上报（spec §9.1 capabilities）：缺能力必须给原因，不伪造托管成功。 */
 export const runtimeEnvironmentCapabilitiesSchema = z
   .object({
     managedEnvironments: z.boolean(),
+    protocolVersion: z.number().int().positive().optional(),
+    actions: z.array(runtimeEnvironmentActionSchema).max(16).optional(),
     platform: z.enum(["windows", "macos", "linux"]).optional(),
     backend: z
       .object({ kind: z.literal("mise"), version: text, available: z.boolean() })
@@ -200,9 +466,13 @@ export const runtimeEnvironmentPrepareParamsSchema = z
     ...scope,
     requestId: text,
     bindingId: text.optional(),
+    environmentId: environmentId.optional(),
     purpose: runtimeEnvironmentPurposeSchema,
+    /** 新请求的目的；upgrade/restore 必须创建新的可对账操作，不复用旧 PID 或旧 manifest。 */
+    operation: z.enum(["prepare", "upgrade", "restore"]).optional(),
     /** 期望的冻结计划代际；stale 检测依据（spec §8.1 revision）。 */
     expectedRevision: revision.optional(),
+    expectedManifestDigest: text.optional(),
     cancel: z.boolean().optional(),
   })
   .strict();
@@ -245,6 +515,9 @@ export const runtimeEnvironmentReleaseParamsSchema = z
     requestId: text,
     environmentId,
     expectedRevision: revision.optional(),
+    expectedManifestDigest: text.optional(),
+    /** Worktree 删除/恢复编排的生命周期意图；普通 release 缺省。 */
+    reason: z.enum(["worktree-delete", "worktree-archive", "consumer-release"]).optional(),
   })
   .strict();
 export type RuntimeEnvironmentReleaseParams = z.infer<typeof runtimeEnvironmentReleaseParamsSchema>;
@@ -252,7 +525,10 @@ export type RuntimeEnvironmentReleaseParams = z.infer<typeof runtimeEnvironmentR
 export const runtimeEnvironmentReleaseResultSchema = z
   .object({
     status: z.enum(["released", "releaseBlocked"]),
+    operationId: text.optional(),
+    stateRevision: revision.optional(),
     reason: z.string().max(2048).optional(),
+    diagnostic: runtimeEnvironmentDiagnosticSchema.optional(),
   })
   .strict();
 export type RuntimeEnvironmentReleaseResult = z.infer<typeof runtimeEnvironmentReleaseResultSchema>;
@@ -263,6 +539,78 @@ export const runtimeEnvironmentCapabilitiesResultSchema = z
 export type RuntimeEnvironmentCapabilitiesResult = z.infer<
   typeof runtimeEnvironmentCapabilitiesResultSchema
 >;
+
+export const runtimeEnvironmentGarbageCollectionParamsSchema = z
+  .object({
+    ...scope,
+    requestId: text,
+    budget: z
+      .object({
+        maxEntries: z.number().int().positive(),
+        maxDurationMs: z.number().int().positive(),
+      })
+      .strict(),
+    dryRun: z.boolean().optional(),
+  })
+  .strict();
+export type RuntimeEnvironmentGarbageCollectionParams = z.infer<
+  typeof runtimeEnvironmentGarbageCollectionParamsSchema
+>;
+
+export const runtimeEnvironmentResourceScanParamsSchema = z
+  .object({
+    ...scope,
+    requestId: text,
+    environmentId: environmentId.optional(),
+    budget: z
+      .object({
+        maxEntries: z.number().int().positive(),
+        maxDurationMs: z.number().int().positive(),
+      })
+      .strict(),
+  })
+  .strict();
+export type RuntimeEnvironmentResourceScanParams = z.infer<
+  typeof runtimeEnvironmentResourceScanParamsSchema
+>;
+
+export const runtimeEnvironmentServiceActionParamsSchema = z
+  .object({
+    ...scope,
+    requestId: text,
+    environmentId,
+    serviceId: text,
+    expectedRevision: revision,
+    expectedGeneration: z.number().int().positive().optional(),
+  })
+  .strict();
+export type RuntimeEnvironmentServiceActionParams = z.infer<
+  typeof runtimeEnvironmentServiceActionParamsSchema
+>;
+
+export const runtimeEnvironmentServiceActionResultSchema = z
+  .object({
+    status: z.enum([
+      "started",
+      "reused",
+      "stopped",
+      "notRunning",
+      "needsRestart",
+      "blocked",
+      "failed",
+    ]),
+    receipt: z.lazy(() => managedServiceReceiptSchema).optional(),
+    operation: runtimeEnvironmentOperationSchema.optional(),
+    reason: z.string().max(2048).optional(),
+  })
+  .strict();
+export type RuntimeEnvironmentServiceActionResult = z.infer<
+  typeof runtimeEnvironmentServiceActionResultSchema
+>;
+
+/** 公开服务动作合同的最小收据；PID/lease 不是停止授权。 */
+export const runtimeEnvironmentServiceActionSchema = z.enum(["start", "stop"]);
+export type RuntimeEnvironmentServiceAction = z.infer<typeof runtimeEnvironmentServiceActionSchema>;
 
 // ---- 执行前上下文解析（P2-03：CLI 每次真实 spawn 前按 cwd 解析所属环境）----
 
@@ -322,6 +670,8 @@ export const dependencyReceiptSchema = z
     lockDigest: text,
     declarationDigest: text,
     nodeVersion: text,
+    managerVersion: text.optional(),
+    manifestDigest: text.optional(),
     platform: z.enum(["windows", "macos", "linux"]),
     arch: z.enum(["x64", "arm64"]),
     exitCode: z.number().int(),
@@ -353,6 +703,9 @@ export const managedServiceReceiptSchema = z
     /** stopped 的停止证据：进程 owner 确认退出的时间。 */
     stoppedAt: text.optional(),
     exitCode: z.number().int().optional(),
+    /** running/stopped 对账使用的服务事实代际；PID 仍仅诊断。 */
+    stateRevision: revision.optional(),
+    operationId: text.optional(),
     error: z.string().max(8192).optional(),
   })
   .strict();

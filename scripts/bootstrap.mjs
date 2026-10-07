@@ -162,18 +162,10 @@ runGit(["submodule", "update", "--init", "--recursive", "apps/lcode-cli"]);
 
 runPnpm(withRemoteAssets ? ["install", "--config.confirmModulesPurge=false"] : ["install"]);
 
-runPnpm(["prepare:desktop-runtime"], {
-  env: withRemoteAssets
-    ? {}
-    : {
-        // 本地 bootstrap 过去默认准备 remote mock-cdn，
-        // 每次都会重新打包跨平台组件，导致普通初始化很慢。
-        // 默认只准备桌面端本地 runtime；需要远程资源时使用 bootstrap:with-remote。
-        LCODE_SKIP_REMOTE_ASSETS: "1",
-      },
-});
+runPnpm(["prepare:desktop-runtime"]);
 
 if (withRemoteAssets) {
+  runPnpm(["prepare:remote-assets"]);
   runBootstrapWithRemoteBuild();
 } else {
   runPnpm(["run", "build:bootstrap"]);

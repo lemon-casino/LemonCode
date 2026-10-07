@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
+import { stripVTControlCharacters } from "node:util";
 import test from "node:test";
 import { chromium } from "playwright-core";
 
@@ -51,7 +52,7 @@ test(
     const ready = await new Promise((resolve) => {
       const timeout = setTimeout(() => resolve(false), 45_000);
       const check = () => {
-        if (output.includes("Local:")) {
+        if (stripVTControlCharacters(output).includes("Local:")) {
           clearTimeout(timeout);
           resolve(true);
         }

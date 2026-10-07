@@ -4,6 +4,7 @@ import type { IServiceAccessor } from "@lcode/services";
 import { TID_TERMINAL, TID_TERMINAL_CLOSE_BUTTON } from "@lcode/shared";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
+import type { TerminalExecutionScope } from "@/hooks/useTerminalService.js";
 import { logger } from "@/logger.js";
 import { Button } from "@/components/ui/button.js";
 import { Tabs, TabsContent, TabsList } from "@/components/ui/tabs.js";
@@ -27,6 +28,7 @@ export function Terminal({
   services,
   cwd,
   workspaceIdentity,
+  executionScope,
   openWorkspaceKeys,
   isVisible,
   isPanelResizing = false,
@@ -37,6 +39,7 @@ export function Terminal({
   services: IServiceAccessor;
   cwd?: string;
   workspaceIdentity?: string;
+  executionScope?: TerminalExecutionScope;
   openWorkspaceKeys?: string[];
   isVisible: boolean;
   isPanelResizing?: boolean;
@@ -52,6 +55,7 @@ export function Terminal({
       workspaceKey,
       services,
       cwd,
+      executionScope: executionScope ?? { workspacePath: cwd, workspaceIdentity },
     });
     return {
       sessions: {
@@ -77,9 +81,10 @@ export function Terminal({
         workspaceKey,
         services,
         cwd,
+        executionScope: executionScope ?? { workspacePath: cwd, workspaceIdentity },
       }),
     );
-  }, [cwd, isVisible, services, workspaceKey]);
+  }, [cwd, executionScope, isVisible, services, workspaceIdentity, workspaceKey]);
 
   useEffect(() => {
     const exitedWorkspaceKey = closePanelAfterExitWorkspaceRef.current;
@@ -153,6 +158,7 @@ export function Terminal({
         workspaceKey,
         services,
         cwd,
+        executionScope: executionScope ?? { workspacePath: cwd, workspaceIdentity },
       });
       const workspace = ensured.workspaces[workspaceKey];
       if (!workspace) {
@@ -163,6 +169,7 @@ export function Terminal({
         workspaceKey,
         services,
         cwd,
+        executionScope: executionScope ?? { workspacePath: cwd, workspaceIdentity },
         index: getNextTerminalSessionIndex(ensured, workspaceKey),
       });
       logger.info("[Terminal] create terminal tab", {
@@ -185,7 +192,7 @@ export function Terminal({
         },
       };
     });
-  }, [cwd, services, workspaceKey]);
+  }, [cwd, executionScope, services, workspaceIdentity, workspaceKey]);
 
   const handleCloseSession = useCallback(
     (sessionId: string) => {
@@ -367,6 +374,7 @@ export function Terminal({
                 sessionId={session.id}
                 services={session.services}
                 cwd={session.cwd}
+                executionScope={session.executionScope}
                 isVisible={
                   isVisible &&
                   session.workspaceKey === workspaceKey &&

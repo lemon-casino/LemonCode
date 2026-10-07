@@ -3,6 +3,9 @@ import {
   worktreeExecutionBindingSchema,
   gitCommitRequestSchema,
   gitPublishStateSchema,
+  runtimeEnvironmentReferenceSchema,
+  worktreeCandidateEvidenceSchema,
+  worktreeValidationReceiptSchema,
 } from "@lcode/shared";
 
 const digest = z.string().regex(/^[a-f0-9]{40,64}$/);
@@ -54,8 +57,12 @@ export const operationRecord = z
     validationCommands: z.array(z.string()),
     validationSource: z.enum(["explicit", "detected", "none"]).optional(),
     validationResults: z.array(
-      z.object({ command: z.string(), exitCode: z.number(), output: z.string() }),
+      z.object({ command: z.string(), exitCode: z.number(), output: z.string(), outputTruncated: z.boolean().optional() }),
     ),
+    environmentPolicy: z.enum(["managed", "local"]).optional(),
+    environmentRef: runtimeEnvironmentReferenceSchema.optional(),
+    candidateEvidence: worktreeCandidateEvidenceSchema.optional(),
+    validationReceipts: z.array(worktreeValidationReceiptSchema).max(128).optional(),
     createdAt: z.string(),
     updatedAt: z.string(),
     error: z.string().optional(),

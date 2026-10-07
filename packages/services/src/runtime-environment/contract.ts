@@ -1,90 +1,67 @@
+import type { Event } from "@lcode/rpc";
 import type {
   FrozenManifest,
-  RuntimeConsumerAcquireParams,
-  RuntimeConsumerReference,
-  RuntimeConsumerReleaseParams,
-  RuntimeConsumerReleaseResult,
-  RuntimeConsumerSessionDeletionParams,
+  RuntimeEnvironmentEvent,
   RuntimeEnvironmentCapabilities,
   RuntimeEnvironmentError,
+  RuntimeEnvironmentGarbageCollectionParams,
+  RuntimeEnvironmentGarbageCollectionResult,
+  RuntimeEnvironmentPrepareParams,
   RuntimeEnvironmentProjection,
+  RuntimeEnvironmentReleaseParams,
+  RuntimeEnvironmentReleaseResult,
+  RuntimeEnvironmentResourceScanParams,
+  RuntimeEnvironmentResourceScanResult,
   RuntimeEnvironmentScope,
+  RuntimeEnvironmentServiceActionParams,
+  RuntimeEnvironmentServiceActionResult,
+  RuntimeEnvironmentSnapshot,
   RuntimePreparationOperation,
 } from "@lcode/shared";
+import type { RuntimeEnvironmentExecutionResolver } from "./hostContract.js";
 import { createServiceDescriptor } from "../descriptors.js";
 
+export type {
+  RuntimeEnvironmentConsumerAuthority,
+  RuntimeEnvironmentExecutionResolver,
+  RuntimeEnvironmentResolveRequest,
+  ResolvedProjectExecutionContext,
+} from "./hostContract.js";
 export type RuntimeEnvironmentScopeRef = RuntimeEnvironmentScope;
-export interface RuntimeEnvironmentPrepareRequest extends RuntimeEnvironmentScopeRef {
-  requestId: string;
-  purpose: "worktree" | "integration-candidate";
-  bindingId?: string;
-  expectedRevision?: number;
-  cancel?: boolean;
-}
-export interface RuntimeEnvironmentReleaseRequest extends RuntimeEnvironmentScopeRef {
-  requestId: string;
-  environmentId: string;
-  expectedRevision?: number;
-}
-export interface RuntimeEnvironmentResolveRequest extends RuntimeEnvironmentScopeRef {
-  environmentId: string;
-  consumer: string;
-  expectedRevision?: number;
-  bindingId?: string;
-  cwd?: string;
-}
-
+export type RuntimeEnvironmentPrepareRequest = RuntimeEnvironmentPrepareParams;
+export type RuntimeEnvironmentReleaseRequest = RuntimeEnvironmentReleaseParams;
 export interface IRuntimeEnvironmentService {
+  readonly onDidChangeEnvironment?: Event<RuntimeEnvironmentEvent>;
   getCapabilities(params: RuntimeEnvironmentScopeRef): Promise<RuntimeEnvironmentCapabilities>;
   prepare(params: RuntimeEnvironmentPrepareRequest): Promise<RuntimePreparationOperation>;
   get(
     params: RuntimeEnvironmentScopeRef & { environmentId?: string; requestId?: string },
   ): Promise<RuntimeEnvironmentProjection | null>;
   list(params: RuntimeEnvironmentScopeRef): Promise<RuntimeEnvironmentProjection[]>;
-  /** 只读冻结上下文；消费者必须由实际生命周期 owner 显式登记和结算。 */
-  resolveContext(
-    params: RuntimeEnvironmentResolveRequest,
-  ): Promise<ResolvedProjectExecutionContext>;
-  /** 仅本地受信调用可查询；协议授权必须先验证绑定，不能据 cwd 推断授权。 */
-  resolveContextForCwd(params: {
-    cwd: string;
-    consumer: string;
-    workspaceIdentity?: string;
-  }): Promise<ResolvedProjectExecutionContext | null>;
-  release(params: RuntimeEnvironmentReleaseRequest): Promise<{
-    status: "released" | "releaseBlocked";
-    reason?: string;
-  }>;
+  snapshot(
+    params: RuntimeEnvironmentScopeRef & { environmentId: string },
+  ): Promise<RuntimeEnvironmentSnapshot>;
+  release(params: RuntimeEnvironmentReleaseRequest): Promise<RuntimeEnvironmentReleaseResult>;
   reconcile(params: RuntimeEnvironmentScopeRef & { requestId: string }): Promise<{
     operation: RuntimePreparationOperation | null;
     environment: RuntimeEnvironmentProjection | null;
   }>;
+  startService(
+    params: RuntimeEnvironmentServiceActionParams,
+  ): Promise<RuntimeEnvironmentServiceActionResult>;
+  stopService(
+    params: RuntimeEnvironmentServiceActionParams,
+  ): Promise<RuntimeEnvironmentServiceActionResult>;
+  resourceSummary(
+    params: RuntimeEnvironmentResourceScanParams,
+  ): Promise<RuntimeEnvironmentResourceScanResult>;
+  garbageCollect(
+    params: RuntimeEnvironmentGarbageCollectionParams,
+  ): Promise<RuntimeEnvironmentGarbageCollectionResult>;
 }
-
-/** 仅组合根注入给可信生命周期 owner，不注册为 UI RPC 服务。 */
-export interface RuntimeEnvironmentConsumerAuthority {
-  acquire(params: RuntimeConsumerAcquireParams): Promise<RuntimeConsumerReference>;
-  release(params: RuntimeConsumerReleaseParams): Promise<RuntimeConsumerReleaseResult>;
-  releaseSessionsAfterDeletion(
-    params: RuntimeConsumerSessionDeletionParams,
-  ): Promise<RuntimeConsumerReleaseResult>;
-}
-
-export interface ResolvedProjectExecutionContext {
-  environmentId: string;
-  revision: number;
-  manifestDigest: string;
-  executionScope: RuntimeEnvironmentScope;
-  cwd: string;
-  toolPaths: Readonly<Record<string, string>>;
-  envOverlay: {
-    base?: "inherit" | "empty";
-    set?: Record<string, string>;
-    unset?: string[];
-  };
-  /** 内部执行载体；UI 投影不返回此字段。 */
-  resourceLeaseToken: string;
-}
+/** 组合根保存完整 Host 能力；只将上面的公开管理合同注册到 RPC。 */
+export type IRuntimeEnvironmentHostService = IRuntimeEnvironmentService &
+  RuntimeEnvironmentExecutionResolver;
 export interface RuntimeEnvironmentManifestRecord {
   environmentId: string;
   revision: number;

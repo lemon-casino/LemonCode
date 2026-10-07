@@ -5,8 +5,25 @@ const id = z.string().regex(/^[a-f0-9]{32}$/);
 const generation = z.number().int().positive();
 const scope = { workspacePath: text, workspaceIdentity: text.optional() };
 
+export const runtimeEnvironmentBindingReferenceSchema = z
+  .object({
+    environmentId: id,
+    /** 绑定记录兼容 preparation 的未完成 revision=0；消费/执行引用仍要求正 revision。 */
+    revision: z.number().int().nonnegative(),
+    manifestDigest: text.optional(),
+  })
+  .strict();
+export type RuntimeEnvironmentBindingReference = z.infer<
+  typeof runtimeEnvironmentBindingReferenceSchema
+>;
+
 export const runtimeEnvironmentReferenceSchema = z
-  .object({ environmentId: id, revision: z.number().int().positive() })
+  .object({
+    environmentId: id,
+    revision: z.number().int().positive(),
+    /** 新环境实现可用完整冻结摘要对账；旧引用缺省仍按 environmentId+revision 兼容读取。 */
+    manifestDigest: text.optional(),
+  })
   .strict();
 export type RuntimeEnvironmentReference = z.infer<typeof runtimeEnvironmentReferenceSchema>;
 

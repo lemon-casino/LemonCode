@@ -15,7 +15,8 @@ export function useGitFailureDraftReceiver(
   const latest = useRef({ action, key, enabled });
   latest.current = { action, key, enabled };
   useEffect(() => {
-    if (!sessionId || !enabled) return;
+    // 环境准备失败可能早于 createSession ACK；同 scope 的未提交草稿也可接收，不能为转交另建会话。
+    if (!path || !enabled) return;
     const receiver = {
       token: crypto.randomUUID(),
       action: (text: string) => {
@@ -26,7 +27,7 @@ export function useGitFailureDraftReceiver(
     };
     useCommitReviewNavigationStore.getState().registerDraftReceiver(key, receiver);
     return () => useCommitReviewNavigationStore.getState().removeDraftReceiver(key, receiver.token);
-  }, [key, sessionId, enabled]);
+  }, [key, path, sessionId, enabled]);
 }
 
 export function useGitFailureHandoff(

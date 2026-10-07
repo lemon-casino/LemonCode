@@ -1,4 +1,8 @@
-import type { WorktreeExecutionBinding, GitCommitRequest, GitPublishState } from "@lcode/shared";
+import type {
+  WorktreeExecutionBinding, GitCommitRequest, GitPublishState,
+  RuntimeEnvironmentPolicy, RuntimeEnvironmentBindingReference, RuntimeEnvironmentReference,
+  WorktreeCandidateEvidence, WorktreeValidationReceipt,
+} from "@lcode/shared";
 export type { WorktreeSnapshot } from "@lcode/shared";
 export type WorktreeBinding = WorktreeExecutionBinding;
 
@@ -23,6 +27,7 @@ export interface WorktreePrepareRequest extends WorktreeScope {
   requestId: string;
   taskId: string;
   taskName?: string;
+  environmentPolicy?: RuntimeEnvironmentPolicy;
   projectId?: string;
   baseRef?: string;
   sourceFolderPaths?: string[];
@@ -73,7 +78,11 @@ export interface WorktreeIntegration {
   diff?: string;
   validationCommands: string[];
   validationSource?: "explicit" | "detected" | "none";
-  validationResults: { command: string; exitCode: number; output: string }[];
+  validationResults: { command: string; exitCode: number; output: string; outputTruncated?: boolean }[];
+  environmentPolicy?: "managed" | "local";
+  environmentRef?: RuntimeEnvironmentReference;
+  candidateEvidence?: WorktreeCandidateEvidence;
+  validationReceipts?: WorktreeValidationReceipt[];
   createdAt: string;
   updatedAt: string;
   error?: string;
@@ -91,6 +100,56 @@ export interface CheckoutLease {
   workspacePath: string;
   ownerId: string;
 }
+export interface PreparedWorktreeRuntime {
+  environmentId: string;
+  revision: number;
+  manifestDigest: string;
+  declarationDigest?: string;
+  env?: Record<string, string>;
+  dependenciesPrepared?: boolean;
+  toolSource?: "project-declaration" | "app-default" | "user-override" | "partial-host";
+}
+/** 仅由可信组合根注入；writer/env 不进入 RPC 或持久公开投影。 */
+export interface WorktreeRuntimePorts {
+  prepareRuntimeEnvironment?: (params: {
+    bindingId: string;
+    checkoutPath: string;
+    requestId: string;
+    purpose: "worktree" | "integration-candidate";
+    operation?: "prepare" | "upgrade" | "restore";
+    cancel?: boolean;
+    environmentId?: string;
+    expectedRevision?: number;
+    expectedManifestDigest?: string;
+  }, writer?: CheckoutLease) => Promise<PreparedWorktreeRuntime>;
+  resolveRuntimeEnvironment?: (params: {
+    bindingId: string;
+    checkoutPath: string;
+    environmentRef: RuntimeEnvironmentBindingReference;
+  }) => Promise<PreparedWorktreeRuntime>;
+  releaseRuntimeEnvironment?: (params: {
+    binding?: WorktreeBinding;
+    bindingId: string;
+    checkoutPath: string;
+    requestId: string;
+    environmentRef: RuntimeEnvironmentBindingReference;
+    intent: "discard" | "archive" | "candidate-cancel" | "upgrade";
+    phase: "fence" | "stop" | "cleanup" | "finalize";
+  }) => Promise<{ status: "completed" | "releaseBlocked"; reason?: string }>;
+  rebindRuntimeEnvironmentSessions?: (params: {
+    binding: WorktreeBinding;
+    requestId: string;
+    oldEnvironmentRef: RuntimeEnvironmentBindingReference;
+    newEnvironmentRef: RuntimeEnvironmentReference;
+  }) => Promise<{ sessionIds: string[] }>;
+}
+export type WorktreeCommandRunner = (
+  checkoutPath: string,
+  command: string,
+  onOutput?: (output: string) => Promise<void>,
+  env?: Record<string, string>,
+) => Promise<{ exitCode: number; output: string; outputTruncated?: boolean }>;
+
 /** 普通会话共享执行；会修改目录生命周期/快照/发布的操作保持独占。 */
 export type CheckoutAccessMode = "shared" | "exclusive";
 export interface IWorktreeService {
@@ -108,11 +167,13 @@ export interface IWorktreeService {
     cancel?: boolean;
     approvedCandidateHead?: string;
     validationCommands?: string[];
+    skipValidation?: boolean;
   }): Promise<WorktreeIntegration>;
   getIntegration(params: { operationId: string }): Promise<WorktreeIntegration | null>;
   publishIntegration(params: {
     operationId: string;
     approvedCandidateHead: string;
+    skipValidation?: boolean;
   }): Promise<WorktreeIntegration>;
   archive(params: {
     bindingId: string;
@@ -127,4 +188,5 @@ export interface IWorktreeService {
   ): Promise<CheckoutLease>;
   releaseCheckout(params: { token: string; ownerId: string }): Promise<void>;
 }
+export type IWorktreeHostService = IWorktreeService & import("./hostContract.js").WorktreeHostActions;
 export const IWorktreeService = createServiceDescriptor<IWorktreeService>("worktree");

@@ -1,6 +1,7 @@
 export const REMOTE_RESOURCE_PACKAGE_IDS = [
   "server-bundle",
   "node-runtime",
+  "mise",
   "node-pty",
   "glm",
   "bfs",
@@ -13,6 +14,7 @@ export type RemoteResourcePackageId = (typeof REMOTE_RESOURCE_PACKAGE_IDS)[numbe
 export const ACTIVE_REMOTE_RESOURCE_PACKAGE_IDS = [
   "server-bundle",
   "node-runtime",
+  "mise",
   "node-pty",
   "glm",
   "bfs",
@@ -23,6 +25,7 @@ export const ACTIVE_REMOTE_RESOURCE_PACKAGE_IDS = [
 export const REQUIRED_REMOTE_RESOURCE_PACKAGE_IDS = [
   "server-bundle",
   "node-runtime",
+  "mise",
 ] as const satisfies readonly RemoteResourcePackageId[];
 
 export const REMOTE_RESOURCE_PACKAGE_DEPENDENCIES: Partial<

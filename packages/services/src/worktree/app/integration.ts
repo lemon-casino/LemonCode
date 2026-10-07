@@ -1,4 +1,5 @@
-import type { WorktreeIntegrateRequest, WorktreeIntegration } from "../contract.js";
+import type { WorktreeIntegrateRequest, WorktreeIntegration, WorktreeCommandRunner } from "../contract.js";
+import { releaseBindingRuntime } from "./runtimeEnvironment.js";
 import type { WorktreeContext } from "./ports.js";
 import type { CheckoutCoordinator } from "../nodeTypes.js";
 import { cleanupTemporaryTarget } from "./temporaryTarget.js";
@@ -8,7 +9,7 @@ import { validateIntegrationCandidate } from "./validation.js";
 export function createWorktreeIntegration(
   context: WorktreeContext,
   coordinator: CheckoutCoordinator,
-  validate: (checkout: string, command: string) => Promise<{ exitCode: number; output: string }>,
+  validate: WorktreeCommandRunner,
 ) {
   const { git, store } = context;
   async function read(id: string) {
@@ -64,6 +65,8 @@ export function createWorktreeIntegration(
             ? "detected"
             : "none",
       status: "awaiting-review",
+      candidateEvidence: undefined,
+      validationReceipts: [],
       candidateHead,
       conflictPaths: [],
       diff,
@@ -128,6 +131,7 @@ export function createWorktreeIntegration(
           validationCommands: params.validationCommands ?? [],
           validationSource: params.validationCommands ? "explicit" : "detected",
           validationResults: [],
+          environmentPolicy: binding.environmentRef || binding.environmentPolicy === "managed" ? "managed" : "local",
           createdAt: now,
           updatedAt: now,
           mergeBase: await git.command(binding.repositoryRoot, [
@@ -233,6 +237,7 @@ export function createWorktreeIntegration(
     cancel?: boolean;
     approvedCandidateHead?: string;
     validationCommands?: string[];
+    skipValidation?: boolean;
   }) {
     const original = await read(params.operationId);
     if (original.status === "published" && !params.cancel) return original;
@@ -242,6 +247,17 @@ export function createWorktreeIntegration(
         if (["publishing", "published"].includes(operation.status))
           throw new Error("Publication cannot be cancelled or rolled back");
         operation = await save({ ...operation, status: "cancelled", error: undefined });
+        if (operation.environmentRef) {
+          const binding = await store.readBinding(operation.bindingId);
+          if (!binding) throw new Error("Candidate environment binding is missing");
+          try {
+            for (const phase of ["fence", "stop", "cleanup", "finalize"] as const)
+              await releaseBindingRuntime(context, binding, `cancel:${operation.id}`, "candidate-cancel", phase, operation);
+          } catch (error) {
+            await save({ ...operation, error: error instanceof Error ? error.message : String(error) });
+            throw error;
+          }
+        }
         if (operation.targetTemporary && (await store.exists(operation.targetPath))) {
           const lease = await coordinator.acquire({
             workspacePath: operation.targetPath,
@@ -299,7 +315,7 @@ export function createWorktreeIntegration(
         if (!params.approvedCandidateHead) return operation;
         if (operation.candidateHead !== params.approvedCandidateHead)
           throw new Error("Integration candidate changed; review the exact new commit");
-        return validateIntegrationCandidate(context, operation, validate);
+        return await validateIntegrationCandidate(context, operation, validate, lease, params.skipValidation === true);
       } finally {
         await coordinator.release(lease);
       }

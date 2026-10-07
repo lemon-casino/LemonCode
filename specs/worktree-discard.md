@@ -47,6 +47,32 @@ sequenceDiagram
 
 桌面 continuous 与手机 replayable 只影响聊天投影；此生命周期命令由目标 Host 执行，不依赖 session subscribe。未执行强制删除时保留原行为；旧绑定无需迁移，旧省略列表继续可读。之前已经删除的会话不自动清理文件，用户通过管理入口选择归档或强制删除。
 
+## 2026-10-06 环境单写者结算合同（P4-04）
+
+此节替代早期图中“先目录后聊天”的顺序：`deleting` + 稳定 `deletion.requestId` → 环境 fence（不等待 session 删除）→ `collectDiscardSessions(closeSessions: true)` 关闭精确绑定 Agent → 环境 stop 确认服务/进程停止 → journal 精确 CLI session IDs → checkout 独占许可 → purge 精确 IDs → 目录/refs → 环境 cleanup/finalize → `deleted`。任何缺少停止证明、端口或 cleanup 失败保留 deleting/error，重试沿原 requestId 和 sessionIds。环境引用存在而端口缺失必须 fail closed。目录移除前 purge 失败不得先删文件；purge 回复丢失可重入精确 IDs。
+
+普通归档使用独立 `archiving` / `archiveOperation` journal，不复用永久 deleting：稳定 requestId → fence → stop 精确 owner（不 purge、不释放 session refs）→ snapshot → 目录 → 可重建资源 cleanup/finalize → archived。保留聊天、session 引用及不可重建私有数据；环境 owner 不得把归档当永久删除。故障仍可重新取得 checkout 许可并按 journal 继续。恢复成功清除本次归档 journal，后续归档可以创建新的操作；恢复环境与 session CAS 的统一收口见 `worktree-session-execution.md`。
+
+```mermaid
+sequenceDiagram
+  participant WT as WorktreeService
+  participant Env as Host RuntimeEnvironment owner
+  participant CLI as CLI SessionStore owner
+  participant Git as Git / physical filesystem
+  WT->>WT: persist deleting + requestId + branchHead
+  WT->>Env: fence (deny new consumers, no session-delete prerequisite)
+  WT->>CLI: collect exact binding sessions + close residents
+  CLI-->>WT: exact matched IDs
+  WT->>Env: stop (actual owner/process exit proof)
+  WT->>WT: persist deletion.sessionIds
+  WT->>CLI: purge exact IDs (idempotent)
+  WT->>Git: exclusive lease, remove owned dirs / refs
+  WT->>Env: cleanup then finalize
+  WT->>WT: persist deleted
+```
+
+验收新增 fence 在任何 collect/close 之前、stop 失败不 purge/删目录、purge 失败仍保留目录、丢回复重试稳定 IDs、资源 finalize 失败保留 tombstone 进行中、archive 保留 session/private data、缺环境端口 fail closed、restore 两条 Git 快路径都重建环境且 CAS 失败不 ready。
+
 ## 验收
 
 1. 20 MB 以上的依赖忽略清单按目录压缩，归档能成功，真实 index 不改变，恢复文件状态正确。

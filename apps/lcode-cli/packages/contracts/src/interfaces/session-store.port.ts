@@ -1,3 +1,7 @@
+import type {
+  LCodeSessionWorktreeRebindParams,
+  LCodeSessionWorktreeRebindResult,
+} from "@lcode/shared";
 import type { MessageId, PartId, ProjectId, SessionId } from "./shared.js";
 import type { TodoItem } from "../tools/todo.js";
 import type { SessionGoal, GoalStatus } from "../tools/target.js";
@@ -48,6 +52,14 @@ export interface LocalSettingStorePort {
 }
 
 export interface SessionStorePort {
+  /**
+   * 受信 Host 环境重绑；无 expectedSessionIds 仅校验/查询全部 latest binding。
+   * 提交须携带已关闭 resident 的完整查询集合，BEGIN IMMEDIATE 内重读并整批 CAS；
+   * 已 new 幂等，scope/ref/集合变化均回滚，禁止调用方选择部分 session。
+   */
+  worktreeRebind?(
+    input: LCodeSessionWorktreeRebindParams & { expectedSessionIds?: readonly string[] },
+  ): Promise<LCodeSessionWorktreeRebindResult>;
   /** 受信 Host 的工作树删除维护接口；查询和永久删除均校验绑定及源/执行身份。 */
   worktreeCleanup?(input: {
     executionBindingId: string;

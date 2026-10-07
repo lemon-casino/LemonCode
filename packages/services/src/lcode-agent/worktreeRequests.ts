@@ -107,9 +107,15 @@ export async function handleWorktreeRequest(
         !sameScope(request, { workspacePath: operation.checkoutPath })
       )
         throw new Error("Conflict repair writer scope does not match the frozen operation.");
-    } else if (!sameScope(request, workspace)) {
+    } else {
+      // 附着到执行目录的 client 与请求可同路径，不能据此绕过 restoring/deleting fence。
+      // 无绑定的普通 local 会话仍可执行；一旦有绑定就必须由 owner 证明 ready 与精确 scope。
       const binding = await service.getBinding({ ...originScope, taskId: request.sessionId });
-      if (!binding || binding.status !== "ready" || !sameScope(request, binding))
+      if (
+        binding
+          ? binding.status !== "ready" || !sameScope(request, binding)
+          : !sameScope(request, workspace)
+      )
         throw new Error("Checkout writer scope does not match the task binding.");
     }
     try {

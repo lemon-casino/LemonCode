@@ -35,6 +35,8 @@ import {
   IFileService,
   IClientConfigService,
   IMediaPreviewService,
+  IRuntimeEnvironmentService,
+  IWorktreeService,
   IOffPeakTaskService,
   IModelSelectionService,
   ISettingService,
@@ -50,6 +52,7 @@ import {
 } from "@lcode/services";
 import {
   createLocalServices,
+  createPublicRuntimeEnvironmentService,
   getOffPeakRequestAuthBuilder,
   disposeServiceResources,
   disposeServiceResourcesAndWait,
@@ -2010,6 +2013,26 @@ function exposeServicesOnMessagePort(
   }
   if (connectionScope) {
     overrides.set(ILCodeAgentService.channelName, connectionScope.service);
+  }
+  const runtimeEnvironmentService = services.getOptional(IRuntimeEnvironmentService);
+  if (runtimeEnvironmentService) {
+    // attachment 已由窗口连接注册表验证 remoteSessionId；这里只按真实 binding 约束 scope，
+    // 保留原 identity 到目标 Host，不创建环境缓存，也不暴露含 env/lease 的内部 resolver。
+    overrides.set(
+      IRuntimeEnvironmentService.channelName,
+      createPublicRuntimeEnvironmentService(
+        runtimeEnvironmentService,
+        attachmentScope.kind === "remote"
+          ? {
+              attachmentScope: {
+                workspacePath: attachmentScope.workspacePath,
+                workspaceIdentity: attachmentScope.workspaceIdentity,
+              },
+              worktrees: services.getOptional(IWorktreeService),
+            }
+          : {},
+      ),
+    );
   }
   const conversationShareService = services.getOptional(IConversationShareService);
   if (conversationShareService) {

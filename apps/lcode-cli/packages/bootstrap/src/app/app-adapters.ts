@@ -11,6 +11,10 @@ import { createMcpAdapter } from "@lcode/adapters/mcp";
 import { PermissionService } from "@lcode/core";
 import { isMessageEnabled } from "./app-config-options.js";
 import { createProjectScopedExecutionPort } from "./project-environment-execution.js";
+import {
+  createProjectEnvironmentCloseBarrier,
+  createProjectScopedMcpPort,
+} from "./project-environment-mcp.js";
 import { asInputHistoryStore } from "./session-store.js";
 import {
   debugRuntimeConfigResolved,
@@ -61,7 +65,7 @@ export function createAppAdapters(
     startupTimer,
     storageRoot,
   });
-  const mcpPort =
+  const rawMcpPort =
     options.mcpPort ??
     (runtimeConfig.mcp?.enabled === false
       ? undefined
@@ -77,7 +81,29 @@ export function createAppAdapters(
           },
           workingDirectory,
         })));
-  const ownsMcpPort = options.mcpPort === undefined && mcpPort !== undefined;
+  const ownsMcpPort = options.mcpPort === undefined && rawMcpPort !== undefined;
+  const ownsExecutionPort = options.executionPort === undefined;
+  // Session 资源并行关闭；只有实际由本 app 拥有的 owner 才能参加 release barrier。
+  const environmentOwnerNames = [
+    ...(ownsExecutionPort ? (["execution"] as const) : []),
+    ...(ownsMcpPort ? (["mcp"] as const) : []),
+  ];
+  const environmentOwners =
+    options.resolveProjectEnvironmentOverlay && environmentOwnerNames.length > 0
+      ? createProjectEnvironmentCloseBarrier(
+          options.resolveProjectEnvironmentOverlay,
+          environmentOwnerNames,
+        )
+      : undefined;
+  const mcpResolver = environmentOwners?.mcp ?? options.resolveProjectEnvironmentOverlay;
+  const mcpPort =
+    rawMcpPort && mcpResolver
+      ? createProjectScopedMcpPort(rawMcpPort, mcpResolver, {
+          workingDirectory,
+          environmentRef:
+            options.projectEnvironmentRef ?? runtimeConfig.workspaceBinding?.environmentRef,
+        })
+      : rawMcpPort;
   const rawExecutionPort =
     options.executionPort ??
     createNodeExecutionAdapter({
@@ -90,10 +116,10 @@ export function createAppAdapters(
       outputRootDir: join(storageRoot, "cli", "exec"),
       processEnv: options.env ?? process.env,
     });
-  const ownsExecutionPort = options.executionPort === undefined;
-  const executionPort = options.resolveProjectEnvironmentOverlay && !options.executionPort
-    ? createProjectScopedExecutionPort(rawExecutionPort, options.resolveProjectEnvironmentOverlay)
-    : rawExecutionPort;
+  const executionPort =
+    environmentOwners && ownsExecutionPort
+      ? createProjectScopedExecutionPort(rawExecutionPort, environmentOwners.execution)
+      : rawExecutionPort;
   const pdfDocumentPort =
     options.pdfDocumentPort ?? createPopplerPdfDocumentAdapter({ executionPort });
   // browser-use 控制端口：仅当宿主（desktop）注入时可用，无本地 fallback（纯 CLI 无浏览器底座）。

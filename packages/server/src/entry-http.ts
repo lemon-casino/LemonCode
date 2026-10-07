@@ -5,16 +5,22 @@ import {
   readBundledLCodeBuiltinProviderConfig,
 } from "./bundledLCodeBuiltinProviderConfig.js";
 import { createHttpServer } from "./http.js";
+import {
+  resolveServerHost,
+  resolveServerPort,
+  assertRuntimeDevelopmentDataRoot,
+} from "../../../scripts/runtime-development-env.mjs";
 
 async function main(): Promise<void> {
+  assertRuntimeDevelopmentDataRoot(process.env);
+  const port = resolveServerPort(process.env);
+  const host = resolveServerHost(process.env);
   // 品牌迁移（复制式、幂等）先于 config/任务索引访问：~/.zcode → ~/.lcode。
   migrateHomeBrandDataRootSync(getDataBaseDir());
   const lcodeBuiltinProviderConfigFilePath = await materializeBundledLCodeBuiltinProviderConfig({
     environmentConfigRoot: getAppConfigDir(),
     content: readBundledLCodeBuiltinProviderConfig(),
   });
-  const port = Number(process.env["PORT"]) || 3030;
-  const host = process.env["LCODE_SERVER_HOST"]?.trim() || process.env["HOST"]?.trim() || undefined;
   const staticRoot = process.env["LCODE_WEB_STATIC_ROOT"]?.trim() || undefined;
   const authToken = process.env["LCODE_SERVER_AUTH_TOKEN"]?.trim() || undefined;
   const services = createLocalServices({

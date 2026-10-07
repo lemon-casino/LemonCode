@@ -2,9 +2,13 @@ import { requestPluginReferenceCatalog } from "#src/lcode-agent/pluginReferenceC
 import { handleWorktreeRequest, isWorktreeRequest } from "./worktreeRequests.js";
 import {
   createRuntimeEnvironmentClient,
+  readRuntimeEnvironmentProtocolCapability,
+  handleRuntimeEnvironmentPublicRequest,
+  isRuntimeEnvironmentPublicRequest,
   isRuntimeEnvironmentRequest,
 } from "./runtimeEnvironmentRequests.js";
 import { createWorktreeClientLeases } from "./worktreeClientLeases.js";
+import { sameRuntimeWorkspacePath } from "./runtimeEnvironmentAuthorization.js";
 import { gitFileMutationJournalSchema } from "@lcode/shared";
 import {
   localTtftFactsSchema,
@@ -86,6 +90,8 @@ import {
   lcodeProcessResourceSampleSchema,
   lcodeSessionCloseResultSchema,
   lcodeSessionWorktreeCleanupResultSchema,
+  lcodeSessionWorktreeRebindParamsSchema,
+  lcodeSessionWorktreeRebindResultSchema,
   lcodeSessionCompactResultSchema,
   lcodeSessionEventsResultSchema,
   lcodeSessionGoalResultSchema,
@@ -868,7 +874,9 @@ interface CreateLCodeAgentServiceOptions extends Omit<
   mcpStatusIdleTimeoutMs?: number;
   worktreeService?: import("../worktree/contract.js").IWorktreeService;
   /** 托管运行环境服务（P2-03：CLI 执行前按 cwd 解析冻结上下文）；旧 Host 可缺省。 */
-  runtimeEnvironmentService?: import("../runtime-environment/contract.js").IRuntimeEnvironmentService;
+  runtimeEnvironmentService?: import("../runtime-environment/contract.js").IRuntimeEnvironmentHostService;
+  /** 复用已授权的公开 facade（含 Worktree 升级/CAS），反向管理请求不能直接调用 raw owner。 */
+  runtimeEnvironmentPublicService?: import("../runtime-environment/contract.js").IRuntimeEnvironmentService;
   runtimeEnvironmentConsumers?: import("../runtime-environment/contract.js").RuntimeEnvironmentConsumerAuthority;
   accountProviderConfigSource?: ProviderSource<AccountProviderConfigSnapshot>;
   accountRequestAuthService?: IAccountRequestAuthService;
@@ -2180,6 +2188,34 @@ export function createLCodeAgentService(
             return;
           }
           if (exitedWorktreeClients.has(client)) return;
+          if (isRuntimeEnvironmentPublicRequest(request.method)) {
+            const publicService =
+              options?.runtimeEnvironmentPublicService ??
+              (request.method === lcodeProtocolMethods.runtimeEnvironmentCapabilities
+                ? options?.runtimeEnvironmentService
+                : undefined);
+            void handleRuntimeEnvironmentPublicRequest(
+              request.method,
+              request.params,
+              workspace,
+              publicService,
+              options?.worktreeService,
+            )
+              .then(
+                (result) => client.respond(request.id, result),
+                (error: unknown) =>
+                  client.respondError(request.id, {
+                    code: publicService ? -32603 : -32601,
+                    message: error instanceof Error ? error.message : String(error),
+                  }),
+              )
+              .catch((error: unknown) =>
+                logger.debug(undefined, "运行环境管理响应发送失败", {
+                  error: error instanceof Error ? error.message : String(error),
+                }),
+              );
+            return;
+          }
           let runtimeClient = runtimeClients.get(client);
           if (
             !runtimeClient &&
@@ -4742,6 +4778,24 @@ export function createLCodeAgentService(
       );
     },
 
+    async rebindWorktreeSessions(params) {
+      const rebind = lcodeSessionWorktreeRebindParamsSchema.parse(params.rebind);
+      if (
+        !sameRuntimeWorkspacePath(params.workspacePath, rebind.originWorkspacePath) ||
+        (params.workspaceIdentity?.trim() || "") !== (rebind.originWorkspaceIdentity?.trim() || "")
+      )
+        throw new Error(
+          "scope-mismatch: runtime rebind must use the origin workspace maintenance lane",
+        );
+      // 环境升级只维护既有持久 session；沿 cleanup 的只读载体，不启动模型或新业务会话。
+      const client = await getReadOnlyClient(params);
+      return client.request(
+        lcodeProtocolMethods.sessionWorktreeRebind,
+        rebind,
+        lcodeSessionWorktreeRebindResultSchema,
+      );
+    },
+
     async setModel(params: LCodeAgentSetModelParams) {
       const startedAt = Date.now();
       const client = await getClient(params);
@@ -5029,6 +5083,11 @@ export function createLCodeAgentService(
     // ── v4 conversation 通道（竖切）：host 只做透传，不落任何业务状态 ──
 
     async helloConversationV4() {
+      // hello 不启动 Agent，也不推断平台支持；只读取实际环境 owner 当前能力。
+      const runtimeEnvironment = await readRuntimeEnvironmentProtocolCapability(
+        options?.runtimeEnvironmentService,
+        { workspacePath: process.cwd() },
+      );
       return {
         kind: "hello" as const,
         protocolVersion: V4_WIRE_PROTOCOL_VERSION,
@@ -5043,6 +5102,7 @@ export function createLCodeAgentService(
           compression: "none" as const,
           workspaceHookReview: true,
           independentPlanState: true,
+          ...(runtimeEnvironment ? { runtimeEnvironment } : {}),
         },
         auth: {},
       };

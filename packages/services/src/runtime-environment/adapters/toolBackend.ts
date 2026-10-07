@@ -1,232 +1,388 @@
-import { createHash } from "node:crypto";
-import { execFile } from "node:child_process";
-import { chmod, mkdir, readFile, readdir, rename, rm, stat } from "node:fs/promises";
-import { createWriteStream } from "node:fs";
-import { pipeline } from "node:stream/promises";
-import { join, resolve } from "node:path";
+import { lstat, mkdir, realpath } from "node:fs/promises";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { maxSatisfying, valid, validRange } from "semver";
 import { withFileLock } from "@lcode/shared/node";
 import type { ToolBackendPort } from "../app/ports.js";
+import {
+  backendExecutableName,
+  backendPlatformKey,
+  detectBackendPlatform,
+  isPathWithin,
+  isNodeLauncher,
+  realpathWithin,
+  resolveToolExecutable,
+  toolExecutableCandidates,
+  type BackendPlatform,
+} from "./backendPlatform.js";
+import {
+  MISE_BACKEND_VERSION,
+  MISE_ASSET_DIGESTS,
+  validateBundledBackend,
+} from "./backendArchive.js";
 
+import {
+  BACKEND_COMMAND_TIMEOUT_MS,
+  runBackendCommand as runAbsoluteCommand,
+  throwIfBackendAborted as throwIfAborted,
+} from "./backendCommand.js";
+const EXACT_SEMVER = /^(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$/u;
+const SUPPORTED_TOOLS = new Set(["node", "pnpm"]);
 /**
- * 工具后端 port 与便携 mise 适配（spec: specs/worktree-runtime-environments.md §5/§9.4）。
- * 后端版本与资产摘要固定（ADR §5.4）；--no-config 阻断项目/父级/全局配置注入（P0-03 实测）。
- * 同 key 跨进程互斥；离线明确失败不静默用 PATH 兜底；完整性失败隔离不发布。
+ * 工具后端 port 与构建期绑定的便携 mise 适配（spec §5/§9.4）。
+ * 后端资产由应用构建产物提供；运行时只验证该绝对路径，不下载、不回退 PATH。
+ * 后端版本、平台、配置目录和工具 allowlist 都由本适配器固定，项目 cwd 与未审核 MISE_* 不参与执行。
  */
 
 export interface ToolBackendOptions {
   /** HostDataRoot 下 runtime-environments 数据目录（tool-backends/tool-store 同级）。 */
   dataDir: string;
-  /** 进程内下载互斥；跨进程锁由 store.lock 承担。 */
+  /** 构建期随应用提供的绝对 mise 可执行文件路径。 */
+  backendPath?: string;
+  /** Host 注入的受控网络 transport；仅用于工具安装与范围版本查询。 */
+  fetch?: typeof globalThis.fetch;
+  /** Host 注入的受控网络环境；只用于 mise 子进程，不能由 fetch 替代。 */
+  resolveEnv?: () => Promise<NodeJS.ProcessEnv>;
+  /** 测试/打包校验使用的平台覆盖；生产默认读取当前 Node 平台。 */
+  platform?: BackendPlatform;
   fetchTimeoutMs?: number;
 }
 
-/** 固定后端版本与官方资产 sha256（ADR §5.4，2026-10-05 实测清单）。 */
-export const MISE_BACKEND_VERSION = "v2026.10.2";
-export const MISE_ASSET_DIGESTS: Readonly<Record<string, string>> = {
-  "windows-x64": "6ce4281dc65a4dc22de2aed42db5e8859293a467964763b43fcc33fa0e6c4214",
-  "windows-arm64": "9c4abb29dc88d956f5d6f2e468bade7843c9e3242690a9dbb22b2bbac4d007be",
-  "macos-x64": "b8b23b39a05f1b36ebb49c5c556d549585f7e4b2d05ba9ff7c09bb026bf0fca7",
-  "macos-arm64": "11df20cfebb7f52eb5c6f68c367eadc6cf22aca169566a8f5b2fa92bf1564540",
-  "linux-x64": "a5f2082b6694c6f27e6a528e55dfb5983998a4d73004d003dfbf03406b938d49",
-  "linux-x64-musl": "e35412ea4e944f959cccfa5826d6f860a08417a00dc023579cab3561c5a72fa3",
-  "linux-arm64": "2df2ecffe694802cae43865fe11b932db361a902b7d4c4726fb4aaaa2d6a2396",
-  "linux-arm64-musl": "32d89cc197a92016c7285c4fbdf067919b44097b7da65ff5722a3bc55b1cf793",
-};
+export interface ToolVersionResolutionParams {
+  key: string;
+  constraint: string;
+  signal?: AbortSignal;
+}
 
-/** 全平台资产清单（ADR §5.4 全平台口径）；win/mac/linux × x64/arm64。 */
-export const MISE_ASSETS: Readonly<Record<string, string>> = {
-  "windows-x64": "mise-v2026.10.2-windows-x64.zip",
-  "windows-arm64": "mise-v2026.10.2-windows-arm64.zip",
-  "macos-x64": "mise-v2026.10.2-macos-x64.tar.xz",
-  "macos-arm64": "mise-v2026.10.2-macos-arm64.tar.xz",
-  "linux-x64": "mise-v2026.10.2-linux-x64.tar.xz",
-  "linux-x64-musl": "mise-v2026.10.2-linux-x64-musl.tar.xz",
-  "linux-arm64": "mise-v2026.10.2-linux-arm64.tar.xz",
-  "linux-arm64-musl": "mise-v2026.10.2-linux-arm64-musl.tar.xz",
-};
+export interface ToolInstallParams {
+  key: string;
+  version: string;
+  /** pnpm 必须使用同一冻结计划已安装的受管 Node，不借宿主 Node。 */
+  nodePath?: string;
+  signal?: AbortSignal;
+}
 
-function platformKey(): string {
-  const os = process.platform;
-  const arch = process.arch === "arm64" ? "arm64" : "x64";
-  if (os === "win32") return `windows-${arch}`;
-  if (os === "darwin") return `macos-${arch}`;
-  // glibc/musl 区分不引入运行时探测 API；按环境变量显式覆盖，默认 glibc。
-  return process.env.LCODE_MISE_MUSL === "1" ? `linux-${arch}-musl` : `linux-${arch}`;
+/** 固定后端版本与官方资产摘要（由 backendArchive 维护单一常量源）。 */
+export { MISE_BACKEND_VERSION, MISE_ASSET_DIGESTS } from "./backendArchive.js";
+function backendError(message: string): Error {
+  return new Error(`tool backend unavailable: ${message}`);
+}
+
+function validateToolKey(key: string): "node" | "pnpm" {
+  if (!SUPPORTED_TOOLS.has(key)) {
+    throw new Error(`unsupported managed tool: ${key}`);
+  }
+  return key as "node" | "pnpm";
+}
+
+function exactVersion(version: string): string {
+  if (!EXACT_SEMVER.test(version) || valid(version) !== version) {
+    throw new Error(`managed tool version must be an exact semver: ${version}`);
+  }
+  return version;
+}
+
+function isExactVersion(value: string): boolean {
+  return EXACT_SEMVER.test(value) && valid(value) === value;
 }
 
 function miseArgs(...args: string[]): string[] {
   return ["--no-config", ...args];
 }
 
-export function createToolBackend(options: ToolBackendOptions): ToolBackendPort {
-  const root = resolve(options.dataDir);
-  const backendsDir = join(root, "tool-backends", MISE_BACKEND_VERSION, platformKey());
-  const toolStoreDir = join(root, "tool-store", "mise", MISE_BACKEND_VERSION);
+function lastOutputLine(output: string): string {
+  const lines = output
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0);
+  return lines.at(-1) ?? "";
+}
 
-  function backendExePath(): string {
-    return process.platform === "win32"
-      ? join(backendsDir, "bin", "mise.exe")
-      : join(backendsDir, "bin", "mise");
+function parseRemoteVersions(output: string): string[] {
+  const trimmed = output.trim();
+  const start = trimmed.indexOf("[");
+  const end = trimmed.lastIndexOf("]");
+  if (start < 0 || end <= start) throw new Error("mise ls-remote returned invalid JSON");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed.slice(start, end + 1));
+  } catch (error) {
+    throw new Error(`mise ls-remote returned invalid JSON: ${error instanceof Error ? error.message : String(error)}`);
+  }
+  if (!Array.isArray(parsed)) throw new Error("mise ls-remote returned a non-array result");
+  const versions: string[] = [];
+  for (const item of parsed) {
+    const value = typeof item === "string" ? item : item && typeof item === "object" && "version" in item ? item.version : undefined;
+    if (typeof value === "string" && valid(value) === value) versions.push(value);
+  }
+  return [...new Set(versions)];
+}
+
+function samePath(left: string, right: string, platform: BackendPlatform): boolean {
+  const a = resolve(left);
+  const b = resolve(right);
+  return platform.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+export function createToolBackend(options: ToolBackendOptions): ToolBackendPort & {
+  resolveVersion(params: ToolVersionResolutionParams): Promise<string>;
+} {
+  const root = resolve(options.dataDir);
+  const platformResult: BackendPlatform | Error = options.platform ?? (() => {
+    try {
+      return detectBackendPlatform();
+    } catch (error) {
+      return error instanceof Error ? error : new Error(String(error));
+    }
+  })();
+  const platform = platformResult instanceof Error ? undefined : platformResult;
+  const platformFailure = platformResult instanceof Error ? platformResult : undefined;
+  const fixedBackendPath = options.backendPath
+    ? isAbsolute(options.backendPath)
+      ? resolve(options.backendPath)
+      : undefined
+    : undefined;
+  const backendPathFailure = options.backendPath && !fixedBackendPath
+    ? backendError("backendPath must be an absolute path")
+    : undefined;
+  const platformKey = platform ? backendPlatformKey(platform) : undefined;
+  const backendStoreRoot = platformKey
+    ? join(root, "tool-store", "mise", MISE_BACKEND_VERSION, platformKey)
+    : undefined;
+  const toolStoreDir = backendStoreRoot;
+  const miseDataDir = backendStoreRoot ? join(backendStoreRoot, "data") : undefined;
+  const miseConfigDir = backendStoreRoot ? join(backendStoreRoot, "config") : undefined;
+  const miseCacheDir = backendStoreRoot ? join(backendStoreRoot, "cache") : undefined;
+
+  function requirePlatform(): BackendPlatform {
+    if (platformFailure) throw backendError(platformFailure.message);
+    if (!platform) throw backendError("host platform is unavailable");
+    return platform;
   }
 
-  function dataEnv(): NodeJS.ProcessEnv {
+  function requireBackendPath(): string {
+    requirePlatform();
+    if (backendPathFailure) throw backendPathFailure;
+    if (!fixedBackendPath) {
+      throw backendError("the bundled mise backend is missing; runtime download is disabled");
+    }
+    const expectedName = backendExecutableName(requirePlatform());
+    if (fixedBackendPath.toLowerCase().endsWith("/") || fixedBackendPath.toLowerCase().endsWith("\\")) {
+      throw backendError("backendPath must name the bundled executable");
+    }
+    if (fixedBackendPath.split(/[\\/]/u).at(-1)?.toLowerCase() !== expectedName.toLowerCase()) {
+      throw backendError(`backendPath must end with ${expectedName}`);
+    }
+    return fixedBackendPath;
+  }
+
+  async function dataEnv(nodePath?: string): Promise<NodeJS.ProcessEnv> {
+    if (!miseDataDir || !miseConfigDir || !miseCacheDir) throw backendError("host platform is unavailable");
+    await Promise.all([
+      mkdir(miseDataDir, { recursive: true }),
+      mkdir(miseConfigDir, { recursive: true }),
+      mkdir(miseCacheDir, { recursive: true }),
+    ]);
+    const resolved = options.resolveEnv ? await options.resolveEnv() : process.env;
+    const env: NodeJS.ProcessEnv = {};
+    let inheritedPath: string | undefined;
+    for (const [key, value] of Object.entries(resolved)) {
+      const normalized = key.toUpperCase();
+      // Windows 环境键不区分大小写；旧逻辑会保留 Path/混合大小写 MISE_*，绕过冻结覆盖。
+      // NODE_OPTIONS/NODE_PATH 也不能把宿主预加载脚本或模块解析带进受管版本验证。
+      if (normalized === "PATH") inheritedPath = value;
+      else if (!normalized.startsWith("MISE_") && normalized !== "NODE_OPTIONS" && normalized !== "NODE_PATH" && value !== undefined) env[key] = value;
+    }
+    if (nodePath) {
+      const delimiter = requirePlatform().platform === "win32" ? ";" : ":";
+      env.PATH = [dirname(nodePath), inheritedPath].filter(Boolean).join(delimiter);
+    } else if (inheritedPath !== undefined) env.PATH = inheritedPath;
     return {
-      ...process.env,
-      MISE_DATA_DIR: join(root, "tool-store", "mise", MISE_BACKEND_VERSION, "data"),
-      MISE_CONFIG_DIR: join(root, "tool-store", "mise", MISE_BACKEND_VERSION, "config"),
+      ...env,
+      MISE_DATA_DIR: miseDataDir,
+      MISE_CONFIG_DIR: miseConfigDir,
+      MISE_CACHE_DIR: miseCacheDir,
       MISE_NO_CONFIG: "1",
     };
   }
-
-  function runMise(args: string[], timeoutMs: number): Promise<{ code: number; stderr: string }> {
-    return new Promise((resolvePromise, rejectPromise) => {
-      execFile(
-        backendExePath(),
-        miseArgs(...args),
-        { env: dataEnv(), timeout: timeoutMs, windowsHide: true },
-        (error, _stdout, stderr) => {
-          if (error && typeof (error as NodeJS.ErrnoException).code === "string") {
-            // spawn 失败（后端缺失/权限）直接拒绝，调用方转 capability/download 错误。
-            rejectPromise(error);
-            return;
-          }
-          resolvePromise({ code: error ? 1 : 0, stderr: String(stderr ?? "") });
-        },
-      );
+  async function verifyBackend(signal?: AbortSignal): Promise<string> {
+    const currentPlatform = requirePlatform();
+    const executable = requireBackendPath();
+    const entry = await lstat(executable).catch((error) => {
+      throw backendError(`bundled mise backend is missing: ${error instanceof Error ? error.message : String(error)}`);
     });
-  }
-
-  async function runMiseExit(args: string[], timeoutMs: number): Promise<{ code: number; stderr: string }> {
-    try {
-      return await runMise(args, timeoutMs);
-    } catch (error) {
-      return { code: 127, stderr: error instanceof Error ? error.message : String(error) };
+    if (!entry.isFile()) throw backendError("bundled mise backend is not a regular file");
+    const resolved = await realpath(executable);
+    const root = resolve(dirname(executable), "..");
+    await validateBundledBackend(root, {
+      version: MISE_BACKEND_VERSION,
+      platform: currentPlatform,
+      archiveSha256: MISE_ASSET_DIGESTS[backendPlatformKey(currentPlatform)],
+    });
+    const result = await runAbsoluteCommand(executable, miseArgs("version"), await dataEnv(), { signal });
+    if (result.code !== 0) {
+      throw backendError(`bundled mise version probe failed: ${result.stderr.slice(-2000)}`);
     }
-  }
-
-  async function sha256File(path: string): Promise<string> {
-    return createHash("sha256").update(await readFile(path)).digest("hex");
-  }
-
-  async function downloadAsset(dest: string): Promise<void> {
-    const assetName = MISE_ASSETS[platformKey()];
-    if (!assetName) throw new Error(`No mise asset for platform ${platformKey()}`);
-    const url = `https://github.com/jdx/mise/releases/download/${MISE_BACKEND_VERSION}/${assetName}`;
-    const response = await fetch(url, {
-      signal: AbortSignal.timeout(options.fetchTimeoutMs ?? 600_000),
-    });
-    if (!response.ok || !response.body)
-      throw new Error(`mise asset download failed: HTTP ${response.status}`);
-    await pipeline(response.body, createWriteStream(dest));
+    const expectedVersion = MISE_BACKEND_VERSION.slice(1);
+    const expectedPlatform = backendPlatformKey(currentPlatform);
+    const versionLine = result.stdout
+      .split(/\r?\n/u)
+      .map((line) => line.trim())
+      .find((line) => new RegExp(`^${expectedVersion.replaceAll(".", "\\.")}\\s+${expectedPlatform}(?:\\s|$)`, "u").test(line));
+    if (!versionLine) {
+      throw backendError(`bundled mise version/platform mismatch; expected ${expectedVersion} ${expectedPlatform}`);
+    }
+    return resolved;
   }
 
   async function ensureBackend(): Promise<string> {
-    const exe = backendExePath();
-    try {
-      await stat(exe);
-      return exe;
-    } catch {
-      // 后端缺失时下载；跨进程互斥按 backend key，坏产物隔离不发布。
+    return verifyBackend();
+  }
+
+  async function resolveVersion(params: ToolVersionResolutionParams): Promise<string> {
+    const key = validateToolKey(params.key);
+    const constraint = params.constraint.trim();
+    if (!constraint) throw new Error(`managed tool version constraint is empty for ${key}`);
+    throwIfAborted(params.signal);
+    await verifyBackend(params.signal);
+    if (isExactVersion(constraint)) return constraint;
+    const range = validRange(constraint);
+    // 原始空值已拒绝；标准 semver 的显式通配范围必须交给一次版本列表查询冻结。
+    if (range === null) {
+      throw new Error(`unsupported managed tool version constraint for ${key}: ${constraint}`);
     }
-    await mkdir(join(root, "tool-backends", MISE_BACKEND_VERSION), { recursive: true });
-    await withFileLock(
-      join(root, "tool-backends", `${MISE_BACKEND_VERSION.replace(/[^a-zA-Z0-9.-]/g, "_")}.lock`),
-      async () => {
-        try {
-          await stat(exe);
-          return;
-        } catch {
-          // 双重检查：拿到锁后别人可能已装好。
-        }
-        const staging = join(backendsDir, `staging-${Date.now()}`);
-        const assetPath = `${staging}.asset`;
-        try {
-          await mkdir(staging, { recursive: true });
-          await downloadAsset(assetPath);
-          const digest = await sha256File(assetPath);
-          const expected = MISE_ASSET_DIGESTS[platformKey()];
-          if (digest !== expected)
-            throw new Error(`mise asset digest mismatch: got ${digest}, want ${expected}`);
-          await extractArchive(assetPath, staging);
-          await rename(staging, backendsDir);
-        } catch (error) {
-          await rm(staging, { recursive: true, force: true });
-          await rm(assetPath, { force: true });
-          throw error;
-        }
-      },
+    const result = await runAbsoluteCommand(
+      requireBackendPath(),
+      miseArgs("ls-remote", key, "--json"),
+      await dataEnv(),
+      { signal: params.signal },
     );
-    return exe;
+    if (result.code !== 0) {
+      throw new Error(`mise ls-remote ${key} failed: ${result.stderr.slice(-2000)}`);
+    }
+    const selected = maxSatisfying(parseRemoteVersions(result.stdout), range);
+    if (!selected) {
+      throw new Error(`no ${key} version satisfies ${constraint}`);
+    }
+    return selected;
   }
 
-  async function extractArchive(assetPath: string, staging: string): Promise<void> {
-    // 跨平台解压：zip 用 PowerShell Expand-Archive；tar.xz 用系统 tar（win10+ 自带 bsdtar）。
-    if (assetPath.endsWith(".zip")) {
-      await runExternal("powershell", [
-        "-NoProfile",
-        "-Command",
-        `Expand-Archive -LiteralPath '${assetPath}' -DestinationPath '${staging}' -Force`,
-      ]);
-    } else {
-      await runExternal("tar", ["-xf", assetPath, "-C", staging]);
+  async function queryInstallRoot(key: "node" | "pnpm", version: string, signal?: AbortSignal, nodePath?: string): Promise<string> {
+    const result = await runAbsoluteCommand(
+      requireBackendPath(),
+      miseArgs("where", `${key}@${version}`),
+      await dataEnv(nodePath),
+      { signal },
+    );
+    if (result.code !== 0) throw new Error(`mise where ${key}@${version} failed: ${result.stderr.slice(-2000)}`);
+    const candidate = lastOutputLine(result.stdout);
+    if (!candidate || !isAbsolute(candidate)) {
+      throw new Error(`mise where ${key}@${version} returned a non-absolute path`);
     }
-    // 资产解压出 mise-<ver>/ 前缀目录时展平到 staging。
-    const entries = await readdir(staging, { withFileTypes: true });
-    if (entries.length === 1 && entries[0]?.isDirectory()) {
-      const inner = join(staging, entries[0].name);
-      const innerEntries = await readdir(inner, { withFileTypes: true });
-      for (const entry of innerEntries) {
-        await rename(join(inner, entry.name), join(staging, entry.name));
-      }
-      await rm(inner, { recursive: true, force: true });
+    if (!miseDataDir || !toolStoreDir) throw backendError("tool store is unavailable on this host");
+    const managedRoot = join(miseDataDir, "installs", key, version);
+    const managedRootReal = await realpath(managedRoot);
+    const candidateReal = await realpathWithin(managedRootReal, candidate);
+    if (!samePath(managedRootReal, candidateReal, requirePlatform())) {
+      throw new Error(`mise where ${key}@${version} escaped its managed installation root`);
     }
-    if (process.platform !== "win32") await chmod(join(staging, "bin", "mise"), 0o755);
+    return candidateReal;
   }
 
-  async function runExternal(cmd: string, args: string[]): Promise<void> {
-    await new Promise<void>((resolvePromise, rejectPromise) => {
-      execFile(cmd, args, { windowsHide: true, timeout: 120_000 }, (error) => {
-        if (error) rejectPromise(error);
-        else resolvePromise();
+  async function verifyToolVersion(
+    key: "node" | "pnpm",
+    version: string,
+    toolPath: string,
+    signal?: AbortSignal,
+    nodePath?: string,
+  ): Promise<void> {
+    const script = key === "pnpm" && await isNodeLauncher(toolPath);
+    if (script && !nodePath) throw new Error("pnpm requires a frozen nodePath");
+    // 根因：直接 execFile .cjs/.cmd 在 Windows 失败，Unix shebang 又会借 PATH 上的 Node。
+    // 脚本显式交给冻结 Node；原生 pnpm 则保留原生入口并固定其子进程 PATH。
+    const result = await runAbsoluteCommand(
+      script ? nodePath! : toolPath,
+      script ? [toolPath, "--version"] : ["--version"],
+      await dataEnv(nodePath),
+      { signal, timeoutMs: 120_000 },
+    );
+    if (result.code !== 0) throw new Error(`${key} --version failed: ${result.stderr.slice(-2000)}`);
+    const actual = lastOutputLine(result.stdout);
+    const expected = key === "node" ? `v${version}` : version;
+    if (actual !== expected) {
+      throw new Error(`${key} version mismatch: expected ${expected}, got ${actual || "<empty>"}`);
+    }
+  }
+
+  async function requireFrozenNode(nodePath: string | undefined, signal?: AbortSignal): Promise<string> {
+    if (!nodePath || !isAbsolute(nodePath)) throw new Error("pnpm requires an absolute frozen nodePath");
+    if (!miseDataDir || !toolStoreDir) throw backendError("tool store is unavailable on this host");
+    const versionsRoot = await realpathWithin(toolStoreDir, join(miseDataDir, "installs", "node"));
+    if (!isPathWithin(versionsRoot, nodePath)) throw new Error("pnpm nodePath is outside the managed Node store");
+    const canonical = await realpathWithin(versionsRoot, nodePath);
+    const version = relative(versionsRoot, canonical).split(sep)[0];
+    if (!version || !isExactVersion(version)) throw new Error("pnpm nodePath has no frozen managed Node version");
+    const expected = join(versionsRoot, version, toolExecutableCandidates("node", requirePlatform())[0]!);
+    if (!samePath(expected, canonical, requirePlatform()) || !(await lstat(canonical)).isFile()) {
+      throw new Error("pnpm nodePath is not the frozen managed Node executable");
+    }
+    await verifyToolVersion("node", version, canonical, signal, canonical);
+    return canonical;
+  }
+
+  async function installTool(params: ToolInstallParams): Promise<{ toolPath: string }> {
+    const key = validateToolKey(params.key);
+    const version = exactVersion(params.version);
+    throwIfAborted(params.signal);
+    const nodePath = key === "pnpm" ? await requireFrozenNode(params.nodePath, params.signal) : undefined;
+    await verifyBackend(params.signal);
+    if (!toolStoreDir || !miseDataDir) throw backendError("tool store is unavailable on this host");
+    const lockName = `${platformKey}-${key}-${version}`.replace(/[^A-Za-z0-9._-]/gu, "_");
+    let toolPath: string | undefined;
+    await withFileLock(join(toolStoreDir, `${lockName}.lock`), async () => {
+      throwIfAborted(params.signal);
+      const cached = await lstat(join(miseDataDir, "installs", key, version)).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === "ENOENT") return undefined;
+        throw error;
       });
+      // 根因：即便确切版本已缓存，mise install 仍会联网查索引；同锁内验证缓存后直接复用。
+      // 已有目录损坏必须失败，不能重装覆盖或放宽路径/版本校验；仅缺失版本走安装。
+      if (!cached) {
+        const result = await runAbsoluteCommand(
+          requireBackendPath(), miseArgs("install", `${key}@${version}`),
+          await dataEnv(nodePath), { signal: params.signal },
+        );
+        if (result.code !== 0) throw new Error(`mise install ${key}@${version} failed: ${result.stderr.slice(-2000)}`);
+      }
+      const installRoot = await queryInstallRoot(key, version, params.signal, nodePath);
+      const executable = await resolveToolExecutable(key, installRoot, requirePlatform());
+      await verifyToolVersion(key, version, executable, params.signal, nodePath);
+      throwIfAborted(params.signal);
+      toolPath = executable;
+    }, {
+      // 首次工具下载通常超过共享文件写入锁的 8 秒默认值；仍按活 owner 互斥，不按时间抢锁。
+      lockMaxWaitMs: BACKEND_COMMAND_TIMEOUT_MS + 240_000,
     });
+    if (!toolPath) throw new Error(`mise install ${key}@${version} produced no tool path`);
+    return { toolPath };
   }
 
-  return {
+  const backend: ToolBackendPort & {
+    resolveVersion(params: ToolVersionResolutionParams): Promise<string>;
+  } = {
     ensureBackend,
+    installTool,
+    resolveVersion,
     async probeBackend() {
       try {
-        await stat(backendExePath());
+        await verifyBackend();
         return { available: true };
-      } catch {
-        return { available: false, reason: "便携 mise 后端尚未下载（按需获取）" };
+      } catch (error) {
+        return {
+          available: false,
+          reason: error instanceof Error ? error.message : String(error),
+        };
       }
-    },
-    async installTool(params: { key: string; version: string }) {
-      // 后端缺失时在此触发按需下载（probe 不落盘）。
-      await ensureBackend();
-      // 同 key 跨进程互斥：tool-store 下按 key 加锁；锁内 install 幂等（缓存命中 0.1s 实测）。
-      await withFileLock(join(toolStoreDir, `${params.key}-${params.version}.lock`), async () => {
-        const { code, stderr } = await runMiseExit(
-          ["install", `${params.key}@${params.version}`],
-          600_000,
-        );
-        if (code !== 0) throw new Error(`mise install ${params.key}@${params.version} failed: ${stderr.slice(-2000)}`);
-      });
-      // P0 实测：MISE_NO_CONFIG 下 `mise which` 不可用（依赖配置上下文），
-      // 按 mise install 布局直接拼确切路径；Windows 是 <key>.exe，unix 是 <key>。
-      const toolPath =
-        process.platform === "win32"
-          ? join(toolStoreDir, "data", "installs", params.key, params.version, `${params.key}.exe`)
-          : join(toolStoreDir, "data", "installs", params.key, params.version, params.key);
-      try {
-        await stat(toolPath);
-      } catch {
-        throw new Error(
-          `mise reported success but ${toolPath} is missing; refusing to fall back to PATH`,
-        );
-      }
-      return { toolPath };
     },
   };
+  return backend;
 }

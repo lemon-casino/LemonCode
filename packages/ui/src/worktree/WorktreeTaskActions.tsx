@@ -20,6 +20,7 @@ import { WorktreeReviewStageNavigation } from "./WorktreeReviewStageNavigation.j
 import { WorktreePublication } from "./WorktreePublication.js";
 import { WorktreeIntegrationEvidence } from "./WorktreeIntegrationEvidence.js";
 import { integrationReviewFiles } from "./worktreeReviewStages.js";
+import { candidateEvidenceState } from "./worktreeCandidateEvidence.js";
 
 export function WorktreeTaskActions({
   workspacePath,
@@ -68,7 +69,18 @@ export function WorktreeTaskActions({
   );
   useEffect(() => {
     setApprovedHead(null);
-  }, [sharedReview.data.targetBranch, commands, operation?.candidateHead]);
+    setSkipValidation(false);
+  }, [
+    workspacePath,
+    workspaceIdentity,
+    sessionId,
+    sharedReview.data.targetBranch,
+    commands,
+    operation?.id,
+    operation?.candidateHead,
+    operation?.environmentRef?.revision,
+    operation?.environmentRef?.manifestDigest,
+  ]);
   const diffNavigation = useReviewDiffNavigation(
     JSON.stringify([workspaceIdentity?.trim() || workspacePath, sessionId]),
     onHideReview ?? (() => setOpen(false)),
@@ -94,11 +106,13 @@ export function WorktreeTaskActions({
     .split(/\r?\n/u)
     .map((line) => line.trim())
     .filter(Boolean);
+  const evidenceState = candidateEvidenceState(operation);
   const canPublish =
     (operation?.status === "ready" || operation?.status === "publishing") &&
     operation.candidateHead &&
     approvedHead === operation.candidateHead &&
-    (operation.validationCommands.length > 0 || skipValidation);
+    evidenceState !== "missing" &&
+    (evidenceState !== "skipped" || skipValidation);
   const integrate = () =>
     task.perform(async () => {
       const capability = await worktreeService.getCapabilities({
@@ -227,6 +241,7 @@ export function WorktreeTaskActions({
                 worktreeService.continueIntegration({
                   operationId: operation.id,
                   approvedCandidateHead: operation.candidateHead,
+                  skipValidation,
                 }),
               )
             }
@@ -237,6 +252,7 @@ export function WorktreeTaskActions({
                 worktreeService.publishIntegration({
                   operationId: operation.id,
                   approvedCandidateHead: operation.candidateHead!,
+                  skipValidation,
                 }),
               );
             }}

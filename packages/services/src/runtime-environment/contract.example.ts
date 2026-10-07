@@ -13,9 +13,5 @@ export async function prepareWorktreeEnvironment(
     purpose: "worktree",
   });
   if (operation.status !== "succeeded") return operation;
-  return service.resolveContext({
-    workspacePath,
-    environmentId: operation.environmentId,
-    consumer: "example",
-  });
+  return service.snapshot({ workspacePath, environmentId: operation.environmentId });
 }

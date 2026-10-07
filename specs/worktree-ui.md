@@ -119,6 +119,36 @@ sequenceDiagram
   UI->>S: 结算请求；显示实际绑定
 ```
 
+## 托管环境详情与显式操作（M4-07 / M5-04）
+
+- 环境事实唯一 owner 为目标 Host 的 `IRuntimeEnvironmentService`。管理详情沿 `useWorkspaceServices` attachment 路由，以 binding 的真实 checkout 路径和 identity 查询；远程 attachment 缺失时不可回退本地。UI 不调用含执行环境或 lease 的 `resolveContext`。
+- 详情展示 owner 的状态、冻结版本、工具版本/来源、安装策略、未托管或旧绑定说明、有界资源摘要、服务状态与实际地址。`partial/unavailable` 资源结果不是零占用；缺 capability 显示原因，不假设所有平台支持托管。
+- 显式准备/升级/重试/取消均携 requestId，升级冻结 expectedRevision/expectedManifestDigest；旧绑定不自动升级，不因工作树目录独立声称运行环境独立。动作在途只显示 pending，ready 必须来自 owner snapshot。重启服务先以 generation/revision 停止，再读取新 snapshot 后显式启动，不用超时推断停止。
+- 事件仅使读取失效；相同 identity 的旧 `stateRevision` 不覆盖新帧。切换 scope 或 attachment 后忽略旧响应，重连只读 snapshot，不重放 prepare/start/stop 等动作。列表查询不把任意环境错配到当前 binding。
+- 服务只展示 owner 投影提供的 serviceId，不猜测任意脚本可运行。预览走 `IPlatformService` 已有代理能力；手机/远端无可达通路时解释原因，不能直接打开宿主 localhost。
+- 项目设置使用现有 intent 偏好持久化 `environmentPolicy` 的 managed/local/inherit 选择；缺省 inherit 当前解析为 local，旧绑定缺 ref 继续明确显示本机环境。新托管行为仅由用户明确 managed 选择及 Host capability 门禁放行，不能对未验证平台一律放行。设置不改写旧 binding；新请求显式携带解析后的策略。已有绑定的升级经公开 prepare 的 bindingId + operation:upgrade 交给 owner 完成 binding/session 一致迁移。
+- 准备/升级失败保留结构化错误与诊断，通过既有 GitFailureDraft 和 composer receiver 追加，不自动发送、不覆盖正文/附件。首发准备从 `binding.preparation.runtimeError` 读取 owner 结构化诊断；尚无 sessionId 的同 scope 草稿可接收，不创建会话；迟到或跨 scope 转交拒绝。失败重试保留原 requestId 与冻结参数，取消使用同 requestId+cancel，永久 cancelled 后只有用户新提交才创建新 requestId。
+- 删除/归档前明确托管绑定服务和终端会停止，可重建 temp/cache 可清理；私有 data 默认保留，Git 代码快照不包含数据库。恢复使用新的空 data 目录，原 data 保留供后续单独导出；不新增物理删除 data 按钮。
+- 候选验证与发布把用户显式 `skipValidation` 传给 owner。ready/发布展示必须有匹配 candidate/source/target/tree/environment/manifest 的 owner candidateEvidence 和 validationReceipts；跳过收据只称“明确跳过”，不是验证通过。声明/锁变化后需重新验证。
+
+```mermaid
+sequenceDiagram
+  participant UI as 环境详情和草稿 UI
+  participant Attachment as 当前 workspace attachment
+  participant Owner as RuntimeEnvironmentService / WorktreeService
+  participant Composer as 原 Composer 草稿 owner
+  UI->>Attachment: checkout scope + identity 选择目标 Host
+  Attachment->>Owner: capabilities + snapshot（无秘密）
+  Owner-->>UI: stateRevision / environment / receipts
+  UI->>Owner: 用户显式动作(requestId, expectedRevision, generation)
+  Owner-->>UI: invalidation（桌面连续 / 手机恢复）
+  UI->>Owner: snapshot；丢弃旧 scope 和旧版本
+  UI->>Composer: 用户选择追加结构化诊断
+  Composer-->>UI: 同 scope 接收；正文附件不变，不自动发送
+```
+
+专项验收使用真实共享 hook/组件、确定性 Host fixture，覆盖桌面/390px、中英、键盘、长中文路径、失败重试/取消、同 identity 乱序 snapshot、远端断连/重连无动作重放、无会话草稿与已有正文附件、候选显式 skip 与 owner receipt。fixture 只证明 UI 边界交互，不冒充真实 owner 或生产纵向验收。
+
 ## 验收
 
 - 合并管理展示来源提交、冻结的目标基线、共同祖先和集成目录；本地可通过平台入口打开集成目录。归档后展示实际省略的忽略文件清单，不能暗示这些文件已保存。

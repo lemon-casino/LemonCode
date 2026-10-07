@@ -16,6 +16,7 @@ import { buildMcpStdioEnv, createMcpTransportFetch } from "./network.js";
 import { createCredentialKeyPrefix, type McpOAuthRuntimeOptions } from "./oauth.js";
 import { createMcpOAuthTokenProvider } from "./oauth-provider.js";
 import { ProcessTreeStdioClientTransport } from "./stdio-transport.js";
+import { buildProjectMcpStdioEnv } from "./project-environment.js";
 import {
   createOAuthAuthorizationStatus,
   isOfficialAuthConfig,
@@ -58,10 +59,18 @@ export async function createTransport(
         cwd: config.cwd
           ? resolve(workingDirectory ?? this.workingDirectory ?? process.cwd(), config.cwd)
           : (workingDirectory ?? this.workingDirectory),
-        env: {
-          ...buildMcpStdioEnv({ env: this.env, network: this.network }),
-          ...config.env,
-        },
+        env: config.projectEnvironment
+          ? buildProjectMcpStdioEnv(
+              buildMcpStdioEnv({ env: this.env, network: this.network }),
+              config.projectEnvironment.overlay,
+              process.platform,
+              undefined,
+              config.env,
+            )
+          : { ...buildMcpStdioEnv({ env: this.env, network: this.network }), ...config.env },
+        ...(config.projectEnvironment
+          ? { projectEnvironment: config.projectEnvironment, spawnSignal: signal }
+          : {}),
         stderr: "pipe",
         ...(isOfficialAuthConfig(config) && config.official
           ? {

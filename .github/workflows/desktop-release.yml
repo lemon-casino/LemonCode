@@ -2,7 +2,6 @@ name: Desktop builds and release
 
 on:
   push:
-    branches: [main]
     tags: ["v*"]
 
 concurrency:
@@ -117,7 +116,6 @@ jobs:
           - { runner: ubuntu-24.04-arm, os: linux, arch: arm64 }
     env:
       LCODE_ENV: production
-      LCODE_SKIP_REMOTE_ASSETS: "1"
       LCODE_TARGET_OS: ${{ matrix.os }}
       LCODE_TARGET_ARCH: ${{ matrix.arch }}
       CSC_IDENTITY_AUTO_DISCOVERY: "false"

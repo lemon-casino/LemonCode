@@ -80,6 +80,58 @@ test("writer permits accept only the original checkout or the registered task bi
   );
 });
 
+for (const status of ["deleting", "restoring", "archived", "failed"]) {
+  test(`attached execution scope refuses ${status} binding even when paths match`, async () => {
+    let acquired = false;
+    const attached = { workspacePath: "/managed/task", workspaceIdentity: "task-identity" };
+    const service = {
+      getBinding: async (params: unknown) => {
+        worktreeGetBindingParamsSchema.parse(params);
+        return { ...attached, status };
+      },
+      acquireCheckout: async () => {
+        acquired = true;
+        return { token: "permit" };
+      },
+    };
+    await assert.rejects(
+      handleWorktreeRequest(
+        "checkout/acquireWriter",
+        {
+          ...attached,
+          sessionId: "task",
+          requestId: "turn",
+        },
+        { ...attached, commands: [], clock: true } as typeof attached,
+        service as never,
+      ),
+      /binding/,
+    );
+    assert.equal(acquired, false);
+  });
+}
+
+test("ordinary local scope without a binding remains writable", async () => {
+  const local = { workspacePath: "/project" };
+  const service = {
+    getBinding: async () => null,
+    acquireCheckout: async () => ({ token: "local-permit" }),
+  };
+  assert.deepEqual(
+    await handleWorktreeRequest(
+      "checkout/acquireWriter",
+      {
+        ...local,
+        sessionId: "local",
+        requestId: "turn",
+      },
+      local,
+      service as never,
+    ),
+    { permitId: "local-permit" },
+  );
+});
+
 test("writer RPC maps protocol fields through the real strict service contract", async (t) => {
   for (const scenario of ["local", "remote", "worktree", "repair"] as const) {
     await t.test(scenario, async () => {

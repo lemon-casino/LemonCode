@@ -90,9 +90,15 @@ export async function createWorkspaceLCodeApp(
     ...options,
     // 旧会话没有环境引用时不发新 RPC；显式托管引用的查询失败必须阻止执行。
     resolveProjectEnvironmentOverlay:
-      options.resolveProjectEnvironmentOverlay ?? (workspace.environmentRef
-        ? createProjectEnvironmentOverlayResolver(context, workspace, String(options.sessionId ?? ""))
+      options.resolveProjectEnvironmentOverlay ??
+      (workspace.environmentRef
+        ? createProjectEnvironmentOverlayResolver(
+            context,
+            workspace,
+            String(options.sessionId ?? ""),
+          )
         : undefined),
+    projectEnvironmentRef: workspace.environmentRef,
     platform: context.deps.platform,
     providerRuntimeHeadersPort,
     runtimeConfig: {

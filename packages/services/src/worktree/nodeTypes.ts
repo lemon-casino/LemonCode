@@ -1,4 +1,7 @@
-import type { CheckoutAccessMode, CheckoutLease, WorktreeScope } from "./contract.js";
+import type {
+  CheckoutAccessMode, CheckoutLease, WorktreeScope, WorktreeRuntimePorts,
+  WorktreeCommandRunner,
+} from "./contract.js";
 
 export interface WorktreeGitPort {
   run(params: {
@@ -22,7 +25,7 @@ export interface CheckoutCoordinator {
   ): Promise<CheckoutLease>;
   release(params: { token: string; ownerId: string }): Promise<void>;
 }
-export interface WorktreeServiceOptions {
+export interface WorktreeServiceOptions extends WorktreeRuntimePorts {
   /** 宿主物理文件系统删除；Store 校验受管路径之后才允许调用。 */
   removeDirectory?: (path: string) => Promise<void>;
   collectDiscardSessions?: (binding: import("./contract.js").WorktreeBinding) => Promise<string[]>;
@@ -33,29 +36,9 @@ export interface WorktreeServiceOptions {
   commitSource?: (
     request: import("@lcode/shared").GitCommitRequest,
   ) => Promise<import("@lcode/shared").GitCommitResult>;
-  /**
-   * 托管运行环境生命周期 port（spec: specs/worktree-runtime-environments.md §7）。
-   * 未注入 = Host 不支持托管环境；注入后环境准备失败则工作树准备整体失败。
-   */
-  prepareRuntimeEnvironment?: (params: {
-    bindingId: string;
-    checkoutPath: string;
-    requestId: string;
-    purpose: "worktree";
-  }) => Promise<{
-    environmentId: string;
-    revision: number;
-    /** setup/验证 spawn 用的冻结覆盖键值；来源 = resolveContext().envOverlay.set。 */
-    env?: Record<string, string>;
-    /** 工具来源标注（spec §15.1 P2-07a）：准备时点冻结，UI 只读投影。 */
-    toolSource?: "project-declaration" | "app-default" | "user-override" | "partial-host";
-  }>;
   dataDir: string;
   git: WorktreeGitPort;
   coordinator?: CheckoutCoordinator;
-  validate?: (
-    checkoutPath: string,
-    command: string,
-  ) => Promise<{ exitCode: number; output: string }>;
+  validate?: WorktreeCommandRunner;
   fault?: (point: string) => Promise<void>;
 }

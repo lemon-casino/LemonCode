@@ -7,6 +7,7 @@ import { useCallback, useEffect, useRef } from "react";
 import type { ILink, ILinkHandler, ITheme, IWindowsPty } from "@xterm/xterm";
 import type { IServiceAccessor } from "@lcode/services";
 import type { IDisposable } from "@lcode/rpc";
+import { useTerminalCreate, type TerminalExecutionScope } from "@/hooks/useTerminalService.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { isCoarseTouchDevice } from "@/lib/pickerFocus.js";
@@ -89,6 +90,7 @@ export function TerminalSession({
   sessionId,
   services,
   cwd,
+  executionScope,
   isVisible,
   isPanelResizing = false,
   isWindowsDesktop = false,
@@ -101,6 +103,7 @@ export function TerminalSession({
   sessionId: string;
   services: IServiceAccessor;
   cwd?: string;
+  executionScope?: TerminalExecutionScope;
   isVisible: boolean;
   isPanelResizing?: boolean;
   isWindowsDesktop?: boolean;
@@ -123,6 +126,7 @@ export function TerminalSession({
   workspaceKey?: string;
 }) {
   const { intl } = useLCodeIntl();
+  const createTerminal = useTerminalCreate(services.terminalService, executionScope);
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
@@ -552,8 +556,7 @@ export function TerminalSession({
 
       // 创建 PTY（异步）
       const initialCreateSize = initialTerminalSize ?? { cols: term.cols, rows: term.rows };
-      void services.terminalService
-        .create({ cols: initialCreateSize.cols, rows: initialCreateSize.rows, cwd })
+      void createTerminal({ cols: initialCreateSize.cols, rows: initialCreateSize.rows, cwd })
         .then(({ id, shell, fontFamily, fontSize, theme, fontFamilySource, windowsPty }) => {
           if (ptyCancelled) {
             // cleanup 已发生：杀掉这个孤儿 PTY，不进 entry
@@ -890,8 +893,7 @@ export function TerminalSession({
 
     // 优先使用 workspace 路径作为 terminal 工作目录，未设置时后端回退到 HOME
     const initialCreateSize = initialTerminalSize ?? { cols: term.cols, rows: term.rows };
-    terminalService
-      .create({ cols: initialCreateSize.cols, rows: initialCreateSize.rows, cwd })
+    createTerminal({ cols: initialCreateSize.cols, rows: initialCreateSize.rows, cwd })
       .then(({ id, shell, fontFamily, fontSize, theme, fontFamilySource, windowsPty }) => {
         if (disposed) {
           terminalService.dispose({ id });
@@ -1081,6 +1083,7 @@ export function TerminalSession({
     };
   }, [
     clearResizeThrottleTimer,
+    createTerminal,
     cwd,
     isWindowsDesktop,
     onShellLabelChange,

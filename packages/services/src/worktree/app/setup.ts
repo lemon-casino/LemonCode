@@ -65,7 +65,7 @@ export async function prepareWorktreeEnvironment(
     } catch (error) {
       result = { exitCode: 1, output: error instanceof Error ? error.message : String(error) };
     }
-    const results = [...setup.results, { command, ...result }];
+    const results = [...setup.results, { command, exitCode: result.exitCode, output: result.output.slice(-65536) }];
     value = await preparationProgress(
       context,
       value,

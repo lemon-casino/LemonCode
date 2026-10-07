@@ -1,303 +1,303 @@
 import { parse as parseToml } from "smol-toml";
-
-/**
- * 工具声明静态解析与版本冻结（spec: specs/worktree-runtime-environments.md §6.1/§6.2）。
- * 只做静态解析，不执行任意表达式；冲突显式报错不猜测。
- * 纯函数：文件内容由 app 层读取后注入，便于测试与跨平台一致。
- */
+import { valid, validRange } from "semver";
 
 export type DeclarationSource =
   | "mise.toml"
   | ".node-version"
   | ".nvmrc"
   | "package.json#packageManager"
-  | "package.json#engines";
-
+  | "package.json#engines"
+  | ".npmrc"
+  | "pnpm-workspace.yaml";
 export interface DeclarationIssue {
   code: "configuration-conflict" | "unsupported-declaration";
   source: DeclarationSource;
   field?: string;
   message: string;
 }
-
 export interface ToolDeclaration {
   key: string;
-  /** 规范化后的约束；exact=true 时即确切版本。 */
   constraint: string;
   exact: boolean;
   source: DeclarationSource;
 }
-
 export interface ProjectDeclarations {
   tools: ToolDeclaration[];
   packageManager?: { key: string; version: string; source: DeclarationSource };
   engines?: { key: string; constraint: string; source: DeclarationSource };
   lockfiles: { name: string; digest: string }[];
-  /** 多包管理器锁且无法确定 manager 时为 true：不猜测、明确非冻结策略。 */
   ambiguousLocks: boolean;
   issues: DeclarationIssue[];
+  configurationDigests?: Record<string, string>;
 }
-
 export interface DeclarationInputs {
   miseToml?: string;
   nodeVersionFile?: string;
   nvmrcFile?: string;
   packageJson?: string;
-  /** 项目根发现的锁文件名集合（内容无关，指纹只按名字集合 + 文件摘要）。 */
   lockfileNames: string[];
-  lockfileContents?: Record<string, string>;
+  lockfileDigests?: Readonly<Record<string, string>>;
+  configurationDigests?: Readonly<Record<string, string>>;
 }
-
-export const KNOWN_LOCKFILES: readonly string[] = [
-  "pnpm-lock.yaml",
-  "package-lock.json",
-  "yarn.lock",
-  "bun.lock",
-  "bun.lockb",
-];
-
-const EXACT_VERSION = /^v?(\d+\.\d+\.\d+(?:[-+][\w.-]+)?)$/;
+export const LOCKFILE_MANAGERS: Readonly<Record<string, string>> = {
+  "pnpm-lock.yaml": "pnpm",
+  "package-lock.json": "npm",
+  "yarn.lock": "yarn",
+  "bun.lock": "bun",
+  "bun.lockb": "bun",
+};
+export const KNOWN_LOCKFILES: readonly string[] = Object.keys(LOCKFILE_MANAGERS);
+export const CONFIGURATION_FILES = [".npmrc", "pnpm-workspace.yaml"] as const;
+export const isSha256Digest = (value: string | undefined): value is string =>
+  typeof value === "string" && /^[a-f0-9]{64}$/u.test(value);
 
 export function normalizeVersionText(raw: string): { constraint: string; exact: boolean } {
-  const trimmed = raw.trim();
-  const match = EXACT_VERSION.exec(trimmed);
-  if (match?.[1]) return { constraint: match[1], exact: true };
-  return { constraint: trimmed, exact: false };
+  const constraint = raw.trim().replace(/^v(?=\d)/u, "");
+  const exactVersion = valid(constraint);
+  return { constraint: exactVersion ?? constraint, exact: exactVersion !== null };
 }
-
-function sha256(content: string): string {
-  // # ponytail: FNV-1a 64 位指纹（domain 层禁 node:crypto；这只是声明指纹不是安全边界），
-  // 碰撞风险仅影响"指纹相同但内容不同"的极端情况，升级判定还会比对 revision 记录本身。
-  let hash = 0xcbf29ce484222325n;
-  for (let index = 0; index < content.length; index += 1) {
-    hash ^= BigInt(content.charCodeAt(index));
-    hash = (hash * 0x100000001b3n) & 0xffffffffffffffffn;
-  }
-  return hash.toString(16).padStart(16, "0");
+function issue(
+  issues: DeclarationIssue[],
+  source: DeclarationSource,
+  field: string,
+  message: string,
+  code: DeclarationIssue["code"] = "unsupported-declaration",
+) {
+  issues.push({ code, source, field, message });
 }
-
-function parseMiseTools(miseToml: string, issues: DeclarationIssue[]): ToolDeclaration[] {
-  let parsed: unknown;
-  try {
-    parsed = parseToml(miseToml);
-  } catch (error) {
-    issues.push({
-      code: "unsupported-declaration",
-      source: "mise.toml",
-      message: `mise.toml 不是合法 TOML：${error instanceof Error ? error.message : String(error)}`,
-    });
-    return [];
-  }
-  const tools = (parsed as { tools?: unknown } | null)?.tools;
-  if (tools === undefined) return [];
-  if (typeof tools !== "object" || tools === null || Array.isArray(tools)) {
-    issues.push({
-      code: "unsupported-declaration",
-      source: "mise.toml",
-      field: "tools",
-      message: "tools 段必须是表",
-    });
-    return [];
-  }
-  const result: ToolDeclaration[] = [];
-  for (const [key, value] of Object.entries(tools as Record<string, unknown>)) {
-    if (typeof value !== "string") {
-      // mise 支持表/数组等动态语法；静态解析不支持，明确上报不猜测。
-      issues.push({
-        code: "unsupported-declaration",
-        source: "mise.toml",
-        field: `tools.${key}`,
-        message: "只支持字符串版本约束，不支持表/数组等动态语法",
-      });
-      continue;
-    }
-    const { constraint, exact } = normalizeVersionText(value);
-    result.push({ key, constraint, exact, source: "mise.toml" });
-  }
-  return result;
-}
-
-function parseVersionFile(
-  content: string,
+function version(
+  value: unknown,
+  key: string,
   source: DeclarationSource,
   issues: DeclarationIssue[],
-): ToolDeclaration | null {
-  const lines = content
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !line.startsWith("#"));
-  if (lines.length !== 1) {
-    issues.push({
-      code: "unsupported-declaration",
-      source,
-      message: lines.length === 0 ? "文件为空" : "只支持单行版本声明",
-    });
-    return null;
+): ToolDeclaration | undefined {
+  if (typeof value !== "string" || !value.trim() || !validRange(value.trim())) {
+    const field =
+      source === "mise.toml"
+        ? `tools.${key}`
+        : source === "package.json#engines"
+          ? `engines.${key}`
+          : key;
+    issue(issues, source, field, "版本声明必须是支持的静态 semver 版本或范围");
+    return;
   }
-  const { constraint, exact } = normalizeVersionText(lines[0] ?? "");
-  return { key: "node", constraint, exact, source };
+  return { key, source, ...normalizeVersionText(value) };
 }
-
-function parsePackageJson(
-  packageJson: string,
-  issues: DeclarationIssue[],
-): {
-  packageManager?: { key: string; version: string; source: DeclarationSource };
-  engines?: { key: string; constraint: string; source: DeclarationSource };
-} {
-  let parsed: unknown;
+function versionFile(content: string, source: DeclarationSource, issues: DeclarationIssue[]) {
+  const lines = content
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith("#"));
+  if (lines.length !== 1) {
+    issue(issues, source, "node", lines.length ? "只支持单行版本声明" : "文件为空");
+    return;
+  }
+  return version(lines[0], "node", source, issues);
+}
+function packageDeclaration(content: string, issues: DeclarationIssue[]) {
+  let value: unknown;
   try {
-    parsed = JSON.parse(packageJson);
-  } catch (error) {
-    issues.push({
-      code: "unsupported-declaration",
-      source: "package.json#packageManager",
-      message: `package.json 不是合法 JSON：${error instanceof Error ? error.message : String(error)}`,
-    });
+    value = JSON.parse(content);
+  } catch {
+    issue(issues, "package.json#packageManager", "package.json", "package.json 不是合法 JSON");
     return {};
   }
-  const record = parsed as { packageManager?: unknown; engines?: unknown };
-  const result: ReturnType<typeof parsePackageJson> = {};
-  if (typeof record.packageManager === "string") {
-    // 形如 "pnpm@10.33.2+sha512..."；去掉校验和后按 key@version 解析。
-    const withoutHash = record.packageManager.split("+")[0] ?? record.packageManager;
-    const at = withoutHash.indexOf("@", 1);
-    const normalized =
-      at > 0 ? normalizeVersionText(withoutHash.slice(at + 1)) : { constraint: "", exact: false };
-    if (at > 0 && normalized.exact) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    issue(issues, "package.json#packageManager", "package.json", "package.json 必须是对象");
+    return {};
+  }
+  const pkg = value as Record<string, unknown>;
+  const result: Pick<ProjectDeclarations, "packageManager" | "engines"> = {};
+  if (pkg.packageManager !== undefined) {
+    const match =
+      typeof pkg.packageManager === "string"
+        ? /^(npm|pnpm)@([^+]+)(?:\+sha(?:224|256|384|512)\.[a-f\d]+)?$/u.exec(pkg.packageManager)
+        : null;
+    const exactVersion = match ? valid(match[2]) : null;
+    if (!match || !exactVersion) {
+      issue(
+        issues,
+        "package.json#packageManager",
+        "packageManager",
+        "packageManager 必须为受支持的 npm/pnpm 确切版本",
+      );
+    } else {
       result.packageManager = {
-        key: withoutHash.slice(0, at),
-        version: normalized.constraint,
+        key: match[1]!,
+        version: exactVersion,
         source: "package.json#packageManager",
       };
-    } else {
-      issues.push({
-        code: "unsupported-declaration",
-        source: "package.json#packageManager",
-        field: "packageManager",
-        message: `packageManager 必须是可解析的精确版本，收到 ${record.packageManager}`,
-      });
     }
   }
-  if (typeof record.engines === "object" && record.engines !== null) {
-    const node = (record.engines as Record<string, unknown>).node;
-    if (typeof node === "string" && node.trim().length > 0)
-      result.engines = { key: "node", constraint: node.trim(), source: "package.json#engines" };
+  if (pkg.engines !== undefined) {
+    if (!pkg.engines || typeof pkg.engines !== "object" || Array.isArray(pkg.engines)) {
+      issue(issues, "package.json#engines", "engines", "engines 必须是对象");
+    } else {
+      const node = (pkg.engines as Record<string, unknown>).node;
+      if (node !== undefined) {
+        const parsed = version(node, "node", "package.json#engines", issues);
+        if (parsed)
+          result.engines = { key: "node", constraint: parsed.constraint, source: parsed.source };
+      }
+    }
   }
   return result;
 }
 
-/**
- * 静态解析全部声明来源；冲突进 issues 不猜优先级。
- * 锁文件歧义（多 manager 锁且 packageManager 缺失）置 ambiguousLocks，由调用方走非冻结策略。
- */
 export function parseProjectDeclarations(inputs: DeclarationInputs): ProjectDeclarations {
   const issues: DeclarationIssue[] = [];
   const tools: ToolDeclaration[] = [];
-  if (inputs.miseToml !== undefined) tools.push(...parseMiseTools(inputs.miseToml, issues));
-  if (inputs.nodeVersionFile !== undefined) {
-    const node = parseVersionFile(inputs.nodeVersionFile, ".node-version", issues);
-    if (node) tools.push(node);
+  if (inputs.miseToml !== undefined) {
+    try {
+      const config = parseToml(inputs.miseToml);
+      if (
+        config.tools !== undefined &&
+        (!config.tools || typeof config.tools !== "object" || Array.isArray(config.tools))
+      ) {
+        issue(issues, "mise.toml", "tools", "tools 段必须是表");
+      } else if (config.tools) {
+        for (const [key, value] of Object.entries(config.tools)) {
+          if (!["node", "pnpm"].includes(key)) {
+            issue(issues, "mise.toml", `tools.${key}`, "首期只支持受控 Node/pnpm 后端");
+            continue;
+          }
+          const parsed = version(value, key, "mise.toml", issues);
+          if (parsed) tools.push(parsed);
+        }
+      }
+    } catch {
+      issue(issues, "mise.toml", "tools", "mise.toml 不是合法 TOML");
+    }
   }
-  if (inputs.nvmrcFile !== undefined) {
-    const node = parseVersionFile(inputs.nvmrcFile, ".nvmrc", issues);
-    if (node) tools.push(node);
+  for (const [content, source] of [
+    [inputs.nodeVersionFile, ".node-version"],
+    [inputs.nvmrcFile, ".nvmrc"],
+  ] as const) {
+    if (content === undefined) continue;
+    const parsed = versionFile(content, source, issues);
+    if (parsed) tools.push(parsed);
   }
   const pkg =
-    inputs.packageJson !== undefined
-      ? parsePackageJson(inputs.packageJson, issues)
-      : { packageManager: undefined, engines: undefined };
-
-  // 同 key 约束冲突：双方都保留在 issues，选择 mise.toml 优先（显式工具表优先于单行文件）。
-  const byKey = new Map<string, ToolDeclaration>();
-  for (const tool of tools) {
-    const existing = byKey.get(tool.key);
-    if (!existing) {
-      byKey.set(tool.key, tool);
-      continue;
-    }
-    if (existing.constraint !== tool.constraint) {
-      issues.push({
-        code: "configuration-conflict",
-        source: tool.source,
-        field: tool.key,
-        message: `${tool.key} 版本冲突：${existing.source} 说 ${existing.constraint}，${tool.source} 说 ${tool.constraint}`,
-      });
-      if (existing.source !== "mise.toml" && tool.source === "mise.toml") byKey.set(tool.key, tool);
+    inputs.packageJson === undefined ? {} : packageDeclaration(inputs.packageJson, issues);
+  const known = [
+    ...new Set(inputs.lockfileNames.filter((name) => KNOWN_LOCKFILES.includes(name))),
+  ].sort();
+  for (const name of inputs.lockfileNames) {
+    if (!KNOWN_LOCKFILES.includes(name))
+      issue(issues, "package.json#packageManager", name, `未知锁文件 ${name}`);
+  }
+  const managers = new Set(known.map((name) => LOCKFILE_MANAGERS[name]!));
+  const ambiguousLocks = managers.size > 1 && !pkg.packageManager;
+  if (ambiguousLocks)
+    issue(
+      issues,
+      "package.json#packageManager",
+      "lockfiles",
+      "存在多个包管理器锁且未声明 packageManager",
+      "configuration-conflict",
+    );
+  if (pkg.packageManager && managers.size && !managers.has(pkg.packageManager.key)) {
+    issue(
+      issues,
+      "package.json#packageManager",
+      "lockfiles",
+      `packageManager ${pkg.packageManager.key} 与锁文件 ${known.join(", ")} 不一致`,
+      "configuration-conflict",
+    );
+  }
+  if ([...managers].some((manager) => !["pnpm", "npm"].includes(manager)) && !pkg.packageManager) {
+    issue(issues, "package.json#packageManager", "lockfiles", "此包管理器尚未适配托管运行环境");
+  }
+  // 显式 manager 是安装策略的唯一选择；无关锁不得污染其内容摘要或触发另一 manager 安装。
+  const selectedLocks = pkg.packageManager
+    ? known.filter((name) => LOCKFILE_MANAGERS[name] === pkg.packageManager!.key)
+    : known;
+  const lockfiles = selectedLocks.map((name) => {
+    const digest = inputs.lockfileDigests?.[name];
+    if (!isSha256Digest(digest))
+      issue(issues, "package.json#packageManager", name, `锁文件 ${name} 缺少真实内容 SHA-256`);
+    return { name, digest: isSha256Digest(digest) ? digest : "missing" };
+  });
+  const configurationDigests: Record<string, string> = {};
+  for (const name of CONFIGURATION_FILES) {
+    const digest = inputs.configurationDigests?.[name];
+    if (digest === undefined) continue;
+    // 配置可含凭据；只接受内容摘要，不能把调用方误传的原文带入诊断或持久化。
+    if (isSha256Digest(digest)) configurationDigests[name] = digest;
+    else issue(issues, name, name, "配置缺少真实内容 SHA-256");
+  }
+  for (const key of ["node", "pnpm"]) {
+    const exact = tools.filter((tool) => tool.key === key && tool.exact);
+    if (new Set(exact.map((tool) => tool.constraint)).size > 1) {
+      issue(
+        issues,
+        exact[1]!.source,
+        key,
+        `${key} 的精确版本声明冲突：${exact.map((tool) => `${tool.source} ${tool.constraint}`).join("；")}`,
+        "configuration-conflict",
+      );
     }
   }
-
-  const knownLocks = inputs.lockfileNames.filter((name) => KNOWN_LOCKFILES.includes(name));
-  const unknownLocks = inputs.lockfileNames.filter((name) => !KNOWN_LOCKFILES.includes(name));
-  for (const name of unknownLocks)
-    issues.push({
-      code: "unsupported-declaration",
-      source: "mise.toml",
-      field: name,
-      message: `未知锁文件 ${name}，不参与安装策略`,
-    });
-  const managersOnDisk = new Set<string>(
-    knownLocks.map((name) => {
-      if (name === "pnpm-lock.yaml") return "pnpm";
-      if (name === "package-lock.json") return "npm";
-      if (name === "yarn.lock") return "yarn";
-      return "bun";
-    }),
-  );
-  const ambiguousLocks = managersOnDisk.size > 1 && pkg.packageManager === undefined;
-  if (ambiguousLocks)
-    issues.push({
-      code: "configuration-conflict",
-      source: "package.json#packageManager",
-      field: "lockfiles",
-      message: `存在多个包管理器锁 ${[...managersOnDisk].join("/")} 且 package.json 未声明 packageManager，不得猜测`,
-    });
-  // packageManager 与磁盘锁不一致也上报（安装策略要展示双方）。
-  if (pkg.packageManager && managersOnDisk.size === 1 && !managersOnDisk.has(pkg.packageManager.key))
-    issues.push({
-      code: "configuration-conflict",
-      source: "package.json#packageManager",
-      field: "packageManager",
-      message: `packageManager 声明 ${pkg.packageManager.key}，但磁盘锁属于 ${[...managersOnDisk].join("/")}`,
-    });
-
-  // engines.node 存在但没有任何 Node 版本声明来源：确切版本无从选定，显式冲突（spec §6.1）。
-  if (pkg.engines && ![...byKey.values()].some((tool) => tool.key === "node"))
-    issues.push({
-      code: "configuration-conflict",
-      source: "package.json#engines",
-      field: "engines.node",
-      message: "engines.node 存在但没有 Node 版本声明来源（mise.toml/.node-version/.nvmrc）",
-    });
-
-  const lockfiles = knownLocks.map((name) => ({
-    name,
-    digest: sha256(inputs.lockfileContents?.[name] ?? name),
-  }));
+  const declaredPnpm = tools.find((tool) => tool.key === "pnpm" && tool.exact);
+  if (
+    pkg.packageManager?.key === "pnpm" &&
+    declaredPnpm &&
+    declaredPnpm.constraint !== pkg.packageManager.version
+  ) {
+    issue(
+      issues,
+      "package.json#packageManager",
+      "pnpm",
+      "package.json#packageManager 与 mise.toml tools.pnpm 版本冲突",
+      "configuration-conflict",
+    );
+  }
   return {
-    tools: [...byKey.values()],
-    ...(pkg.packageManager ? { packageManager: pkg.packageManager } : {}),
-    ...(pkg.engines ? { engines: pkg.engines } : {}),
+    tools,
+    ...pkg,
     lockfiles,
     ambiguousLocks,
     issues,
+    ...(inputs.configurationDigests ? { configurationDigests } : {}),
   };
 }
 
-/** 声明指纹：tools/manager/engines/锁摘要的稳定哈希；revision 升级判据（spec §6.2）。 */
-export function digestDeclarations(declarations: ProjectDeclarations): string {
-  return sha256(
-    JSON.stringify({
-      tools: declarations.tools,
-      packageManager: declarations.packageManager ?? null,
-      engines: declarations.engines ?? null,
-      lockfiles: declarations.lockfiles,
-      ambiguousLocks: declarations.ambiguousLocks,
-    }),
-  );
+/** 只返回规范序列化；app 对结果计算 SHA-256，domain 不伪装为哈希或依赖 Node crypto。 */
+export function serializeDeclarations(declarations: ProjectDeclarations): string {
+  const canonical = <T>(values: T[]) =>
+    values.sort((a, b) => {
+      const left = JSON.stringify(a);
+      const right = JSON.stringify(b);
+      return left < right ? -1 : left > right ? 1 : 0;
+    });
+  const manager = declarations.packageManager;
+  const engines = declarations.engines;
+  return JSON.stringify({
+    tools: canonical(
+      declarations.tools.map(({ key, constraint, exact, source }) => ({
+        key,
+        constraint,
+        exact,
+        source,
+      })),
+    ),
+    packageManager: manager
+      ? { key: manager.key, version: manager.version, source: manager.source }
+      : null,
+    engines: engines
+      ? { key: engines.key, constraint: engines.constraint, source: engines.source }
+      : null,
+    lockfiles: canonical(
+      declarations.lockfiles
+        .filter(({ name }) => !manager || LOCKFILE_MANAGERS[name] === manager.key)
+        .map(({ name, digest }) => ({ name, digest: isSha256Digest(digest) ? digest : "missing" })),
+    ),
+    configurationDigests: Object.fromEntries(
+      CONFIGURATION_FILES.flatMap((name) => {
+        const digest = declarations.configurationDigests?.[name];
+        return isSha256Digest(digest) ? [[name, digest]] : [];
+      }),
+    ),
+    ambiguousLocks: declarations.ambiguousLocks,
+  });
 }
-
-/**
- * engines 约束检查见 ./engines.ts（checkEnginesConstraint）；
- * 本文件只负责声明静态解析与指纹。
- */

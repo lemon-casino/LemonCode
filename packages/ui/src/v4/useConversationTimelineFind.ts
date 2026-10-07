@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ConversationRow, SessionPhase } from "@lcode/shared/lcode-protocol-v4";
 import {
   applyConversationFindHighlights,
@@ -140,6 +140,33 @@ export function useConversationTimelineFind({
       ? (conversationFindIndex.matches[resolvedFindActiveIndex] ?? null)
       : null;
 
+  const lastReportedFindStateRef = useRef<{
+    handler: typeof onConversationFindMatchStateChange;
+    matchCount: number;
+    activeIndex: number;
+  } | null>(null);
+  const reportFindState = useCallback(
+    (matchCount: number, activeIndex: number) => {
+      const previous = lastReportedFindStateRef.current;
+      // 修复依据：等值 rows 的新引用会重建索引；重复上报同值会让父级回写状态后再次触发本 effect。
+      if (
+        previous !== null &&
+        previous.handler === onConversationFindMatchStateChange &&
+        previous.matchCount === matchCount &&
+        previous.activeIndex === activeIndex
+      ) {
+        return;
+      }
+      lastReportedFindStateRef.current = {
+        handler: onConversationFindMatchStateChange,
+        matchCount,
+        activeIndex,
+      };
+      onConversationFindMatchStateChange?.({ matchCount, activeIndex });
+    },
+    [onConversationFindMatchStateChange],
+  );
+
   useEffect(() => {
     if (!conversationFindIndex.query) {
       findActiveKeyRef.current = null;
@@ -148,7 +175,7 @@ export function useConversationTimelineFind({
       lastFindHighlightScrollKeyRef.current = "";
       setResolvedFindActiveIndex(-1);
       clearConversationFindHighlights();
-      onConversationFindMatchStateChange?.({ matchCount: 0, activeIndex: -1 });
+      reportFindState(0, -1);
       return;
     }
 
@@ -176,11 +203,8 @@ export function useConversationTimelineFind({
     lastFindQueryRef.current = conversationFindIndex.query;
     lastExternalActiveIndexRef.current = nextActiveIndex;
     setResolvedFindActiveIndex(nextActiveIndex);
-    onConversationFindMatchStateChange?.({
-      matchCount: conversationFindIndex.matchCount,
-      activeIndex: nextActiveIndex,
-    });
-  }, [conversationFindActiveIndex, conversationFindIndex, onConversationFindMatchStateChange]);
+    reportFindState(conversationFindIndex.matchCount, nextActiveIndex);
+  }, [conversationFindActiveIndex, conversationFindIndex, reportFindState]);
 
   useEffect(() => {
     if (

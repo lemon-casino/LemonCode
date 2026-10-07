@@ -3,12 +3,19 @@ import type { AppSettings } from "./protocol.js";
 
 export const sessionExecutionModeSchema = z.enum(["local", "worktree"]);
 export type SessionExecutionMode = z.infer<typeof sessionExecutionModeSchema>;
+/**
+ * 工作树执行的环境策略。inherit 由已持久化/项目策略决定；managed 才是显式托管请求；
+ * local 明确沿用 Host 本机环境。旧 Host/旧记录缺省该字段，不得据此隐式升级。
+ */
+export const runtimeEnvironmentPolicySchema = z.enum(["inherit", "managed", "local"]);
+export type RuntimeEnvironmentPolicy = z.infer<typeof runtimeEnvironmentPolicySchema>;
 export const inheritedBooleanSchema = z.enum(["inherit", "enabled", "disabled"]);
 export const gitCommitReviewModeSchema = z.enum(["off", "draft", "draft-and-review"]);
 export type GitCommitReviewMode = z.infer<typeof gitCommitReviewModeSchema>;
 export const projectExecutionPreferenceSchema = z
   .object({
     executionMode: z.enum(["inherit", "local", "worktree"]).optional(),
+    environmentPolicy: runtimeEnvironmentPolicySchema.optional(),
     gitCommitReviewMode: z.enum(["inherit", ...gitCommitReviewModeSchema.options]).optional(),
     // 旧两项仅用于兼容读取；显式统一模式（含 inherit）优先。
     autoGenerateGitCommitMessage: inheritedBooleanSchema.optional(),
@@ -91,6 +98,9 @@ export function resolveProjectExecutionPolicy(
     gitCommitReviewMode:
       gitCommitReviewPreference === "inherit" ? globalReviewMode : gitCommitReviewPreference,
     gitCommitReviewPreference,
+    // 默认放行仍由 Host 能力决定；inherit 不能把旧本机会话隐式升级为托管。
+    environmentPreference: project?.environmentPolicy ?? "inherit",
+    environmentPolicy: project?.environmentPolicy === "managed" ? "managed" as const : "local" as const,
     sources,
     setupCommands: project?.setupCommands ?? [],
     setupCommandsConfigured: project?.setupCommands !== undefined,

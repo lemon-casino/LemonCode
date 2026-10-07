@@ -62,6 +62,11 @@ export function WorktreeDiscardControl({
               {intl.formatMessage({ id: "worktree.discardDescription" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {binding.environmentRef ? (
+            <p className="text-ui-sm text-foreground-subtle">
+              {intl.formatMessage({ id: "runtimeEnvironment.lifecycleData" })}
+            </p>
+          ) : null}
           <dl className="space-y-2 text-ui-sm">
             <div>
               <dt className="text-foreground-subtle">

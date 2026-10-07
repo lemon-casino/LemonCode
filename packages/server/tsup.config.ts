@@ -9,6 +9,9 @@ const { loadBuiltinProviderConfig } = await import(
 const { stageThirdPartyNotices } = await import(
   pathToFileURL(resolve(import.meta.dirname, "../../scripts/third-party-notices.mjs")).href
 );
+const { stageServerMiseRuntimeAssets } = await import(
+  pathToFileURL(resolve(import.meta.dirname, "../../scripts/prepare-remote-mise-assets.mjs")).href
+);
 
 // tsup config 可能从不同 cwd 加载，基于配置文件自身目录解析仓库根 package.json。
 const rootPackageJsonPath = resolve(import.meta.dirname, "../../package.json");
@@ -51,6 +54,8 @@ export const SERVER_HTTP_EXTERNAL_DEPENDENCIES = [
 export default defineConfig({
   onSuccess: async () => {
     await stageThirdPartyNotices(resolve(import.meta.dirname, "dist"));
+    // 修复：HTTP/独立 server 与 remote CJS 都消费 runtimeRoot/tools/mise，不能只桌面随包。
+    await stageServerMiseRuntimeAssets({ runtimeRoot: resolve(import.meta.dirname, "dist") });
   },
   entry: { "entry-http": "src/entry-http.ts" },
   outDir: "dist",

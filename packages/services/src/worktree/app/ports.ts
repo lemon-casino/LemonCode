@@ -1,5 +1,7 @@
 import type { WorktreeGitPort } from "../nodeTypes.js";
-import type { WorktreeBinding, WorktreeIntegration, WorktreeSnapshot } from "../contract.js";
+import type {
+  WorktreeBinding, WorktreeIntegration, WorktreeSnapshot, WorktreeRuntimePorts, WorktreeCommandRunner,
+} from "../contract.js";
 
 export interface WorktreeStore {
   key(value: string): string;
@@ -49,7 +51,7 @@ export interface WorktreeGit extends WorktreeGitPort {
   restoreFiles(binding: WorktreeBinding): Promise<void>;
   matchesSnapshot(binding: WorktreeBinding, checkIgnored?: boolean): Promise<boolean>;
 }
-export interface WorktreeContext {
+export interface WorktreeContext extends WorktreeRuntimePorts {
   collectDiscardSessions?: (binding: WorktreeBinding) => Promise<string[]>;
   discardSessions?: (binding: WorktreeBinding, sessionIds: string[]) => Promise<void>;
   commitSource?: (
@@ -58,32 +60,9 @@ export interface WorktreeContext {
   store: WorktreeStore;
   git: WorktreeGit;
   fault(point: string): Promise<void>;
-  runSetup(
-    checkout: string,
-    command: string,
-    onOutput?: (output: string) => Promise<void>,
-    /** 冻结上下文覆盖键值（如 PATH 前缀）；spawn 时合并进宿主环境，不改 Host process.env。 */
-    env?: Record<string, string>,
-  ): Promise<{ exitCode: number; output: string }>;
+  runSetup: WorktreeCommandRunner;
+  declarationDigest(checkout: string): Promise<string>;
   detectSetup(checkout: string): Promise<string[]>;
   detectValidation(checkout: string): Promise<string[]>;
   copyIgnoredFiles(source: string, checkout: string, paths: string[]): Promise<void>;
-  /**
-   * 托管运行环境生命周期 port（spec: specs/worktree-runtime-environments.md §7）。
-   * 环境事实 owner = RuntimeEnvironmentService；WorktreeService 只经此 port 调用，
-   * 不共享实现。未注入 = Host 不支持托管环境，保持现状语义。
-   */
-  prepareRuntimeEnvironment?: (params: {
-    bindingId: string;
-    checkoutPath: string;
-    requestId: string;
-    purpose: "worktree";
-  }) => Promise<{
-    environmentId: string;
-    revision: number;
-    /** setup/验证 spawn 用的冻结覆盖键值；来源 = resolveContext().envOverlay.set。 */
-    env?: Record<string, string>;
-    /** 工具来源标注（spec §15.1 P2-07a）：准备时点冻结，UI 只读投影。 */
-    toolSource?: "project-declaration" | "app-default" | "user-override" | "partial-host";
-  }>;
 }

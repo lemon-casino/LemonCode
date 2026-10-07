@@ -69,6 +69,14 @@ export async function closeClientAndTransport(
   if (client) client.onclose = undefined;
   // MCP SDK close 只保证直接 stdio 子进程退出，npx/npm wrapper 拉起的 MCP server
   // 或 chrome-devtools-mcp watchdog 可能残留；这里先按进程树显式回收，再走 SDK close 清理协议状态。
+  const managed =
+    transport instanceof ProcessTreeStdioClientTransport && transport.managedEnvironment;
+  if (managed) {
+    // 托管 transport 自持真实 child 与退出屏障；旧路径吞掉 stop 错误会提前释放环境 consumer。
+    await transport.close();
+    await client?.close();
+    return;
+  }
   await this.terminateStdioProcessTree(name, transport);
 
   try {

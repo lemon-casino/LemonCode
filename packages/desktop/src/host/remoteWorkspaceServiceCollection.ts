@@ -4,6 +4,7 @@ import {
   IFileService,
   IGitService,
   IWorktreeService,
+  IRuntimeEnvironmentService,
   IGitCheckpointService,
   IGitBackupService,
   ISystemService,
@@ -366,6 +367,13 @@ export function createRemoteWorkspaceServiceCollection(params: {
       createSettingsSyncService({ settingService: localSettingService }),
     )
     .register(IPromptAttachmentTransferService, params.promptAttachmentTransferService);
+  // 手机 attachment 没有 Renderer 合并层；环境缺失保持不可用，禁止注册本机第二 owner。
+  if (params.connectionServices.runtimeEnvironmentService) {
+    services.register(
+      IRuntimeEnvironmentService,
+      params.connectionServices.runtimeEnvironmentService,
+    );
+  }
   // 手机 attachment 没有 Renderer 合并层；这里只转发远端 owner，缺失时保持不可用。
   if (params.connectionServices.gitBackupService) {
     services.register(IGitBackupService, params.connectionServices.gitBackupService);

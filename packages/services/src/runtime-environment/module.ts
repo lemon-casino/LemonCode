@@ -4,7 +4,7 @@
  */
 export const runtimeEnvironmentModule = {
   id: "runtime-environment",
-  requires: ["shared", "services"],
+  requires: ["shared", "rpc", "services", "worktree"],
   provides: ["runtime-environment-service"],
   publicEntrypoints: ["contract.ts", "node.ts"],
 } as const;

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
+import { access } from "node:fs/promises";
 import test from "node:test";
 import { createWorktreeService } from "./node.js";
 import { fixture } from "./testFixture.js";
 
-test("discard journals shared chat IDs and retries cleanup after directory/ref removal", async (t) => {
+test("discard journals shared chat IDs and preserves directory/refs until chat cleanup succeeds", async (t) => {
   const f = await fixture(t);
   const binding = await f.service.prepare({
     workspacePath: f.repo,
@@ -34,8 +35,10 @@ test("discard journals shared chat IDs and retries cleanup after directory/ref r
   assert.equal(interrupted?.status, "deleting");
   assert.match(interrupted?.error ?? "", /chat cleanup unavailable/);
   assert.deepEqual(interrupted?.deletion?.sessionIds, ["owner", "fork", "hidden"]);
-  assert.equal(await f.command(f.repo, "branch", "--list", binding.branch), "");
+  assert.notEqual(await f.command(f.repo, "branch", "--list", binding.branch), "");
+  await access(binding.checkoutPath);
   assert.equal((await service.archive(request)).status, "deleted");
+  assert.equal(await f.command(f.repo, "branch", "--list", binding.branch), "");
   assert.equal(collections, 1);
   assert.equal(attempts, 2);
   await service.archive(request);

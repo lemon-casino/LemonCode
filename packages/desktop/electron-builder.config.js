@@ -26,6 +26,16 @@ import {
 } from "./scripts/macos-cua-helper-app.mjs";
 import { resolveLinuxCuaNativePackageRoots } from "./scripts/linux-cua-native-package.mjs";
 import { stageCuaNodeRuntimeAssets } from "./scripts/windows-cua-runtime-assets.mjs";
+import {
+  resolveMiseTarget,
+  resolveMiseExtraResource,
+  validateMiseRuntimeAssets,
+  validatePackagedMiseRuntimeAssets,
+} from "./scripts/prepare-mise-runtime-assets.mjs";
+import {
+  signPackagedMiseRuntimeAssets,
+  verifySignedMiseRuntimeAssets,
+} from "./scripts/sign-mise-runtime-assets.mjs";
 const ELECTRON_BUILDER_ARCH = {
   1: "x64",
   3: "arm64",
@@ -71,6 +81,11 @@ import {
 
 const buildMetadata = getBuildMetadata();
 const targetPlatform = getTargetPlatform();
+const miseTarget = resolveMiseTarget({
+  os: targetPlatform.os,
+  arch: targetPlatform.arch,
+  libc: process.env.LCODE_MISE_LIBC ?? process.env.LCODE_TARGET_LIBC,
+});
 const builtinProviderConfig = await loadBuiltinProviderConfig();
 const desktopProductIdentity = resolveDesktopProductIdentity({
   ...process.env,
@@ -80,7 +95,8 @@ const nativeSearchReleasePlan = resolveNativeSearchReleasePlan({
   platform: targetPlatform.os,
   arch: targetPlatform.arch,
 });
-const rawMacSigningIdentity = process.env.APPLE_SIGNING_IDENTITY || process.env.CSC_NAME;
+const rawMacSigningIdentity =
+  process.env.LCODE_CODESIGN_IDENTITY || process.env.APPLE_SIGNING_IDENTITY || process.env.CSC_NAME;
 const macSigningIdentity =
   rawMacSigningIdentity?.replace(/^Developer ID Application:\s*/, "") ?? null;
 const shouldEnableMacSigning =
@@ -501,6 +517,9 @@ export default {
     `node_modules/node-pty/prebuilds/${targetPlatform.key}/**`,
   ],
   beforePack: async (context) => {
+    await runTimedAsync("beforePack:validateBundledMise", () =>
+      validateMiseRuntimeAssets({ desktopRoot: desktopPackageRoot, target: miseTarget }),
+    );
     runTimedSync("beforePack:restoreTargetNodePtyPrebuild", () =>
       restoreTargetNodePtyPrebuild({ desktopPackageRoot, targetPlatform }),
     );
@@ -578,6 +597,20 @@ export default {
         ...resolveMacCuaNodeBuildInput(process.env),
       }),
     );
+    if (actualCuaTarget.os === "darwin") {
+      await runTimedAsync("afterPack:signPackagedMise", () =>
+        signPackagedMiseRuntimeAssets({
+          resourcesDir: resolvePackagedResourcesDir(context),
+          target: miseTarget,
+        }),
+      );
+    }
+    await runTimedAsync("afterPack:validatePackagedMise", () =>
+      validatePackagedMiseRuntimeAssets({
+        resourcesDir: resolvePackagedResourcesDir(context),
+        target: miseTarget,
+      }),
+    );
     runTimedSync("afterPack:assertPackagedNativeResourcePolicy", () =>
       assertPackagedNativeResourcePolicy(context),
     );
@@ -589,6 +622,13 @@ export default {
         writeWindowsInstallManifest(context),
       );
     }
+  },
+  afterSign: async (context) => {
+    if (context.electronPlatformName !== "darwin") return;
+    await verifySignedMiseRuntimeAssets({
+      resourcesDir: resolvePackagedResourcesDir(context),
+      target: miseTarget,
+    });
   },
   extraResources: [
     { from: resolve(workspaceRoot, noticesFileName), to: noticesFileName },
@@ -666,6 +706,7 @@ export default {
       to: `tools/${toolId}`,
       filter: ["**/*"],
     })),
+    resolveMiseExtraResource(miseTarget),
   ],
   // postinstall 会先优先复用 node-pty 自带的 Windows 预编译产物，其他平台再按需 electron-rebuild。
   // 打包阶段统一复用安装时准备好的原生文件，避免 electron-builder 再触发一轮不受控的本地编译。
@@ -703,8 +744,9 @@ export default {
     gatekeeperAssess: false,
     entitlements: "build/entitlements.mac.plist",
     entitlementsInherit: "build/entitlements.mac.inherit.plist",
-    // glm 与通用 tools 可执行文件已在打包前的独立预签名阶段完成签名；electron-builder
-    // 在签主 app 时若继续深度扫描这些目录，会显著拉长 macOS codesign 时长。
+    // mise 由 afterPack 显式 codesign（已有自签身份或 ad-hoc）并更新 binarySha256；
+    // 原有 glm/search tools 忽略策略保持不变，不能把 signIgnore 本身视为签名证明。
+    // 在签主 app 时若重复签 mise，会再次改字节，导致最终 manifest 与包内二进制失配。
     // 这里按“任意前缀 + Contents/Resources”匹配绝对路径，避免 ^Contents/... 在 CI 中无法命中。
     // 命中后可跳过已预签名目录的重复签名/遍历，同时保留主 app 与框架签名。
     // CUA Helper 不在忽略列表：它由 afterPack 从开放源码生成，必须在随后与主 app 一起签名，

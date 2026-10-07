@@ -4,6 +4,9 @@ import {
   lcodeWorkspaceRefSchema,
   worktreeExecutionBindingSchema,
   worktreeGetBindingResultSchema,
+  runtimeEnvironmentCapabilitiesResultSchema,
+  runtimeEnvironmentReferenceSchema,
+  type RuntimeEnvironmentAction,
   type ExecutionIntent,
   type LCodeAgentMcpServer,
   type LCodeWorkspaceRef,
@@ -15,6 +18,13 @@ import { filesystemMcpRoots, remapFilesystemMcpServers } from "./worktree-mcp-sc
 import { retainRuntimeEnvironmentSession } from "./runtime-environment-session.js";
 
 export const WORKTREE_BINDING_ENTRY = "runtime/worktree_binding";
+const MANAGED_ENVIRONMENT_PROTOCOL_VERSION = 1;
+const MANAGED_EXECUTION_ACTIONS: readonly RuntimeEnvironmentAction[] = [
+  "prepare",
+  "resolveContext",
+  "retainSession",
+  "releaseConsumer",
+];
 export class WorktreePreparationError extends Error {
   readonly reasonCode = "fault.command.worktreePreparationFailed";
   constructor(cause: unknown) {
@@ -67,6 +77,25 @@ export async function prepareProtocolExecution(
   ) {
     throw new Error("Worktree execution origin does not match the requested workspace");
   }
+  if (input.execution.environmentPolicy === "managed") {
+    // 托管能力属于 Host，不是 CLI；先协商再产生 checkout 副作用，缺方法/动作不能降级。
+    const { capabilities } = await context.requestClient(
+      lcodeProtocolMethods.runtimeEnvironmentCapabilities,
+      {
+        workspacePath: origin.workspacePath,
+        ...(origin.workspaceIdentity ? { workspaceIdentity: origin.workspaceIdentity } : {}),
+      },
+      runtimeEnvironmentCapabilitiesResultSchema,
+    );
+    if (
+      !capabilities.managedEnvironments ||
+      capabilities.protocolVersion !== MANAGED_ENVIRONMENT_PROTOCOL_VERSION ||
+      MANAGED_EXECUTION_ACTIONS.some((action) => !capabilities.actions?.includes(action))
+    )
+      throw new Error(
+        `Host managed runtime environment capability unavailable: ${capabilities.missingReason ?? "protocol or required actions missing"}`,
+      );
+  }
   const binding = await context.requestClient(
     lcodeProtocolMethods.worktreePrepareExecution,
     {
@@ -76,6 +105,7 @@ export async function prepareProtocolExecution(
       workspacePath: origin.workspacePath,
       workspaceIdentity: origin.workspaceIdentity,
       projectId: input.execution.projectId,
+      environmentPolicy: input.execution.environmentPolicy,
       baseRef: input.execution.baseRef,
       setupCommands: input.execution.setupCommands,
       copyIgnoredPaths: input.execution.copyIgnoredPaths,
@@ -85,6 +115,11 @@ export async function prepareProtocolExecution(
     worktreeExecutionBindingSchema,
   );
   assertReadyBinding(binding, input.taskId);
+  if (
+    input.execution.environmentPolicy === "managed" &&
+    !runtimeEnvironmentReferenceSchema.safeParse(binding.environmentRef).success
+  )
+    throw new Error("Host returned a worktree without a ready managed environment reference");
   if (
     binding.originalWorkspacePath !== origin.workspacePath ||
     binding.originalWorkspaceIdentity !== origin.workspaceIdentity
@@ -187,6 +222,8 @@ export async function restoreProtocolExecution(
   assertReadyBinding(binding, reference.bindingOwnerTaskId ?? input.taskId);
   if (
     binding.id !== reference.executionBindingId ||
+    binding.originalWorkspacePath !== reference.originWorkspacePath ||
+    binding.originalWorkspaceIdentity !== reference.originWorkspaceIdentity ||
     binding.workspacePath !== reference.workspacePath ||
     binding.workspaceIdentity !== reference.workspaceIdentity ||
     input.persistedWorkspace.workspacePath !== reference.workspacePath ||
@@ -202,7 +239,9 @@ export async function restoreProtocolExecution(
   if (
     reference.environmentRef &&
     (binding.environmentRef?.environmentId !== reference.environmentRef.environmentId ||
-      binding.environmentRef?.revision !== reference.environmentRef.revision)
+      binding.environmentRef?.revision !== reference.environmentRef.revision ||
+      (reference.environmentRef.manifestDigest !== undefined &&
+        binding.environmentRef?.manifestDigest !== reference.environmentRef.manifestDigest))
   ) {
     throw new Error(
       `Persisted worktree environment reference does not match its owner binding: ` +
@@ -211,7 +250,8 @@ export async function restoreProtocolExecution(
     );
   }
   const workspace = {
-    ...bindingWorkspace(binding),
+    // 旧会话没有环境引用不能从 Host 当前 binding 偷渡升级；仅受信维护 CAS 能改持久引用。
+    ...bindingWorkspace({ ...binding, environmentRef: reference.environmentRef }),
     ...(reference.bindingOwnerTaskId ? { bindingOwnerTaskId: reference.bindingOwnerTaskId } : {}),
     ...(reference.remoteSessionId ? { remoteSessionId: reference.remoteSessionId } : {}),
   };

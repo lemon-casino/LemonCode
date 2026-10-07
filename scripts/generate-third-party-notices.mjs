@@ -3,6 +3,7 @@ import { join, relative } from "node:path";
 import { collectNpmNotices, hashBytes } from "./third-party-npm.mjs";
 import {
   noticesFileName,
+  readMiseNotices,
   readNativeSearchNotices,
   repositoryRoot,
 } from "./third-party-notices.mjs";
@@ -27,6 +28,9 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
   await readInput("pnpm-lock.yaml");
   await readInput("pnpm-workspace.yaml");
   await readInput("third-party/native-search/sources.json");
+  const mise = await readMiseNotices(root, { verify: true });
+  await readInput("third-party/mise/sources.json");
+  await readInput(mise.inventory.component.licenseFile);
   const { packages, notInstalled, workspaceManifests } = await collectNpmNotices(root, overrides);
   // 修复：递归扫描会把 bundled-agents/mock-cdn 的可删除缓存当作源码输入，重建立即失效。
   // workspace 边界由 pnpm 解析，同一份项目集合用于依赖图和 manifest 新鲜度检查。
@@ -160,13 +164,18 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
     );
   }
   sections.push("## Native search tools", "````text\n" + native.bytes.toString("utf8") + "\n````");
+  sections.push(
+    "## mise",
+    `- mise@${mise.inventory.component.version} — ${mise.inventory.component.license}; source: ${mise.inventory.component.source}; license: ${mise.inventory.component.licenseSource}`,
+    "````text\n" + mise.bytes.toString("utf8") + "\n````",
+  );
   const bytes = Buffer.from(`${sections.join("\n\n")}\n`);
   const inventory = {
     schemaVersion: 1,
     inputHashEncoding:
       "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
     scope:
-      "Production dependency union across current workspace projects, copied source/assets and native tools; not a per-installer SBOM or a certification of all licensing obligations.",
+      "Production dependency union across current workspace projects, copied source/assets, native search tools and the bundled mise backend; not a per-installer SBOM or a certification of all licensing obligations.",
     noticesSha256: hashBytes(bytes),
     inputs: Object.fromEntries(Object.entries(inputs).sort(([a], [b]) => a.localeCompare(b, "en"))),
     packages: packageInventory,
@@ -176,6 +185,7 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
     exceptions: overrides.filter((item) => item.acceptedMissingNotice || item.evidenceKind),
     embedded,
     runtimes,
+    mise: mise.inventory,
     reviewRequired: [
       // 修复：复制源码的缺口此前只写在 README，重生成清单后严格门禁也无法阻断。
       ...copied

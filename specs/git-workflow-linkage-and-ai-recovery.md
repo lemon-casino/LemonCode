@@ -36,6 +36,14 @@ sequenceDiagram
 
 注册表仅保存当前窗口的 composer 接收回调；桥接状态仅保存一次插入意图，不保存第二份可编辑草稿、不派发 Agent 命令。正文、附件和模型由现有 Composer 链路管理。Workspace key 为 identity.trim() || path，附会话 ID；接收器卸载后按钮不可用，旧 token 的清理不能移除新注册。
 
+## 环境准备诊断与候选收据补充（M4-07 / M5-04）
+
+- GitFailureDraft 复用原追加通路，增加环境 owner 的结构化 `code/stage/retryable/diagnostic` 白名单；保留 purpose、environmentId/revision、manifestDigest、工具来源、路径、命令、退出码、stderr 尾部、日志引用、监听地址、阻塞者和副作用。仍统一脱敏与截断，不把凭据或内部 lease/token 当 UI 字段。
+- 无 sessionId 时以现有 workspace identity/path 的草稿 receiver 接收；该 key 与真实会话隔离。作用域改变后迟到回调拒绝；未挂载接收器时解释不可用，不创建会话绕过。插入仅追加原正文，附件和模型不变，也不调用发送。
+- 失败、重试与取消从 owner 返回的结构化状态展示；取消本地等待不等于 owner 已取消。保持原 requestId 对账，重连只读 snapshot。无法确认状态时提供刷新，不声称 ready。
+- candidate 的 skipValidation 在 continueIntegration 与 publishIntegration 都显式传递。仅 owner `candidateEvidence` 与 `validationReceipts` 可证明验证/跳过的精确候选；空命令加 UI 勾选不是收据。`outcome: skipped` 且 `skipAcknowledged: true` 展示用户明确跳过，不称验证成功；candidate/source/target/environment/manifest 变化使旧证据失效，需重新验证。
+- 交互 fixture 以真实共享组件和 hook 验证追加与请求边界，和真实 owner 集成验证分别报告。必须覆盖无会话草稿、scope 迟到、保留正文附件、中文长路径、键盘及 390px；不得以 fixture 的 ready 收据声称生产 owner 已通过。
+
 ## 验收
 
 1. 合并至 L-GO 后返回来源，选择 main 准备新合并；旧结果保留 L-GO 发布上下文。刷新/其他窗口读到相同导航，epoch 草稿隔离仍成立。

@@ -12,18 +12,17 @@ export interface RuntimeRequestIdentity {
   workspaceIdentity?: string;
   remoteSessionId?: string;
 }
-function samePath(left: string, right: string): boolean {
+export function sameRuntimeWorkspacePath(left: string, right: string): boolean {
   return process.platform === "win32"
     ? resolve(left).toLowerCase() === resolve(right).toLowerCase()
     : resolve(left) === resolve(right);
 }
 
 /** 授权来自 attached workspace 内真实 task/alias，不从 cwd 或客户端自报 owner 推导。 */
-export async function authorizeRuntimeBinding(
+export async function authorizeRuntimeBindingIdentity(
   worktrees: IWorktreeService,
   workspace: RuntimeClientWorkspace,
   request: RuntimeRequestIdentity,
-  environmentRef: RuntimeEnvironmentReference,
 ): Promise<WorktreeBinding> {
   if ((workspace.remoteSessionId ?? "") !== (request.remoteSessionId ?? ""))
     throw new Error("scope-mismatch: runtime request attachment differs");
@@ -34,21 +33,42 @@ export async function authorizeRuntimeBinding(
   });
   if (
     !binding ||
-    binding.status !== "ready" ||
     binding.id !== request.executionBindingId ||
     (binding.workspaceIdentity?.trim() ?? "") !== (request.workspaceIdentity?.trim() ?? "")
   )
     throw new Error("scope-mismatch: runtime request binding differs");
+  const attached = (path: string, identity?: string) =>
+    sameRuntimeWorkspacePath(workspace.workspacePath, path) &&
+    (workspace.workspaceIdentity?.trim() || "") === (identity?.trim() || "");
+  // 不能只信 getBinding 返回了同名记录：同路径不同远端 identity 仍是不同授权主体。
+  if (
+    !attached(binding.workspacePath, binding.workspaceIdentity) &&
+    !attached(binding.originalWorkspacePath, binding.originalWorkspaceIdentity)
+  )
+    throw new Error("scope-mismatch: runtime binding is outside the attached workspace");
+  return binding;
+}
+
+export async function authorizeRuntimeBinding(
+  worktrees: IWorktreeService,
+  workspace: RuntimeClientWorkspace,
+  request: RuntimeRequestIdentity,
+  environmentRef: RuntimeEnvironmentReference,
+): Promise<WorktreeBinding> {
+  const binding = await authorizeRuntimeBindingIdentity(worktrees, workspace, request);
+  if (binding.status !== "ready") throw new Error("scope-mismatch: runtime binding is not ready");
   if (
     binding.environmentRef?.environmentId !== environmentRef.environmentId ||
-    binding.environmentRef?.revision !== environmentRef.revision
+    binding.environmentRef?.revision !== environmentRef.revision ||
+    (environmentRef.manifestDigest !== undefined &&
+      binding.environmentRef.manifestDigest !== environmentRef.manifestDigest)
   )
     throw new Error("stale-reference: runtime request environment differs");
   return binding;
 }
 
 export function assertRuntimeWorkspacePath(binding: WorktreeBinding, path: string): void {
-  if (!samePath(binding.workspacePath, path))
+  if (!sameRuntimeWorkspacePath(binding.workspacePath, path))
     throw new Error("scope-mismatch: runtime session workspace differs");
 }
 

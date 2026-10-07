@@ -30,6 +30,11 @@ import {
   runCommandAndReadStdout,
 } from "../../../scripts/spawn-command.mjs";
 import { resolveIntranetDepsBaseUrl } from "../../../scripts/intranetDefaults.mjs";
+import {
+  resolveMiseTarget,
+  validateMiseRuntimeAssets,
+  validatePackagedMiseRuntimeAssets,
+} from "./prepare-mise-runtime-assets.mjs";
 
 const desktopRoot = resolve(import.meta.dirname, "..");
 const workspaceRoot = resolve(desktopRoot, "../..");
@@ -259,7 +264,8 @@ function printHelp() {
 参数:
   --os, -o <mac|win|linux>     目标操作系统，默认 mac
   --arch, -a <x64|arm64>       目标 CPU 架构，默认 arm64
-  --skip-prepare               跳过 prepare:runtime-assets
+  --libc <glibc|musl>          Linux mise libc，默认 glibc
+  --skip-prepare               跳过 prepare:runtime-assets（仍必须验证 mise cache）
   --skip-build                 跳过 pnpm build
   --dry-run                    只打印最终命令，不执行打包
   -h, --help                   查看帮助
@@ -267,6 +273,7 @@ function printHelp() {
 环境变量:
   LCODE_TARGET_OS              与 --os 等价
   LCODE_TARGET_ARCH            与 --arch 等价
+  LCODE_MISE_LIBC              Linux mise 资产：glibc（默认）或 musl
 `);
 }
 
@@ -290,6 +297,7 @@ function parseArgs(argv) {
   const options = {
     os: process.env.LCODE_TARGET_OS ?? null,
     arch: process.env.LCODE_TARGET_ARCH ?? null,
+    libc: process.env.LCODE_MISE_LIBC ?? null,
     skipPrepare: process.env.LCODE_SKIP_PREPARE === "1",
     skipBuild: process.env.LCODE_SKIP_BUILD === "1",
     dryRun: false,
@@ -340,6 +348,17 @@ function parseArgs(argv) {
       continue;
     }
 
+    if (arg === "--libc") {
+      options.libc = argv[index + 1] ?? null;
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith("--libc=")) {
+      options.libc = arg.slice("--libc=".length);
+      continue;
+    }
+
     if (arg.startsWith("--arch=")) {
       options.arch = arg.slice("--arch=".length);
       continue;
@@ -365,6 +384,7 @@ function parseArgs(argv) {
   return {
     os: resolvedOs,
     arch: resolvedArch,
+    libc: options.libc,
     skipPrepare: options.skipPrepare,
     skipBuild: options.skipBuild,
     dryRun: options.dryRun,
@@ -680,6 +700,36 @@ function resolveAppAsarPath(os, arch) {
   throw new Error(`不支持的目标操作系统: ${os}`);
 }
 
+function resolveAppResourcesDir(os, arch) {
+  if (os === "mac") {
+    return resolve(
+      desktopRoot,
+      desktopDistDir,
+      arch === "arm64" ? "mac-arm64" : "mac",
+      `${desktopProductIdentity.productName}.app`,
+      "Contents",
+      "Resources",
+    );
+  }
+  if (os === "win") {
+    return resolve(
+      desktopRoot,
+      desktopDistDir,
+      arch === "arm64" ? "win-arm64-unpacked" : "win-unpacked",
+      "resources",
+    );
+  }
+  if (os === "linux") {
+    return resolve(
+      desktopRoot,
+      desktopDistDir,
+      arch === "arm64" ? "linux-arm64-unpacked" : "linux-unpacked",
+      "resources",
+    );
+  }
+  throw new Error(`不支持的目标操作系统: ${os}`);
+}
+
 function verifyPackagedRuntimeDependencies(os, arch) {
   const appAsarPath = resolveAppAsarPath(os, arch);
   if (!existsSync(appAsarPath)) {
@@ -744,7 +794,7 @@ function verifyPackagedRuntimeDependencies(os, arch) {
 }
 
 async function main() {
-  const { os, arch, skipPrepare, skipBuild, dryRun } = parseArgs(process.argv.slice(2));
+  const { os, arch, libc, skipPrepare, skipBuild, dryRun } = parseArgs(process.argv.slice(2));
   const buildArgs = [
     "exec",
     "electron-builder",
@@ -764,9 +814,16 @@ async function main() {
   const buildEnv = {
     LCODE_TARGET_OS: os,
     LCODE_TARGET_ARCH: arch,
+    ...(libc ? { LCODE_MISE_LIBC: libc } : {}),
     ...createElectronRuntimeMirrorEnv(resolveElectronMirror()),
     ...createElectronBuilderBinariesMirrorEnv(resolveElectronBuilderBinariesMirror()),
   };
+
+  const miseTarget = resolveMiseTarget({
+    os: os === "mac" ? "darwin" : os === "win" ? "win32" : os,
+    arch,
+    libc,
+  });
 
   if (dryRun) {
     console.log(`[bundle] dry-run: ${pnpmCommand} ${buildArgs.join(" ")}`);
@@ -775,6 +832,8 @@ async function main() {
 
   if (!skipPrepare) {
     run(pnpmCommand, ["prepare:runtime-assets"], buildEnv);
+  } else {
+    await validateMiseRuntimeAssets({ desktopRoot, target: miseTarget });
   }
 
   if (!skipBuild) {
@@ -787,6 +846,11 @@ async function main() {
 
   runTimedSync("bundle:verify-runtime-dependencies", () =>
     verifyPackagedRuntimeDependencies(os, arch),
+  );
+
+  const unpackedResourcesDir = resolveAppResourcesDir(os, arch);
+  await runTimedAsync("bundle:verify-packaged-mise", () =>
+    validatePackagedMiseRuntimeAssets({ resourcesDir: unpackedResourcesDir, target: miseTarget }),
   );
 
   runTimedSync("bundle:verify-product-identity", () =>

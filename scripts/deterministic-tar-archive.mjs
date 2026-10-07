@@ -3,7 +3,8 @@ import { createHash } from "node:crypto";
 import { basename, join } from "node:path";
 import { constants as zlibConstants, gzipSync } from "node:zlib";
 
-function collectDeterministicTarEntries(sourcePath) {
+function collectDeterministicTarEntries(sourcePath, { executablePaths = [] } = {}) {
+  const executableEntries = new Set(executablePaths);
   const sourceStat = lstatSync(sourcePath);
   const entries = [];
 
@@ -41,7 +42,8 @@ function collectDeterministicTarEntries(sourcePath) {
     entries.push({
       type: "file",
       relativePath,
-      mode: currentStat.mode & 0o111 ? 0o755 : 0o644,
+      // Windows chmod 不保存 POSIX 执行位；按构建合同显式指定目标可执行文件，而不是执行异构二进制。
+      mode: executableEntries.has(relativePath) || currentStat.mode & 0o111 ? 0o755 : 0o644,
       data: readFileSync(currentPath),
     });
   }
@@ -115,9 +117,9 @@ function buildTarHeader(entry) {
   return header;
 }
 
-export function packSourceAsDeterministicTarGzip(sourcePath, artifactPath) {
+export function packSourceAsDeterministicTarGzip(sourcePath, artifactPath, options) {
   const chunks = [];
-  for (const entry of collectDeterministicTarEntries(sourcePath)) {
+  for (const entry of collectDeterministicTarEntries(sourcePath, options)) {
     chunks.push(buildTarHeader(entry));
     if (entry.type !== "file") continue;
 
@@ -138,9 +140,9 @@ export function packSourceAsDeterministicTarGzip(sourcePath, artifactPath) {
   writeFileSync(artifactPath, archive);
 }
 
-export function computeDeterministicSourceSha256(sourcePath) {
+export function computeDeterministicSourceSha256(sourcePath, options) {
   const hash = createHash("sha256");
-  for (const entry of collectDeterministicTarEntries(sourcePath)) {
+  for (const entry of collectDeterministicTarEntries(sourcePath, options)) {
     hash.update(
       `${JSON.stringify({
         type: entry.type,

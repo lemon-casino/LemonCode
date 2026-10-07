@@ -10,9 +10,20 @@ import {
 } from "@lcode/provider-node";
 import { getAppConfigDir as resolveAppConfigDir } from "./paths.js";
 import { IWorktreeService } from "./worktree/contract.js";
-import { createWorktreeService, createCheckoutCoordinator } from "./worktree/node.js";
+import {
+  createWorktreeService,
+  createCheckoutCoordinator,
+  createPublicWorktreeService,
+} from "./worktree/node.js";
 import { IRuntimeEnvironmentService } from "./runtime-environment/contract.js";
-import { createRuntimeEnvironmentHost } from "./runtime-environment/node.js";
+import {
+  createRuntimeEnvironmentHost,
+  createPublicRuntimeEnvironmentService,
+  createWorktreeRuntimePorts,
+  prepareBoundRuntime,
+  createRuntimeTerminalEnvironment,
+} from "./runtime-environment/node.js";
+export { createPublicRuntimeEnvironmentService } from "./runtime-environment/node.js";
 import { coordinateGitCheckoutWrites } from "./git/gitCheckoutCoordination.js";
 import { createWorktreeGitPort } from "./git/worktreeGitPort.js";
 export { createWorktreeService, createCheckoutCoordinator } from "./worktree/node.js";
@@ -342,7 +353,7 @@ import { createGitCheckpointService } from "./git/gitCheckpointService.js";
 import { IGitBackupService } from "./git-backup/gitBackup.js";
 import { createGitBackupService } from "./git-backup/gitBackupService.js";
 import { createSystemService } from "./system/systemService.js";
-import { createTerminalService } from "./terminal/terminalService.js";
+import { createTerminalService, createPublicTerminalService } from "./terminal/terminalService.js";
 import { createSettingServiceWithMigrations } from "./setting/settingService.js";
 import { createOnboardingRecordService } from "./onboarding/onboardingRecordService.js";
 import { createLegacyTeamOrganizationResolver } from "./model-provider/legacyTeamOrganizationResolver.js";
@@ -686,6 +697,11 @@ export function getOffPeakRequestAuthBuilder(
 const managedHostApiNetworkTransports = new WeakMap<ServiceCollection, HostApiNetworkTransport>();
 // dispose 不属于 RPC 契约；Host 退出只释放调度，不改写用户的 enabled 配置。
 const managedGitBackupDisposers = new WeakMap<ServiceCollection, () => void>();
+const managedRuntimeEnvironmentDisposers = new WeakMap<ServiceCollection, () => Promise<void>>();
+const managedTerminalOwners = new WeakMap<
+  ServiceCollection,
+  ReturnType<typeof createTerminalService>
+>();
 
 export function registerManagedCuaHelperHostForDispose(
   services: ServiceCollection,
@@ -1976,55 +1992,54 @@ export function createLocalServices(options: {
     dataDir: join(resolveAppConfigDir(), "worktrees"),
     git: createWorktreeGitPort(),
   };
-  // 运行环境资源放 HostDataRoot 下与 worktrees/ 同级；不改 worktreeOptions.dataDir（spec §8.3）。
-  const { service: runtimeEnvironmentService, consumers: runtimeEnvironmentConsumers } =
-    createRuntimeEnvironmentHost(join(resolveAppConfigDir(), "runtime-environments"));
   const checkoutCoordinator = createCheckoutCoordinator(worktreeOptions);
+  const runtimeEnvironmentHost = createRuntimeEnvironmentHost(
+    join(resolveAppConfigDir(), "runtime-environments"),
+    {
+      serverRuntimeRoot: process.env.LCODE_SERVER_RUNTIME_ROOT,
+      resolveEnv: async () => {
+        const settings = await settingService.get();
+        const network =
+          isDesktopAttachedRemote && options.remoteAgentNetwork
+            ? options.remoteAgentNetwork
+            : { httpProxy: settings.httpProxy, noProxy: settings.httpProxyNoProxy };
+        return {
+          ...process.env,
+          ...buildAgentRuntimeEnv({
+            httpProxy: network.httpProxy,
+            noProxy: network.noProxy,
+            caCertPath: settings.httpProxyCaCertPath,
+          }),
+          ...(settings.httpProxyCaCertPath ? { SSL_CERT_FILE: settings.httpProxyCaCertPath } : {}),
+        };
+      },
+      acquireWriter: async (params) => {
+        const lease = await checkoutCoordinator.acquire({ ...params, mode: "exclusive" });
+        return () => checkoutCoordinator.release(lease);
+      },
+      publishInvalidation: (event) => {
+        void broadcastService
+          .send({ channel: "state:runtime-environment", payload: event })
+          .catch(() => {});
+      },
+    },
+  );
+  const { service: runtimeEnvironmentService, consumers: runtimeEnvironmentConsumers } =
+    runtimeEnvironmentHost;
+  const runtimeEnvironmentInvalidations = broadcastService.onMessage((message) => {
+    if (message.channel === "state:runtime-environment")
+      runtimeEnvironmentHost.acceptInvalidation(message.payload);
+  });
   const worktreeService = createWorktreeService({
     ...worktreeOptions,
     coordinator: checkoutCoordinator,
-    prepareRuntimeEnvironment: async (params) => {
-      // 托管环境准备失败必须让工作树准备整体失败，不静默回退非托管（spec §9.5）。
-      const operation = await runtimeEnvironmentService.prepare({
-        workspacePath: params.checkoutPath,
-        requestId: params.requestId,
-        purpose: params.purpose,
-        bindingId: params.bindingId,
-      });
-      if (operation.status !== "succeeded")
-        throw new Error(
-          `Runtime environment preparation failed: ${operation.error?.message ?? operation.status}`,
-        );
-      const environment = await runtimeEnvironmentService.get({
-        workspacePath: params.checkoutPath,
-        environmentId: operation.environmentId,
-      });
-      // 冻结上下文（spec §9.2）：setup/验证 spawn 用 envOverlay.set（PATH 工具目录前缀），
-      // 展平为覆盖键值；不改 Host process.env。
-      const context = await runtimeEnvironmentService.resolveContext({
-        workspacePath: params.checkoutPath,
-        environmentId: operation.environmentId,
-        consumer: "worktree-setup",
-      });
-      // 工具来源标注（spec §15.1 P2-07a）：全部工具来自项目声明→project-declaration；
-      // 全部来自应用默认→app-default；混合→partial-host（部分沿用本机/默认）。
-      const projectionTools = environment?.tools ?? [];
-      const declaredCount = projectionTools.filter(
-        (tool) => tool.source === "project-declaration",
-      ).length;
-      const toolSource =
-        projectionTools.length > 0 && declaredCount === projectionTools.length
-          ? ("project-declaration" as const)
-          : declaredCount === 0
-            ? ("app-default" as const)
-            : ("partial-host" as const);
-      return {
-        environmentId: operation.environmentId,
-        revision: environment?.currentRevision ?? 1,
-        env: context.envOverlay.set,
-        toolSource,
-      };
-    },
+    ...createWorktreeRuntimePorts({
+      host: runtimeEnvironmentHost,
+      coordinator: checkoutCoordinator,
+      worktrees: () => worktreeService,
+      agents: () => lcodeAgentService,
+      stopTerminals: (scope) => terminalService.stopWorkspaceAndWait(scope),
+    }),
     // 源组合提交已持有源 checkout 许可；通过同一 Git owner 执行，避免再次申请导致自锁。
     commitSource: (request) => rawGitService.commit(request),
     removeDirectory: options.removeWorktreeDirectory,
@@ -2085,9 +2100,32 @@ export function createLocalServices(options: {
       }
     },
   });
+  const terminalService = createTerminalService({
+    settingService,
+    runtimeEnvironment: createRuntimeTerminalEnvironment({
+      worktrees: worktreeService,
+      environments: runtimeEnvironmentService,
+      consumers: runtimeEnvironmentConsumers,
+    }),
+  });
+  const publicRuntimeEnvironmentService = createPublicRuntimeEnvironmentService(
+    runtimeEnvironmentService,
+    {
+      worktrees: worktreeService,
+      mapBindingScope: true,
+      prepareOverride: (params, binding) =>
+        prepareBoundRuntime({
+          host: runtimeEnvironmentHost,
+          worktrees: worktreeService,
+          params,
+          binding,
+        }),
+    },
+  );
   const lcodeAgentService = createLCodeAgentService({
     worktreeService,
     runtimeEnvironmentService,
+    runtimeEnvironmentPublicService: publicRuntimeEnvironmentService,
     runtimeEnvironmentConsumers,
     ...(agentAccountProviderConfigSource
       ? { accountProviderConfigSource: agentAccountProviderConfigSource }
@@ -2445,11 +2483,11 @@ export function createLocalServices(options: {
     .register(IFileService, fileService)
     .register(IMediaPreviewService, mediaPreviewService)
     .register(IGitService, gitService)
-    .register(IWorktreeService, worktreeService)
-    .register(IRuntimeEnvironmentService, runtimeEnvironmentService)
+    .register(IWorktreeService, createPublicWorktreeService(worktreeService))
+    .register(IRuntimeEnvironmentService, publicRuntimeEnvironmentService)
     .register(IGitCheckpointService, gitCheckpointService)
     .register(ISystemService, systemService)
-    .register(ITerminalService, createTerminalService({ settingService }))
+    .register(ITerminalService, createPublicTerminalService(terminalService))
     .register(ISettingService, settingService)
     .register(IOnboardingRecordService, onboardingRecordService)
     .register(ICredentialService, credentialService)
@@ -2660,6 +2698,11 @@ export function createLocalServices(options: {
   // 见 sharedSqliteRepos 声明处注释：登记全部 tasks-index sqlite 句柄，dispose 链统一关闭
   sqliteReposToClose.push(taskIndexRepo);
   sharedSqliteRepos.set(services, sqliteReposToClose);
+  managedTerminalOwners.set(services, terminalService);
+  managedRuntimeEnvironmentDisposers.set(services, async () => {
+    await runtimeEnvironmentHost.disposeAndWait();
+    runtimeEnvironmentInvalidations.dispose();
+  });
   return services;
 }
 
@@ -2742,6 +2785,12 @@ function readTelemetryOAuthUserId(rawUserInfo: string | null): string {
 }
 
 export function disposeServiceResources(services: ServiceCollection): void {
+  managedTerminalOwners.get(services)?.disposeAll();
+  void managedRuntimeEnvironmentDisposers
+    .get(services)?.()
+    .catch((error) => {
+      createServiceLogger("runtime-environment").warn("运行环境停止未确认", error);
+    });
   managedGitBackupDisposers.get(services)?.();
   managedGitBackupDisposers.delete(services);
   // host process 退出前以前没有统一遍历本地服务做资源回收，
@@ -2778,6 +2827,8 @@ export function disposeServiceResources(services: ServiceCollection): void {
 }
 
 export async function disposeServiceResourcesAndWait(services: ServiceCollection): Promise<void> {
+  await managedTerminalOwners.get(services)?.disposeAllAndWait();
+  managedTerminalOwners.delete(services);
   managedGitBackupDisposers.get(services)?.();
   managedGitBackupDisposers.delete(services);
   // app 关闭时 host 需要等 agent 进程树完成 graceful + force 清理。
@@ -2798,6 +2849,9 @@ export async function disposeServiceResourcesAndWait(services: ServiceCollection
       service.disposeAll();
     }
   }
+
+  await managedRuntimeEnvironmentDisposers.get(services)?.();
+  managedRuntimeEnvironmentDisposers.delete(services);
 
   // 等待托管的 Computer Use Helper 终止（best-effort）：Helper 是长生命周期高权限进程，服务释放语义必须显式
   // 收口它，不能只靠 launcher-pid watchdog / 进程退出兜底。

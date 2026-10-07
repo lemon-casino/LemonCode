@@ -196,6 +196,49 @@ export function ProjectExecutionPolicySettings({
           </SelectContent>
         </Select>
       </label>
+      <label className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-ui-sm">
+        <span className="min-w-0 space-y-1">
+          <span className="block">{intl.formatMessage({ id: "runtimeEnvironment.policy" })}</span>
+          <span
+            className="block text-foreground-subtle"
+            data-testid="project-policy-effective-environmentPolicy"
+          >
+            {intl.formatMessage(
+              { id: "worktree.effectiveSetting" },
+              {
+                value: intl.formatMessage({
+                  id: `runtimeEnvironment.policy.${effectivePolicy.environmentPolicy}`,
+                }),
+              },
+            )}
+          </span>
+        </span>
+        <Select
+          value={effectivePolicy.environmentPreference}
+          disabled={loading || pending}
+          onValueChange={(value) =>
+            void save({ environmentPolicy: value as Preferences["environmentPolicy"] })
+          }
+        >
+          <SelectTrigger
+            className="w-full sm:w-64"
+            data-testid="project-policy-environmentPolicy"
+            aria-label={intl.formatMessage({ id: "runtimeEnvironment.policy" })}
+          >
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(["inherit", "managed", "local"] as const).map((value) => (
+              <SelectItem key={value} value={value}>
+                {intl.formatMessage({ id: `runtimeEnvironment.policy.${value}` })}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </label>
+      <p className="text-ui-sm text-foreground-subtle">
+        {intl.formatMessage({ id: "runtimeEnvironment.policyHint" })}
+      </p>
       {error ? (
         <p role="alert" className="text-ui-sm text-destructive">
           {error}

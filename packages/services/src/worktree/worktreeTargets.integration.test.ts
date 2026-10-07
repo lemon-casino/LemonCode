@@ -37,6 +37,7 @@ test("unchecked target merges without switching the original directory and remov
   await f.service.continueIntegration({
     operationId: op.id,
     approvedCandidateHead: op.candidateHead,
+    skipValidation: true,
   });
   const result = await f.service.publishIntegration({
     operationId: op.id,
@@ -76,6 +77,7 @@ test("checked-out target resolves to its actual worktree and preserves unrelated
   await f.service.continueIntegration({
     operationId: op.id,
     approvedCandidateHead: op.candidateHead,
+    skipValidation: true,
   });
   assert.equal(
     (
@@ -100,6 +102,7 @@ test("changed target ref and self target fail without updating either branch", a
   await f.service.continueIntegration({
     operationId: op.id,
     approvedCandidateHead: op.candidateHead,
+    skipValidation: true,
   });
   await f.command(f.repo, "update-ref", "refs/heads/other", f.request.expectedSourceHead);
   await assert.rejects(
@@ -126,6 +129,7 @@ test("lost merge response reconciles the exact target and does not remerge", asy
   await service.continueIntegration({
     operationId: op.id,
     approvedCandidateHead: op.candidateHead,
+    skipValidation: true,
   });
   const params = { operationId: op.id, approvedCandidateHead: op.candidateHead! };
   await assert.rejects(service.publishIntegration(params), /lost response/);
@@ -144,6 +148,7 @@ test("actual target writer lease blocks publication; cancellation cleans only th
   await f.service.continueIntegration({
     operationId: op.id,
     approvedCandidateHead: op.candidateHead,
+    skipValidation: true,
   });
   const lease = await f.service.acquireCheckout({
     workspacePath: op.targetPath,
@@ -180,6 +185,7 @@ test("recovery never treats a detached candidate checkout as a published target 
   await service.continueIntegration({
     operationId: op.id,
     approvedCandidateHead: op.candidateHead,
+    skipValidation: true,
   });
   const params = { operationId: op.id, approvedCandidateHead: op.candidateHead! };
   await assert.rejects(service.publishIntegration(params), /interrupted before merge/);

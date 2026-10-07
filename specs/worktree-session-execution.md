@@ -64,6 +64,38 @@ Host 将许可绑定到具体 protocol client 代际，不能让重启后的同�
 
 UI 用 `waitForRequestId` 等待 CLI owner 的持久结算，child 的结束投影本身不代表候选已生成。只有成功 TurnComplete 才调用 Host 继续集成并保存结果；取消、异常和未完成请求明确失败。隐藏修复会话不能通过普通历史会话恢复入口续跑。
 
+## 2026-10-06 单写者环境接线合同（P4-03 / P4-05）
+
+- WorktreeService 唯一写入 binding、integration、验证证据与恢复 journal；目标 Host RuntimeEnvironmentService 唯一持有环境、声明新鲜度、消费者及停止证明。组合根注入 `WorktreeRuntimePorts`，内部 checkout lease 与 env overlay 不进入 shared wire、UI 或日志。
+- `prepare.environmentPolicy` 可为 `inherit | managed | local`。新请求缺省 / inherit 保留原本机行为；旧 binding 不隐式升级。managed 必须具有准备及解析能力，失败不回退；local 即使注入 port 也不调用它。已存在的策略不可由重试或同树 fork 改写。同树 fork 继承 owner，独立 fork 按其显式策略准备。
+- 准备在同一 checkout 独占许可内恢复 fork 文件、准备环境和执行 setup；环境端口复用该可信 writer，不能二次 acquire。环境返回 `dependenciesPrepared: true` 只去掉自动检测的重复依赖安装；用户显式 setup 命令仍全部执行。完成准备不代表候选验证通过。
+- `list` 同时接受绑定的原项目及真实执行 scope；identity key 和规范化路径必须共同匹配，错误 identity 或仅猜到相同路径不能读取另一 Host 的绑定。
+- 集成 operation 持久化自己的 `environmentRef`、`environmentPolicy`、`candidateEvidence` 和 `validationReceipts`，不借用 task 环境或 binding 上的旧验证投影。managed 候选使用 `purpose: integration-candidate`，根据候选目录当前声明独立准备。准备与重验复用当前独占 writer；实际验证将冻结 env 作为 adapter 第四参数传递。
+- 每份证据准确绑定 candidate HEAD/tree、source HEAD、target HEAD/branch、环境引用及 revision、manifest/declaration 摘要、有序 command 列表；每条收据包含精确 command、exitCode、outcome、verifiedAt、有界 output 及 outputTruncated。命令上限统一 8192 字符，输出上限 65536 字符。
+- `continueIntegration` / `publishIntegration` 的 `skipValidation?: boolean` 只有显式 true 才可跳过；空命令不视为通过。跳过也须满足环境准备/新鲜度和 Git 前置，持久化 `outcome: skipped, skipAcknowledged: true`，不能投影为已通过验证。验证失败、缺证据、锁文件/声明变化、HEAD/tree/ref/命令变化全部拒绝沿旧 ready 发布；旧 ready 须显式重新 review/validate。
+- published 和回复丢失的 publishing 先以真实目标 ref 的 commit ancestry 对账；已包含候选时不重跑验证、不依赖候选目录或已释放环境。尚未发生 Git 发布的 publishing 只能使用仍匹配的原证据，不能自动重放有副作用的验证。
+- 恢复以 `restoration.requestId` 固定本次操作。所有 Git 恢复分支统一进入环境重建：旧 environmentRef -> `operation: restore` 新 environmentId/revision/digest -> 持久 binding（仍 restoring）-> 同树全部 session CAS 重绑和 Host consumer migration -> ready。环境/会话失败保留 restoring 与 environmentRebuild.pending/failed；原请求重试不创建第二环境。旧 PID、URL、running 或私有数据不作为恢复成果。
+
+```mermaid
+sequenceDiagram
+  participant WT as WorktreeService
+  participant Lease as Checkout writer
+  participant Env as Host environment owner
+  participant CLI as CLI SessionStore
+  WT->>Lease: exclusive checkout
+  WT->>WT: persist restoration.requestId / restoring
+  WT->>WT: restore HEAD/index/files
+  WT->>Env: prepare(restore, old ref, stable requestId, writer)
+  Env-->>WT: new ref + manifest/declaration digest
+  WT->>WT: persist new ref, rebuild pending
+  WT->>CLI: rebind all same-tree sessions (old ref CAS -> new ref)
+  CLI-->>WT: exact sessionIds, Host migrates references
+  WT->>WT: persist ready / rebuild ready
+  WT->>Lease: release
+```
+
+新增验收以真实 Git fixture 覆盖 managed/local/inherit、缺 port fail-closed、writer 复用与依赖去重、同 scope 的 identity 隔离、候选独立环境/冻结 env/有界收据/显式 skip、旧 ready 拒绝发布、声明与锁变化、已发布对账不重验、恢复故障/丢回复后稳定 requestId 与全 session CAS。跨端仍是 desktop-continuous / web-remote-replayable 读取同一 owner，不引入队列或双写投影。
+
 ## 验收
 
 1. 创建重试沿同一 commandId/taskId；prepare 失败没有 runtime 和首条执行。

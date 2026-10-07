@@ -5,6 +5,7 @@ import { useProjectExecutionPolicy } from "@/hooks/useProjectExecutionPolicy.js"
 import { useServices } from "@/hooks/useServices.js";
 import { getErrorMessage } from "@/lib/errorMessage.js";
 import { WorktreePreparationCard } from "./WorktreePreparationCard.js";
+import { GitFailureAction } from "@/git-action-menu/GitFailureAction.js";
 
 export function DraftWorktreePreparation({
   workspacePath,
@@ -72,15 +73,34 @@ export function DraftWorktreePreparation({
       setError(getErrorMessage(reason));
     }
   };
+  const runtimeError = state.binding?.preparation?.runtimeError;
   return (
-    <WorktreePreparationCard
-      binding={state.binding}
-      pending={Boolean(selection?.requestId)}
-      actionPending={Boolean(intent)}
-      error={error ?? state.error ?? selection?.error}
-      onCancel={() => void cancel("cancel")}
-      onLocal={() => void cancel("local")}
-      onRetry={() => useDraftExecutionStore.getState().retry(scope)}
-    />
+    <>
+      <WorktreePreparationCard
+        binding={state.binding}
+        pending={Boolean(selection?.requestId)}
+        actionPending={Boolean(intent)}
+        error={error ?? state.error ?? selection?.error}
+        onCancel={() => void cancel("cancel")}
+        onLocal={() => void cancel("local")}
+        onRetry={() => useDraftExecutionStore.getState().retry(scope)}
+      />
+      {runtimeError ? (
+        <GitFailureAction
+          workspacePath={workspacePath}
+          workspaceIdentity={workspaceIdentity}
+          disabled={Boolean(intent)}
+          context={{
+            phase: "runtime-environment",
+            workspacePath: state.binding?.checkoutPath ?? workspacePath,
+            workspaceIdentity,
+            operationId: requestId,
+            sourceBranch: state.binding?.branch,
+            error: runtimeError.message,
+            environmentError: runtimeError,
+          }}
+        />
+      ) : null}
+    </>
   );
 }

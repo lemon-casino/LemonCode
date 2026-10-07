@@ -1,5 +1,6 @@
 import type { Event } from "@lcode/rpc";
-import { ServiceChannels } from "@lcode/shared";
+import { ServiceChannels, runtimeEnvironmentReferenceSchema } from "@lcode/shared";
+import { z } from "zod";
 import { createServiceDescriptor } from "../descriptors.js";
 import type { TerminalFontFamilySource, TerminalThemeProfile } from "./terminalProfile.js";
 
@@ -8,18 +9,66 @@ export interface TerminalWindowsPtyInfo {
   buildNumber?: number;
 }
 
+const scopeText = z.string().trim().min(1).max(4096);
+
+/** RPC 只接受执行身份，冻结环境由可信 Host port 提供，不能接收 UI 的 PATH。 */
+export const terminalCreateParamsSchema = z
+  .object({
+    cols: z.number().int().positive(),
+    rows: z.number().int().positive(),
+    cwd: scopeText.optional(),
+    workspacePath: scopeText.optional(),
+    workspaceIdentity: scopeText.optional(),
+    sessionId: scopeText.optional(),
+    remoteSessionId: scopeText.optional(),
+    executionBindingId: scopeText.optional(),
+    environmentRef: runtimeEnvironmentReferenceSchema.optional(),
+  })
+  .strict()
+  .superRefine((params, context) => {
+    if (
+      !params.workspacePath &&
+      (params.workspaceIdentity ||
+        params.sessionId ||
+        params.remoteSessionId ||
+        params.executionBindingId ||
+        params.environmentRef)
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["workspacePath"],
+        message: "workspacePath is required for terminal execution scope",
+      });
+    }
+  });
+export type TerminalCreateParams = z.infer<typeof terminalCreateParamsSchema>;
+
+export interface RuntimeTerminalScope {
+  workspacePath: string;
+  workspaceIdentity?: string;
+}
+export interface RuntimeTerminalEnvironmentLease {
+  /** Host 核验后的 checkout scope，供删除/升级按绑定精确停止。 */
+  executionScope?: RuntimeTerminalScope;
+  /** Host resolveContext 核验后的实际目录，可位于 checkout 子目录。 */
+  cwd?: string;
+  envOverlay: { base?: "inherit" | "empty"; set?: Record<string, string>; unset?: string[] };
+  /** 无 PTY 的创建失败或真实 onExit 后调用；闭包持有精确 owner generation/lease。 */
+  release(): Promise<void>;
+}
+/** 本地组合根注入，不作为 RPC 服务；null 只能表示已核验的 legacy 环境。 */
+export interface RuntimeTerminalEnvironmentPort {
+  acquire(
+    request: RuntimeTerminalScope &
+      Pick<
+        TerminalCreateParams,
+        "cwd" | "sessionId" | "remoteSessionId" | "executionBindingId" | "environmentRef"
+      > & { terminalId: string },
+  ): Promise<RuntimeTerminalEnvironmentLease | null>;
+}
+
 export interface ITerminalService {
-  create(params: {
-    cols: number;
-    rows: number;
-    cwd?: string;
-    /**
-     * 冻结运行环境覆盖键值（spec: specs/worktree-runtime-environments.md §9.3，P2-04）。
-     * 仅叠加到终端进程环境（如 PATH 工具目录前缀），不改 Host process.env；
-     * 缺省 = 非托管终端，保持现状语义。
-     */
-    envOverlay?: Record<string, string>;
-  }): Promise<{
+  create(params: TerminalCreateParams): Promise<{
     id: string;
     shell: string;
     fontFamily: string;

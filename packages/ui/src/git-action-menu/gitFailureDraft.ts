@@ -1,4 +1,5 @@
 import type { WorktreeBinding, WorktreeIntegration } from "@lcode/services";
+import { runtimeEnvironmentErrorSchema, type RuntimeEnvironmentError } from "@lcode/shared";
 import type { PublishOptions, PublishPlan } from "./publishModel.js";
 import type { PublishRun } from "./publishExecution.js";
 
@@ -20,6 +21,7 @@ export interface GitFailureContext {
   validationResults?: WorktreeIntegration["validationResults"];
   completedSteps?: string[];
   failedSteps?: string[];
+  environmentError?: RuntimeEnvironmentError;
 }
 
 export function appendGitFailureDraft(existing: string, report: string) {
@@ -41,7 +43,8 @@ function sanitize(value: string) {
 
 export function buildGitFailureDraft(context: GitFailureContext, locale: string) {
   const zh = locale.startsWith("zh");
-  const { files, validationResults, completedSteps, failedSteps, ...details } = context;
+  const { files, validationResults, completedSteps, failedSteps, environmentError, ...details } =
+    context;
   let remaining = 24000;
   const failedValidations = validationResults?.filter((result) => result.exitCode !== 0) ?? [];
   let truncated =
@@ -61,8 +64,29 @@ export function buildGitFailureDraft(context: GitFailureContext, locale: string)
       .filter(([, value]) => value != null)
       .map(([key, value]) => [key, typeof value === "string" ? limit(value) : value]),
   );
+  // 原结构只处理顶层字符串，环境的嵌套诊断须共用预算/脱敏，且不复制 legacy detail 中的任意字段。
+  const boundDiagnostic = (value: unknown): unknown => {
+    if (typeof value === "string") return limit(value, 4000);
+    if (Array.isArray(value)) return value.map(boundDiagnostic);
+    if (value && typeof value === "object")
+      return Object.fromEntries(
+        Object.entries(value).map(([key, item]) => [key, boundDiagnostic(item)]),
+      );
+    return value;
+  };
+  const parsedEnvironmentError = runtimeEnvironmentErrorSchema.safeParse(environmentError);
+  const safeEnvironmentError = parsedEnvironmentError.success
+    ? {
+        code: parsedEnvironmentError.data.code,
+        stage: parsedEnvironmentError.data.stage,
+        retryable: parsedEnvironmentError.data.retryable,
+        message: parsedEnvironmentError.data.message,
+        diagnostic: parsedEnvironmentError.data.diagnostic,
+      }
+    : undefined;
   const report = {
     ...bounded,
+    ...(safeEnvironmentError ? { environmentError: boundDiagnostic(safeEnvironmentError) } : {}),
     ...(files?.length
       ? {
           fileCount: files.length,

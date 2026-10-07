@@ -1,26 +1,41 @@
-import type { IRuntimeEnvironmentService } from "../contract.js";
+import type { IRuntimeEnvironmentHostService } from "../contract.js";
 import {
+  runtimeEnvironmentScopeSchema,
   runtimeEnvironmentPrepareParamsSchema,
   runtimeEnvironmentGetParamsSchema,
   runtimeEnvironmentListParamsSchema,
   runtimeEnvironmentReleaseParamsSchema,
+  runtimeEnvironmentSnapshotParamsSchema,
+  runtimeEnvironmentReconcileParamsSchema,
+  runtimeEnvironmentServiceActionParamsSchema,
+  runtimeEnvironmentResourceScanParamsSchema,
+  runtimeEnvironmentGarbageCollectionParamsSchema,
 } from "@lcode/shared";
 
-/**
- * 服务入口严格校验包装（spec §9.4；复用 worktree validatedService 惯例）。
- * 协议 schema（shared）→ 服务 contract → 这里 wrapping，三层同源，防"整体展开被拒"。
- */
 export function validateRuntimeEnvironmentRequests(
-  service: IRuntimeEnvironmentService,
-): IRuntimeEnvironmentService {
+  service: IRuntimeEnvironmentHostService,
+): IRuntimeEnvironmentHostService {
   return {
-    getCapabilities: (params) => service.getCapabilities(params),
+    ...(service.onDidChangeEnvironment
+      ? { onDidChangeEnvironment: service.onDidChangeEnvironment }
+      : {}),
+    getCapabilities: (params) =>
+      service.getCapabilities(runtimeEnvironmentScopeSchema.parse(params)),
     prepare: (params) => service.prepare(runtimeEnvironmentPrepareParamsSchema.parse(params)),
     get: (params) => service.get(runtimeEnvironmentGetParamsSchema.parse(params)),
     list: (params) => service.list(runtimeEnvironmentListParamsSchema.parse(params)),
+    snapshot: (params) => service.snapshot(runtimeEnvironmentSnapshotParamsSchema.parse(params)),
     resolveContext: (params) => service.resolveContext(params),
     resolveContextForCwd: (params) => service.resolveContextForCwd(params),
     release: (params) => service.release(runtimeEnvironmentReleaseParamsSchema.parse(params)),
-    reconcile: (params) => service.reconcile(params),
+    reconcile: (params) => service.reconcile(runtimeEnvironmentReconcileParamsSchema.parse(params)),
+    startService: (params) =>
+      service.startService(runtimeEnvironmentServiceActionParamsSchema.parse(params)),
+    stopService: (params) =>
+      service.stopService(runtimeEnvironmentServiceActionParamsSchema.parse(params)),
+    resourceSummary: (params) =>
+      service.resourceSummary(runtimeEnvironmentResourceScanParamsSchema.parse(params)),
+    garbageCollect: (params) =>
+      service.garbageCollect(runtimeEnvironmentGarbageCollectionParamsSchema.parse(params)),
   };
 }
