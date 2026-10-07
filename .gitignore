@@ -79,6 +79,14 @@ packages/desktop/src/scheduler/schedulerProtocol.d.ts.map
 packages/desktop/src/scheduler/schedulerProtocol.js
 packages/desktop/src/scheduler/schedulerProtocol.js.map
 
+# Windows 保留设备名：POSIX shell 下 `2>NUL`（含引号写法）会落盘成普通文件，
+# git 索引它时报 "short read" 使 `git add -A` 整体失败、阻断提交流程。
+# Agent Bash 已在执行边界把裸/带引号的 nul 重定向归一化为 /dev/null
+# （specs/agent-bash-nul-redirection.md）；这里再忽略任意层级残留实例作兜底
+# （仓库无同名已跟踪文件，大小写两种命名都覆盖，避免 Linux 大小写敏感漏网）。
+NUL
+nul
+
 # 品牌迁移一次性工具与运行时数据（工作流草稿/运行快照）不入库
 .zcode/
 .lcode/

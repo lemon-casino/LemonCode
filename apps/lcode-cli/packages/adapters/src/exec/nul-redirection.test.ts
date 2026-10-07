@@ -16,9 +16,18 @@ test("nul 重定向归一化覆盖常见 CMD 写法并保留重定向语义", ()
     ["build 1>nul 2>nul", "build 1>/dev/null 2>/dev/null"],
     ["where git 2>Nul", "where git 2>/dev/null"],
     ["start /b app >nul&echo done", "start /b app >/dev/null&echo done"],
+    // Git Bash 实测：引号包裹的 nul 同样会落盘成文件（命令与重定向解析都成立），
+    // 必须连引号一起替换；仅裸 nul 的旧模式会漏掉这些写法。
+    ['reg query HKLM\\Software 2>"NUL"', "reg query HKLM\\Software 2>/dev/null"],
+    ["dir > 'nul'", "dir >/dev/null"],
+    ["build 1>\"nul\" 2>'NUL'", "build 1>/dev/null 2>/dev/null"],
+    ["append >>\"NUL\"", "append >>/dev/null"],
+    ["start /b app >\"nul\"&echo done", "start /b app >/dev/null&echo done"],
     // 非 nul 设备名用法不受影响
     ["cmd > null", "cmd > null"],
     ["cmd > nul.txt", "cmd > nul.txt"],
+    ['cmd > "null"', 'cmd > "null"'],
+    ['cmd > "nul".txt', 'cmd > "nul".txt'],
     ["cat <<nul", "cat <<nul"],
     ["wc -l <nul", "wc -l <nul"],
   ];
@@ -46,6 +55,22 @@ test("git-bash dialect 下 spawn 命令归一化 nul 重定向", () => {
   );
   assert.equal(resolved.cwdDialect, "git-bash");
   assert.equal(resolved.args.at(-1), "dir /s /b LICENSE* >/dev/null 2>&1");
+
+  // 用户实测：带引号的 `2>"NUL"` 在 Git Bash 下同样落盘，必须经同一漏斗改写。
+  const quoted = resolveExecutionCommand(
+    {
+      mode: "shell",
+      command: 'reg query HKLM\\Software 2>"NUL"',
+      shellProfile: "posix-bash",
+    },
+    {
+      platform: "win32",
+      env: {},
+      exists: (path) => path.toLowerCase().includes("bash.exe"),
+    },
+  );
+  assert.equal(quoted.cwdDialect, "git-bash");
+  assert.equal(quoted.args.at(-1), "reg query HKLM\\Software 2>/dev/null");
 });
 
 test("cmd dialect 保持 nul 空设备语义不改写", () => {

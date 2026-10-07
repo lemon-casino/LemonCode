@@ -4,7 +4,7 @@
 
 1. Windows CMD 将 `nul` 视为空设备（丢弃输出），而 POSIX 系 shell（Git Bash、bash、zsh）把 `nul` 当作普通文件名；会话命令中的 `>nul`、`2>nul` 在 POSIX 系 shell 下执行时会在 cwd 留下名为 `nul` 的垃圾文件。
 2. 执行适配层在解析 spawn 命令时，若目标 shell dialect 为 `git-bash` 或 `posix`，必须把输出重定向目标 `nul` 归一化为 `/dev/null`，重定向语义保持不变；dialect 为 `cmd` 时 `nul` 本就是空设备，不改写。
-3. 归一化覆盖 `>` 与 `>>` 及 `1`/`2`/`&` 前缀形式；输入重定向 `<nul` 不会创建文件，不在处理范围。
+3. 归一化覆盖 `>` 与 `>>` 及 `1`/`2`/`&` 前缀形式；目标为裸 `nul` 或被引号包裹的 `nul`（`2>"NUL"`、`> 'nul'`）时都归一化为 `/dev/null` 并连同引号一起替换；`>"nul".txt`、`>"null"` 等与路径字符拼接或非精确设备名的目标是普通文件名，不改写。输入重定向 `<nul` 不会创建文件，不在处理范围。
 4. 归一化只发生在执行边界（执行适配层），是唯一写入点；不改写会话历史，不依赖模型侧配合，对 Bash 工具权限判定与输出处理透明。
 
 ## 状态与所有者
@@ -15,6 +15,7 @@
 ## 验收场景
 
 - Windows + Git Bash 下执行 `dir /s /b LICENSE* > nul 2>&1`，工作区不产生 `nul` 文件，stdout/stderr 丢弃语义不变。
+- 重定向目标写成引号形式（`reg query HKLM 2>"NUL"`、`dir > 'nul'`）时同样不产生 `nul` 文件；`>"nul".txt` 与 `>"null"` 保持原样。
 - 用户显式选择 CMD 作为 Bash 工具 shell 时，`dir > nul` 保持 CMD 空设备语义，命令原样传递。
 - `> null`、`> nul.txt`、heredoc 分隔符 `<<nul` 等非设备名用法不受影响。
 - macOS/Linux 的 `posix` dialect 下同样归一化，防止平台混淆产生垃圾文件。

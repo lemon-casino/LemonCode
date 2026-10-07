@@ -5,9 +5,11 @@
 // shell 为 POSIX 系（git-bash/posix）的前提下，把重定向目标 nul 归一化为 /dev/null，
 // 丢弃语义等价且不再产生文件；dialect "cmd" 下 nul 本就是空设备，调用方必须保持原样。
 // 仅处理输出重定向（> / >>，含 1/2/& 前缀）；`<nul` 输入重定向不会创建文件，不处理。
+// 目标写成裸 nul 或被引号包裹（2>"NUL"、> 'nul'）在 Git Bash 实测都会落盘，故连引号
+// 一起替换；`>"nul".txt`、`>"null"` 与路径字符拼接或非精确设备名是普通文件，保持原样。
 // 已知局限：不做完整 shell 词法分析，引号字符串内的 `> nul` 字面量也会被改写，
 // 属于换取确定性垃圾文件防护的可接受取舍。
-const CMD_NUL_REDIRECTION_PATTERN = /([012&]?>>?)[ \t]*nul(?![A-Za-z0-9_./\\-])/gi;
+const CMD_NUL_REDIRECTION_PATTERN = /([012&]?>>?)[ \t]*(?:"nul"|'nul'|nul)(?![A-Za-z0-9_./\\-])/gi;
 
 export function normalizeCmdNulRedirectionForPosixShell(command: string): string {
   return command.replace(CMD_NUL_REDIRECTION_PATTERN, "$1/dev/null");
