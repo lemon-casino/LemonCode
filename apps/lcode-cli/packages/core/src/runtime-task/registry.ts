@@ -49,6 +49,8 @@ export interface RuntimeTaskSnapshot extends SubagentTaskSnapshot {
   exitCode?: number;
   type: RuntimeTaskType;
   isBackgrounded?: boolean;
+  /** 有限命令须消费真实结果后完成；service 使用原有预览清理规则。 */
+  backgroundKind?: "task" | "service";
   /** Only an explicitly retained Bash may survive its owning turn's successful completion. */
   keepAliveAfterTask?: boolean;
   /** Runtime-owned cancellation must not enqueue another model turn. */

@@ -11,6 +11,7 @@ import {
   commitTurnRequestEntries,
 } from "./turn-output-token-continuation.js";
 import { createRuntimeAssistantEntry } from "../../agent/message-history.js";
+import { continueAfterBackgroundBash } from "./background-bash-completion.js";
 
 interface AssistantPersistenceAnchor {
   latestAssistantMessageId: AgentRuntimeInternal["latestAssistantMessageId"];
@@ -195,6 +196,11 @@ export async function finishModelStepWithoutToolCalls(
   if (await drainInlineGuideForNextRequest(this, state)) {
     // 正常 text-only 是可续跑边界：assistant 已持久化，guide 以 user role 进入历史，
     // 保持同一 active turn 继续下一次 provider request，不改投 future queue。
+    state.turnMachine = new TurnMachineImpl(state.turnMachine.aggregateResults());
+    return "continue";
+  }
+  if (await continueAfterBackgroundBash(this, state)) {
+    // 有限后台工作必须先返回真实结果供模型收尾；此处尚未形成最终 fork/完成边界。
     state.turnMachine = new TurnMachineImpl(state.turnMachine.aggregateResults());
     return "continue";
   }

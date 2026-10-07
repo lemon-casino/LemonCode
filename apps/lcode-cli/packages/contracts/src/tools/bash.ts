@@ -60,6 +60,12 @@ export const BashInputSchema = z
     run_in_background: semanticBoolean()
       .optional()
       .describe("Set to true to run this command in the background."),
+    background_kind: z
+      .enum(["task", "service"])
+      .optional()
+      .describe(
+        "Background purpose: task (default) for finite builds, tests or installs; service for preview/dev servers that should stop when this turn ends. Task results are awaited before the turn completes. Retained servers implicitly use service.",
+      ),
     /** Requests one-time user approval to retain the server beyond this task. */
     keep_alive_after_task: semanticBoolean()
       .optional()
@@ -79,6 +85,10 @@ export const BashInputSchema = z
   .refine((input) => !input.keep_alive_after_task || input.run_in_background === true, {
     message: "keep_alive_after_task requires run_in_background=true",
     path: ["keep_alive_after_task"],
+  })
+  .refine((input) => !input.keep_alive_after_task || input.background_kind !== "task", {
+    message: "Only background services may request keep_alive_after_task",
+    path: ["background_kind"],
   });
 
 export type BashInput = z.infer<typeof BashInputSchema>;

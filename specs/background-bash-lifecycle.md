@@ -1,5 +1,61 @@
 # 会话临时预览服务生命周期
 
+## 后台构建等待与完成边界修复（2026-10-07）
+
+已确认的缺陷：模型启动有限时长的后台构建后用文本结束回复，表示等待完成通知；Runtime 却将所有未保留的 Bash 当作临时预览，在 TurnComplete 前取消构建，并抑制取消通知。模型结束一次回复不代表后台工作已经完成。待办投影不控制执行，不得靠自动标记待办完成或 UI 发送“继续”绕过该边界。
+
+### 产品与接口规则
+
+- Bash 增加可选 `background_kind: "task" | "service"`。新启动、缺省参数的后台命令视为 `task`，用于构建、测试、安装等有限工作；临时预览/开发服务器由模型显式声明 `service`。不依据命令名、描述、端口或待办文本猜测用途。
+- 既有 `keep_alive_after_task=true` 及用户单次审批规则保持：缺省 kind 的保留请求按 service 登记；显式 task 不得请求跨轮保留。service 默认不保留，仍在成功、失败、取消时清理。
+- 普通模型 stop 边界遇到本轮、当前会话分支中的 task，Runtime 等待实际终态；通过原有后台通知队列消费结果后，继续同一产品轮次请求模型。构建失败、超时、用户停止的结果也交回模型，不能伪造成成功。
+- 等待复用 RuntimeTaskRegistry.waitForTerminal 与 turn AbortSignal；不轮询、不添加等待超时、不另建队列。等待多个 task 时任一终态即唤醒，释放其余临时 waiter，下一次模型请求可处理结果及剩余工作。沿用现有 ExecutionPort 的后台执行与取消语义；其后台模式的 timeout 原本用于转后台，并非进程最终截止时间，此次不另增自动终止规则。
+- 用户取消、会话关闭、强制切换模型继续走既有 abort/owner 路径，取消时清理本轮有限命令和临时服务；不影响其它会话、turn、conversation branch 或明确获授权保留的服务。
+- 轮次等待期间不发布 TurnComplete、不开放最终 fork boundary、不触发自动提交审核。后台工作结束并被模型处理后，才发布原有完成事实；临时服务及明确保留的服务不阻塞这一边界。
+- 旧内存记录没有 backgroundKind 时保留原清理语义；不重跑或恢复已取消构建，不迁移持久聊天记录。此次只影响后续启动的命令。
+
+### 唯一所有者与顺序
+
+```mermaid
+sequenceDiagram
+    participant Model as 模型
+    participant Runtime as 同一 Runtime 产品轮次
+    participant Registry as RuntimeTaskRegistry
+    participant Exec as ExecutionPort
+    participant Queue as 既有后台通知队列
+    participant UI as Desktop continuous / 手机 replayable
+    Model->>Exec: Bash(background_kind=task)
+    Runtime->>Registry: 登记 taskId / turnId / branch / lifecycleId
+    Model->>Runtime: 本次回复 stop
+    Runtime->>Registry: 等待本轮 task 终态（可取消）
+    Exec->>Registry: 实际完成/失败/超时/停止
+    Exec->>Queue: Tracker 只入队一次终态通知
+    Queue->>Runtime: 既有 active-loop 消费与持久化
+    Runtime->>Model: 同一轮次继续，处理真实结果
+    Model->>Runtime: 最终 stop
+    Runtime->>Exec: 清理本轮临时 service
+    Runtime->>UI: TurnComplete（同一事实与序号）
+```
+
+RuntimeTaskRegistry 是用途和执行代次的唯一事实所有者，ExecutionPort 是进程结算所有者；通知继续使用 claim、branch fencing 和原 active-loop drain。Host/Main/Renderer 不增加生命周期、队列或 accepted 状态，协议的 continuous/replayable 语义不变。
+
+### 验收
+
+1. 构建背景任务仍运行时模型说“等待通知”：无取消、无 TurnComplete；实际结束通知只消费一次，同一轮继续进行验证和收尾。
+2. 构建失败或超时：真实错误进入下一请求，允许模型处理，不提前宣布全部完成。
+3. 临时服务：不等待服务自行退出，成功/失败/取消仍按原规则停止并等待进程结算；明确获授权保留不阻塞提交审核。
+4. 多任务与竞态：任一结果及时唤醒；模型返回前已到达的结果也消费；重复 tracker/TaskOutput 不双发；旧 turn/branch/lifecycle 不唤醒当前轮。
+5. 等待时取消：立即解除等待，所有 waiter 清理，进入原取消与进程结算路径，不启动后续模型请求。
+6. 真实进程回归使用隔离临时目录与受控模型，无外部供应商调用；现有通知消费 continuous/replayable 投影与自动提交闸门回归必须通过。
+
+### 本次验证结果
+
+- 生命周期与执行链回归 54 项通过：包括真实 Windows 子进程的正常退出、非零退出、等待期间取消，实际 Bash 工具 → Tracker → 通知消费 → 同一 Turn 续跑 → 临时 service 清理；以及多任务、提前到达结果、旧代结果、权限确认、通知去重、桌面 continuous 与手机 replayable 结果消费。真实 HTTP 预览父子进程清理及其它会话隔离通过。
+- 模型切换、取消、轮次生命周期及完成后 memory 行为回归 80 项通过；Git 自动草稿与弹窗闸门回归 17 项通过。没有修改待办状态、输入 admission、Host/lease 或最终 fork 持久化规则。
+- 根 `pnpm typecheck`、`pnpm lint`、`pnpm verify:pre-push` 通过，架构 baseline=0/new=0。CLI contracts build/core typecheck/build 通过；contracts lint 通过，core 全包 lint 退出 0 但有两条既有 `lint-fork-rewind.test.ts` optional-chaining 警告；本次目标文件定向 lint 与格式检查通过。
+- 运行工具为本机 Node 24.14.1、pnpm 10.33.2；`mise.toml` 固定 Node 24.14.0，当前 shell 没有 mise 命令，未宣称验证了固定补丁版本。未构建桌面安装包、未重启用户应用、未重跑已经取消的业务构建。
+- Linux/macOS 清理采用既有受控 ps/signal 回归，本机未进行这两个平台的原生进程验证。测试创建的本地进程、输出目录均已清理。
+
 ## 规则与根因
 
 2026-09-30 用户确认：会话内临时 Web/开发预览默认随本轮任务结束关闭，仅用户明确选择保留的服务继续运行；预览不得影响任务完成后的 Git 提交信息弹窗。
@@ -8,7 +64,7 @@
 
 真实 Windows 进程回归另外复现：Bash 直写输出时取消先完成 root exit 的合成结果，`waitForBackgroundTask` 可早于异步 `taskkill /T /F` 完成返回。Execution adapter 必须由每次 run 持有自身的杀树 settlement，返回 ExecutionResult 前等待它；不能等整个 adapter 所有进程的关闭，更不能仅把 UI 状态改成 stopped。
 
-- Bash 缺省或 `keep_alive_after_task=false`：本轮成功、失败或取消都清理该 turn 的临时后台命令。只读/普通/计划/工作流的相同 Runtime 路径一致，不依赖是否有 Git 修改。
+- Bash `background_kind=service` 缺省或 `keep_alive_after_task=false`：本轮成功、失败或取消都清理该 turn 的临时后台服务。有限 task 的成功边界先等待并消费结果；失败或取消路径清理全部未保留的本轮 Bash。只读/普通/计划/工作流的相同 Runtime 路径一致，不依赖是否有 Git 修改。
 - `keep_alive_after_task=true` 只表达保留请求，不表达授权。该调用在所有协作模式必须经过现有 permission broker 的用户确认；无 broker 时拒绝执行。项目/会话的宽泛 Bash allow、完全访问模式、PreToolUse allow 和 PermissionRequest 自动 Hook 均不能替用户决定保留。
 - 复用 ToolPermissionSpec 增加可选 `approvalSource: "user"` 收窄应答来源。仅保留请求启用此约束；其它工具的 Hook 审批和模式规则保持不变。保留确认只提供单次允许/拒绝，不能保存永久或会话 allow。
 - 模型提示明确临时预览默认关闭；仅用户要求任务后继续访问时才申请保留。权限弹窗显示当前语言的明确说明；用户拒绝后遵循原拒绝协议，停止并等待用户指示，不得静默去掉保留参数重新启动。
@@ -23,7 +79,7 @@
 模型 Bash 输入 → PermissionService（缺省普通规则 / 保留请求强制用户审批）
               → 既有 broker（Desktop / Web / TUI 用户回答，同一命令通道）
               → ToolExecutor → ExecutionPort → RuntimeTaskRegistry(taskId, turnId)
-本轮成功/失败/取消 → Runtime 清理未获保留的本轮 Bash → ExecutionPort 取消进程树并结算
+有限 task 成功边界 → 等待终态并经既有通知继续本轮；最终成功/失败/取消 → Runtime 清理未获保留的本轮 Bash → ExecutionPort 取消进程树并结算
                   → 既有 TurnComplete/TurnError → continuous / replayable 同一投影
                   → Git 自动生成（仍不等待保留 Bash）
 ```

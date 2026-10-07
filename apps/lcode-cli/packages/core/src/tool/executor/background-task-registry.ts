@@ -92,6 +92,13 @@ export function registerRuntimeBackgroundTask(
     agentType: existing?.agentType ?? taskType,
     description: existing?.description ?? description,
     isBackgrounded: true,
+    // 原先所有后台 Bash 都在模型 stop 时清理，连仍在构建的命令也被取消。
+    // 用经过校验的工具用途登记生命周期；不从命令名/描述推断临时服务。
+    backgroundKind:
+      taskType === "local_bash" && parsedBashInput?.success === true
+        ? (parsedBashInput.data.background_kind ??
+          (parsedBashInput.data.keep_alive_after_task ? "service" : "task"))
+        : existing?.backgroundKind,
     keepAliveAfterTask:
       taskType === "local_bash"
         ? parsedBashInput?.success === true && parsedBashInput.data.keep_alive_after_task === true
