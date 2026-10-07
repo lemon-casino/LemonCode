@@ -66,18 +66,18 @@
 
 ## 3. 当前源码核实与缺口
 
-| 范围         | 当前事实                                                         | 待开发内容                            |
-| ------------ | ---------------------------------------------------------------- | ------------------------------------- |
-| 工作树 owner | WorktreeService 管理绑定、准备、集成、快照与删除                 | 注入环境生命周期 port                 |
-| 准备检测     | worktree/adapters/environment.ts 依据锁文件选择命令              | 工具声明、版本冻结、独立依赖策略      |
-| 准备执行     | worktree/adapters/validation.ts 在 checkout cwd 启动本机 Shell   | 专属 env/工具上下文与停止收据         |
-| CLI          | ExecutionRequest.env 支持 overlay；默认适配器继承应用环境        | 命令边界解析环境引用，防会话污染      |
-| 内置终端     | ITerminalService.create 当前接收尺寸与 cwd                       | workspace scope、环境引用与 PTY 接线  |
-| 身份与归属   | 原项目 scope 和真实 execution scope 已分离                       | 环境依 binding 对账，不能另造临时项目 |
-| 本项目工具   | mise.toml 固定 Node 24.14.0 / pnpm 10.33.2                       | 准备、Agent、终端实际使用同版本       |
-| 开发端口     | Web Vite 默认 5173、Desktop renderer 5174、HTTP server 默认 3030 | 托管端口组、实际地址回传、全链路适配  |
-| 开发数据     | mise.toml 的开发任务使用固定开发数据目录                         | 每环境独立数据根与 SQLite             |
-| 合并候选     | 已有独立候选 checkout、检查与发布事务                            | 候选专属环境、版本关联验证收据        |
+| 范围         | 当前事实                                                              | 待开发内容                                                                     |
+| ------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| 工作树 owner | WorktreeService 管理绑定、准备、集成、快照与删除                      | 注入环境生命周期 port                                                          |
+| 准备检测     | worktree/adapters/environment.ts 依据锁文件选择命令                   | 工具声明、版本冻结、独立依赖策略                                               |
+| 准备执行     | worktree/adapters/validation.ts 在 checkout cwd 启动本机 Shell        | 专属 env/工具上下文与停止收据                                                  |
+| CLI          | ExecutionRequest.env 支持 overlay；默认适配器继承应用环境             | 命令边界解析环境引用，防会话污染                                               |
+| 内置终端     | ITerminalService.create 当前接收尺寸与 cwd                            | workspace scope、环境引用与 PTY 接线                                           |
+| 身份与归属   | 原项目 scope 和真实 execution scope 已分离                            | 环境依 binding 对账，不能另造临时项目                                          |
+| 本项目工具   | mise.toml 固定 Node 24.14.0 / pnpm 10.33.2                            | 准备、Agent、终端实际使用同版本                                                |
+| 开发端口     | Web Vite 默认 5173、Desktop renderer 5174、HTTP server 默认 3030      | 托管端口组、实际地址回传、全链路适配                                           |
+| 开发数据     | mise.toml 的开发任务使用固定开发数据目录                              | 每环境独立数据根与 SQLite                                                      |
+| 合并候选     | 已有独立候选 checkout、检查与发布事务                                 | 候选专属环境、版本关联验证收据                                                 |
 | 环境 owner   | 目标 Host 的 RuntimeEnvironmentService（当前组合根已有局部工厂/服务） | 补齐 revision、操作、跨 Host 资源与生命周期闭环；不得把局部工厂当作 M4/M5 完成 |
 
 此次核实不代表重新验收全部工作树功能。已有 ExecutionSandboxPolicy 类型也不能作为各平台沙盒已生效的证据。
@@ -125,13 +125,13 @@
 
 ### 5.2 分发与版本控制
 
-| 情形              | 方案                               | 门禁                                     |
-| ----------------- | ---------------------------------- | ---------------------------------------- |
-| 原型              | 固定官方产物在测试目录运行         | 真实平台、版本、退出/取消、文件校验      |
+| 情形              | 方案                                            | 门禁                                       |
+| ----------------- | ----------------------------------------------- | ------------------------------------------ |
+| 原型              | 固定官方产物在测试目录运行                      | 真实平台、版本、退出/取消、文件校验        |
 | 正式交付          | 构建时准备并随包提供固定 mise，项目工具按需下载 | 按构建目标校验摘要、平台、许可证和包内落点 |
-| 缺少随包 mise     | 构建失败；旧包运行时报 capability-unavailable | 不在运行时下载 mise，不从系统 PATH 兜底     |
-| 用户已有系统 mise | 仅保留后续高级显式选择的扩展边界   | 首期生产路径始终使用随包固定版本           |
-| 后端升级          | 随应用版本控制                     | 原环境可重现，必要时保留旧后端           |
+| 缺少随包 mise     | 构建失败；旧包运行时报 capability-unavailable   | 不在运行时下载 mise，不从系统 PATH 兜底    |
+| 用户已有系统 mise | 仅保留后续高级显式选择的扩展边界                | 首期生产路径始终使用随包固定版本           |
+| 后端升级          | 随应用版本控制                                  | 原环境可重现，必要时保留旧后端             |
 
 官方提供手动下载等安装方式；是否适合本项目随包分发必须原型验证。[安装文档](https://mise.jdx.dev/installing-mise.html) 上游使用 MIT 许可证，分发要保留声明；Node、pnpm 等分别处理自身许可证。[源码与许可证](https://github.com/jdx/mise)
 
@@ -156,7 +156,7 @@
 
 - 固定后端和资产摘要；OS/架构发布清单只列实测资产。
 - 临时下载、哈希/可用签名校验、归档路径穿越检查、原子发布。
-- 构建期 mise 资产下载使用固定 URL/摘要与构建网络配置；临时下载和解压目录与最终平台目录同级，保留归档真实扩展名。摘要不符、成员路径越界或必要可执行文件缺失时不发布。解压只提取固定后端文件与许可证；不接受归档符号链接。运行时只消费经构建校验的包内路径，不持有下载 mise 的分支。
+- 构建期 mise 资产下载使用固定 URL/摘要与构建网络配置；临时下载和解压目录与最终平台目录同级，保留归档真实扩展名。摘要不符、成员路径越界或必要可执行文件缺失时不发布。官方归档可携带非必需的普通成员（如 `bin/mise.d`、`share/`、`man/`）；成员校验强制路径安全与必需文件存在，接受额外普通成员，但解压只提取固定后端文件与许可证；符号链接与特殊成员仍然拒绝。tar 调用以归档所在目录为 cwd、只传归档文件名，避免 Windows 盘符被当作远端主机。运行时只消费经构建校验的包内路径，不持有下载 mise 的分支。
 - 只安装已支持的静态工具（首期 Node/pnpm）；未知后端、插件或动态声明明确拒绝。通过 `mise --no-config where <tool>@<exact-version>` 获取安装根，再验证各平台可执行文件与真实版本。安装锁覆盖验证与发布，缓存命中仍核对收据；取消后不把半成品当成功。pnpm 安装/探测必须显式接收同一冻结计划的 `nodePath`，脚本用该绝对 Node 执行，原生 pnpm 的子进程 PATH 也以冻结 Node 开头，不借宿主任意 Node。AbortSignal 只请求停止，真实子进程 close 后才释放安装锁。
 - 工具 key 包含后端版本、工具版本、OS/架构与安装配置摘要。
 - 同 key 跨进程互斥；一个消费者取消只释放自身引用。确切工具目录已存在时，在同一安装锁内使用固定后端 where、realpath/边界及真实版本验证缓存，成功即返回，不再运行会访问版本索引的 `mise install`；只有缺失版本才联网。已有目录校验失败明确拒绝，不能借缓存命中跳过校验或回退系统 PATH。
@@ -406,21 +406,21 @@ CLI 执行前解析（P2-03 起）：执行适配器在每次 spawn 前按请求
 
 以下现有路径已核实；拟新增路径实施时先注册架构策略，不能仅创建空壳后宣布接线完成。
 
-| 位置                                                                                              | 开发职责                                                                                                                                                  |
-| ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| packages/services/src/runtime-environment/（当前已建模块）                                      | managed 模块：contract、domain/app/adapters、node 组合入口；M4/M5 新能力必须经公开 contract 接入，不能创建旁路事实 owner |
-| packages/shared/src/runtimeEnvironment.ts（当前公开 schema）                                               | 环境引用、投影、操作收据、严格 schema；只暴露协议所需字段，不包含本机后端实现或授权 token                                                                 |
-| packages/services/src/node.ts、accessor.ts、公开出口                                              | 注册 descriptor、组合后端与执行 port，注入各消费者；沿当前服务注册方式，不放入 Electron Main                                                              |
-| packages/shared/src/lcode-protocol/index.ts 与当前实际协议边界                                    | 新环境引用的严格输入/输出校验、能力协商与兼容字段；实施时确认 V4 创建、事件及恢复入口                                                                     |
-| packages/services/src/worktree/contract.ts、app/ports.ts、node.ts                                 | 注入生命周期/候选验证 port；保持 WorktreeService 的 Git 与绑定所有权                                                                                      |
-| apps/lcode-cli/packages/contracts/src/interfaces/execution.port.ts                                | 复用 env overlay；新增环境解析 port 通过 contracts 公共出口，不引用服务实现                                                                               |
-| apps/lcode-cli/packages/bootstrap/src/app/app-adapters.ts 与 lcode-protocol/worktree-execution.ts | 应用执行器组合与 worktree 环境引用接线，内部 Helper 和项目命令分类                                                                                        |
-| apps/lcode-cli/packages/adapters/src/exec/                                                        | 在真实进程边界使用上下文、记录实际版本/代际、复用停止机制                                                                                                 |
-| packages/services/src/terminal/terminal.ts、terminalService.ts                                    | scoped create、PTY 环境、会话关闭与终端 dispose 的引用结算                                                                                                |
-| apps/lcode-cli/packages/bootstrap/src/lcode-protocol/worktree-mcp-scope.ts                        | 本地项目 MCP 的 scope/环境 key；沿当前实际 MCP 启动 owner 接线                                                                                            |
-| packages/ui/src/hooks/、worktree/、i18n/locales/                                                  | 共享服务访问、准备投影、详情/动作、双语文案；不直接读环境 JSON                                                                                            |
-| architecture-policy.yaml 与 feature graph                                                         | 新模块真实存在后注册层/模块规则和源码种子，检查循环依赖与深导入                                                                                           |
-| scripts/third-party-notices.mjs 等现有打包/声明链路                                               | 后端资产、校验、许可证与按平台的发布清单；具体插入点由 P0 核实                                                                                            |
+| 位置                                                                                              | 开发职责                                                                                                                 |
+| ------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| packages/services/src/runtime-environment/（当前已建模块）                                        | managed 模块：contract、domain/app/adapters、node 组合入口；M4/M5 新能力必须经公开 contract 接入，不能创建旁路事实 owner |
+| packages/shared/src/runtimeEnvironment.ts（当前公开 schema）                                      | 环境引用、投影、操作收据、严格 schema；只暴露协议所需字段，不包含本机后端实现或授权 token                                |
+| packages/services/src/node.ts、accessor.ts、公开出口                                              | 注册 descriptor、组合后端与执行 port，注入各消费者；沿当前服务注册方式，不放入 Electron Main                             |
+| packages/shared/src/lcode-protocol/index.ts 与当前实际协议边界                                    | 新环境引用的严格输入/输出校验、能力协商与兼容字段；实施时确认 V4 创建、事件及恢复入口                                    |
+| packages/services/src/worktree/contract.ts、app/ports.ts、node.ts                                 | 注入生命周期/候选验证 port；保持 WorktreeService 的 Git 与绑定所有权                                                     |
+| apps/lcode-cli/packages/contracts/src/interfaces/execution.port.ts                                | 复用 env overlay；新增环境解析 port 通过 contracts 公共出口，不引用服务实现                                              |
+| apps/lcode-cli/packages/bootstrap/src/app/app-adapters.ts 与 lcode-protocol/worktree-execution.ts | 应用执行器组合与 worktree 环境引用接线，内部 Helper 和项目命令分类                                                       |
+| apps/lcode-cli/packages/adapters/src/exec/                                                        | 在真实进程边界使用上下文、记录实际版本/代际、复用停止机制                                                                |
+| packages/services/src/terminal/terminal.ts、terminalService.ts                                    | scoped create、PTY 环境、会话关闭与终端 dispose 的引用结算                                                               |
+| apps/lcode-cli/packages/bootstrap/src/lcode-protocol/worktree-mcp-scope.ts                        | 本地项目 MCP 的 scope/环境 key；沿当前实际 MCP 启动 owner 接线                                                           |
+| packages/ui/src/hooks/、worktree/、i18n/locales/                                                  | 共享服务访问、准备投影、详情/动作、双语文案；不直接读环境 JSON                                                           |
+| architecture-policy.yaml 与 feature graph                                                         | 新模块真实存在后注册层/模块规则和源码种子，检查循环依赖与深导入                                                          |
+| scripts/third-party-notices.mjs 等现有打包/声明链路                                               | 后端资产、校验、许可证与按平台的发布清单；具体插入点由 P0 核实                                                           |
 
 新服务通道通过当前共享服务描述/注册机制接入。不得未经查证手写一个不存在的 ServiceChannels 文件路径，或同时在 Main、Host、CLI 各注册一套环境事实。
 
@@ -435,15 +435,15 @@ RuntimeEnvironmentService 是目标 Host 的环境事实 owner；其公开 schem
 
 ### 9.6 M4/M5 最小动作合同
 
-| 动作 | owner | 关键输入/收据 | 不可违反的失败语义 |
-| --- | --- | --- | --- |
-| `upgrade` | RuntimeEnvironmentService | binding、expected revision/digest、不可变新 manifest、new environmentRef | 真实 writer/服务未结算不得覆盖旧代；返回 needsUpdate/releaseBlocked 或继续原 operation，不靠超时强切 |
-| `candidate prepare/validate` | 环境 owner + WorktreeService Git owner | `purpose=integration-candidate`、candidate HEAD/tree、manifest/declaration digest、ValidationReceipt | 候选/锁/manifest/target 任一变化使旧收据失效；下载/安装失败不得 ready |
-| `release` | 环境 owner；删除结算由 WorktreeService 编排 | fence、owner 停止证明、精确消费者/服务对账、tombstone | 逻辑 release 不等于物理回收；目录、refs、私有资源或聊天清理失败保留 deleting/releaseBlocked，可重试同一 operation |
-| `restore` | WorktreeService + 环境 owner | Git snapshot/index/HEAD、实际 Host 能力、new environmentId/revision | 不复活旧 PID/URL/running；私有数据需 save/export/discard 决策，否则不标完整 ready |
-| `resourceSummary/garbageCollect` | 环境 owner | environment scope、数量/时间预算、dryRun、活引用/下载锁 | 未扫描完、活引用、锁或进行中下载均保护；partial/blocked 不得成功删除 |
-| `startService/stopService` | 环境 owner + 真实进程 owner | serviceId、expected revision/generation、operationId | 同代幂等；generation 不符拒绝；无真实 bind/退出证明不得标 running/stopped |
-| `snapshot/event` | 环境 owner | `stateRevision`、projection/operation、delivery kind | desktop-continuous 直连与 web-remote-replayable 恢复分开；乱序/旧事件丢弃并回查 snapshot |
+| 动作                             | owner                                       | 关键输入/收据                                                                                        | 不可违反的失败语义                                                                                                |
+| -------------------------------- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `upgrade`                        | RuntimeEnvironmentService                   | binding、expected revision/digest、不可变新 manifest、new environmentRef                             | 真实 writer/服务未结算不得覆盖旧代；返回 needsUpdate/releaseBlocked 或继续原 operation，不靠超时强切              |
+| `candidate prepare/validate`     | 环境 owner + WorktreeService Git owner      | `purpose=integration-candidate`、candidate HEAD/tree、manifest/declaration digest、ValidationReceipt | 候选/锁/manifest/target 任一变化使旧收据失效；下载/安装失败不得 ready                                             |
+| `release`                        | 环境 owner；删除结算由 WorktreeService 编排 | fence、owner 停止证明、精确消费者/服务对账、tombstone                                                | 逻辑 release 不等于物理回收；目录、refs、私有资源或聊天清理失败保留 deleting/releaseBlocked，可重试同一 operation |
+| `restore`                        | WorktreeService + 环境 owner                | Git snapshot/index/HEAD、实际 Host 能力、new environmentId/revision                                  | 不复活旧 PID/URL/running；私有数据需 save/export/discard 决策，否则不标完整 ready                                 |
+| `resourceSummary/garbageCollect` | 环境 owner                                  | environment scope、数量/时间预算、dryRun、活引用/下载锁                                              | 未扫描完、活引用、锁或进行中下载均保护；partial/blocked 不得成功删除                                              |
+| `startService/stopService`       | 环境 owner + 真实进程 owner                 | serviceId、expected revision/generation、operationId                                                 | 同代幂等；generation 不符拒绝；无真实 bind/退出证明不得标 running/stopped                                         |
+| `snapshot/event`                 | 环境 owner                                  | `stateRevision`、projection/operation、delivery kind                                                 | desktop-continuous 直连与 web-remote-replayable 恢复分开；乱序/旧事件丢弃并回查 snapshot                          |
 
 实现顺序固定为：能力/身份校验 → 持久短锁重读 → fence 或新 operation → 真实 owner/checkout writer/进程 owner 动作 → 收据与 `stateRevision` 结算 → 投影/事件。UI pending 只能显示操作中，不得反写 running 或释放事实。
 
@@ -920,7 +920,6 @@ P0/P1 进入内部实验；P2 验证工具/依赖，P3 验证并行开发；P4/P
 
 任意外部脚本的系统访问不是本验收能保证的隔离。未适配框架、系统依赖、绝对输出与外部数据库列为未托管，不能忽略后算通过。
 
-
 ### 2026-10-06 当前实现验收快照
 
 以下是本轮在 Windows 11 x64、Node 24.14.0 固定路径下的真实结果；它更新当前实现事实，不删除前面的历史规划/风险文本：
@@ -933,6 +932,7 @@ P0/P1 进入内部实验；P2 验证工具/依赖，P3 验证并行开发；P4/P
 - 安全策略：运行时不下载 mise、不从 PATH fallback、不把 token/lease/envOverlay 暴露给公开 RPC；自签不要求商业证书、Developer ID 或公证，无 identity 时 macOS 使用 ad-hoc，系统信任提示保留。
 
 未覆盖且保留为用户后续门禁：macOS/Linux 原生工具/PTY/服务停止/签名实机；实体手机；完整 Electron installer/DMG/ZIP 构建；真实远端 CDN 下载及 Linux/macOS binary；当前网络下首次工具网络安装。
+
 ### 风险与放行条件
 
 | 风险                     | 后果                             | 放行要求                                   |
@@ -992,6 +992,8 @@ P0 核实结论（2026-10-05）：mise版本与资产——固定 v2026.10.2，1
 RuntimeEnvironmentService 已存在，因此不在 feature graph 中添加虚构 owner 导出；graph 只在新增真实模块边界或已验证关系时更新。
 
 ### 本次文档变更记录
+
+2026-10-07（发布回归修复）：v3.17.0 桌面发行构建在 linux-x64/arm64、macos-x64/arm64 失败——归档成员校验把官方 tar.xz 携带的非必需普通成员（`bin/mise.d`、`share/`、`man/`）判为 unexpected 并整体拒绝（Windows zip 恰好只含必需成员，故此前本地与 Windows job 未暴露）。§5.3 规则改为：校验覆盖全部成员且只强制路径安全与必需文件存在，接受额外普通成员但落盘仍只写固定后端文件与许可证，符号链接与特殊成员继续拒绝。同时修正 Windows 上 `tar -C` 的反斜杠路径与盘符被当作远端主机的问题（改为归档目录为 cwd + 只传文件名、目标路径正斜杠）。验证：五个官方归档（linux/mac/windows）真实解压只落必需成员；toolBackend 8/8（含官方 zip fixture）、runtime-environment 219 通过/4 需 fixture 跳过、desktop/remote mise 准备测试 14/14。
 
 2026-10-06（M4/M5 合同回填）：按当前源码与三份调研回填 RuntimeEnvironmentService 已存在但仅局部接线的事实；补充 `stateRevision` 与 `currentRevision` 分离、能力协商、manifest/lock 摘要、候选 ValidationReceipt、删除/恢复/GC/诊断动作合同和旧端迁移边界。P4-01 保留为局部完成；P4-02～P4-07/P5-01～P5-06 与 ENV-01～ENV-30 未因本次文档/schema 变更而放行。Windows 本轮执行了 freshness、shared tsc、后续根检查；macOS/Linux、实体手机、完整 GUI 和原生矩阵未执行。
 

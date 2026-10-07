@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, posix, resolve } from "node:path";
+import { basename, dirname, posix, resolve } from "node:path";
 import { promisify } from "node:util";
 import { inflateRawSync } from "node:zlib";
 import { isPathWithin } from "./backendPlatform.js";
@@ -21,11 +21,12 @@ export async function extractZipArchive(
   const extracted = new Set<string>();
 
   for (const entry of entries) {
-    validateArchiveMember(entry.path, required);
+    validateArchiveMember(entry.path);
     if (entry.kind === "symlink" || entry.kind === "special") {
       throw new Error(`mise archive contains unsupported link or special member: ${entry.path}`);
     }
-    if (entry.kind !== "file") continue;
+    // 官方归档可携带非必需普通成员；校验覆盖全部条目，落盘仍只写固定后端文件。
+    if (entry.kind !== "file" || !required.has(entry.path)) continue;
     const content = readZipEntry(archive, entry, baseOffset);
     const relativePath = entry.path.slice("mise/".length);
     const target = resolve(destination, relativePath);
@@ -45,8 +46,11 @@ export async function extractTarXzArchive(
   destination: string,
   requiredMembers: readonly string[],
 ): Promise<void> {
-  const names = await runTar(["-tf", archivePath]);
-  const details = await runTar(["-tvf", archivePath]);
+  // 以归档所在目录为 cwd、只传文件名：Windows 盘符（E:\...）会被 GNU tar 当成远端主机语法。
+  const archiveDirectory = dirname(archivePath);
+  const archiveName = basename(archivePath);
+  const names = await runTar(["-tf", archiveName], archiveDirectory);
+  const details = await runTar(["-tvf", archiveName], archiveDirectory);
   const nameLines = splitArchiveLines(names.stdout);
   const detailLines = splitArchiveLines(details.stdout);
   if (nameLines.length !== detailLines.length || nameLines.length > MAX_ARCHIVE_ENTRIES) {
@@ -57,7 +61,7 @@ export async function extractTarXzArchive(
   for (let index = 0; index < nameLines.length; index += 1) {
     const member = nameLines[index];
     if (member === undefined) throw new Error("mise tar archive listing is inconsistent");
-    validateArchiveMember(member, required);
+    validateArchiveMember(member);
     const type = detailLines[index]?.[0];
     if (type !== "-" && type !== "d") {
       throw new Error(`mise tar archive contains unsupported link or special member: ${member}`);
@@ -66,15 +70,20 @@ export async function extractTarXzArchive(
   }
   assertRequiredMembers(extractable, required);
 
-  await runTar([
-    "-xf",
-    archivePath,
-    "-C",
-    destination,
-    "--strip-components=1",
-    "--",
-    ...required,
-  ]);
+  await runTar(
+    [
+      "-xf",
+      archiveName,
+      "-C",
+      // Windows 上 GNU tar 把 `-C` 的反斜杠路径当转义序列解析（实测 Cannot open），
+      // 正斜杠在 Windows 与 POSIX 都成立；POSIX 的路径语义保持原样。
+      process.platform === "win32" ? destination.replaceAll("\\", "/") : destination,
+      "--strip-components=1",
+      "--",
+      ...required,
+    ],
+    archiveDirectory,
+  );
 }
 
 interface ZipEntry {
@@ -98,7 +107,10 @@ function parseZipEntries(archive: Buffer): ZipEntry[] {
   const firstLocal = archive.indexOf(Buffer.from([0x50, 0x4b, 0x03, 0x04]));
   const candidates = [centralOffset, firstLocal >= 0 ? centralOffset + firstLocal : -1];
   const start = candidates.find(
-    (candidate) => candidate >= 0 && candidate + 4 <= archive.length && archive.readUInt32LE(candidate) === 0x02014b50,
+    (candidate) =>
+      candidate >= 0 &&
+      candidate + 4 <= archive.length &&
+      archive.readUInt32LE(candidate) === 0x02014b50,
   );
   if (start === undefined) throw new Error("mise zip central directory is invalid");
 
@@ -128,13 +140,12 @@ function parseZipEntries(archive: Buffer): ZipEntry[] {
     }
     const path = archive.subarray(nameStart, nameEnd).toString("utf8");
     const unixMode = externalAttributes >>> 16;
-    const isDirectory =
-      path.endsWith("/") || (madeBy >> 8 === 3 && (unixMode & 0xf000) === 0x4000);
+    const isDirectory = path.endsWith("/") || (madeBy >> 8 === 3 && (unixMode & 0xf000) === 0x4000);
     const kind = isDirectory
       ? "directory"
-      : (madeBy >> 8 === 3 && (unixMode & 0xf000) === 0xa000)
+      : madeBy >> 8 === 3 && (unixMode & 0xf000) === 0xa000
         ? "symlink"
-        : (madeBy >> 8 === 3 && unixMode !== 0 && (unixMode & 0xf000) !== 0x8000)
+        : madeBy >> 8 === 3 && unixMode !== 0 && (unixMode & 0xf000) !== 0x8000
           ? "special"
           : "file";
     entries.push({ path, kind, compressedSize, uncompressedSize, compression, localOffset });
@@ -180,15 +191,18 @@ function findSignatureFromEnd(buffer: Buffer, signature: number, maxBytes: numbe
   return -1;
 }
 
-async function runTar(args: string[]): Promise<{ stdout: string; stderr: string }> {
+async function runTar(args: string[], cwd: string): Promise<{ stdout: string; stderr: string }> {
   try {
     return await execFileAsync("tar", args, {
+      cwd,
       windowsHide: true,
       maxBuffer: MAX_COMMAND_OUTPUT_BYTES,
     });
   } catch (error) {
     const output = error as { stdout?: string; stderr?: string; message?: string };
-    throw new Error(`mise tar archive operation failed: ${output.stderr ?? output.message ?? String(error)}`);
+    throw new Error(
+      `mise tar archive operation failed: ${output.stderr ?? output.message ?? String(error)}`,
+    );
   }
 }
 
@@ -199,7 +213,9 @@ function splitArchiveLines(output: string): string[] {
     .filter((line) => line.length > 0);
 }
 
-function validateArchiveMember(member: string, required: ReadonlySet<string>): void {
+// 官方归档可携带非必需普通成员（bin/mise.d、share/、man/ 等）；这里只强制路径安全，
+// 必需成员由 assertRequiredMembers 单独核对，落盘范围由调用方按 required 收窄。
+function validateArchiveMember(member: string): void {
   if (!member || member.includes("\0") || member.includes("\\")) {
     throw new Error(`mise archive member path is unsafe: ${JSON.stringify(member)}`);
   }
@@ -214,12 +230,6 @@ function validateArchiveMember(member: string, required: ReadonlySet<string>): v
   }
   if (path !== "mise" && (!path.startsWith("mise/") || posix.normalize(path) !== path)) {
     throw new Error(`mise archive member path is not rooted at mise: ${member}`);
-  }
-  if (directory) {
-    const allowed = path === "mise" || [...required].some((item) => item.startsWith(`${path}/`));
-    if (!allowed) throw new Error(`mise archive contains an unexpected directory: ${member}`);
-  } else if (!required.has(member)) {
-    throw new Error(`mise archive contains an unexpected member: ${member}`);
   }
 }
 
