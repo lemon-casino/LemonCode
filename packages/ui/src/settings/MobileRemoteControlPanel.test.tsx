@@ -23,7 +23,75 @@ const { PlatformProvider } = await import("@/hooks/usePlatform.js");
 const { MobileRemoteControlPanel } = await import("./MobileRemoteControlPanel.js");
 const { RemotePairingPanel } = await import("./RemotePairingPanel.js");
 
-test("等待手机重连时显示恢复提示，不显示错误或已消费二维码", () => {
+test("多人在线时链接到期仍可刷新，不能要求先停止已有连接", () => {
+  const markup = renderToStaticMarkup(
+    <PlatformProvider platform={{} as IPlatformService}>
+      <LCodeIntlProvider>
+        <RemotePairingPanel
+          canStart={true}
+          noMirrorTargetHint=""
+          pairing={{
+            state: "bridged",
+            roomId: "room",
+            multiDevice: true,
+            expiresAt: 1,
+            connections: [{ deviceId: "A", deviceName: "在线设备", connected: true }],
+          }}
+          pairingUrl={null}
+          startingPairing={false}
+          stoppingPairing={false}
+          onStart={async () => {}}
+          onStop={async () => {}}
+          onDecide={async () => {}}
+        />
+      </LCodeIntlProvider>
+    </PlatformProvider>,
+  );
+  assert.match(markup, /刷新二维码/);
+  assert.match(markup, /在线设备/);
+  assert.doesNotMatch(markup, /remote-control-pairing-url/);
+});
+
+test("多设备连接与两个独立请求同时展示，保留有效共享链接", () => {
+  const markup = renderToStaticMarkup(
+    <PlatformProvider platform={{} as IPlatformService}>
+      <LCodeIntlProvider>
+        <RemotePairingPanel
+          canStart={true}
+          noMirrorTargetHint=""
+          pairing={{
+            state: "bridged",
+            roomId: "test-room",
+            multiDevice: true,
+            expiresAt: Date.now() + 300000,
+            connections: [{ deviceId: "A", deviceName: "已连接电脑", connected: true }],
+            pendingDevices: [
+              { requestId: "B", deviceName: "待授权手机", ua: "" },
+              { requestId: "C", deviceName: "另一台电脑", ua: "" },
+            ],
+          }}
+          pairingUrl="https://relay.example.com/p/test-room#c=fixture"
+          startingPairing={false}
+          stoppingPairing={false}
+          onStart={async () => {}}
+          onStop={async () => {}}
+          onDecide={async () => {}}
+        />
+      </LCodeIntlProvider>
+    </PlatformProvider>,
+  );
+  assert.match(markup, /已连接电脑/);
+  assert.match(markup, /待授权手机/);
+  assert.match(markup, /另一台电脑/);
+  assert.equal(
+    (markup.match(/data-testid="remote-control-pairing-device-request"/g) ?? []).length,
+    2,
+  );
+  assert.match(markup, /remote-control-pairing-url/);
+  assert.equal((markup.match(/>允许</g) ?? []).length, 2);
+});
+
+test("等待远程设备重连时显示恢复提示，不显示错误或已消费二维码", () => {
   const markup = renderToStaticMarkup(
     <PlatformProvider platform={{} as IPlatformService}>
       <LCodeIntlProvider>
@@ -41,7 +109,7 @@ test("等待手机重连时显示恢复提示，不显示错误或已消费二�
       </LCodeIntlProvider>
     </PlatformProvider>,
   );
-  assert.match(markup, /等待手机重新连接/);
+  assert.match(markup, /等待远程设备重新连接/);
   assert.doesNotMatch(markup, /BRIDGE_DETACHED|配对出错|remote-control-pairing-url/);
   assert.match(markup, /停止/);
 });
@@ -81,14 +149,15 @@ function renderPanel(
   );
 }
 
-test("独立配对块渲染「移动端远程控制」标题与扫码引导", () => {
+test("独立配对块统一为远程控制与远程扫码连接", () => {
   // renderToStaticMarkup 不执行 effect，config 停留在加载态也能渲染外层结构。
   const markup = renderPanel(makeBridgePlatformStub());
   assert.match(markup, /data-testid="mobile-remote-control-panel"/);
-  assert.match(markup, /移动端远程控制/);
-  assert.match(markup, /扫码或在手机上打开链接/);
-  assert.match(markup, /手机扫码连接/);
-  assert.match(markup, /用手机相机扫码/);
+  assert.match(markup, /远程控制/);
+  assert.doesNotMatch(markup, /移动端远程控制|手机扫码连接|用手机相机/);
+  assert.match(markup, /扫码或在远程设备上打开链接/);
+  assert.match(markup, /远程扫码连接/);
+  assert.match(markup, /用远程相机扫码，即可打开工作区/);
 });
 
 test("平台能力缺失时如实降级，不渲染配对面板与开启控件", () => {

@@ -1,5 +1,80 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { encodeRemoteControlBridgeFrame, decodeRemoteControlBridgeFrame } from "@lcode/shared";
+
+test("重连后的旧 socket 控制帧与 close 不得拆掉当前桥", () => {
+  const factory = makeSocketFactory();
+  const clock = makeClock();
+  const tunnel = createRemoteControlTunnelSession(baseParams(), makeDelegate().delegate, {
+    createSocket: factory.createSocket,
+    setTimeoutImpl: clock.setTimeout,
+    clearTimeoutImpl: clock.clearTimeout,
+    nowImpl: clock.now,
+  });
+  const old = factory.sockets[0]!;
+  old.emitOpen();
+  old.emitText(
+    JSON.stringify({ type: "room.ready", proto: 1, roomId: baseParams().roomId, expiresAt: 123 }),
+  );
+  old.emitText(JSON.stringify({ type: "bridge.open", proto: 1, deviceId: "A", resumed: false }));
+  old.emitClose(1006, "network");
+  clock.advance(2000);
+  const current = factory.sockets[1]!;
+  current.emitOpen();
+  old.emitText(JSON.stringify({ type: "bridge.detached", deviceId: "A" }));
+  old.emitClose(1000, "stale");
+  assert.equal(tunnel.isRunning(), true);
+  assert.equal(tunnel.isBridged(), true);
+  tunnel.sendBridgeBinary(Uint8Array.of(1));
+  assert.equal(current.sentBinary.length, 1);
+  tunnel.dispose();
+});
+
+test("协商多设备后按设备收发，拆 B 不影响 A，刷新哈希贯穿重连", () => {
+  const factory = makeSocketFactory();
+  const clock = makeClock();
+  const { delegate } = makeDelegate();
+  const received: Array<{ deviceId?: string; data: Uint8Array }> = [];
+  delegate.onBridgeBinary = (data, deviceId) => received.push({ data, deviceId });
+  const tunnel = createRemoteControlTunnelSession(
+    { ...baseParams(), multiDevice: true },
+    delegate,
+    {
+      createSocket: factory.createSocket,
+      setTimeoutImpl: clock.setTimeout,
+      clearTimeoutImpl: clock.clearTimeout,
+      nowImpl: clock.now,
+    },
+  );
+  const socket = factory.sockets[0]!;
+  socket.emitOpen();
+  socket.emitText(
+    JSON.stringify({
+      type: "room.ready",
+      proto: 1,
+      roomId: baseParams().roomId,
+      expiresAt: 123,
+      multiDevice: true,
+    }),
+  );
+  for (const deviceId of ["A", "B"])
+    socket.emitText(
+      JSON.stringify({ type: "bridge.open", proto: 1, deviceId, resumed: false, connected: true }),
+    );
+  socket.emitBinary(encodeRemoteControlBridgeFrame("B", Uint8Array.of(9)));
+  assert.deepEqual(received, [{ deviceId: "B", data: Uint8Array.of(9) }]);
+  socket.emitText(JSON.stringify({ type: "bridge.detached", deviceId: "B" }));
+  tunnel.sendBridgeBinary(Uint8Array.of(7), "A");
+  assert.equal(decodeRemoteControlBridgeFrame(socket.sentBinary[0]!).deviceId, "A");
+  tunnel.refreshPairing("new-cap-hash", 300000);
+  socket.emitClose(1006, "network");
+  clock.advance(2000);
+  factory.sockets[1]!.emitOpen();
+  const create = JSON.parse(factory.sockets[1]!.sentText[0]!);
+  assert.equal(create.capHash, "new-cap-hash");
+  tunnel.dispose();
+});
+
 import {
   createRemoteControlTunnelSession,
   type RemoteControlTunnelDelegate,

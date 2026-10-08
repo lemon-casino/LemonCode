@@ -98,8 +98,8 @@ const FAILURE_COPY: Record<PairingFailureKey, Record<PairingLocale, string>> = {
     "en-US": "The desktop revoked this device. Pair it again to reconnect.",
   },
   busy: {
-    "zh-CN": "该房间已有其他设备接入。",
-    "en-US": "Another device is already connected to this room.",
+    "zh-CN": "连接暂时被占用，请稍后重试。",
+    "en-US": "This connection is temporarily busy. Please try again shortly.",
   },
   heartbeat: { "zh-CN": "连接心跳超时。", "en-US": "The connection heartbeat timed out." },
   "bridge-timeout": {

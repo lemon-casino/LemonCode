@@ -658,13 +658,15 @@ nodes:
         file: packages/services/src/lcode-agent/lcodeAgentConnectionScope.ts
   - id: capability.mobile-remote-control
     kind: capability
-    label: Mobile remote control through cfworker-remote
+    label: Multi-device remote control through cfworker-remote
     aliases:
       - remote control
       - mobile pairing
       - cfworker-remote
       - 远程控制
       - 手机远控
+      - 多设备远控
+      - 一对多远程控制
     codeSeeds:
       - file: packages/ui/src/settings/MobileRemoteControlPanel.tsx
         symbol: MobileRemoteControlPanel
@@ -703,6 +705,8 @@ nodes:
         Main memory and never enters pairing URLs, Renderer IPC or persisted config."
       - "One Desktop Main owns one active pairing room; concurrent window starts are generation-gated so
         only the latest user intent can create a tunnel."
+      - "Negotiated multiDevice rooms authorize requests independently and route one replayable
+        attachment per device to the same existing Host; renewing the join link preserves live bridges."
   - id: persistence.remote-control-credentials
     kind: persistence
     label: Desktop credential-backed remote control config, installation id and authorized devices

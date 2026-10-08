@@ -148,6 +148,60 @@ async function connected(page) {
 test("手机远控：关闭页面、后台断连与网络重试不重放配对链接", { timeout: 240_000 }, async (t) => {
   const { browser, url } = await startFixture(t);
   for (const width of [390, 1280]) {
+    await t.test(`${width}px：多设备独立允许/拒绝，刷新保留连接与二维码`, async () => {
+      const context = await browser.newContext({
+        viewport: { width, height: 844 },
+        locale: "zh-CN",
+      });
+      try {
+        const page = await context.newPage();
+        await page.clock.install();
+        await page.goto(url.replace(`?roomId=${ROOM}`, `?multi=1&roomId=${ROOM}`));
+        const requests = page.getByTestId("remote-control-pairing-device-request");
+        await requests.filter({ hasText: "待授权手机" }).waitFor();
+        assert.equal(await requests.count(), 2);
+        await page
+          .getByTestId("remote-control-connections")
+          .getByText("已连接电脑", { exact: true })
+          .waitFor();
+        await page.getByTestId("remote-control-pairing-url").waitFor();
+        await requests
+          .filter({ hasText: "待授权手机" })
+          .getByRole("button", { name: "拒绝", exact: true })
+          .click();
+        await requests.filter({ hasText: "待授权手机" }).waitFor({ state: "detached" });
+        assert.equal(await requests.count(), 1);
+        await requests
+          .filter({ hasText: "另一台电脑" })
+          .getByRole("button", { name: "允许", exact: true })
+          .click();
+        await page
+          .getByTestId("remote-control-connections")
+          .getByText("另一台电脑", { exact: true })
+          .waitFor();
+        assert.equal(await page.getByTestId("remote-control-connections").locator("li").count(), 2);
+        await page.getByRole("button", { name: "刷新二维码", exact: true }).click();
+        await page.waitForFunction(() =>
+          document
+            .querySelector('[data-testid="remote-control-pairing-url"]')
+            ?.textContent.includes("refreshed-fixture"),
+        );
+        assert.equal(await page.getByTestId("remote-control-connections").locator("li").count(), 2);
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+        await page.clock.fastForward(301000);
+        await page.getByTestId("remote-control-pairing-url").waitFor({ state: "detached" });
+        await page.getByRole("button", { name: "刷新二维码", exact: true }).click();
+        await page.getByTestId("remote-control-pairing-url").waitFor();
+        assert.equal(await page.getByTestId("remote-control-connections").locator("li").count(), 2);
+        await page.getByRole("button", { name: "停止", exact: true }).click();
+        await page.getByText("未在等待", { exact: true }).waitFor();
+        assert.equal(await page.getByTestId("remote-control-pairing-url").count(), 0);
+      } finally {
+        await context.close();
+      }
+    });
+  }
+  for (const width of [390, 1280]) {
     await t.test(`${width}px：关闭标签页后重新打开原链接`, async () => {
       const { context, worker } = await createWorkerContext(browser, { width, height: 844 });
       try {
@@ -194,7 +248,7 @@ test("手机远控：关闭页面、后台断连与网络重试不重放配对�
         globalThis.__pairingClockOffset += 100_000;
       });
       await page
-        .getByText("该房间已有其他设备接入。", { exact: true })
+        .getByText("连接暂时被占用，请稍后重试。", { exact: true })
         .waitFor({ timeout: 12_000 });
       assert.equal(worker.pairCalls, 1);
       assert.ok(await page.evaluate(() => localStorage.getItem("lcode:remote-pairing:device:v1")));
@@ -282,7 +336,7 @@ test("手机远控：关闭页面、后台断连与网络重试不重放配对�
       try {
         const page = await context.newPage();
         await page.goto(url.replace(`?roomId=${ROOM}`, `?panel=1&roomId=${ROOM}`));
-        await page.getByText("等待手机重新连接…", { exact: true }).waitFor();
+        await page.getByText("等待远程设备重新连接…", { exact: true }).waitFor();
         assert.equal(await page.getByTestId("remote-control-pairing-url").count(), 0);
         assert.equal(await page.getByText("配对出错", { exact: true }).count(), 0);
         await page.getByRole("button", { name: "停止", exact: true }).click();

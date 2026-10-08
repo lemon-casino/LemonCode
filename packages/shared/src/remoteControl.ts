@@ -47,6 +47,7 @@ export const remoteControlRoomCreateFrameSchema = z
     roomId: base64UrlSchema,
     capHash: base64UrlSchema,
     ttlMs: z.number().int().positive(),
+    multiDevice: z.literal(true).optional(),
     devices: z
       .array(
         z
@@ -88,6 +89,31 @@ export const remoteControlPairingRejectFrameSchema = z
   .strict();
 export type RemoteControlPairingRejectFrame = z.infer<typeof remoteControlPairingRejectFrameSchema>;
 
+export const remoteControlPairingRefreshFrameSchema = z
+  .object({
+    type: z.literal("pairing.refresh"),
+    capHash: base64UrlSchema,
+    ttlMs: z.number().int().positive(),
+  })
+  .strict();
+export const remoteControlBridgeCloseFrameSchema = z
+  .object({
+    type: z.literal("bridge.close"),
+    deviceId: nonEmptyStringSchema,
+    code: z.union([z.literal(4003), z.literal(1013)]),
+  })
+  .strict();
+export const remoteControlPairingCancelledFrameSchema = z
+  .object({
+    type: z.literal("pairing.cancelled"),
+    roomId: base64UrlSchema,
+    requestId: nonEmptyStringSchema,
+  })
+  .strict();
+export type RemoteControlPairingCancelledFrame = z.infer<
+  typeof remoteControlPairingCancelledFrameSchema
+>;
+
 /** 双端 → Worker:心跳帧;桥接后的手机数据套接字上 TEXT 仅允许 ping/pong(§3.4)。 */
 export const remoteControlPingFrameSchema = z.object({ type: z.literal("ping") }).strict();
 export const remoteControlPongFrameSchema = z.object({ type: z.literal("pong") }).strict();
@@ -102,6 +128,7 @@ export const remoteControlRoomReadyFrameSchema = z
     roomId: base64UrlSchema,
     // 已桥接房间不再受配对 TTL 限制，Worker 重连返回 null 是既有合法协议。
     expiresAt: z.number().int().positive().nullable(),
+    multiDevice: z.literal(true).optional(),
   })
   .strict();
 export type RemoteControlRoomReadyFrame = z.infer<typeof remoteControlRoomReadyFrameSchema>;
@@ -170,6 +197,8 @@ export const remoteControlBridgeOpenFrameSchema = z
     proto: z.literal(REMOTE_CONTROL_PROTO_VERSION),
     deviceId: nonEmptyStringSchema,
     resumed: z.boolean(),
+    connected: z.boolean().optional(),
+    deviceName: z.string().max(REMOTE_CONTROL_DEVICE_NAME_MAX_LENGTH).optional(),
   })
   .strict();
 export type RemoteControlBridgeOpenFrame = z.infer<typeof remoteControlBridgeOpenFrameSchema>;
@@ -205,6 +234,7 @@ export const remoteControlHostSocketFrameSchema = z.discriminatedUnion("type", [
   remoteControlRoomReadyFrameSchema,
   remoteControlPairingRequestedFrameSchema,
   remoteControlPairingAcceptedFrameSchema,
+  remoteControlPairingCancelledFrameSchema,
   remoteControlRoomInvalidatedFrameSchema,
   remoteControlRoomExpiredFrameSchema,
   remoteControlBridgeOpenFrameSchema,
@@ -341,6 +371,31 @@ export const remotePairingStatePushSchema = z
       .strict()
       .optional(),
     error: z.string().optional(),
+    multiDevice: z.boolean().optional(),
+    pendingDevices: z
+      .array(
+        z
+          .object({
+            requestId: nonEmptyStringSchema,
+            deviceName: z.string(),
+            ua: z.string(),
+          })
+          .strict(),
+      )
+      .max(REMOTE_CONTROL_MAX_PERSISTED_DEVICES)
+      .optional(),
+    connections: z
+      .array(
+        z
+          .object({
+            deviceId: nonEmptyStringSchema,
+            deviceName: z.string(),
+            connected: z.boolean(),
+          })
+          .strict(),
+      )
+      .max(REMOTE_CONTROL_MAX_PERSISTED_DEVICES)
+      .optional(),
   })
   .strict();
 export type RemotePairingStatePush = z.infer<typeof remotePairingStatePushSchema>;

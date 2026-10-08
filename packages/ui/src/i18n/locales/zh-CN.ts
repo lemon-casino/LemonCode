@@ -1627,7 +1627,7 @@ const zhCN: Record<string, string> = {
   "taskList.userInputTag": "等待确认",
   "taskList.stopCountdown": "停止计时",
   "taskList.attentionCount": "{label} · {count}",
-  "taskList.mobileActive": "手机正在操作此任务",
+  "taskList.mobileActive": "远程设备正在操作此任务",
   "taskList.changeStats": "+{added} -{removed}",
   "taskGroup.newGroup": "新建分组",
   "taskGroup.cronGroupName": "定时任务",
@@ -2141,7 +2141,7 @@ const zhCN: Record<string, string> = {
     "远程控制只能在 LCode 桌面端使用，且需要桌面版本支持该功能。",
   "settings.remoteControl.enable.title": "启用远程控制",
   "settings.remoteControl.enable.description":
-    "通过 Cloudflare Worker 隧道让手机镜像这台桌面：手机获得与桌面使用者完全一致的操作能力。开启后桌面只向 Worker 发起出站连接。",
+    "让远程设备连接这台桌面的工作区：电脑和手机可同时接入，每台新设备都需要你确认。已授权设备拥有与桌面使用者一致的操作能力。",
   "settings.remoteControl.enable.missingPrerequisites":
     "请先填写有效的 Worker 域名；自建 Worker 还需保存接入 Key。",
   "settings.remoteControl.enable.enabledToast": "已开启远程控制",
@@ -2171,32 +2171,32 @@ const zhCN: Record<string, string> = {
   "settings.remoteControl.testConnection.action": "测试连接",
   "settings.remoteControl.testConnection.success": "连接成功（{latencyMs}ms）",
   "settings.remoteControl.testConnection.failed": "连接失败：{error}",
-  "remoteControl.quick.title": "移动端远程控制",
-  "remoteControl.quick.description": "扫码或在手机上打开链接，即可远程控制当前工作区。",
-  "remoteControl.quick.scanTitle": "手机扫码连接",
-  "remoteControl.quick.scanDescription": "用手机相机扫码，在手机上打开这个工作区。",
+  "remoteControl.quick.title": "远程控制",
+  "remoteControl.quick.description": "扫码或在远程设备上打开链接，即可远程控制当前工作区。",
+  "remoteControl.quick.scanTitle": "远程扫码连接",
+  "remoteControl.quick.scanDescription": "用远程相机扫码，即可打开工作区。",
   "remoteControl.quick.disabledHint":
-    "远程控制尚未开启。在「远程控制设置」里填写 Worker 域名、保存接入 Key 并开启开关后再配对。",
+    "请先在「远程控制设置」里开启远程控制；使用默认托管服务无需接入 Key。",
   "remoteControl.quick.openSettings": "远程控制设置",
   "settings.remoteControl.pairing.status.idle": "未在等待",
   "settings.remoteControl.pairing.status.unknown": "状态未知",
-  "settings.remoteControl.pairing.status.waiting": "等待手机连接…",
+  "settings.remoteControl.pairing.status.waiting": "等待远程设备连接…",
   "settings.remoteControl.pairing.status.pairing": "设备请求接入",
   "settings.remoteControl.pairing.status.bridged": "已就绪",
-  "settings.remoteControl.pairing.status.reconnecting": "等待手机重新连接…",
+  "settings.remoteControl.pairing.status.reconnecting": "等待远程设备重新连接…",
   "settings.remoteControl.pairing.reconnectingDescription":
-    "手机暂时断开，重新打开原配对页面即可恢复连接；已授权设备无需再次确认。",
+    "远程设备暂时断开，重新打开原配对页面即可恢复连接；已授权设备无需再次确认。",
   "settings.remoteControl.pairing.status.error": "配对出错",
   "settings.remoteControl.pairing.idleDescription":
-    "生成配对二维码后，用手机扫码或打开复制链接，完成双方授权即可开始镜像。",
+    "生成二维码后，用远程设备扫码或打开复制链接。每台新设备分别确认后，即可接入工作区。",
   "settings.remoteControl.pairing.unknownDescription":
-    "没有收到桌面的配对状态推送，无法确认当前是否正在镜像；若手机端已显示「已就绪」，镜像仍在进行。重新开启等待会停止当前房间并生成新二维码，正在镜像的手机会立即断开。",
+    "暂未收到桌面的连接状态，无法确认当前是否有设备在线。重新开启等待会停止当前房间，并断开已有的远程设备。",
   "settings.remoteControl.pairing.restartConfirmTitle": "重新开启等待？",
   "settings.remoteControl.pairing.restartConfirmDescription":
-    "将停止当前配对房间并生成新二维码；若手机正处于镜像中，其连接会立即断开，需要重新扫码并经你确认。",
+    "将停止当前配对房间并生成新二维码，已有远程设备会断开连接。",
   "settings.remoteControl.pairing.restartConfirmAction": "停止并重新开启",
   "settings.remoteControl.pairing.noMirrorTarget":
-    "手机镜像的是当前激活的远程工作区；请先连接一个远程工作区并保持激活，再开启等待。",
+    "远程设备将接入当前激活的工作区；请先打开并激活一个可用工作区，再开启等待。",
   "settings.remoteControl.pairing.start": "开启等待",
   "settings.remoteControl.pairing.refreshQr": "刷新二维码",
   "settings.remoteControl.pairing.stop": "停止",
@@ -2205,19 +2205,23 @@ const zhCN: Record<string, string> = {
   "settings.remoteControl.pairing.copiedToast": "已复制配对链接",
   "settings.remoteControl.pairing.copyFailed": "复制失败，请手动选中链接复制",
   "settings.remoteControl.pairing.qrHint":
-    "用手机扫码，或在手机浏览器打开下方链接。链接只在有效期内可用，且只能用于一次配对。",
+    "用远程设备扫码，或在浏览器打开下方链接。有效期内可连接多台设备，每台新设备都需要桌面端确认。",
   "settings.remoteControl.pairing.staleHint":
-    "当前二维码已失效（已被使用或已过期），请刷新生成新的二维码。",
+    "当前链接不可用于新设备配对，请刷新二维码。已授权设备仍可使用设备凭据重连。",
   "settings.remoteControl.pairing.expiresAt": "有效期至 {time}",
   "settings.remoteControl.pairing.qrFailed": "二维码生成失败",
   "settings.remoteControl.pairing.qrAlt": "配对二维码",
   "settings.remoteControl.pairing.deviceRequestDescription":
     "该设备请求获得与桌面完全一致的控制权限。只允许你信任的设备。",
   "settings.remoteControl.pairing.unknownDevice": "未知设备",
+  "settings.remoteControl.pairing.deviceConnected": "已连接",
+  "settings.remoteControl.pairing.deviceReconnecting": "等待重连",
+  "settings.remoteControl.pairing.legacyHint":
+    "当前远程服务尚未支持多设备，此链接只能授权一台设备；更新远程服务后可供多台设备使用。",
   "settings.remoteControl.pairing.allow": "允许",
   "settings.remoteControl.pairing.reject": "拒绝",
   "settings.remoteControl.pairing.bridgedDescription":
-    "手机已接入，与桌面使用者拥有完全一致的操作能力。断开后手机可凭已授权凭据自动恢复，无需再次确认。",
+    "远程设备已接入工作区，拥有与桌面使用者一致的操作能力。断开后可凭已授权设备凭据恢复，无需再次确认。",
   "settings.remoteControl.pairing.startFailed": "发起配对失败：{error}",
   "settings.remoteControl.pairing.stopFailed": "停止失败，请重试",
   "settings.remoteControl.pairing.decideFailed": "提交裁决失败，请重试",
@@ -2246,7 +2250,7 @@ const zhCN: Record<string, string> = {
   "settings.remoteControl.pairingTtl.description": "二维码/链接的可用时长，过期后需要刷新二维码",
   "settings.remoteControl.idleDisconnect.title": "空闲自动断开",
   "settings.remoteControl.idleDisconnect.description":
-    "手机空闲超过该时长后，桌面自动停止房间并断开连接",
+    "没有远程设备连接超过该时长后，桌面自动停止远程控制",
   "settings.remoteControl.idleDisconnect.never": "从不",
   "settings.remoteControl.duration.minutes": "{minutes} 分钟",
   "settings.remoteControl.privacy.note":

@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button.js";
 import { toast } from "@/components/ui/toast.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { StatusDot } from "@/settings/StatusDot.js";
+import { RemotePairingDeviceRequest } from "./RemotePairingDeviceRequest.js";
 
 interface RemotePairingPanelProps {
   /** 组装不出镜像 target(激活的不是远程 workspace)时为 false:开启/刷新入口禁用并给提示。 */
@@ -95,12 +96,11 @@ export function RemotePairingPanel({
   onDecide,
 }: RemotePairingPanelProps) {
   const { intl } = useLCodeIntl();
-  const [decidePending, setDecidePending] = useState(false);
   // 状态未知(pairing=null)时的「开启等待」会 stop 当前房间:若手机正镜像中会立即断开,
   // 必须二次确认后才执行(评审:用户重挂载设置页后无法区分两种状态,不能一键触发)。
   const [restartConfirmOpen, setRestartConfirmOpen] = useState(false);
   const phase = resolvePanelPhase(pairing);
-  const busy = startingPairing || stoppingPairing || decidePending;
+  const busy = startingPairing || stoppingPairing;
 
   const handleCopyLink = useCallback(async () => {
     if (!pairingUrl) return;
@@ -116,18 +116,6 @@ export function RemotePairingPanel({
     }
   }, [intl, pairingUrl]);
 
-  const handleDecide = useCallback(
-    async (requestId: string, accept: boolean) => {
-      setDecidePending(true);
-      try {
-        await onDecide(requestId, accept);
-      } finally {
-        setDecidePending(false);
-      }
-    },
-    [onDecide],
-  );
-
   const statusLabel = intl.formatMessage({
     id:
       phase.state === "idle"
@@ -135,7 +123,9 @@ export function RemotePairingPanel({
         : `settings.remoteControl.pairing.status.${phase.state}`,
   });
   const expiresAt = pairing?.expiresAt;
-  const pendingDevice = pairing?.pendingDevice;
+  const pendingDevices =
+    pairing?.pendingDevices ?? (pairing?.pendingDevice ? [pairing.pendingDevice] : []);
+  const sharedQr = pairing?.multiDevice && pairingUrl && !!expiresAt && expiresAt > Date.now();
 
   return (
     // @container：等待态的二维码/操作布局按容器宽度断行（弹框 400px 走上下堆叠，
@@ -145,7 +135,7 @@ export function RemotePairingPanel({
       <div className="flex items-center gap-2" data-testid="remote-control-pairing-status">
         <StatusDot tone={phase.tone} spinning={phase.state === "waiting" && !busy} />
         <span className="text-ui-base font-medium text-foreground">{statusLabel}</span>
-        {expiresAt && (phase.state === "waiting" || phase.state === "pairing") ? (
+        {expiresAt && (phase.state === "waiting" || phase.state === "pairing" || sharedQr) ? (
           <span className="text-ui-base text-foreground-subtle">
             {intl.formatMessage(
               { id: "settings.remoteControl.pairing.expiresAt" },
@@ -202,7 +192,7 @@ export function RemotePairingPanel({
         </div>
       ) : null}
 
-      {phase.state === "waiting" ? (
+      {phase.state === "waiting" || sharedQr ? (
         pairingUrl ? (
           // 列布局（窄容器/弹框）子项按默认 stretch 撑满行宽，提示文案与链接在容器内
           // 折行/截断；@lg 宽容器（设置页）恢复左右并排并顶部对齐。
@@ -212,7 +202,12 @@ export function RemotePairingPanel({
             </div>
             <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
               <p className="text-ui-base text-foreground-subtle">
-                {intl.formatMessage({ id: "settings.remoteControl.pairing.qrHint" })}
+                {intl.formatMessage({
+                  id:
+                    pairing?.multiDevice === false
+                      ? "settings.remoteControl.pairing.legacyHint"
+                      : "settings.remoteControl.pairing.qrHint",
+                })}
               </p>
               {/* 只展示截断的链接用于人工核对域名；完整链接走复制，避免在页面上被截取。 */}
               <code
@@ -294,51 +289,59 @@ export function RemotePairingPanel({
         )
       ) : null}
 
-      {phase.state === "pairing" && pendingDevice ? (
-        <div
-          className="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3"
-          data-testid="remote-control-pairing-device-request"
-        >
-          <div className="min-w-0">
-            <div className="text-ui-base font-medium text-foreground">
-              {pendingDevice.deviceName?.trim() ||
-                intl.formatMessage({ id: "settings.remoteControl.pairing.unknownDevice" })}
-            </div>
-            {pendingDevice.ua ? (
-              <div className="mt-1 truncate text-ui-xs font-mono text-foreground-subtle">
-                {pendingDevice.ua}
-              </div>
-            ) : null}
-          </div>
+      {pendingDevices.map((pendingDevice) => (
+        <RemotePairingDeviceRequest
+          key={pendingDevice.requestId}
+          pendingDevice={pendingDevice}
+          busy={busy}
+          onDecide={onDecide}
+        />
+      ))}
+
+      {pairing?.multiDevice &&
+      !sharedQr &&
+      ["bridged", "reconnecting", "pairing"].includes(phase.state) ? (
+        <div className="flex flex-col items-start gap-2">
           <p className="text-ui-base text-foreground-subtle">
-            {intl.formatMessage({ id: "settings.remoteControl.pairing.deviceRequestDescription" })}
+            {intl.formatMessage({ id: "settings.remoteControl.pairing.staleHint" })}
           </p>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              size="lg"
-              disabled={busy}
-              onClick={() => void handleDecide(pendingDevice.requestId, true)}
-            >
-              {decidePending ? (
-                <LoaderCircle className="size-4 animate-spin" aria-hidden="true" />
-              ) : null}
-              {intl.formatMessage({ id: "settings.remoteControl.pairing.allow" })}
-            </Button>
-            <Button
-              type="button"
-              size="lg"
-              variant="outline"
-              disabled={busy}
-              onClick={() => void handleDecide(pendingDevice.requestId, false)}
-            >
-              {intl.formatMessage({ id: "settings.remoteControl.pairing.reject" })}
-            </Button>
-          </div>
+          <Button
+            type="button"
+            size="lg"
+            variant="outline"
+            disabled={busy || !canStart}
+            onClick={() => void onStart()}
+          >
+            {intl.formatMessage({ id: "settings.remoteControl.pairing.refreshQr" })}
+          </Button>
         </div>
       ) : null}
 
-      {phase.state === "reconnecting" ? (
+      {pairing?.connections?.length ? (
+        <ul className="space-y-2" data-testid="remote-control-connections">
+          {pairing.connections.map((device) => (
+            <li
+              key={device.deviceId}
+              className="flex min-w-0 items-center gap-2 rounded-lg border border-border px-3 py-2"
+            >
+              <StatusDot tone={device.connected ? "green" : "amber"} />
+              <span className="min-w-0 flex-1 truncate text-ui-base">
+                {device.deviceName ||
+                  intl.formatMessage({ id: "settings.remoteControl.pairing.unknownDevice" })}
+              </span>
+              <span className="text-ui-xs text-foreground-subtle">
+                {intl.formatMessage({
+                  id: device.connected
+                    ? "settings.remoteControl.pairing.deviceConnected"
+                    : "settings.remoteControl.pairing.deviceReconnecting",
+                })}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {phase.state === "reconnecting" && !sharedQr ? (
         <div className="flex flex-col items-start gap-2">
           {/* Main 仍持有房间；不显示已消费二维码，也不把正常断连投影为鉴权错误。 */}
           <p className="text-ui-base text-foreground-subtle">
@@ -356,7 +359,7 @@ export function RemotePairingPanel({
         </div>
       ) : null}
 
-      {phase.state === "bridged" ? (
+      {phase.state === "bridged" && !sharedQr ? (
         <div className="flex flex-col items-start gap-2">
           <p className="text-ui-base text-foreground-subtle">
             {intl.formatMessage({ id: "settings.remoteControl.pairing.bridgedDescription" })}

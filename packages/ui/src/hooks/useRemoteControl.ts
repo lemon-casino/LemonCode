@@ -92,12 +92,18 @@ export function useRemoteControl(platform: IPlatformService) {
     const dispose = bridge.onRemotePairingState((event) => {
       if (disposed) return;
       pairingEventSeqRef.current += 1;
-      if (previousState === "pairing") {
+      if (!event.multiDevice && previousState === "pairing") {
         setPairingUrl(null);
       }
       previousState = event.state;
       setPairing(event);
-      if (event.state === "stopped" || event.state === "error" || event.state === "reconnecting") {
+      // 另一窗口刷新同一房间时 capability 也会变化；链接从 Main 回读，不能沿用旧 URL。
+      if (event.multiDevice) void loadConfig();
+      if (
+        event.state === "stopped" ||
+        event.state === "error" ||
+        (!event.multiDevice && event.state === "reconnecting")
+      ) {
         // 房间终态或已配对设备等待重连时，旧 capability 已消费，不能恢复旧二维码。
         // 二维码与复制链接不再可用，立即回收内存中的明文链接。
         setPairingUrl(null);
@@ -106,12 +112,24 @@ export function useRemoteControl(platform: IPlatformService) {
         // 新设备完成双方授权后马上回读列表，保证「已授权设备」看到刚授权的设备。
         void refreshDevices();
       }
+      if (event.multiDevice && event.expiresAt && event.expiresAt <= Date.now())
+        setPairingUrl(null);
     });
     return () => {
       disposed = true;
       dispose();
     };
-  }, [bridge, refreshDevices]);
+  }, [bridge, refreshDevices, loadConfig]);
+
+  useEffect(() => {
+    if (!pairing?.multiDevice || !pairing.expiresAt || !pairingUrl) return;
+    // 截止时间只用于回收过期二维码；房间和设备状态仍由 Main 推送决定。
+    const timer = setTimeout(
+      () => setPairingUrl(null),
+      Math.max(0, pairing.expiresAt - Date.now()),
+    );
+    return () => clearTimeout(timer);
+  }, [pairing?.multiDevice, pairing?.expiresAt, pairingUrl]);
 
   useEffect(() => {
     if (!bridge) return;
@@ -158,7 +176,9 @@ export function useRemoteControl(platform: IPlatformService) {
         if (result.success) {
           // pairingUrl 含一次性 capability fragment：只留在内存供二维码/复制链接，
           // 不落日志、不进任何持久化（PROTOCOL.md §5）。
-          setPairingUrl(result.pairingUrl);
+          // start 回复可能晚于授权、停止或另一窗口刷新；从 Main 最新快照取链接，
+          // 不让旧回复重新展示已失效 capability。
+          await loadConfig();
         }
         return result;
       } catch (error) {
@@ -167,7 +187,7 @@ export function useRemoteControl(platform: IPlatformService) {
         setStartingPairing(false);
       }
     },
-    [bridge],
+    [bridge, loadConfig],
   );
 
   const stopPairing = useCallback(async (): Promise<void> => {

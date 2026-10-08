@@ -12,6 +12,11 @@ import {
   remoteControlRoomStopFrameSchema,
   remoteControlDeviceRevokeFrameSchema,
   remoteControlPingFrameSchema,
+  encodeRemoteControlBridgeFrame,
+  decodeRemoteControlBridgeFrame,
+  remoteControlPairingRefreshFrameSchema,
+  remoteControlBridgeCloseFrameSchema,
+  type RemoteControlPairingCancelledFrame,
   type RemoteControlBridgeDetachedFrame,
   type RemoteControlBridgeOpenFrame,
   type RemoteControlErrorFrame,
@@ -49,6 +54,7 @@ export interface RemoteControlTunnelDelegate {
   onRoomReady(frame: RemoteControlRoomReadyFrame): void;
   onPairingRequested(frame: RemoteControlPairingRequestedFrame): void;
   onPairingAccepted(frame: RemoteControlPairingAcceptedFrame): void;
+  onPairingCancelled?(frame: RemoteControlPairingCancelledFrame): void;
   onBridgeOpen(frame: RemoteControlBridgeOpenFrame): void;
   onBridgeDetached(frame: RemoteControlBridgeDetachedFrame): void;
   onPeerDisconnected(frame: RemoteControlPeerDisconnectedFrame): void;
@@ -62,7 +68,7 @@ export interface RemoteControlTunnelDelegate {
   /** 终态关闭:不再重连,tunnel 已耗尽。 */
   onClosed(info: { code: number; reason: string }): void;
   /** 桥接阶段 host socket 上的 BINARY 帧(Worker 透传的手机 SocketProtocol 帧)。 */
-  onBridgeBinary?(data: Uint8Array): void;
+  onBridgeBinary?(data: Uint8Array, deviceId?: string): void;
 }
 
 export interface RemoteControlTunnelStartParams {
@@ -77,6 +83,7 @@ export interface RemoteControlTunnelStartParams {
   roomId: string;
   capHash: string;
   ttlMs: number;
+  multiDevice?: true;
   devices: Array<{ deviceId: string; credHash: string; deviceName: string }>;
 }
 
@@ -101,14 +108,16 @@ export interface RemoteControlTunnelSession {
   /** 对 pairing.requested 的裁决;同一 requestId 只生效一次(§2.2)。 */
   decide(requestId: string, accept: boolean, rejectReason?: string): void;
   revokeDevice(deviceId: string): void;
+  refreshPairing(capHash: string, ttlMs: number): void;
+  closeBridge(deviceId: string, code?: number): void;
   /** 发 room.stop 并正常关闭;立即断开现有连接且不再重连(验收:停止语义)。 */
   stopRoom(): void;
   /** 帧泵违规断开等场景:关闭 socket、不重连、不发 room.stop。 */
   close(code: number, reason: string): void;
   /** 帧泵 Host→手机方向(仅 bridged 后调用)。 */
-  sendBridgeBinary(data: Uint8Array): void;
+  sendBridgeBinary(data: Uint8Array, deviceId?: string): void;
   setTransportPaused(paused: boolean): void;
-  isBridged(): boolean;
+  isBridged(deviceId?: string): boolean;
   isRunning(): boolean;
   /** 退出清理:停心跳/定时器并关闭,不发 room.stop(退出时尽力即可)。 */
   dispose(): void;
@@ -203,19 +212,25 @@ export function createRemoteControlTunnelSession(
    * credHash——否则 host socket 断开窗口内丢失的 device.revoke 会让 Worker 侧凭据
    * 哈希在重连后"复活"(违反 §4.3.3 一条 WS RTT 内生效)。
    */
+  let liveCapHash = params.capHash;
+  let liveTtlMs = params.ttlMs;
+  let multiDevice = false;
+  const bridgeDevices = new Set<string>();
   const liveDevices = params.devices.map((device) => ({ ...device }));
   function buildRoomCreateFrame(): Record<string, unknown> {
     return remoteControlRoomCreateFrameSchema.parse({
       type: "room.create",
       proto: 1,
       roomId: params.roomId,
-      capHash: params.capHash,
-      ttlMs: params.ttlMs,
+      capHash: liveCapHash,
+      ttlMs: liveTtlMs,
+      ...(params.multiDevice ? { multiDevice: true } : {}),
       devices: liveDevices,
     });
   }
 
   let socket: RemoteControlTunnelSocket | null = null;
+  let socketGeneration = 0;
   let heartbeatTimer: NodeJS.Timeout | null = null;
   let reconnectTimer: NodeJS.Timeout | null = null;
   let reconnectDeadlineAt = 0;
@@ -323,6 +338,7 @@ export function createRemoteControlTunnelSession(
     const frame = parsed.data;
     switch (frame.type) {
       case "room.ready":
+        multiDevice = params.multiDevice === true && frame.multiDevice === true;
         registered = true;
         // room.ready 即重连成功:重置宽限截止,让下一次断开重新获得完整 30s 宽限(§3.3)。
         reconnectDeadlineAt = 0;
@@ -335,6 +351,13 @@ export function createRemoteControlTunnelSession(
         // 会话中途新配对的设备会进入 Worker 本房间的凭据表;同步进本地设备表,
         // 重连重发的 room.create 才不会把刚配对设备的哈希刷掉。
         if (!liveDevices.some((device) => device.deviceId === frame.deviceId)) {
+          if (liveDevices.length >= 64) {
+            // 新授权不能让重连 room.create 超出上限，也不能挤掉仍有活桥的凭据。
+            const index = liveDevices.findLastIndex(
+              (device) => !bridgeDevices.has(device.deviceId),
+            );
+            if (index >= 0) liveDevices.splice(index, 1);
+          }
           liveDevices.push({
             deviceId: frame.deviceId,
             credHash: frame.credHash,
@@ -343,12 +366,17 @@ export function createRemoteControlTunnelSession(
         }
         delegate.onPairingAccepted(frame);
         break;
+      case "pairing.cancelled":
+        delegate.onPairingCancelled?.(frame);
+        break;
       case "bridge.open":
+        bridgeDevices.add(frame.deviceId);
         bridged = true;
         delegate.onBridgeOpen(frame);
         break;
       case "bridge.detached":
-        bridged = false;
+        bridgeDevices.delete(frame.deviceId);
+        bridged = bridgeDevices.size > 0;
         delegate.onBridgeDetached(frame);
         break;
       case "peer.disconnected":
@@ -381,14 +409,26 @@ export function createRemoteControlTunnelSession(
       }
       return;
     }
+    if (multiDevice) {
+      try {
+        const decoded = decodeRemoteControlBridgeFrame(data);
+        if (bridgeDevices.has(decoded.deviceId))
+          delegate.onBridgeBinary?.(decoded.payload, decoded.deviceId);
+      } catch {
+        close(CLOSE_PROTOCOL_VIOLATION, "invalid bridge route");
+      }
+      return;
+    }
     delegate.onBridgeBinary?.(data);
   }
 
   function openSocket(): void {
     if (!running || stopRequested) return;
     const nextSocket = createSocket(upgradeUrl, upgradeHeaders);
+    const generation = ++socketGeneration;
     socket = nextSocket;
     nextSocket.onOpen(() => {
+      if (socket !== nextSocket || !running || stopRequested) return;
       // 升级后第一个控制帧必须携带 proto:1(§1.2);room.create 即首帧。
       // 每次连接都用当前设备表重建:被吊销设备的 credHash 不随重连复活(§4.3.3)。
       sendControlFrame(buildRoomCreateFrame());
@@ -397,9 +437,16 @@ export function createRemoteControlTunnelSession(
       if (transportPaused) nextSocket.setReadPaused?.(true);
       startHeartbeat();
     });
-    nextSocket.onText(handleTextFrame);
-    nextSocket.onBinary(handleBinaryFrame);
+    // 重连换代后忽略旧 socket 的迟到事件，不能清心跳或拆当前设备桥。
+    nextSocket.onText((data) => {
+      if (socket === nextSocket && running && !stopRequested) handleTextFrame(data);
+    });
+    nextSocket.onBinary((data) => {
+      if (socket === nextSocket && running && !stopRequested) handleBinaryFrame(data);
+    });
     nextSocket.onClose((code, reason) => {
+      // 本地主动 close 已清 socket 引用，但同代数的 close 仍负责终态通知。
+      if (generation !== socketGeneration) return;
       clearHeartbeat();
       if (socket === nextSocket) socket = null;
       handleClose(code, reason);
@@ -408,6 +455,7 @@ export function createRemoteControlTunnelSession(
       // error 之后必有 close;这里仅记录,避免双路径重复收口。
     });
     nextSocket.onUpgradeRejected((statusCode) => {
+      if (socket !== nextSocket) return;
       clearHeartbeat();
       running = false;
       if (socket === nextSocket) socket = null;
@@ -509,6 +557,29 @@ export function createRemoteControlTunnelSession(
         }),
       );
     },
+    refreshPairing(capHash, ttlMs) {
+      if (!multiDevice) return;
+      liveCapHash = capHash;
+      liveTtlMs = ttlMs;
+      sendOrQueueControlFrame(
+        remoteControlPairingRefreshFrameSchema.parse({ type: "pairing.refresh", capHash, ttlMs }),
+      );
+    },
+    closeBridge(deviceId, code = 4003) {
+      if (!multiDevice) {
+        close(code, "bridge closed");
+        return;
+      }
+      bridgeDevices.delete(deviceId);
+      bridged = bridgeDevices.size > 0;
+      sendOrQueueControlFrame(
+        remoteControlBridgeCloseFrameSchema.parse({
+          type: "bridge.close",
+          deviceId,
+          code: code === 1013 ? 1013 : 4003,
+        }),
+      );
+    },
     revokeDevice(deviceId) {
       // 先从房间设备表移除:重连重发的 room.create 不再携带该设备哈希,吊销不因
       // host socket 断开窗口丢帧而在 Worker 侧复活(§4.3.3)。
@@ -543,17 +614,20 @@ export function createRemoteControlTunnelSession(
       clearPendingControlFrames();
       close(code, reason);
     },
-    sendBridgeBinary(data) {
+    sendBridgeBinary(data, deviceId) {
       // 这里的入参是帧泵已包好头的完整 Regular 帧;帧封装唯一发生在帧泵(§6.4)。
       if (!socket || !bridged) return;
-      socket.sendBinary(data);
+      if (multiDevice) {
+        if (!deviceId || !bridgeDevices.has(deviceId)) return;
+        socket.sendBinary(encodeRemoteControlBridgeFrame(deviceId, data));
+      } else socket.sendBinary(data);
     },
     setTransportPaused(paused) {
       // 记住反压状态:重连的新 socket 建立后按它恢复暂停(onOpen)。
       transportPaused = paused;
       socket?.setReadPaused?.(paused);
     },
-    isBridged: () => bridged,
+    isBridged: (deviceId) => (deviceId ? bridgeDevices.has(deviceId) : bridged),
     isRunning: () => running && !stopRequested,
     dispose() {
       running = false;

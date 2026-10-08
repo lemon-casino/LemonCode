@@ -20,7 +20,6 @@ import {
   type RemoteControlConfigSnapshot,
   type RemoteControlTestResult,
   type RemoteControlDevice,
-  type RemoteControlPersistedDevice,
   type RemoteDevicesRefreshResult,
   type RemotePairingDecideRequest,
   type RemotePairingMirrorTarget,
@@ -107,6 +106,9 @@ interface ActivePairingSession {
   /** Worker 返回的房间过期时间;room.ready 之前用本地 TTL 估算。 */
   expiresAt: number | null;
   mirrorTarget?: RemotePairingMirrorTarget;
+  multiDevice: boolean;
+  workerBaseUrl: string;
+  allowNewDevices: boolean;
 }
 
 interface PendingPairingRequest {
@@ -118,6 +120,8 @@ interface PendingPairingRequest {
 
 interface ActiveBridge {
   deviceId: string;
+  deviceName: string;
+  connected: boolean;
   attachmentId: string;
   port: RemoteControlAttachmentPort;
   process: RemoteControlAttachmentHostProcess;
@@ -132,7 +136,9 @@ export function createRemoteControlController(options: RemoteControlControllerOp
     logger: options.logger,
   });
   let session: ActivePairingSession | null = null;
-  let bridge: ActiveBridge | null = null;
+  const bridges = new Map<string, ActiveBridge>();
+  const pendingRequests = new Map<string, PendingPairingRequest>();
+  const pendingTimers = new Map<string, NodeJS.Timeout>();
   let pendingRequest: PendingPairingRequest | null = null;
   let pendingRequestTimer: NodeJS.Timeout | null = null;
   let idleDisconnectTimer: NodeJS.Timeout | null = null;
@@ -157,6 +163,34 @@ export function createRemoteControlController(options: RemoteControlControllerOp
   }
 
   function pushState(state: RemotePairingStatePush): void {
+    if (session?.multiDevice && !["stopped", "error"].includes(state.state)) {
+      const pendingDevices = [...pendingRequests.values()].map(({ requestId, deviceName, ua }) => ({
+        requestId,
+        deviceName,
+        ua,
+      }));
+      const connections = [...bridges.values()].map(({ deviceId, deviceName, connected }) => ({
+        deviceId,
+        deviceName,
+        connected,
+      }));
+      state = {
+        ...state,
+        roomId: session.roomId,
+        expiresAt: session.expiresAt,
+        multiDevice: true,
+        pendingDevices,
+        pendingDevice: pendingDevices[0],
+        connections,
+        state: connections.some((device) => device.connected)
+          ? "bridged"
+          : pendingDevices.length
+            ? "pairing"
+            : connections.length
+              ? "reconnecting"
+              : "waiting",
+      };
+    } else if (session) state = { ...state, multiDevice: false };
     const validated = remotePairingStatePushSchema.parse(state);
     lastPairingStatePush = validated;
     try {
@@ -168,6 +202,8 @@ export function createRemoteControlController(options: RemoteControlControllerOp
   }
 
   function clearPendingRequestTimer(): void {
+    for (const timer of pendingTimers.values()) clearTimeout(timer);
+    pendingTimers.clear();
     if (!pendingRequestTimer) return;
     clearTimeout(pendingRequestTimer);
     pendingRequestTimer = null;
@@ -186,7 +222,7 @@ export function createRemoteControlController(options: RemoteControlControllerOp
     // 超过设置时长即 room.stop;桥接建立后不再受其约束,避免切断正在镜像的会话。
     idleDisconnectTimer = setTimeout(() => {
       idleDisconnectTimer = null;
-      if (!session || bridge) return;
+      if (!session || [...bridges.values()].some((bridge) => bridge.connected)) return;
       options.logger.info("[remote-control] idle disconnect fired, stopping room", {
         roomId: session.roomId,
       });
@@ -196,35 +232,34 @@ export function createRemoteControlController(options: RemoteControlControllerOp
   }
 
   /** 先停泵再 detach-service-port,顺序不可倒置(PROTOCOL.md §6.4);幂等。 */
-  function teardownBridge(reason: string): void {
-    const current = bridge;
-    if (!current) return;
-    bridge = null;
-    current.pump.stop();
-    try {
-      current.process.postMessage({
-        type: HostMessageTypes.DetachServicePort,
-        attachmentId: current.attachmentId,
-      });
-    } catch (error) {
-      options.logger.warn("[remote-control] detach service port failed:", {
-        attachmentId: current.attachmentId,
-        reason,
-        error,
-      });
+  function teardownBridge(reason: string, deviceId?: string): void {
+    const targets = deviceId
+      ? [bridges.get(deviceId)].filter((value): value is ActiveBridge => !!value)
+      : [...bridges.values()];
+    for (const current of targets) {
+      // 先从唯一注册表移除，再停泵/detach；端口的迟到 close 不能拆掉新 attachment。
+      bridges.delete(current.deviceId);
+      current.pump.stop();
+      try {
+        current.process.postMessage({
+          type: HostMessageTypes.DetachServicePort,
+          attachmentId: current.attachmentId,
+        });
+      } catch (error) {
+        options.logger.warn("[remote-control] detach service port failed:", {
+          attachmentId: current.attachmentId,
+          reason,
+          error,
+        });
+      }
+      try {
+        current.port.close();
+      } catch {
+        /* 已关闭 */
+      }
     }
-    try {
-      current.port.close();
-    } catch {
-      // port 已由对端关闭时 close 抛错属正常路径。
-    }
-    options.logger.info("[remote-control] bridge torn down", { reason });
-    // 桥结束后房间可能仍存活(手机可凭设备凭据重连再次 bridged,§3.3);重新布防
-    // 空闲自动断开,避免设置项在首次桥接结束后静默失效(§3.4)。stopPairing/dispose
-    // 会在 teardown 之后再次清除/短路,不会误停刚要终止的会话。
-    if (session && !disposed) {
+    if (session && !disposed && ![...bridges.values()].some((bridge) => bridge.connected))
       armIdleDisconnectTimer(activeIdleDisconnectMs);
-    }
   }
 
   async function persistDevice(entry: {
@@ -234,18 +269,13 @@ export function createRemoteControlController(options: RemoteControlControllerOp
     grantedAt: number;
   }): Promise<void> {
     try {
-      const devices = await store.loadDevices();
-      const next: RemoteControlPersistedDevice[] = [
-        ...devices.filter((device) => device.deviceId !== entry.deviceId),
-        {
-          deviceId: entry.deviceId,
-          deviceName: entry.deviceName,
-          credHash: entry.credHash,
-          grantedAt: entry.grantedAt,
-          lastSeenAt: entry.grantedAt,
-        },
-      ];
-      await store.saveDevices(next);
+      await store.updateDevices(
+        (devices) => [
+          ...devices.filter((device) => device.deviceId !== entry.deviceId),
+          { ...entry, lastSeenAt: entry.grantedAt },
+        ],
+        [...bridges.keys()],
+      );
     } catch (error) {
       // 设备持久化失败只影响"免二次确认重连",不能回滚已建立的桥。
       options.logger.warn("[remote-control] persist paired device failed:", error);
@@ -254,11 +284,13 @@ export function createRemoteControlController(options: RemoteControlControllerOp
 
   async function touchDeviceLastSeen(deviceId: string): Promise<void> {
     try {
-      const devices = await store.loadDevices();
-      const target = devices.find((device) => device.deviceId === deviceId);
-      if (!target) return;
-      target.lastSeenAt = now();
-      await store.saveDevices(devices);
+      await store.updateDevices(
+        (devices) =>
+          devices.map((device) =>
+            device.deviceId === deviceId ? { ...device, lastSeenAt: now() } : device,
+          ),
+        [...bridges.keys()],
+      );
     } catch (error) {
       options.logger.warn("[remote-control] touch device lastSeenAt failed:", error);
     }
@@ -271,6 +303,7 @@ export function createRemoteControlController(options: RemoteControlControllerOp
     if (invalidatePendingStart) pairingOperationGeneration += 1;
     clearPendingRequestTimer();
     pendingRequest = null;
+    pendingRequests.clear();
     // teardownBridge 会按 activeIdleDisconnectMs 重新布防空闲定时器;
     // 必须在其之后再清除并复位时长,避免刚终止的会话留下存活定时器。
     teardownBridge(reason);
@@ -317,7 +350,28 @@ export function createRemoteControlController(options: RemoteControlControllerOp
       return { success: false, error: "ACCESS_KEY_MISSING" };
     }
 
-    // 重复 start 视为"刷新二维码":旧 room.stop + 新 roomId/capability(PROTOCOL.md §4.2.3)。
+    if (
+      session?.multiDevice &&
+      session.workerBaseUrl === workerBaseUrl &&
+      JSON.stringify(session.mirrorTarget) === JSON.stringify(request.target)
+    ) {
+      // 新设备链接与活桥生命周期分离；刷新二维码只轮换 capability，不重建房间。
+      const capability = randomBytes(32).toString("base64url");
+      session.capability = capability;
+      session.expiresAt = now() + persistedConfig.pairingTtlMs;
+      session.tunnel.refreshPairing(
+        createHash("sha256").update(capability).digest("base64url"),
+        persistedConfig.pairingTtlMs,
+      );
+      pushState({ state: "waiting", roomId: session.roomId });
+      return {
+        success: true,
+        roomId: session.roomId,
+        expiresAt: session.expiresAt,
+        pairingUrl: buildRemotePairingUrl({ workerBaseUrl, roomId: session.roomId, capability }),
+      };
+    }
+    // 未协商多设备的兼容房间仍按一次性链接重建。
     await stopPairingInternal("pairing-restart", false);
     // stopPairing 推过 stopped;重新开启等待会紧跟 waiting,面板无需特殊处理。
 
@@ -342,6 +396,7 @@ export function createRemoteControlController(options: RemoteControlControllerOp
         roomId,
         capHash,
         ttlMs: persistedConfig.pairingTtlMs,
+        multiDevice: true,
         devices: devices.map((device) => ({
           deviceId: device.deviceId,
           credHash: device.credHash,
@@ -352,9 +407,14 @@ export function createRemoteControlController(options: RemoteControlControllerOp
         onRoomReady: (frame) => {
           if (session?.roomId !== roomId) return;
           session.expiresAt = frame.expiresAt;
+          session.multiDevice = frame.multiDevice === true;
+          if (session.multiDevice) {
+            pushState({ state: "waiting", roomId });
+            return;
+          }
           // 已桥接时 host socket 闪断重连(§3.3):DO 保留桥并忽略重发的 room.create,
           // 房间真实状态仍是 bridged,不能把面板推回 waiting(旧二维码已消费,重扫必拒)。
-          if (bridge) return;
+          if (bridges.size > 0) return;
           // null 表示旧 capability 已消费；等待授权设备恢复，不能重新展示旧二维码。
           if (frame.expiresAt === null) {
             pushState({ state: "reconnecting", roomId });
@@ -364,13 +424,17 @@ export function createRemoteControlController(options: RemoteControlControllerOp
         },
         onPairingRequested: (frame) => {
           if (session?.roomId !== roomId) return;
-          if (!persistedConfig.allowNewDevices) {
+          if (!session.allowNewDevices) {
             // pairing.requested 必然来自未登记凭据的设备(已授权设备直接走 /ws + 凭据免确认
             // 重连,§4.3.2);允许新设备关闭时无需等待用户裁决,直接拒绝。
             options.logger.info("[remote-control] auto-reject pairing, new devices disabled", {
               deviceName: frame.deviceName,
             });
             tunnel.decide(frame.requestId, false, "new devices are not allowed");
+            if (session.multiDevice) {
+              pushState({ state: "waiting", roomId });
+              return;
+            }
             // capability 已消费(§2.2):推送 error 让面板感知本次拒绝,并与用户显式拒绝
             // 路径一致地立即重建房间,让面板回到可扫码状态而不是停在已失效的旧二维码。
             pushState({ state: "error", error: "NEW_DEVICE_REJECTED" });
@@ -389,6 +453,24 @@ export function createRemoteControlController(options: RemoteControlControllerOp
               });
             return;
           }
+          if (session.multiDevice) {
+            // 重连重发的 requested 幂等；每个请求独立裁决窗口，互不覆盖。
+            if (pendingRequests.has(frame.requestId)) return;
+            pendingRequests.set(frame.requestId, {
+              ...frame,
+              deadlineAt: now() + PAIRING_DECISION_TIMEOUT_MS,
+            });
+            const timer = setTimeout(() => {
+              pendingTimers.delete(frame.requestId);
+              if (session?.roomId !== roomId || !pendingRequests.delete(frame.requestId)) return;
+              tunnel.decide(frame.requestId, false, "pairing decision timeout");
+              pushState({ state: "waiting", roomId });
+            }, PAIRING_DECISION_TIMEOUT_MS);
+            timer.unref?.();
+            pendingTimers.set(frame.requestId, timer);
+            pushState({ state: "pairing", roomId });
+            return;
+          }
           pendingRequest = {
             requestId: frame.requestId,
             deviceName: frame.deviceName,
@@ -400,6 +482,7 @@ export function createRemoteControlController(options: RemoteControlControllerOp
             pendingRequestTimer = null;
             if (!pendingRequest || !session) return;
             pendingRequest = null;
+            pendingRequests.clear();
             // 桌面侧裁决窗口到点只撤 pending 展示;capability 已消费,重试需刷新二维码(§2.2)。
             pushState({ state: "waiting", roomId: session.roomId, expiresAt: session.expiresAt });
           }, PAIRING_DECISION_TIMEOUT_MS);
@@ -415,6 +498,11 @@ export function createRemoteControlController(options: RemoteControlControllerOp
           });
         },
         onPairingAccepted: (frame) => {
+          if (session?.roomId !== roomId) return;
+          pendingRequests.delete(frame.requestId);
+          const timer = pendingTimers.get(frame.requestId);
+          if (timer) clearTimeout(timer);
+          pendingTimers.delete(frame.requestId);
           void persistDevice({
             deviceId: frame.deviceId,
             deviceName: frame.deviceName,
@@ -422,20 +510,37 @@ export function createRemoteControlController(options: RemoteControlControllerOp
             grantedAt: frame.grantedAt,
           });
         },
+        onPairingCancelled: (frame) => {
+          if (session?.roomId !== roomId || frame.roomId !== roomId) return;
+          pendingRequests.delete(frame.requestId);
+          const timer = pendingTimers.get(frame.requestId);
+          if (timer) clearTimeout(timer);
+          pendingTimers.delete(frame.requestId);
+          pushState({ state: "waiting", roomId });
+        },
         onBridgeOpen: (frame) => {
-          void handleBridgeOpen(roomId, frame.deviceId, frame.resumed);
+          handleBridgeOpen(
+            roomId,
+            frame.deviceId,
+            frame.resumed,
+            frame.connected ?? true,
+            frame.deviceName ?? "",
+          );
         },
         onBridgeDetached: (frame) => {
           // 宽限耗尽(或吊销命中)后 Worker 已断桥;桌面按契约执行 detach(§3.3/§6.4)。
           // 房间并未终止(session/tunnel 存活,手机仍可凭设备凭据重连再次 bridged),
           // 正常断桥属于恢复流程；旧实现的 BRIDGE_DETACHED error 会误导用户重新配对。
           if (session?.roomId !== roomId) return;
-          if (bridge && bridge.deviceId !== frame.deviceId) return;
-          teardownBridge("bridge-detached");
+          if (!session.multiDevice && bridges.size && !bridges.has(frame.deviceId)) return;
+          teardownBridge("bridge-detached", frame.deviceId);
           pushState({ state: "reconnecting", roomId });
         },
         onPeerDisconnected: (frame) => {
-          if (session?.roomId !== roomId || bridge?.deviceId !== frame.deviceId) return;
+          if (session?.roomId !== roomId || !bridges.has(frame.deviceId)) return;
+          bridges.get(frame.deviceId)!.connected = false;
+          if (![...bridges.values()].some((bridge) => bridge.connected))
+            armIdleDisconnectTimer(activeIdleDisconnectMs);
           // 手机 60s 重连宽限内保持 attachment,由 v4 replayable 订阅缓冲补齐断口(§3.3)。
           options.logger.info("[remote-control] phone disconnected, waiting for resume", {
             deviceId: frame.deviceId,
@@ -450,6 +555,9 @@ export function createRemoteControlController(options: RemoteControlControllerOp
             failCount: frame.failCount,
           });
           teardownBridge("room-invalidated");
+          clearPendingRequestTimer();
+          pendingRequest = null;
+          pendingRequests.clear();
           session = null;
           clearIdleDisconnectTimer();
           pushState({ state: "error", error: "ROOM_INVALIDATED" });
@@ -457,9 +565,11 @@ export function createRemoteControlController(options: RemoteControlControllerOp
         onRoomExpired: () => {
           if (session?.roomId !== roomId) return;
           teardownBridge("room-expired");
+          clearPendingRequestTimer();
           session = null;
           clearIdleDisconnectTimer();
           pendingRequest = null;
+          pendingRequests.clear();
           pushState({ state: "stopped", error: "ROOM_EXPIRED" });
         },
         onProtocolError: (frame) => {
@@ -471,11 +581,19 @@ export function createRemoteControlController(options: RemoteControlControllerOp
         onAuthRejected: () => {
           options.logger.warn("[remote-control] access key rejected by worker");
           if (session?.roomId !== roomId) return;
+          teardownBridge("auth-rejected");
           session = null;
           clearIdleDisconnectTimer();
+          clearPendingRequestTimer();
+          pendingRequests.clear();
           pushState({ state: "error", error: "ACCESS_KEY_REJECTED" });
         },
         onTransportSuspended: (info) => {
+          if (session?.roomId !== roomId) return;
+          if (session.multiDevice) {
+            for (const bridge of bridges.values()) bridge.connected = false;
+            pushState({ state: "reconnecting", roomId });
+          }
           // host socket 闪断:DO 保留房间/桥 30s,帧泵自然静默,重连成功后恢复(§3.3)。
           options.logger.warn("[remote-control] host socket suspended, reconnecting", {
             code: info.code,
@@ -485,52 +603,83 @@ export function createRemoteControlController(options: RemoteControlControllerOp
         onClosed: (info) => {
           if (session?.roomId !== roomId) return;
           teardownBridge("tunnel-closed");
+          clearPendingRequestTimer();
           session = null;
           clearIdleDisconnectTimer();
           pendingRequest = null;
+          pendingRequests.clear();
           pushState({
             state: "stopped",
             ...(info.code === 1000 ? {} : { error: `TUNNEL_CLOSED_${info.code}` }),
           });
         },
-        onBridgeBinary: (data) => {
+        onBridgeBinary: (data, deviceId) => {
+          if (session?.roomId !== roomId) return;
+          const bridge = deviceId
+            ? bridges.get(deviceId)
+            : !session.multiDevice
+              ? bridges.values().next().value
+              : undefined;
           bridge?.pump.handleWsBinary(data);
         },
       },
     );
 
-    session = { roomId, capability, tunnel, expiresAt, mirrorTarget };
+    session = {
+      roomId,
+      capability,
+      tunnel,
+      expiresAt,
+      mirrorTarget,
+      multiDevice: false,
+      workerBaseUrl,
+      allowNewDevices: persistedConfig.allowNewDevices,
+    };
     activeIdleDisconnectMs = persistedConfig.idleDisconnectMs;
     armIdleDisconnectTimer(activeIdleDisconnectMs);
+    pushState({ state: "waiting", roomId, expiresAt });
     return { success: true, roomId, pairingUrl, expiresAt };
   }
 
-  function handleBridgeOpen(roomId: string, deviceId: string, resumed: boolean): void {
+  function handleBridgeOpen(
+    roomId: string,
+    deviceId: string,
+    resumed: boolean,
+    connected = true,
+    deviceName = "",
+  ): void {
     const current = session;
     if (!current || disposed || current.roomId !== roomId) return;
+    const bridge = bridges.get(deviceId);
     if (bridge) {
-      if (bridge.deviceId === deviceId) {
-        // 手机凭设备凭据在宽限内 resumed 重连(§3.3):复用既有 attachment 与帧泵,
-        // 不重复 attach——否则旧 attachmentId 永远收不到 detach-service-port,
-        // 在 windowHostAttachmentRegistry(按 attachmentId 共存)与 MessagePort 上泄漏,
-        // 且旧 pump 会成为向同一条隧道 WS 写帧的第二条写入路径。
-        clearIdleDisconnectTimer();
-        void touchDeviceLastSeen(deviceId);
-        // 手机页面 reload 后是全新 ChannelClient(Uninitialized):复用的 attachment
-        // 不会重建 ChannelServer、也不会再发 Initialize,必须显式请求 host 重发,
-        // 否则手机端所有 RPC 永久排队,镜像停在启动页(黑屏根因之二,§3.3)。
-        bridge.process.postMessage({
-          type: HostMessageTypes.ResendServicePortInit,
-          attachmentId: bridge.attachmentId,
+      // 同设备复用 attachment；浏览器 reload 后显式重发 Initialize，避免永久排队。
+      bridge.connected = connected;
+      if (deviceName) bridge.deviceName = deviceName;
+      clearIdleDisconnectTimer();
+      void touchDeviceLastSeen(deviceId);
+      try {
+        if (connected)
+          bridge.process.postMessage({
+            type: HostMessageTypes.ResendServicePortInit,
+            attachmentId: bridge.attachmentId,
+          });
+      } catch (error) {
+        options.logger.warn("[remote-control] resend device initialization failed:", {
+          deviceId,
+          error,
         });
-        pushState({ state: "bridged", roomId: current.roomId });
-        return;
+        if (current.multiDevice) {
+          current.tunnel.closeBridge(deviceId);
+          teardownBridge("device-init-failed", deviceId);
+        } else {
+          void stopPairing("device-init-failed");
+          return;
+        }
       }
-      // v1 每房间最多 1 条桥(§3.2 close 4008);不同设备再桥接属异常,防御性 fail-closed。
-      options.logger.warn("[remote-control] second device tried to bridge, stopping room", {
-        existingDeviceId: bridge.deviceId,
-        incomingDeviceId: deviceId,
-      });
+      pushState({ state: "bridged", roomId: current.roomId });
+      return;
+    }
+    if (bridges.size && !current.multiDevice) {
       void stopPairing("second-bridge-device");
       pushState({ state: "error", error: "ROOM_BUSY" });
       return;
@@ -545,6 +694,9 @@ export function createRemoteControlController(options: RemoteControlControllerOp
     }
     void touchDeviceLastSeen(deviceId);
     clearIdleDisconnectTimer();
+    let partialAttachment:
+      | ReturnType<RemoteControlControllerOptions["attachLocalWorkspaceSessionHost"]>
+      | undefined;
     try {
       // 本地工作区走 scope:{kind:"local"} 第二 attachment(与 Renderer 共存);
       // 远程工作区走既有 remote 入口,三元组全等校验不变(PROTOCOL.md §6.2)。
@@ -561,19 +713,39 @@ export function createRemoteControlController(options: RemoteControlControllerOp
               workspaceKey: mirrorTarget.workspaceIdentity,
               clientMode: "web-remote-replayable",
             });
+      partialAttachment = attached;
       const pump = createRemoteControlFramePump({
         ws: {
-          sendBinary: (data) => current.tunnel.sendBridgeBinary(data),
-          close: (code, reason) => current.tunnel.close(code, reason),
+          sendBinary: (data) => current.tunnel.sendBridgeBinary(data, deviceId),
+          close: (code, reason) => {
+            if (session !== current || bridges.get(deviceId)?.port !== attached.port) return;
+            if (current.multiDevice) current.tunnel.closeBridge(deviceId, code);
+            else current.tunnel.close(code, reason);
+          },
         },
         port: { postMessage: (data) => attached.port.postMessage(data) },
-        setTransportPaused: (paused) => current.tunnel.setTransportPaused(paused),
+        setTransportPaused: (paused) => {
+          if (session !== current) return;
+          if (!current.multiDevice) current.tunnel.setTransportPaused(paused);
+          // 一台设备反压不能暂停共享 host socket；关闭其 transport，让 replayable 链路恢复。
+          else if (paused) {
+            current.tunnel.closeBridge(deviceId, 1013);
+            teardownBridge("device-backpressure", deviceId);
+            pushState({ state: "reconnecting", roomId });
+          }
+        },
         onViolation: (info) => {
           options.logger.warn("[remote-control] frame pump violation:", info);
         },
         onViolationLimit: () => {
-          teardownBridge("frame-pump-violation-limit");
-          pushState({ state: "error", error: "FRAME_PROTOCOL_VIOLATION" });
+          if (session !== current || bridges.get(deviceId)?.port !== attached.port) return;
+          if (current.multiDevice) current.tunnel.closeBridge(deviceId);
+          teardownBridge("frame-pump-violation-limit", deviceId);
+          pushState(
+            current.multiDevice
+              ? { state: "waiting", roomId }
+              : { state: "error", error: "FRAME_PROTOCOL_VIOLATION" },
+          );
         },
       });
       attached.port.on("message", (event) => {
@@ -581,18 +753,24 @@ export function createRemoteControlController(options: RemoteControlControllerOp
       });
       attached.port.on("close", () => {
         // Host 侧先行关闭(session 释放/Host 退出):本地桥同步收口,避免帧泵入已死端口。
-        if (bridge?.port === attached.port) {
-          teardownBridge("host-port-closed");
+        if (session === current && bridges.get(deviceId)?.port === attached.port) {
+          if (current.multiDevice) current.tunnel.closeBridge(deviceId);
+          teardownBridge("host-port-closed", deviceId);
+          pushState({ state: "reconnecting", roomId });
         }
       });
-      attached.port.start();
-      bridge = {
+      bridges.set(deviceId, {
         deviceId,
+        deviceName,
+        connected,
         attachmentId: attached.attachmentId,
         port: attached.port,
         process: attached.process,
         pump,
-      };
+      });
+      // 注册先于 start，同步到达的端口关闭/反压事件才能精确回收这台设备。
+      attached.port.start();
+      partialAttachment = undefined;
       options.logger.info("[remote-control] bridge attached", {
         deviceId,
         resumed,
@@ -602,6 +780,23 @@ export function createRemoteControlController(options: RemoteControlControllerOp
       });
       pushState({ state: "bridged", roomId: current.roomId });
     } catch (error) {
+      if (bridges.has(deviceId)) teardownBridge("attach-start-failed", deviceId);
+      else if (partialAttachment) {
+        // attach 成功但端口启动失败时仍需释放，不能遗留未登记的 Host attachment。
+        try {
+          partialAttachment.process.postMessage({
+            type: HostMessageTypes.DetachServicePort,
+            attachmentId: partialAttachment.attachmentId,
+          });
+        } catch {
+          /* Host 已退出 */
+        }
+        try {
+          partialAttachment.port.close();
+        } catch {
+          /* 端口已关闭 */
+        }
+      }
       // 四类 fail-closed code 原样映射到 UI(PROTOCOL.md §6.2)。
       const code = (error as { code?: string }).code;
       const normalized = code ?? "ATTACH_FAILED";
@@ -609,17 +804,32 @@ export function createRemoteControlController(options: RemoteControlControllerOp
         code: normalized,
         error,
       });
-      void stopPairing("attach-failed");
-      pushState({ state: "error", error: normalized });
+      if (current.multiDevice) {
+        current.tunnel.closeBridge(deviceId);
+        pushState({ state: "waiting", roomId });
+      } else {
+        void stopPairing("attach-failed");
+        pushState({ state: "error", error: normalized });
+      }
     }
   }
 
   async function decidePairing(request: RemotePairingDecideRequest): Promise<void> {
     const current = session;
     if (!current) return;
+    if (current.multiDevice) {
+      if (!pendingRequests.delete(request.requestId)) return;
+      const timer = pendingTimers.get(request.requestId);
+      if (timer) clearTimeout(timer);
+      pendingTimers.delete(request.requestId);
+      current.tunnel.decide(request.requestId, request.accept);
+      pushState({ state: "waiting", roomId: current.roomId });
+      return;
+    }
     if (pendingRequest?.requestId !== request.requestId) return;
     // 同一 requestId 只生效一次(§2.2);tunnel 内部亦有幂等保护。
     pendingRequest = null;
+    pendingRequests.clear();
     clearPendingRequestTimer();
     current.tunnel.decide(request.requestId, request.accept);
     if (request.accept) {
@@ -655,14 +865,13 @@ export function createRemoteControlController(options: RemoteControlControllerOp
   }
 
   async function revokeDevice(deviceId: string): Promise<void> {
-    const devices = await store.loadDevices();
-    const next = devices.filter((device) => device.deviceId !== deviceId);
-    await store.saveDevices(next);
-    // 吊销必须一条 WS RTT 内生效(§4.3.3);本地同时拆桥做双保险(teardown 幂等)。
-    if (bridge?.deviceId === deviceId) {
-      teardownBridge("device-revoked");
-    }
+    await store.updateDevices(
+      (devices) => devices.filter((device) => device.deviceId !== deviceId),
+      [...bridges.keys()],
+    );
+    teardownBridge("device-revoked", deviceId);
     session?.tunnel.revokeDevice(deviceId);
+    if (session?.multiDevice) pushState({ state: "waiting", roomId: session.roomId });
     options.logger.info("[remote-control] device revoked", { deviceId });
   }
 
@@ -684,7 +893,10 @@ export function createRemoteControlController(options: RemoteControlControllerOp
     // waiting 态的 capability 尚未消费(§2.2),快照附带配对链接以恢复二维码/复制;
     // 其余状态 capability 已作废,链接置空,重挂载面板走"刷新二维码"。
     const pairingUrl =
-      lastPairingStatePush?.state === "waiting" && session
+      session &&
+      (session.multiDevice
+        ? session.expiresAt !== null && session.expiresAt > now()
+        : lastPairingStatePush?.state === "waiting")
         ? buildRemotePairingUrl({
             workerBaseUrl: config.workerBaseUrl,
             roomId: session.roomId,
@@ -761,8 +973,9 @@ export function createRemoteControlController(options: RemoteControlControllerOp
       idleDisconnectMs: request.idleDisconnectMs ?? persisted.idleDisconnectMs,
     };
     await store.saveConfig(next);
+    if (session) session.allowNewDevices = next.allowNewDevices;
     // 设置禁用后立即断开出站且不再重连(验收 specs/mobile-remote-control-cf-workers.md:88)。
-    if (!next.enabled && session) {
+    if (!next.enabled) {
       void stopPairing("remote-control-disabled");
     }
     return { success: true };
@@ -776,6 +989,7 @@ export function createRemoteControlController(options: RemoteControlControllerOp
     clearPendingRequestTimer();
     clearIdleDisconnectTimer();
     pendingRequest = null;
+    pendingRequests.clear();
     // disposed 已置位,teardownBridge 内的空闲定时器重新布防会被短路。
     teardownBridge(reason);
     // stopRoom 先发 room.stop 再关闭(一条 WS RTT 内生效,§4.3.3);全部为同步尽力发送。
@@ -807,8 +1021,9 @@ export function createRemoteControlController(options: RemoteControlControllerOp
     } {
       return {
         hasSession: session !== null,
-        hasBridge: bridge !== null,
-        pendingRequestId: pendingRequest?.requestId ?? null,
+        hasBridge: bridges.size > 0,
+        pendingRequestId:
+          pendingRequests.values().next().value?.requestId ?? pendingRequest?.requestId ?? null,
       };
     },
   };

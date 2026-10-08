@@ -2,7 +2,7 @@
 // 由设置页「手机配对」分区独立而来（specs/mobile-remote-control-cf-workers.md 入口迁移），
 // 自持 useRemoteControl 装配（配置快照 + lcode:remote-pairing-state 推送），不持第二份房间状态；
 // 配对交互本体仍是 RemotePairingPanel（等待/裁决/已就绪/停止/刷新二维码/复制链接的唯一投影）。
-import { LoaderCircle, MonitorSmartphone, Settings2, Smartphone } from "lucide-react";
+import { LoaderCircle, MonitorSmartphone, Settings2, QrCode } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { toast } from "@/components/ui/toast.js";
 import { Button } from "@/components/ui/button.js";
@@ -141,7 +141,7 @@ export function MobileRemoteControlPanel({
 
       <div className="rounded-xl border border-border bg-surface px-3 py-3">
         <div className="flex items-center gap-2">
-          <Smartphone className="size-4 text-foreground" />
+          <QrCode className="size-4 text-foreground" />
           <span className="text-ui-base font-medium text-foreground">
             {intl.formatMessage({ id: "remoteControl.quick.scanTitle" })}
           </span>

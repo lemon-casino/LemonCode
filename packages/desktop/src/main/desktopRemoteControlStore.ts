@@ -48,6 +48,10 @@ export interface RemoteControlStore {
   saveConfig(config: RemoteControlPersistedConfig): Promise<void>;
   loadDevices(): Promise<RemoteControlPersistedDevice[]>;
   saveDevices(devices: RemoteControlPersistedDevice[]): Promise<void>;
+  updateDevices(
+    update: (devices: RemoteControlPersistedDevice[]) => RemoteControlPersistedDevice[],
+    pinnedDeviceIds?: string[],
+  ): Promise<void>;
 }
 
 export function createRemoteControlStore(options: {
@@ -55,6 +59,51 @@ export function createRemoteControlStore(options: {
   logger: RemoteControlStoreLogger;
 }): RemoteControlStore {
   const { credentialService, logger } = options;
+
+  // 授权、lastSeen 与撤销共用一条串行写入路径，避免并发 load/save 覆盖另一台设备。
+  let deviceWrites: Promise<void> = Promise.resolve();
+  async function readDevices(): Promise<RemoteControlPersistedDevice[]> {
+    try {
+      const raw = await credentialService.load(REMOTE_CONTROL_DEVICES_CREDENTIAL_KEY);
+      if (!raw) return [];
+      const parsedJson: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsedJson)) return [];
+      const devices: RemoteControlPersistedDevice[] = [];
+      for (const entry of parsedJson) {
+        const parsed = remoteControlPersistedDeviceSchema.safeParse(entry);
+        if (parsed.success) {
+          devices.push(parsed.data);
+        } else {
+          logger.warn("[remote-control-store] drop invalid persisted device entry");
+        }
+        if (devices.length >= REMOTE_CONTROL_MAX_PERSISTED_DEVICES) break;
+      }
+      return devices;
+    } catch (error) {
+      logger.warn("[remote-control-store] load devices failed:", error);
+      return [];
+    }
+  }
+  function enqueueDevices(
+    update: (devices: RemoteControlPersistedDevice[]) => RemoteControlPersistedDevice[],
+    pinnedDeviceIds: string[] = [],
+  ): Promise<void> {
+    const operation = deviceWrites.then(async () => {
+      const pinned = new Set(pinnedDeviceIds);
+      const devices = update(await readDevices());
+      const bounded = [...devices]
+        .sort(
+          (a, b) =>
+            Number(pinned.has(b.deviceId)) - Number(pinned.has(a.deviceId)) ||
+            b.lastSeenAt - a.lastSeenAt,
+        )
+        .slice(0, REMOTE_CONTROL_MAX_PERSISTED_DEVICES)
+        .map((device) => remoteControlPersistedDeviceSchema.parse(device));
+      await credentialService.save(REMOTE_CONTROL_DEVICES_CREDENTIAL_KEY, JSON.stringify(bounded));
+    });
+    deviceWrites = operation.catch(() => {});
+    return operation;
+  }
 
   return {
     async loadAccessKey() {
@@ -114,34 +163,14 @@ export function createRemoteControlStore(options: {
     },
 
     async loadDevices() {
-      try {
-        const raw = await credentialService.load(REMOTE_CONTROL_DEVICES_CREDENTIAL_KEY);
-        if (!raw) return [];
-        const parsedJson: unknown = JSON.parse(raw);
-        if (!Array.isArray(parsedJson)) return [];
-        const devices: RemoteControlPersistedDevice[] = [];
-        for (const entry of parsedJson) {
-          const parsed = remoteControlPersistedDeviceSchema.safeParse(entry);
-          if (parsed.success) {
-            devices.push(parsed.data);
-          } else {
-            logger.warn("[remote-control-store] drop invalid persisted device entry");
-          }
-          if (devices.length >= REMOTE_CONTROL_MAX_PERSISTED_DEVICES) break;
-        }
-        return devices;
-      } catch (error) {
-        logger.warn("[remote-control-store] load devices failed:", error);
-        return [];
-      }
+      await deviceWrites;
+      return readDevices();
     },
-
-    async saveDevices(devices) {
-      // 已授权设备列表上限 64 条(PROTOCOL.md §4.3.2);超出时按最旧 lastSeenAt 淘汰。
-      const bounded = [...devices]
-        .sort((a, b) => b.lastSeenAt - a.lastSeenAt)
-        .slice(0, REMOTE_CONTROL_MAX_PERSISTED_DEVICES);
-      await credentialService.save(REMOTE_CONTROL_DEVICES_CREDENTIAL_KEY, JSON.stringify(bounded));
+    saveDevices(devices) {
+      return enqueueDevices(() => devices);
+    },
+    updateDevices(update, pinnedDeviceIds) {
+      return enqueueDevices(update, pinnedDeviceIds);
     },
   };
 }

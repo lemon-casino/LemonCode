@@ -146,6 +146,7 @@ test("tag build checks dependency patches and both source workspaces before pack
   const commands = steps[checksIndex].run.trim().split(/\r?\n/u);
   for (const command of [
     "pnpm test:dependency-security",
+    "pnpm test:remote-control",
     "pnpm typecheck",
     "pnpm lint",
     "pnpm --dir apps/lcode-cli typecheck",

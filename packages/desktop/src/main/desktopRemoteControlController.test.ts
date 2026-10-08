@@ -22,6 +22,221 @@ import type {
 } from "./desktopRemoteControlTunnel.js";
 import { encodeRemoteControlRegularFrame } from "./desktopRemoteControlFramePump.js";
 
+test("运行中禁止新设备只拒绝新请求，不停止已有连接", async () => {
+  const { controller, tunnels, broadcasts } = makeController();
+  const result = await enableAndStart(controller, MIRROR_TARGET);
+  assert.ok(result.success);
+  if (!result.success) return;
+  const t = tunnels[0]!;
+  t.delegate.onRoomReady({
+    type: "room.ready",
+    proto: 1,
+    roomId: result.roomId,
+    expiresAt: 9000000,
+    multiDevice: true,
+  });
+  t.delegate.onBridgeOpen({
+    type: "bridge.open",
+    proto: 1,
+    deviceId: "A",
+    resumed: false,
+    connected: true,
+  });
+  await controller.setConfig({ allowNewDevices: false });
+  t.delegate.onPairingRequested({
+    type: "pairing.requested",
+    proto: 1,
+    roomId: result.roomId,
+    requestId: "B",
+    deviceName: "B",
+    ua: "",
+  });
+  assert.deepEqual(t.decided, [{ requestId: "B", accept: false }]);
+  assert.equal(tunnels.length, 1);
+  assert.equal(t.stopped, false);
+  assert.equal(broadcasts.at(-1)?.payload.connections?.length, 1);
+  controller.dispose("test");
+});
+
+test("重发 Initialize 失败只释放对应设备", async () => {
+  const a = makeAttachOk();
+  const b = makeAttachOk();
+  let count = 0;
+  const { controller, tunnels } = makeController({
+    attach: (params) => (count++ === 0 ? a : b).attach(params),
+  });
+  const result = await enableAndStart(controller, MIRROR_TARGET);
+  assert.ok(result.success);
+  if (!result.success) return;
+  const t = tunnels[0]!;
+  t.delegate.onRoomReady({
+    type: "room.ready",
+    proto: 1,
+    roomId: result.roomId,
+    expiresAt: 9000000,
+    multiDevice: true,
+  });
+  for (const deviceId of ["A", "B"])
+    t.delegate.onBridgeOpen({
+      type: "bridge.open",
+      proto: 1,
+      deviceId,
+      resumed: false,
+      connected: true,
+    });
+  const broken = b.attach({}).process;
+  broken.postMessage = () => {
+    throw new Error("Host port initialization failed");
+  };
+  assert.doesNotThrow(() =>
+    t.delegate.onBridgeOpen({
+      type: "bridge.open",
+      proto: 1,
+      deviceId: "B",
+      resumed: true,
+      connected: true,
+    }),
+  );
+  assert.equal(t.stopped, false);
+  assert.equal(a.detachMessages.length, 0);
+  assert.equal(controller.getActiveState().hasBridge, true);
+  controller.dispose("test");
+});
+
+test("第二台设备端口启动失败只释放该 attachment", async () => {
+  const a = makeAttachOk();
+  const b = makeAttachOk();
+  let count = 0;
+  const { controller, tunnels, broadcasts } = makeController({
+    attach: (params) => {
+      const attached = (count++ === 0 ? a : b).attach(params);
+      if (count === 2)
+        attached.port.start = () => {
+          throw new Error("port start failed");
+        };
+      return attached;
+    },
+  });
+  const result = await enableAndStart(controller, MIRROR_TARGET);
+  assert.ok(result.success);
+  if (!result.success) return;
+  const t = tunnels[0]!;
+  t.delegate.onRoomReady({
+    type: "room.ready",
+    proto: 1,
+    roomId: result.roomId,
+    expiresAt: 9000000,
+    multiDevice: true,
+  });
+  for (const deviceId of ["A", "B"])
+    t.delegate.onBridgeOpen({
+      type: "bridge.open",
+      proto: 1,
+      deviceId,
+      resumed: false,
+      connected: true,
+    });
+  assert.equal(t.stopped, false);
+  assert.equal(a.detachMessages.length, 0);
+  assert.equal(b.detachMessages.length, 1);
+  assert.equal(broadcasts.at(-1)?.payload.connections?.length, 1);
+  controller.dispose("test");
+});
+
+test("多设备独立裁决、帧路由、撤销与刷新保留其它 attachment", async () => {
+  const attached = [makeAttachOk(), makeAttachOk()];
+  let next = 0;
+  const { controller, tunnels, broadcasts } = makeController({
+    attach: (params) => attached[next++]!.attach(params),
+  });
+  const start = await enableAndStart(controller, MIRROR_TARGET);
+  assert.ok(start.success);
+  if (!start.success) return;
+  const tunnel = tunnels[0]!;
+  tunnel.delegate.onRoomReady({
+    type: "room.ready",
+    proto: 1,
+    roomId: start.roomId,
+    expiresAt: 9_000_000,
+    multiDevice: true,
+  });
+  for (const requestId of ["A", "B"])
+    tunnel.delegate.onPairingRequested({
+      type: "pairing.requested",
+      proto: 1,
+      roomId: start.roomId,
+      requestId,
+      deviceName: requestId,
+      ua: "",
+    });
+  assert.deepEqual(
+    broadcasts.at(-1)?.payload.pendingDevices?.map((p) => p.requestId),
+    ["A", "B"],
+  );
+  await controller.decidePairing({ requestId: "A", accept: true });
+  assert.equal(broadcasts.at(-1)?.payload.pendingDevices?.length, 1);
+  tunnel.delegate.onBridgeOpen({
+    type: "bridge.open",
+    proto: 1,
+    deviceId: "device-A",
+    resumed: false,
+    connected: true,
+    deviceName: "电脑",
+  });
+  await controller.decidePairing({ requestId: "B", accept: true });
+  tunnel.delegate.onBridgeOpen({
+    type: "bridge.open",
+    proto: 1,
+    deviceId: "device-B",
+    resumed: false,
+    connected: true,
+    deviceName: "手机",
+  });
+  assert.equal(tunnel.stopped, false);
+  assert.equal(broadcasts.at(-1)?.payload.connections?.length, 2);
+  tunnel.delegate.onBridgeBinary?.(encodeRemoteControlRegularFrame(Uint8Array.of(42)), "device-B");
+  assert.equal(attached[0]!.postedToPort.length, 0);
+  assert.deepEqual(attached[1]!.postedToPort[0], Uint8Array.of(42));
+  tunnel.delegate.onPeerDisconnected({
+    type: "peer.disconnected",
+    side: "client",
+    deviceId: "device-B",
+  });
+  assert.equal(broadcasts.at(-1)?.payload.state, "bridged");
+  const refreshed = await controller.startPairing({ target: MIRROR_TARGET });
+  assert.ok(refreshed.success);
+  if (refreshed.success) assert.equal(refreshed.roomId, start.roomId);
+  assert.equal(tunnels.length, 1);
+  assert.equal(tunnel.stopped, false);
+  await controller.revokeDevice("device-B");
+  assert.equal(attached[0]!.detachMessages.length, 0);
+  assert.equal(attached[1]!.detachMessages.length, 1);
+  assert.equal(broadcasts.at(-1)?.payload.connections?.length, 1);
+  await controller.stopPairing("test");
+  controller.dispose("test");
+});
+
+test("并发设备授权持久化不会互相覆盖", async () => {
+  const { controller, tunnels } = makeController();
+  const start = await enableAndStart(controller, MIRROR_TARGET);
+  assert.ok(start.success);
+  if (!start.success) return;
+  const t = tunnels[0]!;
+  for (const deviceId of ["device-A", "device-B"])
+    t.delegate.onPairingAccepted({
+      type: "pairing.accepted",
+      requestId: deviceId,
+      roomId: start.roomId,
+      deviceId,
+      deviceName: deviceId,
+      credHash: "fixturehash",
+      grantedAt: 123,
+    });
+  const result = await controller.refreshDevices();
+  assert.deepEqual(result.devices.map((d) => d.deviceId).sort(), ["device-A", "device-B"]);
+  controller.dispose("test");
+});
+
 /** Map 版凭据存储(fake;键空间与 store 常量一致)。 */
 function makeFakeCredentials() {
   const map = new Map<string, string>();
@@ -73,6 +288,8 @@ function makeTunnelFactory() {
           tunnel.stopped = true;
         },
         close: () => {},
+        refreshPairing: () => {},
+        closeBridge: () => {},
         sendBridgeBinary: (data) => {
           tunnel.sentBinary.push(data);
         },

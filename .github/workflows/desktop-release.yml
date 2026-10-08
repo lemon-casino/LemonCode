@@ -159,6 +159,7 @@ jobs:
         if: matrix.os == 'linux' && matrix.arch == 'x64'
         run: |
           pnpm test:dependency-security
+          pnpm test:remote-control
           pnpm typecheck
           pnpm lint
           pnpm --dir apps/lcode-cli typecheck

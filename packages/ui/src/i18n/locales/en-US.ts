@@ -1739,7 +1739,7 @@ const enUS: Record<string, string> = {
   "taskList.userInputTag": "Awaiting approval",
   "taskList.stopCountdown": "Stop timer",
   "taskList.attentionCount": "{label} · {count}",
-  "taskList.mobileActive": "Phone is using this task",
+  "taskList.mobileActive": "A remote device is using this task",
   "taskList.changeStats": "+{added} -{removed}",
   "taskGroup.newGroup": "New group",
   "taskGroup.newTask": "New task",
@@ -2278,7 +2278,7 @@ const enUS: Record<string, string> = {
     "Remote control is only available in the LCode desktop app, and requires a desktop build with this feature.",
   "settings.remoteControl.enable.title": "Enable remote control",
   "settings.remoteControl.enable.description":
-    "Mirror this desktop on your phone through a Cloudflare Worker tunnel: the phone gets exactly the same capabilities as the desktop user. The desktop only makes outbound connections to the Worker.",
+    "Open this workspace on remote computers or phones through the relay. Each new device needs its own approval and has the desktop user's control capabilities.",
   "settings.remoteControl.enable.missingPrerequisites":
     "Set a valid Worker domain. A self-hosted Worker also requires a saved access key.",
   "settings.remoteControl.enable.enabledToast": "Remote control enabled",
@@ -2310,34 +2310,34 @@ const enUS: Record<string, string> = {
   "settings.remoteControl.testConnection.action": "Test connection",
   "settings.remoteControl.testConnection.success": "Connected ({latencyMs}ms)",
   "settings.remoteControl.testConnection.failed": "Connection failed: {error}",
-  "remoteControl.quick.title": "Mobile remote control",
+  "remoteControl.quick.title": "Remote control",
   "remoteControl.quick.description":
-    "Scan the code or open the link on your phone to control this workspace remotely.",
-  "remoteControl.quick.scanTitle": "Scan to connect",
+    "Scan the code or open the link on a remote device to control this workspace.",
+  "remoteControl.quick.scanTitle": "Connect remotely with a QR code",
   "remoteControl.quick.scanDescription":
-    "Scan with your phone camera to open this workspace on your phone.",
+    "Scan with the remote device's camera to open the workspace.",
   "remoteControl.quick.disabledHint":
-    "Remote control is not enabled yet. Fill in the Worker domain, save the access key and turn on the switch in Remote control settings before pairing.",
+    "Enable Remote control in settings before pairing. The hosted service works without an access key.",
   "remoteControl.quick.openSettings": "Remote control settings",
   "settings.remoteControl.pairing.status.idle": "Not waiting",
   "settings.remoteControl.pairing.status.unknown": "Status unknown",
-  "settings.remoteControl.pairing.status.waiting": "Waiting for the phone to connect…",
+  "settings.remoteControl.pairing.status.waiting": "Waiting for a remote device to connect…",
   "settings.remoteControl.pairing.status.pairing": "Device requesting access",
   "settings.remoteControl.pairing.status.bridged": "Ready",
-  "settings.remoteControl.pairing.status.reconnecting": "Waiting for the phone to reconnect…",
+  "settings.remoteControl.pairing.status.reconnecting": "Waiting for remote devices to reconnect…",
   "settings.remoteControl.pairing.reconnectingDescription":
-    "The phone disconnected. Reopen the original pairing page to reconnect; authorized devices do not need another confirmation.",
+    "A remote device disconnected. Reopen its pairing page to reconnect; authorized devices do not need another confirmation.",
   "settings.remoteControl.pairing.status.error": "Pairing error",
   "settings.remoteControl.pairing.idleDescription":
-    "Generate a pairing QR code, then scan it or open the copied link on the phone. Once both sides authorize, mirroring starts.",
+    "Generate a QR code, then scan it or open the copied link on a remote device. Each new device needs its own desktop confirmation.",
   "settings.remoteControl.pairing.unknownDescription":
-    "No pairing state has been received from the desktop, so it cannot tell whether mirroring is active; if the phone already shows “Ready”, mirroring is still running. Starting the wait again stops the current room and generates a new QR code — a mirroring phone is disconnected immediately.",
+    "No connection state has been received from the desktop. Starting the wait again stops the current room and disconnects its remote devices.",
   "settings.remoteControl.pairing.restartConfirmTitle": "Start waiting again?",
   "settings.remoteControl.pairing.restartConfirmDescription":
-    "The current pairing room will be stopped and a new QR code generated; if the phone is currently mirroring, its connection drops immediately and pairing must be redone with a fresh scan and your confirmation.",
+    "The current room will be stopped and a new QR code generated. Connected remote devices will disconnect.",
   "settings.remoteControl.pairing.restartConfirmAction": "Stop and restart",
   "settings.remoteControl.pairing.noMirrorTarget":
-    "The phone mirrors the currently active remote workspace; connect to a remote workspace and keep it active before starting.",
+    "Remote devices open the active workspace. Select a workspace before starting.",
   "settings.remoteControl.pairing.start": "Start waiting",
   "settings.remoteControl.pairing.refreshQr": "Refresh QR code",
   "settings.remoteControl.pairing.stop": "Stop",
@@ -2347,19 +2347,23 @@ const enUS: Record<string, string> = {
   "settings.remoteControl.pairing.copyFailed":
     "Copy failed; please select and copy the link manually",
   "settings.remoteControl.pairing.qrHint":
-    "Scan with your phone, or open the link below in its browser. The link works only within its validity window and only for one pairing.",
+    "Scan with a remote device or open this link in its browser. Multiple devices can join while the link is valid; each new device needs desktop confirmation.",
   "settings.remoteControl.pairing.staleHint":
-    "The current QR code is no longer valid (already used or expired). Refresh to generate a new one.",
+    "This link cannot pair new devices. Refresh the QR code; authorized devices can still reconnect with their device credentials.",
   "settings.remoteControl.pairing.expiresAt": "Valid until {time}",
   "settings.remoteControl.pairing.qrFailed": "Failed to render the QR code",
   "settings.remoteControl.pairing.qrAlt": "Pairing QR code",
   "settings.remoteControl.pairing.deviceRequestDescription":
     "This device is requesting exactly the same control capabilities as this desktop. Only allow devices you trust.",
   "settings.remoteControl.pairing.unknownDevice": "Unknown device",
+  "settings.remoteControl.pairing.deviceConnected": "Connected",
+  "settings.remoteControl.pairing.deviceReconnecting": "Reconnecting",
+  "settings.remoteControl.pairing.legacyHint":
+    "This relay has not enabled multi-device access. This link can authorize one device; update the relay to share it with more devices.",
   "settings.remoteControl.pairing.allow": "Allow",
   "settings.remoteControl.pairing.reject": "Reject",
   "settings.remoteControl.pairing.bridgedDescription":
-    "The phone is connected with exactly the same capabilities as the desktop user. After a disconnect it can resume with its authorized credentials without asking again.",
+    "Remote devices are connected with the desktop user's capabilities. Authorized devices can reconnect without another confirmation.",
   "settings.remoteControl.pairing.startFailed": "Failed to start pairing: {error}",
   "settings.remoteControl.pairing.stopFailed": "Failed to stop, please try again",
   "settings.remoteControl.pairing.decideFailed": "Failed to submit the decision, please try again",
@@ -2397,7 +2401,7 @@ const enUS: Record<string, string> = {
     "How long the QR code/link stays usable; refresh the QR code after it expires",
   "settings.remoteControl.idleDisconnect.title": "Disconnect when idle",
   "settings.remoteControl.idleDisconnect.description":
-    "Stop the room and disconnect automatically after the phone has been idle for this long",
+    "Stop remote control after no remote devices have been connected for this long",
   "settings.remoteControl.idleDisconnect.never": "Never",
   "settings.remoteControl.duration.minutes": "{minutes} min",
   "settings.remoteControl.privacy.note":
