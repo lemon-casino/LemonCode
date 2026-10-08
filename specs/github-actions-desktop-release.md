@@ -108,6 +108,10 @@
 14 个 Lint 任务全部成功且无缓存命中，trajectory 工具实际检查 11 个源码文件。
 macOS 原生 DMG 打包未在 Windows 上执行；v3.17.1 原 tag 的失败记录仍然存在。
 
+本轮修复以 `v3.17.2` 发布，根版本、tag、安装包和 Worker Web 资源统一使用 3.17.2；
+主仓库 `main` 与当前开发分支一起推送，独立 Worker 仓库提交完整重建后的 public。
+Main 全量检查已经纳入根命令，相关修复见 `desktop-main-typecheck.md`。
+
 ## 所有者与事件顺序
 
 `package.json` 拥有版本，Git tag 只是不可变的版本声明；现有 build-metadata 和
