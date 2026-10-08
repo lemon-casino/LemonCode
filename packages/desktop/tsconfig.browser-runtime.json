@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src/browserRuntime",
+    "outDir": "node_modules/.cache/browser-runtime",
+    "emitDeclarationOnly": true,
+    "lib": ["es2025", "dom", "dom.iterable"]
+  },
+  "include": ["src/browserRuntime"]
+}

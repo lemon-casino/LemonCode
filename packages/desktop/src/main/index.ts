@@ -792,10 +792,8 @@ const remoteSessionManager = createRemoteWorkspaceSessionManager({
 const remoteControlController = createRemoteControlController({
   logger,
   credentialService: remoteControlCredentialService,
-  attachRemoteWorkspaceSessionHost:
-    remoteSessionManager.attachRemoteWorkspaceSessionHost,
-  attachLocalWorkspaceSessionHost:
-    remoteSessionManager.attachLocalWorkspaceSessionHost,
+  attachRemoteWorkspaceSessionHost: remoteSessionManager.attachRemoteWorkspaceSessionHost,
+  attachLocalWorkspaceSessionHost: remoteSessionManager.attachLocalWorkspaceSessionHost,
   broadcast: (channel, payload) => {
     for (const win of getApplicationWindowsExcludingCuaIndicator()) {
       if (!win.isDestroyed() && !win.webContents.isDestroyed()) {
@@ -961,7 +959,17 @@ function syncCloseToTrayOnWindows(value: unknown) {
   logger.info(`[settings] closeToTrayOnWindows=${value}`);
 }
 
-function syncImmediateAppSettings(patch: Partial<AppSettings>) {
+// Main 只消费这些即时字段；IPC 原始 patch 的清空标记不应被当作完整持久化 AppSettings。
+type ImmediateAppSettingsPatch = Pick<
+  Partial<AppSettings>,
+  | "closeToTrayOnWindows"
+  | "keepAwakeWhileRunning"
+  | "receivePreviewUpdates"
+  | "shortcutBindings"
+  | "autoDownloadAndInstallUpdates"
+>;
+
+function syncImmediateAppSettings(patch: ImmediateAppSettingsPatch) {
   syncCloseToTrayOnWindows(patch.closeToTrayOnWindows);
 
   if (typeof patch.keepAwakeWhileRunning === "boolean") {
@@ -1799,7 +1807,7 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
     initialWindowSize: currentDesktopWindowSize,
     currentApplicationLocale: () => currentApplicationLocale,
     resolveBrowserViewOwner: (webContentsId) =>
-      browserGuestManager.getTabOwnerByWebContentsId(webContentsId),
+      browserGuestManager.getTabOwnerByWebContentsId(webContentsId) ?? undefined,
     persistWindowSize: async (state) => {
       currentDesktopWindowSize = state;
       await mainSettingService.update({ desktopWindowSize: state });
@@ -2254,7 +2262,10 @@ app.whenReady().then(async () => {
   });
 
   const protocolUrl = extractDeepLinkUrlFromArgs(process.argv);
-  if (startupDeepLinkConsumptionGate.shouldHandleReadyProtocolUrl(protocolUrl)) {
+  if (
+    protocolUrl !== null &&
+    startupDeepLinkConsumptionGate.shouldHandleReadyProtocolUrl(protocolUrl)
+  ) {
     handleDeepLink(protocolUrl, logger, {
       confirmationCopy: resolveExternalWorkspaceConfirmationCopy(),
       resolveApplicationWindow: () => getApplicationWindowsExcludingCuaIndicator()[0] ?? null,

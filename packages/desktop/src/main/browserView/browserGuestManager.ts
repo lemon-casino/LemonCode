@@ -1950,7 +1950,7 @@ export class BrowserGuestManager {
    */
   private isInFlightScreenshotAlive(tracked: InFlightScreenshot): boolean {
     const running = this.runningRequests.get(tracked.requestId);
-    return Boolean(running) && !running.controller.signal.aborted;
+    return running !== undefined && !running.controller.signal.aborted;
   }
 
   private createRecordingEntry(
@@ -2219,7 +2219,8 @@ export class BrowserGuestManager {
           throw new Error(`recording action timed out: ${result.reason}`);
         return;
       }
-      if (typeof action.x !== "number" || typeof action.y !== "number") {
+      // type/waitFor 已走 locator；坐标分支只消费 click，不能访问其它动作不存在的字段。
+      if (action.type !== "click" || typeof action.x !== "number" || typeof action.y !== "number") {
         throw new Error("recording click requires selector or (x,y)");
       }
       await this.executeRecordingBrowserCommand(view, {
@@ -2625,7 +2626,8 @@ export class BrowserGuestManager {
       // 如果 destroyed/mismatch 已经发起过重绑，沿用该请求，避免同一 tab 重复创建 webview。
       if (!tab.rebindRequested) this.onOpenTabRequested?.(tab.tabId, tab.owner);
       // 某些测试/旧 renderer 会在 Ready 回调内同步 attach；不能在 attach 已成功后再注册 waiter。
-      if (tab.guest && !safeBool(() => tab.guest.isDestroyed(), true)) return tab.guest;
+      const attachedGuest = tab.guest;
+      if (attachedGuest && !safeBool(() => attachedGuest.isDestroyed(), true)) return attachedGuest;
       const guest = await this.waitForGuest(tab.tabId);
       if (guest && !safeBool(() => guest.isDestroyed(), true)) return guest;
       if (attempt === 0 && !tab.hasAttachedGuest && !tab.attachFailure) return null;
@@ -2776,11 +2778,14 @@ export class BrowserGuestManager {
       tab.cachedUrl = safeStr(() => tab.guest!.getURL(), tab.cachedUrl);
       tab.cachedTitle = safeStr(() => tab.guest!.getTitle(), tab.cachedTitle);
     }
+    const viewport = await this.readTabViewport(tab);
+    // viewport 获取会 await；期间关闭的 tab 不能作为内部 closed 摘要泄露给严格客户端。
+    if (tab.lifecycle === "closed") throw abortError();
     return {
       tabId: tab.tabId,
       url: tab.cachedUrl,
       title: tab.cachedTitle,
-      viewport: await this.readTabViewport(tab),
+      viewport,
       ...(this.effectiveActiveTabId(tab.owner) === tab.tabId ? { active: true } : {}),
       ...(tab.lifecycle !== "active" ? { lifecycle: tab.lifecycle } : {}),
     };
@@ -3850,10 +3855,12 @@ export class BrowserGuestManager {
     tab: ManagedTab,
     guest: GuestWebContents,
   ): Promise<GuestWebContents | null> {
-    if (tab.lifecycle === "closed" || tab.guest !== guest) return null;
+    // 闭包在每个 await 后读取当前状态，避免 TS 沿用等待前收窄，也避免返回过期 guest。
+    const isCurrentGuest = () => tab.lifecycle !== "closed" && tab.guest === guest;
+    if (!isCurrentGuest()) return null;
     const restored = await this.restoreGuestState(tab, guest);
-    if (!restored || tab.lifecycle === "closed" || tab.guest !== guest) {
-      if (tab.lifecycle !== "closed" && tab.guest === guest) {
+    if (!restored || !isCurrentGuest()) {
+      if (isCurrentGuest()) {
         this.warn(`browser tab guest rebind restore failed tabId=${tab.tabId}`);
       }
       return null;
@@ -3862,7 +3869,7 @@ export class BrowserGuestManager {
       `[browser-use] guest rebind restore complete tabId=${tab.tabId} url=${tab.cachedUrl}`,
     );
     await this.persistShell(tab);
-    return guest;
+    return isCurrentGuest() ? guest : null;
   }
 
   private async persistRecoverySnapshot(tab: ManagedTab, guest: GuestWebContents): Promise<void> {

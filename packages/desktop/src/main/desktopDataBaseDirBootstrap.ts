@@ -53,6 +53,8 @@ export function applyEarlyDataBaseDirBootstrap(): string | null {
 // 并把旧 Chromium 分区目录迁到新分区名，避免丢嵌入式浏览器会话与 Coding Plan 登录态。
 // 旧目录保留（并列安装形态下旧版应用继续读旧 appData，数据不受影响）。
 export function migrateDesktopIdentityDataSync(): void {
+  // 默认 userData 隔离模式没有自定义目标；不能向 undefined 迁移或触碰正式用户数据。
+  if (!runtimeUserDataPath) return;
   const appData = app.getPath("appData");
   // runtimeApplicationName 取 "LCode" | "LCode Preview" | "LCode Dev"；旧身份仅前缀不同。
   const legacyUserData = join(appData, runtimeApplicationName.replace(/^LCode/, "ZCode"));
@@ -61,6 +63,9 @@ export function migrateDesktopIdentityDataSync(): void {
     ["persist:zcode-embedded-browser", "persist:lcode-embedded-browser"],
     ["persist:zcode-coding-plan", "persist:lcode-coding-plan"],
   ] as const) {
-    migrateDirCopyStyleSync(join(legacyUserData, "Partitions", legacyPartition), join(runtimeUserDataPath, "Partitions", partition));
+    migrateDirCopyStyleSync(
+      join(legacyUserData, "Partitions", legacyPartition),
+      join(runtimeUserDataPath, "Partitions", partition),
+    );
   }
 }

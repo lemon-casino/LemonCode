@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
+import ts from "typescript";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
@@ -77,6 +78,35 @@ test("Actions uses Node 24 runtimes and prepares the isolated release job", asyn
 function joinRoot(path) {
   return resolve(root, path);
 }
+
+test("root typecheck includes the strict Main leaf without emitting runtime bundles", async () => {
+  const manifest = JSON.parse(await readFile(joinRoot("package.json"), "utf8"));
+  assert.ok(
+    manifest.scripts.typecheck.split(/\s+/u).includes("packages/desktop/tsconfig.main.json"),
+  );
+  const path = joinRoot("packages/desktop/tsconfig.main.json");
+  const raw = ts.parseConfigFileTextToJson(path, await readFile(path, "utf8"));
+  const config = ts.parseJsonConfigFileContent(raw.config, ts.sys, joinRoot("packages/desktop"));
+  assert.equal(config.options.noEmit, true);
+  assert.equal(config.options.noUncheckedIndexedAccess, true);
+  assert.ok(!config.options.lib.includes("lib.dom.d.ts"));
+  const runtimePath = joinRoot("packages/desktop/tsconfig.browser-runtime.json");
+  const runtimeRaw = ts.parseConfigFileTextToJson(runtimePath, await readFile(runtimePath, "utf8"));
+  const runtime = ts.parseJsonConfigFileContent(
+    runtimeRaw.config,
+    ts.sys,
+    joinRoot("packages/desktop"),
+  );
+  assert.ok(runtime.options.lib.includes("lib.dom.d.ts"));
+  assert.equal(runtime.options.emitDeclarationOnly, true);
+  for (const source of ["src/shared/armsRumShared.ts", "src/scheduler/schedulerProtocol.ts"]) {
+    assert.ok(
+      config.fileNames
+        .map((file) => file.replaceAll("\\", "/"))
+        .includes(joinRoot(`packages/desktop/${source}`).replaceAll("\\", "/")),
+    );
+  }
+});
 
 test("CLI task entrypoints resolve Turbo from the root hoisted installation", async () => {
   const cli = JSON.parse(await readFile(joinRoot("apps/lcode-cli/package.json"), "utf8"));

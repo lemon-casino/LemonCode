@@ -9,6 +9,8 @@ import {
   type MessagePortMain,
   type Session,
   type WebFrameMain,
+  type WebContentsConsoleMessageEventParams,
+  type Event as ElectronEvent,
 } from "electron";
 import type {
   BrowserWebmRecorderFactoryInput,
@@ -373,11 +375,9 @@ export async function createElectronBrowserWebmRecorder(
     if (!closed) fail(recorderError(`recorder renderer exited: ${details.reason ?? "unknown"}`));
   };
   recorderWindow.webContents.on("render-process-gone", onRendererGone);
-  const onConsoleMessage = (
-    _event: unknown,
-    details: { level?: string; message?: string },
-  ): void => {
+  const onConsoleMessage = (details: ElectronEvent<WebContentsConsoleMessageEventParams>): void => {
     debug?.(
+      // Electron 41 将控制台字段放到首个 Event；第二参数是旧式数字 level，不是 details。
       `[browser-recording] recorder console level=${details.level ?? "unknown"} message=${details.message ?? ""}`,
     );
   };

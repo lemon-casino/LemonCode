@@ -13,8 +13,9 @@ import {
   createStorageRootsResolver,
   createStorageService,
   getDataBaseDir,
-  type IStorageService,
 } from "@lcode/services/node";
+// 存储接口来自公开契约入口，node 入口只承载适配器工厂。
+import type { IStorageService } from "@lcode/services";
 import { logger } from "./logger.js";
 import { createStorageScanWorkerRunner } from "./storageScanWorkerClient.js";
 

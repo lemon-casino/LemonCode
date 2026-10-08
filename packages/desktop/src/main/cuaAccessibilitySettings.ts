@@ -211,10 +211,11 @@ function toInstallerLogger(
 ): CuaHelperInstallerLogger | undefined {
   if (!logger) return undefined;
   return {
-    debug: (_traceId, ...args) => logger.debug?.(...args),
-    info: (_traceId, ...args) => (logger.info ?? logger.warn)(...args),
-    warn: (_traceId, ...args) => logger.warn(...args),
-    error: (_traceId, ...args) => (logger.error ?? logger.warn)(...args),
+    // installer 接口可接受多种 logger；Main 转接忽略前置 trace 参数并保留日志载荷。
+    debug: (_traceId: unknown, ...args: unknown[]) => logger.debug?.(...args),
+    info: (_traceId: unknown, ...args: unknown[]) => (logger.info ?? logger.warn)(...args),
+    warn: (_traceId: unknown, ...args: unknown[]) => logger.warn(...args),
+    error: (_traceId: unknown, ...args: unknown[]) => (logger.error ?? logger.warn)(...args),
   };
 }
 

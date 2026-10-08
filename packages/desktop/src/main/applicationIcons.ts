@@ -74,6 +74,8 @@ async function buildApplicationPathIndex(
   const worker = async () => {
     while (cursor < appPaths.length) {
       const appPath = appPaths[cursor++];
+      // 并行游标只消费已有路径；数组索引必须在传入文件系统边界前收窄。
+      if (appPath === undefined) return;
       const remainingMs = deadline - dependencies.now();
       if (remainingMs <= 0) return;
       try {

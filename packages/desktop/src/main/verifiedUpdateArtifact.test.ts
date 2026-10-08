@@ -24,7 +24,7 @@ test("三平台安装格式映射由同一纯函数决定", () => {
 });
 
 test("三平台按当前安装类型选择同架构文件并解析 Worker 相对 URL", () => {
-  const cases = [
+  const cases: Array<[string, string, string]> = [
     ["windows", ".exe", "LCode-4.0.0-win-x64.exe"],
     ["macOS", ".dmg", "LCode-4.0.0-mac-arm64.dmg"],
     ["Linux AppImage", ".AppImage", "LCode-4.0.0-linux-x86_64.AppImage"],

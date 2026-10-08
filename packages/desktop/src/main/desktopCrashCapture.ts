@@ -175,6 +175,8 @@ function pruneCrashDumpArchive(
 
   while (keptCount > 1 && (keptCount > maxFiles || keptBytes > maxTotalBytes)) {
     const dump = dumps[keptCount - 1];
+    // 容量清理只允许处理实际存在的归档记录，不能让未检查索引进入删除路径。
+    if (!dump) break;
     dumpsToDelete.push(dump);
     keptCount -= 1;
     keptBytes -= dump.size;

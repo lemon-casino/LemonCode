@@ -6,6 +6,7 @@ import { captureScreenshotWithCssPixelCorrection } from "./browserScreenshotCapt
 import { captureBrowserDomSnapshot } from "./browserPlaywrightDomSnapshot.js";
 import { executeIabPlaywrightLocator } from "./browserPlaywrightLocatorExecutor.js";
 import { normalizePlaywrightTimeout } from "./browserPlaywrightTimeout.js";
+import { elementInfoRuntime, overlayRuntime } from "../../browserRuntime/playwrightPageHelpers.js";
 
 type Done = (partial: Omit<BrowserCommandResult, "elapsedMs">) => BrowserCommandResult;
 
@@ -13,71 +14,6 @@ const POLL_INTERVAL_MS = 50;
 
 function serializeRuntimeCall(fn: (...args: any[]) => unknown, ...args: unknown[]): string {
   return `(${fn.toString()})(${args.map((arg) => JSON.stringify(arg)).join(",")})`;
-}
-
-function elementInfoRuntime(options: { x: number; y: number; includeNonInteractable?: boolean }) {
-  const cssEscape = (value: string) =>
-    globalThis.CSS?.escape?.(value) ?? value.replace(/[^\w-]/g, "\\$&");
-  const candidatesFor = (element: Element) => {
-    const values: string[] = [];
-    if (element.id) values.push(`#${cssEscape(element.id)}`);
-    const testId = element.getAttribute("data-testid");
-    if (testId) values.push(`[data-testid=${JSON.stringify(testId)}]`);
-    const aria = element.getAttribute("aria-label");
-    if (aria) values.push(`[aria-label=${JSON.stringify(aria)}]`);
-    values.push(element.tagName.toLowerCase());
-    return [...new Set(values)];
-  };
-  const role = (element: Element) =>
-    element.getAttribute("role") ??
-    (element.matches("button,input[type=button],input[type=submit]")
-      ? "button"
-      : element.matches("a[href]")
-        ? "link"
-        : element.matches("input:not([type]),input[type=text],textarea")
-          ? "textbox"
-          : null);
-  const interactable = (element: Element) =>
-    Boolean(role(element) || element.matches("input,select,textarea,[tabindex],[contenteditable]"));
-  return document
-    .elementsFromPoint(options.x, options.y)
-    .filter((element) => options.includeNonInteractable || interactable(element))
-    .map((element) => {
-      const rect = element.getBoundingClientRect();
-      const candidates = candidatesFor(element);
-      const visibleText =
-        (element as HTMLElement).innerText?.trim() || (element as HTMLInputElement).value || null;
-      const ariaName = element.getAttribute("aria-label") || visibleText;
-      return {
-        tagName: element.tagName.toLowerCase(),
-        role: role(element),
-        visibleText,
-        ariaName,
-        testId: element.getAttribute("data-testid"),
-        boundingBox: { x: rect.x, y: rect.y, width: rect.width, height: rect.height },
-        preview: element.outerHTML.slice(0, 300),
-        selector: { primary: candidates[0] ?? null, candidates },
-      };
-    });
-}
-
-function overlayRuntime(options: { x: number; y: number; remove?: boolean }): void {
-  const id = "__lcode-playwright-element-screenshot-overlay";
-  document.getElementById(id)?.remove();
-  if (options.remove) return;
-  const root = document.createElement("div");
-  root.id = id;
-  root.style.cssText = "position:fixed;inset:0;pointer-events:none;z-index:2147483647";
-  for (const element of document.elementsFromPoint(options.x, options.y)) {
-    const rect = element.getBoundingClientRect();
-    const box = document.createElement("div");
-    box.style.cssText = `position:absolute;left:${rect.x}px;top:${rect.y}px;width:${rect.width}px;height:${rect.height}px;border:2px solid #ff2d55;box-sizing:border-box`;
-    root.append(box);
-  }
-  const point = document.createElement("div");
-  point.style.cssText = `position:absolute;left:${options.x - 4}px;top:${options.y - 4}px;width:8px;height:8px;border-radius:50%;background:#ff2d55`;
-  root.append(point);
-  document.documentElement.append(root);
 }
 
 async function evaluateInPlaywrightIsolatedWorld(

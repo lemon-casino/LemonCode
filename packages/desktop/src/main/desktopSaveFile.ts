@@ -1,5 +1,6 @@
 import { copyFile, mkdtemp, open, rm, writeFile } from "node:fs/promises";
 import { lookup } from "node:dns/promises";
+import type { LookupAddress } from "node:dns";
 import { BlockList } from "node:net";
 import type { LookupFunction } from "node:net";
 import { tmpdir } from "node:os";
@@ -59,12 +60,13 @@ function parseRemoteImageUrl(value: unknown): URL | null {
   }
 }
 
-async function resolvePublicRemoteUrl(url: URL): Promise<Awaited<ReturnType<typeof lookup>>> {
+async function resolvePublicRemoteUrl(url: URL): Promise<LookupAddress[]> {
   const hostname = url.hostname.replace(/^\[|\]$/g, "").toLowerCase();
   if (hostname === "localhost" || hostname.endsWith(".localhost")) {
     throw new SaveFileError("remote_address_not_allowed");
   }
-  let addresses: Awaited<ReturnType<typeof lookup>>;
+  // lookup 的最后一个重载返回单地址；all:true 的真实结果是数组，不能用 ReturnType 丢失语义。
+  let addresses: LookupAddress[];
   try {
     addresses = await lookup(hostname, { all: true, verbatim: true });
   } catch {
@@ -189,14 +191,16 @@ export function registerDesktopSaveFileIpcHandler(logger: { warn: (...args: unkn
       }
       const suggestedName = basename(payload.suggestedName.trim()).slice(0, 120);
       const sourceUrl = parseRemoteImageUrl(payload.sourceUrl);
-      const hasData = payload.data instanceof ArrayBuffer;
+      // 在异步保存对话框前捕获并验证同一载荷，后续不重新读取可变对象字段。
+      const data = payload.data;
+      const hasData = data instanceof ArrayBuffer;
       if (!suggestedName || (sourceUrl === null && !hasData)) {
         return { success: false, error: "invalid_file_payload" };
       }
-      if (hasData && payload.data.byteLength === 0) {
+      if (hasData && data.byteLength === 0) {
         return { success: false, error: "invalid_file_payload" };
       }
-      if (hasData && payload.data.byteLength > MAX_SAVE_FILE_BYTES) {
+      if (hasData && data.byteLength > MAX_SAVE_FILE_BYTES) {
         return { success: false, error: "file_too_large" };
       }
 
@@ -213,7 +217,7 @@ export function registerDesktopSaveFileIpcHandler(logger: { warn: (...args: unkn
         if (sourceUrl) {
           await downloadRemoteFile(sourceUrl, result.filePath);
         } else if (hasData) {
-          await writeFile(result.filePath, new Uint8Array(payload.data));
+          await writeFile(result.filePath, new Uint8Array(data));
         }
         return { success: true, path: result.filePath };
       } catch (error) {

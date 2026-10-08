@@ -31,7 +31,8 @@ export function createWindow(options: {
   spawnHostProcess: (
     win: BrowserWindow,
     label: string,
-    initMessage: HostInitMessage,
+    // Built-in Provider 路径由 Main spawn 装配器唯一解析，再补入严格 HostInitMessage。
+    initMessage: Omit<HostInitMessage, "lcodeBuiltinProviderConfigFilePath">,
   ) => ElectronUtilityProcess;
   disposeHostProcess: (
     child: ElectronUtilityProcess,

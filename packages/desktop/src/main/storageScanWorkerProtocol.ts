@@ -1,4 +1,4 @@
-import type { StorageRootSpec } from "@lcode/services";
+import type { StorageRootSpec } from "@lcode/shared";
 import type { StorageScanProgress } from "@lcode/services/node";
 
 export interface StorageScanWorkerData {

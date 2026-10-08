@@ -61,8 +61,8 @@ sequenceDiagram
   浏览器测试运行真实配对组件与 WebSocket 客户端，仅模拟 Worker 网络边界，覆盖窄/宽屏
   关闭重开、心跳断线、busy 截止、撤销、停止后跨房间恢复和建桥超时。
 - 根 `pnpm typecheck`、`pnpm lint`、changed 架构检查通过；Worker 类型检查及 27 个测试通过。
-  根类型检查不包含 Desktop Main 的完整工程；额外检查与未修改基线对比为 94 → 85 个
-  既有错误，无新增错误，不能描述为 Main 全量检查通过。
+  初轮根类型检查未覆盖 Main，额外检查为 94 → 85 个既有错误。用户要求一并解决后，
+  已将 Main 纳入根命令并清零独立全量检查；修复与真实运行时回归见 `desktop-main-typecheck.md`。
 - `pnpm build:mobile-web` 与 Desktop `build:no-runtime-assets` 通过；本地 Worker public
   已更新为当前源码。两份任务外文件的 SHA-256 保持一致。
 - 尚未在真机验证系统杀后台进程，也未部署 Worker 或发布新桌面安装包；本地构建产物不代表线上已更新。

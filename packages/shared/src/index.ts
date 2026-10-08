@@ -142,6 +142,8 @@ export {
   buildLocalMediaPreviewUrl,
   createOpenInEditorRemoteTarget,
 } from "./platform.js";
+// Main 浏览器表面与窗口握手使用同一平台契约，公开类型不能只在实现文件内可见。
+export type { BrowserViewSurfaceScaleMode, WindowControlsOverlayReadyPayload } from "./platform.js";
 export type {
   ArmsCustomEventPayload,
   ConfigureFinalArmsCustomEventE2ERequest,

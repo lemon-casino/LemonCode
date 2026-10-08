@@ -4,7 +4,7 @@
  * 遍历、分类、聚合逻辑全部来自 @lcode/services（单一扫描路径）。
  */
 import { isMainThread, parentPort, workerData } from "node:worker_threads";
-import type { StorageRootSpec } from "@lcode/services";
+import type { StorageRootSpec } from "@lcode/shared";
 import { runStorageScan } from "@lcode/services/node";
 import {
   isStorageScanWorkerCommand,

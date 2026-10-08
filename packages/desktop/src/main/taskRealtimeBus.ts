@@ -4,15 +4,12 @@ import {
   type TaskOwnerCommandDelivery,
   type TaskOwnerCommandRequest,
   type TaskOwnerCommandResult,
-  type TaskRealtimeDeliveredEvent,
-  type TaskRealtimeEvent,
   type TaskRealtimeHostDeliveryKind,
   type TaskRunLeaseAcquireRequest,
   type TaskRunLeaseResult,
   type TaskRunLeaseTarget,
-  type TaskStreamMirrorBatchEvent,
-  type TaskStreamMirrorOp,
-  type TaskStreamMirrorPublishOp,
+  type taskRealtimeDeliveredEventSchema,
+  type taskStreamMirrorOpSchema,
   type TaskStreamWatermark,
   formatZodError,
   HostMessageTypes,
@@ -20,6 +17,17 @@ import {
   hostResponseMessageSchema,
 } from "@lcode/shared";
 import { logger as defaultLogger } from "./logger.js";
+
+// Main 负责信封、排序与转发；载荷来自已校验 schema，不能假定已解析为完整业务事件。
+type ValidatedHostResponse = ReturnType<typeof hostResponseMessageSchema.parse>;
+type TaskRealtimeEvent = Extract<ValidatedHostResponse, { type: "task-realtime-publish" }>["event"];
+type TaskStreamMirrorPublishOp = Extract<
+  ValidatedHostResponse,
+  { type: "task-stream-op-publish" }
+>["op"];
+type TaskStreamMirrorBatchEvent = Extract<TaskRealtimeEvent, { type: "task_stream_mirror_batch" }>;
+type TaskRealtimeDeliveredEvent = ReturnType<typeof taskRealtimeDeliveredEventSchema.parse>;
+type TaskStreamMirrorOp = ReturnType<typeof taskStreamMirrorOpSchema.parse>;
 
 const STREAM_MIRROR_FLUSH_INTERVAL_MS = 1000;
 const STREAM_MIRROR_MAX_REPLAY_BATCHES = 60;
@@ -591,7 +599,12 @@ export class TaskRealtimeBus {
     const coalesced: TaskStreamMirrorPublishOp[] = [];
     for (const op of ops) {
       const previous = coalesced[coalesced.length - 1];
-      if (this.canMergeTextChunk(previous, op)) {
+      // 类型谓词只收窄 previous；当前 op 也必须明确保留文本字段的同一运行时前提。
+      if (
+        op.kind === "stream_event" &&
+        typeof op.event.content === "string" &&
+        this.canMergeTextChunk(previous, op)
+      ) {
         coalesced[coalesced.length - 1] = {
           kind: "stream_event",
           event: {
@@ -622,6 +635,8 @@ export class TaskRealtimeBus {
       if (
         op.kind !== "stream_event" ||
         (op.event.type !== "agent_message_chunk" && op.event.type !== "agent_thought_chunk") ||
+        // 已校验信封的载荷仍不透明；只切分字符串，其它内容保持原样交给消费端。
+        typeof op.event.content !== "string" ||
         op.event.content.length <= STREAM_MIRROR_TEXT_OP_MAX_CHARS
       ) {
         splitOps.push(op);

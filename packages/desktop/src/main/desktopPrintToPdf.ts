@@ -21,8 +21,8 @@ export function registerDesktopPrintToPdfIpcHandler(logger: {
         preferCSSPageSize: true,
         margins: { top: 0, bottom: 0, left: 0, right: 0 },
       });
-      // Buffer 可能是池化视图，切出独立 ArrayBuffer 再走 structured clone
-      const data = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+      // Buffer 可能是池化或共享视图；按可见字节复制，保证 IPC 只返回独立 ArrayBuffer。
+      const data = new Uint8Array(buffer).buffer;
       return { success: true, data };
     } catch (error) {
       logger.warn(

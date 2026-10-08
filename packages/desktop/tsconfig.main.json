@@ -2,10 +2,18 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "out/main",
-    "rootDir": "src/main",
+    "rootDir": "src",
+    // Main 是检查叶子：tsc 不覆盖 tsup 生产包；DOM 边界由 browser-runtime 独立检查。
+    "noEmit": true,
+    "tsBuildInfoFile": "node_modules/.cache/tsconfig.main.tsbuildinfo",
     "lib": ["es2025"]
   },
-  "include": ["src/main"],
+  "include": ["src/main", "src/shared/armsRumShared.ts", "src/scheduler/schedulerProtocol.ts"],
   // main 直接依赖 shared 和 services；把引用补齐后，desktop 子工程也能稳定复用上游声明产物。
-  "references": [{ "path": "../shared" }, { "path": "../services" }]
+  "references": [
+    { "path": "../shared" },
+    { "path": "../services" },
+    { "path": "../server" },
+    { "path": "./tsconfig.browser-runtime.json" }
+  ]
 }

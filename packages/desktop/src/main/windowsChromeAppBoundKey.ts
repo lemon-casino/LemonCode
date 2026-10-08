@@ -74,6 +74,9 @@ interface HelperProcessResult {
 }
 
 interface ReadAppBoundKeyOptions {
+  // 验证器已有版本/提交比对注入点；在入口契约中声明，保持默认使用当前构建指纹。
+  expectedAppVersion?: string;
+  expectedBuildCommit?: string;
   appExecutablePath?: string;
   chromeExecutablePath: string;
   helperPath?: string;

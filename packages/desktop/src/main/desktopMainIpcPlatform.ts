@@ -88,7 +88,8 @@ export function registerPlatformIpcHandlers(options: {
     autoDownloadAndInstallUpdates: boolean;
   }>;
   setAutoDownloadAndInstallUpdates: (enabled: boolean) => Promise<void>;
-  syncAppSettings: (patch: unknown) => void;
+  // IPC 已使用 patch schema 校验，回调消费同一契约而不是要求能处理任意 unknown。
+  syncAppSettings: (patch: ReturnType<typeof appSettingsPatchSchema.parse>) => void;
   /** 快捷键设置页录制态开关：true 时 main 重建菜单摘除可配置 accelerator */
   setShortcutRecordingActive?: (active: boolean, ownerWebContentsId?: number | null) => void;
   /** 桌面端设备标识符（基于 userData 路径的 SHA-256） */
