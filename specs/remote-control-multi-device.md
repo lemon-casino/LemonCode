@@ -102,3 +102,8 @@ PROTOCOL.md 多设备条款为准。功能图保持已有 node ID，补充一对
 - 根 typecheck（含 Desktop Main）与 lint 通过；架构新增/基线违规均0。
 - 发行契约43/43通过；Worker typecheck通过、npm audit漏洞0。
 - 两份任务外本地文件 SHA-256 与任务开始前一致。
+
+CI 语言场景：v3.17.3 的 Linux runner 自动选择英文，三项中文 SSR 断言失败。
+文字断言必须明确传入 initialLocale；保留产品按系统语言选择的行为，补充英文场景。
+v3.17.4 使用新 tag 发布修正，旧 tag 不覆盖。
+已在英文系统语言模拟下执行完整远控回归：76/76；中文与英文展示都保留独立授权和共享链接。

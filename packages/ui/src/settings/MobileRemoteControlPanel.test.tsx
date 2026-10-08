@@ -23,10 +23,42 @@ const { PlatformProvider } = await import("@/hooks/usePlatform.js");
 const { MobileRemoteControlPanel } = await import("./MobileRemoteControlPanel.js");
 const { RemotePairingPanel } = await import("./RemotePairingPanel.js");
 
+test("英文界面保留多设备允许操作和共享链接", () => {
+  const markup = renderToStaticMarkup(
+    <PlatformProvider platform={{} as IPlatformService}>
+      <LCodeIntlProvider initialLocale="en-US">
+        <RemotePairingPanel
+          canStart={true}
+          noMirrorTargetHint=""
+          pairing={{
+            state: "bridged",
+            roomId: "room",
+            multiDevice: true,
+            expiresAt: Date.now() + 300000,
+            connections: [{ deviceId: "A", deviceName: "Remote computer", connected: true }],
+            pendingDevices: [{ requestId: "B", deviceName: "Remote phone", ua: "" }],
+          }}
+          pairingUrl="https://relay.example.com/p/room#c=fixture"
+          startingPairing={false}
+          stoppingPairing={false}
+          onStart={async () => {}}
+          onStop={async () => {}}
+          onDecide={async () => {}}
+        />
+      </LCodeIntlProvider>
+    </PlatformProvider>,
+  );
+  assert.match(markup, /Device requesting access/);
+  assert.match(markup, />Allow</);
+  assert.match(markup, /Remote computer/);
+  assert.match(markup, /remote-control-pairing-url/);
+});
+
 test("多人在线时链接到期仍可刷新，不能要求先停止已有连接", () => {
   const markup = renderToStaticMarkup(
     <PlatformProvider platform={{} as IPlatformService}>
-      <LCodeIntlProvider>
+      {/* 文字断言必须固定语言，避免 Linux 英文系统默认值改变验收内容。 */}
+      <LCodeIntlProvider initialLocale="zh-CN">
         <RemotePairingPanel
           canStart={true}
           noMirrorTargetHint=""
@@ -55,7 +87,7 @@ test("多人在线时链接到期仍可刷新，不能要求先停止已有连�
 test("多设备连接与两个独立请求同时展示，保留有效共享链接", () => {
   const markup = renderToStaticMarkup(
     <PlatformProvider platform={{} as IPlatformService}>
-      <LCodeIntlProvider>
+      <LCodeIntlProvider initialLocale="zh-CN">
         <RemotePairingPanel
           canStart={true}
           noMirrorTargetHint=""
@@ -94,7 +126,7 @@ test("多设备连接与两个独立请求同时展示，保留有效共享链�
 test("等待远程设备重连时显示恢复提示，不显示错误或已消费二维码", () => {
   const markup = renderToStaticMarkup(
     <PlatformProvider platform={{} as IPlatformService}>
-      <LCodeIntlProvider>
+      <LCodeIntlProvider initialLocale="zh-CN">
         <RemotePairingPanel
           canStart={true}
           noMirrorTargetHint=""
