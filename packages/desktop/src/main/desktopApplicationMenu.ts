@@ -334,10 +334,6 @@ function buildApplicationMenuTemplate(options: {
         },
         { type: "separator" as const },
         {
-          label: getLabel(desktopMenuMessageIds.helpFeedback),
-          click: () => void options.executeDesktopCommand(DesktopCommandIds.OpenFeedback),
-        },
-        {
           label: getLabel(desktopMenuMessageIds.helpExportLogs),
           click: () => void options.executeDesktopCommand(DesktopCommandIds.ExportLogs),
         },
