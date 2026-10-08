@@ -1343,9 +1343,6 @@ const enUS: Record<string, string> = {
   "appHeader.workspaceSessionActionLoading": "Applying session changes...",
   "appHeader.copyLogPath": "Copy log path",
   "workspaceHeader.help.menu": "Help",
-  "workspaceHeader.help.issueReport": "Report an issue",
-  "workspaceHeader.help.productRequest": "Request a feature",
-  "workspaceHeader.help.productRequestDraft": "I would like to suggest: ",
   "workspaceHeader.help.community": "User community",
   "workspaceHeader.help.docs": "Product docs",
   "titleBar.menu.file": "File",
@@ -1363,7 +1360,6 @@ const enUS: Record<string, string> = {
   "titleBar.menu.view.zoomOut": "Zoom out",
   "titleBar.menu.help.about": "About LCode",
   "titleBar.menu.help.checkForUpdates": "Check for updates",
-  "titleBar.menu.help.feedback": "Feedback",
   "sidebar.menu.community": "Community",
   "titleBar.menu.help.exportLogs": "Export logs",
   "titleBar.menu.help.toggleDevTools": "Toggle developer tools",
@@ -6560,20 +6556,6 @@ const enUS: Record<string, string> = {
   "feedback.submit.submitting": "Submitting",
   "feedback.submit.submit": "Submit feedback",
   "feedback.submit.screenshotLimit": "You can add up to {count} screenshots",
-  "feedback.featureRequest.title": "Request a feature",
-  "feedback.featureRequest.descriptionLabel": "Request description",
-  "feedback.featureRequest.descriptionPlaceholder":
-    "Example: I want to save common prompts while a task is running, then insert them with one click later.",
-  "feedback.featureRequest.solutionLabel": "Expected solution",
-  "feedback.featureRequest.solutionPlaceholder":
-    "Example: Add a quick prompt menu next to the composer with create, edit, and insert actions.",
-  "feedback.featureRequest.contactLabel": "Contact",
-  "feedback.featureRequest.reset": "Reset",
-  "feedback.featureRequest.submit": "Submit request",
-  "feedback.featureRequest.missingRequired":
-    "Please fill in the request description and expected solution",
-  "feedback.featureRequest.source": "Workspace Header help menu / Request a feature",
-  "feedback.featureRequest.submittedToast": "Request submitted. We will review it carefully.",
   "feedback.submission.connectingLabel": "Connecting to feedback service",
   "feedback.submission.connectingDetail":
     "Screenshots and logs will continue uploading after the ticket is created",

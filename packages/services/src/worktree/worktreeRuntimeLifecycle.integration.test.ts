@@ -176,3 +176,68 @@ test("upgrade keeps environment identity, persists new ref before CAS and is exc
   assert.equal(f.prepares.length, 2);
   assert.equal("upgradeRuntimeEnvironment" in createPublicWorktreeService(f.service), false);
 });
+
+test("discard completes for a managed binding cancelled before any environment was allocated", async (t) => {
+  const f = await fixture(t);
+  let releases = 0;
+  let entered!: () => void;
+  let finish!: () => void;
+  const started = new Promise<void>((resolve) => {
+    entered = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    finish = resolve;
+  });
+  const options = {
+    ...f.options,
+    // 卡在 checkout 之后、环境阶段之前，精确复现「托管策略但环境从未分配」的取消。
+    fault: async (point: string) => {
+      if (point === "prepare.after-add") {
+        entered();
+        await gate;
+      }
+    },
+    // 环境 owner 不可用：取消调用失败且不附带可对账的 operation，绑定因此不会写入任何引用。
+    prepareRuntimeEnvironment: async () => {
+      throw new Error("runtime environment owner is unavailable");
+    },
+    resolveRuntimeEnvironment: async () => {
+      throw new Error("runtime environment owner is unavailable");
+    },
+    releaseRuntimeEnvironment: async () => {
+      releases++;
+      return { status: "completed" as const };
+    },
+  };
+  const service = createWorktreeService(options);
+  const request = {
+    workspacePath: f.repo,
+    taskId: "owner",
+    requestId: "owner",
+    environmentPolicy: "managed" as const,
+    setupCommands: [],
+  };
+  const preparing = service.prepare(request);
+  const rejected = assert.rejects(preparing, /cancelled/i);
+  await started;
+  // 取消请求本身可以失败；持久取消墓碑仍然生效并中止在途准备。
+  await assert.rejects(service.prepare({ ...request, cancel: true }), /unavailable/);
+  finish();
+  await rejected;
+  const cancelled = (await f.service.getBinding({ workspacePath: f.repo, taskId: "owner" }))!;
+  assert.equal(cancelled.status, "cancelled");
+  assert.equal(cancelled.environmentPolicy, "managed");
+  assert.equal(cancelled.environmentRef, undefined);
+  assert.equal(cancelled.preparation?.activeStep, "checkout");
+  // 没有可释放的环境资源，删除必须完成而不是永久卡在 deleting。
+  const deleted = await service.archive({
+    bindingId: cancelled.id,
+    requestId: "discard",
+    discard: { branch: cancelled.branch, checkoutPath: cancelled.checkoutPath },
+  });
+  assert.equal(deleted.status, "deleted");
+  assert.equal(deleted.error, undefined);
+  assert.equal(releases, 0);
+  await assert.rejects(access(cancelled.checkoutPath), { code: "ENOENT" });
+  assert.equal(await f.command(f.repo, "branch", "--list", cancelled.branch), "");
+});

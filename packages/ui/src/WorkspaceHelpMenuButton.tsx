@@ -7,9 +7,7 @@ import {
   ActivityIcon,
   BookOpenIcon,
   CircleHelpIcon,
-  LightbulbIcon,
   InfoIcon,
-  MessageSquareIcon,
   UsersIcon,
   RefreshCwIcon,
 } from "lucide-react";
@@ -24,7 +22,6 @@ import {
 } from "@/components/ui/dropdown-menu.js";
 import { cn } from "@/components/lib/utils.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
-import { useFeedbackStore } from "@/feedback/feedbackStore.js";
 import { useDesktopUpdateMenu } from "@/hooks/useDesktopUpdateMenu.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
@@ -44,13 +41,10 @@ export function WorkspaceHelpMenuButton({
   const { intl } = useLCodeIntl();
   const platform = usePlatform();
   const updateMenu = useDesktopUpdateMenu(isDesktop);
-  const openFeedbackSubmit = useFeedbackStore((state) => state.openSubmit);
-  const openFeatureRequest = useFeedbackStore((state) => state.openFeatureRequest);
   const helpMenuLabel = intl.formatMessage({ id: "workspaceHeader.help.menu" });
   const helpMenuActions = createHelpMenuActionHandlers({
     platform,
     intl,
-    openSubmit: openFeedbackSubmit,
   });
   const handleOpenCommunity = () => {
     void platform.openCommunity();
@@ -95,14 +89,6 @@ export function WorkspaceHelpMenuButton({
         <DropdownMenuItem onSelect={handleOpenCommunity}>
           <UsersIcon className="size-4" />
           {intl.formatMessage({ id: "workspaceHeader.help.community" })}
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={helpMenuActions.openIssueReport}>
-          <MessageSquareIcon className="size-4" />
-          {intl.formatMessage({ id: "workspaceHeader.help.issueReport" })}
-        </DropdownMenuItem>
-        <DropdownMenuItem onSelect={openFeatureRequest}>
-          <LightbulbIcon className="size-4" />
-          {intl.formatMessage({ id: "workspaceHeader.help.productRequest" })}
         </DropdownMenuItem>
         {/* Windows/Linux 没有原生菜单栏，自绘标题栏箭头菜单也已下线，
             资源管理器只能从这里进；Web 端没有该窗口，不渲染。 */}

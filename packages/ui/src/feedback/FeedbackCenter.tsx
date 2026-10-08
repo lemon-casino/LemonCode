@@ -3,7 +3,6 @@ import { Tabs, TabsContent } from "@/components/ui/tabs.js";
 import { Button } from "@/components/ui/button.js";
 import { useFeedbackStore } from "@/feedback/feedbackStore.js";
 import { FeedbackSubmitForm } from "@/feedback/FeedbackSubmitForm.js";
-import { FeatureRequestDialog } from "@/feedback/FeatureRequestDialog.js";
 import { TicketsView } from "@/feedback/TicketsView.js";
 import { FeedbackBackgroundUploadIndicator } from "@/feedback/FeedbackBackgroundUploadIndicator.js";
 import { ArrowLeftIcon, XIcon } from "lucide-react";
@@ -20,7 +19,6 @@ export const FeedbackCenter = memo(function FeedbackCenterComponent({
   platform: IPlatformService;
 }) {
   const open = useFeedbackStore((state) => state.open);
-  const featureRequestOpen = useFeedbackStore((state) => state.featureRequestOpen);
   const tab = useFeedbackStore((state) => state.tab);
   const submitDraft = useFeedbackStore((state) => state.submitDraft);
   const submissionJobId = useFeedbackStore((state) => state.submissionJobId);
@@ -35,8 +33,7 @@ export const FeedbackCenter = memo(function FeedbackCenterComponent({
 
   return (
     <>
-      <FeedbackBackgroundUploadIndicator feedbackDialogOpen={open || featureRequestOpen} />
-      <FeatureRequestDialog feedbackService={feedbackService} />
+      <FeedbackBackgroundUploadIndicator feedbackDialogOpen={open} />
       <Dialog
         open={open}
         onOpenChange={(next) => {
