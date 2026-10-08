@@ -15,22 +15,24 @@
 
 身份规则固定为 `workspaceIdentity?.trim() || workspacePath`；`workspacePath` 只用于文件、cwd、Git 和展示。远端请求必须同时保留 `workspaceIdentity` 与 `remoteSessionId`，不能按路径单独授权。
 
+公开查询与升级恢复使用 binding 的 `workspacePath` 执行作用域，仓库子目录不能替换为 `checkoutPath`。目标 Host 的授权 facade 核对 binding/identity 后统一转换为 checkout 根目录的环境存储作用域；UI、remote relay 和本机模式不另建映射或放宽授权。
+
 ## 公共数据合同
 
 公开 schema 的唯一出口是 `@lcode/shared`。新增字段均为 additive；旧端缺字段必须保持旧语义，但不能由缺字段推断具备托管能力。
 
-| 形状 | 合同要求 |
-| --- | --- |
-| `RuntimeEnvironmentBindingReference` | 持久 binding 可暂存 `revision=0` 的准备中引用；不表示可消费。可带 `manifestDigest`，缺失时只能按旧引用兼容读取。 |
-| `RuntimeEnvironmentReference` | 执行/消费者引用的 `revision` 必须为正数；可带 `manifestDigest`。每次 resolve/acquire 都核对 environment、binding、scope、revision 和 digest。 |
-| `FrozenManifest` | revision 内不可变；包含 backend、OS/arch、工具来源/路径、声明摘要和 manifest 摘要。锁文件内容必须参与摘要，不能只用 lockfile 名称。 |
-| `RuntimeEnvironmentRecord` | `currentRevision` 表示冻结 manifest 代际；`stateRevision` 表示环境事实/事件代际，两者不可互换。记录损坏或未知版本不得修成 ready。 |
-| `RuntimeEnvironmentProjection` | 只出状态、版本、工具来源、服务安全投影、资源概况、operation 和结构化错误；不出 token、lease、ownerId、完整 env overlay、凭据或内部路径收据。 |
-| `ManagedServiceReceipt` | `generation` 是服务进程代际；`stateRevision`/`operationId` 用于事实对账；running 必须有真实监听证据，stopped 必须有进程 owner 退出证明。PID 仅诊断。 |
-| `WorktreeValidationReceipt` | 必须关联 candidate HEAD/tree、环境引用或明确未托管事实、manifest/declaration 摘要、命令、exit code、有限输出和 verifiedAt。`skipped` 必须有明确确认；缺收据不得进入新发布 ready。 |
-| `RuntimeEnvironmentDiagnostic` | 只允许白名单字段：用途、环境/版本、工具来源、有限路径、命令摘要、退出码、stderr 尾部、日志引用、监听事实、安全阻塞标签和已发生副作用。不得传递 token、lease、envOverlay、凭据或未脱敏 URL。 |
-| `RuntimeEnvironmentResourceSummary` | 扫描带 `status=complete/partial/unavailable`、数量/时间预算和保护引用数。partial/unavailable 不等价于空闲、无引用或可删除。 |
-| `RuntimeEnvironmentSnapshot/Event` | 由环境 owner 产生，按单调 `stateRevision` 对账；旧帧、乱序帧和 pending overlay 不得覆盖较新事实。desktop-continuous 与 web-remote-replayable 只改变交付方式，不改变事实 owner。 |
+| 形状                                 | 合同要求                                                                                                                                                                                    |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RuntimeEnvironmentBindingReference` | 持久 binding 可暂存 `revision=0` 的准备中引用；不表示可消费。可带 `manifestDigest`，缺失时只能按旧引用兼容读取。                                                                            |
+| `RuntimeEnvironmentReference`        | 执行/消费者引用的 `revision` 必须为正数；可带 `manifestDigest`。每次 resolve/acquire 都核对 environment、binding、scope、revision 和 digest。                                               |
+| `FrozenManifest`                     | revision 内不可变；包含 backend、OS/arch、工具来源/路径、声明摘要和 manifest 摘要。锁文件内容必须参与摘要，不能只用 lockfile 名称。                                                         |
+| `RuntimeEnvironmentRecord`           | `currentRevision` 表示冻结 manifest 代际；`stateRevision` 表示环境事实/事件代际，两者不可互换。记录损坏或未知版本不得修成 ready。                                                           |
+| `RuntimeEnvironmentProjection`       | 只出状态、版本、工具来源、服务安全投影、资源概况、operation 和结构化错误；不出 token、lease、ownerId、完整 env overlay、凭据或内部路径收据。                                                |
+| `ManagedServiceReceipt`              | `generation` 是服务进程代际；`stateRevision`/`operationId` 用于事实对账；running 必须有真实监听证据，stopped 必须有进程 owner 退出证明。PID 仅诊断。                                        |
+| `WorktreeValidationReceipt`          | 必须关联 candidate HEAD/tree、环境引用或明确未托管事实、manifest/declaration 摘要、命令、exit code、有限输出和 verifiedAt。`skipped` 必须有明确确认；缺收据不得进入新发布 ready。           |
+| `RuntimeEnvironmentDiagnostic`       | 只允许白名单字段：用途、环境/版本、工具来源、有限路径、命令摘要、退出码、stderr 尾部、日志引用、监听事实、安全阻塞标签和已发生副作用。不得传递 token、lease、envOverlay、凭据或未脱敏 URL。 |
+| `RuntimeEnvironmentResourceSummary`  | 扫描带 `status=complete/partial/unavailable`、数量/时间预算和保护引用数。partial/unavailable 不等价于空闲、无引用或可删除。                                                                 |
+| `RuntimeEnvironmentSnapshot/Event`   | 由环境 owner 产生，按单调 `stateRevision` 对账；旧帧、乱序帧和 pending overlay 不得覆盖较新事实。desktop-continuous 与 web-remote-replayable 只改变交付方式，不改变事实 owner。             |
 
 ## 能力协商与兼容
 
@@ -47,15 +49,15 @@
 
 当前已公开并部分接线：`getCapabilities`、`prepare`、`get`、`list`、`resolveContext`、`release`、`reconcile` 以及消费者 retain/release 反向方法。以下是 M4/M5 实现必须满足的最小扩展，不表示这些服务动作已经接入生产：
 
-| 动作 | 必需输入 | 成功/失败语义 |
-| --- | --- | --- |
-| `prepare` / `upgrade` / `restore` | requestId、scope、binding、purpose、expected revision/digest、operation | 同 requestId 复用原 operation；升级/恢复产生新不可变 revision/environmentRef；不能复活旧 PID、URL、running。 |
-| `resolveContext` | attached workspace、binding、正 revision 引用、consumer、cwd、identity | 只返回冻结 cwd/tool paths/env overlay 摘要；非 ready、fence、scope/cwd/digest 不符均拒绝。内部 lease 不出 wire。 |
-| `startService` | requestId、environmentRef、serviceId、expected revision/generation | 同环境同服务并发返回同一收据；代际不符返回 stale/needsRestart；真实 bind 健康后才 running。 |
-| `stopService` | requestId、environmentRef、serviceId、expected revision/generation | 只允许对应进程 owner 停止；无退出证明保持 stopping/failed/blocked，不能伪造 stopped。 |
-| `resourceSummary` | scope、可选 environmentId、数量/时间预算 | 返回 complete/partial/unavailable；扫描未完成不作删除依据。 |
-| `garbageCollect` | scope、requestId、预算、dryRun | 只处理共享受管理工具和下载；活消费者、旧 revision 活服务、进行中下载和锁保护项必须保留；部分扫描返回 partial/blocked。 |
-| `release` | requestId、environmentId、expected revision/digest、生命周期 reason | 持锁重读并 fence；先取得绑定进程真实停止证明。存在活消费者、未确认服务或清理失败返回 `releaseBlocked` 与有界诊断，继续同一 operation 重试。 |
+| 动作                              | 必需输入                                                                | 成功/失败语义                                                                                                                               |
+| --------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prepare` / `upgrade` / `restore` | requestId、scope、binding、purpose、expected revision/digest、operation | 同 requestId 复用原 operation；升级/恢复产生新不可变 revision/environmentRef；不能复活旧 PID、URL、running。                                |
+| `resolveContext`                  | attached workspace、binding、正 revision 引用、consumer、cwd、identity  | 只返回冻结 cwd/tool paths/env overlay 摘要；非 ready、fence、scope/cwd/digest 不符均拒绝。内部 lease 不出 wire。                            |
+| `startService`                    | requestId、environmentRef、serviceId、expected revision/generation      | 同环境同服务并发返回同一收据；代际不符返回 stale/needsRestart；真实 bind 健康后才 running。                                                 |
+| `stopService`                     | requestId、environmentRef、serviceId、expected revision/generation      | 只允许对应进程 owner 停止；无退出证明保持 stopping/failed/blocked，不能伪造 stopped。                                                       |
+| `resourceSummary`                 | scope、可选 environmentId、数量/时间预算                                | 返回 complete/partial/unavailable；扫描未完成不作删除依据。                                                                                 |
+| `garbageCollect`                  | scope、requestId、预算、dryRun                                          | 只处理共享受管理工具和下载；活消费者、旧 revision 活服务、进行中下载和锁保护项必须保留；部分扫描返回 partial/blocked。                      |
+| `release`                         | requestId、environmentId、expected revision/digest、生命周期 reason     | 持锁重读并 fence；先取得绑定进程真实停止证明。存在活消费者、未确认服务或清理失败返回 `releaseBlocked` 与有界诊断，继续同一 operation 重试。 |
 
 环境状态与服务状态独立。`ready` 不代表服务 running；服务 stopped 不代表环境目录已物理删除；`released` 不代表聊天历史已永久删除，除非 Worktree 删除编排已经完成其明确的结算回调。
 
@@ -90,6 +92,8 @@
 代码 snapshot/index/HEAD 恢复与运行环境重建是两个事实。恢复顺序为：校验快照和目标目录 → 恢复 Git 文件/index → 以 `operation=restore` 按当前 Host 平台和声明准备新的 environmentId/revision → 持久化新的 binding/environmentRef → 对全部同树 session 重新对账绑定 → 从 stopped/not-running 初始状态开始。旧服务 receipt、PID、端口、running、私有数据不因 Git snapshot 自动恢复。不可重建私有数据必须在清理前由用户选择 save/export/discard；没有选择不得显示完整恢复成功。
 
 ## 失败语义
+
+升级取消的恢复遵循主 spec §10.4：Worktree owner 持久化取消及原 expected reference；UI 从 binding 恢复原失败请求，明确的新请求才可接续已取消升级。环境 owner 不复活旧 cancelled operation。候选首次准备失败后的 revision=0 引用由 Integration owner 保存用于精确清理，取消/删除完成后环境记录结算为 released，不能遗留零代记录永久保护全部工具。
 
 - `stale-reference`/`scope-mismatch`：只读当前事实，旧请求不得覆盖新代。
 - `configuration-conflict`/`unsupported-declaration`：指出来源/字段；用户修正或明确覆盖后创建新 revision，不无限原样重试。

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { IRuntimeEnvironmentService } from "@lcode/services";
+import type { IRuntimeEnvironmentService, WorktreeBinding } from "@lcode/services";
 import {
   runtimeEnvironmentCapabilitiesSchema,
   runtimeEnvironmentErrorSchema,
@@ -17,6 +17,7 @@ import {
   applyEnvironmentSnapshot,
   environmentActionAvailable,
   environmentScopeKey,
+  restoreEnvironmentUpgradeRequest,
 } from "./runtimeEnvironmentModel.js";
 import { getErrorMessage } from "@/lib/errorMessage.js";
 
@@ -25,6 +26,7 @@ interface EnvironmentTarget extends RuntimeEnvironmentScope {
   workspaceRemoteSessionId?: string;
   environmentId?: string;
   bindingId?: string;
+  binding?: WorktreeBinding;
   purpose?: "worktree" | "integration-candidate";
 }
 interface EnvironmentView {
@@ -60,7 +62,16 @@ export function useRuntimeEnvironment(target: EnvironmentTarget) {
     workspacePath,
     ...(workspaceIdentity ? { workspaceIdentity } : {}),
   };
-  const key = JSON.stringify([environmentScopeKey(scope), bindingId, target.environmentId]);
+  const restoredRequest = restoreEnvironmentUpgradeRequest(scope, target.binding);
+  const key = JSON.stringify([
+    environmentScopeKey(scope),
+    bindingId,
+    target.environmentId,
+    target.binding?.status === "updating"
+      ? target.binding.environmentUpgrade?.requestId
+      : undefined,
+    target.binding?.environmentUpgrade?.cancelled,
+  ]);
   const [view, setView] = useState<EnvironmentView>({
     key,
     snapshot: null,
@@ -72,6 +83,7 @@ export function useRuntimeEnvironment(target: EnvironmentTarget) {
     service,
     snapshot: null,
     environmentId: target.environmentId,
+    request: restoredRequest,
     pending: null,
   });
   if (owner.current.key !== key || owner.current.service !== service) {
@@ -82,7 +94,7 @@ export function useRuntimeEnvironment(target: EnvironmentTarget) {
       snapshot: previous.key === key ? previous.snapshot : null,
       environmentId:
         target.environmentId ?? (previous.key === key ? previous.environmentId : undefined),
-      request: previous.key === key ? previous.request : undefined,
+      request: restoredRequest ?? (previous.key === key ? previous.request : undefined),
       pending: null,
     };
   }
@@ -202,7 +214,7 @@ export function useRuntimeEnvironment(target: EnvironmentTarget) {
     return perform(operation, async (source) => {
       const environment = source.snapshot?.environment;
       const request =
-        retry && source.request
+        (retry || (operation === "upgrade" && restoredRequest)) && source.request
           ? source.request
           : {
               workspacePath,
@@ -302,9 +314,15 @@ export function useRuntimeEnvironment(target: EnvironmentTarget) {
     canCancel: Boolean(
       owner.current.request &&
       ((current.pending && current.pending !== "cancel") ||
-        current.operation?.status === "running"),
+        target.binding?.status === "updating" ||
+        current.operation?.status === "running" ||
+        current.snapshot?.environment?.operation?.status === "running"),
     ),
-    canRetry: Boolean(owner.current.request && current.operation?.status !== "cancelled"),
+    canRetry: Boolean(
+      owner.current.request &&
+      current.operation?.status !== "cancelled" &&
+      current.snapshot?.environment?.status !== "cancelled",
+    ),
     isRemoteTarget: resolution.isRemoteTarget,
   };
 }

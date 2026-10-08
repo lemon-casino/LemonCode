@@ -29,15 +29,18 @@ export function RuntimeEnvironmentDetails({
   const numberFormat = new Intl.NumberFormat(locale);
   const text = (key: string) => intl.formatMessage({ id: `runtimeEnvironment.${key}` });
   const runtime = useRuntimeEnvironment({
-    workspacePath: binding.checkoutPath,
+    // 子目录工作树的公开身份属于执行目录；checkout 根目录只能由 Host 授权后映射。
+    workspacePath: binding.workspacePath,
     workspaceIdentity: binding.workspaceIdentity ?? workspaceIdentity,
     routingWorkspacePath: workspacePath,
     workspaceRemoteSessionId,
     bindingId: binding.id,
+    binding,
     environmentId: binding.environmentRef?.environmentId,
   });
   const environment = runtime.environment;
   const error = runtime.diagnostic ?? runtime.operation?.error ?? environment?.error;
+  const failure = runtime.error ?? binding.error;
   const busy = Boolean(disabled || runtime.pending || runtime.loading);
   const canPrepare = environmentActionAvailable(runtime.capabilities, "prepare");
   const canScan = environmentActionAvailable(runtime.capabilities, "resourceSummary");
@@ -201,12 +204,10 @@ export function RuntimeEnvironmentDetails({
         />
       ) : null}
       {error ||
-      (runtime.error &&
-        runtime.error !== "remote-waiting" &&
-        runtime.error !== "capability-unavailable") ? (
+      (failure && failure !== "remote-waiting" && failure !== "capability-unavailable") ? (
         <div className="min-w-0 space-y-2">
           <p role="alert" className="break-words text-ui-sm text-destructive">
-            {error?.message ?? runtime.error}
+            {error?.message ?? failure}
           </p>
           {error ? (
             <p className="break-words font-mono text-ui-sm">
@@ -237,7 +238,7 @@ export function RuntimeEnvironmentDetails({
               sessionId,
               sourceBranch: binding.branch,
               operationId: runtime.operation?.operationId,
-              error: error?.message ?? runtime.error ?? "",
+              error: error?.message ?? failure ?? "",
               environmentError: error,
             }}
           />

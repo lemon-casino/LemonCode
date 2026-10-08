@@ -7,7 +7,13 @@ import type { PreparedWorktreeRuntime, WorktreeRuntimePorts } from "./contract.j
 import { createWorktreeService } from "./node.js";
 import { fixture } from "./testFixture.js";
 
-const environment: PreparedWorktreeRuntime = { environmentId: "a".repeat(32), revision: 1, manifestDigest: "manifest", dependenciesPrepared: true, env: { PREPARED_ENV: "yes" } };
+const environment: PreparedWorktreeRuntime = {
+  environmentId: "a".repeat(32),
+  revision: 1,
+  manifestDigest: "manifest",
+  dependenciesPrepared: true,
+  env: { PREPARED_ENV: "yes" },
+};
 
 test("managed admission fails closed, while local/inherit and old bindings never implicitly prepare runtime", async (t) => {
   const f = await fixture(t);
@@ -15,23 +21,46 @@ test("managed admission fails closed, while local/inherit and old bindings never
   await assert.rejects(f.service.prepare({ ...base, environmentPolicy: "managed" }), /capability/);
   assert.deepEqual(await f.service.list({ workspacePath: f.repo }), []);
   let calls = 0;
-  const service = createWorktreeService({ ...f.options,
-    prepareRuntimeEnvironment: async () => { calls++; return environment; },
+  const service = createWorktreeService({
+    ...f.options,
+    prepareRuntimeEnvironment: async () => {
+      calls++;
+      return environment;
+    },
     resolveRuntimeEnvironment: async () => environment,
   });
   for (const [index, environmentPolicy] of [undefined, "inherit", "local"].entries()) {
-    const binding = await service.prepare({ ...base, taskId: `local-${index}`, requestId: `local-${index}`, environmentPolicy: environmentPolicy as "inherit" | "local" | undefined });
+    const binding = await service.prepare({
+      ...base,
+      taskId: `local-${index}`,
+      requestId: `local-${index}`,
+      environmentPolicy: environmentPolicy as "inherit" | "local" | undefined,
+    });
     assert.equal(binding.environmentRef, undefined);
     assert.equal(binding.environmentPolicy, "local");
   }
   const legacy = await f.service.prepare(base);
-  await assert.rejects(service.prepare({ ...base, environmentPolicy: "managed" }), /policy cannot change/);
+  await assert.rejects(
+    service.prepare({ ...base, environmentPolicy: "managed" }),
+    /policy cannot change/,
+  );
   assert.equal((await service.prepare(base)).id, legacy.id);
   assert.equal(calls, 0);
-  const managed = await service.prepare({ ...base, taskId: "managed", requestId: "managed", environmentPolicy: "managed" });
+  const managed = await service.prepare({
+    ...base,
+    taskId: "managed",
+    requestId: "managed",
+    environmentPolicy: "managed",
+  });
   assert.equal(managed.environmentRef?.manifestDigest, "manifest");
-  await assert.rejects(f.service.prepare({ ...base, taskId: "managed", requestId: "managed" }), /capability/);
-  await assert.rejects(f.service.archive({ bindingId: managed.id, requestId: "archive" }), /release port/);
+  await assert.rejects(
+    f.service.prepare({ ...base, taskId: "managed", requestId: "managed" }),
+    /capability/,
+  );
+  await assert.rejects(
+    f.service.archive({ bindingId: managed.id, requestId: "archive" }),
+    /release port/,
+  );
   await access(managed.checkoutPath);
 });
 
@@ -42,18 +71,41 @@ test("prepared dependency receipt deduplicates only automatic setup and all setu
   await f.command(f.repo, "add", ".");
   await f.command(f.repo, "commit", "-m", "manifest");
   const commands: string[] = [];
-  const service = createWorktreeService({ ...f.options,
+  const service = createWorktreeService({
+    ...f.options,
     prepareRuntimeEnvironment: async (params, writer) => {
       assert.equal(writer?.workspacePath, params.checkoutPath);
-      await assert.rejects(f.service.acquireCheckout({ workspacePath: params.checkoutPath, ownerId: "competing-writer", waitMs: 10 }), { code: "LCODE_CHECKOUT_BUSY" });
+      await assert.rejects(
+        f.service.acquireCheckout({
+          workspacePath: params.checkoutPath,
+          ownerId: "competing-writer",
+          waitMs: 10,
+        }),
+        { code: "LCODE_CHECKOUT_BUSY" },
+      );
       return environment;
     },
     resolveRuntimeEnvironment: async () => environment,
-    validate: async (_, command, __, env) => { commands.push(command); assert.equal(env?.PREPARED_ENV, "yes"); return { exitCode: 0, output: "configured" }; },
+    validate: async (_, command, __, env) => {
+      commands.push(command);
+      assert.equal(env?.PREPARED_ENV, "yes");
+      return { exitCode: 0, output: "configured" };
+    },
   });
-  await service.prepare({ workspacePath: f.repo, taskId: "automatic", requestId: "automatic", environmentPolicy: "managed" });
+  await service.prepare({
+    workspacePath: f.repo,
+    taskId: "automatic",
+    requestId: "automatic",
+    environmentPolicy: "managed",
+  });
   assert.deepEqual(commands, []);
-  await service.prepare({ workspacePath: f.repo, taskId: "explicit", requestId: "explicit", environmentPolicy: "managed", setupCommands: ["pnpm install --frozen-lockfile", "custom-setup"] });
+  await service.prepare({
+    workspacePath: f.repo,
+    taskId: "explicit",
+    requestId: "explicit",
+    environmentPolicy: "managed",
+    setupCommands: ["pnpm install --frozen-lockfile", "custom-setup"],
+  });
   assert.deepEqual(commands, ["pnpm install --frozen-lockfile", "custom-setup"]);
 });
 
@@ -61,19 +113,34 @@ test("failed managed preparation persists revision zero for retry and discard, w
   const f = await fixture(t);
   let fail = true;
   let prepares = 0;
-  const diagnostic = { code: "dependency-install-failed", stage: "preparingDependencies", message: "fixture installation failed", retryable: true };
+  const diagnostic = {
+    code: "dependency-install-failed",
+    stage: "preparingDependencies",
+    message: "fixture installation failed",
+    retryable: true,
+  };
   const ports: WorktreeRuntimePorts = {
     prepareRuntimeEnvironment: async (params) => {
       prepares++;
       assert.equal(params.requestId, "prepare");
       if (prepares > 1) assert.equal(params.environmentId, environment.environmentId);
-      if (fail) throw Object.assign(new Error("fixture installation failed"), { operation: { environmentId: environment.environmentId, status: "failed" }, runtimeEnvironmentError: diagnostic });
+      if (fail)
+        throw Object.assign(new Error("fixture installation failed"), {
+          operation: { environmentId: environment.environmentId, status: "failed" },
+          runtimeEnvironmentError: diagnostic,
+        });
       return environment;
     },
     resolveRuntimeEnvironment: async () => environment,
   };
   const service = createWorktreeService({ ...f.options, ...ports });
-  const request = { workspacePath: f.repo, taskId: "owner", requestId: "prepare", environmentPolicy: "managed" as const, setupCommands: [] };
+  const request = {
+    workspacePath: f.repo,
+    taskId: "owner",
+    requestId: "prepare",
+    environmentPolicy: "managed" as const,
+    setupCommands: [],
+  };
   await assert.rejects(service.prepare(request), /installation failed/);
   const failed = await service.getBinding({ workspacePath: f.repo, taskId: "owner" });
   assert.equal(failed?.environmentRef?.revision, 0);
@@ -89,17 +156,42 @@ test("failed managed preparation persists revision zero for retry and discard, w
 
 test("list resolves both origin and execution scopes but never matches a foreign identity or path", async (t) => {
   const f = await fixture(t);
-  const first = await f.service.prepare({ workspacePath: f.repo, workspaceIdentity: "host-one", taskId: "owner", requestId: "owner", setupCommands: [] });
-  const second = await f.service.prepare({ workspacePath: f.repo, workspaceIdentity: "host-two", taskId: "owner", requestId: "owner", setupCommands: [] });
-  assert.deepEqual((await f.service.list({ workspacePath: f.repo, workspaceIdentity: "host-one" })).map((binding) => binding.id), [first.id]);
-  assert.deepEqual((await f.service.list({ workspacePath: second.workspacePath, workspaceIdentity: "host-two" })).map((binding) => binding.id), [second.id]);
+  const first = await f.service.prepare({
+    workspacePath: f.repo,
+    workspaceIdentity: "host-one",
+    taskId: "owner",
+    requestId: "owner",
+    setupCommands: [],
+  });
+  const second = await f.service.prepare({
+    workspacePath: f.repo,
+    workspaceIdentity: "host-two",
+    taskId: "owner",
+    requestId: "owner",
+    setupCommands: [],
+  });
+  assert.deepEqual(
+    (await f.service.list({ workspacePath: f.repo, workspaceIdentity: "host-one" })).map(
+      (binding) => binding.id,
+    ),
+    [first.id],
+  );
+  assert.deepEqual(
+    (
+      await f.service.list({ workspacePath: second.workspacePath, workspaceIdentity: "host-two" })
+    ).map((binding) => binding.id),
+    [second.id],
+  );
   for (const scope of [
     { workspacePath: first.workspacePath, workspaceIdentity: "host-two" },
     { workspacePath: f.repo },
     { workspacePath: first.workspacePath },
     { workspacePath: join(f.repo, "wrong"), workspaceIdentity: "host-one" },
-  ]) assert.deepEqual(await f.service.list(scope), []);
-  const stored = JSON.parse(await readFile(join(f.options.dataDir, "bindings", `${first.id}.json`), "utf8"));
+  ])
+    assert.deepEqual(await f.service.list(scope), []);
+  const stored = JSON.parse(
+    await readFile(join(f.options.dataDir, "bindings", `${first.id}.json`), "utf8"),
+  );
   assert.equal(stored.workspaceIdentity, "host-one");
 });
 
@@ -107,8 +199,91 @@ test("project environment preference is additive and inheritance remains local b
   const scope = { workspacePath: "/fixture", workspaceIdentity: "host:fixture" };
   assert.equal(resolveProjectExecutionPolicy({}, scope).environmentPolicy, "local");
   for (const preference of ["inherit", "managed", "local"] as const) {
-    const result = resolveProjectExecutionPolicy({ projectExecutionPreferences: { "host:fixture": { environmentPolicy: preference } } }, scope);
+    const result = resolveProjectExecutionPolicy(
+      { projectExecutionPreferences: { "host:fixture": { environmentPolicy: preference } } },
+      scope,
+    );
     assert.equal(result.environmentPreference, preference);
     assert.equal(result.environmentPolicy, preference === "managed" ? "managed" : "local");
   }
+});
+
+test("failed cancellation receipts cannot change the original request or environment", async (t) => {
+  for (const mismatch of ["request", "environment"] as const) {
+    await t.test(mismatch, async (t) => {
+      const f = await fixture(t);
+      const request = {
+        workspacePath: f.repo,
+        taskId: "owner",
+        requestId: "original",
+        environmentPolicy: "managed" as const,
+        setupCommands: [],
+      };
+      const service = createWorktreeService({
+        ...f.options,
+        resolveRuntimeEnvironment: async () => environment,
+        prepareRuntimeEnvironment: async (params) => {
+          throw Object.assign(new Error("fixture failed receipt"), {
+            operation: {
+              status: "failed",
+              requestId: params.cancel && mismatch === "request" ? "foreign" : request.requestId,
+              environmentId:
+                params.cancel && mismatch === "environment"
+                  ? "b".repeat(32)
+                  : environment.environmentId,
+            },
+          });
+        },
+      });
+      await assert.rejects(service.prepare(request), /fixture failed receipt/);
+      await assert.rejects(service.prepare({ ...request, cancel: true }), /fixture failed receipt/);
+      const binding = await service.getBinding({ workspacePath: f.repo, taskId: request.taskId });
+      assert.equal(binding?.status, "cancelled");
+      assert.deepEqual(binding?.environmentRef, {
+        environmentId: environment.environmentId,
+        revision: 0,
+      });
+      await assert.rejects(service.prepare(request), /cancelled/);
+    });
+  }
+});
+
+test("local, inherited and legacy setup cancellation never invokes managed environment ports", async (t) => {
+  const f = await fixture(t);
+  await writeFile(join(f.repo, "file.txt"), "preserved local edit\n");
+  const originalHead = await f.command(f.repo, "rev-parse", "HEAD");
+  const originalStatus = await f.command(f.repo, "status", "--porcelain", "--untracked-files=all");
+  let calls = 0;
+  const unexpected = async (): Promise<PreparedWorktreeRuntime> => {
+    calls++;
+    throw new Error("local directory must not contact managed environment");
+  };
+  const service = createWorktreeService({
+    ...f.options,
+    prepareRuntimeEnvironment: unexpected,
+    resolveRuntimeEnvironment: unexpected,
+    validate: async () => ({ exitCode: 1, output: "fixture local setup failure" }),
+  });
+  for (const [index, environmentPolicy] of [undefined, "inherit", "local"].entries()) {
+    const request = {
+      workspacePath: f.repo,
+      taskId: `local-cancel-${index}`,
+      requestId: `local-cancel-${index}`,
+      environmentPolicy: environmentPolicy as "inherit" | "local" | undefined,
+      setupCommands: ["fixture-setup"],
+    };
+    await assert.rejects(service.prepare(request));
+    const cancelled = await service.prepare({ ...request, cancel: true });
+    assert.equal(cancelled.status, "cancelled");
+    assert.equal(cancelled.environmentPolicy, "local");
+    assert.equal(cancelled.environmentRef, undefined);
+    await assert.rejects(service.prepare(request), /cancelled/);
+  }
+  assert.equal(calls, 0);
+  assert.equal(await f.command(f.repo, "rev-parse", "HEAD"), originalHead);
+  assert.equal(
+    await f.command(f.repo, "status", "--porcelain", "--untracked-files=all"),
+    originalStatus,
+  );
+  assert.equal(await readFile(join(f.repo, "file.txt"), "utf8"), "preserved local edit\n");
 });

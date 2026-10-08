@@ -187,7 +187,10 @@ export const worktreeExecutionBindingSchema = z
     environmentPolicy: z.enum(["managed", "local"]).optional(),
     archiveOperation: z.object({ requestId: text }).strict().optional(),
     restoration: z.object({ requestId: text }).strict().optional(),
-    environmentUpgrade: z.object({ requestId: text }).strict().optional(),
+    environmentUpgrade: z
+      .object({ requestId: text, cancelled: z.boolean().optional() })
+      .strict()
+      .optional(),
     creationFingerprint: z
       .string()
       .regex(/^[a-f0-9]{32,64}$/)

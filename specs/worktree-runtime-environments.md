@@ -529,6 +529,33 @@ sequenceDiagram
 - 长操作有查询收据；丢失响应/重启只对账，不重放输入。
 - 无法确认显示“正在核实”及原因，不把未知当完成。
 
+### 10.4 升级恢复与失败候选清理（2026-10-08）
+
+- WorktreeService 是升级 journal 的唯一 owner。失败重试恢复 `environmentUpgrade.requestId` 与 `environmentRebuild.oldEnvironmentRef`，不使用当前 revision 猜测原请求参数。UI 重挂载、断线恢复和另一设备打开详情均从持久 binding 恢复这个意图，不在 localStorage 新建业务 journal。
+- 取消先写原 request 的取消标记并通知环境 owner；进程/准备结算后持 binding 锁保存 additive `environmentUpgrade.cancelled=true`，保持 `updating` fence。失败 journal 也可显式取消；旧请求不可重试，用户明确再次升级可用新 requestId 接续，未取消的在途/失败请求仍只能沿原 ID 重试。只有取消收据与 binding 同时结算才开放新 ID；取消若读到原成功收据，先补齐可能因回复丢失而遗漏的新引用。
+- 新请求取得 binding 锁后才检查旧取消标记。若旧请求已发布新环境引用，先在 checkout writer 下完成旧 journal 的 session CAS/consumer migration，再开始新升级；这一步不提前写 binding ready。没有停止证明、CAS 或迁移失败时保留旧 journal 与 fence。旧 ID 和旧 expected reference 不得覆盖新的升级。
+- 候选工具/依赖准备失败但已分配环境时，Integration owner 保存 revision=0 的 cleanup reference。它只用于重试与 fence/stop/cleanup/finalize，不能执行、生成通过收据或发布；已有正 revision 引用不因升级失败降到 0。取消和删除复用原环境 release 路径，清理受阻保持可重试。
+- 验收：取消后原 ID 被拒绝、新 ID 可恢复；取消与 manifest 提交/session CAS 交错仍保留精确旧/新引用；失败后重挂载可用原参数重试（桌面和 390px Web）；同路径不同 identity 不恢复另一请求；候选首次准备失败、失败重试、取消清理受阻重试及已有环境升级失败均不遗失引用。两种 delivery 读取同一 Host journal，恢复不会重放用户输入。
+
+```mermaid
+sequenceDiagram
+  participant UI as Desktop / Mobile UI
+  participant W as WorktreeService
+  participant R as RuntimeEnvironment owner
+  participant S as SessionStore / consumer owner
+  UI->>W: cancel original request
+  W->>R: persist cancellation and stop preparation
+  W->>W: binding lock: persist cancelled; keep updating
+  UI->>W: explicit new upgrade request
+  W->>W: verify old cancellation and exact reference
+  opt previous manifest already committed
+    W->>S: checkout writer: finish old CAS and migration
+  end
+  W->>R: new request: fence / stop / prepare
+  W->>S: persist new reference; CAS and migration
+  W->>W: cancellation decision lock: ready
+```
+
 ## 11. 依赖、构建产物与本项目适配
 
 ### 11.1 首期 Node/pnpm
@@ -992,6 +1019,30 @@ P0 核实结论（2026-10-05）：mise版本与资产——固定 v2026.10.2，1
 RuntimeEnvironmentService 已存在，因此不在 feature graph 中添加虚构 owner 导出；graph 只在新增真实模块边界或已验证关系时更新。
 
 ### 本次文档变更记录
+
+2026-10-08（工作树与托管环境交接修复）：公开环境请求及升级 journal 恢复使用 binding 的 `workspacePath` + `workspaceIdentity` 执行作用域；`checkoutPath` 只用于 Git、文件操作和 Host 内部环境存储，由既有授权 facade 映射，UI 不自行切换为根目录或原项目目录。仓库子目录创建的工作树、根目录工作树、本机及远端均遵守同一路径；远端保留 attachment/remoteSessionId 路由与 identity，旧 Host 与本机模式仍不隐式启用环境。
+
+初始化失败后显式取消：WorktreeService 先保存原 request 的取消标记；环境 owner 返回已结算的 `failed` 收据时，只有 requestId 与已知 environmentId 匹配才能完成取消对账。环境错误与 revision-zero 清理引用保留，不能恢复为 ready、重放安装或复活旧请求；外来收据和非终态错误继续拒绝。
+
+```mermaid
+sequenceDiagram
+  participant UI as UI 执行作用域
+  participant Facade as Host 授权 facade
+  participant WT as WorktreeService
+  participant ENV as RuntimeEnvironmentService
+  UI->>Facade: binding.workspacePath + identity
+  Facade->>ENV: 校验 binding 后映射 checkoutPath
+  UI->>WT: cancel(original requestId)
+  WT->>WT: 持久取消标记
+  WT->>ENV: 取消/查询原准备操作
+  ENV-->>WT: failed 终态收据
+  WT->>WT: 核对 requestId/environmentId，保留清理引用
+  WT-->>UI: cancelled binding
+```
+
+验收：本机/远端子目录详情、刷新、服务管理、失败升级重挂载重试使用执行作用域；升级 journal 恢复拒绝原项目目录、错误 identity 和 checkout 根目录冒充子目录，公开 facade 原有 origin/execution 授权集合保持不变。使用真实 Git 和真实环境状态机验证失败初始化取消及重复取消、旧请求禁止重试、显式删除清理；核对原项目 HEAD/index/工作文件/未跟踪文件/忽略文件不变。既有本机 local/inherit/旧 binding、普通工作树归档恢复、候选验证和原生工具/服务测试继续执行。
+
+本轮结果（Windows x64）：修复前新逻辑用例 2 项失败、子目录 E2E 4 场景失败；修复后 340 项服务/逻辑测试、58 项 E2E 全部通过且无跳过（包含固定 mise、真实工具缓存、服务进程及 Git 工作树的生产接线）。根 typecheck、Lint、changed 架构、修改文件格式和 24 项发行契约通过；Desktop 生产构建及约 202.1 MiB Windows 安装包通过。原项目 HEAD/index、已修改工作文件、未跟踪/忽略文件一致，本机 local/inherit/旧绑定不调用托管准备端口；工作区与任务无关文件的 hash 未变。包内 Electron/CUA 均为 41.10.7，PTY、SSH 和遥测闭包实加载成功；其它原生平台与远端 Actions 尚未执行。
 
 2026-10-07（发布回归修复）：v3.17.0 桌面发行构建在 linux-x64/arm64、macos-x64/arm64 失败——归档成员校验把官方 tar.xz 携带的非必需普通成员（`bin/mise.d`、`share/`、`man/`）判为 unexpected 并整体拒绝（Windows zip 恰好只含必需成员，故此前本地与 Windows job 未暴露）。§5.3 规则改为：校验覆盖全部成员且只强制路径安全与必需文件存在，接受额外普通成员但落盘仍只写固定后端文件与许可证，符号链接与特殊成员继续拒绝。同时修正 Windows 上 `tar -C` 的反斜杠路径与盘符被当作远端主机的问题（改为归档目录为 cwd + 只传文件名、目标路径正斜杠）。验证：五个官方归档（linux/mac/windows）真实解压只落必需成员；toolBackend 8/8（含官方 zip fixture）、runtime-environment 219 通过/4 需 fixture 跳过、desktop/remote mise 准备测试 14/14。
 

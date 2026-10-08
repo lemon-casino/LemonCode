@@ -97,6 +97,14 @@ nul
 !/packages/web/test/multi-session-send-cases.mjs
 !/packages/web/test/fixtures/
 /packages/web/test/fixtures/*
+# 运行环境恢复/清理的永久交互回归及其有界 Host fixture。
+!/packages/web/test/runtime-environment.test.mjs
+!/packages/web/test/runtime-environment-composer-cases.mjs
+!/packages/web/test/runtime-environment-scope-cases.mjs
+!/packages/web/test/fixtures/runtime-environment.html
+!/packages/web/test/fixtures/runtime-environment.tsx
+!/packages/web/test/fixtures/runtime-environment-service.ts
+!/packages/web/test/fixtures/runtime-environment-candidate.ts
 !/packages/web/test/fixtures/review-side-pane.tsx
 !/packages/web/test/fixtures/local-project-persistence.html
 !/packages/web/test/fixtures/local-project-persistence.tsx

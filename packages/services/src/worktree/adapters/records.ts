@@ -3,7 +3,7 @@ import {
   worktreeExecutionBindingSchema,
   gitCommitRequestSchema,
   gitPublishStateSchema,
-  runtimeEnvironmentReferenceSchema,
+  runtimeEnvironmentBindingReferenceSchema,
   worktreeCandidateEvidenceSchema,
   worktreeValidationReceiptSchema,
 } from "@lcode/shared";
@@ -57,10 +57,15 @@ export const operationRecord = z
     validationCommands: z.array(z.string()),
     validationSource: z.enum(["explicit", "detected", "none"]).optional(),
     validationResults: z.array(
-      z.object({ command: z.string(), exitCode: z.number(), output: z.string(), outputTruncated: z.boolean().optional() }),
+      z.object({
+        command: z.string(),
+        exitCode: z.number(),
+        output: z.string(),
+        outputTruncated: z.boolean().optional(),
+      }),
     ),
     environmentPolicy: z.enum(["managed", "local"]).optional(),
-    environmentRef: runtimeEnvironmentReferenceSchema.optional(),
+    environmentRef: runtimeEnvironmentBindingReferenceSchema.optional(),
     candidateEvidence: worktreeCandidateEvidenceSchema.optional(),
     validationReceipts: z.array(worktreeValidationReceiptSchema).max(128).optional(),
     createdAt: z.string(),
