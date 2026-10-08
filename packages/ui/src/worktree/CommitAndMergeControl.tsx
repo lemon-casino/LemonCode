@@ -12,6 +12,7 @@ import { worktreeFailureContext } from "@/git-action-menu/gitFailureDraft.js";
 import { WorktreeTaskActions } from "./WorktreeTaskActions.js";
 import { WorktreeTargetSelect } from "./WorktreeTargetSelect.js";
 import { commitMergeState } from "@/git-action-menu/commitMergeState.js";
+import { ReviewActionBar } from "@/git-action-menu/ReviewActionBar.js";
 
 export function CommitAndMergeControl({
   workspacePath,
@@ -114,6 +115,7 @@ export function CommitAndMergeControl({
               ? policy.validationCommands
               : undefined,
             sourceCommits,
+            acknowledgeUncommitted: true,
           },
         };
       }
@@ -163,20 +165,23 @@ export function CommitAndMergeControl({
               )}
             </span>
           </label>
-          <Button
-            type="button"
-            data-testid="git-commit-and-merge"
-            disabled={
-              disabled ||
-              sourceLocked ||
-              task.pending ||
-              approvedReview !== reviewKey ||
-              !currentMessage.trim()
-            }
-            onClick={() => void submit()}
-          >
-            {intl.formatMessage({ id: "worktree.commitAndMerge" }, { branch: targetBranch })}
-          </Button>
+          <ReviewActionBar>
+            <Button
+              type="button"
+              data-testid="git-commit-and-merge"
+              className="h-auto min-h-8 max-w-full whitespace-normal rounded-lg"
+              disabled={
+                disabled ||
+                sourceLocked ||
+                task.pending ||
+                approvedReview !== reviewKey ||
+                !currentMessage.trim()
+              }
+              onClick={() => void submit()}
+            >
+              {intl.formatMessage({ id: "worktree.commitAndMerge" }, { branch: targetBranch })}
+            </Button>
+          </ReviewActionBar>
         </>
       ) : (
         mergePreparation

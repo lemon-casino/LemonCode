@@ -38,6 +38,15 @@ export async function readPreparation(
   return binding;
 }
 
+export async function inspectTaskMerge(
+  service: IWorktreeService,
+  bindingId: string,
+  targetBranch: string,
+) {
+  // 只读预检查不是执行授权；提交或合并时仍由同一服务重验。
+  return service.getIntegrationPreflight({ bindingId, targetBranch });
+}
+
 export async function discardTaskWorktree(
   service: IWorktreeService,
   binding: import("./contract.js").WorktreeBinding,

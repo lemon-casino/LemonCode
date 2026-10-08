@@ -69,10 +69,18 @@ test("双端草稿/排除/阶段同步、冲突和断线后同命令恢复", asy
     assert.equal(phone.getSnapshot().data.draft.message, "desktop");
     assert.equal(desktop.getSnapshot().remoteFieldRevisions.draft, 0);
     assert.equal(phone.getSnapshot().remoteFieldRevisions.draft, snapshot.revision);
-    phone.patch({ excludedFiles: ["a.ts"], worktreeView: { key: "operation/2", stage: 1 } });
+    phone.patch({
+      excludedFiles: ["a.ts"],
+      worktreeView: { key: "operation/2", stage: 1 },
+      publicationView: { operationId: "operation", view: "result" },
+    });
     await phone.flush();
     assert.deepEqual(desktop.getSnapshot().data.excludedFiles, ["a.ts"]);
     assert.equal(desktop.getSnapshot().data.worktreeView?.stage, 1);
+    assert.deepEqual(desktop.getSnapshot().data.publicationView, {
+      operationId: "operation",
+      view: "result",
+    });
     dropResponse = true;
     phone.patch({ browsePosition: 2 });
     await assert.rejects(phone.flush());

@@ -24,7 +24,7 @@ export function worktreePublicationPlan(input: {
   const { operation, state, options, tags } = input;
   // candidateHead 是历史合并收据；发布需冻结用户本次预览的目标分支最新 HEAD，不能用历史相等校验永久阻断后续发布。
   if (
-    operation.status !== "published" ||
+    !["published", "up-to-date"].includes(operation.status) ||
     !state.headCommitHash ||
     state.branchName !== operation.targetBranch
   )

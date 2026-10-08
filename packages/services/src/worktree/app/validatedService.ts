@@ -1,5 +1,6 @@
 import type { IWorktreeService } from "../contract.js";
 import { worktreeRequests as schemas } from "../domain/requests.js";
+import { worktreeIntegrationPreflightSchema } from "@lcode/shared";
 
 export function validateWorktreeRequests(service: IWorktreeService): IWorktreeService {
   return {
@@ -17,6 +18,11 @@ export function validateWorktreeRequests(service: IWorktreeService): IWorktreeSe
     },
     async integrate(params) {
       return service.integrate(schemas.integrate.parse(params));
+    },
+    async getIntegrationPreflight(params) {
+      return worktreeIntegrationPreflightSchema.parse(
+        await service.getIntegrationPreflight(schemas.getIntegrationPreflight.parse(params)),
+      );
     },
     async continueIntegration(params) {
       return service.continueIntegration(schemas.continueIntegration.parse(params));

@@ -27,6 +27,7 @@ export async function runWorktreePublicationCase({
         await dialog.getByTestId("worktree-integration-status").innerText(),
         /合并结果已准备，等待审核；目标分支尚未更新/,
       );
+      await dialog.getByTestId("worktree-technical-details").locator("summary").click();
       const evidence = await dialog.getByTestId("worktree-integration-evidence").innerText();
       assert.match(evidence, /来源提交/);
       assert.match(evidence, /共同祖先/);
@@ -49,6 +50,7 @@ export async function runWorktreePublicationCase({
       await dialog.getByTestId("worktree-publish").click();
       const publish = dialog.getByTestId("worktree-remote-publication");
       await publish.waitFor();
+      await dialog.getByTestId("worktree-completed-evidence").locator("summary").first().click();
       assert.match(
         await dialog.getByTestId("worktree-integration-status").innerText(),
         /已合并到 L-GO/,

@@ -24,6 +24,11 @@ export const gitReviewWorkspaceDataSchema = z
     sourceReview: z.object({ id: nonempty }).strict().nullable(),
     browsePosition: z.number().int().min(0).max(20),
     mergeView: z.object({ operationId: nonempty, source: z.boolean() }).strict().nullable(),
+    publicationView: z
+      .object({ operationId: nonempty, view: z.enum(["push", "result"]) })
+      .strict()
+      .nullable()
+      .optional(),
     worktreeView: z
       .object({ key: nonempty, stage: z.number().int().min(0).max(3) })
       .strict()
@@ -45,7 +50,14 @@ export const gitReviewWorkspaceFields = Object.keys(
 export const gitReviewWorkspacePatchSchema = gitReviewWorkspaceDataSchema
   .partial()
   .refine((patch) => Object.keys(patch).length > 0, { message: "Empty review workspace patch" });
-const revisions = z.record(z.enum(gitReviewWorkspaceFields), z.number().int().nonnegative());
+// 兼容旧持久快照：新浏览字段尚未写入时版本为 0，不改动其它字段或业务事实。
+const revisions = z.preprocess(
+  (value) =>
+    value && typeof value === "object" && !Array.isArray(value) && !("publicationView" in value)
+      ? { ...value, publicationView: 0 }
+      : value,
+  z.record(z.enum(gitReviewWorkspaceFields), z.number().int().nonnegative()),
+);
 export const gitReviewWorkspaceSnapshotSchema = z
   .object({
     scope: gitReviewWorkspaceScopeSchema,
@@ -102,6 +114,7 @@ export function createGitReviewWorkspaceSnapshot(
       sourceReview: null,
       browsePosition: 0,
       mergeView: null,
+      publicationView: null,
       worktreeView: null,
       integrationId: null,
       targetBranch: null,

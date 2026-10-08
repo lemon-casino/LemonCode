@@ -4,6 +4,8 @@ import { parseRemoteWorkspaceIdentity } from "@lcode/shared";
 import { useOptionalPlatform } from "@/hooks/usePlatform.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
+import { ReviewDetails } from "@/git-action-menu/ReviewDetails.js";
+import { integrationOutcome } from "./integrationOutcome.js";
 
 export function WorktreeIntegrationEvidence({
   operation,
@@ -25,10 +27,32 @@ export function WorktreeIntegrationEvidence({
     <div className="space-y-2 text-ui-sm" data-testid="worktree-integration-evidence">
       <p role="status">
         {intl.formatMessage(
-          { id: `worktree.integration.${operation.status}` },
+          {
+            id: `worktree.integration.${integrationOutcome(operation) === "already-contained" ? "up-to-date" : operation.status}`,
+          },
           { branch: operation.targetBranch },
         )}
       </p>
+      <p
+        className="flex flex-wrap items-center gap-2 text-ui-sm"
+        data-testid="worktree-target-summary"
+      >
+        <span className="text-foreground-subtle">
+          {intl.formatMessage({ id: "worktree.targetBaseline" })}
+        </span>
+        <span className="break-all font-medium">{operation.targetBranch}</span>
+        <span className="font-mono text-foreground-subtle" title={operation.targetHead}>
+          {operation.targetHead.slice(0, 8)}
+        </span>
+      </p>
+      {operation.mergeResult?.uncommittedFileCount ? (
+        <p className="text-warning">
+          {intl.formatMessage(
+            { id: "worktree.result.excluded" },
+            { count: operation.mergeResult.uncommittedFileCount },
+          )}
+        </p>
+      ) : null}
       {operation.sourceReceipts?.length ? (
         <div className="space-y-1" data-testid="worktree-source-receipts">
           <p>
@@ -49,16 +73,21 @@ export function WorktreeIntegrationEvidence({
           ))}
         </div>
       ) : null}
-      <dl className="space-y-2">
-        {values.map(([label, value]) =>
-          value ? (
-            <div key={label}>
-              <dt className="text-foreground-subtle">{intl.formatMessage({ id: label })}</dt>
-              <dd className="break-all font-mono">{value}</dd>
-            </div>
-          ) : null,
-        )}
-      </dl>
+      <ReviewDetails
+        title={intl.formatMessage({ id: "worktree.details.technical" })}
+        testId="worktree-technical-details"
+      >
+        <dl className="space-y-2">
+          {values.map(([label, value]) =>
+            value ? (
+              <div key={label}>
+                <dt className="text-foreground-subtle">{intl.formatMessage({ id: label })}</dt>
+                <dd className="break-all font-mono">{value}</dd>
+              </div>
+            ) : null,
+          )}
+        </dl>
+      </ReviewDetails>
       {operation.conflictPaths.length ? (
         <p>
           {intl.formatMessage(
@@ -77,7 +106,9 @@ export function WorktreeIntegrationEvidence({
           ))}
         </ul>
       ) : null}
-      {platform && (!workspaceIdentity || !parseRemoteWorkspaceIdentity(workspaceIdentity)) ? (
+      {operation.status !== "up-to-date" &&
+      platform &&
+      (!workspaceIdentity || !parseRemoteWorkspaceIdentity(workspaceIdentity)) ? (
         <Button
           type="button"
           size="sm"

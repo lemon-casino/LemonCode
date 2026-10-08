@@ -6,6 +6,15 @@ export function createWorktreeLifecycleFixture(
   config: () => { failArchive: boolean; ignoredCount: number },
 ) {
   return {
+    getIntegrationPreflight: async ({ targetBranch }: { targetBranch: string }) => ({
+      bindingId: binding.id,
+      targetBranch,
+      sourceHead: "s".repeat(40),
+      targetHead: "t".repeat(40),
+      sourceCommitCount: 1,
+      uncommittedFileCount: 0,
+      alreadyContained: false,
+    }),
     archive: async (params: {
       acknowledgeIgnoredFiles?: boolean;
       discard?: { branch: string; checkoutPath: string };

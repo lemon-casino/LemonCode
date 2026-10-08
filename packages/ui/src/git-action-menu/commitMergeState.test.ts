@@ -3,7 +3,13 @@ import test from "node:test";
 import { commitMergeState } from "./commitMergeState.js";
 
 test("历史失败和取消记录不隐藏来源范围或锁住新的提交", () => {
-  for (const status of ["cancelled", "failed", "source-commit-failed", "published"] as const) {
+  for (const status of [
+    "cancelled",
+    "failed",
+    "source-commit-failed",
+    "published",
+    "up-to-date",
+  ] as const) {
     const state = commitMergeState({ id: "old", status }, null);
     assert.equal(state.showMerge, false);
     assert.equal(state.sourceLocked, false);

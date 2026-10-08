@@ -3,6 +3,7 @@ import {
   gitCommitRequestSchema,
   worktreePrepareExecutionParamsSchema,
   worktreeGetBindingParamsSchema,
+  worktreeIntegrationPreflightRequestSchema,
 } from "@lcode/shared";
 
 const text = z.string().trim().min(1);
@@ -15,6 +16,7 @@ export const worktreeRequests = {
   prepare: worktreePrepareExecutionParamsSchema,
   getBinding: worktreeGetBindingParamsSchema,
   list: z.object(scope).strict(),
+  getIntegrationPreflight: worktreeIntegrationPreflightRequestSchema,
   integrate: z
     .object({
       requestId: text,
@@ -22,6 +24,7 @@ export const worktreeRequests = {
       expectedSourceHead: commit,
       targetBranch: text,
       sourceCommits: z.array(gitCommitRequestSchema).min(1).max(100).optional(),
+      acknowledgeUncommitted: z.boolean().optional(),
       validationCommands: commands.optional(),
     })
     .strict(),
@@ -35,11 +38,21 @@ export const worktreeRequests = {
     })
     .strict()
     .refine(
-      (params) => !params.cancel || (!params.approvedCandidateHead && !params.validationCommands && params.skipValidation === undefined),
+      (params) =>
+        !params.cancel ||
+        (!params.approvedCandidateHead &&
+          !params.validationCommands &&
+          params.skipValidation === undefined),
       "Cancellation cannot also approve or validate a candidate",
     ),
   getIntegration: z.object({ operationId: id }).strict(),
-  publishIntegration: z.object({ operationId: id, approvedCandidateHead: commit, skipValidation: z.boolean().optional() }).strict(),
+  publishIntegration: z
+    .object({
+      operationId: id,
+      approvedCandidateHead: commit,
+      skipValidation: z.boolean().optional(),
+    })
+    .strict(),
   archive: z
     .object({
       bindingId: id,

@@ -1,10 +1,19 @@
-import type { WorktreeIntegrateRequest, WorktreeIntegration, WorktreeCommandRunner } from "../contract.js";
+import type {
+  WorktreeIntegrateRequest,
+  WorktreeIntegration,
+  WorktreeCommandRunner,
+} from "../contract.js";
 import { releaseBindingRuntime } from "./runtimeEnvironment.js";
 import type { WorktreeContext } from "./ports.js";
 import type { CheckoutCoordinator } from "../nodeTypes.js";
 import { cleanupTemporaryTarget } from "./temporaryTarget.js";
 import { commitIntegrationSource } from "./sourceCommit.js";
 import { validateIntegrationCandidate } from "./validation.js";
+import {
+  readIntegrationPreflight,
+  readMergeResult,
+  inspectIntegrationSource,
+} from "./integrationPreflight.js";
 
 export function createWorktreeIntegration(
   context: WorktreeContext,
@@ -12,6 +21,12 @@ export function createWorktreeIntegration(
   validate: WorktreeCommandRunner,
 ) {
   const { git, store } = context;
+  async function preflight(params: { bindingId: string; targetBranch: string }) {
+    const binding = await store.readBinding(params.bindingId);
+    if (!binding || binding.status !== "ready")
+      throw new Error("Worktree must be ready before integration");
+    return readIntegrationPreflight(context, binding, params.targetBranch);
+  }
   async function read(id: string) {
     const operation = await store.readOperation(id);
     if (!operation) throw new Error("Integration operation not found");
@@ -68,6 +83,7 @@ export function createWorktreeIntegration(
       candidateEvidence: undefined,
       validationReceipts: [],
       candidateHead,
+      mergeResult: await readMergeResult(context, { ...operation, candidateHead }),
       conflictPaths: [],
       diff,
       error: undefined,
@@ -85,7 +101,8 @@ export function createWorktreeIntegration(
           (operation.initialSourceHead ?? operation.sourceHead) !== params.expectedSourceHead ||
           JSON.stringify(operation.sourceCommits ?? []) !==
             JSON.stringify(params.sourceCommits ?? []) ||
-          operation.targetBranch !== params.targetBranch)
+          operation.targetBranch !== params.targetBranch ||
+          Boolean(operation.acknowledgeUncommitted) !== Boolean(params.acknowledgeUncommitted))
       )
         throw new Error("Integration request ID cannot be reused with different inputs");
       if (
@@ -107,6 +124,15 @@ export function createWorktreeIntegration(
           throw new Error("Task source HEAD or worktree ownership changed");
         if (params.targetBranch === binding.branch)
           throw new Error("Integration source cannot target itself");
+        const preview = await readIntegrationPreflight(context, binding, params.targetBranch);
+        if (
+          !params.sourceCommits?.length &&
+          preview.uncommittedFileCount &&
+          !params.acknowledgeUncommitted
+        )
+          throw new Error(
+            "Uncommitted source changes must be explicitly excluded before integration",
+          );
         const target = await git.resolveTarget(binding.repositoryRoot, params.targetBranch);
         // 根因：原实现把目标分支等同于原目录 HEAD；按真实注册解析，未检出目标不切换原项目。
         const targetPath = target.path ?? store.checkout(store.key(`integration-target:${id}`));
@@ -117,6 +143,7 @@ export function createWorktreeIntegration(
           requestId: params.requestId,
           sourceHead: params.expectedSourceHead,
           initialSourceHead: params.expectedSourceHead,
+          acknowledgeUncommitted: params.acknowledgeUncommitted,
           ...(params.sourceCommits?.length
             ? { sourceCommits: params.sourceCommits, sourceReceipts: [] }
             : {}),
@@ -131,7 +158,8 @@ export function createWorktreeIntegration(
           validationCommands: params.validationCommands ?? [],
           validationSource: params.validationCommands ? "explicit" : "detected",
           validationResults: [],
-          environmentPolicy: binding.environmentRef || binding.environmentPolicy === "managed" ? "managed" : "local",
+          environmentPolicy:
+            binding.environmentRef || binding.environmentPolicy === "managed" ? "managed" : "local",
           createdAt: now,
           updatedAt: now,
           mergeBase: await git.command(binding.repositoryRoot, [
@@ -152,7 +180,9 @@ export function createWorktreeIntegration(
           const pending = await store.readOperation(current.latestIntegrationId);
           if (
             pending &&
-            !["published", "failed", "cancelled", "source-commit-failed"].includes(pending.status)
+            !["published", "up-to-date", "failed", "cancelled", "source-commit-failed"].includes(
+              pending.status,
+            )
           )
             throw new Error("Finish the existing integration before starting another");
         }
@@ -166,6 +196,8 @@ export function createWorktreeIntegration(
         operation = await commitIntegrationSource(context, coordinator, binding, operation);
         if (operation.status === "source-commit-failed") return operation;
       }
+      operation = await inspectIntegrationSource(context, binding, operation);
+      if (operation.status === "up-to-date") return save(operation);
       if (operation.targetTemporary) {
         await store.assertManagedPath(operation.targetPath);
         if (!(await git.registered(binding.repositoryRoot, operation.targetPath))) {
@@ -240,11 +272,11 @@ export function createWorktreeIntegration(
     skipValidation?: boolean;
   }) {
     const original = await read(params.operationId);
-    if (original.status === "published" && !params.cancel) return original;
+    if (["published", "up-to-date"].includes(original.status) && !params.cancel) return original;
     return store.lock(params.operationId, async () => {
       let operation = await read(params.operationId);
       if (params.cancel) {
-        if (["publishing", "published"].includes(operation.status))
+        if (["publishing", "published", "up-to-date"].includes(operation.status))
           throw new Error("Publication cannot be cancelled or rolled back");
         operation = await save({ ...operation, status: "cancelled", error: undefined });
         if (operation.environmentRef) {
@@ -252,9 +284,19 @@ export function createWorktreeIntegration(
           if (!binding) throw new Error("Candidate environment binding is missing");
           try {
             for (const phase of ["fence", "stop", "cleanup", "finalize"] as const)
-              await releaseBindingRuntime(context, binding, `cancel:${operation.id}`, "candidate-cancel", phase, operation);
+              await releaseBindingRuntime(
+                context,
+                binding,
+                `cancel:${operation.id}`,
+                "candidate-cancel",
+                phase,
+                operation,
+              );
           } catch (error) {
-            await save({ ...operation, error: error instanceof Error ? error.message : String(error) });
+            await save({
+              ...operation,
+              error: error instanceof Error ? error.message : String(error),
+            });
             throw error;
           }
         }
@@ -315,11 +357,17 @@ export function createWorktreeIntegration(
         if (!params.approvedCandidateHead) return operation;
         if (operation.candidateHead !== params.approvedCandidateHead)
           throw new Error("Integration candidate changed; review the exact new commit");
-        return await validateIntegrationCandidate(context, operation, validate, lease, params.skipValidation === true);
+        return await validateIntegrationCandidate(
+          context,
+          operation,
+          validate,
+          lease,
+          params.skipValidation === true,
+        );
       } finally {
         await coordinator.release(lease);
       }
     });
   }
-  return { integrate, continueIntegration, read, save, inspect };
+  return { integrate, continueIntegration, read, save, inspect, preflight };
 }

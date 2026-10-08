@@ -54,6 +54,7 @@ import {
   runtimeEnvironmentGarbageCollectionResultSchema,
 } from "../runtimeEnvironment.js";
 export * from "../worktreeExecution.js";
+export * from "../worktreeIntegration.js";
 // 审核编辑状态由 Host Git RPC 所有；共享严格校验，不进入 Agent 会话队列。
 export * from "../gitReviewWorkspace.js";
 export { gitFileMutationJournalSchema } from "../gitCommitReview.js";

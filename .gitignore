@@ -94,6 +94,8 @@ nul
 # 永久页面回归测试桩需覆盖用户全局 test/ 忽略，其他测试目录保持原规则。
 !/packages/web/test/
 /packages/web/test/*
+!/packages/web/test/git-review-redesign-cases.mjs
+/artifacts/git-review-redesign/
 !/packages/web/test/multi-session-send-cases.mjs
 !/packages/web/test/fixtures/
 /packages/web/test/fixtures/*

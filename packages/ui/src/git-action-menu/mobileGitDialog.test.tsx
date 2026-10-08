@@ -19,9 +19,11 @@ function dialogContentClass(dialogSource: string): string {
 test("commit and publish share the same bounded scrollable dialog on mobile", () => {
   const className = dialogContentClass(commitDialog);
   assert.ok(className.includes("w-[calc(100%-2rem)]"));
-  assert.match(className, /\bmax-w-md\b/);
+  assert.match(className, /\bmax-w-3xl\b/);
   assert.match(className, /max-h-\[85dvh\]/);
-  assert.match(className, /\boverflow-y-auto\b/);
+  assert.match(className, /\boverflow-clip\b/);
+  assert.match(commitDialog, /data-testid="git-review-scroll"/);
+  assert.match(commitDialog, /<ReviewDialogFooter/);
   assert.match(commitDialog, /<GitCommitReviewPanel/);
   assert.match(commitDialog, /<GitPublishPreview/);
   assert.match(commitDialog, /<GitPublishResults/);

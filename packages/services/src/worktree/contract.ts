@@ -7,11 +7,15 @@ import type {
   RuntimeEnvironmentReference,
   WorktreeCandidateEvidence,
   WorktreeValidationReceipt,
+  WorktreeMergeResult,
 } from "@lcode/shared";
+export type { WorktreeIntegrationPreflight } from "@lcode/shared";
 export type { WorktreeSnapshot } from "@lcode/shared";
 export type WorktreeBinding = WorktreeExecutionBinding;
 
 import { createServiceDescriptor } from "../descriptors.js";
+import type { WorktreeIntegrationInspection } from "./inspectionContract.js";
+export type { WorktreeIntegrationInspection } from "./inspectionContract.js";
 
 export interface WorktreeScope {
   workspacePath: string;
@@ -49,6 +53,8 @@ export interface WorktreeIntegration {
   bindingId: string;
   sourceHead: string;
   initialSourceHead?: string;
+  acknowledgeUncommitted?: boolean;
+  mergeResult?: WorktreeMergeResult;
   sourceCommits?: GitCommitRequest[];
   sourceReceipts?: {
     reviewId: string;
@@ -75,6 +81,7 @@ export interface WorktreeIntegration {
     | "ready"
     | "publishing"
     | "published"
+    | "up-to-date"
     | "cancelled"
     | "failed";
   candidateHead?: string;
@@ -103,6 +110,8 @@ export interface WorktreeIntegrateRequest {
   bindingId: string;
   expectedSourceHead: string;
   sourceCommits?: GitCommitRequest[];
+  /** 明确只合并已提交内容；未提交文件不会被隐式暂存或合并。 */
+  acknowledgeUncommitted?: boolean;
   targetBranch: string;
   validationCommands?: string[];
 }
@@ -166,7 +175,7 @@ export type WorktreeCommandRunner = (
 
 /** 普通会话共享执行；会修改目录生命周期/快照/发布的操作保持独占。 */
 export type CheckoutAccessMode = "shared" | "exclusive";
-export interface IWorktreeService {
+export interface IWorktreeService extends WorktreeIntegrationInspection {
   getCapabilities(
     params: WorktreeScope & { sourceFolderPaths?: string[] },
   ): Promise<WorktreeCapabilities>;

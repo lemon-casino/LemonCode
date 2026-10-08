@@ -47,6 +47,7 @@ import { FixtureReviewPreview } from "./review-preview.js";
 import { createReviewWorkspaceFixture } from "./review-workspace-service.js";
 import type { GitCommitReview } from "@lcode/shared";
 import "@lcode/ui/styles.css";
+import { THEME_OPTIONS } from "@/useTheme.js";
 
 const workspacePath = "/fixture/repo";
 const useProductionSidePane = new URLSearchParams(window.location.search).has("shellPreview");
@@ -69,7 +70,9 @@ const calls: Parameters<IGitService["generateCommitMessage"]>[0][] = [];
 let fixtureIntegration: WorktreeIntegration | null = null;
 const seedStatus = new URLSearchParams(location.search).get("seedIntegration");
 if (
-  ["cancelled", "failed", "source-commit-failed", "published", "ready"].includes(seedStatus ?? "")
+  ["cancelled", "failed", "source-commit-failed", "published", "up-to-date", "ready"].includes(
+    seedStatus ?? "",
+  )
 ) {
   fixtureIntegration = {
     id: "historical-operation",
@@ -82,6 +85,15 @@ if (
     targetPath: workspacePath,
     checkoutPath: "/fixture/integration",
     status: seedStatus as WorktreeIntegration["status"],
+    mergeResult:
+      seedStatus === "up-to-date"
+        ? {
+            kind: "already-contained",
+            changedFiles: 0,
+            sourceCommitCount: 0,
+            uncommittedFileCount: 0,
+          }
+        : undefined,
     conflictPaths: [],
     diff: "",
     validationCommands: ["fixture-check"],
@@ -261,6 +273,15 @@ const services = {
     },
   },
   worktreeService: {
+    getIntegrationPreflight: async ({ targetBranch }: { targetBranch: string }) => ({
+      bindingId: "fixture-binding",
+      targetBranch,
+      sourceHead: "s".repeat(40),
+      targetHead: "t".repeat(40),
+      sourceCommitCount: 1,
+      uncommittedFileCount: dirtyPaths.length,
+      alreadyContained: false,
+    }),
     getCapabilities: async () => ({
       supported: true,
       create: true,
@@ -440,6 +461,7 @@ function FixtureApp() {
   });
   (globalThis as typeof globalThis & { __gitCommitFixture: unknown }).__gitCommitFixture = {
     calls,
+    themes: () => THEME_OPTIONS.map(({ id, base }) => ({ id, base })),
     mergeCalls,
     rowsQueries,
     diffQueries,

@@ -24,6 +24,8 @@ export function useWorktreeTask(
   const describeError = useCallback(
     (error: unknown) => {
       const message = getCheckoutOperationErrorMessage(error, directoryBusyMessage);
+      if (message === "Uncommitted source changes must be explicitly excluded before integration")
+        return intl.formatMessage({ id: "worktree.preflight.exclusionRequired" });
       if (message.startsWith("Git worktree command output exceeded limit:"))
         return outputLimitMessage;
       if (message.startsWith("Git worktree command timed out:")) return timeoutMessage;
@@ -51,6 +53,7 @@ export function useWorktreeTask(
       timeoutMessage,
       runningMessage,
       deleteChangedMessage,
+      intl,
     ],
   );
   const scope = `${workspaceIdentity?.trim() || workspacePath}\0${taskId ?? ""}`;
@@ -64,6 +67,7 @@ export function useWorktreeTask(
     loading: boolean;
   }>({ scope, binding: null, operation: null, loading: false });
   const [pending, setPending] = useState(false);
+  const admission = useRef(false);
   const current =
     state.scope === scope ? state : { scope, binding: null, operation: null, loading: true };
   const refresh = useCallback(async () => {
@@ -101,7 +105,9 @@ export function useWorktreeTask(
   }, [refresh, revision]);
   const perform = useCallback(
     async (action: () => Promise<unknown>) => {
-      if (pending) return false;
+      // React pending 尚未提交时也只能接受一个动作；重试仍由服务请求 ID 和持久收据对账。
+      if (admission.current) return false;
+      admission.current = true;
       const ownScope = scope;
       setPending(true);
       setState((previous) => ({ ...previous, error: undefined, rawError: undefined }));
@@ -121,10 +127,11 @@ export function useWorktreeTask(
         );
         return false;
       } finally {
+        admission.current = false;
         setPending(false);
       }
     },
-    [pending, refresh, scope, workspacePath, workspaceIdentity, describeError],
+    [refresh, scope, workspacePath, workspaceIdentity, describeError],
   );
   return { ...current, pending, refresh, perform, worktreeService, gitService, describeError };
 }

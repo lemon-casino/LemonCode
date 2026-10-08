@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button.js";
 import { Checkbox } from "@/components/ui/checkbox.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { candidateEvidenceState } from "./worktreeCandidateEvidence.js";
+import { ReviewActionBar } from "@/git-action-menu/ReviewActionBar.js";
 
 export function WorktreeCandidateApproval({
   operation,
@@ -70,34 +71,37 @@ export function WorktreeCandidateApproval({
           {text("candidateEvidenceMissing")}
         </p>
       ) : null}
-      {needsValidation ? (
-        <Button
-          type="button"
-          data-testid="worktree-validate"
-          disabled={
-            locked ||
-            approvedHead !== operation.candidateHead ||
-            (!operation.validationCommands.length && !skipValidation)
-          }
-          onClick={onValidate}
-        >
-          {text("validate")}
-        </Button>
-      ) : (
-        <Button
-          type="button"
-          data-testid="worktree-publish"
-          disabled={locked || !canPublish}
-          onClick={onPublish}
-        >
-          {intl.formatMessage(
-            {
-              id: operation.status === "publishing" ? "worktree.retryPublish" : "worktree.publish",
-            },
-            { branch: operation.targetBranch },
-          )}
-        </Button>
-      )}
+      <ReviewActionBar>
+        {needsValidation ? (
+          <Button
+            type="button"
+            data-testid="worktree-validate"
+            disabled={
+              locked ||
+              approvedHead !== operation.candidateHead ||
+              (!operation.validationCommands.length && !skipValidation)
+            }
+            onClick={onValidate}
+          >
+            {text("validate")}
+          </Button>
+        ) : (
+          <Button
+            type="button"
+            data-testid="worktree-publish"
+            disabled={locked || !canPublish}
+            onClick={onPublish}
+          >
+            {intl.formatMessage(
+              {
+                id:
+                  operation.status === "publishing" ? "worktree.retryPublish" : "worktree.publish",
+              },
+              { branch: operation.targetBranch },
+            )}
+          </Button>
+        )}
+      </ReviewActionBar>
     </>
   );
 }

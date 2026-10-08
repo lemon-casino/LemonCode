@@ -7,7 +7,7 @@ export const WORKTREE_REVIEW_STAGES = ["prepare", "review", "confirm", "complete
 export function worktreeReviewStage(operation: WorktreeIntegration | null): number {
   if (!operation || ["cancelled", "source-commit-failed", "failed"].includes(operation.status))
     return 0;
-  if (operation.status === "published") return 3;
+  if (["published", "up-to-date"].includes(operation.status)) return 3;
   if (operation.status === "ready" || operation.status === "publishing") return 2;
   return 1;
 }

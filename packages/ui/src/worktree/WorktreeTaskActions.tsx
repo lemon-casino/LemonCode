@@ -1,4 +1,5 @@
 import { useState, useEffect, type ReactNode } from "react";
+import { useWorktreeIntegrationRequest } from "@/hooks/useWorktreeIntegrationRequest.js";
 import { LoaderIcon } from "lucide-react";
 import { useProjectExecutionPolicy } from "@/hooks/useProjectExecutionPolicy.js";
 import { useWorktreeTask } from "@/hooks/useWorktreeTask.js";
@@ -21,6 +22,7 @@ import { WorktreePublication } from "./WorktreePublication.js";
 import { WorktreeIntegrationEvidence } from "./WorktreeIntegrationEvidence.js";
 import { integrationReviewFiles } from "./worktreeReviewStages.js";
 import { candidateEvidenceState } from "./worktreeCandidateEvidence.js";
+import { ReviewDetails } from "@/git-action-menu/ReviewDetails.js";
 
 export function WorktreeTaskActions({
   workspacePath,
@@ -61,6 +63,14 @@ export function WorktreeTaskActions({
   const commands = sharedReview.data.validationCommands;
   const [approvedHead, setApprovedHead] = useState<string | null>(null);
   const [skipValidation, setSkipValidation] = useState(false);
+  // 排除意图属于本端控制器；窗口只隐藏，不能因 Modal 内容卸载而丢失同一预检查的确认。
+  const [excludedAcknowledgement, setExcludedAcknowledgement] = useState<string | null>(null);
+  const integrationRequest = useWorktreeIntegrationRequest(
+    JSON.stringify([workspaceIdentity?.trim() || workspacePath, sessionId]),
+  );
+  useEffect(() => {
+    setExcludedAcknowledgement(null);
+  }, [workspacePath, workspaceIdentity, sessionId]);
   const { stage, currentStage, phaseKey, readOnly, setView } = useWorktreeReviewStage(
     sharedReview,
     binding,
@@ -96,7 +106,9 @@ export function WorktreeTaskActions({
   const text = (key: string) => intl.formatMessage({ id: `worktree.${key}` });
   const activeIntegration = Boolean(
     operation &&
-    !["published", "failed", "cancelled", "source-commit-failed"].includes(operation.status),
+    !["published", "up-to-date", "failed", "cancelled", "source-commit-failed"].includes(
+      operation.status,
+    ),
   );
   const targetBranch =
     (activeIntegration ? operation?.targetBranch : sharedReview.data.targetBranch) ??
@@ -113,20 +125,25 @@ export function WorktreeTaskActions({
     approvedHead === operation.candidateHead &&
     evidenceState !== "missing" &&
     (evidenceState !== "skipped" || skipValidation);
-  const integrate = () =>
+  const integrate = (acknowledgeUncommitted: boolean) =>
     task.perform(async () => {
       const capability = await worktreeService.getCapabilities({
         workspacePath: binding.workspacePath,
         workspaceIdentity: binding.workspaceIdentity,
       });
       if (!capability.head) throw new Error(text("sourceUnavailable"));
-      const next = await worktreeService.integrate({
-        requestId: crypto.randomUUID(),
-        bindingId: binding.id,
-        expectedSourceHead: capability.head,
-        targetBranch,
-        validationCommands: validationCommands.length ? validationCommands : undefined,
-      });
+      const next = await worktreeService.integrate(
+        integrationRequest(
+          {
+            bindingId: binding.id,
+            expectedSourceHead: capability.head,
+            targetBranch,
+            validationCommands: validationCommands.length ? validationCommands : undefined,
+            acknowledgeUncommitted,
+          },
+          operation,
+        ),
+      );
       sharedReview.patch({ integrationId: next.id, mergeView: null, worktreeView: null });
     });
   const preparation = (
@@ -136,11 +153,13 @@ export function WorktreeTaskActions({
       commands={commands ?? policy.validationCommands.join("\n")}
       locked={busy || pending || sharedReview.status !== "ready" || (readOnly && activeIntegration)}
       activeIntegration={activeIntegration}
+      acknowledgedKey={excludedAcknowledgement}
+      onAcknowledge={setExcludedAcknowledgement}
       onTarget={(branch) => {
         sharedReview.patch({ targetBranch: branch });
         setApprovedHead(null);
       }}
-      onIntegrate={() => void integrate()}
+      onIntegrate={(acknowledge) => void integrate(acknowledge)}
     />
   );
   const content = (
@@ -197,7 +216,8 @@ export function WorktreeTaskActions({
               </Button>
             </>
           ) : null}
-          {operation.candidateHead || operation.conflictPaths.length ? (
+          {operation.status !== "up-to-date" &&
+          (operation.candidateHead || operation.conflictPaths.length) ? (
             <Button
               type="button"
               variant="outline"
@@ -224,10 +244,12 @@ export function WorktreeTaskActions({
               {text("reviewDiff")}
             </Button>
           ) : null}
-          <WorktreeValidationResults
-            results={operation.validationResults}
-            commands={operation.validationCommands}
-          />
+          {operation.status !== "up-to-date" ? (
+            <WorktreeValidationResults
+              results={operation.validationResults}
+              commands={operation.validationCommands}
+            />
+          ) : null}
           <WorktreeCandidateApproval
             operation={operation}
             locked={locked}
@@ -262,7 +284,7 @@ export function WorktreeTaskActions({
               {task.describeError(operation.error)}
             </p>
           ) : null}
-          {!["publishing", "published", "cancelled"].includes(operation.status) ? (
+          {!["publishing", "published", "up-to-date", "cancelled"].includes(operation.status) ? (
             <Button
               type="button"
               variant="outline"
@@ -324,8 +346,19 @@ export function WorktreeTaskActions({
   const renderReview = (publication?: ReactNode) => {
     const reviewContent = (
       <>
-        {content}
-        {!readOnly ? publication : null}
+        {publication && !readOnly ? (
+          <>
+            {publication}
+            <ReviewDetails
+              title={intl.formatMessage({ id: "worktree.details.mergeEvidence" })}
+              testId="worktree-completed-evidence"
+            >
+              {content}
+            </ReviewDetails>
+          </>
+        ) : (
+          content
+        )}
       </>
     );
     if (renderContent) return renderContent(reviewContent, preparation);
@@ -345,7 +378,7 @@ export function WorktreeTaskActions({
       </WorktreeReviewDialog>
     );
   };
-  return operation?.status === "published" ? (
+  return operation && ["published", "up-to-date"].includes(operation.status) ? (
     <WorktreePublication
       key={operation.id}
       operation={operation}

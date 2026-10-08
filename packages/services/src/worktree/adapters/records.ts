@@ -6,6 +6,7 @@ import {
   runtimeEnvironmentBindingReferenceSchema,
   worktreeCandidateEvidenceSchema,
   worktreeValidationReceiptSchema,
+  worktreeMergeResultSchema,
 } from "@lcode/shared";
 
 const digest = z.string().regex(/^[a-f0-9]{40,64}$/);
@@ -18,6 +19,8 @@ export const operationRecord = z
     bindingId: id,
     sourceHead: digest,
     initialSourceHead: digest.optional(),
+    acknowledgeUncommitted: z.boolean().optional(),
+    mergeResult: worktreeMergeResultSchema.optional(),
     sourceCommits: z.array(gitCommitRequestSchema).optional(),
     sourceReceipts: z
       .array(
@@ -47,6 +50,7 @@ export const operationRecord = z
       "ready",
       "publishing",
       "published",
+      "up-to-date",
       "cancelled",
       "failed",
     ]),

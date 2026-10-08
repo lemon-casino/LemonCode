@@ -46,6 +46,7 @@ nodes:
       - "Legacy per-field overrides remain compatibility inputs until the project chooses a unified
         mode. Reading or saving settings does not generate drafts, commit, merge, or publish."
   - id: capability.session-worktree
+    # Current commit/merge presentation has its own seed below; lifecycle entrypoints stay independent.
     kind: capability
     label: Session execution in a managed Git worktree
     aliases: [worktree, git worktree, 工作树, 会话执行目录]
@@ -110,6 +111,23 @@ nodes:
         symbol: createWorktreeService
     invariants:
       - "Binding and operation records belong to the target Host; remote identity and connection routing must remain intact."
+  - id: capability.git-commit-merge-review
+    kind: capability
+    label: Commit and merge review with optional publishing and factual results
+    aliases: [提交与合并审核, 无需合并, 零变更合并, 推送完成结论]
+    codeSeeds:
+      - file: packages/ui/src/git-action-menu/GitCommitDialog.tsx
+        symbol: GitCommitDialog
+      - file: packages/ui/src/worktree/WorktreePublication.tsx
+        symbol: WorktreePublication
+      - file: packages/services/src/worktree/app/integrationPreflight.ts
+        symbol: readIntegrationPreflight
+      - file: packages/shared/src/worktreeIntegration.ts
+        symbol: worktreeIntegrationPreflightSchema
+    invariants:
+      - "Already-contained source commits end as up-to-date before creating a candidate or running checks; uncommitted source changes require an explicit range choice."
+      - "File content changes are classified from Git trees, independently of commit-history-only merges."
+      - "Publication browsing is a versioned Host projection; confirmation and publishing runs remain device-local, and navigation never replays commands."
   - id: boundary.checkout-writer
     kind: service
     label: Canonical checkout execution permit
@@ -931,6 +949,14 @@ nodes:
       - file: packages/services/src/git-backup/gitBackupStore.ts
         symbol: createBackupStore
 edges:
+  - from: capability.git-commit-merge-review
+    to: service.worktree-owner
+    type: commits-to
+    rank: must-inspect
+  - from: capability.git-commit-merge-review
+    to: boundary.checkout-writer
+    type: guarded-by
+    rank: invariant-only
   - from: capability.session-worktree
     to: service.worktree-owner
     type: prepared-by

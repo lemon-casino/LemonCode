@@ -1,5 +1,55 @@
 /** English translations */
 const enUS: Record<string, string> = {
+  "worktree.preflight.loading": "Checking source commits and target branch…",
+  "worktree.preflight.contained":
+    "The target already contains the source commits. No new merge is needed.",
+  "worktree.preflight.commits": "Review {count} source commits that are not yet in the target.",
+  "worktree.preflight.uncommitted":
+    "{count} files are uncommitted and will not enter the merge automatically. Review and commit them first, or explicitly merge committed content only.",
+  "worktree.preflight.exclude":
+    "Merge committed content only; preserve and exclude all uncommitted files",
+  "worktree.preflight.exclusionRequired":
+    "The source has uncommitted files. Commit them first, or refresh and explicitly merge committed content only.",
+  "worktree.preflight.finish": "View the no-merge result",
+  "worktree.integration.up-to-date":
+    "{branch} already contains the source commits; no merge is needed",
+  "worktree.flow.commitMerge": "Commit and merge",
+  "worktree.flow.push": "Push (optional)",
+  "worktree.flow.result": "Result",
+  "worktree.flow.skipPush": "Skip push and view result",
+  "worktree.result.title": "Operation result",
+  "worktree.result.commit": "Source commits",
+  "worktree.result.committed": "Saved {count} source commits in this operation",
+  "worktree.result.noCommit": "No source commits were created in this operation",
+  "worktree.result.merge": "Local merge",
+  "worktree.result.already-contained": "{branch} already contains the source; no new merge content",
+  "worktree.result.history-only": "Merged commit history into {branch}; file content is unchanged",
+  "worktree.result.content": "Merged into {branch}; {count} files changed",
+  "worktree.result.unknown":
+    "Local merge into {branch} completed; historical file-change statistics need verification",
+  "worktree.result.excluded":
+    "{count} uncommitted files were excluded and remain in the source directory.",
+  "worktree.result.push": "Remote push",
+  "worktree.result.running": "Running; inspect individual outcomes",
+  "worktree.result.partial": "Publishing is not fully successful; inspect each target",
+  "worktree.result.pushed": "All selected publishing operations succeeded",
+  "worktree.result.skipped": "No push was performed in this operation",
+  "worktree.result.localTagOnly":
+    "No remote push was performed; local Tag outcomes are listed below",
+  "worktree.result.unverified":
+    "No push was performed on this device; earlier or other-device results need verification",
+  "worktree.result.historical":
+    "This is the local merge receipt. A new push reads the latest target HEAD; later commits are outside the original candidate's validation scope.",
+  "worktree.result.newHead":
+    "This publishing plan includes commits added after the merge. Original checks cover only the earlier candidate; review the current preview.",
+  "worktree.details.technical": "View technical details",
+  "worktree.details.mergeEvidence": "View merge evidence and earlier stages",
+  "worktree.details.validation": "View check details",
+  "worktree.checks.summary": "Checks: {passed} passed · {failed} failed · {pending} not run",
+  "worktree.checks.preparation": "Dependency preparation: {count} completed",
+  "worktree.checks.preparationFailed": "Dependency preparation: {count} failed",
+  "worktree.checks.passed": "Passed",
+  "worktree.checks.failed": "Failed",
   "startPlan.recommendation.subagentDescription":
     "Your Start Plan has quota available for {model}. Switch this subagent’s model to the Start Plan?",
   "startPlan.recommendation.preferenceSaveFailed":

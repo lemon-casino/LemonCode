@@ -10,6 +10,7 @@ import { runGitPublishCases } from "./git-publish-cases.mjs";
 import { runGitPublishEditingCases } from "./git-publish-editing-cases.mjs";
 import { runGitReviewNavigationCases } from "./git-review-navigation-cases.mjs";
 import { runGitReviewCrossPlatformCases } from "./git-review-cross-platform-cases.mjs";
+import { runGitReviewRedesignCases } from "./git-review-redesign-cases.mjs";
 
 // 实际共享组件 + 桩 Host 服务；不读取用户仓库、不调用模型、不提交 Git。
 test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回归", { timeout: 300_000 }, async (t) => {
@@ -86,6 +87,8 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
     if (message.text().includes("提交弹窗已显示")) visibleLogs.push(message.text());
   });
   const url = `http://127.0.0.1:${port}/test/fixtures/git-commit-dialog.html`;
+  await runGitReviewRedesignCases(t, { page, url });
+  if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "redesign") return;
   if (process.env.LCODE_GIT_REVIEW_TEST_CASES === "shared-host") {
     await runGitReviewCrossPlatformCases(t, { browser, url });
     assert.deepEqual(errors, []);
@@ -208,10 +211,7 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
     assert.equal(request.conversationContext.sessionId, "a");
     assert.equal(await input.inputValue(), "修复 a 的布局适配");
     assert.equal(await page.getByTestId("composer-draft").inputValue(), "待发送的草稿不能改变");
-    assert.equal(
-      await page.getByTestId("git-commit-action-item-commit").getAttribute("aria-disabled"),
-      "true",
-    );
+    assert.equal(await page.getByTestId("git-commit-action-item-commit").isDisabled(), true);
     await page.keyboard.press("Escape");
     await dialog.waitFor({ state: "hidden" });
     await fixture("rerender");
@@ -310,10 +310,7 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
         globalThis.__gitCommitFixture.calls.length === 1 &&
         !document.querySelector('[data-testid="git-commit-generate-button"]').disabled,
     );
-    assert.equal(
-      await page.getByTestId("git-commit-action-item-commit").getAttribute("aria-disabled"),
-      "true",
-    );
+    assert.equal(await page.getByTestId("git-commit-action-item-commit").isDisabled(), true);
     await page.getByTestId("git-commit-generate-button").click();
     await generated();
     assert.equal((await calls()).length, 2);
@@ -462,10 +459,7 @@ test("提交纪要手动入口、弹窗生命周期和确认控件浏览器回�
         await generated();
         assert.match(await input.inputValue(), /中文提交纪要|布局适配/);
         assert.match(await dialog.innerText(), /内容审核不可用/);
-        assert.equal(
-          await page.getByTestId("git-commit-action-item-commit").getAttribute("aria-disabled"),
-          "true",
-        );
+        assert.equal(await page.getByTestId("git-commit-action-item-commit").isDisabled(), true);
         await page.keyboard.press("Control+Enter");
         assert.equal(await dialog.isVisible(), true);
         assert.equal(

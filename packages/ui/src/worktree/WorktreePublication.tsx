@@ -6,6 +6,9 @@ import { useWorktreePublication } from "@/hooks/useWorktreePublication.js";
 import { GitPublishOptionsPanel } from "@/git-action-menu/GitPublishOptionsPanel.js";
 import { GitPublishPreview, GitPublishResults } from "@/git-action-menu/GitPublishFeedback.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
+import { useReviewWorkspaceState } from "@/hooks/useReviewWorkspaceState.js";
+import { WorktreeCompletionSummary } from "./WorktreeCompletionSummary.js";
+import { Button } from "@/components/ui/button.js";
 
 export function WorktreePublication({
   operation,
@@ -29,9 +32,17 @@ export function WorktreePublication({
     workspaceIdentity,
   );
   const { intl } = useLCodeIntl();
+  const shared = useReviewWorkspaceState(originWorkspacePath, workspaceIdentity, sessionId);
+  const view =
+    shared.data.publicationView?.operationId === operation.id
+      ? shared.data.publicationView.view
+      : "result";
+  const [skipped, setSkipped] = useState(false);
+  const changeView = (next: "push" | "result") =>
+    shared.patch({ publicationView: { operationId: operation.id, view: next } });
   const [showPreview, setShowPreview] = useState(false);
   const content = (
-    <section data-testid="worktree-remote-publication">
+    <section data-testid="worktree-push-form">
       {publish.error ||
       publish.run?.stopReason ||
       publish.run?.outcomes.some((step) => step.status === "failed") ? (
@@ -120,5 +131,93 @@ export function WorktreePublication({
       ) : null}
     </section>
   );
-  return renderReview ? renderReview(content) : content;
+  // 浏览切换仅替换可见内容；发布 hook 留在同一挂载控制器，不能重复执行或丢失在途结果。
+  const workflow = (
+    <section className="space-y-3" data-testid="worktree-remote-publication">
+      <nav
+        className="flex flex-wrap gap-1 border-b border-border pb-2"
+        aria-label={intl.formatMessage({ id: "git.review.stages" })}
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() =>
+            shared.patch({
+              mergeView: { operationId: operation.id, source: true },
+              worktreeView: { key: `${operation.id}/3`, stage: 0 },
+            })
+          }
+        >
+          {intl.formatMessage({ id: "worktree.flow.commitMerge" })}
+        </Button>
+        {(["push", "result"] as const).map((next) => (
+          <Button
+            key={next}
+            type="button"
+            variant={view === next ? "secondary" : "ghost"}
+            className={view === next ? "border-b-2 border-primary" : ""}
+            aria-current={view === next ? "page" : undefined}
+            data-testid={`worktree-flow-${next}`}
+            disabled={shared.status !== "ready"}
+            onClick={() => changeView(next)}
+          >
+            {intl.formatMessage({ id: `worktree.flow.${next}` })}
+          </Button>
+        ))}
+      </nav>
+      {view === "result" ? (
+        <>
+          <WorktreeCompletionSummary
+            operation={operation}
+            run={publish.run}
+            error={publish.error}
+            skipped={skipped}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            disabled={disabled || shared.status !== "ready"}
+            data-testid="git-publish-toggle"
+            onClick={() => {
+              changeView("push");
+              if (!publish.expanded) publish.toggle();
+            }}
+          >
+            {intl.formatMessage(
+              { id: "worktree.publishBranch" },
+              { branch: operation.targetBranch },
+            )}
+          </Button>
+        </>
+      ) : (
+        <>
+          {publish.plan && publish.plan.state.headCommitHash !== operation.candidateHead ? (
+            <p className="text-ui-sm text-warning">
+              {intl.formatMessage({ id: "worktree.result.newHead" })}
+            </p>
+          ) : null}
+          {content}
+          <div className="flex flex-wrap justify-end gap-2 border-t border-border pt-3">
+            <Button
+              type="button"
+              variant="outline"
+              data-testid="worktree-skip-push"
+              disabled={
+                Boolean(publish.run?.running) || publish.pending || shared.status !== "ready"
+              }
+              onClick={() => {
+                setSkipped(!publish.run);
+                changeView("result");
+              }}
+            >
+              {intl.formatMessage({
+                id: publish.run ? "worktree.flow.result" : "worktree.flow.skipPush",
+              })}
+            </Button>
+          </div>
+        </>
+      )}
+    </section>
+  );
+  return renderReview ? renderReview(workflow) : workflow;
 }

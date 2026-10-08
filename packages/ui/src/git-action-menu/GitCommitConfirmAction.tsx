@@ -1,46 +1,43 @@
 import { GitCommitIcon, LoaderIcon } from "lucide-react";
-import { Command, CommandItem, CommandList, CommandShortcut } from "@/components/ui/command.js";
+import { Button } from "@/components/ui/button.js";
 import { formatCommandShortcutLabel } from "@/lib/keyboardShortcuts.js";
+import { ReviewActionBar } from "./ReviewActionBar.js";
 
 export function GitCommitConfirmAction({
   disabled,
   pending,
   label,
   onSubmit,
+  secondary = false,
 }: {
   disabled: boolean;
   pending: boolean;
   label: string;
   onSubmit: () => void;
+  secondary?: boolean;
 }) {
   return (
-    <div className="border-t border-border px-2.5 py-2">
-      <Command
-        data-testid="git-commit-action-command"
-        value="commit"
-        shouldFilter={false}
-        className="bg-transparent"
+    <ReviewActionBar>
+      <Button
+        type="button"
+        data-testid="git-commit-action-item-commit"
+        disabled={disabled}
+        variant={secondary ? "outline" : "default"}
+        onClick={() => {
+          if (!disabled) onSubmit();
+        }}
+        className="h-auto min-h-8 max-w-full gap-3 whitespace-normal rounded-lg text-left"
       >
-        <CommandList className="max-h-none">
-          <CommandItem
-            value="commit"
-            data-testid="git-commit-action-item-commit"
-            disabled={disabled}
-            onSelect={() => {
-              if (!disabled) onSubmit();
-            }}
-            className="min-h-9"
-          >
-            {pending ? (
-              <LoaderIcon className="size-4 animate-spin" />
-            ) : (
-              <GitCommitIcon className="size-4" />
-            )}
-            <span className="min-w-0 flex-1">{label}</span>
-            <CommandShortcut>{formatCommandShortcutLabel("⏎")}</CommandShortcut>
-          </CommandItem>
-        </CommandList>
-      </Command>
-    </div>
+        {pending ? (
+          <LoaderIcon className="size-4 animate-spin" />
+        ) : (
+          <GitCommitIcon className="size-4" />
+        )}
+        <span className="min-w-0 flex-1">{label}</span>
+        <span className="shrink-0 font-mono text-ui-xs opacity-70">
+          {formatCommandShortcutLabel("Enter")}
+        </span>
+      </Button>
+    </ReviewActionBar>
   );
 }

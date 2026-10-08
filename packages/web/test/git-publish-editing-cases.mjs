@@ -86,10 +86,7 @@ export async function runGitPublishEditingCases(t, { page, url }) {
     await page.getByTestId("git-commit-include-unstaged").click();
     assert.equal(await input.inputValue(), "fix: 保留手工编辑");
     assert.equal(await page.getByTestId("git-review-acknowledge").count(), 0);
-    assert.equal(
-      await page.getByTestId("git-commit-action-item-commit").getAttribute("aria-disabled"),
-      "true",
-    );
+    assert.equal(await page.getByTestId("git-commit-action-item-commit").isDisabled(), true);
     await input.press("Control+Enter");
     assert.deepEqual(await calls(), []);
   });
@@ -104,10 +101,7 @@ export async function runGitPublishEditingCases(t, { page, url }) {
     await page.getByTestId("git-review-exclude-a.ts").click();
     await page.getByTestId("code-viewer-return-review").click();
     assert.equal(await input.inputValue(), "fix: 人工审核说明");
-    assert.equal(
-      await page.getByTestId("git-commit-action-item-commit").getAttribute("aria-disabled"),
-      "true",
-    );
+    assert.equal(await page.getByTestId("git-commit-action-item-commit").isDisabled(), true);
     await page.getByTestId("git-commit-generate-button").click();
     await generated();
     const requests = await page.evaluate(() => globalThis.__gitCommitFixture.calls);
@@ -115,10 +109,7 @@ export async function runGitPublishEditingCases(t, { page, url }) {
     await page.getByTestId("git-scope-open-files").click();
     await page.getByTestId("git-review-restore-a.ts").click();
     await page.getByTestId("code-viewer-return-review").click();
-    assert.equal(
-      await page.getByTestId("git-commit-action-item-commit").getAttribute("aria-disabled"),
-      "true",
-    );
+    assert.equal(await page.getByTestId("git-commit-action-item-commit").isDisabled(), true);
     assert.equal(await page.getByTestId("git-review-acknowledge").count(), 0);
     assert.deepEqual(await calls(), []);
   });

@@ -15,15 +15,18 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
     await fixture("dirty", []);
     await page.getByTestId("git-action-trigger").click();
     await dialog.getByTestId("git-review-stage-back").click();
+    await dialog.getByTestId("worktree-completed-evidence").locator("summary").first().click();
     await dialog.getByTestId("worktree-stage-back").click();
-    await dialog.getByTestId("git-review-stage-back").click();
-    await dialog.getByTestId("git-review-stage-back").click();
+    await dialog.getByTestId("worktree-current-stage").click();
     await dialog.getByTestId("worktree-remote-publication").waitFor();
     assert.match(await dialog.innerText(), /发布 L-GO/);
     await dialog.getByTestId("git-review-stage-back").click();
     await dialog.getByTestId("worktree-target-branch").click();
     await page.getByRole("option", { name: "main", exact: true }).click();
     const prepare = dialog.getByTestId("worktree-integrate");
+    await page.waitForFunction(
+      () => !document.querySelector('[data-testid="worktree-integrate"]').disabled,
+    );
     assert.equal(await prepare.isEnabled(), true);
     await prepare.click();
     await dialog.getByTestId("worktree-integration-status").waitFor();
@@ -166,10 +169,8 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
               await page.getByTestId("review-exclude-page").click();
               await page.getByTestId("code-viewer-return-review").click();
               assert.equal(
-                await page
-                  .getByTestId("git-commit-action-item-commit")
-                  .getAttribute("aria-disabled"),
-                "true",
+                await page.getByTestId("git-commit-action-item-commit").isDisabled(),
+                true,
               );
               await page.getByTestId("git-review-stage-back").click();
               await page.getByTestId("worktree-remote-publication").waitFor();
@@ -213,10 +214,7 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
         await page.getByTestId("review-exclude-page").click();
         await page.getByTestId("code-viewer-return-review").click();
         assert.equal(await message.inputValue(), "fix: local review draft");
-        assert.equal(
-          await page.getByTestId("git-commit-action-item-commit").getAttribute("aria-disabled"),
-          "true",
-        );
+        assert.equal(await page.getByTestId("git-commit-action-item-commit").isDisabled(), true);
       }
     }
   });
@@ -317,10 +315,7 @@ export async function runGitReviewNavigationCases(t, { page, url }) {
     assert.equal(await page.getByRole("dialog").count(), 1);
     await page.getByTestId("worktree-approve-candidate").check();
     await page.getByTestId("git-review-stage-back").click();
-    assert.equal(
-      await page.getByTestId("git-commit-action-item-commit").getAttribute("aria-disabled"),
-      "true",
-    );
+    assert.equal(await page.getByTestId("git-commit-action-item-commit").isDisabled(), true);
     await page.getByTestId("git-review-stage-back").click();
     await page.getByTestId("git-review-dismiss").click();
     await page.getByTestId("git-action-trigger").click();

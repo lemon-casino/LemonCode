@@ -1,6 +1,26 @@
 import assert from "node:assert/strict";
 
 export async function runWorktreeWorkflowCases({ t, page, url, calls, configure, select }) {
+  await t.test("只准备合并的失败重试复用请求，成功后不重放来源提交", async () => {
+    await page.goto(url + "?scenario=review");
+    await configure({ failIntegration: true });
+    const dialog = page.getByTestId("worktree-task-dialog");
+    const merge = dialog.getByTestId("worktree-integrate");
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await merge.click();
+      await dialog.getByText("fixture-integration-unavailable").waitFor();
+    }
+    await configure({ failIntegration: false });
+    await merge.click();
+    await dialog.getByTestId("worktree-approve-candidate").waitFor();
+    const requests = (await calls()).filter((call) => call.method === "integrate");
+    assert.equal(requests.length, 3);
+    assert.equal(new Set(requests.map((call) => call.params.requestId)).size, 1);
+    assert.equal(
+      requests.some((call) => call.params.sourceCommits),
+      false,
+    );
+  });
   await t.test("合并准备、冲突、验证、落地和远端失败均可转交当前草稿，不重复执行", async () => {
     for (const width of [1280, 390]) {
       await page.setViewportSize({ width, height: 900 });

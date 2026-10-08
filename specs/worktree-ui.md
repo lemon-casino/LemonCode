@@ -1,5 +1,7 @@
 # 工作树界面与执行策略
 
+提交/合并流程与视觉规则见 [提交与合并审核优化方案及实现记录](git-commit-merge-review-redesign.md)。用户视图区分提交与合并、可选推送和完成结论；无需合并使用独立 up-to-date 终态，已完成页面默认展示事实摘要。
+
 ## 规则与状态所有者
 
 - 会话侧栏的工作树标识来自 sessions-index 的 executionBindingId，live 来自 CLI record，冷启动来自原子会话绑定 entry；不依据项目默认值猜测。工作树原项目归属、fork 层级和任务索引 membership 保持各自 owner。审核区域展示来源/目标/共同基线和归档快照中实际遗漏的忽略文件。
@@ -59,7 +61,7 @@ sequenceDiagram
 - “提交并准备合并到 {branch}”只承诺保存来源提交和准备合并结果；候选经过人工审核及配置验证后，“确认合并到 {branch}”才更新目标。准备、验证、目标更新、已合并的状态使用一致词汇，不把提交成功写成合并成功。目标使用真实 binding 或 operation 已冻结值，不写模糊的“当前分支”。
 - 原有远端/Tag 发布继续沿既有执行器；统一称为“远端与 Tag 发布”并展示实际发布分支。工作树提交窗口的发布作用于来源任务分支，合并后管理窗口的发布作用于原项目目标分支，分别说明，不能暗示推送会完成本地合并。
 - 合并成功后，提交审核顶部必须直接提供“查看合并结果并发布 {targetBranch}”，不得只用“返回当前阶段”表达。目标名取 WorktreeService 的已完成 operation，不取来源分支、当前项目默认或远端目标输入。结果视图显示“合并结果：{targetBranch}”，可返回工作树提交；不重复显示来源目录的分支切换器。新来源改动仍可继续提交，历史合并不锁住来源。
-- 合并结果中的发布折叠入口明确称为“发布 {targetBranch}”，预览按钮带目标分支名。入口只改变共享 mergeView 投影，不创建提交、不重新合并、不写远端。发布 hook 从 operation.targetPath 与原项目 identity 重新读取并冻结该目标分支当前最新 HEAD，不要求它仍等于历史 candidateHead；后续新增提交可随本次预览一起发布，摘要必须显示实际 HEAD。实际检出分支变化或没有 HEAD 时拒绝；预览后 HEAD、index 或工作区变化仍使计划失效。修改远端目标分支输入仅修改推送目的地，不能改变读取目录、实际来源分支或 Tag 目标。
+- 合并结果首屏展示提交、合并和推送结论，“发布 {targetBranch}”进入独立的可选推送视图，其内部保留原发布选项与预览；预览按钮带目标分支名。浏览选择通过 publicationView（operationId + push/result）同步，不创建提交、不重新合并、不写远端。发布 hook 从 operation.repositoryPath ?? operation.targetPath 与原项目 identity 重新读取并冻结目标分支当前最新 HEAD，不要求它等于历史 candidateHead；后续提交可随本次预览发布，并明确不属于旧候选的验证范围。目标引用不可用、发布状态不匹配或没有 HEAD 时拒绝；预览后 HEAD、index 或工作区变化仍使计划失效。修改远端分支输入只修改推送目的地，不改变实际来源分支或 Tag 目标。
 - 来源范围的 requiresRegeneration 只阻止来源提交及尚未完成的合并，不禁用已完成合并的目标发布。目标发布仍遵守同一共享状态的同步门禁、本端在途操作/发布计划和阶段只读门禁；两种判断直接从现有 owner 投影，不保存新状态。验收：来源全部排除并需重新审核时，来源提交不可用，但已完成目标发布入口可展开；不会因此提交来源或重放合并。
 
 ```mermaid
@@ -71,7 +73,9 @@ sequenceDiagram
   User->>View: 查看合并结果并发布目标分支
   View->>Host: 更新同一 scope 的 mergeView
   Host-->>View: 版本化阶段快照（桌面连续 / 手机可恢复）
-  User->>Publish: 展开目标发布并预览
+  User->>View: 选择可选推送视图（publicationView）
+  View->>Host: 仅更新同一 scope 的浏览字段
+  User->>Publish: 展开发布选项并预览
   Publish->>Host: 从原项目目录读取 HEAD、远端和 Tag
   Host-->>Publish: 实际目标状态
   Publish->>Publish: 校验目标并冻结计划
