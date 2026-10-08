@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- draft prewarm 的创建、复用、回收和首帧 ModelSelection 必须共享同一 owner 状态机；拆到多文件会让 StrictMode/transport 换代清理时序更难审计。 */
+/* oxlint-disable max-lines -- draft prewarm 的创建、复用、回收和首帧 ModelSelection 必须共享同一 owner 状态机；拆到多文件会让 StrictMode/transport 换代清理时序更难审计。 */
 // 草稿态 v4 draft session 预热。
 //
 // 背景：草稿态没有任何 session 在册时，配置面被迫走 workspace-default 旧 RPC，

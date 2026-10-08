@@ -19,7 +19,7 @@
       "reason": "Original version-specific publisher copyright/license material remains incomplete."
     },
     {
-      "id": "@hono/node-ws@1.3.0",
+      "id": "@hono/node-ws@1.3.1",
       "reason": "Original version-specific publisher copyright/license material remains incomplete."
     },
     {
@@ -51,7 +51,11 @@
       "reason": "Original version-specific publisher copyright/license material remains incomplete."
     },
     {
-      "id": "keyv@4.5.4",
+      "id": "@electron-internal/extract-zip@1.0.5",
+      "reason": "Original version-specific publisher copyright/license material remains incomplete."
+    },
+    {
+      "id": "proxy-agent-negotiate@1.1.0",
       "reason": "Original version-specific publisher copyright/license material remains incomplete."
     },
     {

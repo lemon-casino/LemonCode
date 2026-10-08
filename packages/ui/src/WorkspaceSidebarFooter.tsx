@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- footer 聚合账户、主题、模式和快捷键菜单。 */
+/* oxlint-disable max-lines -- footer 聚合账户、主题、模式和快捷键菜单。 */
 import type { Locale, UserInfo } from "@lcode/shared";
 import { memo, useCallback, useEffect, useState, type ReactNode } from "react";
 import {

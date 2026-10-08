@@ -118,7 +118,8 @@ const requireFromConfig = createRequire(import.meta.url);
 let nsisInstallSectionPatched = false;
 let nsisInstallSectionOriginalSource = null;
 let nsisInstallSectionPath = null;
-const desktopElectronVersion = requireFromConfig("./package.json").devDependencies.electron;
+// 修复：安装版本由 manifest + lockfile 决定；打包与 CUA 必须读取同一精确版本，避免另一个旧 pin。
+const desktopElectronVersion = requireFromConfig("electron/package.json").version;
 const asarCliPath = resolve(
   dirname(requireFromConfig.resolve("@electron/asar/package.json")),
   "bin",
@@ -483,10 +484,8 @@ export default {
   // 默认全量语言会产生大量 locale.pak 签名调用，显著拉长打包时长。
   // 这里仅保留当前产品必需语言，减少签名文件数并缩短 CI 总耗时。
   electronLanguages: ["en-US", "zh-CN"],
-  // pnpm workspace + semver range（如 ^41.0.3）下，electron-builder
-  // 有时无法从依赖树里稳定推导出 Electron 版本，导致 bundle 直接中断。
-  // 显式写死当前桌面端使用的 Electron 版本，避免打包阶段再做不可靠的猜测。
-  electronVersion: "41.0.3",
+  // 显式传入已安装的精确版本，兼顾 pnpm workspace 的依赖推导限制与安全升级。
+  electronVersion: desktopElectronVersion,
   electronDownload: {
     // ELECTRON_MIRROR 是 @electron/get 的全局环境变量，会覆盖 dmg-builder 等
     // generic artifact 自己传入的 mirrorOptions，导致 builder 辅助包被错误拼到 Electron runtime 镜像目录。

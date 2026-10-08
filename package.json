@@ -16,7 +16,8 @@
     "prepare:desktop-runtime": "pnpm --filter @lcode/desktop prepare:runtime-assets",
     "dep:graph": "node scripts/dependency-graph.mjs",
     "dep:refs": "node scripts/dep-refs.mjs",
-    "test:release": "node --test scripts/github-release.test.mjs packages/desktop/scripts/packaged-product-identity.test.mjs packages/desktop/scripts/windows-installer-brand-isolation.test.mjs",
+    "test:release": "node --test scripts/github-release.test.mjs scripts/github-actions-environment.test.mjs scripts/workspace-patch-notices.test.mjs packages/desktop/scripts/electron-runtime-version.test.mjs packages/desktop/scripts/packaged-product-identity.test.mjs packages/desktop/scripts/windows-installer-brand-isolation.test.mjs",
+    "test:dependency-security": "node --test scripts/dependency-security.test.mjs scripts/dependency-rsa-security.test.mjs",
     "verify:pre-push": "pnpm run lint && pnpm run architecture:check -- --changed",
     "build": "pnpm -r build",
     "build:desktop-agent:bytecode": "node scripts/build-desktop-agent-bytecode.mjs",
@@ -66,7 +67,7 @@
     "knip": "^6.0.6",
     "lint-staged": "^17.0.8",
     "oxfmt": "^0.41.0",
-    "oxlint": "^1.57.0",
+    "oxlint": "^1.87.0",
     "postject": "1.0.0-alpha.6",
     "release-it": "^19.2.4",
     "ts-morph": "^28.0.0",
@@ -80,5 +81,5 @@
   "engines": {
     "node": ">=24.0.0"
   },
-  "packageManager": "pnpm@10.33.2"
+  "packageManager": "pnpm@10.34.6"
 }

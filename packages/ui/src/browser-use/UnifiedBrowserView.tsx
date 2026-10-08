@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- UnifiedBrowserView 集中维护稳定 webview 的导航、事件和 guest 生命周期；横向滚动链已下沉独立 hook。 */
+/* oxlint-disable max-lines -- UnifiedBrowserView 集中维护稳定 webview 的导航、事件和 guest 生命周期；横向滚动链已下沉独立 hook。 */
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import type {
   BrowserViewScreenshotSurfacePreparePayload,

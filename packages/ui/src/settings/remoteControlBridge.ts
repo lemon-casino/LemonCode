@@ -15,7 +15,6 @@ import type {
   RemoteControlConfigSetResult,
   RemoteControlConfigSnapshot,
   RemoteControlTestResult,
-  RemoteControlDevice,
   RemoteDevicesRefreshResult,
   RemotePairingDecideRequest,
   RemotePairingStartRequest,
@@ -70,7 +69,9 @@ export interface RemoteControlPlatformBridge {
   revokeRemoteDevice(deviceId: string): Promise<void>;
   /** 配置 + 配对状态快照：挂载/保存后调用，pairing 为 Main 最近一次推送(null=无进行中配对)。 */
   getRemoteControlConfig(): Promise<RemoteControlConfigSnapshot>;
-  setRemoteControlConfig(request: RemoteControlConfigSetRequest): Promise<RemoteControlConfigSetResult>;
+  setRemoteControlConfig(
+    request: RemoteControlConfigSetRequest,
+  ): Promise<RemoteControlConfigSetResult>;
   /** 可选：由 Main 持接入 Key 调 Worker `POST /api/health`（PROTOCOL.md §1），Renderer 无法自行测试。 */
   testRemoteControlConnection?(): Promise<RemoteControlTestResult>;
 }

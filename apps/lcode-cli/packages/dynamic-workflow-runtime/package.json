@@ -16,8 +16,8 @@
     "clean": "node ../../scripts/clean-dist.mjs",
     "pretypecheck": "pnpm --filter @lcode/dynamic-workflow build",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint src",
-    "lint:fix": "oxlint --write src"
+    "lint": "oxlint --config ../../oxlint.config.json src --no-ignore",
+    "lint:fix": "oxlint --config ../../oxlint.config.json --fix src --no-ignore"
   },
   "dependencies": {
     "@lcode/dynamic-workflow": "workspace:*"

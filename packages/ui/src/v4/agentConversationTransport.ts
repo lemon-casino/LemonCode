@@ -1,7 +1,7 @@
 import { sendWithConversationDelayE2E } from "@/v4/conversationTransportDelayE2E.js";
 import { getLocalTtftObserver } from "@/v4/telemetry/localTtftObserver.js";
 import { calibrateLocalTtftClock, localTtftNow } from "@lcode/shared";
-/* oxlint-disable eslint(max-lines) -- transport 将上传、分块读取和 runtime 生命周期保持在同一 host 边界。 */
+/* oxlint-disable max-lines -- transport 将上传、分块读取和 runtime 生命周期保持在同一 host 边界。 */
 // ConversationTransport 的 desktop/host 实现：桥到 ILCodeAgentService 的 v4 转发面
 // （依赖注入原则——数据层不感知 host 细节，
 // web 直连 ws relay 时换一个实现即可）。

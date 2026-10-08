@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- 平台事件和分享导入共用同一生命周期。 */
+/* oxlint-disable max-lines -- 平台事件和分享导入共用同一生命周期。 */
 import { useEffect, useRef, useState } from "react";
 import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import type { IPlatformService } from "@lcode/shared";

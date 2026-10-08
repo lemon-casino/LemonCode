@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- Share 的错误/预检公共契约与跨 RPC 脱敏规则必须保持在同一边界，避免 UI、Host 和 API 各自漂移。 */
+/* oxlint-disable max-lines -- Share 的错误/预检公共契约与跨 RPC 脱敏规则必须保持在同一边界，避免 UI、Host 和 API 各自漂移。 */
 import type {
   ConversationShareAccessMode,
   ConversationShareCapabilities,

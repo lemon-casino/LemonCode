@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- Supervisor 集中维护生命周期、Core 代际和更新回滚状态机，启动恢复锁边界修复不应拆散其原子流程。 */
+/* oxlint-disable max-lines -- Supervisor 集中维护生命周期、Core 代际和更新回滚状态机，启动恢复锁边界修复不应拆散其原子流程。 */
 
 import { type ChildProcess } from "node:child_process";
 import { mkdir } from "node:fs/promises";

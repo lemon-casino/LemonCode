@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- LCode task 投影类型当前集中在单文件维护，新增 workspace 事件先保持就近声明。 */
+/* oxlint-disable max-lines -- LCode task 投影类型当前集中在单文件维护，新增 workspace 事件先保持就近声明。 */
 // ── 旧协议兼容面（过渡期）──────────────────────────────
 // 剩余 29 个导出：workspace 预热/workspace 事件、turn steer 结果、session binding/import、
 // trace/input/query id 工厂函数、LCodeError、LCodeTaskCreateResult 等。

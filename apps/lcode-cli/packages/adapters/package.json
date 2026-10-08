@@ -95,14 +95,14 @@
     "build": "tsc",
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint src",
-    "lint:fix": "oxlint --write src"
+    "lint": "oxlint --config ../../oxlint.config.json src --no-ignore",
+    "lint:fix": "oxlint --config ../../oxlint.config.json --fix src --no-ignore"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "3.0.81",
     "@ai-sdk/openai": "^3.0.58",
     "@ai-sdk/openai-compatible": "^2.0.58",
-    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/client": "2.3.1",
     "@ui-tars/action-parser": "1.2.3",
     "@lcode/contracts": "workspace:*",
     "@lcode/dynamic-workflow": "workspace:*",

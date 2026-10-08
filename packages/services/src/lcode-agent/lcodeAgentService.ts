@@ -15,7 +15,7 @@ import {
   sessionDebugSnapshotSchema,
   type LocalTtftFacts,
 } from "@lcode/shared";
-/* oxlint-disable eslint(max-lines) -- LCode Protocol transport、通知 wiring 和 app-facing session 方法必须共享同一个 client/emitter 上下文。 */
+/* oxlint-disable max-lines -- LCode Protocol transport、通知 wiring 和 app-facing session 方法必须共享同一个 client/emitter 上下文。 */
 import { randomUUID } from "node:crypto";
 import { ensureIndependentPlanSupport } from "./independentPlanSupport.js";
 import { mkdirSync } from "node:fs";

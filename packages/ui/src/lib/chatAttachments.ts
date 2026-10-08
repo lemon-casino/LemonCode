@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- Composer 附件的收集、恢复和序列化必须共享同一套 MIME/大小边界。 */
+/* oxlint-disable max-lines -- Composer 附件的收集、恢复和序列化必须共享同一套 MIME/大小边界。 */
 import { nanoid } from "nanoid";
 import {
   VIDEO_INPUT_MAX_BYTES,

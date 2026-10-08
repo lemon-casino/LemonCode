@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- Settings/Selection Facade 共享同一套 Registry 投影与写入边界。 */
+/* oxlint-disable max-lines -- Settings/Selection Facade 共享同一套 Registry 投影与写入边界。 */
 import type { ConfigValidationIssue } from "./config-overlay.js";
 import type { ProviderModelMembership } from "./config-service.js";
 import type {

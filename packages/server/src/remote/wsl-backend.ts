@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- WSL backend 同时承载探测、路径解析、兼容 UNC 与可取消流式上传。 */
+/* oxlint-disable max-lines -- WSL backend 同时承载探测、路径解析、兼容 UNC 与可取消流式上传。 */
 import { spawn, execFile } from "node:child_process";
 import type { ChildProcess } from "node:child_process";
 import { access, copyFile, mkdir, readFile, stat } from "node:fs/promises";

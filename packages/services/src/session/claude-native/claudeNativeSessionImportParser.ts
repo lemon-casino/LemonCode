@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- Claude 原生日志解析需要集中维护用户轮次、assistant 自愈和 system warning 归因，拆分会让同一日志语义分散。 */
+/* oxlint-disable max-lines -- Claude 原生日志解析需要集中维护用户轮次、assistant 自愈和 system warning 归因，拆分会让同一日志语义分散。 */
 import { stat } from "node:fs/promises";
 import type { JsonLineRecord } from "#src/session/claude-native/jsonLineRecord.js";
 import { readJsonLinesFile } from "#src/session/claude-native/sessionHistoryJsonl.js";

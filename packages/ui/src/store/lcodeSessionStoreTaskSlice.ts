@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- 当前文件承接 task 级状态切片，先保持最小改动修复草稿逻辑，后续再统一拆分 */
+/* oxlint-disable max-lines -- 当前文件承接 task 级状态切片，先保持最小改动修复草稿逻辑，后续再统一拆分 */
 import {
   normalizeAgentProviderToLCodeAgent,
   type LCodeApiRetryStatus,

@@ -16,8 +16,10 @@ test("checkout permit uses actual path and releases once after owner acknowledgm
     workspaceKey: "/tree",
     executionBindingId: "binding",
   }).acquire({ sessionId: "session", turnId: "turn", signal: new AbortController().signal });
-  assert.equal((calls[0]?.params as { workspacePath: string }).workspacePath, "/tree");
   assert.equal(calls.length, 1);
+  // 先断言回执存在，避免可选链后的类型断言掩盖 undefined 并导致无诊断的 TypeError。
+  assert.ok(calls[0]);
+  assert.equal((calls[0].params as { workspacePath: string }).workspacePath, "/tree");
   await lease.release();
   await lease.release();
   assert.equal(calls.length, 2);

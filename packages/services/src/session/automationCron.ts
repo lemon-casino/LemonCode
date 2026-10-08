@@ -1,6 +1,5 @@
 import { Cron } from "croner";
 import type { LCodeAutomation, LCodeAutomationScheduleRule } from "@lcode/shared";
-import { isValidCronExpr } from "#src/session/automationCronValidation.js";
 
 export { isValidCronExpr } from "#src/session/automationCronValidation.js";
 

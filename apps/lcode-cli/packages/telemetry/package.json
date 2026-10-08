@@ -15,18 +15,18 @@
     "build": "tsc",
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint src --no-ignore",
-    "lint:fix": "oxlint --write src"
+    "lint": "oxlint --config ../../oxlint.config.json src --no-ignore",
+    "lint:fix": "oxlint --config ../../oxlint.config.json --fix src --no-ignore"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/context-async-hooks": "2.6.1",
-    "@opentelemetry/exporter-metrics-otlp-proto": "^0.214.0",
-    "@opentelemetry/exporter-trace-otlp-proto": "^0.214.0",
-    "@opentelemetry/otlp-exporter-base": "^0.214.0",
-    "@opentelemetry/resources": "2.6.1",
-    "@opentelemetry/sdk-metrics": "2.6.1",
-    "@opentelemetry/sdk-trace-base": "2.6.1",
+    "@opentelemetry/context-async-hooks": "2.8.0",
+    "@opentelemetry/exporter-metrics-otlp-proto": "^0.219.0",
+    "@opentelemetry/exporter-trace-otlp-proto": "^0.219.0",
+    "@opentelemetry/otlp-exporter-base": "^0.219.0",
+    "@opentelemetry/resources": "2.8.0",
+    "@opentelemetry/sdk-metrics": "2.8.0",
+    "@opentelemetry/sdk-trace-base": "2.8.0",
     "@lcode/contracts": "workspace:*"
   },
   "devDependencies": {

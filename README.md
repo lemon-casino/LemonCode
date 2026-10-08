@@ -117,7 +117,7 @@ git merge upstream/main
 
 ### 初始化
 
-准备 Git、Node.js **24.14.0** 和 pnpm **10.33.2**，版本以 [mise.toml](mise.toml) 为准。
+准备 Git、Node.js **24.21.0** 和 pnpm **10.34.6**，版本以 [mise.toml](mise.toml) 为准。
 
 ```bash
 pnpm bootstrap

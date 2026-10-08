@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- 一个端点一个方法 + 统一的鉴权/脱敏/错误归一化 requestData，拆分会让 HTTP 契约失去单一入口。 */
+/* oxlint-disable max-lines -- 一个端点一个方法 + 统一的鉴权/脱敏/错误归一化 requestData，拆分会让 HTTP 契约失去单一入口。 */
 import {
   conversationShareArtifactDescriptorSchema,
   conversationShareArtifactUploadDataSchema,

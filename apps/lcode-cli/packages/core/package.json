@@ -31,8 +31,8 @@
     "build": "tsc",
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint src --no-ignore",
-    "lint:fix": "oxlint --fix src --no-ignore"
+    "lint": "oxlint --config ../../oxlint.config.json src --no-ignore",
+    "lint:fix": "oxlint --config ../../oxlint.config.json --fix src --no-ignore"
   },
   "dependencies": {
     "@lcode/contracts": "workspace:*",

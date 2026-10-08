@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- 旧 message/ARMS builders 共用同一 prompt 生命周期与时钟；拆散 fact 状态机会增加跨模块同步漂移。 */
+/* oxlint-disable max-lines -- 旧 message/ARMS builders 共用同一 prompt 生命周期与时钟；拆散 fact 状态机会增加跨模块同步漂移。 */
 import {
   legacyTelemetryModelValue,
   legacyTelemetryProviderId,

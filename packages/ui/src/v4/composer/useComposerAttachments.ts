@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- 附件采集、分 scope 上传调度和生命周期必须在同一 hook 中原子收口。 */
+/* oxlint-disable max-lines -- 附件采集、分 scope 上传调度和生命周期必须在同一 hook 中原子收口。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/ui/toast.js";
 import { nanoid } from "nanoid";
@@ -41,7 +41,6 @@ import {
   updateComposerAttachmentScope,
   useComposerAttachmentUploadStore,
   type ComposerAttachmentUploadItem,
-  type ComposerAttachmentUploadStatus,
 } from "@/store/composerAttachmentUploadStore.js";
 import { uploadComposerAttachment, type AttachmentPutFn } from "@/v4/composer/attachmentUpload.js";
 

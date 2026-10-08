@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- session workbench group 先把纯模型、localStorage sanitize 和 Zustand 装配收口在一处，避免新功能初版跨文件追状态；后续扩展测试稳定后再拆分。 */
+/* oxlint-disable max-lines -- session workbench group 先把纯模型、localStorage sanitize 和 Zustand 装配收口在一处，避免新功能初版跨文件追状态；后续扩展测试稳定后再拆分。 */
 // v4 session workbench groups。
 // 这里是 renderer-local 壳子状态：只管 session 到 pane/group 的归属与本地持久化，
 // 不下沉到协议、agent、main process 或 web-remote replayable 状态。

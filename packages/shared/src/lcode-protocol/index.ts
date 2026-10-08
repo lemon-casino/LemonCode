@@ -3,7 +3,7 @@ import {
   databaseStartupErrorDetailsSchema,
   databaseMigrationFactsSchema,
 } from "../database-startup.js";
-/* oxlint-disable eslint(max-lines) -- LCode Protocol schema 需要单文件导出，方便 app 与 agent 共享同一份协议契约。 */
+/* oxlint-disable max-lines -- LCode Protocol schema 需要单文件导出，方便 app 与 agent 共享同一份协议契约。 */
 // ── 旧协议删除边界──────────────────────
 // 剩余 ~257 个导出：旧 LCode Protocol 方法契约、请求/响应/事件 schema、
 // session/workspace state snapshot 投影等（承重类型已迁 lcode-protocol-legacy-types.ts）。

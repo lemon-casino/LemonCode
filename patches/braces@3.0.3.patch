@@ -1,0 +1,127 @@
+diff --git a/lib/compile.js b/lib/compile.js
+index dce69beb90ece5c3b0ca234a949418f9f34eedbc..42fa8799abf8229e1d4abd48bca63942cd8d738e 100644
+--- a/lib/compile.js
++++ b/lib/compile.js
+@@ -2,9 +2,11 @@
+ 
+ const fill = require('fill-range');
+ const utils = require('./utils');
++const assertDepth = require('./depth');
+ 
+ const compile = (ast, options = {}) => {
+-  const walk = (node, parent = {}) => {
++  const walk = (node, parent = {}, depth = 0) => {
++    assertDepth(depth);
+     const invalidBlock = utils.isInvalidBrace(parent);
+     const invalidNode = node.invalid === true && options.escapeInvalid === true;
+     const invalid = invalidBlock === true || invalidNode === true;
+@@ -47,7 +49,7 @@ const compile = (ast, options = {}) => {
+ 
+     if (node.nodes) {
+       for (const child of node.nodes) {
+-        output += walk(child, node);
++        output += walk(child, node, depth + 1);
+       }
+     }
+ 
+diff --git a/lib/depth.js b/lib/depth.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..af150b319573ee0211679b53bfb259f8502f7309
+--- /dev/null
++++ b/lib/depth.js
+@@ -0,0 +1,10 @@
++'use strict';
++
++// 修复 CVE-2026-93687：长度限制不能约束 AST 深度，统一限制所有递归入口，
++// 以可控的语法错误拒绝超深模式，避免调用栈耗尽。
++const MAX_AST_DEPTH = 256;
++module.exports = depth => {
++  if (depth > MAX_AST_DEPTH) {
++    throw new SyntaxError(`Brace pattern exceeds maximum nesting depth (${MAX_AST_DEPTH})`);
++  }
++};
+diff --git a/lib/expand.js b/lib/expand.js
+index 35b2c41d6afdb8f0197959e26079f266e48370d3..88f63e7aa47ed20297b05b023874b9c7047ea258 100644
+--- a/lib/expand.js
++++ b/lib/expand.js
+@@ -3,6 +3,7 @@
+ const fill = require('fill-range');
+ const stringify = require('./stringify');
+ const utils = require('./utils');
++const assertDepth = require('./depth');
+ 
+ const append = (queue = '', stash = '', enclose = false) => {
+   const result = [];
+@@ -33,7 +34,8 @@ const append = (queue = '', stash = '', enclose = false) => {
+ const expand = (ast, options = {}) => {
+   const rangeLimit = options.rangeLimit === undefined ? 1000 : options.rangeLimit;
+ 
+-  const walk = (node, parent = {}) => {
++  const walk = (node, parent = {}, depth = 0) => {
++    assertDepth(depth);
+     node.queue = [];
+ 
+     let p = parent;
+@@ -100,7 +102,7 @@ const expand = (ast, options = {}) => {
+       }
+ 
+       if (child.nodes) {
+-        walk(child, node);
++        walk(child, node, depth + 1);
+       }
+     }
+ 
+diff --git a/lib/parse.js b/lib/parse.js
+index 3a6988e629f52aee6609dc5ec290a5e9ff47cecb..8512f12deb3828a7e959fc3ea3189dfb6e726ec0 100644
+--- a/lib/parse.js
++++ b/lib/parse.js
+@@ -1,6 +1,7 @@
+ 'use strict';
+ 
+ const stringify = require('./stringify');
++const assertDepth = require('./depth');
+ 
+ /**
+  * Constants
+@@ -145,6 +146,7 @@ const parse = (input, options = {}) => {
+     if (value === CHAR_LEFT_PARENTHESES) {
+       block = push({ type: 'paren', nodes: [] });
+       stack.push(block);
++      assertDepth(stack.length);
+       push({ type: 'text', value });
+       continue;
+     }
+@@ -211,6 +213,7 @@ const parse = (input, options = {}) => {
+ 
+       block = push(brace);
+       stack.push(block);
++      assertDepth(stack.length);
+       push({ type: 'open', value });
+       continue;
+     }
+diff --git a/lib/stringify.js b/lib/stringify.js
+index 8bcf872c31894f81a8c64d9202fd607e4fd7ea2b..9de6abd4f23d0b432b1e5b01f2d54d259173fc75 100644
+--- a/lib/stringify.js
++++ b/lib/stringify.js
+@@ -1,9 +1,11 @@
+ 'use strict';
+ 
+ const utils = require('./utils');
++const assertDepth = require('./depth');
+ 
+ module.exports = (ast, options = {}) => {
+-  const stringify = (node, parent = {}) => {
++  const stringify = (node, parent = {}, depth = 0) => {
++    assertDepth(depth);
+     const invalidBlock = options.escapeInvalid && utils.isInvalidBrace(parent);
+     const invalidNode = node.invalid === true && options.escapeInvalid === true;
+     let output = '';
+@@ -21,7 +23,7 @@ module.exports = (ast, options = {}) => {
+ 
+     if (node.nodes) {
+       for (const child of node.nodes) {
+-        output += stringify(child);
++        output += stringify(child, undefined, depth + 1);
+       }
+     }
+     return output;

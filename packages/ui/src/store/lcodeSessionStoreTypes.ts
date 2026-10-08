@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- LCode Agent store 类型和默认状态集中导出，避免切片间重复定义共享结构。 */
+/* oxlint-disable max-lines -- LCode Agent store 类型和默认状态集中导出，避免切片间重复定义共享结构。 */
 /**
  * LCode Session Store 类型定义、接口、常量与默认值工厂
  *

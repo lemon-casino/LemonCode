@@ -17,7 +17,6 @@ import type {
 } from "@lcode/shared";
 import type { McpConfigKeyName } from "./types.js";
 import { isRecord, readJsonObject, writeTextAtomic } from "./utils.js";
-import { migrateLegacyCommonMcp } from "./legacy.js";
 
 // 重新导出类型和函数
 export type { McpConfigKeyName, McpSourceDescriptor } from "./types.js";

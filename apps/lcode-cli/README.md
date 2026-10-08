@@ -1,12 +1,12 @@
 # lcode-cli
 
-TypeScript + Node.js 24.14.0 CLI starter. The default artifact is a normal Node CLI bundle, and SEA is kept as an optional packaging path.
+TypeScript + Node.js 24.21.0 CLI starter. The default artifact is a normal Node CLI bundle, and SEA is kept as an optional packaging path.
 
 ## Why This Shape
 
 - Runtime code has zero production dependencies.
 - The CLI uses Node built-ins for argument parsing and terminal control.
-- `npm run build` produces `dist/lcode.cjs`, which works anywhere Node.js 24.14.0 is installed.
+- `npm run build` produces `dist/lcode.cjs`, which works anywhere Node.js 24.21.0 is installed.
 - `npm run sea` attempts to turn that same bundle into a single executable.
 - If SEA breaks on a platform, the normal CLI artifact is still the fallback.
 

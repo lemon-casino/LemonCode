@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) */
+/* oxlint-disable max-lines */
 /**
  * Tab Store —— 多标签页状态管理
  *

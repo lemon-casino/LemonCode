@@ -15,8 +15,8 @@
     "build": "tsc && node scripts/build.mjs",
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint src",
-    "lint:fix": "oxlint --write src"
+    "lint": "oxlint --config ../../oxlint.config.json src --no-ignore",
+    "lint:fix": "oxlint --config ../../oxlint.config.json --fix src --no-ignore"
   },
   "dependencies": {
     "@mbears/opentui-core": "0.2.15",
@@ -28,10 +28,11 @@
     "react-devtools-core": "7.0.1",
     "shiki": "^4.1.0",
     "web-tree-sitter": "0.25.10",
-    "ws": "8.18.0"
+    "ws": "8.22.0"
   },
   "devDependencies": {
     "@types/react": "19.2.0",
-    "tsx": "^4.20.0"
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.3"
   }
 }

@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- LCode session 到当前聊天 projection 的迁移桥需要同时保持 snapshot 和 event 映射一致。 */
+/* oxlint-disable max-lines -- LCode session 到当前聊天 projection 的迁移桥需要同时保持 snapshot 和 event 映射一致。 */
 import {
   decodeCustomModelValue,
   deriveLCodeTaskStatusFromSessionSnapshot,

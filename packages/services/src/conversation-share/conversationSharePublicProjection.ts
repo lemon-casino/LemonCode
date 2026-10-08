@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- 公开 Row 的 allow-list 构建与闭包校验必须同处一个策略边界，拆分会让 builder/validator 规则漂移。 */
+/* oxlint-disable max-lines -- 公开 Row 的 allow-list 构建与闭包校验必须同处一个策略边界，拆分会让 builder/validator 规则漂移。 */
 import type { ConversationShareArtifactDescriptor } from "@lcode/shared";
 import type { ArtifactRow, ConversationRow } from "@lcode/shared/lcode-protocol-v4";
 

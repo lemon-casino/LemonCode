@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- Client framing and server protocol helpers share one public broker contract in this module. */
+/* oxlint-disable max-lines -- Client framing and server protocol helpers share one public broker contract in this module. */
 import { randomUUID } from "node:crypto";
 import { createConnection } from "node:net";
 import { tmpdir } from "node:os";

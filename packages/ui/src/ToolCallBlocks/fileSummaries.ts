@@ -5,7 +5,6 @@ import { buildUnifiedDiff } from "@/lib/toolDiffPreview.js";
 import {
   buildFallbackRawToolCallFileSummary,
   hasWritableToolSemantic,
-  inferEditOperation,
   type EditKindSource,
 } from "@/ToolCallBlocks/fileSummaryHeuristics.js";
 import {

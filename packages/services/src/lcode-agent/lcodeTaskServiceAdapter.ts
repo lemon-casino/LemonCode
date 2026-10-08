@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- 迁移期需要在一个门面里集中维护旧 task projection 到 LCode session 的协议适配。 */
+/* oxlint-disable max-lines -- 迁移期需要在一个门面里集中维护旧 task projection 到 LCode session 的协议适配。 */
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";

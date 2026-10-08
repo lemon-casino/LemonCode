@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- The public compatibility barrel intentionally keeps the former broker/server API in one file. */
+/* oxlint-disable max-lines -- The public compatibility barrel intentionally keeps the former broker/server API in one file. */
 import { execFile as execFileCallback, spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { constants as fsConstants, existsSync, readFileSync, statSync } from "node:fs";
@@ -34,7 +34,6 @@ import {
   HELPER_ADDON_ENV,
   HELPER_APP_NAME,
   HELPER_BUNDLE_ID,
-  WINDOWS_DEV_CONTROL_PROTOCOL,
 } from "./broker-helper-constants.js";
 
 export {

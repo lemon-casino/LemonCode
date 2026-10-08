@@ -20,8 +20,8 @@
     "charts": "node scripts/generate-libs.mjs && tsc && node scripts/generate-mermaid.mjs",
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "node scripts/generate-libs.mjs && tsc --noEmit",
-    "lint": "oxlint src",
-    "lint:fix": "oxlint --write src"
+    "lint": "oxlint --config ../../oxlint.config.json src --no-ignore",
+    "lint:fix": "oxlint --config ../../oxlint.config.json --fix src --no-ignore"
   },
   "dependencies": {
     "typescript": "^5.9.0"

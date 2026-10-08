@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- Protocol normalization and the single serialized state owner stay colocated. */
+/* oxlint-disable max-lines -- Protocol normalization and the single serialized state owner stay colocated. */
 const MAX_IDENTIFIER_LENGTH = 255;
 const MAX_SESSIONS = 256;
 const MAX_EVENT_IDS_PER_SESSION = 64;

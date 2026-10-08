@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- message_completion 与 agent_step 共用 prompt 生命周期状态，拆分会增加跨文件同步复杂度。 */
+/* oxlint-disable max-lines -- message_completion 与 agent_step 共用 prompt 生命周期状态，拆分会增加跨文件同步复杂度。 */
 import {
   legacyTelemetryModelFields,
   legacyTelemetryModelValue,

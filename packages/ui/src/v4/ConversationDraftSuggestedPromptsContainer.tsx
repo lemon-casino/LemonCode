@@ -9,7 +9,7 @@ import {
   subscribeRecommendedPrompts,
   unregisterRecommendedPromptPane,
 } from "@/v4/featureSuggestedPromptRotation.js";
-/* oxlint-disable eslint(max-lines) -- 推荐 Prompt 同时收口 latest-wins、取消、可信解析、操作反馈和 Composer 收尾，拆分会打散这条状态机。 */
+/* oxlint-disable max-lines -- 推荐 Prompt 同时收口 latest-wins、取消、可信解析、操作反馈和 Composer 收尾，拆分会打散这条状态机。 */
 import {
   useCallback,
   useEffect,

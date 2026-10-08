@@ -1,0 +1,20 @@
+diff --git a/lib/rsa.js b/lib/rsa.js
+index a4264822b4dcd6dca44ca3e59e410c982eed7183..57fabedd8b0615f3938aa693eb0022cc4ad3ceac 100644
+--- a/lib/rsa.js
++++ b/lib/rsa.js
+@@ -1171,8 +1171,13 @@ pki.setRsaPublicKey = pki.rsa.setPublicKey = function(n, e) {
+           // validate DigestInfo structure and element count
+           var capture = {};
+           var errors = [];
+-          if(!asn1.validate(obj, digestInfoValidator, capture, errors) ||
+-            obj.value.length !== 2) {
++          var validDigestInfo = asn1.validate(obj, digestInfoValidator, capture, errors);
++          var hasParameters = Object.prototype.hasOwnProperty.call(capture, 'parameters');
++          // 修复 CVE-2026-85393：可选 NULL 校验会忽略嵌套序列的多余字段，
++          // 因此除顶层两个元素外，还必须核对 AlgorithmIdentifier 的精确元素数和空 NULL。
++          if(!validDigestInfo || obj.value.length !== 2 ||
++            obj.value[0].value.length !== (hasParameters ? 2 : 1) ||
++            (hasParameters && capture.parameters.length !== 0)) {
+             var error = new Error(
+               'ASN.1 object does not contain a valid RSASSA-PKCS1-v1_5 ' +
+               'DigestInfo value.');

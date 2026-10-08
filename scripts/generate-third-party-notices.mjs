@@ -1,5 +1,6 @@
 import { readFile, readdir, stat, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
+import YAML from "yaml";
 import { collectNpmNotices, hashBytes } from "./third-party-npm.mjs";
 import {
   noticesFileName,
@@ -7,6 +8,16 @@ import {
   readNativeSearchNotices,
   repositoryRoot,
 } from "./third-party-notices.mjs";
+
+export async function collectWorkspacePatches(readInput) {
+  // pnpm 10 的补丁所有者已经迁移到 workspace 配置；读取旧 package.json 字段会丢失发行声明。
+  const workspace = YAML.parse((await readInput("pnpm-workspace.yaml")).toString("utf8"));
+  const patches = [];
+  for (const [name, file] of Object.entries(workspace?.patchedDependencies ?? {})) {
+    patches.push({ package: name, file, sha256: hashBytes(await readInput(file)) });
+  }
+  return patches;
+}
 
 export async function generateThirdPartyNotices(root = repositoryRoot) {
   const inputs = {};
@@ -24,9 +35,8 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
     if (hashBytes(await readInput(runtime.file)) !== runtime.sha256)
       throw new Error(`Changed Node ${runtime.version} license`);
   }
-  const pkg = await readJson("package.json");
+  await readInput("package.json");
   await readInput("pnpm-lock.yaml");
-  await readInput("pnpm-workspace.yaml");
   await readInput("third-party/native-search/sources.json");
   const mise = await readMiseNotices(root, { verify: true });
   await readInput("third-party/mise/sources.json");
@@ -112,10 +122,7 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
     "Apache-2.0 licensed components",
     "Apache License, Version 2.0",
   );
-  const patches = [];
-  for (const [name, file] of Object.entries(pkg.pnpm?.patchedDependencies ?? {})) {
-    patches.push({ package: name, file, sha256: hashBytes(await readInput(file)) });
-  }
+  const patches = await collectWorkspacePatches(readInput);
   const native = await readNativeSearchNotices(root, { verify: true });
   for (const file of Object.keys(native.inventory.inputs)) await readInput(file);
   for (const component of native.inventory.components) {

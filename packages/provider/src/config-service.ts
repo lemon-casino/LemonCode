@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- Provider/Model 的原子配置生命周期共享一次 Repository 更新边界，拆开会重复顺序与规范化逻辑。 */
+/* oxlint-disable max-lines -- Provider/Model 的原子配置生命周期共享一次 Repository 更新边界，拆开会重复顺序与规范化逻辑。 */
 import type {
   ModelConfigRules,
   ModelId,

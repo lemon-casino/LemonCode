@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- Protocol unit cases and real socket edge cases stay aligned in one contract suite. */
+/* oxlint-disable max-lines -- Protocol unit cases and real socket edge cases stay aligned in one contract suite. */
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:net";

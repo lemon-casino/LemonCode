@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- 已发布旧 LCode config.json 的多版 Provider 结构读取集中在同一边界。 */
+/* oxlint-disable max-lines -- 已发布旧 LCode config.json 的多版 Provider 结构读取集中在同一边界。 */
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { z } from "zod";

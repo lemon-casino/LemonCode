@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- settings helper 聚合多个设置分组；终端、网络与自动归档多侧能力暂时超过行数限制。 */
+/* oxlint-disable max-lines -- settings helper 聚合多个设置分组；终端、网络与自动归档多侧能力暂时超过行数限制。 */
 import type {
   IntegratedTerminalShellOption,
   IntegratedTerminalShellSelection,

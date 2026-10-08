@@ -1,0 +1,7 @@
+{
+  "$schema": "../../node_modules/oxlint/configuration_schema.json",
+  // 根配置排除独立 CLI，导致包内 Lint 也跳过源码；包命令显式加载此配置并继承规则。
+  // 使用非自动发现名称，避免改变根 Lint 的检查范围；ignorePatterns 只重置 CLI 命令的范围。
+  "extends": ["../../.oxlintrc.json"],
+  "ignorePatterns": []
+}

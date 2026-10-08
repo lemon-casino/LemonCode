@@ -76,12 +76,6 @@
     "source": "https://raw.githubusercontent.com/facebook/yoga/v3.2.1/LICENSE"
   },
   {
-    "package": "@ai-sdk/provider-utils@4.0.27",
-    "file": "third-party/upstream/b4f9adb7c568904834d0dd6cc98d16c390d21ca32fc17ae7a267715269bd5529.txt",
-    "sha256": "b4f9adb7c568904834d0dd6cc98d16c390d21ca32fc17ae7a267715269bd5529",
-    "source": "https://raw.githubusercontent.com/vercel/ai/@ai-sdk/provider-utils@4.0.27/LICENSE"
-  },
-  {
     "package": "@ai-sdk/provider-utils@4.0.39",
     "file": "third-party/upstream/b4f9adb7c568904834d0dd6cc98d16c390d21ca32fc17ae7a267715269bd5529.txt",
     "sha256": "b4f9adb7c568904834d0dd6cc98d16c390d21ca32fc17ae7a267715269bd5529",
@@ -94,16 +88,16 @@
     "source": "node_modules/node-fetch/node_modules/data-uri-to-buffer/README.md"
   },
   {
-    "package": "@rive-app/react-webgl2@4.28.0",
+    "package": "@rive-app/react-webgl2@4.36.0",
     "file": "third-party/upstream/cf81859d85e99ff2fad83d51d9dfd85ca5189b23c4442aacf1890c54665d92f4.txt",
     "sha256": "cf81859d85e99ff2fad83d51d9dfd85ca5189b23c4442aacf1890c54665d92f4",
-    "source": "https://raw.githubusercontent.com/rive-app/rive-react/4161dedae00abdda48353dfc2698abfec242f465/LICENSE"
+    "source": "https://raw.githubusercontent.com/rive-app/rive-react/1c346e858a489608d99acf3137a0b90a274e095e/LICENSE"
   },
   {
-    "package": "@rive-app/webgl2@2.37.1",
+    "package": "@rive-app/webgl2@2.44.0",
     "file": "third-party/upstream/8a1efa755d19446b51a18e1c15f6308728da0b36283c4d38050698ad6954b69a.txt",
     "sha256": "8a1efa755d19446b51a18e1c15f6308728da0b36283c4d38050698ad6954b69a",
-    "source": "https://raw.githubusercontent.com/rive-app/rive-wasm/f6a20c7a5cbdd00257cd147ab5be73f87c2388ac/LICENSE"
+    "source": "https://raw.githubusercontent.com/rive-app/rive-wasm/03586f0e2adb991ba00b79807b7c645d519b1a48/LICENSE"
   },
   {
     "package": "embla-carousel@8.6.0",
@@ -124,22 +118,18 @@
     "source": "node_modules/omggif/README"
   },
   {
-    "package": "@hono/node-ws@1.3.0",
-    "repo": "honojs/middleware",
-    "refs": [
-      "2c026b9d5bfff006dc9abdc1b33c53856d2d784f"
-    ],
-    "file": "third-party/upstream/c681d64256e752c1435814cf045f4467720a8473e425ea54103a0f5128bfc817.txt",
-    "sha256": "c681d64256e752c1435814cf045f4467720a8473e425ea54103a0f5128bfc817",
-    "source": "https://registry.npmjs.org/@hono%2fnode-ws/1.3.0",
+    "package": "@hono/node-ws@1.3.1",
+    "file": "third-party/upstream/7cac6b18b43757c30aacf47bfae6ea4054f01f20668ad0c6c106fa0ddc502f1f.txt",
+    "sha256": "7cac6b18b43757c30aacf47bfae6ea4054f01f20668ad0c6c106fa0ddc502f1f",
+    "source": "https://registry.npmjs.org/@hono%2fnode-ws/1.3.1",
     "evidenceKind": "publisher-license-identifier-and-standard-terms",
     "license": "MIT",
     "reviewEvidence": {
-      "checkedOn": "2026-09-21",
-      "result": "The versioned npm archive contains no standalone complete LICENSE; existing publisher declaration and original README license sections remain preserved. Upstream authorization/copyright material is still required to close this review.",
-      "npmArchiveSha256": "48b94f87b85ca84428491d7275f0fad16450254bd49d9b2b4f621539fda8a2af",
-      "sourceRevision": "2c026b9d5bfff006dc9abdc1b33c53856d2d784f",
-      "sourceTreeUrl": "https://api.github.com/repos/honojs/middleware/git/trees/2c026b9d5bfff006dc9abdc1b33c53856d2d784f?recursive=1",
+      "checkedOn": "2026-10-08",
+      "result": "The versioned npm archive and pinned upstream tree contain no complete package-specific LICENSE. Publisher declaration and available README sections are retained; original authorization/copyright material remains unresolved.",
+      "npmArchiveSha256": "f742a98d56449a2730ac76c85ddb507aa25929be7e28dd13df7522018cc71813",
+      "sourceRevision": "d0e7b8ee0b8552defc580f30b2a55ad6fbbdfa7a",
+      "sourceTreeUrl": "https://api.github.com/repos/honojs/middleware/git/trees/d0e7b8ee0b8552defc580f30b2a55ad6fbbdfa7a?recursive=1",
       "upstreamLicenseFiles": []
     }
   },
@@ -323,78 +313,6 @@
     }
   },
   {
-    "package": "@radix-ui/react-use-size@1.1.1",
-    "file": "third-party/upstream/0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138.txt",
-    "sha256": "0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138",
-    "source": "https://raw.githubusercontent.com/radix-ui/primitives/fcef0668a5c827e5a4baac405474d75680f9a4eb/LICENSE"
-  },
-  {
-    "package": "@radix-ui/react-context@1.1.2",
-    "file": "third-party/upstream/0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138.txt",
-    "sha256": "0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138",
-    "source": "https://raw.githubusercontent.com/radix-ui/primitives/fcef0668a5c827e5a4baac405474d75680f9a4eb/LICENSE"
-  },
-  {
-    "package": "@radix-ui/react-direction@1.1.1",
-    "file": "third-party/upstream/0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138.txt",
-    "sha256": "0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138",
-    "source": "https://raw.githubusercontent.com/radix-ui/primitives/fcef0668a5c827e5a4baac405474d75680f9a4eb/LICENSE"
-  },
-  {
-    "package": "@radix-ui/react-use-previous@1.1.1",
-    "file": "third-party/upstream/0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138.txt",
-    "sha256": "0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138",
-    "source": "https://raw.githubusercontent.com/radix-ui/primitives/fcef0668a5c827e5a4baac405474d75680f9a4eb/LICENSE"
-  },
-  {
-    "package": "@radix-ui/rect@1.1.1",
-    "file": "third-party/upstream/0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138.txt",
-    "sha256": "0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138",
-    "source": "https://raw.githubusercontent.com/radix-ui/primitives/fcef0668a5c827e5a4baac405474d75680f9a4eb/LICENSE"
-  },
-  {
-    "package": "@radix-ui/react-use-layout-effect@1.1.1",
-    "file": "third-party/upstream/0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138.txt",
-    "sha256": "0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138",
-    "source": "https://raw.githubusercontent.com/radix-ui/primitives/fcef0668a5c827e5a4baac405474d75680f9a4eb/LICENSE"
-  },
-  {
-    "package": "@radix-ui/number@1.1.1",
-    "file": "third-party/upstream/0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138.txt",
-    "sha256": "0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138",
-    "source": "https://raw.githubusercontent.com/radix-ui/primitives/fcef0668a5c827e5a4baac405474d75680f9a4eb/LICENSE"
-  },
-  {
-    "package": "@radix-ui/react-id@1.1.1",
-    "file": "third-party/upstream/0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138.txt",
-    "sha256": "0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138",
-    "source": "https://raw.githubusercontent.com/radix-ui/primitives/fcef0668a5c827e5a4baac405474d75680f9a4eb/LICENSE"
-  },
-  {
-    "package": "@radix-ui/react-use-escape-keydown@1.1.1",
-    "file": "third-party/upstream/0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138.txt",
-    "sha256": "0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138",
-    "source": "https://raw.githubusercontent.com/radix-ui/primitives/fcef0668a5c827e5a4baac405474d75680f9a4eb/LICENSE"
-  },
-  {
-    "package": "@radix-ui/react-compose-refs@1.1.2",
-    "file": "third-party/upstream/0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138.txt",
-    "sha256": "0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138",
-    "source": "https://raw.githubusercontent.com/radix-ui/primitives/fcef0668a5c827e5a4baac405474d75680f9a4eb/LICENSE"
-  },
-  {
-    "package": "@radix-ui/react-use-callback-ref@1.1.1",
-    "file": "third-party/upstream/0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138.txt",
-    "sha256": "0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138",
-    "source": "https://raw.githubusercontent.com/radix-ui/primitives/fcef0668a5c827e5a4baac405474d75680f9a4eb/LICENSE"
-  },
-  {
-    "package": "@radix-ui/react-use-rect@1.1.1",
-    "file": "third-party/upstream/0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138.txt",
-    "sha256": "0e80a2d229d2fd4fc7e8636142ec5d0ff0bc031f14c15b682e2ac01dfd5b5138",
-    "source": "https://raw.githubusercontent.com/radix-ui/primitives/fcef0668a5c827e5a4baac405474d75680f9a4eb/LICENSE"
-  },
-  {
     "package": "embla-carousel-reactive-utils@8.6.0",
     "file": "third-party/upstream/992490064b90ec94c302fe5f29dcc14cb44145857064e46f9ffe6c8f511c1093.txt",
     "sha256": "992490064b90ec94c302fe5f29dcc14cb44145857064e46f9ffe6c8f511c1093",
@@ -435,14 +353,6 @@
     }
   },
   {
-    "package": "@dukelib/sheets-wasm@0.1.21",
-    "file": "third-party/upstream/ebb2e920800c6353474e3e23d84f714ee8aaecd8f5a71851aa03594a4129d855.txt",
-    "sha256": "ebb2e920800c6353474e3e23d84f714ee8aaecd8f5a71851aa03594a4129d855",
-    "source": "https://raw.githubusercontent.com/guseggert/duke-sheets/6a749bbfbd82f4f662dc7106781dfacf7e32f2a8/LICENSE",
-    "referenceRevision": "6a749bbfbd82f4f662dc7106781dfacf7e32f2a8",
-    "evidence": "License from the exact upstream release tag."
-  },
-  {
     "package": "ansi-to-react@6.2.6",
     "repo": "nteract/ansi-to-react",
     "refs": [
@@ -461,12 +371,6 @@
       "sourceTreeUrl": "https://api.github.com/repos/nteract/ansi-to-react/git/trees/145140971e9d83ccac32265f24b1c55dea437896?recursive=1",
       "upstreamLicenseFiles": []
     }
-  },
-  {
-    "package": "@ai-sdk/provider-utils@4.0.23",
-    "file": "third-party/upstream/b4f9adb7c568904834d0dd6cc98d16c390d21ca32fc17ae7a267715269bd5529.txt",
-    "sha256": "b4f9adb7c568904834d0dd6cc98d16c390d21ca32fc17ae7a267715269bd5529",
-    "source": "https://raw.githubusercontent.com/vercel/ai/@ai-sdk/provider-utils@4.0.23/LICENSE"
   },
   {
     "package": "exif-parser@0.1.12",
@@ -507,14 +411,6 @@
     "file": "third-party/upstream/e49e62397b603438476e0d6b5ca3b6e6d4f23a80594e596aff29ac04fa3e1b1c.txt",
     "sha256": "e49e62397b603438476e0d6b5ca3b6e6d4f23a80594e596aff29ac04fa3e1b1c",
     "source": "https://raw.githubusercontent.com/rrweb-io/rrweb/rrweb%402.1.6/LICENSE"
-  },
-  {
-    "package": "keyv@4.5.4",
-    "file": "third-party/upstream/6f7e6eae2a2afbaa67b266650f7342e7bf8e82cb57f6ab98148b3d6e0fb4450a.txt",
-    "sha256": "6f7e6eae2a2afbaa67b266650f7342e7bf8e82cb57f6ab98148b3d6e0fb4450a",
-    "source": "https://registry.npmjs.org/keyv/4.5.4",
-    "evidenceKind": "publisher-license-identifier-and-standard-terms",
-    "license": "MIT"
   },
   {
     "package": "@arms/rum-browser@0.1.8",
@@ -613,15 +509,89 @@
     "source": "https://raw.githubusercontent.com/ljharb/node-buffer-equal/main/LICENSE"
   },
   {
-    "package": "readable-web-to-node-stream@3.0.4",
-    "file": "third-party/upstream/1e21af3a61252a7026157204ca430a68bf960f3b942a880694bb01246393c86f.txt",
-    "sha256": "1e21af3a61252a7026157204ca430a68bf960f3b942a880694bb01246393c86f",
-    "source": "https://raw.githubusercontent.com/Borewit/readable-web-to-node-stream/master/README.md"
-  },
-  {
     "package": "tr46@0.0.3",
     "file": "third-party/upstream/499d6d466d064e0460427967a344e2a32fcb86ea8c6cd1a285ec4f1fa03fba67.txt",
     "sha256": "499d6d466d064e0460427967a344e2a32fcb86ea8c6cd1a285ec4f1fa03fba67",
     "source": "https://raw.githubusercontent.com/Sebmaster/tr46.js/main/LICENSE.md"
+  },
+  {
+    "package": "@dukelib/sheets-wasm@0.1.23",
+    "file": "third-party/upstream/ebb2e920800c6353474e3e23d84f714ee8aaecd8f5a71851aa03594a4129d855.txt",
+    "sha256": "ebb2e920800c6353474e3e23d84f714ee8aaecd8f5a71851aa03594a4129d855",
+    "source": "https://raw.githubusercontent.com/guseggert/duke-sheets/b30fff867622703f71edea6be16f20a2d4f96193/LICENSE"
+  },
+  {
+    "package": "agent-base@6.0.2",
+    "file": "third-party/upstream/9392da8d1d2ccb224d60025fee4d6223ae0b863469fcd8c6b9461145723cf1c4.txt",
+    "sha256": "9392da8d1d2ccb224d60025fee4d6223ae0b863469fcd8c6b9461145723cf1c4",
+    "source": "https://raw.githubusercontent.com/TooTallNate/node-agent-base/c4b8ea2e1a11bae023bb09b708050a50418204e9/README.md"
+  },
+  {
+    "package": "https-proxy-agent@5.0.1",
+    "file": "third-party/upstream/58f4074efa400c8397add18c6561d0a17e4721e24bfd1b4d1e8ca764a8cb3eca.txt",
+    "sha256": "58f4074efa400c8397add18c6561d0a17e4721e24bfd1b4d1e8ca764a8cb3eca",
+    "source": "https://raw.githubusercontent.com/TooTallNate/node-https-proxy-agent/d0d80cc0482f20495aa8595f802e1a9f3b1b3409/README.md"
+  },
+  {
+    "package": "fastdom@1.0.12",
+    "file": "third-party/upstream/df2ae14f12f31864acef768195afe4584b08a257f25925f49884619279f02f37.txt",
+    "sha256": "df2ae14f12f31864acef768195afe4584b08a257f25925f49884619279f02f37",
+    "source": "node_modules/fastdom/README.md"
+  },
+  {
+    "package": "strictdom@1.0.1",
+    "file": "third-party/upstream/eec385fa29ca410bf6bdbb5ddd5939af2067f474d3cd6d3fd46a4488656d8cbf.txt",
+    "sha256": "eec385fa29ca410bf6bdbb5ddd5939af2067f474d3cd6d3fd46a4488656d8cbf",
+    "source": "node_modules/strictdom/README.md"
+  },
+  {
+    "package": "@electron-internal/extract-zip@1.0.5",
+    "file": "third-party/upstream/d395cb43cd8659446e6e8c5b5c30fba411edb601289a6ec65d1e95db925ec847.txt",
+    "sha256": "d395cb43cd8659446e6e8c5b5c30fba411edb601289a6ec65d1e95db925ec847",
+    "source": "https://registry.npmjs.org/@electron-internal%2fextract-zip/1.0.5",
+    "evidenceKind": "publisher-license-identifier-and-standard-terms",
+    "license": "BSD-2-Clause",
+    "reviewEvidence": {
+      "checkedOn": "2026-10-08",
+      "result": "The versioned npm archive and pinned upstream tree contain no complete package-specific LICENSE. Publisher declaration and available README sections are retained; original authorization/copyright material remains unresolved.",
+      "npmArchiveSha256": "939b4462974f8fa1b339dd4f420c62787ddf06903cc9c61f1f0661f096f5370b",
+      "sourceRevision": "b83e459fd04c53b0a1c8438a6792df8f64be47fc",
+      "sourceTreeUrl": "https://api.github.com/repos/electron/extract-zip/git/trees/b83e459fd04c53b0a1c8438a6792df8f64be47fc?recursive=1",
+      "upstreamLicenseFiles": []
+    }
+  },
+  {
+    "package": "proxy-agent-negotiate@1.1.0",
+    "file": "third-party/upstream/9e1876e1fe29c7806765a313aa5b686193148bd020c168bfa83a21b323871bcf.txt",
+    "sha256": "9e1876e1fe29c7806765a313aa5b686193148bd020c168bfa83a21b323871bcf",
+    "source": "https://registry.npmjs.org/proxy-agent-negotiate/1.1.0",
+    "evidenceKind": "publisher-license-identifier-and-standard-terms",
+    "license": "MIT",
+    "reviewEvidence": {
+      "checkedOn": "2026-10-08",
+      "result": "The versioned npm archive and pinned upstream tree contain no complete package-specific LICENSE. Publisher declaration and available README sections are retained; original authorization/copyright material remains unresolved.",
+      "npmArchiveSha256": "6eec23d5d381a8b0ffafe91c19876d3a052e463618695981a7529f3a8bca1997",
+      "sourceRevision": "b7e5f7ccce1a3ac5b339cc4c587974e8989cbc16",
+      "sourceTreeUrl": "https://api.github.com/repos/TooTallNate/proxy-agents/git/trees/b7e5f7ccce1a3ac5b339cc4c587974e8989cbc16?recursive=1",
+      "upstreamLicenseFiles": []
+    }
+  },
+  {
+    "package": "@napi-rs/canvas-android-arm64@0.1.100",
+    "file": "third-party/upstream/8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6.txt",
+    "sha256": "8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6",
+    "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
+  },
+  {
+    "package": "@napi-rs/canvas-linux-arm-gnueabihf@0.1.100",
+    "file": "third-party/upstream/8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6.txt",
+    "sha256": "8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6",
+    "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
+  },
+  {
+    "package": "@napi-rs/canvas-linux-riscv64-gnu@0.1.100",
+    "file": "third-party/upstream/8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6.txt",
+    "sha256": "8802fecf9da4367bc23bcf20b21cc143785fc6c92b152f3fa7fbe6ce08d344d6",
+    "source": "https://raw.githubusercontent.com/Brooooooklyn/canvas/db337893b9b53483050ca7b24c6d306e4da06741/LICENSE"
   }
 ]

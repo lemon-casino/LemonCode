@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) */
+/* oxlint-disable max-lines */
 /**
  * WelcomeScreen —— OAuth / API Key 登录入口
  *

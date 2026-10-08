@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- task realtime 共享合约集中维护，类型和 schema 需要保持就近。 */
+/* oxlint-disable max-lines -- task realtime 共享合约集中维护，类型和 schema 需要保持就近。 */
 // ── 旧协议兼容面（过渡期）──────────────────────────────
 // 剩余 18 个导出：realtime 事件/lease/owner-command 接口类型。
 // 消费者：desktop taskRealtimeBus/taskRealtimeBridge、services sessionRealtimePort、

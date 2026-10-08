@@ -7,6 +7,30 @@ import YAML from "yaml";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
+test("tag build toolchain matches mise, root package and CLI engines", async () => {
+  const [mise, rootManifest, cliManifest, workflowSource] = await Promise.all([
+    readFile(joinRoot("mise.toml"), "utf8"),
+    readFile(joinRoot("package.json"), "utf8"),
+    readFile(joinRoot("apps/lcode-cli/package.json"), "utf8"),
+    readFile(joinRoot(".github/workflows/desktop-release.yml"), "utf8"),
+  ]);
+  const nodeVersion = mise.match(/^node\s*=\s*"([^"]+)"/m)?.[1];
+  const pnpmVersion = mise.match(/^pnpm\s*=\s*"([^"]+)"/m)?.[1];
+  assert.ok(nodeVersion);
+  assert.ok(pnpmVersion);
+  assert.equal(JSON.parse(rootManifest).packageManager, `pnpm@${pnpmVersion}`);
+  assert.equal(JSON.parse(cliManifest).packageManager, `pnpm@${pnpmVersion}`);
+  assert.equal(JSON.parse(cliManifest).engines.node, nodeVersion);
+  for (const job of Object.values(YAML.parse(workflowSource).jobs)) {
+    for (const step of job.steps ?? []) {
+      // 工具升级后旧 CI pin 会让 tag 构建使用不同运行时；所有 matrix/release job 都要核对。
+      if (step.uses?.startsWith("actions/setup-node@"))
+        assert.equal(step.with["node-version"], nodeVersion);
+      if (step.uses?.startsWith("pnpm/action-setup@")) assert.equal(step.with.version, pnpmVersion);
+    }
+  }
+});
+
 test("Actions uses Node 24 runtimes and prepares the isolated release job", async () => {
   const workflow = YAML.parse(
     await readFile(joinRoot(".github/workflows/desktop-release.yml"), "utf8"),
@@ -41,7 +65,7 @@ test("Actions uses Node 24 runtimes and prepares the isolated release job", asyn
   const verifyIndex = releaseSteps.findIndex(
     (step) => step.name === "Verify all six platform packages",
   );
-  assert.equal(releaseSteps[pnpmSetupIndex].with.version, "10.33.2");
+  assert.equal(releaseSteps[pnpmSetupIndex].with.version, "10.34.6");
   assert.equal(releaseSteps[pnpmSetupIndex].with.run_install, false);
   assert.equal(releaseSteps[nodeSetupIndex].with.cache, "pnpm");
   assert.equal(releaseSteps[installIndex].run, "pnpm install --frozen-lockfile --ignore-scripts");
@@ -53,3 +77,29 @@ test("Actions uses Node 24 runtimes and prepares the isolated release job", asyn
 function joinRoot(path) {
   return resolve(root, path);
 }
+
+test("tag build checks dependency patches and both source workspaces before packaging", async () => {
+  const workflow = YAML.parse(
+    await readFile(joinRoot(".github/workflows/desktop-release.yml"), "utf8"),
+  );
+  const steps = workflow.jobs.build.steps;
+  const checksIndex = steps.findIndex(
+    (step) => step.name === "Verify dependency security and source checks",
+  );
+  const packageIndex = steps.findIndex(
+    (step) => step.name === "Package and verify desktop app identity",
+  );
+  assert.ok(checksIndex >= 0 && checksIndex < packageIndex);
+  assert.equal(steps[checksIndex].if, "matrix.os == 'linux' && matrix.arch == 'x64'");
+  const commands = steps[checksIndex].run.trim().split(/\r?\n/u);
+  for (const command of [
+    "pnpm test:dependency-security",
+    "pnpm typecheck",
+    "pnpm lint",
+    "pnpm --dir apps/lcode-cli typecheck",
+    "pnpm --dir apps/lcode-cli lint",
+    "pnpm architecture:check",
+  ]) {
+    assert.ok(commands.includes(command), `Missing release check: ${command}`);
+  }
+});

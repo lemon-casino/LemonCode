@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- V4ComposerToolbar 汇聚模型/思考深度/context usage 三件套；继续拆分会打散工具条热键与模型目录 memo 的共享状态。 */
+/* oxlint-disable max-lines -- V4ComposerToolbar 汇聚模型/思考深度/context usage 三件套；继续拆分会打散工具条热键与模型目录 memo 的共享状态。 */
 /**
  * V4 composer 工具条。
  *
@@ -73,8 +73,7 @@ import {
 } from "@/hooks/useUsageEntitlement.js";
 import { useToolbarConfigOptions } from "@/hooks/useLCodeConfig.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
-import {
-} from "@/lib/codingPlanFunnelTelemetry.js";
+import {} from "@/lib/codingPlanFunnelTelemetry.js";
 import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { logger } from "@/logger.js";
 import { useLiveOutputRate } from "@/v4/composer/useLiveOutputRate.js";

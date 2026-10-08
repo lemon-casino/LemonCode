@@ -11,7 +11,7 @@
     "build": "tsc && node scripts/build.mjs",
     "clean": "node ../../scripts/clean-dist.mjs",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint src --no-ignore"
+    "lint": "oxlint --config ../../oxlint.config.json src --no-ignore"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "2.0.0",
@@ -22,7 +22,7 @@
     "zod": "4.6.5"
   },
   "devDependencies": {
-    "@modelcontextprotocol/client": "2.0.0",
+    "@modelcontextprotocol/client": "2.3.1",
     "@types/node": "^24.0.0",
     "@lcode/adapters": "workspace:*",
     "@lcode/bootstrap": "workspace:*",

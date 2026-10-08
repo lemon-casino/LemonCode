@@ -191,8 +191,10 @@ test("isolated fork commits the child path and new binding in the same atomic bu
   assert.equal(bundle?.child.path, path);
   assert.equal(bundle?.child.workspaceID, "fork-identity");
   const entry = bundle?.entries.find((entry) => entry.type === "runtime/worktree_binding");
-  assert.equal((entry?.data as { executionBindingId: string }).executionBindingId, "binding-new");
-  assert.equal((entry?.data as { bindingOwnerTaskId?: string }).bindingOwnerTaskId, undefined);
+  // 先确认持久化条目存在，让缺失回执表现为清晰断言失败而非可选链后的 TypeError。
+  assert.ok(entry);
+  assert.equal((entry.data as { executionBindingId: string }).executionBindingId, "binding-new");
+  assert.equal((entry.data as { bindingOwnerTaskId?: string }).bindingOwnerTaskId, undefined);
   assert.equal(bundle?.commandFact?.ack.result?.type, "forkSession");
   assert.notEqual(parent.path, path);
 });

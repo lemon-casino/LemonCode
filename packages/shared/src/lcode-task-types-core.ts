@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- re-home 产物：task 投影承重类型集中迁移，保持单文件契约面。 */
+/* oxlint-disable max-lines -- re-home 产物：task 投影承重类型集中迁移，保持单文件契约面。 */
 // re-home 迁移产物（为删除旧协议树铺路）。
 // 本文件承载旧 task 投影中仍被存活栈消费的明星承重类型：LCodeTaskMeta / LCodeProvider /
 // LCodeStreamEvent / TraceId/InputId/QueryId / LCodePersistedMessage(Part) / LCodeTaskSnapshot /

@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- Public broker/server compatibility behavior is exercised as one matrix. */
+/* oxlint-disable max-lines -- Public broker/server compatibility behavior is exercised as one matrix. */
 import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";

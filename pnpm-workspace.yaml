@@ -3,19 +3,6 @@ packages:
   - apps/lcode-cli
   - apps/lcode-cli/packages/*
   - apps/lcode-cli/tools/*
-supportedArchitectures:
-  os:
-    - current
-    - darwin
-    - linux
-    - win32
-  cpu:
-    - current
-    - x64
-    - arm64
-  libc:
-    - current
-    - glibc
 allowBuilds:
   cpu-features: true
   edgedriver: true
@@ -32,9 +19,45 @@ allowBuilds:
 # pnpm 10+ 不再读取 package.json 的 "pnpm" 字段,overrides 与 patchedDependencies
 # 统一迁移到本文件(值与 pnpm-lock.yaml 顶部记录保持一致)。
 overrides:
+  "@ai-sdk/anthropic": 3.0.81
+  "@ai-sdk/provider-utils@>=4 <4.0.33": 4.0.33
+  "@ai-sdk/openai-compatible": 2.0.60
+  # 本地补丁与版本绑定，不能在重新解析时静默跳过。
+  "@arms/rum-electron": 0.0.3
+  "@jimp/core@0.22.12>file-type": 21.3.3
+  "@tailwindcss/typography>postcss-selector-parser": 7.1.6
+  "ansi-to-react>linkify-it": 5.0.2
+  "app-builder-lib>@electron/get": 5.1.0
+  braces: 3.0.3
+  # 安全修复：父包尚未更新固定子依赖，仅替换已验证兼容的安全版本。
+  "concurrently>shell-quote": 1.12.0
+  "get-uri>basic-ftp": 6.2.2
+  "http-mitm-proxy>uuid": 11.1.1
+  "katex@<0.19": 0.19.0
+  node-forge: 1.4.0
+  "oxfmt>tinypool": 2.2.0
   react: 19.2.7
   react-dom: 19.2.7
+  "release-it>undici": 6.29.0
+  "tsup>esbuild": 0.28.2
+  "vis-timeline>moment": 2.31.0
 patchedDependencies:
-  '@arms/rum-electron@0.0.3': patches/@arms__rum-electron@0.0.3.patch
-  '@ai-sdk/openai-compatible@2.0.60': patches/@ai-sdk__openai-compatible@2.0.60.patch
-  '@ai-sdk/anthropic@3.0.81': patches/@ai-sdk__anthropic@3.0.81.patch
+  "@ai-sdk/anthropic@3.0.81": patches/@ai-sdk__anthropic@3.0.81.patch
+  "@ai-sdk/openai-compatible@2.0.60": patches/@ai-sdk__openai-compatible@2.0.60.patch
+  "@arms/rum-electron@0.0.3": patches/@arms__rum-electron@0.0.3.patch
+  "@jimp/core@0.22.12": patches/@jimp__core@0.22.12.patch
+  braces@3.0.3: patches/braces@3.0.3.patch
+  node-forge@1.4.0: patches/node-forge@1.4.0.patch
+supportedArchitectures:
+  cpu:
+    - current
+    - x64
+    - arm64
+  libc:
+    - current
+    - glibc
+  os:
+    - current
+    - darwin
+    - linux
+    - win32

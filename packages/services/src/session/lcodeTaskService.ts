@@ -41,12 +41,10 @@ import type {
 import type {
   LCodeTaskListQuery,
   LCodeTaskListResult,
-  LCodeTaskListSortBy,
   LCodeTaskListWorkspaceScope,
   LCodeWorkspaceEventSubscriptionParams,
   LCodeGroupedTaskView,
   LCodeGroupedTaskViewOrderInput,
-  LCodeGroupedTaskViewQuery,
   LCodeGroupedTaskViewStructure,
   LCodeTaskGroup,
   LCodeTaskGroupColor,

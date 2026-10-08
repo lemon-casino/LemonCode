@@ -43,7 +43,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-node@v7
         with:
-          node-version: 24.14.0
+          node-version: 24.21.0
           cache: npm
           cache-dependency-path: xa11y-upstream/xa11y-js/package-lock.json
       - name: Verify locked xa11y identity
@@ -124,11 +124,11 @@ jobs:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with:
-          version: 10.33.2
+          version: 10.34.6
           run_install: false
       - uses: actions/setup-node@v7
         with:
-          node-version: 24.14.0
+          node-version: 24.21.0
           cache: pnpm
       - name: Check release version
         id: version
@@ -155,6 +155,15 @@ jobs:
       - name: Verify release contract
         if: matrix.os == 'linux' && matrix.arch == 'x64'
         run: pnpm test:release
+      - name: Verify dependency security and source checks
+        if: matrix.os == 'linux' && matrix.arch == 'x64'
+        run: |
+          pnpm test:dependency-security
+          pnpm typecheck
+          pnpm lint
+          pnpm --dir apps/lcode-cli typecheck
+          pnpm --dir apps/lcode-cli lint
+          pnpm architecture:check
       - name: Download Linux Computer Use xa11y addon
         if: runner.os == 'Linux'
         uses: actions/download-artifact@v8
@@ -204,11 +213,11 @@ jobs:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
         with:
-          version: 10.33.2
+          version: 10.34.6
           run_install: false
       - uses: actions/setup-node@v7
         with:
-          node-version: 24.14.0
+          node-version: 24.21.0
           cache: pnpm
       - name: Check release version
         id: version

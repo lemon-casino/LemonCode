@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- Resolver 同时产出 Settings 分层结果与唯一 Registry 完整类型证明。 */
+/* oxlint-disable max-lines -- Resolver 同时产出 Settings 分层结果与唯一 Registry 完整类型证明。 */
 import type { z } from "zod";
 import type { completeModelConfigDataSchema } from "@lcode/shared/model-config";
 import type {

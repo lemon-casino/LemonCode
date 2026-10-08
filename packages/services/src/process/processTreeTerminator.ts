@@ -6,7 +6,6 @@ import {
 } from "#src/process/processTreeSnapshot.js";
 import {
   captureExitedRootDescendantsSnapshotAsync,
-  captureProcessTreeSnapshotAsync,
   verifyWindowsProcessIdentityAsync,
 } from "#src/process/processTreeSnapshotAsync.js";
 import {

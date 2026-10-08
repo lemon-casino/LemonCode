@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) */
+/* oxlint-disable max-lines */
 import { ArrowLeft, Rocket, type LucideIcon } from "lucide-react";
 import {
   useCallback,

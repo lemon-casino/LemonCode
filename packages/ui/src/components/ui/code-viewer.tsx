@@ -677,7 +677,8 @@ export function CodeViewer({
   }, [file.cacheKey, firstLineNumber, focusedEndLine, focusedStartLine, focusRequestId]);
   // 依赖是 CSS 字符串（内容）而不是数组引用：调用方每次渲染给一个新数组时，options 不该跟着换（File 会重排）。
   const markedLinesCss = codeViewerMarkedLinesCss(markedLines);
-  const options = useMemo<FileOptions<CodeViewerAnnotationMetadata>>(
+  // 新版新增 caret 元数据泛型；显式 undefined 保留现有行评论与只读查看语义。
+  const options = useMemo<FileOptions<CodeViewerAnnotationMetadata, undefined>>(
     () => ({
       disableFileHeader: true,
       disableLineNumbers: !showLineNumbers,

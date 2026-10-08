@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- summary 与同源 detail 投影暂集中维护，本次 review fix 不扩大重构范围。 */
+/* oxlint-disable max-lines -- summary 与同源 detail 投影暂集中维护，本次 review fix 不扩大重构范围。 */
 import { type ReactNode, useCallback, useMemo } from "react";
 import type { ApplicationIconRequest } from "@lcode/shared";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";

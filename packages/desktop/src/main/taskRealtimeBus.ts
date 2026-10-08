@@ -1,4 +1,4 @@
-/* oxlint-disable eslint(max-lines) -- task realtime bus owns lease, stream batching, replay and command routing state in one main-process coordinator. */
+/* oxlint-disable max-lines -- task realtime bus owns lease, stream batching, replay and command routing state in one main-process coordinator. */
 import type { UtilityProcess as ElectronUtilityProcess } from "electron";
 import {
   type TaskOwnerCommandDelivery,
