@@ -2183,6 +2183,9 @@ const zhCN: Record<string, string> = {
   "settings.remoteControl.pairing.status.waiting": "等待手机连接…",
   "settings.remoteControl.pairing.status.pairing": "设备请求接入",
   "settings.remoteControl.pairing.status.bridged": "已就绪",
+  "settings.remoteControl.pairing.status.reconnecting": "等待手机重新连接…",
+  "settings.remoteControl.pairing.reconnectingDescription":
+    "手机暂时断开，重新打开原配对页面即可恢复连接；已授权设备无需再次确认。",
   "settings.remoteControl.pairing.status.error": "配对出错",
   "settings.remoteControl.pairing.idleDescription":
     "生成配对二维码后，用手机扫码或打开复制链接，完成双方授权即可开始镜像。",

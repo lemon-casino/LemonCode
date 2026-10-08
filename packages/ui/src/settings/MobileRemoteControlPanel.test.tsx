@@ -21,6 +21,30 @@ registerHooks({
 const { LCodeIntlProvider } = await import("@/i18n/IntlProvider.js");
 const { PlatformProvider } = await import("@/hooks/usePlatform.js");
 const { MobileRemoteControlPanel } = await import("./MobileRemoteControlPanel.js");
+const { RemotePairingPanel } = await import("./RemotePairingPanel.js");
+
+test("等待手机重连时显示恢复提示，不显示错误或已消费二维码", () => {
+  const markup = renderToStaticMarkup(
+    <PlatformProvider platform={{} as IPlatformService}>
+      <LCodeIntlProvider>
+        <RemotePairingPanel
+          canStart={true}
+          noMirrorTargetHint=""
+          pairing={{ state: "reconnecting", roomId: "test-room" }}
+          pairingUrl="https://relay.example.com/p/test-room#c=consumed"
+          startingPairing={false}
+          stoppingPairing={false}
+          onStart={async () => {}}
+          onStop={async () => {}}
+          onDecide={async () => {}}
+        />
+      </LCodeIntlProvider>
+    </PlatformProvider>,
+  );
+  assert.match(markup, /等待手机重新连接/);
+  assert.doesNotMatch(markup, /BRIDGE_DETACHED|配对出错|remote-control-pairing-url/);
+  assert.match(markup, /停止/);
+});
 
 /** 只具备契约 §6.3 必需通道能力的最小平台桩；config 快照可覆盖。 */
 function makeBridgePlatformStub(configOverrides: Record<string, unknown> = {}) {

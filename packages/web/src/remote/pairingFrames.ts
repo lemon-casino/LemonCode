@@ -13,6 +13,7 @@ export type PairingFailureKey =
   | "expired"
   | "invalidated"
   | "stopped"
+  | "revoked"
   | "busy"
   | "heartbeat"
   | "bridge-timeout"
@@ -54,7 +55,7 @@ export function parsePairingControlFrame(raw: unknown): PairingWorkerFrame | nul
 }
 
 /** Worker 语义化关闭码(§3.2)→ 失败文案 key;未知/网络层关闭统一按 network。 */
-export function describePairingClose(code: number): PairingFailureKey {
+export function describePairingClose(code: number, reason?: string): PairingFailureKey {
   switch (code) {
     case 4001:
       return "heartbeat";
@@ -69,7 +70,8 @@ export function describePairingClose(code: number): PairingFailureKey {
     case 4006:
       return "invalidated";
     case 4007:
-      return "stopped";
+      // 停止房间与吊销设备共用 4007，但只有 Worker 的明确吊销原因会撤销持久凭据。
+      return reason === "device revoked" ? "revoked" : "stopped";
     case 4008:
       return "busy";
     default:

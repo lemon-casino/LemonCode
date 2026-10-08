@@ -29,7 +29,7 @@
 
 没有经本轮核实的Bot实例管理、chat binding、provider webhook、通知outbox、聊天安全深链或Bot到V4的受限命令入口。`sendConversationCommandV4` 的现有 `getClient` 可能启动workspace runtime；现有订阅和命令查询使用的 `getReadOnlyClient` 默认也可能启动CLI（`lcodeAgentService.ts:4819、5113`）。因此Bot的status、事件订阅、command、command query都需要同一可信 existing-only 访问策略，不只是新增发送入口。连接消失返回offline或outcome-unknown，不借只读查询拉起runtime。
 
-当前浏览器设备凭据在sessionStorage；新浏览器/聊天内置浏览器不保证复用。`/p/<roomId>`无capability的链接，只对已经持有效设备凭据的浏览器会话有用。不能把该链接描述为任何微信/Telegram点击即可永久免授权进入。
+当前浏览器设备凭据按用户确认的“记住设备”规则同源持久保存，旧 sessionStorage 仅用于迁移或不可持久保存时降级；不同浏览器/聊天内置浏览器不保证复用。`/p/<roomId>` 无 capability 的链接只对已经持有效设备凭据的浏览器有用，不能描述为任意聊天客户端点击即可免授权进入。
 
 ### 2.3 调查基线
 
@@ -41,7 +41,7 @@
 - [凭据store](../packages/desktop/src/main/desktopRemoteControlStore.ts:14)
 - [已有Host查找与remote attachment](../packages/desktop/src/main/desktopRemoteSessions.ts:832)
 - [Worker入口](../cfworker-remote/src/index.ts:112)与[Room](../cfworker-remote/src/room.ts:91)
-- [设备凭据sessionStorage](../packages/web/src/remote/pairingCredentialStore.ts:1)
+- [设备凭据存储与旧会话迁移](../packages/web/src/remote/pairingCredentialStore.ts:1)：当前持久恢复语义见 [手机重连规格](./mobile-remote-reconnect.md)。
 - [V4发送入口](../packages/services/src/lcode-agent/lcodeAgentService.ts:5038)
 - [CommandInbox](../apps/lcode-cli/packages/bootstrap/src/lcode-protocol-v4/command-inbox.ts:78)
 
@@ -212,7 +212,7 @@ B1复用现有 `/p/<active-roomId>`，**不附 capability、hostToken、deviceCr
 1. 已授权chat请求 `/open`，本地生成绑定到Bot/用户/目标的短期一次性申请ticket，仅代表发起配对申请。
 2. 浏览器兑换时提交一次性nonce；Worker只转发，桌面展示目标、设备与比对码，由用户确认。
 3. 只有原配对链完成后才签发设备凭据；ticket泄漏/转发不能自动变成远控权限。
-4. 用户不在桌面、浏览器又没有已授权凭据时不能保证无人工打开；若产品要求长期可信设备，需要另做受保护持久credential/passkey及丢设备吊销设计，不能偷偷把sessionStorage改localStorage。
+4. 用户不在桌面、浏览器又没有已授权凭据时不能保证无人工打开。用户已确认的“记住设备”仅保留既有授权并支持桌面吊销（见手机重连规格）；新浏览器授权、passkey 与 Bot ticket 仍需独立设计，不能借持久存储绕过确认。
 
 这是新增协议与安全流程，非B1暗含已实现能力。
 

@@ -1,10 +1,26 @@
 import type { PairingFailureKey } from "./pairingFrames.js";
 
+/** 房间关闭不撤销设备；只有设备鉴权失败或明确吊销才退休本地凭据。 */
+export const CREDENTIAL_DEATH_KEYS: ReadonlySet<PairingFailureKey> = new Set(["auth", "revoked"]);
+
+export function shouldFallbackToPairingCapability(params: {
+  key: PairingFailureKey;
+  storedRoomId: string;
+  routeRoomId: string;
+  hasCapability: boolean;
+}): boolean {
+  // 原网络重试耗尽后无条件回退 capability，会把可恢复断线变成一次性链接重放失败。
+  // 同房间已有授权也证明其旧 capability 已消费；仅新房间的鉴权失败可重新确认。
+  return (
+    params.key === "auth" && params.hasCapability && params.storedRoomId !== params.routeRoomId
+  );
+}
+
 /**
  * 镜像连接的重连策略(契约 §3.3 / specs/mobile-remote-control-cf-workers.md:87):
- * - 接管后(settled)数据套接字网络类断链 → 自动刷新页面重连:刷新后深链 + 会话凭据
+ * - 接管后数据套接字网络类断链 → 自动刷新页面重连:刷新后深链 + 已保存设备凭据
  *   走既有 resume 路径(bridge.open resumed),重连过程由配对页 bridging 界面提示。
- *   凭据/房间类死亡(吊销/停止/过期/失效)不重连:重连必然失败且白耗 §3.1 失败计数。
+ *   房间停止/过期/失效不自动刷新，但保留设备授权；明确吊销或鉴权失败才清理凭据。
  * - 建连阶段对 busy(4008) 与网络类失败做有界重试:旧套接字无 FIN 死亡时,Worker
  *   需等约 75s 心跳超时才释放桥槽(cfworker-remote/src/room.ts:795-811),期间同凭据
  *   重连被 4008 拒绝;Worker 对 busy 不计失败(room.ts:289-295「凭据校验已通过,

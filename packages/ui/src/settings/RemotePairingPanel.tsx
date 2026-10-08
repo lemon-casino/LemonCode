@@ -41,7 +41,7 @@ type PairingDotTone = "green" | "amber" | "red" | "subtle";
  * 前者是「状态未知」——Main 仅在状态变化时推送、契约 §6.3 无状态查询通道，
  * 设置页重挂载后无法区分「没在配对」与「正在镜像中」，必须如实降级并由二次确认拦截。 */
 function resolvePanelPhase(pairing: RemotePairingStateEvent | null): {
-  state: "unknown" | "idle" | "waiting" | "pairing" | "bridged" | "error";
+  state: "unknown" | "idle" | "waiting" | "pairing" | "bridged" | "reconnecting" | "error";
   tone: PairingDotTone;
 } {
   if (!pairing) return { state: "unknown", tone: "subtle" };
@@ -335,6 +335,24 @@ export function RemotePairingPanel({
               {intl.formatMessage({ id: "settings.remoteControl.pairing.reject" })}
             </Button>
           </div>
+        </div>
+      ) : null}
+
+      {phase.state === "reconnecting" ? (
+        <div className="flex flex-col items-start gap-2">
+          {/* Main 仍持有房间；不显示已消费二维码，也不把正常断连投影为鉴权错误。 */}
+          <p className="text-ui-base text-foreground-subtle">
+            {intl.formatMessage({ id: "settings.remoteControl.pairing.reconnectingDescription" })}
+          </p>
+          <Button
+            type="button"
+            size="lg"
+            variant="destructive"
+            disabled={busy}
+            onClick={() => void onStop()}
+          >
+            {intl.formatMessage({ id: "settings.remoteControl.pairing.stop" })}
+          </Button>
         </div>
       ) : null}
 

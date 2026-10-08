@@ -105,7 +105,7 @@ interface ActivePairingSession {
   capability: string;
   tunnel: RemoteControlTunnelSession;
   /** Worker 返回的房间过期时间;room.ready 之前用本地 TTL 估算。 */
-  expiresAt: number;
+  expiresAt: number | null;
   mirrorTarget?: RemotePairingMirrorTarget;
 }
 
@@ -355,6 +355,11 @@ export function createRemoteControlController(options: RemoteControlControllerOp
           // 已桥接时 host socket 闪断重连(§3.3):DO 保留桥并忽略重发的 room.create,
           // 房间真实状态仍是 bridged,不能把面板推回 waiting(旧二维码已消费,重扫必拒)。
           if (bridge) return;
+          // null 表示旧 capability 已消费；等待授权设备恢复，不能重新展示旧二维码。
+          if (frame.expiresAt === null) {
+            pushState({ state: "reconnecting", roomId });
+            return;
+          }
           pushState({ state: "waiting", roomId: frame.roomId, expiresAt: frame.expiresAt });
         },
         onPairingRequested: (frame) => {
@@ -420,20 +425,23 @@ export function createRemoteControlController(options: RemoteControlControllerOp
         onBridgeOpen: (frame) => {
           void handleBridgeOpen(roomId, frame.deviceId, frame.resumed);
         },
-        onBridgeDetached: () => {
+        onBridgeDetached: (frame) => {
           // 宽限耗尽(或吊销命中)后 Worker 已断桥;桌面按契约执行 detach(§3.3/§6.4)。
           // 房间并未终止(session/tunnel 存活,手机仍可凭设备凭据重连再次 bridged),
-          // 因此推送 error 而非 stopped——面板展示"桥已断开"的事实,不宣称会话已停止。
+          // 正常断桥属于恢复流程；旧实现的 BRIDGE_DETACHED error 会误导用户重新配对。
           if (session?.roomId !== roomId) return;
+          if (bridge && bridge.deviceId !== frame.deviceId) return;
           teardownBridge("bridge-detached");
-          pushState({ state: "error", error: "BRIDGE_DETACHED" });
+          pushState({ state: "reconnecting", roomId });
         },
         onPeerDisconnected: (frame) => {
+          if (session?.roomId !== roomId || bridge?.deviceId !== frame.deviceId) return;
           // 手机 60s 重连宽限内保持 attachment,由 v4 replayable 订阅缓冲补齐断口(§3.3)。
           options.logger.info("[remote-control] phone disconnected, waiting for resume", {
             deviceId: frame.deviceId,
           });
           void touchDeviceLastSeen(frame.deviceId);
+          pushState({ state: "reconnecting", roomId });
         },
         onRoomInvalidated: (frame) => {
           if (session?.roomId !== roomId) return;

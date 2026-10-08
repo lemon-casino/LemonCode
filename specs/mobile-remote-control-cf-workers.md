@@ -100,6 +100,8 @@ sequenceDiagram
 
 ## 移动端
 
+- 手机后台恢复与关闭页面后免重复授权重连遵循 [手机远控恢复规格](./mobile-remote-reconnect.md)。用户已选择记住设备；持久化、旧键迁移、失败清理及 Main reconnecting 状态只有各自一个所有者。
+
 - 载体:`packages/web` 完整客户端的构建产物(**镜像 UI**),由 Worker 静态资源托管;新增配对深链接入——从 `/p/<roomId>#<capability>` 深链读取配对参数,完成双方授权后按既有 connectViaWebSocket 流程连到同源 WS。
 - 权限镜像:命令面与桌面使用者一致,不做额外缩减;仅 desktop-continuous 专属能力(如视频 preview)按既有档位门禁如实降级。断网重连后按 web-remote-replayable 恢复,已结算事实不丢、可 replay 补齐。
 - 启动渲染门禁(2026-09-28 黑屏诊断补充):桌面专用的启动 loading 门禁(`shouldShowRootStartupLoading`)只覆盖桌面,Web/手机在启动解析(鉴权/provider/会话恢复,均经 CF 桥,RTT 显著放大)完成前会落到「无 workspaceShellPath」分支。该分支禁止渲染空 RootShell(表现为整页黑屏),必须渲染与桌面一致的 `RootStartupLoading` 启动页,直至 welcome/工作区内容就绪。

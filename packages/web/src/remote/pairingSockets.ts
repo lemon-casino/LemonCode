@@ -49,10 +49,7 @@ const PAIRING_SOCKET_TIMEOUT_MS = 10 * 60 * 1000;
  * pairing.accepted / pairing.rejected / error;room.* 帧按契约发往桌面,
  * 但若 Worker 直发手机也按同义失败映射,避免无谓等待到超时。
  */
-export function openPairingSocket(
-  url: string,
-  onOpen: () => void,
-): Promise<PairingSocketOutcome> {
+export function openPairingSocket(url: string, onOpen: () => void): Promise<PairingSocketOutcome> {
   return new Promise((resolve) => {
     let settled = false;
     const ws = new WebSocket(url);
@@ -119,7 +116,7 @@ export function openPairingSocket(
         finish({ kind: "failed", key: "network" });
         return;
       }
-      finish({ kind: "failed", key: describePairingClose(event.code) });
+      finish({ kind: "failed", key: describePairingClose(event.code, event.reason) });
     });
   });
 }
@@ -154,6 +151,7 @@ export function connectBridgedDataSocket(
 ): Promise<MobileDataServices> {
   return new Promise((resolve, reject) => {
     let settled = false;
+    let connected = false;
     let heartbeat: ReturnType<typeof setInterval> | undefined;
     let socket: WebSocket | undefined;
     let resolveBridgeOpen: (() => void) | undefined;
@@ -187,12 +185,13 @@ export function connectBridgedDataSocket(
       onClose: (event: WebSocketConnectionCloseEvent) => {
         stopHeartbeat();
         if (!settled) {
-          fail(describePairingClose(event.code), event.reason || undefined);
+          fail(describePairingClose(event.code, event.reason), event.reason || undefined);
           return;
         }
         // 接管后断链:交给调用方的重连监督者执行 §3.3 的 resumed 重连;
         // 未提供回调时保持既有 web 行为(静默,无重连执行者)。
-        onDisconnected?.(describePairingClose(event.code));
+        // 超时拒绝也会 settled，但未交付 services；不能因此刷新整页打断原重试。
+        if (connected) onDisconnected?.(describePairingClose(event.code, event.reason));
       },
       onOpenSocket: (ws) => {
         socket = ws;
@@ -214,6 +213,7 @@ export function connectBridgedDataSocket(
             return;
           }
           settled = true;
+          connected = true;
           clearTimeout(bridgeTimeout);
           resolve(services);
         });

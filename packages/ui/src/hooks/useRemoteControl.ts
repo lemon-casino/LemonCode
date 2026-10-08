@@ -97,8 +97,8 @@ export function useRemoteControl(platform: IPlatformService) {
       }
       previousState = event.state;
       setPairing(event);
-      if (event.state === "stopped" || event.state === "error") {
-        // 房间已终态：链接里的 capability 已失效（PROTOCOL.md §4.2 consume-once），
+      if (event.state === "stopped" || event.state === "error" || event.state === "reconnecting") {
+        // 房间终态或已配对设备等待重连时，旧 capability 已消费，不能恢复旧二维码。
         // 二维码与复制链接不再可用，立即回收内存中的明文链接。
         setPairingUrl(null);
       }

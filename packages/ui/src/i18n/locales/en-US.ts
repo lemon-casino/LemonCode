@@ -2324,6 +2324,9 @@ const enUS: Record<string, string> = {
   "settings.remoteControl.pairing.status.waiting": "Waiting for the phone to connect…",
   "settings.remoteControl.pairing.status.pairing": "Device requesting access",
   "settings.remoteControl.pairing.status.bridged": "Ready",
+  "settings.remoteControl.pairing.status.reconnecting": "Waiting for the phone to reconnect…",
+  "settings.remoteControl.pairing.reconnectingDescription":
+    "The phone disconnected. Reopen the original pairing page to reconnect; authorized devices do not need another confirmation.",
   "settings.remoteControl.pairing.status.error": "Pairing error",
   "settings.remoteControl.pairing.idleDescription":
     "Generate a pairing QR code, then scan it or open the copied link on the phone. Once both sides authorize, mirroring starts.",

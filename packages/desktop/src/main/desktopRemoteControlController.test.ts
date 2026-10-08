@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { RemoteControlPersistedDevice, RemotePairingStatePush } from "@lcode/shared";
-import { DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL } from "@lcode/shared";
+import type {
+  RemoteControlPersistedDevice,
+  RemotePairingStatePush,
+  RemotePairingMirrorTarget,
+} from "@lcode/shared";
+import {
+  DEFAULT_REMOTE_CONTROL_WORKER_BASE_URL,
+  remoteControlRoomReadyFrameSchema,
+} from "@lcode/shared";
 import { createRemoteControlController } from "./desktopRemoteControlController.js";
 import {
   REMOTE_CONTROL_ACCESS_KEY_CREDENTIAL_KEY,
@@ -152,13 +159,14 @@ function makeController(options?: {
   return { controller, map, service, tunnels, broadcasts, okAttach };
 }
 
+// 按公开 target 合约约束判别字段，避免新重连用例将 kind 扩宽成 string。
 const MIRROR_TARGET = {
   kind: "remote",
   windowId: 1,
   remoteSessionId: "rs-1",
   workspacePath: "/work",
   workspaceIdentity: "wi-1",
-};
+} satisfies RemotePairingMirrorTarget;
 
 async function enableAndStart(
   controller: ReturnType<typeof makeController>["controller"],
@@ -590,7 +598,7 @@ test("无镜像目标时桥 fail-closed 关闭(MIRROR_TARGET_MISSING)", async ()
   assert.equal(tunnels[0]!.stopped, true);
 });
 
-test("bridge.detached:先停泵再 detach-service-port,房间存活、面板报 error 不报 stopped", async () => {
+test("bridge.detached:先停泵再 detach-service-port，房间存活并等待已授权设备重连", async () => {
   const { controller, tunnels, broadcasts, okAttach } = makeController();
   const start = await enableAndStart(controller, MIRROR_TARGET);
   assert.ok(start.success);
@@ -611,11 +619,76 @@ test("bridge.detached:先停泵再 detach-service-port,房间存活、面板报 
   tunnel.delegate.onBridgeBinary?.(encodeRemoteControlRegularFrame(new Uint8Array([1])));
   assert.equal(okAttach.postedToPort.length, 0);
 
-  // 房间并未终止(手机可凭设备凭据重连再次 bridged):面板推送 error 而非 stopped。
+  // 正常断连不等于鉴权失败：仍使用同一房间和镜像 target，重新接入时创建新的 attachment。
   const lastPush = broadcasts[broadcasts.length - 1]!.payload;
-  assert.equal(lastPush.state, "error");
-  assert.equal(lastPush.error, "BRIDGE_DETACHED");
+  assert.equal(lastPush.state, "reconnecting");
+  assert.equal(lastPush.roomId, start.roomId);
+  assert.equal(lastPush.error, undefined);
   assert.equal(tunnel.stopped, false);
+  const snapshot = await controller.getConfigSnapshot();
+  assert.equal(snapshot.pairing?.state, "reconnecting");
+  assert.equal(snapshot.pairingUrl, null);
+  tunnel.delegate.onBridgeOpen({
+    type: "bridge.open",
+    proto: 1,
+    deviceId: "device-1",
+    resumed: false,
+  });
+  assert.equal(okAttach.calls.length, 2);
+  assert.deepEqual(okAttach.calls[1], okAttach.calls[0]);
+  assert.equal(broadcasts.at(-1)?.payload.state, "bridged");
+});
+
+test("peer.disconnected 等待重连，保留原 attachment 且拒绝旧房间回调", async () => {
+  const { controller, tunnels, broadcasts, okAttach } = makeController();
+  await enableAndStart(controller, MIRROR_TARGET);
+  const old = tunnels[0]!;
+  old.delegate.onBridgeOpen({
+    type: "bridge.open",
+    proto: 1,
+    deviceId: "device-1",
+    resumed: false,
+  });
+  const active = broadcasts.at(-1)?.payload;
+  old.delegate.onPeerDisconnected({
+    type: "peer.disconnected",
+    deviceId: "other-device",
+    side: "client",
+  });
+  old.delegate.onBridgeDetached({ type: "bridge.detached", deviceId: "other-device" });
+  assert.deepEqual(broadcasts.at(-1)?.payload, active);
+  assert.equal(okAttach.detachMessages.length, 0);
+  old.delegate.onPeerDisconnected({
+    type: "peer.disconnected",
+    deviceId: "device-1",
+    side: "client",
+  });
+  assert.equal(broadcasts.at(-1)?.payload.state, "reconnecting");
+  assert.equal(okAttach.detachMessages.length, 0);
+  await controller.startPairing({ target: MIRROR_TARGET });
+  const previous = broadcasts.at(-1)?.payload;
+  old.delegate.onPeerDisconnected({
+    type: "peer.disconnected",
+    deviceId: "device-1",
+    side: "client",
+  });
+  assert.deepEqual(broadcasts.at(-1)?.payload, previous);
+});
+
+test("已配对房间的 room.ready expiresAt=null 保持等待重连且不恢复旧二维码", async () => {
+  const { controller, tunnels, broadcasts } = makeController();
+  const start = await enableAndStart(controller, MIRROR_TARGET);
+  assert.ok(start.success);
+  const frame = remoteControlRoomReadyFrameSchema.parse({
+    type: "room.ready",
+    proto: 1,
+    roomId: start.roomId,
+    expiresAt: null,
+  });
+  tunnels[0]!.delegate.onRoomReady(frame);
+  assert.equal(broadcasts.at(-1)?.payload.state, "reconnecting");
+  const snapshot = await controller.getConfigSnapshot();
+  assert.equal(snapshot.pairingUrl, null);
 });
 
 test("桥结束后重新布防空闲自动断开;桥接期间不触发(§3.4)", { timeout: 4_000 }, async () => {

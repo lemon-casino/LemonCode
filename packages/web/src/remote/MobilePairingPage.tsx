@@ -7,10 +7,12 @@ import {
 } from "./pairingCredentialStore.js";
 import type { PairingFailureKey } from "./pairingFrames.js";
 import {
+  CREDENTIAL_DEATH_KEYS,
   DATA_SOCKET_RETRY_DEADLINE_MS,
   DATA_SOCKET_RETRY_DELAY_MS,
   DATA_SOCKET_RETRY_KEYS,
   scheduleMirrorReconnectReload,
+  shouldFallbackToPairingCapability,
 } from "./mirrorReconnect.js";
 import {
   buildDataSocketUrl,
@@ -27,17 +29,6 @@ type PairingPhase =
   | { kind: "waiting-confirm" }
   | { kind: "bridging" }
   | { kind: "failed"; key: PairingFailureKey; detail?: string };
-
-// 设备凭据本身已不可恢复的失败(吊销/鉴权失效):清掉本地凭据,避免后续用死凭据
-// 重连白白消耗 Worker 的失败计数(§3.1 连续失败达阈值房间作废)。
-// room-missing(4004)/expired(4005) 是房间级死亡,不是凭据死亡:桌面每次 room.create
-// 都按持久化列表重注册设备(§4.3.2,worker room.ts mergeDevices),凭据对新房间仍有效,
-// 清掉会迫使用户在桌面重启/新房间后重新扫码+人工确认。
-const CREDENTIAL_DEATH_KEYS: ReadonlySet<PairingFailureKey> = new Set([
-  "auth",
-  "invalidated",
-  "stopped",
-]);
 
 // 链路瞬时故障:capability 未被 Worker 消费或凭据仍有效时,整页刷新可重试;
 // busy 也归入可重试——旧桥槽由 Worker 心跳回收后,同凭据重连即可成功。
@@ -72,7 +63,8 @@ const PAIRING_COPY = {
     waitingHint: "Choose “Allow this device” in the desktop Remote Control panel.",
     bridgingTitle: "Authorized. Connecting to your workspace…",
     failedTitle: "Pairing failed",
-    staleLinkHint: "Generate a new pairing link (QR code or copied URL) on the desktop and try again.",
+    staleLinkHint:
+      "Generate a new pairing link (QR code or copied URL) on the desktop and try again.",
     retryHint: "You can retry; if it keeps failing, generate a new pairing link on the desktop.",
     retry: "Retry",
   },
@@ -101,6 +93,10 @@ const FAILURE_COPY: Record<PairingFailureKey, Record<PairingLocale, string>> = {
     "zh-CN": "桌面已停止远程控制,或此设备已被吊销。",
     "en-US": "Remote control was stopped on the desktop, or this device was revoked.",
   },
+  revoked: {
+    "zh-CN": "此设备的授权已被桌面撤销，请重新配对。",
+    "en-US": "The desktop revoked this device. Pair it again to reconnect.",
+  },
   busy: {
     "zh-CN": "该房间已有其他设备接入。",
     "en-US": "Another device is already connected to this room.",
@@ -125,7 +121,9 @@ function resolvePairingLocale(): PairingLocale {
   return /^zh\b/i.test(navigator.language) ? "zh-CN" : "en-US";
 }
 
-function outcomeToFailureKey(outcome: Exclude<PairingSocketOutcome, { kind: "accepted" }>): PairingFailureKey {
+function outcomeToFailureKey(
+  outcome: Exclude<PairingSocketOutcome, { kind: "accepted" }>,
+): PairingFailureKey {
   switch (outcome.kind) {
     case "rejected":
       return "rejected";
@@ -161,14 +159,29 @@ export function MobilePairingPage({
       deviceCredential: string,
     ): Promise<{ ok: true } | { ok: false; key: PairingFailureKey }> => {
       setPhase({ kind: "bridging" });
+      let handedOff = false;
       try {
         const services = await connectBridgedDataSocket(
           buildDataSocketUrl(roomId, deviceCredential),
           // 接管后断链:网络类死亡在 Worker 宽限窗口内自动刷新重连(§3.3),
-          // 刷新后回到本页凭会话凭据走 resumed 重连,bridging 界面即重连提示
-          scheduleMirrorReconnectReload,
+          // 刷新后回到本页凭已保存设备凭据走 resumed 重连,bridging 界面即重连提示
+          (key) => {
+            if (!handedOff) return;
+            if (CREDENTIAL_DEATH_KEYS.has(key))
+              clearStoredPairingCredential(
+                key === "revoked" ? undefined : roomId,
+                deviceCredential,
+              );
+            scheduleMirrorReconnectReload(key);
+          },
         );
         if (!disposed) {
+          // 跨房间恢复成功后记录新房间，避免后续把其已消费链接误判为新配对链接。
+          const stored = loadStoredPairingCredential();
+          if (stored?.deviceCredential === deviceCredential && stored.roomId !== roomId) {
+            saveStoredPairingCredential({ ...stored, roomId });
+          }
+          handedOff = true;
           onConnected(services);
         }
         return { ok: true };
@@ -203,7 +216,7 @@ export function MobilePairingPage({
     const run = async (): Promise<void> => {
       // 凭据来源优先级(契约 §4.3.2/§3.3):设备凭据跨房间有效——桌面每次 room.create
       // 都按持久化设备表重注册(worker room.ts mergeDevices),因此即使深链指向新房间,
-      // 也先凭已存凭据尝试免二次确认重连;失败再回退深链 capability 走完整双方授权;
+      // 也先凭已存凭据免二次确认重连；仅不同房间的鉴权失败可用新 capability 再确认。
       // 两者皆无则按 §5 显示配对失败。
       const stored = loadStoredPairingCredential();
       const routeRoomId = route.roomId;
@@ -215,10 +228,20 @@ export function MobilePairingPage({
         }
         if (CREDENTIAL_DEATH_KEYS.has(result.key)) {
           // 凭据本身已死(吊销/鉴权失效):清掉本地凭据
-          clearStoredPairingCredential();
+          clearStoredPairingCredential(
+            result.key === "revoked" ? undefined : stored.roomId,
+            stored.deviceCredential,
+          );
         }
-        if (route.capability === null) {
-          // 无新 capability 可回退:房间级死亡(4004/4005)或瞬时故障下凭据可能仍有效,保留不清
+        if (
+          !shouldFallbackToPairingCapability({
+            key: result.key,
+            storedRoomId: stored.roomId,
+            routeRoomId,
+            hasCapability: route.capability !== null,
+          })
+        ) {
+          // 重连失败不等于新配对：保留网络/房间错误及有效凭据，不重放原扫码链接。
           setPhase({ kind: "failed", key: result.key });
           return;
         }
@@ -231,11 +254,14 @@ export function MobilePairingPage({
       }
 
       setPhase({ kind: "connecting" });
-      const outcome = await openPairingSocket(buildPairingSocketUrl(routeRoomId, route.capability), () => {
-        if (!disposed) {
-          setPhase({ kind: "waiting-confirm" });
-        }
-      });
+      const outcome = await openPairingSocket(
+        buildPairingSocketUrl(routeRoomId, route.capability),
+        () => {
+          if (!disposed) {
+            setPhase({ kind: "waiting-confirm" });
+          }
+        },
+      );
       if (disposed) {
         return;
       }
@@ -253,7 +279,7 @@ export function MobilePairingPage({
         return;
       }
 
-      // accepted 的凭据明文只出现这一次:先落会话存储再建数据通道,断链后可凭凭据重连
+      // accepted 的凭据明文只出现这一次：先交给持久存储入口，再建数据通道。
       saveStoredPairingCredential({
         roomId: routeRoomId,
         deviceId: outcome.deviceId,
@@ -263,7 +289,10 @@ export function MobilePairingPage({
       const result = await connectDataSocket(routeRoomId, outcome.deviceCredential);
       if (!disposed && !result.ok) {
         if (CREDENTIAL_DEATH_KEYS.has(result.key)) {
-          clearStoredPairingCredential();
+          clearStoredPairingCredential(
+            result.key === "revoked" ? undefined : routeRoomId,
+            outcome.deviceCredential,
+          );
         }
         setPhase({ kind: "failed", key: result.key });
       }
@@ -336,7 +365,9 @@ function PairingShell({ children }: { children: ReactNode }) {
   return (
     <div className="h-dvh min-h-dvh w-screen bg-background text-foreground">
       <div className="mx-auto flex h-full w-full max-w-lg items-center px-4">
-        <section className="w-full rounded-xl border border-card-border bg-card p-5">{children}</section>
+        <section className="w-full rounded-xl border border-card-border bg-card p-5">
+          {children}
+        </section>
       </div>
     </div>
   );

@@ -100,7 +100,8 @@ export const remoteControlRoomReadyFrameSchema = z
     type: z.literal("room.ready"),
     proto: z.literal(REMOTE_CONTROL_PROTO_VERSION),
     roomId: base64UrlSchema,
-    expiresAt: z.number().int().positive(),
+    // 已桥接房间不再受配对 TTL 限制，Worker 重连返回 null 是既有合法协议。
+    expiresAt: z.number().int().positive().nullable(),
   })
   .strict();
 export type RemoteControlRoomReadyFrame = z.infer<typeof remoteControlRoomReadyFrameSchema>;
@@ -328,9 +329,9 @@ export type RemotePairingDecideRequest = z.infer<typeof remotePairingDecideReque
 /** 配对面板状态唯一来源;Renderer 不自行推断(PROTOCOL.md §6.3)。 */
 export const remotePairingStatePushSchema = z
   .object({
-    state: z.enum(["waiting", "pairing", "bridged", "stopped", "error"]),
+    state: z.enum(["waiting", "pairing", "bridged", "reconnecting", "stopped", "error"]),
     roomId: nonEmptyStringSchema.optional(),
-    expiresAt: z.number().int().positive().optional(),
+    expiresAt: z.number().int().positive().nullable().optional(),
     pendingDevice: z
       .object({
         requestId: nonEmptyStringSchema,
