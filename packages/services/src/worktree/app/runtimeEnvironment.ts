@@ -160,11 +160,11 @@ export async function releaseBindingRuntime(
   candidate?: { checkoutPath: string; environmentRef?: RuntimeEnvironmentBindingReference },
 ) {
   const environmentRef = candidate ? candidate.environmentRef : binding.environmentRef;
-  if (!environmentRef) {
-    if (!candidate && binding.environmentPolicy === "managed")
-      throw new Error("Managed environment reference is missing during release");
-    return;
-  }
+  // managed 策略不等于一定分配过环境：准备在环境阶段之前（如 checkout 后）被取消时，
+  // 环境从未创建，绑定就不会有 environmentRef。此时没有任何可释放的资源，删除/归档必须继续。
+  // 原先按「无引用即异常」处理会让绑定永久卡在 deleting，与 discard 自身的端口判断
+  //（仅在有引用时才要求端口）以及规范「环境引用存在而端口缺失才 fail closed」相矛盾。
+  if (!environmentRef) return;
   if (!context.releaseRuntimeEnvironment)
     throw new Error("Managed environment release port is unavailable");
   const result = await context.releaseRuntimeEnvironment({

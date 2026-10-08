@@ -51,6 +51,8 @@ sequenceDiagram
 
 此节替代早期图中“先目录后聊天”的顺序：`deleting` + 稳定 `deletion.requestId` → 环境 fence（不等待 session 删除）→ `collectDiscardSessions(closeSessions: true)` 关闭精确绑定 Agent → 环境 stop 确认服务/进程停止 → journal 精确 CLI session IDs → checkout 独占许可 → purge 精确 IDs → 目录/refs → 环境 cleanup/finalize → `deleted`。任何缺少停止证明、端口或 cleanup 失败保留 deleting/error，重试沿原 requestId 和 sessionIds。环境引用存在而端口缺失必须 fail closed。目录移除前 purge 失败不得先删文件；purge 回复丢失可重入精确 IDs。
 
+`environmentPolicy: managed` 只表示该绑定要求托管环境，不表示环境一定分配过。准备在环境阶段之前结束（例如 checkout 后取消，或取消调用本身失败但持久取消墓碑已生效）时，环境从未创建，绑定不会有 `environmentRef`，环境 owner 也没有对应记录。此时没有任何可释放的资源，release 必须按「无引用即跳过」返回成功，让删除/归档继续走到 `deleted`；不能因为策略是 managed 就抛错。该判定与 `discard` 自身的端口检查一致（仅在有引用时才要求端口存在），也符合本节「环境引用存在而端口缺失才 fail closed」的方向。反向约束同样成立：只要有 `environmentRef`（含 revision=0 的清理引用），就必须调用 release 并对账，不得跳过。
+
 普通归档使用独立 `archiving` / `archiveOperation` journal，不复用永久 deleting：稳定 requestId → fence → stop 精确 owner（不 purge、不释放 session refs）→ snapshot → 目录 → 可重建资源 cleanup/finalize → archived。保留聊天、session 引用及不可重建私有数据；环境 owner 不得把归档当永久删除。故障仍可重新取得 checkout 许可并按 journal 继续。恢复成功清除本次归档 journal，后续归档可以创建新的操作；恢复环境与 session CAS 的统一收口见 `worktree-session-execution.md`。
 
 ```mermaid
