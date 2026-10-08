@@ -9,7 +9,7 @@
     "derive": "tsx src/cli.ts derive",
     "model-io": "tsx src/cli.ts model-io",
     "typecheck": "tsc --noEmit",
-    "lint": "oxlint src scripts"
+    "lint": "oxlint --config ../../oxlint.config.json src scripts --no-ignore"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

@@ -78,6 +78,28 @@ function joinRoot(path) {
   return resolve(root, path);
 }
 
+test("CLI task entrypoints resolve Turbo from the root hoisted installation", async () => {
+  const cli = JSON.parse(await readFile(joinRoot("apps/lcode-cli/package.json"), "utf8"));
+  // 嵌套工作区的 pnpm run 不保证继承根 .bin；不能让本地 PATH 或手动链接掩盖 CI 缺失入口。
+  for (const task of ["build", "clean", "lint", "lint:fix", "typecheck"]) {
+    assert.equal(
+      cli.scripts[task],
+      `pnpm --dir ../.. exec turbo --skip-infer --cwd apps/lcode-cli run ${task}`,
+    );
+  }
+  assert.equal(cli.scripts.check, "pnpm registry:check && pnpm typecheck");
+});
+
+test("CLI trajectory tool checks its source despite the root CLI exclusion", async () => {
+  const tool = JSON.parse(
+    await readFile(joinRoot("apps/lcode-cli/tools/prompt-trajectory/package.json"), "utf8"),
+  );
+  assert.equal(
+    tool.scripts.lint,
+    "oxlint --config ../../oxlint.config.json src scripts --no-ignore",
+  );
+});
+
 test("tag build checks dependency patches and both source workspaces before packaging", async () => {
   const workflow = YAML.parse(
     await readFile(joinRoot(".github/workflows/desktop-release.yml"), "utf8"),

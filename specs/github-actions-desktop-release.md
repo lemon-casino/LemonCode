@@ -83,6 +83,31 @@
    切换一次官方 Electron runtime mirror 后重试。其它 afterExtract/NOTICE 错误不得重试，
    避免用镜像切换掩盖真实许可文件回归。
 
+## v3.17.1 构建回归修复
+
+- 根 `pnpm-workspace.yaml` 与根 lockfile 是集成仓库依赖安装的唯一所有者；
+  `apps/lcode-cli` 的任务入口通过 `pnpm --dir ../.. exec turbo --skip-infer --cwd apps/lcode-cli`
+  使用根安装的 Turbo，并继续读取 CLI 的任务配置。构建、类型检查、Lint、修复和清理共用
+  此入口；`check` 复用 `typecheck`。不能依赖开发机额外的 PATH、子目录手动链接或全局 Turbo，
+  不能跳过 CLI 检查来让 CI 通过。此规则面向当前集成仓库，不引入第二套独立安装流程。
+- CLI 的 `tools/prompt-trajectory` 与各业务包使用同一显式 `oxlint.config.json` 和
+  `--no-ignore`，检查真实的 `src`、`scripts`；不能因根配置排除 CLI 而检查零文件，
+  也不能以 Turbo 的缓存结果代替修复后的实际执行。
+- macOS DMG 背景与卷图标由 electron-builder 的 `background`、`icon` 配置生成；
+  `contents` 只声明应用与 `/Applications` 链接，不把 `.background.tiff`、`.VolumeIcon.icns`
+  等镜像内部生成物作为外部源文件。保持已有背景、图标、容量和应用摆放位置。
+- 验收：真实加载 DMG 配置并确认声明的素材存在、没有生成物源路径；CLI 在只有根
+  `node_modules` 的 hoisted 布局中通过根入口实际运行类型检查与 Lint。根类型、Lint、
+  发行契约和架构检查必须通过。当前 Windows 环境不把配置回归描述为 macOS DMG 实机
+  打包成功；后续新源码 tag 的六平台 Actions 才验证原生打包，旧 tag 重跑不包含这些修复。
+
+本地验证（2026-10-08）：29 个发行契约、11 个依赖安全回归、根类型/Lint 与 changed
+架构检查通过。临时副本只复制当前受版本控制的文件，以固定 Node/pnpm 完成全新
+`install --frozen-lockfile --ignore-scripts`，没有复制本机 node_modules 或手动链接，PATH
+只包含 Node、pnpm 和 Windows 系统工具。实际执行 `--force` 后，CLI 27 个类型任务与
+14 个 Lint 任务全部成功且无缓存命中，trajectory 工具实际检查 11 个源码文件。
+macOS 原生 DMG 打包未在 Windows 上执行；v3.17.1 原 tag 的失败记录仍然存在。
+
 ## 所有者与事件顺序
 
 `package.json` 拥有版本，Git tag 只是不可变的版本声明；现有 build-metadata 和

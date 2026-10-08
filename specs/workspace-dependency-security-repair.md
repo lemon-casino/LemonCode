@@ -49,6 +49,6 @@ flowchart LR
 - 66 个 worktree/runtime-environment 逻辑回归、23 个 Web 交互回归、43 个 MCP/遥测/checkout/fork 回归、11 个安全回归、8 个打包资产回归通过。
 - Web、CLI 和 Desktop 生产构建通过。Windows x64 安装包生成成功，运行时闭包、mise、产品身份和 500 MiB 包大小门禁通过，产物约 202.1 MiB。
 - 包内 Electron 与 CUA manifest 均为 41.10.7；包内第三方声明与仓库声明字节一致。使用真实打包后的 Electron 加载 PTY、SSH、node-forge 和三个遥测模块成功。
-- tag 工作流新增安全回归、根与 CLI 类型/Lint、架构检查；打包配置实际加载测试证明旧 41.0.3 pin 失败，改为锁定安装版本后通过。远端六平台 Actions 尚未执行。
+- tag 工作流新增安全回归、根与 CLI 类型/Lint、架构检查；打包配置实际加载测试证明旧 41.0.3 pin 失败，改为锁定安装版本后通过。v3.17.1 首次六平台 Actions 暴露 macOS DMG 隐藏文件源路径与 Linux CLI Turbo 入口问题；本地 CLI 缓存检查没有证明干净 CI 布局可用。后续修复及无缓存、全新安装验证见 `specs/github-actions-desktop-release.md`。
 - 用户要求继续处理后，已手动登记材料基线的具体差异，发行契约 24/24 通过。新鲜度、未知新项拒绝、删除/理由变化拒绝和严格零债务检查的失败语义保持不变；具体差异见 `third-party/dependency-upgrade-review.md`。
 - 原始 audit 目前为 2 high、0 critical/moderate/low：node-forge（GHSA-86w9-cpqp-85rv）与 Braces（GHSA-vfj7-8cjw-p6xm）没有上游安全发行版。对应本地补丁已生效且回归通过；未设置审计忽略，也不将版本扫描的结果描述为零。
