@@ -1,5 +1,35 @@
 # 会话临时预览服务生命周期
 
+## 2026-10-09：shell 返回时结算派生后台进程
+
+已确认原因：Bash 命令通过子 shell 和 `&` 启动服务后，根 shell 提前退出；直写输出不依赖 pipe EOF，执行器随即移除 active execution。后续关闭会话、删除工作树只能停止当前 Agent，遗漏先前命令留下的服务，造成 CPU 持续占用与目录 EBUSY。
+
+规则：一次 Bash execution 的进程所有权不以 root exit 结束。root exit 后先回收其派生进程，再发布 ExecutionResult、移除清理记录。需要持续运行的服务继续使用现有显式 background lifecycle；服务主命令必须保持运行，shell 内的 `&` 不能绕过现有 service/keep-alive 授权。前台命令的正常退出码和输出不变。普通 argv/Hook 执行保持原协议。
+
+唯一 owner 为 NodeExecutionAdapter，每次 run 持有一个派生进程清理控制器；close 等待这些控制器，失败保留责任并允许 close 重试。清理核验失败立即关闭新命令 admission，不把旧进程仍活着的执行器继续用于新任务。Windows 复用既有 Job Object adapter，执行前准备句柄、spawn 后立即归入 Job，按 Job 核验活跃进程数，不能把 taskkill 返回当退出证明。macOS/Linux 使用 spawn 创建的独立 session，覆盖其中 job control 派生的各进程组，异步读取成员身份，并在发送信号前复核身份；不按 cwd、命令名、端口或裸 PID 搜索陌生服务。执行器不得将无法确认的清理错误吞掉。
+
+```mermaid
+sequenceDiagram
+  participant W as Worktree / session owner
+  participant E as Execution adapter
+  participant O as OS process owner
+  E->>O: spawn Bash，登记本次进程所有权
+  O-->>E: root exit（派生服务可能仍在运行）
+  E->>O: 停止本次派生进程，核验退出
+  O-->>E: 无活跃成员
+  E->>E: ExecutionResult → 移除清理记录
+  W->>E: 原 close / 删除工作树入口
+  E->>O: 等待尚未结算的控制器
+  E-->>W: 完成或可重试的清理错误
+  W->>W: 原 checkout writer / 删除流程
+```
+
+该修复适用于新启动的执行，不凭空认领旧版本没有所有权记录的进程。已有明确归属的历史故障单独核实处理，不扫描全机强杀。Desktop continuous 与手机 replayable 继续使用同一 Host/CLI 生命周期，无新 UI 操作或协议命令。
+
+验收：真实 Bash 派生后台 HTTP 服务、root 返回后端口关闭且 cwd 可删除；其它会话服务保留；取消/关闭仍等退出；清理失败可重试；正常输出/退出码保持；Windows Job 空成员核验及 Linux/macOS 身份变化拒绝误杀。平台实机覆盖与检查结果在完成后记录。
+
+验证记录：新进程所有权及原有预览清理回归 15 项通过；真实 Runtime 后台构建成功/失败/取消、工作树会话清理集成 6 项通过。红灯明确复现 root 返回后 HTTP 服务仍可访问，修复后服务退出且临时目录可删除。根目录与 CLI typecheck/lint 通过；架构 baseline=0/new=0，目标文件格式检查通过。CLI 源码及测试 +659/-57，净增 602 行；没有新增公开协议命令或 UI 操作。Windows 使用真实 Bash、Node HTTP 子进程与 Job Object；Linux/macOS 验证了 session/进程组、身份复核、失败与复用分支，未进行实机验证。安装包尚未替换，需要随包含此 CLI 修复的桌面构建生效。
+
 ## 后台构建等待与完成边界修复（2026-10-07）
 
 已确认的缺陷：模型启动有限时长的后台构建后用文本结束回复，表示等待完成通知；Runtime 却将所有未保留的 Bash 当作临时预览，在 TurnComplete 前取消构建，并抑制取消通知。模型结束一次回复不代表后台工作已经完成。待办投影不控制执行，不得靠自动标记待办完成或 UI 发送“继续”绕过该边界。

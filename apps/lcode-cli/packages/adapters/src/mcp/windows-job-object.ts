@@ -17,6 +17,36 @@ interface WindowsJobObjectApi {
   assign(job: WindowsJobHandle, pid: number): boolean;
   terminate(job: WindowsJobHandle): void;
   close(job: WindowsJobHandle): void;
+  activeCount(job: WindowsJobHandle): number;
+}
+
+export interface PreparedWindowsJobObject extends WindowsJobObjectController {
+  assign(pid: number): void;
+  activeCount(): number;
+}
+
+/** Bash 在 spawn 前准备 OS owner，避免加载原生库期间 shell 已返回而失去派生服务。 */
+export async function prepareWindowsJobObject(): Promise<PreparedWindowsJobObject> {
+  const api = await loadWindowsJobObjectApi();
+  const job = api?.create();
+  if (!api || !job) throw new Error("Cannot prepare Bash process ownership (Windows Job Object)");
+  let closed = false;
+  return {
+    assign(pid) {
+      if (closed || !api.assign(job, pid)) throw new Error("Cannot assign Bash process ownership");
+    },
+    activeCount() {
+      return closed ? 0 : api.activeCount(job);
+    },
+    terminate() {
+      if (!closed) api.terminate(job);
+    },
+    close() {
+      if (closed) return;
+      api.close(job);
+      closed = true;
+    },
+  };
 }
 
 interface AttachOptions {
@@ -132,6 +162,23 @@ async function createWindowsJobObjectApi(): Promise<WindowsJobObjectApi | undefi
       "uint32",
     ]);
     const closeHandle = kernel32.func("__stdcall", "CloseHandle", "bool", [handleType]);
+    const accounting = koffi.struct("LCODE_JOB_ACCOUNTING", {
+      TotalUserTime: "int64",
+      TotalKernelTime: "int64",
+      ThisPeriodTotalUserTime: "int64",
+      ThisPeriodTotalKernelTime: "int64",
+      TotalPageFaultCount: "uint32",
+      TotalProcesses: "uint32",
+      ActiveProcesses: "uint32",
+      TotalTerminatedProcesses: "uint32",
+    });
+    const queryJob = kernel32.func("__stdcall", "QueryInformationJobObject", "bool", [
+      handleType,
+      "uint32",
+      koffi.out(koffi.pointer(accounting)),
+      "uint32",
+      "void *",
+    ]);
 
     return {
       create() {
@@ -189,10 +236,16 @@ async function createWindowsJobObjectApi(): Promise<WindowsJobObjectApi | undefi
         }
       },
       terminate(job) {
-        terminateJobObject(job, 1);
+        if (!terminateJobObject(job, 1)) throw new Error("Cannot terminate owned Windows job");
       },
       close(job) {
         closeHandle(job);
+      },
+      activeCount(job) {
+        const result = { ActiveProcesses: 0 };
+        if (!queryJob(job, 1, result, koffi.sizeof(accounting), null))
+          throw new Error("Cannot verify owned Windows job exit");
+        return result.ActiveProcesses;
       },
     } satisfies WindowsJobObjectApi;
   } catch {

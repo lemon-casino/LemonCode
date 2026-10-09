@@ -24,7 +24,7 @@ export class NodeExecutionAdapterLifecycle extends NodeExecutionAdapterRun {
     request: ExecutionRequest,
     options: ExecutionRunOptions = {},
   ): Promise<BackgroundExecutionStartResult> {
-    if (this.closePromise) {
+    if (this.shutdownRequested) {
       throw new Error("Execution adapter is shutting down");
     }
 
@@ -302,12 +302,7 @@ export class NodeExecutionAdapterLifecycle extends NodeExecutionAdapterRun {
     sessionId: string,
   ): Promise<BackgroundBashOutputResult> {
     const record = this.backgroundTasks.get(workId);
-    if (
-      !record ||
-      record.sessionId !== sessionId ||
-      !record.isBash ||
-      !record.outputPath
-    )
+    if (!record || record.sessionId !== sessionId || !record.isBash || !record.outputPath)
       return { kind: "unavailable", workId };
     // 先冻结状态，再读文件；若读取期间退出，下次查询才能返回终态及其最终尾窗。
     const snapshot = this.snapshot(record);

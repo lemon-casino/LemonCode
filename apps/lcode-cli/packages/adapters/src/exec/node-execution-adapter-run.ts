@@ -1,5 +1,6 @@
-import { spawn, type ChildProcess } from "node:child_process";
+import type { ChildProcess } from "node:child_process";
 import { BashFileOutput } from "./bash-file-output.js";
+import type { BashProcessOwner } from "./bash-process-owner.js";
 import { readCapturedCwd } from "./cwd-capture.js";
 import { defaultCwdDialect } from "./execution-command.js";
 import { NodeExecutionAdapterProcess } from "./node-execution-adapter-process.js";
@@ -40,7 +41,7 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
         }
       : undefined;
 
-    if (this.closePromise) {
+    if (this.shutdownRequested) {
       return this.createStoppedResult(startedAt, "cancelled", "Execution adapter is shutting down");
     }
 
@@ -97,6 +98,7 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
           aggregatePersistedBudget,
         );
     let child: ChildProcess | undefined;
+    let bashOwner: BashProcessOwner | undefined;
     let cwdDialect: ExecutionShellDialect = defaultCwdDialect(this.platform);
     let cwdFilePath: string | undefined;
     let timedOut = false;
@@ -119,12 +121,12 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
       this.createStoppedResult(
         startedAt,
         "cancelled",
-        this.closePromise
+        this.shutdownRequested
           ? "Execution adapter is shutting down"
           : "Execution cancelled before spawn",
       );
     const stoppedBeforeSpawn = (): ExecutionResult | undefined => {
-      if (!stopRequested && !this.closePromise && !options.signal?.aborted) return undefined;
+      if (!stopRequested && !this.shutdownRequested && !options.signal?.aborted) return undefined;
       return createPreSpawnStoppedResult();
     };
 
@@ -203,12 +205,12 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
         ];
       }
 
-      const spawnedChild = spawn(
-        prepared.command.file,
-        prepared.command.args,
-        prepared.spawnOptions,
-      );
+      if (useBashMergedOutput) bashOwner = await this.prepareOwnedBash();
+      const stoppedAfterOwnerPreparation = stoppedBeforeSpawn();
+      if (stoppedAfterOwnerPreparation) return stoppedAfterOwnerPreparation;
+      const spawnedChild = this.spawnPreparedChild(prepared);
       child = spawnedChild;
+      bashOwner?.attach(spawnedChild);
       finishResourceTelemetry = this.trackBashResources(spawnedChild, useBashMergedOutput, () => ({
         timedOut,
         killed: cancelled || outputLimitExceeded,
@@ -284,35 +286,25 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
       }
 
       if (stdout && stderr) {
-        if (options.onEvent) {
-          progressTimer = setInterval(() => {
-            if (
-              childClosed ||
-              (exited && internalOptions.shouldRetainExecutionAfterRootExit?.() !== true)
-            )
-              return;
-            const elapsedMs = Date.now() - startedAt.getTime();
-            if (elapsedMs < this.progressThresholdMs) return;
-            this.emit(options, {
-              type: "progress",
-              elapsedMs,
-              pid: spawnedChild.pid,
-              stdoutBytes: stdout.bytes,
-              stderrBytes: stderr.bytes,
-              stdoutTail: stdout.tailText(),
-              stderrTail: stderr.tailText(),
-              timestamp: new Date(),
-            });
-          }, this.progressIntervalMs);
-          progressTimer.unref?.();
-        }
+        progressTimer = this.watchPipedProgress(
+          spawnedChild,
+          stdout,
+          stderr,
+          options,
+          startedAt,
+          () =>
+            !childClosed &&
+            (!exited || internalOptions.shouldRetainExecutionAfterRootExit?.() === true),
+        );
         this.attachPipedOutput(spawnedChild, stdout, stderr, legacyOutputEncoding, options);
       }
       const inputFailure = this.writeChildInput(spawnedChild, request.stdin);
-
       const exitState = await exitPromise;
       // Bash 直写文件会提前合成 root exit；必须等待本次杀树结果再发布完成，不能误报预览已关闭。
       await processTreeTermination;
+      // 直写输出让 root exit 早于隐式后台服务退出；先结算 OS owner，再发布完成事实。
+      await this.settleOwnedBash(bashOwner);
+      bashOwner = undefined;
       if (!file) {
         await this.drainChildOutput(
           spawnedChild,
@@ -365,17 +357,16 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
         error: failure,
         resolvedCwd,
       });
-
       this.emitResult(options, result);
       return result;
     } catch (error) {
       if (!child) await file?.discard();
-      if (stopRequested || this.closePromise || options.signal?.aborted) {
+      if (!child && (stopRequested || this.shutdownRequested || options.signal?.aborted)) {
         return createPreSpawnStoppedResult();
       }
-      const failure = this.toFailure("spawn_error", error);
+      const failure = this.toFailure(child ? "unknown" : "spawn_error", error);
       const result = this.createResult({
-        status: "spawn_error",
+        status: child ? "failed" : "spawn_error",
         startedAt,
         completedAt: new Date(),
         stdout: file ? await file.result(this.bashInlineLimit(request)) : stdout!.result(),
@@ -387,18 +378,22 @@ export class NodeExecutionAdapterRun extends NodeExecutionAdapterProcess {
       this.emitResult(options, result);
       return result;
     } finally {
-      await processTreeTermination;
-      if (!exited)
-        finishResourceTelemetry({ error: new Error("Execution ended before child exit") });
-      executionSettled = true;
-      file?.stopWatching();
-      if (internalOptions.bashLifecycle) internalOptions.bashLifecycle.onBackgrounded = undefined;
-      await file?.close();
-      if (timeoutTimer) clearTimeout(timeoutTimer);
-      if (progressTimer) clearInterval(progressTimer);
-      if (forceExitTimer) clearTimeout(forceExitTimer);
-      options.signal?.removeEventListener("abort", abortHandler);
-      this.completeActiveExecution(executionId);
+      try {
+        await processTreeTermination;
+        if (!child) await this.settleOwnedBash(bashOwner);
+      } finally {
+        if (!exited)
+          finishResourceTelemetry({ error: new Error("Execution ended before child exit") });
+        executionSettled = true;
+        file?.stopWatching();
+        if (internalOptions.bashLifecycle) internalOptions.bashLifecycle.onBackgrounded = undefined;
+        await file?.close();
+        if (timeoutTimer) clearTimeout(timeoutTimer);
+        if (progressTimer) clearInterval(progressTimer);
+        if (forceExitTimer) clearTimeout(forceExitTimer);
+        options.signal?.removeEventListener("abort", abortHandler);
+        this.completeActiveExecution(executionId);
+      }
     }
   }
 }

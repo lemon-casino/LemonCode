@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { prepareBashProcessOwner, type BashProcessOwner } from "./bash-process-owner.js";
 import { resolveBashMaxOutputLength } from "./bash-output-policy.js";
 import { ShellInitSnapshotManager, cleanupStaleShellInitSnapshots } from "./shell-init-snapshot.js";
 import { OutputCollector, type AggregatePersistedOutputBudget } from "./output-collector.js";
@@ -33,6 +34,27 @@ export class NodeExecutionAdapterBase {
   protected readonly backgroundTasks = new Map<string, BackgroundTaskRecord>();
 
   protected readonly pendingBashProcessTreeKills = new Map<Promise<void>, { ref(): unknown }>();
+  private readonly ownedBashProcesses = new Set<BashProcessOwner>();
+
+  protected async prepareOwnedBash(): Promise<BashProcessOwner> {
+    const owner = await (this.options.bashProcessOwnerFactory ?? prepareBashProcessOwner)(
+      this.platform,
+    );
+    this.ownedBashProcesses.add(owner);
+    return owner;
+  }
+
+  protected async settleOwnedBash(owner?: BashProcessOwner): Promise<void> {
+    if (!owner) return;
+    try {
+      await owner.settle();
+    } catch (error) {
+      // 旧派生进程尚未确认退出时禁止继续启动命令；清理责任留给原 close 重试。
+      this.shutdownRequested = true;
+      throw error;
+    }
+    this.ownedBashProcesses.delete(owner);
+  }
 
   protected readonly shellInitRetentionCleanup: Promise<unknown>;
 
@@ -41,6 +63,7 @@ export class NodeExecutionAdapterBase {
   protected readonly outputPathsByRequest = new WeakMap<ExecutionRequest, ExecutionOutputPaths>();
 
   protected closePromise?: Promise<void>;
+  protected shutdownRequested = false;
 
   protected readonly options: NodeExecutionAdapterOptions;
 
@@ -252,7 +275,11 @@ export class NodeExecutionAdapterBase {
   }
 
   async close(): Promise<void> {
-    this.closePromise ??= this.shutdown();
+    this.shutdownRequested = true;
+    this.closePromise ??= this.shutdown().catch((error) => {
+      this.closePromise = undefined;
+      throw error;
+    });
     return await this.closePromise;
   }
 
@@ -274,6 +301,12 @@ export class NodeExecutionAdapterBase {
     // active execution 已结算，所有主动终止均已登记；只在 shutdown 引用既有清理句柄。
     for (const handle of this.pendingBashProcessTreeKills.values()) handle.ref();
     await Promise.allSettled(Array.from(this.pendingBashProcessTreeKills.keys()));
+    // root 返回的 execution 已不在 activeExecutions；失败的派生进程清理责任必须继续保留。
+    const settlements = await Promise.allSettled(
+      [...this.ownedBashProcesses].map((owner) => this.settleOwnedBash(owner)),
+    );
+    const failed = settlements.find((result) => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
     await this.shellInitRetentionCleanup;
     await this.shellInitSnapshots.cleanup();
   }

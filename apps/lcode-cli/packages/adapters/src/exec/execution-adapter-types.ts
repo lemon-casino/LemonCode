@@ -2,6 +2,7 @@ import type { SpawnOptions } from "node:child_process";
 import type { LCodeToolExecResource } from "@lcode/shared";
 import type { NetworkEgressEnvPolicy } from "../network/subprocess-env.js";
 import type { ResolvedSpawnCommand } from "./execution-command.js";
+import type { BashProcessOwner } from "./bash-process-owner.js";
 import type {
   BackgroundExecutionSnapshot,
   BackgroundExecutionStartResult,
@@ -72,6 +73,8 @@ export interface ActiveExecutionRecord {
 }
 
 export interface NodeExecutionAdapterOptions {
+  /** OS 进程所有权 adapter；测试可注入退出确认和失败重试，不改变工具协议。 */
+  bashProcessOwnerFactory?: (platform: NodeJS.Platform) => Promise<BashProcessOwner>;
   onToolExecResource?: (sample: LCodeToolExecResource) => void;
   outputRootDir?: string;
   maxPersistedOutputBytes?: number;

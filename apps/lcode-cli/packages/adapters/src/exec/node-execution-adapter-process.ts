@@ -34,6 +34,10 @@ import type {
 import type { ExecutionRequest, ExecutionRunOptions } from "@lcode/contracts";
 
 export class NodeExecutionAdapterProcess extends NodeExecutionAdapterResults {
+  protected spawnPreparedChild(prepared: PreparedChildSpawn): ChildProcess {
+    return spawn(prepared.command.file, prepared.command.args, prepared.spawnOptions);
+  }
+
   protected trackBashResources(
     child: ChildProcess,
     isBash: boolean,
@@ -233,6 +237,34 @@ export class NodeExecutionAdapterProcess extends NodeExecutionAdapterResults {
         });
       });
     }
+  }
+
+  protected watchPipedProgress(
+    child: ChildProcess,
+    stdout: OutputCollector,
+    stderr: OutputCollector,
+    options: ExecutionRunOptions,
+    startedAt: Date,
+    shouldReport: () => boolean,
+  ): NodeJS.Timeout | undefined {
+    if (!options.onEvent) return undefined;
+    const timer = setInterval(() => {
+      if (!shouldReport()) return;
+      const elapsedMs = Date.now() - startedAt.getTime();
+      if (elapsedMs < this.progressThresholdMs) return;
+      this.emit(options, {
+        type: "progress",
+        elapsedMs,
+        pid: child.pid,
+        stdoutBytes: stdout.bytes,
+        stderrBytes: stderr.bytes,
+        stdoutTail: stdout.tailText(),
+        stderrTail: stderr.tailText(),
+        timestamp: new Date(),
+      });
+    }, this.progressIntervalMs);
+    timer.unref?.();
+    return timer;
   }
 
   protected writeChildInput(
