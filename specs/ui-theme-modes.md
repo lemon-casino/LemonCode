@@ -41,7 +41,7 @@
 - 资源管理器独立窗口不建 store，其主题投影由自带引导（启动读 `localStorage` 一次）+ `storage` 事件监听（跟随主窗口 `setTheme` 写入）承担；该文件现无任何 `addEventListener`，必须新增。
 - 跨窗口一致性由广播承担：`theme` 在 `BROADCAST_FIELDS`（store `:214`），发送与接收都必须经 `setTheme`；`applyingBroadcast` 防回环（store `:237`、`:438-453`、`:470-489`），不得在广播路径外直写 `localStorage` 或 setState。
 - 设置页与侧栏两个入口统一消费 `THEME_OPTIONS` 注册表（`settingsPageConfig.ts` 的 `THEME_MODES` 改为由其派生并保留 lucide icon 映射；侧栏 `DropdownMenuRadioGroup` 改为 map 渲染），共用新增的三色小色板展示组件（纯展示，色值读注册表 swatch，`system` 项用对半分色表达动态），不发明新样式体系。
-- 首次引导偏好页是第三个主题入口（`packages/ui/src/onboarding/OnboardingThemeSelector.tsx`）：同样 map `THEME_OPTIONS`、复用 `ThemeSwatch`、选择即调 store `setTheme`，因此主题当场生效并写入 `localStorage`。该入口不新增 store 字段，也不进入引导的 `settings` 保存：跳过偏好页不回退用户已选主题，与 UI 模式/记忆等偏好「跳过落保守默认值」的语义刻意不同。
+- 首次引导偏好页是第三个主题入口（`packages/ui/src/onboarding/OnboardingThemeSelector.tsx`）：同样 map `THEME_OPTIONS`、复用 `ThemeSwatch`、选择即调 store `setTheme`，因此主题当场生效并写入 `localStorage`。该入口不新增 store 字段，也不进入引导的 `settings` 保存：跳过偏好页不回退用户已选主题，与 UI 模式/记忆等偏好「跳过落保守默认值」的语义刻意不同。引导的步骤结构与跳过/保存边界见 [onboarding-flow.md](./onboarding-flow.md)。
 
 ## 事件顺序
 
