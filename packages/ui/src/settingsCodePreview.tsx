@@ -113,13 +113,14 @@ export function AppearanceSectionContent({
         <Card className="border border-border bg-card py-0 shadow-none">
           <CardContent className="space-y-0 px-0">
             <SettingsRow
+              controlLayout="wide"
               label={intl.formatMessage({ id: "settings.themeMode" })}
               description={intl.formatMessage({
                 id: "settings.themeModeDescription",
               })}
               control={
                 <Select value={theme} onValueChange={(value) => setTheme(value as Theme)}>
-                  <SelectTrigger size="lg" className="w-[260px] min-w-0 justify-between">
+                  <SelectTrigger size="lg" className="w-full min-w-0 justify-between">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -172,9 +173,10 @@ export function AppearanceSectionContent({
               })}
             </p>
           </div>
-          <Card className="border border-border bg-card py-0 shadow-none [&_[data-slot=select-trigger]]:w-full">
+          <Card className="border border-border bg-card py-0 shadow-none">
             <CardContent className="space-y-0 px-0">
               <SettingsRow
+                controlLayout="wide"
                 label={intl.formatMessage({ id: "settings.lightTheme" })}
                 description={intl.formatMessage({
                   id: "settings.lightThemeDescription",
@@ -187,6 +189,7 @@ export function AppearanceSectionContent({
                 }
               />
               <SettingsRow
+                controlLayout="wide"
                 label={intl.formatMessage({ id: "settings.darkTheme" })}
                 description={intl.formatMessage({
                   id: "settings.darkThemeDescription",

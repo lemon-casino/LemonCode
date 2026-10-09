@@ -62,6 +62,47 @@ test("theme selection is bounded by the actual control column, not the viewport"
   assert.match(trigger, /\bmax-w-full\b/);
 });
 
+// 控件列宽度由 SettingsRow 的 grid 决定；行内控件再声明固定宽度会与之互相覆盖，
+// 导致同卡片下拉框右边界参差或被截断（见 specs/settings-control-column.md）。
+test("settings select triggers defer their width to the SettingsRow control column", async () => {
+  const sources = [
+    "../settingsPageHelpers.tsx",
+    "../settingsCodePreview.tsx",
+    "../worktree/ExecutionPolicySettings.tsx",
+  ];
+  // 只匹配独立的数字宽度与任意值宽度（w-52 / w-[260px]）；w-full 是允许的流体宽度，
+  // min-w-0 / max-w-full 这类前缀工具类不算控件自带宽度。
+  const fixedWidth = /(?<![\w-])w-(?:\d+|\[[^\]]+\])(?![\w-])/;
+  for (const relative of sources) {
+    const source = await readFile(new URL(relative, import.meta.url), "utf8");
+    // 只看 SettingsRow 的 control：项目级策略面板用自己的 label 布局，不受控件列约束。
+    // 以 <SettingsRow 切段，再截到该行自己的自闭合标签，避免把行外控件算进来。
+    const rows = source
+      .split("<SettingsRow")
+      .slice(1)
+      .map((segment) => {
+        const end = segment.search(/\n\s{6,8}\/>/);
+        return end === -1 ? segment : segment.slice(0, end);
+      });
+    assert.ok(rows.length > 0, `${relative} must render settings rows`);
+    let checked = 0;
+    for (const row of rows) {
+      for (const trigger of row.match(/<SelectTrigger[\s\S]*?>/g) ?? []) {
+        checked += 1;
+        const className = trigger.match(/className="([^"]*)"/)?.[1] ?? "";
+        assert.doesNotMatch(
+          className,
+          fixedWidth,
+          `${relative} settings-row select trigger must not hardcode a width: ${className}`,
+        );
+        assert.match(className, /\bw-full\b/, `${relative} trigger must fill its column`);
+        assert.match(trigger, /size="lg"/, `${relative} trigger must use the lg size`);
+      }
+    }
+    assert.ok(checked > 0, `${relative} must render select triggers inside settings rows`);
+  }
+});
+
 test("settings height inherits the window frame and keeps separate navigation/content scroll owners", async () => {
   const source = await readFile(new URL("../SettingsPage.tsx", import.meta.url), "utf8");
   const pageClass =

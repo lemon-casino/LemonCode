@@ -247,6 +247,7 @@ export function GeneralSectionContent({
     <div className="space-y-4">
       <SettingsGroupCard>
         <SettingsRow
+          controlLayout="wide"
           label={intl.formatMessage({ id: "settings.locale" })}
           description={intl.formatMessage({ id: "settings.localeDescription" })}
           control={
@@ -256,7 +257,7 @@ export function GeneralSectionContent({
             >
               <SelectTrigger
                 size="lg"
-                className="w-[260px] min-w-0 justify-between"
+                className="w-full min-w-0 justify-between"
                 data-testid={TID_SETTINGS_LOCALE_SELECT_TRIGGER}
               >
                 <SelectValue />
@@ -298,7 +299,7 @@ export function GeneralSectionContent({
             >
               <SelectTrigger
                 size="lg"
-                className="w-full min-w-0 sm:w-64"
+                className="w-full min-w-0"
                 aria-label={intl.formatMessage({ id: "settings.interfaceMode" })}
               >
                 <SelectValue />
@@ -630,6 +631,7 @@ export function GeneralSectionContent({
       <SettingsGroupCard>
         <GlobalExecutionPolicySettings />
         <SettingsRow
+          controlLayout="wide"
           label={intl.formatMessage({ id: "settings.lcodeInteractionBehavior" })}
           description={intl.formatMessage({
             id: "settings.lcodeInteractionBehaviorDescription",
@@ -641,7 +643,7 @@ export function GeneralSectionContent({
                 void onLCodeInteractionBehaviorChange(value as LCodeInteractionBehavior);
               }}
             >
-              <SelectTrigger size="lg" className="w-[260px] min-w-0 justify-between">
+              <SelectTrigger size="lg" className="w-full min-w-0 justify-between">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -784,6 +786,7 @@ export function GeneralSectionContent({
           }
         />
         <SettingsRow
+          controlLayout="wide"
           label={intl.formatMessage({ id: "settings.taskAutoArchiveDays" })}
           description={intl.formatMessage({
             id: "settings.taskAutoArchiveDaysDescription",
@@ -796,7 +799,7 @@ export function GeneralSectionContent({
               }}
               disabled={!taskAutoArchiveEnabled}
             >
-              <SelectTrigger size="lg" className="w-[260px] min-w-0 justify-between">
+              <SelectTrigger size="lg" className="w-full min-w-0 justify-between">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

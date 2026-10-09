@@ -89,6 +89,7 @@ const zhCN: Record<string, string> = {
   "occupationOnboarding.error": "保存失败，请重试。",
   "occupationOnboarding.stepRole": "工作方向",
   "occupationOnboarding.stepPreferences": "助手偏好",
+  "occupationOnboarding.stepExecution": "执行与审核",
   "occupationOnboarding.heroTitle": "简单、迅捷、氛围十足！",
   "occupationOnboarding.heroDescription": "多智能体协作完成复杂目标，随时随地尽在掌控。",
   "occupationOnboarding.title": "你的主要工作方向是？",
@@ -99,6 +100,17 @@ const zhCN: Record<string, string> = {
   "occupationOnboarding.other": "其他职业",
   "occupationOnboarding.preferences": "选择你的工作助手偏好",
   "occupationOnboarding.preferencesDescription": "按需开启以下功能。",
+  "occupationOnboarding.execution": "新会话的执行与审核",
+  "occupationOnboarding.executionDescription":
+    "决定新会话在哪里执行、任务完成后是否生成提交审核。之后可在设置 → 常规中随时修改。",
+  "occupationOnboarding.executionMode.localDescription": "在当前项目目录中直接执行。",
+  "occupationOnboarding.executionMode.worktreeDescription":
+    "每次新会话在独立工作树中执行，改动不影响当前目录；需要 Git 仓库。",
+  "occupationOnboarding.reviewMode.offDescription": "不自动生成提交草稿，仍可随时手动发起审核。",
+  "occupationOnboarding.reviewMode.draftDescription":
+    "任务完成且有可提交改动时生成草稿，供你稍后手动审核。",
+  "occupationOnboarding.reviewMode.draft-and-reviewDescription":
+    "在生成草稿后自动打开审核窗口。两种生成模式都会消耗模型额度。",
   "occupationOnboarding.migration": "迁移会话数据",
   "occupationOnboarding.migrationDescription": "从 Claude Code 迁移历史会话数据",
   "occupationOnboarding.memory": "开启工作区记忆",
@@ -1894,11 +1906,10 @@ const zhCN: Record<string, string> = {
   "settings.integratedTerminalShell.refresh": "重新探测 Shell",
   "settings.integratedTerminalShell.selectFile": "选择可执行文件",
   "settings.integratedTerminalShell.selectDirectory": "选择目录",
-  "settings.integratedTerminalShell.pathLabel": "Shell 文件或目录路径",
-  "settings.integratedTerminalShell.pathPlaceholder": "Shell 文件或安装目录的绝对路径",
+  "settings.integratedTerminalShell.searchPlaceholder": "筛选 Shell 或输入绝对路径",
+  "settings.integratedTerminalShell.empty": "没有匹配的 Shell。",
   "settings.integratedTerminalShell.applyPath": "应用路径",
   "settings.integratedTerminalShell.directoryShells": "目录中的 Shell",
-  "settings.integratedTerminalShell.chooseCandidate": "找到多个 Shell，请选择要使用的可执行文件。",
   "settings.integratedTerminalShell.invalidPath":
     "未找到可执行的 Shell。请选择有效文件或包含 Shell 的目录。",
   "settings.integratedTerminalShell.probeFailed":

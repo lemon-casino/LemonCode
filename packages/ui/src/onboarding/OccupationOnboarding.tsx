@@ -3,34 +3,30 @@ import { OnboardingHeader } from "@/onboarding/OnboardingHeader.js";
 import { OccupationOnboardingVisual } from "@/onboarding/OccupationOnboardingVisual.js";
 import { occupations, type OccupationValue } from "@/onboarding/occupationOptions.js";
 import { OnboardingModeSelector } from "@/onboarding/OnboardingModeSelector.js";
+import { OnboardingPreferencesStep } from "@/onboarding/OnboardingPreferencesStep.js";
+import { OnboardingExecutionStep } from "@/onboarding/OnboardingExecutionStep.js";
 import { OnboardingOccupationGrid } from "@/onboarding/OnboardingOccupationGrid.js";
 import { useOnboardingTrigger } from "@/onboarding/useOnboardingTrigger.js";
+import { ONBOARDING_LAST_STEP, type OnboardingStep } from "@/onboarding/onboardingSteps.js";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { useOnboardingRecordService } from "@/hooks/useOnboardingRecordService.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { useEffectiveShortcutBindings } from "@/shortcuts/useShortcutBindings.js";
-import { matchesShortcutBinding } from "@/shortcuts/bindings.js";
+import { useOnboardingShortcuts } from "@/onboarding/useOnboardingShortcuts.js";
+import { useOnboardingSave } from "@/onboarding/useOnboardingSave.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { Button } from "@/components/ui/button.js";
-import { Checkbox } from "@/components/ui/checkbox.js";
 import { useLCodeStore } from "@/store/StoreProvider.js";
 import type { InterfaceMode } from "@/lib/interfaceMode.js";
 import { logger } from "@/logger.js";
 import { DesktopWindowControls } from "@/DesktopWindowControls.js";
 import type { OnboardingRecordEntry } from "@lcode/shared";
-
-/** 追加本地引导记录（userId 由 host 补全）；channel 缺失挂起时 5 秒超时按写失败处理。 */
-async function appendOnboardingRecord(
-  service: NonNullable<ReturnType<typeof useOnboardingRecordService>>,
-  deviceMid: string,
-  entry: Parameters<typeof service.appendRecord>[1],
-): Promise<void> {
-  await Promise.race([
-    service.appendRecord(deviceMid, entry),
-    new Promise((_, reject) => setTimeout(() => reject(new Error("appendRecord timeout")), 5000)),
-  ]);
-}
+import {
+  resolveGlobalGitCommitReviewMode,
+  type GitCommitReviewMode,
+  type SessionExecutionMode,
+} from "@lcode/shared";
 
 export function OccupationOnboarding({
   children,
@@ -60,18 +56,27 @@ export function OccupationOnboarding({
   const [occupation, setOccupation] = useState<OccupationValue | null>("developer");
   const savedInterfaceMode = useLCodeStore((state) => state.interfaceMode);
   const setInterfaceMode = useLCodeStore((state) => state.setInterfaceMode);
+  // 主题的运行时所有者是 store 的 theme/setTheme（spec: specs/ui-theme-modes.md）；
+  // 引导只作为第三个选择入口复用同一链路，不新建第二份状态或直写 DOM。
+  const theme = useLCodeStore((state) => state.theme);
+  const setTheme = useLCodeStore((state) => state.setTheme);
   // mode 为 null 表示模式页被"跳过"（跳过是显式答案，记录里保留 null 而非兜底值）。
   const [mode, setMode] = useState<InterfaceMode | null>(savedInterfaceMode);
-  const [step, setStep] = useState<0 | 1 | 2>(0);
+  const [step, setStep] = useState<OnboardingStep>(0);
   const preferences = step === 2;
+  const execution = step === 3;
   const requestOnboardingDialog = useLCodeStore((state) => state.requestOnboardingDialog);
   const [migration, setMigration] = useState(false);
   const [memory, setMemory] = useState(savedInterfaceMode === "office");
   const [suggestions, setSuggestions] = useState(savedInterfaceMode === "office");
   const suggestionsEditedRef = useRef(false);
-  const [saving, setSaving] = useState(false);
-  const savingRef = useRef(false);
-  const [error, setError] = useState(false);
+  // 偏好页（第 3 步）被单独跳过时，其布尔答案在引导记录里记 null。
+  const preferencesSkippedRef = useRef(false);
+  // 执行方式与提交审核沿用设置页常规分区的同一组字段，初值取已持久化的生效值，
+  // 用户不修改时不产生多余写入。
+  const [executionMode, setExecutionMode] = useState<SessionExecutionMode>("local");
+  const [reviewMode, setReviewMode] = useState<GitCommitReviewMode>("off");
+  const executionEditedRef = useRef(false);
   const [dismissed, setDismissed] = useState(false);
   const [needsOnboarding, markOnboarded] = useOnboardingTrigger({
     onboardingRecord,
@@ -93,66 +98,51 @@ export function OccupationOnboarding({
     suggestions,
     migration,
   });
+  const { save, saving, error, setError, savingRef } = useOnboardingSave({
+    update,
+    occupation,
+    mode,
+    memory,
+    suggestions,
+    executionMode,
+    reviewMode,
+    executionEditedRef,
+    preferencesSkippedRef,
+    setInterfaceMode,
+    onSaved: ({ skippedFinalStep }) => {
+      // 保存成功就是本次引导的终点；本地记录失败不应留下可再次上报的引导页面。
+      setStep(0);
+      setDismissed(true);
+      setRequested(false);
+      if (!skippedFinalStep && migration) requestOnboardingDialog("migration");
+    },
+    onboardingRecord,
+    deviceId: platform.getDeviceId(),
+    markOnboarded,
+    captureEnd,
+    t,
+  });
   const closeOnboarding = useCallback(() => {
     if (savingRef.current) return;
     captureEnd("close", intl.formatMessage({ id: "occupationOnboarding.close" }))();
     setStep(0);
     setDismissed(true);
     setRequested(false);
-  }, [captureEnd, intl, setRequested]);
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (
-        shortcutBindings.toggleInterfaceMode.some((binding) =>
-          matchesShortcutBinding(event, binding),
-        )
-      ) {
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        if (saving) return;
-        const nextMode = savedInterfaceMode === "office" ? "coding" : "office";
-        setInterfaceMode(nextMode);
-        setMode(nextMode);
-        if (nextMode !== mode) {
-          setMemory(nextMode === "office");
-          if (nextMode === "office" && !suggestionsEditedRef.current) setSuggestions(true);
-        }
-        return;
-      }
-      if (event.key === "Escape" && onboardingVisible && !saving) {
-        // 直接退出引导（设置里主动打开的场景尤其需要）：不保存、不改记录，
-        // 本次会话不再显示，下次启动按记录重新触发。
-        event.preventDefault();
-        event.stopImmediatePropagation();
-        closeOnboarding();
-        return;
-      }
-      if (
-        !shortcutBindings.openOnboarding.some((binding) => matchesShortcutBinding(event, binding))
-      )
-        return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      if (saving) return;
-      // 关闭调试引导不保存偏好，也不把首次引导标记为已完成。
-      if (onboardingVisible) {
-        closeOnboarding();
-      } else {
-        setRequested(true);
-      }
-    };
-    window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
-  }, [
-    closeOnboarding,
+  }, [captureEnd, intl, savingRef, setRequested]);
+  useOnboardingShortcuts({
     shortcutBindings,
-    setRequested,
     onboardingVisible,
     saving,
     savedInterfaceMode,
-    setInterfaceMode,
     mode,
-  ]);
+    suggestionsEditedRef,
+    setInterfaceMode,
+    setMode,
+    setMemory,
+    setSuggestions,
+    closeOnboarding,
+    setRequested,
+  });
   // 引导再次打开（换账号触发 / 快捷键手动打开）时，用该用户在 record 里的最近作答预填，
   // 而不是每次都从写死的默认选项开始；跳过页记 null 的字段落默认值。
   const [latestEntry, setLatestEntry] = useState<OnboardingRecordEntry | null>(null);
@@ -190,6 +180,10 @@ export function OccupationOnboarding({
     // 编程模式默认关闭主动工作记忆；办公模式才恢复该用户之前的勾选。
     setMemory(initialMode === "office" && (entry?.memoryEnabled ?? true));
     setSuggestions(entry?.proactiveSuggestionsEnabled ?? initialMode === "office");
+    // 执行与审核回读当前生效设置：两项都不是"跳过即改配置"的偏好，
+    // 用户没动过就不该在保存时被改写。
+    setExecutionMode(settings?.defaultSessionExecutionMode ?? "local");
+    setReviewMode(resolveGlobalGitCommitReviewMode(settings ?? {}));
     setMigration(false);
     setError(false);
   };
@@ -197,6 +191,8 @@ export function OccupationOnboarding({
     if (!requested) return;
     userEditedRef.current = false;
     suggestionsEditedRef.current = false;
+    executionEditedRef.current = false;
+    preferencesSkippedRef.current = false;
     applyLatestEntry();
     // latestEntry 异步到达时若引导已打开，重新预填一次（用户未交互前覆盖默认值）。
   }, [requested]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -215,56 +211,6 @@ export function OccupationOnboarding({
     return showChildrenWhileLoading ? <>{children}</> : null;
   }
   if (!onboardingVisible) return <>{children}</>;
-  const save = async (skip = false) => {
-    if (savingRef.current) return;
-    savingRef.current = true;
-    const reportEnd = captureEnd(skip ? "skip" : "start", t(skip ? "skip" : "start"));
-    setSaving(true);
-    setError(false);
-    try {
-      if (mode) setInterfaceMode(mode);
-      logger.info("[occupation-onboarding] 保存偏好", { interfaceMode: mode });
-      await update({
-        // settings 侧保持既有语义：跳过落保守默认值（职业 other / 偏好关），
-        // "跳过也算答案"的区分度只体现在 onboarding-record.json 里。
-        onboardingOccupation: occupation ?? "other",
-        memoryEnabled: skip ? false : memory,
-        proactiveSuggestionsEnabled: !skip && mode === "office" && suggestions,
-      });
-      reportEnd();
-      // 保存成功就是本次引导的终点；本地记录失败不应留下可再次上报的引导页面。
-      setStep(0);
-      setDismissed(true);
-      setRequested(false);
-      if (!skip && migration) requestOnboardingDialog("migration");
-      logger.info("[occupation-onboarding] 偏好保存完成", { interfaceMode: mode });
-      if (onboardingRecord) {
-        try {
-          // 追加本地引导记录（userId 由 host 按登录态补全），后续上传服务器。
-          // appendRecord 走 RPC，channel 缺失时会挂起导致保存按钮永远转圈，加超时保护。
-          // 跳过是显式答案：该页被跳过时记 null（occupation 在第 1 步跳过时已是 null，
-          // mode 在第 2 步跳过时置 null，偏好页整体跳过时两个布尔记 null）。
-          await appendOnboardingRecord(onboardingRecord, platform.getDeviceId(), {
-            occupation,
-            interfaceMode: mode,
-            memoryEnabled: skip ? null : memory,
-            proactiveSuggestionsEnabled: skip ? null : mode === "office" && suggestions,
-            completedAt: new Date().toISOString(),
-          });
-          markOnboarded();
-        } catch (cause) {
-          // 偏好已保存成功，记录写失败只留 warn 日志，不打断用户；下次启动按记录会再次触发引导。
-          logger.warn("[occupation-onboarding] 写入引导记录失败", { error: String(cause) });
-        }
-      }
-    } catch (cause) {
-      logger.warn("[occupation-onboarding] 保存偏好失败", { error: String(cause) });
-      setError(true);
-    } finally {
-      savingRef.current = false;
-      setSaving(false);
-    }
-  };
   return (
     <main
       aria-label={t("title")}
@@ -284,7 +230,7 @@ export function OccupationOnboarding({
             step={step}
             saving={saving}
             t={t}
-            onBack={() => setStep(step === 2 ? 1 : 0)}
+            onBack={() => setStep((step === 0 ? 0 : step - 1) as OnboardingStep)}
             onClose={closeOnboarding}
           />
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-6 py-4 sm:px-10">
@@ -293,15 +239,25 @@ export function OccupationOnboarding({
               <section className="flex w-full flex-col">
                 <div className="w-full">
                   <h1 className="text-ui-xl font-semibold tracking-tight text-center">
-                    {t(preferences ? "preferences" : step === 1 ? "modeTitle" : "title")}
+                    {t(
+                      execution
+                        ? "execution"
+                        : preferences
+                          ? "preferences"
+                          : step === 1
+                            ? "modeTitle"
+                            : "title",
+                    )}
                   </h1>
                   <p className="mx-auto mt-3 max-w-md text-center text-ui-base leading-relaxed text-foreground-subtle">
                     {t(
-                      preferences
-                        ? "preferencesDescription"
-                        : step === 1
-                          ? "modeDescription"
-                          : "description",
+                      execution
+                        ? "executionDescription"
+                        : preferences
+                          ? "preferencesDescription"
+                          : step === 1
+                            ? "modeDescription"
+                            : "description",
                     )}
                   </p>
                   {step === 1 ? (
@@ -322,40 +278,47 @@ export function OccupationOnboarding({
                       formatLabel={(key) => t(key)}
                     />
                   ) : preferences ? (
-                    <div className="mt-8 space-y-3">
-                      {(["suggestions", "memory", "migration"] as const)
-                        .filter((key) => key !== "suggestions" || mode === "office")
-                        .map((key) => (
-                          <label
-                            key={key}
-                            className="grid cursor-pointer grid-cols-[auto_1fr] items-center gap-x-4 gap-y-2 rounded-xl border border-card-border bg-card dark:bg-surface/40 p-5 text-ui-base transition-colors hover:bg-surface-hover"
-                          >
-                            <Checkbox
-                              checked={
-                                key === "migration"
-                                  ? migration
-                                  : key === "memory"
-                                    ? memory
-                                    : suggestions
-                              }
-                              disabled={saving}
-                              onCheckedChange={(checked) => {
-                                markUserEdited();
-                                if (key === "migration") setMigration(checked === true);
-                                else if (key === "memory") setMemory(checked === true);
-                                else {
-                                  suggestionsEditedRef.current = true;
-                                  setSuggestions(checked === true);
-                                }
-                              }}
-                            />
-                            <span className="font-medium">{t(key)}</span>
-                            <span className="col-start-2 text-ui-sm font-normal text-foreground-subtle">
-                              {t(`${key}Description`)}
-                            </span>
-                          </label>
-                        ))}
-                    </div>
+                    <OnboardingPreferencesStep
+                      mode={mode}
+                      theme={theme}
+                      memory={memory}
+                      suggestions={suggestions}
+                      migration={migration}
+                      saving={saving}
+                      onThemeSelect={(value) => {
+                        markUserEdited();
+                        // 主题经 store 的 setTheme 立即生效并写入 localStorage；
+                        // 不进入 settings 保存，跳过本页也不回退用户已选的主题。
+                        setTheme(value);
+                      }}
+                      onToggle={(key, checked) => {
+                        markUserEdited();
+                        if (key === "migration") setMigration(checked);
+                        else if (key === "memory") setMemory(checked);
+                        else {
+                          suggestionsEditedRef.current = true;
+                          setSuggestions(checked);
+                        }
+                      }}
+                      t={t}
+                    />
+                  ) : execution ? (
+                    <OnboardingExecutionStep
+                      executionMode={executionMode}
+                      reviewMode={reviewMode}
+                      saving={saving}
+                      onExecutionModeSelect={(value) => {
+                        markUserEdited();
+                        executionEditedRef.current = true;
+                        setExecutionMode(value);
+                      }}
+                      onReviewModeSelect={(value) => {
+                        markUserEdited();
+                        executionEditedRef.current = true;
+                        setReviewMode(value);
+                      }}
+                      t={t}
+                    />
                   ) : (
                     <OnboardingOccupationGrid
                       occupation={occupation}
@@ -381,12 +344,15 @@ export function OccupationOnboarding({
                     className="order-2 h-9 self-center rounded-xl px-3 text-ui-base text-foreground-subtle"
                     onClick={() => {
                       markUserEdited();
-                      if (preferences) void save(true);
-                      else {
-                        if (step === 0) setOccupation(null);
-                        else setMode(null);
-                        setStep(step === 0 ? 1 : 2);
+                      // 每页的“跳过”只跳过当前页并前进；最后一页的跳过直接完成引导。
+                      if (step === ONBOARDING_LAST_STEP) {
+                        void save({ skippedFinalStep: true });
+                        return;
                       }
+                      if (step === 0) setOccupation(null);
+                      else if (step === 1) setMode(null);
+                      else preferencesSkippedRef.current = true;
+                      setStep((step + 1) as OnboardingStep);
                     }}
                   >
                     {t("skip")}
@@ -396,11 +362,11 @@ export function OccupationOnboarding({
                       disabled={saving || (step === 0 && !occupation)}
                       className="h-11 flex-1 rounded-xl px-5 text-ui-base"
                       onClick={() => {
-                        if (!preferences) setStep(step === 0 ? 1 : 2);
-                        else void save();
+                        if (step === ONBOARDING_LAST_STEP) void save({});
+                        else setStep((step + 1) as OnboardingStep);
                       }}
                     >
-                      {t(saving ? "saving" : preferences ? "start" : "continue")}
+                      {t(saving ? "saving" : step === ONBOARDING_LAST_STEP ? "start" : "continue")}
                     </Button>
                   </div>
                 </footer>
