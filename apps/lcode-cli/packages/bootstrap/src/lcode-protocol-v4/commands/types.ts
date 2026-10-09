@@ -235,6 +235,13 @@ export interface V4CommandCoreHost {
     workspaceId: string;
     execution?: CommandPayloadMap["createSession"]["execution"];
     executionRequestId?: string;
+    /** 冻结首发素材仅供 CLI 创建前概括；不作为跨进程 execution.taskName 原文发送。 */
+    worktreeTaskNameInput?: {
+      text: string;
+      modelSelection?: NonNullable<
+        CommandPayloadMap["createSession"]["firstInput"]
+      >["modelSelection"];
+    };
     mcpServers?: CommandPayloadMap["createSession"]["mcpServers"];
     /** host 判定的 Off-Peak 工具面门禁；缺省不注册工具。 */
     offPeakToolEnabled?: boolean;

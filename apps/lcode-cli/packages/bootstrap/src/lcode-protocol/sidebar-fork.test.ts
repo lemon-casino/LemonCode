@@ -114,17 +114,26 @@ test("new-tree fork retains its new environment, never the source reference", as
   const retained: Record<string, unknown>[] = [];
   const record = {
     workspace: { workspacePath: "/origin", workspaceKey: "/origin", environmentRef: sourceRef },
-    app: { sessionId: "parent" }, executionMcpServers: [],
+    app: { sessionId: "parent" },
+    executionMcpServers: [],
   } as unknown as LCodeProtocolSessionRecord;
   const context = {
     deps: { sessionStore: { getSession: async () => ({ title: "fork" }) } },
     requestClient: async (method: string, params: Record<string, unknown>) => {
       if (method === "worktree/getBinding") return { binding: null };
-      if (method === "runtimeEnvironment/retainSession") { retained.push(params); return { retained: true }; }
+      if (method === "runtimeEnvironment/retainSession") {
+        retained.push(params);
+        return { retained: true };
+      }
       return {
-        status: "ready", taskId: String(createSessionId("new-tree")), id: "new-binding",
-        originalWorkspacePath: "/origin", workspacePath: "/new-tree", checkoutPath: "/new-tree",
-        repositoryRoot: "/origin", environmentRef: newRef,
+        status: "ready",
+        taskId: String(createSessionId("new-tree")),
+        id: "new-binding",
+        originalWorkspacePath: "/origin",
+        workspacePath: "/new-tree",
+        checkoutPath: "/new-tree",
+        repositoryRoot: "/origin",
+        environmentRef: newRef,
       };
     },
   } as unknown as LCodeProtocolAgentServerContext;
@@ -163,4 +172,36 @@ test("new worktree fork refuses running sources and rejects foreign bindings bef
     "/origin",
   );
   assert.equal((calls[1] as { taskName: string }).taskName, "优化模型设置");
+});
+
+test("fork refuses a source that starts running while its task name is being summarized", async () => {
+  const record = {
+    workspace: { workspacePath: "/origin" },
+    app: { sessionId: "parent" },
+    executionMcpServers: [],
+  } as unknown as LCodeProtocolSessionRecord;
+  let requests = 0;
+  const context = {
+    deps: {
+      sessionStore: {
+        getSession: async () => ({ title: "清理帮助与问题上报相关界面的多个重复入口" }),
+      },
+      createSessionEventStore: () => ({}),
+      createLCodeApp: async () => ({
+        getModel: () => "fixture/model",
+        generateWorkspaceText: async () => {
+          record.activeAbortController = new AbortController();
+          return { text: '{"title":"清理帮助与问题上报入口"}' };
+        },
+        close: async () => {},
+      }),
+    },
+    requestClient: async () => {
+      requests++;
+      assert.ok(requests <= 2, "a busy source must never reach worktree preparation");
+      return { binding: null };
+    },
+  } as unknown as LCodeProtocolAgentServerContext;
+  await assert.rejects(prepareForkWorktree(context, record, "fork-command"), /busy/);
+  assert.equal(requests, 2);
 });

@@ -11,14 +11,19 @@ import type {
 import { buildWorkspaceRef } from "./workspace.js";
 import { filesystemMcpRoots, remapFilesystemMcpServers } from "./worktree-mcp-scope.js";
 import { retainRuntimeEnvironmentSession } from "./runtime-environment-session.js";
+import { summarizeWorktreeTaskName } from "./worktree-task-name.js";
+
+function assertForkSourceIdle(record: LCodeProtocolSessionRecord) {
+  if (record.activeAbortController && !record.activeAbortController.signal.aborted)
+    throw new Error("Fork source is busy; wait until file writers finish");
+}
 
 export async function prepareForkWorktree(
   context: LCodeProtocolAgentServerContext,
   record: LCodeProtocolSessionRecord,
   commandId: string,
 ) {
-  if (record.activeAbortController && !record.activeAbortController.signal.aborted)
-    throw new Error("Fork source is busy; wait until file writers finish");
+  assertForkSourceIdle(record);
   const source = record.workspace;
   const origin = {
     workspacePath: source.originWorkspacePath ?? source.workspacePath,
@@ -40,15 +45,28 @@ export async function prepareForkWorktree(
         source.workspacePath,
       )
     : record.executionMcpServers;
-  const taskId = String(createSessionId(commandId));
+  const taskId = createSessionId(commandId);
   const parentSession = await context.deps.sessionStore?.getSession(record.app.sessionId);
+  const taskName = await summarizeWorktreeTaskName(context, {
+    workspace: {
+      ...origin,
+      workspaceKey: origin.workspaceIdentity?.trim() || origin.workspacePath,
+      remoteSessionId: source.remoteSessionId,
+    },
+    taskId,
+    text: parentSession?.title ?? "",
+    modelSelection: record.app.runtime?.getSessionModelSelection(),
+    fallbackName: "分叉会话",
+  });
+  // 命名会等待模型，来源可能已开始新一轮；快照前必须重新检查运行事实。
+  assertForkSourceIdle(record);
   const binding = await context.requestClient(
     lcodeProtocolMethods.worktreePrepareExecution,
     {
       ...origin,
       requestId: commandId,
       taskId,
-      taskName: parentSession?.title.slice(0, 256) || "分叉会话",
+      taskName,
       forkSource: {
         workspacePath: source.workspacePath,
         workspaceIdentity: source.workspaceIdentity,

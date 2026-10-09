@@ -27,6 +27,7 @@ const WORKSPACE_GENERATE_TEXT_TIMEOUT_MS = 60_000;
 const CONNECTIVITY_PROBE_SYSTEM = "You are LCode connectivity probe.";
 const CONNECTIVITY_PROBE_USER = "hi";
 const GIT_COMMIT_MESSAGE_QUERY_SOURCE = "git_commit_message";
+const WORKTREE_TASK_NAME_QUERY_SOURCE = "worktree_task_name";
 
 export interface WorkspaceGenerateTextInput {
   selection: ModelSelection;
@@ -161,7 +162,8 @@ async function generateWorkspaceTextImpl(
   const baseModel = createRuntimeModel(this, { selection: requestedSelection });
   // 辅助请求需要的是最低公开档位，不是扫描 off/nothink 等名称后强制关闭。
   const model =
-    querySource === GIT_COMMIT_MESSAGE_QUERY_SOURCE
+    querySource === GIT_COMMIT_MESSAGE_QUERY_SOURCE ||
+    querySource === WORKTREE_TASK_NAME_QUERY_SOURCE
       ? baseModel.bind(auxiliaryModelOptions(baseModel))
       : baseModel;
   const baseTraceContext = options?.traceContext ?? this.rootTraceContext;

@@ -1,4 +1,7 @@
 import type { V4CommandCoreHost } from "../lcode-protocol-v4/commands/types.js";
+import { createSessionId } from "@lcode/contracts";
+import { summarizeWorktreeTaskName } from "./worktree-task-name.js";
+import { WorktreePreparationError } from "./worktree-execution.js";
 
 import { resolveWorkspaceRefFromId } from "./mapper.js";
 
@@ -79,6 +82,7 @@ export function createV4SessionHost(
       workspaceId,
       execution,
       executionRequestId,
+      worktreeTaskNameInput,
       mcpServers,
       offPeakToolEnabled,
       dynamicWorkflowEnabled,
@@ -92,8 +96,22 @@ export function createV4SessionHost(
       //   （workspaceKey = identity，sessions-index topic / 隔离语义不变）。
       // shared parser 统一兼容 WSL legacy 与显式 user identity；非远程格式继续按
       // 本地 workspacePath 处理。
+      const workspace = resolveWorkspaceRefFromId(workspaceId);
+      if (execution?.mode === "worktree" && worktreeTaskNameInput) {
+        if (!executionRequestId)
+          throw new Error("Worktree naming requires a stable creation request ID");
+        const taskName = await summarizeWorktreeTaskName(context, {
+          workspace,
+          taskId: createSessionId(executionRequestId),
+          ...worktreeTaskNameInput,
+        }).catch((error: unknown) => {
+          throw new WorktreePreparationError(error);
+        });
+        execution = { ...execution, taskName };
+      }
+      context.assertServing?.();
       const created = await createSessionRecordForV4(context, {
-        workspace: resolveWorkspaceRefFromId(workspaceId),
+        workspace,
         execution,
         executionRequestId,
         // 一律 deferred（draft 不进 sqlite）；提升时机归原生 prompt-turn。

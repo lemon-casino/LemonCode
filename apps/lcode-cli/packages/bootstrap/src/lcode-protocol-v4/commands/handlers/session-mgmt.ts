@@ -49,10 +49,15 @@ async function createSession(
   }
   const { sessionId } = await host.createSessionRecord({
     workspaceId: payload.workspaceId,
-    // 中文依据：创建工作树先于首条 turn，命名必须使用本次冻结输入，不能回读 UI 草稿。
-    execution: payload.execution?.mode === "worktree" && payload.firstInput
-      ? { ...payload.execution, taskName: payload.firstInput.text.slice(0, 256) }
-      : payload.execution,
+    execution: payload.execution,
+    // 原因：正文截断不是任务概括；把冻结首发交给 CLI 命名入口，Host 只接收短名称。
+    worktreeTaskNameInput:
+      payload.execution?.mode === "worktree" && payload.firstInput
+        ? {
+            text: payload.firstInput.text,
+            modelSelection: payload.firstInput.modelSelection ?? payload.config?.modelSelection,
+          }
+        : undefined,
     executionRequestId: envelope.commandId,
     mcpServers: payload.mcpServers,
     offPeakToolEnabled: payload.offPeakToolEnabled,
