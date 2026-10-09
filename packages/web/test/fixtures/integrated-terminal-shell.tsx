@@ -31,6 +31,10 @@ const option = (
 
 function Fixture() {
   const [selection, setSelection] = useState<IntegratedTerminalShellSelection>({ mode: "auto" });
+  const [options] = useState<IntegratedTerminalShellOption[]>([
+    option("/usr/bin/zsh", "posix"),
+    option("/usr/local/bin/fish", "fish"),
+  ]);
   const [mounted, setMounted] = useState(true);
   const web = new URLSearchParams(location.search).has("web");
   return (
@@ -46,7 +50,7 @@ function Fixture() {
           control={
             <IntegratedTerminalShellControl
               selection={selection}
-              options={[]}
+              options={options}
               loading={false}
               onRefresh={async () => {}}
               onChange={async (value) => {

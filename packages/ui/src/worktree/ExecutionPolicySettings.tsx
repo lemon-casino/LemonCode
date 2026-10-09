@@ -51,6 +51,7 @@ export function GlobalExecutionPolicySettings() {
   return (
     <>
       <SettingsRow
+        controlLayout="wide"
         label={intl.formatMessage({ id: "worktree.defaultMode" })}
         description={intl.formatMessage({ id: "worktree.defaultModeDescription" })}
         control={
@@ -61,7 +62,7 @@ export function GlobalExecutionPolicySettings() {
               void save({ defaultSessionExecutionMode: mode as "local" | "worktree" });
             }}
           >
-            <SelectTrigger className="w-52" data-testid="global-execution-mode">
+            <SelectTrigger size="lg" className="w-full" data-testid="global-execution-mode">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -87,6 +88,7 @@ export function GlobalExecutionPolicySettings() {
             }}
           >
             <SelectTrigger
+              size="lg"
               className="w-full"
               data-testid={TID_SETTINGS_GIT_COMMIT_REVIEW_MODE_SELECT}
               aria-label={intl.formatMessage({ id: "settings.gitCommitReviewMode" })}

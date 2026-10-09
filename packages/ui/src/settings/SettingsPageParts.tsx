@@ -30,7 +30,7 @@ export function ThemeSelect({
 }) {
   return (
     <Select value={value} onValueChange={(nextValue) => onValueChange(nextValue as BundledTheme)}>
-      <SelectTrigger size="lg" className="w-64 min-w-0 max-w-full justify-between">
+      <SelectTrigger size="lg" className="w-full min-w-0 max-w-full justify-between">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

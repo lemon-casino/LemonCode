@@ -2,6 +2,7 @@ import { useCallback, useLayoutEffect, useRef } from "react";
 import type { IPlatformService } from "@lcode/shared";
 import type { InterfaceMode } from "@/lib/interfaceMode.js";
 import type { OccupationValue } from "@/onboarding/occupationOptions.js";
+import type { OnboardingStep } from "@/onboarding/onboardingSteps.js";
 import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
 
 const workDirections: Record<OccupationValue, string> = {
@@ -41,7 +42,7 @@ export function useOnboardingTelemetry({
 }: {
   platform: Pick<IPlatformService, "reportTelemetryEvent">;
   visible: boolean;
-  step: 0 | 1 | 2;
+  step: OnboardingStep;
   occupation: OccupationValue | null;
   mode: InterfaceMode | null;
   memory: boolean;

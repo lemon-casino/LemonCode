@@ -1,6 +1,13 @@
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
+import { ONBOARDING_STEP_COUNT, type OnboardingStep } from "@/onboarding/onboardingSteps.js";
 import { ArrowLeft, X } from "lucide-react";
+
+/** 每步在进度条上的无障碍名称，长度必须与 ONBOARDING_STEP_COUNT 一致。 */
+const ONBOARDING_STEP_KEYS = ["stepRole", "stepMode", "stepPreferences", "stepExecution"] as const;
+if (ONBOARDING_STEP_KEYS.length !== ONBOARDING_STEP_COUNT) {
+  throw new Error("onboarding step labels must match the declared step count");
+}
 
 export function OnboardingHeader({
   step,
@@ -9,7 +16,7 @@ export function OnboardingHeader({
   onBack,
   onClose,
 }: {
-  step: 0 | 1 | 2;
+  step: OnboardingStep;
   saving: boolean;
   t: (key: string) => string;
   onBack: () => void;
@@ -30,9 +37,9 @@ export function OnboardingHeader({
       ) : null}
       <ol
         aria-label={t("preferences")}
-        className="col-start-2 row-start-1 flex w-28 items-center gap-2"
+        className="col-start-2 row-start-1 flex w-32 items-center gap-2"
       >
-        {["stepRole", "stepMode", "stepPreferences"].map((key, index) => (
+        {ONBOARDING_STEP_KEYS.map((key, index) => (
           <li
             key={key}
             aria-current={step === index ? "step" : undefined}

@@ -13,14 +13,14 @@
 
 ## 主题清单
 
-| id | 基底 | 中文名 | 英文名 | 色板要点 |
-| --- | --- | --- | --- | --- |
-| `system` | dynamic | 跟随系统 | System | 动态基底：由 `matchMedia(prefers-color-scheme: dark)` 实时解析，亮→`zai-light`、暗→`zai-dark`（`packages/ui/src/useTheme.ts:60-65` 现行为保持）。注册表中以 `base: "dynamic"` 与静态主题区分，消费端不得把它当静态基底读取 |
-| `zai-dark` | dark | 深色主题 | Zai Dark | 既有默认深色；背景 `#161616`、前景 `#f8f8f8`、品牌反白 `#ffffff`、终端自定义 ANSI 暗系色板（`styles.css:606-750` 现值，不改） |
-| `zai-light` | light | 浅色主题 | Zai Light | 既有浅色；背景 `#f8f8f8`、前景 `#0d0d0d`、品牌纯黑 `#000000`（`styles.css:461-604` 现值，不改） |
-| `sepia-light` | light | 暖纸浅色 | Sepia Light | 新增浅基底：暖米纸背景（建议 ~`#f6f1e7`）、深咖前景（建议 ~`#3f382e`）、暖褐 brand、暖纸 tag/hover/selected |
-| `midnight-blue` | dark | 午夜蓝 | Midnight Blue | 新增深基底：深蓝夜空背景（建议 ~`#0d1424`）、冷白前景（建议 ~`#e6ebf5`）、亮蓝 brand（建议 ~`#5b9dff`）、蓝色系终端 ANSI |
-| `forest-dark` | dark | 森林深色 | Forest Dark | 新增深基底：墨绿背景（建议 ~`#101812`）、灰绿前景（建议 ~`#d9e2d9`）、苔绿 brand（建议 ~`#7fbf8e`）、绿色系终端 ANSI |
+| id              | 基底    | 中文名   | 英文名        | 色板要点                                                                                                                                                                                                                   |
+| --------------- | ------- | -------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `system`        | dynamic | 跟随系统 | System        | 动态基底：由 `matchMedia(prefers-color-scheme: dark)` 实时解析，亮→`zai-light`、暗→`zai-dark`（`packages/ui/src/useTheme.ts:60-65` 现行为保持）。注册表中以 `base: "dynamic"` 与静态主题区分，消费端不得把它当静态基底读取 |
+| `zai-dark`      | dark    | 深色主题 | Zai Dark      | 既有默认深色；背景 `#161616`、前景 `#f8f8f8`、品牌反白 `#ffffff`、终端自定义 ANSI 暗系色板（`styles.css:606-750` 现值，不改）                                                                                              |
+| `zai-light`     | light   | 浅色主题 | Zai Light     | 既有浅色；背景 `#f8f8f8`、前景 `#0d0d0d`、品牌纯黑 `#000000`（`styles.css:461-604` 现值，不改）                                                                                                                            |
+| `sepia-light`   | light   | 暖纸浅色 | Sepia Light   | 新增浅基底：暖米纸背景（建议 ~`#f6f1e7`）、深咖前景（建议 ~`#3f382e`）、暖褐 brand、暖纸 tag/hover/selected                                                                                                                |
+| `midnight-blue` | dark    | 午夜蓝   | Midnight Blue | 新增深基底：深蓝夜空背景（建议 ~`#0d1424`）、冷白前景（建议 ~`#e6ebf5`）、亮蓝 brand（建议 ~`#5b9dff`）、蓝色系终端 ANSI                                                                                                   |
+| `forest-dark`   | dark    | 森林深色 | Forest Dark   | 新增深基底：墨绿背景（建议 ~`#101812`）、灰绿前景（建议 ~`#d9e2d9`）、苔绿 brand（建议 ~`#7fbf8e`）、绿色系终端 ANSI                                                                                                       |
 
 新主题三项色板为设计假设值，落地时以 `DESIGN.md`「Accessibility and Internationalization」的对比度要求实测校验后定稿。`system` 的解析兜底与默认主题一致为深色；用户可见顺序固定：system → zai-dark → zai-light → sepia-light → midnight-blue → forest-dark。
 
@@ -30,8 +30,8 @@
 2. 每个主题必须有唯一 kebab-case id、明暗基底、中英文显示名与三色小色板（底色/前景/主色）。深基底主题激活时 `documentElement` 同时挂 `dark` + `theme-<id>`，浅基底只挂 `theme-<id>`；`theme-<id>` 不得作为局部子树强制类——局部强制浅色继续复用完整块 `theme-zai-light`（见 `packages/ui/src/previewPaneOfficeLegacyDocContent.tsx:132` 既有用法）。
 3. 首帧挂载规则：5 处启动引导（desktop `packages/desktop/src/renderer/src/main.tsx:76-100`、web `packages/web/src/main.tsx:39-67`、resource-manager `packages/desktop/src/renderer/src/resource-manager.tsx:22-47`、`packages/web/src/webThemeSeed.ts`、`packages/web/index.html:16-63` 内联脚本）必须在 React 接管前按基底挂 `dark` 并挂唯一 `theme-<id>`（含浅基底仅 `theme-<id>` 的分支）；引导写点与 `THEME_OPTIONS` 注册表必须同步放行全部 id，不允许出现「先基底色后跳变」的首帧。`web/index.html` 的 try 失败兜底分支（`:57-61`）同样只允许落到默认 `zai-dark` 组合。
 4. 跟随系统语义固定为「按系统亮暗落到 Zai 深色/浅色」，不落到新增主题；快捷键/quick pick 翻转固定落在 Zai 对（`packages/ui/src/App.tsx:686-689` 经 `resolveTheme` 取明暗相反侧），不进新主题轮换。
-5. 新主题必须基于明暗基底叠加差量变量，复用现有 `--color-*` 变量体系：不得新造变量名；不得直接重定义 `--color-icon-blue` 与 `--color-markdown-inline-code`（两者为全主题共享/派生色，`styles.css:162`、`:185`，后者经 `--color-tag` 跟随）；不得写不透明根背景（`styles.css:47-55` Electron vibrancy 要求透明根，新块必须给 `--color-background-win-alt` 值）。必覆盖最小集（对照 `.theme-zai-light` 实测 142 项变量清单逐项决策）：表面全家族（background/background-alt/background-win-alt/header/sidebar/panel/surface+hover/card+selected/card-border/popover 三件+header/menu+menu-hover/tab/tab-active/tab-border/toast/tooltip/tooltip-foreground/tooltip-tag+foreground/input 四件含 input-border-focused）、文本四级（foreground/subtle/subtlest/inverse）、品牌与全部 `*-foreground` 配对（brand/primary/secondary/accent/hover/selected）、`--color-tag`（实测 `styles.css:185` 是 `--color-markdown-inline-code` 的 var 源）、find-highlight 对、success/warning/destructive/idle-task(+surface)/diff-added/removed 及各自 -foreground、feedback-privacy-hint、interaction-ask-fill/foreground/surface + interaction-confirmation-foreground/surface、`--animated-gradient-text-strong/soft`、terminal 主六色（bg/fg/cursor/cursor-accent/selection/selection-inactive）不得缺项。数据色板默认继承基底、按主题色相可选主题化（继承已满足「每套主题都有定义」语义）：terminal ANSI 16 色、usage-chart-1..6、context-breakdown-1..7、usage-heatmap-0..4、六组 node tint 18 项（command/file/plugin/session/skill/subagent 的 node/node-foreground/node-hover）、git-* 8 项、trajectory 5 项、workflow-rule/trace/trace-strong、plugin-paid-plan-badge(+foreground)，但继承决策须逐项记录。
-6. 所有主题下文本与交互对比度必须满足 `DESIGN.md` 无障碍要求；不得创造只在单一主题下正确的组件样式。不新增 `dark:` tailwind utility 依赖——已核实 `styles.css:15-23` 只有 platform-* custom variant、无 `@custom-variant dark`，`dark:` 前缀跟随 OS 偏好而非选中主题，新主题不做主题内差异样式。
+5. 新主题必须基于明暗基底叠加差量变量，复用现有 `--color-*` 变量体系：不得新造变量名；不得直接重定义 `--color-icon-blue` 与 `--color-markdown-inline-code`（两者为全主题共享/派生色，`styles.css:162`、`:185`，后者经 `--color-tag` 跟随）；不得写不透明根背景（`styles.css:47-55` Electron vibrancy 要求透明根，新块必须给 `--color-background-win-alt` 值）。必覆盖最小集（对照 `.theme-zai-light` 实测 142 项变量清单逐项决策）：表面全家族（background/background-alt/background-win-alt/header/sidebar/panel/surface+hover/card+selected/card-border/popover 三件+header/menu+menu-hover/tab/tab-active/tab-border/toast/tooltip/tooltip-foreground/tooltip-tag+foreground/input 四件含 input-border-focused）、文本四级（foreground/subtle/subtlest/inverse）、品牌与全部 `*-foreground` 配对（brand/primary/secondary/accent/hover/selected）、`--color-tag`（实测 `styles.css:185` 是 `--color-markdown-inline-code` 的 var 源）、find-highlight 对、success/warning/destructive/idle-task(+surface)/diff-added/removed 及各自 -foreground、feedback-privacy-hint、interaction-ask-fill/foreground/surface + interaction-confirmation-foreground/surface、`--animated-gradient-text-strong/soft`、terminal 主六色（bg/fg/cursor/cursor-accent/selection/selection-inactive）不得缺项。数据色板默认继承基底、按主题色相可选主题化（继承已满足「每套主题都有定义」语义）：terminal ANSI 16 色、usage-chart-1..6、context-breakdown-1..7、usage-heatmap-0..4、六组 node tint 18 项（command/file/plugin/session/skill/subagent 的 node/node-foreground/node-hover）、git-\* 8 项、trajectory 5 项、workflow-rule/trace/trace-strong、plugin-paid-plan-badge(+foreground)，但继承决策须逐项记录。
+6. 所有主题下文本与交互对比度必须满足 `DESIGN.md` 无障碍要求；不得创造只在单一主题下正确的组件样式。不新增 `dark:` tailwind utility 依赖——已核实 `styles.css:15-23` 只有 platform-\* custom variant、无 `@custom-variant dark`，`dark:` 前缀跟随 OS 偏好而非选中主题，新主题不做主题内差异样式。
 7. 代码高亮主题（`CodePreviewSettings.lightTheme`/`darkTheme`）是独立设置维度，界面主题只决定激活亮/暗哪一侧（经 `resolveTheme`）；本次不新增代码主题，`ThemePreviewCard` 写死 Zai 四色是代码主题预览卡，不随界面主题语义变化。
 
 ## 状态所有权与数据流
@@ -41,6 +41,7 @@
 - 资源管理器独立窗口不建 store，其主题投影由自带引导（启动读 `localStorage` 一次）+ `storage` 事件监听（跟随主窗口 `setTheme` 写入）承担；该文件现无任何 `addEventListener`，必须新增。
 - 跨窗口一致性由广播承担：`theme` 在 `BROADCAST_FIELDS`（store `:214`），发送与接收都必须经 `setTheme`；`applyingBroadcast` 防回环（store `:237`、`:438-453`、`:470-489`），不得在广播路径外直写 `localStorage` 或 setState。
 - 设置页与侧栏两个入口统一消费 `THEME_OPTIONS` 注册表（`settingsPageConfig.ts` 的 `THEME_MODES` 改为由其派生并保留 lucide icon 映射；侧栏 `DropdownMenuRadioGroup` 改为 map 渲染），共用新增的三色小色板展示组件（纯展示，色值读注册表 swatch，`system` 项用对半分色表达动态），不发明新样式体系。
+- 首次引导偏好页是第三个主题入口（`packages/ui/src/onboarding/OnboardingThemeSelector.tsx`）：同样 map `THEME_OPTIONS`、复用 `ThemeSwatch`、选择即调 store `setTheme`，因此主题当场生效并写入 `localStorage`。该入口不新增 store 字段，也不进入引导的 `settings` 保存：跳过偏好页不回退用户已选主题，与 UI 模式/记忆等偏好「跳过落保守默认值」的语义刻意不同。
 
 ## 事件顺序
 

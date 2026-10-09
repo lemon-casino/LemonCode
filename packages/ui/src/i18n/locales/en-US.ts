@@ -97,6 +97,7 @@ const enUS: Record<string, string> = {
   "occupationOnboarding.error": "Failed to save. Please try again.",
   "occupationOnboarding.stepRole": "Your work",
   "occupationOnboarding.stepPreferences": "Preferences",
+  "occupationOnboarding.stepExecution": "Execution and review",
   "occupationOnboarding.heroTitle": "Simple, Fast, Vibe‑Ready!",
   "occupationOnboarding.heroDescription":
     "Tackle complex goals with multiple agents.\nStay in control, wherever you are.",
@@ -108,6 +109,19 @@ const enUS: Record<string, string> = {
   "occupationOnboarding.other": "Other professions",
   "occupationOnboarding.preferences": "Personalize your work assistant",
   "occupationOnboarding.preferencesDescription": "Choose which features to enable.",
+  "occupationOnboarding.execution": "Execution and review for new sessions",
+  "occupationOnboarding.executionDescription":
+    "Decide where new sessions run and whether completing a task generates a commit review. You can change both later in Settings → General.",
+  "occupationOnboarding.executionMode.localDescription":
+    "Run directly in the current project directory.",
+  "occupationOnboarding.executionMode.worktreeDescription":
+    "Run each new session in an isolated worktree so changes never touch the current directory. Requires a Git repository.",
+  "occupationOnboarding.reviewMode.offDescription":
+    "Never generate a draft automatically; you can still start a review manually.",
+  "occupationOnboarding.reviewMode.draftDescription":
+    "Generate a draft when a task completes with committable changes, for you to review later.",
+  "occupationOnboarding.reviewMode.draft-and-reviewDescription":
+    "Generate a draft and open the review window automatically. Both generating modes consume model quota.",
   "occupationOnboarding.migration": "Migrate conversations",
   "occupationOnboarding.migrationDescription": "Migrate conversation history from Claude Code",
   "occupationOnboarding.memory": "Enable Workspace Memory",
@@ -2021,13 +2035,10 @@ const enUS: Record<string, string> = {
   "settings.integratedTerminalShell.refresh": "Detect shells again",
   "settings.integratedTerminalShell.selectFile": "Choose executable",
   "settings.integratedTerminalShell.selectDirectory": "Choose directory",
-  "settings.integratedTerminalShell.pathLabel": "Shell file or directory path",
-  "settings.integratedTerminalShell.pathPlaceholder":
-    "Absolute path to a shell file or installation directory",
+  "settings.integratedTerminalShell.searchPlaceholder": "Filter shells or enter an absolute path",
+  "settings.integratedTerminalShell.empty": "No matching shell.",
   "settings.integratedTerminalShell.applyPath": "Apply path",
   "settings.integratedTerminalShell.directoryShells": "Shells in directory",
-  "settings.integratedTerminalShell.chooseCandidate":
-    "Multiple shells found. Choose the executable to use.",
   "settings.integratedTerminalShell.invalidPath":
     "No executable shell found. Choose a valid file or a directory containing a shell.",
   "settings.integratedTerminalShell.probeFailed":
