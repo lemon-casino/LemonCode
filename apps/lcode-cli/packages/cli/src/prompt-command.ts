@@ -1,4 +1,7 @@
 import { createCliProviderRefreshReporter } from "./provider-runtime-env.js";
+import { createPhysicalRequestAccounting, goalAcceptanceSchema } from "@lcode/contracts";
+import { open } from "node:fs/promises";
+import { resolve } from "node:path";
 import {
   listCustomCommandsForPrompt,
   routesToPromptCommandCenter,
@@ -113,6 +116,7 @@ export const runPrompt = async (
     ReturnType<NonNullable<RunDependencies["startProcessProviderRegistryRuntime"]>>
   >;
   const abortController = new AbortController();
+  let requestAccounting: ReturnType<typeof createPhysicalRequestAccounting> | undefined;
   const cleanupTimeoutMs = Math.max(
     1,
     Math.trunc(deps.shutdownCleanupTimeoutMs ?? DEFAULT_CLI_CLEANUP_TIMEOUT_MS),
@@ -138,6 +142,15 @@ export const runPrompt = async (
     process: deps.shutdownProcess,
   });
   try {
+    if (options.benchmarkLimits) {
+      const limits = JSON.parse(options.benchmarkLimits) as {
+        maxRequests: number;
+        maxReservedTokens: number;
+      };
+      requestAccounting = createPhysicalRequestAccounting(limits, (reason) =>
+        abortController.abort(new Error(reason)),
+      );
+    }
     const env = deps.env ?? process.env;
     const workingDirectory = (deps.cwd ?? process.cwd)();
     const dotenvResult = (deps.loadDotenv ?? loadCliDotenv)({
@@ -199,6 +212,7 @@ export const runPrompt = async (
     );
     browserRuntime = createCliHeadlessBrowserRuntime(options, deps);
     app = await createApp({
+      ...(requestAccounting ? { physicalRequestAccounting: requestAccounting } : {}),
       browserControlPort: browserRuntime?.browserControlPort,
       env: appEnv,
       // headless 没有交互审批面，core 因此退到 deny broker，于是 CreateWorkflow 的
@@ -279,6 +293,25 @@ export const runPrompt = async (
     const subscribeEvents = readRuntimeEventSubscriber(app.runtime);
     detachEvents = subscribeEvents?.({ onSessionEvent: observer.observe });
     const runtimeFacts = readHeadlessRuntimeFacts(app.runtime);
+    if (options.goalAcceptancePath) {
+      const acceptanceFile = await open(resolve(workingDirectory, options.goalAcceptancePath), "r");
+      let acceptance;
+      try {
+        if ((await acceptanceFile.stat()).size > 65536)
+          throw new Error("Goal acceptance exceeds 64 KiB.");
+        const bytes = Buffer.alloc(65537);
+        const { bytesRead } = await acceptanceFile.read(bytes, 0, bytes.length, 0);
+        if (bytesRead > 65536) throw new Error("Goal acceptance exceeds 64 KiB.");
+        acceptance = goalAcceptanceSchema.parse(
+          JSON.parse(bytes.subarray(0, bytesRead).toString("utf8")),
+        );
+      } finally {
+        await acceptanceFile.close();
+      }
+      await app.setTarget({ objective: runtimePrompt, status: "active", acceptance });
+    } else if (options.promptGoal) {
+      await app.setTarget({ objective: runtimePrompt, status: "active" });
+    }
     const result = await app.submitPrompt(
       attachmentPaths.length > 0
         ? {
@@ -329,6 +362,16 @@ export const runPrompt = async (
       workingDirectory,
     });
 
+    const benchmarkGoal =
+      requestAccounting && (options.promptGoal || options.goalAcceptancePath)
+        ? await app.readTarget()
+        : null;
+    if (requestAccounting) {
+      // 统计终态须覆盖 sidecar 收尾；冻结后禁止迟到任务再发物理请求。
+      await closeApp();
+      requestAccounting.seal();
+    }
+
     return writePromptResult({
       ctx,
       options,
@@ -340,8 +383,33 @@ export const runPrompt = async (
       response,
       turnResponses,
       hookTrustDiagnostic,
+      ...(requestAccounting
+        ? {
+            physicalRequests: requestAccounting.snapshot(),
+            benchmarkTreatment: {
+              goal: benchmarkGoal
+                ? {
+                    policy:
+                      benchmarkGoal.acceptance?.policy === "strict"
+                        ? ("strict" as const)
+                        : ("legacy" as const),
+                    status: benchmarkGoal.status,
+                    requirementCount: benchmarkGoal.acceptance?.requirements.length ?? 0,
+                  }
+                : null,
+            },
+          }
+        : {}),
     });
   } catch (error) {
+    if (requestAccounting && wantsEventStream(options)) {
+      stopObservingEvents();
+      await closeApp();
+      requestAccounting.seal();
+      ctx.stdout.write(
+        `${JSON.stringify({ type: "result", status: "error", response: "", physicalRequests: requestAccounting.snapshot() })}\n`,
+      );
+    }
     const message = error instanceof Error ? error.message : String(error);
     ctx.stderr.write(`Error: ${message}${traceId ? ` (traceId: ${traceId})` : ""}\n`);
     if (options.verbose) {

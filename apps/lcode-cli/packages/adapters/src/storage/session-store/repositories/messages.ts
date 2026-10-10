@@ -42,6 +42,15 @@ export async function saveMessage(
   input: MessageInfo,
   copyFrom?: Parameters<SessionStorePort["saveMessage"]>[1],
 ): Promise<void> {
+  saveMessageSync(db, input, copyFrom);
+}
+
+/** SQLite transaction callers must not yield while this connection owns BEGIN IMMEDIATE. */
+export function saveMessageSync(
+  db: DatabaseSync,
+  input: MessageInfo,
+  copyFrom?: Parameters<SessionStorePort["saveMessage"]>[1],
+): void {
   const { id, sessionID, ...data } = input;
   // 冻结旧版协议 mapper 无条件读取 user.model；缺少整个对象会让正文也无法打开。
   // 只补必需对象；旧行的原 model 仍由冲突更新/复制逻辑保留，新版 Reader 不使用它。
@@ -222,6 +231,13 @@ export async function messages(
   db: DatabaseSync,
   input: { sessionID: SessionId },
 ): Promise<MessageWithParts[]> {
+  return messagesSync(db, input);
+}
+
+export function messagesSync(
+  db: DatabaseSync,
+  input: { sessionID: SessionId },
+): MessageWithParts[] {
   const messageRows = db
     .prepare(
       `

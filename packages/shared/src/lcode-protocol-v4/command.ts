@@ -3,6 +3,7 @@ import { localTtftContextSchema, localTtftClockSchema } from "../localTtft.js";
 // conversation rewind 无独立命令（裁决：= editUserQuery 的 UI 入口）；
 // workspace-only 文件撤销走 applyFileRewind，不截断聊天历史。
 import { z } from "zod";
+import { goalCommandPayloadSchema, strictGoalCommandPayloadSchema } from "./goal-command.js";
 import { executionIntentSchema } from "../worktreeExecution.js";
 import { createSessionRequestedConfigSchema } from "./create-session-command.js";
 import { resolveWorktreeConflictsPayloadSchema } from "./worktree-command.js";
@@ -26,7 +27,7 @@ import {
   lcodeBrowserAmbientContextSchema,
   lcodeProtocolMcpServerSchema,
 } from "../lcode-protocol/index.js";
-import { sharedContextRefSchema } from "./shared-context-ref.js";
+import { conversationContextRefsSchema } from "./shared-context-ref.js";
 import {
   sidebarForkPayloadSchema,
   sidebarForkResultSchema,
@@ -34,6 +35,7 @@ import {
 } from "./fork.js";
 import { setExecutionFailoverTargetPayloadSchema } from "./execution-failover.js";
 export type { SharedContextRef } from "./shared-context-ref.js";
+export type { ContextCapsuleRef } from "./shared-context-ref.js";
 
 // ── 命令 payload 全集 ──
 export const commandPayloadSchemas = {
@@ -77,7 +79,7 @@ export const commandPayloadSchemas = {
       browserAmbientContext: lcodeBrowserAmbientContextSchema.optional(),
       // Share handover 只允许当前 session 的一个已导入上下文；完整正文由 runtime 从
       // 持久化 provenance 解析，不能随 command 从 renderer 传入。
-      context_refs: z.array(sharedContextRefSchema).max(1).optional(),
+      context_refs: conversationContextRefsSchema.optional(),
       heldQueueDisposition: z.enum(["clearQueueAndSend", "keepQueueAndSend"]).optional(),
       // 暂停队列确认框打开时看到的 queueItemId 集合。CLI 在执行 clear/keep 前校验，
       // 防止桌面/手机并发增删后把用户没确认过的新队列一并处置。
@@ -122,15 +124,8 @@ export const commandPayloadSchemas = {
   // 运行中选择模型同时武装精确 execution/work 目标；非 CAS，避免高频投影造成假 stale。
   // 当前请求与已开始工具照常完成，Runtime 只在下一安全 model-step 或故障恢复边界激活。
   setExecutionFailoverTarget: setExecutionFailoverTargetPayloadSchema,
-  sendGoalCommand: z.object({
-    text: z.string(),
-    displayText: z.string().optional(),
-    modelSelection: modelSelectionSchema.optional(),
-    mode: submissionModeSchema.optional(),
-    planEnabled: z.boolean().optional(),
-    heldQueueDisposition: z.enum(["clearQueueAndSend", "keepQueueAndSend"]).optional(),
-    expectedHeldQueueItemIds: z.array(z.string().min(1)).optional(),
-  }),
+  sendGoalCommand: goalCommandPayloadSchema,
+  sendStrictGoalCommand: strictGoalCommandPayloadSchema,
   stop: z.object({
     // 来自 activeWorks；CLI 用它拒绝会误杀后续无关执行的迟到 Stop。
     expectedForegroundExecutionId: z.string().min(1).optional(),

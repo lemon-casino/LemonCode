@@ -2,6 +2,7 @@
 // ConversationSnapshot A 区。
 // A 区更新语义 = 字段级整体替换（state.updated），绝不深合并——深合并是错乱之母。
 import { z } from "zod";
+import { goalEvidenceSummarySchema } from "../goal-evidence.js";
 import { sharedContextImportStateSchema } from "./shared-context-import.js";
 export { sharedContextImportStateSchema } from "./shared-context-import.js";
 import { conversationInputDispatchSchema, conversationInputIntentSchema } from "./input-intent.js";
@@ -457,6 +458,7 @@ export const goalStateSchema = z.object({
       anchorRowId: z.number().nullable(),
       reason: z.string().optional(),
       nextAction: z.string().optional(),
+      evidenceSummary: goalEvidenceSummarySchema.optional(),
     }),
   ),
   iterations: z.array(goalIterationStateSchema).default([]),

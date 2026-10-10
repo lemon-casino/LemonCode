@@ -54,6 +54,7 @@ export function createToolExecutionContext(input: {
     httpClientPort: deps.httpClientPort,
     imageProcessorPort: deps.imageProcessorPort,
     pdfDocumentPort: deps.pdfDocumentPort,
+    videoProcessorPort: deps.videoProcessorPort,
     // 工具内部的模型请求默认把状态事件发进会话：deadline 暂停与 driver 相位都靠这条流。
     model: withDefaultToolModelStatusSink(
       model,
@@ -92,6 +93,7 @@ export function createToolExecutionContext(input: {
     clientMode: deps.clientMode,
     deliveryKind: deps.deliveryKind,
     memoryRoot: deps.getMemoryRoot?.(),
+    memoryWorkspaceIdentity: deps.getMemoryWorkspaceIdentity?.(),
     runtimeScope: deps.runtimeScope,
     providerVisibleToolNames: deps.registry
       .list()

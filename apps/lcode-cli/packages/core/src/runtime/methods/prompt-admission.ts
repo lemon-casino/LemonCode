@@ -48,8 +48,11 @@ export async function admitPrompt(
     }
 
     const activeTurn = this.activeTurn;
+    const capsuleContext = (options?.contextCapsuleRefs ?? options?.intent?.contextCapsuleRefs)
+      ?.length;
     const canSteer =
       attachments === undefined &&
+      !capsuleContext &&
       activeTurn?.steerable === true &&
       (options?.queueDelivery === "guide" ||
         options?.delivery === "auto" ||
@@ -73,7 +76,9 @@ export async function admitPrompt(
     }
 
     const delivery =
-      options?.queueDelivery === "guide" && attachments === undefined ? "guide" : "queue";
+      options?.queueDelivery === "guide" && attachments === undefined && !capsuleContext
+        ? "guide"
+        : "queue";
     return await this.enqueueDeferredInput({
       attachments,
       commandKind: options?.commandKind,
@@ -82,7 +87,12 @@ export async function admitPrompt(
       inputPresentation:
         options?.inputPresentation ?? (!options?.inputSource ? "user_steer" : undefined),
       inputId: options?.inputId,
-      intent: admissionIntent(options?.intent, delivery),
+      intent: admissionIntent(
+        capsuleContext && options?.intent?.requestedDelivery === "guide"
+          ? { ...options.intent, fallbackReasonCode: "guide.contextCapsulesUnsupported" }
+          : options?.intent,
+        delivery,
+      ),
       queryId: options?.queryId,
       toolDisallowlist: options?.toolDisallowlist,
       traceContext: options?.traceContext,

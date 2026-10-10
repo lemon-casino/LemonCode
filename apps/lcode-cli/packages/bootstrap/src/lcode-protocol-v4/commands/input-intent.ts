@@ -6,6 +6,7 @@ import { commandAdmissionOf } from "./executor.js";
 
 interface CanonicalCommandIntent {
   kind: "sendText" | "sendGoalCommand";
+  goalAcceptance?: TurnInputIntentMetadata["goalAcceptance"];
   text: string;
   modelSelection?: ModelSelection;
   mode?: SubmissionMode;
@@ -18,6 +19,7 @@ interface CanonicalCommandIntent {
   fallbackReasonCode?: string;
   attachmentRefs?: readonly AttachmentRef[];
   sharedContextRefs?: TurnInputIntentMetadata["sharedContextRefs"];
+  contextCapsuleRefs?: TurnInputIntentMetadata["contextCapsuleRefs"];
   provenance?: TurnInputIntentMetadata["provenance"];
 }
 
@@ -33,6 +35,8 @@ export function inputIntentMetadata(
     mode?: SubmissionMode;
     planEnabled?: boolean;
     sharedContextRefs?: TurnInputIntentMetadata["sharedContextRefs"];
+    contextCapsuleRefs?: TurnInputIntentMetadata["contextCapsuleRefs"];
+    goalAcceptance?: TurnInputIntentMetadata["goalAcceptance"];
   },
 ): TurnInputIntentMetadata {
   const admission = commandAdmissionOf(envelope);
@@ -43,12 +47,13 @@ export function inputIntentMetadata(
     kind:
       envelope.type === "compact"
         ? "compact"
-        : envelope.type === "sendGoalCommand"
+        : envelope.type === "sendGoalCommand" || envelope.type === "sendStrictGoalCommand"
           ? "sendGoalCommand"
           : "sendText",
     // live intent 过去只带 kind/来源，projection 只能回退可见 command 文案；
     // goal 的 displayText（如 `/GoAl replace X`）不是 runtime 已解析的 canonical objective。
     text: options.text,
+    ...(options.goalAcceptance ? { goalAcceptance: options.goalAcceptance } : {}),
     ...(options.modelSelection ? { modelSelection: options.modelSelection } : {}),
     ...(options.mode ? { mode: options.mode } : {}),
     ...(options.planEnabled !== undefined ? { planEnabled: options.planEnabled } : {}),
@@ -65,6 +70,7 @@ export function inputIntentMetadata(
     ...(options.fallbackReasonCode ? { fallbackReasonCode: options.fallbackReasonCode } : {}),
     ...(options.attachmentRefs ? { attachmentRefs: [...options.attachmentRefs] } : {}),
     ...(options.sharedContextRefs ? { sharedContextRefs: [...options.sharedContextRefs] } : {}),
+    ...(options.contextCapsuleRefs ? { contextCapsuleRefs: [...options.contextCapsuleRefs] } : {}),
   };
 }
 
@@ -83,6 +89,7 @@ export function inputIntentMetadataFromCanonical(
     clientId: envelope.clientId || canonical.clientId || "cli",
     kind: canonical.kind,
     text,
+    ...(canonical.goalAcceptance ? { goalAcceptance: canonical.goalAcceptance } : {}),
     ...(canonical.modelSelection ? { modelSelection: canonical.modelSelection } : {}),
     ...(canonical.mode ? { mode: canonical.mode } : {}),
     ...(canonical.planEnabled !== undefined ? { planEnabled: canonical.planEnabled } : {}),
@@ -93,6 +100,9 @@ export function inputIntentMetadataFromCanonical(
     ...(canonical.fallbackReasonCode ? { fallbackReasonCode: canonical.fallbackReasonCode } : {}),
     ...(canonical.attachmentRefs ? { attachmentRefs: [...canonical.attachmentRefs] } : {}),
     ...(canonical.sharedContextRefs ? { sharedContextRefs: [...canonical.sharedContextRefs] } : {}),
+    ...(canonical.contextCapsuleRefs
+      ? { contextCapsuleRefs: [...canonical.contextCapsuleRefs] }
+      : {}),
     ...(originalSourceCommandId
       ? {
           provenance: canonical.provenance ?? {
@@ -129,6 +139,7 @@ export function inputIntentMetadataFromQueueItem(
       : {}),
     attachmentRefs: item.attachments,
     ...(item.sharedContextRefs ? { sharedContextRefs: [...item.sharedContextRefs] } : {}),
+    ...(item.contextCapsuleRefs ? { contextCapsuleRefs: [...item.contextCapsuleRefs] } : {}),
     // 提升只改变调度状态；重试／编辑原始输入的来源关联不能在此丢失。
     ...(item.provenance ? { provenance: { ...item.provenance } } : {}),
   };

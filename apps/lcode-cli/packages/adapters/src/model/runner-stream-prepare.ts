@@ -97,6 +97,19 @@ export async function prepareStreamAttempt(
   // final gate 等异步准备期间可能收到取消；物理 stream 调用前必须再次检查，
   // 不能把已经 aborted 的 signal 交给 Provider 后寄希望于其自行短路。
   state.attemptAbortController.signal.throwIfAborted();
+  // started 生命周期可能触发异步取消/改派；预算只在最终同步调用边界预留。
+  input.physicalRequestAccounting?.beforeRequest({
+    requestId: state.statusContext.requestId,
+    contextWindow: state.resolved.properties.contextWindow,
+    maxOutputTokens: state.attemptRequest.maxOutputTokens,
+    selectedSpeed: state.attemptRequest.selectedSpeed,
+    startedEvent: {
+      ...state.statusContext,
+      attempt: state.attempt,
+      timestamp: new Date().toISOString(),
+      type: "model_request_started",
+    },
+  });
   const streamResult = input.runtime.streamText(state.options);
   state.result = streamResult;
   state.streamIterator = streamResult.fullStream[Symbol.asyncIterator]();

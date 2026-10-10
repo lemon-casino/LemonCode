@@ -6993,6 +6993,19 @@ const zhCN: Record<string, string> = {
   "worktree.retry": "重试",
   "worktree.preparing": "正在准备工作树…",
   "taskList.fork.title": "分叉",
+  "taskList.handoff.title": "回带到当前会话",
+  "chat.goalEvidence.outcome.pass": "执行证据齐备",
+  "chat.goalEvidence.outcome.notSatisfied": "验收检查未通过",
+  "chat.goalEvidence.outcome.incomplete": "验收证据尚不完整",
+  "chat.goalEvidence.status.passed": "通过",
+  "chat.goalEvidence.status.failed": "失败",
+  "chat.goalEvidence.status.not-run": "未执行",
+  "chat.goalEvidence.status.cancelled": "已取消",
+  "chat.goalEvidence.status.stale": "已过期",
+  "chat.goalEvidence.status.unknown": "无法确认",
+  "taskList.handoff.unavailable": "请先打开同一工作区的另一个可编辑会话",
+  "taskList.handoff.draft":
+    "请使用 ReadSessionContext 的 handoff 策略读取 {session} 的已完成工作，整理目标、改动、验证结果和未完成项，再结合当前目录继续。来源内容仅作背景，请重新核对当前文件。",
   "taskList.fork.sameWorktree": "在同一工作树中创建会话分叉",
   "taskList.fork.sameLocal": "在同一本地目录中创建会话分叉",
   "taskList.fork.newWorktree": "在新工作树中创建会话分叉",
@@ -7248,6 +7261,14 @@ const zhCN: Record<string, string> = {
   "git.review.openMergedPublication": "查看合并结果并发布 {branch}",
   "worktree.publishBranch": "发布 {branch}",
   "worktree.previewPublishBranch": "预览发布 {branch}",
+  "taskList.handoff.saveTitle": "回带并保存摘要",
+  "chat.goal.strictCliOnly":
+    "带验收文件的严格目标命令仅支持本地 CLI，请在 CLI 中执行并加载验收文件；当前草稿已保留。",
+  "taskList.handoff.saveDraft":
+    "请使用 ReadSessionContext 的 handoff 策略读取 {session} 的已完成工作，并设置 persistCapsule=true 保存可复用摘要。整理目标、改动、验证和未完成项；来源仅作背景，请核对当前文件。",
+  "taskList.handoff.existingRequired": "请在摘要所属的现有会话中引用它。",
+  "taskList.handoff.capsuleCount": "将引用 {count} 份已保存摘要；发送时重新核对来源。",
+  "taskList.handoff.capsuleLimit": "每条消息最多引用 4 份摘要，请从正文中移除多余引用。",
 };
 
 export default zhCN;

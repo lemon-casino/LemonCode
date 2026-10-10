@@ -53,6 +53,16 @@ dependency rules within its existing 15,000-character budget. The built-in dynam
 skill owns the detailed counterexample and executable positive example. Plugin source is the
 maintenance entry; installed user plugin caches are not edited or assumed to be updated.
 
+## Explicit acceptance evidence
+
+Choose bounded root execution for small tasks, serial slices for actual shared-state dependencies,
+and parallel lanes only where independence is established. The final integrated check waits for
+relevant actor writes to settle. An actor's local pass or a cached `world.run` result is historical
+evidence; it does not prove the current integrated bytes. Goal strict acceptance may bind explicit
+requirements to live `world.run` executable/argv and file digests through the driver's optional
+evidence owner. This observation never changes the script, command approval, actor scheduling,
+admission, run settlement or existing world replay. An unsettled actor makes final evidence unknown.
+
 ## Non-blocking orchestration advice (P2)
 
 `analyzeWorkflowScript` derives optional advice from the existing analysis core and control/order

@@ -45,6 +45,10 @@ import {
 } from "./turn-output-token-continuation.js";
 import { activateExecutionFailoverAtSafeBoundary } from "./model-failover-router.js";
 import { ProjectMemoryRecallIndex } from "../../memory/recall/index.js";
+import {
+  freezeMemoryInjection,
+  memoryEffectWorkspaceKey,
+} from "../../memory/effect-observation.js";
 import { appendSessionHistoryRecallForTurn } from "./turn-session-history-recall.js";
 
 export async function runRegularTurnLoop(
@@ -316,11 +320,36 @@ export async function appendProjectMemoryRecallForTurn(
       rootDir: runtime.memoryRoot,
       signal: state.turnAbortSignal,
       traceContext: state.turnTraceContext,
+      ...(runtime.config?.memory?.rankingExperimentEnabled === true
+        ? {
+            rankingExperiment: {
+              workspaceKey: memoryEffectWorkspaceKey(
+                runtime.config.memory.workspaceIdentity,
+                runtime.workspaceRoot,
+              ),
+              onUnavailable: () =>
+                runtime.logger?.warn("Memory ranking experiment unavailable", {
+                  event: "memory.ranking.unavailable",
+                  module: "core.runtime",
+                }),
+            },
+          }
+        : {}),
     });
     if (outcome.attachment) {
       appendTurnRequestEntries(state.turnRequestState, [
         systemReminderAttachmentEntry("memory_recall", outcome.attachment),
       ]);
+      if (runtime.config?.memory?.observationEnabled === true) {
+        state.memoryEffectInjection = freezeMemoryInjection(outcome.results);
+        state.memoryEffectScope = {
+          rootDir: runtime.memoryRoot,
+          workspaceKey: memoryEffectWorkspaceKey(
+            runtime.config.memory.workspaceIdentity,
+            runtime.workspaceRoot,
+          ),
+        };
+      }
     }
     if ((outcome.scan?.failedDirectories ?? 0) > 0 || (outcome.health?.failedFileCount ?? 0) > 0) {
       // 部分扫描失败是显式健康事实，不应被当作完整的无匹配结果，也不能把原始路径写日志。

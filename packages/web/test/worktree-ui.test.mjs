@@ -17,6 +17,7 @@ import {
 } from "./worktree-workflow-cases.mjs";
 import { runWorktreeReviewSettingsCases } from "./worktree-review-settings-cases.mjs";
 import { runForkPreparationCases } from "./worktree-fork-preparation-cases.mjs";
+import { runTaskHandoffCases } from "./task-handoff-cases.mjs";
 
 // 使用真实共享组件和真实 hook，只有 Host 边界替换为确定性服务桩。
 test("工作树选择、策略、生命周期与实际文件目录交互", { timeout: 240_000 }, async (t) => {
@@ -92,6 +93,16 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
     t.diagnostic(error.stack ?? error.message);
   });
   const url = `http://127.0.0.1:${port}/test/fixtures/worktree-ui.html`;
+  if (process.env.LCODE_WORKTREE_TEST_CASES === "handoff") {
+    await runTaskHandoffCases({
+      t,
+      page,
+      url,
+      calls: () => page.evaluate(() => globalThis.__worktreeFixture.calls),
+    });
+    assert.deepEqual(errors, []);
+    return;
+  }
   if (process.env.LCODE_WORKTREE_TEST_CASES === "preparation-fork") {
     await runForkPreparationCases({
       t,

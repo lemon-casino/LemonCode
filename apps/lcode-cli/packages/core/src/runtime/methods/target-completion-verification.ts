@@ -6,12 +6,10 @@ import {
   failedGoalCompletionVerification,
   formatGoalCompletionVerificationPrompt,
   parseGoalCompletionVerificationText,
-  runWithModelInvocationContext,
   traceContextToLogContext,
 } from "../deps.js";
 import type {
   GoalCompletionVerificationOutput,
-  Model,
   SessionEvent,
   SessionGoal,
   TraceContext,
@@ -20,23 +18,22 @@ import { buildRuntimeProviderRequestMessages, throwIfTurnAborted } from "../help
 import { projectMessagesForModelMediaPolicy } from "../helpers/media-budget.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { isRuntimeAttachmentEntry, type RuntimeMessageEntry } from "../../agent/message-history.js";
-import { createRefreshRuntimeHeadersBeforeModelAttempt } from "./model-runtime-headers.js";
-import { resolveModelRequestSessionTypeFromTaskType } from "./model-request-session-type.js";
 import { createRuntimeModel } from "./runtime-model.js";
-import { isStartPlanBusyStreamRecoveryFailure } from "./streaming-recovery.js";
 import { recordModelUsageFact } from "./usage-observability.js";
 import { runTargetCompletionVerificationWithTelemetry } from "./target-completion-verification-telemetry.js";
+import { type GoalEvidenceSummary } from "@lcode/contracts";
+import {
+  commitVerifiedGoalCompletion,
+  runGoalVerifierBoundary,
+} from "./target-completion-commit.js";
+import { readGoalEvidenceSummary } from "../../goal/evidence.js";
+import { runtimeGoalEvidenceOwner } from "./goal-evidence-events.js";
+import { generateTargetCompletionVerificationText } from "./target-completion-verifier-request.js";
 
 export interface TargetCompletionVerificationResult {
   target: SessionGoal;
   verification: GoalCompletionVerificationOutput;
 }
-
-const TARGET_VERIFIER_START_PLAN_BUSY_RETRY_DELAYS_MS = [1_000, 2_000] as const;
-const START_PLAN_TARGET_VERIFIER_RETRY_PROVIDER_IDS = new Set([
-  "account:bigmodel-start-plan",
-  "account:zai-start-plan",
-]);
 
 export async function verifyActiveTargetCompletionForContinuation(
   this: AgentRuntimeInternal,
@@ -46,44 +43,29 @@ export async function verifyActiveTargetCompletionForContinuation(
     traceContext: TraceContext;
   },
 ): Promise<TargetCompletionVerificationResult | null> {
-  if (this.config.targetCompletionVerification?.enabled === false) return null;
+  if (this.config.targetCompletionVerification?.enabled === false && !input.target.acceptance)
+    return null;
   if (!this.sessionStore) return null;
   if (input.target.status !== "active") return null;
 
   const execute = async (): Promise<TargetCompletionVerificationResult> => {
+    const generation = this.branchGeneration;
+    const foregroundExecutionId = this.activeForegroundExecution?.foregroundExecutionId;
     const events: SessionEvent[] = [];
-    const verification = await verifyTargetCompletion.call(this, {
-      abortSignal: input.abortSignal,
-      events,
-      target: input.target,
-      traceContext: input.traceContext,
-    });
-
-    if (!verification.passed) {
-      return {
+    const verification = await runGoalVerifierBoundary(this, input, () =>
+      verifyTargetCompletion.call(this, {
+        abortSignal: input.abortSignal,
+        events,
         target: input.target,
-        verification,
-      };
-    }
+        traceContext: input.traceContext,
+      }),
+    );
 
-    const previousTarget = await this.readSessionTargetForContext(input.traceContext);
-    const completedTarget =
-      (await this.sessionStore!.updateTargetStatus({
-        sessionID: this.sessionId,
-        status: "complete",
-      })) ?? input.target;
-    await this.recordTargetChanged({
-      action: "status_updated",
-      previousTarget,
-      source: "runtime",
-      target: completedTarget,
-      traceContext: input.traceContext,
-    });
-
-    return {
-      target: completedTarget,
+    return commitVerifiedGoalCompletion(
+      this,
+      { ...input, generation, foregroundExecutionId },
       verification,
-    };
+    );
   };
   return runTargetCompletionVerificationWithTelemetry(this, input, execute);
 }
@@ -115,6 +97,8 @@ async function verifyTargetCompletion(
     input.target.targetID,
   );
   const anchor = targetCompletionVerificationAnchor.call(this, input.traceContext);
+  const strict = input.target.acceptance?.policy === "strict";
+  let evidenceSummary: GoalEvidenceSummary | undefined;
   await this.appendEvent(
     this.createEvent(
       SessionEventType.TargetCompletionVerification,
@@ -130,6 +114,45 @@ async function verifyTargetCompletion(
     ),
     modelTraceContext,
   );
+  if (strict) {
+    evidenceSummary = await readGoalEvidenceSummary(runtimeGoalEvidenceOwner(this), input.target);
+    if (!evidenceSummary || evidenceSummary.outcome !== "pass") {
+      const failed = evidenceSummary?.requirements.find((item) => item.status === "failed");
+      const requirement = input.target.acceptance?.requirements.find(
+        (item) => item.id === failed?.requirementId,
+      );
+      const verification = {
+        ...failedGoalCompletionVerification(
+          "Required execution evidence is missing, unknown, stale or failed.",
+        ),
+        evidenceSummary,
+        ...(evidenceSummary?.outcome === "notSatisfied" && requirement
+          ? {
+              nextAction: /[\u3400-\u9fff]/u.test(input.target.objective)
+                ? `修复验收项 ${requirement.id}：${requirement.description}，然后重新执行 ${requirement.command}`
+                : `Repair acceptance requirement ${requirement.id}: ${requirement.description}, then rerun ${requirement.command}`,
+            }
+          : {}),
+      };
+      await this.appendEvent(
+        this.createEvent(
+          SessionEventType.TargetCompletionVerification,
+          {
+            ...anchor,
+            ...(foregroundExecutionId ? { foregroundExecutionId } : {}),
+            goalIteration,
+            status: verification.nextAction ? "completed" : "failed_closed",
+            targetId: input.target.targetID,
+            verification,
+            verificationId,
+          },
+          modelTraceContext,
+        ),
+        modelTraceContext,
+      );
+      return verification;
+    }
+  }
   const providerMessages = buildRuntimeProviderRequestMessages(this, {
     entries: [
       ...withoutTrailingPendingAssistantToolCallEntries(
@@ -138,7 +161,11 @@ async function verifyTargetCompletion(
       {
         message: {
           role: "user" as const,
-          content: formatGoalCompletionVerificationPrompt(input.target),
+          content:
+            formatGoalCompletionVerificationPrompt(input.target) +
+            (evidenceSummary
+              ? `\nRuntime execution evidence (authoritative):\n${JSON.stringify(evidenceSummary)}`
+              : ""),
         },
       },
     ],
@@ -201,12 +228,37 @@ async function verifyTargetCompletion(
       toolCallCount: toolCalls.length,
       traceContext: modelTraceContext,
     });
-    const verification =
+    let verification =
       toolCalls.length > 0
-        ? failOpenGoalCompletionVerification(
+        ? (strict ? failedGoalCompletionVerification : failOpenGoalCompletionVerification)(
             "The completion verifier attempted to call tools instead of returning a verification result.",
           )
-        : parseGoalCompletionVerificationText(result.text);
+        : parseGoalCompletionVerificationText(result.text, strict ? "strict" : "legacy");
+    if (strict) {
+      evidenceSummary = await readGoalEvidenceSummary(runtimeGoalEvidenceOwner(this), input.target);
+      const latest = await this.readSessionTargetForContext(modelTraceContext);
+      if (
+        evidenceSummary?.outcome !== "pass" ||
+        latest?.targetID !== input.target.targetID ||
+        latest.status !== "active"
+      ) {
+        verification = failedGoalCompletionVerification(
+          "Execution evidence or goal changed during semantic verification.",
+        );
+      }
+      if (evidenceSummary)
+        verification = {
+          ...verification,
+          evidenceSummary: {
+            ...evidenceSummary,
+            outcome: verification.passed
+              ? "pass"
+              : verification.nextAction
+                ? "notSatisfied"
+                : "incomplete",
+          },
+        };
+    }
     await this.appendEvent(
       this.createEvent(
         SessionEventType.TargetCompletionVerification,
@@ -214,7 +266,10 @@ async function verifyTargetCompletion(
           ...anchor,
           ...(foregroundExecutionId ? { foregroundExecutionId } : {}),
           goalIteration,
-          status: "completed",
+          status:
+            strict && !verification.passed && !verification.nextAction
+              ? "failed_closed"
+              : "completed",
           targetId: input.target.targetID,
           verification,
           verificationId,
@@ -263,19 +318,26 @@ async function verifyTargetCompletion(
       await this.pauseActiveTargetForCancellation(modelTraceContext);
       throw error;
     }
-    this.logger?.warn("Goal completion verification failed open", {
-      ...traceContextToLogContext(modelTraceContext),
-      errorMessage: error instanceof Error ? error.message : String(error),
-      event: "target.completion_verification.failed_open",
-      module: "core.runtime",
-      status: "failed",
-      targetId: input.target.targetID,
-    });
-    const verification = failOpenGoalCompletionVerification(
+    this.logger?.warn(
+      strict ? "Strict goal verification incomplete" : "Goal completion verification failed open",
+      {
+        ...traceContextToLogContext(modelTraceContext),
+        errorMessage: error instanceof Error ? error.message : String(error),
+        event: "target.completion_verification.failed_open",
+        module: "core.runtime",
+        status: "failed",
+        targetId: input.target.targetID,
+      },
+    );
+    const verification = (
+      strict ? failedGoalCompletionVerification : failOpenGoalCompletionVerification
+    )(
       error instanceof Error
         ? `Completion verifier request failed: ${error.message}`
         : "The completion verifier could not confirm that every goal requirement is complete.",
     );
+    if (evidenceSummary)
+      verification.evidenceSummary = { ...evidenceSummary, outcome: "incomplete" };
     await this.appendEvent(
       this.createEvent(
         SessionEventType.TargetCompletionVerification,
@@ -306,78 +368,6 @@ function targetCompletionVerificationAnchor(
     ...(anchorAssistantMessageId ? { anchorAssistantMessageId } : {}),
     ...(anchorTurnId ? { anchorTurnId } : {}),
   };
-}
-
-async function generateTargetCompletionVerificationText(
-  this: AgentRuntimeInternal,
-  input: {
-    abortSignal?: AbortSignal;
-    events: SessionEvent[];
-    messages: ReturnType<typeof buildRuntimeProviderRequestMessages>["messages"];
-    model: Model;
-    traceContext: TraceContext;
-  },
-) {
-  const maxAttempts = TARGET_VERIFIER_START_PLAN_BUSY_RETRY_DELAYS_MS.length + 1;
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    try {
-      const invocationContext = {
-        metadata: traceContextToLogContext(input.traceContext),
-        modelRequestSessionType: resolveModelRequestSessionTypeFromTaskType(this.config.taskType),
-        modelCall: {
-          operation: "goal_completion_verification" as const,
-        },
-        statusSink: this.createModelStatusSink(input.traceContext, input.events),
-        traceContext: input.traceContext,
-        refreshRuntimeHeadersBeforeAttempt: createRefreshRuntimeHeadersBeforeModelAttempt(this, {
-          abortSignal: input.abortSignal,
-          model: input.model,
-          traceContext: input.traceContext,
-        }),
-      };
-      return await runWithModelInvocationContext(invocationContext, () =>
-        input.model.generateText({
-          abortSignal: input.abortSignal,
-          messages: input.messages,
-          // Verifier 继承已绑定的思考配置，不能套用低成本辅助调用的降档和封顶策略。
-          options: { maxOutputTokens: input.model.optionSpecs.maxOutputTokens.max },
-          tools: [],
-        }),
-      );
-    } catch (error) {
-      const retryDelayMs = TARGET_VERIFIER_START_PLAN_BUSY_RETRY_DELAYS_MS[attempt - 1];
-      if (
-        input.abortSignal?.aborted ||
-        retryDelayMs === undefined ||
-        !isTargetVerifierStartPlanBusyFailure(error, input.model.providerId)
-      ) {
-        throw error;
-      }
-
-      // 目标完成验证发生在用户已看到 assistant 迭代之后；Start Plan busy
-      // 是 admission 瞬时并发。先短暂重试，避免直接走 fail-open 把可恢复并发误当完成。
-      this.logger?.warn("Goal completion verification retrying after Start Plan busy", {
-        ...traceContextToLogContext(input.traceContext),
-        attempt,
-        event: "target.completion_verification.retry_start_plan_busy",
-        maxAttempts,
-        module: "core.runtime",
-        retryDelayMs,
-        status: "waiting",
-      });
-      await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
-      throwIfTurnAborted(input.abortSignal);
-    }
-  }
-
-  throw new Error("Goal completion verification retry loop exhausted unexpectedly.");
-}
-
-function isTargetVerifierStartPlanBusyFailure(error: unknown, providerId: string): boolean {
-  return (
-    START_PLAN_TARGET_VERIFIER_RETRY_PROVIDER_IDS.has(providerId) &&
-    isStartPlanBusyStreamRecoveryFailure(error)
-  );
 }
 
 async function getNextTargetCompletionVerificationIteration(

@@ -9,6 +9,9 @@ import { recordToolUsageFromEvent } from "./usage-observability.js";
 import { persistSessionShellEnvironmentSnapshot } from "./session-shell-environment.js";
 import { persistRuntimeModelSelection } from "./turn-model.js";
 import { persistDurableSessionEvent } from "./events-durable.js";
+import { observeGoalToolEvent } from "./goal-evidence-events.js";
+import { GoalEvidenceAdmissionError } from "../../goal/evidence.js";
+import { observeMemoryVerificationEvent } from "./memory-effect-observation.js";
 
 const SESSION_EVENT_APPEND_SUMMARY_FLUSH_COUNT = 100;
 
@@ -83,6 +86,18 @@ export async function appendEvent(
     const storedEvent = await this.eventStore.append(event);
     phase = "session_event.persist_durable";
     await persistDurableSessionEvent.call(this, storedEvent, traceContext);
+    // start 的 durable admission 失败必须阻止实际工具；terminal 保存失败保留工具结果和未结算 head。
+    for (const observer of [observeGoalToolEvent, observeMemoryVerificationEvent]) {
+      try {
+        await observer(this, storedEvent);
+      } catch (error) {
+        if (error instanceof GoalEvidenceAdmissionError) throw error;
+        this.logger?.warn("Runtime fact observation failed", {
+          event: "runtime.fact_observation_failed",
+          module: "core.runtime",
+        });
+      }
+    }
     phase = "session_event.record_usage";
     await recordToolUsageFromEvent(this, storedEvent, traceContext);
     phase = "session_event.notify_sinks";

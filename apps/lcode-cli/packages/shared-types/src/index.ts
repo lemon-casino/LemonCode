@@ -35,6 +35,9 @@ export type GlobalOptions = {
   json: boolean;
   locale?: GlobalLocale;
   memoryBench?: boolean;
+  benchmarkLimits?: string;
+  goalAcceptancePath?: string;
+  promptGoal?: boolean;
   noColor: boolean;
   outputFormat?: GlobalOutputFormat;
   verbose: boolean;

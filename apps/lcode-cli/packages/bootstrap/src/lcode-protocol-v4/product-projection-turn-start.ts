@@ -207,6 +207,10 @@ export function onTurnStarted(
               ...(fact.modelSelection ? { modelSelection: fact.modelSelection } : {}),
               ...(fact.mode ? { mode: fact.mode } : {}),
               ...(fact.planEnabled !== undefined ? { planEnabled: fact.planEnabled } : {}),
+              ...(fact.goalAcceptance ? { goalAcceptance: fact.goalAcceptance } : {}),
+              ...(fact.contextCapsuleRefs
+                ? { contextCapsuleRefs: [...fact.contextCapsuleRefs] }
+                : {}),
               ...(fact.provenance ? { provenance: fact.provenance } : {}),
             },
           }

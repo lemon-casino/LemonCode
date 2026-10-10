@@ -1,5 +1,6 @@
 /* oxlint-disable max-lines -- 状态面板同时维护收起态摘要、展开态分区、菜单策略和宽度自适应，同文件能保证两种形态共享同一内容优先级。 */
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
+import { GoalEvidenceSummaryView } from "./GoalEvidenceSummary.js";
 import {
   forwardRef,
   memo,
@@ -600,6 +601,7 @@ function GoalStatusSection({
       )}
     >
       <div className="space-y-0">
+        <GoalEvidenceSummaryView summary={goal.verifications.at(-1)?.evidenceSummary} />
         {iterationRows.map((row) => {
           const title =
             row.title ??

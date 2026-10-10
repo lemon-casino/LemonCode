@@ -320,3 +320,4 @@ export { redactFeedbackText } from "./feedbackPrivacy.js";
 
 export type { GitDeleteBranchRequest, GitDeleteBranchResult } from "./git.js";
 export { gitDeleteBranchRequestSchema } from "./gitPublish.js";
+export * from "./goal-evidence.js";

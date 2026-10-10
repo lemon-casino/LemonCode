@@ -6,6 +6,7 @@
 export * from "./contract.js";
 export * from "./json-schema.js";
 export * from "./read.js";
+export * from "./video-inspect.js";
 export * from "./write.js";
 export * from "./edit.js";
 export * from "./apply-patch.js";
@@ -57,6 +58,7 @@ export * from "./resolve-workflow-question.js";
 export * from "./workflow-observation-display.js";
 export * from "./tool-result-metadata.js";
 export * from "./performance.js";
+export * from "./goal-evidence.js";
 
 // Shared types (only once to avoid duplicates)
 export type { DiffHunk, GitDiff } from "./write.js";

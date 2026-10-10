@@ -1,0 +1,96 @@
+// Fixed synthetic tasks. Checks stay outside the candidate workspace.
+export const FIXTURE_VERSION = "task-quality-v1";
+const fixture = (id, category, objective, solution, checks) => ({
+  id,
+  category,
+  objective,
+  files: { "answer.mjs": "// Implement the documented exports.\n" },
+  solution,
+  checks,
+});
+export const TASKS = [
+  fixture(
+    "clamp",
+    "small-fix",
+    "Export clamp(n,min,max). Clamp inclusively; reject min>max with RangeError.",
+    "export function clamp(n,min,max){if(min>max)throw new RangeError();return Math.max(min,Math.min(n,max));}",
+    "assert.equal(m.clamp(4,0,3),3);assert.equal(m.clamp(-2,0,3),0);assert.equal(m.clamp(2,0,3),2);assert.throws(()=>m.clamp(2,3,1),RangeError);",
+  ),
+  fixture(
+    "pagination",
+    "small-fix",
+    "Export page(items,index,size). Zero-based pages; invalid negative index or nonpositive size throws RangeError. Never mutate items.",
+    "export function page(a,i,s){if(i<0||s<=0)throw new RangeError();return a.slice(i*s,(i+1)*s);}",
+    "const a=[1,2,3,4,5];assert.deepEqual(m.page(a,1,2),[3,4]);assert.deepEqual(m.page(a,4,2),[]);assert.deepEqual(a,[1,2,3,4,5]);assert.throws(()=>m.page(a,-1,2),RangeError);assert.throws(()=>m.page(a,0,0),RangeError);",
+  ),
+  fixture(
+    "identity",
+    "interface",
+    "Export identity({workspaceIdentity,workspacePath}). Use nonempty trimmed identity else original path. Same path with distinct identities stays isolated.",
+    "export const identity=({workspaceIdentity,workspacePath})=>workspaceIdentity?.trim()||workspacePath;",
+    "assert.equal(m.identity({workspaceIdentity:' x ',workspacePath:'/a'}),'x');assert.equal(m.identity({workspaceIdentity:' ',workspacePath:'/a'}),'/a');assert.notEqual(m.identity({workspaceIdentity:'x',workspacePath:'/a'}),m.identity({workspaceIdentity:'y',workspacePath:'/a'}));",
+  ),
+  fixture(
+    "usage",
+    "integration",
+    "Export total(usage). Prefer finite nonnegative totalTokens, otherwise sum inputTokens/outputTokens only when both available; missing means null. Cache and reasoning are subsets.",
+    "export function total(u){const v=n=>Number.isFinite(n)&&n>=0;return v(u?.totalTokens)?u.totalTokens:v(u?.inputTokens)&&v(u?.outputTokens)?u.inputTokens+u.outputTokens:null;}",
+    "assert.equal(m.total({inputTokens:10,outputTokens:4,reasoningTokens:3,cacheReadTokens:5}),14);assert.equal(m.total({totalTokens:8}),8);assert.equal(m.total({}),null);assert.equal(m.total({inputTokens:1}),null);",
+  ),
+  fixture(
+    "cas",
+    "state",
+    "Export update(state,expectedRevision,value). On match return fresh {revision:old+1,value}; otherwise return original state object unchanged.",
+    "export const update=(s,r,v)=>s.revision===r?{revision:r+1,value:v}:s;",
+    "const s={revision:2,value:'old'};assert.equal(m.update(s,1,'bad'),s);assert.deepEqual(m.update(s,2,'new'),{revision:3,value:'new'});assert.equal(s.value,'old');",
+  ),
+  fixture(
+    "dedupe",
+    "state",
+    "Export unique(events). Keep first event per id in input order without mutation.",
+    "export function unique(a){const s=new Set();return a.filter(e=>{if(s.has(e.id))return false;s.add(e.id);return true;});}",
+    "const a=[{id:'a',v:1},{id:'b',v:2},{id:'a',v:3}];assert.deepEqual(m.unique(a),a.slice(0,2));assert.equal(a.length,3);assert.deepEqual(m.unique([]),[]);",
+  ),
+  fixture(
+    "serial",
+    "async",
+    "Export createQueue(). Returned enqueue(fn) executes async functions serially in submission order, returns each result, and continues after a rejected function.",
+    "export function createQueue(){let p=Promise.resolve();return f=>{const next=p.then(f);p=next.catch(()=>{});return next;};}",
+    "const q=m.createQueue(),seen=[];const a=q(async()=>{await Promise.resolve();seen.push(1);return 1;});const b=q(async()=>{seen.push(2);throw Error('expected');});const c=q(async()=>{seen.push(3);return 3;});assert.equal(await a,1);await assert.rejects(b);assert.equal(await c,3);assert.deepEqual(seen,[1,2,3]);",
+  ),
+  fixture(
+    "latest",
+    "async",
+    "Export createLatest(). Returns {begin(),commit(generation,value),read()}; each begin increments generation starting1; only latest commit accepted (boolean); initial read undefined.",
+    "export function createLatest(){let n=0,v;return{begin:()=>++n,commit:(g,x)=>{if(g!==n)return false;v=x;return true;},read:()=>v};}",
+    "const x=m.createLatest();assert.equal(x.read(),undefined);const a=x.begin(),b=x.begin();assert.equal(x.commit(a,'stale'),false);assert.equal(x.commit(b,'fresh'),true);assert.equal(x.read(),'fresh');",
+  ),
+  fixture(
+    "selection",
+    "frontend-state",
+    "Export reduce(state,event). toggle id updates selected array immutably without duplicates; clear empties it; unknown event returns same state. Preserve other state properties.",
+    "export function reduce(s,e){if(e.type==='clear')return{...s,selected:[]};if(e.type!=='toggle')return s;return{...s,selected:s.selected.includes(e.id)?s.selected.filter(x=>x!==e.id):[...s.selected,e.id]};}",
+    "const s={selected:['a'],theme:'dark'};const n=m.reduce(s,{type:'toggle',id:'b'});assert.deepEqual(n,{selected:['a','b'],theme:'dark'});assert.deepEqual(s.selected,['a']);assert.deepEqual(m.reduce(n,{type:'toggle',id:'a'}).selected,['b']);assert.deepEqual(m.reduce(n,{type:'clear'}).selected,[]);assert.equal(m.reduce(s,{type:'other'}),s);",
+  ),
+  fixture(
+    "escape",
+    "frontend-render",
+    "Export escapeHtml(text). Escape &, <, >, double quote and apostrophe exactly once using &amp; &lt; &gt; &quot; &#39;. Accept string input.",
+    "export const escapeHtml=s=>s.replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]));",
+    String.raw`assert.equal(m.escapeHtml('<b a="x">&\'</b>'),'&lt;b a=&quot;x&quot;&gt;&amp;&#39;&lt;/b&gt;');assert.equal(m.escapeHtml('plain'),'plain');`,
+  ),
+  fixture(
+    "topology",
+    "integration",
+    "Export order(nodes) for nodes [{id,deps:string[]}]. Return dependency-first ids; preserve input iteration when possible. Throw for missing dependency or cycle.",
+    "export function order(ns){const map=new Map(ns.map(n=>[n.id,n])),done=new Set(),active=new Set(),out=[];function visit(id){if(done.has(id))return;if(active.has(id)||!map.has(id))throw Error('invalid');active.add(id);for(const d of map.get(id).deps)visit(d);active.delete(id);done.add(id);out.push(id);}for(const n of ns)visit(n.id);return out;}",
+    "assert.deepEqual(m.order([{id:'b',deps:['a']},{id:'a',deps:[]}]),['a','b']);assert.throws(()=>m.order([{id:'a',deps:['b']} ]));assert.throws(()=>m.order([{id:'a',deps:['b']},{id:'b',deps:['a']} ]));",
+  ),
+  fixture(
+    "ndjson",
+    "protocol",
+    "Export parse(lines:string). Ignore blank lines; parse each JSON line; require exactly one type=result as last record; return that result. Reject malformed JSON or missing/duplicate/nonfinal result.",
+    String.raw`export function parse(s){const a=s.split(/\r?\n/).filter(x=>x.trim()).map(x=>JSON.parse(x));if(a.filter(x=>x.type==='result').length!==1||a.at(-1)?.type!=='result')throw Error('invalid');return a.at(-1);}`,
+    String.raw`assert.deepEqual(m.parse('{"type":"event"}\n{"type":"result","ok":true}\n'),{type:'result',ok:true});assert.throws(()=>m.parse(''));assert.throws(()=>m.parse('{"type":"result"}\n{"type":"event"}'));assert.throws(()=>m.parse('{"type":"result"}\n{"type":"result"}'));`,
+  ),
+];

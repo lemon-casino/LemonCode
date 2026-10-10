@@ -64,6 +64,8 @@ export interface FileSystemStatRequest {
   /** Normalized absolute path. Relative paths are resolved by the tool layer. */
   path: string;
   trace?: TraceContext;
+  /** Explicit symlink inspection for acceptance coverage; legacy callers follow links. */
+  followSymlinks?: boolean;
 }
 
 export interface FileSystemStatResult {
@@ -72,6 +74,8 @@ export interface FileSystemStatResult {
   sizeBytes: number;
   mtimeMs?: number;
   revision?: FileSystemRevision;
+  /** True only when the adapter honored followSymlinks=false. */
+  symlinkChecked?: boolean;
 }
 
 export interface FileSystemCreateDirectoryRequest {

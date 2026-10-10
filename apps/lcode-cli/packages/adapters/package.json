@@ -38,6 +38,10 @@
       "types": "./dist/pdf/index.d.ts",
       "import": "./dist/pdf/index.js"
     },
+    "./video": {
+      "types": "./dist/video/index.d.ts",
+      "import": "./dist/video/index.js"
+    },
     "./provider": {
       "types": "./dist/provider/index.d.ts",
       "import": "./dist/provider/index.js"
@@ -102,14 +106,14 @@
     "@ai-sdk/anthropic": "3.0.81",
     "@ai-sdk/openai": "^3.0.58",
     "@ai-sdk/openai-compatible": "^2.0.58",
-    "@modelcontextprotocol/client": "2.3.1",
-    "@ui-tars/action-parser": "1.2.3",
     "@lcode/contracts": "workspace:*",
     "@lcode/dynamic-workflow": "workspace:*",
+    "@lcode/lcode-cua": "workspace:*",
     "@lcode/model-option-map": "workspace:*",
     "@lcode/provider": "workspace:*",
     "@lcode/shared": "workspace:*",
-    "@lcode/lcode-cua": "workspace:*",
+    "@modelcontextprotocol/client": "2.3.1",
+    "@ui-tars/action-parser": "1.2.3",
     "ai": "6.0.193",
     "cheerio": "^1.0.0",
     "iconv-lite": "0.7.2",

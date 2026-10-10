@@ -1,4 +1,5 @@
 import { formatJson } from "@lcode/core";
+import type { PhysicalRequestSummary } from "@lcode/contracts";
 import type { RunContext, GlobalOptions } from "@lcode/shared-types";
 import type { loadBootstrapModule } from "./bootstrap-loader.js";
 import type { ModeCapableApp, RunDependencies } from "./cli-types.js";
@@ -21,6 +22,10 @@ export const wantsEventStream = (options: GlobalOptions): boolean =>
   options.outputFormat === "stream-json";
 
 export function writePromptResult(input: {
+  physicalRequests?: PhysicalRequestSummary;
+  benchmarkTreatment?: {
+    goal: { policy: "strict" | "legacy"; status: string; requirementCount: number } | null;
+  };
   ctx: RunContext;
   options: GlobalOptions;
   app: Pick<ModeCapableApp, "sessionId">;
@@ -51,6 +56,10 @@ export function writePromptResult(input: {
     ctx.stdout.write(
       `${JSON.stringify({
         type: "result",
+        ...(input.benchmarkTreatment ? { benchmarkTreatment: input.benchmarkTreatment } : {}),
+        ...(input.physicalRequests
+          ? { physicalRequests: serializePhysicalRequests(input.physicalRequests) }
+          : {}),
         sessionId: app.sessionId,
         traceId,
         ...(result.turnId ? { turnId: result.turnId } : {}),
@@ -73,6 +82,10 @@ export function writePromptResult(input: {
   if (wantsJsonSummary(options)) {
     ctx.stdout.write(
       formatJson({
+        ...(input.benchmarkTreatment ? { benchmarkTreatment: input.benchmarkTreatment } : {}),
+        ...(input.physicalRequests
+          ? { physicalRequests: serializePhysicalRequests(input.physicalRequests) }
+          : {}),
         sessionId: app.sessionId,
         traceId,
         ...(result.turnId ? { turnId: result.turnId } : {}),
@@ -117,6 +130,10 @@ export function writePromptResult(input: {
   // 单回合时这与 `${result.response}\n` 逐字节相同。
   ctx.stdout.write(`${turnResponses.join("\n\n")}\n`);
   return 0;
+}
+
+function serializePhysicalRequests(summary: PhysicalRequestSummary) {
+  return { ...summary, requests: summary.requests.map((request) => ({ ...request })) };
 }
 
 const HEADLESS_WORKSPACE_HOOK_BLOCK_REASONS = [

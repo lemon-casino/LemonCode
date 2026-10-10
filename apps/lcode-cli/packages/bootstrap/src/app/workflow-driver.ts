@@ -43,13 +43,7 @@
 //     潜在前驱。
 //   - **转录截断**：`createActorSession` 带种子时，把源会话的前 N 条消息复制进新铸的会话再重水化。
 
-import type {
-  SessionId,
-  SubmitResultRequest,
-  SubmitVerdict as ContractsSubmitVerdict,
-  WorkflowEscalatePort,
-  WorkflowSubmitPort,
-} from "@lcode/contracts";
+import type { SessionId, WorkflowEscalatePort, WorkflowSubmitPort } from "@lcode/contracts";
 import type { AgentRuntime } from "@lcode/core";
 import {
   GENERIC_SUBMIT_PROFILE,
@@ -73,7 +67,8 @@ import {
 import { executeArtifactPublish } from "./workflow-artifact-publish.js";
 import { qualityEpilogue } from "./workflow-ask-epilogue.js";
 import { ensureSubmitProfileFits } from "./workflow-driver-submit-profile.js";
-import { executeWorldRead } from "./workflow-world-read.js";
+import { createSessionSubmitPort } from "./workflow-driver-submit-port.js";
+import { executeWorkflowWorldWithEvidence } from "./workflow-world-evidence.js";
 import {
   closeActorRuntimeAfterTurn,
   prepareActorRuntimeForDispose,
@@ -98,7 +93,6 @@ import {
   effectiveActorName,
   mapViolations,
   resolveActorSessionId,
-  rejectWith,
   sameAskAttempt,
   schemaEpilogue,
 } from "./workflow-driver-helpers.js";
@@ -486,8 +480,12 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
    * 不碰 turn、不碰 submit 桥接，只需要三样东西（两个端口加一个 cwd）。分出去之后本文件
    * 只剩"会话与 turn 的编排"这一件事，而 op 元数、上限执行、git 的固定 argv 集中在一处。
    */
-  async executeWorldRead(op: WorldReadOp, args: unknown[]): Promise<unknown> {
-    return await executeWorldRead(this.deps, op, args);
+  async executeWorldRead(
+    op: WorldReadOp,
+    args: unknown[],
+    execution?: { runId: string; instance: InstanceRef },
+  ): Promise<unknown> {
+    return await executeWorkflowWorldWithEvidence(this.deps, op, args, execution);
   }
 
   /**
@@ -507,38 +505,7 @@ class AgentRuntimeWorkflowDriver implements WorkflowDriver {
 
   /** 造一个会话级 submit 端口：submit_result handler mid-turn 调用它并阻塞等裁决。 */
   private makeSubmitPort(sessionId: SessionId): WorkflowSubmitPort {
-    return {
-      respond: (request: SubmitResultRequest): Promise<ContractsSubmitVerdict> => {
-        const state = this.sessions.get(sessionId);
-        const instance = state?.currentInstance;
-        if (state === undefined || instance === undefined || state.cancelled) {
-          // 无在飞 ask 却收到 submit：不路由到引擎，直接拒绝（避免悬挂）。
-          return Promise.resolve(rejectWith("no active ask is awaiting a submitted result"));
-        }
-        // Untyped ask 守卫：设计上「全 untyped 的 actor 不注册 submit_result」，
-        // 但 driver 在 createActorSession 时拿不到 actor 的聚合 typed 信息（需 site graph，未透传），故
-        // 一律注册。为不依赖引擎「submitAttempted 对 untyped 早退」的行为（那会让 deferred 永久悬挂），
-        // 这里在 driver 内部直接拦截：untyped ask 收到 submit 时立即回一条合成 rejection 让模型改用纯文本，
-        // 绝不上报 askSubmitAttempted。后续版本可据 actor-graph 投影把 per-actor typed 信息透传进来，
-        // 真正在 untyped-only actor 上跳过注册（关系到 prompt-cache 的 frozen-tools 不变式）。
-        if (!state.currentTyped) {
-          return Promise.resolve(
-            rejectWith(
-              "this ask does not accept submit_result; provide your answer as your final message",
-            ),
-          );
-        }
-        // 单前实例不变式：至多一个挂起 deferred。若已有（不应发生），先拒旧的避免泄漏。
-        state.pendingSubmit?.reject(
-          new WorkflowError("DriverError", "This submit was superseded by a newer submit."),
-        );
-        const deferred = defer<ContractsSubmitVerdict>();
-        state.pendingSubmit = deferred;
-        // 同步上报：引擎在本调用栈内校验并经 respondToSubmit 回裁决（同步解开 deferred）。
-        this.sink.askSubmitAttempted(instance, request.result);
-        return deferred.promise;
-      },
-    };
+    return createSessionSubmitPort(sessionId, this.sessions, this.sink);
   }
 
   // ——————————————————————————————— 内部：升级问答桥接 ———————————————————————————————

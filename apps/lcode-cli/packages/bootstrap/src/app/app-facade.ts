@@ -74,6 +74,7 @@ export function createAppFacade(input: AppFacadeDeps): LCodeApp {
     executionPort,
     ownsExecutionPort,
     pdfDocumentPort,
+    videoProcessorPort,
     fileSystemPort,
   } = input.adapters;
   const {
@@ -136,6 +137,7 @@ export function createAppFacade(input: AppFacadeDeps): LCodeApp {
     fileSystemPort,
     imageProcessorPort,
     pdfDocumentPort,
+    videoProcessorPort,
     logger,
     mcpPort,
     modelFactory,

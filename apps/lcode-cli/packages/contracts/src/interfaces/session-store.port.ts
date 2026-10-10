@@ -5,6 +5,13 @@ import type {
 import type { MessageId, PartId, ProjectId, SessionId } from "./shared.js";
 import type { TodoItem } from "../tools/todo.js";
 import type { SessionGoal, GoalStatus } from "../tools/target.js";
+import type { GoalAcceptance } from "../tools/goal-evidence.js";
+import type { BeginGoalEvidenceExecutionInput, BeginGoalEvidenceExecutionResult, GoalEvidenceHeadToken } from "../tools/goal-evidence-head.js";
+import type {
+  ContextCapsule,
+  ContextCapsuleCommitResult,
+  ContextCapsuleAttachInput,
+} from "./session-store/context-capsule.js";
 import type { PermissionRuleset } from "./permission.port.js";
 import type { CollaborationMode } from "./session.port.js";
 import type {
@@ -81,6 +88,19 @@ export interface SessionStorePort {
   commitForkBundle?(bundle: ForkCommitBundle): Promise<SessionInfo>;
   commitSharedContextImportBundle?(bundle: SharedContextImportCommitBundle): Promise<SessionInfo>;
   transitionSharedContextImport?(input: SharedContextImportTransition): Promise<boolean>;
+  /** Independent provenance for an already accepted real-user turn; never writes shared_context. */
+  commitContextCapsule?(
+    capsule: ContextCapsule,
+    options?: { signal?: AbortSignal },
+  ): Promise<ContextCapsuleCommitResult>;
+  readContextCapsule?(input: {
+    sessionId: SessionId;
+    capsuleId: string;
+  }): Promise<ContextCapsule | undefined>;
+  attachContextCapsulesToInput?(
+    input: ContextCapsuleAttachInput,
+    options?: { signal?: AbortSignal },
+  ): Promise<boolean>;
   updateSession(input: UpdateSessionInput): Promise<SessionInfo>;
   getSession(sessionID: SessionId): Promise<SessionInfo | null>;
   listSessions(input?: ListSessionsInput): Promise<SessionInfo[]>;
@@ -120,6 +140,8 @@ export interface SessionStorePort {
   /** 原子读取截至锚点的有界最近窗口；缺能力时自动复盘跳过，禁止全量兜底。 */
   readTranscriptWindow?(input: ReadSessionTranscriptWindowInput): Promise<SessionTranscriptWindow>;
   saveSessionEntry?(input: SessionEntryInfo): Promise<void>;
+  /** Strict checks reserve all matched durable heads atomically before physical execution. */
+  beginGoalEvidenceExecution?(input: BeginGoalEvidenceExecutionInput): Promise<BeginGoalEvidenceExecutionResult>;
   sessionEntries?(input: {
     sessionID: SessionId;
     type?: SessionEntryType | string;
@@ -193,6 +215,7 @@ export interface SessionStorePort {
     sessionID: SessionId;
     status?: GoalStatus;
     tokenBudget?: number | null;
+    acceptance?: GoalAcceptance;
   }): Promise<SessionGoal>;
   cloneTargetForFork?(input: {
     source: SessionGoal;
@@ -203,10 +226,18 @@ export interface SessionStorePort {
     objective: string;
     sessionID: SessionId;
     tokenBudget?: number | null;
+    acceptance?: GoalAcceptance;
   }): Promise<SessionGoal | null>;
   updateTargetStatus(input: {
     sessionID: SessionId;
     status: GoalStatus;
+    expected?: {
+      targetID: string;
+      updatedAt: number;
+      stateRevision?: number;
+      acceptanceHash?: string;
+      evidenceHeads?: GoalEvidenceHeadToken[];
+    };
   }): Promise<SessionGoal | null>;
   startTargetRun?(input: {
     sessionID: SessionId;

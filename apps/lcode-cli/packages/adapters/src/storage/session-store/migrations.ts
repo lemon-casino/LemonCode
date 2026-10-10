@@ -1,4 +1,5 @@
 import { PROVIDER_MODEL_SELECTION_MIGRATION_SQL } from "./migrations/0020-provider-model-selection.js";
+import { GOAL_ACCEPTANCE_MIGRATION_SQL } from "./migrations/0024-goal-acceptance.js";
 import { DWF_ACTOR_MODEL_PROVENANCE_MIGRATION_SQL } from "./migrations/0023-dwf-actor-model-provenance.js";
 import { OFFICIAL_GLM_SELECTION_MIGRATION_SQL } from "./migrations/0021-official-glm-selection.js";
 import { BACKFILLED_SESSION_REASONING_MIGRATION_SQL } from "./migrations/0022-backfilled-session-reasoning.js";
@@ -35,4 +36,5 @@ export const SQLITE_MIGRATIONS: readonly SqliteMigration[] = [
     id: "0023_dwf_actor_model_provenance",
     sql: DWF_ACTOR_MODEL_PROVENANCE_MIGRATION_SQL,
   },
+  { appVersion: "0.16.9", id: "0024_goal_acceptance", sql: GOAL_ACCEPTANCE_MIGRATION_SQL },
 ];

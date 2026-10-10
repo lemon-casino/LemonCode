@@ -189,6 +189,16 @@ export function createAppDynamicWorkflowPort(
           executionPort,
           fileSystemPort,
           journal: dynamicWorkflowJournal,
+          goalEvidenceOwner: {
+            sessionId,
+            workspacePath: workingDirectory,
+            workspaceKey:
+              runtimeConfig.workspaceIdentity?.trim() ||
+              runtimeConfig.workspacePath ||
+              workingDirectory,
+            fileSystem: fileSystemPort,
+            store: sessionStore,
+          },
           getSessionModelSelection: () => getRuntime().getSessionModelSelection(),
           logger,
           // 进度投影的接缝：一条引擎事件 → 一条父会话的会话事件 → v4 的 workflowRuns 状态键。

@@ -34,6 +34,9 @@ export const parseGlobalArgs = (argv: string[]) =>
       "memory-bench": {
         type: "boolean",
       },
+      "benchmark-limits": { type: "string" },
+      "goal-acceptance": { type: "string" },
+      goal: { type: "boolean" },
       attach: {
         multiple: true,
         type: "string",

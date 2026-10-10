@@ -12,6 +12,7 @@ import { GroupedTaskRow } from "@/workspace-grouped-tasks/task-row.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { GlobalExecutionPolicySettings } from "@/worktree/ExecutionPolicySettings.js";
 import { useTabStoreApi } from "@/store/TabStoreProvider.js";
+import { TaskHandoffFixture } from "./task-handoff.js";
 
 const noop = () => {};
 const groups: [] = [];
@@ -45,6 +46,7 @@ export function WorktreeSidebarRows() {
   );
   return (
     <main className="w-full max-w-xl space-y-3 p-4" data-testid="sidebar-rows">
+      {new URLSearchParams(location.search).has("handoff") ? <TaskHandoffFixture /> : null}
       {["default", "pinned", "timeline", "grouped", "overlay"].map((kind) => (
         <section key={kind} data-testid={`sidebar-row-${kind}`} className="min-w-0">
           {kind === "grouped" || kind === "overlay" ? (

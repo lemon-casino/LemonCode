@@ -19,6 +19,7 @@ import {
 import type { ToolEntry } from "../types.js";
 import type { AgentProfile } from "../../subagent/profile.js";
 import { readToolEntry } from "./read.js";
+import { videoInspectToolEntry } from "./video-inspect.js";
 import { writeToolEntry } from "./write.js";
 import { editToolEntry } from "./edit.js";
 import { bashToolEntry, createBashToolEntry } from "./bash.js";
@@ -78,6 +79,7 @@ import { createToolRuleNameSet } from "../tool-visibility.js";
 
 export const builtInTools: ToolEntry[] = [
   readToolEntry,
+  videoInspectToolEntry,
   writeToolEntry,
   editToolEntry,
   // applyPatchToolEntry,

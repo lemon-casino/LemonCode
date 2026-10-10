@@ -24,9 +24,10 @@ import {
 } from "./review-verification-policy.js";
 
 import { memoryReviewProfile } from "./review-profile.js";
+import { parseMemoryDocument } from "./recall/document.js";
 const VERIFICATION_RESPONSE_CHARACTER_LIMIT = 24_000;
 const VERIFICATION_REASON_CHARACTER_LIMIT = 2_000;
-const DECISION_KEYS = new Set(["itemId", "accept", "reason"]);
+const DECISION_KEYS = new Set(["itemId", "accept", "reason", "rankingEligible"]);
 const FULL_JSON_FENCE = /^```(?:json)?[ \t]*\r?\n([\s\S]*?)\r?\n```$/u;
 const VERIFICATION_SYSTEM = [
   "You are the independent verifier for Project Memory proposals, not the generator and not an executor.",
@@ -40,12 +41,14 @@ const VERIFICATION_SYSTEM = [
   "Do not call tools, run hooks, start sessions, apply changes or rewrite candidates. Your response is a quality decision, not a write lease or proof that sources remain unchanged.",
   "Coverage is bounded and may be partial. If support, scope, target safety or conflict resolution is uncertain, reject the item.",
   'Return exactly JSON: {"decisions":[{"itemId":"existing candidate ID","accept":false,"reason":"short rationale"}]}.',
-  "Return exactly one decision for every candidate, using only provided IDs and boolean accept. No extra fields or prose. Do not repeat source text or secrets in reasons.",
+  "Return exactly one decision for every candidate, using only provided IDs and boolean accept. Each decision may additionally include boolean rankingEligible. No other fields or prose. Do not repeat source text or secrets in reasons.",
+  "rankingEligible may be true only for an accepted metadata.type=reference observation learned from verified work: never for an explicit user instruction, project/architecture constraint, preference, authorization, or prescriptive workflow. When uncertain or an item mixes a constraint and an observation, omit it or return false. This only enables a bounded ranking experiment, not higher-priority instructions.",
   `Keep every reason concise and at most ${VERIFICATION_REASON_CHARACTER_LIMIT} characters.`,
 ].join("\n");
 
 export interface MemoryReviewVerificationResult {
   acceptedItemIds: string[];
+  rankingEligibleItemIds?: string[];
   reasons: Array<{ itemId: string; reason: string }>;
 }
 
@@ -192,16 +195,20 @@ function parseVerificationResponse(
   )
     throw new MemoryReviewError("invalid_response");
   const itemIds = new Set(draft.items.map((item) => item.id));
-  const decisions = new Map<string, { accept: boolean; reason: string }>();
+  const decisions = new Map<
+    string,
+    { accept: boolean; reason: string; rankingEligible: boolean }
+  >();
   for (const decision of value.decisions) {
     if (
       !isRecord(decision) ||
-      Object.keys(decision).length !== DECISION_KEYS.size ||
+      (Object.keys(decision).length !== 3 && Object.keys(decision).length !== 4) ||
       Object.keys(decision).some((key) => !DECISION_KEYS.has(key)) ||
       typeof decision.itemId !== "string" ||
       !itemIds.has(decision.itemId) ||
       decisions.has(decision.itemId) ||
       typeof decision.accept !== "boolean" ||
+      (decision.rankingEligible !== undefined && typeof decision.rankingEligible !== "boolean") ||
       typeof decision.reason !== "string" ||
       !decision.reason.trim() ||
       decision.reason.length > VERIFICATION_REASON_CHARACTER_LIMIT ||
@@ -209,9 +216,21 @@ function parseVerificationResponse(
     ) {
       throw new MemoryReviewError("invalid_response");
     }
-    decisions.set(decision.itemId, { accept: decision.accept, reason: decision.reason });
+    decisions.set(decision.itemId, {
+      accept: decision.accept,
+      reason: decision.reason,
+      rankingEligible:
+        decision.rankingEligible === true &&
+        decision.accept &&
+        parseMemoryDocument(draft.items.find((item) => item.id === decision.itemId)!.content)
+          .type === "reference",
+    });
   }
+  const rankingEligibleItemIds = draft.items
+    .filter((item) => decisions.get(item.id)!.rankingEligible)
+    .map((item) => item.id);
   return {
+    ...(rankingEligibleItemIds.length ? { rankingEligibleItemIds } : {}),
     acceptedItemIds: draft.items
       .filter((item) => decisions.get(item.id)!.accept)
       .map((item) => item.id),

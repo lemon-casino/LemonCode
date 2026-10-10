@@ -361,6 +361,7 @@ export function createDefaultSubagentPort(
           httpClientPort: deps.httpClientPort,
           imageProcessorPort: deps.imageProcessorPort,
           pdfDocumentPort: deps.pdfDocumentPort,
+          videoProcessorPort: deps.videoProcessorPort,
           memoryRoot: persistentMemory?.rootDir,
           mcpPort: childMcpAccess.port,
           skillPort: childSkillPort,

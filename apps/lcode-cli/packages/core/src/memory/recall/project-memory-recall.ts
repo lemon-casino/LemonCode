@@ -12,7 +12,7 @@ import {
 import { mapWithFixedConcurrency } from "./concurrency.js";
 import { parseMemoryDocument } from "./document.js";
 import { scanMemoryCandidatePaths } from "./manifest.js";
-import { rankMemoryDocuments } from "./ranking.js";
+import { applyMemoryRankingSignals, rankMemoryDocuments } from "./ranking.js";
 import { tokenizeMemoryRecallText } from "./tokenizer.js";
 import type {
   IndexedMemoryDocument,
@@ -32,6 +32,7 @@ interface MemoryRecallInput {
   rootDir: string;
   signal?: AbortSignal;
   traceContext?: TraceContext;
+  rankingExperiment?: { workspaceKey: string; onUnavailable?: () => void };
 }
 
 export class ProjectMemoryRecallIndex {
@@ -63,10 +64,37 @@ export class ProjectMemoryRecallIndex {
     const snapshot = await this.reconcile(input, input.now ?? Date.now());
     // 并发搜索只发布最新请求；旧 root 的慢读取不能覆盖新 root，调用者也只排名自己的快照。
     if (sequence === this.requestSequence) this.documents = snapshot.documents;
-    const ranked = rankMemoryDocuments({
+    let ranked = rankMemoryDocuments({
       documents: [...snapshot.documents.values()],
       queryTokens,
     });
+    const effects = input.fileSystem.projectMemory?.effects;
+    if (input.rankingExperiment && effects) {
+      try {
+        const entries = ranked
+          .filter((entry) => entry.document.type === "reference" && entry.document.sourceHash)
+          .map((entry) => ({
+            fileName: entry.document.filename,
+            sourceHash: entry.document.sourceHash!,
+          }));
+        if (entries.length)
+          ranked = applyMemoryRankingSignals(
+            ranked,
+            await effects.rankingSignals(
+              {
+                rootDir,
+                workspaceKey: input.rankingExperiment.workspaceKey,
+                entries,
+              },
+              { signal: input.signal, trace: input.traceContext },
+            ),
+          );
+      } catch {
+        input.signal?.throwIfAborted();
+        // 观察文件损坏不能使辅助召回丢失；保留本轮已核验的 BM25 快照。
+        input.rankingExperiment.onUnavailable?.();
+      }
+    }
     const formatted = formatMemoryRecallAttachment(ranked.slice(0, MEMORY_RECALL_RESULT_LIMIT));
 
     return {

@@ -38,6 +38,7 @@ export * from "./command.js";
 export * from "./execution-failover.js";
 export * from "./workflow-run-settings-command.js";
 export * from "./shared-context-ref.js";
+export * from "./context-capsule-reference-text.js";
 export * from "./shared-context-import.js";
 export * from "./input-intent.js";
 export * from "./submission.js";

@@ -89,6 +89,7 @@ export type ActorRuntimeFactory = (input: {
 
 /** 构造 AgentRuntime-backed driver 所需的依赖（journal 与 emit 由调用方/harness 提供并持有）。 */
 export interface AgentRuntimeWorkflowDriverDeps {
+  goalEvidenceOwner?: import("@lcode/core").GoalEvidenceOwner;
   journal: JournalStorePort;
   emit: (event: RunEvent) => void;
   /** world-read（files.glob / files.read / files.grep）落到的文件系统端口。 */

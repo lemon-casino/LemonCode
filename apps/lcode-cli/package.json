@@ -5,6 +5,7 @@
   "description": "A cross-platform TypeScript Node.js CLI with a small TUI and optional SEA packaging.",
   "type": "module",
   "scripts": {
+    "bench:task-quality": "node packages/bootstrap/scripts/task-quality-benchmark.mjs",
     "build": "pnpm --dir ../.. exec turbo --skip-infer --cwd apps/lcode-cli run build",
     "build:sea": "pnpm --filter @lcode/cli build:sea",
     "bench:session-recall": "pnpm --filter @lcode/contracts build && pnpm --filter @lcode/adapters build && pnpm --filter @lcode/core build && node --import tsx packages/bootstrap/scripts/session-recall-benchmark.mjs",

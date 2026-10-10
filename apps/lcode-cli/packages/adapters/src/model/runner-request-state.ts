@@ -1,4 +1,4 @@
-import type { Logger, ModelStatusSink } from "@lcode/contracts";
+import type { Logger, ModelStatusSink, PhysicalRequestAccountingPort } from "@lcode/contracts";
 import type { EnvRecord } from "./model-execution.js";
 import type { ResolvedAiSdkModelRetryOptions } from "./retry-policy.js";
 import type { DeferredRetryYieldGate } from "./runner-failover-yield.js";
@@ -18,6 +18,7 @@ export interface ModelRunnerInput {
   retry: ResolvedAiSdkModelRetryOptions;
   runtime: AiSdkModelRuntime;
   statusSink?: ModelStatusSink;
+  physicalRequestAccounting?: PhysicalRequestAccountingPort;
   modelIoFullRetentionEnabled: boolean;
 }
 

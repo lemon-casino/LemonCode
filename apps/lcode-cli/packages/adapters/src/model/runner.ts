@@ -18,6 +18,7 @@ import type {
   ModelStatusSink,
   ModelStreamEvent,
   ModelTextResult,
+  PhysicalRequestAccountingPort,
 } from "@lcode/contracts";
 import type { RegistryModelConfig, RegistryProviderConfig } from "@lcode/provider";
 import {
@@ -88,6 +89,7 @@ export class AiSdkModelAdapter {
   private readonly logger?: Logger;
   private readonly retry: ResolvedAiSdkModelRetryOptions;
   private statusSink?: ModelStatusSink;
+  private physicalRequestAccounting?: PhysicalRequestAccountingPort;
   private readonly streamIdleTimeoutMs: number;
   private modelIoFullRetentionEnabled: boolean;
 
@@ -112,6 +114,15 @@ export class AiSdkModelAdapter {
 
   setModelIoFullRetentionEnabled(enabled: boolean): void {
     this.modelIoFullRetentionEnabled = enabled;
+  }
+
+  setPhysicalRequestAccounting(accounting: PhysicalRequestAccountingPort): void {
+    if (this.physicalRequestAccounting && this.physicalRequestAccounting !== accounting) {
+      throw new Error("Physical request accounting is already bound to this adapter.");
+    }
+    if (this.physicalRequestAccounting === accounting) return;
+    this.physicalRequestAccounting = accounting;
+    this.addStatusSink(accounting);
   }
 
   addStatusSink(sink: ModelStatusSink): void {
@@ -197,6 +208,7 @@ export class AiSdkModelAdapter {
         responseJsonSchema: request.responseJsonSchema,
         abortSignal: request.abortSignal,
         maxOutputTokens: request.options.maxOutputTokens,
+        selectedSpeed: request.options.speed ?? null,
         ...invocationContext,
         ...(shouldAttachReasoningTelemetry
           ? {
@@ -309,6 +321,7 @@ export class AiSdkModelAdapter {
       retry: this.retry,
       runtime: this.runtime,
       statusSink: this.statusSink,
+      physicalRequestAccounting: this.physicalRequestAccounting,
       modelIoFullRetentionEnabled: this.modelIoFullRetentionEnabled,
     });
   }
@@ -329,6 +342,7 @@ export class AiSdkModelAdapter {
       retry: this.retry,
       runtime: this.runtime,
       statusSink: this.statusSink,
+      physicalRequestAccounting: this.physicalRequestAccounting,
       streamIdleTimeoutMs: this.streamIdleTimeoutMs,
       modelIoFullRetentionEnabled: this.modelIoFullRetentionEnabled,
     });

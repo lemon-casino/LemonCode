@@ -1,4 +1,6 @@
 import * as permissionFullAccessRepository from "./repositories/permission-full-access.js";
+import { beginGoalEvidenceExecution, saveImmutableGoalEvidenceReceipt } from "./store-goal-evidence.js";
+import { SESSION_ENTRY_GOAL_EVIDENCE, SESSION_ENTRY_GOAL_EVIDENCE_HEAD, SESSION_ENTRY_GOAL_EVIDENCE_ATTEMPT } from "@lcode/contracts";
 import { DatabaseSync } from "node:sqlite";
 import type {
   ClaimLegacySessionWorkspaceInput,
@@ -58,6 +60,7 @@ import { readTranscriptWindow } from "./repositories/transcript-window.js";
 
 import { sessionForkMethods } from "./store-fork.js";
 import { sharedContextMethods } from "./store-shared-context.js";
+import { contextCapsuleMethods } from "./store-context-capsule.js";
 import { sessionTargetMethods } from "./store-target.js";
 import { auxiliaryStoreMethods } from "./store-auxiliary.js";
 import { worktreeCleanupMethods } from "./store-worktree-cleanup.js";
@@ -84,6 +87,11 @@ export class SqliteSessionStore
   declare commitForkBundle: ForkMethods["commitForkBundle"];
   declare commitSharedContextImportBundle: SharedContextMethods["commitSharedContextImportBundle"];
   declare transitionSharedContextImport: SharedContextMethods["transitionSharedContextImport"];
+  declare commitContextCapsule: StoreMethods<typeof contextCapsuleMethods>["commitContextCapsule"];
+  declare readContextCapsule: StoreMethods<typeof contextCapsuleMethods>["readContextCapsule"];
+  declare attachContextCapsulesToInput: StoreMethods<
+    typeof contextCapsuleMethods
+  >["attachContextCapsulesToInput"];
   declare readTodos: TargetMethods["readTodos"];
   declare updateTodos: TargetMethods["updateTodos"];
   declare readTarget: TargetMethods["readTarget"];
@@ -306,7 +314,14 @@ export class SqliteSessionStore
 
   async saveSessionEntry(input: SessionEntryInfo): Promise<void> {
     this.throwBeforeWrite();
+    if (input.type === SESSION_ENTRY_GOAL_EVIDENCE_HEAD || input.type === SESSION_ENTRY_GOAL_EVIDENCE_ATTEMPT) throw new Error("Goal evidence heads and attempts require atomic admission");
+    if (input.type === SESSION_ENTRY_GOAL_EVIDENCE) return saveImmutableGoalEvidenceReceipt(this.db, input);
     return sessionEntryRepository.saveSessionEntry(this.db, input);
+  }
+
+  async beginGoalEvidenceExecution(input: Parameters<NonNullable<SessionStorePort["beginGoalEvidenceExecution"]>>[0]) {
+    this.throwBeforeWrite();
+    return beginGoalEvidenceExecution(this.db, input);
   }
 
   async sessionEntries(input: {
@@ -418,6 +433,7 @@ export class SqliteSessionStore
 for (const methods of [
   sessionForkMethods,
   sharedContextMethods,
+  contextCapsuleMethods,
   sessionTargetMethods,
   auxiliaryStoreMethods,
   worktreeCleanupMethods,

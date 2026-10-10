@@ -446,7 +446,11 @@ export interface WorkflowDriver {
    * 执行一次世界读取。`args` 是脚本调用点的**位置实参**，lowering 原样打包、不做任何检查；
    * 每个 op 的元数与实参校验归 driver（见 {@link WorkflowHostApi.worldRead}）。
    */
-  executeWorldRead(op: WorldReadOp, args: unknown[]): Promise<unknown>;
+  executeWorldRead(
+    op: WorldReadOp,
+    args: unknown[],
+    execution?: { runId: string; instance: InstanceRef },
+  ): Promise<unknown>;
   /**
    * 发布一个内容产物的字节：校验实参形状、
    * 解析工作区相对路径（越界拒绝）、读字节（cap+1 探测，超限拒绝不截断）、按扩展名定

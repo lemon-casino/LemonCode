@@ -3,12 +3,16 @@ import type {
   ModelStreamingPayload,
   SessionEvent,
   SyntheticUserMessageSource,
-  TurnAttachmentMeta,
   TurnInputIntentMetadata,
   TurnStartedPayload,
   WorkflowLaunchMeta,
 } from "@lcode/contracts";
 import { SessionEventType } from "@lcode/contracts";
+import {
+  normalizeAttachments,
+  type CanonicalTurnAttachment,
+} from "./event-normalizer-attachments.js";
+export type { CanonicalTurnAttachment } from "./event-normalizer-attachments.js";
 
 type CanonicalConversationVisibility = "visible" | "modelOnly" | "stateOnly";
 type CanonicalConversationOrigin =
@@ -84,23 +88,17 @@ export interface CanonicalUserIntentFact extends CanonicalConversationFactBase {
   requestedDelivery?: "auto" | "startNow" | "queue" | "guide";
   admittedDelivery?: "startNow" | "queue" | "guide";
   sharedContextRefs?: readonly { kind: "shared_context_import"; context_id: string }[];
+  contextCapsuleRefs?: readonly { kind: "context_capsule"; capsule_id: string }[];
   fallbackReasonCode?: string;
   modelSelection?: TurnInputIntentMetadata["modelSelection"];
   mode?: TurnInputIntentMetadata["mode"];
   planEnabled?: boolean;
+  goalAcceptance?: TurnInputIntentMetadata["goalAcceptance"];
   provenance?: {
     sourceCommandId: string;
     queueItemId?: string;
     clientId?: string;
   };
-}
-
-export interface CanonicalTurnAttachment {
-  ref?: string;
-  fileName: string;
-  mime: string;
-  bytes: number;
-  previewRef?: string;
 }
 
 export interface CanonicalModelStream {
@@ -277,6 +275,10 @@ function normalizeTurnStarted(
     ...(payload.intent?.sharedContextRefs
       ? { sharedContextRefs: payload.intent.sharedContextRefs }
       : {}),
+    ...(payload.intent?.contextCapsuleRefs
+      ? { contextCapsuleRefs: payload.intent.contextCapsuleRefs }
+      : {}),
+    ...(payload.intent?.goalAcceptance ? { goalAcceptance: payload.intent.goalAcceptance } : {}),
     ...(payload.intent?.fallbackReasonCode
       ? { fallbackReasonCode: payload.intent.fallbackReasonCode }
       : {}),
@@ -375,25 +377,6 @@ function runtimeTurnIdOf(event: SessionEvent): string {
     return `turn-${payload.turnNumber}`;
   }
   return "turn-unknown";
-}
-
-function normalizeAttachments(payload: TurnStartedPayload): {
-  attachments?: readonly CanonicalTurnAttachment[];
-} {
-  if (payload.intent?.attachmentRefs && payload.intent.attachmentRefs.length > 0) {
-    return { attachments: payload.intent.attachmentRefs.map((attachment) => ({ ...attachment })) };
-  }
-  if (!payload.attachments || payload.attachments.length === 0) return {};
-  return { attachments: payload.attachments.map(normalizeAttachment) };
-}
-
-function normalizeAttachment(attachment: TurnAttachmentMeta): CanonicalTurnAttachment {
-  return {
-    ...(attachment.ref ? { ref: attachment.ref } : {}),
-    fileName: attachment.fileName,
-    mime: attachment.mime,
-    bytes: attachment.bytes,
-  };
 }
 
 function turnHeaderOrigin(

@@ -27,6 +27,7 @@ import {
   type MemoryRoot,
 } from "./project-memory-paths.js";
 import { MemoryStore } from "./project-memory-store.js";
+import { MemoryEffects } from "./project-memory-effects.js";
 import {
   assertCurrentReviewSources,
   validateReviewSourceHashes,
@@ -61,6 +62,9 @@ function projectReview(
 
 export class NodeProjectMemory implements ProjectMemoryPort {
   private readonly registry = new MemoryRootRegistry();
+  readonly effects = new MemoryEffects(async (rootDir, operation, options) =>
+    this.locked(this.registry.get(rootDir), operation, options),
+  );
 
   async registerRoot(rootDir: string): Promise<void> {
     try {

@@ -3366,10 +3366,19 @@ export function SessionPane({
       const expectedHeldQueueItemIds = options?.expectedHeldQueueItemIds;
       const readyAttachments = options?.attachments ?? [];
       const sharedContextRefs = options?.sharedContextRefs;
+      const inputContextRefs = [
+        ...(sharedContextRefs ?? []),
+        ...(options?.contextCapsuleRefs ?? []),
+      ];
       const contextAttachmentCount = options?.contextAttachmentCount ?? 0;
       let slashCommand = parseV4VisibleSlashCommand(text, readyAttachments, {
         contextAttachmentCount,
       });
+      if (slashCommand?.kind === "unsupportedGoal" && slashCommand.action === "strict") {
+        // Composer 之外的发送入口也必须明确拒绝，不能把 CLI 严格语法接纳成 legacy。
+        toast(intl.formatMessage({ id: "chat.goal.strictCliOnly" }));
+        return "blocked" as const;
+      }
 
       // `/plan` 首版只消费纯文本。必须在 provider readiness 和任何 command admission 之前
       // 拒绝附件/context，否则原始 `/plan ...` 会退化成普通 prompt，既绕过产品边界又清空草稿。
@@ -3574,7 +3583,7 @@ export function SessionPane({
                 text: effectiveText,
                 ...submission,
                 ...(readyAttachments.length > 0 ? { attachments: readyAttachments } : {}),
-                ...(sharedContextRefs?.length ? { context_refs: sharedContextRefs } : {}),
+                ...(inputContextRefs.length ? { context_refs: inputContextRefs } : {}),
               },
               prewarm.sessionId,
               undefined,
@@ -3672,7 +3681,7 @@ export function SessionPane({
             text: effectiveText,
             attachments: readyAttachments,
             ...submission,
-            ...(sharedContextRefs?.length ? { context_refs: sharedContextRefs } : {}),
+            ...(inputContextRefs.length ? { context_refs: inputContextRefs } : {}),
           },
           newSessionId,
           undefined,
@@ -3707,7 +3716,7 @@ export function SessionPane({
             : {}),
           ...(heldQueueDisposition ? { heldQueueDisposition } : {}),
           ...(expectedHeldQueueItemIds ? { expectedHeldQueueItemIds } : {}),
-          ...(sharedContextRefs?.length ? { context_refs: sharedContextRefs } : {}),
+          ...(inputContextRefs.length ? { context_refs: inputContextRefs } : {}),
         },
         sessionId,
         undefined,

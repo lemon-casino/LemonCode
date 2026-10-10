@@ -36,6 +36,7 @@ export function createSessionGoalFacade(
       displayText?: string;
       status?: GoalStatus;
       tokenBudget?: number | null;
+      acceptance?: import("@lcode/contracts").GoalAcceptance;
       intent?: TurnInputIntentMetadata;
     },
   ) => {
@@ -62,6 +63,7 @@ export function createSessionGoalFacade(
             sessionID: deps.sessionId,
             status: input.status,
             tokenBudget: input.tokenBudget,
+            acceptance: input.acceptance,
           })
         : action === "status_updated"
           ? await deps.sessionStore.updateTargetStatus({

@@ -6,6 +6,7 @@
 // 旧协议死亡（lcode-protocol/index.ts 删除）后，这是该协议面的唯一幸存面。
 
 import { z } from "zod";
+import { goalAcceptanceSchema, goalEvidenceSummarySchema } from "./goal-evidence.js";
 import { modelSelectionSchema } from "./model-selection.js";
 
 const nonEmptyString = z.string().trim().min(1);
@@ -119,6 +120,7 @@ export const lcodeSessionGoalSchema = z
     tokenBudget: z.number().int().positive().nullable(),
     tokensUsed: z.number().int().nonnegative(),
     timeUsedSeconds: z.number().int().nonnegative(),
+    acceptance: goalAcceptanceSchema.optional(),
     activeInputId: nonEmptyString.nullable().optional(),
     activeRunStartedAtMs: timestampMsSchema.nullable().optional(),
     activeRunLastSeenAtMs: timestampMsSchema.nullable().optional(),
@@ -131,6 +133,7 @@ export const lcodeSessionGoalVerificationSchema = z
     nextAction: z.string().nullable().optional(),
     passed: z.boolean(),
     reason: z.string(),
+    evidenceSummary: goalEvidenceSummarySchema.optional(),
   })
   .strict();
 export const lcodeSessionGoalVerificationTimelineSchema = z

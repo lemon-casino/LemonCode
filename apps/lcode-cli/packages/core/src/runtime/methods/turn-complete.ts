@@ -23,6 +23,7 @@ import { persistStableForkCompletionBoundary } from "./stable-fork-boundary.js";
 import { scheduleProjectMemoryExtraction } from "../helpers/project-memory-extraction.js";
 import { appendBrowserTurnScreenshot } from "./browser-turn-screenshot.js";
 import { cleanupTurnBackgroundBash } from "./background.js";
+import { recordMemoryEffectTurn } from "./memory-effect-observation.js";
 
 export async function completeRegularTurn(
   this: AgentRuntimeInternal,
@@ -93,6 +94,7 @@ export async function completeRegularTurn(
   );
   await this.appendEvent(completeEvent, turnTraceContext);
   events.push(completeEvent);
+  await recordMemoryEffectTurn(this, { state: loopState, events, status: "completed" });
   await recordTurnUsageFact(this, {
     completedAt: Date.now(),
     events,

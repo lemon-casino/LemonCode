@@ -20,6 +20,7 @@ import {
   type ImageProcessorPort,
   type JsonSchema,
   type PdfDocumentPort,
+  type VideoProcessorPort,
   type Logger,
   type McpPort,
   type ModelRequestAdmission,
@@ -47,6 +48,7 @@ export interface ScriptWorkflowAgentRuntimeDeps {
   httpClientPort?: HttpClientPort;
   imageProcessorPort: ImageProcessorPort;
   pdfDocumentPort?: PdfDocumentPort;
+  videoProcessorPort?: VideoProcessorPort;
   logger: Logger;
   mcpPort?: McpPort;
   /** 父会话的 model factory：child 与主 turn 从同一份 Registry 视图造 Model，不各自冻结。 */
@@ -243,6 +245,7 @@ function createRuntimeDeps(
       }),
     imageProcessorPort: deps.imageProcessorPort,
     pdfDocumentPort: deps.pdfDocumentPort,
+    videoProcessorPort: deps.videoProcessorPort,
     logger: deps.logger,
     mcpPort: deps.mcpPort,
     modelFactory: deps.modelFactory,

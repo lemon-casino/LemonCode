@@ -196,6 +196,7 @@ async function executeDynamicWorkflowRun(
   const sequenceCapture = createJournalSequenceCapture(deps.journal);
 
   const makeDriver = createAgentRuntimeWorkflowDriver({
+    ...(deps.goalEvidenceOwner ? { goalEvidenceOwner: deps.goalEvidenceOwner } : {}),
     journal: sequenceCapture.journal,
     emit: (event) => {
       // 事件扇出绝不能把 run 打挂：钩子是观察者，异常吞在此边界并记日志。

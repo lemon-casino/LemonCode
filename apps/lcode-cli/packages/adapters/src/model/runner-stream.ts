@@ -48,6 +48,8 @@ export async function* runStreamText(input: StreamRunnerInput): AsyncGenerator<M
     pendingRetryYield: undefined,
   };
   const retryAttemptOffset = normalizeRetryAttemptOffset(input.request.retryAttemptOffset);
+  // off-peak 排队会回退逻辑 attempt；物理序号独立递增，避免复用 ID 绕过请求预算。
+  let physicalAttempt = retryAttemptOffset;
 
   for (
     let attempt = retryAttemptOffset + 1;
@@ -77,7 +79,7 @@ export async function* runStreamText(input: StreamRunnerInput): AsyncGenerator<M
         ...baseStatusContext,
         maxAttempts: statusMaxAttempts(Number(retryState.signatureRepairAttempted)),
       },
-      attempt,
+      ++physicalAttempt,
     );
     const toolCallAssembler = new StreamingToolCallAssembler({ logger: input.logger });
     const state: StreamAttemptState = {

@@ -14,6 +14,35 @@ import {
 
 const QUERY = "Review durable project memory";
 
+test("ranking classification is optional and protected memory types cannot opt in", async () => {
+  for (const type of ["reference", "user", "project", "feedback"]) {
+    const { h, draft } = await proposed();
+    draft.items[0]!.content = `---\nmetadata:\n  type: ${type}\n---\nA synthetic observation.`;
+    h.state.reply = () => ({
+      text: JSON.stringify({
+        decisions: [
+          {
+            itemId: draft.items[0]!.id,
+            accept: true,
+            reason: "Supported fixture.",
+            rankingEligible: true,
+          },
+        ],
+      }),
+    });
+    const result = await verifyMemoryReviewDraft({ draft, context: h.context });
+    assert.deepEqual(
+      result.rankingEligibleItemIds ?? [],
+      type === "reference" ? [draft.items[0]!.id] : [],
+    );
+    assert.equal(
+      h.requests.length,
+      2,
+      "classification shares the existing independent verification request",
+    );
+  }
+});
+
 interface VerificationPrompt {
   partial: boolean;
   sources: { id: string; kind: "session" | "memory"; reference: string; content: string }[];

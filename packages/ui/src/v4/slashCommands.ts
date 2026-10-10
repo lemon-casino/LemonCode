@@ -62,6 +62,14 @@ export function parseV4VisibleSlashCommand(
   const commandName = match[1]?.toLowerCase() ?? "";
   const args = match[2]?.trim() ?? "";
 
+  // strict 的文件参数只由本地 CLI 读取；App 不能把同一输入静默降为普通 Goal。
+  if (
+    (commandName === "goal" || commandName === "target") &&
+    /^(?:replace\s+)?strict(?:\s|$)/i.test(args)
+  ) {
+    return { kind: "unsupportedGoal", action: "strict", displayText };
+  }
+
   if (commandName === "plan") {
     const hasUnsupportedPayload =
       attachments.length > 0 || (options.contextAttachmentCount ?? 0) > 0;

@@ -180,6 +180,7 @@ function createRuntimeToolExecutor(
     imageProcessorPort: deps.imageProcessorPort,
     // 合并删除旧模型连接时曾漏掉此端口；Read 分页渲染与整份 PDF 页数检查仍依赖宿主注入。
     pdfDocumentPort: deps.pdfDocumentPort,
+    videoProcessorPort: deps.videoProcessorPort,
     embeddedSearchBackend: runtime.config.embeddedSearchBackend,
     nativeSearchEnhancementsEnabled: runtime.config.nativeSearchEnhancementsEnabled,
     skillPort: deps.skillPort,
@@ -213,6 +214,7 @@ function createRuntimeToolExecutor(
     deliveryKind: runtime.config.deliveryKind,
     getMemoryRoot: () =>
       deps.memoryRoot ?? resolveEnabledProjectMemoryRoot(runtime.config, runtime.workspaceRoot),
+    getMemoryWorkspaceIdentity: () => runtime.config.memory?.workspaceIdentity,
     runtimeScope: runtime.config.taskType === "subagent_child" ? "subagent" : "main",
     permissionTimeoutMs: runtime.config.permissionTimeoutMs,
     sessionId: runtime.sessionId,

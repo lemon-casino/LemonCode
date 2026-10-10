@@ -11,6 +11,7 @@ import type { AgentRuntimeInternal } from "../internal.js";
 import { type RegularTurnLoopState } from "./turn-loop-state.js";
 import { recordTurnUsageFact } from "./usage-observability.js";
 import { cleanupTurnBackgroundBash } from "./background.js";
+import { recordMemoryEffectTurn } from "./memory-effect-observation.js";
 import type { TraceContext, TraceId, TurnId } from "../deps.js";
 
 export async function failRegularTurn(
@@ -125,6 +126,11 @@ export async function failRegularTurn(
     traceContext: turnTraceContext,
     turnId,
     userMessageId,
+  });
+  await recordMemoryEffectTurn(this, {
+    state: loopState,
+    events,
+    status: coreError.type === CoreErrorType.TurnCancelled ? "cancelled" : "error",
   });
   throw coreError;
 }

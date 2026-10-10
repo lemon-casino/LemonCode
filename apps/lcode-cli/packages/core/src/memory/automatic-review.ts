@@ -55,12 +55,15 @@ export async function runAutomaticMemoryReview(input: {
   );
   const ids = new Set(draft.items.map((item) => item.id));
   const accepted = new Set(verification.acceptedItemIds);
+  const eligible = verification.rankingEligibleItemIds ?? [];
   if (
     accepted.size !== verification.acceptedItemIds.length ||
     verification.acceptedItemIds.some((id) => !ids.has(id)) ||
     verification.reasons.length !== ids.size ||
     new Set(verification.reasons.map((decision) => decision.itemId)).size !== ids.size ||
-    verification.reasons.some((decision) => !ids.has(decision.itemId))
+    verification.reasons.some((decision) => !ids.has(decision.itemId)) ||
+    new Set(eligible).size !== eligible.length ||
+    eligible.some((id) => !accepted.has(id))
   ) {
     throw new MemoryReviewError("invalid_response");
   }

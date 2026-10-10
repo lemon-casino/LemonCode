@@ -25,6 +25,7 @@ import type {
   FileSystemPort,
   ImageProcessorPort,
   PdfDocumentPort,
+  VideoProcessorPort,
   McpConnectionSnapshot,
   SkillLoadOutcome,
   SkillPort,
@@ -67,6 +68,7 @@ import { projectPersistentAgentMemoryTools } from "../subagent/persistent-memory
 import { RuntimeTelemetryFacade } from "../telemetry/runtime-telemetry.js";
 import type { WorkspaceHookRuntimeAdmissionPort } from "../hooks/workspace-hook-runtime-admission.js";
 import { cloneModelSelection } from "./model-selection.js";
+import { validateContextCapsuleReferences } from "../session-context/context-capsule.js";
 import type { ExecutionFailoverState } from "@lcode/shared/lcode-protocol-v4";
 import {
   createExecutionFailoverPolicyPort,
@@ -163,6 +165,7 @@ export class AgentRuntime {
   private fileSystemPort?: FileSystemPort;
   private imageProcessorPort?: ImageProcessorPort;
   private pdfDocumentPort?: PdfDocumentPort;
+  private videoProcessorPort?: VideoProcessorPort;
   private skillLoadOutcome?: SkillLoadOutcome;
   private workingDirectory: string;
   private workspaceRoot: string;
@@ -205,6 +208,22 @@ export class AgentRuntime {
   private sessionStartHookRan = false;
   private sessionTitleGenerationAttempted = false;
   private agentTelemetry: RuntimeTelemetryFacade;
+
+  /** Read-only preflight; accepted input still rechecks source and target in its attach transaction. */
+  async validateContextCapsuleReferences(
+    references: readonly { kind: "context_capsule"; capsule_id: string }[],
+  ): Promise<boolean> {
+    return validateContextCapsuleReferences(
+      {
+        sessionId: this.sessionId,
+        sessionStore: this.sessionStore,
+        workspaceIdentity: this.config.workspaceIdentity?.toString(),
+        workspaceRoot: this.workspaceRoot,
+        abortSignal: new AbortController().signal,
+      },
+      references,
+    );
+  }
 
   constructor(sessionId: SessionId, config: AgentRuntimeConfig, deps: AgentRuntimeDeps) {
     const runtime = this as unknown as AgentRuntimeInternal;
@@ -277,6 +296,7 @@ export class AgentRuntime {
     this.fileSystemPort = deps.fileSystemPort;
     this.imageProcessorPort = deps.imageProcessorPort;
     this.pdfDocumentPort = deps.pdfDocumentPort;
+    this.videoProcessorPort = deps.videoProcessorPort;
     this.subagentPort = deps.subagentPort ?? runtime.createDefaultSubagentPort(deps);
     this.dynamicWorkflowRunPort = deps.dynamicWorkflowRunPort;
     // GUI「配置」解析子代理模型用的目录（与工具上下文拿的是同一个端口）。

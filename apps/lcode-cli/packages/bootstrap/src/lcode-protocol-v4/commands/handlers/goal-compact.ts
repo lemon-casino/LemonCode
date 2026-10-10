@@ -243,7 +243,9 @@ async function sendGoalCommand(
   host: V4CommandCoreHost,
   envelope: CommandEnvelope,
 ): Promise<CommandResult | undefined> {
-  const payload = envelope.payload as CommandPayloadMap["sendGoalCommand"];
+  const payload = envelope.payload as CommandPayloadMap["sendGoalCommand"] & {
+    acceptance?: import("@lcode/contracts").GoalAcceptance;
+  };
   const record = requireRecord(host, envelope.sessionId);
   const objective = payload.text.trim();
   if (objective.length === 0) {
@@ -257,9 +259,18 @@ async function sendGoalCommand(
     );
   }
   const submissionIntent = (options: Parameters<typeof inputIntentMetadata>[1]) =>
-    inputIntentMetadata(envelope, { ...options, ...submittedExecutionState });
+    inputIntentMetadata(envelope, {
+      ...options,
+      ...submittedExecutionState,
+      ...(payload.acceptance ? { goalAcceptance: payload.acceptance } : {}),
+    });
   const routingMode = host.getInputRoutingMode?.(record.app.sessionId) ?? null;
   if (record.activeAbortController || routingMode === "enqueue" || routingMode === "guide") {
+    if (payload.acceptance)
+      throw new V4GoalCompactRejectedError(
+        "activeTurn",
+        "Strict goals require an idle admission boundary; retry after current work settles.",
+      );
     // /goal 是目标控制命令，active turn 中不能直接写 target；
     // 但产品语义要求 running/compacting/goal verifier 可入队。busy projection 可能
     // 早于 controller 登记，因此同时消费 inputRouting；commandKind 保住控制命令身份，
@@ -299,6 +310,7 @@ async function sendGoalCommand(
     expectedHeldQueueItemIds: payload.expectedHeldQueueItemIds,
     inputId: envelope.commandId,
     objective,
+    ...(payload.acceptance ? { acceptance: payload.acceptance } : {}),
     intent: submissionIntent({ requestedDelivery: "startNow", text: objective }),
   });
   return undefined;
@@ -313,6 +325,7 @@ export async function applyGoalCommand(
     expectedHeldQueueItemIds?: readonly string[];
     inputId: string;
     objective: string;
+    acceptance?: import("@lcode/contracts").GoalAcceptance;
     foregroundPromotionLeaseId?: string;
     intent?: SteerTurnOptions["intent"];
   },
@@ -341,6 +354,7 @@ export async function applyGoalCommand(
     ...(params.displayText ? { displayText: params.displayText } : {}),
     objective: params.objective,
     status: "active",
+    ...(params.acceptance ? { acceptance: params.acceptance } : {}),
     ...(params.intent ? { intent: params.intent } : {}),
   });
   await continueGoalAfterChange(host, record, {
@@ -427,4 +441,10 @@ async function resumeGoal(
   return undefined;
 }
 
-export const goalCompactHandlers = { compact, pauseGoal, resumeGoal, sendGoalCommand };
+export const goalCompactHandlers = {
+  compact,
+  pauseGoal,
+  resumeGoal,
+  sendGoalCommand,
+  sendStrictGoalCommand: sendGoalCommand,
+};

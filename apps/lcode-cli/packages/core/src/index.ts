@@ -187,3 +187,10 @@ export type {
   SessionEventSink,
 } from "@lcode/contracts";
 export { LogLevel, SessionEventType } from "@lcode/contracts";
+export {
+  beginGoalExecution,
+  finishGoalExecution,
+  readGoalEvidenceSummary,
+  GoalEvidenceAdmissionError,
+} from "./goal/evidence.js";
+export type { GoalEvidenceOwner, GoalExecutionCapture, GoalExecution } from "./goal/evidence.js";

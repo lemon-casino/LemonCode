@@ -117,6 +117,10 @@ export function formatReadSessionContextModelContent(output: ReadSessionContextO
     `ReadSessionContext returned ${output.source} context for ${output.sessionId}.`,
     output.title ? `Title: ${output.title}` : undefined,
     output.truncated ? "The returned context is truncated." : undefined,
+    output.sourceVersion ? `Source version: ${output.sourceVersion}` : undefined,
+    output.capsuleId
+      ? `Capsule reference (same target session only):\n#${output.capsuleId}`
+      : undefined,
     "",
     output.content,
   ]

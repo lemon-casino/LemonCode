@@ -5,6 +5,40 @@ import {
   MEMORY_RECALL_METADATA_MATCH_BOOST,
 } from "./constants.js";
 import type { IndexedMemoryDocument, RankedMemoryDocument } from "./types.js";
+import type { MemoryRankingSignal } from "@lcode/contracts";
+
+/** 明确反馈只调整已审核 reference 经验；约束/偏好/旧来源和无词法命中永不受实验影响。 */
+export function applyMemoryRankingSignals(
+  ranked: readonly RankedMemoryDocument[],
+  signals: readonly MemoryRankingSignal[],
+): RankedMemoryDocument[] {
+  const byRevision = new Map(
+    signals.map((signal) => [JSON.stringify([signal.fileName, signal.sourceHash]), signal]),
+  );
+  return ranked
+    .map((entry) => {
+      if (entry.document.type !== "reference" || !entry.document.sourceHash || entry.score <= 0)
+        return entry;
+      const signal = byRevision.get(
+        JSON.stringify([entry.document.filename, entry.document.sourceHash]),
+      );
+      if (!signal?.eligible) return entry;
+      const relevant = Math.max(0, Math.min(500, signal.relevant));
+      const negative = Math.max(0, Math.min(500, signal.negative));
+      if (!Number.isFinite(relevant) || !Number.isFinite(negative)) return entry;
+      const factor = 1 + Math.max(-0.2, Math.min(0.2, (relevant - negative) * 0.05));
+      return { ...entry, score: entry.score * factor };
+    })
+    .sort(
+      (left, right) =>
+        right.score - left.score ||
+        (left.document.filename < right.document.filename
+          ? -1
+          : left.document.filename > right.document.filename
+            ? 1
+            : 0),
+    );
+}
 
 export function rankMemoryDocuments(input: {
   documents: readonly IndexedMemoryDocument[];

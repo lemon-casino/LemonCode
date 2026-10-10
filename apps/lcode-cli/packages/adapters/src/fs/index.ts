@@ -1,5 +1,5 @@
 // Node FileSystem Adapter — port facade; operations share the existing adapter options.
-import { mkdir, stat } from "node:fs/promises";
+import { mkdir, stat, lstat } from "node:fs/promises";
 import {
   createFileSystemError,
   type FileSystemPort,
@@ -70,11 +70,12 @@ export class NodeFileSystemAdapter implements FileSystemPort {
   async stat(request: FileSystemStatRequest): Promise<FileSystemStatResult> {
     const path = resolveAbsoluteRequestPath(request.path);
     try {
-      const info = await stat(path);
+      const info = await (request.followSymlinks === false ? lstat(path) : stat(path));
       const kind = nodeKind(info);
       return {
         path,
         kind,
+        ...(request.followSymlinks === false ? { symlinkChecked: true } : {}),
         sizeBytes: info.size,
         mtimeMs: info.mtimeMs,
         revision:

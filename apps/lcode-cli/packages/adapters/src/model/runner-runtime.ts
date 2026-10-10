@@ -25,6 +25,7 @@ export interface AiSdkModelRuntime {
 }
 
 export interface AiSdkModelTextRequest extends ModelTextRequest {
+  selectedSpeed?: string | null;
   abortSignal?: AbortSignal;
   traceContext?: TraceContext;
   // Start Plan 的账号鉴权材料按 attempt 刷新；adapter 内部 retry 也是真实模型请求，

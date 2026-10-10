@@ -17,6 +17,7 @@ import type {
   HttpClientPort,
   ImageProcessorPort,
   PdfDocumentPort,
+  VideoProcessorPort,
   Logger,
   Model,
   PermissionBrokerPort,
@@ -96,6 +97,7 @@ export interface ToolExecutorOptions {
   httpClientPort?: HttpClientPort;
   imageProcessorPort?: ImageProcessorPort;
   pdfDocumentPort?: PdfDocumentPort;
+  videoProcessorPort?: VideoProcessorPort;
   model?: Model;
   embeddedSearchBackend?: EmbeddedSearchBackend;
   nativeSearchEnhancementsEnabled?: boolean;
@@ -132,6 +134,7 @@ export interface ToolExecutorOptions {
   setWorkingDirectory?: (cwd: string) => Promise<void> | void;
   getWorkspaceRoot?: () => string;
   getMemoryRoot?: () => string | undefined;
+  getMemoryWorkspaceIdentity?: () => string | undefined;
   traceContext?: TraceContext;
   mode?: CollaborationMode;
   getMode?: () => CollaborationMode;
@@ -201,6 +204,7 @@ export interface ToolExecutorDeps {
   httpClientPort?: HttpClientPort;
   imageProcessorPort?: ImageProcessorPort;
   pdfDocumentPort?: PdfDocumentPort;
+  videoProcessorPort?: VideoProcessorPort;
   model?: Model;
   embeddedSearchBackend?: EmbeddedSearchBackend;
   nativeSearchEnhancementsEnabled?: boolean;
@@ -234,6 +238,7 @@ export interface ToolExecutorDeps {
   clientMode?: "desktop-continuous" | "web-remote-replayable";
   deliveryKind?: "desktop-continuous" | "web-remote-replayable";
   getMemoryRoot?: () => string | undefined;
+  getMemoryWorkspaceIdentity?: () => string | undefined;
   runtimeScope: ToolRuntimeScope;
   traceContext?: TraceContext;
   getMode: () => CollaborationMode;

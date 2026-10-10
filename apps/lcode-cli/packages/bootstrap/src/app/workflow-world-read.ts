@@ -34,6 +34,8 @@ import {
   type GitCommitResult,
   type GitStatusResult,
 } from "./workflow-git-world-read.js";
+import { attachWorldExecutionFacts } from "./workflow-world-execution-facts.js";
+import { firstLine, describeArg } from "./workflow-world-read-helpers.js";
 
 /** 世界读取需要的端口与基准目录（driver deps 的一个子集）。 */
 export interface WorldReadDeps {
@@ -361,11 +363,16 @@ async function worldRun(deps: WorldReadDeps, args: unknown[]): Promise<WorldRunR
     );
   }
 
-  return {
-    exitCode: result.exitCode ?? 0,
-    stdout: result.stdout.text,
-    stderr: result.stderr.text,
-  };
+  return attachWorldExecutionFacts(
+    {
+      exitCode: result.exitCode ?? 0,
+      stdout: result.stdout.text,
+      stderr: result.stderr.text,
+    },
+    result.exitCode,
+    result.stdout.text,
+    result.stderr.text,
+  );
 }
 
 /**
@@ -602,11 +609,6 @@ export function toWorkspaceRelative(cwd: string, path: string): string {
   return rel.replace(/\\/g, "/");
 }
 
-/** stderr / stdout 的首行（错误消息用，不回显整段输出）。 */
-function firstLine(text: string): string {
-  return text.split("\n", 1)[0]?.trim() ?? "";
-}
-
 /**
  * git 文本输出（路径列表 / status / log）的 inline 上限。这些 op 没有 spec 级上限，但一个
  * 无界 buffer 不是选项——100 个 commit 与一棵工作树的路径列表离 4MB 有几个数量级。
@@ -619,11 +621,4 @@ interface GrepMatch {
   path: string;
   line: number;
   text: string;
-}
-
-/** 实参形状的简短描述（只用于错误消息，不回显完整内容）。 */
-function describeArg(value: unknown): string {
-  if (value === undefined) return "undefined";
-  if (value === null) return "null";
-  return Array.isArray(value) ? "array" : typeof value;
 }

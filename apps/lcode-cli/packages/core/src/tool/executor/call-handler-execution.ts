@@ -256,6 +256,7 @@ export async function executeAdmittedToolHandler(
       display,
       perf,
       skillTelemetryMetadata,
+      output,
     );
 
     await backgroundTasks.trackBackgroundTask(canonicalToolCall, output, traceContext, turnId);

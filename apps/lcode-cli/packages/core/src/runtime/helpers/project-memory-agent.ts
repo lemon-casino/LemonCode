@@ -18,6 +18,7 @@ import { createRuntimeModel, withModelInvocationContext } from "../methods/runti
 export interface ProjectMemoryAgentContext {
   causation?: AgentTelemetryCausation;
   memoryRoot: string;
+  memoryWorkspaceIdentity?: string;
   providerEntries: readonly RuntimeMessageEntry[];
   midConversationSystem: AgentRuntimeInternal["config"]["midConversationSystem"];
   model: Model;
@@ -64,6 +65,7 @@ export function captureProjectMemoryAgentContext(
   return {
     causation: runtime.agentTelemetry.captureCausation(),
     memoryRoot: input.memoryRoot,
+    memoryWorkspaceIdentity: runtime.config.memory?.workspaceIdentity,
     // Extraction 会跨异步边界消费这份成员浅快照；它依赖 RuntimeMessageEntry
     // 进入 MessageHistory 后保持不可变。后续只能 append、整体 replace 或 copy-on-write，
     // 禁止原地修改共享的 entry/message/content，否则会污染已调度的 Memory 上下文。
@@ -108,10 +110,12 @@ export function createProjectMemoryAgentToolExecutor(
     getBashShellSelection: () => getSessionShellSelectionFromConfig(runtime.config),
     getMode: () => "yolo",
     getMemoryRoot: () => context.memoryRoot,
+    getMemoryWorkspaceIdentity: () => context.memoryWorkspaceIdentity,
     getWorkingDirectory: () => context.workingDirectory,
     getWorkspaceRoot: () => context.workspaceRoot,
     imageProcessorPort: runtime.imageProcessorPort,
     pdfDocumentPort: runtime.pdfDocumentPort,
+    videoProcessorPort: runtime.videoProcessorPort,
     maxConcurrency: runtime.config.toolConcurrency?.maxConcurrency,
     model: context.model,
     permissionBroker: createDenyPermissionBroker(),

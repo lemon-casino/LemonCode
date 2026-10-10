@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { SessionId, SessionGoal, GoalStatus } from "@lcode/contracts";
+import { goalAcceptanceSchema } from "@lcode/contracts";
 
 interface TargetRow {
   session_id: string;
@@ -15,6 +16,8 @@ interface TargetRow {
   active_run_last_seen_at: number | null;
   time_created: number;
   time_updated: number;
+  acceptance_json: string | null;
+  state_revision: number;
 }
 
 export function readSessionTarget(
@@ -56,6 +59,10 @@ function decodeTargetRow(row: TargetRow): SessionGoal {
     tokenBudget: row.token_budget,
     tokensUsed: row.tokens_used,
     timeUsedSeconds: row.time_used_seconds,
+    stateRevision: row.state_revision,
+    ...(row.acceptance_json
+      ? { acceptance: goalAcceptanceSchema.parse(JSON.parse(row.acceptance_json)) }
+      : {}),
     activeInputId: row.active_input_id,
     activeRunStartedAtMs: row.active_run_started_at,
     activeRunLastSeenAtMs: row.active_run_last_seen_at,

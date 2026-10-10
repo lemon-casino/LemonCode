@@ -18,20 +18,12 @@ import { startPromptTurn, turnBackgroundAttributionOf } from "../prompt-turn.js"
 import { requireRecord } from "../record-access.js";
 import type { V4CommandCoreHost, V4SessionRecordView } from "../types.js";
 import { V4CommandNoopError } from "../../v4-gateway.js";
+import { prepareSendTextContextRefs, V4InputAdmissionRejectedError } from "./send-text-context.js";
+export { V4InputAdmissionRejectedError } from "./send-text-context.js";
 
 /** 等 idle 轮询参数：25ms 间隔、5s 超时。 */
 const IDLE_POLL_INTERVAL_MS = 25;
 const IDLE_POLL_TIMEOUT_MS = 5_000;
-
-export class V4InputAdmissionRejectedError extends Error {
-  constructor(
-    readonly reasonCode: string,
-    message: string,
-  ) {
-    super(message);
-    this.name = "V4InputAdmissionRejectedError";
-  }
-}
 
 /** V4 用户输入统一准入：正文或附件至少存在一个。 */
 export function hasPromptInput(text: string, attachments: readonly unknown[] | undefined): boolean {
@@ -188,6 +180,7 @@ async function sendText(
 ): Promise<CommandResult | undefined> {
   const payload = envelope.payload as CommandPayloadMap["sendText"];
   const record = requireRecord(host, envelope.sessionId);
+  const contextRefs = await prepareSendTextContextRefs(record, payload.context_refs);
   // 旧校验只看正文，UI 已允许的 attachment-only query 会在 CLI 被误判为空。
   if (!hasPromptInput(payload.text, payload.attachments)) {
     throw new V4InputAdmissionRejectedError("proto.invalidPayload", "input must not be empty");
@@ -261,7 +254,7 @@ async function sendText(
         ? { fallbackReasonCode: "guide.attachmentsUnsupported" }
         : {}),
       attachmentRefs: payload.attachments,
-      sharedContextRefs: payload.context_refs,
+      ...contextRefs,
     });
     started = await startPromptTurn(host, record, {
       content: payload.text,
@@ -273,7 +266,7 @@ async function sendText(
       // 只按 Core 的实际抢占回执标记纯文本；空闲及附件输入保留原路径。
       ...(preempted && !attachments?.length ? { inputPresentation: "user_steer" as const } : {}),
       intent,
-      ...(payload.context_refs ? { sharedContextRefs: payload.context_refs } : {}),
+      ...contextRefs,
       ...turnBackgroundAttributionOf(payload),
       toolDisallowlist: payload.toolDisallowlist,
       ...(payload.modelExecution

@@ -39,6 +39,8 @@ export const ConfigKey = {
 
   // Memory
   MemoryUse: "memory.use",
+  MemoryObservationEnabled: "memory.observationEnabled",
+  MemoryRankingExperimentEnabled: "memory.rankingExperimentEnabled",
 
   // Session recall (independent from Project Memory)
   SessionRecallEnabled: "sessionRecall.enabled",
@@ -115,7 +117,11 @@ export type ConfigValue<K extends ConfigKey> = K extends "modelStream.idleTimeou
                   | "skills.enabled"
                   | "skills.includeInstructions"
               ? boolean
-              : K extends "memory.use" | "sessionRecall.enabled"
+              : K extends
+                    | "memory.use"
+                    | "memory.observationEnabled"
+                    | "memory.rankingExperimentEnabled"
+                    | "sessionRecall.enabled"
                 ? boolean
                 : K extends "skills.metadataBudget"
                   ? number
@@ -231,6 +237,8 @@ export interface RuntimeConfig {
   };
   memory: {
     use: boolean;
+    observationEnabled?: boolean;
+    rankingExperimentEnabled?: boolean;
   };
   sessionRecall: {
     enabled: boolean;
@@ -322,6 +330,8 @@ export const DefaultRuntimeConfig: RuntimeConfig = {
   },
   memory: {
     use: true,
+    observationEnabled: false,
+    rankingExperimentEnabled: false,
   },
   sessionRecall: {
     enabled: false,

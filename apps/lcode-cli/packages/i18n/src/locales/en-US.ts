@@ -30,6 +30,9 @@ Options:
   -v, --version    Show version
   -p, --prompt <text>  Run a single prompt without opening the TUI
   --memory-bench   With --prompt, enable automatic Memory extraction and wait before exiting (requires Memory enabled)
+  --goal          With --prompt, start and settle a legacy-policy Goal
+  --goal-acceptance <path> With --prompt, start a strict Goal using a JSON acceptance contract
+  --benchmark-limits <json> Bound physical requests and reserved tokens (requires stream-json)
   --browser-use <mode> Enable Browser Use backend (supported: headless)
   --surface <surface>  Presentation surface for headless prompts/app-server: terminal or desktop
   --browser-executable <path> Chrome/Chromium executable for headless Browser Use

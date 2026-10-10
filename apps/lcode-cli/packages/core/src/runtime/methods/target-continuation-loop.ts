@@ -62,7 +62,8 @@ export async function runActiveTargetContinuationLoop(
       verifyBeforeContinue &&
       this.config.targetCompletionVerification?.enabled === false
     ) {
-      return lastResult;
+      const goal = await this.readSessionTargetForContext(traceContext);
+      if (!goal?.acceptance) return lastResult;
     }
 
     const result = await executeTargetContinuationCommand.call(this, {

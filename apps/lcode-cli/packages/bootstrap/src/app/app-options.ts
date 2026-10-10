@@ -29,12 +29,14 @@ import type {
   HttpClientPort,
   ImageProcessorPort,
   PdfDocumentPort,
+  VideoProcessorPort,
   InputDelivery,
   InputHistoryStorePort,
   LoggerFactory,
   McpPort,
   McpConnectOptions,
   ModelSelection,
+  PhysicalRequestAccountingPort,
   PermissionBrokerPort,
   PluginMetadata,
   SessionEvent,
@@ -100,6 +102,7 @@ export interface LCodeAppOptions {
   sessionMailboxPort?: SessionMailboxPort;
   inputHistoryStore?: InputHistoryStorePort;
   modelAdapter?: AiSdkModelAdapter;
+  physicalRequestAccounting?: PhysicalRequestAccountingPort;
   /** Worker 进程拥有的 Registry；App 只借用，不负责释放。 */
   providerRegistry: ProviderRegistryModelSource;
   resolveEffectiveModelSelection?: (selection: ModelSelection) => EffectiveModelSelectionResult;
@@ -134,6 +137,7 @@ export interface LCodeAppOptions {
   httpClientPort?: HttpClientPort;
   imageProcessorPort?: ImageProcessorPort;
   pdfDocumentPort?: PdfDocumentPort;
+  videoProcessorPort?: VideoProcessorPort;
   artifactStore?: ToolArtifactStorePort;
   contextSourcePort?: ContextSourcePort;
   skillPort?: SkillPort;
@@ -174,6 +178,7 @@ export interface SubmitPromptOptionsBase {
   queryId?: QueryId;
   intent?: TurnInputIntentMetadata;
   sharedContextRefs?: TurnInputIntentMetadata["sharedContextRefs"];
+  contextCapsuleRefs?: TurnInputIntentMetadata["contextCapsuleRefs"];
   onEvent?: (event: SessionEvent) => void | Promise<void>;
   /** 内部 admission 观察点：只表示 runtime sink 看见 TurnStarted，不代表 projection 已 apply。 */
   onTurnStartedObserved?: (event: SessionEvent) => void;

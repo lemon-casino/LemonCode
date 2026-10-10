@@ -48,6 +48,7 @@ import type {
   AttachmentRef,
   ConversationSnapshot,
   SessionConfigState,
+  ContextCapsuleRef,
 } from "@lcode/shared/lcode-protocol-v4";
 import {
   ArrowUpIcon,
@@ -185,6 +186,10 @@ import type { ComposerSubmissionConfig } from "@/v4/composer/composerSubmissionC
 import { buildV4ConversationPromptTelemetryExtraDetail } from "@/v4/telemetry/conversationPromptTelemetry.js";
 import { resolveAttachableShareContext } from "@/lib/conversationShareContext.js";
 import { ExecutionSwitchStatus } from "@/v4/ExecutionSwitchStatus.js";
+import { readComposerCapsuleRefs } from "@/v4/composer/contextCapsuleRefs.js";
+import { ContextCapsuleNotice } from "@/v4/composer/ContextCapsuleNotice.js";
+import { GoalCommandNotice } from "@/v4/composer/GoalCommandNotice.js";
+import { parseV4VisibleSlashCommand } from "@/v4/slashCommands.js";
 
 const MODEL_SELECTION_LOADING_STATE: ModelSelectionState = { status: "loading" };
 
@@ -203,6 +208,7 @@ export interface ConversationComposerSendOptions {
   /** 本次 busy input 的一次性投递覆盖，不改 session 偏好。 */
   requestedDelivery?: "startNow" | "queue" | "guide";
   sharedContextRefs?: Array<{ kind: "shared_context_import"; context_id: string }>;
+  contextCapsuleRefs?: ContextCapsuleRef[];
 }
 
 export type ConversationComposerSendResult = "sent" | "blocked" | "confirmationRequired";
@@ -1587,7 +1593,8 @@ function ConversationComposerImpl({
       existingTelemetrySeed?: ConversationPromptTelemetrySeed,
       requestedDelivery?: "startNow" | "queue" | "guide",
     ) => {
-      const trimmed = textRef.current.trim();
+      const submittedText = textRef.current;
+      const trimmed = submittedText.trim();
       const submittedQueueItemIds =
         snapshotRef.current?.queue.items.map((item) => item.queueItemId) ?? [];
       const hasPendingAttachments = attachmentsApi.attachments.length > 0;
@@ -1725,6 +1732,10 @@ function ConversationComposerImpl({
         setPromptHistory(currentPromptHistory);
       };
       try {
+        const command = parseV4VisibleSlashCommand(submittedText);
+        if (command?.kind === "unsupportedGoal" && command.action === "strict") {
+          throw new Error(intl.formatMessage({ id: "chat.goal.strictCliOnly" }));
+        }
         // 二次门禁：只消费预传完成的 ref，不在点击发送时回落上传。
         const readyAttachmentRefs = await attachmentsApi.prepareForSend();
         if (readyAttachmentRefs === null) {
@@ -1747,6 +1758,15 @@ function ConversationComposerImpl({
         // 里没有任何东西解析它），唯一作用是驱动一个已被产品裁掉的 chip，代价却是把一个
         // share URL 塞进发给模型的正文。模型侧内容由隐藏的 shared_context 消息经
         // inputIntent.sharedContextRefs 注入，与正文无关。
+        let contextCapsuleRefs: ContextCapsuleRef[];
+        try {
+          // 先 trim 会丢失首行代码缩进；提示与发送须读取同一份冻结原文。
+          contextCapsuleRefs = readComposerCapsuleRefs(submittedText);
+        } catch {
+          throw new Error(intl.formatMessage({ id: "taskList.handoff.capsuleLimit" }));
+        }
+        if (contextCapsuleRefs.length && !sessionId)
+          throw new Error(intl.formatMessage({ id: "taskList.handoff.existingRequired" }));
         const promptText = serializeComposerPromptContexts(trimmed, {
           codeComments: currentCodeCommentContexts,
           conversationSelections: currentConversationSelections,
@@ -1759,7 +1779,9 @@ function ConversationComposerImpl({
             conversationSelections: currentConversationSelections,
             webElements: currentWebElementContexts,
             pptxElements: currentPptxElementReferences,
-          }) + (submittedShareContext ? 1 : 0);
+          }) +
+          (submittedShareContext ? 1 : 0) +
+          contextCapsuleRefs.length;
         if (trimmed) {
           promptHistoryBeforeSend = readPromptHistoryEntries(workspacePath);
           promptHistoryAfterAppend = appendPromptHistoryEntry(promptHistoryBeforeSend, trimmed);
@@ -1785,6 +1807,7 @@ function ConversationComposerImpl({
           editorClearedOptimistically = true;
         }
         const sendResult = await onSendText(promptText, {
+          ...(contextCapsuleRefs.length ? { contextCapsuleRefs } : {}),
           submission,
           telemetrySeed,
           ...(requestedDelivery ? { requestedDelivery } : {}),
@@ -2745,6 +2768,8 @@ function ConversationComposerImpl({
             modelSelectionView={modelSelectionView}
           />
         ) : null}
+        <ContextCapsuleNotice text={text} existingSession={Boolean(sessionId)} />
+        <GoalCommandNotice text={text} />
         <ChatPromptEditor
           workspacePath={workspacePath}
           workspaceIdentity={workspaceIdentity}

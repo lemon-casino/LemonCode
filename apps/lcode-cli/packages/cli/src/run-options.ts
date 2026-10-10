@@ -59,6 +59,13 @@ export const globalOptions = (
     json: values.json === true,
     locale,
     ...(values["memory-bench"] === true ? { memoryBench: true } : {}),
+    ...(typeof values["benchmark-limits"] === "string"
+      ? { benchmarkLimits: values["benchmark-limits"] }
+      : {}),
+    ...(typeof values["goal-acceptance"] === "string"
+      ? { goalAcceptancePath: values["goal-acceptance"] }
+      : {}),
+    ...(values.goal === true ? { promptGoal: true } : {}),
     noColor: values["no-color"] === true,
     ...(outputFormat ? { outputFormat } : {}),
     verbose: values.verbose === true,

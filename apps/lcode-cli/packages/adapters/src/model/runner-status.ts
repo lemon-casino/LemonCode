@@ -112,16 +112,16 @@ export function createStatusContext(input: {
 
 export function createAttemptStatusContext(
   statusContext: ModelStatusContext,
-  attempt: number,
+  physicalAttempt: number,
 ): ModelStatusContext {
-  if (attempt <= 1) {
+  if (physicalAttempt <= 1) {
     return statusContext;
   }
 
   return {
     ...statusContext,
-    // adapter retry 会发起新的物理 provider 请求；
-    // 复用首轮 requestId 会让上游日志和 retry-after 诊断串错请求。
+    // 物理序号不能使用会被 off-peak 回退的逻辑 attempt；
+    // 新请求必须有独立 ID，否则计量去重会漏掉真实轮询。
     requestId: crypto.randomUUID(),
   };
 }

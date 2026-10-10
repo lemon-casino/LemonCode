@@ -3,18 +3,24 @@ import {
   type AttachmentRef,
   type CommandEnvelope,
   type ConversationInputIntent,
+  type CommandPayloadMap,
 } from "@lcode/shared/lcode-protocol-v4";
 
 import type { ConversationRowTargetResolution } from "../lcode-protocol-v4/product-projection.js";
 
 import type { ForkCommitBundle, SessionId } from "@lcode/contracts";
+import { resolveHistoricalCapsuleRefs } from "../lcode-protocol-v4/commands/handlers/fork-edit-retry-context.js";
 
 interface InputCommandForAdmission {
   kind: ConversationInputIntent["kind"];
   text: string;
   attachments: readonly AttachmentRef[];
   modelSelection?: ConversationInputIntent["modelSelection"];
+  mode?: ConversationInputIntent["mode"];
+  planEnabled?: boolean;
+  goalAcceptance?: ConversationInputIntent["goalAcceptance"];
   sharedContextRefs?: ConversationInputIntent["sharedContextRefs"];
+  contextCapsuleRefs?: ConversationInputIntent["contextCapsuleRefs"];
   requestedDelivery?: ConversationInputIntent["delivery"]["requested"];
   admittedDelivery?: ConversationInputIntent["delivery"]["admitted"];
   fallbackReasonCode?: string;
@@ -65,6 +71,8 @@ export function resolveInputCommandForAdmission(
           text: string;
           attachments?: AttachmentRef[];
           modelSelection?: ConversationInputIntent["modelSelection"];
+          mode?: ConversationInputIntent["mode"];
+          planEnabled?: boolean;
         };
       }
     ).firstInput;
@@ -74,6 +82,8 @@ export function resolveInputCommandForAdmission(
           text: firstInput.text,
           attachments: firstInput.attachments ?? [],
           ...(firstInput.modelSelection ? { modelSelection: firstInput.modelSelection } : {}),
+          ...(firstInput.mode ? { mode: firstInput.mode } : {}),
+          ...(firstInput.planEnabled !== undefined ? { planEnabled: firstInput.planEnabled } : {}),
         }
       : null;
   }
@@ -91,19 +101,38 @@ export function resolveInputCommandForAdmission(
         }
       : null;
   }
-  if (envelope.type === "sendText" || envelope.type === "sendGoalCommand") {
+  if (
+    envelope.type === "sendText" ||
+    envelope.type === "sendGoalCommand" ||
+    envelope.type === "sendStrictGoalCommand"
+  ) {
     const payload = envelope.payload as {
       text: string;
       attachments?: AttachmentRef[];
       modelSelection?: ConversationInputIntent["modelSelection"];
-      context_refs?: ConversationInputIntent["sharedContextRefs"];
+      mode?: ConversationInputIntent["mode"];
+      planEnabled?: boolean;
+      acceptance?: ConversationInputIntent["goalAcceptance"];
+      context_refs?: CommandPayloadMap["sendText"]["context_refs"];
     };
     return {
-      kind: envelope.type,
+      kind: envelope.type === "sendStrictGoalCommand" ? "sendGoalCommand" : envelope.type,
       text: payload.text,
       attachments: payload.attachments ?? [],
       ...(payload.modelSelection ? { modelSelection: payload.modelSelection } : {}),
-      ...(payload.context_refs ? { sharedContextRefs: payload.context_refs } : {}),
+      ...(payload.mode ? { mode: payload.mode } : {}),
+      ...(payload.planEnabled !== undefined ? { planEnabled: payload.planEnabled } : {}),
+      ...(envelope.type === "sendStrictGoalCommand" ? { goalAcceptance: payload.acceptance } : {}),
+      ...(payload.context_refs
+        ? {
+            sharedContextRefs: payload.context_refs.filter(
+              (ref) => ref.kind === "shared_context_import",
+            ),
+            contextCapsuleRefs: payload.context_refs.filter(
+              (ref) => ref.kind === "context_capsule",
+            ),
+          }
+        : {}),
     };
   }
   if (envelope.type === "compact") {
@@ -126,6 +155,15 @@ export function resolveInputCommandForAdmission(
     canonical.intent.provenance?.sourceCommandId ?? canonical.intent.sourceCommandId;
   return {
     kind: canonical.intent.kind,
+    ...(canonical.intent.goalAcceptance ? { goalAcceptance: canonical.intent.goalAcceptance } : {}),
+    ...(canonical.intent.mode ? { mode: canonical.intent.mode } : {}),
+    ...(canonical.intent.planEnabled !== undefined
+      ? { planEnabled: canonical.intent.planEnabled }
+      : {}),
+    contextCapsuleRefs: resolveHistoricalCapsuleRefs(
+      canonical,
+      envelope.type === "editUserQuery" ? payload.newText : undefined,
+    ),
     text:
       envelope.type === "editUserQuery"
         ? (payload.newText ?? canonical.intent.text)
@@ -162,6 +200,7 @@ export function isConversationInputAdmissionCommand(type: CommandEnvelope["type"
   return (
     type === "sendText" ||
     type === "sendGoalCommand" ||
+    type === "sendStrictGoalCommand" ||
     type === "compact" ||
     type === "editUserQuery" ||
     type === "retryTurn"
@@ -187,6 +226,11 @@ export function buildForkInitialInput(
     text: input.text,
     attachments: input.attachments,
     ...(input.modelSelection ? { modelSelection: input.modelSelection } : {}),
+    ...(input.mode ? { mode: input.mode } : {}),
+    ...(input.planEnabled !== undefined ? { planEnabled: input.planEnabled } : {}),
+    ...(input.goalAcceptance ? { goalAcceptance: input.goalAcceptance } : {}),
+    ...(input.sharedContextRefs ? { sharedContextRefs: input.sharedContextRefs } : {}),
+    ...(input.contextCapsuleRefs ? { contextCapsuleRefs: input.contextCapsuleRefs } : {}),
     delivery: {
       requested,
       admitted,

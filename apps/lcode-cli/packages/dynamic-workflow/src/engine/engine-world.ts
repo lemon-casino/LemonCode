@@ -113,7 +113,7 @@ export function readWorld(
   });
   state.record({ type: "node-queued", instance, kind });
   state.record({ type: "node-dispatched", instance });
-  return state.driver.executeWorldRead(op, args).then(
+  return state.driver.executeWorldRead(op, args, { runId: state.runId, instance }).then(
     (value) =>
       settleWorldRead(state, instance, kind, hash, input, { status: "completed", result: value }),
     (cause: unknown) => {

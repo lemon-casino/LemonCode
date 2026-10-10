@@ -857,6 +857,8 @@ export interface ToolCallStartedPayload {
    */
   readOnly?: boolean;
   sideEffectScope?: ToolSideEffectScope;
+  /** Canonical post-permission command for evidence matching. */
+  executionCommand?: string;
 }
 
 export interface ToolCallProgressPayload {
@@ -1104,6 +1106,12 @@ export interface ToolResultPayload {
   returnedBytes?: number;
   budgetStrategy?: string;
   artifactPath?: string;
+  /** Executing adapter's structured terminal facts; never parsed from model-visible text. */
+  executionFacts?: {
+    exitCode: number | null;
+    cancelled?: boolean;
+    output: { sha256: string; bytes: number; truncated: boolean; artifactRefs: string[] };
+  };
 }
 
 export interface ToolSchedulePayload {

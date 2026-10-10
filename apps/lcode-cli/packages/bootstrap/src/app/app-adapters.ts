@@ -6,6 +6,7 @@ import { createNodeFileSystemAdapter } from "@lcode/adapters/fs";
 import { createNodeWebFetchHttpClientAdapter } from "@lcode/adapters/http";
 import { createJimpImageProcessorAdapter } from "@lcode/adapters/image";
 import { createPopplerPdfDocumentAdapter } from "@lcode/adapters/pdf";
+import { createNodeVideoProcessorAdapter } from "@lcode/adapters/video";
 import { createNodeSessionMailboxAdapter } from "@lcode/adapters/mailbox";
 import { createMcpAdapter } from "@lcode/adapters/mcp";
 import { PermissionService } from "@lcode/core";
@@ -122,6 +123,8 @@ export function createAppAdapters(
       : rawExecutionPort;
   const pdfDocumentPort =
     options.pdfDocumentPort ?? createPopplerPdfDocumentAdapter({ executionPort });
+  const videoProcessorPort =
+    options.videoProcessorPort ?? createNodeVideoProcessorAdapter({ executionPort });
   // browser-use 控制端口：仅当宿主（desktop）注入时可用，无本地 fallback（纯 CLI 无浏览器底座）。
   const fileSystemPort = options.fileSystemPort ?? createNodeFileSystemAdapter();
   const httpClientPort =
@@ -156,6 +159,7 @@ export function createAppAdapters(
     executionPort,
     ownsExecutionPort,
     pdfDocumentPort,
+    videoProcessorPort,
     fileSystemPort,
     httpClientPort,
   };

@@ -40,6 +40,8 @@ const featuresSchema = z.object({
 
 const memorySchema = z.object({
   use: z.boolean().optional(),
+  observationEnabled: z.boolean().optional(),
+  rankingExperimentEnabled: z.boolean().optional(),
 });
 
 const sessionRecallSchema = z.object({

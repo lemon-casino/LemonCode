@@ -98,8 +98,11 @@ nul
 !/packages/web/test/git-review-redesign-cases.mjs
 /artifacts/git-review-redesign/
 !/packages/web/test/multi-session-send-cases.mjs
+!/packages/web/test/task-handoff-cases.mjs
+!/packages/web/test/context-capsule-composer.test.mjs
 !/packages/web/test/fixtures/
 /packages/web/test/fixtures/*
+!/packages/web/test/fixtures/task-handoff.tsx
 # 七色全局主题、生产 timeline 和独立窗口的永久品控回归。
 !/packages/web/test/sidebar-animation.test.mjs
 !/packages/web/test/fixtures/sidebar-animation.html

@@ -8,9 +8,10 @@ import type {
   TuiSubmitOptions,
 } from "../types.js";
 import { splitArgs } from "../utils.js";
+import { readFile, stat } from "node:fs/promises";
+import { goalAcceptanceSchema, type GoalAcceptance } from "@lcode/contracts";
 
-const PLAN_MODE_GOAL_CONTINUATION_SKIPPED_MESSAGE =
-  "Plan mode 下已记录 goal，但不会自动继续。";
+const PLAN_MODE_GOAL_CONTINUATION_SKIPPED_MESSAGE = "Plan mode 下已记录 goal，但不会自动继续。";
 
 export async function handleTargetCommand(
   args: string,
@@ -63,7 +64,22 @@ export async function handleTargetCommand(
   }
 
   const forceReplace = action === "replace";
-  const objective = forceReplace ? trimmed.replace(/^replace\s*/i, "").trim() : trimmed;
+  let objective = forceReplace ? trimmed.replace(/^replace\s*/i, "").trim() : trimmed;
+  let acceptance: GoalAcceptance | undefined;
+  if (/^strict(?:\s|$)/iu.test(objective)) {
+    const match = /^strict\s+(?:"([^"]+)"|'([^']+)'|(\S+))\s+([\s\S]+)$/iu.exec(objective);
+    if (!match) return { response: "Usage: /goal [replace] strict <acceptance.json> <objective>" };
+    try {
+      const path = match[1] ?? match[2] ?? match[3]!;
+      if ((await stat(path)).size > 64 * 1024) throw new Error("Acceptance file exceeds 64 KiB");
+      acceptance = goalAcceptanceSchema.parse(JSON.parse(await readFile(path, "utf8")));
+      objective = match[4]!.trim();
+    } catch (error) {
+      return {
+        response: `Strict goal acceptance is invalid: ${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+  }
   if (forceReplace && objective.length === 0) {
     return {
       mode: deps.getMode?.(),
@@ -74,6 +90,11 @@ export async function handleTargetCommand(
   if (!forceReplace) {
     const existing = await app.readTarget();
     if (existing) {
+      if (acceptance)
+        return {
+          response:
+            "A goal already exists. Use /goal replace strict <acceptance.json> <objective> to explicitly replace it.",
+        };
       return {
         mode: deps.getMode?.(),
         response: "A goal already exists. Confirm replacement to overwrite it.",
@@ -82,7 +103,11 @@ export async function handleTargetCommand(
     }
   }
 
-  const target = await app.setTarget({ objective, status: "active" });
+  const target = await app.setTarget({
+    objective,
+    status: "active",
+    ...(acceptance ? { acceptance } : {}),
+  });
   return continueTargetAfterChange("Goal active", target, app, deps, options);
 }
 
@@ -130,9 +155,10 @@ function formatTargetSummary(target: CommandCenterTarget | null): string {
 function formatTargetChanged(title: string, target: CommandCenterTarget): string {
   const lines = [title, `Objective: ${target.objective}`];
   if (target.tokensUsed !== undefined || target.tokenBudget !== undefined) {
-    const budget = target.tokenBudget === null || target.tokenBudget === undefined
-      ? "none"
-      : target.tokenBudget.toString();
+    const budget =
+      target.tokenBudget === null || target.tokenBudget === undefined
+        ? "none"
+        : target.tokenBudget.toString();
     lines.push(`Usage: ${target.tokensUsed ?? 0} tokens / ${budget}`);
   }
   if (target.timeUsedSeconds !== undefined) {

@@ -158,6 +158,7 @@ export interface LCodeApp extends LCodeAppWorkflow {
     displayText?: string;
     status?: GoalStatus;
     tokenBudget?: number | null;
+    acceptance?: import("@lcode/contracts").GoalAcceptance;
     intent?: TurnInputIntentMetadata;
   }): Promise<SessionGoal>;
   updateTargetStatus(status: GoalStatus): Promise<SessionGoal | null>;

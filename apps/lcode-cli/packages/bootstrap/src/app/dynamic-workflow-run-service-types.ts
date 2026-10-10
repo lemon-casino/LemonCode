@@ -60,6 +60,7 @@ export interface DynamicWorkflowActorRuntimeInput {
 }
 
 export interface DynamicWorkflowRunServiceDeps {
+  goalEvidenceOwner?: import("@lcode/core").GoalEvidenceOwner;
   acquireCheckoutWriterLease?: (
     runId: string,
     signal: AbortSignal,

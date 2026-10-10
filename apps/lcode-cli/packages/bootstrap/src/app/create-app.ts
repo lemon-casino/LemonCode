@@ -108,6 +108,7 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
       mcpPort,
       executionPort,
       pdfDocumentPort,
+      videoProcessorPort,
       fileSystemPort,
       httpClientPort,
     } = adapters;
@@ -135,6 +136,9 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
       });
     if (options.modelAdapter && modelTelemetry.statusSink) {
       modelAdapter.addStatusSink(modelTelemetry.statusSink);
+    }
+    if (options.physicalRequestAccounting) {
+      modelAdapter.setPhysicalRequestAccounting(options.physicalRequestAccounting);
     }
     // 进程级并发治理器：run service 拿它的窄端口给
     // driver（每个 actor runtime 一个请求级准入端口）；主 runtime 挂它的 observer（下面 deps）——
@@ -164,6 +168,7 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
       httpClientPort,
       imageProcessorPort,
       pdfDocumentPort,
+      videoProcessorPort,
       logger,
       mcpPort,
       modelFactory,
@@ -212,6 +217,7 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
       httpClientPort,
       imageProcessorPort,
       pdfDocumentPort,
+      videoProcessorPort,
       artifactStore,
       contextSourcePort:
         options.contextSourcePort ?? createNodeContextSourceAdapter({ env: options.env }),

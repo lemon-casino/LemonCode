@@ -97,6 +97,7 @@ export class MemoryStore {
       "preimages",
       "reviews",
       "staging",
+      "effects.json",
     ]);
     for await (const entry of directory) {
       if (++entryCount > PROJECT_MEMORY_RECORD_LIMIT + controlEntries.size)

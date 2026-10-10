@@ -55,6 +55,8 @@ export function inputIntentOfMessage(
       queueItemId: value.queueItemId,
       clientId: value.clientId,
       kind: value.kind,
+      ...(value.goalAcceptance ? { goalAcceptance: value.goalAcceptance } : {}),
+      ...(value.contextCapsuleRefs ? { contextCapsuleRefs: value.contextCapsuleRefs } : {}),
       // 可见 text 是展示事实；goal 的 canonical objective 只能读取持久 intent.text，
       // 禁止从 `/goal replace ...` 文案再做大小写/关键字解析。
       text: value.text,

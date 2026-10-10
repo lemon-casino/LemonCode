@@ -81,6 +81,7 @@ export {
 } from "./usage.js";
 
 export type { ModelServerToolUsage, ModelUsage, ModelUsageSummary } from "./usage.js";
+export * from "./request-accounting.js";
 
 export type { ModelRequestSettings, ModelTextRequest } from "./text-request.js";
 

@@ -13,6 +13,7 @@ import type {
   HttpClientPort,
   ImageProcessorPort,
   PdfDocumentPort,
+  VideoProcessorPort,
   ModelMessageContent,
   ModelToolInputError,
   ModelContentProtection,
@@ -152,6 +153,7 @@ export interface ToolExecutionContext {
   httpClientPort?: HttpClientPort;
   imageProcessorPort?: ImageProcessorPort;
   pdfDocumentPort?: PdfDocumentPort;
+  videoProcessorPort?: VideoProcessorPort;
   model?: Model;
   /** Core Server 对前台 child 的 Selection override。 */
   subagentModelOverride?: SubagentRunOptions["modelOverride"];
@@ -189,6 +191,8 @@ export interface ToolExecutionContext {
   clientMode?: "desktop-continuous" | "web-remote-replayable";
   deliveryKind?: "desktop-continuous" | "web-remote-replayable";
   memoryRoot?: string;
+  /** Identity of the registered Project Memory root, supplied by its Runtime owner. */
+  memoryWorkspaceIdentity?: string;
   /** 后台记忆复盘冻结的已完成会话边界；不属于模型工具输入。 */
   reviewBoundary?: { sessionId: string; messageId: string };
   /** 自动维护只读取本轮增量；显式跨会话复盘不设置此字段。 */

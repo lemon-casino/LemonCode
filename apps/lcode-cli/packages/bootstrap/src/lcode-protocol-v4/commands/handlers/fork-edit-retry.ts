@@ -28,6 +28,7 @@ import {
 } from "./session-flow.js";
 import { applyGoalCommand } from "./goal-compact.js";
 import type { ConversationEditTarget } from "../../product-projection.js";
+import { prepareHistoricalCapsuleRefs } from "./fork-edit-retry-context.js";
 
 const CONVERSATION_COMMAND_LOG_MODULE = "bootstrap.lcode_protocol_v4.commands";
 const EDIT_USER_QUERY_COMPLETED_EVENT = "conversation.command.edit_user_query.completed";
@@ -140,6 +141,11 @@ async function editUserQuery(
   if (!hasPromptInput(payload.newText, attachmentRefs)) {
     throw new V4InputAdmissionRejectedError("proto.invalidPayload", "input must not be empty");
   }
+  const contextCapsuleRefs = await prepareHistoricalCapsuleRefs(
+    record,
+    editTarget,
+    payload.newText,
+  );
   // 附件映射在 rewind 前完成：引用失效要在截断历史之前暴露，避免半程失败。
   const attachments = await mapAttachmentRefsToTurnAttachments(record.app, attachmentRefs);
   if (record.activeAbortController) {
@@ -216,6 +222,7 @@ async function editUserQuery(
     payload.newText,
     attachmentRefs,
     attachments,
+    contextCapsuleRefs,
     modelSelection,
   );
   // 生产 renderer 不落日志，过去只能从通用 rewind + send 猜测发生过编辑，
@@ -261,6 +268,7 @@ async function retryTurn(
     throw new V4RetryTargetNotLatestError(payload.target.rowId);
   }
   const attachmentRefs = stableAttachmentRefs(resolution.editTarget);
+  const contextCapsuleRefs = await prepareHistoricalCapsuleRefs(record, resolution.editTarget);
   const attachments = await mapAttachmentRefsToTurnAttachments(record.app, attachmentRefs);
   await submitConversationRewind(host, record, resolution.messageId);
   await startCanonicalIntent(
@@ -271,6 +279,7 @@ async function retryTurn(
     resolution.editTarget.intent.text,
     attachmentRefs,
     attachments,
+    contextCapsuleRefs,
   );
   return undefined;
 }
@@ -345,6 +354,7 @@ async function startCanonicalIntent(
   text: string,
   attachmentRefs: ReturnType<typeof stableAttachmentRefs>,
   attachments: Awaited<ReturnType<typeof mapAttachmentRefsToTurnAttachments>>,
+  contextCapsuleRefs: ConversationEditTarget["intent"]["contextCapsuleRefs"],
   modelSelection?: CommandPayloadMap["editUserQuery"]["modelSelection"],
 ): Promise<void> {
   const intent = inputIntentMetadataFromCanonical(
@@ -361,6 +371,8 @@ async function startCanonicalIntent(
       modelSelection: modelSelection ?? editTarget.intent.modelSelection,
       mode: editTarget.intent.mode,
       planEnabled: editTarget.intent.planEnabled,
+      goalAcceptance: editTarget.intent.goalAcceptance,
+      contextCapsuleRefs,
       attachmentRefs,
       provenance: editTarget.intent.provenance,
     },
@@ -370,6 +382,7 @@ async function startCanonicalIntent(
     await applyGoalCommand(host, record, {
       inputId: envelope.commandId,
       objective: text,
+      ...(intent.goalAcceptance ? { acceptance: intent.goalAcceptance } : {}),
       intent,
     });
     return;

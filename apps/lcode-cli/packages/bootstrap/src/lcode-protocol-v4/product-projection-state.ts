@@ -99,6 +99,8 @@ export interface ConversationEditTarget {
     modelSelection?: TurnInputIntentMetadata["modelSelection"];
     mode?: TurnInputIntentMetadata["mode"];
     planEnabled?: boolean;
+    goalAcceptance?: import("@lcode/contracts").GoalAcceptance;
+    contextCapsuleRefs?: TurnInputIntentMetadata["contextCapsuleRefs"];
     provenance?: CanonicalUserIntentFact["provenance"];
   };
 }

@@ -360,6 +360,10 @@ export async function getSessionInputById(
   db: DatabaseSync,
   id: string,
 ): Promise<SessionInputRecord | null> {
+  return getSessionInputByIdSync(db, id);
+}
+
+export function getSessionInputByIdSync(db: DatabaseSync, id: string): SessionInputRecord | null {
   const row = db.prepare("select * from session_input where id = ?").get(id) as
     | SessionInputRow
     | undefined;

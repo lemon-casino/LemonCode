@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type { TraceContext } from "../tracing/tracer.js";
+import type { ProjectMemoryEffectPort } from "./project-memory-effects.port.js";
+export * from "./project-memory-effects.port.js";
 
 export const PROJECT_MEMORY_FILE_MAX_BYTES = 256 * 1024;
 export const PROJECT_MEMORY_RECORD_MAX_BYTES = 1024 * 1024;
@@ -108,6 +110,7 @@ export type ProjectMemoryReviewDraft = z.infer<typeof ProjectMemoryReviewDraftSc
 export const ProjectMemoryVerificationSchema = z
   .object({
     acceptedItemIds: z.array(recordId).max(PROJECT_MEMORY_REVIEW_ITEM_LIMIT),
+    rankingEligibleItemIds: z.array(recordId).max(PROJECT_MEMORY_REVIEW_ITEM_LIMIT).optional(),
     reasons: z
       .array(z.object({ itemId: recordId, reason: z.string().max(2000) }).strict())
       .max(PROJECT_MEMORY_REVIEW_ITEM_LIMIT),
@@ -151,6 +154,8 @@ export interface ProjectMemoryOperationOptions {
 }
 
 export interface ProjectMemoryPort {
+  /** Optional bounded observation capability; content writes remain on this port. */
+  effects?: ProjectMemoryEffectPort;
   registerRoot(rootDir: string): Promise<void>;
   inspectCapacity(
     rootDir: string,

@@ -28,6 +28,7 @@ import {
   type HttpClientPort,
   type ImageProcessorPort,
   type PdfDocumentPort,
+  type VideoProcessorPort,
   type Logger,
   type McpPort,
   type SessionEventSink,
@@ -55,6 +56,7 @@ interface CreateWorkflowFacadeDeps {
   httpClientPort?: HttpClientPort;
   imageProcessorPort: ImageProcessorPort;
   pdfDocumentPort?: PdfDocumentPort;
+  videoProcessorPort?: VideoProcessorPort;
   logger: Logger;
   mcpPort?: McpPort;
   /** 父会话的 model factory（与 script-workflow-child-runtime.ts 同一约定）。 */
@@ -328,6 +330,7 @@ function createWorkflowChildRuntime(
         }),
       imageProcessorPort: deps.imageProcessorPort,
       pdfDocumentPort: deps.pdfDocumentPort,
+      videoProcessorPort: deps.videoProcessorPort,
       artifactStore: deps.artifactStore,
       contextSourcePort:
         deps.appOptions.contextSourcePort ??

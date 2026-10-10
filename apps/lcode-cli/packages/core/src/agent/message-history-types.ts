@@ -32,6 +32,7 @@ export interface ModelInputMessage {
 export type RuntimeMessageSource =
   | SystemReminderSource
   | "shared_context"
+  | "context_capsule"
   | "real_user"
   | "legacy_synthetic";
 

@@ -3,6 +3,9 @@ import { toToolJsonSchema } from "./json-schema.js";
 import {
   ProjectMemoryChangeSchema,
   ProjectMemoryReviewSchema,
+  MemoryEffectTurnSchema,
+  MemoryEffectFeedbackSchema,
+  MemoryEffectVerificationSchema,
 } from "../interfaces/project-memory.port.js";
 
 export const MEMORY_SEARCH_TOOL_NAME = "MemorySearch";
@@ -38,9 +41,13 @@ export const MemoryReviewInputSchema = z
 
 export const MemoryHistoryInputSchema = z
   .object({
-    action: z.enum(["list", "undo"]),
+    action: z.enum(["list", "undo", "effects", "feedback"]),
     changeId: id.optional(),
     expectedHash: hash.optional(),
+    effectSessionId: z.string().min(1).max(256).optional(),
+    effectTurnId: z.string().min(1).max(256).optional(),
+    fileName: z.string().min(1).max(240).optional(),
+    feedback: z.enum(["relevant", "irrelevant", "correction"]).optional(),
   })
   .strict()
   .superRefine((input, context) => {
@@ -50,6 +57,19 @@ export const MemoryHistoryInputSchema = z
         message: "undo requires changeId and its current afterHash",
       });
     }
+    if (
+      input.action === "feedback" &&
+      (!input.effectSessionId ||
+        !input.effectTurnId ||
+        !input.fileName ||
+        !input.expectedHash ||
+        !input.feedback)
+    )
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "feedback requires injected session/turn, fileName, source hash and explicit feedback",
+      });
   });
 
 export type MemoryReviewInput = z.infer<typeof MemoryReviewInputSchema>;
@@ -144,6 +164,28 @@ export const MemoryReviewOutputSchema = z.union([
     .strict(),
 ]);
 export const MemoryHistoryOutputSchema = z.union([
+  z
+    .object({
+      status: z.literal("effects"),
+      snapshot: z
+        .object({
+          turnCount: nonnegativeInteger,
+          injectedEntries: nonnegativeInteger,
+          versionedEntries: nonnegativeInteger,
+          feedbackCount: nonnegativeInteger,
+          verificationCount: nonnegativeInteger,
+          bytes: nonnegativeInteger,
+          full: z.boolean(),
+          turns: z.array(MemoryEffectTurnSchema).max(20),
+          feedback: z.array(MemoryEffectFeedbackSchema).max(20),
+          verifications: z.array(MemoryEffectVerificationSchema).max(20),
+        })
+        .strict(),
+    })
+    .strict(),
+  z
+    .object({ status: z.literal("feedback"), result: z.enum(["recorded", "duplicate", "full"]) })
+    .strict(),
   z.object({ status: z.literal("committed"), change: ProjectMemoryChangeSchema }).strict(),
   z
     .object({ status: z.literal("list"), changes: z.array(ProjectMemoryChangeSchema).max(100) })

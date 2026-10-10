@@ -168,7 +168,18 @@ export function measureInputAdmissionProjectionBytes(
     text?: string;
     displayText?: string;
     attachments?: QueueItem["attachments"];
-    firstInput?: { text: string; attachments?: QueueItem["attachments"] };
+    acceptance?: QueueItem["goalAcceptance"];
+    modelSelection?: QueueItem["modelSelection"];
+    mode?: QueueItem["mode"];
+    planEnabled?: boolean;
+    context_refs?: import("@lcode/shared/lcode-protocol-v4").CommandPayloadMap["sendText"]["context_refs"];
+    firstInput?: {
+      text: string;
+      attachments?: QueueItem["attachments"];
+      modelSelection?: QueueItem["modelSelection"];
+      mode?: QueueItem["mode"];
+      planEnabled?: boolean;
+    };
   };
   const input = envelope.type === "createSession" ? raw.firstInput : raw;
   if (
@@ -176,6 +187,7 @@ export function measureInputAdmissionProjectionBytes(
     (envelope.type !== "createSession" &&
       envelope.type !== "sendText" &&
       envelope.type !== "sendGoalCommand" &&
+      envelope.type !== "sendStrictGoalCommand" &&
       envelope.type !== "compact")
   ) {
     return null;
@@ -188,16 +200,26 @@ export function measureInputAdmissionProjectionBytes(
     kind:
       envelope.type === "compact"
         ? "compact"
-        : envelope.type === "sendGoalCommand"
+        : envelope.type === "sendGoalCommand" || envelope.type === "sendStrictGoalCommand"
           ? "sendGoalCommand"
           : "sendText",
     text:
       envelope.type === "compact"
         ? "/compact"
-        : envelope.type === "sendGoalCommand"
+        : envelope.type === "sendGoalCommand" || envelope.type === "sendStrictGoalCommand"
           ? raw.displayText?.trim() || `/goal ${(input.text ?? "").trim()}`
           : (input.text ?? ""),
     attachments: input.attachments ?? [],
+    ...(raw.acceptance ? { goalAcceptance: raw.acceptance } : {}),
+    ...(input.modelSelection ? { modelSelection: input.modelSelection } : {}),
+    ...(input.mode ? { mode: input.mode } : {}),
+    ...(input.planEnabled !== undefined ? { planEnabled: input.planEnabled } : {}),
+    ...(raw.context_refs
+      ? {
+          sharedContextRefs: raw.context_refs.filter((ref) => ref.kind === "shared_context_import"),
+          contextCapsuleRefs: raw.context_refs.filter((ref) => ref.kind === "context_capsule"),
+        }
+      : {}),
     delivery: { requested: "queue", admitted: "queue" },
     order: {
       admissionSeq: admission.admissionSeq,

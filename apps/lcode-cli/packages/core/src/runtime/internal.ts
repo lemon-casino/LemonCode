@@ -19,6 +19,7 @@ import type {
   HookRunner,
   ImageProcessorPort,
   PdfDocumentPort,
+  VideoProcessorPort,
   McpConnectionSnapshot,
   SkillLoadOutcome,
   SkillPort,
@@ -137,6 +138,7 @@ export interface AgentRuntimeInternal
   fileSystemPort?: FileSystemPort;
   imageProcessorPort?: ImageProcessorPort;
   pdfDocumentPort?: PdfDocumentPort;
+  videoProcessorPort?: VideoProcessorPort;
   skillLoadOutcome?: SkillLoadOutcome;
   workingDirectory: string;
   workspaceRoot: string;

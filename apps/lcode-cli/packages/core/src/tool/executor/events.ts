@@ -12,6 +12,8 @@ import {
   type TraceContext,
   type TurnId,
 } from "@lcode/contracts";
+import { BashOutputSchema } from "@lcode/contracts";
+import { createHash } from "node:crypto";
 import type { PermissionContext } from "../../permission/service.js";
 import type { ExecutableToolCall, ToolExecutionResult, ToolResultSerialization } from "../types.js";
 import type { ToolExecutorDeps } from "./types.js";
@@ -38,6 +40,13 @@ export async function emitToolCallStarted(
     payload: {
       toolCallId: toolCall.id,
       toolName: toolCall.name,
+      ...(toolCall.name === "Bash" &&
+      typeof toolCall.input === "object" &&
+      toolCall.input !== null &&
+      "command" in toolCall.input &&
+      typeof toolCall.input.command === "string"
+        ? { executionCommand: toolCall.input.command }
+        : {}),
       startedAt: new Date(startTime),
       display,
       ...(capability?.readOnly === undefined ? {} : { readOnly: capability.readOnly }),
@@ -58,6 +67,7 @@ export async function emitToolCallResult(
   display: ToolResultDisplayPayload | undefined,
   perf: ToolExecutionTelemetry | undefined,
   skillMetadata: SkillTelemetryMetadata | undefined,
+  rawOutput?: unknown,
 ): Promise<void> {
   await deps.emitEvent({
     id: crypto.randomUUID() as any,
@@ -80,10 +90,45 @@ export async function emitToolCallResult(
         returnedBytes: serialization.returnedBytes,
         budgetStrategy: serialization.budgetStrategy,
         artifactPath: serialization.artifactPath,
+        ...(toolCall.name === "Bash" ? { executionFacts: bashExecutionFacts(rawOutput) } : {}),
       },
       duration: durationMs,
     },
   });
+}
+
+function bashExecutionFacts(output: unknown) {
+  const parsed = BashOutputSchema.safeParse(output);
+  const result = parsed.success ? parsed.data : undefined;
+  const stdout = result?.stdout ?? "";
+  const stderr = result?.stderr ?? "";
+  // 后台启动只证明进程已启动，不能把缺席 exitCode 当作检查通过。
+  return {
+    exitCode:
+      result?.cancelled ||
+      result?.interrupted ||
+      result?.timedOut ||
+      result?.status === "backgrounded" ||
+      result?.status === "spawn_error"
+        ? null
+        : (result?.exitCode ?? null),
+    cancelled:
+      result?.cancelled === true || result?.interrupted === true || result?.status === "cancelled",
+    output: {
+      sha256: createHash("sha256").update(stdout).update("\0").update(stderr).digest("hex"),
+      bytes:
+        (result?.stdoutBytes ?? Buffer.byteLength(stdout)) +
+        (result?.stderrBytes ?? Buffer.byteLength(stderr)),
+      truncated: result?.stdoutTruncated === true || result?.stderrTruncated === true,
+      artifactRefs: [
+        result?.stdoutPersistedOutputPath,
+        result?.stderrPersistedOutputPath,
+        result?.persistedOutputPath,
+      ]
+        .filter((value): value is string => typeof value === "string")
+        .slice(0, 4),
+    },
+  };
 }
 
 export async function emitToolCallError(

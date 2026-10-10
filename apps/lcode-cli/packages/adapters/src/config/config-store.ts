@@ -124,6 +124,14 @@ export class ConfigStore {
     }
     if (config.memory) {
       if (config.memory.use !== undefined) this.set(ConfigKey.MemoryUse, config.memory.use, scope);
+      if (config.memory.observationEnabled !== undefined)
+        this.set(ConfigKey.MemoryObservationEnabled, config.memory.observationEnabled, scope);
+      if (config.memory.rankingExperimentEnabled !== undefined)
+        this.set(
+          ConfigKey.MemoryRankingExperimentEnabled,
+          config.memory.rankingExperimentEnabled,
+          scope,
+        );
     }
     if (config.sessionRecall?.enabled !== undefined) {
       this.set(ConfigKey.SessionRecallEnabled, config.sessionRecall.enabled, scope);

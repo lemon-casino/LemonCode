@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dropdown-menu.js";
 import { useTaskFork, type TaskForkNavigation } from "@/hooks/useTaskFork.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
+import { TaskHandoffMenuItem } from "@/TaskHandoffMenuItem.js";
 
 export function TaskForkMenu({
   task,
@@ -65,62 +66,67 @@ export function TaskForkMenu({
   const Item = dropdown ? DropdownMenuItem : ContextMenuItem;
   const blocked = disabled || pending || !resolved.rpcReady;
   return (
-    <Sub>
-      <Trigger disabled={blocked} data-testid="task-fork-menu">
-        <GitForkIcon className="size-4" />
-        {intl.formatMessage({ id: "taskList.fork.title" })}
-      </Trigger>
-      <Content className="w-80 max-w-[calc(100vw-2rem)] text-ui-sm">
-        <Item
-          disabled={blocked}
-          data-testid="task-fork-same"
-          onSelect={(event) => {
-            event.preventDefault();
-            void fork("same");
-          }}
-        >
-          {task.executionBindingId ? (
+    <>
+      <Sub>
+        <Trigger disabled={blocked} data-testid="task-fork-menu">
+          <GitForkIcon className="size-4" />
+          {intl.formatMessage({ id: "taskList.fork.title" })}
+        </Trigger>
+        <Content className="w-80 max-w-[calc(100vw-2rem)] text-ui-sm">
+          <Item
+            disabled={blocked}
+            data-testid="task-fork-same"
+            onSelect={(event) => {
+              event.preventDefault();
+              void fork("same");
+            }}
+          >
+            {task.executionBindingId ? (
+              <FolderGit2Icon className="size-4 shrink-0" />
+            ) : (
+              <FolderIcon className="size-4 shrink-0" />
+            )}
+            <span className="min-w-0 whitespace-normal">
+              <span className="block">
+                {intl.formatMessage({
+                  id: task.executionBindingId
+                    ? "taskList.fork.sameWorktree"
+                    : "taskList.fork.sameLocal",
+                })}
+              </span>
+              <span className="block text-foreground-subtle">
+                {intl.formatMessage({ id: "taskList.fork.shared" })}
+              </span>
+            </span>
+          </Item>
+          <Item
+            disabled={blocked || !capability.supported}
+            title={capability.reason}
+            data-testid="task-fork-worktree"
+            onSelect={(event) => {
+              event.preventDefault();
+              void fork("worktree");
+            }}
+          >
             <FolderGit2Icon className="size-4 shrink-0" />
-          ) : (
-            <FolderIcon className="size-4 shrink-0" />
-          )}
-          <span className="min-w-0 whitespace-normal">
-            <span className="block">
-              {intl.formatMessage({
-                id: task.executionBindingId
-                  ? "taskList.fork.sameWorktree"
-                  : "taskList.fork.sameLocal",
-              })}
+            <span className="min-w-0 whitespace-normal">
+              <span className="block">
+                {intl.formatMessage({ id: "taskList.fork.newWorktree" })}
+              </span>
+              <span className="block text-foreground-subtle">
+                {intl.formatMessage({ id: "taskList.fork.isolated" })}
+              </span>
             </span>
-            <span className="block text-foreground-subtle">
-              {intl.formatMessage({ id: "taskList.fork.shared" })}
-            </span>
-          </span>
-        </Item>
-        <Item
-          disabled={blocked || !capability.supported}
-          title={capability.reason}
-          data-testid="task-fork-worktree"
-          onSelect={(event) => {
-            event.preventDefault();
-            void fork("worktree");
-          }}
-        >
-          <FolderGit2Icon className="size-4 shrink-0" />
-          <span className="min-w-0 whitespace-normal">
-            <span className="block">{intl.formatMessage({ id: "taskList.fork.newWorktree" })}</span>
-            <span className="block text-foreground-subtle">
-              {intl.formatMessage({ id: "taskList.fork.isolated" })}
-            </span>
-          </span>
-        </Item>
-        {pending ? (
-          <p role="status" className="flex items-center gap-2 px-2 py-1 text-foreground-subtle">
-            <LoaderIcon className="size-4 animate-spin" />
-            {intl.formatMessage({ id: "taskList.fork.pending" })}
-          </p>
-        ) : null}
-      </Content>
-    </Sub>
+          </Item>
+          {pending ? (
+            <p role="status" className="flex items-center gap-2 px-2 py-1 text-foreground-subtle">
+              <LoaderIcon className="size-4 animate-spin" />
+              {intl.formatMessage({ id: "taskList.fork.pending" })}
+            </p>
+          ) : null}
+        </Content>
+      </Sub>
+      <TaskHandoffMenuItem task={task} disabled={disabled} dropdown={dropdown} />
+    </>
   );
 }

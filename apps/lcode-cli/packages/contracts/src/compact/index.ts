@@ -3,6 +3,7 @@
 // ============================================================
 
 import { z } from "zod";
+export * from "./active-transcript.js";
 
 import type { MessageId, PartId, ToolCallId, TraceId, TurnId } from "../interfaces/shared.js";
 

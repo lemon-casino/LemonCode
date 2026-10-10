@@ -9,6 +9,7 @@ import type { V4CommandCoreHost } from "./types.js";
 
 const SELECTION_SIDE_CHAT_RESTRICTED_COMMANDS = new Set<CommandEnvelope["type"]>([
   "sendGoalCommand",
+  "sendStrictGoalCommand",
   "pauseGoal",
   "resumeGoal",
   "editUserQuery",

@@ -65,6 +65,11 @@ export function createV4AdmissionHost(
         text: input.text ?? "",
         attachments: attachmentRefs,
         ...(input.sharedContextRefs ? { sharedContextRefs: input.sharedContextRefs } : {}),
+        ...(input.contextCapsuleRefs ? { contextCapsuleRefs: input.contextCapsuleRefs } : {}),
+        ...(input.goalAcceptance ? { goalAcceptance: input.goalAcceptance } : {}),
+        ...(input.modelSelection ? { modelSelection: input.modelSelection } : {}),
+        ...(input.mode ? { mode: input.mode } : {}),
+        ...(input.planEnabled !== undefined ? { planEnabled: input.planEnabled } : {}),
         delivery: {
           requested: requestedDelivery,
           admitted: admittedDelivery,
@@ -92,6 +97,17 @@ export function createV4AdmissionHost(
             queueItemId: conversationInputIntent.queueItemId,
             clientId: conversationInputIntent.clientId,
             kind: conversationInputIntent.kind,
+            text: conversationInputIntent.text,
+            ...(conversationInputIntent.goalAcceptance
+              ? { goalAcceptance: conversationInputIntent.goalAcceptance }
+              : {}),
+            ...(conversationInputIntent.contextCapsuleRefs
+              ? { contextCapsuleRefs: conversationInputIntent.contextCapsuleRefs }
+              : {}),
+            ...(conversationInputIntent.mode ? { mode: conversationInputIntent.mode } : {}),
+            ...(conversationInputIntent.planEnabled !== undefined
+              ? { planEnabled: conversationInputIntent.planEnabled }
+              : {}),
             admissionSeq: admission.admissionSeq,
             admittedAt: admission.admittedAt,
             requestedDelivery: conversationInputIntent.delivery.requested,
@@ -107,6 +123,9 @@ export function createV4AdmissionHost(
           },
           conversationInputIntent,
           attachments: attachmentRefs,
+          ...(conversationInputIntent.contextCapsuleRefs
+            ? { contextCapsuleRefs: conversationInputIntent.contextCapsuleRefs }
+            : {}),
           ...(conversationInputIntent.sharedContextRefs
             ? { sharedContextRefs: conversationInputIntent.sharedContextRefs }
             : {}),

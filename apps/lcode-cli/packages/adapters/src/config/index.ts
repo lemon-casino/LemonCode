@@ -71,6 +71,8 @@ export class ConfigPortImpl implements ConfigPort {
       },
       memory: {
         use: this.store.get(ConfigKey.MemoryUse) ?? DefaultConfig.memory.use,
+        observationEnabled: this.store.get(ConfigKey.MemoryObservationEnabled) ?? false,
+        rankingExperimentEnabled: this.store.get(ConfigKey.MemoryRankingExperimentEnabled) ?? false,
       },
       sessionRecall: {
         enabled:
@@ -192,6 +194,9 @@ function getDefaultValue(key: ConfigKey): unknown {
       return defaults.features.mcp;
     case ConfigKey.MemoryUse:
       return defaults.memory.use;
+    case ConfigKey.MemoryObservationEnabled:
+    case ConfigKey.MemoryRankingExperimentEnabled:
+      return false;
     case ConfigKey.SessionRecallEnabled:
       return defaults.sessionRecall.enabled;
     case ConfigKey.McpServers:

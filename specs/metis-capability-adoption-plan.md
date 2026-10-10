@@ -1,11 +1,11 @@
 # Metis 能力吸收与渐进实施方案
 
 - 日期：2026-10-09。
-- 状态：**规划草案，尚未实现**。本次只新增本文，不改变代码、默认行为、权限或现有任务。
+- 状态：**全部批次代码实现完成（2026-10-10），复查修复代码已完成，验收按用户要求暂停（2026-10-11）**。第 12 节记录首次实施，第 13 节链接最新修复与待验收记录；原规划与首次文档验证保留作历史依据。
 - 目标：借鉴 Metis 的验证、编排、学习与评测机制，提高 LCode 的交付可信度和任务效率。
 - 本地参考：`E:\Biancheng\Ai\metis`，上一轮核对的 package 版本为 `1.4.9`。其重点测试因缺少 Vitest 未运行；本文不采用 README 的成功率作为效果证明。
 - LCode 依据：当前检出的源码、`package.json`、`mise.toml`、架构策略与已有 spec。2026-10-09 本地 HEAD 为 `da1ea97`，包含任务开始前已有的未提交改动；HEAD 不能代替工作区内容版本。
-- 文档性质：下文的接口、容量建议和新增 spec 名称都是实施提案。现有 spec 的已确定规则继续有效；涉及默认策略、硬门禁和自动学习的产品决定见第 10 节。
+- 文档性质：第 1–10 节保留最初方案；实施时冻结的规则以第 12 节链接的各功能 spec 为准。默认策略保持兼容，严格验收与记忆实验需显式开启。
 
 ## 1. 实施结论与范围
 
@@ -302,7 +302,7 @@ H1 扩展：生成候选摘要 → 用户发送 → 再验 source/target
 
 不在缺少数据时承诺日历工期。按垂直切片逐批交付，每批先补行为测试，再实现，再运行验证；每批可独立停止和回退。
 
-### 9.2 代表性验收场景（全部为计划，尚未执行）
+### 9.2 代表性验收场景（原计划；实际覆盖见第 12 节）
 
 | ID   | 前置与动作                                                      | 断言                                                                | 所需证据                                          |
 | ---- | --------------------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------- |
@@ -367,9 +367,9 @@ H1 扩展：生成候选摘要 → 用户发送 → 再验 source/target
 - V0/V1 能力撤下后原 Read 保持原义，已持久产物按原生命周期可读。
 - H0 撤下入口不改变已有引用消息；H1 保留 provenance 和历史 capsule，不在回退时截断 transcript。
 
-## 11. 本次文档落地与证据限制
+## 11. 首次文档落地记录（2026-10-09）
 
-本次只新增本文，所有批次状态均为 planned；没有新增功能代码、迁移、测试夹具、后台任务或外部发布。
+首次交付只新增本文，当时所有批次均为 planned；以下结果仅对应 2026-10-09 的文档任务，不代表后续实现验证。
 
 | 检查                                                    | 2026-10-09 实际结果                                                                                                                         |
 | ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -382,4 +382,72 @@ H1 扩展：生成候选摘要 → 用户发送 → 再验 source/target
 | 文档核对                                                | 文件级 Oxfmt 格式检查通过；29 个内部 Markdown 链接与 15 个现有测试/注册文件引用存在，围栏成对、无行尾空白。                                 |
 | 功能验收/真实效果                                       | 本次未执行新功能测试、双项目运行对照或真实模型评测；第 9 节均为后续验收计划。                                                               |
 
-当前 feature-boundary graph 已有 memory recall、ReadSessionContext、conversation runtime、worktree 和两种传输边界。新增的严格证据验收、效果观测、视频处理 port 和 capsule 尚无实现；后续实现时只补经源码验证的节点和关系，本次不把规划写成已存在能力。
+当时 feature-boundary graph 仅含已有 memory recall、ReadSessionContext、conversation runtime、worktree 和两种传输边界。后续实现已按实际源码补入严格证据、观测、评测、视频和回带入口；不能用图的可达性替代运行验收。
+
+## 12. 全量实施记录（2026-10-10）
+
+用户已授权按方案实现全部批次。交付范围为 D0/D1/D2、B0/B1、L0/L1、V0/V1、H0/H1；方案明确排除的自动技能激活、自动下载 Whisper、跨 identity 摘要导入以及自动改写权限/Hook 仍不进入本次实现。真实模型效果与费用需要独立、显式预算的运行，离线测试不能证明收益。
+
+| 批次  | 本轮实现                                                                                                                     | 冻结契约与入口                                                                                                                             |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| D0/D1 | 真实 Bash/world.run 证据、文件与产物 digest、绑定/分支版本、SQLite acceptance 与状态 revision、严格完成条件提交、V4 证据读面 | [Goal 验收契约](goal-evidence-verification.md)；`/goal strict`、`--goal-acceptance`、`sendStrictGoalCommand`                               |
+| D2    | 非阻断分工建议、最终集成工作目录检查、active actor 写入时不把局部检查当整体通过                                              | [工作流提交与修订](workflow-script-submission-and-revision.md)、[Goal 验收契约](goal-evidence-verification.md)                             |
+| B0/B1 | 固定 12 个合成任务、独立 arm、机器验收、失败保留、真实物理请求预算/usage、workflow/Goal/记忆对照与实际应用证据               | [任务质量评测](agent-task-quality-benchmarks.md)；`pnpm --dir apps/lcode-cli bench:task-quality`                                           |
+| L0/L1 | 500 轮/4 MiB 有界观测、显式反馈、内容版本与独立审核资格、默认关闭的有限 BM25 加权                                            | [记忆观测与排序](workspace-memory-effect-observation.md)；`memory.observationEnabled` / `memory.rankingExperimentEnabled`、`MemoryHistory` |
+| V0/V1 | 可注入目标环境处理器；元数据、精确时间帧、裁剪、分镜、像素变化、旁挂与嵌入字幕、原媒体持久化路径                             | [视频检查](video-inspection.md)；`VideoInspect`                                                                                            |
+| H0/H1 | 同 scope 可编辑回带草稿、完成边界与摘要后重验、独立 capsule 持久关联、显式保存和 typed ref 复用                              | [分支回带](session-branch-handoff.md)；任务菜单、`ReadSessionContext`、Composer 独占行 `#capsule_...`                                      |
+
+### 使用与默认行为
+
+- 普通 Goal 保留 legacy 语义；严格 Goal 接纳后不能被旧核验开关或旧客户端静默降级。必要检查实际失败可修复，缺证据/来源失效/核验故障为未完成。
+- 记忆观察和排序分别默认关闭；开启需要更新已有 JSON 配置并新建或冷恢复 Runtime。观察不新增模型调用，不代替原有自动维护开关。
+- 视频处理依赖执行目标环境中已有 FFprobe/FFmpeg；组件缺失会返回明确能力错误，不安装二进制。
+- “回带到当前会话”和“回带并保存摘要”只追加草稿。用户发送后才读取/保存；已保存摘要只能在其所属目标会话和有效来源 scope 内引用。
+- 评测默认 fake，真实运行必须 `--real` 加合成配置与所有预算。报告分别记录任务验收、功能是否实际应用、模型选择覆盖和请求用量完整性；不能从 exit 0 或 prompt 推断实验生效。
+
+### 验证记录
+
+本轮使用本机已缓存的 Node **24.21.0** 与 pnpm **10.34.6** 执行最终检查，与 `mise.toml` 一致；只调整验证进程的 PATH，没有修改全局工具链。早期部分检查使用 Node 24.14.1，相关最终验证已在指定版本重跑。fake/单元/浏览器测试使用独立临时目录，没有真实模型付费请求。
+
+| 检查                          | 实际结果                                                                                                                                                                                                                                                                                       |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 开工基线检查                  | `node scripts/check-workspace-freshness.mjs` 通过；L-GO 与 origin/L-GO 同步，相对 main ahead 20 / behind 0。                                                                                                                                                                                   |
+| 根工作区类型与 Lint           | `pnpm typecheck`、`pnpm lint` 通过。                                                                                                                                                                                                                                                           |
+| 架构                          | `pnpm architecture:check --changed` 通过；baseline 0、violations 0、new 0。                                                                                                                                                                                                                    |
+| Goal 与工作流证据             | goal-evidence、evidence、target-completion-commit、goal-evidence-events、goal-acceptance、goal-command、goal-verification.integration、workflow-world-evidence、goal-verification-projection 共 20/20 通过；真实 Runtime/命令/SQLite 完成链路使用 fake 语义模型，另有投影与恢复回归 9/9 通过。 |
+| 记忆观测与排序                | project-memory-effects、memory-effects-config、ranking-effects、memory-effect-observation、memory-effects、review-verification、turn-memory-recall、turn-complete-memory 八个文件 46/46 通过。                                                                                                 |
+| 编程任务评测                  | `harness.test.mjs` 9/9 通过；`bench:task-quality --output ../../.tmp/task-quality-l0-final-20261010` fake 24/24 通过（两组各 12 个任务）。Token 为 null，没有虚构费用或收益。                                                                                                                  |
+| 请求计量、adapter 与 headless | contracts/adapters request-accounting、runner-failover-yield、CLI prompt-benchmark 合并套件 36/36 通过；CLI run 既有 5 个用例也通过。新增 off-peak 非流式/流式重试用例验证每次物理请求单独预留，超限前不调用 provider。                                                                        |
+| 视频与稳定摘要后端            | VideoInspect 契约/adapter/handler/permission、稳定 snapshot、capsule 事务/工具集成及原历史/存储回归合并 50/50，通过 send-text-context admission 用例 1/1。包括 executor→ArtifactStore→cold history hydration、SQLite rollback、compact preserved prefix 与来源插入失效。                       |
+| UI 证据摘要与引用解析         | `tsx --tsconfig packages/ui/tsconfig.json --test` 执行 GoalEvidenceSummary 和 contextCapsuleRefs，3/3 通过。                                                                                                                                                                                   |
+| 回带浏览器交互                | `LCODE_WORKTREE_TEST_CASES=handoff` 的 worktree-ui 测试 6/6 通过；桌面、390px、中英文、明暗主题、键盘、禁用边界和草稿保留。                                                                                                                                                                    |
+| Capsule Composer 浏览器交互   | `node --test packages/web/test/context-capsule-composer.test.mjs` 5/5 通过；真实 Composer 冻结 typed refs、去重、拒绝保留草稿和新会话/超限拒绝。                                                                                                                                               |
+| Capsule 冷恢复与编辑重试      | context-capsule-intent-projection 6/6 通过；真实 live/cold projection→resolved target→V4 handler 保留原 typed refs，删除/围栏引用不注入，新增、超限或失效引用在停止/rewind 前拒绝；相关既有投影/选择及 UI parser 合并回归 16/16 通过。                                                         |
+| 协议与恢复回归                | transport、conversation-topic-contract、command-inbox-contract、goal-verification-projection、event-reducer-goal 合并套件 14/14 通过，覆盖 continuous/replayable 恢复、FIFO、strict 冷恢复及 edit/retry。                                                                                      |
+| 既有事务与队列回归            | store-transactions、transcript-snapshot、queue-handoff、input-intent-model-selection 共 18/18 通过，覆盖原子 fork/import、持久快照预算、取消释放、队列交接及原模型选择。                                                                                                                       |
+| 功能图                        | YAML 可解析，82 个唯一节点、118 条合法关系；新增 5 个节点的源码文件与符号已核对。                                                                                                                                                                                                              |
+
+补充集成检查：`pnpm --dir apps/lcode-cli typecheck` 通过 27/27 个任务，`pnpm --dir apps/lcode-cli lint` 通过 14/14 个任务。本次改动按各工作区的格式配置检查通过（根工作区 39 个文件、CLI 183 个文件）；`git diff --check` 通过。总方案及 5 份新功能 spec 的本地 Markdown 链接存在、代码围栏成对。
+
+### 验证边界
+
+- Turbo 仍提示部分 workspace 未出现在 lockfile 的传递闭包中；本轮类型与 Lint 任务实际执行成功，此提示仍保留。
+- `pnpm fmt:check` 的全仓检查存在大量基线格式失败，包含本轮未修改的技能、tsconfig 和组件文件。保留这些既有内容；本轮改动另做定向格式检查，不能把全仓格式检查记为通过。
+- 本机 PATH 中没有 FFmpeg/FFprobe。视频参数、权限、预算、取消、adapter 和媒体恢复使用确定性替身验证；真实二进制解码、操作系统差异与实际模型视觉效果仍需目标环境冒烟验证。
+- fake 编程任务结果仅验证 harness。未执行真实模型付费对照，因此没有证明 strict、workflow 或记忆排序的成功率、速度或费用收益。排序实验继续默认关闭。
+- 浏览器覆盖共享组件及确定性 Host fixture；协议测试覆盖两种投递语义，不等价于真实手机、远程 Host 和网络断连的设备联调。
+- Windows benchmark 的正常进程树取消已覆盖；异常父进程退出后的完整孤儿回收仍受 Job Object 缺失限制，无法确认清理时明确记录 harness-error。
+
+## 13. 全面复查与修复记录（2026-10-11）
+
+已对照全部批次检查 spec、实际入口、状态所有者、持久化与恢复路径，并修复复查中确认的遗漏和回归。完整清单与实际结果见 [Metis 方案全面复查与修复记录](metis-capability-adoption-audit-2026-10-11.md)。
+
+最后追加的证据写入故障修复已落盘：SessionStore 原子保存检查 attempt/head，Runtime 与 world.run 在持久接纳后才执行；读面与最终 SQL 完成条件绑定当前 head 和不可变 receipt，防止保存失败后沿用旧 pass。按用户“修复后暂停验收”的指令，最新代码已冻结，未执行修复后的测试或全量检查，当前状态为待验收。
+
+- Goal：补真实 binder 的 strict 接纳、只读限制、完整输入持久化与首条输入预算；修复证据 digest 歧义、链接根目录、在途 revision、过期失败证据、容量与 SQLite 原子完成条件，以及检查期间启动 actor 的集成证据失效。
+- 评测与记忆：物理计量移到实际 SDK 调用前；冻结后拒绝迟到事件；预算或取消造成的未完成报告返回非零；核对 speed、memory treatment 与观测计数上限。
+- 视频与摘要：补执行 cwd、实际时间轴和采样边界、字幕来源版本与缓存计量；修复代码示例误触发摘要引用，补完整 accepted refs、冷恢复和 fork 归属回归。桌面/Web 明确拒绝本地 CLI strict 文件语法，保留草稿与可见提示。
+
+追加 attempt/head 持久化修复前，根工作区及 CLI 的 typecheck、lint 均通过；架构违规为 0。Goal 集成 33/33、记忆与计量 88/88、评测 harness 14/14、离线样本 24/24、视频与摘要后端 58/58；完整发送浏览器 36/36、工作树浏览器 38/38、回带菜单 6/6、Composer 7/7，以及协议与远控回归均通过。各组可能重叠，不按简单加总声称不重复覆盖数量；这些结果不代表追加修复已通过验收。
+
+同一阶段根 43 个及 CLI 195 个改动文件定向格式检查、git diff --check 通过。全仓 fmt:check 仍失败，包含未修改文件的存量格式问题。用户随后要求“修复后暂停验收”，因此追加持久化修复落盘后不再启动测试或全量检查。真实模型效果、FFmpeg/FFprobe 解码和手机/远程设备联调仍未验证；详见复查记录的验证边界。

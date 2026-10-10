@@ -81,6 +81,8 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
     pendingRetryYield: undefined,
   };
   const retryAttemptOffset = normalizeRetryAttemptOffset(input.request.retryAttemptOffset);
+  // off-peak 排队会回退逻辑 attempt；物理序号独立递增，避免复用 ID 绕过请求预算。
+  let physicalAttempt = retryAttemptOffset;
 
   for (
     let attempt = retryAttemptOffset + 1;
@@ -102,7 +104,7 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
           ...baseStatusContext,
           maxAttempts: statusMaxAttempts(Number(retryState.signatureRepairAttempted)),
         },
-        attempt,
+        ++physicalAttempt,
       ),
       options: undefined,
       requestInvocationCompleted: false,
@@ -215,6 +217,19 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
       // final gate、header/status sink 都可能异步等待；取消若在等待中到达，
       // 不能仅依赖 Provider 自己识别已 aborted signal 后再多发一次物理请求。
       input.request.abortSignal?.throwIfAborted();
+      // started 生命周期可能触发异步取消/改派；预算只在最终同步调用边界预留。
+      input.physicalRequestAccounting?.beforeRequest({
+        requestId: attemptState.statusContext.requestId,
+        contextWindow: attemptState.resolved.properties.contextWindow,
+        maxOutputTokens: attemptState.attemptRequest.maxOutputTokens,
+        selectedSpeed: attemptState.attemptRequest.selectedSpeed,
+        startedEvent: {
+          ...attemptState.statusContext,
+          attempt,
+          timestamp: new Date().toISOString(),
+          type: "model_request_started",
+        },
+      });
       // 部分非流式 provider/fetch 兼容层收到 AbortSignal 后不会及时 settle
       // generateText promise，导致 runtime 已 Stop，goal verifier 仍要等上游自然返回才收口。
       // adapter 是本地取消契约边界：signal 一旦 abort 就立即拒绝，迟到 provider 结果只丢弃。

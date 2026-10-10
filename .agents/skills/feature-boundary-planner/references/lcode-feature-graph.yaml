@@ -952,7 +952,107 @@ nodes:
         symbol: createGitBackupService
       - file: packages/services/src/git-backup/gitBackupStore.ts
         symbol: createBackupStore
+  - id: capability.goal-execution-evidence
+    kind: capability
+    label: Opt-in strict Goal acceptance from versioned execution facts
+    aliases: [严格验收, 验证证据, strict Goal, 验收覆盖]
+    codeSeeds:
+      - file: packages/shared/src/goal-evidence.ts
+        symbol: goalAcceptanceSchema
+      - file: apps/lcode-cli/packages/core/src/goal/evidence.ts
+        symbol: readGoalEvidenceSummary
+      - file: apps/lcode-cli/packages/core/src/runtime/methods/target-completion-commit.ts
+      - file: apps/lcode-cli/packages/bootstrap/src/app/workflow-world-evidence.ts
+        symbol: executeWorkflowWorldWithEvidence
+      - file: packages/ui/src/v4/GoalEvidenceSummary.tsx
+        symbol: GoalEvidenceSummaryView
+    invariants:
+      - "Strict acceptance is explicit; required execution facts are scoped and versioned, and completion uses the existing Goal store conditional write."
+      - "Verifier faults and missing evidence cannot silently complete a strict Goal or replay a settled world.run effect."
+  - id: capability.memory-effect-observation
+    kind: capability
+    label: Bounded memory injection outcomes and optional ranking experiment
+    aliases: [记忆效果, 记忆观测, memory effects, 排序实验]
+    codeSeeds:
+      - file: apps/lcode-cli/packages/core/src/memory/effect-observation.ts
+        symbol: freezeMemoryInjection
+      - file: apps/lcode-cli/packages/adapters/src/fs/project-memory-effects.ts
+        symbol: MemoryEffects
+      - file: apps/lcode-cli/packages/core/src/memory/recall/ranking-effects.test.ts
+    invariants:
+      - "Observation and ranking are separately opt-in; ledger failures cannot block memory content or foreground turns."
+      - "Only reviewed automatic reference revisions can be reranked; user constraints and unknown provenance retain baseline ranking."
+  - id: capability.task-quality-benchmark
+    kind: capability
+    label: Isolated paired programming task benchmark and physical request budgets
+    aliases: [任务评测, task quality benchmark, 模型费用对照]
+    codeSeeds:
+      - file: apps/lcode-cli/packages/bootstrap/scripts/task-quality-benchmark.mjs
+      - file: apps/lcode-cli/packages/bootstrap/scripts/benchmarks/task-quality/harness.mjs
+      - file: apps/lcode-cli/packages/contracts/src/model/request-accounting.ts
+        symbol: createPhysicalRequestAccounting
+    invariants:
+      - "Fake execution is the default. Real runs require explicit configuration and budgets; unknown usage is null, never zero."
+  - id: capability.video-inspection
+    kind: capability
+    label: Target-environment video metadata frames motion and subtitle inspection
+    aliases: [视频抽帧, 分镜, 视频运动, VideoInspect]
+    codeSeeds:
+      - file: apps/lcode-cli/packages/contracts/src/interfaces/video-processor.port.ts
+      - file: apps/lcode-cli/packages/adapters/src/video/index.ts
+        symbol: createNodeVideoProcessorAdapter
+      - file: apps/lcode-cli/packages/core/src/tool/handlers/video-inspect.ts
+        symbol: videoInspectToolEntry
+    invariants:
+      - "Processing is injected in the target environment; frames use existing image artifact persistence and bounded budgets."
+      - "No automatic FFmpeg/Whisper download or fabricated media result when capabilities are absent."
+  - id: surface.session-handoff-draft
+    kind: ui-surface
+    label: Same-scope handoff and saved summary references in Composer
+    aliases: [回带, 分支摘要, capsule, 持久摘要]
+    codeSeeds:
+      - file: packages/ui/src/TaskHandoffMenuItem.tsx
+        symbol: TaskHandoffMenuItem
+      - file: packages/ui/src/hooks/useTaskHandoff.ts
+        symbol: useTaskHandoff
+      - file: packages/ui/src/v4/composer/contextCapsuleRefs.ts
+        symbol: readComposerCapsuleRefs
+    invariants:
+      - "Menus append editable drafts through the scoped existing receiver; only an explicit send admits context."
+      - "Capsule IDs are independent typed references and never share URLs; the target store validates source history again."
 edges:
+  - from: capability.goal-execution-evidence
+    to: persistence.session-store
+    type: persists-through
+    rank: must-inspect
+  - from: capability.goal-execution-evidence
+    to: boundary.workspace-key
+    type: isolated-by
+    rank: invariant-only
+  - from: capability.memory-effect-observation
+    to: persistence.project-memory-files
+    type: persists-through
+    rank: must-inspect
+  - from: capability.memory-effect-observation
+    to: capability.project-memory-recall
+    type: observes
+    rank: must-inspect
+  - from: capability.task-quality-benchmark
+    to: service.runtime-model-request-boundary
+    type: observes
+    rank: must-inspect
+  - from: capability.video-inspection
+    to: capability.conversation-runtime
+    type: executes-through
+    rank: should-inspect
+  - from: surface.session-handoff-draft
+    to: service.read-session-context
+    type: requests-through
+    rank: must-inspect
+  - from: surface.session-handoff-draft
+    to: boundary.workspace-key
+    type: isolated-by
+    rank: invariant-only
   - from: capability.git-commit-merge-review
     to: service.worktree-owner
     type: commits-to

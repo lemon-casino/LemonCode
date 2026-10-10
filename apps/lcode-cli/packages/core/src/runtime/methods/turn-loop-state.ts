@@ -12,6 +12,7 @@ import type {
 } from "../deps.js";
 import type { ActiveTurnSteeringState } from "../types.js";
 import type { ModelRequestDependencies, SubagentRunOptions } from "@lcode/contracts";
+import type { MemoryEffectTurn } from "@lcode/contracts";
 import type { DrainedPendingInputDiagnostics } from "../types.js";
 import type { TurnMachineImpl } from "../deps.js";
 import type { RuntimeMessageEntry } from "../../agent/message-history.js";
@@ -100,6 +101,9 @@ export interface RegularTurnLoopState {
   input: string;
   /** 当前真实用户 query 的 Project Memory recall 最多尝试一次。 */
   memoryRecallAttempted: boolean;
+  /** Frozen actual attachment refs, never memory text or query. */
+  memoryEffectInjection?: MemoryEffectTurn["entries"];
+  memoryEffectScope?: { rootDir: string; workspaceKey: string };
   /** 当前真实用户 query 的 prior-session recall 最多尝试一次。 */
   sessionHistoryRecallAttempted: boolean;
   /** 两条 recall pipeline 共享的真实用户 query；内部 continuation 不设置。 */

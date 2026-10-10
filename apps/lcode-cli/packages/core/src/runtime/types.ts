@@ -82,6 +82,7 @@ import type {
   HttpClientPort,
   ImageProcessorPort,
   PdfDocumentPort,
+  VideoProcessorPort,
   HooksRuntimeConfig,
   SkillPort,
   McpPort,
@@ -313,6 +314,10 @@ export interface MemoryRuntimeConfig {
   enabled?: boolean;
   /** 是否调度成功 Main turn 后的自动 Extraction；缺省按 true 处理。 */
   extractionEnabled?: boolean;
+  /** Bounded local observation, no additional model requests; defaults off. */
+  observationEnabled?: boolean;
+  /** Independent opt-in bounded ranking; requires trusted provenance and explicit feedback. */
+  rankingExperimentEnabled?: boolean;
   storageRoot?: string;
   use?: boolean;
   workspaceIdentity?: string;
@@ -365,6 +370,7 @@ export interface AgentRuntimeDeps {
   httpClientPort?: HttpClientPort;
   imageProcessorPort?: ImageProcessorPort;
   pdfDocumentPort?: PdfDocumentPort;
+  videoProcessorPort?: VideoProcessorPort;
   skillPort?: SkillPort;
   mcpPort?: McpPort;
   subagentPort?: SubagentPort;
@@ -482,6 +488,7 @@ export interface ExecuteTurnOptionsBase {
   inputId?: string;
   intent?: TurnInputIntentMetadata;
   sharedContextRefs?: TurnInputIntentMetadata["sharedContextRefs"];
+  contextCapsuleRefs?: TurnInputIntentMetadata["contextCapsuleRefs"];
   queryId?: QueryId;
   inputSource?: SyntheticUserMessageSource;
   inputPresentation?: RuntimeInputPresentation;

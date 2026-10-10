@@ -32,6 +32,10 @@ import {
   sessionContextSynthesisInstructions,
 } from "../../session-context/read-session-context-prompts.js";
 import { loadScopedSessionContextSnapshot } from "../../session-context/read-session-context-snapshot.js";
+import {
+  finishScopedSessionContext,
+  readCapsuleToolOutput,
+} from "../../session-context/context-capsule.js";
 import type { ToolEntry, ToolExecutionContext, ToolHandler } from "../types.js";
 import { auxiliaryModelOptions } from "../../model/auxiliary-model-options.js";
 
@@ -58,11 +62,13 @@ const readSessionContextHandler: ToolHandler = async (input, context) => {
   }
 
   let snapshot;
+  if (parsed.capsuleId) return readCapsuleToolOutput(context, parsed);
   try {
     snapshot = await loadScopedSessionContextSnapshot({
       sessionId: parsed.sessionId as SessionId,
       sessionStore: context.sessionStore,
       workspace: context,
+      stableCompleted: parsed.strategy === "handoff",
     });
     if (!snapshot) {
       return formatLocalSessionNotFound({
@@ -88,6 +94,8 @@ const readSessionContextHandler: ToolHandler = async (input, context) => {
   }
 
   const { messages, session } = snapshot;
+  const finish = (output: ReadSessionContextOutput) =>
+    finishScopedSessionContext({ context, parsed, snapshot, output });
 
   const outputCharBudget = outputCharBudgetFromMaxTokens(parsed.maxTokens);
   const material = buildSessionContextMaterial({
@@ -99,14 +107,16 @@ const readSessionContextHandler: ToolHandler = async (input, context) => {
   });
 
   if (!context.model || material.readableMessageCount === 0) {
-    return buildReadSessionContextOutput({
-      content: material.localContent,
-      material,
-      parsed,
-      session,
-      source: "local",
-      truncated: material.truncated,
-    });
+    return finish(
+      buildReadSessionContextOutput({
+        content: material.localContent,
+        material,
+        parsed,
+        session,
+        source: "local",
+        truncated: material.truncated,
+      }),
+    );
   }
 
   try {
@@ -118,36 +128,42 @@ const readSessionContextHandler: ToolHandler = async (input, context) => {
       session,
     });
     if (liteContent.trim().length > 0) {
-      return buildReadSessionContextOutput({
-        content: liteContent,
-        material,
-        parsed,
-        session,
-        source: "lite",
-        truncated: material.truncated,
-      });
+      return finish(
+        buildReadSessionContextOutput({
+          content: liteContent,
+          material,
+          parsed,
+          session,
+          source: "lite",
+          truncated: material.truncated,
+        }),
+      );
     }
   } catch (error) {
     if (context.abortSignal.aborted) throw error;
-    return buildReadSessionContextOutput({
+    return finish(
+      buildReadSessionContextOutput({
+        content: material.localContent,
+        error: errorToMessage(error),
+        material,
+        parsed,
+        session,
+        source: "fallback",
+        truncated: true,
+      }),
+    );
+  }
+
+  return finish(
+    buildReadSessionContextOutput({
       content: material.localContent,
-      error: errorToMessage(error),
       material,
       parsed,
       session,
       source: "fallback",
       truncated: true,
-    });
-  }
-
-  return buildReadSessionContextOutput({
-    content: material.localContent,
-    material,
-    parsed,
-    session,
-    source: "fallback",
-    truncated: true,
-  });
+    }),
+  );
 };
 
 export const readSessionContextToolEntry: ToolEntry = {
@@ -156,7 +172,7 @@ export const readSessionContextToolEntry: ToolEntry = {
   metadata: {
     name: READ_SESSION_CONTEXT_TOOL_NAME,
     description:
-      "Read relevant or handoff context from another persisted LCode session. Use when the user references #sess_* or asks to continue from a specific prior session.",
+      "Read relevant or stable handoff context from a persisted LCode session. Use #sess_* references. When the user explicitly requests saving a handoff summary, set strategy='handoff' and persistCapsule=true; return the standalone #capsule_* reference for reuse in the same target session. capsuleId reuses a saved summary after scope and source-version checks.",
     modelInstructions: [
       "Use when the current task needs context from a prior LCode session mentioned by id.",
       "Pass a focused query describing what you need; do not ask for the whole session unless the user explicitly wants a handoff.",

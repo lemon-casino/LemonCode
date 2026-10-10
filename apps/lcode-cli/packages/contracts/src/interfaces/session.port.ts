@@ -307,6 +307,8 @@ export interface TurnInputIntentMetadata {
     kind: "shared_context_import";
     context_id: string;
   }>;
+  contextCapsuleRefs?: Array<{ kind: "context_capsule"; capsule_id: string }>;
+  goalAcceptance?: import("../tools/goal-evidence.js").GoalAcceptance;
   /** edit/retry 重建的新 command 对原始 canonical input cause 的稳定追溯。 */
   provenance?: {
     sourceCommandId: string;

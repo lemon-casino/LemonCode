@@ -25,6 +25,7 @@ export function buildPersistedConversationInputIntent(
     queueItemId: intent.queueItemId,
     clientId: intent.clientId,
     kind: intent.kind,
+    ...(intent.goalAcceptance ? { goalAcceptance: intent.goalAcceptance } : {}),
     // goal 的 message text 可以是 `/goal ...` 展示文案；admission 已持有 runtime
     // 解析后的 canonical objective，持久化必须优先使用它以保证 live/cold 等价。
     text: intent.text ?? text,
@@ -33,6 +34,7 @@ export function buildPersistedConversationInputIntent(
     ...(intent.mode ? { mode: intent.mode } : {}),
     ...(intent.planEnabled !== undefined ? { planEnabled: intent.planEnabled } : {}),
     ...(intent.sharedContextRefs ? { sharedContextRefs: intent.sharedContextRefs } : {}),
+    ...(intent.contextCapsuleRefs ? { contextCapsuleRefs: intent.contextCapsuleRefs } : {}),
     delivery: {
       requested: intent.requestedDelivery,
       admitted: intent.admittedDelivery,

@@ -6,6 +6,7 @@ export * from "./exec/index.js";
 export * from "./http/index.js";
 export * from "./image/index.js";
 export * from "./pdf/index.js";
+export * from "./video/index.js";
 export * from "./provider/index.js";
 export * from "./model/index.js";
 export * from "./logging/index.js";

@@ -34,8 +34,29 @@ export const ReadSessionContextInputSchema = z
       .max(READ_SESSION_CONTEXT_MAX_TOKENS)
       .optional()
       .describe("Approximate maximum tokens to return to the model."),
+    persistCapsule: z
+      .boolean()
+      .optional()
+      .describe(
+        "Explicitly save this handoff summary as provenance for the current accepted user turn. Never saves another session's task state.",
+      ),
+    capsuleId: z
+      .string()
+      .regex(/^capsule_[a-f0-9]{32}$/)
+      .optional()
+      .describe(
+        "Reuse a previously saved capsule belonging to the current target session; source scope and content are checked again.",
+      ),
   })
-  .strict();
+  .strict()
+  .refine(
+    (input) => (!input.persistCapsule && !input.capsuleId) || input.strategy === "handoff",
+    "Capsules require the handoff strategy.",
+  )
+  .refine(
+    (input) => !(input.persistCapsule && input.capsuleId),
+    "Read an existing capsule or generate a new one, not both.",
+  );
 
 export type ReadSessionContextInput = z.infer<typeof ReadSessionContextInputSchema>;
 
@@ -62,13 +83,22 @@ export const ReadSessionContextOutputSchema = z
     path: z.string().optional(),
     strategy: ReadSessionContextStrategySchema,
     query: z.string(),
-    source: z.enum(["lite", "local", "fallback", "none"]),
+    source: z.enum(["lite", "local", "fallback", "none", "capsule"]),
     content: z.string(),
     messageCount: z.number().int().nonnegative(),
     selectedMessageCount: z.number().int().nonnegative().optional(),
     truncated: z.boolean(),
     error: z.string().optional(),
     references: z.array(ReadSessionContextReferenceSchema).optional(),
+    sourceVersion: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
+    sourceBoundaryMessageId: z.string().optional(),
+    capsuleId: z
+      .string()
+      .regex(/^capsule_[a-f0-9]{32}$/)
+      .optional(),
   })
   .strict();
 

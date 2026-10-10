@@ -83,6 +83,18 @@
    切换一次官方 Electron runtime mirror 后重试。其它 afterExtract/NOTICE 错误不得重试，
    避免用镜像切换掩盖真实许可文件回归。
 
+## v3.17.7 Metis 能力落地与视频检查发布准备
+
+- 根版本递增为 `3.17.7`，正式 tag 为 `v3.17.7`；CLI 和 Worker 服务包沿用各自版本所有者。
+- 发布本轮 Metis 能力吸收：目标证据与可选严格完成、上下文胶囊与分支结果回带、
+  工作区记忆效果观测与排序实验、编程任务质量评测，以及 `VideoInspect` 视频精细检查。
+  验收范围见 `goal-evidence-verification.md`、`session-branch-handoff.md`、
+  `workspace-memory-effect-observation.md`、`agent-task-quality-benchmarks.md`、
+  `video-inspection.md`，复查记录见 `metis-capability-adoption-audit-2026-10-11.md`。
+- 默认策略保持兼容：严格验收、记忆观察与排序实验均需显式开启，未开启时沿用既有
+  `legacy` 验收与 BM25 排序；原 `Read` 视频输入不变。
+- 主仓库开发分支和不可变 tag 推送后触发桌面矩阵，六个目标各自上传本架构清单。
+
 ## v3.17.6 主题与组件发布准备
 
 - 根版本递增为 `3.17.6`，正式 tag 为 `v3.17.6`；CLI 和 Worker 服务包沿用各自版本所有者。

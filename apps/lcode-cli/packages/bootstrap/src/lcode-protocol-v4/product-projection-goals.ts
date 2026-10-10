@@ -109,12 +109,14 @@ export function onTargetVerification(
 ): ConversationDelta[] {
   const payload = event.payload as TargetCompletionVerificationPayload;
   const goal = host.snapshot.goal;
+  const staleGoal = Boolean(goal?.targetId && goal.targetId !== payload.targetId);
   // goal verify boundary 不依赖 goal 状态在场。
   // 冷恢复合成事件流没有 TargetChanged → goal 为 null，旧实现在此整条丢弃
   // verification 事实，刷新后 goalVerify marker 消失。现在 marker
   // 恒生成/恒更新；goal 状态 patch 仍只在 goal 在场时生效。
 
   if (payload.status === "started") {
+    if (staleGoal) return [];
     const iteration = payload.goalIteration ?? (goal ? goal.iteration + 1 : 1);
     const lifecycleKey = goalVerifyLifecycleKey(payload, iteration);
     const verifyingGoal = goal ? { ...goal, status: "verifying" as const, iteration } : undefined;
@@ -227,6 +229,8 @@ export function onTargetVerification(
     deltas.push({ op: "row.appended", row });
   }
 
+  // 旧裁判终态只收口自己的历史 marker，不能把新目标或新的 foreground work 改为失败/暂停。
+  if (staleGoal) return deltas;
   const hadGoalVerifierWork = host.snapshot.control.activeWorks.some(
     (work) => work.kind === "goalVerifier",
   );
@@ -295,6 +299,9 @@ export function onTargetVerification(
             ...(payload.verification?.reason ? { reason: payload.verification.reason } : {}),
             ...(payload.verification?.nextAction
               ? { nextAction: payload.verification.nextAction }
+              : {}),
+            ...(payload.verification?.evidenceSummary
+              ? { evidenceSummary: payload.verification.evidenceSummary }
               : {}),
           },
         ].slice(-PROTOCOL_V4_LIMITS.goalVerificationsRetained);

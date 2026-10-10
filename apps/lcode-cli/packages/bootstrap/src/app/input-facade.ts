@@ -133,6 +133,7 @@ export function createInputFacade(deps: CreateInputFacadeDeps): InputFacade {
       ...turnAttribution,
       intent: options?.intent,
       sharedContextRefs: options?.sharedContextRefs,
+      contextCapsuleRefs: options?.contextCapsuleRefs,
       queryId: options?.queryId,
       toolDisallowlist: options?.toolDisallowlist,
       traceContext: options?.traceContext ?? deps.traceContext,

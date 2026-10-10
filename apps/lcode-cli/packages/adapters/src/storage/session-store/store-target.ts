@@ -1,4 +1,10 @@
-import type { GoalStatus, SessionGoal, SessionId, TodoItem } from "@lcode/contracts";
+import type {
+  GoalStatus,
+  SessionGoal,
+  SessionId,
+  TodoItem,
+  GoalAcceptance,
+} from "@lcode/contracts";
 import type { SqliteStoreAccess } from "./store-access.js";
 import {
   accountSessionTargetUsage,
@@ -43,6 +49,7 @@ export const sessionTargetMethods = {
       sessionID: SessionId;
       status?: GoalStatus;
       tokenBudget?: number | null;
+      acceptance?: GoalAcceptance;
     },
   ): Promise<SessionGoal> {
     return setSessionTarget(this.db, {
@@ -50,6 +57,7 @@ export const sessionTargetMethods = {
       sessionID: input.sessionID,
       status: input.status ?? "active",
       tokenBudget: input.tokenBudget,
+      acceptance: input.acceptance,
     });
   },
 
@@ -75,6 +83,7 @@ export const sessionTargetMethods = {
       objective: string;
       sessionID: SessionId;
       tokenBudget?: number | null;
+      acceptance?: GoalAcceptance;
     },
   ): Promise<SessionGoal | null> {
     return createSessionTarget(this.db, input);
@@ -85,6 +94,13 @@ export const sessionTargetMethods = {
     input: {
       sessionID: SessionId;
       status: GoalStatus;
+      expected?: {
+        targetID: string;
+        updatedAt: number;
+        stateRevision?: number;
+        acceptanceHash?: string;
+        evidenceHeads?: import("@lcode/contracts").GoalEvidenceHeadToken[];
+      };
     },
   ): Promise<SessionGoal | null> {
     return updateSessionTargetStatus(this.db, input);

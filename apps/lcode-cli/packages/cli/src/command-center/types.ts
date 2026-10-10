@@ -201,6 +201,7 @@ export type CommandCenterApp = {
     objective: string;
     status?: CommandCenterTargetStatus;
     tokenBudget?: number | null;
+    acceptance?: import("@lcode/contracts").GoalAcceptance;
   }): Promise<CommandCenterTarget>;
   updateTargetStatus?(status: CommandCenterTargetStatus): Promise<CommandCenterTarget | null>;
   clearTarget?(): Promise<boolean>;

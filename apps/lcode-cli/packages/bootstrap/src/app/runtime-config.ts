@@ -194,6 +194,14 @@ export function resolveAppRuntimeConfig(input: {
         : { extractionEnabled: options.runtimeConfig.memory.extractionEnabled }),
       ...(input.storageRoot ? { storageRoot: input.storageRoot } : {}),
       use: options.runtimeConfig?.memory?.use ?? configResult.config.memory.use,
+      observationEnabled:
+        options.runtimeConfig?.memory?.observationEnabled ??
+        configResult.config.memory.observationEnabled ??
+        false,
+      rankingExperimentEnabled:
+        options.runtimeConfig?.memory?.rankingExperimentEnabled ??
+        configResult.config.memory.rankingExperimentEnabled ??
+        false,
       workspaceIdentity: workspaceIdentity?.trim() || undefined,
     },
     sessionRecall: {

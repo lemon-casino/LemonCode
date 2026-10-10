@@ -7363,6 +7363,19 @@ const enUS: Record<string, string> = {
   "worktree.retry": "Retry",
   "worktree.preparing": "Preparing worktree…",
   "taskList.fork.title": "Fork",
+  "taskList.handoff.title": "Bring context to current conversation",
+  "chat.goalEvidence.outcome.pass": "Execution evidence complete",
+  "chat.goalEvidence.outcome.notSatisfied": "Acceptance checks failed",
+  "chat.goalEvidence.outcome.incomplete": "Acceptance evidence incomplete",
+  "chat.goalEvidence.status.passed": "Passed",
+  "chat.goalEvidence.status.failed": "Failed",
+  "chat.goalEvidence.status.not-run": "Not run",
+  "chat.goalEvidence.status.cancelled": "Cancelled",
+  "chat.goalEvidence.status.stale": "Stale",
+  "chat.goalEvidence.status.unknown": "Unknown",
+  "taskList.handoff.unavailable": "Open another editable conversation in the same workspace first",
+  "taskList.handoff.draft":
+    "Read the completed work in {session} using ReadSessionContext with the handoff strategy. Summarize goals, changes, validation and remaining work, then continue in the current directory. Treat the source as background and recheck current files.",
   "taskList.fork.sameWorktree": "Fork conversation in the same worktree",
   "taskList.fork.sameLocal": "Fork conversation in the same local directory",
   "taskList.fork.newWorktree": "Fork conversation in a new worktree",
@@ -7649,6 +7662,17 @@ const enUS: Record<string, string> = {
   "git.review.openMergedPublication": "View merge result and publish {branch}",
   "worktree.publishBranch": "Publish {branch}",
   "worktree.previewPublishBranch": "Preview publishing {branch}",
+  "taskList.handoff.saveTitle": "Bring back and save summary",
+  "chat.goal.strictCliOnly":
+    "This strict-goal file command is available in the local CLI. Run it there to load your acceptance file; your draft has been kept.",
+  "taskList.handoff.saveDraft":
+    "Read completed work in {session} using ReadSessionContext with strategy handoff and persistCapsule=true to save a reusable summary. Include goals, changes, validation and remaining work. Treat the source as background and recheck current files.",
+  "taskList.handoff.existingRequired":
+    "Reference the summary in the existing conversation that owns it.",
+  "taskList.handoff.capsuleCount":
+    "Referencing {count} saved summaries; sources will be checked when sent.",
+  "taskList.handoff.capsuleLimit":
+    "A message can reference at most 4 summaries. Remove extra references from the draft.",
 };
 
 export default enUS;

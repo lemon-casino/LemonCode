@@ -275,6 +275,18 @@ export const run = async (ctx: RunContext, deps: RunDependencies = {}): Promise<
   }
 
   if (
+    (options.benchmarkLimits || options.goalAcceptancePath || options.promptGoal) &&
+    (typeof parsed.values.prompt !== "string" ||
+      parsed.positionals.length > 0 ||
+      (options.benchmarkLimits && outputFormat !== "stream-json"))
+  ) {
+    ctx.stderr.write(
+      "--benchmark-limits requires -p and --output-format stream-json; --goal and --goal-acceptance require -p without a subcommand.\n",
+    );
+    return 1;
+  }
+
+  if (
     browserUse === "headless" &&
     !isForceMcsSupportedInvocation({
       positionals: parsed.positionals,
