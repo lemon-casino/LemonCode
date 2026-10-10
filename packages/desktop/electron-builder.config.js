@@ -693,6 +693,13 @@ export default {
       filter: ["**/*", "!**/*.map"],
     },
     {
+      // 修复依据：electron-builder 会跳过复制源根目录下的 node_modules，通配符无法放行。
+      // 显式复制 staging 已准备好的目标包，保证安装态 Job / getsid 能解析 Agent 自身的 koffi。
+      from: `bundled-agents/${targetPlatform.key}/glm/node_modules/koffi`,
+      to: "glm/node_modules/koffi",
+      filter: ["**/*", "!**/*.map"],
+    },
+    {
       // agent shell 之前完全依赖宿主系统 PATH，GUI 启动时经常拿不到用户自己装的 rg。
       // 这里把 ripgrep 作为桌面端内置 runtime tool 打进 resources/tools，
       // 后续 host/server 把该目录追加到 PATH；用户版本优先，缺失时再由随包 rg 兜底。

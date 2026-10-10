@@ -2,6 +2,10 @@
 
 ## 2026-10-10：桌面 Agent 原生依赖漏包
 
+打包复制边界补充：暂存目录已含完整 koffi，但 electron-builder 的 `createFilter` 对复制源根目录下的 `node_modules` 直接返回 false，`**/*` 不能覆盖此规则。桌面 `extraResources` 必须显式从已暂存的 `glm/node_modules/koffi` 复制到产物同一路径；依赖版本和目标二进制仍由共享 staging 决定，不从源码树另取一份。原产物校验保留。隔离 Bash 回归须使用当前 electron-builder 配置和真实 `FileMatcher/copyFiles` 完成 staging → resources 的复制，再从 resources 执行；完整 Windows x64 打包命令必须实际通过，不能以暂存测试替代。
+
+复制边界验证：修复前真实 builder 复制回归复现相同的 Job Object 准备失败，修复后资源/Bash/构建配置共 17 项测试通过。`pnpm bundle:desktop -- --os win --arch x64` 完整执行成功（未跳过 prepare/build），产物校验全部通过；沿用当前 test / Preview 环境，产物为 `packages/desktop/dist/LCode Preview-3.17.6-win-x64_TEST.exe`，212266994 字节，SHA256 `773a68eeb4e8c599d7c0ba23ab5f3303595ac7199566a5cf430e9a006c2018c0`。实际产物 Electron Node 24.18.0 和 resources 中的 koffi 连续执行三次真实 Bash 成功。根 typecheck/lint 通过，架构 baseline=0/new=0；本次仅修改桌面资源映射、复制回归和本 spec，共 3 文件净增 36 行。没有执行安装或中断现有会话。
+
 已确认原因：CLI bundle 将 `koffi` 标为 external；桌面共享 staging 清空 glm 后仅复制 JS 和内容插件，漏掉 Agent 自身使用的 `koffi`。安装态 Electron Node 从 `resources/glm/lcode.cjs` 解析该包得到 MODULE_NOT_FOUND。Windows Job adapter 吞掉加载原因并缓存不可用结果，因此连简单 echo 都在 spawn 前连续失败。源码树测试能解析 hoisted node_modules，不能证明安装态可运行。macOS 的 getsid 同样依赖该包。
 
 规则：不取消 Bash 进程所有权要求，不用 taskkill 回退绕过 Job 初始化。共享 `stageAgentBundle` 是桌面 dev/release 资源准备的唯一所有者；CLI 保持 external，由其直接依赖所在的 adapters package 解析锁定的 koffi。每次重建 glm 后异步复制包入口、manifest、类型、许可证和且仅目标平台的 native addon 到 `glm/node_modules/koffi`。缺少源文件立即失败，不发布成功 meta；已有旧平台残留先清空。支持当前六个桌面平台，不增加配置或环境变量。
@@ -18,7 +22,7 @@ sequenceDiagram
   Build->>Stage: 当前 CLI bundle + 目标平台
   Stage->>Stage: 清空 glm → JS / 插件 / 目标 koffi → meta
   Stage-->>Build: 全部完成或原始资源错误
-  Build->>Package: resources/glm 整体复制
+  Build->>Package: 复制 glm 内容，显式映射 glm/node_modules/koffi
   Package->>Package: 校验 Agent koffi 完整性与目标平台
   Agent->>Owner: 从自身 glm 解析 koffi，准备进程归属
   Owner-->>Agent: 归属准备成功后才 spawn Bash

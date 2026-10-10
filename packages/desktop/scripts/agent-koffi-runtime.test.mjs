@@ -139,7 +139,7 @@ test("shared staging does not publish success meta when the native source is mis
 });
 
 test(
-  "clean shared staging runs consecutive real Bash executions outside workspace dependencies",
+  "electron-builder resources run consecutive real Bash executions outside workspace dependencies",
   { timeout: 30000 },
   async (t) => {
     const root = await mkdtemp(join(tmpdir(), "lcode-agent-bash-package-"));
@@ -178,12 +178,37 @@ import { NodeExecutionAdapter } from ${JSON.stringify(adapterEntry)};
       koffiPackageRoot: adapterRoot,
       log: () => {},
     });
-    const glmDir = dirname(stagedBundlePath);
+    const { default: config } = await import("../electron-builder.config.js");
+    const requireFromDesktop = createRequire(new URL("../package.json", import.meta.url));
+    const requireFromBuilder = createRequire(
+      requireFromDesktop.resolve("electron-builder/package.json"),
+    );
+    const { FileMatcher, copyFiles } = requireFromBuilder("app-builder-lib/out/fileMatcher.js");
+    const resourcesDir = join(root, "packaged/resources");
+    // 必须经过构建器的真实复制边界；直接运行 staging 会漏测根 node_modules 被过滤的问题。
+    const agentResources = config.extraResources.filter(
+      (entry) => entry.to === "glm" || entry.to.startsWith("glm/"),
+    );
+    await copyFiles(
+      agentResources.map(
+        (entry) =>
+          new FileMatcher(
+            resolve(root, "packages/desktop", entry.from),
+            resolve(resourcesDir, entry.to),
+            (value) => value,
+            entry.filter,
+          ),
+      ),
+      undefined,
+      false,
+    );
+    const packagedBundlePath = join(resourcesDir, "glm/lcode.cjs");
+    assert.notEqual(packagedBundlePath, stagedBundlePath);
     const env = { ...process.env, ELECTRON_RUN_AS_NODE: "1" };
     delete env.NODE_PATH;
     const electron = createRequire(new URL("../package.json", import.meta.url))("electron");
     for (const runtime of [process.execPath, electron]) {
-      const { stdout } = await exec(runtime, [stagedBundlePath], {
+      const { stdout } = await exec(runtime, [packagedBundlePath], {
         cwd: root,
         env,
         windowsHide: true,
@@ -193,7 +218,7 @@ import { NodeExecutionAdapter } from ${JSON.stringify(adapterEntry)};
     }
     assert.deepEqual(
       await verifyStagedKoffi({
-        resourcesDir: dirname(glmDir),
+        resourcesDir,
         targetPlatform: { os: process.platform, arch: process.arch },
       }),
       [],
