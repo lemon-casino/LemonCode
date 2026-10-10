@@ -1,5 +1,6 @@
 import type { V4CommandCoreHost } from "../lcode-protocol-v4/commands/types.js";
 import { createSessionId } from "@lcode/contracts";
+import { createPreparedSessionTitle, type PreparedSessionTitle } from "@lcode/core";
 import { summarizeWorktreeTaskName } from "./worktree-task-name.js";
 import { WorktreePreparationError } from "./worktree-execution.js";
 
@@ -97,6 +98,7 @@ export function createV4SessionHost(
       // shared parser 统一兼容 WSL legacy 与显式 user identity；非远程格式继续按
       // 本地 workspacePath 处理。
       const workspace = resolveWorkspaceRefFromId(workspaceId);
+      let preparedTitle: PreparedSessionTitle | undefined;
       if (execution?.mode === "worktree" && worktreeTaskNameInput) {
         if (!executionRequestId)
           throw new Error("Worktree naming requires a stable creation request ID");
@@ -104,28 +106,35 @@ export function createV4SessionHost(
           workspace,
           taskId: createSessionId(executionRequestId),
           ...worktreeTaskNameInput,
+          onPreparedTitle: (title) => {
+            preparedTitle = createPreparedSessionTitle(title, worktreeTaskNameInput.text);
+          },
         }).catch((error: unknown) => {
           throw new WorktreePreparationError(error);
         });
         execution = { ...execution, taskName };
       }
       context.assertServing?.();
-      const created = await createSessionRecordForV4(context, {
-        workspace,
-        execution,
-        executionRequestId,
-        // 一律 deferred（draft 不进 sqlite）；提升时机归原生 prompt-turn。
-        persistence: "deferred",
-        // MCP 是 runtime 创建期配置；v4 createSession 必须与 legacy
-        // session/create 等价透传，否则创建的 session 永远不会启动这些工具。
-        mcpServers,
-        // Off-Peak 工具面 flag 同为 runtime 创建期配置，必须随 create 进入 record。
-        ...(offPeakToolEnabled === true ? { offPeakToolEnabled: true } : {}),
-        // 动态工作流灰度门同为 runtime 创建期配置：
-        // v4 createSession 必须与 legacy session/create 等价透传，否则无界面创建的会话
-        // 会绕过 Host 的灰度判定，只剩进程级缺省。
-        ...(dynamicWorkflowEnabled === true ? { dynamicWorkflowEnabled: true } : {}),
-      });
+      const created = await createSessionRecordForV4(
+        context,
+        {
+          workspace,
+          execution,
+          executionRequestId,
+          // 一律 deferred（draft 不进 sqlite）；提升时机归原生 prompt-turn。
+          persistence: "deferred",
+          // MCP 是 runtime 创建期配置；v4 createSession 必须与 legacy
+          // session/create 等价透传，否则创建的 session 永远不会启动这些工具。
+          mcpServers,
+          // Off-Peak 工具面 flag 同为 runtime 创建期配置，必须随 create 进入 record。
+          ...(offPeakToolEnabled === true ? { offPeakToolEnabled: true } : {}),
+          // 动态工作流灰度门同为 runtime 创建期配置：
+          // v4 createSession 必须与 legacy session/create 等价透传，否则无界面创建的会话
+          // 会绕过 Host 的灰度判定，只剩进程级缺省。
+          ...(dynamicWorkflowEnabled === true ? { dynamicWorkflowEnabled: true } : {}),
+        },
+        preparedTitle,
+      );
       return { sessionId: created.sessionId };
     },
   };

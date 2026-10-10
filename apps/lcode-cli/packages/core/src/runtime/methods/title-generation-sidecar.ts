@@ -18,6 +18,7 @@ import { recordModelUsageFact } from "./usage-observability.js";
 import { createRuntimeModel } from "./runtime-model.js";
 import { cloneModelSelection } from "../model-selection.js";
 import { auxiliaryModelOptions } from "../../model/auxiliary-model-options.js";
+import { TASK_SUMMARY_MAX_CHARS, taskSummaryResultSchema } from "@lcode/shared";
 
 export const SESSION_TITLE_QUERY_SOURCE = "session_title";
 export const GOAL_SUMMARY_TITLE_QUERY_SOURCE = "goal_summary_title";
@@ -109,7 +110,7 @@ async function generateTitleCandidateImpl(
     },
   });
   const events: SessionEvent[] = [];
-  const messages = buildTitleMessages(input);
+  const messages = buildTitleMessages(input, options.querySource);
   const modelRequestEvent = this.createEvent(
     SessionEventType.ModelRequest,
     {
@@ -205,7 +206,10 @@ async function generateTitleCandidateImpl(
     return null;
   }
 
-  const title = cleanGeneratedTitle(result.text);
+  const title =
+    options.querySource === SESSION_TITLE_QUERY_SOURCE
+      ? cleanTaskSummaryTitle(result.text)
+      : cleanGeneratedTitle(result.text);
   if (!title) {
     logTitleGenerationSkipped.call(this, options.querySource, modelTraceContext, "empty_title");
     return null;
@@ -221,11 +225,28 @@ export function normalizeTitleInput(input: string): string {
     : normalized;
 }
 
-function buildTitleMessages(input: string): ModelInputMessage[] {
+function buildTitleMessages(input: string, querySource: string): ModelInputMessage[] {
   return [
-    { role: "system", content: SESSION_TITLE_SYSTEM_PROMPT },
+    {
+      role: "system",
+      content:
+        querySource === SESSION_TITLE_QUERY_SOURCE
+          ? `${SESSION_TITLE_SYSTEM_PROMPT}\nSummarize the overall action and main objects, grouping related operations instead of listing them.\nAim for 8-16 Chinese characters or 3-7 English words. The entire title must fit within ${TASK_SUMMARY_MAX_CHARS} Unicode characters. Return a complete name, never a cut-off sentence or ellipsis.`
+          : SESSION_TITLE_SYSTEM_PROMPT,
+    },
     { role: "user", content: normalizeTitleInput(input) },
   ];
+}
+
+function cleanTaskSummaryTitle(raw: string): string | null {
+  const text = raw.replace(/<think>[\s\S]*?<\/think>/giu, "").trim();
+  try {
+    // 首行兜底会把回答正文或超长句当作标题；任务摘要与分支命名共享严格完整短题规则。
+    const parsed = taskSummaryResultSchema.safeParse(JSON.parse(extractFencedJson(text) ?? text));
+    return parsed.success ? parsed.data.title : null;
+  } catch {
+    return null;
+  }
 }
 
 function cleanGeneratedTitle(raw: string): string | null {

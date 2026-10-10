@@ -3,6 +3,7 @@ import { buildExecutionStateEntry, readRuntimeExecutionState } from "../executio
 import { SessionEventType, createSessionEvent, traceContextToLogContext } from "../deps.js";
 import type { SessionEvent, TraceContext } from "../deps.js";
 import { titleFromInput, slugify, projectIdFromDirectory } from "../helpers/index.js";
+import { resolvePreparedSessionTitle } from "../prepared-session-title.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { recordToolUsageFromEvent } from "./usage-observability.js";
 import { persistSessionShellEnvironmentSnapshot } from "./session-shell-environment.js";
@@ -292,7 +293,10 @@ export async function ensureSessionPersisted(
     // session.path/directory，导致本地 workspacePath 的末尾 `/` 丢失。冷恢复随后按精确
     // workspaceKey 查 provider registry 时就会落到另一个身份。持久化必须保留协议入口路径。
     const persistedWorkspacePath = this.config.workspacePath ?? directory;
-    const title = titleFromInput(input);
+    // 工作树已成功概括首发，但旧路径只把结果给 Git，落库又退回正文首行；仅复用匹配 digest 的 seed。
+    const preparedTitle = resolvePreparedSessionTitle(this.config, input);
+    const title = preparedTitle ?? titleFromInput(input);
+    const titleSource = preparedTitle ? "generated" : "first_input";
     const workspaceIdentity = this.config.memory?.workspaceIdentity?.trim();
     await this.sessionStore.createSession({
       id: this.sessionId,
@@ -307,7 +311,7 @@ export async function ensureSessionPersisted(
       directory: persistedWorkspacePath,
       path: persistedWorkspacePath,
       title,
-      titleSource: "first_input",
+      titleSource,
       version: this.appVersion,
       permission: {
         mode: this.config.mode ?? "build",
@@ -349,15 +353,15 @@ export async function ensureSessionPersisted(
     });
     // 之前只把 first_input title 写进 sessionStore 但不 appendEvent，
     // 导致下游 (z-code services 层的 task index sqlite syncer) 等不到 session.titleUpdated，
-    // 侧边栏一直显示 "New session" 直到后台 LLM 生成 title。这里补一条 source="first_input"
-    // 事件，让 desktop/web/mobile 三端的 syncer 走同一条收敛路径。
+    // 侧边栏一直显示 "New session" 直到后台 LLM 生成 title。首次标题（含已验证的摘要）
+    // 携带真实 source 发事件，让 desktop/web/mobile 三端的 syncer 走同一条收敛路径。
     phase = "session_title_event";
     await this.appendEvent(
       this.createEvent(
         SessionEventType.SessionTitleUpdated,
         {
           previousTitle: "",
-          source: "first_input",
+          source: titleSource,
           title,
         },
         traceContext,

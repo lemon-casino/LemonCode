@@ -207,6 +207,8 @@ export interface AgentRuntimeConfig {
   modelSelection?: ModelSelection;
   titleGeneration?: {
     enabled?: boolean;
+    /** 可信创建期名称提示；只在首次实际落库、正文 digest 匹配时使用。 */
+    preparedTitle?: { title: string; inputDigest: string };
     modelSelection?: ModelSelection;
     timeoutMs?: number;
   };

@@ -129,6 +129,7 @@ import {
   WORKTREE_BINDING_ENTRY,
 } from "./worktree-execution.js";
 import { originWorkspaceRef } from "./workspace.js";
+import type { PreparedSessionTitle } from "@lcode/core";
 import { createProtocolCheckoutExecutionPort } from "./checkout-execution-port.js";
 
 const PLAN_MODE_GOAL_CONTINUATION_SKIPPED_MESSAGE = "Plan mode 下已记录 goal，但不会自动继续。";
@@ -149,7 +150,11 @@ type LCodeSessionRecordParams = (
       // 共用 record 初始化函数；resume 兼容分支也必须声明该策略字段。
       titleGenerationEnabled?: LCodeSessionCreateParams["titleGenerationEnabled"];
     })
-) & { taskType?: SessionTaskType; worktreeRepair?: WorktreeRepairContext };
+) & {
+  taskType?: SessionTaskType;
+  worktreeRepair?: WorktreeRepairContext;
+  preparedSessionTitle?: PreparedSessionTitle;
+};
 
 interface SessionStartupPreferences {
   memoryEnabled: boolean;
@@ -1241,10 +1246,17 @@ export async function createSession(
 export async function createSessionRecordForV4(
   context: LCodeProtocolAgentServerContext,
   rawParams: unknown,
+  preparedSessionTitle?: PreparedSessionTitle,
 ) {
-  return createSessionWithProjection(context, rawParams, undefined, async (record) => ({
-    value: { sessionId: record.app.sessionId },
-  }));
+  return createSessionWithProjection(
+    context,
+    rawParams,
+    undefined,
+    async (record) => ({
+      value: { sessionId: record.app.sessionId },
+    }),
+    preparedSessionTitle,
+  );
 }
 
 /** 用户明确触发的集成修复采用独立 runtime；不修改父会话的任何执行绑定。 */
@@ -1288,6 +1300,7 @@ async function createSessionWithProjection<T>(
   project: (
     record: LCodeProtocolSessionRecord,
   ) => Promise<{ value: T; phaseDurationsMs?: SnapshotPhaseDurationsMs; messageCount?: number }>,
+  preparedSessionTitle?: PreparedSessionTitle,
 ): Promise<T> {
   const params = parseParams(lcodeSessionCreateParamsSchema, rawParams);
   const startedAt = Date.now();
@@ -1331,7 +1344,7 @@ async function createSessionWithProjection<T>(
   const recordStartedAt = Date.now();
   const record = await materializeSessionRecord(
     context,
-    { ...params, workspace, mcpServers: preparedExecution.mcpServers },
+    { ...params, workspace, mcpServers: preparedExecution.mcpServers, preparedSessionTitle },
     sessionId,
     false,
     { kind: "host" },
@@ -3477,7 +3490,10 @@ async function createRecord(
       // 永远命中，模型生成 title 的请求从不触发，侧边栏标题一直停在 first_input 的用户 query。
       // 这里补一份默认配置开启；具体是否生成仍由 runtime 按 parent/taskType/turnNumber 把关。
       // automation 执行会话显式关闭二次命名，避免回答内容覆盖原始用户 query 标题。
-      titleGeneration: params.titleGenerationEnabled === false ? { enabled: false } : {},
+      titleGeneration:
+        params.titleGenerationEnabled === false
+          ? { enabled: false }
+          : { preparedTitle: params.preparedSessionTitle },
       workingDirectory: workspace.workspacePath,
       // 身份隔离与路径执行分开：core 只把 identity 写入 session.workspace_id，
       // workingDirectory 仍是远端机器上的实际路径；本地 workspace 保持 undefined。

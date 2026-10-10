@@ -31,6 +31,7 @@ export * from "./localProjects.js";
 export * from "./worktreePolicy.js";
 export * from "./worktreeExecution.js";
 export * from "./worktreeIntegration.js";
+export * from "./taskTitle.js";
 export * from "./runtimeEnvironment.js";
 export { DEFAULT_LOCALE } from "./protocol.js";
 export { LCODE_VERSION, LCODE_COMMIT, LCODE_BUILD_TIME } from "./version.js";

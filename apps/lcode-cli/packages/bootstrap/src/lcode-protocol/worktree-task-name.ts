@@ -1,10 +1,11 @@
-import { z } from "zod";
 import type { ModelSelection, SessionId } from "@lcode/contracts";
 import type { LCodeApp } from "../app/types.js";
 import {
   lcodeProtocolMethods,
   worktreeGetBindingResultSchema,
   type LCodeWorkspaceRef,
+  taskSummaryResultSchema,
+  TASK_SUMMARY_SOURCE_MAX_CHARS,
 } from "@lcode/shared";
 import { optionalModelSelectionFromString } from "./model-mapper.js";
 import {
@@ -14,8 +15,7 @@ import {
 import { createWorkspaceLCodeApp } from "./workspace-model-runtime.js";
 
 const SHORT_TASK_NAME_CHARS = 16;
-const MAX_TASK_NAME_CHARS = 24;
-const MAX_TASK_SOURCE_CHARS = 1200;
+const MAX_TASK_SOURCE_CHARS = TASK_SUMMARY_SOURCE_MAX_CHARS;
 const TASK_NAME_TIMEOUT_MS = 15_000;
 const TASK_NAME_QUERY_SOURCE = "worktree_task_name";
 const DEFAULT_TASK_NAME = "新会话";
@@ -28,21 +28,7 @@ Return a complete name, never a cut-off sentence or an ellipsis. Do not include 
 For example, several requests to remove help and issue-reporting controls become 清理帮助与问题上报入口.
 Return exactly one JSON object with a single field: {"title":"..."}. No explanations or tools.`;
 
-const taskNameResultSchema = z
-  .object({
-    title: z
-      .string()
-      .trim()
-      .min(1)
-      .refine(
-        (value) =>
-          Array.from(value).length <= MAX_TASK_NAME_CHARS &&
-          /[\p{L}\p{N}]/u.test(value) &&
-          !/[\p{Cc}\p{Cf}]/u.test(value) &&
-          !/(?:\.{3}|…)$/u.test(value),
-      ),
-  })
-  .strict();
+const taskNameResultSchema = taskSummaryResultSchema;
 
 export interface WorktreeTaskNameInput {
   workspace: LCodeWorkspaceRef;
@@ -50,6 +36,8 @@ export interface WorktreeTaskNameInput {
   text: string;
   modelSelection?: ModelSelection;
   fallbackName?: string;
+  /** 仅成功的完整名称交给可信创建 owner；失败默认名不冒充已生成标题。 */
+  onPreparedTitle?: (title: string) => void;
 }
 
 /** CLI 只提供短名称提示，最终分支和重试事实始终由 Host WorktreeService 所有。 */
@@ -60,8 +48,10 @@ export async function summarizeWorktreeTaskName(
   const source = input.text.trim();
   const fallback = input.fallbackName ?? DEFAULT_TASK_NAME;
   if (!source) return fallback;
-  if (Array.from(source).length <= SHORT_TASK_NAME_CHARS && /^[\p{L}\p{N} _-]+$/u.test(source))
+  if (Array.from(source).length <= SHORT_TASK_NAME_CHARS && /^[\p{L}\p{N} _-]+$/u.test(source)) {
+    input.onPreparedTitle?.(source);
     return source;
+  }
 
   // 原因：原逻辑截取首发前 24 字，既丢失后续对象，也会留下半句话。
   // 先查 Host 的冻结绑定，失败重试不得重新概括或改写已保留的 Git 分支。
@@ -113,6 +103,7 @@ export async function summarizeWorktreeTaskName(
       });
       return fallback;
     }
+    input.onPreparedTitle?.(parsed.data.title);
     return parsed.data.title;
   } catch {
     // 名称不是执行前置条件；模型不可用时保留完整任务正文，只用短默认名创建。

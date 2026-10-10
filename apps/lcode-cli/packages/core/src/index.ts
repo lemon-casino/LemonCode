@@ -4,6 +4,8 @@
 
 // Agent components
 export * from "./agent/index.js";
+export { createPreparedSessionTitle } from "./runtime/prepared-session-title.js";
+export type { PreparedSessionTitle } from "./runtime/prepared-session-title.js";
 
 // Context Builder
 export * from "./context/index.js";

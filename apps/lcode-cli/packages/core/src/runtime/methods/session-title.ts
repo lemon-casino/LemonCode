@@ -9,6 +9,7 @@ import type {
 } from "../deps.js";
 import type { AgentTelemetryCausation } from "@lcode/contracts";
 import type { AgentRuntimeInternal } from "../internal.js";
+import { resolvePreparedSessionTitle } from "../prepared-session-title.js";
 import {
   persistFallbackGoalSummaryTitle,
   persistGeneratedGoalSummaryTitle,
@@ -141,6 +142,8 @@ function shouldAttemptSessionTitleGeneration(
   options: { bypassShortInputGuard?: boolean } = {},
 ): boolean {
   if (runtime.sessionTitleGenerationAttempted) return false;
+  // 已用于首次落库的工作树摘要就是本任务标题，不能再调用另一模型将它覆盖成不同或更长的名称。
+  if (resolvePreparedSessionTitle(runtime.config, input)) return false;
   if (runtime.config.titleGeneration?.enabled === false) return false;
   if (!runtime.config.titleGeneration) return false;
   if (!runtime.sessionStore) return false;

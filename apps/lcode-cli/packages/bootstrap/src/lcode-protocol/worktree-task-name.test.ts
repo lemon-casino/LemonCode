@@ -102,6 +102,37 @@ test("short names and empty inputs need no model or workspace resources", async 
   assert.equal(f.calls.length, 0);
 });
 
+test("only successfully prepared names are offered as session title seeds", async () => {
+  for (const options of [
+    {},
+    { result: "直接回答" },
+    { toolCalls: [{ name: "Write" }] },
+    { binding: { taskId, status: "ready" } },
+  ]) {
+    const f = fixture(options);
+    const prepared: string[] = [];
+    await summarizeWorktreeTaskName(f.context, {
+      workspace,
+      taskId,
+      text,
+      onPreparedTitle: (title) => prepared.push(title),
+    });
+    assert.deepEqual(prepared, Object.keys(options).length === 0 ? ["清理帮助与问题上报入口"] : []);
+  }
+  const f = fixture();
+  let short: string | undefined;
+  await summarizeWorktreeTaskName(f.context, {
+    workspace,
+    taskId,
+    text: "修复任务标题",
+    onPreparedTitle: (title) => {
+      short = title;
+    },
+  });
+  assert.equal(short, "修复任务标题");
+  assert.equal(f.calls.length, 0);
+});
+
 test("existing bindings skip generation regardless of lifecycle status or renamed input", async () => {
   for (const status of ["ready", "failed", "cancelled", "archived", "deleted"]) {
     const f = fixture({ binding: { taskId, status, branch: "lcode/task-旧名称" } });
