@@ -9,7 +9,7 @@ import type { WorktreeContext } from "./ports.js";
 import { cleanupTemporaryTarget } from "./temporaryTarget.js";
 import { removeManagedCheckout } from "./removeCheckout.js";
 import { releaseBindingRuntime } from "./runtimeEnvironment.js";
-import { retryConfirmedWorktreeDiscard } from "./discardRetry.js";
+import { retryConfirmedWorktreeOperation } from "./transientRetry.js";
 
 /** 永久删除由生命周期 owner 收口；先阻止新消费者、停止真实进程，最后提交删除墓碑。 */
 export function createWorktreeDiscard(
@@ -258,5 +258,19 @@ export function createWorktreeDiscard(
     return perform(params);
   };
   // 短暂 Windows 文件锁过去直接结束 RPC，用户必须反复确认；在同一命令内继续原 journal。
-  return (params: Request) => retryConfirmedWorktreeDiscard(context, params, () => attempt(params));
+  return (params: Request) =>
+    retryConfirmedWorktreeOperation(
+      context,
+      {
+        bindingId: params.bindingId,
+        resume: (binding) =>
+          binding.deletion &&
+          binding.status === "deleting" &&
+          binding.branch === params.discard?.branch &&
+          binding.checkoutPath === params.discard.checkoutPath
+            ? binding.deletion.requestId
+            : undefined,
+      },
+      () => attempt(params),
+    );
 }

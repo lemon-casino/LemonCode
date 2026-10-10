@@ -100,7 +100,7 @@ test("EBUSY preserves stable deletion facts and retry stops owners again before 
     (
       await createWorktreeService({
         ...options,
-        discardRetryWait: async ({ requestId }) => {
+        transientRetryWait: async ({ requestId }) => {
           assert.equal(requestId, request.requestId);
           const failed = await f.service.getBinding({ workspacePath: f.repo, taskId: "owner" });
           assert.equal(failed?.status, "deleting");

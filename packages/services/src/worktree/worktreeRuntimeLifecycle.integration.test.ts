@@ -84,7 +84,8 @@ test("managed discard fences before collect, confirms stop before journal/purge,
   assert.notEqual(await f.command(f.repo, "branch", "--list", f.binding.branch), "");
   failPurge = false;
   assert.equal((await service.archive({ ...request, requestId: "retry-again" })).status, "deleted");
-  assert.deepEqual(calls.slice(-6), ["fence", "stop", "purge", "removed", "cleanup", "finalize"]);
+  // 每次重入都重新收集完整范围（规范要求），成功尝试为 fence → collect → stop → purge → …
+  assert.deepEqual(calls.slice(-7), ["fence", "collect", "stop", "purge", "removed", "cleanup", "finalize"]);
   await assert.rejects(access(f.binding.checkoutPath), { code: "ENOENT" });
 });
 
@@ -104,7 +105,8 @@ test("resource finalization failure stays deleting and journaled session IDs sur
   await assert.rejects(access(f.binding.checkoutPath), { code: "ENOENT" });
   blocked = false;
   assert.equal((await createWorktreeService(options).archive(request)).status, "deleted");
-  assert.equal(collects, 1);
+  // 每次重入都重新收集完整范围；两次尝试各收集一次，purge 仍保持幂等。
+  assert.equal(collects, 2);
   assert.equal(purges, 2);
 });
 

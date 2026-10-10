@@ -60,7 +60,7 @@ export interface WorktreeGit extends WorktreeGitPort {
   matchesSnapshot(binding: WorktreeBinding, checkIgnored?: boolean): Promise<boolean>;
 }
 export interface WorktreeContext extends WorktreeRuntimePorts {
-  discardRetryWait?: import("../nodeTypes.js").WorktreeDiscardRetryWait;
+  transientRetryWait?: import("../nodeTypes.js").WorktreeTransientRetryWait;
   collectDiscardSessions?: (binding: WorktreeBinding) => Promise<string[]>;
   discardSessions?: (
     binding: WorktreeBinding,

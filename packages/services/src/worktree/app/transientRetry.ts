@@ -1,4 +1,4 @@
-import type { IWorktreeService, WorktreeBinding } from "../contract.js";
+import type { WorktreeBinding } from "../contract.js";
 import type { WorktreeContext } from "./ports.js";
 
 const INITIAL_RETRY_DELAY_MS = 1_000;
@@ -6,12 +6,19 @@ const MAX_RETRY_DELAY_MS = 8_000;
 const MAX_RETRY_WAIT_MS = 120_000;
 const TRANSIENT_FILE_ERROR_CODES = new Set(["EBUSY", "ENOTEMPTY", "EPERM"]);
 
-/** 重试属于同一次已确认删除；不增加 UI 队列，不把等待当作停止/删除证明。 */
-export async function retryConfirmedWorktreeDiscard(
+/**
+ * 重试属于同一次已确认的归档/删除；不增加 UI 队列，不把等待当作停止或删除证明。
+ * 只有持久 journal 仍是原确认时才继续，绝不因任意瞬时文件锁接受新的操作范围。
+ */
+export async function retryConfirmedWorktreeOperation<T>(
   context: WorktreeContext,
-  params: Parameters<IWorktreeService["archive"]>[0],
-  attempt: () => Promise<WorktreeBinding>,
-): Promise<WorktreeBinding> {
+  params: {
+    bindingId: string;
+    /** 原 journal 的 requestId；返回 undefined 表示原确认已失效，必须原样失败。 */
+    resume: (binding: WorktreeBinding) => string | undefined;
+  },
+  attempt: () => Promise<T>,
+): Promise<T> {
   let waitedMs = 0;
   let delayMs = INITIAL_RETRY_DELAY_MS;
   let retry = 0;
@@ -22,25 +29,19 @@ export async function retryConfirmedWorktreeDiscard(
       const errorCode =
         error && typeof error === "object" && "code" in error ? error.code : undefined;
       if (
-        !context.discardRetryWait ||
+        !context.transientRetryWait ||
         typeof errorCode !== "string" ||
         !TRANSIENT_FILE_ERROR_CODES.has(errorCode) ||
         waitedMs >= MAX_RETRY_WAIT_MS
       )
         throw error;
       const binding = await context.store.readBinding(params.bindingId);
-      // 只能继续已有确认和 journal，不能因任意 EBUSY 自动接受新的删除范围。
-      if (
-        !binding?.deletion ||
-        binding.status !== "deleting" ||
-        binding.branch !== params.discard?.branch ||
-        binding.checkoutPath !== params.discard.checkoutPath
-      )
-        throw error;
+      const requestId = binding ? params.resume(binding) : undefined;
+      if (!binding || !requestId) throw error;
       const waitMs = Math.min(delayMs, MAX_RETRY_WAIT_MS - waitedMs);
-      await context.discardRetryWait({
+      await context.transientRetryWait({
         bindingId: binding.id,
-        requestId: binding.deletion.requestId,
+        requestId,
         attempt: ++retry,
         delayMs: waitMs,
         errorCode,

@@ -377,7 +377,7 @@ test("one confirmation retries private cleanup after checkout removal and delete
     (
       await createWorktreeService({
         ...f.options,
-        discardRetryWait: async ({ requestId }) => {
+        transientRetryWait: async ({ requestId }) => {
           assert.equal(requestId, f.request.requestId);
           await assert.rejects(access(f.binding.checkoutPath), { code: "ENOENT" });
           assert.equal((await f.store.readEnvironment(f.ref.environmentId))?.status, "releasing");

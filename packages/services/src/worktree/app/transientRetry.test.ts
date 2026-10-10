@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { WorktreeBinding } from "../contract.js";
 import type { WorktreeContext } from "./ports.js";
-import { retryConfirmedWorktreeDiscard } from "./discardRetry.js";
+import { retryConfirmedWorktreeOperation } from "./transientRetry.js";
 
 function fixture() {
   const binding = {
@@ -16,22 +16,23 @@ function fixture() {
     [];
   const context = {
     store: { readBinding: async () => binding },
-    discardRetryWait: async (event: (typeof waits)[number]) => {
+    transientRetryWait: async (event: (typeof waits)[number]) => {
       waits.push(event);
     },
   } as unknown as WorktreeContext;
-  const request = {
+  // 调用方拥有「原确认是否仍有效」的判定；这里用删除 journal 表达。
+  const params = {
     bindingId: binding.id,
-    requestId: "new-retry-request",
-    discard: { branch: binding.branch, checkoutPath: binding.checkoutPath },
+    resume: (value: WorktreeBinding) =>
+      value.status === "deleting" ? value.deletion?.requestId : undefined,
   };
-  return { context, binding, waits, request };
+  return { context, binding, waits, params };
 }
 
 test("one confirmed operation automatically spans a minute-long EBUSY and keeps the original journal", async () => {
   const f = fixture();
   let attempts = 0;
-  const result = await retryConfirmedWorktreeDiscard(f.context, f.request, async () => {
+  const result = await retryConfirmedWorktreeOperation(f.context, f.params, async () => {
     attempts += 1;
     if (f.waits.reduce((total, wait) => total + wait.delayMs, 0) < 70_000)
       throw Object.assign(new Error("fixture locked"), { code: "EBUSY" });
@@ -48,7 +49,7 @@ test("persistent locks exhaust a bounded wait budget and preserve the last actua
   const f = fixture();
   const error = Object.assign(new Error("persistent lock"), { code: "EBUSY" });
   await assert.rejects(
-    retryConfirmedWorktreeDiscard(f.context, f.request, async () => {
+    retryConfirmedWorktreeOperation(f.context, f.params, async () => {
       throw error;
     }),
     (e) => e === error,
@@ -68,7 +69,7 @@ test("non-file errors and error text mentioning EBUSY do not enter retry", async
   ]) {
     const f = fixture();
     await assert.rejects(
-      retryConfirmedWorktreeDiscard(f.context, f.request, async () => {
+      retryConfirmedWorktreeOperation(f.context, f.params, async () => {
         throw error;
       }),
       (e) => e === error,
@@ -77,27 +78,40 @@ test("non-file errors and error text mentioning EBUSY do not enter retry", async
   }
 });
 
-test("ENOTEMPTY and EPERM are retried, but missing journal or changed confirmation is not", async () => {
+test("ENOTEMPTY and EPERM are retried, but an invalidated original operation is not", async () => {
   for (const code of ["ENOTEMPTY", "EPERM"]) {
     const f = fixture();
     let attempts = 0;
-    await retryConfirmedWorktreeDiscard(f.context, f.request, async () => {
+    await retryConfirmedWorktreeOperation(f.context, f.params, async () => {
       if (++attempts === 1) throw Object.assign(new Error(code), { code });
       return f.binding;
     });
     assert.equal(f.waits.length, 1);
   }
-  for (const change of ["journal", "branch", "checkout", "status"]) {
+  // 调用方判定原确认已失效时必须原样失败，不能因任意 EBUSY 接受新的范围。
+  for (const change of ["journal", "status", "missing-binding"]) {
     const f = fixture();
     if (change === "journal") f.binding.deletion = undefined;
-    if (change === "branch") f.binding.branch = "lcode/task-other";
-    if (change === "checkout") f.binding.checkoutPath = "/other/a";
     if (change === "status") f.binding.status = "ready";
+    if (change === "missing-binding")
+      f.context.store = { readBinding: async () => null } as unknown as WorktreeContext["store"];
     await assert.rejects(
-      retryConfirmedWorktreeDiscard(f.context, f.request, async () => {
+      retryConfirmedWorktreeOperation(f.context, f.params, async () => {
         throw Object.assign(new Error("busy"), { code: "EBUSY" });
       }),
     );
     assert.equal(f.waits.length, 0);
   }
+});
+
+test("a wait port is required; without it the transient error is never swallowed", async () => {
+  const f = fixture();
+  const error = Object.assign(new Error("no port"), { code: "EBUSY" });
+  f.context.transientRetryWait = undefined;
+  await assert.rejects(
+    retryConfirmedWorktreeOperation(f.context, f.params, async () => {
+      throw error;
+    }),
+    (e) => e === error,
+  );
 });

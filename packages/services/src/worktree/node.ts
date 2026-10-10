@@ -8,7 +8,7 @@ export type {
 } from "./contract.js";
 import { createWorktreeApplication } from "./app/worktreeService.js";
 import { createWorktreeStore } from "./adapters/store.js";
-import { createWorktreeDiscardRetryWait } from "./adapters/discardRetry.js";
+import { createWorktreeTransientRetryWait } from "./adapters/transientRetry.js";
 import { createWorktreeGit } from "./adapters/git.js";
 import { createCheckoutCoordinator } from "./adapters/coordinator.js";
 import { runWorktreeValidation } from "./adapters/validation.js";
@@ -35,7 +35,7 @@ export function createWorktreeService(options: WorktreeServiceOptions): IWorktre
       store,
       git,
       fault: options.fault ?? (async () => {}),
-      discardRetryWait: options.discardRetryWait ?? createWorktreeDiscardRetryWait(),
+      transientRetryWait: options.transientRetryWait ?? createWorktreeTransientRetryWait(),
       commitSource: options.commitSource,
       collectDiscardSessions: options.collectDiscardSessions,
       discardSessions: options.discardSessions,

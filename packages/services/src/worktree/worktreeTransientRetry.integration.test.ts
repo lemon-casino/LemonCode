@@ -32,7 +32,7 @@ test("one archive(discard) call cleans the real tree and refs after long transie
       assert.equal(value.deletion?.requestId, "delete-once");
       assert.deepEqual(ids, ["owner", "hidden"]);
     },
-    discardRetryWait: async ({ delayMs, requestId }) => {
+    transientRetryWait: async ({ delayMs, requestId }) => {
       assert.equal(requestId, "delete-once");
       const current = await service.getBinding({ workspacePath: f.repo, taskId: "owner" });
       assert.equal(current?.status, "deleting");
@@ -101,7 +101,7 @@ test(
     let retries = 0;
     const service = createWorktreeService({
       ...f.options,
-      discardRetryWait: async () => {
+      transientRetryWait: async () => {
         retries += 1;
         // 占用者由测试持有和释放；产品只重试受管删除，不按 cwd 杀未知外部进程。
         holder.kill();
@@ -131,7 +131,7 @@ test("a changed branch during backoff stops automatic deletion and preserves the
   let removals = 0;
   const service = createWorktreeService({
     ...f.options,
-    discardRetryWait: async () => {
+    transientRetryWait: async () => {
       await f.command(f.repo, "commit", "--allow-empty", "-m", "newer external work");
       await f.command(f.repo, "update-ref", `refs/heads/${binding.branch}`, "HEAD");
     },
@@ -157,4 +157,45 @@ test("a changed branch during backoff stops automatic deletion and preserves the
     (await service.getBinding({ workspacePath: f.repo, taskId: "owner" }))?.status,
     "deleting",
   );
+});
+
+test("a snapshot archive retries a transient lock in one confirmation and keeps the saved snapshot", async (t) => {
+  const f = await fixture(t);
+  const binding = await f.service.prepare({
+    workspacePath: f.repo,
+    taskId: "owner",
+    requestId: "create",
+    setupCommands: [],
+  });
+  await writeFile(join(binding.checkoutPath, "work.txt"), "user work\n");
+  let removals = 0;
+  let waits = 0;
+  const service = createWorktreeService({
+    ...f.options,
+    transientRetryWait: async ({ requestId }) => {
+      waits += 1;
+      const current = await service.getBinding({ workspacePath: f.repo, taskId: "owner" });
+      // 同一次确认：原归档 journal 与 requestId 必须保持不变。
+      assert.equal(current?.status, "archiving");
+      assert.equal(current?.archiveOperation?.requestId, requestId);
+    },
+    removeDirectory: async (path) => {
+      removals += 1;
+      if (removals < 3) {
+        // 模拟中断的物理删除：文件已被清掉一部分，根目录仍被外部句柄占住。
+        await rm(join(path, "work.txt"), { force: true });
+        throw Object.assign(new Error("fixture filesystem lock"), { code: "EBUSY" });
+      }
+      await rm(path, { recursive: true, force: true });
+    },
+  });
+  const archived = await service.archive({ bindingId: binding.id, requestId: "archive-once" });
+  assert.equal(archived.status, "archived");
+  assert.equal(waits, 2);
+  assert.equal(removals, 3);
+  // 重试绝不重新快照残缺目录：已保存的快照仍是用户工作的唯一留存。
+  const snapshot = archived.snapshot;
+  assert.ok(snapshot);
+  assert.equal(await f.command(f.repo, "show", `${snapshot.commit}:work.txt`), "user work");
+  await assert.rejects(access(binding.checkoutPath), { code: "ENOENT" });
 });

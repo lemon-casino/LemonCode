@@ -83,6 +83,15 @@
    切换一次官方 Electron runtime mirror 后重试。其它 afterExtract/NOTICE 错误不得重试，
    避免用镜像切换掩盖真实许可文件回归。
 
+## v3.17.8 归档瞬时文件锁重试发布准备
+
+- 根版本递增为 `3.17.8`，正式 tag 为 `v3.17.8`；CLI 和 Worker 服务包沿用各自版本所有者。
+- 发布保留快照的归档复用确认删除同一套瞬时文件锁重试：`EBUSY` / `ENOTEMPTY` / `EPERM`
+  在同一次确认内按有界退避继续原 `archiveOperation` journal，重入只核对已保存快照，
+  绝不用部分删除后的残缺树重新快照。规范见 `worktree-discard.md`。
+- 同步修正工作树生命周期回归中两处过期预期（每次重入重新收集完整会话范围），
+  与 `worktree-discard.md` 既有契约一致。
+
 ## v3.17.7 Metis 能力落地与视频检查发布准备
 
 - 根版本递增为 `3.17.7`，正式 tag 为 `v3.17.7`；CLI 和 Worker 服务包沿用各自版本所有者。

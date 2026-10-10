@@ -3,6 +3,7 @@ import type { CheckoutCoordinator } from "../nodeTypes.js";
 import type { WorktreeContext } from "./ports.js";
 import { createWorktreeDiscard } from "./discard.js";
 import { removeManagedCheckout } from "./removeCheckout.js";
+import { retryConfirmedWorktreeOperation } from "./transientRetry.js";
 import {
   rebuildBindingRuntime,
   releaseBindingRuntime,
@@ -32,7 +33,7 @@ export function createWorktreeArchive(
     }
     return value;
   }
-  async function archive(params: {
+  async function archiveOnce(params: {
     bindingId: string;
     requestId: string;
     acknowledgeIgnoredFiles?: boolean;
@@ -49,6 +50,9 @@ export function createWorktreeArchive(
         throw new Error("Finish the pending environment operation before archiving");
       if (!(await store.exists(value.checkoutPath)) && !value.snapshot)
         throw new Error("Missing worktree has no saved archive snapshot");
+      // 中断的归档可能已保存快照并部分删除了 checkout；重入只能核对原快照，
+      // 绝不能用残缺树重新快照覆盖用户工作的唯一留存。
+      const resumingSnapshot = value.status === "archiving" ? value.snapshot : undefined;
       // 归档有自己的可恢复 journal，绝不能复用永久删除 fence 或释放持久 session 引用。
       value = {
         ...value,
@@ -70,15 +74,23 @@ export function createWorktreeArchive(
         });
         if (exists && (await git.registered(value.repositoryRoot, value.checkoutPath))) {
           await ready(value);
-          const snapshot = await git.snapshot(value, Boolean(params.acknowledgeIgnoredFiles));
-          value = { ...value, snapshot, updatedAt: new Date().toISOString() };
-          await store.saveBinding(value);
-          await context.fault("archive.after-snapshot");
-          await ready(value);
-          if (!(await git.matchesSnapshot(value, true)))
-            throw new Error(
-              "Worktree changed after its archive snapshot; preserve changes and retry",
-            );
+          if (resumingSnapshot) {
+            // 只核对受版本管理的实际内容；忽略目录本就不进快照，缺失不代表工作丢失。
+            if (!(await git.matchesSnapshot(value, false)))
+              throw new Error(
+                "Worktree changed during its interrupted archive; inspect the saved snapshot before retrying",
+              );
+          } else {
+            const snapshot = await git.snapshot(value, Boolean(params.acknowledgeIgnoredFiles));
+            value = { ...value, snapshot, updatedAt: new Date().toISOString() };
+            await store.saveBinding(value);
+            await context.fault("archive.after-snapshot");
+            await ready(value);
+            if (!(await git.matchesSnapshot(value, true)))
+              throw new Error(
+                "Worktree changed after its archive snapshot; preserve changes and retry",
+              );
+          }
         } else {
           if (!value.snapshot) throw new Error("Managed worktree registration is missing");
           const repository = await git.inspect(value.repositoryRoot);
@@ -230,6 +242,25 @@ export function createWorktreeArchive(
         if (lease) await coordinator.release(lease);
       }
     });
+  }
+  // 保留快照的归档同样会撞上 Windows 外部句柄；复用同一套有界重试继续原 journal。
+  // 确认删除有自己的 fence 与重试，这里不能重复包裹，否则会叠加两份等待预算。
+  async function archive(params: {
+    bindingId: string;
+    requestId: string;
+    acknowledgeIgnoredFiles?: boolean;
+    discard?: { branch: string; checkoutPath: string };
+  }) {
+    if (params.discard) return archiveOnce(params);
+    return retryConfirmedWorktreeOperation(
+      context,
+      {
+        bindingId: params.bindingId,
+        resume: (value) =>
+          value.status === "archiving" && value.archiveOperation ? value.archiveOperation.requestId : undefined,
+      },
+      () => archiveOnce(params),
+    );
   }
   return { archive, restore };
 }
