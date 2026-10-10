@@ -13,6 +13,7 @@ import { assertCommitReviewPolicy } from "./commitReviewPolicy.js";
 import { prepareCommitReviewMessage } from "./commitReviewHooks.js";
 import { publishReviewedCommitTransaction } from "./commitReviewTransaction.js";
 import { canonicalizeCommitReviewJournal } from "./commitReviewJournal.js";
+import { MAX_REVIEW_BYTES, changedBytes } from "./commitReviewBudget.js";
 import { batchGitPathspecs } from "./gitPathspecBatches.js";
 import {
   readCommitReviewHead,
@@ -33,7 +34,6 @@ import {
 } from "./gitCliHelpers.js";
 
 const MAX_TEXT_BYTES = 1_048_576;
-const MAX_REVIEW_BYTES = 2_097_152;
 const digest = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 
 export interface CommitReviewSnapshot {
@@ -216,7 +216,8 @@ export class CommitReviewRepo {
         old ? this.text(cwd, old.oid) : null,
         next ? this.text(cwd, next.oid) : null,
       ]);
-      bytes += Buffer.byteLength(headContent ?? "") + Buffer.byteLength(content ?? "");
+      // 预算按本次真实改动计，不按整份文件内容计；否则大文件的小改动会被误判超限。
+      bytes += changedBytes(headContent, content);
       if (bytes > MAX_REVIEW_BYTES) throw new Error("提交审核内容超限，请缩小文件范围。");
       files.push({
         path,

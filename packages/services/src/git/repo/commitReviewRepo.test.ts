@@ -144,3 +144,42 @@ test("新文件和删除可提交，拒绝二进制与既有 index 锁", async (
   await assert.rejects(review.commit(next, next.files, "feat: next"));
   assert.equal(await readFile(join(root, ".git", "index.lock"), "utf8"), "existing lock");
 });
+
+// 现场 sess_01a121ae：两个语言文件各约 48 万字节，只改 3 行却报"提交审核内容超限"。
+// 预算必须按本次真实改动计，不能按整份文件内容计，否则大文件的小改动永远无法审核。
+test("大文件的小改动可以审核，不按整份文件内容计入超限", async (t) => {
+  const { root, git, review } = await fixture(t);
+  const large = `${"// 填充\n".repeat(80_000)}const tail = 1;\n`;
+  const edited = `${"// 填充\n".repeat(80_000)}const tail = 2;\n`;
+  // 每个文件约 80 万字节：单文件上限内，但两个文件的整份内容按旧口径已达 3.2 MiB，
+  // 足以在修复前触发超限。
+  assert.ok(Buffer.byteLength(large) < 1_048_576);
+  assert.ok(Buffer.byteLength(large) * 4 > 2_097_152);
+  await writeFile(join(root, "a.txt"), large);
+  await writeFile(join(root, "b.txt"), large);
+  await git("add", ".");
+  await git("commit", "-qm", "add large files");
+  await writeFile(join(root, "a.txt"), edited);
+  await writeFile(join(root, "b.txt"), edited);
+  const snapshot = await review.capture(root, ["a.txt", "b.txt"], true);
+  assert.equal(snapshot.files.length, 2);
+  await review.commit(snapshot, snapshot.files, "fix: 调整尾部常量");
+  assert.equal(await git("show", "HEAD:a.txt"), edited);
+  assert.equal(await git("show", "HEAD:b.txt"), edited);
+});
+
+test("大文件被整份改写仍拒绝超限，不放过需要人工拆分的范围", async (t) => {
+  const { root, git, review } = await fixture(t);
+  const before = "a\n".repeat(400_000);
+  const after = "b\n".repeat(400_000);
+  await writeFile(join(root, "big-a.txt"), before);
+  await writeFile(join(root, "big-b.txt"), before);
+  await git("add", ".");
+  await git("commit", "-qm", "add big files");
+  await writeFile(join(root, "big-a.txt"), after);
+  await writeFile(join(root, "big-b.txt"), after);
+  // 每个文件约 80 万字节，均在单文件上限内；但两侧内容无公共前后缀，
+  // 真实改动合计 3.2 MiB，仍应被预算拒绝。
+  assert.ok(Buffer.byteLength(before) < 1_048_576);
+  await assert.rejects(review.capture(root, ["big-a.txt", "big-b.txt"], true), /内容超限/);
+});
