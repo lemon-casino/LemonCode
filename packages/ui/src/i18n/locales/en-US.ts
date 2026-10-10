@@ -2033,7 +2033,7 @@ const enUS: Record<string, string> = {
   "settings.terminalFontFamilyPlaceholder": "Leave blank to inherit, e.g. MesloLGS NF, monospace",
   "settings.integratedTerminalShell": "Integrated terminal shell",
   "settings.integratedTerminalShellDescription":
-    "Detect installed shells or specify an absolute shell file or installation directory path. Applies to new terminals and tasks; incompatible shells do not affect the Bash tool.",
+    "Detect installed shells or specify an absolute shell file or installation directory path. New terminals, sessions, and continued tasks use the latest selection; running tasks switch after they finish. Incompatible shells do not affect the Bash tool.",
   "settings.integratedTerminalShell.auto": "Auto",
   "settings.integratedTerminalShell.refresh": "Detect shells again",
   "settings.integratedTerminalShell.selectFile": "Choose executable",

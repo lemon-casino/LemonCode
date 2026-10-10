@@ -153,8 +153,10 @@ export interface LCodeAppOptions {
   onWorkflowEvent?: (event: WorkflowEvent) => void | Promise<void>;
   automationPort?: AutomationPort;
   offPeakPort?: OffPeakPort;
-  /** 首次真实用户执行或 cold-resume fallback 时解析一次，之后由 app 生命周期缓存。 */
-  resolveInitialBashShellSelection?: () => Promise<ExecutionShellSelection | undefined>;
+  /** 每次独立用户任务开始前解析当前 Host 选择，不缓存首次结果。 */
+  resolveBashShellSelection?: (
+    traceContext: TraceContext,
+  ) => Promise<ExecutionShellSelection | undefined>;
   /** Trusted embedder policy; workspace/project files cannot populate this field. */
   workspaceHookPolicy?: WorkspaceHookPolicy;
   /** Protocol Host-owned provider shared by session Runtime and no-session Settings pretrust. */

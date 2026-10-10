@@ -111,9 +111,12 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
       fileSystemPort,
       httpClientPort,
     } = adapters;
-    const { prepareResume, prepareUserExecutionBoundary, resumeFromStore } = createAppSessionResume(
-      { startup, sessionStore: configuration.sessionStore, getRuntime },
-    );
+    const {
+      prepareResume,
+      prepareUserExecutionBoundary,
+      resumeFromStore,
+      resolveSessionShellSelection,
+    } = createAppSessionResume({ startup, sessionStore: configuration.sessionStore, getRuntime });
     const modelExecutionConfig = createRuntimeAiSdkModelExecutionConfig(options.env, {
       appVersion,
       network: configResult.config.network,
@@ -223,6 +226,7 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
         isRemoteWorkspaceIdentity(runtimeConfig.memory?.workspaceIdentity ?? ""),
       permissionBroker: options.permissionBroker,
       checkoutExecutionPort: options.checkoutExecutionPort,
+      resolveSessionShellSelection,
       permissionService,
       workflowPort: scriptWorkflowFacade.workflowPort,
       dynamicWorkflowRunPort,
@@ -258,7 +262,12 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
       workspaceHookRuntimeSecurity,
       dynamicWorkflowRunPort,
       scriptWorkflowFacade,
-      resumeBoundary: { prepareResume, prepareUserExecutionBoundary, resumeFromStore },
+      resumeBoundary: {
+        prepareResume,
+        prepareUserExecutionBoundary,
+        resumeFromStore,
+        resolveSessionShellSelection,
+      },
       closeNodeReplBrowserBroker: async () => {
         await ownedNodeReplBrowserBroker?.close();
       },

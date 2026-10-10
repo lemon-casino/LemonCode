@@ -1,4 +1,3 @@
-import { countContextPrefixMessages } from "../deps.js";
 import type { EnvInfo, ExecutionShellSelection, TraceContext } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import type { AgentRuntimeConfig } from "../types.js";
@@ -14,6 +13,59 @@ import {
   getShellEnvironmentResumeNoticeKind,
 } from "./shell-environment.js";
 import { refreshBranchAwareBuiltInTools } from "./embedded-search-branch.js";
+import { createTurnCancelledError, throwIfTurnAborted } from "../helpers/index.js";
+
+export async function refreshSessionShellEnvironmentForExecution(
+  runtime: AgentRuntimeInternal,
+  traceContext: TraceContext,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  if (!runtime.resolveSessionShellSelection) return false;
+  throwIfTurnAborted(signal);
+  const owner = runtime.activeForegroundExecution;
+  const preparationRevision = ++runtime.sessionShellPreparationRevision;
+  const branchGeneration = runtime.branchGeneration;
+  const turnNumber = runtime.turnNumber;
+  const selection = await runtime.resolveSessionShellSelection(traceContext);
+  throwIfTurnAborted(signal);
+  // 设置读取是异步的；已关闭、换分支或失去前台所有权的结果不得覆盖后续任务。
+  if (
+    runtime.shuttingDown ||
+    runtime.activeTurn ||
+    runtime.sessionShellPreparationRevision !== preparationRevision ||
+    runtime.activeForegroundExecution !== owner ||
+    runtime.branchGeneration !== branchGeneration ||
+    runtime.turnNumber !== turnNumber
+  )
+    throw createTurnCancelledError("Shell execution boundary changed");
+  const previous = getSessionShellSelection(runtime);
+  if (sameExecutionShell(previous, selection)) return false;
+  applySessionShellEnvironment(runtime, selection);
+  if (previous && runtime.contextInitialized) {
+    runtime.messageHistory.addAttachment(
+      "shell_environment_change",
+      buildShellChangeNotice(selection),
+    );
+  }
+  if (runtime.sessionPersisted) await persistSessionShellEnvironmentSnapshot(runtime, traceContext);
+  return true;
+}
+
+function sameExecutionShell(
+  previous: ExecutionShellSelection | undefined,
+  next: ExecutionShellSelection,
+): boolean {
+  return (
+    previous?.dialect === next.dialect &&
+    previous.path === next.path &&
+    previous.display.name === next.display.name
+  );
+}
+
+function buildShellChangeNotice(selection: ExecutionShellSelection): string {
+  const executable = selection.path ? ` (${selection.path})` : "";
+  return `The Bash tool shell has changed to ${selection.display.name}${executable}. Use ${selection.dialect} shell syntax for subsequent commands.`;
+}
 
 type SessionShellConfig = Pick<AgentRuntimeConfig, "bashShellSelection">;
 
@@ -63,11 +115,10 @@ export function initializeSessionShellEnvironmentIfNeeded(
     return false;
   }
 
-  // Bash shell 是 session-start 快照。所有入口都只表达“当前候选值”，
-  // runtime 统一负责首次真实用户执行前初始化一次。candidate 可以是 lazy resolver，
-  // 这样已有 snapshot 的 session 不会在外层重复探测 shell。
+  // 无宿主 resolver 的子 runtime 仍可继承父任务的 Shell；根会话的后续任务
+  // 通过统一执行边界刷新，不能把首次初始化当作会话永久选择。
   applySessionShellEnvironment(runtime, resolveSessionShellCandidate(candidate), {
-    refreshPreConversationContext: true,
+    refreshContext: true,
   });
   return true;
 }
@@ -75,13 +126,14 @@ export function initializeSessionShellEnvironmentIfNeeded(
 function applySessionShellEnvironment(
   runtime: AgentRuntimeInternal,
   selection: ExecutionShellSelection | undefined,
-  options: { refreshPreConversationContext?: boolean } = {},
+  options: { refreshContext?: boolean } = {},
 ): void {
   runtime.config.bashShellSelection = selection;
+  runtime.config.envInfo = applySessionShellToEnvInfo(runtime.config.envInfo, selection);
   refreshBranchAwareBuiltInTools(runtime);
 
-  if (options.refreshPreConversationContext !== false) {
-    refreshPreConversationShellContext(runtime, selection);
+  if (options.refreshContext !== false) {
+    refreshSessionShellContext(runtime, selection);
   }
 }
 
@@ -144,9 +196,26 @@ export async function restoreSessionShellEnvironmentSelectionForResume(
     traceContext: options.traceContext,
   });
 
+  // 旧实现总用创建时的 entry 覆盖 Host 当前选择，导致继续旧会话无法切换。
+  // entry 现在只作 fallback；当前候选优先，并保留旧值供历史 hydration 后提醒模型。
+  if (
+    options.currentSelection &&
+    (restore.status !== "restored" ||
+      !sameExecutionShell(restore.selection, options.currentSelection))
+  ) {
+    applySessionShellEnvironment(runtime, options.currentSelection, { refreshContext: false });
+    // 恢复先采用当前候选，后续执行读到相同值会跳过刷新；此处同步覆盖 entry，避免每次恢复都重复迁移。
+    await persistSessionShellEnvironmentSnapshot(runtime, options.traceContext);
+    return {
+      status: "refreshed",
+      selection: options.currentSelection,
+      previousSelection: restore.status === "restored" ? restore.selection : undefined,
+    };
+  }
+
   if (restore.status === "restored" || restore.status === "fallback") {
     applySessionShellEnvironment(runtime, restore.selection, {
-      refreshPreConversationContext: false,
+      refreshContext: false,
     });
   }
 
@@ -161,6 +230,13 @@ export function announceSessionShellEnvironmentNoticeAfterResume(
   },
 ): void {
   const selection = getSessionShellSelection(runtime);
+  if (selection && options.restore.status === "refreshed" && options.restore.previousSelection) {
+    runtime.messageHistory.addAttachment(
+      "shell_environment_change",
+      buildShellChangeNotice(selection),
+    );
+    return;
+  }
   const noticeKind = getShellEnvironmentResumeNoticeKind({
     persistedShell: options.persistedEnvInfo?.shell,
     restoreStatus: options.restore.status,
@@ -177,8 +253,7 @@ export function announceSessionShellEnvironmentNoticeAfterResume(
 
   // 旧 Windows 会话没有可用 shell snapshot 时，升级后可能由 auto Git Bash
   // 接管 Bash 执行。历史上下文仍可能让模型继续沿用旧 shell 习惯，因此必须在
-  // resume 后补一个 provider-visible shell 提醒；可用 snapshot 恢复时不插，避免
-  // 破坏“shell 设置变更只对新 session 生效”的契约。
+  // resume 后补一个 provider-visible shell 提醒；恢复同一个可用 Shell 时不重复插入。
   runtime.messageHistory.addAttachment("shell_environment_change", notice);
 }
 
@@ -196,7 +271,7 @@ function hasShellEnvironmentChangeAttachment(
     );
 }
 
-function refreshPreConversationShellContext(
+function refreshSessionShellContext(
   runtime: AgentRuntimeInternal,
   selection: ExecutionShellSelection | undefined,
 ): void {
@@ -204,19 +279,11 @@ function refreshPreConversationShellContext(
     !selection ||
     !runtime.contextBuilder ||
     !runtime.contextInitialized ||
-    !runtime.contextSourceSnapshot ||
-    runtime.sessionPersisted
+    !runtime.contextSourceSnapshot
   ) {
     return;
   }
-  const activeEntries = runtime.messageHistory.borrowReadOnlyRuntimeEntries();
-  if (activeEntries.length !== countContextPrefixMessages(activeEntries)) {
-    return;
-  }
-
-  // deferred draft 是隐藏预热态，首发前刷新 shell 时还没有真实
-  // conversation message。此时应把 session-start # Environment 一并刷新，
-  // 避免模型看到的 Shell 和 Bash 实际执行 shell 不一致。
+  // 切换时同步 Environment 前缀并保留 conversation，避免模型提示与实际 Bash 方言分叉。
   runtime.config.envInfo = applySessionShellToEnvInfo(runtime.config.envInfo, selection);
   runtime.contextSourceSnapshot = {
     ...runtime.contextSourceSnapshot,

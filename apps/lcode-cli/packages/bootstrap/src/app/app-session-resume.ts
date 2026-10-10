@@ -19,15 +19,13 @@ export function createAppSessionResume(input: {
       env: options.env ?? process.env,
       platform: options.platform ?? process.platform,
     }).selection;
-  let initialShellSelectionPromise: Promise<ExecutionShellSelection> | undefined;
-  const resolveInitialShellSelection = (): Promise<ExecutionShellSelection> => {
-    initialShellSelectionPromise ??= (async () =>
-      (await options.resolveInitialBashShellSelection?.()) ?? resolveDefaultShellSelection())();
-    return initialShellSelectionPromise;
-  };
-  const initializeSessionShellEnvironment = async (): Promise<void> => {
-    getRuntime().initializeSessionShellEnvironmentIfNeeded(await resolveInitialShellSelection());
-  };
+  // 首次结果缓存曾使所有后续任务沿用旧设置；解析属于任务边界，由 Runtime 统一应用。
+  const resolveSessionShellSelection = async (
+    executionTrace: TraceContext,
+  ): Promise<ExecutionShellSelection> =>
+    (await options.resolveBashShellSelection?.(executionTrace)) ??
+    options.runtimeConfig?.bashShellSelection ??
+    resolveDefaultShellSelection();
 
   const restorePersistedModelSelection = async (): Promise<
     ResumeSessionResult["modelSelection"]
@@ -64,7 +62,7 @@ export function createAppSessionResume(input: {
     try {
       const resumeTraceContext = resumeOptions?.traceContext ?? traceContext;
       const modelSelection = await restorePersistedModelSelection();
-      await initializeSessionShellEnvironment();
+      await runtime.prepareSessionShellEnvironment(resumeTraceContext, resumeOptions?.abortSignal);
       const result = await runtime.resumeFromStore({
         ...(resumeOptions?.abortSignal ? { abortSignal: resumeOptions.abortSignal } : {}),
         // 只传调用方原始 mode；项目/全局默认值不能伪装成 invocation override，
@@ -94,13 +92,18 @@ export function createAppSessionResume(input: {
   };
 
   const prepareUserExecutionBoundary: PrepareUserExecutionBoundary = async (boundaryOptions) => {
-    // Bash shell 快照属于“首次真实用户执行”边界，而不是 chat
-    // input 独有状态。普通 prompt、expert workflow、script workflow 都可能
-    // 作为新 session 的第一个模型/子 agent 入口，必须统一在 resume/context
-    // 初始化前落定一次，避免模型看到的 Shell 与 Bash 执行 shell 分叉。
-    await initializeSessionShellEnvironment();
     await prepareResume(boundaryOptions?.traceContext, boundaryOptions?.abortSignal);
+    // workflow 也可直接从 App 进入；空闲时采用当前设置，运行中输入留给串行 command 启动时读取。
+    await getRuntime().prepareSessionShellEnvironment(
+      boundaryOptions?.traceContext ?? traceContext,
+      boundaryOptions?.abortSignal,
+    );
   };
 
-  return { prepareResume, prepareUserExecutionBoundary, resumeFromStore };
+  return {
+    prepareResume,
+    prepareUserExecutionBoundary,
+    resumeFromStore,
+    resolveSessionShellSelection,
+  };
 }

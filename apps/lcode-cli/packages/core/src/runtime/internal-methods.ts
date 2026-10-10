@@ -76,6 +76,10 @@ export interface AgentRuntimeCoreMethods {
     selection: ExecutionShellSelection | (() => ExecutionShellSelection),
   ): boolean;
   getSessionShellSelection(): ExecutionShellSelection | undefined;
+  prepareSessionShellEnvironment(
+    traceContext: TraceContext,
+    signal?: AbortSignal,
+  ): Promise<boolean>;
   getMode(): CollaborationMode;
   getPlanEnabled(): boolean;
   grantPermissionFullAccess(interactionId: string, signal?: AbortSignal): Promise<string>;

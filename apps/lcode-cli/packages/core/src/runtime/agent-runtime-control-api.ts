@@ -47,6 +47,11 @@ export interface AgentRuntimeControlApi {
     selection: ExecutionShellSelection | (() => ExecutionShellSelection),
   ): boolean;
   getSessionShellSelection(): ExecutionShellSelection | undefined;
+  /** 空闲时刷新当前 Shell；运行/排队输入由 command owner 在真正启动时刷新。 */
+  prepareSessionShellEnvironment(
+    traceContext: TraceContext,
+    signal?: AbortSignal,
+  ): Promise<boolean>;
   getMode(): CollaborationMode;
   getPlanEnabled(): boolean;
   grantPermissionFullAccess(interactionId: string, signal?: AbortSignal): Promise<string>;

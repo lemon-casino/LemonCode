@@ -126,6 +126,8 @@ export function createScriptWorkflowAgentRuntime(input: {
     input.childSessionId,
     {
       ...inheritedConfig,
+      // startup config 不会随父 Runtime 的任务边界刷新；子任务必须继承本次实际采用的 Shell。
+      bashShellSelection: input.deps.runtime.getSessionShellSelection(),
       ...(systemPrompt === undefined ? {} : { systemPrompt }),
       agentName: input.request.opts?.agentType ?? "lcode-workflow",
       maxTurns: input.request.opts?.maxTurns ?? input.deps.runtimeConfig.maxTurns,

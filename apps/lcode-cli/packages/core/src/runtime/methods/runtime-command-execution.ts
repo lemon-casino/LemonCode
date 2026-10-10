@@ -12,6 +12,7 @@ import { createTurnCancelledError } from "../helpers/index.js";
 import { executeTargetContinuationCommand } from "./target.js";
 import { runActiveTargetContinuationLoop } from "./target-continuation-loop.js";
 import { isStaleBranchRuntimeCommand } from "./runtime-command-generation.js";
+import { refreshSessionShellEnvironmentForExecution } from "./session-shell-environment.js";
 import {
   beginForegroundExecution,
   finishForegroundExecution,
@@ -62,31 +63,33 @@ export async function runRuntimeCommand(
   if (isStaleBranchRuntimeCommand(this, command)) return;
   const foregroundExecution = beginForegroundExecution.call(this, command);
   try {
+    // 入队时可能仍有旧任务运行；取得 command 所有权后再读设置，本次任务内不热切换。
+    await refreshSessionShellEnvironmentForExecution(
+      this,
+      command.traceContext,
+      foregroundExecution.controller.signal,
+    );
     if (command.mode === "prompt") {
       if (this.runtimeCommandQueue.consumeCancelPending(command.id)) {
         if (command.startReservation) this.releaseTurnStart(command.startReservation.turnId);
         command.reject(createTurnCancelledError(command.options?.abortSignal?.reason));
         return;
       }
-      try {
-        const result = await this.executeTurnCommand(
-          command.input,
-          command.attachments,
-          {
-            ...command.options,
-            abortSignal: foregroundExecution.controller.signal,
-          },
-          command.startReservation,
-        );
-        const continuationResult = await runPostCommandActiveTargetLoop.call(
-          this,
-          command,
-          foregroundExecution.controller.signal,
-        );
-        command.resolve(continuationResult ?? result);
-      } finally {
-        this.runtimeCommandQueue.clearCancelPending(command.id);
-      }
+      const result = await this.executeTurnCommand(
+        command.input,
+        command.attachments,
+        {
+          ...command.options,
+          abortSignal: foregroundExecution.controller.signal,
+        },
+        command.startReservation,
+      );
+      const continuationResult = await runPostCommandActiveTargetLoop.call(
+        this,
+        command,
+        foregroundExecution.controller.signal,
+      );
+      command.resolve(continuationResult ?? result);
       return;
     }
     if (command.mode === "target-continuation") {
@@ -94,15 +97,11 @@ export async function runRuntimeCommand(
         command.reject(createTurnCancelledError(command.options.abortSignal?.reason));
         return;
       }
-      try {
-        const result = await executeTargetContinuationCommand.call(this, {
-          ...command.options,
-          abortSignal: foregroundExecution.controller.signal,
-        });
-        command.resolve(result);
-      } finally {
-        this.runtimeCommandQueue.clearCancelPending(command.id);
-      }
+      const result = await executeTargetContinuationCommand.call(this, {
+        ...command.options,
+        abortSignal: foregroundExecution.controller.signal,
+      });
+      command.resolve(result);
       return;
     }
     if (command.mode === "target-continuation-loop") {
@@ -110,16 +109,12 @@ export async function runRuntimeCommand(
         command.reject(createTurnCancelledError(command.options.abortSignal?.reason));
         return;
       }
-      try {
-        const result = await runActiveTargetContinuationLoop.call(this, {
-          ...command.options,
-          abortSignal: foregroundExecution.controller.signal,
-          yieldBeforeFirstContinue: false,
-        });
-        command.resolve(result);
-      } finally {
-        this.runtimeCommandQueue.clearCancelPending(command.id);
-      }
+      const result = await runActiveTargetContinuationLoop.call(this, {
+        ...command.options,
+        abortSignal: foregroundExecution.controller.signal,
+        yieldBeforeFirstContinue: false,
+      });
+      command.resolve(result);
       return;
     }
     if (command.mode === "subagent-message") {
@@ -161,6 +156,10 @@ export async function runRuntimeCommand(
       return;
     }
   } catch (error) {
+    // 偏好读取失败发生在 executeTurnCommand 的 finally 之前，必须释放 admission 的启动预留。
+    if (command.mode === "prompt" && command.startReservation) {
+      this.releaseTurnStart(command.startReservation.turnId);
+    }
     if (
       command.mode === "prompt" ||
       command.mode === "target-continuation" ||
@@ -177,6 +176,8 @@ export async function runRuntimeCommand(
       module: "core.runtime",
     });
   } finally {
+    // Shell 读取也属于 command 生命周期；在进入 turn 前取消/失败时同样清理取消票据。
+    this.runtimeCommandQueue.clearCancelPending(command.id);
     await finishForegroundExecution.call(this, foregroundExecution, command.traceContext);
   }
 }
@@ -196,6 +197,11 @@ export async function runTaskNotificationBatch(
   const foregroundExecution = beginForegroundExecution.call(this, firstCommand);
   const commandIds = eligibleCommands.map((command) => command.id);
   try {
+    await refreshSessionShellEnvironmentForExecution(
+      this,
+      firstCommand.traceContext,
+      foregroundExecution.controller.signal,
+    );
     const persisted = await persistBackgroundTaskNotificationBatch.call(
       this,
       eligibleCommands as [TaskNotificationRuntimeCommand, ...TaskNotificationRuntimeCommand[]],

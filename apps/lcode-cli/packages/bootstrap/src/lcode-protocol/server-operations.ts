@@ -36,6 +36,7 @@ import {
   type CollaborationMode,
   type TargetCompletionVerificationPayload,
   type TraceId,
+  type TraceContext,
   type TurnBackgroundAttribution,
   type TurnId,
   type UsageStorePort,
@@ -161,7 +162,9 @@ interface SessionStartupPreferences {
   modelContextBudgetStrategy: LCodeModelContextBudgetStrategy;
   nativeSearchEnhancementsEnabled: boolean;
   sessionRecallEnabled: boolean;
-  resolveInitialBashShellSelection: () => Promise<ExecutionShellSelection | undefined>;
+  resolveBashShellSelection: (
+    traceContext: TraceContext,
+  ) => Promise<ExecutionShellSelection | undefined>;
 }
 
 type SessionStartupPreferencesSource =
@@ -1549,9 +1552,8 @@ export async function activateSessionForResume(
   const workspace = restoredExecution.workspace;
   let persistedMessages = await readPersistedSessionMessages(context, params.sessionId);
   const mode = derivePersistedSessionMode(persistedMessages);
-  // shell 设置变更只对新 session 生效；冷恢复必须使用创建时落库的
-  // Bash shell 快照。runtime.resumeFromStore 会读取快照；这里只负责不把
-  // resume 请求里携带的当前 settings 重新注入老 session。
+  // 冷恢复通过 Host user-execution 偏好读取当前 Shell；持久化快照仅作 fallback，
+  // 不从 resume 请求参数注入第二份选择事实。
   const record = await materializeSessionRecord(
     context,
     {
@@ -3357,14 +3359,22 @@ async function resolveSessionStartupPreferences(
   source: SessionStartupPreferencesSource,
   trace?: LCodeProtocolTrace,
 ): Promise<SessionStartupPreferences> {
+  const resolveBashShellSelection = async (executionTrace: TraceContext) => {
+    const executionPreferences = await requestSessionRuntimePreferences(
+      context,
+      sessionId,
+      "user-execution",
+      { traceId: executionTrace.traceId },
+    );
+    return resolveProtocolBashShellSelection(context, executionPreferences.integratedTerminalShell);
+  };
   if (source.kind === "inherit") {
-    const inheritedShellSelection = source.parent.app.runtime.getSessionShellSelection();
     return {
       memoryEnabled: source.parent.memoryEnabled,
       modelContextBudgetStrategy: DEFAULT_LCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
       nativeSearchEnhancementsEnabled: source.parent.nativeSearchEnhancementsEnabled,
       sessionRecallEnabled: source.parent.sessionRecallEnabled,
-      resolveInitialBashShellSelection: async () => inheritedShellSelection,
+      resolveBashShellSelection,
     };
   }
 
@@ -3383,18 +3393,7 @@ async function resolveSessionStartupPreferences(
     modelContextBudgetStrategy: DEFAULT_LCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
     nativeSearchEnhancementsEnabled: runtimePreferences.nativeSearchEnhancementsEnabled,
     sessionRecallEnabled: runtimePreferences.sessionRecallEnabled,
-    resolveInitialBashShellSelection: async () => {
-      const executionPreferences = await requestSessionRuntimePreferences(
-        context,
-        sessionId,
-        "user-execution",
-        trace,
-      );
-      return resolveProtocolBashShellSelection(
-        context,
-        executionPreferences.integratedTerminalShell,
-      );
-    },
+    resolveBashShellSelection,
   };
 }
 
@@ -3516,7 +3515,7 @@ async function createRecord(
     context.appRuntimePreferences.offPeakToolEnabled === true
       ? { offPeakPort: createProtocolOffPeakPort(context, () => ownSessionRecord) }
       : {}),
-    resolveInitialBashShellSelection: startupPreferences.resolveInitialBashShellSelection,
+    resolveBashShellSelection: startupPreferences.resolveBashShellSelection,
     // browser-use：agent.browsers.* 经此把命令转成 interaction/browserExecute 反向请求。
     browserControlPort: createProtocolBrowserControlBroker(context),
     // Protocol server 是受信任的 Desktop/Web/Mobile Host；灰度开关由这里显式注入，

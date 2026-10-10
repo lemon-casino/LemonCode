@@ -285,6 +285,8 @@ function createWorkflowChildRuntime(
     options.childSessionId,
     {
       ...deps.runtimeConfig,
+      // 父 Runtime 已在执行边界采用当前 Shell，不能继续读取创建 App 时的旧配置。
+      bashShellSelection: deps.runtime.getSessionShellSelection(),
       agentName: options.workflowKind === "expert" ? "lcode-expert" : "lcode-workflow",
       mode: "yolo",
       modelSelection: deps.runtime.getSessionModelSelection(),

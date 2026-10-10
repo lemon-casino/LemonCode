@@ -1,8 +1,5 @@
 import { accessSync, constants as fsConstants } from "node:fs";
-import {
-  SESSION_ENTRY_BASH_SHELL_SELECTION,
-  traceContextToLogContext,
-} from "../deps.js";
+import { SESSION_ENTRY_BASH_SHELL_SELECTION, traceContextToLogContext } from "../deps.js";
 import type {
   ExecutionShellSelection,
   Logger,
@@ -15,6 +12,11 @@ const BASH_SHELL_SELECTION_ENTRY_ID_SUFFIX = "runtime:bash_shell_selection";
 
 export type BashShellSnapshotRestore =
   | { status: "restored"; selection: ExecutionShellSelection }
+  | {
+      status: "refreshed";
+      selection: ExecutionShellSelection;
+      previousSelection?: ExecutionShellSelection | undefined;
+    }
   | {
       status: "fallback";
       reason: "stale_snapshot";
@@ -45,8 +47,7 @@ export async function persistBashShellSelectionSnapshot(options: {
         created: timestamp,
         updated: timestamp,
       },
-      // Bash shell 设置变更只影响新 session；必须把创建时快照落库，
-      // 冷恢复时才能继续使用同一个 shell 执行，而不是重新读取最新 settings。
+      // 稳定 ID 覆盖最近采用的执行 Shell；冷恢复优先使用当前配置，entry 仅作 fallback。
       data: serializeBashShellSelection(options.selection),
     });
   } catch (error) {

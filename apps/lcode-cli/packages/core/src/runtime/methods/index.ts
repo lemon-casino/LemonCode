@@ -1,10 +1,6 @@
 import { grantPermissionFullAccess } from "../permission-full-access.js";
-import {
-  getSessionShellSelection,
-  initializeSessionShellEnvironmentIfNeeded,
-  updateConfig,
-  setExecutionState,
-} from "./config.js";
+import { updateConfig, setExecutionState } from "./config.js";
+import { installSessionShellControlApi } from "./session-shell-control-api.js";
 import { getMode, getPlanEnabled } from "./config.js";
 import { getSessionModelSelection, setSessionModelSelection } from "./config.js";
 import { getProjectId } from "./config.js";
@@ -208,8 +204,7 @@ export function installAgentRuntimeMethods(ctor: AgentRuntimeConstructor): void 
   proto.updateConfig = updateConfig;
   proto.setExecutionState = setExecutionState;
   proto.grantPermissionFullAccess = grantPermissionFullAccess;
-  proto.initializeSessionShellEnvironmentIfNeeded = initializeSessionShellEnvironmentIfNeeded;
-  proto.getSessionShellSelection = getSessionShellSelection;
+  installSessionShellControlApi(proto);
   proto.getMode = getMode;
   proto.getPlanEnabled = getPlanEnabled;
   proto.getSessionModelSelection = getSessionModelSelection;

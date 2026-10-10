@@ -6,7 +6,7 @@
 2. Windows 至少探测 PowerShell 7、Windows PowerShell、Git Bash、CMD 和 Nushell；macOS/Linux 至少探测环境变量 `SHELL` 及 PATH/常见目录中的 zsh、bash、fish、sh 和 Nushell。
 3. 设置页在打开时自动探测，并提供手动刷新。不可执行或重复路径不进入列表。
 4. 用户选择由 `settingService` 持久化为唯一事实来源；`systemService` 只负责按请求返回当前 Host 的探测结果，不保存第二份选择状态。
-5. “自动选择”删除用户覆盖。显式选择仅对后续新建的内置终端和新建 Agent 会话生效，已有终端和会话不切换 Shell。
+5. “自动选择”删除用户覆盖。新建内置终端及 Agent 的新任务使用当前设置，包含新会话、继续已有会话、冷恢复及排队后开始的任务。正在执行的任务保持本次执行的 Shell；结束、取消或失败后的下一任务重新读取设置，不沿用会话创建时的 Shell。已启动的交互 PTY 不强行中断或重启，后续创建使用当前设置。
 6. `terminalService` 创建终端时先验证已保存路径；路径失效时自动回退到当前平台可用的默认 Shell，不能导致终端无法打开。
 7. Agent Bash 工具只接收其支持的 `cmd`、`git-bash` 或 `posix` 选择。PowerShell、fish、Nushell 等选择只控制内置终端，Bash 工具继续自动探测兼容 Shell。
 8. Windows、macOS、Linux 桌面均提供“选择目录”和“选择可执行文件”，并允许输入 Host 的绝对路径；Web 使用绝对路径输入，不把浏览器上传文件当作 Host 可执行文件。
@@ -32,7 +32,10 @@
 - 复用 `ISystemService.listIntegratedTerminalShells(path?: string)`：缺省参数保持原自动探测；传文件返回一个验证后的候选；传目录返回有界探测结果；无效路径返回空列表。该方法只读，不保存或启动 Shell。
 - `IPlatformService.selectDirectory/selectFile` 只负责桌面原生选择。UI 通过平台 hook 访问，路径解析通过 `useIntegratedTerminalShellOptions` 访问本地 Host；不按浏览器操作系统推断 Host 路径。
 - `IntegratedTerminalShellDialect` 和复用的 settings/Agent 协议运行时 schema 新增 `custom`。既有配置无需迁移，自动探测和原方言保持兼容。
-- 本次只改 UI 组合方式与本地文案，`settingService`、`systemService`、`terminalService` 的接口与状态所有者不变。
+- `settingService`、`systemService`、`terminalService` 的接口与状态所有者不变。Agent App 的 `resolveBashShellSelection` 通过既有 `session/requestRuntimePreferences` 的 `user-execution` scope 读取当前 Host 设置，不缓存首次结果；Runtime 通过注入的 resolver 在执行边界统一应用。
+- Runtime 的 `prepareSessionShellEnvironment` 只允许空闲用户执行边界刷新；Runtime command owner 在已取得 foreground 所有权后、工具和模型执行前走同一刷新逻辑。普通 prompt、继续任务、队列 promotion、控制轮以及 workflow 的 App 执行边界均覆盖；当前任务内部的引导、工具和自动目标续跑不重新读取 Shell。
+- `bash_shell_selection` entry 保持既有格式和稳定 ID，表示最近一次采用的执行 Shell，仅用于历史恢复/无当前候选时的 fallback，不再覆盖已解析的最新设置。新建子 runtime 继承父任务已采用的 Shell；独立 fork 后的新任务重新读 Host。
+- resolver/协议读取失败阻止本次启动并保留旧 Shell，不把传输错误解释为“自动选择”。旧 Host 的 method-not-found 仍沿用既有兼容路径；显式路径失效仍由 adapter 回退。无需数据库迁移或新增协议消息。
 
 ## 状态与时序
 
@@ -48,6 +51,21 @@
   -> 校验显式路径
   -> 使用显式 Shell，失效则走平台默认探测
   -> node-pty 启动
+
+Agent 新建/恢复/继续/排队任务
+  -> CommandInbox / Runtime command owner 串行 admission
+  -> 获取 foreground 执行所有权
+  -> resolver 从 owner Host settingService 读取当前 user-execution 偏好
+  -> 验证 foreground owner、branch generation、turn number 与读取 revision，丢弃失效异步结果
+  -> Runtime 统一更新 Bash selection、工具视图和模型 Shell 上下文
+  -> 覆盖最近采用的 Shell entry（已持久化会话）
+  -> 本次任务执行，Shell 固定至 foreground 结束
+  -> 下一任务开始时重新读取（运行中保存的设置在此生效）
+
+desktop-continuous / web-remote-replayable
+  -> 复用同一 Host attachment / Runtime command owner
+  -> 同一 user-execution 偏好请求与执行边界
+  -> 不增加客户端选择缓存、远端队列或独立 Runtime
 
 面板内选择已探测 Shell 或“自动选择”
   -> settingService 持久化
@@ -68,6 +86,7 @@
 - 选择状态所有者：`settingService`。
 - 探测结果所有者：设置页当前加载周期；刷新结果覆盖旧列表。
 - 面板草稿所有者：控件本地状态（过滤词、候选、错误），关闭即丢弃，不写入 `settingService`。
+- 执行 Shell 所有者：Agent Runtime；配置值只属于 `settingService`，执行快照与模型提示均是它在任务边界的派生结果。Shell 的实际路径/方言变化必须追加 provider-visible 提醒（包括相同展示名的不同路径）；A→B→A 每次都提示，不按整段历史去重。上下文前缀同时采用最新 Shell，保留已有对话。
 - 失效边界：保存后的可执行文件被卸载或移动时，创建终端回退自动选择，设置页下一次刷新不再把它作为可用项，但保留已保存项供用户识别和重新选择。
 
 ## 验收场景
@@ -77,6 +96,10 @@
 - PATH 中不存在的候选不会展示；同一路径通过环境变量和固定目录同时命中时只展示一次。
 - 已选择路径失效后，新建终端仍能使用自动回退 Shell 启动。
 - 选择 PowerShell、fish 或 Nushell 时，Agent Bash 工具不接收该不兼容覆盖。
+- 已有会话使用 A 完成任务后选择 B，继续任务和冷恢复均使用 B；新建会话、独立 fork 也使用 B。选择“自动选择”后已有会话下一任务回到自动探测。
+- A 正在执行时选择 B，当前任务全部 Bash 调用及派生子 runtime 继续使用 A；排队任务真正启动时使用最新选择（若此时已改为 C，则使用 C）。结束、取消或失败后的下一任务均覆盖，内部引导和目标自动续跑不在任务中途切换。
+- 同名 Shell 路径 A→B 也切换并提醒模型；A→B→A 不因历史存在旧提醒而漏掉最后一次提醒。选择未变化时不重复刷新工具和追加提醒。
+- 冷恢复遇到旧快照时当前设置优先；当前候选缺失时保留旧快照恢复规则。读取期间取消、关闭或 branch/owner 改变时，迟到结果不写回 Runtime。
 - 三个平台均可选择安装目录或可执行文件；含空格、中文的绝对路径保持完整，不按 shell 命令拆分。
 - Windows Git 安装根目录解析 `bin/bash.exe`；macOS/Linux 自定义安装目录解析 `bin/zsh`/`bin/fish`。目录内多个候选必须等待用户选择。
 - 不存在路径、普通文本、无执行权限文件、Windows 批处理、相对路径、目录内没有 Shell：提示失败且不覆盖已保存设置。

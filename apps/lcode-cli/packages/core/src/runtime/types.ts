@@ -319,6 +319,8 @@ export interface MemoryRuntimeConfig {
 }
 
 export interface AgentRuntimeDeps {
+  /** 由宿主解析当前 Shell；Runtime 只在独立任务执行边界读取，任务内保持固定。 */
+  resolveSessionShellSelection?: (traceContext: TraceContext) => Promise<ExecutionShellSelection>;
   /** 原 CommandInbox 接受后、真实执行前申请；直到本轮工具收尾才释放。 */
   checkoutExecutionPort?: {
     acquire(input: {

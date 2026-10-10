@@ -34,6 +34,7 @@ import { filterEmbeddedSearchRuntimeVisibleTools } from "./embedded-search-branc
 import {
   getSessionShellSelection as readSessionShellSelection,
   initializeSessionShellEnvironmentIfNeeded as initializeSessionShellEnvironment,
+  refreshSessionShellEnvironmentForExecution,
   type SessionShellEnvironmentCandidate,
 } from "./session-shell-environment.js";
 
@@ -81,6 +82,15 @@ export function getSessionShellSelection(
   this: AgentRuntimeInternal,
 ): ExecutionShellSelection | undefined {
   return readSessionShellSelection(this);
+}
+
+export async function prepareSessionShellEnvironment(
+  this: AgentRuntimeInternal,
+  traceContext: TraceContext,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  if (this.hasActiveOrQueuedTurnWork()) return false;
+  return refreshSessionShellEnvironmentForExecution(this, traceContext, signal);
 }
 
 export function getMode(this: AgentRuntimeInternal): CollaborationMode {

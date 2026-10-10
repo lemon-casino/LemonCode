@@ -23,6 +23,7 @@ function harness() {
     createChildClientPorts: () => ({}),
     getSessionEventStore: () => ({}),
     getSessionModelSelection: () => undefined,
+    getSessionShellSelection: () => undefined,
     getMode: () => "yolo",
     ensureSessionPersistedForExternalActivity: async () => {},
   } as unknown as AgentRuntime;
