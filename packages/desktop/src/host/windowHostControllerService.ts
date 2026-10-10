@@ -98,6 +98,11 @@ function sessionOverlay(
     title: summary.title,
     ...(summary.titleSource ? { titleSource: summary.titleSource } : {}),
     updatedAt: summary.lastActivityAt,
+    // 执行绑定只有 sessions-index 下发；不带上它，侧栏「工作树」分类在 Controller
+    // 视图（时间线、工作树）会读不到绑定，派生会话被误判成普通任务。
+    ...(summary.executionBindingId
+      ? { executionBindingId: summary.executionBindingId }
+      : {}),
     ...(summary.pendingInteraction
       ? {
           pendingInteraction: {

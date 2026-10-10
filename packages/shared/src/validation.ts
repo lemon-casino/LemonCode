@@ -1167,6 +1167,10 @@ export const lcodeTaskMetaSchema = z.object({
   provider: lcodeAgentProviderSchema.optional(),
   migrationSource: lcodeTaskMigrationSourceSchema.optional(),
   forkedFromTaskId: nonEmptyStringSchema.optional(),
+  // 会话 owner 的执行绑定。tasks-index 的 meta_json 不持久化该字段，但 sessions-index
+  // 下发它，且 Controller 覆盖层要透传到侧栏行。zod 默认剥离未声明字段，这里必须显式声明，
+  // 否则「工作树」分类在 Controller 视图（时间线/工作树）读不到绑定而漏显。
+  executionBindingId: nonEmptyStringSchema.optional(),
   // cron automation 身份：随 meta_json 一起持久化（单一来源），同时在写入时投影到 tasks 表
   // cron_automation_id 索引列，供按 automation 反查 session。runId 属于 automation_runs /
   // 投递 metadata，不属于 task 表。

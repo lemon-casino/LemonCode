@@ -45,6 +45,12 @@ export interface WindowHostControllerSessionOverlay {
   title?: string;
   titleSource?: "default" | "generated" | "custom";
   updatedAt?: number;
+  /**
+   * 会话 owner 的执行绑定。tasks-index 的 meta_json 不持久化它，只有 sessions-index
+   * 下发；侧栏「工作树」分类依赖该字段，覆盖层必须透传，否则 Controller 视图
+   * （时间线、工作树）读不到绑定，派生会话会被误判成普通任务。
+   */
+  executionBindingId?: string;
   pendingInteraction?: LCodeTaskMeta["pendingInteraction"];
   activity?: NonNullable<WindowHostControllerTaskRow["activity"]>;
 }
@@ -150,6 +156,9 @@ function buildSourceRows(source: ControllerSource): Map<string, WindowHostContro
           ...(overlay.titleSource === "custom" ? { titleOverridden: true } : {}),
           ...(overlay.updatedAt != null ? { updatedAt: overlay.updatedAt } : {}),
           ...(overlay.activity ? { status: statusFromActivity(overlay.activity) } : {}),
+          executionBindingId: overlay.executionBindingId,
+          // tasks-index 不持久化执行绑定；覆盖层缺席时必须清掉旧值，
+          // 否则会话换到本地目录后仍会留在「工作树」分类里。
           pendingInteraction: overlay.pendingInteraction,
         }
       : membership.meta;
