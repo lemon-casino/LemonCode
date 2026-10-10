@@ -83,6 +83,22 @@
    切换一次官方 Electron runtime mirror 后重试。其它 afterExtract/NOTICE 错误不得重试，
    避免用镜像切换掩盖真实许可文件回归。
 
+## v3.17.9 第三方许可清单输入刷新
+
+- 根版本递增为 `3.17.9`，正式 tag 为 `v3.17.9`；CLI 和 Worker 服务包沿用各自版本所有者。
+- 修复 `v3.17.6`、`v3.17.7`、`v3.17.8` 三次桌面发布的 linux-x64 失败：这些 tag 改动了
+  `third-party/inventory.json` 追踪的输入（含 `patches/border-beam@1.4.1.patch` 与 UI 组件），
+  但清单仍停在 `v3.17.5`，`Verify committed release notice baseline` 因
+  `Third-party input changed` 立即失败，导致六平台产物无法进入 Release job。
+- 用 `node scripts/licenses.mjs notices` 重新生成 `THIRD-PARTY-NOTICES.md` 与清单输入哈希；
+  只更新内容哈希与新增补丁声明，`reviewRequired`、`copiedComponents`、`nativeArchives`
+  与 `third-party/release-review-baseline.json` 均未变化。许可材料债务仍是原有显式登记项，
+  本次不新增也不减少。
+- 发布门禁已在本地全部执行：`test:release`、`test:dependency-security`、`architecture:check`、
+  根 `typecheck` 与 `lint` 通过。
+- 前次 `v3.17.8` 的 mac-x64 失败为 `upload-artifact` 的瞬时 `ENOTFOUND`，与源码无关；
+  本 tag 重跑六平台矩阵时一并验证。
+
 ## v3.17.8 归档瞬时文件锁重试发布准备
 
 - 根版本递增为 `3.17.8`，正式 tag 为 `v3.17.8`；CLI 和 Worker 服务包沿用各自版本所有者。

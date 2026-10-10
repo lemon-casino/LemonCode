@@ -2570,6 +2570,8 @@ Electron/Chromium target-specific notices are shipped separately under Resources
 
 - @jimp/core@0.22.12: modified by LCode; the changes are recorded in patches/@jimp__core@0.22.12.patch in the source repository.
 
+- border-beam@1.4.1: modified by LCode; the changes are recorded in patches/border-beam@1.4.1.patch in the source repository.
+
 - braces@3.0.3: modified by LCode; the changes are recorded in patches/braces@3.0.3.patch in the source repository.
 
 - node-forge@1.4.0: modified by LCode; the changes are recorded in patches/node-forge@1.4.0.patch in the source repository.
