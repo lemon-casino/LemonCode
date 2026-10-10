@@ -1,5 +1,33 @@
 # 会话临时预览服务生命周期
 
+## 2026-10-10：桌面 Agent 原生依赖漏包
+
+已确认原因：CLI bundle 将 `koffi` 标为 external；桌面共享 staging 清空 glm 后仅复制 JS 和内容插件，漏掉 Agent 自身使用的 `koffi`。安装态 Electron Node 从 `resources/glm/lcode.cjs` 解析该包得到 MODULE_NOT_FOUND。Windows Job adapter 吞掉加载原因并缓存不可用结果，因此连简单 echo 都在 spawn 前连续失败。源码树测试能解析 hoisted node_modules，不能证明安装态可运行。macOS 的 getsid 同样依赖该包。
+
+规则：不取消 Bash 进程所有权要求，不用 taskkill 回退绕过 Job 初始化。共享 `stageAgentBundle` 是桌面 dev/release 资源准备的唯一所有者；CLI 保持 external，由其直接依赖所在的 adapters package 解析锁定的 koffi。每次重建 glm 后异步复制包入口、manifest、类型、许可证和且仅目标平台的 native addon 到 `glm/node_modules/koffi`。缺少源文件立即失败，不发布成功 meta；已有旧平台残留先清空。支持当前六个桌面平台，不增加配置或环境变量。
+
+打包入口在 electron-builder 完成后校验 `resources/glm/node_modules/koffi` 的完整性和目标平台；内容插件及 CUA Helper 不拥有 Agent 的这份依赖。保留原 Execution adapter、Job / POSIX owner、Host lease、workspace identity 和 Desktop continuous / 手机 replayable 语义，不新增协议或 UI 状态。已运行 Agent 不热替换原生模块；安装包含修复的构建并正常重启 Agent 后生效。
+
+```mermaid
+sequenceDiagram
+  participant Build as dev / release 构建
+  participant Stage as 共享 stageAgentBundle
+  participant Package as electron-builder / 产物校验
+  participant Agent as Electron Node Agent
+  participant Owner as Job / POSIX owner
+  Build->>Stage: 当前 CLI bundle + 目标平台
+  Stage->>Stage: 清空 glm → JS / 插件 / 目标 koffi → meta
+  Stage-->>Build: 全部完成或原始资源错误
+  Build->>Package: resources/glm 整体复制
+  Package->>Package: 校验 Agent koffi 完整性与目标平台
+  Agent->>Owner: 从自身 glm 解析 koffi，准备进程归属
+  Owner-->>Agent: 归属准备成功后才 spawn Bash
+```
+
+验收：六平台 staging 只保留目标 native；缺少 addon / 包入口 / 许可证时报错；打包产物漏包被拒绝；隔离目录中的真实 Execution adapter 连续执行简单 Bash 成功，不能借用仓库依赖；原插件 staging 与派生进程清理回归通过。Windows 使用当前安装态 Electron Node 运行时验证；其它平台未实测时明确说明。此次不覆盖用户安装目录或中断正在运行的会话。
+
+验证记录：新增资源与隔离 Bash 15 项、插件及原生包策略 30 项、进程归属与真实预览清理 5 项，共 50 项通过。红灯复现了相同的 spawn_error / Job Object 准备失败；补齐资源后 Node 24.21.0 与仓库 Electron Node 连续三次 Bash 通过，当前安装态 Electron Node 24.18.0 的隔离验证同样连续三次通过。六平台资产选择使用夹具，Linux/macOS 没有实机验证。根目录和 CLI 的 typecheck/lint 退出 0；CLI Turbo 报已有 workspace/lockfile 闭包警告，未将其写成无警告。架构 baseline=0/new=0；目标格式与 diff 检查通过。修改 9 个文件，净增 275 行；资源准备脚本仍是唯一 owner，无接口或 UI 行为变化。未构建桌面安装包、未替换安装目录或重启正在运行的 Agent。
+
 ## 2026-10-09：shell 返回时结算派生后台进程
 
 已确认原因：Bash 命令通过子 shell 和 `&` 启动服务后，根 shell 提前退出；直写输出不依赖 pipe EOF，执行器随即移除 active execution。后续关闭会话、删除工作树只能停止当前 Agent，遗漏先前命令留下的服务，造成 CPU 持续占用与目录 EBUSY。

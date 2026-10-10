@@ -214,7 +214,12 @@ test("desktop dev bundle stages the plugin beside the agent", async () => {
       { recursive: true },
     );
 
-    stageAgentBundle({ repoRoot: tempRepoRoot, platformKey: "win32-x64", log: () => {} });
+    await stageAgentBundle({
+      repoRoot: tempRepoRoot,
+      platformKey: "win32-x64",
+      koffiPackageRoot: join(repoRoot, "apps/lcode-cli/packages/adapters"),
+      log: () => {},
+    });
     const stagedRoot = join(
       tempRepoRoot,
       "packages/desktop/bundled-agents/win32-x64/glm/packages/lemon-workflow-plugin",

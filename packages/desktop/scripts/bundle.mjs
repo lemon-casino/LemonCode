@@ -12,6 +12,7 @@ import process from "node:process";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { collectRuntimeModuleClosureEntries } from "./runtime-dependency-closure.mjs";
+import { verifyStagedKoffi } from "./koffi-package-assets.mjs";
 import {
   resolveDesktopArtifactSuffix,
   resolveDesktopProductIdentity,
@@ -849,6 +850,13 @@ async function main() {
   );
 
   const unpackedResourcesDir = resolveAppResourcesDir(os, arch);
+  await runTimedAsync("bundle:verify-agent-koffi", async () => {
+    const violations = await verifyStagedKoffi({
+      resourcesDir: unpackedResourcesDir,
+      targetPlatform: { os: miseTarget.os, arch },
+    });
+    if (violations.length) throw new Error(violations.join("\n"));
+  });
   await runTimedAsync("bundle:verify-packaged-mise", () =>
     validatePackagedMiseRuntimeAssets({ resourcesDir: unpackedResourcesDir, target: miseTarget }),
   );

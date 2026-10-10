@@ -33,7 +33,12 @@ test("clean desktop staging carries computer-use beside node_repl consumers", as
   const tempRepoRoot = await mkdtemp(join(tmpdir(), "lcode-cua-desktop-"));
   try {
     await prepareDesktopStagingFixture(tempRepoRoot);
-    stageAgentBundle({ repoRoot: tempRepoRoot, platformKey: "win32-x64", log: () => {} });
+    await stageAgentBundle({
+      repoRoot: tempRepoRoot,
+      platformKey: "win32-x64",
+      koffiPackageRoot: join(repoRoot, "apps/lcode-cli/packages/adapters"),
+      log: () => {},
+    });
     const stagedRoot = join(
       tempRepoRoot,
       "packages/desktop/bundled-agents/win32-x64/glm/packages/lcode-cua-plugin",
@@ -66,7 +71,7 @@ for (const relativePath of requiredPluginAssets) {
         relativePath,
       );
       await rm(missingPath);
-      assert.throws(
+      await assert.rejects(
         () => stageAgentBundle({ repoRoot: tempRepoRoot, platformKey: "win32-x64", log: () => {} }),
         { message: `[stage:agent-bundle] missing official plugin asset: ${missingPath}` },
       );
