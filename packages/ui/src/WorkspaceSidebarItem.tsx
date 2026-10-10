@@ -151,6 +151,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   reconnectingRemoteWorkspaceLogsByWorkspaceKey,
   onReconnectRemoteWorkspace,
   onOpenFileTree,
+  onOpenWorktrees,
   itemRef,
   itemStyle,
   sortableBindings,
@@ -173,6 +174,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   onStartDraftInWorkspace: (targetWorkspacePath: string, targetWorkspaceIdentity?: string) => void;
   taskItems: LCodeTaskMeta[];
   taskListLoading: boolean;
+  onOpenWorktrees?: () => void;
   taskListHasMore: boolean;
   taskListHasUnread?: boolean;
   /** 组内在跑的工作流 run 数；项目收起时在未读点旁画脉冲灯（>1 带数量）。 */
@@ -965,7 +967,9 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
                               )}
                               disabled={Boolean(readOnlyReason)}
                               onMouseDown={(event) => event.stopPropagation()}
-                              onSelect={() => setProjectWorktreesOpen(true)}
+                              onSelect={() =>
+                                onOpenWorktrees ? onOpenWorktrees() : setProjectWorktreesOpen(true)
+                              }
                             >
                               <GitBranchIcon className="h-3.5 w-3.5" />
                               {intl.formatMessage({ id: "worktree.projectWorktrees" })}

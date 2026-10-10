@@ -33,6 +33,7 @@ import { toast } from "@/components/ui/toast.js";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
 import { selectWorkspaceLCodeState, useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
+import { filterOrdinaryGroupedView } from "@/lib/worktreeSidebar.js";
 import { buildWorkspaceServiceLookup } from "@/lib/workspaceServiceResolver.js";
 import { applyTaskQueryCacheMutation } from "@/store/taskQueryCacheStore.js";
 import { useRemotePinnedTaskStore } from "@/store/remotePinnedTaskStore.js";
@@ -542,6 +543,7 @@ export function WorkspaceGroupedTasksSection({
   onCollapsedGroupIdsChange,
   onStickyGroupHeaderChange,
   onOpenAutomations,
+  worktreeBindings,
 }: {
   workspaceTabs: WorkspaceTabState[];
   activeWorkspacePath: string;
@@ -563,6 +565,7 @@ export function WorkspaceGroupedTasksSection({
   onStickyGroupHeaderChange?: (node: ReactNode | null) => void;
   /** 闲时系统分组的「+」/右键新建路由到 Automations 主视图。 */
   onOpenAutomations?: () => void;
+  worktreeBindings?: readonly import("@lcode/services").WorktreeBinding[];
 }) {
   const { intl } = useLCodeIntl();
   const baseServices = useBaseWorkspaceServices();
@@ -619,6 +622,10 @@ export function WorkspaceGroupedTasksSection({
   const view = useMemo(
     () => filterGroupedViewByTaskKeys(authoritativeView, archivingTaskKeys),
     [archivingTaskKeys, authoritativeView],
+  );
+  const displayView = useMemo(
+    () => (worktreeBindings ? filterOrdinaryGroupedView(view, worktreeBindings) : view),
+    [view, worktreeBindings],
   );
 
   useEffect(() => {
@@ -1804,11 +1811,11 @@ export function WorkspaceGroupedTasksSection({
             />
           ) : null}
           <VirtualizedGroupedTopLevelList
-            nodes={view.nodes}
+            nodes={displayView.nodes}
             isGroupCollapsed={isGroupCollapsed}
             renderNode={renderTopLevelNode}
           />
-          {view.nodes.length === 0 && !groupedDraftTask && !loading ? (
+          {displayView.nodes.length === 0 && !groupedDraftTask && !loading ? (
             <div className="px-3 py-2 text-ui-base text-foreground-subtle">
               {intl.formatMessage({ id: "taskList.noTasks" })}
             </div>

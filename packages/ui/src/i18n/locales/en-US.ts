@@ -7586,6 +7586,10 @@ const enUS: Record<string, string> = {
   "worktree.integration.source-commit-failed":
     "Worktree commits incomplete; successful commits retained and target branch unchanged",
   "worktree.projectWorktrees": "Project worktrees",
+  "workspaceSidebar.organizeWorktrees": "Worktrees",
+  "worktree.sidebarReuse": "Fork chat in this worktree",
+  "worktree.sidebarUnresolved": "Worktree records for these chats are not available yet",
+  "worktree.sidebarDisconnected": "Reconnect the remote project to load its worktrees.",
   "worktree.backToProjectWorktrees": "Back to project worktrees",
   "worktree.projectWorktreesDescription":
     "Manage project worktrees and saved file snapshots. Released worktrees remain here for viewing snapshots, restoring directories or deleting. Chat archives are managed separately.",

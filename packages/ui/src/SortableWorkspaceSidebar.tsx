@@ -33,6 +33,7 @@ export const SortableWorkspaceSidebarItem = memo(function SortableWorkspaceSideb
   reconnectingRemoteWorkspaceLogsByWorkspaceKey,
   onReconnectRemoteWorkspace,
   onOpenFileTree,
+  onOpenWorktrees,
 }: {
   tab: WorkspaceTabState;
   isActiveWorkspace: boolean;
@@ -51,6 +52,7 @@ export const SortableWorkspaceSidebarItem = memo(function SortableWorkspaceSideb
   onStartDraftInWorkspace: (targetWorkspacePath: string, targetWorkspaceIdentity?: string) => void;
   taskItems: LCodeTaskMeta[];
   taskListLoading: boolean;
+  onOpenWorktrees?: () => void;
   taskListHasMore: boolean;
   taskListHasUnread?: boolean;
   taskListLiveWorkflowCount?: number;
@@ -120,6 +122,7 @@ export const SortableWorkspaceSidebarItem = memo(function SortableWorkspaceSideb
       onSelectTask={onSelectTask}
       onStartDraftInWorkspace={onStartDraftInWorkspace}
       taskItems={taskItems}
+      onOpenWorktrees={onOpenWorktrees}
       taskListLoading={taskListLoading}
       taskListHasMore={taskListHasMore}
       taskListHasUnread={taskListHasUnread}

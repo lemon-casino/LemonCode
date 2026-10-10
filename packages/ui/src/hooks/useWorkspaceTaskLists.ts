@@ -45,6 +45,7 @@ import {
   useWorkspaceSessionsIndexItems,
 } from "@/v4/useWorkspaceSessionsIndexItems.js";
 import { resolveWorkspaceTaskVisibleLimit } from "@/lib/workspaceTaskPagination.js";
+import { isWorktreeSidebarTask } from "@/lib/worktreeSidebar.js";
 
 interface WorkspaceTaskListQueryConfig {
   scope: {
@@ -199,6 +200,7 @@ export function useWorkspaceTaskLists(params: {
   sortBy: "created" | "updated";
   visibleLimitByWorkspaceKey: Readonly<Record<string, number>>;
   defaultVisibleLimit: number;
+  worktreeBindings?: readonly import("@lcode/services").WorktreeBinding[];
 }) {
   const baseServices = useBaseWorkspaceServices();
   const sessionsById = useRemoteWorkspaceSessionStore((state) => state.sessionsById);
@@ -319,7 +321,10 @@ export function useWorkspaceTaskLists(params: {
           // 这里改成只使用当前 workspace 自己的版本，避免无关 workspace 被连带清空。
           queryKey:
             buildTaskListCacheKeyFromDescriptor(descriptor) +
-            `::version=${taskListVersionByWorkspaceKey.get(workspaceKey) ?? 0}`,
+            `::version=${taskListVersionByWorkspaceKey.get(workspaceKey) ?? 0}` +
+            (params.worktreeBindings
+              ? `::ordinary=${JSON.stringify(params.worktreeBindings.map((b) => [b.id, b.taskId, b.originalWorkspaceIdentity?.trim() || b.originalWorkspacePath, b.workspaceIdentity?.trim() || b.workspacePath]))}`
+              : ""),
         };
       }),
     [
@@ -327,6 +332,7 @@ export function useWorkspaceTaskLists(params: {
       params.sortBy,
       params.visibleLimitByWorkspaceKey,
       params.workspaceTabs,
+      params.worktreeBindings,
       serviceResolverState,
       taskListVersionByWorkspaceKey,
     ],
@@ -547,14 +553,20 @@ export function useWorkspaceTaskLists(params: {
                 hasMore: false,
                 unreadTaskKeys: [],
               };
-              const visibleItems = group.items.slice(0, config.visibleLimit);
+              const classifiedItems = params.worktreeBindings
+                ? group.items.filter(
+                    (task) => !isWorktreeSidebarTask(task, params.worktreeBindings!),
+                  )
+                : group.items;
+              const visibleItems = classifiedItems.slice(0, config.visibleLimit);
+              const classifiedKeys = new Set(classifiedItems.map(buildTaskEntityKey));
               return {
                 queryKey: config.queryKey,
                 descriptor: config.descriptor,
                 items: visibleItems,
-                total: group.total,
-                hasMore: group.total > visibleItems.length,
-                unreadTaskKeys: group.unreadTaskKeys,
+                total: classifiedItems.length,
+                hasMore: classifiedItems.length > visibleItems.length,
+                unreadTaskKeys: group.unreadTaskKeys.filter((key) => classifiedKeys.has(key)),
                 expectedInvalidationVersion: expectedInvalidationVersionByQueryKey.get(
                   config.queryKey,
                 ),
@@ -604,6 +616,7 @@ export function useWorkspaceTaskLists(params: {
     membershipVersion,
     pendingConfigs,
     params.sortBy,
+    params.worktreeBindings,
     requestSignature,
     resultsByQueryKey,
     sessionsIndexItems,

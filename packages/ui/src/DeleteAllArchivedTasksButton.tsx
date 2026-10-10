@@ -20,6 +20,7 @@ import {
   type ArchivedTaskDeletionTarget,
 } from "@/lib/archivedTaskDeletion.js";
 import { logger } from "@/logger.js";
+import type { LCodeTaskMeta } from "@lcode/shared";
 
 export function DeleteAllArchivedTasksButton({
   workspaces,
@@ -28,6 +29,7 @@ export function DeleteAllArchivedTasksButton({
   actionsContainer,
   onDeleted,
   onRefresh,
+  taskFilter,
 }: {
   workspaces: ArchivedTaskDeletionWorkspace[];
   count: number;
@@ -35,6 +37,7 @@ export function DeleteAllArchivedTasksButton({
   actionsContainer?: HTMLElement | null;
   onDeleted: (target: ArchivedTaskDeletionTarget) => void;
   onRefresh?: () => Promise<void>;
+  taskFilter?: (task: LCodeTaskMeta) => boolean;
 }) {
   const { intl } = useLCodeIntl();
   const confirmDialog = useConfirmDialog();
@@ -49,7 +52,7 @@ export function DeleteAllArchivedTasksButton({
     setBusy(true);
     setResultMessage(null);
     try {
-      const selection = await collectArchivedTaskDeletion(workspaces);
+      const selection = await collectArchivedTaskDeletion(workspaces, taskFilter);
       const unavailable =
         selection.unavailableWorkspaces.length > 0
           ? intl.formatMessage(

@@ -7191,6 +7191,10 @@ const zhCN: Record<string, string> = {
   "worktree.integration.source-commit-failed":
     "工作树提交未完成，已成功的提交已保留；目标分支尚未更新",
   "worktree.projectWorktrees": "项目工作树",
+  "workspaceSidebar.organizeWorktrees": "工作树",
+  "worktree.sidebarReuse": "在此工作树分支会话",
+  "worktree.sidebarUnresolved": "这些会话的工作树记录尚未读取成功",
+  "worktree.sidebarDisconnected": "请先重新连接远端项目，再读取其工作树。",
   "worktree.backToProjectWorktrees": "返回项目工作树",
   "worktree.projectWorktreesDescription":
     "管理项目工作树及已保存的文件快照。释放目录后的工作树仍保留在此处，可查看快照、恢复目录或删除；与会话归档分别管理。",

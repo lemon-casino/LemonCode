@@ -1,5 +1,5 @@
 /* eslint-disable max-lines -- timeline 同时承载本地 scoped 查询、远端主动缓存和任务操作分发，先集中保持链路清晰。 */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import type { LCodeTaskMeta } from "@lcode/shared";
 import { toast } from "@/components/ui/toast.js";
@@ -38,6 +38,13 @@ interface TimelineTaskItemHandlers {
   onOpenTaskContextMenu: (taskId: string) => void;
 }
 
+export interface SidebarTimelineGroup {
+  key: string;
+  header?: ReactNode;
+  label: Parameters<typeof getTaskTimelineGroupMessage>[0] | null;
+  items: LCodeTaskMeta[];
+}
+
 export function WorkspaceTimelineTasksSection({
   workspaceTabs,
   activeWorkspacePath,
@@ -48,6 +55,8 @@ export function WorkspaceTimelineTasksSection({
   taskRowVariant = "timeline",
   emptyMessage,
   onSelectTask,
+  taskFilter,
+  buildGroups,
 }: {
   workspaceTabs: WorkspaceTabState[];
   activeWorkspacePath: string;
@@ -63,6 +72,8 @@ export function WorkspaceTimelineTasksSection({
     targetWorkspaceIdentity?: string,
     expectedUnreadAt?: number,
   ) => void;
+  taskFilter?: (task: LCodeTaskMeta) => boolean;
+  buildGroups?: (tasks: LCodeTaskMeta[]) => SidebarTimelineGroup[];
 }) {
   const { intl, locale } = useLCodeIntl();
   const baseServices = useBaseWorkspaceServices();
@@ -142,7 +153,7 @@ export function WorkspaceTimelineTasksSection({
     workspaceTabs: scopedWorkspaceTabs,
     sortBy: taskSortBy,
     searchQuery: "",
-    expanded: false,
+    expanded: Boolean(taskFilter || buildGroups),
     collapsedLimit: visibleTaskLimit,
   });
   const remoteTimelineItemsByWorkspaceKey = useRemoteTimelineTaskStore(
@@ -173,11 +184,11 @@ export function WorkspaceTimelineTasksSection({
     );
   }, [remoteTimelineItemsByWorkspaceKey, remoteWorkspaceKeys]);
   const sortedItems = useMemo(() => {
-    return [...localItems, ...remoteItems].sort((left, right) =>
-      compareLCodeTaskListItems(left, right, taskSortBy),
-    );
-  }, [localItems, remoteItems, taskSortBy]);
-  const items = sortedItems.slice(0, visibleTaskLimit);
+    return [...localItems, ...remoteItems]
+      .filter((task) => !taskFilter || taskFilter(task))
+      .sort((left, right) => compareLCodeTaskListItems(left, right, taskSortBy));
+  }, [localItems, remoteItems, taskSortBy, taskFilter]);
+  const items = buildGroups ? sortedItems : sortedItems.slice(0, visibleTaskLimit);
   const itemByKey = useMemo(() => {
     const nextItemByKey = new Map<string, LCodeTaskMeta>();
     for (const item of items) {
@@ -192,10 +203,11 @@ export function WorkspaceTimelineTasksSection({
   const workspaceServiceLookupRef = useRef(workspaceServiceLookup);
   itemByKeyRef.current = itemByKey;
   workspaceServiceLookupRef.current = workspaceServiceLookup;
-  const timelineGroups = useMemo(() => {
+  const timelineGroups = useMemo<SidebarTimelineGroup[]>(() => {
     const visibleItems = items.filter((item) =>
       workspaceServiceLookup.has(buildTaskWorkspaceKey(item.workspacePath, item.workspaceIdentity)),
     );
+    if (buildGroups) return buildGroups(visibleItems);
     if (!groupByDate) {
       return [{ key: "all", label: null, items: visibleItems }];
     }
@@ -213,7 +225,7 @@ export function WorkspaceTimelineTasksSection({
         ),
       }))
       .filter((group) => group.items.length > 0);
-  }, [groupByDate, items, locale, taskSortBy, workspaceServiceLookup]);
+  }, [buildGroups, groupByDate, items, locale, taskSortBy, workspaceServiceLookup]);
   const remoteTotal = remoteWorkspaceKeys.reduce(
     (sum, workspaceKey) =>
       sum +
@@ -222,7 +234,7 @@ export function WorkspaceTimelineTasksSection({
         0),
     0,
   );
-  const total = localTotal + remoteTotal;
+  const total = taskFilter ? sortedItems.length : localTotal + remoteTotal;
   const remoteHasMore = remoteWorkspaceKeys.some(
     (workspaceKey) => remoteTimelineHasMoreByWorkspaceKey[workspaceKey],
   );
@@ -241,7 +253,7 @@ export function WorkspaceTimelineTasksSection({
   const currentLimitFilled = sortedItems.length >= visibleTaskLimit;
   // 远端/本地 hasMore 偶尔会在下一轮请求完成前保持旧值。
   // 如果当前已加载数量没有填满 limit，说明这轮已经到底了，不能继续显示 show more。
-  const canLoadMore = loading ? hasKnownMore : currentLimitFilled && hasKnownMore;
+  const canLoadMore = !buildGroups && (loading ? hasKnownMore : currentLimitFilled && hasKnownMore);
 
   useEffect(() => {
     setVisibleTaskLimit(collapsedLimit);
@@ -585,7 +597,7 @@ export function WorkspaceTimelineTasksSection({
     }
   }, [itemByKey]);
 
-  if (items.length === 0 && loading) {
+  if (items.length === 0 && timelineGroups.length === 0 && loading) {
     return (
       <div className="flex min-h-0 flex-col px-2">
         <TaskListLoadingHint />
@@ -593,7 +605,7 @@ export function WorkspaceTimelineTasksSection({
     );
   }
 
-  if (items.length === 0) {
+  if (items.length === 0 && timelineGroups.length === 0) {
     return (
       <div className="px-3 py-2 text-ui-base text-foreground-subtle">
         {emptyMessage ?? intl.formatMessage({ id: "taskList.noTasks" })}
@@ -676,6 +688,7 @@ export function WorkspaceTimelineTasksSection({
               const labelMessage = group.label ? getTaskTimelineGroupMessage(group.label) : null;
               return (
                 <li key={group.key} className="space-y-0.5">
+                  {group.header}
                   {labelMessage ? (
                     <div className="px-3 pt-2 pb-1 text-ui-base font-medium text-foreground-subtle">
                       {intl.formatMessage({ id: labelMessage.id }, labelMessage.values)}

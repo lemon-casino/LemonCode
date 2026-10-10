@@ -20,6 +20,7 @@ import { TaskListRemoteSyncHint } from "@/TaskListRemoteSyncHint.js";
 import { TaskListLoadingHint } from "@/TaskListLoadingHint.js";
 import { buildWorkspaceServiceLookup } from "@/lib/workspaceServiceResolver.js";
 import { DeleteAllArchivedTasksButton } from "@/DeleteAllArchivedTasksButton.js";
+import type { LCodeTaskMeta } from "@lcode/shared";
 
 export function WorkspaceArchivedTasksFlatSection({
   workspaceTabs,
@@ -29,12 +30,14 @@ export function WorkspaceArchivedTasksFlatSection({
   sortBy,
   actionsContainer,
   onSelectTask,
+  taskFilter,
 }: {
   workspaceTabs: WorkspaceTabState[];
   activeWorkspacePath: string;
   activeWorkspaceIdentity?: string;
   activeTaskId: string | null;
   sortBy: "created" | "updated";
+  taskFilter?: (task: LCodeTaskMeta) => boolean;
   actionsContainer?: HTMLElement | null;
   onSelectTask: (
     targetWorkspacePath: string,
@@ -82,19 +85,29 @@ export function WorkspaceArchivedTasksFlatSection({
     [baseServices, serviceResolverState, workspaceTabs],
   );
   const activeWorkspaceKey = buildTaskWorkspaceKey(activeWorkspacePath, activeWorkspaceIdentity);
-  const { items, total, loading, syncingRemoteWorkspaces, refresh } = useGlobalTaskList({
+  const {
+    items: queriedItems,
+    total: queriedTotal,
+    loading,
+    syncingRemoteWorkspaces,
+    refresh,
+  } = useGlobalTaskList({
     kind: "archived",
     workspaceTabs,
     sortBy,
     searchQuery: "",
-    expanded: showAllTasks,
+    expanded: showAllTasks || Boolean(taskFilter),
     collapsedLimit,
   });
+  const classifiedItems = taskFilter ? queriedItems.filter(taskFilter) : queriedItems;
+  const items = showAllTasks ? classifiedItems : classifiedItems.slice(0, collapsedLimit);
+  const total = taskFilter ? classifiedItems.length : queriedTotal;
   const canToggleExpanded = total > collapsedLimit;
 
   return (
     <div>
       <DeleteAllArchivedTasksButton
+        taskFilter={taskFilter}
         actionsContainer={actionsContainer}
         count={total}
         disabled={loading || total === 0}

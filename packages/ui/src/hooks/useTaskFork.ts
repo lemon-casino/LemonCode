@@ -10,6 +10,7 @@ import { getErrorMessage } from "@/lib/errorMessage.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { toast } from "@/components/ui/toast.js";
 import { useTabStoreApi } from "@/store/TabStoreProvider.js";
+import { useWorktreeLifecycleStore } from "@/store/worktreeLifecycleStore.js";
 
 export type TaskForkNavigation = (
   workspacePath: string,
@@ -42,6 +43,14 @@ export function useTaskFork(
       pendingRef.current = true;
       setPending(true);
       const activeTabId = tabStore.getState().activeTabId;
+      // 新工作树分叉同样没有管理动作可挂失效通知：确认成功后广播一次，
+      // 侧栏工作树列表才会自己出现这条树，而不是等用户点刷新。
+      const announceForkWorktree = () => {
+        if (workspaceMode !== "worktree") return;
+        useWorktreeLifecycleStore
+          .getState()
+          .invalidate(task.workspacePath, task.workspaceIdentity);
+      };
       // 子会话属于原项目；actual checkout 只供执行。远程树不能被当成未连接的新项目导航。
       const selectChild = (sessionId: string) => {
         if (tabStore.getState().activeTabId === activeTabId)
@@ -85,6 +94,7 @@ export function useTaskFork(
             result.result?.type === "forkSession"
           ) {
             selectChild(result.result.sessionId);
+            announceForkWorktree();
             return;
           }
           throw new Error(result.message ?? result.reasonCode ?? result.status);
@@ -111,6 +121,7 @@ export function useTaskFork(
         )
           throw new Error(ack.message ?? ack.reasonCode ?? ack.status);
         selectChild(ack.result.sessionId);
+        announceForkWorktree();
       } catch (reason) {
         toast(`${intl.formatMessage({ id: "taskList.fork.failed" })}: ${getErrorMessage(reason)}`, {
           variant: "warning",

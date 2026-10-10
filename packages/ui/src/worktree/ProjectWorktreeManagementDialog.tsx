@@ -22,6 +22,7 @@ export function ProjectWorktreeManagementDialog({
   onOpenChange,
   onSelectSession,
   initialSessionId,
+  initialDeleteRequested = false,
   onWorktreeDeleted,
 }: {
   workspacePath: string;
@@ -31,13 +32,14 @@ export function ProjectWorktreeManagementDialog({
   onOpenChange: (open: boolean) => void;
   onSelectSession?: (sessionId: string) => void;
   initialSessionId?: string;
+  initialDeleteRequested?: boolean;
   onWorktreeDeleted?: (binding: WorktreeBinding) => void;
 }) {
   const { intl } = useLCodeIntl();
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(
     initialSessionId ?? null,
   );
-  const [deleteRequested, setDeleteRequested] = useState(false);
+  const [deleteRequested, setDeleteRequested] = useState(initialDeleteRequested);
   const renderDialog = (content: ReactNode) => (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent

@@ -59,7 +59,10 @@ import {
 } from "@lcode/shared";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
+import {
+  SidebarTaskModeTabs,
+  type SidebarPrimaryTaskMode,
+} from "@/WorkspaceSidebar/SidebarTaskModeTabs.js";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -131,6 +134,9 @@ import {
   type SidebarTaskGroupTogglePresentation,
 } from "@/WorkspaceSidebar/taskGroupTogglePresentation.js";
 import { WorkspacePurposeSection } from "@/WorkspaceSidebar/WorkspacePurposeSection.js";
+import { WorkspaceWorktreesSection } from "@/WorkspaceSidebar/WorkspaceWorktreesSection.js";
+import { useSidebarWorktrees } from "@/hooks/useSidebarWorktrees.js";
+import { isWorktreeSidebarTask, isWorktreeSidebarWorkspace } from "@/lib/worktreeSidebar.js";
 import { cn } from "@/components/lib/utils.js";
 import {
   resolveWorkspaceDragGlobalIndices,
@@ -159,8 +165,8 @@ export { WorkspaceSidebarCollapsedRail } from "@/WorkspaceSidebar/WorkspaceSideb
 
 type TaskOrganizeBy = SidebarTaskOrganizeBy;
 type TaskSortBy = SidebarTaskSortBy;
-type PrimaryTaskMode = "workspace" | "grouped";
-type SidebarTaskViewMode = "grouped" | "workspace" | "timeline" | "archived";
+type PrimaryTaskMode = SidebarPrimaryTaskMode;
+type SidebarTaskViewMode = "grouped" | "workspace" | "timeline" | "archived" | "worktrees";
 
 interface SidebarFileTreeTarget {
   workspacePath: string;
@@ -219,6 +225,7 @@ function resolveSidebarTaskViewMode(params: {
   if (params.taskOrganizeBy === "grouped") {
     return "grouped";
   }
+  if (params.taskOrganizeBy === "worktrees") return "worktrees";
   return "workspace";
 }
 
@@ -391,9 +398,26 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   });
 
   const workspaceTabs = useMemo(() => tabs.filter(isWorkspaceTab), [tabs]);
+  const sidebarWorktrees = useSidebarWorktrees(workspaceTabs);
+  const worktreeBindings = useMemo(
+    () => sidebarWorktrees.entries.map((entry) => entry.binding),
+    [sidebarWorktrees.entries],
+  );
+  const ordinaryWorkspaceTabs = useMemo(
+    () => workspaceTabs.filter((tab) => !isWorktreeSidebarWorkspace(tab, worktreeBindings)),
+    [workspaceTabs, worktreeBindings],
+  );
+  const ordinaryTaskFilter = useCallback(
+    (task: LCodeTaskMeta) => !isWorktreeSidebarTask(task, worktreeBindings),
+    [worktreeBindings],
+  );
+  const worktreeTaskFilter = useCallback(
+    (task: LCodeTaskMeta) => isWorktreeSidebarTask(task, worktreeBindings),
+    [worktreeBindings],
+  );
   const { conversationWorkspaceTabs, projectWorkspaceTabs } = useMemo(
-    () => partitionWorkspaceTabsByPurpose(workspaceTabs),
-    [workspaceTabs],
+    () => partitionWorkspaceTabsByPurpose(ordinaryWorkspaceTabs),
+    [ordinaryWorkspaceTabs],
   );
   const workspacePaths = useMemo(
     () => projectWorkspaceTabs.map((tab) => tab.workspacePath),
@@ -488,6 +512,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   const primaryTaskTabTriggerRefs = useRef<Record<PrimaryTaskMode, HTMLButtonElement | null>>({
     workspace: null,
     grouped: null,
+    worktrees: null,
   });
   const [primaryTaskIndicatorStyle, setPrimaryTaskIndicatorStyle] = useState<CSSProperties>({
     opacity: 0,
@@ -637,6 +662,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
     taskViewMode === "workspace" ||
     taskViewMode === "timeline" ||
     taskViewMode === "archived" ||
+    taskViewMode === "worktrees" ||
     taskViewMode === "grouped";
   const workspaceScrollRef = useRef<HTMLDivElement | null>(null);
   const [showWorkspaceTopMask, setShowWorkspaceTopMask] = useState(false);
@@ -658,16 +684,19 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
     sortBy: taskSortBy,
     visibleLimitByWorkspaceKey: workspaceTaskVisibleLimitByKey,
     defaultVisibleLimit: WORKSPACE_TASK_PAGE_SIZE,
+    worktreeBindings,
   });
   const workspaceTaskGroupByKey = useMemo(
     () =>
       new Map(
         workspaceTaskLists.groups.map((group) => [
           buildTaskWorkspaceKey(group.workspacePath, group.workspaceIdentity),
-          group,
+          group.items.every(ordinaryTaskFilter)
+            ? group
+            : { ...group, items: group.items.filter(ordinaryTaskFilter) },
         ]),
       ),
-    [workspaceTaskLists.groups],
+    [workspaceTaskLists.groups, ordinaryTaskFilter],
   );
   const handleShowMoreWorkspaceTasks = useCallback((workspaceKey: string) => {
     setWorkspaceTaskVisibleLimitByKey((current) =>
@@ -877,7 +906,11 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
     previous: lastStableTaskGroupTogglePresentationRef.current,
   });
   const activePrimaryTaskMode: PrimaryTaskMode =
-    taskOrganizeBy === "grouped" ? "grouped" : "workspace";
+    taskOrganizeBy === "grouped"
+      ? "grouped"
+      : taskOrganizeBy === "worktrees"
+        ? "worktrees"
+        : "workspace";
   const workspaceTaskViewValue = taskOrganizeBy === "chronological" ? "chronological" : "project";
   const showTaskViewFilter = activePrimaryTaskMode === "workspace" || showArchivedTasks;
   const showWorkspaceViewOptions = activePrimaryTaskMode === "workspace" && !showArchivedTasks;
@@ -899,6 +932,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
       if (value === "workspace") {
         setTaskOrganizeBy(workspaceTaskOrganizeBy);
       }
+      if (value === "worktrees") setTaskOrganizeBy("worktrees");
     },
     [
       groupedTaskGroupIds.length,
@@ -1025,56 +1059,15 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   const workspaceTaskToolbar = useCallback(
     () => (
       <div className="pl-2.5 pr-3">
-        <div className="flex min-w-0 items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-2 gap-y-1">
           <div className="flex min-w-0 shrink-0 items-center gap-1">
-            <Tabs
+            <SidebarTaskModeTabs
               value={activePrimaryTaskMode}
               onValueChange={handlePrimaryTaskModeChange}
-              className="w-fit shrink-0"
-              aria-label={intl.formatMessage({
-                id: "workspaceSidebar.organize",
-              })}
-            >
-              {/* TabsList 默认横向态是 h-8；这里同步覆盖 variant，避免实际 Radix 横向态把外壳撑高。 */}
-              <TabsList
-                ref={primaryTaskTabsListRef}
-                className="relative h-7 w-fit overflow-hidden rounded-full bg-surface p-0.5 group-data-horizontal/tabs:h-7"
-              >
-                <span
-                  aria-hidden="true"
-                  className="pointer-events-none absolute inset-y-0.5 left-0 rounded-full bg-background transition-[opacity,transform,width] duration-200 ease-out"
-                  style={primaryTaskIndicatorStyle}
-                />
-                <TabsTrigger
-                  ref={(node) => {
-                    primaryTaskTabTriggerRefs.current.grouped = node;
-                  }}
-                  value="grouped"
-                  className="relative z-10 h-6 flex-none gap-1 rounded-full border-transparent bg-transparent py-0 pl-1.5 pr-2 text-ui-sm font-medium text-foreground-subtle transition-colors data-active:border-transparent data-active:bg-transparent data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent"
-                >
-                  <Hash aria-hidden="true" className="size-3 shrink-0" />
-                  <span>
-                    {intl.formatMessage({
-                      id: "workspaceSidebar.organizeGrouped",
-                    })}
-                  </span>
-                </TabsTrigger>
-                <TabsTrigger
-                  ref={(node) => {
-                    primaryTaskTabTriggerRefs.current.workspace = node;
-                  }}
-                  value="workspace"
-                  className="relative z-10 h-6 flex-none gap-1 rounded-full border-transparent bg-transparent py-0 pl-1.5 pr-2 text-ui-sm font-medium text-foreground-subtle transition-colors data-active:border-transparent data-active:bg-transparent data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-transparent"
-                >
-                  <Folder aria-hidden="true" className="size-3 shrink-0" />
-                  <span>
-                    {intl.formatMessage({
-                      id: "workspaceSidebar.organizeByProject",
-                    })}
-                  </span>
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
+              listRef={primaryTaskTabsListRef}
+              triggerRefs={primaryTaskTabTriggerRefs}
+              indicatorStyle={primaryTaskIndicatorStyle}
+            />
             {toggleAllTaskGroupsPresentation ? (
               <ControlHintTooltip
                 title={intl.formatMessage({
@@ -1372,6 +1365,9 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                 // pinned 是全局置顶区，归档态保持置顶区可见。
                 <WorkspacePinnedTasksSection
                   workspaceTabs={workspaceTabs}
+                  taskFilter={
+                    taskOrganizeBy === "worktrees" ? worktreeTaskFilter : ordinaryTaskFilter
+                  }
                   activeWorkspacePath={workspacePath}
                   activeWorkspaceIdentity={workspaceIdentity}
                   activeTaskId={activeTaskId}
@@ -1388,15 +1384,29 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                   <WorkspaceArchivedTasksFlatSection
                     actionsContainer={archivedActionsContainer}
                     workspaceTabs={workspaceTabs}
+                    taskFilter={
+                      taskOrganizeBy === "worktrees" ? worktreeTaskFilter : ordinaryTaskFilter
+                    }
                     activeWorkspacePath={workspacePath}
                     activeWorkspaceIdentity={workspaceIdentity}
                     activeTaskId={activeTaskId}
                     sortBy={taskSortBy}
-                    onSelectTask={onSelectTask}
+                    onSelectTask={handleTaskRowSelect}
+                  />
+                ) : taskViewMode === "worktrees" ? (
+                  <WorkspaceWorktreesSection
+                    workspaceTabs={workspaceTabs}
+                    {...sidebarWorktrees}
+                    activeWorkspacePath={workspacePath}
+                    activeWorkspaceIdentity={workspaceIdentity}
+                    activeTaskId={activeTaskId}
+                    taskSortBy={taskSortBy}
+                    onSelectTask={handleTaskRowSelect}
                   />
                 ) : taskViewMode === "grouped" ? (
                   <WorkspaceGroupedTasksSection
-                    workspaceTabs={workspaceTabs}
+                    workspaceTabs={ordinaryWorkspaceTabs}
+                    worktreeBindings={worktreeBindings}
                     activeWorkspacePath={workspacePath}
                     activeWorkspaceIdentity={workspaceIdentity}
                     activeTaskId={activeTaskId}
@@ -1416,7 +1426,8 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                   />
                 ) : taskViewMode === "timeline" ? (
                   <WorkspaceTimelineTasksSection
-                    workspaceTabs={workspaceTabs}
+                    workspaceTabs={ordinaryWorkspaceTabs}
+                    taskFilter={ordinaryTaskFilter}
                     activeWorkspacePath={workspacePath}
                     activeWorkspaceIdentity={workspaceIdentity}
                     activeTaskId={activeTaskId}
@@ -1547,6 +1558,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                                               taskGroup?.items ?? EMPTY_WORKSPACE_TASK_ITEMS
                                             }
                                             taskListLoading={taskLoading}
+                                            onOpenWorktrees={() => setTaskOrganizeBy("worktrees")}
                                             taskListHasMore={taskGroup?.hasMore ?? false}
                                             taskListHasUnread={taskGroup?.hasUnread ?? false}
                                             taskListLiveWorkflowCount={
@@ -1628,6 +1640,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                             >
                               <WorkspaceTimelineTasksSection
                                 workspaceTabs={conversationWorkspaceTabs}
+                                taskFilter={ordinaryTaskFilter}
                                 activeWorkspacePath={workspacePath}
                                 activeWorkspaceIdentity={workspaceIdentity}
                                 activeTaskId={activeTaskId}

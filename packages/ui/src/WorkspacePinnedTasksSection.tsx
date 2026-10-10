@@ -51,12 +51,14 @@ export function WorkspacePinnedTasksSection({
   taskSortBy,
   onSelectTask,
   onOpenFileTree,
+  taskFilter,
 }: {
   workspaceTabs: WorkspaceTabState[];
   activeWorkspacePath: string;
   activeWorkspaceIdentity?: string;
   activeTaskId: string | null;
   taskSortBy: "created" | "updated";
+  taskFilter?: (task: LCodeTaskMeta) => boolean;
   onSelectTask: (
     targetWorkspacePath: string,
     taskId: string,
@@ -135,10 +137,10 @@ export function WorkspacePinnedTasksSection({
     );
   }, [remotePinnedItemsByWorkspaceKey, workspaceTabs]);
   const sortedItems = useMemo(() => {
-    return [...localItems, ...remoteItems].sort((left, right) =>
-      compareLCodeTaskListItems(left, right, taskSortBy),
-    );
-  }, [localItems, remoteItems, taskSortBy]);
+    return [...localItems, ...remoteItems]
+      .filter((task) => !taskFilter || taskFilter(task))
+      .sort((left, right) => compareLCodeTaskListItems(left, right, taskSortBy));
+  }, [localItems, remoteItems, taskSortBy, taskFilter]);
   const items = showAllTasks ? sortedItems : sortedItems.slice(0, collapsedLimit);
   const total = sortedItems.length;
   const syncingRemoteWorkspaces = workspaceTabs.some((tab) => {

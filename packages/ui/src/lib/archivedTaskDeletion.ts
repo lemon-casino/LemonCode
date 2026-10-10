@@ -1,6 +1,7 @@
 import type { ILCodeTaskService } from "@lcode/services";
 import { buildTaskWorkspaceKey } from "@/lib/taskQueryCache.js";
 import { logger } from "@/logger.js";
+import type { LCodeTaskMeta } from "@lcode/shared";
 
 export interface ArchivedTaskDeletionTarget {
   workspacePath: string;
@@ -15,7 +16,10 @@ export interface ArchivedTaskDeletionWorkspace {
   service?: Pick<ILCodeTaskService, "listArchivedTasks" | "deleteArchivedTasks">;
 }
 
-export async function collectArchivedTaskDeletion(workspaces: ArchivedTaskDeletionWorkspace[]) {
+export async function collectArchivedTaskDeletion(
+  workspaces: ArchivedTaskDeletionWorkspace[],
+  taskFilter?: (task: LCodeTaskMeta) => boolean,
+) {
   const unique = new Map(
     workspaces.map((workspace) => [
       buildTaskWorkspaceKey(workspace.workspacePath, workspace.workspaceIdentity),
@@ -31,7 +35,12 @@ export async function collectArchivedTaskDeletion(workspaces: ArchivedTaskDeleti
           workspacePath: workspace.workspacePath,
           workspaceIdentity: workspace.workspaceIdentity,
         });
-        const targets = [...new Set(tasks.map((task) => task.taskId))].map((taskId) => ({
+        // 分类视图的批量删除只能收集本分类；不能把隐藏的其它项目/工作树会话一并删除。
+        const targets = [
+          ...new Set(
+            tasks.filter((task) => !taskFilter || taskFilter(task)).map((task) => task.taskId),
+          ),
+        ].map((taskId) => ({
           taskId,
           workspacePath: workspace.workspacePath,
           workspaceIdentity: workspace.workspaceIdentity,
