@@ -925,14 +925,23 @@ export function SettingsPage({
         featureId: "settings.memory",
         action: "toggle_session_recall",
         trigger: "switch",
-        operation: () => updateSharedSettings({ sessionRecallEnabled: enabled }),
+        operation: async () => {
+          await updateSharedSettings({ sessionRecallEnabled: enabled });
+          // 与记忆开关同理反向回写 record：引导偏好页按记录预填，
+          // 不回写会让下次引导重开时显示过期值并可能把这里的选择改回去。
+          await onboardingRecordService
+            ?.updateRecordPreferences({ sessionRecallEnabled: enabled })
+            .catch((cause: unknown) => {
+              console.warn("[settings] 回写引导记录失败", String(cause));
+            });
+        },
         completed: {
           resultSource: "shared_settings",
           stateAfter: enabled ? "enabled" : "disabled",
         },
       });
     },
-    [updateSharedSettings],
+    [updateSharedSettings, onboardingRecordService],
   );
   const handleHttpProxyChange = useCallback(
     async (proxy: string) => {

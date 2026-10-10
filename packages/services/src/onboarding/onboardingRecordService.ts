@@ -154,12 +154,18 @@ export function createOnboardingRecordService(
         onboardingOccupation: (occupation.success ? occupation.data : null) ?? "other",
         proactiveSuggestionsEnabled: latest.proactiveSuggestionsEnabled ?? false,
         memoryEnabled: latest.memoryEnabled ?? false,
+        // 引导未作答与手动入口一样按保守默认关；用户在设置里改过则由
+        // updateRecordPreferences 回写真实值，换号恢复不会复活已关闭的召回。
+        sessionRecallEnabled: latest.sessionRecallEnabled ?? false,
       };
     },
 
     async updateRecordPreferences(
       patch: Partial<
-        Pick<OnboardingRecordEntryInput, "memoryEnabled" | "proactiveSuggestionsEnabled">
+        Pick<
+          OnboardingRecordEntryInput,
+          "memoryEnabled" | "proactiveSuggestionsEnabled" | "sessionRecallEnabled"
+        >
       >,
     ): Promise<void> {
       const userId = await options.loadUserId();

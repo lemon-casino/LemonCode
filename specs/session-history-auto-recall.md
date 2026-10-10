@@ -25,6 +25,13 @@ authoritative enable value and may explicitly enable or disable the runtime sett
 omit the additive field are parsed as `false`; headless CLI runs continue to use `sessionRecall.enabled`.
 There is no UI-local mirror, database column, environment variable, or inferred rollout flag.
 
+The onboarding preferences page is a second entry point for the same `AppSettings` field, placed next to
+“Enable Workspace Memory”. It is a plain checkbox with no help trigger, and it keeps the same independence:
+toggling workspace memory does not toggle it. It shows the current effective value, so the wizard cannot
+silently disable recall that was enabled in Settings; the field is written only when the user actually
+changes the checkbox, and the skip path writes nothing. The existing Setting service write is sufficient —
+the Host re-reads the preference at session materialization, so no extra runtime-preferences sync is needed.
+
 The setting row includes a keyboard-focusable `?` help trigger. Hover or focus explains that recall
 searches only prior sessions from the same workspace, supplies bounded read-only context to the Agent,
 does not modify prior history, and applies to newly materialized sessions rather than an already-running
@@ -52,9 +59,10 @@ canonical MessageHistory / SessionStore  ← never written by recall
 ```
 
 ```text
-Settings switch → Setting service/AppSettings → Host runtime-preferences response
-                                                → session runtime config snapshot
-                                                → eligible turn-start recall
+Settings switch / onboarding checkbox → Setting service/AppSettings
+                                       → Host runtime-preferences response
+                                       → session runtime config snapshot
+                                       → eligible turn-start recall
 ```
 
 Saving the setting does not mutate an already materialized runtime. A newly created or cold-restored
@@ -157,6 +165,8 @@ passing the engineering gate. The reproducible corpus is defined in
 | SAR-14 | User enables the Memory-page switch, then creates a session | Setting persists; the new runtime receives `sessionRecall.enabled = true`     |
 | SAR-15 | User toggles the setting while a session is already running | Active runtime is unchanged; the next materialized session uses the new value |
 | SAR-16 | Pointer hovers or keyboard focuses the `?` trigger          | Localized help text explains purpose, scope, read-only behavior, and timing   |
+| SAR-17 | Onboarding preferences page opened with recall enabled in Settings | The checkbox shows checked; saving without touching it writes no `sessionRecallEnabled` |
+| SAR-18 | User checks the onboarding checkbox, then completes onboarding | Settings → Memory reads back enabled; skipping that page writes nothing and leaves the prior value |
 
 ### UI interaction scenario
 

@@ -115,6 +115,9 @@ const zhCN: Record<string, string> = {
   "occupationOnboarding.migrationDescription": "从 Claude Code 迁移历史会话数据",
   "occupationOnboarding.memory": "开启工作区记忆",
   "occupationOnboarding.memoryDescription": "让 LCode 记住你的偏好与工作上下文。",
+  "occupationOnboarding.sessionRecall": "开启自动历史召回",
+  "occupationOnboarding.sessionRecallDescription":
+    "每轮开始前检索同一工作区的历史会话，作为只读参考。",
   "occupationOnboarding.suggestions": "开启主动任务推荐",
   "occupationOnboarding.suggestionsDescription": "在新对话中显示任务建议，点击后填入输入框。",
   "occupationOnboarding.close": "退出引导",

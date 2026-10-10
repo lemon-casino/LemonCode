@@ -36,6 +36,7 @@ export function useOnboardingSave({
   occupation,
   mode,
   memory,
+  sessionRecall,
   suggestions,
   executionMode,
   reviewMode,
@@ -53,6 +54,8 @@ export function useOnboardingSave({
   occupation: OccupationValue | null;
   mode: InterfaceMode | null;
   memory: boolean;
+  /** null 表示本次未作答自动历史召回（未改动），保存时不写该字段。 */
+  sessionRecall: boolean | null;
   suggestions: boolean;
   executionMode: SessionExecutionMode;
   reviewMode: GitCommitReviewMode;
@@ -90,6 +93,7 @@ export function useOnboardingSave({
             occupation,
             mode,
             memory,
+            sessionRecall,
             suggestions,
             preferencesSkipped: preferencesSkippedRef.current,
             executionEdited: executionEditedRef.current,
@@ -112,6 +116,7 @@ export function useOnboardingSave({
                 occupation,
                 mode,
                 memory,
+                sessionRecall,
                 suggestions,
                 preferencesSkipped: preferencesSkippedRef.current,
                 completedAt: new Date().toISOString(),
@@ -144,6 +149,7 @@ export function useOnboardingSave({
       onSaved,
       preferencesSkippedRef,
       reviewMode,
+      sessionRecall,
       setInterfaceMode,
       suggestions,
       t,

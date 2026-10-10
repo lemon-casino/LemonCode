@@ -20,6 +20,8 @@ export const onboardingRecordEntrySchema = z.object({
   occupation: onboardingOccupationSchema,
   interfaceMode: onboardingInterfaceModeSchema,
   memoryEnabled: z.boolean().nullable(),
+  // 默认 null：该字段晚于 v1 记录引入，旧文件缺字段时按"未作答"解析而不是判为损坏。
+  sessionRecallEnabled: z.boolean().nullable().default(null),
   proactiveSuggestionsEnabled: z.boolean().nullable(),
   completedAt: z.string().min(1),
   uploadState: z.literal("pending"),

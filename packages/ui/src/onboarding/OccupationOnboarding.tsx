@@ -68,6 +68,10 @@ export function OccupationOnboarding({
   const requestOnboardingDialog = useLCodeStore((state) => state.requestOnboardingDialog);
   const [migration, setMigration] = useState(false);
   const [memory, setMemory] = useState(savedInterfaceMode === "office");
+  // 自动历史召回是既有配置（设置 → 记忆），不是引导专属偏好：null 表示用户本次未作答，
+  // 勾选状态跟随当前生效值，保存时不写该字段，跳过本页也不会把已开启的召回关掉。
+  const [sessionRecall, setSessionRecall] = useState<boolean | null>(null);
+  const savedSessionRecall = settings?.sessionRecallEnabled === true;
   const [suggestions, setSuggestions] = useState(savedInterfaceMode === "office");
   const suggestionsEditedRef = useRef(false);
   // 偏好页（第 3 步）被单独跳过时，其布尔答案在引导记录里记 null。
@@ -95,6 +99,7 @@ export function OccupationOnboarding({
     occupation,
     mode,
     memory,
+    sessionRecall: sessionRecall ?? savedSessionRecall,
     suggestions,
     migration,
   });
@@ -103,6 +108,7 @@ export function OccupationOnboarding({
     occupation,
     mode,
     memory,
+    sessionRecall,
     suggestions,
     executionMode,
     reviewMode,
@@ -179,6 +185,8 @@ export function OccupationOnboarding({
     setMode(initialMode);
     // 编程模式默认关闭主动工作记忆；办公模式才恢复该用户之前的勾选。
     setMemory(initialMode === "office" && (entry?.memoryEnabled ?? true));
+    // 未作答保持 null：勾选框回落到当前设置值，用户不动就不产生写入。
+    setSessionRecall(entry?.sessionRecallEnabled ?? null);
     setSuggestions(entry?.proactiveSuggestionsEnabled ?? initialMode === "office");
     // 执行与审核回读当前生效设置：两项都不是"跳过即改配置"的偏好，
     // 用户没动过就不该在保存时被改写。
@@ -282,6 +290,7 @@ export function OccupationOnboarding({
                       mode={mode}
                       theme={theme}
                       memory={memory}
+                      sessionRecall={sessionRecall ?? savedSessionRecall}
                       suggestions={suggestions}
                       migration={migration}
                       saving={saving}
@@ -295,6 +304,7 @@ export function OccupationOnboarding({
                         markUserEdited();
                         if (key === "migration") setMigration(checked);
                         else if (key === "memory") setMemory(checked);
+                        else if (key === "sessionRecall") setSessionRecall(checked);
                         else {
                           suggestionsEditedRef.current = true;
                           setSuggestions(checked);

@@ -11,6 +11,7 @@ export interface OnboardingSettingsSyncPatch {
   onboardingOccupation?: AppSettingsPatchOccupation;
   proactiveSuggestionsEnabled?: boolean;
   memoryEnabled?: boolean;
+  sessionRecallEnabled?: boolean;
 }
 
 type AppSettingsPatchOccupation = NonNullable<AppSettings["onboardingOccupation"]>;
@@ -44,7 +45,10 @@ export interface IOnboardingRecordService {
    */
   updateRecordPreferences(
     patch: Partial<
-      Pick<OnboardingRecordEntryInput, "memoryEnabled" | "proactiveSuggestionsEnabled">
+      Pick<
+        OnboardingRecordEntryInput,
+        "memoryEnabled" | "proactiveSuggestionsEnabled" | "sessionRecallEnabled"
+      >
     >,
   ): Promise<void>;
   /** 读取整份记录文件（后续上传服务器使用）；文件不存在返回 null。 */

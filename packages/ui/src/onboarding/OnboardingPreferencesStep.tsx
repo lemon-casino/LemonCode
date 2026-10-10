@@ -2,10 +2,10 @@ import { Checkbox } from "@/components/ui/checkbox.js";
 import { OnboardingThemeSelector } from "@/onboarding/OnboardingThemeSelector.js";
 import type { Theme } from "@/useTheme.js";
 
-type PreferenceKey = "suggestions" | "memory" | "migration";
+type PreferenceKey = "suggestions" | "memory" | "sessionRecall" | "migration";
 
 /**
- * 引导第 3 步（助手偏好）：主题选择 + 三个可勾选偏好。
+ * 引导第 3 步（助手偏好）：主题选择 + 可勾选偏好。
  * 从 OccupationOnboarding 抽出以控制文件行数；状态仍由外层持有，
  * 这里只负责展示与回调，不复制任何偏好事实。
  */
@@ -13,6 +13,7 @@ export function OnboardingPreferencesStep({
   mode,
   theme,
   memory,
+  sessionRecall,
   suggestions,
   migration,
   saving,
@@ -23,6 +24,7 @@ export function OnboardingPreferencesStep({
   mode: string | null;
   theme: Theme;
   memory: boolean;
+  sessionRecall: boolean;
   suggestions: boolean;
   migration: boolean;
   saving: boolean;
@@ -31,11 +33,17 @@ export function OnboardingPreferencesStep({
   t: (key: string) => string;
 }) {
   const checkedFor = (key: PreferenceKey) =>
-    key === "migration" ? migration : key === "memory" ? memory : suggestions;
+    key === "migration"
+      ? migration
+      : key === "memory"
+        ? memory
+        : key === "sessionRecall"
+          ? sessionRecall
+          : suggestions;
   return (
     <div className="mt-8 space-y-3">
       <OnboardingThemeSelector theme={theme} saving={saving} onSelect={onThemeSelect} />
-      {(["suggestions", "memory", "migration"] as const)
+      {(["suggestions", "memory", "sessionRecall", "migration"] as const)
         .filter((key) => key !== "suggestions" || mode === "office")
         .map((key) => (
           <label

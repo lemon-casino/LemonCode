@@ -126,6 +126,9 @@ const enUS: Record<string, string> = {
   "occupationOnboarding.migrationDescription": "Migrate conversation history from Claude Code",
   "occupationOnboarding.memory": "Enable Workspace Memory",
   "occupationOnboarding.memoryDescription": "Let LCode remember your preferences and work context.",
+  "occupationOnboarding.sessionRecall": "Enable automatic history recall",
+  "occupationOnboarding.sessionRecallDescription":
+    "Search this workspace's past sessions before each turn and use them as read-only reference.",
   "occupationOnboarding.suggestions": "Enable proactive task suggestions",
   "occupationOnboarding.suggestionsDescription":
     "Show suggestions in new conversations. Click to fill the composer.",

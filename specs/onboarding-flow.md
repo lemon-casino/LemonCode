@@ -8,10 +8,10 @@
 
 | 步骤 | 标题 key          | 内容                                  | 保存去向                                                          |
 | ---- | ----------------- | ------------------------------------- | ----------------------------------------------------------------- |
-| 0    | `stepRole`        | 工作方向                              | `AppSettings.onboardingOccupation`                                |
-| 1    | `stepMode`        | UI 模式                               | store `interfaceMode`                                             |
-| 2    | `stepPreferences` | 助手偏好（主题 + 记忆 + 推荐 + 迁移） | 主题进 store `theme`；其余进 `AppSettings`                        |
-| 3    | `stepExecution`   | 新会话的执行与审核                    | `AppSettings.defaultSessionExecutionMode` / `gitCommitReviewMode` |
+| 0    | `stepRole`        | 工作方向                                                | `AppSettings.onboardingOccupation`                                |
+| 1    | `stepMode`        | UI 模式                                                 | store `interfaceMode`                                             |
+| 2    | `stepPreferences` | 助手偏好（主题 + 记忆 + 自动历史召回 + 推荐 + 迁移）     | 主题进 store `theme`；其余进 `AppSettings`                        |
+| 3    | `stepExecution`   | 新会话的执行与审核                                      | `AppSettings.defaultSessionExecutionMode` / `gitCommitReviewMode` |
 
 - 进度条按 `ONBOARDING_STEP_COUNT` 渲染，无障碍名称数组长度必须与之一致（不一致时模块加载即抛错，避免漏改一处后进度条静默少一段）。
 - 每页标题与说明由该页的 key 决定；`preferences` / `execution` 两个布尔派生自 `step`，不额外存状态。
@@ -21,14 +21,15 @@
 
 「跳过」按钮**只作废当前页并前进**，不是取消整份引导。各页处理不同：
 
-| 步骤 | 点击跳过                                                                    |
-| ---- | --------------------------------------------------------------------------- |
-| 0    | `occupation` 置 `null`（记录里记 `null`）                                   |
-| 1    | `mode` 置 `null`（记录里记 `null`）                                         |
-| 2    | `preferencesSkippedRef` 置真；记忆与推荐落保守默认 `false`，记录里记 `null` |
-| 3    | 直接完成引导，且**不写**执行与审核两项                                      |
+| 步骤 | 点击跳过                                                                                                       |
+| ---- | -------------------------------------------------------------------------------------------------------------- |
+| 0    | `occupation` 置 `null`（记录里记 `null`）                                                                      |
+| 1    | `mode` 置 `null`（记录里记 `null`）                                                                            |
+| 2    | `preferencesSkippedRef` 置真；记忆与推荐落保守默认 `false`，记录里记 `null`；自动历史召回保持原值（不写）      |
+| 3    | 直接完成引导，且**不写**执行与审核两项                                                                         |
 
-- 步骤 2 与 3 的区别来自字段性质：记忆/推荐是引导专属偏好，跳过即落保守默认；执行方式与提交审核是**既有配置**，跳过时必须保持原值（见下）。
+- 步骤 2 与 3 的区别来自字段性质：记忆/推荐是引导专属偏好，跳过即落保守默认；执行方式、提交审核与自动历史召回是**既有配置**，跳过时必须保持原值（见下）。
+- 自动历史召回在偏好页紧邻「开启工作区记忆」，但两者**互不联动**：勾选状态与记忆开关无关（spec: session-history-auto-recall.md 的独立性约束），也不随步骤 1 的 UI 模式变化。
 - 「跳过」在任一页都不修改 `onboarding-record.json` 之外的历史配置，也不触发迁移对话框。
 
 ## 保存边界
@@ -43,7 +44,8 @@
   → 关闭引导、标记已完成
 ```
 
-- **只有用户真正改过的既有配置才写入。** `executionEditedRef` 为假时补丁不含 `defaultSessionExecutionMode` / `gitCommitReviewMode`。二者不是引导专属偏好：跳过或未走到第 3 步时若写默认值，会把用户在设置里配好的工作树模式或审核模式静默重置。该边界由 `buildOnboardingSettingsPatch` 承担并有单测锁定。
+- **只有用户真正改过的既有配置才写入。** `executionEditedRef` 为假时补丁不含 `defaultSessionExecutionMode` / `gitCommitReviewMode`；自动历史召回同理，作答为 `null`（未改动，或偏好页被跳过）时补丁不含 `sessionRecallEnabled`。三者都不是引导专属偏好：若在跳过或未改动时写入默认值，会把用户在设置里配好的工作树模式、审核模式或已开启的历史召回静默重置。该边界由 `buildOnboardingSettingsPatch` 承担并有单测锁定。
+- 偏好页的自动历史召回初值取当前生效的 `AppSettings.sessionRecallEnabled`（不是写死的默认 `false`），用户不修改时不产生写入；用户改动后保存，设置 → 记忆回读为相同值。
 - 步骤 1 的 UI 模式是**运行时 store**（`setInterfaceMode`），不走 `AppSettings`；`mode` 为 `null`（被跳过）时不改 store。
 - 步骤 2 的主题同样是 store（`setTheme`），选择即生效并写入 `localStorage`，**不进入**引导的 settings 提交：跳过偏好页不回退用户已选主题。
 - 记录写入失败只记 warn，不回滚已保存的设置，也不让保存按钮继续转圈；下次启动按记录会再次触发引导。
@@ -55,7 +57,7 @@
 
 - `work_direction`：职业映射值，未选为 `"null"`。
 - `ui_mode`：仅当访问过步骤 1 且 `mode` 非空时上报，否则 `"null"`。
-- `workspace_memory_enabled` / `proactive_task_recommendations_enabled` / `claude_code_history_migration_selected`：仅当访问过步骤 2 时上报真实值，否则 `"null"`。
+- `workspace_memory_enabled` / `session_recall_enabled` / `proactive_task_recommendations_enabled` / `claude_code_history_migration_selected`：仅当访问过步骤 2 时上报真实值，否则 `"null"`。
 - `exit_action`：`start`（完成）或 `skip`（最后一步跳过）。
 - `exit_step`：`step + 1`，取值 1–4。
 
@@ -63,6 +65,8 @@
 
 - 四步顺序推进，进度条为 4 段；中英文下标题、说明与选项文本完整，桌面与 390px 窄屏均无横向溢出。
 - 每页「跳过」只前进该页；步骤 0/1 的答案在记录里为 `null`，步骤 2 的记忆/推荐在记录里为 `null` 且设置为 `false`。
+- 偏好页显示自动历史召回勾选框，初值等于设置 → 记忆里的当前值；未改动就保存时不产生 `sessionRecallEnabled` 写入，已开启的召回不会被静默关闭。
+- 在偏好页勾选自动历史召回并保存后，设置 → 记忆的开关回读为开启；关掉工作区记忆不影响该勾选（两者独立）。
 - 最后一步「跳过」完成引导但不写执行与审核两项，也不弹出迁移对话框。
 - 未修改第 3 步时保存不产生这两项写入；修改后保存，设置 → 常规回读为相同值。
 - 引导期间 Escape 直接退出：不保存、不改记录，本次会话不再显示，下次启动按记录重新触发。
