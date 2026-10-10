@@ -1,3 +1,4 @@
+import { applyTheme, isThemeValue } from "@lcode/ui/useTheme";
 import { DatabaseStartupAdmission } from "./databaseStartupAdmission.js";
 import { initializeDesktopLocalTtft } from "./localTtftBootstrap.js";
 import { createRoot } from "react-dom/client";
@@ -73,46 +74,10 @@ function registerE2EStoreBridgesIfEnabled() {
   });
 }
 
-// 初始化主题：默认 Zai dark，后续由 useTheme hook 接管。
-// 首帧写点与 useTheme.ts 的 THEME_OPTIONS 注册表保持同步（新增主题需同步此处）：
-// 深基底挂 dark + theme-<id>、浅基底只挂 theme-<id>，让 React 接管前即呈现新主题差量色，
-// 避免先见基底色再跳变；异常本地值回落默认 zai-dark。
+// 首屏复用全局解析与 DOM 投影，兼容旧键，新增主题无需维护入口白名单。
 {
-  // 主题 id → 明暗基底（useTheme.ts THEME_OPTIONS 静态子集的引导映射）。
-  const BOOTSTRAP_THEME_BASES = {
-    "zai-light": "light",
-    "zai-dark": "dark",
-    "sepia-light": "light",
-    "midnight-blue": "dark",
-    "forest-dark": "dark",
-  } as const;
-  type BootstrapAppliedTheme = keyof typeof BOOTSTRAP_THEME_BASES;
-  const isBootstrapAppliedTheme = (value: string): value is BootstrapAppliedTheme =>
-    value in BOOTSTRAP_THEME_BASES;
-
-  // 旧键兼容读：老用户主题偏好存于 zcode-theme（specs/brand-migration-lcode.md）。
-  const saved =
-    localStorage.getItem("lcode-theme") || localStorage.getItem("zcode-theme") || "zai-dark";
-  const appliedTheme: BootstrapAppliedTheme =
-    saved === "system"
-      ? window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "zai-dark"
-        : "zai-light"
-      : saved === "dark"
-        ? "zai-dark"
-        : saved === "light"
-          ? "zai-light"
-          : isBootstrapAppliedTheme(saved)
-            ? saved
-            : "zai-dark";
-  document.documentElement.classList.toggle(
-    "dark",
-    BOOTSTRAP_THEME_BASES[appliedTheme] === "dark",
-  );
-  // toggle 其余 theme-* 为 false 等价清空，防 reload/HMR 时残留上一个主题类。
-  for (const themeId of Object.keys(BOOTSTRAP_THEME_BASES)) {
-    document.documentElement.classList.toggle(`theme-${themeId}`, themeId === appliedTheme);
-  }
+  const saved = localStorage.getItem("lcode-theme") || localStorage.getItem("zcode-theme");
+  applyTheme(isThemeValue(saved) ? saved : "zai-dark");
 }
 
 const isMacDesktop = navigator.userAgent.includes("Mac");

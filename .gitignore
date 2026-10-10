@@ -94,11 +94,31 @@ nul
 # 永久页面回归测试桩需覆盖用户全局 test/ 忽略，其他测试目录保持原规则。
 !/packages/web/test/
 /packages/web/test/*
+!/packages/web/test/worktree-discard-pending-cases.mjs
 !/packages/web/test/git-review-redesign-cases.mjs
 /artifacts/git-review-redesign/
 !/packages/web/test/multi-session-send-cases.mjs
 !/packages/web/test/fixtures/
 /packages/web/test/fixtures/*
+# 七色全局主题、生产 timeline 和独立窗口的永久品控回归。
+!/packages/web/test/sidebar-animation.test.mjs
+!/packages/web/test/fixtures/sidebar-animation.html
+!/packages/web/test/fixtures/sidebar-animation.tsx
+!/packages/web/test/fixtures/sidebar-animation-rows.tsx
+!/packages/web/test/theme-quality.test.mjs
+!/packages/web/test/theme-quality-interaction-cases.mjs
+!/packages/web/test/welcome-layout-quality-cases.mjs
+!/packages/web/test/component-quality.test.mjs
+!/packages/web/test/component-overlay-cases.mjs
+!/packages/web/test/component-mobile-platform-cases.mjs
+!/packages/web/test/component-electron-cases.mjs
+!/packages/web/test/fixtures/electron-quality.cjs
+!/packages/web/test/fixtures/quality-controls.tsx
+!/packages/web/test/fixtures/theme-quality.html
+!/packages/web/test/fixtures/theme-quality.tsx
+!/packages/web/test/fixtures/theme-quality.css
+!/packages/web/test/fixtures/resource-theme.html
+!/packages/web/test/fixtures/resource-theme.tsx
 # 运行环境恢复/清理的永久交互回归及其有界 Host fixture。
 !/packages/web/test/mobile-pairing-reconnect.test.mjs
 !/packages/web/test/pairingCredentialStore.test.mjs
@@ -174,10 +194,6 @@ nul
 !/packages/web/test/fixtures/worktree-ui-scenarios.tsx
 !/packages/web/test/fixtures/worktree-sidebar-rows.tsx
 !/packages/web/test/fixtures/worktree-ui-page.tsx
-# 工作树侧栏分类回归：真实侧栏入口、owner 读取与删除控制器。
-!/packages/web/test/worktree-sidebar.test.mjs
-!/packages/web/test/fixtures/worktree-sidebar.html
-!/packages/web/test/fixtures/worktree-sidebar.tsx
 !/packages/web/test/conversation-send.test.mjs
 !/packages/web/test/fixtures/conversation-send.html
 !/packages/web/test/fixtures/conversation-send.tsx
@@ -188,6 +204,12 @@ nul
 !/packages/web/test/fixtures/git-session-refresh.tsx
 !/packages/web/test/fixtures/git-session-refresh-runtime.ts
 !/packages/web/test/fixtures/git-session-refresh-remote.tsx
+
+# 文件树在冷会话、工作树与远端断连时的永久侧栏回归。
+!/packages/web/test/sidebar-file-tree.test.mjs
+!/packages/web/test/fixtures/sidebar-file-tree.html
+!/packages/web/test/fixtures/sidebar-file-tree.tsx
+!/packages/web/test/fixtures/sidebar-file-tree-service.ts
 
 # 模型成员生命周期回归需随功能提交，不受用户全局 test/ 规则影响。
 !/packages/provider/test/

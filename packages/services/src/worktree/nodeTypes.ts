@@ -1,5 +1,8 @@
 import type {
-  CheckoutAccessMode, CheckoutLease, WorktreeScope, WorktreeRuntimePorts,
+  CheckoutAccessMode,
+  CheckoutLease,
+  WorktreeScope,
+  WorktreeRuntimePorts,
   WorktreeCommandRunner,
 } from "./contract.js";
 
@@ -26,12 +29,15 @@ export interface CheckoutCoordinator {
   release(params: { token: string; ownerId: string }): Promise<void>;
 }
 export interface WorktreeServiceOptions extends WorktreeRuntimePorts {
+  /** 可信 Host 的等待/观察 port；只控制既有确认删除的退避，不授予新的删除范围。 */
+  discardRetryWait?: WorktreeDiscardRetryWait;
   /** 宿主物理文件系统删除；Store 校验受管路径之后才允许调用。 */
   removeDirectory?: (path: string) => Promise<void>;
   collectDiscardSessions?: (binding: import("./contract.js").WorktreeBinding) => Promise<string[]>;
   discardSessions?: (
     binding: import("./contract.js").WorktreeBinding,
     sessionIds: string[],
+    writer: CheckoutLease,
   ) => Promise<void>;
   commitSource?: (
     request: import("@lcode/shared").GitCommitRequest,
@@ -42,3 +48,11 @@ export interface WorktreeServiceOptions extends WorktreeRuntimePorts {
   validate?: WorktreeCommandRunner;
   fault?: (point: string) => Promise<void>;
 }
+
+export type WorktreeDiscardRetryWait = (params: {
+  bindingId: string;
+  requestId: string;
+  attempt: number;
+  delayMs: number;
+  errorCode: string;
+}) => Promise<void>;

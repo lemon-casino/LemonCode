@@ -68,6 +68,8 @@ export interface SessionStorePort {
     workspacePath: string;
     workspaceIdentity?: string;
     sessionIds?: string[];
+    /** 原 journal 的收集锚点；存在的锚点仍需证明范围，缺失父会话可用于核验同范围后代。 */
+    seedSessionIds?: string[];
   }): Promise<{ sessionIds: string[] }>;
   createSession(input: CreateSessionInput): Promise<SessionInfo>;
   /** legacy 兼容原语；V4 stable/compact-edit fork 禁止调用，统一走 commitForkBundle。 */

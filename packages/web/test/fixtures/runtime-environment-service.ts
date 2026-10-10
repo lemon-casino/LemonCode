@@ -68,6 +68,10 @@ export function createRuntimeEnvironmentFixture(subdirectory = false) {
     failPrepare: false,
     holdPrepare: false,
     unsupported: false,
+    failCapabilities: false,
+    failSnapshot: false,
+    holdCapabilities: false,
+    releaseCapabilities: () => {},
     holdSnapshot: false,
     releasePrepare: () => {},
     releaseSnapshot: () => {},
@@ -134,6 +138,13 @@ export function createRuntimeEnvironmentFixture(subdirectory = false) {
     getCapabilities: async (params) => {
       assertPublicScope(params);
       calls.push({ method: "getCapabilities", params });
+      if (controller.holdCapabilities) {
+        controller.holdCapabilities = false;
+        await new Promise<void>((resolve) => {
+          controller.releaseCapabilities = resolve;
+        });
+      }
+      if (controller.failCapabilities) throw new Error("fixture-capabilities-unavailable");
       return controller.unsupported
         ? { managedEnvironments: false, missingReason: "fixture: platform not verified" }
         : {
@@ -145,6 +156,7 @@ export function createRuntimeEnvironmentFixture(subdirectory = false) {
     snapshot: async (params) => {
       assertPublicScope(params);
       calls.push({ method: "snapshot", params });
+      if (controller.failSnapshot) throw new Error("Invalid runtime environment public contract");
       const frozen = structuredClone(environment);
       if (controller.holdSnapshot) {
         controller.holdSnapshot = false;

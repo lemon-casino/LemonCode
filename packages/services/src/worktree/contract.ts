@@ -131,6 +131,8 @@ export interface PreparedWorktreeRuntime {
 }
 /** 仅由可信组合根注入；writer/env 不进入 RPC 或持久公开投影。 */
 export interface WorktreeRuntimePorts {
+  /** Host 生命周期入口；包含未托管绑定，等待真实 owner 退出，不作为 RPC action。 */
+  stopWorktreeExecution?: (binding: WorktreeBinding) => Promise<void>;
   prepareRuntimeEnvironment?: (
     params: {
       bindingId: string;
@@ -158,7 +160,14 @@ export interface WorktreeRuntimePorts {
     environmentRef: RuntimeEnvironmentBindingReference;
     intent: "discard" | "archive" | "candidate-cancel" | "upgrade";
     phase: "fence" | "stop" | "cleanup" | "finalize";
+    /** discard stop 可暂留精确旧引用；会话清理与 retirement 仍须在 writer 内完成。 */
+    legacyDiscardSessionIds?: string[];
   }) => Promise<{ status: "completed" | "releaseBlocked"; reason?: string }>;
+  retireLegacyRuntimeConsumers?: (params: {
+    binding: WorktreeBinding;
+    sessionIds: string[];
+    writer: CheckoutLease;
+  }) => Promise<void>;
   rebindRuntimeEnvironmentSessions?: (params: {
     binding: WorktreeBinding;
     requestId: string;

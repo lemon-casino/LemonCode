@@ -56,6 +56,8 @@ export interface LCodeProtocolAgentDependencies {
   /** 兼容旧测试/嵌入调用；新代码应通过 sessionResidentPoolOptions 设置 low-water。 */
   sessionResidentTargetCount?: number;
   sessionStore?: SessionStorePort;
+  /** 生产文件诊断 adapter；只有 SessionStore 永久清理成功后才调用，失败沿原删除请求重试。 */
+  deleteSessionDiagnostics?: (sessionIds: readonly string[]) => Promise<void>;
   /** Workspace 草稿 artifact：不创建会话/runtime，不触发环境准备。 */
   putDraftAttachment?: (
     draftId: string,

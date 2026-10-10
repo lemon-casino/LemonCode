@@ -8,7 +8,8 @@ import {
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { lstat, realpath, rm } from "node:fs/promises";
 import { sanitizeModelIODebugRecord } from "./runner-debug-redaction.js";
 import { stringMetadata } from "./runner-record.js";
 import {
@@ -30,6 +31,46 @@ const MAX_DEBUG_BASELINE_MESSAGES = 256;
 
 // 每个会话文件只有此写入边界拥有 compaction 状态；纯投影 helper 不保存第二份缓存。
 const modelIOCompactionStates = new Map<string, ModelIOCompactionState>();
+
+/** 永久清理已由 SessionStore 核验的聊天；与写入共用文件名规则，不扫描其他会话。 */
+export async function deleteModelIODebugRecords(
+  sessionIds: readonly string[],
+  directories: readonly string[],
+): Promise<void> {
+  const segments = [...new Set(sessionIds)].map((id) => {
+    const segment = sanitizeFileSegment(id);
+    // 历史日志写入会折叠非法字符；删除必须拒绝碰撞，不能把一个 ID 映射成另一个会话文件。
+    if (!segment || segment !== id)
+      throw new Error("Invalid session ID for diagnostic file deletion");
+    return segment;
+  });
+  const roots: string[] = [];
+  for (const dir of new Set(directories.map((directory) => resolve(directory)))) {
+    let stat;
+    try {
+      stat = await lstat(dir);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw error;
+    }
+    const canonical = await realpath(dir);
+    const same =
+      process.platform === "win32"
+        ? canonical.toLowerCase() === dir.toLowerCase()
+        : canonical === dir;
+    if (!stat.isDirectory() || stat.isSymbolicLink() || !same)
+      throw new Error("Session diagnostic directory has been redirected or is a symlink");
+    roots.push(dir);
+  }
+  for (const dir of roots) {
+    for (const segment of segments) {
+      const path = join(dir, `model-io-${segment}.jsonl`);
+      // SQL purge 不删除 rollout/debug 正文；失败须向原删除 journal 传播，而不是沿日志写入吞掉。
+      await rm(path, { force: true });
+      modelIOCompactionStates.delete(path);
+    }
+  }
+}
 
 export function writeModelIODebugRecord(
   record: Record<string, unknown>,

@@ -17,6 +17,8 @@
 
 公开查询与升级恢复使用 binding 的 `workspacePath` 执行作用域，仓库子目录不能替换为 `checkoutPath`。目标 Host 的授权 facade 核对 binding/identity 后统一转换为 checkout 根目录的环境存储作用域；UI、remote relay 和本机模式不另建映射或放宽授权。
 
+绑定查询只能向 WorktreeService.list 传入路径与可选身份；环境 ID、绑定 ID、动作、版本、requestId 和预算不得透传到该严格合同。attachment scope 优先级与完整环境请求的后续 owner 校验保持原规则。能力与快照是独立查询结果：UI 保留各自成功事实，能力读取失败关闭动作授权，快照读取失败不得被解释为 Host 不支持或环境未准备成功。读取不产生环境/工作树迁移或执行副作用。
+
 ## 公共数据合同
 
 公开 schema 的唯一出口是 `@lcode/shared`。新增字段均为 additive；旧端缺字段必须保持旧语义，但不能由缺字段推断具备托管能力。
@@ -87,6 +89,12 @@
 
 不得按 node.exe、Shell、端口或孤立 PID 泛杀；Windows 文件占用、未知进程、目录重定向和会话清理失败都保留可重试状态。
 
+Worktree 生命周期的执行停止统一通过 Host 注入的 `stopWorktreeExecution(binding)`，覆盖 canonical checkout 子目录及已退休的受管实例，保留身份隔离；不在环境 release port 再维护一条仅按根 workspace key 释放的路径。进程树退出结算仍由原执行 owner 释放精确 lease；历史未知 owner 不能因当前进程池为空、PID 不存在或重启而被清除。
+
+Host-only process acquire 可附带实际 client 的 `RuntimeConsumerProcessOwner`；owner 收据先于 consumer 持久化，使用实际 runtimeInstanceId 关联 ownerId。`confirmProcessExit` 只由真实进程树退出后的 bridge 调用，保存精确 lease 退出收据后再走原 release。删除/release 在同一环境锁下恢复有退出收据的精确引用结算，不认领仍活跃、缺失或旧版未知 owner。收据严格校验、私有保存，不修改公开 consumer schema，不泄漏 owner/lease/PID 到 UI。确认退出与引用写入之间的失败可跨 Host 重启恢复。
+
+用户确认 Worktree discard 后，可由唯一删除 owner 自动退役严格旧桥接格式、属于已核验并永久清理的 sessionIds 且完全缺少 owner 收据的 process 引用。stop 只容许这些旧引用暂留；持有 exclusive checkout writer、复核原 journal、结算 session 引用后才调用 Host-only `retireLegacyProcessesForDeletion`。环境锁内核对 scope/binding/current revision/discard fence，先保存 `confirmed-worktree-discard` audit 再写精确引用墓碑；不生成退出证明，不放宽新 owner/服务/归档/升级/普通 release/GC 的保护。
+
 ### 快照恢复
 
 代码 snapshot/index/HEAD 恢复与运行环境重建是两个事实。恢复顺序为：校验快照和目标目录 → 恢复 Git 文件/index → 以 `operation=restore` 按当前 Host 平台和声明准备新的 environmentId/revision → 持久化新的 binding/environmentRef → 对全部同树 session 重新对账绑定 → 从 stopped/not-running 初始状态开始。旧服务 receipt、PID、端口、running、私有数据不因 Git snapshot 自动恢复。不可重建私有数据必须在清理前由用户选择 save/export/discard；没有选择不得显示完整恢复成功。
@@ -108,6 +116,20 @@
 错误 message 只作诊断，不是 UI 稳定分类；UI 使用 code/stage/retryable 和有界 diagnostic。诊断中的 owner 只能是安全 label/path 摘要，不能泄露内部 lease、ownerId、token、秘密环境变量或认证 URL。
 
 ## 当前边界与验收状态
+
+Explicit Worktree discard also removes the validated environment-private resource root,
+including data, after exact chat deletion and all consumer/service exit checks. Archive,
+upgrade, candidate cancellation and ordinary release retain private data. Logical released
+state does not skip an explicitly confirmed discard cleanup. The environment owner retains
+minimal tombstones/audit; shared stores and other bindings are outside the removal scope.
+
+Lifecycle `clearRebuildable` receives a trusted Host physical-directory removal port after
+execution settlement. It validates only the fixed temp/cache/logs roots and their ancestors,
+then removes each tree directly; scan/GC budgets do not govern this operation. Internal links
+are removed as links. Redirected roots remain protected, private data/shared stores remain
+outside rebuildable targets, and partial failure preserves retryable lifecycle state.
+
+Host-only 的 `RuntimeProcessOwnerObserver` 由执行 Host 注入；完整 owner 收据的根 Agent 不存在也不生成退出证明。仅原确认 discard 在独占 writer 和精确历史清理后可复用 retirement authority，私有审计记录原 owner/观察时间。live/unknown owner、归档/升级/普通 release 继续阻塞；缺失观察能力时不恢复现代遗留引用。
 
 - 当前源码已有消费者 lease/release fence、Git candidate HEAD/target 校验、目录删除/代码 snapshot 和 Git 诊断通路；这些不能替代 revision 升级、候选环境精确收据、物理环境回收、新环境恢复、GC 和环境失败草稿。
 - 当前 `release` 已能在环境锁内检查活消费者/未确认服务并返回 releaseBlocked；逻辑引用结算不等于停止服务、删除目录、清理私有数据或工具缓存。

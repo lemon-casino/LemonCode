@@ -50,7 +50,8 @@ export function RuntimeEnvironmentDetails({
     runtime.error === "remote-waiting"
       ? text("remoteWaiting")
       : (runtime.capabilities?.missingReason ??
-        (!canPrepare ? text("capabilityUnavailable") : undefined));
+        // 能力未知可能是读取失败，不能据此宣称目标 Host 不支持托管环境。
+        (runtime.capabilities && !canPrepare ? text("capabilityUnavailable") : undefined));
   return (
     <section
       className="min-w-0 space-y-3 rounded-xl border border-border p-3"

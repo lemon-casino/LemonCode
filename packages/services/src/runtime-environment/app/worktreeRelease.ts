@@ -1,8 +1,10 @@
 import type { RuntimeEnvironmentRecord } from "@lcode/shared";
-import type { RuntimeEnvironmentReleaseRequest } from "../contract.js";
+import type { RuntimeEnvironmentReleaseRequest, RuntimeProcessOwnerObserver } from "../contract.js";
 import { assertEnvironmentScope } from "./preparationAdmission.js";
 import { releaseRuntimeEnvironment } from "./consumerLifecycle.js";
 import { hasServiceExitProof } from "../domain/services.js";
+import { settleConfirmedProcessExits } from "./consumerOwnerReceipts.js";
+import { discardConsumerEligibility } from "./discardConsumerEligibility.js";
 import type { RuntimeEnvironmentStore } from "./ports.js";
 
 export function createWorktreeEnvironmentRelease(options: {
@@ -12,12 +14,15 @@ export function createWorktreeEnvironmentRelease(options: {
     record: RuntimeEnvironmentRecord,
   ): Promise<{ status: "stopped" | "blocked"; reason?: string }>;
   clearRebuildable(environmentId: string): Promise<void>;
+  discardResources(environmentId: string): Promise<void>;
+  observeProcessOwner?: RuntimeProcessOwnerObserver;
 }) {
   return async (
     params: RuntimeEnvironmentReleaseRequest & {
       bindingId: string;
       intent: "discard" | "archive" | "candidate-cancel" | "upgrade";
       phase: "fence" | "stop" | "cleanup" | "finalize";
+      legacyDiscardSessionIds?: string[];
     },
   ): Promise<{ status: "completed" | "releaseBlocked"; reason?: string }> => {
     const { store, stamp } = options;
@@ -37,13 +42,22 @@ export function createWorktreeEnvironmentRelease(options: {
         return record;
       });
     let record = await read();
-    if (record.status === "released") return { status: "completed" };
+    // 旧版 released 仅代表逻辑引用结算；明确删除不能因此跳过仍占空间的私有目录。
+    const discardCleanup = params.intent === "discard" && params.phase === "cleanup";
+    if (record.status === "released" && !discardCleanup) return { status: "completed" };
+    if (discardCleanup && record.activeOperationId)
+      return { status: "releaseBlocked", reason: "release-blocked: preparation has not settled" };
     if (params.phase === "fence") {
       return store.lock(params.environmentId, async () => {
         record = (await store.readEnvironment(params.environmentId))!;
         assertEnvironmentScope(record, params);
-        if (record.bindingId !== params.bindingId || (params.expectedRevision !== undefined && params.expectedRevision !== record.currentRevision) ||
-          (params.expectedManifestDigest !== undefined && params.expectedManifestDigest !== record.manifestDigest))
+        if (
+          record.bindingId !== params.bindingId ||
+          (params.expectedRevision !== undefined &&
+            params.expectedRevision !== record.currentRevision) ||
+          (params.expectedManifestDigest !== undefined &&
+            params.expectedManifestDigest !== record.manifestDigest)
+        )
           throw new Error("stale-reference: lifecycle changed before its fence");
         if (
           record.activeOperationId ||
@@ -55,8 +69,11 @@ export function createWorktreeEnvironmentRelease(options: {
             status: "releaseBlocked",
             reason: "release-blocked: preparation has not settled",
           };
-        if (record.fenceIntent && record.fenceIntent !== params.intent &&
-          !(params.intent === "discard" && ["archive", "upgrade"].includes(record.fenceIntent)))
+        if (
+          record.fenceIntent &&
+          record.fenceIntent !== params.intent &&
+          !(params.intent === "discard" && ["archive", "upgrade"].includes(record.fenceIntent))
+        )
           return {
             status: "releaseBlocked",
             reason: "release-blocked: another lifecycle operation owns the fence",
@@ -71,26 +88,40 @@ export function createWorktreeEnvironmentRelease(options: {
         return { status: "completed" };
       });
     }
-    if (record.fenceIntent !== params.intent)
+    if (record.fenceIntent !== params.intent && !(record.status === "released" && discardCleanup))
       return { status: "releaseBlocked", reason: "release-blocked: lifecycle fence is missing" };
     if (params.phase === "stop") {
       const result = await options.stopAll(record);
       if (result.status !== "stopped") return { status: "releaseBlocked", reason: result.reason };
     }
     const busy = await store.lock(params.environmentId, async () => {
-      if (
-        (await store.listConsumers(params.environmentId)).some(
-          (ref) => ref.state === "active" && ref.kind !== "session",
-        )
-      )
-        return true;
-      for (const id of await store.listServiceIds(params.environmentId)) {
-        const receipt = await store.readServiceReceipt(params.environmentId, id);
+      const owners = await store.listConsumerOwnerReceipts(params.environmentId);
+      const sessions = new Set(
+        params.intent === "discard" && params.phase === "stop"
+          ? (params.legacyDiscardSessionIds ?? [])
+          : [],
+      );
+      for (const ref of await settleConfirmedProcessExits(store, params.environmentId, stamp)) {
+        if (ref.state !== "active") continue;
+        if (ref.kind === "session") {
+          // stop 可保留待永久清理的聊天引用；data 删除必须等精确会话清理回调真正结算。
+          if (discardCleanup) return true;
+          continue;
+        }
         if (
-          !receipt ||
-          !hasServiceExitProof(receipt)
+          !(await discardConsumerEligibility(
+            ref,
+            record.currentRevision,
+            sessions,
+            owners,
+            options.observeProcessOwner,
+          ))
         )
           return true;
+      }
+      for (const id of await store.listServiceIds(params.environmentId)) {
+        const receipt = await store.readServiceReceipt(params.environmentId, id);
+        if (!receipt || !hasServiceExitProof(receipt)) return true;
       }
       return false;
     });
@@ -99,7 +130,10 @@ export function createWorktreeEnvironmentRelease(options: {
         status: "releaseBlocked",
         reason: "release-blocked: execution owner has not confirmed exit",
       };
-    if (params.phase === "cleanup") await options.clearRebuildable(params.environmentId);
+    if (params.phase === "cleanup") {
+      if (discardCleanup) await options.discardResources(params.environmentId);
+      else await options.clearRebuildable(params.environmentId);
+    }
     if (params.phase === "finalize" && params.intent !== "archive" && params.intent !== "upgrade") {
       const result = await releaseRuntimeEnvironment(
         store,

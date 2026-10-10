@@ -132,7 +132,16 @@ export function createPublicRuntimeEnvironmentService(
         throw new Error("capability-unavailable: runtime binding authorization is unavailable");
       return [];
     }
-    const candidates = (await options.worktrees.list(attached ?? scope)).filter(
+    const lookupScope = attached ?? scope;
+    // 原因：类型窄化不裁剪运行时对象，环境 ID/动作等字段会被工作树 list 的严格合同拒绝。
+    // 查询只传工作区路径与身份；后续绑定和环境引用仍按完整原请求授权。
+    const listParams: RuntimeEnvironmentScope = {
+      workspacePath: lookupScope.workspacePath,
+      ...(lookupScope.workspaceIdentity
+        ? { workspaceIdentity: lookupScope.workspaceIdentity }
+        : {}),
+    };
+    const candidates = (await options.worktrees.list(listParams)).filter(
       (binding) => binding.status !== "deleted" && belongs(attached ?? scope, binding),
     );
     if (

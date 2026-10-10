@@ -96,6 +96,8 @@ const fixture = {
   failBranches: false,
   failList: false,
   failArchive: false,
+  holdArchive: false,
+  releaseArchive: () => {},
   sessionMissing: false,
   holdList: false,
   releaseList: () => {},

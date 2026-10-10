@@ -19,6 +19,12 @@ export function createWorktreeApplication(
   const archive = createWorktreeArchive(context, options.coordinator, lifecycle.ready);
   const integration = createWorktreeIntegration(context, options.coordinator, options.validate);
   return {
+    async assertExecutionAdmission(scope) {
+      const binding = await context.store.findExecutionBinding(scope);
+      // 内存 stop 标记会随 Host 重启丢失；持久删除状态是阻止后台只读请求重新 spawn 的唯一事实。
+      if (binding && ["deleting", "deleted", "archived"].includes(binding.status))
+        throw new Error("release-blocked: worktree execution admission is fenced");
+    },
     upgradeRuntimeEnvironment: createWorktreeEnvironmentUpgrade(
       context,
       options.coordinator,

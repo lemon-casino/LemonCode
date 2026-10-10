@@ -25,7 +25,7 @@ export function createWorktreeRuntimePorts(options: {
   coordinator: CheckoutCoordinator;
   worktrees: () => IWorktreeHostService;
   agents: () => ILCodeAgentService;
-  stopTerminals?: (scope: { workspacePath: string; workspaceIdentity?: string }) => Promise<void>;
+  stopWorktreeExecution: (binding: WorktreeBinding) => Promise<void>;
 }): WorktreeRuntimePorts {
   const { host } = options;
   const resolve: NonNullable<WorktreeRuntimePorts["resolveRuntimeEnvironment"]> = async (
@@ -59,6 +59,7 @@ export function createWorktreeRuntimePorts(options: {
     };
   };
   return {
+    stopWorktreeExecution: options.stopWorktreeExecution,
     async prepareRuntimeEnvironment(params, writer) {
       if (writer && writer.workspacePath !== params.checkoutPath)
         throw new Error("scope-mismatch: borrowed checkout writer differs from runtime checkout");
@@ -105,23 +106,22 @@ export function createWorktreeRuntimePorts(options: {
     },
     resolveRuntimeEnvironment: resolve,
     async releaseRuntimeEnvironment(params) {
-      if (params.phase === "stop" && params.intent !== "candidate-cancel") {
-        const binding = params.binding;
-        if (
-          !binding ||
-          binding.id !== params.bindingId ||
-          binding.checkoutPath !== params.checkoutPath
-        )
-          throw new Error("scope-mismatch: lifecycle stop requires the owning binding");
-        await options.stopTerminals?.({
-          workspacePath: binding.checkoutPath,
-          workspaceIdentity: binding.workspaceIdentity,
-        });
-        await options.agents().disposeWorkspace({
-          workspacePath: binding.workspacePath,
-          workspaceIdentity: binding.workspaceIdentity,
-        });
-      }
+      const canRetire =
+        params.intent === "discard" &&
+        params.phase === "stop" &&
+        Boolean(host.consumers.retireLegacyProcessesForDeletion);
+      if (
+        canRetire &&
+        params.legacyDiscardSessionIds &&
+        (!params.binding ||
+          params.binding.id !== params.bindingId ||
+          params.binding.status !== "deleting" ||
+          params.binding.checkoutPath !== params.checkoutPath ||
+          params.binding.deletion?.requestId !== params.requestId)
+      )
+        throw new Error(
+          "scope-mismatch: legacy pending references require the original discard binding",
+        );
       return host.releaseForWorktree({
         workspacePath: params.checkoutPath,
         bindingId: params.bindingId,
@@ -131,25 +131,68 @@ export function createWorktreeRuntimePorts(options: {
         expectedManifestDigest: params.environmentRef.manifestDigest,
         intent: params.intent,
         phase: params.phase,
+        ...(canRetire ? { legacyDiscardSessionIds: params.legacyDiscardSessionIds } : {}),
       });
     },
+    ...(host.consumers.retireLegacyProcessesForDeletion
+      ? {
+          async retireLegacyRuntimeConsumers({
+            binding,
+            sessionIds,
+            writer,
+          }: Parameters<NonNullable<WorktreeRuntimePorts["retireLegacyRuntimeConsumers"]>>[0]) {
+            if (!binding.environmentRef) return;
+            const current = await options.worktrees().getBinding({
+              workspacePath: binding.originalWorkspacePath,
+              workspaceIdentity: binding.originalWorkspaceIdentity,
+              taskId: binding.taskId,
+            });
+            if (
+              !current ||
+              current.id !== binding.id ||
+              current.status !== "deleting" ||
+              current.checkoutPath !== binding.checkoutPath ||
+              current.deletion?.requestId !== binding.deletion?.requestId ||
+              current.deletion?.branchHead !== binding.deletion?.branchHead ||
+              current.environmentRef?.environmentId !== binding.environmentRef.environmentId ||
+              current.environmentRef.revision !== binding.environmentRef.revision ||
+              current.environmentRef.manifestDigest !== binding.environmentRef.manifestDigest ||
+              JSON.stringify(current.deletion?.sessionIds) !== JSON.stringify(sessionIds)
+            )
+              throw new Error(
+                "stale-reference: legacy retirement requires the persisted discard journal",
+              );
+            if (!host.consumers.retireLegacyProcessesForDeletion)
+              throw new Error("capability-unavailable: legacy discard retirement is unavailable");
+            await host.consumers.retireLegacyProcessesForDeletion({
+              workspacePath: current.checkoutPath,
+              environmentId: binding.environmentRef.environmentId,
+              expectedRevision: binding.environmentRef.revision,
+              expectedManifestDigest: binding.environmentRef.manifestDigest,
+              bindingId: current.id,
+              requestId: current.deletion!.requestId,
+              sessionIds,
+              writer,
+              repositoryRoot: current.repositoryRoot,
+            });
+          },
+        }
+      : {}),
     async rebindRuntimeEnvironmentSessions(params) {
       const binding = params.binding;
       if (params.oldEnvironmentRef.revision < 1) {
-        const existing = await options
-          .agents()
-          .cleanupWorktreeSessions({
-            workspacePath: binding.originalWorkspacePath,
-            workspaceIdentity: binding.originalWorkspaceIdentity,
-            cleanup: {
-              executionBindingId: binding.id,
-              originWorkspacePath: binding.originalWorkspacePath,
-              originWorkspaceIdentity: binding.originalWorkspaceIdentity,
-              workspacePath: binding.workspacePath,
-              workspaceIdentity: binding.workspaceIdentity,
-              closeSessions: true,
-            },
-          });
+        const existing = await options.agents().cleanupWorktreeSessions({
+          workspacePath: binding.originalWorkspacePath,
+          workspaceIdentity: binding.originalWorkspaceIdentity,
+          cleanup: {
+            executionBindingId: binding.id,
+            originWorkspacePath: binding.originalWorkspacePath,
+            originWorkspaceIdentity: binding.originalWorkspaceIdentity,
+            workspacePath: binding.workspacePath,
+            workspaceIdentity: binding.workspaceIdentity,
+            closeSessions: true,
+          },
+        });
         if (existing.sessionIds.length)
           throw new Error(
             "stale-reference: unprepared environment unexpectedly owns persisted sessions",

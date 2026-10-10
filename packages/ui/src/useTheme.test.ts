@@ -17,14 +17,23 @@ import {
 // window 事件副作用边界，不在 node:test 基建覆盖范围（由 E2E 验收场景覆盖）。
 // ---------------------------------------------------------------------------
 
-test("THEME_OPTIONS 注册表：6 个用户可见项且顺序固定", () => {
+test("THEME_OPTIONS 注册表：8 个用户可见项且顺序固定", () => {
   assert.deepEqual(
     THEME_OPTIONS.map((option) => option.id),
-    ["system", "zai-dark", "zai-light", "sepia-light", "midnight-blue", "forest-dark"],
+    [
+      "system",
+      "zai-dark",
+      "zai-light",
+      "sepia-light",
+      "midnight-blue",
+      "forest-dark",
+      "cinnabar",
+      "inkpurple",
+    ],
   );
   assert.deepEqual(
     THEME_OPTIONS.map((option) => option.base),
-    ["dynamic", "dark", "light", "light", "dark", "dark"],
+    ["dynamic", "dark", "light", "light", "light", "light", "light", "dark"],
   );
 });
 
@@ -37,6 +46,8 @@ test("normalizeThemePreference：legacy light/dark 归一 Zai 对，新 id 原�
     "sepia-light",
     "midnight-blue",
     "forest-dark",
+    "cinnabar",
+    "inkpurple",
     "system",
   ] as const) {
     assert.equal(normalizeThemePreference(passthrough), passthrough);
@@ -52,6 +63,8 @@ test("isThemeValue：全部合法主题放行，异常本地值/广播 payload �
     "sepia-light",
     "midnight-blue",
     "forest-dark",
+    "cinnabar",
+    "inkpurple",
     "system",
   ] as const) {
     assert.equal(isThemeValue(theme), true, theme);
@@ -72,8 +85,10 @@ test("resolveTheme：legacy 与 Zai 对按预期折叠亮暗", () => {
 test("resolveTheme：新深基底不漏判成亮侧，新浅基底落亮侧", () => {
   // 该行为是下游二值折叠（shiki/mermaid/原生标题栏）的唯一依据。
   assert.equal(resolveTheme("sepia-light"), "light");
-  assert.equal(resolveTheme("midnight-blue"), "dark");
-  assert.equal(resolveTheme("forest-dark"), "dark");
+  assert.equal(resolveTheme("midnight-blue"), "light");
+  assert.equal(resolveTheme("forest-dark"), "light");
+  assert.equal(resolveTheme("cinnabar"), "light");
+  assert.equal(resolveTheme("inkpurple"), "dark");
 });
 
 test("resolveTheme：system 按 matchMedia 实时解析为亮/暗", () => {
@@ -113,12 +128,13 @@ function stubDocumentClasses() {
     documentElement: {
       classList,
       hasAttribute: () => false,
+      style: { colorScheme: "", removeProperty() {} },
     },
   };
   return classSet;
 }
 
-test("applyTheme：6 项主题的 documentElement class 组合正确", () => {
+test("applyTheme：8 项主题的 documentElement class 组合正确", () => {
   const classSet = stubDocumentClasses();
 
   // 期望组合：dark class + 激活的 theme-<id>；浅基底不含 dark。
@@ -130,8 +146,10 @@ test("applyTheme：6 项主题的 documentElement class 组合正确", () => {
     { theme: "zai-dark", expected: ["dark", "theme-zai-dark"] },
     { theme: "zai-light", expected: ["theme-zai-light"] },
     { theme: "sepia-light", expected: ["theme-sepia-light"] },
-    { theme: "midnight-blue", expected: ["dark", "theme-midnight-blue"] },
-    { theme: "forest-dark", expected: ["dark", "theme-forest-dark"] },
+    { theme: "midnight-blue", expected: ["theme-midnight-blue"] },
+    { theme: "forest-dark", expected: ["theme-forest-dark"] },
+    { theme: "cinnabar", expected: ["theme-cinnabar"] },
+    { theme: "inkpurple", expected: ["dark", "theme-inkpurple"] },
     // system 落 Zai 对：暗偏好 → zai-dark，亮偏好 → zai-light，不落新主题。
     { theme: "system", matchMediaDark: true, expected: ["dark", "theme-zai-dark"] },
     { theme: "system", matchMediaDark: false, expected: ["theme-zai-light"] },
@@ -157,10 +175,10 @@ test("applyTheme：6 项主题的 documentElement class 组合正确", () => {
 
 test("applyTheme：切换主题时清空上一个 theme-* 类，不残留差量变量块", () => {
   const classSet = stubDocumentClasses();
-  applyTheme("midnight-blue");
-  assert.deepEqual([...classSet].sort(), ["dark", "theme-midnight-blue"]);
+  applyTheme("inkpurple");
+  assert.deepEqual([...classSet].sort(), ["dark", "theme-inkpurple"]);
 
-  // 深基底 → 浅基底：dark 与 theme-midnight-blue 都必须被移除。
+  // 深基底 → 浅基底：dark 与 theme-inkpurple 都必须被移除。
   applyTheme("sepia-light");
   assert.deepEqual([...classSet].sort(), ["theme-sepia-light"]);
 

@@ -49,7 +49,7 @@ nodes:
     # Current commit/merge presentation has its own seed below; lifecycle entrypoints stay independent.
     kind: capability
     label: Session execution in a managed Git worktree
-    aliases: [worktree, git worktree, 工作树, 会话执行目录]
+    aliases: [worktree, git worktree, 工作树, 工作树分组, 会话执行目录]
     codeSeeds:
       - file: packages/shared/src/worktreeExecution.ts
         symbol: worktreeExecutionBindingSchema
@@ -75,6 +75,10 @@ nodes:
         symbol: commitMergeState
       - file: packages/ui/src/WorkspaceSidebarItem.tsx
         symbol: WorkspaceSidebarItem
+      - file: packages/ui/src/WorkspaceSidebar/WorkspaceWorktreesSection.tsx
+        symbol: WorkspaceWorktreesSection
+      - file: packages/ui/src/hooks/useSidebarWorktrees.ts
+        symbol: useSidebarWorktrees
       - file: packages/ui/src/worktree/WorktreeBadge.tsx
         symbol: WorktreeBadge
       - file: packages/ui/src/worktree/WorktreePreparationCard.tsx
@@ -98,7 +102,7 @@ nodes:
       - "Worktree management owns lifecycle UI only. A scoped window navigation request opens the existing session commit controller; terminal integration records do not lock new source commits."
       - "Preparation is idempotent before session materialization; missing or archived bindings cannot silently resume in the original checkout."
       - "The single composer execution selector saves the original project's mode. Only frozen admission intent overrides later defaults; choosing a mode does not prepare a worktree."
-      - "Project worktree management is a persistent project-menu entry using that project's Environment services. Sidebar icons derive only from actual session executionBindingId, including memoized and grouped rows."
+      - "The Worktrees sidebar view owns the worktree management/delete entry using the original project's attachment services; project menus navigate to that view. Classification derives from owner bindings and actual session executionBindingId; ordinary group membership is preserved."
       - "Preparation progress and cancellation are durable Host facts. Same-directory forks share their root binding; isolated forks snapshot the current source under its writer permit and atomically persist a new child binding."
       - "Preparation is shown in the chat stream below the frozen first-input preview. After materialization, actual rows replace the preview and ready details follow the initial real input; composer controls never own preparation progress."
   - id: service.worktree-owner

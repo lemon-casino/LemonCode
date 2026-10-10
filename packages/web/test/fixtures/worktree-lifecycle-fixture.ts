@@ -3,7 +3,12 @@ import type { WorktreeBinding } from "@lcode/services";
 export function createWorktreeLifecycleFixture(
   calls: { method: string; params: unknown }[],
   binding: WorktreeBinding,
-  config: () => { failArchive: boolean; ignoredCount: number },
+  config: () => {
+    failArchive: boolean;
+    ignoredCount: number;
+    holdArchive: boolean;
+    releaseArchive: () => void;
+  },
 ) {
   return {
     getIntegrationPreflight: async ({ targetBranch }: { targetBranch: string }) => ({
@@ -22,6 +27,12 @@ export function createWorktreeLifecycleFixture(
       calls.push({ method: "archive", params });
       if (config().failArchive) throw new Error("fixture-archive-failed");
       if (params.discard) {
+        if (config().holdArchive) {
+          binding.status = "deleting";
+          await new Promise<void>((resolve) => {
+            config().releaseArchive = resolve;
+          });
+        }
         binding.status = "deleted";
         binding.snapshot = undefined;
         return structuredClone(binding);

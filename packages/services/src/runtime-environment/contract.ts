@@ -23,6 +23,12 @@ import { createServiceDescriptor } from "../descriptors.js";
 
 export type {
   RuntimeEnvironmentConsumerAuthority,
+  RuntimeConsumerProcessOwner,
+  RuntimeProcessOwnerObserver,
+  RuntimeResourceDirectoryRemover,
+  RuntimeConsumerOwnerReceipt,
+  RuntimeConsumerRetirement,
+  RuntimeConsumerLegacyDeletionParams,
   RuntimeEnvironmentExecutionResolver,
   RuntimeEnvironmentResolveRequest,
   ResolvedProjectExecutionContext,

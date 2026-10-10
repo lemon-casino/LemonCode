@@ -2843,6 +2843,7 @@ parentPort.on("message", async (e: Electron.MessageEvent) => {
           establishOwner: () => {
             const initializedServices = createLocalServices({
               removeWorktreeDirectory: removePhysicalWorktreeDirectory,
+              removeRuntimeResourceDirectory: removePhysicalWorktreeDirectory,
               parentPort,
               settingService,
               prepareLegacyAccountConnections,

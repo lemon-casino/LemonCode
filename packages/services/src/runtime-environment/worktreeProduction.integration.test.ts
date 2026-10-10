@@ -37,13 +37,23 @@ test(
       GIT_CONFIG_GLOBAL: join(root, "no-global-config"),
     };
     const git: WorktreeGitPort = {
-      run: (params) => new Promise((resolveRun) => {
-        const child = execFile("git", params.args, {
-          cwd: params.cwd, env: { ...gitEnv, ...params.env }, windowsHide: true,
-          maxBuffer: params.maxOutputBytes ?? 16 * 1024 * 1024, timeout: params.timeoutMs ?? 60_000,
-        }, (error, stdout, stderr) => resolveRun({ stdout, stderr, exitCode: error ? Number(error.code) || 1 : 0 }));
-        child.stdin?.end(params.stdin);
-      }),
+      run: (params) =>
+        new Promise((resolveRun) => {
+          const child = execFile(
+            "git",
+            params.args,
+            {
+              cwd: params.cwd,
+              env: { ...gitEnv, ...params.env },
+              windowsHide: true,
+              maxBuffer: params.maxOutputBytes ?? 16 * 1024 * 1024,
+              timeout: params.timeoutMs ?? 60_000,
+            },
+            (error, stdout, stderr) =>
+              resolveRun({ stdout, stderr, exitCode: error ? Number(error.code) || 1 : 0 }),
+          );
+          child.stdin?.end(params.stdin);
+        }),
     };
     const command = async (cwd: string, ...args: string[]) => {
       const result = await git.run({ cwd, args });
@@ -103,6 +113,7 @@ test(
         coordinator,
         worktrees: () => worktrees,
         agents: () => agents,
+        stopWorktreeExecution: async (binding) => agents.disposeWorkspace(binding),
       });
       worktrees = createWorktreeService({
         dataDir,

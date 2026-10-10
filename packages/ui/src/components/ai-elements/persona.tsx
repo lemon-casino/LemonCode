@@ -86,13 +86,9 @@ const sources = {
 };
 
 const getCurrentTheme = (): "light" | "dark" => {
-  if (typeof window !== "undefined") {
-    if (document.documentElement.classList.contains("dark")) {
-      return "dark";
-    }
-    if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) {
-      return "dark";
-    }
+  if (typeof document !== "undefined") {
+    // 根节点已由全局主题投影；无 dark 就是浅色，不能再用 OS 偏好覆盖显式选择。
+    return document.documentElement.classList.contains("dark") ? "dark" : "light";
   }
   return "light";
 };

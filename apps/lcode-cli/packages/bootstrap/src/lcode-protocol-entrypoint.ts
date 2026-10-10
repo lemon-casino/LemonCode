@@ -3,6 +3,7 @@ import type { SessionId } from "@lcode/contracts";
 import { createConfig, resolvePath } from "@lcode/adapters/config";
 import { join } from "node:path";
 import { createNodeToolArtifactStore } from "@lcode/adapters/storage";
+import { deleteModelIODebugRecords, deleteSessionRuntimeArtifacts } from "@lcode/adapters";
 import { createNodeModelSelectionFacade } from "@lcode/provider-node";
 import { createNodeLoggerFactory } from "@lcode/adapters/logging";
 import {
@@ -31,6 +32,7 @@ import {
   prepareProtocolStartupStorage,
 } from "./lcode-protocol/storage-startup.js";
 import { closeSessionStore, getSessionDbPath } from "./app/session-store.js";
+import { getCliStorageRoot, getModelIoDir } from "./app/paths.js";
 import { startProcessProviderRegistryRuntime } from "./app/process-provider-registry-runtime.js";
 import { scheduleStartupLogRetentionCleanup } from "./log-retention.js";
 import { StartupTimer, startupNow } from "./startup-logging.js";
@@ -258,6 +260,14 @@ export async function runLCodeProtocolAgent(
       videoCacheRootDir: join(storageRoot, "cli", "video-cache"),
     });
     const server = (serverForCleanup = new LCodeProtocolAgentServer({
+      deleteSessionDiagnostics: async (ids) => {
+        const cliRoot = getCliStorageRoot(storageRoot);
+        await deleteModelIODebugRecords(ids, [
+          getModelIoDir(getCliStorageRoot(storageRoot), false),
+          getModelIoDir(getCliStorageRoot(storageRoot), true),
+        ]);
+        await deleteSessionRuntimeArtifacts(ids, cliRoot);
+      },
       putDraftAttachment: async (draftId, input) => {
         // 上传只需要存储端口；原先依赖 session app 会提前运行工作树 setup。
         const artifact = await workspaceArtifacts.writeToolResultArtifact({

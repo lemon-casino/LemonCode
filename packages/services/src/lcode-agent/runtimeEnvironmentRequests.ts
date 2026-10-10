@@ -37,6 +37,7 @@ import type {
   IRuntimeEnvironmentHostService,
   IRuntimeEnvironmentService,
   RuntimeEnvironmentConsumerAuthority,
+  RuntimeConsumerProcessOwner,
   ResolvedProjectExecutionContext,
 } from "../runtime-environment/contract.js";
 import type { IWorktreeService, WorktreeBinding } from "../worktree/contract.js";
@@ -219,6 +220,7 @@ function toWire(
 interface ClientOptions {
   workspace: RuntimeClientWorkspace;
   clientId: string;
+  processOwner?: RuntimeConsumerProcessOwner;
   service: IRuntimeEnvironmentHostService;
   consumers: RuntimeEnvironmentConsumerAuthority;
   worktrees: IWorktreeService;
@@ -312,13 +314,18 @@ export function createRuntimeEnvironmentClient(options: ClientOptions) {
     if (exited || closed.has(key)) throw new Error("runtime client closed before acquire");
     await session(binding, request.sessionId);
     const scope = runtimeStorageScope(binding);
-    const reference = await options.consumers.acquire({
-      ...scope,
-      ...request.environmentRef,
-      kind: "process",
-      id: JSON.stringify([request.sessionId, request.consumer]),
-      ownerId: options.clientId,
-    });
+    if (options.processOwner && !options.consumers.confirmProcessExit)
+      throw new Error("capability-unavailable: process owner receipts are unavailable");
+    const reference = await options.consumers.acquire(
+      {
+        ...scope,
+        ...request.environmentRef,
+        kind: "process",
+        id: JSON.stringify([request.sessionId, request.consumer]),
+        ownerId: options.clientId,
+      },
+      options.processOwner,
+    );
     const ticket: Ticket = {
       sessionId: request.sessionId,
       executionBindingId: binding.id,
@@ -383,6 +390,10 @@ export function createRuntimeEnvironmentClient(options: ClientOptions) {
     async disposeAfterProcessExit() {
       exited = true;
       await Promise.allSettled(pending);
+      // 内存 ticket 随 Host 退出丢失；先保存真实进程树退出收据，再写引用，重启可恢复后半步。
+      if (options.processOwner)
+        for (const ticket of tickets.values())
+          await options.consumers.confirmProcessExit!(ticket.release, options.processOwner);
       for (const [key, ticket] of tickets) await releaseTicket(key, ticket);
     },
   };

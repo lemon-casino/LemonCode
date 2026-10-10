@@ -96,7 +96,9 @@ export function WorkspaceArchivedTasksFlatSection({
     workspaceTabs,
     sortBy,
     searchQuery: "",
-    expanded: showAllTasks || Boolean(taskFilter),
+    // 批量删除的选择集必须覆盖当前分类的完整行集合，不能被折叠上限截断；
+    // 侧栏分类视图本来就走全量查询，这里显式固定，避免无 taskFilter 时删不到折叠外的行。
+    expanded: true,
     collapsedLimit,
   });
   const classifiedItems = taskFilter ? queriedItems.filter(taskFilter) : queriedItems;
@@ -106,8 +108,9 @@ export function WorkspaceArchivedTasksFlatSection({
 
   return (
     <div>
+      {/* 批量删除与列表同源：传当前分类已渲染的行，避免删除侧重新查询原始行而漏掉工作树会话。 */}
       <DeleteAllArchivedTasksButton
-        taskFilter={taskFilter}
+        visibleTasks={classifiedItems}
         actionsContainer={actionsContainer}
         count={total}
         disabled={loading || total === 0}

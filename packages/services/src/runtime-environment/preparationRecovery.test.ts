@@ -133,6 +133,7 @@ test("archive fence retains session references; restore creates a fresh environm
       stamp: () => new Date().toISOString(),
       stopAll: async () => ({ status: "stopped" }),
       clearRebuildable: async () => {},
+      discardResources: async () => {},
     });
     const request = {
       ...f.scope,

@@ -13,59 +13,73 @@ export interface ArchivedTaskDeletionWorkspace {
   workspacePath: string;
   workspaceIdentity?: string;
   label: string;
-  service?: Pick<ILCodeTaskService, "listArchivedTasks" | "deleteArchivedTasks">;
+  service?: Pick<ILCodeTaskService, "deleteArchivedTasks">;
 }
 
-export async function collectArchivedTaskDeletion(
+export interface ArchivedTaskDeletionSelection {
+  groups: Array<{
+    workspace: ArchivedTaskDeletionWorkspace;
+    targets: ArchivedTaskDeletionTarget[];
+  }>;
+  count: number;
+  unavailableWorkspaces: string[];
+}
+
+/**
+ * 选择集直接取自归档列表当前分类已渲染的行（Host Controller 投影行）。
+ *
+ * 根因：tasks-index 原始行不持久化 executionBindingId，工作树归属只由 sessions-index 覆盖层下发。
+ * 过去按原始行重新查询并套一遍分类谓词，会把工作树会话全部滤掉，出现“列表看得见、一键删除却收集到 0 项”。
+ * 这里不再重新查询、也不再自行分类，避免产生第二条分类真值。见 specs/archived-task-deletion.md。
+ */
+export function collectArchivedTaskDeletion(
   workspaces: ArchivedTaskDeletionWorkspace[],
-  taskFilter?: (task: LCodeTaskMeta) => boolean,
-) {
-  const unique = new Map(
+  visibleTasks: readonly LCodeTaskMeta[],
+): ArchivedTaskDeletionSelection {
+  const workspaceByKey = new Map(
     workspaces.map((workspace) => [
       buildTaskWorkspaceKey(workspace.workspacePath, workspace.workspaceIdentity),
       workspace,
     ]),
   );
-  const results = await Promise.all(
-    [...unique.values()].map(async (workspace) => {
-      if (!workspace.service) return { workspace, targets: null };
-      try {
-        // 直接读取完整归档集合，不能使用 UI 已折叠或过滤的 items。
-        const tasks = await workspace.service.listArchivedTasks({
-          workspacePath: workspace.workspacePath,
-          workspaceIdentity: workspace.workspaceIdentity,
-        });
-        // 分类视图的批量删除只能收集本分类；不能把隐藏的其它项目/工作树会话一并删除。
-        const targets = [
-          ...new Set(
-            tasks.filter((task) => !taskFilter || taskFilter(task)).map((task) => task.taskId),
-          ),
-        ].map((taskId) => ({
-          taskId,
-          workspacePath: workspace.workspacePath,
-          workspaceIdentity: workspace.workspaceIdentity,
-        }));
-        return { workspace, targets };
-      } catch (error) {
-        logger.warn("[ArchivedTaskDeletion] 读取归档项目失败", {
-          workspaceKey: buildTaskWorkspaceKey(workspace.workspacePath, workspace.workspaceIdentity),
-          error,
-        });
-        return { workspace, targets: null };
-      }
-    }),
-  );
+  const targetsByWorkspaceKey = new Map<string, ArchivedTaskDeletionTarget[]>();
+  for (const task of visibleTasks) {
+    const key = buildTaskWorkspaceKey(task.workspacePath, task.workspaceIdentity);
+    // 可见行可能属于本次没有 service 的 scope；不在传入集合内就不纳入。
+    if (!workspaceByKey.has(key)) continue;
+    const targets = targetsByWorkspaceKey.get(key) ?? [];
+    if (!targets.some((target) => target.taskId === task.taskId)) {
+      targets.push({
+        taskId: task.taskId,
+        workspacePath: task.workspacePath,
+        workspaceIdentity: task.workspaceIdentity,
+      });
+    }
+    targetsByWorkspaceKey.set(key, targets);
+  }
+
+  const groups: ArchivedTaskDeletionSelection["groups"] = [];
+  const unavailableWorkspaces: string[] = [];
+  for (const [key, targets] of targetsByWorkspaceKey) {
+    const workspace = workspaceByKey.get(key);
+    if (!workspace) continue;
+    // 远端 source 未连接时不能发删除请求，也不能退回本机 sqlite；只把该项目记为不可用。
+    if (!workspace.service) {
+      unavailableWorkspaces.push(workspace.label);
+      continue;
+    }
+    groups.push({ workspace, targets });
+  }
+
   return {
-    groups: results.filter((result) => result.targets !== null),
-    count: results.reduce((count, result) => count + (result.targets?.length ?? 0), 0),
-    unavailableWorkspaces: results
-      .filter((result) => result.targets === null)
-      .map((result) => result.workspace.label),
+    groups,
+    count: groups.reduce((count, group) => count + group.targets.length, 0),
+    unavailableWorkspaces,
   };
 }
 
 export async function deleteArchivedTaskSelection(
-  selection: Awaited<ReturnType<typeof collectArchivedTaskDeletion>>,
+  selection: ArchivedTaskDeletionSelection,
   onDeleted: (target: ArchivedTaskDeletionTarget) => void,
 ) {
   let deleted = 0;
@@ -74,7 +88,7 @@ export async function deleteArchivedTaskSelection(
   // 同一 workspace 一次 RPC，让原 source 在逐项事务后统一发事件；独立 source 可以并行。
   await Promise.all(
     selection.groups.map(async ({ workspace, targets }) => {
-      if (!targets?.length) return;
+      if (targets.length === 0) return;
       let result: Awaited<ReturnType<ILCodeTaskService["deleteArchivedTasks"]>>;
       try {
         result = await workspace.service!.deleteArchivedTasks({

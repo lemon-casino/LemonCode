@@ -51,9 +51,39 @@ export async function discardTaskWorktree(
   service: IWorktreeService,
   binding: import("./contract.js").WorktreeBinding,
 ) {
+  // 只发送一次确认；Host 在同一调用内继续原 journal 的临时文件锁重试，完成后才返回 deleted。
   return service.archive({
     bindingId: binding.id,
     requestId: "discard-confirmed-example",
     discard: { branch: binding.branch, checkoutPath: binding.checkoutPath },
+  });
+}
+
+/** Host-only：重启后的 spawn 同样读取 Worktree owner 的持久删除状态，不暴露给 RPC。 */
+export async function admitWorktreeAgent(
+  host: import("./contract.js").IWorktreeHostService,
+  scope: import("./contract.js").WorktreeScope,
+) {
+  await host.assertExecutionAdmission(scope);
+}
+
+/** Host 组合根注入停止 owner；生命周期调用者不自行操作 PID 或 consumer 存储。 */
+export async function stopOwnedWorktreeExecution(
+  ports: Pick<import("./contract.js").WorktreeRuntimePorts, "stopWorktreeExecution">,
+  binding: import("./contract.js").WorktreeBinding,
+) {
+  await ports.stopWorktreeExecution?.(binding);
+}
+
+/** Host-only：已有 discard journal、真实 writer、精确历史清理后才迁移旧引用。 */
+export async function retireLegacyDiscardConsumers(
+  ports: Pick<import("./contract.js").WorktreeRuntimePorts, "retireLegacyRuntimeConsumers">,
+  binding: import("./contract.js").WorktreeBinding,
+  writer: import("./contract.js").CheckoutLease,
+) {
+  await ports.retireLegacyRuntimeConsumers?.({
+    binding,
+    writer,
+    sessionIds: binding.deletion?.sessionIds ?? [],
   });
 }

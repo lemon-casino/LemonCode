@@ -10,3 +10,5 @@ export * from "./tool-transform.js";
 export * from "./official-coding-plan-gateway.js";
 export * from "./ui-tars-action-codec.js";
 export * from "./ui-tars-model-executor.js";
+export { deleteModelIODebugRecords } from "./runner-debug-writer.js";
+export { deleteSessionRuntimeArtifacts } from "./session-runtime-artifacts.js";

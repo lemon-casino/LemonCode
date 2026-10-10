@@ -22,6 +22,8 @@ import "@/styles.css";
 const query = new URLSearchParams(location.search);
 const { service, controller } = createRuntimeEnvironmentFixture(query.has("subdirectory"));
 controller.unsupported = query.has("unsupported");
+controller.failSnapshot = query.has("snapshot-error");
+controller.failCapabilities = query.has("capabilities-error");
 let settings: AppSettings = {};
 const candidate = createRuntimeCandidateFixture(controller.calls);
 const services = {

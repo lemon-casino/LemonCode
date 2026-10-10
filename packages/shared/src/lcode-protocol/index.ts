@@ -2074,6 +2074,8 @@ export const lcodeSessionWorktreeCleanupParamsSchema = z
     workspacePath: nonEmptyString,
     workspaceIdentity: nonEmptyString.optional(),
     sessionIds: z.array(nonEmptyString).optional(),
+    /** 原删除 journal 的 ID，仅用于收集已失去主会话条目的同范围后代，不表示永久删除。 */
+    seedSessionIds: z.array(nonEmptyString).max(4096).optional(),
     closeSessions: z.boolean().optional(),
   })
   .strict();

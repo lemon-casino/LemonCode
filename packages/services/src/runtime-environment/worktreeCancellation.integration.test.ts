@@ -113,10 +113,14 @@ test("failed managed creation cancels idempotently and deletes only its worktree
         stamp,
         stopAll: async () => ({ status: "stopped" }),
         clearRebuildable: async () => {},
+        discardResources: async () => {},
       }),
     },
     coordinator,
     worktrees: () => worktree,
+    stopWorktreeExecution: async (binding) => {
+      disposed.push(binding.workspacePath);
+    },
     agents: () =>
       ({
         disposeWorkspace: async (scope: { workspacePath: string }) => {

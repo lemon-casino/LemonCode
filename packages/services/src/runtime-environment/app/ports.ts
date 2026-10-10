@@ -43,7 +43,21 @@ export interface RuntimeEnvironmentStore {
     environmentId: string,
     references: import("@lcode/shared").RuntimeConsumerReference[],
   ): Promise<void>;
+  listConsumerOwnerReceipts(
+    environmentId: string,
+  ): Promise<import("../contract.js").RuntimeConsumerOwnerReceipt[]>;
+  saveConsumerOwnerReceipts(
+    environmentId: string,
+    receipts: import("../contract.js").RuntimeConsumerOwnerReceipt[],
+  ): Promise<void>;
   removeEnvironment(id: string): Promise<void>;
+  listConsumerRetirements(
+    environmentId: string,
+  ): Promise<import("../contract.js").RuntimeConsumerRetirement[]>;
+  saveConsumerRetirements(
+    environmentId: string,
+    receipts: import("../contract.js").RuntimeConsumerRetirement[],
+  ): Promise<void>;
 }
 
 /** 工具后端 port（spec §5）：确切版本安装与可用性探测。 */

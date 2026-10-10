@@ -35,7 +35,9 @@ test("ensure returns stable managed resource directories and preserves private d
     assert.deepEqual(await f.resources.ensure(ENVIRONMENT_ID), dirs);
     assert.equal(await readFile(join(dirs.data, "database"), "utf8"), "private data");
     await assert.rejects(f.resources.ensure("../escape"), /environment id/iu);
-  } finally { await f.close(); }
+  } finally {
+    await f.close();
+  }
 });
 
 test("scan counts only this environment's managed resources, never checkout node_modules", async () => {
@@ -56,7 +58,9 @@ test("scan counts only this environment's managed resources, never checkout node
     assert.equal(summary.fileCount, 4);
     assert.equal(summary.bytes, 17);
     assert.deepEqual(summary.scanBudget, LARGE_BUDGET);
-  } finally { await f.close(); }
+  } finally {
+    await f.close();
+  }
 });
 
 test("scan reports partial when the entry budget is exhausted and clamps hard limits", async () => {
@@ -68,11 +72,19 @@ test("scan reports partial when the entry budget is exhausted and clamps hard li
     const partial = await f.resources.scan(ENVIRONMENT_ID, { maxEntries: 1, maxDurationMs: 2_000 });
     assert.equal(partial.status, "partial");
     assert.match(partial.reason ?? "", /budget/iu);
-    const capped = await f.resources.scan(ENVIRONMENT_ID, { maxEntries: 1_000_000, maxDurationMs: 100_000 });
+    const capped = await f.resources.scan(ENVIRONMENT_ID, {
+      maxEntries: 1_000_000,
+      maxDurationMs: 100_000,
+    });
     assert.deepEqual(capped.scanBudget, LARGE_BUDGET);
     assert.equal(capped.status, "complete");
-    await assert.rejects(f.resources.scan(ENVIRONMENT_ID, { maxEntries: 0, maxDurationMs: 10 }), /budget/iu);
-  } finally { await f.close(); }
+    await assert.rejects(
+      f.resources.scan(ENVIRONMENT_ID, { maxEntries: 0, maxDurationMs: 10 }),
+      /budget/iu,
+    );
+  } finally {
+    await f.close();
+  }
 });
 
 test("scan checks the monotonic time budget without using a timeout as success", async (t) => {
@@ -84,7 +96,10 @@ test("scan checks the monotonic time budget without using a timeout as success",
     const summary = await f.resources.scan(ENVIRONMENT_ID, { maxEntries: 2_000, maxDurationMs: 2 });
     assert.equal(summary.status, "partial");
     assert.match(summary.reason ?? "", /budget/iu);
-  } finally { t.mock.restoreAll(); await f.close(); }
+  } finally {
+    t.mock.restoreAll();
+    await f.close();
+  }
 });
 
 test("a missing resource directory is unavailable rather than an empty complete scan", async () => {
@@ -94,24 +109,31 @@ test("a missing resource directory is unavailable rather than an empty complete 
     assert.equal(summary.status, "unavailable");
     assert.equal(summary.bytes, undefined);
     await assert.rejects(access(f.dataDir), { code: "ENOENT" });
-  } finally { await f.close(); }
+  } finally {
+    await f.close();
+  }
 });
 
-test("symlinks and Windows junctions fail closed without traversing checkout", async () => {
+test("scan rejects nested links; lifecycle cleanup removes links without traversing checkout", async () => {
   const f = await fixture();
   try {
     const dirs = await f.resources.ensure(ENVIRONMENT_ID);
     const outside = join(f.root, "checkout", "node_modules");
     await mkdir(outside, { recursive: true });
     await writeFile(join(outside, "private"), "keep");
-    await symlink(outside, join(dirs.cache, "redirect"), process.platform === "win32" ? "junction" : "dir");
+    await symlink(
+      outside,
+      join(dirs.cache, "redirect"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
     const summary = await f.resources.scan(ENVIRONMENT_ID, LARGE_BUDGET);
     assert.equal(summary.status, "unavailable");
-    await writeFile(join(dirs.temp, "keep-on-failed-clear"), "keep");
-    await assert.rejects(f.resources.clearRebuildable(ENVIRONMENT_ID), /managed|symlink|containment/iu);
-    await access(join(dirs.temp, "keep-on-failed-clear"));
+    await f.resources.clearRebuildable(ENVIRONMENT_ID);
+    await assert.rejects(access(dirs.cache), { code: "ENOENT" });
     assert.equal(await readFile(join(outside, "private"), "utf8"), "keep");
-  } finally { await f.close(); }
+  } finally {
+    await f.close();
+  }
 });
 
 test("ensure refuses a redirected managed directory before creating children", async () => {
@@ -120,11 +142,19 @@ test("ensure refuses a redirected managed directory before creating children", a
     const outside = join(f.root, "outside");
     await mkdir(outside);
     await mkdir(f.dataDir);
-    await symlink(outside, join(f.dataDir, "resources"), process.platform === "win32" ? "junction" : "dir");
+    await symlink(
+      outside,
+      join(f.dataDir, "resources"),
+      process.platform === "win32" ? "junction" : "dir",
+    );
     await assert.rejects(f.resources.ensure(ENVIRONMENT_ID), /managed|symlink|containment/iu);
     await assert.rejects(access(join(outside, ENVIRONMENT_ID)), { code: "ENOENT" });
-    await assert.rejects(access(resolve(f.dataDir, "resources", ENVIRONMENT_ID)), { code: "ENOENT" });
-  } finally { await f.close(); }
+    await assert.rejects(access(resolve(f.dataDir, "resources", ENVIRONMENT_ID)), {
+      code: "ENOENT",
+    });
+  } finally {
+    await f.close();
+  }
 });
 
 test("clearRebuildable removes only temp/cache/logs and is repeatable, never data or shared stores", async () => {
@@ -142,5 +172,7 @@ test("clearRebuildable removes only temp/cache/logs and is repeatable, never dat
     assert.equal(await readFile(join(dirs.data, "payload"), "utf8"), "data");
     assert.equal(await readFile(join(dirs.packageStore, "payload"), "utf8"), "packageStore");
     assert.deepEqual(await f.resources.ensure(ENVIRONMENT_ID), dirs);
-  } finally { await f.close(); }
+  } finally {
+    await f.close();
+  }
 });

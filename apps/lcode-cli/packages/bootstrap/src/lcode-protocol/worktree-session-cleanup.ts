@@ -11,7 +11,11 @@ export async function cleanupWorktreeSessions(
   const store = context.deps.sessionStore;
   if (!store?.worktreeCleanup)
     throw new Error("Agent does not support permanent worktree chat cleanup");
-  const matching = await store.worktreeCleanup({ ...params, sessionIds: undefined });
+  const matching = await store.worktreeCleanup({
+    ...params,
+    sessionIds: undefined,
+    seedSessionIds: params.seedSessionIds ?? params.sessionIds,
+  });
   if (params.sessionIds === undefined && !params.closeSessions) return matching;
   const ids = params.sessionIds ?? matching.sessionIds;
   const allowed = new Set(matching.sessionIds);
@@ -39,5 +43,9 @@ export async function cleanupWorktreeSessions(
     context.sessions.delete(id);
     await record.eventStore.deleteSession(id as SessionId);
   }
-  return params.sessionIds === undefined ? matching : store.worktreeCleanup(params);
+  if (params.sessionIds === undefined) return matching;
+  const deleted = await store.worktreeCleanup(params);
+  // 正文事务已完成也不能提前返回成功：rollout/debug 仍含聊天内容且占空间，必须按原 IDs 清理。
+  await context.deps.deleteSessionDiagnostics?.(deleted.sessionIds);
+  return deleted;
 }

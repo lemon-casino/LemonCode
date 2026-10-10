@@ -145,17 +145,24 @@ export function useRuntimeEnvironment(target: EnvironmentTarget) {
       return;
     }
     update(source, { loading: true, error: undefined });
-    try {
-      const [capabilities] = await Promise.all([
-        source.service
-          .getCapabilities({ workspacePath, ...(workspaceIdentity ? { workspaceIdentity } : {}) })
-          .then((value) => runtimeEnvironmentCapabilitiesSchema.parse(value)),
-        readSnapshot(source),
-      ]);
-      update(source, { capabilities, loading: false });
-    } catch (error) {
-      update(source, { loading: false, error: getErrorMessage(error) });
-    }
+    // 原因：Promise.all 因快照失败会丢弃已成功读取的能力，误报 Host 不支持。
+    // 两项查询独立结算；能力读取失败关闭旧授权，快照仍只接纳 owner 已校验事实。
+    const [capabilities, snapshot] = await Promise.allSettled([
+      source.service
+        .getCapabilities({ workspacePath, ...(workspaceIdentity ? { workspaceIdentity } : {}) })
+        .then((value) => runtimeEnvironmentCapabilitiesSchema.parse(value)),
+      readSnapshot(source),
+    ]);
+    update(source, {
+      loading: false,
+      capabilities: capabilities.status === "fulfilled" ? capabilities.value : undefined,
+      error:
+        capabilities.status === "rejected"
+          ? getErrorMessage(capabilities.reason)
+          : snapshot.status === "rejected"
+            ? getErrorMessage(snapshot.reason)
+            : undefined,
+    });
   }, [workspacePath, workspaceIdentity, resolution.rpcReady, readSnapshot, update]);
   useEffect(() => {
     const source = owner.current;

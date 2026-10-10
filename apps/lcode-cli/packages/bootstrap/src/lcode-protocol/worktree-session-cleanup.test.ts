@@ -31,6 +31,10 @@ function fixture(busy = false) {
   const context = {
     sessions,
     deps: {
+      deleteSessionDiagnostics: async (ids: string[]) => {
+        assert.deepEqual(ids, ["root"]);
+        calls.push("diagnostics");
+      },
       sessionStore: {
         worktreeCleanup: async (input: { sessionIds?: string[] }) => {
           calls.push(input.sessionIds ? "purge" : "query");
@@ -57,7 +61,38 @@ test("query does not hydrate; collect closes matching resident chats before phys
   assert.deepEqual(f.calls, ["query", "query", "close", "dispose", "events"]);
   assert.equal(f.sessions.size, 0);
   await cleanupWorktreeSessions(f.context, { ...params, sessionIds: ["root"] });
-  assert.equal(f.calls.at(-1), "purge");
+  assert.deepEqual(f.calls.slice(-2), ["purge", "diagnostics"]);
+});
+
+test("diagnostic file failure is retryable after SQL purge; collection never deletes diagnostic files", async () => {
+  const f = fixture();
+  let attempts = 0;
+  f.context.deps.deleteSessionDiagnostics = async (ids) => {
+    assert.deepEqual(ids, ["root"]);
+    if (++attempts === 1) throw new Error("diagnostic file busy");
+  };
+  await cleanupWorktreeSessions(f.context, { ...params, closeSessions: true });
+  assert.equal(attempts, 0);
+  await assert.rejects(
+    cleanupWorktreeSessions(f.context, { ...params, sessionIds: ["root"] }),
+    /diagnostic file busy/,
+  );
+  await cleanupWorktreeSessions(f.context, { ...params, sessionIds: ["root"] });
+  assert.equal(attempts, 2);
+  assert.equal(f.calls.filter((call) => call === "purge").length, 2);
+});
+
+test("SQL purge failure cannot delete session diagnostics", async () => {
+  const f = fixture();
+  f.context.deps.sessionStore!.worktreeCleanup = async (input) => {
+    if (input.sessionIds) throw new Error("SQL purge failed");
+    return { sessionIds: ["root"] };
+  };
+  await assert.rejects(
+    cleanupWorktreeSessions(f.context, { ...params, sessionIds: ["root"] }),
+    /SQL purge failed/,
+  );
+  assert.equal(f.calls.includes("diagnostics"), false);
 });
 test("busy resident and scope mismatch fail before closing or deleting any chat", async () => {
   const f = fixture(true);

@@ -28,6 +28,8 @@ overrides:
   "@tailwindcss/typography>postcss-selector-parser": 7.1.6
   "ansi-to-react>linkify-it": 5.0.2
   "app-builder-lib>@electron/get": 5.1.0
+  # 修复侧栏 line 动效的非幂等更新；版本与受测补丁绑定，禁止静默跳过。
+  border-beam: 1.4.1
   braces: 3.0.3
   # 安全修复：父包尚未更新固定子依赖，仅替换已验证兼容的安全版本。
   "concurrently>shell-quote": 1.12.0
@@ -46,6 +48,7 @@ patchedDependencies:
   "@ai-sdk/openai-compatible@2.0.60": patches/@ai-sdk__openai-compatible@2.0.60.patch
   "@arms/rum-electron@0.0.3": patches/@arms__rum-electron@0.0.3.patch
   "@jimp/core@0.22.12": patches/@jimp__core@0.22.12.patch
+  border-beam@1.4.1: patches/border-beam@1.4.1.patch
   braces@3.0.3: patches/braces@3.0.3.patch
   node-forge@1.4.0: patches/node-forge@1.4.0.patch
 supportedArchitectures:

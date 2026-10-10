@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -109,13 +110,41 @@ async function turn() {
   await new Promise<void>((resolve) => setImmediate(resolve));
 }
 
+test("checkout owner stops native subdirectory PTYs, waits for exit, and preserves other identities", async (t) => {
+  const checkout = await mkdtemp(join(tmpdir(), "lcode-pty-checkout-"));
+  t.after(() => rm(checkout, { recursive: true, force: true }));
+  const { service, ptys } = fixture();
+  const child = join(checkout, "packages");
+  await mkdir(child, { recursive: true });
+  for (const target of [
+    { workspacePath: child },
+    { workspacePath: child, workspaceIdentity: "other-host" },
+  ])
+    await service.create({ ...target, cols: 80, rows: 24 });
+  let stopped = false;
+  const stopping = service.stopCheckoutAndWait({ workspacePath: checkout }).then(() => {
+    stopped = true;
+  });
+  while (!ptys[0]!.kills) await turn();
+  assert.equal(stopped, false);
+  assert.equal(ptys[1]!.kills, 0);
+  ptys[0]!.exit();
+  await stopping;
+  const remaining = service.disposeAllAndWait();
+  ptys[1]!.exit();
+  await remaining;
+});
+
 test("Host resolved cwd is used for spawn while checkout scope remains the stop identity", async () => {
   const { service, spawns, ptys } = fixture({
     async acquire() {
       return { executionScope: scope, cwd: workspacePath, envOverlay: {}, async release() {} };
     },
   });
-  const result = await service.create({ ...request, cwd: join(workspacePath, "untrusted-spelling") });
+  const result = await service.create({
+    ...request,
+    cwd: join(workspacePath, "untrusted-spelling"),
+  });
   assert.equal(spawns[0]?.cwd, workspacePath);
   const stopping = service.stopWorkspaceAndWait(scope);
   await turn();

@@ -6,6 +6,7 @@ import type { WorktreeBinding, WorktreeIntegration } from "../contract.js";
 import type { WorktreeStore } from "../app/ports.js";
 import { bindingRecord, operationRecord } from "./records.js";
 import { createWorktreeAliases } from "./aliases.js";
+import { isOwnedCheckoutScope } from "./checkoutScope.js";
 
 export function createWorktreeStore(
   dataDir: string,
@@ -121,6 +122,24 @@ export function createWorktreeStore(
           }),
       );
       return values;
+    },
+    async findExecutionBinding(scope) {
+      // 从受管路径直接定位一条记录；spawn 不扫描目录树或全部工作树，避免删除时放大 IO/CPU。
+      const target = resolve(scope.workspacePath);
+      // macOS 卷可能忽略大小写；文本候选只放宽大小写，随后仍由 realpath 核对实际归属。
+      const path =
+        process.platform === "darwin"
+          ? relative(checkouts.toLowerCase(), target.toLowerCase())
+          : relative(checkouts, target);
+      if (isAbsolute(path)) return null;
+      const component = path.split(sep)[0] ?? "";
+      const id =
+        process.platform === "win32" || process.platform === "darwin"
+          ? component.toLowerCase()
+          : component;
+      if (!/^[a-f0-9]{32}$/.test(id)) return null;
+      const binding = await this.readBinding(id);
+      return binding && (await isOwnedCheckoutScope(binding, scope)) ? binding : null;
     },
     async readOperation(id) {
       const value = await read("operations", id);

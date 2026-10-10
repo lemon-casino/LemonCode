@@ -49,6 +49,79 @@ const consumerListSchema = z
   })
   .strict();
 
+const ownerReceiptSchema = runtimeConsumerReferenceSchema
+  .pick({
+    environmentId: true,
+    revision: true,
+    id: true,
+    ownerId: true,
+    ownerGeneration: true,
+    lease: true,
+  })
+  .extend({
+    kind: z.literal("process"),
+    processOwner: z
+      .object({
+        runtimeInstanceId: z.string().min(1).max(512),
+        runtimeGeneration: z.number().int().positive(),
+        workspacePath: z.string().min(1).max(4096),
+        workspaceIdentity: z.string().min(1).max(4096).optional(),
+        startedAt: z.number().int().nonnegative(),
+        pid: z.number().int().positive().optional(),
+      })
+      .strict(),
+    exitConfirmedAt: z.iso.datetime().optional(),
+  })
+  .strict();
+const ownerListSchema = z
+  .object({ schemaVersion: z.literal(1), receipts: z.array(ownerReceiptSchema).max(4096) })
+  .strict();
+const retirementListSchema = z
+  .object({
+    schemaVersion: z.literal(1),
+    receipts: z
+      .array(
+        ownerReceiptSchema
+          .omit({ processOwner: true, exitConfirmedAt: true })
+          .extend({
+            bindingId: z.string().min(1).max(4096),
+            requestId: z.string().min(1).max(512),
+            reason: z.literal("confirmed-worktree-discard"),
+            retiredAt: z.iso.datetime(),
+            orphanedOwner: z
+              .object({
+                processOwner: ownerReceiptSchema.shape.processOwner,
+                observedAt: z.iso.datetime(),
+              })
+              .strict()
+              .optional(),
+          })
+          .strict(),
+      )
+      .max(4096),
+  })
+  .strict();
+function parseRetirements(value: unknown, environmentId: string) {
+  const record = retirementListSchema.parse(value);
+  const ids = new Set<string>();
+  for (const receipt of record.receipts) {
+    if (receipt.environmentId !== environmentId || ids.has(receipt.id))
+      throw new Error("Consumer retirement scope mismatch or duplicate consumer");
+    ids.add(receipt.id);
+  }
+  return record;
+}
+function parseOwnerReceipts(value: unknown, environmentId: string) {
+  const record = ownerListSchema.parse(value);
+  const ids = new Set<string>();
+  for (const receipt of record.receipts) {
+    if (receipt.environmentId !== environmentId || ids.has(receipt.id))
+      throw new Error("Process owner receipt scope mismatch or duplicate consumer");
+    ids.add(receipt.id);
+  }
+  return record;
+}
+
 function consumerRecordId(environmentId: string): string {
   if (!/^[a-f0-9]{32}$/.test(environmentId)) throw new Error("Invalid consumer environment id");
   return scopeKeyHash(["consumers", environmentId]);
@@ -232,6 +305,34 @@ export function createRuntimeEnvironmentStore(
       const value = parseConsumers({ schemaVersion: 1, consumers }, environmentId);
       await atomicWritePrivateTextFile(
         recordPath("consumers", consumerRecordId(environmentId)),
+        `${JSON.stringify(value)}\n`,
+      );
+    },
+    listConsumerOwnerReceipts: async (environmentId) => {
+      const value = await readRecord("consumer-owners", consumerRecordId(environmentId), (value) =>
+        parseOwnerReceipts(value, environmentId),
+      );
+      return value?.receipts ?? [];
+    },
+    saveConsumerOwnerReceipts: async (environmentId, receipts) => {
+      const value = parseOwnerReceipts({ schemaVersion: 1, receipts }, environmentId);
+      await atomicWritePrivateTextFile(
+        recordPath("consumer-owners", consumerRecordId(environmentId)),
+        `${JSON.stringify(value)}\n`,
+      );
+    },
+    listConsumerRetirements: async (environmentId) => {
+      const value = await readRecord(
+        "consumer-retirements",
+        consumerRecordId(environmentId),
+        (value) => parseRetirements(value, environmentId),
+      );
+      return value?.receipts ?? [];
+    },
+    saveConsumerRetirements: async (environmentId, receipts) => {
+      const value = parseRetirements({ schemaVersion: 1, receipts }, environmentId);
+      await atomicWritePrivateTextFile(
+        recordPath("consumer-retirements", consumerRecordId(environmentId)),
         `${JSON.stringify(value)}\n`,
       );
     },

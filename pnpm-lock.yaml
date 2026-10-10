@@ -6,13 +6,14 @@ settings:
 
 overrides:
   '@ai-sdk/anthropic': 3.0.81
-  '@ai-sdk/provider-utils@>=4 <4.0.33': 4.0.33
   '@ai-sdk/openai-compatible': 2.0.60
+  '@ai-sdk/provider-utils@>=4 <4.0.33': 4.0.33
   '@arms/rum-electron': 0.0.3
   '@jimp/core@0.22.12>file-type': 21.3.3
   '@tailwindcss/typography>postcss-selector-parser': 7.1.6
   ansi-to-react>linkify-it: 5.0.2
   app-builder-lib>@electron/get: 5.1.0
+  border-beam: 1.4.1
   braces: 3.0.3
   concurrently>shell-quote: 1.12.0
   get-uri>basic-ftp: 6.2.2
@@ -39,6 +40,9 @@ patchedDependencies:
   '@jimp/core@0.22.12':
     hash: 0830ed7da209bb16fc495cff02af4dc72111442d489cf309d54e9b90eb5aa99f
     path: patches/@jimp__core@0.22.12.patch
+  border-beam@1.4.1:
+    hash: bcfca688ecc0169aebbdc07d0677580e7517c36e53b0f2229fa2623a5628f411
+    path: patches/border-beam@1.4.1.patch
   braces@3.0.3:
     hash: 86bfec1c34ab4b24710c0ca080d4b98d8c929990ae2c65ccb86192be43493a9b
     path: patches/braces@3.0.3.patch
@@ -51,8 +55,8 @@ importers:
   .:
     dependencies:
       border-beam:
-        specifier: ^1.0.1
-        version: 1.4.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        specifier: 1.4.1
+        version: 1.4.1(patch_hash=bcfca688ecc0169aebbdc07d0677580e7517c36e53b0f2229fa2623a5628f411)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       d3-path:
         specifier: ^3.1.0
         version: 3.1.0
@@ -14191,7 +14195,7 @@ snapshots:
 
   boolbase@1.0.0: {}
 
-  border-beam@1.4.1(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
+  border-beam@1.4.1(patch_hash=bcfca688ecc0169aebbdc07d0677580e7517c36e53b0f2229fa2623a5628f411)(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)

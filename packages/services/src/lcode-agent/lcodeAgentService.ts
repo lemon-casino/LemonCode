@@ -9,6 +9,8 @@ import {
 } from "./runtimeEnvironmentRequests.js";
 import { createWorktreeClientLeases } from "./worktreeClientLeases.js";
 import { sameRuntimeWorkspacePath } from "./runtimeEnvironmentAuthorization.js";
+import { isOwnedCheckoutScope } from "../process/ownedCheckoutScope.js";
+import type { WorktreeBinding } from "../worktree/contract.js";
 import { gitFileMutationJournalSchema } from "@lcode/shared";
 import {
   localTtftFactsSchema,
@@ -873,6 +875,10 @@ interface CreateLCodeAgentServiceOptions extends Omit<
   /** 仅供 MCP 状态探测进程使用，不能把空闲回收传给 chat。 */
   mcpStatusIdleTimeoutMs?: number;
   worktreeService?: import("../worktree/contract.js").IWorktreeService;
+  /** 执行 Host 的持久 admission；后台读取和重启同样不能重新占用已关闭的工作树。 */
+  assertWorktreeExecutionAdmission?: (
+    scope: import("../worktree/contract.js").WorktreeScope,
+  ) => Promise<void>;
   /** 托管运行环境服务（P2-03：CLI 执行前按 cwd 解析冻结上下文）；旧 Host 可缺省。 */
   runtimeEnvironmentService?: import("../runtime-environment/contract.js").IRuntimeEnvironmentHostService;
   /** 复用已授权的公开 facade（含 Worktree 升级/CAS），反向管理请求不能直接调用 raw owner。 */
@@ -1068,9 +1074,55 @@ function resolveOffPeakToolSelection(
     ? selection
     : { ...selection, options: { reasoningLevel: thoughtLevel } };
 }
+/** Symbol owner 仅供本 Host 组合根调用；RPC 的字符串方法名不能访问此生命周期入口。 */
+export const worktreeExecutionOwner = Symbol("worktreeExecutionOwner");
+export const runtimeProcessOwnerRegistry = Symbol("runtimeProcessOwnerRegistry");
+
 export function createLCodeAgentService(
   options?: CreateLCodeAgentServiceOptions,
-): ILCodeAgentService & { disposeAllAndWait(): Promise<void> } {
+): ILCodeAgentService & {
+  disposeAllAndWait(): Promise<void>;
+  [worktreeExecutionOwner](binding: WorktreeBinding): Promise<void>;
+  [runtimeProcessOwnerRegistry](
+    owner: import("../runtime-environment/contract.js").RuntimeConsumerProcessOwner,
+  ): boolean;
+} {
+  const stoppedCheckouts = new Map<
+    string,
+    Pick<
+      WorktreeBinding,
+      | "id"
+      | "taskId"
+      | "checkoutPath"
+      | "workspaceIdentity"
+      | "originalWorkspacePath"
+      | "originalWorkspaceIdentity"
+    >
+  >();
+  const waitForSpawnAdmission: NonNullable<
+    LCodeAgentProcessManagerOptions["waitForSpawnAdmission"]
+  > = async (scope) => {
+    await options?.waitForSpawnAdmission?.(scope);
+    await options?.assertWorktreeExecutionAdmission?.(scope);
+    for (const binding of stoppedCheckouts.values()) {
+      if (!(await isOwnedCheckoutScope(binding, scope))) continue;
+      const current = await options?.worktreeService?.getBinding({
+        workspacePath: binding.originalWorkspacePath,
+        workspaceIdentity: binding.originalWorkspaceIdentity,
+        taskId: binding.taskId,
+      });
+      // 后台观察会在 dispose 后再次请求 client；只有真实恢复 ready 才能解除本 owner 的启动 fence。
+      if (
+        !current ||
+        current.id !== binding.id ||
+        current.status !== "ready" ||
+        !sameRuntimeWorkspacePath(current.checkoutPath, binding.checkoutPath) ||
+        (current.workspaceIdentity?.trim() || "") !== (binding.workspaceIdentity?.trim() || "")
+      )
+        throw new Error("release-blocked: worktree execution admission is fenced");
+      stoppedCheckouts.delete(binding.id);
+    }
+  };
   const worktreeLeases = new WeakMap<
     LCodeProtocolClient,
     ReturnType<typeof createWorktreeClientLeases>
@@ -1090,6 +1142,7 @@ export function createLCodeAgentService(
   };
   const processManager = new LCodeAgentProcessManager({
     ...options,
+    waitForSpawnAdmission,
     onProcessCleanupCompleted: settleWorktreeClient,
   });
   // Windows indicator 与 macOS producer lifecycle client 共用已校验、去重的 sideband facts。
@@ -1118,7 +1171,8 @@ export function createLCodeAgentService(
     presentationSurface: options?.presentationSurface,
     requestTimeoutMs: options?.requestTimeoutMs,
     resolveSpawnEnv: options?.resolveSpawnEnv,
-    waitForSpawnAdmission: options?.waitForSpawnAdmission,
+    waitForSpawnAdmission,
+    onProcessCleanupCompleted: settleWorktreeClient,
   });
   // 合并时误删了独立进程：mcp/list 的慢握手会堵住串行 stdio 队列，连带卡住插件卸载。
   // 恢复专用控制面进程及空闲回收；共享 workspace 路径，不共享请求队列或 watchdog。
@@ -1128,8 +1182,10 @@ export function createLCodeAgentService(
     processLifecycleReporter: options?.processLifecycleReporter,
     requestTimeoutMs: options?.requestTimeoutMs,
     resolveSpawnEnv: options?.resolveSpawnEnv,
-    waitForSpawnAdmission: options?.waitForSpawnAdmission,
+    waitForSpawnAdmission,
     lane: "mcp-status",
+    // 控制面也可能收到资源反向请求；各泳道必须在同一真实退出边界结算自己的精确 lease。
+    onProcessCleanupCompleted: settleWorktreeClient,
     idleTimeoutMs: options?.mcpStatusIdleTimeoutMs ?? MCP_STATUS_LANE_IDLE_TIMEOUT_MS,
   });
   const sessionEmitters = new Map<string, Emitter<LCodeAgentServiceEvent>>();
@@ -2217,15 +2273,20 @@ export function createLCodeAgentService(
             return;
           }
           let runtimeClient = runtimeClients.get(client);
+          const processOwner = [processManager, pluginProcessManager, mcpStatusProcessManager]
+            .map((manager) => manager.getOwnedProcessOwner(client))
+            .find((owner) => owner !== undefined);
           if (
             !runtimeClient &&
+            processOwner &&
             options?.runtimeEnvironmentService &&
             options.runtimeEnvironmentConsumers &&
             options.worktreeService
           ) {
             runtimeClient = createRuntimeEnvironmentClient({
               workspace,
-              clientId: `runtime-agent-${randomUUID()}`,
+              clientId: `runtime-agent-${processOwner.runtimeInstanceId}`,
+              processOwner,
               service: options.runtimeEnvironmentService,
               consumers: options.runtimeEnvironmentConsumers,
               worktrees: options.worktreeService,
@@ -3334,6 +3395,7 @@ export function createLCodeAgentService(
   }
 
   function disposeLocalState(): void {
+    stoppedCheckouts.clear();
     accountProviderConfigUnsubscribe?.();
     accountProviderConfigUnsubscribe = undefined;
     modelSelectionSubscription?.dispose();
@@ -3476,7 +3538,72 @@ export function createLCodeAgentService(
     return envelope;
   }
 
+  async function disposeWorkspace(params: LCodeAgentWorkspaceTarget): Promise<void> {
+    const workspaceKey = resolveWorkspaceKey(params);
+    // 释放先取消 provider-ready continuation，防止迟到启动越过工作树生命周期 fence。
+    cancelWaitingWorkspaceStartup(workspaceKey);
+    clearV4SubscriptionRoutes(workspaceKey);
+    cuaOperationTurnTracker?.clearWorkspaceKey(workspaceKey);
+    const active = activeClientsByWorkspaceKey.get(workspaceKey);
+    if (active) invalidateWorkspaceClient(workspaceKey, active.client);
+    else interactionPreferenceSyncByWorkspaceKey.delete(workspaceKey);
+    // emitter 属于 workspace，不属于某代进程；仍由 disposeLocalState/disposeAll 释放。
+    await processManager.disposeWorkspace(params);
+  }
+
   return {
+    [runtimeProcessOwnerRegistry](owner) {
+      return [processManager, pluginProcessManager, mcpStatusProcessManager].some((manager) =>
+        manager.hasOwnedProcessOwner(owner),
+      );
+    },
+    async [worktreeExecutionOwner](binding) {
+      const {
+        id,
+        taskId,
+        checkoutPath,
+        workspaceIdentity,
+        originalWorkspacePath,
+        originalWorkspaceIdentity,
+      } = binding;
+      stoppedCheckouts.set(id, {
+        id,
+        taskId,
+        checkoutPath,
+        workspaceIdentity,
+        originalWorkspacePath,
+        originalWorkspaceIdentity,
+      });
+      const managers = [processManager, pluginProcessManager, mcpStatusProcessManager];
+      const operations = managers.map(async (manager) => {
+        const targets = manager.listOwnedWorkspaceTargets();
+        if (manager === processManager)
+          targets.push(
+            ...[...waitingWorkspaceStartups.values()].map((waiting) => waiting.workspace),
+          );
+        const selected = await Promise.all(
+          targets.map(async (scope) =>
+            (await isOwnedCheckoutScope(binding, scope)) ? scope : undefined,
+          ),
+        );
+        const scopes = new Map(
+          selected
+            .filter((scope) => scope !== undefined)
+            .map((scope) => [resolveWorkspaceKey(scope), scope]),
+        );
+        // 三条泳道各自拥有进程；必须等待全部停止，不能因一条失败丢掉其他 owner 的收尾。
+        const stopped = await Promise.allSettled(
+          [...scopes.values()].map((scope) =>
+            manager === processManager ? disposeWorkspace(scope) : manager.disposeWorkspace(scope),
+          ),
+        );
+        const failed = stopped.find((result) => result.status === "rejected");
+        if (failed?.status === "rejected") throw failed.reason;
+      });
+      const results = await Promise.allSettled(operations);
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed?.status === "rejected") throw failed.reason;
+    },
     async prepareStorage(params) {
       const client = await processManager.getClient(params);
       wireClient(client, params, "chat");
@@ -5808,22 +5935,7 @@ export function createLCodeAgentService(
     },
 
     async disposeWorkspace(params): Promise<void> {
-      const workspaceKey = resolveWorkspaceKey(params);
-      // 释放不仅要终止当前进程，还要让已排队的 provider-ready continuation 失效；
-      // 否则它会在 dispose 完成后把同一个 workspace 的 Agent 再次启动。
-      cancelWaitingWorkspaceStartup(workspaceKey);
-      clearV4SubscriptionRoutes(workspaceKey);
-      cuaOperationTurnTracker?.clearWorkspaceKey(workspaceKey);
-      const active = activeClientsByWorkspaceKey.get(workspaceKey);
-      if (active) {
-        invalidateWorkspaceClient(workspaceKey, active.client);
-      } else {
-        interactionPreferenceSyncByWorkspaceKey.delete(workspaceKey);
-      }
-      // 该入口被 restartWorkspaceProcess 用作 runtime invalidation，并非
-      // workspace/service 真 teardown。销毁 workspace emitter 会让既有 UI/task-index
-      // listener 永久绑在死对象上；emitters 只由 disposeLocalState/disposeAll 释放。
-      await processManager.disposeWorkspace(params);
+      await disposeWorkspace(params);
     },
 
     disposeAll(): void {

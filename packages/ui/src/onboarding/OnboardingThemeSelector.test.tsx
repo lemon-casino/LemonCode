@@ -22,7 +22,7 @@ test("onboarding theme selector renders every registered theme from the registry
   for (const option of THEME_OPTIONS) {
     assert.match(markup, new RegExp(`aria-pressed="${option.id === "zai-dark"}"`));
   }
-  // 六个显示名都走 i18n，不出现裸 id。
+  // 八个显示名都走 i18n，不出现裸 id。
   for (const option of THEME_OPTIONS) {
     const label = option.labelKey.split(".").pop() ?? "";
     assert.ok(label.length > 0);

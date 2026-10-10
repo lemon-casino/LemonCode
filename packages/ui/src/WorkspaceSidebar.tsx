@@ -231,7 +231,7 @@ function resolveSidebarTaskViewMode(params: {
 
 export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   workspacePath,
-  executionWorkspace,
+  executionWorkspace: _executionWorkspace,
   executionBinding,
   workspaceRemoteSessionId,
   activePreviewPath,
@@ -1702,7 +1702,10 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
           aria-hidden={!isFileTreeOpen}
           inert={!isFileTreeOpen ? true : undefined}
         >
-          {resolvedFileTreeTarget && executionWorkspace !== null ? (
+          {/* 文件目标来自显式浏览请求；冷会话 readSession 失败会令执行目录为空，
+              旧门禁却同时隐藏任务列表和文件树（含返回按钮），只能靠新建任务解锁。
+              目录访问与错误展示由目标 scope 的文件服务负责，不能依赖当前会话恢复。 */}
+          {resolvedFileTreeTarget ? (
             <WorkspaceFileTree
               workspacePath={resolvedFileTreeTarget.workspacePath}
               workspaceName={resolvedFileTreeTarget.workspaceName}

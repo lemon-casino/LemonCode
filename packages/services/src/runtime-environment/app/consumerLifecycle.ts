@@ -15,10 +15,17 @@ import {
 import type {
   RuntimeEnvironmentConsumerAuthority,
   RuntimeEnvironmentReleaseRequest,
+  RuntimeProcessOwnerObserver,
 } from "../contract.js";
 import { advanceStatus } from "../domain/state.js";
 import { hasServiceExitProof } from "../domain/services.js";
 import { migrateEnvironmentSessions } from "./consumerMigration.js";
+import { retireLegacyProcessesForDeletion } from "./legacyConsumerRetirement.js";
+import {
+  confirmStoredProcessExit,
+  retainProcessOwnerReceipt,
+  settleConfirmedProcessExits,
+} from "./consumerOwnerReceipts.js";
 import { identityKeyOf, type RuntimeEnvironmentStore } from "./ports.js";
 
 function reject(code: RuntimeEnvironmentError["code"], message: string): never {
@@ -70,10 +77,13 @@ async function releaseMatching(
 export function createRuntimeConsumerAuthority(
   store: RuntimeEnvironmentStore,
   stamp: () => string,
+  observeProcessOwner?: RuntimeProcessOwnerObserver,
 ): RuntimeEnvironmentConsumerAuthority {
   return {
     migrateSessions: (params) => migrateEnvironmentSessions(store, params, stamp),
-    async acquire(input) {
+    retireLegacyProcessesForDeletion: (params) =>
+      retireLegacyProcessesForDeletion(store, params, stamp, observeProcessOwner),
+    async acquire(input, processOwner) {
       const params = runtimeConsumerAcquireParamsSchema.parse(input);
       return store.lock(params.environmentId, async () => {
         const record = await store.readEnvironment(params.environmentId);
@@ -101,6 +111,7 @@ export function createRuntimeConsumerAuthority(
           if (previous.revision !== params.revision) {
             reject("stale-reference", "active consumer revision does not match");
           }
+          if (processOwner) await retainProcessOwnerReceipt(store, previous, processOwner);
           return previous;
         }
         const generation = previous?.ownerGeneration ?? 0;
@@ -124,10 +135,21 @@ export function createRuntimeConsumerAuthority(
           createdAt: previous?.createdAt ?? at,
           updatedAt: at,
         });
+        if (processOwner) await retainProcessOwnerReceipt(store, reference, processOwner);
         if (index < 0) refs.push(reference);
         else refs[index] = reference;
         await store.saveConsumers(params.environmentId, refs);
         return reference;
+      });
+    },
+
+    async confirmProcessExit(input, owner) {
+      const params = runtimeConsumerReleaseParamsSchema.parse(input);
+      await store.lock(params.environmentId, async () => {
+        const record = await store.readEnvironment(params.environmentId);
+        if (!record) return;
+        assertScope(record, params);
+        await confirmStoredProcessExit(store, params, owner, stamp);
       });
     },
 
@@ -232,15 +254,14 @@ export async function releaseRuntimeEnvironment(
       updatedAt: stamp(),
     };
     await store.saveEnvironment(fenced);
-    const consumers = activeCount(await store.listConsumers(params.environmentId));
+    const consumers = activeCount(
+      await settleConfirmedProcessExits(store, params.environmentId, stamp),
+    );
     let services = 0;
     for (const serviceId of await store.listServiceIds(params.environmentId)) {
       const receipt = await store.readServiceReceipt(params.environmentId, serviceId);
       // failed 不代表进程已退出；缺失/unknown 收据也不能作为停止证明（spec §12.1）。
-      if (
-        !receipt ||
-        !hasServiceExitProof(receipt)
-      ) {
+      if (!receipt || !hasServiceExitProof(receipt)) {
         services++;
       }
     }

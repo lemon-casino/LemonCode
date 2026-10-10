@@ -9,6 +9,7 @@ import type { WorktreeContext } from "./ports.js";
 import { cleanupTemporaryTarget } from "./temporaryTarget.js";
 import { removeManagedCheckout } from "./removeCheckout.js";
 import { releaseBindingRuntime } from "./runtimeEnvironment.js";
+import { retryConfirmedWorktreeDiscard } from "./discardRetry.js";
 
 /** 永久删除由生命周期 owner 收口；先阻止新消费者、停止真实进程，最后提交删除墓碑。 */
 export function createWorktreeDiscard(
@@ -103,19 +104,12 @@ export function createWorktreeDiscard(
           Boolean(context.collectDiscardSessions) !== Boolean(context.discardSessions)
         )
           throw new Error("Worktree session cleanup ports are unavailable");
-        // collect 的生产实现也会 closeSessions/disposeWorkspace；它必须位于 fence 之后，不能被当纯查询提前执行。
+        // collect 会关闭绑定 resident；它必须位于 fence 之后，Agent/终端停止由后续唯一 owner port 负责。
         await releaseBindingRuntime(context, value, requestId, "discard", "fence");
         if (operation?.environmentRef)
-          await releaseBindingRuntime(
-            context,
-            value,
-            requestId,
-            "candidate-cancel",
-            "fence",
-            operation,
-          );
+          await releaseBindingRuntime(context, value, requestId, "discard", "fence", operation);
         let collected: string[] | undefined;
-        if (!value.deletion!.sessionIds) {
+        if (context.collectDiscardSessions || !value.deletion!.sessionIds) {
           collected = context.collectDiscardSessions
             ? await context.collectDiscardSessions(value)
             : [
@@ -124,18 +118,21 @@ export function createWorktreeDiscard(
                   .filter((alias) => alias.bindingId === value.id)
                   .map((alias) => alias.taskId),
               ];
+          // 旧版已删除主会话但遗留子代理；每次重试重读完整范围，绝不丢弃 SQL 已消失的原 journal IDs。
+          collected = [...new Set([...(value.deletion!.sessionIds ?? []), ...collected])];
         }
-        await releaseBindingRuntime(context, value, requestId, "discard", "stop");
+        await releaseBindingRuntime(
+          context,
+          value,
+          requestId,
+          "discard",
+          "stop",
+          undefined,
+          collected ?? value.deletion!.sessionIds,
+        );
         if (operation?.environmentRef)
-          await releaseBindingRuntime(
-            context,
-            value,
-            requestId,
-            "candidate-cancel",
-            "stop",
-            operation,
-          );
-        if (collected) {
+          await releaseBindingRuntime(context, value, requestId, "discard", "stop", operation);
+        if (collected && JSON.stringify(collected) !== JSON.stringify(value.deletion!.sessionIds)) {
           value = {
             ...value,
             deletion: { ...value.deletion!, sessionIds: [...new Set(collected)] },
@@ -170,7 +167,13 @@ export function createWorktreeDiscard(
         if (checkedHead && checkedHead !== value.deletion!.branchHead)
           throw new Error("Task branch changed during deletion; preserve the newer work");
         // 先持久删除精确 entry/聊天，再删除文件。purge 失败时用户文件仍可恢复；回复丢失只重入已 journal 的 IDs。
-        await context.discardSessions?.(value, value.deletion!.sessionIds!);
+        await context.discardSessions?.(value, value.deletion!.sessionIds!, lease);
+        if (value.environmentRef && context.retireLegacyRuntimeConsumers)
+          await context.retireLegacyRuntimeConsumers({
+            binding: value,
+            sessionIds: value.deletion!.sessionIds!,
+            writer: lease,
+          });
         await context.fault("discard.after-sessions");
         if (operation) {
           if (!["published", "up-to-date", "cancelled", "failed"].includes(operation.status))
@@ -218,14 +221,7 @@ export function createWorktreeDiscard(
         await context.fault("discard.after-branch");
         for (const phase of ["cleanup", "finalize"] as const) {
           if (operation?.environmentRef)
-            await releaseBindingRuntime(
-              context,
-              value,
-              requestId,
-              "candidate-cancel",
-              phase,
-              operation,
-            );
+            await releaseBindingRuntime(context, value, requestId, "discard", phase, operation);
           await releaseBindingRuntime(context, value, requestId, "discard", phase);
         }
         value = {
@@ -252,7 +248,7 @@ export function createWorktreeDiscard(
       }
     });
   }
-  return async (params: Request) => {
+  const attempt = async (params: Request) => {
     const value = await read(params);
     if (value.status === "deleted") return value;
     if (value.latestIntegrationId)
@@ -261,4 +257,6 @@ export function createWorktreeDiscard(
       );
     return perform(params);
   };
+  // 短暂 Windows 文件锁过去直接结束 RPC，用户必须反复确认；在同一命令内继续原 journal。
+  return (params: Request) => retryConfirmedWorktreeDiscard(context, params, () => attempt(params));
 }

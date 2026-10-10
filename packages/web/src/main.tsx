@@ -1,3 +1,4 @@
+import { applyTheme } from "@lcode/ui/useTheme";
 /* eslint-disable max-lines -- Web 入口集中编排启动、路由与 workspace shell wiring，与 Root.tsx 同样先保持入口收口，避免跨层状态拆散。 */
 import { useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -37,46 +38,16 @@ import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
 import { saveWebFile } from "./saveWebFile.js";
 
 function resolveWebThemePreference(defaultTheme: Theme = WEB_DEFAULT_THEME): Theme {
-  const saved = localStorage.getItem("lcode-theme");
+  const saved = localStorage.getItem("lcode-theme") || localStorage.getItem("zcode-theme");
   return resolveWebInitialTheme({ storedTheme: saved, defaultTheme });
 }
 
-// 初始化主题：默认 Zai dark，后续由 useTheme hook 接管
-// system 模式下需要查询系统偏好；非 system 模式直接用存储值。
-// 首帧写点与 useTheme.ts 的 THEME_OPTIONS 注册表保持同步（新增主题需同步此处）：
-// 深基底挂 dark + theme-<id>、浅基底只挂 theme-<id>，让 React 接管前即呈现新主题差量色。
-{
-  // 主题 id → 明暗基底（useTheme.ts THEME_OPTIONS 静态子集的引导映射）。
-  const BOOTSTRAP_THEME_BASES = {
-    "zai-light": "light",
-    "zai-dark": "dark",
-    "sepia-light": "light",
-    "midnight-blue": "dark",
-    "forest-dark": "dark",
-  } as const;
-  type BootstrapAppliedTheme = keyof typeof BOOTSTRAP_THEME_BASES;
-
-  // 分享页没有本地主题配置时使用浅色，已有配置仍然沿用；其他 Web 页面继续默认深色。
-  // resolveWebInitialTheme 已按白名单校验并归一，返回值必为合法主题。
-  const saved = resolveWebThemePreference(
+// 首屏与运行时共享唯一主题注册表；分享页未保存偏好时使用浅色。
+applyTheme(
+  resolveWebThemePreference(
     isConversationSharePath(window.location.pathname) ? "zai-light" : undefined,
-  );
-  const appliedTheme: BootstrapAppliedTheme =
-    saved === "system"
-      ? window.matchMedia("(prefers-color-scheme: dark)").matches
-        ? "zai-dark"
-        : "zai-light"
-      : saved === "dark"
-        ? "zai-dark"
-        : saved === "light"
-          ? "zai-light"
-          : saved;
-  document.documentElement.classList.toggle("dark", BOOTSTRAP_THEME_BASES[appliedTheme] === "dark");
-  // toggle 其余 theme-* 为 false 等价清空，防 SPA 内重放引导时残留上一个主题类。
-  for (const themeId of Object.keys(BOOTSTRAP_THEME_BASES)) {
-    document.documentElement.classList.toggle(`theme-${themeId}`, themeId === appliedTheme);
-  }
-}
+  ),
+);
 
 async function resolveFeedbackUrl(): Promise<string | undefined> {
   return (await resolveWebHelpConfig()).feedback_url;

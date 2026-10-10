@@ -15,6 +15,7 @@ import {
 import { resolveTerminalFontProfile } from "./terminalProfile.js";
 import { registerMemoryDiagnosticsProvider } from "#src/memoryDiagnostics.js";
 import { resolveConfiguredTerminalShell } from "./terminalShellSelection.js";
+import { isOwnedCheckoutScope } from "../process/ownedCheckoutScope.js";
 import {
   applyTerminalEnvironment,
   ensureNodePtySpawnHelperExecutable,
@@ -33,6 +34,7 @@ interface TerminalInstance {
   generation: number;
   scope?: RuntimeTerminalScope;
   executionScope?: RuntimeTerminalScope;
+  cwd?: string;
   lease?: RuntimeTerminalEnvironmentLease;
   pty?: IPty;
   dataEmitter: Emitter<string>;
@@ -50,6 +52,7 @@ export interface TerminalServiceOwner extends ITerminalService {
   disposeAll(): void;
   disposeAllAndWait(): Promise<void>;
   stopWorkspaceAndWait(scope: RuntimeTerminalScope): Promise<void>;
+  stopCheckoutAndWait(scope: RuntimeTerminalScope): Promise<void>;
 }
 
 /** 显式 RPC 白名单；TypeScript interface/cast 不会阻止 ProxyChannel 调用 owner 的内部方法。 */
@@ -221,9 +224,13 @@ export function createTerminalService(dependencies: {
         ? applyTerminalEnvironment(resolveTerminalEnv(), terminal.lease.envOverlay)
         : resolveTerminalEnv();
       const cwd = await resolveTerminalCwd(
-        terminal.lease?.cwd ?? params.cwd ?? terminal.executionScope?.workspacePath ?? workspacePath,
+        terminal.lease?.cwd ??
+          params.cwd ??
+          terminal.executionScope?.workspacePath ??
+          workspacePath,
         Boolean(terminal.lease),
       );
+      terminal.cwd = cwd;
       assertAdmission(terminal);
       const settings = await dependencies.settingService.get().catch(() => ({
         terminalFontFamily: undefined,
@@ -334,6 +341,41 @@ export function createTerminalService(dependencies: {
           // 授权返回前 executionScope 尚未知；等 admission 才能精确区分原项目与 checkout。
           await terminal.admitted.promise;
           if (matchesScope(terminal, key)) await stopAndWait(terminal);
+        }),
+      );
+    },
+    async stopCheckoutAndWait(scope): Promise<void> {
+      stoppedScopes.set(scopeKey(scope), ++generation);
+      await waitForAll(
+        [...terminals.values()].map(async (terminal) => {
+          // admission 完成后才能核对真实 checkout/cwd；不能仅按 UI 的工作区路径遗漏子目录 PTY。
+          await terminal.admitted.promise;
+          const candidates = [
+            terminal.executionScope,
+            terminal.scope,
+            terminal.cwd
+              ? {
+                  workspacePath: terminal.cwd,
+                  workspaceIdentity: terminal.scope?.workspaceIdentity,
+                }
+              : undefined,
+          ];
+          for (const target of candidates) {
+            if (
+              !target ||
+              !(await isOwnedCheckoutScope(
+                {
+                  checkoutPath: scope.workspacePath,
+                  workspaceIdentity: scope.workspaceIdentity,
+                },
+                target,
+              ))
+            )
+              continue;
+            stoppedScopes.set(scopeKey(target), generation);
+            await stopAndWait(terminal);
+            break;
+          }
         }),
       );
     },

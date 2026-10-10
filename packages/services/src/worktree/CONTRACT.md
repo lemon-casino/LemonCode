@@ -4,6 +4,10 @@ Upgrade recovery preserves the original requestId and expected reference in the 
 
 WorktreeService is the only owner of bindings, archive snapshots, integration operations and the deletion journal. Runtime-environment facts, consumers, service receipts and environment resources remain owned by the target Host RuntimeEnvironmentService; WorktreeService can only call them through injected lifecycle ports. It must not infer an environment from a path, PID or UI state.
 
+The Host-only `stopWorktreeExecution(binding)` port runs after lifecycle fencing and before checkout removal, including local bindings without an environment reference. It stops owned execution scopes within the canonical checkout with the same identity, waits for pending startup and retired process cleanup, and closes owned file watchers before filesystem removal. Consumer release remains tied to exact owner exit receipts. EBUSY preserves the original deletion journal and all path / branch / session guards on retry; unknown execution owners remain blocked.
+
+Confirmed discard also authorizes the bounded legacy migration in specs/worktree-discard.md: only old bridge process IDs for the exact collected sessions, binding and revision, with no persisted process owner receipt, may remain pending at stop. After an exclusive checkout writer, branch recheck and successful precise session purge, the Host-only retirement port records confirmed-worktree-discard audit then retires those exact leases. New owner receipts and every other consumer remain protected; archive/upgrade/release/GC never authorize this migration. No extra UI operation or public protocol field is added.
+
 Public environment requests and recovered upgrade intents use the binding execution scope (`workspacePath` and `workspaceIdentity`); the Host facade alone maps it to `checkoutPath` storage scope. Explicit creation cancellation can accept an already-settled failed preparation receipt only for the original request and known environment, preserving its cancellation marker and cleanup reference. It neither replays installation nor makes the environment ready.
 
 The public binding may contain an additive `environmentRef` (`environmentId`, non-negative preparation revision and optional manifest digest). A preparation revision of `0` is not executable, but remains a valid cleanup reference for an allocated, failed environment. Before managed execution the target Host re-reads identity, binding, positive revision, digest, canonical cwd and attachment; stale or missing facts fail closed. New `environmentPolicy: managed` requests require runtime ports and never fall back; absent/inherit/local requests retain local behavior even when ports are installed. Existing bindings and same-tree aliases cannot switch policy on retry. `list` accepts both origin and execution scopes, matching identity and canonical path together.
@@ -128,12 +132,26 @@ contents with bounded filesystem retries. An interrupted discard journal or arch
 allows cleanup to resume after restart; registration absence alone is not deletion evidence.
 Success requires both native registration and the managed directory to be gone.
 
+An explicitly confirmed discard retries structured transient filesystem errors (`EBUSY`,
+`ENOTEMPTY`, `EPERM`) within the same awaited command, with Host-adapter backoff capped at
+120 seconds of cumulative waiting. Every attempt re-enters the original lifecycle and
+revalidates binding/path/HEAD, stop proofs, session scope and checkout leases. Waiting
+releases attempt-local permits while the durable deletion fence remains. Original journal
+IDs remain authoritative; exhaustion preserves `deleting` and the real error. Unknown
+owners, changed branches, writer conflicts and other business failures never become
+retryable through an error-text match. Clients do not own timers or a second delete queue.
+
 The Host injects physical directory removal (Electron original-fs; Node fs otherwise)
 after canonical/.git guards. Explicit discard also purges all chats sharing the binding,
 including aliases and hidden tasks. The CLI SessionStore owns permanent chat deletion;
 the worktree domain only calls collect/discard ports. IDs are journaled before removal
 for retry after a lost reply. Host task-index notifications follow durable chat deletion.
 Failure retains deleting plus a diagnostic; ordinary snapshot archive preserves chats.
+Confirmed discard also removes the bound environment-private resources (including data)
+and the exact purged sessions' model-I/O diagnostics. Candidate environments in this same
+discard use discard cleanup too; standalone candidate cancellation retains private data.
+Every retry recollects scoped descendants using the original journal IDs, merges the full
+set before purge, and never drops previously journaled IDs when their SQL rows are gone.
 
 When an environment reference exists, discard/archive must call the injected environment
 release coordinator before declaring the binding removable. The coordinator fences new
@@ -161,3 +179,9 @@ editors remain outside the application permit boundary. See
 
 Validation: isolated real Git repositories cover idempotency, directory/index isolation,
 restart, conflict isolation, stale/dirty publication, archive/restore and crash recovery.
+
+Host-only `assertExecutionAdmission(scope)` reads the target managed checkout binding before
+Agent spawn. A new Host rejects deleting/deleted/archived scopes and physical descendants;
+origin maintenance, unrelated identities and paths outside the actual checkout remain separate.
+The lookup uses one persisted binding, with no filesystem scan or second accepted-state cache.
+Public RPC excludes this action; local stop fencing still covers operations before settlement.

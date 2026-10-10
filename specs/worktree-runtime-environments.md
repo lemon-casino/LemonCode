@@ -653,6 +653,41 @@ P4-01 实施合同（2026-10-06）：同目录分叉经 session alias 读取父 
 - `session` 引用用实际 session/task ID（不是共享的 bindingOwnerTaskId），所有者为 binding；prepare/fork/restore 按相同身份幂等登记。关闭 app、归档和 transport 断开不删除会话引用；只有持久删除获确认或工作树删除事务明确结算对应会话后才释放。
 - `process` 引用用每个 app 的唯一 incarnation ID，ownerId 由 Host 的真实 Agent client 代际派生。环境 revision 不充当进程代际；ownerGeneration 由环境 owner 分配，lease 随该代际固定。登记重试返回同一 lease，不覆写另一个 owner。
 - 每个环境的引用登记、精确释放、回收 fence 共用同一持久短锁，持锁重读。释放必须同时匹配 environmentId/kind/id/ownerId/ownerGeneration/lease；迟到释放不能删除新代引用。同名消费者在不同环境中互不影响。released 引用保留墓碑，除显式带前一代际的重新登记外不复活。
+
+#### 2026-10-09：Host 重启后的行政退役
+
+`runtimeInstanceId` 是实际执行 owner 提供的不透明字符串；当前 manager 生成 `agent-<UUID>`，不能在有完整 owner 收据的恢复路径中按裸 UUID 判断。旧版无收据迁移仍遵守其已冻结的 UUID 格式。
+
+完整 owner 收据也可能因 Host 崩溃缺少退出确认。仅用户原确认 discard 可通过执行 Host 注入的 owner 注册表和本机进程观察，继续精确会话删除事务；取得 writer、清理历史并再次核实原 Agent 不存在后，复用 retirement 写入路径并保存原 owner 与观察时间。PID 不存在不生成进程树退出证明；注册表仍有同代 owner、PID 存在/未知、scope/lease/revision 不符、其他生命周期均保持阻塞。详见 worktree-discard.md 的重启恢复规则；公开 RPC/UI 不新增进程观察或退休能力。
+
+#### 2026-10-09：持久执行 owner 退出收据
+
+已确认故障：Agent 已真实退出后，旧引用仍可能留在环境中；旧版 ownerId 是未与进程代际关联的随机值，重启后丢失内存 ticket，不能凭当前进程池为空恢复。新 Host 为每条 process lease 在同一环境锁下、消费引用落盘之前保存内部 owner 收据。收据冻结 environment/revision、consumer ID、ownerId/generation/lease 以及真实受管 runtimeInstanceId、runtime generation、执行 scope、启动时间和可选诊断 PID。ownerId 使用该实际 client 的 runtimeInstanceId；不能重新查询当前 workspace 的替代 client 或接收 CLI 自报 owner。
+
+进程 owner 只有在 `disposeAndWait` 已确认整棵进程树退出后，才落盘精确 lease 的 `exitConfirmedAt`，再执行原 consumer release。释放写入失败不丢掉收据；删除/归档及环境 release 重试在环境锁内重读收据，只有完整引用元组和 revision 均匹配、且已有退出确认时才结算。不同 environment、identity、consumer、旧 generation/lease 或仍活跃/缺失收据均保持保护。PID 消失、进程池为空、transport 断开、Host 重启和超时不生成退出收据。
+
+收据位于 Host 私有 `consumer-owners/`，不改变公开 consumer schema，不出 RPC/UI 投影。Session 引用仍只在精确历史删除成功后释放；旧版无收据的 process 引用不能自动迁移为“已退出”。用户已选择把旧数据迁移并入现有确认删除：唯一授权是 Worktree discard journal，先停止真实 owner、取得 checkout writer 并清理精确会话，再按原绑定/版本/ID/lease 退役符合旧桥接格式且没有 owner 收据的 process 引用。写入私有 `consumer-retirements/` 的 `confirmed-worktree-discard` 收据，不伪造退出证明；其他生命周期仍保护旧引用。完整边界与事件顺序见 worktree-discard.md 的同日补充。
+
+```mermaid
+sequenceDiagram
+  participant A as Agent process owner
+  participant B as Host runtime bridge
+  participant E as Environment owner
+  B->>A: 读取当前 client 的真实 runtime identity
+  B->>E: acquire(process, trusted owner)
+  E->>E: 环境锁：先保存 owner 收据，再保存 consumer lease
+  A->>A: disposeAndWait，确认进程树退出
+  A->>B: 原 client 退出结算
+  B->>E: 保存精确 exitConfirmedAt
+  B->>E: 原 consumer release
+  Note over B,E: 写入失败或回复丢失不丢持久收据
+  E->>E: 删除/release 重试：匹配原 lease，恢复结算
+```
+
+验收：确认退出后 consumer 写失败并重启可恢复；active/未知/旧版无收据仍阻塞；跨 identity/环境、迟到旧 generation/lease 不释放新引用；收据写入失败不交付执行上下文；三条 Agent 泳道均由实际 client 代际提供 owner，公开投影无内部字段。上述顺序对三平台、desktop-continuous 与 web-remote-replayable 相同。
+
+验证记录：owner/bridge 定向 20 项及相关服务/生命周期回归 45 项通过；根目录 typecheck、lint、变更格式检查通过，架构 baseline/new 均为 0。变更模块为 runtime-environment 与共享 services，新增事实由环境 owner 保存，进程 owner 只通过真实退出 callback 提供证据；顺序见上图。收据、bridge、接口与独立测试范围相对 HEAD 为 +463/-25（净增 438 行），另在既有进程管理文件更新实际 client 装配。owner 收据本身不解决全部旧引用；已确认的 Worktree discard 迁移及本次 49/11 项服务回归与 37 项交互验证见 worktree-discard.md。没有增加 UI/公开协议操作，没有直接修改用户实际旧 consumer 或替换安装包。
+
 - Host 先按 attached workspace（identity 优先）和 sessionId 查询真实 worktree binding，再核对 environmentId/revision 及 cwd 的规范化目录边界。禁止仅凭 cwd 最长前缀授权，也不信任客户端自报 owner 或 lease；内部 lease 不出 Host 的 UI 投影。
 - 托管 PTY 由 Host 依真实 scope/session/binding 对账，不能因客户端省略 environmentRef 就回退 local。事件顺序为授权与 cwd containment → acquire terminal consumer → resolve 冻结上下文 → PTY spawn；终端 ID 含 owner incarnation，冻结 PATH/TEMP 覆盖调用侧同名键，Host process.env 不变。只有 PTY onExit/真实停止证明后释放消费者；disposeAll 与在途 acquire 交错时先关闭 admission，晚到 acquire 必须释放且不 spawn，未知退出保留引用。旧无 binding 的本机终端保留原 Shell 配置，不修改 profile 掩盖 PATH 问题。
 - 托管执行每次 run/start 都对账，不用 TTL 跳过 fence；Host 不可达、引用过期和回收中均拒绝 spawn。只有没有托管 environmentRef 的旧会话保持原行为。命令自带 overlay 不得覆盖或删除冻结 PATH、临时目录等 owner 字段。
@@ -704,6 +739,8 @@ sequenceDiagram
 2026-10-06 删除/恢复接线约束：内部 `fenceForWorktree` 与最终 `release` 分离，前者只要求真实进程停止、拒绝新 acquire，持久 session 引用在精准 purge 成功前保留，不能循环等待先释放会话。已 journal 的 session IDs 必须先持久清理，目录/refs 清理失败仍保留 deleting 与 journal 供重试；最终确认后释放引用、清理可重建私有目录。普通 archive 保留会话引用和不可重建 data，只回收可重建资源；restore 使用受信维护请求对同 binding/原 scope/执行 scope 的全部最新 workspace binding 做 old→new 引用 CAS（已 new 幂等，其它值失败），失效旧 resident，随后迁移环境 session 引用，最后 binding.ready。prepared/rebinding 阶段不允许原会话续写。
 
 资源扫描缺省预算为 2,000 entries / 200ms，接口允许显式更小预算，硬上限 20,000 entries / 2,000ms；只扫描私有 resources 与已知工具目录，不遍历 checkout 的 node_modules。GC 先完整扫描引用与 immutable manifest，未知/损坏/预算不足时全局保护，不删除未证明无引用的工具；逐候选持工具安装锁重读，运行中的准备、服务及旧 revision 引用保护对应工具，dryRun 不删除。data 不属于 GC，archive 缺省保留 data，永不把保留误报为已恢复。
+
+2026-10-09 清理修正：已收口占用的工作树 lifecycle 清理只验证固定 temp/cache/logs 根及祖先后，调用 Host 物理递归删除；删除不复用扫描预算或进行全量预扫描。内部链接只删除自身，顶级根/祖先重定向拒绝；Desktop 使用 original-fs，Node Host 使用 Node fs。错误保持原 journal 供重试，私有 data 和共享工具不进入目标。详见 worktree-discard.md 的同日物理删除规则。
 
 环境私有数据不自动包含在代码快照里。不可重建的数据清理前明确保存/导出或丢弃选择，不冒充恢复时一定存在。
 
@@ -773,6 +810,35 @@ sequenceDiagram
 ```
 
 保持 desktop-continuous 和 web-remote-replayable 区别。乱序以 owner revision 对账，pending overlay 不反写 running。Main/relay 不保存环境业务队列或快照。
+
+#### 环境管理读取的参数与失败边界（2026-10-09）
+
+- 运行环境公开 facade 查询工作树绑定时，只向 `WorktreeService.list` 发送 `workspacePath` 与可选 `workspaceIdentity`。`environmentId`、`bindingId`、`requestId`、预算、动作和版本等属于环境请求，不得因 TypeScript 类型窄化而透传到工作树严格合同。attachment scope 优先级、绑定归属、环境引用和 checkout 存储 scope 的原授权规则保持不变，不放宽 schema。
+- Host 的环境 owner 仍拥有能力与快照事实，WorktreeService 仍拥有绑定。此修复不修改持久化数据、环境 revision、分支名或既有工作树，不通过重建环境掩盖读取失败。
+- 共享 UI hook 并行读取 capabilities 与 snapshot，分别处理结果。snapshot 失败保留本次成功取得的 capabilities 和此前已接受快照，显示真实读取错误；capabilities 失败清除旧能力授权，但不丢弃本次合法快照。没有成功读取能力时不宣称 Host 不支持，只有明确的能力结果才展示“不支持”说明。任何读取失败不伪造 ready，不自动触发升级、安装、服务动作或重发输入。
+- 两项读取均结算后解除读取中的状态；晚到结果继续受原 scope/service owner 检查约束，断连清除动作授权。同 identity 的 snapshot 仍按单调 `stateRevision` 接受。桌面 continuous 与手机 replayable 查询同一 Host 的公开入口，恢复仍只回查快照，不新增本地事实缓存、owner 或请求协议。
+
+```mermaid
+sequenceDiagram
+  participant UI as 桌面 continuous / 手机 replayable
+  participant Facade as Host 公开授权入口
+  participant WT as WorktreeService 绑定 owner
+  participant Env as RuntimeEnvironmentService owner
+  par 能力读取
+    UI->>Facade: getCapabilities(scope)
+    Facade->>Env: getCapabilities(scope)
+    Env-->>UI: 已校验能力 / 读取错误
+  and 快照读取
+    UI->>Facade: snapshot(scope, environmentId)
+    Facade->>WT: list(仅路径与身份)
+    WT-->>Facade: 原绑定事实
+    Facade->>Env: snapshot(已授权 checkout scope, environmentId)
+    Env-->>UI: 同一 owner 快照 / 读取错误
+  end
+  UI->>UI: 分别接纳成功结果，保留真实错误并结束读取
+```
+
+验收：真实 WorktreeService 公开严格入口与 RuntimeEnvironmentService facade 组合时，本地和 attachment 路由的 get/snapshot/prepare/reconcile/资源扫描/服务动作/GC 不把环境字段传给工作树 list；错误 identity、environmentId、revision 和秘密字段仍被拒绝或脱敏。共享组件在 1280/390px、中英文验证两项读取独立失败、显式刷新恢复、未知能力不误报不支持，以及 scope 切换/断连后迟到能力不恢复旧授权。
 
 ### 15.3 诊断转交 AI
 

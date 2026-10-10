@@ -9,6 +9,7 @@ This file is meant for coding agents. When generating or editing UI in this repo
 The dedicated `text-ui-*` scale is a mandatory repository-wide constraint for application interface typography:
 
 - UI components must use `text-ui-xl`, `text-ui-lg`, `text-ui-base`, `text-ui-caption`, `text-ui-sm`, or `text-ui-xs`.
+- The new-conversation welcome heading alone may use `text-ui-greeting`: the user requested the larger hero greeting. It follows the UI setting with a +16px desktop / +10px compact offset; do not use it for ordinary controls or other headings.
 - Do not introduce Tailwind's built-in `text-base`, `text-sm`, or `text-xs` for application UI.
 - Do not introduce arbitrary UI font sizes such as `text-[13px]` or inline `font-size` values.
 - The only content-level exceptions are code, Diff, and terminal rendering that consume their independent numeric font-size settings. Their surrounding controls, labels, headers, and metadata must still use `text-ui-*`.
@@ -43,21 +44,23 @@ Avoid:
 
 User-facing theme choices are, in display order:
 
-- System (dynamic: resolves to Zai Dark / Zai Light via `prefers-color-scheme`)
-- Dark Theme, backed by Zai Dark (default)
-- Light Theme, backed by Zai Light
-- Sepia Light (light base)
-- Midnight Blue (dark base)
-- Forest Dark (dark base)
+- System (dynamic: resolves to Night Black / Botanical Gray via `prefers-color-scheme`)
+- Night Black / 暗夜黑 (`zai-dark`, dark base, default)
+- Botanical Gray / 草木灰 (`zai-light`, light base)
+- Sunset Yellow / 落晖黄 (`sepia-light`, light base)
+- Sky Blue / 天空蓝 (`midnight-blue`, light base)
+- Mountain Green / 远山绿 (`forest-dark`, light base)
+- Cinnabar Red / 朱砂红 (`cinnabar`, light base)
+- Ink Purple / 烟墨紫 (`inkpurple`, dark base)
 
-The canonical registry of theme ids, light/dark bases, display-name i18n keys, and picker swatches lives in `packages/ui/src/useTheme.ts` (`THEME_OPTIONS`); pickers and whitelists must derive from it instead of keeping literal lists. Extending the theme list means extending this registry, its diff blocks in `packages/ui/src/styles.css`, the five first-paint bootstrap write points, and both locale files.
+The canonical registry lives in `packages/ui/src/themeConfig.ts` (`THEME_OPTIONS`), re-exported by `useTheme.ts`. Pickers, validation, runtime projection and the Vite-generated HTML bootstrap all derive from it. Extend the registry, its variable blocks in `packages/ui/src/styles.css`, and both locales; never add a bootstrap whitelist copy. Theme ids remain compatible with saved preferences.
 
 Layering rules:
 
 - Dark-base themes activate with `dark` + `theme-<id>` on the document root; the `theme-<id>` block only overrides variables that differ from the `.dark` foundation. Light-base themes activate with `theme-<id>` only, layering diffs on the `:root`/`@theme` light foundation. `theme-<id>` must never be used as a subtree-forced class — local light-forcing keeps reusing the full `theme-zai-light` block.
 - New themes must not introduce new variable names, must not redefine `--color-icon-blue` or `--color-markdown-inline-code`, and must keep the transparent root background (Electron vibrancy).
 - Follow-system always resolves to the Zai pair, never to the new themes, and theme toggling shortcuts land on the opposite Zai side.
-- Do not add `dark:` tailwind utilities for theme-internal styling: that variant follows the OS preference, not the selected theme. Validate every theme's text and interaction contrast against the accessibility rules below.
+- `dark:` utilities follow the selected root `.dark` class through the global custom variant. Prefer semantic tokens for theme styling; explicit user choice takes precedence over OS preference. Validate all seven palettes, including a selected base opposite to the OS.
 
 Default light and dark CSS variables still exist as fallback foundations, but new UI should be validated against Zai Light and Zai Dark as the active light/dark experiences.
 
@@ -248,6 +251,11 @@ Treat any other use as a design-system defect.
 reserved for editable controls on mobile Web surfaces where iOS focus zoom must
 be prevented, and therefore does not scale with `--ui-font-size`.
 
+`text-ui-greeting` is restricted to `ConversationDraftEmptyState`: default 30px,
+or 24px below 640px / on touch surfaces below 1024px. Its large gradient logo
+stays in normal flow and shrinks for short viewports; the gradient mask belongs
+only to the image, while the heading wraps with no mask.
+
 - Changing the interface font size updates only `--ui-font-size`; never mutate the root `html` font size.
 - Icons, spacing, radii, and other `rem`-based geometry must not scale with the interface font setting.
 - Code, Diff, and terminal content retain their independent font-size settings; only their surrounding interface controls use `text-ui-*`.
@@ -422,6 +430,8 @@ Button rules:
 
 - Use existing button variants first.
 - Keep icon-only buttons square.
+- Ordinary action labels stay on one line; choose wrapping or truncation with a full label at the calling layout when space is limited.
+- Treat control heights as minimums so the `text-ui-*` scale can grow without clipping. Keep a visible keyboard focus indicator.
 - Do not promote every action to primary.
 - Preserve a clear action hierarchy within each panel.
 
@@ -444,6 +454,9 @@ Input rules:
 - Inputs should feel calm and integrated, not glowing by default.
 - Use semantic error state styling only for real validation problems.
 - Do not style ordinary inputs like cards.
+- Use the shared caret, native select, checkbox/radio accent, and autofill theme rules. Autofill must preserve validation and focus rings; do not hide it with long transitions.
+- Number inputs hide native spinner decoration while retaining ArrowUp/Down behavior.
+- Editable shared inputs on touch mobile Web use `max(text-mobile-input-safe, text-ui-base)`; desktop and readonly fields keep the normal UI scale. Do not change the root font size.
 
 ### Cards and Panels
 
@@ -470,6 +483,10 @@ Card rules:
 Overlay rules:
 
 - Floating UI should feel precise and compact.
+- Bound floating content to Radix's available viewport width and height, including narrow and short landscape screens; long rows wrap and long lists scroll inside the surface.
+- Long forms use a flex dialog shell and `DialogBody` for body scrolling, keeping the header and footer visible. Ordinary dialogs stay within the dynamic viewport. Keep Radix's focus, collision and open-state ownership.
+- Shared overlay animations and Switch transitions respect reduced motion. Preserve Electron `no-drag` on interactive dialog content.
+- Toast copy uses `text-ui-*` and wraps without losing text or actions; ordinary notices use `status`, warnings use `alert`.
 - Interactive overlays such as dropdown menus, context menus, selects, and popovers must render above passive tooltips when both are open. Tooltips must never cover options or controls in an active interactive overlay.
 - Dropdown menu surfaces must keep their overlay shadow from the first open frame through keyboard focus and pointer hover. Global focus-reset rules must not clear the menu shadow while the content root owns focus.
 - Keep menu rows dense and highly scannable.

@@ -1,58 +1,40 @@
+import {
+  CloudSun,
+  Flame,
+  Monitor,
+  Moon,
+  Mountain,
+  Sparkles,
+  Sun,
+  Sunset,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/components/lib/utils.js";
 import type { ThemeOption } from "@/useTheme.js";
 
-/**
- * 主题三色小色板（底色圆 + 前景色弧 + 主色圆点），纯展示组件。
- * 色值唯一来源是 useTheme.ts 的 THEME_OPTIONS 注册表，不在此处另存一份色板；
- * system（dynamic 基底）没有静态色板，用亮/暗对半分色表达「跟随系统」语义。
- * 设置页 Select 与侧栏主题菜单共用同一份渲染，不发明新的样式体系。
- */
-export function ThemeSwatch({
-  option,
-  className,
-}: {
-  option: ThemeOption;
-  className?: string;
-}) {
-  if (option.base === "dynamic") {
-    return (
-      <span
-        aria-hidden
-        className={cn(
-          "relative inline-block size-4 shrink-0 overflow-hidden rounded-full border border-border",
-          className,
-        )}
-      >
-        <span
-          className="absolute inset-y-0 left-0 w-1/2"
-          style={{ backgroundColor: option.swatch.bg }}
-        />
-        <span
-          className="absolute inset-y-0 right-0 w-1/2"
-          style={{ backgroundColor: option.swatch.fg }}
-        />
-      </span>
-    );
-  }
+// 这里只定义展示符号；可选主题与色板仍由 themeConfig 的注册表独占。
+const THEME_SYMBOLS: Record<ThemeOption["id"], LucideIcon> = {
+  system: Monitor,
+  dark: Moon,
+  light: Sun,
+  "zai-dark": Moon,
+  "zai-light": Sun,
+  "sepia-light": Sunset,
+  "midnight-blue": CloudSun,
+  "forest-dark": Mountain,
+  cinnabar: Flame,
+  inkpurple: Sparkles,
+};
 
+/** 四个主题入口共用的装饰符号，保留原组件接口，不承载选择状态。 */
+export function ThemeSwatch({ option, className }: { option: ThemeOption; className?: string }) {
+  const Icon = THEME_SYMBOLS[option.id];
+  // 16px 内拼色圆弧与圆点曾挤成不规则色块；使用同一图标库的线性符号保持清晰。
   return (
-    <span
-      aria-hidden
-      className={cn(
-        "relative inline-block size-4 shrink-0 overflow-hidden rounded-full border border-border",
-        className,
-      )}
-      style={{ backgroundColor: option.swatch.bg }}
-    >
-      {/* 前景色以右上溢出圆弧表达（配合 overflow-hidden 裁出月牙），主色以左下圆点表达。 */}
-      <span
-        className="absolute -right-1.5 -top-1.5 size-3.5 rounded-full opacity-90"
-        style={{ backgroundColor: option.swatch.fg }}
-      />
-      <span
-        className="absolute bottom-0 left-0 size-1.5 rounded-full"
-        style={{ backgroundColor: option.swatch.primary }}
-      />
-    </span>
+    <Icon
+      aria-hidden="true"
+      className={cn("size-4 shrink-0 text-foreground-subtle", className)}
+      strokeWidth={1.75}
+    />
   );
 }

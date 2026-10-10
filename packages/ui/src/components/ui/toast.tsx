@@ -310,8 +310,10 @@ export function ToastMessageView({
 
   return (
     <div
+      role={item.variant === "warning" ? "alert" : "status"}
+      aria-atomic="true"
       className={cn(
-        "rounded-2xl border bg-toast/60 text-ui-base shadow-lg backdrop-blur-xl transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.77,0,0.175,1)] motion-reduce:transform-none motion-reduce:transition-opacity",
+        "rounded-2xl border bg-toast/60 max-w-[calc(100vw-2rem)] max-h-[calc(100dvh-2rem)] overflow-y-auto [overflow-wrap:anywhere] text-ui-base shadow-lg backdrop-blur-xl transition-[transform,opacity] duration-200 ease-[cubic-bezier(0.77,0,0.175,1)] motion-reduce:transform-none motion-reduce:transition-opacity",
         isUpdate
           ? "origin-bottom-left w-[min(300px,calc(100vw-1rem))] max-w-[min(300px,calc(100vw-1rem))] border-popover-border text-foreground shadow-lg"
           : isNotice
@@ -338,9 +340,11 @@ export function ToastMessageView({
             aria-hidden="true"
           />
           <div className="min-w-0 flex-1">
-            <div className="truncate text-ui-base font-medium text-foreground">{displayTitle}</div>
+            <div className="whitespace-pre-wrap text-ui-base/relaxed font-medium text-foreground">
+              {displayTitle}
+            </div>
             {displayBody ? (
-              <div className="mt-0.5 truncate text-ui-base leading-4 text-foreground-subtle">
+              <div className="mt-0.5 whitespace-pre-wrap text-ui-base/relaxed text-foreground-subtle">
                 {displayBody}
               </div>
             ) : null}
@@ -349,7 +353,7 @@ export function ToastMessageView({
             <button
               type="button"
               onClick={onAction ?? item.onAction}
-              className="h-7 max-w-14 shrink-0 truncate rounded-md bg-secondary px-2 text-ui-base font-medium text-foreground transition-colors hover:bg-hover"
+              className="min-h-7 max-w-24 shrink-0 whitespace-normal break-words rounded-md bg-secondary px-2 text-ui-base/relaxed font-medium text-foreground transition-colors hover:bg-hover"
             >
               {item.actionLabel}
             </button>
@@ -363,8 +367,8 @@ export function ToastMessageView({
           ) : (
             <Info className="size-4 shrink-0 text-foreground-subtle" aria-hidden="true" />
           )}
-          <div className="flex min-w-0 flex-[1_0_0] items-start gap-4 py-3 text-sm">
-            <div className="min-w-0 flex-1 leading-5">
+          <div className="flex min-w-0 flex-[1_0_0] items-start gap-4 py-3 text-ui-base">
+            <div className="min-w-0 flex-1 leading-relaxed">
               <div className="text-foreground">{displayTitle}</div>
               {displayBody ? (
                 <div className="mt-0.5 whitespace-pre-line text-foreground-subtle">

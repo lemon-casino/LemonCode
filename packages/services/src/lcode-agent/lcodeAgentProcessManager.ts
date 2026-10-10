@@ -547,7 +547,10 @@ function wrapLCodeAgentCommandWithStdioTapDevProxy(
 export class LCodeAgentProcessManager {
   private readonly processesByWorkspaceKey = new Map<string, ManagedLCodeAgentProcess>();
   private readonly ownedProcesses = new Set<ManagedLCodeAgentProcess>();
-  private readonly startingByWorkspaceKey = new Map<string, Promise<LCodeProtocolClient>>();
+  private readonly startingByWorkspaceKey = new Map<
+    string,
+    { workspace: ManagedLCodeAgentProcess["workspace"]; promise: Promise<LCodeProtocolClient> }
+  >();
   private readonly restartGenerationByWorkspaceKey = new Map<string, number>();
   private readonly runtimeGenerationByWorkspaceKey = new Map<string, number>();
   private readonly availableRuntimeIdentityByWorkspaceKey = new Map<string, string>();
@@ -861,7 +864,7 @@ export class LCodeAgentProcessManager {
       log("LCode agent process start already in progress", {
         workspaceKey,
       });
-      const client = await starting;
+      const client = await starting.promise;
       log("LCode agent process start wait completed", {
         workspaceKey,
         durationMs: Date.now() - waitStartedAt,
@@ -885,7 +888,8 @@ export class LCodeAgentProcessManager {
       startGeneration,
       admissionAbortController.signal,
     );
-    this.startingByWorkspaceKey.set(workspaceKey, startPromise);
+    const startup = { workspace: params, promise: startPromise };
+    this.startingByWorkspaceKey.set(workspaceKey, startup);
     try {
       return await startPromise;
     } finally {
@@ -893,7 +897,7 @@ export class LCodeAgentProcessManager {
       if (controllers.size === 0) {
         this.startAdmissionAbortControllersByWorkspaceKey.delete(workspaceKey);
       }
-      if (this.startingByWorkspaceKey.get(workspaceKey) === startPromise) {
+      if (this.startingByWorkspaceKey.get(workspaceKey) === startup) {
         this.startingByWorkspaceKey.delete(workspaceKey);
       }
     }
@@ -908,6 +912,44 @@ export class LCodeAgentProcessManager {
   }): LCodeProtocolClient | undefined {
     const managed = this.processesByWorkspaceKey.get(resolveWorkspaceKey(params));
     return managed && !managed.child.killed ? managed.client : undefined;
+  }
+
+  /** 生命周期：包含在途启动与尚未结算的退休 owner，不能用复用池替代。 */
+  getOwnedProcessOwner(client: LCodeProtocolClient) {
+    const managed = [...this.ownedProcesses].find((managed) => managed.client === client);
+    if (!managed) return undefined;
+    // 必须从实际 client 取冻结代际；workspace 复用池可能已经指向另一个进程。
+    return {
+      runtimeInstanceId: managed.runtimeInstanceId,
+      runtimeGeneration: managed.runtimeIdentity.generation,
+      startedAt: managed.startedAt,
+      workspacePath: managed.workspace.workspacePath,
+      workspaceIdentity: managed.workspace.workspaceIdentity,
+      pid: managed.child.pid,
+    };
+  }
+
+  /** 删除恢复读取完整 owner 集合；结算失败的退休实例仍须由原 owner 完成清理。 */
+  hasOwnedProcessOwner(owner: {
+    runtimeInstanceId: string;
+    runtimeGeneration: number;
+    startedAt: number;
+  }): boolean {
+    return [...this.ownedProcesses].some(
+      (managed) =>
+        managed.runtimeInstanceId === owner.runtimeInstanceId &&
+        managed.runtimeIdentity.generation === owner.runtimeGeneration &&
+        managed.startedAt === owner.startedAt,
+    );
+  }
+
+  /** 生命周期：包含在途启动与尚未结算的退休 owner，不能用复用池替代。 */
+  listOwnedWorkspaceTargets(): ManagedLCodeAgentProcess["workspace"][] {
+    // 复用池不包含正在退出/结算失败的旧实例；目录生命周期必须读取真正的 owner 集合。
+    return [
+      ...[...this.ownedProcesses].map((managed) => managed.workspace),
+      ...[...this.startingByWorkspaceKey.values()].map((starting) => starting.workspace),
+    ];
   }
 
   /** 资源管理器：当前仍存活的受管 runtime（pid + workspace + client） */
@@ -1399,23 +1441,31 @@ export class LCodeAgentProcessManager {
       (this.restartGenerationByWorkspaceKey.get(workspaceKey) ?? 0) + 1,
     );
     this.abortPendingStarts(workspaceKey);
-    const managed = this.processesByWorkspaceKey.get(workspaceKey);
     this.processesByWorkspaceKey.delete(workspaceKey);
     // dispose 不能把尚未完成的 start promise 从追踪表中删掉。删除会让
     // recovery/UI 的下一次 getClient 再开一条 spawn，旧 promise 随后又可能越过异步
     // resolve 回写进程池，形成同一 workspace 的 spawn/dispose 风暴。代际检查会让旧
     // promise 在真正 spawn 前失败，finally 再按 promise identity 清理 map。
-    if (managed) {
-      // restartWorkspaceProcess 只应回收当前 workspace 的 agent。
-      // 不能复用 disposeAll，否则会把整个 manager 标记为已关闭，后续首发/预热无法重新拉起。
-      this.reportRuntimeUnavailable(managed);
-      await this.cleanupManagedProcessWithRetry(
-        managed,
-        "workspace-dispose",
-        "workspace-dispose-retry",
-        "workspace dispose",
-      );
-    }
+    // 启动已越过 spawn 但还未登记时也会持有 cwd；先等 admission 取消完成，再读取所有退休实例。
+    const starting = this.startingByWorkspaceKey.get(workspaceKey);
+    if (starting) await Promise.allSettled([starting.promise]);
+    const results = await Promise.allSettled(
+      [...this.ownedProcesses]
+        .filter((managed) => resolveWorkspaceKey(managed.workspace) === workspaceKey)
+        .map(async (managed) => {
+          // restartWorkspaceProcess 只应回收当前 workspace 的 agent。
+          // 不能复用 disposeAll，否则会把整个 manager 标记为已关闭，后续首发/预热无法重新拉起。
+          this.reportRuntimeUnavailable(managed);
+          await this.cleanupManagedProcessWithRetry(
+            managed,
+            "workspace-dispose",
+            "workspace-dispose-retry",
+            "workspace dispose",
+          );
+        }),
+    );
+    const failed = results.find((result) => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
   }
 
   private abortPendingStarts(

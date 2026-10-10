@@ -28,10 +28,13 @@ import {
 import { validateRuntimeEnvironmentRequests } from "./app/validatedService.js";
 import { createRuntimeConsumerAuthority } from "./app/consumerLifecycle.js";
 import { createWorktreeEnvironmentRelease } from "./app/worktreeRelease.js";
+import { createNativeProcessOwnerObserver } from "./adapters/processOwnerObservation.js";
 import { acquireResourceLease } from "./app/ports.js";
 import type {
   IRuntimeEnvironmentHostService,
   RuntimeEnvironmentPrepareRequest,
+  RuntimeConsumerProcessOwner,
+  RuntimeResourceDirectoryRemover,
 } from "./contract.js";
 
 export type { RuntimeEnvironmentServiceOptions } from "./app/runtimeEnvironmentService.js";
@@ -56,6 +59,10 @@ export interface RuntimeEnvironmentHostOptions {
   resolveEnv?: () => Promise<NodeJS.ProcessEnv>;
   acquireWriter?: RuntimeEnvironmentServiceOptions["acquireWriter"];
   publishInvalidation?: (event: RuntimeEnvironmentEvent) => void;
+  /** 仅执行 Host 的完整 owner 注册表；包含退出后尚未结算的实例。 */
+  hasProcessOwner?: (owner: RuntimeConsumerProcessOwner) => boolean;
+  /** Desktop 注入 original-fs；其余 Host 默认使用 Node fs。 */
+  removeResourceDirectory?: RuntimeResourceDirectoryRemover;
 }
 /** HostDataRoot/runtime-environments 是唯一环境根，不改变 WorktreeService 的 checkout 根。 */
 export function createRuntimeEnvironmentHost(
@@ -82,7 +89,7 @@ export function createRuntimeEnvironmentHost(
       }),
     resolveEnv: options.resolveEnv,
   });
-  const resources = createRuntimeResources(dataDir);
+  const resources = createRuntimeResources(dataDir, options.removeResourceDirectory);
   const processes = createManagedServiceProcesses({ definitions: BUILTIN_SERVICE_PROCESSES });
   const stamp = () => new Date().toISOString();
   const frozen = (record: import("@lcode/shared").RuntimeEnvironmentRecord) =>
@@ -136,7 +143,10 @@ export function createRuntimeEnvironmentHost(
       return acquireResourceLease({ ...params, locksRoot, waitMs: 200 });
     },
   });
-  const ownerChannel = createServiceOwnerChannel(dataDir, { owns: serviceControl.owns, handle: serviceControl.handleOwnerRequest });
+  const ownerChannel = createServiceOwnerChannel(dataDir, {
+    owns: serviceControl.owns,
+    handle: serviceControl.handleOwnerRequest,
+  });
   serviceControl.attachOwnerChannel(ownerChannel);
   const implementation = createRuntimeEnvironmentService({
     store,
@@ -153,9 +163,10 @@ export function createRuntimeEnvironmentHost(
     reconcileReceipt: serviceControl.reconcileReceipt,
   });
   const service = validateRuntimeEnvironmentRequests(implementation);
+  const observeProcessOwner = createNativeProcessOwnerObserver(options.hasProcessOwner);
   return {
     service,
-    consumers: createRuntimeConsumerAuthority(store, stamp),
+    consumers: createRuntimeConsumerAuthority(store, stamp, observeProcessOwner),
     prepareUnderWriter: (params: RuntimeEnvironmentPrepareRequest) =>
       implementation.prepareUnderWriter(runtimeEnvironmentPrepareParamsSchema.parse(params)),
     releaseForWorktree: createWorktreeEnvironmentRelease({
@@ -163,6 +174,8 @@ export function createRuntimeEnvironmentHost(
       stamp,
       stopAll: serviceControl.stopAll,
       clearRebuildable: (id) => resources.clearRebuildable(id),
+      discardResources: (id) => resources.discard(id),
+      observeProcessOwner,
     }),
     acceptInvalidation(value: unknown) {
       const event = runtimeEnvironmentEventSchema.safeParse(value);

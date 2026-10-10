@@ -83,6 +83,16 @@
    切换一次官方 Electron runtime mirror 后重试。其它 afterExtract/NOTICE 错误不得重试，
    避免用镜像切换掩盖真实许可文件回归。
 
+## v3.17.6 主题与组件发布准备
+
+- 根版本递增为 `3.17.6`，正式 tag 为 `v3.17.6`；CLI 和 Worker 服务包沿用各自版本所有者。
+- 用户先自行构建验收；再次明确要求发布后，才提交、推送、创建 tag 和更新 Worker。当前仅保留本地准备，不执行发布动作。
+- 发布本轮七色全局主题、欢迎文案/Logo 和共享组件品控修复，验收范围见
+  `frontend-component-quality.md` 与 `ui-theme-modes.md`。保留工作区其它未提交改动。
+- 移动 Web 从本轮已提交的干净源码构建，使用固定 Node/pnpm、`LCODE_ENV=production`
+  与源提交 `LCODE_COMMIT` 执行 `pnpm build:mobile-web`；重建全部 Worker public，移除旧哈希资源且不托管 sourcemap。
+- 更新发行输入 NOTICE 清单并验证现有 release-review baseline；主仓库开发分支和不可变 tag 推送后触发桌面矩阵，独立 Worker `main` 推送触发 Workers Builds。Worker 的服务协议与配置沿用既有契约，线上 index/入口资源用于确认静态页面已更新。
+
 ## v3.17.1 构建回归修复
 
 - 根 `pnpm-workspace.yaml` 与根 lockfile 是集成仓库依赖安装的唯一所有者；

@@ -24,20 +24,21 @@ import type { LCodeTaskMeta } from "@lcode/shared";
 
 export function DeleteAllArchivedTasksButton({
   workspaces,
+  visibleTasks,
   count,
   disabled,
   actionsContainer,
   onDeleted,
   onRefresh,
-  taskFilter,
 }: {
   workspaces: ArchivedTaskDeletionWorkspace[];
+  /** 归档列表当前分类已渲染的行；批量删除只作用于此集合。 */
+  visibleTasks: readonly LCodeTaskMeta[];
   count: number;
   disabled: boolean;
   actionsContainer?: HTMLElement | null;
   onDeleted: (target: ArchivedTaskDeletionTarget) => void;
   onRefresh?: () => Promise<void>;
-  taskFilter?: (task: LCodeTaskMeta) => boolean;
 }) {
   const { intl } = useLCodeIntl();
   const confirmDialog = useConfirmDialog();
@@ -52,7 +53,7 @@ export function DeleteAllArchivedTasksButton({
     setBusy(true);
     setResultMessage(null);
     try {
-      const selection = await collectArchivedTaskDeletion(workspaces, taskFilter);
+      const selection = collectArchivedTaskDeletion(workspaces, visibleTasks);
       const unavailable =
         selection.unavailableWorkspaces.length > 0
           ? intl.formatMessage(
@@ -130,7 +131,11 @@ export function DeleteAllArchivedTasksButton({
           </Button>
         </DropdownMenuTrigger>
       </ControlHintTooltip>
-      <DropdownMenuContent align="end">
+      {/* 触发器是约 28px 的图标按钮，且位于侧栏最左侧；content 默认的
+          max-w-(--radix-dropdown-menu-content-available-width) 会按“视口左边缘到触发器右边缘”
+          算出约 275px 的窄上限，overflow-x-hidden 再把超出部分裁掉，界面字号调大后
+          “删除所有归档任务…”就会缺字。这里保证下限并改用视口宽度做上限。 */}
+      <DropdownMenuContent align="end" className="min-w-72 max-w-[calc(100vw-2rem)]">
         <DropdownMenuLabel className="text-ui-sm font-normal text-foreground-subtle">
           {intl.formatMessage({ id: "taskList.archivedTaskCount" }, { count })}
         </DropdownMenuLabel>

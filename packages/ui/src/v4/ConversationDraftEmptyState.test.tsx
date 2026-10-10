@@ -31,4 +31,8 @@ test("新会话空状态复用 V12 品牌资产，不再渲染旧 Z 路径", () 
   assert.match(markup, /src="[^"]*app-logo\.svg"/);
   assert.doesNotMatch(markup, /Z\.svg/);
   assert.doesNotMatch(markup, /M398\.97 0\.5L147\.576/);
+  assert.match(markup, /w-\[min\(60vw,20rem,32dvh\)\]/);
+  assert.match(markup, /mask-image:linear-gradient/);
+  assert.match(markup, /text-ui-greeting/);
+  assert.doesNotMatch(markup, /greeting-font-size|size-16/);
 });

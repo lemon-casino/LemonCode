@@ -69,7 +69,7 @@ export async function startWorkflowProgressBrowser(t) {
       ? { executablePath: process.env.LCODE_TEST_BROWSER_PATH }
       : {}),
   });
-  return { browser, port };
+  return { browser, port, diagnostics: () => output };
 }
 
 /** 关闭当前详情并完成它自己的卸载、还焦，之后才允许下一场景切换。 */

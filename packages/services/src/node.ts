@@ -360,7 +360,12 @@ import { createLegacyTeamOrganizationResolver } from "./model-provider/legacyTea
 import { createObservableSettingService } from "./setting/observableSettingService.js";
 import { createCredentialService } from "./credential/credentialService.js";
 import { createBroadcastService } from "./broadcast/broadcastService.js";
-import { createLCodeAgentService } from "./lcode-agent/lcodeAgentService.js";
+import { rm } from "node:fs/promises";
+import {
+  createLCodeAgentService,
+  worktreeExecutionOwner,
+  runtimeProcessOwnerRegistry,
+} from "./lcode-agent/lcodeAgentService.js";
 import type { LCodeAgentCommandResolver } from "./lcode-agent/lcodeAgentProcessManager.js";
 import { buildAgentTelemetrySpawnEnv } from "./lcode-agent/agentTelemetryEnv.js";
 import { resolveLCodeAgentPresentationSurface } from "./lcode-agent/lcodeAgentPresentationSurface.js";
@@ -369,7 +374,10 @@ import { createLCodeSessionService } from "./lcode-session/lcodeSessionService.j
 import { createLCodeTaskIndexSyncer } from "./lcode-agent/lcodeTaskIndexSyncer.js";
 import { TaskIndexRepo } from "./session/taskIndexRepo.js";
 import type { SessionMessageSendRequested } from "#src/session/sessionMailbox.js";
-import { createFileWatcherService } from "./fileWatcher/fileWatcherService.js";
+import {
+  createFileWatcherService,
+  createPublicFileWatcherService,
+} from "./fileWatcher/fileWatcherService.js";
 import { createOAuthService } from "./oauth/oauthService.js";
 import { isCurrentOAuthCredentialRequest } from "#src/oauth/oauthUnauthorizedRequest.js";
 import { createOAuthProviderLogoutHandler } from "./oauth/oauthProviderLogout.js";
@@ -1331,6 +1339,8 @@ function cuaHelperStartErrorDetail(error: unknown): string {
 export function createLocalServices(options: {
   /** Desktop 使用 original-fs，避免 ASAR 虚拟目录阻塞受管目录删除。 */
   removeWorktreeDirectory?: (path: string) => Promise<void>;
+  /** 环境只会提交已验证的 temp/cache/logs 根；Desktop 同样使用物理 fs。 */
+  removeRuntimeResourceDirectory?: (path: string) => Promise<void>;
   parentPort?: Parameters<typeof createBroadcastService>[0];
   /** Host 装配层注入的设置权威；与网络 transport 必须来自同一 Window Host 生命周期。 */
   settingService?: ISettingService;
@@ -1997,6 +2007,8 @@ export function createLocalServices(options: {
     join(resolveAppConfigDir(), "runtime-environments"),
     {
       serverRuntimeRoot: process.env.LCODE_SERVER_RUNTIME_ROOT,
+      hasProcessOwner: (owner) => lcodeAgentService[runtimeProcessOwnerRegistry](owner),
+      removeResourceDirectory: options.removeRuntimeResourceDirectory,
       resolveEnv: async () => {
         const settings = await settingService.get();
         const network =
@@ -2030,6 +2042,7 @@ export function createLocalServices(options: {
     if (message.channel === "state:runtime-environment")
       runtimeEnvironmentHost.acceptInvalidation(message.payload);
   });
+  const fileWatcherService = createFileWatcherService();
   const worktreeService = createWorktreeService({
     ...worktreeOptions,
     coordinator: checkoutCoordinator,
@@ -2038,11 +2051,35 @@ export function createLocalServices(options: {
       coordinator: checkoutCoordinator,
       worktrees: () => worktreeService,
       agents: () => lcodeAgentService,
-      stopTerminals: (scope) => terminalService.stopWorkspaceAndWait(scope),
+      stopWorktreeExecution: async (binding) => {
+        const results = await Promise.allSettled([
+          terminalService.stopCheckoutAndWait({
+            workspacePath: binding.checkoutPath,
+            workspaceIdentity: binding.workspaceIdentity,
+          }),
+          lcodeAgentService[worktreeExecutionOwner](binding),
+          fileWatcherService.stopPathAndWait(binding.checkoutPath),
+        ]);
+        const failed = results.find((result) => result.status === "rejected");
+        if (failed?.status === "rejected") throw failed.reason;
+      },
     }),
     // 源组合提交已持有源 checkout 许可；通过同一 Git owner 执行，避免再次申请导致自锁。
     commitSource: (request) => rawGitService.commit(request),
-    removeDirectory: options.removeWorktreeDirectory,
+    removeDirectory: async (path) => {
+      // Git 可能已解除登记但保留残留目录；物理清理前仍需收口本 Host 的监听句柄。
+      await fileWatcherService.stopPathAndWait(path);
+      await (
+        options.removeWorktreeDirectory ??
+        ((target) =>
+          rm(target, {
+            recursive: true,
+            force: true,
+            maxRetries: 5,
+            retryDelay: 100,
+          }))
+      )(path);
+    },
     collectDiscardSessions: async (binding) => {
       const result = await lcodeAgentService.cleanupWorktreeSessions({
         workspacePath: binding.originalWorkspacePath,
@@ -2054,12 +2091,8 @@ export function createLocalServices(options: {
           workspacePath: binding.workspacePath,
           workspaceIdentity: binding.workspaceIdentity,
           closeSessions: true,
+          seedSessionIds: binding.deletion?.sessionIds,
         },
-      });
-      // 已持有 checkout 许可；关闭该执行空间的 Agent，阻止残留 app/文件句柄继续写入。
-      await lcodeAgentService.disposeWorkspace({
-        workspacePath: binding.workspacePath,
-        workspaceIdentity: binding.workspaceIdentity,
       });
       return result.sessionIds;
     },
@@ -2124,6 +2157,7 @@ export function createLocalServices(options: {
   );
   const lcodeAgentService = createLCodeAgentService({
     worktreeService,
+    assertWorktreeExecutionAdmission: (scope) => worktreeService.assertExecutionAdmission(scope),
     runtimeEnvironmentService,
     runtimeEnvironmentPublicService: publicRuntimeEnvironmentService,
     runtimeEnvironmentConsumers,
@@ -2498,7 +2532,7 @@ export function createLocalServices(options: {
     .register(ICuaPermissionService, cuaPermissionService)
     .register(ICuaPipSessionService, cuaPipSessionService)
     .register(IConversationShareService, conversationShareService)
-    .register(IFileWatcherService, createFileWatcherService())
+    .register(IFileWatcherService, createPublicFileWatcherService(fileWatcherService))
     .register(IOAuthService, oauthService)
     .register(
       IUsageStatsService,

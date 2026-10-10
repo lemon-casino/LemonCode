@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button.js";
 import {
   Dialog,
   DialogContent,
+  DialogBody,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -153,8 +154,12 @@ export function SavedWorkflowLaunchDialog({
   };
 
   return (
+    // 长实参表曾把整个 Grid 弹窗撑出视口；正文单独滚动，保留标题与提交动作。
     <Dialog open={entry !== null} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px]" data-testid={TID_WORKFLOW_LAUNCH_DIALOG}>
+      <DialogContent
+        className="flex flex-col overflow-hidden sm:max-w-[480px]"
+        data-testid={TID_WORKFLOW_LAUNCH_DIALOG}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Workflow className="size-4 shrink-0 text-foreground-subtle" aria-hidden="true" />
@@ -168,126 +173,128 @@ export function SavedWorkflowLaunchDialog({
           ) : null}
         </DialogHeader>
         <form
-          className="flex flex-col gap-4"
+          className="flex min-h-0 flex-1 flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
             handleSubmit();
           }}
         >
-          {hasTargets ? (
-            <div className="flex flex-col gap-1.5">
-              <span className="text-ui-base font-medium text-foreground">
-                {intl.formatMessage({ id: "workflows.hub.launch.target" })}
-              </span>
-              {noLocalProject ? (
-                <p className="text-ui-sm text-foreground-subtle">
-                  {intl.formatMessage({ id: "workflows.hub.launch.noLocalProject" })}
-                </p>
-              ) : (
-                <Select value={targetKey ?? undefined} onValueChange={setTargetKey}>
-                  <SelectTrigger data-testid={TID_WORKFLOW_LAUNCH_TARGET}>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {targets.map((option) => {
-                      const key = resolveAutomationWorkspaceSelectionKey(option);
-                      return (
-                        <SelectItem key={key} value={key}>
-                          {option.label}
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          ) : null}
-          {fields.map((field) => {
-            const fieldError = errors[field.name];
-            const inputId = `workflow-arg-${field.name}`;
-            const errorText = fieldError
-              ? intl.formatMessage({ id: `workflows.hub.launch.error.${fieldError}` })
-              : null;
-            return (
-              <div key={field.name} className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <div className="flex items-center gap-2">
-                      <label
-                        htmlFor={inputId}
-                        className="font-mono text-ui-base font-medium text-foreground"
-                      >
-                        {field.name}
-                      </label>
-                      {field.required ? (
-                        <span className="rounded-sm border border-border px-1.5 py-0.5 text-ui-xs leading-none text-foreground-subtlest">
-                          {intl.formatMessage({ id: "workflows.hub.launch.required" })}
-                        </span>
+          <DialogBody className="space-y-4">
+            {hasTargets ? (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-ui-base font-medium text-foreground">
+                  {intl.formatMessage({ id: "workflows.hub.launch.target" })}
+                </span>
+                {noLocalProject ? (
+                  <p className="text-ui-sm text-foreground-subtle">
+                    {intl.formatMessage({ id: "workflows.hub.launch.noLocalProject" })}
+                  </p>
+                ) : (
+                  <Select value={targetKey ?? undefined} onValueChange={setTargetKey}>
+                    <SelectTrigger data-testid={TID_WORKFLOW_LAUNCH_TARGET}>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {targets.map((option) => {
+                        const key = resolveAutomationWorkspaceSelectionKey(option);
+                        return (
+                          <SelectItem key={key} value={key}>
+                            {option.label}
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            ) : null}
+            {fields.map((field) => {
+              const fieldError = errors[field.name];
+              const inputId = `workflow-arg-${field.name}`;
+              const errorText = fieldError
+                ? intl.formatMessage({ id: `workflows.hub.launch.error.${fieldError}` })
+                : null;
+              return (
+                <div key={field.name} className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <div className="flex items-center gap-2">
+                        <label
+                          htmlFor={inputId}
+                          className="font-mono text-ui-base font-medium text-foreground"
+                        >
+                          {field.name}
+                        </label>
+                        {field.required ? (
+                          <span className="rounded-sm border border-border px-1.5 py-0.5 text-ui-xs leading-none text-foreground-subtlest">
+                            {intl.formatMessage({ id: "workflows.hub.launch.required" })}
+                          </span>
+                        ) : null}
+                      </div>
+                      {field.description ? (
+                        <p className="text-ui-sm text-foreground-subtle">{field.description}</p>
                       ) : null}
                     </div>
-                    {field.description ? (
-                      <p className="text-ui-sm text-foreground-subtle">{field.description}</p>
+                    {field.type === "boolean" ? (
+                      <Switch
+                        id={inputId}
+                        data-testid={testId(TID_WORKFLOW_LAUNCH_ARG, field.name)}
+                        checked={field.value === "true"}
+                        onCheckedChange={(checked) =>
+                          updateField(field.name, checked ? "true" : "false")
+                        }
+                      />
                     ) : null}
                   </div>
-                  {field.type === "boolean" ? (
-                    <Switch
+                  {field.type === "json" ? (
+                    <SettingsFormTextarea
                       id={inputId}
                       data-testid={testId(TID_WORKFLOW_LAUNCH_ARG, field.name)}
-                      checked={field.value === "true"}
-                      onCheckedChange={(checked) =>
-                        updateField(field.name, checked ? "true" : "false")
-                      }
+                      className={cn("min-h-20 font-mono", fieldError && "border-destructive")}
+                      value={field.value}
+                      aria-invalid={Boolean(fieldError)}
+                      onChange={(event) => updateField(field.name, event.target.value)}
                     />
-                  ) : null}
+                  ) : field.type === "boolean" ? null : (
+                    <Input
+                      id={inputId}
+                      data-testid={testId(TID_WORKFLOW_LAUNCH_ARG, field.name)}
+                      type={field.type === "number" ? "number" : "text"}
+                      inputMode={field.type === "number" ? "decimal" : undefined}
+                      className={cn("font-mono", fieldError && "border-destructive")}
+                      value={field.value}
+                      aria-invalid={Boolean(fieldError)}
+                      onChange={(event) => updateField(field.name, event.target.value)}
+                    />
+                  )}
+                  {errorText ? <p className="text-ui-sm text-destructive">{errorText}</p> : null}
                 </div>
-                {field.type === "json" ? (
-                  <SettingsFormTextarea
-                    id={inputId}
-                    data-testid={testId(TID_WORKFLOW_LAUNCH_ARG, field.name)}
-                    className={cn("min-h-20 font-mono", fieldError && "border-destructive")}
-                    value={field.value}
-                    aria-invalid={Boolean(fieldError)}
-                    onChange={(event) => updateField(field.name, event.target.value)}
-                  />
-                ) : field.type === "boolean" ? null : (
-                  <Input
-                    id={inputId}
-                    data-testid={testId(TID_WORKFLOW_LAUNCH_ARG, field.name)}
-                    type={field.type === "number" ? "number" : "text"}
-                    inputMode={field.type === "number" ? "decimal" : undefined}
-                    className={cn("font-mono", fieldError && "border-destructive")}
-                    value={field.value}
-                    aria-invalid={Boolean(fieldError)}
-                    onChange={(event) => updateField(field.name, event.target.value)}
-                  />
-                )}
-                {errorText ? <p className="text-ui-sm text-destructive">{errorText}</p> : null}
-              </div>
-            );
-          })}
-          <div className="flex items-start gap-2 rounded-lg bg-surface px-3 py-2.5 text-ui-base text-foreground-subtle">
-            <span className="flex size-5 shrink-0 items-center justify-center">
-              <Info className="size-4" aria-hidden="true" />
-            </span>
-            <p className="min-w-0 leading-5">
-              {intl.formatMessage({ id: "workflows.hub.launch.note" }, { project: noteProject })}
-            </p>
-          </div>
-          {error ? (
-            <div
-              data-testid={TID_WORKFLOW_LAUNCH_ERROR}
-              className="flex flex-col gap-1.5 rounded-lg border border-destructive/40 px-3 py-2.5"
-            >
-              <p className="text-ui-sm font-medium text-destructive">
-                {intl.formatMessage({ id: `workflows.hub.launch.error.${error.reason}` })}
+              );
+            })}
+            <div className="flex items-start gap-2 rounded-lg bg-surface px-3 py-2.5 text-ui-base text-foreground-subtle">
+              <span className="flex size-5 shrink-0 items-center justify-center">
+                <Info className="size-4" aria-hidden="true" />
+              </span>
+              <p className="min-w-0 leading-5">
+                {intl.formatMessage({ id: "workflows.hub.launch.note" }, { project: noteProject })}
               </p>
-              {error.message ? (
-                <pre className="min-w-0 overflow-x-auto whitespace-pre-wrap break-words font-mono text-ui-sm text-foreground-subtle">
-                  {error.message}
-                </pre>
-              ) : null}
             </div>
-          ) : null}
+            {error ? (
+              <div
+                data-testid={TID_WORKFLOW_LAUNCH_ERROR}
+                className="flex flex-col gap-1.5 rounded-lg border border-destructive/40 px-3 py-2.5"
+              >
+                <p className="text-ui-sm font-medium text-destructive">
+                  {intl.formatMessage({ id: `workflows.hub.launch.error.${error.reason}` })}
+                </p>
+                {error.message ? (
+                  <pre className="min-w-0 overflow-x-auto whitespace-pre-wrap break-words font-mono text-ui-sm text-foreground-subtle">
+                    {error.message}
+                  </pre>
+                ) : null}
+              </div>
+            ) : null}
+          </DialogBody>
           <DialogFooter>
             <Button
               type="button"

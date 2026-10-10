@@ -158,8 +158,12 @@ export async function releaseBindingRuntime(
   intent: ReleaseRequest["intent"],
   phase: ReleaseRequest["phase"],
   candidate?: { checkoutPath: string; environmentRef?: RuntimeEnvironmentBindingReference },
+  legacyDiscardSessionIds?: string[],
 ) {
   const environmentRef = candidate ? candidate.environmentRef : binding.environmentRef;
+  // 子目录 Agent 和本机终端也会占用 checkout；不能因没有环境引用跳过执行 owner 的停止。
+  if (phase === "stop" && !candidate && intent !== "candidate-cancel")
+    await context.stopWorktreeExecution?.(binding);
   // managed 策略不等于一定分配过环境：准备在环境阶段之前（如 checkout 后）被取消时，
   // 环境从未创建，绑定就不会有 environmentRef。此时没有任何可释放的资源，删除/归档必须继续。
   // 原先按「无引用即异常」处理会让绑定永久卡在 deleting，与 discard 自身的端口判断
@@ -175,6 +179,7 @@ export async function releaseBindingRuntime(
     environmentRef,
     intent,
     phase,
+    ...(intent === "discard" && phase === "stop" && !candidate ? { legacyDiscardSessionIds } : {}),
   });
   if (result.status !== "completed")
     throw new Error(`Environment releaseBlocked: ${result.reason ?? phase}`);

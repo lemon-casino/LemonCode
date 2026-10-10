@@ -18,6 +18,8 @@ import {
   readRuntimeEnvironmentProtocolCapability,
   isRuntimeEnvironmentRequest,
 } from "./runtimeEnvironmentRequests.js";
+import { createWorktreeEnvironmentRelease } from "../runtime-environment/app/worktreeRelease.js";
+import type { RuntimeConsumerProcessOwner } from "../runtime-environment/contract.js";
 
 async function fixture(t: TestContext) {
   const dir = await mkdtemp(join(tmpdir(), "lcode-env-client-"));
@@ -77,13 +79,14 @@ async function fixture(t: TestContext) {
       return ["parent", "child"].includes(params.taskId ?? "") ? binding : null;
     },
   } as unknown as IWorktreeService;
-  const create = (clientId: string) =>
+  const create = (clientId: string, processOwner?: RuntimeConsumerProcessOwner) =>
     createRuntimeEnvironmentClient({
       service,
       consumers,
       worktrees,
       workspace: { workspacePath: dir },
       clientId,
+      processOwner,
     });
   const request = {
     sessionId: "child",
@@ -142,6 +145,60 @@ test("attached binding authorizes context and exact app cleanup keeps parent and
       .map((ref) => ref.id),
     ["parent", "child"],
   );
+});
+
+test("actual runtime owner receipt precedes context and post-exit release failure survives Host restart", async (t) => {
+  const f = await fixture(t);
+  const owner = {
+    runtimeInstanceId: "managed-client-a",
+    runtimeGeneration: 3,
+    workspacePath: f.dir,
+    startedAt: Date.now(),
+    pid: 1234,
+  };
+  const client = f.create("runtime-agent-managed-client-a", owner);
+  await client.handle(methods.runtimeEnvironmentResolveContext, f.request);
+  const receipts = await f.store.listConsumerOwnerReceipts(f.ref.environmentId);
+  assert.equal(receipts.length, 1);
+  assert.deepEqual(receipts[0]!.processOwner, owner);
+  assert.equal(receipts[0]!.exitConfirmedAt, undefined);
+  t.mock.method(f.consumers, "release", async () => {
+    throw new Error("fixture consumer persistence failed");
+  });
+  await assert.rejects(client.disposeAfterProcessExit(), /persistence failed/);
+  assert.ok((await f.store.listConsumerOwnerReceipts(f.ref.environmentId))[0]!.exitConfirmedAt);
+  t.mock.restoreAll();
+  const release = createWorktreeEnvironmentRelease({
+    store: f.store,
+    stamp: () => new Date().toISOString(),
+    stopAll: async () => ({ status: "stopped" }),
+    clearRebuildable: async () => {},
+    discardResources: async () => {},
+  });
+  const params = {
+    workspacePath: f.checkout,
+    environmentId: f.ref.environmentId,
+    expectedRevision: f.ref.revision,
+    expectedManifestDigest: f.ref.manifestDigest,
+    requestId: "discard-original",
+    bindingId: f.binding.id,
+    intent: "discard" as const,
+  };
+  await release({ ...params, phase: "fence" });
+  assert.equal((await release({ ...params, phase: "stop" })).status, "completed");
+  assert.equal(
+    (await f.store.listConsumers(f.ref.environmentId)).filter(
+      (ref) => ref.kind === "process" && ref.state === "active",
+    ).length,
+    0,
+  );
+  assert.equal(
+    (await f.store.listConsumers(f.ref.environmentId)).filter(
+      (ref) => ref.kind === "session" && ref.state === "active",
+    ).length,
+    1,
+  );
+  await client.disposeAfterProcessExit();
 });
 
 test("foreign task, binding, revision, remote attachment and injected owner are rejected", async (t) => {

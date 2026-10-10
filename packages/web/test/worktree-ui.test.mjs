@@ -3,6 +3,7 @@ import { runBranchDeletionCases } from "./draft-attachment-and-branch-cases.mjs"
 import { runBranchPickerCases } from "./branch-picker-cases.mjs";
 import assert from "node:assert/strict";
 import { runWorktreeDeletionCases } from "./worktree-deletion-cases.mjs";
+import { runWorktreeDiscardPendingCase } from "./worktree-discard-pending-cases.mjs";
 import { spawn } from "node:child_process";
 import { createServer } from "node:net";
 import { once } from "node:events";
@@ -152,6 +153,7 @@ test("工作树选择、策略、生命周期与实际文件目录交互", { tim
   }
 
   await runWorktreeDeletionCases({ t, page, load, configure, calls, openProjectWorktrees });
+  await runWorktreeDiscardPendingCase({ t, page, load, configure, calls, openProjectWorktrees });
   if (process.env.LCODE_WORKTREE_TEST_CASES === "deletion") {
     assert.deepEqual(errors, []);
     return;

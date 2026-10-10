@@ -1,6 +1,11 @@
 import type { WorktreeGitPort } from "../nodeTypes.js";
 import type {
-  WorktreeBinding, WorktreeIntegration, WorktreeSnapshot, WorktreeRuntimePorts, WorktreeCommandRunner,
+  CheckoutLease,
+  WorktreeBinding,
+  WorktreeIntegration,
+  WorktreeSnapshot,
+  WorktreeRuntimePorts,
+  WorktreeCommandRunner,
 } from "../contract.js";
 
 export interface WorktreeStore {
@@ -14,6 +19,9 @@ export interface WorktreeStore {
   isPreparationCancelled(id: string): Promise<boolean>;
   cancelPreparation(id: string): Promise<void>;
   listBindings(): Promise<WorktreeBinding[]>;
+  findExecutionBinding(
+    scope: import("../contract.js").WorktreeScope,
+  ): Promise<WorktreeBinding | null>;
   readOperation(id: string): Promise<WorktreeIntegration | null>;
   saveOperation(operation: WorktreeIntegration): Promise<void>;
   assertManagedPath(path: string): Promise<void>;
@@ -52,8 +60,13 @@ export interface WorktreeGit extends WorktreeGitPort {
   matchesSnapshot(binding: WorktreeBinding, checkIgnored?: boolean): Promise<boolean>;
 }
 export interface WorktreeContext extends WorktreeRuntimePorts {
+  discardRetryWait?: import("../nodeTypes.js").WorktreeDiscardRetryWait;
   collectDiscardSessions?: (binding: WorktreeBinding) => Promise<string[]>;
-  discardSessions?: (binding: WorktreeBinding, sessionIds: string[]) => Promise<void>;
+  discardSessions?: (
+    binding: WorktreeBinding,
+    sessionIds: string[],
+    writer: CheckoutLease,
+  ) => Promise<void>;
   commitSource?: (
     request: import("@lcode/shared").GitCommitRequest,
   ) => Promise<import("@lcode/shared").GitCommitResult>;

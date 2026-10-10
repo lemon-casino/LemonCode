@@ -308,9 +308,9 @@ interface ConversationTimelineProps {
   headerSlot?: ReactNode;
   /** 会话创建详情只插在已加载到起点的第一条真实用户输入之后。 */
   initialUserInputSlot?: ReactNode;
-  /** 草稿态让 emptyState 与同一个 bottomDock 作为整体居中，不重挂 composer。 */
+  /** 草稿态让欢迎区居中、同一个 bottomDock 贴底，不重挂 composer；保留既有属性名。 */
   centerEmptyStateWithDock?: boolean;
-  /** 窄屏/粗指针视口保留紧凑居中布局，不复用桌面草稿安全间距。 */
+  /** 窄屏/粗指针视口使用紧凑水平留白。 */
   compactEmptyStateWithDock?: boolean;
   /** 右侧状态面板对消息列的布局模式；auto 由 conversation container query 裁决。 */
   summaryPanelLayout?: "none" | "auto" | "inline";
@@ -456,7 +456,6 @@ function ConversationTimelineImpl({
   const turnNavigatorQueryRowIdsRef = useRef(turnNavigatorQueryRowIds);
   turnNavigatorQueryRowIdsRef.current = turnNavigatorQueryRowIds;
   const centeredEmptyLayout = centerEmptyStateWithDock && renderUnits.length === 0;
-  const responsiveCenteredEmptyLayout = centeredEmptyLayout && !compactEmptyStateWithDock;
   // 高频值经 ref 供稳定回调读取（不进依赖数组）。
   const rowsRef = useRef(rows);
   rowsRef.current = rows;
@@ -1055,9 +1054,9 @@ function ConversationTimelineImpl({
     const element = scrollRef.current;
     if (!element) return;
     markProgrammaticScroll();
-    // 草稿安全居中允许内容在低高度下向下溢出；若沿用真实会话吸底，
-    // 顶部安全留白会被滚走。草稿始终展示顶部，真实会话继续吸底。
-    element.scrollTop = responsiveCenteredEmptyLayout ? 0 : element.scrollHeight;
+    // 草稿欢迎区独立承接短视口滚动，外层不能沿用真实会话吸底而跳过上区。
+    // 桌面与窄屏草稿都从顶部初始化，真实会话继续使用既有吸底语义。
+    element.scrollTop = centeredEmptyLayout ? 0 : element.scrollHeight;
     // 回读取钳制后的落点入账（浏览器会把赋值钳到最大可滚动距离）。
     lastObservedScrollTopRef.current = element.scrollTop;
     syncTurnNavigatorViewport(element);
@@ -1066,7 +1065,7 @@ function ConversationTimelineImpl({
     notifyScrollObserversAfterCommit(element);
   }, [
     cacheCurrentScrollMemoryState,
-    responsiveCenteredEmptyLayout,
+    centeredEmptyLayout,
     markProgrammaticScroll,
     notifyScrollObserversAfterCommit,
     syncTurnNavigatorViewport,
@@ -1775,16 +1774,12 @@ function ConversationTimelineImpl({
       >
         <div
           className={cn(
-            // 固定高度断点会在窗口跨过临界值时让问候语与 composer 整组跳动。
-            // 顶部留白按视口高度伸缩，输入框的位置不再受下方推荐列表高度影响；
-            // 空间不足时顶部可收缩到底线，底部继续随内容自然排布。
-            responsiveCenteredEmptyLayout
-              ? // 动态修改原生窗口下限会把内容换行反馈到窗口拖动，产生阻尼；
-                // 容器保留固有最小高度，由外层 timeline 统一承接受限高度下的溢出内容。
-                "flex min-h-full flex-col items-center px-4 before:block before:min-h-[52px] before:w-full before:shrink before:basis-[29dvh] before:content-[''] after:block after:min-h-4 after:w-full after:flex-1 after:content-['']"
-              : centeredEmptyLayout
-                ? "flex min-h-full flex-col items-center justify-center gap-4 px-4"
-                : "flex min-h-full flex-col",
+            // 固定 29dvh 顶部基准叠加大 Logo 后，欢迎区被挤到输入框旁。
+            // 上区安全居中并独立滚动，下区让同一 composer 贴底，避免短窗口相互覆盖。
+            centeredEmptyLayout
+              ? "grid h-full min-h-0 grid-rows-[minmax(0,1fr)_auto] justify-items-center"
+              : "flex min-h-full flex-col",
+            centeredEmptyLayout && (compactEmptyStateWithDock ? "px-3" : "px-4"),
           )}
           // session 切到 draft 时内容高度骤降，Chrome 会把子树里的
           // sticky composer 选作原生 scroll anchor，并在切回后覆盖 layout/RAF 恢复值。
@@ -1793,9 +1788,10 @@ function ConversationTimelineImpl({
         >
           {renderUnits.length === 0 && !headerSlot ? (
             <div
+              data-v4-welcome-region={centeredEmptyLayout ? "true" : undefined}
               className={cn(
                 centeredEmptyLayout
-                  ? "flex w-full max-w-2xl shrink-0 items-center justify-center"
+                  ? "flex min-h-0 w-full max-w-2xl justify-center self-stretch overflow-y-auto overscroll-contain py-4 [align-items:safe_center]"
                   : "min-h-0 flex-1",
                 !centeredEmptyLayout && summaryPanelInlineOffsetClassName,
               )}
@@ -1928,11 +1924,9 @@ function ConversationTimelineImpl({
                 // sticky dock 是 z-20 的全宽透明层，过去会盖住 z-10 rail
                 // 在 composer 左侧留白内的按钮。外壳不接事件，只让实际内容列恢复命中。
                 "pointer-events-none z-20 flex w-full justify-center",
-                responsiveCenteredEmptyLayout
-                  ? "mt-3 shrink-0"
-                  : centeredEmptyLayout
-                    ? "shrink-0"
-                    : "sticky bottom-0",
+                centeredEmptyLayout
+                  ? "sticky bottom-0 self-end pb-[calc(1rem+env(safe-area-inset-bottom))]"
+                  : "sticky bottom-0",
               )}
             >
               <div

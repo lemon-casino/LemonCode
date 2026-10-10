@@ -1,5 +1,6 @@
 import { watch, type FSWatcher } from "node:fs";
 import { resolve } from "node:path";
+import { isOwnedCheckoutScope } from "../process/ownedCheckoutScope.js";
 import { Emitter, Event, type Event as RpcEvent } from "@lcode/rpc";
 import type { FileWatchEvent } from "@lcode/shared";
 import { createServiceLogger, type ServiceLogger } from "#src/logger/serviceLogger.js";
@@ -35,9 +36,11 @@ function resolveFileWatchChangedPath(
 
 export function createFileWatcherService(options?: {
   logger?: ServiceLogger;
-}): IFileWatcherService {
+  watch?: typeof watch;
+}): IFileWatcherService & { stopPathAndWait(path: string): Promise<void> } {
   const log = options?.logger ?? createServiceLogger("file-watcher");
   const watchers = new Map<string, WatcherInstance>();
+  const closing = new Map<string, { path: string; promise: Promise<void> }>();
   let nextId = 0;
   // 内存诊断计数器：客户端断连不回收 watcher 时
   // 这里会只增不减。
@@ -45,14 +48,31 @@ export function createFileWatcherService(options?: {
     open: watchers.size,
   }));
 
-  function cleanup(id: string): void {
+  function cleanup(id: string): Promise<void> {
+    const pending = closing.get(id);
+    if (pending) return pending.promise;
     const w = watchers.get(id);
-    if (!w) return;
+    if (!w) return Promise.resolve();
     if (w.debounceTimer) clearTimeout(w.debounceTimer);
     if (w.maxWaitTimer) clearTimeout(w.maxWaitTimer);
-    w.watcher.close();
+    // close() 发起异步关闭；Windows 删除目录前必须等待实际句柄关闭，其他平台沿用相同边界。
+    const closed = Promise.withResolvers<void>();
+    const onClose = () => closed.resolve();
+    w.watcher.once("close", onClose);
+    try {
+      w.watcher.close();
+    } catch (error) {
+      // 仅移除本次 owner 注册的等待者，保留其他观察方的原生监听。
+      w.watcher.off("close", onClose);
+      return Promise.reject(error);
+    }
     w.changeEmitter.dispose();
     watchers.delete(id);
+    const promise = closed.promise.finally(() => {
+      closing.delete(id);
+    });
+    closing.set(id, { path: w.path, promise });
+    return promise;
   }
 
   return {
@@ -64,43 +84,47 @@ export function createFileWatcherService(options?: {
       let fsWatcher: FSWatcher;
       try {
         // 默认非递归监视单个目录；Git 状态这类工作区级信号会显式打开 recursive。
-        fsWatcher = watch(params.path, { recursive }, (_eventType, fileName) => {
-          const instance = watchers.get(id);
-          if (!instance) return;
+        fsWatcher = (options?.watch ?? watch)(
+          params.path,
+          { recursive },
+          (_eventType, fileName) => {
+            const instance = watchers.get(id);
+            if (!instance) return;
 
-          const changedPath = resolveFileWatchChangedPath(instance.path, fileName);
-          if (changedPath && !instance.hasUnknownChangedPath) {
-            instance.pendingChangedPaths.add(changedPath);
-            // 协议只需要“唯一明确路径”；批量上万个文件不应在合并窗口保存全部路径。
-            if (instance.pendingChangedPaths.size > 1) {
+            const changedPath = resolveFileWatchChangedPath(instance.path, fileName);
+            if (changedPath && !instance.hasUnknownChangedPath) {
+              instance.pendingChangedPaths.add(changedPath);
+              // 协议只需要“唯一明确路径”；批量上万个文件不应在合并窗口保存全部路径。
+              if (instance.pendingChangedPaths.size > 1) {
+                instance.hasUnknownChangedPath = true;
+                instance.pendingChangedPaths.clear();
+              }
+            } else if (!changedPath) {
               instance.hasUnknownChangedPath = true;
               instance.pendingChangedPaths.clear();
             }
-          } else if (!changedPath) {
-            instance.hasUnknownChangedPath = true;
-            instance.pendingChangedPaths.clear();
-          }
 
-          const flush = () => {
+            const flush = () => {
+              if (instance.debounceTimer) clearTimeout(instance.debounceTimer);
+              if (instance.maxWaitTimer) clearTimeout(instance.maxWaitTimer);
+              instance.debounceTimer = instance.maxWaitTimer = null;
+              const onlyChangedPath =
+                !instance.hasUnknownChangedPath && instance.pendingChangedPaths.size === 1
+                  ? instance.pendingChangedPaths.values().next().value
+                  : undefined;
+              instance.pendingChangedPaths.clear();
+              instance.hasUnknownChangedPath = false;
+              instance.changeEmitter.fire({
+                dirPath: instance.path,
+                ...(onlyChangedPath ? { changedPath: onlyChangedPath } : {}),
+              });
+            };
+            // 连续写入曾不断重置尾沿 timer，Git/文件树永远收不到事件；最大等待保证批次中也广播。
             if (instance.debounceTimer) clearTimeout(instance.debounceTimer);
-            if (instance.maxWaitTimer) clearTimeout(instance.maxWaitTimer);
-            instance.debounceTimer = instance.maxWaitTimer = null;
-            const onlyChangedPath =
-              !instance.hasUnknownChangedPath && instance.pendingChangedPaths.size === 1
-                ? instance.pendingChangedPaths.values().next().value
-                : undefined;
-            instance.pendingChangedPaths.clear();
-            instance.hasUnknownChangedPath = false;
-            instance.changeEmitter.fire({
-              dirPath: instance.path,
-              ...(onlyChangedPath ? { changedPath: onlyChangedPath } : {}),
-            });
-          };
-          // 连续写入曾不断重置尾沿 timer，Git/文件树永远收不到事件；最大等待保证批次中也广播。
-          if (instance.debounceTimer) clearTimeout(instance.debounceTimer);
-          instance.debounceTimer = setTimeout(flush, DEBOUNCE_MS);
-          instance.maxWaitTimer ??= setTimeout(flush, MAX_WAIT_MS);
-        });
+            instance.debounceTimer = setTimeout(flush, DEBOUNCE_MS);
+            instance.maxWaitTimer ??= setTimeout(flush, MAX_WAIT_MS);
+          },
+        );
       } catch (error) {
         changeEmitter.dispose();
         const message = error instanceof Error ? error.message : String(error);
@@ -117,7 +141,7 @@ export function createFileWatcherService(options?: {
             error: error instanceof Error ? error.message : String(error),
           });
           instance.changeEmitter.fire({ dirPath: instance.path });
-          cleanup(id);
+          void cleanup(id).catch(() => {});
         }
       });
 
@@ -135,15 +159,31 @@ export function createFileWatcherService(options?: {
     },
 
     async unwatch(params: { id: string }): Promise<void> {
-      cleanup(params.id);
+      await cleanup(params.id);
     },
 
     disposeAll(): void {
       memoryDiagnostics.dispose();
       const ids = Array.from(watchers.keys());
       for (const id of ids) {
-        cleanup(id);
+        void cleanup(id).catch(() => {});
       }
+    },
+
+    async stopPathAndWait(path): Promise<void> {
+      const targets = [
+        ...[...watchers].map(([id, instance]) => ({ id, path: instance.path })),
+        ...[...closing].map(([id, instance]) => ({ id, path: instance.path })),
+      ];
+      const results = await Promise.allSettled(
+        targets.map(async (target) => {
+          if (!(await isOwnedCheckoutScope({ checkoutPath: path }, { workspacePath: target.path })))
+            return;
+          await cleanup(target.id);
+        }),
+      );
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed?.status === "rejected") throw failed.reason;
     },
 
     onDynamicChange(id: string): RpcEvent<FileWatchEvent> {
@@ -157,5 +197,15 @@ export function createFileWatcherService(options?: {
       }
       return watcher.changeEmitter.event;
     },
+  };
+}
+
+/** Host 生命周期方法不能通过任意字符串 RPC 调用。 */
+export function createPublicFileWatcherService(owner: IFileWatcherService): IFileWatcherService {
+  return {
+    watch: owner.watch.bind(owner),
+    unwatch: owner.unwatch.bind(owner),
+    disposeAll: owner.disposeAll.bind(owner),
+    onDynamicChange: owner.onDynamicChange.bind(owner),
   };
 }

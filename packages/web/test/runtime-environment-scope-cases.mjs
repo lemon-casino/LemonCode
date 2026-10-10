@@ -9,6 +9,89 @@ export async function runRuntimeEnvironmentScopeCases({
   invoke,
   state,
 }) {
+  for (const width of [1280, 390]) {
+    for (const english of [false, true]) {
+      await t.test(
+        `snapshot errors retain known capabilities and refresh recovery at ${width}px ${english ? "English" : "中文"}`,
+        async () => {
+          await page.setViewportSize({ width, height: 900 });
+          await load(
+            `?snapshot-error${english ? "&english" : ""}${width === 390 ? "&remote" : ""}`,
+          );
+          await page
+            .getByText("Invalid runtime environment public contract", { exact: true })
+            .waitFor();
+          assert.equal(await page.getByTestId("runtime-environment-capability").count(), 0);
+          assert.equal(await page.getByTestId("runtime-environment-status").count(), 0);
+          assert.equal(await page.getByTestId("runtime-environment-upgrade").isDisabled(), false);
+          assert.equal(
+            (await calls()).some(({ method }) =>
+              ["prepare", "startService", "send", "createSession"].includes(method),
+            ),
+            false,
+          );
+          await configure({ failSnapshot: false });
+          await page
+            .getByRole("button", {
+              name: english ? "Refresh environment" : "刷新环境",
+              exact: true,
+            })
+            .click();
+          await state(english ? "Environment ready" : "环境已就绪");
+          await page
+            .getByText("Invalid runtime environment public contract", { exact: true })
+            .waitFor({ state: "hidden" });
+          const before = await page.getByTestId("runtime-environment-revision").innerText();
+          await configure({ failSnapshot: true });
+          await page
+            .getByRole("button", {
+              name: english ? "Refresh environment" : "刷新环境",
+              exact: true,
+            })
+            .click();
+          await page
+            .getByText("Invalid runtime environment public contract", { exact: true })
+            .waitFor();
+          assert.equal(await page.getByTestId("runtime-environment-revision").innerText(), before);
+          assert.equal(await page.getByTestId("runtime-environment-capability").count(), 0);
+        },
+      );
+    }
+  }
+  await t.test(
+    "capability errors retain valid snapshots without claiming an unsupported Host",
+    async () => {
+      await load("?capabilities-error");
+      await state("环境已就绪");
+      await page.getByText("fixture-capabilities-unavailable", { exact: true }).waitFor();
+      assert.equal(await page.getByTestId("runtime-environment-capability").count(), 0);
+      assert.equal(await page.getByTestId("runtime-environment-upgrade").isDisabled(), true);
+      await configure({ failCapabilities: false });
+      await page.getByRole("button", { name: "刷新环境", exact: true }).click();
+      await page.getByTestId("runtime-environment-pending").waitFor({ state: "hidden" });
+      assert.equal(await page.getByTestId("runtime-environment-upgrade").isDisabled(), false);
+      await configure({ failCapabilities: true });
+      await page.getByRole("button", { name: "刷新环境", exact: true }).click();
+      await page.getByText("fixture-capabilities-unavailable", { exact: true }).waitFor();
+      assert.equal(await page.getByTestId("runtime-environment-upgrade").isDisabled(), true);
+      assert.equal(await page.getByTestId("runtime-environment-status").count(), 1);
+    },
+  );
+  await t.test(
+    "late capabilities after disconnect cannot restore old attachment authorization",
+    async () => {
+      await load("?remote");
+      await configure({ holdCapabilities: true });
+      await page.getByRole("button", { name: "刷新环境", exact: true }).click();
+      await invoke("setConnected", false);
+      await page.getByText("等待目标远程 Host 连接；不会改用本机服务。").waitFor();
+      await invoke("releaseCapabilities");
+      assert.equal(await page.getByTestId("runtime-environment-upgrade").isDisabled(), true);
+      await invoke("setConnected", true);
+      await page.getByTestId("runtime-environment-pending").waitFor({ state: "hidden" });
+      assert.equal(await page.getByTestId("runtime-environment-upgrade").isDisabled(), false);
+    },
+  );
   for (const remote of [false, true]) {
     for (const width of [1280, 390]) {
       await t.test(

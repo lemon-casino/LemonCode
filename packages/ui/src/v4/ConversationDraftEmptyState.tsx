@@ -2,18 +2,15 @@
  * 草稿态空态问候：时间问候语 + LCode Logo。
  * 自旧版 ChatView/ChatViewEmptyState.tsx 恢复（该组件随旧 ChatView 删除，
  * i18n key `chat.empty.greeting.*` 一直保留）；边界时刻自动换档逻辑保真。
- * 手机远控复用同一组件，但继续保留 20px 紧凑标题；桌面草稿首页才按标题自身宽度适配。
+ * Desktop 与手机 Web 共用全局 UI 字号及自然换行。
  */
-import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import appLogoUrl from "@/assets/app-logo.svg";
 import { cn } from "@/components/lib/utils.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useIsOfficeMode } from "@/hooks/useInterfaceMode.js";
-import { logger } from "@/logger.js";
 
 const GREETING_BOUNDARY_HOURS = [5, 9, 12, 14, 18, 23] as const;
-const GREETING_MIN_FONT_SIZE_PX = 20;
-const GREETING_MAX_FONT_SIZE_PX = 30;
 
 type ChatEmptyGreetingMessageId =
   | "chat.empty.greeting.morningEarly"
@@ -51,39 +48,10 @@ function getNextChatEmptyGreetingDelayMs(date: Date = new Date()) {
   return Math.max(1, nextBoundary.getTime() - date.getTime());
 }
 
-function resolveGreetingFontSizePx({
-  availableWidthPx,
-  naturalTextWidthPx,
-}: {
-  availableWidthPx: number;
-  naturalTextWidthPx: number;
-}) {
-  if (
-    !Number.isFinite(availableWidthPx) ||
-    !Number.isFinite(naturalTextWidthPx) ||
-    availableWidthPx <= 0 ||
-    naturalTextWidthPx <= 0 ||
-    availableWidthPx >= naturalTextWidthPx
-  ) {
-    return GREETING_MAX_FONT_SIZE_PX;
-  }
-
-  return Math.max(
-    GREETING_MIN_FONT_SIZE_PX,
-    Math.min(
-      GREETING_MAX_FONT_SIZE_PX,
-      Math.floor(GREETING_MAX_FONT_SIZE_PX * (availableWidthPx / naturalTextWidthPx)),
-    ),
-  );
-}
-
 export function ConversationDraftEmptyState({ className }: { className?: string }) {
   const { intl } = useLCodeIntl();
   const isOfficeMode = useIsOfficeMode();
   const [greetingDate, setGreetingDate] = useState(() => new Date());
-  const [greetingFontSizePx, setGreetingFontSizePx] = useState(GREETING_MAX_FONT_SIZE_PX);
-  const greetingContainerRef = useRef<HTMLParagraphElement | null>(null);
-  const greetingMeasurementRef = useRef<HTMLSpanElement | null>(null);
   const greeting = intl.formatMessage({
     id: isOfficeMode ? "chat.empty.greeting.office" : getChatEmptyGreetingMessageId(greetingDate),
   });
@@ -93,139 +61,44 @@ export function ConversationDraftEmptyState({ className }: { className?: string 
       setGreetingDate(new Date());
     }, getNextChatEmptyGreetingDelayMs(greetingDate));
 
-    return () => {
-      window.clearTimeout(timeout);
-    };
+    return () => window.clearTimeout(timeout);
   }, [greetingDate]);
 
-  useLayoutEffect(() => {
-    const container = greetingContainerRef.current;
-    const measurement = greetingMeasurementRef.current;
-    if (!container || !measurement) {
-      return;
-    }
-
-    let frameId: number | null = null;
-    const measure = () => {
-      frameId = null;
-      const containerStyle = window.getComputedStyle(container);
-      const horizontalPaddingPx =
-        Number.parseFloat(containerStyle.paddingLeft) +
-        Number.parseFloat(containerStyle.paddingRight);
-      const availableWidthPx = Math.max(
-        0,
-        container.getBoundingClientRect().width - horizontalPaddingPx,
-      );
-      const naturalTextWidthPx = measurement.getBoundingClientRect().width;
-      const nextFontSizePx = resolveGreetingFontSizePx({
-        availableWidthPx,
-        naturalTextWidthPx,
-      });
-
-      setGreetingFontSizePx((currentFontSizePx) => {
-        if (currentFontSizePx === nextFontSizePx) {
-          return currentFontSizePx;
-        }
-        logger.debug("[v4-draft-greeting] 标题自身可用宽度变化，更新字号", {
-          availableWidthPx: Math.round(availableWidthPx),
-          naturalTextWidthPx: Math.round(naturalTextWidthPx),
-          previousFontSizePx: currentFontSizePx,
-          nextFontSizePx,
-        });
-        return nextFontSizePx;
-      });
-    };
-    const scheduleMeasure = () => {
-      if (frameId !== null) {
-        return;
-      }
-      frameId = window.requestAnimationFrame(measure);
-    };
-
-    measure();
-
-    if (typeof ResizeObserver === "undefined") {
-      window.addEventListener("resize", scheduleMeasure);
-      return () => {
-        if (frameId !== null) {
-          window.cancelAnimationFrame(frameId);
-        }
-        window.removeEventListener("resize", scheduleMeasure);
-      };
-    }
-
-    // 标题字号曾直接绑定整个视口宽度，最小窗口里文字两侧仍有大量空间却被
-    // 强制缩到 20px。分别观察标题容器和 30px 原始文案，只在两者真实相撞时缩小。
-    const observer = new ResizeObserver(scheduleMeasure);
-    observer.observe(container);
-    observer.observe(measurement);
-    return () => {
-      if (frameId !== null) {
-        window.cancelAnimationFrame(frameId);
-      }
-      observer.disconnect();
-    };
-  }, [greeting]);
-
+  // 大渐隐水印仍需占位；原绝对定位不占高度，会让标题落入 composer 的遮罩区域。
+  // 方形图像的透明尾部曾留下很大视觉空隙；只裁切装饰图形，标题仍独立自然换行。
   return (
     <div
       className={cn(
-        "relative mb-10 flex w-full max-w-2xl flex-col items-center justify-center gap-6 text-foreground sm:mb-8",
+        "flex w-full max-w-2xl shrink-0 flex-col items-center gap-2 text-foreground",
         className,
       )}
     >
       <div
+        data-v4-draft-logo-frame="true"
         aria-hidden="true"
-        className={cn(
-          "pointer-events-none absolute left-1/2 top-1/2 aspect-square w-[min(60vw,20rem)] -mt-10",
-          "-translate-x-1/2 -translate-y-1/2 text-foreground-subtlest",
-        )}
+        className="aspect-[3/2] w-[min(60vw,20rem,32dvh)] max-w-full shrink-0 overflow-hidden"
       >
-        <LCodeEmptyStateLogo className="h-full w-full" />
+        <img
+          aria-hidden="true"
+          data-v4-draft-logo="v12"
+          src={appLogoUrl}
+          alt=""
+          draggable={false}
+          className={cn(
+            "aspect-square h-auto w-full object-contain opacity-[0.24] dark:opacity-[0.32]",
+            "[-webkit-mask-image:linear-gradient(to_bottom,black_0%,transparent_78%,transparent_100%)]",
+            "[-webkit-mask-repeat:no-repeat] [-webkit-mask-size:100%_100%]",
+            "[mask-image:linear-gradient(to_bottom,black_0%,transparent_78%,transparent_100%)]",
+            "[mask-repeat:no-repeat] [mask-size:100%_100%]",
+          )}
+        />
       </div>
       <p
-        ref={greetingContainerRef}
         data-v4-draft-greeting="true"
-        style={
-          {
-            "--v4-draft-greeting-font-size": `${greetingFontSizePx}px`,
-          } as CSSProperties
-        }
-        className={cn(
-          "relative z-10 w-full px-4 text-center font-medium text-foreground",
-          "text-[length:var(--v4-draft-greeting-font-size)]/[1.2]",
-        )}
+        className="w-full px-4 text-center text-ui-greeting leading-relaxed font-medium text-foreground [overflow-wrap:anywhere]"
       >
-        <span
-          ref={greetingMeasurementRef}
-          aria-hidden="true"
-          className="pointer-events-none invisible absolute whitespace-nowrap text-3xl/[1.2]"
-        >
-          {greeting}
-        </span>
-        <span>{greeting}</span>
+        {greeting}
       </p>
     </div>
-  );
-}
-
-function LCodeEmptyStateLogo({ className }: { className?: string }) {
-  // 空态曾为浅/深主题各维护一套旧 Z 图形，应用图标升级不会触达这里。
-  // 统一复用 V12 事实源，只把水印透明度与渐隐留在展示层，避免品牌资产再次分叉。
-  return (
-    <img
-      aria-hidden="true"
-      className={cn(
-        className,
-        "object-contain opacity-[0.12] dark:opacity-[0.16]",
-        "[-webkit-mask-image:linear-gradient(to_bottom,black_0%,transparent_78%,transparent_100%)]",
-        "[-webkit-mask-repeat:no-repeat] [-webkit-mask-size:100%_100%]",
-        "[mask-image:linear-gradient(to_bottom,black_0%,transparent_78%,transparent_100%)]",
-        "[mask-repeat:no-repeat] [mask-size:100%_100%]",
-      )}
-      data-v4-draft-logo="v12"
-      src={appLogoUrl}
-      alt=""
-    />
   );
 }

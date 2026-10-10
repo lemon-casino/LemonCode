@@ -2,6 +2,7 @@ import type { RuntimeEnvironmentBindingReference, WorktreeExecutionBinding } fro
 
 /** 可信 Host 组合根使用；公开 RPC 必须经 createPublicWorktreeService 白名单。 */
 export interface WorktreeHostActions {
+  assertExecutionAdmission(scope: import("./contract.js").WorktreeScope): Promise<void>;
   upgradeRuntimeEnvironment(params: {
     bindingId: string;
     requestId: string;

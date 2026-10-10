@@ -27,6 +27,7 @@ export async function runWorktreeDeletionCases({
         assert.match(await confirmation.innerText(), /删除这个工作树/);
         assert.doesNotMatch(await confirmation.innerText(), /强制删除/);
         assert.match(await confirmation.innerText(), /所有聊天记录也会删除/);
+        assert.match(await confirmation.innerText(), /会话诊断文件及托管环境的私有数据和缓存/);
         assert.doesNotMatch(await confirmation.innerText(), /聊天记录保留/);
         assert.match(await confirmation.innerText(), /\/fixture\/worktrees\/task/);
         await confirmation.getByRole("button", { name: "取消", exact: true }).click();
