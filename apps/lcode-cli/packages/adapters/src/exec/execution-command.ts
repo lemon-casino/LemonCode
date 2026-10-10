@@ -9,6 +9,7 @@ import {
 import { applyExecutionTextEnv } from "./outputEncoding.js";
 import { normalizeCmdNulRedirectionForPosixShell } from "./nul-redirection.js";
 import { windowsExecutableCandidates } from "./windows-executable.js";
+import { powerShellCommandArgs } from "./powershell-command.js";
 import type {
   ExecutionCommand,
   ExecutionEnvOverlay,
@@ -149,6 +150,15 @@ function createShellProviderCommand(
   provider: BashShellProvider,
   command: string,
 ): ResolvedSpawnCommand {
+  if (provider.dialect === "powershell") {
+    return {
+      args: powerShellCommandArgs(command),
+      cwdDialect: provider.dialect,
+      envOverlay: provider.envOverlay,
+      file: provider.file,
+      shell: false,
+    };
+  }
   if (provider.dialect === "cmd") {
     return {
       args: [],
@@ -156,6 +166,16 @@ function createShellProviderCommand(
       envOverlay: provider.envOverlay,
       file: command,
       shell: provider.shell,
+    };
+  }
+
+  if (provider.dialect !== "posix" && provider.dialect !== "git-bash") {
+    return {
+      args: ["-c", command],
+      cwdDialect: provider.dialect,
+      envOverlay: provider.envOverlay,
+      file: provider.file,
+      shell: false,
     };
   }
 
@@ -188,12 +208,19 @@ export function applyResolvedShellCommand(
   resolved: ResolvedSpawnCommand,
   command: string,
 ): ResolvedSpawnCommand {
+  if (resolved.cwdDialect === "powershell") {
+    return { ...resolved, args: powerShellCommandArgs(command) };
+  }
   if (resolved.cwdDialect === "cmd") {
     return {
       ...resolved,
       args: [],
       file: command,
     };
+  }
+
+  if (resolved.cwdDialect !== "posix" && resolved.cwdDialect !== "git-bash") {
+    return { ...resolved, args: ["-c", command] };
   }
 
   // POSIX 系 shell 会话的每条命令都经过此处重建 spawn 参数，是 nul 归一化的唯一漏斗。

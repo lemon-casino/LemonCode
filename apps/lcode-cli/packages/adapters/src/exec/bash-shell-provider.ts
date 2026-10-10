@@ -38,6 +38,26 @@ export function resolveEffectiveBashShellSelection(
     return snapshotResolution;
   }
 
+  const override = options.override;
+  // 原先按兼容白名单丢弃选择，导致 PowerShell/自定义 Shell 被 Git Bash 抢走；只有自动模式才探测。
+  if (override?.source === "user-config") {
+    const path =
+      override.dialect === "cmd"
+        ? resolveWindowsCmdOverridePath(override.path ?? "cmd.exe", options.exists)
+        : override.path && isExecutableCandidate(override.path, options.exists)
+          ? override.path
+          : undefined;
+    if (!path)
+      throw new Error(
+        `Selected Shell is not executable: ${override.path ?? override.display.name}`,
+      );
+    const selection = { ...override, path };
+    return {
+      provider: createShellProviderFromSelection(selection),
+      selection,
+    };
+  }
+
   return options.platform === "win32"
     ? resolveEffectiveWindowsBashShellSelection(options)
     : resolveEffectivePosixBashShellSelection(options);
@@ -112,6 +132,15 @@ function createPosixShellProvider(shellPath: string): BashShellProvider {
   };
 }
 
+function createPowerShellProvider(shellPath: string): BashShellProvider {
+  return {
+    dialect: "powershell",
+    file: shellPath,
+    shell: false,
+    envOverlay: { GIT_EDITOR: "true" },
+  };
+}
+
 function resolveShellSnapshotSelection(
   selection: ExecutionShellSelection | undefined,
 ): EffectiveBashShellResolution | undefined {
@@ -137,49 +166,23 @@ function createShellProviderFromSelection(
   if (selection.dialect === "posix") {
     return createPosixShellProvider(selection.path);
   }
+  if (selection.dialect === "powershell") {
+    return createPowerShellProvider(selection.path);
+  }
+  if (selection.dialect !== "legacy-shell") {
+    return {
+      dialect: selection.dialect,
+      file: selection.path,
+      shell: false,
+      envOverlay: { GIT_EDITOR: "true", SHELL: selection.path },
+    };
+  }
   return undefined;
 }
 
 function resolveEffectiveWindowsBashShellSelection(
   options: EffectiveBashShellResolveOptions,
 ): EffectiveBashShellResolution {
-  const override = options.override;
-  if (override?.source === "user-config") {
-    if (
-      override.dialect === "git-bash" &&
-      override.path &&
-      isExecutableCandidate(override.path, options.exists)
-    ) {
-      return {
-        provider: createGitBashProvider(override.path),
-        selection: shellSelection({
-          dialect: "git-bash",
-          displayName: "Git Bash",
-          id: override.id,
-          label: override.label,
-          path: override.path,
-          source: "user-config",
-        }),
-      };
-    }
-    if (override.dialect === "cmd") {
-      const cmdPath = resolveWindowsCmdOverridePath(override.path ?? "cmd.exe", options.exists);
-      if (cmdPath) {
-        return {
-          provider: createWindowsCmdProvider(cmdPath),
-          selection: shellSelection({
-            dialect: "cmd",
-            displayName: "CMD",
-            id: override.id,
-            label: override.label,
-            path: cmdPath,
-            source: "user-config",
-          }),
-        };
-      }
-    }
-  }
-
   const gitBash = resolveWindowsGitBashShell(options.env, options.exists);
   if (gitBash) {
     return {
@@ -201,26 +204,6 @@ function resolveEffectiveWindowsBashShellSelection(
 function resolveEffectivePosixBashShellSelection(
   options: EffectiveBashShellResolveOptions,
 ): EffectiveBashShellResolution {
-  const override = options.override;
-  if (
-    override?.source === "user-config" &&
-    override.dialect === "posix" &&
-    override.path &&
-    posixShellKind(override.path) &&
-    isExecutableCandidate(override.path, options.exists)
-  ) {
-    return {
-      provider: createPosixShellProvider(override.path),
-      selection: shellSelection({
-        dialect: "posix",
-        displayName: posixShellKind(override.path) ?? "bash",
-        id: override.id,
-        label: override.label,
-        path: override.path,
-        source: "user-config",
-      }),
-    };
-  }
   const bashShell = resolvePosixBashShell(options.env, options.exists);
   if (!bashShell) {
     return legacyShellSelection();

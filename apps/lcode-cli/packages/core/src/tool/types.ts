@@ -391,6 +391,7 @@ export interface ToolRuntimePermissionCapability {
 }
 
 export interface ToolRuntimePermissionCapabilityContext {
+  bashShellSelection?: ExecutionShellSelection;
   runtimeScope?: ToolRuntimeScope;
   workingDirectory?: string;
   workspaceRoot?: string;

@@ -1,6 +1,8 @@
 import { mkdirSync, readFileSync, realpathSync, statSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { powerShellCwdCaptureCommand } from "./powershell-command.js";
+import { fishCwdCaptureCommand, nushellCwdCaptureCommand } from "./alternative-shell-cwd.js";
 import {
   gitBashPathToWindowsPath,
   type ExecutionCommand,
@@ -24,6 +26,8 @@ export function createCwdCapturePlan(
   if (request.captureCwdAfterSuccess !== true || request.command.mode !== "shell") {
     return { command: request.command };
   }
+  // 未知程序只保证原样执行 -c，不能猜测其状态变量或 cwd 语法而破坏用户命令。
+  if (options.dialect === "custom") return { command: request.command };
 
   const cwdCaptureDir = tmpdir();
   mkdirSync(cwdCaptureDir, { recursive: true });
@@ -32,12 +36,24 @@ export function createCwdCapturePlan(
   // 每次 Bash 仍启动新 shell；成功后只把最终 pwd -P 写回主进程，不能持久化 env/alias/function。
   // 默认 shell、hooks、background command 不走这个分支，避免改变其它执行面。
   const wrappedCommand =
-    options.dialect === "cmd"
-      ? createWindowsCmdCwdCaptureCommand(request.command.command, cwdFilePath)
-      : createPosixCwdCaptureCommand(
-          request.command.command,
-          options.dialect === "git-bash" ? windowsPathToGitBashPath(cwdFilePath) : cwdFilePath,
-        );
+    options.dialect === "fish"
+      ? fishCwdCaptureCommand(request.command.command, cwdFilePath)
+      : options.dialect === "nushell"
+        ? nushellCwdCaptureCommand(request.command.command, cwdFilePath)
+        : options.dialect === "powershell"
+          ? powerShellCwdCaptureCommand(request.command.command, cwdFilePath)
+          : options.dialect === "cmd"
+            ? createWindowsCmdCwdCaptureCommand(request.command.command, cwdFilePath)
+            : createPosixCwdCaptureCommand(
+                request.command.command,
+                options.dialect === "git-bash"
+                  ? windowsPathToGitBashPath(cwdFilePath)
+                  : options.dialect === "sh" && options.platform === "win32"
+                    ? cwdFilePath.replaceAll("\\", "/")
+                    : cwdFilePath,
+                options.platform === "win32" &&
+                  (options.dialect === "sh" || options.dialect === "git-bash"),
+              );
 
   return {
     command: {
@@ -48,11 +64,17 @@ export function createCwdCapturePlan(
   };
 }
 
-function createPosixCwdCaptureCommand(command: string, cwdFilePath: string): string {
+function createPosixCwdCaptureCommand(
+  command: string,
+  cwdFilePath: string,
+  windowsPath = false,
+): string {
+  // MSYS 的 /tmp 等挂载路径不能靠盘符替换还原；内置 pwd -W 返回真实 Windows 路径。
+  const pwd = windowsPath ? "pwd -P -W" : "pwd -P";
   return [
     command,
     "__lcode_status=$?",
-    `if [ "$__lcode_status" -eq 0 ]; then pwd -P > ${shellQuote(cwdFilePath)}; fi`,
+    `if [ "$__lcode_status" -eq 0 ]; then ${pwd} > ${shellQuote(cwdFilePath)}; fi`,
     'exit "$__lcode_status"',
   ].join("\n");
 }
@@ -90,7 +112,9 @@ export function readCapturedCwd(
 }
 
 function normalizeCapturedCwdForHost(value: string, dialect: ExecutionShellDialect): string {
-  return dialect === "git-bash" ? gitBashPathToWindowsPath(value) : value;
+  return dialect === "git-bash" || (dialect === "sh" && process.platform === "win32")
+    ? gitBashPathToWindowsPath(value)
+    : value;
 }
 
 function shellQuote(value: string): string {

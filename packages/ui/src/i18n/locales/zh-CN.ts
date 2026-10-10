@@ -1904,7 +1904,7 @@ const zhCN: Record<string, string> = {
   "settings.terminalFontFamilyPlaceholder": "留空自动继承，例如 MesloLGS NF, monospace",
   "settings.integratedTerminalShell": "内置终端 Shell",
   "settings.integratedTerminalShellDescription":
-    "探测已安装的 Shell，也可指定 Shell 文件或安装目录的绝对路径。新终端、新会话和继续任务使用最新选择；运行中的任务结束后切换。不兼容的 Shell 不影响 Bash 工具。",
+    "探测已安装的 Shell，也可指定 Shell 文件或安装目录的绝对路径。内置终端和 Agent 均使用所选 Shell，包括自定义路径；新会话和继续任务立即采用最新选择，运行中的任务在下一任务开始时切换。",
   "settings.integratedTerminalShell.auto": "自动选择",
   "settings.integratedTerminalShell.refresh": "重新探测 Shell",
   "settings.integratedTerminalShell.selectFile": "选择可执行文件",

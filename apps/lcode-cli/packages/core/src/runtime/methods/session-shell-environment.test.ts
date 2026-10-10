@@ -8,6 +8,7 @@ import {
   restoreSessionShellEnvironmentSelectionForResume,
 } from "./session-shell-environment.js";
 import { announceSessionShellEnvironmentNoticeAfterResume } from "./session-shell-environment.js";
+import { readPersistedBashShellSelectionSnapshot } from "./bash-shell-snapshot.js";
 
 function shell(name: string, path = `/shells/${name}`): ExecutionShellSelection {
   return { dialect: "posix", display: { name }, path, source: "user-config" };
@@ -40,7 +41,7 @@ test("idle execution refreshes the shell and announces A -> B -> A including sam
   assert.equal(saved.length, 3);
 });
 
-test("running task keeps A, while a queued next task reads the latest C at execution", async () => {
+test("running task keeps A while a queued task uses the latest custom Shell instead of PowerShell", async () => {
   const running = Promise.withResolvers<void>();
   const release = Promise.withResolvers<void>();
   const observed: string[] = [];
@@ -61,15 +62,33 @@ test("running task keeps A, while a queued next task reads the latest C at execu
   };
   const first = runtime.executeTurn("first task");
   await running.promise;
-  selected = shell("B");
+  selected = { ...shell("PowerShell 7"), dialect: "powershell" };
   assert.equal(await runtime.prepareSessionShellEnvironment(runtime.rootTraceContext), false);
   assert.equal(reads, 1);
   const next = runtime.executeTurn("queued task");
-  selected = shell("C");
+  selected = { ...shell("Custom Shell"), dialect: "custom" };
   release.resolve();
   await Promise.all([first, next]);
-  assert.deepEqual(observed, ["A", "C"]);
+  assert.deepEqual(observed, ["A", "Custom Shell"]);
   assert.equal(reads, 2);
+});
+
+test("all selected Shell dialects survive persistence and a continued execution boundary", async () => {
+  const { runtime } = createMockRuntime({ bashShellSelection: shell("A") });
+  for (const dialect of ["powershell", "fish", "sh", "nushell", "custom"] as const) {
+    const selected = { ...shell(dialect, process.execPath), dialect };
+    const restored = await readPersistedBashShellSelectionSnapshot({
+      sessionId: runtime.sessionId,
+      traceContext: runtime.rootTraceContext,
+      sessionStore: {
+        sessionEntries: async () => [{ data: selected }],
+      } as unknown as SessionStorePort,
+    });
+    assert.deepEqual(restored, { status: "restored", selection: selected });
+    runtime.resolveSessionShellSelection = async () => selected;
+    await runtime.prepareSessionShellEnvironment(runtime.rootTraceContext);
+    assert.deepEqual(runtime.getSessionShellSelection(), selected);
+  }
 });
 
 test("cold resume uses current shell instead of the persisted creation snapshot", async () => {

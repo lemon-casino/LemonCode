@@ -8,11 +8,11 @@
 4. 用户选择由 `settingService` 持久化为唯一事实来源；`systemService` 只负责按请求返回当前 Host 的探测结果，不保存第二份选择状态。
 5. “自动选择”删除用户覆盖。新建内置终端及 Agent 的新任务使用当前设置，包含新会话、继续已有会话、冷恢复及排队后开始的任务。正在执行的任务保持本次执行的 Shell；结束、取消或失败后的下一任务重新读取设置，不沿用会话创建时的 Shell。已启动的交互 PTY 不强行中断或重启，后续创建使用当前设置。
 6. `terminalService` 创建终端时先验证已保存路径；路径失效时自动回退到当前平台可用的默认 Shell，不能导致终端无法打开。
-7. Agent Bash 工具只接收其支持的 `cmd`、`git-bash` 或 `posix` 选择。PowerShell、fish、Nushell 等选择只控制内置终端，Bash 工具继续自动探测兼容 Shell。
+7. Agent Bash 工具接收设置中的全部 Shell 方言：`cmd`、`git-bash`、`posix`、`powershell`、`fish`、`sh`、`nushell`、`custom`。手动选择或自定义路径均使用该可执行文件，不能静默改用 Git Bash。工具名 `Bash` 保持协议兼容，模型上下文声明实际 Shell 并指导使用其语法。只有“自动选择”执行平台默认探测；显式路径失效时 Agent 明确报错。
 8. Windows、macOS、Linux 桌面均提供“选择目录”和“选择可执行文件”，并允许输入 Host 的绝对路径；Web 使用绝对路径输入，不把浏览器上传文件当作 Host 可执行文件。
 9. 文件路径必须指向可执行的普通文件（允许符号链接）；Windows 仅接受可直接启动的 `.exe`/`.com`，macOS/Linux 校验执行权限。不执行文件来探测类型，不接受命令参数、相对路径或目录作为 Shell。
 10. 目录选择在该目录及 `bin`、`usr/bin`、`7` 中探测已知 Shell，使用当前 Host 的路径规则。只发现一个时保存该文件；多个时展示候选让用户明确选择，不能擅自保存第一项；没有可用 Shell 时显示错误并保留原设置。
-11. 已知文件按文件名识别方言，其他用户指定的可执行文件保存为 `custom`，仅用于内置终端，不覆盖 Agent Bash 工具。保存具体可执行文件路径，不保存安装目录。
+11. 已知文件按文件名识别方言，其他用户指定的可执行文件保存为 `custom`。自定义文件同样控制 Agent，以 `<所选程序> -c <命令源码>` 的参数数组执行，不猜测或改用其他程序。无法支持 `-c` 的程序返回其启动/执行错误；不能宣称任意可执行文件都具有 Shell 能力。未知方言不注入 cwd 包装或启动脚本，模型使用绝对路径。保存具体可执行文件路径，不保存安装目录。
 12. 取消选择不修改设置；探测或保存失败显示可理解的错误。一次选择/保存完成前禁用相关控件，刷新有请求版本防护，组件卸载后的结果不写回 UI。
 
 ## 界面结构
@@ -35,7 +35,11 @@
 - `settingService`、`systemService`、`terminalService` 的接口与状态所有者不变。Agent App 的 `resolveBashShellSelection` 通过既有 `session/requestRuntimePreferences` 的 `user-execution` scope 读取当前 Host 设置，不缓存首次结果；Runtime 通过注入的 resolver 在执行边界统一应用。
 - Runtime 的 `prepareSessionShellEnvironment` 只允许空闲用户执行边界刷新；Runtime command owner 在已取得 foreground 所有权后、工具和模型执行前走同一刷新逻辑。普通 prompt、继续任务、队列 promotion、控制轮以及 workflow 的 App 执行边界均覆盖；当前任务内部的引导、工具和自动目标续跑不重新读取 Shell。
 - `bash_shell_selection` entry 保持既有格式和稳定 ID，表示最近一次采用的执行 Shell，仅用于历史恢复/无当前候选时的 fallback，不再覆盖已解析的最新设置。新建子 runtime 继承父任务已采用的 Shell；独立 fork 后的新任务重新读 Host。
-- resolver/协议读取失败阻止本次启动并保留旧 Shell，不把传输错误解释为“自动选择”。旧 Host 的 method-not-found 仍沿用既有兼容路径；显式路径失效仍由 adapter 回退。无需数据库迁移或新增协议消息。
+- resolver/协议读取失败阻止本次启动并保留旧 Shell，不把传输错误解释为“自动选择”。旧 Host 的 method-not-found 仍沿用既有兼容路径；显式路径失效由 adapter 明确报错，不自动换 Shell。无需数据库迁移或新增协议消息。
+- `ExecutionShellDialect` 与执行快照校验接受设置中的全部方言。Host 已有设置协议的值直接进入同一 resolver，不新增设置、缓存或协议消息。
+- PowerShell 命令由 execution adapter 使用参数数组直接启动，以 UTF-16LE `EncodedCommand` 传递源码，使用无交互、无 profile 模式，文本输出采用 UTF-8；不注入 POSIX 启动快照、find/grep 函数或 `nul` 重写。每次调用重建进程，只在命令成功且当前位置属于文件系统时回传 cwd；原生命令非零退出、显式 exit、PowerShell 错误保持失败。后台执行、取消、超时和进程所有权继续使用同一 execution adapter。
+- fish、sh、Nushell 和 custom 直接使用所选程序的 `-c` 模式。sh 使用 POSIX cwd 包装；fish 使用 `$status`；Nushell 使用自身错误传播与 `$env.PWD`。未知 custom 不猜测退出/cwd 语法，保留原始进程退出码。新方言不注入 Bash profile 快照或搜索函数。
+- 权限策略读取 Runtime 本次采用的 Shell；PowerShell、fish、Nushell、custom 不使用 POSIX 解析得到的只读放行或命令前缀授权，沿用既有普通权限决策与完整命令匹配，避免不同语法被错误判为只读。已有完整访问模式及显式用户授权语义不变。
 
 ## 状态与时序
 
@@ -59,6 +63,7 @@ Agent 新建/恢复/继续/排队任务
   -> 验证 foreground owner、branch generation、turn number 与读取 revision，丢弃失效异步结果
   -> Runtime 统一更新 Bash selection、工具视图和模型 Shell 上下文
   -> 覆盖最近采用的 Shell entry（已持久化会话）
+  -> execution adapter 按 selection 方言构建参数、输出及 cwd 回传；PowerShell 直接启动所选 executable
   -> 本次任务执行，Shell 固定至 foreground 结束
   -> 下一任务开始时重新读取（运行中保存的设置在此生效）
 
@@ -95,7 +100,9 @@ desktop-continuous / web-remote-replayable
 - macOS/Linux 不再隐藏 Shell 选择，环境变量 `SHELL` 指向可执行文件时优先展示。
 - PATH 中不存在的候选不会展示；同一路径通过环境变量和固定目录同时命中时只展示一次。
 - 已选择路径失效后，新建终端仍能使用自动回退 Shell 启动。
-- 选择 PowerShell、fish 或 Nushell 时，Agent Bash 工具不接收该不兼容覆盖。
+- 选择 PowerShell 7 后，Agent 实际执行 `$PSVersionTable` 得到 PowerShell 7，所用进程路径为所选路径；即使安装了 Git Bash 也不能改用它。Windows PowerShell 及 macOS/Linux 上显式选择的 pwsh 走同一方言。
+- PowerShell 命令覆盖中文输出、空格/中文/单引号路径、成功后 cwd 回传、原生命令非零退出、显式 exit、cmdlet 错误、throw、后台任务及取消清理；不生成或 source POSIX 脚本。失败不写回 cwd。
+- 新方言的只读/前缀权限规则不复用 POSIX 的解析结论；fish、sh、Nushell 以及 custom 的最终 spawn 文件必须与所选文件一致，显式路径失效必须报错，不改用自动探测。
 - 已有会话使用 A 完成任务后选择 B，继续任务和冷恢复均使用 B；新建会话、独立 fork 也使用 B。选择“自动选择”后已有会话下一任务回到自动探测。
 - A 正在执行时选择 B，当前任务全部 Bash 调用及派生子 runtime 继续使用 A；排队任务真正启动时使用最新选择（若此时已改为 C，则使用 C）。结束、取消或失败后的下一任务均覆盖，内部引导和目标自动续跑不在任务中途切换。
 - 同名 Shell 路径 A→B 也切换并提醒模型；A→B→A 不因历史存在旧提醒而漏掉最后一次提醒。选择未变化时不重复刷新工具和追加提醒。
@@ -103,7 +110,7 @@ desktop-continuous / web-remote-replayable
 - 三个平台均可选择安装目录或可执行文件；含空格、中文的绝对路径保持完整，不按 shell 命令拆分。
 - Windows Git 安装根目录解析 `bin/bash.exe`；macOS/Linux 自定义安装目录解析 `bin/zsh`/`bin/fish`。目录内多个候选必须等待用户选择。
 - 不存在路径、普通文本、无执行权限文件、Windows 批处理、相对路径、目录内没有 Shell：提示失败且不覆盖已保存设置。
-- 自定义名称的可执行文件可保存为 `custom`，共享设置与 Agent 协议校验接受它，Bash 工具继续自动选择。
+- 自定义名称的可执行文件可保存为 `custom`，共享设置与 Agent 协议校验接受它，Agent 实际使用该文件，以原始 `-c` 参数执行，不能静默回退。
 - 右侧控件在桌面与窄屏都只有一行触发器；触发器与同页其他设置控件的高度、圆角、边框和背景一致，窄屏不产生横向溢出。
 - 面板内输入含分隔符的路径后回车，解析的是该路径本身，不会误选同屏的已探测 Shell。
 - E2E：文件选择并保存、取消选择、目录多个候选后明确保存、无效路径反馈、自动选择重置、窄屏布局，以及刷新不丢失已保存自定义项。

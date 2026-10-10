@@ -12,6 +12,7 @@ import {
   type BashCommandRegistryNode,
 } from "./generated/bash-command-registry.js";
 import { isRuntimeReadOnlyBashCommand } from "./bash-semantics.js";
+import { supportsPosixCommandAnalysis } from "./shell-command-analysis.js";
 
 const MAX_SUGGESTED_RULES = 5;
 const ARG_IS_COMMAND = 1;
@@ -99,6 +100,7 @@ function createBashPermissionRulePolicy(
   const exactCommands = command === rawCommand ? [rawCommand] : [command, rawCommand];
   const analysis = analyzeBashCommand(command);
   const safe = isAnalysisSafeForPrefix(analysis);
+  const allowPrefix = supportsPosixCommandAnalysis(context?.bashShellSelection);
   const allSubjectGroups = safe ? analysis.commands.map(buildInvocationRuleSubjects) : [];
   const requiredCommands = safe
     ? analysis.commands.filter(
@@ -106,7 +108,11 @@ function createBashPermissionRulePolicy(
       )
     : [];
   const requiredSubjectGroups = requiredCommands.map(buildInvocationRuleSubjects);
-  const suggestedPermissionUpdates = buildSuggestedUpdates(rawCommand, safe, requiredCommands);
+  const suggestedPermissionUpdates = buildSuggestedUpdates(
+    rawCommand,
+    safe && allowPrefix,
+    requiredCommands,
+  );
 
   return {
     evaluateRules(behavior, rules) {
@@ -116,7 +122,8 @@ function createBashPermissionRulePolicy(
         exactCommands,
         requiredSubjectGroups,
         rules,
-        safe,
+        // 不同方言不能用 POSIX 前缀放行，但已有禁止/询问规则仍可保守匹配，不能随切换失效。
+        safe: safe && (behavior !== "allow" || allowPrefix),
       });
     },
     suggestedPermissionUpdates,

@@ -8,9 +8,11 @@ export function createBashProviderDescription(input: {
     : "`find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk`, or `echo`";
 
   return [
-    "Executes a bash command and returns its output.",
+    "Executes a command in the active Shell shown in the environment context and returns its output. The tool name Bash does not imply bash syntax.",
     "",
-    "- Working directory persists between calls, but prefer absolute paths — `cd` in a compound command can trigger a permission prompt. Shell state (env vars, functions) does not persist; the shell is initialized from the user's profile.",
+    "- Working directory persists between calls, but prefer absolute paths — `cd` in a compound command can trigger a permission prompt. Shell state (env vars, functions) does not persist. POSIX shells load the user's profile; PowerShell runs without profiles and without interaction.",
+    "- When the active Shell is PowerShell, write PowerShell syntax: use `$env:NAME`, `Set-Location -LiteralPath`, and `& 'executable path'`. Use script files for complex code; bash heredocs, POSIX variable assignments and `/dev/null` do not apply. Use `$null` for discarded output. PowerShell 5.1 does not support `&&` or `||`.",
+    "- fish and Nushell use their own command syntax; do not assume bash syntax. Unknown custom Shell executables receive `-c` and your command verbatim; use absolute paths because cwd persistence and profile initialization are unavailable for unknown dialects.",
     "- On Windows, Node/package-manager shims can reparse arguments through CMD even when this tool uses Git Bash. Avoid complex `node -e` / `tsx -e` code arguments: quotes, `=>`, and `>` can create unintended files. In Git Bash, use a quoted heredoc to feed `node --input-type=module -` via stdin; under CMD, use a script file. Do not use the Browser/Computer Node REPL for general scripting.",
     `- IMPORTANT: Avoid using this tool to run ${avoidCommands} commands, unless explicitly instructed or after you have verified that a dedicated tool cannot accomplish your task. Instead, use the appropriate dedicated tool as this will provide a much better experience for the user.`,
     `- \`timeout\` is in milliseconds: default ${input.defaultTimeoutMs}, max ${input.maxTimeoutMs}.`,

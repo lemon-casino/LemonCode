@@ -58,7 +58,7 @@ export function buildEmbeddedSearchPreludeContent(
 function supportsPosixShellFunctionPrelude(
   shellDialect: EmbeddedSearchPreludeShellDialect | undefined,
 ): boolean {
-  return shellDialect !== "cmd" && shellDialect !== "legacy-shell";
+  return shellDialect === undefined || shellDialect === "posix" || shellDialect === "git-bash";
 }
 
 function normalizeBackendForShell(

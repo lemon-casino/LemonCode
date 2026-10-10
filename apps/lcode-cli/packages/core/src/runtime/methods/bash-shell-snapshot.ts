@@ -206,7 +206,20 @@ function isWindowsCmdFallbackSelection(selection: ExecutionShellSelection): bool
 }
 
 function isExecutionShellDialect(value: unknown): value is ExecutionShellSelection["dialect"] {
-  return value === "cmd" || value === "posix" || value === "git-bash" || value === "legacy-shell";
+  return (
+    typeof value === "string" &&
+    [
+      "cmd",
+      "posix",
+      "git-bash",
+      "powershell",
+      "fish",
+      "sh",
+      "nushell",
+      "custom",
+      "legacy-shell",
+    ].includes(value)
+  );
 }
 
 function isExecutionShellSource(value: unknown): value is ExecutionShellSelection["source"] {

@@ -6,6 +6,7 @@ import {
   isTaskListSessionType,
 } from "../lcode-protocol-v4/task-list-session-membership.js";
 import { resolveEffectiveBashShellSelection } from "@lcode/adapters/exec";
+import { integratedTerminalShellToExecutionSelection } from "./integrated-terminal-shell.js";
 import { inputIntentMetadata } from "../lcode-protocol-v4/commands/input-intent.js";
 import { createModelExecutionContext } from "./model-execution.js";
 import type { SendInputOptions } from "../app/types.js";
@@ -3240,29 +3241,6 @@ function sendProtocolSessionEvent(
     params: mappedEvent,
   });
   logProtocolSessionEventSent(context, event, mappedEvent);
-}
-
-function integratedTerminalShellToExecutionSelection(
-  selection: IntegratedTerminalShellSelection | undefined,
-): ExecutionShellSelection | undefined {
-  // 终端允许 PowerShell/fish 等交互 Shell，但 Bash 工具只接受其支持的语法方言。
-  if (
-    !selection ||
-    selection.mode === "auto" ||
-    !["cmd", "git-bash", "posix"].includes(selection.dialect)
-  ) {
-    return undefined;
-  }
-  return {
-    display: {
-      name: selection.label,
-    },
-    dialect: selection.dialect as ExecutionShellSelection["dialect"],
-    id: selection.id,
-    label: selection.label,
-    path: selection.path,
-    source: "user-config",
-  };
 }
 
 function resolveProtocolBashShellSelection(

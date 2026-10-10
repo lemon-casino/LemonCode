@@ -21,6 +21,7 @@ import { readStringProperty } from "./bash-metadata.js";
 import { formatBashModelContent, formatPersistedBashModelContent } from "./bash-model-content.js";
 import { createBashProviderDescription } from "./bash-prompt.js";
 import { isRuntimeReadOnlyBashCommand } from "./bash-semantics.js";
+import { supportsPosixCommandAnalysis } from "./shell-command-analysis.js";
 import { executeBashHandler, MAX_INLINE_OUTPUT_BYTES } from "./bash-execution.js";
 
 export {
@@ -56,6 +57,7 @@ function resolveBashPermissionCapability(
     };
   }
   const command = readStringProperty(input, "command");
+  if (!supportsPosixCommandAnalysis(context?.bashShellSelection)) return undefined;
   if (!command || !isRuntimeReadOnlyBashCommand(command, context)) return undefined;
   return {
     destructive: false,

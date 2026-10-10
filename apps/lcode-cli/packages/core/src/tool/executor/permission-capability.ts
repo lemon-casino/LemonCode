@@ -52,6 +52,7 @@ export function resolveRuntimePermissionContext(
   deps: ToolExecutorDeps,
 ): ToolRuntimePermissionCapabilityContext {
   return {
+    bashShellSelection: deps.getBashShellSelection?.() ?? deps.bashShellSelection,
     runtimeScope: deps.runtimeScope,
     workingDirectory: deps.getWorkingDirectory(),
     workspaceRoot: deps.getWorkspaceRoot(),

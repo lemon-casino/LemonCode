@@ -16,5 +16,7 @@ for (const embeddedSearchEnabled of [false, true]) {
     assert.match(description, /CMD.*script file/);
     assert.match(description, /keep_alive_after_task/);
     assert.match(description, /Commit or push only when the user asks/);
+    assert.match(description, /active Shell/);
+    assert.match(description, /PowerShell.*\$env:NAME/);
   });
 }
