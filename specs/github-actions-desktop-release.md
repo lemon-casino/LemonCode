@@ -71,6 +71,21 @@ sequenceDiagram
   只实际生成 worker 和 NOTICE，Agent 编译命令顺序与失败传播用注入执行器验证，
   六目标 staging 使用夹具验证；未构建应用/Agent 安装包，也未触发 tag 或远程 Actions。
 
+### 发布目标仓库（2026-10-11）
+
+- Release 默认发布在构建所在的仓库：未配置发布目标时沿用原行为（`github.token` 与
+  `--verify-tag`），不依赖任何额外配置。
+- 同时配置仓库变量 `vars.RELEASE_TARGET_REPO`（格式 `owner/repo`）与仓库密钥
+  `secrets.RELEASE_TOKEN`（对目标仓库具备 `contents: write` 的 PAT）后，release job
+  跨仓库发布：草稿创建、安装包上传与 `--draft=false` 转正都作用于目标仓库，
+  `GH_TOKEN` 使用 `RELEASE_TOKEN`。二者缺一即回退本仓库发布，不存在半跨仓库状态。
+- 目标仓库不存在同名 tag 时，`gh release create` 按目标仓库默认分支 HEAD 创建该
+  tag，因此 Release 页面的 Source code 归档内容 = 目标仓库该提交，与构建仓库源码
+  无关；同名 tag 已存在时直接复用。同一 tag 名重复发布会走 `gh release edit` 分支
+  并以 `--clobber` 覆盖同名资产。
+- 验收：`pnpm test:release` 断言发布步骤读取这两个配置、二者同时存在才切换目标
+  仓库、本仓库路径保留 `--verify-tag`、publish 步骤按条件带 `-R`。
+
 1. 桌面发行版本只有根目录 `package.json` 的 `version` 一个所有者。首次发布为
    `3.14.3`；CLI 子项目的独立版本不随桌面版本改写。正式 tag 使用 `v<version>`。
 2. 仅推送 `v*` tag 时构建六种本机目标：macOS/Windows/Linux 的 x64 与 arm64。

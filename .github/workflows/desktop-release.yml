@@ -242,7 +242,9 @@ jobs:
       - name: Upload installers to release draft
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN || '' }}
+          RELEASE_TARGET_REPO: ${{ vars.RELEASE_TARGET_REPO || '' }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           git log -1 --format=%B HEAD > release-notes.md
@@ -251,19 +253,32 @@ jobs:
           ---
           Unsigned desktop packages for macOS, Windows, and Linux (x64 and arm64). Sign them locally if your environment requires it.
           EOF
-          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release create "$GITHUB_REF_NAME" --verify-tag --draft \
+          # 目标仓库与 TOKEN 同时配置才跨仓库发布；缺一则保留本仓库语义（--verify-tag + github.token）。
+          repo_flags=()
+          create_flags=(--verify-tag)
+          if [ -n "$RELEASE_TARGET_REPO" ] && [ -n "$RELEASE_TOKEN" ]; then
+            repo_flags=(-R "$RELEASE_TARGET_REPO")
+            create_flags=()
+          fi
+          if ! gh release view "${repo_flags[@]}" "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "${repo_flags[@]}" "${create_flags[@]}" "$GITHUB_REF_NAME" --draft \
               --title "LCode $VERSION" \
               --notes-file release-notes.md
           else
-            gh release edit "$GITHUB_REF_NAME" \
+            gh release edit "${repo_flags[@]}" "$GITHUB_REF_NAME" \
               --title "LCode $VERSION" \
               --notes-file release-notes.md
           fi
-          gh release upload "$GITHUB_REF_NAME" release-assets/* --clobber
+          gh release upload "${repo_flags[@]}" "$GITHUB_REF_NAME" release-assets/* --clobber
       - name: Publish release
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ secrets.RELEASE_TOKEN || github.token }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN || '' }}
+          RELEASE_TARGET_REPO: ${{ vars.RELEASE_TARGET_REPO || '' }}
         run: |
-          gh release edit "$GITHUB_REF_NAME" --draft=false
+          repo_flags=()
+          if [ -n "$RELEASE_TARGET_REPO" ] && [ -n "$RELEASE_TOKEN" ]; then
+            repo_flags=(-R "$RELEASE_TARGET_REPO")
+          fi
+          gh release edit "${repo_flags[@]}" "$GITHUB_REF_NAME" --draft=false

@@ -273,6 +273,22 @@ test("Actions builds every supported platform and publishes only completed tag b
       uploadRelease.indexOf("Unsigned desktop packages"),
     "commit message must be written before the unsigned-package notice",
   );
+  // 发布目标仓库：目标仓库与 TOKEN 同时配置才跨仓库发布，缺一则保留本仓库语义。
+  const uploadStep = releaseSteps.find(
+    (step) => step.name === "Upload installers to release draft",
+  );
+  const uploadEnv = `${uploadStep.env.GH_TOKEN} ${uploadStep.env.RELEASE_TOKEN} ${uploadStep.env.RELEASE_TARGET_REPO}`;
+  assert.match(uploadEnv, /secrets\.RELEASE_TOKEN \|\| github\.token/u);
+  assert.match(uploadEnv, /vars\.RELEASE_TARGET_REPO \|\| ''/u);
+  assert.match(
+    uploadRelease,
+    /\[ -n "\$RELEASE_TARGET_REPO" \] && \[ -n "\$RELEASE_TOKEN" \]/u,
+    "cross-repo publishing must require both the target repo and its token",
+  );
+  assert.match(uploadRelease, /--verify-tag/u, "same-repo publishing keeps --verify-tag");
+  const publishRelease = releaseSteps.find((step) => step.name === "Publish release").run;
+  assert.match(publishRelease, /-R "\$RELEASE_TARGET_REPO"/u);
+  assert.match(publishRelease, /gh release edit[\s\S]*--draft=false/u);
 });
 
 test("unsigned desktop updates share one verified artifact contract", async () => {
