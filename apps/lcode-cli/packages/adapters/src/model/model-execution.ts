@@ -31,6 +31,7 @@ import { createNetworkProxyFetch } from "../network/proxy-fetch.js";
 import { createOfficialCodingPlanGatewayFetch } from "./official-coding-plan-gateway.js";
 import { normalizeModelTlsFailure } from "./failure-tls.js";
 import { mergeModelRequestHeaders } from "./model-request-headers.js";
+import { observeModelSpeed, type ModelSpeedObservation } from "./model-speed-observation.js";
 
 export type AiSdkProviderKind = "openai" | "anthropic" | "openai-compatible";
 
@@ -74,6 +75,7 @@ export interface AiSdkResolvedModel {
   providerKind: AiSdkProviderKind;
   providerOptions?: Record<string, unknown>;
   rawRequestBodyCapture?: RawRequestBodyCapture;
+  speedObservation?: ModelSpeedObservation;
 }
 
 export interface AiSdkBoundModelResolution {
@@ -84,7 +86,7 @@ export interface AiSdkBoundModelResolution {
   }): AiSdkResolvedModel;
 }
 
-type LanguageModelFactory = (modelId: string) => LanguageModel;
+type LanguageModelFactory = (modelId: string) => Parameters<typeof observeModelSpeed>[0];
 type ProviderFetch = typeof globalThis.fetch;
 type ProviderCode = string | number;
 
@@ -258,15 +260,18 @@ export class AiSdkModelExecution {
       rawRequestBodyCapture,
       snapshot.supportsJsonSchemaOutput,
     );
+    const model = factory(snapshot.modelId.toString());
+    const speedObservation = optionValues?.speed ? { requested: optionValues.speed } : undefined;
     return {
       baseURL: providerConfig.baseURL,
       headers: providerConfig.headers,
       providerId: snapshot.providerId,
       modelId: snapshot.modelId,
-      model: factory(snapshot.modelId.toString()),
+      model: speedObservation ? observeModelSpeed(model, speedObservation) : model,
       providerKind: providerConfig.kind,
       providerOptions: providerConfig.providerOptions,
       rawRequestBodyCapture,
+      speedObservation,
     };
   }
 

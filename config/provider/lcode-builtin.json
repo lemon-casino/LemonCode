@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "revision": 32,
+  "revision": 33,
   "config": {
     "providerConfigRules": {
       "templateRules": [
@@ -2517,7 +2517,7 @@
                 "map": "{'max_tokens': maxOutputTokens}"
               },
               "speed": {
-                "map": "speed == 'fast' ? {'speed': 'fast'} : {}"
+                "map": "{'speed': speed == 'fast' ? 'fast' : null}"
               }
             }
           }
@@ -2534,7 +2534,7 @@
                 "map": "{'max_completion_tokens': maxOutputTokens}"
               },
               "speed": {
-                "map": "speed == 'fast' ? {'service_tier': 'priority'} : {}"
+                "map": "{'service_tier': speed == 'fast' ? 'priority' : null}"
               }
             }
           }
@@ -2551,7 +2551,7 @@
                 "map": "{'max_output_tokens': maxOutputTokens}"
               },
               "speed": {
-                "map": "speed == 'fast' ? {'service_tier': 'priority'} : {}"
+                "map": "{'service_tier': speed == 'fast' ? 'priority' : null}"
               }
             }
           }
@@ -3308,6 +3308,63 @@
         }
       ],
       "providerSiteRules": [
+        {
+          "modelMatch": "ft:.*",
+          "apiTypeMatch": "openai-(?:chat-completions|responses)",
+          "baseUrlMatch": "https://api\\.openai\\.com/v1/?",
+          "config": { "optionSpecs": { "speed": { "values": ["standard"] } } }
+        },
+        {
+          "modelMatch": ".*",
+          "apiTypeMatch": "openai-(?:chat-completions|responses)",
+          "baseUrlMatch": "https://api\\.openai\\.com/v1/?",
+          "config": {
+            "optionSpecs": {
+              "speed": { "map": "{'service_tier': speed == 'fast' ? 'priority' : 'default'}" }
+            }
+          }
+        },
+        {
+          "modelMatch": ".*",
+          "apiTypeMatch": "openai-chat-completions",
+          "baseUrlMatch": "https://api\\.groq\\.com/openai/v1/?",
+          "config": {
+            "optionSpecs": {
+              "speed": {
+                "values": ["standard"],
+                "map": "{'service_tier': speed == 'fast' ? 'performance' : 'on_demand'}"
+              }
+            }
+          }
+        },
+        {
+          "modelMatch": "(?:openai/gpt-oss-(?:120b|20b)|llama-3\\.3-70b-versatile)",
+          "apiTypeMatch": "openai-chat-completions",
+          "baseUrlMatch": "https://api\\.groq\\.com/openai/v1/?",
+          "config": { "optionSpecs": { "speed": { "values": ["standard", "fast"] } } }
+        },
+        {
+          "modelMatch": ".*",
+          "apiTypeMatch": "anthropic-messages",
+          "baseUrlMatch": "https://api\\.anthropic\\.com(?:/v1)?/?",
+          "config": { "optionSpecs": { "speed": { "values": ["standard"] } } }
+        },
+        {
+          "modelMatch": "claude-opus-(?:4-8|5|5-5)(?:-[0-9]{8})?",
+          "apiTypeMatch": "anthropic-messages",
+          "baseUrlMatch": "https://api\\.anthropic\\.com(?:/v1)?/?",
+          "config": { "optionSpecs": { "speed": { "values": ["standard", "fast"] } } }
+        },
+        {
+          "modelMatch": ".*",
+          "baseUrlMatch": "https://(?:api\\.z\\.ai|open\\.bigmodel\\.cn|api\\.moonshot\\.(?:cn|ai)|api\\.minimax\\.io|api\\.minimaxi\\.com|api\\.deepseek\\.com|dashscope(?:-intl|-us)?\\.aliyuncs\\.com|api\\.xiaomimimo\\.com)(?:/.*)?",
+          "config": { "optionSpecs": { "speed": { "values": ["standard"] } } }
+        },
+        {
+          "modelMatch": ".*",
+          "baseUrlMatch": "https://zcode\\.z\\.ai/api/v1/(?:zcode-plan|off-peak|ultra|ultra-zai)/anthropic/?",
+          "config": { "optionSpecs": { "speed": { "values": ["standard"] } } }
+        },
         {
           "modelMatch": "glm-5\\.3-flash",
           "apiTypeMatch": "openai-chat-completions",

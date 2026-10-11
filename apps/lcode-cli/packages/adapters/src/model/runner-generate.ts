@@ -54,6 +54,7 @@ import {
 import { modelFailureStatusFields, providerRequestIdFromHeaders } from "./runner-telemetry.js";
 
 import { statusPublishOptions } from "./runner-attempt-status.js";
+import { logModelSpeedObservation } from "./runner-speed-observation.js";
 import { handleGenerateFailure } from "./runner-generate-failure.js";
 import { serializeStructuredOutput, waitForGenerateTextOrAbort } from "./runner-generate-result.js";
 import type { GenerateAttemptState } from "./runner-generate-state.js";
@@ -367,6 +368,12 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
         startedAt: attemptState.startedAt,
         toolCallCount: toolCalls?.length ?? 0,
         usage,
+      });
+      logModelSpeedObservation({
+        logger: input.logger,
+        resolved: attemptState.resolved,
+        statusContext: attemptState.statusContext,
+        attempt,
       });
       await publishModelStatus(
         {

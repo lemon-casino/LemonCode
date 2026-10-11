@@ -17,6 +17,7 @@ import {
   SessionWorktreePreparation,
 } from "@/worktree/WorktreeConversationPreparation.js";
 import { createComposerSubmissionConfig } from "@/v4/composer/composerSubmissionConfig.js";
+import { updateDraftModelSelectionOption } from "@/v4/composer/draftModelSelection.js";
 import type { V4ComposerDraft } from "@/v4/composer/composerDraftStore.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
@@ -41,7 +42,7 @@ const workspacePath = "/fixture/origin";
 const modelSelection = {
   providerId: "custom",
   modelId: "demo",
-  options: { reasoningLevel: "high", speed: "fast" },
+  options: { reasoningLevel: "high", speed: query.has("standardOnly") ? "standard" : "fast" },
 };
 const view = {
   revision: 1,
@@ -57,7 +58,10 @@ const view = {
             optionSpecs: {
               reasoningLevel: { values: ["low", "high"], map: "{}" },
               maxOutputTokens: { max: 4096, map: "{}" },
-              speed: { values: ["standard", "fast"], map: "{}" },
+              speed: {
+                values: query.has("standardOnly") ? ["standard"] : ["standard", "fast"],
+                map: "{}",
+              },
             },
           },
         },
@@ -315,7 +319,12 @@ function App() {
       onStop={() => {}}
       onSelectModel={() => {}}
       onSelectThought={() => {}}
-      onSelectSpeed={() => {}}
+      onSelectSpeed={(speed, modelContext) => {
+        setDraft((current) => ({
+          ...current,
+          modelSelection: updateDraftModelSelectionOption(current, modelContext, "speed", speed),
+        }));
+      }}
       onSwitchMode={() => {}}
     />
   );

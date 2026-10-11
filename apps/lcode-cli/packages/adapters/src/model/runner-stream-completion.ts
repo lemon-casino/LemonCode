@@ -22,6 +22,7 @@ import { publishModelStatus } from "./runner-status.js";
 import { providerRequestIdFromHeaders } from "./runner-telemetry.js";
 
 import { statusPublishOptions } from "./runner-attempt-status.js";
+import { logModelSpeedObservation } from "./runner-speed-observation.js";
 import type { ModelRunnerRetryState } from "./runner-request-state.js";
 import { applyStreamEventsToRetryBoundary } from "./runner-stream-boundary.js";
 import { compactStreamFailureContext } from "./runner-stream-failure-policy.js";
@@ -247,6 +248,12 @@ export async function* completeStreamAttempt(
   });
   if (!state.emittedError) {
     const completedAt = Date.now();
+    logModelSpeedObservation({
+      logger: input.logger,
+      resolved: state.resolved,
+      statusContext: state.statusContext,
+      attempt: state.attempt,
+    });
     const responseHeaders = await resolveStreamResponseHeaders(state.result!);
     await publishModelStatus(
       {

@@ -18,12 +18,12 @@ const rules = parseLCodeBuiltinModelConfigRules(source.config.modelConfigRules);
 
 type ApiType = "anthropic-messages" | "openai-chat-completions" | "openai-responses";
 
-function modelConfig(apiType: ApiType, modelId: string) {
+function modelConfig(apiType: ApiType, modelId: string, baseUrl = "https://example.test/v1") {
   const config = rules.resolve({
     providerId: "user-custom-provider",
     modelId,
     apiType,
-    baseUrl: "https://example.test/v1",
+    baseUrl,
   });
   const issues = config.validateComplete();
   assert.deepEqual(issues, []);
@@ -140,7 +140,7 @@ for (const [apiType, expectedField, expectedValue] of [
       speed: { map: specs.speed!.map! },
     });
     const body = maps.apply(
-      {},
+      { [expectedField]: expectedValue },
       {
         reasoningLevel: "high",
         maxOutputTokens: 2048,
@@ -168,3 +168,120 @@ for (const [apiType, expectedField, expectedValue] of [
     }
   });
 }
+
+test("official speed capabilities override protocol defaults without changing relay capabilities", () => {
+  // Bug 原因：协议兼容曾被当成快速档能力，导致不支持的官方模型也默认发 fast。
+  for (const baseUrl of [
+    "https://api.z.ai/api/anthropic",
+    "https://open.bigmodel.cn/api/paas/v4",
+    "https://api.moonshot.cn/anthropic",
+    "https://api.minimaxi.com/anthropic",
+    "https://api.deepseek.com/anthropic",
+    "https://dashscope.aliyuncs.com/apps/anthropic",
+    "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+    "https://api.xiaomimimo.com/anthropic",
+  ]) {
+    for (const apiType of ["anthropic-messages", "openai-chat-completions"] as const) {
+      assert.deepEqual(
+        modelConfig(apiType, "custom-model", baseUrl).optionSpecs?.speed?.values,
+        ["standard"],
+        baseUrl,
+      );
+    }
+  }
+  for (const modelId of ["claude-opus-4-8", "claude-opus-5", "claude-opus-5-5-20260901"]) {
+    assert.deepEqual(
+      modelConfig("anthropic-messages", modelId, "https://api.anthropic.com/v1/").optionSpecs?.speed
+        ?.values,
+      ["standard", "fast"],
+    );
+  }
+  for (const modelId of [
+    "claude-opus-4-6",
+    "claude-opus-4-7",
+    "claude-sonnet-4-6",
+    "claude-opus-5-6",
+  ]) {
+    assert.deepEqual(
+      modelConfig("anthropic-messages", modelId, "https://api.anthropic.com/v1").optionSpecs?.speed
+        ?.values,
+      ["standard"],
+    );
+  }
+  assert.deepEqual(
+    modelConfig("anthropic-messages", "claude-opus-4-6").optionSpecs?.speed?.values,
+    ["standard", "fast"],
+  );
+  assert.deepEqual(
+    modelConfig("openai-responses", "gpt-6.1-sol", "https://api.openai.com.relay.test/v1")
+      .optionSpecs?.speed?.values,
+    ["standard", "fast"],
+  );
+});
+
+test("official service tiers use each vendor's wire values", async () => {
+  const { compileModelOptionMaps } = await import("@lcode/model-option-map");
+  for (const [apiType, modelId, baseUrl, fast, standard] of [
+    ["openai-responses", "gpt-6.1-sol", "https://api.openai.com/v1", "priority", "default"],
+    ["openai-chat-completions", "gpt-6.1-sol", "https://api.openai.com/v1/", "priority", "default"],
+    ["openai-responses", "grok-4.7", "https://api.x.ai/v1", "priority", undefined],
+    [
+      "openai-chat-completions",
+      "gemini-3.8-flash",
+      "https://generativelanguage.googleapis.com/v1beta/openai",
+      "priority",
+      undefined,
+    ],
+    [
+      "openai-chat-completions",
+      "openai/gpt-oss-120b",
+      "https://api.groq.com/openai/v1",
+      "performance",
+      "on_demand",
+    ],
+  ] as const) {
+    const specs = modelConfig(apiType, modelId, baseUrl).optionSpecs!;
+    const maps = compileModelOptionMaps({
+      reasoningLevel: { map: specs.reasoningLevel!.map! },
+      maxOutputTokens: { map: specs.maxOutputTokens!.map! },
+      speed: { map: specs.speed!.map! },
+    });
+    for (const [speed, expected] of [
+      ["fast", fast],
+      ["standard", standard],
+    ] as const) {
+      assert.equal(
+        maps.apply(
+          {},
+          {
+            reasoningLevel: specs.reasoningLevel!.values![0]!,
+            maxOutputTokens: 1024,
+            speed,
+          },
+        ).service_tier,
+        expected,
+        baseUrl,
+      );
+    }
+  }
+});
+
+test("Groq limits performance to supported models and OpenAI excludes fine-tuning", () => {
+  for (const modelId of ["openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.3-70b-versatile"]) {
+    assert.deepEqual(
+      modelConfig("openai-chat-completions", modelId, "https://api.groq.com/openai/v1").optionSpecs
+        ?.speed?.values,
+      ["standard", "fast"],
+    );
+  }
+  assert.deepEqual(
+    modelConfig("openai-chat-completions", "llama-3.1-8b-instant", "https://api.groq.com/openai/v1")
+      .optionSpecs?.speed?.values,
+    ["standard"],
+  );
+  assert.deepEqual(
+    modelConfig("openai-responses", "ft:gpt-4.1:example:custom:id", "https://api.openai.com/v1")
+      .optionSpecs?.speed?.values,
+    ["standard"],
+  );
+});

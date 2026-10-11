@@ -160,6 +160,7 @@ nul
 !/packages/web/test/platform-clipboard.test.mjs
 !/packages/web/test/fixtures/git-publish-fixture-service.ts
 !/packages/web/test/session-output-speed.test.mjs
+!/packages/web/test/model-speed.test.mjs
 !/packages/web/test/fixtures/session-output-speed.html
 !/packages/web/test/fixtures/session-output-speed.tsx
 !/packages/web/test/workflow-execution-progress.test.mjs
