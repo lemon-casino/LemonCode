@@ -45,7 +45,7 @@ sequenceDiagram
 1. 默认关闭；首次引导加载服务完成记录后才显示。弹框仅介绍备份，不填写配置。“开启自动备份”先持久化已看过引导，再关闭弹框并打开当前工作区的「设置 / 数据与统计 / Git 自动备份」；不启用调度、不注册工作区、不保存凭据。跳过只持久化完成记录，不打开设置。完成记录写入失败时保留弹框并显示错误；晚到完成不为已切换的工作区打开设置。实际配置、目的地选择与启用都在设置页完成。
 2. 设置读入已保存配置。OSS 与间隔修改使用明确保存动作；未保存表单不会被状态刷新覆盖。启用开关保存成功后才更新，不允许缺少有效配置或工作区时开启。
 3. 间隔必须为 5 到 1440 的整数分钟。校验 AccessKey、bucket、region 和对象前缀，支持 `cn-hangzhou` 与 `oss-cn-hangzhou`，不接受自定义 URL、路径穿越或非法 bucket。
-4. 自动备份只处理已加入列表。保存当前工作区或开启会幂等加入；可以移除目标。关闭不会丢失配置、密钥或已加入列表；不会新增上传，已开始的运行允许完成，页面准确说明。
+4. 自动备份只处理用户在设置页勾选的工作区。保存目的地配置、开启目的地或总开关均不得隐式加入当前工作区；工作区选择独立保存。关闭不会丢失配置、密钥或已加入列表；不会新增上传，已开始的运行允许完成，页面准确说明。
 5. “测试连接”使用用户表单配置执行真实的非写入 OSS 请求，不上传测试对象。空 secret 仅复用同一 AccessKey ID 的已保存 secret。不伪造成功；修改表单清除旧结果；测试过程禁用重复点击，完整显示失败详情。
 6. 手动备份使用已保存配置和当前工作区，允许自动调度关闭时运行。不自动保存未确认的草稿。无工作区、断连、配置无效或已运行时禁用；完成显示结果，失败显示原因。
 7. 状态显示运行中、上次成功时间、文件数、大小、下一次调度及错误。没有成功记录时不能显示成功。刷新不覆盖编辑草稿；晚到结果不污染新 Host / 新工作区。
@@ -56,6 +56,39 @@ sequenceDiagram
 11. 保留 v1 格式不等于增加恢复或认证能力。AES-CTR 不提供认证防篡改，明文清单中的 SHA-256 不能作为可信认证证明；归档不记录文件权限，恢复时无法可靠还原 hook 等文件的执行权限。当前没有内置恢复命令，格式解析与解密单测不构成产品级恢复验收。
 
 ## 迁移
+
+### 工作区显式多选（2026-10-11）
+
+- 设置页在共享配置区域列出当前备份 Host 可用的已打开工作区、当前设置目标和该 Host 已保存的备份工作区，按 `workspaceIdentity?.trim() || workspacePath` 去重。未选项默认不加入；已保存但没有打开的工作区仍可取消勾选。其他 Host 的工作区需切换到该工作区设置管理，不将远端目录写入本机列表。
+- 本地候选排除所有带 remoteTarget、remoteSessionId 或 workspaceIdentity 的标签。远端候选必须与当前已解析 attachment 相同，或注册表证明使用同一备份服务实例；不通过路径推断 Host。未连通时不允许写入，不回退本机。候选目录只是 UI 投影，已接受的名单仍由 GitBackupService/profile 唯一持有。
+- 勾选复用 `configure({}, target)` 幂等加入；取消复用 `removeWorkspace(target)`。不新增名单整体替换 API，避免不同窗口覆盖彼此的选择。提交中锁定相关控件；成功后先投影已接受的名单，再读回 Host。失败保留原勾选；成功后读回失败仍保留已接受结果并显示错误。切换目标/Host 后忽略旧请求结果。
+- 总开关要求至少一个已勾选工作区及有效的已选目的地。当前设置目标不必被勾选。移除最后一个工作区由 Host 同时关闭总开关；重新勾选不会自动重新启用。手动备份仍只操作当前工作区，不改变自动名单。
+- 保留已有持久化名单，无新增数据迁移；旧客户端显式传入 configure 的 workspace 参数仍有效。调度器保持每个目标开始前重读名单，取消的未开始目标跳过，已经开始的备份允许完成。Desktop continuous 与手机 Web replayable 通过同一 RPC/profile 读取名单，重连读回权威配置，不新增事件队列。
+
+```mermaid
+sequenceDiagram
+  participant UI as 设置页勾选框
+  participant Hook as useGitBackup
+  participant Host as GitBackupService
+  participant Profile as Profile 原子文档
+  participant Scheduler as Host 调度器
+  UI->>Hook: 选择或取消 identity/path
+  Hook->>Host: configure({}, target) / removeWorkspace(target)
+  Host->>Profile: 持锁幂等增删名单
+  Host-->>Hook: 写入成功
+  Hook-->>UI: 投影已接受勾选，再读回配置
+  Scheduler->>Profile: 每个目标开始前读取最新名单
+  Profile-->>Scheduler: 仅已选择工作区可开始
+```
+
+验收：
+
+1. 三个工作区只勾选两个，重开设置/刷新仍只有这两个被勾选，第三个不进入自动名单。
+2. 未勾选当前工作区时保存 OSS/MinIO、切换目的地开关及总开关不改变名单；没有已选工作区时总开关不可开启。
+3. 取消最后一项关闭总开关；重新选择不自动开启；取消后重新保存配置不恢复已取消项。
+4. 勾选失败保留原值；提交成功读回失败保留新值；提交中不能重复写入；旧 Host 完成不能污染新 Host。
+5. 同路径不同 identity 独立显示与选择，本地/远程/断连候选隔离；已保存的关闭标签工作区仍显示。
+6. 桌面和 375px 手机布局、中英文、明暗主题、键盘及可访问勾选标签可用。
 
 旧浏览器 `git-backup-config` 从未形成真实服务配置，不能因迁移自动开启或产生上传。首次读取仅转为待确认草稿；显式保存成功后清除旧凭据。旧 onboarding 标记可迁移为服务完成记录，失败不删除旧记录。Host 保存成功后，浏览器禁止删除旧数据不能将已提交结果误报失败；保留旧数据供以后清理。引导读取失败重试成功时重新读取完成记录，不初始化配置表单；设置页保存失败时保留已填写草稿。已接受的位置变更或清除立即投影历史失效，即使随后读回失败也不显示旧地址成功；同位置密钥轮换及无关槽保存保留历史。旧 Host 缺少 channel 时页面显示不可用，不显示假成功。RPC 中新增方法无需改变 Agent stdio 协议。
 
@@ -155,3 +188,15 @@ sequenceDiagram
 - 最终 `pnpm --filter @lcode/web build` 通过（12.51 秒），保留既有 Node patch 版本、大 chunk、无效动态导入和插件耗时警告。13 个相关文件的 scoped 格式检查与 scoped `git diff --check` 通过；功能图 69 节点 / 101 关系和备份源码引用验证通过。
 - 相对本轮开工时读取的内容，7 个 UI 实现与测试文件从 1053 行变为 1196 行，净 +143 行（含 3 个抽取组件，不含文案和文档）；不将之前遗留的未提交改动归为本轮新增。
 - 本轮未改后端，因此未重复执行前一轮服务 / Web 底层单测；未访问真实 OSS / MinIO、真实手机 attachment 或原生桌面保存对话框，未提交、推送或打包安装程序。
+
+## 工作区显式多选验证（2026-10-11）
+
+- Node 使用 `mise.toml` 指定的 24.21.0。先更新本 spec，再实现独立工作区勾选框；复用 `configure({}, target)` / `removeWorkspace(target)`，保留已有名单及 Host 调度器。保存目的地和切换目的地/总开关不再隐式加入当前工作区。
+- UI、身份隔离、草稿、引导与组件测试 52 项通过：从 `packages/ui` 执行 `pnpm exec tsx --test src/hooks/gitBackupWorkspaceSelection.test.ts src/hooks/useGitBackup.test.ts src/hooks/useGitBackupOnboarding.test.ts src/hooks/gitBackupLegacyConfig.test.ts src/settings/GitBackupSection.test.tsx`。
+- 服务与配置存储测试最终 29 项通过：`pnpm exec node --import tsx --test --test-timeout=30000 packages/services/src/git-backup/gitBackupService.test.ts packages/services/src/git-backup/gitBackupStore.test.ts`。新增实际调度测试验证未选择目录不上传、下一个目标在 admission 前取消即跳过。
+- 首轮服务测试发现既有两个高频调度测试在临时目录清理时偶发 `ENOTEMPTY`，中途一次复跑通过但再次出现。已将这两个测试和新增场景改为预置到期配置，由启动周期执行，并等待真实执行锁释放后清理；停止场景移除固定 40ms 等待。最终整组通过，无生产调度逻辑改动。
+- `node --test packages/web/test/git-backup-workspaces.test.mjs` 浏览器交互回归通过：三个工作区仅选两个、保存及开关不加入未选项、重载保持、失败保留、提交锁定、取消最后一项关闭调度、成功后读回失败保持新选择、断连期间晚到写入不污染当前 UI、重连读回、键盘 Space 勾选。使用模拟服务，无真实 OSS / MinIO 上传。
+- 浏览器覆盖 1280px 桌面和 375px 手机、中英文、明暗主题；手机无横向溢出，截图已检查。截图位于 `.lcode/component-quality/git-backup-workspaces/`。夹具使用 Web 实色背景，避免 Electron 透明背景导致深色截图失去对比度。
+- `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 通过；架构基线 0、新增违规 0。相关文件 scoped 格式检查与 `git diff --check` 通过。没有将全仓格式检查、真实手机 attachment、原生桌面运行或云端上传列为已验证。
+- 相关模块为 ui、web、services（仅测试）；唯一名单所有者仍为 Host/profile，UI 候选仅为当前连接标签和已保存名单的投影，提交后刷新与重连读回均复用既有 RPC。保留其他任务已有本地改动。
+- 本轮实现、测试与 README 共净增 540 行（不含本 spec）：11 个开工时干净的已跟踪文件 +292/-113，4 个新增文件 354 行，共享的两个语言文件和 `.gitignore` 仅本轮修改净增 7 行；未计入这些共享文件的其他已有修改。

@@ -27,10 +27,12 @@ export function createWorktreeBindingLookup(
         ? await store.readPreparationRequest(identity, params.requestId)
         : null;
       if (!id) return null;
-      const binding = await store.readBinding(id);
+      let binding = await store.readBinding(id);
+      const alias = binding ? null : await store.readAlias(id);
+      if (alias?.originalKey === identity) binding = await store.readBinding(alias.bindingId);
       if (
         !binding ||
-        binding.requestId !== params.requestId ||
+        (!alias && binding.requestId !== params.requestId) ||
         (binding.originalWorkspaceIdentity?.trim() || resolve(binding.originalWorkspacePath)) !==
           identity
       )
@@ -38,7 +40,10 @@ export function createWorktreeBindingLookup(
       return {
         ...binding,
         preparation: binding.preparation
-          ? { ...binding.preparation, cancelRequested: await store.isPreparationCancelled(id) }
+          ? {
+              ...binding.preparation,
+              cancelRequested: await store.isPreparationCancelled(binding.id),
+            }
           : undefined,
       };
     }

@@ -1,28 +1,29 @@
-import { existsSync } from "node:fs";
 import { access } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { stageAgentBundle } from "../packages/desktop/scripts/stage-agent-bundle.mjs";
 import { runCommand } from "./spawn-command.mjs";
+import { resolveBuiltinProviderBuildEnvironment } from "./builtin-provider-config.mjs";
+import { generateThirdPartyNotices } from "./generate-third-party-notices.mjs";
+import { readReleaseVerifiedNotices } from "./third-party-notices.mjs";
 
-// adapters tsc 在内存受限机器上会 OOM（exit 134），给整条构建链路提高堆上限。
-process.env.NODE_OPTIONS = `${process.env.NODE_OPTIONS ? process.env.NODE_OPTIONS + " " : ""}--max-old-space-size=8192`;
-import {
-  stageBuiltinProviderConfig,
-  resolveBuiltinProviderBuildEnvironment,
-} from "./builtin-provider-config.mjs";
+const defaultRepoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const useTurboBuild = process.env.LCODE_DESKTOP_AGENT_BUILD_MODE === "turbo";
-const useBootstrapWithRemoteBuild = process.env.LCODE_BOOTSTRAP_WITH_REMOTE === "1";
-const pnpmRunEnv = {
-  ...process.env,
-  LCODE_ENV: await resolveBuiltinProviderBuildEnvironment({ root: repoRoot }),
-  // pnpm 11 的 verify-deps-before-run 会在 apps/lcode-cli 子 workspace
-  // 执行每个 run 前触发 pnpm install；子 workspace 运行时依赖根仓库 @lcode/shared，
-  // 自动 install 无法解析根 workspace 包，导致 dev:desktop:test 和 E2E onPrepare 失败。
-  PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
-};
+export async function prepareDesktopAgentInputs({
+  repoRoot = defaultRepoRoot,
+  env = process.env,
+  run = runCommand,
+  generate = generateThirdPartyNotices,
+  verify = readReleaseVerifiedNotices,
+} = {}) {
+  // 修复：worker-source.ts 是编译输入，手动生成会使本地和 tag 打包静默携带过期 OAuth 适配。
+  await run(process.execPath, [resolve(repoRoot, "scripts/build-auth-plugin-worker.mjs")], {
+    cwd: repoRoot,
+    env,
+  });
+  if (env.LCODE_VERIFY_RELEASE_INPUTS === "1") await verify(repoRoot);
+  else await generate(repoRoot);
+}
 // 桌面 Agent 构建有普通 pnpm 和 bootstrap:with-remote 直跑 tsc 两条路径。
 // 过去两条路径分别维护依赖顺序，新增 workspace 依赖时只更新了 bootstrap 依赖，
 // 干净 CI 中该依赖的 dist 尚不存在，bootstrap 会因无法解析类型入口而失败。
@@ -53,24 +54,35 @@ const requiredDevPluginRuntimeBuilds = [
   {
     // node_repl 宿主：Browser Use 与 Computer Use 共用，产物归属独立包。
     packageName: "@lcode/node-repl-host",
+    packageDir: "node-repl-host",
     artifactPath: "node-repl-host/dist/mcp/server.js",
   },
   {
     // browser-use 自己的 runtime 只剩 browser-client；宿主不再由它携带。
     packageName: "@lcode/browser-use-plugin",
+    packageDir: "browser-use-plugin",
     artifactPath: "browser-use-plugin/scripts/browser-client.mjs",
   },
 ];
-const defaultBuildFilters = [
-  ...cliWorkspaceBuilds.map(({ packageName }) => packageName),
-  ...requiredDevPluginRuntimeBuilds.map(({ packageName }) => packageName),
-];
+const defaultBuildFilters = cliWorkspaceBuilds.map(({ packageName }) => packageName);
 
-async function verifyRequiredDevPluginRuntimeArtifacts() {
+async function buildRequiredPluginRuntimes(repoRoot, env, run) {
+  for (const { packageName, packageDir } of requiredDevPluginRuntimeBuilds) {
+    const cwd = resolve(repoRoot, "apps/lcode-cli/packages", packageDir);
+    if (env.LCODE_BOOTSTRAP_WITH_REMOTE === "1") {
+      await run(process.execPath, ["../../node_modules/typescript/bin/tsc"], { cwd, env });
+      await run(process.execPath, [resolve(cwd, "scripts/build.mjs")], { cwd, env });
+    } else {
+      await run("pnpm", ["--filter", packageName, "build"], { cwd: repoRoot, env });
+    }
+  }
+}
+
+async function verifyRequiredDevPluginRuntimeArtifacts(repoRoot, checkArtifact) {
   for (const runtime of requiredDevPluginRuntimeBuilds) {
     const artifactPath = resolve(repoRoot, "apps/lcode-cli/packages", runtime.artifactPath);
     try {
-      await access(artifactPath);
+      await checkArtifact(artifactPath);
     } catch (error) {
       throw new Error(
         `[build-desktop-agent-cli] ${runtime.packageName} build succeeded without required MCP runtime: ${artifactPath}`,
@@ -80,35 +92,8 @@ async function verifyRequiredDevPluginRuntimeArtifacts() {
   }
 }
 
-/**
- * 把刚构建出的 agent bundle 暂存进 bundled-agents。
- *
- * 必须做：dev 未打包时 agent 二进制由 desktopRuntimeEnv.ts 的
- * resolveBundledLCodeAgentBinaryPath() 解析，候选**只有** bundled-agents/，没有
- * cli/dist/。只靠打包链暂存会让 dev 一直跑上一次打包留下的那份 —— 实测陈旧
- * 3 天，任何 agent CLI 侧改动在 dev 里静默不生效，把「改动没进去」伪装成「代码没作用」。
- * 实现与打包链共用 stage-agent-bundle.mjs，两边不可能再各自漂移。
- *
- * dev 只跑宿主平台，所以 platformKey 直接取 process；打包链的跨平台 target 由它自己解析。
- */
-async function stageDevAgentBundle() {
-  await stageAgentBundle({
-    repoRoot,
-    platformKey: `${process.platform}-${process.arch}`,
-  });
-}
-
-async function runBootstrapWithRemoteBuild() {
-  if (existsSync(resolve(repoRoot, "apps/lcode-cli/packages/cli/dist/lcode.cjs"))) {
-    await stageBuiltinProviderConfig({
-      root: repoRoot,
-      env: pnpmRunEnv,
-      directory: resolve(repoRoot, "apps/lcode-cli/packages/cli/dist/provider"),
-    });
-    console.log("[build-desktop-agent-cli] reuse existing lcode-cli desktop agent bundle");
-    return;
-  }
-
+async function runBootstrapWithRemoteBuild(repoRoot, pnpmRunEnv, run) {
+  // 修复：文件存在只说明曾构建，不能证明属于当前源码；bootstrap 必须和本地/tag 一样重建。
   for (const { packageDir, prepareScript } of cliWorkspaceBuilds) {
     // bootstrap:with-remote 会在 remote assets 阶段构建 agent bundle。
     // 通过 pnpm 逐包执行 tsc 时会再走 shim/env node 层，低内存本地环境里容易长时间卡住。
@@ -116,68 +101,91 @@ async function runBootstrapWithRemoteBuild() {
     // bare tsc 绕过 package build script，所以带 prepareScript 的包（dynamic-workflow）
     // 必须先手动跑生成脚本补齐 gitignored 的 libs.generated.ts，否则 tsc 因缺文件报错。
     if (prepareScript) {
-      runCommand(process.execPath, [prepareScript], {
-        cwd: `apps/lcode-cli/packages/${packageDir}`,
+      await run(process.execPath, [prepareScript], {
+        cwd: resolve(repoRoot, "apps/lcode-cli/packages", packageDir),
         env: pnpmRunEnv,
         stdio: "inherit",
       });
     }
-    runCommand(process.execPath, ["../../node_modules/typescript/bin/tsc"], {
-      cwd: `apps/lcode-cli/packages/${packageDir}`,
+    await run(process.execPath, ["../../node_modules/typescript/bin/tsc"], {
+      cwd: resolve(repoRoot, "apps/lcode-cli/packages", packageDir),
       env: pnpmRunEnv,
       stdio: "inherit",
     });
   }
 
-  runCommand(process.execPath, ["scripts/build.mjs", "--desktop-agent"], {
-    cwd: "apps/lcode-cli/packages/cli",
+  await run(process.execPath, ["scripts/build.mjs", "--desktop-agent"], {
+    cwd: resolve(repoRoot, "apps/lcode-cli/packages/cli"),
     env: pnpmRunEnv,
     stdio: "inherit",
   });
 }
 
-if (useBootstrapWithRemoteBuild) {
-  await runBootstrapWithRemoteBuild();
-  await stageDevAgentBundle();
-  process.exit(0);
-}
+// dev 的 Agent 查找只消费 bundled-agents，编译后必须同步；生产入口则由目标 staging owner 统一同步。
+export async function buildDesktopAgent({
+  repoRoot = defaultRepoRoot,
+  env = process.env,
+  run = runCommand,
+  prepare = prepareDesktopAgentInputs,
+  stage = stageAgentBundle,
+  checkArtifact = access,
+  stageBundle = true,
+} = {}) {
+  const pnpmRunEnv = {
+    ...env,
+    // adapters tsc 在内存受限机器上会 OOM；只改变构建子进程，不污染导入该脚本的测试进程。
+    NODE_OPTIONS: `${env.NODE_OPTIONS ?? ""} --max-old-space-size=8192`.trim(),
+    LCODE_ENV: await resolveBuiltinProviderBuildEnvironment({ root: repoRoot, env }),
+    PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
+  };
+  await prepare({ repoRoot, env: pnpmRunEnv, run });
+  if (env.LCODE_BOOTSTRAP_WITH_REMOTE === "1") {
+    await runBootstrapWithRemoteBuild(repoRoot, pnpmRunEnv, run);
+  } else if (env.LCODE_DESKTOP_AGENT_BUILD_MODE !== "turbo") {
+    // Linux 容器 demo 里没有仓库级 turbo 根，`turbo --cwd apps/lcode-cli`
+    // 会把 apps/lcode-cli 当根目录，并拒绝 turbo.json 中指向 ../../packages/shared 的 inputs。
+    // 同时 agent 子 workspace 不包含根 packages/shared，但 agent 包依赖 @lcode/shared。
+    // 因此默认改用仓库根 workspace 的明确 pnpm 包顺序构建，避免 WDIO 前置构建卡在子 workspace 解析。
+    for (const filter of defaultBuildFilters) {
+      await run("pnpm", ["--filter", filter, "build"], {
+        cwd: repoRoot,
+        env: pnpmRunEnv,
+        stdio: "inherit",
+      });
+    }
 
-if (!useTurboBuild) {
-  // Linux 容器 demo 里没有仓库级 turbo 根，`turbo --cwd apps/lcode-cli`
-  // 会把 apps/lcode-cli 当根目录，并拒绝 turbo.json 中指向 ../../packages/shared 的 inputs。
-  // 同时 agent 子 workspace 不包含根 packages/shared，但 agent 包依赖 @lcode/shared。
-  // 因此默认改用仓库根 workspace 的明确 pnpm 包顺序构建，避免 WDIO 前置构建卡在子 workspace 解析。
-  for (const filter of defaultBuildFilters) {
-    runCommand("pnpm", ["--filter", filter, "build"], {
+    await run("pnpm", ["--filter", "@lcode/cli", "build:desktop-agent"], {
+      cwd: repoRoot,
       env: pnpmRunEnv,
       stdio: "inherit",
     });
+  } else {
+    await run(
+      "pnpm",
+      [
+        "exec",
+        "turbo",
+        "--skip-infer",
+        "--cwd",
+        "apps/lcode-cli",
+        "run",
+        "build:desktop-agent",
+        "--filter=@lcode/cli",
+      ],
+      {
+        cwd: repoRoot,
+        env: pnpmRunEnv,
+        stdio: "inherit",
+      },
+    );
   }
-
-  await verifyRequiredDevPluginRuntimeArtifacts();
-  runCommand("pnpm", ["--filter", "@lcode/cli", "build:desktop-agent"], {
-    env: pnpmRunEnv,
-    stdio: "inherit",
-  });
-  await stageDevAgentBundle();
-  process.exit(0);
+  // 修复：Turbo/bootstrap 不能绕过插件 runtime；所有分支在同一 owner 编译、验证，再交给 staging。
+  await buildRequiredPluginRuntimes(repoRoot, pnpmRunEnv, run);
+  await verifyRequiredDevPluginRuntimeArtifacts(repoRoot, checkArtifact);
+  await checkArtifact(resolve(repoRoot, "apps/lcode-cli/packages/cli/dist/lcode.cjs"));
+  if (stageBundle) await stage({ repoRoot, platformKey: `${process.platform}-${process.arch}` });
 }
 
-runCommand(
-  "pnpm",
-  [
-    "exec",
-    "turbo",
-    "--skip-infer",
-    "--cwd",
-    "apps/lcode-cli",
-    "run",
-    "build:desktop-agent",
-    "--filter=@lcode/cli",
-  ],
-  {
-    env: pnpmRunEnv,
-    stdio: "inherit",
-  },
-);
-await stageDevAgentBundle();
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  await buildDesktopAgent({ stageBundle: !process.argv.includes("--no-stage") });
+}

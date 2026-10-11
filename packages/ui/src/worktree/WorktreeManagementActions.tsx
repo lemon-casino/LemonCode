@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button.js";
 import { WorktreeArchiveControl } from "./WorktreeArchiveControl.js";
 import { WorktreeSnapshotSummary } from "./WorktreeIntegrationEvidence.js";
 import { WorktreeReadStatus } from "./WorktreeReadStatus.js";
-import { WorktreeReviewDialog } from "./WorktreeReviewDialog.js";
+import { useOpenWorktreeSettings } from "@/hooks/useOpenWorktreeSettings.js";
 import { commitMergeState } from "@/git-action-menu/commitMergeState.js";
 import { useWorktreeLifecycleStore } from "@/store/worktreeLifecycleStore.js";
 import { useReviewWorkspaceState } from "@/hooks/useReviewWorkspaceState.js";
@@ -30,6 +30,7 @@ export function WorktreeManagementActions({
   defaultDeleteOpen = false,
   onSelectSession,
   onWorktreeDeleted,
+  showEnvironment = true,
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
@@ -44,8 +45,10 @@ export function WorktreeManagementActions({
   defaultDeleteOpen?: boolean;
   onSelectSession?: (sessionId: string) => void;
   onWorktreeDeleted?: (binding: WorktreeBinding) => void;
+  showEnvironment?: boolean;
 }) {
   const { intl } = useLCodeIntl();
+  const openSettings = useOpenWorktreeSettings();
   const lifecycleRevision = useWorktreeLifecycleStore(
     (state) => state.revisions[workspaceIdentity?.trim() || workspacePath] ?? 0,
   );
@@ -63,7 +66,7 @@ export function WorktreeManagementActions({
     sessionId,
     `${revision ?? ""}/${lifecycleRevision}/${sharedReview.snapshot.fieldRevisions.integrationId}/${sharedReview.snapshot.fieldRevisions.worktreeView}`,
   );
-  const [open, setOpen] = useState(defaultOpen);
+  const [, setOpen] = useState(defaultOpen);
   const [acknowledged, setAcknowledged] = useState(false);
   const hide = onHideReview ?? (() => setOpen(false));
   const navigation = useReviewDiffNavigation(
@@ -93,7 +96,7 @@ export function WorktreeManagementActions({
       <p className="break-all">{binding.branch}</p>
       <p>{intl.formatMessage({ id: `worktree.binding.${binding.status}` })}</p>
       <WorktreeReadStatus loading={task.pending} error={task.error} />
-      {!deleted ? (
+      {!deleted && showEnvironment ? (
         <RuntimeEnvironmentDetails
           binding={binding}
           workspacePath={workspacePath}
@@ -231,18 +234,12 @@ export function WorktreeManagementActions({
   );
   if (renderContent) return renderContent(content);
   return (
-    <WorktreeReviewDialog
-      management
-      binding={binding}
-      targetBranch={binding.targetBranch}
-      open={open}
-      onOpenChange={setOpen}
-      onManage={() => {
-        setOpen(true);
-        void task.refresh();
-      }}
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => openSettings({ workspacePath, workspaceIdentity, bindingId: binding.id })}
     >
-      {content}
-    </WorktreeReviewDialog>
+      {intl.formatMessage({ id: "worktree.manage" })}
+    </Button>
   );
 }

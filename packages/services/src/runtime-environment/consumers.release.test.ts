@@ -15,6 +15,7 @@ import {
   releaseRuntimeEnvironment,
 } from "./app/consumerLifecycle.js";
 import type { RuntimeEnvironmentStore } from "./app/ports.js";
+import { createWorktreeEnvironmentRelease } from "./app/worktreeRelease.js";
 
 const AT = "2026-10-06T00:00:00.000Z";
 
@@ -74,6 +75,55 @@ function deferred() {
   });
   return { promise, resolve };
 }
+
+test("automatic worktree cleanup leaves active consumers and services unfenced", async (t) => {
+  const { store, record, authority, stamp, params, request, ticket } = await fixture(t);
+  const release = createWorktreeEnvironmentRelease({
+    store,
+    stamp,
+    stopAll: async () => {
+      throw new Error("idle preflight must not stop a process");
+    },
+    clearRebuildable: async () => {
+      throw new Error("idle preflight must not remove files");
+    },
+    discardResources: async () => {
+      throw new Error("idle preflight must not discard data");
+    },
+  });
+  const input = {
+    ...request,
+    bindingId: record.bindingId!,
+    intent: "archive" as const,
+    phase: "fence" as const,
+    onlyIfIdle: true,
+  };
+  const ref = await authority.acquire(params);
+  assert.equal((await release(input)).status, "releaseBlocked");
+  assert.equal((await store.readEnvironment(record.environmentId))?.status, "ready");
+  await authority.release(ticket(ref));
+  const receipt: ManagedServiceReceipt = {
+    environmentId: record.environmentId,
+    revision: 7,
+    serviceId: "dev-server",
+    generation: 1,
+    state: "running",
+    urls: [],
+    startedAt: AT,
+  };
+  await store.saveServiceReceipt(receipt);
+  assert.equal((await release(input)).status, "releaseBlocked");
+  assert.equal((await store.readEnvironment(record.environmentId))?.status, "ready");
+  await store.saveServiceReceipt({ ...receipt, state: "stopped", stoppedAt: AT });
+  await authority.acquire({
+    ...params,
+    kind: "session",
+    id: "saved-chat",
+    ownerId: `binding:${record.bindingId}`,
+  });
+  assert.equal((await release(input)).status, "completed");
+  assert.equal((await store.readEnvironment(record.environmentId))?.fenceIntent, "archive");
+});
 
 /** 用真实文件锁建立顺序，不用 sleep 猜测竞态。 */
 function holdNextLock(
@@ -240,7 +290,14 @@ test("running, unknown and failed-without-exit service receipts block release", 
     urls: [],
     startedAt: AT,
   };
-  for (const state of ["starting", "running", "stopping", "unknown", "failed", "stopped"] as const) {
+  for (const state of [
+    "starting",
+    "running",
+    "stopping",
+    "unknown",
+    "failed",
+    "stopped",
+  ] as const) {
     await store.saveEnvironment(record);
     await store.saveServiceReceipt({ ...base, state });
     const result = await releaseRuntimeEnvironment(store, request, stamp);

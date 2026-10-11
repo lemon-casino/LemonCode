@@ -118,6 +118,9 @@ export async function resumeFromStore(
   });
 
   this.workingDirectory = session.directory;
+  // 原因：path保留协议工作区边界，不能让context的执行cwd重设项目记忆归属。
+  // 旧记录缺path或空字符串时兼容directory，不改变workingDirectory的恢复。
+  this.workspaceRoot = session.path || session.directory;
   this.config.taskType = session.taskType;
   if (this.config.memory) {
     // Memory root 必须使用会话落盘时的 workspace identity，不能沿用进程启动 workspace。

@@ -2,6 +2,7 @@
 // ConversationSnapshot A 区。
 // A 区更新语义 = 字段级整体替换（state.updated），绝不深合并——深合并是错乱之母。
 import { z } from "zod";
+import { contextTrendSchema } from "./context-trend.js";
 import { goalEvidenceSummarySchema } from "../goal-evidence.js";
 import { sharedContextImportStateSchema } from "./shared-context-import.js";
 export { sharedContextImportStateSchema } from "./shared-context-import.js";
@@ -193,6 +194,7 @@ export type { SharedContextImportState } from "./shared-context-import.js";
 
 // ── usage。conflation：值未变不下发──
 export const sessionUsageStateSchema = z.object({
+  contextTrend: contextTrendSchema.optional(),
   contextWindow: z
     .object({
       usedTokens: z.number(),

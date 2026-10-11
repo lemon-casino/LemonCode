@@ -51,16 +51,19 @@ test("strict acceptance survives reopen, pause/resume, and conditional completio
     assert.deepEqual(goal.acceptance, acceptance);
     await store.updateTargetStatus({ sessionID: id, status: "paused" });
     goal = (await store.updateTargetStatus({ sessionID: id, status: "active" }))!;
-    await assert.rejects(store.updateTargetStatus({
-      sessionID: id,
-      status: "complete",
-      expected: {
-        targetID: goal.targetID,
-        updatedAt: goal.time.updated,
-        stateRevision: goal.stateRevision,
-        acceptanceHash: goalAcceptanceHash(acceptance),
-      },
-    }), /Strict completion/);
+    await assert.rejects(
+      store.updateTargetStatus({
+        sessionID: id,
+        status: "complete",
+        expected: {
+          targetID: goal.targetID,
+          updatedAt: goal.time.updated,
+          stateRevision: goal.stateRevision,
+          acceptanceHash: goalAcceptanceHash(acceptance),
+        },
+      }),
+      /Strict completion/,
+    );
     const legacy = await store.setTarget({ sessionID: id, objective: "legacy" });
     assert.equal(legacy.acceptance, undefined);
     assert.equal(

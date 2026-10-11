@@ -286,7 +286,11 @@ export class AiSdkModelExecution {
   ): LanguageModelFactory {
     const apiKey = this.resolveApiKey(providerConfig);
     const headers = providerConfig.headers;
-    const providerTransport = this.resolveProviderTransport(providerId);
+    // OAuth Host票据仅用于同一执行环境回环端口，不能被用户配置的外部HTTP代理转发。
+    const providerTransport =
+      providerConfig.access.type === "oauth-account"
+        ? (this.baseTransport ?? globalThis.fetch)
+        : this.resolveProviderTransport(providerId);
     const apiKeyTransport = providerConfig.apiKeys?.length
       ? createApiKeyFailoverFetch({
           fetch: providerTransport,
@@ -408,7 +412,9 @@ function toAiSdkProviderConfig(
   config: RegistryProviderConfig,
 ): AiSdkProviderConfig {
   const apiKeys =
-    config.access.type === "zhipu-account" ? [] : resolveApiKeyAccessKeys(config.access);
+    config.access.type === "zhipu-account" || config.access.type === "oauth-account"
+      ? []
+      : resolveApiKeyAccessKeys(config.access);
   const primaryApiKey = apiKeys.find((entry) => entry.enabled !== false)?.apiKey;
   const common = {
     ...(primaryApiKey ? { apiKey: primaryApiKey } : {}),
@@ -434,8 +440,22 @@ function applyModelRequestAuth(
   requestAuth: ModelRequestAuth | undefined,
 ): AiSdkProviderConfig {
   if (!requestAuth) return providerConfig;
+  const oauth = providerConfig.access.type === "oauth-account";
   return {
     ...providerConfig,
+    ...(oauth && requestAuth.baseURL ? { baseURL: requestAuth.baseURL } : {}),
+    ...(oauth && requestAuth.protocol
+      ? {
+          kind:
+            requestAuth.protocol === "anthropic-messages"
+              ? "anthropic"
+              : requestAuth.protocol === "openai-responses"
+                ? "openai"
+                : "openai-compatible",
+          name: providerConfig.name ?? "oauth",
+          providerOptions: { ...providerConfig.providerOptions, apiFormat: requestAuth.protocol },
+        }
+      : {}),
     ...(requestAuth.apiKey ? { apiKey: requestAuth.apiKey } : {}),
     ...(requestAuth.apiKey ? { apiKeys: [] } : {}),
     ...(requestAuth.headers

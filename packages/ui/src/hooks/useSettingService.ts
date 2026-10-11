@@ -12,10 +12,11 @@ type SettingsSnapshot = {
   loading: boolean;
   error: unknown | null;
 };
+type SettingsRefreshResult = { success: true } | { success: false; error: unknown };
 
 interface SettingsStore {
   snapshot: SettingsSnapshot;
-  inflightRefresh: Promise<void> | null;
+  inflightRefresh: Promise<SettingsRefreshResult> | null;
   listeners: Set<(snapshot: SettingsSnapshot) => void>;
 }
 
@@ -63,13 +64,20 @@ function emitSettingsSnapshot(store: SettingsStore) {
   }
 }
 
-async function refreshSettingsStore(settingService: ISettingService | undefined) {
+async function refreshSettingsStore(
+  settingService: ISettingService | undefined,
+  afterPending = false,
+): Promise<SettingsRefreshResult | undefined> {
   const store = getSettingsStore(settingService);
   if (!settingService) {
     return;
   }
   if (store.inflightRefresh) {
-    return store.inflightRefresh;
+    if (!afterPending) return store.inflightRefresh;
+    // 位置迁移已提交时，旧请求可能已捕获提交前设置；等其结算后必须新读一次。
+    await store.inflightRefresh;
+    // 多个等待者必须重新进入同一复用分支，不能各发一次 get 并乱序覆盖快照。
+    return refreshSettingsStore(settingService);
   }
 
   store.snapshot = {
@@ -79,7 +87,7 @@ async function refreshSettingsStore(settingService: ISettingService | undefined)
   };
   emitSettingsSnapshot(store);
 
-  store.inflightRefresh = (async () => {
+  store.inflightRefresh = (async (): Promise<SettingsRefreshResult> => {
     try {
       const result = await settingService.get();
       store.snapshot = {
@@ -88,6 +96,7 @@ async function refreshSettingsStore(settingService: ISettingService | undefined)
         error: null,
       };
       emitSettingsSnapshot(store);
+      return { success: true };
     } catch (error) {
       store.snapshot = {
         // 设置读取失败时保留旧快照，避免一次刷新错误把已可用的设置页降级为空状态。
@@ -96,6 +105,7 @@ async function refreshSettingsStore(settingService: ISettingService | undefined)
         error,
       };
       emitSettingsSnapshot(store);
+      return { success: false, error };
     }
   })().finally(() => {
     store.inflightRefresh = null;
@@ -111,9 +121,14 @@ export function useSettings() {
   const settingsStore = getSettingsStore(settingService);
   const [snapshot, setSnapshot] = useState<SettingsSnapshot>(settingsStore.snapshot);
 
-  const refresh = useCallback(async () => {
-    await refreshSettingsStore(settingService);
-  }, [settingService]);
+  const refresh = useCallback(
+    async (options?: { afterPending?: boolean; throwOnError?: boolean }) => {
+      const result = await refreshSettingsStore(settingService, options?.afterPending);
+      // 原读取路径继续保留旧快照；提交方显式要求时才反馈本次读回错误。
+      if (options?.throwOnError && result?.success === false) throw result.error;
+    },
+    [settingService],
+  );
 
   useEffect(() => {
     const listener = (nextSnapshot: SettingsSnapshot) => {
@@ -132,7 +147,9 @@ export function useSettings() {
   useEffect(() => {
     return (
       platform.onSettingsChanged?.(() => {
-        void refresh();
+        // 原生通知发生在设置提交后；提交前 get 晚到时不能把该旧快照当成本轮刷新完成。
+        // 这里只读回服务，不再次 syncAppSettings，避免窗口间广播回环。
+        void refresh({ afterPending: true });
       }) ?? (() => {})
     );
   }, [platform, refresh]);

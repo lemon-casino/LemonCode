@@ -13,6 +13,7 @@ export function resolveEnabledProjectMemoryRoot(
     cliStorageRoot: memory.cliStorageRoot,
     workspaceIdentity: memory.workspaceIdentity,
     workspacePath,
+    storageLocation: memory.storageLocation,
   });
 }
 

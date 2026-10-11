@@ -17,7 +17,13 @@ test("memory settings exposes an independent automatic history recall switch and
       <MemorySettingsSection
         memoryEnabled={false}
         memoryService={{ listProjectMemories: async () => [] }}
+        memoryStorageLocation="profile"
         onMemoryEnabledChange={async () => undefined}
+        onMemoryStorageLocationChange={async (location) => ({
+          location,
+          copiedCount: 0,
+          conflictCount: 0,
+        })}
         onSessionRecallEnabledChange={async () => undefined}
         projectMemoryViewerAvailable={false}
         sessionRecallEnabled
@@ -42,4 +48,30 @@ test("automatic history recall help explains scope, read-only behavior, and timi
   assert.match(enHelp, /same workspace/);
   assert.match(enHelp, /read-only/);
   assert.match(enHelp, /running sessions/);
+});
+
+test("local memory storage remains configurable while workspace memory is disabled", () => {
+  const markup = renderToStaticMarkup(
+    <LCodeIntlProvider initialLocale="zh-CN">
+      <MemorySettingsSection
+        memoryEnabled={false}
+        memoryService={{ listProjectMemories: async () => [] }}
+        memoryStorageLocation="profile"
+        onMemoryEnabledChange={async () => undefined}
+        onMemoryStorageLocationChange={async (location) => ({
+          location,
+          copiedCount: 0,
+          conflictCount: 0,
+        })}
+        onSessionRecallEnabledChange={async () => undefined}
+        projectMemoryViewerAvailable
+        sessionRecallEnabled={false}
+      />
+    </LCodeIntlProvider>,
+  );
+  assert.match(markup, /data-testid="settings-memory-storage-location"/);
+  assert.match(markup, /本机资料目录/);
+  assert.match(markup, /保留原文件/);
+  assert.match(markup, /多文件夹项目以主文件夹为准/);
+  assert.doesNotMatch(markup, /data-testid="settings-memory-storage-location"[^>]*disabled/);
 });

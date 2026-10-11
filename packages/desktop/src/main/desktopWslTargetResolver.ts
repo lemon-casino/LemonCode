@@ -17,6 +17,9 @@ interface CanonicalWslTargetResolverOptions {
 interface CachedResolution {
   expiresAt: number;
   promise: Promise<WslTarget>;
+  consumers: number;
+  settled: boolean;
+  dispose(): void;
 }
 
 const DEFAULT_RESOLUTION_TTL_MS = 5_000;
@@ -28,45 +31,83 @@ function buildProvisionalResolutionKey(target: WslTarget): string {
   return `${distro}\0${user}`;
 }
 
-function createCanonicalWslTargetResolver(
+export function createCanonicalWslTargetResolver(
   options: CanonicalWslTargetResolverOptions = {},
-): (target: WslTarget) => Promise<WslTarget> {
+): (target: WslTarget, signal?: AbortSignal) => Promise<WslTarget> {
   const createBackend = options.createBackend ?? ((target: WslTarget) => new WSLBackend(target));
   const ttlMs = Math.max(1, Math.floor(options.ttlMs ?? DEFAULT_RESOLUTION_TTL_MS));
   const now = options.now ?? Date.now;
   const cache = new Map<string, CachedResolution>();
 
-  return (target) => {
+  return (target, signal) => {
+    const cancelled = () => new Error("WSL 身份解析已取消");
+    if (signal?.aborted) return Promise.reject(cancelled());
     const key = buildProvisionalResolutionKey(target);
     const cached = cache.get(key);
-    if (cached && cached.expiresAt > now()) {
-      return cached.promise;
+    let entry = cached && (!cached.settled || cached.expiresAt > now()) ? cached : undefined;
+    if (!entry) {
+      let backend: WslIdentityBackend | undefined;
+      let disposed = false;
+      const created: CachedResolution = {
+        expiresAt: now() + ttlMs,
+        consumers: 0,
+        settled: false,
+        dispose() {
+          if (disposed) return;
+          disposed = true;
+          backend?.dispose();
+        },
+        promise: Promise.resolve().then(async () => {
+          if (disposed) throw cancelled();
+          backend = createBackend(target);
+          try {
+            const identity = await backend.resolveIdentity();
+            if (disposed) throw cancelled();
+            return { kind: "wsl" as const, distro: identity.distro, user: identity.user };
+          } finally {
+            created.settled = true;
+            created.dispose();
+          }
+        }),
+      };
+      entry = created;
+      cache.set(key, entry);
+      void entry.promise.catch(() => {
+        if (cache.get(key) === created) cache.delete(key);
+      });
     }
-
-    const entry: CachedResolution = {
-      expiresAt: now() + ttlMs,
-      promise: Promise.resolve().then(async () => {
-        const backend = createBackend(target);
-        try {
-          const identity = await backend.resolveIdentity();
-          return {
-            kind: "wsl" as const,
-            distro: identity.distro,
-            user: identity.user,
-          };
-        } finally {
-          backend.dispose();
+    const current = entry;
+    current.consumers += 1;
+    // 缓存中的探测可被多个窗口共享。单个取消只退出自己的等待；最后一个
+    // 等待者离开才清理 backend，并按对象身份淘汰缓存，防止旧结果污染重试。
+    return new Promise<WslTarget>((resolve, reject) => {
+      let released = false;
+      const release = () => {
+        if (released) return;
+        released = true;
+        signal?.removeEventListener("abort", abort);
+        current.consumers -= 1;
+        if (!current.settled && current.consumers === 0) {
+          if (cache.get(key) === current) cache.delete(key);
+          current.dispose();
         }
-      }),
-    };
-    cache.set(key, entry);
-    void entry.promise.catch(() => {
-      // 临时 discovery 失败若留在 cache，会让用户在 TTL 内无法通过重试恢复连接。
-      if (cache.get(key) === entry) {
-        cache.delete(key);
-      }
+      };
+      const abort = () => {
+        release();
+        reject(cancelled());
+      };
+      signal?.addEventListener("abort", abort, { once: true });
+      current.promise.then(
+        (value) => {
+          release();
+          resolve(value);
+        },
+        (error: unknown) => {
+          release();
+          reject(error);
+        },
+      );
     });
-    return entry.promise;
   };
 }
 

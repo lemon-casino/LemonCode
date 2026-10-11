@@ -43,6 +43,36 @@ export function canUseSelectedGitBackupProviders(
   );
 }
 
+export function canEnableGitBackup(config: GitBackupConfig | null, status: GitBackupStatus | null) {
+  return canUseSelectedGitBackupProviders(config, status, config?.workspaces[0] ?? null);
+}
+
+export async function updateGitBackupWorkspaceSelection(
+  service: IGitBackupService,
+  config: GitBackupConfig,
+  status: GitBackupStatus | null,
+  target: GitBackupWorkspaceTarget,
+  selected: boolean,
+): Promise<{ config: GitBackupConfig; status: GitBackupStatus | null }> {
+  if (!selected) {
+    await service.removeWorkspace(target);
+    return projectGitBackupWorkspaceRemoval(config, status, target);
+  }
+  await service.configure({}, target);
+  return {
+    config: {
+      ...config,
+      workspaces: [
+        ...config.workspaces.filter(
+          (item) => gitBackupWorkspaceKey(item) !== gitBackupWorkspaceKey(target),
+        ),
+        target,
+      ],
+    },
+    status,
+  };
+}
+
 export function projectGitBackupDestinationSelection(
   config: GitBackupConfig,
   status: GitBackupStatus | null,

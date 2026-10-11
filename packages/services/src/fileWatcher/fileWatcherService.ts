@@ -37,10 +37,13 @@ function resolveFileWatchChangedPath(
 export function createFileWatcherService(options?: {
   logger?: ServiceLogger;
   watch?: typeof watch;
+  assertWatchAllowed?: (path: string) => Promise<void>;
 }): IFileWatcherService & { stopPathAndWait(path: string): Promise<void> } {
   const log = options?.logger ?? createServiceLogger("file-watcher");
   const watchers = new Map<string, WatcherInstance>();
   const closing = new Map<string, { path: string; promise: Promise<void> }>();
+  const admissions = new Map<string, { path: string; promise: Promise<unknown> }>();
+  let disposed = false;
   let nextId = 0;
   // 内存诊断计数器：客户端断连不回收 watcher 时
   // 这里会只增不减。
@@ -76,86 +79,97 @@ export function createFileWatcherService(options?: {
   }
 
   return {
-    async watch(params: { path: string; recursive?: boolean }): Promise<{ id: string }> {
+    watch(params: { path: string; recursive?: boolean }): Promise<{ id: string }> {
       const id = String(nextId++);
-      const changeEmitter = new Emitter<FileWatchEvent>();
-      const recursive = params.recursive ?? false;
+      const opening = (async () => {
+        if (disposed) throw new Error("File watcher service is disposed");
+        await options?.assertWatchAllowed?.(params.path);
+        if (disposed) throw new Error("File watcher service is disposed");
+        const changeEmitter = new Emitter<FileWatchEvent>();
+        const recursive = params.recursive ?? false;
 
-      let fsWatcher: FSWatcher;
-      try {
-        // 默认非递归监视单个目录；Git 状态这类工作区级信号会显式打开 recursive。
-        fsWatcher = (options?.watch ?? watch)(
-          params.path,
-          { recursive },
-          (_eventType, fileName) => {
-            const instance = watchers.get(id);
-            if (!instance) return;
+        let fsWatcher: FSWatcher;
+        try {
+          // 默认非递归监视单个目录；Git 状态这类工作区级信号会显式打开 recursive。
+          fsWatcher = (options?.watch ?? watch)(
+            params.path,
+            { recursive },
+            (_eventType, fileName) => {
+              const instance = watchers.get(id);
+              if (!instance) return;
 
-            const changedPath = resolveFileWatchChangedPath(instance.path, fileName);
-            if (changedPath && !instance.hasUnknownChangedPath) {
-              instance.pendingChangedPaths.add(changedPath);
-              // 协议只需要“唯一明确路径”；批量上万个文件不应在合并窗口保存全部路径。
-              if (instance.pendingChangedPaths.size > 1) {
+              const changedPath = resolveFileWatchChangedPath(instance.path, fileName);
+              if (changedPath && !instance.hasUnknownChangedPath) {
+                instance.pendingChangedPaths.add(changedPath);
+                // 协议只需要“唯一明确路径”；批量上万个文件不应在合并窗口保存全部路径。
+                if (instance.pendingChangedPaths.size > 1) {
+                  instance.hasUnknownChangedPath = true;
+                  instance.pendingChangedPaths.clear();
+                }
+              } else if (!changedPath) {
                 instance.hasUnknownChangedPath = true;
                 instance.pendingChangedPaths.clear();
               }
-            } else if (!changedPath) {
-              instance.hasUnknownChangedPath = true;
-              instance.pendingChangedPaths.clear();
-            }
 
-            const flush = () => {
+              const flush = () => {
+                if (instance.debounceTimer) clearTimeout(instance.debounceTimer);
+                if (instance.maxWaitTimer) clearTimeout(instance.maxWaitTimer);
+                instance.debounceTimer = instance.maxWaitTimer = null;
+                const onlyChangedPath =
+                  !instance.hasUnknownChangedPath && instance.pendingChangedPaths.size === 1
+                    ? instance.pendingChangedPaths.values().next().value
+                    : undefined;
+                instance.pendingChangedPaths.clear();
+                instance.hasUnknownChangedPath = false;
+                instance.changeEmitter.fire({
+                  dirPath: instance.path,
+                  ...(onlyChangedPath ? { changedPath: onlyChangedPath } : {}),
+                });
+              };
+              // 连续写入曾不断重置尾沿 timer，Git/文件树永远收不到事件；最大等待保证批次中也广播。
               if (instance.debounceTimer) clearTimeout(instance.debounceTimer);
-              if (instance.maxWaitTimer) clearTimeout(instance.maxWaitTimer);
-              instance.debounceTimer = instance.maxWaitTimer = null;
-              const onlyChangedPath =
-                !instance.hasUnknownChangedPath && instance.pendingChangedPaths.size === 1
-                  ? instance.pendingChangedPaths.values().next().value
-                  : undefined;
-              instance.pendingChangedPaths.clear();
-              instance.hasUnknownChangedPath = false;
-              instance.changeEmitter.fire({
-                dirPath: instance.path,
-                ...(onlyChangedPath ? { changedPath: onlyChangedPath } : {}),
-              });
-            };
-            // 连续写入曾不断重置尾沿 timer，Git/文件树永远收不到事件；最大等待保证批次中也广播。
-            if (instance.debounceTimer) clearTimeout(instance.debounceTimer);
-            instance.debounceTimer = setTimeout(flush, DEBOUNCE_MS);
-            instance.maxWaitTimer ??= setTimeout(flush, MAX_WAIT_MS);
-          },
-        );
-      } catch (error) {
-        changeEmitter.dispose();
-        const message = error instanceof Error ? error.message : String(error);
-        throw new Error(`无法监视目录 '${params.path}': ${message}`);
-      }
-
-      // 监视目录被删除/重命名时，发送最终事件并清理
-      fsWatcher.on("error", (error) => {
-        const instance = watchers.get(id);
-        if (instance) {
-          log.warn(undefined, "文件监听器异常，清理 watcher", {
-            id,
-            path: instance.path,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          instance.changeEmitter.fire({ dirPath: instance.path });
-          void cleanup(id).catch(() => {});
+              instance.debounceTimer = setTimeout(flush, DEBOUNCE_MS);
+              instance.maxWaitTimer ??= setTimeout(flush, MAX_WAIT_MS);
+            },
+          );
+        } catch (error) {
+          changeEmitter.dispose();
+          const message = error instanceof Error ? error.message : String(error);
+          throw new Error(`无法监视目录 '${params.path}': ${message}`);
         }
-      });
 
-      watchers.set(id, {
-        path: params.path,
-        watcher: fsWatcher,
-        changeEmitter,
-        debounceTimer: null,
-        maxWaitTimer: null,
-        pendingChangedPaths: new Set(),
-        hasUnknownChangedPath: false,
-      });
+        // 监视目录被删除/重命名时，发送最终事件并清理
+        fsWatcher.on("error", (error) => {
+          const instance = watchers.get(id);
+          if (instance) {
+            log.warn(undefined, "文件监听器异常，清理 watcher", {
+              id,
+              path: instance.path,
+              error: error instanceof Error ? error.message : String(error),
+            });
+            instance.changeEmitter.fire({ dirPath: instance.path });
+            void cleanup(id).catch(() => {});
+          }
+        });
 
-      return { id };
+        watchers.set(id, {
+          path: params.path,
+          watcher: fsWatcher,
+          changeEmitter,
+          debounceTimer: null,
+          maxWaitTimer: null,
+          pendingChangedPaths: new Set(),
+          hasUnknownChangedPath: false,
+        });
+
+        return { id };
+      })();
+      admissions.set(id, { path: params.path, promise: opening });
+      void opening.then(
+        () => admissions.delete(id),
+        () => admissions.delete(id),
+      );
+      return opening;
     },
 
     async unwatch(params: { id: string }): Promise<void> {
@@ -163,6 +177,7 @@ export function createFileWatcherService(options?: {
     },
 
     disposeAll(): void {
+      disposed = true;
       memoryDiagnostics.dispose();
       const ids = Array.from(watchers.keys());
       for (const id of ids) {
@@ -171,6 +186,13 @@ export function createFileWatcherService(options?: {
     },
 
     async stopPathAndWait(path): Promise<void> {
+      // fence 前开始的 admission 可能仍在读磁盘；先等它落地，再取句柄集合，避免遗漏迟到 watcher。
+      await Promise.all(
+        [...admissions.values()].map(async (pending) => {
+          if (await isOwnedCheckoutScope({ checkoutPath: path }, { workspacePath: pending.path }))
+            await pending.promise.catch(() => {});
+        }),
+      );
       const targets = [
         ...[...watchers].map(([id, instance]) => ({ id, path: instance.path })),
         ...[...closing].map(([id, instance]) => ({ id, path: instance.path })),

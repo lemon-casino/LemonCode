@@ -193,7 +193,8 @@ export class AiSdkModelAdapter {
             }
             return { headersApplied: true, requestAuth };
           }
-        : options.providerConfig.access.type === "zhipu-account"
+        : options.providerConfig.access.type === "zhipu-account" ||
+            options.providerConfig.access.type === "oauth-account"
           ? (contextRefreshRuntimeHeadersBeforeAttempt ??
             (async () => {
               throw new ModelProtocolError(
@@ -228,7 +229,8 @@ export class AiSdkModelAdapter {
               refreshRuntimeHeadersBeforeAttempt: (input) =>
                 refreshRuntimeHeadersBeforeAttempt({
                   ...input,
-                  ...(options.providerConfig.access.type === "zhipu-account"
+                  ...(options.providerConfig.access.type === "zhipu-account" ||
+                  options.providerConfig.access.type === "oauth-account"
                     ? { accountAccess: options.providerConfig.access }
                     : {}),
                 }),

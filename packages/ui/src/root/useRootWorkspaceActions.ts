@@ -292,6 +292,14 @@ export function useRootWorkspaceActions({
           },
         );
         useDraftExecutionStore.getState().reset(draftScope);
+        if (typeof request === "object" && request.worktree) {
+          const { label, ...existingBinding } = request.worktree;
+          useDraftExecutionStore.getState().choose(draftScope, {
+            mode: "worktree", existingBinding, worktreeLabel: label,
+          });
+        } else if (typeof request === "object" && request.newWorktree) {
+          useDraftExecutionStore.getState().choose(draftScope, { mode: "worktree", newWorktree: true });
+        }
       }
       useLCodeSessionStore
         .getState()

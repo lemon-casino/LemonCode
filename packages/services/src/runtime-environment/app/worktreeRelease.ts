@@ -23,6 +23,7 @@ export function createWorktreeEnvironmentRelease(options: {
       intent: "discard" | "archive" | "candidate-cancel" | "upgrade";
       phase: "fence" | "stop" | "cleanup" | "finalize";
       legacyDiscardSessionIds?: string[];
+      onlyIfIdle?: boolean;
     },
   ): Promise<{ status: "completed" | "releaseBlocked"; reason?: string }> => {
     const { store, stamp } = options;
@@ -50,6 +51,16 @@ export function createWorktreeEnvironmentRelease(options: {
     if (params.phase === "fence") {
       return store.lock(params.environmentId, async () => {
         record = (await store.readEnvironment(params.environmentId))!;
+        if (params.onlyIfIdle) {
+          const references = await settleConfirmedProcessExits(store, params.environmentId, stamp);
+          if (references.some((ref) => ref.state === "active" && ref.kind !== "session"))
+            return { status: "releaseBlocked", reason: "Runtime environment is in use" };
+          for (const id of await store.listServiceIds(params.environmentId)) {
+            const receipt = await store.readServiceReceipt(params.environmentId, id);
+            if (!receipt || !hasServiceExitProof(receipt))
+              return { status: "releaseBlocked", reason: "Runtime service is in use" };
+          }
+        }
         assertEnvironmentScope(record, params);
         if (
           record.bindingId !== params.bindingId ||

@@ -17,19 +17,15 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
-import {
-  type CodingPlanStatus,
-  type ModelProviderNavItem,
-} from "./constants.js";
+import { type CodingPlanStatus, type ModelProviderNavItem } from "./constants.js";
 import { InlineEditableProviderCard } from "./InlineEditableProviderCard.js";
+import { ProviderAccountsDetails } from "./ProviderAccountsContent.js";
 import {
   ModelProviderLoadingCard,
   PresetProviderPlaceholderCard,
   CodingPlanStatusPanel,
 } from "./StatusCards.js";
-import {
-  type CodingPlanLoginOptions,
-} from "./codingPlanPricingCards.js";
+import { type CodingPlanLoginOptions } from "./codingPlanPricingCards.js";
 import { resolveCodingPlanStatusPanelViewState } from "./codingPlanStatusPanelViewState.js";
 import {
   ProviderFamilyDetailShell,
@@ -43,7 +39,6 @@ import type { ProviderApiKeyProbeResult, ProviderSettingsView } from "@lcode/ser
 import type { SavePersonalModelDraftInput } from "@lcode/provider";
 import { resolveAccountProviderInspectionAccess } from "@/lib/accountProviderAccess.js";
 import { projectProviderSettingsViewToFormProviders } from "@/lib/providerSettingsFormProjection.js";
-
 
 function isPlanNavItem(
   item: ModelProviderNavItem | null,
@@ -284,7 +279,7 @@ export function ModelProviderSectionDetail({
 }) {
   const { intl } = useLCodeIntl();
   const loadingLabel = intl.formatMessage({ id: "common.loading" });
-    useState<BuiltinModelProviderId | null>(null);
+  useState<BuiltinModelProviderId | null>(null);
   const rootProviderSettingsRead = useProviderSettingsView();
   const rootProviderSettingsView =
     rootProviderSettingsRead.state.status === "ready" ? rootProviderSettingsRead.state.view : null;
@@ -524,11 +519,9 @@ export function ModelProviderSectionDetail({
     );
     // 购买选择横幅已随 OAuth 授权登录移除下线；无权益时仅保留连接状态提示横幅。
     const planSupplementalContent =
-      isStartPlanProvider && hasActivePaidPlan
-        ? null
-        : accessBanner
-          ? <CodingPlanAccessBanner title={accessBanner.title} description={accessBanner.description} />
-          : null;
+      isStartPlanProvider && hasActivePaidPlan ? null : accessBanner ? (
+        <CodingPlanAccessBanner title={accessBanner.title} description={accessBanner.description} />
+      ) : null;
 
     if (shouldShowDedicatedProviderDetail && dedicatedProvider) {
       const statusPanel = (
@@ -741,6 +734,33 @@ export function ModelProviderSectionDetail({
   }
 
   const customProvider = selectedNavItem.provider;
+  if (customProvider.config.access?.type === "oauth-account") {
+    const channelId = customProvider.config.access.channelId;
+    return (
+      <ProviderAccountsDetails
+        key={channelId}
+        channelId={channelId}
+        title={selectedNavItem.label}
+        modelEditor={(listModels) => (
+          <InlineEditableProviderCard
+            provider={customProvider}
+            onSave={onSave}
+            {...modelEditingProps}
+            onListRemoteModels={listModels}
+            onTestModel={onTestModel}
+            onReorderModelIds={
+              onReorderProviderModels
+                ? (ids) => onReorderProviderModels(customProvider.providerId, ids)
+                : undefined
+            }
+            hideConnectionSettings
+            readOnlyEndpoints
+            headerVisible={false}
+          />
+        )}
+      />
+    );
+  }
   const customApiKeyUrl = customProvider.templateId
     ? getProviderFormApiKeyManagementUrl(customProvider)
     : undefined;

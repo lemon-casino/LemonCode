@@ -376,6 +376,11 @@ export const TID_RESOURCE_MANAGER_STORAGE_CONFIRM_CANCEL =
   "resource-manager-storage-confirm-cancel";
 /** Memory 设置模块中的总开关 */
 export const TID_SETTINGS_MEMORY_SWITCH = "settings-memory-switch";
+/** Memory 本机存储位置选择与复制反馈 */
+export const TID_SETTINGS_MEMORY_STORAGE_LOCATION = "settings-memory-storage-location";
+export const TID_SETTINGS_MEMORY_STORAGE_FEEDBACK = "settings-memory-storage-feedback";
+/** 当前目录的存储来源与服务解析后的记忆根 */
+export const TID_SETTINGS_MEMORY_STORAGE_SOURCE = "settings-memory-storage-source";
 /** Memory 设置模块中的自动历史召回开关 */
 export const TID_SETTINGS_SESSION_RECALL_SWITCH = "settings-session-recall-switch";
 /** 自动历史召回说明 Tooltip 的触发器 */

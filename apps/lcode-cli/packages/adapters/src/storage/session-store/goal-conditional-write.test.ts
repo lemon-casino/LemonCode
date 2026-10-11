@@ -7,6 +7,9 @@ import { DatabaseSync } from "node:sqlite";
 import {
   goalAcceptanceSchema,
   goalAcceptanceHash,
+  goalEvidenceAttemptId,
+  goalEvidenceHeadId,
+  goalEvidenceEntryId,
   type SessionId,
   type ProjectId,
 } from "@lcode/contracts";
@@ -42,6 +45,54 @@ test("SQLite completion applies its expected predicate even if another connectio
       ],
     });
     const goal = await store.setTarget({ sessionID, objective: "original", acceptance });
+    // 新的 strict SQL 门禁要求完整 proof；否则只测到缺证据提前拒绝，无法到达并发 UPDATE 边界。
+    const base = {
+      schemaVersion: 1 as const,
+      sessionId: sessionID,
+      goalId: goal.targetID,
+      contractHash: goalAcceptanceHash(acceptance),
+      workspaceKey: directory,
+      workspacePath: directory,
+      bindingHash: "a".repeat(64),
+      executionId: "initial-check",
+      startedAt: 10,
+    };
+    const attemptId = goalEvidenceAttemptId(base);
+    const headBase = { ...base, attemptId, requirementId: "gate" };
+    const head = {
+      ...headBase,
+      headId: goalEvidenceHeadId(headBase),
+      receiptId: goalEvidenceEntryId(headBase),
+    };
+    await store.beginGoalEvidenceExecution({
+      sessionID,
+      expected: {
+        targetID: goal.targetID,
+        stateRevision: goal.stateRevision ?? 0,
+        acceptanceHash: base.contractHash,
+      },
+      attempt: { ...base, attemptId, source: "Bash", command: "node check.mjs", heads: [head] },
+    });
+    await store.saveSessionEntry({
+      id: head.receiptId,
+      sessionID,
+      type: "goal/evidence/v1",
+      touchSession: false,
+      time: { created: 10, updated: 20 },
+      data: {
+        ...base,
+        requirementId: "gate",
+        evidenceId: head.receiptId,
+        source: "Bash",
+        status: "passed",
+        reasonCode: "passed",
+        inputDigest: "a".repeat(64),
+        artifactDigest: "a".repeat(64),
+        exitCode: 0,
+        completedAt: 20,
+        output: { sha256: "a".repeat(64), bytes: 0, truncated: false, artifactRefs: [] },
+      },
+    });
     const prepare = writer.prepare.bind(writer);
     let replaced = false;
     t.mock.method(writer, "prepare", (sql: string) => {
@@ -64,6 +115,7 @@ test("SQLite completion applies its expected predicate even if another connectio
           updatedAt: goal.time.updated,
           stateRevision: goal.stateRevision,
           acceptanceHash: goalAcceptanceHash(acceptance),
+          evidenceHeads: [head],
         },
       }),
       null,

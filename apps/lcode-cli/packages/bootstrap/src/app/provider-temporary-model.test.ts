@@ -173,7 +173,7 @@ test("temporary model uses official model rules without publishing, enabling or 
     assert.deepEqual(h.creations[0]?.options, { reasoningLevel: "low", speed: "normal" });
     assert.deepEqual(h.creations[0]?.providerConfig.api.headers, { "x-fixture": "preserved" });
     const access = h.creations[0]?.providerConfig.access;
-    assert.ok(access && access.type !== "zhipu-account");
+    assert.ok(access && (access.type === "api-key" || access.type === "zhipu-coding-plan-api-key"));
     assert.deepEqual(
       access.apiKeys,
       providerConfig.access?.type === "api-key" ? providerConfig.access.apiKeys : undefined,

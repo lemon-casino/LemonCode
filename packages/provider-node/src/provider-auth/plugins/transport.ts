@@ -1,0 +1,246 @@
+import { Worker } from "node:worker_threads";
+import type { AuthDriverContext, AuthGrant } from "../driver.js";
+import { PLUGIN_WORKER_SOURCE } from "./worker-source.js";
+
+interface PendingCall {
+  resolve(value: unknown): void;
+  reject(error: Error): void;
+  context?: AuthDriverContext;
+  cleanup(): void;
+  stream?: ReadableStreamDefaultController<Uint8Array>;
+  settled: boolean;
+  aborted: boolean;
+}
+
+type WorkerMessage = {
+  kind: "result" | "response" | "chunk" | "end" | "error" | "credential" | "disposed";
+  id: number;
+  value?: unknown;
+  error?: { message: string; name?: string; signIn?: string };
+  action?: "read" | "write" | "signin";
+  signIn?: "expired" | "kept" | "renewed";
+  grant?: AuthGrant;
+  callId?: number;
+  operationId?: number;
+  status?: number;
+  statusText?: string;
+  headers?: [string, string][];
+  bytes?: Uint8Array;
+};
+
+function abortedError(): Error {
+  return new DOMException("Provider operation was cancelled", "AbortError");
+}
+
+/** Internal transport, exported separately only for deterministic local fixtures. */
+export class PluginWorkerTransport {
+  private readonly worker: Worker;
+  private readonly pending = new Map<number, PendingCall>();
+  private sequence = 0;
+  private closed = false;
+  private readonly exit: Promise<void>;
+
+  constructor(
+    channel: string,
+    fixtureOrigin?: string,
+    fixtureH2Origin?: string,
+    fixtureLocalHome?: string,
+  ) {
+    this.worker = new Worker(PLUGIN_WORKER_SOURCE, {
+      eval: true,
+      workerData: {
+        channel,
+        ...(fixtureOrigin ? { fixtureOrigin, fixtureH2Origin, fixtureLocalHome } : {}),
+      },
+      // A provider must never forward a raw console log containing its tokens.
+      stdout: true,
+      stderr: true,
+    });
+    this.worker.stdout.resume();
+    this.worker.stderr.resume();
+    this.worker.unref();
+    this.exit = new Promise((resolve) => {
+      this.worker.once("exit", () => {
+        this.closed = true;
+        this.failAll(new Error("Provider plugin worker stopped"));
+        resolve();
+      });
+    });
+    this.worker.on("error", (error) => {
+      this.closed = true;
+      this.failAll(error instanceof Error ? error : new Error(String(error)));
+    });
+    this.worker.on("message", (message: WorkerMessage) => {
+      void this.receive(message).catch((error: unknown) => {
+        this.failAll(error instanceof Error ? error : new Error(String(error)));
+        void this.dispose();
+      });
+    });
+  }
+
+  call<T>(
+    operation: string,
+    params: Record<string, unknown> = {},
+    context?: AuthDriverContext,
+    signal?: AbortSignal,
+    killOnAbort = false,
+  ): Promise<T> {
+    if (this.closed) return Promise.reject(new Error("Provider plugin driver is disposed"));
+    const signals = [context?.signal, signal].filter((item): item is AbortSignal => Boolean(item));
+    const combined = signals.length ? AbortSignal.any(signals) : undefined;
+    if (combined?.aborted) return Promise.reject(abortedError());
+    const id = ++this.sequence;
+    this.worker.ref();
+    return new Promise<T>((resolve, reject) => {
+      const cancel = () => {
+        const pending = this.pending.get(id);
+        if (!pending) return;
+        pending.aborted = true;
+        this.finish(id, abortedError());
+        this.worker.postMessage({ kind: "cancel", id });
+        // 授权插件可能拥有 loopback server、CLI 子进程和轮询定时器。
+        // 取消授权必须销毁其 worker，不能只丢弃 Promise 留下后台登录。
+        if (killOnAbort) void this.dispose();
+      };
+      const pending: PendingCall = {
+        resolve: (value) => resolve(value as T),
+        reject,
+        context,
+        cleanup: () => combined?.removeEventListener("abort", cancel),
+        settled: false,
+        aborted: false,
+      };
+      this.pending.set(id, pending);
+      combined?.addEventListener("abort", cancel, { once: true });
+      this.worker.postMessage({
+        kind: "call",
+        id,
+        operation,
+        context: Boolean(context),
+        ...params,
+      });
+    });
+  }
+
+  async dispose(): Promise<void> {
+    if (!this.closed) {
+      this.closed = true;
+      this.failAll(abortedError());
+      this.worker.ref();
+      this.worker.postMessage({ kind: "dispose" });
+    }
+    await this.exit;
+  }
+
+  private finish(id: number, error?: Error, value?: unknown): void {
+    const pending = this.pending.get(id);
+    if (!pending) return;
+    this.pending.delete(id);
+    pending.cleanup();
+    if (error) {
+      if (pending.stream) pending.stream.error(error);
+      if (!pending.settled) pending.reject(error);
+    } else if (pending.stream) pending.stream.close();
+    else if (!pending.settled) pending.resolve(value);
+    if (this.pending.size === 0) this.worker.unref();
+  }
+
+  private failAll(error: Error): void {
+    for (const id of this.pending.keys()) this.finish(id, error);
+  }
+
+  private async receive(message: WorkerMessage): Promise<void> {
+    if (message.kind === "disposed") return;
+    if (message.kind === "credential") {
+      await this.credential(message);
+      return;
+    }
+    const pending = this.pending.get(message.id);
+    if (!pending || pending.aborted || this.closed) return;
+    switch (message.kind) {
+      case "result":
+        this.finish(message.id, undefined, message.value);
+        break;
+      case "error":
+        this.finish(
+          message.id,
+          Object.assign(
+            new Error(message.error?.message || "Provider operation failed"),
+            message.error,
+          ),
+        );
+        break;
+      case "response": {
+        const noBody = [204, 205, 304].includes(message.status ?? 200);
+        const body = noBody
+          ? null
+          : new ReadableStream<Uint8Array>(
+              {
+                start: (controller) => {
+                  pending.stream = controller;
+                },
+                pull: () => {
+                  this.worker.postMessage({ kind: "pull", id: message.id });
+                },
+                cancel: () => {
+                  pending.stream = undefined;
+                  this.worker.postMessage({ kind: "cancel", id: message.id });
+                  this.finish(message.id);
+                },
+              },
+              { highWaterMark: 0 },
+            );
+        pending.settled = true;
+        pending.resolve(
+          new Response(body, {
+            status: message.status,
+            statusText: message.statusText,
+            headers: message.headers,
+          }),
+        );
+        if (noBody) this.worker.postMessage({ kind: "pull", id: message.id });
+        break;
+      }
+      case "chunk":
+        if (message.bytes) pending.stream?.enqueue(message.bytes);
+        break;
+      case "end":
+        this.finish(message.id);
+        break;
+    }
+  }
+
+  private async credential(message: WorkerMessage): Promise<void> {
+    const pending = this.pending.get(message.operationId ?? -1);
+    try {
+      if (!pending?.context || pending.aborted || this.closed || pending.context.signal?.aborted)
+        throw abortedError();
+      let value: AuthGrant | null | undefined;
+      if (message.action === "read") value = await pending.context.read();
+      else if (message.action === "signin" && message.signIn)
+        await pending.context.reportSignIn?.(message.signIn);
+      else if (message.action === "write" && message.grant)
+        await pending.context.write(message.grant);
+      else throw new Error("Invalid plugin credential operation");
+      // Host generation/CAS guards write(), and this check discards a read whose
+      // account was cancelled while the encrypted store was being read.
+      if (
+        pending.aborted ||
+        this.closed ||
+        !this.pending.has(message.operationId!) ||
+        pending.context.signal?.aborted
+      )
+        throw abortedError();
+      this.worker.postMessage({ kind: "credential-result", callId: message.callId, value });
+    } catch (error) {
+      if (!this.closed)
+        this.worker.postMessage({
+          kind: "credential-result",
+          callId: message.callId,
+          error: {
+            message: error instanceof Error ? error.message : "Credential operation failed",
+          },
+        });
+    }
+  }
+}

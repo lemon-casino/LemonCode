@@ -10,6 +10,7 @@ import type {
   TaskUsageQueryResult,
 } from "@lcode/contracts";
 import { inputSideTokensFromStoredUsage, taskUsageInputBaselineSource } from "./usage-values.js";
+import { API_USAGE_SCOPE } from "./api-usage-scope.js";
 
 // 说明：按本地日归桶用固定偏移 tzOffsetMs，dayIndex = floor((started_at + off)/DAY)。
 // DST 跨日边界存在最多 1 小时误差，对用量统计可接受。
@@ -19,8 +20,11 @@ export async function queryAppUsage(
 ): Promise<AppUsageQueryResult> {
   const { since, until, tzOffsetMs } = input;
   const DAY_MS = 86_400_000;
+  // 同一筛选作用于全部聚合，不能只过滤 Token 而留下 OAuth 专属会话/工具数据。
+  const scope = input.connectionType === "api-key" ? API_USAGE_SCOPE : "";
+  const scoped = { prepare: (sql: string) => db.prepare(scope + sql) };
 
-  const totals = db
+  const totals = scoped
     .prepare(
       `select
          coalesce(sum(computed_total_tokens), 0) as totalTokens,
@@ -37,7 +41,7 @@ export async function queryAppUsage(
     )
     .get(since, until) as Record<string, number | null>;
 
-  const turnTotals = db
+  const turnTotals = scoped
     .prepare(
       `select
          count(distinct session_id) as totalSessions,
@@ -47,7 +51,7 @@ export async function queryAppUsage(
        where started_at >= ? and started_at <= ?`,
     )
     .get(since, until) as Record<string, number | null>;
-  const longestSession = db
+  const longestSession = scoped
     .prepare(
       `select coalesce(max(sessionDurationMs), 0) as longestSessionMs
        from (
@@ -60,7 +64,7 @@ export async function queryAppUsage(
     )
     .get(since, until) as Record<string, number | null>;
 
-  const toolTotals = db
+  const toolTotals = scoped
     .prepare(
       `select
          count(*) as toolCallCount,
@@ -70,7 +74,7 @@ export async function queryAppUsage(
     )
     .get(since, until) as Record<string, number>;
 
-  const models = db
+  const models = scoped
     .prepare(
       `select
          model_id as modelId,
@@ -85,7 +89,7 @@ export async function queryAppUsage(
     )
     .all(since, until) as unknown as AppUsageModelRow[];
 
-  const tools = db
+  const tools = scoped
     .prepare(
       `select
          tool_name as toolName,
@@ -99,7 +103,7 @@ export async function queryAppUsage(
     )
     .all(since, until) as unknown as AppUsageToolRow[];
 
-  const days = db
+  const days = scoped
     .prepare(
       `select
          cast((started_at + ?) / ? as integer) as dayIndex,
@@ -110,7 +114,7 @@ export async function queryAppUsage(
     )
     .all(tzOffsetMs, DAY_MS, since, until) as Array<{ dayIndex: number; totalTokens: number }>;
 
-  const turnDays = db
+  const turnDays = scoped
     .prepare(
       `select cast((started_at + ?) / ? as integer) as dayIndex, count(*) as turnCount
        from turn_usage
@@ -119,7 +123,7 @@ export async function queryAppUsage(
     )
     .all(tzOffsetMs, DAY_MS, since, until) as Array<{ dayIndex: number; turnCount: number }>;
 
-  const toolDays = db
+  const toolDays = scoped
     .prepare(
       `select cast((started_at + ?) / ? as integer) as dayIndex, count(*) as toolCallCount
        from tool_usage
@@ -159,7 +163,7 @@ export async function queryAppUsage(
     dayMap.set(row.dayIndex, existing);
   }
 
-  const dayModels = db
+  const dayModels = scoped
     .prepare(
       `select
          cast((started_at + ?) / ? as integer) as dayIndex,

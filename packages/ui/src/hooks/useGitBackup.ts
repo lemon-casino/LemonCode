@@ -33,9 +33,13 @@ import {
   projectGitBackupDestinationClear,
   projectGitBackupConfigStatus,
   projectGitBackupEnabledStatus,
-  projectGitBackupWorkspaceRemoval,
+  canEnableGitBackup,
+  updateGitBackupWorkspaceSelection,
   runGitBackup,
 } from "@/hooks/useGitBackupActions.js";
+import { collectGitBackupWorkspaces } from "@/hooks/gitBackupWorkspaceSelection.js";
+
+const NO_WORKSPACE_CANDIDATES: readonly GitBackupWorkspaceTarget[] = [];
 
 export interface GitBackupFeedback {
   id: string;
@@ -47,6 +51,7 @@ export type GitBackupOperation =
   | "test"
   | "backup"
   | "remove"
+  | "selectWorkspace"
   | "clear"
   | "publicKey"
   | "export"
@@ -56,10 +61,12 @@ export function useGitBackup({
   service,
   target,
   connectionKind,
+  workspaceCandidates = NO_WORKSPACE_CANDIDATES,
 }: {
   service: IGitBackupService | null;
   target: GitBackupWorkspaceTarget | null;
   connectionKind: "local-ready" | "remote-ready" | "remote-waiting";
+  workspaceCandidates?: readonly GitBackupWorkspaceTarget[];
 }) {
   const platform = useOptionalPlatform();
   const [config, setConfig] = useState<GitBackupConfig | null>(null);
@@ -168,14 +175,14 @@ export function useGitBackup({
       return;
     }
     await execute("save", async (isCurrent) => {
-      await service!.configure(validated.config, target);
+      // 保存存储配置不能隐式恢复用户已取消的工作区，名单仅由勾选操作修改。
+      await service!.configure(validated.config);
       if (!isCurrent()) return;
       const next: GitBackupConfig = {
         ...config,
         intervalMinutes: validated.config.intervalMinutes!,
         destinationEnabled: getGitBackupDestinationSelection(config),
         [savedProvider]: { ...validated.config[savedProvider], accessKeySecret: "" },
-        workspaces: addTarget(config.workspaces, target),
       };
       // 仅重置已保存目的地，另一方未确认草稿及旧浏览器 OSS 凭据必须保留。
       setConfig(next);
@@ -197,14 +204,13 @@ export function useGitBackup({
   };
 
   const setEnabled = async (enabled: boolean) => {
-    if (!config || (enabled && !canUseSelectedGitBackupProviders(config, status, target))) return;
+    if (!config || (enabled && !canEnableGitBackup(config, status))) return;
     await execute("toggle", async (isCurrent) => {
-      await service!.configure({ enabled }, enabled ? target! : undefined);
+      await service!.configure({ enabled });
       if (!isCurrent()) return;
       setConfig({
         ...config,
         enabled,
-        workspaces: enabled ? addTarget(config.workspaces, target!) : config.workspaces,
       });
       setStatus((previous) => projectGitBackupEnabledStatus(previous, enabled));
       await refreshAfterWrite(isCurrent);
@@ -215,15 +221,11 @@ export function useGitBackup({
     if (!config || (enabled && !canUseSavedGitBackupConfig(config, status, target, destination)))
       return;
     await execute("toggle", async (isCurrent) => {
-      await service!.configure(
-        { destinationEnabled: { [destination]: enabled } },
-        enabled ? target! : undefined,
-      );
+      await service!.configure({ destinationEnabled: { [destination]: enabled } });
       if (!isCurrent()) return;
       const projected = projectGitBackupDestinationSelection(config, status, destination, enabled);
       setConfig({
         ...projected.config,
-        workspaces: enabled ? addTarget(config.workspaces, target!) : config.workspaces,
       });
       setStatus(projected.status);
       await refreshAfterWrite(isCurrent);
@@ -307,15 +309,33 @@ export function useGitBackup({
       }
     });
   };
-  const removeWorkspace = async (workspace: GitBackupWorkspaceTarget) =>
-    execute("remove", async (isCurrent) => {
-      await service!.removeWorkspace(workspace);
+  const availableWorkspaces = collectGitBackupWorkspaces(
+    workspaceCandidates,
+    target,
+    config?.workspaces ?? [],
+  );
+  const setWorkspaceSelected = async (workspace: GitBackupWorkspaceTarget, selected: boolean) => {
+    if (
+      !config ||
+      !availableWorkspaces.some(
+        (item) => gitBackupWorkspaceKey(item) === gitBackupWorkspaceKey(workspace),
+      )
+    )
+      return;
+    await execute(selected ? "selectWorkspace" : "remove", async (isCurrent) => {
+      const projected = await updateGitBackupWorkspaceSelection(
+        service!,
+        config,
+        status,
+        workspace,
+        selected,
+      );
       if (!isCurrent()) return;
-      const projected = projectGitBackupWorkspaceRemoval(config!, status, workspace);
       setConfig(projected.config);
       setStatus(projected.status);
       await refreshAfterWrite(isCurrent);
     });
+  };
   const viewPublicKey = async () =>
     execute("publicKey", async (isCurrent) => {
       const key = await service!.getPublicKey();
@@ -356,7 +376,8 @@ export function useGitBackup({
     legacyDraft,
     unavailable: !service,
     dirty: Boolean(draft && config && isGitBackupDraftDirty(draft, config, provider)),
-    canEnable: canUseSelectedGitBackupProviders(config, status, target),
+    canEnable: canEnableGitBackup(config, status),
+    availableWorkspaces,
     canBackup:
       canUseSavedGitBackupConfig(config, status, target, provider) && status?.running === false,
     canBackupAll:
@@ -371,7 +392,7 @@ export function useGitBackup({
     clearDestination,
     testConnection,
     backup,
-    removeWorkspace,
+    setWorkspaceSelected,
     viewPublicKey,
     exportPrivateKey,
     updateDraft,
@@ -392,9 +413,4 @@ export function useGitBackup({
 
 function message(cause: unknown): string {
   return cause instanceof Error ? cause.message : String(cause);
-}
-function addTarget(workspaces: GitBackupWorkspaceTarget[], target: GitBackupWorkspaceTarget) {
-  return workspaces.some((item) => gitBackupWorkspaceKey(item) === gitBackupWorkspaceKey(target))
-    ? workspaces
-    : [...workspaces, target];
 }

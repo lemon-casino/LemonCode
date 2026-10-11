@@ -75,11 +75,20 @@ export const zhipuAccountAccessDataSchema = z
     type: completeZhipuAccountAccessDataSchema.shape.type,
   })
   .strict();
+export const oauthAccountAccessDataSchema = z
+  .object({
+    type: z.literal("oauth-account"),
+    channelId: z.string().min(1),
+    connectionId: z.string().min(1).optional(),
+  })
+  .strict();
 export const providerAccessDataSchema = z.discriminatedUnion("type", [
+  oauthAccountAccessDataSchema,
   apiKeyAccessDataSchema,
   zhipuAccountAccessDataSchema,
 ]);
 const completeProviderAccessDataSchema = z.discriminatedUnion("type", [
+  oauthAccountAccessDataSchema,
   completeApiKeyAccessDataSchema,
   completeZhipuAccountAccessDataSchema,
 ]);

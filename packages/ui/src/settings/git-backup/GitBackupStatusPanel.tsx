@@ -1,27 +1,17 @@
-import { RefreshCw, Trash2 } from "lucide-react";
-import {
-  gitBackupWorkspaceKey,
-  type GitBackupStatus,
-  type GitBackupWorkspaceTarget,
-} from "@lcode/services";
+import { RefreshCw } from "lucide-react";
+import type { GitBackupStatus } from "@lcode/services";
 import { Button } from "@/components/ui/button.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { GitBackupResultDetails } from "./GitBackupResultDetails.js";
 
 export function GitBackupStatusPanel({
   status,
-  workspaces,
-  target,
   busy,
   refresh,
-  remove,
 }: {
   status: GitBackupStatus | null;
-  workspaces: GitBackupWorkspaceTarget[];
-  target: GitBackupWorkspaceTarget | null;
   busy: boolean;
   refresh: () => Promise<void>;
-  remove: (target: GitBackupWorkspaceTarget) => Promise<void>;
 }) {
   const { intl, locale } = useLCodeIntl();
   const formatTime = (value: string) => {
@@ -94,54 +84,6 @@ export function GitBackupStatusPanel({
       ) : (
         <p className="text-ui-caption text-foreground-subtle">
           {intl.formatMessage({ id: "settings.gitBackup.status.unknown" })}
-        </p>
-      )}
-      <h3 className="text-ui-base font-medium">
-        {intl.formatMessage({ id: "settings.gitBackup.workspaces" })}
-      </h3>
-      {workspaces.length ? (
-        <ul className="divide-y divide-border">
-          {workspaces.map((workspace) => {
-            const current =
-              target && gitBackupWorkspaceKey(workspace) === gitBackupWorkspaceKey(target);
-            return (
-              <li
-                key={gitBackupWorkspaceKey(workspace)}
-                className="flex min-w-0 items-start justify-between gap-3 py-2"
-              >
-                <div className="min-w-0 text-ui-caption">
-                  <p className="break-all font-mono">{workspace.workspacePath}</p>
-                  {workspace.workspaceIdentity ? (
-                    <p className="break-all text-foreground-subtle">
-                      {workspace.workspaceIdentity}
-                    </p>
-                  ) : null}
-                  {current ? (
-                    <p className="text-foreground-subtle">
-                      {intl.formatMessage({ id: "settings.gitBackup.currentWorkspace" })}
-                    </p>
-                  ) : null}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  disabled={busy}
-                  onClick={() => void remove(workspace)}
-                  aria-label={intl.formatMessage(
-                    { id: "settings.gitBackup.removeWorkspace" },
-                    { path: workspace.workspacePath },
-                  )}
-                  title={intl.formatMessage({ id: "settings.gitBackup.remove" })}
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <p className="text-ui-caption text-foreground-subtle">
-          {intl.formatMessage({ id: "settings.gitBackup.workspacesEmpty" })}
         </p>
       )}
     </section>

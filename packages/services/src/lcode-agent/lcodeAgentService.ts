@@ -1,4 +1,5 @@
 import { requestPluginReferenceCatalog } from "#src/lcode-agent/pluginReferenceCatalogRequest.js";
+import { providerUsageRequestSchema, providerUsageSnapshotSchema } from "@lcode/shared";
 import { handleWorktreeRequest, isWorktreeRequest } from "./worktreeRequests.js";
 import {
   createRuntimeEnvironmentClient,
@@ -29,7 +30,7 @@ import type {
   ModelSelectionView,
   ProviderSource,
 } from "@lcode/provider";
-import { completeNewModelSelection } from "@lcode/provider";
+import { completeNewModelSelection, serializeAccountProviderConfigSnapshot } from "@lcode/provider";
 import type { OffPeakClientConfig } from "#src/coding-plan-subscription/codingPlanSubscription.js";
 import {
   LCODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
@@ -886,6 +887,13 @@ interface CreateLCodeAgentServiceOptions extends Omit<
   runtimeEnvironmentConsumers?: import("../runtime-environment/contract.js").RuntimeEnvironmentConsumerAuthority;
   accountProviderConfigSource?: ProviderSource<AccountProviderConfigSnapshot>;
   accountRequestAuthService?: IAccountRequestAuthService;
+  resolveOAuthRequestAuth?: (input: {
+    channelId: string;
+    providerId: string;
+    modelId: string;
+    sessionId: string;
+    workspaceKey: string;
+  }) => Promise<AccountRequestAuthMaterial>;
   /** Desktop Host 请求 Main 登记 Agent 已授权的精确本地视频路径。 */
   authorizeLocalMediaPreviewPath?: (path: string) => Promise<string>;
   modelSelectionReadinessSource?: ModelSelectionReadinessSource;
@@ -1348,6 +1356,14 @@ export function createLCodeAgentService(
   async function resolveAccountRequestAuth(
     request: LCodeProviderRuntimeHeadersRequestParams,
   ): Promise<AccountRequestAuthMaterial | undefined> {
+    if (request.accountAccess?.type === "oauth-account")
+      return options?.resolveOAuthRequestAuth?.({
+        channelId: request.accountAccess.channelId,
+        providerId: request.providerId,
+        modelId: request.modelSelection.modelId,
+        sessionId: request.sessionId,
+        workspaceKey: request.workspace.workspaceKey,
+      });
     if (!request.accountAccess || !accountRequestAuthService) {
       return undefined;
     }
@@ -1485,18 +1501,7 @@ export function createLCodeAgentService(
         if (accountConfigReceivedRevisionByClient.get(params.client) === snapshot.revision) return;
         const result = await params.client.request(
           lcodeProtocolMethods.providerUpdateAccountConfig,
-          {
-            revision: snapshot.revision,
-            basedOnLCodeBuiltinRevision: snapshot.basedOnLCodeBuiltinRevision,
-            // Account 是运行时事实信封，不是磁盘 Provider 规则集合；保持原有协议字典。
-            providers: Object.fromEntries(
-              [...snapshot.providers.entries()].map(([providerId, config]) => [
-                providerId,
-                config.toJSON(),
-              ]),
-            ),
-            states: snapshot.states ?? {},
-          },
+          serializeAccountProviderConfigSnapshot(snapshot),
           lcodeProviderUpdateAccountConfigResultSchema,
         );
         if (result.receivedRevision !== snapshot.revision) {
@@ -2481,7 +2486,7 @@ export function createLCodeAgentService(
             workspacePath: workspace.workspacePath,
           });
           const accountAccess = parsed.data.accountAccess;
-          if (accountRequestAuthService && accountAccess) {
+          if ((accountRequestAuthService || options?.resolveOAuthRequestAuth) && accountAccess) {
             // Account API Key / Team Runtime Key / Start Plan JWT 都不需要 Renderer 交互。
             // Host 按 Model 固定的 Account Access 自动应答，避免后台任务和无 pane 会话依赖 UI 订阅者。
             void respondAccountRequestAuthWithoutInteraction({
@@ -3930,8 +3935,19 @@ export function createLCodeAgentService(
       // 载荷同形；旧词消费清零，CLI 旧 case 留到旧词删除之时）。
       return active.client.request(
         V4_METHODS.usageStats,
-        { range: params.range, timeZone: params.timeZone },
+        { range: params.range, timeZone: params.timeZone, connectionType: params.connectionType },
         v4UsageStatsResultSchema,
+      );
+    },
+
+    async getProviderUsageStats(params) {
+      const request = providerUsageRequestSchema.parse(params);
+      const active = activeClientsByWorkspaceKey.values().next().value;
+      if (!active) throw new Error("no_active_workspace");
+      return active.client.request(
+        V4_METHODS.providerUsageStats,
+        request,
+        providerUsageSnapshotSchema,
       );
     },
 

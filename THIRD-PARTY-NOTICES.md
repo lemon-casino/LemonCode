@@ -2550,6 +2550,14 @@ The original import revisions of copied components are not recorded in the curre
 
 - Caveman skill (MIT): apps/lcode-cli/packages/lemon-workflow-plugin/skills/caveman. License reference: https://raw.githubusercontent.com/JuliusBrussee/caveman/ae26f3a4775574bd49dc8bdb61c0287bbc3cd268/LICENSE. Original import revision: ae26f3a4775574bd49dc8bdb61c0287bbc3cd268.
 
+- Magpie native provider protocol adaptations (MIT): packages/provider-node/src/provider-auth/native, packages/provider-node/src/provider-auth/native.ts, packages/provider-node/src/provider-auth/plugins/factory-import.mjs, packages/provider-node/src/provider-auth/plugins/method-details.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/LICENSE. Original import revision: 93c5d846ca2b05ac8ca961956304104e5d112845.
+
+- Magpie community fixed provider plugins (MIT): packages/provider-node/src/provider-auth/vendor, packages/provider-node/src/provider-auth/plugins/zcode-local.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/LICENSE. Original import revision: da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd.
+
+- CLIProxyAPI portions retained by Magpie Qoder plugin (MIT): packages/provider-node/src/provider-auth/vendor/qoder. License reference: https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/packages/qoder/LICENSE-CLIProxyAPI. Original import revision: da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd.
+
+- Magpie Zen Free plugin original notice (MIT): packages/provider-node/src/provider-auth/vendor/zen-free. License reference: https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/packages/zen-free/LICENSE. Original import revision: da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd.
+
 Fig autocomplete source carries the repository's MIT license; the generated registry records npm @withfig/autocomplete@2.692.3 metadata as ISC. The original source MIT notice is retained below.
 
 ## Embedded native and WASM components
@@ -40573,6 +40581,130 @@ modules default to BSL-1.1 unless explicitly classified as MIT.
 MIT License
 
 Copyright (c) 2026 Julius Brussee
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+````
+
+### Notice 79d2c8444715d4bc453ec4f8a0aaf2051a4c1ee5ac08f5bd2e5848aef87c7572
+
+- Magpie native provider protocol adaptations: https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/LICENSE
+
+
+
+````text
+MIT License
+
+Copyright (c) 2026 yetone
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+````
+
+### Notice bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679
+
+- Magpie community fixed provider plugins: https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/LICENSE
+
+
+
+````text
+MIT License
+
+Copyright (c) 2026 magpie-community contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+````
+
+### Notice 93df585e5fa07ead6d47a3ab2dbdf0255782a39fe830022c0274a70394223cc8
+
+- CLIProxyAPI portions retained by Magpie Qoder plugin: https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/packages/qoder/LICENSE-CLIProxyAPI
+
+
+
+````text
+MIT License
+
+Copyright (c) 2025-2005.9 Luis Pater
+Copyright (c) 2025.9-present Router-For.ME
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+````
+
+### Notice 170ca82fa4255729a826c5eb9abf3f0e0d2e3dde84f024accb5b806473c4ba68
+
+- Magpie Zen Free plugin original notice: https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/packages/zen-free/LICENSE
+
+
+
+````text
+MIT License
+
+Copyright (c) 2026 xiaozhou26
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

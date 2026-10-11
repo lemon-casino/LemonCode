@@ -218,11 +218,12 @@ export async function runWorktreeWorkflowCases({ t, page, url, calls, configure,
     await page.getByTestId("code-viewer-return-review").click();
     await page.goto(url + "?scenario=management");
     await configure({ ignoredCount: 10_000 });
-    await dialog.getByRole("checkbox").check();
-    await dialog.getByRole("button", { name: "保存快照并释放目录", exact: true }).click();
-    await dialog.getByTestId("worktree-ignored-omissions").locator("summary").click();
-    assert.equal(await dialog.locator("li").count(), 0);
-    await dialog.getByTestId("worktree-open-omissions").click();
+    const management = page.getByTestId("worktree-settings-details");
+    await management.getByRole("checkbox").check();
+    await management.getByRole("button", { name: "保存快照并释放目录", exact: true }).click();
+    await management.getByTestId("worktree-ignored-omissions").locator("summary").click();
+    assert.equal(await management.locator("li").count(), 0);
+    await management.getByTestId("worktree-open-omissions").click();
     assert.equal(await page.getByTestId("review-workspace-files").locator("li").count(), 50);
     assert.equal((await calls()).filter((call) => call.method === "diff").length, 0);
     await page.getByTestId("code-viewer-return-review").click();

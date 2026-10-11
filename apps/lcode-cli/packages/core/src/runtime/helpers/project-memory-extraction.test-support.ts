@@ -26,7 +26,7 @@ import { scheduleProjectMemoryExtraction } from "./project-memory-extraction.js"
 export const WORKSPACE = resolve("automatic-review-workspace-fixture");
 export const hash = (value: string) => `sha256:${createHash("sha256").update(value).digest("hex")}`;
 
-export function harness() {
+export function harness(storageLocation: "profile" | "workspace" = "profile") {
   const requests: ModelRequest[] = [];
   const applied: Array<Parameters<ProjectMemoryPort["applyReview"]>[0]> = [];
   const saved: ProjectMemoryReview[] = [];
@@ -44,7 +44,11 @@ export function harness() {
   let modelFailure = false;
   let onModel: ((request: ModelRequest) => void) | undefined;
   const config = {
-    memory: { enabled: true, cliStorageRoot: resolve("automatic-review-storage-fixture") },
+    memory: {
+      enabled: true,
+      cliStorageRoot: resolve("automatic-review-storage-fixture"),
+      storageLocation,
+    },
   };
   const root = resolveEnabledProjectMemoryRoot(config, WORKSPACE)!;
   const session = {

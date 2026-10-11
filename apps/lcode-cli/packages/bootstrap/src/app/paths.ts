@@ -18,11 +18,13 @@ export function getProjectMemoryRoot(
   cliStorageRoot: string,
   workingDirectory: string,
   workspaceIdentity?: string,
+  storageLocation?: "profile" | "workspace",
 ): string {
   return resolveProjectMemoryRoot({
     cliStorageRoot,
     workspaceIdentity,
     workspacePath: workingDirectory,
+    storageLocation,
   });
 }
 

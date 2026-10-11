@@ -73,7 +73,9 @@ sequenceDiagram
   Note over S,V: 冷恢复仍读取同一未结算 attempt，不能回退旧 pass
 ```
 
-Additional admission acceptance: the real Runtime must invoke the physical ExecutionPort zero times after strict start-write failure, failed policy read, missing begin capability, unknown input/binding or duplicate execution id. Unknown input leaves a durable unsettled head, so restoring the file cannot revive older proof. The live workflow driver must also stop before execution on start persistence failure; legacy execution does not call strict begin. These newly saved regressions remain unexecuted while acceptance is paused.
+Additional admission acceptance: the real Runtime must invoke the physical ExecutionPort zero times after strict start-write failure, failed policy read, missing begin capability, unknown input/binding or duplicate execution id. Unknown input leaves a durable unsettled head, so restoring the file cannot revive older proof. The live workflow driver must also stop before execution on start persistence failure; legacy execution does not call strict begin. The workflow engine may expose its existing structured `DriverError` wrapper; acceptance asserts both the error and the unchanged physical execution count.
+
+Final SQL acceptance begins with fully settled current proof. A second SQLite connection advances a requirement head after the completion pre-read but before `UPDATE`; the old snapshot must return null and leave the Goal active. Goal replacement at the same boundary must also reject. Missing proof is a separate early rejection, so it cannot stand in for either SQL-race scenario.
 
 Failure injection acceptance: a real Runtime executes an unchanged check twice against SQLite, with real subprocess exits 0 then 1. Only the second evidence receipt write fails once; subsequent reads and goal writes are available. Live and reopened-store summaries must be incomplete, the semantic verifier must not run, the Goal must remain active, and the original passing receipt and timestamp must remain unchanged.
 

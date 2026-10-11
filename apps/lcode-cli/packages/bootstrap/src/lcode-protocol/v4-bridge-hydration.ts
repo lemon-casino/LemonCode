@@ -20,6 +20,7 @@ import {
 } from "../lcode-protocol-v4/cold-event-merge.js";
 
 import type { SessionUsageSeed } from "../lcode-protocol-v4/product-projection.js";
+import { contextTrendFromPersistedMessages } from "../lcode-protocol-v4/session-context-trend.js";
 
 import { SessionEventType } from "@lcode/contracts";
 
@@ -58,19 +59,24 @@ export function sessionUsageSeedFromRuntimeContextUsage(
   const recoveredCumulative = persistedMessages
     ? cumulativeFromPersistedMessages(persistedMessages)
     : null;
+  const contextTrend = persistedMessages
+    ? contextTrendFromPersistedMessages(persistedMessages)
+    : undefined;
   if (!contextUsage || contextUsage.used <= 0) {
-    return recoveredCumulative
+    return recoveredCumulative || contextTrend?.samples.length
       ? {
+          ...(contextTrend ? { contextTrend } : {}),
           contextWindow: {
             usedTokens: 0,
             maxTokens: contextWindowOverride ?? null,
             autoCompactThresholdTokens: null,
           },
-          cumulative: recoveredCumulative,
+          ...(recoveredCumulative ? { cumulative: recoveredCumulative } : {}),
         }
       : null;
   }
   return {
+    ...(contextTrend ? { contextTrend } : {}),
     contextWindow: {
       usedTokens: contextUsage.used,
       maxTokens: contextWindowOverride ?? null,

@@ -52,7 +52,7 @@ async function createSession(
     execution: payload.execution,
     // 原因：正文截断不是任务概括；把冻结首发交给 CLI 命名入口，Host 只接收短名称。
     worktreeTaskNameInput:
-      payload.execution?.mode === "worktree" && payload.firstInput
+      payload.execution?.mode === "worktree" && !payload.execution.existingBinding && payload.firstInput
         ? {
             text: payload.firstInput.text,
             modelSelection: payload.firstInput.modelSelection ?? payload.config?.modelSelection,

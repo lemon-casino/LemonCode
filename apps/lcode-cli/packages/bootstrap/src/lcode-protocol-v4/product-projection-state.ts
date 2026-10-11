@@ -43,6 +43,7 @@ export interface SessionConfigSeed {
 }
 
 export interface SessionUsageSeed {
+  contextTrend?: SessionUsageState["contextTrend"];
   contextWindow: Omit<NonNullable<SessionUsageState["contextWindow"]>, "maxTokens"> & {
     maxTokens: number | null;
   };
@@ -50,6 +51,8 @@ export interface SessionUsageSeed {
 }
 
 export interface ContextWindowProjectionState {
+  trendSeeded?: boolean;
+  trendRewoundTurnId?: string;
   maxTokens: number | null;
   touchedByEvent: boolean;
   usedTokens: number;

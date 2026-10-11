@@ -4,11 +4,13 @@ import {
   ContextMenuSeparator,
 } from "@/components/ui/context-menu.js";
 import { TaskActionMenuContent } from "@/TaskActionMenuContent.js";
+import type { TaskDirectoryActions } from "@/useTaskListItemContextActions.js";
 
 export function TaskListItemContextMenu({
   intl,
   isPinned,
   fileManagerLabel,
+  directory,
   taskSessionFile,
   activeSessionId,
   taskNativeSessionLogFile,
@@ -34,6 +36,7 @@ export function TaskListItemContextMenu({
   };
   isPinned: boolean;
   fileManagerLabel: string;
+  directory?: TaskDirectoryActions;
   taskSessionFile: { loading: boolean; path: string | null; exists: boolean };
   activeSessionId?: string | null;
   taskNativeSessionLogFile: {
@@ -67,6 +70,7 @@ export function TaskListItemContextMenu({
         intl={intl}
         isPinned={isPinned}
         fileManagerLabel={fileManagerLabel}
+        directory={directory}
         taskSessionFile={taskSessionFile}
         activeSessionId={activeSessionId}
         taskNativeSessionLogFile={taskNativeSessionLogFile}

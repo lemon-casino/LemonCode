@@ -72,6 +72,9 @@ test("branch changes between actual start and terminal settlement discard eviden
       },
     },
   } as SessionEvent);
-  assert.equal([...fixture.entries.values()].filter((entry) => entry.type === "goal/evidence/v1").length, 0);
+  assert.equal(
+    [...fixture.entries.values()].filter((entry) => entry.type === "goal/evidence/v1").length,
+    0,
+  );
   assert.equal((await readGoalEvidenceSummary(fixture.owner, fixture.goal))?.outcome, "incomplete");
 });

@@ -9,6 +9,8 @@ import type {
 import type { ConfigValidationIssue } from "./config-overlay.js";
 import {
   type ApiKeyAccessConfig,
+  type OAuthAccountAccessConfig,
+  isApiKeyAccess,
   ModelConfig,
   ModelConfigRules,
   type ZhipuAccountAccessConfig,
@@ -27,6 +29,7 @@ export type RegistryZhipuAccountAccessConfig = ZhipuAccountAccessConfig &
 
 export type RegistryProviderAccessConfig =
   | (ApiKeyAccessConfig & z.infer<typeof completeApiKeyAccessDataSchema>)
+  | OAuthAccountAccessConfig
   | RegistryZhipuAccountAccessConfig;
 
 export type RegistryProviderConfig = ProviderConfig &
@@ -40,34 +43,35 @@ export function serializeRegistryProviderConfig(
   config: RegistryProviderConfig,
   includeApiKeys = true,
 ): RegistryProviderConfigObject {
-  const primaryApiKey =
-    config.access.type === "zhipu-account"
-      ? undefined
-      : includeApiKeys
-        ? config.access.apiKey
-        : (config.access.apiKeys?.find((key) => key.enabled !== false)?.apiKey ??
-          config.access.apiKey);
+  const primaryApiKey = !isApiKeyAccess(config.access)
+    ? undefined
+    : includeApiKeys
+      ? config.access.apiKey
+      : (config.access.apiKeys?.find((key) => key.enabled !== false)?.apiKey ??
+        config.access.apiKey);
   return {
     group: config.group,
     ...(config.logo === undefined ? {} : { logo: config.logo }),
     access:
-      config.access.type !== "zhipu-account"
-        ? {
-            type: config.access.type,
-            ...(primaryApiKey === undefined ? {} : { apiKey: primaryApiKey }),
-            ...(!includeApiKeys || config.access.apiKeys == null
-              ? {}
-              : { apiKeys: [...config.access.apiKeys] }),
-            ...(config.access.apiKeyManagementUrl === undefined
-              ? {}
-              : { apiKeyManagementUrl: config.access.apiKeyManagementUrl }),
-          }
-        : {
-            type: config.access.type,
-            accountType: config.access.accountType,
-            mode: config.access.mode,
-            entitled: config.access.entitled,
-          },
+      config.access.type === "oauth-account"
+        ? config.access.toJSON()
+        : config.access.type !== "zhipu-account"
+          ? {
+              type: config.access.type,
+              ...(primaryApiKey === undefined ? {} : { apiKey: primaryApiKey }),
+              ...(!includeApiKeys || config.access.apiKeys == null
+                ? {}
+                : { apiKeys: [...config.access.apiKeys] }),
+              ...(config.access.apiKeyManagementUrl === undefined
+                ? {}
+                : { apiKeyManagementUrl: config.access.apiKeyManagementUrl }),
+            }
+          : {
+              type: config.access.type,
+              accountType: config.access.accountType,
+              mode: config.access.mode,
+              entitled: config.access.entitled,
+            },
     api: {
       type: config.api.type,
       baseUrl: config.api.baseUrl,
@@ -148,6 +152,7 @@ export interface ProviderConfigResolverInput {
   readonly lcodeBuiltinModelRules: ModelConfigRules;
   readonly personalModels: ModelConfigRules;
   readonly accountProviders: ProviderConfigMap;
+  readonly accountModelRules?: ModelConfigRules;
   readonly accountStates?: AccountProviderStates;
   readonly personalProviderOrder?: readonly ProviderId[];
 }
@@ -203,7 +208,12 @@ export class ProviderConfigResolver {
         .filter(([providerId]) => input.lcodeBuiltinProviders.has(providerId))
         .map(([providerId, config]) => [providerId, config.withoutGroup()] as const),
     );
-    const concreteBuiltinProviders = input.lcodeBuiltinProviders.overlay(accountProviders);
+    const oauthProviders = new ProviderConfigMap(
+      input.accountProviders.rules().filter((rule) => rule.config.access?.type === "oauth-account"),
+    );
+    const concreteBuiltinProviders = input.lcodeBuiltinProviders
+      .overlay(accountProviders)
+      .overlay(oauthProviders);
     const providerTemplates = input.lcodeBuiltinProviderTemplates;
     const effectiveBuiltinProviders = concreteBuiltinProviders.mapConfigs((concrete, _id, rule) => {
       const template = rule.templateId
@@ -222,8 +232,13 @@ export class ProviderConfigResolver {
       return template ? template.overlay(personal) : personal;
     });
     const effectiveProviders = effectiveBuiltinProviders.overlay(templatePersonalProviders);
+    // OAuth 目录属于推荐来源；执行与智能恢复必须基于同一能力规则，个人覆盖仍最后叠加。
+    const recommendedModelRules = new ModelConfigRules([
+      ...input.lcodeBuiltinModelRules.rules(),
+      ...(input.accountModelRules?.rules() ?? []),
+    ]);
     const effectiveModelRules = ModelConfigRules.composeEffective(
-      input.lcodeBuiltinModelRules,
+      recommendedModelRules,
       input.personalModels,
     );
     const issues: ConfigValidationIssue[] = [];
@@ -279,7 +294,7 @@ export class ProviderConfigResolver {
           apiType: config.api?.type,
           baseUrl: config.api?.baseUrl,
         });
-        const effectiveBuiltinConfig = input.lcodeBuiltinModelRules.resolve({
+        const effectiveBuiltinConfig = recommendedModelRules.resolve({
           providerId,
           templateId,
           modelId,
@@ -389,6 +404,9 @@ function resolveProviderOrder(
     .filter((providerId) => !builtinSet.has(providerId) && !familySet.has(providerId));
   return [
     ...familyIds,
+    ...sourceIds.filter(
+      (id) => !familySet.has(id) && !builtinSet.has(id) && !personalIds.includes(id),
+    ),
     ...resolveOwnedOrder(builtinIds, personalIds, input.personalProviderOrder ?? []),
   ];
 }

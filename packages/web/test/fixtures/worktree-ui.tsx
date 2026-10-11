@@ -5,6 +5,7 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { IServiceAccessor, WorktreeBinding, WorktreeIntegration } from "@lcode/services";
 import type { AppSettings, GitRepositorySummary } from "@lcode/shared";
+import { DEFAULT_WORKTREE_MANAGEMENT_SETTINGS } from "@lcode/shared";
 import { WorktreeBadge } from "@/worktree/WorktreeBadge.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
@@ -208,6 +209,7 @@ const services = {
     },
   },
   worktreeService: {
+    getManagementSettings: async () => ({ ...DEFAULT_WORKTREE_MANAGEMENT_SETTINGS }),
     getIntegration: async () => structuredClone(operation),
     integrate: async (params: {
       requestId: string;

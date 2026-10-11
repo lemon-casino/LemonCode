@@ -1,34 +1,20 @@
 import { AppUsagePanel } from "@/settings/usage-stats/AppUsagePanel.js";
-import {
-  CodingPlanUsagePanel,
-  type CodingPlanUsageSource,
-} from "@/settings/usage-stats/CodingPlanUsagePanel.js";
+import { ProviderUsagePanel } from "@/settings/usage-stats/ProviderUsagePanel.js";
+import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
-export type UsageStatsSectionTab = "app" | "codingPlan" | `codingPlan:${string}`;
+export type UsageStatsSectionTab = "app" | "oauth";
 
-export function UsageStatsSection({
-  activeTab,
-  providerSourcesLoading,
-  workspaceIdentity,
-  workspacePath,
-  selectedCodingPlanSource,
-}: {
-  activeTab: UsageStatsSectionTab;
-  providerSourcesLoading: boolean;
-  workspaceIdentity?: string;
-  workspacePath?: string;
-  selectedCodingPlanSource?: CodingPlanUsageSource | null;
-}) {
+export function UsageStatsSection({ activeTab }: { activeTab: UsageStatsSectionTab }) {
+  const { intl } = useLCodeIntl();
   if (activeTab === "app") {
-    return <AppUsagePanel />;
+    return (
+      <section data-testid="api-usage-panel" className="space-y-4">
+        <p className="text-ui-sm text-foreground-subtle">
+          {intl.formatMessage({ id: "settings.usage.apiScopeNote" })}
+        </p>
+        <AppUsagePanel />
+      </section>
+    );
   }
-
-  return (
-    <CodingPlanUsagePanel
-      loadingSources={providerSourcesLoading}
-      workspaceIdentity={workspaceIdentity}
-      workspacePath={workspacePath}
-      selectedSource={selectedCodingPlanSource}
-    />
-  );
+  return <ProviderUsagePanel />;
 }

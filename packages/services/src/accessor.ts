@@ -17,6 +17,7 @@ import type { ILCodeSessionService } from "./lcode-session/lcodeSession.js";
 import type { ICuaPermissionService } from "./cua-permission-broker/cuaPermissionService.js";
 import type { IFileWatcherService } from "./fileWatcher/fileWatcher.js";
 import type { IOAuthService } from "./oauth/oauth.js";
+import type { IProviderAccountService } from "./model-provider/providerAccountService.js";
 import type {
   IModelSelectionService,
   IProviderSettingsService,
@@ -73,6 +74,8 @@ export interface IServiceAccessor {
   readonly oauthService: IOAuthService;
   /** 当前 Environment 的 Provider 配置与设置视图。 */
   readonly providerSettingsService: IProviderSettingsService;
+  /** 当前 Environment 的模型授权账号；旧 Host 缺能力时不可回落本机。 */
+  readonly providerAccountService?: IProviderAccountService;
   /** 当前 Environment Registry 发布的唯一模型选择 View。 */
   readonly modelSelectionService: IModelSelectionService;
   readonly usageStatsService: IUsageStatsService;

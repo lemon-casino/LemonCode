@@ -254,6 +254,7 @@ function GroupedTaskRowComponent({
     taskSessionFile,
     taskNativeSessionLogFile,
     fileManagerLabel,
+    directory,
     handleCopyText,
     handleOpenTaskPathInFileManager,
   } = useTaskListItemContextActions({
@@ -262,6 +263,7 @@ function GroupedTaskRowComponent({
     workspaceIdentity: task.workspaceIdentity,
     taskId: task.taskId,
     provider: task.provider,
+    executionBindingId: task.executionBindingId,
     intl,
     loadTaskPaths: contextMenuOpen,
   });
@@ -308,7 +310,7 @@ function GroupedTaskRowComponent({
         taskTitle,
         taskId: task.taskId,
         workspacePath: task.workspacePath,
-        taskSessionPath: taskSessionFile.path,
+        taskSessionPath: taskSessionFile.exists ? taskSessionFile.path : null,
         taskLogPath: taskNativeSessionLogFile.path,
         formatMessage: (id: string, values?: Record<string, string>) =>
           intl.formatMessage({ id }, values),
@@ -517,6 +519,7 @@ function GroupedTaskRowComponent({
           groups={groups}
           intl={intl}
           fileManagerLabel={fileManagerLabel}
+          directory={directory}
           taskSessionFile={taskSessionFile}
           taskNativeSessionLogFile={taskNativeSessionLogFile}
           onMoveTaskToGroup={onMoveTaskToGroup}

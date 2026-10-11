@@ -39,12 +39,16 @@ export async function retryConfirmedWorktreeOperation<T>(
       const requestId = binding ? params.resume(binding) : undefined;
       if (!binding || !requestId) throw error;
       const waitMs = Math.min(delayMs, MAX_RETRY_WAIT_MS - waitedMs);
+      // 生产日志此前只有 EBUSY，无法区分 checkout、会话文件与私有资源；保留原生错误定位字段。
+      const fileError = error as { path?: unknown; syscall?: unknown };
       await context.transientRetryWait({
         bindingId: binding.id,
         requestId,
         attempt: ++retry,
         delayMs: waitMs,
         errorCode,
+        ...(typeof fileError.path === "string" ? { path: fileError.path } : {}),
+        ...(typeof fileError.syscall === "string" ? { syscall: fileError.syscall } : {}),
       });
       waitedMs += waitMs;
       delayMs = Math.min(delayMs * 2, MAX_RETRY_DELAY_MS);

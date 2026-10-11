@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { LCodeProviderAccountAccess } from "@lcode/shared";
+import type { LCodeModelAccountAccess } from "@lcode/shared";
 import type { ModelApiCallObservation } from "../telemetry/index.js";
 import type { TraceContext } from "../tracing/tracer.js";
 import type {
@@ -35,7 +35,7 @@ export interface ModelInvocationContext {
   streamRecovery?: ModelStreamRecoveryStatus;
   preserveProviderStreamBoundaries?: boolean;
   refreshRuntimeHeadersBeforeAttempt?: (input: {
-    accountAccess?: LCodeProviderAccountAccess;
+    accountAccess?: LCodeModelAccountAccess;
     attempt: number;
     reason?: "model-request";
     abortSignal?: AbortSignal;
@@ -50,6 +50,8 @@ export interface ModelInvocationContext {
 
 /** Adapter 为单个物理请求 attempt 使用的动态鉴权材料。 */
 export interface ModelRequestAuth {
+  baseURL?: string;
+  protocol?: "anthropic-messages" | "openai-chat-completions" | "openai-responses";
   apiKey?: string;
   headers?: Record<string, string>;
 }

@@ -4,6 +4,7 @@ import type { GitFileMutationJournal } from "@lcode/shared";
 import type { Event, IDisposable } from "@lcode/rpc";
 import { ServiceChannels } from "@lcode/shared";
 import type { AppUsageRange, AppUsageSnapshot, LCodeTaskTokenUsageResult } from "@lcode/shared";
+import type { ProviderUsageRequest, ProviderUsageSnapshot } from "@lcode/shared";
 import type { LCodeAutomation, LCodeAutomationRun } from "@lcode/shared";
 import type {
   LCodeStorageStartupState,
@@ -220,6 +221,7 @@ export interface LCodeAgentListSessionSubagentsParams extends LCodeAgentSessionT
 }
 
 export interface LCodeAgentAppUsageParams {
+  connectionType?: "api-key";
   range: AppUsageRange;
   timeZone?: string;
 }
@@ -595,6 +597,7 @@ export interface ILCodeAgentService {
     params: LCodeAgentListSessionSubagentsParams,
   ): Promise<LCodeSessionSubagentsResult>;
   getAppUsageStats(params: LCodeAgentAppUsageParams): Promise<AppUsageSnapshot>;
+  getProviderUsageStats(params: ProviderUsageRequest): Promise<ProviderUsageSnapshot>;
   getTaskTokenUsage(params: LCodeAgentTaskTokenUsageParams): Promise<LCodeTaskTokenUsageResult>;
   readSession(params: LCodeAgentReadSessionParams): Promise<LCodeSessionStateSnapshot>;
   readSessionMessages(

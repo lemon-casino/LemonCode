@@ -6,7 +6,11 @@ import type { MessageId, PartId, ProjectId, SessionId } from "./shared.js";
 import type { TodoItem } from "../tools/todo.js";
 import type { SessionGoal, GoalStatus } from "../tools/target.js";
 import type { GoalAcceptance } from "../tools/goal-evidence.js";
-import type { BeginGoalEvidenceExecutionInput, BeginGoalEvidenceExecutionResult, GoalEvidenceHeadToken } from "../tools/goal-evidence-head.js";
+import type {
+  BeginGoalEvidenceExecutionInput,
+  BeginGoalEvidenceExecutionResult,
+  GoalEvidenceHeadToken,
+} from "../tools/goal-evidence-head.js";
 import type {
   ContextCapsule,
   ContextCapsuleCommitResult,
@@ -141,7 +145,9 @@ export interface SessionStorePort {
   readTranscriptWindow?(input: ReadSessionTranscriptWindowInput): Promise<SessionTranscriptWindow>;
   saveSessionEntry?(input: SessionEntryInfo): Promise<void>;
   /** Strict checks reserve all matched durable heads atomically before physical execution. */
-  beginGoalEvidenceExecution?(input: BeginGoalEvidenceExecutionInput): Promise<BeginGoalEvidenceExecutionResult>;
+  beginGoalEvidenceExecution?(
+    input: BeginGoalEvidenceExecutionInput,
+  ): Promise<BeginGoalEvidenceExecutionResult>;
   sessionEntries?(input: {
     sessionID: SessionId;
     type?: SessionEntryType | string;
@@ -431,3 +437,4 @@ export type {
   TaskUsageQueryResult,
   UsageStorePort,
 } from "./session-store/usage.js";
+export type { ProviderUsageQueryInput } from "./session-store/provider-usage.js";

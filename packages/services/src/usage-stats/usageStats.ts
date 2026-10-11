@@ -1,6 +1,8 @@
 import type {
   AppUsageRequest,
   AppUsageSnapshot,
+  ProviderUsageRequest,
+  ProviderUsageSnapshot,
   CodingPlanUsageRequest,
   CodingPlanUsageSnapshot,
   CodingPlanResetOpportunityRequest,
@@ -19,6 +21,7 @@ import { createServiceDescriptor } from "../descriptors.js";
 
 export interface IUsageStatsService {
   getAppUsageSnapshot(request: AppUsageRequest): Promise<AppUsageSnapshot>;
+  getProviderUsageSnapshot(request: ProviderUsageRequest): Promise<ProviderUsageSnapshot>;
   getCodingPlanUsageSnapshot(request: CodingPlanUsageRequest): Promise<CodingPlanUsageSnapshot>;
   getCodingPlanResetStatus(
     request: CodingPlanResetScopeRequest,

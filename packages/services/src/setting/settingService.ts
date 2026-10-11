@@ -15,6 +15,7 @@ import {
 } from "@lcode/shared";
 import type { ISettingService } from "./setting.js";
 import { normalizeSettingsPatch } from "#src/setting/normalizeSettingsPatch.js";
+import { assertMemoryStorageTransition } from "./memoryStorageTransition.js";
 import { copyDataDirectory, getDataBaseDir, validateDataBaseDirTarget } from "../paths.js";
 import { isEffectiveDevelopmentNodeEnv } from "../runtime-tools/nodeEnv.js";
 import { maybeThrowInjectedFsFault } from "../fs/fsFaultInjection.js";
@@ -330,6 +331,8 @@ export function createSettingServiceWithMigrations(): {
               )
             : current.projectExecutionPreferences,
         });
+
+        assertMemoryStorageTransition(current, merged, validatedPatch);
 
         // 打开工作区后会几乎同时写 recentProjects 和 lastWorkspaceSession。
         // 之前两个 update 都是基于各自读到的旧 settings 直接覆盖写回，

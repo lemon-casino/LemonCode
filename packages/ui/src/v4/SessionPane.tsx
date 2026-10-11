@@ -1555,9 +1555,10 @@ export function SessionPane({
     sharedSettings ?? {},
     { workspacePath, workspaceIdentity },
     // 执行选择统一保存到项目；仅首次请求冻结的意图优先，保证准备失败重试仍使用原目录。
-    draftExecution?.frozen ? draftExecution.mode : undefined,
+    draftExecution?.existingBinding || draftExecution?.newWorktree ? "worktree" : draftExecution?.frozen ? draftExecution.mode : undefined,
   );
   const executionIntentRef = useRef({
+    existingBinding: draftExecution?.existingBinding,
     mode: executionPolicy.executionMode,
     environmentPolicy: executionPolicy.environmentPolicy,
     baseRef: draftExecution?.baseRef,
@@ -1569,6 +1570,7 @@ export function SessionPane({
     copyIgnoredPaths: executionPolicy.copyIgnoredPaths,
   });
   executionIntentRef.current = {
+    existingBinding: draftExecution?.existingBinding,
     mode: executionPolicy.executionMode,
     environmentPolicy: executionPolicy.environmentPolicy,
     baseRef: draftExecution?.baseRef,

@@ -2,6 +2,8 @@ import type { MessageId, SessionId, ToolCallId, TraceId, TurnId } from "../share
 import type { ModelId, ModelProviderId } from "../../model/protocol-identity.js";
 import type { ModelToolSideEffectScope } from "../../model/tool-contracts.js";
 import type { SessionTaskType } from "./session-records.js";
+import type { ProviderUsageSnapshot } from "@lcode/shared";
+import type { ProviderUsageQueryInput } from "./provider-usage.js";
 
 export type UsageQuerySource =
   | "main_turn"
@@ -55,6 +57,12 @@ export interface ModelUsageRecord {
   errorMessage?: string;
   rawUsage?: unknown;
   providerMetadata?: unknown;
+  /** 请求实际返回的账号归属，缺失时不得从当前配置反推。 */
+  authChannelId?: string;
+  accountConnectionId?: string;
+  usageKnown?: boolean;
+  contextWindowTokens?: number;
+  contextUsedTokens?: number;
 }
 
 export interface TurnUsageRecord {
@@ -117,6 +125,7 @@ export interface ToolUsageRecord {
 }
 
 export interface AppUsageQueryInput {
+  connectionType?: "api-key";
   /** 含 (since, until] 的下界（unix ms）。 */
   since: number;
   /** 上界（unix ms），通常为 now。 */
@@ -210,5 +219,6 @@ export interface UsageStorePort {
   upsertToolUsage(input: ToolUsageRecord): Promise<void>;
   pruneUsage(input?: { beforeTime?: number }): Promise<void>;
   queryAppUsage(input: AppUsageQueryInput): Promise<AppUsageQueryResult>;
+  queryProviderUsage(input: ProviderUsageQueryInput): Promise<ProviderUsageSnapshot>;
   queryTaskUsage(input: TaskUsageQueryInput): Promise<TaskUsageQueryResult>;
 }

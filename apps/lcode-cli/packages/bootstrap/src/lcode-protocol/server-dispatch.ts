@@ -1,4 +1,5 @@
 import { querySessionDebug } from "./session-debug.js";
+import { getProviderUsageStats } from "./provider-usage-stats.js";
 import { cleanupWorktreeSessions } from "./worktree-session-cleanup.js";
 import { rebindWorktreeSessions } from "./worktree-session-rebind.js";
 import { workspaceFileMutationJournal } from "./workspace-file-mutation-journal.js";
@@ -232,6 +233,9 @@ export async function dispatchRequest(host: ProtocolDispatchHost, request: LCode
     // 也不经旧 op 分派（无桥）。旧 case 保留到旧词删除（老 host 版本兼容）。──
     case V4_METHODS.usageStats:
       return await getUsageStats(host.context, request.params);
+    case V4_METHODS.providerUsageStats:
+    case lcodeProtocolMethods.providerUsageStats:
+      return await getProviderUsageStats(host.context, request.params);
     case V4_METHODS.conversationUsage:
       return await getTaskTokenUsage(host.context, request.params);
     case V4_METHODS.command:

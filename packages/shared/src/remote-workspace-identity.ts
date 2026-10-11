@@ -1,7 +1,6 @@
 // 远程 workspace identity 的统一解析工具（Workspace Identity 约束：构造与解析
 // 必须复用统一工具，禁止业务代码手写拼接/拆解规则）。
-// 构造侧（对偶）：packages/ui/src/lib/remoteWorkspaceHistory.ts 的
-// buildRemoteWorkspaceIdentity —— 格式契约：
+// 构造与解析共用本文件的 buildRemoteWorkspaceIdentity —— 格式契约：
 //   remote:ssh:<host>:<port>:<username>:<posixPath>
 //   remote:wsl:<distro>[:<user>]:<posixPath>
 //   remote:docker:<container>:<posixPath>
@@ -21,13 +20,6 @@ export interface ParsedRemoteWorkspaceIdentity {
 }
 
 const REMOTE_IDENTITY_PREFIX = "remote:";
-
-/** authority 必选段数（不含 kind）：ssh = host/port/username，其余远端类型 = 单段。 */
-const AUTHORITY_SEGMENTS: Record<RemoteWorkspaceIdentityKind, number> = {
-  ssh: 3,
-  wsl: 1,
-  docker: 1,
-};
 
 function isRemoteWorkspaceIdentityKind(value: string): value is RemoteWorkspaceIdentityKind {
   return value === "ssh" || value === "wsl" || value === "docker";
@@ -80,30 +72,22 @@ export function parseRemoteWorkspaceIdentity(
   if (!isRemoteWorkspaceIdentityKind(kind)) {
     return null;
   }
-  // 逐段消费 authority；path 段可能含 ":"（理论上 posix 路径允许），
-  // 因此不能整体 split——按段推进后取剩余整段为 path。
-  let cursor = kindEnd + 1;
-  for (let i = 0; i < AUTHORITY_SEGMENTS[kind]; i++) {
-    const next = rest.indexOf(":", cursor);
-    if (next <= cursor) {
-      return null;
-    }
-    cursor = next + 1;
-  }
-  // WSL identity 为区分默认用户与显式用户增加了可选 user 段，旧解析器
-  // 仍只消费 distro，导致 user 被误判为路径并让 identity 整体解析失败。远端路径
-  // 必须以 "/" 开头，因此可以无歧义地区分 legacy 无 user 格式与显式 user 格式。
-  if (kind === "wsl" && rest[cursor] !== "/") {
-    const userEnd = rest.indexOf(":", cursor);
-    if (userEnd <= cursor) {
-      return null;
-    }
-    cursor = userEnd + 1;
-  }
-  const workspacePath = rest.slice(cursor);
-  if (!workspacePath.startsWith("/")) {
+  // 固定消费三个冒号会截断 IPv6 host，导致远端 createSession 把合法身份拒绝。
+  // authority 不含斜杠，先以第一个 :/ 找到路径，再从右侧识别 SSH 的 port/user；
+  // 保留已有 IPv6 identity 字面值，不迁移历史记录，也不截断路径中的冒号。
+  const pathStart = rest.indexOf(":/", kindEnd + 1);
+  if (pathStart < 0) return null;
+  const authority = rest.slice(kindEnd + 1, pathStart);
+  const validAuthority =
+    kind === "ssh"
+      ? /^[^/]+:[0-9]+:[^:/]+$/.test(authority)
+      : kind === "wsl"
+        ? /^[^:/]+(?::[^:/]+)?$/.test(authority)
+        : /^[^:/]+$/.test(authority);
+  if (!validAuthority) {
     return null;
   }
+  const workspacePath = rest.slice(pathStart + 1);
   return { kind, workspacePath };
 }
 

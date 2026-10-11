@@ -25,6 +25,81 @@ const binding: WorktreeExecutionBinding = {
 };
 const original = { workspacePath: "/origin", workspaceKey: "/origin" };
 
+test("blank existing-worktree sessions register an alias without copying history or creating a checkout", async () => {
+  let request: Record<string, unknown> = {};
+  const context = {
+    requestClient: async (_method: string, params: Record<string, unknown>) => {
+      request = params;
+      return binding;
+    },
+  } as unknown as LCodeProtocolAgentServerContext;
+  const input = {
+    workspace: original,
+    taskId: "blank-child",
+    requestId: "blank-request",
+    execution: {
+      mode: "worktree" as const,
+      existingBinding: { bindingId: binding.id, bindingOwnerTaskId: binding.taskId },
+    },
+  };
+  const prepared = await prepareProtocolExecution(context, input);
+  assert.equal(prepared.workspace.executionBindingId, binding.id);
+  assert.equal(prepared.workspace.workspacePath, binding.workspacePath);
+  assert.equal(prepared.workspace.bindingOwnerTaskId, binding.taskId);
+  assert.equal(prepared.workspace.bindingReuse, "existing");
+  assert.deepEqual(request.parentBinding, {
+    bindingId: binding.id,
+    bindingOwnerTaskId: binding.taskId,
+    parentTaskId: binding.taskId,
+  });
+  assert.equal(request.sourceFolderPaths, undefined);
+  context.requestClient = async () => ({ ...binding, id: "another-tree" }) as never;
+  await assert.rejects(prepareProtocolExecution(context, input), /binding/);
+});
+
+test("blank existing-worktree chat restores only through its own persisted Host alias", async () => {
+  const reference = {
+    workspacePath: "/tree",
+    workspaceKey: "/tree",
+    originWorkspacePath: "/origin",
+    executionBindingId: binding.id,
+    bindingOwnerTaskId: binding.taskId,
+    bindingReuse: "existing" as const,
+  };
+  const queries: Record<string, unknown>[] = [];
+  const context = {
+    deps: {
+      sessionStore: {
+        sessionEntries: async () => [{ data: reference }],
+        getSession: async () => {
+          throw new Error("blank chat must not require a parent");
+        },
+      },
+    },
+    requestClient: async (method: string, params: Record<string, unknown>) => {
+      assert.equal(method, "worktree/getBinding");
+      queries.push(params);
+      return { binding };
+    },
+  } as unknown as LCodeProtocolAgentServerContext;
+  const restored = await restoreProtocolExecution(context, {
+    taskId: "blank",
+    workspace: original,
+    persistedWorkspace: reference,
+  });
+  assert.equal(queries[0]?.taskId, "blank");
+  assert.deepEqual(restored.workspace, { ...reference, workspaceIdentity: undefined });
+  context.requestClient = async () => ({ binding: null }) as never;
+  await assert.rejects(
+    restoreProtocolExecution(context, {
+      taskId: "blank",
+      workspace: original,
+      persistedWorkspace: reference,
+    }),
+    /unavailable/,
+  );
+});
+
 test("worktree preparation returns fixed execution path after the owner answers", async () => {
   let request: unknown;
   const context = {
@@ -149,7 +224,10 @@ test("cold restore reconciles the persisted environment reference against its bi
   const context = {
     deps: { sessionStore: { sessionEntries: async () => [{ data: reference }] } },
     requestClient: async (method: string, params: unknown) => {
-      if (method === "runtimeEnvironment/retainSession") { retained.push(params); return { retained: true }; }
+      if (method === "runtimeEnvironment/retainSession") {
+        retained.push(params);
+        return { retained: true };
+      }
       return { binding: { ...binding, environmentRef: envRef } };
     },
   } as unknown as LCodeProtocolAgentServerContext;
@@ -159,7 +237,14 @@ test("cold restore reconciles the persisted environment reference against its bi
     persistedWorkspace: { workspacePath: "/tree", workspaceKey: "/tree" },
   });
   assert.deepEqual(restored.workspace.environmentRef, envRef);
-  assert.deepEqual(retained, [{ workspacePath: "/tree", executionBindingId: binding.id, sessionId: taskId, environmentRef: envRef }]);
+  assert.deepEqual(retained, [
+    {
+      workspacePath: "/tree",
+      executionBindingId: binding.id,
+      sessionId: taskId,
+      environmentRef: envRef,
+    },
+  ]);
   // binding 环境引用缺失 → 拒绝恢复，不回退原目录（spec §8.1）。
   const missingContext = {
     deps: { sessionStore: { sessionEntries: async () => [{ data: reference }] } },
@@ -246,21 +331,44 @@ test("preparation forwards setup authorization and retains remote attachment ide
 
 test("managed fork restore retains the child identity, not the root binding owner", async () => {
   const environmentRef = { environmentId: "a".repeat(32), revision: 1 };
-  const parent = { workspacePath: "/tree", workspaceKey: "/tree", executionBindingId: binding.id,
-    originWorkspacePath: "/origin", environmentRef };
+  const parent = {
+    workspacePath: "/tree",
+    workspaceKey: "/tree",
+    executionBindingId: binding.id,
+    originWorkspacePath: "/origin",
+    environmentRef,
+  };
   const child = { ...parent, bindingOwnerTaskId: taskId };
   const retained: Record<string, unknown>[] = [];
   const context = {
-    deps: { sessionStore: {
-      sessionEntries: async ({ sessionID }: { sessionID: string }) => [{ data: sessionID === "child" ? child : parent }],
-      getSession: async (id: string) => ({ id, path: "/tree", directory: "/tree", ...(id === "child" ? { parentID: taskId } : {}) }),
-    } },
+    deps: {
+      sessionStore: {
+        sessionEntries: async ({ sessionID }: { sessionID: string }) => [
+          { data: sessionID === "child" ? child : parent },
+        ],
+        getSession: async (id: string) => ({
+          id,
+          path: "/tree",
+          directory: "/tree",
+          ...(id === "child" ? { parentID: taskId } : {}),
+        }),
+      },
+    },
     requestClient: async (method: string, params: Record<string, unknown>) => {
-      if (method === "runtimeEnvironment/retainSession") { retained.push(params); return { retained: true }; }
-      return method.includes("prepare") ? { ...binding, environmentRef } : { binding: { ...binding, environmentRef } };
+      if (method === "runtimeEnvironment/retainSession") {
+        retained.push(params);
+        return { retained: true };
+      }
+      return method.includes("prepare")
+        ? { ...binding, environmentRef }
+        : { binding: { ...binding, environmentRef } };
     },
   } as unknown as LCodeProtocolAgentServerContext;
-  const restored = await restoreProtocolExecution(context, { taskId: "child", workspace: original, persistedWorkspace: parent });
+  const restored = await restoreProtocolExecution(context, {
+    taskId: "child",
+    workspace: original,
+    persistedWorkspace: parent,
+  });
   assert.deepEqual(restored.workspace.environmentRef, environmentRef);
   assert.equal(retained.length, 1);
   assert.equal(retained[0]?.sessionId, "child");

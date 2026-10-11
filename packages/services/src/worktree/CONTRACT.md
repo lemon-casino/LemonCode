@@ -1,5 +1,14 @@
 # Worktree service
 
+Management settings and display names are owned by this service. `getManagementSettings` and
+`updateManagementSettings` persist an atomic Host-local patch; changing the root only affects
+future checkouts. Each binding freezes its checkoutRoot, and all removal paths still verify
+the private binding, canonical root and Git ownership. `rename` only changes a display label.
+`cleanup` and successful new `prepare` use the same serialized retention policy: excess ready
+checkouts are archived only after a nonblocking writer and successful snapshot preflight.
+Busy or unsafe candidates are reported as skipped. Automatic cleanup never discards sessions
+or snapshots and never treats failed snapshots as authorization to remove files.
+
 Upgrade recovery preserves the original requestId and expected reference in the binding journal. Settled cancellation adds `environmentUpgrade.cancelled=true` and keeps updating; an explicit new request can continue only after verifying the old cancellation under the binding lock. Any already-published new reference must finish the old session CAS/consumer migration under a checkout writer before the new upgrade starts. UI remount/reconnect restores uncancelled intents from this journal. Failed candidate preparation also persists revision-zero cleanup references; only positive references may authorize execution, validation evidence or publication.
 
 WorktreeService is the only owner of bindings, archive snapshots, integration operations and the deletion journal. Runtime-environment facts, consumers, service receipts and environment resources remain owned by the target Host RuntimeEnvironmentService; WorktreeService can only call them through injected lifecycle ports. It must not infer an environment from a path, PID or UI state.
@@ -185,3 +194,10 @@ Agent spawn. A new Host rejects deleting/deleted/archived scopes and physical de
 origin maintenance, unrelated identities and paths outside the actual checkout remain separate.
 The lookup uses one persisted binding, with no filesystem scan or second accepted-state cache.
 Public RPC excludes this action; local stop fencing still covers operations before settlement.
+
+Host-only `assertFileWatchAdmission(path)` checks the same durable binding for physical
+watcher admission, including archiving. It ignores execution identity only for this
+path-only resource check; execution admission retains its existing identity boundary.
+FileWatcher waits for pending admissions and actual close receipts before deletion;
+late UI watches cannot reopen deleting or archived checkouts. Restore reads the current
+binding again, without a second lifecycle cache. External handles are not force-closed.

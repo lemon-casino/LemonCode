@@ -61,6 +61,47 @@ export function spawnCommand(command, args, options = {}) {
   return spawn(prepared.command, prepared.args, prepared.options);
 }
 
+export async function execCommand(command, args, { maxBuffer = 1024 * 1024, ...options } = {}) {
+  // 修复：execFile 的 shell:true 在 Node 24 直接拼接参数并触发 DEP0190；复用安全 batch 启动器。
+  const child = spawnCommand(command, args, { ...options, stdio: "pipe" });
+  const chunks = { stdout: [], stderr: [] };
+  let length = 0;
+  let overflow;
+  for (const stream of ["stdout", "stderr"]) {
+    child[stream].on("data", (chunk) => {
+      length += chunk.length;
+      if (length > maxBuffer) {
+        overflow ??= Object.assign(new Error("Command output exceeded maxBuffer"), {
+          code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER",
+        });
+        child.kill();
+      } else chunks[stream].push(chunk);
+    });
+  }
+  child.stdin.end();
+  return new Promise((resolve, reject) => {
+    child.once("error", reject);
+    child.once("close", (code, signal) => {
+      const output = Object.fromEntries(
+        Object.entries(chunks).map(([stream, buffers]) => [
+          stream,
+          Buffer.concat(buffers).toString("utf8"),
+        ]),
+      );
+      if (overflow) reject(Object.assign(overflow, output));
+      else if (code !== 0)
+        reject(
+          Object.assign(new Error(`Command failed (${code ?? signal})`), {
+            code,
+            signal,
+            ...output,
+          }),
+        );
+      else resolve(output);
+    });
+  });
+}
+
 /**
  * 解析要启动的真实可执行文件，避免再次进入会重解析参数的 CMD shim：
  * `node` 直接用启动器 runtime；Windows 上的 `pnpm`/`npm` 取磁盘上真实 `.cjs` 入口，

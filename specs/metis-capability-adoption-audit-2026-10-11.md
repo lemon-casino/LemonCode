@@ -1,10 +1,10 @@
 # Metis 方案全面复查与修复记录
 
 - 日期：2026-10-11。
-- 状态：**代码修复完成，验收已按用户要求暂停**。追加 attempt/head 修复已落盘并冻结；最新版本未运行测试、构建、类型、Lint、格式或架构检查，不能声称已通过验收。
+- 状态：**已按用户后续要求恢复验收，追加 attempt/head 修复已通过本轮验证**。随后新增的工作区记忆位置功能按[独立规格](workspace-memory-storage-location.md)实施，其结果单独记录。
 - 范围：[Metis 落地方案](metis-capability-adoption-plan.md) 的 D0/D1/D2、B0/B1、L0/L1、V0/V1、H0/H1，以及这些改动经过的现有发送、队列、恢复和远控路径。
 - 方法：逐条核对 spec、真实调用方与持久化边界；新增能复现遗漏的失败回归后修复，再运行相关新旧测试。保留上一轮未提交实现及与本次任务无关的文件。
-- 工具链：Node 24.21.0、pnpm 10.34.6，与 mise.toml 一致；仅设置验证进程 PATH。freshness 检查通过，L-GO 与 origin/L-GO 同步，相对 origin/main ahead 20 / behind 0。
+- 工具链：Node 24.21.0、pnpm 10.34.6，与 mise.toml 一致；仅设置验证进程 PATH。首次复查 freshness 通过，相对 origin/main ahead 20 / behind 0；恢复验收时重新检查为 ahead 23 / behind 0，当前 L-GO 无远程跟踪项。
 
 ## 1. 方案核对与已确认问题
 
@@ -24,9 +24,29 @@
 
 Runtime 与 world.run 已同步执行前的错误传播，初次 Goal 读取失败也不能被观察器吞掉后继续执行。缺少持久化能力、来源不确定、容量不足、stale 或 duplicate admission 均阻断该匹配检查。此修复不重放已发生的外部副作用，不新增 UI/V4 状态所有者。
 
-最新待验收项包括：上述真实写失败回归、[SQLite head 事务回归](../apps/lcode-cli/packages/adapters/src/storage/session-store/goal-evidence-head.test.ts)、Bash/world.run 开始失败阻断、冷恢复、乱序 terminal、并行验收项及暂停恢复。真实 Runtime 用例与 5 个 SQLite 用例只有修复前的失败记录；修复后的用例未执行。恢复验收后还需重新构建并运行类型、Lint、架构及相关回归检查。
+恢复后的正式验收组为 16 个测试文件、42/42 通过，覆盖真实写失败、[SQLite head 事务](../apps/lcode-cli/packages/adapters/src/storage/session-store/goal-evidence-head.test.ts)、Bash/world.run 开始失败阻断、冷恢复、乱序 terminal、并行验收项及暂停恢复。补充了第二 SQLite 连接在最终 UPDATE 前推进 head 的真实竞态回归；修正旧 CAS 测试遗漏完整 proof 前置及 world 引擎包装错误的断言。生产代码提取 entry 写守卫以满足文件行数限制。
 
-## 2. 追加持久化修复前的验证记录
+本轮重新执行：contracts/adapters/core fresh build 通过；根 typecheck/lint 通过；CLI typecheck 27/27、lint 14/14；架构 0 violations / baseline 0 / new 0；CLI 定向格式 24 文件通过，标准 `git diff --check` 通过。freshness 相对 origin/main ahead 23 / behind 0，当前分支无远程跟踪项。计数与下表历史组有重叠，不累加。
+
+## 2. 工作区记忆调查与位置选项
+
+用户报告只显示 default 后，已只读核查指定的 profile、项目、安装目录、SQLite 和日志，结论见[调查记录](workspace-memory-investigation-2026-10-11.md)。目标项目根解析正确，但目录和治理账本均为空；日志存在正文为空的截断提取响应。没有发现目标项目的记忆迁入 default 的证据，也未找到可恢复的旧正文。新位置选项不能被描述成恢复了历史记忆。
+
+按用户选择实现 profile / 项目主文件夹两种本机位置，切换时复制 Markdown 并保留原文件，同名冲突保留目标。设置页显示两处来源；新建或重新打开的会话使用新位置，已运行会话保留原位置。多源文件夹项目沿 `primaryFolderPath` 共用一份记忆，附加文件夹不会各自产生副本。远程 workspace 保持现有 profile 语义。
+
+完整规则、状态所有者、事件顺序和失败边界见[位置规格](workspace-memory-storage-location.md)。修复了复制成功但设置提交失败后重试漏文件、context cwd 改变工作区根、冷恢复和证据读取根不一致，以及界面提交后读取晚到等问题。测试使用临时文件和确定性模型 fixture，没有改动用户个人记忆或调用真实模型。
+
+最终复核又复现了旧 Runtime 延迟初始化回退迁移标记的时序缺陷：在新位置删除文件后，新 Runtime 会重新导入被保留的旧源。位置与单调版本现由 SettingService 同次持久化，准备器在原 writer 锁内拒绝旧命令、隔离旧 Runtime，并保留失败重试及较新版本的延迟迁移。通用设置接口也在原设置锁内拒绝缺版本、跳版本及版本回退，避免绕过内部所有者规则。
+
+同时补齐 Main 的记忆位置失效通知：所有存活窗口沿既有 `SettingsChanged` 重新读取设置，提交前读取晚到时必须再读一次，不广播读回结果。Main 不持有记忆位置业务状态。相关失败回归均先红后绿，界面覆盖 1280px / 390px、中英文与 7 个主题。
+
+最终分组结果：共享准备器 16/16，服务/设置/Host/协议 27/27，CLI 记忆与历史 scope 42/42，旧目录读取 1/1，SSR 3/3，真实 Main 通知入口 4/4，浏览器 11/11（10 个子场景及父测试）。最新 CLI 构建后 Goal 组再次 42/42。根及 CLI typecheck/lint 均通过，架构 0 violations / baseline 0 / new 0；具体边界和入口见[位置规格的执行记录](workspace-memory-storage-location.md#执行记录2026-10-11)。
+
+最终定向格式检查：根 44 文件、CLI 45 文件通过；`git diff --check` 通过。验收期间另一路远程连接改动进入共享工作树，本任务未编辑或格式化其文件；定向统计排除该组改动。全仓历史格式失败仍按第 5 节记录，不以定向通过替代。
+
+变更涉及 Shared、Services、Desktop、UI，以及 CLI contracts/adapters/core/bootstrap。位置与版本由原 SettingService 持有，复制复用共享准备器及原 writer 锁，Main 只通知、UI 只读回；净行数统计覆盖本任务未提交的 Goal 追加与记忆功能，排除并发远程连接改动：90 文件（含 27 个新文件），新增 5388 行、删除 655 行，净增 4733 行。
+
+## 3. 追加持久化修复前的验证记录
 
 以下结果在追加 attempt/head 持久化修复前取得，不能作为该最新变更已通过验收的证明。数量按独立执行组记录，部分组包含重叠测试，不相加冒充不重复覆盖数量。
 
@@ -53,7 +73,7 @@ Runtime 与 world.run 已同步执行前的错误传播，初次 Goal 读取失�
 
 初轮完整工作树浏览器运行期间同时修改 locale，Vite HMR 引发 Provider/重复 portal 错误；冻结 UI 文件后完整重跑 38/38，通过且无页面错误。没有通过放宽断言或延长等待掩盖该失败。
 
-## 3. 恢复与兼容性说明
+## 4. 恢复与兼容性说明
 
 - 新 strict 命令保留独立身份，旧执行端应明确拒绝；普通 Goal 的 legacy 完成语义保持兼容。
 - Goal 文件 digest 升级为 v2；之前已保存的旧 digest 会成为 stale，需要重新执行真实检查。账本达到 512 条时整体保持 incomplete，不沿用可能遗漏后续失败的旧 pass。
@@ -62,9 +82,9 @@ Runtime 与 world.run 已同步执行前的错误传播，初次 Goal 读取失�
 - Desktop continuous 与 Web remote replayable 仍共享原 Runtime/Host attachment；未引入第二队列、手机 Agent 或新的业务状态 owner。
 - 本轮修复没有启用默认关闭的记忆排序，没有把观察结果改成自动有益/有害判断，也没有扩大方案明确排除的自动技能激活、Whisper 下载或跨 identity 导入。
 
-## 4. 验证边界
+## 5. 验证边界
 
-- 按用户最新要求，追加 attempt/head 修复完成后暂停验收；相应真实故障注入回归已先复现失败，修复后的转绿、类型、Lint、架构与回归验证留待恢复验收。
+- 追加 attempt/head 修复已经恢复验收并转绿，结果见上文。未重新运行与追加持久化修复无关的全部历史浏览器组，下表保留其原执行时间边界。
 - 未运行真实模型付费对照，离线成功不证明成功率、速度、费用或学习收益；单任务维护对照不能证明后续任务的学习效果。
 - 验收只覆盖契约显式声明的 inputPaths/artifactPaths；exit 0 不证明未声明文件正确。Goal 集成测试使用 fake 语义核验器，不能替代真实模型语义效果测试。
 - 本机无 FFmpeg/FFprobe，真实解码及跨操作系统行为未验证。新增参数、版本、时间、权限与预算回归使用确定性端口；媒体持久化/冷恢复和 SQLite 用例实际执行对应存储路径。

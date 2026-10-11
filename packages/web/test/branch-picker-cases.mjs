@@ -70,12 +70,16 @@ export async function runBranchPickerCases({ t, page, url, calls, select }) {
       );
       await occupied.getByTestId("git-branch-open-worktree").click();
       await occupied.waitFor({ state: "hidden" });
-      const management = page.getByTestId("project-worktree-management-dialog");
-      await management.getByTestId("worktree-management-content").waitFor();
+      const management = page.getByTestId("settings-worktrees-section");
+      await management.getByTestId("worktree-settings-details").waitFor();
+      assert.equal(await page.getByRole("dialog").count(), 0);
       assert.match(await management.innerText(), /worktree\/task/);
-      await management.getByRole("button", { name: "返回项目工作树", exact: true }).click();
-      await management.getByTestId("project-worktree-list").waitFor();
-      await management.getByRole("button", { name: "工作树管理", exact: true }).click();
+      await management.getByRole("button", { name: "返回列表", exact: true }).click();
+      await management
+        .getByTestId("worktree-settings-list")
+        .getByRole("button")
+        .filter({ hasText: "worktree/task" })
+        .click();
       assert.equal(
         (await calls()).some((call) => ["archive", "deleteBranch"].includes(call.method)),
         false,
@@ -83,7 +87,7 @@ export async function runBranchPickerCases({ t, page, url, calls, select }) {
       await management.getByRole("checkbox").check();
       await management.getByRole("button", { name: "保存快照并释放目录", exact: true }).click();
       await management.getByRole("button", { name: "恢复工作树目录", exact: true }).waitFor();
-      await management.getByTestId("project-worktrees-close").click();
+      await page.getByTestId("fixture-close-worktree-settings").click();
       await trigger.click();
       assert.equal(await action("worktree/task").getAttribute("data-branch-action"), "delete");
       await action("external").click();
@@ -125,6 +129,7 @@ export async function runBranchPickerCases({ t, page, url, calls, select }) {
     await occupied.waitFor({ state: "hidden" });
     assert.equal(await occupied.count(), 0);
     assert.equal(await page.getByTestId("project-worktree-management-dialog").count(), 0);
+    assert.equal(await page.getByTestId("settings-worktrees-section").count(), 0);
     assert.equal(
       (await calls()).some((call) => call.method === "deleteBranch"),
       false,

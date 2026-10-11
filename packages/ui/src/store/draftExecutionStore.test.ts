@@ -2,6 +2,23 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { useDraftExecutionStore } from "./draftExecutionStore.js";
 
+test("existing worktree selection survives admission and rejects a second tree while pending", () => {
+  const state = useDraftExecutionStore.getState();
+  state.choose("tree-project", {
+    mode: "worktree",
+    existingBinding: { bindingId: "a", bindingOwnerTaskId: "owner" },
+  });
+  state.begin("tree-project", "create");
+  state.choose("tree-project", {
+    existingBinding: { bindingId: "b", bindingOwnerTaskId: "other" },
+  });
+  assert.equal(
+    useDraftExecutionStore.getState().drafts["tree-project"]?.existingBinding?.bindingId,
+    "a",
+  );
+  state.reset("tree-project");
+});
+
 test("draft selection isolates identities, locks pending and ignores stale settlement", () => {
   const store = useDraftExecutionStore;
   store.getState().choose("remote:a", { mode: "worktree", baseRef: "feature" });

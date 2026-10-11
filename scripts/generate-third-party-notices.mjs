@@ -1,4 +1,6 @@
-import { readFile, readdir, stat, writeFile } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
+import { writeNoticeArtifacts } from "./notice-artifacts.mjs";
+export { writeNoticeArtifacts } from "./notice-artifacts.mjs";
 import { join, relative } from "node:path";
 import YAML from "yaml";
 import { collectNpmNotices, hashBytes } from "./third-party-npm.mjs";
@@ -216,11 +218,7 @@ export async function generateThirdPartyNotices(root = repositoryRoot) {
         })),
     ],
   };
-  await writeFile(join(root, noticesFileName), bytes);
-  await writeFile(
-    join(root, "third-party/inventory.json"),
-    `${JSON.stringify(inventory, null, 2)}\n`,
-  );
+  await writeNoticeArtifacts({ root, notices: bytes, inventory });
   console.log(
     `${relative(root, join(root, noticesFileName))}: ${packages.length} package versions, ${copied.length} copied components, ${native.inventory.archives.length} native archives, ${bytes.length} bytes`,
   );

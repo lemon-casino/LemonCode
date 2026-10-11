@@ -267,6 +267,8 @@ export function createRemoteWorkspaceServiceCollection(params: {
                 settings.askUserQuestionAutoResolutionEnabled !== false,
               nativeSearchEnhancementsEnabled: settings.nativeSearchEnhancementsEnabled !== false,
               memoryEnabled: settings.memoryEnabled === true,
+              // 存储位置与切换版本是本机项目设置；远端继续 profile，不能传播本机 workspace/revision 或目录。
+              // 因旧 Agent strict 校验也不能显式补 profile，保留原报文字段缺席。
               sessionRecallEnabled: settings.sessionRecallEnabled === true,
               modelContextBudgetStrategy,
               // remote workspace 与本地 Host 保持同一 scope 边界，首次执行不得再次等待 client config。
@@ -337,6 +339,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
     // 必须直接读取远端 Registry，不能继续显示 Desktop 本地 Provider。
     .register(IModelSelectionService, params.connectionServices.modelSelectionService)
     .register(IProviderSettingsService, params.connectionServices.providerSettingsService)
+    .register(IProviderAccountService, params.connectionServices.providerAccountService)
     .register(
       IUsageStatsService,
       createUsageStatsService({
@@ -382,3 +385,4 @@ export function createRemoteWorkspaceServiceCollection(params: {
   registerRemoteProviderProvisioningExecutor(services, remoteProviderProvisioningService);
   return services;
 }
+import { IProviderAccountService } from "@lcode/services";

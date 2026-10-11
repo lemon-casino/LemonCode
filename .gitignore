@@ -136,6 +136,9 @@ nul
 !/packages/web/test/fixtures/runtime-environment.tsx
 !/packages/web/test/fixtures/runtime-environment-service.ts
 !/packages/web/test/fixtures/runtime-environment-candidate.ts
+!/packages/web/test/remote-connection.test.mjs
+!/packages/web/test/fixtures/remote-connection.html
+!/packages/web/test/fixtures/remote-connection.tsx
 !/packages/web/test/fixtures/review-side-pane.tsx
 !/packages/web/test/fixtures/local-project-persistence.html
 !/packages/web/test/fixtures/local-project-persistence.tsx
@@ -149,6 +152,7 @@ nul
 !/packages/web/test/conversation-timeline-depth.test.mjs
 
 !/packages/web/test/fixtures/git-backup.html
+!/packages/web/test/git-backup-workspaces.test.mjs
 !/packages/web/test/fixtures/git-backup.tsx
 !/packages/web/test/fixtures/git-backup-service.ts
 !/packages/web/test/fixtures/git-backup-platform.ts
@@ -161,6 +165,10 @@ nul
 !/packages/web/test/fixtures/git-publish-fixture-service.ts
 !/packages/web/test/session-output-speed.test.mjs
 !/packages/web/test/model-speed.test.mjs
+!/packages/web/test/memory-settings.test.mjs
+!/packages/web/test/fixtures/memory-settings.html
+!/packages/web/test/fixtures/memory-settings.tsx
+!/packages/web/test/fixtures/memory-settings-service.ts
 !/packages/web/test/fixtures/session-output-speed.html
 !/packages/web/test/fixtures/session-output-speed.tsx
 !/packages/web/test/workflow-execution-progress.test.mjs
@@ -229,3 +237,16 @@ nul
 !/apps/lcode-cli/packages/debug/src/**
 !/apps/lcode-cli/packages/debug/server/
 !/apps/lcode-cli/packages/debug/server/**
+!/packages/web/test/provider-accounts.test.mjs
+!/packages/web/test/provider-accounts-model-cases.mjs
+!/packages/web/test/fixtures/provider-accounts.html
+!/packages/web/test/fixtures/provider-accounts.tsx
+!/packages/web/test/fixtures/provider-accounts-service.ts
+
+# OAuth 安全错误投影属于 UI 源码，仅覆盖用户全局 lib/ 忽略中的这一文件。
+!/packages/ui/src/lib/
+/packages/ui/src/lib/*
+!/packages/ui/src/lib/providerAccountErrors.ts
+!/packages/web/test/usage-analytics.test.mjs
+!/packages/web/test/fixtures/usage-analytics.html
+!/packages/web/test/fixtures/usage-analytics.tsx

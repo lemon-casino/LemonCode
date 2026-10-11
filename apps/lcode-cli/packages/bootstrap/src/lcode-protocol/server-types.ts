@@ -90,6 +90,8 @@ export interface LCodeProtocolToolInputTransmissionState {
 export interface LCodeProtocolSessionRecord {
   app: LCodeApp;
   memoryEnabled: boolean;
+  memoryStorageLocation?: "profile" | "workspace";
+  memoryStorageRevision?: number;
   sessionRecallEnabled: boolean;
   nativeSearchEnhancementsEnabled: boolean;
   modelContextBudgetStrategy: LCodeModelContextBudgetStrategy;

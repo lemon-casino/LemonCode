@@ -58,8 +58,8 @@ export async function ensureContextInitialized(
     : this.createConfigOnlyContextSnapshot(this.workingDirectory);
 
   this.workingDirectory = snapshot.workingDirectory;
-  // Bash cd 之后 workingDirectory 会变化，但 workspaceRoot 仍表示会话初始工作区边界。
-  this.workspaceRoot = snapshot.workingDirectory;
+  // 原因：snapshot的目录是当前执行cwd，冷恢复或Bash cd后可能位于子目录。
+  // workspaceRoot由构造/持久session.path恢复，不能在context初始化时改成执行cwd。
   this.contextSourceSnapshot = snapshot;
   this.startMcpStartup(traceContext);
   this.skillLoadOutcome = await this.discoverSkillsForContext(traceContext);
@@ -160,6 +160,25 @@ export async function loadProjectMemoryRoot(
       memoryRoot,
     });
     return undefined;
+  }
+  const memory = this.config.memory!;
+  const prepareStorage = this.fileSystemPort.projectMemory?.prepareStorage;
+  // 原因：新runtime首次选位置也必须走同一有锁复制器，不能靠设置页已枚举全部项目。
+  // workspace模式缺迁移能力必须明确拒绝；旧profile端口保留兼容初始化。
+  if (prepareStorage) {
+    const prepared = await prepareStorage.call(this.fileSystemPort.projectMemory, {
+      cliStorageRoot: memory.cliStorageRoot!,
+      workspacePath: this.workspaceRoot,
+      workspaceIdentity: memory.workspaceIdentity,
+      storageLocation: memory.storageLocation ?? "profile",
+      storageRevision: memory.storageRevision,
+    });
+    if (prepared.rootDir !== memoryRoot)
+      throw new Error("Memory storage preparation returned a different scope");
+  } else if (memory.storageLocation === "workspace") {
+    throw new Error(
+      "Project-local memory storage requires the governed storage preparation capability",
+    );
   }
   await ensureMemoryDirectoryExists(this.fileSystemPort, memoryRoot, traceContext, this.logger);
   // 初始化与 resume 共用已解析的 Project Memory 根；profile memoryRoot 不能登记为治理根。

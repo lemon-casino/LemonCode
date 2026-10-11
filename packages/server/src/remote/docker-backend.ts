@@ -9,6 +9,7 @@ import type {
   StdioStream,
 } from "@lcode/server/remote/backend.js";
 import { createCloseEventController } from "@lcode/server/remote/closeEvent.js";
+import { OwnedRemoteProcesses } from "./ownedRemoteProcesses.js";
 import {
   isDockerAvailable,
   listDockerContainers,
@@ -45,6 +46,8 @@ export class DockerBackend implements IRemoteBackend {
   private readonly dockerCommand = resolveDockerCommand();
   private readonly options: DockerConnectOptions;
   private resolvedInfoPromise: Promise<ResolvedDockerInfo> | null = null;
+  private readonly processes = new OwnedRemoteProcesses("Docker");
+  private readonly executeCommand = (args: string[]) => this.execDockerCommand(args);
 
   constructor(options: DockerConnectOptions) {
     this.options = options;
@@ -169,6 +172,7 @@ export class DockerBackend implements IRemoteBackend {
   async exec(command: string): Promise<StdioStream> {
     await this.ensureAvailable();
     const resolvedInfo = await this.resolveInfo();
+    this.processes.assertActive();
 
     return new Promise((resolve, reject) => {
       const child = spawn(
@@ -179,7 +183,7 @@ export class DockerBackend implements IRemoteBackend {
           windowsHide: true,
         },
       );
-
+      this.processes.track(child);
       child.once("error", reject);
       child.once("spawn", () => {
         const stdin = child.stdin;
@@ -237,11 +241,16 @@ export class DockerBackend implements IRemoteBackend {
   }
 
   dispose(): void {
-    // Docker backend 的命令都是一次性子进程，没有常驻连接需要显式清理。
+    void this.disposeAndWait();
+  }
+
+  disposeAndWait(options?: { graceTimeoutMs?: number; killWaitTimeoutMs?: number }): Promise<void> {
+    return this.processes.disposeAndWait(options);
   }
 
   private async ensureAvailable(): Promise<void> {
-    const available = await isDockerAvailable();
+    this.processes.assertActive();
+    const available = await isDockerAvailable(this.executeCommand);
     if (!available) {
       throw new Error("当前系统未检测到可用的 Docker 环境");
     }
@@ -268,13 +277,19 @@ export class DockerBackend implements IRemoteBackend {
   }
 
   private async resolveContainer(): Promise<DockerContainerInfo> {
-    const containers = await listDockerContainers({ all: true });
-    const matched = containers.find(
-      (container) =>
-        container.name === this.options.container ||
-        container.id === this.options.container ||
-        container.id.startsWith(this.options.container),
+    const containers = await listDockerContainers({ all: true }, this.executeCommand);
+    const requested = this.options.container.trim();
+    const exact = containers.find(
+      (container) => container.name === requested || container.id === requested,
     );
+    const prefixes =
+      exact || !requested
+        ? []
+        : containers.filter((container) => container.id.startsWith(requested));
+    // 不能用 find 把歧义前缀静默路由到任意容器，远程作业必须命中唯一目标。
+    if (prefixes.length > 1)
+      throw new Error("Docker 容器 ID 前缀匹配多个容器，请使用完整 ID 或容器名");
+    const matched = exact ?? prefixes[0];
 
     if (!matched) {
       throw new Error(`未找到名为 ${this.options.container} 的 Docker 容器`);
@@ -329,10 +344,15 @@ export class DockerBackend implements IRemoteBackend {
 
   private async execDirect(commandArgs: string[]): Promise<string> {
     const container = await this.resolveContainer();
+    return this.execDockerCommand(buildDockerExecArgs(container.name, commandArgs));
+  }
+
+  private async execDockerCommand(args: string[]): Promise<string> {
+    this.processes.assertActive();
     return new Promise((resolve, reject) => {
-      execFile(
+      const child = execFile(
         this.dockerCommand,
-        buildDockerExecArgs(container.name, commandArgs),
+        args,
         {
           encoding: "utf8",
           maxBuffer: DOCKER_EXEC_MAX_BUFFER,
@@ -347,6 +367,7 @@ export class DockerBackend implements IRemoteBackend {
           resolve(normalizeDockerOutput(stdout));
         },
       );
+      this.processes.track(child);
     });
   }
 }

@@ -9,6 +9,7 @@ import {
   type SessionInfo,
 } from "@lcode/contracts";
 import { harness, WORKSPACE, hash } from "./project-memory-extraction.test-support.js";
+import { resolveEnabledProjectMemoryRoot } from "./project-memory.js";
 
 test("background extraction verifies then commits through the governed port with two fresh no-tool requests", async () => {
   const h = harness();
@@ -35,6 +36,29 @@ test("background extraction verifies then commits through the governed port with
   assert.equal(h.saved[0]!.draft.sources[0]!.boundaryMessageId, h.boundary);
   assert.equal(h.runtime.memoryExtractionScheduler!.getCursor(), h.boundary);
   assert.deepEqual(h.outcomes, ["completed"]);
+});
+
+test("project-local extraction uses the selected stable workspace root for reviewed commits", async () => {
+  const h = harness("workspace");
+  h.runtime.workingDirectory = resolve("bash-cd-unrelated-fixture");
+  const root = resolveEnabledProjectMemoryRoot(h.runtime.config, WORKSPACE)!;
+  h.runtime.memoryRoot = root;
+  const port = h.fileSystem.projectMemory!;
+  const save = port.saveReview.bind(port);
+  const apply = port.applyReview.bind(port);
+  port.saveReview = async (input, options) => {
+    assert.equal(input.rootDir, root);
+    return save(input, options);
+  };
+  port.applyReview = async (input, options) => {
+    assert.equal(input.rootDir, root);
+    return apply(input, options);
+  };
+  h.schedule();
+  await h.drain();
+  assert.equal(h.errors.length, 0, String(h.errors[0]));
+  assert.equal(h.requests.length, 2);
+  assert.equal(h.applied.length, 1);
 });
 
 test("AI rejection and empty candidates do not apply changes and consume the successful evidence boundary", async () => {

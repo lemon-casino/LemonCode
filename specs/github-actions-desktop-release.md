@@ -2,6 +2,75 @@
 
 ## 产品规则
 
+### 内置 Agent 自动同步（2026-10-11）
+
+- 本地 `bundle:desktop`、桌面 `build`、开发 Agent 构建与 tag Actions 共用
+  `scripts/build-desktop-agent-cli.mjs` 作为 Agent 构建输入和编译的唯一入口。
+  “同步”指使用当前检出的源码重新生成产物，不自动拉取上游或修改供应商源码 pin。
+- 编译前先从已固定且校验摘要的源码生成 OAuth worker。本地随后自动生成 NOTICE；
+  tag Actions 设置 `LCODE_VERIFY_RELEASE_INPUTS=1`，只校验已提交的 NOTICE 与材料债务基线，
+  不以重生成掩盖 tag 的声明过期。六个平台都执行这个门禁，保留 Linux x64 安装前校验。
+- 普通、Turbo 与 bootstrap 分支都必须执行构建命令；禁止仅凭 `lcode.cjs` 或插件
+  runtime 文件存在就复用。Turbo 可以使用其输入哈希缓存，但 CLI/桌面 Agent 缓存必须包含
+  全部 provider-node 源码（含 OAuth worker）及嵌入的 NOTICE，不能沿用只登记单个配置源码
+  的输入集合。编译成功后才同步目标目录，
+  打包调用使用 `--no-stage`，由打包 staging owner 只同步指定目标，避免先清空宿主目录。
+  官方可执行插件的 runtime 也由该入口统一重建和校验，打包脚本只检查目标资产并复制，
+  不另行维护普通/bootstrap 的 runtime 编译分支。
+- `--skip-prepare` / `--skip-build` 是用户显式选择的产物复用模式，不承诺更新 Agent。
+  默认本地打包及 tag 矩阵不使用这些选项。任一输入生成、校验或编译失败都中止后续打包。
+- NOTICE 生成器异步写入同目录的唯一临时文件，再替换正式文件，禁止截断写现有文件。
+  两份新文件均写完才提交；inventory 提交失败时恢复旧 NOTICE。替换失败仅在 Windows
+  文件占用相关错误下有界重试，权限/磁盘等永久错误最终原样失败；不删除正式文件绕过锁。
+  两文件无法实现跨文件原子提交，读者仍以 inventory 中的摘要校验；不一致不得发布。
+  成功与失败均清理本次临时文件；若回滚本身也失败，保留旧 NOTICE 备份并在错误中标明路径。
+  生成期间不支持并发写入同一仓库。当前日志确认截断写失败，具体占用进程尚未确认。
+- Windows 的 pnpm 许可查询使用现有安全命令启动器，通过显式 cmd 参数启动 batch shim，
+  不再使用 `execFile(..., {shell:true})` 拼接参数，消除 DEP0190 并保留真实依赖图查询。
+
+```mermaid
+sequenceDiagram
+  participant Entry as 本地打包 / tag Actions
+  participant Build as Agent 构建入口
+  participant Inputs as worker / NOTICE 输入
+  participant Stage as 目标 staging owner
+  Entry->>Build: 当前源码、目标平台、发行校验模式
+  Build->>Inputs: 校验 pin 并生成 OAuth worker
+  alt 本地
+    Inputs->>Inputs: 临时文件生成并替换 NOTICE + inventory
+  else tag Actions
+    Inputs->>Inputs: 校验已提交声明及材料债务基线
+  end
+  Inputs-->>Build: 输入就绪（失败即停止）
+  Build->>Build: 构建依赖、Agent 及官方插件运行时
+  Build-->>Entry: 编译完成
+  Entry->>Stage: 同步本次目标产物
+  Stage-->>Entry: 允许继续桌面打包
+```
+
+验收：模拟 Windows 截断写失败时临时替换仍成功；临时写入或 inventory 替换失败
+不破坏原声明；瞬时占用重试有界；Windows 命令参数保持原值且无 DEP0190；有旧 Agent
+时 bootstrap 仍编译；本地/发行分别生成/校验声明，失败不编译或 staging；Actions 六目标
+复用该入口并显式启用发行输入校验。脚本回归、根 typecheck/Lint 与架构检查必须执行；
+原生打包和真实 tag 发布由用户后续构建验证。
+
+本轮验证（2026-10-11，Windows，Node 24.21.0）：
+
+- 实际执行 OAuth worker 生成（500918 bytes）与 `node scripts/licenses.mjs notices`，
+  生成 1242 个 npm 精确版本、14 组复制组件、18 个原生归档的声明；写入成功且无 DEP0190。
+  `readReleaseVerifiedNotices` 通过，既有 20 项材料债务与基线一致，未声称严格材料完整。
+- `pnpm test:release`：65 项，64 通过，1 项按平台跳过；新增文件写入、三种 Agent 构建模式、
+  OAuth/NOTICE 缓存输入和 Windows 参数传递回归纳入此入口。
+- 补充 staging / dev phases / Lemon / 脚本回归 50 项通过；Computer Use 用
+  `node --import tsx --test scripts/computer-use-plugin-builtin.test.mjs` 执行，16 项通过。
+  直接 Node 运行该 TS 依赖测试的首次尝试因 `.js` 导入解析失败，使用正确 loader 后通过。
+- 根 `pnpm typecheck`、`pnpm lint` 通过；CLI `typecheck --only`（16 个缓存任务）与
+  `lint`（14 个缓存任务）通过；changed 架构检查 baseline/new 均为 0，改动文件格式检查通过。
+- 变更边界为构建脚本、desktop 的 staging 编排、lcode-cli 的 Turbo 输入和 Actions，
+  均为当前策略中的非 managed 范围；不改变运行时会话状态、协议或持久化所有者。
+  只实际生成 worker 和 NOTICE，Agent 编译命令顺序与失败传播用注入执行器验证，
+  六目标 staging 使用夹具验证；未构建应用/Agent 安装包，也未触发 tag 或远程 Actions。
+
 1. 桌面发行版本只有根目录 `package.json` 的 `version` 一个所有者。首次发布为
    `3.14.3`；CLI 子项目的独立版本不随桌面版本改写。正式 tag 使用 `v<version>`。
 2. 仅推送 `v*` tag 时构建六种本机目标：macOS/Windows/Linux 的 x64 与 arm64。

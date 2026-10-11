@@ -188,6 +188,13 @@ export function resolveAppRuntimeConfig(input: {
     },
     memory: {
       cliStorageRoot,
+      storageRevision:
+        options.runtimeConfig?.memory?.storageRevision ??
+        configResult.config.memory.storageRevision,
+      storageLocation:
+        options.runtimeConfig?.memory?.storageLocation ??
+        configResult.config.memory.storageLocation ??
+        "profile",
       enabled: options.runtimeConfig?.memory?.enabled ?? configResult.config.features.memory,
       ...(options.runtimeConfig?.memory?.extractionEnabled === undefined
         ? {}
@@ -302,6 +309,7 @@ export function runtimeConfigLogContext(
         runtimeConfig.memory.cliStorageRoot,
         workingDirectory,
         runtimeConfig.memory.workspaceIdentity,
+        runtimeConfig.memory.storageLocation,
       )
     : undefined;
   return {
@@ -309,6 +317,8 @@ export function runtimeConfigLogContext(
     memoryEnabled: runtimeConfig.memory?.enabled !== false,
     memoryExtractionEnabled: runtimeConfig.memory?.extractionEnabled !== false,
     memoryRoot,
+    memoryStorageLocation: runtimeConfig.memory?.storageLocation ?? "profile",
+    memoryStorageRevision: runtimeConfig.memory?.storageRevision,
     memoryUse: runtimeConfig.memory?.use !== false,
     sessionRecallEnabled: runtimeConfig.sessionRecall?.enabled === true,
     mcsMode: runtimeConfig.midConversationSystem?.mode,

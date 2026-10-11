@@ -174,11 +174,19 @@ test("world.run live facts bind integrated bytes; engine replay adds no executio
     store.beginGoalEvidenceExecution = async () => {
       throw new Error("Injected durable world start failure");
     };
-    await assert.rejects(restored.worldRead("failed-start", "run", args), /start could not be persisted/);
-    assert.equal(executions, beforeRejectedStart, "world driver must not swallow strict start failure");
+    await assert.rejects(restored.worldRead("failed-start", "run", args), { code: "DriverError" });
+    assert.equal(
+      executions,
+      beforeRejectedStart,
+      "world driver must not swallow strict start failure",
+    );
     await store.setTarget({ sessionID: sessionId, objective: "legacy world command" });
     await restored.worldRead("legacy-after-start-failure", "run", args);
-    assert.equal(executions, beforeRejectedStart + 1, "legacy world calls do not require strict admission");
+    assert.equal(
+      executions,
+      beforeRejectedStart + 1,
+      "legacy world calls do not require strict admission",
+    );
   } finally {
     store.close();
     await rm(cwd, { recursive: true, force: true });

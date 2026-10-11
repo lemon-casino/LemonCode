@@ -889,6 +889,7 @@ export function TaskListItemContextMenuContent({
     taskSessionFile,
     taskNativeSessionLogFile,
     fileManagerLabel,
+    directory,
     handleCopyText,
     handleOpenTaskPathInFileManager,
   } = useTaskListItemContextActions({
@@ -897,6 +898,7 @@ export function TaskListItemContextMenuContent({
     workspaceIdentity: task.workspaceIdentity,
     taskId: task.taskId,
     provider: task.provider,
+    executionBindingId: task.executionBindingId,
     intl,
     // row 级菜单已收敛为列表级单例，只有菜单真正打开时才挂载此组件。
     // 因此路径探测和 provider 配置探测可以直接随打开态运行，避免每个 idle row 订阅和计算。
@@ -926,7 +928,7 @@ export function TaskListItemContextMenuContent({
         taskTitle,
         taskId: task.taskId,
         workspacePath,
-        taskSessionPath: taskSessionFile.path,
+        taskSessionPath: taskSessionFile.exists ? taskSessionFile.path : null,
         taskLogPath: taskNativeSessionLogFile.path,
         formatMessage: (id: string, values?: Record<string, string>) =>
           intl.formatMessage({ id }, values),
@@ -940,6 +942,7 @@ export function TaskListItemContextMenuContent({
     task.taskId,
     taskNativeSessionLogFile.path,
     taskSessionFile.path,
+    taskSessionFile.exists,
     taskTitle,
     workspacePath,
   ]);
@@ -959,6 +962,7 @@ export function TaskListItemContextMenuContent({
       intl={intl}
       isPinned={isPinned}
       fileManagerLabel={fileManagerLabel}
+      directory={directory}
       taskSessionFile={taskSessionFile}
       activeSessionId={task.taskId}
       taskNativeSessionLogFile={taskNativeSessionLogFile}
@@ -993,7 +997,7 @@ export function TaskListItemContextMenuContent({
         void handleOpenTaskPathInFileManager();
       }}
       onCopyWorkspacePath={() => {
-        void handleCopyText(intl.formatMessage({ id: "appHeader.copyPath" }), workspacePath);
+        void handleCopyText(directory.copyLabel, directory.path);
       }}
       onCopyTaskPath={() => {
         void handleCopyText(

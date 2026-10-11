@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { withFileLock } from "@lcode/shared/node";
+import { withFileLock, prepareProjectMemoryStorage } from "@lcode/shared/node";
 import {
   ProjectMemoryReviewDraftSchema,
   ProjectMemoryReviewItemSchema,
@@ -61,6 +61,9 @@ function projectReview(
 }
 
 export class NodeProjectMemory implements ProjectMemoryPort {
+  async prepareStorage(input: Parameters<NonNullable<ProjectMemoryPort["prepareStorage"]>>[0]) {
+    return prepareProjectMemoryStorage(input);
+  }
   private readonly registry = new MemoryRootRegistry();
   readonly effects = new MemoryEffects(async (rootDir, operation, options) =>
     this.locked(this.registry.get(rootDir), operation, options),

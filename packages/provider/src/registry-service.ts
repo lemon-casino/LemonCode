@@ -237,6 +237,7 @@ export class ProviderRegistryService {
           lcodeBuiltinModelRules: config.lcodeBuiltinModelRules,
           personalModels: config.personalModels,
           accountProviders: account.providers,
+          accountModelRules: account.modelRules,
           accountStates: account.states,
           personalProviderOrder: config.personalProviderOrder,
         });
@@ -342,6 +343,8 @@ function freezeAccountSnapshot(
     revision: snapshot.revision,
     basedOnLCodeBuiltinRevision: snapshot.basedOnLCodeBuiltinRevision,
     providers: snapshot.providers,
+    // 冻结 Account 快照时保留目录规则，供辅助调用和临时模型解析复用同一事实。
+    ...(snapshot.modelRules ? { modelRules: snapshot.modelRules } : {}),
     ...(snapshot.states ? { states: snapshot.states } : {}),
   });
 }

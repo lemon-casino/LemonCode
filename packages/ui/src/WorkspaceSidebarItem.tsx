@@ -90,8 +90,7 @@ import {
 } from "@/lib/workspaceRemovalSafety.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
 import { toast } from "@/components/ui/toast.js";
-import { ServiceProvider } from "@/hooks/useServices.js";
-import { ProjectWorktreeManagementDialog } from "@/worktree/ProjectWorktreeManagementDialog.js";
+import { useOpenWorktreeSettings } from "@/hooks/useOpenWorktreeSettings.js";
 
 export type SortableBindings = Pick<ReturnType<typeof useSortable>, "attributes" | "listeners">;
 
@@ -266,7 +265,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   const shouldShowRemoteConnectingBorderBeam = isReconnectPending;
   const [isRemoteErrorCopied, setIsRemoteErrorCopied] = useState(false);
   const [remoteSkillSyncOpen, setRemoteSkillSyncOpen] = useState(false);
-  const [projectWorktreesOpen, setProjectWorktreesOpen] = useState(false);
+  const openWorktreeSettings = useOpenWorktreeSettings();
   const showProjectWorktrees =
     tab.workspacePurpose !== "conversation" &&
     Boolean(services.worktreeService) &&
@@ -968,7 +967,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
                               disabled={Boolean(readOnlyReason)}
                               onMouseDown={(event) => event.stopPropagation()}
                               onSelect={() =>
-                                onOpenWorktrees ? onOpenWorktrees() : setProjectWorktreesOpen(true)
+                                onOpenWorktrees ? onOpenWorktrees() : openWorktreeSettings(tab)
                               }
                             >
                               <GitBranchIcon className="h-3.5 w-3.5" />
@@ -1190,19 +1189,6 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
           />
         </CollapsibleContent>
       </Collapsible>
-      {showProjectWorktrees ? (
-        <ServiceProvider services={services}>
-          <ProjectWorktreeManagementDialog
-            key={tab.workspaceIdentity?.trim() || tab.workspacePath}
-            workspacePath={tab.workspacePath}
-            workspaceIdentity={tab.workspaceIdentity}
-            workspaceRemoteSessionId={tab.remoteSessionId}
-            open={projectWorktreesOpen}
-            onOpenChange={setProjectWorktreesOpen}
-            onSelectSession={handleSelectTask}
-          />
-        </ServiceProvider>
-      ) : null}
       <RemoteSyncDialogs
         canSyncSkills={showRemoteSkillSyncAction}
         canSyncMcp={showRemoteSkillSyncAction}

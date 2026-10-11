@@ -4,6 +4,7 @@ import { usePlatform } from "@/hooks/usePlatform.js";
 import { useTaskNativeSessionLogFile } from "@/hooks/useTaskNativeSessionLogFile.js";
 import { useTaskSessionFilePath } from "@/hooks/useTaskSessionFilePath.js";
 import { useWorkspaceOpenInEditorTarget } from "@/hooks/useWorkspaceOpenInEditorTarget.js";
+import { useActiveExecutionWorkspace } from "@/hooks/useActiveExecutionWorkspace.js";
 import { logger } from "@/logger.js";
 
 interface TaskPathState {
@@ -12,10 +13,19 @@ interface TaskPathState {
   exists: boolean;
 }
 
+export interface TaskDirectoryActions {
+  path: string | null;
+  copyLabel: string;
+  canOpen: boolean;
+  disabledReason?: string;
+  openDisabledReason?: string;
+}
+
 interface TaskListItemContextActionsResult {
   taskSessionFile: TaskPathState;
   taskNativeSessionLogFile: TaskPathState;
   fileManagerLabel: string;
+  directory: TaskDirectoryActions;
   handleCopyText: (label: string, value: string | null) => Promise<void>;
   handleOpenTaskPathInFileManager: () => Promise<void>;
 }
@@ -26,6 +36,7 @@ export function useTaskListItemContextActions({
   workspaceIdentity,
   taskId,
   provider,
+  executionBindingId,
   intl,
   loadTaskPaths = true,
 }: {
@@ -34,12 +45,29 @@ export function useTaskListItemContextActions({
   workspaceIdentity?: string;
   taskId: string;
   provider?: LCodeProvider;
+  executionBindingId?: string;
   intl: {
     formatMessage: (desc: { id: string }, values?: Record<string, string>) => string;
   };
   loadTaskPaths?: boolean;
 }): TaskListItemContextActionsResult {
   const platform = usePlatform();
+  // 会话身份仍属于原项目；文件操作必须用 owner 的执行目录，不能复用查询/管理的 workspacePath。
+  const execution = useActiveExecutionWorkspace(
+    workspacePath,
+    workspaceIdentity,
+    loadTaskPaths && executionBindingId ? taskId : null,
+    remoteSessionId,
+  );
+  const directoryPath = executionBindingId
+    ? execution.workspace?.executionBindingId === executionBindingId &&
+      execution.binding?.id === executionBindingId
+      ? execution.workspace.workspacePath
+      : null
+    : workspacePath;
+  const directoryIdentity = executionBindingId
+    ? execution.workspace?.workspaceIdentity
+    : workspaceIdentity;
   const workspaceOpenTarget = useWorkspaceOpenInEditorTarget({
     workspacePath,
     workspaceIdentity,
@@ -56,6 +84,27 @@ export function useTaskListItemContextActions({
     workspaceIdentity,
     { enabled: loadTaskPaths },
   );
+  const isRemote = Boolean(
+    remoteSessionId || workspaceIdentity?.trim() || workspaceOpenTarget.isRemoteWorkspace,
+  );
+  const canOpen =
+    Boolean(directoryPath) && (!isRemote || workspaceOpenTarget.remoteTarget?.kind === "wsl");
+  const directory = {
+    path: directoryPath,
+    copyLabel: intl.formatMessage({
+      id: executionBindingId ? "worktree.copyPath" : "appHeader.copyPath",
+    }),
+    canOpen,
+    disabledReason: !directoryPath
+      ? intl.formatMessage({
+          id: execution.pending ? "worktree.pathLoading" : "worktree.pathUnavailable",
+        })
+      : undefined,
+    openDisabledReason:
+      isRemote && workspaceOpenTarget.remoteTarget?.kind !== "wsl"
+        ? intl.formatMessage({ id: "worktree.remoteFileManagerUnavailable" })
+        : undefined,
+  };
   const handleCopyText = useCallback(async (label: string, value: string | null) => {
     if (!value) {
       return;
@@ -74,6 +123,7 @@ export function useTaskListItemContextActions({
   }, []);
 
   const handleOpenTaskPathInFileManager = useCallback(async () => {
+    if (!canOpen || !directoryPath) return;
     const hasRemoteWorkspaceScope = Boolean(
       remoteSessionId || workspaceIdentity?.trim() || workspaceOpenTarget.isRemoteWorkspace,
     );
@@ -83,21 +133,21 @@ export function useTaskListItemContextActions({
         // 避免 SSH/Docker 的 Linux 路径误落到原生 Windows、macOS 或 Linux 文件管理器。
         logger.warn("[TaskListItem] 远程 workspace 不支持本机文件管理器", {
           taskId,
-          path: workspacePath,
+          path: directoryPath,
           remoteKind: workspaceOpenTarget.remoteTarget?.kind ?? "unresolved",
         });
         return;
       }
 
-      const result = await platform.openInEditor("explorer", workspacePath, {
+      const result = await platform.openInEditor("explorer", directoryPath, {
         pathKind: "directory",
         remoteTarget: workspaceOpenTarget.remoteTarget,
-        workspaceIdentity,
+        workspaceIdentity: directoryIdentity,
       });
       if (!result.success) {
         logger.warn("[TaskListItem] 打开 WSL workspace 路径失败", {
           taskId,
-          path: workspacePath,
+          path: directoryPath,
           error: result.error ?? "unknown-error",
         });
       }
@@ -108,21 +158,18 @@ export function useTaskListItemContextActions({
     const isWindows = isWindowsLike();
     if (isMac || isWindows) {
       const editorId = isMac ? "finder" : "explorer";
-      const result = await platform.openInEditor(editorId, workspacePath);
+      const result = await platform.openInEditor(editorId, directoryPath);
       if (result.success) {
         return;
       }
     }
 
-    const result = await platform.openInFileManager(workspacePath);
+    const result = await platform.openInFileManager(directoryPath);
     if (!result.success) {
-      // Header / task 菜单里的“Open in Finder”语义应该是打开项目目录。
-      // 之前这里误绑到了 task session 文件路径，菜单可用性也跟着 task 快照文件走，
-      // 一旦 session 文件还没解析出来，用户会看到 Finder 入口莫名不可用。
-      // 这里统一改成始终打开 workspacePath，让行为和“Copy path=项目路径”保持一致。
+      // 文件管理器与复制路径使用同一个已确认执行目录，既不打开会话记录，也不回退原项目。
       logger.warn("[TaskListItem] 打开 workspace 路径失败", {
         taskId,
-        path: workspacePath,
+        path: directoryPath,
         error: result.error ?? "unknown-error",
       });
     }
@@ -134,12 +181,18 @@ export function useTaskListItemContextActions({
     workspaceOpenTarget.isRemoteWorkspace,
     workspaceOpenTarget.remoteTarget,
     workspacePath,
+    canOpen,
+    directoryPath,
+    directoryIdentity,
   ]);
 
   return {
     taskSessionFile,
     taskNativeSessionLogFile,
-    fileManagerLabel: getFileManagerLabel(intl),
+    fileManagerLabel: executionBindingId
+      ? intl.formatMessage({ id: "worktree.openInFileManager" })
+      : getFileManagerLabel(intl),
+    directory,
     handleCopyText,
     handleOpenTaskPathInFileManager,
   };

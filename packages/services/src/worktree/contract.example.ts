@@ -67,6 +67,14 @@ export async function admitWorktreeAgent(
   await host.assertExecutionAdmission(scope);
 }
 
+/** 创建物理 watcher 前读取持久 fence；不同于带身份的 Agent 执行 admission。 */
+export async function admitWorktreeFileWatch(
+  host: import("./contract.js").IWorktreeHostService,
+  path: string,
+) {
+  await host.assertFileWatchAdmission(path);
+}
+
 /** Host 组合根注入停止 owner；生命周期调用者不自行操作 PID 或 consumer 存储。 */
 export async function stopOwnedWorktreeExecution(
   ports: Pick<import("./contract.js").WorktreeRuntimePorts, "stopWorktreeExecution">,

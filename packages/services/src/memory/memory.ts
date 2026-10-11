@@ -19,11 +19,20 @@ export interface ProjectMemoryWorkspaceSummary {
   label: string;
   updatedAt: number;
   files: ProjectMemoryFileSummary[];
+  storageLocation?: "profile" | "workspace";
+  memoryRoot?: string;
 }
 
 export interface IMemoryService {
-  /** 列出当前本地 profile 中可查看的 Project Memory。 */
+  /** 列出本机 profile 与已知本地项目中的记忆；目录浏览不触发迁移。 */
   listProjectMemories(): Promise<ProjectMemoryWorkspaceSummary[]>;
+
+  /** 复制已知本机项目记忆并保留源，再通过 SettingService 提交位置。 */
+  changeStorageLocation(params: { location: "profile" | "workspace" }): Promise<{
+    location: "profile" | "workspace";
+    copiedCount: number;
+    conflictCount: number;
+  }>;
 
   /** 原样读取一个 Project Memory Markdown 文件。 */
   readProjectMemoryFile(params: {

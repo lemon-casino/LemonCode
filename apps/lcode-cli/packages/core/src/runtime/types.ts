@@ -21,7 +21,7 @@ import type {
   WorkspaceHookBundleSnapshot,
   WorkspaceId,
 } from "@lcode/contracts";
-import type { LCodeProviderAccountAccess, LCodeWorkspaceRef } from "@lcode/shared";
+import type { LCodeModelAccountAccess, LCodeWorkspaceRef } from "@lcode/shared";
 import type { EffectiveModelSelectionResult } from "@lcode/shared/model-selection";
 import type { RuntimeMessageEntry } from "../agent/message-history.js";
 import type {
@@ -311,6 +311,8 @@ export interface EnqueueSubagentMessageInput {
 
 export interface MemoryRuntimeConfig {
   cliStorageRoot?: string;
+  storageLocation?: "profile" | "workspace";
+  storageRevision?: number;
   enabled?: boolean;
   /** 是否调度成功 Main turn 后的自动 Extraction；缺省按 true 处理。 */
   extractionEnabled?: boolean;
@@ -434,7 +436,7 @@ export type RuntimeModelFactory = (input: RuntimeModelFactoryInput) => Model;
 export interface ProviderRuntimeHeadersPort {
   shouldRefreshBeforeModelRequest?(input: { providerId: string; modelId: string }): boolean;
   refreshBeforeModelRequest(input: {
-    accountAccess?: LCodeProviderAccountAccess;
+    accountAccess?: LCodeModelAccountAccess;
     abortSignal?: AbortSignal;
     modelId: string;
     providerId: string;

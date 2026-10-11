@@ -70,7 +70,9 @@ export function WorktreeWorkflowScenario({
           workspacePath="/fixture/repo"
           sessionId="orphan"
           busy={false}
-          defaultOpen
+          renderContent={(content) => (
+            <section data-testid="worktree-settings-details">{content}</section>
+          )}
         />
       ) : (
         <WorktreeTaskActions

@@ -336,11 +336,12 @@ export class ProviderSettingsFacade {
       const preserveKeys =
         metadata?.preserveApiKeys &&
         personalAccess &&
-        personalAccess.type !== "zhipu-account" &&
-        config.access?.type !== "zhipu-account" &&
+        isApiKeyAccess(personalAccess) &&
+        isApiKeyAccess(config.access) &&
         config.access?.apiKeys === undefined;
-      const { apiKey: _primary, ...nonKeyAccess } =
-        config.access?.type !== "zhipu-account" ? (config.access ?? {}) : {};
+      const { apiKey: _primary, ...nonKeyAccess } = isApiKeyAccess(config.access)
+        ? config.access
+        : {};
       const input = preserveKeys
         ? { ...config, access: { ...personalAccess.toJSON(), ...nonKeyAccess } }
         : config;
@@ -705,3 +706,4 @@ function createProviderSettingsView(input: {
     providers: Object.freeze(configuredProviders.map(projectProvider)),
   });
 }
+import { isApiKeyAccess } from "./config/index.js";

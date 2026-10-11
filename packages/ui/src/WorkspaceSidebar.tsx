@@ -1395,6 +1395,8 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
                   />
                 ) : taskViewMode === "worktrees" ? (
                   <WorkspaceWorktreesSection
+                    onCreateTask={onCreateTask}
+                    onOpenFileTree={handleOpenWorkspaceFileTree}
                     workspaceTabs={workspaceTabs}
                     {...sidebarWorktrees}
                     activeWorkspacePath={workspacePath}

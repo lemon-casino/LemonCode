@@ -3,6 +3,7 @@ import { ConfigOverlay, type ConfigValidationIssue } from "../config-overlay.js"
 import type { z } from "zod";
 import {
   completeApiKeyAccessDataSchema,
+  oauthAccountAccessDataSchema,
   completeZhipuAccountAccessDataSchema,
   completeProviderApiDataSchema,
   completeProviderConfigDataSchema,
@@ -141,7 +142,35 @@ export class ZhipuAccountAccessConfig extends ConfigOverlay<ZhipuAccountAccessCo
   }
 }
 
-export type ProviderAccessConfig = ApiKeyAccessConfig | ZhipuAccountAccessConfig;
+export type OAuthAccountAccessConfigObject = Readonly<z.infer<typeof oauthAccountAccessDataSchema>>;
+export class OAuthAccountAccessConfig extends ConfigOverlay<OAuthAccountAccessConfig> {
+  readonly type = "oauth-account" as const;
+  readonly channelId: string;
+  readonly connectionId?: string;
+  constructor(input: Omit<OAuthAccountAccessConfigObject, "type">) {
+    super();
+    this.channelId = input.channelId;
+    this.connectionId = input.connectionId;
+    Object.freeze(this);
+  }
+  overlay(next: OAuthAccountAccessConfig): OAuthAccountAccessConfig {
+    return next;
+  }
+  validateComplete(path: readonly string[] = []): readonly ConfigValidationIssue[] {
+    return validateConfigSchema(oauthAccountAccessDataSchema, this.toJSON(), path);
+  }
+  toJSON(): OAuthAccountAccessConfigObject {
+    return {
+      type: this.type,
+      channelId: this.channelId,
+      ...(this.connectionId ? { connectionId: this.connectionId } : {}),
+    };
+  }
+}
+export type ProviderAccessConfig =
+  | ApiKeyAccessConfig
+  | ZhipuAccountAccessConfig
+  | OAuthAccountAccessConfig;
 
 export type ProviderAccessConfigObject = Readonly<z.infer<typeof providerAccessDataSchema>>;
 
@@ -555,6 +584,8 @@ function overlayProviderAccess(
   if (next === null || current === undefined || current === null) return next;
   if (current.type !== next.type) return next;
   switch (current.type) {
+    case "oauth-account":
+      return current.overlay(next as OAuthAccountAccessConfig);
     case "api-key":
     case "zhipu-coding-plan-api-key":
       return current.overlay(next as ApiKeyAccessConfig);

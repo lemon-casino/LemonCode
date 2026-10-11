@@ -20,6 +20,8 @@ import {
   FileSearch,
   HardDriveUpload,
   Smartphone,
+  GitBranch,
+  Boxes,
 } from "lucide-react";
 import { isSettingsSectionEnabled, type SettingsSectionId } from "@/lib/settingsNavigation.js";
 import { THEME_OPTIONS, type Theme } from "@/useTheme.js";
@@ -42,7 +44,7 @@ export const THEME_MODES: Array<{
   icon: THEME_MODE_ICONS[option.id],
 }));
 
-type SettingsSectionGroupId = "basics" | "agentCapabilities" | "dataAndStats";
+type SettingsSectionGroupId = "basics" | "agentCapabilities" | "coding" | "dataAndStats";
 
 interface SettingsSectionDefinition {
   id: SettingsSectionId;
@@ -62,10 +64,13 @@ const BASE_SETTINGS_SECTION_GROUPS: Array<{
     id: "agentCapabilities",
     titleId: "settings.sidebar.group.agentCapabilities",
   },
+  { id: "coding", titleId: "settings.sidebar.group.coding" },
   { id: "dataAndStats", titleId: "settings.sidebar.group.dataAndStats" },
 ];
 
 const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
+  { id: "worktrees", icon: GitBranch, titleId: "settings.worktrees.title", groupId: "coding" },
+  { id: "environments", icon: Boxes, titleId: "settings.environments.title", groupId: "coding" },
   {
     id: "general",
     icon: Settings2,

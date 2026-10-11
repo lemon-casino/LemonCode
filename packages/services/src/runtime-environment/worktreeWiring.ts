@@ -131,6 +131,7 @@ export function createWorktreeRuntimePorts(options: {
         expectedManifestDigest: params.environmentRef.manifestDigest,
         intent: params.intent,
         phase: params.phase,
+        onlyIfIdle: params.onlyIfIdle,
         ...(canRetire ? { legacyDiscardSessionIds: params.legacyDiscardSessionIds } : {}),
       });
     },

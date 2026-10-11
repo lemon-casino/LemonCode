@@ -12,6 +12,7 @@ const commit = z.string().regex(/^[a-f0-9]{40,64}$/);
 const scope = { workspacePath: text, workspaceIdentity: text.optional() };
 const commands = z.array(text.max(8192)).max(64);
 export const worktreeRequests = {
+  rename: z.object({ bindingId: id, displayName: text.max(120) }).strict(),
   getCapabilities: z.object({ ...scope, sourceFolderPaths: z.array(text).optional() }).strict(),
   prepare: worktreePrepareExecutionParamsSchema,
   getBinding: worktreeGetBindingParamsSchema,

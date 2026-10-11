@@ -1,11 +1,8 @@
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFile, readdir, realpath } from "node:fs/promises";
 import { join, relative } from "node:path";
-import { promisify } from "node:util";
-import { resolveSpawnRuntimeOptions } from "./spawn-command.mjs";
+import { execCommand } from "./spawn-command.mjs";
 
-const exec = promisify(execFile);
 export const hashBytes = (bytes) => createHash("sha256").update(bytes).digest("hex");
 const unsupportedCanvas = new Set([
   "@napi-rs/canvas-android-arm64",
@@ -94,11 +91,10 @@ async function readPnpmProductionProjects(root, lockfileOnly) {
   const options = {
     cwd: root,
     maxBuffer: 256 * 1024 * 1024,
-    ...resolveSpawnRuntimeOptions("pnpm"),
   };
   const suffix = lockfileOnly ? ["--lockfile-only"] : [];
   try {
-    const { stdout } = await exec(
+    const { stdout } = await execCommand(
       "pnpm",
       ["-r", "ls", "--prod", "--json", "--depth", "Infinity", ...suffix],
       options,
@@ -110,11 +106,11 @@ async function readPnpmProductionProjects(root, lockfileOnly) {
 
   // Bug 修复：Windows 的整仓 pnpm ls 可因打开过多 package.json 报 EMFILE；单包同深度
   // 查询正常。只在该错误下顺序拆包，仍用 pnpm 的真实 prod/lockfile 图做相同的交叉校验。
-  const { stdout } = await exec("pnpm", ["-r", "ls", "--json", "--depth", "-1"], options);
+  const { stdout } = await execCommand("pnpm", ["-r", "ls", "--json", "--depth", "-1"], options);
   const workspaceProjects = JSON.parse(stdout);
   const projects = [];
   for (const project of workspaceProjects) {
-    const filtered = await exec(
+    const filtered = await execCommand(
       "pnpm",
       ["--filter", project.name, "ls", "--prod", "--json", "--depth", "Infinity", ...suffix],
       options,

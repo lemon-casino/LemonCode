@@ -82,6 +82,10 @@ import {
   HostMessageTypes,
 } from "@lcode/shared";
 import { logger } from "./logger.js";
+import {
+  applyDesktopImmediateAppSettings,
+  type ImmediateAppSettingsPatch,
+} from "./desktopImmediateAppSettings.js";
 import { markMainLaunchAppReady } from "./desktopLaunchMarks.js";
 import { createCuaPipFocusRouter, resolveCuaPipWindowKey } from "./cuaPipFocusRouter.js";
 import { createDesktopTelemetryFetch } from "./desktopTelemetryFetch.js";
@@ -959,45 +963,19 @@ function syncCloseToTrayOnWindows(value: unknown) {
   logger.info(`[settings] closeToTrayOnWindows=${value}`);
 }
 
-// Main 只消费这些即时字段；IPC 原始 patch 的清空标记不应被当作完整持久化 AppSettings。
-type ImmediateAppSettingsPatch = Pick<
-  Partial<AppSettings>,
-  | "closeToTrayOnWindows"
-  | "keepAwakeWhileRunning"
-  | "receivePreviewUpdates"
-  | "shortcutBindings"
-  | "autoDownloadAndInstallUpdates"
->;
-
 function syncImmediateAppSettings(patch: ImmediateAppSettingsPatch) {
-  syncCloseToTrayOnWindows(patch.closeToTrayOnWindows);
-
-  if (typeof patch.keepAwakeWhileRunning === "boolean") {
-    keepAwakeWhileRunning = patch.keepAwakeWhileRunning;
-    reconcileKeepAwakeBlocker();
-  }
-
-  if (typeof patch.receivePreviewUpdates === "boolean") {
-    // receivePreviewUpdates 由 renderer host 写入 setting.json。
-    // main 进程的自动更新器不会订阅 host 设置变化，必须借 syncAppSettings 这条即时通道刷新 manifest channel。
-    refreshAutoUpdaterReleaseChannel(
-      patch.receivePreviewUpdates,
-      "settings receivePreviewUpdates changed",
-    );
-  }
-
-  if (patch.shortcutBindings !== undefined) {
-    // 快捷键改绑：
-    // 落盘已完成（useSettings.update 先 await settingService.update 再走本通道），
-    // 这里重建应用菜单 accelerator，并通知所有窗口刷新设置快照 —— 其他窗口的
-    // useAppKeyboard 生效表与设置页跟随更新。先例：setAutoDownloadAndInstallUpdates 的全窗口广播。
-    rebuildMenu();
-    for (const win of getApplicationWindowsExcludingCuaIndicator()) {
-      if (!win.isDestroyed()) {
-        win.webContents.send(PlatformChannels.SettingsChanged);
-      }
-    }
-  }
+  applyDesktopImmediateAppSettings(patch, {
+    syncCloseToTrayOnWindows,
+    setKeepAwakeWhileRunning: (value) => {
+      keepAwakeWhileRunning = value;
+      reconcileKeepAwakeBlocker();
+    },
+    // 原即时通道继续驱动更新器，不把 renderer patch 当完整持久化设置。
+    refreshPreviewUpdates: (value) =>
+      refreshAutoUpdaterReleaseChannel(value, "settings receivePreviewUpdates changed"),
+    rebuildMenu,
+    getApplicationWindows: getApplicationWindowsExcludingCuaIndicator,
+  });
 }
 
 async function getAutoUpdatePreferences() {

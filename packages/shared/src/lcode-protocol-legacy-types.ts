@@ -37,6 +37,8 @@ export const lcodeWorkspaceRefSchema = z
     workspacePath: nonEmptyString,
     executionBindingId: nonEmptyString.optional(),
     bindingOwnerTaskId: nonEmptyString.optional(),
+    /** 空白同树会话；恢复须以自身 taskId 核对 Host alias，不依赖父会话历史。 */
+    bindingReuse: z.literal("existing").optional(),
     originWorkspacePath: nonEmptyString.optional(),
     originWorkspaceIdentity: nonEmptyString.optional(),
     workspaceIdentity: nonEmptyString.optional(),

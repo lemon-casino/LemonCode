@@ -331,3 +331,4 @@ export type {
   FeedbackTicketType,
 } from "@lcode/shared";
 export { IClientConfigService } from "./client-config/clientConfig.js";
+export * from "./model-provider/providerAccountService.js";

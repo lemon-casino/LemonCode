@@ -1,9 +1,15 @@
 import { z } from "zod";
 import { modelConfigDataSchema } from "@lcode/shared/model-config";
-import { providerConfigDataSchema, zhipuAccountAccessDataSchema } from "./provider-data-schema.js";
+import {
+  oauthAccountAccessDataSchema,
+  providerApiTypeDataSchema,
+  providerConfigDataSchema,
+  zhipuAccountAccessDataSchema,
+} from "./provider-data-schema.js";
 import { ModelConfig, ModelConfigRules } from "./model-config.js";
 import {
   ApiKeyAccessConfig,
+  OAuthAccountAccessConfig,
   ProviderApiConfig,
   ProviderConfig,
   ProviderConfigMap,
@@ -19,6 +25,7 @@ import {
   providerConfigRuleSchema,
   providerTemplateConfigRuleSchema,
   builtinProviderConfigRuleSchema,
+  providerModelConfigRuleSchema,
   type ProviderConfigRuleData,
   type ProviderTemplateConfigRuleData,
 } from "./rule-data-schema.js";
@@ -28,6 +35,14 @@ const accountProviderConfigSchema = providerConfigDataSchema
   .extend({
     access: zhipuAccountAccessDataSchema.pick({ type: true, entitled: true }).nullable().optional(),
   });
+// OAuth 是独立账号来源；旧 schema 只认识智谱权益，导致整个账号池在正式发送前被拒绝。
+const oauthProviderConfigSchema = providerConfigDataSchema.pick({ builtinModelIds: true }).extend({
+  group: z.literal("standard-personal"),
+  access: oauthAccountAccessDataSchema,
+  api: z
+    .object({ type: providerApiTypeDataSchema, baseUrl: z.literal("https://oauth.invalid/v1") })
+    .strict(),
+});
 
 export function parseProviderConfigMap(input: unknown): ProviderConfigMap {
   return createProviderRules(z.array(providerConfigRuleSchema).parse(input));
@@ -56,14 +71,46 @@ export function parsePersonalProviderConfigMap(input: unknown): ProviderConfigMa
   return createProviderRules(personalProviderConfigRulesSchema.parse(input).providerRules);
 }
 
-/** Account 运行时事实仍只有成员及权益；不是磁盘配置规则的第二种格式。 */
+/** Account 只传旧智谱权益或 OAuth 安全目录，不接受凭据和个人编辑规则。 */
 export function parseAccountProviderConfigMap(input: unknown): ProviderConfigMap {
-  const parsed = z.record(z.string().min(1), accountProviderConfigSchema).parse(input);
+  const parsed = z
+    .record(z.string().min(1), z.union([accountProviderConfigSchema, oauthProviderConfigSchema]))
+    .parse(input);
+  for (const [providerId, config] of Object.entries(parsed)) {
+    if (
+      config.access?.type === "oauth-account" &&
+      providerId !== `oauth:${config.access.channelId}`
+    )
+      throw new Error("OAuth Provider 身份与渠道不一致");
+  }
   return new ProviderConfigMap(
     Object.entries(parsed).map(([providerId, config]) => [
       providerId,
       createProviderConfig(config),
     ]),
+  );
+}
+
+/** 精确目录规则随同一账号快照交付，不能覆盖其他来源或供应商。 */
+export function parseAccountModelConfigRules(
+  input: unknown,
+  providers: ProviderConfigMap,
+): ModelConfigRules {
+  const rules = z.array(providerModelConfigRuleSchema).parse(input);
+  for (const rule of rules) {
+    const provider = providers.get(rule.providerId);
+    if (
+      provider?.access?.type !== "oauth-account" ||
+      !provider.builtinModelIds?.includes(rule.modelId)
+    )
+      throw new Error("Account Model 规则不属于当前 OAuth 目录");
+  }
+  return new ModelConfigRules(
+    rules.map((rule) => ({
+      ...rule,
+      type: "provider-model" as const,
+      config: createModelConfig(rule.config),
+    })),
   );
 }
 
@@ -148,9 +195,11 @@ function createProviderConfig(config: z.infer<typeof providerConfigDataSchema>):
     access:
       config.access == null
         ? config.access
-        : config.access.type !== "zhipu-account"
-          ? new ApiKeyAccessConfig(config.access)
-          : new ZhipuAccountAccessConfig(config.access),
+        : config.access.type === "oauth-account"
+          ? new OAuthAccountAccessConfig(config.access)
+          : config.access.type !== "zhipu-account"
+            ? new ApiKeyAccessConfig(config.access)
+            : new ZhipuAccountAccessConfig(config.access),
     api: config.api == null ? config.api : new ProviderApiConfig(config.api),
   });
 }

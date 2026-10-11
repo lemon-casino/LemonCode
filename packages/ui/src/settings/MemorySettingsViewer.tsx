@@ -13,6 +13,7 @@ import {
   TID_SETTINGS_MEMORY_SEARCH_CLEAR,
   TID_SETTINGS_MEMORY_SEARCH_INPUT,
   TID_SETTINGS_MEMORY_WORKSPACE,
+  TID_SETTINGS_MEMORY_STORAGE_SOURCE,
   testId,
 } from "@lcode/shared";
 import { Alert, AlertDescription } from "@/components/ui/alert.js";
@@ -64,12 +65,27 @@ export function MemorySettingsViewer({
       ) ?? [],
     [normalizedSearchQuery, selectedWorkspace],
   );
+  const refreshAction = (
+    <SettingsResourceHeaderActions
+      onRefresh={() => void onRefresh()}
+      refreshing={catalogState === "loading"}
+      refreshTestId={TID_SETTINGS_MEMORY_REFRESH}
+      refreshLabel={intl.formatMessage({ id: "settings.memory.viewer.refresh" })}
+    />
+  );
+  const sourceLabel = (workspace: ProjectMemoryWorkspaceSummary) =>
+    intl.formatMessage({
+      id: `settings.memory.storage.source.${workspace.storageLocation ?? "profile"}`,
+    });
 
   if (catalogError) {
     return (
-      <Alert>
-        <AlertDescription>{catalogError}</AlertDescription>
-      </Alert>
+      <section className="space-y-3">
+        <div className="flex justify-end">{refreshAction}</div>
+        <Alert>
+          <AlertDescription>{catalogError}</AlertDescription>
+        </Alert>
+      </section>
     );
   }
 
@@ -83,22 +99,25 @@ export function MemorySettingsViewer({
 
   if (!selectedWorkspace) {
     return (
-      <div className="rounded-xl border border-dashed border-border bg-transparent px-4 py-8 text-center text-ui-base text-foreground-subtle">
-        {intl.formatMessage({ id: "settings.memory.viewer.empty" })}
-      </div>
+      <section className="space-y-3">
+        <div className="flex justify-end">{refreshAction}</div>
+        <div className="rounded-xl border border-dashed border-border bg-transparent px-4 py-8 text-center text-ui-base text-foreground-subtle">
+          {intl.formatMessage({ id: "settings.memory.viewer.empty" })}
+        </div>
+      </section>
     );
   }
 
   return (
     <section className="space-y-4">
       <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-3">
           <PluginScopeMenu
             includeUser={false}
             selectedScopeKey={selectedWorkspace.id}
             workspaceOptions={workspaces.map((workspace) => ({
               key: workspace.id,
-              label: workspace.label,
+              label: `${workspace.label} · ${sourceLabel(workspace)}`,
             }))}
             onScopeKeyChange={onScopeKeyChange}
             triggerIconTestId={TID_SETTINGS_MEMORY_SCOPE_ICON}
@@ -113,7 +132,8 @@ export function MemorySettingsViewer({
             {formatMemoryCount(selectedWorkspace.files.length)}
           </span>
         </div>
-        <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+        {/* 窄屏 scope 与数量已占一行，搜索不能按 flex-1 被压成图标宽度。 */}
+        <div className="flex min-w-0 w-full flex-none flex-wrap items-center justify-end gap-2 sm:w-auto sm:flex-1">
           <SettingsSearchInput
             containerClassName="w-full sm:w-64"
             clearLabel={intl.formatMessage({ id: "settings.search.clear" })}
@@ -129,6 +149,16 @@ export function MemorySettingsViewer({
         </div>
       </div>
 
+      <div
+        data-testid={TID_SETTINGS_MEMORY_STORAGE_SOURCE}
+        className="min-w-0 space-y-1 text-ui-sm text-foreground-subtle [overflow-wrap:anywhere]"
+      >
+        <p>{sourceLabel(selectedWorkspace)}</p>
+        {selectedWorkspace.memoryRoot ? (
+          <p className="font-mono">{selectedWorkspace.memoryRoot}</p>
+        ) : null}
+      </div>
+
       {normalizedSearchQuery && visibleFiles.length === 0 ? (
         <PluginSearchEmptyState
           label={intl.formatMessage({
@@ -141,14 +171,7 @@ export function MemorySettingsViewer({
             <h3 className="text-ui-base font-medium text-foreground">
               {intl.formatMessage({ id: "settings.memory.viewer.files" })}
             </h3>
-            <SettingsResourceHeaderActions
-              onRefresh={() => void onRefresh()}
-              refreshing={catalogState === "loading"}
-              refreshTestId={TID_SETTINGS_MEMORY_REFRESH}
-              refreshLabel={intl.formatMessage({
-                id: "settings.memory.viewer.refresh",
-              })}
-            />
+            {refreshAction}
           </div>
           <div className="overflow-hidden rounded-xl bg-surface">
             {visibleFiles.map((file, index) => (

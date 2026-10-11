@@ -1,12 +1,14 @@
 import { createHash } from "node:crypto";
 import { access, lstat, mkdir, readFile, readdir, realpath, rm } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { atomicWritePrivateTextFile, withFileLock } from "@lcode/shared/node";
 import type { WorktreeBinding, WorktreeIntegration } from "../contract.js";
 import type { WorktreeStore } from "../app/ports.js";
 import { bindingRecord, operationRecord } from "./records.js";
 import { createWorktreeAliases } from "./aliases.js";
 import { isOwnedCheckoutScope } from "./checkoutScope.js";
+import { createWorktreeManagementSettings } from "./managementSettings.js";
+import { ignoreNestedCheckoutRoot } from "./checkoutIgnore.js";
 
 export function createWorktreeStore(
   dataDir: string,
@@ -15,6 +17,7 @@ export function createWorktreeStore(
 ): WorktreeStore {
   const root = resolve(dataDir);
   const checkouts = join(root, "checkouts");
+  const settings = createWorktreeManagementSettings(root);
   function recordPath(kind: string, id: string) {
     if (!/^[a-f0-9]{32}$/.test(id)) throw new Error("Invalid worktree record id");
     return join(root, kind, `${id}.json`);
@@ -32,7 +35,22 @@ export function createWorktreeStore(
   }
   async function assertManagedPath(path: string) {
     const normalized = resolve(path);
-    const child = relative(checkouts, normalized);
+    let managedRoot = checkouts;
+    if (dirname(normalized) !== checkouts) {
+      const id = basename(normalized);
+      const value = await read("bindings", id);
+      const binding = value === null ? null : bindingRecord.parse(value);
+      // 自定义根目录只能由已落盘的 owner 记录授权，不能按传入路径放宽删除范围。
+      if (
+        !binding?.checkoutRoot ||
+        binding.id !== id ||
+        binding.checkoutPath !== normalized ||
+        join(resolve(binding.checkoutRoot), id) !== normalized
+      )
+        throw new Error("Worktree path is outside the managed checkout root");
+      managedRoot = resolve(binding.checkoutRoot);
+    }
+    const child = relative(managedRoot, normalized);
     if (
       !child ||
       child.startsWith(`..${sep}`) ||
@@ -42,10 +60,10 @@ export function createWorktreeStore(
     ) {
       throw new Error("Worktree path is outside the managed checkout root");
     }
-    await mkdir(checkouts, { recursive: true });
+    await mkdir(managedRoot, { recursive: true });
     if (
-      (await lstat(checkouts)).isSymbolicLink() ||
-      resolve(await realpath(checkouts)) !== checkouts
+      (await lstat(managedRoot)).isSymbolicLink() ||
+      resolve(await realpath(managedRoot)) !== managedRoot
     ) {
       throw new Error("Managed checkout root has been redirected");
     }
@@ -61,11 +79,32 @@ export function createWorktreeStore(
     }
   }
   return {
+    ...settings,
     ...createWorktreeAliases(root),
     key: (value) => createHash("sha256").update(value).digest("hex").slice(0, 32),
-    checkout: (id) => {
+    checkout: (id, checkoutRoot) => {
       recordPath("bindings", id);
-      return join(checkouts, id);
+      return join(checkoutRoot ? resolve(checkoutRoot) : checkouts, id);
+    },
+    async allocateCheckout(id, repositoryRoot, commonDirectory) {
+      recordPath("bindings", id);
+      const config = await settings.getManagementSettings();
+      const checkoutRoot =
+        config.rootLocation === "project"
+          ? join(repositoryRoot, ".lcode", "worktrees", "checkouts")
+          : config.rootLocation === "custom" && config.rootDirectory
+            ? resolve(config.rootDirectory)
+            : undefined;
+      const selectedRoot = checkoutRoot ?? checkouts;
+      await ignoreNestedCheckoutRoot(
+        repositoryRoot,
+        commonDirectory,
+        resolve(selectedRoot) === resolve(repositoryRoot) ? join(selectedRoot, id) : selectedRoot,
+      );
+      return {
+        checkoutPath: join(checkoutRoot ?? checkouts, id),
+        ...(checkoutRoot ? { checkoutRoot } : {}),
+      };
     },
     lock: (key, action) =>
       withFileLock(recordPath("locks", key), action, { lockMaxWaitMs: 30_000 }),
@@ -123,7 +162,15 @@ export function createWorktreeStore(
       );
       return values;
     },
-    async findExecutionBinding(scope) {
+    async findExecutionBinding(scope, resource) {
+      // 文件监听只有物理路径；只在可信 Host 的资源检查中使用绑定身份，执行查询仍严格匹配传入身份。
+      const matches = (binding: WorktreeBinding) =>
+        isOwnedCheckoutScope(
+          binding,
+          resource === "file-watch"
+            ? { workspacePath: scope.workspacePath, workspaceIdentity: binding.workspaceIdentity }
+            : scope,
+        );
       // 从受管路径直接定位一条记录；spawn 不扫描目录树或全部工作树，避免删除时放大 IO/CPU。
       const target = resolve(scope.workspacePath);
       // macOS 卷可能忽略大小写；文本候选只放宽大小写，随后仍由 realpath 核对实际归属。
@@ -131,7 +178,16 @@ export function createWorktreeStore(
         process.platform === "darwin"
           ? relative(checkouts.toLowerCase(), target.toLowerCase())
           : relative(checkouts, target);
-      if (isAbsolute(path)) return null;
+      // 新根目录不在默认根下；从不透明目录 id 读取私有记录后仍核对 canonical scope，
+      // 保留删除 fence，不能因位置设置改变而把已有树当普通本地目录放行。
+      if (isAbsolute(path) || path.startsWith(`..${sep}`)) {
+        for (const component of target.split(sep).reverse()) {
+          if (!/^[a-f0-9]{32}$/i.test(component)) continue;
+          const binding = await this.readBinding(component.toLowerCase());
+          if (binding && (await matches(binding))) return binding;
+        }
+        return null;
+      }
       const component = path.split(sep)[0] ?? "";
       const id =
         process.platform === "win32" || process.platform === "darwin"
@@ -139,7 +195,7 @@ export function createWorktreeStore(
           : component;
       if (!/^[a-f0-9]{32}$/.test(id)) return null;
       const binding = await this.readBinding(id);
-      return binding && (await isOwnedCheckoutScope(binding, scope)) ? binding : null;
+      return binding && (await matches(binding)) ? binding : null;
     },
     async readOperation(id) {
       const value = await read("operations", id);

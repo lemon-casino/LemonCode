@@ -7,9 +7,11 @@ import type {
   TimelineMarkerPayload,
   TimelineMarkerRow,
 } from "@lcode/shared/lcode-protocol-v4";
+import { mergeContextTrend } from "@lcode/shared/lcode-protocol-v4";
 import { rowIdForMessageId, findRow, rowBase, turnIdOf, ms } from "./product-projection-rows.js";
 import { mapCompactMarkerStatus, mapCompactMarkerOrigin } from "./projection-rows.js";
 import { controlPatch } from "./product-projection-session.js";
+import { HYDRATION_TRACE_ID } from "./projection-state.js";
 
 type RewindTriggeredHost = Pick<
   ProductProjectionState,
@@ -22,6 +24,8 @@ type RewindTriggeredHost = Pick<
   | "entityIdByRowId"
   | "editTargetByEntityId"
   | "turnHeaderRowIdByTurnId"
+  | "contextWindowState"
+  | "currentTurnId"
 >;
 
 type CompactLifecycleHost = Pick<
@@ -122,7 +126,30 @@ export function onRewindTriggered(
       host.hookRowIdByInvocationId.delete(hookInvocationId);
     }
   }
-  return [{ op: "row.removed", fromRowId }];
+  host.contextWindowState.trendSeeded = true;
+  // rewind 已撤销当前 turn 的资格；新 TurnStarted 之前，较高 seq 的迟到终态也不能复活样本。
+  host.contextWindowState.trendRewoundTurnId = host.currentTurnId ?? undefined;
+  const cutoff = findRow(host, fromRowId)?.createdAt ?? targetRow.createdAt;
+  const contextTrend = host.snapshot.usage.contextTrend;
+  return [
+    { op: "row.removed", fromRowId },
+    ...(contextTrend
+      ? [
+          {
+            op: "state.updated" as const,
+            patch: {
+              usage: {
+                ...host.snapshot.usage,
+                contextTrend: {
+                  ...contextTrend,
+                  samples: contextTrend.samples.filter((sample) => sample.timestamp < cutoff),
+                },
+              },
+            },
+          },
+        ]
+      : []),
+  ];
 }
 
 // ── compact marker（compact 命令效果）──
@@ -248,6 +275,28 @@ export function onCompactLifecycle(
       patch: {
         usage: {
           ...host.snapshot.usage,
+          // 冷恢复 marker 也包含 fork 继承历史；趋势只由过滤过 provenance 的消息种子恢复。
+          ...(String(event.sessionId) === host.snapshot.sessionId &&
+          event.traceId !== HYDRATION_TRACE_ID &&
+          (!host.contextWindowState.trendRewoundTurnId ||
+            (host.currentTurnId !== host.contextWindowState.trendRewoundTurnId &&
+              String(event.turnId) !== host.contextWindowState.trendRewoundTurnId))
+            ? {
+                contextTrend: mergeContextTrend(host.snapshot.usage.contextTrend, [
+                  {
+                    id: `compact:${payload.operationId}`,
+                    timestamp: payload.endedAt ?? ms(event),
+                    kind: "compact",
+                    usedTokens: tokensAfter,
+                    maxTokens: null,
+                    ...(payload.preCompactTokenCount !== undefined
+                      ? { tokensBefore: payload.preCompactTokenCount }
+                      : {}),
+                    ...(event.turnId ? { turnId: String(event.turnId) } : {}),
+                  },
+                ]),
+              }
+            : {}),
           contextWindow:
             maxTokens === null
               ? null

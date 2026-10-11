@@ -56,6 +56,7 @@ export async function registerWorktreeSessionAlias(
           originalKey: scopeKey,
           executionKey: binding.workspaceIdentity?.trim() || resolve(binding.workspacePath),
         });
+      await context.store.savePreparationRequest(scopeKey, params.requestId, id);
       return binding;
     });
   });

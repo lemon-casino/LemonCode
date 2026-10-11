@@ -91,7 +91,10 @@ export async function commitVerifiedGoalCompletion(
   let evidenceHeads: GoalEvidenceHeadToken[] | undefined;
   if (strict) {
     // 核验后的另一笔写入或 Stop/替换不能借用旧 passed；提交前重读内容和唯一目标。
-    const evidence = await readGoalEvidenceSnapshot(runtimeGoalEvidenceOwner(runtime), input.target);
+    const evidence = await readGoalEvidenceSnapshot(
+      runtimeGoalEvidenceOwner(runtime),
+      input.target,
+    );
     evidenceHeads = evidence?.evidenceHeads;
     if (
       input.abortSignal?.aborted ||

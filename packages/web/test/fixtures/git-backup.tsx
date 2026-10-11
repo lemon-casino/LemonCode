@@ -10,6 +10,12 @@ import { GitBackupSectionController } from "@/settings/GitBackupSection.js";
 import { fixture, platform, workspace, type Operation } from "./git-backup-service.js";
 import "@lcode/ui/styles.css";
 
+const workspaceCandidates = [
+  workspace,
+  { workspacePath: "/fixture/projects/second" },
+  { workspacePath: "/fixture/projects/third" },
+];
+
 function WelcomeFixture({ onOpenSettings }: { onOpenSettings: () => void }) {
   const state = useGitBackupOnboarding(fixture.service, workspace, false, onOpenSettings);
   return state.open && !state.loading ? <GitBackupWelcomeView state={state} /> : null;
@@ -25,6 +31,7 @@ function FixtureApp() {
   const [mode, setMode] = useState("settings");
   const [connection, setConnection] = useState("ready");
   const [theme, setTheme] = useState("dark");
+  const [locale, setLocale] = useState<"zh-CN" | "en-US">("zh-CN");
   const reset = () => {
     fixture.reset();
     setHeld("none");
@@ -32,10 +39,21 @@ function FixtureApp() {
   };
   return (
     <PlatformProvider platform={platform}>
-      <LCodeIntlProvider initialLocale="zh-CN">
+      <LCodeIntlProvider key={locale} initialLocale={locale}>
         <main className="fixture-page text-ui-base">
           <h1 className="text-ui-lg font-medium">Git 备份交互回归测试</h1>
           <div className="fixture-controls" aria-label="测试控制台">
+            <label>
+              语言
+              <select
+                aria-label="语言"
+                value={locale}
+                onChange={(event) => setLocale(event.target.value as typeof locale)}
+              >
+                <option value="zh-CN">中文</option>
+                <option value="en-US">English</option>
+              </select>
+            </label>
             <Button variant="outline" size="sm" onClick={reset} data-testid="fixture-reset">
               重置测试
             </Button>
@@ -138,6 +156,7 @@ function FixtureApp() {
               >
                 <option value="none">无</option>
                 <option value="test">测试连接</option>
+                <option value="configure">保存配置或选择工作区</option>
                 <option value="backup">手动备份</option>
                 <option value="load">读取配置</option>
                 <option value="export">私钥导出</option>
@@ -208,6 +227,7 @@ function FixtureApp() {
               key={`settings-${generation}`}
               service={connection === "ready" ? fixture.service : null}
               target={workspace}
+              workspaceCandidates={workspaceCandidates}
               connectionKind={connection === "ready" ? "local-ready" : "remote-waiting"}
             />
           )}

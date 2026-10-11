@@ -436,6 +436,7 @@ import { createSubagentsService } from "./subagents/subagentsService.js";
 import { createCommandsService } from "./commands/commandsService.js";
 import { createHooksService } from "./hooks/hooksService.js";
 import { createMemoryService } from "./memory/memoryService.js";
+import { buildLocalSessionRuntimePreferences } from "./lcode-agent/sessionRuntimePreferences.js";
 import { createSettingsSyncService } from "./settings-sync/settingsSyncService.js";
 import {
   createFeedbackService,
@@ -522,7 +523,6 @@ import { createCanonicalCuaHelperInstaller } from "./cua-permission-broker/cuaHe
 import { WindowsCuaHelperHost } from "#src/cua-permission-broker/windowsCuaDevHelperHost.js";
 import { HELPER_APP_NAME } from "@lcode/lcode-cua/broker/helperConstants";
 import {
-  DEFAULT_LCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
   resolveSafeEndpointHostname,
   LCODE_JWT_INVALID_BROADCAST_CHANNEL,
   formatLogPrefix,
@@ -1673,9 +1673,18 @@ export function createLocalServices(options: {
   let providerConnectivityAgentService:
     | Pick<ILCodeAgentService, "testModelConnectivity">
     | undefined;
+  const providerAccounts = new ProviderAccounts({
+    credentials: credentialService,
+    lockPath: join(resolveAppConfigDir(), "oauth-provider-accounts"),
+    watchFile: join(resolveAppConfigDir(), "credentials.json"),
+  });
+  const combinedAccountProviderSource = createProviderAccountsSource(
+    accountProviderConfigSource,
+    providerAccounts,
+  );
   const providerRuntime = createProviderRuntimeFromConfigRuntime({
     configRuntime: providerConfigRuntime,
-    accountSource: accountProviderConfigSource,
+    accountSource: combinedAccountProviderSource,
     modelSelectionConfiguredDefaultSource,
     disposeModelSelectionConfiguredDefaultSource: () =>
       modelSelectionConfiguredDefaultSource.dispose(),
@@ -1691,6 +1700,7 @@ export function createLocalServices(options: {
       disposeAccountProviderInvalidation();
       accountProviderRefreshErrorDispose();
       accountProviderConfigSource.dispose();
+      void providerAccounts.dispose();
     },
   });
   handleOAuthProviderLogout = createOAuthProviderLogoutHandler({
@@ -1722,7 +1732,7 @@ export function createLocalServices(options: {
   // 只要当前进程已经装配 Provider Runtime，就由该 Environment 自己的 Selection View
   // 决定执行就绪状态。Desktop-attached remote 也读取远端自己的 Config/Account Facts。
   const modelSelectionReadinessSource = providerRuntime.modelSelection;
-  const agentAccountProviderConfigSource = accountProviderConfigSource;
+  const agentAccountProviderConfigSource = combinedAccountProviderSource;
   // ===== Computer Use Helper lifecycle 层（port 自 feat）=====
   // 根因修复：app 启动时预 spawn 的 agent 早于 broker ready → buildCuaProductHelperAgentEnv 在
   // 1s grace 内拿不到 ready helper → 返回 BROKER_UNAVAILABLE → 那些 agent 的 computer-use MCP
@@ -2042,7 +2052,10 @@ export function createLocalServices(options: {
     if (message.channel === "state:runtime-environment")
       runtimeEnvironmentHost.acceptInvalidation(message.payload);
   });
-  const fileWatcherService = createFileWatcherService();
+  const fileWatcherService = createFileWatcherService({
+    assertWatchAllowed: (path) => worktreeService.assertFileWatchAdmission(path),
+  });
+  const worktreeResourceLogger = createServiceLogger("worktree-resources");
   const worktreeService = createWorktreeService({
     ...worktreeOptions,
     coordinator: checkoutCoordinator,
@@ -2052,14 +2065,38 @@ export function createLocalServices(options: {
       worktrees: () => worktreeService,
       agents: () => lcodeAgentService,
       stopWorktreeExecution: async (binding) => {
-        const results = await Promise.allSettled([
-          terminalService.stopCheckoutAndWait({
-            workspacePath: binding.checkoutPath,
-            workspaceIdentity: binding.workspaceIdentity,
+        const resources: [string, () => Promise<void>][] = [
+          [
+            "terminals",
+            () =>
+              terminalService.stopCheckoutAndWait({
+                workspacePath: binding.checkoutPath,
+                workspaceIdentity: binding.workspaceIdentity,
+              }),
+          ],
+          ["agents", () => lcodeAgentService[worktreeExecutionOwner](binding)],
+          ["file-watchers", () => fileWatcherService.stopPathAndWait(binding.checkoutPath)],
+        ];
+        const results = await Promise.allSettled(
+          resources.map(async ([resource, stop]) => {
+            const started = Date.now();
+            const fields = { bindingId: binding.id, checkoutPath: binding.checkoutPath, resource };
+            try {
+              await stop();
+              worktreeResourceLogger.info(undefined, "Worktree resource release completed", {
+                ...fields,
+                durationMs: Date.now() - started,
+              });
+            } catch (error) {
+              worktreeResourceLogger.warn(undefined, "Worktree resource release failed", {
+                ...fields,
+                durationMs: Date.now() - started,
+                error: error instanceof Error ? error.message : String(error),
+              });
+              throw error;
+            }
           }),
-          lcodeAgentService[worktreeExecutionOwner](binding),
-          fileWatcherService.stopPathAndWait(binding.checkoutPath),
-        ]);
+        );
         const failed = results.find((result) => result.status === "rejected");
         if (failed?.status === "rejected") throw failed.reason;
       },
@@ -2156,6 +2193,22 @@ export function createLocalServices(options: {
     },
   );
   const lcodeAgentService = createLCodeAgentService({
+    resolveOAuthRequestAuth: async ({
+      channelId,
+      providerId,
+      modelId,
+      sessionId,
+      workspaceKey,
+    }) => {
+      if (oauthProviderId(channelId) !== providerId)
+        throw new Error("OAuth provider identity mismatch");
+      return providerAccounts.resolveRequestAuth(
+        channelId,
+        modelId,
+        undefined,
+        JSON.stringify([workspaceKey, sessionId]),
+      );
+    },
     worktreeService,
     assertWorktreeExecutionAdmission: (scope) => worktreeService.assertExecutionAdmission(scope),
     runtimeEnvironmentService,
@@ -2319,20 +2372,7 @@ export function createLocalServices(options: {
           resolveSessionRuntimePreferences: async (scope) => {
             // 预算已统一，不能把可选远端配置作为本地/手机 shared-host 建会话的前置条件。
             const settings = await settingService.get();
-            const modelContextBudgetStrategy = DEFAULT_LCODE_MODEL_CONTEXT_BUDGET_STRATEGY;
-            return {
-              askUserQuestionAutoResolutionEnabled:
-                settings.askUserQuestionAutoResolutionEnabled !== false,
-              nativeSearchEnhancementsEnabled: settings.nativeSearchEnhancementsEnabled !== false,
-              memoryEnabled: settings.memoryEnabled === true,
-              sessionRecallEnabled: settings.sessionRecallEnabled === true,
-              modelContextBudgetStrategy,
-              // user-execution 只消费 Shell；共享默认策略是统一 result schema 的兼容占位，
-              // 不会覆盖 runtime-materialization 阶段已经固定的 strategy。
-              ...(scope === "user-execution" && settings.integratedTerminalShell
-                ? { integratedTerminalShell: settings.integratedTerminalShell }
-                : {}),
-            };
+            return buildLocalSessionRuntimePreferences(settings, scope);
           },
         }),
   });
@@ -2655,7 +2695,7 @@ export function createLocalServices(options: {
         grantWorkspaceHookTrust: (params) => lcodeAgentService.grantWorkspaceHookTrust(params),
       }),
     )
-    .register(IMemoryService, createMemoryService())
+    .register(IMemoryService, createMemoryService({ settingService }))
     .register(ISettingsSyncService, createSettingsSyncService({ settingService }))
     .register(
       IFeedbackService,
@@ -2697,6 +2737,7 @@ export function createLocalServices(options: {
   providerProvisioningSources.set(services, providerProvisioningSource);
   providerProvisioningTriggerDisposers.set(services, providerProvisioningDisposers);
   services
+    .register(IProviderAccountService, providerAccounts)
     .register(IProviderSettingsService, providerRuntime.providerSettings)
     .register(IModelSelectionService, providerRuntime.modelSelection);
   if (isDesktopAttachedRemote || options.providerProvisioningTargetEnabled === true) {
@@ -2905,3 +2946,9 @@ export async function disposeServiceResourcesAndWait(services: ServiceCollection
     ?.disposeAndWait()
     .catch(() => {});
 }
+import { ProviderAccounts } from "./model-provider/providerAccounts.js";
+import { IProviderAccountService } from "./model-provider/providerAccountService.js";
+import {
+  createProviderAccountsSource,
+  oauthProviderId,
+} from "./model-provider/providerAccountsSource.js";

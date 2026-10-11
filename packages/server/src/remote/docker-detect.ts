@@ -162,9 +162,13 @@ export function parseDockerContainerList(rawOutput: string): DockerContainerInfo
     });
 }
 
-export async function isDockerAvailable(): Promise<boolean> {
+export type DockerCommandExecutor = (args: string[]) => Promise<string>;
+
+export async function isDockerAvailable(
+  executor: DockerCommandExecutor = execDocker,
+): Promise<boolean> {
   try {
-    await execDocker(["version", "--format", "{{.Server.Version}}"]);
+    await executor(["version", "--format", "{{.Server.Version}}"]);
     return true;
   } catch {
     // 之前只把“docker 命令不存在”视为不可用，daemon 未启动时仍会误判成可用，
@@ -174,15 +178,19 @@ export async function isDockerAvailable(): Promise<boolean> {
   }
 }
 
-export async function listDockerContainers(options?: {
-  all?: boolean;
-}): Promise<DockerContainerInfo[]> {
-  const args = ["ps"];
+export async function listDockerContainers(
+  options?: {
+    all?: boolean;
+  },
+  executor: DockerCommandExecutor = execDocker,
+): Promise<DockerContainerInfo[]> {
+  // 默认 ps 只返回 12 位 ID，无法匹配手工粘贴的完整容器 ID。
+  const args = ["ps", "--no-trunc"];
   if (options?.all) {
     args.push("-a");
   }
   args.push("--format", "{{json .}}");
 
-  const output = await execDocker(args);
+  const output = await executor(args);
   return parseDockerContainerList(output);
 }

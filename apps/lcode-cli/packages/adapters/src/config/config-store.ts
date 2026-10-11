@@ -123,6 +123,10 @@ export class ConfigStore {
         this.set(ConfigKey.FeatureMcp, config.features.mcp, scope);
     }
     if (config.memory) {
+      if (config.memory.storageRevision !== undefined)
+        this.set(ConfigKey.MemoryStorageRevision, config.memory.storageRevision, scope);
+      if (config.memory.storageLocation !== undefined)
+        this.set(ConfigKey.MemoryStorageLocation, config.memory.storageLocation, scope);
       if (config.memory.use !== undefined) this.set(ConfigKey.MemoryUse, config.memory.use, scope);
       if (config.memory.observationEnabled !== undefined)
         this.set(ConfigKey.MemoryObservationEnabled, config.memory.observationEnabled, scope);

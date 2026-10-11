@@ -1,7 +1,14 @@
 import {
-  goalAcceptanceHash, goalEvidenceEntryId, goalEvidenceSchema, goalRequirementMatches,
-  goalEvidenceAttemptId, goalEvidenceHeadId, goalEvidenceAttemptSchema,
-  SESSION_ENTRY_GOAL_EVIDENCE, type GoalEvidence, type SessionGoal,
+  goalAcceptanceHash,
+  goalEvidenceEntryId,
+  goalEvidenceSchema,
+  goalRequirementMatches,
+  goalEvidenceAttemptId,
+  goalEvidenceHeadId,
+  goalEvidenceAttemptSchema,
+  SESSION_ENTRY_GOAL_EVIDENCE,
+  type GoalEvidence,
+  type SessionGoal,
 } from "@lcode/contracts";
 import { bindingHash, digestGoalFiles } from "./evidence-files.js";
 import type { GoalEvidenceOwner, GoalExecution, GoalExecutionCapture } from "./evidence-types.js";
@@ -22,7 +29,9 @@ export async function beginGoalExecution(
     goal = await owner.store?.readTarget({ sessionID: owner.sessionId });
   } catch (error) {
     // 连策略读取都失败时无法证明不存在 strict，普通观察降级会放行一次无法结算的副作用。
-    throw new GoalEvidenceAdmissionError("Execution goal policy could not be read.", { cause: error });
+    throw new GoalEvidenceAdmissionError("Execution goal policy could not be read.", {
+      cause: error,
+    });
   }
   if (!goal?.acceptance || goal.status !== "active") return null;
   const matches = goal.acceptance.requirements.filter((requirement) =>
@@ -30,45 +39,97 @@ export async function beginGoalExecution(
   );
   if (!matches.length) return null;
   try {
-  const binding = await bindingHash(owner);
-  if (!binding) throw new GoalEvidenceAdmissionError("Strict execution binding is unknown.");
-  const requirements = [];
-  for (const requirement of matches)
-    requirements.push({ requirement, before: await digestGoalFiles(owner, requirement.inputPaths) });
-  const contractHash = goalAcceptanceHash(goal.acceptance);
-  const attemptId = goalEvidenceAttemptId({ sessionId: owner.sessionId, goalId: goal.targetID, executionId: execution.executionId, contractHash });
-  const attempt = goalEvidenceAttemptSchema.parse({
-    schemaVersion: 1, attemptId, sessionId: owner.sessionId, goalId: goal.targetID, contractHash,
-    workspaceKey: owner.workspaceKey, workspacePath: owner.workspacePath, bindingHash: binding,
-    executionId: execution.executionId, source: execution.source, command: execution.command,
-    ...(execution.args ? { args: [...execution.args] } : {}), startedAt: execution.startedAt,
-    heads: matches.map((requirement) => ({
-      schemaVersion: 1, headId: goalEvidenceHeadId({ sessionId: owner.sessionId, goalId: goal.targetID, requirementId: requirement.id, contractHash }),
-      attemptId, sessionId: owner.sessionId, goalId: goal.targetID, requirementId: requirement.id, contractHash,
-      workspaceKey: owner.workspaceKey, workspacePath: owner.workspacePath, bindingHash: binding,
-      executionId: execution.executionId, startedAt: execution.startedAt,
-      receiptId: goalEvidenceEntryId({ goalId: goal.targetID, executionId: execution.executionId, requirementId: requirement.id, contractHash }),
-    })),
-  });
-  if (!owner.store?.beginGoalEvidenceExecution)
-    throw new GoalEvidenceAdmissionError("Strict execution requires durable attempt admission.");
-  let admission;
-  try {
-    admission = await owner.store.beginGoalEvidenceExecution({
-      sessionID: owner.sessionId,
-      expected: { targetID: goal.targetID, stateRevision: goal.stateRevision ?? 0, acceptanceHash: contractHash },
-      attempt,
+    const binding = await bindingHash(owner);
+    if (!binding) throw new GoalEvidenceAdmissionError("Strict execution binding is unknown.");
+    const requirements = [];
+    for (const requirement of matches)
+      requirements.push({
+        requirement,
+        before: await digestGoalFiles(owner, requirement.inputPaths),
+      });
+    const contractHash = goalAcceptanceHash(goal.acceptance);
+    const attemptId = goalEvidenceAttemptId({
+      sessionId: owner.sessionId,
+      goalId: goal.targetID,
+      executionId: execution.executionId,
+      contractHash,
     });
-  } catch (error) {
-    // 若 start 写失败还执行，稍后一次可用的旧 PASS 会遮住这次执行；必须在实际副作用前中止。
-    throw new GoalEvidenceAdmissionError("Strict execution start could not be persisted.", { cause: error });
-  }
-  if (admission.kind !== "admitted")
-    throw new GoalEvidenceAdmissionError(`Strict execution admission rejected: ${admission.kind}.`);
-  // 未知输入也留下 durable head，避免短暂文件故障恢复后借用旧证明；不启动无法核验的执行。
-  if (requirements.some((item) => item.before === null) || (await bindingHash(owner)) !== binding)
-    throw new GoalEvidenceAdmissionError("Strict execution inputs or binding are not verifiable.");
-  return { owner, goal, execution, requirements, bindingHash: binding, attempt: admission.attempt };
+    const attempt = goalEvidenceAttemptSchema.parse({
+      schemaVersion: 1,
+      attemptId,
+      sessionId: owner.sessionId,
+      goalId: goal.targetID,
+      contractHash,
+      workspaceKey: owner.workspaceKey,
+      workspacePath: owner.workspacePath,
+      bindingHash: binding,
+      executionId: execution.executionId,
+      source: execution.source,
+      command: execution.command,
+      ...(execution.args ? { args: [...execution.args] } : {}),
+      startedAt: execution.startedAt,
+      heads: matches.map((requirement) => ({
+        schemaVersion: 1,
+        headId: goalEvidenceHeadId({
+          sessionId: owner.sessionId,
+          goalId: goal.targetID,
+          requirementId: requirement.id,
+          contractHash,
+        }),
+        attemptId,
+        sessionId: owner.sessionId,
+        goalId: goal.targetID,
+        requirementId: requirement.id,
+        contractHash,
+        workspaceKey: owner.workspaceKey,
+        workspacePath: owner.workspacePath,
+        bindingHash: binding,
+        executionId: execution.executionId,
+        startedAt: execution.startedAt,
+        receiptId: goalEvidenceEntryId({
+          goalId: goal.targetID,
+          executionId: execution.executionId,
+          requirementId: requirement.id,
+          contractHash,
+        }),
+      })),
+    });
+    if (!owner.store?.beginGoalEvidenceExecution)
+      throw new GoalEvidenceAdmissionError("Strict execution requires durable attempt admission.");
+    let admission;
+    try {
+      admission = await owner.store.beginGoalEvidenceExecution({
+        sessionID: owner.sessionId,
+        expected: {
+          targetID: goal.targetID,
+          stateRevision: goal.stateRevision ?? 0,
+          acceptanceHash: contractHash,
+        },
+        attempt,
+      });
+    } catch (error) {
+      // 若 start 写失败还执行，稍后一次可用的旧 PASS 会遮住这次执行；必须在实际副作用前中止。
+      throw new GoalEvidenceAdmissionError("Strict execution start could not be persisted.", {
+        cause: error,
+      });
+    }
+    if (admission.kind !== "admitted")
+      throw new GoalEvidenceAdmissionError(
+        `Strict execution admission rejected: ${admission.kind}.`,
+      );
+    // 未知输入也留下 durable head，避免短暂文件故障恢复后借用旧证明；不启动无法核验的执行。
+    if (requirements.some((item) => item.before === null) || (await bindingHash(owner)) !== binding)
+      throw new GoalEvidenceAdmissionError(
+        "Strict execution inputs or binding are not verifiable.",
+      );
+    return {
+      owner,
+      goal,
+      execution,
+      requirements,
+      bindingHash: binding,
+      attempt: admission.attempt,
+    };
   } catch (error) {
     if (error instanceof GoalEvidenceAdmissionError) throw error;
     throw new GoalEvidenceAdmissionError("Strict execution preparation failed.", { cause: error });
@@ -173,4 +234,3 @@ export async function finishGoalExecution(
   }
   return results;
 }
-

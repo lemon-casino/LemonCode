@@ -19,7 +19,7 @@ export type TaskForkNavigation = (
 ) => void;
 
 export function useTaskFork(
-  task: LCodeTaskMeta,
+  task: Pick<LCodeTaskMeta, "taskId" | "workspacePath" | "workspaceIdentity">,
   remoteSessionId: string | undefined,
   onCreated: TaskForkNavigation,
 ): {

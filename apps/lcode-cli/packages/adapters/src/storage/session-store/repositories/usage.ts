@@ -65,13 +65,15 @@ export async function recordModelUsage(db: DatabaseSync, input: ModelUsageRecord
         error_code,
         error_message,
         raw_usage_json,
-        provider_metadata_json
+        provider_metadata_json,
+        auth_channel_id, account_connection_id, usage_known,
+        context_window_tokens, context_used_tokens
       )
       values (
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
       on conflict(id) do update set
         logical_request_id = excluded.logical_request_id,
@@ -112,7 +114,12 @@ export async function recordModelUsage(db: DatabaseSync, input: ModelUsageRecord
         error_code = excluded.error_code,
         error_message = excluded.error_message,
         raw_usage_json = excluded.raw_usage_json,
-        provider_metadata_json = excluded.provider_metadata_json
+        provider_metadata_json = excluded.provider_metadata_json,
+        auth_channel_id = excluded.auth_channel_id,
+        account_connection_id = excluded.account_connection_id,
+        usage_known = excluded.usage_known,
+        context_window_tokens = excluded.context_window_tokens,
+        context_used_tokens = excluded.context_used_tokens
       `,
   ).run(
     input.id,
@@ -155,6 +162,20 @@ export async function recordModelUsage(db: DatabaseSync, input: ModelUsageRecord
     input.errorMessage ?? null,
     encodeJson(input.rawUsage),
     encodeJson(input.providerMetadata),
+    input.authChannelId ?? null,
+    input.accountConnectionId ?? null,
+    boolean(
+      input.usageKnown ??
+        [
+          input.inputTokens,
+          input.outputTokens,
+          input.cacheReadInputTokens,
+          input.cacheCreationInputTokens,
+          input.providerTotalTokens,
+        ].some((value) => typeof value === "number" && Number.isFinite(value)),
+    ),
+    input.contextWindowTokens ?? null,
+    input.contextUsedTokens ?? null,
   );
   await pruneUsage(db);
 }

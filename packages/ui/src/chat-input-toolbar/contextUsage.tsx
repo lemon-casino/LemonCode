@@ -22,6 +22,9 @@ import {
 } from "@/components/ai-elements/context.js";
 import { cn } from "@/components/lib/utils.js";
 import { Progress } from "@/components/ui/progress.js";
+import { Button } from "@/components/ui/button.js";
+import { Dialog } from "@/components/ui/dialog.js";
+import { SessionContextTrendContent } from "@/v4/composer/SessionContextTrend.js";
 import { useOptionalTabStore } from "@/store/TabStoreProvider.js";
 import { isSettingsTab } from "@/store/tabStore.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
@@ -237,6 +240,7 @@ export function ChatContextUsage({
   codingPlanUsageRemaining,
   startPlanBalance,
   taskUsage,
+  contextTrend,
   sessionUsage,
   liveOutputRate = null,
   outputSpeed,
@@ -257,6 +261,7 @@ export function ChatContextUsage({
     cache?: { hitRate: number | null };
     breakdown?: LCodeContextUsageBreakdownItem[];
   } | null;
+  contextTrend?: SessionUsageState["contextTrend"];
   sessionUsage?: SessionUsageState["cumulative"];
   liveOutputRate?: number | null;
   outputSpeed?: SessionOutputSpeed;
@@ -275,6 +280,7 @@ export function ChatContextUsage({
     (state) => !state.tabs.some((tab) => tab.id === state.activeTabId && isSettingsTab(tab)),
   );
   const [contextOpen, setContextOpen] = useState(false);
+  const [trendOpen, setTrendOpen] = useState(false);
   const [contextAccessRefreshing, setContextAccessRefreshing] = useState(false);
   const [quotaResetDialogOpen, setQuotaResetDialogOpen] = useState(false);
   const quotaResetDialogOpenRef = useRef(false);
@@ -853,6 +859,7 @@ export function ChatContextUsage({
     !hasCodingPlanUsageRemaining &&
     !hasStartPlanBalance &&
     sessionTokenTotal === null &&
+    !contextTrend?.samples.length &&
     !hasOutputSpeed
   ) {
     return null;
@@ -871,11 +878,13 @@ export function ChatContextUsage({
     : null;
   const triggerLabel =
     contextUsageLabel ??
-    (hasCodingPlanUsageRemaining
-      ? intl.formatMessage({ id: "sidebar.usage.plan.title" })
-      : intl.formatMessage({
-          id: "settings.modelProvider.startPlan.balance.title",
-        }));
+    (contextTrend?.samples.length
+      ? intl.formatMessage({ id: "chat.contextTrend.title" })
+      : hasCodingPlanUsageRemaining
+        ? intl.formatMessage({ id: "sidebar.usage.plan.title" })
+        : intl.formatMessage({
+            id: "settings.modelProvider.startPlan.balance.title",
+          }));
   const sessionUsageGroups = buildSessionUsageGroupModel(childCount);
   const sessionSummaryLabel =
     sessionTokenTotal === null
@@ -888,301 +897,328 @@ export function ChatContextUsage({
   const contextMaxTokens = renderableTaskUsage?.size ?? 1;
 
   return (
-    <Context
-      usedTokens={contextUsedTokens}
-      maxTokens={contextMaxTokens}
-      open={contextOpen}
-      onOpenChange={handleContextOpenChange}
-    >
-      <ControlHintTooltip
-        className={
-          triggerTooltipKind === "reset-status" ? undefined : "bg-background py-0.5 pr-0.5"
-        }
-        open={resetStatusTooltipOpen}
-        side="top"
-        standalone
-        triggerRef={contextUsageTriggerRef}
-        title={
-          triggerTooltipKind === "reset-status" && resetTooltipPhase ? (
-            <CodingPlanQuotaResetStatusContent
-              status={resetTooltipPhase}
-              resetType={activeResetType ?? "FIVE_HOUR"}
-            />
-          ) : opportunityReminder ? (
-            <ContextQuotaResetOpportunityReminderContent
-              count={opportunityReminder.count}
-              intl={intl}
-              onDismiss={dismissOpportunityReminder}
-              phase={opportunityReminder.phase}
-              remainingSeconds={opportunityReminder.remainingSeconds}
-            />
-          ) : null
-        }
+    <>
+      <Context
+        usedTokens={contextUsedTokens}
+        maxTokens={contextMaxTokens}
+        open={contextOpen}
+        onOpenChange={handleContextOpenChange}
       >
-        {/* span 承载 ControlHintTooltip 的 asChild 锚点，内部 ContextTrigger 仍作为
+        <ControlHintTooltip
+          className={
+            triggerTooltipKind === "reset-status" ? undefined : "bg-background py-0.5 pr-0.5"
+          }
+          open={resetStatusTooltipOpen}
+          side="top"
+          standalone
+          triggerRef={contextUsageTriggerRef}
+          title={
+            triggerTooltipKind === "reset-status" && resetTooltipPhase ? (
+              <CodingPlanQuotaResetStatusContent
+                status={resetTooltipPhase}
+                resetType={activeResetType ?? "FIVE_HOUR"}
+              />
+            ) : opportunityReminder ? (
+              <ContextQuotaResetOpportunityReminderContent
+                count={opportunityReminder.count}
+                intl={intl}
+                onDismiss={dismissOpportunityReminder}
+                phase={opportunityReminder.phase}
+                remainingSeconds={opportunityReminder.remainingSeconds}
+              />
+            ) : null
+          }
+        >
+          {/* span 承载 ControlHintTooltip 的 asChild 锚点，内部 ContextTrigger 仍作为
             HoverCard 触发器，避免两个 Radix 浮层在同一 DOM 上叠加 ref。手动核销的
             processing 由弹层内「重置」按钮自身展示，触发器不转圈。 */}
-        <span className="inline-flex shrink-0">
-          <ContextTrigger
-            aria-label={[
-              sessionSummaryLabel,
-              combinedOutputSpeed.liveRate !== null
-                ? intl.formatMessage({ id: "chat.sessionUsage.speed" })
-                : combinedOutputSpeed.average !== null
-                  ? intl.formatMessage({ id: "chat.sessionUsage.averageSpeed" })
-                  : combinedOutputSpeed.pending
-                    ? intl.formatMessage({ id: "chat.sessionUsage.speedPending" })
-                    : null,
-              triggerLabel,
-            ]
-              .filter(Boolean)
-              .join(", ")}
-            className={cn(
-              "text-foreground-subtle",
-              opportunityTriggerTone === "available" && "text-success",
-              opportunityTriggerTone === "urgent" && "bg-warning/10 text-warning",
-            )}
-            data-chat-toolbar-popover-trigger="true"
-            data-testid={TID_CHAT_CONTEXT_USAGE_TRIGGER}
-            summary={
-              sessionTokenTotal === null && !hasOutputSpeed ? undefined : (
-                <span className="inline-flex min-w-0 flex-wrap items-center gap-1.5 font-mono text-ui-xs tabular-nums">
-                  {sessionTokenTotal === null ? null : (
-                    <span>
-                      {incompleteTotal ? "≥" : ""}
-                      {formatCompactTokenNumber(locale, sessionTokenTotal)}
-                    </span>
-                  )}
-                  <SessionOutputSpeedValue
-                    speed={combinedOutputSpeed}
-                    intl={intl}
-                    locale={locale}
-                    compact
-                  />
-                </span>
-              )
-            }
-            onPointerDown={(event) => {
-              // Radix HoverCard 会在 touchstart 中阻止后续 click，手机端无法打开面板；
-              // 在触摸 pointerdown 阶段先打开，桌面端继续保持原有 hover/focus 语义。
-              if (
-                !event.defaultPrevented &&
-                event.pointerType === "touch" &&
-                typeof window !== "undefined" &&
-                window.matchMedia?.("(hover: none)").matches
-              ) {
-                // 统一走受控 open handler，确保触摸打开也会触发额度 access 刷新和刷新态反馈。
-                if (!contextOpen) {
-                  handleContextOpenChange(true);
-                }
-              }
-            }}
-          />
-        </span>
-      </ControlHintTooltip>
-      <ContextContent
-        className={cn(contextPanelWidthClass, "!rounded-xl !shadow-md")}
-        side="top"
-        sideOffset={2}
-      >
-        <ContextContentBody className="min-w-0 space-y-3 [overflow-wrap:anywhere]">
-          {/* 默认 ai-elements Header 会硬编码标题并把摘要拆到独立头部。
-          工具栏上下文 hover 只需要一块紧凑信息面板，摘要和明细统一放在 body 里。 */}
-          {(sessionTokenTotal !== null || hasOutputSpeed) && sessionUsage ? (
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between gap-3 text-ui-base font-medium text-foreground">
-                  <span>
-                    {intl.formatMessage({
-                      id: incompleteTotal
-                        ? "chat.sessionUsage.partialTitle"
-                        : "chat.sessionUsage.title",
-                    })}
-                  </span>
-                  <span className="font-mono tabular-nums">
-                    {incompleteTotal ? "≥" : ""}
-                    {sessionTokenTotal === null ? "-" : numberFormatter.format(sessionTokenTotal)}
-                  </span>
-                </div>
-              </div>
-              <div className="space-y-2 border-t border-border pt-3">
-                <div className="flex items-center gap-2 text-ui-xs font-medium uppercase tracking-wide text-foreground-subtle">
-                  <span
-                    aria-hidden="true"
-                    className="size-2 shrink-0 rounded-full bg-[var(--color-usage-chart-1)]"
-                  />
-                  <span>{intl.formatMessage({ id: "chat.sessionUsage.mainGroup" })}</span>
-                </div>
-                <div className="space-y-1.5 pl-4">
-                  <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
-                    <span>{intl.formatMessage({ id: "chat.sessionUsage.mainInput" })}</span>
-                    <span className="font-mono tabular-nums">
-                      {numberFormatter.format(sessionUsage.inputTokens)}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
-                    <span>{intl.formatMessage({ id: "chat.sessionUsage.mainOutput" })}</span>
-                    <span className="font-mono tabular-nums">
-                      {numberFormatter.format(sessionUsage.outputTokens)}
-                    </span>
-                  </div>
-                  <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 text-ui-sm text-foreground-subtle">
-                    <span>{intl.formatMessage({ id: "chat.sessionUsage.mainSpeed" })}</span>
-                    {mainSpeed.liveRate === null &&
-                    mainSpeed.average === null &&
-                    !mainSpeed.pending ? (
-                      "-"
-                    ) : (
-                      <SessionOutputSpeedValue speed={mainSpeed} intl={intl} locale={locale} />
+          <span className="inline-flex shrink-0">
+            <ContextTrigger
+              aria-label={[
+                sessionSummaryLabel,
+                combinedOutputSpeed.liveRate !== null
+                  ? intl.formatMessage({ id: "chat.sessionUsage.speed" })
+                  : combinedOutputSpeed.average !== null
+                    ? intl.formatMessage({ id: "chat.sessionUsage.averageSpeed" })
+                    : combinedOutputSpeed.pending
+                      ? intl.formatMessage({ id: "chat.sessionUsage.speedPending" })
+                      : null,
+                triggerLabel,
+              ]
+                .filter(Boolean)
+                .join(", ")}
+              className={cn(
+                "text-foreground-subtle",
+                opportunityTriggerTone === "available" && "text-success",
+                opportunityTriggerTone === "urgent" && "bg-warning/10 text-warning",
+              )}
+              data-chat-toolbar-popover-trigger="true"
+              data-testid={TID_CHAT_CONTEXT_USAGE_TRIGGER}
+              summary={
+                sessionTokenTotal === null && !hasOutputSpeed ? undefined : (
+                  <span className="inline-flex min-w-0 flex-wrap items-center gap-1.5 font-mono text-ui-xs tabular-nums">
+                    {sessionTokenTotal === null ? null : (
+                      <span>
+                        {incompleteTotal ? "≥" : ""}
+                        {formatCompactTokenNumber(locale, sessionTokenTotal)}
+                      </span>
                     )}
+                    <SessionOutputSpeedValue
+                      speed={combinedOutputSpeed}
+                      intl={intl}
+                      locale={locale}
+                      compact
+                    />
+                  </span>
+                )
+              }
+              onPointerDown={(event) => {
+                // Radix HoverCard 会在 touchstart 中阻止后续 click，手机端无法打开面板；
+                // 在触摸 pointerdown 阶段先打开，桌面端继续保持原有 hover/focus 语义。
+                if (
+                  !event.defaultPrevented &&
+                  event.pointerType === "touch" &&
+                  typeof window !== "undefined" &&
+                  window.matchMedia?.("(hover: none)").matches
+                ) {
+                  // 统一走受控 open handler，确保触摸打开也会触发额度 access 刷新和刷新态反馈。
+                  if (!contextOpen) {
+                    handleContextOpenChange(true);
+                  }
+                }
+              }}
+            />
+          </span>
+        </ControlHintTooltip>
+        <ContextContent
+          className={cn(contextPanelWidthClass, "!rounded-xl !shadow-md")}
+          side="top"
+          sideOffset={2}
+        >
+          <ContextContentBody className="min-w-0 space-y-3 [overflow-wrap:anywhere]">
+            {/* 默认 ai-elements Header 会硬编码标题并把摘要拆到独立头部。
+          工具栏上下文 hover 只需要一块紧凑信息面板，摘要和明细统一放在 body 里。 */}
+            {(sessionTokenTotal !== null || hasOutputSpeed) && sessionUsage ? (
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between gap-3 text-ui-base font-medium text-foreground">
+                    <span>
+                      {intl.formatMessage({
+                        id: incompleteTotal
+                          ? "chat.sessionUsage.partialTitle"
+                          : "chat.sessionUsage.title",
+                      })}
+                    </span>
+                    <span className="font-mono tabular-nums">
+                      {incompleteTotal ? "≥" : ""}
+                      {sessionTokenTotal === null ? "-" : numberFormatter.format(sessionTokenTotal)}
+                    </span>
                   </div>
                 </div>
-              </div>
-              {sessionUsageGroups.child ? (
                 <div className="space-y-2 border-t border-border pt-3">
                   <div className="flex items-center gap-2 text-ui-xs font-medium uppercase tracking-wide text-foreground-subtle">
                     <span
                       aria-hidden="true"
-                      className="size-2 shrink-0 rounded-full bg-[var(--color-usage-chart-2)]"
+                      className="size-2 shrink-0 rounded-full bg-[var(--color-usage-chart-1)]"
                     />
-                    <span>
-                      {intl.formatMessage(
-                        { id: "chat.sessionUsage.childGroup" },
-                        { count: childCount },
-                      )}
-                    </span>
+                    <span>{intl.formatMessage({ id: "chat.sessionUsage.mainGroup" })}</span>
                   </div>
                   <div className="space-y-1.5 pl-4">
                     <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
-                      <span>{intl.formatMessage({ id: "chat.sessionUsage.subagents" })}</span>
+                      <span>{intl.formatMessage({ id: "chat.sessionUsage.mainInput" })}</span>
                       <span className="font-mono tabular-nums">
-                        {numberFormatter.format(childTokenTotal)}
+                        {numberFormatter.format(sessionUsage.inputTokens)}
                       </span>
                     </div>
-                    {childCurrentOutputTokens !== null ? (
-                      <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
-                        <span>
-                          {intl.formatMessage({ id: "chat.sessionUsage.childCurrentOutput" })}
-                        </span>
-                        <span className="font-mono tabular-nums">
-                          {numberFormatter.format(childCurrentOutputTokens)}
-                        </span>
-                      </div>
-                    ) : null}
+                    <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                      <span>{intl.formatMessage({ id: "chat.sessionUsage.mainOutput" })}</span>
+                      <span className="font-mono tabular-nums">
+                        {numberFormatter.format(sessionUsage.outputTokens)}
+                      </span>
+                    </div>
                     <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 text-ui-sm text-foreground-subtle">
-                      <span>{intl.formatMessage({ id: "chat.sessionUsage.childSpeed" })}</span>
-                      {childSpeed.liveRate === null &&
-                      childSpeed.average === null &&
-                      !childSpeed.pending ? (
+                      <span>{intl.formatMessage({ id: "chat.sessionUsage.mainSpeed" })}</span>
+                      {mainSpeed.liveRate === null &&
+                      mainSpeed.average === null &&
+                      !mainSpeed.pending ? (
                         "-"
                       ) : (
-                        <SessionOutputSpeedValue speed={childSpeed} intl={intl} locale={locale} />
+                        <SessionOutputSpeedValue speed={mainSpeed} intl={intl} locale={locale} />
                       )}
                     </div>
                   </div>
                 </div>
-              ) : null}
-            </div>
-          ) : null}
-          {renderableTaskUsage && compactTokenUsageLabel ? (
-            <div
-              className={cn(
-                "space-y-2",
-                sessionTokenTotal !== null && "border-t border-border pt-3",
-              )}
-            >
-              {/* 窄屏与大字号下标题、完整摘要可换行；不能让两个 shrink-0 项越过浮层边界。 */}
-              <div className="mb-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-                <span className="min-w-0 text-ui-base font-medium text-foreground">
-                  {intl.formatMessage({ id: "chat.contextUsage.title" })}
-                </span>
-                <span className="ml-auto min-w-0 max-w-full text-right font-mono text-ui-sm text-foreground-subtle">
-                  {compactTokenUsageLabel}
-                </span>
-              </div>
-              <Progress
-                className="h-2 bg-surface"
-                indicatorClassName="min-w-2"
-                segments={progressSegments}
-                value={usagePercent * PERCENT_MAX}
-              />
-            </div>
-          ) : null}
-          {renderableTaskUsage && (breakdownSegments.length > 0 || cacheHitRateLabel) ? (
-            <>
-              {breakdownSegments.length > 0 ? (
-                <div
-                  aria-label={intl.formatMessage({
-                    id: "chat.contextUsage.breakdown",
-                  })}
-                  className="space-y-1.5"
-                >
-                  <div className="grid gap-1.5">
-                    {breakdownSegments.map((segment) => (
-                      <div
-                        className="flex min-w-0 items-center gap-2 text-ui-sm"
-                        key={segment.source}
-                      >
-                        <span
-                          aria-hidden="true"
-                          className="size-2 shrink-0 rounded-sm border border-border"
-                          style={getBreakdownToneStyle(segment.source)}
-                        />
-                        <span className="min-w-0 truncate text-foreground-subtle">
-                          {intl.formatMessage({
-                            id: BREAKDOWN_SOURCE_LABEL_ID[segment.source],
-                          })}
-                        </span>
-                        {/* breakdown 行只展示占比，分项 token 数会和顶部总量口径混在一起造成误读。*/}
-                        <span className="ml-auto min-w-10 shrink-0 text-right font-mono text-ui-sm tabular-nums text-foreground">
-                          {percentageFormatter.format(segment.percent)}
+                {sessionUsageGroups.child ? (
+                  <div className="space-y-2 border-t border-border pt-3">
+                    <div className="flex items-center gap-2 text-ui-xs font-medium uppercase tracking-wide text-foreground-subtle">
+                      <span
+                        aria-hidden="true"
+                        className="size-2 shrink-0 rounded-full bg-[var(--color-usage-chart-2)]"
+                      />
+                      <span>
+                        {intl.formatMessage(
+                          { id: "chat.sessionUsage.childGroup" },
+                          { count: childCount },
+                        )}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 pl-4">
+                      <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                        <span>{intl.formatMessage({ id: "chat.sessionUsage.subagents" })}</span>
+                        <span className="font-mono tabular-nums">
+                          {numberFormatter.format(childTokenTotal)}
                         </span>
                       </div>
-                    ))}
+                      {childCurrentOutputTokens !== null ? (
+                        <div className="flex items-center justify-between gap-3 text-ui-sm text-foreground-subtle">
+                          <span>
+                            {intl.formatMessage({ id: "chat.sessionUsage.childCurrentOutput" })}
+                          </span>
+                          <span className="font-mono tabular-nums">
+                            {numberFormatter.format(childCurrentOutputTokens)}
+                          </span>
+                        </div>
+                      ) : null}
+                      <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-1 text-ui-sm text-foreground-subtle">
+                        <span>{intl.formatMessage({ id: "chat.sessionUsage.childSpeed" })}</span>
+                        {childSpeed.liveRate === null &&
+                        childSpeed.average === null &&
+                        !childSpeed.pending ? (
+                          "-"
+                        ) : (
+                          <SessionOutputSpeedValue speed={childSpeed} intl={intl} locale={locale} />
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ) : null}
-              {cacheHitRateLabel ? (
-                <div
-                  className={cn(
-                    "flex items-center justify-between gap-3 text-ui-sm",
-                    breakdownSegments.length > 0 && "border-t border-border pt-3",
-                  )}
-                >
-                  <span className="text-foreground-subtle">
-                    {intl.formatMessage({
-                      id: "chat.contextUsage.cacheHitRate",
-                    })}
+                ) : null}
+              </div>
+            ) : null}
+            {renderableTaskUsage && compactTokenUsageLabel ? (
+              <div
+                className={cn(
+                  "space-y-2",
+                  sessionTokenTotal !== null && "border-t border-border pt-3",
+                )}
+              >
+                {/* 窄屏与大字号下标题、完整摘要可换行；不能让两个 shrink-0 项越过浮层边界。 */}
+                <div className="mb-3 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="min-w-0 text-ui-base font-medium text-foreground">
+                    {intl.formatMessage({ id: "chat.contextUsage.title" })}
                   </span>
-                  <span className="font-mono text-ui-sm text-foreground">{cacheHitRateLabel}</span>
+                  <span className="ml-auto min-w-0 max-w-full text-right font-mono text-ui-sm text-foreground-subtle">
+                    {compactTokenUsageLabel}
+                  </span>
                 </div>
-              ) : null}
-            </>
-          ) : null}
-          {codingPlanUsageRemainingWithClose && hasCodingPlanUsageRemaining ? (
-            <ChatCodingPlanUsageRemainingPanel
-              autoCelebrateArm={armedAutoConfetti}
-              config={codingPlanUsageRemainingWithClose}
-              intl={intl}
-              locale={locale}
-              quotaResetDialogOpen={quotaResetDialogOpen}
-              separated={Boolean(renderableTaskUsage && compactTokenUsageLabel)}
-              onAutoCelebrated={handleAutoResetCelebrated}
-              onQuotaResetDialogOpenChange={handleQuotaResetDialogOpenChange}
-            />
-          ) : null}
-          {startPlanBalanceWithClose && hasStartPlanBalance ? (
-            <ChatStartPlanBalancePanel
-              config={startPlanBalanceWithClose}
-              intl={intl}
-              locale={locale}
-              separated={Boolean(
-                (renderableTaskUsage && compactTokenUsageLabel) || hasCodingPlanUsageRemaining,
-              )}
-            />
-          ) : null}
-        </ContextContentBody>
-      </ContextContent>
-    </Context>
+                <Progress
+                  className="h-2 bg-surface"
+                  indicatorClassName="min-w-2"
+                  segments={progressSegments}
+                  value={usagePercent * PERCENT_MAX}
+                />
+              </div>
+            ) : null}
+            {renderableTaskUsage && (breakdownSegments.length > 0 || cacheHitRateLabel) ? (
+              <>
+                {breakdownSegments.length > 0 ? (
+                  <div
+                    aria-label={intl.formatMessage({
+                      id: "chat.contextUsage.breakdown",
+                    })}
+                    className="space-y-1.5"
+                  >
+                    <div className="grid gap-1.5">
+                      {breakdownSegments.map((segment) => (
+                        <div
+                          className="flex min-w-0 items-center gap-2 text-ui-sm"
+                          key={segment.source}
+                        >
+                          <span
+                            aria-hidden="true"
+                            className="size-2 shrink-0 rounded-sm border border-border"
+                            style={getBreakdownToneStyle(segment.source)}
+                          />
+                          <span className="min-w-0 truncate text-foreground-subtle">
+                            {intl.formatMessage({
+                              id: BREAKDOWN_SOURCE_LABEL_ID[segment.source],
+                            })}
+                          </span>
+                          {/* breakdown 行只展示占比，分项 token 数会和顶部总量口径混在一起造成误读。*/}
+                          <span className="ml-auto min-w-10 shrink-0 text-right font-mono text-ui-sm tabular-nums text-foreground">
+                            {percentageFormatter.format(segment.percent)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+                {cacheHitRateLabel ? (
+                  <div
+                    className={cn(
+                      "flex items-center justify-between gap-3 text-ui-sm",
+                      breakdownSegments.length > 0 && "border-t border-border pt-3",
+                    )}
+                  >
+                    <span className="text-foreground-subtle">
+                      {intl.formatMessage({
+                        id: "chat.contextUsage.cacheHitRate",
+                      })}
+                    </span>
+                    <span className="font-mono text-ui-sm text-foreground">
+                      {cacheHitRateLabel}
+                    </span>
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+            <Button
+              variant="ghost"
+              size="sm"
+              className="w-full text-ui-sm"
+              onClick={() => {
+                setContextOpen(false);
+                setTrendOpen(true);
+              }}
+            >
+              {intl.formatMessage({ id: "chat.contextTrend.title" })}
+            </Button>
+            {codingPlanUsageRemainingWithClose && hasCodingPlanUsageRemaining ? (
+              <ChatCodingPlanUsageRemainingPanel
+                autoCelebrateArm={armedAutoConfetti}
+                config={codingPlanUsageRemainingWithClose}
+                intl={intl}
+                locale={locale}
+                quotaResetDialogOpen={quotaResetDialogOpen}
+                separated={Boolean(renderableTaskUsage && compactTokenUsageLabel)}
+                onAutoCelebrated={handleAutoResetCelebrated}
+                onQuotaResetDialogOpenChange={handleQuotaResetDialogOpenChange}
+              />
+            ) : null}
+            {startPlanBalanceWithClose && hasStartPlanBalance ? (
+              <ChatStartPlanBalancePanel
+                config={startPlanBalanceWithClose}
+                intl={intl}
+                locale={locale}
+                separated={Boolean(
+                  (renderableTaskUsage && compactTokenUsageLabel) || hasCodingPlanUsageRemaining,
+                )}
+              />
+            ) : null}
+          </ContextContentBody>
+        </ContextContent>
+      </Context>
+      <Dialog open={trendOpen} onOpenChange={setTrendOpen}>
+        {trendOpen ? (
+          <SessionContextTrendContent
+            trend={contextTrend}
+            onCloseAutoFocus={(event) => {
+              event.preventDefault();
+              const trigger = contextUsageTriggerRef.current;
+              (trigger?.querySelector("button") ?? trigger)?.focus();
+            }}
+          />
+        ) : null}
+      </Dialog>
+    </>
   );
 }

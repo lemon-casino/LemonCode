@@ -2,6 +2,7 @@ import {
   AccountProviderService,
   MutableAccountProviderConfigSource,
   parseAccountProviderConfigMap,
+  parseAccountModelConfigRules,
   type AccountProviderConfigSnapshot,
   type AccountProviderStates,
 } from "@lcode/provider";
@@ -195,6 +196,7 @@ export function parseProcessAccountProviderConfigSnapshot(input: {
   readonly revision: string;
   readonly basedOnLCodeBuiltinRevision: string;
   readonly providers: unknown;
+  readonly modelRules?: unknown;
   readonly states?: AccountProviderStates;
 }): AccountProviderConfigSnapshot {
   const revision = input.revision.trim();
@@ -219,6 +221,10 @@ export function parseProcessAccountProviderConfigSnapshot(input: {
     revision,
     basedOnLCodeBuiltinRevision,
     providers,
+    // 旧信封无此字段仍可接收；新 OAuth 目录不能只保留模型 ID 而丢掉能力和参数。
+    ...(input.modelRules
+      ? { modelRules: parseAccountModelConfigRules(input.modelRules, providers) }
+      : {}),
     // 与 Overlay 属于同一快照；不能只更新 revision 却丢掉当前连接事实。
     ...(input.states ? { states: input.states } : {}),
   });

@@ -21,7 +21,7 @@ export function createWorktreeArchive(
     const value = await store.readBinding(id);
     if (!value) throw new Error("Worktree binding not found");
     await store.assertManagedPath(value.checkoutPath);
-    if (value.checkoutPath !== store.checkout(value.id))
+    if (value.checkoutPath !== store.checkout(value.id, value.checkoutRoot))
       throw new Error("Managed worktree record path does not match its ID");
     if (value.latestIntegrationId) {
       const operation = await store.readOperation(value.latestIntegrationId);
@@ -38,6 +38,7 @@ export function createWorktreeArchive(
     requestId: string;
     acknowledgeIgnoredFiles?: boolean;
     discard?: { branch: string; checkoutPath: string };
+    automatic?: boolean;
   }) {
     if (!params.requestId.trim()) throw new Error("Archive request ID is required");
     if (params.discard) return discard(params);
@@ -50,9 +51,45 @@ export function createWorktreeArchive(
         throw new Error("Finish the pending environment operation before archiving");
       if (!(await store.exists(value.checkoutPath)) && !value.snapshot)
         throw new Error("Missing worktree has no saved archive snapshot");
+      let lease: CheckoutLease | undefined;
+      if (params.automatic) {
+        if (value.status !== "ready") throw new Error("Worktree is not idle and ready");
+        // 自动清理不能先 stop 再争抢 writer：这会杀掉用户正在运行的任务。
+        // 先拿独占许可并验证快照；失败不改 lifecycle，也不授权忽略文件丢失。
+        lease = await coordinator.acquire({
+          workspacePath: value.checkoutPath,
+          ownerId: `archive:${params.requestId}`,
+          waitMs: 1,
+        });
+        try {
+          await ready(value);
+          const snapshot = await git.snapshot(value, false);
+          if (!(await git.matchesSnapshot({ ...value, snapshot }, true)))
+            throw new Error("Worktree changed during snapshot");
+          if (value.environmentRef) {
+            const result = await context.releaseRuntimeEnvironment?.({
+              binding: value,
+              bindingId: value.id,
+              checkoutPath: value.checkoutPath,
+              requestId: params.requestId,
+              environmentRef: value.environmentRef,
+              intent: "archive",
+              phase: "fence",
+              onlyIfIdle: true,
+            });
+            if (result?.status !== "completed")
+              throw new Error(result?.reason ?? "Environment idle state is unavailable");
+          }
+          value = { ...value, snapshot };
+        } catch (error) {
+          await coordinator.release(lease);
+          throw error;
+        }
+      }
       // 中断的归档可能已保存快照并部分删除了 checkout；重入只能核对原快照，
       // 绝不能用残缺树重新快照覆盖用户工作的唯一留存。
-      const resumingSnapshot = value.status === "archiving" ? value.snapshot : undefined;
+      const resumingSnapshot =
+        value.status === "archiving" || params.automatic ? value.snapshot : undefined;
       // 归档有自己的可恢复 journal，绝不能复用永久删除 fence 或释放持久 session 引用。
       value = {
         ...value,
@@ -60,14 +97,13 @@ export function createWorktreeArchive(
         archiveOperation: value.archiveOperation ?? { requestId: params.requestId },
         updatedAt: new Date().toISOString(),
       };
-      await store.saveBinding(value);
       const requestId = value.archiveOperation!.requestId;
-      let lease: CheckoutLease | undefined;
       try {
+        await store.saveBinding(value);
         await releaseBindingRuntime(context, value, requestId, "archive", "fence");
         await releaseBindingRuntime(context, value, requestId, "archive", "stop");
         const exists = await store.exists(value.checkoutPath);
-        lease = await coordinator.acquire({
+        lease ??= await coordinator.acquire({
           workspacePath: exists ? value.checkoutPath : value.repositoryRoot,
           ownerId: `archive:${requestId}`,
           waitMs: 250,
@@ -76,7 +112,7 @@ export function createWorktreeArchive(
           await ready(value);
           if (resumingSnapshot) {
             // 只核对受版本管理的实际内容；忽略目录本就不进快照，缺失不代表工作丢失。
-            if (!(await git.matchesSnapshot(value, false)))
+            if (!(await git.matchesSnapshot(value, Boolean(params.automatic))))
               throw new Error(
                 "Worktree changed during its interrupted archive; inspect the saved snapshot before retrying",
               );
@@ -257,10 +293,17 @@ export function createWorktreeArchive(
       {
         bindingId: params.bindingId,
         resume: (value) =>
-          value.status === "archiving" && value.archiveOperation ? value.archiveOperation.requestId : undefined,
+          value.status === "archiving" && value.archiveOperation
+            ? value.archiveOperation.requestId
+            : undefined,
       },
       () => archiveOnce(params),
     );
   }
-  return { archive, restore };
+  return {
+    archive,
+    restore,
+    archiveAutomatically: (bindingId: string, requestId: string) =>
+      archiveOnce({ bindingId, requestId, automatic: true }),
+  };
 }

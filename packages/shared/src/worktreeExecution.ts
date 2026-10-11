@@ -36,6 +36,7 @@ export const executionIntentSchema = z
     /** additive；旧端缺省 = 不请求托管，不能把 inherit 解释成 managed。 */
     environmentPolicy: runtimeEnvironmentPolicySchema.optional(),
     taskName: z.string().max(256).optional(),
+    existingBinding: z.object({ bindingId: text, bindingOwnerTaskId: text }).strict().optional(),
     baseRef: text.optional(),
     originWorkspacePath: text.optional(),
     originWorkspaceIdentity: text.optional(),
@@ -44,7 +45,11 @@ export const executionIntentSchema = z
     copyIgnoredPaths: z.array(text).optional(),
     retrySetup: z.boolean().optional(),
   })
-  .strict();
+  .strict()
+  .refine((intent) => !intent.existingBinding || intent.mode === "worktree", {
+    message: "Existing binding requires worktree execution mode",
+    path: ["existingBinding"],
+  });
 export type ExecutionIntent = z.infer<typeof executionIntentSchema>;
 
 export const worktreeSnapshotSchema = z
@@ -142,6 +147,9 @@ export const worktreeExecutionBindingSchema = z
     repositoryRoot: text,
     commonDirectory: text,
     checkoutPath: text,
+    /** Host 冻结的新建位置；旧记录缺省继续使用默认 checkout 根目录。 */
+    checkoutRoot: text.optional(),
+    displayName: z.string().trim().min(1).max(120).optional(),
     branch: text,
     baseCommit: text,
     targetBranch: z.string(),

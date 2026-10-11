@@ -1,6 +1,6 @@
 {
   "name": "lcode",
-  "version": "3.17.9",
+  "version": "3.18.0",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
@@ -17,7 +17,7 @@
     "prepare:desktop-runtime": "pnpm --filter @lcode/desktop prepare:runtime-assets",
     "dep:graph": "node scripts/dependency-graph.mjs",
     "dep:refs": "node scripts/dep-refs.mjs",
-    "test:release": "node --test scripts/github-release.test.mjs scripts/github-actions-environment.test.mjs scripts/workspace-patch-notices.test.mjs packages/desktop/scripts/electron-runtime-version.test.mjs packages/desktop/scripts/main-runtime-boundaries.test.mjs packages/desktop/scripts/packaged-product-identity.test.mjs packages/desktop/scripts/windows-installer-brand-isolation.test.mjs",
+    "test:release": "node --test scripts/github-release.test.mjs scripts/github-actions-environment.test.mjs scripts/workspace-patch-notices.test.mjs scripts/notice-artifacts.test.mjs scripts/desktop-agent-sync.test.mjs scripts/spawn-command.test.mjs packages/desktop/scripts/electron-runtime-version.test.mjs packages/desktop/scripts/main-runtime-boundaries.test.mjs packages/desktop/scripts/packaged-product-identity.test.mjs packages/desktop/scripts/windows-installer-brand-isolation.test.mjs",
     "test:dependency-security": "node --test scripts/dependency-security.test.mjs scripts/dependency-rsa-security.test.mjs",
     "verify:pre-push": "pnpm run lint && pnpm run architecture:check -- --changed",
     "build": "pnpm -r build",

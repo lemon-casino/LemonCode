@@ -168,6 +168,7 @@ export function InlineEditableProviderCard({
   headerVisible = true,
   headerActionsVisible,
   settingsRevision,
+  hideConnectionSettings = false,
 }: {
   provider: ProviderSettingsFormProvider;
   onSave: (config: ProviderSettingsFormProvider) => void | Promise<void>;
@@ -201,6 +202,8 @@ export function InlineEditableProviderCard({
   headerVisible?: boolean;
   headerActionsVisible?: boolean;
   settingsRevision?: number;
+  /** OAuth 的连接由账号池管理，模型编辑仍复用相同的完整编辑器。 */
+  hideConnectionSettings?: boolean;
 }) {
   const { intl } = useLCodeIntl();
   const { dismissFeedback, showFeedback } = useProviderDetailFeedback();
@@ -851,7 +854,7 @@ export function InlineEditableProviderCard({
       {statusSection}
 
       <div className="space-y-3">
-        {isAccountProvider ? null : (
+        {isAccountProvider || hideConnectionSettings ? null : (
           <ProviderConnectionSection
             provider={provider}
             readOnly={readOnlyEndpoints}
@@ -866,7 +869,7 @@ export function InlineEditableProviderCard({
           />
         )}
 
-        {isApiKeyProvider ? (
+        {isApiKeyProvider && !hideConnectionSettings ? (
           <ProviderApiKeySection
             providerId={provider.providerId}
             apiKeys={getProviderFormApiKeys(provider)}

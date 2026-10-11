@@ -25,6 +25,70 @@ rules:
     - invariant-only
     - evidence-only
 nodes:
+  - id: capability.oauth-provider-details
+    kind: capability
+    label: OAuth provider details, account imports and shared model configuration
+    aliases: [OAuth供应商弹窗, OAuth供应商右侧详情, OAuth文件导入, 本机账号识别, OAuth模型智能配置]
+    codeSeeds:
+      - file: packages/ui/src/settings/model-provider-section/ProviderAccountsDialog.tsx
+        symbol: ProviderAccountsDialog
+      - file: packages/ui/src/settings/model-provider-section/ProviderAccountsContent.tsx
+        symbol: ProviderAccountsDetails
+      - file: packages/provider/src/sources.ts
+        symbol: serializeAccountProviderConfigSnapshot
+      - file: packages/provider/src/config/schema.ts
+        symbol: parseAccountModelConfigRules
+      - file: packages/ui/src/settings/model-provider-section/InlineEditableProviderCard.tsx
+        symbol: InlineEditableProviderCard
+      - file: packages/services/src/model-provider/providerAccounts.ts
+        symbol: ProviderAccounts
+      - file: packages/services/src/model-provider/providerAccountCompletion.ts
+        symbol: completeProviderAccountAuthorization
+      - file: packages/services/src/model-provider/providerAccountsSource.ts
+        symbol: createProviderAccountsSource
+      - file: packages/provider-node/src/provider-auth/model-options.ts
+        symbol: createAuthModelOptionSpecs
+    invariants:
+      - "ProviderAccounts owns attempts and encrypted connections; import and local methods share the existing authorization lifecycle."
+      - "OAuth model edits use the API model editor and existing personal overlay owner; upstream refresh preserves manual overrides."
+      - "The selected Host reads local credentials only after explicit action; client files supply content, never filesystem paths."
+      - "Adding OAuth opens a dialog; existing custom OAuth providers edit in the right pane and continuously add accounts to the same pool."
+      - "Account revision delivers providers and exact model rules together; Agent accepts safe OAuth metadata without credentials or personal overrides."
+  - id: capability.oauth-usage-analytics
+    kind: capability
+    label: OAuth provider and account usage analytics
+    aliases:
+      [OAuth用量, 按账号统计, 供应商用量概览, OAuth累计Token, OAuth活动图, 删除供应商保留统计]
+    codeSeeds:
+      - file: packages/shared/src/usage-analytics.ts
+        symbol: providerUsageSnapshotSchema
+      - file: packages/services/src/usage-stats/usageStatsService.ts
+        symbol: createUsageStatsService
+      - file: apps/lcode-cli/packages/bootstrap/src/lcode-protocol/provider-usage-stats.ts
+        symbol: getProviderUsageStats
+      - file: apps/lcode-cli/packages/adapters/src/storage/session-store/repositories/provider-usage-query.ts
+        symbol: queryProviderUsage
+      - file: packages/ui/src/settings/usage-stats/ProviderUsageOverview.tsx
+        symbol: ProviderUsageOverview
+      - file: packages/ui/src/settings/usage-stats/ProviderModelUsageChart.tsx
+        symbol: ProviderModelUsageChart
+      - file: apps/lcode-cli/packages/adapters/src/storage/session-store/repositories/provider-usage-activity.ts
+        symbol: providerUsageActivity
+    invariants:
+      - "The CLI UsageStore owns model request facts; actual response connection IDs are never inferred from current selection."
+      - "Provider quotas and local token accounting are distinct; missing attribution and usage remain unknown."
+      - "Cumulative OAuth metrics use retained ledger facts independently of date/pagination; account deletion never deletes usage facts."
+      - "Calendar streaks use known-token IANA days; longest chat duration counts each associated completed turn once."
+  - id: capability.session-context-trend
+    kind: capability
+    label: Persisted per-session context window history
+    aliases: [上下文走势, 上下文历史, context trend]
+    codeSeeds:
+      - file: packages/shared/src/lcode-protocol-v4/context-trend.ts
+        symbol: mergeContextTrend
+    invariants:
+      - "Only same-session request and explicit compaction facts become bounded samples; historical unknown capacity stays null."
+      - "Desktop continuous and mobile replayable use the same projection; inherited fork records are not new request samples."
   - id: capability.git-commit-review-policy
     kind: capability
     label: Unified commit review mode after task completion
@@ -490,14 +554,22 @@ nodes:
   - id: persistence.project-memory-files
     kind: persistence
     label: Workspace-scoped Project Memory Markdown files
+    aliases: [工作区记忆位置, 项目内记忆, memory storage location]
     codeSeeds:
       - file: apps/lcode-cli/packages/core/src/memory/project-root.ts
         symbol: resolveProjectMemoryRoot
       - file: apps/lcode-cli/packages/core/src/runtime/helpers/project-memory-agent.ts
         symbol: createProjectMemoryAgentToolExecutor
+      - file: packages/shared/src/projectMemoryStorage.ts
+        symbol: prepareProjectMemoryStorage
+      - file: packages/services/src/memory/memoryService.ts
+        symbol: createMemoryService
     invariants:
       - "MEMORY.md is the bounded index and topic Markdown files hold durable detail under the
         workspace-scoped memory root."
+      - "Local storage location defaults to profile; project storage is selected through the original
+        settings owner. The shared preparation path copies Markdown without deleting source files
+        or overwriting target conflicts; active Runtime roots stay frozen."
   - id: state.project-memory-runtime-cache
     kind: state-owner
     label: AgentRuntime Project Memory cache
@@ -1021,6 +1093,22 @@ nodes:
       - "Menus append editable drafts through the scoped existing receiver; only an explicit send admits context."
       - "Capsule IDs are independent typed references and never share URLs; the target store validates source history again."
 edges:
+  - from: capability.oauth-provider-details
+    to: capability.oauth-usage-analytics
+    type: preserves-connection-attribution
+    rank: should-inspect
+  - from: capability.oauth-usage-analytics
+    to: persistence.session-store
+    type: queries-accounted-facts
+    rank: must-inspect
+  - from: capability.session-context-trend
+    to: state.conversation-product-projection
+    type: projects-through
+    rank: must-inspect
+  - from: capability.session-context-trend
+    to: persistence.session-store
+    type: restores-from
+    rank: must-inspect
   - from: capability.goal-execution-evidence
     to: persistence.session-store
     type: persists-through

@@ -792,6 +792,8 @@ export interface ModelCompletePayload {
   contextUsageBreakdown?: ContextUsageBreakdownItem[];
   contextWindow?: number;
   fileChanges?: TurnFileChangeSummary;
+  /** 真实请求完成的稳定标识；合成 hydration 占位事件不携带，避免伪造趋势样本。 */
+  contextSample?: { assistantMessageId: string; providerId: string; modelId: string };
   querySource?: string;
   stopReason: string;
   /** 当前模型请求组装出的完整 tool call 数量；旧事件可能缺失。 */

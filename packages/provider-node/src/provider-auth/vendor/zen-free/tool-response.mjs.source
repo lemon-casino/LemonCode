@@ -1,0 +1,775 @@
+const MAX_BYTES = 32 * 1024 * 1024;
+const encoder = new TextEncoder();
+
+class GuardError extends Error {}
+
+function headersFor(response) {
+  const headers = new Headers(response.headers);
+  headers.delete("content-length");
+  headers.delete("content-encoding");
+  return headers;
+}
+
+function failure(protocol, message, stream = false) {
+  if (protocol === "anthropic") return { type: "error", error: { type: "api_error", message } };
+  if (protocol === "responses") {
+    return stream
+      ? { type: "error", code: "undeclared_tool", message }
+      : { error: { type: "upstream_error", code: "undeclared_tool", message } };
+  }
+  return { error: { message, type: "upstream_error" } };
+}
+
+function object(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function list(value) {
+  if (value == null) return [];
+  if (!Array.isArray(value)) throw new GuardError("Invalid upstream tool snapshot");
+  return value;
+}
+
+// OpenCode's own models call OpenCode's tool names (bash, todowrite,
+// webfetch) whatever the agent declared. A call is given the agent's tool
+// whose name differs only in case, or else only in case and separators
+// (todowrite → todo_write, webfetch → web_fetch), when exactly one does; a
+// name two of the agent's tools fold to is never guessed between.
+const separators = /[\s_.-]/g;
+function foldsTo(declared, key) {
+  const folded = new Map();
+  for (const name of declared) {
+    const k = key(name);
+    folded.set(k, folded.has(k) ? null : name);
+  }
+  return folded;
+}
+
+// nameGuard answers the agent's name for a call, or null for a call of no
+// tool the agent has (a missing name included).
+function nameGuard(policy) {
+  const declared = new Set(policy.declared);
+  const lower = (name) => name.toLowerCase();
+  const bare = (name) => name.toLowerCase().replace(separators, "");
+  const byCase = foldsTo(declared, lower);
+  const byShape = foldsTo(declared, bare);
+  return (name) => {
+    if (typeof name !== "string" || !name) return null;
+    if (declared.has(name)) return name;
+    const match =
+      byCase.get(lower(name)) ?? (byCase.has(lower(name)) ? null : byShape.get(bare(name)));
+    return match || null;
+  };
+}
+
+// The models also call tools no agent has: bedit, bcp, ash, a mangled
+// mcp__netcatcatty__unused (#76). Such a call can't be run or named onto
+// one the agent has, and failing the reply for it threw away the whole
+// turn. It is left out instead, and the reply says so in its text, where
+// the agent's user and the model's next turn both read it. A reply left
+// with no call ends as a plain stop.
+export function droppedNote(name) {
+  return typeof name === "string" && name
+    ? `(The model called a tool this agent doesn't have: ${JSON.stringify(name.slice(0, 128))}. The call was left out.)`
+    : "(The model called a tool without a name. The call was left out.)";
+}
+
+function appendNotes(message, notes) {
+  const text = notes.join("\n\n");
+  if (typeof message.content === "string" && message.content) {
+    message.content = `${message.content}\n\n${text}`;
+  } else if (Array.isArray(message.content)) {
+    message.content.push({ type: "text", text });
+  } else {
+    message.content = text;
+  }
+}
+
+// checkChatMessage renames message's calls to the agent's tools and leaves
+// out the rest, answering the notes for those left out.
+function checkChatMessage(message, checkName) {
+  const result = { changed: false, notes: [] };
+  if (!object(message)) return result;
+  if (message.function_call != null) {
+    const value = message.function_call;
+    if (!object(value)) throw new GuardError("Invalid upstream function call");
+    const name = checkName(value.name);
+    if (name == null) {
+      result.notes.push(droppedNote(value.name));
+      delete message.function_call;
+      result.changed = true;
+    } else if (name !== value.name) {
+      value.name = name;
+      result.changed = true;
+    }
+  }
+  if (message.tool_calls != null) {
+    const calls = list(message.tool_calls);
+    const kept = [];
+    for (const call of calls) {
+      if (!object(call) || (call.type != null && call.type !== "function")) {
+        throw new GuardError("Unsupported upstream tool call");
+      }
+      if (!object(call.function)) throw new GuardError("Invalid upstream function call");
+      const name = checkName(call.function.name);
+      if (name == null) {
+        result.notes.push(droppedNote(call.function.name));
+        result.changed = true;
+        continue;
+      }
+      if (name !== call.function.name) {
+        call.function.name = name;
+        result.changed = true;
+      }
+      kept.push(call);
+    }
+    if (kept.length !== calls.length) {
+      if (kept.length) message.tool_calls = kept;
+      else delete message.tool_calls;
+    }
+  }
+  return result;
+}
+
+const callFinish = new Set(["tool_calls", "function_call"]);
+function hasCalls(message) {
+  return message.function_call != null || (message.tool_calls?.length ?? 0) > 0;
+}
+
+function isCall(protocol, value) {
+  return (
+    (protocol === "responses" && value.type === "function_call") ||
+    (protocol === "anthropic" && ["tool_use", "server_tool_use"].includes(value.type))
+  );
+}
+
+// What a call left out of a Responses or Messages reply becomes: text
+// saying so, in the call's place, so no later index moves.
+function inPlaceOf(protocol, call, note) {
+  if (protocol === "anthropic") return { type: "text", text: note };
+  return {
+    type: "message",
+    id: typeof call.id === "string" && call.id ? call.id : `msg_${call.call_id ?? "dropped"}`,
+    role: "assistant",
+    status: call.status ?? "completed",
+    content: [{ type: "output_text", text: note, annotations: [] }],
+  };
+}
+
+// checkSnapshots checks every call in a reply or event: renamed to the
+// agent's tool, or (Responses, Messages) put in place of by a note. It
+// answers whether data changed, how many calls it kept and how many it
+// left out.
+function checkSnapshots(data, protocol, checkName) {
+  let changed = false;
+  if (protocol === "chat") {
+    for (const choice of list(data.choices)) {
+      if (!object(choice)) throw new GuardError("Invalid upstream choice");
+      const message = choice.message;
+      const checked = checkChatMessage(message, checkName);
+      changed = checked.changed || changed;
+      if (checked.notes.length) {
+        appendNotes(message, checked.notes);
+        if (!hasCalls(message) && callFinish.has(choice.finish_reason))
+          choice.finish_reason = "stop";
+      }
+    }
+    return { changed, kept: 0, left: 0 };
+  }
+  let kept = 0;
+  let left = 0;
+  if (!object(data)) throw new GuardError("Invalid upstream tool snapshot");
+  // Each entry is a value and where it sits, so a call can be replaced.
+  const stack = [[data, null, null]];
+  while (stack.length) {
+    const [value, holder, key] = stack.pop();
+    if (!object(value)) throw new GuardError("Invalid upstream tool snapshot");
+    if (
+      protocol === "responses" &&
+      typeof value.type === "string" &&
+      value.type.endsWith("_call") &&
+      value.type !== "function_call"
+    ) {
+      throw new GuardError("Unsupported upstream tool call type");
+    }
+    if (isCall(protocol, value)) {
+      const name = checkName(value.name);
+      if (name == null) {
+        if (!holder) throw new GuardError(droppedNote(value.name));
+        holder[key] = inPlaceOf(protocol, value, droppedNote(value.name));
+        changed = true;
+        left++;
+        continue;
+      }
+      if (name !== value.name) {
+        value.name = name;
+        changed = true;
+      }
+      kept++;
+    }
+    const arrays = protocol === "responses" ? ["output", "content"] : ["content"];
+    const objects =
+      protocol === "responses" ? ["response", "item", "part"] : ["message", "content_block"];
+    for (const name of arrays) {
+      // Text content is not a snapshot container.
+      if (typeof value[name] === "string") continue;
+      const items = list(value[name]);
+      for (let i = 0; i < items.length; i++) stack.push([items[i], items, i]);
+    }
+    for (const name of objects) {
+      if (value[name] != null) stack.push([value[name], value, name]);
+    }
+  }
+  if (
+    protocol === "anthropic" &&
+    left &&
+    !kept &&
+    data.type === "message" &&
+    data.stop_reason === "tool_use"
+  ) {
+    data.stop_reason = "end_turn";
+  }
+  return { changed, kept, left };
+}
+
+function position(value) {
+  const result = value ?? 0;
+  if (!Number.isSafeInteger(result) || result < 0)
+    throw new GuardError("Invalid upstream tool index");
+  return result;
+}
+
+function appendFunction(target, fragment) {
+  if (!object(fragment)) throw new GuardError("Invalid upstream function delta");
+  for (const [key, value] of Object.entries(fragment)) {
+    if (key === "name" || key === "arguments") {
+      if (typeof value !== "string") throw new GuardError("Invalid upstream function delta");
+      target[key] = (target[key] ?? "") + value;
+    } else {
+      Object.defineProperty(target, key, {
+        value,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+    }
+  }
+}
+
+function chatBuffer(checkName) {
+  const pending = new Map();
+  let bytes = 0;
+  function charge(state, value) {
+    const size = encoder.encode(JSON.stringify(value)).byteLength;
+    bytes += size;
+    state.bytes += size;
+    if (bytes > MAX_BYTES)
+      throw new GuardError("Pending upstream tools exceed the 32 MiB buffer limit");
+  }
+  function stateFor(index, data) {
+    if (!pending.has(index)) {
+      const metadata = {};
+      for (const key of [
+        "id",
+        "object",
+        "created",
+        "model",
+        "system_fingerprint",
+        "service_tier",
+      ]) {
+        if (data[key] !== undefined) metadata[key] = data[key];
+      }
+      const state = { calls: new Map(), legacy: null, metadata, bytes: 0 };
+      pending.set(index, state);
+      charge(state, metadata);
+    }
+    return pending.get(index);
+  }
+  // Choices that streamed text, and those whose every call was left out
+  // (whose later "tool_calls" finish is a stop).
+  const wrote = new Set();
+  const ended = new Set();
+  function complete(state, index) {
+    const delta = {};
+    if (state.calls.size) {
+      delta.tool_calls = [...state.calls].sort(([a], [b]) => a - b).map(([, value]) => value);
+    }
+    if (state.legacy) delta.function_call = state.legacy;
+    const { notes } = checkChatMessage(delta, checkName);
+    if (notes.length) {
+      delta.tool_calls?.forEach((call, i) => {
+        call.index = i;
+      });
+      delta.content = (wrote.has(index) ? "\n\n" : "") + notes.join("\n\n");
+      if (!hasCalls(delta)) ended.add(index);
+    }
+    return delta;
+  }
+  function remove(index) {
+    const state = pending.get(index);
+    if (state) bytes -= state.bytes;
+    pending.delete(index);
+  }
+  return {
+    get size() {
+      return pending.size;
+    },
+    clear() {
+      pending.clear();
+      bytes = 0;
+    },
+    apply(data) {
+      let { changed } = checkSnapshots(data, "chat", checkName);
+      const choices = list(data.choices);
+      for (const choice of choices) {
+        const delta = choice.delta;
+        if (!object(delta)) continue;
+        if (typeof delta.content === "string" && delta.content) wrote.add(position(choice.index));
+        if (delta.tool_calls == null && delta.function_call == null) continue;
+        changed = true;
+        const state = stateFor(position(choice.index), data);
+        for (const fragment of list(delta.tool_calls)) {
+          if (!object(fragment) || (fragment.type != null && fragment.type !== "function")) {
+            throw new GuardError("Unsupported upstream tool delta");
+          }
+          charge(state, fragment);
+          const index = position(fragment.index);
+          const previous = state.calls.get(index) ?? { index, function: {} };
+          const value = { ...previous, ...fragment, index, function: previous.function };
+          if (fragment.function != null) appendFunction(value.function, fragment.function);
+          state.calls.set(index, value);
+        }
+        if (delta.function_call != null) {
+          charge(state, delta.function_call);
+          state.legacy ??= {};
+          appendFunction(state.legacy, delta.function_call);
+        }
+        delete delta.tool_calls;
+        delete delta.function_call;
+      }
+      // Validate every finishing choice before publishing any part of this event.
+      for (const choice of choices) {
+        if (choice.finish_reason == null) continue;
+        const index = position(choice.index);
+        const state = pending.get(index);
+        if (!state) continue;
+        const own = object(choice.delta) ? choice.delta : {};
+        const delta = complete(state, index);
+        if (typeof own.content === "string" && delta.content)
+          delta.content = own.content + delta.content;
+        choice.delta = { ...own, ...delta };
+        remove(index);
+        changed = true;
+      }
+      for (const choice of choices) {
+        if (callFinish.has(choice.finish_reason) && ended.has(position(choice.index))) {
+          choice.finish_reason = "stop";
+          changed = true;
+        }
+      }
+      if (!changed) return { data, changed: false };
+      data.choices = choices.filter(
+        (choice) =>
+          choice.finish_reason != null ||
+          Object.keys(choice.delta ?? {}).length ||
+          Object.keys(choice).some((key) => !["index", "delta", "finish_reason"].includes(key)),
+      );
+      return { data: data.choices.length || data.usage != null ? data : null, changed: true };
+    },
+    finish() {
+      if (!pending.size) return null;
+      const choices = [...pending]
+        .sort(([a], [b]) => a - b)
+        .map(([index, state]) => ({ index, delta: complete(state, index), finish_reason: null }));
+      const metadata = pending.values().next().value.metadata;
+      pending.clear();
+      bytes = 0;
+      return { ...metadata, choices };
+    },
+  };
+}
+
+// snapshotStream checks a Responses or Messages stream event by event. A
+// call left out is streamed as text in its place: its item or block starts
+// as text carrying the note, and its arguments are never sent. A message
+// whose every call was left out stops as a turn's end, not as tool use.
+function snapshotStream(protocol, checkName) {
+  const left = new Map(); // output_index or content block index → true
+  const leftIDs = new Set(); // Responses item ids left out
+  let kept = 0;
+  let dropped = 0;
+  return {
+    apply(data, type) {
+      if (protocol === "responses") {
+        const item = data.item;
+        if (
+          type === "response.output_item.added" &&
+          object(item) &&
+          item.type === "function_call" &&
+          checkName(item.name) == null
+        ) {
+          const note = droppedNote(item.name);
+          const message = inPlaceOf(protocol, item, note);
+          left.set(data.output_index, true);
+          leftIDs.add(message.id);
+          if (typeof item.id === "string") leftIDs.add(item.id);
+          dropped++;
+          const where = { item_id: message.id, output_index: data.output_index, content_index: 0 };
+          const part = { type: "output_text", text: "", annotations: [] };
+          return {
+            changed: true,
+            data: { ...data, item: { ...message, status: "in_progress", content: [] } },
+            extra: [
+              { type: "response.content_part.added", ...where, part },
+              { type: "response.output_text.delta", ...where, delta: note },
+              { type: "response.output_text.done", ...where, text: note },
+              { type: "response.content_part.done", ...where, part: { ...part, text: note } },
+            ],
+          };
+        }
+        if (
+          typeof type === "string" &&
+          type.startsWith("response.function_call_arguments.") &&
+          ((data.output_index != null && left.has(data.output_index)) || leftIDs.has(data.item_id))
+        ) {
+          return { changed: true, data: null };
+        }
+      } else {
+        if (type === "message_start") {
+          left.clear();
+          kept = 0;
+          dropped = 0;
+        }
+        const block = data.content_block;
+        if (
+          type === "content_block_start" &&
+          object(block) &&
+          isCall(protocol, block) &&
+          checkName(block.name) == null
+        ) {
+          left.set(data.index, true);
+          dropped++;
+          return {
+            changed: true,
+            data: { ...data, content_block: { type: "text", text: "" } },
+            extra: [
+              {
+                type: "content_block_delta",
+                index: data.index,
+                delta: { type: "text_delta", text: droppedNote(block.name) },
+              },
+            ],
+          };
+        }
+        if (type === "content_block_delta" && left.has(data.index))
+          return { changed: true, data: null };
+        if (
+          type === "message_delta" &&
+          object(data.delta) &&
+          data.delta.stop_reason === "tool_use" &&
+          dropped &&
+          !kept
+        ) {
+          data.delta.stop_reason = "end_turn";
+          return { changed: true, data };
+        }
+      }
+      const checked = checkSnapshots(data, protocol, checkName);
+      kept += checked.kept;
+      dropped += checked.left;
+      return { changed: checked.changed, data };
+    },
+  };
+}
+
+function parseJSON(text) {
+  let value;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    throw new GuardError("Invalid JSON in upstream response");
+  }
+  if (!object(value)) throw new GuardError("Invalid JSON object in upstream response");
+  return value;
+}
+
+function encodeEvent(data, name = "") {
+  return `${name ? `event: ${name}\n` : ""}data: ${JSON.stringify(data)}\n\n`;
+}
+
+function rewrite(frame, data) {
+  const lines = frame.lines.filter((line) => line !== "data" && !line.startsWith("data:"));
+  lines.push(`data: ${JSON.stringify(data)}`);
+  return `${lines.join("\n")}\n\n`;
+}
+
+async function* framesFrom(reader) {
+  let parts = [];
+  let lineBytes = 0;
+  let eventBytes = 0;
+  let lines = [];
+  let rawLines = [];
+  let skipLF = false;
+  let pendingFrame;
+  let firstLine = true;
+  const decoder = new TextDecoder("utf-8", { fatal: true, ignoreBOM: true });
+  function append(value) {
+    eventBytes += value.byteLength;
+    if (eventBytes > MAX_BYTES)
+      throw new GuardError("Upstream SSE event exceeds the 32 MiB buffer limit");
+    if (value.byteLength) {
+      parts.push(value);
+      lineBytes += value.byteLength;
+    }
+  }
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      if (pendingFrame) {
+        yield pendingFrame;
+        pendingFrame = null;
+        eventBytes = 0;
+      }
+      if (eventBytes || lineBytes || lines.length)
+        throw new GuardError("Upstream SSE ended inside an event");
+      return;
+    }
+    let start = 0;
+    if (skipLF && value.length) {
+      if (value[0] === 10) {
+        eventBytes++;
+        if (pendingFrame) pendingFrame.raw += "\n";
+        else rawLines[rawLines.length - 1] += "\n";
+        start = 1;
+      }
+      if (eventBytes > MAX_BYTES)
+        throw new GuardError("Upstream SSE event exceeds the 32 MiB buffer limit");
+      skipLF = false;
+      if (pendingFrame) {
+        const frame = pendingFrame;
+        pendingFrame = null;
+        eventBytes = 0;
+        yield frame;
+      }
+    }
+    for (let offset = start; offset < value.length; offset++) {
+      if (value[offset] !== 10 && value[offset] !== 13) continue;
+      append(value.subarray(start, offset));
+      if (++eventBytes > MAX_BYTES)
+        throw new GuardError("Upstream SSE event exceeds the 32 MiB buffer limit");
+      const bytes = new Uint8Array(lineBytes);
+      let cursor = 0;
+      for (const part of parts) {
+        bytes.set(part, cursor);
+        cursor += part.length;
+      }
+      let line;
+      try {
+        line = decoder.decode(bytes);
+      } catch {
+        throw new GuardError("Invalid UTF-8 in upstream SSE event");
+      }
+      parts = [];
+      lineBytes = 0;
+      let rawLine = line + String.fromCharCode(value[offset]);
+      if (firstLine) {
+        line = line.replace(/^\uFEFF/, "");
+        firstLine = false;
+      }
+      if (value[offset] === 13) {
+        if (value[offset + 1] === 10) {
+          rawLine += "\n";
+          offset++;
+          if (++eventBytes > MAX_BYTES)
+            throw new GuardError("Upstream SSE event exceeds the 32 MiB buffer limit");
+        } else if (offset + 1 === value.length) skipLF = true;
+      }
+      start = offset + 1;
+      rawLines.push(rawLine);
+      if (line) {
+        lines.push(line);
+      } else {
+        const frameLines = lines;
+        lines = [];
+        let name = "";
+        const data = [];
+        for (const item of frameLines) {
+          const colon = item.indexOf(":");
+          const key = colon < 0 ? item : item.slice(0, colon);
+          let content = colon < 0 ? "" : item.slice(colon + 1);
+          if (content.startsWith(" ")) content = content.slice(1);
+          if (key === "event") name = content;
+          if (key === "data") data.push(content);
+        }
+        const frame = {
+          lines: frameLines,
+          name,
+          text: data.join("\n"),
+          raw: rawLines.join(""),
+        };
+        rawLines = [];
+        if (skipLF) {
+          // Preserve a trailing CRLF even when its LF arrives in the next chunk.
+          pendingFrame = frame;
+        } else {
+          eventBytes = 0;
+          yield frame;
+        }
+      }
+    }
+    append(value.subarray(start));
+  }
+}
+
+function guardedStream(response, protocol, checkName) {
+  const reader = response.body?.getReader();
+  const chat = protocol === "chat" ? chatBuffer(checkName) : null;
+  const snapshots = chat ? null : snapshotStream(protocol, checkName);
+  let frames = reader ? framesFrom(reader) : null;
+  let completed = false;
+  let stopped = false;
+  let released = false;
+  let cancellation;
+  function release() {
+    if (reader && !released) {
+      reader.releaseLock();
+      released = true;
+    }
+    chat?.clear();
+    frames = null;
+  }
+  function cancel(reason) {
+    cancellation ??= (async () => {
+      try {
+        await reader?.cancel(reason);
+      } finally {
+        release();
+      }
+    })();
+    return cancellation;
+  }
+  return new ReadableStream(
+    {
+      async pull(controller) {
+        try {
+          while (!stopped) {
+            const next = frames ? await frames.next() : { done: true };
+            if (stopped) return;
+            if (next.done) {
+              if (!completed || chat?.size)
+                throw new GuardError("Upstream SSE ended without a completion marker");
+              stopped = true;
+              release();
+              controller.close();
+              return;
+            }
+            const frame = next.value;
+            if (frame.name !== "error" && !frame.text.trim()) {
+              controller.enqueue(encoder.encode(frame.raw));
+              return;
+            }
+            if (frame.name !== "error" && frame.text.trim() === "[DONE]") {
+              if (protocol !== "chat")
+                throw new GuardError("Unexpected upstream completion marker");
+              const final = chat.finish();
+              completed = true;
+              controller.enqueue(encoder.encode((final ? encodeEvent(final) : "") + frame.raw));
+              return;
+            }
+            const data = frame.name === "error" ? null : parseJSON(frame.text);
+            const type = data?.type ?? frame.name;
+            if (
+              frame.name === "error" ||
+              type === "error" ||
+              data?.error ||
+              type === "response.failed" ||
+              data?.response?.status === "failed"
+            ) {
+              stopped = true;
+              try {
+                await cancel();
+              } catch (cause) {
+                controller.error(cause);
+                return;
+              }
+              controller.enqueue(encoder.encode(frame.raw));
+              controller.close();
+              return;
+            }
+            const checked = chat ? chat.apply(data) : snapshots.apply(data, type);
+            const { changed, data: result, extra = [] } = checked;
+            if (
+              (protocol === "responses" &&
+                ["response.completed", "response.incomplete"].includes(type)) ||
+              (protocol === "anthropic" && type === "message_stop")
+            )
+              completed = true;
+            if (result || extra.length) {
+              const own = !result ? "" : changed ? rewrite(frame, result) : frame.raw;
+              const added = extra.map((value) => encodeEvent(value, value.type)).join("");
+              controller.enqueue(encoder.encode(own + added));
+              return;
+            }
+          }
+        } catch (error) {
+          if (stopped) return;
+          stopped = true;
+          if (error instanceof GuardError) {
+            try {
+              await cancel(error);
+            } catch (cause) {
+              controller.error(cause);
+              return;
+            }
+            controller.enqueue(
+              encoder.encode(
+                encodeEvent(
+                  failure(protocol, error.message, true),
+                  protocol === "chat" ? "" : "error",
+                ),
+              ),
+            );
+            controller.close();
+          } else {
+            release();
+            controller.error(error);
+          }
+        }
+      },
+      async cancel(reason) {
+        stopped = true;
+        await cancel(reason);
+      },
+    },
+    { highWaterMark: 0 },
+  );
+}
+
+export async function guardToolResponse(response, protocol, policy) {
+  if (!response.ok) return response;
+  if (!["chat", "responses", "anthropic"].includes(protocol))
+    throw new TypeError(`Unsupported protocol: ${protocol}`);
+  const checkName = nameGuard(policy);
+  const headers = headersFor(response);
+  const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
+  if (contentType === "text/event-stream") {
+    return new Response(guardedStream(response, protocol, checkName), {
+      status: response.status,
+      statusText: response.statusText,
+      headers,
+    });
+  }
+  const text = await response.text();
+  let value;
+  let status = response.status;
+  try {
+    value = parseJSON(text);
+    checkSnapshots(value, protocol, checkName);
+  } catch (error) {
+    if (!(error instanceof GuardError)) throw error;
+    status = 502;
+    value = failure(protocol, error.message);
+  }
+  headers.set("content-type", "application/json");
+  return new Response(JSON.stringify(value), { status, headers });
+}

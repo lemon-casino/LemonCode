@@ -1,6 +1,10 @@
 import { useMemo } from "react";
 import type { IGitBackupService } from "@lcode/services";
 import { useWorkspaceServicesResolution } from "@/hooks/useWorkspaceServices.js";
+import { useTabStore } from "@/store/TabStoreProvider.js";
+import { isWorkspaceTab } from "@/store/tabStore.js";
+import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
+import { selectGitBackupWorkspaceCandidates } from "@/hooks/gitBackupWorkspaceSelection.js";
 
 export interface GitBackupSectionTarget {
   workspacePath?: string | null;
@@ -31,6 +35,14 @@ export function useGitBackupRouting(target: GitBackupSectionTarget) {
     target.remoteTarget,
   );
   const connectionKind = resolveGitBackupConnectionKind(target, resolution.connectionKind);
+  const tabs = useTabStore((state) => state.tabs);
+  const sessionsById = useRemoteWorkspaceSessionStore((state) => state.sessionsById);
+  const sessionIdByWorkspaceIdentity = useRemoteWorkspaceSessionStore(
+    (state) => state.sessionIdByWorkspaceIdentity,
+  );
+  const sessionIdByWorkspacePath = useRemoteWorkspaceSessionStore(
+    (state) => state.sessionIdByWorkspacePath,
+  );
   const service: IGitBackupService | null = useMemo(
     () =>
       connectionKind !== "remote-waiting" && resolution.rpcReady
@@ -49,6 +61,13 @@ export function useGitBackupRouting(target: GitBackupSectionTarget) {
   return {
     service,
     connectionKind,
+    workspaceCandidates: selectGitBackupWorkspaceCandidates(
+      tabs.filter(isWorkspaceTab),
+      connectionKind,
+      service,
+      resolution.remoteSessionId,
+      { sessionsById, sessionIdByWorkspaceIdentity, sessionIdByWorkspacePath },
+    ),
     // 同一路径可能同时属于本机与远端，必须同时隔离 identity、attachment 和服务实例。
     controllerKey: JSON.stringify([
       workspaceIdentity || workspacePath,

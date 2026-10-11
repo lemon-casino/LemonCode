@@ -133,5 +133,6 @@ Host-only 的 `RuntimeProcessOwnerObserver` 由执行 Host 注入；完整 owner
 
 - 当前源码已有消费者 lease/release fence、Git candidate HEAD/target 校验、目录删除/代码 snapshot 和 Git 诊断通路；这些不能替代 revision 升级、候选环境精确收据、物理环境回收、新环境恢复、GC 和环境失败草稿。
 - 当前 `release` 已能在环境锁内检查活消费者/未确认服务并返回 releaseBlocked；逻辑引用结算不等于停止服务、删除目录、清理私有数据或工具缓存。
+- 自动工作树清理使用 Host 内部 `onlyIfIdle` fence：持有 checkout writer 后，在环境锁内核对非 session 活引用及服务退出证明；仍在使用就拒绝，不先停止用户进程。普通显式归档/永久删除继续使用既有生命周期协议。
 - Windows 本机已有局部静态/定向测试记录；macOS/Linux 实机、实体手机、完整 GUI 和三平台原生 ENV-30 未在本次合同修订中验证，不能写成已完成。
 - 任何 P4/P5 任务只有在实现、定向/集成测试、平台证据和主文档验收矩阵均补齐后才可改为完成；新增 schema 本身不构成门禁通过。

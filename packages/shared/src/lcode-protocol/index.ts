@@ -71,10 +71,11 @@ export {
 import { errorAttributionSchema } from "../lcode-protocol-v4/snapshot.js";
 import { modelSelectionSchema } from "../model-selection.js";
 import { MODEL_CONNECTIVITY_ERROR_CODES } from "../model-provider-types.js";
-import { completeModelPropertiesDataSchema } from "../model-config.js";
+import { completeModelPropertiesDataSchema, modelConfigDataSchema } from "../model-config.js";
 import { accountProviderUnavailableReasonSchema } from "../account-provider-state.js";
 import { modelExecutionSchema } from "../model-execution.js";
 import { APP_USAGE_RANGES, appUsageSnapshotSchema } from "../usage-stats.js";
+import { providerUsageRequestSchema, providerUsageSnapshotSchema } from "../usage-analytics.js";
 // browser-use 命令/结果契约单一来源：agent 构造、协议校验和 main executor 共用同一 schema。
 import { browserClientModeSchema, browserCommandSchema } from "../browser-use/commands.js";
 import {
@@ -83,7 +84,11 @@ import {
 } from "../browser-use/backend.js";
 import { browserCommandResultSchema } from "../browser-use/result.js";
 // 与持久化设置共用 schema（含 custom）；自定义交互 Shell 不覆盖 Agent Bash 方言。
-import { integratedTerminalShellSelectionSchema } from "../validationAppSettings.js";
+import {
+  integratedTerminalShellSelectionSchema,
+  memoryStorageLocationSchema,
+  memoryStorageRevisionSchema,
+} from "../validationAppSettings.js";
 import { lcodeTaskModeSchema } from "../lcode-task-mode-schema.js";
 import { OFFICIAL_MCP_AUTH_PORT_FAILURE_REASONS } from "../official-mcp-auth.js";
 import {
@@ -915,6 +920,18 @@ export const lcodeProviderAccountAccessSchema = z
   })
   .strict();
 export type LCodeProviderAccountAccess = z.infer<typeof lcodeProviderAccountAccessSchema>;
+export const lcodeOAuthAccountAccessSchema = z
+  .object({
+    type: z.literal("oauth-account"),
+    channelId: nonEmptyString,
+    connectionId: nonEmptyString.optional(),
+  })
+  .strict();
+export const lcodeModelAccountAccessSchema = z.union([
+  lcodeProviderAccountAccessSchema,
+  lcodeOAuthAccountAccessSchema,
+]);
+export type LCodeModelAccountAccess = z.infer<typeof lcodeModelAccountAccessSchema>;
 
 export type LCodeSessionMode = z.infer<typeof lcodeSessionModeSchema>;
 export type LCodeSessionKind = z.infer<typeof lcodeSessionKindSchema>;
@@ -1627,6 +1644,7 @@ export type LCodeSessionSubagentsResult = z.infer<typeof lcodeSessionSubagentsRe
 export const lcodeSessionCreateParamsSchema = z
   .object({
     sessionId: nonEmptyString.optional(),
+    // existingBinding 与 V4 共用严格 schema；同树空白创建仍由 Host 核验 owner alias。
     execution: executionIntentSchema.optional(),
     executionRequestId: nonEmptyString.optional(),
     workspace: lcodeWorkspaceRefSchema,
@@ -1690,11 +1708,14 @@ export type LCodeSessionSubagentsParams = z.infer<typeof lcodeSessionSubagentsPa
 
 export const lcodeUsageStatsParamsSchema = z
   .object({
+    connectionType: z.literal("api-key").optional(),
     range: z.enum(APP_USAGE_RANGES),
     timeZone: z.string().optional(),
   })
   .strict();
 export const lcodeUsageStatsResultSchema = appUsageSnapshotSchema;
+export const lcodeProviderUsageStatsParamsSchema = providerUsageRequestSchema;
+export const lcodeProviderUsageStatsResultSchema = providerUsageSnapshotSchema;
 export const lcodeTaskTokenUsageParamsSchema = z
   .object({
     sessionId: nonEmptyString,
@@ -1774,6 +1795,10 @@ export const lcodeSessionRuntimePreferencesResultSchema = z
   .object({
     nativeSearchEnhancementsEnabled: z.boolean(),
     memoryEnabled: z.boolean().default(false),
+    // 初始 profile 不补成响应字段，兼容旧 strict Agent；选择 workspace 或发生版本切换时才扩展报文。
+    memoryStorageLocation: memoryStorageLocationSchema.optional(),
+    // 字段缺席在接收端按 0 解释；schema 不补 0，避免破坏旧 Host/Agent 的报文兼容。
+    memoryStorageRevision: memoryStorageRevisionSchema.optional(),
     // 旧 Host 不发送时必须保持显式 opt-in，避免升级 CLI 后静默启用历史读取。
     sessionRecallEnabled: z.boolean().default(false),
     askUserQuestionAutoResolutionEnabled: z.boolean().default(true),
@@ -2281,6 +2306,18 @@ export const lcodeProviderUpdateAccountConfigParamsSchema = z
     basedOnLCodeBuiltinRevision: nonEmptyString,
     // Provider Config 的字段校验由 @lcode/provider 负责；协议层只约束可传输信封。
     providers: z.record(z.string(), z.unknown()),
+    // OAuth 目录能力必须与账号 revision 一起到达；仅允许精确模型规则。
+    modelRules: z
+      .array(
+        z
+          .object({
+            providerId: nonEmptyString,
+            modelId: nonEmptyString,
+            config: modelConfigDataSchema,
+          })
+          .strict(),
+      )
+      .optional(),
     // 账号状态与 Overlay 必须一起传递，否则 Worker 会丢失非当前套餐的执行门禁。
     states: z.record(
       z.string(),
@@ -2517,7 +2554,7 @@ export const lcodeProviderRuntimeHeadersRequestParamsSchema = z
     workspace: lcodeWorkspaceRefSchema,
     modelSelection: modelSelectionSchema,
     providerId: nonEmptyString,
-    accountAccess: lcodeProviderAccountAccessSchema.optional(),
+    accountAccess: lcodeModelAccountAccessSchema.optional(),
     reason: lcodeProviderRuntimeHeadersRequestReasonSchema,
   })
   .strict();
@@ -2545,6 +2582,10 @@ export const lcodeProviderRuntimeHeadersResponseSchema = z.discriminatedUnion("h
       requestAuth: z
         .object({
           apiKey: nonEmptyString.optional(),
+          baseURL: z.string().url().optional(),
+          protocol: z
+            .enum(["anthropic-messages", "openai-chat-completions", "openai-responses"])
+            .optional(),
           headers: z.record(nonEmptyString, nonEmptyString).optional(),
         })
         .strict(),
@@ -3790,6 +3831,7 @@ export const lcodeProtocolMethods = {
   // @deprecated：host 消费已清零（lcodeAgentService 改走 v4/usage/stats）。
   // 仅剩 CLI server 的 wire 兼容 case；随旧词整体删除时一并移除。
   usageStats: "usage/stats",
+  providerUsageStats: "usage/providers",
   // LCode Protocol 对 agent 只暴露 session-first 方法；task 是 UI 投影概念，不能泄露进协议方法名。
   // @deprecated：host 已改走 v4/conversation/usage；后续与 usage/stats 一并移除。
   sessionUsage: "session/usage",

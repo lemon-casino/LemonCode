@@ -5,6 +5,8 @@ import type { McpServerConfig } from "../interfaces/mcp.port.js";
 import type { HooksRuntimeConfig, HooksRuntimeConfigPatch } from "../hooks/index.js";
 import type { PluginConfig, PluginOptionValues } from "../plugins/index.js";
 
+export type MemoryStorageLocation = "profile" | "workspace";
+
 // ============================================================
 // Config Key Types
 // ============================================================
@@ -39,6 +41,8 @@ export const ConfigKey = {
 
   // Memory
   MemoryUse: "memory.use",
+  MemoryStorageLocation: "memory.storageLocation",
+  MemoryStorageRevision: "memory.storageRevision",
   MemoryObservationEnabled: "memory.observationEnabled",
   MemoryRankingExperimentEnabled: "memory.rankingExperimentEnabled",
 
@@ -123,41 +127,45 @@ export type ConfigValue<K extends ConfigKey> = K extends "modelStream.idleTimeou
                     | "memory.rankingExperimentEnabled"
                     | "sessionRecall.enabled"
                 ? boolean
-                : K extends "skills.metadataBudget"
-                  ? number
-                  : K extends "skills.roots"
-                    ? string[]
-                    : K extends "skill" | "command"
-                      ? Record<string, SkillCommandOverride>
-                      : K extends "mcp.servers"
-                        ? Record<string, McpServerConfig>
-                        : K extends "plugins.enabled"
-                          ? boolean
-                          : K extends "plugins.dirs"
-                            ? string[]
-                            : K extends "plugins.enabledPlugins"
-                              ? Record<string, boolean>
-                              : K extends "plugins.extraKnownMarketplaces"
-                                ? PluginConfig["extraKnownMarketplaces"]
-                                : K extends "plugins.options"
-                                  ? Record<string, PluginOptionValues>
-                                  : K extends "plugins.suppressedBuiltins"
-                                    ? string[]
-                                    : K extends "logging.level"
-                                      ? "debug" | "info" | "warn" | "error"
-                                      : K extends "logging.format"
-                                        ? "text" | "json"
-                                        : K extends "toolConcurrency.maxConcurrency"
-                                          ? number
-                                          : K extends "modelAnomalyGuard"
-                                            ? ModelAnomalyGuardConfig
-                                            : K extends "hooks"
-                                              ? HooksRuntimeConfig
-                                              : K extends "ui.locale"
-                                                ? UiLocale
-                                                : K extends "ui.theme"
-                                                  ? UiThemePreference
-                                                  : unknown;
+                : K extends "memory.storageRevision"
+                  ? number | undefined
+                  : K extends "memory.storageLocation"
+                    ? MemoryStorageLocation
+                    : K extends "skills.metadataBudget"
+                      ? number
+                      : K extends "skills.roots"
+                        ? string[]
+                        : K extends "skill" | "command"
+                          ? Record<string, SkillCommandOverride>
+                          : K extends "mcp.servers"
+                            ? Record<string, McpServerConfig>
+                            : K extends "plugins.enabled"
+                              ? boolean
+                              : K extends "plugins.dirs"
+                                ? string[]
+                                : K extends "plugins.enabledPlugins"
+                                  ? Record<string, boolean>
+                                  : K extends "plugins.extraKnownMarketplaces"
+                                    ? PluginConfig["extraKnownMarketplaces"]
+                                    : K extends "plugins.options"
+                                      ? Record<string, PluginOptionValues>
+                                      : K extends "plugins.suppressedBuiltins"
+                                        ? string[]
+                                        : K extends "logging.level"
+                                          ? "debug" | "info" | "warn" | "error"
+                                          : K extends "logging.format"
+                                            ? "text" | "json"
+                                            : K extends "toolConcurrency.maxConcurrency"
+                                              ? number
+                                              : K extends "modelAnomalyGuard"
+                                                ? ModelAnomalyGuardConfig
+                                                : K extends "hooks"
+                                                  ? HooksRuntimeConfig
+                                                  : K extends "ui.locale"
+                                                    ? UiLocale
+                                                    : K extends "ui.theme"
+                                                      ? UiThemePreference
+                                                      : unknown;
 
 // ============================================================
 // Config Scope
@@ -237,6 +245,8 @@ export interface RuntimeConfig {
   };
   memory: {
     use: boolean;
+    storageLocation?: MemoryStorageLocation;
+    storageRevision?: number;
     observationEnabled?: boolean;
     rankingExperimentEnabled?: boolean;
   };
@@ -330,6 +340,7 @@ export const DefaultRuntimeConfig: RuntimeConfig = {
   },
   memory: {
     use: true,
+    storageLocation: "profile",
     observationEnabled: false,
     rankingExperimentEnabled: false,
   },

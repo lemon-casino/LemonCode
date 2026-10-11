@@ -57,8 +57,6 @@ const logWarn = (...args: unknown[]) =>
   console.warn(formatLogPrefix("deploy", process.pid), ...args);
 const SERVER_BUNDLE_COMPONENT_ID = "server-bundle";
 
-export type DeployLockMode = "remote" | "caller-serialized";
-
 export interface DeployOptions {
   /** 取消当前远端连接初始化与其拥有的上传。 */
   signal?: AbortSignal;
@@ -78,8 +76,6 @@ export interface DeployOptions {
   force?: boolean;
   /** 等待远端 install-root deploy lock 的总 deadline，默认 120 秒。 */
   deployLockAcquireTimeoutMs?: number;
-  /** 部署串行化边界；默认由远端 install-root lock 保证。 */
-  deployLockMode?: DeployLockMode;
   /** SSH-only remote asset install strategy. */
   assetInstallMode?: RemoteAssetInstallMode;
   /** 只在选中资源包范围内做远端部署检查、下载和上传。 */
@@ -415,13 +411,8 @@ export async function deployServer(
     return deployWithDecision(decision, expectedServerBundleSha256);
   };
 
-  if (options?.deployLockMode === "caller-serialized") {
-    // 桌面 SSH 已由窗口级 shared Host readiness 保证同一 target 只有一个部署事务；
-    // 若仍创建 remote lock-holder，会为无额外互斥收益的路径长期占用 SSH channel。
-    // 该模式必须由已具备 single-flight 的调用方显式注入，WSL/Docker 和其他调用继续默认远端锁。
-    return deployUsingCurrentRemoteState();
-  }
-
+  // 窗口内 single-flight 只约束一个 Host，旧 SSH 绕过分支让跨窗口部署并发改写正式目录。
+  // 所有 transport 共用远端 install-root lock，临时 staging 唯一性不能替代发布事务互斥。
   const preLockDecision = options?.force
     ? { shouldDeploy: true as const, reason: "force deploy requested" }
     : await checkServerDeployDecision(backend, {

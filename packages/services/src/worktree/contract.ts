@@ -15,6 +15,7 @@ export type WorktreeBinding = WorktreeExecutionBinding;
 
 import { createServiceDescriptor } from "../descriptors.js";
 import type { WorktreeIntegrationInspection } from "./inspectionContract.js";
+import type { WorktreeManagement } from "./managementContract.js";
 export type { WorktreeIntegrationInspection } from "./inspectionContract.js";
 
 export interface WorktreeScope {
@@ -160,6 +161,8 @@ export interface WorktreeRuntimePorts {
     environmentRef: RuntimeEnvironmentBindingReference;
     intent: "discard" | "archive" | "candidate-cancel" | "upgrade";
     phase: "fence" | "stop" | "cleanup" | "finalize";
+    /** 自动清理的 fence 只能在 owner 确认没有活动执行者时建立。 */
+    onlyIfIdle?: boolean;
     /** discard stop 可暂留精确旧引用；会话清理与 retirement 仍须在 writer 内完成。 */
     legacyDiscardSessionIds?: string[];
   }) => Promise<{ status: "completed" | "releaseBlocked"; reason?: string }>;
@@ -184,7 +187,7 @@ export type WorktreeCommandRunner = (
 
 /** 普通会话共享执行；会修改目录生命周期/快照/发布的操作保持独占。 */
 export type CheckoutAccessMode = "shared" | "exclusive";
-export interface IWorktreeService extends WorktreeIntegrationInspection {
+export interface IWorktreeService extends WorktreeIntegrationInspection, WorktreeManagement {
   getCapabilities(
     params: WorktreeScope & { sourceFolderPaths?: string[] },
   ): Promise<WorktreeCapabilities>;

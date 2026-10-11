@@ -410,8 +410,14 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
         signal: abortController.signal,
       })
       .then(async (handle) => {
+        if (entry.disposed) {
+          // disposeEntry 可能在 handle 尚未产生时已完成；不能复用其空 disposePromise
+          // 吞掉迟到资源。未发布的 handle 在这里由唯一接收者释放一次。
+          await handle.dispose();
+          return handle;
+        }
         entry.handle = handle;
-        if (entry.disposed || entry.sessions.size === 0) {
+        if (entry.sessions.size === 0) {
           // 底层 SSH/WSL connector 可能无法中断认证或部署。
           // 最后一个 logical owner 取消后，迟到的成功结果必须立即释放，不能复活旧连接。
           await disposeEntry(entry);
@@ -572,15 +578,10 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     void workspaceRelease?.catch(() => undefined);
     session.rejectCancellation(new WindowRemoteConnectCancelledError());
     if (session.entry.sessions.size === 0) {
-      if (session.entry.target.kind === "ssh" && session.entry.state === "connecting") {
-        // 最后一个 waiter 取消后，旧 entry 仍以 connecting 留在复用表；立即重连会
-        // 继续等待已经 aborted 的 readiness，并沿用上一次凭据。先按对象身份退休旧 entry，
-        // 再触发底层取消；迟到的旧 completion 不能删除或复活同 key 的新连接。
-        if (entriesByKey.get(session.entry.key) === session.entry) {
-          entriesByKey.delete(session.entry.key);
-        }
-        session.entry.state = "closing";
-        session.entry.abortController.abort();
+      if (session.entry.state === "connecting") {
+        // 旧逻辑仅中止 SSH，WSL 会复用已取消的部署，Docker 则继续后台安装。
+        // 三种 transport 的最后一个 waiter 都退休 entry 并中止 backend，其他共享 owner 不受影响。
+        void disposeEntry(session.entry);
       } else if (session.entry.target.kind === "wsl" && session.entry.state === "online") {
         scheduleWslIdleDispose(session.entry, "cancelled-logical-connect");
       } else if (session.entry.target.kind === "ssh" && session.entry.state === "online") {

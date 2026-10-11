@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import type { GitRepositorySummary } from "@lcode/shared";
 import { DraftWorkspaceExecutionControls } from "@/worktree/DraftWorkspaceExecutionControls.js";
 import { DraftWorktreeConversation } from "@/worktree/WorktreeConversationPreparation.js";
@@ -16,6 +16,8 @@ import {
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { GitActionMenu } from "@/GitActionMenu.js";
 import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
+import { useTabStore, useTabStoreApi } from "@/store/TabStoreProvider.js";
+import { WorktreeSettingsSection } from "@/settings/WorktreeSettingsSection.js";
 
 export function WorktreeFixturePage({
   workspacePath,
@@ -33,11 +35,48 @@ export function WorktreeFixturePage({
   const [managementOpen, setManagementOpen] = useState(false);
   const [reviewProjectSelected, setReviewProjectSelected] = useState(false);
   const { intl } = useLCodeIntl();
+  const tabStore = useTabStoreApi();
+  const settingsOpen = useTabStore(
+    (state) => state.tabs.find((tab) => tab.id === state.activeTabId)?.kind === "settings",
+  );
+  const workspaceTabs = useMemo(
+    () => [
+      {
+        id: "fixture-project",
+        kind: "workspace" as const,
+        workspacePath,
+        workspaceIdentity: identity,
+        label: "Fixture project",
+      },
+    ],
+    [workspacePath, identity],
+  );
   const activeSessionId = useLCodeSessionStore(
     (state) => state.getWorkspaceState(workspacePath, identity).activeTaskId,
   );
   controller.chooseScope = setIdentity;
   controller.hideDraft = () => setDraftVisible(false);
+  if (settingsOpen)
+    return (
+      <main className="max-w-3xl p-4">
+        <button
+          data-testid="fixture-close-worktree-settings"
+          onClick={() => {
+            const id = tabStore.getState().activeTabId;
+            if (id) tabStore.getState().closeTab(id);
+          }}
+        >
+          返回工作区
+        </button>
+        <WorktreeSettingsSection
+          section="worktrees"
+          workspaceTabs={workspaceTabs}
+          activeWorkspacePath={workspacePath}
+          activeWorkspaceIdentity={identity}
+          onSectionChange={() => {}}
+        />
+      </main>
+    );
   return (
     <main className="w-full max-w-3xl space-y-6 p-4">
       <DropdownMenu>

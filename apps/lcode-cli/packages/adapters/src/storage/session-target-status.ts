@@ -59,10 +59,17 @@ export function updateSessionTargetStatus(
   if (input.status === "complete" && current?.acceptance) {
     const tokens = input.expected?.evidenceHeads;
     const ids = new Set(tokens?.map((token) => token.requirementId));
-    if (!tokens || tokens.length !== current.acceptance.requirements.length || ids.size !== tokens.length || current.acceptance.requirements.some((r) => !ids.has(r.id))) throw new Error("Strict completion requires complete durable evidence head coverage.");
+    if (
+      !tokens ||
+      tokens.length !== current.acceptance.requirements.length ||
+      ids.size !== tokens.length ||
+      current.acceptance.requirements.some((r) => !ids.has(r.id))
+    )
+      throw new Error("Strict completion requires complete durable evidence head coverage.");
     const evidence = goalEvidenceCompletionPredicate(db, input.sessionID, current, tokens);
     if (!evidence) return null;
-    predicate.push(...evidence.predicates); expectedValues.push(...evidence.values);
+    predicate.push(...evidence.predicates);
+    expectedValues.push(...evidence.values);
   }
   if (input.expected) {
     predicate.push("target_id = ?", "status = 'active'");

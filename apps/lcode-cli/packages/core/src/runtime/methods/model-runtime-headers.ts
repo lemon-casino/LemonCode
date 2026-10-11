@@ -1,7 +1,7 @@
 import { traceContextToLogContext } from "../deps.js";
 import type { ModelRequestAuth } from "@lcode/contracts";
 import { ModelErrorCode, ModelFailureReason, ModelProtocolError } from "@lcode/contracts";
-import type { LCodeProviderAccountAccess } from "@lcode/shared";
+import type { LCodeModelAccountAccess } from "@lcode/shared";
 import type { Model, TraceContext } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 
@@ -14,7 +14,7 @@ export function createRefreshRuntimeHeadersBeforeModelAttempt(
   },
 ):
   | ((attemptInput: {
-      accountAccess?: LCodeProviderAccountAccess;
+      accountAccess?: LCodeModelAccountAccess;
       attempt: number;
       reason?: "model-request";
       abortSignal?: AbortSignal;

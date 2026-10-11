@@ -60,7 +60,10 @@ test("pause/resume invalidates an in-flight receipt, including a state change du
       };
     } else f.setGoal({ ...original, stateRevision: 2 });
     assert.deepEqual(await finishGoalExecution(capture, facts), []);
-    assert.equal([...f.entries.values()].filter((entry) => entry.type === "goal/evidence/v1").length, 0);
+    assert.equal(
+      [...f.entries.values()].filter((entry) => entry.type === "goal/evidence/v1").length,
+      0,
+    );
     assert.equal((await readGoalEvidenceSummary(f.owner, original))?.outcome, "incomplete");
   }
 });
@@ -90,6 +93,9 @@ test("a full evidence ledger rejects physical admission rather than dropping a l
       time: { created: 10, updated: 20 },
       data: { ...proof, evidenceId: `filler-${index}`, goalId: "other" },
     } as SessionEntryInfo);
-  await assert.rejects(beginGoalExecution(f.owner, { ...execution, executionId: "later-failure" }), /full/);
+  await assert.rejects(
+    beginGoalExecution(f.owner, { ...execution, executionId: "later-failure" }),
+    /full/,
+  );
   assert.equal((await readGoalEvidenceSummary(f.owner, f.goal))?.outcome, "pass");
 });

@@ -21,7 +21,24 @@ import type {
 import type { StableConversationForkTarget } from "../types.js";
 import { createMockRuntime } from "./lint-runtime-fixture.js";
 import { forkStableConversationAtMessage } from "./session-fork.js";
+import { buildForkWorktreeBindingEntry } from "./session-fork-common.js";
 import { applyWorkspaceFileRewind, previewWorkspaceFileRewind } from "./file-rewind.js";
+
+test("fork of a blank worktree chat retains the root owner and restores normal ancestry checks", () => {
+  const { runtime } = createMockRuntime();
+  runtime.config.workspaceBinding = {
+    workspacePath: "/tree",
+    workspaceKey: "/tree",
+    originWorkspacePath: "/origin",
+    executionBindingId: "tree",
+    bindingOwnerTaskId: "root",
+    bindingReuse: "existing",
+  };
+  const entry = buildForkWorktreeBindingEntry(runtime, "fork-child" as SessionInfo["id"]);
+  assert.ok(entry);
+  assert.equal((entry.data as { bindingOwnerTaskId?: string }).bindingOwnerTaskId, "root");
+  assert.equal((entry.data as { bindingReuse?: string }).bindingReuse, undefined);
+});
 
 function forkFixture() {
   const { runtime } = createMockRuntime();

@@ -160,6 +160,8 @@ type LCodeSessionRecordParams = (
 
 interface SessionStartupPreferences {
   memoryEnabled: boolean;
+  memoryStorageLocation: "profile" | "workspace";
+  memoryStorageRevision: number;
   modelContextBudgetStrategy: LCodeModelContextBudgetStrategy;
   nativeSearchEnhancementsEnabled: boolean;
   sessionRecallEnabled: boolean;
@@ -1928,7 +1930,12 @@ export async function getUsageStats(context: LCodeProtocolAgentServerContext, ra
     );
   }
 
-  const result = await usageStore.queryAppUsage({ since, until, tzOffsetMs });
+  const result = await usageStore.queryAppUsage({
+    since,
+    until,
+    tzOffsetMs,
+    connectionType: params.connectionType,
+  });
   return buildAppUsageSnapshot(result, buildOptions);
 }
 
@@ -3349,6 +3356,8 @@ async function resolveSessionStartupPreferences(
   if (source.kind === "inherit") {
     return {
       memoryEnabled: source.parent.memoryEnabled,
+      memoryStorageLocation: source.parent.memoryStorageLocation ?? "profile",
+      memoryStorageRevision: source.parent.memoryStorageRevision ?? 0,
       modelContextBudgetStrategy: DEFAULT_LCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
       nativeSearchEnhancementsEnabled: source.parent.nativeSearchEnhancementsEnabled,
       sessionRecallEnabled: source.parent.sessionRecallEnabled,
@@ -3368,6 +3377,8 @@ async function resolveSessionStartupPreferences(
   );
   return {
     memoryEnabled: runtimePreferences.memoryEnabled,
+    memoryStorageLocation: runtimePreferences.memoryStorageLocation ?? "profile",
+    memoryStorageRevision: runtimePreferences.memoryStorageRevision ?? 0,
     modelContextBudgetStrategy: DEFAULT_LCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
     nativeSearchEnhancementsEnabled: runtimePreferences.nativeSearchEnhancementsEnabled,
     sessionRecallEnabled: runtimePreferences.sessionRecallEnabled,
@@ -3452,7 +3463,11 @@ async function createRecord(
       modelContextBudgetStrategy: startupPreferences.modelContextBudgetStrategy,
       // Memory Settings 是现有 CLI features.memory/use 之外的总开关。只在关闭时
       // 写入 override，避免开启值反向覆盖用户已有的 CLI 禁用配置。
-      ...(startupPreferences.memoryEnabled ? {} : { memory: { enabled: false } }),
+      memory: {
+        ...(startupPreferences.memoryEnabled ? {} : { enabled: false }),
+        storageLocation: startupPreferences.memoryStorageLocation,
+        storageRevision: startupPreferences.memoryStorageRevision,
+      },
       // App 设置是 protocol session 的权威 opt-in；headless CLI 仍沿用 JSON 配置。
       sessionRecall: { enabled: startupPreferences.sessionRecallEnabled },
       // desktop-continuous session/create 由 UI 先解析 ~/.lcode/.agents 的 enabled MCP，
@@ -3521,6 +3536,8 @@ async function createRecord(
     createdAt: now,
     eventStore,
     memoryEnabled: startupPreferences.memoryEnabled,
+    memoryStorageLocation: startupPreferences.memoryStorageLocation,
+    memoryStorageRevision: startupPreferences.memoryStorageRevision,
     modelContextBudgetStrategy: startupPreferences.modelContextBudgetStrategy,
     nativeSearchEnhancementsEnabled: startupPreferences.nativeSearchEnhancementsEnabled,
     sessionRecallEnabled: startupPreferences.sessionRecallEnabled,

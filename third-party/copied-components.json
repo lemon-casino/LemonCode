@@ -272,5 +272,63 @@
     "roots": ["apps/lcode-cli/packages/lemon-workflow-plugin/skills/caveman"],
     "scope": "Vendored Caveman skill and README only. Upstream LICENSING.md classifies skills/ as MIT; no BSL engine or runtime code is included.",
     "license": "MIT"
+  },
+  {
+    "id": "Magpie native provider protocol adaptations",
+    "referenceRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+    "source": "https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/LICENSE",
+    "file": "packages/provider-node/src/provider-auth/native/LICENSE.magpie",
+    "sha256": "79d2c8444715d4bc453ec4f8a0aaf2051a4c1ee5ac08f5bd2e5848aef87c7572",
+    "importRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+    "provenance": "New Node/TypeScript implementation based on provider protocol definitions and behavior in the clean pinned magpie checkout; this is an adaptation, not a claim of clean-room development or a verbatim Go source copy. Exact source paths are recorded in native/README.md and plugins/README.md.",
+    "roots": [
+      "packages/provider-node/src/provider-auth/native",
+      "packages/provider-node/src/provider-auth/native.ts",
+      "packages/provider-node/src/provider-auth/plugins/factory-import.mjs",
+      "packages/provider-node/src/provider-auth/plugins/method-details.mjs",
+      "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+    ],
+    "scope": "Upstream-derived OAuth, credential import and prompt condition rules, provider wire protocol and isolated Claude CLI/profile/tool-bridge portions only. Local account ownership, Windows launcher resolution, cancellation, namespaced tool routing and fixtures are LCode work.",
+    "license": "MIT"
+  },
+  {
+    "id": "Magpie community fixed provider plugins",
+    "referenceRevision": "da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd",
+    "source": "https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/LICENSE",
+    "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
+    "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
+    "importRevision": "da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd",
+    "provenance": "Runtime module snapshots and exact package versions are recorded in provider-auth/vendor/manifest.json; the generated worker embeds these verified source snapshots. Additional Qoder and Zen Free notices are registered separately.",
+    "roots": [
+      "packages/provider-node/src/provider-auth/vendor",
+      "packages/provider-node/src/provider-auth/plugins/zcode-local.mjs",
+      "packages/provider-node/src/provider-auth/plugins/worker-source.ts"
+    ],
+    "scope": "Vendored provider plugin source, its generated bundle portions, and the site-scoped ZCode credential-format adaptation only; local worker transport and compatibility implementations are not wholly attributed to upstream.",
+    "license": "MIT"
+  },
+  {
+    "id": "CLIProxyAPI portions retained by Magpie Qoder plugin",
+    "referenceRevision": "da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd",
+    "source": "https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/packages/qoder/LICENSE-CLIProxyAPI",
+    "file": "packages/provider-node/src/provider-auth/vendor/qoder/LICENSE-CLIProxyAPI",
+    "sha256": "93df585e5fa07ead6d47a3ab2dbdf0255782a39fe830022c0274a70394223cc8",
+    "importRevision": "da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd",
+    "provenance": "Additional upstream notice copied from the pinned plugins repository. This reference identifies that notice snapshot; it does not assert the original CLIProxyAPI import revision.",
+    "roots": ["packages/provider-node/src/provider-auth/vendor/qoder"],
+    "scope": "CLIProxyAPI-derived portions of the vendored Qoder plugin only; original notice text is preserved including its original copyright date spelling.",
+    "license": "MIT"
+  },
+  {
+    "id": "Magpie Zen Free plugin original notice",
+    "referenceRevision": "da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd",
+    "source": "https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/packages/zen-free/LICENSE",
+    "file": "packages/provider-node/src/provider-auth/vendor/zen-free/LICENSE",
+    "sha256": "170ca82fa4255729a826c5eb9abf3f0e0d2e3dde84f024accb5b806473c4ba68",
+    "importRevision": "da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd",
+    "provenance": "Package-specific MIT notice copied from the pinned plugins repository, retaining its original xiaozhou26 attribution.",
+    "roots": ["packages/provider-node/src/provider-auth/vendor/zen-free"],
+    "scope": "Vendored Zen Free runtime modules and the corresponding portions of the generated worker.",
+    "license": "MIT"
   }
 ]

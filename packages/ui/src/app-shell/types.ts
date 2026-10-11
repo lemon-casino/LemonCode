@@ -69,6 +69,9 @@ export interface CreateTaskOptions {
   initialPromptMention?: ComposerMentionPrefill;
   /** 新任务落在哪个 workspace；缺省取活动 workspace。 */
   targetWorkspace?: { workspacePath: string; workspaceIdentity?: string };
+  /** 原项目内的新空白会话复用已有 checkout；不继承会话历史。 */
+  worktree?: { bindingId: string; bindingOwnerTaskId: string; label: string };
+  newWorktree?: boolean;
 }
 
 export type CreateTaskRequest = LCodeProvider | CreateTaskOptions;

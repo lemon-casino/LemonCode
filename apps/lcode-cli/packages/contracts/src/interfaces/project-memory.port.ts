@@ -154,6 +154,15 @@ export interface ProjectMemoryOperationOptions {
 }
 
 export interface ProjectMemoryPort {
+  /** Prepare/copy a storage location through the shared writer locks; no governance state is copied. */
+  prepareStorage?(input: {
+    cliStorageRoot: string;
+    workspacePath: string;
+    workspaceIdentity?: string;
+    storageLocation: "profile" | "workspace";
+    storageRevision?: number;
+    previousStorageLocation?: "profile" | "workspace";
+  }): Promise<{ rootDir: string; copiedCount: number; conflictCount: number }>;
   /** Optional bounded observation capability; content writes remain on this port. */
   effects?: ProjectMemoryEffectPort;
   registerRoot(rootDir: string): Promise<void>;

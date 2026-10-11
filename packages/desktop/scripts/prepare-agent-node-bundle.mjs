@@ -28,7 +28,6 @@ const pnpmRunEnv = {
   // 子 workspace 不能解析根 workspace 的 @lcode/shared，Docker/web app 打包会因此卡在插件 runtime 构建。
   PNPM_CONFIG_VERIFY_DEPS_BEFORE_RUN: "false",
 };
-const BROWSER_USE_PLUGIN_PACKAGE_NAME = "@lcode/browser-use-plugin";
 
 // 平台目录命名：darwin/win32/linux + x64/arm64，
 // 支持 LCODE_TARGET_OS / LCODE_TARGET_ARCH 覆盖（交叉打包时由 CI 注入）。
@@ -73,9 +72,8 @@ const glmDir = resolve(desktopRoot, "bundled-agents", platformKey, "glm");
 // node_repl 宿主抽成独立包
 // @lcode/node-repl-host 之后，browser-use 不再产出 dist/mcp/server.js，CUA 资产
 // （docs/computer-use.md、scripts/computer-use-client.mjs）也已归 @lcode/lcode-cua-plugin。
-// 这份清单当时漏改，打包准备阶段照旧去 browser-use 要那三个文件，直接 missing runtime 挂掉。
-// dev 链路走的是 scripts/build-desktop-agent-cli.mjs 的 requiredDevPluginRuntimeBuilds（那份改对了），
-// 两份平行清单各自维护，所以 dev 测不出来 —— 权威归属见 bootstrap/official-plugin-definitions.ts。
+// 编译统一由 build-desktop-agent-cli.mjs 执行；这里登记的是目标安装包需要校验和复制的资产。
+// browser-use 不承担 node_repl/CUA 的入口，权威归属见 bootstrap/official-plugin-definitions.ts。
 const browserUseRequiredRuntimePaths = [
   "scripts/browser-client.mjs",
   "docs/api.json",
@@ -95,7 +93,6 @@ const officialPluginPackages = [
     relativePath: "apps/lcode-cli/packages/browser-use-plugin",
     requiresRuntime: true,
     requiredRuntimePaths: browserUseRequiredRuntimePaths,
-    runtimeBuildScript: "scripts/build.mjs",
     stagedPath: "packages/browser-use-plugin",
   },
 
@@ -107,7 +104,6 @@ const officialPluginPackages = [
     relativePath: "apps/lcode-cli/packages/node-repl-host",
     requiresRuntime: true,
     requiredRuntimePaths: ["dist/mcp/server.js"],
-    runtimeBuildScript: "scripts/build.mjs",
     stagedPath: "packages/node-repl-host",
   },
   {
@@ -167,15 +163,18 @@ function shouldCopyOfficialPluginAsset(sourcePath) {
   const name = basename(sourcePath);
   return !excludedOfficialPluginAssetNames.has(name) && !name.endsWith(".pyc");
 }
-const isBootstrapWithRemote = process.env.LCODE_BOOTSTRAP_WITH_REMOTE === "1";
 
 function buildCliBundle() {
   console.log("[prepare:agent-bundle] building lcode-cli app-server bundle ...");
   // 复用仓库根脚本（turbo build:desktop-agent --filter=@lcode/cli），命中缓存时几乎瞬时。
-  runCommand(process.execPath, [resolve(repoRoot, "scripts/build-desktop-agent-cli.mjs")], {
-    cwd: repoRoot,
-    env: pnpmRunEnv,
-  });
+  runCommand(
+    process.execPath,
+    [resolve(repoRoot, "scripts/build-desktop-agent-cli.mjs"), "--no-stage"],
+    {
+      cwd: repoRoot,
+      env: pnpmRunEnv,
+    },
+  );
   if (!existsSync(cliBundlePath)) {
     throw new Error(
       `[prepare:agent-bundle] expected cli bundle missing after build: ${cliBundlePath}`,
@@ -183,53 +182,12 @@ function buildCliBundle() {
   }
 }
 
-function buildOfficialPluginRuntimes() {
+function verifyOfficialPluginRuntimes() {
   for (const plugin of officialPluginPackages) {
     if (!plugin.requiresRuntime) continue;
-    console.log(`[prepare:agent-bundle] building ${plugin.packageName} runtime ...`);
-    if (isBootstrapWithRemote) {
-      buildOfficialPluginRuntimeForBootstrap(plugin);
-      assertOfficialPluginRuntime(plugin);
-      continue;
-    }
-
-    runCommand(
-      "pnpm",
-      ["--dir", resolve(repoRoot, "apps/lcode-cli"), "--filter", plugin.packageName, "build"],
-      {
-        cwd: repoRoot,
-        env: pnpmRunEnv,
-      },
-    );
+    // 编译由 build-desktop-agent-cli.mjs 统一执行，打包入口只校验本次目标要复制的资产。
     assertOfficialPluginRuntime(plugin);
   }
-}
-
-function buildOfficialPluginRuntimeForBootstrap(plugin) {
-  const pluginRoot = resolve(repoRoot, plugin.relativePath);
-  const hasCompleteRuntime = plugin.requiredRuntimePaths.every((relativePath) =>
-    existsSync(resolve(pluginRoot, ...relativePath.split("/"))),
-  );
-  if (plugin.packageName !== BROWSER_USE_PLUGIN_PACKAGE_NAME && hasCompleteRuntime) {
-    console.log(
-      `[prepare:agent-bundle] reuse existing official plugin runtime: ${plugin.packageName}`,
-    );
-    return;
-  }
-
-  // bootstrap:with-remote 会连续构建 remote assets 和桌面 agent bundle。
-  // 通过 pnpm/filter 进入插件 build 时，tsc shim 在本地低内存环境中容易被 SIGKILL；
-  // 这里仅在 bootstrap 开关下用当前 Node 直接执行等价 tsc + build-mcp，不改变插件自身 build 脚本。
-  // browser-use 的 server 与 browser-client 是同一发布对；即使旧 server.js 存在也必须重建，
-  // 否则会把旧 server 与当前 client（或缺失 client）一起 stage 到桌面安装包。
-  runCommand(process.execPath, ["../../node_modules/typescript/bin/tsc"], {
-    cwd: pluginRoot,
-    env: process.env,
-  });
-  runCommand(process.execPath, [plugin.runtimeBuildScript], {
-    cwd: pluginRoot,
-    env: process.env,
-  });
 }
 
 function assertOfficialPluginRuntime(plugin) {
@@ -285,6 +243,6 @@ function stageOfficialPlugins() {
 // browser-use runtime 的声明生成依赖 @lcode/core/dist。CI 干净检出没有该产物，
 // 必须先构建 CLI 依赖，再构建官方插件；开发机残留的 dist 曾掩盖这个顺序问题。
 buildCliBundle();
-buildOfficialPluginRuntimes();
+verifyOfficialPluginRuntimes();
 await stageBundle();
 stageOfficialPlugins();

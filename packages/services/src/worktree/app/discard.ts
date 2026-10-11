@@ -28,7 +28,7 @@ export function createWorktreeDiscard(
     )
       throw new Error("Worktree deletion confirmation does not match its binding");
     await store.assertManagedPath(value.checkoutPath);
-    if (value.checkoutPath !== store.checkout(value.id) || !value.branch.startsWith("lcode/task-"))
+    if (value.checkoutPath !== store.checkout(value.id, value.checkoutRoot) || !value.branch.startsWith("lcode/task-"))
       throw new Error("Worktree ownership does not permit task branch deletion");
     return value;
   }

@@ -1,10 +1,9 @@
-import { useState } from "react";
 import type { GitLocalBranch } from "@lcode/shared";
 import { InfoIcon, Trash2Icon } from "lucide-react";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useGitBranchDeletion } from "@/hooks/useGitBranchDeletion.js";
 import { Button } from "@/components/ui/button.js";
-import { ProjectWorktreeManagementDialog } from "@/worktree/ProjectWorktreeManagementDialog.js";
+import { useOpenWorktreeSettings } from "@/hooks/useOpenWorktreeSettings.js";
 import { GitBranchInUseDialog } from "./GitBranchInUseDialog.js";
 import {
   AlertDialog,
@@ -64,11 +63,11 @@ export function GitBranchDeleteButton({
 export function GitBranchDeletionDialog({
   workspacePath,
   workspaceIdentity,
-  workspaceRemoteSessionId,
+  workspaceRemoteSessionId: _workspaceRemoteSessionId,
   branch,
   onClose,
   onDeleted,
-  onRefresh,
+  onRefresh: _onRefresh,
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
@@ -79,12 +78,7 @@ export function GitBranchDeletionDialog({
   onRefresh?: () => void;
 }) {
   const { intl } = useLCodeIntl();
-  const [management, setManagement] = useState<{
-    taskId: string;
-    open: boolean;
-    workspacePath: string;
-    workspaceIdentity?: string;
-  } | null>(null);
+  const openWorktreeSettings = useOpenWorktreeSettings();
   const protectedBranch = branch && (branch.isCurrent || branch.checkedOutPath);
   const { pending, error, submit } = useGitBranchDeletion({
     workspacePath,
@@ -104,9 +98,8 @@ export function GitBranchDeletionDialog({
           onManage={(binding) => {
             // 占用事实由登记绑定确认；先关闭说明窗口，再沿原项目 owner 打开既有管理，不执行清理。
             onClose();
-            setManagement({
-              taskId: binding.taskId,
-              open: true,
+            openWorktreeSettings({
+              bindingId: binding.id,
               workspacePath: binding.originalWorkspacePath,
               workspaceIdentity: binding.originalWorkspaceIdentity,
             });
@@ -148,22 +141,6 @@ export function GitBranchDeletionDialog({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      {management ? (
-        <ProjectWorktreeManagementDialog
-          key={management.taskId}
-          workspacePath={management.workspacePath}
-          workspaceIdentity={management.workspaceIdentity}
-          workspaceRemoteSessionId={workspaceRemoteSessionId}
-          initialSessionId={management.taskId}
-          open={management.open}
-          onWorktreeDeleted={(binding) => onDeleted(binding.branch)}
-          onOpenChange={(open) => {
-            // 隐藏保留管理控制器，避免在途归档或差异返回被卸载；关闭后重新读取 Git 占用。
-            setManagement((previous) => (previous ? { ...previous, open } : null));
-            if (!open) onRefresh?.();
-          }}
-        />
-      ) : null}
     </>
   );
 }

@@ -64,23 +64,47 @@ export function evidenceFixture() {
       if (entry.type !== "goal/evidence/v1" || !entries.has(entry.id)) entries.set(entry.id, entry);
     },
     beginGoalEvidenceExecution: async ({ expected, attempt }: BeginGoalEvidenceExecutionInput) => {
-      if (goal.targetID !== expected.targetID || goal.status !== "active" || (goal.stateRevision ?? 0) !== expected.stateRevision || !goal.acceptance || goalAcceptanceHash(goal.acceptance) !== expected.acceptanceHash)
+      if (
+        goal.targetID !== expected.targetID ||
+        goal.status !== "active" ||
+        (goal.stateRevision ?? 0) !== expected.stateRevision ||
+        !goal.acceptance ||
+        goalAcceptanceHash(goal.acceptance) !== expected.acceptanceHash
+      )
         return { kind: "stale" };
       const duplicate = entries.get(attempt.attemptId);
       if (duplicate) return { kind: "duplicate", attempt: duplicate.data };
-      const receiptIds = new Set([...entries.values()].filter((entry) => entry.type === "goal/evidence/v1").map((entry) => entry.id));
+      const receiptIds = new Set(
+        [...entries.values()]
+          .filter((entry) => entry.type === "goal/evidence/v1")
+          .map((entry) => entry.id),
+      );
       for (const entry of entries.values())
         if (entry.type === SESSION_ENTRY_GOAL_EVIDENCE_ATTEMPT)
-          for (const head of (entry.data as BeginGoalEvidenceExecutionInput["attempt"]).heads) receiptIds.add(head.receiptId);
+          for (const head of (entry.data as BeginGoalEvidenceExecutionInput["attempt"]).heads)
+            receiptIds.add(head.receiptId);
       for (const head of attempt.heads) receiptIds.add(head.receiptId);
       if (receiptIds.size > 512) return { kind: "full" };
-      entries.set(attempt.attemptId, { id: attempt.attemptId, sessionID: goal.sessionID, type: SESSION_ENTRY_GOAL_EVIDENCE_ATTEMPT, time: { created: attempt.startedAt, updated: attempt.startedAt }, data: attempt });
+      entries.set(attempt.attemptId, {
+        id: attempt.attemptId,
+        sessionID: goal.sessionID,
+        type: SESSION_ENTRY_GOAL_EVIDENCE_ATTEMPT,
+        time: { created: attempt.startedAt, updated: attempt.startedAt },
+        data: attempt,
+      });
       for (const head of attempt.heads)
-        entries.set(head.headId, { id: head.headId, sessionID: goal.sessionID, type: SESSION_ENTRY_GOAL_EVIDENCE_HEAD, time: { created: head.startedAt, updated: head.startedAt }, data: head });
+        entries.set(head.headId, {
+          id: head.headId,
+          sessionID: goal.sessionID,
+          type: SESSION_ENTRY_GOAL_EVIDENCE_HEAD,
+          time: { created: head.startedAt, updated: head.startedAt },
+          data: head,
+        });
       return { kind: "admitted", attempt };
     },
     getSession: async () => ({ id: goal.sessionID, directory: cwd, workspaceID: "identity" }),
-    sessionEntries: async ({ type, limit }: { type?: string; limit?: number }) => [...entries.values()].filter((entry) => !type || entry.type === type).slice(0, limit),
+    sessionEntries: async ({ type, limit }: { type?: string; limit?: number }) =>
+      [...entries.values()].filter((entry) => !type || entry.type === type).slice(0, limit),
   } as unknown as SessionStorePort;
   const owner: GoalEvidenceOwner = {
     sessionId: goal.sessionID,

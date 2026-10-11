@@ -40,6 +40,8 @@ const featuresSchema = z.object({
 
 const memorySchema = z.object({
   use: z.boolean().optional(),
+  storageLocation: z.enum(["profile", "workspace"]).optional(),
+  storageRevision: z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).optional(),
   observationEnabled: z.boolean().optional(),
   rankingExperimentEnabled: z.boolean().optional(),
 });

@@ -1,4 +1,5 @@
 import { TID_V4_TASK_OPEN_IN_SPLIT } from "@lcode/shared";
+import type { TaskDirectoryActions } from "@/useTaskListItemContextActions.js";
 
 interface TaskActionMenuItemProps {
   children: React.ReactNode;
@@ -16,6 +17,7 @@ export function TaskActionMenuContent({
   intl,
   isPinned,
   fileManagerLabel,
+  directory,
   taskSessionFile,
   activeSessionId,
   taskNativeSessionLogFile,
@@ -45,6 +47,7 @@ export function TaskActionMenuContent({
   };
   isPinned: boolean;
   fileManagerLabel: string;
+  directory?: TaskDirectoryActions;
   taskSessionFile: { loading: boolean; path: string | null; exists: boolean };
   activeSessionId?: string | null;
   taskNativeSessionLogFile: {
@@ -135,10 +138,10 @@ export function TaskActionMenuContent({
       <Separator />
       {!hideMobileUnsupportedActions ? (
         <Item
-          disabled={disableTaskActions}
-          title={disableTaskActions ? disabledReason : undefined}
+          disabled={disableTaskActions || (directory && !directory.canOpen)}
+          title={disabledReason ?? directory?.disabledReason ?? directory?.openDisabledReason}
           onSelect={() => {
-            if (!disableTaskActions) {
+            if (!disableTaskActions && (!directory || directory.canOpen)) {
               onOpenTaskPathInFileManager();
             }
           }}
@@ -147,19 +150,22 @@ export function TaskActionMenuContent({
         </Item>
       ) : null}
       <Item
-        disabled={disableTaskActions}
-        title={disableTaskActions ? disabledReason : undefined}
+        disabled={disableTaskActions || (directory && !directory.path)}
+        title={disabledReason ?? directory?.disabledReason}
         onSelect={onCopyWorkspacePath}
       >
-        {intl.formatMessage({ id: "appHeader.copyPath" })}
+        {directory?.copyLabel ?? intl.formatMessage({ id: "appHeader.copyPath" })}
       </Item>
-      <Item
-        disabled={taskTargetActionsDisabled || taskSessionFile.loading || !taskSessionFile.path}
-        title={taskTargetActionsDisabled ? disabledReason : undefined}
-        onSelect={onCopyTaskPath}
-      >
-        {intl.formatMessage({ id: "appHeader.copyTaskPath" })}
-      </Item>
+      {/* 当前适配器可能仅返回合成的 .lcode-session 路径；不存在的文件不能冒充可用会话文件。 */}
+      {taskSessionFile.exists ? (
+        <Item
+          disabled={taskTargetActionsDisabled || taskSessionFile.loading || !taskSessionFile.path}
+          title={taskTargetActionsDisabled ? disabledReason : undefined}
+          onSelect={onCopyTaskPath}
+        >
+          {intl.formatMessage({ id: "appHeader.copyTaskPath" })}
+        </Item>
+      ) : null}
       <Item
         disabled={
           taskTargetActionsDisabled ||

@@ -40,6 +40,7 @@ interface TimelineTaskItemHandlers {
 
 export interface SidebarTimelineGroup {
   key: string;
+  collapsed?: boolean;
   header?: ReactNode;
   label: Parameters<typeof getTaskTimelineGroupMessage>[0] | null;
   items: LCodeTaskMeta[];
@@ -694,7 +695,7 @@ export function WorkspaceTimelineTasksSection({
                       {intl.formatMessage({ id: labelMessage.id }, labelMessage.values)}
                     </div>
                   ) : null}
-                  <ul className="space-y-0.5">
+                  <ul className="space-y-0.5" hidden={group.collapsed}>
                     {group.items.map((item) => {
                       const itemKey = buildTimelineItemKey(
                         item.workspacePath,

@@ -29,6 +29,8 @@ import {
   canUseSelectedGitBackupProviders,
   projectGitBackupWorkspaceRemoval,
   runGitBackup,
+  canEnableGitBackup,
+  updateGitBackupWorkspaceSelection,
 } from "./useGitBackupActions.js";
 
 import { resolveGitBackupConnectionKind } from "./useGitBackupRouting.js";
@@ -52,6 +54,62 @@ const status: GitBackupStatus = {
   running: true,
   error: "previous backup failed",
 };
+
+test("auto backup readiness requires a selected workspace independently of the current editor", () => {
+  assert.equal(canEnableGitBackup(config, status), false);
+  assert.equal(
+    canEnableGitBackup({ ...config, workspaces: [{ workspacePath: "/chosen" }] }, status),
+    true,
+  );
+});
+
+test("workspace selection commits only membership, keeps identity isolation and projects accepted writes", async () => {
+  const local = { workspacePath: "/same/path" };
+  const remote = { workspacePath: "/same/path", workspaceIdentity: "remote:one" };
+  const calls: unknown[] = [];
+  const service = {
+    configure: async (...args: unknown[]) => {
+      calls.push(args);
+    },
+    removeWorkspace: async (target: unknown) => {
+      calls.push(["remove", target]);
+    },
+  } as unknown as IGitBackupService;
+  const selected = await updateGitBackupWorkspaceSelection(
+    service,
+    { ...config, workspaces: [local] },
+    status,
+    remote,
+    true,
+  );
+  assert.deepEqual(calls, [[{}, remote]]);
+  assert.deepEqual(selected.config.workspaces, [local, remote]);
+  assert.equal(selected.config.enabled, false);
+  const removed = await updateGitBackupWorkspaceSelection(
+    service,
+    selected.config,
+    status,
+    local,
+    false,
+  );
+  assert.deepEqual(removed.config.workspaces, [remote]);
+  assert.deepEqual(calls[1], ["remove", local]);
+  await assert.rejects(
+    updateGitBackupWorkspaceSelection(
+      {
+        configure: async () => {
+          throw new Error("save failed");
+        },
+      } as unknown as IGitBackupService,
+      config,
+      status,
+      local,
+      true,
+    ),
+    /save failed/,
+  );
+  assert.deepEqual(config.workspaces, []);
+});
 
 test("accepted last-workspace removal projects disabled config and status before any readback", () => {
   const target = { workspacePath: "/same/path", workspaceIdentity: "remote:one" };

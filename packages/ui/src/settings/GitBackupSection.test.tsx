@@ -62,7 +62,8 @@ function model(
     setEnabled: action,
     testConnection: action,
     backup: action,
-    removeWorkspace: action,
+    availableWorkspaces: config.workspaces,
+    setWorkspaceSelected: action,
     viewPublicKey: action,
     exportPrivateKey: action,
     updateDraft: () => {},
@@ -99,8 +100,12 @@ test("backup fields have associated accessible labels, saved secret placeholder 
   assert.match(markup, /sm:grid-cols-2/);
   assert.match(markup, /No successful backup yet/);
   assert.match(markup, /Uncommitted working files are not backed up/);
-  assert.match(markup, /Registered Workspaces/);
-  assert.match(markup, /aria-label="Remove \/same\/long\/path from auto backup"/);
+  assert.match(markup, /Auto Backup Workspaces/);
+  const checkbox = markup.match(/<button[^>]*data-testid="git-backup-workspace-select"[^>]*>/)?.[0];
+  assert.ok(checkbox);
+  assert.match(checkbox, /aria-checked="true"/);
+  const checkboxId = checkbox.match(/id="([^"]+)"/)?.[1];
+  assert.ok(checkboxId && markup.includes(`for="${checkboxId}"`));
 });
 
 test("loading, read failure retry, missing Host and remote disconnect are explicit", () => {

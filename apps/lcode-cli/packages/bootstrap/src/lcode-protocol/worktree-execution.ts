@@ -69,6 +69,7 @@ export async function prepareProtocolExecution(
   if (input.execution?.mode !== "worktree")
     return { workspace: input.workspace, mcpServers: input.mcpServers };
   const origin = input.workspace;
+  const existingBinding = input.execution.existingBinding;
   if (
     (input.execution.originWorkspacePath &&
       input.execution.originWorkspacePath !== origin.workspacePath) ||
@@ -77,7 +78,7 @@ export async function prepareProtocolExecution(
   ) {
     throw new Error("Worktree execution origin does not match the requested workspace");
   }
-  if (input.execution.environmentPolicy === "managed") {
+  if (!existingBinding && input.execution.environmentPolicy === "managed") {
     // 托管能力属于 Host，不是 CLI；先协商再产生 checkout 副作用，缺方法/动作不能降级。
     const { capabilities } = await context.requestClient(
       lcodeProtocolMethods.runtimeEnvironmentCapabilities,
@@ -105,17 +106,27 @@ export async function prepareProtocolExecution(
       workspacePath: origin.workspacePath,
       workspaceIdentity: origin.workspaceIdentity,
       projectId: input.execution.projectId,
-      environmentPolicy: input.execution.environmentPolicy,
-      baseRef: input.execution.baseRef,
-      setupCommands: input.execution.setupCommands,
-      copyIgnoredPaths: input.execution.copyIgnoredPaths,
-      retrySetup: input.execution.retrySetup,
-      sourceFolderPaths: filesystemMcpRoots(input.mcpServers, origin.workspacePath),
+      ...(existingBinding
+        ? {
+            // 空白同树会话只登记 owner alias；不能复用 fork 命令复制对话，也不能按 checkout 新建 Host。
+            parentBinding: { ...existingBinding, parentTaskId: existingBinding.bindingOwnerTaskId },
+          }
+        : {
+            environmentPolicy: input.execution.environmentPolicy,
+            baseRef: input.execution.baseRef,
+            setupCommands: input.execution.setupCommands,
+            copyIgnoredPaths: input.execution.copyIgnoredPaths,
+            retrySetup: input.execution.retrySetup,
+            sourceFolderPaths: filesystemMcpRoots(input.mcpServers, origin.workspacePath),
+          }),
     },
     worktreeExecutionBindingSchema,
   );
-  assertReadyBinding(binding, input.taskId);
+  assertReadyBinding(binding, existingBinding?.bindingOwnerTaskId ?? input.taskId);
+  if (existingBinding && binding.id !== existingBinding.bindingId)
+    throw new Error("Existing worktree binding mismatch");
   if (
+    !existingBinding &&
     input.execution.environmentPolicy === "managed" &&
     !runtimeEnvironmentReferenceSchema.safeParse(binding.environmentRef).success
   )
@@ -127,6 +138,9 @@ export async function prepareProtocolExecution(
     throw new Error("Worktree binding origin mismatch");
   const workspace = {
     ...bindingWorkspace(binding),
+    ...(existingBinding
+      ? { bindingOwnerTaskId: binding.taskId, bindingReuse: "existing" as const }
+      : {}),
     ...(origin.remoteSessionId ? { remoteSessionId: origin.remoteSessionId } : {}),
   };
   await retainRuntimeEnvironmentSession(context, workspace, input.taskId);
@@ -159,7 +173,9 @@ export async function restoreProtocolExecution(
   const reference = lcodeWorkspaceRefSchema.parse(entry.data);
   if (!reference.executionBindingId || !reference.originWorkspacePath)
     throw new Error("Invalid persisted worktree binding reference");
-  if (reference.bindingOwnerTaskId) {
+  if (reference.bindingReuse && !reference.bindingOwnerTaskId)
+    throw new Error("Existing worktree reference has no binding owner");
+  if (reference.bindingOwnerTaskId && !reference.bindingReuse) {
     if (input.ancestorTaskIds?.includes(input.taskId))
       throw new Error("Inherited worktree binding parent cycle");
     const store = context.deps.sessionStore;
@@ -213,7 +229,10 @@ export async function restoreProtocolExecution(
   const { binding } = await context.requestClient(
     lcodeProtocolMethods.worktreeGetBinding,
     {
-      taskId: reference.bindingOwnerTaskId ?? input.taskId,
+      // 空白同树会话没有 parentID；只能查询自己的持久 alias，不能仅凭根 owner 放行。
+      taskId: reference.bindingReuse
+        ? input.taskId
+        : (reference.bindingOwnerTaskId ?? input.taskId),
       workspacePath: reference.originWorkspacePath,
       workspaceIdentity: reference.originWorkspaceIdentity,
     },
@@ -253,6 +272,7 @@ export async function restoreProtocolExecution(
     // 旧会话没有环境引用不能从 Host 当前 binding 偷渡升级；仅受信维护 CAS 能改持久引用。
     ...bindingWorkspace({ ...binding, environmentRef: reference.environmentRef }),
     ...(reference.bindingOwnerTaskId ? { bindingOwnerTaskId: reference.bindingOwnerTaskId } : {}),
+    ...(reference.bindingReuse ? { bindingReuse: reference.bindingReuse } : {}),
     ...(reference.remoteSessionId ? { remoteSessionId: reference.remoteSessionId } : {}),
   };
   await retainRuntimeEnvironmentSession(context, workspace, input.taskId);

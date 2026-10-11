@@ -38,6 +38,9 @@ import {
 import { ModelProviderSectionDetail } from "./model-provider-section/Detail.js";
 import { ModelProviderSectionLayout } from "./model-provider-section/SectionLayout.js";
 import { ProviderTemplatePicker } from "./model-provider-section/ProviderTemplatePicker.js";
+import { ProviderAccountsDialog } from "./model-provider-section/ProviderAccountsDialog.js";
+import { InlineEditableProviderCard } from "./model-provider-section/InlineEditableProviderCard.js";
+import { useProviderAccountsDialog } from "@/hooks/useProviderAccountsDialog.js";
 import type { CodingPlanLoginOptions } from "./model-provider-section/codingPlanPricingCards.js";
 import { useModelProviderNavigation } from "./model-provider-section/useModelProviderNavigation.js";
 import { reportPresetSubscriptionSuccess } from "./model-provider-section/oauthActions.js";
@@ -311,6 +314,11 @@ export function ModelProviderSection({
   const [, setCodingPlanProductsRefreshToken] = useState(0);
   const [pendingCreatedProviderId, setPendingCreatedProviderId] = useState<string | null>(null);
   const [templatePickerOpen, setTemplatePickerOpen] = useState(false);
+  const {
+    selection: oauthDialogSelection,
+    openChannel: openOAuthAccounts,
+    close: closeOAuthAccounts,
+  } = useProviderAccountsDialog();
   const [creatingProvider, setCreatingProvider] = useState(false);
 
   useEffect(() => {
@@ -1079,6 +1087,7 @@ export function ModelProviderSection({
       ) : null}
       {templatePickerOpen ? (
         <ProviderTemplatePicker
+          onManageOAuthAccounts={openOAuthAccounts}
           templates={providerTemplates}
           creating={creatingProvider}
           onBack={() => setTemplatePickerOpen(false)}
@@ -1153,6 +1162,37 @@ export function ModelProviderSection({
           }}
         />
       )}
+      {oauthDialogSelection ? (
+        <ProviderAccountsDialog
+          key={oauthDialogSelection.channelId}
+          {...oauthDialogSelection}
+          onClose={closeOAuthAccounts}
+          modelEditor={(listOAuthModels) => {
+            const provider = modelProviders.find(
+              (item) =>
+                item.config.access?.type === "oauth-account" &&
+                item.config.access.channelId === oauthDialogSelection.channelId,
+            );
+            return provider ? (
+              <InlineEditableProviderCard
+                provider={provider}
+                onSave={handleSave}
+                onAddPersonalModel={addPersonalModel}
+                onSavePersonalModelDraft={savePersonalModelDraft}
+                onSetPersonalModelEnabled={setPersonalModelEnabled}
+                onDeletePersonalModel={deletePersonalModel}
+                onTestModel={testModelConnectivity}
+                onListRemoteModels={listOAuthModels}
+                onReorderModelIds={(ids) => reorderProviderModels(provider.providerId, ids)}
+                settingsRevision={providerSettingsView?.revision}
+                hideConnectionSettings
+                readOnlyEndpoints
+                headerVisible={false}
+              />
+            ) : null;
+          }}
+        />
+      ) : null}
     </ModelProviderSectionLayout>
   );
 }

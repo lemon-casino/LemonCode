@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import type { LCodeTaskMeta } from "@lcode/shared";
 import { GitForkIcon, FolderGit2Icon, FolderIcon, LoaderIcon } from "lucide-react";
 import {
@@ -14,6 +13,7 @@ import {
   DropdownMenuSubTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import { useTaskFork, type TaskForkNavigation } from "@/hooks/useTaskFork.js";
+import { useTaskForkAvailability } from "@/hooks/useTaskForkAvailability.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { TaskHandoffMenuItem } from "@/TaskHandoffMenuItem.js";
 
@@ -32,34 +32,7 @@ export function TaskForkMenu({
 }) {
   const { intl } = useLCodeIntl();
   const { fork, pending, resolved } = useTaskFork(task, remoteSessionId, onCreated);
-  const [capability, setCapability] = useState<{ supported: boolean; reason?: string }>({
-    supported: false,
-  });
-  useEffect(() => {
-    let active = true;
-    const service = resolved.services.worktreeService;
-    if (!resolved.rpcReady || !service || disabled) return;
-    void service
-      .getCapabilities({
-        workspacePath: task.workspacePath,
-        workspaceIdentity: task.workspaceIdentity,
-      })
-      .then(
-        (value) => {
-          if (active) setCapability({ supported: value.create, reason: value.reason });
-        },
-        (error: unknown) => {
-          if (active)
-            setCapability({
-              supported: false,
-              reason: error instanceof Error ? error.message : String(error),
-            });
-        },
-      );
-    return () => {
-      active = false;
-    };
-  }, [resolved.rpcReady, resolved.services, task.workspacePath, task.workspaceIdentity, disabled]);
+  const availability = useTaskForkAvailability(task, resolved, !disabled);
   const Sub = dropdown ? DropdownMenuSub : ContextMenuSub;
   const Trigger = dropdown ? DropdownMenuSubTrigger : ContextMenuSubTrigger;
   const Content = dropdown ? DropdownMenuSubContent : ContextMenuSubContent;
@@ -74,7 +47,7 @@ export function TaskForkMenu({
         </Trigger>
         <Content className="w-80 max-w-[calc(100vw-2rem)] text-ui-sm">
           <Item
-            disabled={blocked}
+            disabled={blocked || !availability.same}
             data-testid="task-fork-same"
             onSelect={(event) => {
               event.preventDefault();
@@ -100,8 +73,8 @@ export function TaskForkMenu({
             </span>
           </Item>
           <Item
-            disabled={blocked || !capability.supported}
-            title={capability.reason}
+            disabled={blocked || !availability.worktree}
+            title={availability.reason}
             data-testid="task-fork-worktree"
             onSelect={(event) => {
               event.preventDefault();

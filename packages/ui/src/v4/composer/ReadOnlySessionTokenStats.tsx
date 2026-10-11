@@ -5,6 +5,7 @@ import { readChildSessionTokenTotal, readLiveOutputObservation } from "./session
 import { useLiveOutputRate } from "./useLiveOutputRate.js";
 import { readSessionOutputSpeed } from "./sessionOutputSpeed.js";
 import { SessionOutputSpeedValue } from "./SessionOutputSpeedValue.js";
+import { SessionContextTrend } from "./SessionContextTrend.js";
 
 export function ReadOnlySessionTokenStats({ snapshot }: { snapshot: ConversationSnapshot }) {
   const { intl, locale } = useLCodeIntl();
@@ -41,6 +42,7 @@ export function ReadOnlySessionTokenStats({ snapshot }: { snapshot: Conversation
         </span>
       )}
       <SessionOutputSpeedValue speed={outputSpeed} intl={intl} locale={locale} />
+      <SessionContextTrend trend={snapshot.usage.contextTrend} />
     </div>
   );
 }

@@ -7,7 +7,7 @@ import {
   type ModelUsage,
   getModelUsageContextTokens,
 } from "@lcode/contracts";
-import type { ConversationDelta } from "@lcode/shared/lcode-protocol-v4";
+import { mergeContextTrend, type ConversationDelta } from "@lcode/shared/lcode-protocol-v4";
 import { acceptsActiveModelEvent, setApiRetry } from "./product-projection-model-recovery.js";
 import { turnIdOf, findRow } from "./product-projection-rows.js";
 
@@ -79,12 +79,44 @@ export function onModelComplete(host: ModelCompleteHost, event: SessionEvent): C
   if (isMainTurn) host.contextWindowState.usedTokens = usedTokens;
   const maxTokens = payload.contextWindow ?? host.contextWindowState.maxTokens;
   const cumulative = host.snapshot.usage.cumulative;
+  const sample = payload.contextSample;
+  const sampleTokens = getModelUsageContextTokens(usage);
+  const isCurrentSessionTurn =
+    String(event.sessionId) === host.snapshot.sessionId &&
+    (!host.contextWindowState.trendRewoundTurnId ||
+      (host.currentTurnId !== host.contextWindowState.trendRewoundTurnId &&
+        String(event.turnId) !== host.contextWindowState.trendRewoundTurnId)) &&
+    (host.currentTurnId === null ||
+      event.turnId === undefined ||
+      String(event.turnId) === host.currentTurnId);
+  const contextTrend =
+    sample && sampleTokens !== undefined && isCurrentSessionTurn
+      ? mergeContextTrend(host.snapshot.usage.contextTrend, [
+          {
+            id: `request:${sample.assistantMessageId}`,
+            timestamp: event.timestamp.getTime(),
+            kind: "request",
+            usedTokens: sampleTokens,
+            // payload 中的冻结窗口才是本次请求事实；不使用可能已切换的 projection 容量。
+            maxTokens:
+              payload.contextWindow &&
+              Number.isFinite(payload.contextWindow) &&
+              payload.contextWindow > 0
+                ? payload.contextWindow
+                : null,
+            providerId: sample.providerId,
+            modelId: sample.modelId,
+            ...(event.turnId ? { turnId: String(event.turnId) } : {}),
+          },
+        ])
+      : host.snapshot.usage.contextTrend;
   deltas.push({
     op: "state.updated",
     patch: {
       usage: {
         // usage 是键级替换；保留网络完成事实派生的请求均速，不让 ModelComplete 丢弃它。
         ...host.snapshot.usage,
+        ...(contextTrend ? { contextTrend } : {}),
         // Bug 原因：registry 已显式清除窗口时，缺少 contextWindow 的 ModelComplete
         // 过去会用 0 重建对象，破坏未知容量语义。token 继续在侧状态和累计值中更新。
         contextWindow: !isMainTurn

@@ -1,4 +1,5 @@
 import type { LCodeTaskMeta } from "@lcode/shared";
+import type { TaskDirectoryActions } from "@/useTaskListItemContextActions.js";
 import { TaskForkMenu } from "@/TaskForkMenu.js";
 import type { TaskForkNavigation } from "@/hooks/useTaskFork.js";
 import {
@@ -18,6 +19,7 @@ export function GroupedTaskContextMenuContent({
   groups,
   intl,
   fileManagerLabel,
+  directory,
   taskSessionFile,
   taskNativeSessionLogFile,
   onMoveTaskToGroup,
@@ -39,7 +41,8 @@ export function GroupedTaskContextMenuContent({
     formatMessage: (desc: { id: string }) => string;
   };
   fileManagerLabel: string;
-  taskSessionFile: { loading: boolean; path: string | null };
+  directory: TaskDirectoryActions;
+  taskSessionFile: { loading: boolean; path: string | null; exists: boolean };
   taskNativeSessionLogFile: { loading: boolean; path: string | null };
   onMoveTaskToGroup: (task: LCodeTaskMeta, groupId: string | null) => void;
   onMoveTaskToTop: (task: LCodeTaskMeta) => void;
@@ -142,10 +145,10 @@ export function GroupedTaskContextMenuContent({
       </ContextMenuItem>
       <ContextMenuSeparator />
       <ContextMenuItem
-        disabled={Boolean(disabledReason)}
-        title={disabledReason}
+        disabled={Boolean(disabledReason) || !directory.canOpen}
+        title={disabledReason ?? directory.disabledReason ?? directory.openDisabledReason}
         onSelect={() => {
-          if (!disabledReason) {
+          if (!disabledReason && directory.canOpen) {
             onOpenTaskPathInFileManager();
           }
         }}
@@ -153,20 +156,22 @@ export function GroupedTaskContextMenuContent({
         {fileManagerLabel}
       </ContextMenuItem>
       <ContextMenuItem
-        onSelect={() =>
-          onCopyText(intl.formatMessage({ id: "appHeader.copyPath" }), task.workspacePath)
-        }
+        disabled={Boolean(disabledReason) || !directory.path}
+        title={disabledReason ?? directory.disabledReason}
+        onSelect={() => onCopyText(directory.copyLabel, directory.path)}
       >
-        {intl.formatMessage({ id: "appHeader.copyPath" })}
+        {directory.copyLabel}
       </ContextMenuItem>
-      <ContextMenuItem
-        disabled={taskSessionFile.loading || !taskSessionFile.path}
-        onSelect={() =>
-          onCopyText(intl.formatMessage({ id: "appHeader.copyTaskPath" }), taskSessionFile.path)
-        }
-      >
-        {intl.formatMessage({ id: "appHeader.copyTaskPath" })}
-      </ContextMenuItem>
+      {taskSessionFile.exists ? (
+        <ContextMenuItem
+          disabled={taskSessionFile.loading || !taskSessionFile.path}
+          onSelect={() =>
+            onCopyText(intl.formatMessage({ id: "appHeader.copyTaskPath" }), taskSessionFile.path)
+          }
+        >
+          {intl.formatMessage({ id: "appHeader.copyTaskPath" })}
+        </ContextMenuItem>
+      ) : null}
       <ContextMenuItem
         disabled={taskNativeSessionLogFile.loading || !taskNativeSessionLogFile.path}
         onSelect={() =>

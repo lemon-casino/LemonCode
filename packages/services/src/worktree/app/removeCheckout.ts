@@ -3,10 +3,10 @@ import type { WorktreeContext } from "./ports.js";
 /** 调用者持有 checkout lease，并已用绑定的删除记录或归档快照确认清理范围。 */
 export async function removeManagedCheckout(
   { store, git }: WorktreeContext,
-  checkout: { id: string; checkoutPath: string; repositoryRoot: string },
+  checkout: { id: string; checkoutPath: string; checkoutRoot?: string; repositoryRoot: string },
 ) {
   await store.assertManagedPath(checkout.checkoutPath);
-  if (checkout.checkoutPath !== store.checkout(checkout.id))
+  if (checkout.checkoutPath !== store.checkout(checkout.id, checkout.checkoutRoot))
     throw new Error("Managed worktree record path does not match its ID");
   if (await git.registered(checkout.repositoryRoot, checkout.checkoutPath)) {
     try {

@@ -1,7 +1,7 @@
 import type { ProviderSettingsView } from "@lcode/services";
 import { ArrowLeftIcon, ChevronRightIcon, PlusIcon } from "lucide-react";
 import { resolveProviderTemplateName } from "@lcode/provider";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   TID_MODEL_PROVIDER_TEMPLATE_BACK_BUTTON,
   TID_MODEL_PROVIDER_TEMPLATE_ITEM,
@@ -9,12 +9,14 @@ import {
   testId,
 } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { logger } from "@/logger.js";
 import { groupProviderTemplates } from "./providerTemplateGroups.js";
 import { ProviderLogo } from "./ProviderLogo.js";
 import { useProviderDetailFeedback } from "./ProviderDetailFeedback.js";
+import { ProviderAccountsPanel } from "./ProviderAccountsPanel.js";
 
 type ProviderTemplateCreate = (templateId: string) => Promise<void>;
 type CustomProviderCreate = (label: string) => Promise<void>;
@@ -25,14 +27,17 @@ export function ProviderTemplatePicker({
   onCreateFromTemplate,
   onCreateCustom,
   creating,
+  onManageOAuthAccounts,
 }: {
   templates: ProviderSettingsView["providerTemplates"];
   onBack: () => void;
   onCreateFromTemplate: ProviderTemplateCreate;
   onCreateCustom: CustomProviderCreate;
   creating: boolean;
+  onManageOAuthAccounts: (channelId: string) => void;
 }) {
   const { intl, locale } = useLCodeIntl();
+  const [category, setCategory] = useState("api");
   const { dismissFeedback, showFeedback } = useProviderDetailFeedback();
   const customLabel = intl.formatMessage({ id: "settings.modelProvider.newProviderName" });
   const groups = groupProviderTemplates(templates);
@@ -75,49 +80,60 @@ export function ProviderTemplatePicker({
         </h2>
       </div>
 
-      <div className="space-y-6">
-        {groups.map((group) => (
-          <section key={group.id} data-provider-template-group={group.id} className="space-y-3">
-            <h3 className="text-ui-base font-medium text-foreground-subtle">
-              {intl.formatMessage({ id: `settings.modelProvider.templateGroup.${group.id}` })}
-            </h3>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {group.id === "other" ? (
-                <ProviderTemplateCard
-                  label={intl.formatMessage({ id: "settings.modelProvider.createCustomProvider" })}
-                  disabled={creating}
-                  testId={testId(TID_MODEL_PROVIDER_TEMPLATE_ITEM, "custom")}
-                  icon={
-                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-hover">
-                      <PlusIcon className="size-4" aria-hidden="true" />
-                    </span>
-                  }
-                  onClick={() => void createWithFeedback(() => onCreateCustom(customLabel))}
-                />
-              ) : null}
-              {group.templates.map((template) => {
-                const label = resolveProviderTemplateName(template.templateId, template, locale);
-                return (
+      <Tabs value={category} onValueChange={setCategory} className="gap-4">
+        <TabsList aria-label={intl.formatMessage({ id: "settings.oauth.category" })}>
+          <TabsTrigger value="oauth">OAuth</TabsTrigger>
+          <TabsTrigger value="api">API</TabsTrigger>
+        </TabsList>
+        <TabsContent value="oauth">
+          <ProviderAccountsPanel onManageChannel={onManageOAuthAccounts} />
+        </TabsContent>
+        <TabsContent value="api" className="space-y-6">
+          {groups.map((group) => (
+            <section key={group.id} data-provider-template-group={group.id} className="space-y-3">
+              <h3 className="text-ui-base font-medium text-foreground-subtle">
+                {intl.formatMessage({ id: `settings.modelProvider.templateGroup.${group.id}` })}
+              </h3>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {group.id === "other" ? (
                   <ProviderTemplateCard
-                    key={template.templateId}
-                    label={label}
+                    label={intl.formatMessage({
+                      id: "settings.modelProvider.createCustomProvider",
+                    })}
                     disabled={creating}
-                    testId={testId(TID_MODEL_PROVIDER_TEMPLATE_ITEM, template.templateId)}
+                    testId={testId(TID_MODEL_PROVIDER_TEMPLATE_ITEM, "custom")}
                     icon={
-                      <span className="flex size-9 shrink-0 items-center justify-center">
-                        <ProviderLogo logo={template.config.logo} className="size-8" />
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-hover">
+                        <PlusIcon className="size-4" aria-hidden="true" />
                       </span>
                     }
-                    onClick={() =>
-                      void createWithFeedback(() => onCreateFromTemplate(template.templateId))
-                    }
+                    onClick={() => void createWithFeedback(() => onCreateCustom(customLabel))}
                   />
-                );
-              })}
-            </div>
-          </section>
-        ))}
-      </div>
+                ) : null}
+                {group.templates.map((template) => {
+                  const label = resolveProviderTemplateName(template.templateId, template, locale);
+                  return (
+                    <ProviderTemplateCard
+                      key={template.templateId}
+                      label={label}
+                      disabled={creating}
+                      testId={testId(TID_MODEL_PROVIDER_TEMPLATE_ITEM, template.templateId)}
+                      icon={
+                        <span className="flex size-9 shrink-0 items-center justify-center">
+                          <ProviderLogo logo={template.config.logo} className="size-8" />
+                        </span>
+                      }
+                      onClick={() =>
+                        void createWithFeedback(() => onCreateFromTemplate(template.templateId))
+                      }
+                    />
+                  );
+                })}
+              </div>
+            </section>
+          ))}
+        </TabsContent>
+      </Tabs>
     </section>
   );
 }

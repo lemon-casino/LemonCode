@@ -17,20 +17,19 @@ export async function executeWorkflowWorldWithEvidence(
     return execute();
   let actorVersion: string | undefined;
   const capture = await beginGoalExecution(deps.goalEvidenceOwner, {
-      source: "world.run",
-      command: args[0],
-      args:
-        Array.isArray(args[1]) && args[1].every((item) => typeof item === "string") ? args[1] : [],
-      executionId: `${execution.runId}/${execution.instance.siteId}/${execution.instance.ordinal}/${randomUUID()}`,
-      startedAt: Date.now(),
-    });
-    // 统一验收必须等相关写入结算；仍在运行的 ask 不能被一条局部检查替代。
-    if (capture) {
-      const actors = actorEvidenceState(deps, execution.runId);
-      actorVersion = actors.version;
-      if (actors.unsettled)
-        for (const requirement of capture.requirements) requirement.before = null;
-    }
+    source: "world.run",
+    command: args[0],
+    args:
+      Array.isArray(args[1]) && args[1].every((item) => typeof item === "string") ? args[1] : [],
+    executionId: `${execution.runId}/${execution.instance.siteId}/${execution.instance.ordinal}/${randomUUID()}`,
+    startedAt: Date.now(),
+  });
+  // 统一验收必须等相关写入结算；仍在运行的 ask 不能被一条局部检查替代。
+  if (capture) {
+    const actors = actorEvidenceState(deps, execution.runId);
+    actorVersion = actors.version;
+    if (actors.unsettled) for (const requirement of capture.requirements) requirement.before = null;
+  }
   let result: unknown;
   try {
     result = await execute();

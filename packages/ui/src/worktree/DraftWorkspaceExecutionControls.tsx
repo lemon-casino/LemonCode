@@ -42,7 +42,11 @@ export function DraftWorkspaceExecutionControls({
     workspacePath,
     workspaceIdentity,
     // 合并执行方式入口后，只有已接受请求的冻结意图可覆盖项目设置，避免旧草稿值造成双重默认。
-    selection?.frozen ? selection.mode : undefined,
+    selection?.existingBinding || selection?.newWorktree
+      ? "worktree"
+      : selection?.frozen
+        ? selection.mode
+        : undefined,
   );
   const [savingMode, setSavingMode] = useState(false);
   const [modeError, setModeError] = useState<{ scope: string; message: string } | null>(null);
@@ -51,6 +55,7 @@ export function DraftWorkspaceExecutionControls({
     setModeError(null);
     try {
       await update({ projectExecutionPreferences: { [scope]: { executionMode: mode } } });
+      choose(scope, { newWorktree: false });
     } catch (reason) {
       setModeError({ scope, message: getErrorMessage(reason) });
     } finally {
@@ -58,7 +63,7 @@ export function DraftWorkspaceExecutionControls({
     }
   };
   const pending = Boolean(selection?.requestId);
-  const frozen = pending || selection?.frozen;
+  const frozen = pending || selection?.frozen || Boolean(selection?.existingBinding);
   const worktree = policy.executionMode === "worktree";
   const capability = useWorktreeCapabilities(
     workspacePath,
@@ -110,7 +115,15 @@ export function DraftWorkspaceExecutionControls({
             </SelectItem>
           </SelectContent>
         </Select>
-        {worktree ? (
+        {selection?.existingBinding ? (
+          <span
+            className="min-w-0 truncate text-ui-sm"
+            title={selection.worktreeLabel}
+            data-testid="draft-existing-worktree"
+          >
+            {selection.worktreeLabel}
+          </span>
+        ) : worktree ? (
           <WorktreeBaseBranchPicker
             key={scope}
             workspacePath={workspacePath}

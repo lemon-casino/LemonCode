@@ -2,6 +2,41 @@
 
 ## 产品规则
 
+### 2026-10-11：删除前主动释放占用，并禁止监听器重新打开
+
+用户确认删除后，WorktreeService 先持久化原 deletion fence，再由各资源 owner 关闭精确会话、Agent/插件/MCP 进程、终端及 checkout 内文件监听器；所有真实退出/close 完成后才能取得 writer 并删除目录。复用现有停止入口，不增加强杀未知进程或按 PID/目录猜测所有权的路径。
+
+文件监听器过去只有一次性 stop，界面迟到的 watch 请求可以重新取得句柄。新增 Host-only `assertFileWatchAdmission(path)`，以持久工作树状态阻止 deleting/deleted/archiving/archived 路径及其真实子目录创建监听。该入口仅控制物理文件句柄，不携带执行身份、不放宽原 assertExecutionAdmission 的 identity 隔离，不暴露为 RPC action。使用现有单记录路径查询，支持自定义根目录；链接实际指向树外时保留外部监听。恢复到 ready 后直接重新读取 owner 状态允许监听，不增加状态缓存或定时解锁。
+
+FileWatcher owner 记录尚未完成 admission 的本机请求；stopPathAndWait 等待范围内这些请求结束，再关闭已创建的句柄并等待 close。这样删除 fence 前开始、之后才返回的旧 admission 也不能遗漏。Host dispose 同样拒绝迟到创建。失败不报告已解锁，Worktree 原 journal 和重试仍保持不变。
+
+诊断记录停止资源的阶段耗时，以及文件锁重试中的 syscall/path，帮助区分本应用释放失败与外部占用；不记录会话正文。外部程序占用继续保留真实失败与有界重试，不能把等待视为解锁成功。
+
+```mermaid
+sequenceDiagram
+  participant UI as Desktop continuous / 手机 replayable
+  participant W as Worktree owner
+  participant F as FileWatcher owner
+  participant P as 进程 / 终端 owner
+  participant IO as Git / 物理文件系统
+  UI->>W: 原确认删除命令
+  W->>W: 持久 deletion fence
+  W->>F: stopPathAndWait(checkout)
+  F->>F: 等待已有 admission → 关闭句柄 → 等待 close
+  UI->>F: 迟到 watch
+  F->>W: assertFileWatchAdmission(path)
+  W-->>F: 拒绝删除中路径
+  W->>P: 停止本绑定执行并等待真实退出
+  P-->>W: 退出完成
+  F-->>W: 句柄关闭完成
+  W->>IO: writer / 精确 purge → 移除 checkout / refs
+  W->>W: 环境清理 → deleted
+```
+
+验收：删除期间的新 watch 不调用原生 watch；删除前已在 admission 中的 watch 必须等待并关闭后才移除；根目录/子目录句柄全部释放，树外链接和其他工作区不受影响；失败后重启 Host 仍拒绝监听；ready/恢复后可正常监听；停止失败不执行物理删除；保留现有 Windows 真实进程/目录删除回归，并检查新日志保留结构化错误路径。
+
+验证：26 项后端测试通过，覆盖真实 Git/进程/监听器释放、admission 与 close 时序、自定义根、执行 identity 隔离、恢复和 Windows cwd 外部占用重试；共享桌面/手机窄屏删除回归 3 个场景通过（测试报告含父项共 4 项）。根目录 `pnpm typecheck`、`pnpm lint`、变更格式及 `git diff --check` 通过；架构检查 baseline/new 均为 0，涉及 services/worktree，状态所有者与时序见上图。测试净增 199 行（两个新文件 178 行、原重试测试 21 行）；原 FileWatcher 实现净增 22 行。未替换已安装应用，需重新构建并重启 Host；本次 Windows 实机验证没有复现先前用户操作的占用进程，不能把监听竞态修复等同于已证明那次 43.5 秒等待的全部根因。
+
 ### 2026-10-11：普通归档复用同一套瞬时文件锁重试
 
 保留快照的归档同样要物理移除 checkout，`git worktree remove --force` 与受管 `rm` 都可能在 Windows 上撞到持续数十秒的外部句柄（实测为持有 checkout 根目录 cwd 的进程）。此前只有确认删除有自动重试，归档中断后必须由用户再次确认。

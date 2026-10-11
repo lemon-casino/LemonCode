@@ -6,7 +6,7 @@ import type {
   SessionUsageSeed,
 } from "./product-projection-state.js";
 import type { SessionEvent, ModelSelectedPayload } from "@lcode/contracts";
-import type { ConversationDelta } from "@lcode/shared/lcode-protocol-v4";
+import { mergeContextTrend, type ConversationDelta } from "@lcode/shared/lcode-protocol-v4";
 import { HYDRATION_TRACE_ID } from "./projection-state.js";
 
 type SeedConfigHost = Pick<
@@ -104,6 +104,22 @@ export function seedConfig(host: SeedConfigHost, seed: SessionConfigSeed): void 
 }
 
 export function seedUsage(host: SeedUsageHost, seed: SessionUsageSeed): void {
+  if (seed.contextTrend && !host.contextWindowState.trendSeeded) {
+    // cold merge 会先回放当前未结束 turn 的 live 事件；历史种子仍须补入，
+    // 同 ID 的实时事实获胜。已提交 rewind 会关闭此入口，避免旧分支复活。
+    host.snapshot = {
+      ...host.snapshot,
+      usage: {
+        ...host.snapshot.usage,
+        contextTrend: mergeContextTrend(
+          seed.contextTrend,
+          host.snapshot.usage.contextTrend?.samples ?? [],
+          host.snapshot.usage.contextTrend?.truncated,
+        ),
+      },
+    };
+    host.contextWindowState.trendSeeded = true;
+  }
   const current = host.snapshot.usage;
   const currentContextWindow = current.contextWindow;
   // 子会话 ModelComplete 也可实时入账；迟到的冷种子不能覆盖已确认的 live 累计。

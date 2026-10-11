@@ -27,10 +27,26 @@ export interface ProviderConfigSnapshot {
 }
 
 export interface AccountProviderConfigSnapshot {
+  readonly modelRules?: ModelConfigRules;
   readonly revision: string;
   readonly basedOnLCodeBuiltinRevision: string;
   readonly providers: ProviderConfigMap;
   readonly states?: AccountProviderStates;
+}
+
+/** Host 和 Agent 使用同一安全信封，模型规则不能在跨进程序列化时丢失。 */
+export function serializeAccountProviderConfigSnapshot(snapshot: AccountProviderConfigSnapshot) {
+  return {
+    revision: snapshot.revision,
+    basedOnLCodeBuiltinRevision: snapshot.basedOnLCodeBuiltinRevision,
+    providers: Object.fromEntries(
+      [...snapshot.providers.entries()].map(([id, config]) => [id, config.toJSON()]),
+    ),
+    states: snapshot.states ?? {},
+    ...(snapshot.modelRules
+      ? { modelRules: snapshot.modelRules.toLCodeBuiltinJSON().builtinProviderModelRules }
+      : {}),
+  };
 }
 
 /** 首次 Account 事实尚未到达时，基于当前 Built-in 生成可发布的 fail-closed Overlay。 */
@@ -107,6 +123,7 @@ function freezeAccountProviderConfigSnapshot(
     revision: snapshot.revision,
     basedOnLCodeBuiltinRevision: snapshot.basedOnLCodeBuiltinRevision,
     providers: snapshot.providers,
+    ...(snapshot.modelRules ? { modelRules: snapshot.modelRules } : {}),
     ...(snapshot.states ? { states: snapshot.states } : {}),
   });
 }

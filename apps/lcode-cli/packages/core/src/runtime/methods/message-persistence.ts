@@ -319,6 +319,10 @@ export async function persistAssistantMessage(
       },
       cost: 0,
       tokens: update?.tokens ?? emptyTokenUsageInfo(),
+      // 历史容量必须来自生成本条消息的冻结模型，不能在恢复时套用当前模型窗口。
+      ...(model?.properties.contextWindow !== undefined
+        ? { metadata: { contextWindowTokens: model.properties.contextWindow } }
+        : {}),
       finish: update?.finish,
       semantics: {
         origin: "agent_runtime",

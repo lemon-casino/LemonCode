@@ -1,9 +1,17 @@
 import type { IWorktreeService } from "../contract.js";
 import { worktreeRequests as schemas } from "../domain/requests.js";
-import { worktreeIntegrationPreflightSchema } from "@lcode/shared";
+import {
+  worktreeIntegrationPreflightSchema,
+  worktreeManagementSettingsSchema,
+} from "@lcode/shared";
 
 export function validateWorktreeRequests(service: IWorktreeService): IWorktreeService {
   return {
+    getManagementSettings: () => service.getManagementSettings(),
+    updateManagementSettings: async (patch) =>
+      service.updateManagementSettings(worktreeManagementSettingsSchema.partial().parse(patch)),
+    rename: async (params) => service.rename(schemas.rename.parse(params)),
+    cleanup: () => service.cleanup(),
     async getCapabilities(params) {
       return service.getCapabilities(schemas.getCapabilities.parse(params));
     },

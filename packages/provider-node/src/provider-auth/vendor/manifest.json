@@ -1,0 +1,210 @@
+{
+  "repository": "https://github.com/magpie-community/plugins",
+  "revision": "da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd",
+  "packages": [
+    {
+      "directory": "cline",
+      "name": "@magpie-community/opencode-cline-auth",
+      "version": "0.1.7",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "index.mjs.source",
+          "sha256": "08c16adbeb211234ed2786129e4d6e7f9e0712120410d9f8448acc86826bb0b7"
+        }
+      ]
+    },
+    {
+      "directory": "commandcode",
+      "name": "@magpie-community/opencode-commandcode-auth",
+      "version": "0.1.9",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "index.mjs.source",
+          "sha256": "3f29c325ed48330ca73dace6908c211ebf62bbdf8f10eb1e188fdb0ad03711fc"
+        }
+      ]
+    },
+    {
+      "directory": "cursor",
+      "name": "@magpie-community/opencode-cursor-auth",
+      "version": "0.2.6",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "index.mjs.source",
+          "sha256": "59c32d437f1427ff3be0bf8bd133d249f44f8321bee9da357272ef70ca097153"
+        }
+      ]
+    },
+    {
+      "directory": "devin",
+      "name": "@magpie-community/opencode-devin-auth",
+      "version": "0.1.14",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "index.mjs.source",
+          "sha256": "381c16edbd6cb2506ace80dd52b6f582c9b655d9e7fbec2fec5175fb70e0ea0b"
+        }
+      ]
+    },
+    {
+      "directory": "factory",
+      "name": "@magpie-community/opencode-factory-auth",
+      "version": "0.1.23",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "index.mjs.source",
+          "sha256": "a4dd715c96da80002d34844c36edc3f9b4c41d84cb89798fd5d4a1c7980b1b50"
+        },
+        {
+          "file": "anthropic-tools.mjs.source",
+          "sha256": "de300d81de2843c3698802ae0791afd9b121ae166b727692f83e1ed59d23e4a5"
+        }
+      ]
+    },
+    {
+      "directory": "grok",
+      "name": "@magpie-community/opencode-grok-auth",
+      "version": "0.1.11",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "index.mjs.source",
+          "sha256": "dae16d94ab457d704c42e7da382f0bacb0b241c737f63bc3575d1f0203ba68c9"
+        }
+      ]
+    },
+    {
+      "directory": "kiro",
+      "name": "@magpie-community/opencode-kiro-auth",
+      "version": "0.1.8",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "index.mjs.source",
+          "sha256": "7e506fde161431ef5bbacb29a14a57e8c841cd92538e0de017c8cb03be756482"
+        }
+      ]
+    },
+    {
+      "directory": "minimax",
+      "name": "@magpie-community/opencode-minimax-auth",
+      "version": "0.1.1",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "index.mjs.source",
+          "sha256": "ba899113762a0a7a7b429f30c2824091ae68338b6cde586801d4041ad86e24dd"
+        }
+      ]
+    },
+    {
+      "directory": "mimo",
+      "name": "@magpie-community/opencode-mimo-auth",
+      "version": "0.1.9",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "index.mjs.source",
+          "sha256": "7bd7ae7eccc413511969a5b490812d8a7c91faa0cc26224ee3d116ded54aac44"
+        }
+      ]
+    },
+    {
+      "directory": "qoder",
+      "name": "@magpie-community/opencode-qoder-auth",
+      "version": "0.2.12",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "index.mjs.source",
+          "sha256": "b7e9ce43f061c19f2b73e13dc46a5998842dfc7f52706a3dc94e5114dec0ddbf"
+        }
+      ]
+    },
+    {
+      "directory": "trae",
+      "name": "@magpie-community/opencode-trae-auth",
+      "version": "0.2.8",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "index.mjs.source",
+          "sha256": "66d4067e37da2299c439972239273258306b1dd4c26f6dd058a0e6462f700f41"
+        }
+      ]
+    },
+    {
+      "directory": "workbuddy",
+      "name": "@magpie-community/opencode-workbuddy-auth",
+      "version": "0.1.13",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "index.mjs.source",
+          "sha256": "981eccb70bba5b6663031e92045c6bd17bc128ebda402da7c5b6c4ce735e97cd"
+        }
+      ]
+    },
+    {
+      "directory": "zcode",
+      "name": "@magpie-community/opencode-zcode-auth",
+      "version": "0.1.14",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "index.mjs.source",
+          "sha256": "1e39f4bdc424bdfd2f2fa98bdbe8ec597e27db253094d0e1375b6cb0c8491560"
+        },
+        {
+          "file": "prompt.mjs.source",
+          "sha256": "e390759214834737f41ea52fb9725d64f140faae4cc31b5881975ceda7b43a98"
+        }
+      ]
+    },
+    {
+      "directory": "zed",
+      "name": "@magpie-community/opencode-zed-auth",
+      "version": "0.1.6",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "index.mjs.source",
+          "sha256": "77d3bc42e73b198e801a436f50abaeeed8c69daf1491c74d2df18591acab2d62"
+        }
+      ]
+    },
+    {
+      "directory": "zen-free",
+      "name": "@magpie-community/opencode-zen-free-auth",
+      "version": "0.1.3",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "index.mjs.source",
+          "sha256": "8ceef8ac0261046d9f04cf384ec96ac3c6d3afe35a7d0a67d9d94202e5c0e4b6"
+        },
+        {
+          "file": "provider.mjs.source",
+          "sha256": "4fecd0a51ffd15733eddf18c4b164dec12816567339d060a88f8e755888e9e5e"
+        },
+        {
+          "file": "models.mjs.source",
+          "sha256": "599ae877e6df506ed223c0070c1b2b881047cc545663bd4c2492b9694e551c3f"
+        },
+        {
+          "file": "stream.mjs.source",
+          "sha256": "954fc3f48fb8098f0e80b4d77a2ffdb5a41f868cb7e329166a1de7ee8edda827"
+        },
+        {
+          "file": "tool-response.mjs.source",
+          "sha256": "c03adfd193fbb02a03c0c134a1c0cde6f5b625af5e13782643287ada4ffa027c"
+        }
+      ]
+    }
+  ]
+}

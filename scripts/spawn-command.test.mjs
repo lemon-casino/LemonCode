@@ -119,6 +119,47 @@ test("async command runner preserves batch argv", windowsOnly, async (t) => {
   await assertNoExtraFiles(directory, ["argv reporter.mjs", "probe.cmd"]);
 });
 
+test("async captured commands preserve argv, report errors and bound output", async (t) => {
+  const { directory, reporter } = await fixture(t);
+  const result = await commands.execCommand(
+    process.execPath,
+    [reporter, ...argumentsToPreserve],
+    options(directory),
+  );
+  assert.deepEqual(JSON.parse(result.stdout), argumentsToPreserve);
+  await assert.rejects(
+    commands.execCommand(
+      process.execPath,
+      ["-e", "process.stdout.write('details');process.exit(7)"],
+      options(directory),
+    ),
+    { code: 7, stdout: "details" },
+  );
+  await assert.rejects(
+    commands.execCommand(process.execPath, ["-e", "process.stdout.write('oversized')"], {
+      ...options(directory),
+      maxBuffer: 4,
+    }),
+    { code: "ERR_CHILD_PROCESS_STDIO_MAXBUFFER" },
+  );
+});
+
+test(
+  "async captured Windows batch query uses no deprecated shell argument concatenation",
+  windowsOnly,
+  async (t) => {
+    const { directory, reporter } = await fixture(t);
+    const shim = await batchShim(directory, reporter);
+    const warnings = [];
+    const onWarning = (warning) => warnings.push(warning.code);
+    process.on("warning", onWarning);
+    t.after(() => process.off("warning", onWarning));
+    const result = await commands.execCommand(shim, argumentsToPreserve, options(directory));
+    assert.deepEqual(JSON.parse(result.stdout), argumentsToPreserve);
+    assert.ok(!warnings.includes("DEP0190"));
+  },
+);
+
 test("batch newline input is rejected before any process starts", windowsOnly, async (t) => {
   const { directory, reporter } = await fixture(t);
   const shim = await batchShim(directory, reporter);
@@ -213,13 +254,15 @@ test(
       /\.cjs$/i,
       "runner should bypass the CMD shim and use the real pnpm entry",
     );
-    // pnpm 会在临时项目里链接依赖并生成 lockfile；只要求不出现被截断参数产生的文件。
-    await assertNoExtraFiles(directory, [
+    // 修复：pnpm run 会继承安装校验设置，空项目可能不生成依赖目录；校验允许集合而非强制副作用。
+    const allowedFiles = new Set([
       "argv reporter.mjs",
       "package.json",
       "node_modules",
       "pnpm-lock.yaml",
     ]);
+    for (const file of await readdir(directory))
+      assert.ok(allowedFiles.has(file), `unexpected file: ${file}`);
   },
 );
 

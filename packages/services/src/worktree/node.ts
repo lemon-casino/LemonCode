@@ -57,5 +57,6 @@ export function createWorktreeService(options: WorktreeServiceOptions): IWorktre
     ...createPublicWorktreeService(host),
     upgradeRuntimeEnvironment: host.upgradeRuntimeEnvironment,
     assertExecutionAdmission: host.assertExecutionAdmission,
+    assertFileWatchAdmission: host.assertFileWatchAdmission,
   };
 }

@@ -55,4 +55,6 @@ export type WorktreeTransientRetryWait = (params: {
   attempt: number;
   delayMs: number;
   errorCode: string;
+  path?: string;
+  syscall?: string;
 }) => Promise<void>;

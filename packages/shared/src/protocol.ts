@@ -347,6 +347,10 @@ export interface AppSettings {
   nativeSearchEnhancementsEnabled?: boolean;
   /** 新建或冷恢复 Session 是否启用 Memory；默认关闭。 */
   memoryEnabled?: boolean;
+  /** 本机项目的 Memory 存储位置；缺失使用现有 profile，活动 Runtime 不切换根。 */
+  memoryStorageLocation?: "profile" | "workspace";
+  /** 内部位置切换版本，非负 safe 整数；缺失为 0，不提供独立 UI 选项。 */
+  memoryStorageRevision?: number;
   /** 新建或冷恢复 Session 是否自动召回同工作区的相关历史会话；默认关闭。 */
   sessionRecallEnabled?: boolean;
   onboardingOccupation?:

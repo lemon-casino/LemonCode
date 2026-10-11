@@ -5,6 +5,13 @@
  */
 export { acquireFileLock } from "./node/atomicFileLock.js";
 export {
+  resolveProjectMemoryRoot,
+  prepareProjectMemoryStorage,
+  ProjectMemoryStorageError,
+  type ProjectMemoryStorageLocation,
+  type ProjectMemoryStorageInput,
+} from "./projectMemoryStorage.js";
+export {
   migrateDirCopyStyle,
   migrateDirCopyStyleSync,
   migrateHomeBrandDataRootSync,

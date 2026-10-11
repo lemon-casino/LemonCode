@@ -179,7 +179,7 @@ export function createStandaloneProviderRuntimeHeadersPort(
       input.abortSignal?.throwIfAborted();
       const providerId = input.providerId.trim();
       const access = input.accountAccess;
-      if (!access || access.mode !== "individual-coding-plan") {
+      if (!access || access.type !== "zhipu-account" || access.mode !== "individual-coding-plan") {
         throw new Error(`Standalone Account Provider 请求身份无效: ${providerId}`);
       }
       const currentIdentity = (

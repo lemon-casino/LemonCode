@@ -4,6 +4,9 @@ import type { CommandEnvelope } from "@lcode/shared/lcode-protocol-v4";
 export interface DraftExecutionSelection {
   mode?: "local" | "worktree";
   baseRef?: string;
+  existingBinding?: { bindingId: string; bindingOwnerTaskId: string };
+  worktreeLabel?: string;
+  newWorktree?: boolean;
   requestId?: string;
   frozen?: boolean;
   retryRevision?: number;
@@ -14,7 +17,13 @@ export interface DraftExecutionSelection {
 
 interface DraftExecutionStore {
   drafts: Record<string, DraftExecutionSelection>;
-  choose(scope: string, selection: Pick<DraftExecutionSelection, "mode" | "baseRef">): void;
+  choose(
+    scope: string,
+    selection: Pick<
+      DraftExecutionSelection,
+      "mode" | "baseRef" | "existingBinding" | "worktreeLabel" | "newWorktree"
+    >,
+  ): void;
   begin(
     scope: string,
     requestId: string,

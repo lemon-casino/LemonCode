@@ -56,6 +56,7 @@ import { createTempTextAttachment } from "./tempTextAttachment.js";
 import { registerDesktopSaveFileIpcHandler } from "./desktopSaveFile.js";
 import { registerDesktopPrintToPdfIpcHandler } from "./desktopPrintToPdf.js";
 import { registerCuaPipActiveSessionIpc } from "./desktopCuaPipIpc.js";
+import { registerDesktopAppSettingsSyncIpcHandler } from "./desktopImmediateAppSettings.js";
 
 export function registerPlatformIpcHandlers(options: {
   fetchHelpConfig?: () => Promise<unknown>;
@@ -290,17 +291,10 @@ export function registerPlatformIpcHandlers(options: {
     },
   );
 
-  ipcMain.on(PlatformChannels.SyncAppSettings, (_event, payload: unknown) => {
-    const result = appSettingsPatchSchema.safeParse(payload);
-    if (!result.success) {
-      options.logger.warn(
-        "[settings] invalid app settings sync payload:",
-        formatZodError(result.error),
-      );
-      return;
-    }
-
-    options.syncAppSettings(result.data);
+  registerDesktopAppSettingsSyncIpcHandler({
+    ipcMain,
+    syncAppSettings: options.syncAppSettings,
+    warn: (...args) => options.logger.warn(...args),
   });
 
   // 快捷键录制态：renderer 设置页进入/退出录制时通知。macOS 系统菜单会先于 renderer

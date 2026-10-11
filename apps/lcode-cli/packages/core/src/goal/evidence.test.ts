@@ -46,8 +46,19 @@ test("writes during checks, absent exit, absent artifacts and unsupported covera
         "x".repeat(4 * 1024 * 1024 + 1),
       );
     if (scenario === "symlink" || scenario === "oversized") {
-      await assert.rejects(beginGoalExecution(fixture.owner, { executionId: scenario, source: "Bash", command: "pnpm test", startedAt: 10 }), /not verifiable/);
-      assert.equal((await readGoalEvidenceSummary(fixture.owner, fixture.goal))?.outcome, "incomplete");
+      await assert.rejects(
+        beginGoalExecution(fixture.owner, {
+          executionId: scenario,
+          source: "Bash",
+          command: "pnpm test",
+          startedAt: 10,
+        }),
+        /not verifiable/,
+      );
+      assert.equal(
+        (await readGoalEvidenceSummary(fixture.owner, fixture.goal))?.outcome,
+        "incomplete",
+      );
       continue;
     }
     const capture = await beginGoalExecution(fixture.owner, {
@@ -88,7 +99,10 @@ test("exact command binding, identity isolation, goal replacement and repeated t
   assert.ok(capture);
   await finishGoalExecution(capture, facts);
   await finishGoalExecution(capture, { ...facts, completedAt: 99, exitCode: 1 });
-  assert.equal([...fixture.entries.values()].filter((entry) => entry.type === "goal/evidence/v1").length, 1);
+  assert.equal(
+    [...fixture.entries.values()].filter((entry) => entry.type === "goal/evidence/v1").length,
+    1,
+  );
   assert.equal((await readGoalEvidenceSummary(fixture.owner, fixture.goal))?.outcome, "pass");
   assert.equal(
     (await readGoalEvidenceSummary({ ...fixture.owner, workspaceKey: "other" }, fixture.goal))
@@ -138,5 +152,8 @@ test("a late older terminal cannot reclaim a newer head and settled proof surviv
   await finishGoalExecution(old, { ...facts, completedAt: 100 });
   assert.equal((await readGoalEvidenceSummary(f.owner, f.goal))?.outcome, "notSatisfied");
   f.setGoal({ ...f.goal, stateRevision: 2 });
-  assert.equal((await readGoalEvidenceSummary(f.owner, { ...f.goal, stateRevision: 2 }))?.outcome, "notSatisfied");
+  assert.equal(
+    (await readGoalEvidenceSummary(f.owner, { ...f.goal, stateRevision: 2 }))?.outcome,
+    "notSatisfied",
+  );
 });

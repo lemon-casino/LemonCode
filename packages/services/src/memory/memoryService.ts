@@ -1,238 +1,217 @@
+import { lstat, readdir } from "node:fs/promises";
+import { basename, dirname, isAbsolute, join, resolve } from "node:path";
+import { localProjectPathKey, type AppSettings } from "@lcode/shared";
 import {
-  type IMemoryService,
-  type ProjectMemoryFileSummary,
-  type ProjectMemoryWorkspaceSummary,
-} from "./memory.js";
-import { lstat, readdir, realpath } from "node:fs/promises";
-import { basename, isAbsolute, join, relative, sep } from "node:path";
-import { readProjectMemoryFileFromStableHandle } from "#src/memory/projectMemoryStableRead.js";
-import { getLCodeDataRootDir } from "#src/paths.js";
+  prepareProjectMemoryStorage,
+  resolveProjectMemoryRoot,
+  withFileLock,
+} from "@lcode/shared/node";
+import type { ISettingService } from "../setting/setting.js";
+import type { IMemoryService, ProjectMemoryWorkspaceSummary } from "./memory.js";
+import { readProjectMemoryFileFromStableHandle } from "./projectMemoryStableRead.js";
+import {
+  isMemoryNotFound,
+  listMemoryFiles,
+  requireMemoryDirectoryChain,
+  requireMemoryFile,
+} from "./projectMemoryCatalog.js";
+import { getConversationWorkspaceDir, getLCodeDataRootDir } from "../paths.js";
 
-const PROJECT_MEMORY_INDEX_FILE_NAME = "MEMORY.md";
-const PROJECT_MEMORY_DIRECTORY_NAME = "memory";
-const PROJECT_KEY_SUFFIX_PATTERN = /^(.*)-[a-f0-9]{16}$/i;
-
-function isNotFoundError(error: unknown): boolean {
-  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
+interface MemoryServiceOptions {
+  settingService?: Pick<ISettingService, "get" | "update">;
+}
+interface MemoryScope {
+  id: string;
+  label: string;
+  memoryRoot: string;
+  storageLocation: "profile" | "workspace";
 }
 
-function getProjectMemoriesRoot(): string {
-  return join(getLCodeDataRootDir(), "cli", "memories", "projects");
+function cliStorageRoot(): string {
+  return join(getLCodeDataRootDir(), "cli");
 }
 
-function isValidPathSegment(value: string): boolean {
-  return (
-    value.length > 0 &&
-    value !== "." &&
-    value !== ".." &&
-    basename(value) === value &&
-    !value.includes("/") &&
-    !value.includes("\\")
+function localProjectPaths(settings?: AppSettings): string[] {
+  const explicit = [
+    getConversationWorkspaceDir(),
+    ...(settings?.localProjects ?? []).map((project) => project.primaryFolderPath),
+    ...(settings?.lastWorkspaceSession ?? []).flatMap((entry) =>
+      entry.kind === "local" ? [entry.workspacePath] : [],
+    ),
+  ];
+  const remote = new Set(
+    (settings?.lastWorkspaceSession ?? []).flatMap((entry) =>
+      entry.kind === "remote" ? [localProjectPathKey(entry.workspacePath)] : [],
+    ),
   );
-}
-
-function isProjectMemoryFileName(fileName: string): boolean {
-  return (
-    fileName === PROJECT_MEMORY_INDEX_FILE_NAME ||
-    (fileName.endsWith(".md") && fileName !== PROJECT_MEMORY_INDEX_FILE_NAME)
-  );
-}
-
-function resolveWorkspaceLabel(workspaceId: string): string {
-  const slug = PROJECT_KEY_SUFFIX_PATTERN.exec(workspaceId)?.[1];
-  return slug?.trim() || workspaceId;
-}
-
-async function isPlainDirectory(path: string): Promise<boolean> {
-  try {
-    const metadata = await lstat(path);
-    return metadata.isDirectory() && !metadata.isSymbolicLink();
-  } catch (error) {
-    if (isNotFoundError(error)) {
-      return false;
-    }
-    throw error;
+  const explicitKeys = new Set(explicit.map(localProjectPathKey));
+  const paths = [
+    ...explicit,
+    ...(settings?.recentProjects ?? []).filter(
+      (path) =>
+        !remote.has(localProjectPathKey(path)) || explicitKeys.has(localProjectPathKey(path)),
+    ),
+  ];
+  const unique = new Map<string, string>();
+  for (const path of paths) {
+    // 最近项目可以包含远端标识；本地服务只接受本机绝对路径，不解析远端路径做 IO。
+    if (
+      !isAbsolute(path) ||
+      /^[\\/]{2}/u.test(path) ||
+      (process.platform === "win32" && !/^[A-Za-z]:[\\/]/u.test(path))
+    )
+      continue;
+    unique.set(localProjectPathKey(resolve(path)), resolve(path));
   }
+  return [...unique.values()];
 }
 
-async function requirePlainDirectory(path: string): Promise<void> {
-  const metadata = await lstat(path);
-  if (!metadata.isDirectory() || metadata.isSymbolicLink()) {
-    throw new Error(`Project Memory directory is not a regular directory: ${path}`);
-  }
-}
-
-async function requireProjectMemoriesRoot(): Promise<string> {
-  const projectsRoot = getProjectMemoriesRoot();
-  // 只校验 workspace 子目录时，projectsRoot symlink 会让 list/read 跟随到本地数据目录外。
-  await requirePlainDirectory(projectsRoot);
-  return projectsRoot;
-}
-
-async function requireExactProjectMemoryFile(
-  memoryRoot: string,
-  fileName: string,
-): Promise<string> {
-  const memoryEntries = await readdir(memoryRoot, { withFileTypes: true });
-  const fileEntry = memoryEntries.find((entry) => entry.name === fileName);
-  const requestedFilePath = join(memoryRoot, fileName);
-  if (!fileEntry) {
-    // 文件确实不存在时继续透传原始 ENOENT；只有大小写别名能命中时才拒绝读取。
-    await lstat(requestedFilePath);
-    throw new Error(`Project Memory file name does not match exactly: ${fileName}`);
-  }
-  if (!fileEntry.isFile() || fileEntry.isSymbolicLink()) {
-    throw new Error(`Project Memory file is not a regular file: ${fileName}`);
-  }
-  return requestedFilePath;
-}
-
-async function assertContainedProjectMemoryPath(
-  projectsRoot: string,
-  targetPath: string,
-): Promise<void> {
-  const projectsRootRealPath = await realpath(projectsRoot);
-  const targetRealPath = await realpath(targetPath);
-  const relativePath = relative(projectsRootRealPath, targetRealPath);
-  if (relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
-    throw new Error(`Project Memory path is outside the local profile: ${targetPath}`);
-  }
-}
-
-function compareProjectMemoryFiles(
-  left: ProjectMemoryFileSummary,
-  right: ProjectMemoryFileSummary,
-): number {
-  if (left.kind !== right.kind) {
-    return left.kind === "index" ? -1 : 1;
-  }
-  return left.name.localeCompare(right.name, "en");
-}
-
-export function createMemoryService(): IMemoryService {
-  async function listProjectMemories(): Promise<ProjectMemoryWorkspaceSummary[]> {
-    let projectsRoot: string;
-    let projectEntries;
+async function existingLocalProjects(settings?: AppSettings): Promise<string[]> {
+  const paths: string[] = [];
+  for (const path of localProjectPaths(settings)) {
     try {
-      projectsRoot = await requireProjectMemoriesRoot();
-      projectEntries = await readdir(projectsRoot, { withFileTypes: true });
+      const stat = await lstat(path);
+      if (stat.isSymbolicLink())
+        throw new Error("Project Memory workspace directory cannot be a link");
+      if (stat.isDirectory()) paths.push(path);
     } catch (error) {
-      if (isNotFoundError(error)) {
-        return [];
-      }
-      throw error;
+      if (!isMemoryNotFound(error)) throw error;
     }
+  }
+  return paths;
+}
 
-    const workspaces: ProjectMemoryWorkspaceSummary[] = [];
-    for (const projectEntry of projectEntries) {
-      if (!projectEntry.isDirectory() || projectEntry.isSymbolicLink()) {
-        continue;
-      }
-
-      const workspaceId = projectEntry.name;
-      const workspaceRoot = join(projectsRoot, workspaceId);
-      const memoryRoot = join(workspaceRoot, PROJECT_MEMORY_DIRECTORY_NAME);
-      if (!(await isPlainDirectory(workspaceRoot)) || !(await isPlainDirectory(memoryRoot))) {
-        continue;
-      }
-
-      let memoryEntries;
-      try {
-        memoryEntries = await readdir(memoryRoot, { withFileTypes: true });
-      } catch (error) {
-        // 目录检查后 Memory Agent 仍可能删除目录；catalog 快照只跳过已消失的 workspace。
-        if (isNotFoundError(error)) {
-          continue;
-        }
-        throw error;
-      }
-      const files: ProjectMemoryFileSummary[] = [];
-      for (const memoryEntry of memoryEntries) {
-        if (
-          !memoryEntry.isFile() ||
-          memoryEntry.isSymbolicLink() ||
-          !isProjectMemoryFileName(memoryEntry.name)
-        ) {
-          continue;
-        }
-
-        const filePath = join(memoryRoot, memoryEntry.name);
-        let fileMetadata;
+export function createMemoryService(options: MemoryServiceOptions = {}): IMemoryService {
+  async function scopes(): Promise<MemoryScope[]> {
+    const result: MemoryScope[] = [];
+    const projects = join(cliStorageRoot(), "memories", "projects");
+    try {
+      await requireMemoryDirectoryChain(projects);
+      for (const entry of await readdir(projects, { withFileTypes: true })) {
+        if (!entry.isDirectory() || entry.isSymbolicLink()) continue;
+        const memoryRoot = join(projects, entry.name, "memory");
         try {
-          fileMetadata = await lstat(filePath);
+          const stat = await lstat(memoryRoot);
+          if (!stat.isDirectory() || stat.isSymbolicLink()) continue;
         } catch (error) {
-          // readdir 后事实文件可能被并发删除；它不再属于本次只读快照。
-          if (isNotFoundError(error)) {
-            continue;
-          }
+          if (isMemoryNotFound(error)) continue;
           throw error;
         }
-        if (!fileMetadata.isFile() || fileMetadata.isSymbolicLink()) {
-          continue;
-        }
-        files.push({
-          name: memoryEntry.name,
-          path: filePath,
-          kind: memoryEntry.name === PROJECT_MEMORY_INDEX_FILE_NAME ? "index" : "item",
-          size: fileMetadata.size,
-          updatedAt: fileMetadata.mtimeMs,
+        result.push({
+          id: entry.name,
+          label: entry.name.replace(/-[a-f0-9]{16}$/iu, ""),
+          memoryRoot,
+          storageLocation: "profile",
         });
       }
-
-      if (files.length === 0) {
-        continue;
+    } catch (error) {
+      if (!isMemoryNotFound(error)) throw error;
+    }
+    if (options.settingService) {
+      for (const workspacePath of await existingLocalProjects(await options.settingService.get())) {
+        const profile = resolveProjectMemoryRoot({
+          cliStorageRoot: cliStorageRoot(),
+          workspacePath,
+        });
+        result.push({
+          id: `workspace:${basename(dirname(profile))}`,
+          label: basename(workspacePath),
+          memoryRoot: resolveProjectMemoryRoot({
+            cliStorageRoot: cliStorageRoot(),
+            workspacePath,
+            storageLocation: "workspace",
+          }),
+          storageLocation: "workspace",
+        });
+        const identitiesRoot = join(workspacePath, ".lcode", "memories");
+        try {
+          await requireMemoryDirectoryChain(identitiesRoot);
+          const entries = await readdir(identitiesRoot, { withFileTypes: true });
+          if (entries.length > 256)
+            throw new Error("Project Memory identity catalog exceeds limit");
+          // opaque 本地 identity 的 hash 由共享 resolver 产生；这里只枚举已存在的隔离根。
+          for (const entry of entries) {
+            if (
+              !entry.isDirectory() ||
+              entry.isSymbolicLink() ||
+              !/^[a-f0-9]{16}$/u.test(entry.name)
+            )
+              continue;
+            result.push({
+              id: `workspace:${basename(dirname(profile))}:${entry.name}`,
+              label: `${basename(workspacePath)} (${entry.name.slice(0, 8)})`,
+              memoryRoot: join(identitiesRoot, entry.name, "memory"),
+              storageLocation: "workspace",
+            });
+          }
+        } catch (error) {
+          if (!isMemoryNotFound(error)) throw error;
+        }
       }
-
-      files.sort(compareProjectMemoryFiles);
-      workspaces.push({
-        id: workspaceId,
-        label: resolveWorkspaceLabel(workspaceId),
-        updatedAt: Math.max(...files.map((file) => file.updatedAt)),
-        files,
-      });
     }
-
-    workspaces.sort(
-      (left, right) => right.updatedAt - left.updatedAt || left.id.localeCompare(right.id, "en"),
-    );
-    return workspaces;
-  }
-
-  async function readProjectMemoryFile(params: {
-    workspaceId: string;
-    fileName: string;
-  }): Promise<{ content: string; updatedAt: number }> {
-    if (
-      !isValidPathSegment(params.workspaceId) ||
-      !isValidPathSegment(params.fileName) ||
-      !isProjectMemoryFileName(params.fileName)
-    ) {
-      throw new Error("Invalid Project Memory path");
-    }
-
-    const projectsRoot = await requireProjectMemoriesRoot();
-    const workspaceRoot = join(projectsRoot, params.workspaceId);
-    const memoryRoot = join(workspaceRoot, PROJECT_MEMORY_DIRECTORY_NAME);
-    await requirePlainDirectory(workspaceRoot);
-    await requirePlainDirectory(memoryRoot);
-
-    // 大小写不敏感文件系统会让请求名称命中不同大小写的磁盘文件，绕过 catalog 白名单。
-    const filePath = await requireExactProjectMemoryFile(memoryRoot, params.fileName);
-    return readProjectMemoryFileFromStableHandle({
-      fileName: params.fileName,
-      filePath,
-      validatePath: async () => {
-        await requireProjectMemoriesRoot();
-        await requirePlainDirectory(workspaceRoot);
-        await requirePlainDirectory(memoryRoot);
-        await requireExactProjectMemoryFile(memoryRoot, params.fileName);
-        await assertContainedProjectMemoryPath(projectsRoot, filePath);
-      },
-    });
+    return result;
   }
 
   return {
-    listProjectMemories,
-    readProjectMemoryFile,
+    async listProjectMemories(): Promise<ProjectMemoryWorkspaceSummary[]> {
+      const result: ProjectMemoryWorkspaceSummary[] = [];
+      for (const scope of await scopes()) {
+        const files = await listMemoryFiles(scope.memoryRoot);
+        if (files.length)
+          result.push({
+            ...scope,
+            files,
+            updatedAt: Math.max(...files.map((file) => file.updatedAt)),
+          });
+      }
+      return result.sort((a, b) => b.updatedAt - a.updatedAt || a.id.localeCompare(b.id, "en"));
+    },
+    async readProjectMemoryFile(params) {
+      const scope = (await scopes()).find((candidate) => candidate.id === params.workspaceId);
+      if (!scope) throw new Error("Unknown local Project Memory workspace");
+      const filePath = await requireMemoryFile(scope.memoryRoot, params.fileName);
+      return readProjectMemoryFileFromStableHandle({
+        fileName: params.fileName,
+        filePath,
+        validatePath: async () => {
+          await requireMemoryFile(scope.memoryRoot, params.fileName);
+        },
+      });
+    },
+    async changeStorageLocation({ location }) {
+      if (location !== "profile" && location !== "workspace")
+        throw new Error("Invalid Project Memory storage location");
+      const settingService = options.settingService;
+      if (!settingService) throw new Error("Project Memory storage settings are unavailable");
+      // 多窗口切换共用命令锁；复制和 settings 提交有顺序，不能先广播新位置再复制文件。
+      return withFileLock(join(getLCodeDataRootDir(), "memory-storage-settings"), async () => {
+        const settings = await settingService.get();
+        const previousStorageLocation = settings.memoryStorageLocation ?? "profile";
+        // 旧 Runtime 可能晚于切换才初始化；位置与单调版本一起提交，阻止旧偏好回退迁移标记。
+        // 设置写失败仍读取原版本，因此重试复用同一下一版本并补齐旧位置的新文件。
+        const storageRevision =
+          (settings.memoryStorageRevision ?? 0) + (location === previousStorageLocation ? 0 : 1);
+        if (!Number.isSafeInteger(storageRevision) || storageRevision < 0)
+          throw new Error("Project Memory storage revision is exhausted or invalid");
+        let copiedCount = 0;
+        let conflictCount = 0;
+        for (const workspacePath of await existingLocalProjects(settings)) {
+          const result = await prepareProjectMemoryStorage({
+            workspacePath,
+            cliStorageRoot: cliStorageRoot(),
+            storageLocation: location,
+            storageRevision,
+            previousStorageLocation,
+          });
+          copiedCount += result.copiedCount;
+          conflictCount += result.conflictCount;
+        }
+        await settingService.update({
+          memoryStorageLocation: location,
+          memoryStorageRevision: storageRevision,
+        });
+        return { location, copiedCount, conflictCount };
+      });
+    },
   };
 }

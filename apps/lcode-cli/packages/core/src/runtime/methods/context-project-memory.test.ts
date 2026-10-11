@@ -71,11 +71,13 @@ test("cold resume reuses context initialization and registers the persisted work
   await h.runtime.ensureContextInitialized(h.runtime.rootTraceContext);
   const originalRoot = h.runtime.memoryRoot;
   const resumedDirectory = resolve("resumed-workspace-fixture");
+  const resumedExecutionDirectory = resolve("resumed-workspace-fixture", "after-bash-cd");
   let resumeHooks = 0;
   Object.assign(h.runtime, {
     sessionStore: {
       getSession: async () => ({
-        directory: resumedDirectory,
+        directory: resumedExecutionDirectory,
+        path: resumedDirectory,
         workspaceID: "workspace-resumed-fixture",
         taskType: "interactive",
         title: "",
@@ -101,6 +103,8 @@ test("cold resume reuses context initialization and registers the persisted work
   });
   await resumeFromStore.call(h.runtime);
   const expectedRoot = resolveEnabledProjectMemoryRoot(h.runtime.config, resumedDirectory)!;
+  assert.equal(h.runtime.workspaceRoot, resumedDirectory);
+  assert.equal(h.runtime.workingDirectory, resumedExecutionDirectory);
   assert.notEqual(expectedRoot, originalRoot);
   assert.equal(h.runtime.memoryRoot, expectedRoot);
   assert.deepEqual(h.calls.slice(-2), [
@@ -139,4 +143,43 @@ test("registration failure does not expose an ungoverned project root", async ()
     (cause) => cause === error,
   );
   assert.notEqual(h.runtime.contextInitialized, true);
+});
+
+test("workspace storage prepares through the port before registration and ignores Bash cwd changes", async () => {
+  const h = harness();
+  h.runtime.config.memory!.storageLocation = "workspace";
+  h.runtime.workingDirectory = resolve("bash-cd-other-fixture");
+  const expectedRoot = resolveEnabledProjectMemoryRoot(h.runtime.config, h.runtime.workspaceRoot)!;
+  h.fileSystemPort.projectMemory!.prepareStorage = async (input) => {
+    assert.match(expectedRoot, /[\\/]\.lcode[\\/]memory$/u);
+    assert.equal(input.workspacePath, h.runtime.workspaceRoot);
+    assert.equal(input.storageLocation, "workspace");
+    h.calls.push({ kind: "prepare", path: expectedRoot });
+    return { rootDir: expectedRoot, copiedCount: 1, conflictCount: 0 };
+  };
+  await h.runtime.ensureContextInitialized(h.runtime.rootTraceContext);
+  assert.equal(h.runtime.memoryRoot, expectedRoot);
+  assert.deepEqual(h.calls, [
+    { kind: "prepare", path: expectedRoot },
+    { kind: "ensure", path: expectedRoot },
+    { kind: "register", path: expectedRoot },
+  ]);
+  await h.runtime.ensureContextInitialized(h.runtime.rootTraceContext);
+  assert.equal(h.calls.length, 3, "active Runtime keeps one prepared location");
+});
+
+test("workspace storage rejects missing capability and a foreign prepared root before file creation", async () => {
+  for (const mode of ["missing", "foreign"] as const) {
+    const h = harness();
+    h.runtime.config.memory!.storageLocation = "workspace";
+    if (mode === "foreign")
+      h.fileSystemPort.projectMemory!.prepareStorage = async () => ({
+        rootDir: resolve("foreign-memory-fixture"),
+        copiedCount: 0,
+        conflictCount: 0,
+      });
+    await assert.rejects(h.runtime.ensureContextInitialized(h.runtime.rootTraceContext));
+    assert.deepEqual(h.calls, []);
+    assert.notEqual(h.runtime.contextInitialized, true);
+  }
 });

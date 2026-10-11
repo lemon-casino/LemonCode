@@ -62,6 +62,27 @@ test("persistent locks exhaust a bounded wait budget and preserve the last actua
   assert.equal(f.binding.deletion?.requestId, "original");
 });
 
+test("file-lock retry diagnostics preserve the native path and syscall", async () => {
+  const f = fixture();
+  const failure = Object.assign(new Error("directory busy"), {
+    code: "EBUSY",
+    path: "/managed/a/locked",
+    syscall: "rmdir",
+  });
+  await retryConfirmedWorktreeOperation(f.context, f.params, async () => {
+    if (!f.waits.length) throw failure;
+  });
+  assert.deepEqual(f.waits[0], {
+    bindingId: "binding",
+    requestId: "original",
+    attempt: 1,
+    delayMs: 1_000,
+    errorCode: "EBUSY",
+    path: failure.path,
+    syscall: failure.syscall,
+  });
+});
+
 test("non-file errors and error text mentioning EBUSY do not enter retry", async () => {
   for (const error of [
     new Error("EBUSY: unknown owner"),

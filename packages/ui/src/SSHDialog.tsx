@@ -93,6 +93,7 @@ export function RemoteConnectionDialog({
   const [currentStep, setCurrentStep] = useState<RemoteWizardStep>("kind");
   const [connectedSessionId, setConnectedSessionId] = useState<string | null>(null);
   const [connectingRequestId, setConnectingRequestId] = useState<string | null>(null);
+  const activeConnectionRequestIdRef = useRef<string | null>(null);
   const [pendingRemoteTarget, setPendingRemoteTarget] = useState<RemoteTarget | null>(null);
   const [selectingDirectory, setSelectingDirectory] = useState(false);
   const selectingDirectoryRef = useRef(false);
@@ -158,6 +159,15 @@ export function RemoteConnectionDialog({
   );
   const flowActive = isRemoteConnectionFlowActive(flowSnapshot);
 
+  useEffect(
+    () => () => {
+      const requestId = activeConnectionRequestIdRef.current;
+      activeConnectionRequestIdRef.current = null;
+      if (requestId) void cancelPendingRemoteConnection(requestId);
+    },
+    [cancelPendingRemoteConnection],
+  );
+
   useEffect(() => {
     onFlowActiveChange?.(flowActive);
   }, [flowActive, onFlowActiveChange]);
@@ -204,11 +214,13 @@ export function RemoteConnectionDialog({
   const closeDialog = useCallback(
     (options?: { preserveSession?: boolean }) => {
       const sessionId = connectedSessionId;
+      const requestId = activeConnectionRequestIdRef.current;
+      // 先使尝试失效再通知后端取消，防止取消的迟到结果重开弹窗或覆盖新连接。
+      activeConnectionRequestIdRef.current = null;
       if (!options?.preserveSession && sessionId) {
         void handleCancelSession(sessionId);
-      } else if (!options?.preserveSession && loading && currentStep === "connecting") {
-        // 连接过程里 sessionId 尚未返回时，关闭弹窗会只重置 UI；这里补上显式取消，确保后台下载同步停止。
-        void cancelPendingRemoteConnection(connectingRequestId ?? undefined);
+      } else if (!options?.preserveSession && requestId) {
+        void cancelPendingRemoteConnection(requestId);
       }
       resetFeedback();
       setLoading(false);
@@ -223,14 +235,14 @@ export function RemoteConnectionDialog({
     [
       cancelPendingRemoteConnection,
       connectedSessionId,
-      connectingRequestId,
-      currentStep,
       handleCancelSession,
-      loading,
       resetDirectorySelectionState,
       updateConnectingRequestId,
     ],
   );
+  // 确认框等待期间连接可能已完成；确认后必须释放最新 session，不能执行旧 render 的关闭快照。
+  const closeDialogRef = useRef(closeDialog);
+  closeDialogRef.current = closeDialog;
 
   const confirmRemoteFlowDiscard = useCallback(async () => {
     if (currentStep === "connecting" && loading) {
@@ -261,21 +273,21 @@ export function RemoteConnectionDialog({
     if (!confirmed) {
       return;
     }
-    closeDialog();
-  }, [closeDialog, confirmRemoteFlowDiscard]);
+    closeDialogRef.current();
+  }, [confirmRemoteFlowDiscard]);
 
   const startRemoteConnection = async (target: RemoteTarget) => {
     const nextTarget = withDefaultRemoteResourcePackages(target);
 
-    if (loading) {
-      // React 还没来得及把按钮置 disabled 时，快速重复点击会启动多个 SSH host process。
-      // 这里在事件入口再做一次并发保护，避免同一个 dialog 产生多条部署流并把上传进度混在一起。
+    if (activeConnectionRequestIdRef.current) {
       return;
     }
 
+    // React loading 尚未提交时也必须拦住重复点击；ref 只关联当前尝试，不持有远端业务状态。
+    const requestId = createUuid();
+    activeConnectionRequestIdRef.current = requestId;
     setPendingRemoteTarget(nextTarget);
     setLoading(true);
-    const requestId = createUuid();
     updateConnectingRequestId(requestId);
     resetFeedback();
     resetConnectionLogs();
@@ -289,12 +301,21 @@ export function RemoteConnectionDialog({
     });
     try {
       const sessionId = await onConnect(nextTarget, requestId);
+      if (activeConnectionRequestIdRef.current !== requestId) {
+        trace.cancel();
+        await handleCancelSession(sessionId);
+        return;
+      }
       const completionState = getRemoteConnectionCompletionDialogState("success");
       setConnectedSessionId(sessionId);
       setCurrentStep(completionState.step);
       applyOpenState(completionState.open);
       trace.complete({ resultSource: "platform_result" });
     } catch (connectError) {
+      if (activeConnectionRequestIdRef.current !== requestId) {
+        trace.cancel();
+        return;
+      }
       const completionState = getRemoteConnectionCompletionDialogState("error");
       const errorMessage = getErrorMessage(connectError);
       setError(errorMessage);
@@ -302,7 +323,10 @@ export function RemoteConnectionDialog({
       applyOpenState(completionState.open);
       trace.fail({ failureStage: "remote_connect" });
     } finally {
-      setLoading(false);
+      if (activeConnectionRequestIdRef.current === requestId) {
+        activeConnectionRequestIdRef.current = null;
+        setLoading(false);
+      }
     }
   };
 
@@ -576,7 +600,9 @@ export function RemoteConnectionDialog({
                         }
 
                         if (loading) {
-                          await cancelPendingRemoteConnection(connectingRequestId ?? undefined);
+                          const requestId = activeConnectionRequestIdRef.current;
+                          activeConnectionRequestIdRef.current = null;
+                          if (requestId) void cancelPendingRemoteConnection(requestId);
                           setLoading(false);
                         }
                         resetFeedback();

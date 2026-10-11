@@ -11,6 +11,7 @@ export * from "./create-workflow-display.js";
 export * from "./workflow-orchestration-advice.js";
 export * from "./workflow-observation-display.js";
 export * from "./snapshot.js";
+export * from "./context-trend.js";
 export * from "./workflow-runs.js";
 export * from "./workflow-activity.js";
 export * from "./workflow-runs-reducer.js";

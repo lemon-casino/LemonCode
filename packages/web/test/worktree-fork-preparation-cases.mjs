@@ -142,9 +142,44 @@ export async function runForkPreparationCases({ t, page, url, calls }) {
     }
   });
 
+  await run("各列表的工作树路径统一指向执行目录，不显示不存在的会话文件", async () => {
+    for (const width of [1280, 390]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const kind of ["default", "pinned", "timeline", "grouped"]) {
+        await page.goto(url + "?sidebar");
+        await page.waitForFunction(() => Boolean(globalThis.__worktreeSidebarRows));
+        await page.evaluate(() => {
+          globalThis.__worktreeSidebarRows.setBindingId("binding");
+          Object.defineProperty(navigator, "clipboard", {
+            value: {
+              writeText: async (text) => {
+                globalThis.__copiedTaskPath = text;
+              },
+            },
+          });
+        });
+        await page.getByTestId(`sidebar-row-${kind}`).click({ button: "right" });
+        await page
+          .getByRole("menuitem", { name: "复制工作树路径", exact: true, disabled: false })
+          .click();
+        assert.equal(
+          await page.evaluate(() => globalThis.__copiedTaskPath),
+          "/fixture/worktrees/task",
+        );
+        await page.getByTestId(`sidebar-row-${kind}`).click({ button: "right" });
+        assert.equal(
+          await page.getByRole("menuitem", { name: "复制会话文件路径", exact: true }).count(),
+          0,
+        );
+        await page.keyboard.press("Escape");
+      }
+    }
+    await page.setViewportSize({ width: 1280, height: 900 });
+  });
+
   await run("工作树分叉使用独立模式，失败不跳转，ACK 丢失只查询原请求", async () => {
     await page.goto(url + "?sidebar");
-    await page.evaluate(() => globalThis.__worktreeSidebarRows.setBindingId("parent-binding"));
+    await page.evaluate(() => globalThis.__worktreeSidebarRows.setBindingId("binding"));
     await configure({ failFork: true });
     await openFork();
     assert.match(await page.getByTestId("task-fork-same").innerText(), /同一工作树/);

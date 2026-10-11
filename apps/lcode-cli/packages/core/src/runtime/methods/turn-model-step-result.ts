@@ -239,9 +239,12 @@ export async function commitModelStepResult(
       // 桌面 continuous 实时事件只携带当前 model_complete payload。
       // 如果主轮次只发 usage 不发 contextWindow，旧 task stream 无法生成 usage_update，
       // 长程任务中输入栏会拿不到 context meter 的 size 而隐藏。
-      ...(querySource === "main_turn" && executionContextWindow !== undefined
-        ? { contextWindow: executionContextWindow }
-        : {}),
+      ...(executionContextWindow !== undefined ? { contextWindow: executionContextWindow } : {}),
+      contextSample: {
+        assistantMessageId,
+        providerId: String(model.providerId),
+        modelId: String(model.modelId),
+      },
       querySource,
       stopReason: result.finishReason,
       usage: result.usage,

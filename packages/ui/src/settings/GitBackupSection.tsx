@@ -18,6 +18,7 @@ import { useGitBackup } from "@/hooks/useGitBackup.js";
 import { useGitBackupRouting, type GitBackupSectionTarget } from "@/hooks/useGitBackupRouting.js";
 import { GitBackupDestinationTabs } from "@/settings/git-backup/GitBackupDestinationTabs.js";
 import { GitBackupStatusPanel } from "@/settings/git-backup/GitBackupStatusPanel.js";
+import { GitBackupWorkspaceSelector } from "@/settings/git-backup/GitBackupWorkspaceSelector.js";
 
 export function GitBackupSection(props: GitBackupSectionTarget) {
   const route = useGitBackupRouting(props);
@@ -178,15 +179,15 @@ export function GitBackupSettingsView({
               </Button>
             </div>
           </section>
-          <GitBackupDestinationTabs backup={backup} target={target} formId={destinationFormId} />
-          <GitBackupStatusPanel
-            status={backup.status}
-            workspaces={config.workspaces}
+          <GitBackupWorkspaceSelector
+            workspaces={backup.availableWorkspaces}
+            selected={config.workspaces}
             target={target}
             busy={busy}
-            refresh={backup.refresh}
-            remove={backup.removeWorkspace}
+            onSelect={backup.setWorkspaceSelected}
           />
+          <GitBackupDestinationTabs backup={backup} target={target} formId={destinationFormId} />
+          <GitBackupStatusPanel status={backup.status} busy={busy} refresh={backup.refresh} />
           <section className="space-y-3 border-t border-border pt-4">
             <h3 className="text-ui-base font-medium">
               {intl.formatMessage({ id: "settings.gitBackup.encryption" })}

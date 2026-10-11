@@ -8,6 +8,7 @@ import type {
   InputHistoryKind,
   AppUsageQueryInput,
   AppUsageQueryResult,
+  ProviderUsageQueryInput,
   ModelUsageRecord,
   PermissionRuleset,
   ProjectId,
@@ -28,12 +29,16 @@ import type {
 } from "@lcode/contracts";
 import type { SqliteStoreAccess } from "./store-access.js";
 import * as usageRepository from "./repositories/usage.js";
+import { queryProviderUsage } from "./repositories/provider-usage-query.js";
 import * as inputHistoryRepository from "./repositories/input-history.js";
 import * as localSettingsRepository from "./repositories/local-settings.js";
 import * as scriptWorkflowActivityRepository from "./repositories/script-workflow-activities.js";
 import * as scriptWorkflowRunRepository from "./repositories/script-workflow-runs.js";
 
 export const auxiliaryStoreMethods = {
+  async queryProviderUsage(this: SqliteStoreAccess, input: ProviderUsageQueryInput) {
+    return queryProviderUsage(this.db, input);
+  },
   async recordModelUsage(this: SqliteStoreAccess, input: ModelUsageRecord): Promise<void> {
     return usageRepository.recordModelUsage(this.db, input);
   },

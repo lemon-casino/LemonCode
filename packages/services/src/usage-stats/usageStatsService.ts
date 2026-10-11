@@ -16,6 +16,7 @@ import type {
   UsageStatsSnapshot,
 } from "@lcode/shared";
 import { isCodingPlanModelProviderId } from "@lcode/shared";
+import { providerUsageRequestSchema, providerUsageSnapshotSchema } from "@lcode/shared";
 import type { ICredentialService } from "../credential/credential.js";
 import type { IAccountRequestAuthService } from "../model-provider/accountRequestAuthService.js";
 import type { ILCodeAgentService } from "../lcode-agent/lcodeAgent.js";
@@ -39,7 +40,8 @@ interface UsageStatsServiceDependencies {
   credentialService?: Pick<ICredentialService, "load">;
   env?: NodeJS.ProcessEnv;
   /** App Usage 经 LCode Protocol 读取 agent 数据库真实统计。 */
-  lcodeAgentService: Pick<ILCodeAgentService, "getAppUsageStats">;
+  lcodeAgentService: Pick<ILCodeAgentService, "getAppUsageStats"> &
+    Partial<Pick<ILCodeAgentService, "getProviderUsageStats">>;
   /**
    * 官方 Server MCP 额度的凭证来源（与 server MCP 调用同一套 5 个身份头）。
    * 缺省时 entitlement 快照不含 MCP 额度。
@@ -66,12 +68,21 @@ export function createUsageStatsService(
   });
 
   return {
+    async getProviderUsageSnapshot(request) {
+      const query = providerUsageRequestSchema.parse(request);
+      if (!dependencies.lcodeAgentService.getProviderUsageStats)
+        throw new Error("provider_usage_unavailable");
+      return providerUsageSnapshotSchema.parse(
+        await dependencies.lcodeAgentService.getProviderUsageStats(query),
+      );
+    },
     async getAppUsageSnapshot(request: AppUsageRequest): Promise<AppUsageSnapshot> {
       // App Usage 现读取 agent 数据库真实统计（model_usage/turn_usage/tool_usage），
       // 经 LCode Protocol usage/stats 取回。不再读本地 session JSON 估算。
       return dependencies.lcodeAgentService.getAppUsageStats({
         range: request.range,
         timeZone: request.timeZone,
+        connectionType: request.connectionType,
       });
     },
     async getCodingPlanUsageSnapshot(

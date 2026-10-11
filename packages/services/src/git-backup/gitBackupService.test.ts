@@ -5,8 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { test } from "node:test";
+import { acquireFileLock } from "@lcode/shared/node";
 import { createGitBackupService } from "./gitBackupService.js";
-import { EMPTY_BACKUP_STATE } from "./gitBackupStore.js";
+import { createBackupStore, EMPTY_BACKUP_STATE } from "./gitBackupStore.js";
 
 const oss = {
   accessKeyId: "fixture-id",
@@ -45,6 +46,17 @@ async function waitFor(check: () => Promise<boolean>) {
     await sleep(10);
   }
   throw new Error("Fixture condition timed out");
+}
+
+async function waitForCycleRelease(dataDir: string) {
+  // 状态落盘早于调度 finally；等待真实执行锁释放，避免后台 IO 与清理目录竞争。
+  const release = await acquireFileLock(
+    join(dataDir, "git-backup-execution"),
+    [10, 25, 50],
+    100,
+    5_000,
+  );
+  await release();
 }
 
 function decode(packed: Buffer) {
@@ -284,19 +296,23 @@ test("stale running recovers only without an active execution owner", async () =
 test("due cycle retains a failed target after another workspace succeeds", async () => {
   const f = await fixture();
   let now = Date.now();
+  const credentialService = credentials();
+  const store = createBackupStore(f.dataDir, credentialService);
+  await store.configure(
+    { oss, enabled: true, intervalMinutes: 5 },
+    { workspacePath: join(f.root, "missing") },
+    now,
+  );
+  await store.configure({}, { workspacePath: f.workspace }, now);
+  now += 300_001;
   const service = createGitBackupService(f.dataDir, {
-    credentialService: credentials(),
+    credentialService,
     fetch: async () => new Response(null, { status: 200 }),
     now: () => now,
-    schedulerPollMs: 10,
+    // 已持久化的到期配置由启动 poll 执行，避免清理时启动无关的新一轮读取。
+    schedulerPollMs: 60_000,
   });
   try {
-    await service.configure(
-      { oss, enabled: true, intervalMinutes: 5 },
-      { workspacePath: join(f.root, "missing") },
-    );
-    await service.configure({}, { workspacePath: f.workspace });
-    now += 300_001;
     await waitFor(
       async () =>
         (await service.getStatus()).lastBackupAt !== null &&
@@ -305,6 +321,72 @@ test("due cycle retains a failed target after another workspace succeeds", async
     assert.match((await service.getStatus()).error!, /1 workspace backup\(s\) failed/);
   } finally {
     service.dispose();
+    await waitForCycleRelease(f.dataDir);
+    await rm(f.root, { recursive: true, force: true });
+  }
+});
+
+test("scheduler only backs up selected workspaces and skips one deselected before admission", async () => {
+  const f = await fixture();
+  let now = Date.now();
+  let releaseUpload!: () => void;
+  let startUpload!: () => void;
+  const started = new Promise<void>((resolve) => {
+    startUpload = resolve;
+  });
+  const gate = new Promise<void>((resolve) => {
+    releaseUpload = resolve;
+  });
+  const manifests: Array<{ workspacePath: string }> = [];
+  const selected = { workspacePath: join(f.root, "selected") };
+  const deselected = { workspacePath: join(f.root, "deselected") };
+  for (const target of [selected, deselected]) {
+    await mkdir(join(target.workspacePath, ".git"), { recursive: true });
+    await writeFile(join(target.workspacePath, ".git", "HEAD"), "ref: refs/heads/main\n");
+  }
+  const credentialService = credentials();
+  const store = createBackupStore(f.dataDir, credentialService);
+  await store.configure({ oss, intervalMinutes: 5 }, undefined, now);
+  assert.deepEqual((await store.loadConfig()).workspaces, []);
+  await store.configure({}, selected, now);
+  await store.configure({}, deselected, now);
+  await store.configure({ enabled: true }, undefined, now);
+  now += 300_001;
+  const service = createGitBackupService(f.dataDir, {
+    credentialService,
+    now: () => now,
+    // 用启动时的到期周期验证名单；避免高频新 poll 与测试目录清理并发。
+    schedulerPollMs: 60_000,
+    fetch: async (url, init) => {
+      if (String(url).endsWith("data.enc")) {
+        startUpload();
+        await gate;
+      }
+      if (String(url).endsWith("manifest.json")) manifests.push(JSON.parse(String(init?.body)));
+      return new Response(null, { status: 200 });
+    },
+  });
+  try {
+    await started;
+    await service.removeWorkspace(deselected);
+    releaseUpload();
+    await waitFor(
+      async () =>
+        (await service.getStatus()).lastBackupAt !== null &&
+        Date.parse((await service.getStatus()).nextBackupAt!) > now,
+    );
+    assert.deepEqual(
+      manifests.map((manifest) => manifest.workspacePath),
+      [selected.workspacePath],
+    );
+    assert.deepEqual((await service.getConfig()).workspaces, [selected]);
+    await service.removeWorkspace(selected);
+    assert.equal((await service.getConfig()).enabled, false);
+  } finally {
+    releaseUpload();
+    service.dispose();
+    // nextDueAt 落盘后仍有执行锁释放；以真实锁完成为清理边界，不依赖额外延时。
+    await waitForCycleRelease(f.dataDir);
     await rm(f.root, { recursive: true, force: true });
   }
 });
@@ -312,6 +394,15 @@ test("due cycle retains a failed target after another workspace succeeds", async
 test("stop permits the admitted run to finish but prevents the next target", async () => {
   const f = await fixture();
   let now = Date.now();
+  const credentialService = credentials();
+  const store = createBackupStore(f.dataDir, credentialService);
+  await store.configure(
+    { oss, enabled: true, intervalMinutes: 5 },
+    { workspacePath: f.workspace, workspaceIdentity: "first" },
+    now,
+  );
+  await store.configure({}, { workspacePath: f.workspace, workspaceIdentity: "second" }, now);
+  now += 300_001;
   let releaseFetch!: () => void;
   let uploadStarted!: () => void;
   let dataUploads = 0;
@@ -322,9 +413,9 @@ test("stop permits the admitted run to finish but prevents the next target", asy
     releaseFetch = resolve;
   });
   const service = createGitBackupService(f.dataDir, {
-    credentialService: credentials(),
+    credentialService,
     now: () => now,
-    schedulerPollMs: 10,
+    schedulerPollMs: 60_000,
     fetch: async (url) => {
       if (String(url).endsWith("data.enc")) dataUploads++;
       uploadStarted();
@@ -333,12 +424,6 @@ test("stop permits the admitted run to finish but prevents the next target", asy
     },
   });
   try {
-    await service.configure(
-      { oss, enabled: true, intervalMinutes: 5 },
-      { workspacePath: f.workspace, workspaceIdentity: "first" },
-    );
-    await service.configure({}, { workspacePath: f.workspace, workspaceIdentity: "second" });
-    now += 300_001;
     await started;
     await service.stopBackup();
     releaseFetch();
@@ -346,12 +431,13 @@ test("stop permits the admitted run to finish but prevents the next target", asy
       async () =>
         (await service.getStatus()).lastBackupAt !== null && !(await service.getStatus()).running,
     );
-    await sleep(40);
+    await waitForCycleRelease(f.dataDir);
     assert.equal(dataUploads, 1);
     assert.equal((await service.getStatus()).nextBackupAt, null);
   } finally {
     releaseFetch?.();
     service.dispose();
+    await waitForCycleRelease(f.dataDir);
     await rm(f.root, { recursive: true, force: true });
   }
 });

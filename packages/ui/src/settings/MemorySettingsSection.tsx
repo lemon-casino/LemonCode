@@ -20,6 +20,11 @@ import {
   type MemoryViewerLoadingState,
 } from "@/settings/MemorySettingsViewer.js";
 import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js";
+import { MemoryStorageLocationControl } from "@/settings/MemoryStorageLocationControl.js";
+import type {
+  MemoryStorageChangeResult,
+  MemoryStorageLocation,
+} from "@/hooks/useMemoryStorageSettings.js";
 
 type MemoryCatalogService = Pick<IMemoryService, "listProjectMemories">;
 
@@ -57,7 +62,10 @@ function getErrorMessage(error: unknown): string {
 export function MemorySettingsSection({
   memoryEnabled,
   memoryService,
+  memoryStorageLocation,
+  memoryStorageLocationLoading = false,
   onMemoryEnabledChange,
+  onMemoryStorageLocationChange,
   onSessionRecallEnabledChange,
   projectMemoryViewerAvailable,
   sessionRecallEnabled,
@@ -65,7 +73,12 @@ export function MemorySettingsSection({
 }: {
   memoryEnabled: boolean;
   memoryService: MemoryCatalogService;
+  memoryStorageLocation: MemoryStorageLocation;
+  memoryStorageLocationLoading?: boolean;
   onMemoryEnabledChange: (enabled: boolean) => Promise<void>;
+  onMemoryStorageLocationChange: (
+    location: MemoryStorageLocation,
+  ) => Promise<MemoryStorageChangeResult>;
   onSessionRecallEnabledChange: (enabled: boolean) => Promise<void>;
   projectMemoryViewerAvailable: boolean;
   sessionRecallEnabled: boolean;
@@ -73,12 +86,14 @@ export function MemorySettingsSection({
 }) {
   const { intl } = useLCodeIntl();
   const catalogRequestIdRef = useRef(0);
+  const catalogAvailableRef = useRef(false);
   const [catalogState, setCatalogState] = useState<MemoryViewerLoadingState>("idle");
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [workspaces, setWorkspaces] = useState<ProjectMemoryWorkspaceSummary[]>([]);
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string | null>(null);
 
   const refreshCatalog = useCallback(async (): Promise<ProjectMemoryWorkspaceSummary[] | null> => {
+    if (!catalogAvailableRef.current) return null;
     const requestId = catalogRequestIdRef.current + 1;
     catalogRequestIdRef.current = requestId;
     setCatalogState("loading");
@@ -104,9 +119,15 @@ export function MemorySettingsSection({
   }, [memoryService]);
 
   useEffect(() => {
-    if (memoryEnabled && projectMemoryViewerAvailable) {
+    catalogAvailableRef.current = memoryEnabled && projectMemoryViewerAvailable;
+    const invalidate = () => {
+      // 复制完成可能晚于卸载/关闭开关，旧回调不能重新读取或恢复已关闭的列表。
+      catalogAvailableRef.current = false;
+      catalogRequestIdRef.current += 1;
+    };
+    if (catalogAvailableRef.current) {
       void refreshCatalog();
-      return;
+      return invalidate;
     }
 
     catalogRequestIdRef.current += 1;
@@ -114,6 +135,7 @@ export function MemorySettingsSection({
     setCatalogError(null);
     setWorkspaces([]);
     setSelectedWorkspaceId(null);
+    return invalidate;
   }, [memoryEnabled, projectMemoryViewerAvailable, refreshCatalog]);
 
   const displayWorkspaces = useMemo(() => {
@@ -166,6 +188,15 @@ export function MemorySettingsSection({
     });
   }, [refreshCatalog]);
 
+  const handleStorageChange = useCallback(
+    async (location: MemoryStorageLocation) => {
+      const result = await onMemoryStorageLocationChange(location);
+      if (catalogAvailableRef.current) await refreshCatalog();
+      return result;
+    },
+    [onMemoryStorageLocationChange, refreshCatalog],
+  );
+
   return (
     <div className="space-y-6">
       <SettingsGroupCard>
@@ -188,6 +219,11 @@ export function MemorySettingsSection({
               }}
             />
           }
+        />
+        <MemoryStorageLocationControl
+          location={memoryStorageLocation}
+          disabled={!projectMemoryViewerAvailable || memoryStorageLocationLoading}
+          onChange={handleStorageChange}
         />
         <SettingsRow
           label={

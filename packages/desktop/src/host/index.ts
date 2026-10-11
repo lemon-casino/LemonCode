@@ -107,7 +107,6 @@ import {
 // 改为动态 import，仅 remote 模式时才加载。
 import type {
   ConnectOptions,
-  DeployLockMode,
   IRemoteBackend,
   RemoteRuntimeNetworkOptions,
   RemoteAssetNetworkPort,
@@ -1637,8 +1636,8 @@ async function createWindowRemoteConnectionHandle(params: {
     { fetch: requireActiveHostApiNetworkTransport().fetch },
     await resolveDesktopRemoteRuntimeNetwork(params.target),
     (exitCode) => notifyClose({ exitCode, signal: null }),
-    params.target.kind === "ssh" ? "caller-serialized" : "remote",
-    params.target.kind === "ssh" ? params.signal : undefined,
+    // WSL/Docker 之前丢弃 signal，取消只结束 UI 等待却继续探测和部署。
+    params.signal,
   );
 
   if (params.signal.aborted) {
@@ -2948,7 +2947,6 @@ async function setupRemoteConnection(
   remoteAssetNetwork: RemoteAssetNetworkPort,
   remoteRuntimeNetwork: RemoteRuntimeNetworkOptions | undefined,
   onDidRemoteClose: (exitCode: number) => void,
-  deployLockMode: DeployLockMode = "remote",
   signal?: AbortSignal,
 ): Promise<HostRemoteConnection> {
   // 延迟加载 remote backend，避免 local 模式下因 ssh2 依赖链进入 asar 后崩溃
@@ -2967,8 +2965,6 @@ async function setupRemoteConnection(
     // 这里只透传 server 侧白名单允许的公开环境变量，避免把 credential/token 带到远端机器。
     remoteRuntimeEnv: pickRemoteRuntimeEnv(process.env),
     assetInstallMode: target.kind === "ssh" ? target.assetInstallMode : undefined,
-    // SSH 由窗口级 registry 串行复用，其余 transport 仍保留远端 connector 自身锁。
-    deployLockMode,
     onDidRemoteClose: ({ code }) => {
       onDidRemoteClose(code);
     },

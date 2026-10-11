@@ -107,6 +107,8 @@ export function buildForkWorktreeBindingEntry(
 ): SessionEntryInfo | undefined {
   const binding = runtime.config.workspaceBinding;
   if (!binding) return undefined;
+  // 派生有真实 parentID；不能继承空白同树会话标记而绕过父子历史校验。
+  const { bindingReuse: _bindingReuse, ...inheritedBinding } = binding;
   const now = Date.now();
   return {
     id: `${childSessionId}:worktree-binding`,
@@ -115,7 +117,10 @@ export function buildForkWorktreeBindingEntry(
     touchSession: false,
     time: { created: now, updated: now },
     // Fork 沿用当前 checkout，记录真正所有者，不能把 child 冒充成新工作树的任务。
-    data: { ...binding, bindingOwnerTaskId: binding.bindingOwnerTaskId ?? runtime.sessionId },
+    data: {
+      ...inheritedBinding,
+      bindingOwnerTaskId: binding.bindingOwnerTaskId ?? runtime.sessionId,
+    },
   };
 }
 

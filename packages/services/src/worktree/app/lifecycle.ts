@@ -70,7 +70,7 @@ export function createWorktreeLifecycle(context: WorktreeContext, coordinator: C
         const capabilities = await capability(params);
         if (!capabilities.supported) throw new Error(capabilities.reason);
         const info = await git.inspect(params.workspacePath);
-        const checkoutPath = store.checkout(id);
+        const { checkoutPath, checkoutRoot } = await store.allocateCheckout(id, info.root, info.commonDirectory);
         const baseRef = params.baseRef?.trim() || "HEAD";
         if (baseRef.startsWith("-") || [...baseRef].some((character) => character.charCodeAt(0) <= 32)) throw new Error("Invalid worktree base ref");
         const baseCommit = await git.command(info.root, ["rev-parse", "--verify", `${baseRef}^{commit}`]);
@@ -83,7 +83,7 @@ export function createWorktreeLifecycle(context: WorktreeContext, coordinator: C
         binding = {
           id, creationFingerprint, taskId: params.taskId, requestId: params.requestId, projectId: params.projectId,
           environmentPolicy: policy, originalWorkspacePath: params.workspacePath, originalWorkspaceIdentity: params.workspaceIdentity,
-          repositoryRoot: info.root, commonDirectory: info.commonDirectory, checkoutPath, workspacePath, workspaceIdentity,
+          repositoryRoot: info.root, commonDirectory: info.commonDirectory, checkoutPath, checkoutRoot, workspacePath, workspaceIdentity,
           branch: `lcode/task-${id}`, baseCommit, targetBranch: info.branch,
           sourceFolderPaths: (params.sourceFolderPaths ?? []).map((path) => mappedSourcePath(info.root, checkoutPath, path)),
           status: "preparing", preparation: { stage: "workspace", log: "Preparing workspace.\n", logTruncated: false, cancelRequested: false, environmentSource: params.setupCommands ? "explicit" : "none" },

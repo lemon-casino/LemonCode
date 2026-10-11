@@ -10,7 +10,16 @@ import type {
 
 export interface WorktreeStore {
   key(value: string): string;
-  checkout(id: string): string;
+  checkout(id: string, checkoutRoot?: string): string;
+  allocateCheckout(
+    id: string,
+    repositoryRoot: string,
+    commonDirectory: string,
+  ): Promise<{ checkoutPath: string; checkoutRoot?: string }>;
+  getManagementSettings(): Promise<import("@lcode/shared").WorktreeManagementSettings>;
+  updateManagementSettings(
+    patch: Partial<import("@lcode/shared").WorktreeManagementSettings>,
+  ): Promise<import("@lcode/shared").WorktreeManagementSettings>;
   lock<T>(key: string, action: () => Promise<T>): Promise<T>;
   readBinding(id: string): Promise<WorktreeBinding | null>;
   saveBinding(binding: WorktreeBinding): Promise<void>;
@@ -21,6 +30,7 @@ export interface WorktreeStore {
   listBindings(): Promise<WorktreeBinding[]>;
   findExecutionBinding(
     scope: import("../contract.js").WorktreeScope,
+    resource?: "file-watch",
   ): Promise<WorktreeBinding | null>;
   readOperation(id: string): Promise<WorktreeIntegration | null>;
   saveOperation(operation: WorktreeIntegration): Promise<void>;

@@ -7,6 +7,7 @@ import type { MessageId, Model, SessionEvent, TraceContext, TurnId } from "@lcod
 import type { RuntimeModelTextResult } from "../types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import { isModelContextExceededError } from "../helpers/index.js";
+import { invocationNetworkEvents, modelUsageAttribution } from "./usage-model-attribution.js";
 import {
   usageStoreFor,
   modelNetworkEvents,
@@ -58,7 +59,11 @@ export async function recordModelUsageFact(
 
   const completedAt = Date.now();
   const usage = input.result?.usage;
-  const networkEvents = modelNetworkEvents(input.events.slice(input.networkEventStartIndex));
+  const networkEvents = invocationNetworkEvents({
+    events: input.events.slice(input.networkEventStartIndex),
+    model: input.model,
+    traceContext: input.traceContext,
+  });
   const retryCount = networkEvents.filter((event) => event.type === "model_retry_scheduled").length;
   const failedNetworkEvent = networkEvents.findLast(
     (event) => event.type === "model_request_failed",
@@ -86,6 +91,7 @@ export async function recordModelUsageFact(
       querySource: input.querySource,
       providerId: input.model.providerId,
       modelId: input.model.modelId,
+      ...modelUsageAttribution(input.model, networkEvents, usage),
       reasoningLevel: input.model.options.reasoningLevel,
       agent: runtime.config.agentName ?? "lcode-agent",
       mode: runtime.config.mode ?? "build",

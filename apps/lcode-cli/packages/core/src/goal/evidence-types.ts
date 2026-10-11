@@ -1,4 +1,11 @@
-import type { FileSystemPort, SessionStorePort, SessionGoal, SessionId, GoalRequirement, GoalEvidenceAttempt } from "@lcode/contracts";
+import type {
+  FileSystemPort,
+  SessionStorePort,
+  SessionGoal,
+  SessionId,
+  GoalRequirement,
+  GoalEvidenceAttempt,
+} from "@lcode/contracts";
 
 export interface GoalEvidenceOwner {
   sessionId: SessionId;
@@ -22,4 +29,3 @@ export interface GoalExecutionCapture {
   attempt: GoalEvidenceAttempt;
   requirements: { requirement: GoalRequirement; before: string | null }[];
 }
-

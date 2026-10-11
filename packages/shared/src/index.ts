@@ -29,6 +29,7 @@ export type {
 export type { WorkspacePurpose } from "./workspacePurpose.js";
 export * from "./localProjects.js";
 export * from "./worktreePolicy.js";
+export * from "./worktreeManagement.js";
 export * from "./worktreeExecution.js";
 export * from "./worktreeIntegration.js";
 export * from "./taskTitle.js";
@@ -321,3 +322,6 @@ export { redactFeedbackText } from "./feedbackPrivacy.js";
 export type { GitDeleteBranchRequest, GitDeleteBranchResult } from "./git.js";
 export { gitDeleteBranchRequestSchema } from "./gitPublish.js";
 export * from "./goal-evidence.js";
+export * from "./provider-accounts.js";
+export * from "./provider-account-quota.js";
+export * from "./usage-analytics.js";

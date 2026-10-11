@@ -71,6 +71,8 @@ export class ConfigPortImpl implements ConfigPort {
       },
       memory: {
         use: this.store.get(ConfigKey.MemoryUse) ?? DefaultConfig.memory.use,
+        storageLocation: this.store.get(ConfigKey.MemoryStorageLocation) ?? "profile",
+        storageRevision: this.store.get(ConfigKey.MemoryStorageRevision),
         observationEnabled: this.store.get(ConfigKey.MemoryObservationEnabled) ?? false,
         rankingExperimentEnabled: this.store.get(ConfigKey.MemoryRankingExperimentEnabled) ?? false,
       },
@@ -194,6 +196,10 @@ function getDefaultValue(key: ConfigKey): unknown {
       return defaults.features.mcp;
     case ConfigKey.MemoryUse:
       return defaults.memory.use;
+    case ConfigKey.MemoryStorageLocation:
+      return defaults.memory.storageLocation ?? "profile";
+    case ConfigKey.MemoryStorageRevision:
+      return undefined;
     case ConfigKey.MemoryObservationEnabled:
     case ConfigKey.MemoryRankingExperimentEnabled:
       return false;

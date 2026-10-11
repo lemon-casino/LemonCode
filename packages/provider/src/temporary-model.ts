@@ -37,12 +37,17 @@ export function resolveTemporaryModel(
     snapshot.account.states?.[providerId]?.current === false ||
     (access.type === "zhipu-account"
       ? access.entitled !== true
-      : !resolveApiKeyAccessKeys(access).some((key) => key.enabled !== false))
+      : access.type === "oauth-account"
+        ? !provider.models.some((model) => model.modelId === modelId && model.executable)
+        : !resolveApiKeyAccessKeys(access).some((key) => key.enabled !== false))
   ) {
     throw new Error(`Provider 鉴权资格不可用: ${providerId}`);
   }
   const resolved = ModelConfigRules.composeEffective(
-    snapshot.config.lcodeBuiltinModelRules,
+    new ModelConfigRules([
+      ...snapshot.config.lcodeBuiltinModelRules.rules(),
+      ...(snapshot.account.modelRules?.rules() ?? []),
+    ]),
     snapshot.config.personalModels,
   ).resolve({
     providerId,
