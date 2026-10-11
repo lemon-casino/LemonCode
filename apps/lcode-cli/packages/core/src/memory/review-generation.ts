@@ -156,6 +156,9 @@ export async function generateMemoryReviewDraft(input: {
     "model_failed",
   );
   throwIfReviewAborted(context);
+  // 截断响应即使含部分合法JSON也不能采纳；稳定阶段码便于区分生成与独立核验失败。
+  if (result.finishReason === "length")
+    throw new MemoryReviewError("output_truncated", "generation");
   if (result.toolCalls?.length || result.toolResults?.length || result.finishReason !== "stop") {
     throw new MemoryReviewError("invalid_response");
   }

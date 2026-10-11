@@ -50,8 +50,9 @@ const INCREMENTAL_REVIEW_PROFILE: Readonly<MemoryReviewProfile> = Object.freeze(
   requestCharacterLimit: 20_000,
   requestTokenLimit: 6_000,
   itemLimit: 3,
-  generationOutputTokenLimit: 1_536,
-  verificationOutputTokenLimit: 768,
+  // 原因：总输出可能包含推理，1536/768实盘可在JSON正文前耗尽；保留有界输入与两次请求。
+  generationOutputTokenLimit: FULL_REVIEW_PROFILE.generationOutputTokenLimit,
+  verificationOutputTokenLimit: FULL_REVIEW_PROFILE.verificationOutputTokenLimit,
 });
 
 /** 档位只来自可信runtime上下文，不读取query、候选或模型响应中的预算覆盖。 */

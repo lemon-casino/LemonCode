@@ -9,6 +9,7 @@ import { decodeMessageRow, decodePartRow } from "../codecs.js";
 import type { MessageRow } from "../rows.js";
 import { getSession } from "./sessions.js";
 import { admitRows, normalizeLimits, readPartRows } from "./transcript-snapshot.js";
+import { readBranchCutBeforeWindow } from "./transcript-window-branch.js";
 
 const WINDOW_SAVEPOINT = "session_transcript_window";
 
@@ -111,15 +112,22 @@ function readWindow(
     info: decodeMessageRow(row),
     parts: partsByMessage.get(row.id) ?? [],
   }));
+  const prefixTruncated = candidates.length > messageIDs.length;
+  const truncated = boundedMessages.truncated || boundedParts.truncated;
+  const branchCutBeforeWindow =
+    prefixTruncated && !truncated && messages[0]
+      ? readBranchCutBeforeWindow(db, empty.session!, messages[0].info.id)
+      : undefined;
   return {
     ...empty,
     boundaryFound: true,
-    prefixTruncated: candidates.length > messageIDs.length,
+    prefixTruncated,
+    ...(branchCutBeforeWindow ? { branchCutBeforeWindow } : {}),
     messages,
     loadedMessageCount: messages.length,
     loadedPartCount: boundedParts.rows.length,
     loadedDataBytes: boundedMessages.loadedDataBytes + boundedParts.loadedDataBytes,
-    truncated: boundedMessages.truncated || boundedParts.truncated,
+    truncated,
   };
 }
 

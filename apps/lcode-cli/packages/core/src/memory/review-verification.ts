@@ -164,6 +164,9 @@ export async function verifyMemoryReviewDraft(input: {
     "model_failed",
   );
   throwIfReviewAborted(context);
+  // 不因核验预算耗尽降低接受规则或重试付费调用，原记忆保持不变。
+  if (result.finishReason === "length")
+    throw new MemoryReviewError("output_truncated", "verification");
   if (result.toolCalls?.length || result.toolResults?.length || result.finishReason !== "stop") {
     throw new MemoryReviewError("invalid_response");
   }

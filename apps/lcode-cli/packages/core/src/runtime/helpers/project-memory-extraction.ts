@@ -3,7 +3,7 @@ import {
   SESSION_TRANSCRIPT_SNAPSHOT_MAX_MESSAGE_ROWS,
   SESSION_TRANSCRIPT_SNAPSHOT_MAX_PART_ROWS,
 } from "@lcode/contracts";
-import { selectActiveConversationBranch, type TraceContext } from "../deps.js";
+import { traceContextToLogContext, type TraceContext } from "../deps.js";
 import { projectSessionHistorySearchText } from "../../session-context/session-history-search.js";
 import { canReadSessionContextFromWorkspace } from "../../session-context/workspace-session-scope.js";
 import {
@@ -13,6 +13,8 @@ import {
   type MemoryExtractionSnapshot,
 } from "../../memory/extraction.js";
 import { runAutomaticMemoryReview } from "../../memory/automatic-review.js";
+import { MemoryReviewError } from "../../memory/review-common.js";
+import { activeReviewWindowMessages } from "../../memory/review-session-window.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 import {
   captureProjectMemoryAgentContext,
@@ -87,12 +89,13 @@ export function scheduleProjectMemoryExtraction(
       ) {
         throw new Error("Extraction completed window is unavailable");
       }
-      const activeMessages = selectActiveConversationBranch(window.messages, {
-        branchCutAfterMessageId: scheduledSession.revert?.branchCutAfterMessageID,
-        rewindCreatedMessageId: scheduledSession.revert?.createdMessageID,
-        rewindKeptMessageIds: scheduledSession.revert?.keptMessageIDs,
-        rewindTargetMessageId: scheduledSession.revert?.targetMessageID,
-      });
+      // scheduler与审核重读必须共用可信窗口分支规则，避免一处接纳、一处拒绝。
+      const activeMessages = activeReviewWindowMessages(
+        window,
+        scheduledSession,
+        snapshotBoundaryMessageId,
+      );
+      if (!activeMessages) throw new Error("Extraction active branch is unavailable");
       const boundaryIndex = activeMessages.findIndex(
         (message) => message.info.id === snapshotBoundaryMessageId,
       );
@@ -110,6 +113,15 @@ export function scheduleProjectMemoryExtraction(
       // prefixTruncated 可省略旧轮，但窗口内没有真实用户边界时不能把孤立 assistant 当本轮证据。
       if (!realUserText.searchText) throw new Error("Extraction window has no real user boundary");
       return { ...snapshotBase, boundaryMessageId: snapshotBoundaryMessageId, durableMessages };
+    })
+    .catch((error: unknown) => {
+      // 快照获取失败原本被scheduler静默吸收；只记录稳定原因，不输出历史或路径。
+      runtime.logger?.warn("Project memory extraction window unavailable", {
+        ...traceContextToLogContext(input.traceContext),
+        event: "memory.extraction.window_unavailable",
+        module: "core.runtime",
+      });
+      throw error;
     });
 
   runtime.memoryExtractionScheduler ??= createMemoryExtractionScheduler((extraction) =>
@@ -195,6 +207,15 @@ async function executeProjectMemoryExtraction(
       });
       input.abortSignal.throwIfAborted();
       // 冲突优先保留前景版本与 cursor；不在后台自动重试，仅后续新快照可以重新形成候选。
+      runtime.logger?.info("Project memory extraction completed", {
+        ...traceContextToLogContext(snapshot.traceContext),
+        event: "memory.extraction.completed",
+        module: "core.runtime",
+        appliedCount: result.appliedCount,
+        rejectedCount: result.rejectedCount,
+        conflictCount: result.conflictCount,
+        skippedReason: result.skippedReason,
+      });
       if (result.conflictCount > 0) {
         telemetry.finishFailed(
           "execute",
@@ -211,6 +232,13 @@ async function executeProjectMemoryExtraction(
         return "aborted" as const;
       }
       telemetry.finishFailed("execute", "internal", error);
+      runtime.logger?.warn("Project memory extraction failed", {
+        ...traceContextToLogContext(input.snapshot.traceContext),
+        event: "memory.extraction.failed",
+        module: "core.runtime",
+        code: error instanceof MemoryReviewError ? error.code : "internal",
+        phase: error instanceof MemoryReviewError ? error.phase : undefined,
+      });
       return "error" as const;
     }
   });

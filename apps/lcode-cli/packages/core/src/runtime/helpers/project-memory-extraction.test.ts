@@ -30,8 +30,8 @@ test("background extraction verifies then commits through the governed port with
     ],
   );
   assert.notEqual(h.requests[0]!.messages, h.requests[1]!.messages);
-  assert.ok(h.requests[0]!.options!.maxOutputTokens! <= 1536);
-  assert.ok(h.requests[1]!.options!.maxOutputTokens! <= 768);
+  assert.equal(h.requests[0]!.options!.maxOutputTokens, 4096);
+  assert.equal(h.requests[1]!.options!.maxOutputTokens, 2048);
   assert.equal(h.saved[0]!.draft.sources.filter((source) => source.kind === "session").length, 1);
   assert.equal(h.saved[0]!.draft.sources[0]!.boundaryMessageId, h.boundary);
   assert.equal(h.runtime.memoryExtractionScheduler!.getCursor(), h.boundary);

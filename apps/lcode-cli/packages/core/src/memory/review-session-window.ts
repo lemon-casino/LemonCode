@@ -34,9 +34,20 @@ export function activeReviewWindowMessages(
         const cut = messages.findIndex(
           (message) => message.info.id === revert.branchCutAfterMessageID,
         );
-        // cut在窗内即足以证明其后的新分支，不要求所有旧kept/target也落入窗口。
-        if (cut < 0) return undefined;
-        active = messages.slice(cut + 1);
+        // 原因：长会话cut会落在窗口前缀之外。仅接受同一存储快照的同cut/同代证明，
+        // 缺失或不匹配时仍关闭，不能凭ID/时间或“窗口里没有cut”放开废弃分支。
+        if (cut < 0) {
+          const proof = window.branchCutBeforeWindow;
+          if (
+            !window.prefixTruncated ||
+            proof?.messageID !== revert.branchCutAfterMessageID ||
+            proof.branchGeneration !== revert.branchGeneration
+          )
+            return undefined;
+        } else {
+          if (window.branchCutBeforeWindow) return undefined;
+          active = messages.slice(cut + 1);
+        }
       } else if (revert.createdMessageID) {
         const created = messages.findIndex(
           (message) => message.info.id === revert.createdMessageID,

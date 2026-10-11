@@ -32,6 +32,7 @@ export type MemoryReviewErrorCode =
   | "cancelled"
   | "invalid_query"
   | "invalid_response"
+  | "output_truncated"
   | "budget_exceeded"
   | "source_unavailable"
   | "stale_source"
@@ -43,6 +44,8 @@ const ERROR_MESSAGES: Record<MemoryReviewErrorCode, string> = {
   cancelled: "Memory review was cancelled.",
   invalid_query: "Memory review query is empty or exceeds its budget.",
   invalid_response: "Memory review model response is not a valid evidence-backed proposal.",
+  output_truncated:
+    "Memory review auxiliary model output reached its limit; no changes were saved.",
   budget_exceeded: "Memory review exceeded its bounded evidence or model budget.",
   source_unavailable: "Memory review evidence is unavailable or outside the current scope.",
   stale_source: "Memory review evidence changed; create a new review before applying it.",
@@ -52,7 +55,10 @@ const ERROR_MESSAGES: Record<MemoryReviewErrorCode, string> = {
 };
 
 export class MemoryReviewError extends Error {
-  constructor(readonly code: MemoryReviewErrorCode) {
+  constructor(
+    readonly code: MemoryReviewErrorCode,
+    readonly phase?: "generation" | "verification",
+  ) {
     super(ERROR_MESSAGES[code]);
     this.name = code === "cancelled" ? "AbortError" : "MemoryReviewError";
   }

@@ -48,7 +48,7 @@ test("background uses only the last completed real-user turn with a fixed source
   assert.equal(draft.sources.filter((source) => source.kind === "session").length, 1);
   assert.equal(draft.sources[0]!.boundaryMessageId, "msg_done");
   assert.equal(draft.sources[0]!.projection, "latest-turn");
-  assert.ok(h.requests[0]!.options!.maxOutputTokens! <= 1536);
+  assert.equal(h.requests[0]!.options!.maxOutputTokens, 4096);
   assert.ok(JSON.stringify(h.requests[0]).length <= 20_000);
   assert.equal(h.lists.length, 0);
   assert.equal(h.snapshots.length, 0);
@@ -58,7 +58,7 @@ test("background uses only the last completed real-user turn with a fixed source
   h.state.reply = () => reviewDecisionResponse(draft);
   await verifyMemoryReviewDraft({ draft, context: h.context });
   assert.equal(h.requests.length, 2);
-  assert.ok(h.requests[1]!.options!.maxOutputTokens! <= 768);
+  assert.equal(h.requests[1]!.options!.maxOutputTokens, 2048);
   assert.ok(JSON.stringify(h.requests[1]).length <= 20_000);
   assert.ok(!JSON.stringify(h.requests[1]).includes("IN_FLIGHT_NEW_USER"));
 });

@@ -40,6 +40,7 @@ export interface SessionTranscriptSnapshot {
   messages: MessageWithParts[];
   loadedMessageCount: number;
   loadedPartCount: number;
+  /** 原始message/part JSON数据列字节，不含读取时注入的行ID和外层容器。 */
   loadedDataBytes: number;
   truncated: boolean;
 }
@@ -55,6 +56,11 @@ export interface SessionTranscriptWindow extends SessionTranscriptSnapshot {
   boundaryFound: boolean;
   /** 仅省略更早历史，不代表窗口内部缺失材料。 */
   prefixTruncated: boolean;
+  /**
+   * 同一读取快照证明当前session的cut严格早于最早完整入窗消息。
+   * 只比较存储顺序列，不额外读取正文；旧adapter缺席时调用方保持fail-closed。
+   */
+  branchCutBeforeWindow?: { messageID: MessageId; branchGeneration?: number };
   /** 选定窗口内部的消息、parts 或 JSON 字节未完整载入。 */
   truncated: boolean;
 }

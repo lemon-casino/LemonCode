@@ -17,6 +17,7 @@ import { activeSessionMessagesForSession } from "../session-context/active-sessi
 import { messagesAfterLastMemoryReviewTurn } from "./extraction.js";
 import { memoryReviewProfile } from "./review-profile.js";
 import { activeReviewWindowMessages, isDerivedSummary } from "./review-session-window.js";
+import { assertReviewTranscriptBudget } from "./review-transcript-budget.js";
 import {
   isSessionHistorySearchTaskType,
   projectSessionHistorySearchText,
@@ -292,17 +293,7 @@ function selectionVersion(session: SessionInfo): string {
 }
 
 function assertSnapshotBudget(snapshot: SessionTranscriptSnapshot, id: SessionId): void {
-  const partCount = snapshot.messages.reduce((count, message) => count + message.parts.length, 0);
-  if (
-    snapshot.messages.length > SNAPSHOT_LIMITS.maxMessageRows ||
-    partCount > SNAPSHOT_LIMITS.maxPartRows ||
-    !Number.isFinite(snapshot.loadedDataBytes) ||
-    snapshot.loadedDataBytes < 0 ||
-    snapshot.loadedDataBytes > SNAPSHOT_LIMITS.maxDataBytes ||
-    Buffer.byteLength(JSON.stringify(snapshot.messages)) > SNAPSHOT_LIMITS.maxDataBytes
-  ) {
-    throw new MemoryReviewError("budget_exceeded");
-  }
+  assertReviewTranscriptBudget(snapshot);
   if (
     snapshot.messages.some(
       (message) =>
