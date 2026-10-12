@@ -372,6 +372,10 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - @lydell/node-pty-linux-x64@1.2.0-beta.10 — MIT
 
+- @mantine/core@9.7.2 — MIT
+
+- @mantine/hooks@9.7.2 — MIT
+
 - @mbears/opentui-core-darwin-arm64@0.2.15 — MIT
 
 - @mbears/opentui-core-darwin-x64@0.2.15 — MIT
@@ -2027,6 +2031,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 - react-is@18.3.1 — MIT
 
 - react-jsx-parser@2.4.1 — MIT
+
+- react-number-format@5.4.5 — MIT
 
 - react-pdf@10.5.0 — MIT
 
@@ -4047,6 +4053,10 @@ SOFTWARE.
 
 - @hono/node-ws@1.3.1: README.md (license section)
 
+- @mantine/core@9.7.2: README.md (license section)
+
+- @mantine/hooks@9.7.2: README.md (license section)
+
 - @sec-ant/readable-stream@0.4.1: README.md (license section)
 
 - @shikijs/engine-javascript@3.23.0: README.md (license section)
@@ -4792,6 +4802,39 @@ MIT License
 Copyright (c) 2018 - present Microsoft Corporation
 
 All rights reserved.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+````
+
+### Notice 61c765e625bc25d55143f14de7554685c52f21d9e671d3d204304691a163d06a
+
+- @mantine/core@9.7.2: LICENSE
+
+- @mantine/hooks@9.7.2: LICENSE
+
+
+
+````text
+MIT License
+
+Copyright (c) 2021 Vitaly Rtishchev
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -32839,6 +32882,37 @@ SOFTWARE.
 MIT License
 
 Copyright (c) 2017 Troy Alford
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+````
+
+### Notice 55aaf8cf3f0c02371907f2c6fdd8bb366647fd6d4be0cfcc403e62613597cab8
+
+- react-number-format@5.4.5: LICENSE
+
+
+
+````text
+MIT License
+
+Copyright (c) 2020-present Sudhanshu Yadav
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

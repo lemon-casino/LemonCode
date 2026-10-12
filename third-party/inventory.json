@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "inputHashEncoding": "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
   "scope": "Production dependency union across current workspace projects, copied source/assets, native search tools and the bundled mise backend; not a per-installer SBOM or a certification of all licensing obligations.",
-  "noticesSha256": "b0f71b99391075933997e78c9d888dbf43cc64e23cd0e315d7a5bec6f863abf3",
+  "noticesSha256": "76d78aec47cc7df7d61447e6d827cfba5242f7bcd586561e93b47fc189c84add",
   "inputs": {
     ".agents/skills/agent-browser/references/authentication.md": "03776b640f377e030c419aa5ad53ec4de5babe69dc37b495d432cd318727ca03",
     ".agents/skills/agent-browser/references/commands.md": "532584b4c03bdbd47acde121edadbffd83a8f3a020f7750f923c6dd789302604",
@@ -252,7 +252,7 @@
     "apps/lcode-cli/packages/tui/package.json": "35cd6fcd941d6abfb2e1f9129493abf04ef108bc8ceaa057c0c9a45c0c192294",
     "apps/lcode-cli/tools/prompt-trajectory/package.json": "adda451b1c3981fa364530ad0ce303f7f428c3180b8b20c3f4be47d35116a1e9",
     "apps/lcode-cli/tools/typescript/package.json": "2f33883fe33cc9d878a3d6d78a0d262eb0db134fc02042ed7563c3dc50d797f7",
-    "package.json": "1f0ee5a34b83f47588d83ff115a5a0d39fd83cdd95811c3c2e50d7bb6a9089ad",
+    "package.json": "e5fa718d65fbb71f64e4460919ee083a7831ce4759e05cf555551f82d263f995",
     "packages/client/package.json": "6cfcb57428c4728a98b7cf4504d29304cf6e9e547e136f0ab1edcef8f821b452",
     "packages/desktop/package.json": "c81d8f6915a5df5b0a43cdbe8a20d40c825c384060d8032e051827547d992611",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
@@ -1508,11 +1508,11 @@
     "packages/rpc/src/proxy-channel.ts": "1f81da70701f1ae95856c3a94abca456fd8352e7860013609d19f567bfdc94fb",
     "packages/rpc/src/remote.ts": "a11e072d5df7e1c1ce64814a68f72afc081246b364f0da409b5c9d22bc815957",
     "packages/rpc/src/serialization.ts": "9720698411e17c31869c4bc974c381e4201bf3d51cf8e849ea7375eb54399dc6",
-    "packages/server/package.json": "47bc3b110296320aaa4ea77eb4707107111e3be8da4026ffd4c1bc844d0d9c4f",
+    "packages/server/package.json": "213ade3e14244a4870067884cb74198002d9afeebcfaa3b36a4c69df1576091a",
     "packages/services/package.json": "9c8a2c65dcf9351142444a34929858944cdca017d25b0231b27dc7670b252a11",
     "packages/shared/package.json": "ddd531f64a2f324b493ee7fec2885ca7c6ae46b113e9a3422588ad997007bc8c",
     "packages/shared/src/lcode-protocol-v4/wire-codec.ts": "4e895f7c3ea4067ad9540649e779661055c46c09be7247fb33533489f814cd2c",
-    "packages/ui/package.json": "b68db86edb2edc3ac57929b043e8d9fd9ecd38c12e1fc36e3bbe5d02b32abddd",
+    "packages/ui/package.json": "e07c28e515d0a5e726e3f773b47788388b2ed6273e70b01ef691e0cd51778045",
     "packages/ui/src/components/ai-elements/agent.tsx": "76c6ca3e47de7ff7f727edc9e5bf9279ccf5d767819cc5371cf20b1d283125fd",
     "packages/ui/src/components/ai-elements/artifact.tsx": "fefcf7d1a7756f3204a9289bc8effe0674d992df427364d0041d5d8cee2dabc3",
     "packages/ui/src/components/ai-elements/attachments.tsx": "dcfa06920de3bdbf4c9051e1c63ed91e5754ffa4e8a778b2484a79e1cd01a086",
@@ -2762,7 +2762,7 @@
     "patches/border-beam@1.4.1.patch": "bcfca688ecc0169aebbdc07d0677580e7517c36e53b0f2229fa2623a5628f411",
     "patches/braces@3.0.3.patch": "86bfec1c34ab4b24710c0ca080d4b98d8c929990ae2c65ccb86192be43493a9b",
     "patches/node-forge@1.4.0.patch": "1ddd6eb75462781c8c67f8010e3c6fe3eb89972d1ac19b10ef54fa95639854fe",
-    "pnpm-lock.yaml": "af27cc103e3b305f78939a581d5e5ca9a043c070b62df2dca805adf2a672a6f6",
+    "pnpm-lock.yaml": "799ea2068d63cbb69856c9c279ae7457705671109cca35583291ae6af77146f7",
     "pnpm-workspace.yaml": "d6d295facf6e67dbf531b15a64a1c7e51c62c29a7804c6d59eaa7dd0fc40a0ab",
     "scripts/license-texts/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "scripts/native-search-tools-config.mjs": "51483e7c154b76d431703e22b28c6b4687245bf15662e5246ed976d561d086ae",
@@ -5250,6 +5250,38 @@
         {
           "member": "LICENSE",
           "sha256": "a3d60eaf32d2fb09c9d82ef39f14bd6e2c0f3ca7de30daa827486c0d6f8b6e9f"
+        }
+      ]
+    },
+    {
+      "name": "@mantine/core",
+      "version": "9.7.2",
+      "license": "MIT",
+      "repository": "https://github.com/mantinedev/mantine.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "61c765e625bc25d55143f14de7554685c52f21d9e671d3d204304691a163d06a"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "daf005969aac8cb4283b3777361f0244f4cce898b9a983a60b7f0d9e96f559bf"
+        }
+      ]
+    },
+    {
+      "name": "@mantine/hooks",
+      "version": "9.7.2",
+      "license": "MIT",
+      "repository": "https://github.com/mantinedev/mantine.git",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "61c765e625bc25d55143f14de7554685c52f21d9e671d3d204304691a163d06a"
+        },
+        {
+          "member": "README.md (license section)",
+          "sha256": "daf005969aac8cb4283b3777361f0244f4cce898b9a983a60b7f0d9e96f559bf"
         }
       ]
     },
@@ -16649,6 +16681,18 @@
         {
           "member": "LICENSE",
           "sha256": "c5a0e348be3cd999ae55e7054079ddd3cd704137e90bbcb084cf8d1127035f20"
+        }
+      ]
+    },
+    {
+      "name": "react-number-format",
+      "version": "5.4.5",
+      "license": "MIT",
+      "repository": "https://github.com/s-yadav/react-number-format",
+      "notices": [
+        {
+          "member": "LICENSE",
+          "sha256": "55aaf8cf3f0c02371907f2c6fdd8bb366647fd6d4be0cfcc403e62613597cab8"
         }
       ]
     },
