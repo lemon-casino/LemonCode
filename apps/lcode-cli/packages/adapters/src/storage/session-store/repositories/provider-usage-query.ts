@@ -24,6 +24,9 @@ const aggregate = `count(*) as requestCount,
   coalesce(sum(case when usage_known = 1 then reasoning_tokens else 0 end), 0) as reasoningTokens,
   coalesce(sum(case when usage_known = 1 then cache_read_input_tokens else 0 end), 0) as cacheReadTokens,
   coalesce(sum(case when usage_known = 1 then cache_creation_input_tokens else 0 end), 0) as cacheWriteTokens,
+  coalesce(sum(case when usage_known = 1 and (cache_creation_input_tokens > 0
+    or case when json_valid(raw_usage_json) then json_extract(raw_usage_json, '$.cacheWriteTokensReported') = 1
+    else 0 end) then 1 else 0 end), 0) as cacheWriteKnownRequests,
   avg(case when time_to_first_token_ms >= 0 then time_to_first_token_ms end) as avgTimeToFirstTokenMs,
   avg(case when duration_ms >= 0 then duration_ms end) as avgDurationMs`;
 type Row = Record<string, unknown>;
@@ -44,6 +47,8 @@ function metrics(row: Row): ProviderUsageMetrics {
     reasoningTokens: Number(row.reasoningTokens ?? 0),
     cacheReadTokens,
     cacheWriteTokens: Number(row.cacheWriteTokens ?? 0),
+    // 历史零可能来自缺失字段的默认值；只有正数或新 adapter 的上报证据才算已知。
+    cacheWriteKnownRequests: Number(row.cacheWriteKnownRequests ?? 0),
     cacheHitRate: inputTokens > 0 ? Math.min(1, cacheReadTokens / inputTokens) : null,
     avgTimeToFirstTokenMs:
       row.avgTimeToFirstTokenMs == null ? null : Number(row.avgTimeToFirstTokenMs),

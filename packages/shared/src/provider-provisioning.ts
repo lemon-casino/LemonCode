@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { modelSelectionSchema } from "./model-selection.js";
 import { providerFamilyConnectionSelectionSettingsSchema } from "./provider-family-connection-selection.js";
+import { proxyProfilesSchema } from "./networkProxy.js";
 
 const nonEmptyString = z.string().trim().min(1);
 
@@ -33,6 +34,7 @@ export function isProviderProvisioningAccountCredentialKey(key: string): boolean
 export const providerProvisioningPersonalConfigSchema = z
   .object({
     providerConfigRules: z.object({ providerRules: z.array(z.unknown()) }).strict(),
+    proxyProfiles: proxyProfilesSchema.optional(),
     modelConfigRules: z
       .object({
         providerModelRules: z.array(z.unknown()),

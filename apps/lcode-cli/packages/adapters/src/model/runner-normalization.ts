@@ -20,13 +20,20 @@ export function normalizeUsage(usage?: Partial<LanguageModelUsage>): ModelUsage 
     : undefined;
   const webSearchRequests = numberProperty(rawServerToolUse, "web_search_requests");
   const webFetchRequests = numberProperty(rawServerToolUse, "web_fetch_requests");
+  const reportedWrite = usage?.inputTokenDetails?.cacheWriteTokens;
+  // 缓存写入缺失不等于真实零；保留上报证据供现有账本区分旧 SDK 合成的零。
+  const cacheWriteTokens =
+    typeof reportedWrite === "number" && Number.isInteger(reportedWrite) && reportedWrite >= 0
+      ? reportedWrite
+      : undefined;
 
   return {
     inputTokens: usage?.inputTokens,
     outputTokens: usage?.outputTokens,
     totalTokens: usage?.totalTokens,
     cacheReadTokens: usage?.inputTokenDetails?.cacheReadTokens,
-    cacheWriteTokens: usage?.inputTokenDetails?.cacheWriteTokens,
+    cacheWriteTokens,
+    cacheWriteTokensReported: cacheWriteTokens !== undefined,
     reasoningTokens: usage?.outputTokenDetails?.reasoningTokens,
     ...(webSearchRequests !== undefined || webFetchRequests !== undefined
       ? {

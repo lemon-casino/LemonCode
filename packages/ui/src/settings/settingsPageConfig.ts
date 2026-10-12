@@ -89,6 +89,7 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     titleId: "settings.modelProviderTitle",
     groupId: "basics",
   },
+  { id: "proxy", icon: Cable, titleId: "settings.proxy.title", groupId: "basics" },
   {
     id: "memory",
     icon: Brain,

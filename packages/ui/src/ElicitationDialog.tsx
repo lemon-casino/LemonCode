@@ -761,7 +761,8 @@ function ElicitationDialogContent({
         onFocus={() => setActiveOptionIndex(index)}
         onKeyDown={handleOptionKeyDown}
         className={cn(
-          "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left outline-none transition-colors focus-visible:bg-hover",
+          // 原因：键盘 focus 的 hover 填色会盖住已选状态；焦点用独立 ring 表达。
+          "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-input-border-focused",
           isSelected ? "bg-selected" : isActive ? "bg-hover" : "hover:bg-hover",
         )}
       >
@@ -770,8 +771,8 @@ function ElicitationDialogContent({
             className={cn(
               "flex size-4 shrink-0 items-center justify-center rounded-sm border",
               isSelected
-                ? "border-brand bg-brand text-foreground-inverse"
-                : "border-border text-transparent",
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-input-border bg-input text-transparent",
             )}
           >
             <CheckIcon className="size-3" />
@@ -825,8 +826,8 @@ function ElicitationDialogContent({
             className={cn(
               "flex size-4 shrink-0 items-center justify-center rounded-sm border",
               isSelected
-                ? "border-brand bg-brand text-foreground-inverse"
-                : "border-border text-transparent",
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-input-border bg-input text-transparent",
             )}
           >
             <CheckIcon className="size-3" />
@@ -834,8 +835,8 @@ function ElicitationDialogContent({
         ) : (
           <span
             className={cn(
-              // 与 textarea 首行使用相同行高并让出 1px 边框，避免顶部或整体居中造成错位。
-              "mt-px w-5 shrink-0 self-start text-ui-base font-medium leading-normal md:leading-relaxed",
+              // 与 textarea 首行行高、4px padding 和 1px 边框对齐。
+              "mt-1 w-5 shrink-0 self-start pt-px text-ui-base font-medium leading-normal md:leading-relaxed",
               isSelected ? "text-foreground" : "text-foreground-subtlest",
             )}
           >
@@ -851,6 +852,7 @@ function ElicitationDialogContent({
           placeholder={intl.formatMessage({
             id: "chat.elicitation.customAnswer.placeholder",
           })}
+          aria-label={intl.formatMessage({ id: "chat.elicitation.customAnswer.placeholder" })}
           onFocus={() => setActiveOptionIndex(index)}
           onChange={(event) => updateCustomAnswer(question, event.target.value)}
           onCompositionStart={() => {
@@ -860,7 +862,8 @@ function ElicitationDialogContent({
             customInputCompositionActiveRef.current = false;
           }}
           onKeyDown={handleCustomInputKeyDown}
-          className="h-auto !min-h-5 max-h-[5lh] min-w-0 max-w-full overflow-y-auto rounded-none border-transparent bg-transparent !px-0 !py-0 text-ui-base font-medium leading-normal shadow-none hover:border-transparent focus-visible:border-transparent focus-visible:bg-transparent focus-visible:ring-0"
+          // 原因：隐藏背景、边框与焦点让回答行看起来不可输入；保留共享 Textarea 的主题反馈。
+          className="h-auto min-h-7 max-h-[5lh] min-w-0 max-w-full overflow-y-auto rounded-lg px-2 py-1 text-ui-base font-medium leading-normal shadow-none"
         />
       </div>
     );

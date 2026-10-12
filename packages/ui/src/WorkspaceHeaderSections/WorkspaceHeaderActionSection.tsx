@@ -20,6 +20,7 @@ export function WorkspaceHeaderActionSection({
   isDesktop,
   isTerminalOpen,
   isSidePaneOpen,
+  isSidePaneReady = true,
   isNarrowWebLayout = false,
   onToggleTerminal,
   onToggleSidePane,
@@ -70,7 +71,8 @@ export function WorkspaceHeaderActionSection({
         </>
       ) : null}
       {/* 远程控制移动端只保留图标，避免 diff 数字把按钮撑宽导致标题拥挤。 */}
-      {!isSidePaneOpen || isNarrowWebLayout ? (
+      {/* 目录未就绪时右侧只能显示状态，顶部不能因“展开意图”移除唯一可操作的切换/窗控入口。 */}
+      {!isSidePaneOpen || !isSidePaneReady || isNarrowWebLayout ? (
         <WorkspaceSidePaneToggleButton
           isSidePaneOpen={isSidePaneOpen}
           onToggleSidePane={onToggleSidePane}
@@ -80,7 +82,9 @@ export function WorkspaceHeaderActionSection({
           useWindowsCaptionSpacing={useWindowsCaptionSpacing}
         />
       ) : null}
-      {showWindowControls && !isSidePaneOpen ? <DesktopWindowControls /> : null}
+      {showWindowControls && (!isSidePaneOpen || !isSidePaneReady) ? (
+        <DesktopWindowControls />
+      ) : null}
     </div>
   );
 }

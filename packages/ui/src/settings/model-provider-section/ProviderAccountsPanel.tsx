@@ -7,6 +7,8 @@ import { useProviderAccounts } from "@/hooks/useProviderAccounts.js";
 import { getProviderAccountDependencyError } from "@/lib/providerAccountErrors.js";
 import { ProviderAuthorizationForm } from "./ProviderAuthorizationForm.js";
 import { ProviderQuotaCard } from "@/settings/usage-stats/ProviderQuotaCard.js";
+import { ProviderAccountAvatar } from "./ProviderAccountAvatar.js";
+import { providerPickerCardClassName } from "./providerPickerCard.js";
 
 /** 渠道卡只打开管理窗，不把授权表单追加到长列表底部。 */
 export function ProviderAccountsPanel({
@@ -39,10 +41,11 @@ export function ProviderAccountsPanel({
               type="button"
               data-testid={`oauth-channel-${item.id}`}
               aria-haspopup="dialog"
-              className="flex min-h-14 min-w-0 items-center justify-between gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-left text-ui-base hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-ring aria-pressed:bg-card-selected"
+              className={providerPickerCardClassName}
               onClick={() => onManageChannel(item.id)}
             >
-              <span className="min-w-0 break-words font-medium">{item.name}</span>
+              <ProviderAccountAvatar channelId={item.id} name={item.name} />
+              <span className="min-w-0 flex-1 break-words font-medium">{item.name}</span>
               <span className="shrink-0 text-ui-sm text-foreground-subtle">
                 {intl.formatMessage({ id: "settings.oauth.accountCount" }, { count })}
               </span>
@@ -50,6 +53,33 @@ export function ProviderAccountsPanel({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+export function ProviderLoginAuthorization({
+  channelId,
+  accounts,
+}: {
+  channelId: string;
+  accounts: ReturnType<typeof useProviderAccounts>;
+}) {
+  const { intl } = useLCodeIntl();
+  const message = (key: string) => intl.formatMessage({ id: `settings.oauth.${key}` });
+  const channel = accounts.view?.channels.find((item) => item.id === channelId);
+  return (
+    <div className="min-w-0 space-y-5" data-testid="provider-login-authorization">
+      <ProviderAccountsStatus accounts={accounts} />
+      {channel ? (
+        <section className="space-y-3" aria-label={channel.name}>
+          {channel.error ? (
+            <p role="alert" className="break-words text-ui-base text-destructive">
+              {message(getProviderAccountDependencyError(channel.error) ?? "channelUnavailable")}
+            </p>
+          ) : null}
+          <ProviderAuthorizationForm key={channel.id} channel={channel} accounts={accounts} />
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -69,16 +99,6 @@ export function ProviderAccountManager({
   return (
     <div className="min-w-0 space-y-5" data-testid="provider-account-manager">
       <ProviderAccountsStatus accounts={accounts} />
-      {channel ? (
-        <section className="space-y-3" aria-label={channel.name}>
-          {channel.error ? (
-            <p role="alert" className="break-words text-ui-base text-destructive">
-              {message(getProviderAccountDependencyError(channel.error) ?? "channelUnavailable")}
-            </p>
-          ) : null}
-          <ProviderAuthorizationForm key={channel.id} channel={channel} accounts={accounts} />
-        </section>
-      ) : null}
       {visibleAccounts.length > 0 ? (
         <section className="space-y-3" aria-label={message("accounts")}>
           <h3 className="text-ui-base font-medium">

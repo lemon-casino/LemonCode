@@ -1,4 +1,7 @@
 import {
+  createHostApiNetworkTransport,
+  resolveProviderNetworkOptions,
+  type HostApiNetworkOptions,
   NodeModelSelectionConfigRepository,
   createNodeModelSelectionFacade,
 } from "@lcode/provider-node";
@@ -24,6 +27,8 @@ import {
   type ModelSelectionConfiguredDefaultSource,
   type ProviderSettingsConnectivityTester,
 } from "./providerFacadeServices.js";
+import { createProviderCatalogClient } from "./providerCatalogClient.js";
+import { createProxyConnectivityTester } from "./proxyConnectivity.js";
 
 export interface ProviderRuntimeOptions extends ProviderConfigRuntimeOptions {
   readonly accountSource?: RefreshableProviderSource<AccountProviderConfigSnapshot>;
@@ -31,6 +36,7 @@ export interface ProviderRuntimeOptions extends ProviderConfigRuntimeOptions {
 }
 
 export interface ProviderRuntimeDependencies {
+  readonly resolveDefaultNetwork?: () => Promise<HostApiNetworkOptions>;
   readonly configRuntime: ProviderConfigRuntime;
   readonly accountSource?: RefreshableProviderSource<AccountProviderConfigSnapshot>;
   readonly disposeAccountSource?: () => void;
@@ -71,6 +77,8 @@ export class ProviderRuntime {
   readonly #disposeBuiltinRecovery: () => void;
   readonly #modelSelectionRuntime: IModelSelectionService & { dispose(): void };
   readonly #disposeModelSelectionConfiguredDefaultSource?: () => void;
+  readonly #networkTransports = new Map<string, ReturnType<typeof createHostApiNetworkTransport>>();
+  readonly #proxyTester: ReturnType<typeof createProxyConnectivityTester>;
   #startPromise: ReturnType<ProviderRegistryService["start"]> | null = null;
   #disposed = false;
 
@@ -102,10 +110,28 @@ export class ProviderRuntime {
     );
     const ensureReady = () => this.start();
     const settingsFacade = new ProviderSettingsFacade(this.registryService, mutations);
+    this.#proxyTester = createProxyConnectivityTester(
+      dependencies.resolveDefaultNetwork ?? (async () => ({})),
+    );
     this.#providerSettingsRuntime = createProviderSettingsService(
       settingsFacade,
       ensureReady,
       dependencies.testConnectivity,
+      createProviderCatalogClient(undefined, (config) => {
+        const key = JSON.stringify(config.network ?? null);
+        let transport = this.#networkTransports.get(key);
+        if (!transport) {
+          transport = createHostApiNetworkTransport(async () =>
+            resolveProviderNetworkOptions(
+              config.network,
+              (await dependencies.resolveDefaultNetwork?.()) ?? {},
+            ),
+          );
+          this.#networkTransports.set(key, transport);
+        }
+        return transport.fetch;
+      }),
+      (profiles, signal) => this.#proxyTester.test(profiles, signal),
     );
     this.providerSettings = this.#providerSettingsRuntime;
     this.#modelSelectionRuntime = createModelSelectionService(
@@ -132,6 +158,8 @@ export class ProviderRuntime {
     this.#disposed = true;
     this.#disposeBuiltinRecovery();
     this.#providerSettingsRuntime.dispose();
+    this.#proxyTester.dispose();
+    for (const transport of this.#networkTransports.values()) transport.dispose();
     this.#modelSelectionRuntime.dispose();
     this.registryService.dispose();
     this.#disposeAccountSource?.();
@@ -147,6 +175,11 @@ function createSettingsMutationTarget(
 ): ProviderSettingsMutationTarget {
   const configService = configRuntime.configService;
   return {
+    importProxyProfiles: (text) => configService.importProxyProfiles(text),
+    saveProxyProfile: (profile) => configService.saveProxyProfile(profile),
+    deleteProxyProfile: (id) => configService.deleteProxyProfile(id),
+    setProviderNetwork: (providerId, network, membership) =>
+      configService.setProviderNetwork(providerId, network, membership),
     createPersonalProvider: (input) => configService.createPersonalProvider(input),
     savePersonalProviderOverlay: (providerId, config, membership, metadata) =>
       configService.savePersonalProviderOverlay(providerId, config, membership, metadata),

@@ -6,8 +6,8 @@ settings:
 
 overrides:
   '@ai-sdk/anthropic': 3.0.81
-  '@ai-sdk/openai-compatible': 2.0.60
   '@ai-sdk/provider-utils@>=4 <4.0.33': 4.0.33
+  '@ai-sdk/openai-compatible': 2.0.60
   '@arms/rum-electron': 0.0.3
   '@jimp/core@0.22.12>file-type': 21.3.3
   '@tailwindcss/typography>postcss-selector-parser': 7.1.6
@@ -29,10 +29,10 @@ overrides:
 
 patchedDependencies:
   '@ai-sdk/anthropic@3.0.81':
-    hash: d3a7c381eba7f5157f765a0528003af17cf84544911dfb7412c7800168e01c18
+    hash: b0376c6c6742ae6862a70a9a447b102f6b058126629dd2488970de010f43eae1
     path: patches/@ai-sdk__anthropic@3.0.81.patch
   '@ai-sdk/openai-compatible@2.0.60':
-    hash: 9632fe9d821b3dc20939ae509cc35b968d90d018bbd1d812390718898182a38b
+    hash: 1b9287b5a8cb536b359e18e04a9fb18fde5f05cbfe9d651b2d2697c54e8695fb
     path: patches/@ai-sdk__openai-compatible@2.0.60.patch
   '@arms/rum-electron@0.0.3':
     hash: 36855354851ea495bc47a03340b0484ff62836b739cad56904b8a69f18e2ae97
@@ -166,13 +166,13 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: 3.0.81
-        version: 3.0.81(patch_hash=d3a7c381eba7f5157f765a0528003af17cf84544911dfb7412c7800168e01c18)(zod@4.6.5)
+        version: 3.0.81(patch_hash=b0376c6c6742ae6862a70a9a447b102f6b058126629dd2488970de010f43eae1)(zod@4.6.5)
       '@ai-sdk/openai':
         specifier: ^3.0.58
         version: 3.0.124(zod@4.6.5)
       '@ai-sdk/openai-compatible':
         specifier: 2.0.60
-        version: 2.0.60(patch_hash=9632fe9d821b3dc20939ae509cc35b968d90d018bbd1d812390718898182a38b)(zod@4.6.5)
+        version: 2.0.60(patch_hash=1b9287b5a8cb536b359e18e04a9fb18fde5f05cbfe9d651b2d2697c54e8695fb)(zod@4.6.5)
       '@lcode/contracts':
         specifier: workspace:*
         version: link:../contracts
@@ -927,6 +927,12 @@ importers:
       '@lcode/shared':
         specifier: workspace:*
         version: link:../shared
+      socks:
+        specifier: 2.8.10
+        version: 2.8.10
+      undici:
+        specifier: 6.29.0
+        version: 6.29.0
       zod:
         specifier: 4.6.5
         version: 4.6.5
@@ -10093,7 +10099,7 @@ packages:
 
 snapshots:
 
-  '@ai-sdk/anthropic@3.0.81(patch_hash=d3a7c381eba7f5157f765a0528003af17cf84544911dfb7412c7800168e01c18)(zod@4.6.5)':
+  '@ai-sdk/anthropic@3.0.81(patch_hash=b0376c6c6742ae6862a70a9a447b102f6b058126629dd2488970de010f43eae1)(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 3.0.10
       '@ai-sdk/provider-utils': 4.0.33(zod@4.6.5)
@@ -10113,7 +10119,7 @@ snapshots:
       '@vercel/oidc': 3.2.0
       zod: 4.6.5
 
-  '@ai-sdk/openai-compatible@2.0.60(patch_hash=9632fe9d821b3dc20939ae509cc35b968d90d018bbd1d812390718898182a38b)(zod@4.6.5)':
+  '@ai-sdk/openai-compatible@2.0.60(patch_hash=1b9287b5a8cb536b359e18e04a9fb18fde5f05cbfe9d651b2d2697c54e8695fb)(zod@4.6.5)':
     dependencies:
       '@ai-sdk/provider': 3.0.14
       '@ai-sdk/provider-utils': 4.0.39(zod@4.6.5)

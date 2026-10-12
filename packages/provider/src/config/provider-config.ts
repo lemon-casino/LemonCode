@@ -225,6 +225,7 @@ export class ProviderApiConfig extends ConfigOverlay<ProviderApiConfig> {
 export type ProviderConfigInput = Omit<ProviderConfigObject, "access" | "api"> & {
   readonly access?: ProviderAccessConfig | null;
   readonly api?: ProviderApiConfig | null;
+  readonly network?: ProviderConfigObject["network"];
 };
 
 export type ProviderConfigObject = Readonly<z.infer<typeof providerConfigDataSchema>>;
@@ -234,6 +235,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
   readonly logo?: ProviderConfigObject["logo"];
   readonly access?: ProviderAccessConfig | null;
   readonly api?: ProviderApiConfig | null;
+  readonly network?: ProviderConfigObject["network"];
   readonly builtinModelIds?: ProviderConfigObject["builtinModelIds"];
   readonly personalModelIds?: ProviderConfigObject["personalModelIds"];
   readonly excludedModelIds?: ProviderConfigObject["excludedModelIds"];
@@ -246,6 +248,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
     this.logo = freezeProviderLogo(input.logo);
     this.access = input.access;
     this.api = input.api;
+    this.network = input.network ? Object.freeze({ ...input.network }) : input.network;
     this.builtinModelIds = freezeModelIds(input.builtinModelIds);
     this.personalModelIds = freezeModelIds(input.personalModelIds);
     this.excludedModelIds = freezeModelIds(input.excludedModelIds);
@@ -260,6 +263,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
       logo: this.overlayValue(this.logo, next.logo),
       access: overlayProviderAccess(this.access, next.access),
       api: this.overlayConfig(this.api, next.api),
+      network: this.overlayValue(this.network, next.network),
       builtinModelIds: this.overlayValue(this.builtinModelIds, next.builtinModelIds),
       personalModelIds: this.overlayValue(this.personalModelIds, next.personalModelIds),
       excludedModelIds: this.overlayValue(this.excludedModelIds, next.excludedModelIds),
@@ -289,6 +293,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
       logo: this.logo,
       access: this.access,
       api: this.api,
+      network: this.network,
       builtinModelIds: this.builtinModelIds,
       personalModelIds: this.personalModelIds,
       excludedModelIds: this.excludedModelIds,
@@ -304,6 +309,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
       logo: this.logo,
       access: this.access,
       api: this.api,
+      network: this.network,
       builtinModelIds: source?.builtinModelIds,
       personalModelIds: source?.personalModelIds,
       excludedModelIds: source?.excludedModelIds,
@@ -323,6 +329,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
       logo: this.logo,
       access: this.access?.toJSON() ?? this.access,
       api: this.api?.toJSON() ?? this.api,
+      network: this.network,
       builtinModelIds: this.builtinModelIds,
       personalModelIds: this.personalModelIds,
       excludedModelIds: this.excludedModelIds,

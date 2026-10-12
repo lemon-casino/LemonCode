@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 import { useProviderAccounts } from "@/hooks/useProviderAccounts.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
-import { ProviderAccountManager } from "./ProviderAccountsPanel.js";
+import { ProviderAccountManager, ProviderLoginAuthorization } from "./ProviderAccountsPanel.js";
+import { ProviderProxyEditor } from "@/settings/ProviderProxyEditor.js";
 
 type ModelEditor = (listModels: () => Promise<readonly string[]>) => ReactNode;
 
@@ -40,7 +41,7 @@ export function ProviderAccountsContent({
   modelEditor?: ModelEditor;
 }) {
   const { intl } = useLCodeIntl();
-  const [tab, setTab] = useState("accounts");
+  const [tab, setTab] = useState("authorization");
   const [refreshingModels, setRefreshingModels] = useState(false);
   const listModels = async () => {
     setRefreshingModels(true);
@@ -69,47 +70,66 @@ export function ProviderAccountsContent({
     }
   };
   return (
-    <Tabs value={tab} onValueChange={setTab} className="min-w-0 gap-4">
-      <TabsList aria-label={intl.formatMessage({ id: "settings.oauth.manageAccounts" })}>
-        <TabsTrigger value="accounts">
-          {intl.formatMessage({ id: "settings.oauth.accounts" })}
-        </TabsTrigger>
-        <TabsTrigger value="models">
-          {intl.formatMessage({ id: "settings.oauth.modelSettings" })}
-        </TabsTrigger>
-      </TabsList>
-      <TabsContent value="accounts" forceMount hidden={tab !== "accounts"}>
-        <ProviderAccountManager channelId={channelId} accounts={accounts} />
-      </TabsContent>
-      <TabsContent
-        value="models"
-        forceMount
-        hidden={tab !== "models"}
-        className="min-w-0 space-y-3"
-      >
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={
-            refreshingModels ||
-            accounts.busy !== null ||
-            !accounts.view?.accounts.some((account) => account.channelId === channelId)
-          }
-          onClick={() => void listModels().catch(() => undefined)}
+    <div className="min-w-0 space-y-4">
+      <ProviderProxyEditor channelId={channelId} />
+      <Tabs value={tab} onValueChange={setTab} className="min-w-0 gap-4">
+        {/* 通用页签的 flex-1 会拉满整行；这里限制总宽，小屏等分并允许长标签换行。 */}
+        <TabsList
+          className="grid h-auto w-full max-w-sm grid-cols-3"
+          aria-label={intl.formatMessage({ id: "settings.oauth.manageAccounts" })}
         >
-          {intl.formatMessage({ id: "settings.oauth.refreshModels" })}
-        </Button>
-        {accounts.error ? (
-          <p role="alert" className="text-ui-base text-destructive">
-            {intl.formatMessage({ id: "settings.oauth.actionError" })}
-          </p>
-        ) : null}
-        {modelEditor?.(listModels) ?? (
-          <p className="text-ui-base text-foreground-subtle">
-            {intl.formatMessage({ id: "settings.oauth.modelsAfterLogin" })}
-          </p>
-        )}
-      </TabsContent>
-    </Tabs>
+          <TabsTrigger value="authorization" className="h-full min-w-0 whitespace-normal">
+            <span className="min-w-0 break-words">
+              {intl.formatMessage({ id: "settings.oauth.authorizationTab" })}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="models" className="h-full min-w-0 whitespace-normal">
+            <span className="min-w-0 break-words">
+              {intl.formatMessage({ id: "settings.oauth.modelSettings" })}
+            </span>
+          </TabsTrigger>
+          <TabsTrigger value="accounts" className="h-full min-w-0 whitespace-normal">
+            <span className="min-w-0 break-words">
+              {intl.formatMessage({ id: "settings.oauth.accounts" })}
+            </span>
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="authorization" forceMount hidden={tab !== "authorization"}>
+          <ProviderLoginAuthorization channelId={channelId} accounts={accounts} />
+        </TabsContent>
+        <TabsContent value="accounts" forceMount hidden={tab !== "accounts"}>
+          <ProviderAccountManager channelId={channelId} accounts={accounts} />
+        </TabsContent>
+        <TabsContent
+          value="models"
+          forceMount
+          hidden={tab !== "models"}
+          className="min-w-0 space-y-3"
+        >
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={
+              refreshingModels ||
+              accounts.busy !== null ||
+              !accounts.view?.accounts.some((account) => account.channelId === channelId)
+            }
+            onClick={() => void listModels().catch(() => undefined)}
+          >
+            {intl.formatMessage({ id: "settings.oauth.refreshModels" })}
+          </Button>
+          {accounts.error ? (
+            <p role="alert" className="text-ui-base text-destructive">
+              {intl.formatMessage({ id: "settings.oauth.actionError" })}
+            </p>
+          ) : null}
+          {modelEditor?.(listModels) ?? (
+            <p className="text-ui-base text-foreground-subtle">
+              {intl.formatMessage({ id: "settings.oauth.modelsAfterLogin" })}
+            </p>
+          )}
+        </TabsContent>
+      </Tabs>
+    </div>
   );
 }

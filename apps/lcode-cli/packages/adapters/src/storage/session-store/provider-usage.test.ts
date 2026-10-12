@@ -139,6 +139,28 @@ test("OAuth accounting preserves final account, normalized tokens, unknown usage
   }
 });
 
+test("cache write coverage distinguishes reported zero, unknown and legacy synthetic zero", async () => {
+  const { store, base, query } = await fixture();
+  try {
+    for (const [id, tokens, rawUsage] of [
+      ["unknown-write", undefined, { inputTokens: 100 }],
+      ["legacy-zero", 0, { cacheWriteTokens: 0 }],
+      ["reported-zero", 0, { cacheWriteTokens: 0, cacheWriteTokensReported: true }],
+      ["reported-write", 30, { cacheWriteTokens: 30, cacheWriteTokensReported: true }],
+      ["legacy-write", 20, undefined],
+    ] as const)
+      await store.recordModelUsage({ ...base, id, cacheCreationInputTokens: tokens, rawUsage });
+    const result = await store.queryProviderUsage(query);
+    assert.equal(result.summary.cacheWriteTokens, 50);
+    assert.equal(result.summary.cacheWriteKnownRequests, 3);
+    assert.equal(result.models[0]!.cacheWriteKnownRequests, 3);
+    assert.equal(result.daily.find((day) => day.requestCount === 5)!.cacheWriteKnownRequests, 3);
+    assert.equal(result.summary.totalTokens, 600);
+  } finally {
+    store.close();
+  }
+});
+
 test("provider/model filters apply to every aggregate and pagination is stable", async () => {
   const { store, base, query } = await fixture();
   try {

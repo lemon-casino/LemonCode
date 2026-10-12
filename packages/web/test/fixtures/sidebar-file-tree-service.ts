@@ -1,5 +1,6 @@
 import type { IServiceAccessor, WorktreeBinding } from "@lcode/services";
 import { services as layoutServices } from "./mobile-layout-data.js";
+import { services as sessionServices } from "./git-session-refresh-runtime.js";
 
 const noop = () => {};
 const subscribe = () => ({ dispose: noop });
@@ -27,6 +28,11 @@ export const binding: WorktreeBinding = {
 export function createFileServices(endpoint: string): IServiceAccessor {
   return {
     ...layoutServices,
+    // 执行目录消费真实共享会话 readiness；文件错误/挂起桩不能用拒绝 handshake 代替它。
+    lcodeAgentService: {
+      ...layoutServices.lcodeAgentService,
+      ...sessionServices.lcodeAgentService,
+    },
     fileService: {
       readdir: async ({ path }: { path: string }) => {
         calls.push({ endpoint, path });

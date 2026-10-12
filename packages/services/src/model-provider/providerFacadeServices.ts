@@ -1,10 +1,11 @@
 import type { Event } from "@lcode/rpc";
+import type { ProxyProfile, ProxyConnectivityResult } from "@lcode/shared";
+import { resolveProviderNetworkConfig } from "@lcode/provider";
 import { ServiceChannels } from "@lcode/shared";
 import {
   type ModelConfigObject,
   type ModelId,
   type ModelSelection,
-  type ModelSelectionFacade,
   type ModelSelectionView,
   type ModelSelectionViewInput,
   type ProviderConfigObject,
@@ -18,7 +19,6 @@ import {
 } from "@lcode/provider";
 import { createServiceDescriptor } from "../descriptors.js";
 import type { ModelConnectivityResult } from "@lcode/shared";
-import { createServiceLogger } from "../logger/serviceLogger.js";
 import {
   createProviderCatalogClient,
   type ProviderApiKeyProbeResult,
@@ -43,6 +43,18 @@ export interface ProviderApiKeyProbeEvent extends ProviderApiKeyProbeProgress {
 }
 
 export interface IProviderSettingsService {
+  importProxyProfiles(text: string): Promise<ProviderSettingsView>;
+  saveProxyProfile(profile: ProxyProfile): Promise<ProviderSettingsView>;
+  deleteProxyProfile(id: string): Promise<ProviderSettingsView>;
+  testProxyProfiles(
+    ids?: readonly string[],
+    operationId?: string,
+  ): Promise<readonly ProxyConnectivityResult[]>;
+  cancelProxyTest(operationId: string): Promise<void>;
+  setProviderNetwork(
+    providerId: ProviderId,
+    network: ProviderConfigObject["network"],
+  ): Promise<ProviderSettingsView>;
   readonly onDidChange: Event<ProviderSettingsView>;
   readonly onDidProbeApiKeys: Event<ProviderApiKeyProbeEvent>;
   /** 大 Key 列表以 apiKeySummary/apiKeysOmitted 表示，管理窗口再按需读取。 */
@@ -139,6 +151,10 @@ export function createProviderSettingsService(
   ensureReady: () => Promise<void> = async () => {},
   testConnectivity?: ProviderSettingsConnectivityTester,
   catalogClient: ProviderCatalogClient = createProviderCatalogClient(),
+  testProxies?: (
+    profiles: readonly ProxyProfile[],
+    signal?: AbortSignal,
+  ) => Promise<readonly ProxyConnectivityResult[]>,
 ): IProviderSettingsService & { dispose(): void } {
   const probes = new Map<
     string | symbol,
@@ -146,7 +162,44 @@ export function createProviderSettingsService(
   >();
   const probeListeners = new Set<(event: ProviderApiKeyProbeEvent) => void>();
   let disposed = false;
+  const proxyChecks = new Map<string | symbol, AbortController>();
   return {
+    async importProxyProfiles(text) {
+      await ensureReady();
+      return compactProviderSettingsView(await facade.importProxyProfiles(text));
+    },
+    async saveProxyProfile(profile) {
+      await ensureReady();
+      return compactProviderSettingsView(await facade.saveProxyProfile(profile));
+    },
+    async deleteProxyProfile(id) {
+      await ensureReady();
+      return compactProviderSettingsView(await facade.deleteProxyProfile(id));
+    },
+    async testProxyProfiles(ids, operationId) {
+      if (disposed || !testProxies) throw new Error("Proxy testing is unavailable");
+      const owner = operationId ?? Symbol();
+      if (proxyChecks.has(owner)) throw new Error("Proxy test is already running");
+      const controller = new AbortController();
+      proxyChecks.set(owner, controller);
+      try {
+        await ensureReady();
+        await facade.waitForProviderOperations("@proxy-library");
+        if (controller.signal.aborted) return [];
+        const profiles = facade.getView().proxyProfiles ?? [];
+        const selected = ids ? profiles.filter((profile) => ids.includes(profile.id)) : profiles;
+        return await testProxies(selected, controller.signal);
+      } finally {
+        proxyChecks.delete(owner);
+      }
+    },
+    async cancelProxyTest(operationId) {
+      proxyChecks.get(operationId)?.abort();
+    },
+    async setProviderNetwork(providerId, network) {
+      await ensureReady();
+      return compactProviderSettingsView(await facade.setProviderNetwork(providerId, network));
+    },
     onDidChange: toEvent((listener) =>
       facade.onDidChange((view) => listener(compactProviderSettingsView(view))),
     ),
@@ -275,7 +328,13 @@ export function createProviderSettingsService(
       await facade.waitForProviderOperations(providerId);
       const provider = facade.getView().providers.find((item) => item.providerId === providerId);
       if (!provider) throw new Error(`Provider 不存在: ${providerId}`);
-      return catalogClient.listModels(provider.effectiveConfig);
+      return catalogClient.listModels({
+        ...provider.effectiveConfig,
+        network: resolveProviderNetworkConfig(
+          provider.effectiveConfig.network,
+          facade.getView().proxyProfiles,
+        ),
+      });
     },
     probeApiKeys: async (providerId, keyIds, options) => {
       if (disposed) throw new Error("Provider Settings Service 已 dispose");
@@ -292,15 +351,25 @@ export function createProviderSettingsService(
         if (controller.signal.aborted) return [];
         const provider = facade.getView().providers.find((item) => item.providerId === providerId);
         if (!provider) throw new Error(`Provider 不存在: ${providerId}`);
-        const results = await catalogClient.probeApiKeys(provider.effectiveConfig, keyIds, {
-          signal: controller.signal,
-          onProgress: operationId
-            ? (progress) => {
-                for (const listener of probeListeners)
-                  listener({ ...progress, providerId, operationId });
-              }
-            : undefined,
-        });
+        const results = await catalogClient.probeApiKeys(
+          {
+            ...provider.effectiveConfig,
+            network: resolveProviderNetworkConfig(
+              provider.effectiveConfig.network,
+              facade.getView().proxyProfiles,
+            ),
+          },
+          keyIds,
+          {
+            signal: controller.signal,
+            onProgress: operationId
+              ? (progress) => {
+                  for (const listener of probeListeners)
+                    listener({ ...progress, providerId, operationId });
+                }
+              : undefined,
+          },
+        );
         return options?.streamResults ? [] : results;
       } finally {
         probes.delete(owner);
@@ -312,6 +381,8 @@ export function createProviderSettingsService(
     },
     dispose: () => {
       disposed = true;
+      for (const controller of proxyChecks.values()) controller.abort();
+      proxyChecks.clear();
       for (const probe of probes.values()) probe.controller.abort();
       probes.clear();
       probeListeners.clear();
@@ -319,59 +390,7 @@ export function createProviderSettingsService(
   };
 }
 
-export function createModelSelectionService(
-  facade: ModelSelectionFacade,
-  ensureReady: () => Promise<void> = async () => {},
-  configuredDefaultSource?: ModelSelectionConfiguredDefaultSource,
-): IModelSelectionService & { dispose(): void } {
-  const log = createServiceLogger("model-selection");
-  let revision = 0;
-  let disposed = false;
-  const listeners = new Set<(view: ModelSelectionView) => void>();
-  const getView = async (input?: ModelSelectionViewInput): Promise<ModelSelectionView> => {
-    await ensureReady();
-    if (disposed) throw new Error("ModelSelectionService 已 dispose");
-    const configuredDefault = await configuredDefaultSource?.read();
-    if (disposed) throw new Error("ModelSelectionService 已 dispose");
-    const base = facade.getView(configuredDefault);
-    if (revision < base.revision) revision = base.revision;
-    return facade.getView(configuredDefault, revision, input);
-  };
-  const emit = (): void => {
-    if (disposed) return;
-    revision += 1;
-    void getView().then(
-      (view) => {
-        if (disposed) return;
-        for (const listener of listeners) listener(view);
-      },
-      (error: unknown) => {
-        // Registry 事件触发的异步 View 重建没有 owner；Host dispose 后它仍会继续
-        // 读取已释放的配置仓库，并形成未处理 rejection。dispose 是明确的取消边界；仅在服务
-        // 仍存活时记录真实读取失败。
-        if (disposed) return;
-        log.warn(undefined, `ModelSelection View 刷新失败: ${String(error)}`);
-      },
-    );
-  };
-  const disposeFacade = facade.onDidChange(emit);
-  const disposeConfiguredDefault = configuredDefaultSource?.onDidChange?.(emit);
-
-  return {
-    onDidChange: (listener) => {
-      listeners.add(listener);
-      return { dispose: () => listeners.delete(listener) };
-    },
-    getView,
-    dispose() {
-      if (disposed) return;
-      disposed = true;
-      disposeFacade();
-      disposeConfiguredDefault?.();
-      listeners.clear();
-    },
-  };
-}
+export { createModelSelectionService } from "./modelSelectionService.js";
 
 function toEvent<T>(subscribe: (listener: (event: T) => void) => () => void): Event<T> {
   return (listener) => {

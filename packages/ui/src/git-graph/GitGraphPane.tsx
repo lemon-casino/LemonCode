@@ -229,7 +229,9 @@ export function GitGraphPane({
                       type="button"
                       className={cn(
                         "grid w-full min-w-0 items-center border-y border-transparent text-left transition-colors",
-                        "hover:bg-hover focus-visible:bg-hover focus-visible:outline-none",
+                        // 原因：hover/focus 填色曾覆盖已选提交；选中填色保留，键盘焦点独立描边。
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-input-border-focused",
+                        !isSelected && "hover:bg-hover",
                         isSelected && "border-b-border bg-selected",
                         isSelected && row.rowIndex > 0 && "border-t-border",
                         isHovered && !isSelected && "bg-surface-hover",

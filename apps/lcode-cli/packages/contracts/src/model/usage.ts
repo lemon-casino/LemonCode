@@ -9,6 +9,8 @@ export interface ModelUsage {
   totalTokens?: number;
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
+  /** 写入量来自供应商明确上报；旧 SDK 合成的零没有此证据。 */
+  cacheWriteTokensReported?: boolean;
   reasoningTokens?: number;
   serverToolUse?: ModelServerToolUsage;
 }

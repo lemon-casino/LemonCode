@@ -330,5 +330,57 @@
     "roots": ["packages/provider-node/src/provider-auth/vendor/zen-free"],
     "scope": "Vendored Zen Free runtime modules and the corresponding portions of the generated worker.",
     "license": "MIT"
+  },
+  {
+    "id": "Magpie provider brand icon assets",
+    "referenceRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+    "source": "https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/LICENSE",
+    "file": "packages/provider-node/src/provider-auth/native/LICENSE.magpie",
+    "sha256": "79d2c8444715d4bc453ec4f8a0aaf2051a4c1ee5ac08f5bd2e5848aef87c7572",
+    "importRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+    "provenance": "Verbatim icon assets copied from the clean Magpie checkout at this revision. Magpie docs/reference.md attributes its brand icons to Lobe Icons; the original Lobe Icons import revision is not recorded. Exact source files and hashes are recorded in model-provider-logo-sources.json.",
+    "roots": [
+      "packages/ui/src/assets/provider-icons/model-provider-copilot.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-gemini-cli.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-antigravity.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-cline.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-commandcode.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-cursor.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-devin.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-factory.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-kiro.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-qoder.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-trae.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-workbuddy.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-zed.svg"
+    ],
+    "scope": "Thirteen newly copied provider SVG assets only; existing LCode assets and rendering components retain their own provenance.",
+    "license": "MIT"
+  },
+  {
+    "id": "Lobe Icons notice for Magpie brand assets",
+    "referenceRevision": "c385b2b8d1f9e19aa86e628d4e23c91ee1111a47",
+    "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/LICENSE",
+    "file": "third-party/upstream/add9d7531d1b21646317a8958e38fc727506fa39d24bdecb44154d943c82753a.txt",
+    "sha256": "add9d7531d1b21646317a8958e38fc727506fa39d24bdecb44154d943c82753a",
+    "importRevision": null,
+    "provenance": "Magpie identifies Lobe Icons as the source of its brand icons. This pinned notice reference was retrieved on 2026-10-12 and is not asserted to be the original icon import revision; brand marks remain attributed to their respective brands.",
+    "roots": [
+      "packages/ui/src/assets/provider-icons/model-provider-copilot.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-gemini-cli.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-antigravity.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-cline.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-commandcode.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-cursor.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-devin.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-factory.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-kiro.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-qoder.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-trae.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-workbuddy.svg",
+      "packages/ui/src/assets/provider-icons/model-provider-zed.svg"
+    ],
+    "scope": "Additional original LobeHub MIT notice retained for the copied icon collection identified by Magpie.",
+    "license": "MIT"
   }
 ]

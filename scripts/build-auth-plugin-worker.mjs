@@ -4,6 +4,10 @@ import { readFile, readdir, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  preserveQoderCacheUsage,
+  preserveTraeCacheUsage,
+} from "../packages/provider-node/src/provider-auth/plugins/vendor-cache-usage-patch.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const folder = resolve(root, "packages/provider-node/src/provider-auth/plugins");
@@ -43,11 +47,19 @@ const result = await build({
           path: resolve(dirname(args.importer), args.path + ".source"),
           namespace: "vendor",
         }));
-        api.onLoad({ filter: /.*/, namespace: "vendor" }, async (args) => ({
-          contents: await readFile(args.path, "utf8"),
-          loader: "js",
-          resolveDir: dirname(args.path),
-        }));
+        api.onLoad({ filter: /.*/, namespace: "vendor" }, async (args) => {
+          const source = await readFile(args.path, "utf8");
+          return {
+            contents:
+              args.path === resolve(vendor, "qoder/index.mjs.source")
+                ? preserveQoderCacheUsage(source)
+                : args.path === resolve(vendor, "trae/index.mjs.source")
+                  ? preserveTraeCacheUsage(source)
+                  : source,
+            loader: "js",
+            resolveDir: dirname(args.path),
+          };
+        });
       },
     },
   ],

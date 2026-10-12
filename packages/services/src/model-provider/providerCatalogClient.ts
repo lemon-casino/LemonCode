@@ -26,9 +26,11 @@ export interface ProviderCatalogClient {
 
 export function createProviderCatalogClient(
   transport: typeof globalThis.fetch = globalThis.fetch,
+  resolveTransport: (config: ProviderConfigObject) => typeof globalThis.fetch = () => transport,
 ): ProviderCatalogClient {
   return {
     async listModels(config) {
+      const transport = resolveTransport(config);
       const request = resolveCatalogRequest(config);
       const keys = resolveEnabledKeys(config);
       let lastAuthStatus: number | undefined;
@@ -55,6 +57,7 @@ export function createProviderCatalogClient(
     },
 
     async probeApiKeys(config, keyIds, options) {
+      const transport = resolveTransport(config);
       const request = resolveCatalogRequest(config);
       const selected = new Set(keyIds?.map((id) => id.trim()).filter(Boolean));
       const keys = resolveApiKeyAccessKeys(requireApiKeyAccess(config)).filter(

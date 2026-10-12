@@ -69,6 +69,14 @@ test(
     await page.mouse.move(10, 10);
     assert.equal(await editor.locator("[data-model-json-slot] textarea").inputValue(), mapping);
     await mkdir(".tmp/provider-accounts", { recursive: true });
+    await editor.evaluate((element) =>
+      Promise.all(
+        element
+          .getAnimations({ subtree: true })
+          .map((animation) => animation.finished.catch(() => {})),
+      ),
+    );
+    await editor.locator("[data-model-json-slot] textarea").scrollIntoViewIfNeeded();
     await page.screenshot({ path: ".tmp/provider-accounts/model-editor-desktop-dark.png" });
     await page.setViewportSize({ width: 390, height: 844 });
     await editor.locator("[data-model-json-slot] textarea").scrollIntoViewIfNeeded();

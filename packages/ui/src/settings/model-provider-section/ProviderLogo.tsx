@@ -19,12 +19,26 @@ import openrouterLight from "@/assets/provider-icons/model-provider-openrouter-l
 import openrouterDark from "@/assets/provider-icons/model-provider-openrouter-dark.svg";
 import opencodeLight from "@/assets/provider-icons/model-provider-opencode-light.svg";
 import opencodeDark from "@/assets/provider-icons/model-provider-opencode-dark.svg";
+import copilotLogo from "@/assets/provider-icons/model-provider-copilot.svg";
+import geminiCliLogo from "@/assets/provider-icons/model-provider-gemini-cli.svg";
+import antigravityLogo from "@/assets/provider-icons/model-provider-antigravity.svg";
+import clineLogo from "@/assets/provider-icons/model-provider-cline.svg";
+import commandCodeLogo from "@/assets/provider-icons/model-provider-commandcode.svg";
+import cursorLogo from "@/assets/provider-icons/model-provider-cursor.svg";
+import devinLogo from "@/assets/provider-icons/model-provider-devin.svg";
+import factoryLogo from "@/assets/provider-icons/model-provider-factory.svg";
+import kiroLogo from "@/assets/provider-icons/model-provider-kiro.svg";
+import qoderLogo from "@/assets/provider-icons/model-provider-qoder.svg";
+import traeLogo from "@/assets/provider-icons/model-provider-trae.svg";
+import workBuddyLogo from "@/assets/provider-icons/model-provider-workbuddy.svg";
+import zedLogo from "@/assets/provider-icons/model-provider-zed.svg";
 
 type ProviderLogoRef = NonNullable<ProviderConfigObject["logo"]>;
 
 interface BuiltinProviderLogoAsset {
   readonly light: string;
   readonly dark?: string;
+  readonly monochrome?: boolean;
 }
 
 // 这里只负责把 Config 中的资源 key 解析为打包素材；禁止加入 Provider ID、名称或排序逻辑。
@@ -43,6 +57,19 @@ const BUILTIN_PROVIDER_LOGO_ASSETS: Readonly<Record<string, BuiltinProviderLogoA
   xai: { light: xAiLogo },
   openrouter: { light: openrouterLight, dark: openrouterDark },
   opencode: { light: opencodeLight, dark: opencodeDark },
+  copilot: { light: copilotLogo, monochrome: true },
+  "gemini-cli": { light: geminiCliLogo },
+  antigravity: { light: antigravityLogo },
+  cline: { light: clineLogo, monochrome: true },
+  commandcode: { light: commandCodeLogo, monochrome: true },
+  cursor: { light: cursorLogo, monochrome: true },
+  devin: { light: devinLogo, monochrome: true },
+  factory: { light: factoryLogo, monochrome: true },
+  kiro: { light: kiroLogo },
+  qoder: { light: qoderLogo, monochrome: true },
+  trae: { light: traeLogo, monochrome: true },
+  workbuddy: { light: workBuddyLogo },
+  zed: { light: zedLogo, monochrome: true },
 };
 
 function resolveBuiltinProviderLogoAsset(
@@ -69,8 +96,31 @@ export function ProviderLogo({
   if (!src || failedSrc === src) {
     return <PackageIcon className={cn("shrink-0", className)} aria-hidden="true" />;
   }
+  const key = logo?.type === "builtin" ? logo.key : undefined;
+  // SVG作为img不会继承页面的currentColor；用原始素材的alpha作mask，深浅主题都沿用前景色。
+  if (key && BUILTIN_PROVIDER_LOGO_ASSETS[key]?.monochrome) {
+    const maskImage = `url(${JSON.stringify(src)})`;
+    return (
+      <span
+        data-provider-logo={key}
+        aria-hidden="true"
+        className={cn("shrink-0 bg-current", className)}
+        style={{
+          maskImage,
+          WebkitMaskImage: maskImage,
+          maskSize: "contain",
+          WebkitMaskSize: "contain",
+          maskRepeat: "no-repeat",
+          WebkitMaskRepeat: "no-repeat",
+          maskPosition: "center",
+          WebkitMaskPosition: "center",
+        }}
+      />
+    );
+  }
   return (
     <img
+      data-provider-logo={key}
       src={src}
       alt=""
       aria-hidden="true"

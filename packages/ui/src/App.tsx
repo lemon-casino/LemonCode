@@ -1201,6 +1201,9 @@ export function App({
         workspaceRemoteSessionId={workspaceRemoteSessionId}
         workspaceIdentity={workspaceIdentity}
         executionWorkspace={executionWorkspace ?? null}
+        executionPending={execution.pending}
+        executionError={execution.error}
+        handleRetryExecution={execution.retry}
         executionBinding={execution.binding}
         isWorkspaceVisible={isWorkspaceVisible}
         isDesktop={isDesktop}

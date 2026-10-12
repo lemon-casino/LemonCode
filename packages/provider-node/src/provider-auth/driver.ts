@@ -83,3 +83,6 @@ export interface AuthDriver {
   dispose?(): void | Promise<void>;
 }
 export type AuthDriverFactory = (channelId: string) => Promise<AuthDriver>;
+export interface AuthDriverNetworkOptions {
+  resolveNetwork(): Promise<import("../provider-network.js").HostApiNetworkOptions>;
+}

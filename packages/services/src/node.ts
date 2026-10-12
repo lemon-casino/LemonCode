@@ -1677,6 +1677,24 @@ export function createLocalServices(options: {
     credentials: credentialService,
     lockPath: join(resolveAppConfigDir(), "oauth-provider-accounts"),
     watchFile: join(resolveAppConfigDir(), "credentials.json"),
+    factory: (channelId) =>
+      createAuthDriver(channelId, {
+        resolveNetwork: async () => {
+          const [config, settings] = await Promise.all([
+            providerConfigRuntime.configService.read(),
+            settingService.get(),
+          ]);
+          return resolveProviderNetworkOptions(
+            config.personalProviders.get(oauthProviderId(channelId))?.network,
+            {
+              httpProxy: settings.httpProxy,
+              noProxy: settings.httpProxyNoProxy,
+              caCertPath: settings.httpProxyCaCertPath,
+            },
+            config.proxyProfiles,
+          );
+        },
+      }),
   });
   const combinedAccountProviderSource = createProviderAccountsSource(
     accountProviderConfigSource,
@@ -1684,6 +1702,14 @@ export function createLocalServices(options: {
   );
   const providerRuntime = createProviderRuntimeFromConfigRuntime({
     configRuntime: providerConfigRuntime,
+    resolveDefaultNetwork: async () => {
+      const settings = await settingService.get();
+      return {
+        httpProxy: settings.httpProxy,
+        noProxy: settings.httpProxyNoProxy,
+        caCertPath: settings.httpProxyCaCertPath,
+      };
+    },
     accountSource: combinedAccountProviderSource,
     modelSelectionConfiguredDefaultSource,
     disposeModelSelectionConfiguredDefaultSource: () =>
@@ -2947,6 +2973,7 @@ export async function disposeServiceResourcesAndWait(services: ServiceCollection
     .catch(() => {});
 }
 import { ProviderAccounts } from "./model-provider/providerAccounts.js";
+import { createAuthDriver, resolveProviderNetworkOptions } from "@lcode/provider-node";
 import { IProviderAccountService } from "./model-provider/providerAccountService.js";
 import {
   createProviderAccountsSource,

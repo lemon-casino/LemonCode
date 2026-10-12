@@ -9,7 +9,10 @@ function usage(value: unknown, anthropic: boolean): Json | undefined {
   const cached = anthropic
     ? number(source.cache_read_input_tokens)
     : number(record(source.input_tokens_details).cached_tokens);
-  const created = anthropic ? number(source.cache_creation_input_tokens) : undefined;
+  // Auto 把 Messages/Responses 转成 Chat；统一写入字段，避免兼容 SDK 丢失分类。
+  const created = anthropic
+    ? number(source.cache_creation_input_tokens)
+    : number(record(source.input_tokens_details).cache_write_tokens);
   const prompt =
     input === undefined ? undefined : input + (anthropic ? (cached ?? 0) + (created ?? 0) : 0);
   return {
@@ -21,7 +24,7 @@ function usage(value: unknown, anthropic: boolean): Json | undefined {
       : {
           prompt_tokens_details: {
             ...(cached === undefined ? {} : { cached_tokens: cached }),
-            ...(created === undefined ? {} : { cache_creation_tokens: created }),
+            ...(created === undefined ? {} : { cache_write_tokens: created }),
           },
         }),
     ...(source.output_tokens_details

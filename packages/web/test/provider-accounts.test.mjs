@@ -22,7 +22,8 @@ test(
     const api = page.getByRole("tab", { name: "API", exact: true });
     const oauth = page.getByRole("tab", { name: "OAuth", exact: true });
     await api.waitFor();
-    assert.equal(await api.getAttribute("aria-selected"), "true");
+    assert.equal(await oauth.getAttribute("aria-selected"), "true");
+    await api.click();
     await page.getByTestId("model-provider-template-item-fixture-api").click();
     assert.deepEqual(await page.evaluate(() => window.__providerAccounts.apiCreates), [
       "fixture-api",
@@ -30,15 +31,19 @@ test(
     await oauth.click();
     await page.getByTestId("oauth-channel-fixture").click();
     await page.getByRole("dialog", { name: "Fixture OAuth", exact: true }).waitFor();
+    await page.getByRole("tab", { name: "登录授权", exact: true }).click();
     await page.getByRole("button", { name: "开始授权", exact: true }).click();
     await page.getByLabel("授权码", { exact: true }).waitFor();
     assert.equal((await page.evaluate(() => window.__providerAccounts.opened)).length, 1);
     await page.getByLabel("授权码", { exact: true }).fill("fixture-code-one");
     await page.getByRole("button", { name: "完成授权", exact: true }).click();
+    await page.getByRole("tab", { name: "已登录账号", exact: true }).click();
     await page.getByTestId("oauth-account-account-1").waitFor();
+    await page.getByRole("tab", { name: "登录授权", exact: true }).click();
     await page.getByRole("button", { name: "开始授权", exact: true }).click();
     await page.getByLabel("授权码", { exact: true }).fill("fixture-code-two");
     await page.getByRole("button", { name: "完成授权", exact: true }).click();
+    await page.getByRole("tab", { name: "已登录账号", exact: true }).click();
     const second = page.getByTestId("oauth-account-account-2");
     await second.waitFor();
     assert.equal(await page.locator("[data-oauth-account]").count(), 2);
@@ -46,11 +51,13 @@ test(
     await page.waitForFunction(() => window.__providerAccounts.refreshes.includes("account-2"));
     await second.getByRole("switch").click();
     await page.waitForFunction(() => window.__providerAccounts.accounts[1]?.enabled === false);
+    await page.getByRole("tab", { name: "登录授权", exact: true }).click();
     await page.getByRole("button", { name: "开始授权", exact: true }).click();
     await page.getByLabel("授权码", { exact: true }).waitFor();
     await page.getByRole("button", { name: "取消授权", exact: true }).click();
     await page.waitForFunction(() => window.__providerAccounts.cancelled.length === 1);
     assert.equal(await page.locator("[data-oauth-account]").count(), 2);
+    await page.getByRole("tab", { name: "已登录账号", exact: true }).click();
     await second.getByRole("button", { name: "删除账号", exact: true }).click();
     await second.waitFor({ state: "detached" });
     await page.keyboard.press("Escape");
@@ -153,7 +160,8 @@ test(
     await page.getByRole("tab", { name: "OAuth", exact: true }).click();
     await page.getByTestId("oauth-channel-fixture").click();
     const dialog = page.getByRole("dialog", { name: "Fixture OAuth", exact: true });
-    await dialog.getByRole("button", { name: "文件导入", exact: true }).click();
+    await dialog.getByLabel("授权方式", { exact: true }).click();
+    await page.getByRole("option", { name: "Fixture credential files", exact: true }).click();
     await dialog
       .getByText("Import fixture account exports. Existing credentials are read only.")
       .waitFor();
@@ -203,8 +211,12 @@ test(
     await dialog.getByRole("alert").getByText("每个凭据文件不能超过 4 MiB。").waitFor();
     assert.equal(await page.evaluate(() => window.__providerAccounts.importReads), 2);
     assert.equal(await page.evaluate(() => window.__providerAccounts.localReads), 0);
-    await dialog.getByRole("button", { name: "本机登录", exact: true }).click();
+    await dialog.getByLabel("授权方式", { exact: true }).click();
+    await page.getByRole("option", { name: "Fixture CLI sign-in", exact: true }).click();
+    assert.equal(await page.evaluate(() => window.__providerAccounts.localReads), 0);
+    await dialog.getByRole("button", { name: "读取客户端登录", exact: true }).click();
     await dialog.getByText("Reads the selected Host's fixture CLI sign-in.").waitFor();
+    await dialog.getByRole("tab", { name: "已登录账号", exact: true }).click();
     await dialog.getByTestId("oauth-account-account-3").waitFor();
     assert.equal(await page.evaluate(() => window.__providerAccounts.localReads), 1);
   },
@@ -223,7 +235,8 @@ test(
     await page.getByRole("tab", { name: "OAuth", exact: true }).click();
     await page.getByTestId("oauth-channel-fixture").click();
     const dialog = page.getByRole("dialog", { name: "Fixture OAuth", exact: true });
-    await dialog.getByRole("button", { name: "文件导入", exact: true }).click();
+    await dialog.getByLabel("授权方式", { exact: true }).click();
+    await page.getByRole("option", { name: "Fixture credential files", exact: true }).click();
     const files = dialog.locator('input[type="file"]');
     await files.setInputFiles(
       ["one", "two", "three"].map((name) => ({
@@ -267,7 +280,8 @@ test(
     });
     assert.equal(await page.evaluate(() => window.__providerAccounts.importReads), 0);
     assert.equal(await page.evaluate(() => window.__providerAccounts.alternateHostReads), 0);
-    await dialog.getByRole("button", { name: "文件导入", exact: true }).click();
+    await dialog.getByLabel("授权方式", { exact: true }).click();
+    await page.getByRole("option", { name: "Fixture credential files", exact: true }).click();
     assert.equal(await dialog.getByLabel("粘贴凭据内容", { exact: true }).inputValue(), "");
     await page.screenshot({ path: ".tmp/provider-accounts/import-mobile-light.png" });
   },
@@ -308,6 +322,7 @@ test(
       window.__providerAccounts.completeOnPoll = true;
     });
     await page.getByRole("alert").getByRole("button").click();
+    await page.getByRole("tab", { name: "已登录账号", exact: true }).click();
     await page.getByTestId("oauth-account-account-1").waitFor();
     await page.getByTestId("oauth-authorization-pending").waitFor({ state: "detached" });
     assert.equal(await page.evaluate(() => window.__providerAccounts.cancelled.length), 1);
@@ -330,6 +345,7 @@ test(
     await page.evaluate(() => {
       window.__providerAccounts.startFailure = "OAUTH_CLAUDE_CLI_REQUIRED";
     });
+    await page.getByRole("tab", { name: "登录授权", exact: true }).click();
     await page.getByRole("button", { name: "开始授权", exact: true }).click();
     await page.getByRole("alert").waitFor();
     assert.match(

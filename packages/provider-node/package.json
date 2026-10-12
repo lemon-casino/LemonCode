@@ -13,11 +13,13 @@
   "dependencies": {
     "@lcode/provider": "workspace:*",
     "@lcode/shared": "workspace:*",
+    "socks": "2.8.10",
+    "undici": "6.29.0",
     "zod": "4.6.5"
   },
   "devDependencies": {
-    "@types/node": "^25.5.0",
     "@lcode/model-option-map": "workspace:*",
+    "@types/node": "^25.5.0",
     "typescript": "^6.0.2"
   }
 }

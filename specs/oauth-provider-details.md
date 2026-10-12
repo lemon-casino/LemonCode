@@ -1,5 +1,38 @@
 # OAuth 供应商细节与 Magpie 对齐
 
+## 中文授权方式与登录操作（2026-10-12）
+
+- 当前25个注册渠道的授权方式名称、来源说明、字段标签/占位提示及授权过程说明，在中文模式下使用UI翻译；品牌、CLI命令、文件名、域名、设备验证码和用户输入保留原值。英文模式保留驱动原文。以当前驱动返回的方法ID及kind为边界，不因翻译新增或隐藏供应商能力。
+- 选择框标签为“授权方式”，使用常规288px宽度，不拉伸填满整行；与唯一提交按钮保持同一水平行，窄屏按可用空间收缩并允许选项文字截断。合并原本机快捷检测和下方提交按钮，不在选择方法时读取凭据；用户明确点击后才按当前methodId提交。浏览器/手动凭据显示“开始授权”，客户端入口显示“读取客户端登录”。需要字段时先填写；文件导入使用既有选文件/粘贴与“导入账号”按钮，不再显示第二个空文件提交入口。
+- WorkBuddy/AI明确区分“通过浏览器授权”和“读取WorkBuddy/AI客户端登录”。浏览器凭据由Host独立保存，不依赖安装客户端；客户端入口读取该Host外部客户端的登录状态，不读取LCode已保存的浏览器账号。其他本机入口同样说明真正来源、跟随/快照及已有写回语义。
+- UI汉化是纯显示投影：不改methodId、channelId、字段key/type/optional/condition/defaultValue、选项value、提交正文及授权URL。ProviderAccounts仍为attempt、连接与加密凭据唯一owner，保持取消和迟到结果防护。桌面continuous与手机replayable共用同一Host命令。
+- 设备授权说明必须保留Copilot、Cline、Factory、MiniMax的完整动态验证码；命令、品牌和路径不可被泛化翻译吞掉。未知渠道/未知上游动态格式保留原文，不能猜测或丢失授权步骤。
+- 验收：枚举当前25渠道真实methods验证中文覆盖与英文不变；检查显示投影不改变提交契约；中文桌面和手机Web验证按钮/选择框同一行、切换浏览器/客户端后只提交选中methodId、条件字段和文件导入、设备码保持；英文入口保持原文。
+
+```text
+Host methods/attempt（授权owner） → UI按当前语言投影文案
+用户选择授权方式/填写字段 → 唯一提交按钮 → 原accounts.start(channelId, methodId, inputs)
+  → Host原授权/持久化 → 原安全视图与attempt → UI中文/英文显示
+```
+
+- 同轮源码审计：共享非批量完成状态未投影added/updated/exists；WorkBuddy/AI、Cursor、Kiro、Command Code、Devin的客户端跟随路径缺少对旧连接身份的明确核对；部分固定插件将昵称/显示名用作accountId。列为独立修复候选，本轮汉化不修改其身份/持久化规则，也不将fixture覆盖描述为真实厂商登录验证。
+
+### 本轮授权源码审计
+
+| 范围                                            | 当前证据与结论                                                                                                                                                                                                                                                                                     |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 全部25渠道                                      | `ProviderAuthorizationForm`原先直出驱动英文；`providerAccountCompletion`非批量结果丢弃added/updated/exists，均投影completed。汉化与按钮职责本轮修正；完成结果细分仍为独立事项。                                                                                                                    |
+| Codex、Claude Code、Copilot、Gemini CLI         | `native/local.ts:followLocal`核对稳定identityKey；客户端换账号后拒绝沿用旧connection。ChatGPT API与Antigravity未提供假客户端入口。                                                                                                                                                                 |
+| BigModel、Z.AI                                  | `plugins/zcode-local.mjs:resolveZCodeLocal`检查账号、站点、组织与项目；重复读取相同本机来源只更新/复用原连接。浏览器与API Key可分别接入其他账号。                                                                                                                                                  |
+| WorkBuddy/AI、Cursor、Kiro、Command Code、Devin | 分别在vendor的`current`、`tokenOf`/`cliTokenNow`、`credOf`、`liveKey`和`live`中重新读取外部客户端凭据，但未对原connection的稳定用户身份进行显式核对。客户端切换账号可能使旧连接代替新用户请求，应独立建立身份门禁；本轮没有向真实厂商请求验证此情形。                                              |
+| WorkBuddy/AI、Trae CN/Global、MiniMax CN/Global | 固定插件的`success`、`toAuth`及授权回调优先把昵称/name作为accountId（MiniMax先email，缺失时name）。`admitProviderAccount`在无identityKey时只比较accountId，忽略这些grant已有的uid。假凭据复现：相同昵称、不同uid的两个账号，第二次返回updated且池中仍只有1个账号；应把厂商稳定身份与显示名称分开。 |
+| Cline、Factory、Qoder/CN、MiMo、Zed、Grok       | 登录方法来自各自固定插件，未被统一替换成客户端入口；保留设备码、VPC、小米扫码及Grok CLI依赖等差异。Factory文件导入已有用户+组织identityKey；不将此事实推广为所有插件浏览器/API路径均已拥有复合身份。                                                                                               |
+
+本轮使用真实methods枚举与fake browser/service验证显示和提交，使用纯内存admission复现去重风险；未读取/改写无关供应商的真实凭据，未自动重新授权已有账号。图索引现有OAuth节点可以找到owner，但缺少授权文案与来源语义的检索别名，记录为graph-drift-candidate，暂不改已有索引。
+
+- Grok补充：浏览器登录使用独立CLI数据目录，本机入口使用当前CLI目录；`auth.refresh`及`remember`可将新读出的email写入旧grant，未拒绝本机目录换账号。属于同一客户端身份门禁候选，不把其浏览器隔离语义与本机来源混为一谈。
+- Z.AI/BigModel浏览器及Zed也有显示名fallback（各自`who`函数）；上游没有提供email/唯一login时，不能据此宣称accountId一定是厂商稳定身份。此项为条件性风险，与本轮已用不同uid/同昵称复现的admission问题分别记录。
+
 ## 固定插件兼容层规则
 
 ### 本轮全渠道继续核查（2026-10-11 后续）
@@ -71,7 +104,7 @@ desktop-continuous / web-remote-replayable：仅改变请求格式，不改变�
 - Account Overlay 保持原有智谱成员/权益契约；另严格接受 OAuth 的 `group`、`access`、固定占位 `api` 和模型成员。不得通过放宽整个 Provider schema 接受 API Key、动态地址、headers 或个人编辑字段。旧账号载荷仍可解析，现有 API 配置不迁移。
 - 账号目录的精确模型规则与同一 revision 的 Provider Overlay 一起序列化、校验和应用；包含容量、输入能力、推理选项与映射。只允许该 OAuth 供应商的目录模型，不接受跨供应商/全局规则。Registry 冻结快照保留这些规则，个人覆盖仍优先。
 - 智能恢复的推荐配置同样包含 OAuth 目录规则；不能仅把目录用于执行而让编辑器恢复到缺失能力的通用值。
-- UI 的“本机登录”快捷入口点击即调用现有 `accounts.start`。无需补充输入或已具备全部默认必填输入的本机方法直接识别；需要选择 profile 等额外输入的方法先展示字段，再提交。读取依然由明确用户点击触发，不在打开弹窗或选择供应商时自动扫描。进行中禁用重复点击，取消、Host 切换和失败重试沿用既有 owner。
+- UI 选择客户端授权方式后，由唯一“读取客户端登录”按钮调用现有 `accounts.start`。无需补充输入或已具备默认必填输入的方法直接识别；有额外必填字段的方法先填写再提交。读取只由明确点击触发，不在打开弹窗、选择供应商或选择方式时自动扫描。进行中禁用重复提交，取消、Host 切换和失败重试沿用既有 owner。
 - 验收覆盖所有已注册渠道的 Host 投影→协议→进程 Registry→请求鉴权；至少包含 Z.AI 与 Codex 同池、旧智谱账号共存、秘密/未知字段拒绝、规则绑定、模型能力/个人覆盖保留以及一次点击读取的浏览器场景。厂商真实账号联网调用与模拟链路验收分别记录。
 
 ```text
@@ -177,3 +210,9 @@ desktop-continuous / mobile replayable → 同一Host owner与凭据代次
 - 根`pnpm typecheck`/`pnpm lint`通过；CLI类型检查27任务、CLI lint14任务通过；架构0违规；相关文件格式检查通过。Lint发现浏览器测试超过400行后按场景拆分并复验，不扩大文件行数例外。
 - `node scripts/build-desktop-agent-cli.mjs`成功重建并暂存本机win32-x64内置Agent；生成与暂存bundle SHA-256相同，含新增序列化/解析入口。已运行的Agent仍是启动时版本，重启本仓库桌面开发应用后加载新bundle。
 - `node scripts/licenses.mjs check`成功（1742个实装包，构建依赖复核18项）；报告20项已登记材料债务，未声称strict零债务检查通过。本轮不修改固定vendor或授权worker。
+
+## 2026-10-12 设置结构调整
+
+OAuth 界面按登录授权 → 模型配置 → 已登录账号拆分；登录和导入只在登录授权页，账号页仅显示相应账号事实及操作。授权中的页签切换保留原 attempt，关闭仍先取消。供应商代理引用与认证出口统一在模型设置的供应商详情中配置，独立代理页只管理代理；模型弹窗随屏幕伸缩。按 [代理与模型设置联动](./provider-proxy-and-settings-layout.md) 验收。此规则替代早期两页签及账号页内含授权表单的布局要求。
+
+三个页签靠左且整体最多 24rem；小屏按可用宽度等分，标签允许换行，以兼容中英文与较大 UI 字号。此项仅改变局部展示，不修改通用 Tabs 组件、授权 attempt 或账号状态所有者。

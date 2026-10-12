@@ -168,6 +168,9 @@ export const resolveBuildAliases = ({
     rootDirectory,
     "../../packages/shared/src/config-schema.ts",
   ),
+  // 代理协议新增公开子入口；缺少精确 alias 会被通用前缀拼成
+  // `src/index.ts/network-proxy`，类型检查通过但 Desktop Agent/SEA 打包失败。
+  "@lcode/shared/network-proxy": resolve(rootDirectory, "../../packages/shared/src/networkProxy.ts"),
   "@lcode/shared/workspace-hook-discovery": resolve(
     rootDirectory,
     "../../packages/shared/src/workspace-hook-discovery.ts",

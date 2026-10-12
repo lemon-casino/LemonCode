@@ -30,6 +30,7 @@ export const providerUsageMetricsSchema = z
     reasoningTokens: count,
     cacheReadTokens: count,
     cacheWriteTokens: count,
+    cacheWriteKnownRequests: count.optional(),
     cacheHitRate: z.number().finite().min(0).max(1).nullable(),
     avgTimeToFirstTokenMs: duration,
     avgDurationMs: duration,

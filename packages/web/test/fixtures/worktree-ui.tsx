@@ -17,6 +17,8 @@ import { useWorktreeLifecycleStore } from "@/store/worktreeLifecycleStore.js";
 import { useActiveExecutionWorkspace } from "@/hooks/useActiveExecutionWorkspace.js";
 import { useFileMentionProvider } from "@/mentions/providers/fileMentionProvider.js";
 import { platform } from "./git-backup-platform.js";
+import { services as sessionServices } from "./git-session-refresh-runtime.js";
+import { services as layoutServices } from "./mobile-layout-data.js";
 import { WorktreeWorkflowScenario } from "./worktree-ui-scenarios.js";
 import { FixtureReviewPreview } from "./review-preview.js";
 import { WorktreeSidebarRows } from "./worktree-sidebar-rows.js";
@@ -138,6 +140,7 @@ const fixture = {
 };
 Object.assign(window, { __worktreeFixture: fixture });
 const services = {
+  lcodeAgentService: { ...layoutServices.lcodeAgentService, ...sessionServices.lcodeAgentService },
   settingService: {
     get: async () => structuredClone(settings),
     update: async (patch: Partial<AppSettings>) => {

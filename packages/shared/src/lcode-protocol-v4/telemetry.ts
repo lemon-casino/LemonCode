@@ -172,7 +172,7 @@ const usageDeltaFactSchema = z
     totalTokens: z.number().nonnegative(),
     reasoningTokens: z.number().nonnegative(),
     cacheReadTokens: z.number().nonnegative(),
-    cacheWriteTokens: z.number().nonnegative(),
+    cacheWriteTokens: z.number().nonnegative().optional(),
   })
   .strict();
 

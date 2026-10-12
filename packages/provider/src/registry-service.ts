@@ -240,6 +240,7 @@ export class ProviderRegistryService {
           accountModelRules: account.modelRules,
           accountStates: account.states,
           personalProviderOrder: config.personalProviderOrder,
+          proxyProfiles: config.proxyProfiles,
         });
         this.#registry.replace(resolution.registryProviders, [...reasons].join(","));
         const snapshot = Object.freeze({

@@ -212,6 +212,7 @@ The dynamic-workflow timeline draws with a feature-scoped token family:
 - Prefer `bg-card` or `bg-surface` for normal content containers.
 - Prefer `bg-popover` or `bg-menu` for overlays; pair with `border-popover-border` or `border-border`.
 - Prefer `bg-hover` for generic hover and `bg-selected` for selection.
+- Each theme has three distinct roles: page background, hover surface, and selected surface (palette in `specs/ui-theme-modes.md`). Selected controls retain their fill on hover/focus; navigation text and icons inherit the active or inactive foreground. Input and unchecked-checkbox borders must remain visible on popovers and surfaces.
 - Prefer `bg-primary text-primary-foreground` for the default primary button.
 - Prefer text hierarchy to create information density before adding more borders or colors.
 - Keep brand color usage sparse and intentional.

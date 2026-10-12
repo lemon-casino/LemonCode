@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { modelSelectionSchema } from "@lcode/shared/model-selection";
 import { completeModelConfigDataSchema, modelConfigDataSchema } from "@lcode/shared/model-config";
+import { proxyProfilesSchema } from "@lcode/shared";
 import {
   parsePersonalModelConfigRules,
   parsePersonalProviderConfigMap,
@@ -24,6 +25,7 @@ const storedProviderConfigSchema = z
         providerConfigRules: z.unknown(),
         modelConfigRules: z.unknown(),
         defaultModelSelection: modelSelectionSchema.optional(),
+        proxyProfiles: proxyProfilesSchema.optional(),
       })
       .strict(),
   })
@@ -75,6 +77,9 @@ export function decodeProviderConfigFile(input: unknown): ProviderConfigLayerUpd
       normalizeLegacyManualRules(parsed.config.modelConfigRules),
     ),
     providerOrder: parsed.config.providerOrder,
+    ...(parsed.config.proxyProfiles === undefined
+      ? {}
+      : { proxyProfiles: parsed.config.proxyProfiles }),
     ...(parsed.config.defaultModelSelection === undefined
       ? {}
       : { defaultModelSelection: parsed.config.defaultModelSelection }),
@@ -114,6 +119,7 @@ export function encodeProviderConfigFile(update: ProviderConfigLayerUpdate) {
     schemaVersion: CURRENT_SCHEMA_VERSION,
     config: {
       ...(update.providerOrder === undefined ? {} : { providerOrder: update.providerOrder }),
+      ...(update.proxyProfiles === undefined ? {} : { proxyProfiles: update.proxyProfiles }),
       providerConfigRules: { providerRules: update.providers.toJSON() },
       modelConfigRules: update.models.toPersonalJSON(),
       ...(update.defaultModelSelection === undefined

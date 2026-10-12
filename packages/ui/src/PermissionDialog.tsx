@@ -865,8 +865,8 @@ export function PermissionDialog({
               >
                 <span
                   className={cn(
-                    // 匹配 textarea 的首行行高和 1px 边框；手机输入行高不同，但序号字号不变。
-                    "mt-px w-5 shrink-0 self-start text-ui-base font-medium leading-5 md:leading-relaxed",
+                    // 匹配 textarea 的首行行高、4px padding 和 1px 边框，序号字号不变。
+                    "mt-1 w-5 shrink-0 self-start pt-px text-ui-base font-medium leading-normal md:leading-relaxed",
                     isFeedbackSelected ? "text-foreground" : "text-foreground-subtlest",
                   )}
                 >
@@ -909,7 +909,8 @@ export function PermissionDialog({
                   onKeyDown={handleFeedbackKeyDown}
                   className={cn(
                     // 拒绝反馈自动换行，但限制为 5 行并在输入框内滚动，避免窄屏遮住权限选项和确认按钮。
-                    "h-auto !min-h-5 max-h-[5lh] min-w-0 max-w-full overflow-y-auto rounded-none border-transparent bg-transparent !px-0 !py-0 font-medium text-ui-base leading-5 shadow-none hover:border-transparent focus-visible:border-transparent focus-visible:bg-transparent focus-visible:ring-0",
+                    // 原因：权限反馈与询问回答有相同的透明样式问题，保留共享输入背景和焦点边框。
+                    "h-auto min-h-7 max-h-[5lh] min-w-0 max-w-full overflow-y-auto rounded-lg px-2 py-1 font-medium text-ui-base leading-normal shadow-none",
                   )}
                 />
               </div>

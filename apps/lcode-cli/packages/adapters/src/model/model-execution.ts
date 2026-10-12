@@ -38,6 +38,7 @@ export type AiSdkProviderKind = "openai" | "anthropic" | "openai-compatible";
 export type EnvRecord = Record<string, string | undefined>;
 
 interface AiSdkProviderConfig {
+  network?: RegistryProviderConfig["network"];
   access: RegistryProviderConfig["access"];
   kind: AiSdkProviderKind;
   apiKey?: string;
@@ -289,8 +290,8 @@ export class AiSdkModelExecution {
     // OAuth Host票据仅用于同一执行环境回环端口，不能被用户配置的外部HTTP代理转发。
     const providerTransport =
       providerConfig.access.type === "oauth-account"
-        ? (this.baseTransport ?? globalThis.fetch)
-        : this.resolveProviderTransport(providerId);
+        ? (this.baseTransport ?? createNetworkProxyFetch({ env: {}, forceDirect: true }))
+        : this.resolveProviderTransport(providerId, providerConfig.network);
     const apiKeyTransport = providerConfig.apiKeys?.length
       ? createApiKeyFailoverFetch({
           fetch: providerTransport,
@@ -379,21 +380,25 @@ export class AiSdkModelExecution {
     return state;
   }
 
-  private resolveProviderTransport(providerId: string): ProviderFetch {
-    const current = this.providerTransports.get(providerId);
+  private resolveProviderTransport(providerId: string, network: RegistryProviderConfig["network"]): ProviderFetch {
+    if (network?.mode === "profile") throw new Error("Proxy profile must be resolved before model execution");
+    const key = JSON.stringify([providerId, network ?? null]);
+    const current = this.providerTransports.get(key);
     if (current) {
       return current;
     }
     // 官方 Coding Plan 端点先替换为平台网关端点，再进入用户 HTTP 代理 fetch，
     // httpProxy / noProxy 按实际发送地址判定。
     const transport = createProviderTransportFetch({
-      caCertFile: this.network.caCertFile,
-      env: this.env,
+      caCertFile: network?.mode === "custom" ? network.caCertPath || this.network.caCertFile : this.network.caCertFile,
+      // 专用/直连不能再回退到进程 HTTP_PROXY；同一供应商更新配置后按新策略创建 transport。
+      env: network && network.mode !== "default" ? Object.fromEntries(Object.entries(this.env).filter(([key]) => !/^(https?_proxy|all_proxy|no_proxy|LCODE_HTTP_PROXY|LCODE_NO_PROXY|LCODE_TOOL_ENV_PASSTHROUGH_JSON)$/i.test(key))) : this.env,
       fetch: this.baseTransport,
-      httpProxy: this.network.httpProxy,
-      noProxy: this.network.noProxy,
+      httpProxy: !network || network.mode === "default" ? this.network.httpProxy : network.mode === "custom" ? network.httpProxy : undefined,
+      noProxy: !network || network.mode === "default" ? this.network.noProxy : network.mode === "custom" ? network.noProxy : undefined,
+      forceDirect: Boolean(network && network.mode !== "default"),
     });
-    this.providerTransports.set(providerId, transport);
+    this.providerTransports.set(key, transport);
     return transport;
   }
 }
@@ -417,6 +422,7 @@ function toAiSdkProviderConfig(
       : resolveApiKeyAccessKeys(config.access);
   const primaryApiKey = apiKeys.find((entry) => entry.enabled !== false)?.apiKey;
   const common = {
+    network: config.network,
     ...(primaryApiKey ? { apiKey: primaryApiKey } : {}),
     ...(apiKeys.length > 0 ? { apiKeys } : {}),
     baseURL: config.api.baseUrl,
@@ -620,6 +626,7 @@ async function consumeBusinessErrorResponseBodyBestEffort(response: Response): P
 }
 
 interface ProviderProxyFetchOptions {
+  forceDirect?: boolean;
   caCertFile?: string;
   env?: EnvRecord;
   fetch?: ProviderFetch;

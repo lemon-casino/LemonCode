@@ -4,6 +4,7 @@ import type { ModelProviderNavGroup } from "@/settings/model-provider-section/co
 import { ModelProviderSectionNavigation } from "@/settings/model-provider-section/Navigation.js";
 import { ProviderDetailFeedbackBoundary } from "@/settings/model-provider-section/ProviderDetailFeedback.js";
 import { SettingsResourceHeaderActions } from "@/settings/SettingsResourceHeaderActions.js";
+import { useModelSettingsAvailableHeight } from "@/hooks/useModelSettingsAvailableHeight.js";
 
 interface ModelProviderSectionLayoutProps {
   description: string;
@@ -45,6 +46,7 @@ export function ModelProviderSectionLayout({
   reorderableProviderIds,
   children,
 }: ModelProviderSectionLayoutProps) {
+  const panelRef = useModelSettingsAvailableHeight();
   const refreshButtonLoading = shouldShowModelProviderRefreshLoading({
     presetLoading,
     customLoading,
@@ -66,8 +68,9 @@ export function ModelProviderSectionLayout({
 
       <div className="overflow-clip rounded-xl border border-border bg-card">
         <div
-          // 仅设最小高度会让长列表撑高整页；固定分栏高度并允许子项收缩，滚动由各栏独立承接。
-          className="grid h-[min(36rem,calc(100dvh-12rem))] min-h-0 grid-cols-[56px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] gap-0 md:grid-cols-[224px_minmax(0,1fr)]"
+          // 原 36rem 上限浪费大屏高度；按视口伸缩并保留独立滚动，长内容不会撑高整页。
+          ref={panelRef}
+          className="grid h-[max(12rem,var(--model-settings-height,calc(100dvh-12rem)))] min-h-0 grid-cols-[56px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] gap-0 md:grid-cols-[224px_minmax(0,1fr)]"
           data-model-provider-split-panel="true"
         >
           <div

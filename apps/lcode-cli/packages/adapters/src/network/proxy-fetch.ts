@@ -11,6 +11,7 @@ import {
 type NetworkFetch = typeof globalThis.fetch;
 
 interface NetworkProxyFetchOptions {
+  forceDirect?: boolean;
   caCertFile?: string;
   env?: Record<string, string | undefined>;
   fetch?: NetworkFetch;
@@ -51,7 +52,7 @@ export function createNetworkProxyFetch(options: NetworkProxyFetchOptions): Netw
 
     const proxyUrl = resolveProxyUrlForRequest(requestUrl, options);
     const caCertFile = resolveTlsCaCertFile(options);
-    if (!proxyUrl && !caCertFile) {
+    if (!proxyUrl && !caCertFile && !options.forceDirect) {
       return directFetch(input, init);
     }
 
@@ -64,7 +65,7 @@ export function createNetworkProxyFetch(options: NetworkProxyFetchOptions): Netw
 }
 
 function hasNetworkFetchPolicy(options: NetworkProxyFetchOptions): boolean {
-  return Boolean(options.caCertFile || options.env || options.httpProxy || options.noProxy);
+  return Boolean(options.forceDirect || options.caCertFile || options.env || options.httpProxy || options.noProxy);
 }
 
 function readFetchInputUrl(input: Parameters<NetworkFetch>[0]): URL | undefined {

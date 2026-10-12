@@ -1,8 +1,37 @@
 diff --git a/dist/index.js b/dist/index.js
-index 6d3fc0792a237a90ab5f1d0a7a4bc20434ee1981..ef4f93163d649848ea1ca58f7f623f8dddabfbc7 100644
+index 6d3fc0792a237a90ab5f1d0a7a4bc20434ee1981..f5610afd3f946655b3f0decf9ec43b0138d6c8ca 100644
 --- a/dist/index.js
 +++ b/dist/index.js
-@@ -181,6 +181,17 @@ function convertToOpenAICompatibleChatMessages(prompt) {
+@@ -85,14 +85,15 @@ function convertOpenAICompatibleChatUsage(usage) {
+   }
+   const promptTokens = (_a = usage.prompt_tokens) != null ? _a : 0;
+   const completionTokens = (_b = usage.completion_tokens) != null ? _b : 0;
+-  const cacheReadTokens = (_d = (_c = usage.prompt_tokens_details) == null ? void 0 : _c.cached_tokens) != null ? _d : 0;
++  const cacheReadTokens = validCacheTokens(usage.prompt_tokens_details?.cached_tokens) ?? validCacheTokens(usage.cache_read_input_tokens) ?? validCacheTokens(usage.prompt_cache_hit_tokens) ?? 0;
++  const cacheWriteTokens = validCacheTokens(usage.prompt_tokens_details?.cache_write_tokens) ?? validCacheTokens(usage.prompt_tokens_details?.cache_creation_tokens) ?? validCacheTokens(usage.cache_creation_input_tokens);
+   const reasoningTokens = (_f = (_e = usage.completion_tokens_details) == null ? void 0 : _e.reasoning_tokens) != null ? _f : 0;
+   return {
+     inputTokens: {
+       total: promptTokens,
+-      noCache: promptTokens - cacheReadTokens,
++      noCache: Math.max(0, promptTokens - cacheReadTokens - (cacheWriteTokens ?? 0)),
+       cacheRead: cacheReadTokens,
+-      cacheWrite: void 0
++      cacheWrite: cacheWriteTokens
+     },
+     outputTokens: {
+       total: completionTokens,
+@@ -102,6 +103,9 @@ function convertOpenAICompatibleChatUsage(usage) {
+     raw: usage
+   };
+ }
++function validCacheTokens(value) {
++  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : void 0;
++}
+ 
+ // src/chat/convert-to-openai-compatible-chat-messages.ts
+ var import_provider = require("@ai-sdk/provider");
+@@ -181,6 +185,17 @@ function convertToOpenAICompatibleChatMessages(prompt) {
                      ...partMetadata
                    };
                  }
@@ -20,11 +49,51 @@ index 6d3fc0792a237a90ab5f1d0a7a4bc20434ee1981..ef4f93163d649848ea1ca58f7f623f8d
                  if (part.mediaType === "application/pdf") {
                    if (part.data instanceof URL) {
                      throw new import_provider.UnsupportedFunctionalityError({
+@@ -943,7 +958,9 @@ var openaiCompatibleTokenUsageSchema = import_v43.z.looseObject({
+   completion_tokens: import_v43.z.number().nullish(),
+   total_tokens: import_v43.z.number().nullish(),
+   prompt_tokens_details: import_v43.z.object({
+-    cached_tokens: import_v43.z.number().nullish()
++    cached_tokens: import_v43.z.number().nullish(),
++        cache_write_tokens: import_v43.z.unknown().optional(),
++        cache_creation_tokens: import_v43.z.unknown().optional()
+   }).nullish(),
+   completion_tokens_details: import_v43.z.object({
+     reasoning_tokens: import_v43.z.number().nullish(),
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 499fd17e4c9ac77352789c1f1f69ed32809218a4..759273c1a5035dfb699753164dd79b0dcba3cb4e 100644
+index 499fd17e4c9ac77352789c1f1f69ed32809218a4..f2604e0cef32d8cd39e84d6ae9928bfffe7a1e5e 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
-@@ -165,6 +165,17 @@ function convertToOpenAICompatibleChatMessages(prompt) {
+@@ -64,14 +64,15 @@ function convertOpenAICompatibleChatUsage(usage) {
+   }
+   const promptTokens = (_a = usage.prompt_tokens) != null ? _a : 0;
+   const completionTokens = (_b = usage.completion_tokens) != null ? _b : 0;
+-  const cacheReadTokens = (_d = (_c = usage.prompt_tokens_details) == null ? void 0 : _c.cached_tokens) != null ? _d : 0;
++  const cacheReadTokens = validCacheTokens(usage.prompt_tokens_details?.cached_tokens) ?? validCacheTokens(usage.cache_read_input_tokens) ?? validCacheTokens(usage.prompt_cache_hit_tokens) ?? 0;
++  const cacheWriteTokens = validCacheTokens(usage.prompt_tokens_details?.cache_write_tokens) ?? validCacheTokens(usage.prompt_tokens_details?.cache_creation_tokens) ?? validCacheTokens(usage.cache_creation_input_tokens);
+   const reasoningTokens = (_f = (_e = usage.completion_tokens_details) == null ? void 0 : _e.reasoning_tokens) != null ? _f : 0;
+   return {
+     inputTokens: {
+       total: promptTokens,
+-      noCache: promptTokens - cacheReadTokens,
++      noCache: Math.max(0, promptTokens - cacheReadTokens - (cacheWriteTokens ?? 0)),
+       cacheRead: cacheReadTokens,
+-      cacheWrite: void 0
++      cacheWrite: cacheWriteTokens
+     },
+     outputTokens: {
+       total: completionTokens,
+@@ -81,6 +82,9 @@ function convertOpenAICompatibleChatUsage(usage) {
+     raw: usage
+   };
+ }
++function validCacheTokens(value) {
++  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : void 0;
++}
+ 
+ // src/chat/convert-to-openai-compatible-chat-messages.ts
+ import {
+@@ -165,6 +169,17 @@ function convertToOpenAICompatibleChatMessages(prompt) {
                      ...partMetadata
                    };
                  }
@@ -42,3 +111,78 @@ index 499fd17e4c9ac77352789c1f1f69ed32809218a4..759273c1a5035dfb699753164dd79b0d
                  if (part.mediaType === "application/pdf") {
                    if (part.data instanceof URL) {
                      throw new UnsupportedFunctionalityError({
+@@ -929,7 +944,9 @@ var openaiCompatibleTokenUsageSchema = z3.looseObject({
+   completion_tokens: z3.number().nullish(),
+   total_tokens: z3.number().nullish(),
+   prompt_tokens_details: z3.object({
+-    cached_tokens: z3.number().nullish()
++    cached_tokens: z3.number().nullish(),
++        cache_write_tokens: z3.unknown().optional(),
++        cache_creation_tokens: z3.unknown().optional()
+   }).nullish(),
+   completion_tokens_details: z3.object({
+     reasoning_tokens: z3.number().nullish(),
+diff --git a/src/chat/convert-openai-compatible-chat-usage.ts b/src/chat/convert-openai-compatible-chat-usage.ts
+index e68462daeeec762a98930807c0b1f806322c1327..f0f6d7ce4e82d0fa83183386c39c5c88e76ffd52 100644
+--- a/src/chat/convert-openai-compatible-chat-usage.ts
++++ b/src/chat/convert-openai-compatible-chat-usage.ts
+@@ -5,8 +5,13 @@ export function convertOpenAICompatibleChatUsage(
+     | {
+         prompt_tokens?: number | null;
+         completion_tokens?: number | null;
++        cache_creation_input_tokens?: unknown;
++        cache_read_input_tokens?: unknown;
++        prompt_cache_hit_tokens?: unknown;
+         prompt_tokens_details?: {
+           cached_tokens?: number | null;
++          cache_write_tokens?: unknown;
++          cache_creation_tokens?: unknown;
+         } | null;
+         completion_tokens_details?: {
+           reasoning_tokens?: number | null;
+@@ -34,16 +39,21 @@ export function convertOpenAICompatibleChatUsage(
+ 
+   const promptTokens = usage.prompt_tokens ?? 0;
+   const completionTokens = usage.completion_tokens ?? 0;
+-  const cacheReadTokens = usage.prompt_tokens_details?.cached_tokens ?? 0;
++  // LCode：兼容厂商真实缓存分类，缺失写入量不能伪造零，也不能从未命中输入推算。
++  const cacheReadTokens = validCacheTokens(usage.prompt_tokens_details?.cached_tokens)
++    ?? validCacheTokens(usage.cache_read_input_tokens) ?? validCacheTokens(usage.prompt_cache_hit_tokens) ?? 0;
++  const cacheWriteTokens = validCacheTokens(usage.prompt_tokens_details?.cache_write_tokens)
++    ?? validCacheTokens(usage.prompt_tokens_details?.cache_creation_tokens)
++    ?? validCacheTokens(usage.cache_creation_input_tokens);
+   const reasoningTokens =
+     usage.completion_tokens_details?.reasoning_tokens ?? 0;
+ 
+   return {
+     inputTokens: {
+       total: promptTokens,
+-      noCache: promptTokens - cacheReadTokens,
++      noCache: Math.max(0, promptTokens - cacheReadTokens - (cacheWriteTokens ?? 0)),
+       cacheRead: cacheReadTokens,
+-      cacheWrite: undefined,
++      cacheWrite: cacheWriteTokens,
+     },
+     outputTokens: {
+       total: completionTokens,
+@@ -53,3 +63,7 @@ export function convertOpenAICompatibleChatUsage(
+     raw: usage,
+   };
+ }
++
++function validCacheTokens(value: unknown): number | undefined {
++  return typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : undefined;
++}
+diff --git a/src/chat/openai-compatible-chat-language-model.ts b/src/chat/openai-compatible-chat-language-model.ts
+index fb29a0aa4f445c4c55873a2b78fa4775426109f6..10dc3ddc5177a8572b5465fd14ca59e994e051e2 100644
+--- a/src/chat/openai-compatible-chat-language-model.ts
++++ b/src/chat/openai-compatible-chat-language-model.ts
+@@ -794,6 +794,8 @@ const openaiCompatibleTokenUsageSchema = z
+     prompt_tokens_details: z
+       .object({
+         cached_tokens: z.number().nullish(),
++        cache_write_tokens: z.unknown().optional(),
++        cache_creation_tokens: z.unknown().optional(),
+       })
+       .nullish(),
+     completion_tokens_details: z

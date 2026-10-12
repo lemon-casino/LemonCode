@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "inputHashEncoding": "UTF-8 with CRLF normalized to LF; notice and source snapshot hashes remain byte-exact",
   "scope": "Production dependency union across current workspace projects, copied source/assets, native search tools and the bundled mise backend; not a per-installer SBOM or a certification of all licensing obligations.",
-  "noticesSha256": "76d78aec47cc7df7d61447e6d827cfba5242f7bcd586561e93b47fc189c84add",
+  "noticesSha256": "909463fbcd84120dd35279e20cfd49fe5f47c71bf4e483a13537b666774fa9b6",
   "inputs": {
     ".agents/skills/agent-browser/references/authentication.md": "03776b640f377e030c419aa5ad53ec4de5babe69dc37b495d432cd318727ca03",
     ".agents/skills/agent-browser/references/commands.md": "532584b4c03bdbd47acde121edadbffd83a8f3a020f7750f923c6dd789302604",
@@ -252,7 +252,7 @@
     "apps/lcode-cli/packages/tui/package.json": "35cd6fcd941d6abfb2e1f9129493abf04ef108bc8ceaa057c0c9a45c0c192294",
     "apps/lcode-cli/tools/prompt-trajectory/package.json": "adda451b1c3981fa364530ad0ce303f7f428c3180b8b20c3f4be47d35116a1e9",
     "apps/lcode-cli/tools/typescript/package.json": "2f33883fe33cc9d878a3d6d78a0d262eb0db134fc02042ed7563c3dc50d797f7",
-    "package.json": "e5fa718d65fbb71f64e4460919ee083a7831ce4759e05cf555551f82d263f995",
+    "package.json": "7583351245e20e82ce304f7ab32c15c2d143d154a7abb9bc921d8bfc1b744678",
     "packages/client/package.json": "6cfcb57428c4728a98b7cf4504d29304cf6e9e547e136f0ab1edcef8f821b452",
     "packages/desktop/package.json": "c81d8f6915a5df5b0a43cdbe8a20d40c825c384060d8032e051827547d992611",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
@@ -1405,8 +1405,8 @@
     "packages/lcode-cua/package.json": "71c133dbc92de8416208114f48adc7ce005ddfd2704ff2a23b9e03e0d234acbb",
     "packages/lcode-server-cli/package.json": "9d824802017245a14e355315d5e659a572e7a94fcd540ca9437c189df8614b85",
     "packages/model-option-map/package.json": "a9f720efdb353f556d01ea866bb15ac0201c155fb305a4246e6a323384770aba",
-    "packages/provider-node/package.json": "001a5fa26669ff9df0e2158575340b6ca6ef30bb8b4bfdd7188e14f27a928a8d",
-    "packages/provider-node/src/provider-auth/native.ts": "39ead8cad4425e3f659c4790ac7b1cc6fa3021c0a279a57d5da0ee58e87a6fc1",
+    "packages/provider-node/package.json": "93af1a0200971b0afe8ddc24e598cef0df3c0ad300be665641c59a66b7d59fdd",
+    "packages/provider-node/src/provider-auth/native.ts": "7d214d0064859152aec369c09d1009451fcde50d101170663e0bf29b59c6b86e",
     "packages/provider-node/src/provider-auth/native/browser.ts": "b597d6bb9a4aed7887e5cd3cd423627cd1aeae09577b0a95f508e0d65449bd53",
     "packages/provider-node/src/provider-auth/native/catalog-metadata.ts": "4b2316ad44760b87327d3efe04437bbda74f5a6ab27c5f30de4aca74576058c6",
     "packages/provider-node/src/provider-auth/native/claude-account.ts": "b65277319e2ab64aa1359114015dc53726a6c1590eb1f50819bb9b057920bec4",
@@ -1426,9 +1426,10 @@
     "packages/provider-node/src/provider-auth/native/common.ts": "beeac23689e72a865dc440267da0eb82d3ca6e1d1d5a88db656076b33abeee13",
     "packages/provider-node/src/provider-auth/native/copilot-auto-lifecycle.test.ts": "c742b5ad441010450db8eec13ebc564dcd3a7c439f5ad1bb2cc8c3b8ba5edf96",
     "packages/provider-node/src/provider-auth/native/copilot-auto-request.ts": "83016bdff4dd4c4e49bcf8fa1dc4e193b1343d847b2527501f418706929c13f9",
-    "packages/provider-node/src/provider-auth/native/copilot-auto-response.ts": "7ee9ee53f8fd1bc7b114646a01e63d477f4dea33d294021f1a5acde4d2a776fb",
+    "packages/provider-node/src/provider-auth/native/copilot-auto-response.ts": "e932a8783eab7f8ad8e10040801a0941cb74d537ef76a6735946ddd946839520",
     "packages/provider-node/src/provider-auth/native/copilot-auto.test.ts": "151f50a6ebc991edc4b3822c05cadf2b943a1b8abe567a864bbb67e919a87b70",
     "packages/provider-node/src/provider-auth/native/copilot-auto.ts": "3edca0fcb1146bf95e287f04993e9002ad329840b15659e6709a1117e2e24576",
+    "packages/provider-node/src/provider-auth/native/copilot-cache-usage.test.ts": "5a3bff1a9493a83915c03a03bdc0459f74c8c41cc2036095f7c08d03afc9767e",
     "packages/provider-node/src/provider-auth/native/copilot-models.ts": "bafea0c0ed8bd30a88bacfc87af6d4949d0e298a9ae9e2744756e34d29bec581",
     "packages/provider-node/src/provider-auth/native/copilot-version.test.ts": "f467bf65a112df45f4d50abd97d9428c5e03c8e321b40a7a11adc24f71823e26",
     "packages/provider-node/src/provider-auth/native/copilot.ts": "7a1e0b2dc047e1fd74767110d04a68294e25b4ba311686c4363da908c9823704",
@@ -1458,7 +1459,7 @@
     "packages/provider-node/src/provider-auth/native/transports.test.ts": "eca8bb570caf9704060745639ae360c2bd5d64512980e7423e81d8299d7e9247",
     "packages/provider-node/src/provider-auth/plugins/factory-import.mjs": "5c9ed1cce9ab4e3538b21996e7d17df002964e3bacc64ba868f01153f564652d",
     "packages/provider-node/src/provider-auth/plugins/method-details.mjs": "81af1536b6f35061208824323f09956dd3409ca9d850b3f3c7e30b1bfdcd31e5",
-    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "676da3a2e95e7015130f181a383df00243e8f31e4b4541cb471c0e112bc2c135",
+    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "4603f15595b09c3f3f736dff171bdac051c2b14b8b12e7c87c79ccbd96c36513",
     "packages/provider-node/src/provider-auth/plugins/zcode-local.mjs": "c8b91d4414eed9c9edd0e227a06141d0c75bb1601abc5cef177be01ca21952e4",
     "packages/provider-node/src/provider-auth/vendor/cline/index.mjs.source": "8e60d522aa362e205ec884998124dbdd04d1abc9b5edab038804f7a3ff4793d0",
     "packages/provider-node/src/provider-auth/vendor/commandcode/index.mjs.source": "1474d3fc8bd91e2166ad97daef83e21ef8f4820c0374d517a92e61c8b0a273de",
@@ -1474,7 +1475,7 @@
     "packages/provider-node/src/provider-auth/vendor/minimax/index.mjs.source": "d071779007b8507d307a0e011fac8a469bb9bc61eba451efc6da3957505b2016",
     "packages/provider-node/src/provider-auth/vendor/qoder/index.mjs.source": "fecae49a7c21a17ca17bfee4ae7e7aca2eeff98bb6ad41b1d40ea8ee272ad8df",
     "packages/provider-node/src/provider-auth/vendor/qoder/LICENSE-CLIProxyAPI": "879792e89cf1bdd6a8d446033ec87e30496f97dcafc4656dc53f641509b346a6",
-    "packages/provider-node/src/provider-auth/vendor/README.md": "85af6b5728ff112eadeaa1fd61ac99dd6b13858580933302bab53bb84eb8a415",
+    "packages/provider-node/src/provider-auth/vendor/README.md": "b769a0462a60fbdc626e90070b4696d241185c19d7e1d6ac2e629f8d3f49084d",
     "packages/provider-node/src/provider-auth/vendor/trae/index.mjs.source": "367b1ab6a2dfa099684bf631733bf13e978eeadd7bc537c5b9370bad68784543",
     "packages/provider-node/src/provider-auth/vendor/workbuddy/index.mjs.source": "283b2ee7c2c1473fdbec6e2e13cbd0d1f4a3ce4e0700dad80672a3bf929b6f13",
     "packages/provider-node/src/provider-auth/vendor/zcode/index.mjs.source": "5096de048cf5749b48832e6c9ed8bc05d956d3a707c7ac6f9e0674d53f4a2e60",
@@ -1510,9 +1511,22 @@
     "packages/rpc/src/serialization.ts": "9720698411e17c31869c4bc974c381e4201bf3d51cf8e849ea7375eb54399dc6",
     "packages/server/package.json": "213ade3e14244a4870067884cb74198002d9afeebcfaa3b36a4c69df1576091a",
     "packages/services/package.json": "9c8a2c65dcf9351142444a34929858944cdca017d25b0231b27dc7670b252a11",
-    "packages/shared/package.json": "ddd531f64a2f324b493ee7fec2885ca7c6ae46b113e9a3422588ad997007bc8c",
+    "packages/shared/package.json": "720f1225e7ef4e0eb1f3efab0790d43878afffce547d6c3fc221e090121965bb",
     "packages/shared/src/lcode-protocol-v4/wire-codec.ts": "4e895f7c3ea4067ad9540649e779661055c46c09be7247fb33533489f814cd2c",
     "packages/ui/package.json": "e07c28e515d0a5e726e3f773b47788388b2ed6273e70b01ef691e0cd51778045",
+    "packages/ui/src/assets/provider-icons/model-provider-antigravity.svg": "652128cf55a28bb958563ee372d0bd00208d9e6fd446f523f77aafd811eef8ca",
+    "packages/ui/src/assets/provider-icons/model-provider-cline.svg": "9003d2cdce82b016147b732abb4def60af55c348ba2cea2ba0b69a3c7d159b19",
+    "packages/ui/src/assets/provider-icons/model-provider-commandcode.svg": "472cf8f2f7a62ca5ee79e146aa7cb8ac34b26ae33446e5fd32572d7206540f34",
+    "packages/ui/src/assets/provider-icons/model-provider-copilot.svg": "bbc7fddc13448236e5edea8c399d2072dc40aa5da5bca07f7a2f412405c500a3",
+    "packages/ui/src/assets/provider-icons/model-provider-cursor.svg": "0cb51bddf264ae108926fd554c063ef40fc1aac3c5c921ddb39ad184e4e5d0ef",
+    "packages/ui/src/assets/provider-icons/model-provider-devin.svg": "8d197b0c31522517ffa896cd4a1ee65719eb73bff9eb9bbf7edf64db6b1a573d",
+    "packages/ui/src/assets/provider-icons/model-provider-factory.svg": "6a502c844029a326e77aff6554210629ee3e735d81ae42d2b98be0eb20c48bf3",
+    "packages/ui/src/assets/provider-icons/model-provider-gemini-cli.svg": "c2f54ebaa4c3b9191c6a07f7b0c66bc78e4abe486003dc564469cf650672663e",
+    "packages/ui/src/assets/provider-icons/model-provider-kiro.svg": "4eae4d6e818da7342c32c7d443ab7c97b93c544db9af379d5b5bf7f0a3127d66",
+    "packages/ui/src/assets/provider-icons/model-provider-qoder.svg": "f8503aacc41a58e723430488d082f6730c8a6a9ffecdd0a00c522e6bcdb4abb9",
+    "packages/ui/src/assets/provider-icons/model-provider-trae.svg": "59ef6255dfce52d4b1e77aff4e1b4ee3cda71cda735b4fb45575e9874a1c11f6",
+    "packages/ui/src/assets/provider-icons/model-provider-workbuddy.svg": "ade134028e69e03453bff956059a0e7f23c7341a0295f16994cecd8d03fc2fd4",
+    "packages/ui/src/assets/provider-icons/model-provider-zed.svg": "f0529485410560c5be58f724330c4f61d84537c4ffc1a5099b3bd58062efd58c",
     "packages/ui/src/components/ai-elements/agent.tsx": "76c6ca3e47de7ff7f727edc9e5bf9279ccf5d767819cc5371cf20b1d283125fd",
     "packages/ui/src/components/ai-elements/artifact.tsx": "fefcf7d1a7756f3204a9289bc8effe0674d992df427364d0041d5d8cee2dabc3",
     "packages/ui/src/components/ai-elements/attachments.tsx": "dcfa06920de3bdbf4c9051e1c63ed91e5754ffa4e8a778b2484a79e1cd01a086",
@@ -1600,14 +1614,14 @@
     "packages/ui/src/components/ui/separator.tsx": "31ade0b9a0eca6689226c94d479352416ef076859980a976422a8af17879dee2",
     "packages/ui/src/components/ui/spinner.tsx": "1b5bfd868b51bb40104ebc2fd4b6485d586a087a5dfee49655cc406d462d2b6a",
     "packages/ui/src/components/ui/switch.tsx": "35ea68670fbadd83f9a8fbf8dc8853abde0d7b4c911dabfd40ee00fdc0f80c13",
-    "packages/ui/src/components/ui/tabs.tsx": "62c9d605190a7697b37c440f7bc501958a0452fea392e4370ea7e2b38af25371",
+    "packages/ui/src/components/ui/tabs.tsx": "518a91d3b0cd957090c2dbbb54ec61cb30049cca6c49c103cb867eb613353b76",
     "packages/ui/src/components/ui/textarea.tsx": "aa135667c2b7912da3f087930543d4142920eb53d8a4e304848c3dcca103d037",
     "packages/ui/src/components/ui/ThemeSwatch.tsx": "78903a21a1c14e53c52b0cd162bca77a839f90142a210c772c1bc5848bedc8fb",
     "packages/ui/src/components/ui/toast.tsx": "f943c4e20390137ea0cc02ab35a6694558695482886bb8d5bde507e40689ddb1",
     "packages/ui/src/components/ui/tooltip.tsx": "302dde4dfbb1d4ef86b17319fd0fa0fb8be8f2f83ea66c08ff5cfe4309a3d295",
     "packages/ui/src/components/ui/usePdfZoomOverlay.ts": "c8c91b003ce2fded32c7a2369dc6eac43aa4b9dc9c830a0f5ceccb21d366b610",
     "packages/ui/src/lib/builtinSkillI18n.ts": "0a177a74855a0b4fa344bc633bfbf4dcc4b14d577f3c73b931cf279f74df7485",
-    "packages/ui/src/styles.css": "def5c42eed9c1351fb9075dc009b5fb4886c265552d86f6a2bf6116b63739b84",
+    "packages/ui/src/styles.css": "1254f3d3907d0f94a8508a5ff83e869f8a5dbcd7e6691dd21a6ea938d80f57b1",
     "packages/web/package.json": "43a45b12d01939ef99e0f1a12c657df194a2d1d3e7d819053c8079708b88efa5",
     "packages/web/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
     "packages/web/public/material-icons/abap.svg": "1335bd7eb9a0ed49deb622330d680c2e97731726a7a5eee8e4f46dc1e5db4de4",
@@ -2755,19 +2769,19 @@
     "packages/web/public/material-icons/zeabur.svg": "8bb7c84934202e9b24842ddb1ca69d316b9d69f1a4f5ebc9bbcce78eb2cea1a7",
     "packages/web/public/material-icons/zig.svg": "37be0ce02cf471b18d86150b3c38e80caa7c16c49a15078e7db6f1f41788d101",
     "packages/web/public/material-icons/zip.svg": "dad79a45f756542d37abd422502ecfbea15720b92ea1c9d80ef0439ab6b9448a",
-    "patches/@ai-sdk__anthropic@3.0.81.patch": "d3a7c381eba7f5157f765a0528003af17cf84544911dfb7412c7800168e01c18",
-    "patches/@ai-sdk__openai-compatible@2.0.60.patch": "9632fe9d821b3dc20939ae509cc35b968d90d018bbd1d812390718898182a38b",
+    "patches/@ai-sdk__anthropic@3.0.81.patch": "b0376c6c6742ae6862a70a9a447b102f6b058126629dd2488970de010f43eae1",
+    "patches/@ai-sdk__openai-compatible@2.0.60.patch": "1b9287b5a8cb536b359e18e04a9fb18fde5f05cbfe9d651b2d2697c54e8695fb",
     "patches/@arms__rum-electron@0.0.3.patch": "36855354851ea495bc47a03340b0484ff62836b739cad56904b8a69f18e2ae97",
     "patches/@jimp__core@0.22.12.patch": "0830ed7da209bb16fc495cff02af4dc72111442d489cf309d54e9b90eb5aa99f",
     "patches/border-beam@1.4.1.patch": "bcfca688ecc0169aebbdc07d0677580e7517c36e53b0f2229fa2623a5628f411",
     "patches/braces@3.0.3.patch": "86bfec1c34ab4b24710c0ca080d4b98d8c929990ae2c65ccb86192be43493a9b",
     "patches/node-forge@1.4.0.patch": "1ddd6eb75462781c8c67f8010e3c6fe3eb89972d1ac19b10ef54fa95639854fe",
-    "pnpm-lock.yaml": "799ea2068d63cbb69856c9c279ae7457705671109cca35583291ae6af77146f7",
+    "pnpm-lock.yaml": "482ce650f90c7c7708739dabfb3ac2b6f8861d3947f896893e735288bdcc8be6",
     "pnpm-workspace.yaml": "d6d295facf6e67dbf531b15a64a1c7e51c62c29a7804c6d59eaa7dd0fc40a0ab",
     "scripts/license-texts/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "scripts/native-search-tools-config.mjs": "51483e7c154b76d431703e22b28c6b4687245bf15662e5246ed976d561d086ae",
     "scripts/remote-native-search-tools-config.mjs": "472322a66f84c7452f96aa9e16e9c4e0600f7c2588a03dc6bc869229161b1cb2",
-    "third-party/copied-components.json": "88cf4f3a6701216b9fced624dfebcc04bc2efd8bb35d6f2d1a8ed602398f7f4b",
+    "third-party/copied-components.json": "5d40b6ce24fc67c728dd77b1e323f2770f4392806911da5c6ad121ca080b74de",
     "third-party/embedded-components.json": "9586ccca15897f56d4ca1d703dffe9e02880fedd766c1dff93f7ac1f52ea891a",
     "third-party/mise/LICENSE.txt": "4d22d6f9222adef0a45ef895bfdd6f71d6394b1784b1001a4bebb4298b8ddc69",
     "third-party/mise/sources.json": "813e101f64ef00dfd0a2b6813513849ea6be8acb84a8b8d6ce2d20ac49aed1ea",
@@ -2950,6 +2964,7 @@
     "third-party/upstream/9e1876e1fe29c7806765a313aa5b686193148bd020c168bfa83a21b323871bcf.txt": "66222a31a08e47324252400241fac589ae708c2332386f5688623bc3d3b71dbe",
     "third-party/upstream/a37e0e9697144819e1d965176ac4ae5bc3fa02d11e7812036bbcadf6dafe2400.txt": "a37e0e9697144819e1d965176ac4ae5bc3fa02d11e7812036bbcadf6dafe2400",
     "third-party/upstream/a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2.txt": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2",
+    "third-party/upstream/add9d7531d1b21646317a8958e38fc727506fa39d24bdecb44154d943c82753a.txt": "add9d7531d1b21646317a8958e38fc727506fa39d24bdecb44154d943c82753a",
     "third-party/upstream/af0d7d2cef91fc243cf4ad98570b03d1f26f5e0227cad0f5f4a7376e2feb3160.txt": "af0d7d2cef91fc243cf4ad98570b03d1f26f5e0227cad0f5f4a7376e2feb3160",
     "third-party/upstream/b1688598c3e32605b3973902a546225e0159349c05a0f74db67f76e08e116e65.txt": "b1688598c3e32605b3973902a546225e0159349c05a0f74db67f76e08e116e65",
     "third-party/upstream/b4f9adb7c568904834d0dd6cc98d16c390d21ca32fc17ae7a267715269bd5529.txt": "b4f9adb7c568904834d0dd6cc98d16c390d21ca32fc17ae7a267715269bd5529",
@@ -20177,7 +20192,7 @@
         },
         {
           "file": "packages/ui/src/components/ui/tabs.tsx",
-          "sha256": "62c9d605190a7697b37c440f7bc501958a0452fea392e4370ea7e2b38af25371"
+          "sha256": "518a91d3b0cd957090c2dbbb54ec61cb30049cca6c49c103cb867eb613353b76"
         },
         {
           "file": "packages/ui/src/components/ui/textarea.tsx",
@@ -20197,7 +20212,7 @@
         },
         {
           "file": "packages/ui/src/styles.css",
-          "sha256": "def5c42eed9c1351fb9075dc009b5fb4886c265552d86f6a2bf6116b63739b84"
+          "sha256": "1254f3d3907d0f94a8508a5ff83e869f8a5dbcd7e6691dd21a6ea938d80f57b1"
         }
       ]
     },
@@ -30952,7 +30967,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/copilot-auto-response.ts",
-          "sha256": "7ee9ee53f8fd1bc7b114646a01e63d477f4dea33d294021f1a5acde4d2a776fb"
+          "sha256": "e932a8783eab7f8ad8e10040801a0941cb74d537ef76a6735946ddd946839520"
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/copilot-auto.test.ts",
@@ -30961,6 +30976,10 @@
         {
           "file": "packages/provider-node/src/provider-auth/native/copilot-auto.ts",
           "sha256": "3edca0fcb1146bf95e287f04993e9002ad329840b15659e6709a1117e2e24576"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/native/copilot-cache-usage.test.ts",
+          "sha256": "5a3bff1a9493a83915c03a03bdc0459f74c8c41cc2036095f7c08d03afc9767e"
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/copilot-models.ts",
@@ -31064,7 +31083,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/native.ts",
-          "sha256": "39ead8cad4425e3f659c4790ac7b1cc6fa3021c0a279a57d5da0ee58e87a6fc1"
+          "sha256": "7d214d0064859152aec369c09d1009451fcde50d101170663e0bf29b59c6b86e"
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/factory-import.mjs",
@@ -31076,7 +31095,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "676da3a2e95e7015130f181a383df00243e8f31e4b4541cb471c0e112bc2c135"
+          "sha256": "4603f15595b09c3f3f736dff171bdac051c2b14b8b12e7c87c79ccbd96c36513"
         }
       ]
     },
@@ -31102,7 +31121,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/README.md",
-          "sha256": "85af6b5728ff112eadeaa1fd61ac99dd6b13858580933302bab53bb84eb8a415"
+          "sha256": "b769a0462a60fbdc626e90070b4696d241185c19d7e1d6ac2e629f8d3f49084d"
         },
         {
           "file": "packages/provider-node/src/provider-auth/vendor/cline/index.mjs.source",
@@ -31206,7 +31225,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "676da3a2e95e7015130f181a383df00243e8f31e4b4541cb471c0e112bc2c135"
+          "sha256": "4603f15595b09c3f3f736dff171bdac051c2b14b8b12e7c87c79ccbd96c36513"
         }
       ]
     },
@@ -31273,18 +31292,178 @@
           "sha256": "c03adfd193fbb02a03c0c134a1c0cde6f5b625af5e13782643287ada4ffa027c"
         }
       ]
+    },
+    {
+      "id": "Magpie provider brand icon assets",
+      "referenceRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+      "source": "https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/LICENSE",
+      "file": "packages/provider-node/src/provider-auth/native/LICENSE.magpie",
+      "sha256": "79d2c8444715d4bc453ec4f8a0aaf2051a4c1ee5ac08f5bd2e5848aef87c7572",
+      "importRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+      "provenance": "Verbatim icon assets copied from the clean Magpie checkout at this revision. Magpie docs/reference.md attributes its brand icons to Lobe Icons; the original Lobe Icons import revision is not recorded. Exact source files and hashes are recorded in model-provider-logo-sources.json.",
+      "roots": [
+        "packages/ui/src/assets/provider-icons/model-provider-copilot.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-gemini-cli.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-antigravity.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-cline.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-commandcode.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-cursor.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-devin.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-factory.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-kiro.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-qoder.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-trae.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-workbuddy.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-zed.svg"
+      ],
+      "scope": "Thirteen newly copied provider SVG assets only; existing LCode assets and rendering components retain their own provenance.",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-copilot.svg",
+          "sha256": "bbc7fddc13448236e5edea8c399d2072dc40aa5da5bca07f7a2f412405c500a3"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-gemini-cli.svg",
+          "sha256": "c2f54ebaa4c3b9191c6a07f7b0c66bc78e4abe486003dc564469cf650672663e"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-antigravity.svg",
+          "sha256": "652128cf55a28bb958563ee372d0bd00208d9e6fd446f523f77aafd811eef8ca"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-cline.svg",
+          "sha256": "9003d2cdce82b016147b732abb4def60af55c348ba2cea2ba0b69a3c7d159b19"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-commandcode.svg",
+          "sha256": "3967e444cdb5cc55e754206d692308ef8a2237278ffbfc065d2b4b9ff727f825"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-cursor.svg",
+          "sha256": "0cb51bddf264ae108926fd554c063ef40fc1aac3c5c921ddb39ad184e4e5d0ef"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-devin.svg",
+          "sha256": "8d197b0c31522517ffa896cd4a1ee65719eb73bff9eb9bbf7edf64db6b1a573d"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-factory.svg",
+          "sha256": "60250a5dfa3ff85ef7f665799904310aa5479b3c10ed46c35996b4bc6f59e55c"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-kiro.svg",
+          "sha256": "4eae4d6e818da7342c32c7d443ab7c97b93c544db9af379d5b5bf7f0a3127d66"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-qoder.svg",
+          "sha256": "f8503aacc41a58e723430488d082f6730c8a6a9ffecdd0a00c522e6bcdb4abb9"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-trae.svg",
+          "sha256": "59ef6255dfce52d4b1e77aff4e1b4ee3cda71cda735b4fb45575e9874a1c11f6"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-workbuddy.svg",
+          "sha256": "ade134028e69e03453bff956059a0e7f23c7341a0295f16994cecd8d03fc2fd4"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-zed.svg",
+          "sha256": "e9738a231662d93b1aa9cde08698b76162b6d9669a38dd33e2c31398e4df5e86"
+        }
+      ]
+    },
+    {
+      "id": "Lobe Icons notice for Magpie brand assets",
+      "referenceRevision": "c385b2b8d1f9e19aa86e628d4e23c91ee1111a47",
+      "source": "https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/LICENSE",
+      "file": "third-party/upstream/add9d7531d1b21646317a8958e38fc727506fa39d24bdecb44154d943c82753a.txt",
+      "sha256": "add9d7531d1b21646317a8958e38fc727506fa39d24bdecb44154d943c82753a",
+      "importRevision": null,
+      "provenance": "Magpie identifies Lobe Icons as the source of its brand icons. This pinned notice reference was retrieved on 2026-10-12 and is not asserted to be the original icon import revision; brand marks remain attributed to their respective brands.",
+      "roots": [
+        "packages/ui/src/assets/provider-icons/model-provider-copilot.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-gemini-cli.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-antigravity.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-cline.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-commandcode.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-cursor.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-devin.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-factory.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-kiro.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-qoder.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-trae.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-workbuddy.svg",
+        "packages/ui/src/assets/provider-icons/model-provider-zed.svg"
+      ],
+      "scope": "Additional original LobeHub MIT notice retained for the copied icon collection identified by Magpie.",
+      "license": "MIT",
+      "files": [
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-copilot.svg",
+          "sha256": "bbc7fddc13448236e5edea8c399d2072dc40aa5da5bca07f7a2f412405c500a3"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-gemini-cli.svg",
+          "sha256": "c2f54ebaa4c3b9191c6a07f7b0c66bc78e4abe486003dc564469cf650672663e"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-antigravity.svg",
+          "sha256": "652128cf55a28bb958563ee372d0bd00208d9e6fd446f523f77aafd811eef8ca"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-cline.svg",
+          "sha256": "9003d2cdce82b016147b732abb4def60af55c348ba2cea2ba0b69a3c7d159b19"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-commandcode.svg",
+          "sha256": "3967e444cdb5cc55e754206d692308ef8a2237278ffbfc065d2b4b9ff727f825"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-cursor.svg",
+          "sha256": "0cb51bddf264ae108926fd554c063ef40fc1aac3c5c921ddb39ad184e4e5d0ef"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-devin.svg",
+          "sha256": "8d197b0c31522517ffa896cd4a1ee65719eb73bff9eb9bbf7edf64db6b1a573d"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-factory.svg",
+          "sha256": "60250a5dfa3ff85ef7f665799904310aa5479b3c10ed46c35996b4bc6f59e55c"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-kiro.svg",
+          "sha256": "4eae4d6e818da7342c32c7d443ab7c97b93c544db9af379d5b5bf7f0a3127d66"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-qoder.svg",
+          "sha256": "f8503aacc41a58e723430488d082f6730c8a6a9ffecdd0a00c522e6bcdb4abb9"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-trae.svg",
+          "sha256": "59ef6255dfce52d4b1e77aff4e1b4ee3cda71cda735b4fb45575e9874a1c11f6"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-workbuddy.svg",
+          "sha256": "ade134028e69e03453bff956059a0e7f23c7341a0295f16994cecd8d03fc2fd4"
+        },
+        {
+          "file": "packages/ui/src/assets/provider-icons/model-provider-zed.svg",
+          "sha256": "e9738a231662d93b1aa9cde08698b76162b6d9669a38dd33e2c31398e4df5e86"
+        }
+      ]
     }
   ],
   "patches": [
     {
       "package": "@ai-sdk/anthropic@3.0.81",
       "file": "patches/@ai-sdk__anthropic@3.0.81.patch",
-      "sha256": "0d33f7299ceeda0515c003d0b4963c64e04047284d48e64c9c08fca95c758210"
+      "sha256": "b0376c6c6742ae6862a70a9a447b102f6b058126629dd2488970de010f43eae1"
     },
     {
       "package": "@ai-sdk/openai-compatible@2.0.60",
       "file": "patches/@ai-sdk__openai-compatible@2.0.60.patch",
-      "sha256": "944818e0da724393070c58065edcf201974d35ef0c97743c46aafcdc147008e5"
+      "sha256": "1b9287b5a8cb536b359e18e04a9fb18fde5f05cbfe9d651b2d2697c54e8695fb"
     },
     {
       "package": "@arms/rum-electron@0.0.3",

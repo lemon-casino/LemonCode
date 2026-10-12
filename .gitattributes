@@ -17,3 +17,6 @@ third-party/inventory.json linguist-generated=true
 # OAuth协议适配和固定插件源码保留原始许可/源文件字节，避免Windows换行转换破坏manifest哈希。
 packages/provider-node/src/provider-auth/native/LICENSE.magpie -text -whitespace
 packages/provider-node/src/provider-auth/vendor/** -text -whitespace
+
+# 品牌SVG按来源字节保留，避免Windows换行转换破坏素材记录和第三方快照哈希。
+packages/ui/src/assets/provider-icons/model-provider-*.svg -text -whitespace

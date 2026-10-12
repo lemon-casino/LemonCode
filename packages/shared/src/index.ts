@@ -325,3 +325,4 @@ export * from "./goal-evidence.js";
 export * from "./provider-accounts.js";
 export * from "./provider-account-quota.js";
 export * from "./usage-analytics.js";
+export * from "./networkProxy.js";

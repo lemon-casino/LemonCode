@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { defineConfig } from "tsup";
 import { getBuildMetadata } from "./scripts/build-metadata.mjs";
 import { resolveDesktopProductFlavor } from "./scripts/desktop-product-identity.mjs";
+import { providerNetworkRuntimeModules } from "./scripts/provider-network-runtime.mjs";
 // tsup 会先打包配置文件；动态加载构建工具，避免其 import.meta.dirname 被重定位到 desktop。
 const { loadBuiltinProviderConfig } = await import(
   pathToFileURL(resolve(import.meta.dirname, "../../scripts/builtin-provider-config.mjs")).href
@@ -111,7 +112,9 @@ const desktopNodeRuntimeExternals = [
   "electron",
   "node-pty",
   "ssh2",
-  "undici",
+  // SOCKS5 的 CommonJS require("events") 与 undici 一样不能内联进 ESM。
+  // 与安装包注入和校验清单同源，避免主进程在加载网络 adapter 时崩溃。
+  ...providerNetworkRuntimeModules,
   "yaml",
   // node-forge 内部用动态 require("crypto")，内联进 ESM main/host bundle 后 Electron 会报
   // Dynamic require of "crypto" is not supported。和 undici 同样保留为运行时外部依赖。

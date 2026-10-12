@@ -10,6 +10,7 @@ import { noticesFileName, stageElectronNotices } from "../../scripts/third-party
 import { resolveNativeSearchReleasePlan } from "../../scripts/native-search-tools-config.mjs";
 import { getBuildMetadata } from "./scripts/build-metadata.mjs";
 import { collectRuntimeModuleClosureEntries } from "./scripts/runtime-dependency-closure.mjs";
+import { providerNetworkRuntimeModules } from "./scripts/provider-network-runtime.mjs";
 import {
   resolvePackagedNodePtyPrebuildPath,
   restoreTargetNodePtyPrebuild,
@@ -137,11 +138,8 @@ const REQUIRED_ASAR_RUNTIME_MODULES = [
   "@opentelemetry/exporter-trace-otlp-proto",
   "@opentelemetry/exporter-metrics-otlp-proto",
   "pngjs",
-  // @lcode/services 的代理连通性探测会动态 require("undici") 取 ProxyAgent。
-  // tsup 虽然把 services 代码并进了主/host 产物，但不会把这个运行时 require 的包内联进去，
-  // electron-builder 产物又可能漏掉 hoisted 的 undici，最终 mac 安装包启动即报 Cannot find module "undici"。
-  // 这里把 undici 和其他兜底依赖一样强制注入 app.asar，避免用户在已安装应用里主进程直接崩溃。
-  "undici",
+  // Desktop ESM 外置代理库，必须递归补齐 SOCKS5/undici 闭包；与 tsup 和最终校验共用清单。
+  ...providerNetworkRuntimeModules,
   // node-forge 一直只写在 bundle.mjs 的校验名单里，靠 electron-builder 自己打进 app.asar；
   // 这与 yauzl 漏 pend 是同一类隐患——校验要求的模块必须有人负责补齐。node-forge 无子依赖，
   // 已在产物里时 afterPack 扫描会跳过它，不改变现有打包结果。

@@ -50,8 +50,7 @@ import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
 import { useOffPeakEligibility } from "@/hooks/useOffPeakEligibility.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { logger } from "@/logger.js";
-import {
-} from "@/lib/codingPlanFunnelTelemetry.js";
+import {} from "@/lib/codingPlanFunnelTelemetry.js";
 import {
   useAutomationManagementStore,
   type AutomationRunNowResult,
@@ -1469,6 +1468,7 @@ export function AutomationsSection({
               <button
                 key={key}
                 type="button"
+                aria-pressed={tab === key}
                 className={cn(
                   "rounded-full px-3 py-1 text-ui-base font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused",
                   tab === key

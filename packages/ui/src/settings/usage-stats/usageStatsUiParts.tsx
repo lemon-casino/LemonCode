@@ -3,10 +3,10 @@ import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatCompactTokenNumber } from "@/lib/tokenNumberFormat.js";
 
 export const RANGE_OPTIONS: AppUsageRange[] = ["7d", "30d"];
-export const USAGE_STATS_TABS_LIST_CLASS =
-  "flex h-7 rounded-full bg-surface p-0.5 group-data-horizontal/tabs:h-7";
+export const USAGE_STATS_TABS_LIST_CLASS = "flex min-h-7 rounded-full bg-surface p-0.5";
+// 原因：统计页分段曾覆盖共享 Tabs 的选中颜色，导致选中与容器几乎无法区分。
 export const USAGE_STATS_TABS_TRIGGER_CLASS =
-  "h-6 flex-none justify-center rounded-full border-transparent bg-transparent px-2.5 py-0 text-ui-sm font-medium text-foreground-subtle data-active:border-transparent data-active:bg-background data-active:text-foreground data-active:shadow-none dark:data-active:border-transparent dark:data-active:bg-background";
+  "min-h-6 flex-none justify-center rounded-full border-transparent bg-transparent px-2.5 py-0 text-ui-sm font-medium text-foreground-subtle data-active:border-transparent data-active:bg-selected data-active:text-foreground data-active:shadow-none";
 
 export function formatCompactNumber(locale: string, value: number): string {
   if (!Number.isFinite(value)) {

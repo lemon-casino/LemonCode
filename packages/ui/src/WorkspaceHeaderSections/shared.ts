@@ -70,6 +70,7 @@ export interface WorkspaceHeaderActionSectionProps {
   isDesktop?: boolean;
   isTerminalOpen: boolean;
   isSidePaneOpen: boolean;
+  isSidePaneReady?: boolean;
   isNarrowWebLayout?: boolean;
   onToggleTerminal: () => void;
   onToggleSidePane: () => void;

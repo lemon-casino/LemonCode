@@ -88,6 +88,7 @@ export async function readProvisionablePersonalConfig(
         rules.providerModelRules.length === 0 &&
         rules.manualProviderModelRules.length === 0 &&
         !personal.providerOrder?.length &&
+        !personal.proxyProfiles?.length &&
         personal.defaultModelSelection === undefined
       )
         return personal;

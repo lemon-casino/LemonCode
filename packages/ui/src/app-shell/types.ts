@@ -132,6 +132,9 @@ export type WorkspaceMainView = "chat" | "automations" | "plugin-store";
 export interface WorkspaceShellLayoutProps extends Omit<AppProps, "baseFeedbackService"> {
   executionWorkspace?: import("@lcode/shared").LCodeWorkspaceRef | null;
   executionBinding?: import("@lcode/services").WorktreeBinding;
+  executionPending?: boolean;
+  executionError?: string;
+  handleRetryExecution?: () => void;
   isNarrowWebLayout: boolean;
   workspaceReadOnlyReason?: string;
   workspaceMainView: WorkspaceMainView;

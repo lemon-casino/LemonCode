@@ -41,6 +41,7 @@ import {
   writeLastSettingsSectionPreference,
   type SettingsModelProviderTarget,
 } from "@/lib/settingsNavigation.js";
+import { ProxySettingsSection } from "@/settings/ProxySettingsSection.js";
 import { ModelProviderSection } from "@/settings/ModelProviderSection.js";
 import { UsageStatsSection, type UsageStatsSectionTab } from "@/settings/UsageStatsSection.js";
 import { UsageStatsTabs } from "@/settings/usage-stats/UsageStatsTabs.js";
@@ -142,16 +143,17 @@ function SettingsSidebarButton({
           "flex h-8 w-full items-center gap-2 rounded-xl px-2.5 text-left transition-colors",
           "max-lg:mx-auto max-lg:size-10 max-lg:justify-center max-lg:px-0",
           active
-            ? "bg-surface-hover text-foreground"
+            ? // 原因：surface-hover 曾与 Windows/Web 侧栏底色相同，选中需复用独立 selected 色。
+              "bg-selected text-foreground"
             : "text-foreground-subtle hover:bg-surface-hover hover:text-foreground",
           className,
         )}
       >
         <span className="flex size-4 shrink-0 items-center justify-center text-current">
-          <Icon className="size-4 text-foreground" />
+          <Icon className="size-4" />
         </span>
         <span className="min-w-0 flex-1 max-lg:sr-only">
-          {children ?? <span className="truncate text-ui-base text-foreground">{label}</span>}
+          {children ?? <span className="truncate text-ui-base">{label}</span>}
         </span>
       </button>
     </ControlHintTooltip>
@@ -1124,7 +1126,7 @@ export function SettingsPage({
                                 });
                               }}
                             >
-                              <span className="truncate text-ui-base text-foreground">{label}</span>
+                              <span className="truncate text-ui-base">{label}</span>
                             </SettingsSidebarButton>
                           );
                         })}
@@ -1244,6 +1246,7 @@ export function SettingsPage({
                       className={cn(
                         SETTINGS_FRAME_CONTENT_CLASSNAME,
                         "flex flex-col gap-8",
+                        activeSection === "modelProvider" && "max-w-none",
                         isMacDesktop && "pt-0",
                         // isWindowsDesktop && "pt-12",
                       )}
@@ -1276,6 +1279,16 @@ export function SettingsPage({
                         ) : null}
                       </div>
                       <div className="space-y-8">
+                        {activeSection === "proxy" ? (
+                          <ProxySettingsSection
+                            httpProxy={httpProxy}
+                            httpProxyNoProxy={httpProxyNoProxy}
+                            httpProxyCaCertPath={httpProxyCaCertPath}
+                            onHttpProxyChange={handleHttpProxyChange}
+                            onHttpProxyNoProxyChange={handleHttpProxyNoProxyChange}
+                            onHttpProxyCaCertPathChange={handleHttpProxyCaCertPathChange}
+                          />
+                        ) : null}
                         {activeSection === "general" ? (
                           <GeneralSectionContent
                             localePreference={localePreference}
@@ -1310,9 +1323,6 @@ export function SettingsPage({
                               isDesktop ? selectIntegratedTerminalShellDirectory : undefined
                             }
                             nativeSearchEnhancementsEnabled={nativeSearchEnhancementsEnabled}
-                            httpProxy={httpProxy}
-                            httpProxyNoProxy={httpProxyNoProxy}
-                            httpProxyCaCertPath={httpProxyCaCertPath}
                             defaultHomeDir={defaultHomeDir}
                             showIntegratedTerminalShell={Boolean(hostPlatform)}
                             setLocalePreference={handleFooterLocaleChange}
@@ -1371,9 +1381,6 @@ export function SettingsPage({
                             onModelIoFullRetentionEnabledChange={
                               handleModelIoFullRetentionEnabledChange
                             }
-                            onHttpProxyChange={handleHttpProxyChange}
-                            onHttpProxyNoProxyChange={handleHttpProxyNoProxyChange}
-                            onHttpProxyCaCertPathChange={handleHttpProxyCaCertPathChange}
                             onTaskAutoArchiveEnabledChange={handleTaskAutoArchiveEnabledChange}
                             onTaskAutoArchiveOlderThanDaysChange={
                               handleTaskAutoArchiveOlderThanDaysChange

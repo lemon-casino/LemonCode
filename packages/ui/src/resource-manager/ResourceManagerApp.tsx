@@ -137,7 +137,7 @@ export function ResourceManagerApp({
                 key={item}
                 value={item}
                 data-testid={testId(TID_RESOURCE_MANAGER_TAB, item)}
-                className="h-8 flex-none rounded-full px-3 hover:bg-hover data-active:!bg-selected data-active:hover:!bg-hover after:hidden"
+                className="h-8 flex-none rounded-full px-3 hover:bg-hover data-active:!bg-selected after:hidden"
               >
                 {intl.formatMessage({ id: TAB_LABEL_IDS[item] })}
               </TabsTrigger>

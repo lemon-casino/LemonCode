@@ -496,7 +496,9 @@ function mergeUsage(left: LCodeUsage | null, right: LCodeUsage): LCodeUsage {
     reasoningTokens: (left.reasoningTokens ?? 0) + (right.reasoningTokens ?? 0),
     cachedInputTokens: (left.cachedInputTokens ?? 0) + (right.cachedInputTokens ?? 0),
     cachedWriteInputTokens:
-      (left.cachedWriteInputTokens ?? 0) + (right.cachedWriteInputTokens ?? 0),
+      left.cachedWriteInputTokens === undefined && right.cachedWriteInputTokens === undefined
+        ? undefined
+        : (left.cachedWriteInputTokens ?? 0) + (right.cachedWriteInputTokens ?? 0),
   };
 }
 

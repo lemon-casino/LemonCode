@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { sparseShape } from "@lcode/shared/config-schema";
+import { isNetworkProxyUrl } from "@lcode/shared/network-proxy";
 
 export const providerApiTypeDataSchema = z.enum([
   "anthropic-messages",
@@ -112,12 +113,26 @@ export const personalProviderApiDataSchema = providerApiDataSchema.extend({
 });
 
 const modelIdsDataSchema = z.array(z.string().min(1)).readonly().nullable().optional();
+export const providerNetworkDataSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("default") }).strict(),
+  z.object({ mode: z.literal("direct") }).strict(),
+  z.object({ mode: z.literal("profile"), profileId: z.string().min(1) }).strict(),
+  z
+    .object({
+      mode: z.literal("custom"),
+      httpProxy: z.string().url().refine(isNetworkProxyUrl),
+      noProxy: z.string().optional(),
+      caCertPath: z.string().optional(),
+    })
+    .strict(),
+]);
 export const providerConfigDataSchema = z
   .object({
     group: providerGroupDataSchema.nullable().optional(),
     logo: providerLogoDataSchema.nullable().optional(),
     access: providerAccessDataSchema.nullable().optional(),
     api: providerApiDataSchema.nullable().optional(),
+    network: providerNetworkDataSchema.nullable().optional(),
     builtinModelIds: modelIdsDataSchema,
     personalModelIds: modelIdsDataSchema,
     excludedModelIds: modelIdsDataSchema,

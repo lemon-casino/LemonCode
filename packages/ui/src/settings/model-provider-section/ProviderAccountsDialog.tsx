@@ -48,7 +48,7 @@ export function ProviderAccountsDialog({
       }}
     >
       <DialogContent
-        className="flex w-[42rem] flex-col overflow-hidden"
+        className="flex w-[min(72rem,calc(100vw-2rem))] h-[calc(100dvh-3rem)] flex-col overflow-hidden"
         onCloseAutoFocus={(event) => {
           event.preventDefault();
           if (returnFocus?.isConnected) returnFocus.focus({ preventScroll: true });

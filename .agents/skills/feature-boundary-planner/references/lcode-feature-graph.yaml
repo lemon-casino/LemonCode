@@ -163,6 +163,7 @@ nodes:
       - "Draft attachments upload without creating a session or worktree; first send alone admits the worktree create command."
       - "Original workspace scope owns project association and configuration; the registered execution scope owns filesystem operations."
       - "Side pane tabs are owned and filtered by the original workspace identity and conversation; execution paths and identities remain the scope of Git, file and terminal operations."
+      - "Execution directory reads wait for the shared conversation subscription readiness; recovery invalidates stale reads. Loading/errors retain the side pane frame and chrome, with explicit retry and no Git-refresh-driven invalidation."
       - "Worktree management owns lifecycle UI only. A scoped window navigation request opens the existing session commit controller; terminal integration records do not lock new source commits."
       - "Preparation is idempotent before session materialization; missing or archived bindings cannot silently resume in the original checkout."
       - "The single composer execution selector saves the original project's mode. Only frozen admission intent overrides later defaults; choosing a mode does not prepare a worktree."

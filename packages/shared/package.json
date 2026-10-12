@@ -13,6 +13,7 @@
     "./account-provider-state": "./src/account-provider-state.ts",
     "./model-config": "./src/model-config.ts",
     "./config-schema": "./src/config-schema.ts",
+    "./network-proxy": "./src/networkProxy.ts",
     "./node": "./src/node.ts",
     "./lcodeEndpoint": "./src/lcodeEndpoint.ts",
     "./workspaceFileSearch": "./src/workspaceFileSearch.ts",

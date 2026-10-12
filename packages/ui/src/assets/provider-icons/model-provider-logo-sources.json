@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "reviewedAt": "2026-09-02",
+  "reviewedAt": "2026-10-12",
   "logos": [
     {
       "brand": "OpenRouter",
@@ -119,6 +119,162 @@
       "sourceUrl": "https://avatars.githubusercontent.com/u/130314967?v=4",
       "sourceOwner": "xAI",
       "normalization": "Official GitHub organization avatar downsampled from 460x460 to 80x80 RGB."
+    },
+    {
+      "brand": "GitHub Copilot",
+      "file": "model-provider-copilot.svg",
+      "providerIds": ["copilot"],
+      "sourceUrl": "https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/internal/gui/assets/icons/githubcopilot.svg",
+      "sourceOwner": "Magpie icon assets (Lobe Icons attribution in docs/reference.md)",
+      "sourceRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+      "upstreamPath": "internal/gui/assets/icons/githubcopilot.svg",
+      "sha256": "bbc7fddc13448236e5edea8c399d2072dc40aa5da5bca07f7a2f412405c500a3",
+      "monochrome": true,
+      "normalization": "Byte-for-byte SVG copy; monochrome icons render through CSS mask with the current foreground color, colored icons render unchanged. Retrieved 2026-10-12."
+    },
+    {
+      "brand": "Gemini CLI",
+      "file": "model-provider-gemini-cli.svg",
+      "providerIds": ["gemini"],
+      "sourceUrl": "https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/internal/gui/assets/icons/geminicli-color.svg",
+      "sourceOwner": "Magpie icon assets (Lobe Icons attribution in docs/reference.md)",
+      "sourceRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+      "upstreamPath": "internal/gui/assets/icons/geminicli-color.svg",
+      "sha256": "c2f54ebaa4c3b9191c6a07f7b0c66bc78e4abe486003dc564469cf650672663e",
+      "monochrome": false,
+      "normalization": "Byte-for-byte SVG copy; monochrome icons render through CSS mask with the current foreground color, colored icons render unchanged. Retrieved 2026-10-12."
+    },
+    {
+      "brand": "Antigravity",
+      "file": "model-provider-antigravity.svg",
+      "providerIds": ["antigravity"],
+      "sourceUrl": "https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/internal/gui/assets/icons/antigravity-color.svg",
+      "sourceOwner": "Magpie icon assets (Lobe Icons attribution in docs/reference.md)",
+      "sourceRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+      "upstreamPath": "internal/gui/assets/icons/antigravity-color.svg",
+      "sha256": "652128cf55a28bb958563ee372d0bd00208d9e6fd446f523f77aafd811eef8ca",
+      "monochrome": false,
+      "normalization": "Byte-for-byte SVG copy; monochrome icons render through CSS mask with the current foreground color, colored icons render unchanged. Retrieved 2026-10-12."
+    },
+    {
+      "brand": "Cline",
+      "file": "model-provider-cline.svg",
+      "providerIds": ["cline"],
+      "sourceUrl": "https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/internal/gui/assets/icons/cline.svg",
+      "sourceOwner": "Magpie icon assets (Lobe Icons attribution in docs/reference.md)",
+      "sourceRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+      "upstreamPath": "internal/gui/assets/icons/cline.svg",
+      "sha256": "9003d2cdce82b016147b732abb4def60af55c348ba2cea2ba0b69a3c7d159b19",
+      "monochrome": true,
+      "normalization": "Byte-for-byte SVG copy; monochrome icons render through CSS mask with the current foreground color, colored icons render unchanged. Retrieved 2026-10-12."
+    },
+    {
+      "brand": "Command Code",
+      "file": "model-provider-commandcode.svg",
+      "providerIds": ["commandcode-plan"],
+      "sourceUrl": "https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/internal/gui/assets/icons/commandcode.svg",
+      "sourceOwner": "Magpie icon assets (Lobe Icons attribution in docs/reference.md)",
+      "sourceRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+      "upstreamPath": "internal/gui/assets/icons/commandcode.svg",
+      "sha256": "3967e444cdb5cc55e754206d692308ef8a2237278ffbfc065d2b4b9ff727f825",
+      "monochrome": true,
+      "normalization": "Byte-for-byte SVG copy; monochrome icons render through CSS mask with the current foreground color, colored icons render unchanged. Retrieved 2026-10-12."
+    },
+    {
+      "brand": "Cursor",
+      "file": "model-provider-cursor.svg",
+      "providerIds": ["cursor"],
+      "sourceUrl": "https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/internal/gui/assets/icons/cursor.svg",
+      "sourceOwner": "Magpie icon assets (Lobe Icons attribution in docs/reference.md)",
+      "sourceRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+      "upstreamPath": "internal/gui/assets/icons/cursor.svg",
+      "sha256": "0cb51bddf264ae108926fd554c063ef40fc1aac3c5c921ddb39ad184e4e5d0ef",
+      "monochrome": true,
+      "normalization": "Byte-for-byte SVG copy; monochrome icons render through CSS mask with the current foreground color, colored icons render unchanged. Retrieved 2026-10-12."
+    },
+    {
+      "brand": "Devin",
+      "file": "model-provider-devin.svg",
+      "providerIds": ["devin"],
+      "sourceUrl": "https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/internal/gui/assets/icons/devin.svg",
+      "sourceOwner": "Magpie icon assets (Lobe Icons attribution in docs/reference.md)",
+      "sourceRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+      "upstreamPath": "internal/gui/assets/icons/devin.svg",
+      "sha256": "8d197b0c31522517ffa896cd4a1ee65719eb73bff9eb9bbf7edf64db6b1a573d",
+      "monochrome": true,
+      "normalization": "Byte-for-byte SVG copy; monochrome icons render through CSS mask with the current foreground color, colored icons render unchanged. Retrieved 2026-10-12."
+    },
+    {
+      "brand": "Factory",
+      "file": "model-provider-factory.svg",
+      "providerIds": ["factory"],
+      "sourceUrl": "https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/internal/gui/assets/icons/factory.svg",
+      "sourceOwner": "Magpie icon assets (Lobe Icons attribution in docs/reference.md)",
+      "sourceRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+      "upstreamPath": "internal/gui/assets/icons/factory.svg",
+      "sha256": "60250a5dfa3ff85ef7f665799904310aa5479b3c10ed46c35996b4bc6f59e55c",
+      "monochrome": true,
+      "normalization": "Byte-for-byte SVG copy; monochrome icons render through CSS mask with the current foreground color, colored icons render unchanged. Retrieved 2026-10-12."
+    },
+    {
+      "brand": "Kiro",
+      "file": "model-provider-kiro.svg",
+      "providerIds": ["kiro"],
+      "sourceUrl": "https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/internal/gui/assets/icons/kiro-color.svg",
+      "sourceOwner": "Magpie icon assets (Lobe Icons attribution in docs/reference.md)",
+      "sourceRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+      "upstreamPath": "internal/gui/assets/icons/kiro-color.svg",
+      "sha256": "4eae4d6e818da7342c32c7d443ab7c97b93c544db9af379d5b5bf7f0a3127d66",
+      "monochrome": false,
+      "normalization": "Byte-for-byte SVG copy; monochrome icons render through CSS mask with the current foreground color, colored icons render unchanged. Retrieved 2026-10-12."
+    },
+    {
+      "brand": "Qoder",
+      "file": "model-provider-qoder.svg",
+      "providerIds": ["qoder", "qoder-cn"],
+      "sourceUrl": "https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/internal/gui/assets/icons/qoder.svg",
+      "sourceOwner": "Magpie icon assets (Lobe Icons attribution in docs/reference.md)",
+      "sourceRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+      "upstreamPath": "internal/gui/assets/icons/qoder.svg",
+      "sha256": "f8503aacc41a58e723430488d082f6730c8a6a9ffecdd0a00c522e6bcdb4abb9",
+      "monochrome": true,
+      "normalization": "Byte-for-byte SVG copy; monochrome icons render through CSS mask with the current foreground color, colored icons render unchanged. Retrieved 2026-10-12."
+    },
+    {
+      "brand": "Trae",
+      "file": "model-provider-trae.svg",
+      "providerIds": ["trae-cn", "trae-global"],
+      "sourceUrl": "https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/internal/gui/assets/icons/trae.svg",
+      "sourceOwner": "Magpie icon assets (Lobe Icons attribution in docs/reference.md)",
+      "sourceRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+      "upstreamPath": "internal/gui/assets/icons/trae.svg",
+      "sha256": "59ef6255dfce52d4b1e77aff4e1b4ee3cda71cda735b4fb45575e9874a1c11f6",
+      "monochrome": true,
+      "normalization": "Byte-for-byte SVG copy; monochrome icons render through CSS mask with the current foreground color, colored icons render unchanged. Retrieved 2026-10-12."
+    },
+    {
+      "brand": "WorkBuddy",
+      "file": "model-provider-workbuddy.svg",
+      "providerIds": ["workbuddy", "workbuddy-ai"],
+      "sourceUrl": "https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/internal/gui/assets/icons/workbuddy-color.svg",
+      "sourceOwner": "Magpie icon assets (Lobe Icons attribution in docs/reference.md)",
+      "sourceRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+      "upstreamPath": "internal/gui/assets/icons/workbuddy-color.svg",
+      "sha256": "ade134028e69e03453bff956059a0e7f23c7341a0295f16994cecd8d03fc2fd4",
+      "monochrome": false,
+      "normalization": "Byte-for-byte SVG copy; monochrome icons render through CSS mask with the current foreground color, colored icons render unchanged. Retrieved 2026-10-12."
+    },
+    {
+      "brand": "Zed",
+      "file": "model-provider-zed.svg",
+      "providerIds": ["zed"],
+      "sourceUrl": "https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/internal/gui/assets/icons/zed.svg",
+      "sourceOwner": "Magpie icon assets (Lobe Icons attribution in docs/reference.md)",
+      "sourceRevision": "93c5d846ca2b05ac8ca961956304104e5d112845",
+      "upstreamPath": "internal/gui/assets/icons/zed.svg",
+      "sha256": "e9738a231662d93b1aa9cde08698b76162b6d9669a38dd33e2c31398e4df5e86",
+      "monochrome": true,
+      "normalization": "Byte-for-byte SVG copy; monochrome icons render through CSS mask with the current foreground color, colored icons render unchanged. Retrieved 2026-10-12."
     }
   ]
 }

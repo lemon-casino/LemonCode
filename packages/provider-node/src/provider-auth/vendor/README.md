@@ -6,6 +6,8 @@ The worker includes the locally adapted Google protocol helper from `native/goog
 
 The `.mjs.source` suffix keeps immutable third-party modules outside TypeScript and lint. Production imports only the generated `plugins/worker-source.ts`; it never reads an adjacent Magpie checkout, installs a plugin, or executes an installation script. Each driver owns a disposable Node worker with its own module state. Only the host owns durable credentials and accepts credential writes for a live operation and account generation.
 
+The worker generator applies `plugins/vendor-cache-usage-patch.mjs` to the verified Qoder and Trae sources in memory to retain upstream cache write classifications. It fails if the pinned source no longer matches; vendor bytes and hashes remain unchanged.
+
 To intentionally reproduce this pinned source, from the repository root:
 
 ```sh

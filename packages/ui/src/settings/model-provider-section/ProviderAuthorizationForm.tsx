@@ -13,6 +13,10 @@ import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { useProviderAccounts } from "@/hooks/useProviderAccounts.js";
 import { getProviderAccountDependencyError } from "@/lib/providerAccountErrors.js";
 import { ProviderCredentialImport } from "./ProviderCredentialImport.js";
+import {
+  localizeAuthorizationChannel,
+  localizeAuthorizationInstructions,
+} from "./providerAuthorizationCopy.js";
 
 export function ProviderAuthorizationForm({
   channel,
@@ -21,12 +25,13 @@ export function ProviderAuthorizationForm({
   channel: ProviderAccountChannel;
   accounts: ReturnType<typeof useProviderAccounts>;
 }) {
-  const { intl } = useLCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const message = (key: string) => intl.formatMessage({ id: `settings.oauth.${key}` });
   const [methodId, setMethodId] = useState(channel.methods[0]?.id ?? "");
   const [inputs, setInputs] = useState<Record<string, string>>({});
   const [code, setCode] = useState("");
-  const method = channel.methods.find((item) => item.id === methodId);
+  const displayChannel = localizeAuthorizationChannel(channel, locale, intl);
+  const method = displayChannel.methods.find((item) => item.id === methodId);
   const effectiveInputs = {
     ...Object.fromEntries(
       (method?.fields ?? [])
@@ -41,6 +46,13 @@ export function ProviderAuthorizationForm({
     ) ?? [];
   const attempt = accounts.authorization?.channelId === channel.id ? accounts.authorization : null;
   const pending = attempt?.status === "pending";
+  const instructions = localizeAuthorizationInstructions(
+    channel.id,
+    displayChannel.methods.find((item) => item.id === attempt?.methodId),
+    attempt?.instructions,
+    locale,
+    intl,
+  );
   const busy = accounts.busy !== null;
   const missingRequired = visibleFields.some(
     (field) => !field.optional && !effectiveInputs[field.key]?.trim(),
@@ -71,69 +83,50 @@ export function ProviderAuthorizationForm({
             setCode("");
           }}
         >
-          <div className="flex flex-wrap gap-2">
-            {(["import", "local"] as const).map((kind) => {
-              const source = channel.methods.find((item) => item.kind === kind);
-              return source ? (
-                <Button
-                  key={kind}
-                  type="button"
-                  size="sm"
-                  variant={method?.kind === kind ? "secondary" : "outline"}
-                  disabled={busy}
-                  onClick={() => {
-                    setMethodId(source.id);
-                    setInputs({});
-                    setCode("");
-                    if (kind !== "local") return;
-                    const defaults = Object.fromEntries(
-                      (source.fields ?? [])
-                        .filter((field) => field.defaultValue !== undefined)
-                        .map((field) => [field.key, field.defaultValue!]),
-                    );
-                    const fields = (source.fields ?? []).filter(
-                      (field) =>
-                        !field.condition || defaults[field.condition.key] === field.condition.value,
-                    );
-                    // 无输入本机方法只需一次明确点击；有必填 profile 时仍先展示选择，不能猜账号。
-                    if (fields.some((field) => !field.optional && !defaults[field.key]?.trim()))
-                      return;
-                    void accounts.start({
-                      channelId: channel.id,
-                      methodId: source.id,
-                      inputs: Object.fromEntries(
-                        fields.map((field) => [field.key, defaults[field.key] ?? ""]),
-                      ),
-                    });
-                  }}
+          <div className="flex min-w-0 items-end gap-2" data-testid="oauth-authorization-controls">
+            {/* 原flex-1将选择框撑满整行；使用常规宽度并允许窄屏收缩，保持按钮紧邻和对齐。 */}
+            <label className="flex w-72 min-w-0 flex-col gap-1.5 text-ui-base">
+              <span>{message("method")}</span>
+              <Select
+                value={methodId}
+                onValueChange={(value) => {
+                  setMethodId(value);
+                  setInputs({});
+                }}
+                disabled={busy}
+              >
+                <SelectTrigger
+                  aria-label={message("method")}
+                  className="w-full min-w-0 [&>span]:truncate"
                 >
-                  {message(`source.${kind}`)}
-                </Button>
-              ) : null;
-            })}
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {displayChannel.methods.map((item) => (
+                    <SelectItem key={item.id} value={item.id}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+            {method?.kind !== "import" ? (
+              <Button
+                type="submit"
+                variant="outline"
+                className="shrink-0"
+                disabled={busy || !method || missingRequired}
+              >
+                {message(
+                  accounts.busy === "authorize"
+                    ? "starting"
+                    : method?.kind === "local"
+                      ? "readLocal"
+                      : "start",
+                )}
+              </Button>
+            ) : null}
           </div>
-          <label className="block space-y-1.5 text-ui-base">
-            <span>{message("method")}</span>
-            <Select
-              value={methodId}
-              onValueChange={(value) => {
-                setMethodId(value);
-                setInputs({});
-              }}
-              disabled={busy}
-            >
-              <SelectTrigger aria-label={message("method")} className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {channel.methods.map((item) => (
-                  <SelectItem key={item.id} value={item.id}>
-                    {item.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </label>
           {method?.description ? (
             <p className="break-words text-ui-base text-foreground-subtle">{method.description}</p>
           ) : null}
@@ -159,25 +152,15 @@ export function ProviderAuthorizationForm({
                 setInputs({});
               }}
             />
-          ) : (
-            <Button type="submit" variant="outline" disabled={busy || !method || missingRequired}>
-              {message(
-                accounts.busy === "authorize"
-                  ? "starting"
-                  : method?.kind === "local"
-                    ? "readLocal"
-                    : "start",
-              )}
-            </Button>
-          )}
+          ) : null}
         </form>
       ) : (
         <div className="space-y-3" data-testid="oauth-authorization-pending">
           <p role="status" className="text-ui-base text-foreground-subtle">
             {message("waiting")}
           </p>
-          {attempt.instructions ? (
-            <p className="whitespace-pre-wrap break-words text-ui-base">{attempt.instructions}</p>
+          {instructions ? (
+            <p className="whitespace-pre-wrap break-words text-ui-base">{instructions}</p>
           ) : null}
           {attempt.url ? (
             <Button

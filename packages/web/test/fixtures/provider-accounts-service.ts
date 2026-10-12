@@ -1,10 +1,19 @@
-import type { ProviderAccount, ProviderAccountView, ProviderAuthorization } from "@lcode/shared";
+import type { ProxyProfile } from "@lcode/shared";
+import { applyProxyFixtureView, createProxyFixtureMethods } from "./provider-proxy-fixture.js";
+import { fixtureAuthorizationChannels } from "./provider-authorization-catalog.js";
+import type {
+  ProviderAccount,
+  ProviderAccountView,
+  ProviderAuthorization,
+  StartProviderAuthorization,
+} from "@lcode/shared";
 import type {
   IProviderAccountService,
   IServiceAccessor,
   ProviderSettingsView,
 } from "@lcode/services";
 import type {
+  ProviderConfigObject,
   ModelConfigObject,
   SavePersonalModelDraftInput,
 } from "../../../provider/src/index.js";
@@ -23,6 +32,8 @@ export const fixture = {
   completeOnPoll: false,
   startFailure: null as string | null,
   completionFailure: null as string | null,
+  authorizationInstructions: null as string | null,
+  starts: [] as StartProviderAuthorization[],
   localReads: 0,
   importReads: 0,
   alternateHostReads: 0,
@@ -30,6 +41,8 @@ export const fixture = {
   switchHost: () => {},
   modelSaves: [] as SavePersonalModelDraftInput[],
   modelEnabled: true,
+  proxyProfiles: [] as ProxyProfile[],
+  proxyNetworks: {} as Record<string, ProviderConfigObject["network"]>,
   apiConfig: { apiKey: "fixture-existing-key", model: "fixture-existing-model", enabled: false },
 };
 Object.assign(window, { __providerAccounts: fixture });
@@ -53,33 +66,7 @@ if (navigationScenario) {
 const attempts = new Map<string, ProviderAuthorization>();
 const view = (): ProviderAccountView => ({
   revision,
-  channels: [
-    {
-      id: "fixture",
-      name: "Fixture OAuth",
-      methods: [
-        { id: "code", label: "Browser code", type: "oauth", kind: "browser" },
-        ...(new URLSearchParams(location.search).has("sources")
-          ? [
-              {
-                id: "file",
-                label: "Fixture credential files",
-                type: "oauth" as const,
-                kind: "import" as const,
-                description: "Import fixture account exports. Existing credentials are read only.",
-              },
-              {
-                id: "local",
-                label: "Fixture CLI sign-in",
-                type: "oauth" as const,
-                kind: "local" as const,
-                description: "Reads the selected Host's fixture CLI sign-in.",
-              },
-            ]
-          : []),
-      ],
-    },
-  ],
+  channels: fixtureAuthorizationChannels,
   accounts: fixture.accounts,
 });
 function publish() {
@@ -103,6 +90,7 @@ export const service: IProviderAccountService = {
     windows: [],
   }),
   async startAuthorization({ channelId, methodId, inputs }) {
+    fixture.starts.push({ channelId, methodId, inputs });
     if (fixture.startFailure) {
       const error = fixture.startFailure;
       fixture.startFailure = null;
@@ -115,7 +103,7 @@ export const service: IProviderAccountService = {
       status: "pending",
       method: "code",
       url: "https://example.test/authorize",
-      instructions: "Fixture browser authorization",
+      instructions: fixture.authorizationInstructions ?? "Fixture browser authorization",
     };
     attempts.set(attempt.attemptId, attempt);
     if (methodId === "file") {
@@ -285,7 +273,7 @@ function effectiveModelConfig(): ModelConfigObject {
 function settingsView(): ProviderSettingsView {
   const enabled = fixture.accounts.some((account) => account.enabled);
   const scrollProviders: ProviderSettingsView["providers"] = scrollScenario
-    ? Array.from({ length: 24 }, (_, index) => ({
+    ? Array.from({ length: 40 }, (_, index) => ({
         providerId: `scroll-api-${index + 1}`,
         providerName: `Fixture API ${index + 1}`,
         enabled: true,
@@ -315,7 +303,7 @@ function settingsView(): ProviderSettingsView {
         })),
       }))
     : [];
-  return {
+  const view: ProviderSettingsView = {
     revision,
     providerTemplates: templates,
     providerOrder: [],
@@ -352,10 +340,17 @@ function settingsView(): ProviderSettingsView {
         ]
       : scrollProviders,
   };
+  return applyProxyFixtureView(view, fixture);
 }
 export const services = {
   providerAccountService: service,
   providerSettingsService: {
+    ...createProxyFixtureMethods(fixture, settingsView, publish),
+    async setProviderNetwork(providerId: string, network: ProviderConfigObject["network"]) {
+      fixture.proxyNetworks[providerId] = network;
+      publish();
+      return settingsView();
+    },
     getView: async () => settingsView(),
     listRemoteModels: async () => {
       fixture.apiCatalogReads++;

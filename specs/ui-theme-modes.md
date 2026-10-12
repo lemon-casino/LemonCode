@@ -71,6 +71,40 @@ flowchart LR
 
 ## 验收
 
+### 选中、悬停与询问输入（2026-10-12）
+
+每个主题按「主背景、悬停辅助、选中强调」三色搭配，复用现有 background、hover/surface-hover/menu-hover、selected/card-selected/accent：
+
+| 主题   | 主背景    | 悬停辅助  | 选中强调  |
+| ------ | --------- | --------- | --------- |
+| 暗夜黑 | `#0c0c0e` | `#35343b` | `#30384f` |
+| 草木灰 | `#f8fafc` | `#e6ebec` | `#d3dfe8` |
+| 落晖黄 | `#faf7f2` | `#ece6d9` | `#e5d7c1` |
+| 天空蓝 | `#eef7ff` | `#e1edf3` | `#b9dcec` |
+| 远山绿 | `#f1f7ed` | `#e5ebdc` | `#cbdeca` |
+| 朱砂红 | `#fff3ef` | `#f1e5de` | `#f1cfc7` |
+| 烟墨紫 | `#141019` | `#302939` | `#443454` |
+
+- 七种主题的 `selected`、`card-selected`、`hover`、`surface-hover` 和 `menu-hover` 只在主题变量块定义，选中与悬停必须区别于页面、窗口框架、卡片、popover 和分段容器底色；不新增主题 id、颜色变量或组件内固定色板。
+- 设置侧栏使用 selected，未选文字与图标继承次级前景，已选使用主前景。插件市场、自动化任务/状态筛选、使用统计 API/OAuth、日期范围与 Token 活动页签使用同一 selected 语义；悬停不能覆盖已有选中高亮。共享 Tabs 的 line 变体保留选中下划线。
+- 使用统计热力图的零用量格子使用既有 heatmap-0 的低强度中性色，与 surface 容器区分；只改变显示，不改变用量、分级、补齐日期和三种统计模式。
+- 询问窗口单选、多选和自定义回答行保持各自既有状态与提交语义。未选多选框必须有可见边界，已选以 primary/primary-foreground 显示勾选；键盘焦点不能覆盖已选背景。回答 textarea 保留共享输入的背景、边框、placeholder 和 focus-visible 样式，仍按内容增高、最多五行内部滚动。权限选项与共享 Checkbox/输入控件纳入同类检查。
+- Git 图的已选提交行也保留 selected，悬停和键盘焦点不改写已选填色；未选行使用 hover，焦点使用现有输入焦点色。
+- 状态所有者不变：主题由既有 Zustand theme/setTheme 拥有，经 applyTheme 投影；导航、筛选、询问草稿仍由各自组件/现有 store 拥有。只改 CSS 投影与可访问标签，不新增持久化、服务、协议或跨窗口事件。
+
+```mermaid
+flowchart LR
+  Theme[既有 theme/setTheme] --> Apply[applyTheme 根 class]
+  Apply --> Tokens[现有主题语义变量]
+  Click[点击 / 键盘 / 回答输入] --> Owner[原组件导航、筛选或询问草稿状态]
+  Owner --> Attributes[aria-current / aria-pressed / aria-selected / aria-checked]
+  Tokens --> View[同一组件的选中、悬停和输入样式]
+  Attributes --> View
+```
+
+- 浏览器回归使用真实设置页、插件列表、自动化页、使用统计组件与 ElicitationDialog；覆盖七种主题、中文/英文、1280px 与 390/320px、14/20px 字号，验证点击/键盘切换、选中背景与容器/悬停不相同、文字可读、未选框可见、回答输入焦点可见、提交保留所选项及自定义文本、无横向溢出。跟随系统分别验证明/暗投影。
+- Windows/Linux/Web 的不透明窗口框架与 macOS 的透明框架均保留原布局和背景语义；浏览器只能验证 renderer 分支，不视为 macOS/Linux 原生实机结果。
+
 1. 设置、侧栏、引导均展示 system + 七色主题，中英文完整。连续切换不会残留 theme 类；刷新保持偏好；旧 id/无效值/legacy 值解析正确。
 2. OS dark 下选浅色、OS light 下选深色，utility、原生控件、图标、代码/终端明暗与选择一致；system 随 OS 实时变化。
 3. HTML 在应用 bundle 执行前获得准确背景和 class；三个入口复用共享解析，不存在主题白名单副本。
@@ -78,3 +112,12 @@ flowchart LR
 5. 浏览器 E2E 在 1440×900、1280×720、827×547、390×844、320×568，中英、14/20px、所有主题验证问候完整、logo 已加载且可见、无文档横向溢出。
 6. 真实共享 Button/Input/Textarea、表格、菜单、弹窗、状态提示、主题选择器验证对比度、长文案、键盘焦点、disabled/selected、Escape 回焦与 reduced-motion。
 7. 实际执行主题回归 E2E、pnpm typecheck、pnpm lint 和 pnpm architecture:check --changed，报告真实结果与环境限制。
+
+## 选中态修复验证记录（2026-10-12）
+
+- 新增 `packages/web/test/selection-theme.test.mjs`，三项场景分别已通过：设置导航；七主题的插件市场、自动化筛选、统计页签、多选和回答提交；共享控件、单选、权限反馈、Git 提交选中与 system 明暗投影。覆盖中文/英文、1280/390/320px 与 14/20px 字号，检查实际 computed style 和文字对比度，不只检查 class/aria。修复前已复现选中与底色相同、未选框边界不可见。
+- 七主题截图位于 `.tmp/selection-theme/`，已逐主题检查询问卡片。主前景和次级文字在 selected、hover、popover 上均满足 4.5:1。
+- `pnpm typecheck`、`pnpm lint`、本轮 16 个文件的格式检查及定向 `git diff --check` 通过；架构 baseline 0 / new 0。UI/Web 沿用现有模块，未新增业务 owner、跨包接口、广播、持久化或协议时序。11 个生产文件相对本轮开始增加 91 行、删除 81 行，净增加 10 行。
+- 现有使用统计交互 6 项通过。`usage-overview.test.mjs` 两项失败：运行时 `usage-analytics-data.js` 返回 `longestSessionMs=7200000`（2 小时），而测试按同名 TypeScript 夹具的 `1200000` 期待 20 分钟；本轮未改写这两个数据文件。
+- 现有全局主题套件的 6 个子场景通过；欢迎页批量导航到 `?timeline&font=20&english` 两次超时，父 suite 因此失败。相同页面在独立浏览器中加载成功，`readyState=complete`，无待加载图片、请求或页面异常；批量导航超时的原因未确认，不计为通过，也不将其归因于已确认的主题样式问题。
+- 本轮在 Windows 的 Chromium 验证共享 renderer，未运行 macOS/Linux 原生实机或重新生成安装包。

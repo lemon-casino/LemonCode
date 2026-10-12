@@ -11,6 +11,17 @@ export function ProviderUsageSummary({ summary }: { summary: ProviderUsageMetric
   const { intl, locale } = useLCodeIntl();
   const m = (key: string) => intl.formatMessage({ id: `settings.oauthUsage.${key}` });
   const n = (value: number) => new Intl.NumberFormat(locale).format(value);
+  const writeCoverage = summary.cacheWriteKnownRequests;
+  // 旧 SDK 把缺失写入量存成零；覆盖数为零或旧 Agent 的零都只能展示未知。
+  const cacheWrite =
+    writeCoverage === 0 || (writeCoverage === undefined && summary.cacheWriteTokens === 0)
+      ? m("unknown")
+      : writeCoverage !== undefined && writeCoverage < summary.requestCount
+        ? intl.formatMessage(
+            { id: "settings.oauthUsage.atLeast" },
+            { value: n(summary.cacheWriteTokens) },
+          )
+        : n(summary.cacheWriteTokens);
   const values: [string, string][] = [
     ["requests", n(summary.requestCount)],
     ["success", n(summary.successCount)],
@@ -20,7 +31,7 @@ export function ProviderUsageSummary({ summary }: { summary: ProviderUsageMetric
     ["input", n(summary.inputTokens)],
     ["output", n(summary.outputTokens)],
     ["cacheRead", n(summary.cacheReadTokens)],
-    ["cacheWrite", n(summary.cacheWriteTokens)],
+    ["cacheWrite", cacheWrite],
     ["reasoning", n(summary.reasoningTokens)],
     [
       "ttft",

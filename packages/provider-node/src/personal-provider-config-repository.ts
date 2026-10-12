@@ -83,6 +83,8 @@ export class NodePersonalProviderConfigRepository implements PersonalProviderCon
         const update = Object.freeze({
           providers: next.providers,
           models: next.models,
+          // 代理列表与规则必须在同一事务中保存，规范化不能把新字段从 next 中漏掉。
+          ...(next.proxyProfiles === undefined ? {} : { proxyProfiles: next.proxyProfiles }),
           providerOrder: next.providerOrder,
           defaultModelSelection: next.defaultModelSelection,
         });
@@ -314,6 +316,8 @@ function snapshotFromUpdate(
     ...(saveGenerations === undefined ? {} : { saveGenerations }),
     providers: update.providers,
     models: update.models,
+    // 修复依据：文件 codec 已保存列表，但旧手工快照漏字段，导入后 UI 为空且下一写入丢失列表。
+    ...(update.proxyProfiles === undefined ? {} : { proxyProfiles: update.proxyProfiles }),
     // 快照必须与 revision 对应的磁盘内容一致；补空数组会让未声明排序的文件在 CAS 时误报变化。
     providerOrder: update.providerOrder,
     defaultModelSelection: update.defaultModelSelection,

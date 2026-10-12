@@ -5,6 +5,7 @@ import type {
   AuthImportEntry,
   AuthMethod,
   AuthModel,
+  AuthDriverNetworkOptions,
 } from "./driver.js";
 import { PluginWorkerTransport } from "./plugins/transport.js";
 
@@ -46,8 +47,11 @@ interface WorkerChallenge {
 }
 
 /** Fixed, bundled providers only. Every returned driver owns a separate worker/account. */
-export async function createPluginAuthDriver(channelId: string): Promise<AuthDriver | null> {
-  return createDriver(channelId);
+export async function createPluginAuthDriver(
+  channelId: string,
+  options?: AuthDriverNetworkOptions,
+): Promise<AuthDriver | null> {
+  return createDriver(channelId, undefined, undefined, undefined, options);
 }
 
 /** Internal deterministic tests redirect every fetch to a local fixture server. */
@@ -56,6 +60,7 @@ export function createPluginAuthFixtureDriver(
   fixtureOrigin: string,
   fixtureH2Origin?: string,
   fixtureLocalHome?: string,
+  options?: AuthDriverNetworkOptions,
 ): AuthDriver | null {
   const url = new URL(fixtureOrigin);
   if (url.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) {
@@ -66,7 +71,7 @@ export function createPluginAuthFixtureDriver(
     if (h2.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(h2.hostname))
       throw new Error("Fixture HTTP/2 transport must use an HTTP loopback server");
   }
-  return createDriver(channelId, url.origin, fixtureH2Origin, fixtureLocalHome);
+  return createDriver(channelId, url.origin, fixtureH2Origin, fixtureLocalHome, options);
 }
 
 function createDriver(
@@ -74,6 +79,7 @@ function createDriver(
   fixtureOrigin?: string,
   fixtureH2Origin?: string,
   fixtureLocalHome?: string,
+  options?: AuthDriverNetworkOptions,
 ): AuthDriver | null {
   const channel = aliases[channelId] ?? channelId;
   if (!channels.has(channel)) return null;
@@ -82,6 +88,7 @@ function createDriver(
     fixtureOrigin,
     fixtureH2Origin,
     fixtureLocalHome,
+    options,
   );
   return {
     methods: () => worker.call<readonly AuthMethod[]>("methods"),

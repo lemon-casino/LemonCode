@@ -3,11 +3,11 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createQuotaFacts } from "./quota-facts.mjs";
 import childProcess from "node:child_process";
 import http from "node:http";
-import http2 from "node:http2";
 import { plugins, assertGrantChannel } from "./catalog.mjs";
 import { authorize, grantFrom, methodsFor, modelList } from "./compatibility.mjs";
 import { factoryImports } from "./factory-import.mjs";
 import { resolveZCodeLocal, zcodeLocalChallenge } from "./zcode-local.mjs";
+import { installWorkerNetwork } from "./worker-network.mjs";
 import { fetchPluginModel } from "./worker-fetch.mjs";
 
 const scopes = new AsyncLocalStorage();
@@ -42,6 +42,27 @@ for (const method of ["spawn", "execFile"]) {
   const original = childProcess[method];
   childProcess[method] = (...args) => {
     check();
+    const network = scopes.getStore()?.network;
+    if (network) {
+      const index = Array.isArray(args[1]) ? 2 : 1;
+      const originalOptions = args[index] && typeof args[index] === "object" ? args[index] : {};
+      const env = {
+        ...process.env,
+        ...originalOptions.env,
+        HTTP_PROXY: network.httpProxy ?? "",
+        HTTPS_PROXY: network.httpProxy ?? "",
+        ALL_PROXY: "",
+        http_proxy: network.httpProxy ?? "",
+        https_proxy: network.httpProxy ?? "",
+        all_proxy: "",
+        NO_PROXY: network.noProxy ?? "",
+        no_proxy: network.noProxy ?? "",
+        ...(network.caCertPath ? { NODE_EXTRA_CA_CERTS: network.caCertPath } : {}),
+      };
+      // 插件的 CLI 授权同样属于选中供应商出口；不能继承 Host 的另一代理。
+      if (args[index] && typeof args[index] !== "object") args.splice(index, 0, { env });
+      else args[index] = { ...originalOptions, env };
+    }
     const child = original(...args);
     children.add(child);
     child.once("exit", () => children.delete(child));
@@ -56,42 +77,7 @@ http.createServer = (...args) => {
   server.once("close", () => servers.delete(server));
   return server;
 };
-const fetchRemote = globalThis.fetch;
-if (workerData.fixtureOrigin) {
-  const connect = http2.connect;
-  http2.connect = (_origin, ...args) => {
-    if (!workerData.fixtureH2Origin)
-      throw new Error("Fixture HTTP/2 transport requires a loopback endpoint");
-    return connect(workerData.fixtureH2Origin, ...args);
-  };
-}
-globalThis.fetch = (input, init = {}) => {
-  check();
-  const scope = scopes.getStore();
-  const requestSignal = init.signal ?? (input instanceof Request ? input.signal : undefined);
-  const signals = [requestSignal, scope?.controller.signal].filter(Boolean);
-  let target = input;
-  // Explicit fixture-only transport; production worker data never supplies it.
-  if (workerData.fixtureOrigin) {
-    const url = new URL(input instanceof Request ? input.url : String(input));
-    const mapped = new URL(url.pathname + url.search, workerData.fixtureOrigin);
-    target = input instanceof Request ? new Request(mapped, input) : mapped;
-    const headers = new Headers(
-      init.headers ?? (input instanceof Request ? input.headers : undefined),
-    );
-    headers.set("x-fixture-upstream", url.origin);
-    init = { ...init, headers };
-  }
-  const response = fetchRemote(target, {
-    ...init,
-    ...(signals.length ? { signal: AbortSignal.any(signals) } : {}),
-  });
-  if (scope?.listing) Object.assign(scope.listing, { tried: true, lastOk: false });
-  return response.then((res) => {
-    if (scope?.listing) scope.listing.lastOk = res.ok;
-    return scope?.quotaFacts ? scope.quotaFacts.observe(input, res) : res;
-  });
-};
+const networkTransport = installWorkerNetwork({ scopes, check, workerData });
 
 function credential(action, grant) {
   check();
@@ -326,6 +312,7 @@ async function call(message, scope) {
 
 function dispose() {
   closed = true;
+  networkTransport.dispose();
   for (const scope of operations.values()) {
     scope.controller.abort();
     scope.pull?.();
@@ -371,10 +358,16 @@ parentPort.on("message", (message) => {
     return;
   }
   if (message.kind !== "call") return;
-  const scope = { id: message.id, context: message.context, controller: new AbortController() };
+  const scope = {
+    id: message.id,
+    context: message.context,
+    network: message.network,
+    controller: new AbortController(),
+  };
   operations.set(message.id, scope);
   void scopes.run(scope, async () => {
     try {
+      await networkTransport.prepare(scope, message);
       const value = await call(message, scope);
       check();
       if (message.operation !== "fetch") send({ kind: "result", id: message.id, value });

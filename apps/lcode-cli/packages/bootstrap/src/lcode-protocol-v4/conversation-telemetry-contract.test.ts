@@ -40,6 +40,27 @@ const complete = (querySource = "main_turn") =>
     usage: { inputTokens: 10, outputTokens: 5, reasoningTokens: 2 },
   });
 
+test("cache write telemetry preserves unknown and explicit zero through the validated fact", () => {
+  const normalizer = new ConversationTelemetryFactNormalizer();
+  for (const write of [undefined, 0, 30]) {
+    const fact = normalizer.normalize(
+      "session-one",
+      event(SessionEventType.ModelComplete, {
+        querySource: "main_turn",
+        stopReason: "stop",
+        usage: {
+          inputTokens: 100,
+          outputTokens: 5,
+          ...(write === undefined ? {} : { cacheWriteTokens: write }),
+        },
+      }),
+    );
+    assert.ok(fact?.kind === "usage.delta");
+    assert.equal(fact.cacheWriteTokens, write);
+    assert.equal(fact.totalTokens, 105);
+  }
+});
+
 test("telemetry request identity remains FIFO and isolated by session and query source", () => {
   const normalizer = new ConversationTelemetryFactNormalizer();
   normalizer.normalize(

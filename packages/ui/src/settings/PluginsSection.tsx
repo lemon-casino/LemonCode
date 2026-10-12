@@ -1212,7 +1212,7 @@ export function PluginsSection({
                 <TabsList variant="line" className="h-7 max-w-full gap-1 overflow-x-auto p-0">
                   <TabsTrigger
                     value="plugins"
-                    className="h-7 flex-none rounded-full px-3 hover:bg-hover data-active:!bg-selected data-active:hover:!bg-hover after:hidden"
+                    className="h-7 flex-none rounded-full px-3 hover:bg-hover data-active:!bg-selected after:hidden"
                   >
                     {intl.formatMessage({
                       id: "settings.plugin.tab.plugins",
@@ -1223,7 +1223,7 @@ export function PluginsSection({
                   </TabsTrigger>
                   <TabsTrigger
                     value="mcps"
-                    className="h-7 flex-none rounded-full px-3 hover:bg-hover data-active:!bg-selected data-active:hover:!bg-hover after:hidden"
+                    className="h-7 flex-none rounded-full px-3 hover:bg-hover data-active:!bg-selected after:hidden"
                   >
                     {intl.formatMessage({
                       id: "settings.plugin.tab.mcps",
@@ -1234,7 +1234,7 @@ export function PluginsSection({
                   </TabsTrigger>
                   <TabsTrigger
                     value="skills"
-                    className="h-7 flex-none rounded-full px-3 hover:bg-hover data-active:!bg-selected data-active:hover:!bg-hover after:hidden"
+                    className="h-7 flex-none rounded-full px-3 hover:bg-hover data-active:!bg-selected after:hidden"
                   >
                     {intl.formatMessage({
                       id: "settings.plugin.tab.skills",

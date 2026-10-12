@@ -140,7 +140,10 @@ export function installForkPreparationFixture(
     return structuredClone(control.preparation);
   };
   const facts = new Map<string, CommandAck>();
+  const conversationService = services.lcodeAgentService;
   services.lcodeAgentService = {
+    // 分叉只覆盖自己的 command/query 桩；执行目录仍通过既有订阅和帧监听观察会话就绪。
+    ...conversationService,
     helloConversationV4: async () => ({
       kind: "hello",
       protocolVersion: V4_WIRE_PROTOCOL_VERSION,
@@ -157,7 +160,8 @@ export function installForkPreparationFixture(
       auth: {},
     }),
     initializeConversationV4: async () => ({}),
-    onDynamicConversationFrame: () => emptyEvent,
+    onDynamicConversationFrame:
+      conversationService?.onDynamicConversationFrame ?? (() => emptyEvent),
     onDynamicLocalTtftFacts: () => emptyEvent,
     onAgentRuntimeRestarted: emptyEvent,
     conversationRowsRangeV4: async (params: unknown) => {

@@ -6,6 +6,7 @@ import {
   type ModelConfigRules,
 } from "./config/index.js";
 import type { AccountProviderStates } from "./account-provider-state.js";
+import type { ProxyProfile } from "@lcode/shared/network-proxy";
 
 export interface ProviderSource<TSnapshot> {
   read(): Promise<TSnapshot>;
@@ -13,6 +14,7 @@ export interface ProviderSource<TSnapshot> {
 }
 
 export interface ProviderConfigSnapshot {
+  readonly proxyProfiles?: readonly ProxyProfile[];
   readonly revision: string;
   readonly lcodeBuiltinRevision: string;
   readonly personalRevision: string;

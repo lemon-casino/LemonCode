@@ -2564,6 +2564,10 @@ The original import revisions of copied components are not recorded in the curre
 
 - Magpie Zen Free plugin original notice (MIT): packages/provider-node/src/provider-auth/vendor/zen-free. License reference: https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/packages/zen-free/LICENSE. Original import revision: da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd.
 
+- Magpie provider brand icon assets (MIT): packages/ui/src/assets/provider-icons/model-provider-copilot.svg, packages/ui/src/assets/provider-icons/model-provider-gemini-cli.svg, packages/ui/src/assets/provider-icons/model-provider-antigravity.svg, packages/ui/src/assets/provider-icons/model-provider-cline.svg, packages/ui/src/assets/provider-icons/model-provider-commandcode.svg, packages/ui/src/assets/provider-icons/model-provider-cursor.svg, packages/ui/src/assets/provider-icons/model-provider-devin.svg, packages/ui/src/assets/provider-icons/model-provider-factory.svg, packages/ui/src/assets/provider-icons/model-provider-kiro.svg, packages/ui/src/assets/provider-icons/model-provider-qoder.svg, packages/ui/src/assets/provider-icons/model-provider-trae.svg, packages/ui/src/assets/provider-icons/model-provider-workbuddy.svg, packages/ui/src/assets/provider-icons/model-provider-zed.svg. License reference: https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/LICENSE. Original import revision: 93c5d846ca2b05ac8ca961956304104e5d112845.
+
+- Lobe Icons notice for Magpie brand assets (MIT): packages/ui/src/assets/provider-icons/model-provider-copilot.svg, packages/ui/src/assets/provider-icons/model-provider-gemini-cli.svg, packages/ui/src/assets/provider-icons/model-provider-antigravity.svg, packages/ui/src/assets/provider-icons/model-provider-cline.svg, packages/ui/src/assets/provider-icons/model-provider-commandcode.svg, packages/ui/src/assets/provider-icons/model-provider-cursor.svg, packages/ui/src/assets/provider-icons/model-provider-devin.svg, packages/ui/src/assets/provider-icons/model-provider-factory.svg, packages/ui/src/assets/provider-icons/model-provider-kiro.svg, packages/ui/src/assets/provider-icons/model-provider-qoder.svg, packages/ui/src/assets/provider-icons/model-provider-trae.svg, packages/ui/src/assets/provider-icons/model-provider-workbuddy.svg, packages/ui/src/assets/provider-icons/model-provider-zed.svg. License reference: https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/LICENSE. Original import revision: not recorded.
+
 Fig autocomplete source carries the repository's MIT license; the generated registry records npm @withfig/autocomplete@2.692.3 metadata as ISC. The original source MIT notice is retained below.
 
 ## Embedded native and WASM components
@@ -40680,6 +40684,8 @@ SOFTWARE.
 
 - Magpie native provider protocol adaptations: https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/LICENSE
 
+- Magpie provider brand icon assets: https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/LICENSE
+
 
 
 ````text
@@ -40779,6 +40785,37 @@ SOFTWARE.
 MIT License
 
 Copyright (c) 2026 xiaozhou26
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+````
+
+### Notice add9d7531d1b21646317a8958e38fc727506fa39d24bdecb44154d943c82753a
+
+- Lobe Icons notice for Magpie brand assets: https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/LICENSE
+
+
+
+````text
+MIT License
+
+Copyright (c) 2023 LobeHub
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

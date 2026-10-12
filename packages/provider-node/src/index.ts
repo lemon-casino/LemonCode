@@ -13,3 +13,4 @@ export * from "./provider-registry-runtime.js";
 export * from "./model-selection-facade.js";
 export * from "./runtime-paths.js";
 export * from "./provider-auth/index.js";
+export * from "./provider-network.js";

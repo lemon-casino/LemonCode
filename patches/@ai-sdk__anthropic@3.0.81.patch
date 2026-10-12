@@ -1,7 +1,16 @@
 diff --git a/dist/index.js b/dist/index.js
-index f01709ca8909a5724fab4e74a82286af262fbf76..84a19080d0326421e39e2f40df11e69c9fc043ef 100644
+index f01709ca8909a5724fab4e74a82286af262fbf76..0285ef321d2984947931ed80065b5d0874a41bc3 100644
 --- a/dist/index.js
 +++ b/dist/index.js
+@@ -1810,7 +1810,7 @@ function convertAnthropicMessagesUsage({
+       total: inputTokens + cacheCreationTokens + cacheReadTokens,
+       noCache: inputTokens,
+       cacheRead: cacheReadTokens,
+-      cacheWrite: cacheCreationTokens
++      cacheWrite: usage.cache_creation_input_tokens ?? void 0
+     },
+     outputTokens: {
+       total: outputTokens,
 @@ -2265,6 +2265,19 @@ async function convertToAnthropicMessagesPrompt({
                          },
                          cache_control: cacheControl
@@ -22,10 +31,37 @@ index f01709ca8909a5724fab4e74a82286af262fbf76..84a19080d0326421e39e2f40df11e69c
                      } else if (part.mediaType === "application/pdf") {
                        betas.add("pdfs-2024-09-25");
                        const enableCitations = await shouldEnableCitations(
+@@ -4264,7 +4277,7 @@ var AnthropicMessagesLanguageModel = class {
+     const usage = {
+       input_tokens: 0,
+       output_tokens: 0,
+-      cache_creation_input_tokens: 0,
++      cache_creation_input_tokens: void 0,
+       cache_read_input_tokens: 0,
+       iterations: null
+     };
+@@ -4883,7 +4896,7 @@ var AnthropicMessagesLanguageModel = class {
+             case "message_start": {
+               usage.input_tokens = value.message.usage.input_tokens;
+               usage.cache_read_input_tokens = (_e = value.message.usage.cache_read_input_tokens) != null ? _e : 0;
+-              usage.cache_creation_input_tokens = (_f = value.message.usage.cache_creation_input_tokens) != null ? _f : 0;
++              usage.cache_creation_input_tokens = (_f = value.message.usage.cache_creation_input_tokens) != null ? _f : void 0;
+               rawUsage = {
+                 ...value.message.usage
+               };
 diff --git a/dist/index.mjs b/dist/index.mjs
-index 06a5c9546bc32c59b5aaa4222e7a756a6d22f6d1..fe575cd4100a1b7c2f9ed0769a707633b4a88f10 100644
+index 06a5c9546bc32c59b5aaa4222e7a756a6d22f6d1..7aa6d92e3d7cddb22dc284a30a84dd21d664f44e 100644
 --- a/dist/index.mjs
 +++ b/dist/index.mjs
+@@ -1834,7 +1834,7 @@ function convertAnthropicMessagesUsage({
+       total: inputTokens + cacheCreationTokens + cacheReadTokens,
+       noCache: inputTokens,
+       cacheRead: cacheReadTokens,
+-      cacheWrite: cacheCreationTokens
++      cacheWrite: usage.cache_creation_input_tokens ?? void 0
+     },
+     outputTokens: {
+       total: outputTokens,
 @@ -2314,6 +2314,19 @@ async function convertToAnthropicMessagesPrompt({
                          },
                          cache_control: cacheControl
@@ -46,3 +82,57 @@ index 06a5c9546bc32c59b5aaa4222e7a756a6d22f6d1..fe575cd4100a1b7c2f9ed0769a707633
                      } else if (part.mediaType === "application/pdf") {
                        betas.add("pdfs-2024-09-25");
                        const enableCitations = await shouldEnableCitations(
+@@ -4313,7 +4326,7 @@ var AnthropicMessagesLanguageModel = class {
+     const usage = {
+       input_tokens: 0,
+       output_tokens: 0,
+-      cache_creation_input_tokens: 0,
++      cache_creation_input_tokens: void 0,
+       cache_read_input_tokens: 0,
+       iterations: null
+     };
+@@ -4932,7 +4945,7 @@ var AnthropicMessagesLanguageModel = class {
+             case "message_start": {
+               usage.input_tokens = value.message.usage.input_tokens;
+               usage.cache_read_input_tokens = (_e = value.message.usage.cache_read_input_tokens) != null ? _e : 0;
+-              usage.cache_creation_input_tokens = (_f = value.message.usage.cache_creation_input_tokens) != null ? _f : 0;
++              usage.cache_creation_input_tokens = (_f = value.message.usage.cache_creation_input_tokens) != null ? _f : void 0;
+               rawUsage = {
+                 ...value.message.usage
+               };
+diff --git a/src/anthropic-messages-language-model.ts b/src/anthropic-messages-language-model.ts
+index 7f2729c1b740bb0031f826bc91af49069f4ad4cf..08f046f6c3e6856da78a36a94d43c541125a86b0 100644
+--- a/src/anthropic-messages-language-model.ts
++++ b/src/anthropic-messages-language-model.ts
+@@ -1424,7 +1424,7 @@ export class AnthropicMessagesLanguageModel implements LanguageModelV3 {
+     const usage: AnthropicMessagesUsage = {
+       input_tokens: 0,
+       output_tokens: 0,
+-      cache_creation_input_tokens: 0,
++      cache_creation_input_tokens: undefined,
+       cache_read_input_tokens: 0,
+       iterations: null,
+     };
+@@ -2240,7 +2240,7 @@ export class AnthropicMessagesLanguageModel implements LanguageModelV3 {
+               usage.cache_read_input_tokens =
+                 value.message.usage.cache_read_input_tokens ?? 0;
+               usage.cache_creation_input_tokens =
+-                value.message.usage.cache_creation_input_tokens ?? 0;
++                value.message.usage.cache_creation_input_tokens ?? undefined;
+ 
+               rawUsage = {
+                 ...(value.message.usage as JSONObject),
+diff --git a/src/convert-anthropic-messages-usage.ts b/src/convert-anthropic-messages-usage.ts
+index 13dd3922ef923cce389622f6267acc29811344f9..b3635b00df739e460cf721132862d50caf83331f 100644
+--- a/src/convert-anthropic-messages-usage.ts
++++ b/src/convert-anthropic-messages-usage.ts
+@@ -89,7 +89,8 @@ export function convertAnthropicMessagesUsage({
+       total: inputTokens + cacheCreationTokens + cacheReadTokens,
+       noCache: inputTokens,
+       cacheRead: cacheReadTokens,
+-      cacheWrite: cacheCreationTokens,
++      // LCode：Google/兼容 Messages 缺失创建量时保持未知，显式零仍保留。
++      cacheWrite: usage.cache_creation_input_tokens ?? undefined,
+     },
+     outputTokens: {
+       total: outputTokens,

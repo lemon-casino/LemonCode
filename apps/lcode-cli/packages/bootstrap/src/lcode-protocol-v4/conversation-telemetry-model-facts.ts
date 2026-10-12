@@ -205,7 +205,8 @@ export function normalizeModelFact(
         totalTokens: totalTokensOf(usage),
         reasoningTokens: nonNegative(usage.reasoningTokens) ?? 0,
         cacheReadTokens: nonNegative(usage.cacheReadTokens) ?? nonNegative(usage.cacheTokens) ?? 0,
-        cacheWriteTokens: nonNegative(usage.cacheWriteTokens) ?? 0,
+        // SDK 未报告缓存写入时保留缺失，桌面实时与手机回放均不能伪造零。
+        cacheWriteTokens: nonNegative(usage.cacheWriteTokens),
       });
     }
     default:

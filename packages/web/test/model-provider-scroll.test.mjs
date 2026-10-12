@@ -67,7 +67,7 @@ async function assertScrollIsolation(page, selector, otherSelector) {
 }
 
 test(
-  "model settings keep custom navigation, OAuth and API details in independent fixed-height scroll panes",
+  "model settings keep custom navigation, OAuth and API details in independent responsive scroll panes",
   { timeout: 120_000 },
   async (t) => {
     const { browser, port, diagnostics } = await startWorkflowProgressBrowser(t);
@@ -78,6 +78,7 @@ test(
     t.after(() => assert.deepEqual(errors, [], diagnostics()));
     await mkdir(".tmp/model-provider-scroll", { recursive: true });
     for (const { width, height, locale, theme } of [
+      { width: 1920, height: 1080, locale: "zh-CN", theme: "dark" },
       { width: 1280, height: 900, locale: "zh-CN", theme: "dark" },
       { width: 1280, height: 600, locale: "en-US", theme: "light" },
       { width: 390, height: 844, locale: "en-US", theme: "light" },
@@ -94,10 +95,13 @@ test(
       const paneHeight = await page
         .locator("[data-model-provider-split-panel]")
         .evaluate((element) => element.getBoundingClientRect().height);
+      const paneBounds = await page.locator("[data-model-provider-split-panel]").boundingBox();
       assert.ok(
-        Math.abs(paneHeight - Math.min(576, height - 192)) <= 1,
-        `fixed pane height at ${width}x${height}: ${paneHeight}`,
+        Math.abs(paneBounds.y + paneHeight - (height - 16)) <= 2,
+        `pane fills the available container at ${width}x${height}`,
       );
+      if (height === 1080)
+        assert.ok(paneHeight > 576, "large screens must exceed the old 36rem cap");
       await details.getByRole("button", { name: "Show fixture feedback", exact: true }).click();
       const feedback = page.getByText("Fixture feedback", { exact: true });
       await feedback.waitFor();
@@ -110,6 +114,12 @@ test(
       await assertScrollIsolation(page, navigationSelector, detailSelector);
       await navigation.getByRole("button", { name: "Fixture API 24", exact: true }).click();
       await navigation.getByRole("button", { name: "Fixture OAuth pool", exact: true }).click();
+      await details
+        .getByRole("tab", {
+          name: locale === "zh-CN" ? "已登录账号" : "Connected accounts",
+          exact: true,
+        })
+        .click();
       await page.getByTestId("oauth-account-account-20").waitFor({ state: "attached" });
       assert.equal(
         await page

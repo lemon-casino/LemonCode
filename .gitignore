@@ -109,6 +109,7 @@ nul
 !/packages/web/test/fixtures/sidebar-animation.tsx
 !/packages/web/test/fixtures/sidebar-animation-rows.tsx
 !/packages/web/test/theme-quality.test.mjs
+!/packages/web/test/selection-theme.test.mjs
 !/packages/web/test/theme-quality-interaction-cases.mjs
 !/packages/web/test/welcome-layout-quality-cases.mjs
 !/packages/web/test/component-quality.test.mjs
@@ -120,6 +121,8 @@ nul
 !/packages/web/test/fixtures/theme-quality.html
 !/packages/web/test/fixtures/theme-quality.tsx
 !/packages/web/test/fixtures/theme-quality.css
+!/packages/web/test/fixtures/selection-theme.html
+!/packages/web/test/fixtures/selection-theme.tsx
 !/packages/web/test/fixtures/resource-theme.html
 !/packages/web/test/fixtures/resource-theme.tsx
 # 运行环境恢复/清理的永久交互回归及其有界 Host fixture。
@@ -244,12 +247,16 @@ nul
 !/packages/web/test/fixtures/provider-accounts.html
 !/packages/web/test/fixtures/provider-accounts.tsx
 !/packages/web/test/fixtures/provider-accounts-service.ts
+!/packages/web/test/provider-authorization-locale.test.mjs
+!/packages/web/test/fixtures/provider-authorization-catalog.ts
+!/third-party/upstream/add9d7531d1b21646317a8958e38fc727506fa39d24bdecb44154d943c82753a.txt
 
 # OAuth 安全错误投影属于 UI 源码，仅覆盖用户全局 lib/ 忽略中的这一文件。
 !/packages/ui/src/lib/
 /packages/ui/src/lib/*
 !/packages/ui/src/lib/providerAccountErrors.ts
 !/packages/web/test/usage-analytics.test.mjs
+!/packages/web/test/cache-write-usage.test.mjs
 !/packages/web/test/fixtures/usage-analytics.html
 !/packages/web/test/fixtures/usage-analytics.tsx
 !/packages/web/test/fixtures/usage-analytics-data.js
@@ -265,3 +272,14 @@ nul
 !/packages/web/test/fixtures/component-migration-slider.tsx
 !/packages/web/test/fixtures/component-migration-composer.html
 !/packages/web/test/fixtures/component-migration-composer.tsx
+
+# 右侧面板冷恢复与加载/错误入口的永久浏览器回归。
+!/packages/web/test/side-pane-recovery.test.mjs
+!/packages/web/test/fixtures/side-pane-recovery.html
+!/packages/web/test/fixtures/side-pane-recovery.tsx
+
+# 代理设置、持久化和 OAuth 页签拆分的永久回归。
+!/packages/provider/test/provider-network.test.ts
+!/packages/web/test/provider-proxy-settings.test.mjs
+!/packages/web/test/provider-accounts-navigation-cases.mjs
+!/packages/web/test/fixtures/provider-proxy-fixture.ts

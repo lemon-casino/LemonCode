@@ -167,7 +167,21 @@ const services = {
           };
         });
       }
-      return snapshot(request);
+      const result = snapshot(request);
+      const cacheCase = query.get("cache-write-case");
+      if (cacheCase) {
+        result.summary.cacheWriteTokens =
+          cacheCase === "positive" || cacheCase === "partial" ? 30 : 0;
+        result.summary.cacheWriteKnownRequests =
+          cacheCase === "legacy"
+            ? undefined
+            : cacheCase === "unknown"
+              ? 0
+              : cacheCase === "partial"
+                ? 1
+                : result.summary.requestCount;
+      }
+      return result;
     },
     getAppUsageSnapshot: async (request: AppUsageRequest) => {
       fixture.apiCalls.push(request);

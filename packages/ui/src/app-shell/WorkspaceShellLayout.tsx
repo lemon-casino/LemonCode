@@ -229,6 +229,9 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   workspaceAbsPath,
   executionWorkspace,
   executionBinding,
+  executionPending,
+  executionError,
+  handleRetryExecution,
   workspaceRemoteSessionId,
   workspaceIdentity,
   isWorkspaceVisible = true,
@@ -1567,6 +1570,15 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       onCloseSidePane={handleCloseSidePane}
       toggleSidePaneShortcutLabel={toggleSidePaneShortcutLabel}
       sidePaneState={sidePaneState}
+      executionState={
+        executionReady
+          ? undefined
+          : {
+              pending: executionPending ?? !executionError,
+              error: executionError,
+              retry: handleRetryExecution,
+            }
+      }
       recentClosedSidePaneTabs={recentClosedSidePaneTabs}
       isBrowserOpen={isBrowserOpen}
       supportsEmbeddedBrowser={supportsEmbeddedBrowser}
@@ -1621,7 +1633,8 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       onSelectGitSource={setGitSelectedSourceId}
     />
   );
-  const sidePanePanel = executionReady ? renderSidePanePanel() : null;
+  // 目录加载/失败只影响正文；卸载 Panel 会让展开意图与真实布局脱节，并把切换入口一起藏掉。
+  const sidePanePanel = renderSidePanePanel();
   const hasUpdateStatusButton =
     updateReadyVersion !== null ||
     updateState?.kind === "update-available" ||
@@ -1868,6 +1881,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                           isSidebarVisible={isSidebarVisible}
                           isTerminalOpen={isTerminalOpen}
                           isSidePaneOpen={isSidePaneOpen}
+                          isSidePaneReady={executionReady}
                           onRefreshGit={handleRefreshGit}
                           onToggleTerminal={handleToggleTerminal}
                           onToggleBrowser={handleToggleBrowser}

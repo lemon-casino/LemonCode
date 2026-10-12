@@ -33,6 +33,7 @@ import { ModelTrajectoryPane } from "@/ModelTrajectoryPane.js";
 import { DeveloperToolsPane } from "@/DeveloperToolsPane.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
+import { Spinner } from "@/components/ui/spinner.js";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -284,6 +285,7 @@ export function AnimatedSidePanePanel({
   isWindowsDesktop,
   isVisible,
   sidePaneState,
+  executionState,
   recentClosedSidePaneTabs,
   isBrowserOpen,
   supportsEmbeddedBrowser = true,
@@ -362,6 +364,7 @@ export function AnimatedSidePanePanel({
   isWindowsDesktop?: boolean;
   isVisible: boolean;
   sidePaneState: WorkspaceSidePaneState | null;
+  executionState?: { pending: boolean; error?: string; retry?: () => void };
   recentClosedSidePaneTabs: RecentClosedSidePaneTab[];
   isBrowserOpen: boolean;
   supportsEmbeddedBrowser?: boolean;
@@ -835,7 +838,7 @@ export function AnimatedSidePanePanel({
           onToggleSidePane={onCloseSidePane}
           shortcutLabel={toggleSidePaneShortcutLabel}
         />
-        {showWindowControls ? <DesktopWindowControls /> : null}
+        {showWindowControls && !executionState ? <DesktopWindowControls /> : null}
       </div>
     ) : null;
   const openTabLauncher = (
@@ -953,7 +956,41 @@ export function AnimatedSidePanePanel({
         variant="panel"
         className="h-full"
       >
-        {hasRenderedSidePane && sidePaneState ? (
+        {executionState ? (
+          <div className="flex h-full min-h-0 flex-col">
+            <div
+              className={cn(
+                "flex h-12 shrink-0 items-center justify-end border-b px-2",
+                isDesktop && "[app-region:drag]",
+              )}
+            >
+              {closeSidePaneButton}
+            </div>
+            <div className="flex min-h-0 flex-1 items-center justify-center p-5">
+              <div
+                role={executionState.error ? "alert" : "status"}
+                data-testid={
+                  executionState.error ? "side-pane-execution-error" : "side-pane-execution-loading"
+                }
+                className="flex max-w-sm flex-col items-center gap-3 text-center text-ui-base text-foreground-subtle"
+              >
+                {!executionState.error ? <Spinner aria-hidden="true" role="presentation" /> : null}
+                <p>
+                  {intl.formatMessage({
+                    id: executionState.error
+                      ? "sidePane.executionFailed"
+                      : "sidePane.executionLoading",
+                  })}
+                </p>
+                {executionState.error && executionState.retry ? (
+                  <Button variant="outline" size="sm" onClick={executionState.retry}>
+                    {intl.formatMessage({ id: "common.retry" })}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        ) : hasRenderedSidePane && sidePaneState ? (
           <>
             {visibleTabs.length === 0 ? openTabLauncher : null}
             {/* sidePaneState 是 workspace 级 registry，fork/切换任务后可能只剩其他

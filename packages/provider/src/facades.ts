@@ -1,5 +1,6 @@
 /* oxlint-disable max-lines -- Settings/Selection Facade 共享同一套 Registry 投影与写入边界。 */
 import type { ConfigValidationIssue } from "./config-overlay.js";
+import type { ProxyProfile } from "@lcode/shared/network-proxy";
 import type { ProviderModelMembership } from "./config-service.js";
 import type {
   ModelConfig,
@@ -46,6 +47,14 @@ export interface ProviderRegistryFacadeSource {
 }
 
 export interface ProviderSettingsMutationTarget {
+  importProxyProfiles?(text: string): Promise<unknown>;
+  saveProxyProfile?(profile: ProxyProfile): Promise<unknown>;
+  deleteProxyProfile?(id: string): Promise<unknown>;
+  setProviderNetwork?(
+    providerId: ProviderId,
+    network: ProviderConfigObject["network"],
+    membership: ProviderModelMembership,
+  ): Promise<unknown>;
   createPersonalProvider(input?: {
     readonly templateId?: ProviderTemplateId;
     readonly providerName?: string;
@@ -172,6 +181,7 @@ export interface ProviderSettingsTemplateView {
 }
 
 export interface ProviderSettingsView {
+  readonly proxyProfiles?: readonly ProxyProfile[];
   readonly revision: number;
   readonly providerTemplates: readonly ProviderSettingsTemplateView[];
   readonly providerOrder: readonly ProviderId[];
@@ -221,6 +231,7 @@ export class ProviderSettingsFacade {
     const snapshot = requireSnapshot(this.#source);
     return createProviderSettingsView({
       revision: snapshot.registry.revision,
+      proxyProfiles: snapshot.config.proxyProfiles,
       lcodeBuiltinProviders: snapshot.config.lcodeBuiltinProviders,
       lcodeBuiltinProviderTemplates: snapshot.config.lcodeBuiltinProviderTemplates,
       personalProviders: snapshot.config.personalProviders,
@@ -355,6 +366,35 @@ export class ProviderSettingsFacade {
     });
   }
 
+  importProxyProfiles(text: string): Promise<ProviderSettingsView> {
+    return this.#mutateProvider("@proxy-library", "import-proxies", (target) => {
+      if (!target.importProxyProfiles) throw new Error("Proxy library is unavailable");
+      return target.importProxyProfiles(text);
+    });
+  }
+  saveProxyProfile(profile: ProxyProfile): Promise<ProviderSettingsView> {
+    return this.#mutateProvider("@proxy-library", "save-proxy", (target) => {
+      if (!target.saveProxyProfile) throw new Error("Proxy library is unavailable");
+      return target.saveProxyProfile(profile);
+    });
+  }
+  deleteProxyProfile(id: string): Promise<ProviderSettingsView> {
+    return this.#mutateProvider("@proxy-library", "delete-proxy", (target) => {
+      if (!target.deleteProxyProfile) throw new Error("Proxy library is unavailable");
+      return target.deleteProxyProfile(id);
+    });
+  }
+  setProviderNetwork(
+    providerId: ProviderId,
+    network: ProviderConfigObject["network"],
+  ): Promise<ProviderSettingsView> {
+    const parsed = parseProviderConfig({ network }).network;
+    return this.#mutateProvider(providerId, "set-network", (target) => {
+      if (!target.setProviderNetwork) throw new Error("Provider network mutation is unavailable");
+      return target.setProviderNetwork(providerId, parsed, this.#modelMembership(providerId));
+    });
+  }
+
   deletePersonalProvider(providerId: ProviderId): Promise<ProviderSettingsView> {
     return this.#mutateProvider(providerId, "delete-provider", (target) =>
       target.deletePersonalProvider(providerId),
@@ -464,6 +504,7 @@ export class ProviderSettingsFacade {
       providerId,
       inheritedModelIds: provider.config.builtinModelIds ?? Object.freeze([]),
       personalRevision: snapshot.config.personalRevision,
+      accountProvider: provider.config.access?.type === "oauth-account",
       assertCurrent: () => {
         if (this.#source.getSnapshot() !== snapshot)
           throw new Error("Provider Settings snapshot revision conflict");
@@ -623,6 +664,7 @@ function requireEffectiveProvider(
 }
 
 function createProviderSettingsView(input: {
+  proxyProfiles?: readonly ProxyProfile[];
   revision: number;
   lcodeBuiltinProviders: ProviderRegistryServiceSnapshot["config"]["lcodeBuiltinProviders"];
   lcodeBuiltinProviderTemplates: ProviderRegistryServiceSnapshot["config"]["lcodeBuiltinProviderTemplates"];
@@ -687,6 +729,7 @@ function createProviderSettingsView(input: {
   const configuredProviders = visibleProviders;
   return Object.freeze({
     revision: input.revision,
+    proxyProfiles: input.proxyProfiles,
     providerTemplates: Object.freeze(
       (input.lcodeBuiltinProviderTemplates ?? ProviderTemplateMap.empty())
         .entries()

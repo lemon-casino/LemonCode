@@ -59,6 +59,7 @@ export function WorkspaceHeader({
   isSidebarVisible,
   isTerminalOpen,
   isSidePaneOpen,
+  isSidePaneReady = true,
   onRefreshGit,
   onToggleTerminal,
   onToggleSidePane,
@@ -107,6 +108,7 @@ export function WorkspaceHeader({
   isSidebarVisible: boolean;
   isTerminalOpen: boolean;
   isSidePaneOpen: boolean;
+  isSidePaneReady?: boolean;
   onRefreshGit: () => void;
   onToggleTerminal: () => void;
   onToggleBrowser: () => void;
@@ -226,6 +228,7 @@ export function WorkspaceHeader({
           isDesktop={isDesktop}
           isTerminalOpen={isTerminalOpen}
           isSidePaneOpen={isSidePaneOpen}
+          isSidePaneReady={isSidePaneReady}
           isNarrowWebLayout={isNarrowWebLayout}
           onToggleTerminal={onToggleTerminal}
           onToggleSidePane={onToggleSidePane}

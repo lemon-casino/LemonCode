@@ -18,9 +18,15 @@ import {
 } from "./config/index.js";
 import { resolveOwnedOrder } from "./owned-order.js";
 import type { ModelSelection } from "@lcode/shared/model-selection";
+import {
+  parseNetworkProxyLines,
+  proxyProfilesSchema,
+  type ProxyProfile,
+} from "@lcode/shared/network-proxy";
 import type { ProviderConfigSnapshot, ProviderSource } from "./sources.js";
 
 export interface ProviderConfigLayerSnapshot {
+  readonly proxyProfiles?: readonly ProxyProfile[];
   readonly revision: string;
   /** 不参与业务 revision 的每供应商保存代次，由 Repository sidecar 跨进程传播。 */
   readonly saveGenerations?: Readonly<Record<ProviderId, string>>;
@@ -32,6 +38,7 @@ export interface ProviderConfigLayerSnapshot {
 }
 
 export interface ProviderConfigLayerUpdate {
+  readonly proxyProfiles?: readonly ProxyProfile[];
   readonly providers: ProviderConfigMap;
   readonly providerTemplates?: ProviderTemplateMap;
   readonly models: ModelConfigRules;
@@ -68,6 +75,7 @@ export interface ProviderModelMembership {
   readonly providerId: ProviderId;
   readonly inheritedModelIds: readonly ModelId[];
   readonly personalRevision: string;
+  readonly accountProvider?: boolean;
   /** 在 Personal 事务内检查发布快照未过期，不触发网络请求。 */
   readonly assertCurrent: () => void;
 }
@@ -129,6 +137,7 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
       lcodeBuiltinModelRules: lcodeBuiltin.models,
       personalModels: personal.models,
       personalProviderOrder: personal.providerOrder ?? [],
+      proxyProfiles: personal.proxyProfiles ?? [],
       ...(personal.saveGenerations === undefined
         ? {}
         : { personalSaveGenerations: personal.saveGenerations }),
@@ -178,6 +187,10 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
         throw new Error(`Personal Provider 尚未创建: ${providerId}`);
       }
       let normalized = config;
+      // 代理有独立的字段命令；旧表单的全量草稿不能清掉并发保存的出口选择。
+      normalized = normalized.overlay(
+        new ProviderConfigValue({ network: currentPersonal?.network }),
+      );
       if (builtin) {
         if (normalized.group != null && normalized.group !== builtin.group) {
           throw new Error(`Personal Overlay 不能改写 Built-in Provider group: ${providerId}`);
@@ -221,6 +234,89 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
       );
       return {
         providers,
+        models: current.models,
+        providerOrder: current.providerOrder,
+        savedProviderId: providerId,
+      };
+    });
+  }
+
+  async importProxyProfiles(text: string): Promise<ProviderConfigLayerSnapshot> {
+    const parsed = parseNetworkProxyLines(text);
+    if (parsed.invalidLines.length) throw new Error("Invalid proxy import lines");
+    return this.#updatePersonal((current) => {
+      const profiles = [...(current.proxyProfiles ?? [])];
+      const urls = new Set(profiles.map((profile) => new URL(profile.httpProxy).href));
+      for (const url of parsed.urls) {
+        if (urls.has(url)) continue;
+        let next = profiles.length + 1;
+        while (profiles.some((profile) => profile.id === `proxy-${next}`)) next++;
+        const address = new URL(url);
+        profiles.push({
+          id: `proxy-${next}`,
+          name: `${address.protocol.replace(":", "").toUpperCase()} ${address.host}`,
+          httpProxy: url,
+        });
+        urls.add(url);
+      }
+      return { ...current, proxyProfiles: proxyProfilesSchema.parse(profiles) };
+    });
+  }
+
+  async saveProxyProfile(profile: ProxyProfile): Promise<ProviderConfigLayerSnapshot> {
+    const parsed = proxyProfilesSchema.parse([profile])[0]!;
+    return this.#updatePersonal((current) => {
+      if (!current.proxyProfiles?.some((item) => item.id === parsed.id))
+        throw new Error("Proxy profile does not exist");
+      return {
+        ...current,
+        proxyProfiles: current.proxyProfiles.map((item) => (item.id === parsed.id ? parsed : item)),
+      };
+    });
+  }
+
+  async deleteProxyProfile(id: string): Promise<ProviderConfigLayerSnapshot> {
+    return this.#updatePersonal((current) => {
+      if (
+        current.providers
+          .entries()
+          .some(
+            ([, provider]) =>
+              provider.network?.mode === "profile" && provider.network.profileId === id,
+          )
+      )
+        throw new Error("PROXY_PROFILE_IN_USE");
+      return {
+        ...current,
+        proxyProfiles: current.proxyProfiles?.filter((profile) => profile.id !== id) ?? [],
+      };
+    });
+  }
+
+  async setProviderNetwork(
+    providerId: ProviderId,
+    network: ProviderConfig["network"],
+    membership: ProviderModelMembership,
+  ): Promise<ProviderConfigLayerSnapshot> {
+    const builtin = await this.#lcodeBuiltinSource.read();
+    return this.#updatePersonal((current) => {
+      assertMembershipCurrent(membership, providerId, current);
+      const overlay = current.providers.get(providerId);
+      if (
+        network?.mode === "profile" &&
+        !current.proxyProfiles?.some((profile) => profile.id === network.profileId)
+      )
+        throw new Error("Proxy profile does not exist");
+      if (!overlay && !builtin.providers.has(providerId) && !membership.accountProvider)
+        throw new Error(`Provider 不存在: ${providerId}`);
+      return {
+        providers: current.providers.setRule({
+          ...current.providers.getRule(providerId),
+          providerId,
+          config: (overlay ?? new ProviderConfigValue({})).overlay(
+            new ProviderConfigValue({ network }),
+          ),
+        }),
         models: current.models,
         providerOrder: current.providerOrder,
         savedProviderId: providerId,
@@ -641,6 +737,7 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
     return this.#personalRepository.update((current) => ({
       // Provider/Model/排序只修改自己的成员，不能因共用文件清掉默认选择。
       defaultModelSelection: current.defaultModelSelection,
+      proxyProfiles: current.proxyProfiles,
       ...transform(current),
     }));
   }

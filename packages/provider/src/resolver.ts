@@ -7,6 +7,8 @@ import type {
   completeProviderConfigDataSchema,
 } from "./config/provider-data-schema.js";
 import type { ConfigValidationIssue } from "./config-overlay.js";
+import type { ProxyProfile } from "@lcode/shared/network-proxy";
+import { resolveProviderNetworkConfig } from "./network-config.js";
 import {
   type ApiKeyAccessConfig,
   type OAuthAccountAccessConfig,
@@ -16,6 +18,7 @@ import {
   type ZhipuAccountAccessConfig,
   type ModelId,
   type ProviderConfig,
+  ProviderConfig as ProviderConfigValue,
   type ProviderConfigRule,
   ProviderConfigMap,
   type ProviderTemplateMap,
@@ -51,6 +54,7 @@ export function serializeRegistryProviderConfig(
         config.access.apiKey);
   return {
     group: config.group,
+    ...(config.network === undefined ? {} : { network: config.network }),
     ...(config.logo === undefined ? {} : { logo: config.logo }),
     access:
       config.access.type === "oauth-account"
@@ -146,6 +150,7 @@ export function createRegistryModelConfig(
 }
 
 export interface ProviderConfigResolverInput {
+  readonly proxyProfiles?: readonly ProxyProfile[];
   readonly lcodeBuiltinProviders: ProviderConfigMap;
   readonly lcodeBuiltinProviderTemplates?: ProviderTemplateMap;
   readonly personalProviders: ProviderConfigMap;
@@ -251,7 +256,18 @@ export class ProviderConfigResolver {
       // 账号不再支持总禁用；旧覆盖值不能让无开关的账号永久失效，其他资格仍正常校验。
       const enabled = config.access?.type === "zhipu-account" || (rule.enabled ?? true);
       const providerPath = ["providers", providerId];
-      const registryProviderResult = createRegistryProviderConfig(config, providerPath);
+      const profileNetwork = config.network?.mode === "profile" ? config.network : undefined;
+      const profileMissing =
+        profileNetwork &&
+        !input.proxyProfiles?.some((profile) => profile.id === profileNetwork.profileId);
+      const executionConfig = profileMissing
+        ? config.overlay(new ProviderConfigValue({ network: { mode: "custom", httpProxy: "" } }))
+        : config.overlay(
+            new ProviderConfigValue({
+              network: resolveProviderNetworkConfig(config.network, input.proxyProfiles),
+            }),
+          );
+      const registryProviderResult = createRegistryProviderConfig(executionConfig, providerPath);
       const providerIssues: ConfigValidationIssue[] = registryProviderResult.ok
         ? []
         : [...registryProviderResult.issues];

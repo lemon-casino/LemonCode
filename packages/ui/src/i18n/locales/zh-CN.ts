@@ -8,9 +8,66 @@ const zhCN: Record<string, string> = {
   "settings.oauth.authorization.renewed": "授权已更新。",
   "settings.oauth.manageAccounts": "管理账号",
   "settings.oauth.modelsAfterLogin": "连接账号后，可在此配置并测试该供应商的模型。",
-  "settings.oauth.source.import": "文件导入",
-  "settings.oauth.source.local": "本机登录",
-  "settings.oauth.readLocal": "读取本机登录",
+  "settings.oauth.readLocal": "读取客户端登录",
+  "settings.oauth.copy.browser": "通过 {provider} 浏览器授权",
+  "settings.oauth.copy.deviceBrowser": "通过 {provider} 设备码授权",
+  "settings.oauth.copy.claudeBrowser": "通过 Claude Code 浏览器授权（需安装 CLI）",
+  "settings.oauth.copy.kiroBrowser": "通过 Kiro 浏览器授权（Google、GitHub 或 AWS）",
+  "settings.oauth.copy.vpcBrowser": "通过 Qoder CN 企业版（VPC）授权",
+  "settings.oauth.copy.local": "读取 {source} 客户端登录",
+  "settings.oauth.copy.files": "从文件导入 {provider} 账号",
+  "settings.oauth.copy.api": "输入 {provider} API Key",
+  "settings.oauth.copy.json": "粘贴 {provider} 凭据 JSON",
+  "settings.oauth.copy.githubToken": "粘贴 GitHub OAuth 令牌",
+  "settings.oauth.copy.key": "API 密钥（API Key）",
+  "settings.oauth.copy.credentials": "凭据 JSON",
+  "settings.oauth.copy.token": "GitHub OAuth 令牌",
+  "settings.oauth.copy.host": "GitHub 主机（可选）",
+  "settings.oauth.copy.project": "Google Cloud 项目（可选）",
+  "settings.oauth.copy.vpc": "企业 VPC 实例名称或地址",
+  "settings.oauth.copy.vpcPlaceholder": "例如 acme 或 acme.vpc.qoder.com.cn",
+  "settings.oauth.copy.description.workbuddyBrowser":
+    "在浏览器登录 {provider} 并授权。授权独立保存在当前连接的设备，无需安装 {provider} 客户端。",
+  "settings.oauth.copy.description.client":
+    "读取当前连接设备上的 {source} 客户端登录；客户端需保持登录。此入口不会读取 LCode 中已保存的浏览器授权。",
+  "settings.oauth.copy.description.snapshot":
+    "跟随当前连接设备上 {source} 的登录凭据；客户端退出后保留已导入的授权快照。",
+  "settings.oauth.copy.description.zcode":
+    "读取当前连接设备上 ZCode 的 {provider} 账号。仅跟随同一账号和团队的凭据续期；切换账号、组织或项目后需重新读取。客户端退出后保留授权快照。",
+  "settings.oauth.copy.description.codex":
+    "跟随当前连接设备上 Codex 的登录账号，刷新凭据会写回其 auth.json；在 Codex 切换账号后需重新读取。",
+  "settings.oauth.copy.description.copilot":
+    "读取当前连接设备的编辑器或 Copilot CLI 登录，支持现有系统钥匙串来源，不修改客户端凭据；切换账号后需重新读取。",
+  "settings.oauth.copy.description.gemini":
+    "跟随当前连接设备上 Gemini CLI 的登录账号，不修改其文件；切换账号后需重新读取。",
+  "settings.oauth.copy.description.claude":
+    "读取当前连接设备上 Claude Code 的登录账号；原凭据由 Claude Code 保存和刷新，切换账号后需重新读取。",
+  "settings.oauth.copy.description.kiro":
+    "读取当前连接设备上 Kiro CLI 或 IDE 的登录；客户端需保持登录，刷新凭据会写回原客户端。",
+  "settings.oauth.copy.description.codexFiles":
+    "刷新并接管导入的授权。来源文件只读，其原应用可能需要重新登录。",
+  "settings.oauth.copy.description.claudeFiles":
+    "导入 Claude Code、CLIProxyAPI 或 Sub2API 凭据。使用时由 Claude Code 刷新，原应用可能需要重新登录。",
+  "settings.oauth.copy.description.googleFiles":
+    "导入 Cockpit、Manager、CLIProxyAPI 导出或刷新令牌；每个账号及其 Code Assist 项目均由 Google 验证。",
+  "settings.oauth.copy.description.factoryFiles":
+    "从文本、env 或 JSON 文件导入 Factory Key；逐项向 Factory 验证，导入后不再跟随来源文件。",
+  "settings.oauth.copy.instructions.browser":
+    "在浏览器登录 {provider} 并确认授权，完成后会自动返回结果。",
+  "settings.oauth.copy.instructions.device":
+    "在 {provider} 授权页面输入并确认验证码：{code}。完成后会自动返回结果。",
+  "settings.oauth.copy.instructions.commandcode":
+    "在 Command Code Studio 中确认授权这台设备使用 API Key。",
+  "settings.oauth.copy.instructions.grok": "在授权页面确认登录，由 Grok Build 完成后续步骤。",
+  "settings.oauth.copy.instructions.xiaomi":
+    "在打开的页面登录小米账号，或使用小米应用扫描二维码；完成后会自动返回结果。",
+  "settings.oauth.copy.instructions.kiro":
+    "使用 Google、GitHub、AWS Builder ID 或 IAM Identity Center 在 Kiro 页面完成授权。",
+  "settings.oauth.copy.instructions.claude":
+    "在浏览器完成 Claude Code 授权；也可粘贴 code#state 或回调 URL。",
+  "settings.oauth.copy.instructions.file": "读取 {source} 客户端登录文件：{path}。",
+  "settings.oauth.copy.instructions.currentAccount": "{provider} 客户端当前登录账号为：{account}。",
+  "settings.oauth.copy.instructions.cursor": "读取执行 cursor-agent login 后保存的客户端登录。",
   "settings.oauth.import.choose": "选择凭据文件",
   "settings.oauth.import.paste": "粘贴凭据内容",
   "settings.oauth.import.pasted": "粘贴的凭据",
@@ -728,6 +785,8 @@ const zhCN: Record<string, string> = {
   "sidePane.collapse": "收起侧边面板",
   "sidePane.togglePanel": "切换面板",
   "sidePane.panelTitle": "详情与工具",
+  "sidePane.executionLoading": "正在准备会话工作区…",
+  "sidePane.executionFailed": "无法加载会话工作区，请重试。",
   "sidePane.maximize": "扩大面板",
   "sidePane.restoreSize": "恢复面板宽度",
   "sidePane.addTab": "新增标签",
@@ -2049,10 +2108,43 @@ const zhCN: Record<string, string> = {
   "settings.memory.viewer.fileTooLarge": "该记忆文件超过 5 MiB 预览上限。",
   "settings.memory.viewer.fileChanged": "该记忆文件在读取期间已更新，请重新打开或刷新文件列表。",
   "settings.memory.viewer.noSelection": "选择一个记忆文件以查看内容。",
+  "settings.proxy.username": "代理用户名（可选）",
+  "settings.proxy.password": "代理密码（可选）",
+  "settings.proxy.library": "代理列表",
+  "settings.proxy.importDescription":
+    "每行粘贴一个 HTTP、HTTPS 或 SOCKS5 地址，可包含账号和密码。导入后在模型设置中分配给供应商；重复地址自动合并。",
+  "settings.proxy.bulkInput": "批量粘贴代理",
+  "settings.proxy.invalidLines": "第 {lines} 行不是有效代理地址，请修改后导入。",
+  "settings.proxy.importLimit": "每次最多 1000 条代理、256 KiB 文本。",
+  "settings.proxy.import": "导入代理",
+  "settings.proxy.working": "正在处理…",
+  "settings.proxy.cancelTest": "取消检测",
+  "settings.proxy.testAll": "检测全部代理",
+  "settings.proxy.testDescription":
+    "检测代理认证、TLS 和对 example.com 的 HTTPS 连通性。检测成功不代表所有模型供应商均可访问。",
+  "settings.proxy.actionError": "代理操作失败，请重试。",
+  "settings.proxy.search": "搜索代理名称或地址",
+  "settings.proxy.previous": "上一页",
+  "settings.proxy.next": "下一页",
+  "settings.proxy.test": "检测",
+  "settings.proxy.delete": "删除",
+  "settings.proxy.reachable": "连接成功",
+  "settings.proxy.failed": "连接失败",
+  "settings.proxy.inUse": "已分配给供应商，请在模型设置中解除分配后再删除。",
+  "settings.proxy.name": "代理名称",
+  "settings.proxy.title": "代理",
+  "settings.proxy.connection": "供应商代理",
+  "settings.proxy.default": "使用默认代理",
+  "settings.proxy.direct": "不使用代理",
+  "settings.proxy.custom": "使用专用代理",
+  "settings.proxy.manageDefault": "管理默认代理",
+  "settings.proxy.invalid": "请输入有效的 HTTP、HTTPS 或 SOCKS5 代理地址。",
+  "settings.proxy.saveError": "代理保存失败，请重试。",
+  "settings.oauth.authorizationTab": "登录授权",
   "settings.httpProxy": "HTTP 代理",
   "settings.httpProxyDescription":
-    "模型、MCP、命令工具与应用渲染层的出口流量将经此代理，不读取系统环境变量。留空时这些流量直连，内置浏览器则跟随系统代理设置。修改后需重启应用生效。",
-  "settings.httpProxyPlaceholder": "留空则内置浏览器跟随系统代理，例如 http://127.0.0.1:7890",
+    "默认网络出口，支持 HTTP、HTTPS、SOCKS5 与账号密码认证。供应商可在模型设置内单独选择代理；内置浏览器与工具的默认策略在重启后生效。",
+  "settings.httpProxyPlaceholder": "例如 http://127.0.0.1:7890 或 socks5://127.0.0.1:1080",
   // 中文词条曾在批量文案调整中被误改为英文，导致中文设置页混入未翻译标签。
   // 文案原因：「代理例外」含义模糊，沿用 Windows 系统代理的标准表述「不使用代理的地址」。
   "settings.httpProxyNoProxy": "不使用代理的地址",
@@ -3537,6 +3629,7 @@ const zhCN: Record<string, string> = {
   "settings.oauthUsage.output": "输出 Token",
   "settings.oauthUsage.cacheRead": "缓存读取",
   "settings.oauthUsage.cacheWrite": "缓存写入",
+  "settings.oauthUsage.atLeast": "至少 {value}",
   "settings.oauthUsage.reasoning": "推理 Token",
   "settings.oauthUsage.ttft": "首 Token 等待",
   "settings.oauthUsage.duration": "请求耗时",

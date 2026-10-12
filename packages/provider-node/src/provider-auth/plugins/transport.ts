@@ -1,5 +1,5 @@
 import { Worker } from "node:worker_threads";
-import type { AuthDriverContext, AuthGrant } from "../driver.js";
+import type { AuthDriverContext, AuthGrant, AuthDriverNetworkOptions } from "../driver.js";
 import { PLUGIN_WORKER_SOURCE } from "./worker-source.js";
 
 interface PendingCall {
@@ -45,6 +45,7 @@ export class PluginWorkerTransport {
     fixtureOrigin?: string,
     fixtureH2Origin?: string,
     fixtureLocalHome?: string,
+    private readonly networkOptions?: AuthDriverNetworkOptions,
   ) {
     this.worker = new Worker(PLUGIN_WORKER_SOURCE, {
       eval: true,
@@ -78,7 +79,7 @@ export class PluginWorkerTransport {
     });
   }
 
-  call<T>(
+  async call<T>(
     operation: string,
     params: Record<string, unknown> = {},
     context?: AuthDriverContext,
@@ -89,6 +90,8 @@ export class PluginWorkerTransport {
     const signals = [context?.signal, signal].filter((item): item is AbortSignal => Boolean(item));
     const combined = signals.length ? AbortSignal.any(signals) : undefined;
     if (combined?.aborted) return Promise.reject(abortedError());
+    const network = await this.networkOptions?.resolveNetwork();
+    if (this.closed || combined?.aborted) throw abortedError();
     const id = ++this.sequence;
     this.worker.ref();
     return new Promise<T>((resolve, reject) => {
@@ -118,6 +121,7 @@ export class PluginWorkerTransport {
         operation,
         context: Boolean(context),
         ...params,
+        network,
       });
     });
   }

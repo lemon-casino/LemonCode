@@ -146,7 +146,7 @@ export function ProviderModelMetadataDialog({
       ) : null}
       <DialogContent
         // overflow-hidden 仍允许聚焦触发外层滚动；语言换行后曾滚走标题。仅正文滚动，外框只裁切。
-        className="max-h-[min(48rem,calc(100vh-4rem))] max-w-2xl grid-rows-[auto_minmax(0,1fr)_auto_auto] overflow-clip"
+        className="w-[min(64rem,calc(100vw-2rem))] max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto_auto] overflow-clip"
         data-no-model-drag="true"
         data-testid={contentTestId}
       >
