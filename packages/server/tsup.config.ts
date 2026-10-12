@@ -52,6 +52,7 @@ export const SERVER_HTTP_EXTERNAL_DEPENDENCIES = [
 ];
 
 export default defineConfig({
+  // Windows CMD 不把单引号视为参数边界；package dev 脚本用双引号保留完整 onSuccess 命令。
   onSuccess: async () => {
     await stageThirdPartyNotices(resolve(import.meta.dirname, "dist"));
     // 修复：HTTP/独立 server 与 remote CJS 都消费 runtimeRoot/tools/mise，不能只桌面随包。

@@ -11,6 +11,7 @@ import type {
 const listeners = new Set<(view: ProviderAccountView) => unknown>();
 const settingsListeners = new Set<(view: ProviderSettingsView) => unknown>();
 export const navigationScenario = new URLSearchParams(location.search).has("navigation");
+export const scrollScenario = new URLSearchParams(location.search).has("scroll");
 export const fixture = {
   accounts: [] as ProviderAccount[],
   opened: [] as string[],
@@ -36,16 +37,18 @@ let revision = 0;
 let attemptNumber = 0;
 let accountNumber = 0;
 if (navigationScenario) {
-  fixture.accounts = [1, 2].map((number) => ({
-    connectionId: `account-${number}`,
-    channelId: "fixture",
-    displayName: `Fixture Account ${number}`,
-    enabled: true,
-    status: "ready",
-    authorizationStatus: "renewed",
-    models: [{ id: "fixture-model", name: "Fixture Model", protocol: "openai-responses" }],
-  }));
-  accountNumber = 2;
+  fixture.accounts = Array.from({ length: scrollScenario ? 20 : 2 }, (_, index) => index + 1).map(
+    (number) => ({
+      connectionId: `account-${number}`,
+      channelId: "fixture",
+      displayName: `Fixture Account ${number}`,
+      enabled: true,
+      status: "ready",
+      authorizationStatus: "renewed",
+      models: [{ id: "fixture-model", name: "Fixture Model", protocol: "openai-responses" }],
+    }),
+  );
+  accountNumber = fixture.accounts.length;
 }
 const attempts = new Map<string, ProviderAuthorization>();
 const view = (): ProviderAccountView => ({
@@ -281,12 +284,44 @@ function effectiveModelConfig(): ModelConfigObject {
 }
 function settingsView(): ProviderSettingsView {
   const enabled = fixture.accounts.some((account) => account.enabled);
+  const scrollProviders: ProviderSettingsView["providers"] = scrollScenario
+    ? Array.from({ length: 24 }, (_, index) => ({
+        providerId: `scroll-api-${index + 1}`,
+        providerName: `Fixture API ${index + 1}`,
+        enabled: true,
+        executable: true,
+        issues: [],
+        personalConfig: {
+          group: "standard-personal",
+          access: { type: "api-key", apiKey: "fixture-key" },
+          api: { type: "openai-chat-completions", baseUrl: "https://example.test/v1" },
+        },
+        effectiveConfig: {
+          group: "standard-personal",
+          access: { type: "api-key", apiKey: "fixture-key" },
+          api: { type: "openai-chat-completions", baseUrl: "https://example.test/v1" },
+        },
+        models: Array.from({ length: 24 }, (_, modelIndex) => ({
+          kind: "candidate",
+          modelId: `scroll-model-${modelIndex + 1}`,
+          builtin: true,
+          effectiveBuiltinConfig: modelDefaults,
+          personalExactConfig: {},
+          effectiveConfig: modelDefaults,
+          enabled: true,
+          executable: true,
+          selectable: true,
+          issues: [],
+        })),
+      }))
+    : [];
   return {
     revision,
     providerTemplates: templates,
     providerOrder: [],
     providers: fixture.accounts.length
       ? [
+          ...scrollProviders,
           {
             providerId: "oauth_fixture_openai-responses",
             providerName: "Fixture OAuth pool",
@@ -315,7 +350,7 @@ function settingsView(): ProviderSettingsView {
             // Account Provider Source 没有 personalConfig；真实 projection/navigation 必须保留它。
           },
         ]
-      : [],
+      : scrollProviders,
   };
 }
 export const services = {

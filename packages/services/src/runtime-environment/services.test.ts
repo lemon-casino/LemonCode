@@ -83,6 +83,26 @@ async function fixture(
 const latest = (context: ServiceStageContext) =>
   context.store.readServiceReceipt(RECORD.environmentId, DEFINITION.serviceId);
 
+test("busy desktop preparation reports the checkout writer boundary without starting a process", async () => {
+  await fixture(async (context, processes) => {
+    const result = await startManagedService(
+      {
+        ...context,
+        beforeStart: async () => {
+          throw Object.assign(new Error("private lock path"), { code: "LCODE_CHECKOUT_BUSY" });
+        },
+      },
+      RECORD,
+      DEFINITION,
+    );
+    assert.equal(result.status, "failed");
+    assert.match(result.reason ?? "", /resource-busy:.*checkout.*current execution/);
+    assert.doesNotMatch(result.reason ?? "", /private lock path/);
+    assert.equal(processes.calls.starts, 0);
+    assert.ok(result.receipt?.stoppedAt);
+  });
+});
+
 test("running requires verified URLs; stop proof clears URLs and next start increments generation", async () => {
   await fixture(async (context, process) => {
     const first = await startManagedService(context, RECORD, DEFINITION);

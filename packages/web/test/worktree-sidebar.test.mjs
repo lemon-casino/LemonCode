@@ -160,6 +160,19 @@ test(
       await page.getByRole("menuitem", { name: "工作树管理", exact: true }).click();
       const settings = page.getByTestId("settings-worktrees-section");
       const general = page.getByTestId("worktree-general-settings");
+      const details = settings.getByTestId("worktree-settings-details");
+      await details.getByRole("table", { name: "工作树详情", exact: true }).waitFor();
+      await page.evaluate((dark) => {
+        document.documentElement.classList.toggle("dark", dark);
+        document.documentElement.classList.add(dark ? "theme-zai-dark" : "theme-sepia-light");
+      }, width === 390);
+      assert.equal(await general.count(), 0, "project settings belong to the list view");
+      assert.equal(await settings.getByRole("combobox", { name: "项目", exact: true }).count(), 0);
+      await settings
+        .getByTestId("coding-project-context")
+        .getByText("普通原项目", { exact: true })
+        .waitFor();
+      await details.getByRole("button", { name: "返回列表", exact: true }).click();
       await general.getByRole("switch", { name: "自动删除旧工作树" }).click();
       await page.waitForFunction(
         () => !globalThis.__worktreeSidebar.facts().managementSettings.autoDeleteEnabled,
@@ -203,7 +216,14 @@ test(
         await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
         "settings do not overflow horizontally",
       );
-      const details = settings.getByTestId("worktree-settings-details");
+      await settings.getByTestId("worktree-settings-list").getByRole("button").first().click();
+      await details.getByRole("rowheader", { name: "分支", exact: true }).waitFor();
+      assert.equal(await general.count(), 0);
+      if (process.env.LCODE_TEST_ARTIFACT_DIR)
+        await page.screenshot({
+          path: join(process.env.LCODE_TEST_ARTIFACT_DIR, `worktree-details-${width}.png`),
+          fullPage: true,
+        });
       await details.getByRole("textbox", { name: "工作树名称" }).fill("功能开发");
       await details.getByRole("button", { name: "保存", exact: true }).click();
       await page.waitForFunction(
@@ -216,6 +236,9 @@ test(
       await details.getByRole("button", { name: "环境", exact: true }).click();
       const environment = page.getByTestId("settings-environments-section");
       await environment.getByTestId("runtime-environment-unmanaged").waitFor();
+      await environment.getByRole("table", { name: "运行环境", exact: true }).waitFor();
+      assert.equal(await environment.getByTestId("environment-policy-settings").count(), 0);
+      await environment.getByRole("button", { name: "返回列表", exact: true }).click();
       await environment.getByRole("combobox", { name: "新工作树的运行环境", exact: true }).click();
       await page.getByRole("option", { name: "托管环境", exact: true }).click();
       await page.waitForFunction(
@@ -225,6 +248,7 @@ test(
           ]?.environmentPolicy === "managed",
       );
       // 默认策略仅作用于后续新树；已有树仍展示 owner 返回的本机环境。
+      await environment.getByTestId("worktree-settings-list").getByRole("button").first().click();
       await environment.getByTestId("runtime-environment-unmanaged").waitFor();
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       if (process.env.LCODE_TEST_ARTIFACT_DIR)

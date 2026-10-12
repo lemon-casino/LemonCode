@@ -8,6 +8,7 @@ import {
   services,
   templates,
   navigationScenario,
+  scrollScenario,
 } from "./provider-accounts-service.js";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
@@ -16,6 +17,7 @@ import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { ProviderTemplatePicker } from "@/settings/model-provider-section/ProviderTemplatePicker.js";
 import { ModelProviderSectionDetail } from "@/settings/model-provider-section/Detail.js";
 import { ModelProviderSectionLayout } from "@/settings/model-provider-section/SectionLayout.js";
+import { useProviderDetailFeedback } from "@/settings/model-provider-section/ProviderDetailFeedback.js";
 import { useModelProviderNavigation } from "@/settings/model-provider-section/useModelProviderNavigation.js";
 import { useModelProviders } from "@/hooks/useModelProviders.js";
 import { useProviderAccountsDialog } from "@/hooks/useProviderAccountsDialog.js";
@@ -55,6 +57,7 @@ function FixtureNavigation() {
       }}
     >
       <section className="min-w-0">
+        {scrollScenario ? <FixtureFeedback /> : null}
         <output data-testid="fixture-has-personal-config">
           {String(providers.modelProviders[0]?.hasPersonalConfig)}
         </output>
@@ -81,6 +84,24 @@ function FixtureNavigation() {
         />
       </section>
     </ModelProviderSectionLayout>
+  );
+}
+function FixtureFeedback() {
+  const { showFeedback } = useProviderDetailFeedback();
+  return (
+    <button
+      type="button"
+      onClick={() =>
+        showFeedback({
+          key: "scroll-fixture",
+          message: "Fixture feedback",
+          state: "success",
+          durationMs: 0,
+        })
+      }
+    >
+      Show fixture feedback
+    </button>
   );
 }
 function FixturePicker() {
@@ -137,10 +158,15 @@ function FixtureApp() {
           }
         >
           <TooltipProvider>
-            <div className="h-full overflow-y-auto bg-background text-foreground">
+            <div
+              className="h-full overflow-y-auto bg-background text-foreground"
+              data-testid="fixture-settings-scroll"
+            >
               <main className="mx-auto max-w-4xl p-4">
                 {navigationScenario ? <FixtureNavigation /> : <FixturePicker />}
               </main>
+              {/* 留出真实外层可滚动空间，验证子栏滚到边界后不会继续带动设置页。 */}
+              {scrollScenario ? <div className="h-screen" aria-hidden="true" /> : null}
             </div>
           </TooltipProvider>
         </LCodeIntlProvider>

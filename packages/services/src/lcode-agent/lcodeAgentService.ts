@@ -3586,10 +3586,37 @@ export function createLCodeAgentService(
           targets.push(
             ...[...waitingWorkspaceStartups.values()].map((waiting) => waiting.workspace),
           );
+        const distinctTargets = [
+          ...new Map(targets.map((scope) => [resolveWorkspaceKey(scope), scope])).values(),
+        ];
         const selected = await Promise.all(
-          targets.map(async (scope) =>
-            (await isOwnedCheckoutScope(binding, scope)) ? scope : undefined,
-          ),
+          distinctTargets.map(async (scope) => {
+            if (await isOwnedCheckoutScope(binding, scope)) return scope;
+            if (
+              originalWorkspacePath &&
+              sameRuntimeWorkspacePath(scope.workspacePath, originalWorkspacePath) &&
+              (scope.workspaceIdentity?.trim() || "") === (originalWorkspaceIdentity?.trim() || "")
+            ) {
+              // Worktree app 复用原工作区 Agent；按 checkout 停进程会漏掉 owner，泛停原进程又会关闭兄弟会话。
+              const shared = manager.getExistingClient(scope);
+              if (shared)
+                await shared.request(
+                  lcodeProtocolMethods.sessionWorktreeCleanup,
+                  {
+                    executionBindingId: id,
+                    originWorkspacePath: originalWorkspacePath,
+                    ...(originalWorkspaceIdentity
+                      ? { originWorkspaceIdentity: originalWorkspaceIdentity }
+                      : {}),
+                    workspacePath: binding.workspacePath,
+                    ...(workspaceIdentity ? { workspaceIdentity } : {}),
+                    closeSessions: true,
+                  },
+                  lcodeSessionWorktreeCleanupResultSchema,
+                );
+            }
+            return undefined;
+          }),
         );
         const scopes = new Map(
           selected

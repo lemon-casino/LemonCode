@@ -232,7 +232,7 @@ export function createRuntimeEnvironmentService(
     },
     async resolveContext(params) {
       const record = await readScoped(params);
-      if (record?.status === "needsUpdate")
+      if (record?.status === "needsUpdate" && !params.consumerReference)
         throw new Error(
           "stale-reference: environment requires an explicit update before new execution",
         );

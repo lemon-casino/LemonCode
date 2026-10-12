@@ -86,7 +86,7 @@ const retirementListSchema = z
           .extend({
             bindingId: z.string().min(1).max(4096),
             requestId: z.string().min(1).max(512),
-            reason: z.literal("confirmed-worktree-discard"),
+            reason: z.enum(["confirmed-worktree-discard", "confirmed-environment-upgrade"]),
             retiredAt: z.iso.datetime(),
             orphanedOwner: z
               .object({

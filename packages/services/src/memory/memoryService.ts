@@ -1,11 +1,6 @@
 import { lstat, readdir } from "node:fs/promises";
-import { basename, dirname, isAbsolute, join, resolve } from "node:path";
-import { localProjectPathKey, type AppSettings } from "@lcode/shared";
-import {
-  prepareProjectMemoryStorage,
-  resolveProjectMemoryRoot,
-  withFileLock,
-} from "@lcode/shared/node";
+import { basename, dirname, join } from "node:path";
+import { resolveProjectMemoryRoot, withFileLock } from "@lcode/shared/node";
 import type { ISettingService } from "../setting/setting.js";
 import type { IMemoryService, ProjectMemoryWorkspaceSummary } from "./memory.js";
 import { readProjectMemoryFileFromStableHandle } from "./projectMemoryStableRead.js";
@@ -15,10 +10,16 @@ import {
   requireMemoryDirectoryChain,
   requireMemoryFile,
 } from "./projectMemoryCatalog.js";
-import { getConversationWorkspaceDir, getLCodeDataRootDir } from "../paths.js";
+import { getLCodeDataRootDir } from "../paths.js";
+import {
+  listLocalMemoryWorkspaces,
+  prepareLocalMemoryStorage,
+  type MemoryWorktreeService,
+} from "./localMemoryWorkspaces.js";
 
 interface MemoryServiceOptions {
   settingService?: Pick<ISettingService, "get" | "update">;
+  worktreeService?: MemoryWorktreeService;
 }
 interface MemoryScope {
   id: string;
@@ -31,59 +32,28 @@ function cliStorageRoot(): string {
   return join(getLCodeDataRootDir(), "cli");
 }
 
-function localProjectPaths(settings?: AppSettings): string[] {
-  const explicit = [
-    getConversationWorkspaceDir(),
-    ...(settings?.localProjects ?? []).map((project) => project.primaryFolderPath),
-    ...(settings?.lastWorkspaceSession ?? []).flatMap((entry) =>
-      entry.kind === "local" ? [entry.workspacePath] : [],
-    ),
-  ];
-  const remote = new Set(
-    (settings?.lastWorkspaceSession ?? []).flatMap((entry) =>
-      entry.kind === "remote" ? [localProjectPathKey(entry.workspacePath)] : [],
-    ),
-  );
-  const explicitKeys = new Set(explicit.map(localProjectPathKey));
-  const paths = [
-    ...explicit,
-    ...(settings?.recentProjects ?? []).filter(
-      (path) =>
-        !remote.has(localProjectPathKey(path)) || explicitKeys.has(localProjectPathKey(path)),
-    ),
-  ];
-  const unique = new Map<string, string>();
-  for (const path of paths) {
-    // 最近项目可以包含远端标识；本地服务只接受本机绝对路径，不解析远端路径做 IO。
-    if (
-      !isAbsolute(path) ||
-      /^[\\/]{2}/u.test(path) ||
-      (process.platform === "win32" && !/^[A-Za-z]:[\\/]/u.test(path))
-    )
-      continue;
-    unique.set(localProjectPathKey(resolve(path)), resolve(path));
-  }
-  return [...unique.values()];
-}
-
-async function existingLocalProjects(settings?: AppSettings): Promise<string[]> {
-  const paths: string[] = [];
-  for (const path of localProjectPaths(settings)) {
-    try {
-      const stat = await lstat(path);
-      if (stat.isSymbolicLink())
-        throw new Error("Project Memory workspace directory cannot be a link");
-      if (stat.isDirectory()) paths.push(path);
-    } catch (error) {
-      if (!isMemoryNotFound(error)) throw error;
-    }
-  }
-  return paths;
-}
-
 export function createMemoryService(options: MemoryServiceOptions = {}): IMemoryService {
   async function scopes(): Promise<MemoryScope[]> {
     const result: MemoryScope[] = [];
+    const workspaces = options.settingService
+      ? await listLocalMemoryWorkspaces(await options.settingService.get(), options.worktreeService)
+      : [];
+    const profileLabels = new Map<string, string>();
+    const workspaceLabels = new Map<string, string>();
+    const workspacePaths = new Map<string, string>();
+    for (const workspace of workspaces) {
+      const input = {
+        cliStorageRoot: cliStorageRoot(),
+        workspacePath: workspace.workspacePath,
+        workspaceIdentity: workspace.workspaceIdentity,
+      };
+      profileLabels.set(resolveProjectMemoryRoot(input), workspace.label);
+      workspaceLabels.set(
+        resolveProjectMemoryRoot({ ...input, storageLocation: "workspace" }),
+        workspace.label,
+      );
+      workspacePaths.set(workspace.workspacePath, workspace.label);
+    }
     const projects = join(cliStorageRoot(), "memories", "projects");
     try {
       await requireMemoryDirectoryChain(projects);
@@ -99,7 +69,7 @@ export function createMemoryService(options: MemoryServiceOptions = {}): IMemory
         }
         result.push({
           id: entry.name,
-          label: entry.name.replace(/-[a-f0-9]{16}$/iu, ""),
+          label: profileLabels.get(memoryRoot) ?? entry.name.replace(/-[a-f0-9]{16}$/iu, ""),
           memoryRoot,
           storageLocation: "profile",
         });
@@ -108,14 +78,14 @@ export function createMemoryService(options: MemoryServiceOptions = {}): IMemory
       if (!isMemoryNotFound(error)) throw error;
     }
     if (options.settingService) {
-      for (const workspacePath of await existingLocalProjects(await options.settingService.get())) {
+      for (const [workspacePath, label] of workspacePaths) {
         const profile = resolveProjectMemoryRoot({
           cliStorageRoot: cliStorageRoot(),
           workspacePath,
         });
         result.push({
           id: `workspace:${basename(dirname(profile))}`,
-          label: basename(workspacePath),
+          label,
           memoryRoot: resolveProjectMemoryRoot({
             cliStorageRoot: cliStorageRoot(),
             workspacePath,
@@ -139,7 +109,9 @@ export function createMemoryService(options: MemoryServiceOptions = {}): IMemory
               continue;
             result.push({
               id: `workspace:${basename(dirname(profile))}:${entry.name}`,
-              label: `${basename(workspacePath)} (${entry.name.slice(0, 8)})`,
+              label:
+                workspaceLabels.get(join(identitiesRoot, entry.name, "memory")) ??
+                `${label} (${entry.name.slice(0, 8)})`,
               memoryRoot: join(identitiesRoot, entry.name, "memory"),
               storageLocation: "workspace",
             });
@@ -195,14 +167,22 @@ export function createMemoryService(options: MemoryServiceOptions = {}): IMemory
           throw new Error("Project Memory storage revision is exhausted or invalid");
         let copiedCount = 0;
         let conflictCount = 0;
-        for (const workspacePath of await existingLocalProjects(settings)) {
-          const result = await prepareProjectMemoryStorage({
-            workspacePath,
-            cliStorageRoot: cliStorageRoot(),
-            storageLocation: location,
-            storageRevision,
-            previousStorageLocation,
-          });
+        for (const workspace of await listLocalMemoryWorkspaces(
+          settings,
+          options.worktreeService,
+        )) {
+          const result = await prepareLocalMemoryStorage(
+            workspace,
+            {
+              workspacePath: workspace.workspacePath,
+              workspaceIdentity: workspace.workspaceIdentity,
+              cliStorageRoot: cliStorageRoot(),
+              storageLocation: location,
+              storageRevision,
+              previousStorageLocation,
+            },
+            options.worktreeService,
+          );
           copiedCount += result.copiedCount;
           conflictCount += result.conflictCount;
         }

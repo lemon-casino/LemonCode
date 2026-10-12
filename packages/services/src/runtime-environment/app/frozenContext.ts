@@ -1,7 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { z } from "zod";
-import { runtimeEnvironmentScopeSchema, type RuntimeEnvironmentRecord } from "@lcode/shared";
+import {
+  runtimeEnvironmentScopeSchema,
+  runtimeConsumerReferenceSchema,
+  type RuntimeEnvironmentRecord,
+  type RuntimeConsumerReference,
+} from "@lcode/shared";
 import type {
   ResolvedProjectExecutionContext,
   RuntimeEnvironmentResolveRequest,
@@ -18,6 +23,7 @@ const querySchema = runtimeEnvironmentScopeSchema
     expectedManifestDigest: text.optional(),
     bindingId: text.optional(),
     cwd: text.optional(),
+    consumerReference: runtimeConsumerReferenceSchema.optional(),
   })
   .strict();
 const cwdQuerySchema = z
@@ -74,7 +80,7 @@ export async function queryFrozenContext(
     const cwd = params.cwd ?? params.workspacePath;
     if (!isAbsolute(cwd) || !contains(record.scope.workspacePath, cwd))
       throw new Error("scope-mismatch: execution cwd leaves the bound environment");
-    return buildFrozenContext(store, record, record.scope, cwd);
+    return buildFrozenContext(store, record, record.scope, cwd, params.consumerReference);
   });
 }
 
@@ -103,8 +109,33 @@ export async function buildFrozenContext(
   record: RuntimeEnvironmentRecord,
   executionScope: { workspacePath: string; workspaceIdentity?: string },
   cwd = executionScope.workspacePath,
+  consumerReference?: RuntimeConsumerReference,
 ): Promise<ResolvedProjectExecutionContext> {
-  if (!isConsumableStatus(record.status) || record.status === "needsUpdate")
+  // 原 app 的精确活引用由 Host 传入；客户端不能自行声称环境已授权或跳过 fence。
+  if (consumerReference) {
+    const stored = (await store.listConsumers(record.environmentId)).find(
+      (ref) => ref.kind === consumerReference.kind && ref.id === consumerReference.id,
+    );
+    if (
+      !stored ||
+      stored.kind !== "process" ||
+      stored.state !== "active" ||
+      consumerReference.state !== "active" ||
+      stored.environmentId !== consumerReference.environmentId ||
+      stored.revision !== record.currentRevision ||
+      stored.revision !== consumerReference.revision ||
+      stored.ownerId !== consumerReference.ownerId ||
+      stored.ownerGeneration !== consumerReference.ownerGeneration ||
+      stored.lease !== consumerReference.lease
+    )
+      throw new Error("stale-reference: runtime consumer authorization differs or was released");
+  }
+  if (
+    !isConsumableStatus(record.status) ||
+    record.fenceIntent ||
+    record.activeOperationId ||
+    (record.status === "needsUpdate" && !consumerReference)
+  )
     throw new Error(
       `Runtime environment ${record.environmentId} is ${record.status}, not consumable`,
     );

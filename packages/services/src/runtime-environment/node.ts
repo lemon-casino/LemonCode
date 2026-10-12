@@ -123,7 +123,8 @@ export function createRuntimeEnvironmentHost(
           ],
           cwd: record.scope.workspacePath,
           toolPaths: context.toolPaths,
-          env: context.envOverlay.set,
+          // 与 runtime 阶段使用同一冻结入口；显式 Node 启动准备脚本不会自动设置 npm_execpath。
+          env: { ...context.envOverlay.set, npm_execpath: context.toolPaths.pnpm! },
           signal,
         });
         if (result.exitCode !== 0)

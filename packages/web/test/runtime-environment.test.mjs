@@ -126,6 +126,15 @@ test(
           async () => {
             await page.setViewportSize({ width, height: 900 });
             await load(english ? "?english" : "");
+            await page
+              .getByRole("table", {
+                name: english ? "Runtime environment" : "运行环境",
+                exact: true,
+              })
+              .waitFor();
+            const technical = page.getByTestId("runtime-environment-technical-details");
+            assert.equal(await technical.getAttribute("open"), null);
+            await technical.locator("summary").click();
             assert.match(
               await page.getByTestId("runtime-environment-tools").innerText(),
               /node 24\.14\.0/,

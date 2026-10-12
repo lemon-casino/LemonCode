@@ -283,8 +283,19 @@ export interface BackgroundExecutionSnapshot {
   error?: ExecutionFailure;
 }
 
+export type BashBackgroundLifecycleMode = "explicit" | "auto_on_timeout";
+export type BashBackgroundLifecycleResult =
+  | { kind: "foreground"; result: ExecutionResult }
+  | { kind: "backgrounded"; task: BackgroundExecutionStartResult };
+
 export interface ExecutionPort {
   run(request: ExecutionRequest, options?: ExecutionRunOptions): Promise<ExecutionResult>;
+  /** 后台 Bash 与前台执行共用环境解析及关闭屏障，包装端口必须保留此能力。 */
+  runBashWithBackgroundLifecycle?(
+    request: ExecutionRequest,
+    lifecycle: { mode: BashBackgroundLifecycleMode },
+    options?: ExecutionRunOptions,
+  ): Promise<BashBackgroundLifecycleResult>;
   start?(
     request: ExecutionRequest,
     options?: ExecutionRunOptions,

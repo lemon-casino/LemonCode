@@ -218,6 +218,9 @@ export function safeFailure(error: unknown): string {
     return "port-bind-failed: service could not bind its declared ports";
   if (code === "cancelled") return "cancelled: service start was superseded or stopped";
   if (code === "resource-busy") return "resource-busy: service port lease is busy";
+  // 桌面准备必须等原 checkout writer 结算；分类原协调器错误，不能伪造成不明启动失败或停止活任务。
+  if (code === "LCODE_CHECKOUT_BUSY")
+    return "resource-busy: checkout writer is in use; retry after the current execution finishes";
   if (code === "unhealthy") return "service startup did not verify every listening address";
   if (code === "stale-reference") return "stale-reference: frozen service context changed";
   return "service startup failed; no unverified process output is exposed";

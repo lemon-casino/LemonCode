@@ -51,17 +51,19 @@
 
 当前已公开并部分接线：`getCapabilities`、`prepare`、`get`、`list`、`resolveContext`、`release`、`reconcile` 以及消费者 retain/release 反向方法。以下是 M4/M5 实现必须满足的最小扩展，不表示这些服务动作已经接入生产：
 
-| 动作                              | 必需输入                                                                | 成功/失败语义                                                                                                                               |
-| --------------------------------- | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| `prepare` / `upgrade` / `restore` | requestId、scope、binding、purpose、expected revision/digest、operation | 同 requestId 复用原 operation；升级/恢复产生新不可变 revision/environmentRef；不能复活旧 PID、URL、running。                                |
-| `resolveContext`                  | attached workspace、binding、正 revision 引用、consumer、cwd、identity  | 只返回冻结 cwd/tool paths/env overlay 摘要；非 ready、fence、scope/cwd/digest 不符均拒绝。内部 lease 不出 wire。                            |
-| `startService`                    | requestId、environmentRef、serviceId、expected revision/generation      | 同环境同服务并发返回同一收据；代际不符返回 stale/needsRestart；真实 bind 健康后才 running。                                                 |
-| `stopService`                     | requestId、environmentRef、serviceId、expected revision/generation      | 只允许对应进程 owner 停止；无退出证明保持 stopping/failed/blocked，不能伪造 stopped。                                                       |
-| `resourceSummary`                 | scope、可选 environmentId、数量/时间预算                                | 返回 complete/partial/unavailable；扫描未完成不作删除依据。                                                                                 |
-| `garbageCollect`                  | scope、requestId、预算、dryRun                                          | 只处理共享受管理工具和下载；活消费者、旧 revision 活服务、进行中下载和锁保护项必须保留；部分扫描返回 partial/blocked。                      |
-| `release`                         | requestId、environmentId、expected revision/digest、生命周期 reason     | 持锁重读并 fence；先取得绑定进程真实停止证明。存在活消费者、未确认服务或清理失败返回 `releaseBlocked` 与有界诊断，继续同一 operation 重试。 |
+| 动作                              | 必需输入                                                                | 成功/失败语义                                                                                                                                                        |
+| --------------------------------- | ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `prepare` / `upgrade` / `restore` | requestId、scope、binding、purpose、expected revision/digest、operation | 同 requestId 复用原 operation；升级/恢复产生新不可变 revision/environmentRef；不能复活旧 PID、URL、running。                                                         |
+| `resolveContext`                  | attached workspace、binding、正 revision 引用、consumer、cwd、identity  | 新 consumer 只在 ready 执行；已交付授权的精确 process consumer 可在无 fence 的 needsUpdate 下继续原 revision。scope/cwd/digest/lease 不符均拒绝；内部引用不出 wire。 |
+| `startService`                    | requestId、environmentRef、serviceId、expected revision/generation      | 同环境同服务并发返回同一收据；代际不符返回 stale/needsRestart；真实 bind 健康后才 running。                                                                          |
+| `stopService`                     | requestId、environmentRef、serviceId、expected revision/generation      | 只允许对应进程 owner 停止；无退出证明保持 stopping/failed/blocked，不能伪造 stopped。                                                                                |
+| `resourceSummary`                 | scope、可选 environmentId、数量/时间预算                                | 返回 complete/partial/unavailable；扫描未完成不作删除依据。                                                                                                          |
+| `garbageCollect`                  | scope、requestId、预算、dryRun                                          | 只处理共享受管理工具和下载；活消费者、旧 revision 活服务、进行中下载和锁保护项必须保留；部分扫描返回 partial/blocked。                                               |
+| `release`                         | requestId、environmentId、expected revision/digest、生命周期 reason     | 持锁重读并 fence；先取得绑定进程真实停止证明。存在活消费者、未确认服务或清理失败返回 `releaseBlocked` 与有界诊断，继续同一 operation 重试。                          |
 
 环境状态与服务状态独立。`ready` 不代表服务 running；服务 stopped 不代表环境目录已物理删除；`released` 不代表聊天历史已永久删除，除非 Worktree 删除编排已经完成其明确的结算回调。
+
+桌面服务 prepare/runtime 继续复用原开发启动器，并以标准 npm_execpath 传递冻结 pnpm 的真实入口。native exe 直接执行，JS 入口使用冻结 Node，不强制选择系统 pnpm.cmd；没有托管环境的本机开发沿系统工具及 PATH。Windows package script 保留完整 onSuccess 参数；mise 原许可通过 Git 字节保护解决 CRLF checkout，不降低摘要校验。
 
 ## 事件顺序与 fencing
 
@@ -89,9 +91,13 @@
 
 不得按 node.exe、Shell、端口或孤立 PID 泛杀；Windows 文件占用、未知进程、目录重定向和会话清理失败都保留可重试状态。
 
-Worktree 生命周期的执行停止统一通过 Host 注入的 `stopWorktreeExecution(binding)`，覆盖 canonical checkout 子目录及已退休的受管实例，保留身份隔离；不在环境 release port 再维护一条仅按根 workspace key 释放的路径。进程树退出结算仍由原执行 owner 释放精确 lease；历史未知 owner 不能因当前进程池为空、PID 不存在或重启而被清除。
+Worktree 生命周期的执行停止统一通过 Host 注入的 `stopWorktreeExecution(binding)`，覆盖 canonical checkout 子目录及已退休的受管实例，保留身份隔离。原工作区共享 Agent 内的目标 binding 通过已有 `session/worktreeCleanup(closeSessions=true)` 关闭精确 resident app，不删除持久 session 或停止兄弟 binding。实际 app/进程 owner 关闭后释放精确 lease；历史未知 owner 不能因当前进程池为空、PID 不存在或重启而被清除。
+
+Host-only `resolveContext` 可携带已交付上下文的 `consumerReference`，环境锁内复验完整活引用，允许无生命周期 fence 的 needsUpdate 下继续原 revision。它只服务原 app 及复用执行端口的子代理；新的 consumer 与首次解析失败不取得此权限，任何 fence/释放/错误 scope/revision/digest/lease 均拒绝。公开 RPC 不接受此字段，也不泄漏内部引用。依赖变化仍显示 needsUpdate，显式更新仍走原 Worktree operation。
 
 Host-only process acquire 可附带实际 client 的 `RuntimeConsumerProcessOwner`；owner 收据先于 consumer 持久化，使用实际 runtimeInstanceId 关联 ownerId。`confirmProcessExit` 只由真实进程树退出后的 bridge 调用，保存精确 lease 退出收据后再走原 release。删除/release 在同一环境锁下恢复有退出收据的精确引用结算，不认领仍活跃、缺失或旧版未知 owner。收据严格校验、私有保存，不修改公开 consumer schema，不泄漏 owner/lease/PID 到 UI。确认退出与引用写入之间的失败可跨 Host 重启恢复。
+
+明确环境更新的重启恢复经 Host-only `retireOrphanedRuntimeConsumersForUpgrade`：原持久 journal、旧环境精确引用、目标 checkout 独占 writer、属于本 binding 活 session 的完整现代 owner receipt、两次 absent 观察缺一不可。先写 confirmed-environment-upgrade 审计再退役 process 引用，不伪造树退出证明，不删除正文/代码。Worktree 再沿原准备/session CAS 结算 ready。live/unknown/缺收据、外来 owner/identity/lease、停止或 writer 失败与其他生命周期仍保护；公开 RPC 无退役或强制 ready 能力。
 
 用户确认 Worktree discard 后，可由唯一删除 owner 自动退役严格旧桥接格式、属于已核验并永久清理的 sessionIds 且完全缺少 owner 收据的 process 引用。stop 只容许这些旧引用暂留；持有 exclusive checkout writer、复核原 journal、结算 session 引用后才调用 Host-only `retireLegacyProcessesForDeletion`。环境锁内核对 scope/binding/current revision/discard fence，先保存 `confirmed-worktree-discard` audit 再写精确引用墓碑；不生成退出证明，不放宽新 owner/服务/归档/升级/普通 release/GC 的保护。
 
@@ -129,7 +135,7 @@ then removes each tree directly; scan/GC budgets do not govern this operation. I
 are removed as links. Redirected roots remain protected, private data/shared stores remain
 outside rebuildable targets, and partial failure preserves retryable lifecycle state.
 
-Host-only 的 `RuntimeProcessOwnerObserver` 由执行 Host 注入；完整 owner 收据的根 Agent 不存在也不生成退出证明。仅原确认 discard 在独占 writer 和精确历史清理后可复用 retirement authority，私有审计记录原 owner/观察时间。live/unknown owner、归档/升级/普通 release 继续阻塞；缺失观察能力时不恢复现代遗留引用。
+Host-only 的 `RuntimeProcessOwnerObserver` 由执行 Host 注入；完整 owner 收据的根 Agent 不存在也不生成退出证明。原确认 discard 在独占 writer/精确历史清理后，以及原明确环境更新在独占 writer/持久 journal 复验后，可复用 retirement authority；私有审计记录各自授权原因及原 owner/观察时间。live/unknown owner、归档/普通 release 继续阻塞；缺失观察能力时不恢复现代遗留引用。
 
 - 当前源码已有消费者 lease/release fence、Git candidate HEAD/target 校验、目录删除/代码 snapshot 和 Git 诊断通路；这些不能替代 revision 升级、候选环境精确收据、物理环境回收、新环境恢复、GC 和环境失败草稿。
 - 当前 `release` 已能在环境锁内检查活消费者/未确认服务并返回 releaseBlocked；逻辑引用结算不等于停止服务、删除目录、清理私有数据或工具缓存。

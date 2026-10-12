@@ -73,6 +73,8 @@ sequenceDiagram
 
 ### 发布目标仓库（2026-10-11）
 
+Windows 工作树开发补充（2026-10-12）：`third-party/mise/LICENSE.txt` 与其他上游许可一样使用 Git `-text -whitespace`，保证 autocrlf checkout 后仍能通过已批准 SHA-256。许可验证仍按原字节执行，真实内容变动继续拒绝。native pnpm 通过真实可执行文件启动，JS pnpm 通过启动器固定 Node；桌面两阶段不绕过托管上下文选择全局 `.cmd`。实际 Git checkout 和 Windows 参数回归覆盖这些边界。
+
 - Release 默认发布在构建所在的仓库：未配置发布目标时沿用原行为（`github.token` 与
   `--verify-tag`），不依赖任何额外配置。
 - 同时配置仓库变量 `vars.RELEASE_TARGET_REPO`（格式 `owner/repo`）与仓库密钥

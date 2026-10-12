@@ -97,7 +97,7 @@ export function ProviderDetailFeedbackBoundary({ children }: { children: ReactNo
   return (
     <ProviderDetailFeedbackContext.Provider value={contextValue}>
       {children}
-      {/* 整页滚动后，内容底部可能在屏外；覆盖层不占高度，sticky 以 main 视口定位反馈。 */}
+      {/* 覆盖层不占内容高度；详情分栏以可见外框定位，独立卡片仍由 sticky 保持反馈可见。 */}
       <div className="pointer-events-none absolute inset-3 flex flex-col justify-end sm:inset-4">
         <div
           className="sticky bottom-3 z-20 flex flex-col gap-2 sm:bottom-4"

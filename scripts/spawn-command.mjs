@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { normalize } from "node:path";
+import { normalize, win32 } from "node:path";
 
 const windowsShellCommandPattern = /\.(cmd|bat)$/i;
 const windowsShellCommandNames = new Set(["npm", "pnpm"]);
@@ -39,11 +39,17 @@ function prepareCommand(command, args, options) {
     return { command, args, options: { ...options, shell: false } };
   }
 
+  const env = options.env ?? process.env;
+  if (windowsShellCommandNames.has(command)) {
+    const native = nativeCommandCandidates(command, env).find(existsSync);
+    // 修复：托管 pnpm.exe 只有一轮 argv 解析；batch 的双 CMD 转义会把参数变成 ^--filter^。
+    if (native) return { command: native, args, options: { ...options, shell: false } };
+  }
+
   if (args.some((value) => /[\r\n]/.test(value))) {
     throw new Error("Windows batch arguments cannot contain newlines; use a script file or stdin.");
   }
 
-  const env = options.env ?? process.env;
   const comSpecKey = Object.keys(env).find((key) => key.toLowerCase() === "comspec");
   const commandLine = [
     normalize(command).replace(cmdMetaCharacters, "^$1"),
@@ -54,6 +60,13 @@ function prepareCommand(command, args, options) {
     args: ["/d", "/v:off", "/s", "/c", `"${commandLine}"`],
     options: { ...options, shell: false, windowsVerbatimArguments: true },
   };
+}
+
+function nativeCommandCandidates(command, env) {
+  return (Object.entries(env).find(([key]) => key.toUpperCase() === "PATH")?.[1] ?? "")
+    .split(";")
+    .filter(Boolean)
+    .map((directory) => win32.join(directory.replace(/^"|"$/g, ""), `${command}.exe`));
 }
 
 export function spawnCommand(command, args, options = {}) {
@@ -123,6 +136,8 @@ export function resolveRunCommand(requestedCommand, options = {}) {
 
   const candidates = [
     env.npm_execpath,
+    // 旧 Host 尚未传 npm_execpath 时，托管启动器仍优先解析冻结 PATH 中的 native pnpm。
+    ...(options.preferNativePath ? nativeCommandCandidates(requestedCommand, env) : []),
     (() => {
       const probe = spawnSync("volta", ["which", requestedCommand], {
         encoding: "utf8",
@@ -136,7 +151,12 @@ export function resolveRunCommand(requestedCommand, options = {}) {
     const realEntry = /\.(cmd|bat)$/i.test(resolved)
       ? resolved.replace(/\.(cmd|bat)$/i, ".cjs")
       : resolved;
-    if (exists(realEntry)) return { command: nodeExecutablePath, args: [realEntry] };
+    if (exists(realEntry)) {
+      // 修复：冻结 pnpm 也可能是原生 exe；作为 Node 脚本启动会在准备阶段立即失败。
+      return /\.exe$/i.test(realEntry)
+        ? { command: realEntry, args: [] }
+        : { command: nodeExecutablePath, args: [realEntry] };
+    }
   }
   return { command: requestedCommand, args: [] };
 }

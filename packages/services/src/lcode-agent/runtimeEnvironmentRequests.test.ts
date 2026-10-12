@@ -7,6 +7,7 @@ import {
   lcodeProtocolMethods as methods,
   type WorktreeExecutionBinding,
   type RuntimeEnvironmentResolveContextResult,
+  type RuntimeConsumerReference,
 } from "@lcode/shared";
 import type { IWorktreeService } from "../worktree/contract.js";
 import { createRuntimeEnvironmentStore } from "../runtime-environment/adapters/store.js";
@@ -27,10 +28,16 @@ async function fixture(t: TestContext) {
   const checkout = join(dir, "checkout 空格");
   await mkdir(join(checkout, "src"), { recursive: true });
   const store = createRuntimeEnvironmentStore(join(dir, "data"));
+  let lockChanged = false;
   const service = createRuntimeEnvironmentServiceForTests({
     store,
     declarations: {
-      read: async () => ({ tools: [], lockfiles: [], ambiguousLocks: false, issues: [] }),
+      read: async () => ({
+        tools: [],
+        lockfiles: lockChanged ? [{ name: "pnpm-lock.yaml", digest: "b".repeat(64) }] : [],
+        ambiguousLocks: false,
+        issues: [],
+      }),
     },
     backend: {
       ensureBackend: async () => "unused",
@@ -113,6 +120,9 @@ async function fixture(t: TestContext) {
     create,
     request,
     closeRequest,
+    changeLock: () => {
+      lockChanged = true;
+    },
   };
 }
 
@@ -127,7 +137,10 @@ test("attached binding authorizes context and exact app cleanup keeps parent and
     environmentRef: f.ref,
   });
   const result = await client.handle(methods.runtimeEnvironmentResolveContext, f.request);
-  assert.equal(JSON.stringify(result).includes("lease"), false);
+  assert.equal(
+    Object.hasOwn((result as RuntimeEnvironmentResolveContextResult).context, "resourceLeaseToken"),
+    false,
+  );
   assert.equal(JSON.stringify(result).includes("client-a"), false);
   const refs = await f.store.listConsumers(f.ref.environmentId);
   assert.equal(refs.filter((ref) => ref.state === "active").length, 3);
@@ -145,6 +158,119 @@ test("attached binding authorizes context and exact app cleanup keeps parent and
       .map((ref) => ref.id),
     ["parent", "child"],
   );
+});
+
+test("an authorized app and its shared child execution continue after dependency installation", async (t) => {
+  const f = await fixture(t);
+  const client = f.create("client-a");
+  const first = await client.handle(methods.runtimeEnvironmentResolveContext, f.request);
+  const manifest = await f.store.readManifest(f.ref.environmentId, f.ref.revision);
+  f.changeLock();
+  const child = await client.handle(methods.runtimeEnvironmentResolveContext, {
+    ...f.request,
+    cwd: f.checkout,
+  });
+  assert.equal((child as RuntimeEnvironmentResolveContextResult).context.revision, f.ref.revision);
+  assert.deepEqual(await f.store.readManifest(f.ref.environmentId, f.ref.revision), manifest);
+  assert.equal((await f.store.readEnvironment(f.ref.environmentId))?.status, "needsUpdate");
+  const parent = await client.handle(methods.runtimeEnvironmentResolveContext, f.request);
+  assert.deepEqual(parent, first);
+  await assert.rejects(
+    client.handle(methods.runtimeEnvironmentResolveContext, { ...f.request, consumer: "new-app" }),
+    /not ready|explicit update/,
+  );
+  await assert.rejects(
+    f.create("other-owner").handle(methods.runtimeEnvironmentResolveContext, f.request),
+    /owner/,
+  );
+  const record = (await f.store.readEnvironment(f.ref.environmentId))!;
+  await f.store.saveEnvironment({ ...record, fenceIntent: "upgrade" });
+  await assert.rejects(
+    client.handle(methods.runtimeEnvironmentResolveContext, f.request),
+    /not ready|fenc/,
+  );
+  await client.disposeAfterProcessExit();
+});
+
+test("a first failed context grant is released and cannot authorize continuation", async (t) => {
+  const f = await fixture(t);
+  const client = f.create("client-a");
+  f.changeLock();
+  await assert.rejects(
+    client.handle(methods.runtimeEnvironmentResolveContext, f.request),
+    /explicit update/,
+  );
+  assert.equal(
+    (await f.store.listConsumers(f.ref.environmentId)).filter(
+      (x) => x.kind === "process" && x.state === "active",
+    ).length,
+    0,
+  );
+  await assert.rejects(
+    client.handle(methods.runtimeEnvironmentResolveContext, f.request),
+    /not ready|explicit update/,
+  );
+});
+
+test("an undelivered grant may retry its recorded generation after a transient context failure", async (t) => {
+  const f = await fixture(t);
+  const client = f.create("client-a");
+  const resolve = f.service.resolveContext.bind(f.service);
+  let attempts = 0;
+  t.mock.method(f.service, "resolveContext", async (params: Parameters<typeof resolve>[0]) => {
+    if (++attempts === 1) throw new Error("fixture context temporarily unavailable");
+    return resolve(params);
+  });
+  await assert.rejects(
+    client.handle(methods.runtimeEnvironmentResolveContext, f.request),
+    /temporarily unavailable/,
+  );
+  const delivered = await client.handle(methods.runtimeEnvironmentResolveContext, f.request);
+  assert.equal(
+    (delivered as RuntimeEnvironmentResolveContextResult).context.revision,
+    f.ref.revision,
+  );
+  const active = (await f.store.listConsumers(f.ref.environmentId)).find(
+    (x) => x.kind === "process" && x.state === "active",
+  );
+  assert.equal(active?.ownerGeneration, 2);
+  await client.disposeAfterProcessExit();
+});
+
+test("pinned contexts reject forged or released leases and lifecycle fences", async (t) => {
+  const f = await fixture(t);
+  const client = f.create("client-a");
+  await client.handle(methods.runtimeEnvironmentResolveContext, f.request);
+  const reference = (await f.store.listConsumers(f.ref.environmentId)).find(
+    (x) => x.kind === "process",
+  ) as RuntimeConsumerReference;
+  f.changeLock();
+  const params = {
+    workspacePath: f.checkout,
+    environmentId: f.ref.environmentId,
+    bindingId: f.binding.id,
+    expectedRevision: f.ref.revision,
+    expectedManifestDigest: f.ref.manifestDigest,
+    consumer: f.request.consumer,
+    consumerReference: reference,
+  };
+  await f.service.resolveContext(params);
+  await assert.rejects(
+    f.service.resolveContext({ ...params, consumerReference: { ...reference, lease: "wrong" } }),
+    /stale-reference/,
+  );
+  const sessionReference = (await f.store.listConsumers(f.ref.environmentId)).find(
+    (x) => x.kind === "session",
+  )!;
+  await assert.rejects(
+    f.service.resolveContext({ ...params, consumerReference: sessionReference }),
+    /stale-reference/,
+  );
+  const fenced = (await f.store.readEnvironment(f.ref.environmentId))!;
+  await f.store.saveEnvironment({ ...fenced, fenceIntent: "upgrade" });
+  await assert.rejects(f.service.resolveContext(params), /not consumable/);
+  await client.handle(methods.runtimeEnvironmentReleaseConsumer, f.closeRequest);
+  await assert.rejects(f.service.resolveContext(params), /stale-reference/);
 });
 
 test("actual runtime owner receipt precedes context and post-exit release failure survives Host restart", async (t) => {
@@ -359,6 +485,20 @@ test("a remote binding keeps execution identity and attachment authorization in 
     request,
   )) as RuntimeEnvironmentResolveContextResult;
   assert.equal(result.context.workspaceIdentity, "execution-a");
+  f.changeLock();
+  const continued = (await client.handle(
+    methods.runtimeEnvironmentResolveContext,
+    request,
+  )) as RuntimeEnvironmentResolveContextResult;
+  assert.equal(continued.context.workspaceIdentity, "execution-a");
+  assert.equal(continued.context.revision, f.ref.revision);
+  await assert.rejects(
+    client.handle(methods.runtimeEnvironmentResolveContext, {
+      ...request,
+      remoteSessionId: "attachment-b",
+    }),
+    /scope-mismatch/,
+  );
   await client.disposeAfterProcessExit();
 });
 

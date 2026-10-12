@@ -28,6 +28,37 @@ export function createWorktreeRuntimePorts(options: {
   stopWorktreeExecution: (binding: WorktreeBinding) => Promise<void>;
 }): WorktreeRuntimePorts {
   const { host } = options;
+  const upgradeBinding = async (binding: WorktreeBinding, requestId: string) => {
+    const current = await options.worktrees().getBinding({
+      workspacePath: binding.originalWorkspacePath,
+      workspaceIdentity: binding.originalWorkspaceIdentity,
+      taskId: binding.taskId,
+    });
+    const expected = binding.environmentRebuild?.oldEnvironmentRef ?? binding.environmentRef;
+    const actual = current?.environmentRebuild?.oldEnvironmentRef ?? current?.environmentRef;
+    if (
+      !current ||
+      current.id !== binding.id ||
+      current.status !== "updating" ||
+      current.environmentUpgrade?.requestId !== requestId ||
+      current.environmentUpgrade.cancelled ||
+      current.environmentRebuild?.newEnvironmentRef ||
+      current.checkoutPath !== binding.checkoutPath ||
+      current.workspacePath !== binding.workspacePath ||
+      current.workspaceIdentity !== binding.workspaceIdentity ||
+      current.originalWorkspacePath !== binding.originalWorkspacePath ||
+      current.originalWorkspaceIdentity !== binding.originalWorkspaceIdentity ||
+      !expected ||
+      !actual ||
+      actual.environmentId !== expected.environmentId ||
+      actual.revision !== expected.revision ||
+      actual.manifestDigest !== expected.manifestDigest
+    )
+      throw new Error(
+        "stale-reference: orphan recovery requires the original persisted upgrade journal",
+      );
+    return { binding: current, reference: actual };
+  };
   const resolve: NonNullable<WorktreeRuntimePorts["resolveRuntimeEnvironment"]> = async (
     params,
   ) => {
@@ -106,6 +137,13 @@ export function createWorktreeRuntimePorts(options: {
     },
     resolveRuntimeEnvironment: resolve,
     async releaseRuntimeEnvironment(params) {
+      const upgrade =
+        params.intent === "upgrade" &&
+        params.phase === "stop" &&
+        params.binding &&
+        host.consumers.retireOrphanedProcessesForUpgrade
+          ? await upgradeBinding(params.binding, params.requestId)
+          : undefined;
       const canRetire =
         params.intent === "discard" &&
         params.phase === "stop" &&
@@ -133,8 +171,48 @@ export function createWorktreeRuntimePorts(options: {
         phase: params.phase,
         onlyIfIdle: params.onlyIfIdle,
         ...(canRetire ? { legacyDiscardSessionIds: params.legacyDiscardSessionIds } : {}),
+        ...(upgrade
+          ? {
+              upgradeOwnerScope: {
+                workspacePath: upgrade.binding.originalWorkspacePath,
+                ...(upgrade.binding.originalWorkspaceIdentity
+                  ? { workspaceIdentity: upgrade.binding.originalWorkspaceIdentity }
+                  : {}),
+              },
+            }
+          : {}),
       });
     },
+    ...(host.consumers.retireOrphanedProcessesForUpgrade
+      ? {
+          async retireOrphanedRuntimeConsumersForUpgrade({
+            binding,
+            requestId,
+            writer,
+          }: Parameters<
+            NonNullable<WorktreeRuntimePorts["retireOrphanedRuntimeConsumersForUpgrade"]>
+          >[0]) {
+            const current = await upgradeBinding(binding, requestId);
+            // revision 0 尚未授权任何执行消费者；失败准备的正常重试不需要孤立 owner 退役。
+            if (current.reference.revision < 1) return;
+            await host.consumers.retireOrphanedProcessesForUpgrade!({
+              workspacePath: current.binding.checkoutPath,
+              environmentId: current.reference.environmentId,
+              expectedRevision: current.reference.revision,
+              expectedManifestDigest: current.reference.manifestDigest,
+              bindingId: current.binding.id,
+              requestId,
+              writer,
+              ownerScope: {
+                workspacePath: current.binding.originalWorkspacePath,
+                ...(current.binding.originalWorkspaceIdentity
+                  ? { workspaceIdentity: current.binding.originalWorkspaceIdentity }
+                  : {}),
+              },
+            });
+          },
+        }
+      : {}),
     ...(host.consumers.retireLegacyProcessesForDeletion
       ? {
           async retireLegacyRuntimeConsumers({

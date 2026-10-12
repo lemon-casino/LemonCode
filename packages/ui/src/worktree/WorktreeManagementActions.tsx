@@ -15,6 +15,8 @@ import { useWorktreeSessionAvailability } from "@/hooks/useWorktreeSessionAvaila
 import { WorktreeDiscardControl } from "./WorktreeDiscardControl.js";
 import { RuntimeEnvironmentDetails } from "./RuntimeEnvironmentDetails.js";
 import type { WorktreeBinding } from "@lcode/services";
+import { WorktreeDetailsTable, WorktreeDetailsRow } from "./WorktreeDetailsTable.js";
+import { ReviewDetails } from "@/git-action-menu/ReviewDetails.js";
 
 export function WorktreeManagementActions({
   workspacePath,
@@ -31,6 +33,8 @@ export function WorktreeManagementActions({
   onSelectSession,
   onWorktreeDeleted,
   showEnvironment = true,
+  nameEditor,
+  environmentAction,
 }: {
   workspacePath: string;
   workspaceIdentity?: string;
@@ -46,6 +50,8 @@ export function WorktreeManagementActions({
   onSelectSession?: (sessionId: string) => void;
   onWorktreeDeleted?: (binding: WorktreeBinding) => void;
   showEnvironment?: boolean;
+  nameEditor?: ReactNode;
+  environmentAction?: ReactNode;
 }) {
   const { intl } = useLCodeIntl();
   const openSettings = useOpenWorktreeSettings();
@@ -92,9 +98,27 @@ export function WorktreeManagementActions({
   const deleted = binding.status === "deleted";
   const content = (
     <div className="space-y-3 text-ui-sm" data-testid="worktree-management-content">
-      <p className="break-all font-mono">{binding.workspacePath}</p>
-      <p className="break-all">{binding.branch}</p>
-      <p>{intl.formatMessage({ id: `worktree.binding.${binding.status}` })}</p>
+      <WorktreeDetailsTable label={intl.formatMessage({ id: "settings.worktrees.details" })}>
+        {nameEditor ? (
+          <WorktreeDetailsRow label={intl.formatMessage({ id: "settings.worktrees.name" })}>
+            {nameEditor}
+          </WorktreeDetailsRow>
+        ) : null}
+        <WorktreeDetailsRow label={intl.formatMessage({ id: "settings.worktrees.branch" })}>
+          <span className="break-all font-mono">{binding.branch}</span>
+        </WorktreeDetailsRow>
+        <WorktreeDetailsRow label={intl.formatMessage({ id: "settings.worktrees.directory" })}>
+          <span className="break-all font-mono">{binding.workspacePath}</span>
+        </WorktreeDetailsRow>
+        <WorktreeDetailsRow label={intl.formatMessage({ id: "settings.worktrees.status" })}>
+          {intl.formatMessage({ id: `worktree.binding.${binding.status}` })}
+        </WorktreeDetailsRow>
+        {environmentAction ? (
+          <WorktreeDetailsRow label={intl.formatMessage({ id: "settings.environments.title" })}>
+            {environmentAction}
+          </WorktreeDetailsRow>
+        ) : null}
+      </WorktreeDetailsTable>
       <WorktreeReadStatus loading={task.pending} error={task.error} />
       {!deleted && showEnvironment ? (
         <RuntimeEnvironmentDetails
@@ -118,9 +142,6 @@ export function WorktreeManagementActions({
           {intl.formatMessage({ id: "worktree.discardSuccess" })}
         </p>
       ) : null}
-      <p className="text-foreground-subtle">
-        {intl.formatMessage({ id: "worktree.managementDescription" })}
-      </p>
       <Button
         type="button"
         variant="outline"
@@ -152,24 +173,41 @@ export function WorktreeManagementActions({
           )}
         </p>
       ) : null}
-      <WorktreeSnapshotSummary
-        snapshot={binding.snapshot}
-        onOpenFiles={
-          navigation.available
-            ? () =>
-                navigation.openDiff({
-                  type: "patch",
-                  title: intl.formatMessage({ id: "worktree.openOmissions" }),
-                  patch: "",
-                  reviewFiles: binding.snapshot?.ignoredPaths.map((path) => ({ path, patch: "" })),
-                  reviewMetadataOnly: true,
-                  workspacePath: binding.workspacePath,
-                  workspaceIdentity: binding.workspaceIdentity,
-                  workspaceRemoteSessionId,
-                })
-            : undefined
-        }
-      />
+      <ReviewDetails
+        title={intl.formatMessage({ id: "worktree.details.technical" })}
+        testId="worktree-management-snapshot-details"
+      >
+        <p className="text-foreground-subtle">
+          {intl.formatMessage({ id: "worktree.managementDescription" })}
+        </p>
+      </ReviewDetails>
+      {binding.snapshot ? (
+        <WorktreeDetailsTable label={intl.formatMessage({ id: "worktree.snapshotTitle" })}>
+          <WorktreeDetailsRow label={intl.formatMessage({ id: "worktree.snapshotTitle" })}>
+            <WorktreeSnapshotSummary
+              snapshot={binding.snapshot}
+              onOpenFiles={
+                navigation.available
+                  ? () =>
+                      navigation.openDiff({
+                        type: "patch",
+                        title: intl.formatMessage({ id: "worktree.openOmissions" }),
+                        patch: "",
+                        reviewFiles: binding.snapshot?.ignoredPaths.map((path) => ({
+                          path,
+                          patch: "",
+                        })),
+                        reviewMetadataOnly: true,
+                        workspacePath: binding.workspacePath,
+                        workspaceIdentity: binding.workspaceIdentity,
+                        workspaceRemoteSessionId,
+                      })
+                  : undefined
+              }
+            />
+          </WorktreeDetailsRow>
+        </WorktreeDetailsTable>
+      ) : null}
       {deleted || binding.status === "deleting" ? null : binding.status === "archived" ? (
         <Button
           type="button"

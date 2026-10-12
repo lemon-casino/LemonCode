@@ -166,6 +166,7 @@ nul
 !/packages/web/test/session-output-speed.test.mjs
 !/packages/web/test/model-speed.test.mjs
 !/packages/web/test/memory-settings.test.mjs
+!/packages/web/test/worktree-memory-settings.test.mjs
 !/packages/web/test/fixtures/memory-settings.html
 !/packages/web/test/fixtures/memory-settings.tsx
 !/packages/web/test/fixtures/memory-settings-service.ts
@@ -239,6 +240,7 @@ nul
 !/apps/lcode-cli/packages/debug/server/**
 !/packages/web/test/provider-accounts.test.mjs
 !/packages/web/test/provider-accounts-model-cases.mjs
+!/packages/web/test/model-provider-scroll.test.mjs
 !/packages/web/test/fixtures/provider-accounts.html
 !/packages/web/test/fixtures/provider-accounts.tsx
 !/packages/web/test/fixtures/provider-accounts-service.ts

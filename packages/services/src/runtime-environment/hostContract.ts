@@ -17,6 +17,8 @@ export interface RuntimeEnvironmentResolveRequest extends RuntimeEnvironmentScop
   expectedManifestDigest?: string;
   bindingId?: string;
   cwd?: string;
+  /** Host 已交付上下文的精确活引用；允许原 app 在无 fence 的 needsUpdate 下继续原 revision。 */
+  consumerReference?: RuntimeConsumerReference;
 }
 export interface ResolvedProjectExecutionContext {
   environmentId: string;
@@ -66,7 +68,7 @@ export interface RuntimeConsumerRetirement extends Pick<
 > {
   bindingId: string;
   requestId: string;
-  reason: "confirmed-worktree-discard";
+  reason: "confirmed-worktree-discard" | "confirmed-environment-upgrade";
   retiredAt: string;
   orphanedOwner?: { processOwner: RuntimeConsumerProcessOwner; observedAt: string };
 }
@@ -75,6 +77,15 @@ export interface RuntimeConsumerLegacyDeletionParams extends RuntimeConsumerSess
   expectedRevision: number;
   expectedManifestDigest?: string;
   repositoryRoot: string;
+  writer: import("../worktree/contract.js").CheckoutLease;
+}
+export interface RuntimeConsumerUpgradeRecoveryParams extends RuntimeEnvironmentScope {
+  environmentId: string;
+  bindingId: string;
+  requestId: string;
+  expectedRevision: number;
+  expectedManifestDigest?: string;
+  ownerScope: RuntimeEnvironmentScope;
   writer: import("../worktree/contract.js").CheckoutLease;
 }
 export interface RuntimeEnvironmentConsumerAuthority {
@@ -89,6 +100,9 @@ export interface RuntimeEnvironmentConsumerAuthority {
   release(params: RuntimeConsumerReleaseParams): Promise<RuntimeConsumerReleaseResult>;
   retireLegacyProcessesForDeletion?(
     params: RuntimeConsumerLegacyDeletionParams,
+  ): Promise<RuntimeConsumerReleaseResult>;
+  retireOrphanedProcessesForUpgrade?(
+    params: RuntimeConsumerUpgradeRecoveryParams,
   ): Promise<RuntimeConsumerReleaseResult>;
   releaseSessionsAfterDeletion(
     params: RuntimeConsumerSessionDeletionParams,

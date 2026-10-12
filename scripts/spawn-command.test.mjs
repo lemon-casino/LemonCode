@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -275,3 +275,54 @@ test("missing executable is reported instead of retried through a shell", async 
   assert.match(result.stderr, /failed to start.*ENOENT/);
   await assertNoExtraFiles(directory, ["argv reporter.mjs"]);
 });
+
+test("native pnpm entry is executed directly while a JS entry uses the pinned Node", () => {
+  const native = "C:\\frozen tools\\pnpm.exe";
+  const script = "C:\\frozen tools\\pnpm.cjs";
+  const node = "C:\\frozen node\\node.exe";
+  for (const entry of [native, script]) {
+    const resolved = commands.resolveRunCommand("pnpm", {
+      platform: "win32",
+      nodeExecutablePath: node,
+      env: { npm_execpath: entry },
+      exists: (path) => path === entry,
+    });
+    assert.deepEqual(
+      resolved,
+      entry === native ? { command: native, args: [] } : { command: node, args: [script] },
+    );
+  }
+});
+
+test("managed launcher finds the native pnpm on its frozen PATH before a system shim", () => {
+  const native = "C:\\managed tools\\pnpm.exe";
+  assert.deepEqual(
+    commands.resolveRunCommand("pnpm", {
+      platform: "win32",
+      preferNativePath: true,
+      env: { Path: "C:\\managed tools;C:\\system tools" },
+      exists: (path) => path === native,
+    }),
+    { command: native, args: [] },
+  );
+});
+
+test(
+  "bare managed pnpm executable preserves native argv without batch double escaping",
+  windowsOnly,
+  async (t) => {
+    const { directory, reporter } = await fixture(t);
+    await cp(process.execPath, join(directory, "pnpm.exe"));
+    await writeFile(join(directory, "pnpm.cmd"), "@exit /b 97\r\n");
+    const childOptions = options(directory);
+    for (const key of Object.keys(childOptions.env))
+      if (key.toUpperCase() === "PATH") delete childOptions.env[key];
+    childOptions.env.Path = directory;
+    const args = [reporter, ...argumentsToPreserve, "first line\nsecond line"];
+    const result = await capture(commands.spawnCommand("pnpm", args, childOptions));
+    assert.equal(result.code, 0, result.stderr);
+    assert.deepEqual(JSON.parse(result.stdout), args.slice(1));
+    const stdout = commands.runCommandAndReadStdout("pnpm", args, childOptions);
+    assert.deepEqual(JSON.parse(stdout), args.slice(1));
+  },
+);

@@ -83,6 +83,16 @@ export async function stopOwnedWorktreeExecution(
   await ports.stopWorktreeExecution?.(binding);
 }
 
+/** 停止和首次观察已结算；独占 writer 下恢复原请求的孤立引用，不改变持久聊天。 */
+export async function recoverUpgradeExecution(
+  ports: import("./contract.js").WorktreeRuntimePorts,
+  binding: import("./contract.js").WorktreeBinding,
+  requestId: string,
+  writer: import("./contract.js").CheckoutLease,
+) {
+  await ports.retireOrphanedRuntimeConsumersForUpgrade?.({ binding, requestId, writer });
+}
+
 /** Host-only：已有 discard journal、真实 writer、精确历史清理后才迁移旧引用。 */
 export async function retireLegacyDiscardConsumers(
   ports: Pick<import("./contract.js").WorktreeRuntimePorts, "retireLegacyRuntimeConsumers">,

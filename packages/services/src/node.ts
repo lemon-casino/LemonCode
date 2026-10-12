@@ -2695,7 +2695,7 @@ export function createLocalServices(options: {
         grantWorkspaceHookTrust: (params) => lcodeAgentService.grantWorkspaceHookTrust(params),
       }),
     )
-    .register(IMemoryService, createMemoryService({ settingService }))
+    .register(IMemoryService, createMemoryService({ settingService, worktreeService }))
     .register(ISettingsSyncService, createSettingsSyncService({ settingService }))
     .register(
       IFeedbackService,

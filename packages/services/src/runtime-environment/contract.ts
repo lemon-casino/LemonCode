@@ -29,6 +29,7 @@ export type {
   RuntimeConsumerOwnerReceipt,
   RuntimeConsumerRetirement,
   RuntimeConsumerLegacyDeletionParams,
+  RuntimeConsumerUpgradeRecoveryParams,
   RuntimeEnvironmentExecutionResolver,
   RuntimeEnvironmentResolveRequest,
   ResolvedProjectExecutionContext,

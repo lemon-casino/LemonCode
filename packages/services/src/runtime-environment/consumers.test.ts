@@ -118,7 +118,7 @@ test("released tombstones require an explicit previous generation and reject sta
   assert.deepEqual(await authority.release(current), { removed: 0, remaining: 0 });
 });
 
-test("active owners cannot be replaced, revisions are exact, and needsUpdate admits nothing", async (t) => {
+test("active owners cannot be replaced, revisions are exact, and needsUpdate admits no new consumers", async (t) => {
   const { store, record, authority } = await fixture(t);
   await assert.rejects(
     authority.acquire(acquireParams(record, { expectedOwnerGeneration: 2 })),

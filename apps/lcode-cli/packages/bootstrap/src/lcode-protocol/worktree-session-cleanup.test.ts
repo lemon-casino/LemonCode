@@ -64,6 +64,38 @@ test("query does not hydrate; collect closes matching resident chats before phys
   assert.deepEqual(f.calls.slice(-2), ["purge", "diagnostics"]);
 });
 
+test("update in a shared Agent waits for exact app shutdown and keeps sibling resident and durable chats", async () => {
+  const f = fixture();
+  const target = f.sessions.get("root")!;
+  f.sessions.set("sibling", {
+    ...target,
+    app: {
+      ...target.app,
+      close: async () => {
+        assert.fail("sibling must stay resident");
+      },
+    },
+  });
+  const shutdown = Promise.withResolvers<void>();
+  let released = false;
+  target.app.close = async () => {
+    await shutdown.promise;
+    released = true;
+  };
+  const stopped = cleanupWorktreeSessions(f.context, { ...params, closeSessions: true });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(released, false);
+  shutdown.resolve();
+  await stopped;
+  assert.equal(released, true);
+  assert.equal(f.sessions.has("root"), false);
+  assert.equal(f.sessions.has("sibling"), true);
+  assert.equal(f.calls.includes("purge"), false);
+  assert.equal(f.calls.includes("diagnostics"), false);
+  await cleanupWorktreeSessions(f.context, { ...params, closeSessions: true });
+  assert.equal(f.sessions.has("sibling"), true);
+});
+
 test("diagnostic file failure is retryable after SQL purge; collection never deletes diagnostic files", async () => {
   const f = fixture();
   let attempts = 0;

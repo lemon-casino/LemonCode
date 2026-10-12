@@ -31,6 +31,51 @@ async function managed(t: Parameters<typeof fixture>[0], ports: WorktreeRuntimeP
   return { ...f, service, binding };
 }
 
+test("persisted update recovers orphan consumers under its exclusive writer before preparing and rebinding", async (t) => {
+  const calls: string[] = [];
+  let failRecovery = true;
+  const f = await managed(t, {
+    prepareRuntimeEnvironment: async (params) => {
+      calls.push(`prepare:${params.operation ?? "initial"}`);
+      return reference(params.operation === "upgrade" ? 2 : 1);
+    },
+    releaseRuntimeEnvironment: async ({ phase }) => {
+      calls.push(phase);
+      return { status: "completed" };
+    },
+    retireOrphanedRuntimeConsumersForUpgrade: async ({ binding, requestId, writer }) => {
+      calls.push("recover");
+      assert.equal(binding.status, "updating");
+      assert.equal(binding.environmentUpgrade?.requestId, requestId);
+      assert.equal(writer.workspacePath, binding.checkoutPath);
+      assert.equal(writer.ownerId, `upgrade:${binding.id}:${requestId}`);
+      assert.ok(writer.token);
+      if (failRecovery) throw new Error("fixture owner recovery interrupted");
+    },
+    rebindRuntimeEnvironmentSessions: async () => {
+      calls.push("rebind");
+      return { sessionIds: ["owner", "child"] };
+    },
+  });
+  calls.length = 0;
+  const request = {
+    bindingId: f.binding.id,
+    requestId: "original",
+    expectedEnvironmentRef: reference(1),
+  };
+  await assert.rejects(f.service.upgradeRuntimeEnvironment(request), /recovery interrupted/);
+  assert.deepEqual(calls, ["fence", "stop", "recover"]);
+  assert.equal(
+    (await f.service.getBinding({ workspacePath: f.repo, taskId: "owner" }))?.status,
+    "updating",
+  );
+  failRecovery = false;
+  calls.length = 0;
+  const updated = await f.service.upgradeRuntimeEnvironment(request);
+  assert.equal(updated.status, "ready");
+  assert.deepEqual(calls, ["fence", "stop", "recover", "prepare:upgrade", "rebind"]);
+});
+
 test("settled cancelled upgrade keeps its fence, rejects the old ID and accepts an explicit new ID", async (t) => {
   const entered = Promise.withResolvers<void>();
   const stopped = Promise.withResolvers<void>();

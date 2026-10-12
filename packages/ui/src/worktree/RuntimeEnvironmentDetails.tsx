@@ -5,6 +5,8 @@ import { environmentActionAvailable } from "@/hooks/runtimeEnvironmentModel.js";
 import { useRuntimeEnvironment } from "@/hooks/useRuntimeEnvironment.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { RuntimeEnvironmentServices } from "./RuntimeEnvironmentServices.js";
+import { WorktreeDetailsTable, WorktreeDetailsRow } from "./WorktreeDetailsTable.js";
+import { ReviewDetails } from "@/git-action-menu/ReviewDetails.js";
 
 export function RuntimeEnvironmentDetails({
   binding,
@@ -54,72 +56,42 @@ export function RuntimeEnvironmentDetails({
         (runtime.capabilities && !canPrepare ? text("capabilityUnavailable") : undefined));
   return (
     <section
-      className="min-w-0 space-y-3 rounded-xl border border-border p-3"
+      className="min-w-0 space-y-3"
       data-testid="runtime-environment-details"
       aria-label={text("title")}
     >
       <h3 className="text-ui-base font-medium">{text("title")}</h3>
-      <p className="break-all font-mono text-ui-sm">{binding.checkoutPath}</p>
-      {environment ? (
-        <>
-          <p role="status" className="text-ui-sm" data-testid="runtime-environment-status">
-            {text(`status.${environment.status}`)}
-          </p>
-          <dl className="space-y-2 text-ui-sm">
-            <div>
-              <dt className="text-foreground-subtle">{text("revision")}</dt>
-              <dd data-testid="runtime-environment-revision">{environment.currentRevision}</dd>
-            </div>
-            <div>
-              <dt className="text-foreground-subtle">{text("source")}</dt>
-              <dd>
-                {environment.toolSource
-                  ? text(`source.${environment.toolSource}`)
-                  : text("unknown")}
-              </dd>
-            </div>
-            {environment.installStrategy ? (
-              <div>
-                <dt className="text-foreground-subtle">{text("installStrategy")}</dt>
-                <dd>{text(`strategy.${environment.installStrategy}`)}</dd>
-              </div>
-            ) : null}
-            {environment.manifestDigest ? (
-              <div>
-                <dt className="text-foreground-subtle">{text("manifest")}</dt>
-                <dd className="break-all font-mono">{environment.manifestDigest}</dd>
-              </div>
-            ) : null}
-          </dl>
-          {environment.tools.length ? (
-            <ul className="space-y-1 text-ui-sm" data-testid="runtime-environment-tools">
-              {environment.tools.map((tool) => (
-                <li className="break-words" key={tool.key}>
-                  <span className="font-mono">
-                    {tool.key} {tool.version}
-                  </span>
-                  {" · "}
-                  {text(`source.${tool.source}`)}
-                  {tool.installStrategy === "system-path" ? (
-                    <span> · {text("hostTool")}</span>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {environment.toolSource === "partial-host" ||
-          environment.tools.some((tool) => tool.installStrategy === "system-path") ? (
-            <p className="text-ui-sm text-foreground-subtle">{text("partialHost")}</p>
-          ) : null}
-        </>
-      ) : (
-        <p
-          className="text-ui-sm text-foreground-subtle"
-          data-testid="runtime-environment-unmanaged"
-        >
-          {text(binding.environmentRef ? "notLoaded" : "unmanaged")}
-        </p>
-      )}
+      <WorktreeDetailsTable label={text("title")}>
+        <WorktreeDetailsRow label={intl.formatMessage({ id: "settings.worktrees.directory" })}>
+          <span className="break-all font-mono">{binding.checkoutPath}</span>
+        </WorktreeDetailsRow>
+        <WorktreeDetailsRow label={intl.formatMessage({ id: "settings.worktrees.status" })}>
+          {environment ? (
+            <span role="status" data-testid="runtime-environment-status">
+              {text(`status.${environment.status}`)}
+            </span>
+          ) : (
+            <span className="text-foreground-subtle" data-testid="runtime-environment-unmanaged">
+              {text(binding.environmentRef ? "notLoaded" : "unmanaged")}
+            </span>
+          )}
+        </WorktreeDetailsRow>
+        {environment ? (
+          <>
+            <WorktreeDetailsRow label={text("revision")}>
+              <span data-testid="runtime-environment-revision">{environment.currentRevision}</span>
+            </WorktreeDetailsRow>
+            <WorktreeDetailsRow label={text("source")}>
+              {environment.toolSource ? text(`source.${environment.toolSource}`) : text("unknown")}
+            </WorktreeDetailsRow>
+          </>
+        ) : null}
+      </WorktreeDetailsTable>
+      {environment &&
+      (environment.toolSource === "partial-host" ||
+        environment.tools.some((tool) => tool.installStrategy === "system-path")) ? (
+        <p className="text-ui-sm text-foreground-subtle">{text("partialHost")}</p>
+      ) : null}
       {explanation ? (
         <p
           className="break-words text-ui-sm text-foreground-subtle"
@@ -160,41 +132,77 @@ export function RuntimeEnvironmentDetails({
           </Button>
         ) : null}
       </div>
-      <p className="text-ui-sm text-foreground-subtle">{text("upgradeHint")}</p>
       {runtime.loading || runtime.pending ? (
         <p role="status" className="text-ui-sm" data-testid="runtime-environment-pending">
           {text(runtime.loading ? "loading" : "pending")}
         </p>
       ) : null}
-      <div className="space-y-1 text-ui-sm" data-testid="runtime-environment-resources">
-        <h4 className="font-medium">{text("resources")}</h4>
+      <WorktreeDetailsTable label={text("resources")} testId="runtime-environment-resources">
+        <WorktreeDetailsRow label={text("resources")}>
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span>{text(`resources.${summary?.status ?? "not-scanned"}`)}</span>
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy || !environment || !canScan}
+              data-testid="runtime-environment-scan"
+              onClick={() => void runtime.scan()}
+            >
+              {text("scan")}
+            </Button>
+          </div>
+          {summary?.reason ? (
+            <p className="break-words text-foreground-subtle">{summary.reason}</p>
+          ) : null}
+        </WorktreeDetailsRow>
+        {summary?.bytes !== undefined ? (
+          <WorktreeDetailsRow label={text("bytes")}>
+            {numberFormat.format(summary.bytes)}
+          </WorktreeDetailsRow>
+        ) : null}
+        {summary?.fileCount !== undefined ? (
+          <WorktreeDetailsRow label={text("fileCount")}>
+            {numberFormat.format(summary.fileCount)}
+          </WorktreeDetailsRow>
+        ) : null}
+      </WorktreeDetailsTable>
+      <ReviewDetails title={text("details")} testId="runtime-environment-technical-details">
+        <p className="text-foreground-subtle">{text("upgradeHint")}</p>
         {binding.environmentRef ? (
           <p className="text-foreground-subtle">{text("lifecycleData")}</p>
         ) : null}
-        <p>{text(`resources.${summary?.status ?? "not-scanned"}`)}</p>
-        {summary?.bytes !== undefined ? (
-          <p>
-            {text("bytes")} {numberFormat.format(summary.bytes)}
-          </p>
+        {environment?.installStrategy || environment?.manifestDigest ? (
+          <WorktreeDetailsTable label={text("details")}>
+            {environment.installStrategy ? (
+              <WorktreeDetailsRow label={text("installStrategy")}>
+                {text(`strategy.${environment.installStrategy}`)}
+              </WorktreeDetailsRow>
+            ) : null}
+            {environment.manifestDigest ? (
+              <WorktreeDetailsRow label={text("manifest")}>
+                <span className="break-all font-mono">{environment.manifestDigest}</span>
+              </WorktreeDetailsRow>
+            ) : null}
+          </WorktreeDetailsTable>
         ) : null}
-        {summary?.fileCount !== undefined ? (
-          <p>
-            {text("fileCount")} {numberFormat.format(summary.fileCount)}
-          </p>
+        {environment?.tools.length ? (
+          <WorktreeDetailsTable label={text("tools")} testId="runtime-environment-tools">
+            {environment.tools.map((tool) => (
+              <WorktreeDetailsRow
+                key={tool.key}
+                label={
+                  <span className="font-mono">
+                    {tool.key} {tool.version}
+                  </span>
+                }
+              >
+                {text(`source.${tool.source}`)}
+                {tool.installStrategy === "system-path" ? <span> · {text("hostTool")}</span> : null}
+              </WorktreeDetailsRow>
+            ))}
+          </WorktreeDetailsTable>
         ) : null}
-        {summary?.reason ? (
-          <p className="break-words text-foreground-subtle">{summary.reason}</p>
-        ) : null}
-        <Button
-          size="sm"
-          variant="outline"
-          disabled={busy || !environment || !canScan}
-          data-testid="runtime-environment-scan"
-          onClick={() => void runtime.scan()}
-        >
-          {text("scan")}
-        </Button>
-      </div>
+      </ReviewDetails>
       {environment ? (
         <RuntimeEnvironmentServices
           environment={environment}

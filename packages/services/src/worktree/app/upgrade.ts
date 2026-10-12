@@ -192,6 +192,12 @@ export function createWorktreeEnvironmentUpgrade(
           waitMs: 250,
         });
         await ready(value);
+        if (!value.environmentRebuild?.newEnvironmentRef)
+          await context.retireOrphanedRuntimeConsumersForUpgrade?.({
+            binding: value,
+            requestId: params.requestId,
+            writer: lease,
+          });
         value = await rebuildBindingRuntime(context, value, params.requestId, "upgrade", lease);
         return await store.lock(cancelKey, async () => {
           if (await store.isPreparationCancelled(cancelKey))

@@ -1,10 +1,11 @@
-import type { RuntimeEnvironmentRecord } from "@lcode/shared";
+import type { RuntimeEnvironmentRecord, RuntimeEnvironmentScope } from "@lcode/shared";
 import type { RuntimeEnvironmentReleaseRequest, RuntimeProcessOwnerObserver } from "../contract.js";
 import { assertEnvironmentScope } from "./preparationAdmission.js";
 import { releaseRuntimeEnvironment } from "./consumerLifecycle.js";
 import { hasServiceExitProof } from "../domain/services.js";
 import { settleConfirmedProcessExits } from "./consumerOwnerReceipts.js";
 import { discardConsumerEligibility } from "./discardConsumerEligibility.js";
+import { observeUpgradeableConsumer } from "./upgradeConsumerRecovery.js";
 import type { RuntimeEnvironmentStore } from "./ports.js";
 
 export function createWorktreeEnvironmentRelease(options: {
@@ -24,6 +25,7 @@ export function createWorktreeEnvironmentRelease(options: {
       phase: "fence" | "stop" | "cleanup" | "finalize";
       legacyDiscardSessionIds?: string[];
       onlyIfIdle?: boolean;
+      upgradeOwnerScope?: RuntimeEnvironmentScope;
     },
   ): Promise<{ status: "completed" | "releaseBlocked"; reason?: string }> => {
     const { store, stamp } = options;
@@ -112,13 +114,29 @@ export function createWorktreeEnvironmentRelease(options: {
           ? (params.legacyDiscardSessionIds ?? [])
           : [],
       );
-      for (const ref of await settleConfirmedProcessExits(store, params.environmentId, stamp)) {
+      const refs = await settleConfirmedProcessExits(store, params.environmentId, stamp);
+      for (const ref of refs) {
         if (ref.state !== "active") continue;
         if (ref.kind === "session") {
           // stop 可保留待永久清理的聊天引用；data 删除必须等精确会话清理回调真正结算。
           if (discardCleanup) return true;
           continue;
         }
+        // 重启遗留的现代 app 不能再由新 client 关闭；只有原更新请求可暂留，writer 内再次核实后才退役。
+        if (
+          params.intent === "upgrade" &&
+          params.phase === "stop" &&
+          params.upgradeOwnerScope &&
+          (await observeUpgradeableConsumer(
+            record,
+            ref,
+            refs,
+            owners,
+            params.upgradeOwnerScope,
+            options.observeProcessOwner,
+          ))
+        )
+          continue;
         if (
           !(await discardConsumerEligibility(
             ref,

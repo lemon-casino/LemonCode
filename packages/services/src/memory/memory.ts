@@ -24,10 +24,10 @@ export interface ProjectMemoryWorkspaceSummary {
 }
 
 export interface IMemoryService {
-  /** 列出本机 profile 与已知本地项目中的记忆；目录浏览不触发迁移。 */
+  /** 列出本机 profile 与已知本地项目/工作树中的记忆；目录浏览不触发迁移。 */
   listProjectMemories(): Promise<ProjectMemoryWorkspaceSummary[]>;
 
-  /** 复制已知本机项目记忆并保留源，再通过 SettingService 提交位置。 */
+  /** 复制已知本机项目/工作树记忆并保留源，再通过 SettingService 提交位置。 */
   changeStorageLocation(params: { location: "profile" | "workspace" }): Promise<{
     location: "profile" | "workspace";
     copiedCount: number;

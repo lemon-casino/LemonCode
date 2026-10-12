@@ -3,10 +3,12 @@ import { mkdtemp, mkdir, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { lcodeProtocolMethods, type LCodeSessionWorktreeCleanupParams } from "@lcode/shared";
 import { setDataBaseDir } from "../paths.js";
 import type { WorktreeBinding } from "../worktree/contract.js";
 import type { IWorktreeService } from "../worktree/contract.js";
 import { LCodeAgentProcessManager } from "./lcodeAgentProcessManager.js";
+import type { LCodeProtocolClient } from "./lcodeProtocolClient.js";
 import {
   createLCodeAgentService,
   runtimeProcessOwnerRegistry,
@@ -96,6 +98,91 @@ test("Host stops all owned lanes in canonical checkout scopes and preserves othe
     Object.keys(service).includes("stopWorktreeExecution"),
     false,
     "owner must not be callable by RPC string",
+  );
+});
+
+test("environment update closes only its binding in an existing origin Agent and preserves the shared process", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "lcode-shared-binding-owner-"));
+  setDataBaseDir(root);
+  const checkout = join(root, "checkout");
+  await mkdir(checkout);
+  const binding = {
+    id: "binding-a",
+    taskId: "task-a",
+    checkoutPath: checkout,
+    workspacePath: checkout,
+    originalWorkspacePath: root,
+    status: "updating",
+  } as WorktreeBinding;
+  const calls: LCodeSessionWorktreeCleanupParams[] = [];
+  const shared = {
+    request: async (method: string, params: LCodeSessionWorktreeCleanupParams) => {
+      assert.equal(method, lcodeProtocolMethods.sessionWorktreeCleanup);
+      calls.push(params);
+      return { sessionIds: ["task-a"] };
+    },
+  } as unknown as LCodeProtocolClient;
+  t.mock.method(LCodeAgentProcessManager.prototype, "listOwnedWorkspaceTargets", () => [
+    { workspacePath: root },
+    { workspacePath: root, workspaceIdentity: "foreign" },
+  ]);
+  t.mock.method(
+    LCodeAgentProcessManager.prototype,
+    "getExistingClient",
+    (scope: { workspaceIdentity?: string }) => (scope.workspaceIdentity ? undefined : shared),
+  );
+  t.mock.method(LCodeAgentProcessManager.prototype, "disposeWorkspace", async () => {
+    assert.fail("must preserve the origin Agent");
+  });
+  const service = createLCodeAgentService();
+  t.after(async () => {
+    await service.disposeAllAndWait();
+    setDataBaseDir(null);
+    await rm(root, { recursive: true, force: true });
+  });
+  await service[worktreeExecutionOwner](binding);
+  assert.equal(calls.length, 3);
+  for (const request of calls)
+    assert.deepEqual(request, {
+      executionBindingId: binding.id,
+      originWorkspacePath: root,
+      workspacePath: checkout,
+      closeSessions: true,
+    });
+});
+
+test("failed shared binding shutdown blocks update without disposing sibling sessions", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "lcode-shared-binding-failed-"));
+  setDataBaseDir(root);
+  const checkout = join(root, "checkout");
+  await mkdir(checkout);
+  t.mock.method(LCodeAgentProcessManager.prototype, "listOwnedWorkspaceTargets", () => [
+    { workspacePath: root },
+  ]);
+  t.mock.method(
+    LCodeAgentProcessManager.prototype,
+    "getExistingClient",
+    () =>
+      ({
+        request: async () => {
+          throw new Error("Worktree session is running");
+        },
+      }) as unknown as LCodeProtocolClient,
+  );
+  const service = createLCodeAgentService();
+  t.after(async () => {
+    await service.disposeAllAndWait();
+    setDataBaseDir(null);
+    await rm(root, { recursive: true, force: true });
+  });
+  await assert.rejects(
+    service[worktreeExecutionOwner]({
+      id: "a",
+      checkoutPath: checkout,
+      workspacePath: checkout,
+      originalWorkspacePath: root,
+    } as WorktreeBinding),
+    /session is running/,
   );
 });
 

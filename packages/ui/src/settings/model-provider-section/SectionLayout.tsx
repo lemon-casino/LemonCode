@@ -66,12 +66,14 @@ export function ModelProviderSectionLayout({
 
       <div className="overflow-clip rounded-xl border border-border bg-card">
         <div
-          className="grid min-h-[36rem] grid-cols-[56px_minmax(0,1fr)] gap-0 md:grid-cols-[224px_minmax(0,1fr)]"
+          // 仅设最小高度会让长列表撑高整页；固定分栏高度并允许子项收缩，滚动由各栏独立承接。
+          className="grid h-[min(36rem,calc(100dvh-12rem))] min-h-0 grid-cols-[56px_minmax(0,1fr)] grid-rows-[minmax(0,1fr)] gap-0 md:grid-cols-[224px_minmax(0,1fr)]"
           data-model-provider-split-panel="true"
         >
           <div
-            className="min-w-0 border-r border-border"
+            className="min-h-0 min-w-0 overflow-y-auto overscroll-y-contain border-r border-border"
             data-model-provider-navigation-scroll="true"
+            tabIndex={0}
           >
             <ModelProviderSectionNavigation
               navigationGroups={navigationGroups}
@@ -83,12 +85,16 @@ export function ModelProviderSectionLayout({
               reorderableProviderIds={reorderableProviderIds}
             />
           </div>
-          <div
-            className="relative min-w-0 p-4 pb-20 sm:p-6 sm:pb-24"
-            data-model-provider-detail-scroll="true"
-          >
+          <div className="relative min-h-0 min-w-0">
             <ProviderDetailFeedbackBoundary key={selectedNodeKey ?? "unselected-provider"}>
-              {children}
+              {/* 反馈层与内容滚动容器同级，避免内部滚动把反馈带出可见区域。 */}
+              <div
+                className="h-full min-h-0 min-w-0 overflow-y-auto overscroll-y-contain p-4 pb-20 sm:p-6 sm:pb-24"
+                data-model-provider-detail-scroll="true"
+                tabIndex={0}
+              >
+                {children}
+              </div>
             </ProviderDetailFeedbackBoundary>
           </div>
         </div>

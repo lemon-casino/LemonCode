@@ -7678,6 +7678,12 @@ const enUS: Record<string, string> = {
   "settings.worktrees.backToList": "Back to list",
   "settings.worktrees.search": "Search worktrees",
   "settings.worktrees.name": "Worktree name",
+  "settings.worktrees.details": "Worktree details",
+  "settings.worktrees.branch": "Branch",
+  "settings.worktrees.directory": "Working directory",
+  "settings.worktrees.status": "Status",
+  "runtimeEnvironment.details": "Tools and installation details",
+  "runtimeEnvironment.tools": "Tools",
   "worktree.managementDescription":
     "Manage the worktree directory and file snapshots shared by its chats. Use the shared review entry for commits and merges.",
   "worktree.restoreFromManagement":

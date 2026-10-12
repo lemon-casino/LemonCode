@@ -75,5 +75,7 @@ export async function resolveProjectService(
           ]
         : [command.executable, ...command.prefix, "run", serviceId],
     writesSource: false,
+    // 桌面启动器继续复用原入口；标准 npm_execpath 保留冻结 pnpm，而不是按名字挑全局 shim。
+    ...(serviceId === "dev:desktop" ? { env: { npm_execpath: command.toolPath } } : {}),
   };
 }

@@ -21,6 +21,7 @@ import { advanceStatus } from "../domain/state.js";
 import { hasServiceExitProof } from "../domain/services.js";
 import { migrateEnvironmentSessions } from "./consumerMigration.js";
 import { retireLegacyProcessesForDeletion } from "./legacyConsumerRetirement.js";
+import { retireOrphanedProcessesForUpgrade } from "./upgradeConsumerRecovery.js";
 import {
   confirmStoredProcessExit,
   retainProcessOwnerReceipt,
@@ -83,13 +84,14 @@ export function createRuntimeConsumerAuthority(
     migrateSessions: (params) => migrateEnvironmentSessions(store, params, stamp),
     retireLegacyProcessesForDeletion: (params) =>
       retireLegacyProcessesForDeletion(store, params, stamp, observeProcessOwner),
+    retireOrphanedProcessesForUpgrade: (params) =>
+      retireOrphanedProcessesForUpgrade(store, params, stamp, observeProcessOwner),
     async acquire(input, processOwner) {
       const params = runtimeConsumerAcquireParamsSchema.parse(input);
       return store.lock(params.environmentId, async () => {
         const record = await store.readEnvironment(params.environmentId);
         if (!record) reject("stale-reference", "environment does not exist");
         assertScope(record, params);
-        if (record.status !== "ready") reject("resource-busy", "environment is not ready");
         if (params.revision !== record.currentRevision) {
           reject("stale-reference", "environment revision does not match");
         }
@@ -104,6 +106,18 @@ export function createRuntimeConsumerAuthority(
         const refs = await store.listConsumers(params.environmentId);
         const index = refs.findIndex((ref) => ref.kind === params.kind && ref.id === params.id);
         const previous = refs[index];
+        // 安装依赖改变锁文件后仍是同一活 app；幂等续用不产生新消费者，显式生命周期 fence 仍阻断。
+        if (
+          record.fenceIntent ||
+          (record.status !== "ready" &&
+            !(
+              record.status === "needsUpdate" &&
+              !record.fenceIntent &&
+              !record.activeOperationId &&
+              previous?.state === "active"
+            ))
+        )
+          reject("resource-busy", "environment is not ready");
         if (previous?.state === "active") {
           if (previous.ownerId !== params.ownerId) {
             reject("resource-busy", "active consumer belongs to another owner");

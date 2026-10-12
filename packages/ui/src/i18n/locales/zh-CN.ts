@@ -7283,6 +7283,12 @@ const zhCN: Record<string, string> = {
   "settings.worktrees.backToList": "返回列表",
   "settings.worktrees.search": "搜索工作树",
   "settings.worktrees.name": "工作树名称",
+  "settings.worktrees.details": "工作树详情",
+  "settings.worktrees.branch": "分支",
+  "settings.worktrees.directory": "工作目录",
+  "settings.worktrees.status": "状态",
+  "runtimeEnvironment.details": "工具与安装详情",
+  "runtimeEnvironment.tools": "工具",
   "worktree.managementDescription":
     "管理工作树目录和文件快照。目录与快照由关联会话共享，提交及合并使用同一审核入口。",
   "worktree.restoreFromManagement":

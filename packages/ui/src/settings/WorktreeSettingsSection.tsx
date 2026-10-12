@@ -77,31 +77,52 @@ export function WorktreeSettingsSection({
       : undefined;
   const text = (key: string) => intl.formatMessage({ id: `settings.worktrees.${key}` });
   return (
-    <div className="min-w-0 space-y-6" data-testid={`settings-${section}-section`}>
+    <div className="min-w-0 space-y-4" data-testid={`settings-${section}-section`}>
       {projects.length ? (
-        <Select
-          value={key}
-          onValueChange={(value) => {
-            const project = projects.find(
-              (item) => (item.workspaceIdentity?.trim() || item.workspacePath) === value,
-            );
-            if (project) select(project);
-          }}
+        <div
+          className="flex min-w-0 items-center gap-2 text-ui-sm"
+          data-testid="coding-project-context"
         >
-          <SelectTrigger className="w-full max-w-md" aria-label={text("project")}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {projects.map((project) => (
-              <SelectItem
-                key={project.workspaceIdentity?.trim() || project.workspacePath}
-                value={project.workspaceIdentity?.trim() || project.workspacePath}
+          <span className="shrink-0 text-foreground-subtle">{text("project")}</span>
+          {projects.length === 1 ? (
+            <span
+              className="min-w-0 truncate font-medium"
+              title={project?.workspacePath ?? target?.workspacePath}
+            >
+              {project?.label ?? target?.workspacePath}
+            </span>
+          ) : (
+            <Select
+              value={key}
+              onValueChange={(value) => {
+                const project = projects.find(
+                  (item) => (item.workspaceIdentity?.trim() || item.workspacePath) === value,
+                );
+                if (project) select(project);
+              }}
+            >
+              <SelectTrigger
+                variant="ghost"
+                size="sm"
+                className="max-w-64 text-ui-sm"
+                aria-label={text("project")}
+                title={project?.workspacePath}
               >
-                {project.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {projects.map((project) => (
+                  <SelectItem
+                    key={project.workspaceIdentity?.trim() || project.workspacePath}
+                    value={project.workspaceIdentity?.trim() || project.workspacePath}
+                  >
+                    {project.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </div>
       ) : null}
       {trees.errors.map((error) => (
         <p key={error} role="alert" className="break-words text-ui-sm text-destructive">

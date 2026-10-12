@@ -16,6 +16,42 @@
 - 初始 workspace root 来自构造参数；冷恢复使用持久 session.path，缺失或空字符串时兼容旧 directory。context snapshot 的 workingDirectory 只决定执行 cwd，不能覆盖项目根；会话证据 scope 读面遵守同一 path 优先规则。
 - 设置页继续能查看旧 profile 记忆，并列出已知本机项目的项目内记忆，显示来源位置；选项切换不让原文件消失。读取限制在服务解析的记忆根内，保留稳定文件句柄、大小限制、大小写和 symlink/junction 检查。
 
+### 工作树位置识别
+
+- 已知本地项目还包括该项目在本机 WorktreeService 中登记的工作树。无需把工作树另行加入最近项目；自定义工作树根和既有绑定冻结的位置都从 `IWorktreeService.list` 获取，不扫描固定工作树目录、不从目录名猜身份。
+- 两种存储位置共用同一发现结果：`profile` 按绑定的 `workspaceIdentity?.trim() || workspacePath` 经共享 resolver 匹配已有目录，`workspace` 读取实际执行项目根的 `.lcode/memory` 或 identity 隔离根。使用绑定 `workspacePath`（源项目在 checkout 中的映射位置），不能用原项目路径、checkoutRoot 或仓库根替代嵌套项目根。
+- 设置页同时展示有文件的两处来源；已关联的工作树使用 `原项目目录名 / 工作树显示名或分支名` 标识。已有 profile scope ID 和无关联 profile 目录保留，显示名不参与目录解析。工作树改名后刷新读取 owner 当前名称，不缓存绑定副本。
+- 同一工作树同时出现在最近项目、项目会话及绑定列表中时，每个记忆根只展示一次；同一路径不同 identity 的根继续隔离。位置切换也对发现的工作树调用同一准备器，按各自 scope 复制并保留源；主项目与工作树不互相复制。
+- 只读取现存普通目录中的工作树记忆。`archived`、`missing`、`cancelled`、`deleting`、`deleted` 绑定不提供项目内扫描或迁移来源；已存在的 profile 记忆仍可浏览。其他状态仅在目录实际存在时参与。目录已移除时跳过；目录或祖先是 symlink/junction 时继续明确拒绝。
+- 远程项目及带远程 identity 的绑定不进入本机工作树发现。只消费已知本地项目的公开 list 契约；列表查询失败沿服务错误返回，不用旧缓存假报识别成功。只读列举和预览不创建目录、位置标记或触发复制。
+- WorktreeService 仍唯一拥有绑定/路径/名称；SettingService 唯一拥有位置和版本；MemoryService 每次请求派生可读 scope，沿既有稳定句柄读取。Host 组合根注入既有 `list` 和 checkout lease 能力，不新增 RPC、数据库、UI 状态或 Runtime 路径写入入口。Desktop continuous 与手机 replayable 均使用原 Host 服务投影。
+- 显式位置切换准备工作树前获取原 checkout shared lease（`waitMs: 1`，使用现有协议允许的最小等待预算，占用时明确失败），在 lease 内重新从 owner 校验绑定 ID、执行路径、identity 和可用状态，再调用既有位置准备器并最终释放 lease。归档/删除的 exclusive writer 与复制互斥；过期发现结果不得重建已经删除的目录。普通运行的 shared lease 可共存，Markdown 并发写入仍由原 memory 根锁协调。只读浏览不获取执行 lease、不更改绑定状态。
+
+```mermaid
+sequenceDiagram
+  participant UI as 记忆设置界面
+  participant M as MemoryService
+  participant S as SettingService
+  participant W as WorktreeService（绑定 owner）
+  participant F as 共享路径解析与文件读取
+  UI->>M: listProjectMemories / readProjectMemoryFile
+  M->>S: 读取已知本地项目
+  M->>W: list(本地项目 scope)
+  W-->>M: 当前绑定、执行路径、identity、显示名与状态
+  M->>F: 去重并校验实际路径，解析 profile / workspace 根
+  F-->>M: 已有 Markdown（不迁移）
+  M-->>UI: 独立工作树与来源目录
+  opt 显式切换位置
+    M->>W: acquireCheckout(shared, waitMs=1)
+    M->>W: list(原 scope)，重新核对绑定
+    M->>F: prepareProjectMemoryStorage(精确执行 scope)
+    M->>W: releaseCheckout（finally）
+    M->>S: 沿原切换流程提交位置与版本
+  end
+```
+
+验收：仅登记原项目时可识别自定义根工作树的两处记忆并独立预览；嵌套项目使用映射后的执行路径；重复来源去重；identity 隔离；重命名刷新；归档/删除/缺失及远程 scope 不被误扫描；切换位置包含工作树且保留源；目录链接拒绝。定向服务测试验证真实磁盘与工作树 owner，浏览器验证两种来源的选择和路径展示。
+
 ## 所有者与接口
 
 - `SettingService` 是选项的唯一持久所有者，沿现有广播同步；UI 只有提交中/错误状态。
@@ -76,6 +112,14 @@ Desktop continuous 与手机 replayable 继续复用既有 Host/Runtime。此设
 7. 执行定向服务/CLI/协议测试和浏览器场景，再运行根及 CLI typecheck/lint、架构与改动文件格式检查；真实安装包未重建前不宣称已部署。
 8. 真实界面与 hook 验证已提交后的广播错误、提交前设置读取晚到、复制期间卸载，服务设置仍是唯一已接受位置，不增加第二份 accepted 状态或重复切换命令。
 9. 旧 profile / workspace Runtime 延迟首次初始化时不触发反向复制或回退版本；新位置删除的文件不因旧 Runtime 启动而复活。未列入最近项目的合法较新位置版本仍能延迟迁移；设置写失败后相同下一版本可重试。
+
+## 执行记录（2026-10-12，工作树识别）
+
+- Node 24.21.0 / pnpm 10.34.6；先新增回归测试确认旧实现漏掉工作树项目内目录及资料目录名称关联，再完成实现。
+- [服务与身份测试](../packages/services/src/memory/worktreeMemory.test.ts)、[真实 Git owner 集成](../packages/services/src/memory/worktreeMemory.integration.test.ts) 及原位置切换回归共 18/18 通过，包含自定义冻结位置、嵌套项目、两处独立预览、复制保留源、重复来源、identity、远程排除、生命周期 lease 占用及过期绑定不重建目录。
+- [工作树设置页浏览器回归](../packages/web/test/worktree-memory-settings.test.mjs) 与原记忆设置测试共 14/14（含父测试）通过；新增 1280px/390px 的两种来源选择、路径展示、刷新保持选择与无横向溢出，已查看窄屏截图。浏览器使用真实组件/hook 与服务 fixture；磁盘与 Git owner 在临时目录验证。
+- 根 `pnpm typecheck`、`pnpm lint`、改动文件格式及 diff 空白检查通过；`pnpm architecture:check --changed` 为 0 violations / baseline 0 / new 0。改动模块为 services 与 Web 测试；绑定、设置、文件写入各保持原 owner，复制事件按 checkout shared lease → owner 重读 → 原 memory 根锁 → lease 释放 → 设置提交排序。
+- 本轮新增 790 行、删除 74 行，净增 716 行（含 spec 与测试）；保留其他本地改动。未改 CLI/协议/生产 UI，未重建安装包；其他操作系统及手机实机未执行。
 
 ## 执行记录（2026-10-11）
 

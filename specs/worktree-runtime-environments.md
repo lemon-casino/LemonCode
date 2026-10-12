@@ -1,7 +1,7 @@
 # 工作树与本机独立运行环境：开发规范、技术方案与实施计划
 
 状态：统一产品规范与实施合同；M0～M3 基础及 P4-01 局部已落地，M4/M5 其余门禁未收口。
-更新日期：2026-10-06。调查基线：L-GO / 9c6327985e02fa5ea8ab7b583bfbda1e18330734。
+更新日期：2026-10-12。原调查基线：L-GO / 9c6327985e02fa5ea8ab7b583bfbda1e18330734；本次回归修复以当前检出源码为准。
 本文整合此前运行环境草案，作为此功能产品规则、开发方案、实施顺序及验收的唯一主文档。新增行为先更新本文，再修改合同、代码与测试。
 
 > 已确认目标：各工作树独立工具版本、依赖、构建产物和开发服务，仍在本机运行，尽量无需额外安装。本次编写文档；操作系统沙盒暂缓，不实施业务代码。
@@ -192,7 +192,44 @@
 
 显示名、中文分支名与会话标题不作为身份 key。凭据只存引用，不持久化展开值，也不发送给 UI。
 
-配置变化将环境标记为需更新；下一次项目执行前重新准备。已有命令和服务继续使用启动时 revision，有真实写入者时升级需等结算或明确停止，不能超时后强行替换。
+配置变化将环境标记为需更新；新的 app consumer 必须明确更新后才能执行。已获授权的 app incarnation 及复用其执行端口的子代理继续使用启动时 revision，不能因任务自行安装依赖、改变锁文件而永久失去命令执行能力。已有命令和服务不切换上下文；显式升级需等真实执行 owner 结算或明确停止，不能超时后强行替换。
+
+#### 2026-10-12 回归修复：依赖变更、共享 Agent 与后台 Bash
+
+- **状态 owner**：RuntimeEnvironmentService 是 manifest/revision、consumer/lease 和 fence 的唯一所有者；WorktreeService 是 binding 与更新 operation 的唯一所有者。CLI app 只保留本次 incarnation 的授权结果与关闭屏障，不复制环境 ready 状态。
+- **连续执行**：锁文件或工具声明变化仍标记 `needsUpdate`，不可修改已发布 manifest，也不可自动沿用系统 PATH。已有且已交付上下文的 process consumer 可按原 environmentId/revision/digest/ownerGeneration/lease 幂等重新解析；其子代理复用父执行端口。Host-only 解析合同携带已取得的 consumer reference，由环境锁内重读持久记录确认。新的 consumer、已释放引用、外部伪造引用、错误 identity/attachment、旧 revision 和任何 upgrade/archive/discard fence 均拒绝。首次解析失败必须释放刚取得的 process 引用，不能把失败请求变成后续继续执行的授权。
+- **精确停止**：环境更新先 fence，再经已有 `session/worktreeCleanup` 的 `closeSessions=true` 关闭共享原工作区 Agent 内属于目标 binding 的 resident app；不删除 session 正文、不关闭兄弟 binding、不停止原工作区共享 Agent。调用使用既有 client，禁止为清理启动新进程。canonical checkout 内独立 Agent/PTY/watcher 仍走原停止路径；app.close 等待后台 Bash、子代理和 MCP 实际结算后才释放精确 consumer。仍在运行、关闭失败或未知 owner 保持 releaseBlocked，按原 requestId 重试。
+- **后台执行合同**：ExecutionPort 公开可选 `runBashWithBackgroundLifecycle`（explicit/auto_on_timeout）。托管包装层与 run/start 共用同一环境解析、overlay、AbortSignal、关闭屏障，完整保留后台查询/输出/等待/取消能力；不支持该方法的底层不得伪造支持。
+- **跨端**：上述 owner、顺序和引用检查在目标 Host 执行。desktop-continuous 与 web-remote-replayable 共用同一结果，不改变事件序列、snapshot/replay 或 CommandInbox；本地 path fallback、workspaceIdentity 和 remoteSessionId 保持原授权规则。
+
+```mermaid
+sequenceDiagram
+  participant App as CLI app 与共享端口子代理
+  participant Env as Host 环境 owner
+  participant WT as Worktree owner
+  participant Agent as 原工作区共享 Agent
+  App->>Env: 首次 acquire/resolve（绑定、身份、引用）
+  Env-->>App: 已授权 revision 的冻结上下文
+  App->>App: 安装依赖，锁文件变化
+  App->>Env: 同 consumer 再解析
+  Env->>Env: 标 needsUpdate，锁内核对精确活引用且无 fence
+  Env-->>App: 原 revision，后续命令继续执行
+  WT->>Env: 明确更新，原 requestId + expected reference，写 fence
+  WT->>Agent: worktreeCleanup（精确 binding，closeSessions=true）
+  Agent->>App: 等待 app/后台/MCP 关闭
+  App->>Env: 精确释放 consumer
+  Agent-->>WT: 目标 app 已关闭，共享进程与兄弟会话保留
+  WT->>Env: 原更新流程准备并发布新引用
+```
+
+验收场景（先补测试再实现）：
+
+1. 已授权父 app 安装依赖改变锁摘要，父/子代理后续前台和后台命令继续使用原 revision；环境保持 needsUpdate。新 app、错误 lease、释放后的引用及显式 fence 均不能借此执行。
+2. 首次上下文解析因声明变化失败，未交付的 process grant 释放，重复请求不能取得连续执行权限；pending resolve 与 close 竞争不得复活 app。
+3. 原工作区共享 Agent 中两个 binding 并存；更新 A 只向已有 client 关闭 A 的 app，A 的 consumer 释放、B 及持久 session 保留，环境更新可以继续。未知/繁忙/失败 owner 仍阻止更新，重复关闭幂等。
+4. 底层支持 explicit/auto_on_timeout 的后台 Bash，包装后仍支持且先解析环境；身份/解析失败、pre-aborted signal、close-during-resolve 均不得 spawn。后台 task ID、输出读取、等待、取消及关闭顺序完整透传。
+
+回归入口：`runtimeEnvironmentRequests.test.ts`、`worktreeExecutionOwner.test.ts`、CLI 的 `project-environment-execution.test.ts` / `worktree-session-cleanup.test.ts`；`pnpm exec tsx --test scripts/runtime-environment-subagent-recovery.test.mjs` 创建真实 Git worktree、离线安装本地依赖并执行前台/后台进程，核对原项目及兄弟 worktree 不受影响，再验证 owner 关闭后环境升级。
 
 #### 2026-10-06 实施约束：冻结、升级与准备收据
 
@@ -218,6 +255,30 @@ sequenceDiagram
   Executor-->>Owner: 真实退出 / 安装结果
   Owner->>Store: 短锁重读 fence；取消优先，未取消才发布新 manifest
   Store-->>Caller: operation + 单调 stateRevision
+```
+
+### 2026-10-12：Windows 工作树开发服务启动
+
+环境 ready 只证明准备成功，服务仍由原环境 owner admission、冻结上下文和实际进程 owner 启动。Windows 的 `dev:server` 必须把 onSuccess 命令作为完整参数传给 tsup；`dev:web` 复用该入口，不能因单引号被 CMD 当作文件名字符而关闭已经启动的 Web。桌面 prepare/runtime 两阶段必须使用冻结 pnpm 的真实 native 或 JS 入口；原生 pnpm 不能作为 Node 脚本执行，也不能强制改名为系统 pnpm.cmd。冻结入口经标准 npm_execpath 传入原开发启动器，不新增服务事实或执行旁路。用户明确要求托管优先、本机直接系统：托管已有可执行冻结入口时不得退回系统；本机启动保留系统 pnpm/Node/PATH，不应用托管工具选择。没有相应托管能力时才沿既有系统兼容入口，不以 fallback 绕过身份、fence、许可或完整性失败。
+
+mise 上游许可原文保持字节校验，Git checkout 必须通过 `-text` 保留字节。已有工作树仅在实际差异完全是 CRLF 且原 Git blob 与登记摘要一致时恢复原文字节；不放宽校验、不更新批准摘要，不覆盖其他工作树改动。测试须覆盖 autocrlf=true 的真实 Git 工作树、许可内容改动仍拒绝、Windows 实际 package script argv 以及 native pnpm 两阶段透传。
+
+构建链中的 bare pnpm 也通过同一脚本命令启动器解析实际 PATH：原生 exe 直接传 argv；只有真实 batch shim 走两轮 CMD 转义。不能把给 batch 的双转义参数交给 native pnpm。测试用真实 native 子进程和复杂 argv 验证，仍保留原 batch 回归。桌面准备需取得既有 checkout 独占许可；工作树忙碌时保留阻塞，不停止正在执行的任务。
+
+checkout coordinator 返回 `LCODE_CHECKOUT_BUSY` 时，原服务失败投影明确说明工作树写许可占用及待当前执行结算后重试；不显示无原因的通用启动失败，不泄漏锁路径，不启动进程，也不停止活任务。
+
+```mermaid
+sequenceDiagram
+  participant UI as 环境面板
+  participant ENV as 环境 owner
+  participant Dev as 原开发启动器
+  participant EXEC as 实际进程 owner
+  UI->>ENV: startService(精确 revision / generation)
+  ENV->>Dev: 冻结 Node / npm_execpath / 私有数据目录
+  Dev->>Dev: prepare 校验原许可字节
+  Dev->>EXEC: runtime 完整 argv，目标工作树 cwd
+  EXEC-->>ENV: 所有声明地址 bind + 健康检查
+  ENV-->>UI: 同代 running；失败仅返回有界原因
 ```
 
 ## 7. 所有者与依赖方向
@@ -658,7 +719,33 @@ P4-01 实施合同（2026-10-06）：同目录分叉经 session alias 读取父 
 
 `runtimeInstanceId` 是实际执行 owner 提供的不透明字符串；当前 manager 生成 `agent-<UUID>`，不能在有完整 owner 收据的恢复路径中按裸 UUID 判断。旧版无收据迁移仍遵守其已冻结的 UUID 格式。
 
-完整 owner 收据也可能因 Host 崩溃缺少退出确认。仅用户原确认 discard 可通过执行 Host 注入的 owner 注册表和本机进程观察，继续精确会话删除事务；取得 writer、清理历史并再次核实原 Agent 不存在后，复用 retirement 写入路径并保存原 owner 与观察时间。PID 不存在不生成进程树退出证明；注册表仍有同代 owner、PID 存在/未知、scope/lease/revision 不符、其他生命周期均保持阻塞。详见 worktree-discard.md 的重启恢复规则；公开 RPC/UI 不新增进程观察或退休能力。
+完整 owner 收据也可能因 Host 崩溃缺少退出确认。用户原确认 discard 可通过执行 Host 注入的 owner 注册表和本机进程观察，继续精确会话删除事务；取得 writer、清理历史并再次核实原 Agent 不存在后，复用 retirement 写入路径并保存原 owner 与观察时间。PID 不存在不生成进程树退出证明；注册表仍有同代 owner、PID 存在/未知、scope/lease/revision 不符均保持阻塞。详见 worktree-discard.md 的重启恢复规则；公开 RPC/UI 不新增进程观察或退休能力。
+
+#### 2026-10-12：显式环境更新的重启恢复
+
+实际复现：安装新版并重启后，原 Agent 已消失，但其现代 process lease 无退出收据；binding 留在 updating，环境升级和 persisted session resume 都受阻。此前正常 app.close 的修复不能结算 Host 崩溃留下的引用。
+
+恢复授权只来自已经持久化的明确环境更新 journal（同 binding、原 requestId、oldEnvironmentRef）。Worktree owner 先 fence/停止现有绑定执行；环境 owner 可让具备完整现代 owner 收据且属于本 binding 活 session 的孤立 process 引用暂留于 stop。随后 Worktree 取得该 checkout 的独占 writer，经 Host-only `retireOrphanedRuntimeConsumersForUpgrade` 重读原 journal/身份/版本/manifest，再在环境短锁内核对完整 owner/generation/lease 并第二次观察 old owner absent。两次观察均须使用全部 Agent lane 的真实 owner 注册表及本机观察，不能用新 Host 当前复用池为空代替。
+
+先保存 `confirmed-environment-upgrade` 审计（保留原 owner、观察时间、原 requestId），再退役这些精确 process 引用；不生成 exitConfirmedAt，不删除 session/代码，不标 ready。之后继续原准备/发布/session CAS/迁移流程，成功后才恢复绑定并允许冷 resume。现代收据缺失、旧版未知引用、PID 存在/未知、错误 owner scope（原工作区或当前 checkout 之外）、其他 binding/identity/session/lease、占用 writer、关闭失败及不同生命周期仍阻塞。旧 audit 与 consumer 写入中断可沿同请求幂等恢复；停止后 observer 变为 present/unknown 时不得退役。
+
+```mermaid
+sequenceDiagram
+  participant W as Worktree 更新 owner
+  participant E as 环境 owner
+  participant O as 原 Agent 注册表与本机观察
+  W->>E: 原更新 journal，fence/stop
+  E->>O: 核对现代 receipt，首次观察旧 owner absent
+  E-->>W: stop 可继续，孤立 lease 尚未释放
+  W->>W: 取得目标 checkout 独占 writer
+  W->>E: 原 journal + 精确引用 + writer，恢复升级 consumer
+  E->>O: 锁内重验 owner/lease，第二次观察 absent
+  E->>E: 保存行政退役审计，再写精确 process 墓碑
+  W->>E: 原请求准备、发布新环境
+  W->>W: session 引用 CAS/迁移、binding ready
+```
+
+验收：真实旧 Agent 已退出且 Host ticket 已丢失时，明确更新可以继续、保留代码和聊天并完成冷恢复；live/unknown/无现代收据/外来 scope/lease/身份/会话/不同生命周期阻塞；writer 或停止失败无退役；两次观察发生变化不退役；audit 落盘后写引用失败可重启幂等续接，旧代迟到释放不能影响新代。
 
 #### 2026-10-09：持久执行 owner 退出收据
 

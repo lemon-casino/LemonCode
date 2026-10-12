@@ -44,6 +44,7 @@ export function createWorktreeService(options: WorktreeServiceOptions): IWorktre
       resolveRuntimeEnvironment: options.resolveRuntimeEnvironment,
       releaseRuntimeEnvironment: options.releaseRuntimeEnvironment,
       retireLegacyRuntimeConsumers: options.retireLegacyRuntimeConsumers,
+      retireOrphanedRuntimeConsumersForUpgrade: options.retireOrphanedRuntimeConsumersForUpgrade,
       rebindRuntimeEnvironmentSessions: options.rebindRuntimeEnvironmentSessions,
       runSetup: options.validate ?? runWorktreeValidation,
       declarationDigest: worktreeDeclarationDigest,

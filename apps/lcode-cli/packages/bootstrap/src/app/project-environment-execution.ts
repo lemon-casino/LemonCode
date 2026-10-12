@@ -6,8 +6,15 @@ export interface ProjectEnvironmentOverlayResolver {
   close?: () => Promise<void>;
 }
 const protectedKeys = new Set([
-  "PATH", "TEMP", "TMP", "TMPDIR", "LCODE_DATA_BASE_DIR", "LCODE_ENVIRONMENT_ID",
-  "LCODE_ENVIRONMENT_REVISION", "NPM_CONFIG_PACKAGE_IMPORT_METHOD", "NPM_CONFIG_STORE_DIR",
+  "PATH",
+  "TEMP",
+  "TMP",
+  "TMPDIR",
+  "LCODE_DATA_BASE_DIR",
+  "LCODE_ENVIRONMENT_ID",
+  "LCODE_ENVIRONMENT_REVISION",
+  "NPM_CONFIG_PACKAGE_IMPORT_METHOD",
+  "NPM_CONFIG_STORE_DIR",
 ]);
 const canonicalKey = (key: string, platform: NodeJS.Platform) =>
   platform === "win32" ? key.toUpperCase() : key;
@@ -21,8 +28,12 @@ export function mergeProjectEnvOverlay(
   const own = request.env;
   if (own?.base === "empty" && frozen.base !== "empty")
     throw new Error("Managed execution cannot discard its frozen environment");
-  const ownerKeys = new Map(Object.entries(frozen.set ?? {}).map(([key, value]) =>
-    [canonicalKey(key, platform), { key, value }]));
+  const ownerKeys = new Map(
+    Object.entries(frozen.set ?? {}).map(([key, value]) => [
+      canonicalKey(key, platform),
+      { key, value },
+    ]),
+  );
   for (const [key, value] of Object.entries(own?.set ?? {})) {
     const owner = ownerKeys.get(canonicalKey(key, platform));
     if (owner && protectedKeys.has(owner.key.toUpperCase()) && owner.value !== value)
@@ -40,10 +51,14 @@ export function mergeProjectEnvOverlay(
     set[key] = value;
   }
   const unset = [...new Set([...(frozen.unset ?? []), ...(own?.unset ?? [])])];
-  return { ...request, env: {
-    base: own?.base ?? frozen.base ?? "inherit",
-    ...(Object.keys(set).length ? { set } : {}), ...(unset.length ? { unset } : {}),
-  } };
+  return {
+    ...request,
+    env: {
+      base: own?.base ?? frozen.base ?? "inherit",
+      ...(Object.keys(set).length ? { set } : {}),
+      ...(unset.length ? { unset } : {}),
+    },
+  };
 }
 
 export function createProjectScopedExecutionPort(
@@ -83,16 +98,29 @@ export function createProjectScopedExecutionPort(
       return closePromise;
     },
   };
-  if (base.start) port.start = async (request, options) => {
-    options?.signal?.throwIfAborted();
-    const resolved = await prepare(request);
-    options?.signal?.throwIfAborted();
-    if (closing) throw new Error("Execution port closed before spawn");
-    return base.start!(resolved, options);
-  };
+  if (base.start)
+    port.start = async (request, options) => {
+      options?.signal?.throwIfAborted();
+      const resolved = await prepare(request);
+      options?.signal?.throwIfAborted();
+      if (closing) throw new Error("Execution port closed before spawn");
+      return base.start!(resolved, options);
+    };
+  // 旧包装只保留 start，丢掉 Bash 专用生命周期；显式后台与超时转后台必须同样经过冻结环境准入。
+  if (base.runBashWithBackgroundLifecycle)
+    port.runBashWithBackgroundLifecycle = async (request, lifecycle, options) => {
+      options?.signal?.throwIfAborted();
+      const resolved = await prepare(request);
+      options?.signal?.throwIfAborted();
+      if (closing) throw new Error("Execution port closed before spawn");
+      return base.runBashWithBackgroundLifecycle!(resolved, lifecycle, options);
+    };
   if (base.getBackgroundTask) port.getBackgroundTask = (id) => base.getBackgroundTask!(id);
-  if (base.waitForBackgroundTask) port.waitForBackgroundTask = (id, options) => base.waitForBackgroundTask!(id, options);
-  if (base.readBackgroundBashOutput) port.readBackgroundBashOutput = (id, sessionId) => base.readBackgroundBashOutput!(id, sessionId);
+  if (base.waitForBackgroundTask)
+    port.waitForBackgroundTask = (id, options) => base.waitForBackgroundTask!(id, options);
+  if (base.readBackgroundBashOutput)
+    port.readBackgroundBashOutput = (id, sessionId) =>
+      base.readBackgroundBashOutput!(id, sessionId);
   if (base.cancelBackgroundTask) port.cancelBackgroundTask = (id) => base.cancelBackgroundTask!(id);
   return port;
 }

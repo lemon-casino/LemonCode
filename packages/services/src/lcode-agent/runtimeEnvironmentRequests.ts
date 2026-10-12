@@ -29,16 +29,13 @@ import {
   runtimeEnvironmentRetainSessionParamsSchema,
   runtimeEnvironmentRetainSessionResultSchema,
   runtimeEnvironmentResolveContextParamsSchema,
-  runtimeEnvironmentResolveContextResultSchema,
   type RuntimeConsumerReleaseParams,
-  type ResolvedProjectContextWire,
 } from "@lcode/shared";
 import type {
   IRuntimeEnvironmentHostService,
   IRuntimeEnvironmentService,
   RuntimeEnvironmentConsumerAuthority,
   RuntimeConsumerProcessOwner,
-  ResolvedProjectExecutionContext,
 } from "../runtime-environment/contract.js";
 import type { IWorktreeService, WorktreeBinding } from "../worktree/contract.js";
 import {
@@ -50,6 +47,7 @@ import {
   sameRuntimeWorkspacePath,
   type RuntimeClientWorkspace,
 } from "./runtimeEnvironmentAuthorization.js";
+import { createRuntimeEnvironmentContextResult } from "./runtimeEnvironmentContext.js";
 
 const publicMethods = new Set<string>([
   lcodeProtocolMethods.runtimeEnvironmentCapabilities,
@@ -203,20 +201,6 @@ export function isRuntimeEnvironmentRequest(method: string): boolean {
     method === lcodeProtocolMethods.runtimeEnvironmentReleaseConsumer
   );
 }
-function toWire(
-  context: ResolvedProjectExecutionContext,
-  workspaceIdentity?: string,
-): ResolvedProjectContextWire {
-  return {
-    environmentId: context.environmentId,
-    revision: context.revision,
-    manifestDigest: context.manifestDigest,
-    cwd: context.cwd,
-    ...(workspaceIdentity ? { workspaceIdentity } : {}),
-    toolPaths: { ...context.toolPaths },
-    envOverlay: context.envOverlay,
-  };
-}
 interface ClientOptions {
   workspace: RuntimeClientWorkspace;
   clientId: string;
@@ -231,6 +215,7 @@ interface Ticket {
   remoteSessionId?: string;
   workspaceIdentity?: string;
   release: RuntimeConsumerReleaseParams;
+  contextGranted: boolean;
 }
 
 /** client 代际是进程引用 owner；RPC 断开不清理，只有实际退出或明确 close 才结算。 */
@@ -316,6 +301,7 @@ export function createRuntimeEnvironmentClient(options: ClientOptions) {
     const scope = runtimeStorageScope(binding);
     if (options.processOwner && !options.consumers.confirmProcessExit)
       throw new Error("capability-unavailable: process owner receipts are unavailable");
+    const previous = tickets.get(key);
     const reference = await options.consumers.acquire(
       {
         ...scope,
@@ -323,25 +309,29 @@ export function createRuntimeEnvironmentClient(options: ClientOptions) {
         kind: "process",
         id: JSON.stringify([request.sessionId, request.consumer]),
         ownerId: options.clientId,
+        ...(previous ? { expectedOwnerGeneration: previous.release.ownerGeneration } : {}),
       },
       options.processOwner,
     );
-    const ticket: Ticket = {
-      sessionId: request.sessionId,
-      executionBindingId: binding.id,
-      workspaceIdentity: request.workspaceIdentity,
-      remoteSessionId: request.remoteSessionId,
-      release: {
-        ...scope,
-        environmentId: reference.environmentId,
-        kind: reference.kind,
-        id: reference.id,
-        ownerId: reference.ownerId,
-        ownerGeneration: reference.ownerGeneration,
-        lease: reference.lease,
-      },
-    };
-    const previous = tickets.get(key);
+    const ticket: Ticket =
+      previous?.release.lease === reference.lease
+        ? previous
+        : {
+            sessionId: request.sessionId,
+            executionBindingId: binding.id,
+            workspaceIdentity: request.workspaceIdentity,
+            remoteSessionId: request.remoteSessionId,
+            release: {
+              ...scope,
+              environmentId: reference.environmentId,
+              kind: reference.kind,
+              id: reference.id,
+              ownerId: reference.ownerId,
+              ownerGeneration: reference.ownerGeneration,
+              lease: reference.lease,
+            },
+            contextGranted: false,
+          };
     if (previous && previous.sessionId !== request.sessionId)
       throw new Error("scope-mismatch: app incarnation belongs to another session");
     tickets.set(key, ticket);
@@ -349,32 +339,36 @@ export function createRuntimeEnvironmentClient(options: ClientOptions) {
       await releaseTicket(key, ticket);
       throw new Error("runtime client exited before context delivery");
     }
-    const context = await options.service.resolveContext({
-      ...scope,
-      environmentId: reference.environmentId,
-      expectedRevision: reference.revision,
-      ...((request.environmentRef.manifestDigest ?? binding.environmentRef?.manifestDigest)
-        ? {
-            expectedManifestDigest:
-              request.environmentRef.manifestDigest ?? binding.environmentRef?.manifestDigest,
-          }
-        : {}),
-      bindingId: binding.id,
-      consumer: request.consumer,
-      cwd: request.cwd,
-    });
-    if (exited || closed.has(key)) throw new Error("runtime client closed before context delivery");
-    if (
-      context.environmentId !== request.environmentRef.environmentId ||
-      context.revision !== request.environmentRef.revision ||
-      (request.environmentRef.manifestDigest &&
-        context.manifestDigest !== request.environmentRef.manifestDigest)
-    )
-      throw new Error("stale-reference: runtime resolved context differs from the bound reference");
-    // storage scope 只有 Host 本地 checkoutPath，wire 必须恢复已授权的远端 execution identity。
-    return runtimeEnvironmentResolveContextResultSchema.parse({
-      context: toWire(context, request.workspaceIdentity),
-    });
+    try {
+      const expectedManifestDigest =
+        request.environmentRef.manifestDigest ?? binding.environmentRef?.manifestDigest;
+      const context = await options.service.resolveContext({
+        ...scope,
+        environmentId: reference.environmentId,
+        expectedRevision: reference.revision,
+        ...(expectedManifestDigest ? { expectedManifestDigest } : {}),
+        bindingId: binding.id,
+        consumer: request.consumer,
+        cwd: request.cwd,
+        // 只有已交付过上下文的原 app 可继续其冻结 revision；首次解析失败不构成授权。
+        ...(ticket.contextGranted ? { consumerReference: reference } : {}),
+      });
+      if (exited || closed.has(key))
+        throw new Error("runtime client closed before context delivery");
+      const result = createRuntimeEnvironmentContextResult(
+        context,
+        request.environmentRef,
+        request.workspaceIdentity,
+      );
+      ticket.contextGranted = true;
+      return result;
+    } catch (error) {
+      // 先 acquire 后发现锁文件变化时不能遗留未授权 process grant，否则阻塞更新且重试可误获续用权。
+      // 保留未授权 grant 的 generation 收据，ready 恢复后可显式重试该 incarnation；它不授予 pinned 执行权。
+      if (!ticket.contextGranted && tickets.get(key) === ticket)
+        await options.consumers.release(ticket.release);
+      throw error;
+    }
   }
 
   return {

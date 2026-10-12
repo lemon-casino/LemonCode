@@ -15,6 +15,17 @@ export async function discardConsumerEligibility(
   observe?: RuntimeProcessOwnerObserver,
 ): Promise<{ orphanedOwner?: RuntimeConsumerProcessOwner } | undefined> {
   if (isLegacyDiscardConsumer(ref, revision, sessions, owners)) return {};
+  return observeOrphanedSessionOwner(ref, revision, sessions, owners, observe);
+}
+
+/** 原始现代 owner 收据的统一观察；行政授权由 discard/upgrade 的各自 journal 与 writer 再裁决。 */
+export async function observeOrphanedSessionOwner(
+  ref: RuntimeConsumerReference,
+  revision: number,
+  sessions: ReadonlySet<string>,
+  owners: readonly RuntimeConsumerOwnerReceipt[],
+  observe?: RuntimeProcessOwnerObserver,
+): Promise<{ orphanedOwner: RuntimeConsumerProcessOwner } | undefined> {
   if (!observe || !isDiscardSessionConsumer(ref, revision, sessions)) return undefined;
   const receipt = owners.find(
     (owner) =>

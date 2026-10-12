@@ -27,6 +27,25 @@ export async function settleExitedRuntimeConsumer(
   return authority.release(reference);
 }
 
+/** 原 app 续用已交付授权；引用来自 Host acquire，不能从公开 RPC 输入构造。 */
+export function continueAuthorizedApp(
+  host: import("./contract.js").IRuntimeEnvironmentHostService,
+  params: import("./contract.js").RuntimeEnvironmentResolveRequest,
+  reference: import("@lcode/shared").RuntimeConsumerReference,
+) {
+  return host.resolveContext({ ...params, consumerReference: reference });
+}
+
+/** 仅原更新 journal 的 Worktree owner 在持有独占 writer 后调用；不是进程树退出证明。 */
+export function recoverOrphanedUpgradeConsumer(
+  authority: import("./contract.js").RuntimeEnvironmentConsumerAuthority,
+  params: import("./contract.js").RuntimeConsumerUpgradeRecoveryParams,
+) {
+  if (!authority.retireOrphanedProcessesForUpgrade)
+    throw new Error("Upgrade orphan recovery unavailable");
+  return authority.retireOrphanedProcessesForUpgrade(params);
+}
+
 /** Host-only：观察不存在仅允许删除事务继续取得 writer，不能调用 confirmProcessExit。 */
 export async function inspectDiscardOwner(
   observe: import("./contract.js").RuntimeProcessOwnerObserver,

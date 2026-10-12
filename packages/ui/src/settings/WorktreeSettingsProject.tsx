@@ -76,7 +76,7 @@ export function WorktreeSettingsProject({
   const openEnvironment = () => onSectionChange("environments");
   return (
     <div className="min-w-0 space-y-6">
-      {section === "worktrees" && management.settings ? (
+      {!selected && section === "worktrees" && management.settings ? (
         <WorktreeGeneralSettings
           key={JSON.stringify(management.settings)}
           settings={management.settings}
@@ -85,7 +85,7 @@ export function WorktreeSettingsProject({
           canSelectDirectory={canSelectDirectory}
         />
       ) : null}
-      {section === "environments" && project ? (
+      {!selected && section === "environments" && project ? (
         <EnvironmentPolicySettings project={project} />
       ) : null}
       {management.error ? (
@@ -116,10 +116,15 @@ export function WorktreeSettingsProject({
       ) : null}
       <section className="min-w-0 space-y-3" aria-label={text("list")}>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h3 className="min-w-0 flex-1 text-ui-lg font-medium">
-            {text(section === "worktrees" ? "list" : "linkedEnvironments")}
+          <h3
+            className="min-w-0 flex-1 truncate text-ui-lg font-medium"
+            title={selected?.displayName ?? selected?.branch}
+          >
+            {selected
+              ? (selected.displayName ?? selected.branch)
+              : text(section === "worktrees" ? "list" : "linkedEnvironments")}
           </h3>
-          {section === "worktrees" ? (
+          {!selected && section === "worktrees" ? (
             <>
               <Button
                 variant="outline"
@@ -163,15 +168,6 @@ export function WorktreeSettingsProject({
             </Button>
             {section === "worktrees" ? (
               <>
-                <WorktreeNameEditor
-                  key={selected.id}
-                  binding={selected}
-                  pending={management.pending}
-                  onSave={management.rename}
-                />
-                <Button variant="outline" onClick={openEnvironment}>
-                  {intl.formatMessage({ id: "settings.environments.title" })}
-                </Button>
                 <WorktreeManagementActions
                   workspacePath={project.workspacePath}
                   workspaceIdentity={project.workspaceIdentity}
@@ -180,6 +176,19 @@ export function WorktreeSettingsProject({
                   busy={false}
                   renderContent={(content) => content}
                   showEnvironment={false}
+                  nameEditor={
+                    <WorktreeNameEditor
+                      key={selected.id}
+                      binding={selected}
+                      pending={management.pending}
+                      onSave={management.rename}
+                    />
+                  }
+                  environmentAction={
+                    <Button size="sm" variant="ghost" onClick={openEnvironment}>
+                      {intl.formatMessage({ id: "settings.environments.title" })}
+                    </Button>
+                  }
                   onSelectSession={(sessionId) =>
                     handleSelectTask(project.workspacePath, sessionId, project.workspaceIdentity)
                   }
@@ -267,9 +276,9 @@ function WorktreeNameEditor({
   const { intl } = useLCodeIntl();
   const [name, setName] = useState(binding.displayName ?? binding.branch);
   return (
-    <div className="flex min-w-0 gap-2">
+    <div className="flex min-w-0 flex-wrap gap-2">
       <Input
-        className="min-w-0 flex-1"
+        className="min-w-0 flex-1 basis-28"
         aria-label={intl.formatMessage({ id: "settings.worktrees.name" })}
         value={name}
         maxLength={120}

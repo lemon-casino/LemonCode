@@ -35,6 +35,32 @@ const projectCatalog: ProjectMemoryWorkspaceSummary = {
     },
   ],
 };
+const worktreeLabel = "local-project / lcode/task-memory-worktree";
+const worktreeProfileCatalog: ProjectMemoryWorkspaceSummary = {
+  ...profileCatalog,
+  id: "worktree-profile",
+  label: worktreeLabel,
+  memoryRoot: "/fixture/user-profile/cli/memories/projects/checkout-hash/memory",
+  files: [
+    {
+      ...profileCatalog.files[0]!,
+      path: "/fixture/user-profile/cli/memories/projects/checkout-hash/memory/MEMORY.md",
+    },
+  ],
+};
+const worktreeWorkspaceCatalog: ProjectMemoryWorkspaceSummary = {
+  ...worktreeProfileCatalog,
+  id: "worktree-workspace",
+  storageLocation: "workspace",
+  memoryRoot: "/fixture/custom worktrees/checkout/.lcode/memory",
+  files: [
+    {
+      ...profileCatalog.files[0]!,
+      path: "/fixture/custom worktrees/checkout/.lcode/memory/MEMORY.md",
+    },
+  ],
+};
+const includeWorktreeCatalog = new URLSearchParams(window.location.search).has("worktree-memory");
 let snapshot = {
   location: "profile" as Location,
   revision: 0,
@@ -94,7 +120,10 @@ const memoryService: IMemoryService = {
     emit({ reads: snapshot.reads + 1 });
     if (snapshot.catalog === "error") throw new Error("Fixture catalog unavailable");
     if (snapshot.catalog === "empty") return [];
-    return snapshot.projectCopied ? [profileCatalog, projectCatalog] : [profileCatalog];
+    const catalog = snapshot.projectCopied ? [profileCatalog, projectCatalog] : [profileCatalog];
+    return includeWorktreeCatalog
+      ? [...catalog, worktreeProfileCatalog, worktreeWorkspaceCatalog]
+      : catalog;
   },
   readProjectMemoryFile: async () => ({ content: "fixture memory", updatedAt: 1780000000000 }),
   changeStorageLocation: async ({ location }) => {

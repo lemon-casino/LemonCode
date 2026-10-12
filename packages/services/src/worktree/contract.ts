@@ -134,6 +134,12 @@ export interface PreparedWorktreeRuntime {
 export interface WorktreeRuntimePorts {
   /** Host 生命周期入口；包含未托管绑定，等待真实 owner 退出，不作为 RPC action。 */
   stopWorktreeExecution?: (binding: WorktreeBinding) => Promise<void>;
+  /** 原显式更新 journal + 独占 writer 下恢复孤立现代 app 引用；不删除历史，不是退出证明。 */
+  retireOrphanedRuntimeConsumersForUpgrade?: (params: {
+    binding: WorktreeBinding;
+    requestId: string;
+    writer: CheckoutLease;
+  }) => Promise<void>;
   prepareRuntimeEnvironment?: (
     params: {
       bindingId: string;
