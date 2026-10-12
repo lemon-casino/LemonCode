@@ -2,6 +2,8 @@
 import { memo, useRef } from "react";
 import { Circle, CircleAlert, CircleCheck, CircleX, LoaderCircle, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { Checkbox } from "@/components/ui/checkbox.js";
+import { Input } from "@/components/ui/input.js";
 import { cn } from "@/components/lib/utils.js";
 import { Popover, PopoverContent, PopoverTitle, PopoverTrigger } from "@/components/ui/popover.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
@@ -87,7 +89,8 @@ function ConversationShareConfirmationDockImpl({
   const { intl, locale } = useLCodeIntl();
   const errorDetailsLabel = intl.formatMessage({ id: "conversationShare.issue.details" });
   const disclosureRef = useRef<HTMLElement>(null);
-  const checkboxRef = useRef<HTMLInputElement>(null);
+  // Radix Checkbox 渲染为 button[role=checkbox]，焦点引用指向该按钮元素而非原生 input。
+  const checkboxRef = useRef<HTMLButtonElement>(null);
   const reviewAnimationRef = useRef<Animation | null>(null);
   const handleConfirm = () => {
     if (!error && !disclosureAccepted) {
@@ -324,10 +327,11 @@ function ConversationShareConfirmationDockImpl({
             <div className="grid gap-2 p-3 pb-0">
               <label className="grid gap-1 text-ui-sm text-foreground-subtle">
                 {intl.formatMessage({ id: "conversationShare.shareTitle" })}
-                <input
+                <Input
                   value={title}
                   onChange={(event) => onTitleChange(event.currentTarget.value)}
-                  className="h-9 w-full min-w-0 rounded-lg border border-input-border bg-input px-3 text-ui-base text-foreground outline-none focus:border-input-border-focused"
+                  size="lg"
+                  className="min-h-9"
                 />
               </label>
               <ConversationSharePermissionPicker
@@ -371,16 +375,15 @@ function ConversationShareConfirmationDockImpl({
                     className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1"
                   >
                     <label className="flex min-w-0 items-start gap-2">
-                      <input
+                      <Checkbox
                         ref={checkboxRef}
-                        type="checkbox"
                         data-testid="conversation-share-disclosure-checkbox"
                         checked={disclosureAccepted}
-                        onChange={(event) => {
+                        onCheckedChange={(checked) => {
                           reviewAnimationRef.current?.cancel();
-                          onDisclosureAcceptedChange(event.currentTarget.checked);
+                          onDisclosureAcceptedChange(checked === true);
                         }}
-                        className="mt-0.5 size-4 shrink-0 accent-primary"
+                        className="mt-0.5"
                       />
                       <span className="font-medium leading-5">
                         {intl.formatMessage({ id: "conversationShare.disclosure.checkbox" })}

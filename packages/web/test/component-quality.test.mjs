@@ -42,8 +42,12 @@ test(
     const artifacts = fileURLToPath(new URL("../../../.lcode/component-quality/", import.meta.url));
     await mkdir(artifacts, { recursive: true });
     const load = async (font = 20, english = false, selectPosition = "popper") => {
+      // 60s：fixture 首次加载需等 vite 按需转换整条共享包导入链，本机冷启动可超
+      // setDefaultTimeout(10_000)（2026-10-12 三次运行中首加载实测 13.7s+）。
+      // 只放宽导航等待，不放宽任何行为断言。
       await page.goto(
         `${origin}/test/fixtures/theme-quality.html?controls&font=${font}&select-position=${selectPosition}${english ? "&english" : ""}`,
+        { timeout: 60_000 },
       );
       await page.getByTestId("quality-input-group").waitFor();
     };
@@ -280,6 +284,8 @@ test(
             await page.setViewportSize({ width, height });
             await page.goto(
               `${origin}/test/fixtures/mobile-layout.html?font=20&lang=${english ? "en" : "zh"}&theme=inkpurple`,
+              // 60s：同 welcome-layout——fixture 导航只放宽等待，不放宽行为断言。
+              { timeout: 60_000 },
             );
             await page
               .getByTestId("fixture-controls")

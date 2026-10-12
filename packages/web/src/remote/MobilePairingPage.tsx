@@ -1,4 +1,6 @@
 import { useEffect, useState, type ReactNode } from "react";
+// 配对页处于 i18n/ServiceProvider 之外，经 @lcode/ui 公共根入口复用无 Provider 依赖的 Button。
+import { Button } from "@lcode/ui";
 import type { PairingDeepLinkRoute } from "./pairingDeepLink.js";
 import {
   clearStoredPairingCredential,
@@ -329,13 +331,16 @@ export function MobilePairingPage({
           {RETRYABLE_KEYS.has(phase.key) ? copy.retryHint : copy.staleLinkHint}
         </p>
         {RETRYABLE_KEYS.has(phase.key) ? (
-          <button
+          <Button
             type="button"
-            className="mt-4 rounded-lg border border-border bg-surface px-3 py-2 text-ui-xs text-foreground-subtle hover:bg-surface-hover"
+            variant="outline"
+            size="lg"
+            // 保留既有 mt-4/px-3/py-2 触控目标与文案；外观统一走共享 Button（outline 档）。
+            className="mt-4 px-3 py-2 text-ui-xs"
             onClick={() => window.location.reload()}
           >
             {copy.retry}
-          </button>
+          </Button>
         ) : null}
       </PairingShell>
     );

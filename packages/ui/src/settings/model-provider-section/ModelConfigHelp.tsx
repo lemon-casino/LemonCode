@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { CircleHelp } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import { Label } from "@/components/ui/label.js";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
@@ -26,9 +27,9 @@ export function ModelConfigInputLabel({
   return (
     // 帮助按钮必须是 label 的兄弟，避免抢走输入关联和标题点击焦点。
     <>
-      <label htmlFor={htmlFor}>
+      <Label htmlFor={htmlFor}>
         {intl.formatMessage({ id: `settings.modelProvider.${field}` })}
-      </label>
+      </Label>
       <ModelConfigHelp field={field} />
     </>
   );

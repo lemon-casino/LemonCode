@@ -12,6 +12,7 @@ import {
 } from "@lcode/shared";
 import type { ISkillSyncService } from "@lcode/services";
 import { Button } from "@/components/ui/button.js";
+import { Checkbox } from "@/components/ui/checkbox.js";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog.js";
 import { useLCodeIntl, type IntlInstance } from "@/i18n/IntlProvider.js";
 import {
@@ -160,11 +161,9 @@ function RemoteSkillSyncExistingFilterCheckbox({
 
   return (
     <label className="inline-flex h-6 cursor-pointer items-center gap-2 rounded-md px-1 text-ui-base text-foreground-subtle hover:text-foreground">
-      <input
-        type="checkbox"
-        className="size-4"
+      <Checkbox
         checked={checked}
-        onChange={(event) => onCheckedChange(event.currentTarget.checked)}
+        onCheckedChange={(nextChecked) => onCheckedChange(nextChecked === true)}
       />
       <span>{intl.formatMessage({ id: "settings.skills.remoteSync.showExisting" })}</span>
     </label>
@@ -213,17 +212,10 @@ function RemoteSkillSyncBulkSelectionCheckbox({
   onClearAll: () => void;
 }) {
   const { intl } = useLCodeIntl();
-  const inputRef = useRef<HTMLInputElement>(null);
   const selectionState = getRemoteSkillSyncBulkSelectionState({
     selectedCount,
     totalSelectable,
   });
-
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.indeterminate = selectionState.indeterminate;
-    }
-  }, [selectionState.indeterminate]);
 
   return (
     <label
@@ -231,17 +223,11 @@ function RemoteSkillSyncBulkSelectionCheckbox({
         selectionState.disabled ? "opacity-50" : "cursor-pointer hover:text-foreground"
       }`}
     >
-      <input
-        ref={inputRef}
-        type="checkbox"
-        className="size-4"
-        checked={selectionState.checked}
+      <Checkbox
+        checked={selectionState.indeterminate ? "indeterminate" : selectionState.checked}
         disabled={selectionState.disabled}
-        aria-checked={
-          selectionState.indeterminate ? "mixed" : selectionState.checked ? "true" : "false"
-        }
-        onChange={(event) => {
-          if (event.currentTarget.checked) {
+        onCheckedChange={(nextChecked) => {
+          if (nextChecked === true) {
             onSelectAll();
           } else {
             onClearAll();

@@ -59,7 +59,11 @@ export async function runMobilePlatformQualityCases({
     async () => {
       await page.setViewportSize({ width: 1280, height: 720 });
       for (const platform of ["windows", "mac", "linux"]) {
-        await page.goto(`${origin}/test/fixtures/theme-quality.html?controls&platform=${platform}`);
+        // 60s：fixture 导航在本机负载下可能超 10s 默认值；只放宽导航等待，不放宽行为断言。
+        await page.goto(
+          `${origin}/test/fixtures/theme-quality.html?controls&platform=${platform}`,
+          { timeout: 60_000 },
+        );
         const frame = page.locator('[data-desktop-window-frame="true"]');
         await frame.waitFor();
         await visibleBounds(frame, 1280, 720);

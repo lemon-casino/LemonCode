@@ -2,6 +2,13 @@ import { lazy, useState } from "react";
 import type { ProviderUsageRequest } from "@lcode/shared";
 import { RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select.js";
 import { useProviderUsageStats } from "@/hooks/useProviderUsageStats.js";
 import { useProviderAccounts } from "@/hooks/useProviderAccounts.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
@@ -22,9 +29,6 @@ const ProviderModelUsageChart = lazy(() =>
     default: module.ProviderModelUsageChart,
   })),
 );
-const selectClass =
-  "min-h-8 w-full min-w-0 rounded-md border border-input-border bg-input px-2 text-ui-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused";
-
 export function ProviderUsagePanel() {
   const { intl } = useLCodeIntl();
   const m = (key: string) => intl.formatMessage({ id: `settings.oauthUsage.${key}` });
@@ -137,81 +141,93 @@ export function ProviderUsagePanel() {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <label className="min-w-0 space-y-1 text-ui-sm">
           {m("range")}
-          <select
-            aria-label={m("range")}
-            className={selectClass}
+          <Select
             value={filters.range}
-            onChange={(event) =>
+            onValueChange={(value) =>
               setFilters({
                 ...filters,
-                range: event.target.value as ProviderUsageRequest["range"],
+                range: value as ProviderUsageRequest["range"],
                 offset: 0,
               })
             }
           >
-            {["24h", "7d", "30d"].map((range) => (
-              <option key={range} value={range}>
-                {m(`range.${range}`)}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full" aria-label={m("range")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {["24h", "7d", "30d"].map((range) => (
+                <SelectItem key={range} value={range}>
+                  {m(`range.${range}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </label>
         <label className="min-w-0 space-y-1 text-ui-sm">
           {m("provider")}
-          <select
-            aria-label={m("provider")}
-            className={selectClass}
+          <Select
             value={filters.provider}
-            onChange={(event) =>
+            onValueChange={(value) =>
               setFilters({
                 ...filters,
-                provider: event.target.value,
+                provider: value,
                 account: "all",
                 model: "all",
                 offset: 0,
               })
             }
           >
-            <option value="all">{m("allProviders")}</option>
-            {providerIds.map((id) => (
-              <option key={id} value={id}>
-                {providerLabel(id)}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full" aria-label={m("provider")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{m("allProviders")}</SelectItem>
+              {providerIds.map((id) => (
+                <SelectItem key={id} value={id}>
+                  {providerLabel(id)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </label>
         <label className="min-w-0 space-y-1 text-ui-sm">
           {m("account")}
-          <select
-            aria-label={m("account")}
-            className={selectClass}
+          <Select
             value={filters.account}
-            onChange={(event) => setFilters({ ...filters, account: event.target.value, offset: 0 })}
+            onValueChange={(value) => setFilters({ ...filters, account: value, offset: 0 })}
           >
-            <option value="all">{m("allAccounts")}</option>
-            <option value="unknown">{m("unattributed")}</option>
-            {accountIds.map((id) => (
-              <option key={id} value={id}>
-                {accountLabel(id)}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full" aria-label={m("account")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{m("allAccounts")}</SelectItem>
+              <SelectItem value="unknown">{m("unattributed")}</SelectItem>
+              {accountIds.map((id) => (
+                <SelectItem key={id} value={id}>
+                  {accountLabel(id)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </label>
         <label className="min-w-0 space-y-1 text-ui-sm">
           {m("model")}
-          <select
-            aria-label={m("model")}
-            className={selectClass}
+          <Select
             value={filters.model}
-            onChange={(event) => setFilters({ ...filters, model: event.target.value, offset: 0 })}
+            onValueChange={(value) => setFilters({ ...filters, model: value, offset: 0 })}
           >
-            <option value="all">{m("allModels")}</option>
-            {modelIds.map((id) => (
-              <option key={id} value={id}>
-                {id}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-full" aria-label={m("model")}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{m("allModels")}</SelectItem>
+              {modelIds.map((id) => (
+                <SelectItem key={id} value={id}>
+                  {id}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </label>
       </div>
       <p className="text-ui-sm text-foreground-subtle">{m("retention")}</p>

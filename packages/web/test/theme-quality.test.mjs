@@ -96,7 +96,11 @@ test(
     const artifacts = fileURLToPath(new URL("../../../.lcode/theme-quality/", import.meta.url));
     await mkdir(artifacts, { recursive: true });
     const load = async (english = false, font = 14) => {
-      await page.goto(`${fixture}?font=${font}${english ? "&english" : ""}`);
+      // 60s：同 component-quality——fixture 首次加载的 vite 按需转换可超 10s 默认导航
+      // 超时；只放宽导航等待，不放宽任何行为断言。
+      await page.goto(`${fixture}?font=${font}${english ? "&english" : ""}`, {
+        timeout: 60_000,
+      });
       await page.locator("[data-v4-draft-greeting]").waitFor();
     };
     const select = async (entry, english = false) => {

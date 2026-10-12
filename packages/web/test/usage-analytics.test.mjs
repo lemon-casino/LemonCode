@@ -3,6 +3,26 @@ import test from "node:test";
 import { mkdir } from "node:fs/promises";
 import { startWorkflowProgressBrowser } from "./workflow-execution-progress-browser.mjs";
 
+// Radix Select 迁移后的交互契约：trigger 是 button[role=combobox]，选项挂在 portal 的
+// [data-slot="select-content"] 内、打开后才出现在文档里；Radix 的挂载回焦发生在内容
+// 可见之后，必须先等焦点再交互（同 component-overlay-cases 的既有先例）。
+async function openUsageSelect(page, name) {
+  const trigger = page.getByRole("combobox", { name, exact: true });
+  await trigger.click();
+  const content = page.locator('[data-slot="select-content"]');
+  await content.waitFor();
+  await page.waitForFunction(() => document.activeElement?.getAttribute("role") === "option");
+  return { trigger, content };
+}
+
+// 点选选项后等 portal 卸载，避免上一次的退出动画残留节点干扰下一次 role=option 查询。
+async function chooseUsageSelectOption(page, name, optionName) {
+  const { trigger, content } = await openUsageSelect(page, name);
+  await page.getByRole("option", { name: optionName, exact: true }).click();
+  await content.waitFor({ state: "detached" });
+  return trigger;
+}
+
 test(
   "OAuth usage filters every view, preserves unknown usage and paginates",
   { timeout: 120_000 },
@@ -16,11 +36,10 @@ test(
     });
     await page.goto(`http://127.0.0.1:${port}/test/fixtures/usage-analytics.html`);
     await page.getByTestId("oauth-usage-summary").waitFor();
-    await page.getByLabel("供应商", { exact: true }).selectOption("oauth:codex");
-    await page
-      .getByLabel("账号", { exact: true })
-      .selectOption("11111111-1111-4111-8111-111111111111");
-    await page.getByLabel("模型", { exact: true }).selectOption("shared-model");
+    const codexTrigger = await chooseUsageSelectOption(page, "供应商", "Codex");
+    assert.equal((await codexTrigger.innerText()).trim(), "Codex");
+    await chooseUsageSelectOption(page, "账号", "Shared account");
+    await chooseUsageSelectOption(page, "模型", "shared-model");
     await page.waitForFunction(
       () => window.__analytics.last?.connectionId === "11111111-1111-4111-8111-111111111111",
     );
@@ -28,22 +47,35 @@ test(
     assert.match(await page.getByTestId("oauth-usage-summary").innerText(), /27.*1/);
     await page.getByRole("button", { name: "下一页", exact: true }).click();
     await page.waitForFunction(() => window.__analytics.last?.offset === 25);
-    await page.getByLabel("供应商", { exact: true }).selectOption("oauth:claude");
+    const claudeTrigger = await chooseUsageSelectOption(page, "供应商", "Claude");
+    assert.equal((await claudeTrigger.innerText()).trim(), "Claude");
     await page.waitForFunction(
       () =>
         window.__analytics.last?.providerId === "oauth:claude" &&
         window.__analytics.last?.offset === 0 &&
         !window.__analytics.last?.connectionId,
     );
-    assert.equal(await page.getByLabel("账号", { exact: true }).inputValue(), "all");
-    await page.getByLabel("供应商", { exact: true }).selectOption("oauth:codex");
-    await page.getByLabel("账号", { exact: true }).selectOption("unknown");
+    // 原生 select 的 inputValue() 断言随迁移失效；改断言 combobox trigger 的选中项文本。
+    assert.equal(
+      (await page.getByRole("combobox", { name: "账号", exact: true }).innerText()).trim(),
+      "全部账号",
+    );
+    await chooseUsageSelectOption(page, "供应商", "Codex");
+    await chooseUsageSelectOption(page, "账号", "账号未记录");
     await page.waitForFunction(() => window.__analytics.last?.connectionId === null);
-    await page
-      .getByLabel("账号", { exact: true })
-      .selectOption("33333333-3333-4333-8333-333333333333");
-    assert.match(await page.getByLabel("账号", { exact: true }).innerText(), /已移除账号/);
-    await page.getByLabel("时间范围", { exact: true }).selectOption("24h");
+    await chooseUsageSelectOption(page, "账号", "已移除账号 · 33333333");
+    assert.match(
+      await page.getByRole("combobox", { name: "账号", exact: true }).innerText(),
+      /已移除账号/,
+    );
+    // 时间范围走键盘路径：打开后 Radix 把焦点放在当前选中项“近 7 天”，
+    // 方向键移动高亮、Enter 提交，等价原生 selectOption("24h") 的 value 语义。
+    const { content: rangeContent } = await openUsageSelect(page, "时间范围");
+    await page.waitForFunction(() => document.activeElement?.textContent === "近 7 天");
+    await page.keyboard.press("ArrowUp");
+    await page.waitForFunction(() => document.activeElement?.textContent === "近 24 小时");
+    await page.keyboard.press("Enter");
+    await rangeContent.waitFor({ state: "detached" });
     await page.waitForFunction(() => window.__analytics.last?.range === "24h");
     for (let index = 0; index < 3; index++) {
       await page.getByRole("button", { name: "API 用量", exact: true }).click();
@@ -140,9 +172,9 @@ test(
     await page.goto(
       `http://127.0.0.1:${port}/test/fixtures/usage-analytics.html?scenario=deferred`,
     );
-    await page.getByLabel("供应商", { exact: true }).selectOption("oauth:codex");
+    await chooseUsageSelectOption(page, "供应商", "Codex");
     await page.waitForFunction(() => window.__analytics.pending);
-    await page.getByLabel("供应商", { exact: true }).selectOption("oauth:claude");
+    await chooseUsageSelectOption(page, "供应商", "Claude");
     await page.getByTestId("oauth-usage-summary").getByText("240", { exact: true }).waitFor();
     await page.evaluate(() => window.__analytics.release());
     assert.match(await page.getByTestId("oauth-usage-summary").innerText(), /240/);
@@ -174,7 +206,7 @@ test(
       ),
       [first, second],
     );
-    await page.getByLabel("供应商", { exact: true }).selectOption("oauth:codex");
+    await chooseUsageSelectOption(page, "供应商", "Codex");
     await page.getByTestId("refresh-visible-quotas").click();
     await page.waitForFunction(
       () => window.__analytics.quotaCalls.filter((call) => call.force).length === 3,
@@ -192,7 +224,7 @@ test(
     });
     await page.getByTestId("refresh-visible-quotas").click();
     await page.waitForFunction(() => window.__analytics.quotaPending);
-    await page.getByLabel("供应商", { exact: true }).selectOption("oauth:claude");
+    await chooseUsageSelectOption(page, "供应商", "Claude");
     await page.getByTestId(`quota-${second}`).getByText("此供应商暂不提供额度").waitFor();
     assert.equal(await page.evaluate(() => window.__analytics.quotaCalls.at(-1).force), false);
     await page.evaluate(() => window.__analytics.releaseQuota());

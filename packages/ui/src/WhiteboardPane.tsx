@@ -11,6 +11,7 @@ import {
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
+import { Slider } from "@/components/controls/Slider.js";
 import { cn } from "@/components/lib/utils.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import {
@@ -293,15 +294,19 @@ export function WhiteboardPane({
             ))}
           </div>
           <ControlHintTooltip title={intl.formatMessage({ id: "whiteboard.strokeWidth" })}>
-            <input
-              type="range"
-              min="2"
-              max="18"
-              value={strokeWidth}
-              aria-label={intl.formatMessage({ id: "whiteboard.strokeWidth" })}
-              onChange={(event) => setStrokeWidth(Number(event.target.value))}
-              className="hidden h-7 w-20 accent-primary md:block"
-            />
+            {/* Tailwind 工具类在 @layer 内，而 Mantine 按组件 CSS 未分层且 Slider 根元素自带
+                display:flex，可见性类名直接放 Slider 上会被层叠规则压过；hidden md:block
+                必须由这层无竞争样式的包裹元素承担。 */}
+            <div className="hidden md:block">
+              <Slider
+                value={strokeWidth}
+                onChange={setStrokeWidth}
+                min={2}
+                max={18}
+                step={1}
+                aria-label={intl.formatMessage({ id: "whiteboard.strokeWidth" })}
+              />
+            </div>
           </ControlHintTooltip>
           <ControlHintTooltip title={intl.formatMessage({ id: "whiteboard.undo" })}>
             <Button

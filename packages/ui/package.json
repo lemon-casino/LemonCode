@@ -33,6 +33,8 @@
     "@lcode/services": "workspace:*",
     "@lcode/shared": "workspace:*",
     "@lexical/react": "^0.42.0",
+    "@mantine/core": "9.7.2",
+    "@mantine/hooks": "9.7.2",
     "@pierre/diffs": "^1.5.2",
     "@radix-ui/react-radio-group": "^1.3.8",
     "@radix-ui/react-use-controllable-state": "^1.2.2",

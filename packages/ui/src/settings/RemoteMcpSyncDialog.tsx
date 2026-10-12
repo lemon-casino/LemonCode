@@ -11,6 +11,7 @@ import type {
 } from "@lcode/shared";
 import type { IMcpSyncService } from "@lcode/services";
 import { Button } from "@/components/ui/button.js";
+import { Checkbox } from "@/components/ui/checkbox.js";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatRemoteSkillSyncTarget } from "@/settings/RemoteSkillSyncDialog.js";
@@ -135,11 +136,9 @@ function RemoteMcpSyncExistingFilterCheckbox({
 
   return (
     <label className="inline-flex h-6 cursor-pointer items-center gap-2 rounded-md px-1 text-ui-base text-foreground-subtle hover:text-foreground">
-      <input
-        type="checkbox"
-        className="size-4"
+      <Checkbox
         checked={checked}
-        onChange={(event) => onCheckedChange(event.currentTarget.checked)}
+        onCheckedChange={(nextChecked) => onCheckedChange(nextChecked === true)}
       />
       <span>{intl.formatMessage({ id: "settings.mcp.remoteSync.showExisting" })}</span>
     </label>
@@ -188,16 +187,9 @@ function RemoteMcpSyncBulkSelectionCheckbox({
   onClearAll: () => void;
 }) {
   const { intl } = useLCodeIntl();
-  const inputRef = useRef<HTMLInputElement>(null);
   const disabled = totalSelectable === 0;
   const checked = totalSelectable > 0 && selectedCount >= totalSelectable;
   const indeterminate = totalSelectable > 0 && selectedCount > 0 && selectedCount < totalSelectable;
-
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.indeterminate = indeterminate;
-    }
-  }, [indeterminate]);
 
   return (
     <label
@@ -205,15 +197,11 @@ function RemoteMcpSyncBulkSelectionCheckbox({
         disabled ? "opacity-50" : "cursor-pointer hover:text-foreground"
       }`}
     >
-      <input
-        ref={inputRef}
-        type="checkbox"
-        className="size-4"
-        checked={checked}
+      <Checkbox
+        checked={indeterminate ? "indeterminate" : checked}
         disabled={disabled}
-        aria-checked={indeterminate ? "mixed" : checked ? "true" : "false"}
-        onChange={(event) => {
-          if (event.currentTarget.checked) {
+        onCheckedChange={(nextChecked) => {
+          if (nextChecked === true) {
             onSelectAll();
           } else {
             onClearAll();
@@ -263,14 +251,13 @@ function RemoteMcpSyncSelectionList({
                 : "cursor-pointer hover:border-border-hover hover:bg-surface-hover"
             }`}
           >
-            <input
+            <Checkbox
               id={checkboxId}
-              type="checkbox"
               aria-labelledby={labelId}
-              className="mt-1 size-4"
+              className="mt-1"
               checked={selected}
               disabled={row.exists}
-              onChange={(event) => onToggle(row.candidate.id, event.currentTarget.checked)}
+              onCheckedChange={(nextChecked) => onToggle(row.candidate.id, nextChecked === true)}
             />
             <span
               className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full border border-border text-foreground-subtle"

@@ -250,3 +250,16 @@ nul
 !/packages/web/test/usage-analytics.test.mjs
 !/packages/web/test/fixtures/usage-analytics.html
 !/packages/web/test/fixtures/usage-analytics.tsx
+!/packages/web/test/fixtures/usage-analytics-data.js
+
+# 首版控件迁移验收用例（C03–C06）的永久品控回归。
+!/packages/web/test/component-migration.test.mjs
+!/packages/web/test/component-migration-cases.mjs
+!/packages/web/test/fixtures/component-migration-sync.html
+!/packages/web/test/fixtures/component-migration-sync.tsx
+!/packages/web/test/fixtures/component-migration-share.html
+!/packages/web/test/fixtures/component-migration-share.tsx
+!/packages/web/test/fixtures/component-migration-slider.html
+!/packages/web/test/fixtures/component-migration-slider.tsx
+!/packages/web/test/fixtures/component-migration-composer.html
+!/packages/web/test/fixtures/component-migration-composer.tsx

@@ -2,6 +2,7 @@ import { useState, type MouseEvent } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import type { SkillSyncCandidate } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
+import { Checkbox } from "@/components/ui/checkbox.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 export interface RemoteSkillSyncRow {
@@ -91,14 +92,13 @@ export function RemoteSkillSyncSelectionList({
             }`}
             onClick={handleCardClick}
           >
-            <input
+            <Checkbox
               id={checkboxId}
-              type="checkbox"
               aria-labelledby={labelId}
-              className="mt-1 size-4"
+              className="mt-1"
               disabled={row.exists}
               checked={selected}
-              onChange={(event) => onToggle(row.candidate.id, event.currentTarget.checked)}
+              onCheckedChange={(nextChecked) => onToggle(row.candidate.id, nextChecked === true)}
             />
             <span className="min-w-0">
               <span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">

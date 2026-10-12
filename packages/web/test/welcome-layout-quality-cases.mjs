@@ -16,6 +16,9 @@ export async function runWelcomeLayoutQualityCases({ t, page, browser, fixture, 
             await page.setViewportSize({ width, height });
             await page.goto(
               `${fixture}?timeline&font=${font}${english ? "&english" : ""}${width < 400 ? "&compact" : ""}`,
+              // 60s：fixture 导航在本机负载下可能超 10s 默认值（2026-10-12 实测）；
+              // 只放宽导航等待，不放宽任何行为断言。
+              { timeout: 60_000 },
             );
             await page.locator("[data-v4-draft-greeting]").waitFor();
             const bounds = await page.evaluate(() => {

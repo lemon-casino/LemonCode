@@ -6,6 +6,7 @@ import {
   type InputEvent,
   type ReactNode,
 } from "react";
+import { Textarea } from "@/components/ui/textarea.js";
 import { cn } from "@/components/lib/utils.js";
 
 const AUTOMATION_INSTRUCTIONS_MIN_HEIGHT_PX = 116;
@@ -33,7 +34,7 @@ export const AUTOMATION_FORM_INPUT_TYPOGRAPHY_CLASSNAME = "text-ui-base leading-
 
 /**
  * Automations 共用的 Instructions 复合输入。
- * textarea 自身承担标准 Input 描边，父级只提供工具栏的 surface 层级。
+ * 内部元素复用共享 Textarea 承担标准 Input 描边与状态色，包装层只保留几何与字号覆盖。
  * 几何、表面层级及全局 Input 描边状态统一收口在这里，调用方只提供字段状态和工具条内容。
  */
 export function AutomationInstructionsComposer({
@@ -99,14 +100,17 @@ export function AutomationInstructionsTextarea({
   };
 
   return (
-    <textarea
+    <Textarea
       {...props}
       ref={textareaRef}
       value={value}
       rows={rows}
       onInput={handleInput}
+      // 覆盖类经 cn 排在共享 Textarea 基类之后生效：min-h/rounded/p 压过基类同组类；
+      // 内联 style.height 优先于基类 field-sizing-content，116–156px 自动增高不受影响；
+      // md:leading-5 压过基类 md:text-ui-base/relaxed，行高在 md 断点仍保持 leading-5。
       className={cn(
-        "h-29 min-h-29 max-h-39 shrink-0 resize-none overflow-y-hidden rounded-xl border border-input-border bg-input p-3 text-foreground outline-none transition-colors placeholder:text-ui-base placeholder:text-foreground-subtlest hover:border-input-border-hover focus:border-input-border-focused focus:bg-input-focused focus:outline-none aria-invalid:border-destructive aria-invalid:ring-2 aria-invalid:ring-destructive/20",
+        "h-29 min-h-29 max-h-39 shrink-0 overflow-y-hidden rounded-xl p-3 placeholder:text-ui-base focus:border-input-border-focused focus:bg-input-focused md:leading-5",
         AUTOMATION_FORM_INPUT_TYPOGRAPHY_CLASSNAME,
       )}
     />

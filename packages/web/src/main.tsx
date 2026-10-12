@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AppErrorBoundary,
+  Button,
   Root,
   LCodeIntlProvider,
   generateMobileDeviceFingerprint,
@@ -391,15 +392,19 @@ function WebBootstrapErrorScreen({ message }: { message: string }) {
             </h1>
           </div>
           <p className="mt-2 break-all text-ui-xs/relaxed text-foreground-subtle">{message}</p>
-          <button
+          {/* 该屏渲染于任何 Provider 之外（renderWebBootstrapError），只可用无 Provider 依赖的
+              根入口 Button；重试动作维持整页 reload。 */}
+          <Button
             type="button"
-            className="mt-4 rounded-lg border border-border bg-surface px-3 py-2 text-ui-xs text-foreground-subtle hover:bg-surface-hover"
+            variant="outline"
+            size="lg"
+            className="mt-4 px-3 py-2 text-ui-xs"
             onClick={() => {
               window.location.reload();
             }}
           >
             {/^zh\b/i.test(navigator.language) ? "重试" : "Retry"}
-          </button>
+          </Button>
         </section>
       </div>
     </div>

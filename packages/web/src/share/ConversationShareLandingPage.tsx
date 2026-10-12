@@ -11,6 +11,7 @@ import {
 import { ArrowUpRightIcon, MoonIcon, SunIcon } from "lucide-react";
 import { BIGMODEL_PROVIDER_ID, ZAI_PROVIDER_ID } from "@lcode/shared";
 import type { ConversationSharePreview } from "@lcode/shared";
+import { Button } from "@lcode/ui";
 import { ConversationShareReadonlyTimeline } from "@lcode/ui/conversation-share-readonly";
 import { renderOAuthProviderIcon } from "@lcode/ui/oauth-provider-icon";
 import { applyTheme, resolveTheme, type Theme } from "@lcode/ui/useTheme";
@@ -189,8 +190,10 @@ const SHARE_CONTINUE_MEASURE_CLASS =
   "inline-flex max-w-none items-center gap-2 rounded-xl bg-primary px-4 py-2 text-ui-base font-medium text-primary-foreground sm:gap-3 sm:px-5 sm:py-2.5";
 const SHARE_CONTINUE_COMPACT_CLASS =
   "inline-flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm transition-colors hover:bg-primary/80 focus-visible:ring-2 focus-visible:ring-input-border-focused";
-const SHARE_THEME_TOGGLE_CLASS =
-  "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-foreground transition-colors hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused";
+// 度量 span 与真实主题按钮保持同一盒型（size-8 图标位），供页头 continueCompact 布局测量；
+// 真实按钮由 @lcode/ui 的 Button ghost/icon 渲染，若改动按钮盒型需同步此处。
+const SHARE_THEME_TOGGLE_MEASURE_CLASS =
+  "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-foreground";
 
 function ShareThemeToggle({
   theme,
@@ -207,16 +210,18 @@ function ShareThemeToggle({
   const Icon = resolvedTheme === "dark" ? SunIcon : MoonIcon;
 
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      // 保持既有 32px 命中区域（Button icon 档默认 28px），度量 span 同步为 size-8。
+      className="size-8"
       data-share-theme-toggle="true"
-      className={SHARE_THEME_TOGGLE_CLASS}
       aria-label={label}
       title={label}
       onClick={() => onThemeChange?.(nextTheme)}
     >
       <Icon className="size-4" aria-hidden="true" />
-    </button>
+    </Button>
   );
 }
 
@@ -476,7 +481,7 @@ export function ConversationShareLandingPage({
                     aria-hidden="true"
                     tabIndex={-1}
                   >
-                    <span className={SHARE_THEME_TOGGLE_CLASS}>
+                    <span className={SHARE_THEME_TOGGLE_MEASURE_CLASS}>
                       <MoonIcon className="size-4" aria-hidden="true" />
                     </span>
                     {importLink ? (
@@ -496,7 +501,7 @@ export function ConversationShareLandingPage({
                     aria-hidden="true"
                     tabIndex={-1}
                   >
-                    <span className={SHARE_THEME_TOGGLE_CLASS}>
+                    <span className={SHARE_THEME_TOGGLE_MEASURE_CLASS}>
                       <MoonIcon className="size-4" aria-hidden="true" />
                     </span>
                     {importLink ? (
@@ -645,11 +650,12 @@ export function ConversationShareLandingStatus({
         {showLogin && onLogin ? (
           <div className="mt-5 space-y-2">
             {SHARE_LOGIN_PROVIDERS.map((provider) => (
-              <button
+              <Button
                 key={provider}
                 type="button"
+                // 保持既有 h-10 全宽登录行与区域徽标布局；尺寸/悬停/聚焦反馈统一走共享 Button。
+                className="h-10 w-full gap-2 px-4"
                 data-share-login-provider={provider}
-                className="flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary px-4 text-ui-base text-primary-foreground"
                 onClick={() => onLogin(provider)}
               >
                 {renderOAuthProviderIcon(provider, "size-4")}
@@ -657,20 +663,16 @@ export function ConversationShareLandingStatus({
                 <span className="ml-1 inline-flex h-5 shrink-0 items-center rounded-full border border-primary-foreground/30 px-2 text-ui-xs font-medium leading-none text-primary-foreground/60">
                   {copy.loginRegion[provider]}
                 </span>
-              </button>
+              </Button>
             ))}
           </div>
         ) : null}
         {canRetry || isNotFound ? (
           <div className="mt-5 flex flex-wrap gap-2">
             {canRetry ? (
-              <button
-                type="button"
-                className="rounded-md border border-border px-4 py-2 text-ui-base text-foreground"
-                onClick={onRetry}
-              >
+              <Button type="button" variant="outline" className="px-4 py-2" onClick={onRetry}>
                 {copy.retry}
-              </button>
+              </Button>
             ) : null}
             {isNotFound ? (
               <a
