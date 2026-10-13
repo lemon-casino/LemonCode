@@ -214,6 +214,12 @@ export function TaskWorkflowRunLines({
           compact ? "h-6 text-ui-sm" : "h-5 text-ui-sm",
           interactive && "-ml-1 px-1 hover:bg-surface-hover hover:text-foreground",
         );
+        // 可点行是 <button>，需要键盘焦点环；<span> 分支共用同一串类会引入无效的 focus 样式，
+        // 因此只在按钮分支追加。两分支的数据属性仍共用，保持落点与测试选择器一致。
+        const interactiveLineClassName = cn(
+          lineClassName,
+          "focus-visible:ring-2 focus-visible:ring-input-border-focused active:bg-surface-hover",
+        );
         const lineProps = {
           "data-workflow-run-line": "true",
           "data-run-id": run.runId,
@@ -225,6 +231,7 @@ export function TaskWorkflowRunLines({
             <button
               type="button"
               {...lineProps}
+              className={interactiveLineClassName}
               aria-label={ariaLabel}
               onClick={(event: MouseEvent<HTMLButtonElement>) => {
                 // 行本身也可点（选中会话）；运行行是更具体的落点，不让点击再冒泡成一次普通选中。

@@ -63,7 +63,7 @@ export function SelectionActionMenu({
           <button
             type="button"
             data-conversation-selection-action="add-to-task"
-            className="min-w-0 px-2.5 py-1.5 hover:bg-menu-hover"
+            className="min-w-0 px-2.5 py-1.5 hover:bg-menu-hover focus-visible:bg-menu-hover"
             onClick={onAddToCurrentTask}
           >
             {intl.formatMessage({ id: "chat.selections.addToTask" })}
@@ -75,8 +75,9 @@ export function SelectionActionMenu({
             disabled={sideActionDisabled}
             title={sideActionDisabled ? sideDisabledTitle : undefined}
             className={cn(
-              "min-w-0 px-2.5 py-1.5 hover:bg-menu-hover",
-              sideActionDisabled && "cursor-not-allowed opacity-50 hover:bg-transparent",
+              "min-w-0 px-2.5 py-1.5 hover:bg-menu-hover focus-visible:bg-menu-hover",
+              sideActionDisabled &&
+                "pointer-events-none opacity-50 hover:bg-transparent focus-visible:bg-transparent",
             )}
             onClick={() => {
               if (!sideActionDisabled) onAskInSideChat();

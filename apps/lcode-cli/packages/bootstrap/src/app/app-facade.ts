@@ -39,6 +39,7 @@ interface AppFacadeDeps {
   scriptWorkflowFacade: ReturnType<typeof createScriptWorkflowBridge>;
   resumeBoundary: ReturnType<typeof createAppSessionResume>;
   closeNodeReplBrowserBroker(): Promise<void>;
+  closeModelAdapter?: () => Promise<void>;
 }
 
 export function createAppFacade(input: AppFacadeDeps): LCodeApp {
@@ -172,6 +173,7 @@ export function createAppFacade(input: AppFacadeDeps): LCodeApp {
     ownsExecutionPort,
     ownsMcpPort,
     closeNodeReplBrowserBroker: input.closeNodeReplBrowserBroker,
+    closeModelAdapter: input.closeModelAdapter,
     ownsSessionStore,
     prepareUserExecutionBoundary,
     prepareResume,

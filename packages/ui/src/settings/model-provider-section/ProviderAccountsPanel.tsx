@@ -216,7 +216,7 @@ function ProviderAccountCard({
       ) : null}
       {account.models.length ? (
         <details className="text-ui-base">
-          <summary className="cursor-pointer text-foreground-subtle">{message("models")}</summary>
+          <summary className="cursor-pointer rounded-sm text-foreground-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-input-border-focused">{message("models")}</summary>
           <ul className="mt-2 max-h-60 space-y-1 overflow-y-auto">
             {account.models.map((model) => (
               <li

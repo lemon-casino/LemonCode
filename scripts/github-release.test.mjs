@@ -8,6 +8,8 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import "./github-actions-environment.test.mjs";
 import "./release-artifacts.test.mjs";
+import "./remote-release-assets.test.mjs";
+import "./remote-release-workflow.test.mjs";
 import { verifyReleaseVersion } from "./verify-release-version.mjs";
 import {
   expectedArtifactNames,
@@ -202,7 +204,7 @@ test("Actions builds every supported platform and publishes only completed tag b
     ).run,
     /LCODE_CUA_LINUX_XA11Y_NATIVE_ROOT/u,
   );
-  assert.equal(workflow.jobs.release.needs, "build");
+  assert.deepEqual(workflow.jobs.release.needs, ["build", "remote-assets"]);
   assert.match(workflow.jobs.release.if, /github\.ref_type == 'tag'/u);
   assert.equal(workflow.jobs.release.permissions.contents, "write");
   assert.equal(workflow.jobs.build.permissions.contents, "read");

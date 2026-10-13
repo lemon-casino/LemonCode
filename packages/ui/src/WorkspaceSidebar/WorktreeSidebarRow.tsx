@@ -163,7 +163,7 @@ export function WorktreeSidebarRow({
         >
           <button
             type="button"
-            className="flex min-w-0 flex-1 items-center gap-1.5 text-left text-ui-base"
+            className="-mx-1 flex min-w-0 flex-1 items-center gap-1.5 rounded-sm px-1 text-left text-ui-base hover:text-foreground focus-visible:ring-2 focus-visible:ring-input-border-focused"
             aria-expanded={!collapsed}
             aria-label={label}
             onClick={onToggle}

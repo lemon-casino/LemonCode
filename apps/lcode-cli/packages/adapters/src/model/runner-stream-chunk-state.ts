@@ -10,6 +10,7 @@ import { createStatusContext } from "./runner-status.js";
 import { StreamingToolCallAssembler } from "./streaming-tool-call-assembler.js";
 
 export interface StreamChunkInput {
+  apiKeyAttempt?: import("./model-execution.js").ApiKeyBoundAttempt;
   /** 本次尝试的准入：错误块的退避 sleep 之前先归还。 */
   admission: AttemptAdmission;
   attempt: number;

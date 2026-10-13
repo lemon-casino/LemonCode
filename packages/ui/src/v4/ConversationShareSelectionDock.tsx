@@ -209,7 +209,7 @@ function ConversationShareSelectionDockImpl({
                             onDeselectTurn ? (
                               <button
                                 type="button"
-                                className="w-fit text-ui-xs font-medium text-foreground underline underline-offset-2"
+                                className="w-fit rounded-sm text-ui-xs font-medium text-foreground underline underline-offset-2 hover:text-foreground-subtle focus-visible:ring-2 focus-visible:ring-input-border-focused"
                                 onClick={() => onDeselectTurn(issue.productTurnId!)}
                               >
                                 {intl.formatMessage({ id: "conversationShare.issue.deselectTurn" })}
@@ -221,7 +221,7 @@ function ConversationShareSelectionDockImpl({
                               <button
                                 type="button"
                                 data-testid="conversation-share-preflight-retry"
-                                className="w-fit text-ui-xs font-medium text-foreground underline underline-offset-2"
+                                className="w-fit rounded-sm text-ui-xs font-medium text-foreground underline underline-offset-2 hover:text-foreground-subtle focus-visible:ring-2 focus-visible:ring-input-border-focused"
                                 onClick={onRetryPreflight}
                               >
                                 {intl.formatMessage({

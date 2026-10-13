@@ -131,7 +131,7 @@ export function StorageCategoryDetail({
                 {isMore ? null : (
                   <button
                     type="button"
-                    className="flex size-8 shrink-0 items-center justify-center rounded-md text-foreground-subtlest hover:bg-surface-hover"
+                    className="flex size-8 shrink-0 items-center justify-center rounded-md text-foreground-subtlest hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-input-border-focused"
                     title={intl.formatMessage({ id: "resourceManager.storage.reveal" })}
                     aria-label={intl.formatMessage({ id: "resourceManager.storage.reveal" })}
                     onClick={() => void onReveal(joinStoragePath(root.path, entry.relativePath))}

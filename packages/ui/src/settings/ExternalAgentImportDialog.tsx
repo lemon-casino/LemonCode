@@ -1233,7 +1233,7 @@ function ImportSelectionList({
             aria-checked={partiallyActiveSelected ? "mixed" : allActiveSelected}
             aria-label={toggleAllLabel}
             onClick={() => onSetResourceSelection(activeImportableResourceKeys, !allActiveSelected)}
-            className="flex min-w-0 items-center gap-2 rounded-md py-1 pr-2 text-left text-ui-base text-foreground-subtle transition-colors hover:text-foreground"
+            className="flex min-w-0 items-center gap-2 rounded-md py-1 pr-2 text-left text-ui-base text-foreground-subtle transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-input-border-focused disabled:opacity-50"
           >
             <span
               className={cn(
@@ -1311,7 +1311,7 @@ function ImportSelectionList({
                   })}
                   onClick={() => onSetResourceSelection(importableResourceKeys, !checked)}
                   className={cn(
-                    "flex size-5 shrink-0 items-center justify-center rounded-md",
+                    "flex size-5 shrink-0 items-center justify-center rounded-md focus-visible:ring-2 focus-visible:ring-input-border-focused",
                     disabled ? "cursor-default" : "cursor-pointer",
                   )}
                 >
@@ -1330,7 +1330,7 @@ function ImportSelectionList({
                 <button
                   type="button"
                   onClick={() => onToggleExpanded(sourceKey)}
-                  className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1 text-left"
+                  className="-mx-1 flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-1 rounded-md px-1 text-left hover:text-foreground focus-visible:ring-2 focus-visible:ring-input-border-focused"
                 >
                   <span className="text-ui-base font-medium text-foreground">
                     {formatAgentName(agent.agent, intl)}

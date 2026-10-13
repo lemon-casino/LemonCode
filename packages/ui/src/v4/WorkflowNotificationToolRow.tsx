@@ -2,6 +2,7 @@ import { Hourglass, MessageCircleQuestion, Workflow } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { WorkflowNotificationMeta } from "@lcode/shared/lcode-protocol-v4";
 import { CodeBlock, CodeBlockHeader } from "@/components/ai-elements/code-block.js";
+import { Button } from "@/components/ui/button.js";
 import { ToolLayout } from "@/ToolCallBlocks/ToolLayout.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { Theme } from "@/useTheme.js";
@@ -121,13 +122,15 @@ export function WorkflowNotificationToolRow({
   }, []);
 
   const openRunLink = onOpenRun ? (
-    <button
+    <Button
       type="button"
+      variant="link"
+      size="xs"
+      className="text-ui-sm text-foreground-subtle decoration-dotted"
       onClick={onOpenRun}
-      className="text-ui-sm text-foreground-subtle decoration-dotted underline-offset-2 hover:text-foreground hover:underline"
     >
       {intl.formatMessage({ id: "chat.toolCall.workflow.openRunDetails" })}
-    </button>
+    </Button>
   ) : null;
 
   const isEscalation = notification.kind === "escalation";

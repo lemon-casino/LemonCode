@@ -116,6 +116,14 @@ export class AiSdkModelAdapter {
     this.modelIoFullRetentionEnabled = enabled;
   }
 
+  dispose(): void {
+    this.execution.dispose();
+  }
+
+  disposeAndWait(): Promise<void> {
+    return this.execution.disposeAndWait();
+  }
+
   setPhysicalRequestAccounting(accounting: PhysicalRequestAccountingPort): void {
     if (this.physicalRequestAccounting && this.physicalRequestAccounting !== accounting) {
       throw new Error("Physical request accounting is already bound to this adapter.");

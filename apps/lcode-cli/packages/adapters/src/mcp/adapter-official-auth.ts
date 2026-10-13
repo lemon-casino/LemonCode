@@ -8,7 +8,6 @@ import {
   OfficialMcpAuthError,
   type OfficialMcpServerResponseInfo,
 } from "./official-auth.js";
-import { createMcpTransportFetch } from "./network.js";
 import { isOfficialAuthConfig } from "./adapter-protocol.js";
 import type { OfficialMcpAuthMetaPayload } from "./adapter-types.js";
 const MAX_TRACKED_SERVER_REQUEST_IDS = 64;
@@ -25,6 +24,7 @@ type McpOfficialAuthContext = Pick<
   | "workingDirectory"
   | "env"
   | "network"
+  | "networkFetch"
   | "lastOfficialAuthKind"
   | "isCurrentConnection"
   | "rememberServerResponse"
@@ -203,7 +203,7 @@ export function createOfficialAuthFetch(
     }) as unknown as typeof globalThis.fetch;
   }
   return createOfficialMcpAuthFetch({
-    baseFetch: createMcpTransportFetch({ env: this.env, network: this.network }),
+    baseFetch: this.networkFetch,
     official,
     onAuthFailure: (kind) => this.lastOfficialAuthKind.set(serverName, kind),
     onServerResponse: (response) => {

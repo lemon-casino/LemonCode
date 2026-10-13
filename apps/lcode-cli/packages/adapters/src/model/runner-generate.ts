@@ -10,7 +10,6 @@ import {
   createEmptyCompletionFailure,
   scheduleEmptyCompletionRetry,
 } from "./empty-completion-retry.js";
-import { AiSdkModelAdapterError } from "./errors.js";
 import { classifyModelFailure } from "./failure-classifier.js";
 import { unwrapRetryError } from "./failure-inspection.js";
 import { detectProviderBusinessFinishError } from "./provider-finish-business-error.js";
@@ -56,7 +55,11 @@ import { modelFailureStatusFields, providerRequestIdFromHeaders } from "./runner
 import { statusPublishOptions } from "./runner-attempt-status.js";
 import { logModelSpeedObservation } from "./runner-speed-observation.js";
 import { handleGenerateFailure } from "./runner-generate-failure.js";
-import { serializeStructuredOutput, waitForGenerateTextOrAbort } from "./runner-generate-result.js";
+import {
+  generationExhaustedError,
+  serializeStructuredOutput,
+  waitForGenerateTextOrAbort,
+} from "./runner-generate-result.js";
 import type { GenerateAttemptState } from "./runner-generate-state.js";
 import type { ModelRunnerInput, ModelRunnerRetryState } from "./runner-request-state.js";
 
@@ -159,6 +162,7 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
 
     try {
       attemptState.resolved = await resolveModelForAttempt({
+        outsideTicket: (wait, signal) => admission.waitOutsideTicket?.(wait, signal) ?? wait(),
         attempt,
         request: attemptState.attemptRequest,
         resolveModel: input.resolveModel,
@@ -264,10 +268,8 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
         ? serializeStructuredOutput(result)
         : result.text;
       const reasoning = normalizeReasoning(result.reasoning);
-      const reasoningLength = (reasoning ?? []).reduce(
-        (total, block) => total + block.text.length,
-        0,
-      );
+      const reasoningLength =
+        reasoning?.reduce((total, block) => total + block.text.length, 0) ?? 0;
       if (
         input.request.preserveProviderStreamBoundaries !== true &&
         isZeroOutputModelCompletion({
@@ -415,13 +417,10 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
       );
       if (offPeakQueueHold) attempt -= 1;
     } finally {
+      attemptState.resolved.apiKeyAttempt?.release();
       admission.release();
     }
   }
 
-  throw new AiSdkModelAdapterError(
-    ModelErrorCode.ModelRequestFailed,
-    "Model request failed before an attempt could complete",
-    { context: { requestId: baseStatusContext.requestId } },
-  );
+  throw generationExhaustedError(baseStatusContext.requestId);
 }

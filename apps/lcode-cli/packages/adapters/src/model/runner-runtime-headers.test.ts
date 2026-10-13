@@ -14,6 +14,31 @@ import type {
   ResolvedAiSdkModel,
 } from "./runner-runtime.js";
 import { runStreamText } from "./runner-stream.js";
+import { resolveModelForAttempt } from "./runner-runtime-headers.js";
+
+test("owner cancellation during runtime-header projection is not wrapped as a refresh failure", async () => {
+  const cancelled = new ModelProtocolError(ModelErrorCode.ModelRequestCancelled, "owner disposed", {
+    reason: ModelFailureReason.Cancelled,
+    retryable: false,
+  });
+  await assert.rejects(
+    resolveModelForAttempt({
+      attempt: 1,
+      request: {
+        messages: [],
+        refreshRuntimeHeadersBeforeAttempt: async () => ({
+          headersApplied: true,
+          requestAuth: { apiKey: "synthetic" },
+        }),
+      },
+      resolveModel: (auth) => {
+        if (auth) throw cancelled;
+        return resolved;
+      },
+    }),
+    (error) => error === cancelled,
+  );
+});
 
 const resolved = {
   model: {},

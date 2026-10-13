@@ -287,20 +287,20 @@ function StatusSectionHeader({
           type="button"
           aria-expanded={isOpen}
           data-status-section-trigger={section}
-          className="group flex min-w-0 shrink-0 items-center gap-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-input-border-focused)]"
+          className="group flex min-w-0 shrink-0 items-center gap-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
         >
-          <span className="shrink-0 text-ui-base text-[var(--color-foreground-subtle)]">
+          <span className="shrink-0 text-ui-base text-foreground-subtle">
             {title}
           </span>
           {isOpen ? (
-            <ChevronDownIcon className="size-3.5 shrink-0 text-[var(--color-foreground-subtle)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+            <ChevronDownIcon className="size-3.5 shrink-0 text-foreground-subtle opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
           ) : (
-            <ChevronRightIcon className="size-3.5 shrink-0 text-[var(--color-foreground-subtle)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+            <ChevronRightIcon className="size-3.5 shrink-0 text-foreground-subtle opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
           )}
         </button>
       </CollapsibleTrigger>
       {children ? (
-        <div className="inline-flex min-w-0 max-w-full shrink items-center gap-1.5 text-ui-sm text-[var(--color-foreground-subtlest)]">
+        <div className="inline-flex min-w-0 max-w-full shrink items-center gap-1.5 text-ui-sm text-foreground-subtlest">
           {children}
         </div>
       ) : null}
@@ -348,7 +348,7 @@ function StatusSection({
       open={isOpen}
       onOpenChange={handleOpenChange}
       data-status-section={section}
-      className={cn("min-w-0 flex-none", separated && "border-t border-[var(--color-border)] pt-2")}
+      className={cn("min-w-0 flex-none", separated && "border-t border-border pt-2")}
     >
       <section className="min-w-0 flex-none">
         <StatusSectionHeader isOpen={isOpen} section={section} title={title}>
@@ -439,10 +439,10 @@ function GitStatusSection({
         trailing={(isOpen) =>
           isOpen ? null : (
             <span className="shrink-0 font-mono text-ui-sm tabular-nums">
-              <span className={cn("text-[var(--color-diff-added)]", !hasChanges && "opacity-50")}>
+              <span className={cn("text-diff-added", !hasChanges && "opacity-50")}>
                 +{git.added}
               </span>{" "}
-              <span className={cn("text-[var(--color-diff-removed)]", !hasChanges && "opacity-50")}>
+              <span className={cn("text-diff-removed", !hasChanges && "opacity-50")}>
                 -{git.removed}
               </span>
             </span>
@@ -456,22 +456,22 @@ function GitStatusSection({
             type="button"
             disabled={!canOpenReview}
             className={cn(
-              "flex h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-ui-base text-[var(--color-foreground)] transition-colors",
+              "flex h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-ui-base text-foreground transition-colors",
               canOpenReview
-                ? "hover:bg-[var(--color-hover)] hover:text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-input-border-focused)]"
+                ? "hover:bg-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
                 : "cursor-default opacity-50",
             )}
             onClick={() => {
               onOpenGitReview?.(gitWorktreeReviewSourceId ?? undefined);
             }}
           >
-            <FileDiffIcon className="size-4 shrink-0 text-[var(--color-foreground)]" />
+            <FileDiffIcon className="size-4 shrink-0 text-foreground" />
             <span className="min-w-0 flex-1 truncate">
               {intl.formatMessage({ id: "chat.statusPanel.changes" })}
             </span>
             <span className="shrink-0 font-mono tabular-nums">
-              <span className="text-[var(--color-diff-added)]">+{git.added}</span>{" "}
-              <span className="text-[var(--color-diff-removed)]">-{git.removed}</span>
+              <span className="text-diff-added">+{git.added}</span>{" "}
+              <span className="text-diff-removed">-{git.removed}</span>
             </span>
           </button>
           <GitBranchSwitcher
@@ -480,7 +480,7 @@ function GitStatusSection({
             dirtyFileCount={git.dirtyFileCount}
             onRefreshGit={onRefreshGit}
             className="w-full px-0 pt-0"
-            triggerClassName="flex h-8 w-full min-w-0 justify-start gap-2 rounded-lg px-2 text-left text-ui-base text-[var(--color-foreground)] hover:bg-[var(--color-hover)] hover:text-[var(--color-foreground)] [&>span]:max-w-[calc(100%-3.5rem)] [&_svg:first-child]:text-[var(--color-foreground)]"
+            triggerClassName="flex h-8 w-full min-w-0 justify-start gap-2 rounded-lg px-2 text-left text-ui-base text-foreground hover:bg-hover hover:text-foreground [&>span]:max-w-[calc(100%-3.5rem)] [&_svg:first-child]:text-foreground"
             popoverClassName="w-72 max-w-[calc(100vw-2rem)]"
             branchListClassName="max-h-56"
             popoverSide={useVerticalFloatingPanels ? "bottom" : "left"}
@@ -578,7 +578,7 @@ function GoalStatusSection({
   ) : isDone ? (
     <CircleCheckBigIcon
       aria-label={intl.formatMessage({ id: "chat.goalVerification.complete" })}
-      className="size-4 shrink-0 text-[var(--color-success)]"
+      className="size-4 shrink-0 text-success"
     />
   ) : null;
 
@@ -615,21 +615,21 @@ function GoalStatusSection({
               data-goal-iteration={row.iteration}
               data-goal-iteration-completed={row.completed}
               data-goal-verification-outcome={row.verificationOutcome ?? undefined}
-              className="flex min-w-0 cursor-default items-start gap-2 rounded-lg px-2 py-2 hover:bg-[var(--color-hover)]"
+              className="flex min-w-0 cursor-default items-start gap-2 rounded-lg px-2 py-2 hover:bg-hover"
               title={title}
             >
               {row.completed ? (
-                <span className="flex size-4 shrink-0 items-center justify-center rounded-full border border-[var(--color-success)] text-ui-xs tabular-nums text-[var(--color-success)]">
+                <span className="flex size-4 shrink-0 items-center justify-center rounded-full border border-success text-ui-xs tabular-nums text-success">
                   {row.iteration}
                 </span>
               ) : (
-                <GoalIcon className="size-4 shrink-0 text-[var(--color-foreground-subtle)]" />
+                <GoalIcon className="size-4 shrink-0 text-foreground-subtle" />
               )}
-              <p className="line-clamp-3 min-w-0 flex-1 text-ui-base leading-4 text-[var(--color-foreground)]">
+              <p className="line-clamp-3 min-w-0 flex-1 text-ui-base leading-4 text-foreground">
                 {title}
               </p>
               {row.totalCount > 0 ? (
-                <span className="shrink-0 text-ui-sm tabular-nums text-[var(--color-foreground-subtle)]">
+                <span className="shrink-0 text-ui-sm tabular-nums text-foreground-subtle">
                   {row.completedCount}/{row.totalCount}
                 </span>
               ) : null}
@@ -646,7 +646,7 @@ function PlanStatusIcon({ status }: { status: PlanState["items"][number]["status
     return (
       <CheckCircle2Icon
         aria-hidden
-        className="mt-0.5 size-3.5 shrink-0 text-[var(--color-success)]"
+        className="mt-0.5 size-3.5 shrink-0 text-success"
       />
     );
   }
@@ -654,14 +654,14 @@ function PlanStatusIcon({ status }: { status: PlanState["items"][number]["status
     return (
       <ArrowRightIcon
         aria-hidden
-        className="mt-0.5 size-3.5 shrink-0 text-[var(--color-foreground)]"
+        className="mt-0.5 size-3.5 shrink-0 text-foreground"
       />
     );
   }
   return (
     <CircleIcon
       aria-hidden
-      className="mt-0.5 size-3.5 shrink-0 text-[var(--color-foreground-subtlest)]"
+      className="mt-0.5 size-3.5 shrink-0 text-foreground-subtlest"
     />
   );
 }
@@ -712,7 +712,7 @@ function PlanStatusItemRows({ items }: { items: PlanState["items"] }) {
     <li
       key={item.id}
       data-plan-status={item.status}
-      className="flex min-h-8 items-start gap-2 rounded-lg px-2 py-1.5 text-ui-base hover:bg-[var(--color-hover)]"
+      className="flex min-h-8 items-start gap-2 rounded-lg px-2 py-1.5 text-ui-base hover:bg-hover"
     >
       <PlanStatusIcon status={item.status} />
       <span
@@ -720,8 +720,8 @@ function PlanStatusItemRows({ items }: { items: PlanState["items"] }) {
         className={cn(
           "line-clamp-2 min-w-0 flex-1 break-words leading-5",
           item.status === "completed"
-            ? "text-[var(--color-foreground-subtlest)] line-through"
-            : "text-[var(--color-foreground)]",
+            ? "text-foreground-subtlest line-through"
+            : "text-foreground",
         )}
       >
         {item.content}
@@ -746,7 +746,7 @@ const TodoPreviewTrigger = forwardRef<
       type="button"
       aria-expanded={open}
       data-status-todo-preview-trigger={group}
-      className="flex h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-ui-base text-[var(--color-foreground-subtle)] hover:bg-[var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-input-border-focused)]"
+      className="flex h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left text-ui-base text-foreground-subtle hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-input-border-focused"
       onClick={(event) => {
         onClick?.(event);
         // HoverCard 在桌面由 hover/focus 驱动；仅无 hover 输入补充点击打开，
@@ -807,10 +807,10 @@ function TodoHiddenGroupPreview({
         side={popoverSide}
         sideOffset={4}
         data-status-todo-preview-content={group}
-        className="w-80 max-w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-[var(--color-popover-border)] bg-[var(--color-menu)] p-3 shadow-md ring-0"
+        className="w-80 max-w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-popover-border bg-menu p-3 shadow-md ring-0"
       >
         <div className="flex max-h-[min(24rem,calc(100dvh-2rem))] min-w-0 flex-col">
-          <p className="flex h-8 shrink-0 items-center px-2 text-ui-base text-[var(--color-foreground-subtle)]">
+          <p className="flex h-8 shrink-0 items-center px-2 text-ui-base text-foreground-subtle">
             {label}
           </p>
           <ul className="min-h-0 space-y-0 overflow-y-auto pr-1">
@@ -901,11 +901,11 @@ function SessionPlansStatusSection({
                   onOpenPlanDetail?.(buildSessionPlanOpenRequest(parentSessionId, item));
                 }}
                 className={cn(
-                  "flex min-h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-ui-base text-[var(--color-foreground)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-input-border-focused)]",
-                  canOpen && "hover:bg-[var(--color-hover)]",
+                  "flex min-h-8 w-full min-w-0 items-center gap-2 rounded-lg px-2 py-1.5 text-left text-ui-base text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-input-border-focused",
+                  canOpen && "hover:bg-hover",
                 )}
               >
-                <ListChecksIcon className="size-4 shrink-0 text-[var(--color-foreground-subtle)]" />
+                <ListChecksIcon className="size-4 shrink-0 text-foreground-subtle" />
                 <span className="min-w-0 flex-1 truncate">{title}</span>
               </button>
             </li>
@@ -958,7 +958,7 @@ function PlanStatusSection({
         <span
           className={cn(
             "tabular-nums",
-            isCompleted ? "text-[var(--color-success)]" : "text-[var(--color-foreground-subtle)]",
+            isCompleted ? "text-success" : "text-foreground-subtle",
           )}
         >
           {plan.completedCount}/{plan.totalCount}
@@ -968,7 +968,7 @@ function PlanStatusSection({
       {executionEnded && !isCompleted ? (
         <p
           data-testid="todo-execution-ended"
-          className="px-2 pb-2 text-ui-sm text-[var(--color-foreground-subtle)]"
+          className="px-2 pb-2 text-ui-sm text-foreground-subtle"
         >
           {intl.formatMessage(
             { id: "chat.statusPanel.todoExecutionEnded" },
@@ -1015,7 +1015,7 @@ function RunningWorkCancelButton({
         id: "chat.summaryPanel.stopRunningBackgroundTask",
       })}
       onClick={handleClick}
-      className="pointer-events-auto relative z-[2] ml-auto h-6 shrink-0 px-1.5 text-ui-base text-[var(--color-foreground)]"
+      className="pointer-events-auto relative z-[2] ml-auto h-6 shrink-0 px-1.5 text-ui-base text-foreground"
     >
       <SquareIcon aria-hidden className="size-3 fill-current" />
       {intl.formatMessage({ id: "chat.statusPanel.runningStop" })}
@@ -1061,7 +1061,7 @@ function RunningStatusItem({
       data-background-task-kind={work.kind}
       data-work-id={work.workId}
       data-work-status={work.status}
-      className="group relative flex min-w-0 items-start gap-2 rounded-lg px-2 py-2 hover:bg-[var(--color-hover)]"
+      className="group relative flex min-w-0 items-start gap-2 rounded-lg px-2 py-2 hover:bg-hover"
     >
       {onOpenBackgroundBash ? (
         <button
@@ -1072,13 +1072,13 @@ function RunningStatusItem({
           onClick={() => onOpenBackgroundBash(work)}
         />
       ) : null}
-      <SquareTerminalIcon className="pointer-events-none relative z-[1] mt-0.5 size-4 shrink-0 text-[var(--color-foreground-subtle)]" />
+      <SquareTerminalIcon className="pointer-events-none relative z-[1] mt-0.5 size-4 shrink-0 text-foreground-subtle" />
       <div className="pointer-events-none relative z-[1] flex min-w-0 flex-1 flex-col gap-1.5">
-        <p className="line-clamp-2 text-ui-base leading-5 text-[var(--color-foreground)]">
+        <p className="line-clamp-2 text-ui-base leading-5 text-foreground">
           {work.title}
         </p>
         <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-ui-base">
-          <span className="shrink-0 tabular-nums text-[var(--color-foreground-subtle)]">
+          <span className="shrink-0 tabular-nums text-foreground-subtle">
             {formatBackgroundTaskElapsedLabel(
               getBackgroundWorkElapsedMs(work, now),
               intl.formatMessage,
@@ -1302,7 +1302,7 @@ function WorkflowStatusSection({
               data-work-id={run.workId}
               data-work-status={run.status}
               className={cn(
-                "group relative flex min-w-0 items-start gap-2 rounded-lg px-2 py-2 hover:bg-[var(--color-hover)]",
+                "group relative flex min-w-0 items-start gap-2 rounded-lg px-2 py-2 hover:bg-hover",
                 canOpen && "cursor-pointer",
               )}
             >
@@ -1315,12 +1315,12 @@ function WorkflowStatusSection({
                   data-workflow-run-id={run.runId}
                   aria-label={openLabel}
                   onClick={() => onOpenWorkflowRun?.(openTarget)}
-                  className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-input-border-focused)]"
+                  className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-input-border-focused"
                 />
               ) : null}
-              <Workflow className="pointer-events-none relative z-[1] mt-0.5 size-4 shrink-0 text-[var(--color-foreground-subtle)]" />
+              <Workflow className="pointer-events-none relative z-[1] mt-0.5 size-4 shrink-0 text-foreground-subtle" />
               <div className="pointer-events-none relative z-[1] flex min-w-0 flex-1 flex-col gap-1.5">
-                <span className="line-clamp-2 text-ui-base leading-5 text-[var(--color-foreground)]">
+                <span className="line-clamp-2 text-ui-base leading-5 text-foreground">
                   {displayName}
                 </span>
                 {run.activitySummary === undefined ? null : (
@@ -1346,7 +1346,7 @@ function WorkflowStatusSection({
                           id: `chat.toolCall.workflow.run.status.${run.status}`,
                         })}
                       </span>
-                      <span className="shrink-0 tabular-nums text-[var(--color-foreground-subtle)]">
+                      <span className="shrink-0 tabular-nums text-foreground-subtle">
                         {intl.formatMessage(
                           { id: "chat.toolCall.workflow.card.steps" },
                           {
@@ -1361,7 +1361,7 @@ function WorkflowStatusSection({
                     </>
                   ) : null}
                   {run.startedAt === undefined ? null : (
-                    <span className="shrink-0 tabular-nums text-[var(--color-foreground-subtle)]">
+                    <span className="shrink-0 tabular-nums text-foreground-subtle">
                       {formatBackgroundTaskElapsedLabel(
                         Math.max(0, now - run.startedAt),
                         intl.formatMessage,
@@ -1385,7 +1385,7 @@ function WorkflowStatusSection({
       <EndedDirectoryRow
         count={endedRunCount}
         icon={
-          <CheckCircle2Icon className="size-4 shrink-0 text-[var(--color-foreground-subtle)]" />
+          <CheckCircle2Icon className="size-4 shrink-0 text-foreground-subtle" />
         }
         label={intl.formatMessage({ id: "chat.statusPanel.endedWorkflows" })}
         separated={runs.length > 0}
@@ -1490,7 +1490,7 @@ function SubagentStatusSection({
               data-work-id={subagent.controlWorkId}
               data-work-status="running"
               className={cn(
-                "group relative flex min-w-0 items-start gap-2 rounded-lg px-2 py-2 hover:bg-[var(--color-hover)]",
+                "group relative flex min-w-0 items-start gap-2 rounded-lg px-2 py-2 hover:bg-hover",
                 canOpenSubagentSession && "cursor-pointer",
               )}
             >
@@ -1505,16 +1505,16 @@ function SubagentStatusSection({
                     id: "chat.summaryPanel.openRunningSubagentSession",
                   })}
                   onClick={() => request && onOpenSubagentSession?.(request)}
-                  className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-input-border-focused)]"
+                  className="absolute inset-0 z-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-input-border-focused"
                 />
               ) : null}
-              <BotIcon className="pointer-events-none relative z-[1] mt-0.5 size-4 shrink-0 text-[var(--color-foreground-subtle)]" />
+              <BotIcon className="pointer-events-none relative z-[1] mt-0.5 size-4 shrink-0 text-foreground-subtle" />
               <div className="pointer-events-none relative z-[1] flex min-w-0 flex-1 flex-col gap-1.5">
-                <span className="line-clamp-2 text-ui-base leading-5 text-[var(--color-foreground)]">
+                <span className="line-clamp-2 text-ui-base leading-5 text-foreground">
                   {subagent.title}
                 </span>
                 <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-ui-base">
-                  <span className="text-ui-base tabular-nums text-[var(--color-foreground-subtle)]">
+                  <span className="text-ui-base tabular-nums text-foreground-subtle">
                     {formatBackgroundTaskElapsedLabel(
                       Math.max(0, now - (subagent.startedAt ?? now)),
                       intl.formatMessage,
@@ -1569,17 +1569,17 @@ function EndedDirectoryRow({
 }) {
   if (count <= 0 || !onOpen) return null;
   return (
-    <div className={cn(separated && "border-t border-[var(--color-border)] pt-2")}>
+    <div className={cn(separated && "border-t border-border pt-2")}>
       <button
         type="button"
         data-testid={testId}
-        className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-ui-base text-[var(--color-foreground)] hover:bg-[var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--color-input-border-focused)]"
+        className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-ui-base text-foreground hover:bg-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-input-border-focused"
         onClick={onOpen}
       >
         {icon}
         <span>{label}</span>
-        <span className="ml-auto text-[var(--color-foreground-subtle)]">{count}</span>
-        <ChevronRightIcon className="size-4 text-[var(--color-foreground-subtle)]" />
+        <span className="ml-auto text-foreground-subtle">{count}</span>
+        <ChevronRightIcon className="size-4 text-foreground-subtle" />
       </button>
     </div>
   );
@@ -1602,7 +1602,7 @@ function EndedSubagentDirectoryRow({
   return (
     <EndedDirectoryRow
       count={count}
-      icon={<CheckCircle2Icon className="size-4 shrink-0 text-[var(--color-foreground-subtle)]" />}
+      icon={<CheckCircle2Icon className="size-4 shrink-0 text-foreground-subtle" />}
       label={intl.formatMessage({ id: "chat.statusPanel.endedAgents" })}
       separated={separated}
       onOpen={
@@ -1620,12 +1620,12 @@ function EndedSubagentDirectoryRow({
 
 function StatusSummaryMetric({ children, icon }: { children: ReactNode; icon: ReactNode }) {
   return (
-    <div className="flex h-8 w-max max-w-80 min-w-0 items-center gap-1.5 pl-2 pr-3 text-ui-base text-[var(--color-foreground)]">
+    <div className="flex h-8 w-max max-w-80 min-w-0 items-center gap-1.5 pl-2 pr-3 text-ui-base text-foreground">
       <span className="relative size-4 shrink-0">
         <span className="absolute inset-0 transition-opacity group-hover:opacity-0 group-focus-visible:opacity-0">
           {icon}
         </span>
-        <Maximize2Icon className="absolute inset-0 size-4 text-[var(--color-foreground)] opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
+        <Maximize2Icon className="absolute inset-0 size-4 text-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
       </span>
       {children}
     </div>
@@ -1705,44 +1705,44 @@ function StatusSummaryRow({
           : BotIcon;
   const summaryMetric = currentPlanItem ? (
     <StatusSummaryMetric
-      icon={<ArrowRightIcon className="size-4 text-[var(--color-foreground)]" />}
+      icon={<ArrowRightIcon className="size-4 text-foreground" />}
     >
       <span className="min-w-0 truncate">{currentPlanItem.content}</span>
     </StatusSummaryMetric>
   ) : goalTitle && isActiveGoal ? (
-    <StatusSummaryMetric icon={<GoalIcon className="size-4 text-[var(--color-foreground)]" />}>
+    <StatusSummaryMetric icon={<GoalIcon className="size-4 text-foreground" />}>
       <span className="min-w-0 truncate">{goalTitle}</span>
     </StatusSummaryMetric>
   ) : hasGitMiniSummary ? (
-    <StatusSummaryMetric icon={<FileDiffIcon className="size-4 text-[var(--color-foreground)]" />}>
+    <StatusSummaryMetric icon={<FileDiffIcon className="size-4 text-foreground" />}>
       <span className="min-w-0 truncate">
         {intl.formatMessage({ id: "chat.statusPanel.changes" })}
       </span>
-      <span className="shrink-0 text-[var(--color-diff-added)]">+{added}</span>
-      <span className="shrink-0 text-[var(--color-diff-removed)]">-{removed}</span>
+      <span className="shrink-0 text-diff-added">+{added}</span>
+      <span className="shrink-0 text-diff-removed">-{removed}</span>
     </StatusSummaryMetric>
   ) : goalTitle && isDoneGoal ? (
-    <StatusSummaryMetric icon={<GoalIcon className="size-4 text-[var(--color-foreground)]" />}>
+    <StatusSummaryMetric icon={<GoalIcon className="size-4 text-foreground" />}>
       <span className="min-w-0 truncate">{goalTitle}</span>
     </StatusSummaryMetric>
   ) : completedPlanItem ? (
-    <StatusSummaryMetric icon={<CheckCircle2Icon className="size-4 text-[var(--color-success)]" />}>
+    <StatusSummaryMetric icon={<CheckCircle2Icon className="size-4 text-success" />}>
       <span className="min-w-0 truncate">{completedPlanItem.content}</span>
     </StatusSummaryMetric>
   ) : model.plan ? (
     <StatusSummaryMetric
-      icon={<ListChecksIcon className="size-4 text-[var(--color-foreground-subtle)]" />}
+      icon={<ListChecksIcon className="size-4 text-foreground-subtle" />}
     >
       <span className="min-w-0 truncate">
         {intl.formatMessage({ id: "chat.statusPanel.todo" })}
       </span>
-      <span className="shrink-0 text-[var(--color-foreground-subtle)]">
+      <span className="shrink-0 text-foreground-subtle">
         {model.plan.completedCount}/{model.plan.totalCount}
       </span>
     </StatusSummaryMetric>
   ) : latestSessionPlan ? (
     <StatusSummaryMetric
-      icon={<ListChecksIcon className="size-4 text-[var(--color-foreground)]" />}
+      icon={<ListChecksIcon className="size-4 text-foreground" />}
     >
       <span className="min-w-0 truncate">
         {latestSessionPlan.title ?? intl.formatMessage({ id: "chat.statusPanel.planFallback" })}
@@ -1750,7 +1750,7 @@ function StatusSummaryRow({
     </StatusSummaryMetric>
   ) : runningCount > 0 ? (
     <StatusSummaryMetric
-      icon={<RunningSummaryIcon className="size-4 text-[var(--color-foreground)]" />}
+      icon={<RunningSummaryIcon className="size-4 text-foreground" />}
     >
       {/* 产品规则：实时活动只能在没有 Goal/Todo/Git 等主状态时兜底，
           避免胶囊把主状态和输入框已展示的实时计数重复拼接。 */}
@@ -1767,28 +1767,28 @@ function StatusSummaryRow({
     // 空壳线（与 goal notSatisfied 那次是同一个失效形状）。这里补上最低优先级的终态
     // 分支：图标沿用 Workflow 域，文案与 Workflows 分区页脚同 key，点开即展开面板。
     <StatusSummaryMetric
-      icon={<Workflow className="size-4 text-[var(--color-foreground-subtle)]" />}
+      icon={<Workflow className="size-4 text-foreground-subtle" />}
     >
       <span className="min-w-0 truncate">
         {intl.formatMessage({ id: "chat.statusPanel.endedWorkflows" })}
       </span>
-      <span className="shrink-0 text-[var(--color-foreground-subtle)]">
+      <span className="shrink-0 text-foreground-subtle">
         {endedWorkflowRunCount}
       </span>
     </StatusSummaryMetric>
   ) : endedSubagentCount > 0 ? (
     <StatusSummaryMetric
-      icon={<BotIcon className="size-4 text-[var(--color-foreground-subtle)]" />}
+      icon={<BotIcon className="size-4 text-foreground-subtle" />}
     >
       <span className="min-w-0 truncate">
         {intl.formatMessage({ id: "chat.statusPanel.endedAgents" })}
       </span>
-      <span className="shrink-0 text-[var(--color-foreground-subtle)]">{endedSubagentCount}</span>
+      <span className="shrink-0 text-foreground-subtle">{endedSubagentCount}</span>
     </StatusSummaryMetric>
   ) : canRenderGit ? (
     // 干净仓库没有统计投影，mini 仍需可点击的最低优先级摘要，不能只剩空壳。
     <StatusSummaryMetric
-      icon={<FileDiffIcon className="size-4 text-[var(--color-foreground-subtle)]" />}
+      icon={<FileDiffIcon className="size-4 text-foreground-subtle" />}
     >
       <span className="min-w-0 truncate">
         {intl.formatMessage({
@@ -1807,7 +1807,7 @@ function StatusSummaryRow({
       <button
         type="button"
         aria-label={expandLabel}
-        className="group inline-flex w-max max-w-80 cursor-pointer flex-col items-stretch text-left text-[var(--color-foreground)] transition-colors hover:bg-[var(--color-menu-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-input-border-focused)]"
+        className="group inline-flex w-max max-w-80 cursor-pointer flex-col items-stretch text-left text-foreground transition-colors hover:bg-menu-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
         onClick={() => onVariantChange?.("panel")}
       >
         {summaryMetric}
@@ -2029,7 +2029,7 @@ function ConversationStatusPanelImpl({
         data-ended-workflow-count={endedWorkflowRunCount}
         style={shellStyle}
         className={cn(
-          "pointer-events-auto relative overflow-hidden rounded-2xl border border-[var(--color-popover-border)] bg-[var(--color-popover)] text-[var(--color-foreground)] shadow-md transition-[border-radius,padding,background-color,box-shadow] duration-300 ease-in-out",
+          "pointer-events-auto relative overflow-hidden rounded-2xl border border-popover-border bg-popover text-foreground shadow-md transition-[border-radius,padding,background-color,box-shadow] duration-300 ease-in-out",
           variant === "mini"
             ? "inline-flex max-h-8.5 w-[var(--chat-summary-panel-mini-width)] max-w-[calc(100vw-1.5rem)] flex-col"
             : variant === "panel"

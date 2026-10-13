@@ -56,7 +56,10 @@ const view = {
           modelId: "demo",
           config: {
             optionSpecs: {
-              reasoningLevel: { values: ["low", "high"], map: "{}" },
+              reasoningLevel: {
+                values: query.get("thoughtLevels")?.split(",") ?? ["low", "high"],
+                map: "{}",
+              },
               maxOutputTokens: { max: 4096, map: "{}" },
               speed: {
                 values: query.has("standardOnly") ? ["standard"] : ["standard", "fast"],
@@ -318,7 +321,18 @@ function App() {
       }}
       onStop={() => {}}
       onSelectModel={() => {}}
-      onSelectThought={() => {}}
+      onSelectThought={(reasoningLevel, modelContext) => {
+        // 思考控件需写入真实夹具草稿，空回调无法验证下一次 Submission 冻结的档位。
+        setDraft((current) => ({
+          ...current,
+          modelSelection: updateDraftModelSelectionOption(
+            current,
+            modelContext,
+            "reasoningLevel",
+            reasoningLevel,
+          ),
+        }));
+      }}
       onSelectSpeed={(speed, modelContext) => {
         setDraft((current) => ({
           ...current,

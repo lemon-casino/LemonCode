@@ -13,13 +13,15 @@ import {
   type ModelOptionValues,
 } from "@lcode/model-option-map";
 import {
+  ModelErrorCode,
+  ModelFailureReason,
+  ModelProtocolError,
   type Logger,
   type ModelId,
   type ModelProviderId,
   type ModelRequestAuth,
 } from "@lcode/contracts";
 import {
-  resolveApiKeyAccessKeys,
   resolveProviderNetworkConfig,
   type ProviderApiKey,
   type RegistryProviderConfig,
@@ -29,10 +31,16 @@ import { createAnthropicCompatFetch } from "./anthropic-stream-compat.js";
 import { createOpenAIResponsesJsonCompatFetch } from "./openai-responses-json-compat.js";
 import { createModelOptionMapFetch, type RawRequestBodyCapture } from "./model-option-map-fetch.js";
 import { createNetworkProxyFetch } from "../network/proxy-fetch.js";
+import { NetworkFetchCache } from "../network/network-fetch-cache.js";
 import { createOfficialCodingPlanGatewayFetch } from "./official-coding-plan-gateway.js";
 import { normalizeModelTlsFailure } from "./failure-tls.js";
 import { mergeModelRequestHeaders } from "./model-request-headers.js";
 import { observeModelSpeed, type ModelSpeedObservation } from "./model-speed-observation.js";
+import { ApiKeyPoolRegistry, type ApiKeyPool } from "./api-key-pool.js";
+import { sniffModelSseResponse } from "./model-sse-sniff.js";
+import { createApiKeyFailoverFetch, withApiKeyLease } from "./api-key-fetch.js";
+export { createApiKeyFailoverFetch } from "./api-key-fetch.js";
+export type { ApiKeyFailoverState } from "./api-key-fetch.js";
 
 export type AiSdkProviderKind = "openai" | "anthropic" | "openai-compatible";
 
@@ -63,12 +71,18 @@ export interface AiSdkModelExecutionOptions {
 }
 
 export interface AiSdkNetworkConfig {
+  http2?: "disabled" | "negotiate";
   caCertFile?: string;
   httpProxy?: string;
   noProxy?: string;
 }
 
 export interface AiSdkResolvedModel {
+  acquireApiKeyAttempt?: (
+    signal?: AbortSignal,
+    outsideTicket?: (wait: () => Promise<void>, signal?: AbortSignal) => Promise<void>,
+  ) => Promise<ApiKeyBoundAttempt>;
+  apiKeyAttempt?: ApiKeyBoundAttempt;
   baseURL?: string;
   headers?: Record<string, string>;
   providerId: ModelProviderId;
@@ -78,6 +92,14 @@ export interface AiSdkResolvedModel {
   providerOptions?: Record<string, unknown>;
   rawRequestBodyCapture?: RawRequestBodyCapture;
   speedObservation?: ModelSpeedObservation;
+}
+
+export interface ApiKeyBoundAttempt {
+  readonly keyId: string;
+  readonly model: LanguageModel;
+  readonly canRotate: boolean;
+  release(): void;
+  observeFailure(status: number | undefined, headers: Record<string, string> | undefined): void;
 }
 
 export interface AiSdkBoundModelResolution {
@@ -93,6 +115,7 @@ type ProviderFetch = typeof globalThis.fetch;
 type ProviderCode = string | number;
 
 export interface ProviderBusinessErrorFetchOptions {
+  streamRequested?: () => boolean;
   caCertFile?: string;
   env?: EnvRecord;
   providerId: string;
@@ -100,11 +123,6 @@ export interface ProviderBusinessErrorFetchOptions {
   fetch?: ProviderFetch;
   httpProxy?: string;
   noProxy?: string;
-}
-
-export interface ApiKeyFailoverState {
-  readonly failedKeyIds: Set<string>;
-  nextIndex: number;
 }
 
 export interface ProviderBusinessErrorOptions {
@@ -171,8 +189,10 @@ export class AiSdkModelExecution {
   private readonly network: AiSdkNetworkConfig;
   private readonly logger?: Logger;
   private readonly baseTransport?: ProviderFetch;
-  private readonly providerTransports = new Map<string, ProviderFetch>();
-  private readonly providerApiKeyStates = new Map<string, ApiKeyFailoverState>();
+  private readonly networkResources = new NetworkFetchCache();
+  private disposed = false;
+  private closing?: Promise<void>;
+  private readonly apiKeyPools = new ApiKeyPoolRegistry();
 
   constructor(config: AiSdkModelExecutionConfig = {}, options: AiSdkModelExecutionOptions = {}) {
     this.env = config.env ?? process.env;
@@ -201,6 +221,7 @@ export class AiSdkModelExecution {
       readonly speed?: { readonly map: string };
     };
   }): AiSdkBoundModelResolution {
+    this.assertActive(input.providerId, input.modelId);
     const snapshot = this.captureModelSnapshot(input);
     const optionMaps = compileModelOptionMaps(input.optionSpecs);
     return {
@@ -218,7 +239,31 @@ export class AiSdkModelExecution {
     readonly providerSaveGeneration?: string;
     readonly supportsJsonSchemaOutput: boolean;
   }): AiSdkModelSnapshot {
-    const configuredProvider = toAiSdkProviderConfig(input.providerId, input.providerConfig);
+    const configuredProvider = toAiSdkProviderConfig(
+      input.providerId,
+      input.providerConfig,
+      this.apiKeyPools,
+    );
+    let apiKeyPool: ApiKeyPool | undefined;
+    try {
+      if (configuredProvider.apiKeys?.length)
+        apiKeyPool = this.apiKeyPools.get(
+          input.providerId,
+          input.providerSaveGeneration,
+          configuredProvider.apiKeys,
+        );
+    } catch (error) {
+      throw new ModelProtocolError(
+        ModelErrorCode.InvalidModelRequest,
+        error instanceof Error ? error.message : "Invalid API key catalog",
+        {
+          providerId: input.providerId,
+          modelId: input.modelId,
+          reason: ModelFailureReason.InvalidRequest,
+          retryable: false,
+        },
+      );
+    }
     const providerSaveGeneration = input.providerSaveGeneration;
     // 重构后模型 SDK 曾只接到用户 Header，漏掉版本和站点归因；在公共绑定边界恢复，
     // 不依赖签名成功，不给各业务重复补头，也不修改 Provider 或已绑定 Model 的配置。
@@ -237,6 +282,7 @@ export class AiSdkModelExecution {
           : {}),
       },
       providerId: input.providerId as ModelProviderId,
+      apiKeyPool,
       modelId: input.modelId as ModelId,
       supportsJsonSchemaOutput: input.supportsJsonSchemaOutput,
       ...(providerSaveGeneration === undefined ? {} : { providerSaveGeneration }),
@@ -249,22 +295,58 @@ export class AiSdkModelExecution {
     optionMaps: CompiledModelOptionMaps | undefined,
     optionValues: ModelOptionValues | undefined,
   ): AiSdkResolvedModel {
+    this.assertActive(String(snapshot.providerId), String(snapshot.modelId));
     const providerConfig = applyModelRequestAuth(snapshot.providerConfig, requestAuth);
     // Model 创建时的 Provider 事实必须被冻结在当前 binding 中。若按 providerId 缓存
     // factory，配置更新后创建的新 Model 会错误复用旧 Endpoint / Header / API Key。
     const rawRequestBodyCapture: RawRequestBodyCapture = {};
     const factory = this.createFactory(
       snapshot.providerId,
-      snapshot.providerSaveGeneration,
       providerConfig,
       optionMaps,
       optionValues,
       rawRequestBodyCapture,
       snapshot.supportsJsonSchemaOutput,
+      snapshot.apiKeyPool,
     );
     const model = factory(snapshot.modelId.toString());
     const speedObservation = optionValues?.speed ? { requested: optionValues.speed } : undefined;
     return {
+      ...(snapshot.apiKeyPool && providerConfig.apiKeys?.length
+        ? {
+            acquireApiKeyAttempt: async (signal, outsideTicket) => {
+              this.assertActive(String(snapshot.providerId), String(snapshot.modelId));
+              const lease = await snapshot.apiKeyPool!.acquire(signal, outsideTicket);
+              try {
+                const factory = this.createFactory(
+                  snapshot.providerId,
+                  providerConfig,
+                  optionMaps,
+                  optionValues,
+                  rawRequestBodyCapture,
+                  snapshot.supportsJsonSchemaOutput,
+                  snapshot.apiKeyPool,
+                  lease,
+                );
+                const model = factory(snapshot.modelId.toString());
+                return {
+                  keyId: lease.key.id,
+                  model: speedObservation ? observeModelSpeed(model, speedObservation) : model,
+                  get canRotate() {
+                    return lease.canRotate;
+                  },
+                  release: () => lease.release(),
+                  observeFailure: (status, headers) => {
+                    if (status === 429) lease.observe(429, new Headers(headers));
+                  },
+                };
+              } catch (error) {
+                lease.release();
+                throw error;
+              }
+            },
+          }
+        : {}),
       baseURL: providerConfig.baseURL,
       headers: providerConfig.headers,
       providerId: snapshot.providerId,
@@ -279,33 +361,33 @@ export class AiSdkModelExecution {
 
   private createFactory(
     providerId: string,
-    providerSaveGeneration: string | undefined,
     providerConfig: AiSdkProviderConfig,
     optionMaps: CompiledModelOptionMaps | undefined,
     optionValues: ModelOptionValues | undefined,
     rawRequestBodyCapture: RawRequestBodyCapture,
     supportsJsonSchemaOutput: boolean,
+    apiKeyPool?: ApiKeyPool,
+    lease?: import("./api-key-pool.js").ApiKeyLease,
   ): LanguageModelFactory {
     const apiKey = this.resolveApiKey(providerConfig);
     const headers = providerConfig.headers;
     // OAuth Host票据仅用于同一执行环境回环端口，不能被用户配置的外部HTTP代理转发。
     const providerTransport =
       providerConfig.access.type === "oauth-account"
-        ? (this.baseTransport ?? createNetworkProxyFetch({ env: {}, forceDirect: true }))
+        ? this.resolveOAuthLoopbackTransport()
         : this.resolveProviderTransport(providerId, providerConfig.network);
-    const apiKeyTransport = providerConfig.apiKeys?.length
-      ? createApiKeyFailoverFetch({
-          fetch: providerTransport,
-          keys: providerConfig.apiKeys,
-          providerKind: providerConfig.kind,
-          state: this.resolveApiKeyFailoverState(
-            providerId,
-            providerConfig.apiKeys,
-            providerSaveGeneration,
-          ),
-        })
-      : providerTransport;
+    const apiKeyTransport = lease
+      ? withApiKeyLease(providerTransport, lease, providerConfig.kind)
+      : providerConfig.apiKeys?.length
+        ? createApiKeyFailoverFetch({
+            fetch: providerTransport,
+            keys: providerConfig.apiKeys,
+            providerKind: providerConfig.kind,
+            pool: apiKeyPool,
+          })
+        : providerTransport;
     const fetch = createProviderBusinessErrorFetch({
+      streamRequested: () => rawRequestBodyCapture.body?.stream === true,
       fetch: apiKeyTransport,
       providerId,
       providerKind: providerConfig.kind,
@@ -363,50 +445,96 @@ export class AiSdkModelExecution {
     return providerConfig.apiKey;
   }
 
-  private resolveApiKeyFailoverState(
+  private resolveProviderTransport(
     providerId: string,
-    keys: readonly ProviderApiKey[],
-    // 相同 Key 列表重新保存时 id/启用位/密文都不变。代次必须是 bindModel 冻结的本供应商保存动作，不能现读。
-    saveGeneration: string | undefined,
-  ): ApiKeyFailoverState {
-    const keySignature = keys
-      .map((key) => `${key.id}:${key.enabled === false ? "0" : "1"}:${key.apiKey}`)
-      .join("\u0000");
-    // 按冻结代次分槽。后创建的 Model 不能用新代次的空游标覆盖旧代次仍在用的失败记录。
-    const slot = `${providerId}\u0001${saveGeneration ?? ""}\u0001${keySignature}`;
-    const current = this.providerApiKeyStates.get(slot);
-    if (current) return current;
-    const state = { failedKeyIds: new Set<string>(), nextIndex: 0 };
-    this.providerApiKeyStates.set(slot, state);
-    return state;
-  }
-
-  private resolveProviderTransport(providerId: string, network: RegistryProviderConfig["network"]): ProviderFetch {
-    if (network?.mode === "profile") throw new Error("Proxy profile must be resolved before model execution");
+    network: RegistryProviderConfig["network"],
+  ): ProviderFetch {
+    if (network?.mode === "profile")
+      throw new Error("Proxy profile must be resolved before model execution");
     // 正式模型绑定同样使用默认直连规则，不能仅修改设置页的选中项。
     network = resolveProviderNetworkConfig(network);
     const key = JSON.stringify([providerId, network ?? null]);
-    const current = this.providerTransports.get(key);
-    if (current) {
-      return current;
-    }
     // 官方 Coding Plan 端点先替换为平台网关端点，再进入用户 HTTP 代理 fetch，
     // httpProxy / noProxy 按实际发送地址判定。
-    const transport = createProviderTransportFetch({
-      caCertFile: network?.mode === "custom" ? network.caCertPath || this.network.caCertFile : this.network.caCertFile,
-      // 专用/直连不能再回退到进程 HTTP_PROXY；同一供应商更新配置后按新策略创建 transport。
-      env: network && network.mode !== "default" ? Object.fromEntries(Object.entries(this.env).filter(([key]) => !/^(https?_proxy|all_proxy|no_proxy|LCODE_HTTP_PROXY|LCODE_NO_PROXY|LCODE_TOOL_ENV_PASSTHROUGH_JSON)$/i.test(key))) : this.env,
-      fetch: this.baseTransport,
-      httpProxy: !network || network.mode === "default" ? this.network.httpProxy : network.mode === "custom" ? network.httpProxy : undefined,
-      noProxy: !network || network.mode === "default" ? this.network.noProxy : network.mode === "custom" ? network.noProxy : undefined,
-      forceDirect: Boolean(network && network.mode !== "default"),
-    });
-    this.providerTransports.set(key, transport);
+    const frozenNetwork = network;
+    const networkFetch = this.networkResources.fetchFor(key, (onIdle) =>
+      createNetworkProxyFetch({
+        http2: this.network.http2 ?? "negotiate",
+        onIdle,
+        caCertFile:
+          frozenNetwork?.mode === "custom"
+            ? frozenNetwork.caCertPath || this.network.caCertFile
+            : this.network.caCertFile,
+        // 专用/直连不能再回退到进程 HTTP_PROXY；同一供应商更新配置后按新策略创建 transport。
+        env:
+          network && network.mode !== "default"
+            ? Object.fromEntries(
+                Object.entries(this.env).filter(
+                  ([key]) =>
+                    !/^(https?_proxy|all_proxy|no_proxy|LCODE_HTTP_PROXY|LCODE_NO_PROXY|LCODE_TOOL_ENV_PASSTHROUGH_JSON)$/i.test(
+                      key,
+                    ),
+                ),
+              )
+            : this.env,
+        fetch: this.baseTransport,
+        httpProxy:
+          !network || network.mode === "default"
+            ? this.network.httpProxy
+            : network.mode === "custom"
+              ? network.httpProxy
+              : undefined,
+        noProxy:
+          !network || network.mode === "default"
+            ? this.network.noProxy
+            : network.mode === "custom"
+              ? network.noProxy
+              : undefined,
+        forceDirect: Boolean(network && network.mode !== "default"),
+      }),
+    );
+    const transport = createOfficialCodingPlanGatewayFetch({ env: this.env, fetch: networkFetch });
     return transport;
+  }
+
+  private resolveOAuthLoopbackTransport(): ProviderFetch {
+    return this.networkResources.fetchFor("oauth-loopback", (onIdle) =>
+      createNetworkProxyFetch({ env: {}, forceDirect: true, fetch: this.baseTransport, onIdle }),
+    );
+  }
+
+  dispose(): void {
+    if (this.disposed) return;
+    this.disposed = true;
+    this.networkResources.dispose();
+    this.apiKeyPools.dispose();
+  }
+
+  private assertActive(providerId: string, modelId: string): void {
+    if (!this.disposed) return;
+    // 普通错误会落入 workflow 的无上限重试；关闭 owner 必须直接收口为取消。
+    throw new ModelProtocolError(
+      ModelErrorCode.ModelRequestCancelled,
+      "Model execution has been disposed",
+      {
+        providerId,
+        modelId,
+        reason: ModelFailureReason.Cancelled,
+        retryable: false,
+      },
+    );
+  }
+
+  disposeAndWait(): Promise<void> {
+    if (this.closing) return this.closing;
+    this.dispose();
+    this.closing = this.networkResources.disposeAndWait();
+    return this.closing;
   }
 }
 
 interface AiSdkModelSnapshot {
+  readonly apiKeyPool?: ApiKeyPool;
   readonly supportsJsonSchemaOutput: boolean;
   readonly providerConfig: AiSdkProviderConfig;
   readonly providerId: ModelProviderId;
@@ -418,12 +546,13 @@ interface AiSdkModelSnapshot {
 function toAiSdkProviderConfig(
   providerId: string,
   config: RegistryProviderConfig,
+  pools: ApiKeyPoolRegistry,
 ): AiSdkProviderConfig {
   const apiKeys =
     config.access.type === "zhipu-account" || config.access.type === "oauth-account"
       ? []
-      : resolveApiKeyAccessKeys(config.access);
-  const primaryApiKey = apiKeys.find((entry) => entry.enabled !== false)?.apiKey;
+      : pools.keysFor(config.access);
+  const primaryApiKey = pools.primaryKeyFor(apiKeys)?.apiKey;
   const common = {
     network: config.network,
     ...(primaryApiKey ? { apiKey: primaryApiKey } : {}),
@@ -470,52 +599,6 @@ function applyModelRequestAuth(
     ...(requestAuth.headers
       ? { headers: mergeModelRequestHeaders(providerConfig.headers, requestAuth.headers) }
       : {}),
-  };
-}
-
-export function createApiKeyFailoverFetch(options: {
-  readonly fetch: ProviderFetch;
-  readonly keys: readonly ProviderApiKey[];
-  readonly providerKind: AiSdkProviderKind;
-  readonly state?: ApiKeyFailoverState;
-}): ProviderFetch {
-  const state = options.state ?? { failedKeyIds: new Set<string>(), nextIndex: 0 };
-  const enabledKeys = options.keys.filter(
-    (entry) => entry.enabled !== false && entry.apiKey.trim().length > 0,
-  );
-  if (enabledKeys.length === 0) return options.fetch;
-
-  return async (input, init) => {
-    const requestTemplate = new Request(input, init);
-    const availableKeys = enabledKeys.filter((entry) => !state.failedKeyIds.has(entry.id));
-    // 全部 Key 已经鉴权失败时仍发送一次请求，保留供应商的真实响应；不能形成空转重试。
-    const candidates =
-      availableKeys.length > 0
-        ? [
-            ...availableKeys.slice(state.nextIndex % availableKeys.length),
-            ...availableKeys.slice(0, state.nextIndex % availableKeys.length),
-          ]
-        : [enabledKeys.at(-1)!];
-    let response: Response | undefined;
-    for (const [index, entry] of candidates.entries()) {
-      const request = requestTemplate.clone();
-      const headers = new Headers(request.headers);
-      headers.set(AUTHORIZATION_HEADER_NAME, `Bearer ${entry.apiKey}`);
-      if (options.providerKind === "anthropic") {
-        headers.set("x-api-key", entry.apiKey);
-      }
-      response = await options.fetch(new Request(request, { headers }));
-      if (response.status !== 401 && response.status !== 403) {
-        const successfulIndex = availableKeys.findIndex((key) => key.id === entry.id);
-        state.nextIndex = successfulIndex < 0 ? 0 : (successfulIndex + 1) % availableKeys.length;
-        return response;
-      }
-      state.failedKeyIds.add(entry.id);
-      if (index < candidates.length - 1) {
-        await response.body?.cancel().catch(() => undefined);
-      }
-    }
-    return response!;
   };
 }
 
@@ -577,6 +660,19 @@ export function createProviderBusinessErrorFetch(
     let response: Response;
     try {
       response = await baseFetch(input, init);
+      let streamRequested = options.streamRequested?.();
+      if (streamRequested === undefined && typeof init?.body === "string") {
+        try {
+          streamRequested = JSON.parse(init.body)?.stream === true;
+        } catch {
+          streamRequested = false;
+        }
+      }
+      response = await sniffModelSseResponse(
+        response,
+        streamRequested === true,
+        init?.signal ?? (input instanceof Request ? input.signal : undefined),
+      );
     } catch (error) {
       throw normalizeModelTlsFailure(error);
     }
@@ -640,19 +736,15 @@ interface ProviderProxyFetchOptions {
 function createProviderProxyFetch(options: ProviderProxyFetchOptions): ProviderFetch {
   // Node 的 global fetch 不会自动读取 HTTP_PROXY/http_proxy。
   // 模型 provider 和 MCP HTTP transport 都复用同一层 proxy-aware fetch，避免多套出口规则漂移。
+  if (
+    !options.env &&
+    !options.forceDirect &&
+    !options.caCertFile &&
+    !options.httpProxy &&
+    !options.noProxy
+  )
+    return options.fetch ?? globalThis.fetch.bind(globalThis);
   return createNetworkProxyFetch(options);
-}
-
-/**
- * 模型请求出口：官方 Coding Plan 端点经 LCode 平台网关发送（做套餐权益校验等平台侧处理），
- * 其余 provider 直连；之后统一进入用户 HTTP 代理 fetch，httpProxy / noProxy 按实际发送地址判定。
- * 官方端点与网关端点的对应关系见 official-coding-plan-gateway.ts。
- */
-function createProviderTransportFetch(options: ProviderProxyFetchOptions): ProviderFetch {
-  return createOfficialCodingPlanGatewayFetch({
-    env: options.env,
-    fetch: createProviderProxyFetch(options),
-  });
 }
 
 async function detectProviderBusinessError(
@@ -780,7 +872,8 @@ async function readLimitedResponseText(response: Response): Promise<string | und
 
       text += decoder.decode(chunk.value, { stream: true });
       if (text.length > MAX_BUSINESS_ERROR_BODY_CHARS) {
-        await reader.cancel();
+        // tee 的另一个分支还要交给 SDK；等待 cancel 会卡住整个模型调用。
+        void reader.cancel().catch(() => {});
         return undefined;
       }
     }

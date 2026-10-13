@@ -2,7 +2,6 @@ import { isDeepStrictEqual } from "node:util";
 import { computeScopeUnion } from "@modelcontextprotocol/client";
 import type { McpServerConfig, McpServerStatus } from "@lcode/contracts";
 import { createSharedLCodeCredentialStore } from "../auth/shared-credentials.js";
-import { createMcpTransportFetch } from "./network.js";
 import { createCredentialKeyPrefix } from "./oauth.js";
 import { loadCredentialPair } from "./oauth-credentials.js";
 import type { InteractiveAuthorizationTrigger } from "./oauth-errors.js";
@@ -35,6 +34,7 @@ type McpOAuthRecoveryContext = Pick<
   | "adapterInstanceId"
   | "env"
   | "network"
+  | "networkFetch"
   | "logger"
 >;
 
@@ -194,7 +194,7 @@ export async function runInteractiveOAuthAuthorization(
       adapterInstanceId: this.adapterInstanceId,
       config: input.oauthConfig,
       credentialStore,
-      fetchFn: createMcpTransportFetch({ env: this.env, network: this.network }),
+      fetchFn: this.networkFetch,
       // 403 step-up：requiredScope 是当前 token scope 的严格超集时 refresh 无法扩权
       // （RFC 6749 §6），必须强制重新授权，否则新 scope 会被静默丢弃并再次 403。
       ...(input.trigger.reason === "insufficient_scope" ? { forceReauthorization: true } : {}),

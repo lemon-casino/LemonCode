@@ -1,3 +1,6 @@
+import { ModelErrorCode } from "@lcode/contracts";
+import { AiSdkModelAdapterError } from "./errors.js";
+
 export function serializeStructuredOutput(result: unknown): string {
   const output = (result as { output?: unknown }).output;
   if (output === undefined) {
@@ -50,4 +53,12 @@ export function waitForGenerateTextOrAbort<T>(
 
     abortSignal.addEventListener("abort", onAbort, { once: true });
   });
+}
+
+export function generationExhaustedError(requestId: string): AiSdkModelAdapterError {
+  return new AiSdkModelAdapterError(
+    ModelErrorCode.ModelRequestFailed,
+    "Model request failed before an attempt could complete",
+    { context: { requestId } },
+  );
 }

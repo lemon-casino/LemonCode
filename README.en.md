@@ -45,8 +45,10 @@ Additional setup and build commands:
 | Command                        | Purpose                                                                                                                             |
 | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm install`                 | Install dependencies                                                                                                                |
-| `pnpm prepare:desktop-runtime` | Prepare desktop runtime assets, including remote assets by default                                                                  |
+| `pnpm prepare:desktop-runtime` | Prepare desktop runtime assets for the selected local target                                                                        |
 | `pnpm prepare:remote-assets`   | Prepare remote runtime assets separately                                                                                            |
+| `pnpm build:remote-release`    | Prepare and validate four remote platforms, then stage flat GitHub Release assets in `packages/desktop/dist/remote-release-assets/` |
+| `pnpm stage:remote-release`    | Validate and stage already prepared remote runtime assets without building the desktop application                                  |
 | `pnpm bootstrap:with-remote`   | Set up dependencies and local and remote assets, then build the relevant packages sequentially; skip the desktop application bundle |
 | `pnpm build`                   | Recursively run each workspace package's build script, including its asset preparation steps                                        |
 

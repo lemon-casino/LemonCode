@@ -3,16 +3,22 @@ import { rootCertificates } from "node:tls";
 import { Agent, ProxyAgent, fetch as undiciFetch, type Dispatcher } from "undici";
 import { isNetworkProxyUrl, normalizeNetworkProxyUrl } from "@lcode/shared/network-proxy";
 import { createSocksNetworkDispatcher } from "./socks-network-dispatcher.js";
+import { createNegotiatingPool } from "./network-http2-client.js";
+import { createNetworkRequestLease, waitForNetworkResult } from "./network-request-lifecycle.js";
 
 export interface HostApiNetworkOptions {
+  http2?: "disabled" | "negotiate";
   httpProxy?: string;
   noProxy?: string;
   caCertPath?: string;
   forceDirect?: boolean;
+  /** CLI 既有 HTTP 目标走 forward proxy；Host 兼容入口默认保留 CONNECT。 */
+  proxyTunnel?: boolean;
 }
 
 export interface HostApiNetworkTransport {
   fetch: typeof fetch;
+  readonly activeRequestCount: number;
   dispose(): void;
   disposeAndWait(): Promise<void>;
 }
@@ -88,6 +94,9 @@ export function resolveHostProxyForUrl(
 }
 
 interface HostApiNetworkTransportDependencies {
+  onIdle?: () => void;
+  /** 终端 IO 注入仍经过策略解析/验证，不因 direct 而改走真实网络。 */
+  fetch?: typeof globalThis.fetch;
   createDispatcher?: typeof createDispatcher;
   fetchWithDispatcher?: (
     input: string,
@@ -101,97 +110,168 @@ export function createHostApiNetworkTransport(
 ): HostApiNetworkTransport {
   // Host 是独立 Node 进程，Electron Session.setProxy 不会影响它的 globalThis.fetch；
   // 在 NodeApiClient 出口按请求注入 dispatcher，避免把 telemetry 等其它裸 fetch 全局改道。
-  const directFetch = globalThis.fetch.bind(globalThis);
   const dispatcherPromises = new Map<string, Promise<Dispatcher>>();
+  const readyDispatchers = new Set<string>();
+  const dispatcherRequests = new Map<string, number>();
+  // Node Request 内部取消 controller 是弱引用；只保存 signal 会在长 SSE 的 GC 后丢失取消。
+  const requests = new Map<
+    AbortController,
+    { request: Request; source: Parameters<typeof globalThis.fetch>[0] }
+  >();
   let disposed = false;
   let generation = 0;
   let pendingDispatcherCreations = 0;
   let resolveDispatcherCreations: (() => void) | undefined;
   let dispatcherCreationsDone: Promise<void> | undefined;
-  const lateDisposePromises: Promise<void>[] = [];
+  const lateDisposePromises = new Set<Promise<void>>();
   let disposePromise: Promise<void> | undefined;
   let disposeMode: "close" | "destroy" | undefined;
   const dispatcherFactory = dependencies.createDispatcher ?? createDispatcher;
   const fetchWithDispatcher =
     dependencies.fetchWithDispatcher ??
-    ((input, init) => undiciFetch(input, init as never) as unknown as Promise<Response>);
+    ((input, init) => {
+      if (dependencies.fetch) {
+        const { dispatcher: _dispatcher, ...requestInit } = init;
+        return dependencies.fetch(new Request(input, requestInit));
+      }
+      return undiciFetch(input, init as never) as unknown as Promise<Response>;
+    });
+
+  const retainCleanup = (cleanup: Promise<void>) => {
+    lateDisposePromises.add(cleanup);
+    void cleanup.then(
+      () => lateDisposePromises.delete(cleanup),
+      () => lateDisposePromises.delete(cleanup),
+    );
+  };
+  const trimIdleDispatchers = () => {
+    if (disposed) return;
+    let idle = 0;
+    for (const key of readyDispatchers) if (!dispatcherRequests.has(key)) idle++;
+    for (const [key, pending] of dispatcherPromises) {
+      if (idle <= 32) break;
+      if (!readyDispatchers.has(key) || dispatcherRequests.has(key)) continue;
+      dispatcherPromises.delete(key);
+      readyDispatchers.delete(key);
+      idle--;
+      retainCleanup(pending.then((dispatcher) => dispatcher.close()).catch(() => {}));
+    }
+  };
 
   const fetch: typeof globalThis.fetch = async (input, init) => {
     if (disposed) {
-      throw new Error("Host API network transport has been disposed");
+      throw new DOMException("Host API network transport has been disposed", "AbortError");
     }
-    const requestGeneration = generation;
-    const options = await resolveOptions();
-    if (disposed || generation !== requestGeneration) {
-      throw new Error("Host API network transport has been disposed");
-    }
-    const requestUrl = input instanceof Request ? input.url : String(input);
-    const route = resolveHostProxyForUrl(requestUrl, options);
-    if (route.kind === "invalid") {
-      throw new Error(route.reason);
-    }
-    if (route.kind === "direct" && !options.caCertPath && !options.forceDirect) {
-      return directFetch(input as Parameters<typeof fetch>[0], init);
-    }
-
-    const dispatcherKey = `${route.kind}:${route.kind === "proxy" ? route.proxyUrl : "direct"}:${options.caCertPath ?? ""}`;
-    let dispatcherPromise = dispatcherPromises.get(dispatcherKey);
-    if (!dispatcherPromise) {
-      if (disposed) {
-        throw new Error("Host API network transport has been disposed");
-      }
-      const dispatcherGeneration = generation;
-      pendingDispatcherCreations += 1;
-      dispatcherPromise = dispatcherFactory(route, options.caCertPath);
-      dispatcherPromises.set(dispatcherKey, dispatcherPromise);
-      void dispatcherPromise
-        .then((dispatcher) => {
-          if (
-            (disposed || generation !== dispatcherGeneration) &&
-            dispatcherPromises.get(dispatcherKey) === dispatcherPromise
-          ) {
-            dispatcherPromises.delete(dispatcherKey);
-            const cleanupPromise = Promise.resolve(
-              disposeMode === "close" ? dispatcher.close() : dispatcher.destroy(),
-            ).catch(() => {});
-            lateDisposePromises.push(cleanupPromise);
-          }
-        })
-        .catch(() => {});
-      const markDispatcherCreationDone = () => {
-        pendingDispatcherCreations -= 1;
-        if (pendingDispatcherCreations === 0) {
-          resolveDispatcherCreations?.();
-          resolveDispatcherCreations = undefined;
-        }
-      };
-      void dispatcherPromise.then(markDispatcherCreationDone, markDispatcherCreationDone);
-      dispatcherPromise.catch(() => {
-        // 设置/CA 等临时 IO 失败只影响当前请求；清理 rejected dispatcher，避免一次启动竞态
-        // 把同一路由永久锁死，同时仍保持失败请求 fail-closed、不回退到直连。
-        if (dispatcherPromises.get(dispatcherKey) === dispatcherPromise) {
-          dispatcherPromises.delete(dispatcherKey);
-        }
-      });
-    }
-    const dispatcher = await dispatcherPromise;
-    if (disposed || generation !== requestGeneration) {
-      throw new Error("Host API network transport has been disposed");
-    }
-    // Node 内置 fetch 的 Request 与独立 undici 包不是同一构造器；OAuth driver
-    // 使用 Request 输入时必须投影公共字段，否则代理分支会把它当成 URL 文本。
     const request = new Request(input as Parameters<typeof globalThis.fetch>[0], init);
-    const body = request.body ? new Uint8Array(await request.arrayBuffer()) : undefined;
     request.signal.throwIfAborted();
-    return fetchWithDispatcher(request.url, {
-      ...init,
-      method: request.method,
-      headers: Object.fromEntries(request.headers),
-      body,
-      signal: request.signal,
-      redirect: request.redirect,
-      dispatcher,
+    let leasedDispatcherKey: string | undefined;
+    const lease = createNetworkRequestLease(request.signal, () => {
+      requests.delete(lease.controller);
+      if (leasedDispatcherKey) {
+        const remaining = (dispatcherRequests.get(leasedDispatcherKey) ?? 1) - 1;
+        if (remaining) dispatcherRequests.set(leasedDispatcherKey, remaining);
+        else dispatcherRequests.delete(leasedDispatcherKey);
+      }
+      trimIdleDispatchers();
+      if (requests.size === 0) dependencies.onIdle?.();
     });
+    requests.set(lease.controller, { request, source: input });
+    try {
+      const requestGeneration = generation;
+      const options = await waitForNetworkResult(resolveOptions(), lease.controller.signal);
+      if (disposed || generation !== requestGeneration) {
+        throw new DOMException("Host API network transport has been disposed", "AbortError");
+      }
+      const requestUrl = request.url;
+      const route = resolveHostProxyForUrl(requestUrl, options);
+      if (route.kind === "invalid") {
+        throw new Error(route.reason);
+      }
+      // 直连也必须由当前 owner 持有 dispatcher；不能漏回全局 fetch 的连接/关闭路径。
+
+      const dispatcherKey = `${route.kind}:${route.kind === "proxy" ? route.proxyUrl : "direct"}:${options.caCertPath ?? ""}:${options.proxyTunnel !== false}:${options.http2 ?? "disabled"}`;
+      leasedDispatcherKey = dispatcherKey;
+      dispatcherRequests.set(dispatcherKey, (dispatcherRequests.get(dispatcherKey) ?? 0) + 1);
+      let dispatcherPromise = dispatcherPromises.get(dispatcherKey);
+      if (dispatcherPromise) {
+        dispatcherPromises.delete(dispatcherKey);
+        dispatcherPromises.set(dispatcherKey, dispatcherPromise);
+      }
+      if (!dispatcherPromise) {
+        if (disposed) {
+          throw new DOMException("Host API network transport has been disposed", "AbortError");
+        }
+        const dispatcherGeneration = generation;
+        pendingDispatcherCreations += 1;
+        dispatcherPromise = dispatcherFactory(
+          route,
+          options.caCertPath,
+          options.proxyTunnel,
+          options.http2,
+        );
+        dispatcherPromises.set(dispatcherKey, dispatcherPromise);
+        void dispatcherPromise
+          .then((dispatcher) => {
+            if (
+              (disposed || generation !== dispatcherGeneration) &&
+              dispatcherPromises.get(dispatcherKey) === dispatcherPromise
+            ) {
+              dispatcherPromises.delete(dispatcherKey);
+              const cleanupPromise = Promise.resolve(
+                disposeMode === "close" ? dispatcher.close() : dispatcher.destroy(),
+              ).catch(() => {});
+              retainCleanup(cleanupPromise);
+            } else if (!disposed) {
+              readyDispatchers.add(dispatcherKey);
+              trimIdleDispatchers();
+            }
+          })
+          .catch(() => {});
+        const markDispatcherCreationDone = () => {
+          pendingDispatcherCreations -= 1;
+          if (pendingDispatcherCreations === 0) {
+            resolveDispatcherCreations?.();
+            resolveDispatcherCreations = undefined;
+          }
+        };
+        void dispatcherPromise.then(markDispatcherCreationDone, markDispatcherCreationDone);
+        dispatcherPromise.catch(() => {
+          // 设置/CA 等临时 IO 失败只影响当前请求；清理 rejected dispatcher，避免一次启动竞态
+          // 把同一路由永久锁死，同时仍保持失败请求 fail-closed、不回退到直连。
+          if (dispatcherPromises.get(dispatcherKey) === dispatcherPromise) {
+            dispatcherPromises.delete(dispatcherKey);
+          }
+        });
+      }
+      const dispatcher = await waitForNetworkResult(dispatcherPromise, lease.controller.signal);
+      if (disposed || generation !== requestGeneration) {
+        throw new DOMException("Host API network transport has been disposed", "AbortError");
+      }
+      // Node 内置 fetch 的 Request 与独立 undici 包不是同一构造器；OAuth driver
+      // 使用 Request 输入时必须投影公共字段，否则代理分支会把它当成 URL 文本。
+      const body = request.body ? new Uint8Array(await request.arrayBuffer()) : undefined;
+      lease.controller.signal.throwIfAborted();
+      const response = await waitForNetworkResult(
+        fetchWithDispatcher(request.url, {
+          ...init,
+          method: request.method,
+          headers: Object.fromEntries(request.headers),
+          body,
+          signal: lease.controller.signal,
+          redirect: request.redirect,
+          dispatcher,
+        }),
+        lease.controller.signal,
+        (late) => {
+          void late.body?.cancel().catch(() => {});
+        },
+      );
+      return lease.response(response);
+    } catch (error) {
+      lease.controller.abort(error);
+      lease.finish();
+      throw error;
+    }
   };
 
   const startDispose = (mode: "close" | "destroy"): Promise<void> => {
@@ -199,11 +279,17 @@ export function createHostApiNetworkTransport(
     disposed = true;
     generation += 1;
     disposeMode = mode;
+    // 等待式退出同样必须先取消长 SSE；close() 本身会无限等待尚未结束的 body。
+    for (const controller of requests.keys())
+      controller.abort(
+        new DOMException("Host API network transport has been disposed", "AbortError"),
+      );
     // dispatcher 不能只被闭包缓存、没有 Host owner：窗口/远端 Host 重建后连接池和
     // keep-alive socket 仍可能存活。释放时对当前单飞 Promise 做快照，确保初始化中的 dispatcher
     // 也会在完成后被收口；同步退出 destroy，等待式退出 close。
     const pendingDispatchers = [...dispatcherPromises.values()];
     dispatcherPromises.clear();
+    readyDispatchers.clear();
     if (pendingDispatcherCreations > 0) {
       dispatcherCreationsDone = new Promise<void>((resolve) => {
         resolveDispatcherCreations = resolve;
@@ -228,6 +314,9 @@ export function createHostApiNetworkTransport(
 
   return {
     fetch,
+    get activeRequestCount() {
+      return requests.size;
+    },
     dispose() {
       void startDispose("destroy");
     },
@@ -240,13 +329,26 @@ export function createHostApiNetworkTransport(
 async function createDispatcher(
   route: Exclude<HostProxyRoute, { kind: "invalid" }>,
   caCertPath: string | undefined,
+  proxyTunnel?: boolean,
+  http2?: "disabled" | "negotiate",
 ): Promise<Dispatcher> {
+  const allowH2 = http2 === "negotiate";
   const customCa = caCertPath ? await readFile(caCertPath, "utf8") : undefined;
   const ca = customCa ? mergeHostApiCaCertificates(customCa) : undefined;
   if (route.kind === "proxy") {
     const url = new URL(route.proxyUrl);
-    if (url.protocol === "socks5:") return createSocksNetworkDispatcher(route.proxyUrl, ca);
+    if (url.protocol === "socks5:")
+      return createSocksNetworkDispatcher(route.proxyUrl, ca, allowH2);
     return new ProxyAgent({
+      allowH2,
+      maxConcurrentStreams: 8,
+      ...(allowH2 ? { factory: createNegotiatingPool } : {}),
+      connections: 8,
+      keepAliveTimeout: 30_000,
+      keepAliveMaxTimeout: 120_000,
+      headersTimeout: 600_000,
+      bodyTimeout: 0,
+      proxyTunnel,
       uri: route.proxyUrl,
       ...(url.username || url.password
         ? {
@@ -254,8 +356,19 @@ async function createDispatcher(
           }
         : {}),
       proxyTls: ca ? { ca } : undefined,
-      requestTls: ca ? { ca } : undefined,
+      // 隧道内目标 connector 不继承 allowH2，必须单独设置 ALPN。
+      requestTls: { ...(ca ? { ca } : {}), allowH2 },
     });
   }
-  return new Agent({ connect: ca ? { ca } : undefined });
+  return new Agent({
+    allowH2,
+    maxConcurrentStreams: 8,
+    ...(allowH2 ? { factory: createNegotiatingPool } : {}),
+    connections: 8,
+    keepAliveTimeout: 30_000,
+    keepAliveMaxTimeout: 120_000,
+    headersTimeout: 600_000,
+    bodyTimeout: 0,
+    connect: ca ? { ca } : undefined,
+  });
 }

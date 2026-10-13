@@ -18,7 +18,7 @@ export function buildReleaseBaseCandidates(remoteCdnBaseUrls: string[], version:
     // 当调用方已经传入带版本的 CDN 基址时，继续盲目拼 `${base}/${version}`
     // 会先走一次必然失败的双版本路径（例如 .../0.2.10/0.2.10），产生无意义 404 噪音。
     // 这里识别“已固定到当前版本”的场景，直接使用原基址即可。
-    if (normalizedBase.endsWith(`/${version}`)) {
+    if (normalizedBase.endsWith(`/${version}`) || normalizedBase.endsWith(`/v${version}`)) {
       return [normalizedBase];
     }
     return [`${normalizedBase}/${version}`, normalizedBase];
@@ -71,6 +71,9 @@ export function buildComponentReleaseBaseCandidates(
 ): string[] {
   const candidates = releaseBaseCandidates.flatMap((releaseBaseCandidate) => {
     const normalizedBase = releaseBaseCandidate.replace(/\/+$/, "");
+    // 修复：GitHub / Worker 的平铺组件属于固定 tag，父目录没有跨版本组件。
+    // 保持同一 tag，避免候选拼接越过本次 manifest 的版本边界。
+    if (normalizedBase.endsWith(`/v${version}`)) return [normalizedBase];
     if (normalizedBase.endsWith(`/${version}`)) {
       // 当前 CI 只把 component artifact 上传到跨版本 components 根目录。
       // 因此运行时应先探测父级 release root，避免每个组件都先命中一次已停止发布的版本化路径。
@@ -179,7 +182,8 @@ function extractPinnedReleaseVersionFromCdnBaseUrl(remoteCdnBaseUrl: string): st
     return null;
   }
 
-  return isSemverLike(lastSegment) ? lastSegment : null;
+  const version = lastSegment.startsWith("v") ? lastSegment.slice(1) : lastSegment;
+  return isSemverLike(version) ? version : null;
 }
 
 function tryParseUrlPathname(urlOrPath: string): string | null {

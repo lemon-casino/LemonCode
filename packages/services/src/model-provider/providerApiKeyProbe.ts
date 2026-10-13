@@ -7,6 +7,7 @@ export interface ProviderApiKeyProbeProgress {
 }
 
 export interface ProviderApiKeyProbeOptions {
+  readonly beforeProbe?: (signal: AbortSignal) => Promise<void>;
   readonly signal?: AbortSignal;
   readonly onProgress?: (progress: ProviderApiKeyProbeProgress) => void;
   readonly timeoutMs?: number;
@@ -22,6 +23,7 @@ export async function runProviderApiKeyProbe<T extends { id: string }>(
   let cursor = 0;
   let completed = 0;
   let pending: ProviderApiKeyProbeResult[] = [];
+  const batchSignal = options.signal ?? new AbortController().signal;
   const flush = () => {
     if (pending.length === 0) return;
     const batch = pending;
@@ -35,6 +37,14 @@ export async function runProviderApiKeyProbe<T extends { id: string }>(
       Array.from({ length: Math.min(8, keys.length) }, async () => {
         let processed = 0;
         while (cursor < keys.length && !options.signal?.aborted) {
+          // 共同冷却发生在领取候选和单请求 deadline 前；未发送的 Key 不能被误报超时。
+          try {
+            await options.beforeProbe?.(batchSignal);
+          } catch (error) {
+            if (options.signal?.aborted) return;
+            throw error;
+          }
+          if (cursor >= keys.length || options.signal?.aborted) return;
           const index = cursor++;
           const key = keys[index]!;
           const controller = new AbortController();

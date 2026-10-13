@@ -44,12 +44,12 @@ export function PptxElementReferenceChip({
       {references.map((reference) => (
         <div
           key={reference.id}
-          className="group/context flex min-h-7 items-start gap-1 rounded-lg px-1 py-0.5 text-ui-base/relaxed hover:bg-menu-hover"
+          className="group/context flex min-h-7 items-start gap-1 rounded-lg px-1 py-0.5 text-ui-base/relaxed"
         >
           {onOpen ? (
             <button
               type="button"
-              className="flex min-w-0 flex-1 items-start gap-2 rounded-md px-1 py-0.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused"
+              className="flex min-w-0 flex-1 items-start gap-2 rounded-md px-1 py-0.5 text-left outline-none hover:bg-menu-hover focus-visible:ring-2 focus-visible:ring-input-border-focused"
               onClick={() => onOpen(reference)}
             >
               <PresentationIcon className="mt-1 size-4 shrink-0 text-foreground-subtle" />

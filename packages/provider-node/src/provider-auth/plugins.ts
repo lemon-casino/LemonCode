@@ -162,6 +162,8 @@ function createDriver(
         },
         context,
         request.signal,
+        false,
+        request,
       );
     },
     quota: (context) => worker.call<unknown>("quota", {}, context),

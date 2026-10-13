@@ -33,3 +33,34 @@ test("Agent build resolves and executes the public network proxy contract", asyn
     true,
   );
 });
+
+test("Agent CJS build executes the public provider network lifecycle contract", async () => {
+  const result = await build({
+    stdin: {
+      contents: 'export { createProviderNetworkTransport } from "@lcode/provider-node/network";',
+    },
+    alias: resolveBuildAliases(),
+    bundle: true,
+    platform: "node",
+    format: "cjs",
+    write: false,
+    external: ["undici", "socks"],
+    logLevel: "silent",
+  });
+  const module = { exports: {} };
+  new Function("module", "exports", "require", result.outputFiles[0].text)(
+    module,
+    module.exports,
+    requireFromCli,
+  );
+  const transport = module.exports.createProviderNetworkTransport(
+    async () => ({ forceDirect: true }),
+    {
+      fetch: async () => new Response("synthetic"),
+    },
+  );
+  assert.equal(await (await transport.fetch("https://example.test")).text(), "synthetic");
+  assert.equal(transport.activeRequestCount, 0);
+  await transport.disposeAndWait();
+  await assert.rejects(transport.fetch("https://example.test"), /disposed/);
+});

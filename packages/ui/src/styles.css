@@ -131,9 +131,29 @@ body {
 
 /* 仅提供兜底；组件自己的边框/ring 可覆盖，避免给输入和弹窗叠加两种焦点标记。 */
 @layer base {
-  :where(button, a, input, textarea, select, summary, [tabindex], [role="button"]):focus-visible {
+  :where(
+    button,
+    a,
+    input,
+    textarea,
+    select,
+    summary,
+    [tabindex],
+    [role="button"],
+    [role="checkbox"],
+    [role="switch"]
+  ):focus-visible {
     outline: 2px solid var(--color-input-border-focused);
     outline-offset: 2px;
+  }
+
+  /* 原生 disclosure 三角由浏览器绘制，各系统形状不一，且无法跟随主题或字号。
+   * 需要朝向反馈的组件用 [&::marker] / group-open: 自行表达，这里只做统一隐藏。 */
+  summary {
+    list-style: none;
+  }
+  summary::-webkit-details-marker {
+    display: none;
   }
 
   input:not([type="checkbox"]):not([type="radio"]),

@@ -146,7 +146,7 @@ export function ProviderTokenActivity({ snapshot }: { snapshot: ProviderUsageSna
         ))}
       </div>
       <details className="text-ui-sm">
-        <summary className="cursor-pointer text-foreground-subtle">
+        <summary className="cursor-pointer rounded-sm text-foreground-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-input-border-focused">
           {intl.formatMessage({ id: "settings.oauthUsage.activityDetails" })}
         </summary>
         <div className="max-h-52 overflow-auto">

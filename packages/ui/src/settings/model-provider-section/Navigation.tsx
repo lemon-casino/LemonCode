@@ -117,7 +117,7 @@ function ModelProviderNavigationButton({
           isSelected
             ? "border-border-hover bg-card-selected text-foreground"
             : inactiveItemClassName
-        } disabled:cursor-not-allowed disabled:opacity-60`}
+        } disabled:cursor-not-allowed disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-input-border-focused`}
       >
         {isLoadingItem ? (
           <Loader2Icon className="size-4 shrink-0 animate-spin text-foreground-subtlest" />

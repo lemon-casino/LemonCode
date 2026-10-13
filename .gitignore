@@ -280,6 +280,7 @@ nul
 
 # 代理设置、持久化和 OAuth 页签拆分的永久回归。
 !/packages/provider/test/provider-network.test.ts
+!/packages/provider/test/rate-limit.test.ts
 !/packages/web/test/provider-proxy-settings.test.mjs
 !/packages/web/test/provider-accounts-navigation-cases.mjs
 !/packages/web/test/fixtures/provider-proxy-fixture.ts

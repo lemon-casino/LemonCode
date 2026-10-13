@@ -1,4 +1,5 @@
 import { InfoIcon, RefreshCwIcon } from "lucide-react";
+import { Button } from "@/components/ui/button.js";
 
 export function CodingPlanUsageNotice({
   message,
@@ -17,10 +18,12 @@ export function CodingPlanUsageNotice({
       <InfoIcon className="size-3.5 shrink-0 text-warning" aria-hidden="true" />
       <span className="min-w-0 flex-1 truncate text-foreground">{message}</span>
       {onRefresh ? (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="icon-sm"
           aria-label={refreshLabel}
-          className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-foreground-subtle hover:bg-hover hover:text-foreground"
+          className="text-foreground-subtle"
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -28,7 +31,7 @@ export function CodingPlanUsageNotice({
           }}
         >
           <RefreshCwIcon className="size-3.5" aria-hidden="true" />
-        </button>
+        </Button>
       ) : null}
     </div>
   );

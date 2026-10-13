@@ -27,7 +27,10 @@ import {
   type ModelSelectionConfiguredDefaultSource,
   type ProviderSettingsConnectivityTester,
 } from "./providerFacadeServices.js";
-import { createProviderCatalogClient } from "./providerCatalogClient.js";
+import {
+  createProviderCatalogClient,
+  type ProviderCatalogClient,
+} from "./providerCatalogClient.js";
 import { createProxyConnectivityTester } from "./proxyConnectivity.js";
 
 export interface ProviderRuntimeOptions extends ProviderConfigRuntimeOptions {
@@ -71,6 +74,7 @@ export class ProviderRuntime {
   readonly registryService: ProviderRegistryService;
   readonly providerSettings: IProviderSettingsService;
   readonly #providerSettingsRuntime: IProviderSettingsService & { dispose(): void };
+  readonly #catalogClient: ProviderCatalogClient;
   readonly modelSelection: IModelSelectionService;
   readonly #configRuntime: ProviderConfigRuntime;
   readonly #disposeAccountSource?: () => void;
@@ -113,24 +117,25 @@ export class ProviderRuntime {
     this.#proxyTester = createProxyConnectivityTester(
       dependencies.resolveDefaultNetwork ?? (async () => ({})),
     );
+    this.#catalogClient = createProviderCatalogClient(undefined, (config) => {
+      const key = JSON.stringify(config.network ?? null);
+      let transport = this.#networkTransports.get(key);
+      if (!transport) {
+        transport = createHostApiNetworkTransport(async () =>
+          resolveProviderNetworkOptions(
+            config.network,
+            (await dependencies.resolveDefaultNetwork?.()) ?? {},
+          ),
+        );
+        this.#networkTransports.set(key, transport);
+      }
+      return transport.fetch;
+    });
     this.#providerSettingsRuntime = createProviderSettingsService(
       settingsFacade,
       ensureReady,
       dependencies.testConnectivity,
-      createProviderCatalogClient(undefined, (config) => {
-        const key = JSON.stringify(config.network ?? null);
-        let transport = this.#networkTransports.get(key);
-        if (!transport) {
-          transport = createHostApiNetworkTransport(async () =>
-            resolveProviderNetworkOptions(
-              config.network,
-              (await dependencies.resolveDefaultNetwork?.()) ?? {},
-            ),
-          );
-          this.#networkTransports.set(key, transport);
-        }
-        return transport.fetch;
-      }),
+      this.#catalogClient,
       (profiles, signal) => this.#proxyTester.test(profiles, signal),
     );
     this.providerSettings = this.#providerSettingsRuntime;
@@ -158,6 +163,7 @@ export class ProviderRuntime {
     this.#disposed = true;
     this.#disposeBuiltinRecovery();
     this.#providerSettingsRuntime.dispose();
+    this.#catalogClient.dispose?.();
     this.#proxyTester.dispose();
     for (const transport of this.#networkTransports.values()) transport.dispose();
     this.#modelSelectionRuntime.dispose();

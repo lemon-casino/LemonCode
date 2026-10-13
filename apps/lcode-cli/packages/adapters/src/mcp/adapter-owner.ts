@@ -33,6 +33,7 @@ import type {
 // 所有可变连接状态只属于 NodeMcpAdapter；执行函数借用这些引用，不创建第二份状态。
 export interface McpAdapterOwner extends McpPort {
   readonly adapterInstanceId: string;
+  readonly networkFetch: import("../network/proxy-fetch.js").ManagedNetworkFetch;
   readonly clientName: string;
   readonly clientVersion: string;
   readonly connectionContext?: McpConnectionContext;

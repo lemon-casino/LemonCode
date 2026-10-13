@@ -315,16 +315,18 @@ export function GitGraphPane({
                         ? intl.formatMessage({ id: "gitGraph.loadMore.loading" })
                         : intl.formatMessage({ id: "gitGraph.loadMore" })}
                     </Button>
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="sm"
                       disabled={loadingMore}
-                      className="hidden w-full rounded-md px-2 py-1 text-ui-base text-foreground-subtle transition-colors hover:bg-hover hover:text-foreground disabled:cursor-default disabled:opacity-60 sm:block"
+                      className="hidden h-7 w-full text-ui-base sm:block"
                       onClick={onLoadMore}
                     >
                       {loadingMore
                         ? intl.formatMessage({ id: "gitGraph.loadMore.loading" })
                         : intl.formatMessage({ id: "gitGraph.loadMore" })}
-                    </button>
+                    </Button>
                   </div>
                 ) : null}
               </div>

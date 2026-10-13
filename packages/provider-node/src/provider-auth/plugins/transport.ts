@@ -3,6 +3,8 @@ import type { AuthDriverContext, AuthGrant, AuthDriverNetworkOptions } from "../
 import { PLUGIN_WORKER_SOURCE } from "./worker-source.js";
 
 interface PendingCall {
+  /** Node Request 的取消 controller 使用弱引用；只持有 signal 不够，须保留 Request 到流结算。 */
+  readonly requestOwner?: Request;
   resolve(value: unknown): void;
   reject(error: Error): void;
   context?: AuthDriverContext;
@@ -85,6 +87,7 @@ export class PluginWorkerTransport {
     context?: AuthDriverContext,
     signal?: AbortSignal,
     killOnAbort = false,
+    requestOwner?: Request,
   ): Promise<T> {
     if (this.closed) return Promise.reject(new Error("Provider plugin driver is disposed"));
     const signals = [context?.signal, signal].filter((item): item is AbortSignal => Boolean(item));
@@ -106,6 +109,7 @@ export class PluginWorkerTransport {
         if (killOnAbort) void this.dispose();
       };
       const pending: PendingCall = {
+        requestOwner,
         resolve: (value) => resolve(value as T),
         reject,
         context,

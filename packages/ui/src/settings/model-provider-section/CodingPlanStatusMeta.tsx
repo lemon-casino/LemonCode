@@ -274,7 +274,7 @@ function CodingPlanMetaAction({
   return (
     <button
       type="button"
-      className="text-ui-base font-medium text-brand underline-offset-2 hover:text-brand/80 hover:underline disabled:pointer-events-none disabled:opacity-50"
+      className="rounded-sm text-ui-base font-medium text-brand underline-offset-2 hover:text-brand/80 hover:underline focus-visible:ring-2 focus-visible:ring-input-border-focused disabled:pointer-events-none disabled:opacity-50"
       disabled={loading}
       onClick={onClick}
     >

@@ -2,11 +2,24 @@ import { SocksClient } from "socks";
 import { connect as connectTls } from "node:tls";
 import { isIP } from "node:net";
 import { Agent } from "undici";
+import { createNegotiatingPool } from "./network-http2-client.js";
 
 /** SOCKS5 握手与目标 TLS 属于网络 adapter，凭据只进入代理握手。 */
-export function createSocksNetworkDispatcher(proxyUrl: string, ca?: string[]): Agent {
+export function createSocksNetworkDispatcher(
+  proxyUrl: string,
+  ca?: string[],
+  allowH2 = false,
+): Agent {
   const proxy = new URL(proxyUrl);
   return new Agent({
+    allowH2,
+    maxConcurrentStreams: 8,
+    ...(allowH2 ? { factory: createNegotiatingPool } : {}),
+    connections: 8,
+    keepAliveTimeout: 30_000,
+    keepAliveMaxTimeout: 120_000,
+    headersTimeout: 600_000,
+    bodyTimeout: 0,
     connect(options, callback) {
       void SocksClient.createConnection({
         command: "connect",
@@ -30,6 +43,7 @@ export function createSocksNetworkDispatcher(proxyUrl: string, ca?: string[]): A
           }
           // 使用现有 socket 时 tls 仍需要目标 host 做证书身份验证，缺省会误用 localhost。
           const secure = connectTls({
+            ALPNProtocols: allowH2 ? ["h2", "http/1.1"] : ["http/1.1"],
             socket,
             host: options.hostname.replace(/^\[|\]$/g, ""),
             servername:

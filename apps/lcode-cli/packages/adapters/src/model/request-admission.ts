@@ -19,9 +19,10 @@ export interface AttemptAdmission {
   readonly ticket?: ModelRequestAdmissionTicket;
   /** 归还槽位；幂等（finally 与「退避 sleep 之前」两处都会调）。 */
   release(): void;
+  waitOutsideTicket?(wait: () => Promise<void>, signal?: AbortSignal): Promise<void>;
 }
 
-const NO_ADMISSION: AttemptAdmission = { release() {} };
+const NO_ADMISSION: AttemptAdmission = { release() {}, waitOutsideTicket: (wait) => wait() };
 
 /**
  * 等待准入。先试同步快路径 `tryAcquire`；未命中才排队 `acquire`，并在两端回调 `onQueued` / `onAdmitted`
@@ -49,12 +50,27 @@ export async function admitAttempt(input: {
     if (hasFastPath) await input.onAdmitted?.(Date.now() - queuedAt);
   }
   let released = false;
+  let currentTicket: ModelRequestAdmissionTicket = ticket;
   return {
-    ticket,
+    get ticket() {
+      return released ? undefined : currentTicket;
+    },
+    async waitOutsideTicket(wait, signal = input.signal) {
+      // 冷却等待不是在飞 HTTP；归还当前票据，恢复后沿原 admission 路径重新准入。
+      if (!released) {
+        released = true;
+        currentTicket.release();
+      }
+      await wait();
+      signal?.throwIfAborted();
+      const next = await admitAttempt({ ...input, signal });
+      currentTicket = next.ticket!;
+      released = false;
+    },
     release() {
       if (released) return;
       released = true;
-      ticket.release();
+      currentTicket.release();
     },
   };
 }

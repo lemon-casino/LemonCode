@@ -150,6 +150,7 @@ test("session close does not close the store when durable drain fails after a pe
 });
 
 test("session close drains work retained by timed-out browser and execution closes", async () => {
+  const modelClose = createDeferred();
   const browserWriter = createDeferred();
   const executionWriter = createDeferred();
   const pending = new Set<Promise<void>>();
@@ -185,6 +186,7 @@ test("session close drains work retained by timed-out browser and execution clos
     warn: () => undefined,
   } as unknown as Logger;
   const facade = createSessionFacade({
+    closeModelAdapter: () => modelClose.promise,
     configResult: { config: { ui: { locale: "en-US", theme: "system" } } } as never,
     configuredMcpServers: {},
     executionPort: {
@@ -215,13 +217,16 @@ test("session close drains work retained by timed-out browser and execution clos
   assert.ok(facade.close);
   const closing = facade.close();
   await new Promise<void>((resolve) => setTimeout(resolve, 10));
-  assert.equal(pending.size, 2);
+  assert.equal(pending.size, 3);
   assert.equal(storeClosed, false);
 
   browserWriter.resolve();
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(storeClosed, false, "execution-owned writer must also keep the store open");
   executionWriter.resolve();
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(storeClosed, false, "model network cleanup must settle before store closure");
+  modelClose.resolve();
   await closing;
   assert.equal(storeClosed, true);
 });

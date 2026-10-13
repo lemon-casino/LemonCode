@@ -12,7 +12,7 @@ import {
   createSharedLCodeCredentialStore,
   type SharedLCodeCredentialStore,
 } from "../auth/shared-credentials.js";
-import { buildMcpStdioEnv, createMcpTransportFetch } from "./network.js";
+import { buildMcpStdioEnv } from "./network.js";
 import { createCredentialKeyPrefix, type McpOAuthRuntimeOptions } from "./oauth.js";
 import { createMcpOAuthTokenProvider } from "./oauth-provider.js";
 import { ProcessTreeStdioClientTransport } from "./stdio-transport.js";
@@ -31,6 +31,7 @@ type McpTransportContext = Pick<
   | "workingDirectory"
   | "env"
   | "network"
+  | "networkFetch"
   | "resolveOfficialStdioAuthMeta"
   | "createOfficialAuthFetch"
   | "createOAuthClientProvider"
@@ -88,10 +89,7 @@ export async function createTransport(
     };
   }
 
-  const fetch = createMcpTransportFetch({
-    env: this.env,
-    network: this.network,
-  });
+  const fetch = this.networkFetch;
   if (config.type === "http") {
     const officialAuthFetch = this.createOfficialAuthFetch(config, serverName, generation);
     return {
@@ -139,7 +137,7 @@ export function createOAuthClientProvider(
     return createMcpOAuthTokenProvider({
       config: authorizationCodeOAuthConfig,
       credentialStore: this.resolveCredentialStore(),
-      fetchFn: createMcpTransportFetch({ env: this.env, network: this.network }),
+      fetchFn: this.networkFetch,
       keyPrefix: createCredentialKeyPrefix(serverName, config.url, authorizationCodeOAuthConfig),
       ...(this.logger ? { logger: this.logger } : {}),
       serverName,

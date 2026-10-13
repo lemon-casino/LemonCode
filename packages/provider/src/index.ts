@@ -14,3 +14,4 @@ export * from "./registry-service.js";
 export * from "./sources.js";
 export * from "./temporary-model.js";
 export * from "./network-config.js";
+export * from "./rate-limit.js";

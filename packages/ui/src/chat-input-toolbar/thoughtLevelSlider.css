@@ -1,0 +1,207 @@
+.thought-level-panel {
+  -webkit-app-region: no-drag;
+}
+
+.thought-level-root {
+  justify-content: center;
+}
+
+.thought-level-track {
+  height: var(--thought-level-size);
+}
+
+.thought-level-panel .thought-level-thumb {
+  border-width: 1px;
+  border-radius: 10px;
+  cursor: grab;
+  transition:
+    left 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 160ms ease;
+}
+
+.thought-level-panel .thought-level-thumb[data-dragging] {
+  cursor: grabbing;
+  transform: translate(-50%, -50%);
+  transition:
+    left 70ms linear,
+    box-shadow 160ms ease;
+}
+
+.thought-level-panel .thought-level-thumb:focus-visible {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 3px;
+}
+
+.thought-level-thumb svg {
+  fill: color-mix(in srgb, currentColor 25%, transparent);
+}
+
+.thought-level-panel[data-peak="true"] .thought-level-thumb {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--color-brand) 12%, transparent),
+    0 0 14px color-mix(in srgb, var(--color-brand) 28%, transparent);
+}
+
+.thought-level-panel[data-peak="true"] .thought-level-brain {
+  animation: thought-level-brain-pulse 1.8s ease-in-out infinite;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--color-brand) 60%, transparent));
+}
+
+.thought-level-panel[data-peak="true"] .thought-level-thumb::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 16px color-mix(in srgb, var(--color-brand) 40%, transparent);
+  animation: thought-level-halo-pulse 1.8s ease-in-out infinite;
+}
+
+.thought-level-bar {
+  transition:
+    width 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 160ms ease;
+}
+
+.thought-level-root:has([data-dragging]) .thought-level-bar {
+  transition:
+    width 70ms linear,
+    opacity 160ms ease;
+}
+
+.thought-level-energy,
+.thought-level-ticks {
+  position: absolute;
+  pointer-events: none;
+  inset-inline: calc(var(--thought-level-size) / 2);
+}
+
+.thought-level-energy {
+  /* Mantine bar 使用 z-index: 1；粒子需在填充之上、脑形手柄（3）之下。 */
+  z-index: 2;
+  top: 50%;
+  height: var(--thought-level-size);
+  transform: translateY(-50%);
+  overflow: hidden;
+  border-radius: 9999px;
+}
+
+.thought-level-energy-fill {
+  position: relative;
+  width: 100%;
+  clip-path: inset(0 calc(100% - var(--thought-level-progress)) 0 0);
+  height: 100%;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    clip-path 180ms cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 160ms ease;
+  mask-image: linear-gradient(90deg, transparent, #000 55%);
+}
+
+.thought-level-panel[data-energy="active"] .thought-level-energy-fill {
+  opacity: var(--thought-level-pixel-opacity);
+}
+
+.thought-level-pixel-belt {
+  display: flex;
+  width: 200%;
+  height: 100%;
+  animation: thought-level-flow var(--thought-level-flow-duration) linear infinite;
+  will-change: transform;
+}
+
+.thought-level-pixel-field {
+  position: relative;
+  flex: 0 0 50%;
+  height: 100%;
+}
+
+.thought-level-particle {
+  position: absolute;
+  border-radius: 0.5px;
+  transform: translate(-50%, -50%);
+  background: var(--color-brand);
+}
+
+.thought-level-particle[data-tone="1"] {
+  background: color-mix(in srgb, var(--color-brand) 45%, var(--color-foreground));
+}
+
+.thought-level-particle[data-tone="2"] {
+  background: color-mix(in srgb, var(--color-brand) 65%, var(--color-popover));
+}
+
+.thought-level-panel[data-energy="off"] .thought-level-pixel-belt {
+  animation: none;
+}
+
+.thought-level-ticks {
+  bottom: 0;
+  height: 4px;
+}
+
+.thought-level-ticks span {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 9999px;
+  transform: translateX(-50%);
+  background: var(--color-foreground-subtlest);
+}
+
+.thought-level-ticks span[data-selected="true"] {
+  width: 5px;
+  height: 4px;
+  background: var(--color-brand);
+}
+
+.thought-level-option {
+  /* 大字号英文不能被等宽八列拆成逐字母标签；按文字宽度换行，保留完整词。 */
+  flex: 1 0 auto;
+  min-width: 2rem;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+@keyframes thought-level-flow {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes thought-level-brain-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+}
+
+@keyframes thought-level-halo-pulse {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .thought-level-panel *,
+  .thought-level-panel *::before,
+  .thought-level-panel *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .thought-level-pixel-belt {
+    will-change: auto;
+  }
+}

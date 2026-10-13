@@ -305,7 +305,7 @@ export function HookForm({
         )}
 
         <details className="group/advanced border-t border-border pt-3">
-          <summary className="flex cursor-pointer list-none items-center gap-1 text-ui-base font-medium text-foreground-subtle">
+          <summary className="flex cursor-pointer list-none items-center gap-1 rounded-sm text-ui-base font-medium text-foreground-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-input-border-focused">
             <ChevronRight
               className="size-3.5 transition-transform group-open/advanced:rotate-90"
               aria-hidden="true"

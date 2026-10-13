@@ -39,6 +39,7 @@ export async function prepareStreamAttempt(
   debug: StreamDebugOptions,
 ): Promise<void> {
   state.resolved = await resolveModelForAttempt({
+    outsideTicket: (wait, signal) => admission.waitOutsideTicket?.(wait, signal) ?? wait(),
     attempt: state.attempt,
     request: state.attemptRequest,
     resolveModel: input.resolveModel,

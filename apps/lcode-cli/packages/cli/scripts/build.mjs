@@ -1,5 +1,8 @@
 import { chmod, readFile, rm } from "node:fs/promises";
-import { readThirdPartyNotices, stageThirdPartyNotices } from "../../../../../scripts/third-party-notices.mjs";
+import {
+  readThirdPartyNotices,
+  stageThirdPartyNotices,
+} from "../../../../../scripts/third-party-notices.mjs";
 import { basename, dirname, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { build } from "esbuild";
@@ -136,6 +139,10 @@ export const resolveBuildAliases = ({
   cliDirectory = cliRoot,
   rootDirectory = projectRoot,
 } = {}) => ({
+  "@lcode/provider-node/network": resolve(
+    rootDirectory,
+    "../../packages/provider-node/src/network.ts",
+  ),
   "@lcode/shared-types": resolve(cliDirectory, "../shared-types/dist/index.js"),
   // plugin-host 启动只需这些独立入口，不能经通用 alias 重新求值 shared 总入口。
   "@lcode/shared/runtime-env": resolve(rootDirectory, "../../packages/shared/src/runtimeEnv.ts"),
@@ -170,7 +177,10 @@ export const resolveBuildAliases = ({
   ),
   // 代理协议新增公开子入口；缺少精确 alias 会被通用前缀拼成
   // `src/index.ts/network-proxy`，类型检查通过但 Desktop Agent/SEA 打包失败。
-  "@lcode/shared/network-proxy": resolve(rootDirectory, "../../packages/shared/src/networkProxy.ts"),
+  "@lcode/shared/network-proxy": resolve(
+    rootDirectory,
+    "../../packages/shared/src/networkProxy.ts",
+  ),
   "@lcode/shared/workspace-hook-discovery": resolve(
     rootDirectory,
     "../../packages/shared/src/workspace-hook-discovery.ts",

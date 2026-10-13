@@ -43,11 +43,13 @@ export function V4UserInputDialog({ model, onSubmit }: V4UserInputDialogProps) {
 
   return (
     <div
+      // bg-black/40 与 components/ui/dialog.tsx 的遮罩同色系；该遮罩是裸 div 而非 Radix Overlay，
+      // 因而不能复用 dialog-overlay 的类，取值与 DialogOverlay 的 bg-black/60 保持同一色相。
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4"
       data-testid={TID_V4_USER_INPUT_DIALOG}
     >
-      <div className="w-full max-w-lg rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 shadow-lg">
-        <p className="mb-3 text-ui-base text-[var(--color-foreground)]">{model.prompt}</p>
+      <div className="w-full max-w-lg rounded-xl border border-border bg-surface p-4 shadow-lg">
+        <p className="mb-3 text-ui-base text-foreground">{model.prompt}</p>
         {model.options.length > 0 ? (
           <div className="mb-3 flex flex-col gap-2">
             {model.options.map((option) => (

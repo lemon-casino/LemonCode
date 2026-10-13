@@ -47,6 +47,7 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
   let nodeReplBrowserBroker: NodeReplBrowserBroker | undefined;
   let ownedNodeReplBrowserBroker: NodeReplBrowserBroker | undefined;
   let providerModelRuntime: ApiProviderModelRuntime | undefined;
+  let ownedModelAdapter: ReturnType<typeof createModelAdapter> | undefined;
   try {
     const configuration = await prepareAppConfiguration(startup);
     const { pluginOutcome, pluginRuntimeFeatures, modelIoDir } = configuration;
@@ -125,7 +126,7 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
     });
     const modelAdapter =
       options.modelAdapter ??
-      createModelAdapter({
+      (ownedModelAdapter = createModelAdapter({
         env: options.env,
         logger: modelLogger,
         modelIoDir,
@@ -133,7 +134,7 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
         executionConfig: modelExecutionConfig,
         statusSink: modelTelemetry.statusSink,
         streamIdleTimeoutMs: configResult.config.modelStream.idleTimeoutMs,
-      });
+      }));
     if (options.modelAdapter && modelTelemetry.statusSink) {
       modelAdapter.addStatusSink(modelTelemetry.statusSink);
     }
@@ -277,8 +278,10 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
       closeNodeReplBrowserBroker: async () => {
         await ownedNodeReplBrowserBroker?.close();
       },
+      closeModelAdapter: ownedModelAdapter ? () => ownedModelAdapter!.disposeAndWait() : undefined,
     });
   } catch (error) {
+    if (ownedModelAdapter) await ownedModelAdapter.disposeAndWait();
     providerModelRuntime?.dispose();
     void modelTelemetry.shutdown().catch(() => undefined);
     void ownedNodeReplBrowserBroker?.close();

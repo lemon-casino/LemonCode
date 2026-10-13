@@ -1,12 +1,12 @@
 import "@mantine/core/styles/Slider.css";
 import { Slider as MantineSlider } from "@mantine/core";
-import type { ComponentPropsWithoutRef, Ref } from "react";
+import type { ComponentPropsWithoutRef, CSSProperties, ReactNode, Ref } from "react";
 import { MantineControlsProvider } from "./MantineControlsProvider.js";
 
 /**
  * Mantine Slider 控件适配器（controls 适配层首版对外接口）。
  *
- * 对外接口固定为 value/onChange/min/max/step/disabled/aria-label：
+ * 行为接口为 value/onChange/min/max/step/disabled/aria-label，可选展示属性供离散档位复用：
  * - value 受控 number，唯一所有者是调用方 state（如 WhiteboardPane 的 strokeWidth）；
  * - onChange 在拖动过程中连续触发（Mantine useMove → handleChange），等价原生
  *   range 的 onChange→setStrokeWidth(Number(...))；不使用 onChangeEnd 延迟；
@@ -52,6 +52,14 @@ export interface SliderProps extends SliderRestProps {
   disabled?: boolean;
   /** 可访问名：落到 role="slider" 的滑块元素（Mantine thumbLabel）。 */
   "aria-label"?: string;
+  thumbValueText?: string;
+  thumbChildren?: ReactNode;
+  thumbSize?: number;
+  thumbProps?: ComponentPropsWithoutRef<"div">;
+  size?: number;
+  style?: CSSProperties & Record<`--${string}`, string | number>;
+  classNames?: Partial<Record<"root" | "track" | "bar" | "thumb", string>>;
+  styles?: Partial<Record<"track" | "bar" | "thumb", CSSProperties>>;
   ref?: Ref<HTMLDivElement>;
 }
 
@@ -63,6 +71,14 @@ export function Slider({
   step,
   disabled,
   "aria-label": ariaLabel,
+  thumbValueText,
+  thumbChildren,
+  thumbSize,
+  thumbProps,
+  size,
+  style,
+  classNames,
+  styles,
   ref,
   ...rest
 }: SliderProps) {
@@ -79,32 +95,43 @@ export function Slider({
         disabled={disabled}
         label={null}
         thumbLabel={ariaLabel}
+        thumbValueText={thumbValueText}
+        thumbChildren={thumbChildren}
+        thumbSize={thumbSize}
+        thumbProps={thumbProps}
+        classNames={classNames}
         // 原生 range 为药丸轨道；Mantine 具名 radius 会解析到按组件 CSS 入口
         // 未提供的 --mantine-radius-*，数字值直接转 rem，观感一致。
         radius={9999}
         // 颜色/轨道映射语义 token：填充条与滑块描边用 --color-primary，
         // 不引入 Mantine 默认色板；md 轨道（0.5rem）+ 16px 滑块与原生 thumb 一致。
         color="var(--color-primary)"
-        size="md"
+        size={size ?? "md"}
         // --mantine-scale 是 Slider.css 全部 calc() 的乘数，默认变量表不随
         // 按组件 CSS 入口提供，必须在组件作用域内补齐；宽度对齐原 w-20。
         style={{
           "--mantine-scale": "1",
           "--mantine-shadow-sm": "var(--shadow-sm, 0 0 #0000)",
           width: "5rem",
+          ...style,
         }}
         styles={{
           // 轨道底色覆盖 Mantine 的 scheme 默认（--mantine-color-gray-2/dark-4）；
           // 内联自定义属性由 ::before 继承，两种基底主题统一走语义 token。
           track: {
             "--slider-track-bg": disabled ? "var(--color-surface)" : "var(--color-secondary)",
+            ...styles?.track,
           },
           thumb: {
             backgroundColor: "var(--color-background)",
             borderColor: "var(--color-primary)",
             color: "var(--color-primary)",
+            ...styles?.thumb,
           },
-          ...(disabled ? { bar: { backgroundColor: "var(--color-foreground-subtle)" } } : {}),
+          bar: {
+            ...(disabled ? { backgroundColor: "var(--color-foreground-subtle)" } : {}),
+            ...styles?.bar,
+          },
         }}
       />
     </MantineControlsProvider>

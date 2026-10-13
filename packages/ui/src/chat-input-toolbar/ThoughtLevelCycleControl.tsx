@@ -21,8 +21,9 @@ import {
   isNoThoughtLevel,
 } from "@/chat-input-toolbar/thoughtLevelOptions.js";
 import { RollingToolbarLabel } from "@/chat-input-toolbar/RollingToolbarLabel.js";
+import { ThoughtLevelSliderPopover } from "@/chat-input-toolbar/ThoughtLevelSliderPopover.js";
 
-type ThoughtLevelInteractionMode = "select" | "cycle";
+type ThoughtLevelInteractionMode = "select" | "cycle" | "slider";
 
 export function ThoughtLevelCycleControl({
   disabled,
@@ -189,12 +190,7 @@ export function ThoughtLevelCycleControl({
 
   const triggerContent = (
     <>
-      <BrainIcon
-        className={cn(
-          "pointer-events-none size-4 text-current",
-          // "inline-flex @lg/composer:hidden",
-        )}
-      />
+      <BrainIcon className="pointer-events-none size-4 text-current" />
       <span
         className={cn(
           "relative w-1 self-stretch overflow-hidden rounded-full bg-current/10",
@@ -211,7 +207,14 @@ export function ThoughtLevelCycleControl({
         />
       </span>
       <span ref={labelRef} className={cn("min-w-0 whitespace-nowrap", labelVisibilityClassName)}>
-        <RollingToolbarLabel label={currentLabel} />
+        <RollingToolbarLabel
+          label={currentLabel}
+          reserveLabels={
+            interactionMode === "slider"
+              ? entries.map((entry) => getThoughtLevelLabel(intl, provider, option, entry))
+              : undefined
+          }
+        />
       </span>
     </>
   );
@@ -232,6 +235,44 @@ export function ThoughtLevelCycleControl({
           {triggerContent}
         </span>
       </ControlHintTooltip>
+    );
+  }
+
+  if (interactionMode === "slider") {
+    return (
+      <ThoughtLevelSliderPopover
+        option={option}
+        provider={provider}
+        intl={intl}
+        currentLabel={currentLabel}
+        tooltipTitle={effectiveTooltipTitle}
+        shortcutLabel={shortcutLabel}
+        triggerRef={triggerRef}
+        disabled={disabled}
+        open={open}
+        onOpenChange={onOpenChange}
+        onValueChange={onValueChange}
+        restoreFocusSelector={restoreFocusSelector}
+      >
+        <Button
+          type="button"
+          variant="ghost"
+          size="default"
+          disabled={disabled}
+          className={cn("gap-1 rounded-lg px-1.5 py-1.5 text-ui-base", triggerClassName)}
+          aria-label={currentLabel}
+          data-chat-toolbar-popover-trigger="true"
+          data-testid={TID_CHAT_THOUGHT_LEVEL_SELECT_TRIGGER}
+        >
+          {triggerContent}
+          <ChevronDownIcon
+            className={cn(
+              "pointer-events-none size-3.5 text-foreground-subtle",
+              indicatorClassName,
+            )}
+          />
+        </Button>
+      </ThoughtLevelSliderPopover>
     );
   }
 

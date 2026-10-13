@@ -1,11 +1,12 @@
 {
   "name": "lcode",
-  "version": "3.18.3",
+  "version": "3.18.4",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "test:remote-control": "node scripts/test-remote-control.mjs",
+    "test:remote-assets": "node --import tsx --test scripts/remote-release-assets.test.mjs scripts/remote-runtime-download.test.mjs packages/desktop/src/main/remoteCdn.test.ts packages/server/src/remote/remoteAssetCdn.test.ts",
     "dev:web": "concurrently -k -n server,web -c blue,green \"pnpm --filter @lcode/server dev\" \"pnpm --filter @lcode/web dev\"",
     "dev:desktop": "pnpm run dev:desktop:prod",
     "dev:desktop:test": "node scripts/dev-desktop-env.mjs test",
@@ -37,6 +38,8 @@
     "knip": "knip",
     "count-lines": "bash scripts/count-lines.sh",
     "prepare:remote-assets": "pnpm --filter @lcode/desktop prepare:remote-assets",
+    "stage:remote-release": "node scripts/stage-remote-release-assets.mjs",
+    "build:remote-release": "pnpm prepare:remote-assets && pnpm stage:remote-release",
     "doctor:macos-release": "bash scripts/doctor-macos-release-app.sh",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix --fix-suggestions",

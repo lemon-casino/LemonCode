@@ -111,7 +111,7 @@ export function SettingsSyncSelectionStep(props: {
             <div className="flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors hover:bg-surface-hover/50">
               <button
                 type="button"
-                className="flex size-5 shrink-0 items-center justify-start"
+                className="flex size-5 shrink-0 items-center justify-start rounded-sm focus-visible:ring-2 focus-visible:ring-input-border-focused disabled:opacity-50"
                 disabled={total === 0}
                 aria-label={intl.formatMessage(
                   { id: "onboarding.agentSettings.categoryToggleAllAria" },
@@ -161,7 +161,7 @@ export function SettingsSyncSelectionStep(props: {
                     onClick={() => props.onToggleSelection(key)}
                     className={cn(
                       "flex w-full items-center gap-3 rounded-lg p-3 text-left transition-colors",
-                      "hover:bg-surface-hover/50",
+                      "hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-input-border-focused",
                     )}
                   >
                     <div className="flex size-5 shrink-0 items-center justify-center">

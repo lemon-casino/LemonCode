@@ -2,6 +2,13 @@
 
 ## 产品规则
 
+### 远程运行资源（2026-10-13）
+
+安装版默认复用现有固定版本更新下载服务获取远程运行资源；独立 remote-assets job
+复用显式准备命令并生成 GitHub Release 的平铺 manifest / 组件。release 同时等待桌面
+矩阵和远端资源，验证完整性后才能上传和公开。桌面 bundle 本身继续只准备本机目标。
+接口、所有权、兼容边界和验收见 `remote-runtime-release-assets.md`。
+
 ### 内置 Agent 自动同步（2026-10-11）
 
 - 本地 `bundle:desktop`、桌面 `build`、开发 Agent 构建与 tag Actions 共用

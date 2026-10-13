@@ -1,5 +1,6 @@
 import { memo } from "react";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
+import { Button } from "@/components/ui/button.js";
 import type { PendingCommandEntry } from "@/v4/pendingCommandRegistry.js";
 
 interface PendingCommandRecoveryBannerProps {
@@ -27,21 +28,19 @@ export const PendingCommandRecoveryBanner = memo(function PendingCommandRecovery
         {intl.formatMessage({ id: "chat.pendingCommand.discarded" })}
       </p>
       {hasReplayPayload && onResend ? (
-        <button
-          type="button"
-          className="shrink-0 rounded-md bg-primary px-2.5 py-1 text-primary-foreground hover:bg-primary/80"
-          onClick={onResend}
-        >
+        <Button type="button" size="sm" className="shrink-0" onClick={onResend}>
           {intl.formatMessage({ id: "chat.pendingCommand.resend" })}
-        </button>
+        </Button>
       ) : null}
-      <button
+      <Button
         type="button"
-        className="shrink-0 rounded-md px-2 py-1 text-foreground-subtle hover:bg-hover"
+        variant="ghost"
+        size="sm"
+        className="shrink-0 text-foreground-subtle"
         onClick={onDismiss}
       >
         {intl.formatMessage({ id: "chat.pendingCommand.dismiss" })}
-      </button>
+      </Button>
     </div>
   );
 });

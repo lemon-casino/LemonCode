@@ -14,6 +14,8 @@ modules:
   - id: provider-node
     roots: [packages/provider-node/src]
     managed: false
+    requires: [provider, shared]
+    publicEntrypoints: [packages/provider-node/src/index.ts, packages/provider-node/src/network.ts]
   - id: services
     roots: [packages/services/src]
     managed: false
@@ -73,6 +75,7 @@ modules:
   - id: lcode-cli
     roots: [apps/lcode-cli]
     managed: false
+    requires: [provider, provider-node, shared]
 
 global:
   maxFileLines: 400

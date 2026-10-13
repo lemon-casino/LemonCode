@@ -83,7 +83,7 @@
 
 1. 第一阶段只在 `@lcode/ui` 引入兼容当前 React 19 的稳定 `@mantine/core` 与其匹配的 `@mantine/hooks`，锁定版本并记录依赖与许可。已实施：版本经真实查询 npm registry 选定为 `@mantine/core` 9.7.2 + `@mantine/hooks` 9.7.2（均精确锁定；`@mantine/core@latest` 为 9.7.2，peer 要求 react ^19.2.0 + react-dom ^19.2.0 与同版本 @mantine/hooks，本仓 react 19.2.7 满足；备选 8.3.18 兼容但非当前稳定线），`pnpm install --filter @lcode/ui` 实际执行成功并经安装产物核验；最终 typecheck 门禁未通过（见“本版验证记录”）。
 2. `packages/ui/src/components/controls/` 已创建：`MantineControlsProvider.tsx`（Provider 桥接，观察 documentElement 的 dark class 派生明暗）、`Slider.tsx`（自带 Provider，宿主零改动）与 `css-modules.d.ts`。业务调用方使用稳定的 value/onChange/min/max/step/disabled/aria-label 接口。
-3. Slider 保持受控 number，不保存第二份画笔粗细。原来连续更新就继续使用 onChange，不改用 onChangeEnd 延迟更新。设 `label={null}`，不新增数值浮层、刻度或新操作。
+3. Slider 保持受控 number，不保存第二份画笔粗细。原来连续更新就继续使用 onChange，不改用 onChangeEnd 延迟更新。设 `label={null}`，白板不新增数值浮层、刻度或新操作。Composer 思考滑块按 [专用规格](composer-thought-slider.md) 复用该适配器，可选传入手柄内容、手柄可访问属性、具名样式及宽度；省略时保留白板原外观和连续回调。
 4. Provider 的明暗由现有主题注册表和设置投影决定，不启用 Mantine 自有主题持久化、不另设颜色模式 store。资源管理器和独立入口需要各自验证宿主 Provider；普通 Radix 控件不因接入 Mantine 增加 Provider 依赖。
 5. Mantine 的颜色、字号、圆角、状态及轨道尺寸映射现有语义 token。保持 `text-ui-*`、手机输入安全字号与根字体不缩放规则，禁止照搬库默认字号和另一套主题色板。
 6. 样式接入采用 Mantine 官方支持的方式，只加载实际使用组件所需样式；验证全局 reset、Portal、z-index、Electron no-drag 与原有布局没有冲突。不得为了 Slider 导入整套 Mantine 布局和表单体系。

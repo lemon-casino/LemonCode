@@ -27,6 +27,7 @@ import { RuntimeHeadersRefreshError } from "./runner-runtime-headers.js";
 import { publishModelStatus } from "./runner-status.js";
 import { modelFailureStatusFields } from "./runner-telemetry.js";
 import { retryAllowedByFailurePolicy } from "./workflow-model-failure-policy.js";
+import { canRotateApiKey } from "./api-key-retry.js";
 
 import { publishRetryScheduledStatus, statusPublishOptions } from "./runner-attempt-status.js";
 import type { GenerateAttemptState } from "./runner-generate-state.js";
@@ -53,6 +54,10 @@ export async function handleGenerateFailure(
     throw error;
   const completedAt = Date.now();
   const classified = classifyModelFailure(error, input.request.abortSignal);
+  attemptState.resolved.apiKeyAttempt?.observeFailure(
+    classified.statusCode,
+    getResponseHeaders(unwrapRetryError(error)),
+  );
   if (error instanceof RuntimeHeadersRefreshError) {
     classified.message = error.message;
     classified.retryable = false;
@@ -101,7 +106,15 @@ export async function handleGenerateFailure(
           retryBudget,
           inspectProviderFailure(error).providerErrorCode,
         );
-  const canRetry = retryWithRepairedHistory || canRetryWithFailurePolicy;
+  const rotateApiKey = canRotateApiKey({
+    apiKeyAttempt: attemptState.resolved.apiKeyAttempt,
+    error,
+    signal: input.request.abortSignal,
+    retryBudget,
+    attempt: attemptState.retryBudgetAttempt,
+    maxAttempts: input.retry.maxAttempts,
+  });
+  const canRetry = retryWithRepairedHistory || rotateApiKey || canRetryWithFailurePolicy;
 
   if (attemptState.options) {
     recordGenerateTextDebug({
@@ -181,8 +194,9 @@ export async function handleGenerateFailure(
     return false;
   }
 
-  const delayMs =
-    offPeak?.kind === "queued"
+  const delayMs = rotateApiKey
+    ? 0
+    : offPeak?.kind === "queued"
       ? offPeak.delayMs
       : calculateRetryDelay(input.retry, attemptState.retryBudgetAttempt, failure.retryAfterMs);
   logRetryDelayDecision({
@@ -208,6 +222,7 @@ export async function handleGenerateFailure(
 
   // 退避期间不持票：槽位让给别人，重试再准入。
   admission.release();
+  attemptState.resolved.apiKeyAttempt?.release();
   try {
     await sleep(delayMs, input.request.abortSignal);
   } catch (sleepError) {

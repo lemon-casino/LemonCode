@@ -19,6 +19,7 @@ import { publishRetryScheduledStatus, statusPublishOptions } from "./runner-atte
 import { streamChunkResult } from "./runner-stream-boundary.js";
 import type { StreamChunkInput, StreamChunkResult } from "./runner-stream-chunk-state.js";
 import { resolveStreamFailureDecision } from "./runner-stream-failure-policy.js";
+import { canRotateApiKey } from "./api-key-retry.js";
 
 export async function handleStreamErrorEvent(
   input: StreamChunkInput,
@@ -36,6 +37,10 @@ export async function handleStreamErrorEvent(
       }
     : input.statusContext;
   const classified = classifyModelFailure(error, input.input.request.abortSignal);
+  input.apiKeyAttempt?.observeFailure(
+    classified.statusCode,
+    getResponseHeaders(unwrapRetryError(error)),
+  );
   // off-peak 特判：SSE 首块即错（尚无可见输出）时的排队 429 同样豁免预算重试。
   const offPeak = resolveOffPeakFailureDecision({
     offPeak: input.input.resolved.accountAccess?.mode === "off-peak",
@@ -69,6 +74,16 @@ export async function handleStreamErrorEvent(
     streamErrorChunkObserved: true,
   });
   // off-peak 排队 429 豁免预算：不消耗 maxAttempts，SSE 可见输出边界仍适用。
+  const rotateApiKey = canRotateApiKey({
+    apiKeyAttempt: input.apiKeyAttempt,
+    error,
+    signal: input.input.request.abortSignal,
+    outputCommitted: input.emittedRetryBoundaryEvent,
+    retryBudget: input.input.request.modelRetryBudget,
+    attempt: input.retryBudgetAttempt,
+    maxAttempts: input.input.retry.maxAttempts,
+  });
+  if (rotateApiKey) failureDecision.canRetry = true;
   if (offPeak?.kind === "queued" && !input.emittedRetryBoundaryEvent) {
     failureDecision.canRetry = true;
   }
@@ -139,8 +154,9 @@ export async function handleStreamErrorEvent(
     });
   }
 
-  const delayMs =
-    offPeak?.kind === "queued"
+  const delayMs = rotateApiKey
+    ? 0
+    : offPeak?.kind === "queued"
       ? offPeak.delayMs
       : calculateRetryDelay(input.input.retry, input.retryBudgetAttempt, failure.retryAfterMs);
   logRetryDelayDecision({

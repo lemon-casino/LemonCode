@@ -225,7 +225,7 @@
     ".agents/skills/react-best-practices/rules/server-serialization.md": "4d025c42043c56e6355196a2e885d168cdb15248d0797146c9db838a57b34946",
     ".agents/skills/react-best-practices/SKILL.md": "b7d246acb440bee224ab33614979a5b8debe5fdb13d0304967aa19358eb69d9f",
     "apps/lcode-cli/package.json": "5a9f6f6582871eb19d5cd81301661c46778a2f5d27d75371c35cde96db4c7f48",
-    "apps/lcode-cli/packages/adapters/package.json": "bfe5f4465dbb64334f63d9d3105b6b91063d4638fa834b428e576ca4eb3ed0d7",
+    "apps/lcode-cli/packages/adapters/package.json": "b1f411f77010acee4c72773c897c3711480ae85e42b914af7248eea4c1ad31cc",
     "apps/lcode-cli/packages/bootstrap/package.json": "3cc26fa1ee5a6f307da4ec8312fb99d90b4a9a89576545690bd227d33b61ae80",
     "apps/lcode-cli/packages/browser-use-plugin/package.json": "22edb7c4a8406287131a3cf7330147eca7412f07cdb419a28efc594206a8cfc0",
     "apps/lcode-cli/packages/cli/package.json": "c96031d05f7583c0385db3c0d946a1a607a889e7aa5d9be52b78250c0e835e51",
@@ -252,7 +252,7 @@
     "apps/lcode-cli/packages/tui/package.json": "35cd6fcd941d6abfb2e1f9129493abf04ef108bc8ceaa057c0c9a45c0c192294",
     "apps/lcode-cli/tools/prompt-trajectory/package.json": "adda451b1c3981fa364530ad0ce303f7f428c3180b8b20c3f4be47d35116a1e9",
     "apps/lcode-cli/tools/typescript/package.json": "2f33883fe33cc9d878a3d6d78a0d262eb0db134fc02042ed7563c3dc50d797f7",
-    "package.json": "fe4284351a9fddf6efab980a0e6b77261c1e767fdfd893a72dd6540f74d05ddc",
+    "package.json": "225b5e5ce198b815c3295311c1fd197d3ca397a210c5faf9db59c7c57549265a",
     "packages/client/package.json": "6cfcb57428c4728a98b7cf4504d29304cf6e9e547e136f0ab1edcef8f821b452",
     "packages/desktop/package.json": "c81d8f6915a5df5b0a43cdbe8a20d40c825c384060d8032e051827547d992611",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
@@ -1405,7 +1405,7 @@
     "packages/lcode-cua/package.json": "71c133dbc92de8416208114f48adc7ce005ddfd2704ff2a23b9e03e0d234acbb",
     "packages/lcode-server-cli/package.json": "9d824802017245a14e355315d5e659a572e7a94fcd540ca9437c189df8614b85",
     "packages/model-option-map/package.json": "a9f720efdb353f556d01ea866bb15ac0201c155fb305a4246e6a323384770aba",
-    "packages/provider-node/package.json": "93af1a0200971b0afe8ddc24e598cef0df3c0ad300be665641c59a66b7d59fdd",
+    "packages/provider-node/package.json": "849d9fcf32152256c1bf783e5d8b5d238b128c9450082faf37ae73b56a9925ca",
     "packages/provider-node/src/provider-auth/native.ts": "7d214d0064859152aec369c09d1009451fcde50d101170663e0bf29b59c6b86e",
     "packages/provider-node/src/provider-auth/native/browser.ts": "b597d6bb9a4aed7887e5cd3cd423627cd1aeae09577b0a95f508e0d65449bd53",
     "packages/provider-node/src/provider-auth/native/catalog-metadata.ts": "4b2316ad44760b87327d3efe04437bbda74f5a6ab27c5f30de4aca74576058c6",
@@ -1454,12 +1454,12 @@
     "packages/provider-node/src/provider-auth/native/parity.test.ts": "f89b80b4b3c778fd0c50ce16acb17453e0c94eecbef4c867693b9f2ae235b487",
     "packages/provider-node/src/provider-auth/native/quota-http.test.ts": "ed55595a17bc3497a6dc34d2587be35bb25f594b3210fbaaad60f6e25ec66ea5",
     "packages/provider-node/src/provider-auth/native/README.md": "07df0ea2a32117a5c937b2d07b5f7cfffa0c91c301d039192aed8c1612a6bb6e",
-    "packages/provider-node/src/provider-auth/native/tool-schema.test.ts": "8b3bbb8429af471868c77f38d9a1765174373fda12de3aae0c8296eb7c73ce03",
+    "packages/provider-node/src/provider-auth/native/tool-schema.test.ts": "4516d8b3ad2f82491a293b981b08e8e2a5834c88f0028bb7bfb586ee5ed8634b",
     "packages/provider-node/src/provider-auth/native/tool-schema.ts": "af4303969354e7f56045f0596784506492a4be092882c797811a7ee0992dc107",
     "packages/provider-node/src/provider-auth/native/transports.test.ts": "eca8bb570caf9704060745639ae360c2bd5d64512980e7423e81d8299d7e9247",
     "packages/provider-node/src/provider-auth/plugins/factory-import.mjs": "5c9ed1cce9ab4e3538b21996e7d17df002964e3bacc64ba868f01153f564652d",
     "packages/provider-node/src/provider-auth/plugins/method-details.mjs": "81af1536b6f35061208824323f09956dd3409ca9d850b3f3c7e30b1bfdcd31e5",
-    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "4603f15595b09c3f3f736dff171bdac051c2b14b8b12e7c87c79ccbd96c36513",
+    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "cb9d7ea916bf1b5d7af5d49319c5a1e309baa8d52f37dd909bd4a69a97cb3342",
     "packages/provider-node/src/provider-auth/plugins/zcode-local.mjs": "c8b91d4414eed9c9edd0e227a06141d0c75bb1601abc5cef177be01ca21952e4",
     "packages/provider-node/src/provider-auth/vendor/cline/index.mjs.source": "8e60d522aa362e205ec884998124dbdd04d1abc9b5edab038804f7a3ff4793d0",
     "packages/provider-node/src/provider-auth/vendor/commandcode/index.mjs.source": "1474d3fc8bd91e2166ad97daef83e21ef8f4820c0374d517a92e61c8b0a273de",
@@ -1621,7 +1621,7 @@
     "packages/ui/src/components/ui/tooltip.tsx": "302dde4dfbb1d4ef86b17319fd0fa0fb8be8f2f83ea66c08ff5cfe4309a3d295",
     "packages/ui/src/components/ui/usePdfZoomOverlay.ts": "c8c91b003ce2fded32c7a2369dc6eac43aa4b9dc9c830a0f5ceccb21d366b610",
     "packages/ui/src/lib/builtinSkillI18n.ts": "0a177a74855a0b4fa344bc633bfbf4dcc4b14d577f3c73b931cf279f74df7485",
-    "packages/ui/src/styles.css": "1254f3d3907d0f94a8508a5ff83e869f8a5dbcd7e6691dd21a6ea938d80f57b1",
+    "packages/ui/src/styles.css": "e10be3373da24b7850e632fb926c5373158eb47f3fde0f48ff35d70278789243",
     "packages/web/package.json": "43a45b12d01939ef99e0f1a12c657df194a2d1d3e7d819053c8079708b88efa5",
     "packages/web/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",
     "packages/web/public/material-icons/abap.svg": "1335bd7eb9a0ed49deb622330d680c2e97731726a7a5eee8e4f46dc1e5db4de4",
@@ -2776,7 +2776,7 @@
     "patches/border-beam@1.4.1.patch": "bcfca688ecc0169aebbdc07d0677580e7517c36e53b0f2229fa2623a5628f411",
     "patches/braces@3.0.3.patch": "86bfec1c34ab4b24710c0ca080d4b98d8c929990ae2c65ccb86192be43493a9b",
     "patches/node-forge@1.4.0.patch": "1ddd6eb75462781c8c67f8010e3c6fe3eb89972d1ac19b10ef54fa95639854fe",
-    "pnpm-lock.yaml": "482ce650f90c7c7708739dabfb3ac2b6f8861d3947f896893e735288bdcc8be6",
+    "pnpm-lock.yaml": "61cb6d89092518c37971c8c4918eee5db631b7d7296e5416ada979a39f316915",
     "pnpm-workspace.yaml": "d6d295facf6e67dbf531b15a64a1c7e51c62c29a7804c6d59eaa7dd0fc40a0ab",
     "scripts/license-texts/Apache-2.0.txt": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
     "scripts/native-search-tools-config.mjs": "51483e7c154b76d431703e22b28c6b4687245bf15662e5246ed976d561d086ae",
@@ -20212,7 +20212,7 @@
         },
         {
           "file": "packages/ui/src/styles.css",
-          "sha256": "1254f3d3907d0f94a8508a5ff83e869f8a5dbcd7e6691dd21a6ea938d80f57b1"
+          "sha256": "1172257361ec7a60738332975b7afe3a8d81ce10838d73ecfdba886c8ec2a9ad"
         }
       ]
     },
@@ -31071,7 +31071,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/tool-schema.test.ts",
-          "sha256": "8b3bbb8429af471868c77f38d9a1765174373fda12de3aae0c8296eb7c73ce03"
+          "sha256": "4516d8b3ad2f82491a293b981b08e8e2a5834c88f0028bb7bfb586ee5ed8634b"
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/tool-schema.ts",
@@ -31095,7 +31095,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "4603f15595b09c3f3f736dff171bdac051c2b14b8b12e7c87c79ccbd96c36513"
+          "sha256": "cb9d7ea916bf1b5d7af5d49319c5a1e309baa8d52f37dd909bd4a69a97cb3342"
         }
       ]
     },
@@ -31225,7 +31225,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "4603f15595b09c3f3f736dff171bdac051c2b14b8b12e7c87c79ccbd96c36513"
+          "sha256": "cb9d7ea916bf1b5d7af5d49319c5a1e309baa8d52f37dd909bd4a69a97cb3342"
         }
       ]
     },

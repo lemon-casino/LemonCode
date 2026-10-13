@@ -150,12 +150,13 @@ export function createProviderSettingsService(
   facade: ProviderSettingsFacade,
   ensureReady: () => Promise<void> = async () => {},
   testConnectivity?: ProviderSettingsConnectivityTester,
-  catalogClient: ProviderCatalogClient = createProviderCatalogClient(),
+  providedCatalogClient?: ProviderCatalogClient,
   testProxies?: (
     profiles: readonly ProxyProfile[],
     signal?: AbortSignal,
   ) => Promise<readonly ProxyConnectivityResult[]>,
 ): IProviderSettingsService & { dispose(): void } {
+  const catalogClient = providedCatalogClient ?? createProviderCatalogClient();
   const probes = new Map<
     string | symbol,
     { providerId: ProviderId; controller: AbortController }
@@ -381,6 +382,7 @@ export function createProviderSettingsService(
     },
     dispose: () => {
       disposed = true;
+      if (!providedCatalogClient) catalogClient.dispose?.();
       for (const controller of proxyChecks.values()) controller.abort();
       proxyChecks.clear();
       for (const probe of probes.values()) probe.controller.abort();

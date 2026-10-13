@@ -89,7 +89,7 @@ export function ConversationShareSuccessDock({
           data-testid="conversation-share-success-warning"
           className="mx-4 mb-3 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-foreground"
         >
-          <summary className="cursor-pointer text-ui-sm font-medium text-warning">
+          <summary className="cursor-pointer rounded-sm text-ui-sm font-medium text-foreground-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-input-border-focused">
             {intl.formatMessage(
               { id: "conversationShare.warning.summary" },
               { count: warnings.issueCount },

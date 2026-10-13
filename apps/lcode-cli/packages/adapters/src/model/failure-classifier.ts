@@ -64,7 +64,8 @@ export function classifyModelFailure(
     };
   }
 
-  if (isAbortFailure(unwrapped, abortSignal)) {
+  // owner 关闭发出的类型化取消可能没有 caller signal；不能降为未知错误并无限重试。
+  if (code === ModelErrorCode.ModelRequestCancelled || isAbortFailure(unwrapped, abortSignal)) {
     return {
       code: ModelErrorCode.ModelRequestCancelled,
       message: "Model request was cancelled.",

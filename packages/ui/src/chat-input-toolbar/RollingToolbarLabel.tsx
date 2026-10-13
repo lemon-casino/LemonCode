@@ -48,6 +48,7 @@ export function RollingToolbarLabel({
   prefixClassName,
   value,
   reducedMotionOverride,
+  reserveLabels,
 }: {
   label: string;
   className?: string;
@@ -56,6 +57,8 @@ export function RollingToolbarLabel({
   value?: string;
   /** 供确定性渲染环境覆盖系统媒体查询；生产调用保持未定义。 */
   reducedMotionOverride?: boolean;
+  /** 用当前目录的全部标签预留宽度，防止浮层锚点随文字滚动改变。 */
+  reserveLabels?: readonly string[];
 }) {
   const prefersReducedMotion = usePrefersReducedMotion();
   const reducedMotion = reducedMotionOverride ?? prefersReducedMotion;
@@ -69,7 +72,27 @@ export function RollingToolbarLabel({
       label
     );
 
-  const rootClassName = cn(LABEL_ROOT_CLASS_NAME, className);
+  const reserveSpace = Boolean(reserveLabels?.length);
+  const rootClassName = cn(
+    LABEL_ROOT_CLASS_NAME,
+    reserveSpace ? "inline-grid" : undefined,
+    className,
+  );
+  const contentClassName = cn(
+    LABEL_CONTENT_CLASS_NAME,
+    reserveSpace ? "col-start-1 row-start-1" : undefined,
+  );
+  const widthReservations = reserveSpace
+    ? [...new Set(reserveLabels)].map((text) => (
+        <span
+          key={text}
+          aria-hidden="true"
+          className="invisible col-start-1 row-start-1 whitespace-nowrap"
+        >
+          {text}
+        </span>
+      ))
+    : null;
 
   if (reducedMotion) {
     // 修复依据：旧 reduced-motion 分支比动画分支少一层，Composer 的位置选择器会把
@@ -77,7 +100,8 @@ export function RollingToolbarLabel({
     // 必须保留同一层级，只让内层是否使用 motion 产生差异。
     return (
       <span className={rootClassName} data-toolbar-label-root="true" title={label}>
-        <span className={LABEL_CONTENT_CLASS_NAME} data-toolbar-label-content="true">
+        {widthReservations}
+        <span className={contentClassName} data-toolbar-label-content="true">
           {content}
         </span>
       </span>
@@ -86,10 +110,11 @@ export function RollingToolbarLabel({
 
   return (
     <span className={rootClassName} data-toolbar-label-root="true" title={label}>
+      {widthReservations}
       <AnimatePresence initial={false} mode="popLayout">
         <motion.span
           key={label}
-          className={LABEL_CONTENT_CLASS_NAME}
+          className={contentClassName}
           data-toolbar-label-content="true"
           initial={{ y: "0.75em", opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}

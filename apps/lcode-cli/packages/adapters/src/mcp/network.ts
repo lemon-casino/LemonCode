@@ -1,7 +1,7 @@
 import { accessSync, constants } from "node:fs";
 import { delimiter, posix, win32 } from "node:path";
 import { sanitizeLCodeRuntimeEnv } from "@lcode/shared";
-import { createNetworkProxyFetch } from "../network/proxy-fetch.js";
+import { createNetworkProxyFetch, type ManagedNetworkFetch } from "../network/proxy-fetch.js";
 import { applyNetworkEgressEnv, type NetworkEgressEnvPolicy } from "../network/subprocess-env.js";
 
 export type { NetworkEgressEnvPolicy };
@@ -22,7 +22,7 @@ export function buildMcpStdioEnv(options: {
 export function createMcpTransportFetch(options: {
   env?: NodeJS.ProcessEnv;
   network?: NetworkEgressEnvPolicy;
-}): typeof globalThis.fetch {
+}): ManagedNetworkFetch {
   return createNetworkProxyFetch({
     caCertFile: options.network?.caCertFile,
     env: options.env ?? process.env,

@@ -31,6 +31,7 @@ import { modelFailureStatusFields, readModelFailureErrorPhase } from "./runner-t
 import { publishRetryScheduledStatus, statusPublishOptions } from "./runner-attempt-status.js";
 import type { ModelRunnerRetryState } from "./runner-request-state.js";
 import { resolveStreamFailureDecision } from "./runner-stream-failure-policy.js";
+import { canRotateApiKey } from "./api-key-retry.js";
 import type {
   StreamAttemptState,
   StreamDebugOptions,
@@ -117,6 +118,10 @@ export async function handleStreamFailure(
     };
   }
   const classified = classifyModelFailure(error, input.request.abortSignal);
+  state.resolved.apiKeyAttempt?.observeFailure(
+    classified.statusCode,
+    getResponseHeaders(unwrapRetryError(error)),
+  );
   if (error instanceof RuntimeHeadersRefreshError) {
     classified.message = error.message;
     classified.retryable = false;
@@ -161,6 +166,16 @@ export async function handleStreamFailure(
     ),
   });
   // off-peak 排队 429 豁免预算：不消耗 maxAttempts，SSE 可见输出边界仍适用。
+  const rotateApiKey = canRotateApiKey({
+    apiKeyAttempt: state.resolved.apiKeyAttempt,
+    error,
+    signal: input.request.abortSignal,
+    outputCommitted: state.emittedRetryBoundaryEvent || state.streamOutputCommitted,
+    retryBudget,
+    attempt: state.retryBudgetAttempt,
+    maxAttempts: input.retry.maxAttempts,
+  });
+  if (rotateApiKey) failureDecision.canRetry = true;
   if (offPeak?.kind === "queued" && !state.emittedRetryBoundaryEvent) {
     failureDecision.canRetry = true;
   }
@@ -238,8 +253,9 @@ export async function handleStreamFailure(
     });
   }
 
-  const delayMs =
-    offPeak?.kind === "queued"
+  const delayMs = rotateApiKey
+    ? 0
+    : offPeak?.kind === "queued"
       ? offPeak.delayMs
       : calculateRetryDelay(input.retry, state.retryBudgetAttempt, failure.retryAfterMs);
   logRetryDelayDecision({

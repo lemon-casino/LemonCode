@@ -277,8 +277,8 @@ export function ConversationFileSummaryPanel({
                     <div
                       aria-disabled={!canReview}
                       className={cn(
-                        "flex w-full items-center gap-1 px-2 py-2 text-left transition-colors",
-                        canReview ? "cursor-pointer hover:bg-hover/30" : "cursor-default",
+                        "flex w-full items-center gap-1 rounded-md px-2 py-2 text-left transition-colors focus-visible:ring-2 focus-visible:ring-input-border-focused aria-disabled:opacity-50",
+                        canReview ? "cursor-pointer hover:bg-hover" : "cursor-default",
                       )}
                       onClick={() => openDiff(item, context)}
                       onKeyDown={(event) => {

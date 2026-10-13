@@ -188,6 +188,9 @@ importers:
       '@lcode/provider':
         specifier: workspace:*
         version: link:../../../../packages/provider
+      '@lcode/provider-node':
+        specifier: workspace:*
+        version: link:../../../../packages/provider-node
       '@lcode/shared':
         specifier: workspace:*
         version: link:../../../../packages/shared

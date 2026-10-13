@@ -22,6 +22,7 @@
 
 13. 选择快速仅代表请求意图。每个物理请求由 Adapter 观察响应：OpenAI/兼容接口读取 `service_tier`（Responses SSE 读取 `response.service_tier`），Anthropic 读取 `usage.speed`（包括 SSE `message.usage.speed`）。记录 `confirmed`、`downgraded`、`unconfirmed`，缺失字段不能判定快速已生效，也不能凭耗时猜测。服务端降档或缺失回传时保留成功输出，不自动重发收费请求、不改写用户选择。
 14. 速度诊断记录到现有请求完成日志，携带既有 request/trace/session 标识、选择档位、实际发送字段和回传档位；不记录正文、密钥或端点。Composer 菜单继续表示请求档位，不表示响应确认结果。本次不新增持久化字段或协议事件。
+15. Composer 思考入口使用离散滑块浮层，档位仍来自同一模型目录，交互、主题、状态边界及验收见 [Composer 思考档位滑块](composer-thought-slider.md)。快捷键继续按目录顺序循环；自动化、子代理及工作流配置保留既有选择控件。
 
 ## 所有者与接口
 

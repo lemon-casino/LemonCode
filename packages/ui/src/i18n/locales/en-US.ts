@@ -5361,6 +5361,9 @@ const enUS: Record<string, string> = {
   "chat.toolbar.thoughtLevel.label": "Reasoning effort",
   "chat.toolbar.thoughtLevel.tooltip": "Thought level",
   "chat.toolbar.thoughtLevel.placeholder": "Select reasoning level",
+  "chat.toolbar.thoughtLevel.faster": "Faster response",
+  "chat.toolbar.thoughtLevel.deeper": "Deeper reasoning",
+  "chat.toolbar.thoughtLevel.sliderHint": "Drag, click or use arrow keys to adjust",
   "chat.toolbar.thoughtLevel.description":
     "Adjust how much the agent thinks before answering. Higher effort is usually steadier but slower.",
   "chat.toolbar.thoughtLevel.value.off": "Off",

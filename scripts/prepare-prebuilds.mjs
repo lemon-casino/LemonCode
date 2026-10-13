@@ -38,7 +38,6 @@ import {
   packSourceAsDeterministicTarGzip as packComponentSourceAsArchive,
 } from "./deterministic-tar-archive.mjs";
 import { runCommand } from "./spawn-command.mjs";
-import { resolveIntranetDepsBaseUrl } from "./intranetDefaults.mjs";
 
 export { computeComponentSourceSha256, packComponentSourceAsArchive };
 
@@ -538,15 +537,6 @@ function stageRemoteAgentBundles() {
   }
 }
 
-function canResolveIntranetDepsBaseUrl() {
-  try {
-    resolveIntranetDepsBaseUrl();
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export async function prepareRemoteNativeSearchTools({
   platforms = remotePlatforms,
   outputDir = join(releaseDir, "tools"),
@@ -776,14 +766,16 @@ function buildReusableComponentDefinitionsByPlatform() {
         id: component.id,
         version: buildComponentVersion(component.semanticPrefix),
         mount: component.mount,
-        requiredPaths: buildReusableComponentRequiredPaths(component.id, platformKey),
+        requiredPaths: buildRemoteComponentRequiredPaths(component.id, platformKey),
       })),
     ]),
   );
 }
 
-function buildReusableComponentRequiredPaths(componentId, platformKey) {
+export function buildRemoteComponentRequiredPaths(componentId, platformKey) {
   switch (componentId) {
+    case "server-bundle":
+      return ["lcode-server.cjs"];
     case "node-runtime":
       return ["node"];
     case "node-pty":
@@ -1002,14 +994,8 @@ async function prepareRemoteComponentArtifacts() {
     );
 
     for (const component of componentDefinitions) {
-      if (!existsSync(component.sourcePath)) {
-        if (component.id !== "mise" && !canResolveIntranetDepsBaseUrl()) {
-          console.warn(
-            `  [skip] component ${component.id} (${platformKey}): source missing and intranet deps source is not configured`,
-          );
-          continue;
-        }
-      }
+      // 修复：缺组件时生成不完整 manifest 会让安装版直到 SSH 部署才失败。
+      // 当前准备流程已负责提供所有目标资产，任何缺失都由组件构建立即拒绝。
       componentManifestEntries.push(
         await prepareRemoteComponentArtifact({
           mockCdnDir,

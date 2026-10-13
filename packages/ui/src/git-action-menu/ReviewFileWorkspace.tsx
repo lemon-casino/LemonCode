@@ -121,7 +121,7 @@ export function ReviewFileWorkspace({
               <li key={item.path} className="min-w-0 rounded-lg border border-border p-2">
                 <button
                   type="button"
-                  className="w-full break-all text-left font-mono"
+                  className="w-full break-all rounded-sm text-left font-mono hover:bg-hover focus-visible:ring-2 focus-visible:ring-input-border-focused aria-[current=true]:bg-selected"
                   aria-current={file?.path === item.path ? "true" : undefined}
                   onClick={() => setSelectedPath(item.path)}
                 >

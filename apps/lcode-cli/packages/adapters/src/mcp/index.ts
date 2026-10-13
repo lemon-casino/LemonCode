@@ -9,6 +9,7 @@ import type {
 import type { OfficialMcpAuthFailureKind } from "@lcode/shared";
 import type { SharedLCodeCredentialStore } from "../auth/shared-credentials.js";
 import type { NetworkEgressEnvPolicy } from "./network.js";
+import { createMcpTransportFetch } from "./network.js";
 import {
   createMcpConnectionPool,
   type McpConnectionContext,
@@ -92,6 +93,7 @@ export {
 
 class NodeMcpAdapter implements McpAdapterOwner {
   readonly adapterInstanceId = randomUUID();
+  readonly networkFetch: ReturnType<typeof createMcpTransportFetch>;
 
   readonly clientName: string;
 
@@ -144,6 +146,7 @@ class NodeMcpAdapter implements McpAdapterOwner {
   readonly workingDirectory?: string;
 
   constructor(options: CreateMcpAdapterOptions) {
+    this.networkFetch = createMcpTransportFetch({ env: options.env, network: options.network });
     this.clientName = options.clientName ?? "lcode";
     this.clientVersion = options.clientVersion ?? "0.0.0";
     this.connectionContext = options.connectionContext;
@@ -202,20 +205,26 @@ class NodeMcpAdapter implements McpAdapterOwner {
     runToolCallAuthorizationRecovery;
 
   async close(): Promise<void> {
-    const startedAt = Date.now();
-    const serverCount = this.records.size;
-    for (const name of this.records.keys()) {
-      this.nextConnectionGeneration(name);
+    // MCP 有自己的网络 owner；模型关闭不能代替它清理 SSE/OAuth 请求。
+    this.networkFetch.dispose();
+    try {
+      const startedAt = Date.now();
+      const serverCount = this.records.size;
+      for (const name of this.records.keys()) {
+        this.nextConnectionGeneration(name);
+      }
+      await Promise.all(Array.from(this.records.keys()).map((name) => this.closeRecord(name)));
+      this.records.clear();
+      this.connectionDiagnosticByServer.clear();
+      this.logger?.info("MCP adapter closed", {
+        durationMs: Date.now() - startedAt,
+        event: "mcp.adapter.closed",
+        serverCount,
+        status: "completed",
+      });
+    } finally {
+      await this.networkFetch.disposeAndWait();
     }
-    await Promise.all(Array.from(this.records.keys()).map((name) => this.closeRecord(name)));
-    this.records.clear();
-    this.connectionDiagnosticByServer.clear();
-    this.logger?.info("MCP adapter closed", {
-      durationMs: Date.now() - startedAt,
-      event: "mcp.adapter.closed",
-      serverCount,
-      status: "completed",
-    });
   }
 
   readonly waitForSharedConnection: McpAdapterOwner["waitForSharedConnection"] =

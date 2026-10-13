@@ -205,10 +205,54 @@ jobs:
           retention-days: 14
           compression-level: 0
 
+  remote-assets:
+    name: Remote workspace runtimes
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      LCODE_ENV: production
+      LCODE_VERIFY_RELEASE_INPUTS: "1"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.34.6
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+      - name: Check release version
+        run: node scripts/verify-release-version.mjs
+      - name: Verify committed release notice baseline
+        run: >-
+          node --input-type=module -e "import { readReleaseVerifiedNotices } from './scripts/third-party-notices.mjs';
+          await readReleaseVerifiedNotices(process.cwd())"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Restore committed release input after install
+        shell: bash
+        run: |
+          git diff -- pnpm-lock.yaml
+          git restore --source=HEAD -- pnpm-lock.yaml
+      - name: Verify remote resource distribution
+        run: pnpm test:remote-assets
+      # 修复：桌面打包只准备本机资产，远端 manifest / components 必须独立构建并一起发布。
+      - name: Build and stage remote runtimes
+        run: pnpm build:remote-release
+      - uses: actions/upload-artifact@v7
+        with:
+          name: remote-runtime-assets
+          path: packages/desktop/dist/remote-release-assets/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
   release:
     name: Publish GitHub Release
     if: github.ref_type == 'tag'
-    needs: build
+    needs: [build, remote-assets]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -233,6 +277,10 @@ jobs:
           pattern: desktop-*
           path: release-assets
           merge-multiple: true
+      - uses: actions/download-artifact@v8
+        with:
+          name: remote-runtime-assets
+          path: release-assets
       - name: Verify all six platform packages
         run: node scripts/stage-release-artifacts.mjs ${{ steps.version.outputs.version }} --verify-collected
       - name: Verify release notice baseline

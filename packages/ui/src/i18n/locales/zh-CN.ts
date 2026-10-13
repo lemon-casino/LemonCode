@@ -5075,6 +5075,9 @@ const zhCN: Record<string, string> = {
   "chat.toolbar.thoughtLevel.label": "推理强度",
   "chat.toolbar.thoughtLevel.tooltip": "思考级别",
   "chat.toolbar.thoughtLevel.placeholder": "选择思考档位",
+  "chat.toolbar.thoughtLevel.faster": "更快响应",
+  "chat.toolbar.thoughtLevel.deeper": "更深入思考",
+  "chat.toolbar.thoughtLevel.sliderHint": "拖动、点击或用方向键调整",
   "chat.toolbar.thoughtLevel.description":
     "调整回答前的思考深度。通常越高越稳，但响应也会更慢一些。",
   "chat.toolbar.thoughtLevel.value.off": "关闭",

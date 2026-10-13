@@ -878,7 +878,7 @@ function PlanUsageMetricCard({
               <button
                 type="button"
                 aria-label={infoDescription}
-                className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-foreground-subtle transition-colors hover:text-foreground"
+                className="inline-flex size-4 shrink-0 items-center justify-center rounded-full text-foreground-subtle transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-input-border-focused"
                 data-lcode-mcp-info="model-settings"
               >
                 <InfoIcon className="size-3.5" aria-hidden="true" />

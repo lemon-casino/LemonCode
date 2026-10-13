@@ -17,6 +17,7 @@ import type { StreamAttemptState, StreamRunnerInput } from "./runner-stream-stat
 
 type AttemptState = Pick<
   StreamAttemptState,
+  | "resolved"
   | "attempt"
   | "retryBudgetAttempt"
   | "startedAt"
@@ -99,6 +100,7 @@ export async function* consumeStreamAttempt(
     let event: Awaited<ReturnType<typeof handleStreamChunk>>;
     try {
       event = await handleStreamChunk({
+        apiKeyAttempt: state.resolved.apiKeyAttempt,
         admission,
         attempt: state.attempt,
         chunk: next.value,

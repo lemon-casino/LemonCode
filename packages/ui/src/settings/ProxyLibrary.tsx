@@ -240,7 +240,7 @@ function ProxyLibraryItem({
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <button
           type="button"
-          className="min-w-0 flex-1 text-left text-ui-base font-medium"
+          className="-mx-2 min-w-0 flex-1 rounded-md px-2 py-1 text-left text-ui-base font-medium hover:bg-hover focus-visible:ring-2 focus-visible:ring-input-border-focused disabled:pointer-events-none disabled:opacity-50"
           aria-expanded={open}
           disabled={busy}
           onClick={() => setOpen((value) => !value)}

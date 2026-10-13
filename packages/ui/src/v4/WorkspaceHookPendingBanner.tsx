@@ -5,6 +5,7 @@ import {
   TID_V4_WORKSPACE_HOOK_PENDING_REVIEW,
 } from "@lcode/shared";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
+import { Button } from "@/components/ui/button.js";
 import { setPendingSettingsSectionIntent } from "@/lib/settingsNavigation.js";
 import { logger } from "@/logger.js";
 import { runUserAction } from "@/lib/userActionTelemetry.js";
@@ -148,22 +149,25 @@ export const WorkspaceHookPendingBanner = memo(function WorkspaceHookPendingBann
           { count: admission.pendingCount },
         )}
       </p>
-      <button
+      <Button
         type="button"
+        size="sm"
         data-testid={TID_V4_WORKSPACE_HOOK_PENDING_REVIEW}
-        className="shrink-0 rounded-md bg-primary px-2.5 py-1 text-primary-foreground hover:bg-primary/80"
+        className="shrink-0"
         onClick={handleReview}
       >
         {intl.formatMessage({ id: "chat.workspaceHookPending.review" })}
-      </button>
-      <button
+      </Button>
+      <Button
         type="button"
+        variant="ghost"
+        size="sm"
         data-testid={TID_V4_WORKSPACE_HOOK_PENDING_DISMISS}
-        className="shrink-0 rounded-md px-2 py-1 text-foreground-subtle hover:bg-hover"
+        className="shrink-0 text-foreground-subtle"
         onClick={handleDismiss}
       >
         {intl.formatMessage({ id: "chat.workspaceHookPending.dismiss" })}
-      </button>
+      </Button>
     </div>
   );
 });

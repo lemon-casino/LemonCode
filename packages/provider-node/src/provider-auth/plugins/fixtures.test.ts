@@ -588,12 +588,43 @@ test("one cancelled model request leaves concurrent and later requests on the sa
     );
   const cancelled = make("cancel", controller.signal);
   await arrived;
+  // 临时 Request 的 signal 必须活到 operation 结算；显式 GC 用于稳定复现取消链丢失。
+  for (let turn = 0; turn < 2; turn++) {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    global.gc?.();
+  }
   const concurrent = make("concurrent");
   controller.abort();
   release();
   await assert.rejects(cancelled, /cancel/);
   assert.match(await (await concurrent).text(), /alive/);
   assert.match(await (await make("later")).text(), /alive/);
+});
+
+test("Request owner preserves cancellation after response headers and GC without closing the account", async (t) => {
+  const f = await fixture(() => json({ message: "alive" }));
+  t.after(() => f.close());
+  const driver = f.driver("cline"),
+    a = account({ type: "api", key: "fixture-key" }),
+    controller = new AbortController();
+  const make = (signal?: AbortSignal) =>
+    driver.fetch(
+      request(
+        "https://api.cline.bot/api/v1/chat/completions",
+        { model: "fixture-model", messages: [{ role: "user", content: "fixture" }] },
+        signal,
+      ),
+      a.context,
+    );
+  const response = await make(controller.signal);
+  for (let turn = 0; turn < 2; turn++) {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    global.gc?.();
+  }
+  const body = response.text();
+  controller.abort();
+  await assert.rejects(body, /cancel/u);
+  assert.match(await (await make()).text(), /alive/u);
 });
 
 test("remaining HTTP plugin variants discover models and execute their authenticated request adapters", async (t) => {

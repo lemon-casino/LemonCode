@@ -44,7 +44,7 @@ export function StorageCategoryList({
             <button
               type="button"
               data-testid={testId(TID_RESOURCE_MANAGER_STORAGE_CATEGORY_ROW, category.id)}
-              className="flex min-w-0 flex-1 items-center gap-3 text-left"
+              className="-mx-2 flex min-w-0 flex-1 items-center gap-3 rounded-md px-2 text-left hover:bg-hover focus-visible:ring-2 focus-visible:ring-input-border-focused"
               onClick={() => onOpen(category.id)}
             >
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-surface text-foreground-subtle">
@@ -82,7 +82,7 @@ export function StorageCategoryList({
             ) : null}
             <button
               type="button"
-              className="flex size-8 shrink-0 items-center justify-center rounded-md text-foreground-subtlest hover:bg-surface-hover"
+              className="flex size-8 shrink-0 items-center justify-center rounded-md text-foreground-subtlest hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-input-border-focused"
               aria-label={intl.formatMessage({ id: storageCategoryTitleId(category.id) })}
               onClick={() => onOpen(category.id)}
             >

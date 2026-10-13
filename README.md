@@ -160,12 +160,19 @@ pnpm bootstrap
 
 ## GitHub Actions 桌面发布
 
-推送 `main` 后，Actions 为 macOS、Windows、Linux 分别构建 x64 与 arm64 包。
+推送 `v*` tag 后，Actions 为 macOS、Windows、Linux 分别构建 x64 与 arm64 包，
+同时独立构建 Linux/macOS 的 x64、arm64 远程运行资源。
 先把根目录 `package.json` 的 `version` 更新为发行版本，重新运行
 `node scripts/licenses.mjs notices`，提交版本与许可证清单，再推送对应的
-`v<version>` tag（例如 `v3.14.2`）。tag 与版本不一致时构建直接失败；六个平台全部成功后，
-Actions 才会将安装包上传到同名 GitHub Release 草稿；严格第三方许可校验通过后才公开发布。
+`v<version>` tag（例如 `v3.14.2`）。tag 与版本不一致时构建直接失败；桌面和远程资源全部成功后，
+Actions 才会将安装包、远程 manifest 和组件上传到同名 GitHub Release 草稿。
+版本、文件完整性、摘要与已登记的第三方材料债务基线通过校验后才公开发布。
 macOS 包未经 Apple 签名和公证。
+
+本地仍可使用 `pnpm bundle:desktop -- --os win --arch x64` 构建安装包。安装后的桌面应用
+通过 `https://code.lemon.vin/api/v1/releases/download/v<version>/` 下载自身版本的远程资源。
+`pnpm build:remote-release` 可单独生成并校验待发布资源；`pnpm stage:remote-release` 可复用
+已经准备好的资源，输出目录为 `packages/desktop/dist/remote-release-assets/`。
 
 ## 项目声明
 

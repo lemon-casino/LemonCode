@@ -27,6 +27,7 @@ type SessionCloseDeps = Pick<
   | "ownsMcpPort"
   | "mcpPort"
   | "closeNodeReplBrowserBroker"
+  | "closeModelAdapter"
   | "logger"
   | "sessionResourceCloseTimeoutMs"
 >;
@@ -34,6 +35,11 @@ type SessionCloseDeps = Pick<
 export async function closeSessionFacadeResources(deps: SessionCloseDeps): Promise<void> {
   // 第一拍封闭新准入；随后立即启动各 owner 的收口，不能先等待某一项而饿死其它资源。
   deps.runtime.beginShutdown();
+  // 网络终态可能仍写入会话：先取消所属长流，并将真实清理登记到 store 的稳定 drain。
+  if (deps.closeModelAdapter) {
+    const modelClose = Promise.resolve().then(() => deps.closeModelAdapter!());
+    deps.runtime.retainSessionStoreDependentCloseWork(modelClose);
+  }
   const memoryDrain = deps.runtime.drainMemoryExtractions(60_000);
   deps.runtime.retainSessionStoreDependentCloseWork(memoryDrain);
   const workflowClose = (async () => {

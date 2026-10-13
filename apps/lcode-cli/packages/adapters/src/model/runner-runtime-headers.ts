@@ -14,11 +14,13 @@ export async function resolveModelForAttempt(input: {
   reason?: "model-request";
   request: AiSdkModelTextRequest;
   resolveModel: (requestAuth?: ModelRequestAuth) => ResolvedAiSdkModel;
+  outsideTicket?: (wait: () => Promise<void>, signal?: AbortSignal) => Promise<void>;
 }): Promise<ResolvedAiSdkModel> {
   const signal = input.request.abortSignal;
   signal?.throwIfAborted();
   const boundModel = input.resolveModel();
-  if (!input.request.refreshRuntimeHeadersBeforeAttempt) return boundModel;
+  if (!input.request.refreshRuntimeHeadersBeforeAttempt)
+    return acquireApiKeyAttempt(boundModel, signal, input.outsideTicket);
   try {
     const refreshResult = await waitForHeaders(
       () =>
@@ -40,9 +42,15 @@ export async function resolveModelForAttempt(input: {
       );
     }
     // 当前绑定负责将完整鉴权材料投影到私有请求，不写共享 Registry，也不重新选择模型。
-    return input.resolveModel(refreshResult.requestAuth);
+    return await acquireApiKeyAttempt(
+      input.resolveModel(refreshResult.requestAuth),
+      signal,
+      input.outsideTicket,
+    );
   } catch (error) {
     if (signal?.aborted) throw error;
+    if (error instanceof ModelProtocolError && error.code === ModelErrorCode.ModelRequestCancelled)
+      throw error;
     // 执行作用域凭据缺失已有稳定错误码；不能被 headers 等待的通用包装吞掉。
     if (isStructuredRequestAuthFailure(error)) {
       if (error instanceof ModelProtocolError) throw error;
@@ -50,6 +58,15 @@ export async function resolveModelForAttempt(input: {
     }
     throw new RuntimeHeadersRefreshError(error);
   }
+}
+
+async function acquireApiKeyAttempt(
+  model: ResolvedAiSdkModel,
+  signal?: AbortSignal,
+  outsideTicket?: (wait: () => Promise<void>, signal?: AbortSignal) => Promise<void>,
+): Promise<ResolvedAiSdkModel> {
+  const attempt = await model.acquireApiKeyAttempt?.(signal, outsideTicket);
+  return attempt ? { ...model, model: attempt.model, apiKeyAttempt: attempt } : model;
 }
 
 function createRequestAuthMissingError(

@@ -95,7 +95,7 @@ export function CodingPlanQuotaResetOpportunity({
         type="button"
         aria-label={label}
         aria-hidden={!effectiveVisible}
-        className={`${commonClassName} hover:bg-interaction-confirmation-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50`}
+        className={`${commonClassName} hover:bg-interaction-confirmation-surface/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50`}
         data-reset-opportunity="true"
         tabIndex={effectiveVisible ? 0 : -1}
         onClick={(event) => {

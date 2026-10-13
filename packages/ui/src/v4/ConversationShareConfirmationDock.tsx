@@ -581,7 +581,7 @@ function ConversationShareConfirmationDockImpl({
                 <button
                   type="button"
                   data-testid="conversation-share-error-dismiss"
-                  className="shrink-0 text-ui-xs leading-6 text-foreground-subtle underline underline-offset-2"
+                  className="shrink-0 rounded-sm text-ui-xs leading-6 text-foreground-subtle underline underline-offset-2 hover:text-foreground focus-visible:ring-2 focus-visible:ring-input-border-focused"
                   onClick={onDismissError}
                 >
                   {intl.formatMessage({ id: "common.close" })}
@@ -612,7 +612,7 @@ function ConversationShareConfirmationDockImpl({
                       {issue.productTurnId !== undefined && onDeselectTurn ? (
                         <button
                           type="button"
-                          className="w-fit text-ui-xs font-medium text-foreground underline underline-offset-2"
+                          className="w-fit rounded-sm text-ui-xs font-medium text-foreground underline underline-offset-2 hover:text-foreground-subtle focus-visible:ring-2 focus-visible:ring-input-border-focused"
                           onClick={() => onDeselectTurn?.(issue.productTurnId!)}
                         >
                           {intl.formatMessage({ id: "conversationShare.issue.deselectTurn" })}

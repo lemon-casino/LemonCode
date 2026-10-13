@@ -111,6 +111,7 @@
     "@lcode/lcode-cua": "workspace:*",
     "@lcode/model-option-map": "workspace:*",
     "@lcode/provider": "workspace:*",
+    "@lcode/provider-node": "workspace:*",
     "@lcode/shared": "workspace:*",
     "@modelcontextprotocol/client": "2.3.1",
     "@ui-tars/action-parser": "1.2.3",

@@ -65,6 +65,8 @@ export interface CreateSessionFacadeDeps {
    */
   closeDynamicWorkflowRuns?: () => Promise<void>;
   closeNodeReplBrowserBroker?: () => Promise<void> | undefined;
+  /** 仅由创建模型 adapter 的 App 注入，借用的 adapter 没有关闭权限。 */
+  closeModelAdapter?: () => Promise<void>;
   configResult: ConfigResult;
   configuredMcpServers: Record<string, McpServerConfig>;
   configuredDefaultModelSelection?: ModelSelection;

@@ -1,6 +1,7 @@
 import { CheckIcon, ChevronRightIcon, InfoIcon, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
+import { Button } from "@/components/ui/button.js";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 
 const CONTEXT_USAGE_REFRESH_SUCCESS_MS = 1_000;
@@ -82,10 +83,12 @@ export function CodingPlanUsageHeaderAction({
         </TooltipProvider>
       ) : null}
       {onUsageClick ? (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           aria-label={openLabel}
-          className="inline-flex h-6 shrink-0 items-center gap-0.5 text-ui-sm text-foreground-subtle hover:text-foreground hover:underline"
+          className="h-6 shrink-0 gap-0.5 px-1 text-ui-sm text-foreground-subtle"
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -94,7 +97,7 @@ export function CodingPlanUsageHeaderAction({
         >
           <span>{openLabel}</span>
           <ChevronRightIcon className="size-3.5" />
-        </button>
+        </Button>
       ) : null}
     </span>
   );

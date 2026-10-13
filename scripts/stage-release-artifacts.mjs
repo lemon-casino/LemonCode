@@ -5,6 +5,7 @@ import { posix, resolve } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
+import { verifyRemoteReleaseAssets } from "./stage-remote-release-assets.mjs";
 
 const repoRoot = resolve(import.meta.dirname, "..");
 const formats = {
@@ -194,10 +195,12 @@ export async function stageReleaseArtifacts({ version, os, arch, distDir, output
   return names;
 }
 
-export async function verifyCollectedArtifacts({ version, directory }) {
+export async function verifyCollectedArtifacts({ version, directory, remoteAssets = false }) {
   const expected = Object.keys(formats).flatMap((os) =>
     architectures.flatMap((arch) => expectedArtifactNames(version, os, arch)),
   );
+  // 修复：发布草稿不能只有安装包；同目录中必须有四平台可下载且通过 SHA 校验的远端资产。
+  if (remoteAssets) expected.push(...(await verifyRemoteReleaseAssets({ version, directory })));
   const actual = await readdir(directory);
   const missing = expected.filter((name) => !actual.includes(name));
   const extra = actual.filter((name) => !expected.includes(name));
@@ -220,6 +223,7 @@ async function main() {
     const names = await verifyCollectedArtifacts({
       version,
       directory: resolve(repoRoot, "release-assets"),
+      remoteAssets: true,
     });
     console.log(`Verified ${names.length} release assets for ${version}`);
     return;
