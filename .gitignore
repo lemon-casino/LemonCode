@@ -140,6 +140,7 @@ nul
 !/packages/web/test/fixtures/runtime-environment-service.ts
 !/packages/web/test/fixtures/runtime-environment-candidate.ts
 !/packages/web/test/remote-connection.test.mjs
+!/packages/web/test/remote-provider-models.test.mjs
 !/packages/web/test/fixtures/remote-connection.html
 !/packages/web/test/fixtures/remote-connection.tsx
 !/packages/web/test/fixtures/review-side-pane.tsx

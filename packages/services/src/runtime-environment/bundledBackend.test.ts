@@ -1,7 +1,52 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { test } from "node:test";
+import { pathToFileURL } from "node:url";
+import { build } from "esbuild";
 import { bundledMisePath } from "./adapters/bundledBackend.js";
+
+for (const format of ["esm", "cjs"] as const) {
+  test(`the ${format} bundle locates its own backend without an explicit module path`, async (t) => {
+    const root = await mkdtemp(resolve(tmpdir(), "lcode-backend 包 % "));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const output = resolve(root, format === "cjs" ? "server.cjs" : "host.mjs");
+    // 使用 server 既有的 URL/dirname CJS 合同，不给 filename 添加测试专用兼容映射。
+    const result = await build({
+      entryPoints: [resolve(import.meta.dirname, "adapters/bundledBackend.ts")],
+      outfile: output,
+      bundle: true,
+      platform: "node",
+      target: "node22",
+      format,
+      logLevel: "silent",
+      ...(format === "cjs"
+        ? {
+            banner: {
+              js: 'var __import_meta_url = require("url").pathToFileURL(__filename).href; var __import_meta_dirname = __dirname;',
+            },
+            define: {
+              "import.meta.url": "__import_meta_url",
+              "import.meta.dirname": "__import_meta_dirname",
+            },
+          }
+        : {}),
+    });
+    const compiled =
+      format === "cjs"
+        ? createRequire(import.meta.url)(output)
+        : await import(pathToFileURL(output).href);
+    for (const platform of ["linux", "darwin", "win32"] as const) {
+      assert.equal(
+        compiled.bundledMisePath({ platform, arch: "x64" }),
+        resolve(root, "tools/mise/bin", platform === "win32" ? "mise.exe" : "mise"),
+      );
+    }
+    assert.deepEqual(result.warnings, []);
+  });
+}
 
 test("bundled mise is located from the application, never from cwd or environment overrides", () => {
   const root = resolve("/application/resources");

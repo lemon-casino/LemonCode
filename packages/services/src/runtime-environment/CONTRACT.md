@@ -4,6 +4,9 @@
 
 规格唯一来源：[worktree-runtime-environments.md](../../../../specs/worktree-runtime-environments.md)。实施任务见 [worktree-runtime-environments-plan.md](../../../../specs/worktree-runtime-environments-plan.md)。
 
+内置后端位置由执行 Host 的显式资源根或应用模块位置推导，不读取项目 cwd 或任意 binary 环境变量。
+模块默认位置兼容 ESM 与既有 server CJS URL 映射，验收见 [bundled-backend-module-location.md](../../../../specs/bundled-backend-module-location.md)。
+
 ## 身份与所有者
 
 - 目标 Host 的 `RuntimeEnvironmentService` 是 `environmentId`、冻结 manifest、环境 revision、资源映射、准备/升级/释放 operation 和环境投影的唯一事实 owner。

@@ -88,7 +88,9 @@ export async function createMiseDeployFixture(t: TestContext, platformArch = "li
   const sourceRelativePath = `tools/${platformArch}/mise`;
   const sourceDir = join(releaseDir, sourceRelativePath);
   const backendPlatform = platformArch.replace(/^darwin-/u, "macos-");
-  const binary = `#!/bin/sh\n[ "$1" = "--no-config" ] && [ "$2" = "--version" ] || exit 42\nprintf '%s\\n' '2026.10.2 ${backendPlatform} (fixture)'\n`;
+  // 真实 v2026.10.2 在 --no-config --version 下输出帮助并退出 1；
+  // fixture 必须拒绝同一错误组合，不能替生产命令接受不存在的 CLI 行为。
+  const binary = `#!/bin/sh\n[ "$1" = "--no-config" ] && [ "$2" = "version" ] || { printf '%s\\n' 'Usage: mise [FLAGS] [TASK] [SUBCOMMAND]'; exit 1; }\nprintf '%s\\n' '2026.10.2 ${backendPlatform} (fixture)'\n`;
   await mkdir(join(sourceDir, "bin"), { recursive: true });
   await writeFile(join(sourceDir, "bin/mise"), binary);
   await writeFile(join(sourceDir, "LICENSE"), "fixture license\n");

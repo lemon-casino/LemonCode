@@ -35,16 +35,17 @@ import { createReviewWorkspaceFixture } from "./review-workspace-service.js";
 import "@lcode/ui/styles.css";
 
 const query = new URLSearchParams(location.search);
+const remoteProviders = query.has("remoteProviders");
 const existing = query.has("existing");
 const worktree = query.has("worktree");
 const initialSessionId = existing ? (query.get("session") ?? "existing-session") : null;
-const workspacePath = "/fixture/origin";
+const workspacePath = remoteProviders ? "/fixture/ssh" : "/fixture/origin";
 const modelSelection = {
-  providerId: "custom",
+  providerId: remoteProviders ? "openai" : "custom",
   modelId: "demo",
   options: { reasoningLevel: "high", speed: query.has("standardOnly") ? "standard" : "fast" },
 };
-const view = {
+const baseView = {
   revision: 1,
   providers: [
     {
@@ -72,6 +73,23 @@ const view = {
     },
   ],
 } as unknown as ModelSelectionView;
+const view = remoteProviders
+  ? {
+      ...baseView,
+      providers: [
+        ["openai", "OpenAI"],
+        ["oauth:copilot", "GitHub Copilot"],
+        ["oauth:workbuddy-ai", "WorkBuddy AI"],
+        ["oauth:codex", "OpenAI Codex"],
+        ["oauth:antigravity", "Google Antigravity"],
+        ["oauth:workbuddy", "WorkBuddy"],
+      ].map(([providerId, providerName]) => ({
+        ...baseView.providers[0]!,
+        providerId: providerId!,
+        providerName,
+      })),
+    }
+  : baseView;
 const services = {
   settingService: { get: async () => ({}), update: async () => {} },
   clientConfigService: { getSnapshot: async () => ({ pluginStoreOrder: null }) },
@@ -213,7 +231,21 @@ function App() {
     () => ({ mode: draft.mode, modelSelection: draft.modelSelection }),
     [draft.mode, draft.modelSelection],
   );
-  const state = useMemo(() => (sessionId ? snapshot(sessionId) : null), [sessionId]);
+  const state = useMemo(() => {
+    if (!sessionId) return null;
+    const current = snapshot(sessionId);
+    return remoteProviders
+      ? {
+          ...current,
+          config: {
+            ...current.config,
+            provider: draft.modelSelection!.providerId,
+            model: draft.modelSelection!.modelId,
+            modelSelection: draft.modelSelection!,
+          },
+        }
+      : current;
+  }, [sessionId, draft.modelSelection]);
   const updateContent = useCallback(
     (content: Pick<V4ComposerDraft, "text" | "editorStateJson" | "mention">) => {
       setDraft((current) =>
@@ -320,7 +352,13 @@ function App() {
         setMessages((current) => [...current, text]);
       }}
       onStop={() => {}}
-      onSelectModel={() => {}}
+      onSelectModel={(providerId, modelId) => {
+        if (remoteProviders)
+          setDraft((current) => ({
+            ...current,
+            modelSelection: { ...current.modelSelection!, providerId, modelId },
+          }));
+      }}
       onSelectThought={(reasoningLevel, modelContext) => {
         // 思考控件需写入真实夹具草稿，空回调无法验证下一次 Submission 冻结的档位。
         setDraft((current) => ({

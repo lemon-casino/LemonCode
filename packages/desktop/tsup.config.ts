@@ -105,6 +105,7 @@ function createSharedDefines() {
     __LCODE_PRODUCT_FLAVOR__: JSON.stringify(lcodeProductFlavor),
     // 客户端只有一个 CDN 配置，与发布端 OSS 目标列表分离。
     __LCODE_CDN_BASE_URL__: JSON.stringify(env.LCODE_CDN_BASE_URL?.trim() || ""),
+    __LCODE_BUNDLE_REMOTE_ASSETS__: JSON.stringify(env.LCODE_BUNDLE_REMOTE_ASSETS === "1"),
   };
 }
 

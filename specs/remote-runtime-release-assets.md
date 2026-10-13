@@ -2,15 +2,15 @@
 
 ## 产品规则
 
-- SSH 已完成环境探测后，安装版必须能下载当前桌面版本的远程 manifest 与其全部组件。
+- SSH 已完成环境探测后，发行下载模式的安装版必须能下载当前桌面版本的远程 manifest 与其全部组件。
   默认复用 `LCODE_UPDATE_SERVICE_ORIGIN` 的 `/api/v1/releases/download/v<version>/`
   固定版本入口，资源随桌面 GitHub Release 发布。不得读取 latest 或其他版本资源。
 - 显式 `LCODE_REMOTE_ASSET_CDN_BASE_URL` 继续优先；显式 `LCODE_CDN_BASE_URL`
   仍使用原 CDN 的 `/lcode/electron/releases/<version>` 布局。开发态继续优先已有 mock-cdn。
-- 桌面打包只准备本机目标资源。远程资源独立构建，不塞入安装包，不要求每个桌面目标
-  重复构建四个平台的远端二进制。用户自行构建，当前修复不执行安装包构建或发布。
-  本地 `$env:LCODE_ENV = 'production'` 后运行
-  `pnpm bundle:desktop -- --os win --arch x64` 保持可用，安装包按自身版本使用同一下载入口。
+- tag 桌面 job 设置 `LCODE_BUNDLE_REMOTE_ASSETS=0`，只准备本机目标资源；远程资源独立构建，
+  不要求每个桌面目标重复构建四个平台的远端二进制。本地 bundle 也默认不携带远程资源，
+  使用同版本下载入口；未发布/离线构建可显式设置 1 内置资源，详见 `local-build-remote-assets.md`。
+  用户自行构建，当前修复不执行安装包构建或发布。
 - `pnpm build:remote-release` 复用 `prepare:remote-assets` 构建四个已支持的远端平台，
   再 staging 到 `packages/desktop/dist/remote-release-assets/`。
 - GitHub Release 的资源名必须为单段文件名。staging 使用包含平台、组件和完整 SHA-256
@@ -62,14 +62,15 @@ Desktop `desktop-continuous` 与手机 `web-remote-replayable` 仍由既有运�
 4. 缺 manifest、缺组件、重复组件、版本/platform/mount 错误、越界路径、缺归档、
    SHA 不符或归档缺必需成员阻断 staging / collected 校验。
 5. Actions 独立构建远端资源，release 必须等待桌面和远端 job，最终上传前验证两者。
-   本地桌面 bundle 不隐式构建远端资源。
+   tag 桌面 job 不重复构建远端资源；本地显式内置模式另按本地构建 spec 验收。
 6. 执行发布回归、下载与 cache 夹具、typecheck、lint、changed 架构检查和改动文件格式检查。
    原生打包、真实 GitHub 发布与 SSH 主机验收由用户后续构建验证，单独注明未执行。
 
 ## 本地构建与验证记录（2026-10-13）
 
-本地 Windows 安装包和 tag 构建使用同一下载源选择，不将构建命令与远端分发绑定。
-本地新版本也必须先具有对应版本的 Release 资源；未发布的版本不退回旧版本组件。
+本地 Windows 与 tag 发行包默认使用同一固定版本下载源选择。
+本地未发布构建的内置资源要求由 `local-build-remote-assets.md` 取代；发行下载模式
+仍要求对应版本的 Release 资源，不退回旧版本组件。
 已有本地资源可以通过 `stage:remote-release` 生成待发布资产，自定义 HTTP 下载根仍可覆盖。
 
 使用 Node 24.21.0 / pnpm 10.34.6 完成以下实际验证：

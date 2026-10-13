@@ -21,7 +21,7 @@ export function createProviderAccountsSource(
   base: ProviderSource<AccountProviderConfigSnapshot> & {
     refresh(reason: string): Promise<AccountProviderConfigSnapshot>;
   },
-  accounts: ProviderAccounts,
+  accounts: Pick<ProviderAccounts, "readAccounts" | "channelName" | "onDidChange">,
 ) {
   async function project(
     snapshot: AccountProviderConfigSnapshot,

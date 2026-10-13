@@ -158,6 +158,12 @@ pnpm bundle:desktop -- --help
 
 The default target is macOS arm64, and the default output directory is `packages/desktop/dist/`. `--os` accepts `mac`, `win`, or `linux`; `--arch` accepts `x64` or `arm64`. Packaging and signing require the tools and configuration for the target platform.
 
+Local bundles stay small by default. SSH connections fetch only the matching remote platform's
+components from the fixed-version release download service and reuse the runtime cache.
+Matching version assets must already be published; tag builds use the same download mode.
+Set `LCODE_BUNDLE_REMOTE_ASSETS=1` explicitly to include all four platforms for unpublished or offline
+builds. This increases build time and package size. Use 0 or unset the variable for ordinary builds.
+
 ### LCode CLI distribution
 
 Run `pnpm build:lcode` to build the CLI/TUI, backend, and Web client, collect the TUI native libraries, workers, and runtime dependencies, then assemble the distribution. Running the distribution still requires Node.js; use the version specified in `mise.toml`.

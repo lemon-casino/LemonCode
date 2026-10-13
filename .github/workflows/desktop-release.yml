@@ -122,6 +122,7 @@ jobs:
       LCODE_TARGET_ARCH: ${{ matrix.arch }}
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
       LCODE_ENABLE_MAC_SIGN: "0"
+      LCODE_BUNDLE_REMOTE_ASSETS: "0"
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -162,6 +163,7 @@ jobs:
         run: |
           pnpm test:dependency-security
           pnpm test:remote-control
+          pnpm test:remote-providers
           pnpm typecheck
           pnpm lint
           pnpm --dir apps/lcode-cli typecheck

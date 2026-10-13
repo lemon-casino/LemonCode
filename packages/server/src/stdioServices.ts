@@ -4,6 +4,7 @@ import {
   LCODE_REMOTE_HTTP_PROXY_ENV_KEY,
   LCODE_REMOTE_NO_PROXY_ENV_KEY,
   LCODE_REMOTE_RUNTIME_NETWORK_AUTHORITY_ENV_KEY,
+  PROVIDER_ACCOUNT_RELAY_ENV,
 } from "@lcode/shared";
 
 interface CreateStdioServicesOptions {
@@ -40,6 +41,7 @@ export function createStdioServices(options: CreateStdioServicesOptions) {
     serviceAuthorityMode: authorityModeParseResult.mode,
     lcodeAgentCommandResolver: options.lcodeAgentCommandResolver,
     remoteAgentNetwork,
+    providerAccountRelayEnabled: env[PROVIDER_ACCOUNT_RELAY_ENV] === "1",
   });
 
   return {

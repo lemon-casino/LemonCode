@@ -34,12 +34,18 @@ function formatMiB(bytes) {
 
 const artifactStat = await stat(absoluteArtifactPath);
 const extension = extname(absoluteArtifactPath).toLowerCase();
-const limit = limitsMb[extension] ?? limitsMb.default;
+const additionalRuntimeBytes = Number(readArg("--additional-runtime-bytes") ?? 0);
+if (!Number.isSafeInteger(additionalRuntimeBytes) || additionalRuntimeBytes < 0)
+  throw new Error("Invalid additional runtime bytes");
+// 本地包新增的远端压缩资产已经由 bundle 校验；只为这些实际字节增加额度，原应用预算不变。
+const limit = (limitsMb[extension] ?? limitsMb.default) + additionalRuntimeBytes / 1024 / 1024;
 const sizeMiB = artifactStat.size / 1024 / 1024;
 
 console.log(`Artifact: ${absoluteArtifactPath}`);
 console.log(`Type: ${extension || "<no-extension>"}`);
 console.log(`Size: ${formatMiB(artifactStat.size)}`);
+if (additionalRuntimeBytes)
+  console.log(`Included remote runtime: ${formatMiB(additionalRuntimeBytes)}`);
 console.log(`Limit: ${limit} MiB`);
 
 if (sizeMiB > limit) {

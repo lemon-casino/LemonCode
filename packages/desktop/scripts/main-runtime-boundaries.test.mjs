@@ -78,6 +78,37 @@ async function loadSource(t, relativePath, stubs = {}, compilerOptions = {}) {
   return import(pathToFileURL(output).href);
 }
 
+test("packaged Main registers bundled resources only for the matching compile mode", async (t) => {
+  const resources = resolve(desktopRoot, "node_modules/.cache/fixture-resources");
+  for (const bundled of [true, false]) {
+    const runtime = await loadSource(
+      t,
+      "src/main/desktopRuntimeEnv.ts",
+      {
+        "./desktopElectronApp.js": `export const isElectronAppPackaged=()=>true;export const getElectronAppPath=()=>${JSON.stringify(resources)};`,
+        "@lcode/services/node":
+          "export const listSSHConfigAliasesFromLocalConfig=async()=>[];export const getAppConfigDir=()=>'';export const getDataBaseDir=()=>'';export const LCODE_CUA_BUNDLED_HELPER_APP_PATH_ENV='helper';export const LCODE_WINDOWS_APP_INSTALL_DIR_ENV='install';",
+      },
+      {
+        define: {
+          __LCODE_BUNDLE_REMOTE_ASSETS__: JSON.stringify(bundled),
+          "process.resourcesPath": JSON.stringify(resources),
+        },
+      },
+    );
+    const dirs = runtime.resolveRemoteAssetDirs(
+      {},
+      {
+        LCODE_REMOTE_ASSET_CDN_BASE_URL: "https://fixture.invalid/assets",
+        LCODE_REMOTE_ASSET_CACHE_DIR: join(resources, "cache"),
+      },
+    );
+    assert.equal(dirs.bundledAssetDir, bundled ? join(resources, "remote-assets") : undefined);
+    assert.equal(dirs.remoteCacheDir, join(resources, "cache"));
+    assert.equal(dirs.mockCdnDir, undefined);
+  }
+});
+
 test("Electron fetch adapter normalizes URL while retaining Request and init", async (t) => {
   const { createDesktopTelemetryFetch } = await loadSource(t, "src/main/desktopTelemetryFetch.ts");
   const calls = [];

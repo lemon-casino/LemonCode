@@ -628,6 +628,15 @@ export default {
     });
   },
   extraResources: [
+    ...(process.env.LCODE_BUNDLE_REMOTE_ASSETS === "1"
+      ? [
+          {
+            from: "dist/remote-release-assets",
+            to: "remote-assets",
+            filter: ["manifest-*.json", "remote-*.tar.gz"],
+          },
+        ]
+      : []),
     { from: resolve(workspaceRoot, noticesFileName), to: noticesFileName },
     ...(targetPlatform.os === "darwin"
       ? [

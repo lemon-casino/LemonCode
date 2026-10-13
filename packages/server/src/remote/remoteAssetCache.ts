@@ -34,6 +34,7 @@ import {
 } from "@lcode/server/remote/remoteAssetCdn.js";
 import {
   resolveRemoteAssetFetch,
+  remoteAssetReadLog,
   type RemoteAssetNetworkPort,
 } from "@lcode/server/remote/remoteAssetNetwork.js";
 
@@ -202,7 +203,7 @@ export async function ensureRemoteReleaseDirFromCdn(
     return releaseDir;
   }
   loggers.logWarn(
-    `[remote-assets] download required: component=<release> reason=local cache missing or invalid path=${releaseDir}`,
+    `[remote-assets] ${options.remoteAssetNetwork?.source === "bundled" ? "cache preparation" : "download"} required: component=<release> reason=local cache missing or invalid path=${releaseDir}`,
   );
 
   // 同一个桌面窗口可以并发创建多个 remote session。
@@ -560,7 +561,7 @@ async function fetchRemoteAssetManifestInternal(
     return null;
   }
 
-  loggers.log(`[remote-assets] downloading ${manifestFetchResult.url}`);
+  loggers.log(remoteAssetReadLog(options.remoteAssetNetwork, manifestFetchResult.url));
   const manifestReleaseBase = resolveReleaseBaseByAssetUrl(
     manifestFetchResult.url,
     options.releaseBaseCandidates,
@@ -950,8 +951,13 @@ async function ensureRemoteComponentDirFromCdnInternal(
       `${component.id}@${component.version}`,
       resolveRemoteAssetFetch(options.remoteAssetNetwork),
     );
-    loggers.log(`[remote-assets] downloading ${artifactUrl}`);
-    await writeResponseBodyToFile(artifactResponse, archivePath, loggers);
+    loggers.log(remoteAssetReadLog(options.remoteAssetNetwork, artifactUrl));
+    await writeResponseBodyToFile(
+      artifactResponse,
+      archivePath,
+      loggers,
+      options.remoteAssetNetwork?.source === "bundled" ? "copy" : "download",
+    );
 
     const actualChecksum = await computeFileSha256(archivePath);
     if (actualChecksum !== component.sha256) {
@@ -1630,6 +1636,7 @@ async function writeResponseBodyToFile(
   response: Response,
   targetPath: string,
   loggers: RemoteAssetCacheLoggers,
+  operation: "copy" | "download",
 ): Promise<void> {
   if (!response.body) {
     throw new Error("response body is empty");
@@ -1640,6 +1647,7 @@ async function writeResponseBodyToFile(
   const reportProgress = createRemoteAssetProgressReporter(
     parseContentLength(response.headers.get("content-length")),
     loggers,
+    operation,
   );
   let transferredBytes = 0;
 
@@ -1670,6 +1678,7 @@ function parseContentLength(contentLengthHeader: string | null): number | null {
 function createRemoteAssetProgressReporter(
   totalBytes: number | null,
   loggers: RemoteAssetCacheLoggers | undefined,
+  operation: "copy" | "download" = "download",
 ): (transferredBytes: number, force: boolean) => void {
   const startedAt = Date.now();
   let lastLoggedAt = 0;
@@ -1708,11 +1717,11 @@ function createRemoteAssetProgressReporter(
     // 这里改成输出节流后的进度快照（百分比/MB/速度），让 SSH 连接日志可观测下载进展。
     if (totalMB != null && percent != null) {
       loggers.log(
-        `[remote-assets] download progress: ${percent.toFixed(1)}% (${transferredMB.toFixed(1)}/${totalMB.toFixed(1)} MB, ${speedMBPerSecond.toFixed(2)} MB/s)`,
+        `[remote-assets] ${operation} progress: ${percent.toFixed(1)}% (${transferredMB.toFixed(1)}/${totalMB.toFixed(1)} MB, ${speedMBPerSecond.toFixed(2)} MB/s)`,
       );
     } else {
       loggers.log(
-        `[remote-assets] download progress: ${transferredMB.toFixed(1)} MB (total unknown, ${speedMBPerSecond.toFixed(2)} MB/s)`,
+        `[remote-assets] ${operation} progress: ${transferredMB.toFixed(1)} MB (total unknown, ${speedMBPerSecond.toFixed(2)} MB/s)`,
       );
     }
 

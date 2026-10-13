@@ -51,9 +51,9 @@ web-remote-replayable ─快照/恢复───────┴→ 同一 owner�
 - 取消、替换授权、删除账号、Host dispose 后旧结果不可写入；若关闭发生在凭据保存 IO 期间，保存返回后必须在存储锁内撤销该迟到连接。凭据刷新仅当前版本可提交；多个窗口不能同时消费同一个 refresh token。
 - 登录失效、配额耗尽、网络故障分别处理。网络错误不得自动删除授权；空额度窗口不等于零用量。
 - BigModel/Z.AI 复用 init/poll、业务 token 归一化、个人/团队 Key 解析语义。业务 token、Coding Plan Key 和 Start JWT 分开。获取不到有效 secret 不标记模型可调用。个人/团队/Start 的实际来源明确可见。
-- 远端使用目标 Environment 的账号和 adapter；不把本机 localhost 或整个 Credential Store 同步过去。沿现有受控 provisioning 扩展允许的稳定连接字段；credential owner/lease 不能因远端同步变成双写。保持 workspaceIdentity?.trim() || workspacePath、remoteSessionId 与 stale run 防护。
+- 独立 Server 使用目标 Environment 的账号和 adapter；Desktop attachment 的远端 OAuth 按 [远端供应商调用桥](./remote-provider-account-relay.md) 复用本机账号唯一 owner，经受信 stdio 连接转发模型请求，不复制本机 localhost、grant 或整个 Credential Store。API Personal Config 沿现有 provisioning。保持 workspaceIdentity?.trim() || workspacePath、remoteSessionId 与 stale run 防护。
 
-本轮桌面设置沿用现有 LocalHost 作用域，先交付用户要求的本机使用。远端 Host 的服务/请求通路独立，但桌面内选择远端 OAuth 登录环境及 OAuth 凭据的受控 provisioning 留待独立扩展；不得声称本地新增账号自动可用于远端。模型高级推理档位先保留供应商默认行为，未做所有厂商 variants 的设置投影。
+桌面设置沿用现有 LocalHost 作用域。Desktop 远端 OAuth 现通过受信调用桥读取并调用本机账号，登录与续期继续归同一本机 owner；独立部署的 Server 仍管理自己的账号。参见 [远端供应商调用桥](./remote-provider-account-relay.md)。
 
 ## 调用与兼容
 

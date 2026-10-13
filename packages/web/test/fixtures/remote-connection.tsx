@@ -33,6 +33,7 @@ const platform = {
   },
 } as unknown as IPlatformService;
 const services = {} as IServiceAccessor;
+const locale = new URLSearchParams(location.search).get("lang") === "zh" ? "zh-CN" : "en-US";
 Object.assign(window, {
   remoteConnectionFixture: {
     attempts,
@@ -52,7 +53,7 @@ function Fixture() {
   return (
     <PlatformProvider platform={platform}>
       <ServiceProvider services={services}>
-        <LCodeIntlProvider initialLocale="en-US">
+        <LCodeIntlProvider initialLocale={locale}>
           <TooltipProvider>
             <main className="p-4 text-ui-base">
               <output data-testid="fixture-open">{String(open)}</output>

@@ -6,11 +6,14 @@ import test from "node:test";
 import { Emitter } from "@lcode/rpc";
 import { ISettingService, type IServiceAccessor } from "@lcode/services";
 import { setDataBaseDir, disposeServiceResourcesAndWait } from "@lcode/services/node";
-import type { LCodeSessionRequestRuntimePreferencesParams } from "@lcode/shared";
+import type {
+  IntegratedTerminalShellSelection,
+  LCodeSessionRequestRuntimePreferencesParams,
+} from "@lcode/shared";
 import { createRemoteWorkspaceServiceCollection } from "./remoteWorkspaceServiceCollection.js";
 
 test(
-  "external desktop authority does not propagate local workspace memory location to the remote Agent",
+  "external desktop authority keeps local Shell and memory paths out of remote execution preferences",
   { timeout: 10_000 },
   async (t) => {
     t.mock.method(console, "log", () => {});
@@ -76,17 +79,52 @@ test(
         "workspace",
       );
       assert.equal((await collection.get(ISettingService).get()).memoryStorageRevision, 1);
-      for (const scope of ["runtime-materialization", "user-execution"] as const) {
-        const response = new Promise<Response>((resolve, reject) => {
-          receive = resolve;
-          fail = reject;
-        });
-        requests.fire({ requestId: scope, sessionId: "remote-session", scope });
-        const result = await response;
-        assert.ok(result.resolution.status === "resolved");
-        assert.equal(result.resolution.preferences.memoryEnabled, true);
-        assert.equal(Object.hasOwn(result.resolution.preferences, "memoryStorageLocation"), false);
-        assert.equal(Object.hasOwn(result.resolution.preferences, "memoryStorageRevision"), false);
+      const shells: IntegratedTerminalShellSelection[] = [
+        {
+          mode: "shell",
+          dialect: "powershell",
+          id: "fixture-pwsh",
+          label: "PowerShell",
+          path: "C:\\Local Shell\\pwsh.exe",
+        },
+        {
+          mode: "shell",
+          dialect: "posix",
+          id: "fixture-zsh",
+          label: "zsh",
+          path: "/opt/local-only/zsh",
+        },
+        { mode: "auto" },
+      ];
+      for (const integratedTerminalShell of shells) {
+        await collection.get(ISettingService).update({ integratedTerminalShell });
+        assert.deepEqual(
+          (await collection.get(ISettingService).get()).integratedTerminalShell,
+          integratedTerminalShell.mode === "auto" ? undefined : integratedTerminalShell,
+        );
+        for (const scope of ["runtime-materialization", "user-execution"] as const) {
+          const response = new Promise<Response>((resolve, reject) => {
+            receive = resolve;
+            fail = reject;
+          });
+          requests.fire({ requestId: scope, sessionId: "remote-session", scope });
+          const result = await response;
+          assert.ok(result.resolution.status === "resolved");
+          assert.equal(result.resolution.preferences.memoryEnabled, true);
+          assert.equal(
+            Object.hasOwn(result.resolution.preferences, "memoryStorageLocation"),
+            false,
+          );
+          assert.equal(
+            Object.hasOwn(result.resolution.preferences, "memoryStorageRevision"),
+            false,
+          );
+          assert.equal(
+            Object.hasOwn(result.resolution.preferences, "integratedTerminalShell"),
+            false,
+            `${scope}: local ${integratedTerminalShell.mode} selection must not cross machines`,
+          );
+        }
       }
     } finally {
       requests.dispose();

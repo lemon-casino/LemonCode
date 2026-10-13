@@ -21,6 +21,7 @@ export {
   type AccountRequestAuthResolver,
 } from "./model-provider/accountRequestAuthService.js";
 export { IProviderProvisioningTargetService } from "./model-provider/providerProvisioning.js";
+export type { ProviderAccountRelayService } from "./model-provider/providerAccountRelay.js";
 export {
   collectServiceMemoryDiagnostics,
   memoryDiagnosticsRegistry,

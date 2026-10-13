@@ -207,7 +207,8 @@ export function createRemoteWorkspaceServiceCollection(params: {
     createRemoteProviderProvisioningExecutorFromWorkspace(params);
 
   // desktop-attached remote 的 Agent 运行在远端，但 app-global 设置权威仍在
-  // desktop shared Host。通过窄化的 runtime-preferences 请求原路返回，避免远端读取自己的 setting。
+  // desktop shared Host。通过窄化的 runtime-preferences 请求原路返回；
+  // 只传可跨机器的全局偏好，Shell 可执行路径由远端解析。
   const { onError } = params.runtimePreferencesBridge;
   params.connectionServices.lcodeAgentService.onDynamicSessionRuntimePreferencesRequest()(
     (request) => {
@@ -271,10 +272,8 @@ export function createRemoteWorkspaceServiceCollection(params: {
               // 因旧 Agent strict 校验也不能显式补 profile，保留原报文字段缺席。
               sessionRecallEnabled: settings.sessionRecallEnabled === true,
               modelContextBudgetStrategy,
-              // remote workspace 与本地 Host 保持同一 scope 边界，首次执行不得再次等待 client config。
-              ...(request.scope === "user-execution" && settings.integratedTerminalShell
-                ? { integratedTerminalShell: settings.integratedTerminalShell }
-                : {}),
+              // 修复：本机 PowerShell 路径曾在首发时传给 Linux，触发 Selected Shell is not executable。
+              // 不传播本机 integratedTerminalShell；远程 Agent 按自己的平台和环境解析并校验 Shell。
             },
           };
         } catch (error) {
@@ -312,7 +311,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
   // Web 手机远控进入 SSH task 时只连到 remote workspace host，
   // 没有桌面 renderer 那层 `baseServices + remoteServices` 合并。
   // 因此这里为 remote workspace host 补齐本地全局 channel；文件、终端、LCode Agent 仍来自远端，
-  // 设置、凭据、OAuth、模型供应商和 settings-sync 继续读写本机配置。
+  // 全局设置、旧 OAuth 与 settings-sync 继续读写本机；模型目录由远端 Registry 派生 API 配置与本机 OAuth 调用桥。
   const services = new ServiceCollection()
     .register(IFileService, params.connectionServices.fileService)
     .register(IGitService, params.connectionServices.gitService)

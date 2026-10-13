@@ -8,8 +8,7 @@ import {
 import { packSourceAsDeterministicTarGzip } from "./deterministic-tar-archive.mjs";
 import { remoteMisePlatforms } from "./prepare-remote-mise-assets.mjs";
 
-export async function createRemoteReleaseFixture(root) {
-  const version = "9.8.7";
+export async function createRemoteReleaseFixture(root, version = "9.8.7") {
   const sourceDir = join(root, "mock-cdn");
   for (const platform of remoteMisePlatforms) {
     const components = [];

@@ -61,6 +61,8 @@ sequenceDiagram
 复用该入口并显式启用发行输入校验。脚本回归、根 typecheck/Lint 与架构检查必须执行；
 原生打包和真实 tag 发布由用户后续构建验证。
 
+Linux x64 的发行前源码门禁同时执行 `pnpm test:remote-providers`，验证 [远端供应商调用桥](./remote-provider-account-relay.md) 的能力协商、双向 RPC、账号目录和真实模型请求路径；Desktop 与远端 Server 资源从同一 tag 构建。
+
 本轮验证（2026-10-11，Windows，Node 24.21.0）：
 
 - 实际执行 OAuth worker 生成（500918 bytes）与 `node scripts/licenses.mjs notices`，
@@ -115,7 +117,9 @@ Windows 工作树开发补充（2026-10-12）：`third-party/mise/LICENSE.txt` �
    `pnpm test:release`。临时改写不得改变“提交输入是否新鲜”的结论，也不得靠重生成 NOTICE
    掩盖。构建保持 production 产品身份，默认只准备各 job 目标安装包的 mise、agent 和
    原生搜索资源；`prepare:remote-assets` 保留独立显式命令，`bootstrap:with-remote` 在
-   初始化本地桌面 runtime 后显式调用它；本地桌面打包和发行矩阵不调用它。
+   初始化本地桌面 runtime 后显式调用它。发行矩阵明确设置 `LCODE_BUNDLE_REMOTE_ASSETS=0`，
+   不重复调用它；本地 bundle 默认使用相同下载模式，只有显式设置 1 时按
+   `local-build-remote-assets.md` 调用同一准备入口，以支持未发布 tag 的 SSH 连接。
    electron-builder 在 dist 生成的更新清单（Windows `latest.yml`、macOS `latest-mac.yml`、
    Linux `latest-linux.yml`，内含安装包 sha512）是应用内更新服务的首选元数据来源：
    staging 脚本保留其 release notes 等扩展字段，但必须针对 staging 时的最终安装包重新

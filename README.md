@@ -169,8 +169,12 @@ Actions 才会将安装包、远程 manifest 和组件上传到同名 GitHub Rel
 版本、文件完整性、摘要与已登记的第三方材料债务基线通过校验后才公开发布。
 macOS 包未经 Apple 签名和公证。
 
-本地仍可使用 `pnpm bundle:desktop -- --os win --arch x64` 构建安装包。安装后的桌面应用
-通过 `https://code.lemon.vin/api/v1/releases/download/v<version>/` 下载自身版本的远程资源。
+本地使用 `pnpm bundle:desktop -- --os win --arch x64` 构建时，默认保持轻量安装包。
+连接 SSH 时只按目标平台，通过
+`https://code.lemon.vin/api/v1/releases/download/v<version>/` 获取自身版本所需的远程资源并复用缓存。
+此模式需要对应版本的远程资源已发布，tag 构建使用相同模式。
+需要未发布 tag 或离线连接时，可显式设置 `$env:LCODE_BUNDLE_REMOTE_ASSETS = '1'` 后构建；
+这会内置四平台压缩资源，增加构建时间和包体。普通构建可设置为 0 或移除该环境变量。
 `pnpm build:remote-release` 可单独生成并校验待发布资源；`pnpm stage:remote-release` 可复用
 已经准备好的资源，输出目录为 `packages/desktop/dist/remote-release-assets/`。
 

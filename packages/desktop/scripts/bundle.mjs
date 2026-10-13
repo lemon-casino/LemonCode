@@ -6,6 +6,7 @@
 
 import { spawn } from "node:child_process";
 import { readdirSync, statSync } from "node:fs";
+import { stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import process from "node:process";
@@ -32,6 +33,11 @@ import {
   runCommandAndReadStdout,
 } from "../../../scripts/spawn-command.mjs";
 import { resolveIntranetDepsBaseUrl } from "../../../scripts/intranetDefaults.mjs";
+import {
+  bundleRemoteAssetsEnabled,
+  prepareBundledRemoteAssets,
+} from "../../../scripts/bundled-remote-assets.mjs";
+import { verifyRemoteReleaseAssets } from "../../../scripts/stage-remote-release-assets.mjs";
 import {
   resolveMiseTarget,
   validateMiseRuntimeAssets,
@@ -265,7 +271,7 @@ function printHelp() {
   --os, -o <mac|win|linux>     目标操作系统，默认 mac
   --arch, -a <x64|arm64>       目标 CPU 架构，默认 arm64
   --libc <glibc|musl>          Linux mise libc，默认 glibc
-  --skip-prepare               跳过 prepare:runtime-assets（仍必须验证 mise cache）
+  --skip-prepare               跳过资源准备（仍验证 mise 与已启用的远程资产）
   --skip-build                 跳过 pnpm build
   --dry-run                    只打印最终命令，不执行打包
   -h, --help                   查看帮助
@@ -274,6 +280,7 @@ function printHelp() {
   LCODE_TARGET_OS              与 --os 等价
   LCODE_TARGET_ARCH            与 --arch 等价
   LCODE_MISE_LIBC              Linux mise 资产：glibc（默认）或 musl
+  LCODE_BUNDLE_REMOTE_ASSETS   默认 0，按需下载同版本资源；1 内置资源支持未发布/离线
 `);
 }
 
@@ -812,12 +819,16 @@ async function main() {
   console.log(`[bundle] skipPrepare=${skipPrepare} skipBuild=${skipBuild}`);
 
   const buildEnv = {
+    LCODE_BUNDLE_REMOTE_ASSETS: bundleRemoteAssetsEnabled() ? "1" : "0",
     LCODE_TARGET_OS: os,
     LCODE_TARGET_ARCH: arch,
     ...(libc ? { LCODE_MISE_LIBC: libc } : {}),
     ...createElectronRuntimeMirrorEnv(resolveElectronMirror()),
     ...createElectronBuilderBinariesMirrorEnv(resolveElectronBuilderBinariesMirror()),
   };
+  console.log(
+    `[bundle] remote-assets=${buildEnv.LCODE_BUNDLE_REMOTE_ASSETS === "1" ? "bundled" : "on-demand"}`,
+  );
 
   const miseTarget = resolveMiseTarget({
     os: os === "mac" ? "darwin" : os === "win" ? "win32" : os,
@@ -840,6 +851,15 @@ async function main() {
     run(pnpmCommand, ["build"], buildEnv);
   }
 
+  if (buildEnv.LCODE_BUNDLE_REMOTE_ASSETS === "1") {
+    await prepareBundledRemoteAssets({
+      repoRoot: workspaceRoot,
+      version: readPackagedBuildVersion(desktopRoot),
+      skipPrepare,
+      run: (command, args) => run(command, args, buildEnv),
+    });
+  }
+
   await runTimedAsync("bundle:electron-builder", () =>
     runElectronBuilderWithRetry(buildArgs, buildEnv),
   );
@@ -849,6 +869,15 @@ async function main() {
   );
 
   const unpackedResourcesDir = resolveAppResourcesDir(os, arch);
+  let additionalRuntimeBytes = 0;
+  if (buildEnv.LCODE_BUNDLE_REMOTE_ASSETS === "1") {
+    const directory = join(unpackedResourcesDir, "remote-assets");
+    const names = await verifyRemoteReleaseAssets({
+      version: readPackagedBuildVersion(desktopRoot),
+      directory,
+    });
+    for (const name of names) additionalRuntimeBytes += (await stat(join(directory, name))).size;
+  }
   await runTimedAsync("bundle:verify-agent-koffi", async () => {
     const violations = await verifyStagedKoffi({
       resourcesDir: unpackedResourcesDir,
@@ -878,6 +907,8 @@ async function main() {
       resolve(desktopRoot, "scripts", "audit-bundle-size.mjs"),
       "--artifact-path",
       artifactPath,
+      "--additional-runtime-bytes",
+      String(additionalRuntimeBytes),
     ]),
   );
 }

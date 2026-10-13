@@ -114,7 +114,9 @@ async function verifyRemoteMise(
     "set -eu",
     `${quotePosixPathArg(`${REMOTE_BASE}/node`)} -e ${quotePosixShellArg(verifier)} ${quotePosixPathArg(remoteDir)}`,
     buildRemoteChmodExecutableCommand(binaryPath),
-    `mise_version=$(MISE_NO_CONFIG=1 MISE_AUTO_INSTALL=0 ${quotePosixPathArg(binaryPath)} --no-config --version)`,
+    // 修复：真实 mise v2026.10.2 组合 --no-config --version 会输出帮助并退出 1，
+    // 不能把 CLI 参数错误误报为制品损坏；version 子命令保留配置隔离且正确返回版本。
+    `mise_version=$(MISE_NO_CONFIG=1 MISE_AUTO_INSTALL=0 ${quotePosixPathArg(binaryPath)} --no-config version)`,
     `case "$mise_version" in ${quotePosixShellArg(expectedVersionPrefix)}|${quotePosixShellArg(`${expectedVersionPrefix} `)}*) ;; *) printf '%s\\n' 'mise binary version/platform mismatch' >&2; exit 1 ;; esac`,
   ].join("\n");
   await waitForClose(await backend.exec(command));

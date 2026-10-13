@@ -37,6 +37,7 @@ import {
   type ResolveRemoteCdnOptions,
 } from "./remoteCdn.js";
 import { getElectronAppPath, isElectronAppPackaged } from "./desktopElectronApp.js";
+declare const __LCODE_BUNDLE_REMOTE_ASSETS__: boolean | undefined;
 
 const isLocalDevelopmentRuntime = !isElectronAppPackaged();
 export const desktopRuntimeEnv: LCodeRuntimeEnv = isLocalDevelopmentRuntime
@@ -87,7 +88,7 @@ export function getCredentialsDir() {
 
 export type RemoteAssetDirs = Pick<
   ConnectOptions,
-  "mockCdnDir" | "remoteCdnBaseUrl" | "remoteCdnBaseUrls" | "remoteCacheDir"
+  "mockCdnDir" | "bundledAssetDir" | "remoteCdnBaseUrl" | "remoteCdnBaseUrls" | "remoteCacheDir"
 >;
 type LocalRuntimeEnv = Record<string, string | undefined>;
 
@@ -307,14 +308,17 @@ export function resolveRemoteAssetDirs(
   const remoteCdnBaseUrls = resolveRemoteCdnBaseUrls(options, localEnv);
   const remoteCdnBaseUrl = remoteCdnBaseUrls[0];
 
-  // remote 资源之前和 desktop 本地 provider 资源共用安装包内路径，
-  // 结果打包后会把整套 Linux 远程运行时一起塞进 .app，和“remote 资源走 CDN / mock-cdn”的职责边界冲突。
-  // 这里改成显式分流：开发态只读仓库里的 mock-cdn；生产态统一走 CDN + 本地缓存目录，
-  // 不再暴露任何安装包内 remote-assets 路径，避免 remote 资源再次被塞回安装包。
-  // 功能开关：开发态默认继续走 mock-cdn，只有显式打开开关才切到公网 CDN。
-  // 这样能兼容离线开发场景，同时允许在开发环境提前验证真实 CDN 下载链路。
+  // 修复：本地未发布安装包要能连接 SSH，因此仅内置构建显式注册压缩资源目录；
+  // tag 发行包仍走 CDN/cache，开发态继续用 mock-cdn 或显式开启 CDN。
+  // 远程压缩资源与桌面本机 provider / tools 目录独立，避免异构可执行文件混装。
   if (isElectronAppPackaged() || shouldUseRemoteCdnInDevelopment(localEnv)) {
     return {
+      // 构建标志与 extraResources 同源，不按项目 cwd 查找本地资产，也不隐式依赖 tag。
+      ...(isElectronAppPackaged() &&
+      typeof __LCODE_BUNDLE_REMOTE_ASSETS__ !== "undefined" &&
+      __LCODE_BUNDLE_REMOTE_ASSETS__
+        ? { bundledAssetDir: join(process.resourcesPath, "remote-assets") }
+        : {}),
       remoteCdnBaseUrl,
       remoteCdnBaseUrls,
       remoteCacheDir: resolveRemoteAssetCacheDir(localEnv),
@@ -497,8 +501,8 @@ export function buildHostProcessEnv(hostProcessLocalEnv: Record<string, string>)
             join(
               // 旧名兼容：LCODE_HOME 未设时回退旧 ZCODE_HOME。
               rawInheritedEnv.LCODE_HOME?.trim() ||
-              rawInheritedEnv.ZCODE_HOME?.trim() ||
-              join(homedir(), ".lcode"),
+                rawInheritedEnv.ZCODE_HOME?.trim() ||
+                join(homedir(), ".lcode"),
               "computer-use",
               "dev",
               DEV_HELPER_APP_NAME,

@@ -1,4 +1,5 @@
 import { dirname, isAbsolute, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 export interface BundledBackendLocation {
   platform?: NodeJS.Platform;
@@ -24,7 +25,9 @@ export function bundledMisePath(options: BundledBackendLocation = {}): string {
   if (options.resourcesPath) return join(options.resourcesPath, "tools", "mise", "bin", binary);
   if (options.serverRuntimeRoot)
     return join(options.serverRuntimeRoot, "tools", "mise", "bin", binary);
-  const modulePath = (options.modulePath ?? import.meta.filename).replaceAll("\\", "/");
+  // 修复：server CJS 已兼容 import.meta.url，但 filename 会被打成空值；
+  // 从文件 URL 取路径，兼容默认定位分支及包含空格/中文的安装目录。
+  const modulePath = (options.modulePath ?? fileURLToPath(import.meta.url)).replaceAll("\\", "/");
   const asar = modulePath.indexOf("/app.asar/");
   if (asar >= 0) return resolve(modulePath.slice(0, asar), "tools", "mise", "bin", binary);
   let toolsRoot = options.developmentToolsRoot;

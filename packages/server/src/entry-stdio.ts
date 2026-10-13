@@ -1,5 +1,9 @@
 import { migrateHomeBrandDataRootSync } from "@lcode/shared/node";
-import { disposeServiceResourcesAndWait, getDataBaseDir, getAppConfigDir } from "@lcode/services/node";
+import {
+  disposeServiceResourcesAndWait,
+  getDataBaseDir,
+  getAppConfigDir,
+} from "@lcode/services/node";
 import {
   LCODE_VERSION,
   SERVICE_AUTHORITY_MODE_ENV,
@@ -47,6 +51,7 @@ async function main() {
     platform: process.platform,
     arch: process.arch,
     pid: process.pid,
+    capabilities: { providerAccountRelay: true },
   };
   process.stdout.write(JSON.stringify(hello) + "\n");
 

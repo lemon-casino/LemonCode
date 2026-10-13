@@ -1,5 +1,5 @@
-import { SocketProtocol, ChannelClient } from "@lcode/rpc";
-import type { IServiceAccessor } from "@lcode/services";
+import { SocketProtocol, ChannelClient, ChannelServer, ProxyChannel } from "@lcode/rpc";
+import type { IServiceAccessor, ProviderAccountRelayService } from "@lcode/services";
 import { RemoteServiceAccess } from "@lcode/client";
 import {
   SERVICE_AUTHORITY_MODE_ENV,
@@ -10,6 +10,8 @@ import {
   LCODE_REMOTE_HTTP_PROXY_ENV_KEY,
   LCODE_REMOTE_NO_PROXY_ENV_KEY,
   LCODE_REMOTE_RUNTIME_NETWORK_AUTHORITY_ENV_KEY,
+  PROVIDER_ACCOUNT_RELAY_CHANNEL,
+  PROVIDER_ACCOUNT_RELAY_ENV,
 } from "@lcode/shared";
 import type { IRemoteBackend } from "./backend.js";
 import { wrapStdioStream } from "./stdio-socket.js";
@@ -23,6 +25,8 @@ import { formatWslProxyForLog } from "./wslProxy.js";
 const BACKEND_DISCONNECT_EXIT_CODE = -1;
 
 export interface ConnectOptions extends DeployOptions {
+  /** 当前物理连接私有的本机 OAuth owner 代理；释放连接时同步撤销其模型流。 */
+  providerAccountRelay?: { service: ProviderAccountRelayService; dispose(): void };
   /** Client identifier for handshake */
   clientId?: string;
   /** Handshake timeout in ms (default: 10000) */
@@ -121,6 +125,7 @@ export async function connectRemote(
   };
   if (signal?.aborted) {
     disposeBackendOnce();
+    options?.providerAccountRelay?.dispose();
     throw createRemoteConnectAbortError(signal);
   }
 
@@ -152,6 +157,7 @@ export async function connectRemote(
   } catch (error) {
     // detect/deploy/handshake 任一步失败时尚未返回 RemoteConnection，调用方无从 dispose backend。
     disposeBackendOnce();
+    options?.providerAccountRelay?.dispose();
     throw error;
   } finally {
     removeAbortListener();
@@ -206,6 +212,9 @@ async function connectRemoteUnchecked(
   const { hello, remaining } = await performHandshake(stream, clientId, options?.handshakeTimeout);
   throwIfRemoteConnectAborted(options?.signal);
   log("handshake done, server version:", hello.version);
+  if (options?.providerAccountRelay && !hello.capabilities?.providerAccountRelay) {
+    throw new Error("远端 Server 不支持 OAuth 供应商调用，请重新构建并发布远程资源后重连");
+  }
 
   // 5. Wrap into RPC channel
   // If there's remaining data from handshake, push it back to the stream
@@ -217,6 +226,17 @@ async function connectRemoteUnchecked(
   const socket = wrapStdioStream(stream);
   const protocol = new SocketProtocol(socket);
   const client = new ChannelClient(protocol);
+  const relayServer = options?.providerAccountRelay
+    ? new ChannelServer(protocol, "trusted-remote", 1000, true)
+    : undefined;
+  if (relayServer && options?.providerAccountRelay) {
+    relayServer.registerChannel(
+      PROVIDER_ACCOUNT_RELAY_CHANNEL,
+      ProxyChannel.fromService(options.providerAccountRelay.service),
+    );
+    // 服务端先装配反向 client，再发 Initialize；此处不能提前 ready，否则反向握手会丢失。
+    client.onDidInitialize(() => relayServer.ready());
+  }
   const services = new RemoteServiceAccess(client);
   let hasReportedRemoteClose = false;
   let hasStreamClosed = false;
@@ -229,6 +249,9 @@ async function connectRemoteUnchecked(
       return;
     }
     hasReportedRemoteClose = true;
+    options?.providerAccountRelay?.dispose();
+    relayServer?.dispose();
+    client.dispose();
     options?.onDidRemoteClose?.({ code });
   };
 
@@ -259,6 +282,8 @@ async function connectRemoteUnchecked(
     disposalStarted = true;
     backendDisconnectDisposable?.dispose();
     client.dispose();
+    relayServer?.dispose();
+    options?.providerAccountRelay?.dispose();
     protocol.dispose();
     // stdin.end 必须在任何 await 之前同步触发，让远端 stdio server 立即收到 EOF。
     socket.dispose();
@@ -364,6 +389,7 @@ function buildRemoteServerCommand(
     `${SERVICE_AUTHORITY_MODE_ENV}="desktop-attached-remote"`,
     'LCODE_SERVER_RUNTIME_ROOT="$HOME/.lcode/server"',
   ];
+  if (options?.providerAccountRelay) envParts.push(`${PROVIDER_ACCOUNT_RELAY_ENV}='1'`);
   for (const [key, value] of Object.entries(
     pickRemoteRuntimeEnv(options?.remoteRuntimeEnv ?? {}),
   )) {

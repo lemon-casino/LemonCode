@@ -124,6 +124,7 @@ import {
 import { createHostRemoteWorkspaceProxyState } from "./hostRemoteWorkspaceProxyState.js";
 import { createRemoteWorkspaceServiceCollection } from "./remoteWorkspaceServiceCollection.js";
 import { getRemoteProviderProvisioningExecutor } from "./remoteProviderProvisioningService.js";
+import { getProviderAccountRelaySource } from "@lcode/services/node";
 import { createRemotePromptAttachmentTransferService } from "./promptAttachmentTransferService.js";
 import { shouldReportHostConsoleError, stringifyHostLogArg } from "./hostLog.js";
 import { flushHostE2ECoverage } from "./e2eCoverage.js";
@@ -180,7 +181,7 @@ const remoteMediaRangePreviewEnabled =
 
 type RemoteAssetDirs = Pick<
   ConnectOptions,
-  "mockCdnDir" | "remoteCdnBaseUrl" | "remoteCdnBaseUrls" | "remoteCacheDir"
+  "mockCdnDir" | "bundledAssetDir" | "remoteCdnBaseUrl" | "remoteCdnBaseUrls" | "remoteCacheDir"
 >;
 
 const { parentPort } = process;
@@ -2954,6 +2955,9 @@ async function setupRemoteConnection(
     await import("@lcode/server/remote");
   const backend = await createRemoteBackend(target);
   const connection = await connectRemote(backend, {
+    providerAccountRelay: activeServices
+      ? getProviderAccountRelaySource(activeServices)
+      : undefined,
     ...remoteAssets,
     remoteAssetNetwork,
     remoteRuntimeNetwork,

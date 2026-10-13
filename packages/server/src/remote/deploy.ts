@@ -51,6 +51,7 @@ import { detectRemoteAssetTools } from "@lcode/server/remote/remoteAssetPrefligh
 import { assertSupportedRemoteEnvironment } from "@lcode/server/remote/remotePlatformSupport.js";
 import { acquireRemoteDeployLock } from "@lcode/server/remote/remoteDeployLock.js";
 import type { RemoteAssetNetworkPort } from "@lcode/server/remote/remoteAssetNetwork.js";
+import { createBundledRemoteAssetNetwork } from "@lcode/server/remote/bundledRemoteAssetSource.js";
 
 const log = (...args: unknown[]) => console.log(formatLogPrefix("deploy", process.pid), ...args);
 const logWarn = (...args: unknown[]) =>
@@ -62,6 +63,8 @@ export interface DeployOptions {
   signal?: AbortSignal;
   /** 开发态本地“伪 CDN”目录，运行时从这里读取 remote 资源 */
   mockCdnDir?: string;
+  /** 安装包自带的平铺 manifest / component 目录。 */
+  bundledAssetDir?: string;
   /** 生产态 remote 资源 CDN 基址 */
   remoteCdnBaseUrl?: string;
   /** 生产态 remote 资源 CDN 基址候选，按顺序回退 */
@@ -95,6 +98,16 @@ export async function deployServer(
 ): Promise<boolean> {
   const platformArch = `${env.platform}-${env.arch}`;
   assertSupportedRemoteEnvironment(env);
+  if (options?.bundledAssetDir) {
+    // 修复：即使旧配置选了远端下载，未发布的本地包也必须读取自身资源后上传，
+    // 不能让 SSH 主机访问尚不存在的 tag；其余部署锁和 SHA 校验仍沿既有路径。
+    options = {
+      ...options,
+      assetInstallMode: "local-download-upload",
+      remoteAssetNetwork: createBundledRemoteAssetNetwork(options.bundledAssetDir),
+    };
+    log("[remote-assets] using bundled resources; uploading from this desktop to the SSH host");
+  }
   const selectedResourcePackageIds = normalizeRemoteResourcePackageSelection();
   const shouldDeployResourcePackage = (packageId: RemoteResourcePackageId): boolean =>
     selectedResourcePackageIds.includes(packageId);

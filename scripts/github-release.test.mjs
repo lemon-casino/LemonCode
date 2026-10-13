@@ -10,6 +10,7 @@ import "./github-actions-environment.test.mjs";
 import "./release-artifacts.test.mjs";
 import "./remote-release-assets.test.mjs";
 import "./remote-release-workflow.test.mjs";
+import "./bundled-remote-assets.test.mjs";
 import { verifyReleaseVersion } from "./verify-release-version.mjs";
 import {
   expectedArtifactNames,

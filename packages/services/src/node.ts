@@ -9,6 +9,9 @@ import {
   PERSONAL_PROVIDER_CONFIG_FILE_NAME,
 } from "@lcode/provider-node";
 import { getAppConfigDir as resolveAppConfigDir } from "./paths.js";
+import { RemoteProviderAccounts } from "./model-provider/remoteProviderAccounts.js";
+import { createProviderAccountRelaySource } from "./model-provider/providerAccountRelaySource.js";
+import type { ProviderAccountRelayService } from "./model-provider/providerAccountRelay.js";
 import { IWorktreeService } from "./worktree/contract.js";
 import {
   createWorktreeService,
@@ -681,6 +684,21 @@ export type OffPeakRequestAuthBuilder = (
   ticketId: string,
 ) => Promise<{ apiKey: string; headers: Record<string, string> }>;
 const offPeakRequestAuthBuilders = new WeakMap<ServiceCollection, OffPeakRequestAuthBuilder>();
+const providerAccountRelayOwners = new WeakMap<ServiceCollection, ProviderAccounts>();
+const remoteProviderAccountRelays = new WeakMap<ServiceCollection, RemoteProviderAccounts>();
+
+/** 只交给受信 stdio 连接，每条连接独立释放；不注册到 Renderer 或 HTTP RPC。 */
+export function getProviderAccountRelaySource(services: ServiceCollection) {
+  const owner = providerAccountRelayOwners.get(services);
+  return owner ? createProviderAccountRelaySource(owner) : undefined;
+}
+
+export function attachProviderAccountRelay(
+  services: ServiceCollection,
+  relay: ProviderAccountRelayService,
+): void {
+  remoteProviderAccountRelays.get(services)?.attach(relay);
+}
 
 /** Local Host 进程内能力；不会随 ServiceCollection 暴露到通用 RPC Channel。 */
 export function getAccountRequestAuthService(
@@ -1385,6 +1403,8 @@ export function createLocalServices(options: {
   lcodeBuiltinProviderConfigFilePath: string;
   /** HTTP Server 只有在调用方明确配置认证时才暴露跨 Environment Provisioning target。 */
   providerProvisioningTargetEnabled?: boolean;
+  /** 仅受信 Desktop stdio 连接启用；OAuth grant/续期 owner 保持在本机。 */
+  providerAccountRelayEnabled?: boolean;
   /** Desktop Host 私有通知；只在 Source 成功持久化后请求 Main 调度远端镜像。 */
   onProviderProvisioningSourceChanged?: (
     trigger: Exclude<ProviderProvisioningTrigger, "environment-online">,
@@ -1673,29 +1693,36 @@ export function createLocalServices(options: {
   let providerConnectivityAgentService:
     | Pick<ILCodeAgentService, "testModelConnectivity">
     | undefined;
-  const providerAccounts = new ProviderAccounts({
-    credentials: credentialService,
-    lockPath: join(resolveAppConfigDir(), "oauth-provider-accounts"),
-    watchFile: join(resolveAppConfigDir(), "credentials.json"),
-    factory: (channelId) =>
-      createAuthDriver(channelId, {
-        resolveNetwork: async () => {
-          const [config, settings] = await Promise.all([
-            providerConfigRuntime.configService.read(),
-            settingService.get(),
-          ]);
-          return resolveProviderNetworkOptions(
-            config.personalProviders.get(oauthProviderId(channelId))?.network,
-            {
-              httpProxy: settings.httpProxy,
-              noProxy: settings.httpProxyNoProxy,
-              caCertPath: settings.httpProxyCaCertPath,
-            },
-            config.proxyProfiles,
-          );
-        },
-      }),
-  });
+  // 修复：SSH 原先只读远端账号库，导致本机 OAuth 供应商缺席；只注入公开目录与请求桥，授权仍由本机唯一 owner 管理。
+  const remoteProviderAccounts =
+    isDesktopAttachedRemote && options.providerAccountRelayEnabled
+      ? new RemoteProviderAccounts()
+      : undefined;
+  const providerAccounts =
+    remoteProviderAccounts ??
+    new ProviderAccounts({
+      credentials: credentialService,
+      lockPath: join(resolveAppConfigDir(), "oauth-provider-accounts"),
+      watchFile: join(resolveAppConfigDir(), "credentials.json"),
+      factory: (channelId) =>
+        createAuthDriver(channelId, {
+          resolveNetwork: async () => {
+            const [config, settings] = await Promise.all([
+              providerConfigRuntime.configService.read(),
+              settingService.get(),
+            ]);
+            return resolveProviderNetworkOptions(
+              config.personalProviders.get(oauthProviderId(channelId))?.network,
+              {
+                httpProxy: settings.httpProxy,
+                noProxy: settings.httpProxyNoProxy,
+                caCertPath: settings.httpProxyCaCertPath,
+              },
+              config.proxyProfiles,
+            );
+          },
+        }),
+    });
   const combinedAccountProviderSource = createProviderAccountsSource(
     accountProviderConfigSource,
     providerAccounts,
@@ -2760,6 +2787,8 @@ export function createLocalServices(options: {
   offPeakRequestAuthBuilders.set(services, buildOffPeakRequestAuthForTicket);
 
   providerRuntimes.set(services, providerRuntime);
+  if (remoteProviderAccounts) remoteProviderAccountRelays.set(services, remoteProviderAccounts);
+  else providerAccountRelayOwners.set(services, providerAccounts as ProviderAccounts);
   providerProvisioningSources.set(services, providerProvisioningSource);
   providerProvisioningTriggerDisposers.set(services, providerProvisioningDisposers);
   services
@@ -2924,6 +2953,8 @@ export function disposeServiceResources(services: ServiceCollection): void {
   for (const dispose of providerProvisioningTriggerDisposers.get(services) ?? []) dispose();
   providerProvisioningTriggerDisposers.delete(services);
   providerProvisioningSources.delete(services);
+  providerAccountRelayOwners.delete(services);
+  remoteProviderAccountRelays.delete(services);
   managedHostApiNetworkTransports.get(services)?.dispose();
 }
 
@@ -2967,6 +2998,8 @@ export async function disposeServiceResourcesAndWait(services: ServiceCollection
   for (const dispose of providerProvisioningTriggerDisposers.get(services) ?? []) dispose();
   providerProvisioningTriggerDisposers.delete(services);
   providerProvisioningSources.delete(services);
+  providerAccountRelayOwners.delete(services);
+  remoteProviderAccountRelays.delete(services);
   await managedHostApiNetworkTransports
     .get(services)
     ?.disposeAndWait()

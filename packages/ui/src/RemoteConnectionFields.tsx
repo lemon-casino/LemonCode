@@ -51,6 +51,11 @@ import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 const DEFAULT_WSL_DISTRO_VALUE = "__default_wsl_distro__";
 const NO_SSH_CONFIG_ALIAS_VALUE = "__ssh_config_alias_none__";
+// 修复：background 与 input 在多个主题里几乎相同，两个切换组统一使用选中填色、强调边框和键盘焦点。
+const SSH_SWITCH_BASE =
+  "border border-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-input-border-focused focus-visible:ring-offset-1 focus-visible:ring-offset-input";
+const SSH_SWITCH_SELECTED = "border-brand bg-selected text-foreground shadow-sm";
+const SSH_SWITCH_INACTIVE = "text-foreground-subtle hover:bg-hover hover:text-foreground";
 
 function formatSshConfigAliasSummary(aliasOption: SSHConfigAliasOption): string {
   const host = aliasOption.host?.trim() || aliasOption.alias;
@@ -355,9 +360,8 @@ export function RemoteConnectionFields({
             />
           </div>
 
-          {/* 认证方式之前复用了端口的 6.5rem 窄列，两个选项扣除 padding 后会把中英文文案挤到换行或溢出。
-              这里单独给认证方式保留 12rem，并禁止选项文字换行。 */}
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem] sm:items-end">
+          {/* 认证组按文字和 UI 字号决定列宽；窄屏可换行，避免固定高度/宽度裁切大字号英文。 */}
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
             <RemoteConnectionHistoryInput
               className="h-9 text-ui-base"
               label={intl.formatMessage({ id: "ssh.username" })}
@@ -376,7 +380,11 @@ export function RemoteConnectionFields({
               <label className="mb-1 block text-ui-base text-foreground-subtle">
                 {intl.formatMessage({ id: "ssh.authMethod" })}
               </label>
-              <div className="inline-flex w-full items-center rounded-lg border border-input-border bg-input p-[3px]">
+              <div
+                role="group"
+                aria-label={intl.formatMessage({ id: "ssh.authMethod" })}
+                className="inline-flex w-full items-stretch rounded-lg border border-input-border bg-input p-[3px]"
+              >
                 {(["password", "privateKey"] as const).map((value) => {
                   const selected = sshAuthMethod === value;
 
@@ -385,14 +393,14 @@ export function RemoteConnectionFields({
                       key={value}
                       type="button"
                       onClick={() => setSshAuthMethod(value)}
+                      aria-pressed={selected}
                       data-testid={
                         value === "password" ? TID_SSH_AUTH_PASSWORD : TID_SSH_AUTH_PRIVATE_KEY
                       }
                       className={cn(
-                        "inline-flex h-7 flex-1 items-center justify-center rounded-md px-3 text-ui-base font-medium whitespace-nowrap transition-colors",
-                        selected
-                          ? "bg-background text-foreground"
-                          : "text-foreground-subtle hover:text-foreground",
+                        "inline-flex min-h-7 min-w-0 flex-1 items-center justify-center rounded-md px-2 py-1 text-center text-ui-base font-medium transition-colors sm:px-3",
+                        SSH_SWITCH_BASE,
+                        selected ? SSH_SWITCH_SELECTED : SSH_SWITCH_INACTIVE,
                       )}
                     >
                       {intl.formatMessage({ id: `ssh.auth.${value}` })}
@@ -483,7 +491,11 @@ export function RemoteConnectionFields({
             <label className="mb-1 block text-ui-base text-foreground-subtle">
               {intl.formatMessage({ id: "ssh.assetInstallMode" })}
             </label>
-            <div className="inline-flex w-full max-w-md flex-col items-stretch rounded-lg border border-input-border bg-input p-[3px] sm:w-fit sm:flex-row sm:items-center">
+            <div
+              role="group"
+              aria-label={intl.formatMessage({ id: "ssh.assetInstallMode" })}
+              className="inline-flex w-full max-w-md flex-col items-stretch rounded-lg border border-input-border bg-input p-[3px] sm:w-fit sm:flex-row"
+            >
               {(["local-download-upload", "remote-download"] as const).map((value) => {
                 const selected = assetInstallMode === value;
 
@@ -492,11 +504,11 @@ export function RemoteConnectionFields({
                     key={value}
                     type="button"
                     onClick={() => setAssetInstallMode(value)}
+                    aria-pressed={selected}
                     className={cn(
-                      "inline-flex min-h-7 min-w-0 flex-1 items-center justify-center rounded-md px-3 py-1 text-center text-ui-base font-medium transition-colors sm:flex-none",
-                      selected
-                        ? "bg-background text-foreground"
-                        : "text-foreground-subtle hover:text-foreground",
+                      "inline-flex min-h-7 min-w-0 flex-1 items-center justify-center rounded-md px-3 py-1 text-center text-ui-base font-medium transition-colors",
+                      SSH_SWITCH_BASE,
+                      selected ? SSH_SWITCH_SELECTED : SSH_SWITCH_INACTIVE,
                     )}
                   >
                     <span className="min-w-0 break-words">

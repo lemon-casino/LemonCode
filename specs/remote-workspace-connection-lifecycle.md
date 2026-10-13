@@ -10,6 +10,8 @@
 - Docker 手动输入支持容器名、完整 ID 和唯一 ID 前缀；歧义前缀明确拒绝。仅允许连接运行中的容器。
 - 每个窗口的 Host 继续持有远端连接；共享 SSH/WSL 的一个等待者取消不能中断其他等待者。最后一个连接中等待者取消才中止该连接，重试获得新 entry。Docker 保持独立 logical session。
 - 所有 transport 部署都使用远端安装目录锁。窗口内 single-flight 不能替代跨窗口、跨客户端的远端互斥。
+- 远程作业的 Shell 在执行机器解析；Desktop 的本机 Shell 路径不得经 runtime-preferences 传到远端，见 `remote-workspace-shell-selection.md`。
+- API Provider 沿原 provisioning 进入目标 Registry；Desktop 已登录 OAuth 通过当前 stdio 连接复用本机账号 owner，详见 [远端供应商调用桥](./remote-provider-account-relay.md)。远程 attachment 发布前须完成能力协商与目录读取，断连撤销本连接的调用流。
 - Docker backend 释放必须关闭并等待自己的 CLI 子进程，拒绝后续命令；不得停止容器、Docker daemon 或其他连接的子进程。WSL 同样只释放自己的命令，不 terminate distro。
 
 ## 状态与接口所有者

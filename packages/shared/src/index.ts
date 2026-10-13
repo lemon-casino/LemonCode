@@ -323,6 +323,7 @@ export type { GitDeleteBranchRequest, GitDeleteBranchResult } from "./git.js";
 export { gitDeleteBranchRequestSchema } from "./gitPublish.js";
 export * from "./goal-evidence.js";
 export * from "./provider-accounts.js";
+export * from "./provider-account-relay.js";
 export * from "./provider-account-quota.js";
 export * from "./usage-analytics.js";
 export * from "./networkProxy.js";

@@ -1,11 +1,12 @@
 {
   "name": "lcode",
-  "version": "3.18.4",
+  "version": "3.18.5",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "test:remote-control": "node scripts/test-remote-control.mjs",
+    "test:remote-providers": "node --import tsx --test packages/services/src/model-provider/providerAccountRelay.test.ts packages/server/src/remote/providerAccountRelayConnect.test.ts",
     "test:remote-assets": "node --import tsx --test scripts/remote-release-assets.test.mjs scripts/remote-runtime-download.test.mjs packages/desktop/src/main/remoteCdn.test.ts packages/server/src/remote/remoteAssetCdn.test.ts",
     "dev:web": "concurrently -k -n server,web -c blue,green \"pnpm --filter @lcode/server dev\" \"pnpm --filter @lcode/web dev\"",
     "dev:desktop": "pnpm run dev:desktop:prod",
@@ -84,6 +85,9 @@
   },
   "engines": {
     "node": ">=24.0.0"
+  },
+  "volta": {
+    "node": "24.21.0"
   },
   "packageManager": "pnpm@10.34.6"
 }

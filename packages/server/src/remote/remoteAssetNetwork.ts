@@ -1,5 +1,15 @@
 export interface RemoteAssetNetworkPort {
   fetch: typeof globalThis.fetch;
+  readonly source?: "bundled";
+}
+
+export function remoteAssetReadLog(
+  network: RemoteAssetNetworkPort | undefined,
+  url: string,
+): string {
+  return network?.source === "bundled"
+    ? `[remote-assets] reading bundled resource ${decodeURIComponent(new URL(url).pathname.split("/").at(-1) ?? "")}`
+    : `[remote-assets] downloading ${url}`;
 }
 
 export function resolveRemoteAssetFetch(

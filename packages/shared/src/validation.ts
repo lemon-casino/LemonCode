@@ -95,6 +95,7 @@ export const remoteTargetSchema = z.discriminatedUnion("kind", [
 ]);
 
 export const helloMessageSchema = z.object({
+  capabilities: z.object({ providerAccountRelay: z.boolean().optional() }).optional(),
   type: z.literal("lcode-hello"),
   version: z.string(),
   platform: z.string(),
@@ -162,6 +163,7 @@ export const broadcastMessageSchema = z.object({
 
 export const remoteAssetDirsSchema = z.object({
   mockCdnDir: z.string().optional(),
+  bundledAssetDir: z.string().optional(),
   remoteCdnBaseUrl: z.string().optional(),
   remoteCdnBaseUrls: z.array(z.string()).optional(),
   remoteCacheDir: z.string().optional(),

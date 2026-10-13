@@ -1,4 +1,5 @@
 export interface HelloMessage {
+  capabilities?: { providerAccountRelay?: boolean };
   type: "lcode-hello";
   version: string;
   platform: string;

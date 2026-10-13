@@ -1,12 +1,25 @@
 import { randomUUID } from "node:crypto";
-import { Emitter, VSBuffer, SocketProtocol, ChannelServer, type ISocket } from "@lcode/rpc";
+import {
+  Emitter,
+  VSBuffer,
+  SocketProtocol,
+  ChannelServer,
+  ChannelClient,
+  ProxyChannel,
+  type ISocket,
+} from "@lcode/rpc";
 import {
   ILCodeAgentService,
   IRuntimeEnvironmentService,
   createLCodeAgentConnectionScope,
   type ServiceCollection,
 } from "@lcode/services";
-import { createPublicRuntimeEnvironmentService } from "@lcode/services/node";
+import {
+  attachProviderAccountRelay,
+  createPublicRuntimeEnvironmentService,
+} from "@lcode/services/node";
+import type { ProviderAccountRelayService } from "@lcode/services";
+import { PROVIDER_ACCOUNT_RELAY_CHANNEL } from "@lcode/shared";
 
 /**
  * Wrap process.stdin/stdout as an ISocket for RPC communication.
@@ -58,6 +71,14 @@ export function wrapStdio(): ISocket {
 export function createStdioServer(services: ServiceCollection) {
   const socket = wrapStdio();
   const protocol = new SocketProtocol(socket);
+  // 修复：反向 client 必须先监听，Desktop 在收到正向 Initialize 后才宣布 relay 就绪。
+  const relayClient = new ChannelClient(protocol);
+  attachProviderAccountRelay(
+    services,
+    ProxyChannel.toService<ProviderAccountRelayService>(
+      relayClient.getChannel(PROVIDER_ACCOUNT_RELAY_CHANNEL),
+    ),
+  );
   const channelServer = new ChannelServer(protocol, "stdio");
   const agentService = services.getOptional(ILCodeAgentService);
   const connectionScope = agentService
@@ -87,6 +108,7 @@ export function createStdioServer(services: ServiceCollection) {
     // 先同步摘掉 protocol listener，保证从这一刻起不再接收新的 service RPC；
     // connection scope 的异步退订完成后再关闭底层 stdio。
     channelServer.dispose();
+    relayClient.dispose();
     stopPromise = (async () => {
       try {
         await connectionScope?.dispose();
