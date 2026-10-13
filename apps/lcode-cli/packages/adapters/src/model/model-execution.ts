@@ -20,6 +20,7 @@ import {
 } from "@lcode/contracts";
 import {
   resolveApiKeyAccessKeys,
+  resolveProviderNetworkConfig,
   type ProviderApiKey,
   type RegistryProviderConfig,
 } from "@lcode/provider";
@@ -382,6 +383,8 @@ export class AiSdkModelExecution {
 
   private resolveProviderTransport(providerId: string, network: RegistryProviderConfig["network"]): ProviderFetch {
     if (network?.mode === "profile") throw new Error("Proxy profile must be resolved before model execution");
+    // 正式模型绑定同样使用默认直连规则，不能仅修改设置页的选中项。
+    network = resolveProviderNetworkConfig(network);
     const key = JSON.stringify([providerId, network ?? null]);
     const current = this.providerTransports.get(key);
     if (current) {

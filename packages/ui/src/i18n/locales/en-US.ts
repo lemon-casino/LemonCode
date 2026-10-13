@@ -2218,6 +2218,8 @@ const enUS: Record<string, string> = {
     "Assigned to a provider. Remove the assignment in model settings before deleting.",
   "settings.proxy.name": "Proxy name",
   "settings.proxy.title": "Proxy",
+  "settings.proxy.display": "Display",
+  "settings.proxy.single": "Single HTTP proxy",
   "settings.proxy.connection": "Provider proxy",
   "settings.proxy.default": "Use default proxy",
   "settings.proxy.direct": "No proxy",

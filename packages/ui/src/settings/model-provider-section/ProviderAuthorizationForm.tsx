@@ -13,6 +13,7 @@ import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import type { useProviderAccounts } from "@/hooks/useProviderAccounts.js";
 import { getProviderAccountDependencyError } from "@/lib/providerAccountErrors.js";
 import { ProviderCredentialImport } from "./ProviderCredentialImport.js";
+import { CredentialJsonTextarea } from "./CredentialJsonTextarea.js";
 import {
   localizeAuthorizationChannel,
   localizeAuthorizationInstructions,
@@ -262,6 +263,19 @@ function AuthorizationInput({
   onChange: (value: string) => void;
   disabled: boolean;
 }) {
+  // 凭据 JSON 原先复用单行密码框，粘贴时换行被吞掉，无法逐行查看和修改。
+  if (field.format === "json")
+    return (
+      <CredentialJsonTextarea
+        label={field.label}
+        value={value}
+        onChange={onChange}
+        disabled={disabled}
+        required={!field.optional}
+        placeholder={field.placeholder}
+        secret={field.type === "password"}
+      />
+    );
   return (
     <label className="block space-y-1.5 text-ui-base">
       <span>{field.label}</span>

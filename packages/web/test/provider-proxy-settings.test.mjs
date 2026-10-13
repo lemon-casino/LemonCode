@@ -122,7 +122,7 @@ test(
     await page.getByRole("button", { name: "Fixture API 2", exact: true }).click();
     assert.match(
       await page.locator('[data-provider-proxy="scroll-api-2"]').innerText(),
-      /使用默认代理/,
+      /不使用代理/,
     );
     await page.getByRole("button", { name: "Fixture OAuth pool", exact: true }).click();
     const oauth = page.getByTestId("oauth-provider-details");
@@ -132,6 +132,15 @@ test(
       "已登录账号",
     ]);
     const route = oauth.locator("[data-provider-proxy]");
+    assert.match(await route.getByRole("combobox").innerText(), /不使用代理/);
+    await route.getByRole("combobox").click();
+    await page.getByRole("option", { name: "使用默认代理", exact: true }).click();
+    await route.getByRole("button", { name: "保存", exact: true }).click();
+    await page.waitForFunction(
+      () =>
+        window.__providerAccounts.proxyNetworks["oauth_fixture_openai-responses"]?.mode ===
+        "default",
+    );
     await route.getByRole("combobox").click();
     await page.getByRole("option", { name: "不使用代理", exact: true }).click();
     await route.getByRole("button", { name: "保存", exact: true }).click();
@@ -177,13 +186,24 @@ test(
       `http://127.0.0.1:${port}/test/fixtures/provider-accounts.html?navigation=1&scroll=1&proxy=1&theme=light`,
     );
     await page.getByTestId("proxy-library").waitFor();
-    await page.getByText("自定义证书", { exact: true }).first().waitFor();
+    assert.equal(await page.getByLabel("HTTP 代理", { exact: true }).isVisible(), false);
     assert.equal(await page.getByRole("heading", { name: "供应商代理", exact: true }).count(), 0);
     assert.equal(await page.locator("[data-provider-proxy]").count(), 0);
-    await page.getByLabel("HTTP 代理", { exact: true }).waitFor();
-    await page.getByText("不使用代理的地址", { exact: true }).first().waitFor();
     assert.equal(await page.getByRole("button", { name: "导入代理", exact: true }).count(), 1);
     assert.equal(await page.getByRole("button", { name: "检测全部代理", exact: true }).count(), 1);
+    const paste = page.getByLabel("批量粘贴代理", { exact: true });
+    await paste.fill("http://draft.example:7890");
+    const singleTab = page.getByRole("tab", { name: "单个 HTTP 代理", exact: true });
+    const listTab = page.getByRole("tab", { name: "代理列表", exact: true });
+    await singleTab.click();
+    const address = page.getByLabel("HTTP 代理", { exact: true });
+    await address.fill("https://draft.example:8443");
+    await page.getByText("自定义证书", { exact: true }).first().waitFor();
+    await listTab.click();
+    assert.equal(await paste.inputValue(), "http://draft.example:7890");
+    await singleTab.click();
+    assert.equal(await address.inputValue(), "https://draft.example:8443");
+    assert.deepEqual(await page.evaluate(() => window.__providerAccounts.proxyNetworks), {});
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   },
 );

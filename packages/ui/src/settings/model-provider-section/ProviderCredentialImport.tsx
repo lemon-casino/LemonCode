@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button.js";
-import { Textarea } from "@/components/ui/textarea.js";
+import { CredentialJsonTextarea } from "./CredentialJsonTextarea.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 
 const FILE_LIMIT = 4 * 1024 * 1024;
@@ -92,17 +92,12 @@ export function ProviderCredentialImport({
           {files.map((file) => file.name).join(", ")}
         </span>
       </div>
-      <label className="block space-y-1.5 text-ui-base">
-        <span>{m("paste")}</span>
-        <Textarea
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-          disabled={disabled || reading}
-          autoComplete="off"
-          spellCheck={false}
-          className="max-h-40 min-h-24 font-mono [-webkit-text-security:disc]"
-        />
-      </label>
+      <CredentialJsonTextarea
+        label={m("paste")}
+        value={text}
+        onChange={setText}
+        disabled={disabled || reading}
+      />
       {error ? (
         <p role="alert" className="text-ui-base text-destructive">
           {m(error)}

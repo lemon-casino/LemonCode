@@ -70,8 +70,8 @@ function ProviderProxyFields({
   const id = useId();
   const message = (key: string) => intl.formatMessage({ id: `settings.proxy.${key}` });
   const network = provider.effectiveConfig.network;
-  const signature = JSON.stringify(network ?? { mode: "default" });
-  const [mode, setMode] = useState<Network["mode"]>(network?.mode ?? "default");
+  const signature = JSON.stringify(network ?? { mode: "direct" });
+  const [mode, setMode] = useState<Network["mode"]>(network?.mode ?? "direct");
   const [profileId, setProfileId] = useState(network?.mode === "profile" ? network.profileId : "");
   const [httpProxy, setHttpProxy] = useState(network?.mode === "custom" ? network.httpProxy : "");
   const [noProxy, setNoProxy] = useState(network?.mode === "custom" ? (network.noProxy ?? "") : "");

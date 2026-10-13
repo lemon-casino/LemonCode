@@ -25,12 +25,12 @@ test("formal API model requests select default, direct and authenticated custom 
   t.after(() => { for (const server of servers) { server.closeAllConnections(); server.close(); } });
   const target = await listen("direct"), defaults = await listen("default"), custom = await listen("custom");
   const execution = new AiSdkModelExecution({ network: { httpProxy: defaults }, env: { LCODE_HTTP_PROXY: "http://invalid.example:7890", LCODE_TOOL_ENV_PASSTHROUGH_JSON: JSON.stringify({ HTTPS_PROXY: "http://invalid.example:7890" }) } });
-  for (const network of [undefined, { mode: "direct" }, { mode: "custom", httpProxy: custom.replace("http://", "http://fixture%40user:p%3Aa%40ss%25@") }] as const) {
+  for (const network of [undefined, { mode: "default" }, { mode: "direct" }, { mode: "custom", httpProxy: custom.replace("http://", "http://fixture%40user:p%3Aa%40ss%25@") }] as const) {
     const provider = createRegistryProviderConfig(parseProviderConfig({ group: "standard-personal", api: { type: "openai-chat-completions", baseUrl: target }, access: { type: "api-key", apiKey: "fixture-model-key" }, network: network as ProviderConfigObject["network"] }));
     assert.ok(provider.ok);
     const bound = execution.bindModel({ providerId: "same-provider", modelId: "fixture-model", providerConfig: provider.config, supportsJsonSchemaOutput: false, optionSpecs: { reasoningLevel: { map: "{}" }, maxOutputTokens: { map: "{}" } } });
     const resolved = bound.resolveRequest({ options: { reasoningLevel: "low", maxOutputTokens: 8 } });
     await (resolved.model as unknown as { doGenerate(options: unknown): Promise<unknown> }).doGenerate({ prompt: [{ role: "user", content: [{ type: "text", text: "fixture" }] }], maxOutputTokens: 8 });
   }
-  assert.deepEqual(visits, ["default", "direct", "custom"]);
+  assert.deepEqual(visits, ["direct", "default", "direct", "custom"]);
 });

@@ -69,7 +69,14 @@ export class ClaudeAuthDriver implements AuthDriver {
         label: "Import Claude Code credential JSON",
         type: "oauth",
         kind: "credentials",
-        fields: [{ key: "credentials", label: "Claude Code credential JSON", type: "password" }],
+        fields: [
+          {
+            key: "credentials",
+            label: "Claude Code credential JSON",
+            type: "password",
+            format: "json",
+          },
+        ],
       },
     ];
   }

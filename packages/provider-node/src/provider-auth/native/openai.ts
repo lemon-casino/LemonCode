@@ -74,7 +74,9 @@ export class OpenAIAuthDriver implements AuthDriver {
         label: "Import credentials JSON",
         type: "oauth",
         kind: "credentials",
-        fields: [{ key: "credentials", label: "Credential JSON", type: "password" }],
+        fields: [
+          { key: "credentials", label: "Credential JSON", type: "password", format: "json" },
+        ],
       },
     ];
   }

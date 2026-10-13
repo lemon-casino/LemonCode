@@ -48,6 +48,7 @@ export interface ProviderAccountField {
   key: string;
   label: string;
   type: "text" | "password" | "select";
+  format?: "json";
   options?: readonly { label: string; value: string; hint?: string }[];
   optional?: boolean;
   placeholder?: string;

@@ -104,7 +104,10 @@ export class GoogleAuthDriver implements AuthDriver {
         label: "Import Google credential JSON",
         type: "oauth",
         kind: "credentials",
-        fields: [{ key: "credentials", label: "Credential JSON", type: "password" }, project],
+        fields: [
+          { key: "credentials", label: "Credential JSON", type: "password", format: "json" },
+          project,
+        ],
       },
     ];
   }

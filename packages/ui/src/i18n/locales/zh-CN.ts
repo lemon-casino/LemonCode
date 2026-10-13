@@ -2133,6 +2133,8 @@ const zhCN: Record<string, string> = {
   "settings.proxy.inUse": "已分配给供应商，请在模型设置中解除分配后再删除。",
   "settings.proxy.name": "代理名称",
   "settings.proxy.title": "代理",
+  "settings.proxy.display": "显示内容",
+  "settings.proxy.single": "单个 HTTP 代理",
   "settings.proxy.connection": "供应商代理",
   "settings.proxy.default": "使用默认代理",
   "settings.proxy.direct": "不使用代理",

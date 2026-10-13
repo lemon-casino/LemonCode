@@ -6,6 +6,7 @@ import { SettingsGroupCard, SettingsRow } from "@/settings/SettingsPageParts.js"
 import { ProxyAddressInput } from "./ProxyAddressInput.js";
 import { isNetworkProxyUrl } from "@lcode/shared";
 import { ProxyLibrary } from "./ProxyLibrary.js";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs.js";
 export function ProxySettingsSection({
   httpProxy = "",
   httpProxyNoProxy = "",
@@ -22,6 +23,7 @@ export function ProxySettingsSection({
   onHttpProxyCaCertPathChange: (value: string) => Promise<void>;
 }) {
   const { intl } = useLCodeIntl();
+  const [display, setDisplay] = useState<"list" | "single">("list");
   const [localHttpProxy, setLocalHttpProxy] = useState(httpProxy);
 
   useEffect(() => {
@@ -68,103 +70,119 @@ export function ProxySettingsSection({
   }, [normalizedHttpProxyCaCertPath, onHttpProxyCaCertPathChange]);
 
   return (
-    <div className="space-y-6">
-      <SettingsGroupCard>
-        <SettingsRow
-          label={intl.formatMessage({ id: "settings.httpProxy" })}
-          description={intl.formatMessage({ id: "settings.httpProxyDescription" })}
-          control={
-            <Button
-              type="button"
-              size="lg"
-              disabled={!isHttpProxyDirty}
-              onClick={() => void handleHttpProxySave()}
-            >
-              {intl.formatMessage({ id: "settings.dataBaseDirSave" })}
-            </Button>
-          }
-          detail={
-            <ProxyAddressInput
-              value={localHttpProxy}
-              onChange={setLocalHttpProxy}
-              onCommit={() => {
-                if (isHttpProxyDirty) void handleHttpProxySave();
-              }}
-            />
-          }
-        />
-        {/* No Proxy 与 HTTP 代理共同决定同一出口策略，必须贴在代理地址下面。*/}
-        <SettingsRow
-          label={intl.formatMessage({ id: "settings.httpProxyNoProxy" })}
-          description={intl.formatMessage({
-            id: "settings.httpProxyNoProxyDescription",
-          })}
-          control={
-            <Button
-              type="button"
-              size="lg"
-              disabled={!isHttpProxyNoProxyDirty}
-              onClick={() => void handleHttpProxyNoProxySave()}
-            >
-              {intl.formatMessage({ id: "settings.dataBaseDirSave" })}
-            </Button>
-          }
-          detail={
-            <Input
-              size="lg"
-              value={localHttpProxyNoProxy}
-              placeholder={intl.formatMessage({
-                id: "settings.httpProxyNoProxyPlaceholder",
-              })}
-              onChange={(event) => {
-                setLocalHttpProxyNoProxy(event.currentTarget.value);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && isHttpProxyNoProxyDirty) {
-                  void handleHttpProxyNoProxySave();
-                }
-              }}
-              className="max-w-[520px] font-mono"
-            />
-          }
-        />
-        {/* 自定义 CA 属于 HTTP 代理的同一网络出口策略，必须跟代理输入放在同一卡片里。*/}
-        <SettingsRow
-          label={intl.formatMessage({ id: "settings.httpProxyCaCertPath" })}
-          description={intl.formatMessage({
-            id: "settings.httpProxyCaCertPathDescription",
-          })}
-          control={
-            <Button
-              type="button"
-              size="lg"
-              disabled={!isHttpProxyCaCertPathDirty}
-              onClick={() => void handleHttpProxyCaCertPathSave()}
-            >
-              {intl.formatMessage({ id: "settings.dataBaseDirSave" })}
-            </Button>
-          }
-          detail={
-            <Input
-              size="lg"
-              value={localHttpProxyCaCertPath}
-              placeholder={intl.formatMessage({
-                id: "settings.httpProxyCaCertPathPlaceholder",
-              })}
-              onChange={(event) => {
-                setLocalHttpProxyCaCertPath(event.currentTarget.value);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" && isHttpProxyCaCertPathDirty) {
-                  void handleHttpProxyCaCertPathSave();
-                }
-              }}
-              className="max-w-[520px] font-mono"
-            />
-          }
-        />
-      </SettingsGroupCard>
-      <ProxyLibrary />
-    </div>
+    <Tabs value={display} onValueChange={(value) => setDisplay(value as "list" | "single")}>
+      {/* 切换只控制展示，保留草稿与列表检测的生命周期，不触发任何设置写入。 */}
+      <TabsList
+        className="max-w-full"
+        aria-label={intl.formatMessage({ id: "settings.proxy.display" })}
+      >
+        <TabsTrigger value="list">
+          {intl.formatMessage({ id: "settings.proxy.library" })}
+        </TabsTrigger>
+        <TabsTrigger value="single">
+          {intl.formatMessage({ id: "settings.proxy.single" })}
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="single" forceMount hidden={display !== "single"} className="pt-6">
+        <SettingsGroupCard>
+          <SettingsRow
+            label={intl.formatMessage({ id: "settings.httpProxy" })}
+            description={intl.formatMessage({ id: "settings.httpProxyDescription" })}
+            control={
+              <Button
+                type="button"
+                size="lg"
+                disabled={!isHttpProxyDirty}
+                onClick={() => void handleHttpProxySave()}
+              >
+                {intl.formatMessage({ id: "settings.dataBaseDirSave" })}
+              </Button>
+            }
+            detail={
+              <ProxyAddressInput
+                value={localHttpProxy}
+                onChange={setLocalHttpProxy}
+                onCommit={() => {
+                  if (isHttpProxyDirty) void handleHttpProxySave();
+                }}
+              />
+            }
+          />
+          {/* No Proxy 与 HTTP 代理共同决定同一出口策略，必须贴在代理地址下面。*/}
+          <SettingsRow
+            label={intl.formatMessage({ id: "settings.httpProxyNoProxy" })}
+            description={intl.formatMessage({
+              id: "settings.httpProxyNoProxyDescription",
+            })}
+            control={
+              <Button
+                type="button"
+                size="lg"
+                disabled={!isHttpProxyNoProxyDirty}
+                onClick={() => void handleHttpProxyNoProxySave()}
+              >
+                {intl.formatMessage({ id: "settings.dataBaseDirSave" })}
+              </Button>
+            }
+            detail={
+              <Input
+                size="lg"
+                value={localHttpProxyNoProxy}
+                placeholder={intl.formatMessage({
+                  id: "settings.httpProxyNoProxyPlaceholder",
+                })}
+                onChange={(event) => {
+                  setLocalHttpProxyNoProxy(event.currentTarget.value);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && isHttpProxyNoProxyDirty) {
+                    void handleHttpProxyNoProxySave();
+                  }
+                }}
+                className="max-w-[520px] font-mono"
+              />
+            }
+          />
+          {/* 自定义 CA 属于 HTTP 代理的同一网络出口策略，必须跟代理输入放在同一卡片里。*/}
+          <SettingsRow
+            label={intl.formatMessage({ id: "settings.httpProxyCaCertPath" })}
+            description={intl.formatMessage({
+              id: "settings.httpProxyCaCertPathDescription",
+            })}
+            control={
+              <Button
+                type="button"
+                size="lg"
+                disabled={!isHttpProxyCaCertPathDirty}
+                onClick={() => void handleHttpProxyCaCertPathSave()}
+              >
+                {intl.formatMessage({ id: "settings.dataBaseDirSave" })}
+              </Button>
+            }
+            detail={
+              <Input
+                size="lg"
+                value={localHttpProxyCaCertPath}
+                placeholder={intl.formatMessage({
+                  id: "settings.httpProxyCaCertPathPlaceholder",
+                })}
+                onChange={(event) => {
+                  setLocalHttpProxyCaCertPath(event.currentTarget.value);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && isHttpProxyCaCertPathDirty) {
+                    void handleHttpProxyCaCertPathSave();
+                  }
+                }}
+                className="max-w-[520px] font-mono"
+              />
+            }
+          />
+        </SettingsGroupCard>
+      </TabsContent>
+      <TabsContent value="list" forceMount hidden={display !== "list"} className="pt-6">
+        <ProxyLibrary />
+      </TabsContent>
+    </Tabs>
   );
 }

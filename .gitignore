@@ -283,3 +283,4 @@ nul
 !/packages/web/test/provider-proxy-settings.test.mjs
 !/packages/web/test/provider-accounts-navigation-cases.mjs
 !/packages/web/test/fixtures/provider-proxy-fixture.ts
+!/packages/web/test/provider-credential-json.test.mjs

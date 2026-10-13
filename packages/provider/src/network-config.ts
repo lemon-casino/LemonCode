@@ -6,6 +6,8 @@ export function resolveProviderNetworkConfig(
   network: ProviderConfigObject["network"],
   profiles: readonly ProxyProfile[] = [],
 ): Exclude<ProviderConfigObject["network"], { mode: "profile" }> {
+  // 未配置供应商代理时按产品默认直连，避免界面显示直连却继承全局代理。
+  if (!network) return { mode: "direct" };
   if (network?.mode !== "profile") return network;
   const profile = profiles.find((item) => item.id === network.profileId);
   if (!profile) throw new Error("Proxy profile does not exist");

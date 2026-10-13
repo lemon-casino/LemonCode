@@ -15,7 +15,14 @@ test("API and OAuth share provider network precedence without leaking global byp
     noProxy: ".default.invalid",
     caCertPath: "fixture.pem",
   };
-  assert.deepEqual(resolveProviderNetworkOptions(undefined, defaults), defaults);
+  assert.deepEqual(resolveProviderNetworkOptions(undefined, defaults), {
+    caCertPath: "fixture.pem",
+    forceDirect: true,
+  });
+  assert.deepEqual(resolveProviderNetworkOptions(null, defaults), {
+    caCertPath: "fixture.pem",
+    forceDirect: true,
+  });
   assert.deepEqual(resolveProviderNetworkOptions({ mode: "default" }, defaults), defaults);
   assert.deepEqual(resolveProviderNetworkOptions({ mode: "direct" }, defaults), {
     caCertPath: "fixture.pem",
