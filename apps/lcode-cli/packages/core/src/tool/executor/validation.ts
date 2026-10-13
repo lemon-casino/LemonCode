@@ -44,9 +44,9 @@ export function validateOutput(output: unknown, entry: ToolEntry): void {
   );
 }
 
-function validateRuntimeSchema(output: unknown, schema: unknown): true | string[] | undefined {
+function validateRuntimeSchema(value: unknown, schema: unknown): true | string[] | undefined {
   if (!isSafeParseSchema(schema)) return undefined;
-  const parsed = schema.safeParse(output);
+  const parsed = schema.safeParse(value);
   if (parsed.success) return true;
   return parsed.error.issues.map((issue) => issue.message);
 }
@@ -67,6 +67,13 @@ function isSafeParseSchema(schema: unknown): schema is {
 }
 
 export function validateInput(input: unknown, entry: ToolEntry): Error | undefined {
+  // 模型面 schema 不包含审批窗的 actor_model_overrides 等运行时事实；拿它复核审批修改会
+  // 拒绝已批准的模型配置。初始模型输入仍独立校验模型面，执行态改用工具声明的运行时 schema。
+  const runtimeSchemaValidation = validateRuntimeSchema(input, entry.runtimeInputSchema);
+  if (runtimeSchemaValidation === true) return undefined;
+  if (Array.isArray(runtimeSchemaValidation)) {
+    return createInputValidationError(entry, runtimeSchemaValidation);
+  }
   const validation = validateJsonSchemaValue(input, entry.inputSchema);
   if (validation.valid) return undefined;
 

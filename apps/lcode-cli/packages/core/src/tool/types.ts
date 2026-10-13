@@ -322,8 +322,8 @@ export interface ToolEntry extends ToolContractDeclaration {
    *   2. 跨版本可见——入参通道对每个客户端版本都是无 schema 的透传，而 display 通道不是；
    *   3. 确认与执行同字节——只解析一次，那份字节一路带到 handler，不存在批准 A 跑 B。
    *
-   * 因此返回值必须仍然满足 `inputSchema` / `runtimeInputSchema`（hook 改写后 executor 会
-   * 再校验一次）。解析失败回 {@link ToolHandlerFailure}，executor 在 hook 之前收口——那是
+   * 因此返回值必须满足 `runtimeInputSchema`（缺席时回退 `inputSchema`）；hook / 审批改写后
+   * executor 会再校验一次。解析失败回 {@link ToolHandlerFailure}，executor 在 hook 之前收口——那是
    * 业务失败，不是基础设施故障，不该先打断用户一次确认。
    */
   resolveInput?: (
@@ -358,6 +358,7 @@ export interface ToolEntry extends ToolContractDeclaration {
    */
   prepareApproval?: (input: unknown) => ToolApprovalGate;
   inputSchema: JsonSchema;
+  /** 执行态校验（含解析 / Hook / 审批事实）；模型初始参数仍只按 inputSchema 校验。 */
   runtimeInputSchema?: unknown;
   runtimeOutputSchema?: unknown;
   timeout: ToolTimeoutPolicy;
