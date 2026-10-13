@@ -30,6 +30,8 @@ type EstablishedStreamingAppendHost = Pick<
   | "streamingReasoningRowId"
   | "toolRowIdByCallId"
   | "fileToolInputPreviewByCallId"
+  | "productTurnIdByRuntimeTurnId"
+  | "currentTurnId"
 >;
 
 type ModelStreamingHost = Pick<
@@ -100,7 +102,10 @@ export function establishedStreamingAppend(
   if (event.type !== SessionEventType.ModelStreaming || !isRunning(host)) return null;
   const payload = event.payload as ModelStreamingPayload;
   if (payload.kind === "text_delta" && host.streamingTextRowId !== null) return payload.delta;
-  if (payload.kind === "reasoning_delta" && host.streamingReasoningRowId !== null) {
+  if (
+    payload.kind === "reasoning_delta" &&
+    isCurrentReasoningAppend(host, event, payload.assistantMessageId)
+  ) {
     return payload.delta;
   }
   if (
@@ -166,7 +171,10 @@ export function onModelStreaming(
     case "reasoning_start":
       return openReasoningRow(host, event, fact);
     case "reasoning_delta": {
-      const open = host.streamingReasoningRowId === null ? openReasoningRow(host, event, fact) : [];
+      // 缺 start 的兼容流也可能切换回复或在正文/工具后继续思考；旧索引会把
+      // 新 delta 写回先前的行，导致内容越过真实边界。只向当前末行追加。
+      const current = isCurrentReasoningAppend(host, event, payload.assistantResponseId);
+      const open = current ? [] : openReasoningRow(host, event, fact);
       return [
         ...open,
         {
@@ -288,14 +296,48 @@ export function onAssistantFeedbackUpdated(
   return [{ op: "row.upserted", row: { ...row, feedback: payload.feedback } }];
 }
 
+function isCurrentReasoningAppend(
+  host: Pick<
+    ProductProjectionState,
+    "snapshot" | "streamingReasoningRowId" | "productTurnIdByRuntimeTurnId" | "currentTurnId"
+  >,
+  event: SessionEvent,
+  responseId?: string,
+): boolean {
+  const tail = host.snapshot.rows.window.at(-1);
+  return (
+    tail?.kind === "reasoning" &&
+    tail.rowId === host.streamingReasoningRowId &&
+    tail.turnId === turnIdOf(host, event) &&
+    (!responseId || tail.assistantResponseId === responseId)
+  );
+}
+
 function openReasoningRow(
   host: OpenReasoningRowHost,
   event: SessionEvent,
   fact: CanonicalAssistantSegmentFact,
 ): ConversationDelta[] {
+  const tail = host.snapshot.rows.window.at(-1);
+  const turnId = turnIdOf(host, event);
+  const responseId = fact.stream.assistantResponseId;
+  if (
+    tail?.kind === "reasoning" &&
+    tail.state !== "interrupted" &&
+    tail.turnId === turnId &&
+    responseId &&
+    tail.assistantResponseId === responseId
+  ) {
+    // 供应商会把连续思考拆成词级 start/delta/end；旧投影每个 block 新建一行，
+    // 历史恢复也会重复标题。复用同回复的紧邻行，原始块及签名仍由 runtime 保存。
+    host.streamingReasoningRowId = tail.rowId;
+    return tail.state === "streaming"
+      ? []
+      : [{ op: "row.upserted", row: { ...tail, state: "streaming" } }];
+  }
   const close = closeReasoningRow(host);
   const row: ReasoningRow = {
-    ...rowBase(host, event, turnIdOf(host, event), fact.entityId),
+    ...rowBase(host, event, turnId, fact.entityId),
     kind: "reasoning",
     // Bug 原因：canonical stream 已携带 assistant response 身份，但旧投影只在正文与工具行
     // 保存它，UI 因而无法把同 response 的 reasoning 确定性归入 CUA Group。
