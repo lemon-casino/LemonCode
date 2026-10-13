@@ -59,6 +59,8 @@ export async function readWorkflowScriptFile(options: {
   cwd: string;
   inputPath: string;
   parseFrontmatter?: boolean;
+  /** 仅用于读取失败的修正指引；片段使用 code，其余调用保持原 script 文案。 */
+  inlineSource?: "code" | "script";
 }): Promise<WorkflowScriptFileResult> {
   const absolute = resolveWorkflowScriptFilePath(options.cwd, options.inputPath);
   const described = describeWorkflowScriptPath(absolute, options.cwd);
@@ -67,9 +69,14 @@ export async function readWorkflowScriptFile(options: {
   try {
     source = await readFile(absolute, "utf8");
   } catch (error) {
+    // 共用读取器不能教 snippet 使用不存在的 script 参数，也不能让模型保留冲突的 path。
+    const inlineGuidance =
+      options.inlineSource === "code"
+        ? "omit `path` and pass `code` inline"
+        : "submit the script inline";
     return {
       ok: false,
-      message: `The workflow script file ${described} could not be read: ${describeError(error)}. Pass \`path\` for a file that exists, or submit the script inline.`,
+      message: `The workflow script file ${described} could not be read: ${describeError(error)}. Pass \`path\` for a file that exists, or ${inlineGuidance}.`,
     };
   }
 

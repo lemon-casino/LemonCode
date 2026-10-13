@@ -9,15 +9,22 @@ const PROMPT_FACADE_DTS = compactWorkflowFacadeForDescription(SNIPPET_FACADE_DTS
 
 const INTRO = [
   "Compile and run a small dynamic-workflow TypeScript snippet synchronously, against the same compiler, sandbox, and world-read execution path a real workflow run uses.",
-  "This is the test bench for workflow authoring: verify a parse function against real command output shapes, check what a glob/grep actually returns (workspace-relative sorted paths, cap rejections), or exercise gating logic on real repository state — before composing the full workflow and submitting it with CreateWorkflow.",
+  "Optional authoring test bench: verify parsers, filters, glob/grep shapes or gate logic when a focused test is useful. It is not a required step before CreateWorkflow. For /lemon, skip this tool and submit directly with CreateWorkflow.",
   "Execution is fully ephemeral: nothing is persisted, no background task is created, and the result comes back in this tool call.",
 ].join(" ");
 
 const WHEN_TO_USE = [
   "When to use:",
-  "- Before authoring or revising a CreateWorkflow script: test the fixed logic (parsers, filters, glob patterns, gate predicates) piece by piece. A passing snippet pastes into the workflow verbatim.",
+  "- To test a specific uncertain parser, filter, glob or gate while authoring or revising a workflow. A passing snippet pastes into the workflow verbatim.",
   "- To observe real facade semantics (paths are workspace-relative and lexicographically sorted; over-cap reads reject instead of truncating) instead of guessing them.",
   "- NOT for orchestration: there is no agent()/ask() here — that is what a real workflow run is for.",
+].join("\n");
+
+const SOURCE_RULES = [
+  'Call with exactly one source: inline {"code":"return 1;"} OR file {"path":"snippet.ts"}. These are shape examples; preserve your actual snippet.',
+  "The unused field must be absent, not null, empty, a directory or a placeholder. timeoutMs is optional.",
+  "After a source conflict, REMOVE `path` for inline code or REMOVE `code` for a file; preserve the original snippet and valid timeout. Check the actual next request, not a claim that you fixed it. Changing a path while keeping both fields does not repair the conflict.",
+  "If the displayed signature requires both source fields, report the contract mismatch instead of repeatedly filling placeholders. A request to understand or investigate a workflow does not authorize creating a new run.",
 ].join("\n");
 
 const RULES = [
@@ -34,6 +41,8 @@ const RULES = [
 
 export const EVAL_WORKFLOW_SNIPPET_TOOL_DESCRIPTION = [
   INTRO,
+  "",
+  SOURCE_RULES,
   "",
   WHEN_TO_USE,
   "",

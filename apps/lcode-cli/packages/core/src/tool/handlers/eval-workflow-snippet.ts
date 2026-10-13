@@ -12,7 +12,8 @@
 
 import {
   EVAL_WORKFLOW_SNIPPET_DEFAULT_TIMEOUT_MS,
-  EVAL_WORKFLOW_SNIPPET_SOURCE_ERROR,
+  EVAL_WORKFLOW_SNIPPET_SOURCE_CONFLICT_ERROR,
+  EVAL_WORKFLOW_SNIPPET_SOURCE_MISSING_ERROR,
   EVAL_WORKFLOW_SNIPPET_TOOL_NAME,
   EvalWorkflowSnippetInputJsonSchema,
   EvalWorkflowSnippetInputSchema,
@@ -50,7 +51,8 @@ import { describeWorkflowScriptPath } from "./workflow-script-path.js";
 const EVAL_WORKFLOW_SNIPPET_TOOL_TIMEOUT_MS = 660_000;
 const EVAL_WORKFLOW_SNIPPET_MODEL_BYTES = 24_000;
 
-const NOT_EXECUTED_NOTE = "NOTE: The snippet was NOT executed — fix the errors above and call the tool again.";
+const NOT_EXECUTED_NOTE =
+  "NOTE: The snippet was NOT executed — fix the errors above and call the tool again.";
 const UNAVAILABLE_NOTE =
   "NOTE: The snippet was NOT executed — snippet evaluation is not available in this session.";
 
@@ -69,7 +71,11 @@ function validateEvalWorkflowSnippetInput(input: unknown): ToolInputValidationRe
     return {
       result: false,
       errorCode: EVAL_WORKFLOW_SNIPPET_FAILURE_CODE,
-      message: EVAL_WORKFLOW_SNIPPET_SOURCE_ERROR,
+      // 原反馈把冲突和缺失混为一句话，模型反复换假路径却保留两字段；明确指向字段修正。
+      message: hasCode
+        ? EVAL_WORKFLOW_SNIPPET_SOURCE_CONFLICT_ERROR
+        : EVAL_WORKFLOW_SNIPPET_SOURCE_MISSING_ERROR,
+      sourceInputError: { reason: hasCode ? "conflict" : "missing", fields: ["code", "path"] },
     };
   }
   return { result: true };
@@ -89,9 +95,14 @@ async function resolveEvalWorkflowSnippetInput(
     cwd,
     inputPath: parsed.data.path,
     parseFrontmatter: false,
+    inlineSource: "code",
   });
   if (!read.ok) {
-    return { result: false, errorCode: EVAL_WORKFLOW_SNIPPET_FAILURE_CODE, message: read.message };
+    return {
+      result: false,
+      errorCode: EVAL_WORKFLOW_SNIPPET_FAILURE_CODE,
+      message: `The snippet was not executed. ${read.message}`,
+    };
   }
   return {
     result: true,

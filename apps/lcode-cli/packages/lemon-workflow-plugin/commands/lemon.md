@@ -30,6 +30,7 @@ skills: lemon-workflow:dynamic-workflows, lemon-workflow:ponytail, lemon-workflo
 执行约束：
 
 - 不要调用 `EvalWorkflowSnippet`。它只是可选的作者预检工具，不是运行 workflow 的步骤；本命令直接提交 workflow。
+- 通用技能和工具描述中的可选 snippet 测试不覆盖本命令的直接提交约束。仅理解或调查现有工作流的请求不创建新 run。
 - 第一次创建并提交新 workflow 时只调用一次 `CreateWorkflow`，只传入 `script` 字段中的完整 TypeScript 脚本；不要同时传 `path`、`saved` 或其他 snippet 来源字段。不要为本命令创建临时 snippet 文件。
 - 如果 `CreateWorkflow` 返回脚本诊断，编辑结果中命名的草稿文件，再用 `CreateWorkflow(path=...)` 提交；不要再次内联整份脚本，不要改用 `EvalWorkflowSnippet`，也不要重复提交同一个无效调用。
 - 恢复分支只使用现有 run 的 `run_id` 调用 `ResumeWorkflowRun`。不得为“恢复”重新生成脚本或创建新的 run。

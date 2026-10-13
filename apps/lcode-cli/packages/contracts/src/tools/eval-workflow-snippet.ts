@@ -19,6 +19,17 @@ export const EVAL_WORKFLOW_SNIPPET_MIN_TIMEOUT_MS = 1_000;
 export const EVAL_WORKFLOW_SNIPPET_SOURCE_ERROR =
   "Provide exactly one snippet source: `code` for the snippet inline, or `path` for a file holding it. Passing both, or neither, is ambiguous.";
 
+// 来源错误必须指导模型修改实际字段；共享 schema 还要接受文件解析后的 code + path 执行态。
+export const EVAL_WORKFLOW_SNIPPET_SOURCE_CONFLICT_ERROR =
+  "The snippet was not executed. Both `code` and `path` were provided; choose exactly one source. " +
+  "For inline code, REMOVE `path` entirely; for a file source, REMOVE `code`. " +
+  "Preserve the original snippet and valid timeout. Do not use null, an empty string, a directory or a placeholder path.";
+
+export const EVAL_WORKFLOW_SNIPPET_SOURCE_MISSING_ERROR =
+  "The snippet was not executed. Neither `code` nor `path` was provided. " +
+  "Provide `code` for the inline snippet OR `path` for an existing snippet file, never both. " +
+  "Omit the unused field entirely; do not use null, an empty string or a placeholder path.";
+
 export const EvalWorkflowSnippetInputSchema = z
   .object({
     code: z
@@ -28,7 +39,7 @@ export const EvalWorkflowSnippetInputSchema = z
       .describe(
         "TypeScript snippet written against the snippet facade (files.*, git.*, log, " +
           "plain interface declarations, top-level await and return). No agent()/report(). " +
-          "Provide this OR `path`, never both.",
+          "Provide this OR `path`, never both. For inline code omit the `path` field entirely; do not fill it with null or a placeholder.",
       ),
     /**
      * 片段的第二条来源。**整个文件就是代码**：
@@ -39,7 +50,7 @@ export const EvalWorkflowSnippetInputSchema = z
       .min(1)
       .optional()
       .describe(
-        "A file holding the snippet, relative to the working directory or absolute. Provide this OR `code`, never both. The whole file is the snippet; it is read as-is, with no metadata block handling.",
+        "An existing file holding the snippet, relative to the working directory or absolute. Provide this OR `code`, never both; omit the unused field entirely. The whole file is the snippet, with no metadata block handling.",
       ),
     timeoutMs: z
       .number()
@@ -53,7 +64,11 @@ export const EvalWorkflowSnippetInputSchema = z
 
 export type EvalWorkflowSnippetInput = z.infer<typeof EvalWorkflowSnippetInputSchema>;
 
-export const EvalWorkflowSnippetInputJsonSchema = toToolJsonSchema(EvalWorkflowSnippetInputSchema);
+export const EvalWorkflowSnippetInputJsonSchema: ReturnType<typeof toToolJsonSchema> = {
+  ...toToolJsonSchema(EvalWorkflowSnippetInputSchema),
+  // 显式表达三个字段都可选，便于核对签名生成层；不把 XOR 加到允许 code + path 的执行态。
+  required: [],
+};
 
 // logs 的界（协议边界上的所有载荷有界）：条数 × 单条长度，超出在 service 侧截断并标注。
 export const EVAL_WORKFLOW_SNIPPET_MAX_LOGS = 100;

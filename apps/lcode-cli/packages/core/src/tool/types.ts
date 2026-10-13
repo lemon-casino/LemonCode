@@ -233,6 +233,11 @@ export interface ToolHandlerFailure {
   result: false;
   errorCode: number;
   message: string;
+  /** 工具专属初始来源判定；只用于内部 debug，不能对归一化执行态再运行二选一。 */
+  sourceInputError?: {
+    reason: "conflict" | "missing";
+    fields: readonly string[];
+  };
 }
 
 export interface ToolInputValidationContext {

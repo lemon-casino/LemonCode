@@ -369,10 +369,10 @@ const verified = e2e.exitCode === 0;
 A check that exists in the repository and did not run is not "not covered"; it is
 unverified work (§10).
 
-## 6. Test the pieces before you commit
+## 6. Optional tests while authoring
 
-A workflow script is final at submit. The fixed logic inside it does not have to be: run it
-through the `EvalWorkflowSnippet` tool first, which compiles and executes a snippet against
+A workflow script is final at submit. When a specific parser, filter or gate needs a focused
+test, use the optional `EvalWorkflowSnippet` tool, which compiles and executes a snippet against
 the same compiler, sandbox and world-read path a real run uses, synchronously and without
 persisting anything. What passed there pastes into the workflow verbatim. Send the snippet
 as `code`, or as `path` to a file holding it when you have already written it out — the
@@ -385,6 +385,15 @@ only when testing fixed parser, glob, gate, or command-output logic is valuable.
 a required step before `CreateWorkflow`. When a caller explicitly asks for `/lemon`, skip
 `EvalWorkflowSnippet` and submit the workflow directly with one `CreateWorkflow` call whose
 only workflow source is `script`.
+
+**Repair the actual request:** after a source conflict, remove `path` entirely for inline code
+or remove `code` for a file source. Preserve the original snippet and valid timeout. Never
+replace the unused field with null, an empty string, a directory or a made-up path. Changing
+the path while retaining both fields repeats the same error. Confirm the next request's fields;
+claiming that only code was sent is not evidence. If the displayed signature requires both
+sources but execution rejects them together, report the contract mismatch instead of filling
+placeholders. A source rejection did not execute the snippet; execution failures may have effects.
+Merely understanding or investigating a workflow does not authorize creating a new run.
 
 Snippet work is exactly the non-subagent part: what a glob really returns (workspace-relative,
 sorted), whether a grep pattern overruns its cap, how `world.run("lean", ...)`'s stderr

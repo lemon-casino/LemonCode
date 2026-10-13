@@ -6,6 +6,63 @@ import { autoRequest } from "./copilot-auto-request.js";
 import type { AuthWireProtocol } from "../driver.js";
 import { list, record } from "./common.js";
 
+const optionalSourceSchema = {
+  type: "object",
+  required: [],
+  properties: {
+    code: { type: "string", minLength: 1 },
+    path: { type: "string", minLength: 1 },
+    timeoutMs: { type: "integer", minimum: 1000, maximum: 600000 },
+  },
+  additionalProperties: false,
+};
+
+test("optional snippet source fields remain optional in actual request builders", () => {
+  const original = structuredClone(optionalSourceSchema);
+  for (const channel of ["codex", "chatgpt-api"] as const) {
+    const output = prepareResponses(
+      {
+        input: "fixture",
+        tools: [
+          { type: "function", name: "EvalWorkflowSnippet", parameters: optionalSourceSchema },
+        ],
+      },
+      channel,
+    );
+    const tool = record(list(output.tools)[0]);
+    assert.deepEqual(record(tool.parameters), optionalSourceSchema);
+    assert.equal(tool.strict, undefined);
+  }
+  for (const protocol of [
+    "anthropic-messages",
+    "openai-chat-completions",
+    "openai-responses",
+  ] as const) {
+    const output = autoRequest(
+      {
+        messages: [],
+        tools: [
+          {
+            type: "function",
+            function: { name: "EvalWorkflowSnippet", parameters: optionalSourceSchema },
+          },
+        ],
+      },
+      "fixture-model",
+      protocol,
+    );
+    const emitted = record(list(output.body.tools)[0]);
+    const params =
+      protocol === "anthropic-messages"
+        ? emitted.input_schema
+        : protocol === "openai-chat-completions"
+          ? record(emitted.function).parameters
+          : emitted.parameters;
+    assert.deepEqual(params, optionalSourceSchema);
+  }
+  assert.deepEqual(optionalSourceSchema, original);
+});
+
 const schema = {
   $defs: {
     first: {

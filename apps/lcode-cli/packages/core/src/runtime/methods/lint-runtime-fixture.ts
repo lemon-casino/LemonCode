@@ -2,7 +2,7 @@ import type { Model, ModelStreamEvent, SessionEvent, SessionId, TraceContext } f
 import { createSessionId } from "../deps.js";
 import { AgentRuntime } from "../agent-runtime.js";
 import type { AgentRuntimeInternal } from "../internal.js";
-import type { AgentRuntimeConfig } from "../types.js";
+import type { AgentRuntimeConfig, AgentRuntimeDeps } from "../types.js";
 
 export function createMockRuntime(
   config: AgentRuntimeConfig = {},
@@ -13,6 +13,7 @@ export function createMockRuntime(
     yield { type: "finish", finishReason: "stop", usage: { inputTokens: 10, outputTokens: 2 } };
   },
   sessionId: SessionId = createSessionId(),
+  dependencies: Partial<AgentRuntimeDeps> = {},
 ): { runtime: AgentRuntimeInternal; model: Model; storedEvents: SessionEvent[] } {
   const storedEvents: SessionEvent[] = [];
   const model = {
@@ -59,6 +60,7 @@ export function createMockRuntime(
         },
         getEvents: async () => storedEvents,
       } as never,
+      ...dependencies,
     },
   ) as unknown as AgentRuntimeInternal;
   runtime.ensureContextInitialized = async function (_trace: TraceContext, _model?: Model) {

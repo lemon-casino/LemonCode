@@ -34,3 +34,11 @@ test("workflow tool descriptions stay within their prompt budgets", () => {
   assert.ok(SAVE_WORKFLOW_TOOL_DESCRIPTION.length <= 8_000);
   assert.ok(EVAL_WORKFLOW_SNIPPET_TOOL_DESCRIPTION.length <= 6_000);
 });
+
+test("snippet authoring is optional and keeps command-specific direct submission", () => {
+  assert.match(EVAL_WORKFLOW_SNIPPET_TOOL_DESCRIPTION, /Optional authoring test bench/);
+  assert.match(EVAL_WORKFLOW_SNIPPET_TOOL_DESCRIPTION, /\/lemon.*CreateWorkflow/);
+  assert.match(EVAL_WORKFLOW_SNIPPET_TOOL_DESCRIPTION, /REMOVE.*path/);
+  assert.match(EVAL_WORKFLOW_SNIPPET_TOOL_DESCRIPTION, /preserve.*snippet.*timeout/i);
+  assert.match(EVAL_WORKFLOW_SNIPPET_TOOL_DESCRIPTION, /signature.*requires.*both/i);
+});

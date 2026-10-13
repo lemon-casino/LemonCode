@@ -32,6 +32,7 @@ import {
   errorCategoryForToolError,
 } from "./call-result-policy.js";
 import { executeAdmittedToolHandler } from "./call-handler-execution.js";
+import { sourceInputDiagnostic } from "../source-input-diagnostic.js";
 
 export async function executeToolCall(
   deps: ToolExecutorDeps,
@@ -164,6 +165,17 @@ async function executeToolCallImpl(
     runtimeTaskRegistry: deps.runtimeTaskRegistry,
   });
   if (toolInputValidation && isToolHandlerFailure(toolInputValidation)) {
+    if (toolInputValidation.sourceInputError) {
+      deps.logger?.debug("Tool source input rejected before execution", {
+        ...traceContextToLogContext(traceContext),
+        event: "tool.input.source_rejected",
+        module: "core.tool.executor",
+        schemaStage: "executor.initial",
+        toolCallId: canonicalToolCall.id,
+        toolName: canonicalToolCall.name,
+        ...sourceInputDiagnostic(entry, toolInputValidation.sourceInputError),
+      });
+    }
     // tool-specific 语义校验原先只能放在 handler，导致无效调用仍先执行
     // PreToolUse、权限和 failure hook；语义校验必须在 hook 前结束。
     const result = createErrorResult(

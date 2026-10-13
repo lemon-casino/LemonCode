@@ -65,6 +65,17 @@ test("lemon command starts or resumes without the broken snippet preflight", asy
   assert.doesNotMatch(command, /\u62a5\u544a\u4e3a `resumable`/u);
 });
 
+test("built-in authoring guidance makes snippet testing optional and repairs actual fields", async () => {
+  const skill = await readRepoFile(
+    "apps/lcode-cli/packages/lemon-workflow-plugin/skills/dynamic-workflows/SKILL.md",
+  );
+  assert.match(skill, /optional `EvalWorkflowSnippet` tool/);
+  assert.match(skill, /remove `path` entirely/);
+  assert.match(skill, /Preserve the original snippet and valid timeout/);
+  assert.match(skill, /displayed signature requires both/);
+  assert.doesNotMatch(skill, /through the `EvalWorkflowSnippet` tool first/);
+});
+
 test("lemon loads qualified skills and selects a review scope with actual changes", async () => {
   const source = await readRepoFile(
     "apps/lcode-cli/packages/lemon-workflow-plugin/commands/lemon.md",

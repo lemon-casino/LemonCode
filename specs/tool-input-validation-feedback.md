@@ -1,5 +1,14 @@
 # 工具参数校验反馈
 
+## 工作流片段来源修正（2026-10-13）
+
+- `EvalWorkflowSnippet` 的来源冲突与缺失在初始来源校验处分别拒绝，明确片段未执行。冲突指引要求根据实际来源删除 `code` 或 `path`，保留原片段与有效 timeout；不能用 null、空值、目录或假路径占位。
+- 模型侧 JSON Schema 显式包含 `required: []`，通过 registry、adapter 与现有请求构造器保持三个字段的可选性。其意义是明确表达，不把外部签名必填问题写成已修复；来源互斥仍由初始语义校验保证。
+- 文件来源解析之后的 `code + path` 是合法执行事实，继续复用 Hook、审批与 handler 的运行时校验。来源判定不得在执行态重复运行。
+- executor 复用既有 `ToolCallError`、配对结果和模型同会话修正路径；保留 `400` 错误码。可选内部 `sourceInputError` 仅支持安全 debug 诊断，不改变共享协议、历史或副作用 admission。
+- debug 摘要从有效工具 schema 生成来源类型、required 与结构 fingerprint，不读取参数值。修正不自动重放当前工具或已成功 sibling；桌面 continuous 与手机 replayable 使用同一错误事实。
+- 详细所有者、顺序及验收见 [工作流片段契约与恢复方案](workflow-snippet-contract-and-recovery.md)。新增测试必须证明副作用前拒绝、合法文件执行态通过、反馈闭合一次及修正后执行一次。
+
 ## 规则与已确认原因
 
 `sess_6a7db596-f1f7-4555-9f2a-baf6506fcafe` 的工作流子代理 `submit_result` 曾漏传 schema 必填字段或多传 `positioning_note`；原校验正确拒绝，模型随后修正且所有对应提交均成功。不能删除必填项、剥离额外字段或伪造缺失结果来消除失败记录，也不能保证非严格解码模型永远不犯参数错误。

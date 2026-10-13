@@ -20,6 +20,12 @@ import {
 import { ConversationTopicPublisher } from "./conversation-topic-publisher.js";
 import { synthesizeEventsFromMessages } from "./transcript-hydration.js";
 import type { TopicFrameReservation } from "./topic-frame-reservation.js";
+import {
+  builtInTools,
+  createToolExecutor,
+  createToolRegistry,
+  PermissionService,
+} from "@lcode/core";
 
 const run = {
   runId: "run-current",
@@ -221,3 +227,113 @@ test("历史工具 metadata 经 transcript 冷恢复后快照合法，行和输�
   publisher.rehydrate(synthesizeEventsFromMessages(messages, { sessionId: "session-1" }));
   assertDisplay(publisher.getSnapshot());
 });
+
+for (const profile of ["continuous", "replayable"] as const) {
+  test(`${profile} rejected snippet survives live, snapshot recovery and cold transcript`, async () => {
+    const registry = createToolRegistry();
+    registry.register(builtInTools.find((entry) => entry.metadata.name === "EvalWorkflowSnippet")!);
+    const facts: SessionEvent[] = [];
+    let executions = 0;
+    const executor = createToolExecutor({
+      registry,
+      permissionService: new PermissionService(),
+      sessionId: "session-1" as SessionEvent["sessionId"],
+      mode: "yolo",
+      emitEvent: async (fact) => {
+        facts.push(fact);
+      },
+      dynamicWorkflowSnippetPort: {
+        evalSnippet: async () => {
+          executions++;
+          return { kind: "completed", logs: [], logsTruncated: false };
+        },
+      },
+    });
+    const input = { code: 'return "fixture";', path: "/" };
+    const result = await executor.execute({
+      id: "snippet-rejected",
+      name: "EvalWorkflowSnippet",
+      input,
+    });
+    assert.equal(result.success, false);
+    assert.equal(executions, 0);
+    assert.equal(facts.length, 1);
+    const publisher = new ConversationTopicPublisher("session-1", "snippet-epoch");
+    const subscription = publisher.subscribeReserved({
+      connectionId: "connection-1",
+      deliveryProfile: profile,
+    });
+    const initial = transmit(subscription.reservation!, false);
+    assert.ok(initial.payload.kind === "snapshot");
+    publisher.ingest(
+      event(1, SessionEventType.TurnStarted, {
+        turnNumber: 1,
+        input: "fixture snippet",
+        messageId: "user-snippet",
+      }),
+    );
+    publisher.ingest(
+      event(2, SessionEventType.ToolCallScheduled, {
+        toolCallId: "snippet-rejected",
+        toolName: "EvalWorkflowSnippet",
+        input,
+        schedule: { executionOrder: ["snippet-rejected"], parallelGroups: [["snippet-rejected"]] },
+      }),
+    );
+    publisher.ingest(event(3, facts[0]!.type, facts[0]!.payload));
+    const assertRejected = (snapshot: ConversationSnapshot) => {
+      conversationSnapshotSchema.parse(snapshot);
+      const row = snapshot.rows.window.find((item) => item.kind === "toolCall");
+      assert.ok(row?.kind === "toolCall");
+      assert.equal(row.status, "error");
+      assert.match(row.error!.message, /Both `code` and `path`/);
+      assert.match(row.error!.message, /not executed/i);
+      assert.equal(row.display, undefined);
+      assert.equal(executions, 0);
+    };
+    const online = transmit(publisher.reserveFlush(subscription.ack.subscriptionId)!, false);
+    assert.ok(online.payload.kind === "deltas");
+    assertRejected(applyConversationDeltas(initial.payload.snapshot, online.payload.deltas));
+    const recovery = publisher.resyncReserved(subscription.ack.subscriptionId, {
+      base: null,
+      forceSnapshot: true,
+    })!;
+    const restored = transmit(recovery.reservation!, false);
+    assert.ok(restored.payload.kind === "snapshot");
+    assertRejected(restored.payload.snapshot);
+    const cold = new ConversationTopicPublisher("session-1", "snippet-cold");
+    cold.rehydrate(
+      synthesizeEventsFromMessages(
+        [
+          {
+            info: { id: "user-snippet", role: "user", time: { created: 1 } },
+            parts: [{ id: "user-part", type: "text", text: "fixture snippet" }],
+          },
+          {
+            info: {
+              id: "assistant-snippet",
+              role: "assistant",
+              time: { created: 2, completed: 3 },
+            },
+            parts: [
+              {
+                id: "snippet-part",
+                type: "tool",
+                tool: "EvalWorkflowSnippet",
+                callID: "snippet-rejected",
+                state: {
+                  status: "error",
+                  input,
+                  error: result.error!.message,
+                  time: { start: 2, end: 3 },
+                },
+              },
+            ],
+          },
+        ] as MessageWithParts[],
+        { sessionId: "session-1" },
+      ),
+    );
+    assertRejected(cold.getSnapshot());
+  });
+}

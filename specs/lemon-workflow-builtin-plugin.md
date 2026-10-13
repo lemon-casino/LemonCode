@@ -28,6 +28,9 @@ LCode 的源码构建、桌面安装包、CLI SEA 和远端 Agent 资源必须�
 7. `CreateWorkflow` 返回编译诊断时，按诊断编辑结果中命名的草稿，再以 `path` 重新调用
    `CreateWorkflow`。不得把整份脚本再次内联、重复提交同一个无效调用或退回
    `EvalWorkflowSnippet`。
+   通用 `dynamic-workflows` 技能与 snippet 工具说明必须将片段测试标为可选，并遵守
+   `/lemon` 的直接提交约束。只要求理解或调查工作流的请求不自动创建 run。可选片段
+   的来源错误必须先修正实际 JSON 字段，不轮换假路径，不把“已修正”的自述当作请求证据。
 8. Ponytail 与 Caveman 保持各自上游 MIT 许可和署名；项目对 `/lemon` 与
    `dynamic-workflows` 的本地编排修改单独维护。
 9. `/lemon` 是命令而非名为 `lemon` 的技能。命令只请求插件实际提供的
