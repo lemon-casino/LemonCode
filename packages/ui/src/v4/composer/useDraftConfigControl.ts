@@ -6,7 +6,7 @@ import { applyComposerPermissionGrant } from "@/v4/composer/composerPermissionGr
 // Workspace presentation 水合只提供 mode 与 slash commands；模型候选、能力和首选值
 // 统一来自目标 Host ModelSelectionView。
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LCODE_AGENT_PROVIDER, resolveExecutionState } from "@lcode/shared";
+import { LCODE_AGENT_PROVIDER, resolveExecutionState, resolveSessionDefaults } from "@lcode/shared";
 import { applyComposerPlanTransition } from "@/v4/composer/composerPlanTransition.js";
 import type {
   LCodeConfigOption,
@@ -42,6 +42,7 @@ import { resolveAppFollowupMode } from "@/v4/composer/followupModeSettings.js";
 import { logger } from "@/logger.js";
 import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import { updateDraftModelSelectionOption } from "@/v4/composer/draftModelSelection.js";
+import { readComposerRecent } from "@/lib/composerRecent.js";
 
 /** 目录水合单飞（per workspaceKey）：draft、已有 session 和严格模式双挂载共享一次 RPC。 */
 const workspaceCatalogHydrationFlights = new Map<string, Promise<void>>();
@@ -138,6 +139,10 @@ export function useDraftConfigControl(params: {
   const displayProvider = provider ?? LCODE_AGENT_PROVIDER;
   const lcodeSessionService = useLCodeSessionService(workspacePath, null, workspaceIdentity);
   const { settings: sharedSettings } = useSettings();
+  const sessionDefaults = resolveSessionDefaults(sharedSettings ?? {}, {
+    workspacePath,
+    workspaceIdentity,
+  });
   const appFollowupMode = resolveAppFollowupMode(sharedSettings);
   const scopeId = sessionId ?? V4_DRAFT_SCOPE_ROOT;
   const scopeKey = JSON.stringify([workspaceKey, scopeId]);
@@ -171,14 +176,29 @@ export function useDraftConfigControl(params: {
   const modelSelectionView =
     modelSelectionRead.state.status === "ready" ? modelSelectionRead.state.view : null;
   const initializeAsNewTask = sessionId === null || draft.initializeFromNewTask === true;
-  if (!draft.mode && (initializeAsNewTask ? modelCatalogView !== null : sessionConfig != null)) {
+  const recentModelSelection = useMemo(
+    () => readComposerRecent(workspacePath, workspaceIdentity)?.modelSelection ?? null,
+    [scopeKey, modelCatalogView?.revision, sessionDefaults.modelSelection],
+  );
+  if (
+    !draft.mode &&
+    (initializeAsNewTask
+      ? modelCatalogView !== null && sharedSettings !== null
+      : sessionConfig != null)
+  ) {
     const mode = submissionModeSchema.safeParse(sessionConfig?.mode);
     // Recent 是初始化原意图，不先按旧 Provider 是否仍在候选中删掉；下一次输入读取
     // 由同一解析入口对应当前账号，或暂时留空。否则冷启动会绕过统一账号对应规则。
     // mode 是已初始化标记：历史恢复给出的空选择也是确定结果，后续 Snapshot 不得填满。
     draft =
       initializeAsNewTask && modelCatalogView
-        ? initializeNewTaskDraft(draft, workspacePath, workspaceIdentity, modelCatalogView)
+        ? initializeNewTaskDraft(
+            draft,
+            workspacePath,
+            workspaceIdentity,
+            modelCatalogView,
+            sessionDefaults,
+          )
         : {
             ...draft,
             mode: mode.success && mode.data !== "plan" ? mode.data : "build",
@@ -186,8 +206,14 @@ export function useDraftConfigControl(params: {
             modelSelection: sessionConfig?.modelSelection,
           };
   }
-  if (sessionId === null && draft.mode && modelCatalogView) {
-    draft = refreshUneditedNewTaskDefaults(draft, modelCatalogView);
+  // Host 设置首读未完成时刷新恢复草稿，会先升级档位再被新输入冻结；必须等目标 owner 到齐。
+  if (sessionId === null && draft.mode && modelCatalogView && sharedSettings !== null) {
+    draft = refreshUneditedNewTaskDefaults(
+      draft,
+      modelCatalogView,
+      sessionDefaults,
+      recentModelSelection,
+    );
   }
   if (sessionConfig) {
     draft = applyComposerPlanTransition(draft, sessionConfig.planTransition);
@@ -504,6 +530,7 @@ export function useDraftConfigControl(params: {
           ...current,
           mode: current.mode === "plan" ? "build" : (current.mode ?? "build"),
           planEnabled: mode === "plan",
+          approvalModeEdited: true,
           initializeFromNewTask: undefined,
         }));
         return;
@@ -514,6 +541,7 @@ export function useDraftConfigControl(params: {
         updateComposerDraft((current) => ({
           ...current,
           mode: parsed.data,
+          approvalModeEdited: true,
           initializeFromNewTask: undefined,
         }));
     },

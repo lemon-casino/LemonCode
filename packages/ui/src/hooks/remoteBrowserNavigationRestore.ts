@@ -4,14 +4,35 @@ import { readPersistedWorkspaceSessionEntries } from "@/lib/remoteWorkspaceHisto
 import { restorePersistedRemoteWorkspaceSessions } from "@/root/remoteWorkspaceSessionPersistence.js";
 import type { RemoteBrowserNavigationTarget } from "@/store/remoteBrowserNavigationStore.js";
 import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
+import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
+import { resolveRemoteWorkspaceSessionIdentity } from "@/lib/remoteWorkspaceHistory.js";
 import type { RestorableWorkspaceTab, TabStore } from "@/store/tabStore.js";
 
 function resolveWorkspace(
   settings: AppSettings,
   target: RemoteBrowserNavigationTarget,
 ): RestorableWorkspaceTab | null {
-  // 手机 attachment 没有独立远端连接注册表，不能把旧远端 identity 当本地路径重新启动。
-  if (target.workspaceIdentity?.trim() || target.remoteSessionId) return null;
+  if (target.workspaceIdentity?.trim() || target.remoteSessionId) {
+    const entry = readPersistedWorkspaceSessionEntries(settings).find(
+      (candidate) =>
+        candidate.kind === "remote" &&
+        resolveRemoteWorkspaceSessionIdentity(candidate) === target.workspaceIdentity?.trim(),
+    );
+    const state = useRemoteWorkspaceSessionStore.getState();
+    const sessionId = target.workspaceIdentity
+      ? state.sessionIdByWorkspaceIdentity[target.workspaceIdentity.trim()]
+      : undefined;
+    const session = sessionId ? state.sessionsById[sessionId] : undefined;
+    // identity 是轻绑定；session 由 Host 当前目录解析，旧浏览位置不能锁住上一代 session。
+    return session && (entry?.kind === "remote" || session.workspacePath === target.workspacePath)
+      ? {
+          workspacePath: session.workspacePath ?? entry!.workspacePath,
+          workspaceIdentity: target.workspaceIdentity,
+          remoteSessionId: sessionId,
+          remoteTarget: session.target ?? (entry?.kind === "remote" ? entry.target : undefined),
+        }
+      : null;
+  }
   if (target.workspacePurpose === "conversation") return null;
   const project = target.localProjectId
     ? settings.localProjects.find((candidate) => candidate.id === target.localProjectId)
@@ -50,11 +71,16 @@ export async function restoreRemoteBrowserNavigation({
   let workspace = target ? resolveWorkspace(settings, target) : null;
   let taskId: string | null = null;
   if (workspace) {
+    const targetServices = workspace.remoteSessionId
+      ? useRemoteWorkspaceSessionStore.getState().sessionsById[workspace.remoteSessionId]?.services
+      : services;
+    if (!targetServices) throw new Error("remote workspace source unavailable");
     const [exists, meta] = await Promise.all([
-      directoryExists(services, workspace.workspacePath),
+      directoryExists(targetServices, workspace.workspacePath),
       target?.taskId
-        ? services.lcodeTaskService.getTaskMeta({
+        ? targetServices.lcodeTaskService.getTaskMeta({
             workspacePath: workspace.workspacePath,
+            workspaceIdentity: workspace.workspaceIdentity,
             taskId: target.taskId,
           })
         : Promise.resolve(null),
@@ -93,7 +119,8 @@ export async function restoreRemoteBrowserNavigation({
   restorePersistedRemoteWorkspaceSessions({
     settings: currentSettings,
     tabStoreApi,
-    allowRemoteWorkspaceRestore: false,
+    // 禁止新建远端连接不等于隐藏桌面已有远端项目；恢复只产生断连占位，代理来自目录。
+    allowRemoteWorkspaceRestore: true,
     ...(workspace.workspacePurpose === "conversation"
       ? { conversationWorkspacePath: workspace.workspacePath }
       : {}),

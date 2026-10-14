@@ -9,6 +9,11 @@ import {
 } from "./pairingCredentialStore.js";
 import type { PairingFailureKey } from "./pairingFrames.js";
 import {
+  finishRootRecovery,
+  isRootRecoveryEntry,
+  returnRootRecoveryToWebsite,
+} from "./rootRecovery.js";
+import {
   CREDENTIAL_DEATH_KEYS,
   DATA_SOCKET_RETRY_DEADLINE_MS,
   DATA_SOCKET_RETRY_DELAY_MS,
@@ -155,6 +160,17 @@ export function MobilePairingPage({
 
   useEffect(() => {
     let disposed = false;
+    const entryHref = window.location.href;
+    const rootRecovery = isRootRecoveryEntry(window.location);
+    const entryCredential = rootRecovery
+      ? loadStoredPairingCredential()?.deviceCredential
+      : undefined;
+    const fail = (phase: Extract<PairingPhase, { kind: "failed" }>) => {
+      if (disposed) return;
+      if (rootRecovery && returnRootRecoveryToWebsite(phase.key, entryHref, entryCredential))
+        return;
+      setPhase(phase);
+    };
 
     const connectDataSocketOnce = async (
       roomId: string,
@@ -184,6 +200,7 @@ export function MobilePairingPage({
             saveStoredPairingCredential({ ...stored, roomId });
           }
           handedOff = true;
+          if (rootRecovery && window.location.href === entryHref) finishRootRecovery();
           onConnected(services);
         }
         return { ok: true };
@@ -244,14 +261,14 @@ export function MobilePairingPage({
           })
         ) {
           // 重连失败不等于新配对：保留网络/房间错误及有效凭据，不重放原扫码链接。
-          setPhase({ kind: "failed", key: result.key });
+          fail({ kind: "failed", key: result.key });
           return;
         }
         // 深链还带未消费的 capability:回退完整双方授权
       }
 
       if (routeRoomId === null || route.capability === null) {
-        setPhase({ kind: "failed", key: "invalid-link" });
+        fail({ kind: "failed", key: "invalid-link" });
         return;
       }
 
@@ -268,7 +285,7 @@ export function MobilePairingPage({
         return;
       }
       if (outcome.kind !== "accepted") {
-        setPhase({
+        fail({
           kind: "failed",
           key: outcomeToFailureKey(outcome),
           detail:
@@ -296,14 +313,14 @@ export function MobilePairingPage({
             outcome.deviceCredential,
           );
         }
-        setPhase({ kind: "failed", key: result.key });
+        fail({ kind: "failed", key: result.key });
       }
     };
 
     void run().catch((error: unknown) => {
       // run 内部已把可预期失败映射为 phase;这里只兜真正未预期的异常
       if (!disposed) {
-        setPhase({
+        fail({
           kind: "failed",
           key: "network",
           detail: error instanceof Error ? error.message : undefined,

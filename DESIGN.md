@@ -18,6 +18,15 @@ The dedicated `text-ui-*` scale is a mandatory repository-wide constraint for ap
 
 Treat violations of this section as design-system defects, not stylistic preferences.
 
+### Public website typography
+
+The standalone pages in `cfworker-remote/site` use scoped `--site-text-*` tokens: hero
+`clamp(2.5rem, 5vw, 4.75rem)`, heading `clamp(1.8rem, 3vw, 2.75rem)`, lead `1.125rem`,
+body `1rem`, and caption `0.875rem`. These marketing pages are separate documents;
+their CSS must never load in the application or change application font settings.
+Use the Botanical Gray / Night Black semantic palette, inline disclosures instead of
+modal navigation, visible keyboard focus, and single-column layouts on small screens.
+
 ## Product Character
 
 LCode is a desktop-first and web-compatible AI workspace. The interface should feel calm, dense, and operational rather than decorative.

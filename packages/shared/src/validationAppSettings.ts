@@ -1,5 +1,6 @@
 /* oxlint-disable max-lines -- AppSettings schema 聚合历史迁移、默认值和 patch 校验，拆分会削弱设置迁移的单一入口。 */
 import { z } from "zod";
+import { sessionDefaultsShape } from "./sessionDefaults.js";
 import {
   gitCommitReviewModeSchema,
   projectExecutionPreferencesSchema,
@@ -515,6 +516,7 @@ const appSettingsObjectSchema = z.object({
   toolGroupingChangesEnabled: z.boolean().default(false),
   lcodeInteractionBehavior: lcodeInteractionBehaviorSchema.default("queue"),
   gitCommitReviewMode: gitCommitReviewModeSchema.optional(),
+  ...sessionDefaultsShape,
   autoGenerateGitCommitMessage: z.boolean().default(false),
   defaultSessionExecutionMode: sessionExecutionModeSchema.default("local"),
   projectExecutionPreferences: projectExecutionPreferencesSchema.default({}),
@@ -592,6 +594,7 @@ export const appSettingsPatchSchema = z.object({
   toolGroupingChangesEnabled: z.boolean().optional(),
   lcodeInteractionBehavior: lcodeInteractionBehaviorSchema.optional(),
   gitCommitReviewMode: gitCommitReviewModeSchema.optional(),
+  ...sessionDefaultsShape,
   autoGenerateGitCommitMessage: z.boolean().optional(),
   defaultSessionExecutionMode: sessionExecutionModeSchema.optional(),
   projectExecutionPreferences: projectExecutionPreferencesSchema.optional(),

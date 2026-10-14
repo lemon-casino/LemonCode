@@ -43,6 +43,42 @@ test("new task uses the highest reasoning and speed instead of registry fallback
   });
 });
 
+test("valid configured defaults keep their selected options independently of Recent", () => {
+  const configured = {
+    providerId: "custom",
+    modelId: "demo",
+    options: { reasoningLevel: "low", speed: "standard" },
+  };
+  const recent = { ...configured, options: { reasoningLevel: "high", speed: "fast" } };
+  assert.deepEqual(
+    resolveDraftInitialModelSelection(view, recent, configured).selection,
+    configured,
+  );
+});
+
+test("missing defaults prefer the recent provider, even when its recent model was deleted", () => {
+  const catalog = {
+    ...view,
+    providers: [{ ...view.providers[0]!, providerId: "host-default" }, ...view.providers],
+    preferredSelection: { providerId: "host-default", modelId: "demo" },
+  };
+  const configured = { providerId: "deleted-default", modelId: "gone" };
+  const recent = { providerId: "custom", modelId: "deleted-recent-model" };
+  const resolved = resolveDraftInitialModelSelection(catalog, recent, configured);
+  assert.equal(resolved.selection?.providerId, "custom");
+  assert.equal(resolved.selection?.modelId, "demo");
+  assert.deepEqual(resolved.selection?.options, { reasoningLevel: "high", speed: "fast" });
+  assert.equal(
+    resolveDraftInitialModelSelection(
+      catalog,
+      { providerId: "deleted-recent", modelId: "gone" },
+      configured,
+    ).selection?.providerId,
+    "host-default",
+  );
+  assert.deepEqual(configured, { providerId: "deleted-default", modelId: "gone" });
+});
+
 test("new task initializes both controls before the first submission", () => {
   assert.deepEqual(
     initializeNewTaskDraft({ text: "", updatedAt: 0 }, "workspace", undefined, view).modelSelection,

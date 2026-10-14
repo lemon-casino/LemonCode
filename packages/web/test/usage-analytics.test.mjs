@@ -35,6 +35,7 @@ test(
       if (entry.type() === "error") errors.push(entry.text());
     });
     await page.goto(`http://127.0.0.1:${port}/test/fixtures/usage-analytics.html`);
+    await page.getByRole("tab", { name: "统计", exact: true }).click();
     await page.getByTestId("oauth-usage-summary").waitFor();
     const codexTrigger = await chooseUsageSelectOption(page, "供应商", "Codex");
     assert.equal((await codexTrigger.innerText()).trim(), "Codex");
@@ -45,6 +46,7 @@ test(
     );
     assert.match(await page.getByTestId("oauth-usage-summary").innerText(), /120/);
     assert.match(await page.getByTestId("oauth-usage-summary").innerText(), /27.*1/);
+    await page.getByRole("tab", { name: "请求与额度", exact: true }).click();
     await page.getByRole("button", { name: "下一页", exact: true }).click();
     await page.waitForFunction(() => window.__analytics.last?.offset === 25);
     const claudeTrigger = await chooseUsageSelectOption(page, "供应商", "Claude");
@@ -68,8 +70,8 @@ test(
       await page.getByRole("combobox", { name: "账号", exact: true }).innerText(),
       /已移除账号/,
     );
-    // 时间范围走键盘路径：打开后 Radix 把焦点放在当前选中项“近 7 天”，
-    // 方向键移动高亮、Enter 提交，等价原生 selectOption("24h") 的 value 语义。
+    // 默认改为 24 小时后，先选择 7 天，再验证键盘能切回 24 小时。
+    await chooseUsageSelectOption(page, "时间范围", "近 7 天");
     const { content: rangeContent } = await openUsageSelect(page, "时间范围");
     await page.waitForFunction(() => document.activeElement?.textContent === "近 7 天");
     await page.keyboard.press("ArrowUp");
@@ -82,7 +84,7 @@ test(
       await page.getByTestId("api-usage-panel").waitFor();
       await page.getByTestId("oauth-usage-panel").waitFor({ state: "detached" });
       await page.getByRole("button", { name: "OAuth 用量", exact: true }).click();
-      await page.getByTestId("oauth-usage-summary").waitFor();
+      await page.getByTestId("oauth-token-activity").waitFor();
     }
     const apiCalls = await page.evaluate(() => window.__analytics.apiCalls);
     assert.equal(apiCalls.length, 6);
@@ -93,6 +95,7 @@ test(
       .getByRole("heading", { name: "OAuth 用量概览", exact: true })
       .scrollIntoViewIfNeeded();
     await page.screenshot({ path: ".tmp/usage-analytics/desktop-dark.png" });
+    await page.getByRole("tab", { name: "请求与额度", exact: true }).click();
     await page.getByRole("heading", { name: "当前账号额度", exact: true }).scrollIntoViewIfNeeded();
     await page.screenshot({ path: ".tmp/usage-analytics/desktop-quota-dark.png" });
     assert.deepEqual(errors, []);
@@ -114,7 +117,7 @@ test(
     );
     const tabs = page.getByLabel("Connection type", { exact: true });
     assert.equal(await tabs.getByRole("button").count(), 2);
-    await page.getByTestId("oauth-usage-summary").waitFor();
+    await page.getByTestId("oauth-token-activity").waitFor();
     assert.equal(
       await page.evaluate(() => sessionStorage.getItem("lcode-settings-usage-tab-intent")),
       null,
@@ -123,7 +126,7 @@ test(
       await tabs.getByRole("button", { name: "API usage", exact: true }).click();
       await page.getByTestId("api-usage-panel").waitFor();
       await tabs.getByRole("button", { name: "OAuth usage", exact: true }).click();
-      await page.getByTestId("oauth-usage-summary").waitFor();
+      await page.getByTestId("oauth-token-activity").waitFor();
     }
     assert.equal(
       await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
@@ -142,6 +145,7 @@ test(
       `http://127.0.0.1:${port}/test/fixtures/usage-analytics.html?scenario=unavailable`,
     );
     await page.getByText("调用统计暂不可用，请先打开工作区后重试。").waitFor();
+    await page.getByRole("tab", { name: "请求与额度", exact: true }).click();
     await page
       .getByTestId("quota-11111111-1111-4111-8111-111111111111")
       .getByRole("heading", { name: "Codex · Shared account", exact: true })
@@ -172,6 +176,7 @@ test(
     await page.goto(
       `http://127.0.0.1:${port}/test/fixtures/usage-analytics.html?scenario=deferred`,
     );
+    await page.getByRole("tab", { name: "统计", exact: true }).click();
     await chooseUsageSelectOption(page, "供应商", "Codex");
     await page.waitForFunction(() => window.__analytics.pending);
     await chooseUsageSelectOption(page, "供应商", "Claude");
@@ -190,6 +195,7 @@ test(
     await page.goto(
       `http://127.0.0.1:${port}/test/fixtures/usage-analytics.html?scenario=quota-refresh`,
     );
+    await page.getByRole("tab", { name: "请求与额度", exact: true }).click();
     const first = "11111111-1111-4111-8111-111111111111";
     const second = "22222222-2222-4222-8222-222222222222";
     await page.getByTestId(`quota-${first}`).getByText("75%").waitFor();
@@ -248,6 +254,7 @@ test(
     await page.goto(
       `http://127.0.0.1:${port}/test/fixtures/usage-analytics.html?scenario=quota-rich&locale=en-US&theme=light`,
     );
+    await page.getByRole("tab", { name: "Requests & quotas", exact: true }).click();
     const card = page.getByTestId("quota-11111111-1111-4111-8111-111111111111");
     await card
       .getByText("Some quota data is unavailable; showing the available readings.")

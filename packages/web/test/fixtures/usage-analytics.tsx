@@ -9,6 +9,7 @@ import type {
   ProviderAccountView,
   ProviderUsageRequest,
   ProviderUsageSnapshot,
+  SessionDebugSnapshot,
 } from "@lcode/shared";
 import type { ContextTrend, ConversationSnapshot } from "@lcode/shared/lcode-protocol-v4";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
@@ -26,13 +27,17 @@ import {
 } from "@/v4/V4ConversationContext.js";
 import { LiveOutputRateRegistry } from "@/v4/composer/liveOutputRateRegistry.js";
 import { applyTheme } from "@/useTheme.js";
+import { DeveloperToolsPane } from "@/DeveloperToolsPane.js";
 import { first, second, now, view, snapshot } from "./usage-analytics-data.js";
 import "@/styles.css";
 
 const query = new URLSearchParams(location.search);
 applyTheme(query.get("theme") === "light" ? "zai-light" : "zai-dark");
+if (query.get("scenario") === "long-labels")
+  view.accounts[0].displayName = `${"long-account-name".repeat(8)}@example.test`;
 const fixture = {
   apiCalls: [] as AppUsageRequest[],
+  rangeCalls: [] as ProviderUsageRequest[],
   lifetimeCalls: [] as ProviderUsageRequest[],
   last: null as ProviderUsageRequest | null,
   pending: false,
@@ -56,6 +61,39 @@ fixture.removeProvider = (channel) => {
 };
 Object.assign(window, { __analytics: fixture });
 const services = {
+  lcodeAgentService: {
+    readSessionDebug: async (): Promise<SessionDebugSnapshot> => ({
+      sessionId: "fixture-debug",
+      rounds: query.has("debug-empty")
+        ? []
+        : [
+            {
+              eventKey: "fixture-round",
+              requestId: "fixture-request",
+              requestIndex: 1,
+              recordedAt: now,
+              usage: {
+                inputTokens: 100,
+                outputTokens: 20,
+                totalTokens: 120,
+                reasoningTokens: 5,
+                cachedInputTokens: 40,
+                cachedWriteInputTokens: 777,
+              },
+              hitRate: 0.4,
+              generationDurationMs: 1000,
+              tokensPerSecond: 20,
+            },
+          ],
+      networkEntries: [],
+      cache: {
+        hitRateRequestCount: 1,
+        totalInputTokens: 100,
+        totalCacheReadTokens: 40,
+        hitRate: 0.4,
+      },
+    }),
+  },
   providerAccountService: {
     onDidChange: (listener: (view: ProviderAccountView) => void) => {
       accountListeners.add(listener);
@@ -154,7 +192,10 @@ const services = {
   usageStatsService: {
     getProviderUsageSnapshot: async (request: ProviderUsageRequest) => {
       if (request.range === "all") fixture.lifetimeCalls.push(request);
-      if (request.limit !== 1) fixture.last = request;
+      if (request.limit !== 1) {
+        fixture.last = request;
+        fixture.rangeCalls.push(request);
+      }
       if (query.get("scenario") === "unavailable") throw new Error("no_active_workspace");
       if (query.get("scenario") === "quota-refresh")
         return await new Promise<ProviderUsageSnapshot>(() => {});
@@ -280,6 +321,9 @@ function App() {
       <ReadOnlySessionTokenStats snapshot={child} />
       <UsageStatsTabs activeTab={activeTab} onTabChange={setTab} />
       <UsageStatsSection activeTab={activeTab} />
+      {query.has("token-debug") && (
+        <DeveloperToolsPane workspacePath="/fixture" taskId="fixture-debug" />
+      )}
     </main>
   );
 }

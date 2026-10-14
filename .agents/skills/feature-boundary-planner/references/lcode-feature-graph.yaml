@@ -266,6 +266,25 @@ nodes:
     invariants:
       - "Shared model controls do not share commit effects: conversation commands, automation records
         and Subagent configuration have separate owners."
+  - id: capability.project-session-defaults
+    kind: capability
+    label: Project session defaults across local and existing remote environments
+    aliases: [项目会话配置, 默认模型, 远程默认配置, 配置项目选择]
+    codeSeeds:
+      - file: packages/ui/src/settings/SessionConfigurationSection.tsx
+        symbol: SessionConfigurationSection
+      - file: packages/ui/src/hooks/useSessionConfigurationProjects.ts
+        symbol: useSessionConfigurationProjects
+      - file: packages/ui/src/settings/SessionConfigurationForm.tsx
+        symbol: SessionConfigurationForm
+      - file: packages/shared/src/sessionDefaults.ts
+        symbol: resolveSessionDefaults
+      - file: packages/services/src/setting/setting.ts
+        symbol: ISettingService
+    invariants:
+      - "Project choices derive from saved sessions, live registry metadata and tabs; selection never creates or disposes a connection."
+      - "Settings own persisted defaults, target Environment owns model options, and Composer owns only the next input draft."
+      - "A disconnected selected remote scope stays selected; identity and current accessor isolate defaults and late form responses."
   - id: capability.execution-model-failover
     kind: capability
     label: Active execution model provider failover
@@ -790,6 +809,24 @@ nodes:
     codeSeeds:
       - symbol: createLCodeAgentConnectionScope
         file: packages/services/src/lcode-agent/lcodeAgentConnectionScope.ts
+  - id: capability.project-website-downloads
+    kind: capability
+    label: Public project website, release downloads and paired root recovery
+    aliases: [官网, 跨平台下载, 已配对根路径恢复, code.lemon.vin]
+    codeSeeds:
+      - file: cfworker-remote/site/build.mjs
+        symbol: buildWebsite
+      - file: cfworker-remote/src/releaseCatalog.ts
+        symbol: createReleaseCatalog
+      - file: packages/web/src/remote/rootRecovery.ts
+        symbol: getRootRecoveryTarget
+      - file: scripts/mobile-web-assembly.mjs
+        symbol: assembleMobileWeb
+    invariants:
+      - "Only a saved device record routes root to the original pairing page; explicit site pages do not
+        open business sockets. Credential storage, authentication and attachment owners are unchanged."
+      - "Public release metadata uses an independent bounded cache and exact published assets; desktop
+        update manifests and versioned download redirects retain their existing contracts."
   - id: capability.mobile-remote-control
     kind: capability
     label: Multi-device remote control through cfworker-remote
@@ -806,11 +843,17 @@ nodes:
         symbol: MobileRemoteControlPanel
       - file: packages/desktop/src/main/desktopRemoteControlController.ts
         symbol: createRemoteControlController
+      - file: packages/ui/src/hooks/remoteBrowserWorkspaceCatalog.ts
+        symbol: createRemoteBrowserWorkspaceCatalog
+      - file: packages/desktop/src/host/windowWorkspaceAttachmentService.ts
+        symbol: createWindowWorkspaceAttachmentService
     invariants:
       - "The Desktop footer shortcut and Basics settings section share the same Main-owned config and
         pairing state; Web and mobile surfaces do not register Desktop-only settings."
       - "Pairing restart confirmation opened from the footer popover keeps one local dialog state and
         layers parent popover below confirmation backdrop below confirmation content."
+      - "Remote browsers derive project/service bindings from the existing window Host registry, reuse
+        scoped replayable carriers for SSH/WSL/Docker, and route worktrees/groups to their original owners."
   - id: surface.remote-control-settings
     kind: ui-surface
     label: Basics remote control settings and footer pairing shortcut
@@ -1133,6 +1176,31 @@ nodes:
       - "Menus append editable drafts through the scoped existing receiver; only an explicit send admits context."
       - "Capsule IDs are independent typed references and never share URLs; the target store validates source history again."
 edges:
+  - from: capability.project-session-defaults
+    to: capability.model-selection
+    type: derives-options-from-target-environment
+    rank: must-inspect
+  - from: capability.project-session-defaults
+    to: capability.workspace-identity
+    type: isolates-project-defaults-by
+    rank: invariant-only
+  - from: capability.project-website-downloads
+    to: capability.mobile-remote-control
+    type: restores-through-original-pairing
+    rank: must-inspect
+    condition: Root recovery reuses the original device store and MobilePairingPage data socket flow.
+  - from: capability.project-website-downloads
+    to: boundary.cfworker-remote-room
+    type: preserves-protocol-routing
+    rank: invariant-only
+  - from: capability.project-website-downloads
+    to: service.desktop-release-artifact-staging
+    type: derives-installers-from
+    rank: evidence-only
+  - from: capability.project-website-downloads
+    to: service.desktop-update-manifest
+    type: preserves-update-contract
+    rank: invariant-only
   - from: capability.subagents
     to: service.child-runtime-construction
     type: constructs-through

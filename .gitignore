@@ -127,6 +127,7 @@ nul
 !/packages/web/test/fixtures/resource-theme.tsx
 # 运行环境恢复/清理的永久交互回归及其有界 Host fixture。
 !/packages/web/test/mobile-pairing-reconnect.test.mjs
+!/packages/web/test/rootRecovery.test.mjs
 !/packages/web/test/pairingCredentialStore.test.mjs
 !/packages/web/test/pairingFrames.test.mjs
 !/packages/web/test/mirrorReconnect.test.mjs
@@ -261,6 +262,7 @@ nul
 !/packages/ui/src/lib/providerAccountErrors.ts
 !/packages/web/test/usage-analytics.test.mjs
 !/packages/web/test/cache-write-usage.test.mjs
+!/packages/web/test/provider-usage-tabs.test.mjs
 !/packages/web/test/fixtures/usage-analytics.html
 !/packages/web/test/fixtures/usage-analytics.tsx
 !/packages/web/test/fixtures/usage-analytics-data.js
@@ -289,3 +291,19 @@ nul
 !/packages/web/test/provider-accounts-navigation-cases.mjs
 !/packages/web/test/fixtures/provider-proxy-fixture.ts
 !/packages/web/test/provider-credential-json.test.mjs
+
+# 项目会话默认配置与模型删除回退的永久浏览器回归。
+!/packages/web/test/session-configuration.test.mjs
+!/packages/web/test/session-configuration-project-cases.mjs
+!/packages/web/test/fixtures/session-configuration.html
+!/packages/web/test/fixtures/session-configuration.tsx
+
+# 远控窗口目录、同路径远端项目和换代恢复的永久浏览器回归。
+!/packages/web/test/remote-workspace-catalog.test.mjs
+!/packages/web/test/fixtures/remote-workspace-catalog.html
+!/packages/web/test/fixtures/remote-workspace-catalog.tsx
+
+# 远端项目默认配置与同 sessionId 服务换代的永久浏览器回归。
+!/packages/web/test/remote-session-configuration.test.mjs
+!/packages/web/test/fixtures/remote-session-configuration.html
+!/packages/web/test/fixtures/remote-session-configuration.tsx

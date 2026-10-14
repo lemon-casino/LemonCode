@@ -310,7 +310,7 @@ export function isDefaultRemoteControlWorkerBaseUrl(rawUrl: string): boolean {
  * (BrowserWindow.fromWebContents(event.sender).id)覆盖该值,Renderer 传值仅占位、不参与
  * 路由;防伪造窗口路由由 handler 单点保证(与 platform.ts tab shell 的 windowId 边界同源)。
  * kind="remote":镜像既有 remote logical session(SSH/WSL/Docker),需三元组全等校验;
- * kind="local":镜像窗口当前本地工作区,以 scope:{kind:"local"} 第二 attachment 挂到窗口
+ * kind="local":镜像窗口 Host；路径/identity 仅兼容旧入口，不作为窗口 attachment 的路由键。以 scope:{kind:"local"} 第二 attachment 挂到窗口
  * Host(注册表按 attachmentId 键控,与 Renderer attachment 共存不互斥)。 */
 export const remotePairingMirrorTargetSchema = z.discriminatedUnion("kind", [
   z
@@ -326,8 +326,8 @@ export const remotePairingMirrorTargetSchema = z.discriminatedUnion("kind", [
     .object({
       kind: z.literal("local"),
       windowId: z.number().int().positive(),
-      workspacePath: nonEmptyStringSchema,
-      workspaceIdentity: nonEmptyStringSchema,
+      workspacePath: nonEmptyStringSchema.optional(),
+      workspaceIdentity: nonEmptyStringSchema.optional(),
     })
     .strict(),
 ]);

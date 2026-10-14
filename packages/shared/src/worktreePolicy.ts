@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { AppSettings } from "./protocol.js";
+import { sessionDefaultsShape } from "./sessionDefaults.js";
 
 export const sessionExecutionModeSchema = z.enum(["local", "worktree"]);
 export type SessionExecutionMode = z.infer<typeof sessionExecutionModeSchema>;
@@ -14,6 +15,7 @@ export const gitCommitReviewModeSchema = z.enum(["off", "draft", "draft-and-revi
 export type GitCommitReviewMode = z.infer<typeof gitCommitReviewModeSchema>;
 export const projectExecutionPreferenceSchema = z
   .object({
+    ...sessionDefaultsShape,
     executionMode: z.enum(["inherit", "local", "worktree"]).optional(),
     environmentPolicy: runtimeEnvironmentPolicySchema.optional(),
     gitCommitReviewMode: z.enum(["inherit", ...gitCommitReviewModeSchema.options]).optional(),
@@ -100,7 +102,8 @@ export function resolveProjectExecutionPolicy(
     gitCommitReviewPreference,
     // 默认放行仍由 Host 能力决定；inherit 不能把旧本机会话隐式升级为托管。
     environmentPreference: project?.environmentPolicy ?? "inherit",
-    environmentPolicy: project?.environmentPolicy === "managed" ? "managed" as const : "local" as const,
+    environmentPolicy:
+      project?.environmentPolicy === "managed" ? ("managed" as const) : ("local" as const),
     sources,
     setupCommands: project?.setupCommands ?? [],
     setupCommandsConfigured: project?.setupCommands !== undefined,

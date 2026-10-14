@@ -812,6 +812,7 @@ function RootInner({
   });
 
   useRemoteWorkspaceTabLifecycle({
+    enabled: !remoteBrowserNavigationScope,
     tabs,
     activeWorkspaceTab,
     platform,

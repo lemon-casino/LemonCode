@@ -10,7 +10,12 @@ import type {
   LCodeTaskGroupColor,
 } from "@lcode/services";
 import { useBaseWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
-import { useLocalWorkspaceScopes } from "@/hooks/useLocalWorkspaceScopes.js";
+import {
+  createGroupedWorkspaceTaskService,
+  groupedWorkspaceSourceSignature,
+} from "./groupedWorkspaceService.js";
+import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
+import { useTabStore } from "@/store/TabStoreProvider.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 import { logger } from "@/logger.js";
 import { buildGroupedTaskViewFromSessions } from "@/lib/buildGroupedTaskViewFromSessions.js";
@@ -585,16 +590,12 @@ function writeCachedGroupedView(signature: string, view: LCodeGroupedTaskView): 
 
 export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] }) {
   const services = useBaseWorkspaceServices();
-  // grouped 仍是本地 workspace-only，但 task facts 也必须来自窗口 Controller，不能在
-  // Renderer 另起 sessions-index join。分组结构/顺序继续走本地 task service，避免能力扩张。
-  const localWorkspaceTabs = useLocalWorkspaceScopes({
-    workspaceTabs: params.workspaceTabs,
-  });
+  const workspaceTabs = params.workspaceTabs;
   // scopes 过去 memo 在 tabs 数组身份上。父级重建同值数组就会换掉 refresh 身份，
   // 让「refresh 变化即刷新」的 effect 再跑一轮 setState，进而触发下一次渲染——自激刷新环，
   // 每帧都在发 RPC 并让门禁/空态有机会闪。这里改成值签名，和 useGlobalTaskList 保持一致。
   const localWorkspaceScopeSignature = JSON.stringify(
-    localWorkspaceTabs
+    workspaceTabs
       .map(
         (tab) =>
           [
@@ -617,8 +618,47 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
           String(leftPurpose ?? "").localeCompare(String(rightPurpose ?? "")),
       ),
   );
+  const sessionsById = useRemoteWorkspaceSessionStore((state) => state.sessionsById);
+  const sessionIdByWorkspaceIdentity = useRemoteWorkspaceSessionStore(
+    (state) => state.sessionIdByWorkspaceIdentity,
+  );
+  const sessionIdByWorkspacePath = useRemoteWorkspaceSessionStore(
+    (state) => state.sessionIdByWorkspacePath,
+  );
+  const activeWorkspacePath = useTabStore((state) => state.activeWorkspacePath);
+  const activeWorkspaceIdentity = useTabStore((state) => state.activeWorkspaceIdentity);
+  const sourceGenerationSignature = groupedWorkspaceSourceSignature(services, workspaceTabs, {
+    sessionsById,
+    sessionIdByWorkspaceIdentity,
+    sessionIdByWorkspacePath,
+  });
+  const taskService = useMemo(
+    () =>
+      createGroupedWorkspaceTaskService(
+        services,
+        workspaceTabs,
+        { sessionsById, sessionIdByWorkspaceIdentity, sessionIdByWorkspacePath },
+        activeWorkspacePath
+          ? {
+              workspacePath: activeWorkspacePath,
+              workspaceIdentity: activeWorkspaceIdentity ?? undefined,
+            }
+          : undefined,
+      ),
+    // scope 值和服务代际决定 facade；不跟随父组件同值 tabs 数组换身份。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [
+      services,
+      localWorkspaceScopeSignature,
+      sessionsById,
+      sessionIdByWorkspaceIdentity,
+      sessionIdByWorkspacePath,
+      activeWorkspacePath,
+      activeWorkspaceIdentity,
+    ],
+  );
   const scopes = useMemo(
-    () => buildWorkspaceScopes(localWorkspaceTabs),
+    () => buildWorkspaceScopes(workspaceTabs),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- 值签名等价即复用，避免父级数组换身份触发刷新环。
     [localWorkspaceScopeSignature],
   );
@@ -656,7 +696,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
   );
   const controllerTaskFacts = useGlobalTaskList({
     kind: "active",
-    workspaceTabs: localWorkspaceTabs,
+    workspaceTabs: workspaceTabs,
     sortBy: "updated",
     searchQuery: "",
     expanded: true,
@@ -741,6 +781,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
       // grouped 侧边栏必须跟随当前打开的 workspace scope，
       // 不传 includeAllWorkspaces，避免其它 workspace 的分组混入。
       const remoteDataKey = [
+        sourceGenerationSignature,
         membershipVersion,
         taskListVersionSignature,
         scopes
@@ -749,11 +790,11 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
       ].join("::");
       const remoteData = await remoteDataLoader.load(remoteDataKey, async () => {
         const [structureResult, membershipResult] = await Promise.all([
-          services.lcodeTaskService.listGroupedTaskViewStructure({
+          taskService.listGroupedTaskViewStructure({
             workspaceScopes: scopes,
           }),
           fetchTaskListMembershipSets({
-            service: services.lcodeTaskService,
+            service: taskService,
             scopes: sessionsIndexScopes,
           }),
         ]);
@@ -801,7 +842,8 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
     remoteDataLoader,
     scopes,
     sessionsIndexScopes,
-    services.lcodeTaskService,
+    taskService,
+    sourceGenerationSignature,
     taskListVersionSignature,
   ]);
   const refreshRef = useRef(refresh);
@@ -849,7 +891,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
     // group 内 New task 过去只在 optimistic view 继承草稿位置，SQLite 仍按 root
     // 新任务置顶，刷新后任务会掉出 group。task 已进入 optimistic index 后，将同一份展示
     // view 作为完整排序事务落库，使 membership 和组内第一位顺序一起收敛。
-    void services.lcodeTaskService
+    void taskService
       .applyGroupedTaskViewOrder(viewToOrderInput({ view: displayedView }))
       .then(() => {
         invalidateRemoteData();
@@ -868,13 +910,13 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
     displayedView,
     invalidateRemoteData,
     optimisticTaskOverlayByWorkspaceKey,
-    services.lcodeTaskService,
+    taskService,
     view,
   ]);
 
   useEffect(() => {
     const disposables = scopes.map((scope) =>
-      services.lcodeTaskService.onDynamicWorkspaceEvent(scope)((event) => {
+      taskService.onDynamicWorkspaceEvent(scope)((event) => {
         if (event.type !== "workspace_task_list_changed" || event.reason !== "task_created") {
           return;
         }
@@ -886,7 +928,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
       }),
     );
     return () => disposables.forEach((disposable) => disposable.dispose());
-  }, [invalidateRemoteData, scopes, services.lcodeTaskService]);
+  }, [invalidateRemoteData, scopes, taskService]);
 
   // 唯一的自动刷新入口。refresh 身份已经包含 membership/structure/scope 版本，
   // sessions-index 内容变化再触发内存 join；避免 mount effect 与 index effect 首帧重复发起请求。
@@ -897,7 +939,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
   const createGroup = useCallback(async (): Promise<LCodeTaskGroup> => {
     setSaving(true);
     try {
-      const group = await services.lcodeTaskService.createTaskGroup();
+      const group = await taskService.createTaskGroup();
       // 新 group 的 SQLite 顺序已经置顶，但等待异步 refresh 才展示会短暂沿用旧树并
       // 落到缺序节点末尾；先按同一 sort_order 语义乐观插顶，refresh 再以 SQLite 收敛。
       setView((current) => prependTaskGroupToView(current, group));
@@ -911,7 +953,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
     } finally {
       setSaving(false);
     }
-  }, [invalidateRemoteData, refresh, services.lcodeTaskService]);
+  }, [invalidateRemoteData, refresh, taskService]);
 
   const renameGroup = useCallback(
     async (groupId: string, title: string) => {
@@ -941,7 +983,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
       setView(optimisticView);
       setSaving(true);
       try {
-        const renamedGroup = await services.lcodeTaskService.renameTaskGroup({
+        const renamedGroup = await taskService.renameTaskGroup({
           groupId,
           title: nextTitle,
           workspaceScopes: collectViewWorkspaceScopes(optimisticView),
@@ -962,7 +1004,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
         setSaving(false);
       }
     },
-    [invalidateRemoteData, scopes, services.lcodeTaskService, view],
+    [invalidateRemoteData, scopes, taskService, view],
   );
 
   const updateGroupColor = useCallback(
@@ -992,7 +1034,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
       setView(optimisticView);
       setSaving(true);
       try {
-        const updatedGroup = await services.lcodeTaskService.updateTaskGroupColor({
+        const updatedGroup = await taskService.updateTaskGroupColor({
           groupId,
           color,
           workspaceScopes: collectViewWorkspaceScopes(optimisticView),
@@ -1013,7 +1055,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
         setSaving(false);
       }
     },
-    [invalidateRemoteData, scopes, services.lcodeTaskService, view],
+    [invalidateRemoteData, scopes, taskService, view],
   );
 
   const applyOrder = useCallback(
@@ -1024,7 +1066,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
       try {
         // apply 回包的视图仍由 tasks 表 join（旧数据源），不再采信；
         // 持久化成功后以「结构 + sessions-index」重建收敛（refresh）。
-        await services.lcodeTaskService.applyGroupedTaskViewOrder(
+        await taskService.applyGroupedTaskViewOrder(
           viewToOrderInput({
             view: nextView,
           }),
@@ -1041,7 +1083,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
         setSaving(false);
       }
     },
-    [invalidateRemoteData, refresh, services.lcodeTaskService, view],
+    [invalidateRemoteData, refresh, taskService, view],
   );
 
   const ungroupGroup = useCallback(
@@ -1063,7 +1105,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
       setSaving(true);
       try {
         await applyOrder(nextView);
-        await services.lcodeTaskService.deleteTaskGroup({
+        await taskService.deleteTaskGroup({
           groupId,
           workspaceScopes: collectViewWorkspaceScopes(nextView),
         });
@@ -1076,7 +1118,7 @@ export function useGroupedTaskView(params: { workspaceTabs: WorkspaceTabState[] 
         setSaving(false);
       }
     },
-    [applyOrder, invalidateRemoteData, refresh, scopes, services.lcodeTaskService, view],
+    [applyOrder, invalidateRemoteData, refresh, scopes, taskService, view],
   );
 
   return {

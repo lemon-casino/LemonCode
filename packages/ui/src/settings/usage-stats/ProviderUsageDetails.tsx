@@ -11,17 +11,7 @@ export function ProviderUsageSummary({ summary }: { summary: ProviderUsageMetric
   const { intl, locale } = useLCodeIntl();
   const m = (key: string) => intl.formatMessage({ id: `settings.oauthUsage.${key}` });
   const n = (value: number) => new Intl.NumberFormat(locale).format(value);
-  const writeCoverage = summary.cacheWriteKnownRequests;
-  // 旧 SDK 把缺失写入量存成零；覆盖数为零或旧 Agent 的零都只能展示未知。
-  const cacheWrite =
-    writeCoverage === 0 || (writeCoverage === undefined && summary.cacheWriteTokens === 0)
-      ? m("unknown")
-      : writeCoverage !== undefined && writeCoverage < summary.requestCount
-        ? intl.formatMessage(
-            { id: "settings.oauthUsage.atLeast" },
-            { value: n(summary.cacheWriteTokens) },
-          )
-        : n(summary.cacheWriteTokens);
+  // 部分供应商写入字段长期为零或缺失；按用户要求取消该指标，读取和总量沿用原口径。
   const values: [string, string][] = [
     ["requests", n(summary.requestCount)],
     ["success", n(summary.successCount)],
@@ -31,7 +21,6 @@ export function ProviderUsageSummary({ summary }: { summary: ProviderUsageMetric
     ["input", n(summary.inputTokens)],
     ["output", n(summary.outputTokens)],
     ["cacheRead", n(summary.cacheReadTokens)],
-    ["cacheWrite", cacheWrite],
     ["reasoning", n(summary.reasoningTokens)],
     [
       "ttft",
@@ -87,17 +76,17 @@ export function ProviderUsageGroups({
   const { intl, locale } = useLCodeIntl();
   const m = (key: string) => intl.formatMessage({ id: `settings.oauthUsage.${key}` });
   return (
-    <section className="min-w-0 space-y-3 rounded-xl border border-border p-4">
+    <section aria-label={title} className="min-w-0 space-y-3 rounded-xl border border-border p-4">
       <h3 className="text-ui-base font-medium">{title}</h3>
       {groups.length ? (
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-ui-sm">
+          <table className="min-w-md w-full text-left text-ui-sm">
             <thead>
               <tr className="text-foreground-subtle">
                 <th className="py-2 pr-4 font-normal">{m("name")}</th>
-                <th className="px-2 font-normal">{m("requests")}</th>
-                <th className="px-2 font-normal">{m("tokens")}</th>
-                <th className="px-2 font-normal">{m("errors")}</th>
+                <th className="whitespace-nowrap px-2 font-normal">{m("requests")}</th>
+                <th className="whitespace-nowrap px-2 font-normal">{m("tokens")}</th>
+                <th className="whitespace-nowrap px-2 font-normal">{m("errors")}</th>
               </tr>
             </thead>
             <tbody>
@@ -106,14 +95,19 @@ export function ProviderUsageGroups({
                   key={[group.providerId, group.accountConnectionId, group.modelId].join(":")}
                   className="border-t border-border"
                 >
-                  <td className="max-w-48 break-words py-2 pr-4">{label(group)}</td>
-                  <td className="px-2 font-mono tabular-nums">{group.requestCount}</td>
-                  <td className="px-2 font-mono tabular-nums">
+                  {/* 长邮箱可在任意位置换行，避免表格的最小内容宽度撑破窄屏。 */}
+                  <td className="w-full wrap-anywhere py-2 pr-4">{label(group)}</td>
+                  <td className="whitespace-nowrap px-2 font-mono tabular-nums">
+                    {group.requestCount}
+                  </td>
+                  <td className="whitespace-nowrap px-2 font-mono tabular-nums">
                     {group.knownUsageRequests
                       ? formatCompactNumber(locale, group.totalTokens)
                       : m("unknown")}
                   </td>
-                  <td className="px-2 font-mono tabular-nums">{group.errorCount}</td>
+                  <td className="whitespace-nowrap px-2 font-mono tabular-nums">
+                    {group.errorCount}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -140,7 +134,10 @@ export function ProviderUsageRequests({
   const { intl, locale } = useLCodeIntl();
   const m = (key: string) => intl.formatMessage({ id: `settings.oauthUsage.${key}` });
   return (
-    <section className="min-w-0 space-y-3 rounded-xl border border-border p-4">
+    <section
+      aria-label={m("recent")}
+      className="min-w-0 space-y-3 rounded-xl border border-border p-4"
+    >
       <h3 className="text-ui-base font-medium">{m("recent")}</h3>
       <div className="overflow-x-auto">
         <table className="w-full text-left text-ui-sm">

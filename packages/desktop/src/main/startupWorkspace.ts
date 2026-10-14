@@ -110,12 +110,20 @@ export function createOpenWorkspaceStartupBootstrap(workspacePath: string): Star
 export async function resolveStartupWindowBootstrap({
   settingsFile,
   conversationWorkspaceDir,
+  explicitBootstrap,
   logger,
 }: {
   settingsFile: string;
   conversationWorkspaceDir: string;
+  explicitBootstrap?: StartupWindowBootstrap;
   logger?: StartupWorkspaceLogger;
 }): Promise<StartupWindowBootstrap> {
+  // 默认对话目录也是所有本地 Host 的备用 cwd。旧逻辑只在无标签或 active 本地项目
+  // 不可用时创建它；远程 active 后选中已删除的对话目录会让存储 Worker 在握手前退出。
+  // 每次主窗口启动都先幂等准备 app 管理的目录，显式打开项目也走此入口，不恢复用户项目。
+  await mkdir(conversationWorkspaceDir, { recursive: true });
+  if (explicitBootstrap) return explicitBootstrap;
+
   const settings = await readStartupSettings(settingsFile, logger);
   const sessions = settings.lastWorkspaceSession ?? [];
 
@@ -132,7 +140,6 @@ export async function resolveStartupWindowBootstrap({
     if (unavailableWorkspacePath) {
       // 上次激活 workspace 被移动或删除后，Agent 仍需保留原业务路径读取历史，
       // 但子进程 cwd 必须落在真实存在的目录；conversation backing workspace 只承担 cwd 兜底。
-      await mkdir(conversationWorkspaceDir, { recursive: true });
       logger?.warn?.(
         "[startup-workspace] active local workspace unavailable; using read-only restore:",
         unavailableWorkspacePath,
@@ -161,7 +168,6 @@ export async function resolveStartupWindowBootstrap({
 
   // UI 可以没有项目，但 Agent 必须始终有真实 cwd。首次启动统一预热
   // app-managed conversation backing workspace，不能再创建会被误认成项目的 LCodeProject。
-  await mkdir(conversationWorkspaceDir, { recursive: true });
   logger?.info?.("[startup-workspace] using conversation workspace:", conversationWorkspaceDir);
   return {
     initialWorkspacePath: conversationWorkspaceDir,

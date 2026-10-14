@@ -47,6 +47,61 @@ test("independent settings owners preserve concurrent project and field override
   }
 });
 
+test("session defaults merge atomically with project execution fields and reload", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "lcode-session-defaults-"));
+  const previous = process.env.LCODE_DESKTOP_HOME_DIR;
+  process.env.LCODE_DESKTOP_HOME_DIR = directory;
+  try {
+    const first = createSettingService();
+    const second = createSettingService();
+    const selection = {
+      providerId: "api",
+      modelId: "model",
+      options: { reasoningLevel: "low", speed: "standard" },
+    };
+    await Promise.all([
+      first.update({ defaultSessionModelSelection: selection }),
+      second.update({ defaultSessionApprovalMode: "edit" }),
+      first.update({
+        projectExecutionPreferences: { "remote-a": { defaultSessionModelSelection: selection } },
+      }),
+      second.update({
+        projectExecutionPreferences: {
+          "remote-a": { executionMode: "worktree", setupCommands: ["pnpm install"] },
+        },
+      }),
+      first.update({
+        projectExecutionPreferences: { "remote-b": { defaultSessionApprovalMode: "build" } },
+      }),
+    ]);
+    let reloaded = await createSettingService().get();
+    assert.deepEqual(reloaded.defaultSessionModelSelection, selection);
+    assert.equal(reloaded.defaultSessionApprovalMode, "edit");
+    assert.deepEqual(reloaded.projectExecutionPreferences?.["remote-a"], {
+      defaultSessionModelSelection: selection,
+      executionMode: "worktree",
+      setupCommands: ["pnpm install"],
+    });
+    await second.update({
+      projectExecutionPreferences: { "remote-a": { defaultSessionModelSelection: null } },
+    });
+    reloaded = await first.get();
+    assert.equal(
+      reloaded.projectExecutionPreferences?.["remote-a"]?.defaultSessionModelSelection,
+      null,
+    );
+    assert.equal(reloaded.projectExecutionPreferences?.["remote-a"]?.executionMode, "worktree");
+    assert.equal(
+      reloaded.projectExecutionPreferences?.["remote-b"]?.defaultSessionApprovalMode,
+      "build",
+    );
+  } finally {
+    if (previous === undefined) delete process.env.LCODE_DESKTOP_HOME_DIR;
+    else process.env.LCODE_DESKTOP_HOME_DIR = previous;
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
 test("unified review modes persist without rewriting legacy or concurrent project fields", async () => {
   const directory = await mkdtemp(join(tmpdir(), "lcode-review-mode-"));
   const previous = process.env.LCODE_DESKTOP_HOME_DIR;

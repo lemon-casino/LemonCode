@@ -159,6 +159,7 @@ export type {
 export type { LCodeTaskListItem } from "./session/lcodeTaskListTypes.js";
 
 export { IWindowControllerService } from "./window-controller/windowController.js";
+export { IWindowWorkspaceService } from "./window-controller/windowWorkspace.js";
 export type {
   WindowHostControllerFrame,
   WindowHostControllerMutation,

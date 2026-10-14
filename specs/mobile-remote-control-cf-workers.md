@@ -141,7 +141,7 @@ sequenceDiagram
 
 ## 开放问题(实现前需对齐)
 
-1. 手机 attachment 的 scope 语义:**已定**——本地工作区镜像以 `scope:{kind:"local"}` 第二 attachment 挂到窗口 Host(`attachLocalWorkspaceSessionHost`,注册表按 attachmentId 键控、与 Renderer 共存);远程工作区继续走 `kind:"remote"` 三元组入口。镜像目标为判别联合(`remotePairingMirrorTargetSchema`)。
+1. 手机 attachment 的 scope 语义:**已定**——新配对以 `scope:{kind:"local"}` 第二 attachment 挂到窗口 Host(`attachLocalWorkspaceSessionHost`,注册表按 attachmentId 键控、与 Renderer 共存)，SSH/WSL/Docker 项目通过窗口目录及 scoped RPC 复用已有远端连接。旧 `kind:"remote"` 三元组入口和严格校验保留兼容；当前窗口目录、路由与恢复规则见 [远控窗口项目、工作树与分组](./remote-control-workspace-catalog.md)。
 2. 移动端 SPA 载体:已定——采用 `packages/web` 完整构建产物做镜像 UI,不做裁剪版。
 3. Cloudflare 套餐容量与成本:房间模型可水平扩展,但上线前仍需按并发 WebSocket、DO 请求/存储和真实帧量压测并设置费用告警;限速只用于滥用防护,不替代容量规划。
 4. RPC PersistentProtocol 可靠层(已实现未接线)是否在本项目 v2 接入隧道两端,替换纯透传的 SocketProtocol 语义。

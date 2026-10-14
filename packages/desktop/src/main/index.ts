@@ -904,23 +904,23 @@ function focusForceUpdateGateWindow() {
 const primaryWindowCoordinator = createPrimaryWindowCoordinator({
   listWindows: getApplicationWindowsExcludingCuaIndicator,
   resolveStartupWindowBootstrap: () => {
+    let explicitBootstrap: StartupWindowBootstrap | undefined;
     if (startupOpenWorkspaceRequest) {
       const request = startupOpenWorkspaceRequest;
       startupOpenWorkspaceRequest = null;
       startupDeepLinkConsumptionGate.markStartupRequestConsumed(request);
-      const explicitBootstrap = resolveExplicitStartupWorkspaceBootstrap(request, {
-        confirmationCopy: resolveExternalWorkspaceConfirmationCopy(),
-        logger,
-      });
-      if (explicitBootstrap) {
-        return Promise.resolve(explicitBootstrap);
-      }
+      explicitBootstrap =
+        resolveExplicitStartupWorkspaceBootstrap(request, {
+          confirmationCopy: resolveExternalWorkspaceConfirmationCopy(),
+          logger,
+        }) ?? undefined;
     }
 
     return resolveStartupWindowBootstrap({
       settingsFile,
       // dataBaseDir 可能在 bootstrap 设置阶段被覆盖，必须在真正解析启动工作区时再取值。
       conversationWorkspaceDir: getConversationWorkspaceDir(),
+      explicitBootstrap,
       logger,
     });
   },

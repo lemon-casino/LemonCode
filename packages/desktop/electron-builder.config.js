@@ -9,6 +9,7 @@ import { loadBuiltinProviderConfig } from "../../scripts/builtin-provider-config
 import { noticesFileName, stageElectronNotices } from "../../scripts/third-party-notices.mjs";
 import { resolveNativeSearchReleasePlan } from "../../scripts/native-search-tools-config.mjs";
 import { getBuildMetadata } from "./scripts/build-metadata.mjs";
+import { verifyMacLocalNetworkUsage } from "./scripts/macos-local-network-metadata.mjs";
 import { collectRuntimeModuleClosureEntries } from "./scripts/runtime-dependency-closure.mjs";
 import { providerNetworkRuntimeModules } from "./scripts/provider-network-runtime.mjs";
 import {
@@ -561,6 +562,12 @@ export default {
       arch: context.arch,
       configuredTargetPlatform: targetPlatform,
     });
+    await runTimedAsync("afterPack:verifyMacLocalNetworkUsage", () =>
+      verifyMacLocalNetworkUsage({
+        electronPlatformName: context.electronPlatformName,
+        resourcesDir: resolvePackagedResourcesDir(context),
+      }),
+    );
     const cuaDependencyPackageRoots = resolveLinuxCuaNativePackageRoots({
       targetPlatform: actualCuaTarget,
       env: process.env,
@@ -740,6 +747,9 @@ export default {
     category: "public.app-category.developer-tools",
     artifactName: buildDesktopArtifactName("mac"),
     extendInfo: {
+      // 修复依据：macOS 15+ 的局域网授权归属主应用；窗口 Host 的 SSH 直连也需要用途说明。
+      // 在生成 plist 时声明，保持现有自签流程，不能在签名后改写安装包。
+      NSLocalNetworkUsageDescription: `${desktopProductIdentity.productName} needs local network access to connect to SSH servers and other devices you choose.`,
       NSAppleEventsUsageDescription: `${desktopProductIdentity.productName} needs Apple Events access to coordinate local automation workflows with user-approved desktop apps.`,
     },
     // 预签名脚本走的是原生 codesign，要求完整的 "Developer ID Application: ..." 身份串；

@@ -31,7 +31,6 @@ import { DataBaseDirControl } from "@/settings/DataBaseDirControl.js";
 import { IntegratedTerminalShellControl } from "@/settings/IntegratedTerminalShellControl.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useOptionalServices } from "@/hooks/useServices.js";
-import { GlobalExecutionPolicySettings } from "@/worktree/ExecutionPolicySettings.js";
 import { ProactiveSuggestionsSetting } from "@/settings/ProactiveSuggestionsSetting.js";
 import { normalizeInterfaceMode, type InterfaceMode } from "@/lib/interfaceMode.js";
 import {
@@ -469,7 +468,6 @@ export function GeneralSectionContent({
       </SettingsGroupCard>
 
       <SettingsGroupCard>
-        <GlobalExecutionPolicySettings />
         <SettingsRow
           controlLayout="wide"
           label={intl.formatMessage({ id: "settings.lcodeInteractionBehavior" })}

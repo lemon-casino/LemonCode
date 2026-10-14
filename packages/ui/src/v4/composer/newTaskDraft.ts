@@ -1,4 +1,5 @@
 import type { ModelSelectionView } from "@lcode/services";
+import type { ModelSelection, SessionDefaults } from "@lcode/shared";
 import { readComposerRecent, resolveDraftInitialModelSelection } from "@/lib/composerRecent.js";
 import {
   persistV4ComposerDraft,
@@ -13,15 +14,23 @@ export function initializeNewTaskDraft(
   workspacePath: string,
   workspaceIdentity: string | undefined,
   view: ModelSelectionView,
+  defaults?: SessionDefaults,
 ): V4ComposerDraft {
   const recent = readComposerRecent(workspacePath, workspaceIdentity);
-  const resolved = resolveDraftInitialModelSelection(view, recent?.modelSelection ?? null);
+  const resolved = resolveDraftInitialModelSelection(
+    view,
+    recent?.modelSelection ?? null,
+    defaults?.modelSelection,
+  );
   return {
     ...draft,
     initializeFromNewTask: undefined,
-    mode: recent?.mode === "plan" ? "build" : (recent?.mode ?? "build"),
+    mode: defaults?.approvalMode ?? (recent?.mode === "plan" ? "build" : (recent?.mode ?? "build")),
     planEnabled: false,
-    modelSelection: resolved.selection ?? undefined,
+    // 初始化 IO 期间也能主动选模型；迟到默认值不得覆盖已保存的手动意图。
+    modelSelection: draft.modelSelectionEdited
+      ? draft.modelSelection
+      : (resolved.selection ?? undefined),
   };
 }
 
@@ -29,20 +38,34 @@ export function initializeNewTaskDraft(
 export function refreshUneditedNewTaskDefaults(
   draft: V4ComposerDraft,
   view: ModelSelectionView,
+  defaults?: SessionDefaults,
+  recent?: ModelSelection | null,
 ): V4ComposerDraft {
   if (draft.modelSelectionEdited || draft.text.trim()) return draft;
-  const resolved = resolveDraftInitialModelSelection(view, draft.modelSelection ?? null);
-  const next = resolved.selection;
-  if (
-    !next ||
-    (draft.modelSelection &&
-      (next.providerId !== draft.modelSelection.providerId ||
-        next.modelId !== draft.modelSelection.modelId)) ||
-    (next.options?.reasoningLevel === draft.modelSelection?.options?.reasoningLevel &&
-      next.options?.speed === draft.modelSelection?.options?.speed)
-  )
-    return draft;
-  return { ...draft, modelSelection: next };
+  // 配置页的显式默认优先于 Recent/最高档；只更新尚未编辑的空 Root，不能覆盖用户意图。
+  const current =
+    !defaults?.modelSelection && draft.modelSelection
+      ? resolveDraftInitialModelSelection(view, draft.modelSelection)
+      : null;
+  // 原因：只允许同模型 identity 刷新会挡住删除后的回退；有效自动选择继续保留，
+  // 已失效的自动选择重新按本项目 Recent/Host 解析，不改变设置或用户手动选择。
+  const resolved =
+    current && !current.invalidated
+      ? current
+      : resolveDraftInitialModelSelection(view, recent ?? null, defaults?.modelSelection);
+  const modelSelection = resolved.selection ?? undefined;
+  // 明确审批事实已把草稿切为 yolo；重复默认刷新不能撤销用户刚同意的授权。
+  const mode =
+    draft.approvalModeEdited || draft.lastPermissionGrantId
+      ? draft.mode
+      : (defaults?.approvalMode ?? draft.mode);
+  const sameModel =
+    modelSelection?.providerId === draft.modelSelection?.providerId &&
+    modelSelection?.modelId === draft.modelSelection?.modelId &&
+    modelSelection?.options?.reasoningLevel === draft.modelSelection?.options?.reasoningLevel &&
+    modelSelection?.options?.speed === draft.modelSelection?.options?.speed;
+  if (sameModel && mode === draft.mode) return draft;
+  return { ...draft, mode, modelSelection };
 }
 
 /** 在激活首次导入的 Session 前调用；不依赖模型可执行，也不把原新任务正文带入分享。 */

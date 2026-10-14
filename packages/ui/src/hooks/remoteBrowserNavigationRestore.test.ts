@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { appSettingsSchema } from "@lcode/shared";
+import { appSettingsSchema, buildRemoteWorkspaceIdentity } from "@lcode/shared";
 import type { IServiceAccessor } from "@lcode/services";
-import { createTabStore } from "@/store/tabStore.js";
+import { createTabStore, isWorkspaceTab } from "@/store/tabStore.js";
 import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import { restoreRemoteBrowserNavigation } from "./remoteBrowserNavigationRestore.js";
 
@@ -26,6 +26,39 @@ function host(taskExists = true) {
   } as unknown as IServiceAccessor;
 }
 const target = { workspacePath: "/b", localProjectId: "project-b", taskId: "b2" };
+
+test("远控恢复 SSH/WSL/Docker 项目，并按 identity 恢复换代后的 session", async () => {
+  const targets = [
+    { kind: "ssh" as const, host: "example.invalid", username: "fixture" },
+    { kind: "wsl" as const, distro: "FixtureDistro" },
+    { kind: "docker" as const, container: "fixture-container" },
+  ];
+  const entries = targets.map((remoteTarget, index) => ({
+    kind: "remote" as const,
+    workspacePath: "/same",
+    workspaceIdentity: buildRemoteWorkspaceIdentity("/same", remoteTarget),
+    target: remoteTarget,
+    lastOpenedAt: index,
+    lastConnectionStatus: "connected" as const,
+  }));
+  const remoteSettings = appSettingsSchema.parse({
+    lastWorkspaceSession: [{ kind: "local", workspacePath: "/same" }, ...entries],
+  });
+  const tabs = createTabStore(null);
+  await restoreRemoteBrowserNavigation({
+    settings: remoteSettings,
+    target: null,
+    services: host(),
+    tabStoreApi: tabs,
+  });
+  assert.deepEqual(
+    tabs
+      .getState()
+      .tabs.filter(isWorkspaceTab)
+      .flatMap((tab) => tab.remoteTarget?.kind ?? []),
+    ["ssh", "wsl", "docker"],
+  );
+});
 
 test("浏览器位置优先于桌面激活项目，缺失会话只回到原项目草稿", async () => {
   for (const exists of [true, false]) {

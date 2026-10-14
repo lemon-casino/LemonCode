@@ -58,6 +58,7 @@ import { ShortcutSettingsSection } from "@/settings/ShortcutSettingsSection.js";
 import { MigrationSection } from "@/settings/MigrationSection.js";
 import { GitBackupSection } from "@/settings/GitBackupSection.js";
 import { WorktreeSettingsSection } from "@/settings/WorktreeSettingsSection.js";
+import { SessionConfigurationSection } from "@/settings/SessionConfigurationSection.js";
 import { SETTINGS_FRAME_CONTENT_CLASSNAME } from "@/settings/SettingsPageParts.js";
 import {
   SettingsBreadcrumbProvider,
@@ -1424,6 +1425,14 @@ export function SettingsPage({
                               })
                             }
                           />
+                        ) : activeSection === "configuration" ? (
+                          <ServiceProvider services={localHostServices}>
+                            <SessionConfigurationSection
+                              workspaceTabs={workspaceTabs}
+                              activeWorkspacePath={activeWorkspacePath}
+                              activeWorkspaceIdentity={activeWorkspaceIdentity}
+                            />
+                          </ServiceProvider>
                         ) : activeSection === "appearance" ? (
                           <AppearanceSectionContent
                             codePreviewSettings={codePreviewSettings}

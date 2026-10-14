@@ -169,9 +169,6 @@ export function DeveloperToolsPane({
                     {intl.formatMessage({ id: "tokenDebug.column.cacheRead" })}
                   </th>
                   <th className="px-2 py-1.5 text-right font-medium">
-                    {intl.formatMessage({ id: "tokenDebug.column.cacheWrite" })}
-                  </th>
-                  <th className="px-2 py-1.5 text-right font-medium">
                     {intl.formatMessage({ id: "tokenDebug.column.hitRate" })}
                   </th>
                 </tr>
@@ -179,7 +176,7 @@ export function DeveloperToolsPane({
               <tbody>
                 {debugState.rounds.length === 0 ? (
                   <tr>
-                    <td className="px-2 py-3 text-center text-foreground-subtle" colSpan={9}>
+                    <td className="px-2 py-3 text-center text-foreground-subtle" colSpan={8}>
                       {intl.formatMessage({ id: "tokenDebug.empty" })}
                     </td>
                   </tr>
@@ -213,9 +210,6 @@ export function DeveloperToolsPane({
                       </td>
                       <td className="px-2 py-1.5 text-right font-mono text-foreground">
                         {formatNumber(locale, round.usage.cachedInputTokens)}
-                      </td>
-                      <td className="px-2 py-1.5 text-right font-mono text-foreground">
-                        {formatNumber(locale, round.usage.cachedWriteInputTokens)}
                       </td>
                       <td className="px-2 py-1.5 text-right font-mono text-foreground">
                         {formatPercent(locale, round.hitRate)}

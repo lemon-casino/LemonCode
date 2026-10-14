@@ -19,6 +19,8 @@ import { removePhysicalWorktreeDirectory } from "./physicalWorktreeRemoval.js";
 import {
   MessagePortProtocol,
   ChannelServer,
+  ProxyChannel,
+  type IServerChannel,
   type IDisposable,
   type IChannelServer,
   LoggingChannelServer,
@@ -41,6 +43,7 @@ import {
   IModelSelectionService,
   ISettingService,
   IWindowControllerService,
+  IWindowWorkspaceService,
   IConversationShareService,
   ILCodeAgentService,
   ILCodeTaskService,
@@ -93,6 +96,8 @@ import {
   type TraceId,
   type LCodeTaskMode,
   type WindowHostAttachmentScope,
+  type WindowWorkspaceScope,
+  type WindowWorkspaceCatalogEntry,
   type LCodeAutomation,
   type LCodeAutomationRun,
   type LCodeAutomationRunOutcome,
@@ -143,6 +148,7 @@ import {
   materializeRemotePromptAttachments,
 } from "./remotePromptAttachments.js";
 import { createWindowHostAttachmentRegistry } from "./windowHostAttachmentRegistry.js";
+import { createWindowWorkspaceAttachmentService } from "./windowWorkspaceAttachmentService.js";
 import { scopeConversationShareServiceForAttachment } from "./conversationShareAttachmentService.js";
 import {
   createWindowRemoteConnectionRegistry,
@@ -1967,23 +1973,12 @@ function createControllerRoutedTaskService(
   });
 }
 
-function exposeServicesOnMessagePort(
-  port: Electron.MessagePortMain,
+function createAttachmentServiceChannels(
   services: ServiceCollection,
-  deferInit: boolean,
-  clientMode: LCodeAgentV4ClientMode = "desktop-continuous",
-  attachmentScope: WindowHostAttachmentScope = { kind: "local" },
+  clientMode: LCodeAgentV4ClientMode,
+  attachmentScope: WindowHostAttachmentScope,
   capabilities?: HostRemoteConnectionCapabilities,
-): ExposedServicePortHandle {
-  const wrappedPort = wrapElectronPort(port);
-  const protocol = new MessagePortProtocol(wrappedPort);
-  // remote 模式延迟发送 Initialize：远程建连需要时间，如果构造时就发 Initialize，
-  // renderer 会立即发请求但 channel 还没注册，导致 "Unknown channel" 超时错误。
-  // attach 模式复用已就绪服务，必须立即初始化新的 RPC MessagePort。
-  logger.info(`creating ChannelServer (deferInit=${deferInit})`);
-  const rawServer = new ChannelServer(protocol, "host", 1000, deferInit);
-  const loggedServer = new LoggingChannelServer(rawServer, logRpc);
-  const server = new NetworkTelemetryChannelServer(loggedServer);
+) {
   const agentService = services.getOptional(ILCodeAgentService);
   const connectionScope = agentService
     ? createLCodeAgentConnectionScope(agentService, {
@@ -2047,12 +2042,140 @@ function exposeServicesOnMessagePort(
       ),
     );
   }
-  services.exposeOnChannelServer(server, overrides);
+  const channels = new Map<string, IServerChannel>();
+  services.exposeOnChannelServer(
+    { registerChannel: (name, channel) => channels.set(name, channel) },
+    overrides,
+  );
+  let retired = false;
+  let flowChain = Promise.resolve();
+  const updateFlow = (state: "saturated" | "drained" | "closed") => {
+    const update = flowChain.then(() => connectionScope?.setTransportFlowState(state));
+    flowChain = update.then(
+      () => {},
+      () => {},
+    );
+    return update.then(() => {});
+  };
+  return {
+    channels,
+    setTransportFlowState: (state: "saturated" | "drained" | "closed") =>
+      retired ? Promise.resolve() : updateFlow(state),
+    dispose() {
+      if (retired) return;
+      retired = true;
+      controllerAttachment.dispose();
+      void remoteMediaPreviewProxy
+        ?.dispose()
+        .catch((error: unknown) =>
+          logger.warn("failed to dispose remote media preview proxy", error),
+        );
+      // 注册表可在外层 flow 链仍排队时退休 route；close 必须排在已接受的流控边沿之后。
+      void updateFlow("closed")
+        .catch(() => {})
+        .then(() => connectionScope?.dispose());
+    },
+  };
+}
+
+function getWindowWorkspaceCatalog(): WindowWorkspaceCatalogEntry[] {
+  return windowRemoteConnectionRegistry.listSessions().flatMap((session) => {
+    if (!session.workspacePath || !session.workspaceIdentity) return [];
+    const target =
+      session.target.kind === "ssh"
+        ? {
+            kind: "ssh" as const,
+            host: session.target.host,
+            username: session.target.username,
+            port: session.target.port,
+            sshConfigAlias: session.target.sshConfigAlias,
+          }
+        : session.target.kind === "wsl"
+          ? { kind: "wsl" as const, distro: session.target.distro, user: session.target.user }
+          : { kind: "docker" as const, container: session.target.container };
+    const scope = {
+      kind: "remote" as const,
+      remoteSessionId: session.remoteSessionId,
+      workspacePath: session.workspacePath,
+      workspaceIdentity: session.workspaceIdentity,
+      generation: session.generation,
+    };
+    let online = false;
+    try {
+      windowRemoteConnectionRegistry.resolveScopedServices(scope);
+      online = true;
+    } catch {
+      /* 等待 registry 发布 ready，不将正在绑定的服务提前暴露。 */
+    }
+    return [
+      { scope, target, sourceAvailability: online ? ("online" as const) : ("offline" as const) },
+    ];
+  });
+}
+
+function resolveWindowWorkspaceScope(scope: WindowWorkspaceScope): ServiceCollection {
+  if (scope.kind === "local") {
+    if (!activeServices) throw new Error("Local Host 尚未初始化");
+    return activeServices;
+  }
+  const current = windowRemoteConnectionRegistry.getSession(scope.remoteSessionId);
+  if (!current || current.generation !== scope.generation)
+    throw new Error("远端 workspace generation 已失效");
+  return windowRemoteConnectionRegistry.resolveScopedServices(scope);
+}
+
+function exposeServicesOnMessagePort(
+  port: Electron.MessagePortMain,
+  services: ServiceCollection,
+  deferInit: boolean,
+  clientMode: LCodeAgentV4ClientMode = "desktop-continuous",
+  attachmentScope: WindowHostAttachmentScope = { kind: "local" },
+  capabilities?: HostRemoteConnectionCapabilities,
+): ExposedServicePortHandle {
+  const wrappedPort = wrapElectronPort(port);
+  const protocol = new MessagePortProtocol(wrappedPort);
+  // remote 模式延迟发送 Initialize：远程建连需要时间，如果构造时就发 Initialize，
+  // renderer 会立即发请求但 channel 还没注册，导致 "Unknown channel" 超时错误。
+  // attach 模式复用已就绪服务，必须立即初始化新的 RPC MessagePort。
+  logger.info(`creating ChannelServer (deferInit=${deferInit})`);
+  const rawServer = new ChannelServer(protocol, "host", 1000, deferInit);
+  const loggedServer = new LoggingChannelServer(rawServer, logRpc);
+  const server = new NetworkTelemetryChannelServer(loggedServer);
+  const attachmentChannels = createAttachmentServiceChannels(
+    services,
+    clientMode,
+    attachmentScope,
+    capabilities,
+  );
+  for (const [name, channel] of attachmentChannels.channels) server.registerChannel(name, channel);
+  const workspaceAttachment = createWindowWorkspaceAttachmentService({
+    getCatalog: getWindowWorkspaceCatalog,
+    onCatalogChanged: windowRemoteConnectionRegistry.onDidChangeCatalog,
+    resolveScope: resolveWindowWorkspaceScope,
+    createChannels: (scope, source) =>
+      createAttachmentServiceChannels(
+        source,
+        clientMode,
+        scope,
+        scope.kind === "remote"
+          ? windowRemoteConnectionRegistry.resolveScopedCapabilities(scope)
+          : undefined,
+      ),
+  });
+  server.registerChannel(
+    IWindowWorkspaceService.channelName,
+    ProxyChannel.fromService(workspaceAttachment.service),
+  );
+
   let disposed = false;
   let flowUpdateChain = Promise.resolve();
   const forwardFlowState = (state: "saturated" | "drained" | "closed") => {
-    if (!connectionScope) return Promise.resolve();
-    const update = flowUpdateChain.then(() => connectionScope.setTransportFlowState(state));
+    const update = flowUpdateChain.then(() =>
+      Promise.all([
+        attachmentChannels.setTransportFlowState(state),
+        workspaceAttachment.setTransportFlowState(state),
+      ]).then(() => {}),
+    );
     flowUpdateChain = update.catch((error) => {
       logger.warn("failed to forward attachment connection flow state", {
         state,
@@ -2078,15 +2201,12 @@ function exposeServicesOnMessagePort(
       if (disposed) return;
       disposed = true;
       flowStateDisposable.dispose();
-      controllerAttachment.dispose();
-      void remoteMediaPreviewProxy?.dispose().catch((error: unknown) => {
-        logger.warn("failed to dispose remote media preview proxy", error);
-      });
+      workspaceAttachment.dispose();
       // close 排在所有已接收 SAT/DRN 之后；scope.dispose 自身会再次幂等确保 closed，
       // 但绝不让迟到 saturated 在 close 后复活 CLI pause state。
       void forwardFlowState("closed")
         .catch(() => {})
-        .then(() => connectionScope?.dispose());
+        .then(() => attachmentChannels.dispose());
       rawServer.dispose();
       protocol.disconnect();
     },

@@ -1555,7 +1555,11 @@ export function SessionPane({
     sharedSettings ?? {},
     { workspacePath, workspaceIdentity },
     // 执行选择统一保存到项目；仅首次请求冻结的意图优先，保证准备失败重试仍使用原目录。
-    draftExecution?.existingBinding || draftExecution?.newWorktree ? "worktree" : draftExecution?.frozen ? draftExecution.mode : undefined,
+    draftExecution?.existingBinding || draftExecution?.newWorktree
+      ? "worktree"
+      : draftExecution?.frozen
+        ? draftExecution.mode
+        : undefined,
   );
   const executionIntentRef = useRef({
     existingBinding: draftExecution?.existingBinding,
@@ -3110,6 +3114,8 @@ export function SessionPane({
     enabled:
       sessionId === null &&
       draftAgentStartupAllowed &&
+      // 配置与模型目录到齐后 Composer 才初始化；提前预热会把 Host 旧默认冻结为新会话配置。
+      Boolean(draftConfig.mode) &&
       !executionSettingsLoading &&
       executionPolicy.executionMode === "local",
     workspaceKey,

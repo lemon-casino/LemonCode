@@ -3,7 +3,7 @@
 // 由 Workers Static Assets 托管(specs/mobile-remote-control-cf-workers.md「移动端」)。
 //
 // 与普通 `pnpm build` 的差异:
-// - base 相对(--base=./):Worker 对 / 与 /p/:roomId 回退同一份 index.html
+// - base 相对(--base=./):Worker 对 /p/:roomId 回退客户端 index.html，根路径精确路由官网
 //   (cfworker-remote/PROTOCOL.md §1),配合 packages/web/index.html 的 <base href="/"
 //   让资源始终解析到站点根,深链页不会请求 /p/assets/* 这类不存在的路径。
 //   packages/web 自身的默认构建(base=/)不受影响。
@@ -11,8 +11,9 @@
 //   sourcemap 策略,移动端产物按生产态构建;只允许注入公开链接常量,
 //   凭据类值不得走 VITE_ 环境注入。
 import { spawn } from "node:child_process";
-import { access, cp, mkdir, rm } from "node:fs/promises";
+import { access } from "node:fs/promises";
 import { resolve } from "node:path";
+import { assembleMobileWeb } from "./mobile-web-assembly.mjs";
 
 const repoRoot = resolve(import.meta.dirname, "..");
 const webDir = resolve(repoRoot, "packages", "web");
@@ -65,15 +66,8 @@ async function buildWeb() {
 }
 
 async function copyToWorkerPublic() {
-  // 整体重建托管目录,保证已删除的资源不会残留在产物里。
-  await rm(outputDir, { recursive: true, force: true });
-  await mkdir(outputDir, { recursive: true });
-  await cp(distDir, outputDir, {
-    recursive: true,
-    // 公网 Worker 不托管 sourcemap:JS 产物为 hidden sourcemap(JS 内无
-    // sourceMappingURL),但 .map 文件可被直接 GET 取回源码,且使部署体积翻倍。
-    filter: (source) => !source.endsWith(".map"),
-  });
+  // 官网与客户端必须一起装配；单方 rm(public) 会删除另一方的页面和恢复入口。
+  await assembleMobileWeb({ distDir, outputDir });
 }
 
 try {
@@ -81,9 +75,6 @@ try {
   await copyToWorkerPublic();
   console.info(`[build-mobile-web] packages/web/dist → ${outputDir}`);
 } catch (error) {
-  console.error(
-    "[build-mobile-web] 构建失败:",
-    error instanceof Error ? error.message : error,
-  );
+  console.error("[build-mobile-web] 构建失败:", error instanceof Error ? error.message : error);
   process.exitCode = 1;
 }

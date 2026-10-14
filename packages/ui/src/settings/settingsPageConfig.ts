@@ -78,6 +78,12 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     groupId: "basics",
   },
   {
+    id: "configuration",
+    icon: Settings,
+    titleId: "settings.configuration.title",
+    groupId: "basics",
+  },
+  {
     id: "appearance",
     icon: Palette,
     titleId: "settings.appearanceTitle",

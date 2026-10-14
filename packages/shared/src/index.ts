@@ -29,6 +29,7 @@ export type {
 export type { WorkspacePurpose } from "./workspacePurpose.js";
 export * from "./localProjects.js";
 export * from "./worktreePolicy.js";
+export * from "./sessionDefaults.js";
 export * from "./worktreeManagement.js";
 export * from "./worktreeExecution.js";
 export * from "./worktreeIntegration.js";
@@ -132,6 +133,7 @@ export * from "./feedback.js";
 export * from "./e2e-test-bridge.js";
 export * from "./remoteAppConfig.js";
 export * from "./remoteControl.js";
+export * from "./windowWorkspace.js";
 export * from "./remoteControlBridgeFrame.js";
 export * from "./helpAppConfig.js";
 export * from "./remoteAssetInstallMode.js";

@@ -11,7 +11,9 @@ import { parsePairingDeepLink } from "../../src/remote/pairingDeepLink.js";
 import "@/styles.css";
 
 const query = new URLSearchParams(location.search);
-const route = parsePairingDeepLink(`/p/${query.get("roomId")}`, location.hash)!;
+const route =
+  parsePairingDeepLink(location.pathname, location.hash) ??
+  parsePairingDeepLink(`/p/${query.get("roomId")}`, location.hash)!;
 
 function App() {
   const [connected, setConnected] = useState(false);

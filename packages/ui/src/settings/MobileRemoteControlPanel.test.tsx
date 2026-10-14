@@ -213,5 +213,21 @@ test("镜像 target 上下文经 mirrorWorkspace 传入并生成 local target", 
     workspaceIdentity: " identity-1 ",
   });
   assert.equal(local?.kind, "local");
-  assert.equal(local?.workspaceIdentity, "identity-1");
+  assert.deepEqual(local, { kind: "local", windowId: 1 });
+});
+
+test("从 SSH 项目发起配对仍绑定窗口，切换项目不会改变房间 target", async () => {
+  const { buildRemotePairingMirrorTarget } = await import("./remoteControlBridge.js");
+  const first = buildRemotePairingMirrorTarget({
+    workspacePath: "/remote-a",
+    workspaceIdentity: "fixture-a",
+    remoteSessionId: "session-a",
+  });
+  const second = buildRemotePairingMirrorTarget({
+    workspacePath: "/remote-b",
+    workspaceIdentity: "fixture-b",
+    remoteSessionId: "session-b",
+  });
+  assert.deepEqual(first, { kind: "local", windowId: 1 });
+  assert.deepEqual(first, second);
 });

@@ -7,6 +7,8 @@ import { createRemoteWorkspaceDisconnectedError } from "@/lib/remoteWorkspaceSer
 export interface RemoteWorkspaceSession {
   sessionId: string;
   target?: RemoteTarget;
+  workspacePath?: string;
+  workspaceIdentity?: string;
   services: IServiceAccessor;
   dispose?: (reason?: Error) => void;
 }

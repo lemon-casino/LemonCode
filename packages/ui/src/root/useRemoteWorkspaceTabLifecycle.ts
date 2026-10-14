@@ -63,11 +63,13 @@ function collectClosedRemoteWorkspaceSessionIds(
 }
 
 export function useRemoteWorkspaceTabLifecycle({
+  enabled = true,
   tabs,
   activeWorkspaceTab,
   platform,
   onRemoteWorkspaceTabsClosed,
 }: {
+  enabled?: boolean;
   tabs: WindowTabState[];
   activeWorkspaceTab: WorkspaceTabState | null;
   platform: IPlatformService;
@@ -77,6 +79,8 @@ export function useRemoteWorkspaceTabLifecycle({
   const rememberedSessionIdsByWorkspaceKeyRef = useRef<Map<string, string>>(new Map());
 
   useEffect(() => {
+    // 远控浏览器只持有派生 facade；关闭 UI tab 无权释放桌面现有 logical session。
+    if (!enabled) return;
     const previousWorkspaceTabs = previousWorkspaceTabsRef.current.filter(isWorkspaceTab);
     const nextWorkspaceTabs = tabs.filter(isWorkspaceTab);
     const closedRemoteWorkspaceKeys = collectClosedRemoteWorkspaceKeys(
@@ -193,7 +197,7 @@ export function useRemoteWorkspaceTabLifecycle({
     }
 
     previousWorkspaceTabsRef.current = nextWorkspaceTabs;
-  }, [onRemoteWorkspaceTabsClosed, platform, tabs]);
+  }, [enabled, onRemoteWorkspaceTabsClosed, platform, tabs]);
 
   useEffect(() => {
     if (!activeWorkspaceTab?.remoteSessionId) {

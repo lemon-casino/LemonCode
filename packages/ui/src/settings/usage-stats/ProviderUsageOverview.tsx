@@ -2,7 +2,6 @@ import type { ProviderUsageSnapshot } from "@lcode/shared";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { formatAppUsageDuration } from "./AppUsagePanel.js";
 import { formatCompactNumber, formatSummaryCompactTokenUsage } from "./usageStatsUiParts.js";
-import { ProviderTokenActivity } from "./ProviderTokenActivity.js";
 
 export function ProviderUsageOverview({ snapshot }: { snapshot: ProviderUsageSnapshot | null }) {
   const { intl, locale } = useLCodeIntl();
@@ -47,7 +46,6 @@ export function ProviderUsageOverview({ snapshot }: { snapshot: ProviderUsageSna
       <p className="text-ui-sm text-foreground-subtle">
         {intl.formatMessage({ id: "settings.oauthUsage.lifetimeScope" })}
       </p>
-      {snapshot && <ProviderTokenActivity snapshot={snapshot} />}
     </section>
   );
 }

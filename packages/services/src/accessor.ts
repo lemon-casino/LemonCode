@@ -40,6 +40,8 @@ import type { ISettingsSyncService } from "./settings-sync/settingsSync.js";
 import type { IFeedbackService } from "./feedback/feedback.js";
 import type { IPromptAttachmentTransferService } from "./prompt-attachment-transfer/promptAttachmentTransfer.js";
 import type { IWindowControllerService } from "./window-controller/windowController.js";
+import type { IWindowWorkspaceService } from "./window-controller/windowWorkspace.js";
+import type { WindowWorkspaceScope } from "@lcode/shared";
 import type { IOnboardingRecordService } from "./onboarding/onboardingRecord.js";
 import type { IConversationShareService } from "./conversation-share/conversationShare.js";
 
@@ -65,6 +67,9 @@ export interface IServiceAccessor {
   readonly lcodeTaskService: ILCodeTaskService;
   /** 窗口 Host 聚合面；旧 server wire 或测试 double 可暂不提供。 */
   readonly windowControllerService?: IWindowControllerService;
+  readonly windowWorkspaceService?: IWindowWorkspaceService;
+  /** 客户端本地 factory；服务代理复用当前 RPC 连接，绝不创建远端连接。 */
+  createWorkspaceServiceAccessor?(scope: WindowWorkspaceScope): IServiceAccessor;
   readonly lcodeAgentService: ILCodeAgentService;
   readonly lcodeSessionService: ILCodeSessionService;
   // CUA 是 opt-in 内测特性：local macOS host 提供，远端 等 host 没有。可选避免连锁必填。

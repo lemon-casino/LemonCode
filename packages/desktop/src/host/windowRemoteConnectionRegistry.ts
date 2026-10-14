@@ -1,4 +1,5 @@
 /* eslint-disable max-lines -- 所有 transport 生命周期共享同一个 registry 状态机，必须原子演进。 */
+import { Emitter } from "@lcode/rpc";
 import {
   buildSshRemoteHostKey,
   stripRemoteTargetSecrets,
@@ -154,6 +155,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
   const entriesByKey = new Map<string, ConnectionEntry<TServices, TCapabilities>>();
   const sessionsById = new Map<string, LogicalSession<TServices, TCapabilities>>();
   const pendingSessionsByRequestId = new Map<string, LogicalSession<TServices, TCapabilities>>();
+  const catalogChanged = new Emitter<void>();
   let disposed = false;
   let disposePromise: Promise<void> | null = null;
   const wslIdleTtlMs = options.wslIdleTtlMs ?? 60_000;
@@ -308,6 +310,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
           throw new WindowRemoteConnectCancelledError();
         }
         session.workspaceReadyState = "ready";
+        catalogChanged.fire();
       })
       .catch((error) => {
         session.workspaceReadyState = "failed";
@@ -383,6 +386,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
       session.sourceAvailability = "offline";
       options.onSessionClosed?.({ remoteSessionId, ...event });
     }
+    catalogChanged.fire();
   }
 
   function createEntry(params: {
@@ -454,6 +458,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
           pendingSessionsByRequestId.delete(session.requestId);
         }
         entry.sessions.clear();
+        catalogChanged.fire();
         throw error;
       });
     entriesByKey.set(entry.key, entry);
@@ -527,6 +532,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     }
     sessionsById.set(remoteSessionId, session);
     pendingSessionsByRequestId.set(params.requestId, session);
+    catalogChanged.fire();
 
     try {
       await Promise.race([entry.ready, cancellation]);
@@ -536,6 +542,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
       }
       session.state = "online";
       session.sourceAvailability = "online";
+      catalogChanged.fire();
       return {
         remoteSessionId,
         target: stripRemoteTargetSecrets(params.target),
@@ -553,6 +560,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
           await disposeEntry(entry);
         }
       }
+      catalogChanged.fire();
       throw error;
     } finally {
       if (pendingSessionsByRequestId.get(params.requestId) === session) {
@@ -569,6 +577,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     session.cancelled = true;
     pendingSessionsByRequestId.delete(requestId);
     sessionsById.delete(session.remoteSessionId);
+    catalogChanged.fire();
     session.entry.sessions.delete(session.remoteSessionId);
     const workspaceRelease = requestWorkspaceRelease({
       entry: session.entry,
@@ -616,6 +625,8 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     session.workspaceKey = params.workspaceIdentity.trim() || params.workspacePath;
     session.entry.workspaceKeys.add(session.workspaceKey);
     const ready = prepareWorkspaceRuntime(session);
+    // scope 换代立即退休旧 facade；ready 后由同一 owner 再发布可用目录。
+    catalogChanged.fire();
     if (previousOwnership.workspaceKey !== session.workspaceKey) {
       const release = requestWorkspaceRelease(previousOwnership);
       void release?.catch(() => undefined);
@@ -666,6 +677,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
       return;
     }
     sessionsById.delete(remoteSessionId);
+    catalogChanged.fire();
     pendingSessionsByRequestId.delete(session.requestId);
     session.entry.sessions.delete(remoteSessionId);
     const workspaceRelease = requestWorkspaceRelease({
@@ -689,6 +701,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
   }
 
   return {
+    onDidChangeCatalog: catalogChanged.event,
     connect,
     cancelConnect,
     bindWorkspaceContext,
@@ -781,6 +794,8 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
       }
       sessionsById.clear();
       pendingSessionsByRequestId.clear();
+      catalogChanged.fire();
+      catalogChanged.dispose();
       disposePromise = Promise.all(Array.from(entries, disposeEntry)).then(() => undefined);
       return disposePromise;
     },

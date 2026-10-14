@@ -64,6 +64,12 @@ function renderPairingPanel(props: Partial<Parameters<typeof RemotePairingPanel>
   );
 }
 
+function assertLocaleMessage(markup: string, key: string): void {
+  const message = zhCN[key];
+  assert.ok(message, `缺少文案 ${key}`);
+  assert.ok(markup.includes(message));
+}
+
 test("resolveRemoteControlBridge 缺任一必需能力即整体 fail-closed", () => {
   assert.equal(resolveRemoteControlBridge({} as IPlatformService), null);
   assert.equal(resolveRemoteControlBridge(null), null);
@@ -135,7 +141,7 @@ test("配对面板按 Main 推送的状态投影：等待/裁决/已就绪", () 
   const unknown = renderPairingPanel({});
   assert.match(unknown, /data-testid="remote-control-pairing-panel"/);
   assert.match(unknown, /状态未知/);
-  assert.match(unknown, /无法确认当前是否正在镜像/);
+  assertLocaleMessage(unknown, "settings.remoteControl.pairing.unknownDescription");
   assert.match(unknown, /开启等待/);
   assert.doesNotMatch(unknown, /未在等待/);
 
@@ -147,7 +153,7 @@ test("配对面板按 Main 推送的状态投影：等待/裁决/已就绪", () 
     pairing: { state: "waiting", roomId: "room", expiresAt: 1_700_000_000_000 },
     pairingUrl: "https://worker.example/p/room#c=cap",
   });
-  assert.match(waiting, /等待手机连接/);
+  assertLocaleMessage(waiting, "settings.remoteControl.pairing.status.waiting");
   assert.match(waiting, /data-testid="remote-control-pairing-url"/);
   assert.match(waiting, /复制链接/);
   assert.match(waiting, /刷新二维码/);
@@ -170,7 +176,7 @@ test("配对面板按 Main 推送的状态投影：等待/裁决/已就绪", () 
     pairing: { state: "bridged", roomId: "room" },
   });
   assert.match(bridged, /已就绪/);
-  assert.match(bridged, /完全一致的操作能力/);
+  assertLocaleMessage(bridged, "settings.remoteControl.pairing.bridgedDescription");
   assert.match(bridged, /停止/);
 });
 
@@ -180,7 +186,7 @@ test("waiting 但 capability 已消费（无链接）时提示刷新二维码，
     pairing: { state: "waiting", roomId: "room", expiresAt: 1_700_000_000_000 },
     pairingUrl: null,
   });
-  assert.match(stale, /请刷新生成新的二维码/);
+  assertLocaleMessage(stale, "settings.remoteControl.pairing.staleHint");
   assert.match(stale, /刷新二维码/);
   assert.doesNotMatch(stale, /data-testid="remote-control-pairing-url"/);
 });
@@ -203,37 +209,21 @@ test("组装不出镜像 target 时禁用开启等待并提示，错误码按本
   assert.match(unknown, /配对出错：SOME_FUTURE_CODE/);
 });
 
-test("buildRemotePairingMirrorTarget:远程三元组产出 remote target,本地工作区产出 local target", () => {
+test("buildRemotePairingMirrorTarget:本地和远端项目都绑定已有窗口 Host", () => {
   assert.equal(buildRemotePairingMirrorTarget({}), null);
   assert.equal(buildRemotePairingMirrorTarget({ remoteSessionId: "s", workspacePath: "  " }), null);
-  const remote = buildRemotePairingMirrorTarget({
-    remoteSessionId: " session-1 ",
-    workspacePath: "/work/demo",
-  });
-  assert.deepEqual(remote, {
-    // windowId 是 Main 权威字段的占位值(handler 按可信 sender 覆盖),见 remoteControlBridge.ts。
-    kind: "remote",
-    windowId: REMOTE_PAIRING_PLACEHOLDER_WINDOW_ID,
-    remoteSessionId: "session-1",
-    workspacePath: "/work/demo",
-    // 身份 key 统一规则:workspaceIdentity?.trim() || workspacePath。
-    workspaceIdentity: "/work/demo",
-  });
-  // 本地工作区(无 remoteSessionId)不再禁用「开启等待」:产出 local target,
-  // 由 Main 以 scope:{kind:"local"} 第二 attachment 挂到窗口 Host(与 Renderer 共存)。
-  const local = buildRemotePairingMirrorTarget({ workspacePath: "/work/local-demo" });
-  assert.deepEqual(local, {
-    kind: "local",
-    windowId: REMOTE_PAIRING_PLACEHOLDER_WINDOW_ID,
-    workspacePath: "/work/local-demo",
-    workspaceIdentity: "/work/local-demo",
-  });
-  const localWithIdentity = buildRemotePairingMirrorTarget({
-    workspacePath: "/work/local-demo",
-    workspaceIdentity: " identity-1 ",
-  });
-  assert.equal(localWithIdentity?.kind, "local");
-  assert.equal(localWithIdentity?.workspaceIdentity, "identity-1");
+  for (const workspace of [
+    {
+      workspacePath: "/work/demo",
+      remoteSessionId: "session",
+      workspaceIdentity: "fixture-remote",
+    },
+    { workspacePath: "/work/local-demo" },
+  ])
+    assert.deepEqual(buildRemotePairingMirrorTarget(workspace), {
+      kind: "local",
+      windowId: REMOTE_PAIRING_PLACEHOLDER_WINDOW_ID,
+    });
 });
 
 test("zh-CN 与 en-US 的远程控制文案键（设置段 + 独立配对块）一一对应", () => {

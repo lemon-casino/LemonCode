@@ -119,7 +119,10 @@ export function useSettings() {
   const { broadcastService, settingService, lcodeAgentService } = useServices();
   const platform = usePlatform();
   const settingsStore = getSettingsStore(settingService);
-  const [snapshot, setSnapshot] = useState<SettingsSnapshot>(settingsStore.snapshot);
+  const [owned, setOwned] = useState({ store: settingsStore, snapshot: settingsStore.snapshot });
+  // 原因：切换 Host 后 effect 才替换 state，首帧会读到旧 Host 设置并初始化新草稿。
+  // 服务身份变化时同步读取新 owner 的快照，禁止旧 Environment 默认值跨边界进入会话。
+  const snapshot = owned.store === settingsStore ? owned.snapshot : settingsStore.snapshot;
 
   const refresh = useCallback(
     async (options?: { afterPending?: boolean; throwOnError?: boolean }) => {
@@ -132,11 +135,11 @@ export function useSettings() {
 
   useEffect(() => {
     const listener = (nextSnapshot: SettingsSnapshot) => {
-      setSnapshot(nextSnapshot);
+      setOwned({ store: settingsStore, snapshot: nextSnapshot });
     };
 
     settingsStore.listeners.add(listener);
-    setSnapshot(settingsStore.snapshot);
+    setOwned({ store: settingsStore, snapshot: settingsStore.snapshot });
     void refresh();
 
     return () => {

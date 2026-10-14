@@ -26,6 +26,7 @@ export interface V4ComposerDraft {
   modelSelection?: ModelSelection;
   /** 仅当前草稿明确选择过的档位阻止新任务默认值迁移。 */
   modelSelectionEdited?: true;
+  approvalModeEdited?: true;
   /** 首次分享导入等待公共新任务初始化；不能由空 Session snapshot 抢先填充。 */
   initializeFromNewTask?: true;
   updatedAt: number;
@@ -136,6 +137,7 @@ function readDraft(value: unknown): V4ComposerDraft | null {
       : {}),
     ...(modelSelection ? { modelSelection } : {}),
     ...(value.modelSelectionEdited === true ? { modelSelectionEdited: true as const } : {}),
+    ...(value.approvalModeEdited === true ? { approvalModeEdited: true as const } : {}),
     ...(value.initializeFromNewTask === true && !mode.success
       ? { initializeFromNewTask: true as const }
       : {}),

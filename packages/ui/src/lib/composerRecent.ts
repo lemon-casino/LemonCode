@@ -102,18 +102,58 @@ export function captureComposerRecentSubmission(
 export function resolveDraftInitialModelSelection(
   view: ModelSelectionView | null,
   recent: ModelSelection | null,
+  configuredDefault?: ModelSelection | null,
 ): { readonly selection: ModelSelection | null; readonly invalidated: boolean } {
   // Registry 尚未到达时不能把已有草稿意图误判为失效；先原样保留，等同一 Hook
   // 收到 View 后再做语义校验。
-  if (!view) return { selection: recent, invalidated: false };
-  if (recent) {
-    const model = findModel(view, recent);
-    if (model) {
-      // 最近提交决定新任务使用哪个模型，不决定这个新任务的档位；旧会话保持原快照。
+  if (!view) return { selection: configuredDefault ?? recent, invalidated: false };
+  if (configuredDefault) {
+    const model = findModel(view, configuredDefault);
+    const completed = completeNewModelSelection(view, configuredDefault, { speed: "highest" });
+    if (model && completed) {
+      // 默认配置是偏好而非执行事实：保留仍支持的档位，只对已失效能力用现有补全规则。
+      const reasoning = configuredDefault.options?.reasoningLevel;
+      const speed = configuredDefault.options?.speed;
+      const effectiveSpeed =
+        speed && model.config.optionSpecs.speed?.values.includes(speed)
+          ? speed
+          : completed.options?.speed;
       return {
-        selection: completeNewModelSelection(view, recent, { speed: "highest" }) ?? null,
+        selection: {
+          ...completed,
+          options: {
+            reasoningLevel:
+              reasoning && model.config.optionSpecs.reasoningLevel.values.includes(reasoning)
+                ? reasoning
+                : completed.options?.reasoningLevel,
+            ...(effectiveSpeed ? { speed: effectiveSpeed } : {}),
+          },
+        },
         invalidated: false,
       };
+    }
+  }
+  if (recent) {
+    const model = findModel(view, recent);
+    const completed = model && completeNewModelSelection(view, recent, { speed: "highest" });
+    if (completed) {
+      // 最近提交决定新任务使用哪个模型，不决定这个新任务的档位；旧会话保持原快照。
+      return {
+        selection: completed,
+        invalidated: false,
+      };
+    }
+    // 原因：默认/最近模型删除不代表最近供应商失效；同供应商的可用模型优先于其它 Host 推荐。
+    const recentProvider = view.providers.find(
+      (provider) => provider.providerId === recent.providerId,
+    );
+    for (const candidate of recentProvider?.models ?? []) {
+      const selection = completeNewModelSelection(
+        view,
+        { providerId: recent.providerId, modelId: candidate.modelId },
+        { speed: "highest" },
+      );
+      if (selection) return { selection, invalidated: true };
     }
   }
   const preferred = view.preferredSelection;
@@ -125,7 +165,7 @@ export function resolveDraftInitialModelSelection(
       (preferred && completeNewModelSelection(view, preferred, { speed: "highest" })) ||
       (firstModel && completeNewModelSelection(view, firstModel, { speed: "highest" })) ||
       null,
-    invalidated: recent !== null,
+    invalidated: configuredDefault != null || recent !== null,
   };
 }
 

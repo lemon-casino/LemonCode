@@ -1,6 +1,6 @@
 import { applyTheme } from "@lcode/ui/useTheme";
 /* eslint-disable max-lines -- Web 入口集中编排启动、路由与 workspace shell wiring，与 Root.tsx 同样先保持入口收口，避免跨层状态拆散。 */
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   AppErrorBoundary,
@@ -463,13 +463,17 @@ function buildAppShellElement(
 // 流程连同源 /ws;授权完成后渲染与桌面同构的完整 app shell(镜像 UI,不做能力缩减)。
 function MobilePairingGate({ route }: { route: PairingDeepLinkRoute }) {
   const [services, setServices] = useState<MobileDataServices | null>(null);
+  const onConnected = useCallback((connected: MobileDataServices) => {
+    // 从远端项目配对也需要窗口本地根；各远端项目随后通过目录绑定自己的 facade。
+    setServices(connected.createWorkspaceServiceAccessor?.({ kind: "local" }) ?? connected);
+  }, []);
   if (services) {
     return buildAppShellElement(services, {
       remoteBrowserNavigationScope:
         loadStoredPairingCredential()?.deviceId ?? route.roomId ?? undefined,
     });
   }
-  return <MobilePairingPage route={route} onConnected={setServices} />;
+  return <MobilePairingPage route={route} onConnected={onConnected} />;
 }
 
 async function bootstrapWebApp() {

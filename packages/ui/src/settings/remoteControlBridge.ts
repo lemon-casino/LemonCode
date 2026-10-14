@@ -87,38 +87,16 @@ export interface RemoteControlPlatformBridge {
  */
 export const REMOTE_PAIRING_PLACEHOLDER_WINDOW_ID = 1;
 
-/** 由激活 workspace 上下文组装的镜像目标;三元组来自 tabStore 的激活 workspace tab。 */
+/** 激活 workspace 只决定窗口是否就绪；房间 target 绑定窗口 Host。 */
 export function buildRemotePairingMirrorTarget(params: {
   remoteSessionId?: string | null;
   workspacePath?: string | null;
   workspaceIdentity?: string | null;
 }): NonNullable<RemotePairingStartRequest["target"]> | null {
-  const remoteSessionId = params.remoteSessionId?.trim();
-  const workspacePath = params.workspacePath?.trim();
-  if (!workspacePath) {
-    // 没有工作区路径就组装不出镜像目标;调用方保持 target 缺省,面板禁用「开启等待」。
-    return null;
-  }
-  // 身份 key 统一规则:workspaceIdentity?.trim() || workspacePath(AGENTS.md Workspace Identity)。
-  const workspaceIdentity = params.workspaceIdentity?.trim() || workspacePath;
-  if (remoteSessionId) {
-    // 远程工作区(SSH/WSL/Docker):走既有 remote 入口,三元组全等校验(PROTOCOL.md §6.2)。
-    return {
-      kind: "remote",
-      workspacePath,
-      workspaceIdentity,
-      remoteSessionId,
-      windowId: REMOTE_PAIRING_PLACEHOLDER_WINDOW_ID,
-    };
-  }
-  // 本地工作区:scope:{kind:"local"} 第二 attachment 挂到窗口 Host,与 Renderer 共存
-  // (注册表按 attachmentId 键控);手机拿到与 Renderer 相同的服务面 = 镜像语义。
-  return {
-    kind: "local",
-    workspacePath,
-    workspaceIdentity,
-    windowId: REMOTE_PAIRING_PLACEHOLDER_WINDOW_ID,
-  };
+  if (!params.workspacePath?.trim()) return null;
+  // 原来绑定激活的 remote session，单项目断线或切换项目会拆掉整个远控房间。
+  // 新入口只绑定已有窗口 Host，项目 identity/session 在窗口目录的 scoped RPC 中严格验证。
+  return { kind: "local", windowId: REMOTE_PAIRING_PLACEHOLDER_WINDOW_ID };
 }
 
 function isFunction(value: unknown): value is (...args: never[]) => unknown {

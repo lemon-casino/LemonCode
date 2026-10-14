@@ -9,6 +9,7 @@ import {
 import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import { isWorkspaceTab, type TabStore } from "@/store/tabStore.js";
 import { restoreRemoteBrowserNavigation } from "./remoteBrowserNavigationRestore.js";
+import { createRemoteBrowserWorkspaceCatalog } from "./remoteBrowserWorkspaceCatalog.js";
 
 export const RemoteBrowserNavigationScopeContext = createContext<string | undefined>(undefined);
 
@@ -28,13 +29,17 @@ export function useRemoteBrowserNavigationPersistence({
   const readFailed = useRef(false);
   const didRestore = useRef(false);
   const operation = useRef<Promise<void> | null>(null);
+  const catalog = useRef<ReturnType<typeof createRemoteBrowserWorkspaceCatalog> | null>(null);
   useEffect(() => {
     mounted.current = true;
+    if (scope) catalog.current = createRemoteBrowserWorkspaceCatalog(services, tabStoreApi);
     return () => {
       mounted.current = false;
       generation.current += 1;
+      catalog.current?.dispose();
+      catalog.current = null;
     };
-  }, []);
+  }, [scope, services, tabStoreApi]);
 
   const enter = useCallback(() => {
     if (scope) useRemoteBrowserNavigationStore.getState().enter();
@@ -49,6 +54,7 @@ export function useRemoteBrowserNavigationPersistence({
       // 启动恢复只消费一次；手动打开/关闭登录入口不能重新覆盖用户当前选择。
       operation.current = (async () => {
         try {
+          await catalog.current?.prepare();
           await restoreRemoteBrowserNavigation({
             settings,
             target,
@@ -56,6 +62,7 @@ export function useRemoteBrowserNavigationPersistence({
             tabStoreApi,
             isCurrent,
           });
+          if (isCurrent()) catalog.current?.reconcile();
           didRestore.current = true;
         } catch (error) {
           if (!isCurrent()) return;

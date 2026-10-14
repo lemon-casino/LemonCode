@@ -2,6 +2,45 @@
 
 ## 产品规则
 
+### macOS 局域网访问声明（2026-10-14）
+
+- 正式与 Preview 的 Mac 安装包必须在主应用 `Info.plist` 中声明非空的
+  `NSLocalNetworkUsageDescription`，说明用户主动发起的 SSH 等局域网连接用途。
+  配置唯一所有者为 `electron-builder.config.js` 的 `mac.extendInfo`；本地与 tag 构建复用它。
+- `afterPack` 在签名前异步读取实际主应用 plist，缺字段、空字符串、类型错误或读取失败
+  均中止打包。只读取产物，不在校验阶段修改 plist 或签名；Windows/Linux 跳过该校验。
+- macOS 是授权状态的唯一所有者。窗口 Host 仍通过主应用创建的 utility process 发起连接，
+  不创建第二套权限状态、额外 SSH Host、自动授权或启动时探测。用户允许后主动重试连接。
+- 保留现有本地自签及发行签名开关；用途说明在签名前生成，不能要求用户修改已签名 plist。
+  自签身份的系统权限追踪也需真机验证，本次不以增加用途说明宣称消除了签名身份问题。
+- SSH 直连不使用 Bonjour 发现，本次不增加 `NSBonjourServices` 或组播 entitlement。
+  没有出现在权限列表、缺少用途说明或终端可连接，都不能单独证明握手失败的原因。
+
+```mermaid
+sequenceDiagram
+  participant Build as 本地 / tag 构建
+  participant Bundle as electron-builder
+  participant Main as 桌面主应用
+  participant Host as 窗口 Host
+  participant OS as macOS 权限 owner
+  Build->>Bundle: 同一份 mac.extendInfo
+  Bundle->>Bundle: 生成主应用 plist → afterPack 只读校验 → 签名
+  Main->>Host: 用户主动连接 SSH
+  Host->>OS: 局域网连接（由主应用负责）
+  OS-->>Host: 系统授权决定
+```
+
+验收：实际打包配置含用途说明；模拟产物缺失、空值、错误类型或解析失败时拒绝打包；
+合法 plist 校验保持原字节；非 Mac 不调用原生 plist 工具。回归纳入现有 `test:release`。
+Windows 上的夹具不替代 macOS 15+ 真机的首次允许、拒绝后允许及 SSH 连接复测；
+声明仅补齐已确认的打包缺陷，不承诺自动出现提示或解决尚未确认原因的握手断开。
+
+验证依据：[Apple 局域网权限说明](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)。
+本轮在 Windows / Node 24.21.0 上运行：元数据回归 6/6 通过，根 typecheck、Lint、changed
+架构检查通过（baseline/new 为 0）。完整 `test:release` 为 94 通过、1 跳过、1 失败；失败为
+工作区已有 `package.json` 脚本变更使 NOTICE 输入摘要过期，本次未改写其声明。原生 plutil、
+Mac 安装包、自签后的系统授权提示及真实 SSH 未在本机验证。
+
 ### 远程运行资源（2026-10-13）
 
 安装版默认复用现有固定版本更新下载服务获取远程运行资源；独立 remote-assets job

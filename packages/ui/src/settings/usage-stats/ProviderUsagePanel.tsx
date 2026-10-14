@@ -1,4 +1,4 @@
-import { lazy, useState } from "react";
+import { useState } from "react";
 import type { ProviderUsageRequest } from "@lcode/shared";
 import { RefreshCcw } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
@@ -12,26 +12,11 @@ import {
 import { useProviderUsageStats } from "@/hooks/useProviderUsageStats.js";
 import { useProviderAccounts } from "@/hooks/useProviderAccounts.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
-import { UsageChartLoadBoundary } from "./UsageChartLoadBoundary.js";
-import { ProviderQuotaCard } from "./ProviderQuotaCard.js";
-import { ProviderUsageOverview } from "./ProviderUsageOverview.js";
-import {
-  ProviderUsageGroups,
-  ProviderUsageRequests,
-  ProviderUsageSummary,
-} from "./ProviderUsageDetails.js";
-
-const ProviderUsageChart = lazy(() =>
-  import("./ProviderUsageChart.js").then((module) => ({ default: module.ProviderUsageChart })),
-);
-const ProviderModelUsageChart = lazy(() =>
-  import("./ProviderModelUsageChart.js").then((module) => ({
-    default: module.ProviderModelUsageChart,
-  })),
-);
+import { ProviderUsageViews, type ProviderUsageView } from "./ProviderUsageViews.js";
 export function ProviderUsagePanel() {
   const { intl } = useLCodeIntl();
   const m = (key: string) => intl.formatMessage({ id: `settings.oauthUsage.${key}` });
+  const [activeView, setActiveView] = useState<ProviderUsageView>("charts");
   const [quotaRefreshEpoch, setQuotaRefreshEpoch] = useState(0);
   const [filters, setFilters] = useState<{
     range: ProviderUsageRequest["range"];
@@ -39,7 +24,7 @@ export function ProviderUsagePanel() {
     account: string;
     model: string;
     offset: number;
-  }>({ range: "7d", provider: "all", account: "all", model: "all", offset: 0 });
+  }>({ range: "24h", provider: "all", account: "all", model: "all", offset: 0 });
   const {
     view,
     loading: accountsLoading,
@@ -132,12 +117,6 @@ export function ProviderUsagePanel() {
           {m("refresh")}
         </Button>
       </div>
-      <ProviderUsageOverview snapshot={lifetime.snapshot} />
-      {lifetime.error || (lifetime.snapshot && !lifetime.snapshot.activity) ? (
-        <p role="status" className="text-ui-sm text-foreground-subtle">
-          {m("overviewUnavailable")}
-        </p>
-      ) : null}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <label className="min-w-0 space-y-1 text-ui-sm">
           {m("range")}
@@ -241,100 +220,25 @@ export function ProviderUsagePanel() {
           {m(error === "workspace" ? "workspaceUnavailable" : "unavailable")}
         </p>
       ) : null}
-      {snapshot ? (
-        <>
-          <ProviderUsageSummary summary={snapshot.summary} />
-          {!snapshot.summary.requestCount ? (
-            <p className="rounded-xl border border-dashed border-border p-6 text-center text-ui-sm text-foreground-subtle">
-              {m("empty")}
-            </p>
-          ) : (
-            <UsageChartLoadBoundary
-              scope="oauth-usage"
-              resetKeys={[snapshot.generatedAt, filters]}
-              loadingDescription={m("loading")}
-            >
-              <ProviderUsageChart snapshot={snapshot} />
-            </UsageChartLoadBoundary>
-          )}
-          {snapshot.summary.requestCount > 0 && (
-            <UsageChartLoadBoundary
-              scope="oauth-model-usage"
-              resetKeys={[snapshot.generatedAt, filters]}
-              loadingDescription={m("loading")}
-            >
-              <ProviderModelUsageChart snapshot={snapshot} providerLabel={providerLabel} />
-            </UsageChartLoadBoundary>
-          )}
-          <div className="grid min-w-0 gap-4 xl:grid-cols-3">
-            <ProviderUsageGroups
-              title={m("providers")}
-              groups={snapshot.providers}
-              label={(group) => providerLabel(group.providerId)}
-            />
-            <ProviderUsageGroups
-              title={m("accounts")}
-              groups={snapshot.accounts}
-              label={(group) =>
-                `${providerLabel(group.providerId)} · ${accountLabel(group.accountConnectionId)}`
-              }
-            />
-            <ProviderUsageGroups
-              title={m("models")}
-              groups={snapshot.models}
-              label={(group) =>
-                `${providerLabel(group.providerId)} · ${group.modelId ?? m("unknown")}`
-              }
-            />
-          </div>
-          <ProviderUsageRequests
-            snapshot={snapshot}
-            providerLabel={providerLabel}
-            accountLabel={accountLabel}
-            onPage={(offset) => setFilters({ ...filters, offset })}
-          />
-        </>
-      ) : null}
-      <section className="space-y-3">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 className="text-ui-base font-medium">{m("quotaTitle")}</h3>
-            <p className="mt-1 text-ui-sm text-foreground-subtle">{m("quotaSource")}</p>
-          </div>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!quotaAccounts.length}
-            data-testid="refresh-visible-quotas"
-            onClick={() => setQuotaRefreshEpoch((epoch) => epoch + 1)}
-          >
-            <RefreshCcw />
-            {m("refreshQuotas")}
-          </Button>
-        </div>
-        {accountsLoading ? (
-          <p className="text-ui-sm text-foreground-subtle">{m("loading")}</p>
-        ) : null}
-        {accountsError ? (
-          <p role="status" className="text-ui-sm text-destructive">
-            {m("accountsUnavailable")}
-          </p>
-        ) : null}
-        {!accountsLoading && !quotaAccounts.length ? (
-          <p className="text-ui-sm text-foreground-subtle">{m("noQuotaAccounts")}</p>
-        ) : null}
-        <div className="grid gap-3 md:grid-cols-2">
-          {quotaAccounts.map((account) => (
-            <ProviderQuotaCard
-              key={account.connectionId}
-              account={account}
-              providerName={providerLabel(`oauth:${account.channelId}`)}
-              revision={view?.revision ?? 0}
-              refreshEpoch={quotaRefreshEpoch}
-            />
-          ))}
-        </div>
-      </section>
+      <ProviderUsageViews
+        activeView={activeView}
+        onViewChange={setActiveView}
+        snapshot={snapshot}
+        lifetime={lifetime.snapshot}
+        overviewUnavailable={Boolean(
+          lifetime.error || (lifetime.snapshot && !lifetime.snapshot.activity),
+        )}
+        chartResetKey={JSON.stringify(filters)}
+        providerLabel={providerLabel}
+        accountLabel={accountLabel}
+        onPage={(offset) => setFilters({ ...filters, offset })}
+        quotaAccounts={quotaAccounts}
+        accountsLoading={accountsLoading}
+        accountsError={Boolean(accountsError)}
+        accountRevision={view?.revision ?? 0}
+        quotaRefreshEpoch={quotaRefreshEpoch}
+        onRefreshQuotas={() => setQuotaRefreshEpoch((epoch) => epoch + 1)}
+      />
     </div>
   );
 }

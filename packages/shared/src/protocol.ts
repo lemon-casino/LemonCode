@@ -324,6 +324,12 @@ export interface AppSettings {
   autoGenerateGitCommitMessage?: boolean;
   /** 新会话执行位置默认值；已有会话沿持久绑定恢复。 */
   defaultSessionExecutionMode?: import("./worktreePolicy.js").SessionExecutionMode;
+  /** 新会话模型组合默认值；null 使用既有 Recent/Host 推荐初始化。 */
+  defaultSessionModelSelection?: import("./model-selection.js").ModelSelection | null;
+  /** 新会话审批默认值；已有会话及手动草稿不随设置更新。 */
+  defaultSessionApprovalMode?:
+    | import("./sessionDefaults.js").SessionDefaults["approvalMode"]
+    | null;
   /** 按原项目 identity/path 保存覆盖；工作树目录不另建项目偏好。 */
   projectExecutionPreferences?: Record<
     string,

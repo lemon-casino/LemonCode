@@ -1,13 +1,22 @@
 # 供应商缓存写入统计修复
 
+## 移除缓存写入展示（2026-10-14）
+
+- 用户要求删除缓存写入：OAuth 用量摘要移除该指标及“至少”下界文案；会话开发者工具的 Token 明细移除 Cache Write 表头与对应列。缓存读取、命中率、输入、输出、推理和总量继续按既有口径显示，中英文一致。
+- 这是展示层变更，不删除或重写历史账本、不移除协议中的兼容字段、不修改 SDK/供应商解析。UsageStore 仍是唯一事实所有者；UI 使用原统计及会话调试 hook，不增加状态或读取路径。总 Token 仍为输入加输出，缓存分类不重复相加。
+- 同步清理不再使用的缓存写入及下界翻译。Token 明细空态列跨度改为剩余 8 列；旧 Agent、未知、真实零、非零与部分上报数据都不再生成缓存写入项。
+- 验收：桌面中文/手机英文的 OAuth 摘要均不存在缓存写入，缓存读取与输入/输出/总量值不变；会话 Token 明细有数据及空态均为 8 列，保留缓存读取与命中率；三视图切换与原有统计、额度回归继续通过。
+
+验证记录：固定 Node 24.21.0 下，`cache-write-usage.test.mjs` 的两项移除场景、`provider-usage-tabs.test.mjs` 三项及 `usage-analytics.test.mjs` 六项共 11/11 通过；根目录 `pnpm typecheck`、`pnpm lint`、修改文件格式检查通过；架构 baseline/new 均为 0。变更模块仅 UI/Web，UI 展示源码净减少 23 行，测试及 fixture 净增 102 行（合计净增 79 行，不计规格）。原 hook、事实所有者、事件顺序及账本兼容字段不变，未重新打包应用。
+
 ## 产品规则
 
 - 缓存写入是供应商报告的输入分类；不能用输入减缓存读取推算，不能再次加到输入或总 Token。
 - Chat Completions 接收 `prompt_tokens_details.cache_write_tokens`，兼容 Copilot Auto 的历史 `cache_creation_tokens` 和上游顶层 `cache_creation_input_tokens`；显式 0 必须保留。字段无效或缺失时为未知，不默认成 0。兼容读取顶层 `cache_read_input_tokens` / `prompt_cache_hit_tokens`，不把 `prompt_cache_miss_tokens` 当作写入。
 - Responses 沿原 SDK 的 `input_tokens_details.cache_write_tokens`；Anthropic 沿 `cache_creation_input_tokens`，保留缺失语义。Copilot Auto 转换 Anthropic/Responses 时统一输出 `cache_write_tokens`。
-- OAuth 汇总继续保留数值累计，新增可选 `cacheWriteKnownRequests` 表示有写入上报证据的请求数；没有证据显示“未知”，只有部分请求有证据显示已知下界。旧 Agent 未提供覆盖字段时，正数仍展示，零显示未知。
+- OAuth 汇总协议继续保留数值累计及可选 `cacheWriteKnownRequests` 上报覆盖数，兼容已有账本与 Agent；界面不再展示缓存写入指标。
 - 新请求在既有 `raw_usage_json` 保存 `cacheWriteTokensReported`，明确区分报告的零与旧 SDK 合成的零。历史正数列是有效证据；旧零缺乏上报证据时为未知。不修改数据库结构、不重写历史账本、不补算已经丢失的写入量。
-- 会话 Token 明细的 `usage.delta.cacheWriteTokens` 改为可选；缺失显示 `-`，真实零显示 0。已有累计快照中的数字保持兼容，不能据此推断写入是否上报。
+- 会话协议的 `usage.delta.cacheWriteTokens` 保持可选，已有累计快照中的数字保持兼容；Token 明细不再展示缓存写入列，不能据累计值推断写入是否上报。
 
 ## 所有者、接口与事件顺序
 
