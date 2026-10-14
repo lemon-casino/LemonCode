@@ -60,6 +60,8 @@ sequenceDiagram
 
 验收新增创建各失败阶段、生产 server/socket 装配、未 ACK/迟到 ACK、旧关闭与新代、原路由清理、半行/pending socket、冷详情与 root READY 重试。Desktop continuous 与 mobile replayable 共用 owner，旧历史/协议格式保持可读。结果将在实际执行后更新，之前的验证记录仅代表旧基线。
 
+construction 的实现分工：core 的 `constructChildRuntimeWithPorts` 同步持有 provisional ports，异常清理登记父 residency；成功移交 runtime。bootstrap 的 ActorRuntimeConstruction 只做无分配 prepare、同步 construct 与异步 initialize，driver 在同一调用栈接管 runtime 并在首个 await 前写入唯一 sessions 表。dispose 等待 entry.initialization/seed 排水；不把具体 AgentRuntime 类型放进 contracts。
+
 - 39 项定向回归通过，包含 11 项新增场景；集成测试为 `apps/lcode-cli/packages/bootstrap/scripts/subagent-browser-bridge.test.ts`，通过私有 socket 转发真实协议格式到测试 executor，覆盖 Browser 的 `newTab` 与权限拒绝、Computer Use 子代理拒绝。
 - `@lcode/core`、`@lcode/bootstrap`、`@lcode/node-repl-host` 类型检查，以及根 `pnpm typecheck`、`pnpm lint`、架构检查均通过。架构 baseline/new violation 均为 0；17 个改动 TypeScript 文件的格式检查通过。
 - CLI 定向 `oxlint --no-ignore` 仍报告 `create-app.ts` 与 `browser-control.port.ts` 两处既有 `max-lines` 超限；不以根目录默认忽略 CLI 的 lint 通过替代这项结果。

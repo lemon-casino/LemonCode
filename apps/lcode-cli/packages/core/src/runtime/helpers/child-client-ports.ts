@@ -45,15 +45,6 @@ export function deriveChildClientPorts(
   context: ChildClientPortsContext & { parentSessionId: SessionId },
 ): ClientFacingPorts {
   return {
-    // Browser 的 tab owner 仍是 child；由宿主端口登记父子路由，不能只改写 sessionId。
-    ...(parent.browserControlPort?.createChildScope === undefined
-      ? {}
-      : {
-          browserControlPort: parent.browserControlPort.createChildScope({
-            parentSessionId: context.parentSessionId,
-            sessionId: context.childSessionId,
-          }),
-        }),
     ...(parent.permissionBroker === undefined
       ? {}
       : { permissionBroker: createSubagentInteractionBroker(parent.permissionBroker, context) }),
@@ -64,6 +55,15 @@ export function deriveChildClientPorts(
             parent.providerRuntimeHeadersPort,
             context.parentSessionId,
           ),
+        }),
+    // Browser 最后分配，前面的纯端口派生失败不会留下未返回的 lease。
+    ...(parent.browserControlPort?.createChildScope === undefined
+      ? {}
+      : {
+          browserControlPort: parent.browserControlPort.createChildScope({
+            parentSessionId: context.parentSessionId,
+            sessionId: context.childSessionId,
+          }),
         }),
   };
 }

@@ -1,3 +1,4 @@
+import { constructChildRuntimeWithPorts } from "@lcode/core";
 import { join } from "node:path";
 import { createNodeContextSourceAdapter } from "@lcode/adapters/context";
 import { createNodeExecutionAdapter } from "@lcode/adapters/exec";
@@ -283,68 +284,10 @@ function createWorkflowChildRuntime(
     workflowKind: string;
   },
 ): AgentRuntime {
-  return new AgentRuntime(
-    options.childSessionId,
-    {
-      ...deps.runtimeConfig,
-      // 父 Runtime 已在执行边界采用当前 Shell，不能继续读取创建 App 时的旧配置。
-      bashShellSelection: deps.runtime.getSessionShellSelection(),
-      agentName: options.workflowKind === "expert" ? "lcode-expert" : "lcode-workflow",
-      mode: "yolo",
-      modelSelection: deps.runtime.getSessionModelSelection(),
-      parentSessionId: deps.sessionId,
-      taskType: "workflow_child",
-      workingDirectory: deps.workingDirectory,
-    },
-    {
-      agentTelemetry: deps.agentTelemetry,
-      agentTelemetryCausation: deps.agentTelemetry.captureCausation(),
-      // Workflow 在父工具返回后独立调度，不能伪装成父 Span 的同步 Child。
-      agentTelemetryCausationMode: "linked_root",
-      eventStore: createInMemorySessionEventStore(),
-      sessionStore: deps.sessionStore,
-      logger: deps.logger,
-      executionPort:
-        deps.appOptions.executionPort ??
-        createNodeExecutionAdapter({
-          onToolExecResource: deps.appOptions.onToolExecResource,
-          network: {
-            httpProxy: deps.configResult.config.network.httpProxy,
-            noProxy: deps.configResult.config.network.noProxy,
-            caCertFile: deps.configResult.config.network.caCertFile,
-          },
-          outputRootDir: join(deps.storageRoot, "cli", "exec"),
-          processEnv: deps.appOptions.env ?? process.env,
-        }),
-      // 优先复用主装配已登记治理根的端口；旧 facade 调用方仍保留既有 fallback。
-      fileSystemPort:
-        deps.fileSystemPort ?? deps.appOptions.fileSystemPort ?? createNodeFileSystemAdapter(),
-      httpClientPort:
-        deps.appOptions.httpClientPort ??
-        createNodeWebFetchHttpClientAdapter({
-          env: deps.appOptions.env ?? process.env,
-          timeoutMs: deps.configResult.config.network.timeout,
-          proxyUrl: deps.configResult.config.network.httpProxy,
-          noProxy: deps.configResult.config.network.noProxy,
-          caCertFile: deps.configResult.config.network.caCertFile,
-        }),
-      imageProcessorPort: deps.imageProcessorPort,
-      pdfDocumentPort: deps.pdfDocumentPort,
-      videoProcessorPort: deps.videoProcessorPort,
-      artifactStore: deps.artifactStore,
-      contextSourcePort:
-        deps.appOptions.contextSourcePort ??
-        createNodeContextSourceAdapter({ env: deps.appOptions.env }),
-      // 复用主会话有效 SkillPort，保持插件根与用户禁用规则一致。
-      skillPort: deps.skillPort,
-      mcpPort: deps.mcpPort,
-      eventSink: deps.eventSink,
-      modelFactory: deps.modelFactory,
-      resolveEffectiveModelSelection: deps.appOptions.resolveEffectiveModelSelection,
-      // 对外交互端口由父 runtime 派生（permissionBroker + providerRuntimeHeadersPort）：
-      // 子会话不是协议客户端认识的身份，直接透传 appOptions 的端口会让反向请求发到一个
-      // 客户端找不到的 session 上、response 永不回来。
-      ...deps.runtime.createChildClientPorts({
+  return constructChildRuntimeWithPorts({
+    sessionId: options.childSessionId,
+    createPorts: () =>
+      deps.runtime.createChildClientPorts({
         agentId: options.childSessionId,
         agentType: options.workflowKind === "expert" ? "lcode-expert" : "lcode-workflow",
         childSessionId: options.childSessionId,
@@ -353,9 +296,76 @@ function createWorkflowChildRuntime(
           ? {}
           : { parentTurnId: options.childTraceContext.turnId }),
       }),
-      permissionService: deps.permissionService,
-      appVersion: deps.appVersion,
-      traceContext: options.childTraceContext,
-    },
-  );
+    construct: (clientPorts) =>
+      new AgentRuntime(
+        options.childSessionId,
+        {
+          ...deps.runtimeConfig,
+          // 父 Runtime 已在执行边界采用当前 Shell，不能继续读取创建 App 时的旧配置。
+          bashShellSelection: deps.runtime.getSessionShellSelection(),
+          agentName: options.workflowKind === "expert" ? "lcode-expert" : "lcode-workflow",
+          mode: "yolo",
+          modelSelection: deps.runtime.getSessionModelSelection(),
+          parentSessionId: deps.sessionId,
+          taskType: "workflow_child",
+          workingDirectory: deps.workingDirectory,
+        },
+        {
+          agentTelemetry: deps.agentTelemetry,
+          agentTelemetryCausation: deps.agentTelemetry.captureCausation(),
+          // Workflow 在父工具返回后独立调度，不能伪装成父 Span 的同步 Child。
+          agentTelemetryCausationMode: "linked_root",
+          eventStore: createInMemorySessionEventStore(),
+          sessionStore: deps.sessionStore,
+          logger: deps.logger,
+          executionPort:
+            deps.appOptions.executionPort ??
+            createNodeExecutionAdapter({
+              onToolExecResource: deps.appOptions.onToolExecResource,
+              network: {
+                httpProxy: deps.configResult.config.network.httpProxy,
+                noProxy: deps.configResult.config.network.noProxy,
+                caCertFile: deps.configResult.config.network.caCertFile,
+              },
+              outputRootDir: join(deps.storageRoot, "cli", "exec"),
+              processEnv: deps.appOptions.env ?? process.env,
+            }),
+          // 优先复用主装配已登记治理根的端口；旧 facade 调用方仍保留既有 fallback。
+          fileSystemPort:
+            deps.fileSystemPort ?? deps.appOptions.fileSystemPort ?? createNodeFileSystemAdapter(),
+          httpClientPort:
+            deps.appOptions.httpClientPort ??
+            createNodeWebFetchHttpClientAdapter({
+              env: deps.appOptions.env ?? process.env,
+              timeoutMs: deps.configResult.config.network.timeout,
+              proxyUrl: deps.configResult.config.network.httpProxy,
+              noProxy: deps.configResult.config.network.noProxy,
+              caCertFile: deps.configResult.config.network.caCertFile,
+            }),
+          imageProcessorPort: deps.imageProcessorPort,
+          pdfDocumentPort: deps.pdfDocumentPort,
+          videoProcessorPort: deps.videoProcessorPort,
+          artifactStore: deps.artifactStore,
+          contextSourcePort:
+            deps.appOptions.contextSourcePort ??
+            createNodeContextSourceAdapter({ env: deps.appOptions.env }),
+          // 复用主会话有效 SkillPort，保持插件根与用户禁用规则一致。
+          skillPort: deps.skillPort,
+          mcpPort: deps.mcpPort,
+          eventSink: deps.eventSink,
+          modelFactory: deps.modelFactory,
+          resolveEffectiveModelSelection: deps.appOptions.resolveEffectiveModelSelection,
+          // 对外交互端口由父 runtime 派生（permissionBroker + providerRuntimeHeadersPort）：
+          // 子会话不是协议客户端认识的身份，直接透传 appOptions 的端口会让反向请求发到一个
+          // 客户端找不到的 session 上、response 永不回来。
+          ...clientPorts,
+          permissionService: deps.permissionService,
+          appVersion: deps.appVersion,
+          traceContext: options.childTraceContext,
+        },
+      ),
+    trackCleanup: (work) => deps.runtime.trackResidencyBlockingWork(work),
+    logger: deps.logger,
+    traceContext: options.childTraceContext,
+  });
 }

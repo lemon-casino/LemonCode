@@ -49,8 +49,9 @@ export function closeActorRuntimeAfterTurn(
     state.runtimeCloseReady = true;
     closeActorRuntime(host, state);
   };
-  if (state.turn === undefined) close();
-  else void state.turn.then(close, close);
+  const drain = state.initialization ?? state.turn;
+  if (drain === undefined) close();
+  else void drain.then(close, close);
 }
 
 function closeActorRuntime(host: ActorRuntimeCleanupHost, state: SessionState): void {

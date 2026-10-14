@@ -1,3 +1,4 @@
+import { initializeActorFixture } from "./workflow-actor-runtime.fixture.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -188,7 +189,7 @@ test("actor runtime persists the model binding and session before creating its p
     recordedActorModels: { defaultProvenance: "runModel", overrides: [] },
     runSubagentModel: selection,
   });
-  const creating = factory(input);
+  const creating = initializeActorFixture(factory, input);
   await new Promise<void>((resolve) => setImmediate(resolve));
   try {
     assert.deepEqual(order, ["runtime", "session"]);
@@ -254,7 +255,7 @@ test("same-run resume reads its binding before overwriting it and preserves fail
     runId,
     recordedActorModels: { defaultProvenance: "sessionInherited", overrides: [] },
   });
-  await factory({
+  await initializeActorFixture(factory, {
     ...input,
     seed: {
       sourceSessionId: "predecessor-session",
@@ -313,10 +314,13 @@ test("only SessionNotFound falls back from rehydration to fresh session persiste
       recordedActorModels: { overrides: [] },
     });
     if (missing) {
-      await factory(input);
+      await initializeActorFixture(factory, input);
       assert.deepEqual(order, ["resume", "session", "link"]);
     } else {
-      await assert.rejects(async () => factory(input), (error) => error === failure);
+      await assert.rejects(
+        async () => initializeActorFixture(factory, input),
+        (error) => error === failure,
+      );
       assert.deepEqual(order, ["resume"]);
     }
   }

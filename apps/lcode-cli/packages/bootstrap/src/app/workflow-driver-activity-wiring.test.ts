@@ -1,3 +1,4 @@
+import { readyActorRuntimeFactory } from "./workflow-actor-runtime.fixture.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -95,11 +96,13 @@ async function setup(typed = true) {
     runId: "activity-wiring",
     journal,
     emit: (event: RunEvent) => events.push(event),
-    runtimeFactory: (input: { sessionId: SessionId; submitPort: WorkflowSubmitPort }) => {
-      sessionId = input.sessionId;
-      submit = input.submitPort;
-      return runtime;
-    },
+    runtimeFactory: readyActorRuntimeFactory(
+      (input: { sessionId: SessionId; submitPort: WorkflowSubmitPort }) => {
+        sessionId = input.sessionId;
+        submit = input.submitPort;
+        return runtime;
+      },
+    ),
     clock: {
       now: () => now,
       random: () => 1,

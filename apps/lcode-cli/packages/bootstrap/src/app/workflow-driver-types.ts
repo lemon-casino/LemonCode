@@ -48,11 +48,14 @@ export interface Deferred<T> {
  * 把「如何构造 runtime」抽成注入点：生产侧包装 createScriptWorkflowAgentRuntime（携真实 model adapter
  * 与全套 deps）；测试侧用最小 deps bag + 脚本化 model adapter。driver 本体只管生命周期与桥接。
  *
- * 允许返回 Promise：生产侧要在返回前把 actor 会话落库并建 task link，而
- * `session_task_link.child_session_id` 对 `session(id)` 有 FK，因此「建会话行」必须先于「建 link」。
- * 引擎的 ensureSession 会 await createActorSession，所以 await 在此处天然安全——第一次 ask
- * 派发前，会话已完成持久化。
+ * prepare 不分配资源。construct 同步创建；driver 在首次 await 前接管 runtime，
+ * initialize 再落会话行和 task link（FK 要求此顺序）。初始化失败仍由同一 owner 关闭。
  */
+export interface ActorRuntimeConstruction {
+  construct(): AgentRuntime;
+  initialize(runtime: AgentRuntime): Promise<void>;
+}
+
 export type ActorRuntimeFactory = (input: {
   sessionId: SessionId;
   actor: ActorRef;
@@ -85,7 +88,7 @@ export type ActorRuntimeFactory = (input: {
    * runner 每次模型请求尝试先经它过闸门。缺席即该 runtime 不受闸门约束。
    */
   modelRequestAdmission?: ModelRequestAdmission;
-}) => AgentRuntime | Promise<AgentRuntime>;
+}) => ActorRuntimeConstruction;
 
 /** 构造 AgentRuntime-backed driver 所需的依赖（journal 与 emit 由调用方/harness 提供并持有）。 */
 export interface AgentRuntimeWorkflowDriverDeps {
@@ -192,6 +195,8 @@ export interface SessionState {
   /** 与 `ref.id` 同值，只是保留了品牌类型（转录存取面按 SessionId 取数）。 */
   readonly sessionId: SessionId;
   readonly runtime: AgentRuntime;
+  /** 初始化/seed 尚未完成时，dispose 等待本次写入收尾再关闭 runtime。 */
+  initialization?: Promise<void>;
   /**
    * 该会话实际注册的 submit_result 形态。创建时取自静态 profile；**唯一**会变的路径是运行时守卫
    * （workflow-driver.ts 的 ensureSubmitProfileFits）：mono 声明与实际 ask 的 schema 不符时降级成

@@ -1,3 +1,4 @@
+import { readyActorRuntimeFactory } from "./workflow-actor-runtime.fixture.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
@@ -91,9 +92,9 @@ test("world.run live facts bind integrated bytes; engine replay adds no executio
       goalEvidenceOwner: owner,
       declaredRunCommands: new Set(["node"]),
       escalationRegistry: {} as never,
-      runtimeFactory: () => {
+      runtimeFactory: readyActorRuntimeFactory(() => {
         throw new Error("No actor requested");
-      },
+      }),
     })({} as WorkflowReportSink);
     const config = {
       runId: "integrated-run",

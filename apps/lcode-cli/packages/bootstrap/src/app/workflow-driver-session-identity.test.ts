@@ -1,3 +1,4 @@
+import { readyActorRuntimeFactory } from "./workflow-actor-runtime.fixture.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentRuntime } from "@lcode/core";
@@ -76,11 +77,11 @@ for (const recorded of [undefined, "matching", "conflicting"] as const) {
       runId,
       journal,
       emit: () => {},
-      runtimeFactory: ({ sessionId }: { sessionId: string }) => {
+      runtimeFactory: readyActorRuntimeFactory(({ sessionId }: { sessionId: string }) => {
         factoryCalls++;
         assert.equal(sessionId, expected);
         return { closeBrowserSession: async () => {} } as unknown as AgentRuntime;
-      },
+      }),
     } as unknown as AgentRuntimeWorkflowDriverDeps;
     const driver = createAgentRuntimeWorkflowDriver(deps)(sink);
     try {

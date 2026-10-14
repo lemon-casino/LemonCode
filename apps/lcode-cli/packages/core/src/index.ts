@@ -143,6 +143,7 @@ export type {
   ChildClientPortsContext,
   ClientFacingPorts,
 } from "./runtime/helpers/child-client-ports.js";
+export { constructChildRuntimeWithPorts } from "./runtime/helpers/child-runtime-construction.js";
 export type {
   ActiveTurnInfo,
   AgentRuntimeConfig,

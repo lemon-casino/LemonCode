@@ -1,3 +1,4 @@
+import { constructChildRuntimeWithPorts, type ClientFacingPorts } from "@lcode/core";
 import { join } from "node:path";
 import { createNodeContextSourceAdapter } from "@lcode/adapters/context";
 import { createNodeExecutionAdapter } from "@lcode/adapters/exec";
@@ -7,7 +8,6 @@ import {
   AgentRuntime,
   type AgentRuntimeConfig,
   type AgentRuntimeDeps,
-  type ChildClientPortsContext,
   type ExecutionFailoverPolicyPort,
   type ExecutionFailoverScope,
   type PermissionService,
@@ -124,26 +124,10 @@ export function createScriptWorkflowAgentRuntime(input: {
     throw new Error(`Workflow child model must be provider-qualified: ${input.request.opts.model}`);
   }
   const modelSelection = requestedSelection ?? parentSelection;
-  return new AgentRuntime(
-    input.childSessionId,
-    {
-      ...inheritedConfig,
-      // startup config 不会随父 Runtime 的任务边界刷新；子任务必须继承本次实际采用的 Shell。
-      bashShellSelection: input.deps.runtime.getSessionShellSelection(),
-      ...(systemPrompt === undefined ? {} : { systemPrompt }),
-      agentName: input.request.opts?.agentType ?? "lcode-workflow",
-      maxTurns: input.request.opts?.maxTurns ?? input.deps.runtimeConfig.maxTurns,
-      mode: "yolo",
-      modelSelection,
-      parentSessionId: input.deps.sessionId,
-      subagents: { enabled: false },
-      taskType: "workflow_child",
-      toolAllowlist: input.request.opts?.tools,
-      workingDirectory: input.deps.workingDirectory,
-      ...input.configOverrides,
-    },
-    {
-      ...createRuntimeDeps(input.deps, input.traceContext, input.childSessionId, {
+  return constructChildRuntimeWithPorts({
+    sessionId: input.childSessionId,
+    createPorts: () =>
+      input.deps.runtime.createChildClientPorts({
         // 对外交互端口只能由父 runtime 铸造：子会话不是客户端认识的身份。
         // 这里过去直接用 `appOptions.providerRuntimeHeadersPort` /
         // `deps.permissionBroker`，于是 actor 带着 `sess_dwf-…` 去问桌面，桌面
@@ -156,37 +140,64 @@ export function createScriptWorkflowAgentRuntime(input: {
           ? {}
           : { parentTurnId: input.traceContext.turnId }),
       }),
-      ...(input.workflowSubmitPort ? { workflowSubmitPort: input.workflowSubmitPort } : {}),
-      ...(input.workflowSubmitPort && input.workflowSubmitSchema
-        ? { workflowSubmitSchema: input.workflowSubmitSchema }
-        : {}),
-      ...(input.workflowEscalatePort ? { workflowEscalatePort: input.workflowEscalatePort } : {}),
-      ...(input.modelRequestAdmission
-        ? { modelRequestAdmission: input.modelRequestAdmission }
-        : {}),
-      ...(input.toolOperationAdmission
-        ? { toolOperationAdmission: input.toolOperationAdmission }
-        : {}),
-      ...(input.executionFailover
-        ? {
-            executionFailoverPolicyPort: input.executionFailover.policyPort,
-            executionFailoverScope: input.executionFailover.scope,
-            executionFailoverScopeLifetime: "runtime",
-            ...(input.executionFailover.onSelectionActivated
-              ? { executionFailoverSelectionSink: input.executionFailover.onSelectionActivated }
-              : {}),
-            failoverModelFactory: input.deps.modelFactory,
-          }
-        : {}),
-    },
-  );
+    construct: (clientPorts) =>
+      new AgentRuntime(
+        input.childSessionId,
+        {
+          ...inheritedConfig,
+          // startup config 不会随父 Runtime 的任务边界刷新；子任务必须继承本次实际采用的 Shell。
+          bashShellSelection: input.deps.runtime.getSessionShellSelection(),
+          ...(systemPrompt === undefined ? {} : { systemPrompt }),
+          agentName: input.request.opts?.agentType ?? "lcode-workflow",
+          maxTurns: input.request.opts?.maxTurns ?? input.deps.runtimeConfig.maxTurns,
+          mode: "yolo",
+          modelSelection,
+          parentSessionId: input.deps.sessionId,
+          subagents: { enabled: false },
+          taskType: "workflow_child",
+          toolAllowlist: input.request.opts?.tools,
+          workingDirectory: input.deps.workingDirectory,
+          ...input.configOverrides,
+        },
+        {
+          ...createRuntimeDeps(input.deps, input.traceContext, input.childSessionId, clientPorts),
+          ...(input.workflowSubmitPort ? { workflowSubmitPort: input.workflowSubmitPort } : {}),
+          ...(input.workflowSubmitPort && input.workflowSubmitSchema
+            ? { workflowSubmitSchema: input.workflowSubmitSchema }
+            : {}),
+          ...(input.workflowEscalatePort
+            ? { workflowEscalatePort: input.workflowEscalatePort }
+            : {}),
+          ...(input.modelRequestAdmission
+            ? { modelRequestAdmission: input.modelRequestAdmission }
+            : {}),
+          ...(input.toolOperationAdmission
+            ? { toolOperationAdmission: input.toolOperationAdmission }
+            : {}),
+          ...(input.executionFailover
+            ? {
+                executionFailoverPolicyPort: input.executionFailover.policyPort,
+                executionFailoverScope: input.executionFailover.scope,
+                executionFailoverScopeLifetime: "runtime",
+                ...(input.executionFailover.onSelectionActivated
+                  ? { executionFailoverSelectionSink: input.executionFailover.onSelectionActivated }
+                  : {}),
+                failoverModelFactory: input.deps.modelFactory,
+              }
+            : {}),
+        },
+      ),
+    trackCleanup: (work) => input.deps.runtime.trackResidencyBlockingWork(work),
+    logger: input.deps.logger,
+    traceContext: input.traceContext,
+  });
 }
 
 function createRuntimeDeps(
   deps: ScriptWorkflowAgentRuntimeDeps,
   traceContext: TraceContext,
   childSessionId: SessionId,
-  clientPortsContext: ChildClientPortsContext,
+  clientPorts: ClientFacingPorts,
 ): ConstructorParameters<typeof AgentRuntime>[2] {
   return {
     agentTelemetry: deps.agentTelemetry,
@@ -251,7 +262,7 @@ function createRuntimeDeps(
     modelFactory: deps.modelFactory,
     resolveEffectiveModelSelection: deps.appOptions.resolveEffectiveModelSelection,
     // permissionBroker + providerRuntimeHeadersPort 都在这里面：父 runtime 派生，路由身份已改写成父会话。
-    ...deps.runtime.createChildClientPorts(clientPortsContext),
+    ...clientPorts,
     permissionService: deps.permissionService,
     sessionStore: deps.sessionStore,
     // 主装配已纳入 plugin roots 与禁用路径，child 不重建缺少插件的扫描器。

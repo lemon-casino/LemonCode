@@ -44,7 +44,7 @@ export function createWorkflowActorRuntimeFactory(input: {
     recordedActorModels,
     runSubagentModel,
   } = input;
-  return async ({
+  return ({
     sessionId,
     actor,
     persona,
@@ -71,46 +71,50 @@ export function createWorkflowActorRuntimeFactory(input: {
       persistedActorModelBinding({ actor, journal: deps.journal, runId }),
       seedActorModelBinding(seed),
     );
-    const runtime = deps.createActorRuntime({
-      runId,
-      sessionId,
-      actor,
-      persona,
-      submitPort,
-      // 工厂据 profile 决定端口是否注入、声明是否 typed（create-app.ts 的 createActorRuntime）。
-      submitProfile,
-      ...(executionFailoverLineageId ? { executionFailoverLineageId } : {}),
-      // 请求级准入端口与两个工具端口同路下传到 runtime deps。
-      ...(modelRequestAdmission === undefined ? {} : { modelRequestAdmission }),
-      // 升级端口与 submit 端口同路下传：core 侧的注册门以端口存在为准，所以恒传。
-      escalatePort,
-      ...(modelPolicy.configOverrides.modelSelection === undefined
-        ? {}
-        : { actorModelSelection: modelPolicy.configOverrides.modelSelection }),
-      actorModelProvenance: modelPolicy.provenance,
-      onExecutionFailoverSelection: (selection) =>
+    return {
+      construct: () =>
+        deps.createActorRuntime({
+          runId,
+          sessionId,
+          actor,
+          persona,
+          submitPort,
+          // 工厂据 profile 决定端口是否注入、声明是否 typed（create-app.ts 的 createActorRuntime）。
+          submitProfile,
+          ...(executionFailoverLineageId ? { executionFailoverLineageId } : {}),
+          // 请求级准入端口与两个工具端口同路下传到 runtime deps。
+          ...(modelRequestAdmission === undefined ? {} : { modelRequestAdmission }),
+          // 升级端口与 submit 端口同路下传：core 侧的注册门以端口存在为准，所以恒传。
+          escalatePort,
+          ...(modelPolicy.configOverrides.modelSelection === undefined
+            ? {}
+            : { actorModelSelection: modelPolicy.configOverrides.modelSelection }),
+          actorModelProvenance: modelPolicy.provenance,
+          onExecutionFailoverSelection: (selection) =>
+            journalActorResolvedModel({
+              actor,
+              journal: deps.journal,
+              selection,
+              modelProvenance: modelPolicy.provenance,
+              runId,
+            }),
+        }),
+      initialize: async (runtime) => {
+        // runtime selection 与 policy provenance 共同构成 actor 的持久模型绑定。先落库再接入会话：
+        // 一次失败的会话持久化会让这次 ask 失败，但当时采用的完整绑定仍留在 journal 里。
+        // rehydrate 路径也要写，旧行的 NULL provenance 已由 modelPolicy 按兼容规则解释。
         journalActorResolvedModel({
           actor,
           journal: deps.journal,
-          selection,
+          selection: requireActorModelSelection(runtime, actor),
           modelProvenance: modelPolicy.provenance,
           runId,
-        }),
-    });
-    // runtime selection 与 policy provenance 共同构成 actor 的持久模型绑定。先落库再接入会话：
-    // 一次失败的会话持久化会让这次 ask 失败，但当时采用的完整绑定仍留在 journal 里。
-    // rehydrate 路径也要写，旧行的 NULL provenance 已由 modelPolicy 按兼容规则解释。
-    journalActorResolvedModel({
-      actor,
-      journal: deps.journal,
-      selection: requireActorModelSelection(runtime, actor),
-      modelProvenance: modelPolicy.provenance,
-      runId,
-    });
-    const attached = await attachActorSession({ actor, deps, runId, runtime, sessionId });
-    if (attached === "rehydrated") return runtime;
-    await persistActorSession({ actor, deps, parentSessionId, runId, runtime, sessionId });
-    return runtime;
+        });
+        const attached = await attachActorSession({ actor, deps, runId, runtime, sessionId });
+        if (attached === "rehydrated") return;
+        await persistActorSession({ actor, deps, parentSessionId, runId, runtime, sessionId });
+      },
+    };
   };
 }
 

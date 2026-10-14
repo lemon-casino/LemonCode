@@ -1,3 +1,4 @@
+import { readyActorRuntimeFactory } from "./workflow-actor-runtime.fixture.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -100,7 +101,7 @@ test("accepted turn cleanup waits for transcript handlers and runtime lease rele
   let submit!: WorkflowSubmitPort;
   let closed = 0;
   const h = await fixture({
-    runtimeFactory: ({ submitPort }) => {
+    runtimeFactory: readyActorRuntimeFactory(({ submitPort }) => {
       submit = submitPort;
       return {
         executeTurn: () => turn.promise,
@@ -111,7 +112,7 @@ test("accepted turn cleanup waits for transcript handlers and runtime lease rele
           h.order.push("lease-released");
         },
       } as unknown as AgentRuntime;
-    },
+    }),
     transcript: {
       messages: () => {
         h.order.push("count");
@@ -178,11 +179,13 @@ test("a successor waits for the previous turn handler and rejects its stale tran
   let started = 0;
   let reads = 0;
   const h = await fixture({
-    runtimeFactory: () =>
-      ({
-        executeTurn: () => turns[started++]!.promise,
-        closeBrowserSession: async () => {},
-      }) as unknown as AgentRuntime,
+    runtimeFactory: readyActorRuntimeFactory(
+      () =>
+        ({
+          executeTurn: () => turns[started++]!.promise,
+          closeBrowserSession: async () => {},
+        }) as unknown as AgentRuntime,
+    ),
     transcript: {
       messages: () => {
         reads++;
@@ -228,14 +231,16 @@ test("a nudge uses the same runtime only after progress and stats finish the old
   const turns = [defer<TurnResult>(), defer<TurnResult>()];
   const options: ExecuteTurnOptions[] = [];
   const h = await fixture({
-    runtimeFactory: () =>
-      ({
-        executeTurn: (_input: string, _attachments: unknown, turnOptions: ExecuteTurnOptions) => {
-          options.push(turnOptions);
-          return turns[options.length - 1]!.promise;
-        },
-        closeBrowserSession: async () => {},
-      }) as unknown as AgentRuntime,
+    runtimeFactory: readyActorRuntimeFactory(
+      () =>
+        ({
+          executeTurn: (_input: string, _attachments: unknown, turnOptions: ExecuteTurnOptions) => {
+            options.push(turnOptions);
+            return turns[options.length - 1]!.promise;
+          },
+          closeBrowserSession: async () => {},
+        }) as unknown as AgentRuntime,
+    ),
     onTurnEnded: (current) => {
       h.driver.respondToSubmit(current, { kind: "nudge" });
       assert.equal(options.length, 1, "a synchronous nudge must not overlap its old handler");

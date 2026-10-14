@@ -1,3 +1,4 @@
+import { readyActorRuntimeFactory } from "./workflow-actor-runtime.fixture.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -41,7 +42,7 @@ test("an old cancelled turn cannot fail a retried ask or start alongside it", as
     runId: "control-test",
     journal,
     emit: () => {},
-    runtimeFactory: () => runtime,
+    runtimeFactory: readyActorRuntimeFactory(() => runtime),
   } as unknown as AgentRuntimeWorkflowDriverDeps;
   const driver = createAgentRuntimeWorkflowDriver(deps)(sink);
   const session = await driver.createActorSession({ siteId: "agent#1", ordinal: 1 }, {});
@@ -93,7 +94,7 @@ test("workflow image refs become actual turn images and missing refs do not star
     runId: "image-test",
     journal,
     emit: () => {},
-    runtimeFactory: () => runtime,
+    runtimeFactory: readyActorRuntimeFactory(() => runtime),
     artifactStore: {
       readToolResultArtifact: async ({ uri }: { uri: string }) => {
         if (uri.endsWith("missing")) throw new Error("not found");
@@ -161,14 +162,16 @@ test("dispose retains failed actor runtimes and retries without closing successf
     runId: "close-retry-test",
     journal,
     emit: () => {},
-    runtimeFactory: ({ actor }: { actor: { ordinal: number } }) =>
-      ({
-        closeBrowserSession: async () => {
-          const attempts = (closeCalls.get(actor.ordinal) ?? 0) + 1;
-          closeCalls.set(actor.ordinal, attempts);
-          if (actor.ordinal === 2 && attempts === 1) throw new Error("release append failed");
-        },
-      }) as unknown as AgentRuntime,
+    runtimeFactory: readyActorRuntimeFactory(
+      ({ actor }: { actor: { ordinal: number } }) =>
+        ({
+          closeBrowserSession: async () => {
+            const attempts = (closeCalls.get(actor.ordinal) ?? 0) + 1;
+            closeCalls.set(actor.ordinal, attempts);
+            if (actor.ordinal === 2 && attempts === 1) throw new Error("release append failed");
+          },
+        }) as unknown as AgentRuntime,
+    ),
     clock: {
       schedule: (callback: () => void) => {
         scheduled.push(callback);
@@ -225,9 +228,9 @@ test("the production actor close retry timer keeps the process alive", () => {
   }
 });
 
-test("dispose waits for an in-flight actor runtime factory and closes its late runtime", async () => {
-  let resolveRuntime!: (runtime: AgentRuntime) => void;
-  const runtimeReady = new Promise<AgentRuntime>((resolve) => {
+test("dispose waits for actor initialization before closing its already owned runtime", async () => {
+  let resolveRuntime!: () => void;
+  const runtimeReady = new Promise<void>((resolve) => {
     resolveRuntime = resolve;
   });
   let resolveClose!: () => void;
@@ -255,7 +258,18 @@ test("dispose waits for an in-flight actor runtime factory and closes its late r
     runId: "late-runtime-test",
     journal,
     emit: () => {},
-    runtimeFactory: () => runtimeReady,
+    runtimeFactory: () => ({
+      construct: () =>
+        ({
+          closeBrowserSession: async () => {
+            closeCalls += 1;
+            await closeReady;
+          },
+        }) as unknown as AgentRuntime,
+      initialize: async () => {
+        await runtimeReady;
+      },
+    }),
     registerResidencyBlockingWork: (work: Promise<unknown>) => cleanupWork.push(work),
   } as unknown as AgentRuntimeWorkflowDriverDeps;
   const driver = createAgentRuntimeWorkflowDriver(deps)(sink);
@@ -271,12 +285,7 @@ test("dispose waits for an in-flight actor runtime factory and closes its late r
   await Promise.resolve();
   assert.equal(cleanupResolved, false, "in-flight runtime creation must hold dispose residency");
 
-  resolveRuntime({
-    closeBrowserSession: async () => {
-      closeCalls += 1;
-      await closeReady;
-    },
-  } as unknown as AgentRuntime);
+  resolveRuntime();
   await creating;
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(closeCalls, 1);
@@ -335,13 +344,15 @@ test("seed failure during dispose keeps the created runtime owned until close su
       saveMessage: async () => undefined,
       savePart: async () => undefined,
     },
-    runtimeFactory: () =>
-      ({
-        closeBrowserSession: async () => {
-          closeCalls += 1;
-          await closeReady;
-        },
-      }) as unknown as AgentRuntime,
+    runtimeFactory: readyActorRuntimeFactory(
+      () =>
+        ({
+          closeBrowserSession: async () => {
+            closeCalls += 1;
+            await closeReady;
+          },
+        }) as unknown as AgentRuntime,
+    ),
     registerResidencyBlockingWork: (work: Promise<unknown>) => cleanupWork.push(work),
   } as unknown as AgentRuntimeWorkflowDriverDeps;
   const driver = createAgentRuntimeWorkflowDriver(deps)(sink);
