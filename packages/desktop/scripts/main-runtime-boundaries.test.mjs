@@ -1,82 +1,82 @@
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, rm, realpath } from "node:fs/promises";
-import { resolve, join, relative, isAbsolute, sep } from "node:path";
-import { pathToFileURL } from "node:url";
+import { execFile } from "node:child_process";
+import { mkdtemp } from "node:fs/promises";
+import { resolve, join } from "node:path";
 import test from "node:test";
 import { EventEmitter } from "node:events";
-import { createRequire } from "node:module";
+import { promisify } from "node:util";
+import {
+  cleanupFixtureDirectory,
+  desktopRoot,
+  loadSource,
+  loadMacUpdateRuntime,
+} from "./main-runtime-test-fixture.mjs";
 
-// 使用桌面 tsup 实际依赖的编译器，避免 hoisted 的另一版 esbuild 掩盖生产序列化差异。
-const require = createRequire(import.meta.url);
-const { build } = createRequire(require.resolve("tsup"))("esbuild");
-
-const desktopRoot = resolve(import.meta.dirname, "..");
-
-async function cleanupFixtureDirectory(directory) {
-  const cache = await realpath(join(desktopRoot, "node_modules/.cache"));
-  const target = await realpath(directory);
-  const child = relative(cache, target);
-  if (!child || isAbsolute(child) || child.split(sep)[0] === "..")
-    throw new Error("Fixture cleanup escaped its cache");
-  await rm(target, { recursive: true, force: true });
-}
-const loggerStub = "export const logger={info(){},warn(){},debug(){},error(){}};";
-const electronStub = `
-export const handlers=new Map();
-export const ipcMain={handle:(name,handler)=>handlers.set(name,handler)};
-export const BrowserWindow={fromWebContents:()=>null};
-export const app={getPath:()=>{throw Error('unexpected application path lookup')}};
-export const dialog={showSaveDialog:async()=>({filePath:''})};
-export const webContents={}, nativeImage={}, screen={}, session={}, MessageChannelMain={};
-`;
-
-async function loadSource(t, relativePath, stubs = {}, compilerOptions = {}) {
-  const cache = join(desktopRoot, "node_modules/.cache");
-  await mkdir(cache, { recursive: true });
-  const directory = await mkdtemp(join(cache, "main-boundary-test-"));
-  t.after(() => cleanupFixtureDirectory(directory));
-  const output = join(directory, "fixture.mjs");
-  const source = resolve(desktopRoot, relativePath).replaceAll("\\", "/");
-  await build({
-    stdin: {
-      contents: `export * from ${JSON.stringify(source)};import * as testElectron from 'electron';export {testElectron};`,
-      resolveDir: desktopRoot,
-    },
-    outfile: output,
-    bundle: true,
-    platform: "node",
-    format: "esm",
-    packages: "external",
-    ...compilerOptions,
-    plugins: [
-      {
-        name: "main-boundary-adapters",
-        setup(builder) {
-          builder.onResolve({ filter: /.*/ }, (args) => {
-            const stub =
-              stubs[args.path] ??
-              (args.path === "electron"
-                ? electronStub
-                : /(?:^|\/)logger\.js$/u.test(args.path)
-                  ? loggerStub
-                  : undefined);
-            if (stub !== undefined)
-              return { path: args.path, namespace: "adapter", pluginData: stub };
-            if (args.path === "@lcode/shared")
-              return { path: resolve(desktopRoot, "../shared/src/index.ts") };
-            if (args.path === "@lcode/model-option-map")
-              return { path: resolve(desktopRoot, "../model-option-map/src/index.ts") };
-          });
-          builder.onLoad({ filter: /.*/, namespace: "adapter" }, (args) => ({
-            contents: args.pluginData,
-            loader: "js",
-          }));
-        },
-      },
+test("macOS system helper lifecycle regressions run in the release gate", async () => {
+  const { stdout } = await promisify(execFile)(
+    process.execPath,
+    [
+      "--import",
+      "tsx",
+      "--test",
+      "--test-reporter=tap",
+      resolve(desktopRoot, "src/main/macUpdateInstall.test.ts"),
     ],
+    {
+      cwd: resolve(desktopRoot, "../.."),
+      timeout: 15_000,
+      // Node 测试 worker 标记不能传给独立 runner，否则嵌套 --test 会被跳过。
+      env: { ...process.env, NODE_TEST_CONTEXT: undefined },
+    },
+  );
+  assert.match(stdout, /# pass 4\b/u);
+});
+
+test("macOS update IPC prepares once, exits through the helper, and preserves ready on handoff failure", async (t) => {
+  const runtime = await loadMacUpdateRuntime(t);
+  t.after(() => runtime.initAutoUpdater({ enabled: false }));
+  const { updater, events, controls, handlers } = runtime.testElectron;
+  let releasePreparation;
+  const preparation = new Promise((resolve) => {
+    releasePreparation = resolve;
   });
-  return import(pathToFileURL(output).href);
-}
+  let preparationFailure;
+  await runtime.initAutoUpdater({
+    onBeforeQuitAndInstall: async () => {
+      events.push("prepare-start");
+      await preparation;
+      if (preparationFailure) throw preparationFailure;
+      events.push("prepare-end");
+    },
+  });
+  updater.emit("update-available", { version: "4.0.0" });
+  await new Promise((resolve) => setImmediate(resolve));
+  handlers.get("lcode:download-update")();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(runtime.getAutoUpdaterState().kind, "update-downloaded");
+  const install = handlers.get("lcode:quit-and-install-update");
+  controls.handoffFailure = true;
+  const firstInstall = install();
+  await install();
+  assert.deepEqual(events, ["prepare-start"], "并发请求不能绕过退出准备或创建第二个 helper");
+  releasePreparation();
+  await assert.rejects(firstInstall, /helper spawn failed/u);
+  assert.deepEqual(events, ["prepare-start", "prepare-end", "handoff:/fixture/verified-LCode.dmg"]);
+  assert.equal(runtime.getAutoUpdaterState().kind, "update-downloaded");
+  controls.handoffFailure = false;
+  events.length = 0;
+  await install();
+  assert.deepEqual(events, [
+    "prepare-start",
+    "prepare-end",
+    "handoff:/fixture/verified-LCode.dmg",
+    "exit:0",
+  ]);
+  events.length = 0;
+  preparationFailure = new Error("prepare failed");
+  await assert.rejects(install(), /prepare failed/u);
+  assert.deepEqual(events, ["prepare-start"], "退出准备失败不能启动安装 helper");
+});
 
 test("packaged Main registers bundled resources only for the matching compile mode", async (t) => {
   const resources = resolve(desktopRoot, "node_modules/.cache/fixture-resources");

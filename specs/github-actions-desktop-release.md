@@ -170,7 +170,9 @@ Windows 工作树开发补充（2026-10-12）：`third-party/mise/LICENSE.txt` �
    失败反馈和可重试入口，禁止回退到猜测 URL、另一格式或未校验下载。
    Windows 与 Linux 在统一准入后继续由 electron-updater 对同一文件重复执行摘要校验并按当前
    安装格式接管；macOS 不把 Squirrel.Mac 的签名 staging 当作未签名更新前置条件，而是经
-   cfworker-remote 下载已准入 DMG，按同一 size/SHA-512 标准校验后打开安装镜像，再正常退出。
+   cfworker-remote 下载已准入 DMG，按同一 size/SHA-512 标准校验后，先完成退出准备并结束旧
+   Main 进程，再由独立系统进程打开安装镜像。不能先打开 DMG 再调用 `app.quit()`：用户可在
+   旧进程仍持有 ASAR 索引时替换应用包，导致旧索引读取新包字节，把 WASM 数据当作首页显示。
    默认未签名 Windows 通道不得在 `app-update.yml` 声明 `publisherName`，否则 electron-updater
    会把 Authenticode 发布者校验变成安装前置条件；以后若增加签名专用通道，必须单独声明并测试。
    三平台均不得因未配置签名而关闭更新，也不得关闭 SmartScreen、Gatekeeper 或 Linux 包管理器
@@ -273,6 +275,15 @@ electron-builder 从它读取产物版本。GitHub Actions matrix 只持有当�
 只产生经过同一规则校验的本地文件路径，并把进度交回同一状态机。Renderer 只消费
 `UpdateStatePayload`，不能自行选择、下载或决定安装包。
 
+macOS 的 `macUpdateInstall.ts` 只负责一次安装交接，不持有更新版本、下载状态或恢复缓存。
+Main 在既有 `onBeforeQuitAndInstall` 屏障结束后，启动脱离父进程的 `/bin/sh`，把本次已校验
+DMG 路径与当前 Main PID 作为独立参数传入。启动失败继续保留 ready 并通过原安装 IPC 返回
+错误；启动成功才调用 `app.exit(0)`，避免窗口 close / before-quit 再次拦截已完成准备的退出。
+系统 helper 根据 `kill -0` 的存活结果等待指定 PID 消失，再执行 `/usr/bin/open`；轮询只观察
+进程存活，不以固定等待时长推断退出。不按应用名称扫描、不杀其它实例、不自动替换 `.app`，
+不关闭 Gatekeeper。连续点击仍由 `quitAndInstallInFlight` 合并为一次交接。helper 是一次性
+进程，退出后不恢复；新 Main 继续沿用现有清单、校验与 pending release notes 恢复规则。
+
 ```mermaid
 sequenceDiagram
   participant Maintainer as 维护者
@@ -294,6 +305,7 @@ sequenceDiagram
   participant Worker as cfworker-remote
   participant Release as GitHub Release
   participant OS as 平台安装接管
+  participant Helper as macOS 一次性系统 helper
   Main->>Worker: 请求 latest-<os>-<arch>.yml
   alt stable
     Worker->>Release: 直接读取 releases/latest/download 清单
@@ -315,7 +327,11 @@ sequenceDiagram
   UI->>Main: 安装更新
   Main->>Main: 等待 Host/Agent 退出准备
   alt macOS
-    Main->>OS: 打开已校验 DMG；用户完成拖动安装
+    Main->>Helper: 启动并传入当前 Main PID 与已校验 DMG 路径
+    Helper-->>Main: 系统进程启动成功
+    Main->>Main: app.exit(0)，结束旧 Main
+    Helper->>Helper: 确认指定 Main PID 已不存在
+    Helper->>OS: 打开已校验 DMG；用户完成拖动安装
   else Windows / Linux
     Main->>OS: 原生 updater 按当前安装格式接管
   end
@@ -350,6 +366,12 @@ sequenceDiagram
   架构按当前 updater 类型分别只能选中 AppImage、DEB、RPM 或 Pacman 包。六类选择都要求
   size/SHA-512，错格式、缺字段或非法值不进入下载；macOS 下载字节不匹配时不进入 ready，
   Windows/Linux 的原生安装路径在统一准入后保持不变。
+- macOS 安装交接回归：旧 Main PID 仍存活时不得打开 DMG；确认 PID 消失后只打开一次。
+  包路径里的空格、中文、引号及 shell 元字符必须按原值传递；helper 启动失败不退出应用，
+  ready 与重试入口保留。退出准备失败不能创建 helper；并发安装请求不能创建第二个 helper。
+- macOS 实机 E2E：从已安装版本下载同架构更新，点击安装；DMG 出现时在活动监视器确认旧
+  Main 已退出，再拖动替换并首次启动。首页应正常显示，不能出现 WASM 文本；再次启动也应正常。
+  Windows 上的系统 helper 生命周期测试不替代此原生 DMG / Finder 验收。
 - `node scripts/licenses.mjs check --strict` 仍保留“零未解决项”的更强人工门禁；自动发布的
   baseline-aware 校验不得改变它，也不得输出“许可完整”的结论。
 - 本地构建脚本版本元数据、安装包文件名、Release tag 一致。

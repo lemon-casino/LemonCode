@@ -302,7 +302,8 @@ test("unsigned desktop updates share one verified artifact contract", async () =
   ]);
   assert.match(autoUpdaterSource, /selectVerifiedUpdateArtifact\(info\)/u);
   assert.match(autoUpdaterSource, /downloadVerifiedUpdateArtifact\(\{/u);
-  assert.match(autoUpdaterSource, /await shell\.openPath\(readyMacDmgPath\)/u);
+  assert.match(autoUpdaterSource, /await openMacUpdateDmgAfterExit\(\{/u);
+  assert.doesNotMatch(autoUpdaterSource, /shell\.openPath\(/u);
   assert.match(
     autoUpdaterSource,
     /autoUpdater\.autoInstallOnAppQuit\s*=\s*process\.platform\s*===\s*"linux"/u,

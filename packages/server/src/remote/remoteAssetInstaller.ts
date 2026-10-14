@@ -16,6 +16,7 @@ import {
   waitForClose,
 } from "@lcode/server/remote/deployShared.js";
 import { quotePosixPathArg, quotePosixShellArg } from "@lcode/server/remote/posixShell.js";
+import { withRemoteDeployLock } from "@lcode/server/remote/remoteDeployLock.js";
 import {
   buildComponentArtifactUrlCandidates,
   buildReleaseAssetUrlCandidates,
@@ -605,6 +606,10 @@ export type RemoteDownloadAssetInstallerOptions = RemoteAssetDeployOptions & {
   remoteCdnBaseUrl?: string;
   remoteCdnBaseUrls?: string[];
   remoteAssetNetwork?: RemoteAssetNetworkPort;
+  /** 组件锁与安装目录锁默认保持相同的 120 秒等待预算。 */
+  componentLockAcquireTimeoutMs?: number;
+  /** HEAD 仅用于进度，默认 5 秒后按未知总量继续。 */
+  artifactHeadTimeoutMs?: number;
 };
 
 interface RemoteComponentRef {
@@ -639,7 +644,7 @@ export class RemoteDownloadAssetInstaller implements RemoteAssetInstaller {
     throwIfRemoteAssetInstallAborted(this.options.signal);
     const componentRef = await this.ensureComponent(
       params.componentId,
-      [],
+      [params.sourceRelativePath],
       Boolean(params.forceRefresh),
     );
     throwIfRemoteAssetInstallAborted(this.options.signal);
@@ -667,7 +672,9 @@ export class RemoteDownloadAssetInstaller implements RemoteAssetInstaller {
     throwIfRemoteAssetInstallAborted(this.options.signal);
     const componentRef = await this.ensureComponent(
       params.componentId,
-      params.requiredRelativePaths,
+      (params.requiredRelativePaths ?? []).map((path) =>
+        posix.join(params.sourceRelativePath, path),
+      ),
       Boolean(params.forceRefresh),
     );
     throwIfRemoteAssetInstallAborted(this.options.signal);
@@ -715,9 +722,17 @@ export class RemoteDownloadAssetInstaller implements RemoteAssetInstaller {
 
   private async ensureComponent(
     componentId: string,
-    requiredRelativePaths: readonly string[] = [],
+    requiredReleasePaths: readonly string[] = [],
     forceRefresh = false,
   ): Promise<RemoteComponentRef> {
+    const manifestRef = await this.manifestPromise;
+    const component = selectRemoteAssetManifestComponents(manifestRef.manifest, [componentId])[0];
+    if (!component)
+      throw new Error(`[remote-assets] manifest is missing requested component: ${componentId}`);
+    // 调用方要求的是 source 目录下文件，不能在组件根直接检查；GLM packages 曾因此被反复判成残缺缓存。
+    const requiredRelativePaths = requiredReleasePaths.map((path) =>
+      buildRemoteComponentRelativePath(component, path),
+    );
     // GLM bundle 与官方插件来自同一个 component，但会依次调用两次安装。
     // 强制刷新若每次都绕过进程内 task，会连续删除并下载两次同一制品；同一次 installer
     // 生命周期内只强刷一次，并让后续 mount 复用这份已校验组件。
@@ -728,7 +743,7 @@ export class RemoteDownloadAssetInstaller implements RemoteAssetInstaller {
       const componentRef = await existing;
       return this.ensureComponentHasRequiredPaths(componentRef, requiredRelativePaths);
     }
-    const task = this.ensureComponentInternal(componentId, forceRefresh);
+    const task = this.ensureComponentInternal(componentId, forceRefresh, requiredRelativePaths);
     this.componentCache.set(componentId, task);
     if (forceRefresh) {
       this.forceRefreshComponentTasks.set(componentId, task);
@@ -759,8 +774,13 @@ export class RemoteDownloadAssetInstaller implements RemoteAssetInstaller {
       componentRef.componentDir,
       requiredRelativePaths,
     );
-    if (missingPaths.length === 0 || !componentRef.fromCache) {
+    if (missingPaths.length === 0) {
       return componentRef;
+    }
+    if (!componentRef.fromCache) {
+      throw new Error(
+        `[remote-assets] downloaded component ${componentRef.component.id} is missing required files: ${missingPaths.join(",")}`,
+      );
     }
 
     // 远端 component cache 的 key 只按语义版本命中；如果历史组件缓存缺少关键文件，
@@ -769,8 +789,11 @@ export class RemoteDownloadAssetInstaller implements RemoteAssetInstaller {
     this.loggers.logWarn(
       `[remote-assets] remote component cache incomplete: component=${componentRef.component.id} missing=${missingPaths.join(",")}; redownloading`,
     );
-    await this.removeRemoteComponentCache(componentRef.componentDir);
-    const task = this.ensureComponentInternal(componentRef.component.id);
+    const task = this.ensureComponentInternal(
+      componentRef.component.id,
+      true,
+      requiredRelativePaths,
+    );
     this.componentCache.set(componentRef.component.id, task);
     return await task;
   }
@@ -789,14 +812,10 @@ export class RemoteDownloadAssetInstaller implements RemoteAssetInstaller {
     return missingPaths;
   }
 
-  private async removeRemoteComponentCache(componentDir: string): Promise<void> {
-    const stream = await this.backend.exec(`rm -rf ${quotePosixPathArg(componentDir)}`);
-    await waitForClose(stream);
-  }
-
   private async ensureComponentInternal(
     componentId: string,
     forceRefresh = false,
+    requiredRelativePaths: readonly string[] = [],
   ): Promise<RemoteComponentRef> {
     const manifestRef = await this.manifestPromise;
     const component = selectRemoteAssetManifestComponents(manifestRef.manifest, [componentId])[0];
@@ -818,7 +837,6 @@ export class RemoteDownloadAssetInstaller implements RemoteAssetInstaller {
         this.loggers.logWarn(
           `[remote-assets] download required: component=${component.id} reason=force refresh path=${readyPath}`,
         );
-        await this.removeRemoteComponentCache(componentDir);
       } else {
         this.loggers.log(
           `[remote-assets] remote component cache hit: ${component.id}@${component.version}`,
@@ -840,6 +858,8 @@ export class RemoteDownloadAssetInstaller implements RemoteAssetInstaller {
     const totalBytes = await resolveRemoteArtifactContentLength(
       artifactUrls,
       this.options.remoteAssetNetwork,
+      this.options.signal,
+      this.options.artifactHeadTimeoutMs,
     );
     // HEAD 只服务进度统计，允许其独立收尾；完成后必须重新检查连接生命周期，
     // 禁止取消后的迟到 continuation 使用旧 backend 创建远端下载与 staging。
@@ -849,8 +869,7 @@ export class RemoteDownloadAssetInstaller implements RemoteAssetInstaller {
     const extractDir = `${stagingDir}/extract`;
     const componentNewDir = `${componentDir}.new-${Date.now()}-${randomUUID()}`;
     const lockDir = `${componentDir}.lock`;
-    const quotedLockDir = quotePosixPathArg(lockDir);
-    const cleanupCommand = `if [ -n "\${lock_heartbeat_pid:-}" ]; then kill "$lock_heartbeat_pid" >/dev/null 2>&1 || true; wait "$lock_heartbeat_pid" 2>/dev/null || true; fi; rm -rf ${quotedLockDir} ${quotePosixPathArg(stagingDir)} ${quotePosixPathArg(componentNewDir)}`;
+    const cleanupCommand = `rm -rf ${quotePosixPathArg(stagingDir)} ${quotePosixPathArg(componentNewDir)}`;
     const downloadCommand = buildRemoteArtifactDownloadCommand({
       tool: this.tools.download,
       urls: artifactUrls,
@@ -865,36 +884,52 @@ export class RemoteDownloadAssetInstaller implements RemoteAssetInstaller {
       filePath: archivePath,
     });
     const checksumMismatchMessage = `[remote-assets] sha256 mismatch for ${component.id}@${component.version}`;
-    const command = [
-      "set -eu",
-      `rm -rf ${quotePosixPathArg(stagingDir)}`,
-      `mkdir -p ${quotePosixPathArg(stagingDir)} ${quotePosixPathArg(posix.dirname(componentDir))}`,
-      // 远端下载中断可能留下 .lock 目录。持锁进程定期刷新 mtime，等待方只清理超过 10 分钟没有心跳的锁，
-      // 避免用户断开后再次选择远端下载时一直等待，同时不误伤仍在慢速下载的正常进程。
-      `while ! mkdir ${quotedLockDir} 2>/dev/null; do if [ -e ${quotePosixPathArg(readyPath)} ]; then rm -rf ${quotePosixPathArg(stagingDir)}; exit 0; fi; lock_mtime=$({ stat -c %Y ${quotedLockDir} || stat -f %m ${quotedLockDir}; } 2>/dev/null || printf 0); lock_now=$(date +%s); if [ "$lock_mtime" -gt 0 ] && [ $((lock_now - lock_mtime)) -ge 600 ]; then echo ${quotePosixShellArg(`[remote-assets] stale lock for ${component.id}@${component.version}, retrying`)} >&2; rm -rf ${quotedLockDir}; continue; fi; sleep 1; done`,
-      `lock_heartbeat_pid=; (while :; do touch ${quotedLockDir} 2>/dev/null || exit 0; sleep 30; done) & lock_heartbeat_pid=$!`,
-      `trap ${quotePosixShellArg(cleanupCommand)} EXIT`,
-      `if [ -e ${quotePosixPathArg(readyPath)} ]; then exit 0; fi`,
-      downloadCommand,
-      `actual_sha=$(${checksumCommand})`,
-      `if [ "$actual_sha" != ${quotePosixShellArg(component.sha256)} ]; then echo ${quotePosixShellArg(checksumMismatchMessage)} >&2; exit 1; fi`,
-      `mkdir -p ${quotePosixPathArg(extractDir)}`,
-      `${this.tools.tar} -xzf ${quotePosixPathArg(archivePath)} -C ${quotePosixPathArg(extractDir)}`,
-      `test "$(find ${quotePosixPathArg(extractDir)} -mindepth 1 -maxdepth 1 | head -n 1)"`,
-      `printf ready > ${quotePosixPathArg(`${extractDir}/.ready`)}`,
-      `rm -rf ${quotePosixPathArg(componentNewDir)}`,
-      buildRemoteMoveCommand(extractDir, componentNewDir),
-      `rm -rf ${quotePosixPathArg(componentDir)}`,
-      buildRemoteMoveCommand(componentNewDir, componentDir),
-      cleanupCommand,
-      "trap - EXIT",
-    ].join(" && ");
+    return withRemoteDeployLock(
+      this.backend,
+      { lockDir, acquireTimeoutMs: this.options.componentLockAcquireTimeoutMs },
+      async (lock) => {
+        throwIfRemoteAssetInstallAborted(this.options.signal);
+        if (!forceRefresh && (await this.backend.exists(readyPath)))
+          return { component, componentDir, fromCache: true };
+        const verifyOwner = `test "$(cat ${quotePosixPathArg(`${lockDir}/owner`)} 2>/dev/null)" = ${quotePosixShellArg(lock.ownerToken)}`;
+        const command = [
+          "set -eu",
+          `trap ${quotePosixShellArg(cleanupCommand)} EXIT`,
+          "trap 'exit 1' HUP INT TERM",
+          `rm -rf ${quotePosixPathArg(stagingDir)}`,
+          `mkdir -p ${quotePosixPathArg(stagingDir)} ${quotePosixPathArg(posix.dirname(componentDir))}`,
+          // 组件锁复用安装目录的 owner/EOF/deadline 契约；下载命令失锁后只能清理自己的 staging。
+          verifyOwner,
+          // 下载片段内部用 set +e 捕获状态且含分号；子 shell 隔离它的 errexit 开关。
+          // 整体不能串成 && 链，否则末尾 cleanup 的分号会把下载失败吞掉，随后 cp 才报缓存不存在。
+          `(${downloadCommand})`,
+          `actual_sha=$(${checksumCommand})`,
+          `if [ "$actual_sha" != ${quotePosixShellArg(component.sha256)} ]; then echo ${quotePosixShellArg(checksumMismatchMessage)} >&2; exit 1; fi`,
+          `mkdir -p ${quotePosixPathArg(extractDir)}`,
+          `${this.tools.tar} -xzf ${quotePosixPathArg(archivePath)} -C ${quotePosixPathArg(extractDir)}`,
+          `test "$(find ${quotePosixPathArg(extractDir)} -mindepth 1 -maxdepth 1 | head -n 1)"`,
+          ...requiredRelativePaths.map(
+            (path) =>
+              `if [ ! -f ${quotePosixPathArg(posix.join(extractDir, path))} ]; then echo ${quotePosixShellArg(`[remote-assets] ${component.id} is missing required file: ${path}`)} >&2; exit 1; fi`,
+          ),
+          verifyOwner,
+          `printf ready > ${quotePosixPathArg(`${extractDir}/.ready`)}`,
+          `rm -rf ${quotePosixPathArg(componentNewDir)}`,
+          buildRemoteMoveCommand(extractDir, componentNewDir),
+          `rm -rf ${quotePosixPathArg(componentDir)}`,
+          buildRemoteMoveCommand(componentNewDir, componentDir),
+          cleanupCommand,
+          "trap - EXIT HUP INT TERM",
+        ].join("\n");
 
-    this.loggers.log(`[remote-assets] remote downloading ${component.id}@${component.version}`);
-    const stream = await this.backend.exec(command);
-    forwardRemoteDownloadProgressLogs(stream, this.loggers);
-    await waitForClose(stream);
-    return { component, componentDir, fromCache: false };
+        this.loggers.log(`[remote-assets] remote downloading ${component.id}@${component.version}`);
+        const stream = await this.backend.exec(command);
+        forwardRemoteDownloadProgressLogs(stream, this.loggers);
+        await waitForClose(stream);
+        throwIfRemoteAssetInstallAborted(this.options.signal);
+        return { component, componentDir, fromCache: false };
+      },
+    );
   }
 }
 
@@ -1003,7 +1038,20 @@ function buildRemoteComponentSourcePath(
   ref: RemoteComponentRef,
   releaseRelativePath: string,
 ): string {
-  const mount = ref.component.mount.replace(/\/+$/u, "");
+  const relativeInsideComponent = buildRemoteComponentRelativePath(
+    ref.component,
+    releaseRelativePath,
+  );
+  return relativeInsideComponent === "."
+    ? `${ref.componentDir}/.`
+    : `${ref.componentDir}/${relativeInsideComponent}`;
+}
+
+function buildRemoteComponentRelativePath(
+  component: RemoteAssetManifestComponent,
+  releaseRelativePath: string,
+): string {
+  const mount = component.mount.replace(/\/+$/u, "");
   const normalizedSource = releaseRelativePath.replace(/^\/+|\/+$/gu, "");
   const relativeInsideComponent =
     normalizedSource === mount
@@ -1011,9 +1059,7 @@ function buildRemoteComponentSourcePath(
       : normalizedSource.startsWith(`${mount}/`)
         ? normalizedSource.slice(mount.length + 1)
         : normalizedSource;
-  return relativeInsideComponent === "."
-    ? `${ref.componentDir}/.`
-    : `${ref.componentDir}/${relativeInsideComponent}`;
+  return relativeInsideComponent;
 }
 
 function resolveReleaseBaseByAssetUrl(
@@ -1030,11 +1076,16 @@ function resolveReleaseBaseByAssetUrl(
 async function resolveRemoteArtifactContentLength(
   urls: string[],
   network?: RemoteAssetNetworkPort,
+  connectionSignal?: AbortSignal,
+  timeoutMs = 5000,
 ): Promise<number | null> {
   const fetchImpl = resolveRemoteAssetFetch(network);
   for (const url of urls) {
+    throwIfRemoteAssetInstallAborted(connectionSignal);
     try {
-      const response = await fetchImpl(url, { method: "HEAD" });
+      const deadline = AbortSignal.timeout(timeoutMs);
+      const signal = connectionSignal ? AbortSignal.any([connectionSignal, deadline]) : deadline;
+      const response = await fetchImpl(url, { method: "HEAD", signal });
       if (!response.ok) {
         continue;
       }
@@ -1043,6 +1094,7 @@ async function resolveRemoteArtifactContentLength(
         return contentLength;
       }
     } catch {
+      throwIfRemoteAssetInstallAborted(connectionSignal);
       // HEAD 只用于连接日志进度总量；失败时下载本身仍按 curl/wget 候选继续执行。
     }
   }

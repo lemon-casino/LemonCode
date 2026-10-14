@@ -54,7 +54,11 @@ export class LocalFixtureRemoteBackend implements IRemoteBackend {
 
   async exec(command: string): Promise<StdioStream> {
     this.commands.push(command);
-    const child = spawn("bash", ["--noprofile", "--norc", "-c", command], {
+    // 直接 -c 在 Windows Git Bash 会重组长参数中的引号；执行落盘的原始脚本更接近真实 POSIX 远端。
+    await mkdir(this.home, { recursive: true });
+    const script = join(this.home, `.fixture-command-${this.commands.length}.sh`);
+    await writeFile(script, command);
+    const child = spawn("bash", ["--noprofile", "--norc", script], {
       env: { ...process.env, HOME: this.home.replaceAll("\\", "/") },
       windowsHide: true,
       stdio: ["pipe", "pipe", "pipe"],

@@ -49,7 +49,7 @@ import {
 } from "@lcode/server/remote/remoteAssetLiveIdentity.js";
 import { detectRemoteAssetTools } from "@lcode/server/remote/remoteAssetPreflight.js";
 import { assertSupportedRemoteEnvironment } from "@lcode/server/remote/remotePlatformSupport.js";
-import { acquireRemoteDeployLock } from "@lcode/server/remote/remoteDeployLock.js";
+import { withRemoteDeployLock } from "@lcode/server/remote/remoteDeployLock.js";
 import type { RemoteAssetNetworkPort } from "@lcode/server/remote/remoteAssetNetwork.js";
 import { createBundledRemoteAssetNetwork } from "@lcode/server/remote/bundledRemoteAssetSource.js";
 
@@ -435,43 +435,17 @@ export async function deployServer(
   if (preLockDecision.shouldDeploy) {
     log(`waiting for install-root lock: ${preLockDecision.reason}`);
   }
-  const deployLock = await acquireRemoteDeployLock(backend, {
-    acquireTimeoutMs: options?.deployLockAcquireTimeoutMs,
-  });
-  let deployOutcome: { ok: true; value: boolean } | { ok: false; error: unknown };
-  try {
-    // 进程内 WSL single-flight 无法覆盖不同 Desktop/build/backend。
-    // 获得远端 install-root lock 后必须重新检查，等待者不能按过期判断重复覆盖部署目录。
-    deployOutcome = {
-      ok: true,
-      value: await deployUsingCurrentRemoteState(),
-    };
-  } catch (error) {
-    deployOutcome = { ok: false, error };
-  }
-
-  let releaseOutcome: { ok: true } | { ok: false; error: unknown };
-  try {
-    await deployLock.release();
-    releaseOutcome = { ok: true };
-  } catch (error) {
-    releaseOutcome = { ok: false, error };
-  }
-  if (!deployOutcome.ok && !releaseOutcome.ok) {
-    // finally 内直接抛 release 错误会覆盖真正的部署失败，排障只能看到次生症状。
-    // AggregateError 同时保留 deploy 与 release 两条因果链，且 release deadline 保证这里有界返回。
-    throw new AggregateError(
-      [deployOutcome.error, releaseOutcome.error],
-      "remote deployment and deploy-lock release both failed",
-    );
-  }
-  if (!deployOutcome.ok) {
-    throw deployOutcome.error;
-  }
-  if (!releaseOutcome.ok) {
-    throw releaseOutcome.error;
-  }
-  return deployOutcome.value;
+  return withRemoteDeployLock(
+    backend,
+    {
+      acquireTimeoutMs: options?.deployLockAcquireTimeoutMs,
+    },
+    async () => {
+      // 进程内 WSL single-flight 无法覆盖不同 Desktop/build/backend。
+      // 获得远端 install-root lock 后必须重新检查，等待者不能按过期判断重复覆盖部署目录。
+      return deployUsingCurrentRemoteState();
+    },
+  );
 }
 
 type ServerDeployDecision =

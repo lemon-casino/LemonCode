@@ -15,11 +15,12 @@ import {
   type UpdateCheckResultPayload,
   type UpdateStatePayload,
 } from "@lcode/shared";
-import { app, BrowserWindow, ipcMain, Menu, net, shell } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, net } from "electron";
 import pkg, { CancellationToken } from "electron-updater";
 import semver from "semver";
 import { logger } from "./logger.js";
 import { getElectronReleasePlatform, ManifestUpdateProvider } from "./manifestUpdateProvider.js";
+import { openMacUpdateDmgAfterExit } from "./macUpdateInstall.js";
 import {
   downloadVerifiedUpdateArtifact,
   selectVerifiedUpdateArtifact,
@@ -489,13 +490,15 @@ async function quitAndInstallUpdate(rejectUnavailable = false) {
       if (!readyMacDmgPath) {
         throw new Error("Verified macOS update DMG is not ready");
       }
-      // 功能原因：未签名 ZIP 会在 Squirrel.Mac 的签名 staging 阶段失败。
-      // 与 Trace-Browser 相同，这里只打开已按 manifest SHA-512 校验的 DMG，
-      // 由系统展示安装镜像并让用户完成拖动安装；不绕过 Gatekeeper。
-      const openError = await shell.openPath(readyMacDmgPath);
-      if (openError) throw new Error(`Open macOS update DMG failed: ${openError}`);
-      logger.info(`[auto-update] opened verified macOS update DMG: ${readyMacDmgPath}`);
-      app.quit();
+      // 修复原因：先打开 DMG 再 app.quit 会暴露覆盖窗口，且 quit 仍可被窗口生命周期
+      // 拦截。退出准备已在上方完成；由系统 helper 等当前 Main 真正退出后展示已校验镜像。
+      await openMacUpdateDmgAfterExit({
+        dmgPath: readyMacDmgPath,
+        exitApp: () => {
+          logger.info(`[auto-update] macOS DMG handoff started; exiting Main pid=${process.pid}`);
+          app.exit(0);
+        },
+      });
       return;
     }
 
@@ -505,9 +508,9 @@ async function quitAndInstallUpdate(rejectUnavailable = false) {
     autoUpdater.quitAndInstall();
   } catch (error) {
     if (process.platform === "darwin" && readyMacDmgPath && readyUpdateVersion) {
-      // 打开失败不等于已校验 DMG 失效；保留 ready 让用户修复系统瞬时错误后重试。
+      // helper 启动失败不等于已校验 DMG 失效；保留 ready 让用户修复系统错误后重试。
       const message = error instanceof Error ? error.message : String(error);
-      logger.error("[auto-update] open verified macOS DMG failed:", error);
+      logger.error("[auto-update] verified macOS DMG handoff failed:", error);
       setAutoUpdaterMenuState(buildUpdateDownloadedState(readyUpdateVersion));
       notifyForceAutoUpdate({ kind: "error", message });
       if (rejectUnavailable) throw error;

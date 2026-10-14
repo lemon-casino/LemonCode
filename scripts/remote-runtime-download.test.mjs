@@ -15,6 +15,11 @@ import { packSourceAsDeterministicTarGzip } from "./deterministic-tar-archive.mj
 
 // 根脚本不声明 server 依赖，测试从目标包公开入口解析，避免依赖开发机 hoist。
 const serverRequire = createRequire(new URL("../packages/server/package.json", import.meta.url));
+await import("./cleanup-remote-deploy.test.mjs");
+// tag 已运行 test:remote-assets；把真实 POSIX 锁收敛和下载失败传播纳入同一发行门禁。
+for (const file of ["remoteDeployLock.test.js", "remoteDownloadFailure.test.js"]) {
+  await import(pathToFileURL(serverRequire.resolve(`@lcode/server/remote/${file}`)).href);
+}
 const { ensureRemoteReleaseDirFromCdn, fetchRemoteAssetManifestRefFromCdn } = await import(
   pathToFileURL(serverRequire.resolve("@lcode/server/remote/remoteAssetCache.js")).href
 );
