@@ -34,6 +34,7 @@ import {
 import type { IPlatformService, RemoteTarget, ServerRemoteInfo } from "@lcode/shared";
 import { parsePairingDeepLink, type PairingDeepLinkRoute } from "./remote/pairingDeepLink.js";
 import { MobilePairingPage } from "./remote/MobilePairingPage.js";
+import { loadStoredPairingCredential } from "./remote/pairingCredentialStore.js";
 import type { MobileDataServices } from "./remote/pairingSockets.js";
 import { WEB_DEFAULT_THEME, resolveWebInitialTheme } from "./webThemeSeed.js";
 import { saveWebFile } from "./saveWebFile.js";
@@ -69,6 +70,7 @@ interface WebBootstrapResult {
   initialTaskId?: string;
   restoreSession?: boolean;
   allowOpenWorkspace?: boolean;
+  remoteBrowserNavigationScope?: string;
 }
 
 // connectViaWebSocket 的返回即 app shell 需要的 services 面;不直接命名 IServiceAccessor,
@@ -428,6 +430,7 @@ function buildAppShellElement(
     | "initialTaskId"
     | "restoreSession"
     | "allowOpenWorkspace"
+    | "remoteBrowserNavigationScope"
   >,
 ) {
   const platform = createWebPlatform();
@@ -444,6 +447,7 @@ function buildAppShellElement(
           initialWorkspaceIdentity={bootstrap.initialWorkspaceIdentity}
           initialTaskId={bootstrap.initialTaskId}
           restoreSession={bootstrap.restoreSession}
+          remoteBrowserNavigationScope={bootstrap.remoteBrowserNavigationScope}
           allowOpenWorkspace={bootstrap.allowOpenWorkspace}
           preferDirectoryBrowser
           supportsEmbeddedBrowser={false}
@@ -460,7 +464,10 @@ function buildAppShellElement(
 function MobilePairingGate({ route }: { route: PairingDeepLinkRoute }) {
   const [services, setServices] = useState<MobileDataServices | null>(null);
   if (services) {
-    return buildAppShellElement(services, {});
+    return buildAppShellElement(services, {
+      remoteBrowserNavigationScope:
+        loadStoredPairingCredential()?.deviceId ?? route.roomId ?? undefined,
+    });
   }
   return <MobilePairingPage route={route} onConnected={setServices} />;
 }

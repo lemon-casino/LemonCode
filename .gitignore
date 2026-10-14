@@ -132,6 +132,9 @@ nul
 !/packages/web/test/mirrorReconnect.test.mjs
 !/packages/web/test/fixtures/mobile-pairing-reconnect.html
 !/packages/web/test/fixtures/mobile-pairing-reconnect.tsx
+!/packages/web/test/remote-browser-navigation.test.mjs
+!/packages/web/test/fixtures/remote-browser-navigation.html
+!/packages/web/test/fixtures/remote-browser-navigation.tsx
 !/packages/web/test/runtime-environment.test.mjs
 !/packages/web/test/runtime-environment-composer-cases.mjs
 !/packages/web/test/runtime-environment-scope-cases.mjs

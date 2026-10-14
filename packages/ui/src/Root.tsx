@@ -56,6 +56,11 @@ import { consumeLcodeJwtInvalidRestartMarker } from "@/root/lcodeJwtInvalidResta
 import { useDesktopNativeThemeSync } from "@/root/useDesktopNativeThemeSync.js";
 import { useRootPlatformEffects } from "@/root/useRootPlatformEffects.js";
 import { useRootWorkspaceActions } from "@/root/useRootWorkspaceActions.js";
+import {
+  RemoteBrowserNavigationScopeContext,
+  useRemoteBrowserNavigationPersistence,
+} from "@/hooks/useRemoteBrowserNavigationPersistence.js";
+import { useRemoteBrowserNavigationStore } from "@/store/remoteBrowserNavigationStore.js";
 import { registerBaseWorkspaceServices } from "@/store/remoteWorkspaceSessionStore.js";
 import type { RootProps } from "@/root/types.js";
 import { DiffsWorkerPoolProvider } from "@/root/DiffsWorkerPoolProvider.js";
@@ -127,7 +132,11 @@ export function Root(props: RootProps) {
                   <AssistantCodeCommentFeatureProvider
                     enabled={props.assistantCodeCommentCardsEnabled}
                   >
-                    <RootInner {...props} />
+                    <RemoteBrowserNavigationScopeContext.Provider
+                      value={props.remoteBrowserNavigationScope}
+                    >
+                      <RootInner {...props} />
+                    </RemoteBrowserNavigationScopeContext.Provider>
                   </AssistantCodeCommentFeatureProvider>
                 </DiffsWorkerPoolProvider>
               </TabStoreProvider>
@@ -151,6 +160,7 @@ function RootInner({
   isMacDesktop,
   isWindowsDesktop,
   restoreSession = true,
+  remoteBrowserNavigationScope,
   supportsSettings = true,
   allowOpenWorkspace = true,
   preferDirectoryBrowser,
@@ -202,7 +212,13 @@ function RootInner({
   } = useSettings();
   const [welcomeScreenOpenReason, setWelcomeScreenOpenReason] =
     useState<WelcomeScreenOpenReason | null>(() =>
-      consumeLcodeJwtInvalidRestartMarker() ? "session-expired" : null,
+      remoteBrowserNavigationScope
+        ? useRemoteBrowserNavigationStore.getState().hasEntered
+          ? null
+          : "startup-provider-required"
+        : consumeLcodeJwtInvalidRestartMarker()
+          ? "session-expired"
+          : null,
     );
   const [providerFamilyDomainMigrationComplete, setProviderFamilyDomainMigrationComplete] =
     useState(false);
@@ -366,6 +382,11 @@ function RootInner({
   const addTab = useTabStore((state) => state.addTab);
   const activateTabByPath = useTabStore((state) => state.activateTabByPath);
   const tabStoreApi = useTabStoreApi();
+  const browserNavigation = useRemoteBrowserNavigationPersistence({
+    scope: remoteBrowserNavigationScope,
+    services,
+    tabStoreApi,
+  });
   const handleOpenGitBackupSettings = useCallback(() => {
     // 设置 tab 只覆盖当前工作区，保留原 tab 的 identity、attachment 与 remoteTarget 路由。
     setPendingSettingsSection("gitBackup");
@@ -415,7 +436,7 @@ function RootInner({
       rootProviderAvailability.hydrated || rootModelSelectionRead.state.status === "error",
   });
   const providerAvailabilityLoginEntryGuardEnabled =
-    shouldEnableProviderAvailabilityLoginEntryGuard();
+    !remoteBrowserNavigationScope && shouldEnableProviderAvailabilityLoginEntryGuard();
   const { startupCheckCompleted: providerAvailabilityStartupCheckCompleted } =
     useProviderAvailabilityLoginEntryGuard({
       enabled: providerAvailabilityLoginEntryGuardEnabled,
@@ -506,6 +527,7 @@ function RootInner({
       setWelcomeScreenOpenReason("logout-provider-required");
     },
     userId: user?.id,
+    workbenchGroupClientMode: remoteBrowserNavigationScope ? "web-remote-replayable" : undefined,
     onOpenRemoteConnection: allowRemoteWorkspace ? handleOpenRemoteConnection : undefined,
   });
   const handleRemoteWorkspaceActivated = useCallback(
@@ -570,10 +592,36 @@ function RootInner({
     // 首次安装未连接账号时，provider 登录入口判定会晚于 workspace 恢复。
     // 如果这里先恢复 workspace，ChatView mount 会触发草稿 session 预热并在登录页背后报错。
     restoreSession: restoreSession && canRestoreWorkspaceSession,
-    persistSession: restoreSession && canRestoreWorkspaceSession,
-    restorePersistedSession,
+    persistSession: !remoteBrowserNavigationScope && restoreSession && canRestoreWorkspaceSession,
+    syncRecentProjects: !remoteBrowserNavigationScope,
+    restorePersistedSession: remoteBrowserNavigationScope
+      ? browserNavigation.restore
+      : restorePersistedSession,
     buildPersistPatch: buildPersistedTabPatch,
   });
+
+  useEffect(() => {
+    if (
+      remoteBrowserNavigationScope &&
+      canRestoreWorkspaceSession &&
+      hasCompletedFullRestore &&
+      !isBootstrappingInitialWorkspace &&
+      !isCreatingFallbackWorkspace &&
+      workspaceShellPath &&
+      !welcomeScreenOpenReason
+    ) {
+      browserNavigation.beginRemembering();
+    }
+  }, [
+    remoteBrowserNavigationScope,
+    canRestoreWorkspaceSession,
+    hasCompletedFullRestore,
+    isBootstrappingInitialWorkspace,
+    isCreatingFallbackWorkspace,
+    workspaceShellPath,
+    welcomeScreenOpenReason,
+    browserNavigation.beginRemembering,
+  ]);
 
   // 项目注册表是持久化事实，打开标签页只是窗口投影。启动门禁尚未放行时，
   // hook 的“无需恢复”完成态也可能为 true；据此清理空 tab 会误删项目及恢复记录。
@@ -595,10 +643,10 @@ function RootInner({
   const { tryRefresh, clearCredentials } = useTokenRefresh();
   void tryRefresh;
   void clearCredentials;
-  // 启动阻塞是桌面窗口保护期，手机 Web 远控在进入 Root 前已有配对/加载页。
-  // Web 端继续使用该 gate 会在 workspace tab 注入前渲染空 RootShell，露出浏览器白底。
+  // CF 浏览位置需先异步验证，恢复期间同样保留完整 loading，不能挂载中间项目/草稿。
+  // 此处只扩展渲染门禁，不改变平台能力或 web-remote-replayable 的服务边界。
   const isStartupRenderBlocked = shouldShowRootStartupLoading({
-    isDesktop,
+    isDesktop: isDesktop || Boolean(remoteBrowserNavigationScope),
     welcomeScreenOpen: Boolean(welcomeScreenOpenReason),
     isResolvingStartupAuthState,
     isResolvingProviderStartupState,
@@ -861,6 +909,7 @@ function RootInner({
   };
   const handleWelcomeScreenComplete = useCallback(
     async (reason: LoginCompleteReason) => {
+      browserNavigation.enter();
       if (reason === "cancel") {
         // 欢迎页空闲态的取消以前只取消 OAuth 等待，实际没有等待时入口无法关闭。
         // 取消不执行跳过保存，也不创建欢迎页专属的默认 workspace。
@@ -890,6 +939,7 @@ function RootInner({
     },
     [
       allowOpenWorkspace,
+      browserNavigation.enter,
       handleEnsureConversationWorkspace,
       refreshAppSettings,
       welcomeScreenOpenReason,

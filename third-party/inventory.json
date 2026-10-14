@@ -252,7 +252,7 @@
     "apps/lcode-cli/packages/tui/package.json": "35cd6fcd941d6abfb2e1f9129493abf04ef108bc8ceaa057c0c9a45c0c192294",
     "apps/lcode-cli/tools/prompt-trajectory/package.json": "adda451b1c3981fa364530ad0ce303f7f428c3180b8b20c3f4be47d35116a1e9",
     "apps/lcode-cli/tools/typescript/package.json": "2f33883fe33cc9d878a3d6d78a0d262eb0db134fc02042ed7563c3dc50d797f7",
-    "package.json": "35e70e1280b62fcdfa5891f68dd8e8980695d092e67a52a0c0c9fa7517818601",
+    "package.json": "955fefee6ed00a402495b598ea6802f258412e88c800c8c9b43e3599274c8a75",
     "packages/client/package.json": "6cfcb57428c4728a98b7cf4504d29304cf6e9e547e136f0ab1edcef8f821b452",
     "packages/desktop/package.json": "c81d8f6915a5df5b0a43cdbe8a20d40c825c384060d8032e051827547d992611",
     "packages/desktop/src/renderer/public/material-icons/3d.svg": "9527b849f0fba57ca7640e2717b3a19cb5f5e046712cbbd8b75d73af338c68fb",

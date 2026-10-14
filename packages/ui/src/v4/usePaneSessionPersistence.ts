@@ -5,8 +5,9 @@
 // 恢复选择态后 pane 重订阅即可拿到 snapshot+续流。
 // 只有同一 renderer reload 的首个 workspace 会恢复；app 冷启动和 workspace-only
 // 入口保持草稿，不消费上一次运行留下的 session 绑定。
-import { useEffect, useRef } from "react";
+import { useContext, useEffect, useRef } from "react";
 import { isRendererReloadNavigation } from "@/lib/rendererNavigation.js";
+import { RemoteBrowserNavigationScopeContext } from "@/hooks/useRemoteBrowserNavigationPersistence.js";
 
 const STORAGE_PREFIX = "lcode-v4-last-session:v1:";
 
@@ -68,9 +69,12 @@ export function usePaneSessionPersistence({
   workspaceKey,
   activeSessionId,
   draftFocusVersion,
-  enabled = true,
+  enabled: requestedEnabled = true,
   selectSession,
 }: UsePaneSessionPersistenceParams): void {
+  // CF 浏览器由 Root 验证轻绑定后恢复；desktop reload 键不能成为第二条写入路径。
+  const browserNavigationScope = useContext(RemoteBrowserNavigationScopeContext);
+  const enabled = requestedEnabled && !browserNavigationScope;
   const restoredKeysRef = useRef<Set<string>>(new Set());
   // 只有 reload 后首个 workspace 可以消费刷新前的 pane 绑定；之后打开其它
   // workspace 仍是 workspace-only 入口，必须进入草稿，不能逐个恢复旧 session。

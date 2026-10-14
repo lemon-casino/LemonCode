@@ -8,6 +8,8 @@ const files = [
   "packages/desktop/src/main/desktopRemoteControlTunnel.test.ts",
   "packages/desktop/src/main/desktopRemoteControlFramePump.test.ts",
   "packages/ui/src/settings/MobileRemoteControlPanel.test.tsx",
+  "packages/ui/src/store/remoteBrowserNavigationStore.test.ts",
+  "packages/ui/src/hooks/remoteBrowserNavigationRestore.test.ts",
   "packages/web/test/pairingCredentialStore.test.mjs",
   "packages/web/test/pairingFrames.test.mjs",
 ];

@@ -24,6 +24,8 @@ export interface RootProps {
   isWindowsDesktop?: boolean;
   /** 是否恢复上次关闭时的标签页，首个窗口 true，新窗口 false */
   restoreSession?: boolean;
+  /** CF 已授权浏览器的非秘密设备 ID；启用浏览器位置记忆，不写桌面启动位置。 */
+  remoteBrowserNavigationScope?: string;
   /** 是否允许访问本地设置服务，远程窗口 false */
   supportsSettings?: boolean;
   /** 是否允许在当前壳层里切换/新开工作区 */

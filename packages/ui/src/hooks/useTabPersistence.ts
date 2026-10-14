@@ -108,6 +108,7 @@ export function useTabPersistence({
   settingService,
   restoreSession = true,
   persistSession = restoreSession,
+  syncRecentProjects = true,
   restorePersistedSession,
   buildPersistPatch,
 }: {
@@ -116,6 +117,8 @@ export function useTabPersistence({
   restoreSession?: boolean;
   /** 是否把当前窗口会话写回全局设置，首个窗口 true，新窗口 false */
   persistSession?: boolean;
+  /** 浏览器 attachment 的恢复只读全局项目设置，不回填桌面 recentProjects。 */
+  syncRecentProjects?: boolean;
   /** 自定义恢复流程；不传则回退到默认的本地 tab 恢复逻辑 */
   restorePersistedSession?: (
     settings: AppSettings,
@@ -214,8 +217,9 @@ export function useTabPersistence({
         const merged = buildRestoredRecentProjectPaths(settings, excludedRecentProjectPaths);
         const persistedRecent = settings.recentProjects ?? [];
         if (
-          merged.length !== persistedRecent.length ||
-          merged.some((p, i) => p !== persistedRecent[i])
+          syncRecentProjects &&
+          (merged.length !== persistedRecent.length ||
+            merged.some((p, i) => p !== persistedRecent[i]))
         ) {
           settingService.update({ recentProjects: merged }).catch((err) => {
             logger.error("[useTabPersistence] 同步 recentProjects 失败:", err);
@@ -274,7 +278,7 @@ export function useTabPersistence({
       cancelled = true;
       cancelDeferredRestore?.();
     };
-  }, [restorePersistedSession, settingService, restoreSession, store]);
+  }, [restorePersistedSession, settingService, restoreSession, store, syncRecentProjects]);
 
   // 持久化：订阅 store 变化，debounce 写入
   useEffect(() => {
