@@ -56,6 +56,10 @@ export async function loadPersistedConversationMaterialization(input: {
   persistedMessages?: MessageWithParts[];
   sessionId: string;
   store?: PersistedConversationMaterializationStore;
+  workspaceEventsFromEntries?: (
+    entries: readonly SessionEntryInfo[],
+    memoryEvents: readonly SessionEvent[],
+  ) => SessionEvent[];
 }): Promise<ConversationMaterializationSource> {
   if (!input.store) {
     // 无 sessionStore 时旧 bridge 人工填 target:null，把“没有读取”误当成
@@ -111,7 +115,9 @@ export async function loadPersistedConversationMaterialization(input: {
       : undefined;
   return {
     goalVerificationEntries: goalVerificationEntriesFromSessionEntries(entries),
-    memoryEvents: [...input.memoryEvents],
+    memoryEvents: input.workspaceEventsFromEntries?.(entries, input.memoryEvents) ?? [
+      ...input.memoryEvents,
+    ],
     messages,
     ...(sharedContextImport ? { sharedContextImport } : {}),
     target,

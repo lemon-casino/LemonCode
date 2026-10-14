@@ -19,7 +19,7 @@ import {
   throwIfTurnAborted,
 } from "../helpers/index.js";
 import type { WorkspaceFileRewindUnsafeFile } from "../types.js";
-import type { AgentRuntimeInternal } from "../internal.js";
+import type { WorkspaceFileRewindReadSource } from "./file-rewind-read.js";
 import type {
   PlannedFileState,
   FileCheckpointOperation,
@@ -40,7 +40,7 @@ import {
 } from "./file-rewind-state.js";
 
 export async function buildWorkspaceFileRewindPlan(
-  this: AgentRuntimeInternal,
+  this: WorkspaceFileRewindReadSource,
   options: {
     abortSignal?: AbortSignal;
     targetCheckpointId?: string;

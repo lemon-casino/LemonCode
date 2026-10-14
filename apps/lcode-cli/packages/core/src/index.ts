@@ -144,6 +144,16 @@ export type {
   ClientFacingPorts,
 } from "./runtime/helpers/child-client-ports.js";
 export { constructChildRuntimeWithPorts } from "./runtime/helpers/child-runtime-construction.js";
+export {
+  previewWorkspaceFileRewindFromSources,
+  applyWorkspaceFileRewindFromSources,
+  type WorkspaceFileRewindReadSource,
+  type WorkspaceFileRewindWriteSource,
+} from "./runtime/methods/file-rewind-read.js";
+export {
+  workspaceEventsFromSessionEntries,
+  persistWorkspaceFileRewindEntryStrict,
+} from "./runtime/methods/workspace-checkpoint-persistence.js";
 export type {
   ActiveTurnInfo,
   AgentRuntimeConfig,

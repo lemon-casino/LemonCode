@@ -25,6 +25,7 @@ import * as attachments from "./v4-gateway-attachments.js";
 import * as commands from "./v4-gateway-commands.js";
 import * as projectionQueries from "./v4-gateway-projection-queries.js";
 import * as delivery from "./v4-gateway-delivery.js";
+import { hydratePublisher } from "./v4-gateway-hydration.js";
 export type { V4GatewayHost } from "./v4-gateway-contract.js";
 export { V4CommandNotImplementedError, V4CommandNoopError } from "./v4-gateway-errors.js";
 
@@ -272,6 +273,11 @@ export class ConversationV4Gateway {
 
   disposeSession(sessionId: string) {
     return lifecycle.disposeSession(this.state, sessionId);
+  }
+
+  /** 文件命令落下同一持久事实后刷新原投影；不激活观察态 child。 */
+  refreshPersistedSessionView(sessionId: string) {
+    return hydratePublisher(this.state, sessionId, undefined, true);
   }
 
   deactivateSession(sessionId: string) {

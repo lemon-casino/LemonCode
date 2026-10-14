@@ -2,6 +2,7 @@ import {
   withSessionResumeFlight,
   type ActivatedSessionForResume,
 } from "./session-resume-flight.js";
+import { isReadOnlyChildTaskType, readChildInputFault } from "./child-session-policy.js";
 /* eslint-disable max-lines -- LCode Protocol 的 session/workspace 方法共享同一个 server context 与 snapshot helpers，迁移期先集中维护。 */
 import { observeSessionDebug } from "./session-debug.js";
 import type { LCodeAgentMcpServer } from "@lcode/shared";
@@ -1532,6 +1533,12 @@ async function materializeSessionForResume(
       `Session not found: ${params.sessionId}`,
     );
   }
+  if (isReadOnlyChildTaskType(session.taskType))
+    throw new ProtocolRequestError(
+      lcodeProtocolErrorCodes.sessionUnavailable,
+      "Child execution is managed by its parent; use conversation history",
+      { reasonCode: "guard.subagentReadOnly" },
+    );
   session = await repairLegacyRemoteSessionWorkspaceForResume(context, session);
   if (session.taskType === "worktree_repair") {
     // 隐藏修复 runtime 依赖冻结 operation 的许可；重启后不能作为普通本地会话恢复并运行 Hook。
@@ -2080,9 +2087,14 @@ export async function subscribeSession(
 
 export async function sendPrompt(context: LCodeProtocolAgentServerContext, rawParams: unknown) {
   const params = parseParams(lcodeSessionSendParamsSchema, rawParams);
+  const inputFault = await readChildInputFault(context, params.sessionId);
+  if (inputFault)
+    throw new ProtocolRequestError(-32010, inputFault.message, {
+      reasonCode: inputFault.reasonCode,
+    });
   const record = requireSession(context, params.sessionId);
   // legacy 输入入口同样必须保持子代理只读，不能绕过 V4 用户输入准入。
-  if (record.taskType === "subagent_child") {
+  if (isReadOnlyChildTaskType(record.taskType)) {
     throw new ProtocolRequestError(-32010, "Subagent sessions are read-only", {
       reasonCode: "guard.subagentReadOnly",
     });

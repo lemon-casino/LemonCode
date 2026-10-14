@@ -110,6 +110,13 @@ export function pruneDetachedChildPublishers(
     if (nowMs - terminalAt < graceMs) continue;
     if (gateway.host.sessionExists(childId)) continue;
     if (gateway.publishers.get(childId)?.hasSubscribers()) continue;
+    // 只读 child 也有合法文件/反馈命令；READY 或在途动作未结束不能拆投影。
+    if (
+      gateway.readyFlights.has(childId) ||
+      gateway.hydrationInFlight.has(childId) ||
+      gateway.inbox.hasPinnedSessionState(childId)
+    )
+      continue;
     releaseDetachedChild(gateway, childId);
     released += 1;
   }

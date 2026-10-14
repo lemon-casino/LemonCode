@@ -8,13 +8,7 @@ import {
   parseRewindTriggeredPayload,
   traceContextToLogContext,
 } from "../deps.js";
-import type {
-  SessionEntryInfo,
-  SessionEvent,
-  TraceContext,
-  TraceId,
-  TurnId,
-} from "../deps.js";
+import type { SessionEntryInfo, SessionEvent, TraceContext, TraceId, TurnId } from "../deps.js";
 import type { AgentRuntimeInternal } from "../internal.js";
 
 interface PersistedWorkspaceEvent {
@@ -71,22 +65,7 @@ export async function persistWorkspaceFileRewindEntry(
   if (payload.scope !== RewindScope.Workspace || payload.reason !== "file_summary_rewind") return;
 
   try {
-    const timestamp = event.timestamp.getTime();
-    await runtime.sessionStore.saveSessionEntry({
-      id: `workspace-file-rewind:${payload.rewindId}`,
-      sessionID: event.sessionId,
-      type: SESSION_ENTRY_WORKSPACE_FILE_REWIND,
-      time: { created: timestamp, updated: timestamp },
-      // 文件已撤销是 child turn 的持久状态。只广播内存事件会在关闭详情或
-      // 重启后重新显示“撤销”，并让已经恢复的文件再次进入预览。
-      data: {
-        eventId: String(event.id),
-        payload,
-        sequenceNumber: event.sequenceNumber,
-        traceId: String(event.traceId),
-        ...(event.turnId ? { turnId: String(event.turnId) } : {}),
-      } satisfies PersistedWorkspaceEvent,
-    });
+    await persistWorkspaceFileRewindEntryStrict(runtime.sessionStore, event);
   } catch (error) {
     runtime.logger?.warn("Failed to persist workspace file rewind", {
       ...traceContextToLogContext(traceContext),
@@ -96,6 +75,29 @@ export async function persistWorkspaceFileRewindEntry(
       status: "failed",
     });
   }
+}
+
+/** 显式文件命令需要持久回执，不能吞掉失败后把文件改动当成已登记。 */
+export async function persistWorkspaceFileRewindEntryStrict(
+  store: Pick<import("@lcode/contracts").SessionStorePort, "saveSessionEntry">,
+  event: SessionEvent,
+): Promise<void> {
+  if (!store.saveSessionEntry) throw new Error("Workspace file rewind persistence is unavailable");
+  const payload = parseRewindTriggeredPayload(event.payload);
+  const timestamp = event.timestamp.getTime();
+  await store.saveSessionEntry({
+    id: `workspace-file-rewind:${payload.rewindId}`,
+    sessionID: event.sessionId,
+    type: SESSION_ENTRY_WORKSPACE_FILE_REWIND,
+    time: { created: timestamp, updated: timestamp },
+    data: {
+      eventId: String(event.id),
+      payload,
+      sequenceNumber: event.sequenceNumber,
+      traceId: String(event.traceId),
+      ...(event.turnId ? { turnId: String(event.turnId) } : {}),
+    } satisfies PersistedWorkspaceEvent,
+  });
 }
 
 export async function restoreWorkspaceCheckpointEntries(
@@ -248,6 +250,56 @@ export async function restoreWorkspaceFileRewindEntries(
 
 function readPersistedWorkspaceCheckpoint(value: unknown): PersistedWorkspaceEvent | null {
   return readPersistedWorkspaceEvent(value);
+}
+
+/** 同一持久 envelope/严格 payload codec 的只读入口；不 append、不启动 runtime。 */
+export function workspaceEventsFromSessionEntries(
+  sessionId: import("@lcode/contracts").SessionId,
+  entries: readonly SessionEntryInfo[],
+  memoryEvents: readonly SessionEvent[] = [],
+): SessionEvent[] {
+  const events = [...memoryEvents];
+  const key = (event: SessionEvent) =>
+    event.type === SessionEventType.CheckpointCreated
+      ? `checkpoint:${parseCheckpointCreatedPayload(event.payload).checkpointId}`
+      : event.type === SessionEventType.RewindTriggered
+        ? `rewind:${parseRewindTriggeredPayload(event.payload).rewindId}`
+        : String(event.id);
+  const seen = new Set(events.map(key));
+  for (const entry of [...entries].sort((a, b) => a.time.created - b.time.created)) {
+    if (
+      entry.type !== SESSION_ENTRY_WORKSPACE_CHECKPOINT &&
+      entry.type !== SESSION_ENTRY_WORKSPACE_FILE_REWIND
+    )
+      continue;
+    const data = readPersistedWorkspaceEvent(entry.data);
+    if (!data) throw new Error("Invalid persisted workspace event");
+    const type =
+      entry.type === SESSION_ENTRY_WORKSPACE_CHECKPOINT
+        ? SessionEventType.CheckpointCreated
+        : SessionEventType.RewindTriggered;
+    const payload =
+      type === SessionEventType.CheckpointCreated
+        ? parseCheckpointCreatedPayload(data.payload)
+        : parseRewindTriggeredPayload(data.payload);
+    if (type === SessionEventType.RewindTriggered) {
+      const rewind = parseRewindTriggeredPayload(data.payload);
+      if (rewind.scope !== RewindScope.Workspace || rewind.reason !== "file_summary_rewind")
+        continue;
+    }
+    const event = createSessionEvent(type, sessionId, payload, {
+      traceId: data.traceId as TraceId,
+      ...(data.turnId ? { turnId: data.turnId as TurnId } : {}),
+    });
+    event.id = data.eventId as SessionEvent["id"];
+    event.timestamp = new Date(entry.time.created);
+    event.sequenceNumber = data.sequenceNumber;
+    if (!seen.has(key(event))) {
+      seen.add(key(event));
+      events.push(event);
+    }
+  }
+  return events;
 }
 
 function readPersistedWorkspaceEvent(value: unknown): PersistedWorkspaceEvent | null {

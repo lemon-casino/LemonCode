@@ -72,6 +72,8 @@ export async function subscribeReserved(
   if (sessionId === null) {
     throw new Error(`Unsupported topic: ${params.topic}`);
   }
+  if (params.workspace)
+    await gateway.host.validateConversationReadScope?.(sessionId, params.workspace);
   const isLiveConversation = hasLiveConversation(gateway, sessionId);
   gateway.host.onDebug?.(
     `subscribe conversation session=${sessionId} coldResume=${String(!isLiveConversation)}`,

@@ -12,20 +12,22 @@ import type {
   ToolArtifactStorePort,
 } from "@lcode/contracts";
 
-interface AppAttachmentDeps {
-  artifactStore: ToolArtifactStorePort;
-  fileSystemPort: FileSystemPort;
-  sessionStore: SessionStorePort;
+export interface AppAttachmentReadDeps {
+  artifactStore: Pick<
+    ToolArtifactStorePort,
+    "readToolResultArtifact" | "statToolResultArtifact" | "ensureMediaAttachmentPath"
+  >;
+  fileSystemPort: Pick<FileSystemPort, "readBinaryFile" | "stat">;
+  sessionStore: Pick<SessionStorePort, "messageWithParts">;
   sessionId: SessionId;
   traceContext: TraceContext;
 }
 
-export function createAppAttachmentFacade(
-  input: AppAttachmentDeps,
+export function createAppAttachmentReadFacade(
+  input: AppAttachmentReadDeps,
 ): Pick<
   LCodeApp,
   | "readToolResultArtifact"
-  | "writePromptAttachment"
   | "readPromptAttachment"
   | "statPromptAttachment"
   | "resolvePromptAttachmentPreviewSource"
@@ -73,32 +75,7 @@ export function createAppAttachmentFacade(
       artifactStore.readToolResultArtifact({ uri, trace: traceContext }),
     // wire/staging 全程是 decoded chunk；只有完整 checksum commit 后才在
     // CLI 进程内恢复既有 data-URL artifact 形态，保持 provider 读取链兼容。
-    writePromptAttachment: async (input) => {
-      const artifact = await artifactStore.writeToolResultArtifact({
-        content: `data:${input.mime};base64,${Buffer.from(input.bytes).toString("base64")}`,
-        contentType: "text/plain",
-        retention: "session",
-        sessionId,
-        toolCallId: `prompt-attachment-upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
-        toolName: "prompt-attachment:upload",
-        trace: traceContext,
-      });
-      if (
-        input.mime.startsWith("image/") ||
-        input.mime.startsWith("video/") ||
-        input.mime.split(";", 1)[0]?.trim().toLowerCase() === "application/pdf"
-      ) {
-        // 派生媒体只是可重建缓存；真实 IO 失败不破坏 durable data URL，最终请求投影会再次 ensure。
-        void artifactStore
-          .primeMediaAttachmentPath?.({
-            bytes: input.bytes,
-            mediaType: input.mime,
-            uri: artifact.uri,
-          })
-          .catch(() => undefined);
-      }
-      return { ref: artifact.uri };
-    },
+
     readPromptAttachment: async (input) => {
       const { ref, mediaType } = await resolvePromptAttachment(input);
       // 读取必须留在 session runtime 内：artifact 走 session store，路径走当前
@@ -210,4 +187,39 @@ function decodePromptAttachmentDataUrl(
     throw new Error("fault.attachment.previewTooLarge");
   }
   return { bytes, mediaType };
+}
+
+export function createAppAttachmentFacade(
+  input: Omit<AppAttachmentReadDeps, "artifactStore"> & { artifactStore: ToolArtifactStorePort },
+): ReturnType<typeof createAppAttachmentReadFacade> & Pick<LCodeApp, "writePromptAttachment"> {
+  const { artifactStore, sessionId, traceContext } = input;
+  return {
+    ...createAppAttachmentReadFacade(input),
+    writePromptAttachment: async (input) => {
+      const artifact = await artifactStore.writeToolResultArtifact({
+        content: `data:${input.mime};base64,${Buffer.from(input.bytes).toString("base64")}`,
+        contentType: "text/plain",
+        retention: "session",
+        sessionId,
+        toolCallId: `prompt-attachment-upload-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`,
+        toolName: "prompt-attachment:upload",
+        trace: traceContext,
+      });
+      if (
+        input.mime.startsWith("image/") ||
+        input.mime.startsWith("video/") ||
+        input.mime.split(";", 1)[0]?.trim().toLowerCase() === "application/pdf"
+      ) {
+        // 派生媒体只是可重建缓存；真实 IO 失败不破坏 durable data URL，最终请求投影会再次 ensure。
+        void artifactStore
+          .primeMediaAttachmentPath?.({
+            bytes: input.bytes,
+            mediaType: input.mime,
+            uri: artifact.uri,
+          })
+          .catch(() => undefined);
+      }
+      return { ref: artifact.uri };
+    },
+  };
 }

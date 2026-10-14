@@ -2,10 +2,7 @@ import type { V4GatewayHost } from "../lcode-protocol-v4/v4-gateway.js";
 
 import { readBackgroundBashOutputFromOwner } from "./background-work-owner.js";
 
-import {
-  type V4ConversationFileChangesResult,
-  type V4ConversationFileRewindPreviewResult,
-} from "@lcode/shared/lcode-protocol-v4";
+import { type V4ConversationFileRewindPreviewResult } from "@lcode/shared/lcode-protocol-v4";
 
 import { V4CapabilityUnsupportedError } from "../lcode-protocol-v4/commands/handlers/interaction-background.js";
 
@@ -18,23 +15,7 @@ import type {
   LCodeProtocolSessionRecord,
 } from "./server-types.js";
 
-import { resolveConversationBackingRecord } from "./v4-bridge-backing-record.js";
-
-async function readConversationFileChanges(
-  record: LCodeProtocolSessionRecord,
-  sessionId: string,
-  messageIds: readonly string[],
-  targetTurnId?: TurnId | null,
-): Promise<V4ConversationFileChangesResult> {
-  const events = await record.eventStore.getEvents(sessionId as SessionId);
-  return readConversationFileChangesFromEvents({
-    events,
-    messageIds,
-    readArtifact: async (snapshotRef) =>
-      (await record.app.readToolResultArtifact(snapshotRef)).content,
-    ...(targetTurnId ? { targetTurnId } : {}),
-  });
-}
+import { resolveConversationReader } from "./conversation-reader.js";
 
 async function previewConversationFileRewind(
   record: LCodeProtocolSessionRecord,
@@ -82,38 +63,44 @@ export function createV4ReadHost(
       readBackgroundBashOutputFromOwner(context, sessionId, workId),
 
     readSessionAttachment: async (sessionId, input) => {
-      const record = context.sessions.get(sessionId);
-      if (!record) {
-        throw new Error(`fault.attachment.sessionNotFound: ${sessionId}`);
-      }
-      return record.app.readPromptAttachment(input);
+      const direct = context.sessions.get(sessionId);
+      if (direct) return direct.app.readPromptAttachment(input);
+      const reader = await resolveConversationReader(context, sessionId);
+      if (!reader.attachments) throw new Error("fault.attachment.readUnsupported");
+      return reader.attachments.readPromptAttachment(input);
     },
 
     statSessionAttachment: async (sessionId, input) => {
-      const record = context.sessions.get(sessionId);
-      if (!record) {
-        throw new Error(`fault.attachment.sessionNotFound: ${sessionId}`);
-      }
-      if (!record.app.statPromptAttachment) {
+      const direct = context.sessions.get(sessionId);
+      const facade =
+        direct?.app ?? (await resolveConversationReader(context, sessionId)).attachments;
+      if (!facade?.statPromptAttachment) {
         throw new Error("fault.attachment.statUnsupported");
       }
-      return record.app.statPromptAttachment(input);
+      return facade.statPromptAttachment(input);
     },
 
     resolveSessionAttachmentPreviewSource: async (sessionId, input) => {
-      const record = context.sessions.get(sessionId);
-      if (!record) {
-        throw new Error(`fault.attachment.sessionNotFound: ${sessionId}`);
-      }
-      return record.app.resolvePromptAttachmentPreviewSource(input);
+      const direct = context.sessions.get(sessionId);
+      const facade =
+        direct?.app ?? (await resolveConversationReader(context, sessionId)).attachments;
+      if (!facade) throw new Error("fault.attachment.previewUnsupported");
+      return facade.resolvePromptAttachmentPreviewSource(input);
     },
 
     getConversationFileChanges: async (sessionId, _targetRowId, messageIds, targetTurnId) => {
-      const record = await resolveConversationBackingRecord(context, sessionId);
-      if (!record) {
-        throw new Error(`fault.fileChanges.sessionNotFound: ${sessionId}`);
-      }
-      return readConversationFileChanges(record, sessionId, messageIds, targetTurnId);
+      const reader = await resolveConversationReader(context, sessionId);
+      const entries =
+        (await context.deps.sessionStore?.sessionEntries?.({
+          sessionID: sessionId as SessionId,
+        })) ?? [];
+      const events = reader.workspaceEventsFromEntries(entries, reader.memoryEvents);
+      return readConversationFileChangesFromEvents({
+        events,
+        messageIds,
+        readArtifact: reader.readArtifact,
+        ...(targetTurnId ? { targetTurnId } : {}),
+      });
     },
 
     // dwf 事件日志：能力在 app 上（run service 构造成功才有），缺席时不在这里兜底成空页——
@@ -203,10 +190,11 @@ export function createV4ReadHost(
 
     previewConversationFileRewind: async (sessionId, _targetRowId, messageIds, targetTurnId) => {
       const record = context.sessions.get(sessionId);
-      if (!record) {
-        throw new Error(`fault.fileRewindPreview.sessionNotFound: ${sessionId}`);
-      }
-      return previewConversationFileRewind(record, messageIds, targetTurnId);
+      if (record) return previewConversationFileRewind(record, messageIds, targetTurnId);
+      return (await resolveConversationReader(context, sessionId)).previewFileRewind(
+        messageIds,
+        targetTurnId,
+      );
     },
   };
 }

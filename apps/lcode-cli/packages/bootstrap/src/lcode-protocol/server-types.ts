@@ -34,6 +34,7 @@ import type { V4InteractionRegistry } from "../lcode-protocol-v4/interaction-reg
 import type { ConversationV4Gateway } from "../lcode-protocol-v4/v4-gateway.js";
 import type { SessionResidentPool, SessionResidentPoolOptions } from "./session-resident-pool.js";
 import type { ActivatedSessionForResume } from "./session-resume-flight.js";
+import type { ConversationReadPorts } from "../app/conversation-read-ports.js";
 
 export interface ParamsSchema<T> {
   parse(input: unknown): T;
@@ -58,6 +59,8 @@ export interface LCodeProtocolAgentDependencies {
   /** 兼容旧测试/嵌入调用；新代码应通过 sessionResidentPoolOptions 设置 low-water。 */
   sessionResidentTargetCount?: number;
   sessionStore?: SessionStorePort;
+  /** 历史详情读取源，不构造执行 app/runtime。由 entrypoint 的现有 adapter 注入。 */
+  conversationReadPorts?: ConversationReadPorts;
   /** 生产文件诊断 adapter；只有 SessionStore 永久清理成功后才调用，失败沿原删除请求重试。 */
   deleteSessionDiagnostics?: (sessionIds: readonly string[]) => Promise<void>;
   /** Workspace 草稿 artifact：不创建会话/runtime，不触发环境准备。 */

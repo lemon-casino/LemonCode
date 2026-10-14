@@ -3,7 +3,6 @@ import type {
   CommandPayloadMap,
   CommandResult,
 } from "@lcode/shared/lcode-protocol-v4";
-import { requireRecord } from "../record-access.js";
 import type { V4CommandCoreHost } from "../types.js";
 import { V4RowTranslationError } from "./fork-edit-retry.js";
 
@@ -12,9 +11,10 @@ async function setAssistantFeedback(
   envelope: CommandEnvelope,
 ): Promise<CommandResult | undefined> {
   const payload = envelope.payload as CommandPayloadMap["setAssistantFeedback"];
-  const record = requireRecord(host, envelope.sessionId);
+  const sessionId = envelope.sessionId;
+  if (!sessionId) throw new Error("Session is required for assistant feedback");
   const resolution = host.resolveRowActionTarget?.(
-    record.app.sessionId,
+    sessionId,
     payload.target,
     "setAssistantFeedback",
   );
@@ -24,7 +24,7 @@ async function setAssistantFeedback(
   if (!host.setAssistantFeedback) {
     throw new Error("fault.command.assistantFeedbackUnsupported");
   }
-  await host.setAssistantFeedback(record.app.sessionId, {
+  await host.setAssistantFeedback(sessionId, {
     entityId: payload.target.entityId,
     messageId: resolution.messageId,
     feedback: payload.feedback,

@@ -10,7 +10,8 @@ export function decideCommand(
   host: CommandInboxHost,
   envelope: CommandEnvelope,
 ): { kind: "execute"; ack: CommandAck } | { kind: "ack"; ack: CommandAck; remember: boolean } {
-  const revision = envelope.sessionId === null ? 0 : host.getRevision(envelope.sessionId);
+  const revision =
+    envelope.sessionId === null ? 0 : host.getRevision(envelope.sessionId, envelope.type);
   if (revision === null || (envelope.type !== "createSession" && envelope.sessionId === null)) {
     return {
       kind: "ack",

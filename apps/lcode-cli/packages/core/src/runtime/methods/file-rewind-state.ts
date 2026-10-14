@@ -12,7 +12,6 @@ import type {
   WorkspaceFileRewindUnsafeFile,
   WorkspaceFileRewindUnsafeReason,
 } from "../types.js";
-import type { AgentRuntimeInternal } from "../internal.js";
 
 export type PlannedFileState = {
   content: string | null;
@@ -59,7 +58,7 @@ export interface IgnoredFileAggregate {
 }
 
 export async function readCurrentFileState(
-  this: AgentRuntimeInternal,
+  this: Pick<import("./file-rewind-read.js").WorkspaceFileRewindReadSource, "fileSystemPort">,
   path: string,
   traceContext: TraceContext,
   abortSignal: AbortSignal | undefined,

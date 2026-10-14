@@ -13,21 +13,24 @@ async function applyFileRewind(
   envelope: CommandEnvelope,
 ): Promise<CommandResult | undefined> {
   const payload = envelope.payload as CommandPayloadMap["applyFileRewind"];
-  const record = requireRecord(host, envelope.sessionId);
-  const resolution = host.resolveRowActionTarget?.(
-    record.app.sessionId,
-    payload.target,
-    "applyFileRewind",
-  );
+  const sessionId = envelope.sessionId;
+  if (!sessionId) throw new Error("Session is required for file rewind");
+  const record = host.getRecord(sessionId);
+  const resolution = host.resolveRowActionTarget?.(sessionId, payload.target, "applyFileRewind");
   if (!resolution?.ok) {
     throw new V4RowTranslationError("applyFileRewind", payload.target.rowId);
   }
   const targetMessageIds = (resolution.messageIds ?? []) as MessageId[];
   const targetTurnId = resolution.row.turnId as TurnId;
-  const result = await record.app.runtime.applyWorkspaceFileRewind({
+  const input = {
     targetMessageIds,
     ...(targetTurnId ? { targetTurnId } : {}),
-  });
+  };
+  const result = record
+    ? await record.app.runtime.applyWorkspaceFileRewind(input)
+    : host.applyHistoricalFileRewind
+      ? await host.applyHistoricalFileRewind(sessionId, input)
+      : await requireRecord(host, sessionId).app.runtime.applyWorkspaceFileRewind(input);
   return {
     type: "applyFileRewind",
     applied: result.applied,

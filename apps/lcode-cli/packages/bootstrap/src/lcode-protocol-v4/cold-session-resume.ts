@@ -1,9 +1,9 @@
 // 冷恢复协调器：订阅落在「不在内存注册表、但可能已持久化」的会话时
-// （CLI 重启后打开历史会话），经宿主钩子把 record 拉起来，再回到既有
+// （CLI 重启后打开历史会话），经宿主钩子选择根执行恢复或 child 只读，再回到既有
 // gateway READY hydration 路径。从 v4-gateway 拆出（单一职责 + max-lines）。
 //
 // 语义要点：
-// - 这里只保留既有 runtime activation 单飞；完整 READY 水位由 gateway 负责；
+// - 这里只保留既有宿主恢复单飞；完整 READY 水位由 gateway 负责；
 // - 错误分型（项目规范：不靠错误文本分流）：
 //   fault.subscribe.sessionNotFound（store 里也没有 / 宿主不支持恢复）
 //   vs fault.subscribe.resumeFailed（恢复中途失败，保留原始 cause）。
@@ -14,7 +14,9 @@ import type { LCodeWorkspaceRef } from "@lcode/shared";
 
 export type ColdSessionResumeOutcome =
   | { status: "resumed"; persistedMessages?: MessageWithParts[] }
+  | { status: "observed"; persistedMessages?: MessageWithParts[] }
   | { status: "notFound" };
+type ReadyResumeOutcome = Exclude<ColdSessionResumeOutcome, { status: "notFound" }>;
 
 /** 协调器需要的宿主能力窄面（与 V4GatewayHost 同形，避免循环 import）。 */
 interface ColdSessionResumeHost {
@@ -42,15 +44,22 @@ class V4SubscribeSessionUnavailableError extends Error {
 
 export class ColdSessionResumeCoordinator {
   /** sessionId → 进行中的 runtime activation；settle 后立即释放。 */
-  private readonly flights = new Map<string, Promise<MessageWithParts[] | undefined>>();
+  private readonly flights = new Map<string, Promise<ReadyResumeOutcome>>();
 
-  constructor(private readonly host: ColdSessionResumeHost) {}
+  constructor(
+    private readonly host: ColdSessionResumeHost,
+    private readonly onObservedReady: (sessionId: string) => void = () => {},
+  ) {}
+
+  markObservedReady(sessionId: string, outcome: ReadyResumeOutcome): void {
+    if (outcome.status === "observed") this.onObservedReady(sessionId);
+  }
 
   ensureResumed(
     sessionId: string,
     resumeThoughtLevel?: string,
     workspace?: LCodeWorkspaceRef,
-  ): Promise<MessageWithParts[] | undefined> {
+  ): Promise<ReadyResumeOutcome> {
     const inFlight = this.flights.get(sessionId);
     if (inFlight) {
       this.host.onDebug?.(`cold resume joined existing flight session=${sessionId}`);
@@ -73,7 +82,7 @@ export class ColdSessionResumeCoordinator {
     sessionId: string,
     resumeThoughtLevel?: string,
     workspace?: LCodeWorkspaceRef,
-  ): Promise<MessageWithParts[] | undefined> {
+  ): Promise<ReadyResumeOutcome> {
     const resume = this.host.resumePersistedSession;
     if (!resume) {
       throw new V4SubscribeSessionUnavailableError(
@@ -108,6 +117,6 @@ export class ColdSessionResumeCoordinator {
         `Session is not active and not persisted: ${sessionId}`,
       );
     }
-    return outcome.persistedMessages;
+    return outcome;
   }
 }

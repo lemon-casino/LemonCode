@@ -32,6 +32,21 @@ export async function handleCommand(
   >,
   rawParams: unknown,
 ): Promise<CommandAck> {
+  if (gateway.host.validateCommandAdmission) {
+    const parsed = parseCommandEnvelope(rawParams);
+    if (parsed.ok) {
+      const fault = await gateway.host.validateCommandAdmission(parsed.envelope);
+      if (fault)
+        return {
+          commandId: parsed.envelope.commandId,
+          status: "rejected",
+          revisionAtDecision: parsed.envelope.sessionId
+            ? (gateway.publishers.get(parsed.envelope.sessionId)?.getSnapshot().revision ?? 0)
+            : 0,
+          ...fault,
+        };
+    }
+  }
   let ttftCapacityRejected = false;
   const ttftCommand =
     typeof rawParams === "object" && rawParams !== null && "ttft" in rawParams

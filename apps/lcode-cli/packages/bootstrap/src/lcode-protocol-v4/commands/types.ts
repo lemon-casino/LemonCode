@@ -75,6 +75,14 @@ export interface V4SessionRecordView {
 }
 
 export interface V4CommandCoreHost {
+  /** 历史 child 显式文件回溯，不创建 model runtime；仍经原 inbox 与 row-target 校验。 */
+  applyHistoricalFileRewind?(
+    sessionId: string,
+    input: {
+      targetMessageIds: import("@lcode/contracts").MessageId[];
+      targetTurnId?: import("@lcode/contracts").TurnId;
+    },
+  ): Promise<import("@lcode/core").WorkspaceFileRewindApplyResult>;
   /** 明确操作创建隐藏修复 runtime；父会话的 cwd 不变。 */
   resolveWorktreeConflicts?(
     sessionId: string,

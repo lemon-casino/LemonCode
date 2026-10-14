@@ -48,6 +48,8 @@ export interface PersistedEventsLoadResult {
   sourceEventSeq?: number;
   /** 与本次历史事件使用同一容量的种子；null 表示已查询但没有历史水位。 */
   usageSeed?: SessionUsageSeed | null;
+  /** 同次只读历史查询的模型/身份种子，不能作为执行 READY 或 runtime 绑定。 */
+  configSeed?: SessionConfigSeed;
 }
 
 export type V4GatewayErrorContext = Record<string, unknown>;
@@ -56,6 +58,13 @@ export interface V4GatewayHost {
   cliVersion?: string;
   /** 会话是否在宿主注册表中活跃（inbox 的 sessionNotFound 裁决依据）。 */
   sessionExists(sessionId: string): boolean;
+  /** 只为显式文件命令提供观察态 revision，不能据 publisher 的存在授予通用执行权。 */
+  supportsHistoricalFileRewind?: boolean;
+  supportsHistoricalFeedback?: boolean;
+  /** 只读策略在 CommandInbox/持久输入准入之前拒绝，执行权仍由原 owner 授予。 */
+  validateCommandAdmission?(
+    envelope: CommandEnvelope,
+  ): Promise<Pick<CommandAck, "reasonCode" | "message"> | null>;
   /**
    * V4 冷恢复钩子。gateway 用同一个 READY promise 包住 runtime activation 与 projection
    * hydration；宿主只负责恢复 record。
@@ -279,7 +288,10 @@ export interface V4GatewayHost {
   loadPersistedEvents?(
     sessionId: string,
     persistedMessages?: MessageWithParts[],
+    workspace?: LCodeWorkspaceRef,
   ): Promise<PersistedEventsLoadResult>;
+  /** 每个带 attachment 身份的订阅均先校验，不能借已就绪 publisher 绕过命名空间。 */
+  validateConversationReadScope?(sessionId: string, workspace: LCodeWorkspaceRef): Promise<void>;
   /** 仅用于低频生命周期和恢复裁决；高频 event/stream trace 禁止走生产日志。 */
   onDebug?(message: string): void;
   onError?(scope: string, error: unknown, context?: V4GatewayErrorContext): void;

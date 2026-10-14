@@ -11,7 +11,10 @@ export type PersistentLookup = (key: CommandKey) => Promise<CommandAck | null> |
 
 export interface CommandInboxHost {
   /** 会话当前 revision；未知会话返回 null（createSession 用 null sessionId）。 */
-  getRevision(sessionId: string): number | null;
+  getRevision(
+    sessionId: string,
+    commandType?: import("@lcode/shared/lcode-protocol-v4").CommandEnvelope["type"],
+  ): number | null;
   /** 会话当前投影代际；CAS 必须先校验 epoch，再校验 revision。 */
   getLogEpoch(sessionId: string): string | null;
   /** row-targeting command 的 entity/action 同源 resolver 裁决。 */

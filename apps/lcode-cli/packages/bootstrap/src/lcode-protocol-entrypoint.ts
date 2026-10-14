@@ -3,6 +3,7 @@ import type { SessionId } from "@lcode/contracts";
 import { createConfig, resolvePath } from "@lcode/adapters/config";
 import { join } from "node:path";
 import { createNodeToolArtifactStore } from "@lcode/adapters/storage";
+import { createConversationReadPorts } from "./app/conversation-read-ports.js";
 import { deleteModelIODebugRecords, deleteSessionRuntimeArtifacts } from "@lcode/adapters";
 import { createNodeModelSelectionFacade } from "@lcode/provider-node";
 import { createNodeLoggerFactory } from "@lcode/adapters/logging";
@@ -322,6 +323,10 @@ export async function runLCodeProtocolAgent(
       mcpPort,
       mcpTelemetry: mcpTelemetryTracker,
       sessionStore,
+      conversationReadPorts: createConversationReadPorts(
+        workspaceArtifacts,
+        activeProviderRegistryRuntime.runtime.registryService,
+      ),
       syncAccountProviderConfig: activeProviderRegistryRuntime.syncAccountProviderConfig,
       refreshProviderRegistry: async (reason) => {
         await activeProviderRegistryRuntime.runtime.registryService.refresh(reason);

@@ -94,6 +94,7 @@ test("gateway preserves all public method arities at its original entrypoint", (
     getTurnIdForRow: 2,
     getTurnRewindAnchor: 2,
     disposeSession: 1,
+    refreshPersistedSessionView: 1,
     deactivateSession: 1,
     assertSessionRuntimeDeactivatable: 1,
     hasConversationSubscribers: 1,

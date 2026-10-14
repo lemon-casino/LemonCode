@@ -59,12 +59,20 @@ export function ensureColdReadyPublisher(
   if (existingFlight) return existingFlight;
   // 先登记同一个 READY，再开始所有耗时工作。
   const operation = Promise.resolve().then(async () => {
-    const persistedMessages = await gateway.coldResume.ensureResumed(
+    const outcome = await gateway.coldResume.ensureResumed(
       sessionId,
       resumeThoughtLevel,
       workspace,
     );
-    return hydratePublisher(gateway, sessionId, persistedMessages);
+    const publisher = await hydratePublisher(
+      gateway,
+      sessionId,
+      outcome.persistedMessages,
+      false,
+      workspace,
+    );
+    gateway.coldResume.markObservedReady(sessionId, outcome);
+    return publisher;
   });
   gateway.readyFlights.set(sessionId, operation);
   // 成功和失败都由同一清理函数释放；不创建会重复传播 rejection 的派生 promise。
@@ -101,10 +109,12 @@ export function hydratePublisher(
   sessionId: string,
   persistedMessages?: MessageWithParts[],
   forceRebuild = false,
+  workspace?: LCodeWorkspaceRef,
 ): Promise<ConversationTopicPublisher> {
   const existing = gateway.publishers.get(sessionId);
   // 已 hydrate 过的 live publisher：直接复用（避免重复重建 / 双计）。
-  if (existing && gateway.hydratedSessions.has(sessionId)) return Promise.resolve(existing);
+  if (existing && gateway.hydratedSessions.has(sessionId) && !forceRebuild)
+    return Promise.resolve(existing);
 
   const inFlight = gateway.hydrationInFlight.get(sessionId);
   if (inFlight) return inFlight;
@@ -120,6 +130,7 @@ export function hydratePublisher(
     buffer,
     persistedMessages,
     forceRebuild,
+    workspace,
   ).finally(() => {
     if (gateway.hydrationBuffers.get(sessionId) === buffer) {
       gateway.hydrationBuffers.delete(sessionId);
@@ -154,6 +165,7 @@ export async function performHydration(
   buffer: HydrationBuffer,
   persistedMessages?: MessageWithParts[],
   forceRebuild = false,
+  workspace?: LCodeWorkspaceRef,
 ): Promise<ConversationTopicPublisher> {
   const existingAtStart = gateway.publishers.get(sessionId);
   const liveSessionAtStart = gateway.host.sessionExists(sessionId);
@@ -164,17 +176,20 @@ export async function performHydration(
       `persistedMessages=${String(persistedMessages?.length ?? 0)}`,
   );
   const loaded: PersistedEventsLoadResult = gateway.host.loadPersistedEvents
-    ? await gateway.host.loadPersistedEvents(sessionId, persistedMessages).catch((error) => {
-        gateway.host.onError?.("v4.hydrate", error, {
-          durationMs: Math.max(0, Math.round(performance.now() - hydrationStartedAt)),
-          existingPublisherAtStart: existingAtStart !== undefined,
-          liveSessionAtStart,
-          phase: "loadPersistedEvents",
-          persistedMessages: persistedMessages?.length ?? 0,
-          sessionId,
-        });
-        return { events: [] as SessionEvent[], synthesized: false, sourceEventSeq: 0 };
-      })
+    ? await gateway.host
+        .loadPersistedEvents(sessionId, persistedMessages, workspace)
+        .catch((error) => {
+          gateway.host.onError?.("v4.hydrate", error, {
+            durationMs: Math.max(0, Math.round(performance.now() - hydrationStartedAt)),
+            existingPublisherAtStart: existingAtStart !== undefined,
+            liveSessionAtStart,
+            phase: "loadPersistedEvents",
+            persistedMessages: persistedMessages?.length ?? 0,
+            sessionId,
+          });
+          // 持久读取失败不能伪装空历史，交由同一 READY owner 暴露恢复错误。
+          throw error;
+        })
     : { events: [] as SessionEvent[], synthesized: false, sourceEventSeq: 0 };
 
   gateway.host.onDebug?.(
@@ -203,6 +218,7 @@ export async function performHydration(
     // 创建时种子可能落空（record 尚未入册），首次订阅补一次（幂等、事件优先）。
     gateway.hydrationBuffers.delete(sessionId);
     seedPublisherConfig(gateway, sessionId, latestPublisher);
+    if (loaded.configSeed) latestPublisher.seedConfig(loaded.configSeed);
     if (loaded.sharedContextImport) {
       latestPublisher.seedSharedContextImport(loaded.sharedContextImport);
     }
@@ -246,6 +262,7 @@ export async function performHydration(
   if (loaded.subagentsSeed) publisher.seedSubagents(loaded.subagentsSeed);
   // 同次恢复的种子先应用，再补 live buffer；较新的使用量和选模事件始终获胜。
   if (loaded.usageSeed) publisher.seedUsage(loaded.usageSeed);
+  if (loaded.configSeed) publisher.seedConfig(loaded.configSeed);
   const sourceEventSeq = Math.max(
     0,
     loaded.sourceEventSeq ??

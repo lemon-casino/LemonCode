@@ -90,7 +90,7 @@ test("turn cleanup waits finitely and gates only the pending backend until ACK",
 });
 
 test("cleanup uses the original connection route after mutable root metadata changes", async () => {
-  const { context, port, requests, sessions } = browserFixture();
+  const { port, requests, sessions } = browserFixture();
   const scope = port.createChildScope!({ parentSessionId: "remote", sessionId: "actor" });
   await scope.execute({
     sessionId: "actor",

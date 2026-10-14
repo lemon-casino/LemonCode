@@ -57,6 +57,13 @@ import { isConversationInputAdmissionCommand } from "./v4-bridge-admission-input
 import { createV4ReadHost } from "./v4-bridge-read-host.js";
 
 import { createV4HydrationHost } from "./v4-bridge-hydration.js";
+import {
+  isReadOnlyChildTaskType,
+  isChildExecutionCommand,
+  readChildInputFault,
+} from "./child-session-policy.js";
+import { applyHistoricalConversationFileRewind } from "./conversation-file-rewind.js";
+import { resolveConversationReadWorkspace } from "./conversation-read-workspace.js";
 
 export function createConversationV4Gateway(
   context: LCodeProtocolAgentServerContext,
@@ -89,6 +96,8 @@ export function createConversationV4Gateway(
     nativeExecutor.execute(...args),
   );
   const coreHost: V4CommandCoreHost = {
+    applyHistoricalFileRewind: (sessionId, input) =>
+      applyHistoricalConversationFileRewind(context, sessionId, input),
     // 同一注册表对象引用：view 是旧 record 的结构化窄视图，字段变更双向可见。
     getRecord: (sessionId) => context.sessions.get(sessionId),
     // 同一登记表实例：broker（旧目录）注册反向请求 deferred，
@@ -126,8 +135,23 @@ export function createConversationV4Gateway(
   };
   nativeExecutor = new V4CommandExecutor(coreHost);
   return new ConversationV4Gateway({
+    validateCommandAdmission: (envelope) =>
+      envelope.sessionId && isChildExecutionCommand(envelope.type)
+        ? readChildInputFault(context, envelope.sessionId)
+        : Promise.resolve(null),
+    supportsHistoricalFileRewind: Boolean(
+      context.deps.sessionStore?.saveSessionEntry &&
+      context.deps.conversationReadPorts?.fileSystemPort.writeTextFile &&
+      context.deps.conversationReadPorts.fileSystemPort.removeFile,
+    ),
+    supportsHistoricalFeedback: Boolean(context.deps.sessionStore?.saveMessage),
     cliVersion: context.deps.version,
     sessionExists: (sessionId) => context.sessions.has(sessionId),
+    validateConversationReadScope: async (sessionId, workspace) => {
+      const stored = await context.deps.sessionStore?.getSession(sessionId as SessionId);
+      if (isReadOnlyChildTaskType(context.sessions.get(sessionId)?.taskType ?? stored?.taskType))
+        await resolveConversationReadWorkspace(context, sessionId, stored, workspace);
+    },
     onDebug: (message) => log?.debug(message),
     onTargetCompleted: (sessionId) => {
       const record = context.sessions.get(sessionId);
@@ -159,6 +183,11 @@ export function createConversationV4Gateway(
           sessionId,
         });
         return { status: "notFound" };
+      }
+      // child 冷详情只重建投影；创建执行 record 曾堵住同 ID actor 重挂并复活旧 turn 权限。
+      if (isReadOnlyChildTaskType(persisted.taskType)) {
+        await resolveConversationReadWorkspace(context, sessionId, persisted, workspace);
+        return { status: "observed" };
       }
       const activated = await activateSessionForResume(
         context,
@@ -203,23 +232,9 @@ export function createConversationV4Gateway(
     admitCommandInput: async (envelope, admission) => {
       // 仅隐藏 composer 不能阻止旧 child 标签页续聊。类型准入必须早于
       // ledger/输入历史写入；detached child 没有 record 时只查元数据，不激活第二个 runtime。
-      if (
-        envelope.sessionId &&
-        (isConversationInputAdmissionCommand(envelope.type) ||
-          envelope.type === "resumeGoal" ||
-          envelope.type === "sendQueuedNow" ||
-          envelope.type === "forkAssistant" ||
-          envelope.type === "forkSession" ||
-          envelope.type === "createSelectionSideSession")
-      ) {
-        const taskType =
-          context.sessions.get(envelope.sessionId)?.taskType ??
-          (await context.deps.sessionStore?.getSession(envelope.sessionId as SessionId))?.taskType;
-        if (taskType === "subagent_child") {
-          throw Object.assign(new Error("Subagent sessions are read-only"), {
-            reasonCode: "guard.subagentReadOnly",
-          });
-        }
+      if (envelope.sessionId && isChildExecutionCommand(envelope.type)) {
+        const fault = await readChildInputFault(context, envelope.sessionId);
+        if (fault) throw Object.assign(new Error(fault.message), { reasonCode: fault.reasonCode });
       }
       if (!isConversationInputAdmissionCommand(envelope.type)) return null;
       if (!envelope.sessionId) return null;

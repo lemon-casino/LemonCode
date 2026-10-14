@@ -165,14 +165,25 @@ export function createGatewayState(
     detachedChildParent: new Map<string, string>(),
     detachedChildrenByParent: new Map<string, Set<string>>(),
     detachedTerminalAt: new Map<string, number>(),
-    coldResume: new ColdSessionResumeCoordinator(host),
+    coldResume: new ColdSessionResumeCoordinator(host, (sessionId) => {
+      // 观察态仅登记回收时间；真实 live ingest 仍拥有原 lifecycle，不伪造执行身份。
+      if (!state.detachedLiveSessions.has(sessionId))
+        state.detachedTerminalAt.set(sessionId, now());
+    }),
     flushStates: new Map<string, FlushState>(),
     controlReservations: new WeakSet<object>(),
     pausedConnections: new Set<string>(),
     projectionFaultedSessions: new Set<string>(),
     inbox: new CommandInbox({
-      getRevision: (sessionId) => {
-        if (!state.host.sessionExists(sessionId)) return null;
+      getRevision: (sessionId, commandType) => {
+        const observedCommand =
+          (commandType === "applyFileRewind" && state.host.supportsHistoricalFileRewind) ||
+          (commandType === "setAssistantFeedback" && state.host.supportsHistoricalFeedback);
+        if (
+          !state.host.sessionExists(sessionId) &&
+          !(observedCommand && state.publishers.has(sessionId))
+        )
+          return null;
         // 已知会话但尚无事件 → 投影未建，revision 视为 0（draft 起点）。
         return state.publishers.get(sessionId)?.getSnapshot().revision ?? 0;
       },

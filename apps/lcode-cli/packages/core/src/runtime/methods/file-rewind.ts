@@ -8,13 +8,16 @@ import {
 import type { MessageId, TraceContext, TurnId } from "../deps.js";
 import { throwIfTurnAborted } from "../helpers/index.js";
 import type { WorkspaceFileRewindApplyResult, WorkspaceFileRewindPreview } from "../types.js";
-import type { AgentRuntimeInternal } from "../internal.js";
+import type {
+  WorkspaceFileRewindReadSource,
+  WorkspaceFileRewindWriteSource,
+} from "./file-rewind-read.js";
 import type { FileRewindJournalEntry } from "./file-rewind-state.js";
 import { buildWorkspaceFileRewindPlan } from "./file-rewind-plan.js";
 import { readCurrentFileState, toPreview } from "./file-rewind-state.js";
 
 export async function previewWorkspaceFileRewind(
-  this: AgentRuntimeInternal,
+  this: WorkspaceFileRewindReadSource,
   options: {
     abortSignal?: AbortSignal;
     targetCheckpointId?: string;
@@ -29,7 +32,7 @@ export async function previewWorkspaceFileRewind(
 }
 
 export async function applyWorkspaceFileRewind(
-  this: AgentRuntimeInternal,
+  this: WorkspaceFileRewindWriteSource,
   options: {
     abortSignal?: AbortSignal;
     targetCheckpointId?: string;
@@ -164,7 +167,20 @@ export async function applyWorkspaceFileRewind(
     },
     traceContext,
   );
-  await this.appendEvent(event, traceContext);
+  try {
+    await this.appendEvent(event, traceContext);
+  } catch (error) {
+    // 文件已写回而持久事件失败，不能留下未登记的撤销；复用同一 journal 补偿。
+    try {
+      await compensateFileRewindJournal.call(this, journal, traceContext);
+    } catch (compensationError) {
+      throw new AggregateError(
+        [error, compensationError],
+        "File rewind persistence failed and compensation was incomplete",
+      );
+    }
+    throw error;
+  }
 
   this.logger?.info("Workspace file summary rewind applied", {
     ...traceContextToLogContext(traceContext),
@@ -186,7 +202,7 @@ export async function applyWorkspaceFileRewind(
 }
 
 async function compensateFileRewindJournal(
-  this: AgentRuntimeInternal,
+  this: WorkspaceFileRewindWriteSource,
   journal: FileRewindJournalEntry[],
   traceContext: TraceContext,
 ): Promise<void> {

@@ -15,6 +15,8 @@ import type { V4CommandCoreHost } from "../lcode-protocol-v4/commands/types.js";
 import { resolveStableForkTargetFromTranscript } from "../lcode-protocol-v4/stable-fork-target.js";
 
 import { persistAssistantFeedback } from "../lcode-protocol-v4/assistant-feedback-persistence.js";
+import { createInMemorySessionEventStore } from "@lcode/contracts";
+import { resolveConversationReader } from "./conversation-reader.js";
 
 import type { SessionId } from "@lcode/contracts";
 
@@ -159,24 +161,28 @@ export function createV4QueryHost(
     setAssistantFeedback: async (sessionId, input) => {
       const record = context.sessions.get(sessionId);
       const sessionStore = context.deps.sessionStore;
-      if (!record || !sessionStore) throw new Error("proto.sessionNotFound");
+      if (!sessionStore) throw new Error("proto.sessionNotFound");
+      const reader = record ? undefined : await resolveConversationReader(context, sessionId);
       // 原因：反馈必须先落 transcript，CLI 重启后才能从 cold hydration 恢复；
       // eventStore/投影随后推进，失败重试仍可从同一持久事实幂等补齐。
       await persistAssistantFeedback({
         sessionStore,
-        eventStore: record.eventStore,
+        eventStore: record?.eventStore ?? createInMemorySessionEventStore(),
         sessionId,
         messageId: input.messageId,
         entityId: input.entityId,
         feedback: input.feedback,
-        traceId: String(record.traceContext.traceId),
-        onPersistedEvent: (persisted) => context.v4Gateway?.ingest(sessionId, persisted),
+        traceId: String(record?.traceContext.traceId ?? reader!.traceContext.traceId),
+        onPersistedEvent: (persisted) => {
+          if (record) context.v4Gateway?.ingest(sessionId, persisted);
+        },
         onLiveProjectionError: (error) =>
           context.logger?.warn("v4 assistant feedback live projection failed", {
             error: error instanceof Error ? error.message : String(error),
             sessionId,
           }),
       });
+      if (!record) await context.v4Gateway?.refreshPersistedSessionView(sessionId);
     },
   };
 }
