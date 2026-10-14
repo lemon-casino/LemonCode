@@ -197,7 +197,10 @@ test("parent disposal waits for an already closing descendant before releasing i
   });
   await new Promise<void>((resolve) => setImmediate(resolve));
   assert.equal(closed, false);
-  assert.throws(() => child(port, "nested"), /already active/);
+  assert.throws(
+    () => child(port, "nested"),
+    (error: unknown) => (error as { reason: string }).reason === "cleanup_pending",
+  );
   release();
   await Promise.all([nestedClose, parentClose]);
   await child(port, "nested").list({ sessionId: "nested" });

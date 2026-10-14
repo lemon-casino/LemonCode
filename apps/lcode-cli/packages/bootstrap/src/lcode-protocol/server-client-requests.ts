@@ -25,6 +25,8 @@ interface PendingClientRequest<T> {
   timeout?: ReturnType<typeof setTimeout>;
   reannounceTimer?: ReturnType<typeof setTimeout>;
   abortHandler?: () => void;
+  timedOut?: boolean;
+  onLateResponse?: LCodeProtocolClientRequestOptions["onLateResponse"];
 }
 
 export interface ProtocolClientRequestState {
@@ -57,6 +59,7 @@ export function requestClient<T>(
       resultSchema,
       requestKeys: new Set(),
       signal: options?.signal,
+      onLateResponse: options?.onLateResponse,
     };
     const cleanup = () => {
       active = false;
@@ -64,7 +67,9 @@ export function requestClient<T>(
     };
     pending.abortHandler = () => {
       cleanup();
-      reject(new ProtocolRequestError(-32021, `Client request cancelled: ${method}`));
+      const error = new ProtocolRequestError(-32021, `Client request cancelled: ${method}`);
+      if (pending.timedOut) pending.onLateResponse?.({ error });
+      reject(error);
     };
     if (options?.signal?.aborted) {
       pending.abortHandler();
@@ -72,7 +77,13 @@ export function requestClient<T>(
     }
     if (options?.timeoutMs !== undefined) {
       pending.timeout = setTimeout(() => {
-        cleanup();
+        if (pending.onLateResponse) {
+          // 超时只结算等待，原 lifecycle ACK 仍是释放证明；保留原 owner，禁止重发未知动作。
+          active = false;
+          pending.timedOut = true;
+          pending.timeout = undefined;
+          if (pending.reannounceTimer) clearTimeout(pending.reannounceTimer);
+        } else cleanup();
         reject(
           new ProtocolRequestError(-32022, `Client request timed out: ${method}`, {
             timeoutMs: options.timeoutMs,
@@ -98,6 +109,7 @@ export function requestClient<T>(
     };
     sendClientRequest();
     const reannounceIntervalMs =
+      !options?.onLateResponse &&
       options?.reannounceIntervalMs !== undefined &&
       Number.isFinite(options.reannounceIntervalMs) &&
       options.reannounceIntervalMs > 0
@@ -135,11 +147,14 @@ export function resolveClientRequest(
   }
   cleanupClientRequest(host, pending);
   try {
-    pending.resolve(pending.resultSchema.parse(result));
+    const parsed = pending.resultSchema.parse(result);
+    if (pending.timedOut) pending.onLateResponse?.({ result: parsed });
+    else pending.resolve(parsed);
   } catch (error) {
-    pending.reject(
-      error instanceof Error ? error : new Error(`Invalid response: ${pending.method}`),
-    );
+    const invalid =
+      error instanceof Error ? error : new Error(`Invalid response: ${pending.method}`);
+    if (pending.timedOut) pending.onLateResponse?.({ error: invalid });
+    else pending.reject(invalid);
   }
 }
 
@@ -154,7 +169,8 @@ export function rejectClientRequest(
     return;
   }
   cleanupClientRequest(host, pending);
-  pending.reject(error);
+  if (pending.timedOut) pending.onLateResponse?.({ error });
+  else pending.reject(error);
 }
 
 export function cleanupClientRequest<T>(

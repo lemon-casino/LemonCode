@@ -56,7 +56,7 @@ export async function closeBrowserSession(this: AgentRuntimeCloseContext): Promi
           }),
         )
         .then(
-          () => ({ type: "completed" as const }),
+          (result) => ({ result, type: "completed" as const }),
           (error: unknown) => ({ error, type: "failed" as const }),
         ),
       new Promise<{ type: "timed_out" }>((resolve) => {
@@ -65,15 +65,22 @@ export async function closeBrowserSession(this: AgentRuntimeCloseContext): Promi
     ]);
     if (timer) clearTimeout(timer);
     // browser backend 是有界的 ephemeral 清理；它不能把仍需父 store 的 actor dispose 永久卡住。
-    this.browserSessionClosed = true;
-    if (outcome.type !== "completed") {
+    // 等待结算不代表 Host ACK；pending/超时仍由 broker 的 retiring entry 持有原资源。
+    this.browserSessionClosed =
+      outcome.type === "completed" &&
+      (!this.browserControlPort?.closeSession || outcome.result?.phase === "closed");
+    if (!this.browserSessionClosed) {
       this.logger?.warn("Browser session cleanup failed", {
         error:
-          outcome.type === "failed"
-            ? outcome.error instanceof Error
-              ? outcome.error.message
-              : String(outcome.error)
-            : "Browser session cleanup timed out",
+          outcome.type === "completed"
+            ? outcome.result?.phase === "cleanup_pending"
+              ? outcome.result.reason
+              : "Browser cleanup not confirmed"
+            : outcome.type === "failed"
+              ? outcome.error instanceof Error
+                ? outcome.error.message
+                : String(outcome.error)
+              : "Browser session cleanup timed out",
         event: "browser.session_cleanup.failed",
       });
     }

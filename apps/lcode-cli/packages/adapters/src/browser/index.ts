@@ -7,6 +7,8 @@ import type {
   BrowserControlListInput,
   BrowserControlPort,
   BrowserErrorCode,
+  BrowserScopeCloseResult,
+  BrowserTurnCleanupResult,
 } from "@lcode/contracts";
 import type { Browser } from "playwright-core";
 import { createManagedCdpDescriptor } from "./descriptor.js";
@@ -44,7 +46,8 @@ class ManagedCdpBrowserControlPort implements BrowserControlPort {
   readonly #loadPlaywright: () => Promise<PlaywrightChromiumModule>;
   readonly #options: ManagedCdpBrowserRuntimeOptions;
   readonly #closeTimeoutMs: number;
-  readonly #closingSessionIds = new Set<string>();
+  readonly #closingSessionIds = new Map<string, Promise<void> | undefined>();
+  readonly #browserCloseWork = new WeakMap<Browser, Promise<void>>();
   readonly #pending = new Map<string, PendingRequest>();
   readonly #sessionPromises = new Map<string, Promise<ManagedCdpSession>>();
   readonly #sessions = new Map<string, ManagedCdpSession>();
@@ -116,38 +119,39 @@ class ManagedCdpBrowserControlPort implements BrowserControlPort {
     }
   }
 
-  async turnEnded(input: BrowserControlListInput): Promise<void> {
+  async turnEnded(input: BrowserControlListInput): Promise<BrowserTurnCleanupResult> {
     for (const pending of this.#pending.values()) {
       if (pending.sessionId === input.sessionId && pending.turnId === input.turnId) {
         pending.controller.abort(abortError());
       }
     }
+    return { phase: "completed" };
   }
 
-  async closeSession(input: BrowserControlListInput): Promise<void> {
-    this.#closingSessionIds.add(input.sessionId);
-    for (const pending of this.#pending.values()) {
-      if (pending.sessionId === input.sessionId) pending.controller.abort(abortError());
+  async closeSession(input: BrowserControlListInput): Promise<BrowserScopeCloseResult> {
+    let cleanup = this.#closingSessionIds.get(input.sessionId);
+    if (!this.#closingSessionIds.has(input.sessionId)) {
+      this.#closingSessionIds.set(input.sessionId, undefined);
+      for (const pending of this.#pending.values())
+        if (pending.sessionId === input.sessionId) pending.controller.abort(abortError());
+      cleanup = Promise.resolve().then(async () => {
+        const creating = this.#sessionPromises.get(input.sessionId);
+        if (creating) await creating.catch(() => undefined);
+        const session = this.#sessions.get(input.sessionId);
+        this.#sessions.delete(input.sessionId);
+        if (session) await session.close();
+        if (this.#sessions.size === 0) {
+          const browser = this.#browser;
+          this.#browser = undefined;
+          if (browser) await this.browserCloseWork(browser);
+        }
+      });
+      this.#closingSessionIds.set(input.sessionId, cleanup);
     }
-    const creating = this.#sessionPromises.get(input.sessionId);
-    if (creating) {
-      const settled = await waitForPromise(creating, this.#closeTimeoutMs);
-      if (!settled) {
-        // late launch/context 创建完成后仍需再次回收；closingSessionIds 防止它重新登记 session。
-        void creating.then(
-          async () => {
-            if (this.#sessions.size === 0) await this.closeBrowser();
-          },
-          async () => {
-            if (this.#sessions.size === 0) await this.closeBrowser();
-          },
-        );
-      }
-    }
-    const session = this.#sessions.get(input.sessionId);
-    this.#sessions.delete(input.sessionId);
-    if (session) await waitForPromise(session.close(), this.#closeTimeoutMs);
-    if (this.#sessions.size === 0) await this.closeBrowser();
+    // 保留物理关闭句柄，超时后重复 close 只能等待同一工作，不能伪称释放。
+    return cleanup && (await waitForPromise(cleanup, this.#closeTimeoutMs))
+      ? { phase: "closed" }
+      : { phase: "cleanup_pending", reason: "ack_timeout" };
   }
 
   async close(): Promise<void> {
@@ -318,11 +322,22 @@ class ManagedCdpBrowserControlPort implements BrowserControlPort {
     if (browser) await this.closeBrowserInstance(browser);
   }
 
+  private browserCloseWork(browser: Browser): Promise<void> {
+    let work = this.#browserCloseWork.get(browser);
+    if (!work) {
+      work = Promise.resolve().then(async () => {
+        if (browser.isConnected()) await browser.close();
+      });
+      this.#browserCloseWork.set(browser, work);
+    }
+    return work;
+  }
+
   private async closeBrowserInstance(browser: Browser): Promise<void> {
     if (!browser.isConnected()) return;
     // WebSocket/SSE 页面可能让 Playwright 的 context/browser close 永不 settle。
     // adapter 只能有限等待；外层 session cleanup 和 CLI watchdog 会继续回收其它资源。
-    await waitForPromise(browser.close(), this.#closeTimeoutMs);
+    await waitForPromise(this.browserCloseWork(browser), this.#closeTimeoutMs);
   }
 }
 

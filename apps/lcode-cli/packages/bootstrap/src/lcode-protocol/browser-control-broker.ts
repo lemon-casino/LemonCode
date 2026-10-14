@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
-import type { BrowserControlListInput, BrowserControlPort, TraceContext } from "@lcode/contracts";
+import {
+  BrowserScopeError,
+  type BrowserCleanupPending,
+  type BrowserControlListInput,
+  type BrowserControlPort,
+  type BrowserScopeCloseResult,
+  type TraceContext,
+} from "@lcode/contracts";
 import {
   lcodeBrowserExecuteResultSchema,
   lcodeBrowserListResultSchema,
@@ -10,130 +17,183 @@ import {
   protocolTraceFromTraceContext,
   ProtocolRequestError,
   type LCodeProtocolAgentServerContext,
-  type LCodeProtocolClientRequestOptions,
   type LCodeProtocolSessionRecord,
 } from "./server-types.js";
+import {
+  BROWSER_LIFECYCLE_ACK_TIMEOUT_MS,
+  cancelBrowserRequest,
+  createBrowserCleanupJob,
+  type BrowserCleanupJob,
+  type BrowserCleanupTarget,
+  type BrowserRequestRoute,
+} from "./browser-control-lifecycle.js";
 
-interface ChildScope {
+interface BrowserScope {
   sessionId: string;
-  parentSessionId: string;
+  parentSessionId?: string;
   rootSessionId: string;
-  rootRecord: LCodeProtocolSessionRecord;
+  rootRecord: WeakRef<LCodeProtocolSessionRecord>;
+  routeKey: string;
+  phase: "active" | "revoking" | "cleanup_pending" | "closed";
   controller: AbortController;
-  closePromise?: Promise<void>;
+  pending: Set<{ turnId?: string; controller: AbortController }>;
+  connections: Map<string, BrowserCleanupTarget>;
+  cleanup: Map<string, BrowserCleanupJob>;
+  closePromise?: Promise<BrowserScopeCloseResult>;
 }
 
-/** Browser 资源归属 child，workspace/attachment 路由由活跃 root record 提供。 */
+/** 唯一注册表同时拥有 lease、连接和 retiring cleanup，不持有关闭 runtime/store。 */
 export function createProtocolBrowserControlBroker(
   context: Pick<LCodeProtocolAgentServerContext, "sessions" | "requestClient">,
+  options: { ackTimeoutMs?: number } = {},
 ): BrowserControlPort {
-  const scopes = new Map<string, ChildScope>();
+  const scopes = new Map<string, BrowserScope>();
   const closedRoots = new WeakSet<LCodeProtocolSessionRecord>();
-  // 结束 turn 的拒绝记录随根 record 生存，child resume 不能重新接纳旧内核的迟到调用。
   const endedTurns = new WeakMap<LCodeProtocolSessionRecord, Map<string, Set<string>>>();
-  const pending = new Map<string, Set<{ turnId?: string; controller: AbortController }>>();
-  const connectionsBySession = new Map<
-    string,
-    Map<string, { browserId: string; browserGeneration: number }>
-  >();
-
-  const resolveRoute = (sessionId: string, expected?: ChildScope) => {
-    const scope = scopes.get(sessionId);
-    if (expected && scope !== expected)
-      throw new Error(`Browser scope is not active: ${sessionId}`);
-    if (scope?.controller.signal.aborted)
-      throw new Error(`Browser scope is not active: ${sessionId}`);
+  const timeoutMs = options.ackTimeoutMs ?? BROWSER_LIFECYCLE_ACK_TIMEOUT_MS;
+  const inactive = (sessionId: string) =>
+    new BrowserScopeError("scope_inactive", `Browser scope is not active: ${sessionId}`);
+  const targetKey = (target: Pick<BrowserCleanupTarget, "browserId" | "browserGeneration">) =>
+    `${target.browserId}\u0000${target.browserGeneration}`;
+  const makeScope = (
+    sessionId: string,
+    rootSessionId: string,
+    record: LCodeProtocolSessionRecord,
+    parentSessionId?: string,
+  ): BrowserScope => ({
+    sessionId,
+    rootSessionId,
+    parentSessionId,
+    rootRecord: new WeakRef(record),
+    routeKey: routingKey(record),
+    phase: "active",
+    controller: new AbortController(),
+    pending: new Set(),
+    connections: new Map(),
+    cleanup: new Map(),
+  });
+  const resolveRoute = (sessionId: string, expected?: BrowserScope) => {
+    let scope = scopes.get(sessionId);
+    if ((expected && scope !== expected) || (scope && scope.phase !== "active"))
+      throw inactive(sessionId);
     const rootSessionId = scope?.rootSessionId ?? sessionId;
     const record = context.sessions.get(rootSessionId);
-    if (!record) throw new ProtocolRequestError(lcodeProtocolErrorCodes.sessionUnavailable, `Session is not active: ${rootSessionId}`);
-    // 同 ID 的根 runtime 重建后，旧 child lease 不能漂移到新 attachment。
-    if (closedRoots.has(record) || (scope && scope.rootRecord !== record))
-      throw new Error(`Browser scope is not active: ${sessionId}`);
-    return { record, scope, rootSessionId };
-  };
-
-  const requestContext = (input: BrowserControlListInput, expected?: ChildScope) => {
-    const { record } = resolveRoute(input.sessionId, expected);
-    return buildBrowserRequestContext(record, input);
-  };
-
-  const runRequest = async <T>(
-    input: BrowserControlListInput,
-    operation: (signal: AbortSignal) => Promise<T>,
-  ) => {
-    const { scope, record } = resolveRoute(input.sessionId);
-    const turnId = input.turnId ?? input.traceContext?.turnId;
-    if (turnId && endedTurns.get(record)?.get(input.sessionId)?.has(turnId))
-      throw new Error(`Browser turn is not active: ${turnId}`);
-    const controller = new AbortController();
-    const request = { turnId, controller };
-    const requests = pending.get(input.sessionId) ?? new Set();
-    requests.add(request);
-    pending.set(input.sessionId, requests);
-    const signal = AbortSignal.any([
-      controller.signal,
-      ...(scope ? [scope.controller.signal] : []),
-      ...(input.signal ? [input.signal] : []),
-    ]);
-    try {
-      signal.throwIfAborted();
-      const result = await operation(signal);
-      // requestClient 可能在 abort 后仍返回结果；关闭作用域后绝不接受迟到成功。
-      signal.throwIfAborted();
-      if (resolveRoute(input.sessionId, scope).record !== record)
-        throw new Error(`Browser scope is not active: ${input.sessionId}`);
-      return result;
-    } finally {
-      requests.delete(request);
-      if (requests.size === 0 && pending.get(input.sessionId) === requests)
-        pending.delete(input.sessionId);
+    if (!record)
+      throw new ProtocolRequestError(
+        lcodeProtocolErrorCodes.sessionUnavailable,
+        `Session is not active: ${rootSessionId}`,
+      );
+    // 历史 child record/publisher 不能变成可执行 root；metadata 不授予 Browser lease。
+    if (
+      record.taskType === "subagent_child" ||
+      record.taskType === "workflow_child" ||
+      closedRoots.has(record) ||
+      (scope && (scope.rootRecord.deref() !== record || scope.routeKey !== routingKey(record)))
+    )
+      throw inactive(sessionId);
+    if (!scope) {
+      scope = makeScope(sessionId, rootSessionId, record);
+      scopes.set(sessionId, scope);
     }
+    return { scope, record, rootSessionId };
   };
-
-  const cancelPending = (sessionId: string, turnId?: string) => {
-    for (const request of pending.get(sessionId) ?? [])
+  const cancelPending = (scope: BrowserScope, turnId?: string) => {
+    for (const request of scope.pending)
       if (turnId === undefined || request.turnId === turnId) request.controller.abort();
   };
-
-  const retireTurn = (record: LCodeProtocolSessionRecord, sessionId: string, turnId?: string) => {
-    if (!turnId) return;
+  const retireTurn = (
+    record: LCodeProtocolSessionRecord | undefined,
+    sessionId: string,
+    turnId?: string,
+  ) => {
+    if (!record || !turnId) return;
     const sessions = endedTurns.get(record) ?? new Map<string, Set<string>>();
     const turns = sessions.get(sessionId) ?? new Set<string>();
     turns.add(turnId);
     sessions.set(sessionId, turns);
     endedTurns.set(record, sessions);
   };
-
-  const sendLifecycle = async (
-    sessionId: string,
-    params: ReturnType<typeof buildBrowserRequestContext>,
-    command: { method: "turnEnded"; turnId?: string } | { method: "closeSession" },
-  ) => {
-    const connections = [...(connectionsBySession.get(sessionId)?.values() ?? [])];
-    if (command.method === "closeSession") connectionsBySession.delete(sessionId);
-    await Promise.allSettled(
-      connections.map(({ browserId, browserGeneration }) =>
-        context.requestClient(
-          lcodeProtocolMethods.interactionBrowserExecute,
-          { ...params, requestId: randomUUID(), browserId, browserGeneration, command },
-          lcodeBrowserExecuteResultSchema,
-        ),
-      ),
-    );
+  const tryRetire = (scope: BrowserScope): void => {
+    if (
+      scope.phase === "active" ||
+      scope.connections.size ||
+      scope.cleanup.size ||
+      [...scopes.values()].some((child) => child.parentSessionId === scope.sessionId)
+    )
+      return;
+    scope.phase = "closed";
+    if (scopes.get(scope.sessionId) === scope) scopes.delete(scope.sessionId);
+    const parent = scope.parentSessionId ? scopes.get(scope.parentSessionId) : undefined;
+    if (parent) tryRetire(parent);
   };
-
+  const cleanupJob = (
+    scope: BrowserScope,
+    target: BrowserCleanupTarget,
+    command: BrowserCleanupJob["command"],
+    traceContext?: TraceContext,
+  ) => {
+    const key = `${command.method}\u0000${targetKey(target)}\u0000${command.method === "turnEnded" ? (command.turnId ?? "") : ""}`;
+    let job = scope.cleanup.get(key);
+    if (!job) {
+      job = createBrowserCleanupJob({
+        host: context,
+        target,
+        command,
+        timeoutMs,
+        traceContext,
+        confirmed: () => {
+          if (scope.cleanup.get(key) !== job) return;
+          scope.cleanup.delete(key);
+          if (command.method === "closeSession") scope.connections.delete(targetKey(target));
+          tryRetire(scope);
+        },
+      });
+      scope.cleanup.set(key, job);
+    }
+    return job;
+  };
+  const runRequest = async <T>(
+    input: BrowserControlListInput,
+    operation: (
+      scope: BrowserScope,
+      record: LCodeProtocolSessionRecord,
+      signal: AbortSignal,
+    ) => Promise<T>,
+  ) => {
+    const { scope, record } = resolveRoute(input.sessionId);
+    const turnId = input.turnId ?? input.traceContext?.turnId;
+    if (turnId && endedTurns.get(record)?.get(input.sessionId)?.has(turnId))
+      throw new BrowserScopeError("turn_inactive", `Browser turn is not active: ${turnId}`);
+    const controller = new AbortController();
+    const request = { turnId, controller };
+    scope.pending.add(request);
+    const signal = AbortSignal.any([
+      controller.signal,
+      scope.controller.signal,
+      ...(input.signal ? [input.signal] : []),
+    ]);
+    try {
+      signal.throwIfAborted();
+      const result = await operation(scope, record, signal);
+      signal.throwIfAborted();
+      resolveRoute(input.sessionId, scope);
+      return result;
+    } finally {
+      scope.pending.delete(request);
+    }
+  };
   const port: BrowserControlPort = {
     createChildScope({ parentSessionId, sessionId }) {
       const parent = resolveRoute(parentSessionId);
-      if (scopes.has(sessionId) || context.sessions.has(sessionId))
-        throw new Error(`Browser scope is already active: ${sessionId}`);
-      const scope: ChildScope = {
-        sessionId,
-        parentSessionId,
-        rootSessionId: parent.rootSessionId,
-        rootRecord: parent.record,
-        controller: new AbortController(),
-      };
+      const existing = scopes.get(sessionId);
+      if (existing || context.sessions.has(sessionId))
+        throw new BrowserScopeError(
+          existing && existing.phase !== "active" ? "cleanup_pending" : "active_duplicate",
+          existing && existing.phase !== "active"
+            ? `Browser scope cleanup is pending: ${sessionId}`
+            : `Browser scope is already active: ${sessionId}`,
+        );
+      const scope = makeScope(sessionId, parent.rootSessionId, parent.record, parentSessionId);
       scopes.set(sessionId, scope);
       const assertOwn = (actual: string) => {
         if (actual !== sessionId) throw new Error(`Browser scope cannot access session: ${actual}`);
@@ -154,124 +214,140 @@ export function createProtocolBrowserControlBroker(
         },
         async turnEnded(input) {
           assertOwn(input.sessionId);
-          await port.turnEnded!(input);
+          return port.turnEnded!(input);
         },
         async closeSession(input) {
           if (input.sessionId !== sessionId)
             throw new Error(`Browser scope cannot close session: ${input.sessionId}`);
-          // 旧 runtime 的重复 dispose 不能撤销同 ID 后续 resume 铸造的新 lease。
-          if (scopes.get(sessionId) !== scope) return;
-          await port.closeSession!(input);
+          // 原 wrapper 不得关闭同 ID 新代。
+          if (scopes.get(sessionId) !== scope) return { phase: "closed" };
+          return port.closeSession!(input);
         },
       };
     },
     async list(input) {
-      const params = requestContext(input);
-      return runRequest(input, async (signal) => {
+      return runRequest(input, async (_scope, record, signal) => {
         const result = await context.requestClient(
           lcodeProtocolMethods.interactionBrowserList,
-          params,
+          buildRoute(record, input),
           lcodeBrowserListResultSchema,
-          buildRequestOptions(input.traceContext, signal),
+          requestOptions(input.traceContext, signal),
         );
         return result.browsers;
       });
     },
     async execute(input) {
-      const params = requestContext(input);
-      const { sessionId, browserId, browserGeneration, command, traceContext } = input;
-      return runRequest(input, async (signal) => {
-        const connections = connectionsBySession.get(sessionId) ?? new Map();
-        connections.set(`${browserId}\u0000${browserGeneration}`, { browserId, browserGeneration });
-        connectionsBySession.set(sessionId, connections);
-        const cancelBackendRequest = () => {
-          // 保存撤销前的路由；重新 require 已关闭 child 会漏掉 host/main 的取消。
-          void context
-            .requestClient(
-              lcodeProtocolMethods.interactionBrowserExecute,
-              {
-                ...params,
-                requestId: randomUUID(),
-                browserId,
-                browserGeneration,
-                command: { method: "cancelRequest", requestId: params.requestId },
-              },
-              lcodeBrowserExecuteResultSchema,
-              buildRequestOptions(traceContext, undefined),
-            )
-            .catch(() => undefined);
+      return runRequest(input, async (scope, record, signal) => {
+        const key = targetKey(input);
+        if (
+          [...scope.cleanup.values()].some(
+            (job) => job.command.method === "turnEnded" && targetKey(job.target) === key,
+          )
+        )
+          throw new BrowserScopeError(
+            "turn_cleanup_pending",
+            `Browser turn cleanup is pending for backend: ${input.browserId}`,
+          );
+        const params = buildRoute(record, input);
+        const target = {
+          browserId: input.browserId,
+          browserGeneration: input.browserGeneration,
+          route: buildRoute(record, { sessionId: input.sessionId }),
         };
-        signal.addEventListener("abort", cancelBackendRequest, { once: true });
+        scope.connections.set(key, target);
+        const cancel = () =>
+          cancelBrowserRequest(context, target, params.requestId, input.traceContext);
+        signal.addEventListener("abort", cancel, { once: true });
         try {
           return await context.requestClient(
             lcodeProtocolMethods.interactionBrowserExecute,
-            { ...params, browserId, browserGeneration, command },
+            {
+              ...params,
+              browserId: input.browserId,
+              browserGeneration: input.browserGeneration,
+              command: input.command,
+            },
             lcodeBrowserExecuteResultSchema,
-            buildRequestOptions(traceContext, signal),
+            requestOptions(input.traceContext, signal),
           );
         } finally {
-          signal.removeEventListener("abort", cancelBackendRequest);
+          signal.removeEventListener("abort", cancel);
         }
       });
     },
     async turnEnded(input) {
-      const params = requestContext(input);
+      const { scope, record } = resolveRoute(input.sessionId);
       const turnId = input.turnId ?? input.traceContext?.turnId;
-      retireTurn(resolveRoute(input.sessionId).record, input.sessionId, turnId);
-      cancelPending(input.sessionId, turnId);
-      await sendLifecycle(input.sessionId, params, { method: "turnEnded", turnId });
+      const alreadyEnded = turnId && endedTurns.get(record)?.get(input.sessionId)?.has(turnId);
+      retireTurn(record, input.sessionId, turnId);
+      cancelPending(scope, turnId);
+      const jobs = alreadyEnded
+        ? [...scope.cleanup.values()].filter(
+            (job) => job.command.method === "turnEnded" && job.command.turnId === turnId,
+          )
+        : [...scope.connections.values()].map((target) =>
+            cleanupJob(scope, target, { method: "turnEnded", turnId }, input.traceContext),
+          );
+      const results = await Promise.all(jobs.map((job) => job.run()));
+      return (
+        results.find(
+          (result): result is BrowserCleanupPending => result.phase === "cleanup_pending",
+        ) ?? { phase: "completed" }
+      );
     },
     async closeSession(input) {
-      const existing = scopes.get(input.sessionId);
-      if (existing?.closePromise) return existing.closePromise;
-      // 根 record 可能已移除，清理仍使用铸造时的 workspace；不得冷恢复 session。
-      const record =
-        existing?.rootRecord ??
-        context.sessions.get(input.sessionId) ??
-        [...scopes.values()].find((scope) => scope.rootSessionId === input.sessionId)?.rootRecord;
-      if (!record) return;
-      const affected = [input.sessionId];
-      for (let i = 0; i < affected.length; i++)
-        for (const scope of scopes.values())
-          if (scope.parentSessionId === affected[i]) affected.push(scope.sessionId);
-      const owned = affected.map((sessionId) => ({ sessionId, scope: scopes.get(sessionId) }));
-      const priorCloses = owned.flatMap(({ scope }) =>
-        scope?.closePromise ? [scope.closePromise] : [],
-      );
-      if (!existing) closedRoots.add(record);
-      // 先同步撤销后代再发异步清理；siblings 的 tab/request 不进入该集合。
-      for (const { sessionId, scope } of owned) {
-        const rootRecord = scope?.rootRecord ?? record;
-        for (const request of pending.get(sessionId) ?? [])
-          retireTurn(rootRecord, sessionId, request.turnId);
-        scope?.controller.abort();
-        cancelPending(sessionId);
+      const scope = scopes.get(input.sessionId);
+      if (!scope) {
+        const record = context.sessions.get(input.sessionId);
+        if (record) closedRoots.add(record);
+        return { phase: "closed" };
       }
-      const closePromise = Promise.allSettled([
-        ...priorCloses,
-        ...owned.map(({ sessionId, scope }) =>
-          sendLifecycle(
-            sessionId,
-            buildBrowserRequestContext(scope?.rootRecord ?? record, { ...input, sessionId }),
-            { method: "closeSession" },
-          ),
-        ),
-      ]).then(() => {
-        for (const { sessionId, scope } of owned) {
-          if (scope && scopes.get(sessionId) === scope) scopes.delete(sessionId);
-        }
+      if (scope.closePromise) return scope.closePromise;
+      const affected = [scope];
+      for (let i = 0; i < affected.length; i++)
+        for (const child of scopes.values())
+          if (child.parentSessionId === affected[i].sessionId) affected.push(child);
+      // 第一次 await 前撤销完整子树。没有连接的构造失败在同一拍直接释放身份。
+      for (const entry of affected) {
+        entry.phase = "revoking";
+        const record = entry.rootRecord.deref();
+        if (!entry.parentSessionId && record) closedRoots.add(record);
+        for (const request of entry.pending) retireTurn(record, entry.sessionId, request.turnId);
+        entry.controller.abort();
+        cancelPending(entry);
+      }
+      const jobs = affected.flatMap((entry) => {
+        for (const target of entry.connections.values())
+          cleanupJob(entry, target, { method: "closeSession" }, input.traceContext);
+        return [...entry.cleanup.values()];
       });
-      for (const { scope } of owned) if (scope) scope.closePromise = closePromise;
-      await closePromise;
+      for (const entry of [...affected].reverse()) tryRetire(entry);
+      const closePromise = Promise.all(jobs.map((job) => job.run()))
+        .then((results): BrowserScopeCloseResult => {
+          for (const entry of [...affected].reverse()) {
+            tryRetire(entry);
+            if (entry.phase !== "closed") entry.phase = "cleanup_pending";
+          }
+          return scope.phase === "closed"
+            ? { phase: "closed" }
+            : (results.find(
+                (result): result is BrowserCleanupPending => result.phase === "cleanup_pending",
+              ) ?? { phase: "cleanup_pending", reason: "ack_timeout" });
+        })
+        .finally(() => {
+          if (scope.closePromise === closePromise) scope.closePromise = undefined;
+        });
+      scope.closePromise = closePromise;
+      return closePromise;
     },
   };
   return port;
 }
 
-function buildBrowserRequestContext(
+function buildRoute(
   record: LCodeProtocolSessionRecord,
   input: BrowserControlListInput,
-) {
+): BrowserRequestRoute {
   const workspaceIdentity = record.workspace.workspaceIdentity?.trim() || undefined;
   const remoteSessionId = record.workspace.remoteSessionId?.trim() || undefined;
   const workspacePath = record.workspace.workspacePath;
@@ -280,22 +356,26 @@ function buildBrowserRequestContext(
     requestId: randomUUID(),
     sessionId: input.sessionId,
     ...(turnId ? { turnId: String(turnId) } : {}),
-    // 相同路径的 remote workspace 也必须按 identity 隔离资源。
     workspaceKey: workspaceIdentity ?? workspacePath,
     workspacePath,
     ...(workspaceIdentity ? { workspaceIdentity } : {}),
     ...(remoteSessionId ? { remoteSessionId } : {}),
     clientMode: record.deliveryKind ?? "desktop-continuous",
-    sessionContext: "live" as const,
+    sessionContext: "live",
   };
 }
-
-function buildRequestOptions(
-  traceContext: TraceContext | undefined,
-  signal: AbortSignal | undefined,
-): LCodeProtocolClientRequestOptions {
+function routingKey(record: LCodeProtocolSessionRecord): string {
+  const route = buildRoute(record, { sessionId: "" });
+  return [
+    route.workspaceKey,
+    route.workspacePath,
+    route.remoteSessionId ?? "",
+    route.clientMode,
+  ].join("\u0000");
+}
+function requestOptions(traceContext: TraceContext | undefined, signal: AbortSignal) {
   return {
-    ...(signal ? { signal } : {}),
+    signal,
     ...(traceContext ? { trace: protocolTraceFromTraceContext(traceContext) } : {}),
   };
 }

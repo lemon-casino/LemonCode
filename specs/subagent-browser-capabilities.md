@@ -62,6 +62,10 @@ sequenceDiagram
 
 construction 的实现分工：core 的 `constructChildRuntimeWithPorts` 同步持有 provisional ports，异常清理登记父 residency；成功移交 runtime。bootstrap 的 ActorRuntimeConstruction 只做无分配 prepare、同步 construct 与异步 initialize，driver 在同一调用栈接管 runtime 并在首个 await 前写入唯一 sessions 表。dispose 等待 entry.initialization/seed 排水；不把具体 AgentRuntime 类型放进 contracts。
 
+ACK 超时后，原反向请求 owner 只为 lifecycle 保留原 requestId 的迟到应答登记（严格 schema 校验，断连/关闭清除）。等待 Promise 已结算为 cleanup_pending；未知远端动作不重发、不 reannounce。同一 scope entry 持有窄路由与 cleanup handle，迟到成功 ACK 后才能释放身份。普通 RPC 的超时/取消语义不变，显式远端失败完成后可在同一 owner 下重新清理；无 ACK 时不使用重复请求冒充修复。
+
+headless Managed CDP 也返回同一生命周期结果：关闭 Promise 归原 adapter，超时保留原工作句柄，再次 close 查询同一工作；不把本地等待结束当成 Chromium 已释放。可选生命周期端口仍可缺省，但提供端口的实现必须返回明确结果。
+
 - 39 项定向回归通过，包含 11 项新增场景；集成测试为 `apps/lcode-cli/packages/bootstrap/scripts/subagent-browser-bridge.test.ts`，通过私有 socket 转发真实协议格式到测试 executor，覆盖 Browser 的 `newTab` 与权限拒绝、Computer Use 子代理拒绝。
 - `@lcode/core`、`@lcode/bootstrap`、`@lcode/node-repl-host` 类型检查，以及根 `pnpm typecheck`、`pnpm lint`、架构检查均通过。架构 baseline/new violation 均为 0；17 个改动 TypeScript 文件的格式检查通过。
 - CLI 定向 `oxlint --no-ignore` 仍报告 `create-app.ts` 与 `browser-control.port.ts` 两处既有 `max-lines` 超限；不以根目录默认忽略 CLI 的 lint 通过替代这项结果。

@@ -27,6 +27,7 @@ test("closeBrowserSession retries a failed runtime-scope release without repeati
     browserControlPort: {
       closeSession: async () => {
         browserCloseCalls += 1;
+        return { phase: "closed" };
       },
     },
     executionFailoverPolicyPort: {
@@ -96,6 +97,7 @@ test("closeBrowserSession waits for a retained subagent cleanup retry", async ()
     browserControlPort: {
       closeSession: async () => {
         browserCloseCalls += 1;
+        return { phase: "closed" };
       },
     },
     browserSessionClosed: false,
@@ -164,7 +166,7 @@ test("closeBrowserSession waits for a retained subagent cleanup retry", async ()
   );
 });
 
-test("closeBrowserSession bounds a hung browser backend before durable work can settle", async () => {
+test("closeBrowserSession bounds a hung browser backend without claiming physical release", async () => {
   const runtime = {
     beginShutdown: AgentRuntime.prototype.beginShutdown,
     browserControlPort: {
@@ -187,7 +189,7 @@ test("closeBrowserSession bounds a hung browser backend before durable work can 
 
   assert.equal(
     (runtime as unknown as { browserSessionClosed: boolean }).browserSessionClosed,
-    true,
+    false,
   );
 });
 

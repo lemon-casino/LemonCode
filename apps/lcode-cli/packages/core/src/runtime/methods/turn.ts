@@ -371,11 +371,18 @@ export async function executeTurnCommand(
     this.finishActiveTurn(activeTurn);
     turnAbortScope.dispose();
     try {
-      await this.browserControlPort?.turnEnded?.({
+      const cleanup = await this.browserControlPort?.turnEnded?.({
         sessionId: this.sessionId,
         turnId: String(turnId),
         traceContext: turnTraceContext,
       });
+      if (cleanup?.phase === "cleanup_pending")
+        this.logger?.warn("Browser turn cleanup awaiting confirmation", {
+          event: "browser.turn_cleanup.pending",
+          reason: cleanup.reason,
+          turnId: String(turnId),
+          traceId: turnTraceContext.traceId,
+        });
     } catch (error) {
       // 生命周期清理失败不能覆盖已经完成/失败的主 turn；backend 会在 session close 再兜底释放。
       this.logger?.warn("Browser turn cleanup failed", {

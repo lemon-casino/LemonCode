@@ -133,6 +133,8 @@ export interface LCodeProtocolClientRequestOptions {
   timeoutMs?: number;
   trace?: LCodeProtocolTrace;
   reannounceIntervalMs?: number;
+  /** lifecycle 等待超时后保留原请求应答，仅回调经原 schema 校验的结果；不重复发送。 */
+  onLateResponse?: (response: { result: unknown } | { error: Error }) => void;
 }
 
 export interface LCodeProtocolAgentServerContext {

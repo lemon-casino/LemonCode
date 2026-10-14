@@ -28,9 +28,31 @@ export interface BrowserControlPort {
   list(input: BrowserControlListInput): Promise<BrowserBackendDescriptor[]>;
   execute(input: BrowserControlExecuteInput): Promise<BrowserCommandResult>;
   /** turn 结束时取消该 turn 尚未完成的 IAB 请求，不跨 session 清 tab。 */
-  turnEnded?(input: BrowserControlListInput): Promise<void>;
+  turnEnded?(input: BrowserControlListInput): Promise<BrowserTurnCleanupResult>;
   /** session 关闭时释放 browser guest、pending request 与 lease。 */
-  closeSession?(input: BrowserControlListInput): Promise<void>;
+  closeSession?(input: BrowserControlListInput): Promise<BrowserScopeCloseResult>;
+}
+
+export type BrowserCleanupPending = {
+  phase: "cleanup_pending";
+  reason: "ack_timeout" | "transport_unavailable" | "backend_cleanup_failed";
+};
+export type BrowserScopeCloseResult = { phase: "closed" } | BrowserCleanupPending;
+export type BrowserTurnCleanupResult = { phase: "completed" } | BrowserCleanupPending;
+export type BrowserScopeFaultReason =
+  | "active_duplicate"
+  | "cleanup_pending"
+  | "scope_inactive"
+  | "turn_inactive"
+  | "turn_cleanup_pending";
+export class BrowserScopeError extends Error {
+  constructor(
+    readonly reason: BrowserScopeFaultReason,
+    message: string,
+  ) {
+    super(message);
+    this.name = "BrowserScopeError";
+  }
 }
 
 export { BROWSER_VIEWPORT_LIMITS } from "./browser-control/context.js";

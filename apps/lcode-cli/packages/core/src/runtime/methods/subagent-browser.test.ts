@@ -41,6 +41,7 @@ test("ordinary Agent creation inherits browser tooling and skill policy, then cl
           assert.equal(input.sessionId, sessionId);
           closed.push(sessionId);
           active.delete(sessionId);
+          return { phase: "closed" };
         },
       };
     },
