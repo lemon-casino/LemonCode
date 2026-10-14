@@ -39,6 +39,8 @@ import { synthesizeGoalVerificationPart } from "./transcript-hydration-goal.js";
 
 import { synthesizeCompactPart } from "./transcript-hydration-compact.js";
 
+const REASONING_EVENTS_PER_PART = 3;
+
 function stableToolSchedule(toolCallId: string) {
   return {
     executionOrder: [toolCallId],
@@ -92,6 +94,7 @@ function synthesizeReasoningPart(
   assistantMessageId: string,
   push: PushEvent,
   turnId: string,
+  representedPartCount = 1,
 ): void {
   if (part.text.length === 0) return;
   push(
@@ -119,6 +122,8 @@ function synthesizeReasoningPart(
     SessionEventType.ModelStreaming,
     { kind: "reasoning_end", delta: "", done: false, partId: part.id },
     turnId,
+    undefined,
+    representedPartCount * REASONING_EVENTS_PER_PART - (REASONING_EVENTS_PER_PART - 1),
   );
 }
 
@@ -263,7 +268,27 @@ export function synthesizeAssistantParts(
           "cancelled"
         : "success";
   let toolCallCount = 0;
+  const reasoningParts: Extract<MessagePart, { type: "reasoning" }>[] = [];
+  const flushReasoning = () => {
+    const first = reasoningParts[0];
+    if (!first) return;
+    // UI 虽已合并行，但每个词仍合成三条事件，publisher 会反复编码增长的完整
+    // 思考行，实测大历史恢复耗时数秒。仅折叠展示事件，原 parts 与签名保持原样。
+    synthesizeReasoningPart(
+      { ...first, text: reasoningParts.map((part) => part.text).join("") },
+      String(message.info.id),
+      push,
+      turnId,
+      reasoningParts.length,
+    );
+    reasoningParts.length = 0;
+  };
   for (const part of message.parts) {
+    if (part.type === "reasoning") {
+      if (part.text.length > 0) reasoningParts.push(part);
+      continue;
+    }
+    flushReasoning();
     switch (part.type) {
       case "text":
         synthesizeTextPart(
@@ -273,11 +298,6 @@ export function synthesizeAssistantParts(
           push,
           turnId,
         );
-        break;
-      case "reasoning":
-        // cold hydration 过去没有把 transcript assistant message 身份带到
-        // reasoning_start，导致恢复后的 ReasoningRow 无法复用 live projection 的 response 边界。
-        synthesizeReasoningPart(part, String(message.info.id), push, turnId);
         break;
       case "tool": {
         const state = synthesizeToolPart(part, String(message.info.id), push, turnId);
@@ -313,6 +333,7 @@ export function synthesizeAssistantParts(
         break;
     }
   }
+  flushReasoning();
   const assistantFeedback = message.info.metadata?.assistantFeedback;
   if (assistantFeedback === "like" || assistantFeedback === "dislike") {
     push(

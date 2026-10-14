@@ -20,6 +20,8 @@ export type PushEvent = (
   payload: unknown,
   turnId?: string,
   sourceTimestampMs?: number,
+  /** 展示折叠前所代表的事件数量，仅用于保留原有缺省源时间，wire sequence 仍只递增 1。 */
+  representedEventCount?: number,
 ) => void;
 
 export type TurnResultForHydration = "success" | "cancelled" | "error_during_execution";

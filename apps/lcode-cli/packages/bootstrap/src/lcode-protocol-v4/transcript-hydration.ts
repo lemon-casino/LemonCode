@@ -9,15 +9,13 @@
 // 合成事件是「视图重建」用途：只需产出与真实事件流「归约等价」的最小序列。
 // v4 冷恢复只能重放 ProductProjection 认识的事件；如果 transcript 里的
 // tool/reasoning/subagent/compact part 不反向合成，重启后历史可见运行态会从快照里消失。
-import type { MessageWithParts } from "@lcode/contracts";
-
-import type { EventId, SessionEvent, SessionId, TraceId, TurnId } from "@lcode/contracts";
+import type { MessageWithParts, SessionEvent } from "@lcode/contracts";
 
 import { SessionEventType } from "@lcode/contracts";
 
 import { getConversationModelOnlyTurnTriggerSource } from "@lcode/shared";
 
-import { HYDRATION_TRACE_ID } from "./projection-state.js";
+import { createHydrationEventWriter } from "./transcript-hydration-event-writer.js";
 
 import {
   type SynthesizeOptions,
@@ -70,31 +68,11 @@ export function synthesizeEventsFromMessages(
   messages: readonly MessageWithParts[],
   options: SynthesizeOptions,
 ): SessionEvent[] {
-  const sessionId = options.sessionId as SessionId;
-  const traceId = HYDRATION_TRACE_ID as TraceId;
-  let seq = 0;
-  const baseMs = options.baseTimestampMs ?? messages[0]?.info.time.created ?? 0;
-  const events: SessionEvent[] = [];
-
-  const push = (
-    type: SessionEventType,
-    payload: unknown,
-    turnId?: string,
-    sourceTimestampMs?: number,
-  ): void => {
-    seq += 1;
-    events.push({
-      id: `hydrate-${seq}` as EventId,
-      sessionId,
-      turnId: turnId as TurnId | undefined,
-      type,
-      // source timestamp 仅恢复 row.createdAt 等展示事实；事件全序始终由 sequenceNumber 裁决。
-      timestamp: new Date(sourceTimestampMs ?? baseMs + seq),
-      traceId,
-      sequenceNumber: seq,
-      payload,
-    });
-  };
+  const writer = createHydrationEventWriter({
+    sessionId: options.sessionId,
+    baseTimestampMs: options.baseTimestampMs ?? messages[0]?.info.time.created ?? 0,
+  });
+  const { events, push } = writer;
 
   // 历史消息不声明模型容量；调用方未知时保持未知，不能合成默认分母。
   const contextWindow = options.contextWindow;
@@ -167,7 +145,7 @@ export function synthesizeEventsFromMessages(
       const turnId = `hydrate-turn-${turnNumber}`;
       lastTurnId = turnId;
       const launchText = textOfMessage(message.parts);
-      const turnStartedAtMs = messageCreatedAtMs(message) ?? baseMs + seq;
+      const turnStartedAtMs = messageCreatedAtMs(message) ?? writer.currentImplicitTimestampMs();
       selectAcceptedTurnModel(turnModelSelectionOfUserMessage(message));
       push(
         SessionEventType.TurnStarted,
@@ -220,7 +198,7 @@ export function synthesizeEventsFromMessages(
         turnNumber += 1;
         const turnId = `hydrate-turn-${turnNumber}`;
         lastTurnId = turnId;
-        const turnStartedAtMs = messageCreatedAtMs(message) ?? baseMs + seq;
+        const turnStartedAtMs = messageCreatedAtMs(message) ?? writer.currentImplicitTimestampMs();
         selectAcceptedTurnModel(turnModelSelectionOfUserMessage(message));
         push(
           SessionEventType.TurnStarted,
@@ -280,7 +258,7 @@ export function synthesizeEventsFromMessages(
       turnNumber += 1;
       const turnId = `hydrate-turn-${turnNumber}`;
       lastTurnId = turnId;
-      const turnStartedAtMs = messageCreatedAtMs(message) ?? baseMs + seq;
+      const turnStartedAtMs = messageCreatedAtMs(message) ?? writer.currentImplicitTimestampMs();
       selectAcceptedTurnModel(assistantModelSelectionOf(message));
       push(
         SessionEventType.TurnStarted,
@@ -321,7 +299,7 @@ export function synthesizeEventsFromMessages(
     const intent = inputIntentOfMessage(message);
     const executionKind = executionKindOfMessage(message);
     const epilogueStart = epilogueStartOfMessage(message);
-    const turnStartedAtMs = messageCreatedAtMs(message) ?? baseMs + seq;
+    const turnStartedAtMs = messageCreatedAtMs(message) ?? writer.currentImplicitTimestampMs();
     // timeline part 与下一个 accepted turn 之间可以夹着 legacy synthetic
     // context，不能靠「紧邻前一条」猜测；持有显式边界直到真正开轮。
     selectAcceptedTurnModel(turnModelSelectionOfUserMessage(message));
