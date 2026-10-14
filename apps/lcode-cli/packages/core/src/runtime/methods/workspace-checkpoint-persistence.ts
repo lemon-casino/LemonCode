@@ -19,6 +19,14 @@ interface PersistedWorkspaceEvent {
   turnId?: string;
 }
 
+/** 仅表示严格回执写入边界失败，不覆盖 runtime 已提交后的通知异常。 */
+export class WorkspaceFileRewindReceiptError extends Error {
+  constructor(cause: unknown) {
+    super(`Workspace file rewind receipt failed: ${cause instanceof Error ? cause.message : String(cause)}`, { cause });
+    this.name = "WorkspaceFileRewindReceiptError";
+  }
+}
+
 export async function persistWorkspaceCheckpointEntry(
   runtime: AgentRuntimeInternal,
   event: SessionEvent,
@@ -82,10 +90,10 @@ export async function persistWorkspaceFileRewindEntryStrict(
   store: Pick<import("@lcode/contracts").SessionStorePort, "saveSessionEntry">,
   event: SessionEvent,
 ): Promise<void> {
-  if (!store.saveSessionEntry) throw new Error("Workspace file rewind persistence is unavailable");
+  if (!store.saveSessionEntry) throw new WorkspaceFileRewindReceiptError(new Error("Workspace file rewind persistence is unavailable"));
   const payload = parseRewindTriggeredPayload(event.payload);
   const timestamp = event.timestamp.getTime();
-  await store.saveSessionEntry({
+  try { await store.saveSessionEntry({
     id: `workspace-file-rewind:${payload.rewindId}`,
     sessionID: event.sessionId,
     type: SESSION_ENTRY_WORKSPACE_FILE_REWIND,
@@ -97,7 +105,7 @@ export async function persistWorkspaceFileRewindEntryStrict(
       traceId: String(event.traceId),
       ...(event.turnId ? { turnId: String(event.turnId) } : {}),
     } satisfies PersistedWorkspaceEvent,
-  });
+  }); } catch (cause) { throw new WorkspaceFileRewindReceiptError(cause); }
 }
 
 export async function restoreWorkspaceCheckpointEntries(

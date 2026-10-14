@@ -16,6 +16,7 @@
 - entrypoint 注入只读 artifact/文件端口与模型目录查询；不会创建只读 app。恢复 checkpoint/rewind entry 使用 core 的同一持久 codec，预览使用只依赖读取源的 core 公共接口，实际文件写入仍归现有授权入口。
 - 冷子会话的模型身份可来自该会话显式 entry、live ModelSelected 或最后一条真实请求记录，仅用于历史展示和目录容量查询；不能据此执行/绑定模型，不能借父模型填充未知容量。
 - 子详情现有 `allowWorkspaceFileRewind` 必须保留：显式文件回溯经原 CommandInbox、canonical row/epoch/revision 校验后调用 core 的同一文件回溯算法，使用明确读写端口和严格持久事件入口，不创建 child app。持久化失败由同一文件 journal 补偿；成功后重建原投影，不能借 publisher 存在放开通用执行输入。
+- 文件补偿仅处理严格回执写入边界的结构化失败；普通 runtime 的 appendEvent 可能在事实已提交后的 observer/sink 阶段抛错，这时不能逆转文件造成事实冲突。严格写入 helper 保留原 cause，不能按错误文字识别边界。
 - projection-only READY 后将可回收时间登记到 gateway 既有 detachedTerminalAt；没有订阅者、执行 record 和在途命令时按原 grace 回收。收到真实 live child 事件后由原生命周期覆盖该时间，不新增观察缓存或假 live 身份。
 - workspaceIdentity 与 remoteSessionId 贯穿校验，不按路径或 session ID 前缀推断权限。模型统计来自 child 的持久绑定/事件，未知保持未知，不为展示绑定模型。
 - 只读 workspace 使用现有 `worktree_binding` entry schema 还原执行路径；请求可用执行身份或其 origin 身份进入，但不能换到同路径的另一远程身份。请求的 remoteSessionId 保留在当前 attachment 的投影 seed，不写回持久绑定。

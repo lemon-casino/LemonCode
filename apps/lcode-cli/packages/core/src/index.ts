@@ -153,6 +153,7 @@ export {
 export {
   workspaceEventsFromSessionEntries,
   persistWorkspaceFileRewindEntryStrict,
+  WorkspaceFileRewindReceiptError,
 } from "./runtime/methods/workspace-checkpoint-persistence.js";
 export type {
   ActiveTurnInfo,

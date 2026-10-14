@@ -14,6 +14,7 @@ import type {
 } from "./file-rewind-read.js";
 import type { FileRewindJournalEntry } from "./file-rewind-state.js";
 import { buildWorkspaceFileRewindPlan } from "./file-rewind-plan.js";
+import { WorkspaceFileRewindReceiptError } from "./workspace-checkpoint-persistence.js";
 import { readCurrentFileState, toPreview } from "./file-rewind-state.js";
 
 export async function previewWorkspaceFileRewind(
@@ -170,7 +171,8 @@ export async function applyWorkspaceFileRewind(
   try {
     await this.appendEvent(event, traceContext);
   } catch (error) {
-    // 文件已写回而持久事件失败，不能留下未登记的撤销；复用同一 journal 补偿。
+    // 普通 append 可能在提交后的通知阶段失败；只补偿严格回执边界，避免事实与文件矛盾。
+    if (!(error instanceof WorkspaceFileRewindReceiptError)) throw error;
     try {
       await compensateFileRewindJournal.call(this, journal, traceContext);
     } catch (compensationError) {

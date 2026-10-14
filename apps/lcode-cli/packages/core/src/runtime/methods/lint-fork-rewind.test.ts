@@ -292,3 +292,17 @@ test("file rewind keeps external modification safety and never writes an unsafe 
   assert.deepEqual(writes, []);
   assert.equal(files.get(path), "external change");
 });
+
+test("file rewind does not compensate a runtime notification failure after the rewind fact committed", async () => {
+  const { runtime, storedEvents, targetMessageId, files, path, writes } = await rewindFixture();
+  const append = runtime.appendEvent.bind(runtime);
+  const failure = new Error("fixture notification failed after commit");
+  runtime.appendEvent = async (event, trace) => {
+    await append(event, trace);
+    throw failure;
+  };
+  await assert.rejects(applyWorkspaceFileRewind.call(runtime, { targetMessageId }), failure);
+  assert.equal(files.get(path), "before");
+  assert.deepEqual(writes, ["before"]);
+  assert.ok(storedEvents.some((event) => event.type === SessionEventType.RewindTriggered));
+});
