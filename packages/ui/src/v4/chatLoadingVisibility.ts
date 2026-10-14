@@ -2,6 +2,7 @@ import type {
   ActiveWorkSummary,
   ConversationRow,
   PendingInteraction,
+  SessionControl,
 } from "@lcode/shared/lcode-protocol-v4";
 
 /**
@@ -22,7 +23,10 @@ export function hasChatLoadingBlockingInteraction(
 
 export function hasChatLoadingBlockingActiveWork(
   activeWorks: readonly ActiveWorkSummary[],
+  stopState?: SessionControl["stopState"],
 ): boolean {
+  // 请求已取消但持久化尚未收尾时 phase 仍 running；不能用它继续显示思考 loading。
+  if (stopState === "stopping") return true;
   return activeWorks.some((work) => work.kind === "compact" || work.kind === "goalVerifier");
 }
 

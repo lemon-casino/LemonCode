@@ -4,6 +4,10 @@ import type { ConversationDelta, SessionUsageState } from "@lcode/shared/lcode-p
 type ModelOutput = SessionUsageState["modelOutput"];
 const SESSION_MODEL_QUERY_SOURCES = new Set(["main_turn", "subagent", "workflow_child"]);
 
+export function isSessionModelQuerySource(querySource: string | undefined): boolean {
+  return !querySource || SESSION_MODEL_QUERY_SOURCES.has(querySource);
+}
+
 function patchOutput(usage: SessionUsageState, modelOutput: ModelOutput): ConversationDelta[] {
   return [{ op: "state.updated", patch: { usage: { ...usage, modelOutput } } }];
 }
@@ -15,7 +19,7 @@ export function projectModelOutputStatus(
   turnId: string,
   at: number,
 ): ConversationDelta[] {
-  if (payload.querySource && !SESSION_MODEL_QUERY_SOURCES.has(payload.querySource)) return [];
+  if (!isSessionModelQuerySource(payload.querySource)) return [];
   if (!payload.requestId || !turnId || !Number.isFinite(at) || at < 0) return [];
   const previous = usage.modelOutput?.turnId === turnId ? usage.modelOutput : null;
   if (payload.type === "model_request_started") {

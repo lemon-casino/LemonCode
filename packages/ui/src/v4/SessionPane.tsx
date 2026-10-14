@@ -2917,6 +2917,7 @@ export function SessionPane({
   );
   const chatLoadingBlockedByActiveWork = hasChatLoadingBlockingActiveWork(
     snapshot?.control.activeWorks ?? [],
+    snapshot?.control.stopState,
   );
   // 子智能体详情的会话内容仍只读；文件撤销恢复的是 workspace，必须作为独立能力判断。
   const workspaceFileRewindEnabled = !readOnly || allowWorkspaceFileRewind;

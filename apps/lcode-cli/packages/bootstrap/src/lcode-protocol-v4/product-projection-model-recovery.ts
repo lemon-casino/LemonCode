@@ -13,8 +13,12 @@ import { ms } from "./product-projection-rows.js";
 import { closeStreamingRows } from "./product-projection-model-stream.js";
 import { closeOpenToolRows } from "./product-projection-tool-lifecycle.js";
 import { controlPatch, isRunning } from "./product-projection-session.js";
+import { isSessionModelQuerySource } from "./model-output-statistics.js";
 
-type ModelNetworkStatusHost = Pick<ProductProjectionState, "snapshot" | "currentTurnId">;
+type ModelNetworkStatusHost = Pick<
+  ProductProjectionState,
+  "snapshot" | "currentTurnId" | "rowIndexById" | "streamingTextRowId" | "streamingReasoningRowId"
+>;
 
 type StreamRecoveryTailDiscardedHost = Pick<
   ProductProjectionState,
@@ -50,6 +54,20 @@ export function onModelNetworkStatus(
       });
     }
     case "model_request_started":
+      if (
+        host.snapshot.control.stopState === "stopping" &&
+        isSessionModelQuerySource(payload.querySource) &&
+        String(event.sessionId) === host.snapshot.sessionId
+      ) {
+        // 模型切换只取消旧请求，同轮的新请求是明确恢复边界，不能继承停止展示。
+        return [
+          ...closeStreamingRows(host, "interrupted"),
+          {
+            op: "state.updated",
+            patch: controlPatch(host, { stopState: "stoppable", apiRetry: null }),
+          },
+        ];
+      }
       if (payload.streamRecovery) {
         return setApiRetry(
           host,
@@ -67,6 +85,24 @@ export function onModelNetworkStatus(
     case "model_request_completed":
       return setApiRetry(host, null);
     case "model_request_failed":
+      if (
+        payload.reason === "cancelled" &&
+        !payload.retryable &&
+        isSessionModelQuerySource(payload.querySource) &&
+        String(event.sessionId) === host.snapshot.sessionId &&
+        (!host.snapshot.usage.modelOutput ||
+          host.snapshot.usage.modelOutput.activeRequestId === payload.requestId)
+      ) {
+        // 实测 stop 已在毫秒内取消模型，但千余个 reasoning part 的持久化延迟了
+        // TurnComplete。先收口实时流与停止展示，整轮/lease 仍等真实收尾，不伪造完成。
+        return [
+          ...closeStreamingRows(host, "interrupted", { retainForQueuedDeltas: true }),
+          {
+            op: "state.updated",
+            patch: controlPatch(host, { stopState: "stopping", apiRetry: null }),
+          },
+        ];
+      }
       return payload.retryable ? [] : setApiRetry(host, null);
     case "model_stream_stalled":
     case "model_first_provider_event":
@@ -173,7 +209,7 @@ export function setApiRetry(
 }
 
 export function acceptsActiveModelEvent(
-  host: ModelNetworkStatusHost,
+  host: Pick<ProductProjectionState, "snapshot" | "currentTurnId">,
   event: SessionEvent,
 ): boolean {
   if (!isRunning(host)) return false;

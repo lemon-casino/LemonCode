@@ -233,7 +233,7 @@ function openTextRow(
       ...(fact.stream.assistantResponseId
         ? { assistantResponseId: fact.stream.assistantResponseId }
         : {}),
-      state: "streaming",
+      state: host.snapshot.control.stopState === "stopping" ? "interrupted" : "streaming",
     };
     host.streamingTextRowId = row.rowId;
     host.entityIdByRowId.set(row.rowId, fact.entityId);
@@ -255,7 +255,7 @@ function openTextRow(
       ? { assistantResponseId: fact.stream.assistantResponseId }
       : {}),
     text: "",
-    state: "streaming",
+    state: host.snapshot.control.stopState === "stopping" ? "interrupted" : "streaming",
   };
   host.streamingTextRowId = row.rowId;
   host.entityIdByRowId.set(row.rowId, fact.entityId);
@@ -274,7 +274,9 @@ function closeTextRow(
   const row = findRow(host, host.streamingTextRowId);
   host.streamingTextRowId = null;
   if (row?.kind !== "assistantText") return [];
-  return [{ op: "row.upserted", row: { ...row, state } }];
+  return [
+    { op: "row.upserted", row: { ...row, state: row.state === "interrupted" ? row.state : state } },
+  ];
 }
 
 export function onAssistantFeedbackUpdated(
@@ -308,6 +310,7 @@ function isCurrentReasoningAppend(
   return (
     tail?.kind === "reasoning" &&
     tail.rowId === host.streamingReasoningRowId &&
+    (tail.state === "streaming" || host.snapshot.control.stopState === "stopping") &&
     tail.turnId === turnIdOf(host, event) &&
     (!responseId || tail.assistantResponseId === responseId)
   );
@@ -321,9 +324,11 @@ function openReasoningRow(
   const tail = host.snapshot.rows.window.at(-1);
   const turnId = turnIdOf(host, event);
   const responseId = fact.stream.assistantResponseId;
+  const stopping = host.snapshot.control.stopState === "stopping";
+  const state = stopping ? "interrupted" : "streaming";
   if (
     tail?.kind === "reasoning" &&
-    tail.state !== "interrupted" &&
+    (tail.state !== "interrupted" || stopping) &&
     tail.turnId === turnId &&
     responseId &&
     tail.assistantResponseId === responseId
@@ -331,9 +336,8 @@ function openReasoningRow(
     // 供应商会把连续思考拆成词级 start/delta/end；旧投影每个 block 新建一行，
     // 历史恢复也会重复标题。复用同回复的紧邻行，原始块及签名仍由 runtime 保存。
     host.streamingReasoningRowId = tail.rowId;
-    return tail.state === "streaming"
-      ? []
-      : [{ op: "row.upserted", row: { ...tail, state: "streaming" } }];
+    // 取消前已入队的片段仍需守恒；停止态只追加 interrupted 内容，不复活思考动画。
+    return tail.state === state ? [] : [{ op: "row.upserted", row: { ...tail, state } }];
   }
   const close = closeReasoningRow(host);
   const row: ReasoningRow = {
@@ -345,7 +349,7 @@ function openReasoningRow(
       ? { assistantResponseId: fact.stream.assistantResponseId }
       : {}),
     text: "",
-    state: "streaming",
+    state,
   };
   host.streamingReasoningRowId = row.rowId;
   host.entityIdByRowId.set(row.rowId, fact.entityId);
@@ -360,12 +364,24 @@ function closeReasoningRow(
   const row = findRow(host, host.streamingReasoningRowId);
   host.streamingReasoningRowId = null;
   if (row?.kind !== "reasoning") return [];
-  return [{ op: "row.upserted", row: { ...row, state } }];
+  return [
+    { op: "row.upserted", row: { ...row, state: row.state === "interrupted" ? row.state : state } },
+  ];
 }
 
 export function closeStreamingRows(
   host: CloseStreamingRowsHost,
   state: "complete" | "interrupted",
+  options?: { retainForQueuedDeltas: boolean },
 ): ConversationDelta[] {
-  return [...closeTextRow(host, state), ...closeReasoningRow(host, state)];
+  const textRowId = host.streamingTextRowId;
+  const reasoningRowId = host.streamingReasoningRowId;
+  const deltas = [...closeTextRow(host, state), ...closeReasoningRow(host, state)];
+  if (options?.retainForQueuedDeltas) {
+    // 取消确认早于已入队 delta 的交付；保留原行索引供 interrupted 内容追加，
+    // 否则正文也会被拆成两行。真正的 stream end / TurnComplete 再释放索引。
+    host.streamingTextRowId = textRowId;
+    host.streamingReasoningRowId = reasoningRowId;
+  }
+  return deltas;
 }
