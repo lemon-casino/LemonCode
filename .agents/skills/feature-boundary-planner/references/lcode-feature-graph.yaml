@@ -391,6 +391,45 @@ nodes:
         symbol: SubagentsSection
       - file: apps/lcode-cli/packages/core/src/tool/handlers/agent.ts
         symbol: agentHandler
+  - id: state.browser-scope-authority
+    kind: state-owner
+    label: Server Browser scope, original connection route and pending cleanup authority
+    aliases: [Browser scope is already active, Browser作用域, 子代理Browser清理, cleanup_pending]
+    codeSeeds:
+      - file: apps/lcode-cli/packages/bootstrap/src/lcode-protocol/browser-control-broker.ts
+        symbol: createProtocolBrowserControlBroker
+      - file: apps/lcode-cli/packages/bootstrap/src/app/node-repl-browser-broker.ts
+        symbol: createNodeReplBrowserBroker
+    invariants:
+      - "One Protocol server broker supplies root, child and shared socket authority; a publisher does not grant Browser execution."
+      - "Close revokes execution before waiting; unconfirmed cleanup retains the original route and request until its ACK."
+  - id: service.child-runtime-construction
+    kind: service
+    label: Provisional child construction and driver initialization ownership
+    aliases: [actor创建事务, 子代理构造失败, provisional scope]
+    codeSeeds:
+      - file: apps/lcode-cli/packages/core/src/runtime/helpers/child-runtime-construction.ts
+        symbol: constructChildRuntimeWithPorts
+      - file: apps/lcode-cli/packages/bootstrap/src/app/workflow-driver-creation.ts
+        symbol: createOwnedActorSession
+    invariants:
+      - "Core owns provisional ports until synchronous construction succeeds; failure cleanup is tracked by parent residency."
+      - "Driver adopts the runtime in its existing sessions map before asynchronous initialization and seed, with no first ask before READY."
+  - id: service.child-conversation-observation
+    kind: service
+    label: Child history, artifacts and explicit historical actions without runtime activation
+    aliases: [子代理只读详情, cold child history, parent inactive, child file rewind]
+    codeSeeds:
+      - file: apps/lcode-cli/packages/bootstrap/src/lcode-protocol/conversation-reader.ts
+        symbol: resolveConversationReader
+      - file: apps/lcode-cli/packages/bootstrap/src/lcode-protocol/conversation-file-rewind.ts
+        symbol: applyHistoricalConversationFileRewind
+      - file: apps/lcode-cli/packages/bootstrap/src/lcode-protocol/child-session-policy.ts
+        symbol: readChildInputFault
+    invariants:
+      - "History reads the child session ID through existing stores and immutable artifacts, even without an active parent."
+      - "Generic child execution inputs are rejected before admission; explicit file/feedback actions retain the original inbox and canonical row guards."
+      - "Workspace identity and attachment scope validate entry; the execution binding path remains the file operation cwd."
   - id: state.subagent-form-draft
     kind: state-owner
     label: Subagent form draft
@@ -1094,6 +1133,32 @@ nodes:
       - "Menus append editable drafts through the scoped existing receiver; only an explicit send admits context."
       - "Capsule IDs are independent typed references and never share URLs; the target store validates source history again."
 edges:
+  - from: capability.subagents
+    to: service.child-runtime-construction
+    type: constructs-through
+    rank: must-inspect
+  - from: service.child-runtime-construction
+    to: state.browser-scope-authority
+    type: allocates-and-transfers-scope-through
+    rank: conditional
+    condition: Browser capability is present on the parent; absent ports allocate no Browser scope.
+  - from: state.browser-scope-authority
+    to: capability.workspace-identity
+    type: retains-original-cleanup-routing
+    rank: invariant-only
+  - from: capability.conversation-runtime
+    to: service.child-conversation-observation
+    type: observes-child-without-execution
+    rank: must-inspect
+  - from: service.child-conversation-observation
+    to: persistence.session-store
+    type: reads-durable-child-facts
+    rank: must-inspect
+  - from: service.child-conversation-observation
+    to: service.conversation-command-inbox
+    type: guards-explicit-historical-actions-through
+    rank: conditional
+    condition: Explicit file rewind and feedback use existing admission; opening history alone admits no command.
   - from: capability.oauth-provider-details
     to: capability.oauth-usage-analytics
     type: preserves-connection-attribution

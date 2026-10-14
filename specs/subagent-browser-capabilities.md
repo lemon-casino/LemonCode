@@ -48,7 +48,7 @@ sequenceDiagram
 
 ## 实际验证
 
-### 2026-10-14 生命周期修复规则（验收实施中）
+### 2026-10-14 生命周期修复规则（源码验收完成）
 
 - Protocol server 创建唯一 Browser broker，经必填 context 端口注入 record app 与共享 node_repl；不按 record 创建私有注册表。broker 只依赖稳定的 sessions/requestClient 宿主面。
 - 创建 owner 在分配资源前持有 construction；构造成功立即移交 runtime，再进行模型绑定、保存、重水化、task link 与 seed。失败关闭本代资源，保留首次 cause、完整模型来源和 session-before-task-link 顺序，不派发首次 ask。
@@ -58,13 +58,15 @@ sequenceDiagram
 - 私有 socket owner 关闭时封闭准入、取消所属请求并销毁已接受连接，等待关闭事件。借用 app 不关闭共享 socket。
 - child 历史投影不建立可执行 record，不恢复 Browser 权限；根 READY 恢复失败回滚本代候选，后续真实重试。读面与输入规则详见 `subagent-history-and-resume-ownership.md`。
 
-验收新增创建各失败阶段、生产 server/socket 装配、未 ACK/迟到 ACK、旧关闭与新代、原路由清理、半行/pending socket、冷详情与 root READY 重试。Desktop continuous 与 mobile replayable 共用 owner，旧历史/协议格式保持可读。结果将在实际执行后更新，之前的验证记录仅代表旧基线。
+验收新增创建各失败阶段、生产 server/socket 装配、未 ACK/迟到 ACK、旧关闭与新代、原路由清理、半行/pending socket、冷详情与 root READY 重试。Desktop continuous 与 mobile replayable 共用 owner，旧历史/协议格式保持可读。执行结果与现场边界见 [实施记录](subagent-browser-lifecycle-implementation-2026-10-14.md)：Bootstrap 全部 497 项、Core 定向 56 项、CDP adapter 1 项、共享 bridge 1 项通过；根/CLI 类型检查与 Lint、架构检查通过。原安装包和真实 Electron backend 未验证。
 
 construction 的实现分工：core 的 `constructChildRuntimeWithPorts` 同步持有 provisional ports，异常清理登记父 residency；成功移交 runtime。bootstrap 的 ActorRuntimeConstruction 只做无分配 prepare、同步 construct 与异步 initialize，driver 在同一调用栈接管 runtime 并在首个 await 前写入唯一 sessions 表。dispose 等待 entry.initialization/seed 排水；不把具体 AgentRuntime 类型放进 contracts。
 
 ACK 超时后，原反向请求 owner 只为 lifecycle 保留原 requestId 的迟到应答登记（严格 schema 校验，断连/关闭清除）。等待 Promise 已结算为 cleanup_pending；未知远端动作不重发、不 reannounce。同一 scope entry 持有窄路由与 cleanup handle，迟到成功 ACK 后才能释放身份。普通 RPC 的超时/取消语义不变，显式远端失败完成后可在同一 owner 下重新清理；无 ACK 时不使用重复请求冒充修复。
 
 headless Managed CDP 也返回同一生命周期结果：关闭 Promise 归原 adapter，超时保留原工作句柄，再次 close 查询同一工作；不把本地等待结束当成 Chromium 已释放。可选生命周期端口仍可缺省，但提供端口的实现必须返回明确结果。
+
+### 前期 Browser 能力接入的历史验证（非本轮修复结果）
 
 - 39 项定向回归通过，包含 11 项新增场景；集成测试为 `apps/lcode-cli/packages/bootstrap/scripts/subagent-browser-bridge.test.ts`，通过私有 socket 转发真实协议格式到测试 executor，覆盖 Browser 的 `newTab` 与权限拒绝、Computer Use 子代理拒绝。
 - `@lcode/core`、`@lcode/bootstrap`、`@lcode/node-repl-host` 类型检查，以及根 `pnpm typecheck`、`pnpm lint`、架构检查均通过。架构 baseline/new violation 均为 0；17 个改动 TypeScript 文件的格式检查通过。
