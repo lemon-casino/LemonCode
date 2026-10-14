@@ -1,3 +1,7 @@
+import {
+  withSessionResumeFlight,
+  type ActivatedSessionForResume,
+} from "./session-resume-flight.js";
 /* eslint-disable max-lines -- LCode Protocol 的 session/workspace 方法共享同一个 server context 与 snapshot helpers，迁移期先集中维护。 */
 import { observeSessionDebug } from "./session-debug.js";
 import type { LCodeAgentMcpServer } from "@lcode/shared";
@@ -1472,13 +1476,6 @@ async function createSessionWithProjection<T>(
   }
 }
 
-interface ActivatedSessionForResume {
-  record: LCodeProtocolSessionRecord;
-  knownSession?: SessionInfo;
-  /** 仅供启动本次 V4 hydration，不写入 record 或跨请求缓存。 */
-  persistedMessages?: MessageWithParts[];
-}
-
 /**
  * 只恢复 session runtime 生命周期，不物化任何协议表示。
  *
@@ -1486,7 +1483,17 @@ interface ActivatedSessionForResume {
  * 构建一份完整 legacy snapshot。runtime 激活和 legacy 表示是两个职责；这里保留
  * snapshot 之前的原有顺序与副作用，让 V4 随后用自己的 durable projection 水合。
  */
-export async function activateSessionForResume(
+export function activateSessionForResume(
+  context: LCodeProtocolAgentServerContext,
+  params: LCodeSessionResumeParams,
+  options: { reusePersistedMessages?: boolean } = {},
+): Promise<ActivatedSessionForResume> {
+  return withSessionResumeFlight(context, params.sessionId, () =>
+    materializeSessionForResume(context, params, options),
+  );
+}
+
+async function materializeSessionForResume(
   context: LCodeProtocolAgentServerContext,
   params: LCodeSessionResumeParams,
   options: { reusePersistedMessages?: boolean } = {},
@@ -1583,33 +1590,70 @@ export async function activateSessionForResume(
   // 表现为原会话消失、冒出"新任务刚刚"）。恢复路径回填 store 的真实时间。
   if (session.time?.created) record.createdAt = session.time.created;
   if (session.time?.updated) record.updatedAt = session.time.updated;
-  context.assertServing?.();
-  context.sessions.set(params.sessionId, record);
-  const resumeResult = await runSessionModelConfigMutation(record.app, async () => {
-    const result = options.reusePersistedMessages
-      ? await record.app.resume({ persistedMessages })
-      : await record.app.resume();
-    // 仅用于首次投影种子，包含有效模型+空档位；它不是第二份可执行 Runtime 选择。
-    record.restoredModelSelection = result.modelSelection;
-    return result;
-  });
-  if (options.reusePersistedMessages && resumeResult.persistedMessagesReloadRequired) {
-    persistedMessages = await readPersistedSessionMessages(context, params.sessionId);
+  try {
+    context.assertServing?.();
+    const resumeResult = await runSessionModelConfigMutation(record.app, async () => {
+      const result = options.reusePersistedMessages
+        ? await record.app.resume({ persistedMessages })
+        : await record.app.resume();
+      // 仅用于首次投影种子，包含有效模型+空档位；它不是第二份可执行 Runtime 选择。
+      record.restoredModelSelection = result.modelSelection;
+      return result;
+    });
+    if (options.reusePersistedMessages && resumeResult.persistedMessagesReloadRequired) {
+      persistedMessages = await readPersistedSessionMessages(context, params.sessionId);
+    }
+    context.assertServing?.();
+    const current = context.sessions.get(params.sessionId);
+    if (current && current !== record) {
+      record.unsubscribe?.();
+      await record.app.close?.();
+      return { record: current };
+    }
+    context.sessions.set(params.sessionId, record);
+    context.logger?.info("LCode Protocol session resume completed", {
+      activeSessionCount: context.sessions.size,
+      durationMs: Math.max(0, Date.now() - resumeStartedAt),
+      event: "lcode_protocol.session.resume_completed",
+      module: "bootstrap.lcode_protocol",
+      persistedMessageCount: persistedMessages.length,
+      sessionId: params.sessionId,
+      traceId: record.traceContext.traceId,
+    });
+    return {
+      knownSession: session,
+      record,
+      ...(options.reusePersistedMessages ? { persistedMessages } : {}),
+    };
+  } catch (cause) {
+    // 未 READY 候选不能污染 sessions；旧失败也不能删除并发新代。
+    try {
+      record.unsubscribe?.();
+    } catch (error) {
+      context.logger?.warn("Session resume unsubscribe failed", {
+        event: "lcode_protocol.session.resume_unsubscribe_failed",
+        sessionId: params.sessionId,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+    }
+    if (
+      !context.sessions.has(params.sessionId) ||
+      context.sessions.get(params.sessionId) === record
+    ) {
+      context.sessions.delete(params.sessionId);
+      context.v4Gateway?.disposeSession(params.sessionId);
+    }
+    try {
+      await record.app.close?.();
+    } catch (error) {
+      context.logger?.warn("Session resume cleanup failed", {
+        event: "lcode_protocol.session.resume_cleanup_failed",
+        sessionId: params.sessionId,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+    }
+    throw cause;
   }
-  context.logger?.info("LCode Protocol session resume completed", {
-    activeSessionCount: context.sessions.size,
-    durationMs: Math.max(0, Date.now() - resumeStartedAt),
-    event: "lcode_protocol.session.resume_completed",
-    module: "bootstrap.lcode_protocol",
-    persistedMessageCount: persistedMessages.length,
-    sessionId: params.sessionId,
-    traceId: record.traceContext.traceId,
-  });
-  return {
-    knownSession: session,
-    record,
-    ...(options.reusePersistedMessages ? { persistedMessages } : {}),
-  };
 }
 
 export async function resumeSession(context: LCodeProtocolAgentServerContext, rawParams: unknown) {
@@ -3529,37 +3573,51 @@ async function createRecord(
     version: context.deps.version,
     modelIoFullRetentionEnabled: context.appRuntimePreferences.modelIoFullRetentionEnabled,
   });
-  const now = Date.now();
-  const record: LCodeProtocolSessionRecord = {
-    app,
-    createdAt: now,
-    eventStore,
-    memoryEnabled: startupPreferences.memoryEnabled,
-    memoryStorageLocation: startupPreferences.memoryStorageLocation,
-    memoryStorageRevision: startupPreferences.memoryStorageRevision,
-    modelContextBudgetStrategy: startupPreferences.modelContextBudgetStrategy,
-    nativeSearchEnhancementsEnabled: startupPreferences.nativeSearchEnhancementsEnabled,
-    sessionRecallEnabled: startupPreferences.sessionRecallEnabled,
-    ...(parentSessionId ? { parentSessionId } : {}),
-    persistence: "persistence" in params ? (params.persistence ?? "immediate") : "immediate",
-    protocolEventSequences: new Map(),
-    protocolToolInputTransmissions: new Map(),
-    stateRevision: 0,
-    taskType,
-    traceContext,
-    updatedAt: now,
-    workspace,
-    executionMcpServers: params.mcpServers,
-  };
-  const unsubscribeSessionEvents = app.runtime.subscribeEvents({
-    onSessionEvent: (event) => onSessionEvent(context, record, event),
-  });
-  record.unsubscribe = () => {
-    unsubscribeSessionEvents();
-  };
-  // 绑定归属会话，供 automation-port 读取本会话实时 model/mode/thought。
-  ownSessionRecord = record;
-  return record;
+  try {
+    const now = Date.now();
+    const record: LCodeProtocolSessionRecord = {
+      app,
+      createdAt: now,
+      eventStore,
+      memoryEnabled: startupPreferences.memoryEnabled,
+      memoryStorageLocation: startupPreferences.memoryStorageLocation,
+      memoryStorageRevision: startupPreferences.memoryStorageRevision,
+      modelContextBudgetStrategy: startupPreferences.modelContextBudgetStrategy,
+      nativeSearchEnhancementsEnabled: startupPreferences.nativeSearchEnhancementsEnabled,
+      sessionRecallEnabled: startupPreferences.sessionRecallEnabled,
+      ...(parentSessionId ? { parentSessionId } : {}),
+      persistence: "persistence" in params ? (params.persistence ?? "immediate") : "immediate",
+      protocolEventSequences: new Map(),
+      protocolToolInputTransmissions: new Map(),
+      stateRevision: 0,
+      taskType,
+      traceContext,
+      updatedAt: now,
+      workspace,
+      executionMcpServers: params.mcpServers,
+    };
+    const unsubscribeSessionEvents = app.runtime.subscribeEvents({
+      onSessionEvent: (event) => onSessionEvent(context, record, event),
+    });
+    record.unsubscribe = () => {
+      unsubscribeSessionEvents();
+    };
+    // 绑定归属会话，供 automation-port 读取本会话实时 model/mode/thought。
+    ownSessionRecord = record;
+    return record;
+  } catch (cause) {
+    // app 已分配、record 尚未返回时订阅也可能失败；创建事务必须覆盖此窗口。
+    try {
+      await app.close?.();
+    } catch (error) {
+      context.logger?.warn("Session record construction cleanup failed", {
+        event: "lcode_protocol.session.record_cleanup_failed",
+        sessionId,
+        errorMessage: error instanceof Error ? error.message : String(error),
+      });
+    }
+    throw cause;
+  }
 }
 
 async function readPersistedSessionMessages(

@@ -33,6 +33,7 @@ import type { LCodeApp, LCodeAppOptions } from "../app/types.js";
 import type { V4InteractionRegistry } from "../lcode-protocol-v4/interaction-registry.js";
 import type { ConversationV4Gateway } from "../lcode-protocol-v4/v4-gateway.js";
 import type { SessionResidentPool, SessionResidentPoolOptions } from "./session-resident-pool.js";
+import type { ActivatedSessionForResume } from "./session-resume-flight.js";
 
 export interface ParamsSchema<T> {
   parse(input: unknown): T;
@@ -164,6 +165,8 @@ export interface LCodeProtocolAgentServerContext {
   // 协议请求则持有 operation lease，禁止异步 handler 与容量回收交错。
   sessionResidentPool?: SessionResidentPool;
   sessions: Map<string, LCodeProtocolSessionRecord>;
+  /** 未完成的 root 物化单飞，不缓存另一份 READY record 或接受队列。 */
+  sessionResumeFlights?: Map<string, Promise<ActivatedSessionForResume>>;
   /** server 唯一 Browser authority，record app 与共享 MCP 只借用同一端口。 */
   browserControlPort: BrowserControlPort;
   notify(notification: LCodeProtocolNotification): void;

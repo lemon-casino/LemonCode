@@ -120,10 +120,17 @@ export class LCodeProtocolAgentServer {
     };
     this.logger = createProtocolLogger(resolvedDeps);
     const sessions = new Map<string, LCodeProtocolSessionRecord>();
-    const request: LCodeProtocolAgentServerContext["requestClient"] = (method, params, schema, options) =>
-      this.requestClient(method, params, schema, options);
+    const request: LCodeProtocolAgentServerContext["requestClient"] = (
+      method,
+      params,
+      schema,
+      options,
+    ) => this.requestClient(method, params, schema, options);
     // 原逐 record broker 与共享 node_repl 注册表分裂；先创建稳定宿主，再统一注入。
-    this.browserControlPort = createProtocolBrowserControlBroker({ sessions, requestClient: request });
+    this.browserControlPort = createProtocolBrowserControlBroker({
+      sessions,
+      requestClient: request,
+    });
     this.context = {
       assertServing: () => this.runtimeResources.assertServing(),
       deps: resolvedDeps,
@@ -238,7 +245,10 @@ export class LCodeProtocolAgentServer {
   /** 进程资源关闭，不使用会删除产品会话/发布 session.removed 的 session/close。 */
   shutdown(): Promise<void> {
     if (this.shutdownPromise) return this.shutdownPromise;
-    this.shutdownPromise = this.runtimeResources.close();
+    this.shutdownPromise = this.runtimeResources.close().catch((error) => {
+      this.shutdownPromise = undefined;
+      throw error;
+    });
     const error = new Error("LCode Protocol runtime stopping");
     this.disconnectClient(error);
     this.clientRequests.messageSink = undefined;
