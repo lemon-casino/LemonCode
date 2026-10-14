@@ -30,8 +30,18 @@ export function createNodeReplBrowserBroker(input: {
 }): NodeReplBrowserBroker {
   const socketPath = createSocketPath(input.platform ?? process.platform);
   const token = randomBytes(32).toString("hex");
+  const connections = new Map<Socket, AbortController>();
+  let closing = false;
+  let closePromise: Promise<void> | undefined;
   const server = createServer((socket) => {
-    handleSocket(socket, { ...input, token }).catch((error) => {
+    if (closing) {
+      socket.destroy();
+      return;
+    }
+    const controller = new AbortController();
+    connections.set(socket, controller);
+    socket.once("close", () => connections.delete(socket));
+    handleSocket(socket, { ...input, token, controller }).catch((error) => {
       input.logger.warn("Node REPL browser broker request failed", {
         event: "node_repl.browser_broker.request.failed",
         error: error instanceof Error ? error.message : String(error),
@@ -54,14 +64,22 @@ export function createNodeReplBrowserBroker(input: {
     ready,
     socketPath,
     token,
-    close: async () => {
+    close: () => {
+      if (closePromise) return closePromise;
+      // server.close 只停止 listen，不会销毁 accepted socket；半行/在途请求曾使关闭永久等待。
+      closing = true;
+      for (const [socket, controller] of connections) {
+        controller.abort();
+        socket.destroy();
+      }
       // createLCodeApp 是同步工厂，极短生命周期下 close 可能先于 listen 回调；
       // 直接检查 server.listening 会漏关随后才绑定成功的 socket。
-      await ready.catch(() => undefined);
-      await closeServer(server);
-      if ((input.platform ?? process.platform) !== "win32") {
-        await rm(socketPath, { force: true });
-      }
+      closePromise = (async () => {
+        await ready.catch(() => undefined);
+        await closeServer(server);
+        if ((input.platform ?? process.platform) !== "win32") await rm(socketPath, { force: true });
+      })();
+      return closePromise;
     },
   };
 }
@@ -99,9 +117,10 @@ async function handleSocket(
     browserControlPort: BrowserControlPort;
     logger: Logger;
     token: string;
+    controller: AbortController;
   },
 ): Promise<void> {
-  const abortController = new AbortController();
+  const abortController = input.controller;
   let completed = false;
   let requestId = randomUUID();
   // steer 会让 node_repl 客户端 abort 后立即 socket.destroy()，而 broker 此刻通常正在
@@ -133,6 +152,7 @@ async function handleSocket(
       input.browserControlPort,
       abortController.signal,
     );
+    abortController.signal.throwIfAborted();
     completed = true;
     respond(socket, response);
   } catch (error) {
@@ -198,6 +218,7 @@ async function executeRequest(
 }
 
 async function readLine(socket: Socket, signal: AbortSignal): Promise<string> {
+  signal.throwIfAborted();
   return await new Promise<string>((resolve, reject) => {
     let buffer = "";
     const cleanup = () => {
