@@ -83,18 +83,29 @@ export async function closeWorkflowActivityDetails(page, activityPopover, diagno
   const trigger = page.locator(triggerSelector);
   assert.equal(await trigger.count(), 1, "popover must identify one original trigger");
   assert.equal(await trigger.getAttribute("aria-expanded"), "true");
+  const triggerElement = await trigger.elementHandle();
+  assert.ok(triggerElement, "opened popover must retain its actual trigger element");
   diagnostic(`workflow activity close ${contentId}: open`);
   // 实测 Escape 返回时旧层仍在 closed 动画内且焦点尚未归还；open 消失不等于关闭完成。
   await page.keyboard.press("Escape");
-  await page.locator(`${triggerSelector}[aria-expanded="false"]`).waitFor({ state: "attached" });
+  // Radix 关闭时移除 aria-controls；沿旧 selector 等待会误报关闭失败。
+  await page.waitForFunction(
+    (element) => element.isConnected && element.getAttribute("aria-expanded") === "false",
+    triggerElement,
+  );
   diagnostic(`workflow activity close ${contentId}: closed`);
   await portal.waitFor({ state: "detached" });
   // Radix 卸载之后才还焦；等原触发器的真实状态，不用延时或重试掩盖跨阶段切换。
-  await page
-    .locator(`${triggerSelector}[aria-expanded="false"]:focus`)
-    .waitFor({ state: "attached" });
+  await page.waitForFunction(
+    (element) => element.isConnected && element === document.activeElement,
+    triggerElement,
+  );
   assert.equal(await portal.count(), 0, "closed activity portal must be detached");
-  assert.equal(await trigger.getAttribute("aria-expanded"), "false");
-  assert.equal(await trigger.evaluate((element) => element === document.activeElement), true);
+  assert.equal(await triggerElement.getAttribute("aria-expanded"), "false");
+  assert.equal(
+    await triggerElement.evaluate((element) => element === document.activeElement),
+    true,
+  );
+  await triggerElement.dispose();
   diagnostic(`workflow activity close ${contentId}: detached and focus restored`);
 }
