@@ -36,11 +36,22 @@ test("production record assembly and shared socket consume the server Browser au
       void server.handleMessage({
         id: message.id,
         result: {
-          browsers: [{ id: "fixture-browser", generation: 1, type: "iab", name: "Fixture", capabilities: {} }],
+          browsers: [
+            {
+              id: "fixture-browser",
+              generation: 1,
+              type: "iab",
+              name: "Fixture",
+              capabilities: {},
+            },
+          ],
         },
       });
     } else {
-      void server.handleMessage({ id: message.id, error: { code: -32601, message: "Fixture capability unavailable" } });
+      void server.handleMessage({
+        id: message.id,
+        error: { code: -32601, message: "Fixture capability unavailable" },
+      });
     }
   });
   // 使用实际 server context 和实际 record 装配；app/model/Host 仅受控替身。
@@ -63,7 +74,16 @@ test("production record assembly and shared socket consume the server Browser au
   t.after(() => socket.destroy());
   await once(socket, "connect");
   const received = once(socket, "data");
-  socket.write(JSON.stringify({ id: randomUUID(), token: broker.token, runtimeScope: "subagent", sessionId: childId, turnId: "turn", op: "list" }) + "\n");
+  socket.write(
+    JSON.stringify({
+      id: randomUUID(),
+      token: broker.token,
+      runtimeScope: "subagent",
+      sessionId: childId,
+      turnId: "turn",
+      op: "list",
+    }) + "\n",
+  );
   const [data] = await received;
   const response = JSON.parse(data.toString());
   assert.equal(response.ok, true, JSON.stringify(response));
