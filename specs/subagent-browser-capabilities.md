@@ -48,6 +48,18 @@ sequenceDiagram
 
 ## 实际验证
 
+### 2026-10-14 生命周期修复规则（验收实施中）
+
+- Protocol server 创建唯一 Browser broker，经必填 context 端口注入 record app 与共享 node_repl；不按 record 创建私有注册表。broker 只依赖稳定的 sessions/requestClient 宿主面。
+- 创建 owner 在分配资源前持有 construction；构造成功立即移交 runtime，再进行模型绑定、保存、重水化、task link 与 seed。失败关闭本代资源，保留首次 cause、完整模型来源和 session-before-task-link 顺序，不派发首次 ask。
+- 构造异常的 provisional child scope 也必须回收。普通 Agent、动态 actor、旧脚本和专家路径使用同一分配/移交规则；不删除已经落库的历史。
+- turnEnded 先撤销旧 turn，再等待受控清理，返回 completed 或 cleanup_pending；session close 同步撤销 scope/后代，返回 closed 或 cleanup_pending。未确认的清理不能冒称成功，同 backend/generation 上的新 Browser execute 明确拒绝，其他能力不被无限阻塞。
+- 生命周期请求设置独立取消信号和具名 ACK deadline。超时只结束等待，broker 仍拥有清理目标；同 ID 只在确认释放后重新登记。清理捕获原 connection 的 workspace/attachment/generation，不能使用后来的绑定。
+- 私有 socket owner 关闭时封闭准入、取消所属请求并销毁已接受连接，等待关闭事件。借用 app 不关闭共享 socket。
+- child 历史投影不建立可执行 record，不恢复 Browser 权限；根 READY 恢复失败回滚本代候选，后续真实重试。读面与输入规则详见 `subagent-history-and-resume-ownership.md`。
+
+验收新增创建各失败阶段、生产 server/socket 装配、未 ACK/迟到 ACK、旧关闭与新代、原路由清理、半行/pending socket、冷详情与 root READY 重试。Desktop continuous 与 mobile replayable 共用 owner，旧历史/协议格式保持可读。结果将在实际执行后更新，之前的验证记录仅代表旧基线。
+
 - 39 项定向回归通过，包含 11 项新增场景；集成测试为 `apps/lcode-cli/packages/bootstrap/scripts/subagent-browser-bridge.test.ts`，通过私有 socket 转发真实协议格式到测试 executor，覆盖 Browser 的 `newTab` 与权限拒绝、Computer Use 子代理拒绝。
 - `@lcode/core`、`@lcode/bootstrap`、`@lcode/node-repl-host` 类型检查，以及根 `pnpm typecheck`、`pnpm lint`、架构检查均通过。架构 baseline/new violation 均为 0；17 个改动 TypeScript 文件的格式检查通过。
 - CLI 定向 `oxlint --no-ignore` 仍报告 `create-app.ts` 与 `browser-control.port.ts` 两处既有 `max-lines` 超限；不以根目录默认忽略 CLI 的 lint 通过替代这项结果。

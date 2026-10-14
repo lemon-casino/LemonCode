@@ -3,11 +3,12 @@ import type { BrowserControlListInput, BrowserControlPort, TraceContext } from "
 import {
   lcodeBrowserExecuteResultSchema,
   lcodeBrowserListResultSchema,
+  lcodeProtocolErrorCodes,
   lcodeProtocolMethods,
 } from "@lcode/shared";
 import {
   protocolTraceFromTraceContext,
-  requireSession,
+  ProtocolRequestError,
   type LCodeProtocolAgentServerContext,
   type LCodeProtocolClientRequestOptions,
   type LCodeProtocolSessionRecord,
@@ -24,7 +25,7 @@ interface ChildScope {
 
 /** Browser 资源归属 child，workspace/attachment 路由由活跃 root record 提供。 */
 export function createProtocolBrowserControlBroker(
-  context: LCodeProtocolAgentServerContext,
+  context: Pick<LCodeProtocolAgentServerContext, "sessions" | "requestClient">,
 ): BrowserControlPort {
   const scopes = new Map<string, ChildScope>();
   const closedRoots = new WeakSet<LCodeProtocolSessionRecord>();
@@ -43,7 +44,8 @@ export function createProtocolBrowserControlBroker(
     if (scope?.controller.signal.aborted)
       throw new Error(`Browser scope is not active: ${sessionId}`);
     const rootSessionId = scope?.rootSessionId ?? sessionId;
-    const record = requireSession(context, rootSessionId);
+    const record = context.sessions.get(rootSessionId);
+    if (!record) throw new ProtocolRequestError(lcodeProtocolErrorCodes.sessionUnavailable, `Session is not active: ${rootSessionId}`);
     // 同 ID 的根 runtime 重建后，旧 child lease 不能漂移到新 attachment。
     if (closedRoots.has(record) || (scope && scope.rootRecord !== record))
       throw new Error(`Browser scope is not active: ${sessionId}`);

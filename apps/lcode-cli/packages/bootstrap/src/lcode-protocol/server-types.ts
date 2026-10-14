@@ -2,6 +2,7 @@ import {
   createRootTraceContext,
   createTraceId,
   type Logger,
+  type BrowserControlPort,
   type LoggerFactory,
   type McpPort,
   type SessionEventStorePort,
@@ -161,6 +162,8 @@ export interface LCodeProtocolAgentServerContext {
   // 协议请求则持有 operation lease，禁止异步 handler 与容量回收交错。
   sessionResidentPool?: SessionResidentPool;
   sessions: Map<string, LCodeProtocolSessionRecord>;
+  /** server 唯一 Browser authority，record app 与共享 MCP 只借用同一端口。 */
+  browserControlPort: BrowserControlPort;
   notify(notification: LCodeProtocolNotification): void;
   requestClient<T>(
     method: LCodeProtocolMethod,

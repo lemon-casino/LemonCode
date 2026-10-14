@@ -112,7 +112,6 @@ import { buildAppUsageSnapshot, resolveTzOffsetMs } from "./usage-stats-builder.
 import { createProtocolInteractionBroker } from "./interaction-broker.js";
 import { createProtocolAutomationPort } from "./automation-port.js";
 import { createProtocolOffPeakPort } from "./offpeak-port.js";
-import { createProtocolBrowserControlBroker } from "./browser-control-broker.js";
 import { mapComputerUseOperationEvent } from "./computer-use-operation-event.js";
 import { protocolMcpServersToRuntimeMcpConfig } from "./protocol-mcp-config.js";
 import { projectIdFromDirectory } from "../app/paths.js";
@@ -3510,7 +3509,7 @@ async function createRecord(
       : {}),
     resolveBashShellSelection: startupPreferences.resolveBashShellSelection,
     // browser-use：agent.browsers.* 经此把命令转成 interaction/browserExecute 反向请求。
-    browserControlPort: createProtocolBrowserControlBroker(context),
+    browserControlPort: context.browserControlPort,
     // Protocol server 是受信任的 Desktop/Web/Mobile Host；灰度开关由这里显式注入，
     // 不从 workspace/project 配置或环境变量读取，关闭时仍可通过删掉该字段回滚到 hard block。
     workspaceHookTrustEnabled: true,

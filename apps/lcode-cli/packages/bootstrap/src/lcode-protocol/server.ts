@@ -119,6 +119,11 @@ export class LCodeProtocolAgentServer {
         deps.workspaceHookPolicyProvider ?? new InMemoryWorkspaceHookPolicyProvider(),
     };
     this.logger = createProtocolLogger(resolvedDeps);
+    const sessions = new Map<string, LCodeProtocolSessionRecord>();
+    const request: LCodeProtocolAgentServerContext["requestClient"] = (method, params, schema, options) =>
+      this.requestClient(method, params, schema, options);
+    // 原逐 record broker 与共享 node_repl 注册表分裂；先创建稳定宿主，再统一注入。
+    this.browserControlPort = createProtocolBrowserControlBroker({ sessions, requestClient: request });
     this.context = {
       assertServing: () => this.runtimeResources.assertServing(),
       deps: resolvedDeps,
@@ -132,9 +137,9 @@ export class LCodeProtocolAgentServer {
         dynamicWorkflowEnabled: false,
       },
       notify: (notification) => this.clientRequests.messageSink?.(notification),
-      requestClient: (method, params, resultSchema, options) =>
-        this.requestClient(method, params, resultSchema, options),
-      sessions: new Map<string, LCodeProtocolSessionRecord>(),
+      requestClient: request,
+      sessions,
+      browserControlPort: this.browserControlPort,
       // 交互应答登记表（broker 反向请求 × v4 resolveInteraction 命令的汇合点）。
       v4Interactions: new V4InteractionRegistry(
         resolveV4InteractionRegistryOptionsFromEnv(deps.env ?? process.env),
@@ -142,7 +147,6 @@ export class LCodeProtocolAgentServer {
     };
     // v4 通道：gateway 闭包持有 context 做帧出口与命令副作用，构造完立即挂回。
     this.context.v4Gateway = createConversationV4Gateway(this.context);
-    this.browserControlPort = createProtocolBrowserControlBroker(this.context);
     const sessionResidentTargetCount =
       deps.sessionResidentPoolOptions?.targetCount ?? deps.sessionResidentTargetCount;
     const sessionResidentHighWaterCount =
