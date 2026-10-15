@@ -2,6 +2,9 @@ import ts from "typescript";
 import { harvestConstraints, mergeConstraints } from "./jsdoc.js";
 import type { JsonSchema, JsonValue } from "./types.js";
 import { MAX_UNION_MEMBERS } from "./types.js";
+// undefined 仍按原契约拒绝；补充可选字段写法，避免修复建议诱导脚本绕过 JSON 校验。
+const OPTIONAL_PROPERTY_HINT =
+  "Use an optional property (for example baseline?: number) and omit it when absent; use null only when the declared type permits null. Explicit undefined is not JSON.";
 
 /**
  * 类型 → JSON Schema 的发射器（emitter），由 checker 的结构化视图驱动（泛型/别名/
@@ -21,6 +24,7 @@ export class SchemaRejection extends Error {
   constructor(
     readonly reason: string,
     readonly path: string,
+    readonly hint?: string,
   ) {
     super(reason);
     this.name = "SchemaRejection";
@@ -104,12 +108,20 @@ export class SchemaEmitter {
 
     const flags = type.flags;
     if (flags & ts.TypeFlags.Any) {
-      throw new SchemaRejection("type 'any' is not allowed; use 'unknown' or a concrete type", path);
+      throw new SchemaRejection(
+        "type 'any' is not allowed; use 'unknown' or a concrete type",
+        path,
+      );
     }
     if (flags & ts.TypeFlags.Unknown) return {};
-    if (flags & ts.TypeFlags.Never) throw new SchemaRejection("type 'never' cannot be represented", path);
+    if (flags & ts.TypeFlags.Never)
+      throw new SchemaRejection("type 'never' cannot be represented", path);
     if (flags & (ts.TypeFlags.Undefined | ts.TypeFlags.Void)) {
-      throw new SchemaRejection("'undefined' is only allowed on optional properties", path);
+      throw new SchemaRejection(
+        "'undefined' is only allowed on optional properties",
+        path,
+        OPTIONAL_PROPERTY_HINT,
+      );
     }
     if (flags & ts.TypeFlags.Null) return { type: "null" };
     if (flags & ts.TypeFlags.BooleanLiteral) return { const: this.booleanValue(type) };
@@ -126,7 +138,8 @@ export class SchemaEmitter {
     }
     if (type.isUnion()) return this.composite(type, () => this.emitUnion(type, path));
     if (type.isIntersection()) return this.composite(type, () => this.emitIntersection(type, path));
-    if (flags & ts.TypeFlags.Object) return this.composite(type, () => this.emitObjectLike(type, path));
+    if (flags & ts.TypeFlags.Object)
+      return this.composite(type, () => this.emitObjectLike(type, path));
 
     throw new SchemaRejection("type is not JSON-serializable", path);
   }
@@ -173,7 +186,11 @@ export class SchemaEmitter {
     }
     for (const member of members) {
       if (member.flags & (ts.TypeFlags.Undefined | ts.TypeFlags.Void)) {
-        throw new SchemaRejection("'undefined' is only allowed on optional properties", path);
+        throw new SchemaRejection(
+          "'undefined' is only allowed on optional properties",
+          path,
+          OPTIONAL_PROPERTY_HINT,
+        );
       }
     }
     return this.emitMembers(members, path);
@@ -192,7 +209,8 @@ export class SchemaEmitter {
     for (const member of members) {
       const flags = member.flags;
       if (flags & ts.TypeFlags.StringLiteral) values.push((member as ts.StringLiteralType).value);
-      else if (flags & ts.TypeFlags.NumberLiteral) values.push((member as ts.NumberLiteralType).value);
+      else if (flags & ts.TypeFlags.NumberLiteral)
+        values.push((member as ts.NumberLiteralType).value);
       else if (flags & ts.TypeFlags.BooleanLiteral) values.push(this.booleanValue(member));
       else if (flags & ts.TypeFlags.Null) values.push(null);
       else return undefined;
@@ -239,7 +257,10 @@ export class SchemaEmitter {
     for (const prop of this.checker.getPropertiesOfType(type)) {
       const optional = (prop.flags & ts.SymbolFlags.Optional) !== 0;
       const propPath = `${path}.${prop.name}`;
-      const propType = this.checker.getTypeOfSymbolAtLocation(prop, prop.valueDeclaration ?? this.location);
+      const propType = this.checker.getTypeOfSymbolAtLocation(
+        prop,
+        prop.valueDeclaration ?? this.location,
+      );
       const base = optional ? this.emitOptional(propType, propPath) : this.emit(propType, propPath);
       properties[prop.name] = mergeConstraints(base, harvestConstraints(prop, this.checker));
       if (!optional) required.push(prop.name);
@@ -255,7 +276,8 @@ export class SchemaEmitter {
     // 输出惯例：模型给出多余键几乎总是误解的信号，false 能把它变成一条清晰的修复提示，
     // 也符合严格结构化输出的通行做法。带字符串索引签名（Record<string,T>）则用其值 schema。
     const indexInfo = this.checker.getIndexInfoOfType(type, ts.IndexKind.String);
-    schema.additionalProperties = indexInfo !== undefined ? this.emit(indexInfo.type, `${path}[*]`) : false;
+    schema.additionalProperties =
+      indexInfo !== undefined ? this.emit(indexInfo.type, `${path}[*]`) : false;
     return schema;
   }
 
@@ -290,7 +312,11 @@ export class SchemaEmitter {
         continue;
       }
       const optional = (flag & ts.ElementFlags.Optional) !== 0;
-      prefixItems.push(optional ? this.emitOptional(arg, `${path}[${index}]`) : this.emit(arg, `${path}[${index}]`));
+      prefixItems.push(
+        optional
+          ? this.emitOptional(arg, `${path}[${index}]`)
+          : this.emit(arg, `${path}[${index}]`),
+      );
       if (flag & ts.ElementFlags.Required) minItems += 1;
     }
     const schema: JsonSchema = { type: "array", prefixItems, minItems };
@@ -313,7 +339,10 @@ export class SchemaEmitter {
   private isThenable(type: ts.Type): boolean {
     const then = this.checker.getPropertyOfType(type, "then");
     if (then === undefined) return false;
-    const thenType = this.checker.getTypeOfSymbolAtLocation(then, then.valueDeclaration ?? this.location);
+    const thenType = this.checker.getTypeOfSymbolAtLocation(
+      then,
+      then.valueDeclaration ?? this.location,
+    );
     return thenType.getCallSignatures().length > 0;
   }
 }

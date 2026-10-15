@@ -46,9 +46,13 @@ export function createProtocolProcessLifecycle(
         (process.env.LCODE_E2E_COVERAGE === "1" ? COVERAGE_FLUSH_ALLOWANCE_MS : 0);
     deadlineAt = Date.now() + timeoutMs;
     shutdownContext = Object.freeze({
-      closeId: randomUUID(), origin, requestedAt: Date.now(), deadlineAt,
+      closeId: randomUUID(),
+      origin,
+      requestedAt: Date.now(),
+      deadlineAt,
       processId: process.pid,
-      transportAvailable: origin === "signal" || origin === "command_completed" || origin === "runtime_failure",
+      transportAvailable:
+        origin === "signal" || origin === "command_completed" || origin === "runtime_failure",
       ...(signal ? { signal } : {}),
     });
     // 保持 ref：即使初始化 Promise 永不 settle、已经没有 IO，也必须交付终态。
@@ -92,7 +96,9 @@ export function createProtocolProcessLifecycle(
     get deadlineAt() {
       return deadlineAt;
     },
-    get shutdownContext() { return shutdownContext; },
+    get shutdownContext() {
+      return shutdownContext;
+    },
     requestShutdown: stop,
     complete(code: number): Promise<void> {
       completion ??= (async () => {

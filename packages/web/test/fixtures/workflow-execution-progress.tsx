@@ -5,6 +5,7 @@ import type { ToolCallGetWorkflowRunDisplay } from "@lcode/shared/lcode-protocol
 import { LCodeIntlProvider, useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { WorkflowRunDigest } from "@/components/workflow-timeline/WorkflowRunDigest.js";
+import { WorkflowRunStatus } from "@/components/workflow-timeline/WorkflowCardChrome.js";
 import { WorkflowRunPhaseList } from "@/app-shell/WorkflowRunPhaseList.js";
 import { WorkflowPermissionBlock } from "@/WorkflowPermissionBlock.js";
 import { buildWorkflowTimeline } from "@/components/workflow-timeline/timeline-model.js";
@@ -197,6 +198,15 @@ function App() {
       <p className="break-words text-ui-sm" data-testid="fixture-opened">
         Opened: {opened}
       </p>
+      <section className="grid gap-2" data-testid="fixture-stop-reasons">
+        {(["user", "model", "superseded", "interrupted"] as const).map((stopReason) => (
+          <WorkflowRunStatus
+            key={stopReason}
+            testId={`fixture-stop-${stopReason}`}
+            run={{ status: "stopped", stopReason, resumable: stopReason !== "superseded" }}
+          />
+        ))}
+      </section>
       <div className="grid min-w-0 gap-4 lg:grid-cols-2">
         <div className="min-w-0" data-testid="fixture-card">
           <WorkflowRunDigest

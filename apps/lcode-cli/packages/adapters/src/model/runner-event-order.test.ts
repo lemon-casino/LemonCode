@@ -8,6 +8,8 @@ import {
 } from "@lcode/contracts";
 import { runGenerateText } from "./runner-generate.js";
 import { runStreamText } from "./runner-stream.js";
+import type { Logger } from "@lcode/contracts";
+import { closeStreamIteratorBestEffort } from "./runner-stream-cleanup.js";
 import type {
   AiSdkModelRuntime,
   AiSdkModelTextRequest,
@@ -33,6 +35,89 @@ const resolved = {
 const retry = { backoffFactor: 1, baseDelayMs: 0, jitter: false, maxAttempts: 2, maxDelayMs: 0 };
 const env = { LCODE_RUNTIME_ENV: "test" };
 const usage = { inputTokens: 4, outputTokens: 2, totalTokens: 6 };
+
+test("HTTP/2 iterator.return failure is reported only as cleanup and cannot replace cancellation", async () => {
+  const events: string[] = [];
+  const logger: Logger = {
+    child: () => logger,
+    debug() {},
+    info() {},
+    error() {},
+    warn: (_message, context) => {
+      events.push(String(context?.event));
+    },
+  };
+  await closeStreamIteratorBestEffort(
+    {
+      next: async () => ({ done: true, value: undefined }),
+      return: async () => {
+        throw Object.assign(new Error("fixture HTTP/2 close"), {
+          code: "ERR_HTTP2_INVALID_STREAM",
+        });
+      },
+    },
+    { attempt: 1, logger },
+  );
+  assert.deepEqual(events, ["model.stream_attempt_cleanup.failed"]);
+});
+
+test("caller cancellation and HTTP/2 iterator cleanup failure do not trigger provider retries", async () => {
+  const controller = new AbortController();
+  const statuses: ModelNetworkStatusEvent[] = [];
+  const warnings: string[] = [];
+  let calls = 0;
+  const logger: Logger = {
+    child: () => logger,
+    debug() {},
+    info() {},
+    error() {},
+    warn: (_message, context) => {
+      warnings.push(String(context?.event));
+    },
+  };
+  const runtime = streamRuntime(async function* () {
+    calls += 1;
+    try {
+      yield { type: "text-delta", id: "text", text: "partial" };
+      await new Promise<void>((_resolve, reject) => {
+        if (controller.signal.aborted) return reject(controller.signal.reason);
+        controller.signal.addEventListener("abort", () => reject(controller.signal.reason), {
+          once: true,
+        });
+      });
+    } catch {
+      throw Object.assign(new Error("fixture HTTP/2 cleanup"), {
+        code: "ERR_HTTP2_INVALID_STREAM",
+      });
+    }
+  });
+  const iterator = runStreamText({
+    ...common(runtime, {
+      messages: [],
+      abortSignal: controller.signal,
+      statusSink: {
+        publish: (event) => {
+          statuses.push(event);
+        },
+      },
+    }),
+    logger,
+  });
+  await iterator.next();
+  const pending = iterator.next();
+  controller.abort(new Error("fixture runtime shutdown"));
+  await assert.rejects(pending);
+  assert.equal(calls, 1);
+  const failures = statuses.filter((event) => event.type === "model_request_failed");
+  assert.equal(failures.length, 1);
+  assert.equal(failures[0]?.reason, "cancelled");
+  assert.equal(failures[0]?.retryable, false);
+  assert.equal(
+    statuses.some((event) => event.type === "model_retry_scheduled"),
+    false,
+  );
+  assert.ok(warnings.every((event) => !event.includes("retry_scheduled")));
+});
 
 function common(runtime: AiSdkModelRuntime, request: AiSdkModelTextRequest) {
   return {
