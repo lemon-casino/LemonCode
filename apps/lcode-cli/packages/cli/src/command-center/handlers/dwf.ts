@@ -144,6 +144,9 @@ function formatFailure(run: DynamicWorkflowRunSessionSummary): string {
 
 function describeResumeRejection(reason: DynamicWorkflowRunResumeErrorReason): string {
   switch (reason) {
+    // 原 owner 不可用必须给出重试入口，不能随词表扩展落成 undefined 文案。
+    case "owner_unavailable":
+      return "the original conversation's execution owner is unavailable; open that conversation and retry when its owner is available";
     case "not_found":
       return "no such run in this session's journal";
     case "not_resumable":

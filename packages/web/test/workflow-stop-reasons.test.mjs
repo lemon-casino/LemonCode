@@ -38,6 +38,14 @@ test(
               await page.getByTestId("fixture-stop-interrupted-reason").innerText(),
               /by you|by the agent|你停止的|代理停止的/,
             );
+            const owner = page.getByTestId("fixture-owner-recovery");
+            await owner.getByTestId("workflow-run-resume").click();
+            const refusal = await owner.getByTestId("workflow-run-rejection").innerText();
+            assert.match(
+              refusal,
+              locale === "zh-CN" ? /原会话.*重试/ : /original conversation.*retry/i,
+            );
+            assert.doesNotMatch(refusal, /owner_unavailable|fault\.command/);
           }
         }
         assert.deepEqual(errors, []);

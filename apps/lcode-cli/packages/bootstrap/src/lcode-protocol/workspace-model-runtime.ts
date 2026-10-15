@@ -88,6 +88,9 @@ export async function createWorkspaceLCodeApp(
     createProviderRuntimeHeadersPort(context, originWorkspaceRef(workspace));
   return context.deps.createLCodeApp({
     ...options,
+    withWorkflowRunOwner: options.sessionId
+      ? context.createWorkflowRunOwnerRouter?.(options.sessionId, workspace)
+      : undefined,
     // 旧会话没有环境引用时不发新 RPC；显式托管引用的查询失败必须阻止执行。
     resolveProjectEnvironmentOverlay:
       options.resolveProjectEnvironmentOverlay ??

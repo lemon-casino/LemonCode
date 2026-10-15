@@ -21,6 +21,8 @@ import type {
 import type { SubmitPromptOptions } from "./app-options.js";
 
 export interface LCodeAppWorkflow {
+  /** 仅宿主路由使用的原 owner 窄端口；不注册为客户端 RPC。 */
+  getDynamicWorkflowRunPort?(): import("@lcode/contracts").DynamicWorkflowRunPort | undefined;
   /**
    * workflow run 的事件日志分页（详情页审计面）。可选能力：dwf journal 不可用时 run service
    * 整个不构造，此方法随之缺席，网关据此回结构化的能力不支持错误而不是空页——

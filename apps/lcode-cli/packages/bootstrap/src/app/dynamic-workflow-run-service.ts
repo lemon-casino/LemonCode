@@ -104,6 +104,7 @@ import {
   type DynamicWorkflowRunSettledNotice,
 } from "./dynamic-workflow-run-lifecycle.js";
 import { resolveWorkflowConcurrencyCeiling } from "./workflow-concurrency-ceiling.js";
+import { routeWorkflowRunOwners } from "./workflow-run-owner-router.js";
 import {
   createWorkflowEscalationRegistry,
   type WorkflowEscalationRegistry,
@@ -234,6 +235,10 @@ export function createDynamicWorkflowRunService(
   // 两条入口（submit / resume）的实现体在 dynamic-workflow-run-submit.ts：它们只借用这里的
   // 注册表、停驻表、caps 与结算簿记，经 ctx 显式递过去，本文件不再复制那两段。
   const entryContext: DynamicWorkflowRunEntryContext = {
+    assertLaunchAllowed: () => {
+      assertOpen();
+      deps.executionOwner?.assertOwned();
+    },
     deps,
     runs,
     escalations,
@@ -241,7 +246,7 @@ export function createDynamicWorkflowRunService(
     trackSettlement,
   };
 
-  return {
+  const service: DynamicWorkflowRunService = {
     readResidencySnapshot,
     countLiveRuns,
     subscribeRunSettled,
@@ -567,4 +572,5 @@ export function createDynamicWorkflowRunService(
           concurrencyCeiling,
         })),
   };
+  return routeWorkflowRunOwners(service, deps, assertOpen);
 }

@@ -145,6 +145,10 @@ export interface LCodeProtocolClientRequestOptions {
 }
 
 export interface LCodeProtocolAgentServerContext {
+  createWorkflowRunOwnerRouter?: (
+    sourceSessionId: string,
+    workspace: LCodeWorkspaceRef,
+  ) => NonNullable<LCodeAppOptions["withWorkflowRunOwner"]>;
   /** 进程退出期间，迟到的异步物化不能重新登记 session。 */
   assertServing?: () => void;
   deps: LCodeProtocolAgentResolvedDependencies;

@@ -24,12 +24,7 @@ import {
   type ResumeWorkflowRunInput,
   type ResumeWorkflowRunOutput,
 } from "@lcode/contracts";
-import type {
-  ToolEntry,
-  ToolExecutionContext,
-  ToolHandler,
-  ToolHandlerFailure,
-} from "../types.js";
+import type { ToolEntry, ToolExecutionContext, ToolHandler, ToolHandlerFailure } from "../types.js";
 import { workflowRunNotFoundFailure } from "./workflow-run-introspection.js";
 
 const RESUME_WORKFLOW_RUN_TIMEOUT_MS = 15_000;
@@ -55,6 +50,7 @@ const RESUME_WORKFLOW_RUN_ERROR_CODE = {
   SCRIPT_MISMATCH: 15,
   SUPERSEDED: 16,
   COMPILE_FAILED: 17,
+  OWNER_UNAVAILABLE: 18,
 } as const;
 
 const RESUME_WORKFLOW_RUN_DESCRIPTION = [
@@ -83,6 +79,13 @@ function workflowResumeUnavailableFailure(): ToolHandlerFailure {
 /** 端口的 reason → 各配可操作文案的结构化失败（判别键在 message 前缀）。 */
 function resumeFailureFor(reason: string, runId: string, detail?: string): ToolHandlerFailure {
   switch (reason) {
+    case "owner_unavailable":
+      return {
+        result: false,
+        errorCode: RESUME_WORKFLOW_RUN_ERROR_CODE.OWNER_UNAVAILABLE,
+        message:
+          "workflow_run_owner_unavailable: the original conversation's execution owner is unavailable. Open that conversation and retry after its owner is available. No run was accepted.",
+      };
     // 已保存脚本可能不再适配当前 facade；编译失败时需先修订脚本，不能直接重放。
     case "compile_failed":
       return {
@@ -197,7 +200,8 @@ export const resumeWorkflowRunToolEntry: ToolEntry = {
   formatModelContent: formatResumeWorkflowRunModelContent,
   permission: {
     permission: "resumeWorkflowRun",
-    reason: "resumeWorkflowRun.runConfirmation: resuming continues executing a stopped workflow run",
+    reason:
+      "resumeWorkflowRun.runConfirmation: resuming continues executing a stopped workflow run",
     riskLevel: "low",
     sideEffectScope: "none",
     // resume 被

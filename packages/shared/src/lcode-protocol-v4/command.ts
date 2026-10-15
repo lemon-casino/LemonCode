@@ -289,7 +289,7 @@ export const SAVED_WORKFLOW_START_REJECTED_FAULT_PREFIX =
   "fault.command.savedWorkflowStartRejected." as const;
 
 // resumeWorkflowRun 的拒绝：前缀 + 端口 reason（not_found / not_resumable / superseded /
-// already_running / script_missing / script_mismatch / compile_failed）；`ack.message` 携带
+// already_running / script_missing / script_mismatch / compile_failed / owner_unavailable）；`ack.message` 携带
 // compile_failed 的有界诊断。
 export const WORKFLOW_RUN_RESUME_REJECTED_FAULT_PREFIX =
   "fault.command.workflowRunResumeRejected." as const;

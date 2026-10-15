@@ -1,4 +1,5 @@
 import { boundedResumeDiagnostics } from "./dynamic-workflow-resume-diagnostics.js";
+import { WorkflowRunOwnerUnavailableError } from "./workflow-run-owner-router.js";
 // ============================================================
 // Dynamic Workflow Run Service：三条启动入口（submit / amend / resume）与「编译一次」
 // ============================================================
@@ -55,6 +56,7 @@ import { compileOnce, compileProgram } from "./dynamic-workflow-run-compile.js";
  * 路径上按当下并发探测算出的上界（resume 沿用 journal 记录里的 caps，不经它）。
  */
 export interface DynamicWorkflowRunEntryContext {
+  assertLaunchAllowed?: () => void;
   deps: DynamicWorkflowRunServiceDeps;
   runs: Map<string, RunRegistryEntry>;
   escalations: WorkflowEscalationRegistry;
@@ -253,6 +255,13 @@ interface StartNewRunInput {
  */
 export function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNewRunInput): string {
   const { deps, runs, escalations } = ctx;
+  // amend 的停止/导入同样会 await，不能绕过 service 的关闭闸门继续 launch。
+  ctx.assertLaunchAllowed?.();
+  // parent 是 service 的执行边界；省略元数据不能导致 accepted 后才被 SQLite fence 拒绝。
+  const parentSessionId =
+    input.parentSessionId ?? (deps.executionOwner ? deps.parentSessionId : undefined);
+  if (deps.executionOwner && parentSessionId !== deps.parentSessionId)
+    throw new WorkflowRunOwnerUnavailableError();
   const { imported, runId } = input;
   const compiled = input.compiled ?? compileOnce(input.scriptText);
   // 钳过的上界只算**一次**：它既要随 EngineConfig 落 dwf_run.caps_max_concurrency，也要作为
@@ -316,7 +325,7 @@ export function startNewRun(ctx: DynamicWorkflowRunEntryContext, input: StartNew
     controller,
     startedAt: new Date(),
     ...(input.toolCallId === undefined ? {} : { toolCallId: input.toolCallId }),
-    ...(input.parentSessionId === undefined ? {} : { parentSessionId: input.parentSessionId }),
+    ...(parentSessionId === undefined ? {} : { parentSessionId }),
     // 枚举面在 journal 行出现之前唯一能读到的项目键与标签来源（见 RunRegistryEntry）。
     cwd: input.cwd,
     ...(input.name === undefined ? {} : { name: input.name }),
@@ -460,6 +469,11 @@ export async function resumeDynamicWorkflowRun(
           runId,
         });
 
+  // 缓存重建越过 await 后，另一个 Resume 或 App.close 可能已先取得本地准入。
+  // 必须在登记/launch 同一同步片重新核对，不能让旧预检启动第二个同 ID 引擎。
+  ctx.assertLaunchAllowed?.();
+  const current = runs.get(runId);
+  if (current && current.terminal === undefined) return { ok: false, reason: "already_running" };
   // 替换注册表条目：同 runId、新 AbortController、新结算 promise——cancel 从此恢复可用。
   // 必须先于 launch（文件头不变式 5：条目是 watcher 的前提）。
   const resumedSubagentModel = readRunSubagentModel(deps.journal, runId);

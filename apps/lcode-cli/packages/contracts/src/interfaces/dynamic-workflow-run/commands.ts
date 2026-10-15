@@ -1,6 +1,7 @@
 import type { ModelSelection } from "../../model/model.js";
 import type { SessionId, ToolCallId } from "../shared.js";
 import type { TraceContext } from "../../tracing/tracer.js";
+import type { WorkflowRunResumeRejectionReason } from "@lcode/shared";
 
 /**
  * 一次 workflow run 的提交请求。脚本文本是权威输入（编译、site 表、schema 合成、lowering
@@ -235,25 +236,12 @@ export interface DynamicWorkflowRunWaitOptions {
   signal?: AbortSignal;
 }
 
-/** {@link DynamicWorkflowRunPort.resume} 的结构化失败原因。 */
-export type DynamicWorkflowRunResumeErrorReason =
-  /** journal 里没有这个 run。 */
-  | "not_found"
-  /** run 不在可恢复集里（completed 或 errored；只有 stopped 可恢复）。 */
-  | "not_resumable"
-  /** run 被一次 AmendWorkflow 停下并替代：活的是后继，重放它等于把同一件事做两遍。 */
-  | "superseded"
-  /** 同 runId 的 run 正在本进程内飞行。 */
-  | "already_running"
-  /** 记录缺 scriptText（落库该字段之前的老 run），没有可重跑的脚本。 */
-  | "script_missing"
-  /** 记录的 scriptHash 与按 scriptText 重算的不一致（记录自身被外力改写过）。 */
-  | "script_mismatch"
-  /**
-   * 记录的 scriptText 在**当前** facade 下不再通过类型检查（facade 重构后的老 run）。逐字重放
-   * 只会失败；出路是按当前 facade 改写脚本后走 AmendWorkflow。`message` 携带有界诊断。
-   */
-  | "compile_failed";
+/**
+ * {@link DynamicWorkflowRunPort.resume} 的结构化拒绝，共享协议 schema 是词表权威。
+ * compile_failed 的有界诊断建议 Amend；owner_unavailable 要先恢复原会话 owner。
+ * superseded 指向后继；script_missing/mismatch 仍拒绝改写过的脚本。
+ */
+export type DynamicWorkflowRunResumeErrorReason = WorkflowRunResumeRejectionReason;
 
 /**
  * resume 的结构化结果。失败走 reason 而不是 throw：五种原因全是调用方可预期的业务分支

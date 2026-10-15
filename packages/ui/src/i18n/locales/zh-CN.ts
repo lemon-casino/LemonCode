@@ -5746,6 +5746,8 @@ const zhCN: Record<string, string> = {
     "保存的脚本在当前版本的工作流 facade 下已无法编译。请让 agent 调整这个工作流，而不是恢复运行。",
   "chat.toolCall.workflow.run.rejection.resume.not_found": "本会话的日志里没有这个运行。",
   "chat.toolCall.workflow.run.rejection.resume.not_resumable": "只有已停止的运行可以恢复。",
+  "chat.toolCall.workflow.run.rejection.resume.owner_unavailable":
+    "原会话的执行环境暂不可用，请打开原会话，待其可用后重试。",
   "chat.toolCall.workflow.run.rejection.resume.superseded":
     "这个运行已被调整后的运行替代，请打开后继。",
   "chat.toolCall.workflow.run.rejection.resume.already_running": "这个运行已经在执行中。",

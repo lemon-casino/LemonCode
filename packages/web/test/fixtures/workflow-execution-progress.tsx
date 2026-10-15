@@ -6,6 +6,12 @@ import { LCodeIntlProvider, useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { WorkflowRunDigest } from "@/components/workflow-timeline/WorkflowRunDigest.js";
 import { WorkflowRunStatus } from "@/components/workflow-timeline/WorkflowCardChrome.js";
+import { WorkflowRunStatusHeader } from "@/app-shell/WorkflowRunSidePaneSections.js";
+import {
+  describeWorkflowRunActionRejection,
+  workflowRunActionRejectionMessageId,
+  type WorkflowRunActionRejection,
+} from "@/app-shell/workflowRunActionRejection.js";
 import { WorkflowRunPhaseList } from "@/app-shell/WorkflowRunPhaseList.js";
 import { WorkflowPermissionBlock } from "@/WorkflowPermissionBlock.js";
 import { buildWorkflowTimeline } from "@/components/workflow-timeline/timeline-model.js";
@@ -41,6 +47,8 @@ function App() {
   const [panelVariant, setPanelVariant] = useState<"panel" | "mini" | null>("panel");
   const [dark, setDark] = useState(false);
   const [advice, setAdvice] = useState<"valid" | "stale" | "none">("valid");
+  const { intl } = useLCodeIntl();
+  const [ownerRejection, setOwnerRejection] = useState<WorkflowRunActionRejection>();
   useEffect(() => {
     void initialise();
     return () => lease.release();
@@ -206,6 +214,35 @@ function App() {
             run={{ status: "stopped", stopReason, resumable: stopReason !== "superseded" }}
           />
         ))}
+      </section>
+      <section data-testid="fixture-owner-recovery">
+        <WorkflowRunStatusHeader
+          title="Original owner recovery"
+          cancellable={false}
+          resumable={true}
+          run={undefined}
+          summaryParts={undefined}
+          usage={undefined}
+          onCancel={() => {}}
+          onResume={() =>
+            setOwnerRejection(
+              describeWorkflowRunActionRejection("resume", {
+                status: "failed",
+                reasonCode: "fault.command.workflowRunResumeRejected.owner_unavailable",
+              }),
+            )
+          }
+          {...(ownerRejection
+            ? {
+                rejection: {
+                  text: intl.formatMessage(
+                    { id: workflowRunActionRejectionMessageId(ownerRejection) },
+                    { code: ownerRejection.code },
+                  ),
+                },
+              }
+            : {})}
+        />
       </section>
       <div className="grid min-w-0 gap-4 lg:grid-cols-2">
         <div className="min-w-0" data-testid="fixture-card">

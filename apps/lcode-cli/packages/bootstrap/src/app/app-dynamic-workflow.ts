@@ -65,6 +65,7 @@ export function createAppDynamicWorkflowPort(
       ? undefined
       : createDynamicWorkflowRunService({
           executionOwner: input.workflowExecutionOwner,
+          withWorkflowRunOwner: options.withWorkflowRunOwner,
           concurrency: workflowConcurrencyGovernor,
           createActorRuntime: ({
             persona,

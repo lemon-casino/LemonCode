@@ -5996,6 +5996,8 @@ const enUS: Record<string, string> = {
   "chat.toolCall.workflow.run.rejection.resume.not_found":
     "This run is not in this session's journal.",
   "chat.toolCall.workflow.run.rejection.resume.not_resumable": "Only a stopped run can be resumed.",
+  "chat.toolCall.workflow.run.rejection.resume.owner_unavailable":
+    "The original conversation is unavailable. Open it and retry when its execution owner is available.",
   "chat.toolCall.workflow.run.rejection.resume.superseded":
     "An amended run has replaced this one; open the successor instead.",
   "chat.toolCall.workflow.run.rejection.resume.already_running": "This run is already in flight.",

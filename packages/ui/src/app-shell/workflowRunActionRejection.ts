@@ -8,6 +8,7 @@
 import {
   BACKGROUND_WORK_CANCEL_REJECTED_FAULT_PREFIX,
   WORKFLOW_RUN_RESUME_REJECTED_FAULT_PREFIX,
+  workflowRunResumeRejectionReasonSchema,
   type CommandAck,
 } from "@lcode/shared/lcode-protocol-v4";
 
@@ -23,15 +24,7 @@ const CANCEL_REASONS: ReadonlySet<string> = new Set([
   "cancel_not_supported",
 ]);
 /** 端口 DynamicWorkflowRunResumeErrorReason 的闭集。 */
-const RESUME_REASONS: ReadonlySet<string> = new Set([
-  "not_found",
-  "not_resumable",
-  "superseded",
-  "already_running",
-  "script_missing",
-  "script_mismatch",
-  "compile_failed",
-]);
+const RESUME_REASONS: ReadonlySet<string> = new Set(workflowRunResumeRejectionReasonSchema.options);
 
 export interface WorkflowRunActionRejection {
   action: WorkflowRunAction;

@@ -196,6 +196,7 @@ export function createAppFacade(input: AppFacadeDeps): LCodeApp {
     traceId: traceContext.traceId,
     runtime,
     ...createAppWorkspaceHookFacade(workspaceHookRuntimeSecurity),
+    getDynamicWorkflowRunPort: () => dynamicWorkflowRunPort,
     readResidencySnapshot: () => readAppResidencySnapshot(getRuntime(), dynamicWorkflowRunPort),
     setModelIoFullRetentionEnabled: (enabled) =>
       modelAdapter.setModelIoFullRetentionEnabled(enabled),

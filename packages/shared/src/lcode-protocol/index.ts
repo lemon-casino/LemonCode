@@ -21,6 +21,10 @@ import { bashOutputDisplaySchema } from "../bash-output-display.js";
 export * from "../background-bash-output.js";
 import { executionOutputPreviewSchema } from "../execution-output-preview.js";
 import { z } from "zod";
+export {
+  workflowRunResumeRejectionReasonSchema,
+  type WorkflowRunResumeRejectionReason,
+} from "../workflow-run-resume.js";
 import { executionIntentSchema } from "../worktreeExecution.js";
 import {
   runtimeEnvironmentProtocolCapabilitySchema,

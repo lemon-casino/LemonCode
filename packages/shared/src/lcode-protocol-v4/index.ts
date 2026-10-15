@@ -4,6 +4,7 @@
 // （coalesce/conflation/apply），运行时（通道层缓冲、订阅注册表、调度）一律不进本包。
 // 与旧 packages/shared/src/lcode-protocol 并存。
 export * from "./core.js";
+export * from "../workflow-run-resume.js";
 export * from "../background-bash-output.js";
 export * from "./rows.js";
 export * from "./toolDisplay.js";

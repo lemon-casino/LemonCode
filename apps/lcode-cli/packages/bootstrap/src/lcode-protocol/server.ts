@@ -22,6 +22,8 @@ import type {
 
 import { ProtocolRuntimeResources } from "./runtime-resources.js";
 import { isResourceCleanupRequest } from "./shutdown-admission.js";
+import { createProtocolWorkflowRunOwnerRouter } from "./workflow-run-owner-router.js";
+import { activateSessionForResume } from "./server-operations.js";
 
 import {
   V4InteractionRegistry,
@@ -154,6 +156,15 @@ export class LCodeProtocolAgentServer {
         resolveV4InteractionRegistryOptionsFromEnv(deps.env ?? process.env),
       ),
     };
+    this.context.createWorkflowRunOwnerRouter = (sourceSessionId, workspace) =>
+      createProtocolWorkflowRunOwnerRouter(
+        this.context,
+        sourceSessionId,
+        workspace,
+        async (sessionId, ownerWorkspace) =>
+          (await activateSessionForResume(this.context, { sessionId, workspace: ownerWorkspace }))
+            .record,
+      );
     // v4 通道：gateway 闭包持有 context 做帧出口与命令副作用，构造完立即挂回。
     this.context.v4Gateway = createConversationV4Gateway(this.context);
     const sessionResidentTargetCount =
