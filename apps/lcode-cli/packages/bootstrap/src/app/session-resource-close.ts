@@ -3,6 +3,8 @@ import { isClosableSessionStore } from "./session-store.js";
 import type { CreateSessionFacadeDeps } from "./session-facade-types.js";
 
 const DEFAULT_SESSION_RESOURCE_CLOSE_TIMEOUT_MS = 6_000;
+const MEMORY_EXTRACTION_DRAIN_MS = 60_000;
+const SESSION_STORE_RESOURCE = "session_store";
 type SessionCloseDeps = Pick<
   CreateSessionFacadeDeps,
   | "runtime"
@@ -19,24 +21,30 @@ type SessionCloseDeps = Pick<
   | "sessionResourceCloseTimeoutMs"
 >;
 type ResourceOutcome = { type: "completed" | "pending" } | { type: "failed"; error: unknown };
+interface ResourceCloseState {
+  work: Promise<void>;
+  failure?: { error: unknown };
+}
 
 /** 每个 facade 的唯一关闭 owner：保存原在途句柄和成功进度，失败后仅重试未完成项。 */
 export function createSessionResourceCloser(deps: SessionCloseDeps) {
-  const resources = new Map<string, Promise<void>>();
+  const resources = new Map<string, ResourceCloseState>();
   let closing: Promise<void> | undefined;
   let started = false;
   let firstContext: ProtocolShutdownContext | undefined;
   const run = (name: string, close: () => void | Promise<void>): Promise<void> => {
     const existing = resources.get(name);
-    if (existing) return existing;
+    if (existing && !existing.failure) return existing.work;
+    let state: ResourceCloseState;
     const work = Promise.resolve()
       .then(close)
       .catch((error: unknown) => {
         // 旧 facade 缓存 rejected close，外层即使保留 App 也无法再次到达资源 owner。
-        if (resources.get(name) === work) resources.delete(name);
+        state.failure = { error };
         throw error;
       });
-    resources.set(name, work);
+    state = { work };
+    resources.set(name, state);
     return work;
   };
   return (context?: ProtocolShutdownContext): Promise<void> => {
@@ -44,7 +52,7 @@ export function createSessionResourceCloser(deps: SessionCloseDeps) {
       started = true;
       firstContext = context;
     }
-    closing ??= closeResources(deps, firstContext, run).catch((error: unknown) => {
+    closing ??= closeResources(deps, firstContext, run, resources).catch((error: unknown) => {
       closing = undefined;
       throw error;
     });
@@ -64,6 +72,7 @@ async function closeResources(
   deps: SessionCloseDeps,
   context: ProtocolShutdownContext | undefined,
   run: (name: string, close: () => void | Promise<void>) => Promise<void>,
+  resources: ReadonlyMap<string, ResourceCloseState>,
 ): Promise<void> {
   deps.runtime.beginShutdown();
   const critical: Promise<void>[] = [];
@@ -73,7 +82,7 @@ async function closeResources(
     critical.push(work);
   };
   if (deps.closeModelAdapter) retain("model", deps.closeModelAdapter);
-  retain("memory", () => deps.runtime.drainMemoryExtractions(60_000));
+  retain("memory", () => deps.runtime.drainMemoryExtractions(MEMORY_EXTRACTION_DRAIN_MS));
   if (deps.closeDynamicWorkflowRuns)
     retain("workflow", () => deps.closeDynamicWorkflowRuns!(context));
   // 提前观察拒绝，但不吞错误；Core 的另一条 drain 也可能先消费同一个 retained work。
@@ -103,13 +112,16 @@ async function closeResources(
   for (const outcome of [...(await criticalResults), ...drained])
     if (outcome.status === "rejected") failures.add(outcome.reason);
   for (const outcome of outcomes) if (outcome.type === "failed") failures.add(outcome.error);
+  // 超时仅停止本轮等待；若原 close 在 critical drain 期间迟到拒绝，仍不能误报成功关库。
+  for (const [name, state] of resources)
+    if (name !== SESSION_STORE_RESOURCE && state.failure) failures.add(state.failure.error);
   // owner 退休/资源拒绝曾被 warn 后吞掉，导致 App 被摘除而 lease 仍 active。
   // 先让独立资源与 stable drain 都结束，再保留全部失败，失败时不关闭 store。
   if (failures.size === 1) throw [...failures][0];
   if (failures.size > 1) throw new AggregateError([...failures], "Session resource close failed");
   if (deps.ownsSessionStore && isClosableSessionStore(deps.sessionStore)) {
     const store = deps.sessionStore;
-    await run("session_store", () => store.close());
+    await run(SESSION_STORE_RESOURCE, () => store.close());
   }
 }
 

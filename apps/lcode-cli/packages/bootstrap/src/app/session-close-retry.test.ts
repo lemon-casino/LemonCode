@@ -248,3 +248,51 @@ test("concurrent close shares in-flight work and store close failure remains ret
   assert.equal(workflows, 1);
   assert.equal(stores, 2);
 });
+
+test("late resource rejection during critical drain remains a failure and can retry", async () => {
+  let finishWorkflow!: () => void;
+  let rejectExecution!: (reason: unknown) => void;
+  let observeTimeout!: () => void;
+  let executions = 0;
+  let stores = 0;
+  const timeoutObserved = new Promise<void>((resolve) => {
+    observeTimeout = resolve;
+  });
+  const workflow = new Promise<void>((resolve) => {
+    finishWorkflow = resolve;
+  });
+  const execution = new Promise<void>((_resolve, reject) => {
+    rejectExecution = reject;
+  });
+  const session = facade(runtimeFixture(), {
+    closeDynamicWorkflowRuns: () => workflow,
+    ownsExecutionPort: true,
+    executionPort: {
+      close: async () => {
+        if (++executions === 1) await execution;
+      },
+    } as never,
+    ownsSessionStore: true,
+    sessionStore: {
+      close: () => {
+        stores++;
+      },
+    } as never,
+    sessionResourceCloseTimeoutMs: 1,
+    logger: {
+      ...logger,
+      warn: (_message, context) => {
+        if (context?.event === "session.resource_close.timed_out") observeTimeout();
+      },
+    },
+  });
+  const refused = assert.rejects(session.close!(), /fixture late close/);
+  await timeoutObserved;
+  rejectExecution(new Error("fixture late close"));
+  finishWorkflow();
+  await refused;
+  assert.equal(stores, 0);
+  await session.close!();
+  assert.equal(executions, 2);
+  assert.equal(stores, 1);
+});
