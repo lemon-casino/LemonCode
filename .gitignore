@@ -343,3 +343,7 @@ nul
 
 # 模型菜单计费列和右侧留白的浏览器几何回归。
 !/packages/web/test/model-menu-compact-cases.mjs
+
+# 文件夹附件拖拽、Host 暂存与取消的永久回归。
+!/packages/web/test/remote-directory-attachments.test.mjs
+!/packages/web/test/fixtures/remote-directory-attachment-bridge.ts

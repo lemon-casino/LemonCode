@@ -222,6 +222,16 @@ async function resolveLocalFileAttachment(
       { path: absolutePath, trace: options.traceContext },
       { signal: options.abortSignal },
     );
+    if (stat.kind === "directory") {
+      // 远端文件夹已由 Host 按原层级上传；目录应交付可浏览的路径，
+      // 不能继续标记 attachment_not_file，否则模型只得到失败占位符。
+      return resolvedPathReferenceAttachment(attachment, attachment.path!, {
+        filename,
+        mime: "inode/directory",
+        source,
+        reason: "directory",
+      });
+    }
     if (stat.kind !== "file") {
       return resolvedPlaceholderAttachment(attachment, attachment.path!, "attachment_not_file", {
         filename,

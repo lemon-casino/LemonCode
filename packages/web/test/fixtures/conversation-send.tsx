@@ -29,13 +29,16 @@ import {
   type V4ConversationContextValue,
 } from "@/v4/V4ConversationContext.js";
 import { LiveOutputRateRegistry } from "@/v4/composer/liveOutputRateRegistry.js";
+import type { ConversationDropTargetController } from "@/v4/composer/conversationDropTarget.js";
 import { platform } from "./git-backup-platform.js";
 import { WorktreeManagementActions } from "@/worktree/WorktreeManagementActions.js";
 import { createReviewWorkspaceFixture } from "./review-workspace-service.js";
+import { installRemoteDirectoryAttachmentBridge } from "./remote-directory-attachment-bridge.js";
 import "@lcode/ui/styles.css";
 
 const query = new URLSearchParams(location.search);
 const remoteProviders = query.has("remoteProviders");
+const remoteAttachments = query.has("remoteAttachments");
 const existing = query.has("existing");
 const worktree = query.has("worktree");
 const initialSessionId = existing ? (query.get("session") ?? "existing-session") : null;
@@ -103,6 +106,9 @@ const services = {
   },
   gitService: createReviewWorkspaceFixture(),
 } as unknown as IServiceAccessor;
+const composerPlatform = remoteAttachments
+  ? installRemoteDirectoryAttachmentBridge(services, platform)
+  : platform;
 const context = {
   layer: { liveOutputRates: new LiveOutputRateRegistry() },
 } as unknown as V4ConversationContextValue;
@@ -176,6 +182,7 @@ function snapshot(sessionId: string): ConversationSnapshot {
 }
 
 function App() {
+  const [dropTarget, setDropTarget] = useState<ConversationDropTargetController | null>(null);
   Object.assign(fixture, {
     newTask: () =>
       useLCodeSessionStore
@@ -273,6 +280,9 @@ function App() {
     <ConversationComposer
       centered={!sessionId && !preparing}
       workspacePath={workspacePath}
+      workspaceIdentity={remoteAttachments ? "remote-fixture-folder" : undefined}
+      remoteSessionId={remoteAttachments ? "remote-folder-session" : undefined}
+      onDropTargetControllerChange={remoteAttachments ? setDropTarget : undefined}
       executionWorkspacePath={worktree ? "/fixture/worktrees/task" : workspacePath}
       executionSourceFolderPaths={worktree ? ["/fixture/worktrees/task"] : [workspacePath]}
       sessionId={sessionId}
@@ -381,7 +391,12 @@ function App() {
     />
   );
   return (
-    <main className="@container/conversation flex h-dvh max-w-full flex-col bg-background text-foreground">
+    <main
+      className="@container/conversation flex h-dvh max-w-full flex-col bg-background text-foreground"
+      onDragOver={dropTarget?.onDragOver}
+      onDragLeave={dropTarget?.onDragLeave}
+      onDrop={dropTarget?.onDrop}
+    >
       {query.has("handoff") && !query.has("preparationFailure") ? (
         <GitFailureAction
           workspacePath={workspacePath}
@@ -550,7 +565,7 @@ function TimelineDepthFixture() {
 
 createRoot(document.getElementById("root")!).render(
   <ServiceProvider services={services}>
-    <PlatformProvider platform={platform}>
+    <PlatformProvider platform={composerPlatform}>
       <TabStoreProvider>
         <LCodeIntlProvider initialLocale={query.has("english") ? "en-US" : "zh-CN"}>
           <TooltipProvider>

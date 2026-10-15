@@ -29,6 +29,8 @@ export interface PromptAttachmentStageResult {
   ref: string;
   bytes: number;
   staged: boolean;
+  /** Host 识别目录等真实节点类型后覆盖仅由文件名推断的 MIME。 */
+  mime?: string;
 }
 
 /**

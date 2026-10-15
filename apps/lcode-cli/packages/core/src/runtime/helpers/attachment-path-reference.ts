@@ -5,6 +5,7 @@ import { safeAttachmentOriginalRef } from "./attachment-artifacts.js";
 import { inferVideoMimeFromPath } from "./attachment-video.js";
 
 type PathReferenceReason =
+  | "directory"
   | "binary_file"
   | "deferred_clipboard_text"
   | "image_too_large"
@@ -50,11 +51,17 @@ export function resolvedPathReferenceAttachment(
 ): ResolvedTurnAttachment {
   const mime =
     options.mime ?? (attachment.type === "image" ? "image/*" : "application/octet-stream");
-  const content = [
-    `Attached ${mime}: ${placeholder}`,
-    `The file was sent by local path because ${formatPathReferenceReason(options.reason)}.`,
-    "Use the available file reading tools if you need to inspect the file contents.",
-  ].join("\n");
+  const content =
+    options.reason === "directory"
+      ? [
+          `Attached directory: ${placeholder}`,
+          "Use the available directory listing and file reading tools to inspect its contents.",
+        ].join("\n")
+      : [
+          `Attached ${mime}: ${placeholder}`,
+          `The file was sent by local path because ${formatPathReferenceReason(options.reason)}.`,
+          "Use the available file reading tools if you need to inspect the file contents.",
+        ].join("\n");
   return {
     contentBlock: { type: "text", text: content },
     filename: options.filename,

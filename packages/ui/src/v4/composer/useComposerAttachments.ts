@@ -293,6 +293,8 @@ export function useComposerAttachments(
         uploadError: undefined,
         uploadErrorKind: undefined,
         attachmentRef: ref,
+        mimeType: ref.mime,
+        sizeBytes: ref.bytes,
         staged,
         showComplete: !item.localZeroCopy,
       }));
@@ -377,7 +379,7 @@ export function useComposerAttachments(
             {
               ref: result.ref,
               fileName: item.filename,
-              mime: item.mimeType,
+              mime: result.mime ?? item.mimeType,
               bytes: result.bytes,
             },
             result.staged,

@@ -55,10 +55,10 @@ export function createRemotePromptAttachmentTransferService(
     const record = records.get(operationId);
     if (!record) return;
     record.controller.abort();
+    records.delete(operationId);
     if (record.ref && (includeAdopted || !record.adopted)) {
       await cleanupRemotePromptAttachment(backend, record.ref);
     }
-    records.delete(operationId);
   };
 
   return {
@@ -104,7 +104,8 @@ export function createRemotePromptAttachmentTransferService(
             uploadOptions: {
               signal: controller.signal,
               onProgress(progress) {
-                const totalBytes = Math.max(progress.totalBytes, record.bytes);
+                // 目录的浏览器 File.size 可能是目录元数据大小；以 Host 扫描总量为准。
+                const totalBytes = Math.max(0, progress.totalBytes);
                 record.bytes = totalBytes;
                 lastUploadedBytes = Math.max(lastUploadedBytes, progress.uploadedBytes);
                 const percent =
@@ -127,6 +128,8 @@ export function createRemotePromptAttachmentTransferService(
         const ref = next?.localPath?.trim();
         if (!ref) throw new Error("Remote attachment staging returned no path");
         if (records.get(params.operationId) !== record || controller.signal.aborted) {
+          // 取消可能发生在最后一次 chmod 与 stage 交付之间；迟到结果也需回收整份目录。
+          await cleanupRemotePromptAttachment(backend, ref);
           throw Object.assign(new Error("Remote upload canceled"), { name: "AbortError" });
         }
         record.ref = ref;
@@ -147,6 +150,7 @@ export function createRemotePromptAttachmentTransferService(
           ref,
           bytes: record.bytes,
           staged: true,
+          mime: next?.mimeType,
         };
       } catch (error) {
         if (isAbortError(error) || controller.signal.aborted) {

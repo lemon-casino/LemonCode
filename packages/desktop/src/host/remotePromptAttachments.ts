@@ -2,6 +2,8 @@ import type { IRemoteBackend, RemoteUploadOptions } from "@lcode/server/remote";
 import { quotePosixPathArg } from "@lcode/server/remote/posixShell.js";
 import type { TraceId, LCodePromptAttachment } from "@lcode/shared";
 import { randomUUID } from "node:crypto";
+import { finished } from "node:stream/promises";
+import { uploadRemotePromptAttachment } from "./remotePromptAttachmentUpload.js";
 
 const REMOTE_PROMPT_ATTACHMENT_ROOT = "~/.lcode/tmp/prompt-attachments";
 const REMOTE_PROMPT_ATTACHMENT_RELATIVE_ROOT = ".lcode/tmp/prompt-attachments";
@@ -67,14 +69,17 @@ export async function materializeRemotePromptAttachments(
       traceId: input.traceId,
     });
 
+    let uploaded: { directory: boolean; bytes: number };
     try {
+      options.uploadOptions?.signal?.throwIfAborted();
       await ensureRemotePromptAttachmentDirectory(options.backend, remotePath, remoteRoot);
-      if (options.uploadOptions) {
-        await options.backend.upload(localPath, remotePath, options.uploadOptions);
-      } else {
-        await options.backend.upload(localPath, remotePath);
-      }
-      await lockDownRemotePromptAttachmentFile(options.backend, remotePath);
+      uploaded = await uploadRemotePromptAttachment(
+        options.backend,
+        (command) => waitForRemoteCommand(options.backend, command),
+        localPath,
+        remotePath,
+        options.uploadOptions,
+      );
     } catch (error) {
       // 上传成功但 chmod/后续提交失败时，远端文件已经存在；若只抛错会一直
       // 占用用户空间并绕过 renderer 删除清理。这里在原始失败边界内尽力回收。
@@ -88,6 +93,8 @@ export async function materializeRemotePromptAttachments(
     nextAttachments.push({
       ...attachment,
       localPath: remotePath,
+      sizeBytes: uploaded.bytes,
+      ...(uploaded.directory ? { kind: "file", mimeType: "inode/directory" } : {}),
     } as LCodePromptAttachment);
     replacements.set(localPath, remotePath);
     uploadedCount += 1;
@@ -107,11 +114,20 @@ export async function cleanupRemotePromptAttachment(
   remotePath: string,
 ): Promise<void> {
   const root = await resolveRemotePromptAttachmentRoot(backend);
-  if (!isRemotePromptAttachmentPath(remotePath, root)) return;
+  // 目录附件要递归回收，但只能删除我们生成的 trace/nonce/attachment，
+  // 不能将此前宽松的 root 前缀判断直接用于 rm -rf。
+  const relativePath = remotePath.startsWith(`${root}/`) ? remotePath.slice(root.length + 1) : "";
+  const segments = relativePath.split("/");
+  if (
+    segments.length !== 3 ||
+    segments.some((segment) => !segment || segment === "." || segment === "..")
+  )
+    return;
+  if (!/^[0-9a-f-]{36}$/iu.test(segments[1]!) || !/^\d+-/u.test(segments[2]!)) return;
   const remoteDir = remoteDirname(remotePath);
   await waitForRemoteCommand(
     backend,
-    `rm -f ${quotePosixPathArg(remotePath)} && rmdir ${quotePosixPathArg(remoteDir)} 2>/dev/null || true`,
+    `rm -rf -- ${quotePosixPathArg(remotePath)} && rmdir ${quotePosixPathArg(remoteDir)} 2>/dev/null || true`,
   );
 }
 
@@ -123,7 +139,8 @@ export async function cleanupStaleRemotePromptAttachments(
   const root = await resolveRemotePromptAttachmentRoot(backend);
   await waitForRemoteCommand(
     backend,
-    `if [ -d ${quotePosixPathArg(root)} ]; then find ${quotePosixPathArg(root)} -type f -mmin +${Math.max(1, Math.floor(olderThanMinutes))} -delete; find ${quotePosixPathArg(root)} -mindepth 1 -depth -type d -empty -delete; fi`,
+    // 旧清理会无条件删掉空目录；目录附件即使为空也必须保留到暂存 TTL。
+    `if [ -d ${quotePosixPathArg(root)} ]; then find ${quotePosixPathArg(root)} -mindepth 2 -maxdepth 2 -type d -mmin +${Math.max(1, Math.floor(olderThanMinutes))} -exec rm -rf -- {} +; fi`,
   );
 }
 
@@ -157,13 +174,6 @@ async function ensureRemotePromptAttachmentDirectory(
   await waitForRemoteCommand(backend, command);
 }
 
-async function lockDownRemotePromptAttachmentFile(
-  backend: Pick<IRemoteBackend, "exec">,
-  remotePath: string,
-): Promise<void> {
-  await waitForRemoteCommand(backend, `command chmod 600 ${quotePosixPathArg(remotePath)}`);
-}
-
 async function resolveRemotePromptAttachmentRoot(
   backend: Pick<IRemoteBackend, "exec">,
 ): Promise<string> {
@@ -188,21 +198,26 @@ async function readRemoteCommandStdout(
   stream.stderr.on("data", (chunk: Buffer | string) => {
     stderrText += chunk.toString();
   });
-  await new Promise<void>((resolve, reject) => {
-    stream.onClose((code) => {
-      if (code === 0) {
-        resolve();
-        return;
-      }
-      reject(
-        new Error(
-          `remote command failed with exit code ${code}: ${command}${
-            stderrText ? `: ${stderrText}` : ""
-          }`,
-        ),
-      );
-    });
-  });
+  // SSH 的 exit 完成通知可能早于缓冲 stdout 的 data 派发；读取 HOME 必须
+  // 同时等待命令状态和输出 end，不能把空 HOME 当成路径错误，也不靠延时猜测。
+  await Promise.all([
+    finished(stream.stdout, { readable: true, writable: false, cleanup: true }),
+    new Promise<void>((resolve, reject) => {
+      stream.onClose((code) => {
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        reject(
+          new Error(
+            `remote command failed with exit code ${code}: ${command}${
+              stderrText ? `: ${stderrText}` : ""
+            }`,
+          ),
+        );
+      });
+    }),
+  ]);
   return stdoutText;
 }
 
