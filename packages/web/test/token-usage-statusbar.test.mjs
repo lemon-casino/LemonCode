@@ -183,7 +183,7 @@ test(
       const names = {
         inside: "输入框内部底部",
         below: "输入框下方",
-        above: "工具栏上方（输入框内）",
+        above: "输入框上方",
       };
       await page.getByRole("option", { name: names[position], exact: true }).click();
       await showConversation();
@@ -225,7 +225,7 @@ test(
         await verifyStatusBarPlacement(composer, "above");
         if (process.env.LCODE_TEST_SCREENSHOT_DIR && width === 1280) {
           await composer.screenshot({
-            path: `${process.env.LCODE_TEST_SCREENSHOT_DIR}/toolbar-above-${theme}.png`,
+            path: `${process.env.LCODE_TEST_SCREENSHOT_DIR}/composer-above-${theme}.png`,
           });
         }
         await choosePosition("inside");

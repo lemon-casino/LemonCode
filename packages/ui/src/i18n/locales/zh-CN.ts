@@ -7,10 +7,10 @@ const zhCN: Record<string, string> = {
   "settings.tokenUsageStatusBar.enabledDescription": "关闭后仍保留输入框原有的上下文和额度入口。",
   "settings.tokenUsageStatusBar.position": "显示位置",
   "settings.tokenUsageStatusBar.positionDescription":
-    "可放在输入框内的工具栏上方、内部底部，或输入框下方。",
+    "可放在输入框内部底部，或整个输入框的上方、下方。新建未发送的会话不显示。",
   "settings.tokenUsageStatusBar.position.inside": "输入框内部底部",
   "settings.tokenUsageStatusBar.position.below": "输入框下方",
-  "settings.tokenUsageStatusBar.position.above": "工具栏上方（输入框内）",
+  "settings.tokenUsageStatusBar.position.above": "输入框上方",
   "settings.tokenUsageStatusBar.speed": "输出速度",
   "settings.tokenUsageStatusBar.speedDescription": "显示可见输出的实时估算，或最近请求的平均速度。",
   "settings.tokenUsageStatusBar.context": "上下文与额度",

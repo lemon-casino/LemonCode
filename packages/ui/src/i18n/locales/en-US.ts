@@ -8,10 +8,10 @@ const enUS: Record<string, string> = {
     "When disabled, the original context and quota control remains in the composer.",
   "settings.tokenUsageStatusBar.position": "Position",
   "settings.tokenUsageStatusBar.positionDescription":
-    "Place the status bar above the toolbar inside the composer, at the inside bottom, or below the composer.",
+    "Place the status bar inside the bottom of the composer, or above or below it. New conversations stay hidden until the first message is sent.",
   "settings.tokenUsageStatusBar.position.inside": "Inside the bottom of the composer",
   "settings.tokenUsageStatusBar.position.below": "Below the composer",
-  "settings.tokenUsageStatusBar.position.above": "Above the toolbar (inside the composer)",
+  "settings.tokenUsageStatusBar.position.above": "Above the composer",
   "settings.tokenUsageStatusBar.speed": "Output speed",
   "settings.tokenUsageStatusBar.speedDescription":
     "Show estimated live visible output or the latest request's average speed.",

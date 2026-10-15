@@ -157,15 +157,14 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     titleId: "settings.browser.title",
     groupId: "basics",
   },
-  // 电脑控制紧跟「浏览器」：两者都是给 Agent 用的本机操控入口，
-  // 放在基础设置里让用户在同一处理解「控制浏览器 / 控制整台电脑」的关系。
+  // 电脑控制与浏览器同属基础设置的 Agent 本机操控入口；显示顺序按当前语言名称长度派生。
   {
     id: "computerUse",
     icon: Monitor,
     titleId: "settings.computerUse.title",
     groupId: "basics",
   },
-  // 远程控制紧跟「电脑控制」：同为“控制这台桌面”的入口（方向相反——手机镜像桌面），
+  // 远程控制同为“控制这台桌面”的入口（方向相反——手机镜像桌面），
   // 依赖桌面 Main 的配对/出站连接，仅桌面端可见。
   // 与侧栏 footer 快捷入口并存；两处都落到同一 Main 配置与配对状态事实源。
   {
@@ -174,14 +173,14 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     titleId: "settings.remoteControl.title",
     groupId: "basics",
   },
-  // 键盘快捷键紧跟「电脑控制」：同属本机操控/效率配置，收纳在基础设置尾部。
+  // 键盘快捷键同属基础设置中的本机操控/效率配置。
   {
     id: "shortcuts",
     icon: Keyboard,
     titleId: "settings.shortcuts.title",
     groupId: "basics",
   },
-  // 工作区搜索范围（.lcodeignore）：面向所有用户的基础工作区行为配置，收在基础设置末尾。
+  // 工作区搜索范围（.lcodeignore）：面向所有用户的基础工作区行为配置。
   {
     id: "workspaceFileSearch",
     icon: FileSearch,
@@ -216,6 +215,7 @@ interface SettingsPageConfigOptions {
   isDesktop?: boolean;
   isMacDesktop?: boolean;
   isWindowsDesktop?: boolean;
+  getSectionTitle?: (titleId: string) => string;
 }
 
 /**
@@ -239,9 +239,20 @@ export function createSettingsPageConfig(options: SettingsPageConfigOptions = {}
     if (section.id === "remoteControl" && !showRemoteControl) return false;
     return isSettingsSectionEnabled(section.id);
   });
+  // 只重排当前语言的可见菜单，不改注册顺序或导航 id；等长项使用稳定排序。
+  const titleLengths = new Map(
+    settingsSections.map((section) => [
+      section.id,
+      options.getSectionTitle
+        ? Array.from(options.getSectionTitle(section.titleId).replace(/\s/gu, "")).length
+        : 0,
+    ]),
+  );
   const settingsSectionGroups = BASE_SETTINGS_SECTION_GROUPS.map((group) => ({
     ...group,
-    sections: settingsSections.filter((section) => section.groupId === group.id),
+    sections: settingsSections
+      .filter((section) => section.groupId === group.id)
+      .toSorted((left, right) => titleLengths.get(left.id)! - titleLengths.get(right.id)!),
   })).filter((group) => group.sections.length > 0);
 
   return { settingsSectionGroups, settingsSections };

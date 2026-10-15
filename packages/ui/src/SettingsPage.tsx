@@ -142,7 +142,7 @@ function SettingsSidebarButton({
         type={buttonProps.type ?? "button"}
         aria-label={label}
         className={cn(
-          "flex h-8 w-full items-center gap-2 rounded-xl px-2.5 text-left transition-colors",
+          "flex h-8 w-full items-center gap-2 rounded-xl px-2.5 text-left text-ui-base font-medium transition-colors",
           "max-lg:mx-auto max-lg:size-10 max-lg:justify-center max-lg:px-0",
           active
             ? // 原因：surface-hover 曾与 Windows/Web 侧栏底色相同，选中需复用独立 selected 色。
@@ -152,7 +152,7 @@ function SettingsSidebarButton({
         )}
       >
         <span className="flex size-4 shrink-0 items-center justify-center text-current">
-          <Icon className="size-4" />
+          <Icon className="size-4" aria-hidden="true" />
         </span>
         <span className="min-w-0 flex-1 max-lg:sr-only">
           {children ?? <span className="truncate text-ui-base">{label}</span>}
@@ -194,8 +194,9 @@ export function SettingsPage({
         isDesktop: Boolean(isDesktop),
         isMacDesktop: Boolean(isMacDesktop),
         isWindowsDesktop: Boolean(isWindowsDesktop),
+        getSectionTitle: (id) => intl.formatMessage({ id }),
       }),
-    [isDesktop, isMacDesktop, isWindowsDesktop],
+    [isDesktop, isMacDesktop, isWindowsDesktop, intl],
   );
   const isLinuxDesktop = Boolean(isDesktop && !isMacDesktop && !isWindowsDesktop);
   const usesInlineWindowControls = Boolean(isWindowsDesktop || isLinuxDesktop);

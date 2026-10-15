@@ -337,3 +337,6 @@ nul
 !/packages/web/test/token-usage-statusbar-interaction-cases.mjs
 !/packages/web/test/fixtures/token-usage-statusbar.html
 !/packages/web/test/fixtures/token-usage-statusbar.tsx
+
+# 设置侧栏短到长排列与统一尺寸的永久浏览器回归。
+!/packages/web/test/settings-sidebar-order.test.mjs

@@ -28,12 +28,11 @@ export async function verifyStatusBarPlacement(composer, position) {
       slot: slot.getBoundingClientRect().toJSON(),
     };
   });
-  assert.equal(geometry.inside, position !== "below", JSON.stringify(geometry));
+  assert.equal(geometry.inside, position === "inside", JSON.stringify(geometry));
   if (position === "below") assert.ok(geometry.slot.top >= geometry.shell.bottom - 1);
   if (position === "inside") assert.ok(geometry.slot.top >= geometry.toolbar.bottom - 1);
   if (position === "above") {
-    assert.ok(geometry.slot.top >= geometry.editor.bottom - 1, JSON.stringify(geometry));
-    assert.ok(geometry.slot.bottom <= geometry.toolbar.top + 1, JSON.stringify(geometry));
+    assert.ok(geometry.slot.bottom <= geometry.shell.top + 1, JSON.stringify(geometry));
   }
 }
 

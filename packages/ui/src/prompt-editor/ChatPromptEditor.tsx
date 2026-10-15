@@ -363,6 +363,14 @@ export function ChatPromptEditor({
           className="absolute inset-x-0 bottom-full z-20"
         />
       )}
+      {/* 上方按整个输入卡片定位；新草稿不挂用量内容，空插槽也不保留间距。 */}
+      {statusBarPosition === "above" && onStatusBarContainerChange ? (
+        <div
+          ref={onStatusBarContainerChange}
+          className="mb-1 min-w-0 empty:hidden"
+          data-composer-statusbar-slot="above"
+        />
+      ) : null}
       <div
         data-testid={shellTestId}
         onDragOver={handleDragOver}
@@ -414,14 +422,6 @@ export function ChatPromptEditor({
           enableMentionPanel={enableMentionPanel}
           enableSlashPanel={enableSlashPanel}
         />
-        {/* 上方指工具栏上方：必须在输入卡片内，不能把用量放到整个编辑框外。 */}
-        {statusBarPosition === "above" && onStatusBarContainerChange ? (
-          <div
-            ref={onStatusBarContainerChange}
-            className="-mx-1 -mb-2 -mt-2 min-w-0 empty:hidden"
-            data-composer-statusbar-slot="above"
-          />
-        ) : null}
         <div
           ref={toolbarRef}
           // 系统横向滚动条曾增加左侧工具区高度，items-end 把发送/停止挤到模型控件下方。
