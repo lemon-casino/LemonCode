@@ -1,8 +1,32 @@
 # 工作流中断修复增强实施报告
 
-已按 A → B/C → D → E 完成本轮源码修复、测试补充与本机验证。父回合结束和常驻池回收现在读取同一组运行事实；真正关闭时保留首次原因、先封闭业务准入再排水；共享 journal 的执行权受到代际校验保护。此前 Browser 作用域与子代理创建事务修复保留并参加回归。
+上一轮已按 A → B/C → D → E 实施源码修复、测试补充与本机验证。父回合结束和常驻池回收现在读取同一组运行事实；真正关闭时保留首次原因、先封闭业务准入再排水；共享 journal 的执行权受到代际校验保护。此前 Browser 作用域与子代理创建事务修复保留并参加回归。**2026-10-15 再次复核确认仍有下述三项缺口，当前不能标记为全部修复完成。**
 
 实施起点为 `e1e1acfc`，应用版本仍为 3.18.8。当前源码与隔离 Host 验证通过；没有安装发布包、升级运行中的原应用或自动重跑原失败业务。原日志能确认 Protocol 关闭后发生工作流取消，仍不能确定最早关闭调用者，也不能据此认定供应商不稳定或模型主动停止。
+
+## 最新复核结论（2026-10-15）
+
+复核基线为 `2f74b11e`。本次没有修改生产代码，保留原有无关本地改动。重新执行根仓库及 CLI 的 typecheck、lint，四项均通过；重跑关键后端测试 39 项、隔离 Electron 1 项、停止原因 Web E2E 1 项，合计 41 项正常回归通过。
+
+另外新增三个临时最小复现，均确认以下缺口存在；它们的通过表示缺陷成功复现，不计作修复成功，也不与上一轮 684 项通过相加。
+
+| 优先级 | 尚未闭环的问题                                                 | 复现和影响                                                                                                                                                                                                                                                                                                        | 源码位置                                                                                                                                        |
+| ------ | -------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| P1     | 执行 owner 退休失败被 App 关闭吞掉                             | 对真实 SQLite lease 的 release 注入一次持久化失败。run service.close 拒绝，但 closeSessionFacadeResources 只记 warn 后返回成功；再次认领仍报 owner_active。Protocol 资源 owner 随后会将成功关闭的 App 从集合删除，原进程仍活着时会话无法正常接代。                                                                | `bootstrap/src/app/session-resource-close.ts:48`、`dynamic-workflow-run-service.ts:248`、`bootstrap/src/lcode-protocol/runtime-resources.ts:39` |
+| P2     | SessionFacade 永久缓存失败的 close Promise，关闭重试未到达底层 | 注入首次 durable drain 失败，第二次调用 close 仍返回第一次 rejection，drain 实际只调用一次。外层虽然保留了失败 App 并允许再次 close，内层缓存使重试不能生效。此行为已有遗留，本轮资源句柄保留仍未消除它。                                                                                                         | `bootstrap/src/app/session-facade.ts:19`                                                                                                        |
+| P2     | 跨父会话 Resume 缺少原 owner 路由，先接受后失败                | 同一项目中 A 会话留下 stopped/interrupted 的 run，A 已退休；从 B 服务调用 resume 返回 ok:true，随后快照变 errored/owner_changed，持久 run 仍 stopped。对照不带新 fence 的同一恢复路径可完成；新 fence 正确保护 A 的记录，但调用侧尚未将执行送回 A 的 owner。现有项目级枚举和工具指引仍会把这些 run 暴露为可恢复。 | `bootstrap/src/app/dynamic-workflow-run-submit.ts:391`、`adapters/src/storage/session-store/repositories/workflow-journal-owner.ts:125`         |
+
+位置相对 `apps/lcode-cli/packages/`；上表第一行的 `dynamic-workflow-run-service.ts` 同样位于 `bootstrap/src/app/`。
+
+建议的补齐边界：
+
+- owner 退休失败必须成为未确认关闭事实，保留原句柄和重试能力，不能记成成功关闭或先关 store；其它独立资源仍应获得关闭尝试。
+- close 在途时复用同一个 Promise，失败后允许原 owner 重试；保持首次关闭上下文，已完成清理不重复产生副作用。仅在外层保存资源句柄还不够，需要覆盖真实 facade 链路。
+- 跨会话恢复先校验 workspace/attachment 与原 parent，路由或恢复原执行 owner，再发布接受结果；不能通过删除 parent/token 校验、改写原 parent 或使用 B 的 lease 绕过。无法获得原 owner 时给明确拒绝，避免先成功再后台失败。
+
+上述修改尚未实施。完成验收需新增对应正式回归，并在真实 SessionFacade + Protocol 资源 owner + SQLite lease 的组合下验证失败后恢复；跨会话恢复同时验证 continuous/replayable，原 owner 活跃时不得产生第二执行者。
+
+复核日志位于 `.artifacts/workflow-interruption-recheck/`：`critical-tests.log`、`electron-host.log`、`web-stop-reasons.log`、四项类型/Lint 日志；三个缺陷的复现脚本为 `owner-retirement.repro.test.ts`，运行结果为 `owner-retirement-repro.log`。全部使用临时目录与合成数据，未操作原会话、原安装包或真实供应商。
 
 ## 阶段结果与提交
 
