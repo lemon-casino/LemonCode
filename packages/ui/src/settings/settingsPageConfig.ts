@@ -90,6 +90,12 @@ const BASE_SETTINGS_SECTIONS: SettingsSectionDefinition[] = [
     groupId: "basics",
   },
   {
+    id: "tokenUsageStatusBar",
+    icon: BarChart3,
+    titleId: "settings.tokenUsageStatusBar.title",
+    groupId: "basics",
+  },
+  {
     id: "modelProvider",
     icon: Package,
     titleId: "settings.modelProviderTitle",

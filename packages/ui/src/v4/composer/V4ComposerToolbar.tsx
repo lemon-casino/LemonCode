@@ -16,6 +16,7 @@
  * 三件套不能全部门控在 config!==null 上——草稿态会整体不渲染。
  */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   BUILTIN_MODEL_PROVIDER_IDS,
   getModelProviderFamilySpec,
@@ -67,6 +68,7 @@ import type { ModelSelectionView } from "@lcode/services";
 import type { ModelSelectionState } from "@/hooks/useModelSelectionView.js";
 import { useProviderSettingsView } from "@/hooks/useProviderSettingsView.js";
 import { useSettings } from "@/hooks/useSettingService.js";
+import { useTokenUsageStatusBarSettings } from "@/hooks/useTokenUsageStatusBarSettings.js";
 import {
   useUsageEntitlement,
   type UsageEntitlementRefreshOptions,
@@ -78,6 +80,8 @@ import { useShortcutCommandLabel } from "@/shortcuts/useShortcutBindings.js";
 import { logger } from "@/logger.js";
 import { useLiveOutputRate } from "@/v4/composer/useLiveOutputRate.js";
 import { readSessionOutputSpeed } from "@/v4/composer/sessionOutputSpeed.js";
+import { TokenUsageStatusBar } from "@/v4/composer/TokenUsageStatusBar.js";
+import { hasStatusBarConversation } from "@/v4/composer/tokenUsageStatusBarModel.js";
 import { useChildSessionTokenStats } from "@/v4/composer/useChildSessionTokenStats.js";
 import { collectChildSessionIds } from "@/v4/composer/sessionTokenStats.js";
 import { useV4Conversation } from "@/v4/V4ConversationContext.js";
@@ -323,6 +327,7 @@ function resolveContextCodingPlanUsageSource(params: {
 }
 
 export interface V4ComposerToolbarProps {
+  statusBarContainer?: HTMLDivElement | null;
   workspacePath: string;
   workspaceIdentity?: string;
   modelSelectionView?: ModelSelectionView | null;
@@ -366,6 +371,7 @@ export interface V4ComposerToolbarProps {
 
 /** 模型 / 思考深度 / context usage 簇（渲染在发送键左侧，与旧 UI 同位）。 */
 function V4ComposerModelControlsImpl({
+  statusBarContainer,
   workspacePath,
   workspaceIdentity,
   sessionId,
@@ -978,6 +984,27 @@ function V4ComposerModelControlsImpl({
   const modelShortcutLabel = useShortcutCommandLabel("openModelMenu");
   const thoughtShortcutLabel = useShortcutCommandLabel("cycleThoughtLevel");
   const isModelOptionLocked = useCallback(() => false, []);
+  const { preferences: statusBarPreferences } = useTokenUsageStatusBarSettings();
+  const hasContextControl = Boolean(
+    (taskUsage && taskUsage.used > 0 && taskUsage.size > 0) ||
+    usage?.contextTrend?.samples.length ||
+    (codingPlanUsageRemaining && hasChatCodingPlanUsageRemaining(codingPlanUsageRemaining)) ||
+    hasChatStartPlanBalance(contextStartPlanBalance),
+  );
+  const contextControl = (
+    <ChatContextUsage
+      codingPlanUsageRemaining={codingPlanUsageRemaining}
+      taskUsage={taskUsage}
+      contextTrend={usage?.contextTrend}
+      startPlanBalance={contextStartPlanBalance}
+      selectedProvider={displayProvider}
+      intl={intl}
+      locale={locale}
+      summaryMode="context"
+      onSendCompressionCommand={onSendCompressionCommand}
+      compressionDisabled={disabled || recoveryPending}
+    />
+  );
 
   // 键盘热键（旧 useToolbarShortcutBindings）：Ctrl+M 打开模型菜单、Ctrl+T 循环思考深度。
   // 模式循环（Ctrl+Shift+M）由 V4ComposerModeSwitch 单独绑定（modeOption 在彼处）。
@@ -1027,25 +1054,27 @@ function V4ComposerModelControlsImpl({
         data-usage-max={usage?.contextWindow?.maxTokens ?? ""}
         className="hidden"
       />
-      <ChatContextUsage
-        codingPlanUsageRemaining={codingPlanUsageRemaining}
-        taskUsage={taskUsage}
-        contextTrend={usage?.contextTrend}
-        sessionUsage={usage?.cumulative}
-        liveOutputRate={liveOutputRate}
-        outputSpeed={outputSpeed}
-        childUsage={childStats.usage}
-        childCount={childStats.childCount}
-        childCurrentOutputTokens={childStats.currentOutputTokens}
-        childLiveOutputRate={childStats.liveOutputRate}
-        childOutputSpeed={childStats.outputSpeed}
-        startPlanBalance={contextStartPlanBalance}
-        selectedProvider={displayProvider}
-        intl={intl}
-        locale={locale}
-        onSendCompressionCommand={onSendCompressionCommand}
-        compressionDisabled={disabled || recoveryPending}
-      />
+      {statusBarPreferences.enabled
+        ? statusBarContainer && hasStatusBarConversation(sessionSnapshot, draftMode)
+          ? createPortal(
+              <TokenUsageStatusBar
+                key={observedSessionId ?? "draft"}
+                snapshot={sessionSnapshot}
+                usage={usage}
+                outputSpeed={outputSpeed}
+                childUsage={childStats.usage}
+                childCount={childStats.childCount}
+                childCurrentOutputTokens={childStats.currentOutputTokens}
+                childOutputSpeed={childStats.outputSpeed}
+                preferences={statusBarPreferences}
+                contextControl={
+                  statusBarPreferences.context && hasContextControl ? contextControl : null
+                }
+              />,
+              statusBarContainer,
+            )
+          : null
+        : contextControl}
       {modelSelectionState.status === "error" && modelSelectionReload ? (
         <Button
           type="button"

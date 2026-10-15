@@ -3,7 +3,7 @@
  */
 import { useState, useEffect, useCallback } from "react";
 import { APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL, type AppSettings } from "@lcode/shared";
-import type { ISettingService } from "@lcode/services";
+import type { ISettingService, IServiceAccessor } from "@lcode/services";
 import { useServices } from "./useServices.js";
 import { usePlatform } from "./usePlatform.js";
 
@@ -115,8 +115,10 @@ async function refreshSettingsStore(
 }
 
 /** 获取和更新应用设置 */
-export function useSettings() {
-  const { broadcastService, settingService, lcodeAgentService } = useServices();
+export function useSettings(servicesOverride?: IServiceAccessor) {
+  const contextServices = useServices();
+  const { broadcastService, settingService, lcodeAgentService } =
+    servicesOverride ?? contextServices;
   const platform = usePlatform();
   const settingsStore = getSettingsStore(settingService);
   const [owned, setOwned] = useState({ store: settingsStore, snapshot: settingsStore.snapshot });

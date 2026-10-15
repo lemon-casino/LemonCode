@@ -331,3 +331,9 @@ nul
 !/packages/web/test/fixtures/model-billing-menu.html
 !/packages/web/test/fixtures/model-billing-menu.tsx
 !/packages/web/test/fixtures/provider-checkin-fixture.ts
+
+# Token 状态栏位置、设置持久化、主题和工具行对齐的永久浏览器回归。
+!/packages/web/test/token-usage-statusbar.test.mjs
+!/packages/web/test/token-usage-statusbar-interaction-cases.mjs
+!/packages/web/test/fixtures/token-usage-statusbar.html
+!/packages/web/test/fixtures/token-usage-statusbar.tsx

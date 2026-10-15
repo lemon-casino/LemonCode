@@ -318,12 +318,12 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
             {item.badgeLabel ? (
               <span className={MODEL_CONFIG_SELECT_BADGE_CLASS_NAME}>{item.badgeLabel}</span>
             ) : null}
-            {/* 修复：能力与计费各有共享列位，不能随每个模型名长度左右跳动。 */}
+            {/* 能力靠列右侧、计费靠列左侧：保留共享列位，修复倍率被右对齐推远的问题。 */}
             <span className="grid shrink-0 grid-cols-[3.5em_5.5em] items-center gap-2">
-              <span className="flex justify-center" data-model-capability-column>
+              <span className="flex justify-end" data-model-capability-column>
                 {item.supportsVisionInput ? <ModelInputCapabilityBadge /> : null}
               </span>
-              <span className="flex min-w-0 justify-end" data-model-billing-column>
+              <span className="flex min-w-0 justify-start" data-model-billing-column>
                 <ModelBillingBadge billing={item.billing} />
               </span>
             </span>

@@ -22,6 +22,7 @@ import {
   testId,
 } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
+import { TokenUsageStatusBarSection } from "@/settings/TokenUsageStatusBarSection.js";
 import { toast } from "@/components/ui/toast.js";
 import { DesktopWindowFrame } from "@/DesktopWindowFrame.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
@@ -1280,6 +1281,9 @@ export function SettingsPage({
                         ) : null}
                       </div>
                       <div className="space-y-8">
+                        {activeSection === "tokenUsageStatusBar" ? (
+                          <TokenUsageStatusBarSection />
+                        ) : null}
                         {activeSection === "proxy" ? (
                           <ProxySettingsSection
                             httpProxy={httpProxy}

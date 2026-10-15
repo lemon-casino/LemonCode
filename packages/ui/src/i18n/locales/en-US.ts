@@ -1,5 +1,58 @@
 /** English translations */
 const enUS: Record<string, string> = {
+  "settings.tokenUsageStatusBar.title": "Token usage status bar",
+  "settings.tokenUsageStatusBar.description":
+    "Keep session usage, context and output speed together. Preferences save automatically and follow your theme.",
+  "settings.tokenUsageStatusBar.enabled": "Show token usage status bar",
+  "settings.tokenUsageStatusBar.enabledDescription":
+    "When disabled, the original context and quota control remains in the composer.",
+  "settings.tokenUsageStatusBar.position": "Position",
+  "settings.tokenUsageStatusBar.positionDescription":
+    "Place the status bar above the toolbar inside the composer, at the inside bottom, or below the composer.",
+  "settings.tokenUsageStatusBar.position.inside": "Inside the bottom of the composer",
+  "settings.tokenUsageStatusBar.position.below": "Below the composer",
+  "settings.tokenUsageStatusBar.position.above": "Above the toolbar (inside the composer)",
+  "settings.tokenUsageStatusBar.speed": "Output speed",
+  "settings.tokenUsageStatusBar.speedDescription":
+    "Show estimated live visible output or the latest request's average speed.",
+  "settings.tokenUsageStatusBar.context": "Context and quota",
+  "settings.tokenUsageStatusBar.contextDescription":
+    "Show context usage with capacity, quota and trend details.",
+  "settings.tokenUsageStatusBar.session": "Session total",
+  "settings.tokenUsageStatusBar.sessionDescription":
+    "Show settled usage for the main session and direct subagents, with grouped details.",
+  "settings.tokenUsageStatusBar.cache": "Cache usage",
+  "settings.tokenUsageStatusBar.cacheDescription":
+    "Show main session cache reads and writes without counting them twice.",
+  "settings.tokenUsageStatusBar.request": "Latest request",
+  "settings.tokenUsageStatusBar.requestDescription":
+    "Show duration and output tokens for the latest completed request in this turn.",
+  "settings.tokenUsageStatusBar.subagents": "Subagent usage",
+  "settings.tokenUsageStatusBar.subagentsDescription":
+    "Show direct subagent count, settled usage and current visible output estimates.",
+  "settings.tokenUsageStatusBar.animations": "Status bar animations",
+  "settings.tokenUsageStatusBar.animationsDescription":
+    "Use a subtle waveform and activity pulse. Respects your system's reduced motion preference.",
+  "settings.tokenUsageStatusBar.saveError":
+    "Could not save token usage status bar preferences. Please retry.",
+  "chat.tokenUsageStatusBar.title": "Token usage status bar",
+  "chat.tokenUsageStatusBar.speed": "Speed",
+  "chat.tokenUsageStatusBar.context": "Context",
+  "chat.tokenUsageStatusBar.session": "Session",
+  "chat.tokenUsageStatusBar.cache": "Cache read",
+  "chat.tokenUsageStatusBar.cacheRead": "Cache reads",
+  "chat.tokenUsageStatusBar.cacheWrite": "Cache writes",
+  "chat.tokenUsageStatusBar.request": "Latest request",
+  "chat.tokenUsageStatusBar.requestOutput": "Request output tokens",
+  "chat.tokenUsageStatusBar.requestDuration": "Request duration",
+  "chat.tokenUsageStatusBar.requestScope":
+    "Latest completed request in this turn only. Duration includes first-token wait, excluding retry backoff and tool execution.",
+  "chat.tokenUsageStatusBar.subagents": "Subagents",
+  "chat.tokenUsageStatusBar.pending": "Awaiting usage",
+  "chat.tokenUsageStatusBar.partial":
+    "Some subagent usage is unavailable. Only known usage is shown.",
+  "chat.tokenUsageStatusBar.accounting":
+    "Total = input + output. Cache tokens are already included in input. Live estimates are separate from settled usage.",
   "settings.oauth.checkin.one": "Check in",
   "settings.oauth.checkin.all": "Check in all",
   "settings.oauth.checkin.automatic": "Automatic check-in",

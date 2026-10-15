@@ -69,6 +69,8 @@ export function ChatPromptEditor({
   attachmentAction,
   betweenCancelAndSubmitAction,
   submitControl,
+  onStatusBarContainerChange,
+  statusBarPosition = "inside",
   inputTestId,
   shellTestId,
   submitTestId,
@@ -134,6 +136,9 @@ export function ChatPromptEditor({
   /** 行内编辑专用：固定插在取消与主提交之间的第二动作。 */
   betweenCancelAndSubmitAction?: ReactNode;
   submitControl?: ReactNode;
+  /** 仅提供原生状态栏布局插槽，不持有会话数据。 */
+  onStatusBarContainerChange?: (container: HTMLDivElement | null) => void;
+  statusBarPosition?: "inside" | "below" | "above";
   inputTestId?: string;
   shellTestId?: string;
   submitTestId?: string;
@@ -409,12 +414,22 @@ export function ChatPromptEditor({
           enableMentionPanel={enableMentionPanel}
           enableSlashPanel={enableSlashPanel}
         />
+        {/* 上方指工具栏上方：必须在输入卡片内，不能把用量放到整个编辑框外。 */}
+        {statusBarPosition === "above" && onStatusBarContainerChange ? (
+          <div
+            ref={onStatusBarContainerChange}
+            className="-mx-1 -mb-2 -mt-2 min-w-0 empty:hidden"
+            data-composer-statusbar-slot="above"
+          />
+        ) : null}
         <div
           ref={toolbarRef}
-          className={cn("group/toolbar flex items-end", trailingActions ? "gap-1" : "gap-3")}
+          // 系统横向滚动条曾增加左侧工具区高度，items-end 把发送/停止挤到模型控件下方。
+          // 隐去滚动条家具并统一居中，保留原生横扫/触摸/Tab 的溢出访问。
+          className={cn("group/toolbar flex items-center", trailingActions ? "gap-1" : "gap-3")}
         >
           <div
-            className="min-w-0 flex-1 overflow-x-auto overscroll-x-contain"
+            className="scrollbar-hide min-w-0 flex-1 overflow-x-auto overscroll-x-contain"
             data-composer-leading-actions
             role="group"
             aria-label={intl.formatMessage({ id: "chat.composer.toolbarActions" })}
@@ -489,7 +504,21 @@ export function ChatPromptEditor({
             )}
           </div>
         </div>
+        {statusBarPosition === "inside" && onStatusBarContainerChange ? (
+          <div
+            ref={onStatusBarContainerChange}
+            className="-mx-1 -mb-1 -mt-2 min-w-0 empty:hidden"
+            data-composer-statusbar-slot="inside"
+          />
+        ) : null}
       </div>
+      {statusBarPosition === "below" && onStatusBarContainerChange ? (
+        <div
+          ref={onStatusBarContainerChange}
+          className="min-w-0 empty:hidden"
+          data-composer-statusbar-slot="below"
+        />
+      ) : null}
     </form>
   );
 }

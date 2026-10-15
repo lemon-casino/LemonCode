@@ -28,6 +28,7 @@ export type {
 } from "./protocol.js";
 export type { WorkspacePurpose } from "./workspacePurpose.js";
 export * from "./localProjects.js";
+export * from "./tokenUsageStatusBarSettings.js";
 export * from "./worktreePolicy.js";
 export * from "./sessionDefaults.js";
 export * from "./worktreeManagement.js";

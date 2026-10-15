@@ -1,5 +1,53 @@
 /** 中文翻译 */
 const zhCN: Record<string, string> = {
+  "settings.tokenUsageStatusBar.title": "Token 用量状态栏",
+  "settings.tokenUsageStatusBar.description":
+    "集中查看当前会话的用量、上下文和输出速度。设置自动保存，并跟随界面主题。",
+  "settings.tokenUsageStatusBar.enabled": "显示 Token 用量状态栏",
+  "settings.tokenUsageStatusBar.enabledDescription": "关闭后仍保留输入框原有的上下文和额度入口。",
+  "settings.tokenUsageStatusBar.position": "显示位置",
+  "settings.tokenUsageStatusBar.positionDescription":
+    "可放在输入框内的工具栏上方、内部底部，或输入框下方。",
+  "settings.tokenUsageStatusBar.position.inside": "输入框内部底部",
+  "settings.tokenUsageStatusBar.position.below": "输入框下方",
+  "settings.tokenUsageStatusBar.position.above": "工具栏上方（输入框内）",
+  "settings.tokenUsageStatusBar.speed": "输出速度",
+  "settings.tokenUsageStatusBar.speedDescription": "显示可见输出的实时估算，或最近请求的平均速度。",
+  "settings.tokenUsageStatusBar.context": "上下文与额度",
+  "settings.tokenUsageStatusBar.contextDescription": "显示上下文占比，保留容量、额度和趋势明细。",
+  "settings.tokenUsageStatusBar.session": "会话累计",
+  "settings.tokenUsageStatusBar.sessionDescription":
+    "显示主会话与直属子代理的已结算用量及分组明细。",
+  "settings.tokenUsageStatusBar.cache": "缓存用量",
+  "settings.tokenUsageStatusBar.cacheDescription":
+    "显示主会话缓存读取与写入量，不重复计入会话合计。",
+  "settings.tokenUsageStatusBar.request": "最近请求",
+  "settings.tokenUsageStatusBar.requestDescription":
+    "显示本轮最近一次已完成请求的耗时与输出 Token。",
+  "settings.tokenUsageStatusBar.subagents": "子代理用量",
+  "settings.tokenUsageStatusBar.subagentsDescription":
+    "显示直属子代理数量、累计用量和正在输出的估算。",
+  "settings.tokenUsageStatusBar.animations": "状态栏动画",
+  "settings.tokenUsageStatusBar.animationsDescription":
+    "使用轻量波形和活动呼吸效果；尊重系统的减少动态效果设置。",
+  "settings.tokenUsageStatusBar.saveError": "Token 用量状态栏设置保存失败，请重试。",
+  "chat.tokenUsageStatusBar.title": "Token 用量状态栏",
+  "chat.tokenUsageStatusBar.speed": "速度",
+  "chat.tokenUsageStatusBar.context": "上下文",
+  "chat.tokenUsageStatusBar.session": "会话",
+  "chat.tokenUsageStatusBar.cache": "缓存读",
+  "chat.tokenUsageStatusBar.cacheRead": "缓存读取",
+  "chat.tokenUsageStatusBar.cacheWrite": "缓存写入",
+  "chat.tokenUsageStatusBar.request": "最近请求",
+  "chat.tokenUsageStatusBar.requestOutput": "请求输出 Token",
+  "chat.tokenUsageStatusBar.requestDuration": "请求耗时",
+  "chat.tokenUsageStatusBar.requestScope":
+    "仅限本轮最近一次已完成请求；耗时包含首字等待，不包含重试退避和工具执行。",
+  "chat.tokenUsageStatusBar.subagents": "子代理",
+  "chat.tokenUsageStatusBar.pending": "等待结算",
+  "chat.tokenUsageStatusBar.partial": "部分子代理用量暂不可用，当前为已知用量。",
+  "chat.tokenUsageStatusBar.accounting":
+    "合计 = 输入 + 输出；缓存已包含在输入中。流式估算不计入已结算用量。",
   "settings.oauth.checkin.one": "签到",
   "settings.oauth.checkin.all": "一键签到",
   "settings.oauth.checkin.automatic": "自动签到",

@@ -1,0 +1,127 @@
+.token-usage-statusbar {
+  padding-block: 0.125rem 0;
+  border-top: 1px solid var(--color-border);
+}
+.token-usage-tone[data-usage-tone="speed"] {
+  --token-usage-tone: var(--color-usage-chart-2);
+}
+.token-usage-tone[data-usage-tone="context"] {
+  --token-usage-tone: var(--color-usage-chart-1);
+}
+.token-usage-tone[data-usage-tone="session"] {
+  --token-usage-tone: var(--color-usage-chart-3);
+}
+.token-usage-tone[data-usage-tone="cache"] {
+  --token-usage-tone: var(--color-usage-chart-6);
+}
+.token-usage-tone[data-usage-tone="request"] {
+  --token-usage-tone: var(--color-usage-chart-5);
+}
+.token-usage-tone[data-usage-tone="subagents"] {
+  --token-usage-tone: var(--color-usage-chart-4);
+}
+.token-usage-metric-icon,
+.token-usage-context svg,
+.token-usage-heading-icon {
+  color: var(--token-usage-tone);
+}
+.token-usage-metric:hover,
+.token-usage-metric[aria-expanded="true"] {
+  background-color: color-mix(in oklab, var(--token-usage-tone) 9%, var(--color-hover));
+}
+.token-usage-detail {
+  border-top-width: 2px;
+  border-top-color: var(--token-usage-tone);
+}
+.token-usage-heading-icon {
+  background-color: color-mix(in oklab, var(--token-usage-tone) 10%, var(--color-popover));
+}
+.token-usage-detail-label,
+.token-usage-speed-detail {
+  color: color-mix(in oklab, var(--token-usage-tone) 55%, var(--color-foreground));
+}
+.token-usage-detail-dot,
+.token-usage-live-dot {
+  background-color: var(--token-usage-tone);
+}
+.token-usage-detail-group {
+  border-inline-start: 2px solid var(--token-usage-tone);
+  background-color: color-mix(in oklab, var(--token-usage-tone) 5%, var(--color-popover));
+}
+.token-usage-speed-detail {
+  border-inline-start: 2px solid var(--token-usage-tone);
+  padding-inline-start: 0.375rem;
+}
+.token-usage-statusbar[data-placement="below"] {
+  padding: 0.375rem 0.25rem 0;
+  border-top: 0;
+}
+.token-usage-context button {
+  min-height: 1.25rem;
+  padding-inline: 0.25rem;
+  font-size: var(--text-ui-xs);
+  color: color-mix(in oklab, var(--token-usage-tone) 55%, var(--color-foreground));
+}
+.token-usage-context button.text-success,
+.token-usage-context button.text-success svg {
+  color: var(--color-success);
+}
+.token-usage-context button.text-warning,
+.token-usage-context button.text-warning svg {
+  color: var(--color-warning);
+}
+@media (hover: none) and (pointer: coarse) {
+  .token-usage-metric,
+  .token-usage-context button {
+    min-height: 1.75rem;
+  }
+}
+.token-usage-wave {
+  height: 0.625rem;
+  transform: scaleY(0.45);
+}
+.token-usage-statusbar[data-animated="true"] .token-usage-wave {
+  animation: token-usage-wave 1s ease-in-out infinite alternate;
+  animation-delay: calc(var(--wave-index) * -0.18s);
+}
+.token-usage-statusbar[data-animated="true"] .token-usage-live-dot {
+  animation: token-usage-breathe 1.8s ease-in-out infinite;
+}
+.token-usage-statusbar[data-animated="true"] .token-usage-metric {
+  transition:
+    color 160ms,
+    background-color 160ms;
+}
+.token-usage-statusbar[data-animated="true"] .token-usage-context circle {
+  transition: stroke-dashoffset 180ms ease-out;
+}
+@keyframes token-usage-wave {
+  from {
+    transform: scaleY(0.3);
+    opacity: 0.55;
+  }
+  to {
+    transform: scaleY(var(--token-usage-rate-scale));
+    opacity: 1;
+  }
+}
+@keyframes token-usage-breathe {
+  50% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+}
+.token-usage-statusbar[data-animated="false"] *,
+.token-usage-statusbar[data-animated="false"] *::before,
+.token-usage-statusbar[data-animated="false"] *::after {
+  animation: none !important;
+  transition: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .token-usage-statusbar *,
+  .token-usage-statusbar *::before,
+  .token-usage-statusbar *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

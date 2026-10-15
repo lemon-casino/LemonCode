@@ -249,6 +249,7 @@ export function ChatContextUsage({
   childCurrentOutputTokens = null,
   childLiveOutputRate = null,
   childOutputSpeed,
+  summaryMode = "all",
   selectedProvider: _selectedProvider,
   intl,
   locale,
@@ -270,6 +271,8 @@ export function ChatContextUsage({
   childCurrentOutputTokens?: number | null;
   childLiveOutputRate?: number | null;
   childOutputSpeed?: SessionOutputSpeed;
+  /** 状态栏拥有累计与速度；旧上下文入口仅保留容量/额度摘要。 */
+  summaryMode?: "all" | "context";
   selectedProvider: LCodeProvider;
   intl: ReturnType<typeof useLCodeIntl>["intl"];
   locale: string;
@@ -858,9 +861,9 @@ export function ChatContextUsage({
     (!renderableTaskUsage || !contextUsageLabel) &&
     !hasCodingPlanUsageRemaining &&
     !hasStartPlanBalance &&
-    sessionTokenTotal === null &&
+    (summaryMode === "context" || sessionTokenTotal === null) &&
     !contextTrend?.samples.length &&
-    !hasOutputSpeed
+    (summaryMode === "context" || !hasOutputSpeed)
   ) {
     return null;
   }
@@ -935,14 +938,16 @@ export function ChatContextUsage({
           <span className="inline-flex shrink-0">
             <ContextTrigger
               aria-label={[
-                sessionSummaryLabel,
-                combinedOutputSpeed.liveRate !== null
-                  ? intl.formatMessage({ id: "chat.sessionUsage.speed" })
-                  : combinedOutputSpeed.average !== null
-                    ? intl.formatMessage({ id: "chat.sessionUsage.averageSpeed" })
-                    : combinedOutputSpeed.pending
-                      ? intl.formatMessage({ id: "chat.sessionUsage.speedPending" })
-                      : null,
+                summaryMode === "all" ? sessionSummaryLabel : null,
+                summaryMode === "context"
+                  ? null
+                  : combinedOutputSpeed.liveRate !== null
+                    ? intl.formatMessage({ id: "chat.sessionUsage.speed" })
+                    : combinedOutputSpeed.average !== null
+                      ? intl.formatMessage({ id: "chat.sessionUsage.averageSpeed" })
+                      : combinedOutputSpeed.pending
+                        ? intl.formatMessage({ id: "chat.sessionUsage.speedPending" })
+                        : null,
                 triggerLabel,
               ]
                 .filter(Boolean)
@@ -955,7 +960,14 @@ export function ChatContextUsage({
               data-chat-toolbar-popover-trigger="true"
               data-testid={TID_CHAT_CONTEXT_USAGE_TRIGGER}
               summary={
-                sessionTokenTotal === null && !hasOutputSpeed ? undefined : (
+                summaryMode === "context" ? (
+                  renderableTaskUsage ? (
+                    <span className="font-mono text-ui-xs tabular-nums">
+                      {intl.formatMessage({ id: "chat.tokenUsageStatusBar.context" })}{" "}
+                      {percentageFormatter.format(usagePercent)}
+                    </span>
+                  ) : undefined
+                ) : sessionTokenTotal === null && !hasOutputSpeed ? undefined : (
                   <span className="inline-flex min-w-0 flex-wrap items-center gap-1.5 font-mono text-ui-xs tabular-nums">
                     {sessionTokenTotal === null ? null : (
                       <span>
@@ -991,14 +1003,21 @@ export function ChatContextUsage({
           </span>
         </ControlHintTooltip>
         <ContextContent
-          className={cn(contextPanelWidthClass, "!rounded-xl !shadow-md")}
+          className={cn(
+            contextPanelWidthClass,
+            "!rounded-xl !shadow-md",
+            summaryMode === "context" && "token-usage-detail token-usage-tone",
+          )}
+          data-usage-tone={summaryMode === "context" ? "context" : undefined}
           side="top"
           sideOffset={2}
         >
           <ContextContentBody className="min-w-0 space-y-3 [overflow-wrap:anywhere]">
             {/* 默认 ai-elements Header 会硬编码标题并把摘要拆到独立头部。
           工具栏上下文 hover 只需要一块紧凑信息面板，摘要和明细统一放在 body 里。 */}
-            {(sessionTokenTotal !== null || hasOutputSpeed) && sessionUsage ? (
+            {summaryMode === "all" &&
+            (sessionTokenTotal !== null || hasOutputSpeed) &&
+            sessionUsage ? (
               <div className="space-y-3">
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between gap-3 text-ui-base font-medium text-foreground">

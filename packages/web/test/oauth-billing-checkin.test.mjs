@@ -55,6 +55,22 @@ test(
         assert.ok(Math.abs(p.capability - positions[0].capability) < 1);
         assert.ok(Math.abs(p.billing - positions[0].billing) < 1);
       }
+      for (const row of [rows.nth(0), rows.nth(1)]) {
+        const gap = await row.evaluate((element) => {
+          const vision = element.querySelector('[data-model-input-capability="vision"]');
+          const billing = element.querySelector("[data-model-billing]");
+          return {
+            actual: billing.getBoundingClientRect().left - vision.getBoundingClientRect().right,
+            expected: Number.parseFloat(
+              getComputedStyle(vision.parentElement.parentElement).columnGap,
+            ),
+          };
+        });
+        assert.ok(
+          Math.abs(gap.actual - gap.expected) <= 1 && gap.actual <= 12,
+          `billing should follow vision closely: ${JSON.stringify(gap)}`,
+        );
+      }
       assert.match(await rows.nth(0).innerText(), /0\.25×/);
       assert.match(await rows.nth(1).innerText(), /0\.71×/);
       assert.equal(await rows.nth(3).locator("[data-model-billing-column]").innerText(), "");

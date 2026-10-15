@@ -1,5 +1,9 @@
 /* oxlint-disable max-lines -- AppSettings schema 聚合历史迁移、默认值和 patch 校验，拆分会削弱设置迁移的单一入口。 */
 import { z } from "zod";
+import {
+  DEFAULT_TOKEN_USAGE_STATUS_BAR,
+  tokenUsageStatusBarSettingsSchema,
+} from "./tokenUsageStatusBarSettings.js";
 import { sessionDefaultsShape } from "./sessionDefaults.js";
 import {
   gitCommitReviewModeSchema,
@@ -481,6 +485,7 @@ function migrateLegacyWorkspaceSession(value: unknown): unknown {
 }
 
 const appSettingsObjectSchema = z.object({
+  tokenUsageStatusBar: tokenUsageStatusBarSettingsSchema.default(DEFAULT_TOKEN_USAGE_STATUS_BAR),
   recentProjects: z.array(z.string()).default([]),
   localProjects: localProjectsSchema.default([]),
   locale: localeSchema.default("zh-CN"),
@@ -564,6 +569,7 @@ export const appSettingsSchema = z.preprocess(
 );
 
 export const appSettingsPatchSchema = z.object({
+  tokenUsageStatusBar: tokenUsageStatusBarSettingsSchema.optional(),
   recentProjects: z.array(z.string()).optional(),
   localProjects: localProjectsSchema.optional(),
   locale: localeSchema.optional(),

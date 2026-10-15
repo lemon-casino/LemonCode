@@ -2,6 +2,7 @@
 import { logger } from "@/logger.js";
 
 export type SettingsSectionId =
+  | "tokenUsageStatusBar"
   | "proxy"
   | "general"
   | "configuration"
@@ -67,6 +68,7 @@ export interface SettingsModelProviderTarget {
 function isSettingsSectionId(value: string): value is SettingsSectionId {
   return (
     value === "general" ||
+    value === "tokenUsageStatusBar" ||
     value === "configuration" ||
     value === "proxy" ||
     value === "appearance" ||

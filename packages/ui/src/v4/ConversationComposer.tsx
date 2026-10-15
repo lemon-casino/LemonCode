@@ -27,6 +27,7 @@ import {
   type ReactNode,
 } from "react";
 import { cn } from "@/components/lib/utils.js";
+import { useTokenUsageStatusBarSettings } from "@/hooks/useTokenUsageStatusBarSettings.js";
 import {
   TID_CHAT_ATTACHMENT_BUTTON,
   TID_CHAT_ATTACHMENT_MENU_ITEM,
@@ -2493,6 +2494,8 @@ function ConversationComposerImpl({
   // useMemo：composer 随流式 snapshot 高频重渲染，控制簇只在语义依赖变化时重建，
   // 避免每个 token 批次都重建 Tooltip/Select 子树。
   const composerUsage = snapshot?.usage ?? null;
+  const { preferences: statusBarPreferences } = useTokenUsageStatusBarSettings();
+  const [statusBarContainer, setStatusBarContainer] = useState<HTMLDivElement | null>(null);
   const handleSelectModelTrace = useCallback(
     (nextProvider: string, nextModel: string, sourceModel: ModelSelectionSource | null) =>
       runUserAction({
@@ -2512,6 +2515,7 @@ function ConversationComposerImpl({
   const modelControlsNode = useMemo(
     () => (
       <V4ComposerModelControls
+        statusBarContainer={statusBarContainer}
         workspacePath={workspacePath}
         workspaceIdentity={workspaceIdentity}
         modelSelectionView={modelSelectionView}
@@ -2535,6 +2539,7 @@ function ConversationComposerImpl({
       />
     ),
     [
+      statusBarContainer,
       workspacePath,
       workspaceIdentity,
       modelSelectionView,
@@ -2810,6 +2815,8 @@ function ConversationComposerImpl({
           enableMentionPanel
           leadingActions={leadingActionsNode}
           trailingActions={modelControlsNode}
+          onStatusBarContainerChange={setStatusBarContainer}
+          statusBarPosition={statusBarPreferences.position}
           submitControl={submitControlNode}
           className="p-0"
           onChange={handleEditorChange}

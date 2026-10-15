@@ -244,6 +244,8 @@ export interface ResourceUsageSnapshot {
 }
 
 export interface AppSettings {
+  /** 会话下方的用量状态栏展示偏好；缺省兼容为全部开启。 */
+  tokenUsageStatusBar?: import("./tokenUsageStatusBarSettings.js").TokenUsageStatusBarSettings;
   /** 当前 App/Host 不再显示提交前体验套餐推荐；不改变任何入口的模型选择。 */
   startPlanRecommendationDismissed?: boolean;
   recentProjects: string[]; // 最近项目列表，最多保留 10 个
