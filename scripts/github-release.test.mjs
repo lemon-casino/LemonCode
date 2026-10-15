@@ -226,9 +226,6 @@ test("Actions builds every supported platform and publishes only completed tag b
     packageStep.run,
     "pnpm bundle:desktop -- --os ${{ matrix.os }} --arch ${{ matrix.arch }}",
   );
-  const committedNoticeIndex = buildSteps.findIndex(
-    (step) => step.name === "Verify committed release notice baseline",
-  );
   const installIndex = buildSteps.findIndex((step) => step.name === "Install dependencies");
   const restoreInputIndex = buildSteps.findIndex(
     (step) => step.name === "Restore committed release input after install",
@@ -236,11 +233,14 @@ test("Actions builds every supported platform and publishes only completed tag b
   const releaseContractIndex = buildSteps.findIndex(
     (step) => step.name === "Verify release contract",
   );
-  assert.ok(
-    committedNoticeIndex >= 0 && committedNoticeIndex < installIndex,
-    "committed notice inputs must be verified before a platform install can rewrite them",
+  const preflightSteps = workflow.jobs["verify-inputs"].steps;
+  assert.equal(preflightSteps.at(-1).run, "node scripts/verify-release-inputs.mjs --source=HEAD");
+  assert.equal(
+    buildSteps.some((step) => step.name === "Verify committed release notice baseline"),
+    false,
+    "the shared preflight owns committed inputs before any platform install",
   );
-  assert.match(buildSteps[committedNoticeIndex].run, /readReleaseVerifiedNotices/u);
+  assert.equal(workflow.jobs.build.env.LCODE_VERIFY_RELEASE_INPUTS, "1");
   assert.ok(installIndex < restoreInputIndex && restoreInputIndex < releaseContractIndex);
   assert.match(buildSteps[restoreInputIndex].run, /git diff -- pnpm-lock\.yaml/u);
   assert.match(buildSteps[restoreInputIndex].run, /git restore --source=HEAD -- pnpm-lock\.yaml/u);

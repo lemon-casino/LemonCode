@@ -255,7 +255,19 @@ nul
 !/packages/web/test/fixtures/provider-accounts-service.ts
 !/packages/web/test/provider-authorization-locale.test.mjs
 !/packages/web/test/fixtures/provider-authorization-catalog.ts
-!/third-party/upstream/add9d7531d1b21646317a8958e38fc727506fa39d24bdecb44154d943c82753a.txt
+# 修复：已登记源材料不能被维护者全局 *.txt 忽略，否则本机校验成功但 CI 检出缺文件。
+!/third-party/
+!/third-party/upstream/
+!/third-party/upstream/*.txt
+!/third-party/runtime/
+!/third-party/runtime/*.txt
+!/third-party/mise/
+!/third-party/mise/LICENSE.txt
+!/third-party/native-search/
+!/third-party/native-search/licenses/
+!/third-party/native-search/licenses/*.txt
+!/scripts/license-texts/
+!/scripts/license-texts/*.txt
 
 # OAuth 安全错误投影属于 UI 源码，仅覆盖用户全局 lib/ 忽略中的这一文件。
 !/packages/ui/src/lib/

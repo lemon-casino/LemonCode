@@ -163,10 +163,14 @@ pnpm bootstrap
 推送 `v*` tag 后，Actions 为 macOS、Windows、Linux 分别构建 x64 与 arm64 包，
 同时独立构建 Linux/macOS 的 x64、arm64 远程运行资源。
 先把根目录 `package.json` 的 `version` 更新为发行版本，重新运行
-`node scripts/licenses.mjs notices`，提交版本与许可证清单，再推送对应的
+`node scripts/licenses.mjs notices`。明确暂存版本、源码和源材料后，运行
+`pnpm verify:release-inputs` 检查暂存快照；提交后运行 `pnpm verify:pre-push`
+检查实际 HEAD、Lint 和架构，再推送对应的
 `v<version>` tag（例如 `v3.14.2`）。tag 与版本不一致时构建直接失败；桌面和远程资源全部成功后，
 Actions 才会将安装包、远程 manifest 和组件上传到同名 GitHub Release 草稿。
 版本、文件完整性、摘要与已登记的第三方材料债务基线通过校验后才公开发布。
+公共输入校验只依赖 Node 和 Git，在原生插件、远端资源及六平台构建之前执行。
+这两个本地校验是显式命令；仓库未自动安装 Git hook，CI 会再次检查 tag 的真实提交。
 macOS 包未经 Apple 签名和公证。
 
 本地使用 `pnpm bundle:desktop -- --os win --arch x64` 构建时，默认保持轻量安装包。

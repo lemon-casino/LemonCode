@@ -8,6 +8,88 @@ import ts from "typescript";
 
 const root = resolve(fileURLToPath(new URL("..", import.meta.url)));
 
+// Copyright 2026 Lemon (zcode-full). SPDX-License-Identifier: Apache-2.0
+// 修复依据：遗漏提交的材料必须在安装和原生构建前失败，不能由本机文件或安装副作用掩盖。
+function assertSharedReleasePreflight(workflow) {
+  const preflight = workflow.jobs["verify-inputs"];
+  assert.ok(preflight, "release inputs require a shared preflight job");
+  assert.equal(preflight["runs-on"], "ubuntu-24.04");
+  assert.deepEqual(preflight.permissions, { contents: "read" });
+  assert.equal(preflight.if, undefined, "preflight cannot be conditional");
+  assert.equal(preflight["continue-on-error"], undefined);
+  assert.equal(preflight.needs, undefined);
+  assert.deepEqual(preflight.steps, [
+    { uses: "actions/checkout@v7" },
+    { uses: "actions/setup-node@v7", with: { "node-version": "24.21.0" } },
+    { name: "Check release version", run: "node scripts/verify-release-version.mjs" },
+    {
+      name: "Verify committed release inputs",
+      run: "node scripts/verify-release-inputs.mjs --source=HEAD",
+    },
+  ]);
+  assert.equal(workflow.jobs["build-cua-linux-addon"].needs, "verify-inputs");
+  assert.equal(workflow.jobs["remote-assets"].needs, "verify-inputs");
+  assert.equal(workflow.jobs.build.needs, "build-cua-linux-addon");
+  assert.deepEqual(workflow.jobs.release.needs, ["build", "remote-assets"]);
+  function dependsOnPreflight(name, ancestors = new Set()) {
+    if (name === "verify-inputs") return true;
+    assert.ok(workflow.jobs[name], `unknown release dependency: ${name}`);
+    assert.ok(!ancestors.has(name), `cyclic release dependency: ${name}`);
+    const needs = workflow.jobs[name].needs;
+    const dependencies = needs === undefined ? [] : Array.isArray(needs) ? needs : [needs];
+    return dependencies.some((dependency) =>
+      dependsOnPreflight(dependency, new Set([...ancestors, name])),
+    );
+  }
+  // 默认 needs 失败传播负责准入；always() / continue-on-error 会绕过公共门禁。
+  for (const [name, job] of Object.entries(workflow.jobs)) {
+    assert.ok(dependsOnPreflight(name), `${name} must depend on successful preflight`);
+    assert.equal(job["continue-on-error"], undefined, `${name} must propagate failure`);
+    if (name !== "release") assert.equal(job.if, undefined, `${name} must wait for needs`);
+    for (const step of job.steps) {
+      assert.equal(step["continue-on-error"], undefined, `${name} step must propagate failure`);
+    }
+  }
+  assert.equal(workflow.jobs.release.if, "github.ref_type == 'tag'");
+}
+
+test("shared release preflight validates HEAD before all costly jobs without package installation", async () => {
+  const workflow = YAML.parse(
+    await readFile(joinRoot(".github/workflows/desktop-release.yml"), "utf8"),
+  );
+  assertSharedReleasePreflight(workflow);
+});
+
+test("release preflight contract rejects dependency bypasses and install-dependent checks", async () => {
+  const original = YAML.parse(
+    await readFile(joinRoot(".github/workflows/desktop-release.yml"), "utf8"),
+  );
+  assertSharedReleasePreflight(original);
+  const mutations = [
+    (workflow) => delete workflow.jobs["verify-inputs"],
+    (workflow) => delete workflow.jobs["build-cua-linux-addon"].needs,
+    (workflow) => delete workflow.jobs["remote-assets"].needs,
+    (workflow) => (workflow.jobs.build.needs = "verify-inputs"),
+    (workflow) => (workflow.jobs.release.needs = ["build"]),
+    (workflow) => (workflow.jobs["unprotected-build"] = { steps: [{ run: "npm install" }] }),
+    (workflow) => (workflow.jobs["verify-inputs"].if = "always()"),
+    (workflow) => (workflow.jobs["remote-assets"].if = "always()"),
+    (workflow) => (workflow.jobs.release.if = "always() && github.ref_type == 'tag'"),
+    (workflow) => (workflow.jobs["verify-inputs"]["continue-on-error"] = true),
+    (workflow) => (workflow.jobs["verify-inputs"].steps[3]["continue-on-error"] = true),
+    (workflow) => (workflow.jobs["verify-inputs"].steps[1].with.cache = "pnpm"),
+    (workflow) => workflow.jobs["verify-inputs"].steps.splice(2, 0, { run: "pnpm install" }),
+    (workflow) =>
+      (workflow.jobs["verify-inputs"].steps[3].run = "node scripts/verify-release-inputs.mjs"),
+    (workflow) => workflow.jobs["verify-inputs"].steps.reverse(),
+  ];
+  for (const mutate of mutations) {
+    const workflow = structuredClone(original);
+    mutate(workflow);
+    assert.throws(() => assertSharedReleasePreflight(workflow));
+  }
+});
+
 test("tag build toolchain matches mise, root package and CLI engines", async () => {
   const [mise, rootManifest, cliManifest, workflowSource] = await Promise.all([
     readFile(joinRoot("mise.toml"), "utf8"),

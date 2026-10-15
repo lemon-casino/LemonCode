@@ -2,6 +2,85 @@
 
 ## 产品规则
 
+### 发布 Git 输入完整性与公共前置校验（2026-10-15）
+
+- 本轮基线为 `210dd210`，复核 Actions `38702954472` 的七个失败任务：同一份 Magpie
+  签到协议许可快照被维护者的全局 `*.txt` 忽略，本机存在但不在提交中。补入原始字节，
+  不删减库存引用，也不放宽既有哈希、新鲜度、材料基线或其他质量检查。
+- Lemon 是 zcode-full 自研和其改编部分的权利人。本次独立实现的发布检查器、测试和工作流编排
+  按 zcode-full / Lemon 标记，适用项目根 LICENSE；Magpie、plugins 与其他上游实际来源、
+  许可和改编声明按真实来源保留，不将上游实现重标为自研。
+- `scripts/verify-release-inputs.mjs` 是发布 Git 快照准入的唯一入口，只有 Node 内置模块与 Git
+  依赖。默认 `--source=index` 校验待提交暂存快照；`--source=HEAD` 校验实际提交。
+  只读 Git 对象，不添加文件、不自动暂存/提交、不生成声明，不回退读取本机缺失输入。
+- 被校验快照拥有 NOTICE、inventory、发布缺口基线和其 inputs 的内容。使用 NUL 分隔的
+  Git 路径列表和对象 ID 批量读取固定快照，支持空格、中文等路径；冲突、缺失、符号链接、
+  非普通文件、非法路径/摘要/库存结构及任一哈希或基线差异均中止，并明确路径和快照来源。
+  工作区有同名文件、已暂存未提交文件、Git LFS 指针均不能补足提交内缺失的真实内容。
+- 快照检查复用 `readReleaseVerifiedNotices` 的原有校验逻辑，通过可注入只读 reader 提供
+  Git 字节；工作区调用保持兼容。原声明按字节校验，普通文本输入沿用 CRLF→LF 规范化。
+  完整性还覆盖项目 LICENSE、Git 忽略/属性、工作流与校验入口，防止缺失控制文件。
+- `.gitignore` 明确允许登记第三方源材料目录中的原始材料，覆盖用户全局 `*.txt` 等规则；
+  不放开 node_modules、缓存、运行时下载或构建产物。补充真实 Git 仓库/全局忽略夹具验收。
+- 本地 `verify:release-inputs` 默认供提交前使用；`verify:pre-push` 必须显式检查 HEAD，
+  因为推送对象是提交，不能让更新后的暂存区掩盖 HEAD 漏文件。
+- Actions 的公共 `verify-inputs` job 在 checkout、固定 Node 就绪后，先验证 tag/version，
+  再校验 HEAD 完整性与声明。无 pnpm 安装、pnpm cache 或运行时构建依赖。
+  原生插件、remote-assets、六平台构建和发布全部直接或传递依赖它，失败就不调度昂贵步骤；
+  禁止通过 `always()` / `continue-on-error` 绕过失败。原有构建时与最终发布校验继续保留。
+- 安装依赖后仍恢复已提交 lockfile 再执行发行源码检查；所有目标使用同一提交。
+  工作流编排和根 scripts 属于现有 unmanaged 构建工具，不引入运行时业务状态或跨域写入。
+
+```mermaid
+sequenceDiagram
+  participant Lemon as Lemon / 本地维护者
+  participant Index as Git 暂存快照
+  participant Commit as Git 提交快照
+  participant Gate as 公共 verify-inputs
+  participant Build as 原生插件 / 远端 / 六平台
+  participant Release as 发布汇总
+  Lemon->>Index: 明确暂存本次源码和材料
+  Lemon->>Index: verify:release-inputs（只读固定对象）
+  Index-->>Lemon: 全部引用存在且摘要/基线一致
+  Lemon->>Commit: 创建提交
+  Lemon->>Commit: verify:pre-push --source=HEAD
+  Commit->>Gate: tag checkout → 固定 Node → version → HEAD 输入校验
+  Gate-->>Build: 仅成功时准入
+  Build->>Build: 保留源码检查、声明校验及目标 staging
+  Build-->>Release: 完整产物集合
+  Release->>Release: 最终校验成功后才上传和发布
+```
+
+验收：被全局忽略但存在于本机的输入仍失败；补入暂存区后 index 成功、HEAD 仍失败，
+提交后 HEAD 成功；哈希变化、基线漂移、坏库存、越界路径、冲突、符号链接及缺失声明都失败；
+20 项已登记材料缺口继续允许。验证 CRLF、空格/中文路径、只读不改 index/工作区、真实 Git
+干净 checkout 与无 node_modules 的预检。工作流夹具必须验证依赖 DAG 和预检失败传播，
+防止只验证有步骤而漏掉昂贵 job 未等待它的情况。执行相关回归、完整 release、根 typecheck、
+Lint、架构及格式检查。真实六平台安装包和远程发布结果单独记录，不以夹具通过代替。
+
+本轮实施与验证（2026-10-15，Windows，Node 24.21.0 / pnpm 10.34.6）：
+
+- 已补入缺失的 1,063 字节原始快照，SHA-256 与文件名、库存和已跟踪的 Magpie 许可一致。
+  更新 package 脚本后通过原生成器刷新库存输入摘要；仍保留 20 项已接受材料缺口，
+  未修改其理由/发布基线，也未重写上游署名或原文。
+- 新增 11 项 Git/CLI 回归，覆盖全局忽略、本机文件掩盖缺失、index/HEAD 分歧、暂存删除、
+  工作区污染、超过 1 MiB 的中文/空格路径与 CRLF、坏 JSON/schema/路径/摘要、缺失控制文件、
+  冲突、符号链接、submodule、LFS 指针和无依赖真实 CLI。公共工作流测试补充依赖图和失败
+  绕过反例；保留既有构建时检查、最终发布检查、平台/版本/产物对账与源码质量门禁。
+- `pnpm test:release`：126 项，125 通过、0 失败、1 项按平台条件跳过。跳过项为已有的
+  Chromium 页面 helper 实机用例；本轮无产品界面改动。旧 `--strict` 兼容调用实际完成
+  普通检查并允许登记缺口（约 139 秒），没有跳过慢扫描或把它记作许可完整。
+- 根 `pnpm typecheck`、`pnpm lint`、改动脚本显式 Lint、11 个改动文本文件格式检查和
+  `git diff --check` 通过；架构检查 baseline/new/violations 均为 0。根 scripts 与 workflow
+  仍属 unmanaged 构建工具，未新增运行时状态、同步 owner 或跨模块依赖。
+- 真实暂存快照与实际提交 HEAD 均验证 3,003 项库存输入成功；`pnpm verify:pre-push`
+  实际执行 HEAD 校验、Lint 和架构检查并成功。该命令没有自动安装或冒充 Git hook。
+- 从提交创建 `core.autocrlf=true` 的真实干净克隆，未安装 node_modules，tag/version、HEAD
+  和 index 检查均成功，校验后 Git 状态仍干净；没有借用本机被忽略文件。
+  日志位于 `.artifacts/release-git-inputs-20261015/`，临时克隆保留作本地验证证据。
+- 未推送提交、移动既有 tag、触发远程 Actions 或重建六平台安装包。现有 `v3.18.9` 仍指向
+  失败的旧提交；需要以包含修复的新提交按版本/tag 契约重新发布，不能靠重跑旧 tag 获得补丁。
+
 ### macOS 局域网访问声明（2026-10-14）
 
 - 正式与 Preview 的 Mac 安装包必须在主应用 `Info.plist` 中声明非空的
@@ -55,7 +134,7 @@ Mac 安装包、自签后的系统授权提示及真实 SSH 未在本机验证�
   “同步”指使用当前检出的源码重新生成产物，不自动拉取上游或修改供应商源码 pin。
 - 编译前先从已固定且校验摘要的源码生成 OAuth worker。本地随后自动生成 NOTICE；
   tag Actions 设置 `LCODE_VERIFY_RELEASE_INPUTS=1`，只校验已提交的 NOTICE 与材料债务基线，
-  不以重生成掩盖 tag 的声明过期。六个平台都执行这个门禁，保留 Linux x64 安装前校验。
+  不以重生成掩盖 tag 的声明过期。公共 HEAD 预检先于全部构建，六个平台仍执行构建时门禁。
 - 普通、Turbo 与 bootstrap 分支都必须执行构建命令；禁止仅凭 `lcode.cjs` 或插件
   runtime 文件存在就复用。Turbo 可以使用其输入哈希缓存，但 CLI/桌面 Agent 缓存必须包含
   全部 provider-node 源码（含 OAuth worker）及嵌入的 NOTICE，不能沿用只登记单个配置源码
@@ -384,7 +463,7 @@ sequenceDiagram
   arm64 不接收 x64/x86_64/amd64；既有非 Linux 命名与版本不改变。
 - 推送 `main` 不触发桌面构建或创建 Release；任一目标失败、NOTICE/输入过期、当前材料复核项偏离显式
   release baseline 时，tag 不创建 Release。
-- Linux x64 在 `pnpm install` 前验证 committed NOTICE 基线；安装后的平台临时状态
+- 公共 `verify-inputs` 在全部安装和原生构建前验证 HEAD 的 Git 输入与 NOTICE 基线；安装后的平台临时状态
   不参与该输入哈希，恢复已提交 lockfile 后再跑完整 release contract。测试必须证明 workflow
   顺序不会因 Linux 的 pnpm lockfile 重写而误报过期。
 - 当前材料复核项与显式 release baseline 完全一致时，`v<package version>` tag 在六目标

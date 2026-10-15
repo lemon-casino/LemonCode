@@ -58,15 +58,18 @@ export async function readThirdPartyNotices(root = repositoryRoot) {
   return readFile(resolve(root, noticesFileName));
 }
 
-export async function readVerifiedNotices(root = repositoryRoot) {
-  const manifest = JSON.parse(await readFile(resolve(root, "third-party/inventory.json"), "utf8"));
+export async function readVerifiedNotices(
+  root = repositoryRoot,
+  { readFile: read = readFile } = {},
+) {
+  const manifest = JSON.parse(await read(resolve(root, "third-party/inventory.json"), "utf8"));
   if (manifest.schemaVersion !== 1) throw new Error("Unsupported third-party inventory");
-  const bytes = await readThirdPartyNotices(root);
+  const bytes = await read(resolve(root, noticesFileName));
   if (hash(bytes) !== manifest.noticesSha256)
     throw new Error("Third-party notices changed; regenerate the inventory");
   for (const [file, expected] of Object.entries(manifest.inputs)) {
     // 工作区文本允许 Windows checkout 的 CRLF；原始许可和发行声明另用字节哈希校验。
-    if (hash((await readFile(resolve(root, file), "utf8")).replaceAll("\r\n", "\n")) !== expected) {
+    if (hash((await read(resolve(root, file), "utf8")).replaceAll("\r\n", "\n")) !== expected) {
       throw new Error(`Third-party input changed: ${file}. Run node scripts/licenses.mjs notices`);
     }
   }
@@ -76,11 +79,15 @@ export async function readVerifiedNotices(root = repositoryRoot) {
   return bytes;
 }
 
-export async function readReleaseVerifiedNotices(root = repositoryRoot) {
-  const bytes = await readVerifiedNotices(root);
+export async function readReleaseVerifiedNotices(
+  root = repositoryRoot,
+  { readFile: read = readFile } = {},
+) {
+  // 修复：提交完整性校验注入同一 Git 快照，不能在声明、库存和基线之间混用工作区字节。
+  const bytes = await readVerifiedNotices(root, { readFile: read });
   const [manifest, baseline] = await Promise.all(
     ["third-party/inventory.json", releaseReviewBaselineFileName].map(async (file) =>
-      JSON.parse(await readFile(resolve(root, file), "utf8")),
+      JSON.parse(await read(resolve(root, file), "utf8")),
     ),
   );
   if (baseline.schemaVersion !== 1) throw new Error("Unsupported release review baseline");

@@ -12,15 +12,27 @@ test("tag releases build and verify remote runtimes before publishing desktop in
   );
   const job = workflow.jobs["remote-assets"];
   assert.ok(job, "remote assets must have an independent job");
+  assert.equal(job.needs, "verify-inputs");
   assert.equal(job["runs-on"], "ubuntu-24.04");
   assert.equal(job.env.LCODE_ENV, "production");
   assert.equal(job.env.LCODE_VERIFY_RELEASE_INPUTS, "1");
   const steps = job.steps;
+  assert.equal(
+    steps.some((step) => step.name === "Verify committed release notice baseline"),
+    false,
+    "the shared preflight must finish before remote dependency installation",
+  );
   const install = steps.findIndex((step) => step.name === "Install dependencies");
+  const restore = steps.findIndex(
+    (step) => step.name === "Restore committed release input after install",
+  );
   const tests = steps.findIndex((step) => step.name === "Verify remote resource distribution");
   const build = steps.findIndex((step) => step.name === "Build and stage remote runtimes");
   const upload = steps.findIndex((step) => step.uses === "actions/upload-artifact@v7");
   assert.ok(install >= 0 && tests > install && build > tests && upload > build);
+  assert.ok(install < restore && restore < tests);
+  assert.match(steps[restore].run, /git diff -- pnpm-lock\.yaml/u);
+  assert.match(steps[restore].run, /git restore --source=HEAD -- pnpm-lock\.yaml/u);
   assert.equal(steps[tests].run, "pnpm test:remote-assets");
   assert.equal(steps[build].run, "pnpm build:remote-release");
   assert.equal(steps[upload].with.name, "remote-runtime-assets");
