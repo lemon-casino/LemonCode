@@ -10,6 +10,7 @@ import {
 } from "@lcode/provider-node";
 import { getAppConfigDir as resolveAppConfigDir } from "./paths.js";
 import { RemoteProviderAccounts } from "./model-provider/remoteProviderAccounts.js";
+import { drainProviderServiceResources } from "./model-provider/providerServiceShutdown.js";
 import { createProviderAccountRelaySource } from "./model-provider/providerAccountRelaySource.js";
 import type { ProviderAccountRelayService } from "./model-provider/providerAccountRelay.js";
 import { IWorktreeService } from "./worktree/contract.js";
@@ -1753,7 +1754,7 @@ export function createLocalServices(options: {
       disposeAccountProviderInvalidation();
       accountProviderRefreshErrorDispose();
       accountProviderConfigSource.dispose();
-      void providerAccounts.dispose();
+      return providerAccounts.dispose();
     },
   });
   handleOAuthProviderLogout = createOAuthProviderLogoutHandler({
@@ -2959,6 +2960,16 @@ export function disposeServiceResources(services: ServiceCollection): void {
 }
 
 export async function disposeServiceResourcesAndWait(services: ServiceCollection): Promise<void> {
+  await drainProviderServiceResources(
+    {
+      runtime: providerRuntimes.get(services),
+      hostNetwork: managedHostApiNetworkTransports.get(services),
+    },
+    () => disposeOtherServiceResourcesAndWait(services),
+  );
+}
+
+async function disposeOtherServiceResourcesAndWait(services: ServiceCollection): Promise<void> {
   await managedTerminalOwners.get(services)?.disposeAllAndWait();
   managedTerminalOwners.delete(services);
   managedGitBackupDisposers.get(services)?.();
@@ -2994,16 +3005,11 @@ export async function disposeServiceResourcesAndWait(services: ServiceCollection
   // 关闭共享 tasks-index sqlite 句柄（同 disposeServiceResources，异步收口路径也要释放）
   for (const repo of sharedSqliteRepos.get(services) ?? []) repo.close();
   sharedSqliteRepos.delete(services);
-  providerRuntimes.get(services)?.dispose();
   for (const dispose of providerProvisioningTriggerDisposers.get(services) ?? []) dispose();
   providerProvisioningTriggerDisposers.delete(services);
   providerProvisioningSources.delete(services);
   providerAccountRelayOwners.delete(services);
   remoteProviderAccountRelays.delete(services);
-  await managedHostApiNetworkTransports
-    .get(services)
-    ?.disposeAndWait()
-    .catch(() => {});
 }
 import { ProviderAccounts } from "./model-provider/providerAccounts.js";
 import { createAuthDriver, resolveProviderNetworkOptions } from "@lcode/provider-node";

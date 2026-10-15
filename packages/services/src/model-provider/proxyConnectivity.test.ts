@@ -8,10 +8,10 @@ test("batch proxy checks bound concurrency and report request facts without erro
     calls = 0;
   const tester = createProxyConnectivityTester(
     async () => ({}),
-    async (_url, init) => {
+    async (input, init) => {
       const index = calls++;
       maximum = Math.max(maximum, ++active);
-      assert.ok(init?.signal);
+      assert.ok(new Request(input, init).signal);
       await new Promise<void>((resolve) => setImmediate(resolve));
       active--;
       if (index === 1) throw new Error("fixture-private-password");
@@ -39,12 +39,14 @@ test("batch proxy checks bound concurrency and report request facts without erro
 test("cancelling a batch stops admission and does not label cancellation as failure", async (t) => {
   const controller = new AbortController();
   let calls = 0;
+  const entered = Promise.withResolvers<void>();
   const tester = createProxyConnectivityTester(
     async () => ({}),
-    async (_url, init) => {
-      calls++;
+    async (input, init) => {
+      if (++calls === 3) entered.resolve();
+      const signal = new Request(input, init).signal;
       await new Promise<void>((_resolve, reject) =>
-        init!.signal!.addEventListener("abort", () => reject(new Error("cancelled")), {
+        signal.addEventListener("abort", () => reject(new Error("cancelled")), {
           once: true,
         }),
       );
@@ -60,7 +62,51 @@ test("cancelling a batch stops admission and does not label cancellation as fail
     })),
     controller.signal,
   );
+  await entered.promise;
   controller.abort();
   assert.deepEqual(await operation, []);
   assert.equal(calls, 3);
+});
+
+test("proxy owner waits physical SSE cancellation and keeps queued profiles unsent", async () => {
+  const entered = Promise.withResolvers<void>(),
+    gate = Promise.withResolvers<void>();
+  let calls = 0,
+    cancels = 0,
+    closed = false;
+  const tester = createProxyConnectivityTester(
+    async () => ({}),
+    async () => {
+      if (++calls === 3) entered.resolve();
+      return new Response(
+        new ReadableStream({
+          cancel() {
+            cancels++;
+            return gate.promise;
+          },
+        }),
+      );
+    },
+  );
+  const batch = tester.test(
+    Array.from({ length: 8 }, (_, index) => ({
+      id: String(index),
+      name: "Fixture",
+      httpProxy: "http://proxy.example:7890",
+    })),
+  );
+  void batch.catch(() => {});
+  await entered.promise;
+  const closing = tester.disposeAndWait().then(() => {
+    closed = true;
+  });
+  try {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(closed, false);
+    assert.equal(calls, 3);
+  } finally {
+    gate.resolve();
+    await Promise.allSettled([batch, closing]);
+  }
+  assert.equal(cancels, 3);
 });

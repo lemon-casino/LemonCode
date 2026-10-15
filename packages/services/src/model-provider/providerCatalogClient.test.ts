@@ -40,3 +40,65 @@ test("api key probe distinguishes invalid credentials from provider errors", asy
     { keyId: "good", status: "error", message: "HTTP 500" },
   ]);
 });
+
+test("disposed catalog rejects before resolving a new transport", async () => {
+  let resolved = 0;
+  const client = createProviderCatalogClient(undefined, () => {
+    resolved++;
+    return fetch;
+  });
+  client.dispose!();
+  await assert.rejects(client.listModels(config), { name: "AbortError" });
+  await assert.rejects(client.probeApiKeys(config), { name: "AbortError" });
+  assert.equal(resolved, 0);
+});
+
+test("catalog close waits late headers, cancels their body and never publishes late models", async () => {
+  const entered = Promise.withResolvers<void>(),
+    reply = Promise.withResolvers<Response>();
+  let cancels = 0,
+    closed = false;
+  const client = createProviderCatalogClient(async () => {
+    entered.resolve();
+    return reply.promise;
+  });
+  const listing = assert.rejects(client.listModels(config), { name: "AbortError" });
+  await entered.promise;
+  const closing = client.disposeAndWait!().then(() => {
+    closed = true;
+  });
+  try {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(closed, false);
+  } finally {
+    reply.resolve(
+      new Response(
+        new ReadableStream({
+          cancel() {
+            cancels++;
+          },
+        }),
+      ),
+    );
+    await Promise.all([listing, closing]);
+  }
+  assert.equal(cancels, 1);
+});
+
+test("catalog exposes physical body cancellation failure and does not consume another key", async () => {
+  let calls = 0;
+  const client = createProviderCatalogClient(async () => {
+    calls++;
+    return new Response(
+      new ReadableStream({
+        cancel() {
+          throw new Error("fixture body cleanup");
+        },
+      }),
+      { status: 401 },
+    );
+  });
+  await assert.rejects(client.listModels(config), /fixture body cleanup/);
+  await assert.rejects(client.disposeAndWait!(), AggregateError);
+  assert.equal(calls, 1);
+});

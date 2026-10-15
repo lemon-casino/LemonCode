@@ -32,6 +32,8 @@ import {
   type ProviderCatalogClient,
 } from "./providerCatalogClient.js";
 import { createProxyConnectivityTester } from "./proxyConnectivity.js";
+import { ProviderResourceCleanup } from "./providerResourceCleanup.js";
+import { createServiceLogger } from "../logger/serviceLogger.js";
 
 export interface ProviderRuntimeOptions extends ProviderConfigRuntimeOptions {
   readonly accountSource?: RefreshableProviderSource<AccountProviderConfigSnapshot>;
@@ -42,7 +44,7 @@ export interface ProviderRuntimeDependencies {
   readonly resolveDefaultNetwork?: () => Promise<HostApiNetworkOptions>;
   readonly configRuntime: ProviderConfigRuntime;
   readonly accountSource?: RefreshableProviderSource<AccountProviderConfigSnapshot>;
-  readonly disposeAccountSource?: () => void;
+  readonly disposeAccountSource?: () => void | Promise<void>;
   readonly testConnectivity?: ProviderSettingsConnectivityTester;
   readonly modelSelectionConfiguredDefaultSource?: ModelSelectionConfiguredDefaultSource;
   readonly disposeModelSelectionConfiguredDefaultSource?: () => void;
@@ -77,7 +79,7 @@ export class ProviderRuntime {
   readonly #catalogClient: ProviderCatalogClient;
   readonly modelSelection: IModelSelectionService;
   readonly #configRuntime: ProviderConfigRuntime;
-  readonly #disposeAccountSource?: () => void;
+  readonly #disposeAccountSource?: () => void | Promise<void>;
   readonly #disposeBuiltinRecovery: () => void;
   readonly #modelSelectionRuntime: IModelSelectionService & { dispose(): void };
   readonly #disposeModelSelectionConfiguredDefaultSource?: () => void;
@@ -85,6 +87,9 @@ export class ProviderRuntime {
   readonly #proxyTester: ReturnType<typeof createProxyConnectivityTester>;
   #startPromise: ReturnType<ProviderRegistryService["start"]> | null = null;
   #disposed = false;
+  readonly #cleanup = new ProviderResourceCleanup();
+  #closing?: Promise<void>;
+  #retryClose = false;
 
   constructor(dependencies: ProviderRuntimeDependencies) {
     this.#configRuntime = dependencies.configRuntime;
@@ -118,6 +123,7 @@ export class ProviderRuntime {
       dependencies.resolveDefaultNetwork ?? (async () => ({})),
     );
     this.#catalogClient = createProviderCatalogClient(undefined, (config) => {
+      if (this.#disposed) throw new DOMException("Provider runtime disposed", "AbortError");
       const key = JSON.stringify(config.network ?? null);
       let transport = this.#networkTransports.get(key);
       if (!transport) {
@@ -160,17 +166,51 @@ export class ProviderRuntime {
 
   dispose(): void {
     if (this.#disposed) return;
-    this.#disposed = true;
-    this.#disposeBuiltinRecovery();
-    this.#providerSettingsRuntime.dispose();
-    this.#catalogClient.dispose?.();
-    this.#proxyTester.dispose();
-    for (const transport of this.#networkTransports.values()) transport.dispose();
-    this.#modelSelectionRuntime.dispose();
-    this.registryService.dispose();
-    this.#disposeAccountSource?.();
-    this.#disposeModelSelectionConfiguredDefaultSource?.();
-    this.#configRuntime.dispose();
+    void this.disposeAndWait().catch(() => {
+      createServiceLogger("provider-runtime").warn(
+        "Provider runtime cleanup failed; original resources retained",
+      );
+    });
+  }
+
+  disposeAndWait(): Promise<void> {
+    if (this.#closing) return this.#closing;
+    if (this.#retryClose) {
+      this.#cleanup.retryFailed();
+      this.#retryClose = false;
+    }
+    if (!this.#disposed) {
+      this.#disposed = true;
+      const retain = (key: object, close: () => unknown) => {
+        void this.#cleanup.retain(key, close);
+      };
+      retain(this.#disposeBuiltinRecovery, this.#disposeBuiltinRecovery);
+      retain(this.#providerSettingsRuntime, () => this.#providerSettingsRuntime.dispose());
+      retain(
+        this.#catalogClient,
+        () => this.#catalogClient.disposeAndWait?.() ?? this.#catalogClient.dispose?.(),
+      );
+      retain(this.#proxyTester, () => this.#proxyTester.disposeAndWait());
+      for (const transport of this.#networkTransports.values())
+        retain(transport, () => transport.disposeAndWait());
+      this.#networkTransports.clear();
+      retain(this.#modelSelectionRuntime, () => this.#modelSelectionRuntime.dispose());
+      retain(this.registryService, () => this.registryService.dispose());
+      if (this.#disposeAccountSource)
+        retain(this.#disposeAccountSource, this.#disposeAccountSource);
+      if (this.#disposeModelSelectionConfiguredDefaultSource)
+        retain(
+          this.#disposeModelSelectionConfiguredDefaultSource,
+          this.#disposeModelSelectionConfiguredDefaultSource,
+        );
+      retain(this.#configRuntime, () => this.#configRuntime.dispose());
+    }
+    this.#closing = this.#cleanup.drain();
+    void this.#closing.catch(() => {
+      this.#retryClose = true;
+      this.#closing = undefined;
+    });
+    return this.#closing;
   }
 }
 
