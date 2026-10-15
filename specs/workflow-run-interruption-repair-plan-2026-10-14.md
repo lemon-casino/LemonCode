@@ -255,3 +255,59 @@ pnpm --dir apps/lcode-cli --filter @lcode/cli build:desktop-agent
 验证中新增两项闭环：owner 准入失败发生在 runtime 构造前，此时只关闭本 App 自建的 store，借用的 Protocol store 保留；关闭再失败时保留两份原因。现有 migration-runner 两处断言仍写死 23 条迁移，而当前基线已有 25 条；改为核对现有迁移目录的完整 ID 集合，保留“拒绝后关闭连接、重试完成全部迁移”的真实断言，不修改历史 migration。
 
 LI24 使用无窗口隔离 Electron 主进程加载实际 LCodeAgentProcessManager，stdio 子进程运行按现有 CLI aliases/external/Zod 配置打包的生命周期夹具。夹具使用真实 Core、workflow 引擎、SQLite owner、Protocol server/pool/connection，模型返回固定文本；files.read 由夹具端口显式放行。验收父模型回合真正结束、run 仍活跃、状态泳道回收不影响主泳道、显式 workspace dispose 写 interrupted 和首次 EOF 原因。它验证当前源码的 Host/Agent 装配，不等于原安装包、原业务或真实供应商验收。
+
+## 10 复核缺口补齐契约（2026-10-15）
+
+本阶段从 `2eccaf4b` 开始，按用户授权处理复核的三项缺口及同链路新发现问题。使用既有 SessionFacade、ProtocolRuntimeResources、session resume flight、resident pool 和 SQLite owner；不改变数据库结构或增加后台执行宿主。
+
+### 关闭失败与重试
+
+- 每个 SessionFacade 只有一个资源关闭 owner。第一次 close 冻结关闭上下文；在途和成功的 close 幂等复用，失败允许下一次调用重试。各资源成功清理不重复执行，失败项保留句柄；超时后仍使用原在途 Promise，不能再启动第二个 close。
+- 模型、memory、workflow 的实际收尾在启动时登记到原 Core stable drain。workflow owner 退休失败必须向上传递，不能仅记日志后成功；Execution/MCP 等实际拒绝和 store.close 拒绝同样保留失败事实。其它独立资源仍并行获得清理尝试，多项异常保留全部原因。
+- store 仅在所有 store-dependent 工作实际 settle、关键关闭无失败后关闭；失败不能导致 ProtocolRuntimeResources 删除 App。成功资源的缓存仅表示资源关闭进度，不复制运行状态或 accepted 队列。
+- Protocol 进程级 cleanup 在 session shutdown 失败后也保留共享 store，不能与 App 的保护相冲突；真正进程退出仍由原绝对 deadline 控制。
+
+### 跨会话恢复的原执行 owner 路由
+
+- 服务先读取 journal 的原 parentSessionId。同 parent 继续原 resume；不同 parent 通过宿主注入的内部 `withWorkflowRunOwner` 窄能力执行，纯嵌入宿主缺该能力时明确拒绝。不得用调用方的 lease 写原 parent 的 run。
+- Protocol 复用既有 session registry、resume flight 和 resident operation gate；校验发起会话仍属原实例、目标 workspace identity/origin 和 remoteSessionId。冷态目标经现有 activateSessionForResume 恢复，不能另建临时 App 执行 run；外部进程仍活跃或身份未知时返回拒绝。
+- 恢复成功前已在目标原 service 登记 run。getTask/waitForTask/cancel 对已路由 run 仍委托原 service；原 run 的 parent、事件、lineage、Browser authority 与 store 不改写。调用方可继续用既有后台追踪观察该 run，不取得执行所有权。
+- owner 不可用返回新增结构化 `owner_unavailable`，同步 contracts、工具失败和 V4/UI 诊断；不先发布 ok 再因 parent fence 后台失败。保留现有严格协议校验，不新增客户端可设置的 owner 或 cleanup 标记。
+- 路由等待后重新检查运行准入及实例。相同 run 在有异步缓存重建时也必须在真正 launch 前复核本地在途条目，避免两个 Resume 都在等待后启动同 ID 引擎。
+
+```mermaid
+sequenceDiagram
+    participant B as 调用方 App B
+    participant P as Protocol session owner
+    participant A as 原父 App A
+    participant J as SQLite owner / journal
+    B->>P: withWorkflowRunOwner(原 parent, operation)
+    P->>P: 验证 identity / attachment，取得 operation gate
+    alt 原 App 已存在
+        P->>A: 复用原 service
+    else 冷恢复
+        P->>A: 既有 resume flight 恢复原 App
+        A->>J: 认领原 parent 的 fenced lease
+    end
+    P->>A: resume 原 run，并在接受前登记
+    A-->>B: accepted 或 owner_unavailable
+    B->>P: wait / cancel 继续委托原 service
+    A->>J: 原 token / parent 下结算
+    A->>A: close 并排水；失败保留句柄与首次上下文
+    A->>J: 所有关键收尾成功后退休 lease
+```
+
+### 正式验收
+
+| 场景 | 必须断言 |
+| --- | --- |
+| owner 退休首次写入失败 | 真实 SQLite + service + SessionFacade + Protocol 资源组合，首次 close 拒绝且 owner 活跃，下一次 close 可退休并认领新代；store 未提前关闭 |
+| 并发 close / 失败重试 | 同一次调用共用在途工作；成功资源只关闭一次，失败资源重试；原 closeId/deadline 不被替换 |
+| Execution/MCP/store 失败 | 多失败全部可见，其它资源仍尝试；失败 store 关闭可重试，无假 closed |
+| 共享 store shutdown 失败 | 原 store 保持可用，资源句柄仍在；重试实际成功才关闭 |
+| 跨父会话恢复 | 同项目 A 的 stopped run 从 B 恢复完成，A 的 parent/owner 不变；A 活跃时不创建第二 App；B wait/cancel 委托 A |
+| 身份或 owner 不可用 | 同路径异 identity、remoteSessionId 不匹配、旧 owner 活跃/未知、缺路由能力均在接受前拒绝，无 journal/Browser 副作用 |
+| 传输与交互 | continuous/replayable 均验证；工具和 V4 传递 owner_unavailable，现有 UI 显示可操作诊断 |
+| 异步 resume 竞争 | 两个同 ID Resume 或等待时关闭 App，至多一个真正 launch；不重复已完成 world 副作用 |
+
+新测试先证明旧实现失败，再记录实现后的实际结果。执行根与 CLI 的 typecheck/lint、相关完整后端回归、Web E2E、隔离 Electron、Agent 构建与 staging；原安装包、真实供应商和跨平台实机仍单独说明。
