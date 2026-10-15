@@ -7,6 +7,7 @@ import { createNegotiatingPool } from "./network-http2-client.js";
 import { createNetworkRequestLease, waitForNetworkResult } from "./network-request-lifecycle.js";
 import { NetworkCleanup } from "./network-cleanup.js";
 import { NetworkDiagnostics } from "./network-diagnostics.js";
+import { createNetworkRequest, readNetworkRequestBody } from "./network-request-body.js";
 
 export interface HostApiNetworkOptions {
   http2?: "disabled" | "negotiate";
@@ -163,7 +164,7 @@ export function createHostApiNetworkTransport(
     if (disposed) {
       throw new DOMException("Host API network transport has been disposed", "AbortError");
     }
-    const request = new Request(input as Parameters<typeof globalThis.fetch>[0], init);
+    const request = createNetworkRequest(input, init);
     request.signal.throwIfAborted();
     let leasedDispatcherKey: string | undefined;
     const lease = createNetworkRequestLease(
@@ -254,7 +255,9 @@ export function createHostApiNetworkTransport(
       }
       // Node 内置 fetch 的 Request 与独立 undici 包不是同一构造器；OAuth driver
       // 使用 Request 输入时必须投影公共字段，否则代理分支会把它当成 URL 文本。
-      const body = request.body ? new Uint8Array(await request.arrayBuffer()) : undefined;
+      const body = await readNetworkRequestBody(request.body, lease.controller.signal, (key, run) =>
+        cleanup.retain(key, run),
+      );
       lease.controller.signal.throwIfAborted();
       // Buffer/Blob 会被 H2 backend 在 REFUSED_STREAM/GOAWAY 时自动重放，即使是 POST。
       // 使用公开的单次流 body 保留每次 physical attempt 的边界；重试仍由 Runner 准入。

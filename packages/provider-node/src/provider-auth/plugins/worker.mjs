@@ -9,6 +9,7 @@ import { factoryImports } from "./factory-import.mjs";
 import { resolveZCodeLocal, zcodeLocalChallenge } from "./zcode-local.mjs";
 import { installWorkerNetwork } from "./worker-network.mjs";
 import { fetchPluginModel } from "./worker-fetch.mjs";
+import { createWorkerReaderCleanup } from "./worker-reader-cleanup.mjs";
 
 const scopes = new AsyncLocalStorage();
 const operations = new Map();
@@ -16,6 +17,7 @@ const callbacks = new Map();
 const reads = new Map();
 const children = new Set();
 const servers = new Set();
+const readerCleanup = createWorkerReaderCleanup();
 let sequence = 0;
 let closed = false;
 let refreshTail = Promise.resolve();
@@ -323,12 +325,7 @@ function dispose() {
     const closing = [networkTransport.disposeAndWait()];
     for (const scope of operations.values()) {
       if (scope.done) closing.push(scope.done);
-      if (scope.reader)
-        closing.push(
-          scope.reader.cancel().catch((error) => {
-            if (error !== scope.controller.signal.reason) throw error;
-          }),
-        );
+      readerCleanup.cancel(scope);
     }
     for (const pending of reads.values())
       pending.reject(new DOMException("Worker closed", "AbortError"));
@@ -348,6 +345,8 @@ function dispose() {
       );
     }
     const results = await Promise.allSettled(closing);
+    // 原 operation 的 finally 也可能登记 reader；等 operation 后再排空同一个账本。
+    results.push(...(await Promise.allSettled([readerCleanup.drain()])));
     const failed = results.some((result) => result.status === "rejected");
     // ACK 只在原资源结算后发出；父端仍以真实 exit 为准，不把收到 dispose 当成清理成功。
     send({ kind: "disposed", failed });
@@ -384,7 +383,7 @@ parentPort.on("message", (message) => {
     const scope = operations.get(message.id);
     scope?.controller.abort();
     scope?.pull?.();
-    void scope?.reader?.cancel().catch(() => {});
+    if (scope) readerCleanup.cancel(scope);
     return;
   }
   if (message.kind !== "call" || closed) return;
@@ -410,7 +409,7 @@ parentPort.on("message", (message) => {
         await credential("signin", error.signIn).catch(() => {});
       send({ kind: "error", id: message.id, error: failure(error) });
     } finally {
-      void scope.reader?.cancel().catch(() => {});
+      readerCleanup.cancel(scope);
       operations.delete(message.id);
     }
   });

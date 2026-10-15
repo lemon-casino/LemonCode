@@ -4,6 +4,51 @@ import { NetworkFetchCache } from "./network-fetch-cache.js";
 import { createNetworkProxyFetch } from "./proxy-fetch.js";
 import type { ManagedNetworkFetch } from "./proxy-fetch.js";
 
+test("model cache preserves the original upload cancellation completion", async () => {
+  const gate = Promise.withResolvers<void>(),
+    reading = Promise.withResolvers<void>();
+  const cache = new NetworkFetchCache();
+  let cancels = 0,
+    closed = false;
+  const request = new Request("https://example.test", {
+    method: "POST",
+    duplex: "half",
+    body: new ReadableStream<Uint8Array>(
+      {
+        pull() {
+          reading.resolve();
+        },
+        cancel() {
+          cancels++;
+          return gate.promise;
+        },
+      },
+      { highWaterMark: 0 },
+    ),
+  } as RequestInit);
+  const fetch = cache.fetchFor("fixture", (onIdle) =>
+    createNetworkProxyFetch({
+      forceDirect: true,
+      onIdle,
+      fetch: async () => new Response("unexpected"),
+    }),
+  );
+  const fetching = assert.rejects(fetch(request), { name: "AbortError" });
+  await reading.promise;
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  const closing = cache.disposeAndWait().then(() => {
+    closed = true;
+  });
+  try {
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(cancels, 1);
+    assert.equal(closed, false, "cache must not hide the original source behind a pipeThrough");
+  } finally {
+    gate.resolve();
+    await Promise.all([fetching, closing]);
+  }
+});
+
 test("failed retired resources remain owned and retry without closing successful resources again", async () => {
   const cache = new NetworkFetchCache(0);
   let closes = 0;

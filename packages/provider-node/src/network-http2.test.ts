@@ -81,6 +81,51 @@ async function fixture(t: import("node:test").TestContext) {
   return { tls, listen, owner, sockets };
 }
 
+test(
+  "owner close drains eight unconsumed H2 streams while another owner stays healthy",
+  { timeout: 5000 },
+  async (t) => {
+    const f = await fixture(t);
+    const target = createSecureServer(f.tls);
+    const streams: ServerHttp2Stream[] = [];
+    const sessions: Http2Session[] = [];
+    target.on("session", (session) => {
+      sessions.push(session);
+      session.on("error", () => {});
+    });
+    target.on("stream", (stream: ServerHttp2Stream) => {
+      stream.on("error", () => {});
+      stream.resume();
+      streams.push(stream);
+      stream.respond({ ":status": 200, "content-type": "text/event-stream" });
+      stream.write("data: start\n\n");
+    });
+    const port = await f.listen(target),
+      owner = f.owner({}),
+      sibling = f.owner({});
+    const url = `https://127.0.0.1:${port}`;
+    const responses = await Promise.all(
+      Array.from({ length: 8 }, () => owner.fetch(url, { method: "POST", body: "{}" })),
+    );
+    assert.equal(sessions.length, 1);
+    const ownedClosed = once(sessions[0]!, "close");
+    const siblingResponse = await sibling.fetch(url, { method: "POST", body: "{}" });
+    assert.equal(sessions.length, 2);
+    await owner.disposeAndWait();
+    await ownedClosed;
+    assert.equal(
+      streams.slice(0, 8).every((stream) => stream.closed),
+      true,
+    );
+    assert.equal(owner.activeRequestCount, 0);
+    for (const response of responses) await assert.rejects(response.text(), { name: "AbortError" });
+    assert.equal(sessions[1]!.closed, false);
+    streams[8]!.end("data: sibling alive\n\n");
+    assert.match(await siblingResponse.text(), /sibling alive/);
+    await sibling.disposeAndWait();
+  },
+);
+
 test("TLS negotiates H2 and H1 before POST; policy changes do not reuse the other protocol", async (t) => {
   const f = await fixture(t),
     versions: number[] = [];

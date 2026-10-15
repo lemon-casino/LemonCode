@@ -18,14 +18,16 @@ export class NetworkFetchCache {
     return async (input, init) => {
       if (this.disposed)
         throw new DOMException("Model network resources have been disposed", "AbortError");
-      const request = new Request(input, init);
-      request.signal.throwIfAborted();
+      // 只校验原 signal，Request 构造与 body 由唯一 transport 持有；额外包装会隐藏上传源关闭。
+      const signal =
+        init?.signal === undefined && input instanceof Request ? input.signal : init?.signal;
+      signal?.throwIfAborted();
       let fetch = this.entries.get(key);
       if (!fetch) fetch = create(() => this.trimIdle());
       this.entries.delete(key);
       this.entries.set(key, fetch);
       // 底层同步登记请求租约后才淘汰；不能把刚开始发送的请求误认成 idle。
-      const result = fetch(request);
+      const result = fetch(input, init);
       this.trimIdle();
       return result;
     };

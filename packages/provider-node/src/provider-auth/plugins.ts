@@ -145,27 +145,7 @@ function createDriver(
         {},
         context,
       ),
-    async fetch(request, context) {
-      const body =
-        request.method === "GET" || request.method === "HEAD"
-          ? undefined
-          : new Uint8Array(await request.arrayBuffer());
-      return worker.call<Response>(
-        "fetch",
-        {
-          request: {
-            url: request.url,
-            method: request.method,
-            headers: [...request.headers],
-            body,
-          },
-        },
-        context,
-        request.signal,
-        false,
-        request,
-      );
-    },
+    fetch: (request, context) => worker.fetch(request, context),
     quota: (context) => worker.call<unknown>("quota", {}, context),
     dispose: () => worker.dispose(),
   };

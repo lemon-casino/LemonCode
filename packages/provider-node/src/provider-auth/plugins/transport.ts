@@ -1,6 +1,8 @@
 import { Worker } from "node:worker_threads";
 import type { AuthDriverContext, AuthGrant, AuthDriverNetworkOptions } from "../driver.js";
 import { PLUGIN_WORKER_SOURCE } from "./worker-source.js";
+import { readNetworkRequestBody } from "../../network-request-body.js";
+import { NetworkCleanup } from "../../network-cleanup.js";
 
 interface PendingCall {
   /** Node Request 的取消 controller 使用弱引用；只持有 signal 不够，须保留 Request 到流结算。 */
@@ -43,6 +45,9 @@ export class PluginWorkerTransport {
   private closed = false;
   private readonly exit: Promise<number>;
   private disposing?: Promise<void>;
+  private readonly lifetime = new AbortController();
+  private readonly uploadCleanup = new NetworkCleanup();
+  private activeUploads = 0;
 
   constructor(
     channel: string,
@@ -66,16 +71,17 @@ export class PluginWorkerTransport {
       });
     this.worker.stdout.resume();
     this.worker.stderr.resume();
-    this.worker.unref();
     this.exit = new Promise((resolve) => {
       this.worker.once("exit", (code) => {
         this.closed = true;
+        this.lifetime.abort(abortedError());
         this.failAll(new Error("Provider plugin worker stopped"));
         resolve(code);
       });
     });
     this.worker.on("error", (error) => {
       this.closed = true;
+      this.lifetime.abort(abortedError());
       this.failAll(error instanceof Error ? error : new Error(String(error)));
     });
     this.worker.on("message", (message: WorkerMessage) => {
@@ -84,6 +90,45 @@ export class PluginWorkerTransport {
         void this.dispose().catch(() => {});
       });
     });
+    // Worker 加第一个 message listener 会重新 ref；注册后再标记 handle 空闲。
+    // 捕获的 stdio 仍有独立 ref，物理释放始终依赖 dispose 确认 exit，不能只靠 unref。
+    this.worker.unref();
+  }
+
+  async fetch(request: Request, context?: AuthDriverContext): Promise<Response> {
+    if (this.closed) throw abortedError();
+    this.activeUploads++;
+    this.worker.ref();
+    try {
+      const signal = AbortSignal.any([
+        request.signal,
+        this.lifetime.signal,
+        ...(context?.signal ? [context.signal] : []),
+      ]);
+      // worker call 前的上传序列化同样归 driver，取消后不能继续读取或迟到 postMessage。
+      const body = await readNetworkRequestBody(request.body, signal, (key, run) =>
+        this.uploadCleanup.retain(key, run),
+      );
+      signal.throwIfAborted();
+      return this.call<Response>(
+        "fetch",
+        {
+          request: {
+            url: request.url,
+            method: request.method,
+            headers: [...request.headers],
+            body,
+          },
+        },
+        context,
+        request.signal,
+        false,
+        request,
+      );
+    } finally {
+      this.activeUploads--;
+      if (!this.activeUploads && !this.pending.size && !this.closed) this.worker.unref();
+    }
   }
 
   async call<T>(
@@ -137,6 +182,7 @@ export class PluginWorkerTransport {
 
   dispose(options?: { deadlineAt?: number }): Promise<void> {
     if (this.disposing) return this.disposing;
+    this.lifetime.abort(abortedError());
     if (!this.closed) {
       this.closed = true;
       this.failAll(abortedError());
@@ -147,8 +193,17 @@ export class PluginWorkerTransport {
       let timer: ReturnType<typeof setTimeout> | undefined;
       try {
         const outcome = await Promise.race([
-          this.exit.then((code) => {
-            if (code !== 0) throw new Error(`Provider worker cleanup failed (exit ${code})`);
+          Promise.allSettled([
+            this.uploadCleanup.drain(),
+            this.exit.then((code) => {
+              if (code !== 0) throw new Error(`Provider worker cleanup failed (exit ${code})`);
+            }),
+          ]).then((results) => {
+            const failures = results
+              .filter((result) => result.status === "rejected")
+              .map((result) => result.reason);
+            if (failures.length)
+              throw new AggregateError(failures, "Provider worker resource cleanup failed");
             return "exited" as const;
           }),
           new Promise<"pending">((resolve) => {
@@ -162,6 +217,8 @@ export class PluginWorkerTransport {
           }),
         ]);
         if (outcome === "pending") {
+          if (this.worker.threadId === -1)
+            throw new Error("Provider upload cleanup remains pending after worker exit");
           // 只终止本账号创建的 Worker；强制结束必须报告，不能伪装优雅关闭 ACK。
           await this.worker.terminate();
           throw new Error("Provider worker cleanup required forced termination");
@@ -183,7 +240,7 @@ export class PluginWorkerTransport {
       if (!pending.settled) pending.reject(error);
     } else if (pending.stream) pending.stream.close();
     else if (!pending.settled) pending.resolve(value);
-    if (this.pending.size === 0) this.worker.unref();
+    if (this.pending.size === 0 && !this.activeUploads) this.worker.unref();
   }
 
   private failAll(error: Error): void {

@@ -1463,7 +1463,7 @@
     "packages/provider-node/src/provider-auth/native/transports.test.ts": "eca8bb570caf9704060745639ae360c2bd5d64512980e7423e81d8299d7e9247",
     "packages/provider-node/src/provider-auth/plugins/factory-import.mjs": "5c9ed1cce9ab4e3538b21996e7d17df002964e3bacc64ba868f01153f564652d",
     "packages/provider-node/src/provider-auth/plugins/method-details.mjs": "81af1536b6f35061208824323f09956dd3409ca9d850b3f3c7e30b1bfdcd31e5",
-    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "8abaf89eb8befc5d30365dcbed2b65e71d5d2f66c5bcdfb09f48b0ef10dbd850",
+    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "43e4ba51e3c83fa8d5c300d6284c639612d807339a4e6aa42af1f9b6f652a476",
     "packages/provider-node/src/provider-auth/plugins/zcode-local.mjs": "c8b91d4414eed9c9edd0e227a06141d0c75bb1601abc5cef177be01ca21952e4",
     "packages/provider-node/src/provider-auth/vendor/cline/index.mjs.source": "8e60d522aa362e205ec884998124dbdd04d1abc9b5edab038804f7a3ff4793d0",
     "packages/provider-node/src/provider-auth/vendor/commandcode/index.mjs.source": "1474d3fc8bd91e2166ad97daef83e21ef8f4820c0374d517a92e61c8b0a273de",
@@ -31139,7 +31139,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "8abaf89eb8befc5d30365dcbed2b65e71d5d2f66c5bcdfb09f48b0ef10dbd850"
+          "sha256": "43e4ba51e3c83fa8d5c300d6284c639612d807339a4e6aa42af1f9b6f652a476"
         }
       ]
     },
@@ -31269,7 +31269,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "8abaf89eb8befc5d30365dcbed2b65e71d5d2f66c5bcdfb09f48b0ef10dbd850"
+          "sha256": "43e4ba51e3c83fa8d5c300d6284c639612d807339a4e6aa42af1f9b6f652a476"
         }
       ]
     },
