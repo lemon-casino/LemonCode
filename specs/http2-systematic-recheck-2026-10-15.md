@@ -18,7 +18,7 @@ Network transport、worker scope、Protocol cleanup step、CLI diagnostic produc
 ```mermaid
 sequenceDiagram
     participant C as caller / lifecycle
-    participant N as 原 network / worker owner
+    participant N as 原 network / worker / driver owner
     participant R as 原 reader / session
     participant P as 原 Protocol cleanup step
     participant L as 诊断出口
@@ -47,4 +47,32 @@ sequenceDiagram
 
 ## 结果
 
-待本轮实现与实际执行后填写。
+本轮发现的上传、worker reader、账号 driver 构造、迟到清理诊断及聚合原因缺口均已修复。H2 的正常乱序并发、对端 SETTINGS 限制、单流取消、session 故障和无 POST 重放回归通过；新增八路长 SSE 关闭断言在 fixture 清理前确认原 session 已关闭，另一 owner 保持健康。
+
+执行环境：Windows，Node 24.21.0、pnpm 10.34.6；隔离 Electron 41.10.7 / Node 24.18.0。本机日志目录 `.artifacts/http2-systematic-recheck-20261015/`。没有沿用上轮 1,098 项数字作为本轮执行结果。
+
+| 验证                           | 本轮实际结果与证据                                                                                                                                                                                           |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Provider 全部 TS/mjs 测试      | 248 项通过，`provider-final.log`；含 32 轮/256 个乱序 POST、Electron 内嵌 Node、真实代理及插件 fixture。最后修改的 context 类型夹具另外重跑 6 项通过，去重不再加计。                                         |
+| 账号、Host、CLI 及 model cache | 112 项通过，`services-cli-host-final.log`；含真实 uncaught / strict unhandled rejection 的 H2 进程、首次 errorId、stderr 分片、原构建身份、账号 CAS/锁/构造关闭。纯校验提取后相关 8 项再通过，去重不再加计。 |
+| Model adapter/Runner           | 226 项通过，`model-final.log`。                                                                                                                                                                              |
+| Bootstrap 全部 src 测试        | 537 项通过，`bootstrap.log`；原 store 保护、Browser/checkout、continuous/replayable 和 CommandInbox 保持回归。                                                                                               |
+| 打包与实际 staging             | 16 项通过，`packaging.log`；包括当前 Agent 字节进入实际 staging、公开网络入口和 Desktop 外置依赖。                                                                                                           |
+| 隔离 Electron / Web            | 各 1 项通过，`electron-web.log`；独立 Host 实际关闭及停止归因的宽屏/手机、主题和语言。                                                                                                                       |
+| 根 / CLI typecheck             | 最终均退出 0；CLI 27 项任务通过，命中 Turbo 缓存如实保留。                                                                                                                                                   |
+| 根 / CLI lint、pre-push        | 最终均退出 0；CLI 14 项任务通过；pre-push 的 changed 架构检查违规/基线/新增均 0。                                                                                                                            |
+| 架构边界                       | 已在修改前运行检查、读取 provider-node/services/shared/lcode-cli 上下文；这些主要区域仍是 unmanaged，不把 0 违规等同于全覆盖。未新增跨包实现导入。                                                           |
+| worker、许可与构建             | 原生成器重建成功，vendor SHA 校验保留；notices 生成及 check 均退出 0，1,746 个实装包检查通过。现有 20 项材料复核债务仍按基线管理，不宣称 strict 零债务。                                                     |
+| Agent smoke                    | `build:desktop-agent` 退出 0，约 17.3 MiB；`--version` 为现有 0.16.9，`--licenses` 退出 0。                                                                                                                  |
+
+去重共 **1,141 项测试通过**，其中本轮新增 23 项；重复的定向验证和 Electron 重装配不重复计数。未修改 UI 交互，但运行了原 Web/Electron 端到端回归。没有把真实供应商吞吐、长期 RSS 或跨平台真机效果写成已验证。
+
+构建身份：
+
+- Agent：`353263fc96b917163647c9e0fc1b36f1ab2d4c36f0ebba8b9d8c156e9f06fceb`。
+- 生成 `worker-source.ts`：`43e4ba51e3c83fa8d5c300d6284c639612d807339a4e6aa42af1f9b6f652a476`，inventory 同步该字节 hash。
+- 固定 vendor manifest：`c0ce379a746de3ca094552c2b334f1fed585fe88a7369b6c2ac8d841a37ba348`，revision 未更换。
+
+本轮失败记录与边界：新增上传、聚合原因、迟到失败及账号构造测试曾先失败，修复后实际重跑通过；类型检查发现夹具类型/可选输入问题，Lint 发现 400 行超限，均修正后再通过。formatter 在 Windows 曾遇到文件映射占用，改为单线程后完成。独立 idle worker 探针没有自然退出，原因是捕获 stdio 的独立 ref；验收使用显式 dispose 与真实 exit，不谎报 unref 探针成功。子进程 fixture 一度继承 `--input-type=module` 导致 CJS require 失败，明确清空该夹具的 execArgv 后重跑通过。原复现挂起的测试进程已仅按确认的自有 PID 回收。
+
+代码按功能本地提交：`c42b9bd1` 网络与 worker 上传/reader，`6bdb91d6` 账号构造与退休，`40ca8aa5` 迟到清理及聚合诊断。三个实现提交共 23 个文件，新增 1,156 / 删除 119 行，净增 1,037 行（含测试、生成 worker 单行与 inventory）；文档另计。格式检查实际匹配根 18、CLI 6 个文件通过，生成 worker 由原构建器格式化。已有远控重连改动、原业务与外部仓库均未混入。未推送或发布，未替换用户安装包；macOS/Linux、手机真机和真实供应商仍未在本轮实测。
