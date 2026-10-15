@@ -17,8 +17,20 @@ import {
 declare const __CLI_VERSION__: string | undefined;
 const STACK_EXCERPT_CHARS = 3_000;
 
+function readErrorField(reason: unknown, key: string): unknown {
+  try {
+    return reason instanceof Error ? Reflect.get(reason, key) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+function errorString(reason: unknown, key: string, fallback = ""): string {
+  const value = readErrorField(reason, key);
+  return typeof value === "string" ? value : fallback;
+}
+
 function errorText(reason: unknown): string {
-  if (reason instanceof Error) return reason.message;
+  if (reason instanceof Error) return errorString(reason, "message", "Unreadable process error");
   if (typeof reason === "string") return reason;
   try {
     return JSON.stringify(reason) ?? String(reason);
@@ -29,7 +41,9 @@ function errorText(reason: unknown): string {
 function detail(reason: unknown) {
   const allFrames =
     reason instanceof Error
-      ? (reason.stack ?? "").split("\n").filter((line) => /^\s+at /.test(line))
+      ? errorString(reason, "stack")
+          .split("\n")
+          .filter((line) => /^\s+at /.test(line))
       : [];
   const half = FRAMES_MAX / 2;
   const frames = (
@@ -37,9 +51,9 @@ function detail(reason: unknown) {
       ? [...allFrames.slice(0, half), ...allFrames.slice(-half)]
       : allFrames
   ).map((frame) => frame.slice(0, FRAME_MAX));
-  const code = reason instanceof Error && "code" in reason ? reason.code : undefined;
+  const code = readErrorField(reason, "code");
   return {
-    name: (reason instanceof Error ? reason.name || "Error" : "Error").slice(0, NAME_MAX),
+    name: (errorString(reason, "name", "Error") || "Error").slice(0, NAME_MAX),
     message: errorText(reason).slice(0, MESSAGE_MAX),
     ...(typeof code === "string" || typeof code === "number"
       ? { code: String(code).slice(0, NAME_MAX) }
@@ -58,7 +72,7 @@ export function createProcessDiagnostic(
   reason: unknown,
 ): LCodeProcessDiagnostic {
   const { framesTruncated, ...root } = detail(reason);
-  const rawStack = reason instanceof Error ? (reason.stack ?? "") : "";
+  const rawStack = errorString(reason, "stack");
   const stack =
     rawStack.length <= STACK_MAX
       ? rawStack
@@ -68,12 +82,29 @@ export function createProcessDiagnostic(
         );
   const seen = new Set<unknown>([reason]);
   const causes: Array<Omit<ReturnType<typeof detail>, "framesTruncated">> = [];
-  let cause = reason instanceof Error ? reason.cause : undefined;
-  while (cause !== undefined && !seen.has(cause) && causes.length < CAUSES_MAX) {
+  let causesTruncated = false;
+  const pending: unknown[] = [];
+  const enqueueCauses = (error: unknown) => {
+    const cause = readErrorField(error, "cause");
+    if (cause !== undefined) pending.push(cause);
+    // 清理层使用 AggregateError 保存独立资源故障；只读 cause 会丢掉全部底层错误码。
+    const errors = error instanceof AggregateError ? readErrorField(error, "errors") : undefined;
+    if (Array.isArray(errors)) {
+      pending.push(...errors.slice(0, CAUSES_MAX));
+      if (errors.length > CAUSES_MAX) causesTruncated = true;
+    }
+  };
+  enqueueCauses(reason);
+  while (pending.length && causes.length < CAUSES_MAX) {
+    const cause = pending.shift();
+    if (seen.has(cause)) {
+      causesTruncated = true;
+      continue;
+    }
     seen.add(cause);
     const { framesTruncated: _truncated, ...item } = detail(cause);
     causes.push(item);
-    cause = cause instanceof Error ? cause.cause : undefined;
+    enqueueCauses(cause);
   }
   const diagnostic: Extract<LCodeProcessDiagnostic, { version: 2 }> = {
     version: 2,
@@ -87,7 +118,7 @@ export function createProcessDiagnostic(
       messageChars: errorText(reason).length,
       stackChars: rawStack.length,
       frames: framesTruncated,
-      causes: cause !== undefined,
+      causes: causesTruncated || pending.length > 0,
     },
     runtime: {
       node: process.versions.node,

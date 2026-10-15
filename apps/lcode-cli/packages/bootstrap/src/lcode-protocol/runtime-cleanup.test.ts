@@ -85,12 +85,15 @@ function createHarness() {
   const sessionShutdown = createDeferred();
   const order: string[] = [];
   const warnings: Array<{ context?: LogContext; message: string }> = [];
+  const infos: LogContext[] = [];
   let shutdownCalls = 0;
   const logger: Logger = {
     child: () => logger,
     debug: () => undefined,
     error: () => undefined,
-    info: () => undefined,
+    info: (_message, context) => {
+      if (context) infos.push(structuredClone(context));
+    },
     warn: (message, context) => {
       warnings.push({ context, message });
     },
@@ -153,6 +156,7 @@ function createHarness() {
     sessionShutdown,
     shutdownCalls: () => shutdownCalls,
     warnings,
+    infos,
   };
 }
 
@@ -197,6 +201,11 @@ test("protocol cleanup keeps the session store open until timed-out session shut
 
   assert.ok(harness.order.indexOf("provider_disposed") < harness.order.indexOf("store_closed"));
   assert.equal(harness.shutdownCalls(), 1);
+  assert.ok(
+    harness.infos.some((info) => info.event === "lcode_protocol.sessions.shutdown.completed"),
+  );
+  const summary = harness.infos.find((info) => info.event === "lcode_protocol.close.summary");
+  assert.ok(JSON.stringify(summary).includes('"resource":"sessions","status":"completed"'));
 });
 
 test("protocol cleanup preserves the shared store when session shutdown rejects", async () => {
@@ -219,4 +228,44 @@ test("protocol cleanup preserves the shared store when session shutdown rejects"
     ).length,
     sessionWarningsBeforeReject + 1,
   );
+});
+
+test("noncritical cleanup that rejects after its budget still reports one correlated failure", async () => {
+  const deferred = createDeferred();
+  const warnings: LogContext[] = [];
+  const logger: Logger = {
+    child: () => logger,
+    debug() {},
+    error() {},
+    info() {},
+    warn: (_message, context) => {
+      if (context) warnings.push(context);
+    },
+  };
+  await cleanupProtocolRuntime({
+    logger,
+    deadlineAt: Date.now(),
+    shutdownContext: {
+      origin: "runtime_failure",
+      processId: 1,
+      closeId: "original-close",
+      errorId: "original-error",
+      requestedAt: Date.now(),
+      deadlineAt: Date.now(),
+      transportAvailable: false,
+    },
+    providerRegistryRuntime: { dispose: () => deferred.promise },
+  });
+  assert.ok(
+    warnings.some((item) => item.event === "lcode_protocol.provider_registry.shutdown.pending"),
+  );
+  deferred.reject(new Error("token=fixture-secret", { cause: new Error("fixture cause") }));
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  const failed = warnings.filter(
+    (item) => item.event === "lcode_protocol.provider_registry.shutdown.failed",
+  );
+  assert.equal(failed.length, 1);
+  assert.equal(failed[0]?.closeId, "original-close");
+  assert.equal(failed[0]?.errorId, "original-error");
+  assert.ok(!JSON.stringify(failed).includes("fixture-secret"));
 });

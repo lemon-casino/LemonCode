@@ -110,3 +110,66 @@ test("v2 diagnostic reaches the strict Host IPC schema with the observed bundle 
     false,
   );
 });
+
+test("aggregate cleanup errors retain codes, nested causes and bounded cycle metadata", () => {
+  const first = Object.assign(new Error("socket close failed"), { code: "ERR_SOCKET_CLOSE" });
+  const second = new Error("reader close failed", { cause: first });
+  const root = new AggregateError([first, second, first], "cleanup failed");
+  const diagnostic = createProcessDiagnostic(
+    "00000000-0000-4000-8000-000000000001",
+    "uncaughtException",
+    "uncaughtException",
+    root,
+  );
+  assert.equal(diagnostic.version, 2);
+  if (diagnostic.version !== 2) return;
+  assert.deepEqual(
+    diagnostic.causes.map((item) => item.message),
+    ["socket close failed", "reader close failed"],
+  );
+  assert.equal(diagnostic.causes[0]?.code, "ERR_SOCKET_CLOSE");
+  assert.ok(
+    parseLCodeProcessDiagnostic(LCODE_PROCESS_DIAGNOSTIC_PREFIX + JSON.stringify(diagnostic)),
+  );
+});
+
+test("throwing error accessors cannot erase the original fatal diagnostic", () => {
+  const root = new Error("fixture root");
+  // 原栈先物化，避免 V8 的延迟 stack formatter 再调用本测试的 name getter。
+  void root.stack;
+  for (const key of ["name", "code", "cause"])
+    Object.defineProperty(root, key, {
+      get() {
+        throw new Error("accessor failed");
+      },
+    });
+  const diagnostic = createProcessDiagnostic(
+    "00000000-0000-4000-8000-000000000001",
+    "uncaughtException",
+    "uncaughtException",
+    root,
+  );
+  assert.equal(diagnostic.message, "fixture root");
+  assert.ok(
+    parseLCodeProcessDiagnostic(LCODE_PROCESS_DIAGNOSTIC_PREFIX + JSON.stringify(diagnostic)),
+  );
+});
+
+test("mixed aggregate and cause graphs are capped at four without recursion", () => {
+  const errors = Array.from({ length: 8 }, (_, index) => new Error(`fixture ${index}`));
+  const root = new AggregateError(errors, "aggregate", { cause: errors[0] });
+  errors[1]!.cause = root;
+  const diagnostic = createProcessDiagnostic(
+    "00000000-0000-4000-8000-000000000001",
+    "uncaughtException",
+    "uncaughtException",
+    root,
+  );
+  if (diagnostic.version !== 2) return assert.fail("expected v2");
+  assert.equal(diagnostic.causes.length, 4);
+  assert.equal(new Set(diagnostic.causes.map((item) => item.message)).size, 4);
+  assert.equal(diagnostic.truncated.causes, true);
+  assert.ok(
+    parseLCodeProcessDiagnostic(LCODE_PROCESS_DIAGNOSTIC_PREFIX + JSON.stringify(diagnostic)),
+  );
+});

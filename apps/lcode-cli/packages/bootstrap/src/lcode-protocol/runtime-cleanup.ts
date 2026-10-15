@@ -34,7 +34,7 @@ export async function cleanupProtocolRuntime(options: {
     options.logger.info("Protocol cleanup summary", {
       ...closeContext,
       event: "lcode_protocol.close.summary",
-      results,
+      results: results.map((result) => ({ ...result })),
       remainingMs: Math.max(0, deadline - Date.now()),
     });
   options.logger.info("Protocol cleanup started", {
@@ -57,20 +57,44 @@ export async function cleanupProtocolRuntime(options: {
   };
   const step = async (resource: string, cleanup: () => unknown | Promise<unknown>) => {
     let timeout: NodeJS.Timeout | undefined;
-    let status: "completed" | "failed" | "pending" = "completed";
+    let budgetElapsed = false;
+    const result: (typeof results)[number] = { resource, status: "pending" };
+    results.push(result);
+    // race 只结束本次等待，不能丢弃原 Promise 的迟到终态或把 summary 固定为 pending。
+    const operation = Promise.resolve()
+      .then(cleanup)
+      .then(
+        () => {
+          result.status = "completed";
+          if (budgetElapsed)
+            options.logger.info("Protocol cleanup completed after step budget", {
+              ...closeContext,
+              event: `lcode_protocol.${resource}.shutdown.completed`,
+              remainingMs: Math.max(0, deadline - Date.now()),
+            });
+          return { status: "completed" as const };
+        },
+        (error: unknown) => {
+          result.status = "failed";
+          warnCleanupFailure(resource, error);
+          return { error, status: "failed" as const };
+        },
+      );
     try {
       // 共用绝对 deadline；某项失败/挂起不阻止其余资源被尝试，也不逐项续时。
       const outcome = await Promise.race([
-        Promise.resolve().then(cleanup),
+        operation,
         new Promise<typeof CLEANUP_PENDING>((resolve) => {
           timeout = setTimeout(
-            () => resolve(CLEANUP_PENDING),
+            () => {
+              budgetElapsed = true;
+              resolve(CLEANUP_PENDING);
+            },
             Math.max(0, Math.min(CLEANUP_STEP_BUDGET_MS, deadline - Date.now())),
           );
         }),
       ]);
       if (outcome === CLEANUP_PENDING) {
-        status = "pending";
         options.logger.warn("Protocol cleanup remains pending", {
           ...closeContext,
           event: `lcode_protocol.${resource}.shutdown.pending`,
@@ -79,13 +103,8 @@ export async function cleanupProtocolRuntime(options: {
         });
         return { status: "pending" as const };
       }
-      return { status: "completed" as const };
-    } catch (error) {
-      status = "failed";
-      warnCleanupFailure(resource, error);
-      return { error, status: "failed" as const };
+      return outcome;
     } finally {
-      results.push({ resource, status });
       if (timeout) clearTimeout(timeout);
     }
   };
@@ -98,7 +117,7 @@ export async function cleanupProtocolRuntime(options: {
     step("sampler", () => options.processResourceSampler?.stop()),
     step("mcp_telemetry", () => options.mcpTelemetryTracker?.stop()),
   ]);
-  const sessionStepResult = await step("sessions", shutdownSessions);
+  await step("sessions", shutdownSessions);
   await step("projections", () => options.server?.disposeProjections());
   await Promise.all([
     step("node_repl_browser_broker", () => options.nodeReplBrowserBroker?.close()),
@@ -116,10 +135,7 @@ export async function cleanupProtocolRuntime(options: {
     // 否则 session finalizer 可能在 SQLite 已关闭后继续写入。
     await shutdownSessions();
   } catch (error) {
-    // 若第一次只记录了 budget 超时，最终 reject 也要落日志；同一即时 reject 不重复记录。
-    if (sessionStepResult.status !== "failed" || sessionStepResult.error !== error) {
-      warnCleanupFailure("sessions", error);
-    }
+    // 原 step 已观察同一个 Promise 的实际失败，这里只保护 store，不重复报告。
     shutdownFailure = { error };
   }
   // App 关闭失败时原 owner 仍可能需要此共享连接重试退休，不能绕过 facade 保护关库。
