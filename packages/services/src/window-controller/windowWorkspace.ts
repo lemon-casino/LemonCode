@@ -3,6 +3,9 @@ import type {
   WindowWorkspaceCatalogEntry,
   WindowWorkspaceRpcCall,
   WindowWorkspaceRpcListen,
+  WindowWorkspaceReconnectTarget,
+  WindowWorkspaceReconnectRequest,
+  WindowWorkspaceReconnectResult,
 } from "@lcode/shared";
 import { createServiceDescriptor } from "../descriptors.js";
 
@@ -12,6 +15,10 @@ export interface IWindowWorkspaceService {
   onDidChangeCatalog: Event<WindowWorkspaceCatalogEntry[]>;
   call(params: WindowWorkspaceRpcCall): Promise<unknown>;
   onDynamicScopedEvent(params: WindowWorkspaceRpcListen): Event<unknown>;
+  requestReconnect(target: WindowWorkspaceReconnectTarget): Promise<void>;
+  /** 只在可信 local/desktop-continuous attachment 上可用。 */
+  onDynamicReconnectRequested(): Event<WindowWorkspaceReconnectRequest>;
+  completeReconnect(result: WindowWorkspaceReconnectResult): Promise<boolean>;
 }
 export const IWindowWorkspaceService =
   createServiceDescriptor<IWindowWorkspaceService>("window-workspace");

@@ -919,6 +919,10 @@ nodes:
         symbol: createRemoteBrowserWorkspaceCatalog
       - file: packages/desktop/src/host/windowWorkspaceAttachmentService.ts
         symbol: createWindowWorkspaceAttachmentService
+      - file: packages/desktop/src/host/windowWorkspaceReconnectOwner.ts
+        symbol: createWindowWorkspaceReconnectOwner
+      - file: packages/ui/src/hooks/useWindowWorkspaceReconnect.ts
+        symbol: useWindowWorkspaceReconnect
     invariants:
       - "The Desktop footer shortcut and Basics settings section share the same Main-owned config and
         pairing state; Web and mobile surfaces do not register Desktop-only settings."
@@ -926,6 +930,8 @@ nodes:
         layers parent popover below confirmation backdrop below confirmation content."
       - "Remote browsers derive project/service bindings from the existing window Host registry, reuse
         scoped replayable carriers for SSH/WSL/Docker, and route worktrees/groups to their original owners."
+      - "Remote reconnect requests restore existing window identities through the trusted Desktop handler;
+        credentials, connection lifecycle and project initialization remain on the original Desktop path."
   - id: surface.remote-control-settings
     kind: ui-surface
     label: Basics remote control settings and footer pairing shortcut

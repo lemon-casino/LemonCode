@@ -1661,6 +1661,10 @@ const enUS: Record<string, string> = {
   "workspaceSidebar.windowsReservedNameRisk":
     "Project removed, but {count} Windows reserved-name file(s) were detected and may affect later folder deletion or renaming: {path}",
   "workspaceSidebar.reconnect": "Reconnect",
+  "workspaceSidebar.reconnectDesktopUnavailable":
+    "The desktop window cannot reconnect right now. Wait for it to be ready and try again.",
+  "workspaceSidebar.reconnectTargetUnavailable":
+    "This remote project is no longer in the desktop window. Open it there and try again.",
   "workspaceSidebar.connecting": "Connecting",
   "workspaceSidebar.notConnected": "Not connected",
   "workspaceSidebar.empty": "No workspaces yet. Open a workspace to get started.",

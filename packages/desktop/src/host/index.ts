@@ -149,6 +149,7 @@ import {
 } from "./remotePromptAttachments.js";
 import { createWindowHostAttachmentRegistry } from "./windowHostAttachmentRegistry.js";
 import { createWindowWorkspaceAttachmentService } from "./windowWorkspaceAttachmentService.js";
+import { createWindowWorkspaceReconnectOwner } from "./windowWorkspaceReconnectOwner.js";
 import { scopeConversationShareServiceForAttachment } from "./conversationShareAttachmentService.js";
 import {
   createWindowRemoteConnectionRegistry,
@@ -2078,6 +2079,8 @@ function createAttachmentServiceChannels(
   };
 }
 
+const windowWorkspaceReconnectOwner = createWindowWorkspaceReconnectOwner(randomUUID);
+
 function getWindowWorkspaceCatalog(): WindowWorkspaceCatalogEntry[] {
   return windowRemoteConnectionRegistry.listSessions().flatMap((session) => {
     if (!session.workspacePath || !session.workspaceIdentity) return [];
@@ -2149,6 +2152,8 @@ function exposeServicesOnMessagePort(
   );
   for (const [name, channel] of attachmentChannels.channels) server.registerChannel(name, channel);
   const workspaceAttachment = createWindowWorkspaceAttachmentService({
+    reconnectOwner: windowWorkspaceReconnectOwner,
+    canHandleReconnect: clientMode === "desktop-continuous" && attachmentScope.kind === "local",
     getCatalog: getWindowWorkspaceCatalog,
     onCatalogChanged: windowRemoteConnectionRegistry.onDidChangeCatalog,
     resolveScope: resolveWindowWorkspaceScope,
@@ -2275,6 +2280,7 @@ async function disposeHostResources(reason: string): Promise<HostShutdownResult>
     disposeLocalResourceTelemetry();
     disposeAttachedServicePorts();
     windowHostControllerRuntime.dispose();
+    windowWorkspaceReconnectOwner.dispose();
     for (const key of Array.from(cronRunSubscriptions.keys())) {
       disposeCronRunSubscription(key);
     }
@@ -2344,6 +2350,7 @@ function disposeHostResourcesBestEffort(reason: string): void {
   disposeLocalResourceTelemetry();
   disposeAttachedServicePorts();
   windowHostControllerRuntime.dispose();
+  windowWorkspaceReconnectOwner.dispose();
   for (const key of Array.from(cronRunSubscriptions.keys())) {
     disposeCronRunSubscription(key);
   }

@@ -1597,6 +1597,10 @@ const zhCN: Record<string, string> = {
   "workspaceSidebar.windowsReservedNameRisk":
     "已移除项目，但检测到 {count} 个 Windows 保留名文件，可能影响后续删除或重命名目录：{path}",
   "workspaceSidebar.reconnect": "重新连接",
+  "workspaceSidebar.reconnectDesktopUnavailable":
+    "桌面窗口暂时无法处理重新连接，请确认窗口已就绪后重试。",
+  "workspaceSidebar.reconnectTargetUnavailable":
+    "该远端项目已不在桌面窗口中，请在桌面端重新打开后再试。",
   "workspaceSidebar.connecting": "连接中",
   "workspaceSidebar.notConnected": "未连接",
   "workspaceSidebar.empty": "暂无工作区，请先打开一个工作区。",

@@ -19,3 +19,20 @@ if (entry) {
 ```
 
 factory 是客户端本地适配器，call/listen 和目录是 RPC 接口。目录不包含认证字段，内部 channel 不在 scoped 服务面。新配对 attachment 绑定窗口 Local Host，不绑定当前项目。该接口不拥有 accepted 输入、runtime 或连接生命周期。
+
+`requestReconnect({ workspacePath, workspaceIdentity })` 只恢复桌面窗口已有的远端项目。Host 将请求转交可信 local/desktop-continuous attachment 的 `onDynamicReconnectRequested()` 处理者，后者验证当前 tab，复用原桌面重连入口并通过 `completeReconnect` 结算。浏览器不可注册或提交完成结果，也不获得凭据。Host 按 identity/path 合并转发中的 RPC，处理者退出/端口换代即拒绝挂起请求；这不构成任务队列或新的连接 owner。目录事件仍是 session/generation 恢复的唯一事实源。
+
+```ts
+// 已配对浏览器：请求恢复已有 scope，不接收连接参数。
+await services.windowWorkspaceService.requestReconnect({ workspacePath, workspaceIdentity });
+// 仅可信 Desktop attachment：处理请求后提交结果；手机不可调用该能力。
+const subscription = services.windowWorkspaceService.onDynamicReconnectRequested()(
+  async (request) => {
+    await reconnectExistingDesktopWorkspace(request);
+    await services.windowWorkspaceService.completeReconnect({
+      requestId: request.requestId,
+      ok: true,
+    });
+  },
+);
+```

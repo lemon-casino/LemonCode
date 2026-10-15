@@ -1,6 +1,7 @@
 import { Emitter, type Event, type IServerChannel } from "@lcode/rpc";
 import {
   ServiceChannels,
+  WINDOW_WORKSPACE_RECONNECT_UNAVAILABLE,
   windowWorkspaceCatalogSchema,
   windowWorkspaceRpcCallSchema,
   windowWorkspaceRpcListenSchema,
@@ -8,6 +9,7 @@ import {
   type WindowWorkspaceScope,
 } from "@lcode/shared";
 import type { IWindowWorkspaceService } from "@lcode/services";
+import type { WindowWorkspaceReconnectOwner } from "./windowWorkspaceReconnectOwner.js";
 
 export interface WorkspaceAttachmentChannels {
   channels: ReadonlyMap<string, IServerChannel>;
@@ -21,7 +23,13 @@ export function createWindowWorkspaceAttachmentService<T>(options: {
   onCatalogChanged: Event<void>;
   resolveScope(scope: WindowWorkspaceScope): T;
   createChannels(scope: WindowWorkspaceScope, source: T): WorkspaceAttachmentChannels;
+  reconnectOwner?: WindowWorkspaceReconnectOwner;
+  canHandleReconnect?: boolean;
 }) {
+  // 信任只来自 Host 已确定的 attachment 模式/范围，浏览器请求不能声明自己为 Desktop owner。
+  const reconnectHandler = options.canHandleReconnect
+    ? options.reconnectOwner?.createHandler()
+    : undefined;
   const routes = new Map<
     string,
     {
@@ -84,6 +92,21 @@ export function createWindowWorkspaceAttachmentService<T>(options: {
     if (!disposed) catalogEmitter.fire(windowWorkspaceCatalogSchema.parse(options.getCatalog()));
   });
   const service: IWindowWorkspaceService = {
+    async requestReconnect(target) {
+      if (disposed || !options.reconnectOwner)
+        throw new Error(WINDOW_WORKSPACE_RECONNECT_UNAVAILABLE);
+      await options.reconnectOwner.request(target);
+    },
+    onDynamicReconnectRequested() {
+      if (disposed || !reconnectHandler)
+        throw new Error("Reconnect handler is unavailable on this attachment");
+      return reconnectHandler.onRequest;
+    },
+    async completeReconnect(result) {
+      if (disposed || !reconnectHandler)
+        throw new Error("Reconnect completion is unavailable on this attachment");
+      return reconnectHandler.complete(result);
+    },
     async getCatalog() {
       if (disposed) throw new Error("workspace attachment 已释放");
       return windowWorkspaceCatalogSchema.parse(options.getCatalog());
@@ -139,6 +162,7 @@ export function createWindowWorkspaceAttachmentService<T>(options: {
     dispose() {
       if (disposed) return;
       disposed = true;
+      reconnectHandler?.dispose();
       catalogSubscription.dispose();
       for (const listener of listeners) listener.dispose();
       for (const route of routes.values()) route.handle.dispose();

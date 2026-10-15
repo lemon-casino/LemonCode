@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isRemoteWorkspaceIdentity } from "./remote-workspace-identity.js";
 
 // 目录只暴露 endpoint 的展示身份，不透出认证字段或凭据存储 key。
 const catalogTargetSchema = z.discriminatedUnion("kind", [
@@ -57,3 +58,26 @@ export const windowWorkspaceRpcListenSchema = z
   })
   .strict();
 export type WindowWorkspaceRpcListen = z.infer<typeof windowWorkspaceRpcListenSchema>;
+
+// 重连只接受已有项目身份，连接参数与凭据始终由 Desktop owner 提供。
+export const windowWorkspaceReconnectTargetSchema = z
+  .object({
+    workspacePath: z.string().min(1),
+    workspaceIdentity: z.string().trim().refine(isRemoteWorkspaceIdentity),
+  })
+  .strict();
+export type WindowWorkspaceReconnectTarget = z.infer<typeof windowWorkspaceReconnectTargetSchema>;
+export const windowWorkspaceReconnectRequestSchema = windowWorkspaceReconnectTargetSchema.extend({
+  requestId: z.string().min(1),
+});
+export type WindowWorkspaceReconnectRequest = z.infer<typeof windowWorkspaceReconnectRequestSchema>;
+export const windowWorkspaceReconnectResultSchema = z.discriminatedUnion("ok", [
+  z.object({ requestId: z.string().min(1), ok: z.literal(true) }).strict(),
+  z
+    .object({ requestId: z.string().min(1), ok: z.literal(false), error: z.string().min(1) })
+    .strict(),
+]);
+export type WindowWorkspaceReconnectResult = z.infer<typeof windowWorkspaceReconnectResultSchema>;
+export const WINDOW_WORKSPACE_RECONNECT_UNAVAILABLE = "WINDOW_WORKSPACE_RECONNECT_UNAVAILABLE";
+export const WINDOW_WORKSPACE_RECONNECT_TARGET_UNAVAILABLE =
+  "WINDOW_WORKSPACE_RECONNECT_TARGET_UNAVAILABLE";

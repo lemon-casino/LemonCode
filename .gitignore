@@ -309,6 +309,11 @@ nul
 !/packages/web/test/fixtures/remote-session-configuration.html
 !/packages/web/test/fixtures/remote-session-configuration.tsx
 
+# 远控侧栏重连按钮到桌面既有 owner 的浏览器回归。
+!/packages/web/test/remote-workspace-reconnect.test.mjs
+!/packages/web/test/fixtures/remote-workspace-reconnect.html
+!/packages/web/test/fixtures/remote-workspace-reconnect.tsx
+
 # OAuth 计费对齐与账号签到的永久浏览器回归。
 !/packages/web/test/oauth-billing-checkin.test.mjs
 !/packages/web/test/fixtures/model-billing-menu.html

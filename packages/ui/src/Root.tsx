@@ -47,6 +47,7 @@ import { OccupationOnboarding } from "@/onboarding/OccupationOnboarding.js";
 import { OnboardingDialog } from "@/onboarding/OnboardingDialog.js";
 import { GitBackupWelcomeDialog } from "@/GitBackupWelcomeDialog.js";
 import { useRemoteWorkspaceHistory } from "@/root/useRemoteWorkspaceHistory.js";
+import { useWindowWorkspaceReconnect } from "@/hooks/useWindowWorkspaceReconnect.js";
 import { useRemoteWorkspaceTabLifecycle } from "@/root/useRemoteWorkspaceTabLifecycle.js";
 import { useRootProviderStateRefresh } from "@/root/useRootProviderStateRefresh.js";
 import { useModelSelectionServiceView } from "@/hooks/useModelSelectionView.js";
@@ -571,6 +572,22 @@ function RootInner({
     addTab,
     onWorkspaceActivated: handleRemoteWorkspaceActivated,
   });
+
+  const windowWorkspaceReconnect = useWindowWorkspaceReconnect({
+    services,
+    tabs: tabStoreApi,
+    isDesktop: Boolean(isDesktop),
+    browserScope: remoteBrowserNavigationScope,
+    desktopReconnect: handleReconnectRemoteWorkspace,
+  });
+  const workspaceReconnectPendingKeys = useMemo(
+    () => [...reconnectingRemoteWorkspaceKeys, ...windowWorkspaceReconnect.pendingKeys],
+    [reconnectingRemoteWorkspaceKeys, windowWorkspaceReconnect.pendingKeys],
+  );
+  const workspaceReconnectErrors = useMemo(
+    () => ({ ...remoteWorkspaceErrorByWorkspaceKey, ...windowWorkspaceReconnect.errors }),
+    [remoteWorkspaceErrorByWorkspaceKey, windowWorkspaceReconnect.errors],
+  );
 
   useEffect(() => {
     // fileDisplay 默认不传 basePath 时需要落到“当前激活 workspace”。
@@ -1106,7 +1123,7 @@ function RootInner({
             handleConnectRemote={handleConnectRemote}
             handleSelectRemoteProject={handleSelectRemoteProject}
             handleCancelRemoteProject={handleCancelRemoteProject}
-            handleReconnectRemoteWorkspace={handleReconnectRemoteWorkspace}
+            handleReconnectRemoteWorkspace={windowWorkspaceReconnect.reconnect}
             handleCreateTask={handleCreateTask}
             handleCreateConversationTask={handleCreateConversationTask}
             handleResolveConversationWorkspace={handleResolveConversationWorkspace}
@@ -1125,8 +1142,8 @@ function RootInner({
             handleLogout={user ? handleLogout : undefined}
             onLogin={!user ? handleOpenLoginEntry : undefined}
             user={user}
-            reconnectingRemoteWorkspaceKeys={reconnectingRemoteWorkspaceKeys}
-            remoteWorkspaceErrorByWorkspaceKey={remoteWorkspaceErrorByWorkspaceKey}
+            reconnectingRemoteWorkspaceKeys={workspaceReconnectPendingKeys}
+            remoteWorkspaceErrorByWorkspaceKey={workspaceReconnectErrors}
             reconnectingRemoteWorkspaceLogsByWorkspaceKey={
               reconnectingRemoteWorkspaceLogsByWorkspaceKey
             }
