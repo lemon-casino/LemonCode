@@ -57,7 +57,7 @@ const modelConfig = ModelConfig.fromData({
 });
 
 test(
-  "NDJSON temporary probes reach four real Adapter HTTP streams and finish without changing the active session",
+  "NDJSON temporary probes resolve a proxy profile and reach four authenticated HTTP streams without changing the active session",
   { timeout: 15_000 },
   async () => {
     const enteredFour = deferred();
@@ -71,6 +71,11 @@ test(
     }> = [];
     const network = createServer((request, response) => {
       void (async () => {
+        assert.equal(request.url, "http://provider.fixture.invalid/v1/chat/completions");
+        assert.equal(
+          request.headers["proxy-authorization"],
+          `Basic ${Buffer.from("fixture:password").toString("base64")}`,
+        );
         const chunks: Buffer[] = [];
         for await (const chunk of request)
           chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
@@ -116,6 +121,13 @@ test(
       revision: "config",
       lcodeBuiltinRevision: "builtin",
       personalRevision: "personal",
+      proxyProfiles: [
+        {
+          id: "fixture-proxy",
+          name: "Fixture authenticated proxy",
+          httpProxy: `http://fixture:password@127.0.0.1:${address.port}`,
+        },
+      ],
       lcodeBuiltinProviders: ProviderConfigMap.empty(),
       lcodeBuiltinProviderTemplates: ProviderTemplateMap.empty(),
       personalProviders: new ProviderConfigMap([
@@ -126,9 +138,10 @@ test(
             access: { type: "api-key", apiKey: "fixture-key" },
             api: {
               type: "openai-chat-completions",
-              baseUrl: `http://127.0.0.1:${address.port}/v1`,
+              baseUrl: "http://provider.fixture.invalid/v1",
               headers: { "x-fixture": "frozen-header" },
             },
+            network: { mode: "profile", profileId: "fixture-proxy" },
             personalModelIds: ["disabled", "published"],
             builtinModelIds: ["deleted"],
             excludedModelIds: ["deleted"],

@@ -5,6 +5,7 @@ import type { StorageCleanCandidate } from "../domain/cleanPlan.js";
 import type { StorageCleanScope } from "../domain/storageCatalog.js";
 import type {
   StoragePathError,
+  StorageCleanResult,
   StorageRootSpec,
   StorageRootUsage,
   StorageVolume,
@@ -48,4 +49,9 @@ export interface FsCleanerPort {
     targets: StorageCleanCandidate[],
     options: { keepDirectories: string[] },
   ): Promise<StorageDeleteResult>;
+}
+
+/** 专用包管理器清理命令；不能复用通用文件删除 port。 */
+export interface PackageCacheCleanerPort {
+  clean(dataRootPath: string): Promise<StorageCleanResult>;
 }

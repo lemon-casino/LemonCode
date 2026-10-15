@@ -1,5 +1,13 @@
 import type { IRuntimeEnvironmentService } from "./contract.js";
 
+/** Main 只注入专用维护 port；UI 仍使用存储 clean 命令。 */
+export function packageCacheMaintenance(
+  cleaner: import("./contract.js").IRuntimePackageCacheCleaner,
+  dataRootPath: string,
+) {
+  return cleaner.clean(dataRootPath);
+}
+
 /** 契约用法示例（架构治理 contract.example 惯例）；不是运行时代码。 */
 export async function prepareWorktreeEnvironment(
   service: IRuntimeEnvironmentService,

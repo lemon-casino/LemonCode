@@ -3,6 +3,7 @@ import { lstat, mkdir, realpath } from "node:fs/promises";
 import { dirname, extname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { terminateProcessTreeAndWait } from "@lcode/services/process/processTreeTerminator";
 import type { DependencyInstallPort } from "../app/ports.js";
+import { withPackageStoreLease } from "./packageStoreLease.js";
 
 export interface DependencyInstallOptions {
   resolveEnv?: () => Promise<NodeJS.ProcessEnv>;
@@ -43,7 +44,7 @@ export async function managerCommand(
   return { executable: nodePath, prefix: [npm], toolPath: npm };
 }
 export function createDependencyInstaller(options: DependencyInstallOptions = {}) {
-  async function run(params: {
+  async function execute(params: {
     executable: string;
     args: string[];
     cwd: string;
@@ -161,6 +162,12 @@ export function createDependencyInstaller(options: DependencyInstallOptions = {}
       });
     });
   }
+  const run = (params: Parameters<typeof execute>[0]) => {
+    const packageStore = params.env?.npm_config_store_dir;
+    return packageStore
+      ? withPackageStoreLease(packageStore, () => execute(params), { shared: true })
+      : execute(params);
+  };
   const verifyManager: NonNullable<DependencyInstallPort["verifyManager"]> = async (params) => {
     const command = await managerCommand(params.manager, params.toolPaths);
     const result = await run({

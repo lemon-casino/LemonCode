@@ -1,4 +1,10 @@
-import { ModelConfig, ModelConfigRules, resolveApiKeyAccessKeys } from "./config/index.js";
+import {
+  ModelConfig,
+  ModelConfigRules,
+  ProviderConfig,
+  resolveApiKeyAccessKeys,
+} from "./config/index.js";
+import { resolveProviderNetworkConfig } from "./network-config.js";
 import type { ModelSelection } from "./registry.js";
 import type { ProviderRegistryServiceSnapshot } from "./registry-service.js";
 import {
@@ -30,7 +36,18 @@ export function resolveTemporaryModel(
   if (!provider || !provider.enabled || provider.providerIssues.length > 0) {
     throw new Error(`Provider 不可用于临时检测: ${providerId}`);
   }
-  const providerConfig = createRegistryProviderConfig(provider.config);
+  // 修复：设置投影保留 profileId，临时入口必须与正式 Registry 一样从同一快照派生出口，
+  // 否则 Adapter 会在发请求前拒绝；只覆盖本次不可变配置，不写回代理或模型成员。
+  const providerConfig = createRegistryProviderConfig(
+    provider.config.overlay(
+      new ProviderConfig({
+        network: resolveProviderNetworkConfig(
+          provider.config.network,
+          snapshot.config.proxyProfiles,
+        ),
+      }),
+    ),
+  );
   if (!providerConfig.ok) throw new Error(`Provider 配置不完整: ${providerId}`);
   const access = providerConfig.config.access;
   if (

@@ -126,6 +126,8 @@ Host-only process acquire 可附带实际 client 的 `RuntimeConsumerProcessOwne
 
 ## 当前边界与验收状态
 
+公开 Node 工厂 `createRuntimePackageCacheCleaner()` 为资源管理器提供 `clean(dataRootPath)`：固定清理 `<dataRoot>/v2/runtime-environments/package-store/pnpm`，只执行托管 pnpm 的 store prune，使用与托管依赖安装共享的包缓存独占锁，并持有所用工具的安装锁。运行时工具、node_modules、环境私有 data 均不属于该动作。缺工具、被占用、路径不可验证时返回结构化失败；不安装工具、不使用系统 PATH 的 pnpm、不自动重新准备环境。完整规则与验收见 `specs/resource-manager-storage.md`。
+
 Explicit Worktree discard also removes the validated environment-private resource root,
 including data, after exact chat deletion and all consumer/service exit checks. Archive,
 upgrade, candidate cancellation and ordinary release retain private data. Logical released

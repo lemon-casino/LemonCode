@@ -80,7 +80,11 @@ export function StorageCategoryDetail({
           >
             {cleaning ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
             {intl.formatMessage({
-              id: cleaning ? "resourceManager.storage.cleaning" : "resourceManager.storage.clean",
+              id: cleaning
+                ? "resourceManager.storage.cleaning"
+                : categoryId === "pnpmCache"
+                  ? "resourceManager.storage.safeClean"
+                  : "resourceManager.storage.clean",
             })}
           </Button>
         ) : null}

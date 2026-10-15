@@ -24,16 +24,23 @@ export interface StorageCleanScope {
 
 const CLEANABILITY: Record<StorageCategoryId, StorageCleanability> = {
   sessionStore: "none",
-  // 只有 subagent 的 transcript.jsonl 可删；其余工具输出与临时缓存暂不可删。
+  // 只有 subagent 的 transcript.jsonl 可删，其余子代理文件继续保留。
   subagentTranscripts: "safe",
   toolOutputs: "none",
+  mediaCache: "safe",
+  editorCache: "safe",
+  pnpmCache: "safe",
+  temporaryFiles: "none",
   modelTrajectory: "safe",
   devTraces: "safe",
   logs: "safe",
   backups: "confirm",
   exports: "safe",
   runtimes: "none",
+  worktreeData: "none",
+  gitBackups: "none",
   config: "none",
+  legacyData: "none",
   other: "none",
 };
 
@@ -76,25 +83,28 @@ const PREFIX_RULES: Record<Exclude<StorageCategoryId, "other">, string[]> = {
   sessionStore: ["v2/sessions", "v2/session-bindings", "v2/checkpoints"],
   // transcript.jsonl 由上面的文件规则先命中，其余 cli/agents 内容留在这里
   subagentTranscripts: [],
-  toolOutputs: [
-    "cli/artifacts",
-    "cli/agents",
-    "cli/sessions",
-    "cli/exec",
-    "cli/image-cache",
-    "cli/pdf-cache",
-    "clipboard",
-    "git-checkpoint-index",
-    "editor-icon",
-    "tmp",
-    "cache",
-  ],
+  toolOutputs: ["cli/artifacts", "cli/agents", "cli/sessions", "cli/exec"],
+  mediaCache: ["cli/image-cache", "cli/pdf-cache", "cli/video-cache"],
+  editorCache: ["editor-icon"],
+  pnpmCache: ["v2/runtime-environments/package-store/pnpm"],
+  // 临时附件可能仍被草稿、会话引用，不能仅因目录名为 tmp/cache 就删除。
+  temporaryFiles: ["tmp", "cache", "clipboard"],
   modelTrajectory: ["cli/debug", "cli/rollout"],
   devTraces: ["v2/dev", "v2/acp-traffic-proxy", "v2/acp-stream-diagnostics"],
   logs: ["v2/logs", "cli/log", "logs", "v2/crash", "v2/perf", "feedback/logs"],
   backups: ["backup", "v2/backup", "v2/migrations", "cli/db/backup", "cli/db/backups"],
   exports: ["export-log", "export-log-stage", "feedback"],
-  runtimes: ["agents", "bundled-agents", "lite", "computer-use", "cli/plugins"],
+  runtimes: [
+    "agents",
+    "bundled-agents",
+    "lite",
+    "computer-use",
+    "cli/plugins",
+    "v2/runtime-environments",
+  ],
+  worktreeData: ["v2/worktrees", "v2/git-review-workspaces", "git-checkpoint-index"],
+  gitBackups: ["v2/git-backup"],
+  legacyData: ["agent"],
   // cli/plugins 整体（含 cache）不可清理，插件缓存归运行时。
   config: [
     "v2/agent-config",
@@ -104,6 +114,7 @@ const PREFIX_RULES: Record<Exclude<StorageCategoryId, "other">, string[]> = {
     "v2/acp-auth",
     "v2/acp-config",
     "v2/provider",
+    "v2/runtime",
     "cli/models",
     "cli/memories",
     "cli/workflows",
@@ -162,13 +173,10 @@ export function classifyStoragePath(
   context: StorageCatalogContext,
 ): StorageClassification {
   const path = normalizeStorageRelativePath(rawPath);
-  // 启用自定义数据路径后，home 根下的 v2 是迁移遗留的旧副本，整体归「其他」，不提供清理。
+  // 原先把整份 home/v2 折叠到「其他」，无法看出占用来源；单独分类并保留逐子目录明细。
+  // 自定义路径不代表旧数据可安全丢弃，优先于普通分类且不提供清理。
   if (context.rootId === "home" && context.hasCustomDataBaseDir && isUnderPrefix(path, "v2")) {
-    return { categoryId: "other", entryKey: "v2" };
-  }
-  // agent/ 是 ACP 时代残留，当前代码无写入方，同样归「其他」。
-  if (isUnderPrefix(path, "agent")) {
-    return { categoryId: "other", entryKey: "agent" };
+    return { categoryId: "legacyData", entryKey: entryKeyBelow(path, "v2") };
   }
   for (const rule of FILE_RULES) {
     if (rule.pattern.test(path)) {
@@ -183,7 +191,7 @@ export function classifyStoragePath(
       return { categoryId, entryKey: entryKeyBelow(path, prefix) };
     }
   }
-  return { categoryId: "other", entryKey: path.split("/")[0] ?? path };
+  return { categoryId: "other", entryKey: path.split("/").slice(0, 2).join("/") };
 }
 
 export function getStorageCategoryCleanability(categoryId: StorageCategoryId): StorageCleanability {
@@ -205,10 +213,14 @@ const FILE_RULE_SCOPES: Partial<Record<StorageCategoryId, string[]>> = {
 /** 只靠文件规则、且需要递归枚举的类别：候选按分类过滤后只剩命中文件规则的路径。 */
 const RECURSIVE_FILE_RULE_SCOPES: Partial<Record<StorageCategoryId, string[]>> = {
   subagentTranscripts: ["cli/agents"],
+  // 原始产物仅作为同会话活动依据，clean plan 的分类过滤保证不会删除它们。
+  mediaCache: ["cli/artifacts"],
 };
 
 export function getStorageCleanScopes(categoryId: StorageCategoryId): StorageCleanScope[] {
-  if (categoryId === "other" || CLEANABILITY[categoryId] === "none") return [];
+  // pnpm 引用与缓存格式由包管理器维护，不能把其存储文件当成普通缓存逐项删除。
+  if (categoryId === "other" || categoryId === "pnpmCache" || CLEANABILITY[categoryId] === "none")
+    return [];
   const recursive = [
     ...PREFIX_RULES[categoryId],
     ...(RECURSIVE_FILE_RULE_SCOPES[categoryId] ?? []),

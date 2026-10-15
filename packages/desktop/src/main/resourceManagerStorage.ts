@@ -12,6 +12,7 @@ import {
   createFsStorageCleaner,
   createStorageRootsResolver,
   createStorageService,
+  createRuntimePackageCacheCleaner,
   getDataBaseDir,
 } from "@lcode/services/node";
 // 存储接口来自公开契约入口，node 入口只承载适配器工厂。
@@ -30,6 +31,7 @@ function getService(): IStorageService {
     roots: rootsResolver,
     scanRunner: createStorageScanWorkerRunner(),
     cleaner: createFsStorageCleaner(),
+    packageCache: createRuntimePackageCacheCleaner(),
   });
   service.onScanProgress((snapshot) => {
     if (subscriber && !subscriber.isDestroyed()) {

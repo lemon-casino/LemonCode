@@ -3,7 +3,7 @@
  * 删除后自底向上移除变空的目录，但保留 keepDirectories（类别顶层目录），写入方不必重新 mkdir。
  */
 import { lstat, readdir, rm, rmdir } from "node:fs/promises";
-import { dirname, join, relative, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import type { FsCleanerPort, StorageDeleteResult } from "../app/ports.js";
 import type { StorageCleanCandidate } from "../domain/cleanPlan.js";
 import type { StorageCleanScope } from "../domain/storageCatalog.js";
@@ -16,6 +16,26 @@ function errorCode(error: unknown): string {
   return error && typeof error === "object" && "code" in error && typeof error.code === "string"
     ? error.code
     : "UNKNOWN";
+}
+
+async function hasSafePath(rootPath: string, path: string, file = false): Promise<boolean> {
+  const segments = normalizeStorageRelativePath(path).split("/");
+  if (
+    isAbsolute(path) ||
+    segments.some((segment) => !segment || segment === "." || segment === "..")
+  )
+    return false;
+  let current = rootPath;
+  // 仅 walker 跳过目录内链接还不够：scope 自身或 cli 等祖先也可能是指向根外的 junction。
+  // 枚举与删除前逐层 lstat，防止清理缓存时沿链接触及用户的其他目录。
+  for (let index = -1; index < segments.length; index += 1) {
+    if (index >= 0) current = join(current, segments[index]!);
+    const stats = await lstat(current);
+    if (stats.isSymbolicLink()) return false;
+    const last = index === segments.length - 1;
+    if (last && file ? !stats.isFile() : !stats.isDirectory()) return false;
+  }
+  return true;
 }
 
 async function listShallow(rootPath: string, prefix: string): Promise<StorageCleanCandidate[]> {
@@ -77,11 +97,12 @@ export function createFsStorageCleaner(): FsCleanerPort {
   return {
     async listCandidates(rootPath: string, scopes: StorageCleanScope[]) {
       const lists = await Promise.all(
-        scopes.map((scope) =>
-          scope.recursive
+        scopes.map(async (scope) => {
+          if (!(await hasSafePath(rootPath, scope.prefix).catch(() => false))) return [];
+          return scope.recursive
             ? listRecursive(rootPath, scope.prefix)
-            : listShallow(rootPath, scope.prefix),
-        ),
+            : listShallow(rootPath, scope.prefix);
+        }),
       );
       // 递归范围与非递归范围可能重叠（cli/db/backup 与 cli/db），按路径去重。
       const byPath = new Map<string, StorageCleanCandidate>();
@@ -105,6 +126,10 @@ export function createFsStorageCleaner(): FsCleanerPort {
             continue;
           }
           try {
+            if (!(await hasSafePath(rootPath, relativePath, true))) {
+              result.failures.push({ path: relativePath, code: "EUNSAFEPATH" });
+              continue;
+            }
             await rm(absolutePath, { force: false });
             result.deletedCount += 1;
             result.freedBytes += target.bytes;

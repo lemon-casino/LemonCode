@@ -1106,6 +1106,9 @@ const zhCN: Record<string, string> = {
   "git.error.historyDescription": "历史差异读取失败：{message}",
   "git.error.description": "Git 返回错误：{message}",
   "git.empty.gitUnavailableTitle": "当前环境没有可用的 Git",
+  "git.dependency.missingTitle": "当前运行环境未检测到 Git",
+  "git.dependency.installDescription":
+    "请在运行 LCode 的电脑上安装 Git，确认 git --version 可用后重启 LCode。普通对话仍可使用，Git 和工作树功能暂不可用。",
   "git.empty.gitUnavailableDescription": "请先安装 Git，或确认当前运行环境里可以执行 git 命令。",
   "git.empty.notRepositoryTitle": "当前 workspace 不在 Git 仓库中",
   "git.empty.notRepositoryDescription":
@@ -2426,6 +2429,9 @@ const zhCN: Record<string, string> = {
   "resourceManager.storage.reveal": "在文件管理器中显示",
   "resourceManager.storage.detailBack": "返回",
   "resourceManager.storage.clean": "清理",
+  "resourceManager.storage.safeClean": "安全清理",
+  "resourceManager.storage.cleanBusy": "包缓存正在被使用，请稍后再试。",
+  "resourceManager.storage.cleanToolUnavailable": "未找到可用的托管 pnpm，包缓存已保留。",
   "resourceManager.storage.cleaning": "清理中…",
   "resourceManager.storage.cleanSuccess": "已释放 {size}",
   "resourceManager.storage.cleanPartial": "已释放 {size}，{count} 项未能删除",
@@ -2435,21 +2441,36 @@ const zhCN: Record<string, string> = {
   "resourceManager.storage.confirmSize": "将删除约 {size}。",
   "resourceManager.storage.category.sessionStore": "会话记录与数据库",
   "resourceManager.storage.category.subagentTranscripts": "子代理产物",
-  "resourceManager.storage.category.toolOutputs": "工具输出与临时缓存",
+  "resourceManager.storage.category.toolOutputs": "工具输出与产物",
+  "resourceManager.storage.category.mediaCache": "媒体派生缓存",
+  "resourceManager.storage.category.editorCache": "编辑器图标缓存",
+  "resourceManager.storage.category.pnpmCache": "pnpm 包缓存",
+  "resourceManager.storage.category.temporaryFiles": "临时文件与粘贴附件",
   "resourceManager.storage.category.modelTrajectory": "模型调用轨迹",
   "resourceManager.storage.category.devTraces": "开发诊断抓包",
   "resourceManager.storage.category.logs": "日志与崩溃报告",
   "resourceManager.storage.category.backups": "备份",
   "resourceManager.storage.category.exports": "导出与反馈包",
   "resourceManager.storage.category.runtimes": "Agent 运行时与插件",
+  "resourceManager.storage.category.worktreeData": "工作树与 Git 审核数据",
+  "resourceManager.storage.category.gitBackups": "Git 自动备份",
   "resourceManager.storage.category.config": "配置、凭据与工作区",
+  "resourceManager.storage.category.legacyData": "迁移与旧版数据",
   "resourceManager.storage.category.other": "其他",
   "resourceManager.storage.categoryDescription.sessionStore":
     "任务索引、会话快照与 checkpoint，随任务删除或自动归档清理。",
   "resourceManager.storage.categoryDescription.subagentTranscripts":
     "子代理运行的完整对话记录（transcript.jsonl），单文件可达数十 MB；最近 24 小时有活动的会话会保留。",
   "resourceManager.storage.categoryDescription.toolOutputs":
-    "工具结果留档、命令完整输出、图片缓存与临时文件；暂不提供清理。",
+    "工具结果留档、命令完整输出与会话产物，可能仍被历史记录引用，不提供整类清理。",
+  "resourceManager.storage.categoryDescription.mediaCache":
+    "由原始产物生成的图片、PDF 与视频缓存，可按需重建；清理时保留最近 7 天有活动的会话。",
+  "resourceManager.storage.categoryDescription.editorCache":
+    "可重新生成的编辑器图标；清理时保留最近 24 小时的文件。",
+  "resourceManager.storage.categoryDescription.pnpmCache":
+    "使用 pnpm 回收未引用的包缓存，保留 Node、pnpm 与项目已安装依赖；以后安装时可能需要重新下载。",
+  "resourceManager.storage.categoryDescription.temporaryFiles":
+    "粘贴附件、剪贴板文件与未明确用途的临时缓存，可能仍被草稿或会话引用，不提供整类清理。",
   "resourceManager.storage.categoryDescription.modelTrajectory":
     "模型请求与响应的完整记录，用于查看调用轨迹。",
   "resourceManager.storage.categoryDescription.devTraces": "开发态协议抓包与已退役的诊断目录。",
@@ -2458,10 +2479,16 @@ const zhCN: Record<string, string> = {
   "resourceManager.storage.categoryDescription.backups": "升级或迁移前自动留下的数据库与配置副本。",
   "resourceManager.storage.categoryDescription.exports": "导出的日志包与反馈附件。",
   "resourceManager.storage.categoryDescription.runtimes":
-    "内置 Agent 运行时、Computer Use 组件与插件。",
+    "内置 Agent 运行时、Computer Use 组件、插件与托管运行环境，不提供直接清理。",
+  "resourceManager.storage.categoryDescription.worktreeData":
+    "托管工作树、绑定、Git 审核状态与 checkpoint 索引，请通过对应工作树或任务管理。",
+  "resourceManager.storage.categoryDescription.gitBackups":
+    "Git 自动备份的仓库副本与恢复记录，请通过 Git 备份功能管理。",
   "resourceManager.storage.categoryDescription.config": "设置、凭据、记忆与默认工作区文件。",
+  "resourceManager.storage.categoryDescription.legacyData":
+    "切换数据路径后家目录中的 v2 旧副本及旧版 Agent 文件，可能仍含唯一数据，仅展示，不自动清理。",
   "resourceManager.storage.categoryDescription.other":
-    "未归类的文件，以及切换数据存储路径后遗留的旧副本。",
+    "尚未识别用途的文件，按子目录展示；确认用途前不提供清理。",
   "resourceManager.storage.confirmDescription.backups":
     "这些副本用于升级或迁移出错时恢复数据，删除后将无法回退。",
   "settings.remoteControl.title": "远程控制",
@@ -2924,7 +2951,7 @@ const zhCN: Record<string, string> = {
   "settings.modelProvider.templateGroup.opencode": "OpenCode",
   "settings.modelProvider.syncModels": "同步模型",
   "settings.modelProvider.syncModelsDescription":
-    "最多同时检测 {concurrency} 个模型，通过后自动添加并启用。新模型检测失败不会添加，已有模型失败会关闭。",
+    "最多同时检测 {concurrency} 个模型，通过后自动添加并启用。新模型检测失败不会添加；已有模型仅在确认失效时关闭，其他错误保留原启用状态。",
   "settings.modelProvider.syncModelsRefresh": "刷新目录",
   "settings.modelProvider.syncModelsSelectAll": "全选模型",
   "settings.modelProvider.syncModelsClearSelection": "取消全选",

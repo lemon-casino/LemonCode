@@ -76,7 +76,9 @@ export function StorageCategoryList({
                 {intl.formatMessage({
                   id: cleaning
                     ? "resourceManager.storage.cleaning"
-                    : "resourceManager.storage.clean",
+                    : category.id === "pnpmCache"
+                      ? "resourceManager.storage.safeClean"
+                      : "resourceManager.storage.clean",
                 })}
               </Button>
             ) : null}

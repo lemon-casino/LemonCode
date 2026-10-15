@@ -1,6 +1,7 @@
 /* eslint-disable max-lines -- workspace shell 当前集中编排 sidebar、chat、terminal 和 browser pane 的布局联动，先保持单文件收口，避免为满足行数限制打散关键布局状态。*/
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { WorkspacePanelDrawer } from "@/app-shell/WorkspacePanelDrawer.js";
+import { WorkspaceGitDependencyNotice } from "@/GitDependencyNotice.js";
 import {
   WorkspaceShellSurface,
   WorkspaceSidebarPanel,
@@ -1896,6 +1897,11 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                         />
                       </ScopedErrorBoundary>
                     ) : null}
+                    <WorkspaceGitDependencyNotice
+                      state={gitState}
+                      workspacePath={executionReady ? executionPath : ""}
+                      workspaceIdentity={executionIdentity}
+                    />
                     <div className="min-h-0 flex-1 overflow-hidden">
                       {workspaceMainView === "automations" ? (
                         <main

@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- Root 当前集中编排启动和 workspace shell wiring，先保持入口收口避免跨层状态拆散。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { LucideProvider, RefreshCw } from "lucide-react";
+import { LucideProvider } from "lucide-react";
 import {
   APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL,
   DesktopCommandIds,
@@ -8,7 +8,7 @@ import {
   type RemoteTarget,
 } from "@lcode/shared";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
-import { Button } from "@/components/ui/button.js";
+import { ModelSelectionLoadErrorNotice } from "@/root/ModelSelectionLoadErrorNotice.js";
 import { PlatformProvider } from "@/hooks/usePlatform.js";
 import { ServiceProvider } from "@/hooks/useServices.js";
 import { useDynamicWorkflowAvailabilityLoader } from "@/hooks/useDynamicWorkflowAvailability.js";
@@ -229,15 +229,10 @@ function RootInner({
     rootModelSelectionRead.state.status === "ready" ? rootModelSelectionRead.state.view : null;
   const rootModelSelectionErrorNode =
     rootModelSelectionRead.state.status === "error" ? (
-      <div className="fixed right-4 bottom-4 z-50 flex max-w-sm items-center gap-3 rounded-lg border border-destructive/30 bg-surface-raised px-3 py-2 text-ui-base text-foreground shadow-lg">
-        <span className="min-w-0 flex-1">
-          {intl.formatMessage({ id: "root.modelSelection.loadFailed" })}
-        </span>
-        <Button type="button" variant="ghost" size="sm" onClick={rootModelSelectionRead.reload}>
-          <RefreshCw className="size-3.5" aria-hidden="true" />
-          {intl.formatMessage({ id: "common.retry" })}
-        </Button>
-      </div>
+      <ModelSelectionLoadErrorNotice
+        error={rootModelSelectionRead.state.error}
+        onRetry={rootModelSelectionRead.reload}
+      />
     ) : null;
   const readRootModelSelectionView = useCallback(
     () => services.modelSelectionService.getView(),

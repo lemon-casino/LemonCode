@@ -1,5 +1,12 @@
 # Worktree service
 
+Git absence is a typed `LCODE_GIT_NOT_AVAILABLE` dependency failure. Checkout permit
+canonicalization alone may recover it by resolving the actual directory and nearest
+`.git` file/directory ancestor, preserving the same repository lock domain for nested
+paths. Ordinary conversations retain their shared writer permit without Git. All
+other errors propagate; Git mutations, binding/scope/fence checks and shared versus
+exclusive ownership remain unchanged. See specs/missing-git-runtime-recovery.md.
+
 Management settings and display names are owned by this service. `getManagementSettings` and
 `updateManagementSettings` persist an atomic Host-local patch; changing the root only affects
 future checkouts. Each binding freezes its checkoutRoot, and all removal paths still verify

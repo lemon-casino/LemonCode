@@ -1,13 +1,123 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import type { ModelConnectivityResult } from "@lcode/shared";
 import {
   MODEL_PROBE_CONCURRENCY,
   filterModelIds,
   normalizeModelIds,
+  probeAndSyncModel,
   probeTargetIds,
   runCancelablePool,
   selectedModelIds,
 } from "./syncModelOperations.js";
+
+test("unconfirmed probe failures preserve enabled and disabled models without configuration writes", async () => {
+  const failures: Array<Extract<ModelConnectivityResult, { success: false }>["error"] | Error> = [
+    { code: "provider-unavailable", message: "Provider configuration unavailable" },
+    { code: "model-unavailable", message: "Local model configuration incomplete" },
+    { message: "Proxy profile must be resolved before model execution" },
+    { message: "Proxy profile does not exist" },
+    { message: "HTTP 401: invalid API key" },
+    { message: "HTTP 403: access denied" },
+    { message: "HTTP 429: rate limited" },
+    { message: "HTTP 503: upstream unavailable" },
+    { message: "HTTP 404: model_not_found in untrusted text" },
+    { message: "Connection timed out" },
+    new Error("Unexpected local exception"),
+  ];
+  for (const initialEnabled of [true, false]) {
+    for (const failure of failures) {
+      let enabled = initialEnabled;
+      const writes: boolean[] = [];
+      const result = await probeAndSyncModel({
+        id: "existing",
+        signal: new AbortController().signal,
+        isConfigured: () => true,
+        probe: async () => {
+          if (failure instanceof Error) throw failure;
+          return { success: false, error: failure };
+        },
+        add: async () => {
+          assert.fail("existing model must not be added");
+        },
+        setEnabled: async (next) => {
+          enabled = next;
+          writes.push(next);
+        },
+      });
+      assert.deepEqual(result, {
+        id: "existing",
+        success: false,
+        stage: "probe",
+        message: failure.message,
+      });
+      assert.equal(enabled, initialEnabled);
+      assert.deepEqual(writes, []);
+    }
+  }
+});
+
+test("sync changes configuration only on successful probes or confirmed model rejection", async () => {
+  for (const configured of [true, false]) {
+    for (const result of [
+      { success: true },
+      {
+        success: false,
+        error: { code: "model-not-found", message: "Confirmed upstream rejection" },
+      },
+      { success: false, error: { message: "Unknown failure" } },
+    ] satisfies ModelConnectivityResult[]) {
+      const writes: Array<boolean | "add"> = [];
+      await probeAndSyncModel({
+        id: "fixture",
+        signal: new AbortController().signal,
+        isConfigured: () => configured,
+        probe: async () => result,
+        add: async () => {
+          writes.push("add");
+        },
+        setEnabled: async (enabled) => {
+          writes.push(enabled);
+        },
+      });
+      assert.deepEqual(
+        writes,
+        result.success
+          ? [configured ? true : "add"]
+          : configured && result.error.code === "model-not-found"
+            ? [false]
+            : [],
+      );
+    }
+  }
+});
+
+test("cancelled and removed models cannot accept late probe writes", async () => {
+  for (const removed of [true, false]) {
+    const controller = new AbortController();
+    let configured = true;
+    let release!: (value: ModelConnectivityResult) => void;
+    const pending = new Promise<ModelConnectivityResult>((resolve) => {
+      release = resolve;
+    });
+    const running = probeAndSyncModel({
+      id: "existing",
+      signal: controller.signal,
+      isConfigured: () => configured,
+      probe: () => pending,
+      add: async () => {
+        assert.fail("late result must not add");
+      },
+      setEnabled: async () => {
+        assert.fail("late result must not change enabled");
+      },
+    });
+    if (removed) configured = false;
+    else controller.abort();
+    release({ success: true });
+    assert.deepEqual(await running, { id: "existing", success: false });
+  }
+});
 
 test("selection snapshot keeps only checked rows in visible order", () => {
   const rows = ["remote-a", "remote-b", "local-only"];

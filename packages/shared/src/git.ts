@@ -1,6 +1,17 @@
 import type { Locale } from "./protocol.js";
 import type { GitCommitReview, GitCommitReviewSelection } from "./gitCommitReview.js";
 
+export const GIT_NOT_AVAILABLE_ERROR_CODE = "LCODE_GIT_NOT_AVAILABLE" as const;
+
+export function isGitUnavailableError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === GIT_NOT_AVAILABLE_ERROR_CODE
+  );
+}
+
 export type GitHeadRefType = "branch" | "detached";
 
 export type GitChangeKind = "modified" | "added" | "deleted" | "renamed";

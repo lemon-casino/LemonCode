@@ -6,6 +6,20 @@ import { PassThrough } from "node:stream";
 import test, { mock } from "node:test";
 import { createGitCommandProvider } from "./gitCommandProvider.js";
 
+test("缺少 Git 返回可识别的依赖错误和安装指引", async () => {
+  const provider = createGitCommandProvider({
+    environmentProvider: {
+      resolveGitBinary: async () => null,
+      createCommandEnv: () => assert.fail("缺少 Git 时不能执行命令"),
+    },
+  });
+  await assert.rejects(provider.run({ cwd: process.cwd(), args: ["--version"] }), (error) => {
+    assert.equal((error as { code?: unknown }).code, "LCODE_GIT_NOT_AVAILABLE");
+    assert.match((error as Error).message, /install Git/i);
+    return true;
+  });
+});
+
 async function chunks(stdout: Buffer[], stderr: Buffer[], maxOutputBytes = 1024) {
   const child = Object.assign(new EventEmitter(), {
     stdout: new PassThrough(),

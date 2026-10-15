@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { StringDecoder } from "node:string_decoder";
+import { GIT_NOT_AVAILABLE_ERROR_CODE } from "@lcode/shared";
 import { DEFAULT_GIT_COMMAND_TIMEOUT_MS, DEFAULT_GIT_OUTPUT_BYTES } from "../config.js";
 import {
   createGitEnvironmentProvider,
@@ -88,7 +89,13 @@ export function createGitCommandProvider(options?: {
     async run(command: GitCommandExecutionOptions): Promise<GitCommandExecutionResult> {
       const gitBinary = await environmentProvider.resolveGitBinary();
       if (!gitBinary) {
-        throw new Error("Git binary is not available");
+        // 缺少 Git 曾以普通 Error 中断 checkout admission，UI 无法区分依赖与模型故障。
+        throw Object.assign(
+          new Error(
+            "Git is not available. Install Git on the computer running LCode and restart LCode.",
+          ),
+          { code: GIT_NOT_AVAILABLE_ERROR_CODE },
+        );
       }
       const binaryPath = gitBinary;
 

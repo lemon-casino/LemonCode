@@ -17,6 +17,7 @@
 ## 状态所有者与接口
 
 - SettingService 是默认代理的唯一 owner；ProviderConfigService 的个人配置文件是代理列表 `proxyProfiles` 与供应商 `network` 的唯一 owner，严格 schema 接受 default/direct/custom/profile 四种选择。列表 ID 在原子写队列生成，供应商只保存 profileId；执行 Registry、Host 与 API 目录通过同一个纯解析函数派生实际地址，不存第二份代理事实。旧文件无 proxyProfiles 时按空列表读取；原字段/模型/Key 更新不得清除列表。
+- 临时模型检测也必须在目标 Environment 的同一配置快照内解析 profileId，使用正式 Registry 的纯解析函数；不得把未解析的 profile 交给模型 adapter。解析失败只产生失败结果，不能因此把模型写成禁用；同步启用状态的确认边界见 [模型供应商设置](./model-provider-settings.md)。
 - UI 通过 hooks 读取服务，只拥有未提交草稿；保存重新读取当前 provider Overlay，保留 API Key、headers、模型和 metadata。代理页与模型页订阅同一权威 View：代理页只修改代理定义并读取分配关系来阻止删除被引用条目，供应商 network 的 UI 写入入口只在模型设置。移除代理页列表组件不改变状态 owner、持久化、服务接口或事件顺序。
 - Provider Node 网络 adapter 复用既有 Host dispatcher/CA/释放逻辑；原 Services API 网络入口保持兼容。Native 与固定插件 driver 使用显式注入的网络策略，插件按 operation 获取策略，不改全局 Host fetch。API 目录、Key 检测和 CLI 正式模型请求使用同一 provider.network 优先级。
 - 文件 Repository 的写入规范化与读取快照均保留 proxyProfiles；模型、名称和默认选择修改后，重建 Runtime 仍能读回列表及 profileId。现有 Provider Provisioning 信封在 shared/provider-provisioning.ts 严格校验并传输完整列表，继续使用原 RPC 通道与文件 codec，不新增 Agent stdio 命令。

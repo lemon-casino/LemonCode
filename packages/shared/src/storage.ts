@@ -10,13 +10,20 @@ export const STORAGE_CATEGORY_IDS = [
   "sessionStore",
   "subagentTranscripts",
   "toolOutputs",
+  "mediaCache",
+  "editorCache",
+  "pnpmCache",
+  "temporaryFiles",
   "modelTrajectory",
   "devTraces",
   "logs",
   "backups",
   "exports",
   "runtimes",
+  "worktreeData",
+  "gitBackups",
   "config",
+  "legacyData",
   "other",
 ] as const;
 
@@ -32,7 +39,7 @@ export type StorageCleanability = "none" | "safe" | "confirm";
 export interface StorageRootSpec {
   id: StorageRootId;
   path: string;
-  /** 是否启用了自定义数据存储路径；启用后 home 根下的 v2 视为旧副本，归入「其他」。 */
+  /** 是否启用了自定义数据存储路径；启用后 home 根下的 v2 单独展示为迁移旧数据，不清理。 */
   hasCustomDataBaseDir: boolean;
 }
 

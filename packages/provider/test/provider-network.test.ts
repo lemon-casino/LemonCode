@@ -116,3 +116,97 @@ test("bulk proxy library persists once and provider references track edits witho
     /does not exist/,
   );
 });
+
+test("temporary models resolve proxy profiles from one snapshot without changing membership or persistence", async (t) => {
+  const fixture = await createMembershipFixture(t);
+  await fixture.settings.importProxyProfiles("http://fixture:password@localhost:7890");
+  const selected = fixture.settings.getView().proxyProfiles![0]!;
+  const original = { ...selected, noProxy: ".fixture.invalid", caCertPath: "fixture-ca.pem" };
+  await fixture.settings.saveProxyProfile(original);
+  await fixture.settings.setProviderNetwork("personal", {
+    mode: "profile",
+    profileId: selected.id,
+  });
+  await fixture.settings.setPersonalModelEnabled("personal", "Custom", false);
+  const snapshot = fixture.registry.getSnapshot();
+  const writes = fixture.repository.updates.length;
+  const frozen = fixture.registry.resolveTemporaryModel({
+    providerId: "personal",
+    modelId: "unregistered",
+  });
+  const expected = {
+    mode: "custom",
+    httpProxy: original.httpProxy,
+    noProxy: original.noProxy,
+    caCertPath: original.caCertPath,
+  };
+  assert.deepEqual(frozen.provider.config.network, expected);
+  assert.deepEqual(
+    fixture.registry.resolveTemporaryModel({ providerId: "personal", modelId: "Custom" }).provider
+      .config.network,
+    expected,
+  );
+  assert.equal(fixture.registry.getModel("personal", "Custom"), undefined);
+  assert.equal(fixture.registry.getModel("personal", "unregistered"), undefined);
+  assert.equal(fixture.registry.getSnapshot(), snapshot);
+  assert.equal(fixture.repository.updates.length, writes);
+  assert.deepEqual(fixture.repository.snapshot.providers.get("personal")!.network, {
+    mode: "profile",
+    profileId: selected.id,
+  });
+  await fixture.settings.saveProxyProfile({
+    ...original,
+    httpProxy: "socks5://localhost:1081",
+    noProxy: "changed.fixture.invalid",
+    caCertPath: "changed-ca.pem",
+  });
+  const refreshed = fixture.registry.resolveTemporaryModel({
+    providerId: "personal",
+    modelId: "unregistered",
+  });
+  assert.deepEqual(
+    refreshed.provider.config.network,
+    fixture.registry.getProvider("personal")!.config.network,
+  );
+  assert.equal(refreshed.provider.config.network?.mode, "custom");
+  assert.equal(
+    refreshed.provider.config.network.mode === "custom" &&
+      refreshed.provider.config.network.httpProxy,
+    "socks5://localhost:1081",
+  );
+  assert.deepEqual(frozen.provider.config.network, expected);
+});
+
+test("temporary models preserve formal network semantics and reject missing proxy references", async (t) => {
+  const fixture = await createMembershipFixture(t);
+  for (const network of [
+    undefined,
+    null,
+    { mode: "default" },
+    { mode: "direct" },
+    { mode: "custom", httpProxy: "http://localhost:7890" },
+  ] as const) {
+    await fixture.settings.setProviderNetwork("personal", network);
+    const temporary = fixture.registry.resolveTemporaryModel({
+      providerId: "personal",
+      modelId: "unregistered",
+    });
+    assert.deepEqual(
+      temporary.provider.config.network,
+      fixture.registry.getProvider("personal")!.config.network,
+    );
+  }
+  await fixture.settings.importProxyProfiles("http://localhost:7890");
+  await fixture.settings.setProviderNetwork("personal", {
+    mode: "profile",
+    profileId: fixture.settings.getView().proxyProfiles![0]!.id,
+  });
+  await fixture.repository.update((current) => ({ ...current, proxyProfiles: [] }));
+  await fixture.registry.refresh("missing-profile");
+  assert.equal(fixture.registry.getProvider("personal"), undefined);
+  assert.throws(
+    () =>
+      fixture.registry.resolveTemporaryModel({ providerId: "personal", modelId: "unregistered" }),
+    /Provider 不可用于临时检测/,
+  );
+});

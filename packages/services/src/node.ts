@@ -213,6 +213,7 @@ export { createAccountProviderCredentialService } from "./model-provider/account
 export { createUsageStatsService } from "./usage-stats/usageStatsService.js";
 // Storage：service 与 adapters 工厂；desktop host 负责组装（Worker runner 在 desktop 包内）
 export { createStorageService } from "./storage/app/storageService.js";
+export { createRuntimePackageCacheCleaner } from "./runtime-environment/node.js";
 export type {
   FsCleanerPort as StorageFsCleanerPort,
   RootsResolverPort as StorageRootsResolverPort,

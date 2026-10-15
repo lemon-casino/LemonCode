@@ -125,6 +125,7 @@ nul
 !/packages/web/test/fixtures/selection-theme.tsx
 !/packages/web/test/fixtures/resource-theme.html
 !/packages/web/test/fixtures/resource-theme.tsx
+!/packages/web/test/resource-storage.test.mjs
 # 运行环境恢复/清理的永久交互回归及其有界 Host fixture。
 !/packages/web/test/mobile-pairing-reconnect.test.mjs
 !/packages/web/test/rootRecovery.test.mjs
@@ -347,3 +348,12 @@ nul
 # 文件夹附件拖拽、Host 暂存与取消的永久回归。
 !/packages/web/test/remote-directory-attachments.test.mjs
 !/packages/web/test/fixtures/remote-directory-attachment-bridge.ts
+
+# 临时模型代理解析与检测失败状态保护的永久浏览器回归。
+!/packages/web/test/provider-model-sync-errors.test.mjs
+!/packages/web/test/fixtures/model-provider-probe-result.ts
+
+# 缺少 Git 的安装提示、错误归因及手机输入可达性的永久浏览器回归。
+!/packages/web/test/missing-git.test.mjs
+!/packages/web/test/fixtures/missing-git.html
+!/packages/web/test/fixtures/missing-git.tsx

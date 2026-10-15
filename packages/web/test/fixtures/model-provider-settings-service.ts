@@ -21,6 +21,7 @@ import {
 // Web 未声明此包依赖且夹具不能改 manifest；上面显式引用 @lcode/provider exports["."] 的公开入口。
 import type { IProviderSettingsService } from "@lcode/services";
 import type { ModelConnectivityResult } from "@lcode/shared";
+import { simulateModelProbeResult } from "./model-provider-probe-result.js";
 
 export const STORAGE_KEY = "lcode-test-model-provider-settings-fixture-v1";
 export const PROVIDER_ID = "test";
@@ -336,33 +337,11 @@ function createFixture() {
       try {
         probeListeners.forEach((listener) => listener());
         await wait;
-        if (input.modelId === "throws-model") {
-          record(`probe #${sequence} throws ${identity}`);
-          throw new Error("Fixture probe threw (simulated network failure)");
-        }
-        if (input.modelId === "bad-model") {
-          record(`probe #${sequence} HTTP 403 ${identity}`);
-          return {
-            success: false,
-            error: { message: "HTTP 403: fixture access denied (simulated)" },
-          };
-        }
-        if (input.modelId === "invalid-model") {
-          record(`probe #${sequence} model-not-found ${identity}`);
-          return {
-            success: false,
-            error: { code: "model-not-found", message: "Fixture provider confirms model missing" },
-          };
-        }
-        if (input.modelId === "uncertain-model") {
-          record(`probe #${sequence} HTTP 503 ${identity}`);
-          return {
-            success: false,
-            error: { message: "HTTP 503: fixture unavailable (simulated)" },
-          };
-        }
-        record(`probe #${sequence} success ${identity}`);
-        return { success: true };
+        return simulateModelProbeResult(
+          input.modelId,
+          new URLSearchParams(window.location.search).has("localProbeError"),
+          (message) => record(`probe #${sequence} ${message} ${identity}`),
+        );
       } finally {
         publish({ active: metrics.active - 1 });
       }

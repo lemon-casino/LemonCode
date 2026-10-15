@@ -1,6 +1,7 @@
 import { access, lstat, mkdtemp, realpath, rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { isGitUnavailableError } from "@lcode/shared";
 import type { WorktreeBinding } from "../contract.js";
 import type { WorktreeGitPort } from "../nodeTypes.js";
 import type { WorktreeGit } from "../app/ports.js";
@@ -206,9 +207,32 @@ export async function canonicalCheckoutPath(
   workspacePath: string,
 ): Promise<string> {
   const candidate = await realpath(workspacePath);
-  const result = await git.run({ cwd: candidate, args: ["rev-parse", "--show-toplevel"] });
-  const root = result.exitCode === 0 ? await realpath(result.stdout.trim()) : candidate;
+  let root: string;
+  try {
+    const result = await git.run({ cwd: candidate, args: ["rev-parse", "--show-toplevel"] });
+    root = result.exitCode === 0 ? await realpath(result.stdout.trim()) : candidate;
+  } catch (error) {
+    if (!isGitUnavailableError(error)) throw error;
+    // 普通对话也先取得 checkout writer；不能因未安装 Git 在消息落盘前中断。
+    // 向上定位真实 .git 根，保证仓库内不同子目录仍共用原锁域，不绕过 writer 互斥。
+    root = await checkoutRootWithoutGit(candidate);
+  }
   if ((await lstat(root)).isSymbolicLink())
     throw new Error("Checkout root cannot be a symbolic link");
   return root;
+}
+
+async function checkoutRootWithoutGit(candidate: string): Promise<string> {
+  let directory = candidate;
+  while (true) {
+    try {
+      const marker = await lstat(join(directory, ".git"));
+      if (marker.isDirectory() || marker.isFile()) return directory;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
+    const parent = dirname(directory);
+    if (parent === directory) return candidate;
+    directory = parent;
+  }
 }

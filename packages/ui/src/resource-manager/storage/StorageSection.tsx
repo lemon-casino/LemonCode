@@ -80,7 +80,17 @@ export function StorageSection({
             failures: [...merged.failures, ...result.failures],
           };
         }
-        if (merged.deletedCount === 0 && merged.failures.length === 0) {
+        if (
+          merged.deletedCount === 0 &&
+          merged.failures.some((failure) => failure.code === "EBUSY")
+        ) {
+          toast(intl.formatMessage({ id: "resourceManager.storage.cleanBusy" }));
+        } else if (
+          merged.deletedCount === 0 &&
+          merged.failures.some((failure) => failure.code === "ETOOLUNAVAILABLE")
+        ) {
+          toast(intl.formatMessage({ id: "resourceManager.storage.cleanToolUnavailable" }));
+        } else if (merged.deletedCount === 0 && merged.failures.length === 0) {
           toast(intl.formatMessage({ id: "resourceManager.storage.cleanNothing" }));
         } else if (merged.failures.length > 0) {
           toast(
@@ -191,8 +201,9 @@ export function StorageSection({
         </div>
       ) : null}
 
-      <div className="grid gap-3 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <div className="space-y-3">
+      {/* 默认 auto 网格会被长路径撑宽，窄屏清理按钮因此滑出视口；显式零最小宽度单列约束内容。 */}
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <div className="min-w-0 space-y-3">
           {groups.map((group, index) => (
             <StorageDiskCard
               key={group.key}

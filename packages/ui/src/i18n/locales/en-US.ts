@@ -1131,6 +1131,9 @@ const enUS: Record<string, string> = {
   "git.error.historyDescription": "Could not read historical changes: {message}",
   "git.error.description": "Git returned an error: {message}",
   "git.empty.gitUnavailableTitle": "Git is not available in this environment",
+  "git.dependency.missingTitle": "Git was not found in the current environment",
+  "git.dependency.installDescription":
+    "Install Git on the computer running LCode, check that git --version works, then restart LCode. Regular conversations remain available; Git and worktree features are unavailable until Git is installed.",
   "git.empty.gitUnavailableDescription":
     "Install Git first, or make sure the current runtime environment can execute the git command.",
   "git.empty.notRepositoryTitle": "This workspace is not inside a Git repository",
@@ -2525,6 +2528,10 @@ const enUS: Record<string, string> = {
   "resourceManager.storage.reveal": "Show in file manager",
   "resourceManager.storage.detailBack": "Back",
   "resourceManager.storage.clean": "Clean",
+  "resourceManager.storage.safeClean": "Clean safely",
+  "resourceManager.storage.cleanBusy": "The package cache is in use. Please try again later.",
+  "resourceManager.storage.cleanToolUnavailable":
+    "Managed pnpm is unavailable. The package cache has been retained.",
   "resourceManager.storage.cleaning": "Cleaning…",
   "resourceManager.storage.cleanSuccess": "Freed {size}",
   "resourceManager.storage.cleanPartial": "Freed {size}; {count} items could not be deleted",
@@ -2534,21 +2541,36 @@ const enUS: Record<string, string> = {
   "resourceManager.storage.confirmSize": "About {size} will be deleted.",
   "resourceManager.storage.category.sessionStore": "Sessions & databases",
   "resourceManager.storage.category.subagentTranscripts": "Subagent transcripts",
-  "resourceManager.storage.category.toolOutputs": "Tool outputs & temporary caches",
+  "resourceManager.storage.category.toolOutputs": "Tool outputs & artifacts",
+  "resourceManager.storage.category.mediaCache": "Derived media cache",
+  "resourceManager.storage.category.editorCache": "Editor icon cache",
+  "resourceManager.storage.category.pnpmCache": "pnpm package cache",
+  "resourceManager.storage.category.temporaryFiles": "Temporary files & pasted attachments",
   "resourceManager.storage.category.modelTrajectory": "Model call trajectories",
   "resourceManager.storage.category.devTraces": "Development traces",
   "resourceManager.storage.category.logs": "Logs & crash reports",
   "resourceManager.storage.category.backups": "Backups",
   "resourceManager.storage.category.exports": "Exports & feedback bundles",
   "resourceManager.storage.category.runtimes": "Agent runtimes & plugins",
+  "resourceManager.storage.category.worktreeData": "Worktrees & Git review data",
+  "resourceManager.storage.category.gitBackups": "Git auto backups",
   "resourceManager.storage.category.config": "Settings, credentials & workspace",
+  "resourceManager.storage.category.legacyData": "Migrated & legacy data",
   "resourceManager.storage.category.other": "Other",
   "resourceManager.storage.categoryDescription.sessionStore":
     "Task index, session snapshots and checkpoints; cleaned by deleting or archiving tasks.",
   "resourceManager.storage.categoryDescription.subagentTranscripts":
     "Full conversation records of subagent runs (transcript.jsonl), up to tens of MB each; sessions active in the last 24 hours are kept.",
   "resourceManager.storage.categoryDescription.toolOutputs":
-    "Archived tool results, full command outputs, image caches and temporary files; not cleanable yet.",
+    "Tool results, full command output and session artifacts may still be referenced by history; bulk cleaning is unavailable.",
+  "resourceManager.storage.categoryDescription.mediaCache":
+    "Image, PDF and video caches derived from original artifacts can be rebuilt on demand. Sessions active within the last 7 days are retained.",
+  "resourceManager.storage.categoryDescription.editorCache":
+    "Editor icons can be regenerated. Files updated within the last 24 hours are retained.",
+  "resourceManager.storage.categoryDescription.pnpmCache":
+    "Reclaim unreferenced packages with pnpm while keeping Node, pnpm and installed project dependencies. Future installs may download packages again.",
+  "resourceManager.storage.categoryDescription.temporaryFiles":
+    "Pasted attachments, clipboard files and unverified temporary caches may still be referenced by drafts or sessions; bulk cleaning is unavailable.",
   "resourceManager.storage.categoryDescription.modelTrajectory":
     "Full model request/response records used by the trajectory viewer.",
   "resourceManager.storage.categoryDescription.devTraces":
@@ -2560,11 +2582,17 @@ const enUS: Record<string, string> = {
   "resourceManager.storage.categoryDescription.exports":
     "Exported log bundles and feedback attachments.",
   "resourceManager.storage.categoryDescription.runtimes":
-    "Bundled agent runtimes, Computer Use components and plugins.",
+    "Bundled Agent runtimes, Computer Use components, plugins and managed runtime environments; direct cleaning is unavailable.",
+  "resourceManager.storage.categoryDescription.worktreeData":
+    "Managed worktrees, bindings, Git review state and checkpoint indexes. Manage these through the related worktree or task.",
+  "resourceManager.storage.categoryDescription.gitBackups":
+    "Repository copies and recovery records created by Git auto backup. Manage these through Git backup.",
   "resourceManager.storage.categoryDescription.config":
     "Settings, credentials, memories and default workspace files.",
+  "resourceManager.storage.categoryDescription.legacyData":
+    "Old home v2 copies after changing the data path and legacy Agent files may contain unique data. Shown for inspection without automatic cleaning.",
   "resourceManager.storage.categoryDescription.other":
-    "Unclassified files and stale copies left after changing the data directory.",
+    "Files with an unrecognized purpose, grouped by subdirectory. Cleaning is unavailable until their purpose is known.",
   "resourceManager.storage.confirmDescription.backups":
     "These copies allow recovery if an upgrade or migration goes wrong; deleting them cannot be undone.",
   "settings.remoteControl.title": "Remote control",
@@ -3076,7 +3104,7 @@ const enUS: Record<string, string> = {
   "settings.modelProvider.templateGroup.opencode": "OpenCode",
   "settings.modelProvider.syncModels": "Sync models",
   "settings.modelProvider.syncModelsDescription":
-    "Check up to {concurrency} models at once, then add and enable those that pass. Failed new models are not added; failed existing models are disabled.",
+    "Check up to {concurrency} models at once, then add and enable those that pass. Failed new models are not added. Existing models are disabled only when confirmed invalid; other errors preserve their enabled state.",
   "settings.modelProvider.syncModelsRefresh": "Refresh catalog",
   "settings.modelProvider.syncModelsSelectAll": "Select all models",
   "settings.modelProvider.syncModelsClearSelection": "Clear selection",

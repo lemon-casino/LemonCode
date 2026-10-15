@@ -37,6 +37,10 @@ export type {
 export type RuntimeEnvironmentScopeRef = RuntimeEnvironmentScope;
 export type RuntimeEnvironmentPrepareRequest = RuntimeEnvironmentPrepareParams;
 export type RuntimeEnvironmentReleaseRequest = RuntimeEnvironmentReleaseParams;
+/** Node-only 包缓存维护；固定数据根，保留工具与项目已安装依赖。 */
+export interface IRuntimePackageCacheCleaner {
+  clean(dataRootPath: string): Promise<import("@lcode/shared").StorageCleanResult>;
+}
 export interface IRuntimeEnvironmentService {
   readonly onDidChangeEnvironment?: Event<RuntimeEnvironmentEvent>;
   getCapabilities(params: RuntimeEnvironmentScopeRef): Promise<RuntimeEnvironmentCapabilities>;

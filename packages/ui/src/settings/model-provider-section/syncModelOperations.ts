@@ -58,8 +58,12 @@ export async function probeAndSyncModel({
   // 临时检测不拥有成员；关闭后的迟到响应或被其他入口删除的旧成员都不能再写配置。
   if (signal.aborted || (wasConfigured && !isConfigured())) return { id, success: false };
   try {
-    if (isConfigured()) await setEnabled(result.success);
-    else if (result.success) await add();
+    // 修复：本地配置、鉴权和网络失败不能证明模型失效，不能把探测错误持久化为禁用。
+    // 与失效模型清理共用执行链的结构化确认；成功仍沿原命令启用已有模型。
+    if (isConfigured()) {
+      if (result.success || result.error.code === "model-not-found")
+        await setEnabled(result.success);
+    } else if (result.success) await add();
   } catch (error) {
     return { id, success: false, stage: "save", message: errorMessage(error) };
   }

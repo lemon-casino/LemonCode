@@ -49,6 +49,7 @@ export { runtimeEnvironmentDataDirs } from "./adapters/store.js";
 export { MISE_ASSET_DIGESTS, MISE_BACKEND_VERSION } from "./adapters/toolBackend.js";
 export type { ToolBackendPort } from "./app/ports.js";
 export { createPublicRuntimeEnvironmentService } from "./publicService.js";
+export { createRuntimePackageCacheCleaner } from "./adapters/packageCache.js";
 export { createWorktreeRuntimePorts, prepareBoundRuntime } from "./worktreeWiring.js";
 export { createRuntimeTerminalEnvironment } from "./terminalWiring.js";
 
