@@ -6,6 +6,52 @@ import { setImmediate } from "node:timers/promises";
 import type { Dispatcher } from "undici";
 import { createHostApiNetworkTransport } from "./network-transport.js";
 
+test("network close rejects real dispatcher failures and retries only unfinished cleanup", async () => {
+  let closes = 0;
+  const transport = createHostApiNetworkTransport(async () => ({}), {
+    fetch: async () => new Response("fixture"),
+    createDispatcher: async () =>
+      ({
+        close: async () => {
+          if (++closes === 1) throw new Error("fixture close failure");
+        },
+      }) as unknown as Dispatcher,
+  });
+  await (await transport.fetch("https://example.test")).text();
+  await assert.rejects(transport.disposeAndWait(), /fixture close failure/);
+  await assert.rejects(transport.fetch("https://example.test"), /disposed/);
+  await transport.disposeAndWait();
+  await transport.disposeAndWait();
+  assert.equal(closes, 2);
+});
+
+test("cancelled body retains its actual cleanup until owner close has drained it", async () => {
+  let release!: () => void;
+  const cleanup = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const controller = new AbortController();
+  const transport = createHostApiNetworkTransport(async () => ({}), {
+    fetch: async () => new Response(new ReadableStream({ cancel: () => cleanup })),
+    createDispatcher: async () =>
+      ({ close: async () => {}, destroy: async () => {} }) as unknown as Dispatcher,
+  });
+  await transport.fetch("https://example.test", { signal: controller.signal });
+  controller.abort();
+  assert.equal(transport.activeRequestCount, 0);
+  let closed = false;
+  const closing = transport.disposeAndWait().then(() => {
+    closed = true;
+  });
+  await setImmediate();
+  try {
+    assert.equal(closed, false);
+  } finally {
+    release();
+    await closing;
+  }
+});
+
 test("changed routes keep at most 32 idle dispatchers and close every owned dispatcher once", async () => {
   let version = 0,
     created = 0;

@@ -53,7 +53,7 @@ const LCODE_AGENT_RUNTIME = {
   },
 };
 const releaseDir = join(mockCdnDir, "releases", version);
-const nodeVersion = "v22.16.0";
+const nodeVersion = "v24.21.0";
 const componentSchemaVersion = 1;
 const remotePlatforms = remoteMisePlatforms;
 const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";

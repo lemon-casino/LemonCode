@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  constants,
   createSecureServer,
   type ServerHttp2Stream,
   type IncomingHttpHeaders,
@@ -177,7 +178,7 @@ test("authenticated SOCKS5 negotiates H2 inside target TLS", async (t) => {
 });
 
 for (const protocol of ["http", "https"] as const)
-  test(`authenticated ${protocol} CONNECT negotiates target H2`, async (t) => {
+  test(`authenticated ${protocol} CONNECT negotiates target H2`, { timeout: 5000 }, async (t) => {
     const f = await fixture(t);
     let posted = 0;
     const target = createSecureServer(f.tls);
@@ -189,7 +190,18 @@ for (const protocol of ["http", "https"] as const)
       res.end("h2");
     });
     const port = await f.listen(target);
-    const proxy = protocol === "http" ? httpServer() : httpsServer(f.tls);
+    let proxyH2 = 0;
+    const secureProxy = createSecureServer({ ...f.tls, allowHTTP1: true });
+    secureProxy.on("session", (session) => {
+      proxyH2++;
+      session.on("error", () => {});
+    });
+    secureProxy.on("stream", (stream: ServerHttp2Stream) => {
+      stream.on("error", () => {});
+      stream.respond({ ":status": 502 });
+      stream.end();
+    });
+    const proxy = protocol === "http" ? httpServer() : secureProxy;
     proxy.on("connect", (req, socket, head) => {
       assert.equal(
         req.headers["proxy-authorization"],
@@ -210,6 +222,7 @@ for (const protocol of ["http", "https"] as const)
       .fetch(`https://127.0.0.1:${port}`, { method: "POST", body: "{}" });
     assert.equal(await response.text(), "h2");
     assert.equal(posted, 1);
+    assert.equal(proxyH2, 0, "proxy handshake remains H1 even when the proxy advertises H2");
   });
 
 test(
@@ -348,3 +361,29 @@ for (const failure of ["goaway", "half-close"] as const)
     await setImmediate();
     assert.deepEqual(seen, ["a", "b"]);
   });
+
+for (const refusal of ["rst", "goaway"] as const)
+  for (const body of [undefined, "{}"])
+    test(
+      `H2 ${refusal} before headers never replays ${body ? "JSON" : "empty"} POST`,
+      { timeout: 5000 },
+      async (t) => {
+        const f = await fixture(t);
+        let posted = 0;
+        const target = createSecureServer(f.tls);
+        target.on("session", (session) => session.on("error", () => {}));
+        target.on("stream", (stream) => {
+          stream.on("error", () => {});
+          stream.resume();
+          posted++;
+          if (refusal === "rst") stream.close(constants.NGHTTP2_REFUSED_STREAM);
+          else stream.session!.goaway(constants.NGHTTP2_NO_ERROR, 0);
+        });
+        const port = await f.listen(target);
+        const owner = f.owner({});
+        await assert.rejects(owner.fetch(`https://127.0.0.1:${port}`, { method: "POST", body }));
+        await setImmediate();
+        assert.equal(posted, 1);
+        assert.equal(owner.activeRequestCount, 0);
+      },
+    );

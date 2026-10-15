@@ -3,7 +3,9 @@ import type { ManagedNetworkFetch } from "./proxy-fetch.js";
 /** 仅缓存连接资源；旧 Model 的闭包保留冻结策略，被淘汰后按原策略重建。 */
 export class NetworkFetchCache {
   private readonly entries = new Map<string, ManagedNetworkFetch>();
-  private readonly retiring = new Set<Promise<void>>();
+  private readonly retiring = new Map<ManagedNetworkFetch, Promise<void>>();
+  private readonly failed = new Set<ManagedNetworkFetch>();
+  private retryCleanup = false;
   private disposed = false;
   private closing?: Promise<void>;
 
@@ -39,7 +41,20 @@ export class NetworkFetchCache {
   disposeAndWait(): Promise<void> {
     if (this.closing) return this.closing;
     this.dispose();
-    this.closing = Promise.all(this.retiring).then(() => undefined);
+    if (this.retryCleanup) {
+      this.retryCleanup = false;
+      for (const fetch of this.failed) this.retire(fetch);
+    }
+    this.closing = Promise.allSettled(this.retiring.values()).then((results) => {
+      const errors = results
+        .filter((result) => result.status === "rejected")
+        .map((result) => result.reason);
+      if (errors.length) throw new AggregateError(errors, "Model network cleanup failed");
+    });
+    void this.closing.catch(() => {
+      this.retryCleanup = true;
+      this.closing = undefined;
+    });
     return this.closing;
   }
 
@@ -59,10 +74,15 @@ export class NetworkFetchCache {
   private retire(fetch: ManagedNetworkFetch): void {
     fetch.dispose();
     const closing = fetch.disposeAndWait();
-    this.retiring.add(closing);
+    this.retiring.set(fetch, closing);
     void closing.then(
-      () => this.retiring.delete(closing),
-      () => this.retiring.delete(closing),
+      () => {
+        this.retiring.delete(fetch);
+        this.failed.delete(fetch);
+      },
+      () => {
+        this.failed.add(fetch);
+      },
     );
   }
 }

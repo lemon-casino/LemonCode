@@ -3,18 +3,20 @@ import { connect as connectTls } from "node:tls";
 import { isIP } from "node:net";
 import { Agent } from "undici";
 import { createNegotiatingPool } from "./network-http2-client.js";
+import type { NetworkDiagnostics } from "./network-diagnostics.js";
 
 /** SOCKS5 握手与目标 TLS 属于网络 adapter，凭据只进入代理握手。 */
 export function createSocksNetworkDispatcher(
   proxyUrl: string,
   ca?: string[],
   allowH2 = false,
+  observe?: NetworkDiagnostics["connection"],
 ): Agent {
   const proxy = new URL(proxyUrl);
   return new Agent({
     allowH2,
-    maxConcurrentStreams: 8,
-    ...(allowH2 ? { factory: createNegotiatingPool } : {}),
+    h2Options: { maxConcurrentStreams: 8 },
+    ...(allowH2 ? { factory: createNegotiatingPool(observe) } : {}),
     connections: 8,
     keepAliveTimeout: 30_000,
     keepAliveMaxTimeout: 120_000,

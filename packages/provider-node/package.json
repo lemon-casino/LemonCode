@@ -15,7 +15,7 @@
     "@lcode/provider": "workspace:*",
     "@lcode/shared": "workspace:*",
     "socks": "2.8.10",
-    "undici": "6.29.0",
+    "undici": "8.12.1",
     "zod": "4.6.5"
   },
   "devDependencies": {

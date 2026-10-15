@@ -43,4 +43,10 @@ test("Desktop ESM can load the SOCKS5 adapter with its packaged runtime dependen
   for (const name of ["undici", "socks", "ip-address", "smart-buffer"]) {
     assert.ok(closure.find((entry) => entry.moduleName === name)?.sourceModulePath, name);
   }
+  const undici = closure.find((entry) => entry.moduleName === "undici");
+  assert.equal(
+    requireFromDesktop(undici.packageJsonPath).version,
+    "8.12.1",
+    "packaged external dependency must match the tested H2 backend",
+  );
 });

@@ -267,10 +267,8 @@ export const buildCli = async ({
     outfile,
     platform: "node",
     sourcemap,
-    // target 取所有承载运行时里最低的 Node 版本：桌面用 Electron 内置 Node 24，
-    // 远端 SSH 复用已部署的独立 Node v22.16 跑同一份 lcode.cjs。降到 node22 保证这份产物
-    // 在两端都不会用到目标运行时不支持的语法/特性。
-    target: "node22",
+    // H2 backend 要求 Node >=22.19；远程预构建与开发基线统一 Node 24，桌面也由 Electron Node 24 承载。
+    target: "node24",
     alias: resolveBuildAliases({ cliDirectory, rootDirectory }),
   });
 

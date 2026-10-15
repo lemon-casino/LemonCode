@@ -2,6 +2,25 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { NetworkFetchCache } from "./network-fetch-cache.js";
 import { createNetworkProxyFetch } from "./proxy-fetch.js";
+import type { ManagedNetworkFetch } from "./proxy-fetch.js";
+
+test("failed retired resources remain owned and retry without closing successful resources again", async () => {
+  const cache = new NetworkFetchCache(0);
+  let closes = 0;
+  const fetch = Object.assign(async () => new Response("fixture"), {
+    activeRequestCount: 0,
+    dispose() {},
+    async disposeAndWait() {
+      if (++closes === 1) throw new Error("fixture close failure");
+    },
+  }) as ManagedNetworkFetch;
+  await cache.fetchFor("fixture", () => fetch)("https://example.test");
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  await assert.rejects(cache.disposeAndWait(), /cleanup failed/);
+  await cache.disposeAndWait();
+  await cache.disposeAndWait();
+  assert.equal(closes, 2);
+});
 
 test("idle policy eviction preserves active bodies and old bindings rebuild their original route", async () => {
   const cache = new NetworkFetchCache(2);

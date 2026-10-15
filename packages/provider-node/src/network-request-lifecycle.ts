@@ -8,12 +8,23 @@ export interface NetworkRequestLease {
 export function createNetworkRequestLease(
   signal: AbortSignal,
   onFinish: () => void,
+  retainCleanup: (key: object, run: () => Promise<unknown>) => void,
 ): NetworkRequestLease {
   const controller = new AbortController();
   let finished = false;
   let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   let bodyController: ReadableStreamDefaultController<Uint8Array> | undefined;
   const forwardAbort = () => controller.abort(signal.reason);
+  const cancelReader = (ownedReader: ReadableStreamDefaultReader<Uint8Array>, reason: unknown) => {
+    retainCleanup(ownedReader, async () => {
+      try {
+        await ownedReader.cancel(reason);
+      } catch (error) {
+        // 已因同一次取消而 error 的 WebStream 会重复抛出原 reason，这不是关闭失败。
+        if (error !== controller.signal.reason) throw error;
+      }
+    });
+  };
   const finish = () => {
     if (finished) return;
     finished = true;
@@ -24,7 +35,10 @@ export function createNetworkRequestLease(
   const onAbort = () => {
     if (finished) return;
     bodyController?.error(controller.signal.reason);
-    void reader?.cancel(controller.signal.reason).catch(() => {});
+    if (reader) {
+      const ownedReader = reader;
+      cancelReader(ownedReader, controller.signal.reason);
+    }
     finish();
   };
   controller.signal.addEventListener("abort", onAbort, { once: true });
@@ -35,7 +49,10 @@ export function createNetworkRequestLease(
     controller,
     finish,
     response(response) {
-      controller.signal.throwIfAborted();
+      if (controller.signal.aborted) {
+        if (response.body) retainCleanup(response, () => response.body!.cancel());
+        controller.signal.throwIfAborted();
+      }
       if (!response.body) {
         finish();
         return response;
@@ -64,7 +81,8 @@ export function createNetworkRequestLease(
             // cancel tee 分支可能等另一消费者；先中止物理请求，不能留连接槽等待它。
             finish();
             controller.abort(reason);
-            void reader!.cancel(reason).catch(() => {});
+            const ownedReader = reader!;
+            cancelReader(ownedReader, controller.signal.reason);
           },
         },
         { highWaterMark: 0 },

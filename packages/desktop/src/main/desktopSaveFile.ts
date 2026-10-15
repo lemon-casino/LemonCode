@@ -104,7 +104,7 @@ async function fetchPublicRemoteUrl(
     };
     // DNS 校验结果必须绑定到连接阶段；dispatcher 禁止底层再次解析域名，
     // 从而关闭“预检查公网、实际连接私网”的 DNS rebinding 窗口。
-    const dispatcher = new Agent({ connect: { lookup: pinnedLookup } });
+    const dispatcher = new Agent({ allowH2: false, connect: { lookup: pinnedLookup } });
     let response: Awaited<ReturnType<typeof undiciFetch>>;
     try {
       response = await undiciFetch(currentUrl, {

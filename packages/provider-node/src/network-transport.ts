@@ -5,6 +5,8 @@ import { isNetworkProxyUrl, normalizeNetworkProxyUrl } from "@lcode/shared/netwo
 import { createSocksNetworkDispatcher } from "./socks-network-dispatcher.js";
 import { createNegotiatingPool } from "./network-http2-client.js";
 import { createNetworkRequestLease, waitForNetworkResult } from "./network-request-lifecycle.js";
+import { NetworkCleanup } from "./network-cleanup.js";
+import { NetworkDiagnostics } from "./network-diagnostics.js";
 
 export interface HostApiNetworkOptions {
   http2?: "disabled" | "negotiate";
@@ -100,7 +102,7 @@ interface HostApiNetworkTransportDependencies {
   createDispatcher?: typeof createDispatcher;
   fetchWithDispatcher?: (
     input: string,
-    init: Omit<RequestInit, "dispatcher"> & { dispatcher: Dispatcher },
+    init: Omit<RequestInit, "dispatcher"> & { dispatcher: Dispatcher; duplex?: "half" },
   ) => Promise<Response>;
 }
 
@@ -123,7 +125,8 @@ export function createHostApiNetworkTransport(
   let pendingDispatcherCreations = 0;
   let resolveDispatcherCreations: (() => void) | undefined;
   let dispatcherCreationsDone: Promise<void> | undefined;
-  const lateDisposePromises = new Set<Promise<void>>();
+  const cleanup = new NetworkCleanup();
+  const diagnostics = new NetworkDiagnostics();
   let disposePromise: Promise<void> | undefined;
   let disposeMode: "close" | "destroy" | undefined;
   const dispatcherFactory = dependencies.createDispatcher ?? createDispatcher;
@@ -137,13 +140,11 @@ export function createHostApiNetworkTransport(
       return undiciFetch(input, init as never) as unknown as Promise<Response>;
     });
 
-  const retainCleanup = (cleanup: Promise<void>) => {
-    lateDisposePromises.add(cleanup);
-    void cleanup.then(
-      () => lateDisposePromises.delete(cleanup),
-      () => lateDisposePromises.delete(cleanup),
-    );
-  };
+  const retireDispatcher = (pending: Promise<Dispatcher>, mode: "close" | "destroy") =>
+    cleanup.retain(pending, async () => {
+      const dispatcher = await pending.catch(() => undefined);
+      if (dispatcher) await dispatcher[mode]();
+    });
   const trimIdleDispatchers = () => {
     if (disposed) return;
     let idle = 0;
@@ -154,7 +155,7 @@ export function createHostApiNetworkTransport(
       dispatcherPromises.delete(key);
       readyDispatchers.delete(key);
       idle--;
-      retainCleanup(pending.then((dispatcher) => dispatcher.close()).catch(() => {}));
+      retireDispatcher(pending, "close");
     }
   };
 
@@ -165,17 +166,23 @@ export function createHostApiNetworkTransport(
     const request = new Request(input as Parameters<typeof globalThis.fetch>[0], init);
     request.signal.throwIfAborted();
     let leasedDispatcherKey: string | undefined;
-    const lease = createNetworkRequestLease(request.signal, () => {
-      requests.delete(lease.controller);
-      if (leasedDispatcherKey) {
-        const remaining = (dispatcherRequests.get(leasedDispatcherKey) ?? 1) - 1;
-        if (remaining) dispatcherRequests.set(leasedDispatcherKey, remaining);
-        else dispatcherRequests.delete(leasedDispatcherKey);
-      }
-      trimIdleDispatchers();
-      if (requests.size === 0) dependencies.onIdle?.();
-    });
+    const lease = createNetworkRequestLease(
+      request.signal,
+      () => {
+        requests.delete(lease.controller);
+        diagnostics.finish();
+        if (leasedDispatcherKey) {
+          const remaining = (dispatcherRequests.get(leasedDispatcherKey) ?? 1) - 1;
+          if (remaining) dispatcherRequests.set(leasedDispatcherKey, remaining);
+          else dispatcherRequests.delete(leasedDispatcherKey);
+        }
+        trimIdleDispatchers();
+        if (requests.size === 0) dependencies.onIdle?.();
+      },
+      (key, run) => cleanup.retain(key, run),
+    );
     requests.set(lease.controller, { request, source: input });
+    diagnostics.start();
     try {
       const requestGeneration = generation;
       const options = await waitForNetworkResult(resolveOptions(), lease.controller.signal);
@@ -208,19 +215,17 @@ export function createHostApiNetworkTransport(
           options.caCertPath,
           options.proxyTunnel,
           options.http2,
+          diagnostics.connection,
         );
         dispatcherPromises.set(dispatcherKey, dispatcherPromise);
         void dispatcherPromise
-          .then((dispatcher) => {
+          .then(() => {
             if (
               (disposed || generation !== dispatcherGeneration) &&
               dispatcherPromises.get(dispatcherKey) === dispatcherPromise
             ) {
               dispatcherPromises.delete(dispatcherKey);
-              const cleanupPromise = Promise.resolve(
-                disposeMode === "close" ? dispatcher.close() : dispatcher.destroy(),
-              ).catch(() => {});
-              retainCleanup(cleanupPromise);
+              retireDispatcher(dispatcherPromise!, disposeMode ?? "destroy");
             } else if (!disposed) {
               readyDispatchers.add(dispatcherKey);
               trimIdleDispatchers();
@@ -251,19 +256,35 @@ export function createHostApiNetworkTransport(
       // 使用 Request 输入时必须投影公共字段，否则代理分支会把它当成 URL 文本。
       const body = request.body ? new Uint8Array(await request.arrayBuffer()) : undefined;
       lease.controller.signal.throwIfAborted();
+      // Buffer/Blob 会被 H2 backend 在 REFUSED_STREAM/GOAWAY 时自动重放，即使是 POST。
+      // 使用公开的单次流 body 保留每次 physical attempt 的边界；重试仍由 Runner 准入。
+      const singleUse = options.http2 === "negotiate" && !["GET", "HEAD"].includes(request.method);
+      const wireBody = singleUse
+        ? new ReadableStream<Uint8Array>({
+            start(controller) {
+              if (body) controller.enqueue(body);
+              controller.close();
+            },
+          })
+        : body;
+      const pendingResponse = fetchWithDispatcher(request.url, {
+        ...init,
+        method: request.method,
+        headers: Object.fromEntries(request.headers),
+        body: wireBody,
+        ...(singleUse ? { duplex: "half" as const } : {}),
+        signal: lease.controller.signal,
+        redirect: request.redirect,
+        dispatcher,
+      });
+      cleanup.retain(pendingResponse, async () => {
+        await pendingResponse.catch(() => {});
+      });
       const response = await waitForNetworkResult(
-        fetchWithDispatcher(request.url, {
-          ...init,
-          method: request.method,
-          headers: Object.fromEntries(request.headers),
-          body,
-          signal: lease.controller.signal,
-          redirect: request.redirect,
-          dispatcher,
-        }),
+        pendingResponse,
         lease.controller.signal,
         (late) => {
-          void late.body?.cancel().catch(() => {});
+          if (late.body) cleanup.retain(late, () => late.body!.cancel());
         },
       );
       return lease.response(response);
@@ -276,6 +297,8 @@ export function createHostApiNetworkTransport(
 
   const startDispose = (mode: "close" | "destroy"): Promise<void> => {
     if (disposePromise) return disposePromise;
+    cleanup.retryFailed();
+    diagnostics.phase("closing");
     disposed = true;
     generation += 1;
     disposeMode = mode;
@@ -296,19 +319,16 @@ export function createHostApiNetworkTransport(
       });
     }
     disposePromise = (async () => {
-      await Promise.allSettled(
-        pendingDispatchers.map(async (dispatcherPromise) => {
-          const dispatcher = await dispatcherPromise;
-          if (mode === "close") {
-            await dispatcher.close();
-          } else {
-            await dispatcher.destroy();
-          }
-        }),
-      );
+      for (const pending of pendingDispatchers) retireDispatcher(pending, mode);
       await dispatcherCreationsDone;
-      await Promise.all(lateDisposePromises);
+      await cleanup.drain();
+      diagnostics.phase("closed");
     })();
+    // 失败保留原资源；下一次关闭只重试未完成的清理，不重新接受业务请求。
+    void disposePromise.catch(() => {
+      diagnostics.phase("failed");
+      disposePromise = undefined;
+    });
     return disposePromise;
   };
 
@@ -318,7 +338,7 @@ export function createHostApiNetworkTransport(
       return requests.size;
     },
     dispose() {
-      void startDispose("destroy");
+      void startDispose("destroy").catch(() => {});
     },
     disposeAndWait() {
       return startDispose("close");
@@ -331,6 +351,7 @@ async function createDispatcher(
   caCertPath: string | undefined,
   proxyTunnel?: boolean,
   http2?: "disabled" | "negotiate",
+  observe?: NetworkDiagnostics["connection"],
 ): Promise<Dispatcher> {
   const allowH2 = http2 === "negotiate";
   const customCa = caCertPath ? await readFile(caCertPath, "utf8") : undefined;
@@ -338,32 +359,33 @@ async function createDispatcher(
   if (route.kind === "proxy") {
     const url = new URL(route.proxyUrl);
     if (url.protocol === "socks5:")
-      return createSocksNetworkDispatcher(route.proxyUrl, ca, allowH2);
+      return createSocksNetworkDispatcher(route.proxyUrl, ca, allowH2, observe);
     return new ProxyAgent({
       allowH2,
-      maxConcurrentStreams: 8,
-      ...(allowH2 ? { factory: createNegotiatingPool } : {}),
+      h2Options: { maxConcurrentStreams: 8 },
+      ...(allowH2 ? { factory: createNegotiatingPool(observe) } : {}),
       connections: 8,
       keepAliveTimeout: 30_000,
       keepAliveMaxTimeout: 120_000,
       headersTimeout: 600_000,
       bodyTimeout: 0,
-      proxyTunnel,
+      // Undici 8 的 HTTP 默认改为 forward；Host 既有 CONNECT 契约必须显式保留。
+      proxyTunnel: proxyTunnel !== false,
       uri: route.proxyUrl,
       ...(url.username || url.password
         ? {
             token: `Basic ${Buffer.from(`${decodeURIComponent(url.username)}:${decodeURIComponent(url.password)}`).toString("base64")}`,
           }
         : {}),
-      proxyTls: ca ? { ca } : undefined,
+      proxyTls: { ...(ca ? { ca } : {}), allowH2: false },
       // 隧道内目标 connector 不继承 allowH2，必须单独设置 ALPN。
       requestTls: { ...(ca ? { ca } : {}), allowH2 },
     });
   }
   return new Agent({
     allowH2,
-    maxConcurrentStreams: 8,
-    ...(allowH2 ? { factory: createNegotiatingPool } : {}),
+    h2Options: { maxConcurrentStreams: 8 },
+    ...(allowH2 ? { factory: createNegotiatingPool(observe) } : {}),
     connections: 8,
     keepAliveTimeout: 30_000,
     keepAliveMaxTimeout: 120_000,

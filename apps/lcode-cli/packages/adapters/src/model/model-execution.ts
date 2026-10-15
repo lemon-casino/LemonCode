@@ -529,6 +529,9 @@ export class AiSdkModelExecution {
     if (this.closing) return this.closing;
     this.dispose();
     this.closing = this.networkResources.disposeAndWait();
+    void this.closing.catch(() => {
+      this.closing = undefined;
+    });
     return this.closing;
   }
 }

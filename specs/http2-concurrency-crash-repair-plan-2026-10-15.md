@@ -1,6 +1,6 @@
 # HTTP/2 并发流与后端崩溃系统修复增强方案
 
-状态：方案完成，待实施。本轮仅编写 zcode-full 的修复规格，不修改运行代码、依赖、固定插件或原会话。基线为 `429d5da2`，桌面仓库版本 3.18.8；本机复现使用 Node 24.21.0、Undici 6.29.0。
+状态：已进入实施与整体验收，实际完成情况见 [实施与验证记录](http2-concurrency-crash-implementation-2026-10-15.md)。原方案基线为 `429d5da2`，方案提交 `12a1ef76`；桌面仓库版本 3.18.8，旧复现使用 Node 24.21.0、Undici 6.29.0。
 
 范围仅为 zcode-full。Magpie `707fbb249df755423d3b2b77c6f001dd376d75c4`、plugins `5d5d86e2251169e0f5c0fd7a884957ac2dbe184a` 是只读参考，不更新、修改、构建或运行这两个外部仓库。运行时继续使用 zcode-full 的公开端口和受控适配器，不引入 Magpie 网关、旁路 Host 或第二个 Agent。
 
@@ -366,3 +366,15 @@ B、C 可以按独立提交实施，合并后必须做组合验收；不要求�
 本方案编写期间没有实施运行行为或依赖升级；此前网络探针和 18 项回归是设计基线。后续新增测试、候选 Undici、Cursor 定点增强、真实供应商和原安装包均须另记实际结果，不能预填通过。
 
 本次文档检查：根 typecheck、lint 与架构检查通过；引用的现有源码路径可解析，关系图 ID/边端点/rank 及新增 3 个节点的 6 个源码 seed 已校验。新测试文件明确标为计划，不要求它在本轮文档阶段已存在。相关日志保留在 `.artifacts/http2-repair-plan-20261015/`，不提交运行数据或临时证书。
+
+## 十二 实施决定
+
+诊断 stdio collector 按 UTF-8 解码、只认 LF，单行内存上限复用 128 KiB stderr 契约；超长行保留有界前缀并丢弃到下一个 LF，再正常解析后续诊断，退出 drain 保留最后未换行文本。Host 对已知 bundle 入口异步计算 `agentEntrySha256`，在 spawn/exception 中绑定原 child；它只表示观察到的入口字节，不冒充 bytecode 依赖全包 hash。Desktop 外置、Services 与 Server 的直接 Undici 声明统一固定 8.12.1，实际打包闭包测试核对版本；dev 工具的独立旧依赖不改。
+
+Codex 刷新收尾通过 Host context 的有限 `captureRefreshCommit` 能力在发送前捕获固定 generation 的写回句柄：它只豁免业务 caller 取消，仍检查原账号 generation、enabled 和 Host owner 存活。普通 write 保留原取消语义。每账号 driver 持有唯一刷新 flight，网络刷新上限 30 秒并受 driver lifetime 取消；业务取消立即返回，driver dispose 等待该原 flight settle。先提交 Host CAS，再对既有本地来源做文件快照校验和原子替换；两种存储不是跨文件事务，本地回写失败不丢掉已保存到 Host 的轮换令牌，也不宣称两边都已完成。
+
+刷新 flight 通过 context 的 `retainRefreshCompletion` 登记到原账号 owner，原 `withAccountLock` 释放文件锁前等待这些完成工作；不能在 caller 提前取消时放开跨 Host 的刷新互斥。该集合只持有物理刷新收尾，不接纳或重放业务。新发现的远程 Node 22.16 pin 同步更新至仓库已固定的 24.21.0，构建目标改为 Node 24；不升级用户现有安装或 SSH 进程。
+
+正式进程测试在旧版本复现两类 fatal，四个 H1 对照通过。7.25.0 候选的真实并行 POST 和关闭仍失败，已淘汰。最终 backend 固定 Undici 8.12.1（Node engines >=22.19.0），使用其按流身份结算和原生非幂等 H2 多路复用，不覆盖 dispatch/onConnect、不调整 pipelining、不触碰私有队列。Node 24.21 与 Electron 内嵌 Node 24.18 均执行同连接八流乱序完成验收。
+
+每 session 并发上限仍为 8。非 GET/HEAD 的 H2 请求以单次流 body 发送，禁止 backend 在 REFUSED_STREAM/GOAWAY 下重放 POST；连接故障通过公开 Client/socket 生命周期退休原资源。GOAWAY 脱离 Client 的 draining session 仍用原 connector socket 关闭，并传入故障原因，避免未完整 body 被误判正常 EOF。Host 默认 CONNECT 显式设置 true，CLI 既有 forward 路径仍传 false；HTTPS 代理端 ALPN 固定 H1，隧道内目标再协商 H2。

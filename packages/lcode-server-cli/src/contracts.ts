@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 export const SERVER_CLI_PROTOCOL_VERSION = 1;
-export const SERVER_RUNTIME_NODE_VERSION = "22.16.0";
+export const SERVER_RUNTIME_NODE_VERSION = "24.21.0";
 export const CRASH_WINDOW_MS = 5 * 60_000;
 export const CRASH_BACKOFF_MS = [1_000, 2_000, 4_000, 8_000, 16_000] as const;
 export const MAX_CONTROL_FRAME_BYTES = 64 * 1024;
