@@ -92,6 +92,10 @@ export interface ModelSelectFooterAction {
 const EMPTY_MODEL_SELECT_FOOTER_ACTIONS: readonly ModelSelectFooterAction[] = [];
 export const MODEL_CONFIG_SELECT_BADGE_CLASS_NAME =
   "shrink-0 rounded-full bg-surface px-1 py-px text-ui-xs font-medium leading-normal text-foreground-subtle";
+const MODEL_OPTION_GROUP_CLASS_NAME =
+  "grid min-w-0 grid-cols-[minmax(0,1fr)_max-content_max-content_max-content] gap-x-2";
+const MODEL_OPTION_ROW_CLASS_NAME =
+  "col-span-full grid min-h-8 grid-cols-subgrid items-center gap-x-2 pl-2 pr-1 text-ui-base";
 
 function shouldShowModelProviderLevel(modelGroups: readonly ModelSelectGroup[]): boolean {
   return modelGroups.length > 0;
@@ -304,7 +308,7 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
       } as const;
       const content = (
         <>
-          <span className="flex min-w-0 flex-1 items-center gap-3 text-left">
+          <span className="flex min-w-0 items-center gap-2 text-left">
             <span
               className="min-w-0 flex-1 truncate"
               title={
@@ -318,42 +322,43 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
             {item.badgeLabel ? (
               <span className={MODEL_CONFIG_SELECT_BADGE_CLASS_NAME}>{item.badgeLabel}</span>
             ) : null}
-            {/* 能力靠列右侧、计费靠列左侧：保留共享列位，修复倍率被右对齐推远的问题。 */}
-            <span className="grid shrink-0 grid-cols-[3.5em_5.5em] items-center gap-2">
-              <span className="flex justify-end" data-model-capability-column>
-                {item.supportsVisionInput ? <ModelInputCapabilityBadge /> : null}
-              </span>
-              <span className="flex min-w-0 justify-start" data-model-billing-column>
-                <ModelBillingBadge billing={item.billing} />
-              </span>
-            </span>
+          </span>
+          {/* 固定计费列即使左对齐仍会留下空白；subgrid 按本组实际标签共享列宽。 */}
+          <span className="flex justify-end" data-model-capability-column>
+            {item.supportsVisionInput ? <ModelInputCapabilityBadge /> : null}
+          </span>
+          <span className="flex min-w-0 justify-start" data-model-billing-column>
+            <ModelBillingBadge billing={item.billing} />
           </span>
           {itemLocked ? (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span
-                    className="inline-flex size-4 items-center justify-center rounded-full text-foreground-subtlest hover:text-foreground-subtle"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                    }}
-                    onPointerDown={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                    }}
-                  >
-                    <AlertCircle className="size-4" />
-                  </span>
-                </TooltipTrigger>
-                <TooltipContent side="right" align="center" sideOffset={6}>
-                  {lockReasonMessage}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ) : null}
-          {itemLocked && itemSelected ? (
-            <CheckIcon className="size-4 text-foreground-subtle" />
+            <span
+              className="col-start-4 row-start-1 inline-flex items-center justify-end gap-1"
+              data-model-status-column
+            >
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className="inline-flex size-4 items-center justify-center rounded-full text-foreground-subtlest hover:text-foreground-subtle"
+                      onClick={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                      onPointerDown={(event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                      }}
+                    >
+                      <AlertCircle className="size-4" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="right" align="center" sideOffset={6}>
+                    {lockReasonMessage}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              {itemSelected ? <CheckIcon className="size-4 text-foreground-subtle" /> : null}
+            </span>
           ) : null}
         </>
       );
@@ -363,7 +368,10 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
           <DropdownMenuItem
             key={itemKey}
             {...commonProps}
-            className="min-h-8 cursor-not-allowed gap-2 px-2 text-ui-base text-foreground-subtlest data-[highlighted]:text-foreground-subtlest"
+            className={cn(
+              MODEL_OPTION_ROW_CLASS_NAME,
+              "cursor-not-allowed text-foreground-subtlest data-[highlighted]:text-foreground-subtlest",
+            )}
             onSelect={(event) => event.preventDefault()}
           >
             {content}
@@ -376,7 +384,11 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
           key={itemKey}
           {...commonProps}
           value={item.value}
-          className="min-h-8 gap-2 pl-2 pr-8 text-ui-base"
+          className={cn(
+            MODEL_OPTION_ROW_CLASS_NAME,
+            // 原绝对定位的右侧预留会把菜单撑宽；勾选改用同一状态列，右侧仅留 pr-1。
+            "[&>[data-slot=dropdown-menu-radio-item-indicator]]:static [&>[data-slot=dropdown-menu-radio-item-indicator]]:col-start-4 [&>[data-slot=dropdown-menu-radio-item-indicator]]:row-start-1 [&>[data-slot=dropdown-menu-radio-item-indicator]]:size-4 [&>[data-slot=dropdown-menu-radio-item-indicator]]:justify-self-end",
+          )}
           onSelect={() => {
             handleModelValueChange(item.value);
             handlePopoverOpenChange(false);
@@ -397,7 +409,7 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
 
   const renderModelItems = useCallback(
     (items: readonly ModelSelectGroupItem[]) => (
-      <DropdownMenuRadioGroup value={normalizedValue}>
+      <DropdownMenuRadioGroup value={normalizedValue} className={MODEL_OPTION_GROUP_CLASS_NAME}>
         {items.map((item) => renderModelItem(item))}
       </DropdownMenuRadioGroup>
     ),
@@ -618,9 +630,7 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
                           {renderGroupLabel(group)}
                         </DropdownMenuLabel>
                         {renderProviderConnectionHeader(group)}
-                        <DropdownMenuRadioGroup value={normalizedValue}>
-                          {group.items.map((item) => renderModelItem(item))}
-                        </DropdownMenuRadioGroup>
+                        {renderModelItems(group.items)}
                       </div>
                     </Fragment>
                   );

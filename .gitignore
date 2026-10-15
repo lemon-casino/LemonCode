@@ -340,3 +340,6 @@ nul
 
 # 设置侧栏短到长排列与统一尺寸的永久浏览器回归。
 !/packages/web/test/settings-sidebar-order.test.mjs
+
+# 模型菜单计费列和右侧留白的浏览器几何回归。
+!/packages/web/test/model-menu-compact-cases.mjs

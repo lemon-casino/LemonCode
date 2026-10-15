@@ -49,17 +49,52 @@ const items: ModelSelectGroupItem[] = [
     },
   },
 ];
+const menuItems: ModelSelectGroupItem[] = query.has("compact")
+  ? [
+      "Step-5-Preview",
+      "Deepseek-V4.1-Flash",
+      "Deepseek-V4.1-Flash (SG)",
+      "GPT-6-Sol",
+      "GPT-6-Luna",
+      "GPT-5.6-Terra",
+      "GPT-5.6-Luna",
+      "GPT-5.5",
+      ...Array.from({ length: 10 }, (_, index) => `Model ${index + 1}`),
+    ].map((name, index) => {
+      const multiplier = [0, 0, 0.03, 1.33, 0.07, 1.39, 0.14, 3.31][index % 8]!;
+      return {
+        key: `compact-${index}`,
+        value: `compact-${index}`,
+        name,
+        supportsVisionInput: true,
+        billing: { kind: "multiplier", multiplier, ...(multiplier === 0 ? { free: true } : {}) },
+      };
+    })
+  : items;
+if (query.has("promotion"))
+  menuItems.push({
+    key: "promotion",
+    value: "promotion",
+    name: "Promotion model",
+    supportsVisionInput: true,
+    billing: {
+      kind: "multiplier",
+      multiplier: 0.29,
+      originalMultiplier: 123.4567,
+      validUntil: "2099-01-01T00:00:00Z",
+    },
+  });
 function Fixture() {
-  const [value, setValue] = useState("exact-short");
+  const [value, setValue] = useState(query.has("compact") ? "compact-1" : "exact-short");
   return (
     <main className="p-4">
       <ModelConfigSelect
-        modelGroups={[{ key: "oauth", label: "OAuth", items }]}
+        modelGroups={[{ key: "oauth", label: "OAuth", items: menuItems }]}
         normalizedValue={value}
         triggerLabel="Models"
         showManageModelsAction={false}
         lockReasonMessage="Locked"
-        isItemLocked={() => false}
+        isItemLocked={(itemValue) => query.has("locked") && itemValue === "compact-1"}
         onValueChange={setValue}
         showProviderLevel={query.has("nested")}
       />

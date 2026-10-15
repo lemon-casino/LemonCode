@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir } from "node:fs/promises";
 import { startWorkflowProgressBrowser } from "./workflow-execution-progress-browser.mjs";
+import { verifyModelMenuCompact } from "./model-menu-compact-cases.mjs";
 
 test(
   "model columns align, unknown price is blank, and exact identity survives long names",
@@ -29,6 +30,7 @@ test(
       const rows = page.getByRole("menuitemradio");
       await rows.first().waitFor();
       assert.equal(await rows.count(), 6);
+      await verifyModelMenuCompact(rows);
       const bounds = await rows.first().boundingBox();
       assert.ok(
         bounds.x >= 0 && bounds.x + bounds.width <= width,
@@ -61,9 +63,7 @@ test(
           const billing = element.querySelector("[data-model-billing]");
           return {
             actual: billing.getBoundingClientRect().left - vision.getBoundingClientRect().right,
-            expected: Number.parseFloat(
-              getComputedStyle(vision.parentElement.parentElement).columnGap,
-            ),
+            expected: Number.parseFloat(getComputedStyle(element).columnGap),
           };
         });
         assert.ok(
@@ -87,6 +87,91 @@ test(
       assert.equal(await page.getByTestId("selected-model").innerText(), "exact-long");
       assert.deepEqual(errors, []);
       await page.close();
+    }
+  },
+);
+
+test(
+  "compact model menus remove both right-side gaps with scrolling, promotions and locks",
+  { timeout: 120_000 },
+  async (t) => {
+    const { browser, port } = await startWorkflowProgressBrowser(t);
+    for (const [width, locale, theme, nested, promotion, locked] of [
+      [1280, "zh-CN", "light", true, false, false],
+      [1280, "en-US", "dark", true, true, false],
+      [390, "zh-CN", "light", true, false, false],
+      [320, "en-US", "dark", true, true, false],
+      [1280, "zh-CN", "light", true, false, true],
+      [1280, "en-US", "dark", false, false, false],
+    ]) {
+      const page = await browser.newPage({ viewport: { width, height: 500 } });
+      const errors = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      try {
+        await page.goto(
+          `http://127.0.0.1:${port}/test/fixtures/model-billing-menu.html?compact=1&locale=${locale}&theme=${theme}${nested ? "&nested=1" : ""}${promotion ? "&promotion=1" : ""}${locked ? "&locked=1" : ""}`,
+        );
+        await page.evaluate(() =>
+          document.documentElement.style.setProperty("--ui-font-size", "20px"),
+        );
+        await page.getByRole("button", { name: "Models", exact: true }).click();
+        if (nested && width >= 768) {
+          await page.getByRole("menuitem", { name: "OAuth", exact: true }).focus();
+          await page.keyboard.press("ArrowRight");
+        }
+        const rows = page.locator('[data-slot="dropdown-menu-radio-group"] > [data-testid]');
+        await rows.first().waitFor();
+        assert.equal(await rows.count(), promotion ? 19 : 18);
+        await verifyModelMenuCompact(rows);
+        const menu = page.locator(
+          `[data-slot="${nested && width >= 768 ? "dropdown-menu-sub-content" : "dropdown-menu-content"}"]`,
+        );
+        assert.ok(
+          await rows.evaluateAll((elements) =>
+            elements.every(
+              (element) => element.querySelector("[title]").getBoundingClientRect().width > 20,
+            ),
+          ),
+          "model names retain visible space",
+        );
+        assert.ok(await menu.evaluate((element) => element.scrollHeight > element.clientHeight));
+        assert.ok(
+          await rows
+            .locator("[data-model-billing]")
+            .evaluateAll((elements) =>
+              elements.every(
+                (element) =>
+                  element.scrollWidth <= element.clientWidth + 1 &&
+                  element.lastElementChild.scrollWidth <= element.lastElementChild.clientWidth + 1,
+              ),
+            ),
+        );
+        const bounds = await menu.boundingBox();
+        assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= width + 1, JSON.stringify(bounds));
+        if (!promotion && width === 1280)
+          assert.ok(bounds.width < 440, `menu still too wide: ${bounds.width}`);
+        if (locked)
+          assert.equal(await rows.nth(1).locator("[data-model-status-column] svg").count(), 2);
+        if (promotion)
+          assert.equal(
+            await rows.last().locator("[data-model-billing] s").innerText(),
+            "123.4567×",
+          );
+        if (process.env.LCODE_TEST_SCREENSHOT_DIR) {
+          await mkdir(process.env.LCODE_TEST_SCREENSHOT_DIR, { recursive: true });
+          await menu.screenshot({
+            path: `${process.env.LCODE_TEST_SCREENSHOT_DIR}/menu-${width}-${locale}-${promotion}-${locked}-${nested}.png`,
+          });
+        }
+        await rows.last().click();
+        assert.equal(
+          await page.getByTestId("selected-model").innerText(),
+          promotion ? "promotion" : "compact-17",
+        );
+        assert.deepEqual(errors, []);
+      } finally {
+        await page.close();
+      }
     }
   },
 );
