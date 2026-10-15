@@ -472,8 +472,40 @@ async function fetchCloudModels() {
 		// be most of the window (kimi-k3: 943718 of 1048576), and an agent
 		// keeps that much of the window free for the reply, so it would
 		// compact a tenth of the way in
-		return [{ id, name: given && given !== id && given !== last ? given : prettify(id), free: false, pass: id.startsWith("cline-pass/"), ...(context && { context }) }]
+		const input = inputsOf(e)
+		return [{ id, name: given && given !== id && given !== last ? given : prettify(id), free: false, pass: id.startsWith("cline-pass/"), ...(context && { context }), ...(input && { input }) }]
 	})
+}
+
+// KINDS are the kinds of input OpenCode's capabilities name
+const KINDS = ["text", "image", "audio", "video", "pdf"]
+
+// inputsOf is what a catalog entry says the model takes (OpenRouter's
+// architecture.input_modalities: ["text", "image"]), undefined when it says
+// nothing
+function inputsOf(e) {
+	const l = e?.architecture?.input_modalities ?? e?.input_modalities
+	if (!Array.isArray(l) || !l.length) return undefined
+	const has = new Set(l.map((k) => String(k).toLowerCase()))
+	return Object.fromEntries(KINDS.map((k) => [k, has.has(k)]))
+}
+
+// bareOf is a model id without its provider and a variant after ":"
+// (deepseek/deepseek-v4.1-flash:batch is deepseek-v4.1-flash)
+const bareOf = (id) => String(id).split("/").pop().split(":")[0].toLowerCase()
+
+// inputsFor is what Cline's catalog says a model takes: by its own id, else,
+// for a model the catalog lists under its maker's id only (the feed's
+// cline-pass/deepseek-v4.1-flash is the catalog's deepseek/deepseek-v4.1-flash),
+// by the model after the prefix while every entry of that model agrees.
+// Undefined when the catalog doesn't say, so magpie asks models.dev.
+function inputsFor(id, cloud) {
+	const own = cloud.find((c) => c.id === id)
+	if (own) return own.input
+	const bare = bareOf(id)
+	const said = cloud.filter((c) => c.input && bareOf(c.id) === bare).map((c) => c.input)
+	if (!said.length || said.some((x) => KINDS.some((k) => x[k] !== said[0][k]))) return undefined
+	return said[0]
 }
 
 // fetchFeed is both of Cline's model lists merged, recommended first: the
@@ -482,10 +514,16 @@ async function fetchFeed() {
 	const [rec, cloud] = await Promise.all([fetchRecommended(), fetchCloudModels().catch(() => [])])
 	// a recommended model takes the catalog's window for it: the recommended
 	// feed gives none
+	// and what the catalog says it takes (images: Cline's own client reads
+	// it there), else a ClinePass or free model takes what the catalog says
+	// the model after its prefix takes (silent on Discord: DeepSeek V4.1
+	// Flash and GLM 5.3 Flash were taken for text-only, so magpie had their
+	// images described by another model)
 	const sizes = new Map(cloud.map((m) => [m.id, m]))
 	const ms = rec.map((m) => {
 		const c = sizes.get(m.id)
-		return c?.context ? { ...m, context: c.context } : m
+		const input = inputsFor(m.id, cloud)
+		return { ...m, ...(c?.context && { context: c.context }), ...(input && { input }) }
 	})
 	const seen = new Set(ms.map((m) => m.id))
 	for (const m of cloud) {
@@ -519,9 +557,12 @@ const runtimeModel = (m) => ({
 	capabilities: {
 		temperature: true,
 		reasoning: false,
-		attachment: false,
+		attachment: !!m.input?.image,
 		toolcall: true,
-		input: { text: true, image: false, audio: false, video: false, pdf: false },
+		// what Cline's catalog says it takes; where it says nothing, images
+		// are left unsaid rather than said no to, so magpie takes models.dev's
+		// word for the model
+		input: m.input ?? { text: true },
 		output: { text: true, image: false, audio: false, video: false, pdf: false },
 		interleaved: false,
 	},
@@ -1052,6 +1093,7 @@ export const _internal = {
 	fetchFeed,
 	fetchRecommended,
 	fetchCloudModels,
+	inputsFor,
 	creditsOf,
 	balanceUSD,
 	usd,

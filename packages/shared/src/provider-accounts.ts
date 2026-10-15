@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { modelBillingSchema } from "./model-catalog.js";
+import type { ProviderAccountCheckinState } from "./provider-account-checkin.js";
 
 const modelOptionName = z.string().min(1).max(80);
 export const providerAccountReasoningOptionsSchema = z.object({
@@ -23,6 +25,7 @@ export const providerAccountModelSchema = z
   .object({
     id: z.string().min(1),
     name: z.string(),
+    billing: modelBillingSchema.optional(),
     protocol: z.enum(["anthropic-messages", "openai-chat-completions", "openai-responses"]),
     contextWindow: z.number().positive().optional(),
     maxOutputTokens: z.number().positive().optional(),
@@ -64,6 +67,7 @@ export interface ProviderAccountMethod {
   description?: string;
 }
 export interface ProviderAccountChannel {
+  checkinSupported?: boolean;
   id: string;
   name: string;
   methods: readonly ProviderAccountMethod[];
@@ -71,6 +75,7 @@ export interface ProviderAccountChannel {
 }
 export type ProviderAccountModel = z.infer<typeof providerAccountModelSchema>;
 export interface ProviderAccount {
+  checkin?: ProviderAccountCheckinState & { running?: boolean };
   connectionId: string;
   channelId: string;
   displayName: string;

@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import {
   PROVIDER,
   SDK,
@@ -10,13 +10,34 @@ import {
 import { collapseResponse } from "./stream.mjs";
 import { guardToolResponse } from "./tool-response.mjs";
 
-const DEFAULT_BASE = "https://opencode.ai/zen/v1";
+// Zen's free models answer only at the inference API since mid-October
+// 2026: the same request OpenCode 1.19.0 sends answers 403 FreeTierError
+// at /zen/v1 and 200 here, and models.dev gives OpenCode this URL. A model
+// listed before then still names /zen/v1 (LEGACY_BASE), which is asked here.
+const DEFAULT_BASE = "https://opencode.ai/inference/v1";
+const LEGACY_BASE = "https://opencode.ai/zen/v1";
 const CATALOG = "https://models.opencode.ai/api.json";
 const DOCS =
   "https://raw.githubusercontent.com/anomalyco/opencode/dev/packages/web/src/content/docs/zen.mdx";
 const PATHS = { chat: "/chat/completions", responses: "/responses", anthropic: "/messages" };
 const CORE_TOOLS = ["bash", "edit", "glob", "grep", "read"];
-const OPENCODE_VERSION = "1.18.34";
+// The parameter each stand-in takes, OpenCode's own first one: Zen's free
+// tier answers 403 FreeTierError to bash or read offered with none.
+const CORE_PARAMETER = {
+  bash: "command",
+  edit: "filePath",
+  glob: "pattern",
+  grep: "pattern",
+  read: "filePath",
+};
+const OPENCODE_VERSION = "1.19.0";
+// What OpenCode 1.19.0 sends as its User-Agent, ai-sdk and Bun included.
+// Each protocol's ai-sdk package bundles its own provider-utils, so the
+// version differs by protocol (captured from the release binary's requests).
+const PROVIDER_UTILS = { chat: "4.0.23", responses: "4.0.40", anthropic: "4.0.46" };
+export function userAgent(protocol) {
+  return `opencode/${OPENCODE_VERSION} ai-sdk/provider-utils/${PROVIDER_UTILS[protocol]} runtime/bun/1.3.14`;
+}
 // How long a request for a model the last list didn't have waits before it
 // asks Zen's list again: a model Zen made free since is served at once,
 // and a model typed in by hand doesn't ask the list on every request.
@@ -67,11 +88,13 @@ function normalizeTools(body, protocol) {
   if (protocol === "chat" && Array.isArray(body.functions)) {
     for (const tool of body.functions) if (typeof tool?.name === "string") declared.add(tool.name);
   }
-  const injected = new Set();
   for (const name of CORE_TOOLS) {
     if (present.has(name)) continue;
-    injected.add(name);
-    const parameters = { type: "object", properties: {}, additionalProperties: false };
+    const parameters = {
+      type: "object",
+      properties: { [CORE_PARAMETER[name]]: { type: "string" } },
+      additionalProperties: false,
+    };
     const definition = { name, description: "Not available. Never call this tool." };
     body.tools.push(
       protocol === "chat"
@@ -81,13 +104,48 @@ function normalizeTools(body, protocol) {
           : { type: "function", ...definition, parameters },
     );
   }
-  return { declared, injected };
+  return { declared };
 }
 
-function sessionID(headers, body) {
+const ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+let lastStamp = 0;
+let counter = 0;
+
+// An id the way OpenCode makes one (packages/schema/src/identifier.ts):
+// 12 hex of Date.now() * 0x1000 + a per-millisecond counter (bit-inverted
+// for a session, so newer sorts first), then 14 random base62 characters.
+// Zen's free tier checks a session id has this shape, a small counter
+// included, and answers 403 FreeTierError to one that doesn't (#100).
+export function opencodeID(prefix, descending, now = Date.now()) {
+  if (now !== lastStamp) {
+    lastStamp = now;
+    counter = 0;
+  }
+  counter++;
+  const current = BigInt(now) * 0x1000n + BigInt(counter);
+  const value = (descending ? ~current : current) & 0xffffffffffffn;
+  const random = randomBytes(14);
+  let tail = "";
+  for (const byte of random) tail += ALPHABET[byte % 62];
+  return `${prefix}_${value.toString(16).padStart(12, "0")}${tail}`;
+}
+
+// A session id OpenCode itself could have made: its counter (the low 12
+// bits, inverted) is small. A hash cut to the same shape isn't one.
+export function realSessionID(value) {
+  const match = /^ses_[0-9a-f]{9}([0-9a-f]{3})[0-9A-Za-z]{14}$/.exec(value ?? "");
+  return !!match && 0xfff - Number.parseInt(match[1], 16) < 16;
+}
+
+// One made-up session per conversation, so its turns keep one session.
+const SESSIONS = new Map();
+const KEEP_SESSIONS = 1000;
+
+export function sessionID(headers, body) {
   let signal;
   for (const name of [
     "x-opencode-session",
+    "x-opencode-session-id",
     "x-session-affinity",
     "x-session-id",
     "conversation-id",
@@ -98,24 +156,25 @@ function sessionID(headers, body) {
     }
   }
   if (!signal && typeof body.metadata?.session_id === "string") signal = body.metadata.session_id;
+  if (realSessionID(signal)) return signal;
   if (!signal) {
     const messages = body.messages ?? body.input;
     const first = Array.isArray(messages)
       ? messages.find((message) => message.role === "user")?.content
       : messages;
-    signal = first ? JSON.stringify(first) : randomUUID();
+    if (!first) return opencodeID("ses", true);
+    signal = JSON.stringify(first);
   }
-  if (/^ses_[0-9a-f]{12}[0-9A-Za-z]{14}$/.test(signal)) return signal;
-  // Keep conversation affinity using OpenCode's canonical session format.
-  const hash = createHash("sha256").update(`ses\0${signal}`).digest("hex");
-  let value = BigInt(`0x${hash.slice(12, 32)}`);
-  let suffix = "";
-  const alphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-  for (let i = 0; i < 14; i++) {
-    suffix = alphabet[Number(value % 62n)] + suffix;
-    value /= 62n;
+  const key = createHash("sha256").update(`ses\0${signal}`).digest("hex");
+  let session = SESSIONS.get(key);
+  if (session) {
+    SESSIONS.delete(key);
+  } else {
+    session = opencodeID("ses", true);
+    if (SESSIONS.size >= KEEP_SESSIONS) SESSIONS.delete(SESSIONS.keys().next().value);
   }
-  return `ses_${hash.slice(0, 12)}${suffix}`;
+  SESSIONS.set(key, session);
+  return session;
 }
 
 async function server(_input, options = {}) {
@@ -204,7 +263,9 @@ async function server(_input, options = {}) {
             requirePublic(await getAuth());
             const request = new Request(input, init);
             const protocol = Object.keys(PATHS).find(
-              (key) => request.url === `${baseURL}${PATHS[key]}`,
+              (key) =>
+                request.url === `${baseURL}${PATHS[key]}` ||
+                (baseURL === DEFAULT_BASE && request.url === `${LEGACY_BASE}${PATHS[key]}`),
             );
             if (!protocol || request.method !== "POST")
               throw new Error("Unsupported Zen endpoint or method");
@@ -246,47 +307,42 @@ async function server(_input, options = {}) {
             const toolPolicy = normalizeTools(body, protocol);
             if (protocol === "chat")
               body.stream_options = { ...body.stream_options, include_usage: true };
-            const headers = new Headers(request.headers);
-            for (const name of [
-              "authorization",
-              "x-api-key",
-              "x-goog-api-key",
-              "content-length",
-              "content-encoding",
-              "host",
-              "cookie",
-            ]) {
-              headers.delete(name);
-            }
-            headers.set("content-type", "application/json");
-            headers.set("accept", "text/event-stream");
-            headers.set("user-agent", `opencode/${OPENCODE_VERSION}`);
-            headers.set("x-opencode-client", "cli");
-            headers.set("x-opencode-request", `req_${randomUUID().replaceAll("-", "")}`);
-            if (!headers.has("x-opencode-project")) {
-              const project = _input?.project;
-              headers.set(
-                "x-opencode-project",
-                project?.vcs === "git" && project.id ? project.id : "global",
-              );
-            }
-            const session = sessionID(headers, body);
-            for (const name of ["x-session-id", "x-opencode-session", "x-session-affinity"])
-              headers.set(name, session);
+            // Only what OpenCode 1.19.0 itself sends to its gateway, so a
+            // caller's own headers (an agent's User-Agent, x-stainless-*,
+            // x-session-affinity, ...) never mark the request as not
+            // OpenCode's (packages/opencode/src/session/llm/request.ts).
+            const given = request.headers;
+            const session = sessionID(given, body);
+            const project = _input?.project;
+            const headers = new Headers({
+              "content-type": "application/json",
+              accept: "*/*",
+              "user-agent": userAgent(protocol),
+              "x-opencode-project":
+                given.get("x-opencode-project") ||
+                (project?.vcs === "git" && project.id ? project.id : "global"),
+              "x-opencode-session": session,
+              "x-opencode-request": opencodeID("msg", false),
+              "x-opencode-client": "cli",
+              "x-opencode-session-id": session,
+            });
             if (protocol === "anthropic") {
               headers.set("x-api-key", "public");
-              if (!headers.has("anthropic-version")) headers.set("anthropic-version", "2023-06-01");
+              headers.set("anthropic-version", given.get("anthropic-version") || "2023-06-01");
+              if (given.get("anthropic-beta")) headers.set("anthropic-beta", given.get("anthropic-beta"));
             } else {
               headers.set("authorization", "Bearer public");
             }
-            const response = await fetch(request.url, {
+            const response = await fetch(`${baseURL}${PATHS[protocol]}`, {
               method: "POST",
               headers,
               body: JSON.stringify(body),
               signal: request.signal,
               redirect: "error",
             });
-            const guarded = await guardToolResponse(response, protocol, toolPolicy);
+            const guarded = await guardToolResponse(response, protocol, toolPolicy, {
+              endCutShort: streaming,
+            });
             return streaming ? guarded : collapseResponse(guarded, protocol);
           },
         };

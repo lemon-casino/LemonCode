@@ -3,6 +3,7 @@ import {
   MutableAccountProviderConfigSource,
   parseAccountProviderConfigMap,
   parseAccountModelConfigRules,
+  parseAccountModelCatalog,
   type AccountProviderConfigSnapshot,
   type AccountProviderStates,
 } from "@lcode/provider";
@@ -197,6 +198,7 @@ export function parseProcessAccountProviderConfigSnapshot(input: {
   readonly basedOnLCodeBuiltinRevision: string;
   readonly providers: unknown;
   readonly modelRules?: unknown;
+  readonly modelCatalog?: unknown;
   readonly states?: AccountProviderStates;
 }): AccountProviderConfigSnapshot {
   const revision = input.revision.trim();
@@ -221,6 +223,7 @@ export function parseProcessAccountProviderConfigSnapshot(input: {
     revision,
     basedOnLCodeBuiltinRevision,
     providers,
+    ...(input.modelCatalog ? { modelCatalog: parseAccountModelCatalog(input.modelCatalog, providers) } : {}),
     // 旧信封无此字段仍可接收；新 OAuth 目录不能只保留模型 ID 而丢掉能力和参数。
     ...(input.modelRules
       ? { modelRules: parseAccountModelConfigRules(input.modelRules, providers) }

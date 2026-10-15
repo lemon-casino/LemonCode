@@ -2560,15 +2560,17 @@ The original import revisions of copied components are not recorded in the curre
 
 - Magpie native provider protocol adaptations (MIT): packages/provider-node/src/provider-auth/native, packages/provider-node/src/provider-auth/native.ts, packages/provider-node/src/provider-auth/plugins/factory-import.mjs, packages/provider-node/src/provider-auth/plugins/method-details.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/LICENSE. Original import revision: 93c5d846ca2b05ac8ca961956304104e5d112845.
 
-- Magpie community fixed provider plugins (MIT): packages/provider-node/src/provider-auth/vendor, packages/provider-node/src/provider-auth/plugins/zcode-local.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/LICENSE. Original import revision: da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd.
+- Magpie community fixed provider plugins (MIT): packages/provider-node/src/provider-auth/vendor, packages/provider-node/src/provider-auth/plugins/zcode-local.mjs, packages/provider-node/src/provider-auth/plugins/worker-source.ts. License reference: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/LICENSE. Original import revision: 5d5d86e2251169e0f5c0fd7a884957ac2dbe184a.
 
-- CLIProxyAPI portions retained by Magpie Qoder plugin (MIT): packages/provider-node/src/provider-auth/vendor/qoder. License reference: https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/packages/qoder/LICENSE-CLIProxyAPI. Original import revision: da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd.
+- CLIProxyAPI portions retained by Magpie Qoder plugin (MIT): packages/provider-node/src/provider-auth/vendor/qoder. License reference: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/qoder/LICENSE-CLIProxyAPI. Original import revision: 5d5d86e2251169e0f5c0fd7a884957ac2dbe184a.
 
-- Magpie Zen Free plugin original notice (MIT): packages/provider-node/src/provider-auth/vendor/zen-free. License reference: https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/packages/zen-free/LICENSE. Original import revision: da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd.
+- Magpie Zen Free plugin original notice (MIT): packages/provider-node/src/provider-auth/vendor/zen-free. License reference: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/zen-free/LICENSE. Original import revision: 5d5d86e2251169e0f5c0fd7a884957ac2dbe184a.
 
 - Magpie provider brand icon assets (MIT): packages/ui/src/assets/provider-icons/model-provider-copilot.svg, packages/ui/src/assets/provider-icons/model-provider-gemini-cli.svg, packages/ui/src/assets/provider-icons/model-provider-antigravity.svg, packages/ui/src/assets/provider-icons/model-provider-cline.svg, packages/ui/src/assets/provider-icons/model-provider-commandcode.svg, packages/ui/src/assets/provider-icons/model-provider-cursor.svg, packages/ui/src/assets/provider-icons/model-provider-devin.svg, packages/ui/src/assets/provider-icons/model-provider-factory.svg, packages/ui/src/assets/provider-icons/model-provider-kiro.svg, packages/ui/src/assets/provider-icons/model-provider-qoder.svg, packages/ui/src/assets/provider-icons/model-provider-trae.svg, packages/ui/src/assets/provider-icons/model-provider-workbuddy.svg, packages/ui/src/assets/provider-icons/model-provider-zed.svg. License reference: https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/LICENSE. Original import revision: 93c5d846ca2b05ac8ca961956304104e5d112845.
 
 - Lobe Icons notice for Magpie brand assets (MIT): packages/ui/src/assets/provider-icons/model-provider-copilot.svg, packages/ui/src/assets/provider-icons/model-provider-gemini-cli.svg, packages/ui/src/assets/provider-icons/model-provider-antigravity.svg, packages/ui/src/assets/provider-icons/model-provider-cline.svg, packages/ui/src/assets/provider-icons/model-provider-commandcode.svg, packages/ui/src/assets/provider-icons/model-provider-cursor.svg, packages/ui/src/assets/provider-icons/model-provider-devin.svg, packages/ui/src/assets/provider-icons/model-provider-factory.svg, packages/ui/src/assets/provider-icons/model-provider-kiro.svg, packages/ui/src/assets/provider-icons/model-provider-qoder.svg, packages/ui/src/assets/provider-icons/model-provider-trae.svg, packages/ui/src/assets/provider-icons/model-provider-workbuddy.svg, packages/ui/src/assets/provider-icons/model-provider-zed.svg. License reference: https://raw.githubusercontent.com/lobehub/lobe-icons/c385b2b8d1f9e19aa86e628d4e23c91ee1111a47/LICENSE. Original import revision: not recorded.
+
+- Magpie account check-in protocol rules (MIT): packages/provider-node/src/provider-auth/plugins/checkin.mjs. License reference: https://raw.githubusercontent.com/yetone/magpie/707fbb249df755423d3b2b77c6f001dd376d75c4/LICENSE. Original import revision: 707fbb249df755423d3b2b77c6f001dd376d75c4.
 
 Fig autocomplete source carries the repository's MIT license; the generated registry records npm @withfig/autocomplete@2.692.3 metadata as ISC. The original source MIT notice is retained below.
 
@@ -40711,6 +40713,8 @@ SOFTWARE.
 
 - Magpie provider brand icon assets: https://raw.githubusercontent.com/yetone/magpie/93c5d846ca2b05ac8ca961956304104e5d112845/LICENSE
 
+- Magpie account check-in protocol rules: https://raw.githubusercontent.com/yetone/magpie/707fbb249df755423d3b2b77c6f001dd376d75c4/LICENSE
+
 
 
 ````text
@@ -40740,7 +40744,7 @@ SOFTWARE.
 
 ### Notice bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679
 
-- Magpie community fixed provider plugins: https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/LICENSE
+- Magpie community fixed provider plugins: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/LICENSE
 
 
 
@@ -40771,7 +40775,7 @@ SOFTWARE.
 
 ### Notice 93df585e5fa07ead6d47a3ab2dbdf0255782a39fe830022c0274a70394223cc8
 
-- CLIProxyAPI portions retained by Magpie Qoder plugin: https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/packages/qoder/LICENSE-CLIProxyAPI
+- CLIProxyAPI portions retained by Magpie Qoder plugin: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/qoder/LICENSE-CLIProxyAPI
 
 
 
@@ -40802,7 +40806,7 @@ SOFTWARE.
 
 ### Notice 170ca82fa4255729a826c5eb9abf3f0e0d2e3dde84f024accb5b806473c4ba68
 
-- Magpie Zen Free plugin original notice: https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/packages/zen-free/LICENSE
+- Magpie Zen Free plugin original notice: https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/zen-free/LICENSE
 
 
 

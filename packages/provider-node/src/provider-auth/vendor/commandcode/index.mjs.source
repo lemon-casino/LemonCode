@@ -118,24 +118,59 @@ const GO_MODELS = [
   { id: "xai/grok-4.5", name: "Grok 4.5", context: 500_000, images: true, efforts: ["low", "medium", "high"] },
 ]
 
-// The models of Command Code's list the Go plan is refused, as the CLI's
-// table has it (1.73.0): its "premium" ones, and those "individual-go"
-// blocks — magpie's cmdGoRefused. A model the table doesn't name the CLI
-// lets any plan pick; one the plan hasn't after all is refused with
-// MODEL_NOT_IN_PLAN.
-const GO_REFUSED = new Set([
-  // premium
+// The models each plan is let use, as the CLI's own table has it
+// (command-code 1.79.2: evaluateModelAccess over its model categories and
+// its plans' allowedCategories and blockedModels). Command Code's list is
+// the same 87 models for every plan, asked with a key or without, and the
+// Provider API turns a model the plan hasn't away only when it is asked
+// (403 "MODEL_NOT_IN_PLAN: Claude Opus 5.5 available in Provider and above
+// plans or extra on demand usage"). So a plan's list is Command Code's less
+// what its plan refuses: a premium model when the plan has the open models
+// alone (Go, GOAT), and the models it blocks. A model the table doesn't
+// name the CLI lets any plan pick; one the plan hasn't after all is refused
+// with MODEL_NOT_IN_PLAN, which the agent is told. Blocks are by the
+// model's id: the CLI's own block of "vercel-ai-gateway:xiaomi/mimo-v2.6-
+// pro-ultraspeed" misses its "cai" model, and Go is still kept off it.
+const PREMIUM = new Set([
   "claude-sonnet-5", "claude-sonnet-4-6", "claude-fable-5-1", "claude-fable-5",
   "claude-opus-5-5", "claude-opus-5", "claude-opus-4-8", "claude-opus-4-7",
-  "claude-haiku-4-5-20251001", "gpt-6-astra", "gpt-6.1-sol", "gpt-6-sol",
-  "gpt-5.6-terra", "gpt-5.5", "gpt-5.4", "gpt-5.3-codex", "gpt-5.4-mini",
+  "claude-haiku-4-5-20251001", "gpt-5.6-terra", "gpt-6-astra", "gpt-6.1-sol",
+  "gpt-6-sol", "gpt-5.5", "gpt-5.4", "gpt-5.3-codex", "gpt-5.4-mini",
   "google/gemini-3.5-flash", "google/gemini-3.1-flash-lite", "sakana/fugu-ultra",
   "meta/muse-spark-1.1",
-  // blocked for Go
-  "claude-sonnet-5-5", "gpt-5.6-sol", "xai/grok-4.6", "xai/grok-4.7",
-  "meta/muse-spark-1.2", "meta/muse-spark-1.3", "xiaomi/mimo-v2.6-pro-ultraspeed",
-  "google/gemini-3.7-flash", "google/gemini-3.8-flash",
 ])
+const GO_BLOCKED = new Set([
+  "meta/muse-spark-1.2", "meta/muse-spark-1.3", "xai/grok-4.6", "xai/grok-4.7",
+  "xiaomi/mimo-v2.6-pro-ultraspeed", "google/gemini-3.7-flash", "google/gemini-3.8-flash",
+  "gpt-5.6-sol", "claude-sonnet-5-5", "claude-haiku-5-5",
+])
+const PRO_BLOCKED = new Set([
+  "claude-fable-5-1", "claude-fable-5", "claude-opus-5-5", "claude-opus-5",
+  "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5-20251101",
+  "gpt-6-astra", "gpt-6.1-sol", "sakana/fugu-ultra",
+])
+// by the plan's name (PLAN_NAMES): the old Pro and the new are let the same
+const PLAN_MODELS = {
+  Go: { premium: false, blocked: GO_BLOCKED },
+  GOAT: { premium: false },
+  Pro: { premium: true, blocked: PRO_BLOCKED },
+  Provider: { premium: true, blocked: new Set(["gpt-6.1-sol"]) },
+  Max: { premium: true },
+  Ultra: { premium: true },
+  "Teams Pro": { premium: true },
+}
+
+// refuses is whether the plan named refuses the model: never for a plan
+// the table doesn't know, "No plan" and an unread one among them.
+function refuses(plan, id) {
+  const p = PLAN_MODELS[plan]
+  if (!p) return false
+  return (!p.premium && PREMIUM.has(id)) || !!p.blocked?.has(id)
+}
+
+// The models of Command Code's list the Go plan is refused — magpie's
+// cmdGoRefused.
+const GO_REFUSED = new Set([...PREMIUM, ...GO_BLOCKED])
 const GO_EFFORTS = Object.fromEntries(GO_MODELS.map((m) => [m.id, m.efforts ?? []]))
 
 const isClaude = (id) => /^claude-/i.test(id) || id.startsWith("anthropic/")
@@ -231,8 +266,9 @@ async function liveModels(key) {
 // model takes its name when the list gives none, its reasoning levels and,
 // when the list doesn't say, its pictures and window from GO_MODELS
 // (catalog.Decorate). Every Go model is asked on chat completions, which
-// the fetch sends on to /alpha/generate.
-async function goModels() {
+// the fetch sends on to /alpha/generate. An account with credits beyond
+// the plan's (open) is let every model, as the CLI lets it.
+async function goModels(open = false) {
   const url = BASE + "/models"
   const res = await fetch(url, { headers: { Accept: "application/json", "User-Agent": "magpie" }, signal: AbortSignal.timeout(8_000) })
   const text = await res.text()
@@ -276,7 +312,7 @@ async function goModels() {
     listed.push(m)
   }
   if (!listed.length) throw new Error(`${url}: no models listed`)
-  const out = listed.filter((m) => !GO_REFUSED.has(m.id))
+  const out = open ? listed : listed.filter((m) => !GO_REFUSED.has(m.id))
   if (!out.length) throw new Error("Command Code listed no models for the Go plan")
   return out
 }
@@ -464,7 +500,27 @@ const subsSeen = new Map()
 // doesn't include API access. Upgrade to Provider or higher …" (#969)
 const GO_NO_API = /\bGo plan doesn.t include API access/i
 const SUB_KEEP = 10 * 60 * 1000
-const waits = { subWait: 9_000 }
+const waits = { subWait: 9_000, creditWait: 5_000 }
+
+// Each key's credits beyond its plan's, as last read: bought or free ones
+// let the account every model, the plan's or not (the CLI's
+// evaluateModelAccess; Command Code's refusal: "… or extra on demand
+// usage").
+const extraSeen = new Map()
+const hasExtra = (c) => number(c?.credits?.purchasedCredits) > 0 || number(c?.credits?.freeCredits) > 0
+
+// extraNow is whether the key has such credits: read now, else as last
+// read, else none, so the plan's list stands when they can't be read and
+// a model it leaves out is still refused by Command Code, as it was asked.
+async function extraNow(key) {
+  try {
+    const v = hasExtra(await accountJSON("/alpha/billing/credits", key, waits.creditWait))
+    extraSeen.set(key, v)
+    return v
+  } catch {
+    return extraSeen.get(key) ?? false
+  }
+}
 
 function subscriptionNow(key, wait = waits.subWait) {
   const seen = subsSeen.get(key) ?? {}
@@ -502,6 +558,7 @@ async function usage(key, saved) {
     // billing/credits leaves the plan out: the month of credits the pool
     // is made of is the subscription's plan's
     const c = credits.c ?? {}
+    extraSeen.set(key, hasExtra(c))
     out = allowanceOf({ ...c, credits: { ...(c.credits ?? {}), planId: c.credits?.planId || sub?.id || "" } })
   }
   if (sub) {
@@ -731,10 +788,37 @@ function parseArgs(s) {
   }
 }
 
+// WORK_DIR and WORK_GIT are where magpie tells a plugin's fetch the agent
+// that asked works: the folder, percent-encoded, and "yes" or "no" for a
+// git repository, each left off when magpie doesn't know it (magpie's
+// provider.WorkDirHeader and WorkGitHeader). They are for the plugin, not
+// the vendor.
+const WORK_DIR = "x-magpie-work-dir"
+const WORK_GIT = "x-magpie-work-git"
+
+// workPlace takes WORK_DIR and WORK_GIT off h: {dir?, git?}, what magpie
+// said of where the agent works.
+function workPlace(h) {
+  const place = {}
+  const dir = h.get(WORK_DIR)
+  if (dir) {
+    try {
+      place.dir = decodeURIComponent(dir)
+    } catch {}
+  }
+  const git = h.get(WORK_GIT)
+  if (place.dir && (git === "yes" || git === "no")) place.git = git
+  h.delete(WORK_DIR)
+  h.delete(WORK_GIT)
+  return place
+}
+
 // generateBody is a chat completion request as the CLI asks
-// /alpha/generate: no project behind it, the CLI's config outside a git
-// repository, in the user's home.
-function generateBody(chat) {
+// /alpha/generate, with no structure, branch or status behind it. The
+// working directory and whether it is a git repository are the agent's as
+// magpie tells them (place, yetone magpie-community/plugins#86); untold,
+// the CLI's config outside a git repository, in the user's home.
+function generateBody(chat, place = {}) {
   const system = []
   const messages = []
   const names = {} // a tool call's id → its tool
@@ -808,11 +892,11 @@ function generateBody(chat) {
   const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
   return {
     config: {
-      workingDir: homedir(),
+      workingDir: place.dir || homedir(),
       date,
       environment: process.platform,
       structure: [],
-      isGitRepo: false,
+      isGitRepo: place.git === "yes",
       currentBranch: "",
       mainBranch: "",
       gitStatus: "",
@@ -926,12 +1010,21 @@ async function* lines(body) {
 
 const FINISH = { "tool-calls": "tool_calls", length: "length", "content-filter": "content_filter" }
 
+// CUT_SHORT_NOTE ends a streamed reply Command Code stopped sending
+// before its finish line (as zen-free does, #91): magpie's gateway can't go
+// on with a Chat Completions reply, and failing it would throw away what
+// the client was already shown.
+const CUT_SHORT_NOTE = "(The reply was cut short: Command Code closed the stream before it finished. Ask again to go on.)"
+
 // events turns the reply's lines into chat completion pieces: text,
 // reasoning, whole tool calls, then the finish with the usage. A reply
-// with no finish line was cut short: an error, not a shorter answer.
+// with no finish line was cut short: { cut } when it said something
+// (its tool calls come whole, never half written), else an error.
 async function* events(body) {
   let tools = 0
   let cacheWrite = 0
+  let said = false
+  let wrote = false
   for await (const s of lines(body)) {
     let l
     try {
@@ -941,15 +1034,22 @@ async function* events(body) {
     }
     switch (l.type) {
       case "text-delta":
-        if (l.text) yield { text: l.text }
+        if (l.text) {
+          said = wrote = true
+          yield { text: l.text }
+        }
         break
       case "reasoning-delta":
-        if (l.text) yield { reasoning: l.text }
+        if (l.text) {
+          said = true
+          yield { reasoning: l.text }
+        }
         break
       case "tool-call": {
         if (l.providerExecuted) break // run by the server, its result beside it
         let input = l.input ?? l.args
         input = typeof input === "string" ? parseArgs(input) : input ?? {}
+        said = true
         yield { tool: { index: tools++, id: l.toolCallId || "call_" + randomBytes(12).toString("hex"), name: l.toolName, args: JSON.stringify(input) } }
         break
       }
@@ -982,15 +1082,16 @@ async function* events(body) {
         return
     }
   }
-  yield { error: { status: 502, message: "the reply ended before it was complete" } }
+  const error = { status: 502, message: "the reply ended before it was complete" }
+  yield said ? { cut: tools > 0 ? "tool_calls" : "stop", wrote, error } : { error }
 }
 
 // generate answers a chat completion through /alpha/generate.
-async function generate(key, chat, signal) {
+async function generate(key, chat, signal, place) {
   const res = await fetch(API + "/alpha/generate", {
     method: "POST",
     headers: generateHeaders(key),
-    body: JSON.stringify(generateBody(chat)),
+    body: JSON.stringify(generateBody(chat, place)),
     signal,
   })
   if (!res.ok) return errorResponse(failure(res.status, (await res.text()).slice(0, 1 << 20)))
@@ -1043,7 +1144,13 @@ async function generate(key, chat, signal) {
       else if (e.reasoning) ctl.enqueue(chunk({ reasoning_content: e.reasoning }))
       else if (e.tool) ctl.enqueue(chunk({ tool_calls: [{ index: e.tool.index, id: e.tool.id, type: "function", function: { name: e.tool.name, arguments: e.tool.args } }] }))
       else if (e.stop) ctl.enqueue(chunk({}, e.stop, e.usage ? { usage: e.usage } : {}))
-      else if (e.error) {
+      else if (e.cut) {
+        // the client has its start: a shorter turn that says so, not a lost one
+        ctl.enqueue(chunk({ content: (e.wrote ? "\n\n" : "") + CUT_SHORT_NOTE }))
+        ctl.enqueue(chunk({}, e.cut))
+        ctl.enqueue(enc.encode("data: [DONE]\n\n"))
+        ctl.close()
+      } else if (e.error) {
         ctl.enqueue(enc.encode(`data: ${JSON.stringify({ error: { message: e.error.message, code: e.error.status } })}\n\n`))
         ctl.close()
       }
@@ -1057,7 +1164,7 @@ async function generate(key, chat, signal) {
 
 // ---- the plugin ---------------------------------------------------------------
 
-export const _internal = { subsSeen, waits, liveKey, failure, goModels, GO_MODELS, GO_REFUSED }
+export const _internal = { subsSeen, extraSeen, waits, liveKey, failure, goModels, refuses, GO_MODELS, GO_REFUSED }
 
 export async function CommandCodePlugin({ client } = {}) {
   // isGo keeps a key as Go's, for its models and endpoint: in the
@@ -1091,6 +1198,7 @@ export async function CommandCodePlugin({ client } = {}) {
             const key = await liveKey((await getAuth()) ?? auth)
             headers.set("Authorization", `Bearer ${key}`)
             headers.set("x-api-key", key)
+            const place = workPlace(headers)
             const chatting = /\/chat\/completions$/.test(new URL(url).pathname)
             let chat
             if (chatting) {
@@ -1100,7 +1208,7 @@ export async function CommandCodePlugin({ client } = {}) {
               } catch {
                 return errorResponse({ status: 400, message: "a request that isn't JSON" })
               }
-              if ((await planNow(key, saved)) === "Go") return kept(await generate(key, chat, init.signal))
+              if ((await planNow(key, saved)) === "Go") return kept(await generate(key, chat, init.signal, place))
             }
             // the Provider API's answer goes on as it came, the account
             // kept: the built-in neither marked one lapsed nor cleared it
@@ -1113,7 +1221,7 @@ export async function CommandCodePlugin({ client } = {}) {
             const text = await res.text()
             if (GO_NO_API.test(text)) {
               await isGo(key, (await getAuth()) ?? auth)
-              if (chatting) return kept(await generate(key, chat, init.signal))
+              if (chatting) return kept(await generate(key, chat, init.signal, place))
             }
             return kept(new Response(text, { status: res.status, statusText: res.statusText, headers: res.headers }))
           },
@@ -1154,19 +1262,23 @@ export async function CommandCodePlugin({ client } = {}) {
       }
     },
     // the plan's list: the Provider API's, with what each model is served
-    // on; Go's key has no Provider API: its list is the same one, asked
-    // without it, less what Go is refused, and the CLI's table when that
-    // can't be had
+    // on, less what the plan refuses (PLAN_MODELS); Go's key has no
+    // Provider API: its list is the same one, asked without it, less what
+    // Go is refused, and the CLI's table when that can't be had. A plan
+    // not read (nothing saved, billing/subscriptions failing) keeps the
+    // whole list, and so does an account with credits beyond its plan's.
     provider: {
       id: ID,
       async models(provider, { auth } = {}) {
         if (auth?.type !== "api" || !auth.key) return provider.models
         const key = await liveKey(auth)
-        if ((await planNow(key, auth.metadata?.plan)) === "Go") {
+        const [plan, extra] = await Promise.all([planNow(key, auth.metadata?.plan), extraNow(key)])
+        const keep = (id) => extra || !refuses(plan, id)
+        if (plan === "Go") {
           let ms = GO_MODELS
           let fell = false
           try {
-            ms = await goModels()
+            ms = await goModels(extra)
           } catch {
             fell = true
           }
@@ -1177,10 +1289,12 @@ export async function CommandCodePlugin({ client } = {}) {
           return out
         }
         try {
-          return Object.fromEntries((await liveModels(key)).map((m) => [m.id, runtimeModel(m)]))
-        } catch {
-          return Object.assign(provider.models, { [FELL_BACK]: true })
-        }
+          const out = Object.fromEntries((await liveModels(key)).filter((m) => keep(m.id)).map((m) => [m.id, runtimeModel(m)]))
+          if (Object.keys(out).length) return out
+        } catch {}
+        // the default list stands in, less what the plan refuses
+        const out = Object.fromEntries(Object.entries(provider.models ?? {}).filter(([id]) => keep(id)))
+        return Object.assign(out, { [FELL_BACK]: true })
       },
     },
   }

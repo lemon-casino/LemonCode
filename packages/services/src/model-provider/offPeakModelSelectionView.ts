@@ -14,6 +14,8 @@ export function buildOffPeakModelSelectionView(registry: ProviderRegistryView): 
   );
   return Object.freeze({
     revision: registry.revision,
-    providers: Object.freeze(providers.map(projectModelSelectionProviderView)),
+    providers: Object.freeze(
+      providers.map((provider) => projectModelSelectionProviderView(provider)),
+    ),
   });
 }

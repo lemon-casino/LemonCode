@@ -4,10 +4,10 @@ import type { AuthDriver, AuthWireProtocol } from "@lcode/provider-node";
 import { executeProviderAccountPool } from "./providerAccountPool.js";
 
 const protocol = "openai-chat-completions" as const;
-function fixture(run: (id: string, request: Request) => Promise<Response>) {
+function fixture(run: (id: string, request: Request) => Promise<Response>, channelId = "fixture") {
   const accounts = ["first", "second", "disabled", "other-protocol"].map((id) => ({
     connectionId: id,
-    channelId: "fixture",
+    channelId,
     enabled: id !== "disabled",
     models: [
       {
@@ -49,7 +49,7 @@ function fixture(run: (id: string, request: Request) => Promise<Response>) {
   function request(session = "session", signal?: AbortSignal, modelId = "model") {
     return executeProviderAccountPool(
       host,
-      "fixture",
+      channelId,
       modelId,
       protocol,
       new Request("http://localhost/v1/chat/completions", {
@@ -62,6 +62,41 @@ function fixture(run: (id: string, request: Request) => Promise<Response>) {
   }
   return { accounts, active, calls, request };
 }
+
+test("Copilot model refusal tries another account for the exact model and hides the internal marker", async () => {
+  const pool = fixture(async (id, request) => {
+    assert.equal(((await request.json()) as { model: string }).model, "model");
+    return id === "first"
+      ? Response.json(
+          { error: { code: "model_not_supported" } },
+          { status: 400, headers: { "x-zcode-model-refused": "true" } },
+        )
+      : new Response("second");
+  }, "copilot");
+  const response = await pool.request();
+  assert.equal(await response.text(), "second");
+  assert.deepEqual(pool.calls, ["first", "second"]);
+  assert.equal(response.headers.get("x-zcode-model-refused"), null);
+  assert.equal(pool.active.size, 0);
+});
+
+test("ordinary 400 is never retried and an exhausted Copilot refusal preserves its diagnostic", async () => {
+  for (const refused of [false, true]) {
+    const pool = fixture(
+      async () =>
+        new Response("account cannot call exact model", {
+          status: 400,
+          headers: refused ? { "x-zcode-model-refused": "true" } : {},
+        }),
+      "copilot",
+    );
+    const response = await pool.request();
+    assert.equal(response.status, 400);
+    assert.equal(await response.text(), "account cannot call exact model");
+    assert.equal(pool.calls.length, refused ? 2 : 1);
+    assert.equal(pool.active.size, 0);
+  }
+});
 
 test("account preferences stay within each session and skip disabled or incompatible accounts", async () => {
   let limited = true;

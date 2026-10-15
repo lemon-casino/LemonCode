@@ -27,3 +27,5 @@ Signing out retains the pinned plugin's snapshot fallback.
 The upstream-derived files listed above, as well as the generated worker, belong
 to the copied component inventory. Regenerate the bundle with
 `node scripts/build-auth-plugin-worker.mjs`, then regenerate and verify notices.
+
+Account check-in protocol rules in `checkin.mjs` follow Magpie `707fbb249df755423d3b2b77c6f001dd376d75c4`, MIT (recorded in `third-party/copied-components.json`). Billing and promotion facts remain operation-scoped read-only projections. The fixed plugins are updated to `5d5d86e2251169e0f5c0fd7a884957ac2dbe184a`; the earlier revision cited for `zcode-local.mjs` above records that separate adaptation's source.

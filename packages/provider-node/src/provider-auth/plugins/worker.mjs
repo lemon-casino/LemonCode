@@ -3,8 +3,10 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createQuotaFacts } from "./quota-facts.mjs";
 import childProcess from "node:child_process";
 import http from "node:http";
-import { plugins, assertGrantChannel } from "./catalog.mjs";
-import { authorize, grantFrom, methodsFor, modelList } from "./compatibility.mjs";
+import { plugins, assertGrantChannel, miniMaxCheckinSignature } from "./catalog.mjs";
+import { checkinWithLoader } from "./checkin.mjs";
+import { discoverCatalog } from "./catalog-operation.mjs";
+import { authorize, grantFrom, methodsFor } from "./compatibility.mjs";
 import { factoryImports } from "./factory-import.mjs";
 import { resolveZCodeLocal, zcodeLocalChallenge } from "./zcode-local.mjs";
 import { installWorkerNetwork } from "./worker-network.mjs";
@@ -240,21 +242,25 @@ async function call(message, scope) {
   }
   const loader = await hooks.auth.loader(currentGrant, provider);
   check();
+  if (message.operation === "checkin") {
+    return hooks.auth.checkin
+      ? hooks.auth.checkin(currentGrant, provider)
+      : checkinWithLoader(workerData.channel, loader, scope.controller.signal, {
+          signMiniMax: miniMaxCheckinSignature,
+        });
+  }
   if (message.operation === "models" || message.operation === "modelCatalog") {
-    scope.listing = { tried: false, lastOk: false };
-    const models = hooks.provider?.models
-      ? await hooks.provider.models(provider, { auth: await currentGrant() })
-      : provider.models;
-    check();
-    const fallback =
-      models?.[Symbol.for("magpie.fellBack")] === true ||
-      (models === provider.models && scope.listing.tried && !scope.listing.lastOk);
-    scope.listing = null;
-    discovered = models;
-    const list = modelList(provider, models);
-    return message.operation === "modelCatalog"
-      ? { models: list, ...(fallback ? { fallback: true } : {}) }
-      : list;
+    const catalog = await discoverCatalog({
+      hooks,
+      provider,
+      scope,
+      channel: workerData.channel,
+      currentGrant,
+      check,
+      operation: message.operation,
+    });
+    discovered = catalog.discovered;
+    return catalog.value;
   }
   if (message.operation !== "fetch") throw new Error("Unknown plugin operation");
   if (typeof loader?.fetch !== "function")

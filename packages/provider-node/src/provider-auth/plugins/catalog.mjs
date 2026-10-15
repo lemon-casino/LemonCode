@@ -8,6 +8,7 @@ import { KiroAuthPlugin } from "../vendor/kiro/index.mjs.source";
 import {
   MiniMaxCodeAuthPlugin,
   MiniMaxCodeGlobalAuthPlugin,
+  _internal as miniMaxInternal,
 } from "../vendor/minimax/index.mjs.source";
 import { MimoAuthPlugin } from "../vendor/mimo/index.mjs.source";
 import { QoderAuthPlugin, QoderCNAuthPlugin } from "../vendor/qoder/index.mjs.source";
@@ -39,6 +40,18 @@ export const plugins = {
   zed: ZedAuthPlugin,
   "opencode-zen-free": ZenFreePlugin,
 };
+
+export function miniMaxCheckinSignature(channel, method, now) {
+  const { init } = miniMaxInternal.signed(
+    miniMaxInternal.SITES[channel],
+    "/minimax-cloud/api/v1/signin",
+    {
+      now,
+      ...(method === "POST" ? { body: {} } : {}),
+    },
+  );
+  return { "x-timestamp": init.headers["x-timestamp"], "x-signature": init.headers["x-signature"] };
+}
 
 export function assertGrantChannel(channel, grant) {
   if (channel !== "zai" && channel !== "bigmodel") return;

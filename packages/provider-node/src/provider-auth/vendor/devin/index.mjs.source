@@ -34,11 +34,13 @@ const RETRY = 60 * 1000
 
 // ---- models ---------------------------------------------------------------------
 
-// Devin's list as `devin models list --format json` gave it (2026-09-30),
+// Devin's list as `devin models list --format json` gave it (2026-10-14),
 // less Adaptive and Fusion, which route between models inside Devin's own
 // agent and aren't served by the API: family id, label, aliases, and each
-// variant's id, label, context and output. The CLI's list, when the CLI is
-// installed, replaces it.
+// variant's id, label, context and output. Inkling and Claude Sonnet 4.5,
+// gone from that list, stay for the accounts still offered them. The
+// account's own list, from Devin (GetCliModelConfigs) or else the CLI,
+// replaces it.
 const SNAPSHOT = [
   ["swe-2","SWE-2",["swe"],[["swe-2-high","SWE-2 High",262000,128000],["swe-2-medium","SWE-2 Medium",262000,128000],["swe-2-max","SWE-2 Max",262000,128000]]],
   ["swe-1.7-lightning","SWE-1.7 Lightning",[],[["swe-1-7-lightning","SWE-1.7 Lightning Max",202752,96000],["swe-1-7-lightning-medium","SWE-1.7 Lightning Medium",202752,96000]]],
@@ -47,6 +49,7 @@ const SNAPSHOT = [
   ["gpt-6-astra","GPT-6 Astra",[],[["gpt-6-astra-medium","GPT-6 Astra Medium Thinking",1000000,128000],["gpt-6-astra-low","GPT-6 Astra Low Thinking",1000000,128000],["gpt-6-astra-high","GPT-6 Astra High Thinking",1000000,128000],["gpt-6-astra-xhigh","GPT-6 Astra XHigh Thinking",1000000,128000],["gpt-6-astra-max","GPT-6 Astra Max Thinking",1000000,128000],["gpt-6-astra-low-priority","GPT-6 Astra Low Thinking Fast",1000000,128000],["gpt-6-astra-medium-priority","GPT-6 Astra Medium Thinking Fast",1000000,128000],["gpt-6-astra-high-priority","GPT-6 Astra High Thinking Fast",1000000,128000],["gpt-6-astra-xhigh-priority","GPT-6 Astra XHigh Thinking Fast",1000000,128000],["gpt-6-astra-max-priority","GPT-6 Astra Max Thinking Fast",1000000,128000]]],
   ["gpt-6-sol","GPT-6 Sol",[],[["gpt-6-sol-medium","GPT-6 Sol Medium Thinking",1000000,128000],["gpt-6-sol-none","GPT-6 Sol No Thinking",1000000,128000],["gpt-6-sol-low","GPT-6 Sol Low Thinking",1000000,128000],["gpt-6-sol-high","GPT-6 Sol High Thinking",1000000,128000],["gpt-6-sol-xhigh","GPT-6 Sol XHigh Thinking",1000000,128000],["gpt-6-sol-max","GPT-6 Sol Max Thinking",1000000,128000],["gpt-6-sol-none-priority","GPT-6 Sol No Thinking Fast",1000000,128000],["gpt-6-sol-low-priority","GPT-6 Sol Low Thinking Fast",1000000,128000],["gpt-6-sol-medium-priority","GPT-6 Sol Medium Thinking Fast",1000000,128000],["gpt-6-sol-high-priority","GPT-6 Sol High Thinking Fast",1000000,128000],["gpt-6-sol-xhigh-priority","GPT-6 Sol XHigh Thinking Fast",1000000,128000],["gpt-6-sol-max-priority","GPT-6 Sol Max Thinking Fast",1000000,128000]]],
   ["gpt-6-luna","GPT-6 Luna",[],[["gpt-6-luna-medium","GPT-6 Luna Medium Thinking",1000000,128000],["gpt-6-luna-none","GPT-6 Luna No Thinking",1000000,128000],["gpt-6-luna-low","GPT-6 Luna Low Thinking",1000000,128000],["gpt-6-luna-high","GPT-6 Luna High Thinking",1000000,128000],["gpt-6-luna-xhigh","GPT-6 Luna XHigh Thinking",1000000,128000],["gpt-6-luna-max","GPT-6 Luna Max Thinking",1000000,128000],["gpt-6-luna-none-priority","GPT-6 Luna No Thinking Fast",1000000,128000],["gpt-6-luna-low-priority","GPT-6 Luna Low Thinking Fast",1000000,128000],["gpt-6-luna-medium-priority","GPT-6 Luna Medium Thinking Fast",1000000,128000],["gpt-6-luna-high-priority","GPT-6 Luna High Thinking Fast",1000000,128000],["gpt-6-luna-xhigh-priority","GPT-6 Luna XHigh Thinking Fast",1000000,128000],["gpt-6-luna-max-priority","GPT-6 Luna Max Thinking Fast",1000000,128000]]],
+  ["gemini-4-argon","Gemini 4 Argon",[],[["gemini-4-argon-medium","Gemini 4 Argon Medium",1048576,1000000],["gemini-4-argon-low","Gemini 4 Argon Low",1048576,1000000],["gemini-4-argon-high","Gemini 4 Argon High",1048576,1000000]]],
   ["kimi-k3","Kimi K3",[],[["kimi-k3-high","Kimi K3 High",1048576,131072],["kimi-k3-low","Kimi K3 Low",1048576,131072],["kimi-k3-max","Kimi K3 Max",1048576,131072]]],
   ["glm-5.2","GLM-5.2",[],[["glm-5-2","GLM-5.2 High",200000,128000],["glm-5-2-max","GLM-5.2 Max",200000,128000],["glm-5-2-1m","GLM-5.2 High 1M",1000000,128000],["glm-5-2-max-1m","GLM-5.2 Max 1M",1000000,128000],["glm-5-2-none","GLM-5.2 No Thinking",200000,128000],["glm-5-2-none-1m","GLM-5.2 No Thinking 1M",1000000,128000]]],
   ["glm-5-3","GLM-5.3",[],[["glm-5-3-low","GLM-5.3 Low",1048576,128000],["glm-5-3-high","GLM-5.3 High",1048576,128000],["glm-5-3-max","GLM-5.3 Max",1048576,128000]]],
@@ -57,6 +60,7 @@ const SNAPSHOT = [
   ["claude-opus-5","Claude Opus 5",["opus"],[["claude-opus-5-medium","Claude Opus 5 Medium",1000000,128000],["claude-opus-5-low","Claude Opus 5 Low",1000000,128000],["claude-opus-5-high","Claude Opus 5 High",1000000,128000],["claude-opus-5-xhigh","Claude Opus 5 XHigh",1000000,128000],["claude-opus-5-max","Claude Opus 5 Max",1000000,128000],["claude-opus-5-low-fast","Claude Opus 5 Low Fast",1000000,128000],["claude-opus-5-medium-fast","Claude Opus 5 Medium Fast",1000000,128000],["claude-opus-5-high-fast","Claude Opus 5 High Fast",1000000,128000],["claude-opus-5-xhigh-fast","Claude Opus 5 XHigh Fast",1000000,128000],["claude-opus-5-max-fast","Claude Opus 5 Max Fast",1000000,128000]]],
   ["claude-5-fable","Claude Fable 5",[],[["claude-5-fable-low","Claude Fable 5 Low",1000000,128000],["claude-5-fable-medium","Claude Fable 5 Medium",1000000,128000],["claude-5-fable-high","Claude Fable 5 High",1000000,128000],["claude-5-fable-xhigh","Claude Fable 5 XHigh",1000000,128000],["claude-5-fable-max","Claude Fable 5 Max",1000000,128000]]],
   ["claude-sonnet-5","Claude Sonnet 5",["claude","sonnet"],[["claude-sonnet-5-low","Claude Sonnet 5 Low",1000000,128000],["claude-sonnet-5-medium","Claude Sonnet 5 Medium",1000000,128000],["claude-sonnet-5-high","Claude Sonnet 5 High",1000000,128000],["claude-sonnet-5-xhigh","Claude Sonnet 5 XHigh",1000000,128000],["claude-sonnet-5-max","Claude Sonnet 5 Max",1000000,128000]]],
+  ["claude-haiku-5-5","Claude Haiku 5.5",[],[["claude-haiku-5-5-low","Claude Haiku 5.5 Low",1000000,128000],["claude-haiku-5-5-medium","Claude Haiku 5.5 Medium",1000000,128000],["claude-haiku-5-5-high","Claude Haiku 5.5 High",1000000,128000],["claude-haiku-5-5-xhigh","Claude Haiku 5.5 XHigh",1000000,128000],["claude-haiku-5-5-max","Claude Haiku 5.5 Max",1000000,128000]]],
   ["gemini-3.5-flash","Gemini 3.5 Flash",[],[["gemini-3-5-flash-minimal","Gemini 3.5 Flash Minimal",1048576,65535],["gemini-3-5-flash-low","Gemini 3.5 Flash Low",1048576,65535],["gemini-3-5-flash-medium","Gemini 3.5 Flash Medium",1048576,65535],["gemini-3-5-flash-high","Gemini 3.5 Flash High",1048576,65535]]],
   ["gemini-3.6-flash","Gemini 3.6 Flash",[],[["gemini-3-6-flash-minimal","Gemini 3.6 Flash Minimal",1048576,65535],["gemini-3-6-flash-low","Gemini 3.6 Flash Low",1048576,65535],["gemini-3-6-flash-medium","Gemini 3.6 Flash Medium",1048576,65535],["gemini-3-6-flash-high","Gemini 3.6 Flash High",1048576,65535]]],
   ["gemini-3-7-flash","Gemini 3.7 Flash",[],[["gemini-3-7-flash-low","Gemini 3.7 Flash Low",1048576,65535],["gemini-3-7-flash-medium","Gemini 3.7 Flash Medium",1048576,65535],["gemini-3-7-flash-high","Gemini 3.7 Flash High",1048576,65535]]],
@@ -91,7 +95,7 @@ const SNAPSHOT = [
   ["swe-1.6-fast","SWE-1.6 Fast",[],[["swe-1-6-fast","SWE-1.6 Fast",200000,128000]]],
   ["gemini-3.1-pro","Gemini 3.1 Pro",[],[["gemini-3-1-pro-low","Gemini 3.1 Pro Low Thinking",1048576,65535],["gemini-3-1-pro-high","Gemini 3.1 Pro High Thinking",1048576,65535]]],
   ["gemini-3.0-flash","Gemini 3 Flash",[],[["MODEL_GOOGLE_GEMINI_3_0_FLASH_MINIMAL","Gemini 3 Flash Minimal",1048576,65535],["MODEL_GOOGLE_GEMINI_3_0_FLASH_LOW","Gemini 3 Flash Low",1048576,65535],["MODEL_GOOGLE_GEMINI_3_0_FLASH_MEDIUM","Gemini 3 Flash Medium",1048576,65535],["MODEL_GOOGLE_GEMINI_3_0_FLASH_HIGH","Gemini 3 Flash High",1048576,65535]]],
-  ["deepseek-v4-pro","DeepSeek V4 Pro",[],[["deepseek-v4-pro-high","DeepSeek V4 Pro High",1048576,384000],["deepseek-v4-pro-max","DeepSeek V4 Pro Max",1048576,384000]]]
+  ["deepseek-v4-pro","DeepSeek V4 Pro",[],[["deepseek-v4-pro-high","DeepSeek V4 Pro High",1048576,384000],["deepseek-v4-pro-max","DeepSeek V4 Pro Max",1048576,384000]]],
 ]
 
 const familiesOf = (rows) => rows.map(([uid, label, aliases, vs]) => ({ uid, label, aliases, models: vs.map(([id, name, context, output]) => ({ id, name, context, output })) }))
@@ -228,29 +232,32 @@ function variantFor(families, model, effort) {
 // Each entry says whether it takes images (image) as images, Devin's word
 // for each variant id, gives it: a variant its own, a family (and its fast
 // run) what all its variants Devin named say; undefined when Devin said
-// nothing of it or its variants disagree.
-function listed(families, keep = [], images = {}) {
+// nothing of it or its variants disagree. An entry is free (free: true) when
+// every variant of Devin's it stands for is in free, the ids Devin says its
+// quota doesn't count (parseFree).
+function listed(families, keep = [], images = {}, free = new Set()) {
+  const all = (ids) => ids.length > 0 && ids.every((id) => free.has(id))
   const out = []
   const seen = new Set()
-  const add = (m) => {
+  const add = ({ free, ...m }) => {
     if (seen.has(m.id)) return
     seen.add(m.id)
-    out.push(m)
+    out.push(free ? { ...m, free } : m)
   }
   for (const f of families) {
     const context = f.models.find((m) => m.context)?.context ?? 0
     const output = f.models.find((m) => m.output)?.output ?? 0
     const image = familyImages(f, images)
-    add({ id: f.uid, name: f.label, context, output, efforts: efforts(f, ""), image })
+    add({ id: f.uid, name: f.label, context, output, efforts: efforts(f, ""), image, free: all(f.models.map((m) => m.id)) })
     for (const t of tiers(f)) {
       const id = f.uid + "-" + t
       if (families.some((g) => named(g, id))) continue
-      add({ id, name: f.label + " " + TIERS.find(([w]) => w === t)[1], context, output, efforts: efforts(f, t), image })
+      add({ id, name: f.label + " " + TIERS.find(([w]) => w === t)[1], context, output, efforts: efforts(f, t), image, free: all(Object.values(byLevel(f, t))) })
     }
     if (f.models.length === 1) continue
     for (const m of f.models) {
       if (m.id === f.uid || tierOf(m.id)[1]) continue
-      add({ id: m.id, name: m.name, context: m.context || context, output: m.output || output, efforts: [], image: images[m.id] })
+      add({ id: m.id, name: m.name, context: m.context || context, output: m.output || output, efforts: [], image: images[m.id], free: free.has(m.id) })
     }
   }
   for (const id of keep) {
@@ -259,7 +266,7 @@ function listed(families, keep = [], images = {}) {
     const m = f?.models.find((m) => m.id === id)
     const level = tierOf(id)[1]
     if (!m && !level) continue
-    add({ id, name: m?.name || id, context: m?.context ?? 0, output: m?.output ?? 0, efforts: level ? [level] : [], image: images[id] })
+    add({ id, name: m?.name || id, context: m?.context ?? 0, output: m?.output ?? 0, efforts: level ? [level] : [], image: images[id], free: free.has(id) })
   }
   return out
 }
@@ -313,15 +320,86 @@ function parseModelConfigs(b) {
   return Object.keys(out).length ? out : null
 }
 
-// Each account's word on images, kept and asked again as its list is.
+// FREE_TIER is the model_cost_tier (ClientModelConfig's 24) of a model the
+// account's quota doesn't count: the CLI's picker labels its tiers "Low
+// cost", "Med cost", "High cost" and "Free", 1 to 4. On 2026-10-14 Devin
+// gave SWE-2's three variants 4 and no other model of its 262 (太陽と向日葵
+// on magpie's Discord: with the quota used up, SWE-2 still answered, but
+// magpie held the account for it as for every other model).
+const FREE_TIER = 4
+
+// parseFree reads the same response for the ids of the models that are
+// free: each config's model_uid (22) whose model_cost_tier (24) is
+// FREE_TIER. A config that says no tier is not free.
+function parseFree(b) {
+  const out = new Set()
+  for (const f of fields(b)) {
+    if (f.num !== 1 || f.wire !== 2) continue
+    let uid = ""
+    let tier = 0
+    for (const g of fields(f.data)) {
+      if (g.num === 22 && g.wire === 2) uid = dec.decode(g.data)
+      else if (g.num === 24 && g.wire === 0) tier = g.n
+    }
+    if (uid && tier === FREE_TIER) out.add(uid)
+  }
+  return out
+}
+
+// parseConfigFamilies reads the same response as the families `devin
+// models list` makes of it, in its order: each config's label (1), context
+// (18), and model_info (23) with its output (13) and family uid (23); the
+// family's label is its family_metadata's (30) first field. A config that
+// names no family is a family of its own under its label, as the CLI makes
+// MODEL_PRIVATE_11 "Claude Haiku 4.5". The aliases are the CLI's own, so
+// they are taken from SNAPSHOT's family of the same id.
+function parseConfigFamilies(b) {
+  const fams = new Map()
+  for (const f of fields(b)) {
+    if (f.num !== 1 || f.wire !== 2) continue
+    let uid = ""
+    let name = ""
+    let context = 0
+    let output = 0
+    let fam = ""
+    let famLabel = ""
+    for (const g of fields(f.data)) {
+      if (g.num === 22 && g.wire === 2) uid = dec.decode(g.data)
+      else if (g.num === 1 && g.wire === 2) name = dec.decode(g.data)
+      else if (g.num === 18 && g.wire === 0) context = g.n
+      else if (g.num === 23 && g.wire === 2) {
+        for (const h of fields(g.data)) {
+          if (h.num === 13 && h.wire === 0) output = h.n
+          else if (h.num === 23 && h.wire === 2) fam = dec.decode(h.data)
+        }
+      } else if (g.num === 30 && g.wire === 2) {
+        for (const h of fields(g.data)) if (h.num === 1 && h.wire === 2) famLabel = dec.decode(h.data)
+      }
+    }
+    if (!uid) continue
+    const id = fam || famLabel || name || uid
+    const low = id.toLowerCase()
+    if (low === "adaptive" || low === "fusion") continue
+    let e = fams.get(id)
+    if (!e) {
+      const known = SNAPSHOT.find(([u]) => u === id)
+      fams.set(id, (e = { uid: id, label: famLabel || name || id, aliases: known ? known[2] : [], models: [] }))
+    }
+    e.models.push({ id: uid, name: name || uid, context, output })
+  }
+  return [...fams.values()]
+}
+
+// Each account's word on images and its list, kept and asked again as the
+// CLI's list is.
 const said = new Map()
 
-// imagesFor is what Devin says of each model id's images for key's
-// account, SNAPSHOT_IMAGES under it; with wait false, a first ask isn't
-// waited for.
-async function imagesFor(key, server, wait = true) {
+// configsFor is what Devin last said of key's account's models
+// ({images, families}, each null until it has said); with wait false, a
+// first ask isn't waited for.
+async function configsFor(key, server, wait = true) {
   let c = said.get(key)
-  if (!c) said.set(key, (c = { images: null, at: 0, failed: 0, asking: null }))
+  if (!c) said.set(key, (c = { images: null, families: null, free: new Set(), at: 0, failed: 0, asking: null }))
   const ask = () =>
     (c.asking ??= (async () => {
       try {
@@ -332,9 +410,11 @@ async function imagesFor(key, server, wait = true) {
           signal: AbortSignal.timeout(15_000),
         })
         if (!res.ok) throw new Error(`GetCliModelConfigs: ${res.status}`)
-        const images = parseModelConfigs(new Uint8Array(await res.arrayBuffer()))
+        const b = new Uint8Array(await res.arrayBuffer())
+        const images = parseModelConfigs(b)
         if (!images) throw new Error("GetCliModelConfigs: no models")
-        Object.assign(c, { images, at: Date.now(), failed: 0 })
+        const families = parseConfigFamilies(b)
+        Object.assign(c, { images, families: families.length ? families : null, free: parseFree(b), at: Date.now(), failed: 0 })
       } catch {
         c.failed = Date.now()
       } finally {
@@ -347,6 +427,14 @@ async function imagesFor(key, server, wait = true) {
       if (wait && !c.images) await p
     }
   }
+  return c
+}
+
+// imagesFor is what Devin says of each model id's images for key's
+// account, SNAPSHOT_IMAGES under it; with wait false, a first ask isn't
+// waited for.
+async function imagesFor(key, server, wait = true) {
+  const c = await configsFor(key, server, wait)
   return { ...SNAPSHOT_IMAGES, ...(c.images ?? {}) }
 }
 
@@ -420,6 +508,8 @@ function runtimeModel(m) {
     },
     release_date: "",
     variants: Object.fromEntries(m.efforts.map((e) => [e, { reasoningEffort: e }])),
+    // magpie's: a model the account's quota doesn't count
+    ...(m.free ? { free: true } : {}),
   }
 }
 
@@ -623,9 +713,11 @@ async function whoByKey(key, server) {
 }
 
 // cliAnswersFor says whether the CLI, run with home as its data folder,
-// answers for key's account: it reads home's credentials.toml, and the
-// account it names is the one Devin says the key is. undefined when it
-// can't tell.
+// answers for key's account: the account it names is the one Devin says
+// the key is. A CLI that reads another credentials.toml than home's (on
+// Windows it reads %APPDATA%\devin\ whatever APPDATA it is given, #17)
+// answers only when it names that account; one that reads home's is taken
+// at its word when Devin can't tell. undefined when it can't tell.
 async function cliAnswersFor(key, server, home) {
   let out
   try {
@@ -633,21 +725,36 @@ async function cliAnswersFor(key, server, home) {
   } catch {
     return undefined
   }
-  if (!readsHome(out, home)) return false
+  const own = readsHome(out, home)
   const cli = parseStatus(out)?.user
-  if (!cli) return true
+  if (!cli) return own
   const who = await whoByKey(key, server)
-  return !who?.user || who.user.toLowerCase() === cli.toLowerCase()
+  if (!who?.user) return own
+  return who.user.toLowerCase() === cli.toLowerCase()
 }
 
 // Each account's model list as the CLI last gave it, kept FRESH; one past
 // its time is served while it is read again, one that failed is asked
 // again after RETRY. A CLI that doesn't answer for the account (#17: on
-// Windows it lists its own account's) is never asked for it: the account
-// has Devin's list as of SNAPSHOT.
+// Windows it lists its own account's) is never asked for it.
 const lists = new Map()
 
+// familiesFor is key's account's list: what Devin tells the CLI's model
+// picker for the key (GetCliModelConfigs, the list `devin models list`
+// prints, asked with the key itself, so on any system and for every
+// account), else the CLI's when it answers for the account, else Devin's
+// list as of SNAPSHOT. On Windows the CLI answered for no account added
+// in the browser, and an account without the CLI had only SNAPSHOT, so
+// neither got Gemini 4 Argon (plugins #115).
 async function familiesFor(key, server, wait = true) {
+  return (await ownFamilies(key, server, wait)) ?? familiesOf(SNAPSHOT)
+}
+
+// ownFamilies is familiesFor's list when Devin or the CLI gave one, null
+// when neither has.
+async function ownFamilies(key, server, wait = true) {
+  const told = (await configsFor(key, server, wait)).families
+  if (told) return told
   let c = lists.get(key)
   if (!c) lists.set(key, (c = { families: null, at: 0, failed: 0, asking: null, cli: undefined }))
   const ask = () =>
@@ -674,7 +781,7 @@ async function familiesFor(key, server, wait = true) {
     const p = ask()
     if (wait) await p
   }
-  return c.families ?? familiesOf(SNAPSHOT)
+  return c.families
 }
 
 // ---- signing in ----------------------------------------------------------------------
@@ -1459,7 +1566,9 @@ function userStatus(key, server) {
 // used this cycle, and the extra usage balance. JSON leaves out what is
 // zero, so a quota-billed plan's quota with a reset and no share is used
 // up. magpie's
-// built-in Devin account showed none of this.
+// built-in Devin account showed none of this. The day and the week don't
+// count the models Devin says are free (notModels): with them used up,
+// SWE-2 still answers, and magpie sends it to the account.
 async function usage(key, server) {
   const res = await userStatus(key, server)
   const text = await res.text()
@@ -1487,6 +1596,10 @@ async function usage(key, server) {
     if (hide || ((left === undefined || left === null) && !(quota && at > 0))) continue
     out.windows.push({ name, used: Math.min(100, Math.max(0, 100 - num(left))), span, ...(at > 0 ? { resetsAt: at } : {}) })
   }
+  if (out.windows.length) {
+    const free = await freeIDs(key, server)
+    if (free.length) for (const w of out.windows) w.notModels = free
+  }
   const limit = num(st.acuLimit)
   if (limit > 0) {
     const used = num(st.acuConsumed)
@@ -1495,6 +1608,18 @@ async function usage(key, server) {
   const extra = num(st.overageBalanceMicros)
   if (extra > 0) out.balance = "$" + (extra / 1e6).toFixed(2)
   return out
+}
+
+// freeIDs are the ids of key's account's free models (parseFree) as magpie
+// may ask for them: each variant's own, and each entry of the list that
+// stands for free variants alone (swe-2 for swe-2-high, -medium and -max).
+// None when Devin hasn't said.
+async function freeIDs(key, server) {
+  const c = await configsFor(key, server)
+  if (!c.free?.size) return []
+  const ids = new Set(c.free)
+  for (const m of listed(c.families ?? [], [], {}, c.free)) if (m.free) ids.add(m.id)
+  return [...ids]
 }
 
 // serverOf is the API server an account's requests go to:
@@ -1569,21 +1694,23 @@ export async function DevinAuthPlugin() {
         models: { ...Object.fromEntries(listed(familiesOf(SNAPSHOT), [], SNAPSHOT_IMAGES).map((m) => [m.id, configModel(m)])), ...(was.models ?? {}) },
       }
     },
-    // the account's list, as the devin CLI gives it, with what Devin says
-    // of each model's images; with no CLI, the list it was given with that
+    // the account's list, as Devin or the devin CLI gives it (familiesFor),
+    // with what Devin says of each model's images; with neither, the list
+    // it was given with that
     provider: {
       id: ID,
       async models(provider, { auth } = {}) {
         if (auth?.type !== "api" || !auth.key) return provider.models
         const { key, server } = await live(auth)
         const images = await imagesFor(key, server)
-        if (!cliPath()) return withImages(provider.models, listed(familiesOf(SNAPSHOT), Object.keys(provider?.models ?? {}), images))
-        const families = await familiesFor(key, server)
-        return Object.fromEntries(listed(families, Object.keys(provider?.models ?? {}), images).map((m) => [m.id, runtimeModel(m)]))
+        const { free } = await configsFor(key, server)
+        const families = await ownFamilies(key, server)
+        if (!families) return withImages(provider.models, listed(familiesOf(SNAPSHOT), Object.keys(provider?.models ?? {}), images))
+        return Object.fromEntries(listed(families, Object.keys(provider?.models ?? {}), images, free).map((m) => [m.id, runtimeModel(m)]))
       },
     },
   }
 }
 
 // for tests
-export const _internal = { outID, inID, objectRoot, seesImages, imagesFor, forgetSaid: () => said.clear(), parseModelConfigs, SNAPSHOT_IMAGES, withImages, forgetImages: () => (seen = null), effortOf, runtimeModel, configModel, live, build, failure, complete, parseFamilies, listed, variantFor, familiesOf, SNAPSHOT, parseStatus, readsHome, tierName, whoByKey, success, familiesFor, readCredentials, credentials, fields, frame, PB, events, frames }
+export const _internal = { parseFree, freeIDs, outID, inID, objectRoot, seesImages, imagesFor, forgetSaid: () => said.clear(), parseModelConfigs, parseConfigFamilies, SNAPSHOT_IMAGES, withImages, forgetImages: () => (seen = null), effortOf, runtimeModel, configModel, live, build, failure, complete, parseFamilies, listed, variantFor, familiesOf, SNAPSHOT, parseStatus, readsHome, tierName, whoByKey, success, familiesFor, readCredentials, credentials, fields, frame, PB, events, frames }

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { modelConfigDataSchema } from "@lcode/shared/model-config";
+import { accountModelCatalogSchema } from "@lcode/shared/model-catalog";
 import {
   oauthAccountAccessDataSchema,
   providerApiTypeDataSchema,
@@ -112,6 +113,20 @@ export function parseAccountModelConfigRules(
       config: createModelConfig(rule.config),
     })),
   );
+}
+
+/** 目录展示元数据只属于当前账号供应商与已授予模型，不能覆盖其他供应商。 */
+export function parseAccountModelCatalog(input: unknown, providers: ProviderConfigMap) {
+  const catalog = accountModelCatalogSchema.parse(input);
+  for (const [providerId, models] of Object.entries(catalog)) {
+    const provider = providers.get(providerId);
+    if (
+      provider?.access?.type !== "oauth-account" ||
+      Object.keys(models).some((id) => !provider.builtinModelIds?.includes(id))
+    )
+      throw new Error("Account catalog metadata is outside its OAuth model scope");
+  }
+  return catalog;
 }
 
 export function parseProviderConfig(input: unknown): ProviderConfig {

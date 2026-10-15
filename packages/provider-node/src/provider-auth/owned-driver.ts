@@ -34,6 +34,12 @@ export async function createOwnedAuthDriver(
     authorize: (...args) => admit(() => driver.authorize(...args)),
     models: (...args) => admit(() => driver.models(...args)),
     fetch: (...args) => admit(() => driver.fetch(...args)),
+    ...(driver.checkin
+      ? {
+          checkin: (...args: Parameters<NonNullable<AuthDriver["checkin"]>>) =>
+            admit(() => driver.checkin!(...args)),
+        }
+      : {}),
     ...(driver.modelCatalog
       ? {
           modelCatalog: (...args: Parameters<NonNullable<AuthDriver["modelCatalog"]>>) =>

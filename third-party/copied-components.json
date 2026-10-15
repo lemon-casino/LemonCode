@@ -293,11 +293,11 @@
   },
   {
     "id": "Magpie community fixed provider plugins",
-    "referenceRevision": "da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd",
-    "source": "https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/LICENSE",
+    "referenceRevision": "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a",
+    "source": "https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/LICENSE",
     "file": "packages/provider-node/src/provider-auth/vendor/LICENSE",
     "sha256": "bebc3d1ec74f197b010ed6f6b6743dbae73fe4865d71bd0670b0a4e203056679",
-    "importRevision": "da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd",
+    "importRevision": "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a",
     "provenance": "Runtime module snapshots and exact package versions are recorded in provider-auth/vendor/manifest.json; the generated worker embeds these verified source snapshots. Additional Qoder and Zen Free notices are registered separately.",
     "roots": [
       "packages/provider-node/src/provider-auth/vendor",
@@ -309,11 +309,11 @@
   },
   {
     "id": "CLIProxyAPI portions retained by Magpie Qoder plugin",
-    "referenceRevision": "da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd",
-    "source": "https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/packages/qoder/LICENSE-CLIProxyAPI",
+    "referenceRevision": "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a",
+    "source": "https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/qoder/LICENSE-CLIProxyAPI",
     "file": "packages/provider-node/src/provider-auth/vendor/qoder/LICENSE-CLIProxyAPI",
     "sha256": "93df585e5fa07ead6d47a3ab2dbdf0255782a39fe830022c0274a70394223cc8",
-    "importRevision": "da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd",
+    "importRevision": "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a",
     "provenance": "Additional upstream notice copied from the pinned plugins repository. This reference identifies that notice snapshot; it does not assert the original CLIProxyAPI import revision.",
     "roots": ["packages/provider-node/src/provider-auth/vendor/qoder"],
     "scope": "CLIProxyAPI-derived portions of the vendored Qoder plugin only; original notice text is preserved including its original copyright date spelling.",
@@ -321,11 +321,11 @@
   },
   {
     "id": "Magpie Zen Free plugin original notice",
-    "referenceRevision": "da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd",
-    "source": "https://raw.githubusercontent.com/magpie-community/plugins/da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd/packages/zen-free/LICENSE",
+    "referenceRevision": "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a",
+    "source": "https://raw.githubusercontent.com/magpie-community/plugins/5d5d86e2251169e0f5c0fd7a884957ac2dbe184a/packages/zen-free/LICENSE",
     "file": "packages/provider-node/src/provider-auth/vendor/zen-free/LICENSE",
     "sha256": "170ca82fa4255729a826c5eb9abf3f0e0d2e3dde84f024accb5b806473c4ba68",
-    "importRevision": "da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd",
+    "importRevision": "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a",
     "provenance": "Package-specific MIT notice copied from the pinned plugins repository, retaining its original xiaozhou26 attribution.",
     "roots": ["packages/provider-node/src/provider-auth/vendor/zen-free"],
     "scope": "Vendored Zen Free runtime modules and the corresponding portions of the generated worker.",
@@ -381,6 +381,18 @@
       "packages/ui/src/assets/provider-icons/model-provider-zed.svg"
     ],
     "scope": "Additional original LobeHub MIT notice retained for the copied icon collection identified by Magpie.",
+    "license": "MIT"
+  },
+  {
+    "id": "Magpie account check-in protocol rules",
+    "referenceRevision": "707fbb249df755423d3b2b77c6f001dd376d75c4",
+    "importRevision": "707fbb249df755423d3b2b77c6f001dd376d75c4",
+    "source": "https://raw.githubusercontent.com/yetone/magpie/707fbb249df755423d3b2b77c6f001dd376d75c4/LICENSE",
+    "file": "third-party/upstream/79d2c8444715d4bc453ec4f8a0aaf2051a4c1ee5ac08f5bd2e5848aef87c7572.txt",
+    "sha256": "79d2c8444715d4bc453ec4f8a0aaf2051a4c1ee5ac08f5bd2e5848aef87c7572",
+    "provenance": "Adapted protocol and result rules from internal/provider/{workbuddy,trae,minimax,qoder}_checkin.go; the account owner, stored DTOs and UI are implemented locally.",
+    "roots": ["packages/provider-node/src/provider-auth/plugins/checkin.mjs"],
+    "scope": "Upstream-derived daily check-in endpoint, response and campaign-window rules only. No upstream repository is modified.",
     "license": "MIT"
   }
 ]

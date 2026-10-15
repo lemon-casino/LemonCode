@@ -34,6 +34,7 @@ export interface AuthMethod {
 export interface AuthModel {
   id: string;
   name: string;
+  billing?: import("@lcode/shared").ModelBilling;
   protocol: AuthWireProtocol;
   baseURL: string;
   contextWindow?: number;
@@ -72,6 +73,7 @@ export type AuthImportEntry =
   | { status: "ready"; grant: AuthGrant; label?: string }
   | { status: "failed" | "exists"; label?: string; error?: string };
 export interface AuthDriver {
+  checkin?(context: AuthDriverContext): Promise<import("@lcode/shared").ProviderCheckinReply>;
   methods(): Promise<readonly AuthMethod[]>;
   authorize(
     methodId: string,

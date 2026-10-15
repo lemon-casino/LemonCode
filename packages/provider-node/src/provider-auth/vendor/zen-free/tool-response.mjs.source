@@ -40,6 +40,9 @@ function foldsTo(declared, key) {
   const folded = new Map();
   for (const name of declared) {
     const k = key(name);
+    // A name of separators only folds to nothing, and would be handed any
+    // other such call ("_" for "--"): it matches only itself.
+    if (!k) continue;
     folded.set(k, folded.has(k) ? null : name);
   }
   return folded;
@@ -621,9 +624,88 @@ async function* framesFrom(reader) {
   }
 }
 
-function guardedStream(response, protocol, checkName) {
-  const reader = response.body?.getReader();
+// A Chat stream Zen closed before its [DONE] (#91: space-bunny-free, about
+// 0.1% of turns) is ended as a turn cut short when it has said something
+// and no tool call of it is pending: each choice still open gets a note
+// saying so and a stop, then [DONE]. Failing it threw away the reasoning
+// and text the agent already had, and a Chat reply through Zen can't be
+// asked to go on from there. A pending call's arguments may be half
+// written, and a reply that said nothing is an empty one, so both still
+// fail, as does one collapsed for a client that doesn't stream, which can
+// still be asked again. Anthropic and Responses streams cut short fail
+// too: magpie's gateway tells such a reply from a whole one itself
+// (#370), and goes on with it where the upstream can (an Anthropic one),
+// which a made-up end here would stop.
+export const cutShortNote =
+  "(The reply was cut short: Zen closed the stream before it finished. Ask again to go on.)";
+
+function chatTrack() {
+  const open = new Set();
+  const finished = new Set();
+  const wrote = new Set();
+  let said = false;
+  let meta = null;
+  return {
+    see(data) {
+      if (!object(data)) return;
+      meta = {
+        id: data.id ?? meta?.id,
+        created: data.created ?? meta?.created,
+        model: data.model ?? meta?.model,
+      };
+      for (const choice of Array.isArray(data.choices) ? data.choices : []) {
+        if (!object(choice)) continue;
+        const index = position(choice.index);
+        const delta = object(choice.delta) ? choice.delta : {};
+        for (const key of ["content", "reasoning_content", "reasoning"]) {
+          if (typeof delta[key] === "string" && delta[key]) said = true;
+        }
+        if (typeof delta.content === "string" && delta.content) wrote.add(index);
+        if (choice.finish_reason != null) {
+          finished.add(index);
+          open.delete(index);
+        } else if (!finished.has(index)) open.add(index);
+      }
+    },
+    // ending answers the frames that end the reply as cut short, or null
+    // when it can't be.
+    ending() {
+      if (!said) return null;
+      const choices = [...open]
+        .sort((a, b) => a - b)
+        .map((index) => ({
+          index,
+          delta: { content: (wrote.has(index) ? "\n\n" : "") + cutShortNote },
+          finish_reason: "stop",
+        }));
+      const head = {
+        id: meta?.id ?? "chatcmpl-cut-short",
+        object: "chat.completion.chunk",
+        created: meta?.created ?? Math.floor(Date.now() / 1000),
+        model: meta?.model ?? "",
+      };
+      return (choices.length ? encodeEvent({ ...head, choices }) : "") + "data: [DONE]\n\n";
+    },
+  };
+}
+
+function guardedStream(response, protocol, checkName, endCutShort) {
+  const source = response.body?.getReader();
+  // What came before a stream cut short, for its error to say (#91).
+  let bytes = 0;
+  let events = 0;
+  let replyID;
+  const reader = source && {
+    async read() {
+      const result = await source.read();
+      if (result.value) bytes += result.value.byteLength;
+      return result;
+    },
+    releaseLock: () => source.releaseLock(),
+    cancel: (reason) => source.cancel(reason),
+  };
   const chat = protocol === "chat" ? chatBuffer(checkName) : null;
+  const track = chat && endCutShort ? chatTrack() : null;
   const snapshots = chat ? null : snapshotStream(protocol, checkName);
   let frames = reader ? framesFrom(reader) : null;
   let completed = false;
@@ -656,8 +738,25 @@ function guardedStream(response, protocol, checkName) {
             const next = frames ? await frames.next() : { done: true };
             if (stopped) return;
             if (next.done) {
-              if (!completed || chat?.size)
-                throw new GuardError("Upstream SSE ended without a completion marker");
+              const ending = !completed && !chat?.size ? track?.ending() : null;
+              if (ending) {
+                stopped = true;
+                release();
+                controller.enqueue(encoder.encode(ending));
+                controller.close();
+                return;
+              }
+              if (!completed || chat?.size) {
+                const came = [
+                  replyID ? `reply ${String(replyID).slice(0, 128)}` : "",
+                  `${events} event${events === 1 ? "" : "s"}`,
+                  `${bytes} bytes received`,
+                  chat?.size ? "a tool call unfinished" : "",
+                ].filter(Boolean);
+                throw new GuardError(
+                  `Upstream SSE ended without a completion marker (${came.join(", ")})`,
+                );
+              }
               stopped = true;
               release();
               controller.close();
@@ -676,8 +775,10 @@ function guardedStream(response, protocol, checkName) {
               controller.enqueue(encoder.encode((final ? encodeEvent(final) : "") + frame.raw));
               return;
             }
+            events++;
             const data = frame.name === "error" ? null : parseJSON(frame.text);
             const type = data?.type ?? frame.name;
+            replyID = data?.id ?? data?.message?.id ?? data?.response?.id ?? replyID;
             if (
               frame.name === "error" ||
               type === "error" ||
@@ -698,6 +799,7 @@ function guardedStream(response, protocol, checkName) {
             }
             const checked = chat ? chat.apply(data) : snapshots.apply(data, type);
             const { changed, data: result, extra = [] } = checked;
+            if (result) track?.see(result);
             if (
               (protocol === "responses" &&
                 ["response.completed", "response.incomplete"].includes(type)) ||
@@ -745,7 +847,11 @@ function guardedStream(response, protocol, checkName) {
   );
 }
 
-export async function guardToolResponse(response, protocol, policy) {
+// options.endCutShort lets a Chat stream cut short end as one (#91): for a
+// client that streams, which has the reply's start already. A reply
+// collapsed for a client that doesn't stream fails instead, so it can be
+// asked again before anything reached the client.
+export async function guardToolResponse(response, protocol, policy, options = {}) {
   if (!response.ok) return response;
   if (!["chat", "responses", "anthropic"].includes(protocol))
     throw new TypeError(`Unsupported protocol: ${protocol}`);
@@ -753,7 +859,7 @@ export async function guardToolResponse(response, protocol, policy) {
   const headers = headersFor(response);
   const contentType = response.headers.get("content-type")?.split(";", 1)[0].trim().toLowerCase();
   if (contentType === "text/event-stream") {
-    return new Response(guardedStream(response, protocol, checkName), {
+    return new Response(guardedStream(response, protocol, checkName, options.endCutShort === true), {
       status: response.status,
       statusText: response.statusText,
       headers,

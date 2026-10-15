@@ -9,15 +9,16 @@ import { record } from "../native/common.js";
 for (const channel of ["qoder", "qoder-cn", "trae-cn", "trae-global"])
   for (const streaming of [false, true])
     for (const write of [30, 0, undefined])
-      test(`${channel} bundled transport ${streaming ? "stream" : "generate"} preserves cache write ${write ?? "unknown"}`, async (t) => {
+      for (const raw of [false, true])
+      test(`${channel} bundled transport ${streaming ? "stream" : "generate"} ${raw ? "raw" : "details"} preserves cache write ${write ?? "unknown"}`, async (t) => {
         const usage = {
           prompt_tokens: 100,
           completion_tokens: 5,
           total_tokens: 105,
-          prompt_tokens_details: {
+          ...(raw ? { cache_read_input_tokens: 40, ...(write === undefined ? {} : { cache_creation_input_tokens: write }) } : { prompt_tokens_details: {
             cached_tokens: 40,
             ...(write === undefined ? {} : { cache_write_tokens: write }),
-          },
+          } }),
         };
         const frames = [
           { id: "fixture", choices: [{ delta: { content: "pong" }, finish_reason: null }] },
@@ -107,7 +108,12 @@ for (const channel of ["qoder", "qoder-cn", "trae-cn", "trae-global"])
               .map((line) => JSON.parse(line.slice(6)))
               .findLast((chunk) => chunk.usage)?.usage
           : record(await output.json()).usage;
-        assert.equal(data.prompt_tokens_details.cache_write_tokens, write);
-        assert.equal(data.prompt_tokens_details.cached_tokens, 40);
+        if (raw) {
+          assert.equal(data.cache_creation_input_tokens, write);
+          assert.equal(data.cache_read_input_tokens, 40);
+        } else {
+          assert.equal(data.prompt_tokens_details.cache_write_tokens, write);
+          assert.equal(data.prompt_tokens_details.cached_tokens, 40);
+        }
         assert.equal(data.total_tokens, 105);
       });

@@ -12,6 +12,7 @@
     "./model-selection": "./src/model-selection.ts",
     "./account-provider-state": "./src/account-provider-state.ts",
     "./model-config": "./src/model-config.ts",
+    "./model-catalog": "./src/model-catalog.ts",
     "./config-schema": "./src/config-schema.ts",
     "./network-proxy": "./src/networkProxy.ts",
     "./node": "./src/node.ts",

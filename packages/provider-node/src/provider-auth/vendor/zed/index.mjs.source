@@ -642,6 +642,52 @@ function eventError(wire, ev) {
   return undefined
 }
 
+// CUT_SHORT_NOTE ends a streamed Chat Completions reply (xAI's) that Zed
+// broke off after it said something, as zen-free does (#91): magpie's
+// gateway can go on with an Anthropic or Responses reply cut short, not
+// with a Chat one, and failing it would throw away what the client was
+// already shown.
+const CUT_SHORT_NOTE = "(The reply was cut short: Zed closed the stream before it finished. Ask again to go on.)"
+
+// chatSaid follows a streamed chat reply's choices: which wrote text,
+// which have finished, and whether a tool call was begun (its arguments
+// may be half written, so a reply cut short after one stays an error).
+function chatSaid() {
+  const wrote = new Set()
+  const open = new Set()
+  const tools = new Set()
+  const done = new Set()
+  let meta
+  return {
+    see(ev) {
+      if (!Array.isArray(ev?.choices)) return
+      meta ??= { id: ev.id, created: ev.created, model: ev.model }
+      for (const c of ev.choices) {
+        const i = c?.index ?? 0
+        const d = c?.delta ?? {}
+        if (d.content) wrote.add(i)
+        if (d.content || d.reasoning_content || d.reasoning) open.add(i)
+        if (d.tool_calls?.length) tools.add(i)
+        if (c?.finish_reason) done.add(i)
+      }
+    },
+    // the frames that end the reply cut short, or undefined when it must
+    // fail: nothing said, or a tool call begun and not finished
+    end() {
+      if (!open.size && !tools.size && !done.size) return undefined
+      if ([...tools].some((i) => !done.has(i))) return undefined
+      const left = [...open].filter((i) => !done.has(i)).sort((a, b) => a - b)
+      if (!left.length) return ["data: [DONE]\n\n"]
+      const chunk = (choices) => sse("chat", { id: meta?.id ?? "chatcmpl-cut-short", object: "chat.completion.chunk", created: meta?.created ?? Math.floor(Date.now() / 1000), model: meta?.model, choices })
+      return [
+        chunk(left.map((index) => ({ index, delta: { content: (wrote.has(index) ? "\n\n" : "") + CUT_SHORT_NOTE }, finish_reason: null }))),
+        chunk(left.map((index) => ({ index, delta: {}, finish_reason: "stop" }))),
+        "data: [DONE]\n\n",
+      ]
+    },
+  }
+}
+
 // streamed turns Zed's lines into the provider's own server-sent events.
 // What comes before the reply says anything is held, as magpie's built-in
 // holds it (relayStatus): a failure there — a failed status, the
@@ -692,7 +738,12 @@ async function streamed(wire, res) {
         else if (wire === "responses") put(`event: error\ndata: ${JSON.stringify(errorBody(wire, status, message))}\n\n`)
         else put(`data: ${JSON.stringify(errorBody(wire, status, message))}\n\n`)
       }
-      for (const ev of head) put(sse(wire, ev))
+      const chat = wire === "chat" ? chatSaid() : null
+      for (const ev of head) {
+        chat?.see(ev)
+        put(sse(wire, ev))
+      }
+      chat?.see(first.event)
       put(sse(wire, first.event))
       try {
         for (;;) {
@@ -704,10 +755,16 @@ async function streamed(wire, res) {
             fail(failedStatus(l.failed.code), l.failed.message || l.failed.code)
             ctl.close()
             return
-          } else put(sse(wire, l.event))
+          } else {
+            chat?.see(l.event)
+            put(sse(wire, l.event))
+          }
         }
-        // Zed ends every whole reply with stream_ended
-        if (wrapped && !ended) fail(502, "the reply ended before it was complete")
+        // Zed ends every whole reply with stream_ended; a chat reply cut
+        // short after it said something ends with a note instead
+        const cut = wrapped && !ended ? chat?.end() : undefined
+        if (cut) for (const f of cut) put(f)
+        else if (wrapped && !ended) fail(502, "the reply ended before it was complete")
         else if (wire === "chat") put("data: [DONE]\n\n")
         ctl.close()
       } catch (e) {

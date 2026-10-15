@@ -51,6 +51,7 @@ export function installWorkerNetwork({ scopes, check, workerData, refresh }) {
     if (scope?.listing) Object.assign(scope.listing, { tried: true, lastOk: false });
     return response.then((res) => {
       if (scope?.listing) scope.listing.lastOk = res.ok;
+      if (scope?.catalogFacts) res = scope.catalogFacts.observe(input, res);
       return scope?.quotaFacts ? scope.quotaFacts.observe(input, res) : res;
     });
   };

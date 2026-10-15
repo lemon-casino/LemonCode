@@ -7,6 +7,7 @@ import {
 } from "./config/index.js";
 import type { AccountProviderStates } from "./account-provider-state.js";
 import type { ProxyProfile } from "@lcode/shared/network-proxy";
+import type { AccountModelCatalog } from "@lcode/shared/model-catalog";
 
 export interface ProviderSource<TSnapshot> {
   read(): Promise<TSnapshot>;
@@ -29,6 +30,7 @@ export interface ProviderConfigSnapshot {
 }
 
 export interface AccountProviderConfigSnapshot {
+  readonly modelCatalog?: AccountModelCatalog;
   readonly modelRules?: ModelConfigRules;
   readonly revision: string;
   readonly basedOnLCodeBuiltinRevision: string;
@@ -45,6 +47,7 @@ export function serializeAccountProviderConfigSnapshot(snapshot: AccountProvider
       [...snapshot.providers.entries()].map(([id, config]) => [id, config.toJSON()]),
     ),
     states: snapshot.states ?? {},
+    ...(snapshot.modelCatalog ? { modelCatalog: snapshot.modelCatalog } : {}),
     ...(snapshot.modelRules
       ? { modelRules: snapshot.modelRules.toLCodeBuiltinJSON().builtinProviderModelRules }
       : {}),
@@ -125,6 +128,7 @@ function freezeAccountProviderConfigSnapshot(
     revision: snapshot.revision,
     basedOnLCodeBuiltinRevision: snapshot.basedOnLCodeBuiltinRevision,
     providers: snapshot.providers,
+    ...(snapshot.modelCatalog ? { modelCatalog: snapshot.modelCatalog } : {}),
     ...(snapshot.modelRules ? { modelRules: snapshot.modelRules } : {}),
     ...(snapshot.states ? { states: snapshot.states } : {}),
   });

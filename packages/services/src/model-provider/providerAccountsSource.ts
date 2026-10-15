@@ -8,6 +8,7 @@ import {
   type ModelConfigRule,
 } from "@lcode/provider";
 import type { ProviderAccounts } from "./providerAccounts.js";
+import { mergeModelBilling, type AccountModelCatalog, type ModelBilling } from "@lcode/shared";
 import {
   createAuthModelOptionSpecs,
   type AuthModel,
@@ -28,6 +29,7 @@ export function createProviderAccountsSource(
   ): Promise<AccountProviderConfigSnapshot> {
     let providers = snapshot.providers;
     const rules: ModelConfigRule[] = [];
+    const modelCatalog: AccountModelCatalog = {};
     const pools = new Map<
       string,
       {
@@ -35,6 +37,7 @@ export function createProviderAccountsSource(
         name: string;
         protocol: AuthWireProtocol;
         models: Map<string, AuthModel>;
+        billing: Map<string, (ModelBilling | undefined)[]>;
       }
     >();
     for (const account of await accounts.readAccounts()) {
@@ -46,14 +49,25 @@ export function createProviderAccountsSource(
           name: accounts.channelName(account.channelId),
           protocol: account.models[0]?.protocol ?? "openai-chat-completions",
           models: new Map(),
+          billing: new Map(),
         };
         pools.set(id, pool);
       }
       for (const model of account.models) {
-        if (account.enabled && !pool.models.has(model.id)) pool.models.set(model.id, model);
+        if (!account.enabled) continue;
+        if (!pool.models.has(model.id)) pool.models.set(model.id, model);
+        const prices = pool.billing.get(model.id) ?? [];
+        prices.push(model.billing);
+        pool.billing.set(model.id, prices);
       }
     }
     for (const [providerId, pool] of pools) {
+      modelCatalog[providerId] = Object.fromEntries(
+        [...pool.models].map(([id, model]) => {
+          const billing = mergeModelBilling(pool.billing.get(id) ?? []);
+          return [id, { name: model.name || id, ...(billing ? { billing } : {}) }];
+        }),
+      );
       providers = providers.setRule({
         providerId,
         providerName: pool.name,
@@ -97,7 +111,8 @@ export function createProviderAccountsSource(
       ...snapshot,
       providers: new ProviderConfigMap(providers.rules()),
       modelRules,
-      revision: `${snapshot.revision}:oauth:${JSON.stringify([providers.toJSON(), rules.map((rule) => rule.config.toJSON())])}`,
+      modelCatalog,
+      revision: `${snapshot.revision}:oauth:${JSON.stringify([providers.toJSON(), rules.map((rule) => rule.config.toJSON()), modelCatalog])}`,
     };
   }
   return {

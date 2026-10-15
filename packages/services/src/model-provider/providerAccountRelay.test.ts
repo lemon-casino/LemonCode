@@ -61,6 +61,7 @@ async function fixture(
             toolCall: true,
           },
         ],
+        checkin: async () => ({ outcome: "claimed", credit: 10 }),
         fetch: async (request, context) => {
           const grant = (await context.read())!;
           assert.equal(grant.access, `secret-${channelId}`);
@@ -135,6 +136,19 @@ async function fixture(
   });
   return { local, remote, source, proxy, saved, frames, calls };
 }
+
+test("remote check-in and automatic settings call the original account owner and project no credentials", async (t) => {
+  const f = await fixture(t);
+  const attempt = await f.local.startAuthorization({ channelId: "workbuddy", methodId: "login" });
+  const result = await f.local.completeAuthorization(attempt.attemptId, "fixture");
+  const id = result.connectionId!;
+  await f.remote.setAutomaticCheckin(id, true);
+  const view = await f.remote.checkinAll("workbuddy");
+  assert.equal(view.accounts[0]?.checkin?.result?.credit, 10);
+  assert.equal((await f.local.getView()).accounts[0]?.checkin?.automatic, true);
+  assert.doesNotMatch(JSON.stringify(view), /secret-|access|baseURL/);
+  await f.remote.checkinAccount(id);
+});
 
 test("remote Registry selects API plus every OAuth channel and executes all three protocols over bidirectional RPC", async (t) => {
   const f = await fixture(t);

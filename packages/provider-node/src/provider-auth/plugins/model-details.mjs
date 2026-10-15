@@ -1,3 +1,4 @@
+import { modelBilling } from "./model-billing.mjs";
 const words = (list) =>
   Array.isArray(list)
     ? [
@@ -43,6 +44,7 @@ export function modelDetails(model) {
   const tiers = words(model.serviceTiers ?? (model.fast === true ? ["default", "priority"] : []));
   const toolCall = model.capabilities?.toolcall ?? model.tool_call;
   return {
+    ...(modelBilling(model) ? { billing: modelBilling(model) } : {}),
     ...(modalities ? { inputModalities: [...new Set(modalities)] } : {}),
     ...(variants.length ? { reasoningVariants: variants } : {}),
     ...(efforts.length ? { reasoningEfforts: efforts } : {}),

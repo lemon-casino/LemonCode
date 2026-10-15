@@ -64,3 +64,35 @@ test("Agent CJS build executes the public provider network lifecycle contract", 
   await transport.disposeAndWait();
   await assert.rejects(transport.fetch("https://example.test"), /disposed/);
 });
+
+test("Agent bundle resolves the public model catalog subpath and rejects invalid billing", async () => {
+  const result = await build({
+    stdin: {
+      contents:
+        'export { modelBillingSchema, currentModelBilling } from "@lcode/shared/model-catalog";',
+    },
+    alias: resolveBuildAliases(),
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    write: false,
+    logLevel: "silent",
+  });
+  const contract = await import(
+    `data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString("base64")}`
+  );
+  assert.equal(
+    contract.modelBillingSchema.safeParse({ kind: "multiplier", multiplier: -1 }).success,
+    false,
+  );
+  assert.deepEqual(
+    contract.currentModelBilling({
+      kind: "multiplier",
+      multiplier: 0,
+      free: true,
+      originalMultiplier: 0.71,
+      validUntil: "2020-01-01T00:00:00Z",
+    }),
+    { kind: "multiplier", multiplier: 0.71 },
+  );
+});

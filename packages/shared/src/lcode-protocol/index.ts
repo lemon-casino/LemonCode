@@ -21,6 +21,7 @@ import { bashOutputDisplaySchema } from "../bash-output-display.js";
 export * from "../background-bash-output.js";
 import { executionOutputPreviewSchema } from "../execution-output-preview.js";
 import { z } from "zod";
+import { accountModelCatalogSchema } from "../model-catalog.js";
 export {
   workflowRunResumeRejectionReasonSchema,
   type WorkflowRunResumeRejectionReason,
@@ -2306,6 +2307,7 @@ export type LCodeProviderTestModelConnectivityResult = z.infer<
 
 export const lcodeProviderUpdateAccountConfigParamsSchema = z
   .object({
+    modelCatalog: accountModelCatalogSchema.optional(),
     revision: nonEmptyString,
     basedOnLCodeBuiltinRevision: nonEmptyString,
     // Provider Config 的字段校验由 @lcode/provider 负责；协议层只约束可传输信封。

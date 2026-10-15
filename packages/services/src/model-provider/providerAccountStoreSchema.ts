@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { AuthDriver, AuthDriverFactory } from "@lcode/provider-node";
 import {
   providerAccountModelSchema,
+  providerAccountCheckinStateSchema,
   type ProviderAccountChannel,
   type ProviderAccount,
 } from "@lcode/shared";
@@ -15,7 +16,11 @@ export async function loadProviderAuthChannels(
       let driver: AuthDriver | undefined;
       try {
         driver = await factory(channel.id);
-        return { ...channel, methods: await driver.methods() };
+        return {
+          ...channel,
+          methods: await driver.methods(),
+          checkinSupported: Boolean(driver.checkin),
+        };
       } catch {
         return { ...channel, methods: [], error: "Authorization driver unavailable" };
       } finally {
@@ -62,6 +67,7 @@ export const accountSchema = z
     displayName: z.string(),
     enabled: z.boolean(),
     generation: z.number().int(),
+    checkin: providerAccountCheckinStateSchema.optional(),
     grant: grantSchema,
     models: z.array(modelSchema),
     error: z.string().optional(),
@@ -72,7 +78,7 @@ export const storeSchema = z
   .object({ version: z.literal(1), accounts: z.array(accountSchema) })
   .strict();
 export type StoredAccount = z.infer<typeof accountSchema>;
-export function projectProviderAccount(account: StoredAccount): ProviderAccount {
+export function projectProviderAccount(account: StoredAccount, running = false): ProviderAccount {
   return {
     connectionId: account.connectionId,
     channelId: account.channelId,
@@ -80,6 +86,15 @@ export function projectProviderAccount(account: StoredAccount): ProviderAccount 
     enabled: account.enabled,
     status: account.error ? "error" : "ready",
     models: account.models.map(({ baseURL: _url, ...model }) => model),
+    ...(account.checkin || running
+      ? {
+          checkin: {
+            ...account.checkin,
+            automatic: account.checkin?.automatic ?? false,
+            ...(running ? { running: true } : {}),
+          },
+        }
+      : {}),
     ...(account.error ? { error: account.error } : {}),
     ...(account.authorizationStatus ? { authorizationStatus: account.authorizationStatus } : {}),
   };

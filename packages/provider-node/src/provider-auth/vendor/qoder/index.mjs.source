@@ -311,6 +311,64 @@ async function deviceSignIn(site) {
   }
 }
 
+// exchangeExpiry is when a job token from /api/v1/jobToken/exchange runs
+// out, as Qoder's own client reads it: expire_time or expires_at (a date)
+// first, then expires_in (milliseconds), then a day.
+function exchangeExpiry(jt) {
+  for (const k of ["expire_time", "expires_at"]) {
+    const at = Date.parse(String(jt?.[k] ?? "").trim())
+    if (!isNaN(at)) return at
+  }
+  if (jt?.expires_in > 0) return Date.now() + jt.expires_in
+  return Date.now() + DAY
+}
+
+// exchangeToken is the job token from an exchange response, as Qoder's
+// client reads it: token, device_token or access_token.
+function exchangeToken(jt) {
+  return String(jt?.token ?? jt?.device_token ?? jt?.access_token ?? "").trim()
+}
+
+// patSignIn exchanges a Personal Access Token for a job token, bypassing
+// the OAuth device flow. PATs are long-lived (up to 1 year): the PAT is
+// kept on the credential, and when the job token's refresh lapses the PAT
+// is exchanged again rather than asking the user to sign in once more.
+async function patSignIn(site, pat) {
+  const machineId = randomUUID()
+  const r = await openapi(site, "/api/v1/jobToken/exchange", { method: "POST", body: { personal_token: pat } })
+  if (r.status === 400 || r.status === 401 || r.status === 403)
+    throw Object.assign(new Error(`${site.name} refused the PAT — check it is still valid`), { status: r.status })
+  if (r.status !== 200) throw new Error(`${site.name} PAT exchange: status ${r.status}`)
+  const token = exchangeToken(r.json)
+  if (!token) throw new Error(`${site.name} PAT exchange: empty token in response`)
+  const refresh = String(r.json?.refresh_token ?? r.json?.refreshToken ?? "").trim()
+  const chat = { access: token, refresh, expires: exchangeExpiry(r.json) }
+  let email = ""
+  let name = ""
+  let uid = ""
+  try {
+    const ui = await openapi(site, "/api/v1/userinfo", { token })
+    if (ui.status >= 200 && ui.status < 300) {
+      ;[email, name] = [ui.json?.email ?? "", ui.json?.name ?? ""]
+      uid = String(ui.json?.id ?? ui.json?.user_id ?? ui.json?.uid ?? "")
+    }
+  } catch {}
+  if (!uid) throw new Error(`${site.name} PAT sign-in: could not determine user id`)
+  return {
+    type: "success",
+    ...chat,
+    accountId: email || uid,
+    uid,
+    email,
+    name: name || "",
+    machineId,
+    deviceToken: "",
+    deviceRefresh: "",
+    patAuth: true,
+    pat,
+  }
+}
+
 // SignInGone is a sign-in that can't sign a request: a 401. Only Qoder
 // refusing the refresh token marks the account lapsed (expired), as the
 // built-in's qoderRefreshFailed did; no refresh token, or no account,
@@ -340,9 +398,11 @@ async function refreshJob(site, refresh, user) {
 const EFFORT_ORDER = ["minimal", "low", "medium", "high", "xhigh", "max"]
 const EFF5 = ["low", "medium", "high", "xhigh", "max"]
 
-// Qoder's list when the account's can't be asked (as it was on 2026-09-30).
+// Qoder's list when the account's can't be asked (as it was on 2026-09-30,
+// with the app's Fast from 2026-10-12).
 const MODELS = [
   { id: "ultimate", name: "Ultimate", context: 1_000_000, efforts: EFF5 },
+  { id: "fast", name: "Fast", context: 1_000_000 },
   { id: "performance", name: "Performance", context: 1_000_000, efforts: EFF5 },
   { id: "efficient", name: "Efficient", context: 200_000 },
   { id: "smodel", name: "Sonus", context: 180_000, efforts: EFF5 },
@@ -485,10 +545,34 @@ function modelInfo(raw) {
   return m
 }
 
-// modelInfos is the listing's enabled chat models an agent can pick: "auto"
+// sceneModels is the models an agent can pick from the listing: the "app"
+// scene's, which is what Qoder's app shows and what a request names
+// (qoderBody's product and session_type "app"), in its order, then any
+// "chat" model the app no longer lists, after the model it followed there,
+// so a pick made before stays served. On 2026-10-12 the app listed Fast
+// (fast, 0.8×) where Performance (1.1×) had been, and chat still listed
+// Performance (magpie-community/plugins#97). A listing with only one scene
+// gives that one. Each key once: the app's entry wins.
+function sceneModels(listing) {
+  const app = Array.isArray(listing?.app) ? listing.app : []
+  const chat = Array.isArray(listing?.chat) ? listing.chat : []
+  const out = [...app]
+  let after = -1
+  for (const m of chat) {
+    const i = out.findIndex((x) => x?.key === m?.key)
+    if (i >= 0) {
+      after = i
+      continue
+    }
+    out.splice(++after, 0, m)
+  }
+  return out
+}
+
+// modelInfos is the listing's enabled models an agent can pick: "auto"
 // and "default" route inside Qoder and aren't one model.
 function modelInfos(listing) {
-  return (listing?.chat ?? [])
+  return sceneModels(listing)
     .filter((m) => m?.enable && !["", "auto", "default"].includes(String(m.key ?? "").trim()))
     .map(modelInfo)
 }
@@ -694,19 +778,55 @@ function qoderBody(chat, m) {
   return body
 }
 
-// failure is the status and message for a Qoder failure: a refused sign-in
-// asks for another, a quota is a 429.
+// failure is the status and message for a Qoder failure. Qoder's own code
+// says what it is, read as Qoder's client reads it (QoderErrorCode in the
+// app's qoder-agent-sdk worker): only 105 (loginExpired) is a lapsed
+// sign-in there, so a 401/403 that carries another code isn't one here
+// either (#98: a queued 10605 came as a 403 and read as "sign in again").
+// A refused chat with no code keeps the built-in's 401, and a quota is a
+// 429.
+const QUEUED = "10605"
+// the codes Qoder's client counts as a plan's usage or credits used up
+const QUOTA_CODES = new Set(["110", "112", "113", "114", "115", "116", "117", "118", "119", "122"])
+// refusals of this request, not of the account: sensitive content, not
+// supported, input too long, too many media, a custom model's service
+const REQUEST_CODES = new Set(["406", "416", "430", "80411", "80412", "100400", "100401", "100403"])
+const BUSY_WAIT = 30
+
 function failure(status, text) {
   if (status < 400 || status > 599) status = 502
   let msg = String(text ?? "").trim()
+  let code = ""
+  let queue
   try {
     const j = JSON.parse(text)
-    if (j?.message) msg = j.message
+    code = j?.code == null ? "" : String(j.code)
+    if (j?.message) msg = String(j.message)
     // details is a JSON string, or the object itself (gjson reads either)
     const d = typeof j?.details === "string" ? JSON.parse(j.details) : j?.details
     if (d?.error?.message) msg += ": " + d.error.message
+    // the queue's state: the message itself, as a JSON string, or a field
+    queue = j?.queue && typeof j.queue === "object" ? j.queue : undefined
+    if (!queue && typeof j?.message === "string" && j.message.trim().startsWith("{")) {
+      const q = JSON.parse(j.message)
+      if (q && typeof q === "object" && ("isQueued" in q || "serviceAvailable" in q || "retryAfterSeconds" in q)) queue = q
+    }
   } catch {}
   msg ||= STATUS_CODES[status] ?? `HTTP ${status}`
+  // Qoder's queue for the model: busy for now, with when to ask again. The
+  // sign-in is fine (the same token reads the models and the usage), so it
+  // is a 503 with Retry-After, which magpie asks again after, and never
+  // touches the account's sign-in.
+  if (code === QUEUED || queue?.isQueued === true || queue?.serviceAvailable === false) {
+    const n = Number(queue?.retryAfterSeconds)
+    const wait = Number.isFinite(n) && n > 0 ? Math.ceil(n) : BUSY_WAIT
+    const model = queue?.modelKey ? ` for ${queue.modelKey}` : ""
+    const tier = queue?.queueType ? ` (this plan's queue: ${queue.queueType})` : ""
+    const what = queue?.isQueued === true ? "queued the request" : "is busy"
+    return { status: 503, message: `Qoder ${what}${model}${tier}; try again in ${wait}s`, retryAfter: wait, signIn: "" }
+  }
+  if (QUOTA_CODES.has(code)) return { status: 429, message: "usage limit reached: " + msg, signIn: "" }
+  if (REQUEST_CODES.has(code)) return { status: 400, message: `Qoder refused the request (${code}): ${msg}`, signIn: "" }
   // a refused chat is the built-in's 401, which never marked the account
   // lapsed: only a refused refresh did (errorResponse says kept). Qoder's
   // own words go with it: a 401 right after signing in isn't a lapsed
@@ -721,11 +841,16 @@ function failure(status, text) {
 
 // errorResponse is a failure as OpenAI's API gives it. signIn is what it
 // means for the account (magpie's X-Magpie-Sign-In): a 401 keeps it unless
-// told expired, since the built-in marked only a refused refresh.
-const errorResponse = ({ status, message, signIn = status === 401 ? "kept" : undefined }) =>
+// told expired, since the built-in marked only a refused refresh. retryAfter
+// (seconds) is sent as Retry-After.
+const errorResponse = ({ status, message, signIn = status === 401 ? "kept" : undefined, retryAfter }) =>
   new Response(JSON.stringify({ error: { message, type: "qoder_error", code: status } }), {
     status,
-    headers: { "Content-Type": "application/json", ...(signIn ? { "X-Magpie-Sign-In": signIn } : {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(signIn ? { "X-Magpie-Sign-In": signIn } : {}),
+      ...(retryAfter > 0 ? { "Retry-After": String(retryAfter) } : {}),
+    },
   })
 
 // ---- the reply ----------------------------------------------------------------
@@ -759,13 +884,37 @@ function parseCall(v) {
   return { name: m[1].trim(), args: JSON.stringify(args) }
 }
 
+// quoted says text ends inside a code fence or an inline code span: a
+// <tool_call> there is prose about one, not a call
+function quoted(text) {
+  if ((text.match(/```/g)?.length ?? 0) % 2) return true
+  const line = text.slice(text.lastIndexOf("\n") + 1).replace(/```/g, "")
+  return (line.match(/`/g)?.length ?? 0) % 2 === 1
+}
+
+// callish says a block was on its way to being a call: its JSON began, or
+// the XML function form
+const callish = (v) => v.trimStart().startsWith("{") || v.includes("\x3cfunction=")
+
+const CUT_SHORT = "the model's tool call, written as text, was cut short; it is not sent on as the answer"
+const UNREADABLE = "the model's tool call, written as text, can't be read; it is not sent on as the answer"
+
 // Splitter holds text until a whole tool-call block has come, then gives
-// it as a call.
+// it as a call. A block on its way to being a call that can't be read, or
+// that the stream ended inside, is an error, never the answer (plugins#132,
+// as trae's since plugins#38): the turn fails so it can be tried again. A
+// block whose JSON is whole when the stream ends without its close is still
+// the call; one that is no call at all, or one in code, stays text.
 class Splitter {
   textBuf = ""
   callBuf = ""
   inCall = false
   sawTool = false
+  sent = "" // the text given out so far, to tell a block in code from a call
+  text(out, t) {
+    this.sent += t
+    out.push({ text: t })
+  }
   feed(input) {
     const out = []
     while (input) {
@@ -780,11 +929,11 @@ class Splitter {
               keep = n
               break
             }
-          if (keep < comb.length) out.push({ text: comb.slice(0, comb.length - keep) })
+          if (keep < comb.length) this.text(out, comb.slice(0, comb.length - keep))
           this.textBuf = comb.slice(comb.length - keep)
           break
         }
-        if (i > 0) out.push({ text: comb.slice(0, i) })
+        if (i > 0) this.text(out, comb.slice(0, i))
         input = comb.slice(i + CALL_OPEN.length)
         this.inCall = true
         continue
@@ -796,11 +945,16 @@ class Splitter {
         this.callBuf = comb
         break
       }
-      const c = parseCall(comb.slice(0, j))
+      const body = comb.slice(0, j)
+      const c = parseCall(body)
       if (c) {
         this.sawTool = true
         out.push({ call: c })
-      } else out.push({ text: CALL_OPEN + comb.slice(0, j) + CALL_CLOSE })
+      } else if (callish(body) && !quoted(this.sent)) {
+        this.inCall = false
+        out.push({ error: UNREADABLE })
+        return out
+      } else this.text(out, CALL_OPEN + body + CALL_CLOSE)
       input = comb.slice(j + CALL_CLOSE.length)
       this.inCall = false
     }
@@ -808,14 +962,23 @@ class Splitter {
   }
   flush() {
     if (this.inCall) {
-      const t = CALL_OPEN + this.callBuf
+      const body = this.callBuf
       this.inCall = false
       this.callBuf = ""
+      if (callish(body) && !quoted(this.sent)) {
+        const c = parseCall(body)
+        if (!c) return [{ error: CUT_SHORT }]
+        this.sawTool = true
+        return [{ call: c }]
+      }
+      const t = CALL_OPEN + body
+      this.sent += t
       return [{ text: t }]
     }
     if (this.textBuf) {
       const t = this.textBuf
       this.textBuf = ""
+      this.sent += t
       return [{ text: t }]
     }
     return []
@@ -843,9 +1006,10 @@ async function* events(body) {
   const a = new Splitter()
   let index = -1 // the tool call being given
   let native = -1 // the native tool call being assembled
-  const flushed = function* () {
-    for (const f of a.flush()) if (f.text) yield { text: f.text }
-  }
+  // one piece of the split text as an event: a call, text, or a call that
+  // can't be read, which ends the turn as a 502
+  const piece = (f) =>
+    f.call ? { tool: { index: ++index, id: "call_" + hexID(), name: f.call.name, args: f.call.args } } : f.error ? { error: { status: 502, message: f.error } } : { text: f.text }
   let usage
   let fr = ""
   for await (const line of sseLines(body)) {
@@ -873,15 +1037,21 @@ async function* events(body) {
     if (delta.reasoning_content) yield { reasoning: delta.reasoning_content }
     if (typeof delta.content === "string")
       for (const f of a.feed(delta.content)) {
-        if (f.call) yield { tool: { index: ++index, id: "call_" + hexID(), name: f.call.name, args: f.call.args } }
-        else if (f.text) yield { text: f.text }
+        if (!f.call && !f.error && !f.text) continue
+        const e = piece(f)
+        yield e
+        if (e.error) return
       }
     // tool calls served the OpenAI way keep Qoder's id: a result answers it
     for (const tc of delta.tool_calls ?? []) {
       const i = Number(tc.index ?? 0)
       if (i !== native) {
         native = i
-        yield* flushed()
+        for (const f of a.flush()) {
+          const e = piece(f)
+          yield e
+          if (e.error) return
+        }
         a.sawTool = true
         yield { tool: { index: ++index, id: tc.id || "call_" + hexID(), name: tc.function?.name ?? "", args: tc.function?.arguments ?? "" } }
       } else if (tc.function?.arguments) yield { args: { index, text: tc.function.arguments } }
@@ -900,7 +1070,11 @@ async function* events(body) {
         ...(u.completion_tokens_details?.reasoning_tokens ? { completion_tokens_details: { reasoning_tokens: u.completion_tokens_details.reasoning_tokens } } : {}),
       }
   }
-  yield* flushed()
+  for (const f of a.flush()) {
+    const e = piece(f)
+    yield e
+    if (e.error) return
+  }
   yield { stop: a.sawTool ? "tool_calls" : fr === "length" ? "length" : "stop", usage }
 }
 
@@ -1305,7 +1479,8 @@ const makePlugin = (site) => async ({ client }) => {
     return got
   }
   // renew spends a's chat refresh token, under the lock: the fields it
-  // changes, recorded in spent.
+  // changes, recorded in spent. A PAT account whose job refresh has lapsed
+  // exchanges the PAT again: the PAT lasts a year, the refresh two days.
   const renew = async (a) => {
     const s = siteOf(site, a)
     if (a.deviceChat) {
@@ -1314,7 +1489,22 @@ const makePlugin = (site) => async ({ client }) => {
       const dt = await refreshDevice(s, a.refresh, true)
       return spend(a.refresh, { access: dt.token, refresh: dt.refresh, expires: dt.expires, deviceToken: dt.token, deviceRefresh: dt.refresh })
     }
-    const jt = await refreshJob(s, a.refresh, a.accountId || a.email || a.uid)
+    let jt
+    try {
+      jt = await refreshJob(s, a.refresh, a.accountId || a.email || a.uid)
+    } catch (e) {
+      if (!(e instanceof SignInGone) || !a.patAuth || !a.pat) throw e
+      let ex
+      try {
+        ex = await patSignIn(s, a.pat)
+      } catch (p) {
+        // a PAT lapses too — out of date, or revoked: Qoder's refusal ends
+        // the sign-in as a lapsed device one does, not as a server fault
+        if (!p?.status) throw p
+        throw new SignInGone(`${site.name} refused the PAT — sign in again with a new one`, true)
+      }
+      return spend(a.refresh, { access: ex.access, refresh: ex.refresh, expires: ex.expires })
+    }
     return spend(a.refresh, { access: jt.token, refresh: jt.refresh_token, expires: expiresAt(jt) })
   }
   // each account's listing, the model configs a request carries
@@ -1383,6 +1573,14 @@ const makePlugin = (site) => async ({ client }) => {
     try {
       const cred = await fresh(getAuth)
       if (renewed(cred)) signIn = "renewed"
+      // A PAT account has no device token: the usage endpoint takes the job
+      // token the exchange gave — a live PAT account answered 200 with a
+      // qoder envelope. Its errors surface as the device path's do; there is
+      // no second token here to rotate and retry with.
+      if (cred.patAuth && !cred.deviceToken) {
+        const env = await fetchUsage(siteOf(site, cred), cred.access)
+        return { ...parseUsage(env), signIn }
+      }
       let env
       try {
         env = await fetchUsage(siteOf(site, cred), cred.deviceToken)
@@ -1516,6 +1714,40 @@ const makePlugin = (site) => async ({ client }) => {
       },
       methods: [
         { type: "oauth", label: `Sign in with ${site.name}`, authorize: () => deviceSignIn(site) },
+        // PAT sign-in: exchange a Personal Access Token for a job token,
+        // bypassing the OAuth device flow. PATs last up to 1 year.
+        // Not offered on Qoder CN: its CLI uses device chat directly and
+        // never makes a job token, so a PAT exchange may not produce one
+        // the chat endpoint accepts.
+        ...(site.id !== "qoder-cn"
+          ? [
+              {
+                type: "oauth",
+                label: `Sign in with ${site.name} PAT`,
+                prompts: [
+                  {
+                    type: "password",
+                    key: "pat",
+                    message: "Your Qoder Personal Access Token (from qoder.com/account/integrations)",
+                    placeholder: "pt-...",
+                    validate: (v) => (String(v ?? "").trim().startsWith("pt-") ? undefined : "PAT must start with pt-"),
+                  },
+                ],
+                authorize: (inputs) => {
+                  const pat = String(inputs?.pat ?? "").trim()
+                  if (!pat) throw new Error("enter your Personal Access Token")
+                  return {
+                    url: `${site.web}/account/integrations`,
+                    instructions: `Create a PAT at ${site.web}/account/integrations if you don't have one`,
+                    method: "auto",
+                    async callback() {
+                      return patSignIn(site, pat)
+                    },
+                  }
+                },
+              },
+            ]
+          : []),
         // an enterprise VPC instance (Qoder CN), a method of its own so
         // that the sign-in above asks nothing new
         ...(site.vpcDomain

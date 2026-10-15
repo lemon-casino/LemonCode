@@ -6,7 +6,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 // Explicit maintenance command; never runs while a user signs in.
-const revision = "da7e2f67a5c7c2fe2ca776156d08ce2f144e86dd";
+const revision = "5d5d86e2251169e0f5c0fd7a884957ac2dbe184a";
 const names = [
   "cline",
   "commandcode",

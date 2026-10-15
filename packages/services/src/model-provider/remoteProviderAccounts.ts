@@ -114,6 +114,12 @@ export class RemoteProviderAccounts implements IProviderAccountService {
     (await this.#ready).cancelAuthorization(id);
   refreshModels: IProviderAccountService["refreshModels"] = async (id) =>
     (await this.#ready).refreshModels(id);
+  checkinAccount: IProviderAccountService["checkinAccount"] = async (id) =>
+    (await this.#ready).checkinAccount(id);
+  checkinAll: IProviderAccountService["checkinAll"] = async (channel) =>
+    (await this.#ready).checkinAll(channel);
+  setAutomaticCheckin: IProviderAccountService["setAutomaticCheckin"] = async (id, enabled) =>
+    (await this.#ready).setAutomaticCheckin(id, enabled);
   getQuota: IProviderAccountService["getQuota"] = async (id, force) =>
     (await this.#ready).getQuota(id, force);
   removeAccount: IProviderAccountService["removeAccount"] = async (id) =>

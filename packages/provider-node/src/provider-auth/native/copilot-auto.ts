@@ -60,6 +60,10 @@ export class CopilotAutoRouter {
   private refused = new Map<string, number>();
   private tail = Promise.resolve();
   constructor(private readonly fetcher: Fetcher = fetch) {}
+  catalogRefreshed(): void {
+    this.refused.clear();
+    this.cache = undefined;
+  }
   isRefused(model: string): boolean {
     const until = this.refused.get(model) ?? 0;
     if (until > Date.now()) return true;
@@ -88,7 +92,32 @@ export class CopilotAutoRouter {
   }
   async observe(model: string, response: Response, signal?: AbortSignal): Promise<Response> {
     const result = await this.inspect(response, signal);
-    if (result.refused) this.refuse(model);
+    if (result.refused) {
+      this.refuse(model);
+      // 目录被列出不等于账号可调用；保留厂商错误码并给出账号资格诊断，不静默换模型。
+      const raw = await result.response.text();
+      let value: Json;
+      try {
+        value = record(JSON.parse(raw));
+      } catch {
+        value = {};
+      }
+      const error = record(value.error);
+      const message = text(error.message) || "The requested model is not supported.";
+      const headers = new Headers(result.response.headers);
+      headers.set("x-zcode-model-refused", "true");
+      return Response.json(
+        {
+          ...value,
+          error: {
+            ...error,
+            code: "model_not_supported",
+            message: `${message} Copilot listed ${model}, but this account cannot currently call it. Refresh its model catalog and check the account's plan or organization model policy. Auto can select a model available to the account.`,
+          },
+        },
+        { status: result.response.status, headers },
+      );
+    }
     return result.response;
   }
   private manual(options: AutoOptions): Selection {

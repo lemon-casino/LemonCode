@@ -329,3 +329,5 @@ export * from "./provider-account-relay.js";
 export * from "./provider-account-quota.js";
 export * from "./usage-analytics.js";
 export * from "./networkProxy.js";
+export * from "./model-catalog.js";
+export * from "./provider-account-checkin.js";

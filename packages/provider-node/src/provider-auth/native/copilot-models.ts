@@ -1,5 +1,6 @@
 import type { AuthModel, AuthWireProtocol } from "../driver.js";
 import { list, number, record, text, type Json } from "./common.js";
+import { copilotBilling } from "./copilot-billing.js";
 
 export function copilotProtocols(endpoints: unknown): AuthWireProtocol[] {
   const values = list(endpoints);
@@ -10,7 +11,7 @@ export function copilotProtocols(endpoints: unknown): AuthWireProtocol[] {
     ...(values.includes("/v1/messages") ? ["anthropic-messages" as const] : []),
   ];
 }
-export function copilotCatalog(response: Json, base: string) {
+export function copilotCatalog(response: Json, base: string, tokenBased?: boolean) {
   const models: AuthModel[] = [
     { id: "auto", name: "Auto", protocol: "openai-chat-completions", baseURL: base },
   ];
@@ -51,6 +52,9 @@ export function copilotCatalog(response: Json, base: string) {
     const model: AuthModel = {
       id,
       name: text(item.name) || id,
+      ...(copilotBilling(record(item.billing), tokenBased)
+        ? { billing: copilotBilling(record(item.billing), tokenBased) }
+        : {}),
       protocol,
       baseURL: protocol === "anthropic-messages" ? base + "/v1" : base,
       contextWindow: number(limits.max_context_window_tokens),

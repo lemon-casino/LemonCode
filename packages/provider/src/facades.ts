@@ -1,6 +1,7 @@
 /* oxlint-disable max-lines -- Settings/Selection Facade 共享同一套 Registry 投影与写入边界。 */
 import type { ConfigValidationIssue } from "./config-overlay.js";
 import type { ProxyProfile } from "@lcode/shared/network-proxy";
+import type { AccountModelCatalog } from "@lcode/shared/model-catalog";
 import type { ProviderModelMembership } from "./config-service.js";
 import type {
   ModelConfig,
@@ -194,6 +195,7 @@ export interface ProviderSettingsCreationResult {
 }
 
 export interface ModelSelectionModelView {
+  readonly catalog?: AccountModelCatalog[string][string];
   readonly modelId: ModelId;
   readonly config: RegistryModelConfigObject;
 }
@@ -607,7 +609,9 @@ export class ModelSelectionFacade {
       providers: Object.freeze(
         registry.providers
           .filter((provider) => provider.config.visibility !== "hidden")
-          .map(projectModelSelectionProviderView),
+          .map((provider) =>
+            projectModelSelectionProviderView(provider, snapshot?.account.modelCatalog),
+          ),
       ),
       ...(initial.source === "none" ? {} : { preferredSelection: initial.selection }),
       ...(input
@@ -630,6 +634,7 @@ export class ModelSelectionFacade {
 /** 把一个已进入 Registry 的 Provider 投影为标准模型选择候选。调用方负责产品作用域。 */
 export function projectModelSelectionProviderView(
   provider: ProviderRegistryView["providers"][number],
+  catalog?: AccountModelCatalog,
 ): ModelSelectionProviderView {
   return Object.freeze({
     providerId: provider.providerId,
@@ -641,6 +646,9 @@ export function projectModelSelectionProviderView(
       provider.models.map((model) =>
         Object.freeze({
           modelId: model.modelId,
+          ...(catalog?.[provider.providerId]?.[model.modelId]
+            ? { catalog: catalog[provider.providerId]![model.modelId] }
+            : {}),
           config: serializeRegistryModelConfig(model.config),
         }),
       ),

@@ -8,6 +8,7 @@ import type {
   AuthDriverNetworkOptions,
 } from "./driver.js";
 import { PluginWorkerTransport } from "./plugins/transport.js";
+import type { ProviderCheckinReply } from "@lcode/shared";
 
 const channels = new Set([
   "bigmodel",
@@ -147,6 +148,19 @@ function createDriver(
       ),
     fetch: (request, context) => worker.fetch(request, context),
     quota: (context) => worker.call<unknown>("quota", {}, context),
+    ...([
+      "workbuddy",
+      "trae-cn",
+      "minimax-code",
+      "minimax-code-global",
+      "qoder",
+      "qoder-cn",
+    ].includes(channel)
+      ? {
+          checkin: (context: import("./driver.js").AuthDriverContext) =>
+            worker.call<ProviderCheckinReply>("checkin", {}, context),
+        }
+      : {}),
     dispose: () => worker.dispose(),
   };
 }

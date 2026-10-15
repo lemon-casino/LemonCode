@@ -65,8 +65,13 @@ export async function executeProviderAccountPool<T extends PoolAccount>(
           host.context(account, signal),
         );
       });
+      // Copilot 目录可能给账号列出不可调用的模型；仅对驱动确认的模型拒绝尝试同模型的另一账号。
+      const modelRefused =
+        channelId === "copilot" &&
+        response.status === 400 &&
+        response.headers.get("x-zcode-model-refused") === "true";
       if (
-        [401, 403, 429, 500, 502, 503, 504].includes(response.status) &&
+        ([401, 403, 429, 500, 502, 503, 504].includes(response.status) || modelRefused) &&
         index < routes.length - 1
       ) {
         await response.body?.cancel();
@@ -74,6 +79,7 @@ export async function executeProviderAccountPool<T extends PoolAccount>(
       }
       if (response.ok) host.preferred.set(poolKey, account.connectionId);
       const headers = new Headers(response.headers);
+      headers.delete("x-zcode-model-refused");
       headers.set("x-zcode-connection-id", account.connectionId);
       const original = response.body;
       const reader = original?.getReader();

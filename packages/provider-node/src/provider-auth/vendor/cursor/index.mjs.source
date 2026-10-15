@@ -385,7 +385,10 @@ function firstParty(model) {
 // period's spendLimitUsage (cents) and, where that sets no limit of the
 // user's, GetHardLimit's reply (dollars; undefined when it couldn't be
 // read). kind is "fixed" (up to limitDollars), "unlimited", "disabled" or
-// "unavailable" (not known).
+// "unavailable" (not known). A team member with no limit of their own
+// spends the team's pool, which cursor-agent's view calls unlimited but
+// which runs out at pooledLimit for the whole team (magpie #1868): that is
+// a fixed limit on the pool's spend, with the member's own in mineDollars.
 function onDemandOf(data, hard) {
   const s = data?.spendLimitUsage
   const usedDollars = Number(s?.individualUsed ?? 0) / 100
@@ -397,8 +400,11 @@ function onDemandOf(data, hard) {
         : { kind: "disabled", usedDollars }
   if (s?.limitType === "team") {
     if (own) return own
-    if (hard) return hard.noUsageBasedAllowed || !(Number(hard.hardLimit) > 0) ? { kind: "disabled", usedDollars } : { kind: "unlimited", usedDollars }
-    return Number(s.pooledLimit ?? 0) > 0 ? { kind: "unlimited", usedDollars } : { kind: "unavailable", usedDollars }
+    if (hard && (hard.noUsageBasedAllowed || !(Number(hard.hardLimit) > 0))) return { kind: "disabled", usedDollars }
+    // pooledLimit and pooledRemaining come as int64 strings, pooledUsed as a number
+    const pool = Number(s.pooledLimit ?? 0)
+    if (pool > 0) return { kind: "fixed", usedDollars: Number(s.pooledUsed ?? 0) / 100, limitDollars: pool / 100, mineDollars: usedDollars }
+    return hard ? { kind: "unlimited", usedDollars } : { kind: "unavailable", usedDollars }
   }
   if (!hard) return own ?? { kind: "unavailable", usedDollars }
   if (hard.noUsageBasedAllowed) return { kind: "disabled", usedDollars }
@@ -422,7 +428,8 @@ async function hardLimit(tok) {
   }
 }
 
-const dollars = (n) => "$" + n.toFixed(2)
+// dollars, thousands grouped: a team's pool runs to six figures ($451,200.00)
+const dollars = (n) => "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 // usage is the account's windows this billing period; an enterprise plan
 // reports spend instead, and gets none. ids are the models it can be
@@ -430,7 +437,8 @@ const dollars = (n) => "$" + n.toFixed(2)
 // may spend on-demand once its included usage is gone (fottencity on
 // Discord: a team that pays for more) is still served when the pools are
 // spent, so they are shown aside, and its On-demand spend is what can run
-// out: at its limit, or never when it has none.
+// out: at its limit (a team member with none of their own: the team's
+// pool), or never when it has none.
 async function usage(tok, ids) {
   const [res, hard] = await Promise.all([
     fetch(API + "/aiserver.v1.DashboardService/GetCurrentPeriodUsage", {
@@ -467,7 +475,7 @@ async function usage(tok, ids) {
   const pooled = od.kind === "fixed" || od.kind === "unlimited" ? { aside: true } : {}
   const onDemand =
     od.kind === "fixed"
-      ? [{ name: "On-demand", used: Math.max(0, Math.min(100, (100 * od.usedDollars) / od.limitDollars)), display: `${dollars(od.usedDollars)} / ${dollars(od.limitDollars)}`, ...resets }]
+      ? [{ name: "On-demand", used: Math.max(0, Math.min(100, (100 * od.usedDollars) / od.limitDollars)), display: `${dollars(od.usedDollars)} / ${dollars(od.limitDollars)}` + (od.mineDollars === undefined ? "" : ` (you: ${dollars(od.mineDollars)})`), ...resets }]
       : od.kind === "unlimited"
         ? [{ name: "On-demand", used: 0, display: dollars(od.usedDollars), ...resets, aside: true }]
         : []
@@ -723,17 +731,20 @@ function pick(entry, effort, fast, seed) {
 // without thinking stops at high), the variant with those parameters at the
 // nearest effort it has, not the default's id with parameters that
 // contradict it (claude-opus-5-thinking-high with thinking=false). Where
-// the default differs from what is asked in the effort alone, the effort
-// goes as asked, as for a listed model.
+// the default differs from what is asked in the effort alone, and no
+// variant at all is named for that effort, the effort goes as asked, as for
+// a listed model (claude-opus-5-5-xhigh). When another branch has it, the
+// default's own branch stops short there, and its nearest goes (#55).
 function branch(entry, want) {
   if (!entry.pid || entry.pid === "thinking") return undefined
+  const level = (x) => (x === "extra-high" ? "xhigh" : x)
   const def = valuesOf(entry.def)
-  if (Object.keys(want).every((k) => k === entry.pid || k === "context" || def[k] === undefined || def[k] === want[k])) return undefined
+  const named = entry.variants.some((v) => level(valuesOf(v)[entry.pid]) === level(want[entry.pid]))
+  if (!named && Object.keys(want).every((k) => k === entry.pid || k === "context" || def[k] === undefined || def[k] === want[k])) return undefined
   const vs = entry.variants.filter((v) => {
     const have = valuesOf(v)
     return entry.pid in have && Object.keys(want).every((k) => k === entry.pid || have[k] === undefined || have[k] === want[k])
   })
-  const level = (x) => (x === "extra-high" ? "xhigh" : x)
   const at = fitEffort(level(want[entry.pid]), vs.map((v) => level(valuesOf(v)[entry.pid])))
   return at ? vs.find((v) => level(valuesOf(v)[entry.pid]) === at) : undefined
 }
@@ -1081,6 +1092,10 @@ function statusOf(status, code, msg) {
 const textOf = (c) =>
   typeof c === "string" ? c : Array.isArray(c) ? c.filter((p) => p?.type === "text").map((p) => p.text ?? "").join("") : ""
 
+// Chat clients replay thinking beside content. Cursor's transcript blobs
+// use AI SDK reasoning parts; putting it in text would change its role.
+const reasoningOf = (m) => [m.reasoning_content, m.reasoning].find((s) => typeof s === "string" && s.trim()) ?? ""
+
 // joinSplitCalls joins an assistant message onto the assistant message
 // before it when that one made tool calls: Anthropic takes consecutive
 // assistant messages as one turn, and an agent can send a turn's parallel
@@ -1093,7 +1108,8 @@ function joinSplitCalls(msgs) {
     const prev = out.at(-1)
     if (m?.role === "assistant" && prev?.role === "assistant" && prev.tool_calls?.length) {
       const content = [textOf(prev.content), textOf(m.content)].filter(Boolean).join("\n\n")
-      out[out.length - 1] = { ...prev, content, tool_calls: [...prev.tool_calls, ...(m.tool_calls ?? [])] }
+      const reasoning_content = [reasoningOf(prev), reasoningOf(m)].filter(Boolean).join("\n\n")
+      out[out.length - 1] = { ...prev, content, reasoning_content, tool_calls: [...prev.tool_calls, ...(m.tool_calls ?? [])] }
       continue
     }
     out.push(m)
@@ -1198,9 +1214,11 @@ function conversation(chat, tools) {
     if (m.role === "assistant") {
       answer()
       const content = []
+      const reasoning = reasoningOf(m)
+      if (reasoning) content.push({ type: "reasoning", text: reasoning })
       const text = textOf(m.content)
       if (text) content.push({ type: "text", text })
-      size += text.length
+      size += reasoning.length + text.length
       for (const c of m.tool_calls ?? []) {
         if (c?.type && c.type !== "function") continue
         const args = parseArgs(c.function?.arguments)
@@ -1340,17 +1358,18 @@ function usageOf(uf) {
 // event: its step looks for it as before, and is guessed without it.
 const STEP_WAIT = { first: 1500, every: 500, until: 6000, ask: 5000, skipAfter: 3, retryEvery: 10, owedAt: 5000, owedFor: 600_000 }
 
-// claimed are the usage events already counted, by conversation and time,
-// so that two steps of one conversation never count the same one.
+// claimed are the usage events already counted, by account, conversation
+// and time, so that two steps of one conversation never count the same one.
 const claimed = new Map()
 
-// owed are what each conversation still owes, by conversation_id: n Runs
-// whose events are to be counted, the earliest started at since, looked
-// for from ready on; and carry, a count collected that no step gave out.
+// owed are what each account's conversation still owes, by credential
+// fingerprint and conversation_id: n Runs whose events are to be counted,
+// the earliest started at since, looked for from ready on; and carry, a
+// count collected that no step gave out.
 const owed = new Map()
 
-// flights are each conversation's collections still going, which a step
-// that ends the turn waits for.
+// flights are each account's conversation collections still going, which
+// a step that ends the turn waits for.
 const flights = new Map()
 
 // unreadable are the accounts (by token) whose usage events Cursor won't
@@ -1360,6 +1379,7 @@ const flights = new Map()
 const unreadable = new Map()
 const misses = new Map()
 const tokKey = (tok) => createHash("sha256").update(tok).digest("hex")
+const usageKey = (tok, conv) => tokKey(tok) + "\0" + conv
 function canRead(tok) {
   const at = unreadable.get(tokKey(tok))
   if (at === undefined) return true
@@ -1376,12 +1396,12 @@ function addUsage(a, b) {
   return a
 }
 
-// owe adds to conversation conv's debt.
-function owe(conv, { since = Date.now(), n = 0, ready = Date.now(), carry = null }) {
+// owe adds to the account/conversation's debt.
+function owe(key, { since = Date.now(), n = 0, ready = Date.now(), carry = null }) {
   for (const [k, d] of owed) if (Date.now() - d.since > STEP_WAIT.owedFor) owed.delete(k)
   if (n <= 0 && !carry) return
-  const d = owed.get(conv)
-  if (!d) return void owed.set(conv, { since, n, ready, carry: carry && { ...carry } })
+  const d = owed.get(key)
+  if (!d) return void owed.set(key, { since, n, ready, carry: carry && { ...carry } })
   d.since = Math.min(d.since, since)
   d.n += n
   d.ready = Math.min(d.ready, ready)
@@ -1390,10 +1410,12 @@ function owe(conv, { since = Date.now(), n = 0, ready = Date.now(), carry = null
 
 // usageEvents are the dashboard's events of conversation conv from since
 // on, the `want` oldest not counted yet, summed: usage (null when none),
-// how many were found (got), and refused when the account can't read them.
+// each with its time (events), how many were found (got), and refused
+// when the account can't read them.
 // Polling, they are looked for as STEP_WAIT says, from `first` on, until
 // all show; else asked for once.
 async function usageEvents(tok, conv, since, want, { poll = false, first = STEP_WAIT.first, signal } = {}) {
+  const key = usageKey(tok, conv)
   const end = Date.now() + STEP_WAIT.until
   const wait = (ms) => new Promise((r) => {
     const t = setTimeout(r, ms)
@@ -1403,6 +1425,7 @@ async function usageEvents(tok, conv, since, want, { poll = false, first = STEP_
   const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0)
   let usage = null
   let got = 0
+  const events = []
   if (poll) await wait(first)
   while (!signal?.aborted) {
     try {
@@ -1415,17 +1438,19 @@ async function usageEvents(tok, conv, since, want, { poll = false, first = STEP_
       if (res.status >= 400 && res.status < 500 && res.status !== 429) {
         // not this account's to read
         unreadable.set(tokKey(tok), Date.now())
-        return { usage, got, refused: true }
+        return { usage, events, got, refused: true }
       }
       const evs = res.ok ? ((await res.json())?.usageEventsDisplay ?? []) : []
       const found = evs
-        .filter((e) => e?.conversationId === conv && e.tokenUsage && num(e.timestamp) >= since - 1000 && !claimed.has(conv + "\0" + e.timestamp))
+        .filter((e) => e?.conversationId === conv && e.tokenUsage && num(e.timestamp) >= since - 1000 && !claimed.has(key + "\0" + e.timestamp))
         .sort((a, b) => num(a.timestamp) - num(b.timestamp))
         .slice(0, want - got)
       for (const ev of found) {
-        claimed.set(conv + "\0" + ev.timestamp, Date.now())
+        claimed.set(key + "\0" + ev.timestamp, Date.now())
         const t = ev.tokenUsage
-        usage = addUsage(usage ?? ZERO(), { input: num(t.inputTokens), output: num(t.outputTokens), cacheRead: num(t.cacheReadTokens), cacheWrite: num(t.cacheWriteTokens) })
+        const u = { input: num(t.inputTokens), output: num(t.outputTokens), cacheRead: num(t.cacheReadTokens), cacheWrite: num(t.cacheWriteTokens), reasoning: 0 }
+        usage = addUsage(usage ?? ZERO(), u)
+        events.push({ at: num(ev.timestamp), usage: u })
         got++
       }
       if (got >= want) break
@@ -1433,7 +1458,7 @@ async function usageEvents(tok, conv, since, want, { poll = false, first = STEP_
     if (!poll || Date.now() + STEP_WAIT.every > end) break
     await wait(STEP_WAIT.every)
   }
-  return { usage, got, refused: false }
+  return { usage, events, got, refused: false }
 }
 
 // stepUsage is the usage of the Run of conversation conv started at since,
@@ -1442,29 +1467,32 @@ async function stepUsage(tok, conv, since, signal) {
   return (await usageEvents(tok, conv, since, 1, { poll: true, signal })).usage
 }
 
-// collect takes conversation conv's debt and asks for its events (polling
-// when poll): what was carried and what was found (usage), and whether
-// any is still owed (short), which is owed on. What comes back once the
-// Run that asked is over (over() true) is carried to the next instead.
+// collect takes the account's debt for conversation conv and asks for its
+// events (polling when poll): what was carried and what was found (usage),
+// what was carried alone (carry) and the events found (events), and whether any is
+// still owed (short), which is owed on. What comes back once the Run that
+// asked is over (over() true) is carried to the next instead.
 function collect(tok, conv, { poll = false, first, signal, over = () => false } = {}) {
-  const d = owed.get(conv)
-  if (!d) return Promise.resolve({ usage: null, short: false })
-  owed.delete(conv)
+  const key = usageKey(tok, conv)
+  const d = owed.get(key)
+  if (!d) return Promise.resolve({ usage: null, carry: null, events: [], short: false })
+  owed.delete(key)
   const p = (async () => {
-    let r = { usage: null, got: 0 }
+    let r = { usage: null, events: [], got: 0 }
     if (d.n > 0 && canRead(tok)) r = await usageEvents(tok, conv, d.since, d.n, { poll, first, signal }).catch(() => r)
     const short = d.n > r.got && canRead(tok)
-    if (short) owe(conv, { since: d.since, n: d.n - r.got, ready: d.ready })
+    if (short) owe(key, { since: d.since, n: d.n - r.got, ready: d.ready })
+    const carry = d.carry && { ...d.carry }
     const usage = addUsage(d.carry, r.usage)
-    if (!over()) return { usage, short }
-    owe(conv, { carry: usage })
-    return { usage: null, short }
+    if (!over()) return { usage, carry, events: r.events ?? [], short }
+    owe(key, { carry: usage })
+    return { usage: null, carry: null, events: [], short }
   })()
-  const set = flights.get(conv) ?? new Set()
-  flights.set(conv, set.add(p))
+  const set = flights.get(key) ?? new Set()
+  flights.set(key, set.add(p))
   p.finally(() => {
     set.delete(p)
-    if (!set.size && flights.get(conv) === set) flights.delete(conv)
+    if (!set.size && flights.get(key) === set) flights.delete(key)
   })
   return p
 }
@@ -1480,22 +1508,42 @@ function collect(tok, conv, { poll = false, first, signal, over = () => false } 
 // read its events). owed(final) is what the Run collected otherwise,
 // all that can be had when final. done() ends the Run: what was collected
 // and not given out goes back.
+//
+// What a Run collects is told apart by its event's time: Cursor stamps a
+// Run's event as the Run begins (1.4–3.4 s after since), so one from since
+// on (less the second usageEvents allows) is this Run's own (mine), and one
+// before it, or a count carried, an earlier Run's (theirs). own() gives out only mine, as the step's usage,
+// which a client reads as how full its context is; theirs goes out by
+// owed(), apart. A Run of its conversation begins only once the one
+// before has ended, so the two never meet; were the time off, the step's
+// count would be told in the wrong field, never twice nor lost.
 function ledger(tok, conv, since, signal, kept) {
   const key = tokKey(tok)
-  let pending = null // collected, not given out yet
+  const debtKey = usageKey(tok, conv)
+  let mine = null // this Run's own, collected, not given out yet
+  let theirs = null // earlier Runs', collected, not given out yet
   let over = false
   const gather = (opts) =>
     collect(tok, conv, { ...opts, over: () => over }).then((r) => {
-      pending = addUsage(pending, r.usage)
+      theirs = addUsage(theirs, r.carry)
+      for (const e of r.events ?? []) {
+        if (e.at >= since - 1000) mine = addUsage(mine, e.usage)
+        else theirs = addUsage(theirs, e.usage)
+      }
       return r
     })
   let collecting = null
-  const debt = kept ? owed.get(conv) : undefined
+  const debt = kept ? owed.get(debtKey) : undefined
   const timer = debt ? setTimeout(() => (collecting = gather()), Math.max(0, debt.ready - Date.now())) : null
   timer?.unref?.()
+  const takeMine = () => {
+    const u = mine
+    mine = null
+    return u
+  }
   const take = () => {
-    const u = pending
-    pending = null
+    const u = addUsage(theirs, mine)
+    mine = theirs = null
     return u
   }
   return {
@@ -1509,28 +1557,29 @@ function ledger(tok, conv, since, signal, kept) {
         else if (!r.refused) misses.set(key, m + 1)
         return r.usage ?? null
       }
-      owe(conv, { since, n: 1, ready: Date.now() + STEP_WAIT.owedAt })
+      owe(debtKey, { since, n: 1, ready: Date.now() + STEP_WAIT.owedAt })
       if (waits) {
         const r = await gather({ poll: true, signal })
         if (!canRead(tok)) return null
         if (r.short) misses.set(key, m + 1)
         else misses.delete(key)
       } else misses.set(key, m + 1)
-      return take() ?? false
+      return takeMine() ?? false
     },
     async owed(final) {
       if (!kept) return null
       if (final) {
         await collecting
-        await Promise.all([...(flights.get(conv) ?? [])])
-        if (owed.has(conv)) await gather({ poll: owed.get(conv).n > 0, first: 0, signal })
+        await Promise.all([...(flights.get(debtKey) ?? [])])
+        if (owed.has(debtKey)) await gather({ poll: owed.get(debtKey).n > 0, first: 0, signal })
       }
       return take()
     },
     done() {
       over = true
       clearTimeout(timer)
-      if (pending) owe(conv, { carry: take() })
+      const u = take()
+      if (u) owe(debtKey, { carry: u })
     },
   }
 }
@@ -1622,12 +1671,21 @@ async function agentURL(tok, fresh) {
 // connection that failed (refused, no network) or a stream the server
 // refused leaves the next Run to try HTTP/2 again.
 let h1Until = 0
+const cancelledOpen = () => ({ error: { status: 410, message: "the request was cancelled" }, h2Failed: false })
 async function open(base, headers, signal) {
+  if (signal?.aborted) return cancelledOpen()
   if (Date.now() >= h1Until) {
     const o = await openH2(base, headers, signal)
+    // The head can arrive just before abort, before this continuation owns it.
+    if (signal?.aborted) {
+      o.req?.close(http2.constants.NGHTTP2_CANCEL)
+      o.session?.destroy()
+      return cancelledOpen()
+    }
     if (!o.h2Failed) return o
     if (o.blocked) h1Until = Date.now() + H2.retryAfter
   }
+  if (signal?.aborted) return cancelledOpen()
   return openH1(headers, signal)
 }
 
@@ -1658,6 +1716,7 @@ function h2Blocked(e) {
 // than by being cancelled, says h2Failed, and blocked when h2Blocked says
 // so of the failure.
 function openH2(base, headers, signal) {
+  if (signal?.aborted) return Promise.resolve(cancelledOpen())
   return new Promise((resolve) => {
     const u = new URL(base)
     const session = http2.connect(u.origin)
@@ -1666,9 +1725,11 @@ function openH2(base, headers, signal) {
       if (done) return
       done = true
       clearTimeout(timer)
+      signal?.removeEventListener("abort", abort)
       session.destroy()
-      resolve({ error: { status: 502, message: e?.message ?? String(e) }, h2Failed, blocked: h2Failed && h2Blocked(e) })
+      resolve({ error: { status: h2Failed ? 502 : 410, message: e?.message ?? String(e) }, h2Failed, blocked: h2Failed && h2Blocked(e) })
     }
+    const abort = () => fail(new Error("the request was cancelled"), false)
     const timer = setTimeout(() => fail(Object.assign(new Error(`no answer over HTTP/2 in ${H2.wait / 1000}s`), { h2Timeout: true })), H2.wait)
     session.on("error", fail)
     const req = session.request({
@@ -1684,9 +1745,11 @@ function openH2(base, headers, signal) {
       if (done) return
       done = true
       clearTimeout(timer)
+      signal?.removeEventListener("abort", abort)
       resolve({ session, req, status: Number(h[":status"]) })
     })
-    signal?.addEventListener("abort", () => fail(new Error("the request was cancelled"), false), { once: true })
+    signal?.addEventListener("abort", abort, { once: true })
+    if (signal?.aborted) abort()
   })
 }
 
@@ -1706,23 +1769,29 @@ function connectCode(status) {
 // ends the stream with Connect's end frame, which runOnce reads as the
 // Run's own.
 function openH1(headers, signal) {
+  if (signal?.aborted) return Promise.resolve(cancelledOpen())
   const ac = new AbortController()
-  signal?.addEventListener("abort", () => ac.abort(), { once: true })
   const id = headers["x-request-id"]
   const h = { ...headers, "accept-encoding": "identity", "x-cursor-streaming": "true" }
   let ended = false
   let seq = 0
-  let chain = Promise.resolve()
+  let reader
   const req = new Duplex({
     read() {},
     write(chunk, _enc, cb) {
       // runOnce writes one whole frame each time
       const msg = Buffer.from(chunk).subarray(5)
       const n = seq++
-      chain = chain.then(() => (ended ? undefined : append(msg, n)))
-      cb()
+      // Keep the write buffered until its append finishes, so callbacks and
+      // drain reflect the pending upload rather than an unbounded promise chain.
+      append(msg, n).then(() => cb(), (e) => cb(e))
     },
   })
+  const cleanup = () => {
+    signal?.removeEventListener("abort", close)
+    ac.abort()
+    reader?.cancel().catch(() => {})
+  }
   const end = (body) => {
     if (ended || req.destroyed) return
     ended = true
@@ -1730,7 +1799,7 @@ function openH1(headers, signal) {
     f[0] = 2
     req.push(f)
     req.push(null)
-    ac.abort()
+    cleanup()
   }
   const failed = async (res) => {
     const text = await res.text().catch(() => "")
@@ -1744,6 +1813,7 @@ function openH1(headers, signal) {
   // (more time for a large one) ends the Run, as cursor-agent's
   // bidi_append_deadline_exceeded does: the messages after it wait on it.
   const append = async (msg, n) => {
+    if (ended || ac.signal.aborted) return
     const body = pb().str(1, msg.toString("hex")).bytes(2, pb().str(1, id).done()).varint(3, n).done()
     const ms = H1.appendWait + Math.ceil(body.length / 65536) * 1000
     const deadline = AbortSignal.timeout(ms)
@@ -1754,6 +1824,7 @@ function openH1(headers, signal) {
         body,
         signal: AbortSignal.any([ac.signal, deadline]),
       })
+      if (ended || ac.signal.aborted) { await res.body?.cancel().catch(() => {}); return }
       if (!res.ok) return failed(res)
       await res.arrayBuffer()
     } catch (e) {
@@ -1761,6 +1832,16 @@ function openH1(headers, signal) {
       if (deadline.aborted) return end(JSON.stringify({ error: { code: "deadline_exceeded", message: `BidiAppend got no answer in ${Math.round(ms / 1000)}s` } }))
       end(JSON.stringify({ error: { code: "unavailable", message: `BidiAppend: ${e?.message ?? e}` } }))
     }
+  }
+  const close = () => {
+    ended = true
+    cleanup()
+    req.destroy()
+  }
+  signal?.addEventListener("abort", close, { once: true })
+  if (signal?.aborted) {
+    close()
+    return Promise.resolve(cancelledOpen())
   }
   ;(async () => {
     try {
@@ -1770,25 +1851,29 @@ function openH1(headers, signal) {
         body: frame(pb().str(1, id).done()),
         signal: ac.signal,
       })
+      if (ended || ac.signal.aborted) { await res.body?.cancel().catch(() => {}); return }
       if (!res.ok) return failed(res)
-      for await (const c of res.body) {
-        if (ended || req.destroyed) return
-        req.push(Buffer.from(c))
+      reader = res.body.getReader()
+      try {
+        while (!ended && !req.destroyed) {
+          const { value, done } = await reader.read()
+          if (done) break
+          if (!ended && !req.destroyed) req.push(Buffer.from(value))
+        }
+      } finally {
+        reader.releaseLock()
+        reader = undefined
       }
       if (!ended && !req.destroyed) {
         ended = true
         req.push(null)
+        cleanup()
       }
     } catch (e) {
       if (!ac.signal.aborted) end(JSON.stringify({ error: { code: "unavailable", message: `RunSSE: ${e?.message ?? e}` } }))
     }
   })()
-  const close = () => {
-    ended = true
-    ac.abort()
-    req.destroy()
-  }
-  return Promise.resolve({ session: { close, destroy: close }, req: Object.assign(req, { close }), status: 200, h1: true })
+  return Promise.resolve(signal?.aborted ? cancelledOpen() : { session: { close, destroy: close }, req: Object.assign(req, { close }), status: 200, h1: true })
 }
 
 // runOnce is one Run of the chat on the agent API at base: an async
@@ -1821,14 +1906,15 @@ async function runOnce({ tok, base, id, tools, conv, convID, signal, maxMode, pa
   if (o.error) return book.done(), o
   const { session, req } = o
   let closed = false
+  let heartbeat
   const send = (msg) => {
     if (!closed && !req.destroyed && req.writable) req.write(frame(msg))
   }
-  const heartbeat = setInterval(() => send(pb().bytes(7, EMPTY).done()), 5000) // the client is still there, as the CLI says
   const close = () => {
     if (closed) return
     closed = true
     clearInterval(heartbeat)
+    signal?.removeEventListener("abort", close)
     try {
       req.close(http2.constants.NGHTTP2_CANCEL)
     } catch {}
@@ -1836,6 +1922,13 @@ async function runOnce({ tok, base, id, tools, conv, convID, signal, maxMode, pa
     setTimeout(() => session.destroy(), 1000).unref?.()
   }
   signal?.addEventListener("abort", close, { once: true })
+  // Abort can win after open's head check but before this Run takes ownership.
+  if (signal?.aborted) {
+    close()
+    book.done()
+    return cancelledOpen()
+  }
+  heartbeat = setInterval(() => send(pb().bytes(7, EMPTY).done()), 5000) // the client is still there, as the CLI says
   send(first)
   if (o.status < 200 || o.status > 299) {
     const chunks = []
@@ -1889,21 +1982,30 @@ async function* decode(stream, { send, blobs, tools, estimate, close, stepUsage,
   let said = 0
   // wrote: the reply's text alone; a turn of thinking only says nothing
   let wrote = 0
+  // what the Run sent, for an empty reply to name (#60): the thinking's
+  // length, Cursor's own tools it asked for and was refused, and updates
+  // and messages this doesn't read
+  const seen = { thinking: 0, refused: new Map(), updates: new Map(), messages: new Map() }
+  const count = (m, k) => m.set(k, (m.get(k) ?? 0) + 1)
+  const empty = (how) => ({ error: { status: 502, message: "an empty reply" + emptyWhy(how, seen, ended ? usage : null) } })
   let usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, reasoning: 0 }
   // counted: the step's usage is the dashboard's events, its own counted
   // with it or by a later step (ledger), never guessed
   let counted = false
   // finish is the step's end, with what earlier steps owed (more), which
-  // is no reason not to guess the step's own
+  // is no reason not to guess the step's own. The step's usage is its own
+  // Run's alone: a client reads its prompt_tokens as how full the context
+  // is (pi, OpenCode), and an earlier step's prompt added to it read twice
+  // the context. What earlier steps owed goes apart, as magpie_deferred,
+  // which magpie counts with the step and no client reads.
   const finish = (more) => {
     if (!counted && !usage.output) usage.output = Math.floor((said + 3) / 4)
     // a guess only when Cursor counted nothing: a prompt read whole from
     // the cache leaves no uncached rest, and is no reason to guess; nor is
     // a prompt counted from the events
     if (!counted && !usage.input && !usage.cacheRead && !usage.cacheWrite) usage.input = estimate
-    // the events' output is their steps', counted here as their prompt is
-    if (more) for (const k of ["input", "output", "cacheRead", "cacheWrite"]) usage[k] += more[k]
     const prompt = usage.input + usage.cacheRead + usage.cacheWrite
+    const deferred = more && more.input + more.output + more.cacheRead + more.cacheWrite > 0
     return {
       stop: calls > 0 ? "tool_calls" : "stop",
       usage: {
@@ -1912,6 +2014,16 @@ async function* decode(stream, { send, blobs, tools, estimate, close, stepUsage,
         total_tokens: prompt + usage.output,
         prompt_tokens_details: { cached_tokens: usage.cacheRead, cache_write_tokens: usage.cacheWrite },
         ...(usage.reasoning ? { completion_tokens_details: { reasoning_tokens: usage.reasoning } } : {}),
+        ...(deferred
+          ? {
+              magpie_deferred: {
+                prompt_tokens: more.input + more.cacheRead + more.cacheWrite,
+                completion_tokens: more.output,
+                cached_tokens: more.cacheRead,
+                cache_write_tokens: more.cacheWrite,
+              },
+            }
+          : {}),
       },
     }
   }
@@ -1934,7 +2046,7 @@ async function* decode(stream, { send, blobs, tools, estimate, close, stepUsage,
       if (f.end) {
         const e = failure(200, f.data)
         if (e.status < 200 || e.status > 299) yield { error: e }
-        else if (wrote === 0 && calls === 0) yield { error: { status: 502, message: "an empty reply" } }
+        else if (wrote === 0 && calls === 0) yield empty(endFrame(f.data))
         else yield await settled()
         return
       }
@@ -1959,6 +2071,7 @@ async function* decode(stream, { send, blobs, tools, estimate, close, stepUsage,
                   const t = pbStr(uf, 1)
                   if (t) {
                     said += t.length
+                    seen.thinking += t.length
                     yield { reasoning: t }
                   }
                   break
@@ -1969,7 +2082,7 @@ async function* decode(stream, { send, blobs, tools, estimate, close, stepUsage,
                   if (calls === 0) {
                     // nothing written and nothing called: an empty reply,
                     // which the client asks again, not a finished turn
-                    yield wrote === 0 ? { error: { status: 502, message: "an empty reply" } } : await settled()
+                    yield wrote === 0 ? empty("Cursor ended the turn") : await settled()
                     return
                   }
                   break
@@ -1980,12 +2093,14 @@ async function* decode(stream, { send, blobs, tools, estimate, close, stepUsage,
                     return
                   }
                   break
+                default:
+                  count(seen.updates, u.num)
               }
             }
             break
           case 2: {
             // exec_server_message: the server asks the client to run something
-            const call = exec(m.data, tools, send, closeExec)
+            const call = exec(m.data, tools, send, closeExec, seen.refused)
             if (call) {
               said += call.args.length
               yield { tool: { index: calls++, ...call } }
@@ -2014,6 +2129,8 @@ async function* decode(stream, { send, blobs, tools, estimate, close, stepUsage,
             }
             break
           }
+          default:
+            count(seen.messages, m.num)
         }
       }
     }
@@ -2031,10 +2148,33 @@ async function* decode(stream, { send, blobs, tools, estimate, close, stepUsage,
   }
 }
 
+// endFrame is how a Run's Connect end frame that said no error reads in
+// an empty reply's words: its JSON, cut short, or that it was empty.
+function endFrame(data) {
+  const t = Buffer.from(data ?? []).toString("utf8").trim()
+  if (!t || t === "{}") return "the Run's stream ended (an empty end frame)"
+  return `the Run's stream ended (end frame: ${t.length > 300 ? t.slice(0, 300) + "…" : t})`
+}
+
+// emptyWhy is what an empty reply says of what came before it (#60): how
+// it ended, the thinking, the turn's own count of output, Cursor's own
+// tools refused, and what Cursor sent that isn't read. Field numbers are
+// agent.v1's, so a report names the message that wasn't understood.
+function emptyWhy(how, seen, usage) {
+  const list = (m) => [...m].map(([k, n]) => (n > 1 ? `#${k} ×${n}` : `#${k}`)).join(", ")
+  const parts = [how]
+  parts.push(seen.thinking ? `after ${seen.thinking} chars of thinking, no text and no tool call` : "with no thinking, no text and no tool call")
+  if (usage) parts.push(`Cursor counted ${usage.output} output tokens`)
+  if (seen.refused.size) parts.push(`Cursor's own tools asked for and refused: ${list(seen.refused)}`)
+  if (seen.updates.size) parts.push(`updates not read: ${list(seen.updates)}`)
+  if (seen.messages.size) parts.push(`messages not read: ${list(seen.messages)}`)
+  return ` (${parts.join("; ")}; try again)`
+}
+
 // exec answers what the server asks the client to run: a call of the
 // caller's tools is returned, the list of them is given, and anything else
 // is refused.
-function exec(msg, tools, send, closeExec) {
+function exec(msg, tools, send, closeExec, refused) {
   const es = fields(msg)
   const id = pbNum(es, 1)
   const execID = pbStr(es, 15)
@@ -2073,6 +2213,8 @@ function exec(msg, tools, send, closeExec) {
     }
   }
   // a shell, a file read or an edit of Cursor's own: never run
+  const kind = es.find((e) => e.num !== 1 && e.num !== 15)?.num ?? 0
+  refused?.set(kind, (refused.get(kind) ?? 0) + 1)
   send(pb().bytes(5, pb().bytes(2, pb().varint(1, id).str(2, "not available"))).done())
   closeExec(id)
   return null
@@ -2256,8 +2398,12 @@ export async function CursorAuthPlugin() {
           return { error: e.message, windows: [], signIn: "kept" }
         }
         const [u, plan, bot] = await Promise.all([usage(tok, Object.keys(provider?.models ?? {})), planOf(tok), botUsage(tok)])
-        // Put Bot before Total for magpie's three menu-bar rings.
-        const windows = [...u.windows.filter((w) => w.name !== "Total"), ...bot, ...u.windows.filter((w) => w.name === "Total")]
+        // Bot goes among magpie's three menu-bar rings: before Total, and
+        // before an On-demand with no limit, which is only a dollar figure on
+        // a ring that never fills (magpie #2213, Morganwan90). An On-demand
+        // with a limit stays ahead of it: that is what can stop the account.
+        const last = (w) => w.name === "Total" || (w.name === "On-demand" && w.aside)
+        const windows = [...u.windows.filter((w) => !last(w)), ...bot, ...u.windows.filter(last)]
         return { ...u, windows, ...(plan ? { plan } : {}), signIn: "kept" }
       },
     },
@@ -2300,4 +2446,4 @@ export async function CursorAuthPlugin() {
 }
 
 // for tests
-export const _internal = { onDemandOf,resetH1: () => (h1Until = 0), onH1: () => Date.now() < h1Until, H2, H1, h2Blocked, open, openH1, STEP_WAIT, stepUsage, ledger, owed, flights, misses, unreadable, catalog, usable, request, modelsOf, tokensOf, maxRequired, conversationID, usageOf, sessionOf, SESSION, errorResponse, kept, poolBase, conversation, buildRun, decode, exec, fields, pb, pbValue, pbAny, frame, frames, failure, toolsOf, expiry }
+export const _internal = { onDemandOf,resetH1: () => (h1Until = 0), onH1: () => Date.now() < h1Until, H2, H1, h2Blocked, open, openH1, openH2, STEP_WAIT, stepUsage, usageKey, ledger, owed, flights, misses, unreadable, catalog, usable, request, modelsOf, tokensOf, maxRequired, conversationID, usageOf, sessionOf, SESSION, errorResponse, kept, poolBase, conversation, buildRun, decode, exec, fields, pb, pbValue, pbAny, frame, frames, failure, toolsOf, expiry }

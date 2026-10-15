@@ -38,6 +38,9 @@ export function createProviderAccountRelaySource(accounts: ProviderAccounts): {
   const service: ProviderAccountRelayService = {
     onDidChange: accounts.onDidChange,
     getView: () => accounts.getView(),
+    checkinAccount: (id) => accounts.checkinAccount(id),
+    checkinAll: (channel) => accounts.checkinAll(channel),
+    setAutomaticCheckin: (id, enabled) => accounts.setAutomaticCheckin(id, enabled),
     startAuthorization: (input) => accounts.startAuthorization(input),
     getAuthorization: (id) => accounts.getAuthorization(id),
     completeAuthorization: (id, code) => accounts.completeAuthorization(id, code),

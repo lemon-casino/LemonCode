@@ -11,6 +11,9 @@ import { createServiceDescriptor } from "../descriptors.js";
 export interface IProviderAccountService {
   readonly onDidChange: Event<ProviderAccountView>;
   getView(): Promise<ProviderAccountView>;
+  checkinAccount(connectionId: string): Promise<ProviderAccountView>;
+  checkinAll(channelId?: string): Promise<ProviderAccountView>;
+  setAutomaticCheckin(connectionId: string, enabled: boolean): Promise<ProviderAccountView>;
   startAuthorization(input: StartProviderAuthorization): Promise<ProviderAuthorization>;
   getAuthorization(attemptId: string): Promise<ProviderAuthorization>;
   completeAuthorization(attemptId: string, code: string): Promise<ProviderAuthorization>;

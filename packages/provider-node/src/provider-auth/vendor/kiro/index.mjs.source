@@ -503,7 +503,9 @@ function account(client) {
 const windows = new Map() // a model's context, as Kiro last listed it
 
 const thinks = (id) => /claude/i.test(id) || id === "auto"
-const BUDGETS = { low: 10000, medium: 20000, high: 30000, max: 50000 }
+// the levels a thinking model offers, as the built-in thinks them (xhigh as
+// long as max: #120)
+const BUDGETS = { low: 10000, medium: 20000, high: 30000, xhigh: 50000, max: 50000 }
 
 function configModel(m) {
   return {
@@ -614,6 +616,12 @@ function imageFormat(mediaType) {
   return f
 }
 
+// addImage puts an Anthropic image block in images as Kiro takes it: the
+// bytes inline. One named only by a URL has no bytes to send and is left out.
+function addImage(images, p) {
+  if (p.source?.type === "base64" && p.source.data) images.push({ format: imageFormat(p.source.media_type), source: { bytes: p.source.data } })
+}
+
 const textOf = (c) =>
   typeof c === "string" ? c : Array.isArray(c) ? c.filter((p) => p?.type === "text").map((p) => p.text ?? "").join("\n\n") : ""
 const joinNonEmpty = (a, b) => (a && b ? a + "\n\n" + b : a + b)
@@ -640,6 +648,12 @@ function thinking(req, model) {
 // buildKiro is the body of a generateAssistantResponse call.
 function buildKiro(req, model, profile, budget) {
   const entries = []
+  // the messages the caller marked for its prompt cache (cache_control),
+  // which go to Kiro as a cachePoint on the message they end up in (#110)
+  const marked = new WeakSet()
+  const mark = (msg, parts) => {
+    if (parts.some((p) => p?.cache_control)) marked.add(msg)
+  }
   const user = () => ({ content: "", modelId: model, origin: "KIRO_CLI" })
   for (const m of req.messages ?? []) {
     const parts = typeof m.content === "string" ? [{ type: "text", text: m.content }] : m.content ?? []
@@ -660,6 +674,7 @@ function buildKiro(req, model, profile, budget) {
         prev.content = joinNonEmpty(prev.content, a.content)
         prev.toolUses.push(...a.toolUses)
       } else entries.push({ assistantResponseMessage: a })
+      mark(prev ?? a, parts)
       continue
     }
     const u = user()
@@ -669,12 +684,14 @@ function buildKiro(req, model, profile, budget) {
       if (p?.type === "text") {
         if (p.text) texts.push(p.text)
       } else if (p?.type === "document") texts.push(documentText(p))
-      else if (p?.type === "image") {
-        if (p.source?.type === "base64" && p.source.data) u.images.push({ format: imageFormat(p.source.media_type), source: { bytes: p.source.data } })
-      } else if (p?.type === "tool_result") {
+      else if (p?.type === "image") addImage(u.images, p)
+      else if (p?.type === "tool_result") {
         let out = textOf(p.content)
         if (out.length > RESULT_LIMIT) out = out.slice(0, RESULT_LIMIT) + "\n… (cut)"
         results.push({ toolUseId: toolID(p.tool_use_id), status: p.is_error ? "error" : "success", content: [{ text: out || "(no output)" }] })
+        // a tool's images (a screenshot, Codex's view_image) go with the
+        // message, as Kiro's tool results carry text alone (magpie #369, #1861)
+        if (Array.isArray(p.content)) for (const c of p.content) if (c?.type === "image") addImage(u.images, c)
       }
     }
     u.content = texts.join("\n\n")
@@ -685,6 +702,7 @@ function buildKiro(req, model, profile, budget) {
       prev.images.push(...u.images)
       if (results.length) (prev.userInputMessageContext ??= { toolResults: [] }).toolResults.push(...results)
     } else entries.push({ userInputMessage: u })
+    mark(prev ?? u, parts)
   }
   // the conversation opens with something the user said: tool results with
   // no call before them go, and a reply the caller began with
@@ -740,6 +758,7 @@ function buildKiro(req, model, profile, budget) {
   let system = typeof req.system === "string" ? req.system : textOf(req.system)
   if (budget) system = `<thinking_mode>enabled</thinking_mode><max_thinking_length>${budget}</max_thinking_length>` + (system ? "\n" + system : "")
   if (system) entries[0].userInputMessage.content = system + "\n\n" + entries[0].userInputMessage.content
+  if (Array.isArray(req.system)) mark(entries[0].userInputMessage, req.system)
 
   // the caller's tools, and any the conversation used that it no longer
   // offers — Kiro rejects a history naming a tool it wasn't given
@@ -752,6 +771,7 @@ function buildKiro(req, model, profile, budget) {
     const name = toolName(t.name)
     offered.add(name)
     tools.push({ toolSpecification: { name, description: t.description || t.name, inputSchema: { json: t.input_schema ?? EMPTY } } })
+    if (t.cache_control) tools.push({ cachePoint: { type: "default" } })
   }
   for (const e of entries)
     for (const c of e.assistantResponseMessage?.toolUses ?? [])
@@ -760,6 +780,19 @@ function buildKiro(req, model, profile, budget) {
         tools.push({ toolSpecification: { name: c.name, description: "Tool", inputSchema: { json: EMPTY } } })
       }
   if (tools.length) (current.userInputMessageContext ??= {}).tools = tools
+  // Kiro's cachePoint is Bedrock's: it caches the prompt up to the point,
+  // and a request may hold 4 at most, as Anthropic's cache_control; past
+  // that the last ones are kept, the most of the prompt they cover
+  const points = []
+  for (const t of tools) if (t.cachePoint) points.push(() => tools.splice(tools.indexOf(t), 1))
+  for (const e of entries) {
+    const msg = e.userInputMessage ?? e.assistantResponseMessage
+    if (marked.has(msg)) {
+      msg.cachePoint = { type: "default" }
+      points.push(() => delete msg.cachePoint)
+    }
+  }
+  for (const drop of points.slice(0, Math.max(0, points.length - 4))) drop()
 
   const state = { chatTriggerType: "MANUAL", agentTaskType: "vibe", conversationId: randomUUID(), currentMessage: { userInputMessage: current } }
   if (entries.length > 1) state.history = entries.slice(0, -1)
@@ -1485,4 +1518,4 @@ export async function KiroAuthPlugin({ client } = {}) {
 }
 
 // for tests
-export const _internal = { generate, refresh, usageOf, buildKiro, events, reply, failure, toolID, toolName, toolNames, thinking, readCLI, readIDE, regionOf, planName, frames }
+export const _internal = { generate, refresh, usageOf, buildKiro, events, reply, failure, toolID, toolName, toolNames, thinking, configModel, runtimeModel, readCLI, readIDE, regionOf, planName, frames }

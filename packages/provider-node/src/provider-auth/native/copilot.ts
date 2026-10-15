@@ -254,10 +254,33 @@ export class CopilotAuthDriver implements AuthDriver {
       headers: { ...headersFor(grant), authorization: `Bearer ${grant.sessionToken}` },
       signal: joinedSignal(context.signal, this.lifetime.signal),
     });
+    let tokenBased: boolean | undefined;
+    if (list(response.data).some((item) => record(item).billing)) {
+      try {
+        const quota = record(await this.quota(context));
+        const modes = Object.values(record(quota.quota_snapshots))
+          .map((item) => record(item).token_based_billing)
+          .filter((mode): mode is boolean => typeof mode === "boolean");
+        tokenBased =
+          typeof quota.token_based_billing === "boolean"
+            ? quota.token_based_billing
+            : modes.length && modes.every((mode) => mode === modes[0])
+              ? modes[0]
+              : undefined;
+      } catch {
+        context.signal?.throwIfAborted();
+      }
+    }
     this.policies.clear();
-    this.catalog = copilotCatalog(response, base);
+    this.catalog = copilotCatalog(response, base, tokenBased);
     for (const model of this.catalog.policies) this.policies.add(model);
     return this.catalog.models.filter((model) => !this.auto.isRefused(model.id));
+  }
+  async modelCatalog(context: AuthDriverContext) {
+    await this.models(context);
+    // 用户刷新成功后应可重新尝试账号的新权限；失败时仍保留已有拒绝事实。
+    this.auto.catalogRefreshed();
+    return { models: this.catalog!.models };
   }
   private async acceptPolicy(
     model: string,
@@ -304,7 +327,8 @@ export class CopilotAuthDriver implements AuthDriver {
     const body = JSON.stringify(parsed);
     let grant = await this.session(context);
     const model = text(parsed.model);
-    if (model === "auto" && !this.catalog) await this.models(context);
+    // 冷恢复只保留公开目录，不保留 driver 的 policy 集；手选模型也须恢复账号目录后再激活权限。
+    if (!this.catalog) await this.models(context);
     const signal = joinedSignal(request.signal, context.signal, this.lifetime.signal);
     const send = async (auth: AuthGrant): Promise<Response> => {
       const base = sessionBase(auth.apiBase);

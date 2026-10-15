@@ -19,7 +19,7 @@
 import { createDecipheriv, createHash } from "node:crypto"
 import { existsSync, readFileSync, readdirSync } from "node:fs"
 import { arch, homedir, release, userInfo } from "node:os"
-import { basename, join } from "node:path"
+import { isAbsolute, join } from "node:path"
 import PROMPT from "./prompt.mjs"
 
 const PROVIDER = "zcode"
@@ -933,8 +933,28 @@ async function authorize(site, log) {
 // team's plan. An account signed in "as ZCode" reads them for every
 // request, so it follows ZCode's own sign-in, its renewed session and its
 // switches between plans, as magpie's built-in did (zcode.go zcodeOwn).
+//
+// ZCode 3.14 can move its data (数据存储路径, "data storage path"): it copies
+// ~/.zcode/v2 to <folder>/.zcode/v2, all but setting.json, and from its next
+// start reads credentials.json and runtime/provider from there. The choice
+// stays in the home folder's setting.json as dataBaseDir, which ZCode's main
+// process reads before anything else (readBootstrapDataBaseDirFromDisk);
+// setting.json itself, and the team plan it names, stay in the home folder.
 
-const zcodeDir = () => join(homedir(), ".zcode", "v2")
+// settingDir is where ZCode keeps setting.json, moved or not.
+const settingDir = () => join(homedir(), ".zcode", "v2")
+
+// dataIn is the folder ZCode keeps its .zcode data in: the home folder,
+// unless dataBaseDir moved it. A value that isn't an absolute path is
+// ignored, as magpie's built-in does (internal/appdir ZCodeDataIn).
+function dataIn() {
+  const d = readJSON(join(settingDir(), "setting.json"))?.dataBaseDir
+  const t = typeof d === "string" ? d.trim() : ""
+  return t && isAbsolute(t) ? t : homedir()
+}
+
+// zcodeDir is where ZCode keeps credentials.json and runtime/provider.
+const zcodeDir = () => join(dataIn(), ".zcode", "v2")
 
 // secret is the key ZCode encrypts its credentials with.
 function secret() {
@@ -974,7 +994,7 @@ function readJSON(path) {
 
 // ownTeam is the team plan ZCode switched to, when it did.
 function ownTeam(store, key) {
-  const set = readJSON(join(zcodeDir(), "setting.json"))
+  const set = readJSON(join(settingDir(), "setting.json"))
   if (!set) return null
   const families = set.providerFamilyDomain === "zai" || set.providerFamilyDomain === "bigmodel" ? [set.providerFamilyDomain] : ["zai", "bigmodel"]
   for (const fam of families) {
@@ -1006,6 +1026,27 @@ function ownTeam(store, key) {
   return null
 }
 
+// configKey is the coding plan key ZCode's config.json gives its built-in
+// coding plan provider, Z.ai's first, as ZCode lists them; ZCode reads it
+// as it is, and one written encrypted is read too.
+function configKey(key) {
+  const providers = readJSON(join(zcodeDir(), "config.json"))?.provider
+  if (!providers || typeof providers !== "object") return null
+  for (const [ids, base] of [
+    [["builtin:zai-coding-plan", "account:zai-individual-coding-plan"], ZAI_BASE],
+    [["builtin:bigmodel-coding-plan", "account:bigmodel-individual-coding-plan"], BIGMODEL_BASE],
+  ]) {
+    for (const id of ids) {
+      let k = providers[id]?.options?.apiKey
+      if (typeof k !== "string") continue
+      k = k.trim()
+      if (k.startsWith("enc:")) k = first(decrypt(key, k))
+      if (k.includes(".") && !/[\s{$]/.test(k)) return { key: k, base }
+    }
+  }
+  return null
+}
+
 // ownSignIn is what ZCode is signed in to now: the account, its coding
 // plan key, ZCode's session token (the Start Plan's key) and the team plan
 // it is switched to; null when it has none of them.
@@ -1023,6 +1064,9 @@ function ownSignIn() {
     // Z.ai's first, as ZCode lists it
     if (!s.key || (base === ZAI_BASE && s.base !== ZAI_BASE)) s = { key: k, base }
   }
+  // ZCode 3.15 keeps no plan key in its credentials; the one it uses sits
+  // in config.json, the provider's options.apiKey (yetone/magpie#2130)
+  if (!s.key) s = configKey(key) || s
   const jwt = first(first(decrypt(key, store.zcodejwttoken)).replace(/^Bearer /, ""))
   const team = ownTeam(store, key)
   if (team) s = { ...team, jwt }
@@ -1044,7 +1088,7 @@ function ownSignIn() {
 function asZCode() {
   return {
     url: "",
-    instructions: "Uses the account the ZCode app is signed in to, and follows it.",
+    instructions: "Uses the account the ZCode app is signed in to, and follows it while ZCode stays signed in to that account.",
     method: "auto",
     async callback() {
       const own = ownSignIn()
@@ -1064,10 +1108,13 @@ function stateOf(auth) {
       s = JSON.parse(auth.refresh)
     } catch {}
     if (s.source === "zcode") {
-      // ZCode's own, read now: what it was when this was signed in, if
-      // ZCode has since signed out
+      // ZCode's own, read now, while ZCode is signed in to this same
+      // account. Signed out, or signed in to another account since, it is
+      // what it was when this was signed in: another account's key would
+      // send this account's requests as that one, and an expired session
+      // says sign in again (EXPIRED) rather than borrowing another's.
       const own = ownSignIn()
-      if (own) {
+      if (own && own.user === String(auth.accountId ?? "")) {
         const { user, ...now } = own
         s = { source: "zcode", device: s.device, plan: s.plan, ...now }
       }
@@ -1136,7 +1183,7 @@ function modelsOf(cfg, plan) {
 // localConfig is the latest provider config an installed ZCode has.
 function localConfig() {
   const files = []
-  const rt = join(homedir(), ".zcode", "v2", "runtime", "provider")
+  const rt = join(zcodeDir(), "runtime", "provider")
   const walk = (dir, depth) => {
     let es = []
     try {
@@ -1299,20 +1346,47 @@ function startHeaders(h, jwt) {
   h.set("x-zcode-trace-id", uuid())
 }
 
+// WORK_DIR and WORK_GIT are where magpie tells a plugin's fetch the agent
+// that asked works: the folder, percent-encoded, and "yes" or "no" for a
+// git repository, each left off when magpie doesn't know it (magpie's
+// provider.WorkDirHeader and WorkGitHeader). They are for the plugin, not
+// the vendor.
+const WORK_DIR = "x-magpie-work-dir"
+const WORK_GIT = "x-magpie-work-git"
+
+// workPlace takes WORK_DIR and WORK_GIT off h: {dir?, git?}, what magpie
+// said of where the agent works.
+function workPlace(h) {
+  const place = {}
+  const dir = h.get(WORK_DIR)
+  if (dir) {
+    try {
+      place.dir = decodeURIComponent(dir)
+    } catch {}
+  }
+  const git = h.get(WORK_GIT)
+  if (place.dir && (git === "yes" || git === "no")) place.git = git
+  h.delete(WORK_DIR)
+  h.delete(WORK_GIT)
+  return place
+}
+
 // environment is the prompt's environment section; provider and model
-// name the powered-by line, left out with no model.
-function environment(provider, model) {
+// name the powered-by line, left out with no model. The plugin runs in
+// magpie, not in the agent's folder: the working directory and whether it
+// is a git repository are the agent's, as magpie tells them (place), and
+// each is left out when it isn't told rather than said as magpie's own
+// (#86). The agent's shell isn't known here either, so it isn't said; the
+// platform and OS version are this computer's, as ZCode's X-Os-* headers
+// say them.
+function environment(provider, model, place = {}) {
   const e = PROMPT.environment
-  const sh = process.env.SHELL || process.env.ComSpec
-  const lines = [
-    e.heading,
-    e.invokedLine,
-    `- ${e.cwdLabel}: ${process.cwd()}`,
-    `- ${e.gitLabel}: ${e.gitNo}`,
-    `- ${e.platformLabel}: ${process.platform}`,
-    `- ${e.shellLabel}: ${sh ? basename(sh) : "unknown"}`,
-    `- ${e.osVersionLabel}: ${osVersion()}`,
-  ]
+  const lines = [e.heading, e.invokedLine]
+  if (place.dir) {
+    lines.push(`- ${e.cwdLabel}: ${place.dir}`)
+    if (place.git) lines.push(`- ${e.gitLabel}: ${place.git === "yes" ? "yes" : e.gitNo}`)
+  }
+  lines.push(`- ${e.platformLabel}: ${process.platform}`, `- ${e.osVersionLabel}: ${osVersion()}`)
   if (model) lines.push(e.poweredByLine.replace("{provider}", provider).replace("{model}", model))
   return lines.join("\n")
 }
@@ -1335,9 +1409,10 @@ function contextPrefix() {
 // system blocks, then the agent's own system text uncached; the context
 // prefix as the first turn; no cache mark in the turns but on the last
 // block of the last; none on the tools; metadata.user_id naming the
-// sign-in's device. site names the powered-by line's provider. A body that
-// isn't a Messages request goes as it is.
-function dress(text, site, device) {
+// sign-in's device. site names the powered-by line's provider, place where
+// the agent works (workPlace). A body that isn't a Messages request goes as
+// it is.
+function dress(text, site, device, place) {
   if (typeof text !== "string" || !text.includes("messages")) return text
   let b
   try {
@@ -1358,7 +1433,7 @@ function dress(text, site, device) {
   b.system = [
     cached(PROMPT.cliPrefix),
     cached(PROMPT.stableSections.join("\n\n")),
-    cached("\n\n" + [PROMPT.beforeEnvironment, environment(provider, model), PROMPT.afterEnvironment].join("\n\n")),
+    cached("\n\n" + [PROMPT.beforeEnvironment, environment(provider, model, place), PROMPT.afterEnvironment].join("\n\n")),
     ...own,
   ]
   b.messages = [contextPrefix(), ...b.messages]
@@ -1498,6 +1573,7 @@ export async function ZCodeAuthPlugin({ client }) {
               }
             }
             let h = new Headers(opts.headers)
+            const place = workPlace(h)
             if (start) {
               if (jwtExpired(s.jwt)) throw new Error(EXPIRED)
               if (!s.jwt) throw new Error("ZCode's sign-in has no key; sign in again")
@@ -1506,7 +1582,7 @@ export async function ZCodeAuthPlugin({ client }) {
               startHeaders(h, s.jwt)
               if (opts.body != null) {
                 const text = orig ?? (typeof opts.body === "string" ? opts.body : await new Response(opts.body).text())
-                opts.body = dress(text, s.site, s.device)
+                opts.body = dress(text, s.site, s.device, place)
                 delete opts.duplex
                 h.delete("content-length")
               }

@@ -2,15 +2,15 @@ import {
   PROVIDER_AUTH_CHANNELS,
   loadProviderAuthChannels,
   projectProviderAccount,
-  modelSchema,
   type StoredAccount,
 } from "./providerAccountStoreSchema.js";
 import { executeProviderAccountPool } from "./providerAccountPool.js";
 import { resolveProviderAccountRoutes } from "./providerAccountRouting.js";
 import { createProviderAccountContext } from "./providerAccountContext.js";
 import { ProviderAccountQuotas } from "./providerAccountQuotas.js";
+import { ProviderAccountCheckins } from "./providerAccountCheckins.js";
+import { refreshProviderAccountCatalog } from "./providerAccountCatalogRefresh.js";
 import { randomUUID } from "node:crypto";
-import { z } from "zod";
 import { Emitter } from "@lcode/rpc";
 import { ProviderAccountRefreshOwner } from "./providerAccountRefreshOwner.js";
 import { ProviderAccountDriverCleanup } from "./providerAccountDriverCleanup.js";
@@ -47,7 +47,6 @@ export interface ProviderAccountsOptions {
   factory?: AuthDriverFactory;
   channels?: readonly { id: string; name: string }[];
 }
-
 export class ProviderAccounts implements IProviderAccountService {
   readonly #emitter = new Emitter<ProviderAccountView>();
   readonly onDidChange = this.#emitter.event;
@@ -64,11 +63,12 @@ export class ProviderAccounts implements IProviderAccountService {
     track: (id: string) => this.#track(id),
     untrack: (id: string, controller: AbortController) => this.#untrack(id, controller),
     withAccountLock: <T>(account: StoredAccount, operation: () => Promise<T>) =>
-      this.#withAccountLock(account, operation),
+      this.#refreshOwner.run(account.connectionId, operation),
     preferred: new Map<string, string>(),
     closed: () => this.#disposed,
   };
   readonly #quotas = new ProviderAccountQuotas(this.#operations);
+  readonly #checkins: ProviderAccountCheckins;
   readonly #transport = new ProviderAccountTransport((ticket, request) =>
     executeProviderAccountPool(
       this.#operations,
@@ -82,11 +82,27 @@ export class ProviderAccounts implements IProviderAccountService {
   #revision = 0;
   #disposed = false;
   readonly #storage: ProviderAccountStorage;
+  readonly #factory: AuthDriverFactory;
   readonly #watcher: { ready: Promise<void>; dispose: () => void };
   #publishedSignature?: string;
   constructor(private readonly options: ProviderAccountsOptions) {
+    this.#factory = options.factory ?? createAuthDriver;
     this.#refreshOwner = new ProviderAccountRefreshOwner(options.lockPath);
     this.#storage = new ProviderAccountStorage(options.credentials, options.lockPath);
+    this.#checkins = new ProviderAccountCheckins({
+      ...this.#operations,
+      mutate: (update) => this.#mutate(update),
+      publish: () => this.#publish(),
+      invalidateQuota: (id) => this.#quotas.invalidate(id),
+      supportsCheckin: async (id) =>
+        (await this.getView()).channels.some(
+          (channel) => channel.id === id && channel.checkinSupported,
+        ),
+      activityChanged: () => {
+        this.#revision++;
+      },
+    });
+    this.#checkins.start();
     this.#watcher = watchProviderAccountStorage(options.watchFile, async () => {
       const accounts = await this.#storage.readPublic();
       const signature = JSON.stringify(accounts);
@@ -96,9 +112,6 @@ export class ProviderAccounts implements IProviderAccountService {
         await this.#publish();
       }
     });
-  }
-  get #factory(): AuthDriverFactory {
-    return this.options.factory ?? createAuthDriver;
   }
   async #mutate(update: (accounts: StoredAccount[]) => void): Promise<void> {
     await this.#storage.mutate((accounts) => {
@@ -116,7 +129,9 @@ export class ProviderAccounts implements IProviderAccountService {
     // 读取前冻结版本，旧快照不能冒用渠道初始化期间产生的新版本覆盖新视图。
     const revision = this.#revision;
     const stored = await this.#storage.read();
-    const accounts = stored.map(projectProviderAccount);
+    const accounts = stored.map((account) =>
+      projectProviderAccount(account, this.#checkins.isRunning(account.connectionId)),
+    );
     return { revision, channels, accounts };
   }
   async #publish(): Promise<ProviderAccountView> {
@@ -268,41 +283,14 @@ export class ProviderAccounts implements IProviderAccountService {
     };
   }
   async refreshModels(connectionId: string): Promise<ProviderAccountView> {
-    const account = (await this.#storage.read()).find((item) => item.connectionId === connectionId);
-    if (!account) throw new Error("Unknown account");
-    const controller = this.#track(connectionId);
-    const context = this.#context(account, controller.signal);
-    try {
-      const catalog = await this.#withAccountLock(account, async () => {
-        controller.signal.throwIfAborted();
-        const driver = await this.#driver(account);
-        return driver.modelCatalog
-          ? driver.modelCatalog(context)
-          : { models: await driver.models(context), fallback: false };
-      });
-      const models = z.array(modelSchema).parse(catalog.models);
-      await this.#mutate((accounts) => {
-        controller.signal.throwIfAborted();
-        const current = accounts.find((item) => item.connectionId === connectionId);
-        // 其他Host重新授权时本地controller未必已取消；目录也必须检查本次实际读取/刷新的凭据代次。
-        if (!current || !context.isCurrent(current)) throw new Error("Stale model catalog");
-        // 插件短期兜底目录不是新事实；成功目录不能被静态fallback静默缩水。
-        if (!catalog.fallback || !current.models.length) current.models = models;
-        if (catalog.fallback)
-          current.error = "Model catalog unavailable; showing the last available models.";
-        else delete current.error;
-      });
-    } catch {
-      if (!controller.signal.aborted)
-        await this.#mutate((accounts) => {
-          const current = accounts.find((item) => item.connectionId === connectionId);
-          if (current && context.isCurrent(current))
-            current.error = "Unable to load models. Refresh or sign in again.";
-        });
-    } finally {
-      this.#untrack(connectionId, controller);
-    }
-    return this.#publish();
+    return refreshProviderAccountCatalog(
+      {
+        ...this.#operations,
+        mutate: (update) => this.#mutate(update),
+        publish: () => this.#publish(),
+      },
+      connectionId,
+    );
   }
   #track(id: string): AbortController {
     const controller = new AbortController();
@@ -317,12 +305,25 @@ export class ProviderAccounts implements IProviderAccountService {
   getQuota(connectionId: string, force?: boolean) {
     return this.#quotas.get(connectionId, force);
   }
+  async checkinAccount(id: string) {
+    await this.#checkins.run(id);
+    return this.#publish();
+  }
+  async checkinAll(channelId?: string) {
+    await this.#checkins.runAll(channelId);
+    return this.#publish();
+  }
+  async setAutomaticCheckin(id: string, enabled: boolean) {
+    await this.#checkins.setAutomatic(id, enabled);
+    return this.#publish();
+  }
   #untrack(id: string, controller: AbortController): void {
     const set = this.#inflight.get(id);
     set?.delete(controller);
     if (!set?.size) this.#inflight.delete(id);
   }
   #abort(id: string): void {
+    this.#checkins.invalidate(id);
     this.#quotas.invalidate(id);
     for (const controller of this.#inflight.get(id) ?? []) controller.abort();
     this.#inflight.delete(id);
@@ -373,12 +374,10 @@ export class ProviderAccounts implements IProviderAccountService {
       protocol: selectedProtocol,
     };
   }
-  #withAccountLock<T>(account: StoredAccount, operation: () => Promise<T>): Promise<T> {
-    return this.#refreshOwner.run(account.connectionId, operation);
-  }
   async dispose(): Promise<void> {
     this.#disposed = true;
     this.#quotas.dispose();
+    this.#checkins.dispose();
     this.#watcher.dispose();
     for (const controller of this.#starting.values()) controller.abort();
     for (const attempt of this.#attempts.values()) {
