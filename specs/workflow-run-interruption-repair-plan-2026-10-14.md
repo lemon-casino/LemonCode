@@ -266,6 +266,7 @@ LI24 使用无窗口隔离 Electron 主进程加载实际 LCodeAgentProcessManag
 - 模型、memory、workflow 的实际收尾在启动时登记到原 Core stable drain。workflow owner 退休失败必须向上传递，不能仅记日志后成功；Execution/MCP 等实际拒绝和 store.close 拒绝同样保留失败事实。其它独立资源仍并行获得清理尝试，多项异常保留全部原因。
 - store 仅在所有 store-dependent 工作实际 settle、关键关闭无失败后关闭；失败不能导致 ProtocolRuntimeResources 删除 App。成功资源的缓存仅表示资源关闭进度，不复制运行状态或 accepted 队列。
 - Protocol 进程级 cleanup 在 session shutdown 失败后也保留共享 store，不能与 App 的保护相冲突；真正进程退出仍由原绝对 deadline 控制。
+- 构造尚未发布的 App 也属于资源事务：失败启动先独立清理已分配资源，再退休 lease，最后才关闭自建 store。若任一步失败，错误携带原始原因及精确重试句柄，交给既有 ProtocolRuntimeResources 持有；同 session 下一次构造和进程关闭先重试该句柄。不能把 active 的未发布 lease 遗留为同进程不可恢复状态，也不能用新 token 绕过。
 
 ### 跨会话恢复的原执行 owner 路由
 
@@ -273,7 +274,9 @@ LI24 使用无窗口隔离 Electron 主进程加载实际 LCodeAgentProcessManag
 - Protocol 复用既有 session registry、resume flight 和 resident operation gate；校验发起会话仍属原实例、目标 workspace identity/origin 和 remoteSessionId。冷态目标经现有 activateSessionForResume 恢复，不能另建临时 App 执行 run；外部进程仍活跃或身份未知时返回拒绝。
 - 恢复成功前已在目标原 service 登记 run。getTask/waitForTask/cancel 对已路由 run 仍委托原 service；原 run 的 parent、事件、lineage、Browser authority 与 store 不改写。调用方可继续用既有后台追踪观察该 run，不取得执行所有权。
 - owner 不可用返回新增结构化 `owner_unavailable`，同步 contracts、工具失败和 V4/UI 诊断；不先发布 ok 再因 parent fence 后台失败。保留现有严格协议校验，不新增客户端可设置的 owner 或 cleanup 标记。
+- Resume 拒绝原因的闭集由 shared 的运行时 schema 统一定义，经现有 lcode-protocol 与 V4 公开入口导出；CLI contracts 复用其类型，UI 复用其选项，避免三份词表漂移。ACK 的 reasonCode 仍沿原前缀和字段传递。
 - 路由等待后重新检查运行准入及实例。相同 run 在有异步缓存重建时也必须在真正 launch 前复核本地在途条目，避免两个 Resume 都在等待后启动同 ID 引擎。
+- fenced service 的 submit 省略可选 parent 时沿用本 service parent；显式提供其它 parent 必须在接受前拒绝。Amend 在停止/导入的 await 后也复核关闭门，不能把错误留给后台 journal 写入才暴露。
 
 ```mermaid
 sequenceDiagram
