@@ -1,4 +1,5 @@
 import type { Logger, McpPort, ProtocolShutdownContext } from "@lcode/contracts";
+import { redactTelemetryText } from "@lcode/shared";
 import type { McpConnectionPool, McpTelemetryTracker } from "@lcode/adapters/mcp";
 import type { SqliteSessionStore } from "@lcode/adapters/storage";
 import { shutdownPreparedModelTelemetry } from "@lcode/telemetry";
@@ -10,6 +11,8 @@ import type { LCodeProtocolAgentServer } from "./server.js";
 const DEFAULT_CLEANUP_BUDGET_MS = 1_200;
 const CLEANUP_STEP_BUDGET_MS = 400;
 const CLEANUP_PENDING = Symbol("cleanup_pending");
+const CLEANUP_CAUSE_LIMIT = 4;
+const CLEANUP_CODE_LIMIT = 128;
 
 export async function cleanupProtocolRuntime(options: {
   logger: Logger;
@@ -26,6 +29,14 @@ export async function cleanupProtocolRuntime(options: {
 }): Promise<void> {
   const deadline = options.deadlineAt ?? Date.now() + DEFAULT_CLEANUP_BUDGET_MS;
   const closeContext = options.shutdownContext ?? { origin: "unknown", processId: process.pid };
+  const results: Array<{ resource: string; status: "completed" | "failed" | "pending" }> = [];
+  const summary = () =>
+    options.logger.info("Protocol cleanup summary", {
+      ...closeContext,
+      event: "lcode_protocol.close.summary",
+      results,
+      remainingMs: Math.max(0, deadline - Date.now()),
+    });
   options.logger.info("Protocol cleanup started", {
     ...closeContext,
     event: "lcode_protocol.close.requested",
@@ -34,6 +45,11 @@ export async function cleanupProtocolRuntime(options: {
   const warnCleanupFailure = (resource: string, error: unknown): void => {
     options.logger.warn(`LCode Protocol ${resource} shutdown failed`, {
       errorType: error instanceof Error ? error.name : typeof error,
+      errorDetail: redactTelemetryText(error instanceof Error ? error.message : String(error)),
+      ...(error instanceof Error && "code" in error && typeof error.code === "string"
+        ? { errorCode: error.code.slice(0, CLEANUP_CODE_LIMIT) }
+        : {}),
+      causes: cleanupCauses(error),
       event: `lcode_protocol.${resource}.shutdown.failed`,
       module: "bootstrap.lcode_protocol",
       ...closeContext,
@@ -41,6 +57,7 @@ export async function cleanupProtocolRuntime(options: {
   };
   const step = async (resource: string, cleanup: () => unknown | Promise<unknown>) => {
     let timeout: NodeJS.Timeout | undefined;
+    let status: "completed" | "failed" | "pending" = "completed";
     try {
       // 共用绝对 deadline；某项失败/挂起不阻止其余资源被尝试，也不逐项续时。
       const outcome = await Promise.race([
@@ -53,6 +70,7 @@ export async function cleanupProtocolRuntime(options: {
         }),
       ]);
       if (outcome === CLEANUP_PENDING) {
+        status = "pending";
         options.logger.warn("Protocol cleanup remains pending", {
           ...closeContext,
           event: `lcode_protocol.${resource}.shutdown.pending`,
@@ -63,9 +81,11 @@ export async function cleanupProtocolRuntime(options: {
       }
       return { status: "completed" as const };
     } catch (error) {
+      status = "failed";
       warnCleanupFailure(resource, error);
       return { error, status: "failed" as const };
     } finally {
+      results.push({ resource, status });
       if (timeout) clearTimeout(timeout);
     }
   };
@@ -103,9 +123,32 @@ export async function cleanupProtocolRuntime(options: {
     shutdownFailure = { error };
   }
   // App 关闭失败时原 owner 仍可能需要此共享连接重试退休，不能绕过 facade 保护关库。
-  if (shutdownFailure) throw shutdownFailure.error;
+  if (shutdownFailure) {
+    summary();
+    throw shutdownFailure.error;
+  }
   const storeResult = await step("session_store", () => {
     if (options.sessionStore) closeSessionStore(options.sessionStore);
   });
+  summary();
   if (storeResult.status === "failed") throw storeResult.error;
+}
+
+function cleanupCauses(error: unknown): string[] {
+  const pending: unknown[] =
+    error instanceof AggregateError
+      ? [...error.errors].slice(0, CLEANUP_CAUSE_LIMIT)
+      : error instanceof Error && error.cause !== undefined
+        ? [error.cause]
+        : [];
+  const seen = new Set<unknown>([error]);
+  const causes: string[] = [];
+  while (pending.length && causes.length < CLEANUP_CAUSE_LIMIT) {
+    const cause = pending.shift();
+    if (seen.has(cause)) continue;
+    seen.add(cause);
+    causes.push(redactTelemetryText(cause instanceof Error ? cause.message : String(cause)));
+    if (cause instanceof Error && cause.cause !== undefined) pending.push(cause.cause);
+  }
+  return causes;
 }

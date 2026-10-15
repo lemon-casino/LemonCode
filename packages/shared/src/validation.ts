@@ -528,6 +528,10 @@ export { lcodeProviderSchema };
 export const lcodeTaskMigrationSourceSchema = z.enum(["claudeCode"]);
 
 export const hostAgentProcessSpawnedResponseSchema = z.object({
+  agentEntrySha256: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
   type: z.literal("agent-process-spawned"),
   /** 进程泳道（mcp-status 等），旧 Host 不带该字段。 */
   lane: nonEmptyStringSchema.optional(),
@@ -601,6 +605,10 @@ export type HostAgentProcessErrorResponse = z.infer<typeof hostAgentProcessError
 
 export const hostAgentProcessExceptionResponseSchema = z
   .object({
+    agentEntrySha256: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
     type: z.literal("agent-process-exception"),
     lane: nonEmptyStringSchema.optional(),
     pid: z.number().int().positive(),

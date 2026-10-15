@@ -3,6 +3,26 @@ import test from "node:test";
 import { PassThrough } from "node:stream";
 import { createProtocolProcessLifecycle } from "./protocol-lifecycle.js";
 
+test("fatal ID reaches the first shutdown context and secondary errors cannot replace it", async () => {
+  const output = new PassThrough();
+  const lifecycle = createProtocolProcessLifecycle({
+    input: new PassThrough(),
+    output,
+    stderr: output,
+    exitProcess: () => {},
+  });
+  lifecycle.requestShutdown(new Error("first"), 1, "runtime_failure", undefined, "original-error");
+  lifecycle.requestShutdown(
+    new Error("secondary"),
+    1,
+    "runtime_failure",
+    undefined,
+    "secondary-error",
+  );
+  assert.equal(lifecycle.shutdownContext?.errorId, "original-error");
+  await lifecycle.complete(1);
+});
+
 test("signal attribution preserves its first absolute deadline", async (t) => {
   const original = process.on.bind(process);
   let terminate: (() => void) | undefined;

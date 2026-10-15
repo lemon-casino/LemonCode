@@ -1,6 +1,7 @@
 import type { LCodeProcessDiagnostic } from "@lcode/shared/process-diagnostic";
 
 export interface RuntimeProcessSpawnEvent {
+  agentEntrySha256?: string;
   /** 进程泳道（如 mcp-status）；缺省为 chat 主泳道。同 cwd、同 command 的多 lane 进程靠它归因。 */
   lane?: string;
   pid: number;
@@ -70,6 +71,7 @@ export interface RuntimeProcessLifecycleReporter {
 }
 
 export interface RuntimeProcessExceptionEvent {
+  agentEntrySha256?: string;
   lane?: string;
   pid: number;
   provider: string;

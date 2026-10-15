@@ -1,6 +1,7 @@
 /** 进程入口持有的首次关闭事实；仅内部契约，不是客户端授权或 wire 元数据。 */
 export interface ProtocolShutdownContext {
   readonly closeId: string;
+  readonly errorId?: string;
   readonly origin:
     | "stdin_eof"
     | "stdin_close"

@@ -37,6 +37,7 @@ export function createProtocolProcessLifecycle(
     code = error ? 1 : 0,
     origin: ProtocolShutdownContext["origin"] = error ? "runtime_failure" : "command_completed",
     signal?: string,
+    errorId?: string,
   ) => {
     if (deadlineAt !== undefined) return;
     exitCode = code;
@@ -47,6 +48,7 @@ export function createProtocolProcessLifecycle(
     deadlineAt = Date.now() + timeoutMs;
     shutdownContext = Object.freeze({
       closeId: randomUUID(),
+      ...(errorId ? { errorId } : {}),
       origin,
       requestedAt: Date.now(),
       deadlineAt,

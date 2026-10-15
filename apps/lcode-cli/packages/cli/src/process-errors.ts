@@ -1,11 +1,6 @@
 import { randomUUID } from "node:crypto";
-import {
-  LCODE_PROCESS_DIAGNOSTIC_PREFIX,
-  LCODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
-  LCODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
-  LCODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS,
-  type LCodeProcessDiagnostic,
-} from "@lcode/shared/process-diagnostic";
+import { LCODE_PROCESS_DIAGNOSTIC_PREFIX } from "@lcode/shared/process-diagnostic";
+import { createProcessDiagnostic } from "./process-diagnostic.js";
 
 interface CliProcessErrorBoundaryTarget {
   on(event: string, listener: (...args: unknown[]) => void): unknown;
@@ -13,7 +8,7 @@ interface CliProcessErrorBoundaryTarget {
 }
 
 interface CliProcessErrorBoundaryOptions {
-  onFatal: (reason: unknown) => void;
+  onFatal: (reason: unknown, errorId: string) => void;
   target?: CliProcessErrorBoundaryTarget;
   stderr?: {
     write(chunk: string): unknown;
@@ -45,8 +40,9 @@ export function installCliProcessErrorBoundary(
   ) => {
     if (fatal) return;
     fatal = true;
-    writeProcessErrorDiagnostic(stderr, kind, origin, reason);
-    options.onFatal(reason);
+    const errorId = randomUUID();
+    writeProcessErrorDiagnostic(stderr, kind, origin, reason, errorId);
+    options.onFatal(reason, errorId);
   };
 
   const onUncaughtExceptionMonitor = (error: unknown, origin: unknown): void => {
@@ -86,25 +82,11 @@ function writeProcessErrorDiagnostic(
   kind: "uncaughtException" | "unhandledRejection",
   origin: string,
   reason: unknown,
+  errorId: string,
 ): void {
   try {
-    const detail = formatProcessError(reason).slice(0, LCODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS);
-    const diagnostic: LCodeProcessDiagnostic = {
-      version: 1,
-      errorId: randomUUID(),
-      kind,
-      origin: origin === "unhandledRejection" ? origin : "uncaughtException",
-      name: (reason instanceof Error ? reason.name || "Error" : "Error").slice(
-        0,
-        LCODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
-      ),
-      message: (reason instanceof Error ? reason.message : detail).slice(
-        0,
-        LCODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
-      ),
-      ...(reason instanceof Error && reason.stack ? { stack: detail } : {}),
-      occurredAt: Date.now(),
-    };
+    const diagnostic = createProcessDiagnostic(errorId, kind, origin, reason);
+    const detail = diagnostic.stack ?? `${diagnostic.name}: ${diagnostic.message}`;
     // 根因：进程存活时旧 stderr 只进 debug，Electron SDK 无法捕获子进程异常。
     // 增加单行结构化事件供 Host 立即转发，保留可读文本兼容旧 Host 和 crash tail。
     stderr.write(
@@ -112,20 +94,5 @@ function writeProcessErrorDiagnostic(
     );
   } catch {
     // 诊断输出不能再次击穿进程级异常边界。
-  }
-}
-
-function formatProcessError(reason: unknown): string {
-  if (reason instanceof Error) {
-    return reason.stack || `${reason.name}: ${reason.message}`;
-  }
-  if (typeof reason === "string") {
-    return reason;
-  }
-  try {
-    const serialized = JSON.stringify(reason);
-    return serialized === undefined ? String(reason) : serialized;
-  } catch {
-    return String(reason);
   }
 }

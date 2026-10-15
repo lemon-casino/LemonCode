@@ -45,9 +45,15 @@ async function main(): Promise<void> {
   const disposeProcessErrorBoundary = isProtocol
     ? installCliProcessErrorBoundary({
         stderr,
-        onFatal: (reason) => {
+        onFatal: (reason, errorId) => {
           if (lifecycle)
-            lifecycle.requestShutdown(new Error("Uncaught process error", { cause: reason }));
+            lifecycle.requestShutdown(
+              new Error("Uncaught process error", { cause: reason }),
+              1,
+              "runtime_failure",
+              undefined,
+              errorId,
+            );
           else process.exit(1);
         },
       })

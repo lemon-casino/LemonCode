@@ -4,6 +4,61 @@ import type { SqliteSessionStore } from "@lcode/adapters/storage";
 import type { Logger, LogContext } from "@lcode/contracts";
 import { cleanupProtocolRuntime } from "./runtime-cleanup.js";
 
+test("cleanup reports bounded redacted causes and a summary correlated to the original fatal", async () => {
+  const warnings: LogContext[] = [],
+    infos: LogContext[] = [];
+  const logger: Logger = {
+    child: () => logger,
+    debug() {},
+    error() {},
+    info: (_message, context) => {
+      if (context) infos.push(context);
+    },
+    warn: (_message, context) => {
+      if (context) warnings.push(context);
+    },
+  };
+  let storeClosed = false,
+    independent = false;
+  const error = new Error("fixture failure", { cause: new Error("token=fixture-secret") });
+  await assert.rejects(
+    cleanupProtocolRuntime({
+      logger,
+      shutdownContext: {
+        closeId: "fixture-close",
+        errorId: "fixture-error",
+        origin: "runtime_failure",
+        requestedAt: Date.now(),
+        deadlineAt: Date.now() + 1200,
+        processId: 1,
+        transportAvailable: true,
+      },
+      server: {
+        shutdown: async () => {
+          throw error;
+        },
+        disposeProjections() {},
+      },
+      mcpPort: {
+        close: async () => {
+          independent = true;
+        },
+      },
+      sessionStore: {
+        close: () => {
+          storeClosed = true;
+        },
+      } as unknown as SqliteSessionStore,
+    }),
+    /fixture failure/,
+  );
+  assert.equal(independent, true);
+  assert.equal(storeClosed, false);
+  assert.ok(!JSON.stringify(warnings).includes("fixture-secret"));
+  assert.equal(warnings[0]?.errorId, "fixture-error");
+  assert.ok(infos.some((info) => info.event === "lcode_protocol.close.summary"));
+});
+
 function createDeferred(): {
   promise: Promise<void>;
   reject(error: Error): void;

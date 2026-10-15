@@ -10,9 +10,7 @@ import { Emitter } from "@lcode/rpc";
 import {
   parseLCodeProcessDiagnostic,
   LCODE_AGENT_LIFECYCLE_LOG_MARKER,
-  LCODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
-  LCODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
-  LCODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS,
+  redactLCodeProcessDiagnostic,
 } from "@lcode/shared/process-diagnostic";
 import {
   LCODE_AGENT_RUNTIME,
@@ -35,6 +33,7 @@ import type { LCodeAgentPresentationSurface } from "./lcodeAgentPresentationSurf
 import { shouldSpawnInDetachedProcessGroup } from "../process/processTreeTerminator.js";
 import type { RuntimeProcessLifecycleReporter } from "../process/runtimeProcessLifecycle.js";
 import { buildAgentWorkspaceIdentityEnv } from "../runtime-tools/agentProxyEnv.js";
+import { readAgentEntrySha256 } from "./lcodeAgentBuildIdentity.js";
 
 export interface LCodeAgentCommand {
   /** 本地配套 CLI bundle 的存储专用 Worker 入口；远端/自定义命令不推断能力。 */
@@ -1032,11 +1031,13 @@ export class LCodeAgentProcessManager {
       throw admissionSignal.reason ?? new Error("LCode agent process start was cancelled.");
     }
     const effectiveCommand = wrapLCodeAgentCommandWithStdioTapDevProxy(command, workspaceKey);
+    const agentEntrySha256 = await readAgentEntrySha256(command);
     log("LCode agent command resolved", {
       workspaceKey,
       command: command.command,
       effectiveCommand: effectiveCommand.command,
       resolveCommandDurationMs,
+      agentEntrySha256,
     });
 
     // Helper recovery 可能在 command resolve 期间开始；先等待一次，确保 env 解析使用
@@ -1112,26 +1113,8 @@ export class LCodeAgentProcessManager {
               workspacePath: params.workspacePath,
               runtimeGeneration,
               runtimeInstanceId,
-              diagnostic: {
-                ...diagnostic,
-                // 脱敏占位符可能比原文长，必须再次限长，避免 IPC schema 拒绝合法异常。
-                name: redactAgentDiagnostic(diagnostic.name).slice(
-                  0,
-                  LCODE_PROCESS_DIAGNOSTIC_NAME_MAX_CHARS,
-                ),
-                message: redactAgentDiagnostic(diagnostic.message).slice(
-                  0,
-                  LCODE_PROCESS_DIAGNOSTIC_MESSAGE_MAX_CHARS,
-                ),
-                ...(diagnostic.stack !== undefined
-                  ? {
-                      stack: redactAgentDiagnostic(diagnostic.stack).slice(
-                        0,
-                        LCODE_PROCESS_DIAGNOSTIC_STACK_MAX_CHARS,
-                      ),
-                    }
-                  : {}),
-              },
+              diagnostic: redactLCodeProcessDiagnostic(diagnostic, redactAgentDiagnostic),
+              ...(agentEntrySha256 ? { agentEntrySha256 } : {}),
             }),
           );
           return;
@@ -1227,6 +1210,7 @@ export class LCodeAgentProcessManager {
             command: effectiveCommand.command,
             args: effectiveCommand.args ?? [],
             startedAt,
+            ...(agentEntrySha256 ? { agentEntrySha256 } : {}),
             runtimeGeneration,
             runtimeInstanceId,
           }),

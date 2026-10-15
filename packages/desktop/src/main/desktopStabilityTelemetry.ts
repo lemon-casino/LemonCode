@@ -474,7 +474,12 @@ export function reportAgentProcessExceptionToArms(
   const stack =
     diagnostic.stack === undefined
       ? undefined
-      : sanitizeAgentCrashDetail(diagnostic.stack, event.workspacePath);
+      : sanitizeAgentCrashDetail(
+          diagnostic.version === 2
+            ? `${name}: ${message.slice(0, 512)}\n${(diagnostic.frames.length > 6 ? [...diagnostic.frames.slice(0, 3), ...diagnostic.frames.slice(-3)] : diagnostic.frames).join("\n")}`
+            : diagnostic.stack,
+          event.workspacePath,
+        );
   try {
     // 根因：Electron collector 只监听自身进程，CLI 异常必须携带原始栈显式发送，
     // 不能先转成 console.error 包装字符串，也不能等待进程退出后再上报。
@@ -491,6 +496,20 @@ export function reportAgentProcessExceptionToArms(
         process_error_kind: diagnostic.kind,
         process_error_origin: diagnostic.origin,
         error_id: diagnostic.errorId,
+        agent_entry_sha256: event.agentEntrySha256,
+        ...(diagnostic.version === 2
+          ? {
+              diagnostic_version: 2,
+              error_code: diagnostic.code,
+              error_causes: sanitizeAgentCrashDetail(
+                JSON.stringify(diagnostic.causes),
+                event.workspacePath,
+              ),
+              diagnostic_truncated: JSON.stringify(diagnostic.truncated),
+              runtime_versions: JSON.stringify(diagnostic.runtime),
+              network_facts: JSON.stringify(diagnostic.network ?? []),
+            }
+          : {}),
         runtime_instance_id: event.runtimeInstanceId,
         runtime_generation: event.runtimeGeneration,
         provider: event.provider,
@@ -527,6 +546,7 @@ export function reportAgentProcessStartToArms(
     provider: event.provider,
     runtime_generation: event.runtimeGeneration,
     runtime_instance_id: event.runtimeInstanceId,
+    agent_entry_sha256: event.agentEntrySha256,
   });
   logger.info("[stability] perf_agent_start reported", {
     pid: event.pid,
