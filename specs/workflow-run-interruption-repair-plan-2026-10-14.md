@@ -2,7 +2,7 @@
 
 工作流应在父回合结束、切换详情或手机重连后继续执行；真正退出执行运行时才按中断收口。本次优先解决关闭原因不可追踪、运行与关闭边界不一致、收尾 RPC 被提前切断，以及跨实例孤儿收敛的所有权风险。
 
-设计基线为 `473980ed`，仓库版本 3.18.8。依据为用户指定会话的分析、其附带日志及当前源码。2026-10-15 已按授权从 `e1e1acfc` 实施 A → B/C → D → E 并通过基础回归；在 `2f74b11e` 上再次复核发现关闭失败与跨会话恢复仍有三项缺口，当前尚未全部闭环。执行契约见第 9 节，最新复核、实际结果及未验证范围见[实施报告](workflow-run-interruption-implementation-2026-10-15.md)。此前 Browser 生命周期修复保持有效，其 555 项通过结果不替代本次中断场景验收。
+设计基线为 `473980ed`，仓库版本 3.18.8。依据为用户指定会话的分析、其附带日志及当前源码。2026-10-15 已按授权从 `e1e1acfc` 实施 A → B/C → D → E；在 `2f74b11e` 上复核发现的关闭失败、重试与跨会话恢复三项缺口，现已按第 10 节补齐，并解决同链路新发现问题。本次去重 713 项测试、根与 CLI 类型/Lint 检查、新 Agent 构建与 staging 均通过。执行契约见第 9、10 节，实际证据及未验证范围见[实施报告](workflow-run-interruption-implementation-2026-10-15.md)。源码和隔离环境验证完成，尚未替换原安装包；此前 Browser 生命周期修复继续参加回归。
 
 ## 1 原分析需要修正的结论
 
@@ -302,15 +302,15 @@ sequenceDiagram
 
 ### 正式验收
 
-| 场景 | 必须断言 |
-| --- | --- |
-| owner 退休首次写入失败 | 真实 SQLite + service + SessionFacade + Protocol 资源组合，首次 close 拒绝且 owner 活跃，下一次 close 可退休并认领新代；store 未提前关闭 |
-| 并发 close / 失败重试 | 同一次调用共用在途工作；成功资源只关闭一次，失败资源重试；原 closeId/deadline 不被替换 |
-| Execution/MCP/store 失败 | 多失败全部可见，其它资源仍尝试；失败 store 关闭可重试，无假 closed |
-| 共享 store shutdown 失败 | 原 store 保持可用，资源句柄仍在；重试实际成功才关闭 |
-| 跨父会话恢复 | 同项目 A 的 stopped run 从 B 恢复完成，A 的 parent/owner 不变；A 活跃时不创建第二 App；B wait/cancel 委托 A |
-| 身份或 owner 不可用 | 同路径异 identity、remoteSessionId 不匹配、旧 owner 活跃/未知、缺路由能力均在接受前拒绝，无 journal/Browser 副作用 |
-| 传输与交互 | continuous/replayable 均验证；工具和 V4 传递 owner_unavailable，现有 UI 显示可操作诊断 |
-| 异步 resume 竞争 | 两个同 ID Resume 或等待时关闭 App，至多一个真正 launch；不重复已完成 world 副作用 |
+| 场景                     | 必须断言                                                                                                                                 |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| owner 退休首次写入失败   | 真实 SQLite + service + SessionFacade + Protocol 资源组合，首次 close 拒绝且 owner 活跃，下一次 close 可退休并认领新代；store 未提前关闭 |
+| 并发 close / 失败重试    | 同一次调用共用在途工作；成功资源只关闭一次，失败资源重试；原 closeId/deadline 不被替换                                                   |
+| Execution/MCP/store 失败 | 多失败全部可见，其它资源仍尝试；失败 store 关闭可重试，无假 closed                                                                       |
+| 共享 store shutdown 失败 | 原 store 保持可用，资源句柄仍在；重试实际成功才关闭                                                                                      |
+| 跨父会话恢复             | 同项目 A 的 stopped run 从 B 恢复完成，A 的 parent/owner 不变；A 活跃时不创建第二 App；B wait/cancel 委托 A                              |
+| 身份或 owner 不可用      | 同路径异 identity、remoteSessionId 不匹配、旧 owner 活跃/未知、缺路由能力均在接受前拒绝，无 journal/Browser 副作用                       |
+| 传输与交互               | continuous/replayable 均验证；工具和 V4 传递 owner_unavailable，现有 UI 显示可操作诊断                                                   |
+| 异步 resume 竞争         | 两个同 ID Resume 或等待时关闭 App，至多一个真正 launch；不重复已完成 world 副作用                                                        |
 
 新测试先证明旧实现失败，再记录实现后的实际结果。执行根与 CLI 的 typecheck/lint、相关完整后端回归、Web E2E、隔离 Electron、Agent 构建与 staging；原安装包、真实供应商和跨平台实机仍单独说明。

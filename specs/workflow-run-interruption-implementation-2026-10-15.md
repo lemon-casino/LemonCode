@@ -1,10 +1,78 @@
 # 工作流中断修复增强实施报告
 
-上一轮已按 A → B/C → D → E 实施源码修复、测试补充与本机验证。父回合结束和常驻池回收现在读取同一组运行事实；真正关闭时保留首次原因、先封闭业务准入再排水；共享 journal 的执行权受到代际校验保护。此前 Browser 作用域与子代理创建事务修复保留并参加回归。**2026-10-15 再次复核确认仍有下述三项缺口，当前不能标记为全部修复完成。**
+已完成 A → B/C → D → E 及后续复核缺口的系统修复。父回合结束和常驻池回收读取同一组运行事实；真正关闭时保留首次原因、封闭业务准入并排水；共享 journal 的执行权受到代际校验保护。本次补齐关闭失败丢失 owner、失败 close 无法重试、跨父会话 Resume 三项缺口，并解决同链路新发现问题。此前 Browser 作用域与子代理创建事务修复保留并参加回归。**本次去重 713 项测试通过，根与 CLI 类型/Lint、新 Agent 构建及 staging 均通过；源码和隔离环境验收完成。**
 
 实施起点为 `e1e1acfc`，应用版本仍为 3.18.8。当前源码与隔离 Host 验证通过；没有安装发布包、升级运行中的原应用或自动重跑原失败业务。原日志能确认 Protocol 关闭后发生工作流取消，仍不能确定最早关闭调用者，也不能据此认定供应商不稳定或模型主动停止。
 
-## 最新复核结论（2026-10-15）
+## 本次补齐结果（2026-10-15）
+
+本次以复核提交 `2eccaf4b` 为起点，先更新方案第 10 节，再补失败测试和实现。原始关闭原因仍未知的历史事实不变，不把资源关闭缺陷和供应商网络异常混为一谈。
+
+| 已确认缺口                                                | 修复后的行为                                                                                                                                | 正式证据                                                                                                                     |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| workflow owner 退休失败被 App 关闭吞掉                    | 关闭实际拒绝保留原 App、lease 和共享 store；独立资源仍尝试清理，成功后才退休和关库                                                          | `session-close-retry.test.ts` 真实 SQLite + Core + service + SessionFacade + Protocol 资源组合；`runtime-cleanup.test.ts`    |
+| SessionFacade 缓存 rejected close，重试无效               | 每个 facade 只有一个关闭进度 owner；在途/成功复用，失败项重试，已成功资源不再关闭；首次 close 上下文不变                                    | 并发 close、drain/Execution/MCP/store 失败及重试测试                                                                         |
+| B 会话使用自己的 lease 恢复 A 的 run，先接受后 fence 失败 | 从 journal 读取原 parent；通过既有 Protocol registry、resume flight 和 pool gate 复用/恢复 A，在 A 登记后才返回接受；wait/cancel 继续委托 A | `workflow-run-owner-routing.test.ts`、`workflow-run-owner-router.test.ts`、`workflow-run-owner-protocol.integration.test.ts` |
+
+同链路新增问题也已纳入：
+
+- 构造尚未发布 App 时，退休 lease 抛错曾跳过后续资源清理、覆盖原错误。现在保留原始错误及精确重试句柄，ProtocolRuntimeResources 持有它；同 session 下次构造及进程关闭先重试。资源清理成功后才能退休，退休后才能关闭自建 store；借用资源不被关闭。
+- 有界等待结束后，Execution/MCP 的原 close 可能在关键 drain 期间迟到拒绝。现在检查原 Promise 的失败事实，不能因为先超时就误报成功；不重复启动尚在途的 close。
+- 两个 Resume 都越过异步缓存重建时可能重复启动同 ID 引擎；关闭与 Resume/Amend 也存在等待后的旧预检。现在在真正登记/launch 的同步片复核运行、关闭和 lease；B 在等待 A 冷恢复期间关闭也不能继续代发执行。
+- fenced submit 省略可选 parent 时沿用本 service 的 parent；显式其它 parent 在接受前拒绝。无 durable lease 的瞬态内存装配保留原有本地读能力，不因缺省 parent 被误判为跨会话。
+- 跨会话长时间 wait 不再一直占用全局 resident operation gate；读取原端口后释放 gate，真实 run 仍由原 App 的运行事实保活。冷恢复的 resume gate 则保持到准入完成。
+- `owner_unavailable` 纳入 shared 运行时 schema，经既有协议公开入口供 CLI contracts 和 UI 共用。工具、TUI、V4 ACK 和中英文界面均返回可操作拒绝；修复类型检查发现的 TUI 漏分支，不发布虚假的后台接受。
+
+未删除 parent/token fence，未改写 run parent、lineage 或 Browser authority；未新增执行宿主、客户端可设置的 owner 权限、数据库 migration 或环境变量。状态所有者和事件顺序见[方案第 10 节](workflow-run-interruption-repair-plan-2026-10-14.md#10-复核缺口补齐契约2026-10-15)。
+
+| 本次提交               | 内容                                                             |
+| ---------------------- | ---------------------------------------------------------------- |
+| `3a7a7059`、`0a9d5add` | 先定义关闭重试、原 owner 路由、构造失败清理与异步准入契约        |
+| `19075702`             | SessionFacade 资源关闭进度、失败重试及共享 store 保护            |
+| `03d411e7`             | 迟到资源关闭拒绝保留及回归                                       |
+| `976eee2e`             | 未发布 App 构造失败的清理事务与精确重试                          |
+| `81a9afa5`             | 原执行 owner 路由、异步准入复核、统一拒绝契约和工具/TUI/Web 验证 |
+
+截至 `81a9afa5`，相对 `2eccaf4b` 共 41 个文件、增加 1,779 行、删除 187 行，含先行方案更新；不含本报告收尾与无关本地改动。
+
+## 本次实际验证
+
+本次日志统一位于 `.artifacts/workflow-interruption-followup/`；下表各组互不重复计数。全部使用临时目录、合成会话和固定模型结果，未读写原业务数据或请求真实供应商。
+
+| 验证                                                          | 实际结果                                                                         | 日志                                               |
+| ------------------------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------------------- |
+| freshness                                                     | 通过，相对 origin/main behind 1，低于阈值 50；当前分支无 tracking upstream       | `freshness-final.log`                              |
+| 根 typecheck / lint                                           | 均通过                                                                           | `root-typecheck.log`、`root-lint.log`              |
+| CLI typecheck / lint                                          | 27 / 14 个任务成功                                                               | `cli-typecheck.log`、`cli-lint.log`、`checks.json` |
+| verify:pre-push                                               | Lint 与架构检查通过；违规、基线、新违规均 0                                      | `pre-push.log`                                     |
+| 本次源码/测试格式                                             | CLI 30 个、根 10 个文件通过                                                      | `format-check-cli.log`、`format-check.log`         |
+| 关系图                                                        | 93 节点、137 边有效；本轮 3 节点、6 源码 seed 可解析                             | `feature-graph.log`                                |
+| Bootstrap 全部 src 测试                                       | 535 通过，0 失败/跳过；新增 26 项                                                | `bootstrap-tests.log`                              |
+| SessionStore / trust store / process owner                    | 87 通过，含真实多进程 SQLite fencing                                             | `storage-tests.log`                                |
+| Core 子代理 / snippet / rewind / close / Resume 工具          | 57 通过                                                                          | `core-tests.log`                                   |
+| 模型 runner / CLI 生命周期 / schema / shared / Browser bridge | 20 通过，分别为 8 / 6 / 4 / 1 / 1                                                | `model-schema-cli-shared-bridge.log`               |
+| TUI 原 owner 不可用提示                                       | 1 通过                                                                           | `tui-tests.log`                                    |
+| Web 浏览器 E2E                                                | 11 通过，覆盖实际工作流状态组件、宽屏/手机、中英文和明暗主题；含 Resume 拒绝提示 | `web-e2e.log`                                      |
+| 隔离 Electron Host                                            | 1 通过，父回合结束保活、状态 lane 隔离、显式关闭归因                             | `electron-host.log`                                |
+| Desktop Agent 构建 / 实际 staging                             | 构建通过；staging 测试 1 通过                                                    | `build-agent.log`、`bundle-staging.log`            |
+
+合计 **713 个测试通过**；相对上一轮增加 29 项正式测试，不把临时缺陷复现和定向重复运行计入总数。旧实现失败证据保留在 `close-before.log`、`cleanup-before.log`、`routing-before.log`、`resume-race-before.log`、`parent-admission-before.log`、`late-close-before.log`、`tui-before.log` 等本机日志中。本次没有声称全仓格式基线通过；只检查修改范围。
+
+使用 Node 24.21.0、pnpm 10.34.6。当前 Agent `apps/lcode-cli/packages/cli/dist/lcode.cjs` SHA-256 为 `e626a49ef418c8b02f621c39070b2b042071ac13944a17edfb53de6649867f9a`，已实际 staging。隔离 Electron 41.10.7（内嵌 Node 24.18.0）的后端夹具 SHA-256 为 `c7e5528d4eef6a279aa1e08f869e3607f789f4636d91442d37e1f798987efe85`；最新 Host 元数据仍由现有测试写入 `.artifacts/workflow-interruption/electron-host-latest.json`。两个 hash 分属完整 Agent 与生命周期夹具。
+
+两种客户端模式在真实 V4 gateway + CommandInbox + 原 session 冷恢复链路分别通过：首次 Resume 使用原 A service、相同 commandId 返回 duplicate 且不重复执行；Protocol registry 外的活 owner 在返回接受前得到 `owner_unavailable`，原 lease 保持。该测试的 App factory 使用轻量装配，但 Core、workflow service、SessionFacade、SQLite、Protocol registry 和 gateway 均为真实实现。构造失败测试使用真实 SQLite 与 Protocol 资源 owner，未做完整生产 createLCodeApp 的逐分配点故障注入。
+
+架构工具把 CLI、services、shared 识别为 unmanaged，已读取对应受控上下文；通过仅表示当前策略覆盖范围内无违规。macOS/Linux 实机、手机真机、跨 Host 联机、原安装包、真实供应商和原业务未验证。当前已完成源码和隔离环境修复验证，原安装包尚未替换。保留全部无关远控重连改动；本次无 push、发布、升级或业务重跑。
+
+本次关键复核入口（从根目录运行）：
+
+```text
+node --import tsx --test apps/lcode-cli/packages/bootstrap/src/app/session-close-retry.test.ts apps/lcode-cli/packages/bootstrap/src/app/failed-app-startup.test.ts apps/lcode-cli/packages/bootstrap/src/app/workflow-run-owner-routing.test.ts apps/lcode-cli/packages/bootstrap/src/lcode-protocol/workflow-run-owner-router.test.ts apps/lcode-cli/packages/bootstrap/src/lcode-protocol/workflow-run-owner-protocol.integration.test.ts
+node --import tsx --test apps/lcode-cli/packages/core/src/tool/handlers/resume-workflow-run.test.ts apps/lcode-cli/packages/cli/src/command-center/handlers/dwf.test.ts packages/shared/src/workflow-run-resume.test.ts
+node --test packages/web/test/workflow-stop-reasons.test.mjs packages/desktop/scripts/workflow-lifetime-electron.test.mjs scripts/workflow-snippet-bundle.test.mjs
+```
+
+## 修复前复核结论（历史基线，2026-10-15）
 
 复核基线为 `2f74b11e`。本次没有修改生产代码，保留原有无关本地改动。重新执行根仓库及 CLI 的 typecheck、lint，四项均通过；重跑关键后端测试 39 项、隔离 Electron 1 项、停止原因 Web E2E 1 项，合计 41 项正常回归通过。
 
@@ -24,7 +92,7 @@
 - close 在途时复用同一个 Promise，失败后允许原 owner 重试；保持首次关闭上下文，已完成清理不重复产生副作用。仅在外层保存资源句柄还不够，需要覆盖真实 facade 链路。
 - 跨会话恢复先校验 workspace/attachment 与原 parent，路由或恢复原执行 owner，再发布接受结果；不能通过删除 parent/token 校验、改写原 parent 或使用 B 的 lease 绕过。无法获得原 owner 时给明确拒绝，避免先成功再后台失败。
 
-上述修改尚未实施。完成验收需新增对应正式回归，并在真实 SessionFacade + Protocol 资源 owner + SQLite lease 的组合下验证失败后恢复；跨会话恢复同时验证 continuous/replayable，原 owner 活跃时不得产生第二执行者。
+以上记录的是 `2eccaf4b` 复核时的缺口，现已按本文开头的补齐结果实施。正式回归覆盖真实 SessionFacade + Protocol 资源 owner + SQLite lease 的失败恢复组合，以及 continuous/replayable 跨会话恢复；原 owner 活跃时不得产生第二执行者。
 
 复核日志位于 `.artifacts/workflow-interruption-recheck/`：`critical-tests.log`、`electron-host.log`、`web-stop-reasons.log`、四项类型/Lint 日志；三个缺陷的复现脚本为 `owner-retirement.repro.test.ts`，运行结果为 `owner-retirement-repro.log`。全部使用临时目录与合成数据，未操作原会话、原安装包或真实供应商。
 
@@ -86,7 +154,7 @@ Desktop 的 continuous 与手机的 replayable 继续使用原投递边界、Com
 
 Bug 的原因和修复依据已在相关实现中补充中文注释。
 
-## 验证结果
+## 上一轮验证结果（历史记录）
 
 实际使用 Node 24.21.0、pnpm 10.34.6，与 mise.toml 一致。隔离 Electron 为 41.10.7，其内嵌 Node 为 24.18.0；stdio 后端由固定 Node 24.21.0 启动。当前 Windows 环境没有 mise 命令，调用时显式选用固定版本运行时。
 
