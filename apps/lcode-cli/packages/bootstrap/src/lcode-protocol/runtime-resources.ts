@@ -1,6 +1,7 @@
 import type { LCodeApp } from "../app/types.js";
 import type { ProtocolShutdownContext } from "@lcode/contracts";
 import type { LCodeProtocolAgentDependencies } from "./server-types.js";
+import { AppStartupCleanupError } from "../app/failed-app-startup.js";
 
 /** 持有 app 资源而非业务 session；临时 workspace app、尚未登记的 app 也归此 owner。 */
 export class ProtocolRuntimeResources {
@@ -9,6 +10,7 @@ export class ProtocolRuntimeResources {
   private readonly apps = new Map<LCodeApp, { closing?: Promise<void>; closeFailed: boolean }>();
   private closePromise?: Promise<void>;
   private readonly creations = new Set<Promise<LCodeApp>>();
+  private readonly failedStartups = new Set<AppStartupCleanupError>();
 
   constructor(private readonly factory: LCodeProtocolAgentDependencies["createLCodeApp"]) {}
 
@@ -28,7 +30,16 @@ export class ProtocolRuntimeResources {
       for (const [existing, state] of this.apps) {
         if (existing.sessionId === options.sessionId && state.closeFailed) await existing.close?.();
       }
-    const app = await this.factory(options);
+    for (const failure of this.failedStartups)
+      if (failure.sessionId === options?.sessionId) await this.retryStartup(failure);
+    let app: LCodeApp;
+    try {
+      app = await this.factory(options);
+    } catch (error) {
+      // 工厂抛错也可能已取得 lease；保留未发布候选的原清理句柄，禁止下一次构造绕过。
+      if (error instanceof AppStartupCleanupError) this.failedStartups.add(error);
+      throw error;
+    }
     const originalClose = app.close?.bind(app);
     const state: { closing?: Promise<void>; closeFailed: boolean } = { closeFailed: false };
     app.close = (context) => {
@@ -66,9 +77,10 @@ export class ProtocolRuntimeResources {
       .then(async () => {
         // 只等待已登记 App 会漏掉构造在途资源，导致晚返回的 finalizer 写入已关闭 store。
         await Promise.allSettled(this.creations);
-        const results = await Promise.allSettled(
-          [...this.apps.keys()].map((app) => this.stopApp(app)),
-        );
+        const results = await Promise.allSettled([
+          ...[...this.apps.keys()].map((app) => this.stopApp(app)),
+          ...[...this.failedStartups].map((failure) => this.retryStartup(failure)),
+        ]);
         const errors = results
           .filter((result) => result.status === "rejected")
           .map((result) => result.reason);
@@ -88,5 +100,10 @@ export class ProtocolRuntimeResources {
     } finally {
       await app.close?.(this.shutdownContext);
     }
+  }
+
+  private async retryStartup(failure: AppStartupCleanupError): Promise<void> {
+    await failure.retryCleanup();
+    this.failedStartups.delete(failure);
   }
 }

@@ -28,6 +28,8 @@ import { createAppWorkspaceHookSecurity } from "./app-workspace-hooks.js";
 import { createAppFacade } from "./app-facade.js";
 import { acquireAppWorkflowExecutionOwner } from "./workflow-execution-owner.js";
 import type { WorkflowJournalOwnerLease } from "@lcode/dynamic-workflow";
+import { failAppStartup } from "./failed-app-startup.js";
+import { isClosableSessionStore } from "./session-store.js";
 
 export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp> {
   if (!options?.providerRegistry) {
@@ -51,6 +53,10 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
   let providerModelRuntime: ApiProviderModelRuntime | undefined;
   let ownedModelAdapter: ReturnType<typeof createModelAdapter> | undefined;
   let workflowExecutionOwner: WorkflowJournalOwnerLease | undefined;
+  let closeOwnedStartupStore: (() => void) | undefined;
+  let closeOwnedStartupExecution: (() => void | Promise<void>) | undefined;
+  let closeOwnedStartupMcp: (() => void | Promise<void>) | undefined;
+  let constructedRuntime: AgentRuntime | undefined;
   try {
     const configuration = await prepareAppConfiguration(startup);
     workflowExecutionOwner = await acquireAppWorkflowExecutionOwner({
@@ -62,6 +68,10 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
         configuration.runtimeConfig.workspaceIdentity ??
         configuration.runtimeConfig.memory?.workspaceIdentity,
     });
+    if (configuration.ownsSessionStore && isClosableSessionStore(configuration.sessionStore)) {
+      const store = configuration.sessionStore;
+      closeOwnedStartupStore = () => store.close();
+    }
     const { pluginOutcome, pluginRuntimeFeatures, modelIoDir } = configuration;
     let { configuredMcpServers, runtimeConfig } = configuration;
     const browserControlPort = options.browserControlPort;
@@ -113,6 +123,9 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
       configuredMcpServers,
       runtimeConfig,
     });
+    if (adapters.ownsExecutionPort)
+      closeOwnedStartupExecution = () => adapters.executionPort.close?.();
+    if (adapters.ownsMcpPort) closeOwnedStartupMcp = () => adapters.mcpPort?.close();
     const {
       permissionService,
       artifactStore,
@@ -257,6 +270,7 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
       appVersion,
       traceContext,
     });
+    constructedRuntime = runtime;
     markRuntimeConstructed({
       hasInjectedModelAdapter: options.modelAdapter !== undefined,
       sessionId,
@@ -294,17 +308,32 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
       closeModelAdapter: ownedModelAdapter ? () => ownedModelAdapter!.disposeAndWait() : undefined,
     });
   } catch (error) {
-    // 未发布的 App 不可能已接收工作流；失败启动仍需退休最早取得的原 lease。
-    workflowExecutionOwner?.release();
-    if (ownedModelAdapter) await ownedModelAdapter.disposeAndWait();
-    providerModelRuntime?.dispose();
-    void modelTelemetry.shutdown().catch(() => undefined);
-    void ownedNodeReplBrowserBroker?.close();
     startupTimer.fail("LCode app startup failed", error, {
       context: { sessionId, workingDirectory },
       event: "bootstrap.app.startup.failed",
       stage: "total",
     });
-    throw error;
+    // 退休失败不能中断其它清理或丢失未发布 lease；由原资源 owner 持有重试能力。
+    return failAppStartup({
+      sessionId,
+      error,
+      resources: [
+        ownedModelAdapter ? () => ownedModelAdapter!.disposeAndWait() : undefined,
+        () => providerModelRuntime?.dispose(),
+        () => modelTelemetry.shutdown(),
+        ownedNodeReplBrowserBroker ? () => ownedNodeReplBrowserBroker!.close() : undefined,
+        closeOwnedStartupExecution,
+        closeOwnedStartupMcp,
+        constructedRuntime
+          ? async () => {
+              constructedRuntime!.beginShutdown();
+              await constructedRuntime!.closeBrowserSession();
+              await constructedRuntime!.drainSessionStoreDependentCloseWork();
+            }
+          : undefined,
+      ],
+      retire: workflowExecutionOwner ? () => workflowExecutionOwner!.release() : undefined,
+      closeStore: closeOwnedStartupStore,
+    });
   }
 }
