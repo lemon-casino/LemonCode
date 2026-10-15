@@ -238,6 +238,7 @@ nul
 !/packages/provider/test/model-membership.test.ts
 !/packages/provider/test/model-membership-schema.test.ts
 !/packages/provider/test/model-membership.fixture.ts
+!/packages/provider/test/model-interaction-protocol.test.ts
 
 # CLI debug 源码属于受检模块，覆盖用户全局 debug/ 忽略；构建产物仍排除。
 !/apps/lcode-cli/packages/debug/
