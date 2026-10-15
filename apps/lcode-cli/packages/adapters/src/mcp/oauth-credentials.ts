@@ -137,11 +137,23 @@ interface PublishedCanonicalCredentials {
  * 跨进程 read-modify-write 临界区内一次写入；分开覆盖会让最后写入的 client 与 token 来自
  * 不同事务。兼容窗口内继续维护 legacy 镜像，使未升级的 CLI/Desktop 仍可读取。
  */
+export function publishCanonicalCredentials(
+  credentialStore: SharedLCodeCredentialStore,
+  keyPrefix: string,
+  input: PublishCanonicalCredentialsInput,
+): Promise<PublishedCanonicalCredentials>;
+export function publishCanonicalCredentials(
+  credentialStore: SharedLCodeCredentialStore,
+  keyPrefix: string,
+  input: PublishCanonicalCredentialsInput,
+  expected: Readonly<Record<string, string | null>>,
+): Promise<PublishedCanonicalCredentials | undefined>;
 export async function publishCanonicalCredentials(
   credentialStore: SharedLCodeCredentialStore,
   keyPrefix: string,
   input: PublishCanonicalCredentialsInput,
-): Promise<PublishedCanonicalCredentials> {
+  expected?: Readonly<Record<string, string | null>>,
+): Promise<PublishedCanonicalCredentials | undefined> {
   const obtainedAt = input.obtainedAt ?? Date.now();
   const expiresAt =
     typeof input.tokens.expires_in === "number" && Number.isFinite(input.tokens.expires_in)
@@ -161,11 +173,14 @@ export async function publishCanonicalCredentials(
   const raw = JSON.stringify(canonical);
   const legacyClientRaw = JSON.stringify(input.clientInformation);
   const legacyTokensRaw = JSON.stringify(input.tokens);
-  await credentialStore.saveMany({
+  const entries = {
     [mcpOAuthCredentialKey(keyPrefix, MCP_OAUTH_CANONICAL_CREDENTIALS_KEY)]: raw,
     [mcpOAuthCredentialKey(keyPrefix, MCP_OAUTH_LEGACY_CLIENT_KEY)]: legacyClientRaw,
     [mcpOAuthCredentialKey(keyPrefix, MCP_OAUTH_LEGACY_TOKENS_KEY)]: legacyTokensRaw,
-  });
+  };
+  if (expected) {
+    if (!(await credentialStore.saveManyIfValues(expected, entries))) return undefined;
+  } else await credentialStore.saveMany(entries);
   return { canonical, generation, legacyClientRaw, legacyTokensRaw, raw };
 }
 
@@ -218,6 +233,8 @@ export async function invalidateCanonicalCredentials(
 }
 
 export interface CredentialPairSnapshot {
+  /** 同一次 loadMany 的原值，含缺失的 canonical/legacy；用于原子条件发布。 */
+  expectedValues?: Readonly<Record<string, string | null>>;
   clientInformation?: OAuthClientInformationMixed;
   expiresAt?: number;
   /** canonical 可用时为其 generation；只有 legacy 时按内容派生，仍可用于观察换代。 */
@@ -241,11 +258,30 @@ export async function loadCredentialPair(
   const legacyClientKey = mcpOAuthCredentialKey(keyPrefix, MCP_OAUTH_LEGACY_CLIENT_KEY);
   const legacyTokensKey = mcpOAuthCredentialKey(keyPrefix, MCP_OAUTH_LEGACY_TOKENS_KEY);
   const values = await credentialStore.loadMany([canonicalKey, legacyClientKey, legacyTokensKey]);
-  return deriveCredentialPair({
+  const pair = deriveCredentialPair({
     canonicalRaw: values[canonicalKey] ?? undefined,
     legacyClientRaw: values[legacyClientKey] ?? undefined,
     legacyTokensRaw: values[legacyTokensKey] ?? undefined,
   });
+  return pair
+    ? {
+        ...pair,
+        // 旧版本只改 legacy 镜像也必须可观察换代，否则等锁者会再消费刚轮换的 token。
+        generation:
+          pair.generation ??
+          `legacy-${createHash("sha256")
+            .update(
+              JSON.stringify([
+                values[canonicalKey],
+                values[legacyClientKey],
+                values[legacyTokensKey],
+              ]),
+            )
+            .digest("hex")
+            .slice(0, 32)}`,
+        expectedValues: values,
+      }
+    : undefined;
 }
 
 /**

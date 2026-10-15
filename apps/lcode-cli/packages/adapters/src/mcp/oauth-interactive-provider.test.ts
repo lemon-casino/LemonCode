@@ -21,6 +21,7 @@ function memoryStore() {
     deleteManyIfValue: unexpected,
     loadMany: unexpected,
     saveReplacing: unexpected,
+    saveManyIfValues: unexpected,
     saveZaiLoginCredentials: unexpected,
     async load(key) {
       return values.get(key) ?? null;

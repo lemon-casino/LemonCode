@@ -4,13 +4,15 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { atomicWritePrivateTextFile, backupCorruptFile, withFileLock } from "@lcode/shared/node";
 import { createLCodeCredentialCipher, type LCodeCredentialCipher } from "./credential-cipher.js";
+import {
+  prepareConditionalCredentialMutation,
+  validateCredentialKey,
+  validateCredentialValue,
+} from "./credential-mutation.js";
 
 const LCODE_DATA_BASE_DIR_ENV_KEY = "LCODE_DATA_BASE_DIR";
 const ZAI_PROVIDER_ID = "zai";
-const credentialChangeListeners = new Map<
-  string,
-  Set<() => void | Promise<void>>
->();
+const credentialChangeListeners = new Map<string, Set<() => void | Promise<void>>>();
 
 export const SHARED_LCODE_CREDENTIAL_KEYS = {
   activeProvider: "oauth:active_provider",
@@ -61,6 +63,10 @@ export interface SharedLCodeCredentialStore {
   onDidChange?(listener: () => void | Promise<void>): () => void;
   save(key: string, value: string): Promise<void>;
   saveMany(entries: Readonly<Record<string, string>>): Promise<void>;
+  saveManyIfValues(
+    expected: Readonly<Record<string, string | null>>,
+    entries: Readonly<Record<string, string>>,
+  ): Promise<boolean>;
   saveReplacing(key: string, value: string, replacedKeys: readonly string[]): Promise<void>;
   saveZaiLoginCredentials(payload: ZaiLoginCredentialPayload): Promise<void>;
 }
@@ -217,6 +223,16 @@ export function createSharedLCodeCredentialStore(
       });
     },
 
+    async saveManyIfValues(expected, entries): Promise<boolean> {
+      const apply = prepareConditionalCredentialMutation(expected, entries, cipher);
+      let saved = false;
+      // 比较与完整 pair 写入必须在原文件锁的同一个临界区；先 load 再 save 存在换代窗口。
+      await mutateRawCredentialRecord(filePath, (raw) => {
+        saved = apply(raw);
+      });
+      return saved;
+    },
+
     async saveReplacing(
       key: string,
       value: string,
@@ -286,11 +302,11 @@ export function resolveSharedLCodeCredentialsPath(
 
   const env = options.env ?? process.env;
   const baseDir =
-      options.baseDir ??
-      env[LCODE_DATA_BASE_DIR_ENV_KEY] ??
-      // 旧名兼容：迁移窗口内既有环境仍可能使用 ZCODE_DATA_BASE_DIR。
-      env["ZCODE_DATA_BASE_DIR"] ??
-      homedir();
+    options.baseDir ??
+    env[LCODE_DATA_BASE_DIR_ENV_KEY] ??
+    // 旧名兼容：迁移窗口内既有环境仍可能使用 ZCODE_DATA_BASE_DIR。
+    env["ZCODE_DATA_BASE_DIR"] ??
+    homedir();
   return join(resolveUserPath(baseDir), ".lcode", "v2", "credentials.json");
 }
 
@@ -356,21 +372,6 @@ function getErrorCode(error: unknown): string | undefined {
   }
   const code = (error as { code?: unknown }).code;
   return typeof code === "string" ? code : undefined;
-}
-
-function validateCredentialKey(key: string): string {
-  const trimmed = key.trim();
-  if (trimmed.length === 0) {
-    throw new Error("Credential key must not be empty");
-  }
-  return trimmed;
-}
-
-function validateCredentialValue(value: string): string {
-  if (value.length === 0) {
-    throw new Error("Credential value must not be empty");
-  }
-  return value;
 }
 
 function resolveUserPath(value: string): string {

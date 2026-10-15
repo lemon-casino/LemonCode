@@ -1,4 +1,5 @@
 import { dirname, join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import {
   discoverOAuthServerInfo,
   OAuthError,
@@ -124,37 +125,62 @@ async function refreshLocked(
     resolved = await resolveAsMetadata(input, current);
   } catch (error) {
     // discovery 失败绝不能当作 grant 失效。
-    return failSoft(input, current, error);
+    return (await newerCredentialAccess(input, current)) ?? failSoft(input, current, error);
   }
 
+  let next: Awaited<ReturnType<typeof refreshAuthorization>>;
   try {
-    const next = await refreshAuthorization(resolved.authorizationServerUrl, {
+    next = await refreshAuthorization(resolved.authorizationServerUrl, {
       clientInformation,
       refreshToken,
       ...(resolved.metadata ? { metadata: resolved.metadata } : {}),
       ...(resolved.resource ? { resource: resolved.resource } : {}),
       ...(input.fetchFn ? { fetchFn: input.fetchFn } : {}),
     });
-    const published = await publishCanonicalCredentials(input.credentialStore, input.keyPrefix, {
-      clientInformation,
-      ...(current.issuer ? { issuer: current.issuer } : {}),
-      publishedBy: `refresh:${input.keyPrefix}`,
-      tokens: next,
-    });
-    input.logger?.info("MCP OAuth access token refreshed", {
-      event: "mcp.oauth.refresh.completed",
-      credentialKeyPrefix: input.keyPrefix,
-      mcpServerName: input.serverName,
-      processId: process.pid,
-      publishedGeneration: published.generation.slice(0, 12),
-      reactive: input.reactive,
-      refreshTokenRotated: next.refresh_token !== refreshToken,
-      status: "completed",
-    });
-    return next.access_token;
   } catch (error) {
     return await handleRefreshFailure(input, current, error);
   }
+  let published: Awaited<ReturnType<typeof publishCanonicalCredentials>>;
+  try {
+    published = await publishCanonicalCredentials(
+      input.credentialStore,
+      input.keyPrefix,
+      {
+        clientInformation,
+        ...(current.issuer ? { issuer: current.issuer } : {}),
+        publishedBy: `refresh:${input.keyPrefix}`,
+        tokens: next,
+      },
+      current.expectedValues!,
+    );
+  } catch (error) {
+    const newer = await newerCredentialAccess(input, current);
+    if (newer) return newer;
+    // 交换已成功，远端可能已消费旧 refresh token；落盘失败绝不能再 fail-soft 旧凭据。
+    input.logger?.warn("MCP OAuth rotated credential persistence failed", {
+      event: "mcp.oauth.refresh.persistence_failed",
+      mcpServerName: input.serverName,
+      status: "failed",
+    });
+    throw createTemporaryRefreshFailureError({ cause: error, serverName: input.serverName });
+  }
+  // 刷新锁不约束独立登录/删除；旧交换只能通过原 Store 快照 CAS，不能覆盖新授权。
+  if (!published) {
+    const access = await newerCredentialAccess(input, current);
+    if (access) return access;
+    throw new Error("MCP credential publication superseded");
+  }
+  input.logger?.info("MCP OAuth access token refreshed", {
+    event: "mcp.oauth.refresh.completed",
+    credentialKeyPrefix: input.keyPrefix,
+    mcpServerName: input.serverName,
+    processId: process.pid,
+    publishedGeneration: published.generation.slice(0, 12),
+    reactive: input.reactive,
+    refreshTokenRotated: next.refresh_token !== refreshToken,
+    status: "completed",
+  });
+  return next.access_token;
 }
 
 async function handleRefreshFailure(
@@ -162,6 +188,8 @@ async function handleRefreshFailure(
   current: CredentialPairSnapshot,
   error: unknown,
 ): Promise<never | string> {
+  const newer = await newerCredentialAccess(input, current);
+  if (newer) return newer;
   const oauthErrorCode = error instanceof OAuthError ? error.code : undefined;
   input.logger?.warn("MCP OAuth access token refresh failed", {
     event: "mcp.oauth.refresh.failed",
@@ -177,12 +205,16 @@ async function handleRefreshFailure(
   if (oauthErrorCode === OAuthErrorCode.InvalidGrant) {
     // 确定性失效：refresh token 已被撤销或过期。CAS 清 tokens、保留 client 作为重新授权种子。
     if (current.raw) {
-      await invalidateCanonicalCredentials(
+      const invalidated = await invalidateCanonicalCredentials(
         input.credentialStore,
         input.keyPrefix,
         current.raw,
         "tokens",
       );
+      if (!invalidated) {
+        const newer = await newerCredentialAccess(input, current);
+        if (newer) return newer;
+      }
     }
     throw createInteractiveAuthorizationRequiredError({
       cause: error,
@@ -205,12 +237,16 @@ async function handleRefreshFailure(
       );
     }
     if (current.raw) {
-      await invalidateCanonicalCredentials(
+      const invalidated = await invalidateCanonicalCredentials(
         input.credentialStore,
         input.keyPrefix,
         current.raw,
         "all",
       );
+      if (!invalidated) {
+        const newer = await newerCredentialAccess(input, current);
+        if (newer) return newer;
+      }
     }
     throw createInteractiveAuthorizationRequiredError({
       cause: error,
@@ -220,6 +256,24 @@ async function handleRefreshFailure(
   }
 
   return failSoft(input, current, error);
+}
+
+/** 旧代网络/invalid_grant 也不能把用户的新登录判成过期，或复活已删除凭据。 */
+async function newerCredentialAccess(
+  input: RefreshMcpOAuthTokensInput,
+  previous: CredentialPairSnapshot,
+): Promise<string | undefined> {
+  const current = await loadCredentialPair(input.credentialStore, input.keyPrefix);
+  if (isDeepStrictEqual(current?.expectedValues, previous.expectedValues)) return undefined;
+  input.logger?.info("MCP OAuth refresh superseded", {
+    event: "mcp.oauth.refresh.superseded",
+    mcpServerName: input.serverName,
+  });
+  if (current?.tokens?.access_token) return current.tokens.access_token;
+  throw createInteractiveAuthorizationRequiredError({
+    reason: "no_credentials",
+    serverName: input.serverName,
+  });
 }
 
 /**
