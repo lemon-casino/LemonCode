@@ -144,7 +144,7 @@ test("protocol cleanup keeps the session store open until timed-out session shut
   assert.equal(harness.shutdownCalls(), 1);
 });
 
-test("protocol cleanup records a rejected session shutdown and still closes the store", async () => {
+test("protocol cleanup preserves the shared store when session shutdown rejects", async () => {
   const harness = createHarness();
 
   await waitFor(() => harness.order.includes("provider_disposed"));
@@ -154,9 +154,9 @@ test("protocol cleanup records a rejected session shutdown and still closes the 
   ).length;
 
   harness.sessionShutdown.reject(new Error("durable shutdown failed"));
-  await harness.cleanup;
+  await assert.rejects(harness.cleanup, /durable shutdown failed/);
 
-  assert.equal(harness.order.includes("store_closed"), true);
+  assert.equal(harness.order.includes("store_closed"), false);
   assert.equal(harness.shutdownCalls(), 1);
   assert.equal(
     harness.warnings.filter(

@@ -90,6 +90,7 @@ export async function cleanupProtocolRuntime(options: {
     step("provider_registry", () => options.providerRegistryRuntime?.dispose()),
     step("telemetry", () => shutdownPreparedModelTelemetry()),
   ]);
+  let shutdownFailure: { error: unknown } | undefined;
   try {
     // 单步 budget 只负责让其它资源继续关闭；store 必须等同一个 shutdown 真正 settle，
     // 否则 session finalizer 可能在 SQLite 已关闭后继续写入。
@@ -99,8 +100,12 @@ export async function cleanupProtocolRuntime(options: {
     if (sessionStepResult.status !== "failed" || sessionStepResult.error !== error) {
       warnCleanupFailure("sessions", error);
     }
+    shutdownFailure = { error };
   }
-  await step("session_store", () => {
+  // App 关闭失败时原 owner 仍可能需要此共享连接重试退休，不能绕过 facade 保护关库。
+  if (shutdownFailure) throw shutdownFailure.error;
+  const storeResult = await step("session_store", () => {
     if (options.sessionStore) closeSessionStore(options.sessionStore);
   });
+  if (storeResult.status === "failed") throw storeResult.error;
 }

@@ -13,17 +13,14 @@ import { getLocaleConfigPath } from "./locale-selection.js";
 import type { CreateSessionFacadeDeps, SessionFacade } from "./session-facade-types.js";
 import { createSessionModelFacade } from "./session-model-facade.js";
 import { createSessionGoalFacade } from "./session-goal-facade.js";
-import { closeSessionFacadeResources } from "./session-resource-close.js";
+import { createSessionResourceCloser } from "./session-resource-close.js";
 
 export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacade {
-  let closePromise: Promise<void> | undefined;
+  const close = createSessionResourceCloser(deps);
   let currentLocale = resolveLocale(deps.configResult.config.ui.locale);
 
   return {
-    close: async (context) => {
-      closePromise ??= closeSessionFacadeResources(deps, context);
-      return await closePromise;
-    },
+    close,
     getMode: () => deps.runtime.getMode(),
     ...createSessionModelFacade(deps),
     getLocale: () => currentLocale,
