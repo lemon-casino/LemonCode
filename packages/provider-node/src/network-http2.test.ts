@@ -379,6 +379,7 @@ for (const refusal of ["rst", "goaway"] as const)
           if (refusal === "rst") stream.close(constants.NGHTTP2_REFUSED_STREAM);
           else stream.session!.goaway(constants.NGHTTP2_NO_ERROR, 0);
         });
+
         const port = await f.listen(target);
         const owner = f.owner({});
         await assert.rejects(owner.fetch(`https://127.0.0.1:${port}`, { method: "POST", body }));
@@ -387,3 +388,38 @@ for (const refusal of ["rst", "goaway"] as const)
         assert.equal(owner.activeRequestCount, 0);
       },
     );
+
+test(
+  "H2 peer SETTINGS lowers per-session concurrency without losing queued POSTs",
+  { timeout: 5000 },
+  async (t) => {
+    const f = await fixture(t);
+    const active = new Map<Http2Session, number>();
+    let highest = 0,
+      posted = 0;
+    const target = createSecureServer({ ...f.tls, settings: { maxConcurrentStreams: 2 } });
+    target.on("session", (session) => session.on("error", () => {}));
+    target.on("stream", (stream: ServerHttp2Stream) => {
+      const session = stream.session!;
+      stream.on("error", () => {});
+      stream.resume();
+      posted++;
+      active.set(session, (active.get(session) ?? 0) + 1);
+      highest = Math.max(highest, active.get(session)!);
+      stream.once("close", () => active.set(session, active.get(session)! - 1));
+      stream.respond({ ":status": 200 });
+      setImmediate().then(() => stream.end("fixture"));
+    });
+    const port = await f.listen(target),
+      owner = f.owner({});
+    const results = await Promise.all(
+      Array.from({ length: 8 }, async () =>
+        (await owner.fetch(`https://127.0.0.1:${port}`, { method: "POST", body: "{}" })).text(),
+      ),
+    );
+    assert.deepEqual(results, Array(8).fill("fixture"));
+    assert.equal(posted, 8);
+    assert.ok(highest <= 2);
+    await owner.disposeAndWait();
+  },
+);

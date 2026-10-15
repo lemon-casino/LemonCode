@@ -1,6 +1,6 @@
 # HTTP/2 并发流与后端崩溃系统修复增强方案
 
-状态：已进入实施与整体验收，实际完成情况见 [实施与验证记录](http2-concurrency-crash-implementation-2026-10-15.md)。原方案基线为 `429d5da2`，方案提交 `12a1ef76`；桌面仓库版本 3.18.8，旧复现使用 Node 24.21.0、Undici 6.29.0。
+状态：已完成代码修复与本机整体验收，实际完成情况见 [实施与验证记录](http2-concurrency-crash-implementation-2026-10-15.md)。原方案基线为 `429d5da2`，方案提交 `12a1ef76`；桌面仓库版本 3.18.8，旧复现使用 Node 24.21.0、Undici 6.29.0。
 
 范围仅为 zcode-full。Magpie `707fbb249df755423d3b2b77c6f001dd376d75c4`、plugins `5d5d86e2251169e0f5c0fd7a884957ac2dbe184a` 是只读参考，不更新、修改、构建或运行这两个外部仓库。运行时继续使用 zcode-full 的公开端口和受控适配器，不引入 Magpie 网关、旁路 Host 或第二个 Agent。
 
