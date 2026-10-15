@@ -58,6 +58,7 @@ export function createProtocolCheckoutExecutionPort(
           lcodeProtocolMethods.checkoutReleaseWriter,
           { permitId, sessionId },
           checkoutReleaseWriterResultSchema,
+          { purpose: "resource_cleanup" },
         );
         if (!result.released)
           throw new Error("Checkout owner did not release the execution permit");

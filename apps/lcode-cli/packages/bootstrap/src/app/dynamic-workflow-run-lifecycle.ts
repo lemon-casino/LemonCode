@@ -41,6 +41,7 @@ interface RunServiceLifecycleDeps {
 }
 
 interface RunServiceLifecycle {
+  readResidencySnapshot(): { liveRunCount: number; pendingCleanupCount: number };
   /** 此刻仍未结算的 run 数（registry 里 `terminal === undefined` 的条目）。 */
   countLiveRuns(): number;
   /** 订阅结算通知（簿记之后发；监听器抛错只记日志）。返回退订函数。 */
@@ -52,7 +53,7 @@ interface RunServiceLifecycle {
     launched: Promise<RunSettlement>,
   ): Promise<RunSettlement>;
   /** 见 {@link createRunServiceLifecycle} 的 close 说明。幂等。 */
-  close(): Promise<void>;
+  close(context?: import("@lcode/contracts").ProtocolShutdownContext): Promise<void>;
   /** 关闭之后的 launch 是接线错误：抛，而不是给 contracts 的拒绝枚举加成员。 */
   assertOpen(): void;
   /** 活条目下出现终态行 ⇒ 外来写入，每个条目记一条 warn。 */
@@ -166,13 +167,14 @@ export function createRunServiceLifecycle(deps: RunServiceLifecycleDeps): RunSer
 
   let closed = false;
   let closePromise: Promise<void> | undefined;
-  const close = (): Promise<void> => {
+  const close = (context?: import("@lcode/contracts").ProtocolShutdownContext): Promise<void> => {
     // 幂等 + **同步**置位：`closed` 必须在本同步片就为真，否则关闭期间到达的一次 launch
     // 会溜进来，造出一个没人拥有的引擎。
     closePromise ??= (async () => {
       closed = true;
       const live = [...deps.runs.values()].filter((entry) => entry.terminal === undefined);
       deps.logger?.info?.("Dynamic workflow run service closing", {
+        ...context,
         event: "dynamic_workflow.service.closing",
         liveRunCount: live.length,
         module: "bootstrap.app",
@@ -182,6 +184,7 @@ export function createRunServiceLifecycle(deps: RunServiceLifecycleDeps): RunSer
       await Promise.all(live.map((entry) => entry.settlement));
       await Promise.all(pendingCleanups);
       deps.logger?.info?.("Dynamic workflow run service closed", {
+        ...context,
         event: "dynamic_workflow.service.closed",
         module: "bootstrap.app",
         parentSessionId: deps.parentSessionId,
@@ -231,6 +234,7 @@ export function createRunServiceLifecycle(deps: RunServiceLifecycleDeps): RunSer
   };
 
   return {
+    readResidencySnapshot: () => ({ liveRunCount: countLiveRuns(), pendingCleanupCount: pendingCleanups.size }),
     countLiveRuns,
     subscribeRunSettled,
     trackSettlement,

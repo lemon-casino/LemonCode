@@ -74,7 +74,7 @@ function fixture(
   context.sessionResidentPool = new SessionResidentPool({
     listSessionIds: () => [...sessions.keys()],
     readResidencyFacts: () => null,
-    deactivate: async () => {
+    deactivate: () => {
       throw new Error("unexpected pool eviction");
     },
   });

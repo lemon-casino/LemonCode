@@ -21,6 +21,7 @@ import type {
 } from "@lcode/shared";
 
 import { ProtocolRuntimeResources } from "./runtime-resources.js";
+import { isResourceCleanupRequest } from "./shutdown-admission.js";
 
 import {
   V4InteractionRegistry,
@@ -85,6 +86,7 @@ export class LCodeProtocolAgentServer {
   };
   private readonly runtimeResources: ProtocolRuntimeResources;
   private shutdownPromise?: Promise<void>;
+  private draining = false;
   readonly browserControlPort: BrowserControlPort;
   /**
    * 官方 MCP 身份头端口所需的最小上下文。
@@ -245,14 +247,32 @@ export class LCodeProtocolAgentServer {
   /** 进程资源关闭，不使用会删除产品会话/发布 session.removed 的 session/close。 */
   shutdown(): Promise<void> {
     if (this.shutdownPromise) return this.shutdownPromise;
-    this.shutdownPromise = this.runtimeResources.close().catch((error) => {
-      this.shutdownPromise = undefined;
-      throw error;
+    this.draining = true;
+    const closeContext = this.context.deps.readShutdownContext?.();
+    this.logger?.info("Protocol admission revoked", {
+      ...closeContext,
+      event: "lcode_protocol.close.phase",
+      phase: "quiescing",
+      sessionCount: this.context.sessions.size,
     });
+    this.shutdownPromise = this.runtimeResources
+      .close(closeContext)
+      .catch((error) => {
+        this.shutdownPromise = undefined;
+        throw error;
+      })
+      .finally(() => {
+        // 原实现第一拍断开 reverse RPC，checkout/Browser 收尾尚未发出就失去原连接。
+        this.disconnectClient(new Error("LCode Protocol runtime stopping"));
+        this.clientRequests.messageSink = undefined;
+        this.clearPostResponseMessages();
+        this.logger?.info("Protocol resource drain settled", {
+          ...closeContext,
+          event: "lcode_protocol.close.phase",
+          phase: "transport-closed",
+        });
+      });
     const error = new Error("LCode Protocol runtime stopping");
-    this.disconnectClient(error);
-    this.clientRequests.messageSink = undefined;
-    this.clearPostResponseMessages();
     for (const controller of this.pluginOperationControllers.values()) controller.abort(error);
     for (const controller of this.workspaceGenerateTextControllers.values())
       controller.abort(error);
@@ -297,7 +317,7 @@ export class LCodeProtocolAgentServer {
   async handleMessage(
     message: LCodeProtocolMessage,
   ): Promise<LCodeProtocolError | LCodeProtocolResponse | undefined> {
-    this.runtimeResources.assertServing();
+    // 已登记反向请求的 ACK 是旧资源结算证据，closing 不能拒绝它。
     if (isResponse(message)) {
       resolveClientRequest(this.clientRequests, message.id, message.result);
       return undefined;
@@ -311,6 +331,7 @@ export class LCodeProtocolAgentServer {
       return undefined;
     }
     if (isRequest(message)) {
+      this.runtimeResources.assertServing();
       return await this.handleRequest(message);
     }
     if (isNotification(message)) {
@@ -378,6 +399,11 @@ export class LCodeProtocolAgentServer {
     resultSchema: ParamsSchema<T>,
     options?: LCodeProtocolClientRequestOptions,
   ): Promise<T> {
+    if (this.draining) {
+      if (options?.purpose !== "resource_cleanup") this.runtimeResources.assertServing();
+      if (!isResourceCleanupRequest(method, params))
+        throw new Error("Invalid resource cleanup request");
+    }
     return requestClient(this.clientRequests, method, params, resultSchema, options);
   }
 }

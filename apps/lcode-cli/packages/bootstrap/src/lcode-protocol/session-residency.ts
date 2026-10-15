@@ -4,6 +4,7 @@ import type { SessionId } from "@lcode/contracts";
 import type {
   SessionDeactivationDecision,
   SessionResidentPoolHost,
+  SessionResidencyFacts,
 } from "./session-resident-pool.js";
 import type { LCodeProtocolAgentServerContext } from "./server-types.js";
 
@@ -50,47 +51,76 @@ export function runWithSessionResidencyFinalization<T>(
  * 又会并发碰同一 session 资源。因此同步摘除与异步 close 必须由 pool 的 in-flight gate
  * 组合成一个生命周期事务。
  */
-async function deactivateSessionRecord(
+function deactivateSessionRecord(
   context: LCodeProtocolAgentServerContext,
   sessionId: string,
-): Promise<void> {
+  expected: SessionResidencyFacts,
+): ReturnType<SessionResidentPoolHost["deactivate"]> {
   const record = context.sessions.get(sessionId);
-  if (!record) return;
+  const facts = readSessionResidencyFacts(context, sessionId);
+  // 候选快照不能授权关闭后来重建的 App，所有拒绝必须早于 unsubscribe/delete。
+  if (
+    !record ||
+    expected.instance !== record.app ||
+    !facts ||
+    !facts.persisted ||
+    facts.hasResidencyBlockingWork ||
+    facts.hasPendingInteractions ||
+    facts.hasQueuedCommands ||
+    facts.hasSubscribers ||
+    facts.hasLegacySubscriber
+  )
+    return { status: "blocked" };
   // CommandInbox pin 的拒绝曾发生在 unsubscribe 之后，异常会留下仍在 registry
   // 但收不到 runtime event 的半清 record。所有可预检拒绝必须早于第一个副作用。
   context.v4Gateway?.assertSessionRuntimeDeactivatable(sessionId);
   record.unsubscribe?.();
   context.v4Gateway?.deactivateSession(sessionId);
   context.sessions.delete(sessionId);
-  await record.app.close?.();
-  // 去激活后内存 event store 必须与“从未加载”等价。
-  await record.eventStore.deleteSession(sessionId as SessionId);
+  return {
+    status: "started",
+    completion: (async () => {
+      await record.app.close?.();
+      await record.eventStore.deleteSession(sessionId as SessionId);
+    })(),
+  };
+}
+
+function readSessionResidencyFacts(
+  context: LCodeProtocolAgentServerContext,
+  sessionId: string,
+): SessionResidencyFacts | null {
+  const record = context.sessions.get(sessionId);
+  if (!record) return null;
+  return {
+    instance: record.app,
+    hasPendingInteractions: context.v4Interactions.hasPendingForSession(sessionId),
+    hasQueuedCommands: context.v4Gateway?.hasResidencyBlockingCommands(sessionId) ?? false,
+    hasLegacySubscriber: record.legacyStreamSubscribed === true,
+    hasResidencyBlockingWork:
+      record.activeAbortController !== undefined ||
+      (record.residencyFinalizationCount ?? 0) > 0 ||
+      (record.app.readResidencySnapshot?.().hasResidencyBlockingWork ??
+        record.app.runtime.hasResidencyBlockingWork()),
+    hasSubscribers: context.v4Gateway?.hasConversationSubscribers(sessionId) ?? false,
+    lastActivityAt: record.updatedAt,
+    persisted: record.persistence === "immediate",
+  };
 }
 
 export function createSessionResidentPoolHost(
   context: LCodeProtocolAgentServerContext,
 ): SessionResidentPoolHost {
   return {
-    deactivate: (sessionId) => deactivateSessionRecord(context, sessionId),
+    deactivate: (sessionId, expected) => deactivateSessionRecord(context, sessionId, expected),
     listSessionIds: () => [...context.sessions.keys()],
-    readResidencyFacts: (sessionId) => {
-      const record = context.sessions.get(sessionId);
-      if (!record) return null;
-      return {
-        hasPendingInteractions: context.v4Interactions.hasPendingForSession(sessionId),
-        hasQueuedCommands: context.v4Gateway?.hasResidencyBlockingCommands(sessionId) ?? false,
-        hasLegacySubscriber: record.legacyStreamSubscribed === true,
-        // active/queue 与 registry background task 不能覆盖 title、MCP、memory
-        // 等 detached work；统一查询由 runtime 维护，协议 finalization 只补协议所有权。
-        hasResidencyBlockingWork:
-          record.activeAbortController !== undefined ||
-          (record.residencyFinalizationCount ?? 0) > 0 ||
-          record.app.runtime.hasResidencyBlockingWork(),
-        hasSubscribers: context.v4Gateway?.hasConversationSubscribers(sessionId) ?? false,
-        lastActivityAt: record.updatedAt,
-        persisted: record.persistence === "immediate",
-      };
-    },
+    readResidencyFacts: (sessionId) => readSessionResidencyFacts(context, sessionId),
+    onBlocked: (sessionId, decision) =>
+      context.logger?.info("Session deactivation blocked by fresh owner facts", {
+        ...deactivationLogContext(decision),
+        event: "lcode_protocol.session.resident_deactivation_blocked",
+        sessionId,
+      }),
     onDeactivated: (sessionId, decision) => {
       context.logger?.info("Session resident runtime deactivated", {
         ...deactivationLogContext(decision),

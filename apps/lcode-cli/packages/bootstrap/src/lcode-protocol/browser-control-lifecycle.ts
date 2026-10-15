@@ -95,6 +95,7 @@ export function createBrowserCleanupJob(input: {
           lcodeBrowserExecuteResultSchema,
           {
             timeoutMs: input.timeoutMs,
+            purpose: "resource_cleanup",
             signal: controller.signal,
             ...(input.traceContext
               ? { trace: protocolTraceFromTraceContext(input.traceContext) }

@@ -80,6 +80,7 @@ export interface LCodeApp extends LCodeAppWorkflow {
   readonly sessionId: SessionId;
   readonly traceId: string;
   readonly runtime: AgentRuntime;
+  readResidencySnapshot?(): import("./app-residency.js").AppResidencySnapshot;
   respondWorkspaceHookReview(
     input: RespondWorkspaceHookReviewInput,
   ): Promise<WorkspaceHookReviewCommandResult>;
@@ -101,7 +102,7 @@ export interface LCodeApp extends LCodeAppWorkflow {
    * coordinator 并重发 admission 状态，否则已信任 Hook 继续被拒、banner 不刷新。
    */
   reloadWorkspaceHookTrust(): Promise<void>;
-  close?(): Promise<void>;
+  close?(context?: import("@lcode/contracts").ProtocolShutdownContext): Promise<void>;
   getMode(): CollaborationMode;
   getModel(): string;
   /** current-only 协议快照精确读取当前 Registry 模型，避免枚举整个目录。 */

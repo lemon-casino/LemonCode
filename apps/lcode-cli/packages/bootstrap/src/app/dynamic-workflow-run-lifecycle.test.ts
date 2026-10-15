@@ -50,6 +50,7 @@ test("terminal cleanup survives registry eviction and close waits for lineage le
   assert.ok(entry.executionFailoverLineageLease);
   assert.equal(retries.length, 1);
   assert.equal(residency.length, 1);
+  assert.deepEqual(lifecycle.readResidencySnapshot(), { liveRunCount: 0, pendingCleanupCount: 1 });
 
   for (let index = 0; index < 32; index += 1) {
     const fillerRunId = `filler-${index}`;

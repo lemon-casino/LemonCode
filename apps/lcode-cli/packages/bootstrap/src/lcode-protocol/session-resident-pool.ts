@@ -20,6 +20,8 @@ export interface SessionDeactivationDecision {
 }
 
 export interface SessionResidencyFacts {
+  /** 只作同步身份比较，不持久化、不发往客户端。 */
+  instance?: object;
   persisted: boolean;
   hasResidencyBlockingWork: boolean;
   hasPendingInteractions: boolean;
@@ -36,7 +38,11 @@ export interface SessionResidentPoolHost {
    * 首个同步执行片必须把 session 从 resident registry 摘除；返回 Promise 只等待
    * app.close 等异步收尾。
    */
-  deactivate(sessionId: string): Promise<void>;
+  deactivate(
+    sessionId: string,
+    expected: SessionResidencyFacts,
+  ): { status: "blocked" } | { status: "started"; completion: Promise<void> };
+  onBlocked?(sessionId: string, decision: SessionDeactivationDecision): void;
   onDeactivated?(sessionId: string, decision: SessionDeactivationDecision): void;
   onError?(sessionId: string, error: unknown, decision: SessionDeactivationDecision): void;
 }
@@ -303,22 +309,38 @@ export class SessionResidentPool {
 
   private executeDeactivation(sessionId: string, decision: SessionDeactivationDecision): boolean {
     let pending: Promise<void>;
+    let finishGate!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      finishGate = resolve;
+    });
+    const clearGate = () => {
+      if (this.inFlightDeactivations.get(sessionId) === gate)
+        this.inFlightDeactivations.delete(sessionId);
+      finishGate();
+    };
     try {
-      pending = this.host.deactivate(sessionId);
+      const expected = this.host.readResidencyFacts(sessionId);
+      if (!expected || !this.isEligible(sessionId, expected)) return false;
+      // unsubscribe/close 可同步发布事件并重入 acquireOperation，必须先安装原代 gate。
+      this.inFlightDeactivations.set(sessionId, gate);
+      const result = this.host.deactivate(sessionId, expected);
+      if (result.status === "blocked") {
+        clearGate();
+        this.host.onBlocked?.(sessionId, decision);
+        this.eligibleSinceAt.delete(sessionId);
+        return false;
+      }
+      pending = result.completion;
     } catch (error) {
+      clearGate();
       this.host.onError?.(sessionId, error, decision);
       return false;
     }
 
-    const tracked = pending
+    void pending
       .then(() => this.host.onDeactivated?.(sessionId, decision))
       .catch((error: unknown) => this.host.onError?.(sessionId, error, decision))
-      .finally(() => {
-        if (this.inFlightDeactivations.get(sessionId) === tracked) {
-          this.inFlightDeactivations.delete(sessionId);
-        }
-      });
-    this.inFlightDeactivations.set(sessionId, tracked);
+      .finally(clearGate);
     this.eligibleSinceAt.delete(sessionId);
     this.lastTouchedAt.delete(sessionId);
     return true;

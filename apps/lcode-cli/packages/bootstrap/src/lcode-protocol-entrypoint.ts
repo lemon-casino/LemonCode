@@ -20,9 +20,8 @@ import {
 } from "@lcode/shared";
 import type { SqliteSessionStore } from "@lcode/adapters/storage";
 import { traceContextToLogContext, createRootTraceContext } from "@lcode/contracts";
-import type { McpPort, ModelSelection } from "@lcode/contracts";
-import type { PresentationSurface } from "@lcode/core";
-import type { RunLCodeProtocolAgentOptions, LCodeAppOptions } from "./app/types.js";
+import type { McpPort } from "@lcode/contracts";
+import type { RunLCodeProtocolAgentOptions } from "./app/types.js";
 import { createLCodeApp } from "./app/create-app.js";
 import {
   createNodeReplBrowserBroker,
@@ -51,40 +50,15 @@ import {
 import { LCodeProtocolAgentServer } from "./lcode-protocol/server.js";
 import { LCodeProtocolNdjsonConnection } from "./lcode-protocol/transport.js";
 import { cleanupProtocolRuntime } from "./lcode-protocol/runtime-cleanup.js";
+import { resolveProtocolRuntimeSurface } from "./lcode-protocol/runtime-surface.js";
+import {
+  applyProtocolPresentationSurface,
+  applyProtocolProviderRegistry,
+} from "./lcode-protocol/runtime-app-options.js";
 import { startProtocolResourceSampler } from "./lcode-protocol/resource-sampler.js";
 import { acquireProtocolStartupResource } from "./lcode-protocol/startup-resource.js";
 import type { LCodeProcessResourceSampler } from "./process-resource-sampler.js";
 import { prepareLCodeTelemetryEnv, shutdownLCodeTelemetry } from "./telemetry-bootstrap.js";
-
-function applyProtocolPresentationSurface(
-  options: Omit<LCodeAppOptions, "providerRegistry">,
-  presentationSurface: PresentationSurface,
-): Omit<LCodeAppOptions, "providerRegistry"> {
-  return {
-    ...options,
-    runtimeConfig: {
-      ...options.runtimeConfig,
-      presentationSurface,
-    },
-  };
-}
-
-/**
- * 进程级 Registry 已就绪后，它就是当前 Environment 的模型事实源。
- *
- * 旧 workspace snapshot 不再参与 Provider 和 Model 执行。
- */
-function applyProtocolProviderRegistry(
-  options: Omit<LCodeAppOptions, "providerRegistry">,
-  providerRegistry: LCodeAppOptions["providerRegistry"],
-  configuredDefaultModelSelection?: ModelSelection,
-): LCodeAppOptions {
-  return {
-    ...options,
-    providerRegistry,
-    ...(configuredDefaultModelSelection ? { configuredDefaultModelSelection } : {}),
-  };
-}
 
 export async function runLCodeProtocolAgent(
   options: RunLCodeProtocolAgentOptions = {},
@@ -140,6 +114,21 @@ export async function runLCodeProtocolAgent(
   let providerRegistryRuntime:
     | Awaited<ReturnType<typeof startProcessProviderRegistryRuntime>>
     | undefined;
+  let cleanupPromise: Promise<void> | undefined;
+  const cleanup = () =>
+    (cleanupPromise ??= cleanupProtocolRuntime({
+      logger,
+      deadlineAt: options.lifecycle?.deadlineAt,
+      shutdownContext: options.lifecycle?.shutdownContext,
+      server: serverForCleanup,
+      processResourceSampler,
+      mcpTelemetryTracker,
+      nodeReplBrowserBroker,
+      mcpPort,
+      mcpConnectionPool,
+      sessionStore,
+      providerRegistryRuntime,
+    }));
   try {
     // 数据库准备先于账号、Registry 和遥测，不把远端材料等待混进迁移门禁。
     const configResult = createConfig({ env: options.env });
@@ -332,6 +321,7 @@ export async function runLCodeProtocolAgent(
         await activeProviderRegistryRuntime.runtime.registryService.refresh(reason);
       },
       version: options.version,
+      readShutdownContext: () => options.lifecycle?.shutdownContext,
     }));
     officialMcpAuthContext = server.officialMcpAuthRequestContext;
     if (configResult.config.features.mcp !== false) {
@@ -349,6 +339,8 @@ export async function runLCodeProtocolAgent(
     }
     const connection = new LCodeProtocolNdjsonConnection({
       signal: options.lifecycle?.signal,
+      drainOnAbort: () =>
+        options.lifecycle?.shutdownContext?.transportAvailable ? cleanup() : undefined,
       clearPostResponseMessages: () => server.clearPostResponseMessages(),
       handleMessage: (message) => server.handleMessage(message),
       input,
@@ -395,32 +387,14 @@ export async function runLCodeProtocolAgent(
     throw error;
   } finally {
     options.lifecycle?.requestShutdown();
-    await cleanupProtocolRuntime({
-      logger,
-      deadlineAt: options.lifecycle?.deadlineAt,
-      server: serverForCleanup,
-      processResourceSampler,
-      mcpTelemetryTracker,
-      nodeReplBrowserBroker,
-      mcpPort,
-      mcpConnectionPool,
-      sessionStore,
-      providerRegistryRuntime,
-    });
+    await cleanup();
     logger.info("LCode Protocol agent shutdown completed", {
+      ...options.lifecycle?.shutdownContext,
+      phase: "retired",
       ...traceContextToLogContext(traceContext),
       event: "lcode_protocol.shutdown.completed",
       module: "bootstrap.lcode_protocol",
       status: "completed",
     });
   }
-}
-
-function resolveProtocolRuntimeSurface(
-  env: NodeJS.ProcessEnv,
-): "desktop_local_host" | "remote_workspace_host" {
-  // Bug 根因：入口曾无条件覆盖 Host 注入值，远程 SSH/WSL/容器 Trace 被归入本地 Desktop。
-  return env.LCODE_TELEMETRY_RUNTIME_SURFACE?.trim() === "remote_workspace_host"
-    ? "remote_workspace_host"
-    : "desktop_local_host";
 }

@@ -1,4 +1,5 @@
 import { AgentRuntime } from "@lcode/core";
+import { readAppResidencySnapshot } from "./app-residency.js";
 import type { LCodeApp } from "./types.js";
 import { resolveEffectiveLocale } from "./app-config-options.js";
 import { createWorkflowFacade } from "./workflow-facade.js";
@@ -157,7 +158,7 @@ export function createAppFacade(input: AppFacadeDeps): LCodeApp {
     // 引擎活在本 App 的闭包里，关掉 App 而不停它，journal 行会停在 running 等下一次孤儿收敛。
     ...(dynamicWorkflowRunPort === undefined
       ? {}
-      : { closeDynamicWorkflowRuns: () => dynamicWorkflowRunPort.close() }),
+      : { closeDynamicWorkflowRuns: (context) => dynamicWorkflowRunPort.close(context) }),
     configResult,
     configuredMcpServers,
     ...(options.configuredDefaultModelSelection
@@ -195,6 +196,7 @@ export function createAppFacade(input: AppFacadeDeps): LCodeApp {
     traceId: traceContext.traceId,
     runtime,
     ...createAppWorkspaceHookFacade(workspaceHookRuntimeSecurity),
+    readResidencySnapshot: () => readAppResidencySnapshot(getRuntime(), dynamicWorkflowRunPort),
     setModelIoFullRetentionEnabled: (enabled) =>
       modelAdapter.setModelIoFullRetentionEnabled(enabled),
     ...createAppAttachmentFacade({
@@ -205,9 +207,9 @@ export function createAppFacade(input: AppFacadeDeps): LCodeApp {
       traceContext,
     }),
     ...sessionFacade,
-    close: async () => {
+    close: async (context) => {
       try {
-        await closeSession?.();
+        await closeSession?.(context);
       } finally {
         try {
           providerModelRuntime.dispose();

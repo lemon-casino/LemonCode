@@ -63,7 +63,9 @@ export interface CreateSessionFacadeDeps {
    * 停下本会话拥有的 dwf run：
    * run service 的 `close()`。缺席即本装配没有 dwf 端口（journal 窄化失败、测试装配）。
    */
-  closeDynamicWorkflowRuns?: () => Promise<void>;
+  closeDynamicWorkflowRuns?: (
+    context?: import("@lcode/contracts").ProtocolShutdownContext,
+  ) => Promise<void>;
   closeNodeReplBrowserBroker?: () => Promise<void> | undefined;
   /** 仅由创建模型 adapter 的 App 注入，借用的 adapter 没有关闭权限。 */
   closeModelAdapter?: () => Promise<void>;

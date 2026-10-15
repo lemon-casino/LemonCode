@@ -23,6 +23,8 @@ const PROTOCOL_EOF_DRAIN_MS = 100;
 
 interface LCodeProtocolNdjsonConnectionOptions {
   signal?: AbortSignal;
+  /** 主动关闭且原 transport 可用时，先排水；EOF/IO 故障不走此路径。 */
+  drainOnAbort?: () => Promise<void> | undefined;
   clearPostResponseMessages?: () => void;
   handleMessage: LCodeProtocolMessageHandler;
   input: NodeJS.ReadableStream;
@@ -114,6 +116,17 @@ export class LCodeProtocolNdjsonConnection {
   };
 
   private readonly onAbort = (): void => {
+    const drain = this.options.drainOnAbort?.();
+    if (drain) {
+      void drain.then(
+        () => {
+          this.notifyTransportClosed(new Error("LCode Protocol runtime stopping"));
+          this.finish();
+        },
+        (error: Error) => this.fail(error),
+      );
+      return;
+    }
     this.notifyTransportClosed(new Error("LCode Protocol runtime stopping"));
     this.finish();
   };

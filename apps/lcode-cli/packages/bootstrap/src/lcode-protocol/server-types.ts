@@ -41,6 +41,7 @@ export interface ParamsSchema<T> {
 }
 
 export interface LCodeProtocolAgentDependencies {
+  readShutdownContext?: () => import("@lcode/contracts").ProtocolShutdownContext | undefined;
   createLCodeApp(options?: Omit<LCodeAppOptions, "providerRegistry">): LCodeApp | Promise<LCodeApp>;
   /**
    * 每个 session record 的内存 event store 工厂。
@@ -133,6 +134,8 @@ export interface LCodeProtocolSessionRecord {
 }
 
 export interface LCodeProtocolClientRequestOptions {
+  /** 内部原资源 owner 的收尾意图，不进入 wire。 */
+  purpose?: "resource_cleanup";
   signal?: AbortSignal;
   timeoutMs?: number;
   trace?: LCodeProtocolTrace;

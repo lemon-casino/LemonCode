@@ -20,8 +20,8 @@ export function createSessionFacade(deps: CreateSessionFacadeDeps): SessionFacad
   let currentLocale = resolveLocale(deps.configResult.config.ui.locale);
 
   return {
-    close: async () => {
-      closePromise ??= closeSessionFacadeResources(deps);
+    close: async (context) => {
+      closePromise ??= closeSessionFacadeResources(deps, context);
       return await closePromise;
     },
     getMode: () => deps.runtime.getMode(),

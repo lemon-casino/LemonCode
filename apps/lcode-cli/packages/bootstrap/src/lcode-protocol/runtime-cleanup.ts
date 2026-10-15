@@ -27,7 +27,9 @@ export async function cleanupProtocolRuntime(options: {
   const deadline = options.deadlineAt ?? Date.now() + DEFAULT_CLEANUP_BUDGET_MS;
   const closeContext = options.shutdownContext ?? { origin: "unknown", processId: process.pid };
   options.logger.info("Protocol cleanup started", {
-    ...closeContext, event: "lcode_protocol.close.requested", phase: "quiescing",
+    ...closeContext,
+    event: "lcode_protocol.close.requested",
+    phase: "quiescing",
   });
   const warnCleanupFailure = (resource: string, error: unknown): void => {
     options.logger.warn(`LCode Protocol ${resource} shutdown failed`, {
@@ -50,13 +52,15 @@ export async function cleanupProtocolRuntime(options: {
           );
         }),
       ]);
-        if (outcome === CLEANUP_PENDING) {
-          options.logger.warn("Protocol cleanup remains pending", {
-            ...closeContext, event: `lcode_protocol.${resource}.shutdown.pending`,
-            phase: "draining", remainingMs: Math.max(0, deadline - Date.now()),
-          });
-          return { status: "pending" as const };
-        }
+      if (outcome === CLEANUP_PENDING) {
+        options.logger.warn("Protocol cleanup remains pending", {
+          ...closeContext,
+          event: `lcode_protocol.${resource}.shutdown.pending`,
+          phase: "draining",
+          remainingMs: Math.max(0, deadline - Date.now()),
+        });
+        return { status: "pending" as const };
+      }
       return { status: "completed" as const };
     } catch (error) {
       warnCleanupFailure(resource, error);

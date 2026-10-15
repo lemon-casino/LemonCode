@@ -145,6 +145,7 @@ export {
  * registry replace 必须等它结算。
  */
 interface DynamicWorkflowRunService extends DynamicWorkflowRunPort {
+  readResidencySnapshot(): { liveRunCount: number; pendingCleanupCount: number };
   /** 此刻仍未结算的 run 数（registry 里 `terminal === undefined` 的条目）。 */
   countLiveRuns(): number;
   /**
@@ -157,7 +158,7 @@ interface DynamicWorkflowRunService extends DynamicWorkflowRunPort {
    * {@link DynamicWorkflowRunPort} 上**：它是宿主 App 的生命周期动作，不是引擎与工具层的能力。
    * 幂等——第二次调用返回同一个 promise，不再 abort 任何东西。
    */
-  close(): Promise<void>;
+  close(context?: import("@lcode/contracts").ProtocolShutdownContext): Promise<void>;
 }
 
 /**
@@ -211,6 +212,7 @@ export function createDynamicWorkflowRunService(
     countLiveRuns,
     subscribeRunSettled,
     trackSettlement,
+    readResidencySnapshot,
     close,
     assertOpen,
     noteForeignTerminalRow,
@@ -238,6 +240,7 @@ export function createDynamicWorkflowRunService(
   };
 
   return {
+    readResidencySnapshot,
     countLiveRuns,
     subscribeRunSettled,
     close,

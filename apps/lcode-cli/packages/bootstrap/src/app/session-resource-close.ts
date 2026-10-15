@@ -32,7 +32,10 @@ type SessionCloseDeps = Pick<
   | "sessionResourceCloseTimeoutMs"
 >;
 
-export async function closeSessionFacadeResources(deps: SessionCloseDeps): Promise<void> {
+export async function closeSessionFacadeResources(
+  deps: SessionCloseDeps,
+  context?: import("@lcode/contracts").ProtocolShutdownContext,
+): Promise<void> {
   // 第一拍封闭新准入；随后立即启动各 owner 的收口，不能先等待某一项而饿死其它资源。
   deps.runtime.beginShutdown();
   // 网络终态可能仍写入会话：先取消所属长流，并将真实清理登记到 store 的稳定 drain。
@@ -45,7 +48,7 @@ export async function closeSessionFacadeResources(deps: SessionCloseDeps): Promi
   const workflowClose = (async () => {
     if (deps.closeDynamicWorkflowRuns === undefined) return;
     try {
-      await deps.closeDynamicWorkflowRuns();
+      await deps.closeDynamicWorkflowRuns(context);
     } catch (error: unknown) {
       deps.logger.warn?.("Closing dynamic workflow runs failed; continuing to close resources", {
         errorMessage: error instanceof Error ? error.message : String(error),
