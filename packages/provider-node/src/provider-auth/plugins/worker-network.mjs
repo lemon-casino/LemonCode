@@ -1,11 +1,14 @@
 import http2 from "node:http2";
 import { EventEmitter } from "node:events";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { readFile } from "node:fs/promises";
 import { rootCertificates } from "node:tls";
 import { createHostApiNetworkTransport, resolveHostProxyForUrl } from "../../network-transport.ts";
 
 export function installWorkerNetwork({ scopes, check, workerData }) {
   const fetchRemote = globalThis.fetch;
+  const managedFetch = new AsyncLocalStorage();
+  const sessions = new Map();
   const networkTransport = createHostApiNetworkTransport(
     async () => scopes.getStore()?.network ?? {},
   );
@@ -34,10 +37,12 @@ export function installWorkerNetwork({ scopes, check, workerData }) {
       headers.set("x-fixture-upstream", url.origin);
       init = { ...init, headers };
     }
-    const response = (scope?.network ? networkTransport.fetch : fetchRemote)(target, {
-      ...init,
-      ...(signals.length ? { signal: AbortSignal.any(signals) } : {}),
-    });
+    const response = managedFetch.run(true, () =>
+      (scope?.network ? networkTransport.fetch : fetchRemote)(target, {
+        ...init,
+        ...(signals.length ? { signal: AbortSignal.any(signals) } : {}),
+      }),
+    );
     if (scope?.listing) Object.assign(scope.listing, { tried: true, lastOk: false });
     return response.then((res) => {
       if (scope?.listing) scope.listing.lastOk = res.ok;
@@ -48,6 +53,7 @@ export function installWorkerNetwork({ scopes, check, workerData }) {
   const connectHttp2 = http2.connect;
   http2.connect = (origin, options, ...args) => {
     const scope = scopes.getStore();
+    check();
     const route = scope?.network
       ? resolveHostProxyForUrl(String(origin), scope.network)
       : undefined;
@@ -72,15 +78,37 @@ export function installWorkerNetwork({ scopes, check, workerData }) {
       };
       return session;
     }
-    return connectHttp2(
+    const session = connectHttp2(
       origin,
       { ...options, ...(scope?.http2Ca ? { ca: scope.http2Ca } : {}) },
       ...args,
     );
+    // 裸 H2（Cursor）按 operation 持有 session；通用池由 transport 管理，不能随单流取消。
+    if (!managedFetch.getStore()) {
+      const signal = scope?.controller.signal;
+      const abort = () => session.destroy(signal.reason);
+      const done = new Promise((resolve) =>
+        session.once("close", () => {
+          signal?.removeEventListener("abort", abort);
+          sessions.delete(session);
+          resolve();
+        }),
+      );
+      sessions.set(session, done);
+      session.on("error", () => {});
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
+    }
+    return session;
   };
 
   return {
     dispose: () => networkTransport.dispose(),
+    async disposeAndWait() {
+      const closing = [...sessions.entries()];
+      for (const [session] of closing) session.destroy();
+      await Promise.all([networkTransport.disposeAndWait(), ...closing.map(([, done]) => done)]);
+    },
     async prepare(scope, message) {
       if (scope.network?.caCertPath && message.operation === "fetch")
         scope.http2Ca = [...rootCertificates, await readFile(scope.network.caCertPath, "utf8")];

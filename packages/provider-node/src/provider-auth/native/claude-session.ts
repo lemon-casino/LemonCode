@@ -5,6 +5,7 @@ import { digest, list, record, text, type Json } from "./common.js";
 import type { ClaudeSpawner } from "./claude-process.js";
 import { ClaudeOutput } from "./claude-output.js";
 import { ClaudeTools } from "./claude-mcp.js";
+import { closeClaudeChild } from "./claude-close.js";
 
 export type { ClaudeSpawner } from "./claude-process.js";
 export class ClaudeSession {
@@ -135,7 +136,7 @@ export class ClaudeSession {
         );
       });
       if (signal.aborted || this.terminated) {
-        child.kill();
+        closeClaudeChild(child, this.ended);
         throw new Error("Claude request cancelled");
       }
       child.stdin.write(
@@ -230,7 +231,7 @@ export class ClaudeSession {
     this.terminated = true;
     clearTimeout(this.timer);
     this.tools.dispose();
-    this.child?.kill();
+    if (this.child) closeClaudeChild(this.child, this.ended);
     this.output?.fail("Claude request closed");
   }
   waitClosed(): Promise<void> {

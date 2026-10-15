@@ -2334,6 +2334,8 @@ Original copyright, license and NOTICE text is retained below. Identical text is
 
 - undici@7.30.0 — MIT
 
+- undici@8.12.1 — MIT
+
 - unicorn-magic@0.3.0 — MIT
 
 - unified@11.0.5 — MIT
@@ -4120,6 +4122,8 @@ SOFTWARE.
 - undici@6.29.0: README.md (license section)
 
 - undici@7.30.0: README.md (license section)
+
+- undici@8.12.1: README.md (license section)
 
 - universalify@2.0.1: README.md (license section)
 
@@ -37273,6 +37277,8 @@ ISC
 
 - undici@7.30.0: LICENSE
 
+- undici@8.12.1: LICENSE
+
 
 
 ````text
@@ -37306,6 +37312,8 @@ SOFTWARE.
 
 - undici@7.30.0: lib/web/fetch/LICENSE
 
+- undici@8.12.1: lib/web/fetch/LICENSE
+
 
 
 ````text
@@ -37330,6 +37338,23 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+````
+
+### Notice ca5cc852fbcbe4598fe1f8b04c103c8073a64fa9cbb14b358bfdd87232ae8bd9
+
+- undici@8.12.1: lib/milo/LICENSE.md
+
+
+
+````text
+ISC License
+
+Copyright (c) 2023, and above Paolo Insogna, NearForm and other contributors
+
+Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted, provided that the above copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 ````
 

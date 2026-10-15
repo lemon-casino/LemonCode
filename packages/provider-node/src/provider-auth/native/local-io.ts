@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, open, rename, rm } from "node:fs/promises";
+import { dirname, basename, join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { homedir } from "node:os";
 import { promisify } from "node:util";
 import { resolveClaudeCommand } from "./claude-command.js";
@@ -24,7 +26,20 @@ export const defaultLocalIO: LocalIO = {
   home: homedir(),
   environment: process.env,
   read: (path) => readFile(path, "utf8"),
-  write: (path, content) => writeFile(path, content, { mode: 0o600 }),
+  async write(path, content) {
+    const temporary = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
+    const file = await open(temporary, "wx", 0o600);
+    try {
+      await file.writeFile(content, "utf8");
+      await file.sync();
+      await file.close();
+      // 同目录原子替换；失败保留旧授权文件，只删除本次创建的临时文件。
+      await rename(temporary, path);
+    } finally {
+      await file.close();
+      await rm(temporary, { force: true });
+    }
+  },
   async run(command, args, signal, environment) {
     const cli = command === "claude" ? await resolveClaudeCommand() : undefined;
     const output = await execute(cli?.command || command, [...(cli?.prefix || []), ...args], {

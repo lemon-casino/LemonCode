@@ -52,6 +52,10 @@ export interface AuthDriverContext {
   read(): Promise<AuthGrant | null>;
   /** Replaces the current grant; Host rejects writes after the account/attempt generation changes. */
   write(grant: AuthGrant): Promise<void>;
+  /** Host-only rotation completion: caller cancellation is detached, account/owner CAS is mandatory. */
+  captureRefreshCommit?(): (grant: AuthGrant) => Promise<void>;
+  /** Retain physical rotation completion before releasing the existing account lock. */
+  retainRefreshCompletion?(completion: Promise<unknown>): void;
   signal?: AbortSignal;
   reportSignIn?(status: "expired" | "kept" | "renewed"): Promise<void>;
 }

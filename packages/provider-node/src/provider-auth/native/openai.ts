@@ -1,4 +1,5 @@
 import { prepareResponses } from "./openai-request.js";
+import { OpenAIRefresh } from "./openai-refresh.js";
 export { prepareResponses } from "./openai-request.js";
 import { randomBytes } from "node:crypto";
 import type {
@@ -11,7 +12,7 @@ import type {
 } from "../driver.js";
 import { browserChallenge } from "./browser.js";
 import { importChallenge, singleImport } from "./imports.js";
-import { followLocal, localAccount, saveLocalCodex } from "./local.js";
+import { localAccount } from "./local.js";
 import { defaultLocalIO, type LocalIO } from "./local-io.js";
 import { openAIIdentity } from "./identity.js";
 import {
@@ -25,7 +26,6 @@ import {
   number,
   postForm,
   record,
-  requireGrant,
   sseData,
   text,
   type Fetcher,
@@ -41,11 +41,31 @@ type OpenAIChannel = "codex" | "chatgpt-api";
 
 export class OpenAIAuthDriver implements AuthDriver {
   private readonly lifetime = new AbortController();
+  private readonly refreshOwner: OpenAIRefresh;
   constructor(
     private readonly channel: OpenAIChannel,
     private readonly request: Fetcher = fetch,
     private readonly localIO: LocalIO = defaultLocalIO,
-  ) {}
+  ) {
+    this.refreshOwner = this.createRefreshOwner();
+  }
+  private createRefreshOwner(): OpenAIRefresh {
+    return new OpenAIRefresh(this.lifetime.signal, this.localIO, async (grant, signal) => {
+      const api = this.channel === "chatgpt-api";
+      const result = await postForm(
+        this.request,
+        AUTH + (api ? "/api/accounts/oauth/token" : "/oauth/token"),
+        {
+          grant_type: "refresh_token",
+          refresh_token: text(grant.refresh),
+          client_id: api ? text(grant.clientId) : CODEX_CLIENT,
+          ...(api ? { resource: API_BASE } : {}),
+        },
+        signal,
+      );
+      return tokenGrant(result, grant, this.channel);
+    });
+  }
   async methods(): Promise<readonly AuthMethod[]> {
     return [
       { id: "browser", label: "Sign in with ChatGPT", type: "oauth", kind: "browser" },
@@ -100,7 +120,8 @@ export class OpenAIAuthDriver implements AuthDriver {
           accountId: item.accountId,
           email: item.email,
         };
-        grant = await this.fresh(
+        // 导入项尚未绑定账号，每个候选单独验证；不能合并不同 refresh token 的 flight。
+        grant = await this.createRefreshOwner().fresh(
           {
             read: async () => grant,
             write: async (next) => {
@@ -188,32 +209,8 @@ export class OpenAIAuthDriver implements AuthDriver {
       },
     });
   }
-  private async fresh(context: AuthDriverContext, force = false): Promise<AuthGrant> {
-    const grant = await followLocal(
-      await requireGrant(context),
-      this.localIO,
-      joinedSignal(context.signal, this.lifetime.signal),
-    );
-    const expiry = grant.expires ?? (number(jwt(grant.access ?? "").exp) ?? 0) * 1000;
-    if (!force && grant.access && expiry > Date.now() + 300_000) return grant;
-    if (!grant.refresh) throw new Error("ChatGPT sign-in has expired; sign in again");
-    const api = this.channel === "chatgpt-api";
-    const result = await postForm(
-      this.request,
-      AUTH + (api ? "/api/accounts/oauth/token" : "/oauth/token"),
-      {
-        grant_type: "refresh_token",
-        refresh_token: grant.refresh,
-        client_id: api ? text(grant.clientId) : CODEX_CLIENT,
-        ...(api ? { resource: API_BASE } : {}),
-      },
-      joinedSignal(context.signal, this.lifetime.signal),
-    );
-    const next = tokenGrant(result, grant, this.channel);
-    context.signal?.throwIfAborted();
-    await saveLocalCodex(grant, next, this.localIO);
-    await context.write(next);
-    return next;
+  private fresh(context: AuthDriverContext, force = false): Promise<AuthGrant> {
+    return this.refreshOwner.fresh(context, force);
   }
   private headers(grant: AuthGrant): Headers {
     const headers = new Headers({
@@ -361,8 +358,9 @@ export class OpenAIAuthDriver implements AuthDriver {
       return { ...raw, partial: true };
     }
   }
-  dispose(): void {
+  async dispose(): Promise<void> {
     this.lifetime.abort();
+    await this.refreshOwner.drain();
   }
 }
 

@@ -181,7 +181,8 @@ test("Claude cancellation terminates a live CLI and isolates inherited auth", as
     );
     controller.abort();
     assert.match(await response.text(), /cancelled/);
-    assert.ok(children[0]?.killed);
+    await driver.dispose();
+    assert.ok(children[0]?.exitCode !== null || children[0]?.signalCode !== null);
     const environment = claudeEnvironment("isolated");
     assert.equal(environment.CLAUDE_CONFIG_DIR, "isolated");
     assert.equal(environment.ANTHROPIC_API_KEY, undefined);

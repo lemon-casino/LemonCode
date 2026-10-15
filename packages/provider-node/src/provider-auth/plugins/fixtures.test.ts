@@ -759,6 +759,98 @@ test("Cursor's actual HTTP/2 agent transport remains isolated and returns provid
   assert.ok(requests > 0, "must execute HTTP/2 agent transport");
 });
 
+for (const phase of ["before-headers", "after-headers"])
+  test(
+    `Cursor cancellation ${phase} closes its original H2 session without fallback or account retirement`,
+    { timeout: 5000 },
+    async (t) => {
+      let entered!: () => void, closed!: () => void;
+      const opened = new Promise<void>((resolve) => {
+        entered = resolve;
+      });
+      const retired = new Promise<void>((resolve) => {
+        closed = resolve;
+      });
+      const h2 = createHttp2Server();
+      const sessions = new Set<ServerHttp2Session>();
+      let attempts = 0;
+      h2.on("session", (session) => {
+        sessions.add(session);
+        session.on("error", () => {});
+        session.on("close", () => {
+          sessions.delete(session);
+        });
+      });
+      h2.on("stream", (stream: ServerHttp2Stream) => {
+        stream.on("error", () => {});
+        stream.resume();
+        if (++attempts === 1) {
+          stream.session!.once("close", closed);
+          if (phase === "after-headers") stream.respond({ ":status": 200 });
+          entered();
+        } else {
+          stream.respond({ ":status": 429, "content-type": "application/json" });
+          stream.end(
+            JSON.stringify({ error: { code: "resource_exhausted", message: "fixture limit" } }),
+          );
+        }
+      });
+      await new Promise<void>((resolve) => h2.listen(0, "127.0.0.1", resolve));
+      const f = await fixture((call) =>
+        call.path.endsWith("/AvailableModels")
+          ? json({
+              models: [
+                {
+                  name: "grok-4.7-fast",
+                  clientDisplayName: "Grok",
+                  contextTokenLimit: 128_000,
+                  supportsNonMaxMode: true,
+                },
+              ],
+            })
+          : call.path.endsWith("/GetUsableModels")
+            ? json({ models: [{ modelId: "grok-4.7-fast" }] })
+            : unavailable,
+      );
+      t.after(async () => {
+        await f.close();
+        for (const session of sessions) session.destroy();
+        await new Promise<void>((resolve) => h2.close(() => resolve()));
+      });
+      const driver = f.driver("cursor", `http://127.0.0.1:${(h2.address() as AddressInfo).port}`);
+      const access = `e30.${Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 7200 })).toString("base64url")}.fixture`;
+      const a = account({ type: "oauth", access, refresh: "", expires: 0 });
+      const model = (await driver.models(a.context))[0]!;
+      const controller = new AbortController();
+      const make = (signal?: AbortSignal) =>
+        new Request(model.baseURL + "/chat/completions", {
+          method: "POST",
+          body: JSON.stringify({
+            model: model.id,
+            messages: [{ role: "user", content: "fixture" }],
+            stream: true,
+          }),
+          signal,
+        });
+      const cancelled = driver.fetch(make(controller.signal), a.context);
+      const rejected = assert.rejects(cancelled, /cancel/);
+      await opened;
+      controller.abort();
+      await rejected;
+      await retired;
+      assert.equal(attempts, 1);
+      const kept = await driver.fetch(make(), a.context);
+      assert.equal(kept.status, 429);
+      await kept.text();
+      assert.equal(attempts, 2);
+      assert.equal(
+        f.calls.some((call) => call.path.endsWith("/chat/completions")),
+        false,
+        "cancel must not start H1 fallback",
+      );
+    },
+  );
+
 test("Grok uses the explicitly selected CLI profile and signed Responses transport", async (t) => {
   const profile = await mkdtemp(join(tmpdir(), "lcode-grok-fixture-"));
   const file = join(profile, "auth.json");

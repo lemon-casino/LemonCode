@@ -12,7 +12,8 @@ import { ProviderAccountQuotas } from "./providerAccountQuotas.js";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { Emitter } from "@lcode/rpc";
-import { withFileLock } from "@lcode/shared/node";
+import { ProviderAccountRefreshOwner } from "./providerAccountRefreshOwner.js";
+import { ProviderAccountDriverCleanup } from "./providerAccountDriverCleanup.js";
 import {
   startProviderAuthorizationSchema,
   type ProviderAccountChannel,
@@ -53,6 +54,8 @@ export class ProviderAccounts implements IProviderAccountService {
   readonly #starting = new Map<AuthDriver, AbortController>();
   readonly #drivers = new Map<string, AuthDriver>();
   readonly #inflight = new Map<string, Set<AbortController>>();
+  readonly #refreshOwner: ProviderAccountRefreshOwner;
+  readonly #driverCleanup = new ProviderAccountDriverCleanup();
   readonly #operations = {
     read: () => this.#storage.read(),
     driver: (account: StoredAccount) => this.#driver(account),
@@ -81,6 +84,7 @@ export class ProviderAccounts implements IProviderAccountService {
   readonly #watcher: { ready: Promise<void>; dispose: () => void };
   #publishedSignature?: string;
   constructor(private readonly options: ProviderAccountsOptions) {
+    this.#refreshOwner = new ProviderAccountRefreshOwner(options.lockPath);
     this.#storage = new ProviderAccountStorage(options.credentials, options.lockPath);
     this.#watcher = watchProviderAccountStorage(options.watchFile, async () => {
       const accounts = await this.#storage.readPublic();
@@ -257,9 +261,12 @@ export class ProviderAccounts implements IProviderAccountService {
       { read: () => this.#storage.read(), mutate: (update) => this.#mutate(update) },
       account,
       signal,
+      () => !this.#disposed,
     );
     return {
       ...context,
+      retainRefreshCompletion: (completion) =>
+        this.#refreshOwner.retain(account.connectionId, completion),
       reportSignIn: async (status) => {
         await context.reportSignIn?.(status);
         await this.#publish();
@@ -373,10 +380,7 @@ export class ProviderAccounts implements IProviderAccountService {
     };
   }
   #withAccountLock<T>(account: StoredAccount, operation: () => Promise<T>): Promise<T> {
-    // 锁覆盖读取凭据、远端refresh到保存的全过程；多个窗口不能重复消费refresh token。
-    return withFileLock(`${this.options.lockPath}.${account.connectionId}.request`, operation, {
-      lockMaxWaitMs: 180_000,
-    });
+    return this.#refreshOwner.run(account.connectionId, operation);
   }
   async dispose(): Promise<void> {
     this.#disposed = true;
@@ -389,15 +393,11 @@ export class ProviderAccounts implements IProviderAccountService {
     }
     for (const id of this.#inflight.keys()) this.#abort(id);
     this.#transport.dispose();
-    await Promise.allSettled(
-      [
-        ...new Set([
-          ...this.#drivers.values(),
-          ...this.#starting.keys(),
-          ...[...this.#attempts.values()].map((item) => item.driver),
-        ]),
-      ].map((driver) => driver.dispose?.()),
-    );
+    await this.#driverCleanup.close([
+      ...this.#drivers.values(),
+      ...this.#starting.keys(),
+      ...[...this.#attempts.values()].map((item) => item.driver),
+    ]);
     this.#emitter.dispose();
   }
 }

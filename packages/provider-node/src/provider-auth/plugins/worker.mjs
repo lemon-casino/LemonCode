@@ -65,7 +65,7 @@ for (const method of ["spawn", "execFile"]) {
     }
     const child = original(...args);
     children.add(child);
-    child.once("exit", () => children.delete(child));
+    child.once("close", () => children.delete(child));
     return child;
   };
 }
@@ -310,20 +310,50 @@ async function call(message, scope) {
   return undefined;
 }
 
+let disposing;
 function dispose() {
+  if (disposing) return disposing;
   closed = true;
   networkTransport.dispose();
   for (const scope of operations.values()) {
     scope.controller.abort();
     scope.pull?.();
   }
-  for (const child of children) child.kill();
-  for (const server of servers) {
-    server.closeAllConnections?.();
-    server.close();
-  }
-  send({ kind: "disposed" });
-  process.exit(0);
+  disposing = (async () => {
+    const closing = [networkTransport.disposeAndWait()];
+    for (const scope of operations.values()) {
+      if (scope.done) closing.push(scope.done);
+      if (scope.reader)
+        closing.push(
+          scope.reader.cancel().catch((error) => {
+            if (error !== scope.controller.signal.reason) throw error;
+          }),
+        );
+    }
+    for (const pending of reads.values())
+      pending.reject(new DOMException("Worker closed", "AbortError"));
+    reads.clear();
+    for (const child of children) {
+      closing.push(new Promise((resolve) => child.once("close", resolve)));
+      child.kill();
+    }
+    for (const server of servers) {
+      closing.push(
+        new Promise((resolve, reject) => {
+          server.closeAllConnections?.();
+          server.close((error) =>
+            error && error.code !== "ERR_SERVER_NOT_RUNNING" ? reject(error) : resolve(),
+          );
+        }),
+      );
+    }
+    const results = await Promise.allSettled(closing);
+    const failed = results.some((result) => result.status === "rejected");
+    // ACK 只在原资源结算后发出；父端仍以真实 exit 为准，不把收到 dispose 当成清理成功。
+    send({ kind: "disposed", failed });
+    process.exit(failed ? 1 : 0);
+  })();
+  return disposing;
 }
 process.on("exit", () => {
   for (const child of children) child.kill();
@@ -357,7 +387,7 @@ parentPort.on("message", (message) => {
     void scope?.reader?.cancel().catch(() => {});
     return;
   }
-  if (message.kind !== "call") return;
+  if (message.kind !== "call" || closed) return;
   const scope = {
     id: message.id,
     context: message.context,
@@ -365,7 +395,7 @@ parentPort.on("message", (message) => {
     controller: new AbortController(),
   };
   operations.set(message.id, scope);
-  void scopes.run(scope, async () => {
+  scope.done = scopes.run(scope, async () => {
     try {
       await networkTransport.prepare(scope, message);
       const value = await call(message, scope);

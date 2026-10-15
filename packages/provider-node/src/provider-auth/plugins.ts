@@ -101,7 +101,7 @@ function createDriver(
         true,
       );
       const cancel = () => {
-        void worker.dispose();
+        void worker.dispose().catch(() => {});
       };
       signal.addEventListener("abort", cancel, { once: true });
       if (signal.aborted) {

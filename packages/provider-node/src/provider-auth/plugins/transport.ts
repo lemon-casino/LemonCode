@@ -33,6 +33,7 @@ type WorkerMessage = {
 function abortedError(): Error {
   return new DOMException("Provider operation was cancelled", "AbortError");
 }
+const WORKER_CLOSE_BUDGET_MS = 1_000;
 
 /** Internal transport, exported separately only for deterministic local fixtures. */
 export class PluginWorkerTransport {
@@ -40,7 +41,8 @@ export class PluginWorkerTransport {
   private readonly pending = new Map<number, PendingCall>();
   private sequence = 0;
   private closed = false;
-  private readonly exit: Promise<void>;
+  private readonly exit: Promise<number>;
+  private disposing?: Promise<void>;
 
   constructor(
     channel: string,
@@ -48,25 +50,28 @@ export class PluginWorkerTransport {
     fixtureH2Origin?: string,
     fixtureLocalHome?: string,
     private readonly networkOptions?: AuthDriverNetworkOptions,
+    dependencies: { worker?: Worker } = {},
   ) {
-    this.worker = new Worker(PLUGIN_WORKER_SOURCE, {
-      eval: true,
-      workerData: {
-        channel,
-        ...(fixtureOrigin ? { fixtureOrigin, fixtureH2Origin, fixtureLocalHome } : {}),
-      },
-      // A provider must never forward a raw console log containing its tokens.
-      stdout: true,
-      stderr: true,
-    });
+    this.worker =
+      dependencies.worker ??
+      new Worker(PLUGIN_WORKER_SOURCE, {
+        eval: true,
+        workerData: {
+          channel,
+          ...(fixtureOrigin ? { fixtureOrigin, fixtureH2Origin, fixtureLocalHome } : {}),
+        },
+        // A provider must never forward a raw console log containing its tokens.
+        stdout: true,
+        stderr: true,
+      });
     this.worker.stdout.resume();
     this.worker.stderr.resume();
     this.worker.unref();
     this.exit = new Promise((resolve) => {
-      this.worker.once("exit", () => {
+      this.worker.once("exit", (code) => {
         this.closed = true;
         this.failAll(new Error("Provider plugin worker stopped"));
-        resolve();
+        resolve(code);
       });
     });
     this.worker.on("error", (error) => {
@@ -76,7 +81,7 @@ export class PluginWorkerTransport {
     this.worker.on("message", (message: WorkerMessage) => {
       void this.receive(message).catch((error: unknown) => {
         this.failAll(error instanceof Error ? error : new Error(String(error)));
-        void this.dispose();
+        void this.dispose().catch(() => {});
       });
     });
   }
@@ -106,7 +111,7 @@ export class PluginWorkerTransport {
         this.worker.postMessage({ kind: "cancel", id });
         // 授权插件可能拥有 loopback server、CLI 子进程和轮询定时器。
         // 取消授权必须销毁其 worker，不能只丢弃 Promise 留下后台登录。
-        if (killOnAbort) void this.dispose();
+        if (killOnAbort) void this.dispose().catch(() => {});
       };
       const pending: PendingCall = {
         requestOwner,
@@ -130,14 +135,42 @@ export class PluginWorkerTransport {
     });
   }
 
-  async dispose(): Promise<void> {
+  dispose(options?: { deadlineAt?: number }): Promise<void> {
+    if (this.disposing) return this.disposing;
     if (!this.closed) {
       this.closed = true;
       this.failAll(abortedError());
       this.worker.ref();
       this.worker.postMessage({ kind: "dispose" });
     }
-    await this.exit;
+    this.disposing = (async () => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const outcome = await Promise.race([
+          this.exit.then((code) => {
+            if (code !== 0) throw new Error(`Provider worker cleanup failed (exit ${code})`);
+            return "exited" as const;
+          }),
+          new Promise<"pending">((resolve) => {
+            timer = setTimeout(
+              () => resolve("pending"),
+              Math.max(
+                0,
+                Math.min(WORKER_CLOSE_BUDGET_MS, (options?.deadlineAt ?? Infinity) - Date.now()),
+              ),
+            );
+          }),
+        ]);
+        if (outcome === "pending") {
+          // 只终止本账号创建的 Worker；强制结束必须报告，不能伪装优雅关闭 ACK。
+          await this.worker.terminate();
+          throw new Error("Provider worker cleanup required forced termination");
+        }
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
+    })();
+    return this.disposing;
   }
 
   private finish(id: number, error?: Error, value?: unknown): void {
