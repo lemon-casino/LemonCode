@@ -6,6 +6,7 @@ import {
   runSqliteSessionMigrationsAsync,
 } from "./migration-runner.js";
 import { SqliteSessionStore } from "./sqlite-session-store.js";
+import { SQLITE_MIGRATIONS } from "./migrations.js";
 
 const restoreTimeoutSql = `pragma busy_timeout = ${DEFAULT_SQLITE_STARTUP_LOCK_TIMEOUT_MS}`;
 const primaryFailures = [new Error("notification failed"), null, undefined, 0, false, ""];
@@ -92,7 +93,13 @@ test("successful migration surfaces cleanup failure without undoing committed SQ
     (error: unknown) => error === cleanupFailure,
   );
   assert.equal(db.isTransaction, false);
-  assert.equal(db.prepare("select count(*) as count from schema_migration").get()?.count, 23);
+  assert.deepEqual(
+    db
+      .prepare("select id from schema_migration order by id")
+      .all()
+      .map((row) => row.id),
+    SQLITE_MIGRATIONS.map((migration) => migration.id).sort(),
+  );
 });
 
 test("both cleanup steps are attempted and first falsy cleanup failure wins", async (t) => {
@@ -151,7 +158,10 @@ test("startup closes rejected connections and can retry with a fresh owner", asy
 
   const store = await SqliteSessionStore.openStartup({ dbPath: ":memory:" });
   try {
-    assert.equal(store.debugMigrationIds().length, 23);
+    assert.deepEqual(
+      store.debugMigrationIds().sort(),
+      SQLITE_MIGRATIONS.map((migration) => migration.id).sort(),
+    );
   } finally {
     store.close();
   }
