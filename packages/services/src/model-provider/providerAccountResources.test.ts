@@ -65,3 +65,38 @@ test("account cleanup keeps each failure and only retries the original unfinishe
   assert.equal(first, 1);
   assert.equal(second, 2);
 });
+
+test("account cleanup waits for pending construction and observes late retirement failure", async () => {
+  const owner = new ProviderAccountDriverCleanup();
+  const gate = Promise.withResolvers<void>();
+  let activeClosed = false,
+    lateCloses = 0,
+    closed = false;
+  const late = {
+    dispose: async () => {
+      if (++lateCloses === 1) throw new Error("late cleanup failure");
+    },
+  } as AuthDriver;
+  const creating = owner.construct(async () => {
+    await gate.promise;
+    await owner.retire(late);
+  });
+  const constructionFailure = assert.rejects(creating, /late cleanup failure/);
+  const closing = owner.close([
+    {
+      dispose: async () => {
+        activeClosed = true;
+      },
+    } as AuthDriver,
+  ]);
+  const closeFailure = assert.rejects(closing, /cleanup failed/).then(() => {
+    closed = true;
+  });
+  await setImmediate();
+  assert.equal(activeClosed, true);
+  assert.equal(closed, false);
+  gate.resolve();
+  await Promise.all([constructionFailure, closeFailure]);
+  await owner.close([]);
+  assert.equal(lateCloses, 2);
+});

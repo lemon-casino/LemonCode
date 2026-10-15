@@ -14,6 +14,7 @@ import { z } from "zod";
 import { Emitter } from "@lcode/rpc";
 import { ProviderAccountRefreshOwner } from "./providerAccountRefreshOwner.js";
 import { ProviderAccountDriverCleanup } from "./providerAccountDriverCleanup.js";
+import { prepareProviderAuthorizationInputs } from "./providerAccountAuthorizationInputs.js";
 import {
   startProviderAuthorizationSchema,
   type ProviderAccountChannel,
@@ -131,28 +132,20 @@ export class ProviderAccounts implements IProviderAccountService {
       (item) => item.id === parsed.channelId,
     );
     if (!channel) throw new Error("Unknown authorization channel");
-    const driver = await this.#factory(parsed.channelId);
-    const controller = new AbortController();
-    this.#starting.set(driver, controller);
+    const { driver, controller } = await this.#driverCleanup.constructDriver({
+      create: () => this.#factory(parsed.channelId),
+      closed: () => this.#disposed,
+      publish: (driver) => {
+        const controller = new AbortController();
+        this.#starting.set(driver, controller);
+        return { driver, controller };
+      },
+    });
     try {
       if (this.#disposed) throw new Error("Provider account service closed");
       const method = (await driver.methods()).find((item) => item.id === parsed.methodId);
       if (!method) throw new Error("Unknown authorization method");
-      const inputs = { ...parsed.inputs };
-      for (const field of method.fields ?? [])
-        if (inputs[field.key] === undefined && field.defaultValue !== undefined)
-          inputs[field.key] = field.defaultValue;
-      for (const field of method.fields ?? []) {
-        if (field.condition && inputs[field.condition.key] !== field.condition.value) continue;
-        const value = inputs[field.key];
-        if (!field.optional && !value?.trim()) throw new Error(`Required input: ${field.label}`);
-        if (
-          field.type === "select" &&
-          value &&
-          !field.options?.some((option) => option.value === value)
-        )
-          throw new Error(`Invalid input: ${field.label}`);
-      }
+      const inputs = prepareProviderAuthorizationInputs(method, parsed.inputs);
       if (channel.id === "chatgpt-api") inputs.hostId = await this.#storage.hostId();
       controller.signal.throwIfAborted();
       const challenge = await driver.authorize(parsed.methodId, inputs, controller.signal);
@@ -175,7 +168,7 @@ export class ProviderAccounts implements IProviderAccountService {
       return { ...view };
     } catch (error) {
       controller.abort();
-      await driver.dispose?.();
+      await this.#driverCleanup.retire(driver);
       throw new Error(authorizationFailureMessage(error));
     } finally {
       this.#starting.delete(driver);
@@ -239,17 +232,18 @@ export class ProviderAccounts implements IProviderAccountService {
   async #driver(account: StoredAccount): Promise<AuthDriver> {
     let driver = this.#drivers.get(account.connectionId);
     if (!driver) {
-      driver = await this.#factory(account.channelId);
-      if (
-        this.#disposed ||
-        !(await this.#storage.read()).some(
-          (current) => current.connectionId === account.connectionId && current.enabled,
-        )
-      ) {
-        await driver.dispose?.();
-        throw new Error("Provider account service closed");
-      }
-      this.#drivers.set(account.connectionId, driver);
+      driver = await this.#driverCleanup.constructDriver({
+        create: () => this.#factory(account.channelId),
+        closed: () => this.#disposed,
+        validate: async () =>
+          (await this.#storage.read()).some(
+            (item) => item.connectionId === account.connectionId && item.enabled,
+          ),
+        publish: (created) => {
+          this.#drivers.set(account.connectionId, created);
+          return created;
+        },
+      });
     }
     return driver;
   }
