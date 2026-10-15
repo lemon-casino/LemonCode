@@ -56,8 +56,8 @@ interface RunServiceLifecycle {
   close(context?: import("@lcode/contracts").ProtocolShutdownContext): Promise<void>;
   /** 关闭之后的 launch 是接线错误：抛，而不是给 contracts 的拒绝枚举加成员。 */
   assertOpen(): void;
-  /** 活条目下出现终态行 ⇒ 外来写入，每个条目记一条 warn。 */
-  noteForeignTerminalRow(runId: string): void;
+  /** 记录 journal 终态早于本地 settlement 的观测窗口，不推断 writer 身份。 */
+  noteTerminalBeforeSettlement(runId: string): void;
 }
 
 /**
@@ -208,24 +208,19 @@ export function createRunServiceLifecycle(deps: RunServiceLifecycleDeps): RunSer
   };
 
   /**
-   * 活条目下出现终态行 ⇒ 外来写入，每个条目记一条 warn。
-   *
-   * 第二个桌面实例冷恢复了同一个会话，它的孤儿收敛把本
-   * 进程仍在跑的 run 写成终态行。读面已经按 {@link RunRegistryEntry} 的活条目忽略它
-   * （observation 的 synthesizeRunStatus），但这件事本身必须留痕——否则「两个实例互相踩」只能
-   * 靠事后猜。
-   *
-   * 每条目一次：追踪器每秒轮询一次 `getTask`，不设标记就是每秒一条同样的 warn。标记未置位时
-   * 多读一次 `getRun`（索引单行查询），置位后连这一次也省掉。
+   * 引擎先提交 journal 再结束 driver dispose，因此本地还 live 不证明外来写入。
+   * 每条目仅记录一次 debug，writer 的判断归持久 owner fencing。
    */
-  const noteForeignTerminalRow = (runId: string): void => {
+  const noteTerminalBeforeSettlement = (runId: string): void => {
     const entry = deps.runs.get(runId);
-    if (entry === undefined || entry.terminal !== undefined || entry.foreignTerminalLogged) return;
+    if (entry === undefined || entry.terminal !== undefined || entry.terminalBeforeSettlementLogged)
+      return;
     const record = deps.journal.getRun(runId);
     if (record === undefined || !TERMINAL_RUN_STATUSES.has(record.status)) return;
-    entry.foreignTerminalLogged = true;
-    deps.logger?.warn?.("Dynamic workflow run has a foreign terminal row under a live engine", {
-      event: "dynamic_workflow.run.foreign_terminal_row",
+    entry.terminalBeforeSettlementLogged = true;
+    // finishRun 先写 journal，随后才 dispose driver/resolve settlement；此窗口不证明外来 writer。
+    deps.logger?.debug?.("Journal terminal observed before local settlement", {
+      event: "dynamic_workflow.run.terminal_observed_before_settlement",
       journalStatus: record.status,
       module: "bootstrap.app",
       runId,
@@ -234,13 +229,16 @@ export function createRunServiceLifecycle(deps: RunServiceLifecycleDeps): RunSer
   };
 
   return {
-    readResidencySnapshot: () => ({ liveRunCount: countLiveRuns(), pendingCleanupCount: pendingCleanups.size }),
+    readResidencySnapshot: () => ({
+      liveRunCount: countLiveRuns(),
+      pendingCleanupCount: pendingCleanups.size,
+    }),
     countLiveRuns,
     subscribeRunSettled,
     trackSettlement,
     close,
     assertOpen,
-    noteForeignTerminalRow,
+    noteTerminalBeforeSettlement,
   };
 }
 

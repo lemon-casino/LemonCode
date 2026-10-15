@@ -19,6 +19,7 @@ import {
  * 碰了什么」变得不可见。
  */
 interface DynamicWorkflowOrphanReconcileDeps {
+  executionOwner?: import("@lcode/dynamic-workflow").WorkflowJournalOwnerLease;
   journal: JournalStorePort;
   parentSessionId: string;
   logger?: Logger;
@@ -46,12 +47,11 @@ function interruptedRunFailure(runId: string): WorkflowErrorJson {
  * 本进程注册表里的 run 直接回 journal 快照，于是恢复会话后每个 journal 读面都被告知「还在跑」，
  * 永不自愈）。
  *
- * 为什么时机是**构造**：这一刻本服务实例名下零个在飞 run，所以 journal 里属于本会话的任何
- * 非终态行都只可能是死进程的遗物。二次构造因此天然幂等（已无非终态项）。
+ * 构造时也必须取得旧 owner 已退休的 fenced lease；空本地注册表本身不是证明。
  *
  * 三条边界：
  *   - **只收敛本会话**（`deps.parentSessionId`）。全局清扫会把同进程兄弟会话正在飞的 run 标死；
- *     同会话双进程由会话单属主排除。
+ *     同会话双进程由持久 owner CAS 排除。
  *   - **不合成 dwf_event**。事件日志的契约是「引擎发过什么」，状态权威在 run 行上；
  *     `run-settled` 是引擎的收口，不是清扫者的。
  *   - **不让收敛失败拖垮构造**。收敛是自愈动作而不是 run 的前提：查询或写入失败时记 warn 并
@@ -59,6 +59,14 @@ function interruptedRunFailure(runId: string): WorkflowErrorJson {
  */
 export function reconcileOrphanRuns(deps: DynamicWorkflowOrphanReconcileDeps): void {
   const { journal, logger, parentSessionId } = deps;
+  if (!deps.executionOwner) {
+    logger?.warn?.("Orphan reconciliation requires verified execution ownership", {
+      event: "dynamic_workflow.run.reconcile_skipped",
+      reason: "owner_unknown",
+      parentSessionId,
+    });
+    return;
+  }
   if (!supportsNonTerminalRunQuery(journal)) {
     logger?.warn?.("Dynamic workflow orphan run reconciliation skipped", {
       event: "dynamic_workflow.run.reconcile_skipped",
@@ -86,10 +94,11 @@ export function reconcileOrphanRuns(deps: DynamicWorkflowOrphanReconcileDeps): v
     try {
       // stopped(interrupted)：可恢复，且与用户
       // 取消 / 模型侧停止分辨得开——reason 说「进程死了」，code 是同一事实的第二证据。
-      journal.updateRunStatus(record.runId, "stopped", {
+      const reconciled = deps.executionOwner.reconcileInterrupted(record.runId, record.status, {
         stopReason: "interrupted",
         failure: interruptedRunFailure(record.runId),
       });
+      if (!reconciled) continue;
       logger?.warn?.("Dynamic workflow run reconciled as interrupted", {
         event: "dynamic_workflow.run.reconciled_interrupted",
         module: "bootstrap.app",

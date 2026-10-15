@@ -60,6 +60,7 @@ export interface DynamicWorkflowActorRuntimeInput {
 }
 
 export interface DynamicWorkflowRunServiceDeps {
+  executionOwner?: import("@lcode/dynamic-workflow").WorkflowJournalOwnerLease;
   goalEvidenceOwner?: import("@lcode/core").GoalEvidenceOwner;
   acquireCheckoutWriterLease?: (
     runId: string,

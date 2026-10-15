@@ -35,9 +35,8 @@ import type {
   UpdateSessionInput,
   UsageStorePort,
 } from "@lcode/contracts";
-// 端口留在领域包 @lcode/dynamic-workflow，这里只做类型引用：adapters 运行时不依赖它。
-import type { JournalStorePort } from "@lcode/dynamic-workflow";
 import { SqliteSessionMigrationError } from "./errors.js";
+import { workflowJournalMethods } from "./store-workflow-journal.js";
 import {
   DEFAULT_SQLITE_STARTUP_LOCK_TIMEOUT_MS,
   runSqliteSessionMigrations,
@@ -52,7 +51,6 @@ import type {
 import { ensureParentDir, getDefaultSessionDbPath } from "./paths.js";
 import { maybeThrowStorageFsFault } from "../fs-fault-injection.js";
 import * as debugRepository from "./repositories/debug.js";
-import { createDwfJournalStore } from "./repositories/dwf-journal.js";
 import * as messageRepository from "./repositories/messages.js";
 import * as sessionEntryRepository from "./repositories/session-entries.js";
 import * as sessionInputRepository from "./repositories/session-inputs.js";
@@ -134,11 +132,14 @@ export class SqliteSessionStore
   declare createSessionTaskLink: AuxiliaryMethods["createSessionTaskLink"];
   declare worktreeCleanup: StoreMethods<typeof worktreeCleanupMethods>["worktreeCleanup"];
   declare worktreeRebind: StoreMethods<typeof worktreeRebindMethods>["worktreeRebind"];
+  declare workflowJournalStore: StoreMethods<typeof workflowJournalMethods>["workflowJournalStore"];
+  declare acquireWorkflowExecutionOwner: StoreMethods<
+    typeof workflowJournalMethods
+  >["acquireWorkflowExecutionOwner"];
 
   private readonly db: DatabaseSync;
   private readonly dbPath: string;
   private readonly forkCommitFaultAt?: ForkCommitFaultStage;
-  private dwfJournalStore?: JournalStorePort;
 
   constructor(options: SqliteSessionStoreOptions = {}, startupToken?: symbol) {
     this.dbPath = options.dbPath ?? getDefaultSessionDbPath();
@@ -413,15 +414,6 @@ export class SqliteSessionStore
     return sessionRepository.clearRevert(this.db, sessionID);
   }
 
-  /**
-   * dynamic-workflow 执行引擎的 durable journal（dwf_* 表）。端口是同步的，所以这里返回
-   * 端口对象本身而不是逐方法转发——引擎持有它、按自己的节奏读写。
-   */
-  workflowJournalStore(): JournalStorePort {
-    this.dwfJournalStore ??= createDwfJournalStore(this.db);
-    return this.dwfJournalStore;
-  }
-
   debugMigrationIds(): string[] {
     return debugRepository.debugMigrationIds(this.db);
   }
@@ -440,6 +432,7 @@ for (const methods of [
   auxiliaryStoreMethods,
   worktreeCleanupMethods,
   worktreeRebindMethods,
+  workflowJournalMethods,
 ]) {
   for (const [name, descriptor] of Object.entries(Object.getOwnPropertyDescriptors(methods))) {
     Object.defineProperty(SqliteSessionStore.prototype, name, { ...descriptor, enumerable: false });

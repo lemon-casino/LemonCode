@@ -256,3 +256,4 @@ export {
   type ConcurrencyControllerSnapshot,
   type ConcurrencyThrottleReason,
 } from "./engine/index.js";
+export type { WorkflowJournalOwnerLease } from "./engine/journal-owner.js";

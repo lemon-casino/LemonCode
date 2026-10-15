@@ -3,6 +3,48 @@ import test from "node:test";
 import type { RunSettlement } from "@lcode/dynamic-workflow";
 import { createRunServiceLifecycle } from "./dynamic-workflow-run-lifecycle.js";
 import type { RunRegistryEntry } from "./dynamic-workflow-run-observation.js";
+import type { Logger } from "@lcode/contracts";
+
+test("own journal terminal before settlement is not evidence of a foreign writer", () => {
+  const notices: string[] = [];
+  const warnings: string[] = [];
+  const logger: Logger = {
+    child: () => logger,
+    info() {},
+    error() {},
+    debug: (_message, context) => {
+      notices.push(String(context?.event));
+    },
+    warn: (_message, context) => {
+      warnings.push(String(context?.event));
+    },
+  };
+  const entry: RunRegistryEntry = {
+    controller: new AbortController(),
+    cwd: "C:/fixture",
+    scriptText: "return 1",
+    startedAt: new Date(),
+    settlement: Promise.resolve({ status: "completed", artifact: 1 }),
+  };
+  const lifecycle = createRunServiceLifecycle({
+    parentSessionId: "parent",
+    runs: new Map([["run", entry]]),
+    logger,
+    journal: {
+      getRun: () => ({
+        runId: "run",
+        status: "completed",
+        spentTokens: 0,
+        caps: { maxConcurrency: 1 },
+      }),
+    },
+  });
+  lifecycle.noteTerminalBeforeSettlement("run");
+  lifecycle.noteTerminalBeforeSettlement("run");
+  assert.deepEqual(warnings, []);
+  assert.deepEqual(notices, ["dynamic_workflow.run.terminal_observed_before_settlement"]);
+  assert.equal(lifecycle.countLiveRuns(), 1);
+});
 
 test("terminal cleanup survives registry eviction and close waits for lineage lease release", async () => {
   const retries: Array<() => void> = [];

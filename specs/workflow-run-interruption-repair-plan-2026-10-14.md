@@ -2,7 +2,7 @@
 
 工作流应在父回合结束、切换详情或手机重连后继续执行；真正退出执行运行时才按中断收口。本次优先解决关闭原因不可追踪、运行与关闭边界不一致、收尾 RPC 被提前切断，以及跨实例孤儿收敛的所有权风险。
 
-源码基线为 `473980ed`，仓库版本 3.18.8。依据为用户指定会话的分析、其附带日志及当前源码。本方案尚未实施；此前 Browser 生命周期修复保持有效，不能用其 555 项通过结果替代本次中断场景验收。
+设计基线为 `473980ed`，仓库版本 3.18.8。依据为用户指定会话的分析、其附带日志及当前源码。2026-10-15 已按授权从 `e1e1acfc` 推进实施，执行契约见第 9 节；此前 Browser 生命周期修复保持有效，其 555 项通过结果不替代本次中断场景验收。
 
 ## 1 原分析需要修正的结论
 
@@ -245,3 +245,13 @@ pnpm --dir apps/lcode-cli --filter @lcode/cli build:desktop-agent
 阶段 D 的兼容决定：复用既有 `local_setting` 的命名空间 `workflow.execution/owner`，不新增表、列或 migration。每个 parent session 一条版本化 owner 记录，含 workspace identity key、不可预测 token、generation、主机指纹与进程实例、active/retired；不是第二张 run 表。claim 通过旧完整值 CAS，写 journal 的每笔操作在同一 SQLite savepoint 内校验原 owner。跨主机、损坏/未知版本、缺 owner 且有非终态旧 run 时均拒绝执行认领，不凭空写 interrupted；只读历史仍可访问。已确认本机原进程实例退出或显式 retired 才允许接代。旧二进制不具备 fencing，混合版本不允许自动认领无元数据的活运行；回退前先退休新 owner，旧 run/lineage 数据原样保留。
 
 孤儿收敛改为 owner lease 提供的条件操作：校验 parent、workspace key、当前 owner token 与 expected non-terminal status，同一事务内写 interrupted；失败仅重读，不无条件写入。App 启动失败释放未发布 lease；正常关闭在 workflow settlement 与 cleanup 完成后退休 lease。不得在清理仍可能写 journal 时提前退休。自身已提交 journal 终态与本地 settlement 的短暂差异仅标记 `terminal_observed_before_settlement`，不据事件名推断 foreign writer。
+
+新发现的关闭竞态：Protocol 资源 owner 除已返回 App 外还必须同步持有 construction flight。关闭封闭准入后等待这些 flight 归还并清理晚返回资源；不能只等已入册 App 就关闭共享 store。新增测试用 deferred 构造/清理证明 store 前置 drain 不会提前完成。
+
+去激活闸门的重入补充：pool 在调用可能同步发事件的宿主 deactivate 前安装临时 gate；blocked/同步失败立即撤销且不扣容量，started 才把 gate 延伸到真实 completion。否则 unsubscribe/close 同步事件重入 acquireOperation 时，可能在 gate 还未安装的空隙通过冷恢复。新增确定性重入测试，不用 sleep 规避。
+
+阶段 E：保留现有五态 UI 与 stopReason 展示契约；补齐真实模型 runner 的 caller abort + HTTP/2 清理异常回归，要求只发布一次 cancelled、不安排重试，cleanup 警告不能改写原始结算。SchemaRejection 增加内部可选 hint，undefined 拒绝附可选属性/省略字段示例；仍定位原行列与 JSON 路径，不修改报告或放宽 schema。合法可选字段、显式 undefined、nullable 分开测试。
+
+验证中新增两项闭环：owner 准入失败发生在 runtime 构造前，此时只关闭本 App 自建的 store，借用的 Protocol store 保留；关闭再失败时保留两份原因。现有 migration-runner 两处断言仍写死 23 条迁移，而当前基线已有 25 条；改为核对现有迁移目录的完整 ID 集合，保留“拒绝后关闭连接、重试完成全部迁移”的真实断言，不修改历史 migration。
+
+LI24 使用无窗口隔离 Electron 主进程加载实际 LCodeAgentProcessManager，stdio 子进程运行按现有 CLI aliases/external/Zod 配置打包的生命周期夹具。夹具使用真实 Core、workflow 引擎、SQLite owner、Protocol server/pool/connection，模型返回固定文本；files.read 由夹具端口显式放行。验收父模型回合真正结束、run 仍活跃、状态泳道回收不影响主泳道、显式 workspace dispose 写 interrupted 和首次 EOF 原因。它验证当前源码的 Host/Agent 装配，不等于原安装包、原业务或真实供应商验收。

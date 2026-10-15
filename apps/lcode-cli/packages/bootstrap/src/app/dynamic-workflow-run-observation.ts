@@ -113,10 +113,9 @@ export interface RunRegistryEntry {
   terminal?: RunSettlement;
   completedAt?: Date;
   /**
-   * 已经为这个条目记过一次「journal 行是外来终态」的日志（见 {@link synthesizeRunStatus} 的
-   * 优先级说明）。追踪器每秒轮询一次，不记这个标记就会每秒一条同样的 warn。
+   * 已为这个条目记录 journal 终态先于本地结算的窗口；不据此推断外来 writer。
    */
-  foreignTerminalLogged?: true;
+  terminalBeforeSettlementLogged?: true;
 }
 
 /**

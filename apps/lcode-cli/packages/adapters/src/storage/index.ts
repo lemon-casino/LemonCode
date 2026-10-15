@@ -324,3 +324,4 @@ async function isRegularFile(path: string): Promise<boolean> {
 }
 
 export * from "./workspace-hook-trust-store.js";
+export { WorkflowExecutionOwnerError } from "./session-store/repositories/workflow-journal-owner.js";

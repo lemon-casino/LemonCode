@@ -20,8 +20,8 @@
 //      比没有 run 更糟（resume 无据、详情页无源、取消后无记录）。narrowing 失败时
 //      {@link createDynamicWorkflowRunService} 的调用方拿到 undefined，CreateWorkflow 因此
 //      回到占位诊断路径——这是一个可见的降级，而不是一个坏掉的功能。
-//   4. **构造时收敛本会话的孤儿 run，且只收敛本会话的**。见 {@link reconcileOrphanRuns}：
-//      死进程留下的 `running` 行只有在这一刻才可判定，而「本会话」是唯一安全的作用域。
+//   4. **持有已验证的执行 lease，才可条件收敛本会话孤儿 run**。见 {@link reconcileOrphanRuns}：
+//      空本地运行表不能证明死进程；持久 owner token 与 expected status 在同一事务内复核。
 //      收敛写成 `stopped(interrupted)`（携 `Interrupted` 失败编码），与其余 stopped 同为可恢复。
 //   5. **resume 先替换注册表条目，再启动**。`waitForTask` 对不在注册表里的 runId 直接回
 //      journal 快照——条目晚一步，重臂的通知 watcher 会立刻对着旧的终态行结算。
@@ -169,6 +169,9 @@ interface DynamicWorkflowRunService extends DynamicWorkflowRunPort {
 export function createDynamicWorkflowRunService(
   deps: DynamicWorkflowRunServiceDeps,
 ): DynamicWorkflowRunService {
+  // 有执行 lease 的生产装配必须使用它的 fenced journal，禁止误接回未受保护的原视图。
+  if (deps.executionOwner && deps.journal !== deps.executionOwner.journal)
+    throw new Error("Workflow journal must belong to its execution owner");
   const runs = new Map<string, RunRegistryEntry>();
   const revisionAdmissions = new Map<string, Promise<DynamicWorkflowAskRevisionResult>>();
   /**
@@ -179,8 +182,7 @@ export function createDynamicWorkflowRunService(
    */
   const escalations: WorkflowEscalationRegistry = createWorkflowEscalationRegistry();
 
-  // 构造即收敛：本实例名下此刻零个在飞 run，所以本会话的非终态行都是死进程的遗物。
-  // 见文件头不变式 4 与 {@link reconcileOrphanRuns}。
+  // 空本地注册表不是旧 owner 退休证据；仅持有存储的 fenced lease 才能条件收敛。
   reconcileOrphanRuns(deps);
 
   /**
@@ -213,9 +215,9 @@ export function createDynamicWorkflowRunService(
     subscribeRunSettled,
     trackSettlement,
     readResidencySnapshot,
-    close,
+    close: closeRuns,
     assertOpen,
-    noteForeignTerminalRow,
+    noteTerminalBeforeSettlement,
   } = createRunServiceLifecycle({
     journal: deps.journal,
     ...(deps.logger === undefined ? {} : { logger: deps.logger }),
@@ -243,7 +245,10 @@ export function createDynamicWorkflowRunService(
     readResidencySnapshot,
     countLiveRuns,
     subscribeRunSettled,
-    close,
+    close: async (context) => {
+      await closeRuns(context);
+      deps.executionOwner?.release();
+    },
 
     // 三条入口的关闭门。`async` 只为把这个接线错误变成 rejection 而不是同步抛；门与随后的
     // 委托之间没有 await，所以不变式 6 的「登记与 launch 同一同步片」不受影响。
@@ -251,11 +256,13 @@ export function createDynamicWorkflowRunService(
       request: DynamicWorkflowRunSubmitRequest,
     ): Promise<DynamicWorkflowRunSubmitResult> {
       assertOpen();
+      deps.executionOwner?.assertOwned();
       return submitDynamicWorkflowRun(entryContext, request);
     },
 
     async amend(request: DynamicWorkflowRunAmendRequest): Promise<DynamicWorkflowRunAmendResult> {
       assertOpen();
+      deps.executionOwner?.assertOwned();
       return amendDynamicWorkflowRun(entryContext, request);
     },
 
@@ -268,6 +275,7 @@ export function createDynamicWorkflowRunService(
 
     async resume(runId: string): Promise<DynamicWorkflowRunResumeResult> {
       assertOpen();
+      deps.executionOwner?.assertOwned();
       return resumeDynamicWorkflowRun(entryContext, runId);
     },
 
@@ -326,7 +334,7 @@ export function createDynamicWorkflowRunService(
     },
 
     async getTask(taskId: string): Promise<DynamicWorkflowRunSnapshot | undefined> {
-      noteForeignTerminalRow(taskId);
+      noteTerminalBeforeSettlement(taskId);
       return snapshotOf(
         taskId,
         runs,

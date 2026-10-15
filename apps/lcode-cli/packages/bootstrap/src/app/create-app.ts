@@ -26,6 +26,8 @@ import { createAppSkillPort } from "./app-skills.js";
 import { createAppDynamicWorkflowPort } from "./app-dynamic-workflow.js";
 import { createAppWorkspaceHookSecurity } from "./app-workspace-hooks.js";
 import { createAppFacade } from "./app-facade.js";
+import { acquireAppWorkflowExecutionOwner } from "./workflow-execution-owner.js";
+import type { WorkflowJournalOwnerLease } from "@lcode/dynamic-workflow";
 
 export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp> {
   if (!options?.providerRegistry) {
@@ -48,8 +50,18 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
   let ownedNodeReplBrowserBroker: NodeReplBrowserBroker | undefined;
   let providerModelRuntime: ApiProviderModelRuntime | undefined;
   let ownedModelAdapter: ReturnType<typeof createModelAdapter> | undefined;
+  let workflowExecutionOwner: WorkflowJournalOwnerLease | undefined;
   try {
     const configuration = await prepareAppConfiguration(startup);
+    workflowExecutionOwner = await acquireAppWorkflowExecutionOwner({
+      sessionStore: configuration.sessionStore,
+      ownsSessionStore: configuration.ownsSessionStore,
+      parentSessionId: sessionId,
+      workspacePath: configuration.runtimeConfig.workspacePath ?? workingDirectory,
+      workspaceIdentity:
+        configuration.runtimeConfig.workspaceIdentity ??
+        configuration.runtimeConfig.memory?.workspaceIdentity,
+    });
     const { pluginOutcome, pluginRuntimeFeatures, modelIoDir } = configuration;
     let { configuredMcpServers, runtimeConfig } = configuration;
     const browserControlPort = options.browserControlPort;
@@ -186,6 +198,7 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
     const scriptWorkflowFacade = createScriptWorkflowBridge(workflowDeps);
     const dynamicWorkflowRunPort = createAppDynamicWorkflowPort({
       ...workflowDeps,
+      workflowExecutionOwner,
       executionPort,
       workflowConcurrencyGovernor,
     });
@@ -281,6 +294,8 @@ export async function createLCodeApp(options: LCodeAppOptions): Promise<LCodeApp
       closeModelAdapter: ownedModelAdapter ? () => ownedModelAdapter!.disposeAndWait() : undefined,
     });
   } catch (error) {
+    // 未发布的 App 不可能已接收工作流；失败启动仍需退休最早取得的原 lease。
+    workflowExecutionOwner?.release();
     if (ownedModelAdapter) await ownedModelAdapter.disposeAndWait();
     providerModelRuntime?.dispose();
     void modelTelemetry.shutdown().catch(() => undefined);

@@ -21,6 +21,7 @@ type AppDynamicWorkflowDeps = Omit<ScriptWorkflowAgentRuntimeDeps, "runtime"> & 
   traceContext: TraceContext;
   getRuntime(): AgentRuntime;
   workflowConcurrencyGovernor: WorkflowConcurrencyPort;
+  workflowExecutionOwner?: import("@lcode/dynamic-workflow").WorkflowJournalOwnerLease;
 };
 
 // 拆分后的推断返回类型会引用工厂模块的私有接口；沿用工厂返回类型，保持声明可命名且不缩减能力。
@@ -55,12 +56,15 @@ export function createAppDynamicWorkflowPort(
   // journal 窄化失败（store 不带 dwf_* 表）时**不构造**服务——端口保持 undefined，
   // CreateWorkflow 因此回到占位诊断路径。这是一个记了日志的可见降级，而不是一条
   // 会静默丢掉持久化的运行路径（详见 dynamic-workflow-run-service.ts 的文件头）。
-  const dynamicWorkflowJournal = resolveDynamicWorkflowJournalStore(sessionStore, logger);
+  const dynamicWorkflowJournal =
+    input.workflowExecutionOwner?.journal ??
+    resolveDynamicWorkflowJournalStore(sessionStore, logger);
   const workflowToolOperationAdmission = createWorkflowToolOperationAdmission();
   const dynamicWorkflowRunPort =
     dynamicWorkflowJournal === undefined
       ? undefined
       : createDynamicWorkflowRunService({
+          executionOwner: input.workflowExecutionOwner,
           concurrency: workflowConcurrencyGovernor,
           createActorRuntime: ({
             persona,

@@ -449,6 +449,42 @@ nodes:
       - "History reads the child session ID through existing stores and immutable artifacts, even without an active parent."
       - "Generic child execution inputs are rejected before admission; explicit file/feedback actions retain the original inbox and canonical row guards."
       - "Workspace identity and attachment scope validate entry; the execution binding path remains the file operation cwd."
+  - id: state.workflow-run-lifetime
+    kind: state-owner
+    label: App workflow residency and cleanup lifetime
+    aliases: [工作流保活, workflow interruption, residency snapshot]
+    codeSeeds:
+      - file: apps/lcode-cli/packages/bootstrap/src/app/app-residency.ts
+        symbol: readAppResidencySnapshot
+      - file: apps/lcode-cli/packages/bootstrap/src/lcode-protocol/session-residency.ts
+        symbol: createSessionResidentPoolHost
+    invariants:
+      - "App derives blockers from Core and existing workflow collections; no second run counter owns acceptance."
+      - "Deactivation checks the original App before side effects; a provisional gate closes synchronous reentry."
+  - id: service.protocol-shutdown-drain
+    kind: service
+    label: First shutdown attribution and original-resource drain
+    aliases: [runtime stopping, shutdown pending, 关闭排水]
+    codeSeeds:
+      - file: apps/lcode-cli/packages/cli/src/protocol-lifecycle.ts
+        symbol: createProtocolProcessLifecycle
+      - file: apps/lcode-cli/packages/bootstrap/src/lcode-protocol/runtime-cleanup.ts
+        symbol: cleanupProtocolRuntime
+    invariants:
+      - "First origin and deadline survive idempotent shutdown; only original resource cleanup and ACKs remain admissible."
+      - "Shared storage outlives App construction flights and durable drain."
+  - id: state.workflow-execution-owner
+    kind: state-owner
+    label: Persisted workflow execution lease and fenced journal
+    aliases: [owner generation, 孤儿收敛, workflow owner fencing]
+    codeSeeds:
+      - file: apps/lcode-cli/packages/adapters/src/storage/session-store/repositories/workflow-journal-owner.ts
+        symbol: acquireWorkflowJournalOwner
+      - file: apps/lcode-cli/packages/bootstrap/src/app/workflow-execution-owner.ts
+        symbol: acquireAppWorkflowExecutionOwner
+    invariants:
+      - "Verified retirement and complete-value CAS precede ownership; journal writes verify the same token in their transaction."
+      - "Unknown owners and legacy live rows remain unclaimed; readers do not become execution owners."
   - id: state.subagent-form-draft
     kind: state-owner
     label: Subagent form draft
@@ -1819,3 +1855,15 @@ edges:
     to: state.conversation-product-projection
     type: projects-failover-state-through
     rank: must-inspect
+  - from: state.workflow-run-lifetime
+    to: service.protocol-shutdown-drain
+    type: blocks-reclaim-and-drains-through
+    rank: must-inspect
+  - from: state.workflow-execution-owner
+    to: state.workflow-run-lifetime
+    type: fences-execution-and-orphan-reconciliation
+    rank: must-inspect
+  - from: service.protocol-shutdown-drain
+    to: state.browser-scope-authority
+    type: preserves-original-cleanup-route
+    rank: invariant-only

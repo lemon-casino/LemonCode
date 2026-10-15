@@ -11,6 +11,8 @@ const LOCK_RETRY_MS = 10;
 // 进程启动时间的比较容差：ps/proc 的秒级精度 + 调度延迟，2s 足以覆盖且不放过复用。
 const LOCK_START_TIME_TOLERANCE_MS = 2_000;
 const PROC_CLOCK_TICKS_PER_SECOND = 100;
+const PROCESS_PROBE_TIMEOUT_MS = 5_000;
+const PROCESS_PROBE_MAX_BUFFER = 8_192;
 
 const execFileAsync = promisify(execFile);
 
@@ -32,7 +34,8 @@ export async function defaultWriteLockOwnerMetadata(
 let ownStartTimeMs: number | undefined;
 function currentProcessStartTimeMs(): number {
   if (ownStartTimeMs === undefined) {
-    ownStartTimeMs = Math.round(Date.now() - uptime() * 1_000);
+    // os.uptime 是系统启动时间，不能充当本进程实例时间，否则会误判同机活 owner。
+    ownStartTimeMs = Math.round(Date.now() - process.uptime() * 1_000);
   }
   return ownStartTimeMs;
 }
@@ -61,16 +64,27 @@ export async function probeProcessStartTimeDefault(pid: number): Promise<number 
       return Math.round(bootMs + (ticks * 1_000) / PROC_CLOCK_TICKS_PER_SECOND);
     }
     if (process.platform === "darwin") {
-      const { stdout } = await execFileAsync("ps", ["-o", "lstart=", "-p", String(pid)]);
+      const { stdout } = await execFileAsync("ps", ["-o", "lstart=", "-p", String(pid)], {
+        timeout: PROCESS_PROBE_TIMEOUT_MS,
+        maxBuffer: PROCESS_PROBE_MAX_BUFFER,
+      });
       const parsed = Date.parse(stdout.trim());
       return Number.isFinite(parsed) ? parsed : null;
     }
     if (process.platform === "win32") {
-      const { stdout } = await execFileAsync("powershell.exe", [
-        "-NoProfile",
-        "-Command",
-        `[DateTimeOffset]::new((Get-Process -Id ${pid}).StartTime).ToUnixTimeMilliseconds()`,
-      ]);
+      const { stdout } = await execFileAsync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-Command",
+          `[DateTimeOffset]::new((Get-Process -Id ${pid}).StartTime).ToUnixTimeMilliseconds()`,
+        ],
+        {
+          timeout: PROCESS_PROBE_TIMEOUT_MS,
+          maxBuffer: PROCESS_PROBE_MAX_BUFFER,
+          windowsHide: true,
+        },
+      );
       const parsed = Number(stdout.trim());
       return Number.isFinite(parsed) ? parsed : null;
     }
