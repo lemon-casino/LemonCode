@@ -3,6 +3,7 @@ import type { AuthDriverContext, AuthGrant, AuthDriverNetworkOptions } from "../
 import { PLUGIN_WORKER_SOURCE } from "./worker-source.js";
 import { readNetworkRequestBody } from "../../network-request-body.js";
 import { NetworkCleanup } from "../../network-cleanup.js";
+import { PluginRefreshOwnership } from "./refresh-ownership.js";
 
 interface PendingCall {
   /** Node Request 的取消 controller 使用弱引用；只持有 signal 不够，须保留 Request 到流结算。 */
@@ -17,11 +18,20 @@ interface PendingCall {
 }
 
 type WorkerMessage = {
-  kind: "result" | "response" | "chunk" | "end" | "error" | "credential" | "disposed";
+  kind:
+    | "result"
+    | "response"
+    | "chunk"
+    | "end"
+    | "error"
+    | "credential"
+    | "disposed"
+    | "refresh-end";
   id: number;
   value?: unknown;
   error?: { message: string; name?: string; signIn?: string };
-  action?: "read" | "write" | "signin";
+  action?: "read" | "write" | "signin" | "refresh-begin";
+  admitted?: boolean;
   signIn?: "expired" | "kept" | "renewed";
   grant?: AuthGrant;
   callId?: number;
@@ -48,6 +58,7 @@ export class PluginWorkerTransport {
   private readonly lifetime = new AbortController();
   private readonly uploadCleanup = new NetworkCleanup();
   private activeUploads = 0;
+  private readonly refreshes = new PluginRefreshOwnership(() => !this.closed);
 
   constructor(
     channel: string,
@@ -75,6 +86,7 @@ export class PluginWorkerTransport {
       this.worker.once("exit", (code) => {
         this.closed = true;
         this.lifetime.abort(abortedError());
+        void this.refreshes.shutdown();
         this.failAll(new Error("Provider plugin worker stopped"));
         resolve(code);
       });
@@ -127,7 +139,8 @@ export class PluginWorkerTransport {
       );
     } finally {
       this.activeUploads--;
-      if (!this.activeUploads && !this.pending.size && !this.closed) this.worker.unref();
+      if (!this.activeUploads && !this.pending.size && !this.refreshes.size && !this.closed)
+        this.worker.unref();
     }
   }
 
@@ -195,6 +208,7 @@ export class PluginWorkerTransport {
         const outcome = await Promise.race([
           Promise.allSettled([
             this.uploadCleanup.drain(),
+            this.refreshes.drain(),
             this.exit.then((code) => {
               if (code !== 0) throw new Error(`Provider worker cleanup failed (exit ${code})`);
             }),
@@ -218,7 +232,11 @@ export class PluginWorkerTransport {
         ]);
         if (outcome === "pending") {
           if (this.worker.threadId === -1)
-            throw new Error("Provider upload cleanup remains pending after worker exit");
+            throw new Error(
+              this.refreshes.size
+                ? "Provider credential cleanup remains pending after worker exit"
+                : "Provider upload cleanup remains pending after worker exit",
+            );
           // 只终止本账号创建的 Worker；强制结束必须报告，不能伪装优雅关闭 ACK。
           await this.worker.terminate();
           throw new Error("Provider worker cleanup required forced termination");
@@ -240,7 +258,7 @@ export class PluginWorkerTransport {
       if (!pending.settled) pending.reject(error);
     } else if (pending.stream) pending.stream.close();
     else if (!pending.settled) pending.resolve(value);
-    if (this.pending.size === 0 && !this.activeUploads) this.worker.unref();
+    if (this.pending.size === 0 && !this.activeUploads && !this.refreshes.size) this.worker.unref();
   }
 
   private failAll(error: Error): void {
@@ -248,6 +266,17 @@ export class PluginWorkerTransport {
   }
 
   private async receive(message: WorkerMessage): Promise<void> {
+    if (message.kind === "refresh-end") {
+      if (
+        !Number.isSafeInteger(message.operationId) ||
+        message.operationId! < 1 ||
+        typeof message.admitted !== "boolean"
+      )
+        throw new Error("Invalid refresh completion");
+      await this.refreshes.end(message.operationId!, message.admitted);
+      if (!this.pending.size && !this.activeUploads && !this.refreshes.size) this.worker.unref();
+      return;
+    }
     if (message.kind === "disposed") return;
     if (message.kind === "credential") {
       await this.credential(message);
@@ -309,8 +338,44 @@ export class PluginWorkerTransport {
   }
 
   private async credential(message: WorkerMessage): Promise<void> {
-    const pending = this.pending.get(message.operationId ?? -1);
+    const id = message.operationId ?? -1,
+      pending = this.pending.get(id);
     try {
+      const snapshot = this.refreshes.read(id);
+      if (message.action === "refresh-begin") {
+        if (!Number.isSafeInteger(message.callId) || message.callId! < 1)
+          throw new Error("Invalid refresh call");
+        const allowed = await this.refreshes.begin(
+          id,
+          pending?.context,
+          () =>
+            this.pending.get(id) === pending &&
+            !!pending &&
+            !pending.aborted &&
+            !pending.context?.signal?.aborted,
+        );
+        if (allowed) this.worker.ref();
+        if (!this.closed)
+          this.worker.postMessage({
+            kind: "credential-result",
+            callId: message.callId,
+            value: { allowed },
+          });
+        return;
+      }
+      if (
+        snapshot &&
+        !this.closed &&
+        (message.action === "read" || (message.action === "write" && message.grant))
+      ) {
+        const value =
+          message.action === "read"
+            ? snapshot
+            : { refreshCommitted: await this.refreshes.write(id, message.grant!) };
+        if (!this.closed)
+          this.worker.postMessage({ kind: "credential-result", callId: message.callId, value });
+        return;
+      }
       if (!pending?.context || pending.aborted || this.closed || pending.context.signal?.aborted)
         throw abortedError();
       let value: AuthGrant | null | undefined;

@@ -10,11 +10,12 @@ import { resolveZCodeLocal, zcodeLocalChallenge } from "./zcode-local.mjs";
 import { installWorkerNetwork } from "./worker-network.mjs";
 import { fetchPluginModel } from "./worker-fetch.mjs";
 import { createWorkerReaderCleanup } from "./worker-reader-cleanup.mjs";
+import { createWorkerRefresh } from "./worker-refresh.mjs";
+import { createWorkerCredentials } from "./worker-credentials.mjs";
 
 const scopes = new AsyncLocalStorage();
 const operations = new Map();
 const callbacks = new Map();
-const reads = new Map();
 const children = new Set();
 const servers = new Set();
 const readerCleanup = createWorkerReaderCleanup();
@@ -30,7 +31,8 @@ const localFixture =
 const send = (message) => parentPort.postMessage(message);
 const check = () => {
   if (closed) throw new Error("Plugin driver disposed");
-  scopes.getStore()?.controller.signal.throwIfAborted();
+  const scope = scopes.getStore();
+  (scope?.rotation?.signal ?? scope?.controller.signal)?.throwIfAborted();
 };
 const failure = (error) => ({
   name: error?.name || "Error",
@@ -44,6 +46,7 @@ for (const method of ["spawn", "execFile"]) {
   const original = childProcess[method];
   childProcess[method] = (...args) => {
     check();
+    scopes.getStore()?.controller.signal.throwIfAborted();
     const network = scopes.getStore()?.network;
     if (network) {
       const index = Array.isArray(args[1]) ? 2 : 1;
@@ -74,29 +77,31 @@ for (const method of ["spawn", "execFile"]) {
 const createServer = http.createServer;
 http.createServer = (...args) => {
   check();
+  scopes.getStore()?.controller.signal.throwIfAborted();
   const server = createServer(...args);
   servers.add(server);
   server.once("close", () => servers.delete(server));
   return server;
 };
-const networkTransport = installWorkerNetwork({ scopes, check, workerData });
-
-function credential(action, grant) {
-  check();
-  const scope = scopes.getStore();
-  if (!scope?.context) throw new Error("Plugin has no account credential context");
-  const callId = ++sequence;
-  return new Promise((resolve, reject) => {
-    reads.set(callId, { resolve, reject, scope });
-    send({
-      kind: "credential",
-      action,
-      callId,
-      operationId: scope.id,
-      ...(grant ? (action === "signin" ? { signIn: grant } : { grant }) : {}),
-    });
-  });
-}
+const credentials = createWorkerCredentials({
+  scopes,
+  check,
+  send,
+  committed: (scope) => workerRefresh.committed(scope),
+});
+const credential = (action, grant) => credentials.call(action, grant);
+const workerRefresh = createWorkerRefresh({
+  channel: workerData.channel,
+  scopes,
+  credential,
+  send,
+});
+const networkTransport = installWorkerNetwork({
+  scopes,
+  check,
+  workerData,
+  refresh: workerRefresh,
+});
 
 const hooksPromise = (async () => {
   const create = plugins[workerData.channel];
@@ -319,6 +324,7 @@ function dispose() {
   networkTransport.dispose();
   for (const scope of operations.values()) {
     scope.controller.abort();
+    scope.rotation?.controller.abort();
     scope.pull?.();
   }
   disposing = (async () => {
@@ -327,9 +333,7 @@ function dispose() {
       if (scope.done) closing.push(scope.done);
       readerCleanup.cancel(scope);
     }
-    for (const pending of reads.values())
-      pending.reject(new DOMException("Worker closed", "AbortError"));
-    reads.clear();
+    credentials.close();
     for (const child of children) {
       closing.push(new Promise((resolve) => child.once("close", resolve)));
       child.kill();
@@ -360,14 +364,7 @@ process.on("exit", () => {
 parentPort.on("message", (message) => {
   if (message.kind === "dispose") return dispose();
   if (message.kind === "credential-result") {
-    const pending = reads.get(message.callId);
-    if (!pending) return;
-    reads.delete(message.callId);
-    if (pending.scope.controller.signal.aborted)
-      pending.reject(new DOMException("Operation aborted", "AbortError"));
-    else if (message.error)
-      pending.reject(Object.assign(new Error(message.error.message), message.error));
-    else pending.resolve(message.value);
+    credentials.receive(message);
     return;
   }
   if (message.kind === "pull") {
@@ -410,6 +407,7 @@ parentPort.on("message", (message) => {
       send({ kind: "error", id: message.id, error: failure(error) });
     } finally {
       readerCleanup.cancel(scope);
+      workerRefresh.end(scope);
       operations.delete(message.id);
     }
   });

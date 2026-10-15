@@ -26,6 +26,7 @@ export function expires(token: Json): number {
 export async function requireGrant(context: AuthDriverContext): Promise<AuthGrant> {
   context.signal?.throwIfAborted();
   const grant = await context.read();
+  context.signal?.throwIfAborted();
   if (!grant) throw new Error("Provider account is signed out");
   return grant;
 }
@@ -35,13 +36,25 @@ export function joinedSignal(...signals: (AbortSignal | undefined)[]): AbortSign
 }
 
 export async function json(fetcher: Fetcher, url: string, init: RequestInit = {}): Promise<Json> {
+  init.signal?.throwIfAborted();
   const response = await fetcher(url, { ...init, redirect: "error" });
+  // 自定义 fetch/响应解析也可能忽略 signal；跨 await 后不能发布取消后的令牌或目录。
+  if (init.signal?.aborted) {
+    try {
+      await response.body?.cancel(init.signal.reason);
+    } catch (error) {
+      if (error !== init.signal.reason) throw error;
+    }
+    init.signal.throwIfAborted();
+  }
   if (!response.ok) {
     await response.body?.cancel();
     // 授权响应可能包含 token 或邮箱，不把远端正文拼接到可见错误。
     throw new Error(`Provider request failed (HTTP ${response.status})`);
   }
-  return record(await response.json());
+  const payload: unknown = await response.json();
+  init.signal?.throwIfAborted();
+  return record(payload);
 }
 
 export async function postForm(

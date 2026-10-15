@@ -1407,6 +1407,8 @@
     "packages/model-option-map/package.json": "a9f720efdb353f556d01ea866bb15ac0201c155fb305a4246e6a323384770aba",
     "packages/provider-node/package.json": "21628ef367aad9acbe092cf7454037de1628d4358670ab6a40718297efdd9e5f",
     "packages/provider-node/src/provider-auth/native.ts": "7d214d0064859152aec369c09d1009451fcde50d101170663e0bf29b59c6b86e",
+    "packages/provider-node/src/provider-auth/native/account-refresh.test.ts": "2f77ffc4c332802cff0b7dbb762c52fd0fdd95e8ff053f72cf23612ca72db67d",
+    "packages/provider-node/src/provider-auth/native/account-refresh.ts": "891962c85ce0002ffa8d73c8dbe3b5b1bd1a65f157c0b949bc93af8adae9bc30",
     "packages/provider-node/src/provider-auth/native/browser.ts": "b597d6bb9a4aed7887e5cd3cd423627cd1aeae09577b0a95f508e0d65449bd53",
     "packages/provider-node/src/provider-auth/native/catalog-metadata.ts": "4b2316ad44760b87327d3efe04437bbda74f5a6ab27c5f30de4aca74576058c6",
     "packages/provider-node/src/provider-auth/native/claude-account.ts": "b65277319e2ab64aa1359114015dc53726a6c1590eb1f50819bb9b057920bec4",
@@ -1425,22 +1427,25 @@
     "packages/provider-node/src/provider-auth/native/claude-session.ts": "62bea4539fe1bd161d359940948b95994e2f229d66fdf5c411e87b7efe217a49",
     "packages/provider-node/src/provider-auth/native/claude.test.ts": "a93dc17a97147dba3efef15526ba084240e09c3f1144eeae96f82de0f5a1f8e9",
     "packages/provider-node/src/provider-auth/native/claude.ts": "b85256a3e4e94c52d01bf6bef49a5631e9885e0ec02921b9bfcdcb2b291d3e85",
-    "packages/provider-node/src/provider-auth/native/common.ts": "beeac23689e72a865dc440267da0eb82d3ca6e1d1d5a88db656076b33abeee13",
+    "packages/provider-node/src/provider-auth/native/common-cancellation.test.ts": "14e2e31805042d57134eb8359acf1e8db6d87454341a169b7b0784af55dba1de",
+    "packages/provider-node/src/provider-auth/native/common.ts": "46c861b9892d4bfd970bbbfcb24ad92b4595329443b2fcb7c8353c8875ee9011",
     "packages/provider-node/src/provider-auth/native/copilot-auto-lifecycle.test.ts": "c742b5ad441010450db8eec13ebc564dcd3a7c439f5ad1bb2cc8c3b8ba5edf96",
     "packages/provider-node/src/provider-auth/native/copilot-auto-request.ts": "83016bdff4dd4c4e49bcf8fa1dc4e193b1343d847b2527501f418706929c13f9",
     "packages/provider-node/src/provider-auth/native/copilot-auto-response.ts": "e932a8783eab7f8ad8e10040801a0941cb74d537ef76a6735946ddd946839520",
     "packages/provider-node/src/provider-auth/native/copilot-auto.test.ts": "151f50a6ebc991edc4b3822c05cadf2b943a1b8abe567a864bbb67e919a87b70",
     "packages/provider-node/src/provider-auth/native/copilot-auto.ts": "3edca0fcb1146bf95e287f04993e9002ad329840b15659e6709a1117e2e24576",
     "packages/provider-node/src/provider-auth/native/copilot-cache-usage.test.ts": "5a3bff1a9493a83915c03a03bdc0459f74c8c41cc2036095f7c08d03afc9767e",
+    "packages/provider-node/src/provider-auth/native/copilot-cancellation.test.ts": "d4ecf0feab028c0411a26467cc7ba84ef8dd12c580d93d5e9aa5b8ffdbab1595",
     "packages/provider-node/src/provider-auth/native/copilot-models.ts": "bafea0c0ed8bd30a88bacfc87af6d4949d0e298a9ae9e2744756e34d29bec581",
     "packages/provider-node/src/provider-auth/native/copilot-version.test.ts": "f467bf65a112df45f4d50abd97d9428c5e03c8e321b40a7a11adc24f71823e26",
-    "packages/provider-node/src/provider-auth/native/copilot.ts": "7a1e0b2dc047e1fd74767110d04a68294e25b4ba311686c4363da908c9823704",
+    "packages/provider-node/src/provider-auth/native/copilot.ts": "677b2cc3d6e02c02e84695bf02f8a659d4a7b5a966ea3770aa1cb349c9103429",
     "packages/provider-node/src/provider-auth/native/google-capabilities.ts": "2a2704048ca2dca9a07b6eeecf8e94699bc8699f6fe74f98d1036c3bcdbf2edc",
     "packages/provider-node/src/provider-auth/native/google-models.ts": "3ef4bdd923a2870f9e9b71ea45b0a7f6ebee70f873794cffd3bb424eb8a22525",
+    "packages/provider-node/src/provider-auth/native/google-refresh.test.ts": "a6dedc6bbc96e52168dff5b1a538d89526d79cf77e74e791c8b1da87c92cf875",
     "packages/provider-node/src/provider-auth/native/google-schema.test.ts": "ba2fa241fc8d8a66664adeb0dc7e9a4e0d72cec6a2cea138bb89dbb33fd5605f",
     "packages/provider-node/src/provider-auth/native/google-schema.ts": "e49fc7f1c8067a2883e9ec7fbf7e559f1ff8fb39f13d553891738f0e44dfe33e",
     "packages/provider-node/src/provider-auth/native/google-wire.ts": "3157e88acc8e132b539ba18bedaf1f7b098031265cc299b68504e10ffe203301",
-    "packages/provider-node/src/provider-auth/native/google.ts": "33d473785cac6a9a758d49490b3d6d134275f2d74412812ff212ec8e51b2954a",
+    "packages/provider-node/src/provider-auth/native/google.ts": "aa7d0801039804f64252596a44f8ef50ec6031b8b69a4b539dfda829cf320225",
     "packages/provider-node/src/provider-auth/native/identity.ts": "561d3f2bed9a2bfaa90e054edc8fef8306d2cfab60ebfc9208ef286e29658203",
     "packages/provider-node/src/provider-auth/native/import-drivers.test.ts": "4d2753863c6bb7ea4e298ee298b3d63adae014180050f2bf5fecb2ec850096e8",
     "packages/provider-node/src/provider-auth/native/imports.test.ts": "2fdda6c179c417bb7b6a381f2adabe96df87f86637394d9683fa5e101d336903",
@@ -1451,8 +1456,8 @@
     "packages/provider-node/src/provider-auth/native/local.test.ts": "f269df20a84cd16dfee409ed1a1a2fd6af25a943ff6b9d5b90ba8e00372a3ed6",
     "packages/provider-node/src/provider-auth/native/local.ts": "f60d29830276ef673535a5a49925eda14a16ff7db4c5e26a544c3fa2a77a4d54",
     "packages/provider-node/src/provider-auth/native/native.test.ts": "69da852e05bc64c58bb99e6e91c4827b0206bf18ba07389390ba8d7dee73d915",
-    "packages/provider-node/src/provider-auth/native/openai-refresh.test.ts": "a8f41f4cd24f46056d32e133bd2a310165193f4e35931b8fef736b7c8fd93ce6",
-    "packages/provider-node/src/provider-auth/native/openai-refresh.ts": "b12a52a47e98589e12796b598239194bee1da301b1736584bb3c79f1f2a894b3",
+    "packages/provider-node/src/provider-auth/native/openai-refresh.test.ts": "5b4728072c946342e6b1e8932ad6647131d89dff7877e62b33654e60036891d4",
+    "packages/provider-node/src/provider-auth/native/openai-refresh.ts": "383d8bd20a3804fb58dde29120d634642e6e60577a491f8a7f109d65bfdab772",
     "packages/provider-node/src/provider-auth/native/openai-request.ts": "5dc5bd9f5841b0b5b1648b486edfce54dfaf0ea65849d6ffbfb7f1c2e537e218",
     "packages/provider-node/src/provider-auth/native/openai.ts": "abb8e02482ba85ca98b2c24af85a43f5a720b1803c2a73130ded71f8e95e7f9a",
     "packages/provider-node/src/provider-auth/native/parity.test.ts": "f89b80b4b3c778fd0c50ce16acb17453e0c94eecbef4c867693b9f2ae235b487",
@@ -1463,7 +1468,7 @@
     "packages/provider-node/src/provider-auth/native/transports.test.ts": "eca8bb570caf9704060745639ae360c2bd5d64512980e7423e81d8299d7e9247",
     "packages/provider-node/src/provider-auth/plugins/factory-import.mjs": "5c9ed1cce9ab4e3538b21996e7d17df002964e3bacc64ba868f01153f564652d",
     "packages/provider-node/src/provider-auth/plugins/method-details.mjs": "81af1536b6f35061208824323f09956dd3409ca9d850b3f3c7e30b1bfdcd31e5",
-    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "43e4ba51e3c83fa8d5c300d6284c639612d807339a4e6aa42af1f9b6f652a476",
+    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "e93574de436fabfe63d53c748850bf7ed1bdd4e803d2641b40795f602438ed45",
     "packages/provider-node/src/provider-auth/plugins/zcode-local.mjs": "c8b91d4414eed9c9edd0e227a06141d0c75bb1601abc5cef177be01ca21952e4",
     "packages/provider-node/src/provider-auth/vendor/cline/index.mjs.source": "8e60d522aa362e205ec884998124dbdd04d1abc9b5edab038804f7a3ff4793d0",
     "packages/provider-node/src/provider-auth/vendor/commandcode/index.mjs.source": "1474d3fc8bd91e2166ad97daef83e21ef8f4820c0374d517a92e61c8b0a273de",
@@ -30918,6 +30923,14 @@
           "sha256": "9f6d0c2c1d6b835380b935b06fcefa25a5d0b5d1b60f628298bf5bfc0ba1bef5"
         },
         {
+          "file": "packages/provider-node/src/provider-auth/native/account-refresh.test.ts",
+          "sha256": "2f77ffc4c332802cff0b7dbb762c52fd0fdd95e8ff053f72cf23612ca72db67d"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/native/account-refresh.ts",
+          "sha256": "891962c85ce0002ffa8d73c8dbe3b5b1bd1a65f157c0b949bc93af8adae9bc30"
+        },
+        {
           "file": "packages/provider-node/src/provider-auth/native/browser.ts",
           "sha256": "b93f6dbf8c4fb4b208b8b1dc76816cf677c58764ec6c7a6e5cfc8c431c31eb4a"
         },
@@ -30990,8 +31003,12 @@
           "sha256": "294bd8bb2a1c0a32a16aafae671a166c26fbb2ca7ca3dcfc2868ce721df60aff"
         },
         {
+          "file": "packages/provider-node/src/provider-auth/native/common-cancellation.test.ts",
+          "sha256": "14e2e31805042d57134eb8359acf1e8db6d87454341a169b7b0784af55dba1de"
+        },
+        {
           "file": "packages/provider-node/src/provider-auth/native/common.ts",
-          "sha256": "22d64e72ba6e56a05f771936cc1f3bd7abae331b08e67b8ee0c5bbdf35ef3266"
+          "sha256": "46c861b9892d4bfd970bbbfcb24ad92b4595329443b2fcb7c8353c8875ee9011"
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/copilot-auto-lifecycle.test.ts",
@@ -31018,6 +31035,10 @@
           "sha256": "e850a3bf2933f2f76e2c683385f31481844e075f51b3f1edbe78d8f1f1c0d4f2"
         },
         {
+          "file": "packages/provider-node/src/provider-auth/native/copilot-cancellation.test.ts",
+          "sha256": "d4ecf0feab028c0411a26467cc7ba84ef8dd12c580d93d5e9aa5b8ffdbab1595"
+        },
+        {
           "file": "packages/provider-node/src/provider-auth/native/copilot-models.ts",
           "sha256": "ad6ab14c2a2469e459b3ac6519bbd4435ab7240b36e2098064d9e23ba842cbc7"
         },
@@ -31027,7 +31048,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/copilot.ts",
-          "sha256": "7b8e5ee84a43306a7810d8c61d9c9c4f0b08a4b244fb77363d7bb8107e89ec50"
+          "sha256": "677b2cc3d6e02c02e84695bf02f8a659d4a7b5a966ea3770aa1cb349c9103429"
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/google-capabilities.ts",
@@ -31036,6 +31057,10 @@
         {
           "file": "packages/provider-node/src/provider-auth/native/google-models.ts",
           "sha256": "20c9736947180330d7a5d4dd2435b958e4f64ec38b6da2aab911c6fbaa0ae167"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/native/google-refresh.test.ts",
+          "sha256": "a6dedc6bbc96e52168dff5b1a538d89526d79cf77e74e791c8b1da87c92cf875"
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/google-schema.test.ts",
@@ -31051,7 +31076,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/google.ts",
-          "sha256": "8b93e207645c5969625af03dd36a5d20d727d05b3a97ef35cb0dde11322ed38b"
+          "sha256": "aa7d0801039804f64252596a44f8ef50ec6031b8b69a4b539dfda829cf320225"
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/identity.ts",
@@ -31091,11 +31116,11 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/openai-refresh.test.ts",
-          "sha256": "a8f41f4cd24f46056d32e133bd2a310165193f4e35931b8fef736b7c8fd93ce6"
+          "sha256": "5b4728072c946342e6b1e8932ad6647131d89dff7877e62b33654e60036891d4"
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/openai-refresh.ts",
-          "sha256": "b12a52a47e98589e12796b598239194bee1da301b1736584bb3c79f1f2a894b3"
+          "sha256": "383d8bd20a3804fb58dde29120d634642e6e60577a491f8a7f109d65bfdab772"
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/openai-request.ts",
@@ -31139,7 +31164,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "43e4ba51e3c83fa8d5c300d6284c639612d807339a4e6aa42af1f9b6f652a476"
+          "sha256": "e93574de436fabfe63d53c748850bf7ed1bdd4e803d2641b40795f602438ed45"
         }
       ]
     },
@@ -31269,7 +31294,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "43e4ba51e3c83fa8d5c300d6284c639612d807339a4e6aa42af1f9b6f652a476"
+          "sha256": "e93574de436fabfe63d53c748850bf7ed1bdd4e803d2641b40795f602438ed45"
         }
       ]
     },

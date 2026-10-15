@@ -199,3 +199,69 @@ test(
     assert.equal(exits, 1);
   },
 );
+
+test("actual worker exit does not release an admitted credential commit still owned by Host", async () => {
+  const worker = new Worker(
+    `const {parentPort}=require("node:worker_threads"); let operationId;
+    parentPort.on("message", m => {
+      if(m.kind === "dispose") return process.exit(0);
+      if(m.kind === "call") { operationId=m.id; parentPort.postMessage({kind:"credential",action:"refresh-begin",operationId,callId:1}); }
+      if(m.kind === "credential-result" && m.callId === 1) parentPort.postMessage({kind:"credential",action:"write",operationId,callId:2,grant:{type:"oauth",access:"fixture-next",refresh:"fixture-rotated"}});
+    });`,
+    { eval: true, stdout: true, stderr: true },
+  );
+  await once(worker, "online");
+  const transport = new PluginWorkerTransport(
+    "fixture",
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    { worker },
+  );
+  const entered = Promise.withResolvers<void>(),
+    gate = Promise.withResolvers<void>(),
+    caller = new AbortController();
+  let completion: Promise<unknown> | undefined,
+    closed = false;
+  const cancelled = assert.rejects(
+    transport.call(
+      "models",
+      {},
+      {
+        signal: caller.signal,
+        read: async () => ({ type: "oauth", access: "fixture-old", refresh: "fixture-refresh" }),
+        write: async () => {
+          assert.fail("ordinary write");
+        },
+        captureRefreshCommit: () => async () => {
+          entered.resolve();
+          await gate.promise;
+        },
+        retainRefreshCompletion: (done) => {
+          completion = done;
+        },
+      },
+    ),
+    { name: "AbortError" },
+  );
+  try {
+    await entered.promise;
+    caller.abort();
+    await cancelled;
+    const exited = once(worker, "exit");
+    const closing = transport.dispose().then(() => {
+      closed = true;
+    });
+    await exited;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    assert.equal(closed, false);
+    gate.resolve();
+    await Promise.all([closing, completion]);
+    assert.equal(closed, true);
+  } finally {
+    gate.resolve();
+    caller.abort();
+    await transport.dispose();
+  }
+});

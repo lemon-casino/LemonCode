@@ -9,7 +9,7 @@ import type {
 import { browserChallenge } from "./browser.js";
 import { GoogleModels, resolveGoogleProject } from "./google-models.js";
 import { importChallenge, singleImport } from "./imports.js";
-import { followLocal, localAccount } from "./local.js";
+import { localAccount } from "./local.js";
 import { defaultLocalIO, type LocalIO } from "./local-io.js";
 import { accountIdentity, safeDisplay } from "./identity.js";
 import {
@@ -19,12 +19,12 @@ import {
   json,
   postForm,
   record,
-  requireGrant,
   text,
   type Fetcher,
   type Json,
 } from "./common.js";
 import { codeAssistRequest, codeAssistResponse } from "./google-wire.js";
+import { NativeAccountRefresh } from "./account-refresh.js";
 
 type GoogleChannel = "gemini" | "antigravity";
 const PROD = "https://cloudcode-pa.googleapis.com";
@@ -45,11 +45,39 @@ const APPS = {
 export class GoogleAuthDriver implements AuthDriver {
   private readonly lifetime = new AbortController();
   private readonly catalog: GoogleModels;
+  private readonly refreshOwner: NativeAccountRefresh;
   constructor(
     private readonly channel: GoogleChannel,
     private readonly request: Fetcher = fetch,
     private readonly localIO: LocalIO = defaultLocalIO,
   ) {
+    this.refreshOwner = new NativeAccountRefresh({
+      lifetime: this.lifetime.signal,
+      localIO: this.localIO,
+      isFresh: (grant) => Boolean(grant.access && (grant.expires ?? 0) > Date.now() + 120_000),
+      missingRefreshMessage: "Google sign-in expired; sign in again",
+      exchange: async (grant, signal) => {
+        const app = APPS[this.channel];
+        const token = await postForm(
+          this.request,
+          TOKEN,
+          {
+            grant_type: "refresh_token",
+            refresh_token: text(grant.refresh),
+            client_id: app.clientId,
+            client_secret: app.clientSecret,
+          },
+          signal,
+        );
+        if (!text(token.access_token)) throw new Error("Google returned no access token");
+        return {
+          ...grant,
+          access: text(token.access_token),
+          refresh: text(token.refresh_token) || grant.refresh,
+          expires: expires(token),
+        };
+      },
+    });
     this.catalog = new GoogleModels(
       channel,
       (grant, method, body, signal) => this.call(grant, method, body, signal),
@@ -213,35 +241,7 @@ export class GoogleAuthDriver implements AuthDriver {
     });
   }
   private async fresh(context: AuthDriverContext): Promise<AuthGrant> {
-    const grant = await followLocal(
-      await requireGrant(context),
-      this.localIO,
-      joinedSignal(context.signal, this.lifetime.signal),
-    );
-    if (grant.access && (grant.expires ?? 0) > Date.now() + 120_000) return grant;
-    if (!grant.refresh) throw new Error("Google sign-in expired; sign in again");
-    const app = APPS[this.channel];
-    const token = await postForm(
-      this.request,
-      TOKEN,
-      {
-        grant_type: "refresh_token",
-        refresh_token: grant.refresh,
-        client_id: app.clientId,
-        client_secret: app.clientSecret,
-      },
-      joinedSignal(context.signal, this.lifetime.signal),
-    );
-    if (!text(token.access_token)) throw new Error("Google returned no access token");
-    const next: AuthGrant = {
-      ...grant,
-      access: text(token.access_token),
-      refresh: text(token.refresh_token) || grant.refresh,
-      expires: expires(token),
-    };
-    context.signal?.throwIfAborted();
-    await context.write(next);
-    return next;
+    return this.refreshOwner.fresh(context);
   }
   private call(
     grant: AuthGrant,
@@ -322,7 +322,8 @@ export class GoogleAuthDriver implements AuthDriver {
       joinedSignal(context.signal, this.lifetime.signal),
     );
   }
-  dispose(): void {
+  async dispose(): Promise<void> {
     this.lifetime.abort();
+    await this.refreshOwner.drain();
   }
 }

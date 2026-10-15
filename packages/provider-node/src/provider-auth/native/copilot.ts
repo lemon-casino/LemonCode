@@ -201,6 +201,7 @@ export class CopilotAuthDriver implements AuthDriver {
     };
   }
   private async session(context: AuthDriverContext, force = false): Promise<AuthGrant> {
+    context = { ...context, signal: joinedSignal(context.signal, this.lifetime.signal) };
     const grant = await followLocal(
       await requireGrant(context),
       this.localIO,

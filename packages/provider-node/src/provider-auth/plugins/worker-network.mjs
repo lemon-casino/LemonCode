@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 import { rootCertificates } from "node:tls";
 import { createHostApiNetworkTransport, resolveHostProxyForUrl } from "../../network-transport.ts";
 
-export function installWorkerNetwork({ scopes, check, workerData }) {
+export function installWorkerNetwork({ scopes, check, workerData, refresh }) {
   const fetchRemote = globalThis.fetch;
   const managedFetch = new AsyncLocalStorage();
   const sessions = new Map();
@@ -20,11 +20,16 @@ export function installWorkerNetwork({ scopes, check, workerData }) {
       return connect(workerData.fixtureH2Origin, ...args);
     };
   }
-  globalThis.fetch = (input, init = {}) => {
+  globalThis.fetch = async (input, init = {}) => {
     check();
     const scope = scopes.getStore();
+    const rotationSignal = await refresh?.before(input, init);
+    check();
     const requestSignal = init.signal ?? (input instanceof Request ? input.signal : undefined);
-    const signals = [requestSignal, scope?.controller.signal].filter(Boolean);
+    const signals = [
+      requestSignal === scope?.controller.signal && rotationSignal ? undefined : requestSignal,
+      rotationSignal ?? scope?.controller.signal,
+    ].filter(Boolean);
     let target = input;
     // Explicit fixture-only transport; production worker data never supplies it.
     if (workerData.fixtureOrigin) {
@@ -54,6 +59,8 @@ export function installWorkerNetwork({ scopes, check, workerData }) {
   http2.connect = (origin, options, ...args) => {
     const scope = scopes.getStore();
     check();
+    // 轮换交接只允许受控 fetch，裸 H2 仍属于原业务取消域。
+    if (!managedFetch.getStore()) scope?.controller.signal.throwIfAborted();
     const route = scope?.network
       ? resolveHostProxyForUrl(String(origin), scope.network)
       : undefined;

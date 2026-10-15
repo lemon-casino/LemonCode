@@ -36,6 +36,7 @@ test("caller cancellation detaches from one owned refresh and preserves rotated 
     return Response.json({});
   });
   const context: AuthDriverContext = {
+    connectionId: "fixture-account",
     read: async () => grant,
     write: async () => {
       throw new Error("ordinary write cannot persist cancelled work");
@@ -44,6 +45,7 @@ test("caller cancellation detaches from one owned refresh and preserves rotated 
       writes++;
       grant = next;
     },
+    retainRefreshCompletion: () => {},
     signal: caller.signal,
   };
   try {
