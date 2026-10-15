@@ -411,6 +411,8 @@ sequenceDiagram
 - macOS 实机 E2E：从已安装版本下载同架构更新，点击安装；DMG 出现时在活动监视器确认旧
   Main 已退出，再拖动替换并首次启动。首页应正常显示，不能出现 WASM 文本；再次启动也应正常。
   Windows 上的系统 helper 生命周期测试不替代此原生 DMG / Finder 验收。
-- `node scripts/licenses.mjs check --strict` 仍保留“零未解决项”的更强人工门禁；自动发布的
-  baseline-aware 校验不得改变它，也不得输出“许可完整”的结论。
+- 按 2026-10-15 用户决策，取消“零未解决项”门禁；`node scripts/licenses.mjs check --strict`
+  是普通 check 的兼容调用，并提示参数已停用。既有 20 项材料缺口保留在 inventory 和发布基线，
+  不阻断构建与发布；声明哈希、输入新鲜度、许可标识和发布基线偏移检查继续执行，不输出“许可完整”。
+  CLI SEA 上传复用同一 `readReleaseVerifiedNotices`，校验失败时不得创建或覆盖发布目录。
 - 本地构建脚本版本元数据、安装包文件名、Release tag 一致。

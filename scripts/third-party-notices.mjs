@@ -58,7 +58,7 @@ export async function readThirdPartyNotices(root = repositoryRoot) {
   return readFile(resolve(root, noticesFileName));
 }
 
-export async function readVerifiedNotices(root = repositoryRoot, { requireComplete = false } = {}) {
+export async function readVerifiedNotices(root = repositoryRoot) {
   const manifest = JSON.parse(await readFile(resolve(root, "third-party/inventory.json"), "utf8"));
   if (manifest.schemaVersion !== 1) throw new Error("Unsupported third-party inventory");
   const bytes = await readThirdPartyNotices(root);
@@ -70,13 +70,9 @@ export async function readVerifiedNotices(root = repositoryRoot, { requireComple
       throw new Error(`Third-party input changed: ${file}. Run node scripts/licenses.mjs notices`);
     }
   }
-  if (requireComplete && !Array.isArray(manifest.reviewRequired))
+  // 修复：取消零缺口门禁后仍保留库存结构校验，已登记缺口只作为诊断记录。
+  if (!Array.isArray(manifest.reviewRequired))
     throw new Error("Missing material review inventory; regenerate third-party notices");
-  if (requireComplete && manifest.reviewRequired.length) {
-    throw new Error(
-      `Unresolved third-party material obligations:\n${manifest.reviewRequired.map((item) => `${item.id}: ${item.reason}`).join("\n")}`,
-    );
-  }
   return bytes;
 }
 

@@ -7,6 +7,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import "./github-actions-environment.test.mjs";
+import "./license-material-policy.test.mjs";
 import "./release-artifacts.test.mjs";
 import "./remote-release-assets.test.mjs";
 import "./remote-release-workflow.test.mjs";
@@ -376,11 +377,7 @@ test("release notice baseline permits only the explicitly recorded unresolved se
       ),
     /release review baseline mismatch/iu,
   );
-  await readReleaseVerifiedNotices(root);
-  await assert.rejects(
-    readVerifiedNotices(root, { requireComplete: true }),
-    /Unresolved third-party material obligations/u,
-  );
+  assert.deepEqual(await readReleaseVerifiedNotices(root), await readVerifiedNotices(root));
 });
 
 test("release rejects missing or unexpected platform installers", async () => {

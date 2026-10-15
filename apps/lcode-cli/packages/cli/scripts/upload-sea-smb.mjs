@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 import { outputBinaryName, supportedTargets } from "./sea-targets.mjs";
 import { copyReleaseFiles, createConsoleProgressReporter, fileMode } from "./upload-progress.mjs";
 import { resolveIntranetMachineHost } from "../../../../../scripts/intranetDefaults.mjs";
-import { readVerifiedNotices } from "../../../../../scripts/third-party-notices.mjs";
+import { readReleaseVerifiedNotices } from "../../../../../scripts/third-party-notices.mjs";
 
 export const resolveDefaultSmbUrl = (env = process.env) =>
   `smb://${resolveIntranetMachineHost(env)}/shared`;
@@ -253,8 +253,8 @@ export const uploadSeaBinaries = async ({
   smbUrl,
   version,
 }) => {
-  // 修复：上传入口也执行严格材料检查，--force 只控制覆盖，不能豁免许可证缺口。
-  await readVerifiedNotices(resolve(rootDirectory, "../.."), { requireComplete: true });
+  // 修复：取消零材料缺口门禁，与桌面发布共用基线校验；--force 仍不能绕过哈希和新鲜度。
+  await readReleaseVerifiedNotices(resolve(rootDirectory, "../.."));
   const releaseVersion = version ?? (await readRootPackageVersion({ rootDirectory }));
   const releaseName = releaseDirectoryName(releaseVersion);
   const targetDirectory = resolve(destinationRoot, releaseName);

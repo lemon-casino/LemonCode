@@ -5,6 +5,7 @@
 // 用法：
 //   node scripts/licenses.mjs notices   生成 THIRD-PARTY-NOTICES.md（精确版本、原始版权和许可文本）
 //   node scripts/licenses.mjs check     手动门禁：出现 allowlist 之外或许可未知的包即退出码 1
+//   check --strict                     兼容旧调用；零材料缺口门禁已取消，执行普通 check
 //
 // 数据口径：
 // - 实装清单 = 全 workspace node_modules 的递归集合，含嵌套版本与符号链接。
@@ -107,13 +108,16 @@ if (command === "check") {
     console.error("\n处置：替换依赖，或在 scripts/licenses.mjs 的 WEAK_ALLOW 登记人工复核结论。");
     process.exit(1);
   }
-  await readVerifiedNotices(ROOT, { requireComplete: process.argv.includes("--strict") });
+  // 修复：旧命令仍执行全部普通检查，但不再因已登记材料缺口非空而阻断构建/发布。
+  if (process.argv.includes("--strict"))
+    console.warn("--strict 已停用，按普通 check 执行；材料缺口仅作记录，其他检查保留。");
+  await readVerifiedNotices(ROOT);
   const reviewRequired =
     JSON.parse(await readFile(path.join(ROOT, "third-party/inventory.json"), "utf8"))
       .reviewRequired ?? [];
   if (reviewRequired.length)
     console.warn(
-      `待补齐/核验材料 ${reviewRequired.length} 项；自动桌面发布仅接受 third-party/release-review-baseline.json 中逐项登记的既有债务，node scripts/licenses.mjs check --strict 仍提供零债务人工门禁。`,
+      `待补齐/核验材料 ${reviewRequired.length} 项；材料缺口仅作记录，已登记项不阻断构建和发布；发布仍核对 third-party/release-review-baseline.json，其他检查保留。`,
     );
   const n = installed.size;
   console.log(
