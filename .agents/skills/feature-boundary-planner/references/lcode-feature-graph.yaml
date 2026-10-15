@@ -449,6 +449,42 @@ nodes:
       - "History reads the child session ID through existing stores and immutable artifacts, even without an active parent."
       - "Generic child execution inputs are rejected before admission; explicit file/feedback actions retain the original inbox and canonical row guards."
       - "Workspace identity and attachment scope validate entry; the execution binding path remains the file operation cwd."
+  - id: state.provider-network-resources
+    kind: state-owner
+    label: Provider network request body and connection resources
+    aliases: [HTTP/2 并发流, H2 stream lifecycle, network request cleanup]
+    codeSeeds:
+      - file: packages/provider-node/src/network-transport.ts
+        symbol: createHostApiNetworkTransport
+      - file: packages/provider-node/src/network-request-lifecycle.ts
+        symbol: createNetworkRequestLease
+    invariants:
+      - "The existing transport owns its requests, bodies and dispatchers; response headers do not release a body lease."
+      - "The model Runner owns physical attempt admission and retry budgets; transport policy cannot authorize hidden POST replay."
+  - id: boundary.provider-plugin-worker
+    kind: service
+    label: Account scoped provider worker operations and resources
+    aliases: [plugin cancellation, provider worker cleanup]
+    codeSeeds:
+      - file: packages/provider-node/src/provider-auth/plugins/transport.ts
+        symbol: PluginWorkerTransport
+      - file: packages/provider-node/src/provider-auth/plugins/worker-network.mjs
+        symbol: installWorkerNetwork
+    invariants:
+      - "Each worker and operation retains its original account scope; credential writes remain guarded by the Host account generation."
+      - "Caller cancellation and worker disposal use the existing finite transport rather than another Agent or Host."
+  - id: boundary.agent-process-diagnostic
+    kind: delivery-boundary
+    label: Agent fatal diagnostic stderr and Host lifecycle reporting
+    aliases: [uncaughtException, crash attribution, 进程崩溃诊断]
+    codeSeeds:
+      - file: apps/lcode-cli/packages/cli/src/process-errors.ts
+        symbol: installCliProcessErrorBoundary
+      - file: packages/shared/src/process-diagnostic.ts
+        symbol: parseLCodeProcessDiagnostic
+    invariants:
+      - "Fatal diagnostics use the structured stderr contract without writing ordinary logs to protocol stdout."
+      - "The Host binds lifecycle reports to the child instance it created, including generation and runtime instance identity."
   - id: state.workflow-run-lifetime
     kind: state-owner
     label: App workflow residency and cleanup lifetime
@@ -1867,3 +1903,24 @@ edges:
     to: state.browser-scope-authority
     type: preserves-original-cleanup-route
     rank: invariant-only
+  - from: service.runtime-model-request-boundary
+    to: state.provider-network-resources
+    type: delegates-one-physical-attempt-through
+    rank: must-inspect
+  - from: state.provider-network-resources
+    to: service.protocol-shutdown-drain
+    type: participates-in-original-owner-cleanup
+    rank: must-inspect
+  - from: capability.oauth-provider-details
+    to: boundary.provider-plugin-worker
+    type: uses-account-scoped-fixed-driver
+    rank: conditional
+  - from: boundary.provider-plugin-worker
+    to: state.provider-network-resources
+    type: applies-host-network-policy-through
+    rank: conditional
+    condition: Worker fetch uses the shared transport when a Host network policy is supplied.
+  - from: boundary.agent-process-diagnostic
+    to: service.protocol-shutdown-drain
+    type: records-fatal-before-requesting-shutdown
+    rank: must-inspect
