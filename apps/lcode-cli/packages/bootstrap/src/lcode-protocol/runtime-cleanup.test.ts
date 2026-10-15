@@ -125,6 +125,8 @@ test("protocol cleanup keeps the session store open until timed-out session shut
   assert.equal(harness.order.includes("store_closed"), false);
   assert.equal(cleanupSettled, false);
   assert.equal(harness.shutdownCalls(), 1);
+  assert.ok(harness.warnings.some(({ context }) => context?.event === "lcode_protocol.sessions.shutdown.pending"));
+  assert.equal(harness.warnings.some(({ context }) => context?.event === "lcode_protocol.sessions.shutdown.failed"), false);
 
   harness.sessionShutdown.resolve();
   await harness.cleanup;

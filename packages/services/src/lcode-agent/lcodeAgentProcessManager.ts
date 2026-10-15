@@ -687,6 +687,15 @@ export class LCodeAgentProcessManager {
       return;
     }
     managed.firstCleanupReason = reason;
+    log("LCode agent first cleanup requested", {
+      event: "lcode_agent.close.requested",
+      processId: managed.child.pid,
+      runtimeInstanceId: managed.runtimeInstanceId,
+      runtimeGeneration: managed.runtimeIdentity.generation,
+      lane: this.lane ?? "primary",
+      origin: reason,
+      requestedAt: Date.now(),
+    });
     if (reason === "protocol-close") {
       return;
     }

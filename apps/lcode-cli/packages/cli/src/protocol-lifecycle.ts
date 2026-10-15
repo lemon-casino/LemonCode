@@ -1,4 +1,6 @@
 import { PassThrough } from "node:stream";
+import { randomUUID } from "node:crypto";
+import type { ProtocolShutdownContext } from "@lcode/contracts";
 import { flushE2ECoverage } from "./shutdown.js";
 
 const PROTOCOL_SHUTDOWN_TIMEOUT_MS = 1_500;
@@ -27,8 +29,15 @@ export function createProtocolProcessLifecycle(
   let deadlineTimer: NodeJS.Timeout | undefined;
   let drainTimer: NodeJS.Timeout | undefined;
   let completion: Promise<void> | undefined;
+  let shutdownContext: ProtocolShutdownContext | undefined;
+  const signalListeners: Array<[NodeJS.Signals, () => void]> = [];
 
-  const stop = (error?: Error, code = error ? 1 : 0) => {
+  const stop = (
+    error?: Error,
+    code = error ? 1 : 0,
+    origin: ProtocolShutdownContext["origin"] = error ? "runtime_failure" : "command_completed",
+    signal?: string,
+  ) => {
     if (deadlineAt !== undefined) return;
     exitCode = code;
     const timeoutMs =
@@ -36,6 +45,12 @@ export function createProtocolProcessLifecycle(
       PROTOCOL_SHUTDOWN_TIMEOUT_MS +
         (process.env.LCODE_E2E_COVERAGE === "1" ? COVERAGE_FLUSH_ALLOWANCE_MS : 0);
     deadlineAt = Date.now() + timeoutMs;
+    shutdownContext = Object.freeze({
+      closeId: randomUUID(), origin, requestedAt: Date.now(), deadlineAt,
+      processId: process.pid,
+      transportAvailable: origin === "signal" || origin === "command_completed" || origin === "runtime_failure",
+      ...(signal ? { signal } : {}),
+    });
     // 保持 ref：即使初始化 Promise 永不 settle、已经没有 IO，也必须交付终态。
     deadlineTimer = setTimeout(() => exit(exitCode), timeoutMs);
     if (error) controller.abort(error);
@@ -45,25 +60,28 @@ export function createProtocolProcessLifecycle(
         PROTOCOL_INPUT_DRAIN_MS,
       );
   };
-  const onInputEnd = () => stop();
-  const onIoError = (error: Error) => stop(error);
-  const onOutputClose = () => stop(new Error("Protocol output closed"));
+  const onInputEnd = () => stop(undefined, 0, "stdin_eof");
+  const onInputClose = () => stop(undefined, 0, "stdin_close");
+  const onInputError = (error: Error) => stop(error, 1, "input_error");
+  const onOutputError = (error: Error) => stop(error, 1, "output_error");
+  const onOutputClose = () => stop(new Error("Protocol output closed"), 1, "output_close");
   const signals =
     process.platform === "win32"
       ? (["SIGINT", "SIGTERM"] as const)
       : (["SIGINT", "SIGTERM", "SIGHUP"] as const);
   for (const signal of signals) {
     const listener = () =>
-      stop(new Error(`Protocol received ${signal}`), SIGNAL_EXIT_CODES[signal]);
+      stop(new Error(`Protocol received ${signal}`), SIGNAL_EXIT_CODES[signal], "signal", signal);
     // on 而不是 once：重复信号不绕过清理，也不重置首次 deadline。
     process.on(signal, listener);
+    signalListeners.push([signal, listener]);
   }
   source.on("end", onInputEnd);
-  source.on("close", onInputEnd);
-  source.on("error", onIoError);
-  output.on("error", onIoError);
+  source.on("close", onInputClose);
+  source.on("error", onInputError);
+  output.on("error", onOutputError);
   output.on("close", onOutputClose);
-  input.on("error", onIoError);
+  input.on("error", onInputError);
   // 启动阶段就消费原始 stdin 来观察父端 EOF；背压缓冲保留尚未被协议消费的字节。
   source.pipe(input);
   if ((source as NodeJS.ReadableStream & { readableEnded?: boolean }).readableEnded) onInputEnd();
@@ -74,6 +92,7 @@ export function createProtocolProcessLifecycle(
     get deadlineAt() {
       return deadlineAt;
     },
+    get shutdownContext() { return shutdownContext; },
     requestShutdown: stop,
     complete(code: number): Promise<void> {
       completion ??= (async () => {
@@ -82,6 +101,15 @@ export function createProtocolProcessLifecycle(
         controller.abort(new Error("Protocol command completed"));
         await Promise.all([flush(output), flush(stderr), flushE2ECoverage()]);
         if (deadlineTimer) clearTimeout(deadlineTimer);
+        // 嵌入调用与测试可重复创建入口；退出后不能遗留旧代信号/IO listener。
+        for (const [signal, listener] of signalListeners) process.off(signal, listener);
+        source.unpipe(input);
+        source.off("end", onInputEnd);
+        source.off("close", onInputClose);
+        source.off("error", onInputError);
+        output.off("error", onOutputError);
+        output.off("close", onOutputClose);
+        input.off("error", onInputError);
         exit(exitCode);
       })();
       return completion;

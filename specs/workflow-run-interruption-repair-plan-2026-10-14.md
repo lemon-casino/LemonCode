@@ -231,3 +231,17 @@ pnpm --dir apps/lcode-cli --filter @lcode/cli build:desktop-agent
 完成标准是父回合结束不停止已接受的 run；常驻池不回收仍有真实 blocker 的 App；真正关闭的 origin 可追踪，关键资源在原 owner 下结算；新观察者不标死活 owner；两种交付模式与恢复导入不重复副作用。
 
 回退按阶段和配套 bundle 进行。B 的 App snapshot 与 pool 闸门一起回退，C 的 cleanup admission 与关闭顺序一起回退。D 的数据库回退方案先于迁移实施，保留旧终态与 lineage；不丢弃 owner fencing，也不靠恢复通用 child 输入、随机 actor ID 或无条件 orphan update 绕过问题。
+
+## 9 实施契约（2026-10-15）
+
+本轮从 `e1e1acfc` 开始实施，保留并行的远控重连本地改动。阶段 A 的进程入口保存首次 `ProtocolShutdownContext`（closeId、origin、requestedAt、deadlineAt、processId、transportAvailable）；CLI 与 Bootstrap 使用 contracts 公开类型，不新增 wire 字段或环境变量。Host 复用 child pid、runtimeInstanceId 与 generation 记录首次清理意图，未建立可信映射的跨进程 closeId 不强行合并。EOF、输入/输出错误、信号、运行失败与命令完成分别归因，后续幂等调用不覆盖。CLI complete 撤销入口监听器，避免嵌入/测试留下信号订阅。
+
+清理单步预算耗尽记 `shutdown.pending`，真实拒绝记 `shutdown.failed`；两者共享首次关闭上下文及剩余预算。实际 session shutdown Promise 保留到完成后才关闭 store。新测试须证明首次原因稳定、不同 IO origin 可辨、监听器释放、超时与拒绝可区分。
+
+阶段 B：App 新增可选的只读 `readResidencySnapshot`，生产 facade 必须实现；聚合 Core 权威阻塞和 workflow 现有 live/pendingCleanup 集合，不新增计数 owner。pool 传入候选的 App 实例标识，实际 deactivate 同步重读全部事实，在任何副作用前返回 `blocked` 或 `started(completion)`；仅 started 改容量和 gate。旧嵌入 fixture 无 snapshot 时仍读取原 Core 阻塞接口。
+
+阶段 C：server 关闭期间仍接受原反向请求的 response；内部资源端口用 `purpose: resource_cleanup` 标记 checkout release 和 Browser close/turnEnded，server 只允许这两个有限的方法/命令组合，新 acquire/execute 均拒绝。此标记不进入 wire，也不能由客户端输入设置。已有资源的原 token/route/generation 由资源端口闭包保持。主动信号且 transport 可用时 connection 等待 server drain，真实 EOF/错误立即标记断连。所有路径共用入口 deadline，不新增独立续时。
+
+阶段 D 的兼容决定：复用既有 `local_setting` 的命名空间 `workflow.execution/owner`，不新增表、列或 migration。每个 parent session 一条版本化 owner 记录，含 workspace identity key、不可预测 token、generation、主机指纹与进程实例、active/retired；不是第二张 run 表。claim 通过旧完整值 CAS，写 journal 的每笔操作在同一 SQLite savepoint 内校验原 owner。跨主机、损坏/未知版本、缺 owner 且有非终态旧 run 时均拒绝执行认领，不凭空写 interrupted；只读历史仍可访问。已确认本机原进程实例退出或显式 retired 才允许接代。旧二进制不具备 fencing，混合版本不允许自动认领无元数据的活运行；回退前先退休新 owner，旧 run/lineage 数据原样保留。
+
+孤儿收敛改为 owner lease 提供的条件操作：校验 parent、workspace key、当前 owner token 与 expected non-terminal status，同一事务内写 interrupted；失败仅重读，不无条件写入。App 启动失败释放未发布 lease；正常关闭在 workflow settlement 与 cleanup 完成后退休 lease。不得在清理仍可能写 journal 时提前退休。自身已提交 journal 终态与本地 settlement 的短暂差异仅标记 `terminal_observed_before_settlement`，不据事件名推断 foreign writer。

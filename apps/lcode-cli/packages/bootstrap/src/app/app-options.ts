@@ -278,6 +278,7 @@ export interface RunLCodeProtocolAgentOptions {
   lifecycle?: {
     readonly signal: AbortSignal;
     readonly deadlineAt: number | undefined;
+    readonly shutdownContext?: import("@lcode/contracts").ProtocolShutdownContext;
     requestShutdown(error?: Error): void;
   };
   /** Desktop 内部命令：只运行原存储准备并退出。 */

@@ -1,4 +1,4 @@
-import type { Logger, McpPort } from "@lcode/contracts";
+import type { Logger, McpPort, ProtocolShutdownContext } from "@lcode/contracts";
 import type { McpConnectionPool, McpTelemetryTracker } from "@lcode/adapters/mcp";
 import type { SqliteSessionStore } from "@lcode/adapters/storage";
 import { shutdownPreparedModelTelemetry } from "@lcode/telemetry";
@@ -9,10 +9,12 @@ import type { LCodeProtocolAgentServer } from "./server.js";
 
 const DEFAULT_CLEANUP_BUDGET_MS = 1_200;
 const CLEANUP_STEP_BUDGET_MS = 400;
+const CLEANUP_PENDING = Symbol("cleanup_pending");
 
 export async function cleanupProtocolRuntime(options: {
   logger: Logger;
   deadlineAt?: number;
+  shutdownContext?: ProtocolShutdownContext;
   server?: Pick<LCodeProtocolAgentServer, "shutdown" | "disposeProjections">;
   processResourceSampler?: Pick<LCodeProcessResourceSampler, "stop">;
   mcpTelemetryTracker?: Pick<McpTelemetryTracker, "stop">;
@@ -23,26 +25,38 @@ export async function cleanupProtocolRuntime(options: {
   providerRegistryRuntime?: { dispose(): unknown };
 }): Promise<void> {
   const deadline = options.deadlineAt ?? Date.now() + DEFAULT_CLEANUP_BUDGET_MS;
+  const closeContext = options.shutdownContext ?? { origin: "unknown", processId: process.pid };
+  options.logger.info("Protocol cleanup started", {
+    ...closeContext, event: "lcode_protocol.close.requested", phase: "quiescing",
+  });
   const warnCleanupFailure = (resource: string, error: unknown): void => {
     options.logger.warn(`LCode Protocol ${resource} shutdown failed`, {
       errorType: error instanceof Error ? error.name : typeof error,
       event: `lcode_protocol.${resource}.shutdown.failed`,
       module: "bootstrap.lcode_protocol",
+      ...closeContext,
     });
   };
   const step = async (resource: string, cleanup: () => unknown | Promise<unknown>) => {
     let timeout: NodeJS.Timeout | undefined;
     try {
       // 共用绝对 deadline；某项失败/挂起不阻止其余资源被尝试，也不逐项续时。
-      await Promise.race([
+      const outcome = await Promise.race([
         Promise.resolve().then(cleanup),
-        new Promise<never>((_, reject) => {
+        new Promise<typeof CLEANUP_PENDING>((resolve) => {
           timeout = setTimeout(
-            () => reject(new Error("Protocol cleanup timed out")),
+            () => resolve(CLEANUP_PENDING),
             Math.max(0, Math.min(CLEANUP_STEP_BUDGET_MS, deadline - Date.now())),
           );
         }),
       ]);
+        if (outcome === CLEANUP_PENDING) {
+          options.logger.warn("Protocol cleanup remains pending", {
+            ...closeContext, event: `lcode_protocol.${resource}.shutdown.pending`,
+            phase: "draining", remainingMs: Math.max(0, deadline - Date.now()),
+          });
+          return { status: "pending" as const };
+        }
       return { status: "completed" as const };
     } catch (error) {
       warnCleanupFailure(resource, error);

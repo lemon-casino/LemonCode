@@ -108,3 +108,4 @@ export * from "./tracing/local-turn-preparation.js";
 export type { LocalTtftDetail } from "@lcode/shared";
 
 export * from "./interfaces/permission-full-access.js";
+export type { ProtocolShutdownContext } from "./interfaces/protocol-shutdown.js";
