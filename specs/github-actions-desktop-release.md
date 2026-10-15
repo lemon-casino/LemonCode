@@ -2,6 +2,67 @@
 
 ## 产品规则
 
+### v3.18.9 平台可选依赖校验修复（2026-10-15）
+
+- Actions `38721114142` 的 Linux x64 发行契约因未安装
+  `@napi-rs/canvas-linux-arm64-musl@0.1.100` 失败。根 workspace 配置支持 glibc，
+  安装器可以跳过 musl 可选包；不能把锁文件中的全部可选边都解释为本机必装包。
+- `pnpm-workspace.yaml` 是支持平台集合的唯一配置所有者；`pnpm-lock.yaml` 的精确版本
+  `packages` 元数据拥有包的 `os`、`cpu`、`libc` 条件。`third-party-npm.mjs` 统一解释两者，
+  同时用于锁文件/安装图对账和实际目录完整性检查；不增加按 canvas 包名维护的豁免清单。
+- `pnpm ls` 会把部分可选边折叠进 `dependencies`；可选边类型以锁文件的 `snapshots`
+  和 workspace `importers` 为准，不能仅依赖展示图的字段名。相同精确版本的 peer 实例
+  仅在全部实例均声明该别名为可选时才合并为可选边。
+- 仅当依赖经可选边到达，且锁文件平台条件明确排除配置支持的全部平台时，才允许未安装。
+  被排除可选子树的普通子依赖也可缺席；同一精确版本若另有受支持或必需路径，则仍须安装。
+  `current` 展开为执行主机的 OS/CPU/libc；未设置的平台维度使用当前主机，条件支持正向及
+  `!` 否定列表，匹配规则对齐仓库固定的 pnpm 10.34.6（否定命中任一支持目标即排除，
+  主机 libc 未知时不凭 libc 排除）。元数据或平台条件缺失不能成为跳过依据。
+- 必需依赖、配置支持的可选依赖、未知条件的可选依赖缺失仍失败；版本过期或额外生产包
+  仍失败。已经安装的跨平台包仍参与声明与许可标识检查，保持跨发行平台的保守并集。
+  NOTICE 哈希、输入新鲜度、既有 20 项材料缺口和发布基线均保持原有校验。
+- 改动只涉及 unmanaged 根构建脚本，无运行时状态/协议变化。接口沿用
+  `readWorkspaceProductionGraph`、`assertProductionGraphs` 与 `missingProductionPackages`；
+  只读平台策略和图，实际安装集合仍由既有异步目录扫描产生，无新增写入路径。
+- 用户明确要求重新打包同名 `v3.18.9`：版本保持 `3.18.9`，修复提交验证后以远端旧 tag
+  对象为 lease 更新该 tag，触发全新六平台构建，不复用旧提交的成功产物。仅本次授权例外
+  允许移动 tag；已有 tag/Release 若出现并发变化则停止覆盖并重新核查。发布仍由工作流
+  全部构建成功后的唯一汇总 job 完成。
+
+```mermaid
+flowchart LR
+  W[workspace 支持平台] --> P[third-party-npm 唯一平台判定]
+  L[锁文件精确版本与平台条件] --> P
+  P --> G[锁文件图与安装图对账]
+  G --> S[扫描实际目录并核对必装集合]
+  S --> C[许可标识与既有 NOTICE 校验]
+  C --> T[修复提交与同名 tag 更新]
+  T --> B[新提交全平台构建]
+  B --> R[汇总验证后发布]
+```
+
+验收：glibc 主机允许 musl 可选包及其独占子树缺席；显式增加 musl 支持后缺席失败；
+跨架构支持仍要求对应包存在；OS/CPU 否定条件、current、多个路径与同版本必需引用
+均正确处理。通用可选包、受支持 native 包和必需包缺失、安装图旧版本仍失败。
+新回归纳入 `pnpm test:release`，执行完整发行测试、根 typecheck/Lint、格式和架构检查；
+远端以新 Actions 的源码 SHA、六平台产物及 Release 状态验收真实打包结果。
+
+本轮本地验证（2026-10-15，Windows，Node 24.21.0 / pnpm 10.34.6）：
+
+- 新增 10 项回归并纳入既有发行入口。先以反例复现 musl 包误报，再以真实 pnpm 展示图
+  的折叠结构验证；主机平台、workspace importer、peer 实例和必装/未知依赖反例通过。
+  使用真实 UI 生产图的 1,044 个精确版本模拟 Linux glibc，仅两个 canvas musl 包允许缺席。
+- `pnpm test:release`：136 项，135 通过、0 失败、1 项已有 Chromium 实机 helper 用例
+  按条件跳过；旧 `--strict` 真实普通检查成功。平台匹配细节最后对照固定 pnpm 源码，
+  补充否定集合和未知 libc 场景后，10 项定向回归再次全部通过。
+- 根 `pnpm typecheck`、`pnpm lint`、改动脚本显式 Lint、四个文本文件格式与
+  `git diff --check` 通过；架构 baseline/new/violations 均为 0。根 scripts/workflow
+  是 unmanaged 构建工具，已读取 CLI 消费方的 legacy 上下文，无新增跨模块依赖或状态所有者。
+- HEAD 原有 3,003 项发行输入验证通过，NOTICE、inventory、发布基线、依赖和锁文件无改动。
+  完整测试日志保存在 `.artifacts/canvas-platform-release-20261015/release-tests.log`。
+  Windows 本地检查不替代六平台原生打包；同名 tag 更新后的新 Actions 与最终 Release
+  结果由本次发布操作另行确认，不沿用旧 run 的成功产物。
+
 ### 发布 Git 输入完整性与公共前置校验（2026-10-15）
 
 - 本轮基线为 `210dd210`，复核 Actions `38702954472` 的七个失败任务：同一份 Magpie

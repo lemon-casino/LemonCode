@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 import "./github-actions-environment.test.mjs";
 import "./license-material-policy.test.mjs";
+import "./third-party-npm.test.mjs";
 import "./release-artifacts.test.mjs";
 import "./remote-release-assets.test.mjs";
 import "./remote-release-workflow.test.mjs";

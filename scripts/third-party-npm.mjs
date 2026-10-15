@@ -1,14 +1,10 @@
 import { createHash } from "node:crypto";
 import { readFile, readdir, realpath } from "node:fs/promises";
 import { join, relative } from "node:path";
+import YAML from "yaml";
 import { execCommand } from "./spawn-command.mjs";
 
 export const hashBytes = (bytes) => createHash("sha256").update(bytes).digest("hex");
-const unsupportedCanvas = new Set([
-  "@napi-rs/canvas-android-arm64",
-  "@napi-rs/canvas-linux-arm-gnueabihf",
-  "@napi-rs/canvas-linux-riscv64-gnu",
-]);
 const noticeName =
   /(?:^|[._-])(?:licen[sc]es?|copying|notice|copyright|unlicense|third.party|ofl)(?:[._-]|$)/iu;
 
@@ -42,31 +38,113 @@ export async function readPackageNotices(directory) {
   return files.sort((a, b) => a.member.localeCompare(b.member, "en"));
 }
 
-function productionPackages(projects) {
+function currentArchitectures() {
+  return {
+    os: process.platform,
+    cpu: process.arch,
+    libc:
+      process.platform === "linux"
+        ? process.report.getReport().header.glibcVersionRuntime
+          ? "glibc"
+          : "musl"
+        : undefined,
+  };
+}
+
+function platformMatches(conditions, targets) {
+  // 未知平台不能证明包不适用；无条件、any 和纯否定列表遵循包管理器的平台语义。
+  if (typeof conditions === "string") conditions = [conditions];
+  if (!Array.isArray(conditions) || !conditions.length || targets.includes(undefined)) return true;
+  conditions = conditions.filter((value) => typeof value === "string");
+  if (conditions.length === 1 && conditions[0] === "any") return true;
+  // pnpm 10 的否定条件针对全部支持目标；任一目标命中否定条件就不能安装。
+  if (targets.some((target) => conditions.includes(`!${target}`))) return false;
+  const negativeCount = conditions.filter((value) => value.startsWith("!")).length;
+  return (
+    targets.some((target) => conditions.includes(target)) ||
+    negativeCount * targets.length === conditions.length
+  );
+}
+
+function optionalSnapshotEdges(snapshots) {
+  const edges = new Map();
+  for (const [snapshotKey, snapshot] of Object.entries(snapshots ?? {})) {
+    const key = snapshotKey.split("(")[0];
+    const aliases = new Set(Object.keys(snapshot.optionalDependencies ?? {}));
+    const previous = edges.get(key);
+    // peer 实例的展示路径可能被 pnpm 哈希化；只合并所有实例一致声明的可选别名。
+    edges.set(key, previous ? previous.intersection(aliases) : aliases);
+  }
+  return edges;
+}
+
+function productionPackages(projects, policy) {
   const own = new Set(projects.map((project) => project.name));
   const required = new Map();
-  function dependencies(deps) {
+  const current = policy.current ?? currentArchitectures();
+  const optionalEdges = optionalSnapshotEdges(policy.snapshots);
+  const targets = Object.fromEntries(
+    ["os", "cpu", "libc"].map((dimension) => [
+      dimension,
+      (policy.supportedArchitectures?.[dimension] ?? ["current"]).map((value) =>
+        value === "current" ? current[dimension] : value,
+      ),
+    ]),
+  );
+  function dependencies(deps, optional = false, ancestorExcluded = false, optionalAliases) {
     for (const [alias, info] of Object.entries(deps ?? {})) {
       const name = info.name ?? alias;
+      const key = `${name}@${info.version}`;
+      const metadata = policy.packages?.[key];
+      // 修复：真实 pnpm ls 将嵌套 optionalDependencies 折叠进 dependencies，边类型须读锁文件。
+      const optionalPath = optional || optionalAliases?.has(alias);
+      const platformExcluded =
+        ancestorExcluded ||
+        (optionalPath &&
+          Object.entries(targets).some(
+            ([dimension, values]) =>
+              !(dimension === "libc" && !current.libc) &&
+              !platformMatches(metadata?.[dimension], values),
+          ));
       if (!own.has(name) && !name.startsWith("@lcode/") && !info.version.startsWith("link:")) {
-        required.set(`${name}@${info.version}`, { name, version: info.version });
+        // 修复：pnpm ls 可保留未实装的平台可选边，不能强制 glibc 构建安装 musl 包。
+        // 同版本只要存在一条受支持/必需路径就必须安装，不能由另一路可选边降级检查。
+        const previous = required.get(key);
+        required.set(key, {
+          name,
+          version: info.version,
+          ...(platformExcluded && (!previous || previous.platformExcluded)
+            ? { platformExcluded: true }
+            : {}),
+        });
       }
-      dependencies(info.dependencies);
-      dependencies(info.optionalDependencies);
+      dependencies(info.dependencies, optionalPath, platformExcluded, optionalEdges.get(key));
+      dependencies(info.optionalDependencies, true, platformExcluded);
     }
   }
   for (const project of projects) {
-    dependencies(project.dependencies);
-    dependencies(project.optionalDependencies);
+    const importer =
+      policy.workspaceRoot && project.path
+        ? policy.importers?.[
+            relative(policy.workspaceRoot, project.path).replaceAll("\\", "/") || "."
+          ]
+        : undefined;
+    dependencies(
+      project.dependencies,
+      false,
+      false,
+      new Set(Object.keys(importer?.optionalDependencies ?? {})),
+    );
+    dependencies(project.optionalDependencies, true);
   }
   return required;
 }
 
-export function assertProductionGraphs(lockedProjects, installedProjects) {
-  const locked = productionPackages(lockedProjects);
-  const installed = productionPackages(installedProjects);
+export function assertProductionGraphs(lockedProjects, installedProjects, policy = {}) {
+  const locked = productionPackages(lockedProjects, policy);
+  const installed = productionPackages(installedProjects, policy);
   const missing = [...locked].filter(
-    ([key, item]) => !installed.has(key) && !unsupportedCanvas.has(item.name),
+    ([key, item]) => !installed.has(key) && !item.platformExcluded,
   );
   const stale = [...installed.keys()].filter((key) => !locked.has(key));
   if (missing.length || stale.length) {
@@ -80,10 +158,19 @@ export function assertProductionGraphs(lockedProjects, installedProjects) {
 export async function readWorkspaceProductionGraph(root) {
   root = await realpath(root);
   // 修复：pnpm ls 默认读取安装快照，不能把旧图与当前锁文件哈希拼成有效声明。
-  const [locked, actual] = await Promise.all(
-    [true, false].map((lockfileOnly) => readPnpmProductionProjects(root, lockfileOnly)),
-  );
-  const required = assertProductionGraphs(locked, actual);
+  const [locked, actual, workspace, lockfile] = await Promise.all([
+    readPnpmProductionProjects(root, true),
+    readPnpmProductionProjects(root, false),
+    readFile(join(root, "pnpm-workspace.yaml"), "utf8").then(YAML.parse),
+    readFile(join(root, "pnpm-lock.yaml"), "utf8").then(YAML.parse),
+  ]);
+  const required = assertProductionGraphs(locked, actual, {
+    packages: lockfile.packages,
+    snapshots: lockfile.snapshots,
+    importers: lockfile.importers,
+    workspaceRoot: root,
+    supportedArchitectures: workspace.supportedArchitectures,
+  });
   return { required, projects: actual };
 }
 
@@ -163,10 +250,10 @@ export async function scanInstalledPackages(root, projects) {
 export function missingProductionPackages(required, installed) {
   const missing = [...required].filter(([key]) => !installed.has(key)).map(([, item]) => item);
   for (const item of missing) {
-    if (!unsupportedCanvas.has(item.name))
+    if (!item.platformExcluded)
       throw new Error(`Missing installed dependency: ${item.name}@${item.version}`);
   }
-  return missing;
+  return missing.map(({ name, version }) => ({ name, version }));
 }
 
 export async function collectNpmNotices(root, overrides) {
@@ -197,7 +284,8 @@ export async function collectNpmNotices(root, overrides) {
     )
       missing.push(key);
     packages.push({
-      ...item,
+      name: item.name,
+      version: item.version,
       license:
         pkg.license ??
         pkg.licenses?.map((item) => (typeof item === "string" ? item : item.type)).join(" OR ") ??
