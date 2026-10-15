@@ -7,6 +7,7 @@ export const fixtureAuthorizationChannels: readonly ProviderAccountChannel[] = (
   {
     id: "fixture",
     name: "Fixture OAuth",
+    checkinSupported: new URLSearchParams(location.search).has("checkin"),
     methods: [
       { id: "code", label: "Browser code", type: "oauth", kind: "browser" },
       ...(new URLSearchParams(location.search).has("sources")

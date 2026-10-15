@@ -9,6 +9,11 @@ import { ProviderAuthorizationForm } from "./ProviderAuthorizationForm.js";
 import { ProviderQuotaCard } from "@/settings/usage-stats/ProviderQuotaCard.js";
 import { ProviderAccountAvatar } from "./ProviderAccountAvatar.js";
 import { providerPickerCardClassName } from "./providerPickerCard.js";
+import {
+  ProviderAccountCheckinHeader,
+  ProviderAccountCheckinButton,
+  ProviderAccountCheckinStatus,
+} from "./ProviderAccountCheckinControls.js";
 
 /** 渠道卡只打开管理窗，不把授权表单追加到长列表底部。 */
 export function ProviderAccountsPanel({
@@ -101,15 +106,25 @@ export function ProviderAccountManager({
       <ProviderAccountsStatus accounts={accounts} />
       {visibleAccounts.length > 0 ? (
         <section className="space-y-3" aria-label={message("accounts")}>
-          <h3 className="text-ui-base font-medium">
-            {message("accounts")} · {visibleAccounts.length}
-          </h3>
+          <div className="flex flex-wrap items-center gap-3">
+            <h3 className="text-ui-base font-medium">
+              {message("accounts")} · {visibleAccounts.length}
+            </h3>
+            {channel?.checkinSupported ? (
+              <ProviderAccountCheckinHeader
+                channelId={channelId}
+                accounts={visibleAccounts}
+                actions={accounts}
+              />
+            ) : null}
+          </div>
           {visibleAccounts.map((account) => (
             <ProviderAccountCard
               key={account.connectionId}
               account={account}
               actions={accounts}
               providerName={channel?.name ?? channelId}
+              checkinSupported={channel?.checkinSupported ?? false}
             />
           ))}
         </section>
@@ -166,10 +181,12 @@ function ProviderAccountCard({
   account,
   actions,
   providerName,
+  checkinSupported,
 }: {
   account: ProviderAccount;
   actions: ReturnType<typeof useProviderAccounts>;
   providerName: string;
+  checkinSupported: boolean;
 }) {
   const { intl, locale } = useLCodeIntl();
   const [showQuota, setShowQuota] = useState(false);
@@ -216,7 +233,9 @@ function ProviderAccountCard({
       ) : null}
       {account.models.length ? (
         <details className="text-ui-base">
-          <summary className="cursor-pointer rounded-sm text-foreground-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-input-border-focused">{message("models")}</summary>
+          <summary className="cursor-pointer rounded-sm text-foreground-subtle hover:text-foreground focus-visible:ring-2 focus-visible:ring-input-border-focused">
+            {message("models")}
+          </summary>
           <ul className="mt-2 max-h-60 space-y-1 overflow-y-auto">
             {account.models.map((model) => (
               <li
@@ -256,6 +275,9 @@ function ProviderAccountCard({
         >
           {message("refreshModels")}
         </Button>
+        {checkinSupported ? (
+          <ProviderAccountCheckinButton account={account} actions={actions} />
+        ) : null}
         <Button
           type="button"
           variant="ghost"
@@ -266,6 +288,7 @@ function ProviderAccountCard({
           {message("removeAccount")}
         </Button>
       </div>
+      <ProviderAccountCheckinStatus account={account} />
       {showQuota ? (
         <ProviderQuotaCard
           account={account}

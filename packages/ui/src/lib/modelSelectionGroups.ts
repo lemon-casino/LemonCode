@@ -51,10 +51,12 @@ export function buildRegistryModelSelectGroups(
         label: accountPresentation?.label || provider.providerName?.trim() || provider.providerId,
         ...(accountPresentation?.labelBadge ? { labelBadge: accountPresentation.labelBadge } : {}),
         ...(accountPresentation ? { directItems: true } : {}),
-        items: provider.models.map(({ modelId, config }) => ({
+        items: provider.models.map(({ modelId, config, catalog }) => ({
           key: `registry-provider:${provider.providerId}:${modelId}`,
           value: encodeCustomModelValue(provider.providerId, modelId),
-          name: modelId,
+          name: catalog?.name || modelId,
+          modelId,
+          ...(catalog?.billing ? { billing: catalog.billing } : {}),
           ...(shouldShowModelVisionBadge(
             modelId,
             config.properties?.inputFormat?.supportsImage,

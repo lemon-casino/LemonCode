@@ -1,6 +1,7 @@
 import type { ProxyProfile } from "@lcode/shared";
 import { applyProxyFixtureView, createProxyFixtureMethods } from "./provider-proxy-fixture.js";
 import { fixtureAuthorizationChannels } from "./provider-authorization-catalog.js";
+import { createCheckinFixture } from "./provider-checkin-fixture.js";
 import type {
   ProviderAccount,
   ProviderAccountView,
@@ -26,6 +27,7 @@ export const fixture = {
   opened: [] as string[],
   cancelled: [] as string[],
   refreshes: [] as string[],
+  checkins: [] as string[],
   apiCreates: [] as string[],
   failNextCancel: false,
   failNextPoll: false,
@@ -82,6 +84,7 @@ export const service: IProviderAccountService = {
     return { dispose: () => listeners.delete(listener) };
   },
   getView: async () => view(),
+  ...createCheckinFixture(fixture, publish),
   getQuota: async (connectionId) => ({
     connectionId,
     source: "upstream",

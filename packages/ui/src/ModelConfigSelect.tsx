@@ -18,6 +18,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuPortal,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -46,6 +47,9 @@ import {
 } from "@/lib/pickerFocus.js";
 import { RollingToolbarLabel } from "@/chat-input-toolbar/RollingToolbarLabel.js";
 import { ModelInputCapabilityBadge } from "@/components/ModelInputCapabilityBadge.js";
+import { ModelBillingBadge } from "@/components/ModelBillingBadge.js";
+import type { ModelBilling } from "@lcode/shared";
+import { useNarrowWebLayout } from "@/hooks/useNarrowWebLayout.js";
 
 export interface ModelSelectGroupItem {
   key: string;
@@ -53,6 +57,8 @@ export interface ModelSelectGroupItem {
   name: string;
   badgeLabel?: string;
   supportsVisionInput?: boolean;
+  billing?: ModelBilling;
+  modelId?: string;
 }
 
 export interface ModelSelectConnectionOption {
@@ -227,6 +233,7 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
 }: ModelConfigSelectProps) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
+  const narrow = useNarrowWebLayout(false);
   const lastOpenRequestKeyRef = useRef(openRequestKey);
   const hasSelectableModel = modelGroups.length > 0;
   // 闲时任务白名单只有一层模型值；只要存在 group 就强制展示 provider 层的话，
@@ -297,14 +304,29 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
       } as const;
       const content = (
         <>
-          <span className="flex min-w-0 flex-1 items-center gap-1.5 text-left">
-            <span className="min-w-0 truncate" title={item.name}>
+          <span className="flex min-w-0 flex-1 items-center gap-3 text-left">
+            <span
+              className="min-w-0 flex-1 truncate"
+              title={
+                item.modelId && item.modelId !== item.name
+                  ? `${item.name} (${item.modelId})`
+                  : item.name
+              }
+            >
               {item.name}
             </span>
             {item.badgeLabel ? (
               <span className={MODEL_CONFIG_SELECT_BADGE_CLASS_NAME}>{item.badgeLabel}</span>
             ) : null}
-            {item.supportsVisionInput ? <ModelInputCapabilityBadge /> : null}
+            {/* 修复：能力与计费各有共享列位，不能随每个模型名长度左右跳动。 */}
+            <span className="grid shrink-0 grid-cols-[3.5em_5.5em] items-center gap-2">
+              <span className="flex justify-center" data-model-capability-column>
+                {item.supportsVisionInput ? <ModelInputCapabilityBadge /> : null}
+              </span>
+              <span className="flex min-w-0 justify-end" data-model-billing-column>
+                <ModelBillingBadge billing={item.billing} />
+              </span>
+            </span>
           </span>
           {itemLocked ? (
             <TooltipProvider>
@@ -544,7 +566,7 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
           className={cn(
             shouldShowProviderLevel
               ? "w-max min-w-48 max-w-[calc(100vw-2rem)]"
-              : "w-48 max-h-72 overflow-y-auto",
+              : "w-max min-w-64 max-w-[calc(100vw-2rem)] max-h-72 overflow-y-auto",
           )}
           align={contentAlign}
           side={contentSide}
@@ -582,7 +604,8 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
                 ) ? (
                   <DropdownMenuSeparator />
                 ) : null;
-                if (group.directItems) {
+                // 窄屏并排子菜单不足以容纳名称和计费列；沿用同一分组数据直接展开。
+                if (group.directItems || narrow) {
                   return (
                     <Fragment key={group.key}>
                       {groupSeparator}
@@ -619,16 +642,19 @@ export const ModelConfigSelect = memo(function ModelConfigSelectComponent({
                           <CheckIcon className="size-4 text-foreground-subtle" />
                         ) : null}
                       </DropdownMenuSubTrigger>
-                      <DropdownMenuSubContent
-                        className={cn(
-                          "max-h-72 overflow-y-auto",
-                          // 固定宽度会提前截断模型名；按内容扩展，并让可用空间优先于最小宽度。
-                          providerSubmenuClassName ??
-                            "w-max min-w-[min(12rem,var(--radix-dropdown-menu-content-available-width))] max-w-(--radix-dropdown-menu-content-available-width)",
-                        )}
-                      >
-                        {renderModelItems(group.items)}
-                      </DropdownMenuSubContent>
+                      {/* 子菜单须独立 Portal；父层的 transform/overflow 会裁掉窄屏子菜单。 */}
+                      <DropdownMenuPortal>
+                        <DropdownMenuSubContent
+                          className={cn(
+                            "max-h-72 overflow-y-auto",
+                            // 固定宽度会提前截断模型名；按内容扩展，并让可用空间优先于最小宽度。
+                            providerSubmenuClassName ??
+                              "w-max min-w-[min(12rem,var(--radix-dropdown-menu-content-available-width))] max-w-(--radix-dropdown-menu-content-available-width)",
+                          )}
+                        >
+                          {renderModelItems(group.items)}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuPortal>
                     </DropdownMenuSub>
                   </Fragment>
                 );

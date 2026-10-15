@@ -308,3 +308,9 @@ nul
 !/packages/web/test/remote-session-configuration.test.mjs
 !/packages/web/test/fixtures/remote-session-configuration.html
 !/packages/web/test/fixtures/remote-session-configuration.tsx
+
+# OAuth 计费对齐与账号签到的永久浏览器回归。
+!/packages/web/test/oauth-billing-checkin.test.mjs
+!/packages/web/test/fixtures/model-billing-menu.html
+!/packages/web/test/fixtures/model-billing-menu.tsx
+!/packages/web/test/fixtures/provider-checkin-fixture.ts

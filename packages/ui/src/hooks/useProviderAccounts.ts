@@ -230,14 +230,17 @@ export function useProviderAccounts() {
   const mutate = useCallback(
     async (
       connectionId: string,
-      action: (target: IProviderAccountService) => Promise<ProviderAccountView>,
+      action: (
+        target: IProviderAccountService,
+        current: () => boolean,
+      ) => Promise<ProviderAccountView>,
     ) => {
       const scope = scopeRef.current;
       if (!scope?.service || !isCurrent(scope)) return;
       setBusy(connectionId);
       setError(null);
       try {
-        const next = await action(scope.service);
+        const next = await action(scope.service, () => isCurrent(scope));
         if (!isCurrent(scope)) return;
         commit(scope, next);
         return next;
@@ -263,6 +266,21 @@ export function useProviderAccounts() {
     openBrowser,
     refreshModels: (id: string) => mutate(id, (target) => target.refreshModels(id)),
     removeAccount: (id: string) => mutate(id, (target) => target.removeAccount(id)),
+    checkinAccount: (id: string) => mutate(id, (target) => target.checkinAccount(id)),
+    checkinAll: (channelId?: string) =>
+      mutate("checkin-all", (target) => target.checkinAll(channelId)),
+    setAutomaticCheckin: (id: string, enabled: boolean) =>
+      mutate(id, (target) => target.setAutomaticCheckin(id, enabled)),
+    setChannelAutomaticCheckin: (channelId: string, enabled: boolean) =>
+      mutate("checkin-auto", async (target, current) => {
+        let next = await target.getView();
+        for (const account of next.accounts.filter((item) => item.channelId === channelId)) {
+          // 切换 Environment 后停止批量写入旧 Host，不能仅丢弃最后一次 UI 响应。
+          if (!current()) break;
+          next = await target.setAutomaticCheckin(account.connectionId, enabled);
+        }
+        return next;
+      }),
     setAccountEnabled: (id: string, enabled: boolean) =>
       mutate(id, (target) => target.setAccountEnabled(id, enabled)),
   };
