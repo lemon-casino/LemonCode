@@ -192,3 +192,7 @@ Provider 配置 owner → 同一次权威快照 → 临时解析 profileId → �
 - 根目录 `pnpm typecheck`、`pnpm lint`，CLI `pnpm --dir apps/lcode-cli typecheck`（27 个任务）与 `lint`（14 个任务），以及本轮文件格式检查和差异空白检查通过。CLI Turbo 仍提示 lockfile 缺少部分 workspace 的传递闭包，未影响命令成功。
 - 架构检查 baseline 0 / new 0。涉及 provider/ui 的生产逻辑、lcode-cli 的协议回归与 Web 测试；生产逻辑净增 21 行，配置唯一 owner、现有写队列、协议、跨 Host/workspace 路由、取消代次与 Desktop continuous/手机 replayable 边界均不变。没有数据迁移或自动恢复历史禁用项；旧逻辑关闭的模型可通过重新检测成功恢复。
 - 未重新打包安装包，未使用真实供应商或修改用户配置；未在 macOS/Linux 实机执行。
+
+## 2026-10-17 首次配置修复
+
+临时检测的 Host 冷启动边界、API 独立使用与验收以 [Provider 补齐规格](provider-completion-2026-10-17.md) PC-01/02 为准。空模型列表不能阻断首次临时检测；普通会话仍保持就绪门槛。

@@ -4749,7 +4749,11 @@ export function createLCodeAgentService(
     },
 
     async testModelConnectivity(params: LCodeAgentTestModelConnectivityParams) {
-      const client = await getClient(params);
+      // 首次同步尚无已发布模型；临时检测复用原控制面进程，不能依赖检测成功后才成立的就绪门槛。
+      // 此入口不提升 modelExecutionEnabled，普通会话仍由 getClient 校验原 Registry。
+      const client = await (params.mode === "temporary"
+        ? getReadOnlyClient(params)
+        : getClient(params));
       await ensureAccountProviderConfigSynced({
         client,
         reason: "provider_test_model_connectivity",

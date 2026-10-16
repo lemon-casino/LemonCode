@@ -135,7 +135,14 @@ test(
           "custom",
           parseProviderConfig({
             group: "standard-personal",
-            access: { type: "api-key", apiKey: "fixture-key" },
+            access: {
+              type: "api-key",
+              apiKeys: Array.from({ length: 4 }, (_, index) => ({
+                id: "key" + index,
+                apiKey: "fixture-key" + index,
+                enabled: true,
+              })),
+            },
             api: {
               type: "openai-chat-completions",
               baseUrl: "http://provider.fixture.invalid/v1",
@@ -328,7 +335,7 @@ test(
         "unregistered",
       ]);
       for (const { body, headers } of calls) {
-        assert.equal(headers.authorization, "Bearer fixture-key");
+        assert.match(headers.authorization!, /^Bearer fixture-key[0-3]$/u);
         assert.equal(headers["x-fixture"], "frozen-header");
         assert.equal(body.max_tokens, modelConfig.optionSpecs?.maxOutputTokens?.max);
         assert.equal(body.reasoning_effort, "low");
