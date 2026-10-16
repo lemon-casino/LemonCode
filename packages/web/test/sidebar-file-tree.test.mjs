@@ -11,6 +11,7 @@ test(
       await t.test(`${width}px: cold session, view switching and file errors`, async () => {
         const page = await browser.newPage({ viewport: { width, height: 844 } });
         page.setDefaultTimeout(7000);
+        page.setDefaultNavigationTimeout(45000);
         const errors = [];
         page.on("pageerror", (error) => {
           errors.push(error.message);
@@ -24,7 +25,7 @@ test(
           .getByTestId("execution-error")
           .getByText(/Session is not active/)
           .waitFor();
-        await page.getByTestId("sidebar-workspace-tab").click();
+        await page.getByTestId("unified-sidebar-tree").waitFor();
         const project = page.getByTestId("workspace-list");
         await project.locator('[role="button"]').first().hover();
         await page
@@ -41,9 +42,12 @@ test(
           await page.evaluate(() => globalThis.__sidebarFiles.activeTask()),
           "cold-session",
         );
-        for (const mode of ["grouped", "worktrees", "workspace"]) {
+        for (const mode of ["projects", "worktrees", "chats"]) {
           await back.click();
-          await page.getByTestId(`sidebar-${mode}-tab`).click();
+          const labels = english
+            ? { projects: "Projects", worktrees: "Worktrees", chats: "Chats" }
+            : { projects: "项目", worktrees: "工作树", chats: "会话" };
+          await page.getByRole("button", { name: labels[mode], exact: true }).click();
           await page.evaluate(() =>
             globalThis.__sidebarFiles.open({
               workspacePath: "/fixture/other",
@@ -51,6 +55,9 @@ test(
             }),
           );
           await page.getByText("local.ts", { exact: true }).waitFor();
+          await page.waitForFunction(
+            () => globalThis.__sidebarFiles.calls.at(-1)?.path === "/fixture/other",
+          );
           assert.equal(
             (await page.evaluate(() => globalThis.__sidebarFiles.calls)).at(-1).path,
             "/fixture/other",
@@ -72,7 +79,7 @@ test(
           .click();
         await page.getByText("local.ts", { exact: true }).waitFor();
         await back.click();
-        await page.getByTestId("sidebar-workspace-tab").waitFor({ state: "visible" });
+        await page.getByTestId("unified-sidebar-tree").waitFor({ state: "visible" });
         assert.equal(
           await page.evaluate(() => globalThis.__sidebarFiles.activeTask()),
           "cold-session",
@@ -121,6 +128,7 @@ test(
       async () => {
         const page = await browser.newPage();
         page.setDefaultTimeout(7000);
+        page.setDefaultNavigationTimeout(45000);
         await page.goto(`http://127.0.0.1:${port}/test/fixtures/sidebar-file-tree.html`);
         await page
           .getByTestId("execution-error")

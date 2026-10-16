@@ -14,6 +14,7 @@ import { MemoTaskItem, TaskListItemContextMenuContent } from "@/TaskListItem.js"
 import { TaskListLoadingHint } from "@/TaskListLoadingHint.js";
 import { TaskRenameDialog } from "@/TaskRenameDialog.js";
 import { compareLCodeTaskListItems } from "@/lib/taskListOrdering.js";
+import { groupTaskTimelineItems, getTaskTimelineGroupMessage } from "@/lib/taskTimelineGroups.js";
 import { logger } from "@/logger.js";
 import { ControlHintTooltip } from "@/ControlHintTooltip.js";
 
@@ -46,6 +47,7 @@ export const TaskList = memo(function TaskList({
   onArchiveTask,
   onSetTaskUnread,
   readOnlyReason,
+  groupByDate = false,
 }: {
   workspacePath: string;
   remoteSessionId?: string;
@@ -67,8 +69,9 @@ export const TaskList = memo(function TaskList({
   onArchiveTask: (taskId: string) => Promise<LCodeTaskMeta | null>;
   onSetTaskUnread: (taskId: string, unread: boolean) => Promise<LCodeTaskMeta | null>;
   readOnlyReason?: string;
+  groupByDate?: boolean;
 }) {
-  const { intl } = useLCodeIntl();
+  const { intl, locale } = useLCodeIntl();
   const pinnedTaskIdSet = useMemo(
     () => new Set(pinnedTasks.map((task) => task.taskId)),
     [pinnedTasks],
@@ -446,7 +449,25 @@ export const TaskList = memo(function TaskList({
               }}
             >
               <ContextMenuTrigger asChild>
-                <ul className="space-y-0.5">{visibleSourceTasks.map(renderTaskItem)}</ul>
+                <ul className="space-y-0.5">
+                  {groupByDate
+                    ? groupTaskTimelineItems(visibleSourceTasks, {
+                        sortBy: sortBy === "created" ? "created" : "updated",
+                        now: Date.now(),
+                        locale,
+                      }).map((group) => {
+                        const message = getTaskTimelineGroupMessage(group.label);
+                        return (
+                          <li key={group.key}>
+                            <p className="px-3 py-1 text-ui-xs text-foreground-subtlest">
+                              {intl.formatMessage({ id: message.id }, message.values)}
+                            </p>
+                            <ul>{group.items.map(renderTaskItem)}</ul>
+                          </li>
+                        );
+                      })
+                    : visibleSourceTasks.map(renderTaskItem)}
+                </ul>
               </ContextMenuTrigger>
               {contextMenuTask ? (
                 <TaskListItemContextMenuContent

@@ -1,7 +1,14 @@
+import { sidebarEntryKey } from "@lcode/shared";
+import { Checkbox } from "@/components/ui/checkbox.js";
+import { ContextMenuItem, ContextMenuSeparator } from "@/components/ui/context-menu.js";
+import { SidebarPlacementItems } from "@/WorkspaceSidebar/SidebarPlacementItems.js";
+import { taskSidebarRef } from "@/lib/sidebarOrganization.js";
+import { useSidebarOrganization } from "@/hooks/useSidebarOrganization.js";
 /* eslint-disable max-lines -- task item 同时承载默认列表和 timeline 两行布局的共享交互，先保持动作链路集中避免归档/置顶回归。 */
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
+  Ellipsis,
   Clock,
   CloudUpload,
   ListTree,
@@ -80,6 +87,7 @@ interface TaskListItemProps {
   onOpenTaskContextMenu?: (taskId: string) => void;
   onOpenFileTree?: (task: LCodeTaskMeta) => void;
   variant?: "default" | "timeline";
+  sourceLabel?: string;
   showPinAction?: boolean;
   intl: TaskListItemIntl;
   actionsDisabled?: boolean;
@@ -128,6 +136,7 @@ function areTaskListItemPropsEqual(left: TaskListItemProps, right: TaskListItemP
     left.isMobileActive === right.isMobileActive &&
     left.isArchiveConfirming === right.isArchiveConfirming &&
     left.variant === right.variant &&
+    left.sourceLabel === right.sourceLabel &&
     left.showPinAction === right.showPinAction &&
     left.intl === right.intl &&
     left.actionsDisabled === right.actionsDisabled &&
@@ -159,6 +168,7 @@ export const MemoTaskItem = memo(function TaskListItem({
   onOpenTaskContextMenu,
   onOpenFileTree,
   variant = "default",
+  sourceLabel,
   showPinAction = true,
   intl,
   actionsDisabled = false,
@@ -172,6 +182,7 @@ export const MemoTaskItem = memo(function TaskListItem({
       typeof window.matchMedia === "function" &&
       window.matchMedia("(hover: none)").matches,
   );
+  const organization = useSidebarOrganization();
   const itemRef = useRef<HTMLLIElement | null>(null);
   const sessionReferenceNonceRef = useRef<string | null>(null);
   const workspaceActionsDisabled = useOptionalTabStore(
@@ -529,9 +540,30 @@ export const MemoTaskItem = memo(function TaskListItem({
         </TaskRowActionButton>
       </span>
     ) : null;
+  const moreActionNode = shouldMountWorkspaceTaskActions ? (
+    <TaskRowActionButton
+      label={intl.formatMessage({ id: "common.more" })}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        const row = event.currentTarget.closest("li");
+        const rect = event.currentTarget.getBoundingClientRect();
+        row?.dispatchEvent(
+          new MouseEvent("contextmenu", {
+            bubbles: true,
+            clientX: rect.right,
+            clientY: rect.bottom,
+          }),
+        );
+      }}
+    >
+      <Ellipsis className="size-3.5" />
+    </TaskRowActionButton>
+  ) : null;
   const taskActionGroupNode =
-    fileTreeActionNode || archiveActionNode ? (
+    fileTreeActionNode || archiveActionNode || moreActionNode ? (
       <span data-task-row-actions="true" className="flex shrink-0 items-center gap-0.5">
+        {moreActionNode}
         {fileTreeActionNode}
         {archiveActionNode}
       </span>
@@ -564,12 +596,38 @@ export const MemoTaskItem = memo(function TaskListItem({
       ref={itemRef}
       data-testid={testId(TID_TASK_ITEM, task.taskId)}
       data-task-item-key={taskItemKey}
+      data-sidebar-ref={JSON.stringify(taskSidebarRef(task))}
       data-mobile-active-task={isMobileActive ? "true" : undefined}
       data-archive-confirming-task-id={isArchiveConfirming ? task.taskId : undefined}
-      onClick={handleSelect}
-      onContextMenu={handleContextMenu}
-      draggable={canDragToWorkbench || canDragToSessionReference}
-      onDragStart={handleDragStart}
+      onClick={(event) => {
+        if (
+          organization &&
+          (organization.batch || event.ctrlKey || event.metaKey || event.shiftKey)
+        ) {
+          event.preventDefault();
+          organization.setBatch(true);
+          organization.select(taskSidebarRef(task), event.shiftKey);
+        } else handleSelect();
+      }}
+      onContextMenu={() => {
+        organization?.target(taskSidebarRef(task));
+        handleContextMenu();
+      }}
+      draggable={canDragToWorkbench || canDragToSessionReference || organization?.writable}
+      onDragStart={(event) => {
+        handleDragStart(event);
+        if (organization?.writable)
+          event.dataTransfer.setData(
+            "application/x-lcode-sidebar-entry",
+            JSON.stringify(
+              organization.selected.some(
+                (entry) => sidebarEntryKey(entry) === sidebarEntryKey(taskSidebarRef(task)),
+              )
+                ? organization.selected
+                : [taskSidebarRef(task)],
+            ),
+          );
+      }}
       onDragEnd={handleDragEnd}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -586,7 +644,8 @@ export const MemoTaskItem = memo(function TaskListItem({
         }
         if (event.key === "Enter" || event.key === " ") {
           event.preventDefault();
-          handleSelect();
+          if (organization?.batch) organization.select(taskSidebarRef(task), event.shiftKey);
+          else handleSelect();
         }
       }}
       className={cn(
@@ -604,6 +663,16 @@ export const MemoTaskItem = memo(function TaskListItem({
               视觉上像被两条边框夹住。这里改成“列表留白 + item 自己带圆角态”，
               让 hover/active 的层级由卡片背景承担，不再依赖分隔线。 */}
 
+      {organization?.batch ? (
+        <Checkbox
+          aria-label={`${intl.formatMessage({ id: "common.select" })} ${taskTitle}`}
+          checked={organization.selected.some(
+            (item) => sidebarEntryKey(item) === sidebarEntryKey(taskSidebarRef(task)),
+          )}
+          onCheckedChange={() => organization.select(taskSidebarRef(task))}
+          onClick={(event) => event.stopPropagation()}
+        />
+      ) : null}
       <div
         className={cn(
           "relative flex size-4 shrink-0 items-center justify-center",
@@ -692,7 +761,9 @@ export const MemoTaskItem = memo(function TaskListItem({
           </div>
           <div className="flex min-w-0 items-center justify-between gap-2 text-ui-base text-foreground-subtle h-6">
             <div className="flex min-w-0 items-center gap-1.5">
-              <span className="truncate">{workspaceLabel}</span>
+              <span className="truncate" title={sourceLabel}>
+                {sourceLabel ?? workspaceLabel}
+              </span>
             </div>
             <div className="ml-auto flex shrink-0 items-center justify-end gap-1.5">
               {!hasPendingInteraction ? (
@@ -862,6 +933,7 @@ export function TaskListItemContextMenuContent({
   disabledReason?: string;
   onForkCreated?: TaskForkNavigation;
 }) {
+  const organization = useSidebarOrganization();
   const workspaceActionsDisabled = useOptionalTabStore(
     (state) =>
       disableTaskActions || isWorkspaceReadOnly(state, task.workspacePath, task.workspaceIdentity),
@@ -949,6 +1021,25 @@ export function TaskListItemContextMenuContent({
 
   return (
     <TaskListItemContextMenu
+      openMenu={
+        onForkCreated ? (
+          <ContextMenuItem
+            disabled={workspaceActionsDisabled}
+            onSelect={() => onForkCreated(task.workspacePath, task.taskId, task.workspaceIdentity)}
+          >
+            {intl.formatMessage({ id: "common.open" })}
+          </ContextMenuItem>
+        ) : undefined
+      }
+      hideMobileUnsupportedActions={organization ? !organization.isDesktop : undefined}
+      organizationMenu={
+        <SidebarPlacementItems
+          entry={taskSidebarRef(task)}
+          pinned={isPinned}
+          Item={ContextMenuItem}
+          Separator={ContextMenuSeparator}
+        />
+      }
       forkMenu={
         onForkCreated ? (
           <TaskForkMenu

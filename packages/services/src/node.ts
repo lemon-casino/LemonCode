@@ -2609,6 +2609,10 @@ export function createLocalServices(options: {
   // services 集合建好后在 return 前统一登记进 sharedSqliteRepos 侧表
   const sqliteReposToClose: Array<{ close(): void }> = [];
   const services = new ServiceCollection()
+    .register(
+      ISidebarOrganizationService,
+      createSidebarOrganizationService(join(resolveAppConfigDir(), "sidebar-organization.json")),
+    )
     .register(IFileService, fileService)
     .register(IMediaPreviewService, mediaPreviewService)
     .register(IGitService, gitService)
@@ -3019,3 +3023,5 @@ import {
   createProviderAccountsSource,
   oauthProviderId,
 } from "./model-provider/providerAccountsSource.js";
+import { ISidebarOrganizationService } from "./sidebar-organization/contract.js";
+import { createSidebarOrganizationService } from "./sidebar-organization/node.js";

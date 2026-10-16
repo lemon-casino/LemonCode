@@ -1,6 +1,6 @@
 /* eslint-disable max-lines -- pinned 列表现在同时承载本地查询、远端主动注入结果和任务操作分发，先集中保持交互一致。 */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent as ReactMouseEvent } from "react";
+import type { MouseEvent as ReactMouseEvent, ReactNode } from "react";
 import type { LCodeTaskMeta } from "@lcode/shared";
 import { toast } from "@/components/ui/toast.js";
 import { ContextMenu, ContextMenuTrigger } from "@/components/ui/context-menu.js";
@@ -44,6 +44,10 @@ function PinnedTasksSectionTitle({ title }: { title: string }) {
 }
 
 export function WorkspacePinnedTasksSection({
+  showTitle = true,
+  header,
+  collapsed = false,
+  onHasItemsChange,
   workspaceTabs,
   activeWorkspacePath,
   activeWorkspaceIdentity,
@@ -53,6 +57,10 @@ export function WorkspacePinnedTasksSection({
   onOpenFileTree,
   taskFilter,
 }: {
+  showTitle?: boolean;
+  header?: ReactNode;
+  collapsed?: boolean;
+  onHasItemsChange?: (hasItems: boolean) => void;
   workspaceTabs: WorkspaceTabState[];
   activeWorkspacePath: string;
   activeWorkspaceIdentity?: string;
@@ -463,6 +471,7 @@ export function WorkspacePinnedTasksSection({
     ? resolveTaskServices(contextMenuItem.workspaceIdentity)
     : null;
 
+  useEffect(() => onHasItemsChange?.(items.length > 0), [onHasItemsChange, items.length]);
   if (items.length === 0) {
     // 切换/加入工作区时 pinned 查询会先进入 loading，但此时没有可展示的数据。
     // 不能仍渲染“已置顶 + 正在获取任务”，否则侧栏每次切换都出现一次无实际帮助的 loading。
@@ -471,7 +480,7 @@ export function WorkspacePinnedTasksSection({
   }
 
   return (
-    <div className="flex flex-col gap-1 px-2 empty:hidden">
+    <div className={`flex flex-col gap-1 empty:hidden ${header ? "" : "px-2"}`}>
       {renamingItemKey !== null ? (
         <TaskRenameDialog
           open
@@ -525,7 +534,8 @@ export function WorkspacePinnedTasksSection({
           }}
         />
       ) : null}
-      <PinnedTasksSectionTitle title={sectionTitle} />
+      {header}
+      {showTitle ? <PinnedTasksSectionTitle title={sectionTitle} /> : null}
       <ContextMenu
         onOpenChange={(open) => {
           if (!open) {
@@ -534,7 +544,7 @@ export function WorkspacePinnedTasksSection({
         }}
       >
         <ContextMenuTrigger asChild>
-          <ul className="space-y-0.5">
+          <ul className="space-y-0.5" hidden={collapsed}>
             {items.map((item) => {
               const itemKey = buildPinnedItemKey(
                 item.workspacePath,
@@ -747,8 +757,8 @@ export function WorkspacePinnedTasksSection({
           />
         ) : null}
       </ContextMenu>
-      {syncingRemoteWorkspaces ? <TaskListRemoteSyncHint /> : null}
-      {canToggleExpanded ? (
+      {!collapsed && syncingRemoteWorkspaces ? <TaskListRemoteSyncHint /> : null}
+      {!collapsed && canToggleExpanded ? (
         <div className="cursor-pointer pl-8.5">
           <span
             className="text-ui-base text-foreground-subtlest hover:text-foreground-subtle"

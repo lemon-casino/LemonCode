@@ -1,3 +1,16 @@
+import { ProjectRemoteSyncGroup } from "@/WorkspaceSidebar/ProjectRemoteSyncGroup.js";
+import { useSidebarOrganization } from "@/hooks/useSidebarOrganization.js";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuSeparator,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu.js";
+import { SidebarPlacementItems } from "@/WorkspaceSidebar/SidebarPlacementItems.js";
+import { useSidebarText } from "@/WorkspaceSidebar/sidebarText.js";
+import { SidebarSourceReadError } from "@/WorkspaceSidebar/SidebarSourceReadError.js";
+import { useFileContextActions } from "@/hooks/useFileContextActions.js";
 /* eslint-disable max-lines -- workspace 行同时承载折叠、远端状态和快捷操作，先保持同文件收口。 */
 import {
   memo,
@@ -18,7 +31,6 @@ import {
   FolderOpen,
   GitBranchIcon,
   House,
-  InfoIcon,
   ListTree,
   LoaderCircle,
   RefreshCwIcon,
@@ -38,6 +50,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu.js";
 import {
@@ -65,7 +78,10 @@ import {
   testId,
 } from "@lcode/shared";
 import type { LCodeTaskMeta } from "@lcode/shared";
-import { useBaseWorkspaceServices, useWorkspaceServices } from "@/hooks/useWorkspaceServices.js";
+import {
+  useBaseWorkspaceServices,
+  useWorkspaceServicesResolution,
+} from "@/hooks/useWorkspaceServices.js";
 import {
   applyTaskQueryCacheMutation,
   invalidateTaskQueryCacheByScopes,
@@ -73,11 +89,7 @@ import {
 import { useRemotePinnedTaskStore } from "@/store/remotePinnedTaskStore.js";
 import { useRemoteTimelineTaskStore } from "@/store/remoteTimelineTaskStore.js";
 import { logger } from "@/logger.js";
-import {
-  RemoteSyncDialogs,
-  RemoteSyncMenuItems,
-  shouldShowRemoteSyncActions,
-} from "@/settings/RemoteSyncActions.js";
+import { RemoteSyncDialogs, shouldShowRemoteSyncActions } from "@/settings/RemoteSyncActions.js";
 import { invalidateDeferredDraftSessionForSkillChange } from "@/lib/lcodeDraftSkillInvalidation.js";
 import { refreshSharedSkillStoreForWorkspace } from "@/lib/skillStoreRefresh.js";
 import { refreshWorkspacePluginCapabilitiesAfterRemoteSync } from "@/lib/remotePluginSyncRefresh.js";
@@ -140,6 +152,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   onSelectTask,
   onStartDraftInWorkspace,
   taskItems,
+  showTaskList = true,
   taskListLoading,
   taskListHasMore,
   taskListHasUnread = false,
@@ -151,6 +164,13 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   onReconnectRemoteWorkspace,
   onOpenFileTree,
   onOpenWorktrees,
+  preserveOrigin = false,
+  removalBlockedReason,
+  sourceReadError,
+  sourceRefreshing,
+  onRefreshSource,
+  groupByDate = false,
+  taskSortBy = "updated",
   itemRef,
   itemStyle,
   sortableBindings,
@@ -172,8 +192,16 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   ) => void;
   onStartDraftInWorkspace: (targetWorkspacePath: string, targetWorkspaceIdentity?: string) => void;
   taskItems: LCodeTaskMeta[];
+  showTaskList?: boolean;
   taskListLoading: boolean;
   onOpenWorktrees?: () => void;
+  preserveOrigin?: boolean;
+  removalBlockedReason?: string;
+  sourceReadError?: string;
+  sourceRefreshing?: boolean;
+  onRefreshSource?: () => void;
+  groupByDate?: boolean;
+  taskSortBy?: "created" | "updated";
   taskListHasMore: boolean;
   taskListHasUnread?: boolean;
   /** 组内在跑的工作流 run 数；项目收起时在未读点旁画脉冲灯（>1 带数量）。 */
@@ -182,7 +210,10 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   reconnectingRemoteWorkspaceKeys: string[];
   remoteWorkspaceErrorByWorkspaceKey: Record<string, string>;
   reconnectingRemoteWorkspaceLogsByWorkspaceKey: Record<string, RemoteConnectionLogEntry[]>;
-  onReconnectRemoteWorkspace: (workspaceKey: string) => Promise<void>;
+  onReconnectRemoteWorkspace: (
+    workspaceKey: string,
+    options?: { cancelPending?: boolean },
+  ) => Promise<void>;
   onOpenFileTree?: (target: {
     workspacePath: string;
     workspaceName: string;
@@ -207,13 +238,18 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
     (state) => state.removeOptimisticTaskListItem,
   );
   const setTaskUnreadIndicator = useLCodeSessionStore((state) => state.setTaskUnreadIndicator);
-  const services = useWorkspaceServices(
+  const resolution = useWorkspaceServicesResolution(
     tab.workspacePath,
     tab.remoteSessionId,
     tab.workspaceIdentity,
     tab.remoteTarget,
   );
+  const services = resolution.services;
   const confirmDialog = useConfirmDialog();
+  const sidebarText = useSidebarText();
+  const organization = useSidebarOrganization();
+  const { copyAbsolutePath } = useFileContextActions();
+  const [projectContextOpen, setProjectContextOpen] = useState(false);
   const baseServices = useBaseWorkspaceServices();
   const lcodeTaskService = services.lcodeTaskService;
   const taskItemsRef = useRef(taskItems);
@@ -235,7 +271,8 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   const isRemoteWorkspace = Boolean(
     tab.remoteSessionId || tab.remoteTarget || tab.workspaceIdentity,
   );
-  const isDisconnectedRemoteWorkspace = Boolean(isRemoteWorkspace && !tab.remoteSessionId);
+  // tab 保留恢复用 sessionId，不代表连接注册表仍有该 attachment；断连门禁必须读取当前 resolver。
+  const isDisconnectedRemoteWorkspace = Boolean(isRemoteWorkspace && !resolution.rpcReady);
   const isReconnectPending = Boolean(
     isDisconnectedRemoteWorkspace && reconnectingRemoteWorkspaceKeys.includes(remoteWorkspaceKey),
   );
@@ -252,12 +289,16 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   );
   const showReconnectAction = Boolean(isDisconnectedRemoteWorkspace);
   const showFileTreeAction = Boolean(onOpenFileTree && !isDisconnectedRemoteWorkspace);
-  const showRemoteSkillSyncAction = shouldShowRemoteSyncActions({
+  const remoteSyncEligible = shouldShowRemoteSyncActions({
     remoteSessionId: tab.remoteSessionId,
     remoteTarget: tab.remoteTarget,
-    clientMode: "desktop-continuous" as const,
+    clientMode:
+      organization && !organization.isDesktop
+        ? ("web-remote-replayable" as const)
+        : ("desktop-continuous" as const),
     hasLocalSourceService: Boolean(baseServices.skillSyncService),
   });
+  const showRemoteSkillSyncAction = remoteSyncEligible && resolution.rpcReady;
   // 远端工作区在“重连中”时，之前只有轻微背景呼吸效果，
   // 在侧边栏高密度列表里不够醒目，用户很难快速判断哪个容器仍在连接。
   // 这里复用 BorderBeam，只在重连进行中激活，让连接态反馈更清晰，
@@ -272,6 +313,13 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
     !isDisconnectedRemoteWorkspace;
   const [remoteMcpSyncOpen, setRemoteMcpSyncOpen] = useState(false);
   const [remotePluginSyncOpen, setRemotePluginSyncOpen] = useState(false);
+  useEffect(() => {
+    if (!resolution.rpcReady) {
+      setRemoteSkillSyncOpen(false);
+      setRemoteMcpSyncOpen(false);
+      setRemotePluginSyncOpen(false);
+    }
+  }, [resolution.rpcReady]);
   const [workspaceRowHovered, setWorkspaceRowHovered] = useState(false);
   const [workspaceRowFocusWithin, setWorkspaceRowFocusWithin] = useState(false);
   const [workspaceActionMenuOpen, setWorkspaceActionMenuOpen] = useState(false);
@@ -284,7 +332,13 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   const shouldMountWorkspaceRowActions =
     // workspace action 以前常驻 DOM，仅靠 opacity 隐藏；相邻 tooltip 会在
     // 浮层定位完成前误认隐藏 trigger，短暂显示到错误位置。改为交互时挂载，菜单打开时保活。
-    workspaceRowHovered || workspaceRowFocusWithin || workspaceActionMenuOpen || isHoverNone;
+    // 读取错误行需要稳定的操作区宽度，防止错误入口在按下与抬起之间因聚焦挂载按钮而移位。
+    Boolean(sourceReadError) ||
+    workspaceRowHovered ||
+    workspaceRowFocusWithin ||
+    workspaceActionMenuOpen ||
+    projectContextOpen ||
+    isHoverNone;
   const remoteErrorCopyResetRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -301,20 +355,8 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
         return;
       }
 
-      // workspace 草稿导航本身会把 workspace 标记为展开。
-      // 之前在 Collapsible 的 onOpenChange 里无论展开/收起都先激活 workspace，
-      // 收起后的下一次点击会先被激活路径展开，再被 toggleWorkspaceExpanded 反向切回收起，
-      // 表现出来就是"收起后再也打不开"。
-      // 这里把职责拆开：展开时只走草稿导航；收起时只做 toggle，避免两条状态更新互相抵消。
-      if (nextOpen) {
-        if (!isExpanded) {
-          // workspace 行表达“打开这个 workspace”，不是恢复它上次选中的 session。
-          // 统一走上层草稿导航事务，让 workspace identity、group/pane 清理和 draft 聚焦一起收口。
-          onStartDraftInWorkspace(tab.workspacePath, tab.workspaceIdentity);
-        }
-      } else if (isExpanded) {
-        toggleWorkspaceExpanded(tab.workspacePath);
-      }
+      // 展开只改变导航偏好；原实现会创建草稿并切换当前会话，右键整理后尤其容易误导航。
+      if (nextOpen !== isExpanded) toggleWorkspaceExpanded(tab.workspacePath);
     },
     [
       isDisconnectedRemoteWorkspace,
@@ -360,6 +402,10 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   );
 
   const handleRemoveWorkspace = useCallback(async () => {
+    if (preserveOrigin) {
+      toast(removalBlockedReason ?? sidebarText("activeBinding"), { variant: "warning" });
+      return;
+    }
     const workspaceKey = tab.workspaceIdentity?.trim() || tab.workspacePath;
     logger.debug("[WorkspaceSidebarItem] 移除 workspace", {
       isExpanded,
@@ -410,6 +456,29 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
     }
 
     closeTab(tab.id);
+    if (
+      organization?.sectionFor({
+        kind: "project",
+        workspacePath: tab.workspacePath,
+        workspaceIdentity: tab.workspaceIdentity,
+      })
+    )
+      void organization.run(
+        [
+          {
+            type: "forget",
+            entries: [
+              {
+                kind: "project",
+                workspacePath: tab.workspacePath,
+                ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
+              },
+            ],
+          },
+        ],
+        false,
+        true,
+      );
     releaseWorkspaceRuntimeAfterProjectRemoval({
       tab: {
         workspacePath: tab.workspacePath,
@@ -451,6 +520,10 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
     }
   }, [
     baseServices.fileService,
+    preserveOrigin,
+    removalBlockedReason,
+    sidebarText,
+    organization,
     closeTab,
     confirmDialog,
     intl,
@@ -806,7 +879,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
           {taskListLiveWorkflowCount > 1 ? taskListLiveWorkflowCount : null}
         </span>
       ) : null}
-      {readOnlyReason ? (
+      {readOnlyReason && !sourceReadError ? (
         <ControlHintTooltip title={readOnlyReason} side="right" align="center">
           <span
             role="img"
@@ -818,9 +891,122 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
           </span>
         </ControlHintTooltip>
       ) : null}
+      {sourceReadError ? (
+        <SidebarSourceReadError
+          label={tab.label}
+          workspacePath={tab.workspacePath}
+          error={sourceReadError}
+          refreshing={sourceRefreshing}
+          onRefresh={onRefreshSource}
+        />
+      ) : null}
     </div>
   );
 
+  const projectMenuItems = (
+    Item: typeof DropdownMenuItem | typeof ContextMenuItem,
+    Separator: typeof DropdownMenuSeparator | typeof ContextMenuSeparator,
+  ) => (
+    <>
+      {isRemoteWorkspace ? (
+        <Item disabled>
+          {sidebarText("remoteProject")} · {workspaceSidebarLabel}
+          {isDisconnectedRemoteWorkspace ? ` · ${sidebarText("offline")}` : ""}
+        </Item>
+      ) : null}
+      {isDisconnectedRemoteWorkspace ? (
+        <Item
+          disabled={isReconnectPending && organization?.isDesktop === false}
+          onSelect={() => {
+            if (isReconnectPending)
+              void onReconnectRemoteWorkspace(remoteWorkspaceKey, { cancelPending: true });
+            else if (!isReconnectPending) void onReconnectRemoteWorkspace(remoteWorkspaceKey);
+          }}
+        >
+          {sidebarText(isReconnectPending ? "cancelConnection" : "reconnect")}
+        </Item>
+      ) : null}
+      <Item
+        disabled={Boolean(readOnlyReason) || isDisconnectedRemoteWorkspace}
+        title={
+          readOnlyReason ?? (isDisconnectedRemoteWorkspace ? sidebarText("offline") : undefined)
+        }
+        onSelect={() => {
+          if (!readOnlyReason && !isDisconnectedRemoteWorkspace)
+            onStartDraftInWorkspace(tab.workspacePath, tab.workspaceIdentity);
+        }}
+      >
+        {sidebarText(isRemoteWorkspace ? "remoteNew" : "projectNew")}
+      </Item>
+      <Item
+        disabled={Boolean(readOnlyReason) || isDisconnectedRemoteWorkspace || !onOpenFileTree}
+        title={readOnlyReason}
+        onSelect={() =>
+          onOpenFileTree?.({
+            workspacePath: tab.workspacePath,
+            workspaceName: tab.label,
+            workspaceIdentity: tab.workspaceIdentity,
+            workspaceRemoteSessionId: tab.remoteSessionId,
+          })
+        }
+      >
+        {sidebarText(isRemoteWorkspace ? "remoteFiles" : "files")}
+      </Item>
+      <Item onSelect={() => void copyAbsolutePath({ path: tab.workspacePath, kind: "directory" })}>
+        {sidebarText(isRemoteWorkspace ? "remotePath" : "copyPath")}
+      </Item>
+      <Item
+        data-testid={testId(
+          "project-worktrees-menu",
+          tab.workspaceIdentity?.trim() || tab.workspacePath,
+        )}
+        disabled={Boolean(readOnlyReason) || isDisconnectedRemoteWorkspace || !showProjectWorktrees}
+        title={readOnlyReason}
+        onSelect={() => (onOpenWorktrees ? onOpenWorktrees() : openWorktreeSettings(tab))}
+      >
+        <GitBranchIcon className="size-3.5" />
+        {sidebarText("manage")}
+      </Item>
+      {remoteSyncEligible ? (
+        <>
+          <Separator />
+          <ProjectRemoteSyncGroup
+            dropdown={Item === DropdownMenuItem}
+            disabled={!resolution.rpcReady}
+          >
+            <Item onSelect={() => setRemoteSkillSyncOpen(true)}>
+              {intl.formatMessage({ id: "settings.skills.remoteSync.open" })}
+            </Item>
+            <Item onSelect={() => setRemoteMcpSyncOpen(true)}>
+              {intl.formatMessage({ id: "settings.mcp.remoteSync.open" })}
+            </Item>
+            <Item onSelect={() => setRemotePluginSyncOpen(true)}>
+              {intl.formatMessage({ id: "settings.plugins.remoteSync.open" })}
+            </Item>
+          </ProjectRemoteSyncGroup>
+        </>
+      ) : null}
+      <SidebarPlacementItems
+        entry={{
+          kind: "project",
+          workspacePath: tab.workspacePath,
+          ...(tab.workspaceIdentity ? { workspaceIdentity: tab.workspaceIdentity } : {}),
+        }}
+        Item={Item}
+        Separator={Separator}
+      />
+      <Separator />
+      <Item
+        data-testid={testId(TID_WORKSPACE_CLOSE, tab.workspacePath)}
+        disabled={preserveOrigin}
+        title={preserveOrigin ? (removalBlockedReason ?? sidebarText("activeBinding")) : undefined}
+        onSelect={() => void handleRemoveWorkspace()}
+      >
+        <XIcon className="size-3.5" />
+        {intl.formatMessage({ id: "workspaceSidebar.remove" })}
+      </Item>
+    </>
+  );
   return (
     <li ref={itemRef} style={itemStyle} className="space-y-2">
       <Collapsible
@@ -828,366 +1014,345 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
         open={isExpanded && !isDisconnectedRemoteWorkspace}
         onOpenChange={handleWorkspaceOpenChange}
       >
-        <BorderBeam
-          size="line"
-          colorVariant="colorful"
-          duration={1.96}
-          active={shouldShowRemoteConnectingBorderBeam}
-          borderRadius={8}
-        >
-          <div
-            className={cn(
-              "group flex items-center gap-2 rounded-lg transition-[background-color,box-shadow]",
-              isReconnectPending
-                ? "bg-brand/10 workspace-remote-connecting-breathe"
-                : isDisconnectedRemoteWorkspace
-                  ? "bg-warning/8"
-                  : null,
-              // "sticky top-0 z-10", // TODO: 拖拽时让 workspace 项悬浮 不要抹掉
-              isDragging && "bg-selected shadow-xl",
-            )}
-          >
-            <CollapsibleTrigger asChild>
-              <div
-                role="button"
-                tabIndex={0}
-                data-testid={testId(TID_WORKSPACE_ITEM, tab.workspacePath)}
-                className={cn(
-                  buttonVariants({ variant: "ghost", size: "default" }),
-                  /*
-                   * CollapsibleTrigger 会自动注入 aria-expanded。
-                   * 这里复用了 ghost button 变体后，会命中全局 aria-expanded:bg-surface-hover
-                   * 导致 workspace 项一展开就像"被选中"一样出现背景色。
-                   * 局部把 aria-expanded 样式覆盖掉，只保留 hover，避免误导激活态。
-                   * 断连的 remote workspace 不能展开任务列表，因此这里也要禁掉 hover 展开态提示，
-                   * 避免用户看到“可展开”的反馈却点不开，只保留 warning 背景提示当前需要先重连。
-                   */
-                  "flex h-8 min-w-0 flex-1 justify-start gap-2 rounded-lg pl-2.5 pr-1 text-left text-foreground aria-expanded:bg-transparent aria-expanded:text-foreground",
-                  "hover:bg-surface-hover hover:text-foreground",
-                  isDisconnectedRemoteWorkspace &&
-                    "hover:bg-transparent aria-expanded:bg-transparent",
-                  sortableBindings && "cursor-grab active:cursor-grabbing",
-                )}
-                onMouseEnter={() => setWorkspaceRowHovered(true)}
-                onMouseLeave={() => setWorkspaceRowHovered(false)}
-                onFocusCapture={() => setWorkspaceRowFocusWithin(true)}
-                onBlurCapture={(event) => {
-                  if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                    setWorkspaceRowFocusWithin(false);
-                  }
-                }}
-                {...(sortableBindings?.attributes ?? {})}
-                {...(sortableBindings?.listeners ?? {})}
+        <ContextMenu onOpenChange={setProjectContextOpen}>
+          <ContextMenuTrigger asChild>
+            <div onContextMenu={(event) => event.stopPropagation()}>
+              <BorderBeam
+                size="line"
+                colorVariant="colorful"
+                duration={1.96}
+                active={shouldShowRemoteConnectingBorderBeam}
+                borderRadius={8}
               >
-                {sshWorkspaceTooltipDetails ? (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>{workspaceLabelContent}</TooltipTrigger>
-                      <TooltipContent
-                        side="right"
-                        align="start"
-                        sideOffset={6}
-                        className="max-w-80 flex-col items-start gap-2 p-2.5 text-left"
-                      >
-                        <span className="text-ui-sm font-medium text-tooltip-foreground">
-                          {intl.formatMessage({
-                            id: "workspaceSidebar.sshConnectionTitle",
-                          })}
-                        </span>
-                        <dl className="grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1 text-ui-sm/relaxed text-tooltip-foreground">
-                          {sshWorkspaceTooltipDetails.alias ? (
-                            <>
-                              <dt className="font-medium">
-                                {intl.formatMessage({
-                                  id: "workspaceSidebar.sshConnectionAlias",
-                                })}
-                              </dt>
-                              <dd className="min-w-0 break-all font-mono">
-                                {sshWorkspaceTooltipDetails.alias}
-                              </dd>
-                            </>
-                          ) : null}
-                          <dt className="font-medium">
-                            {intl.formatMessage({
-                              id: "workspaceSidebar.sshConnectionHost",
-                            })}
-                          </dt>
-                          <dd className="min-w-0 break-all font-mono">
-                            {sshWorkspaceTooltipDetails.hostLabel}
-                          </dd>
-                          <dt className="font-medium">
-                            {intl.formatMessage({
-                              id: "workspaceSidebar.sshConnectionPath",
-                            })}
-                          </dt>
-                          <dd className="min-w-0 break-all font-mono">
-                            {sshWorkspaceTooltipDetails.workspacePath}
-                          </dd>
-                        </dl>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                ) : (
-                  workspaceLabelContent
-                )}
-
-                <div className="flex shrink-0 items-center gap-2">
-                  {/* {isRemoteWorkspace && isReconnectPending ? (
-                    <ReconnectingRemoteWorkspaceLogTooltip
-                      logs={reconnectRuntimeLogs}
-                    />
-                  ) : null} */}
-                  <div className="flex shrink-0 items-center gap-1">
-                    {shouldMountWorkspaceRowActions ? (
-                      <DropdownMenu
-                        open={workspaceActionMenuOpen}
-                        onOpenChange={setWorkspaceActionMenuOpen}
-                      >
-                        <ControlHintTooltip title={intl.formatMessage({ id: "common.more" })}>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon-sm"
-                              className="shrink-0 text-foreground-subtle hover:bg-surface-hover hover:text-foreground"
-                              onMouseDown={handleActionMouseDown}
-                              aria-label={intl.formatMessage({ id: "common.more" })}
-                            >
-                              <Ellipsis className="h-3.5 w-3.5" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                        </ControlHintTooltip>
-                        <DropdownMenuContent align="end" onClick={handleActionMenuClick}>
-                          {showProjectWorktrees ? (
-                            <DropdownMenuItem
-                              data-testid={testId(
-                                "project-worktrees-menu",
-                                tab.workspaceIdentity?.trim() || tab.workspacePath,
-                              )}
-                              disabled={Boolean(readOnlyReason)}
-                              onMouseDown={(event) => event.stopPropagation()}
-                              onSelect={() =>
-                                onOpenWorktrees ? onOpenWorktrees() : openWorktreeSettings(tab)
-                              }
-                            >
-                              <GitBranchIcon className="h-3.5 w-3.5" />
-                              {intl.formatMessage({ id: "worktree.projectWorktrees" })}
-                            </DropdownMenuItem>
-                          ) : null}
-                          <RemoteSyncMenuItems
-                            canSyncSkills={showRemoteSkillSyncAction}
-                            canSyncMcp={showRemoteSkillSyncAction}
-                            canSyncPlugins={showRemoteSkillSyncAction}
-                            stopMouseDownPropagation
-                            onOpenSkillSync={() => setRemoteSkillSyncOpen(true)}
-                            onOpenMcpSync={() => setRemoteMcpSyncOpen(true)}
-                            onOpenPluginSync={() => setRemotePluginSyncOpen(true)}
-                          />
-                          <DropdownMenuItem
-                            data-testid={testId(TID_WORKSPACE_CLOSE, tab.workspacePath)}
-                            onMouseDown={(event) => {
-                              event.preventDefault();
-                              event.stopPropagation();
-                            }}
-                            onSelect={(event) => {
-                              event.preventDefault();
-                              void handleRemoveWorkspace();
-                            }}
-                          >
-                            <XIcon className="h-3.5 w-3.5" />
-                            {intl.formatMessage({
-                              id: "workspaceSidebar.remove",
-                            })}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    ) : null}
-                    {shouldMountWorkspaceRowActions && showFileTreeAction ? (
-                      <span className="shrink-0">
-                        {/* Project 文件树入口以前单独覆盖 hover:bg-surface-hover，
-                            与 Pinned / Grouped 的 bg-hover 不一致；三种入口统一复用同一 action。 */}
-                        <TaskRowActionButton
-                          // 该按钮默认继承 ghost 的主前景色，导致同组的三个图标明暗不一致。
-                          className="text-foreground-subtle hover:text-foreground"
-                          label={intl.formatMessage({
-                            id: "workspaceSidebar.showFileTree",
-                          })}
-                          onClick={handleOpenWorkspaceFileTree}
-                          showTooltip
-                          disabledReason={readOnlyReason}
-                          testId={testId(TID_WORKSPACE_FILE_TREE_BUTTON, tab.workspacePath)}
-                        >
-                          <ListTree className="h-3.5 w-3.5" />
-                        </TaskRowActionButton>
-                      </span>
-                    ) : null}
-                    {showRemoteConnectionErrorNotice ? (
-                      remoteWorkspaceError ? (
+                <div
+                  className={cn(
+                    "group flex items-center gap-2 rounded-lg transition-[background-color,box-shadow]",
+                    isReconnectPending
+                      ? "bg-brand/10 workspace-remote-connecting-breathe"
+                      : isDisconnectedRemoteWorkspace
+                        ? "bg-warning/8"
+                        : null,
+                    // "sticky top-0 z-10", // TODO: 拖拽时让 workspace 项悬浮 不要抹掉
+                    isDragging && "bg-selected shadow-xl",
+                  )}
+                >
+                  <CollapsibleTrigger asChild>
+                    <div
+                      role="button"
+                      aria-label={workspaceSidebarLabel}
+                      tabIndex={0}
+                      data-testid={testId(TID_WORKSPACE_ITEM, tab.workspacePath)}
+                      className={cn(
+                        buttonVariants({ variant: "ghost", size: "default" }),
+                        /*
+                         * CollapsibleTrigger 会自动注入 aria-expanded。
+                         * 这里复用了 ghost button 变体后，会命中全局 aria-expanded:bg-surface-hover
+                         * 导致 workspace 项一展开就像"被选中"一样出现背景色。
+                         * 局部把 aria-expanded 样式覆盖掉，只保留 hover，避免误导激活态。
+                         * 断连的 remote workspace 不能展开任务列表，因此这里也要禁掉 hover 展开态提示，
+                         * 避免用户看到“可展开”的反馈却点不开，只保留 warning 背景提示当前需要先重连。
+                         */
+                        "flex h-8 min-w-0 flex-1 justify-start gap-2 rounded-lg pl-2.5 pr-1 text-left text-foreground aria-expanded:bg-transparent aria-expanded:text-foreground",
+                        "hover:bg-surface-hover hover:text-foreground",
+                        isDisconnectedRemoteWorkspace &&
+                          "hover:bg-transparent aria-expanded:bg-transparent",
+                        sortableBindings && "cursor-grab active:cursor-grabbing",
+                      )}
+                      onMouseEnter={() => setWorkspaceRowHovered(true)}
+                      onMouseLeave={() => setWorkspaceRowHovered(false)}
+                      onFocusCapture={() => setWorkspaceRowFocusWithin(true)}
+                      onBlurCapture={(event) => {
+                        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                          setWorkspaceRowFocusWithin(false);
+                        }
+                      }}
+                      {...(sortableBindings?.attributes ?? {})}
+                      {...(sortableBindings?.listeners ?? {})}
+                    >
+                      {/* 错误详情优先，不能把它嵌进普通 SSH 提示而同时打开两层浮层。 */}
+                      {sshWorkspaceTooltipDetails && !sourceReadError ? (
                         <TooltipProvider>
                           <Tooltip>
-                            <TooltipTrigger asChild>
-                              <div
-                                className="flex size-6 shrink-0 items-center justify-center !text-warning cursor-help"
-                                aria-label={intl.formatMessage({
-                                  id: "workspaceSidebar.notConnected",
-                                })}
-                              >
-                                <InfoIcon className="h-3.5 w-3.5" />
-                              </div>
-                            </TooltipTrigger>
+                            <TooltipTrigger asChild>{workspaceLabelContent}</TooltipTrigger>
                             <TooltipContent
-                              side="top"
-                              align="center"
-                              sideOffset={4}
-                              className="w-72 max-w-72 items-center gap-2 p-2.5"
+                              side="right"
+                              align="start"
+                              sideOffset={6}
+                              className="max-w-80 flex-col items-start gap-2 p-2.5 text-left"
                             >
-                              {/*
-                               * 远端连接失败 tooltip 之前拆成“标题 + 内层卡片”两段结构，
-                               * 在 sidebar 这种高密度区域里会显得层级过多，像一个迷你弹窗，不够轻。
-                               * 这里收敛回普通 tooltip 语义：一层浮层里直接放错误正文和复制按钮，
-                               * 保留可读性与复制能力，同时避免视觉上过度设计。
-                               */}
-                              <pre className="max-h-32 min-w-0 flex-1 overflow-auto text-ui-sm/relaxed whitespace-pre-wrap break-words font-mono text-tooltip-foreground">
-                                {remoteWorkspaceError}
-                              </pre>
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-md"
-                                className="mt-0.5 size-6 shrink-0 text-tooltip-foreground/80 hover:bg-tooltip-tag hover:text-tooltip-foreground"
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  event.stopPropagation();
-                                  handleCopyRemoteWorkspaceError();
-                                }}
-                                title={intl.formatMessage({
-                                  id: isRemoteErrorCopied
-                                    ? "chat.toolCall.copyError.copied"
-                                    : "chat.toolCall.copyError",
+                              <span className="text-ui-sm font-medium text-tooltip-foreground">
+                                {intl.formatMessage({
+                                  id: "workspaceSidebar.sshConnectionTitle",
                                 })}
-                                aria-label={intl.formatMessage({
-                                  id: isRemoteErrorCopied
-                                    ? "chat.toolCall.copyError.copied"
-                                    : "chat.toolCall.copyError",
-                                })}
-                              >
-                                {isRemoteErrorCopied ? (
-                                  <CheckIcon className="size-3" />
-                                ) : (
-                                  <CopyIcon className="size-3" />
-                                )}
-                              </Button>
+                              </span>
+                              <dl className="grid w-full grid-cols-[auto_minmax(0,1fr)] gap-x-2 gap-y-1 text-ui-sm/relaxed text-tooltip-foreground">
+                                {sshWorkspaceTooltipDetails.alias ? (
+                                  <>
+                                    <dt className="font-medium">
+                                      {intl.formatMessage({
+                                        id: "workspaceSidebar.sshConnectionAlias",
+                                      })}
+                                    </dt>
+                                    <dd className="min-w-0 break-all font-mono">
+                                      {sshWorkspaceTooltipDetails.alias}
+                                    </dd>
+                                  </>
+                                ) : null}
+                                <dt className="font-medium">
+                                  {intl.formatMessage({
+                                    id: "workspaceSidebar.sshConnectionHost",
+                                  })}
+                                </dt>
+                                <dd className="min-w-0 break-all font-mono">
+                                  {sshWorkspaceTooltipDetails.hostLabel}
+                                </dd>
+                                <dt className="font-medium">
+                                  {intl.formatMessage({
+                                    id: "workspaceSidebar.sshConnectionPath",
+                                  })}
+                                </dt>
+                                <dd className="min-w-0 break-all font-mono">
+                                  {sshWorkspaceTooltipDetails.workspacePath}
+                                </dd>
+                              </dl>
                             </TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       ) : (
-                        <ControlHintTooltip
-                          title={intl.formatMessage({
-                            id: "workspaceSidebar.notConnected",
-                          })}
-                        >
-                          <div
-                            className="flex size-6 shrink-0 items-center justify-center !text-warning"
-                            aria-label={intl.formatMessage({
-                              id: "workspaceSidebar.notConnected",
-                            })}
-                          >
-                            <InfoIcon className="h-3.5 w-3.5" />
-                          </div>
-                        </ControlHintTooltip>
-                      )
-                    ) : null}
-                    {showReconnectAction ? (
-                      isReconnectPending ? (
-                        <ReconnectingRemoteWorkspaceLogTooltip logs={reconnectRuntimeLogs}>
-                          {/* SSH workspace 重连中时，右侧原本只有 spinning 图标，
+                        workspaceLabelContent
+                      )}
+
+                      <div className="flex shrink-0 items-center gap-2">
+                        {/* {isRemoteWorkspace && isReconnectPending ? (
+                    <ReconnectingRemoteWorkspaceLogTooltip
+                      logs={reconnectRuntimeLogs}
+                    />
+                  ) : null} */}
+                        <div className="flex shrink-0 items-center gap-1">
+                          {shouldMountWorkspaceRowActions ? (
+                            <DropdownMenu
+                              open={workspaceActionMenuOpen}
+                              onOpenChange={setWorkspaceActionMenuOpen}
+                            >
+                              <ControlHintTooltip title={intl.formatMessage({ id: "common.more" })}>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon-sm"
+                                    className="shrink-0 text-foreground-subtle hover:bg-surface-hover hover:text-foreground"
+                                    onMouseDown={handleActionMouseDown}
+                                    aria-label={intl.formatMessage({ id: "common.more" })}
+                                  >
+                                    <Ellipsis className="h-3.5 w-3.5" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                              </ControlHintTooltip>
+                              <DropdownMenuContent align="end" onClick={handleActionMenuClick}>
+                                {projectMenuItems(DropdownMenuItem, DropdownMenuSeparator)}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          ) : null}
+                          {shouldMountWorkspaceRowActions && showFileTreeAction ? (
+                            <span className="shrink-0">
+                              {/* Project 文件树入口以前单独覆盖 hover:bg-surface-hover，
+                            与 Pinned / Grouped 的 bg-hover 不一致；三种入口统一复用同一 action。 */}
+                              <TaskRowActionButton
+                                // 该按钮默认继承 ghost 的主前景色，导致同组的三个图标明暗不一致。
+                                className="text-foreground-subtle hover:text-foreground"
+                                label={intl.formatMessage({
+                                  id: "workspaceSidebar.showFileTree",
+                                })}
+                                onClick={handleOpenWorkspaceFileTree}
+                                showTooltip
+                                disabledReason={readOnlyReason}
+                                testId={testId(TID_WORKSPACE_FILE_TREE_BUTTON, tab.workspacePath)}
+                              >
+                                <ListTree className="h-3.5 w-3.5" />
+                              </TaskRowActionButton>
+                            </span>
+                          ) : null}
+                          {showRemoteConnectionErrorNotice ? (
+                            remoteWorkspaceError ? (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <div
+                                      role="img"
+                                      tabIndex={0}
+                                      className="flex size-6 shrink-0 items-center justify-center !text-warning cursor-help"
+                                      aria-label={intl.formatMessage({
+                                        id: "workspaceSidebar.notConnected",
+                                      })}
+                                    >
+                                      <CircleAlert className="h-3.5 w-3.5" />
+                                    </div>
+                                  </TooltipTrigger>
+                                  <TooltipContent
+                                    side="top"
+                                    align="center"
+                                    sideOffset={4}
+                                    className="w-72 max-w-72 items-center gap-2 p-2.5"
+                                  >
+                                    {/*
+                                     * 远端连接失败 tooltip 之前拆成“标题 + 内层卡片”两段结构，
+                                     * 在 sidebar 这种高密度区域里会显得层级过多，像一个迷你弹窗，不够轻。
+                                     * 这里收敛回普通 tooltip 语义：一层浮层里直接放错误正文和复制按钮，
+                                     * 保留可读性与复制能力，同时避免视觉上过度设计。
+                                     */}
+                                    <pre className="max-h-32 min-w-0 flex-1 overflow-auto text-ui-sm/relaxed whitespace-pre-wrap break-words font-mono text-tooltip-foreground">
+                                      {remoteWorkspaceError}
+                                    </pre>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon-md"
+                                      className="mt-0.5 size-6 shrink-0 text-tooltip-foreground/80 hover:bg-tooltip-tag hover:text-tooltip-foreground"
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        handleCopyRemoteWorkspaceError();
+                                      }}
+                                      title={intl.formatMessage({
+                                        id: isRemoteErrorCopied
+                                          ? "chat.toolCall.copyError.copied"
+                                          : "chat.toolCall.copyError",
+                                      })}
+                                      aria-label={intl.formatMessage({
+                                        id: isRemoteErrorCopied
+                                          ? "chat.toolCall.copyError.copied"
+                                          : "chat.toolCall.copyError",
+                                      })}
+                                    >
+                                      {isRemoteErrorCopied ? (
+                                        <CheckIcon className="size-3" />
+                                      ) : (
+                                        <CopyIcon className="size-3" />
+                                      )}
+                                    </Button>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            ) : (
+                              <ControlHintTooltip
+                                title={intl.formatMessage({
+                                  id: "workspaceSidebar.notConnected",
+                                })}
+                              >
+                                <div
+                                  className="flex size-6 shrink-0 items-center justify-center !text-warning"
+                                  aria-label={intl.formatMessage({
+                                    id: "workspaceSidebar.notConnected",
+                                  })}
+                                >
+                                  <CircleAlert className="h-3.5 w-3.5" />
+                                </div>
+                              </ControlHintTooltip>
+                            )
+                          ) : null}
+                          {showReconnectAction ? (
+                            isReconnectPending ? (
+                              <ReconnectingRemoteWorkspaceLogTooltip logs={reconnectRuntimeLogs}>
+                                {/* SSH workspace 重连中时，右侧原本只有 spinning 图标，
                               用户无法在聊天页任务列表里确认连接卡在哪一步。这里复用 SSH dialog 的连接日志 tooltip，
                               保持行内布局稳定，同时把诊断信息放到 hover 浮层里。 */}
-                          <div
-                            role="status"
-                            className={cn(
-                              buttonVariants({ variant: "ghost", size: "icon-sm" }),
-                              "shrink-0 text-foreground opacity-100 hover:bg-surface-hover hover:text-foreground",
-                            )}
-                            onMouseDown={handleActionMouseDown}
-                            aria-label={intl.formatMessage({
-                              id: "workspaceSidebar.connecting",
-                            })}
-                          >
-                            <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                          </div>
-                        </ReconnectingRemoteWorkspaceLogTooltip>
-                      ) : (
-                        <ControlHintTooltip
-                          title={intl.formatMessage({
-                            id: "workspaceSidebar.reconnect",
-                          })}
-                          side="right"
-                          align="center"
-                        >
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            className="shrink-0 text-foreground opacity-100 hover:bg-surface-hover hover:text-foreground disabled:opacity-100"
-                            onMouseDown={handleActionMouseDown}
-                            onClick={handleReconnectRemoteWorkspace}
-                            aria-label={intl.formatMessage({
-                              id: "workspaceSidebar.reconnect",
-                            })}
-                          >
-                            <RefreshCwIcon className="h-3.5 w-3.5" />
-                          </Button>
-                        </ControlHintTooltip>
-                      )
-                    ) : shouldMountWorkspaceRowActions ? (
-                      <ControlHintTooltip
-                        title={readOnlyReason ?? intl.formatMessage({ id: "taskList.newThread" })}
-                      >
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          className="shrink-0 text-foreground-subtle hover:bg-surface-hover hover:text-foreground"
-                          onMouseDown={handleActionMouseDown}
-                          onClick={handleCreateThreadClick}
-                          disabled={Boolean(readOnlyReason)}
-                          aria-label={intl.formatMessage({
-                            id: "taskList.newThread",
-                          })}
-                        >
-                          <MessageCirclePlus className="h-3.5 w-3.5" />
-                        </Button>
-                      </ControlHintTooltip>
-                    ) : null}
-                  </div>
+                                <div
+                                  role="status"
+                                  className={cn(
+                                    buttonVariants({ variant: "ghost", size: "icon-sm" }),
+                                    "shrink-0 text-foreground opacity-100 hover:bg-surface-hover hover:text-foreground",
+                                  )}
+                                  onMouseDown={handleActionMouseDown}
+                                  aria-label={intl.formatMessage({
+                                    id: "workspaceSidebar.connecting",
+                                  })}
+                                >
+                                  <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                                </div>
+                              </ReconnectingRemoteWorkspaceLogTooltip>
+                            ) : (
+                              <ControlHintTooltip
+                                title={intl.formatMessage({
+                                  id: "workspaceSidebar.reconnect",
+                                })}
+                                side="right"
+                                align="center"
+                              >
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon-sm"
+                                  className="shrink-0 text-foreground opacity-100 hover:bg-surface-hover hover:text-foreground disabled:opacity-100"
+                                  onMouseDown={handleActionMouseDown}
+                                  onClick={handleReconnectRemoteWorkspace}
+                                  aria-label={intl.formatMessage({
+                                    id: "workspaceSidebar.reconnect",
+                                  })}
+                                >
+                                  <RefreshCwIcon className="h-3.5 w-3.5" />
+                                </Button>
+                              </ControlHintTooltip>
+                            )
+                          ) : shouldMountWorkspaceRowActions ? (
+                            <ControlHintTooltip
+                              title={
+                                readOnlyReason ?? intl.formatMessage({ id: "taskList.newThread" })
+                              }
+                            >
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                className="shrink-0 text-foreground-subtle hover:bg-surface-hover hover:text-foreground"
+                                onMouseDown={handleActionMouseDown}
+                                onClick={handleCreateThreadClick}
+                                disabled={Boolean(readOnlyReason)}
+                                aria-label={intl.formatMessage({
+                                  id: "taskList.newThread",
+                                })}
+                              >
+                                <MessageCirclePlus className="h-3.5 w-3.5" />
+                              </Button>
+                            </ControlHintTooltip>
+                          ) : null}
+                        </div>
+                      </div>
+                    </div>
+                  </CollapsibleTrigger>
                 </div>
-              </div>
-            </CollapsibleTrigger>
-          </div>
-        </BorderBeam>
+              </BorderBeam>
+            </div>
+          </ContextMenuTrigger>
+          <ContextMenuContent onClick={(event) => event.stopPropagation()}>
+            {projectMenuItems(ContextMenuItem, ContextMenuSeparator)}
+          </ContextMenuContent>
+        </ContextMenu>
 
-        <CollapsibleContent>
-          <TaskList
-            workspacePath={tab.workspacePath}
-            remoteSessionId={tab.remoteSessionId}
-            workspaceIdentity={tab.workspaceIdentity}
-            tasks={taskItems}
-            pinnedTasks={EMPTY_PINNED_TASKS}
-            activeTaskId={isActiveWorkspace ? activeTaskId : null}
-            onSelectTask={handleSelectTask}
-            showCreateButton={false}
-            showFooter={false}
-            loading={taskListLoading}
-            hasMore={taskListHasMore}
-            onShowMore={onShowMoreTasks}
-            onRenameTask={handleRenameTask}
-            onSetTaskPinned={handleSetTaskPinned}
-            onArchiveTask={handleArchiveTask}
-            onSetTaskUnread={handleSetTaskUnread}
-            readOnlyReason={readOnlyReason}
-          />
-        </CollapsibleContent>
+        {showTaskList ? (
+          <CollapsibleContent className="ml-4 border-l border-border/60 pl-1">
+            <TaskList
+              workspacePath={tab.workspacePath}
+              remoteSessionId={tab.remoteSessionId}
+              workspaceIdentity={tab.workspaceIdentity}
+              tasks={taskItems}
+              groupByDate={groupByDate}
+              sortBy={taskSortBy}
+              pinnedTasks={EMPTY_PINNED_TASKS}
+              activeTaskId={isActiveWorkspace ? activeTaskId : null}
+              onSelectTask={handleSelectTask}
+              showCreateButton={false}
+              showFooter={false}
+              loading={taskListLoading}
+              hasMore={taskListHasMore}
+              onShowMore={onShowMoreTasks}
+              onRenameTask={handleRenameTask}
+              onSetTaskPinned={handleSetTaskPinned}
+              onArchiveTask={handleArchiveTask}
+              onSetTaskUnread={handleSetTaskUnread}
+              readOnlyReason={readOnlyReason}
+            />
+          </CollapsibleContent>
+        ) : null}
       </Collapsible>
       <RemoteSyncDialogs
         canSyncSkills={showRemoteSkillSyncAction}

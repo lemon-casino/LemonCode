@@ -92,6 +92,7 @@ export const ServiceChannels = {
   /** Git 服务 */
   Git: "git",
   Worktree: "worktree",
+  SidebarOrganization: "sidebar-organization",
   /** Git checkpoint 服务 */
   GitCheckpoint: "git-checkpoint",
   Setting: "setting",

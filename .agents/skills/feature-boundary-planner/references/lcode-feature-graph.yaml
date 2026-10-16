@@ -25,6 +25,42 @@ rules:
     - invariant-only
     - evidence-only
 nodes:
+  - id: capability.sidebar-organization
+    kind: capability
+    label: Unified sidebar sections, projects, worktrees and task placement
+    aliases: [整理侧边栏, 混合分区, 侧栏右键菜单, 侧栏拖放, 侧栏撤销, 侧边栏专注]
+    codeSeeds:
+      - file: packages/shared/src/sidebarOrganization.ts
+        symbol: sidebarOrganizationRequestSchema
+      - file: packages/services/src/sidebar-organization/contract.ts
+        symbol: ISidebarOrganizationService
+      - file: packages/services/src/sidebar-organization/node.ts
+        symbol: createSidebarOrganizationService
+      - file: packages/ui/src/hooks/useSidebarOrganization.tsx
+        symbol: SidebarOrganizationProvider
+      - file: packages/ui/src/WorkspaceSidebar/UnifiedSidebarTree.tsx
+        symbol: UnifiedSidebarTree
+      - file: packages/ui/src/hooks/useUnifiedSidebarSources.ts
+        symbol: useUnifiedSidebarSources
+      - file: packages/ui/src/hooks/useSidebarWorktrees.ts
+        symbol: useSidebarWorktrees
+      - file: packages/ui/src/WorkspaceSidebar/SidebarSourceReadError.tsx
+        symbol: SidebarSourceReadError
+      - file: packages/ui/src/WorkspaceSidebar/SidebarArchivePanel.tsx
+        symbol: SidebarArchivePanel
+      - file: packages/ui/src/WorkspaceSidebar/SidebarOrganizeMenu.tsx
+        symbol: SidebarOrganizeMenu
+      - file: packages/ui/src/WorkspaceSidebar/sidebarFocusProjection.ts
+        symbol: projectSidebarFocus
+      - file: packages/ui/src/hooks/useSidebarTreePreferences.ts
+        symbol: useSidebarTreePreferences
+    invariants:
+      - "The profile organization service owns placement, with revision CAS, operation deduplication and atomic file commits. Renderer state is a revision-checked mirror."
+      - "Sections contain stable references; moving, splitting or dissolving them never changes execution directories, task owners or Git bindings."
+      - "Disconnected sources retain organization actions while business actions require their original source capabilities; missing reads never imply deletion."
+      - "Pinned and archived task projections preserve explicit placement. Legacy groups import once per source without a second organization write path."
+      - "Historical disconnected projects are not read failures. Actual read errors and scoped retry belong to their project or worktree rows; archive navigation opens a separate UI panel without changing the active chat."
+      - "Focus is a local display preference over the unified tree. It never mutates organization or source ownership; focused chats preserve exact source identity, explicit placement and source labels. Empty system categories stay hidden."
   - id: capability.oauth-provider-details
     kind: capability
     label: OAuth provider details, account imports and shared model configuration
@@ -1254,6 +1290,26 @@ nodes:
       - "Menus append editable drafts through the scoped existing receiver; only an explicit send admits context."
       - "Capsule IDs are independent typed references and never share URLs; the target store validates source history again."
 edges:
+  - from: capability.sidebar-organization
+    to: boundary.workspace-key
+    type: isolates-references-by
+    rank: must-inspect
+    condition: Reference identity uses trimmed workspaceIdentity or the local workspacePath fallback, never path-only matching for remote entities.
+  - from: capability.sidebar-organization
+    to: capability.session-worktree
+    type: projects-bindings-without-changing-ownership
+    rank: must-inspect
+    condition: Worktree rows and menus resolve the original binding and source owner; section moves do not prepare, archive or discard a Git worktree.
+  - from: capability.sidebar-organization
+    to: capability.local-multi-folder-projects
+    type: reads-saved-project-definitions-from
+    rank: must-inspect
+    condition: Unopened projects remain visible; project removal is guarded while worktree or independently placed task references depend on the source.
+  - from: capability.sidebar-organization
+    to: capability.mobile-remote-control
+    type: shares-existing-host-service-with
+    rank: must-inspect
+    condition: The remote service collection injects the existing local organization owner; phone clients do not create another Host or store an independent accepted snapshot.
   - from: capability.project-session-defaults
     to: capability.model-selection
     type: derives-options-from-target-environment

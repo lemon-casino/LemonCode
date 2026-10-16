@@ -1,0 +1,9 @@
+/* 只读提示的内容和 Popper 外壳都不能截获 pointerup，否则点击会落到 body。 */
+[data-radix-popper-content-wrapper]:has(> [data-sidebar-source-hint]) {
+  pointer-events: none;
+}
+
+/* 已关闭的详情面板仍可能保留退场定位外壳，不能挡住其它项目的错误入口。 */
+[data-radix-popper-content-wrapper]:has(> [data-sidebar-source-panel][data-state="closed"]) {
+  pointer-events: none;
+}

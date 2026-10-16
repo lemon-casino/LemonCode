@@ -416,6 +416,9 @@ async function openRemoteWorkspaceFromHistoryEntry({
       logger,
       toast,
       shouldKeepReconnectedWorkspace: ({ workspacePath, workspaceIdentity }) =>
+        (!requestId ||
+          !pendingReconnectRequestIds ||
+          pendingReconnectRequestIds.get(workspaceKey) === requestId) &&
         shouldKeepRemoteWorkspaceInTabs({
           tabStoreApi,
           workspacePath,
@@ -863,6 +866,7 @@ export function useRemoteWorkspaceHistory({
           logger,
           toast,
           shouldKeepReconnectedWorkspace: ({ workspacePath, workspaceIdentity }) =>
+            pendingReconnectRequestIdsRef.current.get(workspaceKey) === requestId &&
             shouldKeepRemoteWorkspaceInTabs({
               tabStoreApi,
               workspacePath,
@@ -1034,6 +1038,18 @@ export function useRemoteWorkspaceHistory({
 
   const handleReconnectRemoteWorkspace = useCallback(
     async (workspaceKey: string, options?: ReconnectRemoteWorkspaceOptions) => {
+      if (options?.cancelPending) {
+        // 取消从 requestId owner 发出，不能误用上一次成功连接的 sessionId 去释放其它 attachment。
+        await cancelPendingRemoteReconnectsForWorkspaceKeys({
+          workspaceKeys: [workspaceKey],
+          pendingRequestIds: pendingReconnectRequestIdsRef.current,
+          cancelPendingRemoteConnection: platform.cancelPendingRemoteConnection
+            ? (requestId) => platform.cancelPendingRemoteConnection!(requestId)
+            : undefined,
+          logger,
+        });
+        return;
+      }
       await reconnectRemoteWorkspaceByKey({
         workspaceKey,
         canUseRemoteWorkspace,
@@ -1047,7 +1063,7 @@ export function useRemoteWorkspaceHistory({
         },
       });
     },
-    [canUseRemoteWorkspace, runReconnectRemoteWorkspace],
+    [canUseRemoteWorkspace, runReconnectRemoteWorkspace, platform],
   );
 
   const handleOpenRemoteWorkspaceFromHistory = useCallback(

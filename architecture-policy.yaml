@@ -20,6 +20,7 @@ modules:
     roots: [packages/services/src]
     managed: false
   - id: worktree
+    # Existing worktree owner.
     roots: [packages/services/src/worktree]
     managed: true
     requires: [shared, services]
@@ -28,12 +29,27 @@ modules:
     layers: { domain: domain, app: app, adapters: adapters }
     layerOrder: [domain, app, adapters]
     owner: workspace-execution
+  - id: sidebar-organization
+    roots: [packages/services/src/sidebar-organization]
+    managed: true
+    requires: [shared, services, rpc]
+    publicEntrypoints:
+      [
+        packages/services/src/sidebar-organization/contract.ts,
+        packages/services/src/sidebar-organization/node.ts,
+      ]
+    layers: { domain: domain, app: app, adapters: adapters }
+    layerOrder: [domain, app, adapters]
+    owner: sidebar-navigation
   - id: runtime-environment
     roots: [packages/services/src/runtime-environment]
     managed: true
     requires: [shared, rpc, services, worktree]
     publicEntrypoints:
-      [packages/services/src/runtime-environment/contract.ts, packages/services/src/runtime-environment/node.ts]
+      [
+        packages/services/src/runtime-environment/contract.ts,
+        packages/services/src/runtime-environment/node.ts,
+      ]
     layers: { domain: domain, app: app, adapters: adapters }
     layerOrder: [domain, app, adapters]
     owner: workspace-execution

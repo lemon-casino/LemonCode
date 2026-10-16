@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { WorktreeBinding, IServiceAccessor } from "@lcode/services";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
+import { sidebarEntryKey, type SidebarEntryRef } from "@lcode/shared";
 import { useBaseWorkspaceServices } from "./useWorkspaceServices.js";
 import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
 import { useWorktreeLifecycleStore } from "@/store/worktreeLifecycleStore.js";
@@ -13,10 +14,14 @@ export interface SidebarWorktreeEntry {
   sourceKey?: string;
 }
 export interface SidebarWorktreesResult {
+  deletedReferences: SidebarEntryRef[];
+  unavailableScopeKeys: string[];
   entries: SidebarWorktreeEntry[];
   loading: boolean;
+  loadingScopeKeys: string[];
+  failures: Record<string, string>;
   errors: string[];
-  refresh: () => Promise<void>;
+  refresh: (scopeKey?: string) => Promise<void>;
   lookup: Map<
     string,
     { services: IServiceAccessor; remoteSessionId?: string; isRemoteWorkspace: boolean }
@@ -46,35 +51,66 @@ export function useSidebarWorktrees(tabs: WorkspaceTabState[]): SidebarWorktrees
   const [state, setState] = useState<{
     entries: SidebarWorktreeEntry[];
     loading: boolean;
+    loadingScopeKeys: string[];
+    failures: Record<string, string>;
     errors: string[];
-  }>({ entries: [], loading: true, errors: [] });
-  const ticket = useRef(0);
-  const refresh = useCallback(async () => {
-    const own = ++ticket.current;
-    setState((s) => ({ ...s, loading: true }));
-    const results = await Promise.all(
-      tabs.map(async (origin) => {
+    unavailableScopeKeys: string[];
+    deletedReferences: SidebarEntryRef[];
+  }>({
+    entries: [],
+    loading: true,
+    loadingScopeKeys: [],
+    failures: {},
+    errors: [],
+    unavailableScopeKeys: [],
+    deletedReferences: [],
+  });
+  const tickets = useRef(new Map<string, number>());
+  const refresh = useCallback(
+    async (scope?: string) => {
+      const currentKeys = new Set(
+        tabs.map((tab) => tab.workspaceIdentity?.trim() || tab.workspacePath),
+      );
+      const requested = tabs.filter(
+        (tab) => !scope || (tab.workspaceIdentity?.trim() || tab.workspacePath) === scope,
+      );
+      const requests = requested.map((origin) => {
         const key = origin.workspaceIdentity?.trim() || origin.workspacePath;
-        const service = lookup.get(key)?.services.worktreeService;
-        if (!service)
-          return {
-            key,
-            entries: [] as SidebarWorktreeEntry[],
-            error:
-              origin.workspaceIdentity || origin.remoteTarget || origin.remoteSessionId
-                ? "remote-workspace-disconnected"
-                : undefined,
-          };
-        try {
-          const bindings = await service.list({
-            workspacePath: origin.workspacePath,
-            workspaceIdentity: origin.workspaceIdentity,
-          });
-          return {
-            key,
-            entries: bindings
-              .filter((b) => b.status !== "deleted")
-              .map((binding) => {
+        const token = (tickets.current.get(key) ?? 0) + 1;
+        tickets.current.set(key, token);
+        return { origin, key, token };
+      });
+      setState((s) => {
+        const loadingScopeKeys = [
+          ...new Set([
+            ...s.loadingScopeKeys.filter((key) => currentKeys.has(key)),
+            ...requests.map((r) => r.key),
+          ]),
+        ];
+        return { ...s, loading: loadingScopeKeys.length > 0, loadingScopeKeys };
+      });
+      const results = await Promise.all(
+        requests.map(async ({ origin, key, token }) => {
+          const service = lookup.get(key)?.services.worktreeService;
+          if (!service)
+            return {
+              key,
+              token,
+              entries: [] as SidebarWorktreeEntry[],
+              // 历史远端没有 attachment 属于正常未连接，不能伪造读取异常；仍保留已知工作树。
+              unavailable: true,
+              error: undefined,
+            };
+          try {
+            const bindings = await service.list({
+              workspacePath: origin.workspacePath,
+              workspaceIdentity: origin.workspaceIdentity,
+            });
+            return {
+              key,
+              token,
+              unavailable: false,
+              entries: bindings.map((binding) => {
                 const originKey =
                   binding.originalWorkspaceIdentity?.trim() || binding.originalWorkspacePath;
                 const project = tabs.find(
@@ -92,45 +128,108 @@ export function useSidebarWorktrees(tabs: WorkspaceTabState[]): SidebarWorktrees
                 };
                 return { binding, origin: canonicalOrigin, sourceKey: project ? originKey : key };
               }),
-            error: undefined,
-          };
-        } catch (error) {
-          return { key, entries: [] as SidebarWorktreeEntry[], error: getErrorMessage(error) };
+              error: undefined,
+            };
+          } catch (error) {
+            return {
+              key,
+              token,
+              unavailable: true,
+              entries: [] as SidebarWorktreeEntry[],
+              error: getErrorMessage(error) || String(error) || "Unknown error",
+            };
+          }
+        }),
+      );
+      // 不同来源可以同时重新读取；仅丢弃同一来源过期的响应，不能让另一来源的刷新取消本次结果。
+      const accepted = results.filter((result) => tickets.current.get(result.key) === result.token);
+      if (!accepted.length && requests.length) return;
+      setState((previous) => {
+        const entries = new Map<string, SidebarWorktreeEntry>();
+        const deleted = new Map<string, SidebarEntryRef>();
+        const updatedKeys = new Set(accepted.map((result) => result.key));
+        const sourceKey = (entry: SidebarWorktreeEntry) =>
+          entry.sourceKey ?? (entry.origin.workspaceIdentity?.trim() || entry.origin.workspacePath);
+        for (const entry of previous.entries)
+          if (currentKeys.has(sourceKey(entry)) && !updatedKeys.has(sourceKey(entry)))
+            entries.set(
+              JSON.stringify([
+                entry.origin.workspaceIdentity?.trim() || entry.origin.workspacePath,
+                entry.binding.id,
+              ]),
+              entry,
+            );
+        for (const ref of previous.deletedReferences)
+          if (
+            ref.kind === "worktree" &&
+            !updatedKeys.has(ref.origin.workspaceIdentity?.trim() || ref.origin.workspacePath)
+          )
+            deleted.set(sidebarEntryKey(ref), ref);
+        const failures = Object.fromEntries(
+          Object.entries(previous.failures).filter(
+            ([key]) => currentKeys.has(key) && !updatedKeys.has(key),
+          ),
+        );
+        const unavailableKeys = new Set(
+          previous.unavailableScopeKeys.filter(
+            (key) => currentKeys.has(key) && !updatedKeys.has(key),
+          ),
+        );
+        for (const result of accepted) {
+          if (result.error) failures[result.key] = result.error;
+          if (result.unavailable) unavailableKeys.add(result.key);
+          // owner 读取失败时保留同 scope 的已知分类，避免其它视图把工作树暂时当成普通项目。
+          const values = result.unavailable
+            ? previous.entries.filter(
+                (e) =>
+                  (e.sourceKey ??
+                    (e.origin.workspaceIdentity?.trim() || e.origin.workspacePath)) === result.key,
+              )
+            : result.entries;
+          for (const entry of values) {
+            if (entry.binding.status === "deleted") {
+              const ref: SidebarEntryRef = {
+                kind: "worktree",
+                origin: {
+                  workspacePath: entry.origin.workspacePath,
+                  ...(entry.origin.workspaceIdentity
+                    ? { workspaceIdentity: entry.origin.workspaceIdentity }
+                    : {}),
+                },
+                bindingId: entry.binding.id,
+              };
+              deleted.set(sidebarEntryKey(ref), ref);
+              continue;
+            }
+            entries.set(
+              JSON.stringify([
+                entry.origin.workspaceIdentity?.trim() || entry.origin.workspacePath,
+                entry.binding.id,
+              ]),
+              entry,
+            );
+          }
         }
-      }),
-    );
-    if (own !== ticket.current) return;
-    setState((previous) => {
-      const entries = new Map<string, SidebarWorktreeEntry>();
-      for (const result of results) {
-        // owner 读取失败时保留同 scope 的已知分类，避免其它视图把工作树暂时当成普通项目。
-        const values = result.error
-          ? previous.entries.filter(
-              (e) =>
-                (e.sourceKey ?? (e.origin.workspaceIdentity?.trim() || e.origin.workspacePath)) ===
-                result.key,
-            )
-          : result.entries;
-        for (const entry of values)
-          entries.set(
-            JSON.stringify([
-              entry.origin.workspaceIdentity?.trim() || entry.origin.workspacePath,
-              entry.binding.id,
-            ]),
-            entry,
-          );
-      }
-      return {
-        entries: [...entries.values()],
-        loading: false,
-        errors: [...new Set(results.flatMap((r) => (r.error ? [r.error] : [])))],
-      };
-    });
-  }, [tabs, lookup]);
+        const loadingScopeKeys = previous.loadingScopeKeys.filter(
+          (key) => currentKeys.has(key) && !updatedKeys.has(key),
+        );
+        return {
+          entries: [...entries.values()],
+          loading: loadingScopeKeys.length > 0,
+          loadingScopeKeys,
+          failures,
+          errors: [...new Set(Object.values(failures))],
+          unavailableScopeKeys: [...unavailableKeys],
+          deletedReferences: [...deleted.values()],
+        };
+      });
+    },
+    [tabs, lookup],
+  );
   useEffect(() => {
     void refresh();
     return () => {
-      ticket.current++;
+      for (const [key, token] of tickets.current) tickets.current.set(key, token + 1);
     };
   }, [refresh, revisions]);
   const ownerLookup = useMemo(() => {

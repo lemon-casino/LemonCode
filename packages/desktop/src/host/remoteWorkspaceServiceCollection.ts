@@ -10,6 +10,7 @@ import {
   ISystemService,
   ITerminalService,
   ISettingService,
+  ISidebarOrganizationService,
   ICredentialService,
   IBroadcastService,
   ILCodeTaskService,
@@ -382,6 +383,8 @@ export function createRemoteWorkspaceServiceCollection(params: {
   }
   registerHostApiNetworkTransportForDispose(services, hostApiNetworkTransport);
   registerRemoteProviderProvisioningExecutor(services, remoteProviderProvisioningService);
+  const organization = params.sourceServices?.getOptional(ISidebarOrganizationService);
+  if (organization) services.register(ISidebarOrganizationService, organization);
   return services;
 }
 import { IProviderAccountService } from "@lcode/services";

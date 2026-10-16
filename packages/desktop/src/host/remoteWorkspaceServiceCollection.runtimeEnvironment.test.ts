@@ -4,7 +4,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { Event } from "@lcode/rpc";
-import { IRuntimeEnvironmentService, type IServiceAccessor } from "@lcode/services";
+import {
+  IRuntimeEnvironmentService,
+  ISidebarOrganizationService,
+  ServiceCollection,
+  type IServiceAccessor,
+} from "@lcode/services";
 import { setDataBaseDir, disposeServiceResourcesAndWait } from "@lcode/services/node";
 import { createRemoteWorkspaceServiceCollection } from "./remoteWorkspaceServiceCollection.js";
 
@@ -16,6 +21,7 @@ test("the mobile remote collection registers only the connected Host environment
     await rm(dir, { recursive: true, force: true });
   });
   const runtime = {} as IRuntimeEnvironmentService;
+  const localOrganization = {} as ISidebarOrganizationService;
   const required = [
     "fileService",
     "gitService",
@@ -47,6 +53,10 @@ test("the mobile remote collection registers only the connected Host environment
       ...(supported ? { runtimeEnvironmentService: runtime } : {}),
     } as unknown as IServiceAccessor;
     const collection = createRemoteWorkspaceServiceCollection({
+      sourceServices: new ServiceCollection().register(
+        ISidebarOrganizationService,
+        localOrganization,
+      ),
       connectionServices,
       parentPort: null,
       clientConfigService: {} as IServiceAccessor["clientConfigService"],
@@ -59,6 +69,11 @@ test("the mobile remote collection registers only the connected Host environment
     assert.equal(
       collection.getOptional(IRuntimeEnvironmentService),
       supported ? runtime : undefined,
+    );
+    assert.equal(
+      collection.getOptional(ISidebarOrganizationService),
+      localOrganization,
+      "mobile remote views retain the local profile navigation owner",
     );
     await disposeServiceResourcesAndWait(collection);
   }

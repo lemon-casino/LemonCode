@@ -9,6 +9,7 @@ import { isWorkspaceTab, type TabStore } from "@/store/tabStore.js";
 export type DesktopWorkspaceReconnect = (
   key: string,
   options?: {
+    cancelPending?: boolean;
     activateWorkspaceAfterReconnect?: boolean;
     showErrorToast?: boolean;
     throwOnFailure?: boolean;

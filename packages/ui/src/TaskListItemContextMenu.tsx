@@ -1,11 +1,33 @@
+import { useSidebarText } from "@/WorkspaceSidebar/sidebarText.js";
 import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent,
 } from "@/components/ui/context-menu.js";
 import { TaskActionMenuContent } from "@/TaskActionMenuContent.js";
 import type { TaskDirectoryActions } from "@/useTaskListItemContextActions.js";
 
+function AuxiliaryGroup({ children }: { children: React.ReactNode }) {
+  const text = useSidebarText();
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger>{text("more")}</ContextMenuSubTrigger>
+      <ContextMenuSubContent>{children}</ContextMenuSubContent>
+    </ContextMenuSub>
+  );
+}
+function CopyGroup({ children }: { children: React.ReactNode }) {
+  const text = useSidebarText();
+  return (
+    <ContextMenuSub>
+      <ContextMenuSubTrigger>{text("copyInfo")}</ContextMenuSubTrigger>
+      <ContextMenuSubContent>{children}</ContextMenuSubContent>
+    </ContextMenuSub>
+  );
+}
 export function TaskListItemContextMenu({
   intl,
   isPinned,
@@ -30,6 +52,9 @@ export function TaskListItemContextMenu({
   disableTaskActions = false,
   disabledReason,
   forkMenu,
+  organizationMenu,
+  hideMobileUnsupportedActions,
+  openMenu,
 }: {
   intl: {
     formatMessage: (desc: { id: string }, values?: Record<string, string>) => string;
@@ -62,11 +87,19 @@ export function TaskListItemContextMenu({
   disableTaskActions?: boolean;
   disabledReason?: string;
   forkMenu?: React.ReactNode;
+  organizationMenu?: React.ReactNode;
+  hideMobileUnsupportedActions?: boolean;
+  openMenu?: React.ReactNode;
 }) {
   return (
     <ContextMenuContent className="w-52">
+      {openMenu}
       {forkMenu}
       <TaskActionMenuContent
+        organizationMenu={organizationMenu}
+        AuxiliaryGroup={AuxiliaryGroup}
+        CopyGroup={CopyGroup}
+        hideMobileUnsupportedActions={hideMobileUnsupportedActions}
         intl={intl}
         isPinned={isPinned}
         fileManagerLabel={fileManagerLabel}

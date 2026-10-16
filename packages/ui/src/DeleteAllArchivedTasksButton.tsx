@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { LoaderIcon, MoreHorizontal, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button.js";
@@ -30,6 +30,8 @@ export function DeleteAllArchivedTasksButton({
   actionsContainer,
   onDeleted,
   onRefresh,
+  onActionChange,
+  onDeletionCompleted,
 }: {
   workspaces: ArchivedTaskDeletionWorkspace[];
   /** 归档列表当前分类已渲染的行；批量删除只作用于此集合。 */
@@ -39,6 +41,8 @@ export function DeleteAllArchivedTasksButton({
   actionsContainer?: HTMLElement | null;
   onDeleted: (target: ArchivedTaskDeletionTarget) => void;
   onRefresh?: () => Promise<void>;
+  onActionChange?: (action: { run(): void; enabled: boolean } | null) => void;
+  onDeletionCompleted?: (targets: ArchivedTaskDeletionTarget[]) => void;
 }) {
   const { intl } = useLCodeIntl();
   const confirmDialog = useConfirmDialog();
@@ -80,7 +84,12 @@ export function DeleteAllArchivedTasksButton({
         confirmVariant: "destructive",
       });
       if (!confirmed) return;
-      const result = await deleteArchivedTaskSelection(selection, onDeleted);
+      const deletedTargets: ArchivedTaskDeletionTarget[] = [];
+      const result = await deleteArchivedTaskSelection(selection, (target) => {
+        deletedTargets.push(target);
+        onDeleted(target);
+      });
+      onDeletionCompleted?.(deletedTargets);
       setResultMessage(
         [
           intl.formatMessage(
@@ -105,6 +114,12 @@ export function DeleteAllArchivedTasksButton({
       setBusy(false);
     }
   }
+  const deleteAction = useRef(handleDeleteAll);
+  deleteAction.current = handleDeleteAll;
+  useEffect(() => {
+    onActionChange?.({ run: () => void deleteAction.current(), enabled: !disabled && !busy });
+    return () => onActionChange?.(null);
+  }, [onActionChange, disabled, busy]);
 
   const actionLabel = intl.formatMessage({
     id: busy ? "taskList.deleteAllArchivedBusy" : "taskList.archivedActions",

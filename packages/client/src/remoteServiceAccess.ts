@@ -5,6 +5,7 @@ import {
   IMediaPreviewService,
   IGitService,
   IWorktreeService,
+  ISidebarOrganizationService,
   IRuntimeEnvironmentService,
   IGitCheckpointService,
   IGitBackupService,
@@ -54,6 +55,7 @@ import {
  * 新增服务只需在此添加一个 getter。
  */
 export class RemoteServiceAccess implements IServiceAccessor {
+  readonly sidebarOrganizationService: ISidebarOrganizationService;
   readonly fileService: IFileService;
   readonly mediaPreviewService: IMediaPreviewService;
   readonly gitService: IGitService;
@@ -103,6 +105,9 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;
 
   constructor(private readonly channelClient: IChannelClient) {
+    this.sidebarOrganizationService = ProxyChannel.toService<ISidebarOrganizationService>(
+      channelClient.getChannel(ISidebarOrganizationService.channelName),
+    );
     this.windowWorkspaceService = ProxyChannel.toService<IWindowWorkspaceService>(
       channelClient.getChannel(IWindowWorkspaceService.channelName),
     );

@@ -166,21 +166,24 @@ export function useWorkspaceServicesResolution(
     workspaceIdentity,
     remoteTarget,
   );
-  const isRemoteTarget = useTabStore((state) =>
-    resolveWorkspaceServiceIsRemoteTarget({
-      workspacePath,
-      workspaceIdentity,
-      preferredRemoteSessionId,
-      activeWorkspacePath: state.activeWorkspacePath,
-      activeWorkspaceIdentity: state.activeWorkspaceIdentity,
-      activeTab: (() => {
-        const activeTab = state.activeTabId
-          ? state.tabs.find((tab) => tab.id === state.activeTabId)
-          : null;
-        return activeTab && isWorkspaceTab(activeTab) ? activeTab : null;
-      })(),
-      workspaceTabs: state.tabs.filter(isWorkspaceTab),
-    }),
+  const isRemoteTarget = useTabStore(
+    (state) =>
+      // 注册项目可以尚未成为 tab；显式远端 target 不能因 tab 尚未恢复而被判为 local-ready。
+      Boolean(remoteTarget) ||
+      resolveWorkspaceServiceIsRemoteTarget({
+        workspacePath,
+        workspaceIdentity,
+        preferredRemoteSessionId,
+        activeWorkspacePath: state.activeWorkspacePath,
+        activeWorkspaceIdentity: state.activeWorkspaceIdentity,
+        activeTab: (() => {
+          const activeTab = state.activeTabId
+            ? state.tabs.find((tab) => tab.id === state.activeTabId)
+            : null;
+          return activeTab && isWorkspaceTab(activeTab) ? activeTab : null;
+        })(),
+        workspaceTabs: state.tabs.filter(isWorkspaceTab),
+      }),
   );
   const resolvedServices = useRemoteWorkspaceSessionStore((state) =>
     resolveWorkspaceServicesForTarget({

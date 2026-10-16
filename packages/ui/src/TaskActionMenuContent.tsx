@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { TID_V4_TASK_OPEN_IN_SPLIT } from "@lcode/shared";
 import type { TaskDirectoryActions } from "@/useTaskListItemContextActions.js";
 
@@ -26,6 +27,9 @@ export function TaskActionMenuContent({
   disablePinTaskAction = false,
   disabledReason,
   hideMobileUnsupportedActions = false,
+  organizationMenu,
+  AuxiliaryGroup = Fragment,
+  CopyGroup = Fragment,
   Item,
   Separator,
   onTogglePinTask,
@@ -60,6 +64,9 @@ export function TaskActionMenuContent({
   disablePinTaskAction?: boolean;
   disabledReason?: string;
   hideMobileUnsupportedActions?: boolean;
+  organizationMenu?: React.ReactNode;
+  AuxiliaryGroup?: React.ComponentType<{ children: React.ReactNode }>;
+  CopyGroup?: React.ComponentType<{ children: React.ReactNode }>;
   Item: React.ComponentType<TaskActionMenuItemProps>;
   Separator: React.ComponentType<TaskActionMenuSeparatorProps>;
   onTogglePinTask: () => void;
@@ -109,22 +116,23 @@ export function TaskActionMenuContent({
         title={disabledReason}
         onSelect={() => {
           if (!taskTargetActionsDisabled) {
-            onArchiveTask();
-          }
-        }}
-      >
-        {intl.formatMessage({ id: "taskList.archive" })}
-      </Item>
-      <Item
-        disabled={taskTargetActionsDisabled}
-        title={disabledReason}
-        onSelect={() => {
-          if (!taskTargetActionsDisabled) {
             onMarkTaskAsUnread();
           }
         }}
       >
         {intl.formatMessage({ id: "taskList.markAsUnread" })}
+      </Item>
+      {organizationMenu}
+      <Item
+        disabled={taskTargetActionsDisabled}
+        title={disabledReason}
+        onSelect={() => {
+          if (!taskTargetActionsDisabled) {
+            onArchiveTask();
+          }
+        }}
+      >
+        {intl.formatMessage({ id: "taskList.archive" })}
       </Item>
       {onOpenInSplitPane ? (
         <Item
@@ -136,72 +144,75 @@ export function TaskActionMenuContent({
         </Item>
       ) : null}
       <Separator />
-      {!hideMobileUnsupportedActions ? (
-        <Item
-          disabled={disableTaskActions || (directory && !directory.canOpen)}
-          title={disabledReason ?? directory?.disabledReason ?? directory?.openDisabledReason}
-          onSelect={() => {
-            if (!disableTaskActions && (!directory || directory.canOpen)) {
-              onOpenTaskPathInFileManager();
-            }
-          }}
-        >
-          {fileManagerLabel}
-        </Item>
-      ) : null}
-      <Item
-        disabled={disableTaskActions || (directory && !directory.path)}
-        title={disabledReason ?? directory?.disabledReason}
-        onSelect={onCopyWorkspacePath}
-      >
-        {directory?.copyLabel ?? intl.formatMessage({ id: "appHeader.copyPath" })}
-      </Item>
-      {/* 当前适配器可能仅返回合成的 .lcode-session 路径；不存在的文件不能冒充可用会话文件。 */}
-      {taskSessionFile.exists ? (
-        <Item
-          disabled={taskTargetActionsDisabled || taskSessionFile.loading || !taskSessionFile.path}
-          title={taskTargetActionsDisabled ? disabledReason : undefined}
-          onSelect={onCopyTaskPath}
-        >
-          {intl.formatMessage({ id: "appHeader.copyTaskPath" })}
-        </Item>
-      ) : null}
-      <Item
-        disabled={
-          taskTargetActionsDisabled ||
-          taskNativeSessionLogFile.loading ||
-          !taskNativeSessionLogFile.path
-        }
-        title={taskTargetActionsDisabled ? disabledReason : undefined}
-        onSelect={onCopyTaskLogPath}
-      >
-        {/* LCode Agent 的日志路径可能先按运行时约定得出，当前日期文件尚未落盘。
-            复制动作只依赖路径字符串，不能把 exists=false 当成不可复制，否则菜单会表现成“不能点”。 */}
-        {intl.formatMessage({ id: "appHeader.copyLogPath" })}
-      </Item>
-      {onCopySessionId ? (
-        <Item
-          disabled={taskTargetActionsDisabled || !activeSessionId}
-          title={taskTargetActionsDisabled ? disabledReason : undefined}
-          onSelect={onCopySessionId}
-        >
-          {intl.formatMessage({ id: "appHeader.copySessionId" })}
-        </Item>
-      ) : null}
-      {onViewModelTrajectory ? (
-        <>
-          <Separator />
-          {/* 调用轨迹查看：从 ~/.lcode/cli 的 model-io 还原该 task 的模型请求/响应/工具调用，
+      <AuxiliaryGroup>
+        {!hideMobileUnsupportedActions ? (
+          <Item
+            disabled={disableTaskActions || (directory && !directory.canOpen)}
+            title={disabledReason ?? directory?.disabledReason ?? directory?.openDisabledReason}
+            onSelect={() => {
+              if (!disableTaskActions && (!directory || directory.canOpen)) {
+                onOpenTaskPathInFileManager();
+              }
+            }}
+          >
+            {fileManagerLabel}
+          </Item>
+        ) : null}
+        {onViewModelTrajectory ? (
+          <>
+            {/* 调用轨迹查看：从 ~/.lcode/cli 的 model-io 还原该 task 的模型请求/响应/工具调用，
               在右侧边栏可视化。只依赖 taskId（即 sessionId），不依赖快照文件是否落盘。 */}
+            <Item
+              disabled={taskTargetActionsDisabled || !activeSessionId}
+              title={taskTargetActionsDisabled ? disabledReason : undefined}
+              onSelect={onViewModelTrajectory}
+            >
+              {intl.formatMessage({ id: "taskList.viewModelTrajectory" })}
+            </Item>
+          </>
+        ) : null}
+      </AuxiliaryGroup>
+      <CopyGroup>
+        <Item
+          disabled={disableTaskActions || (directory && !directory.path)}
+          title={disabledReason ?? directory?.disabledReason}
+          onSelect={onCopyWorkspacePath}
+        >
+          {directory?.copyLabel ?? intl.formatMessage({ id: "appHeader.copyPath" })}
+        </Item>
+        {/* 当前适配器可能仅返回合成的 .lcode-session 路径；不存在的文件不能冒充可用会话文件。 */}
+        {taskSessionFile.exists ? (
+          <Item
+            disabled={taskTargetActionsDisabled || taskSessionFile.loading || !taskSessionFile.path}
+            title={taskTargetActionsDisabled ? disabledReason : undefined}
+            onSelect={onCopyTaskPath}
+          >
+            {intl.formatMessage({ id: "appHeader.copyTaskPath" })}
+          </Item>
+        ) : null}
+        <Item
+          disabled={
+            taskTargetActionsDisabled ||
+            taskNativeSessionLogFile.loading ||
+            !taskNativeSessionLogFile.path
+          }
+          title={taskTargetActionsDisabled ? disabledReason : undefined}
+          onSelect={onCopyTaskLogPath}
+        >
+          {/* LCode Agent 的日志路径可能先按运行时约定得出，当前日期文件尚未落盘。
+            复制动作只依赖路径字符串，不能把 exists=false 当成不可复制，否则菜单会表现成“不能点”。 */}
+          {intl.formatMessage({ id: "appHeader.copyLogPath" })}
+        </Item>
+        {onCopySessionId ? (
           <Item
             disabled={taskTargetActionsDisabled || !activeSessionId}
             title={taskTargetActionsDisabled ? disabledReason : undefined}
-            onSelect={onViewModelTrajectory}
+            onSelect={onCopySessionId}
           >
-            {intl.formatMessage({ id: "taskList.viewModelTrajectory" })}
+            {intl.formatMessage({ id: "appHeader.copySessionId" })}
           </Item>
-        </>
-      ) : null}
+        ) : null}
+      </CopyGroup>
       {onOpenTaskFeedback ? (
         <>
           <Separator />

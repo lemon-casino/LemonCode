@@ -1,6 +1,10 @@
 import type { WorktreeBinding, LCodeGroupedTaskView } from "@lcode/services";
 import type { LCodeTaskMeta } from "@lcode/shared";
 
+type SidebarTaskScope = Pick<
+  LCodeTaskMeta,
+  "workspacePath" | "workspaceIdentity" | "taskId" | "executionBindingId"
+>;
 type WorkspaceScope = { workspacePath: string; workspaceIdentity?: string };
 const scopeKey = (scope: WorkspaceScope) => scope.workspaceIdentity?.trim() || scope.workspacePath;
 
@@ -18,7 +22,7 @@ export function isWorktreeSidebarWorkspace(
   );
 }
 
-export function isTaskInSidebarBinding(task: LCodeTaskMeta, binding: WorktreeBinding) {
+export function isTaskInSidebarBinding(task: SidebarTaskScope, binding: WorktreeBinding) {
   const origin = {
     workspacePath: binding.originalWorkspacePath,
     workspaceIdentity: binding.originalWorkspaceIdentity,
@@ -34,7 +38,10 @@ export function isTaskInSidebarBinding(task: LCodeTaskMeta, binding: WorktreeBin
   );
 }
 
-export function isWorktreeSidebarTask(task: LCodeTaskMeta, bindings: readonly WorktreeBinding[]) {
+export function isWorktreeSidebarTask(
+  task: SidebarTaskScope,
+  bindings: readonly WorktreeBinding[],
+) {
   return (
     Boolean(task.executionBindingId?.trim()) ||
     bindings.some((binding) => isTaskInSidebarBinding(task, binding))

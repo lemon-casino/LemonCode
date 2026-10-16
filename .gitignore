@@ -274,6 +274,14 @@ nul
 !/packages/ui/src/lib/
 /packages/ui/src/lib/*
 !/packages/ui/src/lib/providerAccountErrors.ts
+!/packages/ui/src/lib/sidebarOrganization.ts
+!/packages/ui/src/lib/sidebarOrganization.test.ts
+!/packages/web/test/sidebar-organization.test.mjs
+!/packages/web/test/sidebar-organization-transactions.test.mjs
+!/packages/web/test/fixtures/sidebar-organization.html
+!/packages/web/test/fixtures/sidebar-organization.tsx
+!/packages/web/test/fixtures/worktree-sidebar-menu-service.ts
+!/packages/web/test/worktree-sidebar-menus.test.mjs
 !/packages/web/test/usage-analytics.test.mjs
 !/packages/web/test/cache-write-usage.test.mjs
 !/packages/web/test/provider-usage-tabs.test.mjs
@@ -355,5 +363,10 @@ nul
 
 # 缺少 Git 的安装提示、错误归因及手机输入可达性的永久浏览器回归。
 !/packages/web/test/missing-git.test.mjs
+!/packages/web/test/sidebar-source-errors.test.mjs
+!/packages/web/test/sidebar-organize-position.test.mjs
+!/packages/web/test/sidebar-focus.test.mjs
+!/packages/web/test/fixtures/sidebar-organization-data.ts
+!/packages/ui/src/WorkspaceSidebar/sidebarFocusProjection.test.ts
 !/packages/web/test/fixtures/missing-git.html
 !/packages/web/test/fixtures/missing-git.tsx

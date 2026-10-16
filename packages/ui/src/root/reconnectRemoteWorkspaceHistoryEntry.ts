@@ -70,6 +70,8 @@ export interface SshReconnectCredentials {
 }
 
 export interface ReconnectRemoteWorkspaceOptions {
+  /** 仅入口 owner 消费；精准取消同一 workspace 的 pending request，保留项目和历史。 */
+  cancelPending?: boolean;
   activateWorkspaceAfterReconnect?: boolean;
   showErrorToast?: boolean;
   requestId?: string;

@@ -47,6 +47,7 @@ import type { IConversationShareService } from "./conversation-share/conversatio
 
 /** UI 层消费的统一服务接口 */
 export interface IServiceAccessor {
+  readonly sidebarOrganizationService?: import("./sidebar-organization/contract.js").ISidebarOrganizationService;
   readonly fileService: IFileService;
   readonly mediaPreviewService?: IMediaPreviewService;
   readonly gitService: IGitService;

@@ -45,6 +45,7 @@ export function useWindowWorkspaceReconnect({
   });
   const executeDesktop = useCallback<DesktopWorkspaceReconnect>(
     (key, options) => {
+      if (options?.cancelPending) return latestDesktopReconnect.current(key, options);
       const existing = desktopFlights.get(key);
       if (existing) return existing;
       // 共用的执行 Promise 保留失败，远控加入桌面已发起的重连时也必须收到真实结果。
@@ -88,6 +89,8 @@ export function useWindowWorkspaceReconnect({
 
   const reconnect = useCallback<DesktopWorkspaceReconnect>(
     (key, options) => {
+      if (options?.cancelPending && browserScope)
+        return Promise.reject(new Error(WINDOW_WORKSPACE_RECONNECT_UNAVAILABLE));
       if (!browserScope)
         return executeDesktop(key, options).catch((error) => {
           // 本地按钮继续由既有流程展示错误；只有显式要求结果的调用方继续接收 rejection。

@@ -3,10 +3,12 @@ import { getSafeLocalStorage } from "@/lib/browserEnvironment.js";
 
 export type SidebarTaskOrganizeBy = "grouped" | "project" | "chronological" | "worktrees";
 export type SidebarTaskSortBy = "created" | "updated";
+export type SidebarContentFocus = "all" | "projects" | "worktrees" | "chats";
 
 interface SidebarTaskPreferences {
   organizeBy: SidebarTaskOrganizeBy;
   sortBy: SidebarTaskSortBy;
+  focus: SidebarContentFocus;
 }
 
 const SIDEBAR_TASK_PREFERENCES_STORAGE_KEY = "lcode-sidebar-task-preferences";
@@ -14,6 +16,7 @@ const SIDEBAR_TASK_PREFERENCES_STORAGE_KEY = "lcode-sidebar-task-preferences";
 const DEFAULT_SIDEBAR_TASK_PREFERENCES: SidebarTaskPreferences = {
   organizeBy: "project",
   sortBy: "updated",
+  focus: "all",
 };
 
 function isSidebarTaskOrganizeBy(value: unknown): value is SidebarTaskOrganizeBy {
@@ -48,6 +51,9 @@ export function readSidebarTaskPreferences(
       sortBy: isSidebarTaskSortBy(parsed.sortBy)
         ? parsed.sortBy
         : DEFAULT_SIDEBAR_TASK_PREFERENCES.sortBy,
+      focus: ["all", "projects", "worktrees", "chats"].includes(parsed.focus ?? "")
+        ? parsed.focus!
+        : "all",
     };
   } catch {
     return DEFAULT_SIDEBAR_TASK_PREFERENCES;
@@ -55,7 +61,7 @@ export function readSidebarTaskPreferences(
 }
 
 export function persistSidebarTaskPreferences(
-  preferences: SidebarTaskPreferences,
+  preferences: Omit<SidebarTaskPreferences, "focus"> & { focus?: SidebarContentFocus },
   storage: BrowserStorageLike | null = getSafeLocalStorage(),
 ) {
   // timeline/排序设置之前只存在 WorkspaceSidebar 的 React state 里。
@@ -67,6 +73,7 @@ export function persistSidebarTaskPreferences(
       JSON.stringify({
         organizeBy: preferences.organizeBy,
         sortBy: preferences.sortBy,
+        focus: preferences.focus ?? readSidebarTaskPreferences(storage).focus,
       }),
     );
   } catch {

@@ -54,10 +54,9 @@ test(
       await page.waitForFunction(
         () => document.querySelector('[data-testid="session-wsl"]')?.textContent === "offline",
       );
-      await page
-        .getByTestId("errors")
-        .getByText("remote-workspace-disconnected", { exact: true })
-        .waitFor();
+      // 未连接是正常来源状态，不应污染真实读取错误；已知工作树仍需保留。
+      assert.equal(await page.getByTestId("errors").textContent(), "");
+      await page.getByTestId("worktrees").getByText("wsl-tree", { exact: true }).waitFor();
       assert.equal(await page.getByTestId("session-ssh").textContent(), "session-0");
       assert.equal(await page.getByTestId("session-docker").textContent(), "session-2");
       await page.evaluate(() => window.__catalogFixture.reconnect());

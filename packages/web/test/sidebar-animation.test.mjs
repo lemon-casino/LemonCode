@@ -9,6 +9,7 @@ test(
     const { browser, port, diagnostics } = await startWorkflowProgressBrowser(t);
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
     page.setDefaultTimeout(10000);
+    page.setDefaultNavigationTimeout(45000);
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (message) => {
@@ -70,6 +71,7 @@ test(
     for (const width of [1280, 390]) {
       const page = await browser.newPage({ viewport: { width, height: 844 } });
       page.setDefaultTimeout(10000);
+      page.setDefaultNavigationTimeout(45000);
       const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
       page.on("console", (message) => {

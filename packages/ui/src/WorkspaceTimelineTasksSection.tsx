@@ -39,6 +39,8 @@ interface TimelineTaskItemHandlers {
 }
 
 export interface SidebarTimelineGroup {
+  contextSectionId?: string;
+  indent?: boolean;
   key: string;
   collapsed?: boolean;
   header?: ReactNode;
@@ -54,10 +56,12 @@ export function WorkspaceTimelineTasksSection({
   taskSortBy,
   groupByDate = true,
   taskRowVariant = "timeline",
+  taskSourceLabel,
   emptyMessage,
   onSelectTask,
   taskFilter,
   buildGroups,
+  onItemsChange,
 }: {
   workspaceTabs: WorkspaceTabState[];
   activeWorkspacePath: string;
@@ -66,6 +70,7 @@ export function WorkspaceTimelineTasksSection({
   taskSortBy: "created" | "updated";
   groupByDate?: boolean;
   taskRowVariant?: "default" | "timeline";
+  taskSourceLabel?: (task: LCodeTaskMeta) => string | undefined;
   emptyMessage?: string;
   onSelectTask: (
     targetWorkspacePath: string,
@@ -75,6 +80,7 @@ export function WorkspaceTimelineTasksSection({
   ) => void;
   taskFilter?: (task: LCodeTaskMeta) => boolean;
   buildGroups?: (tasks: LCodeTaskMeta[]) => SidebarTimelineGroup[];
+  onItemsChange?: (tasks: LCodeTaskMeta[]) => void;
 }) {
   const { intl, locale } = useLCodeIntl();
   const baseServices = useBaseWorkspaceServices();
@@ -190,6 +196,9 @@ export function WorkspaceTimelineTasksSection({
       .sort((left, right) => compareLCodeTaskListItems(left, right, taskSortBy));
   }, [localItems, remoteItems, taskSortBy, taskFilter]);
   const items = buildGroups ? sortedItems : sortedItems.slice(0, visibleTaskLimit);
+  useEffect(() => {
+    onItemsChange?.(sortedItems);
+  }, [onItemsChange, sortedItems]);
   const itemByKey = useMemo(() => {
     const nextItemByKey = new Map<string, LCodeTaskMeta>();
     for (const item of items) {
@@ -615,7 +624,10 @@ export function WorkspaceTimelineTasksSection({
   }
 
   return (
-    <div className="flex min-h-0 flex-col">
+    <div
+      className="flex min-h-0 flex-col"
+      data-testid={buildGroups && onItemsChange ? "workspace-list" : undefined}
+    >
       {renamingItemKey !== null ? (
         <TaskRenameDialog
           open
@@ -688,14 +700,47 @@ export function WorkspaceTimelineTasksSection({
             {timelineGroups.map((group) => {
               const labelMessage = group.label ? getTaskTimelineGroupMessage(group.label) : null;
               return (
-                <li key={group.key} className="space-y-0.5">
+                <li
+                  key={group.key}
+                  className="space-y-0.5"
+                  onContextMenu={(event) => {
+                    if (
+                      !group.contextSectionId ||
+                      (event.target as HTMLElement).closest(
+                        "[data-task-item-key], [data-sidebar-entry], [data-sidebar-section]",
+                      )
+                    )
+                      return;
+                    // 分区成员间的空白仍以该分区为目标；转交同一标题菜单，不把当前会话当作目标。
+                    event.preventDefault();
+                    event.stopPropagation();
+                    document
+                      .querySelector(
+                        `[data-sidebar-section="${CSS.escape(group.contextSectionId)}"]`,
+                      )
+                      ?.dispatchEvent(
+                        new MouseEvent("contextmenu", {
+                          bubbles: true,
+                          clientX: event.clientX,
+                          clientY: event.clientY,
+                        }),
+                      );
+                  }}
+                >
                   {group.header}
                   {labelMessage ? (
                     <div className="px-3 pt-2 pb-1 text-ui-base font-medium text-foreground-subtle">
                       {intl.formatMessage({ id: labelMessage.id }, labelMessage.values)}
                     </div>
                   ) : null}
-                  <ul className="space-y-0.5" hidden={group.collapsed}>
+                  <ul
+                    className={
+                      group.indent
+                        ? "ml-4 border-l border-border/60 pl-1 space-y-0.5"
+                        : "space-y-0.5"
+                    }
+                    hidden={group.collapsed}
+                  >
                     {group.items.map((item) => {
                       const itemKey = buildTimelineItemKey(
                         item.workspacePath,
@@ -717,6 +762,7 @@ export function WorkspaceTimelineTasksSection({
                           task={item}
                           isPinned={false}
                           variant={taskRowVariant}
+                          sourceLabel={taskSourceLabel?.(item)}
                           isActive={
                             // timeline 是跨 workspace 视图，active 判断必须使用 workspaceKey，避免同路径远端串高亮。
                             buildTaskWorkspaceKey(item.workspacePath, item.workspaceIdentity) ===
