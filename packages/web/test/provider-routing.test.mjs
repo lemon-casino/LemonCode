@@ -21,6 +21,17 @@ for (const [width, locale, theme] of [
       );
       const editor = page.getByTestId("provider-routing-editor");
       await editor.waitFor();
+      const batch = page.getByTestId("api-key-routing-batch");
+      assert.equal(
+        await batch.count(),
+        1,
+        "API providers must expose safe batch routing management",
+      );
+      assert.equal(
+        await page.evaluate(() => window.__routingFixture.pageReads),
+        0,
+        "collapsed batch management must not fetch Key pages",
+      );
       await editor.getByTestId("routing-strategy").click();
       await page.getByTestId("routing-option-primary-backup").click();
       const originalCache = await editor.getByRole("combobox").nth(1).textContent();
@@ -71,6 +82,42 @@ for (const [width, locale, theme] of [
       await page.getByTestId("routing-option-legacy").click();
       await editor.getByTestId("routing-save").click();
       await page.waitForFunction(() => window.__routingFixture.policy === null);
+      await batch.getByTestId("batch-toggle").click();
+      await batch.getByTestId("batch-row-key-0").getByRole("checkbox").check();
+      await batch.getByTestId("batch-pool").fill("team");
+      await batch.getByTestId("batch-weight").fill("3");
+      await batch.getByTestId("batch-cache-group").fill("cache");
+      await batch.getByTestId("batch-cache-ttl").fill("60");
+      await batch.getByTestId("batch-apply").click();
+      await page.waitForFunction(() => window.__routingFixture.metadataSaves === 1);
+      assert.deepEqual(await page.evaluate(() => window.__routingFixture.lastMetadata.target), {
+        type: "ids",
+        keyIds: ["key-0"],
+      });
+      await batch.getByTestId("batch-weight").fill("4");
+      await page.evaluate(() => window.__routingFixture.bumpRevision());
+      await batch.getByTestId("batch-apply").click();
+      await batch.getByRole("alert").waitFor();
+      assert.equal(await page.evaluate(() => window.__routingFixture.metadataSaves), 1);
+      await batch.getByTestId("batch-reload").click();
+      assert.equal(await batch.getByTestId("batch-weight").inputValue(), "");
+      assert.equal(await batch.getByTestId("batch-cache-ttl").inputValue(), "");
+      await batch.getByTestId("batch-next").click();
+      await batch.getByTestId("batch-row-key-25").waitFor();
+      await batch.getByTestId("batch-target-all").check();
+      await batch.getByTestId("batch-pool").fill("shared-team");
+      await batch.getByTestId("batch-apply").click();
+      await page.waitForFunction(() => window.__routingFixture.metadataSaves === 2);
+      assert.deepEqual(await page.evaluate(() => window.__routingFixture.lastMetadata.target), {
+        type: "all",
+      });
+      await page.screenshot({
+        path: `.tmp/provider-routing-ui/${width}-${locale}-batch.png`,
+        fullPage: true,
+      });
+      await batch.getByTestId("batch-clear").click();
+      await page.waitForFunction(() => window.__routingFixture.metadataSaves === 3);
+      assert.equal(await page.evaluate(() => window.__routingFixture.lastMetadata.patch), null);
       assert.equal(
         await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
         true,

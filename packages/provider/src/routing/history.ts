@@ -20,6 +20,7 @@ interface Sample {
 /** 仅记录本 owner 的物理样本。缺少用量、时间跨度或同单位窗口就不生成到期预测。 */
 export class RoutingHistory {
   private readonly samples = new Map<string, Sample[]>();
+  private readonly resources = new Map<string, Sample[]>();
   private key(candidate: RoutingCandidate) {
     return JSON.stringify([candidate.id, candidate.generation]);
   }
@@ -38,6 +39,17 @@ export class RoutingHistory {
       key,
       samples.filter((item) => item.at >= at - OBSERVATION_WINDOW).slice(-MAX_SAMPLES),
     );
+    for (const resource of new Set(
+      candidate.windows.map((window) => JSON.stringify([window.resourceId, window.instanceId])),
+    )) {
+      const readings = this.resources.get(resource) ?? [];
+      this.resources.set(
+        resource,
+        [...readings.filter((item) => item.at >= at - OBSERVATION_WINDOW), sample].slice(
+          -MAX_SAMPLES,
+        ),
+      );
+    }
     return sample;
   }
   project(
@@ -48,14 +60,17 @@ export class RoutingHistory {
     const samples = (this.samples.get(this.key(candidate)) ?? []).filter(
       (item) => item.at >= now - OBSERVATION_WINDOW && item.resolved,
     );
-    if (samples.length < MIN_SAMPLES) return candidate;
-    const statistics = candidate.statistics ?? {
-      samples: samples.length,
-      failureRate: samples.filter((item) => item.failed).length / samples.length,
-      completionMs: samples.reduce((sum, item) => sum + item.elapsed, 0) / samples.length,
-    };
+    const statistics =
+      candidate.statistics ??
+      (samples.length < MIN_SAMPLES
+        ? undefined
+        : {
+            samples: samples.length,
+            failureRate: samples.filter((item) => item.failed).length / samples.length,
+            completionMs: samples.reduce((sum, item) => sum + item.elapsed, 0) / samples.length,
+          });
     const result = { ...candidate, statistics };
-    if (candidate.expiry || now - samples[0]!.at < MIN_OBSERVATION) return result;
+    if (candidate.expiry) return result;
     const expiring = candidate.windows.filter(
       (window) =>
         window.kind === "expiring-balance" &&
@@ -67,8 +82,13 @@ export class RoutingHistory {
         window.unit,
     );
     for (const window of expiring) {
-      const measured = samples.filter(
-        (sample) => sample.usage.actualDemands?.[window.resourceId] !== undefined,
+      const measured = (
+        this.resources.get(JSON.stringify([window.resourceId, window.instanceId])) ?? []
+      ).filter(
+        (sample) =>
+          sample.at >= now - OBSERVATION_WINDOW &&
+          sample.resolved &&
+          sample.usage.actualDemands?.[window.resourceId] !== undefined,
       );
       if (measured.length < MIN_SAMPLES) continue;
       const span = now - measured[0]!.at;
@@ -94,5 +114,14 @@ export class RoutingHistory {
   }
   clear(): void {
     this.samples.clear();
+    this.resources.clear();
+  }
+  nextChange(candidate: RoutingCandidate, now: number): number {
+    return Math.min(
+      Infinity,
+      ...(this.samples.get(this.key(candidate)) ?? [])
+        .map((sample) => sample.at + OBSERVATION_WINDOW + 1)
+        .filter((at) => at > now),
+    );
   }
 }

@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { sparseShape } from "@lcode/shared/config-schema";
 import { isNetworkProxyUrl } from "@lcode/shared/network-proxy";
-import { providerRoutingPolicySchema } from "@lcode/shared/provider-routing";
+import {
+  providerRoutingPolicySchema,
+  apiKeyRoutingMetadataSchema,
+} from "@lcode/shared/provider-routing";
 
 export const providerApiTypeDataSchema = z.enum([
   "anthropic-messages",
@@ -35,6 +38,7 @@ export const providerApiKeyDataSchema = z
     label: z.string().nullable().optional(),
     apiKey: nonBlankRequiredString,
     enabled: z.boolean().optional(),
+    routing: apiKeyRoutingMetadataSchema.optional(),
   })
   .strict();
 

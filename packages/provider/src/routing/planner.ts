@@ -6,9 +6,10 @@ import type {
   RoutingStrategy,
 } from "@lcode/shared/provider-routing";
 import type { RoutingLedger } from "./ledger.js";
-import { routingDemand } from "./values.js";
+import { routingDemand, routingExpiryBenefit } from "./values.js";
 
 export interface RoutingBinding {
+  cacheGroupId?: string;
   routeId: string;
   generation: string;
   turnId?: string;
@@ -19,6 +20,8 @@ export interface RoutingBinding {
   readings?: ReadonlyMap<string, number>;
 }
 export interface PlanningState {
+  orderIndex?: ReadonlyMap<string, number>;
+  directorySize?: number;
   revision: number;
   now: number;
   inFlight: ReadonlyMap<string, number>;
@@ -44,7 +47,7 @@ export function planRouting(
   const excluded: Record<string, string> = Object.create(null),
     available: Record<string, number> = Object.create(null),
     pressures: Record<string, number> = Object.create(null);
-  const rank = new Map(policy.order?.map((id, index) => [id, index]));
+  const rank = state.orderIndex ?? new Map(policy.order?.map((id, index) => [id, index]));
   const listed = candidates
     .map((candidate, index) => ({ candidate, index }))
     .sort(
@@ -81,7 +84,7 @@ export function planRouting(
       const window = state.ledger.reading(original);
       if (window.kind === "informational") continue;
       const left = state.ledger.available(window),
-        demand = routingDemand(request.demands, window.resourceId);
+        demand = routingDemand(request.demands, window.resourceId, window.unit, request.tokens);
       if (left !== undefined) available[window.resourceId] = left;
       const exhausted =
         left === 0 ||
@@ -103,6 +106,7 @@ export function planRouting(
           window.limit !== undefined &&
           window.limit > 0 &&
           demand !== undefined &&
+          (!window.unit?.includes("tokens") || request.tokens?.quality !== "estimated") &&
           fresh(window) &&
           window.stableId !== false &&
           window.kind !== "unknown";
@@ -194,9 +198,11 @@ export function planRouting(
         candidate.statistics!.marginalCost !== undefined && Boolean(candidate.statistics!.currency),
     ) &&
     new Set(routes.map((candidate) => candidate.statistics!.currency)).size === 1;
-  const indexOf = new Map(listed.map((candidate, index) => [candidate.id, index]));
+  const indexOf =
+    state.orderIndex ?? new Map(listed.map((candidate, index) => [candidate.id, index]));
   const ring = (id: string) =>
-    ((indexOf.get(id) ?? 0) - state.cursor + listed.length) % Math.max(1, listed.length);
+    ((indexOf.get(id) ?? 0) - state.cursor + (state.directorySize ?? listed.length)) %
+    Math.max(1, state.directorySize ?? listed.length);
   routes.sort((a, b) => {
     const tier = (softTier.get(a.id) ?? 0) - (softTier.get(b.id) ?? 0);
     if (tier) return tier;
@@ -226,16 +232,7 @@ export function planRouting(
     }
     if (effectiveStrategy === "expiry-first") {
       const benefit = (candidate: RoutingCandidate) =>
-        candidate.expiry &&
-        candidate.expiry.expiresAt > state.now &&
-        candidate.expiry.expiresAt - state.now <= FORECAST_HORIZON
-          ? Math.min(
-              candidate.expiry.predictedWaste,
-              candidate.expiry.resourceId
-                ? (request.demands?.[candidate.expiry.resourceId] ?? 0)
-                : (request.workUnits ?? 0),
-            )
-          : 0;
+        routingExpiryBenefit(candidate, request, state.now);
       const saved = benefit(b) - benefit(a);
       if (saved) return saved;
       if (benefit(a) > 0 && benefit(b) > 0 && a.expiry!.expiresAt !== b.expiry!.expiresAt)
@@ -263,6 +260,7 @@ export function planRouting(
         policy.cacheMode !== "turn-only" &&
         binding.cacheUntil > state.now &&
         best &&
+        !(best.cacheGroupId && best.cacheGroupId === binding.cacheGroupId) &&
         policy.strategy !== "primary-backup" &&
         policy.strategy !== "share-rotation"
       ) {
@@ -336,6 +334,7 @@ export function planRouting(
     }
   }
   return {
+    tiers: Object.fromEntries(softTier),
     revision: state.revision,
     routes: routes.slice(0, 32).map((candidate) => candidate.id),
     effectiveStrategy,

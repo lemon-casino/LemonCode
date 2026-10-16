@@ -1,3 +1,4 @@
+import { apiKeyRoutingMetadataSchema } from "@lcode/shared";
 import type { ProviderApiKey } from "@lcode/provider";
 import { nanoid } from "nanoid/non-secure";
 
@@ -59,8 +60,14 @@ function readJsonKeys(value: unknown, depth = 0): ImportedProviderApiKey[] {
     if (label !== undefined && typeof label !== "string") {
       throw new ProviderApiKeyImportError("invalidFormat");
     }
+    const routing =
+      record.routing === undefined
+        ? undefined
+        : apiKeyRoutingMetadataSchema.safeParse(record.routing);
+    if (routing && !routing.success) throw new ProviderApiKeyImportError("invalidFormat");
     return readJsonKeys(keyValue, depth + 1).map((key) => ({
       ...key,
+      ...(routing?.success ? { routing: routing.data } : {}),
       ...(typeof label === "string" && label.trim() ? { label: label.trim() } : {}),
       enabled: record.enabled !== false,
     }));
@@ -135,6 +142,7 @@ export function mergeProviderApiKeyImport(
       apiKey,
       label: key.label || `API Key ${next.length + 1}`,
       enabled: key.enabled !== false,
+      ...(key.routing ? { routing: key.routing } : {}),
     });
     added += 1;
   }

@@ -211,6 +211,19 @@ export class AiSdkModelExecution {
   private disposed = false;
   private closing?: Promise<void>;
   private readonly apiKeyPools = new ApiKeyPoolRegistry();
+  /** 私有 adapter 观测端口；不经 Renderer 注册，不允许指定凭据或上游 URL。 */
+  observeApiKeyRoutingQuota(
+    providerId: string,
+    snapshot: import("@lcode/shared").ApiKeyQuotaSnapshot,
+  ): void {
+    this.apiKeyPools.observeQuota(providerId, snapshot);
+  }
+  readApiKeyRoutingDiagnostics(
+    providerId: string,
+    input?: Parameters<ApiKeyPoolRegistry["readDiagnostics"]>[1],
+  ) {
+    return this.apiKeyPools.readDiagnostics(providerId, input);
+  }
 
   constructor(config: AiSdkModelExecutionConfig = {}, options: AiSdkModelExecutionOptions = {}) {
     this.env = config.env ?? process.env;
@@ -363,6 +376,11 @@ export class AiSdkModelExecution {
                     lease.observeUsage?.({
                       outcome: "success",
                       workUnits: routingUsage(usage).workUnits,
+                      tokens: {
+                        input: routingUsage(usage).inputTokens,
+                        output: routingUsage(usage).outputTokens,
+                        total: routingUsage(usage).workUnits,
+                      },
                     }),
                   model: speedObservation ? observeModelSpeed(model, speedObservation) : model,
                   get canRotate() {

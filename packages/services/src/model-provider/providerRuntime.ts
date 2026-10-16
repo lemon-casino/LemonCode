@@ -221,6 +221,8 @@ function createSettingsMutationTarget(
 ): ProviderSettingsMutationTarget {
   const configService = configRuntime.configService;
   return {
+    setApiKeyRoutingMetadata: (input, membership) =>
+      configService.setApiKeyRoutingMetadata(input, membership),
     setProviderRouting: (providerId, routing, membership) =>
       configService.setProviderRouting(providerId, routing, membership),
     importProxyProfiles: (text) => configService.importProxyProfiles(text),

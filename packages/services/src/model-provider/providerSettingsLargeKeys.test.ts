@@ -126,6 +126,40 @@ test(
     assert.ok(roundTrip(deleted).bytes < 250_000);
     assert.deepEqual(JSON.parse(await runtime.providerSettings.getApiKeysJson("large-test")), keys);
     assert.ok(events.length > 0 && events.every((bytes) => bytes < 250_000));
+    const batchBase = await runtime.providerSettings.getView();
+    const batchSaved = await runtime.providerSettings.setApiKeyRoutingMetadata({
+      providerId: "large-test",
+      expectedRevision: batchBase.revision,
+      target: { type: "all" },
+      patch: { quotaPoolId: "routing-test-pool", weight: 3 },
+    });
+    assert.ok(roundTrip(batchSaved).bytes < 250_000);
+    const routingPage = await runtime.providerSettings.readApiKeyRoutingPage({
+      providerId: "large-test",
+      offset: 99_975,
+      limit: 25,
+      expectedRevision: batchSaved.revision,
+    });
+    assert.equal(routingPage.total, 100_000);
+    assert.equal(routingPage.rows.length, 25);
+    assert.equal(routingPage.rows[0]!.routing?.quotaPoolId, "routing-test-pool");
+    assert.equal(routingPage.rows[24]!.routing?.weight, 3);
+    assert.equal(JSON.stringify(routingPage).includes(keys[1]!.apiKey), false);
+    assert.ok(roundTrip(routingPage).bytes < 100_000);
+    await assert.rejects(
+      runtime.providerSettings.setApiKeyRoutingMetadata({
+        providerId: "large-test",
+        expectedRevision: batchBase.revision,
+        target: { type: "all" },
+        patch: null,
+      }),
+      /conflict/,
+    );
+    assert.ok((await readFile(personalFilePath, "utf8")).includes("routing-test-pool"));
+    assert.ok(events.every((bytes) => bytes < 250_000));
+    t.diagnostic(
+      `100k batch save response ${roundTrip(batchSaved).bytes} bytes; redacted page ${roundTrip(routingPage).bytes} bytes`,
+    );
     // 明确保存空数组仍可删除全部，不能被摘要的保留标记阻断。
     const cleared = await runtime.providerSettings.savePersonalProviderOverlay(
       "large-test",

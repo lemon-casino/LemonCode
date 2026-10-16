@@ -90,6 +90,7 @@ export function resolveApiKeyAccessKeys(
         ...(entry.label?.trim() ? { label: entry.label.trim() } : {}),
         apiKey,
         enabled: entry.enabled !== false,
+        ...(entry.routing ? { routing: Object.freeze({ ...entry.routing }) } : {}),
       }),
     ];
   });
@@ -464,7 +465,14 @@ function freezeProviderApiKeys(
 ): readonly ProviderApiKey[] | null | undefined {
   if (!apiKeys) return apiKeys;
   if (ownedApiKeyLists.has(apiKeys)) return apiKeys;
-  const frozen = Object.freeze(apiKeys.map((entry) => Object.freeze({ ...entry })));
+  const frozen = Object.freeze(
+    apiKeys.map((entry) =>
+      Object.freeze({
+        ...entry,
+        ...(entry.routing ? { routing: Object.freeze({ ...entry.routing }) } : {}),
+      }),
+    ),
+  );
   ownedApiKeyLists.add(frozen);
   return frozen;
 }

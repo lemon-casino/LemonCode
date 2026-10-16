@@ -1,3 +1,4 @@
+import { ApiKeyRoutingBatchEditor } from "./ApiKeyRoutingBatchEditor.js";
 import { useId, useState } from "react";
 import type { ProviderRoutingPolicy, RoutingStrategy } from "@lcode/shared";
 import { useOptionalServices } from "@/hooks/useServices.js";
@@ -43,12 +44,24 @@ function ConnectedRoutingEditor({ providerId, channelId }: Target) {
   );
   if (!provider) return null;
   return (
-    <RoutingFields
-      key={`${provider.providerId}:${JSON.stringify(provider.effectiveConfig.routing ?? null)}`}
-      policy={provider.effectiveConfig.routing}
-      revision={view.revision}
-      onSave={(revision, policy) => source.save(provider.providerId, revision, policy)}
-    />
+    <>
+      <RoutingFields
+        key={`${provider.providerId}:${JSON.stringify(provider.effectiveConfig.routing ?? null)}`}
+        policy={provider.effectiveConfig.routing}
+        revision={view.revision}
+        onSave={(revision, policy) => source.save(provider.providerId, revision, policy)}
+      />
+      {source.supportsBatchMetadata &&
+        (provider.effectiveConfig.access?.type === "api-key" ||
+          provider.effectiveConfig.access?.type === "zhipu-coding-plan-api-key") && (
+          <ApiKeyRoutingBatchEditor
+            providerId={provider.providerId}
+            revision={view.revision}
+            readPage={source.readKeys}
+            saveMetadata={source.saveKeys}
+          />
+        )}
+    </>
   );
 }
 

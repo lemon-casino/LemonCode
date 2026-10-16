@@ -16,6 +16,9 @@ import {
   ProviderTemplateMap,
   resolveProviderTemplateName,
 } from "./config/index.js";
+import { patchApiKeyRoutingRows, preserveApiKeyRoutingRows } from "./api-key-routing-settings.js";
+import type { SetApiKeyRoutingMetadata } from "@lcode/shared/provider-routing";
+import { isApiKeyAccess, resolveApiKeyAccessKeys } from "./config/provider-config.js";
 import { resolveOwnedOrder } from "./owned-order.js";
 import type { ModelSelection } from "@lcode/shared/model-selection";
 import {
@@ -194,6 +197,23 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
           routing: currentPersonal?.routing,
         }),
       );
+      if (
+        isApiKeyAccess(normalized.access) &&
+        normalized.access.apiKeys &&
+        isApiKeyAccess(currentPersonal?.access)
+      ) {
+        normalized = normalized.overlay(
+          new ProviderConfigValue({
+            access: new ApiKeyAccessConfig({
+              ...normalized.access.toJSON(),
+              apiKeys: preserveApiKeyRoutingRows(
+                normalized.access.apiKeys,
+                currentPersonal.access.apiKeys ?? resolveApiKeyAccessKeys(currentPersonal.access),
+              ),
+            }),
+          }),
+        );
+      }
       if (builtin) {
         if (normalized.group != null && normalized.group !== builtin.group) {
           throw new Error(`Personal Overlay 不能改写 Built-in Provider group: ${providerId}`);
@@ -323,6 +343,33 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
         models: current.models,
         providerOrder: current.providerOrder,
         savedProviderId: providerId,
+      };
+    });
+  }
+
+  async setApiKeyRoutingMetadata(
+    input: SetApiKeyRoutingMetadata,
+    membership: ProviderModelMembership,
+  ): Promise<ProviderConfigLayerSnapshot> {
+    return this.#updatePersonal((current) => {
+      assertMembershipCurrent(membership, input.providerId, current);
+      const provider = current.providers.get(input.providerId);
+      if (!provider || !isApiKeyAccess(provider.access))
+        throw new Error("API Key provider required");
+      const access = provider.access;
+      const keys = access.apiKeys ?? resolveApiKeyAccessKeys(access);
+      const apiKeys = patchApiKeyRoutingRows(keys, input);
+      return {
+        providers: current.providers.set(
+          input.providerId,
+          provider.overlay(
+            new ProviderConfigValue({
+              access: new ApiKeyAccessConfig({ ...access.toJSON(), apiKeys }),
+            }),
+          ),
+        ),
+        models: current.models,
+        providerOrder: current.providerOrder,
       };
     });
   }

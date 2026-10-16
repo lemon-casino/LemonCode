@@ -93,7 +93,7 @@ nodes:
   - id: capability.provider-routing-strategies
     kind: capability
     label: Explicit same-provider connection routing
-    aliases: [连接调度, 可靠优选, 主备接管, 份额轮转, 余量均衡, 到期优先]
+    aliases: [连接调度, 可靠优选, 主备接管, 份额轮转, 余量均衡, 到期优先, 批量Key路由, 共享额度池]
     codeSeeds:
       - file: packages/shared/src/provider-routing.ts
         symbol: providerRoutingPolicySchema
@@ -105,12 +105,21 @@ nodes:
         symbol: ApiKeyPool
       - file: packages/ui/src/settings/ProviderRoutingEditor.tsx
         symbol: ProviderRoutingEditor
+      - file: packages/provider/src/routing/directory.ts
+        symbol: RoutingDirectory
+      - file: packages/shared/src/provider-routing.ts
+        symbol: setApiKeyRoutingMetadataSchema
+      - file: packages/ui/src/settings/ApiKeyRoutingBatchEditor.tsx
+        symbol: ApiKeyRoutingBatchEditor
     invariants:
       - "Absent routing preserves legacy selection. Dedicated policy writes use the existing personal settings owner and preserve key save generations."
       - "ProviderAccounts and the original API key pool own reservations. Planning is read-only; physical response completion releases slots and unverified consumption remains conservative."
       - "Every relevant quota window constrains the same attempt. Only explicit shared resource identities merge account balances."
       - "Turn bindings and portability precede soft cache preferences; unknown TTL never implies a five-minute cache benefit."
       - "Enhanced OAuth negotiates single-attempt-routing-v1 and cannot hide additional model POSTs behind one Runner permit."
+      - "Batch Key metadata uses Settings revision CAS and redacted pages; stale full forms preserve authoritative metadata."
+      - "Token bounds and explicitly shared pools constrain one reservation; toggling policy cannot erase existing debits."
+      - "Directory cohorts are derived from the same Scheduler owner; hot work is measured by distinct cohorts, with worst-case G=N."
   - id: capability.oauth-usage-analytics
     kind: capability
     label: OAuth provider and account usage analytics

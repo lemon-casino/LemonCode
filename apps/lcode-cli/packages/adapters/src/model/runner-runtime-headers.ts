@@ -1,5 +1,6 @@
 import type { ModelRequestAuth } from "@lcode/contracts";
 import { randomUUID } from "node:crypto";
+import { apiKeyTokenBounds } from "./api-key-token-estimate.js";
 import type { RoutingRequest } from "@lcode/provider";
 import { ModelErrorCode, ModelFailureReason, ModelProtocolError } from "@lcode/contracts";
 import type { AiSdkModelTextRequest, ResolvedAiSdkModel } from "./runner-runtime.js";
@@ -22,8 +23,13 @@ export async function resolveModelForAttempt(input: {
   signal?.throwIfAborted();
   const boundModel = input.resolveModel();
   const trace = input.request.traceContext;
+  const tokens = apiKeyTokenBounds(
+    boundModel.properties?.contextWindow,
+    input.request.maxOutputTokens,
+  );
   const context: RoutingRequest = {
     attemptId: randomUUID(),
+    modelKey: String(boundModel.modelId),
     scopeKey: JSON.stringify([
       trace?.attributes?.workspaceIdentity ?? trace?.attributes?.workspacePath ?? null,
       trace?.sessionId ?? trace?.traceId ?? randomUUID(),
@@ -33,7 +39,8 @@ export async function resolveModelForAttempt(input: {
       boundModel.modelId,
     ]),
     turnId: trace?.turnId,
-    workUnits: 4096,
+    tokens,
+    workUnits: tokens.total ?? 4096,
     signal,
   };
   if (!input.request.refreshRuntimeHeadersBeforeAttempt)

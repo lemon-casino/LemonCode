@@ -14,6 +14,19 @@ function expectError(code: ProviderApiKeyImportError["code"]) {
   return (error: unknown) => error instanceof ProviderApiKeyImportError && error.code === code;
 }
 
+test("routing metadata survives JSON import and malformed metadata returns a fixed error", () => {
+  const routing = { quotaPoolId: "team", weight: 3, cacheGroupId: "cache", cacheTtlMs: 60_000 };
+  const imported = parseProviderApiKeyImport(JSON.stringify([{ apiKey: "synthetic", routing }]));
+  assert.deepEqual(imported[0]!.routing, routing);
+  const merged = mergeProviderApiKeyImport([], imported);
+  assert.deepEqual(merged.draft[0]!.routing, routing);
+  assert.throws(
+    () =>
+      parseProviderApiKeyImport(JSON.stringify([{ apiKey: "synthetic", routing: { weight: -1 } }])),
+    expectError("invalidFormat"),
+  );
+});
+
 test("local IDs work without secure-context randomUUID and remain distinct", () => {
   const descriptor = Object.getOwnPropertyDescriptor(globalThis, "crypto");
   try {

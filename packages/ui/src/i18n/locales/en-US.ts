@@ -8142,6 +8142,45 @@ const enUS: Record<string, string> = {
   "settings.routing.reload": "Reload",
   "settings.routing.save": "Save routing strategy",
   "settings.routing.saving": "Saving…",
+  "settings.routing.batch.title": "Batch Key routing",
+  "settings.routing.batch.description":
+    "Assign a quota pool only after confirming that the Keys share allowance. Shares and priorities apply when enhanced routing is enabled. Use confirmed provider rules for cache groups and lifetimes.",
+  "settings.routing.batch.loading": "Loading configuration…",
+  "settings.routing.batch.summary":
+    "Configuration check: {total} Keys, {enabled} enabled, {pools} declared quota pools and {caches} cache groups.",
+  "settings.routing.batch.unavailable": "Configuration unavailable",
+  "settings.routing.batch.all": "Apply to all {total} Keys",
+  "settings.routing.batch.selected": "Current target: {count} Keys",
+  "settings.routing.batch.pool": "Shared quota pool",
+  "settings.routing.batch.weight": "Work share (1–100)",
+  "settings.routing.batch.priority": "Priority (lower first)",
+  "settings.routing.batch.cache-group": "Cache group",
+  "settings.routing.batch.cache-ttl": "Confirmed cache lifetime (seconds)",
+  "settings.routing.batch.clearField": "Clear",
+  "settings.routing.batch.willClear": "Cleared on save",
+  "settings.routing.batch.keep": "Keep current value",
+  "settings.routing.batch.error":
+    "The operation failed or configuration changed. Reload before saving again.",
+  "settings.routing.batch.reload": "Reload",
+  "settings.routing.batch.saving": "Saving…",
+  "settings.routing.batch.apply": "Save selected settings",
+  "settings.routing.batch.clear": "Clear routing settings for target",
+  "settings.routing.batch.enabled": "Enabled",
+  "settings.routing.batch.disabled": "Disabled",
+  "settings.routing.batch.row":
+    "Pool {pool} · Share {weight} · Priority {priority} · Cache {cache} · Lifetime {ttl}",
+  "settings.routing.batch.independent": "Independent",
+  "settings.routing.batch.directoryOrder": "Directory order",
+  "settings.routing.batch.none": "Undeclared",
+  "settings.routing.batch.ttlValue": "{seconds}s",
+  "settings.routing.batch.pages": "Key configuration pages",
+  "settings.routing.batch.previous": "Previous",
+  "settings.routing.batch.page": "{start}–{end} / {total}",
+  "settings.routing.batch.next": "Next",
+  "settings.routing.batch.issue.duplicate-id": "Duplicate Key ID. Correct it in Key management.",
+  "settings.routing.batch.issue.cache-ttl-missing":
+    "No lifetime declared; no cache preference across turns.",
+  "settings.routing.batch.issue.cache-group-missing": "Declare a cache group to use this lifetime.",
 };
 
 export default enUS;

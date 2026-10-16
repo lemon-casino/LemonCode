@@ -1,3 +1,4 @@
+import { apiKeyRoutingMetadataSchema } from "@lcode/shared";
 import type { ProviderApiKey } from "@lcode/provider";
 
 export type ProviderApiKeyState = ProviderApiKey;
@@ -54,6 +55,7 @@ export function normalizeProviderApiKeys(
         ...(key.label?.trim() ? { label: key.label.trim() } : {}),
         apiKey,
         enabled: key.enabled !== false,
+        ...(key.routing ? { routing: apiKeyRoutingMetadataSchema.parse(key.routing) } : {}),
       },
     ];
   });

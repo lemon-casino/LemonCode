@@ -12,6 +12,7 @@ import {
 } from "@lcode/provider";
 import { ApiKeyCooldownQueue } from "./api-key-cooldown-queue.js";
 import { ApiKeyRouting } from "./api-key-routing.js";
+import type { ApiKeyQuotaSnapshot } from "@lcode/shared";
 
 export interface ApiKeyFailoverState {
   readonly failedKeyIds: Set<string>;
@@ -114,8 +115,23 @@ export class ApiKeyPool {
     return this.reserve(context);
   }
 
-  configureRouting(policy?: ProviderRoutingPolicy | null): void {
-    this.routing.configure(policy);
+  configureRouting(policy?: ProviderRoutingPolicy | null, keys = this.sourceKeys): void {
+    this.routing.configure(policy, keys);
+  }
+
+  observeRoutingQuota(snapshot: ApiKeyQuotaSnapshot): void {
+    this.routing.observeQuota(snapshot);
+  }
+  readRoutingDiagnostics(input?: { offset?: number; limit?: number; revision?: number }) {
+    const result = this.routing.readDiagnostics(input);
+    return {
+      ...result,
+      items: result.items.map((item) => ({
+        ...item,
+        authenticationFailed: this.failures.has(item.keyId),
+        cooling: !this.available[this.positions.get(item.keyId)!] && !this.failures.has(item.keyId),
+      })),
+    };
   }
 
   reserve(context?: RoutingRequest): ApiKeyLease {
@@ -180,7 +196,8 @@ export class ApiKeyPool {
       },
       observe: (status, headers = new Headers()) => {
         if (released || this.disposed) return;
-        this.routing.observe(key.id, headers);
+        if (reservation) reservation.observeHeaders(headers);
+        else this.routing.observe(key.id, headers);
         if (status === 429 && !rateObserved) {
           rateObserved = true;
           const hint = readRateLimitHint(headers);
@@ -243,6 +260,7 @@ export class ApiKeyPool {
         this.previous[this.cursor] = index;
       }
       this.available[index] = 1;
+      this.routing.touch(this.keys[index]!.id);
       this.count++;
     }
   }
@@ -251,6 +269,7 @@ export class ApiKeyPool {
     const index = this.positions.get(id);
     if (index === undefined || !this.available[index]) return;
     this.available[index] = 0;
+    this.routing.touch(id);
     this.count--;
     const next = this.next[index]!;
     const previous = this.previous[index]!;
@@ -271,6 +290,15 @@ export class ApiKeyPoolRegistry {
   private readonly finalizer = new FinalizationRegistry<string>((slot) => {
     if (!this.pools.get(slot)?.deref()) this.pools.delete(slot);
   });
+
+  observeQuota(providerId: string, snapshot: ApiKeyQuotaSnapshot): void {
+    const pool = this.current.get(providerId);
+    if (!pool) throw new Error("No active API Key pool");
+    pool.observeRoutingQuota(snapshot);
+  }
+  readDiagnostics(providerId: string, input?: Parameters<ApiKeyPool["readRoutingDiagnostics"]>[0]) {
+    return this.current.get(providerId)?.readRoutingDiagnostics(input) ?? null;
+  }
 
   keysFor(access: ApiKeyAccessConfigObject): readonly ProviderApiKey[] {
     if (!Object.isFrozen(access)) return resolveApiKeyAccessKeys(access);
@@ -316,7 +344,7 @@ export class ApiKeyPoolRegistry {
       this.pools.set(slot, new WeakRef(pool));
       this.finalizer.register(pool, slot);
     }
-    pool.configureRouting(routing);
+    pool.configureRouting(routing, keys);
     this.current.set(providerId, pool);
     return pool;
   }

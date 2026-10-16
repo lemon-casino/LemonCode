@@ -1,6 +1,15 @@
 /* oxlint-disable max-lines -- Settings/Selection Facade 共享同一套 Registry 投影与写入边界。 */
 import type { ConfigValidationIssue } from "./config-overlay.js";
-import { setProviderRoutingSchema, type SetProviderRouting } from "@lcode/shared/provider-routing";
+import {
+  setProviderRoutingSchema,
+  setApiKeyRoutingMetadataSchema,
+  readApiKeyRoutingPageSchema,
+  type ReadApiKeyRoutingPage,
+  type SetApiKeyRoutingMetadata,
+  type SetProviderRouting,
+} from "@lcode/shared/provider-routing";
+import { readApiKeyRoutingRows } from "./api-key-routing-settings.js";
+import { isApiKeyAccess, resolveApiKeyAccessKeys } from "./config/provider-config.js";
 import type { ProxyProfile } from "@lcode/shared/network-proxy";
 import type { AccountModelCatalog } from "@lcode/shared/model-catalog";
 import type { ProviderModelMembership } from "./config-service.js";
@@ -49,6 +58,10 @@ export interface ProviderRegistryFacadeSource {
 }
 
 export interface ProviderSettingsMutationTarget {
+  setApiKeyRoutingMetadata?(
+    input: SetApiKeyRoutingMetadata,
+    membership: ProviderModelMembership,
+  ): Promise<unknown>;
   setProviderRouting?(
     providerId: ProviderId,
     routing: ProviderConfigObject["routing"],
@@ -400,6 +413,32 @@ export class ProviderSettingsFacade {
     return this.#mutateProvider(providerId, "set-network", (target) => {
       if (!target.setProviderNetwork) throw new Error("Provider network mutation is unavailable");
       return target.setProviderNetwork(providerId, parsed, this.#modelMembership(providerId));
+    });
+  }
+
+  readApiKeyRoutingPage(input: ReadApiKeyRoutingPage) {
+    const parsed = readApiKeyRoutingPageSchema.parse(input);
+    const view = this.getView();
+    if (parsed.expectedRevision !== undefined && parsed.expectedRevision !== view.revision)
+      throw new Error("Provider Settings revision conflict");
+    const access = view.providers.find((provider) => provider.providerId === parsed.providerId)
+      ?.effectiveConfig.access;
+    if (!isApiKeyAccess(access)) throw new Error("API Key provider required");
+    return readApiKeyRoutingRows(
+      access.apiKeys ?? resolveApiKeyAccessKeys(access),
+      parsed.offset,
+      parsed.limit,
+      view.revision,
+    );
+  }
+  setApiKeyRoutingMetadata(input: SetApiKeyRoutingMetadata): Promise<ProviderSettingsView> {
+    const parsed = setApiKeyRoutingMetadataSchema.parse(input);
+    return this.#mutateProvider(parsed.providerId, "key-routing", (target) => {
+      if (parsed.expectedRevision !== this.getView().revision)
+        throw new Error("Provider Settings revision conflict");
+      if (!target.setApiKeyRoutingMetadata)
+        throw new Error("API Key routing metadata is unavailable");
+      return target.setApiKeyRoutingMetadata(parsed, this.#modelMembership(parsed.providerId));
     });
   }
 
@@ -777,4 +816,3 @@ function createProviderSettingsView(input: {
     providers: Object.freeze(configuredProviders.map(projectProvider)),
   });
 }
-import { isApiKeyAccess } from "./config/index.js";

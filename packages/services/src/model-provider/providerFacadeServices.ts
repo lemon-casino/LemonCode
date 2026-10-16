@@ -43,6 +43,12 @@ export interface ProviderApiKeyProbeEvent extends ProviderApiKeyProbeProgress {
 }
 
 export interface IProviderSettingsService {
+  readApiKeyRoutingPage(
+    input: Parameters<ProviderSettingsFacade["readApiKeyRoutingPage"]>[0],
+  ): Promise<ReturnType<ProviderSettingsFacade["readApiKeyRoutingPage"]>>;
+  setApiKeyRoutingMetadata(
+    input: Parameters<ProviderSettingsFacade["setApiKeyRoutingMetadata"]>[0],
+  ): Promise<ProviderSettingsView>;
   setProviderRouting(
     input: Parameters<ProviderSettingsFacade["setProviderRouting"]>[0],
   ): Promise<ProviderSettingsView>;
@@ -123,13 +129,7 @@ export interface ProviderSettingsConnectivityTestInput {
   readonly mode?: "temporary";
 }
 
-export interface ProviderSettingsConnectivityRequest {
-  readonly workspacePath: string;
-  readonly workspaceIdentity?: string;
-  readonly providerId: ProviderId;
-  readonly modelId: ModelId;
-  readonly mode?: "temporary";
-}
+export type ProviderSettingsConnectivityRequest = ProviderSettingsConnectivityTestInput;
 
 export type ProviderSettingsConnectivityTester = (
   input: ProviderSettingsConnectivityTestInput,
@@ -203,6 +203,15 @@ export function createProviderSettingsService(
     async setProviderNetwork(providerId, network) {
       await ensureReady();
       return compactProviderSettingsView(await facade.setProviderNetwork(providerId, network));
+    },
+    async readApiKeyRoutingPage(input) {
+      await ensureReady();
+      await facade.waitForProviderOperations(input.providerId);
+      return facade.readApiKeyRoutingPage(input);
+    },
+    async setApiKeyRoutingMetadata(input) {
+      await ensureReady();
+      return compactProviderSettingsView(await facade.setApiKeyRoutingMetadata(input));
     },
     async setProviderRouting(input) {
       return compactProviderSettingsView(await facade.setProviderRouting(input));
