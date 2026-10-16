@@ -15,7 +15,8 @@ interface Profile {
   ranked?: RoutingTournament;
   rankDirty?: boolean;
 }
-const PROFILE_LIMIT = 8;
+const PROFILE_LIMIT = 8,
+  PROFILE_MEMBER_BUDGET = 200_000;
 const RANK_THRESHOLD = 128;
 /** 只索引当前需求下等价的目录位置；余额、份额和绑定仍由 Scheduler 拥有。 */
 export class RoutingDirectory {
@@ -61,6 +62,14 @@ export class RoutingDirectory {
     if (profile)
       for (const id of profile.deadlines.takeDue(now)) this.refresh(profile, id, classify);
     if (!profile) {
+      if (
+        this.profiles.size >=
+        Math.min(
+          PROFILE_LIMIT,
+          Math.max(1, Math.floor(PROFILE_MEMBER_BUDGET / Math.max(1, this.ids.length))),
+        )
+      )
+        this.profiles.delete(this.profiles.keys().next().value!);
       profile = {
         request: {
           ...request,
@@ -86,8 +95,6 @@ export class RoutingDirectory {
         profile.ranked = new RoutingTournament(rankings, profile.request);
         this.rankBuilds++;
       }
-      if (this.profiles.size >= PROFILE_LIMIT)
-        this.profiles.delete(this.profiles.keys().next().value!);
     }
     this.profiles.delete(key);
     this.profiles.set(key, profile);
@@ -187,6 +194,10 @@ export class RoutingDirectory {
       builds: this.builds,
       scannedKeys: this.scannedKeys,
       profileCount: this.profiles.size,
+      profileCapacity: Math.min(
+        PROFILE_LIMIT,
+        Math.max(1, Math.floor(PROFILE_MEMBER_BUDGET / Math.max(1, this.ids.length))),
+      ),
       cohortCount: [...this.profiles.values()].reduce(
         (sum, profile) => sum + profile.cohorts.size,
         0,

@@ -1,4 +1,5 @@
 export { RoutingScheduler, type RoutingReservation } from "./scheduler.js";
+export { readRoutingCacheFacts, type RoutingCacheFacts } from "./cache-facts.js";
 export { RoutingError } from "./error.js";
 export {
   RoutingRecovery,

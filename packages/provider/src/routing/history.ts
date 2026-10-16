@@ -5,6 +5,7 @@ import type {
 } from "@lcode/shared/provider-routing";
 
 const OBSERVATION_WINDOW = 15 * 60_000;
+const MAX_BUCKETS = 8192;
 const MAX_SAMPLES = 128;
 const MIN_SAMPLES = 8;
 const MIN_OBSERVATION = 60_000;
@@ -65,6 +66,9 @@ export class RoutingHistory {
         ),
       );
     }
+    // 样本属于可丢弃的统计投影，不能让十万 Key × 模型历史无限累积。
+    for (const map of [this.samples, this.resources])
+      while (map.size > MAX_BUCKETS) map.delete(map.keys().next().value!);
     return sample;
   }
   project(

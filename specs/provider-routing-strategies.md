@@ -1,5 +1,7 @@
 # 供应商连接调度策略
 
+> 2026-10-16 加固增量以 [OAuth 与 API 调度加固](provider-routing-hardening.md) 为准；本页 legacy/隐藏参数兼容承诺已被替代。
+
 批量 API Key 的专项实施与验收见 [provider-routing-api-key-batch.md](./provider-routing-api-key-batch.md)。
 
 状态：2026-10-16 用户授权按本规格实施，测试先行。源码基线：`05c9d6e3`。实现与实际验证见 [本轮记录](./provider-routing-verification.md)；未完成的字段、协议能力和场景不得宣称已提供。

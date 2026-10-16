@@ -160,6 +160,7 @@ export type SetProviderRouting = z.infer<typeof setProviderRoutingSchema>;
 export const routingInvocationSchema = z
   .object({
     capability: z.literal("single-attempt-routing-v1"),
+    createdAt: z.number().finite().nonnegative().optional(),
     workspaceKey: z.string().min(1).max(8192),
     sessionId: z.string().min(1).max(4096),
     attemptId: z.string().min(1).max(4096),
@@ -168,6 +169,15 @@ export const routingInvocationSchema = z
     actorId: z.string().min(1).max(4096).optional(),
     invocationId: z.string().min(1).max(4096).optional(),
     remoteSessionId: z.string().min(1).max(4096).optional(),
+    compatibilityKey: z.string().min(1).max(16384).optional(),
+    tokens: z
+      .strictObject({
+        input: z.number().finite().nonnegative().optional(),
+        output: z.number().finite().nonnegative().optional(),
+        total: z.number().finite().nonnegative().optional(),
+        quality: z.enum(["bound", "estimated"]),
+      })
+      .optional(),
   })
   .strict();
 export type RoutingInvocation = z.infer<typeof routingInvocationSchema>;
@@ -177,7 +187,7 @@ export const routingUsageSchema = z
     replaySafeFailure: z.boolean().optional(),
     statusCode: z.number().int().min(400).max(599).optional(),
     retryAfterMs: z.number().finite().nonnegative().max(86400000).optional(),
-    rateLimitScope: z.enum(["key", "shared"]).optional(),
+    rateLimitScope: z.enum(["key", "model", "pool", "provider", "shared"]).optional(),
     workUnits: z.number().finite().nonnegative().optional(),
     inputTokens: z.number().finite().nonnegative().optional(),
     outputTokens: z.number().finite().nonnegative().optional(),
@@ -238,6 +248,7 @@ export interface RoutingCandidate {
   };
 }
 export interface RoutingRequest {
+  createdAt?: number;
   modelKey?: string;
   attemptId: string;
   scopeKey: string;
@@ -251,7 +262,7 @@ export interface RoutingRequest {
 export interface RoutingFinish {
   statusCode?: number;
   retryAfterMs?: number;
-  rateLimitScope?: "key" | "shared";
+  rateLimitScope?: "key" | "model" | "pool" | "provider" | "shared";
   tokens?: RoutingTokens;
   replaySafeFailure?: boolean;
   actualDemands?: Readonly<Record<string, number>>;

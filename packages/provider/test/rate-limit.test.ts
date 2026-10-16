@@ -16,11 +16,11 @@ test("only explicit Key scope isolates a Key; durations reject malformed and cla
   for (const scope of ["team", "organization", "unknown", ""])
     assert.equal(
       readRateLimitHint(new Headers({ "x-lcode-rate-limit-scope": scope })).scope,
-      "shared",
+      "provider",
     );
   for (const value of ["-1", "NaN", "Infinity", "2x", ""])
     assert.equal(readRateLimitHint(new Headers({ "retry-after-ms": value }), now).delayMs, 1000);
-  assert.equal(readRateLimitHint(new Headers({ "retry-after-ms": "9999999" })).delayMs, 300000);
+  assert.equal(readRateLimitHint(new Headers({ "retry-after-ms": "9999999" })).delayMs, 9999999);
 });
 
 test("common deadlines only extend; cancellation and owner disposal stop waiting", async () => {

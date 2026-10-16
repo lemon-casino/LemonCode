@@ -1,6 +1,7 @@
 import type { RoutingCandidate, RoutingRequest } from "@lcode/shared/provider-routing";
 import type { RoutingBinding } from "./planner.js";
 
+const SOFT_BINDING_LIMIT = 4096;
 interface Entry {
   binding: RoutingBinding;
   valid: boolean;
@@ -103,6 +104,16 @@ export class RoutingBindings {
         release(replaySafeFailure);
       },
     };
+  }
+  /** 可移植且 TTL 已过的闲置软绑定可以丢弃；硬绑定和活跃轮次不按容量清除。 */
+  compact(now: number): void {
+    if (this.current.size <= SOFT_BINDING_LIMIT) return;
+    for (const [scope, entry] of this.current) {
+      if (this.current.size <= SOFT_BINDING_LIMIT) break;
+      if (entry.binding.portability !== "portable" || entry.binding.cacheUntil > now) continue;
+      this.current.delete(scope);
+      this.latest.delete(scope);
+    }
   }
   clear(): void {
     this.current.clear();

@@ -136,10 +136,16 @@ export class RoutingScheduler extends RoutingReservationOwner {
     if (this.closed) throw new RoutingError("owner-stale");
     if (request.deadline !== undefined && request.deadline <= now)
       throw new RoutingError("attempt-expired");
+    if (
+      request.createdAt !== undefined &&
+      (request.createdAt > now + 5000 || request.createdAt + 300000 <= now)
+    )
+      throw new RoutingError("attempt-expired");
     const key = JSON.stringify([request.scopeKey, request.attemptId]);
     const fingerprint = JSON.stringify([
       // 模型也是幂等输入；同 attempt 不能把旧模型的预留借给另一模型。
       request.modelKey,
+      request.createdAt,
       request.turnId,
       request.workUnits,
       request.demands,
@@ -151,6 +157,8 @@ export class RoutingScheduler extends RoutingReservationOwner {
       if (previous.fingerprint !== fingerprint) throw new RoutingError("attempt-conflict");
       return previous.lease;
     }
+    if (this.attempts.size >= 8192)
+      throw new RoutingError("quota-owner-capacity", { phase: "admission" });
     if (expectedRevision !== undefined && expectedRevision !== this.revision)
       throw new RoutingError("policy-conflict");
     for (const candidate of candidates)
@@ -165,6 +173,13 @@ export class RoutingScheduler extends RoutingReservationOwner {
         plan.reason === "binding-blocked"
           ? plan.reason
           : (Object.values(plan.excluded)[0] ?? "no-compatible-route"),
+        {
+          phase: "admission",
+          dispatch: "unsent",
+          ...(Object.values(plan.excluded).includes("route-cooling")
+            ? { retryAt: Math.max(0, ...candidates.map((c) => c.availableAt ?? 0)) || undefined }
+            : {}),
+        },
       );
     const present = new Set(directory ? [] : candidates.map((candidate) => candidate.id));
     const leading = directory ? [] : (this.policy.order?.filter((id) => present.has(id)) ?? []);

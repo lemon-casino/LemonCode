@@ -6,7 +6,7 @@ import type {
   RoutingStrategy,
 } from "@lcode/shared/provider-routing";
 import type { RoutingLedger } from "./ledger.js";
-import { routingDemand } from "./values.js";
+import { routingDemand, routingExpiryBenefit } from "./values.js";
 import { decideRoutingCache } from "./cache-decision.js";
 import { routingScore, compareRoutingScore } from "./ranking.js";
 
@@ -86,6 +86,14 @@ export function planRouting(
     for (const original of candidate.windows) {
       const window = state.ledger.reading(original);
       if (window.kind === "informational") continue;
+      if (window.expiresAt !== undefined && window.expiresAt <= state.now)
+        why ??= "quota-exhausted";
+      if (
+        !window.coordinated &&
+        state.ledger.needsProbe(window, state.now, request) &&
+        state.ledger.probeBlocked(window)
+      )
+        why ??= "reserve-unverifiable";
       const left = state.ledger.available(window),
         demand = routingDemand(request.demands, window.resourceId, window.unit, request.tokens);
       if (left !== undefined) available[window.resourceId] = left;
@@ -162,6 +170,7 @@ export function planRouting(
         (candidate) =>
           candidate.expiry &&
           candidate.expiry.predictedWaste > 0 &&
+          routingExpiryBenefit(candidate, request, state.now) > 0 &&
           candidate.expiry.expiresAt > state.now &&
           candidate.expiry.expiresAt - state.now <= FORECAST_HORIZON,
       )
@@ -291,6 +300,8 @@ export function planRouting(
     if (unknown) {
       routes = [unknown, ...routes.filter((candidate) => candidate !== unknown)];
       reason = "bounded-exploration";
+      if (binding)
+        cacheDecision = { action: unknown.id === binding.routeId ? "keep" : "switch", reason };
     }
   }
   return {

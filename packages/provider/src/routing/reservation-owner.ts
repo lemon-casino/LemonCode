@@ -20,12 +20,15 @@ export interface RoutingReservation {
   finish(result: RoutingFinish): void;
   observeUsage(result: RoutingFinish): void;
 }
+const TERMINAL_ATTEMPT_LIMIT = 4096;
 interface Attempt {
   fingerprint: string;
   lease: RoutingReservation;
   active: boolean;
   dispatched: boolean;
   settled: boolean;
+  confirmed?: boolean;
+  retire?: () => void;
 }
 
 /** 调度 owner 的租约与对账部分；没有第二份状态、队列或 IO。 */
@@ -40,7 +43,7 @@ export abstract class RoutingReservationOwner {
     phase: "reserved" | "dispatched" | "cancelled" | "ended";
     outcome?: RoutingFinish["outcome"];
   };
-  protected readonly ledger = new RoutingLedger();
+  protected readonly ledger: RoutingLedger;
   protected readonly history = new RoutingHistory();
   protected readonly inFlight = new Map<string, number>();
   protected readonly credit = new Map<string, number>();
@@ -61,6 +64,17 @@ export abstract class RoutingReservationOwner {
   }
   protected readonly attempts = new Map<string, Attempt>();
   protected readonly bindings = new RoutingBindings();
+  private readonly terminal = new Map<string, Attempt>();
+  private retainTerminal(key: string, state: Attempt): void {
+    if (!state.settled || !state.confirmed) return;
+    this.terminal.set(key, state);
+    while (this.terminal.size > TERMINAL_ATTEMPT_LIMIT) {
+      const oldest = this.terminal.keys().next().value!;
+      this.terminal.get(oldest)?.retire?.();
+      this.terminal.delete(oldest);
+      this.attempts.delete(oldest);
+    }
+  }
   protected cursor = 0;
   protected revision = 0;
   protected sequence = 0;
@@ -68,7 +82,9 @@ export abstract class RoutingReservationOwner {
   protected policyEpoch = 0;
   protected round = 0;
   protected closed = false;
-  constructor(protected readonly now: () => number) {}
+  constructor(protected readonly now: () => number) {
+    this.ledger = new RoutingLedger(now);
+  }
   protected abstract touchDirectory(id: string): void;
   protected reserveChosen(
     chosen: RoutingCandidate,
@@ -99,7 +115,14 @@ export abstract class RoutingReservationOwner {
     const demand: Record<string, number> = { ...request.demands };
     for (const window of windows) {
       const amount = routingDemand(request.demands, window.resourceId, window.unit, request.tokens);
-      if (amount !== undefined) demand[window.resourceId] = amount;
+      if (
+        window.unit?.includes("tokens") &&
+        request.demands?.[window.resourceId] === undefined &&
+        (request.tokens?.quality !== "bound" || amount === undefined)
+      ) {
+        const bound = this.ledger.available(window) ?? amount;
+        if (bound !== undefined) demand[window.resourceId] = bound;
+      } else if (amount !== undefined) demand[window.resourceId] = amount;
     }
     const plannedIds = new Set(plan.routes);
     const readings = new Map(
@@ -123,6 +146,7 @@ export abstract class RoutingReservationOwner {
     };
     const binding = this.bindings.reserve(request, chosen, sequence, initialBinding);
     const work = request.workUnits ?? 1;
+    this.ledger.reserveProbes(windows, sequence, createdAt, request);
     this.ledger.reserve(windows, sequence, demand);
     this.inFlight.set(chosen.id, (this.inFlight.get(chosen.id) ?? 0) + 1);
     this.round = round;
@@ -137,6 +161,11 @@ export abstract class RoutingReservationOwner {
       dispatched: false,
       settled: false,
       lease: undefined!,
+    };
+    let retired = false;
+    state.retire = () => {
+      retired = true;
+      this.ledger.retire(windows, sequence);
     };
     let workObserved = false;
     const demandsObserved = new Set<string>();
@@ -163,11 +192,14 @@ export abstract class RoutingReservationOwner {
     };
     const observeUsage = (result: RoutingFinish) => {
       if (this.closed) return;
+      if (retired) throw new RoutingError("attempt-expired", { phase: "feedback" });
       validateUsage(result);
       let outcomeChanged = false;
       if (!outcomeObserved && result.outcome !== undefined && result.outcome !== "unknown") {
         outcomeChanged = true;
         outcomeObserved = true;
+        state.confirmed = result.outcome === "success" || result.outcome === "failed";
+        this.retainTerminal(key, state);
         outcome = result.outcome;
         if (this.lastDecision?.sequence === sequence) this.lastDecision.outcome = outcome;
         usage = { ...usage, statusCode: result.statusCode };
@@ -218,6 +250,8 @@ export abstract class RoutingReservationOwner {
       else this.inFlight.delete(chosen.id);
       this.revision++;
       refreshIndex();
+      this.retainTerminal(key, state);
+      this.bindings.compact(this.now());
     };
     const lease: RoutingReservation = {
       routeId: chosen.id,
@@ -241,6 +275,7 @@ export abstract class RoutingReservationOwner {
       cancel: () => {
         if (state.dispatched || state.settled) return;
         state.settled = true;
+        state.confirmed = true;
         this.selections--;
         if (this.lastDecision?.sequence === sequence) this.lastDecision.phase = "cancelled";
         binding.cancel();
@@ -324,6 +359,7 @@ export abstract class RoutingReservationOwner {
     this.inFlight.clear();
     this.bindings.clear();
     this.attempts.clear();
+    this.terminal.clear();
     this.credit.clear();
     this.creditedRound.clear();
     this.pausedCredit.clear();

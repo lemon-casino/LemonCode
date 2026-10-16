@@ -30,7 +30,12 @@ for (const sameGroup of [true, false])
       candidates.map((c) => c.id),
       (id) => candidates.find((c) => c.id === id)!,
     );
-    const first = owner.reserveIndexed({ attemptId: "first", scopeKey: "scope", turnId: "one" });
+    const first = owner.reserveIndexed({
+      attemptId: "first",
+      scopeKey: "scope",
+      turnId: "one",
+      tokens: { total: 1, quality: "bound" },
+    });
     assert.equal(first.routeId, "a");
     first.dispatch();
     first.finish({ outcome: "success", cacheUntil: 10_000 });
@@ -38,7 +43,12 @@ for (const sameGroup of [true, false])
     candidates[1]!.windows[0] = { ...candidates[1]!.windows[0]!, remaining: 82, revision: 2 };
     owner.touchDirectory("a");
     owner.touchDirectory("b");
-    const next = owner.reserveIndexed({ attemptId: "next", scopeKey: "scope", turnId: "two" });
+    const next = owner.reserveIndexed({
+      attemptId: "next",
+      scopeKey: "scope",
+      turnId: "two",
+      tokens: { total: 1, quality: "bound" },
+    });
     assert.equal(next.routeId, sameGroup ? "b" : "a");
     next.cancel();
     owner.dispose();

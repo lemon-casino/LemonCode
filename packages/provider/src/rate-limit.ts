@@ -1,16 +1,28 @@
 export interface RateLimitHint {
-  readonly scope: "key" | "shared";
+  readonly scope: "key" | "model" | "pool" | "provider" | "shared";
   readonly delayMs: number;
 }
-export const MAX_RATE_LIMIT_DELAY_MS = 5 * 60_000;
+export const MAX_RATE_LIMIT_DELAY_MS = 86_400_000;
+
+export function readRateLimitScope(
+  headers: Pick<Headers, "get">,
+): RateLimitHint["scope"] | undefined {
+  const raw = headers.get("x-lcode-rate-limit-scope")?.trim().toLowerCase();
+  return raw === "key" ||
+    raw === "model" ||
+    raw === "pool" ||
+    raw === "provider" ||
+    raw === "shared"
+    ? raw
+    : undefined;
+}
 
 /** 仅信任显式网关作用域契约；剩余额度头或错误文本不能证明每把 Key 有独立额度。 */
 export function readRateLimitHint(
   headers: Pick<Headers, "get">,
   wallNow = Date.now(),
 ): RateLimitHint {
-  const scope =
-    headers.get("x-lcode-rate-limit-scope")?.trim().toLowerCase() === "key" ? "key" : "shared";
+  const scope = readRateLimitScope(headers) ?? "provider";
   const milliseconds = nonNegative(headers.get("retry-after-ms"));
   const retryAfter = headers.get("retry-after")?.trim();
   const seconds = nonNegative(retryAfter ?? null);

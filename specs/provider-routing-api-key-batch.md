@@ -1,5 +1,7 @@
 # 批量 API Key 五策略执行规格
 
+> 2026-10-16 加固增量以 [OAuth 与 API 调度加固](provider-routing-hardening.md) 为准；本页 legacy/隐藏参数兼容承诺已被替代。
+
 本规格补充 `provider-routing-strategies.md`，保留五策略名称和优先级。实施顺序：契约与失败测试 → Token/共享资源预留 → 十万 Key 索引 → 缓存与批量诊断 → 实际回归。缺省 `routing` 或 null 继续原路径，不改变 Key 轮换、失败隔离与保存代次。
 
 后续跨进程共享 owner 与高度分散目录增强见 [补充规格](provider-routing-cross-process.md)；仅在其明确的注入/数据目录边界下替代本文的进程内共享限制。

@@ -22,10 +22,12 @@ export interface SharedQuotaHandle {
   fence: string;
   sequence: number;
   expiresAt: number;
+  provider?: Omit<SharedQuotaHandle, "provider">;
 }
 export interface RoutingQuotaDiagnostic {
   resourceId: string;
   instanceId: string;
+  exploration?: "reserved" | "dispatched";
   readingRemaining?: number;
   limit?: number;
   unit?: string;
@@ -51,6 +53,8 @@ export interface SharedQuotaView {
   reservations: number;
   retainedAttempts: number;
   capacity: number;
+  recoveryCount?: number;
+  recoveryTruncated?: boolean;
   recovery: { resource: string; revision: number; phase: string; retryAt?: number }[];
   resources: RoutingQuotaDiagnostic[];
 }
@@ -58,7 +62,7 @@ export interface SharedQuotaFeedback {
   outcome?: "success" | "failed" | "cancelled" | "unknown";
   statusCode?: number;
   retryAfterMs?: number;
-  rateLimitScope?: "key" | "shared";
+  rateLimitScope?: "key" | "model" | "pool" | "provider" | "shared";
 }
 export interface SharedQuotaCoordinator {
   reserve(input: SharedQuotaInput): Promise<SharedQuotaHandle>;

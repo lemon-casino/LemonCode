@@ -24,6 +24,7 @@ const request = (attemptId: string, turnId = attemptId) => ({
   scopeKey: "workspace/session/actor",
   turnId,
   workUnits: 10,
+  tokens: { total: 10, quality: "bound" as const },
 });
 function answered(
   owner: RoutingScheduler,
