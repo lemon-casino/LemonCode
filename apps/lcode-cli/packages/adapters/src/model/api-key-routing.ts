@@ -14,6 +14,7 @@ import { apiKeyRoutingPolicy } from "./api-key-routing-policy.js";
 const WORK_QUANTUM = 4096;
 /** 原池内的投影；共享资源身份由配置明确声明，不从显示名称或 URL 猜测。 */
 export class ApiKeyRouting {
+  constructor(private readonly coordinated = false) {}
   private scheduler?: RoutingScheduler;
   private signature?: string;
   private configured = false;
@@ -86,6 +87,33 @@ export class ApiKeyRouting {
     const ttl = selectedKey.routing?.cacheGroupId ? selectedKey.routing.cacheTtlMs : undefined;
     return {
       ...lease,
+      sharedQuotaInput:
+        this.coordinated && selectedKey.routing?.quotaPoolId
+          ? {
+              poolId: selectedKey.routing.quotaPoolId,
+              reserveRules: this.policyInput?.reserveRules?.filter(
+                (rule) =>
+                  !chosen.windows.some(
+                    (window) => !window.shared && window.resourceId === rule.resourceId,
+                  ),
+              ),
+              keyId: selectedKey.id,
+              maxInFlight: Math.min(
+                this.policyInput?.maxInFlightPerCandidate ?? 2,
+                chosen.windows.length ? Infinity : 1,
+              ),
+              request: {
+                createdAt: lease.createdAt,
+                attemptId: context.attemptId,
+                scopeKey: context.scopeKey,
+                modelKey: context.modelKey,
+                tokens: context.tokens,
+                demands: context.demands,
+              },
+              windows: this.sharedWindows(selectedKey.routing.quotaPoolId),
+            }
+          : undefined,
+      sharedQuotaWindows: () => this.sharedWindows(selectedKey.routing?.quotaPoolId),
       observeHeaders: (headers: Headers) => this.observe(lease.routeId, headers, selectedKey),
       finish: (result: RoutingFinish) =>
         lease.finish({ ...result, ...(ttl ? { cacheUntil: Date.now() + ttl } : {}) }),
@@ -132,6 +160,7 @@ export class ApiKeyRouting {
     const next = snapshot.windows.map((window) => ({
       ...window,
       shared: Boolean(snapshot.poolId),
+      coordinated: Boolean(snapshot.poolId) && this.coordinated,
       resourceId: JSON.stringify([owner, window.resourceId]),
     }));
     const merged = new Map(prior.map((window) => [window.resourceId, window]));
@@ -200,6 +229,11 @@ export class ApiKeyRouting {
           ? { unavailable: "route-cooling" }
           : {}),
     };
+  }
+  sharedWindows(poolId?: string): RoutingWindow[] {
+    return (this.windows.get(JSON.stringify(["pool", poolId])) ?? []).map(
+      ({ shared: _shared, coordinated: _coordinated, ...window }) => window,
+    );
   }
   touch(id: string): void {
     this.scheduler?.touchDirectory(id);

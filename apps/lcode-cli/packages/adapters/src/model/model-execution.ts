@@ -38,6 +38,7 @@ import { createOfficialCodingPlanGatewayFetch } from "./official-coding-plan-gat
 import { normalizeModelTlsFailure } from "./failure-tls.js";
 import { mergeModelRequestHeaders } from "./model-request-headers.js";
 import { observeModelSpeed, type ModelSpeedObservation } from "./model-speed-observation.js";
+import { FileSharedQuotaCoordinator } from "./api-key-shared-quota.js";
 import { ApiKeyPoolRegistry, type ApiKeyPool } from "./api-key-pool.js";
 import { routingUsage } from "./routing-usage.js";
 import { createRoutingFeedback, routingFailure } from "./routing-feedback.js";
@@ -63,6 +64,8 @@ interface AiSdkProviderConfig {
 }
 
 export interface AiSdkModelExecutionConfig {
+  /** 同一数据目录内的跨进程共享池 owner；未注入 SDK 保留进程内行为。 */
+  routingQuotaDirectory?: string;
   /** 执行环境提供的默认来源信息，不属于 Provider 持久化配置。 */
   defaultHeaders?: Readonly<Record<string, string>>;
   env?: EnvRecord;
@@ -111,7 +114,8 @@ export interface ApiKeyBoundAttempt {
   readonly keyId: string;
   readonly model: LanguageModel;
   readonly canRotate: boolean;
-  release(): void;
+  release(): Promise<void> | void;
+  flushRouting?(): Promise<void>;
   observeFailure(
     status: number | undefined,
     headers: Record<string, string> | undefined,
@@ -210,13 +214,24 @@ export class AiSdkModelExecution {
   private readonly networkResources = new NetworkFetchCache();
   private disposed = false;
   private closing?: Promise<void>;
-  private readonly apiKeyPools = new ApiKeyPoolRegistry();
+  private readonly apiKeyPools: ApiKeyPoolRegistry;
   /** 私有 adapter 观测端口；不经 Renderer 注册，不允许指定凭据或上游 URL。 */
   observeApiKeyRoutingQuota(
     providerId: string,
     snapshot: import("@lcode/shared").ApiKeyQuotaSnapshot,
   ): void {
     this.apiKeyPools.observeQuota(providerId, snapshot);
+  }
+  /** 仅受信 adapter 能提交共享 owner 的全局覆盖证明；不注册 Renderer 写入口。 */
+  observeSharedApiKeyQuota(
+    providerId: string,
+    snapshot: import("@lcode/shared").ApiKeyQuotaSnapshot,
+    coversThroughSeq?: number,
+  ) {
+    return this.apiKeyPools.observeSharedQuota(providerId, snapshot, coversThroughSeq);
+  }
+  readSharedApiKeyQuota(providerId: string, poolId: string) {
+    return this.apiKeyPools.readSharedQuota(providerId, poolId);
   }
   readApiKeyRoutingDiagnostics(
     providerId: string,
@@ -227,6 +242,11 @@ export class AiSdkModelExecution {
 
   constructor(config: AiSdkModelExecutionConfig = {}, options: AiSdkModelExecutionOptions = {}) {
     this.env = config.env ?? process.env;
+    this.apiKeyPools = new ApiKeyPoolRegistry(
+      config.routingQuotaDirectory
+        ? new FileSharedQuotaCoordinator(config.routingQuotaDirectory)
+        : undefined,
+    );
     this.defaultHeaders = { ...config.defaultHeaders };
     this.network = { ...config.network };
     this.logger = options.logger;
@@ -386,7 +406,11 @@ export class AiSdkModelExecution {
                   get canRotate() {
                     return lease.canRotate;
                   },
-                  release: () => lease.release(),
+                  flushRouting: () => lease.flushRouting?.() ?? Promise.resolve(),
+                  release: () => {
+                    lease.release();
+                    return lease.flushRouting?.();
+                  },
                   observeFailure: (status, headers, outputCommitted, cancelled) => {
                     lease.observeUsage?.(
                       routingFailure(status, headers, outputCommitted, cancelled),
@@ -599,7 +623,7 @@ export class AiSdkModelExecution {
   disposeAndWait(): Promise<void> {
     if (this.closing) return this.closing;
     this.dispose();
-    this.closing = this.networkResources.disposeAndWait();
+    this.closing = this.networkResources.disposeAndWait().then(() => this.apiKeyPools.drain());
     void this.closing.catch(() => {
       this.closing = undefined;
     });

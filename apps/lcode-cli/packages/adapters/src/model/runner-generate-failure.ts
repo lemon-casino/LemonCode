@@ -230,7 +230,7 @@ export async function handleGenerateFailure(
 
   // 退避期间不持票：槽位让给别人，重试再准入。
   admission.release();
-  attemptState.resolved.apiKeyAttempt?.release();
+  await attemptState.resolved.apiKeyAttempt?.release();
   try {
     await sleep(delayMs, input.request.abortSignal);
   } catch (sleepError) {

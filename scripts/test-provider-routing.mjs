@@ -13,6 +13,7 @@ const groups = [
     /^(?:providerAccounts?.*|providerProxyPersistence|providerRuntimeLargeKeys|providerSettingsLargeKeys)\.test\.ts$/u,
   ],
   ["apps/lcode-cli/packages/adapters/src/model", /^api-key-.*\.test\.ts$/u],
+  ["apps/lcode-cli/packages/bootstrap/src", /^model-config-routing\.test\.ts$/u],
   ["packages/ui/src/settings/model-provider-section", /^providerApiKey(?:s|Import)\.test\.ts$/u],
   [
     "packages/provider-node/src/provider-auth/native",

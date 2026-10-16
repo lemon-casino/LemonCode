@@ -1,0 +1,301 @@
+import { assertSharedWindow } from "./api-key-shared-quota-admission.js";
+import { compactSharedQuota } from "./api-key-shared-quota-compaction.js";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { atomicWritePrivateTextFile, withFileLock } from "@lcode/shared/node";
+import { type RoutingWindow, type RoutingTokens } from "@lcode/shared";
+import {
+  RoutingError,
+  routingDemand,
+  type SharedQuotaCoordinator,
+  type SharedQuotaInput,
+  type SharedQuotaHandle,
+} from "@lcode/provider";
+import {
+  emptySharedQuotaState,
+  expireUnsent,
+  mergeSharedWindows,
+  resourceKey,
+  sharedHeld,
+  sharedInputSchema,
+  sharedWindowsSchema,
+  sharedQuotaStateSchema,
+  sharedQuotaView,
+  type SharedQuotaState,
+} from "./api-key-shared-quota-state.js";
+
+const MAX_ISSUED_AT_SKEW_MS = 5000;
+const DEFAULT_CAPACITY = 4096,
+  RESERVATION_TTL_MS = 30_000,
+  MAX_FILE_BYTES = 8 * 1024 * 1024;
+const hash = (value: unknown) => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+interface Options {
+  now?: () => number;
+  maxLeases?: number;
+  clientId?: string;
+  lockMaxWaitMs?: number;
+}
+/** 文件锁是唯一提交点；HTTP 不持锁，进程退出也不重建共享余额。 */
+export class FileSharedQuotaCoordinator implements SharedQuotaCoordinator {
+  private readonly root: string;
+  private readonly now: () => number;
+  private readonly capacity: number;
+  private readonly clientId: string;
+  constructor(
+    directory: string,
+    private readonly options: Options = {},
+  ) {
+    this.root = resolve(directory);
+    this.now = options.now ?? Date.now;
+    this.capacity = options.maxLeases ?? DEFAULT_CAPACITY;
+    this.clientId = options.clientId ?? randomUUID();
+  }
+  private async transaction<T>(
+    poolKey: string,
+    operation: (state: SharedQuotaState) => T,
+    write = true,
+  ): Promise<T> {
+    if (!/^[a-f0-9]{64}$/u.test(poolKey)) throw new RoutingError("owner-stale");
+    const path = join(this.root, `${poolKey}.json`);
+    try {
+      await mkdir(this.root, { recursive: true, mode: 0o700 });
+      return await withFileLock(
+        path,
+        async () => {
+          let state: SharedQuotaState;
+          try {
+            const raw = await readFile(path, "utf8");
+            if (Buffer.byteLength(raw) > MAX_FILE_BYTES)
+              throw new Error("Quota file exceeds capacity");
+            state = sharedQuotaStateSchema.parse(JSON.parse(raw));
+          } catch (error) {
+            if ((error as { code?: string }).code !== "ENOENT") throw error;
+            state = emptySharedQuotaState();
+          }
+          expireUnsent(state, this.now());
+          compactSharedQuota(state, this.now());
+          const result = operation(state);
+          if (write) {
+            const encoded = JSON.stringify(state);
+            if (Buffer.byteLength(encoded) > MAX_FILE_BYTES)
+              throw new RoutingError("quota-owner-capacity");
+            await atomicWritePrivateTextFile(path, encoded);
+          }
+          return result;
+        },
+        { lockMaxWaitMs: this.options.lockMaxWaitMs },
+      );
+    } catch (error) {
+      if (error instanceof RoutingError) throw error;
+      throw new RoutingError("quota-owner-unavailable", { cause: error });
+    }
+  }
+  reserve(input: SharedQuotaInput): Promise<SharedQuotaHandle> {
+    const parsed = sharedInputSchema.parse(input);
+    if (parsed.request.createdAt + RESERVATION_TTL_MS <= this.now())
+      return Promise.reject(new RoutingError("attempt-expired"));
+    if (parsed.request.createdAt > this.now() + MAX_ISSUED_AT_SKEW_MS)
+      return Promise.reject(new RoutingError("invalid-work-estimate"));
+    const poolKey = hash([parsed.providerId, parsed.poolId]);
+    const leaseId = hash([parsed.request.scopeKey, parsed.request.attemptId]);
+    const keyIdentity = hash(parsed.keyId);
+    const fingerprint = hash([
+      parsed.keyId,
+      parsed.request.modelKey,
+      parsed.request.createdAt,
+      parsed.request.tokens,
+      parsed.request.demands,
+      parsed.reserveRules,
+      parsed.maxInFlight,
+      parsed.windows.map(resourceKey),
+    ]);
+    return this.transaction(poolKey, (state) => {
+      const existing = state.leases[leaseId];
+      if (existing) {
+        if (existing.clientId !== this.clientId || existing.fingerprint !== fingerprint)
+          throw new RoutingError("attempt-conflict");
+        if (existing.state === "expired") throw new RoutingError("attempt-expired");
+        return {
+          poolKey,
+          leaseId,
+          fence: existing.fence,
+          sequence: existing.sequence,
+          expiresAt: existing.expiresAt,
+        };
+      }
+      if (Object.keys(state.leases).length >= this.capacity)
+        throw new RoutingError("quota-owner-capacity");
+      mergeSharedWindows(state, parsed.windows);
+      if (Object.keys(state.resources).length > DEFAULT_CAPACITY)
+        throw new RoutingError("quota-owner-capacity");
+      const active = Object.values(state.leases).filter(
+        (l) => l.keyId === keyIdentity && (l.state === "reserved" || l.state === "dispatched"),
+      );
+      if (active.length >= parsed.maxInFlight) throw new RoutingError("concurrency-full");
+      const demands: Record<string, number> = {};
+      // 完整约束由文件 owner 提供；新进程的空快照不能漏掉已确认长窗。
+      for (const window of Object.values(state.current).map(
+        (key) => state.resources[key]!.window,
+      )) {
+        if (window.kind === "informational") continue;
+        const key = resourceKey(window),
+          current = state.resources[key]!.window;
+        const held = sharedHeld(state, key);
+        const tokens = parsed.request.tokens;
+        const demand = routingDemand(
+          parsed.request.demands,
+          window.resourceId,
+          window.unit,
+          tokens,
+        );
+        assertSharedWindow({
+          window: current,
+          demand,
+          held,
+          now: this.now(),
+          quality: tokens?.quality,
+          rules: parsed.reserveRules,
+        });
+        if (demand !== undefined) demands[key] = demand;
+      }
+      if (
+        parsed.reserveRules?.some(
+          (rule) =>
+            rule.mode === "hard" &&
+            !Object.values(state.current).some(
+              (key) => state.resources[key]!.window.resourceId === rule.resourceId,
+            ),
+        )
+      )
+        throw new RoutingError("reserve-unverifiable");
+      const sequence = ++state.sequence,
+        fence = randomUUID(),
+        expiresAt = parsed.request.createdAt + RESERVATION_TTL_MS;
+      state.leases[leaseId] = {
+        clientId: this.clientId,
+        fingerprint,
+        fence,
+        sequence,
+        expiresAt,
+        keyId: keyIdentity,
+        state: "reserved",
+        demands,
+        actual: {},
+        rules: parsed.reserveRules,
+        tokens: parsed.request.tokens,
+        requested: parsed.request.demands,
+        watched: Object.values(state.current),
+      };
+      return { poolKey, leaseId, fence, sequence, expiresAt };
+    });
+  }
+  private mutate<T>(
+    handle: SharedQuotaHandle,
+    change: (lease: SharedQuotaState["leases"][string], state: SharedQuotaState) => T,
+  ) {
+    return this.transaction(handle.poolKey, (state) => {
+      const lease = state.leases[handle.leaseId];
+      if (
+        !lease ||
+        lease.fence !== handle.fence ||
+        lease.sequence !== handle.sequence ||
+        lease.clientId !== this.clientId
+      )
+        throw new RoutingError("owner-stale");
+      return change(lease, state);
+    });
+  }
+  dispatch(handle: SharedQuotaHandle): Promise<boolean> {
+    if (handle.expiresAt <= this.now()) return Promise.reject(new RoutingError("attempt-expired"));
+    return this.mutate(handle, (lease, state) => {
+      if (lease.state === "expired") throw new RoutingError("attempt-expired");
+      if (lease.state !== "reserved") return false;
+      for (const key of lease.watched ?? Object.keys(lease.demands)) {
+        const window = state.resources[key]!.window;
+        assertSharedWindow({
+          window,
+          demand: routingDemand(lease.requested, window.resourceId, window.unit, lease.tokens),
+          held: sharedHeld(state, key),
+          own: lease.demands[key],
+          now: this.now(),
+          quality: lease.tokens?.quality,
+          rules: lease.rules,
+        });
+      }
+      lease.state = "dispatched";
+      return true;
+    });
+  }
+  cancel(handle: SharedQuotaHandle): Promise<void> {
+    if (handle.expiresAt <= this.now()) return Promise.resolve();
+    return this.mutate(handle, (lease) => {
+      if (lease.state === "reserved") lease.state = "cancelled";
+    });
+  }
+  finish(handle: SharedQuotaHandle): Promise<void> {
+    return this.mutate(handle, (lease) => {
+      if (lease.state === "dispatched") lease.state = "ended";
+    });
+  }
+  rollbackDispatch(handle: SharedQuotaHandle): Promise<void> {
+    return this.mutate(handle, (lease) => {
+      if (lease.state !== "dispatched") return;
+      for (const key of Object.keys(lease.demands)) lease.actual[key] = 0;
+      lease.notSent = true;
+      lease.state = "ended";
+    });
+  }
+  usage(
+    handle: SharedQuotaHandle,
+    actual: Readonly<Record<string, number>>,
+    tokens?: RoutingTokens,
+  ): Promise<void> {
+    // SDK 的部分反馈会显式携带 undefined；缺失量须保持未知，不能当非法值或零消费。
+    if (
+      Object.values(actual).some((n) => !Number.isFinite(n) || n < 0) ||
+      Object.values(tokens ?? {}).some((n) => n !== undefined && (!Number.isFinite(n) || n < 0))
+    )
+      return Promise.reject(new RoutingError("invalid-usage"));
+    return this.mutate(handle, (lease, state) => {
+      if (
+        Object.values(tokens ?? {}).some((value) => value !== undefined) ||
+        Object.keys(actual).length
+      )
+        lease.feedbackComplete = true;
+      if (tokens) {
+        const accepted = (lease.actualTokens ??= {});
+        for (const field of ["input", "output", "total"] as const)
+          if (tokens[field] !== undefined && !Object.hasOwn(accepted, field))
+            accepted[field] = tokens[field];
+      }
+      for (const key of new Set([...Object.keys(lease.demands), ...(lease.watched ?? [])])) {
+        const window = state.resources[key]!.window;
+        const value = Object.hasOwn(actual, window.resourceId)
+          ? actual[window.resourceId]
+          : routingDemand(undefined, window.resourceId, window.unit, lease.actualTokens);
+        if (value !== undefined && !Object.hasOwn(lease.actual, key)) lease.actual[key] = value;
+      }
+    });
+  }
+  observe(
+    providerId: string,
+    poolId: string,
+    windows: readonly RoutingWindow[],
+    coversThroughSeq?: number,
+  ): Promise<void> {
+    sharedInputSchema.shape.providerId.parse(providerId);
+    sharedInputSchema.shape.poolId.parse(poolId);
+    const parsed = sharedWindowsSchema.parse(windows);
+    return this.transaction(hash([providerId, poolId]), (state) =>
+      mergeSharedWindows(state, parsed, coversThroughSeq),
+    );
+  }
+  inspect(providerId: string, poolId: string) {
+    return this.transaction(
+      hash([providerId, poolId]),
+      (state) => sharedQuotaView(state, this.capacity),
+      false,
+    );
+  }
+}

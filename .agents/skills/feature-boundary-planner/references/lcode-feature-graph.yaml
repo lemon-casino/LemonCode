@@ -101,12 +101,16 @@ nodes:
         symbol: RoutingScheduler
       - file: packages/services/src/model-provider/providerAccountScheduler.ts
         symbol: ProviderAccountScheduler
-      - file: apps/lcode-cli/packages/adapters/src/model/api-key-pool.ts
+      - file: apps/lcode-cli/packages/adapters/src/model/api-key-pool-owner.ts
         symbol: ApiKeyPool
       - file: packages/ui/src/settings/ProviderRoutingEditor.tsx
         symbol: ProviderRoutingEditor
       - file: packages/provider/src/routing/directory.ts
         symbol: RoutingDirectory
+      - file: packages/provider/src/routing/tournament.ts
+        symbol: RoutingTournament
+      - file: apps/lcode-cli/packages/adapters/src/model/api-key-shared-quota.ts
+        symbol: FileSharedQuotaCoordinator
       - file: packages/shared/src/provider-routing.ts
         symbol: setApiKeyRoutingMetadataSchema
       - file: packages/ui/src/settings/ApiKeyRoutingBatchEditor.tsx
@@ -119,7 +123,9 @@ nodes:
       - "Enhanced OAuth negotiates single-attempt-routing-v1 and cannot hide additional model POSTs behind one Runner permit."
       - "Batch Key metadata uses Settings revision CAS and redacted pages; stale full forms preserve authoritative metadata."
       - "Token bounds and explicitly shared pools constrain one reservation; toggling policy cannot erase existing debits."
-      - "Directory cohorts are derived from the same Scheduler owner; hot work is measured by distinct cohorts, with worst-case G=N."
+      - "Cohorts and winner trees derive from the same Scheduler owner; dispersed hot selection avoids full scans and reports affected members and index work."
+      - "An injected local shared-quota file owner serializes all pool windows before fetch; dispatched unknown usage is never refunded by TTL or process exit."
+      - "Only a shared owner global coverage watermark retires ended debits; local snapshot revisions cannot wash consumption."
   - id: capability.oauth-usage-analytics
     kind: capability
     label: OAuth provider and account usage analytics

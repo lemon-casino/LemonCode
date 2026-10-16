@@ -31,7 +31,7 @@ export async function closeAttemptBeforeRetryYield(
   admission: AttemptAdmission,
 ): Promise<void> {
   admission.release();
-  state.resolved.apiKeyAttempt?.release();
+  await state.resolved.apiKeyAttempt?.release();
   if (!state.streamIterator || state.streamReachedNaturalEnd) return;
   state.attemptFailed = true;
   state.awaitIteratorClose = true;
@@ -111,7 +111,7 @@ export async function cleanupStreamAttempt(
     }
   } finally {
     state.attemptAbortController.cleanup();
-    state.resolved.apiKeyAttempt?.release();
+    await state.resolved.apiKeyAttempt?.release();
     // 兜底归还（成功 / 抛出 / 消费者提前 return 都到这里）；正常失败路径已在 sleep 前归还，幂等。
     admission.release();
   }

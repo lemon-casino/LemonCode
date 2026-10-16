@@ -260,6 +260,7 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
       if (providerBusinessFinishError) throw providerBusinessFinishError;
       const usage = normalizeUsage(result.totalUsage ?? result.usage);
       attemptState.resolved.apiKeyAttempt?.observeUsage?.(usage);
+      await attemptState.resolved.apiKeyAttempt?.flushRouting?.();
       await attemptState.resolved.observeRoutingUsage?.(usage);
       const toolCalls = normalizeToolCalls(result, input.logger);
       const toolResults = normalizeToolResults(result, toolCalls);
@@ -417,7 +418,7 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
       );
       if (offPeakQueueHold) attempt -= 1;
     } finally {
-      attemptState.resolved.apiKeyAttempt?.release();
+      await attemptState.resolved.apiKeyAttempt?.release();
       admission.release();
     }
   }

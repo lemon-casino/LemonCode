@@ -1,3 +1,5 @@
+import { dirname, join } from "node:path";
+import { resolveSharedLCodeCredentialsPath } from "@lcode/adapters/auth";
 import type {
   AiSdkModelExecutionConfig,
   AiSdkNetworkConfig,
@@ -27,6 +29,10 @@ export function createRuntimeAiSdkModelExecutionConfig(
 ): AiSdkModelExecutionConfig {
   const network = normalizeAiSdkNetworkConfig(options.network);
   return {
+    routingQuotaDirectory: join(
+      dirname(resolveSharedLCodeCredentialsPath({ env })),
+      "routing-quotas-v1",
+    ),
     defaultHeaders: buildCliLCodeSourceHeaders(env, options),
     env,
     ...(network ? { network } : {}),

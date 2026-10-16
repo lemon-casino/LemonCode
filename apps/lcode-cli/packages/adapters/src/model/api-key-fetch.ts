@@ -15,7 +15,16 @@ export function withApiKeyLease(
     // 私有副本可直接写 headers；额外临时 clone 的取消 controller 在 GC 后会断开上游信号。
     request.headers.set("Authorization", `Bearer ${lease.key.apiKey}`);
     if (providerKind === "anthropic") request.headers.set("x-api-key", lease.key.apiKey);
-    if (lease.begin && !lease.begin()) throw new Error("attempt-already-dispatched");
+    if (lease.sharedQuotaInput && !lease.admit) throw new Error("routing-capability-required");
+    if (lease.admit && !(await lease.admit())) throw new Error("attempt-already-dispatched");
+    try {
+      request.signal.throwIfAborted();
+      if (lease.begin && !lease.begin()) throw new Error("attempt-already-dispatched");
+    } catch (error) {
+      // 已持久化许可但尚未调用 fetch，只有此处能证明全局消费为零。
+      await lease.rollbackDispatch?.();
+      throw error;
+    }
     let response: Response;
     try {
       response = await fetch(request);
