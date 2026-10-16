@@ -1,16 +1,5 @@
 /** English translations */
 const enUS: Record<string, string> = {
-  "settings.startupAnimation.title": "Startup animation",
-  "settings.startupAnimation.description":
-    "Plays only in the first desktop window on cold launch. Full video requires explicitly imported local test media; otherwise the simple animation is used. Mobile and remote recovery go directly to the project.",
-  "settings.startupAnimation.mode": "Playback",
-  "settings.startupAnimation.simple": "Simple",
-  "settings.startupAnimation.cinematic": "Full animation",
-  "settings.startupAnimation.off": "Off",
-  "settings.startupAnimation.volume": "Video volume",
-  "settings.startupAnimation.muted": "Muted",
-  "settings.startupAnimation.preview": "Preview animation",
-  "settings.startupAnimation.saveFailed": "Could not save. Please try again.",
   "settings.tokenUsageStatusBar.title": "Token usage status bar",
   "settings.tokenUsageStatusBar.description":
     "Keep session usage, context and output speed together. Preferences save automatically and follow your theme.",

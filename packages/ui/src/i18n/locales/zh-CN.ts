@@ -1,16 +1,5 @@
 /** 中文翻译 */
 const zhCN: Record<string, string> = {
-  "settings.startupAnimation.title": "启动动画",
-  "settings.startupAnimation.description":
-    "仅桌面冷启动首窗播放。完整视频需显式导入本地验证素材；不可用时显示简洁动画。手机和远控恢复直接进入项目。",
-  "settings.startupAnimation.mode": "播放方式",
-  "settings.startupAnimation.simple": "简洁动画",
-  "settings.startupAnimation.cinematic": "完整动画",
-  "settings.startupAnimation.off": "关闭",
-  "settings.startupAnimation.volume": "视频音量",
-  "settings.startupAnimation.muted": "静音",
-  "settings.startupAnimation.preview": "预览动画",
-  "settings.startupAnimation.saveFailed": "保存失败，请重试。",
   "settings.tokenUsageStatusBar.title": "Token 用量状态栏",
   "settings.tokenUsageStatusBar.description":
     "集中查看当前会话的用量、上下文和输出速度。设置自动保存，并跟随界面主题。",
