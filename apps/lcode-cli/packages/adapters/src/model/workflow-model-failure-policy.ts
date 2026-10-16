@@ -116,6 +116,8 @@ export function retryAllowedByFailurePolicy(
   retryBudget: ModelRetryBudget | undefined,
   providerCode: string | undefined,
 ): boolean {
+  // 路由/存储失败不能被 workflow 的通用 unknown 重试策略转换成重复 POST。
+  if (failure.routing) return isRetryableFailure(failure);
   if (!isUnboundedRetryBudget(retryBudget)) return isRetryableFailure(failure);
   return resolveWorkflowModelFailurePolicy(failure, providerCode).decision === "retry";
 }

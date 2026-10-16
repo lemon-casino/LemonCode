@@ -42,13 +42,17 @@ export interface RoutingQuotaDiagnostic {
   available?: number;
 }
 export interface SharedQuotaView {
+  asOf: number;
+  resourceCount: number;
+  resourcesTruncated: boolean;
   source: "shared-owner";
   sequence: number;
   inFlight: number;
   reservations: number;
   retainedAttempts: number;
   capacity: number;
-  resources: { resourceId: string; instanceId: string; available?: number; held: number }[];
+  recovery: { resource: string; revision: number; phase: string; retryAt?: number }[];
+  resources: RoutingQuotaDiagnostic[];
 }
 export interface SharedQuotaFeedback {
   outcome?: "success" | "failed" | "cancelled" | "unknown";

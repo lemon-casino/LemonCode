@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { apiKeyQuotaSnapshotSchema, providerRoutingPolicySchema } from "@lcode/shared";
-import { RoutingError, routingDemand, type SharedQuotaView } from "@lcode/provider";
+import { RoutingError, RoutingRecovery, routingDemand } from "@lcode/provider";
 const amount = z.number().finite().nonnegative();
 const identifier = z.string().min(1).max(256);
 const counts = z.record(z.string(), amount);
@@ -32,7 +32,19 @@ export const sharedInputSchema = z.strictObject({
   windows: sharedWindowsSchema,
 });
 export const sharedQuotaStateSchema = z.strictObject({
-  schemaVersion: z.literal(1),
+  schemaVersion: z.literal(2),
+  recovery: z.record(
+    z.string(),
+    z.strictObject({
+      revision: z.number().int().nonnegative(),
+      retryAt: amount,
+      phase: z.enum(["healthy", "cooling", "probing", "uncertain"]),
+      probe: identifier.optional(),
+      dispatched: z.boolean().optional(),
+      physicalEnded: z.boolean().optional(),
+      outcome: z.enum(["success", "failed", "cancelled"]).optional(),
+    }),
+  ),
   sequence: z.number().int().nonnegative(),
   current: z.record(z.string(), z.string()),
   unassigned: z
@@ -73,12 +85,35 @@ export const sharedQuotaStateSchema = z.strictObject({
       watched: z.array(z.string()).max(4096).optional(),
       notSent: z.boolean().optional(),
       feedbackComplete: z.boolean().optional(),
+      recoveryPermit: z
+        .strictObject({
+          token: identifier,
+          versions: z.record(z.string(), z.number().int().nonnegative()),
+          probes: z.array(z.string()).max(4),
+          dispatched: z.boolean().optional(),
+        })
+        .optional(),
     }),
   ),
 });
 export type SharedQuotaState = z.infer<typeof sharedQuotaStateSchema>;
+const legacySharedQuotaStateSchema = sharedQuotaStateSchema
+  .omit({ recovery: true })
+  .extend({ schemaVersion: z.literal(1) });
+export function parseSharedQuotaState(input: unknown): SharedQuotaState {
+  if ((input as { schemaVersion?: unknown })?.schemaVersion === 1)
+    return { ...legacySharedQuotaStateSchema.parse(input), schemaVersion: 2, recovery: {} };
+  return sharedQuotaStateSchema.parse(input);
+}
+export const sharedFeedbackSchema = z.strictObject({
+  outcome: z.enum(["success", "failed", "cancelled", "unknown"]).optional(),
+  statusCode: z.number().int().min(400).max(599).optional(),
+  retryAfterMs: amount.max(86400000).optional(),
+  rateLimitScope: z.enum(["key", "shared"]).optional(),
+});
 export const emptySharedQuotaState = (): SharedQuotaState => ({
-  schemaVersion: 1,
+  schemaVersion: 2,
+  recovery: {},
   sequence: 0,
   current: {},
   resources: {},
@@ -88,7 +123,10 @@ export const resourceKey = (window: { resourceId: string; instanceId: string }) 
   JSON.stringify([window.resourceId, window.instanceId]);
 export function expireUnsent(state: SharedQuotaState, now: number): void {
   for (const lease of Object.values(state.leases))
-    if (lease.state === "reserved" && lease.expiresAt <= now) lease.state = "expired";
+    if (lease.state === "reserved" && lease.expiresAt <= now) {
+      lease.state = "expired";
+      if (lease.recoveryPermit) new RoutingRecovery(state.recovery).cancel(lease.recoveryPermit);
+    }
 }
 export function sharedHeld(state: SharedQuotaState, key: string): number {
   const covered = state.resources[key]?.coveredThrough ?? 0;
@@ -186,27 +224,4 @@ export function mergeSharedWindows(
       if (actual !== undefined && !Object.hasOwn(lease.actual, key)) lease.actual[key] = actual;
     }
   }
-}
-export function sharedQuotaView(state: SharedQuotaState, capacity: number): SharedQuotaView {
-  const leases = Object.values(state.leases);
-  return {
-    source: "shared-owner",
-    sequence: state.sequence,
-    inFlight: leases.filter((l) => l.state === "dispatched").length,
-    reservations: leases.filter((l) => l.state === "reserved" || l.state === "dispatched").length,
-    retainedAttempts: leases.length,
-    capacity,
-    resources: Object.entries(state.resources).map(([key, resource]) => {
-      const held = sharedHeld(state, key);
-      return {
-        resourceId: resource.window.resourceId,
-        instanceId: resource.window.instanceId,
-        held,
-        available:
-          resource.window.remaining === undefined
-            ? undefined
-            : Math.max(0, resource.window.remaining - held),
-      };
-    }),
-  };
 }

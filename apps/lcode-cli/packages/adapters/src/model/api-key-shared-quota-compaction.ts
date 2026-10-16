@@ -11,6 +11,13 @@ export function compactSharedQuota(state: SharedQuotaState, now: number): void {
       delete state.leases[id];
       continue;
     }
+    // 半开结果尚未确认时必须保留原 handle；否则折叠会让迟到成功永远无法释放恢复许可。
+    if (
+      lease.recoveryPermit?.probes.some(
+        (key) => state.recovery[key]?.probe === lease.recoveryPermit!.token,
+      )
+    )
+      continue;
     const watched = (lease.watched ?? Object.keys(lease.demands)).filter(
       (key) => state.resources[key]?.window.kind !== "informational",
     );

@@ -38,6 +38,41 @@ const input = (attemptId: string, extra = {}, createdAt = Date.now()) => ({
   ...extra,
 });
 
+test(
+  "RCD-06 two real processes compete for exactly one shared recovery probe",
+  { timeout: 20000 },
+  async (t) => {
+    const path = await directory(t);
+    const owner = new FileSharedQuotaCoordinator(path);
+    const initial = await owner.reserve(input("failed"));
+    await owner.dispatch(initial);
+    await owner.usage(
+      initial,
+      {},
+      { total: 0 },
+      { outcome: "failed", statusCode: 429, retryAfterMs: 0, rateLimitScope: "shared" },
+    );
+    await owner.finish(initial);
+    const worker = fileURLToPath(new URL("./api-key-shared-quota.fixture.ts", import.meta.url));
+    const run = promisify(execFile);
+    const results = await Promise.all(
+      ["probe-a", "probe-b"].map(async (id) => {
+        const value = input(id);
+        value.request.tokens.total = 10;
+        const result = await run(
+          process.execPath,
+          ["--import", "tsx", worker, path, "dispatch", JSON.stringify(value)],
+          { windowsHide: true, timeout: 15000 },
+        );
+        return JSON.parse(result.stdout) as { ok: boolean; code?: string };
+      }),
+    );
+    assert.equal(results.filter((result) => result.ok).length, 1);
+    assert.equal(results.find((result) => !result.ok)!.code, "route-cooling");
+    assert.equal((await owner.inspect("fixture", "team")).recovery[0]!.phase, "probing");
+  },
+);
+
 test("valid long Key identities and internally scoped window IDs remain supported without storing the Key identity", async (t) => {
   const path = await directory(t),
     owner = new FileSharedQuotaCoordinator(path);

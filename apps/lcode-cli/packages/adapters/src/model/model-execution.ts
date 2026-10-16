@@ -233,6 +233,13 @@ export class AiSdkModelExecution {
   readSharedApiKeyQuota(providerId: string, poolId: string) {
     return this.apiKeyPools.readSharedQuota(providerId, poolId);
   }
+  readApiKeyRoutingState(
+    providerId: string,
+    input?: Parameters<ApiKeyPoolRegistry["readRuntimeDiagnostics"]>[1],
+  ) {
+    return this.apiKeyPools.readRuntimeDiagnostics(providerId, input);
+  }
+
   readApiKeyRoutingDiagnostics(
     providerId: string,
     input?: Parameters<ApiKeyPoolRegistry["readDiagnostics"]>[1],

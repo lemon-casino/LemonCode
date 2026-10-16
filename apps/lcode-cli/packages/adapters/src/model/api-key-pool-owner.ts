@@ -1,5 +1,6 @@
 import {
   RoutingError,
+  RoutingRecovery,
   RateLimitWindow,
   readRateLimitHint,
   waitForRateLimitDelay,
@@ -9,6 +10,7 @@ import {
   // lease 拆分后 usage 回调仍使用 provider 的公开类型，必须保留导入以通过类型检查。
   type RoutingFinish,
 } from "@lcode/provider";
+import { readApiKeySharedDiagnostics } from "./api-key-routing-diagnostics.js";
 import { ApiKeyCooldownQueue } from "./api-key-cooldown-queue.js";
 import { ApiKeyRouting } from "./api-key-routing.js";
 import type { ApiKeyQuotaSnapshot } from "@lcode/shared";
@@ -36,6 +38,7 @@ export class ApiKeyPool {
   private readonly closing = new AbortController();
   private readonly cooling = new ApiKeyCooldownQueue();
   private readonly routing: ApiKeyRouting;
+  private readonly recovery = new RoutingRecovery();
   private readonly ids: readonly string[];
 
   constructor(
@@ -43,8 +46,9 @@ export class ApiKeyPool {
     private readonly state?: ApiKeyFailoverState,
     private readonly shared = new RateLimitWindow(),
     private readonly quota?: { providerId: string; client: ApiKeySharedQuotaClient },
+    private readonly recoveryNow: () => number = Date.now,
   ) {
-    this.routing = new ApiKeyRouting(Boolean(quota));
+    this.routing = new ApiKeyRouting(Boolean(quota), this.recoveryNow);
     this.keys = sourceKeys.filter((key) => key.enabled !== false && key.apiKey.trim().length > 0);
     this.ids = this.keys.map((key) => key.id);
     if (!this.keys.length) throw new Error("No enabled API key is configured");
@@ -152,6 +156,23 @@ export class ApiKeyPool {
     };
   }
 
+  async readRuntimeDiagnostics(input?: { offset?: number; limit?: number; revision?: number }) {
+    const localPreview = this.readRoutingDiagnostics(input);
+    const sharedPools = await readApiKeySharedDiagnostics(
+      this.quota?.providerId ?? "",
+      localPreview.items.flatMap((item) => (item.quotaPoolId ? [item.quotaPoolId] : [])),
+      this.quota?.client.coordinator,
+    );
+    return {
+      asOf: this.recoveryNow(),
+      localPreview,
+      sharedPools,
+      owner: this.routing.readRuntimeDiagnostics(),
+      recovery: this.recovery.inspect(this.recoveryNow()),
+      feedback: this.quota?.client.diagnostics(),
+    };
+  }
+
   reserve(context?: RoutingRequest): ApiKeyLease {
     if (this.disposed) throw new Error("API key pool has been disposed");
     if (this.waitMs() > 0)
@@ -161,8 +182,14 @@ export class ApiKeyPool {
     const probe = this.count === 0;
     const reservation = this.routing.reserve(
       this.ids,
-      (id) => !this.available[this.positions.get(id)!],
+      (id, modelKey) =>
+        !this.available[this.positions.get(id)!] ||
+        !this.recovery.available(
+          this.routing.recoveryResources(id, modelKey).all,
+          this.recoveryNow(),
+        ),
       context,
+      (id, modelKey) => this.recovery.retryAt(this.routing.recoveryResources(id, modelKey).all),
     );
     const index = reservation
       ? this.positions.get(reservation.routeId)!
@@ -170,10 +197,16 @@ export class ApiKeyPool {
         ? this.keys.length - 1
         : this.cursor;
     const key = this.keys[index]!;
+    const resources = this.routing.recoveryResources(key.id, context?.modelKey);
+    const permit = reservation
+      ? this.recovery.reserve(resources.all, String(reservation.sequence), this.recoveryNow())
+      : undefined;
+    if (permit?.probes.length) this.routing.touch(key.id);
     // 原实现收到响应才推进游标，多个并发会命中首 Key；在首个 await 前同步 reserve。
     if (!probe) this.cursor = this.next[index]!;
     if (this.state) this.state.nextIndex = this.cursor;
     this.leases++;
+    let statusCode: number | undefined;
     let rejected = false;
     let released = false;
     let rateObserved = false;
@@ -195,16 +228,46 @@ export class ApiKeyPool {
         : {}),
       ...(reservation
         ? {
-            observeUsage: (usage: RoutingFinish) => reservation.observeUsage(usage),
+            observeUsage: (usage: RoutingFinish) => {
+              if (permit) this.recovery.observe(permit, usage.outcome, this.recoveryNow());
+              reservation.observeUsage(usage);
+            },
             begin: () => {
-              const accepted = reservation.dispatch();
-              if (accepted) started = true;
-              return accepted;
+              if (permit) this.recovery.dispatch(permit, this.recoveryNow());
+              try {
+                const accepted = reservation.dispatch();
+                if (accepted) started = true;
+                return accepted;
+              } catch (error) {
+                if (permit) this.recovery.rollbackUnsent(permit);
+                throw error;
+              }
             },
             end: (success: boolean) => {
               if (ended) return;
               ended = true;
+              if (
+                permit &&
+                started &&
+                !success &&
+                statusCode === undefined &&
+                !context?.signal?.aborted &&
+                !this.closing.signal.aborted &&
+                !reservation.sharedQuotaInput
+              )
+                this.recovery.fail(permit, [resources.model], this.recoveryNow() + 1000);
+              if (permit)
+                this.recovery.finish(
+                  permit,
+                  context?.signal?.aborted || this.closing.signal.aborted
+                    ? "cancelled"
+                    : success
+                      ? "unknown"
+                      : "failed",
+                  this.recoveryNow(),
+                );
               reservation.finish({
+                statusCode,
                 outcome:
                   context?.signal?.aborted || this.closing.signal.aborted
                     ? "cancelled"
@@ -220,8 +283,25 @@ export class ApiKeyPool {
       },
       observe: (status, headers = new Headers()) => {
         if (released || this.disposed) return;
+        statusCode = status;
         if (reservation) reservation.observeHeaders(headers);
         else this.routing.observe(key.id, headers);
+        if (permit && (status === 429 || (status >= 500 && status <= 599))) {
+          if (rateObserved) return;
+          rateObserved = true;
+          const hint = readRateLimitHint(headers);
+          const affected =
+            status === 429
+              ? hint.scope === "shared"
+                ? resources.shared
+                : resources.key
+              : resources.model;
+          if (affected && !reservation?.sharedQuotaInput)
+            this.recovery.fail(permit, [affected], this.recoveryNow() + hint.delayMs);
+          rejected = status === 429 && hint.scope !== "shared";
+          this.routing.touch(key.id);
+          return;
+        }
         if (status === 429 && !rateObserved) {
           rateObserved = true;
           const hint = readRateLimitHint(headers);
@@ -243,7 +323,9 @@ export class ApiKeyPool {
         if (released) return;
         released = true;
         if (reservation && !started) {
+          if (permit) this.recovery.cancel(permit);
           reservation.cancel();
+          if (permit?.probes.length) this.routing.touch(key.id);
         }
         this.leases--;
       },
@@ -257,6 +339,7 @@ export class ApiKeyPool {
     this.failures.clear();
     this.positions.clear();
     this.routing.dispose();
+    this.recovery.clear();
   }
 
   private waitMs(): number {

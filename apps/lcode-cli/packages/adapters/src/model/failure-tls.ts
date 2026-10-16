@@ -22,8 +22,8 @@ export function normalizeModelTlsFailure(error: unknown): unknown {
 export function isTlsFailure(code?: string): boolean {
   const normalized = code?.toUpperCase();
   return Boolean(
-    normalized?.includes("CERT") ||
-    normalized?.includes("TLS") ||
+    /(?:^|_)(?:CERT|CERTIFICATE|TLS)(?:_|$)/u.test(normalized ?? "") ||
+    normalized === MODEL_TLS_VALIDATION_ERROR_CODE ||
     normalized === "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
   );
 }

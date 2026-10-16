@@ -1,3 +1,4 @@
+import { sharedQuotaView } from "./api-key-shared-diagnostics.js";
 import { assertSharedWindow } from "./api-key-shared-quota-admission.js";
 import { compactSharedQuota } from "./api-key-shared-quota-compaction.js";
 import { createHash, randomUUID } from "node:crypto";
@@ -7,6 +8,8 @@ import { atomicWritePrivateTextFile, withFileLock } from "@lcode/shared/node";
 import { type RoutingWindow, type RoutingTokens } from "@lcode/shared";
 import {
   RoutingError,
+  RoutingRecovery,
+  type SharedQuotaFeedback,
   routingDemand,
   type SharedQuotaCoordinator,
   type SharedQuotaInput,
@@ -20,8 +23,8 @@ import {
   sharedHeld,
   sharedInputSchema,
   sharedWindowsSchema,
-  sharedQuotaStateSchema,
-  sharedQuotaView,
+  parseSharedQuotaState,
+  sharedFeedbackSchema,
   type SharedQuotaState,
 } from "./api-key-shared-quota-state.js";
 
@@ -68,7 +71,7 @@ export class FileSharedQuotaCoordinator implements SharedQuotaCoordinator {
             const raw = await readFile(path, "utf8");
             if (Buffer.byteLength(raw) > MAX_FILE_BYTES)
               throw new Error("Quota file exceeds capacity");
-            state = sharedQuotaStateSchema.parse(JSON.parse(raw));
+            state = parseSharedQuotaState(JSON.parse(raw));
           } catch (error) {
             if ((error as { code?: string }).code !== "ENOENT") throw error;
             state = emptySharedQuotaState();
@@ -169,10 +172,18 @@ export class FileSharedQuotaCoordinator implements SharedQuotaCoordinator {
         )
       )
         throw new RoutingError("reserve-unverifiable");
+      const recoveryPermit = new RoutingRecovery(state.recovery).reserve(
+        ["pool", `key:${keyIdentity}`, `model:${hash([keyIdentity, parsed.request.modelKey])}`],
+        leaseId,
+        this.now(),
+      );
+      if (Object.keys(state.recovery).length > DEFAULT_CAPACITY)
+        throw new RoutingError("quota-owner-capacity");
       const sequence = ++state.sequence,
         fence = randomUUID(),
         expiresAt = parsed.request.createdAt + RESERVATION_TTL_MS;
       state.leases[leaseId] = {
+        recoveryPermit,
         clientId: this.clientId,
         fingerprint,
         fence,
@@ -223,24 +234,35 @@ export class FileSharedQuotaCoordinator implements SharedQuotaCoordinator {
           rules: lease.rules,
         });
       }
+      if (lease.recoveryPermit)
+        new RoutingRecovery(state.recovery).dispatch(lease.recoveryPermit, this.now());
       lease.state = "dispatched";
       return true;
     });
   }
   cancel(handle: SharedQuotaHandle): Promise<void> {
     if (handle.expiresAt <= this.now()) return Promise.resolve();
-    return this.mutate(handle, (lease) => {
-      if (lease.state === "reserved") lease.state = "cancelled";
+    return this.mutate(handle, (lease, state) => {
+      if (lease.state === "reserved") {
+        lease.state = "cancelled";
+        if (lease.recoveryPermit) new RoutingRecovery(state.recovery).cancel(lease.recoveryPermit);
+      }
     });
   }
   finish(handle: SharedQuotaHandle): Promise<void> {
-    return this.mutate(handle, (lease) => {
-      if (lease.state === "dispatched") lease.state = "ended";
+    return this.mutate(handle, (lease, state) => {
+      if (lease.state === "dispatched") {
+        lease.state = "ended";
+        if (lease.recoveryPermit)
+          new RoutingRecovery(state.recovery).finish(lease.recoveryPermit, "unknown", this.now());
+      }
     });
   }
   rollbackDispatch(handle: SharedQuotaHandle): Promise<void> {
-    return this.mutate(handle, (lease) => {
+    return this.mutate(handle, (lease, state) => {
       if (lease.state !== "dispatched") return;
+      if (lease.recoveryPermit)
+        new RoutingRecovery(state.recovery).rollbackUnsent(lease.recoveryPermit);
       for (const key of Object.keys(lease.demands)) lease.actual[key] = 0;
       lease.notSent = true;
       lease.state = "ended";
@@ -250,7 +272,10 @@ export class FileSharedQuotaCoordinator implements SharedQuotaCoordinator {
     handle: SharedQuotaHandle,
     actual: Readonly<Record<string, number>>,
     tokens?: RoutingTokens,
+    feedback?: SharedQuotaFeedback,
   ): Promise<void> {
+    const parsedFeedback = sharedFeedbackSchema.safeParse(feedback ?? {});
+    if (!parsedFeedback.success) return Promise.reject(new RoutingError("invalid-usage"));
     // SDK 的部分反馈会显式携带 undefined；缺失量须保持未知，不能当非法值或零消费。
     if (
       Object.values(actual).some((n) => !Number.isFinite(n) || n < 0) ||
@@ -258,6 +283,37 @@ export class FileSharedQuotaCoordinator implements SharedQuotaCoordinator {
     )
       return Promise.reject(new RoutingError("invalid-usage"));
     return this.mutate(handle, (lease, state) => {
+      const recovery = new RoutingRecovery(state.recovery);
+      const observed = parsedFeedback.data;
+      if (lease.recoveryPermit) {
+        if (
+          observed.outcome === "failed" &&
+          observed.statusCode === undefined &&
+          (lease.state === "dispatched" || lease.state === "ended")
+        )
+          recovery.fail(
+            lease.recoveryPermit,
+            Object.keys(lease.recoveryPermit.versions).filter((key) => key.startsWith("model:")),
+            this.now() + 1000,
+          );
+        if (
+          observed.statusCode === 429 ||
+          (observed.statusCode !== undefined && observed.statusCode >= 500)
+        ) {
+          const prefix =
+            observed.rateLimitScope === "shared"
+              ? "pool"
+              : observed.statusCode === 429
+                ? "key:"
+                : "model:";
+          recovery.fail(
+            lease.recoveryPermit,
+            Object.keys(lease.recoveryPermit.versions).filter((key) => key.startsWith(prefix)),
+            this.now() + (observed.retryAfterMs ?? 1000),
+          );
+        }
+        recovery.observe(lease.recoveryPermit, observed.outcome, this.now());
+      }
       if (
         Object.values(tokens ?? {}).some((value) => value !== undefined) ||
         Object.keys(actual).length
@@ -294,7 +350,7 @@ export class FileSharedQuotaCoordinator implements SharedQuotaCoordinator {
   inspect(providerId: string, poolId: string) {
     return this.transaction(
       hash([providerId, poolId]),
-      (state) => sharedQuotaView(state, this.capacity),
+      (state) => sharedQuotaView(state, this.capacity, this.now()),
       false,
     );
   }

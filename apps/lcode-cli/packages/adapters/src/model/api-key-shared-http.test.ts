@@ -23,12 +23,24 @@ for (const mode of ["generate", "stream"] as const)
     { timeout: 15_000 },
     async (t) => {
       let posts = 0;
+      let rejectRequest = false;
       const entered = Promise.withResolvers<void>(),
         release = Promise.withResolvers<void>();
       const server = createServer((request, response) => {
         posts++;
         request.resume();
         entered.resolve();
+        if (rejectRequest) {
+          response.writeHead(429, {
+            "content-type": "application/json",
+            "retry-after-ms": "0",
+            "x-lcode-rate-limit-scope": "shared",
+          });
+          response.end(
+            JSON.stringify({ error: { message: "fixture rate limit", type: "rate_limit_error" } }),
+          );
+          return;
+        }
         void (async () => {
           if (posts === 1) await release.promise;
           if (mode === "stream") {
@@ -105,14 +117,14 @@ for (const mode of ["generate", "stream"] as const)
           },
         ],
       });
-      const generate = (alternate = false) => {
+      const generate = (alternate = false, small = false) => {
         const currentBound = alternate ? otherBound : bound;
         const resolveModel = () =>
           ({
             ...currentBound.resolveRequest({
               options: { maxOutputTokens: 20, reasoningLevel: "medium" },
             }),
-            properties: { contextWindow: 40 },
+            properties: { contextWindow: small ? 5 : 40 },
           }) as unknown as ResolvedAiSdkModel;
         const accounting = createPhysicalRequestAccounting({
           maxRequests: 1,
@@ -186,5 +198,17 @@ for (const mode of ["generate", "stream"] as const)
       );
       const diagnostic = execution.readApiKeyRoutingDiagnostics("fixture", { limit: 2 });
       assert.equal(JSON.stringify(diagnostic).includes("synthetic-"), false);
+      rejectRequest = true;
+      await assert.rejects(generate().promise);
+      assert.equal(posts, 3);
+      rejectRequest = false;
+      const cooling = await execution.readSharedApiKeyQuota("fixture", "team");
+      assert.equal(cooling!.recovery[0]!.phase, "probe-eligible");
+      assert.equal((await generate(false, true).promise).text, "ok");
+      assert.equal(posts, 4);
+      assert.equal(
+        (await execution.readSharedApiKeyQuota("fixture", "team"))!.recovery[0]!.phase,
+        "healthy",
+      );
     },
   );

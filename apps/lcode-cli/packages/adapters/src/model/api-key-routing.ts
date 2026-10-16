@@ -14,7 +14,10 @@ import { apiKeyRoutingPolicy } from "./api-key-routing-policy.js";
 const WORK_QUANTUM = 4096;
 /** 原池内的投影；共享资源身份由配置明确声明，不从显示名称或 URL 猜测。 */
 export class ApiKeyRouting {
-  constructor(private readonly coordinated = false) {}
+  constructor(
+    private readonly coordinated = false,
+    private readonly now: () => number = Date.now,
+  ) {}
   private scheduler?: RoutingScheduler;
   private signature?: string;
   private configured = false;
@@ -25,8 +28,9 @@ export class ApiKeyRouting {
   private readonly windows = new Map<string, RoutingWindow[]>();
   private revision = 0;
   private catalogIds?: readonly string[];
-  private unavailable: (id: string) => boolean = () => false;
+  private unavailable: (id: string, modelKey?: string) => boolean = () => false;
   private context?: RoutingRequest;
+  private availableAt: (id: string, modelKey?: string) => number | undefined = () => undefined;
   get enabled(): boolean {
     return Boolean(this.policyInput && this.scheduler);
   }
@@ -58,7 +62,7 @@ export class ApiKeyRouting {
       return;
     }
     if (this.scheduler) this.scheduler.setPolicy(effective!);
-    else this.scheduler = new RoutingScheduler(effective!);
+    else this.scheduler = new RoutingScheduler(effective!, { now: this.now });
     this.catalogIds = undefined;
   }
 
@@ -68,11 +72,17 @@ export class ApiKeyRouting {
     );
   }
 
-  reserve(ids: readonly string[], unavailable: (id: string) => boolean, request?: RoutingRequest) {
+  reserve(
+    ids: readonly string[],
+    unavailable: (id: string, modelKey?: string) => boolean,
+    request?: RoutingRequest,
+    availableAt: (id: string, modelKey?: string) => number | undefined = () => undefined,
+  ) {
     if (!this.enabled || !this.scheduler) return undefined;
     this.unavailable = unavailable;
+    this.availableAt = availableAt;
     if (this.catalogIds !== ids) {
-      this.scheduler.setDirectory(ids, (id) => this.candidate(id));
+      this.scheduler.setDirectory(ids, (id, input) => this.candidate(id, input?.modelKey));
       this.catalogIds = ids;
     }
     const context = request ?? {
@@ -82,7 +92,7 @@ export class ApiKeyRouting {
     };
     this.context = context;
     const lease = this.scheduler.reserveIndexed(context);
-    const chosen = this.candidate(lease.routeId);
+    const chosen = this.candidate(lease.routeId, context.modelKey);
     const selectedKey = this.byId.get(lease.routeId)!;
     const ttl = selectedKey.routing?.cacheGroupId ? selectedKey.routing.cacheTtlMs : undefined;
     return {
@@ -116,7 +126,7 @@ export class ApiKeyRouting {
       sharedQuotaWindows: () => this.sharedWindows(selectedKey.routing?.quotaPoolId),
       observeHeaders: (headers: Headers) => this.observe(lease.routeId, headers, selectedKey),
       finish: (result: RoutingFinish) =>
-        lease.finish({ ...result, ...(ttl ? { cacheUntil: Date.now() + ttl } : {}) }),
+        lease.finish({ ...result, ...(ttl ? { cacheUntil: this.now() + ttl } : {}) }),
       observeUsage: (result: RoutingFinish) => {
         const actualDemands: Record<string, number> = { ...result.actualDemands };
         const usage = result.tokens;
@@ -211,12 +221,13 @@ export class ApiKeyRouting {
       );
   }
 
-  private candidate(id: string): RoutingCandidate {
+  private candidate(id: string, modelKey?: string): RoutingCandidate {
     const key = this.byId.get(id)!;
     const privateWindows = this.windows.get(JSON.stringify(["key", id])) ?? [];
     return {
       id,
       generation: "pool",
+      availableAt: this.availableAt(id, modelKey),
       portability: "portable",
       quotaGroupId: key.routing?.quotaPoolId,
       cacheGroupId: key.routing?.cacheGroupId,
@@ -225,7 +236,7 @@ export class ApiKeyRouting {
         : privateWindows,
       ...(key.enabled === false
         ? { unavailable: "key-disabled" }
-        : this.unavailable(id)
+        : this.unavailable(id, modelKey)
           ? { unavailable: "route-cooling" }
           : {}),
     };
@@ -234,6 +245,22 @@ export class ApiKeyRouting {
     return (this.windows.get(JSON.stringify(["pool", poolId])) ?? []).map(
       ({ shared: _shared, coordinated: _coordinated, ...window }) => window,
     );
+  }
+  recoveryResources(id: string, modelKey?: string) {
+    const key = JSON.stringify(["key", id]);
+    const model = JSON.stringify(["model", id, modelKey ?? null]);
+    const pool = this.byId.get(id)?.routing?.quotaPoolId;
+    const shared = pool
+      ? this.coordinated
+        ? undefined
+        : JSON.stringify(["pool", pool])
+      : "provider";
+    return {
+      key,
+      model,
+      shared,
+      all: ["provider", key, model, ...(shared && shared !== "provider" ? [shared] : [])],
+    };
   }
   touch(id: string): void {
     this.scheduler?.touchDirectory(id);
@@ -254,7 +281,7 @@ export class ApiKeyRouting {
       throw new Error("policy-conflict");
     const context = this.context ?? { attemptId: "preview", scopeKey: "preview" };
     const items = this.keys.slice(offset, offset + limit).map((key) => {
-      const candidate = this.candidate(key.id);
+      const candidate = this.candidate(key.id, context.modelKey);
       const plan = this.enabled ? this.scheduler?.plan([candidate], context) : undefined;
       return {
         keyId: key.id,
@@ -268,6 +295,7 @@ export class ApiKeyRouting {
         windows: candidate.windows.map((window) => ({
           ...window,
           available: plan?.available[window.resourceId],
+          availableSource: "local-preview" as const,
         })),
         tokenEstimate: context.tokens,
       };
@@ -281,6 +309,9 @@ export class ApiKeyRouting {
       items,
       index: this.scheduler?.indexDiagnostics(),
     };
+  }
+  readRuntimeDiagnostics() {
+    return this.scheduler?.readDiagnostics() ?? null;
   }
   dispose(): void {
     this.scheduler?.dispose();

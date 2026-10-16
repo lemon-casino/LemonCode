@@ -52,6 +52,13 @@ export class ApiKeyPoolRegistry {
     return this.current.get(providerId)?.readRoutingDiagnostics(input) ?? null;
   }
 
+  readRuntimeDiagnostics(
+    providerId: string,
+    input?: Parameters<ApiKeyPool["readRoutingDiagnostics"]>[0],
+  ) {
+    return this.current.get(providerId)?.readRuntimeDiagnostics(input) ?? Promise.resolve(null);
+  }
+
   keysFor(access: ApiKeyAccessConfigObject): readonly ProviderApiKey[] {
     if (!Object.isFrozen(access)) return resolveApiKeyAccessKeys(access);
     const cached = this.normalized.get(access);

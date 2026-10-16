@@ -16,6 +16,7 @@ import {
   parseRetryAfterMs,
   unwrapRetryError,
 } from "./failure-inspection.js";
+import { classifyRoutingFailure } from "./failure-routing.js";
 import { readMappedAiSdkProviderBusinessError } from "./failure-ai-sdk-provider-error.js";
 import { isTlsFailure } from "./failure-tls.js";
 import { isModelStreamIdleTimeoutError } from "./stream-idle-timeout.js";
@@ -39,6 +40,9 @@ export function classifyModelFailure(
   const code = getErrorCode(unwrapped);
   const headers = getResponseHeaders(unwrapped);
   const retryAfterMs = parseRetryAfterMs(headers);
+
+  const routing = classifyRoutingFailure(unwrapped, code, headers, statusCode);
+  if (routing) return routing;
 
   if (code === ModelErrorCode.InvalidModelResponse) {
     return {

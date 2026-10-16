@@ -129,6 +129,8 @@ export function toAdapterError(
     reason: failure.reason,
     requestId: statusContext.requestId,
     retryable: failure.retryable,
+    // 路由原因跨过 adapter 仍需保留；只复制分类器已校验的安全字段。
+    ...(failure.routing ? { routing: failure.routing } : {}),
     // Retry-After 只活在分类结果里，离开 adapter 就丢了；workflow 的配额停止通知
     // 要靠它算 resetAt，所以随归一化上下文带出去。
     ...(failure.retryAfterMs === undefined ? {} : { retryAfterMs: failure.retryAfterMs }),

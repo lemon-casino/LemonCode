@@ -5,6 +5,7 @@ import type {
 } from "@lcode/contracts";
 
 export interface ClassifiedModelFailure {
+  routing?: import("@lcode/shared").RoutingFailureInfo;
   code: ModelErrorCodeType;
   message: string;
   reason: ModelFailureReason;

@@ -1,10 +1,19 @@
-import { RoutingError, type RoutingFinish, type SharedQuotaCoordinator } from "@lcode/provider";
+import {
+  RoutingError,
+  readRateLimitHint,
+  type RoutingFinish,
+  type SharedQuotaCoordinator,
+} from "@lcode/provider";
 import type { ApiKeyLease } from "./api-key-lease.js";
 
-/** 只串行同租约的 IO 反馈；唯一余额和派发状态仍在 coordinator。 */
+const MAX_IO_ATTEMPTS = 3,
+  MAX_FAILED_LEASES = 256,
+  MAX_LEASE_OPERATIONS = 64;
+/** 原租约内有界串行反馈；共享余额与恢复许可唯一归 coordinator，不重试 dispatch/HTTP。 */
 export class ApiKeySharedQuotaClient {
   private readonly pending = new Set<Promise<void>>();
-  private readonly errors: unknown[] = [];
+  private readonly failed = new Map<string, { error: unknown; retry: () => Promise<void> }>();
+  private overflow?: RoutingError;
   constructor(readonly coordinator: SharedQuotaCoordinator) {}
   async prepare(
     providerId: string,
@@ -18,14 +27,38 @@ export class ApiKeySharedQuotaClient {
       await this.coordinator.cancel(handle);
       signal.throwIfAborted();
     }
+    const identity = JSON.stringify([handle.poolKey, handle.leaseId]);
     let requested = false,
       dispatched = false,
       failure: unknown;
+    const operations: Array<() => Promise<void>> = [];
     let tail = Promise.resolve();
-    const enqueue = (operation: () => Promise<void>) => {
-      tail = tail.then(operation).catch((error) => {
-        failure ??= error;
-        this.errors.push(error);
+    const pump = () => {
+      tail = tail.then(async () => {
+        while (operations.length) {
+          let error: unknown;
+          for (let attempt = 0; attempt < MAX_IO_ATTEMPTS; attempt++) {
+            try {
+              await operations[0]!();
+              error = undefined;
+              break;
+            } catch (cause) {
+              error = cause;
+              if (!(cause instanceof RoutingError) || cause.code !== "quota-owner-unavailable")
+                break;
+            }
+          }
+          if (error) {
+            failure = error;
+            if (this.failed.has(identity) || this.failed.size < MAX_FAILED_LEASES)
+              this.failed.set(identity, { error, retry: flush });
+            else this.overflow = new RoutingError("quota-owner-capacity", { phase: "feedback" });
+            return;
+          }
+          operations.shift();
+        }
+        failure = undefined;
+        this.failed.delete(identity);
       });
       const task = tail;
       this.pending.add(task);
@@ -33,7 +66,17 @@ export class ApiKeySharedQuotaClient {
     };
     const flush = async () => {
       await tail;
+      if (operations.length) {
+        pump();
+        await tail;
+      }
       if (failure) throw failure;
+    };
+    const enqueue = (operation: () => Promise<void>) => {
+      if (operations.length >= MAX_LEASE_OPERATIONS)
+        throw new RoutingError("quota-owner-capacity", { phase: "feedback" });
+      operations.push(operation);
+      pump();
     };
     return {
       ...lease,
@@ -41,18 +84,43 @@ export class ApiKeySharedQuotaClient {
         if (requested) return false;
         requested = true;
         await flush();
-        dispatched = await this.coordinator.dispatch(handle);
+        try {
+          dispatched = await this.coordinator.dispatch(handle);
+        } catch (error) {
+          // 文件提交可能已完成但回执丢失；不能再次 dispatch，更不能把未知派发当网络/TLS 重试。
+          if (error instanceof RoutingError && error.code === "quota-owner-unavailable")
+            throw new RoutingError("dispatch-uncertain", {
+              cause: error,
+              scope: "pool",
+              phase: "dispatch",
+              dispatch: "uncertain",
+            });
+          throw error;
+        }
         return dispatched;
       },
       rollbackDispatch: () => this.coordinator.rollbackDispatch(handle),
       observe: (status, headers) => {
         lease.observe(status, headers);
-        if (headers)
-          enqueue(() =>
-            this.coordinator.observe(providerId, input.poolId, [
-              ...(lease.sharedQuotaWindows?.() ?? input.windows),
-            ]),
-          );
+        // 入队时冻结事实；不能等 IO 执行时再读取已切换 pool 的新投影。
+        if (headers) {
+          const windows = (lease.sharedQuotaWindows?.() ?? input.windows).map((window) => ({
+            ...window,
+          }));
+          enqueue(() => this.coordinator.observe(providerId, input.poolId, windows));
+          if (status >= 400) {
+            const hint = readRateLimitHint(headers);
+            const feedback = {
+              outcome: "failed" as const,
+              statusCode: status,
+              retryAfterMs: Math.min(86400000, hint.delayMs),
+              ...(hint.scope === "key" || hint.scope === "shared"
+                ? { rateLimitScope: hint.scope }
+                : {}),
+            };
+            enqueue(() => this.coordinator.usage(handle, {}, undefined, feedback));
+          }
+        }
       },
       end: (success) => {
         lease.end?.(success);
@@ -60,7 +128,15 @@ export class ApiKeySharedQuotaClient {
       },
       observeUsage: (usage: RoutingFinish) => {
         lease.observeUsage?.(usage);
-        enqueue(() => this.coordinator.usage(handle, usage.actualDemands ?? {}, usage.tokens));
+        const actual = { ...usage.actualDemands },
+          tokens = usage.tokens ? { ...usage.tokens } : undefined;
+        const feedback = {
+          outcome: usage.outcome,
+          statusCode: usage.statusCode,
+          retryAfterMs: usage.retryAfterMs,
+          rateLimitScope: usage.rateLimitScope,
+        };
+        enqueue(() => this.coordinator.usage(handle, actual, tokens, feedback));
       },
       release: () => {
         lease.release();
@@ -69,8 +145,29 @@ export class ApiKeySharedQuotaClient {
       flushRouting: flush,
     };
   }
+  diagnostics() {
+    return {
+      pendingOperations: this.pending.size,
+      failedLeases: this.failed.size,
+      overflowed: Boolean(this.overflow),
+      failures: [...this.failed.values()].map((item) => ({
+        code: item.error instanceof RoutingError ? item.error.code : "quota-owner-unavailable",
+        phase: "feedback" as const,
+      })),
+    };
+  }
   async drain(): Promise<void> {
     while (this.pending.size) await Promise.all(this.pending);
-    if (this.errors.length) throw this.errors[0] ?? new RoutingError("quota-owner-unavailable");
+    // retry 会修改失败目录，先冻结本轮范围，避免 close 把后来加入的错误也无限纳入。
+    const failures = Array.from(this.failed.values());
+    for (const item of failures) {
+      try {
+        await item.retry();
+      } catch {
+        /* 原失败仍由同租约持有，下面向真正的 close owner 报告。 */
+      }
+    }
+    if (this.failed.size) throw this.failed.values().next().value!.error;
+    if (this.overflow) throw this.overflow;
   }
 }

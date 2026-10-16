@@ -27,16 +27,29 @@ export async function resolveModelForAttempt(input: {
     boundModel.properties?.contextWindow,
     input.request.maxOutputTokens,
   );
+  // 缓存兼容范围必须覆盖真实远端 attachment 与模型选项，空白 identity 沿路径 fallback。
+  const modelScope = JSON.stringify([
+    boundModel.providerKind,
+    String(boundModel.modelId),
+    boundModel.providerOptions?.apiFormat ?? null,
+    "completion",
+  ]);
   const context: RoutingRequest = {
     attemptId: randomUUID(),
-    modelKey: String(boundModel.modelId),
+    modelKey: modelScope,
     scopeKey: JSON.stringify([
-      trace?.attributes?.workspaceIdentity ?? trace?.attributes?.workspacePath ?? null,
+      (typeof trace?.attributes?.workspaceIdentity === "string" &&
+        trace.attributes.workspaceIdentity.trim()) ||
+        trace?.attributes?.workspacePath ||
+        null,
+      trace?.attributes?.remoteSessionId ?? null,
       trace?.sessionId ?? trace?.traceId ?? randomUUID(),
       trace?.attributes?.executionId ?? null,
       trace?.attributes?.actorId ?? trace?.sessionId ?? null,
       boundModel.providerId,
-      boundModel.modelId,
+      modelScope,
+      input.request.selectedSpeed ?? null,
+      input.request.providerOptions ?? boundModel.providerOptions ?? null,
     ]),
     turnId: trace?.turnId,
     tokens,
