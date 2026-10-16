@@ -140,6 +140,14 @@ export const routingFailureCodeSchema = z.enum([
   "attempt-already-dispatched",
 ]);
 export type RoutingFailureCode = z.infer<typeof routingFailureCodeSchema>;
+export const routingFailureInfoSchema = z.strictObject({
+  code: routingFailureCodeSchema,
+  scope: z.enum(["key", "account", "model", "pool", "provider"]).optional(),
+  phase: z.enum(["admission", "dispatch", "feedback", "storage"]).optional(),
+  retryAt: z.number().finite().nonnegative().optional(),
+  dispatch: z.enum(["unsent", "sent", "uncertain"]).optional(),
+});
+export type RoutingFailureInfo = z.infer<typeof routingFailureInfoSchema>;
 export type ProviderRoutingPolicy = z.infer<typeof providerRoutingPolicySchema>;
 export const setProviderRoutingSchema = z
   .object({
@@ -196,7 +204,13 @@ export interface RoutingWindow {
   /** 共享借记由外部 owner 持有，本地只投影读数。 */
   coordinated?: boolean;
 }
+export interface RoutingCacheDecision {
+  action: "keep" | "switch";
+  reason: string;
+}
 export interface RoutingCandidate {
+  /** 仅使用驱动/受信快照明确提供的跨缓存组重建成本，与到期收益保持同单位。 */
+  cacheSwitchCost?: { amount: number; unit: string };
   quotaGroupId?: string;
   cacheGroupId?: string;
   id: string;
@@ -204,6 +218,8 @@ export interface RoutingCandidate {
   windows: RoutingWindow[];
   portability: "portable" | "account-bound" | "provider-session-bound" | "unknown";
   unavailable?: string;
+  /** 原恢复 owner 的时钟截止点，供目录失效索引使用。 */
+  availableAt?: number;
   maxInFlight?: number;
   health?: "healthy" | "degraded" | "open";
   statistics?: {
@@ -233,6 +249,9 @@ export interface RoutingRequest {
   deadline?: number;
 }
 export interface RoutingFinish {
+  statusCode?: number;
+  retryAfterMs?: number;
+  rateLimitScope?: "key" | "shared";
   tokens?: RoutingTokens;
   replaySafeFailure?: boolean;
   actualDemands?: Readonly<Record<string, number>>;
@@ -246,6 +265,7 @@ export interface RoutingTokens {
   total?: number;
 }
 export interface RoutingPlan {
+  cacheDecision?: RoutingCacheDecision;
   tiers?: Readonly<Record<string, number>>;
   revision: number;
   routes: string[];

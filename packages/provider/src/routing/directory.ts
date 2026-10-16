@@ -33,7 +33,7 @@ export class RoutingDirectory {
   private readonly groups = new Map<string, Set<string>>();
   constructor(
     readonly sourceIds: readonly string[],
-    readonly read: (id: string) => RoutingCandidate,
+    readonly read: (id: string, request?: RoutingRequest) => RoutingCandidate,
     policyOrder?: readonly string[],
   ) {
     const ids = sourceIds;
@@ -95,7 +95,7 @@ export class RoutingDirectory {
     if (profile.rankDirty) {
       const rankings = this.ids.map((id) => {
         this.scannedKeys++;
-        return classify(this.read(id), profile!.request).rank!;
+        return classify(this.read(id, profile!.request), profile!.request).rank!;
       });
       profile.ranked = new RoutingTournament(rankings, profile.request);
       profile.rankDirty = false;
@@ -105,22 +105,24 @@ export class RoutingDirectory {
       for (const id of profile.ranked.takeDue(now)) this.refresh(profile, id, classify);
       const selected = profile.ranked.select(cursor, round);
       this.rankWork = selected.work;
-      for (const id of selected.ids) result.push(this.read(id));
+      for (const id of selected.ids) result.push(this.read(id, request));
     } else
       for (const members of profile.cohorts.values()) {
         const first = members.first(cursor);
-        if (first !== undefined) result.push(this.read(this.ids[first]!));
+        if (first !== undefined) result.push(this.read(this.ids[first]!, request));
         // 可靠/余量的最后平局使用顺序；份额与探索使用环形后继，两者均保留。
         const ordered = members.first();
-        if (ordered !== undefined && ordered !== first) result.push(this.read(this.ids[ordered]!));
+        if (ordered !== undefined && ordered !== first)
+          result.push(this.read(this.ids[ordered]!, request));
       }
     if (binding && this.order.has(binding) && !result.some((candidate) => candidate.id === binding))
-      result.push(this.read(binding));
+      result.push(this.read(binding, request));
     this.lastInspected = result.length;
     return result;
   }
   private insert(profile: Profile, id: string, classify: Classifier): RoutingRank | undefined {
-    const candidate = this.read(id);
+    // 各 profile 保留自己的请求语义，不能把最近一次模型的冷却投影写进所有索引。
+    const candidate = this.read(id, profile.request);
     const group =
       candidate.quotaGroupId ??
       (candidate.windows.some((window) => window.shared)

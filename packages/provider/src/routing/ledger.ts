@@ -1,9 +1,12 @@
+import type { RoutingQuotaDiagnostic } from "./shared-quota.js";
 import type { RoutingWindow } from "@lcode/shared/provider-routing";
 
 interface Debit {
   sequence: number;
   amount: number;
   ended: boolean;
+  dispatched: boolean;
+  estimated: boolean;
 }
 interface Resource {
   reading: RoutingWindow;
@@ -75,9 +78,22 @@ export class RoutingLedger {
       this.observe(window);
       const amount = demands[window.resourceId];
       if (finite(amount)) {
-        this.resources.get(key)!.debits.set(sequence, { sequence, amount, ended: false });
+        this.resources.get(key)!.debits.set(sequence, {
+          sequence,
+          amount,
+          ended: false,
+          dispatched: false,
+          estimated: true,
+        });
         this.resources.get(key)!.total += amount;
       }
+    }
+  }
+
+  dispatch(windows: readonly RoutingWindow[], sequence: number): void {
+    for (const window of windows) {
+      const debit = this.resources.get(keyOf(window))?.debits.get(sequence);
+      if (debit) debit.dispatched = true;
     }
   }
 
@@ -105,6 +121,7 @@ export class RoutingLedger {
       if (finite(amount)) {
         resource!.total += amount - debit.amount;
         debit.amount = amount;
+        debit.estimated = false;
       }
       debit.ended = true;
       if (
@@ -131,6 +148,7 @@ export class RoutingLedger {
       if (debit?.ended && finite(amount)) {
         resource!.total += amount - debit.amount;
         debit.amount = amount;
+        debit.estimated = false;
       } else if (
         resource &&
         !debit &&
@@ -138,10 +156,57 @@ export class RoutingLedger {
         (resource.reading.coversThroughSeq === undefined ||
           sequence > resource.reading.coversThroughSeq)
       ) {
-        resource.debits.set(sequence, { sequence, amount, ended: true });
+        resource.debits.set(sequence, {
+          sequence,
+          amount,
+          ended: true,
+          dispatched: true,
+          estimated: false,
+        });
         resource.total += amount;
       }
     }
+  }
+
+  inspect() {
+    const resources: RoutingQuotaDiagnostic[] = [];
+    for (const resource of this.resources.values()) {
+      if (resources.length === 100) break;
+      let reserved = 0,
+        dispatched = 0,
+        endedActual = 0,
+        endedEstimated = 0;
+      for (const debit of resource.debits.values()) {
+        if (debit.ended) {
+          if (debit.estimated) endedEstimated += debit.amount;
+          else endedActual += debit.amount;
+        } else if (debit.dispatched) dispatched += debit.amount;
+        else reserved += debit.amount;
+      }
+      const window = resource.reading;
+      resources.push({
+        resourceId: window.resourceId,
+        instanceId: window.instanceId,
+        readingRemaining: window.remaining,
+        limit: window.limit,
+        unit: window.unit,
+        quality: window.quality,
+        coveredThroughSeq: window.coversThroughSeq,
+        reserved,
+        dispatched,
+        endedActual,
+        endedEstimated,
+        folded: 0,
+        foldedUnknown: false,
+        held: resource.total,
+        available: this.available(window),
+      });
+    }
+    return {
+      resources,
+      resourceCount: this.resources.size,
+      resourcesTruncated: this.resources.size > resources.length,
+    };
   }
 
   clear(): void {

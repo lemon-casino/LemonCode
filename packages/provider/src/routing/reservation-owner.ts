@@ -3,9 +3,10 @@ import type {
   RoutingRequest,
   RoutingPlan,
   RoutingFinish,
+  RoutingStrategy,
 } from "@lcode/shared/provider-routing";
 import { RoutingLedger } from "./ledger.js";
-import { RoutingHistory } from "./history.js";
+import { RoutingHistory, routingHealthRelevant } from "./history.js";
 import { RoutingBindings } from "./bindings.js";
 import { routingDemand } from "./values.js";
 import { routingWindowKey, type RoutingBinding } from "./planner.js";
@@ -29,11 +30,35 @@ interface Attempt {
 
 /** 调度 owner 的租约与对账部分；没有第二份状态、队列或 IO。 */
 export abstract class RoutingReservationOwner {
+  private lastDecision?: {
+    sequence: number;
+    requestedStrategy: RoutingStrategy;
+    effectiveStrategy: RoutingStrategy;
+    fallbackReason?: string;
+    routeId: string;
+    cacheDecision?: RoutingPlan["cacheDecision"];
+    phase: "reserved" | "dispatched" | "cancelled" | "ended";
+    outcome?: RoutingFinish["outcome"];
+  };
   protected readonly ledger = new RoutingLedger();
   protected readonly history = new RoutingHistory();
   protected readonly inFlight = new Map<string, number>();
   protected readonly credit = new Map<string, number>();
   protected readonly creditedRound = new Map<string, number>();
+  private readonly pausedCredit = new Set<string>();
+  /** 禁用/冷却期间不累加轮次信用；恢复仅保留暂停时的一轮上限，负债不清零。 */
+  protected synchronizeCredit(candidate: RoutingCandidate, quantum: number): void {
+    const paused = Boolean(candidate.unavailable || candidate.health === "open");
+    if (paused && !this.pausedCredit.has(candidate.id)) {
+      const credit =
+        (this.credit.get(candidate.id) ?? quantum) +
+        (this.round - (this.creditedRound.get(candidate.id) ?? this.round)) * quantum;
+      this.credit.set(candidate.id, Math.min(quantum, credit));
+      this.creditedRound.set(candidate.id, this.round);
+      this.pausedCredit.add(candidate.id);
+    } else if (!paused && this.pausedCredit.delete(candidate.id))
+      this.creditedRound.set(candidate.id, this.round);
+  }
   protected readonly attempts = new Map<string, Attempt>();
   protected readonly bindings = new RoutingBindings();
   protected cursor = 0;
@@ -55,10 +80,20 @@ export abstract class RoutingReservationOwner {
     fingerprint: string,
     key: string,
     nextCursor: number,
+    requestedStrategy: RoutingStrategy,
   ): RoutingReservation {
     const createdAt = this.now();
     const sequence = ++this.sequence;
     const policyEpoch = this.policyEpoch;
+    this.lastDecision = {
+      sequence,
+      requestedStrategy,
+      phase: "reserved",
+      effectiveStrategy: plan.effectiveStrategy,
+      fallbackReason: plan.fallbackReason,
+      routeId: chosen.id,
+      ...(plan.cacheDecision ? { cacheDecision: { ...plan.cacheDecision } } : {}),
+    };
     this.selections++;
     const windows = chosen.windows.map((window) => ({ ...window }));
     const demand: Record<string, number> = { ...request.demands };
@@ -129,20 +164,28 @@ export abstract class RoutingReservationOwner {
     const observeUsage = (result: RoutingFinish) => {
       if (this.closed) return;
       validateUsage(result);
+      let outcomeChanged = false;
       if (!outcomeObserved && result.outcome !== undefined && result.outcome !== "unknown") {
+        outcomeChanged = true;
         outcomeObserved = true;
         outcome = result.outcome;
+        if (this.lastDecision?.sequence === sequence) this.lastDecision.outcome = outcome;
+        usage = { ...usage, statusCode: result.statusCode };
         replaySafeFailure = Boolean(result.replaySafeFailure);
         if (sample) {
           sample.failed = outcome === "failed";
-          sample.resolved = outcome !== "cancelled";
+          sample.resolved = routingHealthRelevant({ ...usage, outcome });
         }
         if (physicalComplete) {
           if (outcome === "success") binding.confirm({ ...initialBinding, cacheUntil });
           else if (result.replaySafeFailure) binding.reject();
         }
       }
-      if (result.actualDemands === undefined && result.workUnits === undefined) return;
+      if (result.actualDemands === undefined && result.workUnits === undefined) {
+        // 迟到的成功可能只有 outcome；恢复许可与健康已变化，也必须刷新原目录，不能等下一笔 usage。
+        if (outcomeChanged) this.touchDirectory(chosen.id);
+        return;
+      }
       const actualDemands: Record<string, number> = {};
       for (const [id, amount] of Object.entries(result.actualDemands ?? {})) {
         if (demandsObserved.has(id)) continue;
@@ -189,6 +232,8 @@ export abstract class RoutingReservationOwner {
         if (this.closed || !state.active) throw new RoutingError("owner-stale");
         if (state.dispatched) return false;
         state.dispatched = true;
+        if (this.lastDecision?.sequence === sequence) this.lastDecision.phase = "dispatched";
+        this.ledger.dispatch(windows, sequence);
         binding.dispatch();
         started = this.now();
         return true;
@@ -197,6 +242,7 @@ export abstract class RoutingReservationOwner {
         if (state.dispatched || state.settled) return;
         state.settled = true;
         this.selections--;
+        if (this.lastDecision?.sequence === sequence) this.lastDecision.phase = "cancelled";
         binding.cancel();
         this.ledger.cancel(windows, sequence);
         this.credit.set(chosen.id, (this.credit.get(chosen.id) ?? 0) + work);
@@ -215,10 +261,16 @@ export abstract class RoutingReservationOwner {
         observeUsage(result);
         if (usage.actualDemands) this.ledger.reconcile(windows, sequence, usage.actualDemands);
         if (state.dispatched && result.outcome !== "cancelled")
-          sample = this.history.record(chosen, this.now(), started, {
-            ...usage,
-            outcome: outcome ?? result.outcome,
-          });
+          sample = this.history.record(
+            chosen,
+            this.now(),
+            started,
+            {
+              ...usage,
+              outcome: outcome ?? result.outcome,
+            },
+            request.modelKey,
+          );
         binding.finish(
           (outcome ?? result.outcome) !== "failed" &&
             (outcome ?? result.outcome) !== "cancelled" &&
@@ -227,6 +279,10 @@ export abstract class RoutingReservationOwner {
             : undefined,
           result.replaySafeFailure || replaySafeFailure,
         );
+        if (this.lastDecision?.sequence === sequence) {
+          this.lastDecision.phase = "ended";
+          this.lastDecision.outcome = outcome ?? result.outcome;
+        }
         physicalComplete = true;
         release();
       },
@@ -236,6 +292,20 @@ export abstract class RoutingReservationOwner {
     this.attempts.set(key, state);
     this.touchDirectory(chosen.id);
     return lease;
+  }
+
+  readDiagnostics() {
+    return {
+      source: "local-owner" as const,
+      asOf: this.now(),
+      revision: this.revision,
+      reservations: this.inFlight.size
+        ? [...this.inFlight.values()].reduce((sum, value) => sum + value, 0)
+        : 0,
+      attempts: this.attempts.size,
+      lastDecision: this.lastDecision ? structuredClone(this.lastDecision) : undefined,
+      ...this.ledger.inspect(),
+    };
   }
 
   inspect() {
@@ -256,5 +326,6 @@ export abstract class RoutingReservationOwner {
     this.attempts.clear();
     this.credit.clear();
     this.creditedRound.clear();
+    this.pausedCredit.clear();
   }
 }

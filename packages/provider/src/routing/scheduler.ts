@@ -56,7 +56,12 @@ export class RoutingScheduler extends RoutingReservationOwner {
       }),
     );
     const projected = candidates.map((candidate) =>
-      this.history.project(candidate, now, (window) => this.ledger.available(window)),
+      this.history.project(
+        candidate,
+        now,
+        (window) => this.ledger.available(window),
+        request.modelKey,
+      ),
     );
     const calculate = () =>
       planRouting(this.policy, projected, request, {
@@ -148,6 +153,8 @@ export class RoutingScheduler extends RoutingReservationOwner {
     }
     if (expectedRevision !== undefined && expectedRevision !== this.revision)
       throw new RoutingError("policy-conflict");
+    for (const candidate of candidates)
+      this.synchronizeCredit(candidate, QUANTUM * routingWeight(this.policy, candidate.id));
     if (!directory)
       for (const candidate of candidates)
         for (const window of candidate.windows) this.ledger.observe(window);
@@ -178,10 +185,14 @@ export class RoutingScheduler extends RoutingReservationOwner {
       fingerprint,
       key,
       nextCursor,
+      this.policy.strategy,
     );
   }
 
-  setDirectory(ids: readonly string[], read: (id: string) => RoutingCandidate): void {
+  setDirectory(
+    ids: readonly string[],
+    read: (id: string, request?: RoutingRequest) => RoutingCandidate,
+  ): void {
     this.directory = new RoutingDirectory(ids, read, this.policy.order);
   }
   touchDirectory(id: string): void {
@@ -193,9 +204,13 @@ export class RoutingScheduler extends RoutingReservationOwner {
     this.directory?.touchGroup(poolId, (candidate, request) => this.classify(candidate, request));
   }
   private classify(candidate: RoutingCandidate, request: RoutingRequest, now = this.now()) {
+    this.synchronizeCredit(candidate, QUANTUM * routingWeight(this.policy, candidate.id));
     for (const window of candidate.windows) this.ledger.observe(window);
-    const projected = this.history.project(candidate, now, (window) =>
-      this.ledger.available(window),
+    const projected = this.history.project(
+      candidate,
+      now,
+      (window) => this.ledger.available(window),
+      request.modelKey,
     );
     const privateCandidate = {
       ...projected,
@@ -234,7 +249,10 @@ export class RoutingScheduler extends RoutingReservationOwner {
         eligibleRound,
         now,
         expires: Math.min(
-          this.history.nextChange(candidate, now),
+          candidate.availableAt !== undefined && candidate.availableAt > now
+            ? candidate.availableAt
+            : Infinity,
+          this.history.nextChange(candidate, now, request.modelKey),
           ...candidate.windows
             .flatMap((window) => [window.resetAt, window.expiresAt])
             .filter((at): at is number => at !== undefined && at > now),
@@ -280,7 +298,10 @@ export class RoutingScheduler extends RoutingReservationOwner {
         eligibleRound,
       ]),
       expires: Math.min(
-        this.history.nextChange(candidate, now),
+        candidate.availableAt !== undefined && candidate.availableAt > now
+          ? candidate.availableAt
+          : Infinity,
+        this.history.nextChange(candidate, now, request.modelKey),
         ...candidate.windows
           .filter((window) => !window.shared)
           .flatMap((window) =>

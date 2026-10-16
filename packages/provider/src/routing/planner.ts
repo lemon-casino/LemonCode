@@ -7,6 +7,7 @@ import type {
 } from "@lcode/shared/provider-routing";
 import type { RoutingLedger } from "./ledger.js";
 import { routingDemand } from "./values.js";
+import { decideRoutingCache } from "./cache-decision.js";
 import { routingScore, compareRoutingScore } from "./ranking.js";
 
 export interface RoutingBinding {
@@ -217,6 +218,7 @@ export function planRouting(
       now: state.now,
     });
   routes.sort((a, b) => compareRoutingScore(score(a), score(b)));
+  let cacheDecision: RoutingPlan["cacheDecision"];
   let reason: string = effectiveStrategy;
   if (binding) {
     const at = routes.findIndex(
@@ -246,36 +248,19 @@ export function planRouting(
             binding.readings?.get(routingWindowKey(window)) ?? binding.readingRevision;
           return window.revision > previous;
         });
-        keep = !material || !newReading;
-        if ((softTier.get(same.id) ?? 0) > (softTier.get(best.id) ?? 0)) keep = false;
-        if (best.health !== "degraded" && same.health === "degraded") keep = false;
-        if (
-          policy.strategy === "reliable-first" &&
-          same.statistics &&
-          best.statistics &&
-          same.statistics.samples >= MIN_SAMPLES &&
-          best.statistics.samples >= MIN_SAMPLES
-        ) {
-          if (
-            same.statistics.failureRate - best.statistics.failureRate >= PRESSURE_BAND ||
-            (same.statistics.completionMs > 0 &&
-              best.statistics.completionMs <= same.statistics.completionMs * 0.8)
-          )
-            keep = false;
-          if (
-            same.statistics.marginalCost !== undefined &&
-            same.statistics.marginalCost > 0 &&
-            best.statistics.marginalCost !== undefined &&
-            same.statistics.currency === best.statistics.currency &&
-            best.statistics.marginalCost <= same.statistics.marginalCost * 0.8
-          )
-            keep = false;
-        }
-        if (
-          effectiveStrategy === "expiry-first" &&
-          (best.expiry?.predictedWaste ?? 0) > (same.expiry?.predictedWaste ?? 0)
-        )
-          keep = false;
+        cacheDecision = decideRoutingCache({
+          strategy: policy.strategy,
+          effectiveStrategy,
+          same,
+          best,
+          request,
+          now: state.now,
+          sameTier: softTier.get(same.id) ?? 0,
+          bestTier: softTier.get(best.id) ?? 0,
+          material,
+          newReading,
+        });
+        keep = cacheDecision.action === "keep";
       }
       if (keep) {
         routes = [same, ...routes.filter((candidate) => candidate !== same)];
@@ -309,6 +294,7 @@ export function planRouting(
     }
   }
   return {
+    ...(cacheDecision ? { cacheDecision } : {}),
     tiers: Object.fromEntries(softTier),
     revision: state.revision,
     routes: routes.slice(0, 32).map((candidate) => candidate.id),

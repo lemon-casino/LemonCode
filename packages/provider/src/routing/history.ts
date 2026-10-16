@@ -9,6 +9,15 @@ const MAX_SAMPLES = 128;
 const MIN_SAMPLES = 8;
 const MIN_OBSERVATION = 60_000;
 const FORECAST_HORIZON = 60 * 60_000;
+export const routingHealthRelevant = (usage: RoutingFinish) =>
+  usage.outcome !== "cancelled" &&
+  usage.outcome !== "unknown" &&
+  !(
+    usage.statusCode !== undefined &&
+    usage.statusCode >= 400 &&
+    usage.statusCode < 500 &&
+    usage.statusCode !== 429
+  );
 interface Sample {
   at: number;
   elapsed: number;
@@ -21,17 +30,23 @@ interface Sample {
 export class RoutingHistory {
   private readonly samples = new Map<string, Sample[]>();
   private readonly resources = new Map<string, Sample[]>();
-  private key(candidate: RoutingCandidate) {
-    return JSON.stringify([candidate.id, candidate.generation]);
+  private key(candidate: RoutingCandidate, modelKey?: string) {
+    return JSON.stringify([candidate.id, candidate.generation, modelKey ?? null]);
   }
-  record(candidate: RoutingCandidate, at: number, started: number, usage: RoutingFinish): Sample {
-    const key = this.key(candidate),
+  record(
+    candidate: RoutingCandidate,
+    at: number,
+    started: number,
+    usage: RoutingFinish,
+    modelKey?: string,
+  ): Sample {
+    const key = this.key(candidate, modelKey),
       samples = this.samples.get(key) ?? [];
     const sample = {
       at,
       elapsed: Math.max(0, at - started),
       failed: usage.outcome === "failed",
-      resolved: usage.outcome !== "unknown" && usage.outcome !== "cancelled",
+      resolved: routingHealthRelevant(usage),
       usage,
     };
     samples.push(sample);
@@ -56,8 +71,9 @@ export class RoutingHistory {
     candidate: RoutingCandidate,
     now: number,
     available: (window: RoutingWindow) => number | undefined,
+    modelKey?: string,
   ): RoutingCandidate {
-    const samples = (this.samples.get(this.key(candidate)) ?? []).filter(
+    const samples = (this.samples.get(this.key(candidate, modelKey)) ?? []).filter(
       (item) => item.at >= now - OBSERVATION_WINDOW && item.resolved,
     );
     const statistics =
@@ -116,10 +132,10 @@ export class RoutingHistory {
     this.samples.clear();
     this.resources.clear();
   }
-  nextChange(candidate: RoutingCandidate, now: number): number {
+  nextChange(candidate: RoutingCandidate, now: number, modelKey?: string): number {
     return Math.min(
       Infinity,
-      ...(this.samples.get(this.key(candidate)) ?? [])
+      ...(this.samples.get(this.key(candidate, modelKey)) ?? [])
         .map((sample) => sample.at + OBSERVATION_WINDOW + 1)
         .filter((at) => at > now),
     );

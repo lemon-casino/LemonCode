@@ -32,6 +32,14 @@ export interface RoutingRank {
   now: number;
   expires: number;
 }
+export function routingReliabilityScore(candidate: RoutingCandidate): number[] {
+  const ready = routingReady(candidate);
+  return [
+    Number(candidate.health === "degraded"),
+    ready ? (candidate.statistics!.failureRate < 0.05 ? 0 : 2) : 1,
+    ready ? Math.floor(candidate.statistics!.failureRate / 0.05) : 0,
+  ];
+}
 export function routingScore(
   strategy: RoutingStrategy,
   candidate: RoutingCandidate,
@@ -52,12 +60,8 @@ export function routingScore(
   if (strategy === "share-rotation") return [...result, rank.positive ? 0 : 1, rank.ring];
   const ready = routingReady(candidate);
   if (strategy === "reliable-first") {
+    result.push(...routingReliabilityScore(candidate));
     result.push(
-      Number(candidate.health === "degraded"),
-      ready ? (candidate.statistics!.failureRate < 0.05 ? 0 : 2) : 1,
-    );
-    result.push(
-      ready ? Math.floor(candidate.statistics!.failureRate / 0.05) : 0,
       ready ? Math.floor(Math.log1p(candidate.statistics!.completionMs) / Math.log(1.15)) : 0,
       ready && rank.pricesKnown ? (candidate.statistics!.marginalCost ?? 0) : 0,
     );
