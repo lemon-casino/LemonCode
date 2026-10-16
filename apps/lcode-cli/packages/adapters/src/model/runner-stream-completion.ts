@@ -248,6 +248,8 @@ export async function* completeStreamAttempt(
   });
   if (!state.emittedError) {
     const completedAt = Date.now();
+    state.resolved.apiKeyAttempt?.observeUsage?.(state.diagnostics.usage ?? {});
+    await state.resolved.observeRoutingUsage?.(state.diagnostics.usage ?? {});
     logModelSpeedObservation({
       logger: input.logger,
       resolved: state.resolved,

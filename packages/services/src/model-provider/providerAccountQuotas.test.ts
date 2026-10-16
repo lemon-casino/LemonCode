@@ -88,6 +88,18 @@ function fixture(quota?: AuthDriver["quota"], beforeRead?: () => void) {
   };
 }
 
+test("routing projection retains known quota across token rotation but rejects a new authorization epoch", async () => {
+  const f = fixture(async () => ({
+    windows: [{ id: "weekly", name: "Weekly", used: 100, remaining: 0, limit: 100 }],
+  }));
+  await f.owner.get("a");
+  f.accounts[0]!.generation++;
+  assert.equal(f.owner.peek("a", f.accounts[0]!.generation, 0)?.value.windows[0]?.remaining, 0);
+  f.accounts[0]!.routingEpoch = 1;
+  assert.equal(f.owner.peek("a", f.accounts[0]!.generation, 1), undefined);
+  f.close();
+});
+
 test("coalesces per-account reads, reuses TTL, isolates accounts and force refreshes without inference", async () => {
   const pending = deferred<unknown>(),
     began = deferred<void>();

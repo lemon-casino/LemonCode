@@ -257,10 +257,10 @@ export async function runGenerateText(input: ModelRunnerInput): Promise<ModelTex
           response: (result as unknown as { response?: unknown }).response,
         },
       });
-      if (providerBusinessFinishError) {
-        throw providerBusinessFinishError;
-      }
+      if (providerBusinessFinishError) throw providerBusinessFinishError;
       const usage = normalizeUsage(result.totalUsage ?? result.usage);
+      attemptState.resolved.apiKeyAttempt?.observeUsage?.(usage);
+      await attemptState.resolved.observeRoutingUsage?.(usage);
       const toolCalls = normalizeToolCalls(result, input.logger);
       const toolResults = normalizeToolResults(result, toolCalls);
       const sources = normalizeSources(result);

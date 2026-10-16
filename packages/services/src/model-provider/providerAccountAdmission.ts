@@ -56,6 +56,7 @@ export function admitProviderAccount(
     // 同一身份的重新授权更新凭据，但保留connection、启停和用户别名，避免拆散统计归属。
     existing.grant = next;
     existing.generation++;
+    existing.routingEpoch = (existing.routingEpoch ?? 0) + 1;
     delete existing.error;
     delete existing.authorizationStatus;
     return { status: "updated", connectionId: existing.connectionId };
@@ -70,6 +71,7 @@ export function admitProviderAccount(
       `${channel.name} ${accounts.filter((a) => a.channelId === channel.id).length + 1}`,
     enabled: true,
     generation: 1,
+    routingEpoch: 1,
     grant,
     models: [],
   });

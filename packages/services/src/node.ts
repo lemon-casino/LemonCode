@@ -1698,11 +1698,20 @@ export function createLocalServices(options: {
   // 修复：SSH 原先只读远端账号库，导致本机 OAuth 供应商缺席；只注入公开目录与请求桥，授权仍由本机唯一 owner 管理。
   const remoteProviderAccounts =
     isDesktopAttachedRemote && options.providerAccountRelayEnabled
-      ? new RemoteProviderAccounts()
+      ? new RemoteProviderAccounts({
+          readRouting: async (channelId) =>
+            (await providerConfigRuntime.configService.read()).personalProviders.get(
+              oauthProviderId(channelId),
+            )?.routing,
+        })
       : undefined;
   const providerAccounts =
     remoteProviderAccounts ??
     new ProviderAccounts({
+      readRouting: async (channelId) =>
+        (await providerConfigRuntime.configService.read()).personalProviders.get(
+          oauthProviderId(channelId),
+        )?.routing,
       credentials: credentialService,
       lockPath: join(resolveAppConfigDir(), "oauth-provider-accounts"),
       watchFile: join(resolveAppConfigDir(), "credentials.json"),
@@ -2254,6 +2263,7 @@ export function createLocalServices(options: {
       modelId,
       sessionId,
       workspaceKey,
+      routingInvocation,
     }) => {
       if (oauthProviderId(channelId) !== providerId)
         throw new Error("OAuth provider identity mismatch");
@@ -2262,6 +2272,7 @@ export function createLocalServices(options: {
         modelId,
         undefined,
         JSON.stringify([workspaceKey, sessionId]),
+        routingInvocation,
       );
     },
     worktreeService,

@@ -1,5 +1,6 @@
 /* oxlint-disable max-lines -- Settings/Selection Facade 共享同一套 Registry 投影与写入边界。 */
 import type { ConfigValidationIssue } from "./config-overlay.js";
+import { setProviderRoutingSchema, type SetProviderRouting } from "@lcode/shared/provider-routing";
 import type { ProxyProfile } from "@lcode/shared/network-proxy";
 import type { AccountModelCatalog } from "@lcode/shared/model-catalog";
 import type { ProviderModelMembership } from "./config-service.js";
@@ -48,6 +49,11 @@ export interface ProviderRegistryFacadeSource {
 }
 
 export interface ProviderSettingsMutationTarget {
+  setProviderRouting?(
+    providerId: ProviderId,
+    routing: ProviderConfigObject["routing"],
+    membership: ProviderModelMembership,
+  ): Promise<unknown>;
   importProxyProfiles?(text: string): Promise<unknown>;
   saveProxyProfile?(profile: ProxyProfile): Promise<unknown>;
   deleteProxyProfile?(id: string): Promise<unknown>;
@@ -394,6 +400,20 @@ export class ProviderSettingsFacade {
     return this.#mutateProvider(providerId, "set-network", (target) => {
       if (!target.setProviderNetwork) throw new Error("Provider network mutation is unavailable");
       return target.setProviderNetwork(providerId, parsed, this.#modelMembership(providerId));
+    });
+  }
+
+  setProviderRouting(input: SetProviderRouting): Promise<ProviderSettingsView> {
+    const parsed = setProviderRoutingSchema.parse(input);
+    return this.#mutateProvider(parsed.providerId, "routing", (target) => {
+      if (parsed.expectedRevision !== this.getView().revision)
+        throw new Error("Provider Settings revision conflict");
+      if (!target.setProviderRouting) throw new Error("Provider routing mutation is unavailable");
+      return target.setProviderRouting(
+        parsed.providerId,
+        parsed.routing,
+        this.#modelMembership(parsed.providerId),
+      );
     });
   }
 

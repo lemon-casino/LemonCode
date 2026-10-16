@@ -888,6 +888,7 @@ interface CreateLCodeAgentServiceOptions extends Omit<
   accountProviderConfigSource?: ProviderSource<AccountProviderConfigSnapshot>;
   accountRequestAuthService?: IAccountRequestAuthService;
   resolveOAuthRequestAuth?: (input: {
+    routingInvocation?: import("@lcode/shared").RoutingInvocation;
     channelId: string;
     providerId: string;
     modelId: string;
@@ -1363,6 +1364,15 @@ export function createLCodeAgentService(
         modelId: request.modelSelection.modelId,
         sessionId: request.sessionId,
         workspaceKey: request.workspace.workspaceKey,
+        routingInvocation: request.routingInvocation
+          ? {
+              ...request.routingInvocation,
+              workspaceKey: resolveWorkspaceKey(request.workspace),
+              sessionId: request.sessionId,
+              turnId: request.turnId,
+              remoteSessionId: request.workspace.remoteSessionId,
+            }
+          : undefined,
       });
     if (!request.accountAccess || !accountRequestAuthService) {
       return undefined;
@@ -2455,6 +2465,10 @@ export function createLCodeAgentService(
           return;
         }
 
+        if (request.method === lcodeProtocolMethods.interactionProviderRoutingCapabilities) {
+          void client.respond(request.id, { capabilities: ["single-attempt-routing-v1"] });
+          return;
+        }
         if (request.method === lcodeProtocolMethods.interactionRequestProviderRuntimeHeaders) {
           const parsed = lcodeProviderRuntimeHeadersRequestParamsSchema.safeParse(request.params);
           if (!parsed.success) {

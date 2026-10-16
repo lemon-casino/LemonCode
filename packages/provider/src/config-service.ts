@@ -189,7 +189,10 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
       let normalized = config;
       // 代理有独立的字段命令；旧表单的全量草稿不能清掉并发保存的出口选择。
       normalized = normalized.overlay(
-        new ProviderConfigValue({ network: currentPersonal?.network }),
+        new ProviderConfigValue({
+          network: currentPersonal?.network,
+          routing: currentPersonal?.routing,
+        }),
       );
       if (builtin) {
         if (normalized.group != null && normalized.group !== builtin.group) {
@@ -320,6 +323,32 @@ export class ProviderConfigService implements ProviderSource<ProviderConfigSnaps
         models: current.models,
         providerOrder: current.providerOrder,
         savedProviderId: providerId,
+      };
+    });
+  }
+
+  async setProviderRouting(
+    providerId: ProviderId,
+    routing: ProviderConfig["routing"],
+    membership: ProviderModelMembership,
+  ): Promise<ProviderConfigLayerSnapshot> {
+    const builtin = await this.#lcodeBuiltinSource.read();
+    return this.#updatePersonal((current) => {
+      assertMembershipCurrent(membership, providerId, current);
+      const overlay = current.providers.get(providerId);
+      if (!overlay && !builtin.providers.has(providerId) && !membership.accountProvider)
+        throw new Error(`Provider 不存在: ${providerId}`);
+      // 路由保存只更新策略，不能推进 Key 保存代次而解除已有鉴权隔离。
+      return {
+        providers: current.providers.setRule({
+          ...current.providers.getRule(providerId),
+          providerId,
+          config: (overlay ?? new ProviderConfigValue({})).overlay(
+            new ProviderConfigValue({ routing }),
+          ),
+        }),
+        models: current.models,
+        providerOrder: current.providerOrder,
       };
     });
   }

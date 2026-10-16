@@ -50,6 +50,7 @@ export interface ModelInvocationContext {
 
 /** Adapter 为单个物理请求 attempt 使用的动态鉴权材料。 */
 export interface ModelRequestAuth {
+  routingFeedback?: boolean;
   baseURL?: string;
   protocol?: "anthropic-messages" | "openai-chat-completions" | "openai-responses";
   apiKey?: string;

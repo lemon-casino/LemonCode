@@ -3,6 +3,7 @@ import {
   PROVIDER_ACCOUNT_RELAY_MAX_BODY_BYTES,
   providerAccountRelayOpenSchema,
   providerAccountRelayRequestIdSchema,
+  routingUsageSchema,
   type ProviderAccountRelayOpen,
 } from "@lcode/shared";
 import type { ProviderAccounts } from "./providerAccounts.js";
@@ -26,6 +27,10 @@ export function createProviderAccountRelaySource(accounts: ProviderAccounts): {
   dispose(): void;
 } {
   const requests = new Map<string, RelayRequest>();
+  const feedback = new Map<
+    string,
+    { expires: number; auth: { baseURL: string; apiKey: string } }
+  >();
   let disposed = false;
   const cancel = async (id: string): Promise<void> => {
     providerAccountRelayRequestIdSchema.parse(id);
@@ -36,6 +41,23 @@ export function createProviderAccountRelaySource(accounts: ProviderAccounts): {
     await current.reader?.cancel().catch(() => {});
   };
   const service: ProviderAccountRelayService = {
+    getRoutingCapabilities: async () => ["single-attempt-routing-v1"],
+    async observeRoutingUsage(id, usage) {
+      providerAccountRelayRequestIdSchema.parse(id);
+      const current = feedback.get(id);
+      if (disposed || !current || current.expires <= Date.now()) throw new Error("owner-stale");
+      const value = routingUsageSchema.parse(usage);
+      const response = await fetch(current.auth.baseURL + "/routing/usage", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${current.auth.apiKey}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify(value),
+      });
+      await response.body?.cancel();
+      if (!response.ok) throw new Error("Routing usage feedback unavailable");
+    },
     onDidChange: accounts.onDidChange,
     getView: () => accounts.getView(),
     checkinAccount: (id) => accounts.checkinAccount(id),
@@ -73,8 +95,12 @@ export function createProviderAccountRelaySource(accounts: ProviderAccounts): {
           request.modelId,
           request.protocol,
           request.sessionId,
+          request.routingInvocation,
         );
         current.controller.signal.throwIfAborted();
+        for (const [id, item] of feedback) if (item.expires <= Date.now()) feedback.delete(id);
+        if (auth.routingFeedback)
+          feedback.set(request.requestId, { expires: Date.now() + 5 * 60_000, auth });
         // 修复：远端 OAuth 目录原先缺少账号事实；调用复用本机 owner，不能复制凭据或本机 localhost。
         const response = await fetch(`${auth.baseURL}${paths[auth.protocol]}`, {
           method: "POST",
@@ -89,7 +115,13 @@ export function createProviderAccountRelaySource(accounts: ProviderAccounts): {
         current.controller.signal.throwIfAborted();
         current.reader = response.body?.getReader();
         const headers: Record<string, string> = {};
-        for (const key of ["content-type", "retry-after", "x-zcode-connection-id"]) {
+        for (const key of [
+          "content-type",
+          "retry-after",
+          "x-zcode-connection-id",
+          "x-zcode-routing-strategy",
+          "x-zcode-routing-reason",
+        ]) {
           const value = response.headers.get(key);
           if (value) headers[key] = value;
         }
@@ -134,6 +166,7 @@ export function createProviderAccountRelaySource(accounts: ProviderAccounts): {
     service,
     dispose() {
       disposed = true;
+      feedback.clear();
       for (const id of requests.keys()) void cancel(id);
     },
   };

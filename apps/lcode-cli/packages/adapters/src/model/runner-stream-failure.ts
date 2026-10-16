@@ -121,6 +121,14 @@ export async function handleStreamFailure(
   state.resolved.apiKeyAttempt?.observeFailure(
     classified.statusCode,
     getResponseHeaders(unwrapRetryError(error)),
+    state.streamOutputCommitted || state.emittedRetryBoundaryEvent,
+    input.request.abortSignal?.aborted,
+  );
+  await state.resolved.observeRoutingFailure?.(
+    classified.statusCode,
+    getResponseHeaders(unwrapRetryError(error)),
+    state.streamOutputCommitted || state.emittedRetryBoundaryEvent,
+    input.request.abortSignal?.aborted,
   );
   if (error instanceof RuntimeHeadersRefreshError) {
     classified.message = error.message;

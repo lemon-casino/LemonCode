@@ -1,5 +1,7 @@
 # OAuth 账号额度查询与展示
 
+后续连接调度设计见 [供应商连接调度策略](./provider-routing-strategies.md) 与 [验收目录](./provider-routing-acceptance.md)。其中多窗口、预留和对账字段为待实现设计；本文现有额度读取与展示行为不因此视为已升级。
+
 2026-10-11 用户在上一阶段完成后明确选择“完善各供应商额度查询与展示”。本规格补充 `oauth-usage-context-trends.md`，本轮聚焦额度读取与呈现。
 
 ## 产品规则

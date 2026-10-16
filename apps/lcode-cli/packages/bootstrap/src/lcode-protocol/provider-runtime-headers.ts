@@ -4,6 +4,7 @@ import {
   lcodeProtocolMethods,
   lcodeProtocolNotifications,
   lcodeProviderRuntimeHeadersResponseSchema,
+  lcodeProviderRoutingCapabilitiesSchema,
   type LCodeWorkspaceRef,
 } from "@lcode/shared";
 import type { LCodeAppOptions } from "../app/types.js";
@@ -16,6 +17,34 @@ import {
 // 无应答方时 UI 的 SDK 超时不会启动；端口总时限同时覆盖排队与凭据解析。
 const PROVIDER_RUNTIME_HEADERS_TIMEOUT_MS = 180_000;
 const CLIENT_REQUEST_TIMEOUT_CODE = -32022;
+const ROUTING_CAPABILITY_TIMEOUT_MS = 5000;
+const routingCapabilities = new WeakMap<object, Promise<boolean>>();
+
+function supportsRouting(
+  context: LCodeProtocolAgentServerContext,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  let known = routingCapabilities.get(context);
+  if (!known) {
+    known = context
+      .requestClient(
+        lcodeProtocolMethods.interactionProviderRoutingCapabilities,
+        {},
+        lcodeProviderRoutingCapabilitiesSchema,
+        { signal, timeoutMs: ROUTING_CAPABILITY_TIMEOUT_MS },
+      )
+      .then((result) => result.capabilities?.includes("single-attempt-routing-v1") ?? false)
+      .catch((error: unknown) => {
+        if (signal?.aborted) {
+          routingCapabilities.delete(context);
+          throw error;
+        }
+        return false;
+      });
+    routingCapabilities.set(context, known);
+  }
+  return known;
+}
 
 export function createProviderRuntimeHeadersPort(
   context: LCodeProtocolAgentServerContext,
@@ -28,6 +57,7 @@ export function createProviderRuntimeHeadersPort(
       return true;
     },
     async refreshBeforeModelRequest(input) {
+      const routingSupported = await supportsRouting(context, input.abortSignal);
       const requestId = `${input.sessionId}:provider-runtime-headers:${randomUUID()}`;
       let result;
       try {
@@ -36,6 +66,21 @@ export function createProviderRuntimeHeadersPort(
           {
             // 同一毫秒内的并发请求不能共用关联键，否则 pending 应答会覆盖或串用。
             requestId,
+            ...(routingSupported
+              ? {
+                  routingInvocation: {
+                    capability: "single-attempt-routing-v1",
+                    workspaceKey: workspace.workspaceKey,
+                    executionId: workspace.executionBindingId,
+                    remoteSessionId: workspace.remoteSessionId,
+                    sessionId: input.sessionId,
+                    attemptId: requestId,
+                    turnId: input.turnId,
+                    actorId: input.traceContext.sessionId ?? input.sessionId,
+                    invocationId: input.traceContext.queryId ?? input.traceContext.spanId,
+                  },
+                }
+              : {}),
             sessionId: input.sessionId,
             turnId: input.turnId,
             workspace,

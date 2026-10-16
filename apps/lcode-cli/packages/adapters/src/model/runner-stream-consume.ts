@@ -107,7 +107,7 @@ export async function* consumeStreamAttempt(
         diagnostics: state.diagnostics,
         emittedRetryBoundaryEvent: state.emittedRetryBoundaryEvent,
         beforeRetryYieldEvaluation: closeAttemptBeforeRetryYield,
-        input,
+        input: { ...input, resolved: state.resolved },
         pendingRetrySafeEvents: state.pendingRetrySafeEvents,
         requestHeaderCount: state.requestHeaderCount,
         requestHeaders: state.requestHeaders,

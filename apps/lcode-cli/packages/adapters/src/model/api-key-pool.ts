@@ -6,8 +6,12 @@ import {
   waitForRateLimitDelay,
   type ProviderApiKey,
   type ApiKeyAccessConfigObject,
+  type ProviderRoutingPolicy,
+  type RoutingRequest,
+  type RoutingFinish,
 } from "@lcode/provider";
 import { ApiKeyCooldownQueue } from "./api-key-cooldown-queue.js";
+import { ApiKeyRouting } from "./api-key-routing.js";
 
 export interface ApiKeyFailoverState {
   readonly failedKeyIds: Set<string>;
@@ -20,6 +24,9 @@ export interface ApiKeyLease {
   readonly canRotate: boolean;
   observe(status: number, headers?: Headers): void;
   release(): void;
+  begin?(): boolean;
+  end?(success: boolean): void;
+  observeUsage?(usage: RoutingFinish): void;
 }
 
 /** 只拥有冻结 catalog 的调度；HTTP、业务预算和持久化均由既有 owner 管理。 */
@@ -36,6 +43,8 @@ export class ApiKeyPool {
   private disposed = false;
   private readonly closing = new AbortController();
   private readonly cooling = new ApiKeyCooldownQueue();
+  private readonly routing = new ApiKeyRouting();
+  private readonly ids: readonly string[];
 
   constructor(
     readonly sourceKeys: readonly ProviderApiKey[],
@@ -43,6 +52,7 @@ export class ApiKeyPool {
     private readonly shared = new RateLimitWindow(),
   ) {
     this.keys = sourceKeys.filter((key) => key.enabled !== false && key.apiKey.trim().length > 0);
+    this.ids = this.keys.map((key) => key.id);
     if (!this.keys.length) throw new Error("No enabled API key is configured");
     const length = this.keys.length;
     this.count = length;
@@ -64,6 +74,9 @@ export class ApiKeyPool {
   get activeLeaseCount(): number {
     return this.leases;
   }
+  get routingEnabled(): boolean {
+    return this.routing.enabled;
+  }
   get availableCount(): number {
     this.restoreExpired();
     return this.count;
@@ -77,6 +90,7 @@ export class ApiKeyPool {
     signal?: AbortSignal,
     outsideTicket: (wait: () => Promise<void>, signal?: AbortSignal) => Promise<void> = (wait) =>
       wait(),
+    context?: RoutingRequest,
   ): Promise<ApiKeyLease> {
     const combined = AbortSignal.any([
       this.closing.signal,
@@ -96,18 +110,31 @@ export class ApiKeyPool {
       }, combined);
     combined.throwIfAborted();
     // reacquire admission 期间可能有并发 429；重新判定，不把冷却等待计为 HTTP。
-    if (this.waitMs() > 0) return this.acquire(signal, outsideTicket);
-    return this.reserve();
+    if (this.waitMs() > 0) return this.acquire(signal, outsideTicket, context);
+    return this.reserve(context);
   }
 
-  reserve(): ApiKeyLease {
+  configureRouting(policy?: ProviderRoutingPolicy | null): void {
+    this.routing.configure(policy);
+  }
+
+  reserve(context?: RoutingRequest): ApiKeyLease {
     if (this.disposed) throw new Error("API key pool has been disposed");
     if (this.waitMs() > 0)
       throw new Error("API keys are cooling; acquire must wait before sending");
     while (this.count && this.failures.has(this.keys[this.cursor]!.id))
       this.remove(this.keys[this.cursor]!.id);
     const probe = this.count === 0;
-    const index = probe ? this.keys.length - 1 : this.cursor;
+    const reservation = this.routing.reserve(
+      this.ids,
+      (id) => !this.available[this.positions.get(id)!],
+      context,
+    );
+    const index = reservation
+      ? this.positions.get(reservation.routeId)!
+      : probe
+        ? this.keys.length - 1
+        : this.cursor;
     const key = this.keys[index]!;
     // 原实现收到响应才推进游标，多个并发会命中首 Key；在首个 await 前同步 reserve。
     if (!probe) this.cursor = this.next[index]!;
@@ -116,6 +143,8 @@ export class ApiKeyPool {
     let rejected = false;
     let released = false;
     let rateObserved = false;
+    let started = false,
+      ended = false;
     const canRotate = () =>
       rejected &&
       !probe &&
@@ -124,11 +153,34 @@ export class ApiKeyPool {
       this.shared.remainingMs() === 0;
     return {
       key,
+      ...(reservation
+        ? {
+            observeUsage: (usage: RoutingFinish) => reservation.observeUsage(usage),
+            begin: () => {
+              const accepted = reservation.dispatch();
+              if (accepted) started = true;
+              return accepted;
+            },
+            end: (success: boolean) => {
+              if (ended) return;
+              ended = true;
+              reservation.finish({
+                outcome:
+                  context?.signal?.aborted || this.closing.signal.aborted
+                    ? "cancelled"
+                    : success
+                      ? "unknown"
+                      : "failed",
+              });
+            },
+          }
+        : {}),
       get canRotate() {
         return canRotate();
       },
       observe: (status, headers = new Headers()) => {
         if (released || this.disposed) return;
+        this.routing.observe(key.id, headers);
         if (status === 429 && !rateObserved) {
           rateObserved = true;
           const hint = readRateLimitHint(headers);
@@ -149,6 +201,9 @@ export class ApiKeyPool {
       release: () => {
         if (released) return;
         released = true;
+        if (reservation && !started) {
+          reservation.cancel();
+        }
         this.leases--;
       },
     };
@@ -160,6 +215,7 @@ export class ApiKeyPool {
     this.cooling.clear();
     this.failures.clear();
     this.positions.clear();
+    this.routing.dispose();
   }
 
   private waitMs(): number {
@@ -238,6 +294,7 @@ export class ApiKeyPoolRegistry {
     providerId: string,
     generation: string | undefined,
     keys: readonly ProviderApiKey[],
+    routing?: ProviderRoutingPolicy | null,
   ): ApiKeyPool {
     let signature = this.signatures.get(keys);
     if (!signature) {
@@ -259,6 +316,7 @@ export class ApiKeyPoolRegistry {
       this.pools.set(slot, new WeakRef(pool));
       this.finalizer.register(pool, slot);
     }
+    pool.configureRouting(routing);
     this.current.set(providerId, pool);
     return pool;
   }

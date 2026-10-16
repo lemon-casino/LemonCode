@@ -1,5 +1,7 @@
 # SSH 会话使用本机 API 与 OAuth 供应商
 
+后续连接调度的上下文、单次派发预算与能力协商见 [供应商连接调度策略](./provider-routing-strategies.md) 和 [验收目录](./provider-routing-acceptance.md)，目前仅为设计；下文描述当前调用桥边界。
+
 ## 产品规则与边界
 
 - Desktop 远程工作区的 API Key Provider 沿用已有 Personal Config provisioning；目标 Registry 仍是会话模型选择的事实来源。

@@ -4,6 +4,8 @@ import {
   providerAccountRelayHeadSchema,
   providerAccountRelayChunkSchema,
   type ProviderAccountView,
+  type RoutingInvocation,
+  type ProviderRoutingPolicy,
 } from "@lcode/shared";
 import type { AuthWireProtocol } from "@lcode/provider-node";
 import type { IProviderAccountService } from "./providerAccountService.js";
@@ -22,68 +24,85 @@ export class RemoteProviderAccounts implements IProviderAccountService {
   #attached = false;
   #disposed = false;
   readonly #channelNames = new Map<string, string>();
-  readonly #transport = new ProviderAccountTransport(async (ticket, request) => {
-    const relay = await this.#ready;
-    const requestId = randomUUID();
-    const cancel = () => {
-      void relay.cancel(requestId).catch(() => {});
-    };
-    const cleanup = () => request.signal.removeEventListener("abort", cancel);
-    request.signal.throwIfAborted();
-    request.signal.addEventListener("abort", cancel, { once: true });
-    try {
-      const body = Buffer.from(await request.arrayBuffer()).toString("base64");
+  readonly #routingRequests = new WeakMap<object, string>();
+  readonly #transport = new ProviderAccountTransport(
+    async (ticket, request) => {
+      const relay = await this.#ready;
+      const requestId = randomUUID();
+      const cancel = () => {
+        void relay.cancel(requestId).catch(() => {});
+      };
+      const cleanup = () => request.signal.removeEventListener("abort", cancel);
       request.signal.throwIfAborted();
-      const headers: Record<string, string> = {};
-      for (const name of ["anthropic-version", "anthropic-beta", "accept"]) {
-        const value = request.headers.get(name);
-        if (value) headers[name] = value;
-      }
-      const head = providerAccountRelayHeadSchema.parse(
-        await relay.open({
-          requestId,
-          channelId: ticket.channelId,
-          modelId: ticket.modelId,
-          protocol: ticket.protocol,
-          ...(ticket.sessionId ? { sessionId: ticket.sessionId } : {}),
-          body,
-          headers,
-        }),
-      );
-      request.signal.throwIfAborted();
-      if ([204, 205, 304].includes(head.status)) {
-        cleanup();
-        await relay.cancel(requestId);
-        return new Response(null, head);
-      }
-      const stream = new ReadableStream<Uint8Array>({
-        async pull(controller) {
-          try {
-            const chunk = providerAccountRelayChunkSchema.parse(await relay.read(requestId));
-            request.signal.throwIfAborted();
-            if (chunk.done) {
+      request.signal.addEventListener("abort", cancel, { once: true });
+      try {
+        const body = Buffer.from(await request.arrayBuffer()).toString("base64");
+        request.signal.throwIfAborted();
+        const headers: Record<string, string> = {};
+        for (const name of ["anthropic-version", "anthropic-beta", "accept"]) {
+          const value = request.headers.get(name);
+          if (value) headers[name] = value;
+        }
+        const head = providerAccountRelayHeadSchema.parse(
+          await relay.open({
+            requestId,
+            channelId: ticket.channelId,
+            modelId: ticket.modelId,
+            protocol: ticket.protocol,
+            ...(ticket.sessionId ? { sessionId: ticket.sessionId } : {}),
+            ...(ticket.routingInvocation ? { routingInvocation: ticket.routingInvocation } : {}),
+            body,
+            headers,
+          }),
+        );
+        if (head.headers["x-zcode-routing-strategy"]) this.#routingRequests.set(ticket, requestId);
+        request.signal.throwIfAborted();
+        if ([204, 205, 304].includes(head.status)) {
+          cleanup();
+          await relay.cancel(requestId);
+          return new Response(null, head);
+        }
+        const stream = new ReadableStream<Uint8Array>({
+          async pull(controller) {
+            try {
+              const chunk = providerAccountRelayChunkSchema.parse(await relay.read(requestId));
+              request.signal.throwIfAborted();
+              if (chunk.done) {
+                cleanup();
+                controller.close();
+              } else controller.enqueue(Buffer.from(chunk.data, "base64"));
+            } catch {
               cleanup();
-              controller.close();
-            } else controller.enqueue(Buffer.from(chunk.data, "base64"));
-          } catch {
+              cancel();
+              controller.error(new Error("OAuth relay response unavailable"));
+            }
+          },
+          cancel() {
             cleanup();
             cancel();
-            controller.error(new Error("OAuth relay response unavailable"));
-          }
-        },
-        cancel() {
-          cleanup();
-          cancel();
-        },
-      });
-      return new Response(stream, head);
-    } catch {
-      cleanup();
-      cancel();
-      throw new Error("OAuth relay model request failed");
-    }
-  });
-  constructor() {
+          },
+        });
+        return new Response(stream, head);
+      } catch {
+        cleanup();
+        cancel();
+        throw new Error("OAuth relay model request failed");
+      }
+    },
+    async (ticket, usage) => {
+      const id = this.#routingRequests.get(ticket);
+      if (this.#disposed) throw new Error("owner-stale");
+      if (!id) return;
+      const relay = await this.#ready;
+      if (!relay.observeRoutingUsage) throw new Error("routing-capability-required");
+      await relay.observeRoutingUsage(id, usage);
+    },
+  );
+  constructor(
+    private readonly options: {
+      readRouting?: (channel: string) => Promise<ProviderRoutingPolicy | null | undefined>;
+    } = {},
+  ) {
     this.#ready = new Promise((resolve, reject) => {
       this.#resolve = resolve;
       this.#reject = reject;
@@ -139,7 +158,15 @@ export class RemoteProviderAccounts implements IProviderAccountService {
     modelId: string,
     protocol?: AuthWireProtocol,
     sessionId?: string,
+    routingInvocation?: RoutingInvocation,
   ) {
+    const service = await this.#ready;
+    const policy = await this.options.readRouting?.(channelId);
+    const capabilities = await service
+      .getRoutingCapabilities?.()
+      .catch((): readonly string[] => []);
+    if (policy && (!routingInvocation || !capabilities?.includes("single-attempt-routing-v1")))
+      throw new Error("routing-capability-required");
     // 手动模型与目录内模型复用本机路由规则，不能在远端再维护一套账号资格判断。
     const model = resolveProviderAccountRoutes(
       await this.readAccounts(),
@@ -149,8 +176,17 @@ export class RemoteProviderAccounts implements IProviderAccountService {
     )[0]?.model;
     if (!model) throw new Error("No authorized account supports this model");
     return {
-      ...(await this.#transport.issue(channelId, modelId, model.protocol, sessionId)),
+      ...(await this.#transport.issue(
+        channelId,
+        modelId,
+        model.protocol,
+        sessionId,
+        capabilities?.includes("single-attempt-routing-v1") ? routingInvocation : undefined,
+      )),
       protocol: model.protocol,
+      ...(routingInvocation && capabilities?.includes("single-attempt-routing-v1")
+        ? { routingFeedback: true as const }
+        : {}),
     };
   }
   dispose(): void {

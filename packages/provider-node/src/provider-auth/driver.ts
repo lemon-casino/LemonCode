@@ -32,6 +32,8 @@ export interface AuthMethod {
   description?: string;
 }
 export interface AuthModel {
+  routingPortability?: "portable" | "account-bound" | "provider-session-bound" | "unknown";
+  routingCacheTtlMs?: number;
   id: string;
   name: string;
   billing?: import("@lcode/shared").ModelBilling;
@@ -49,6 +51,8 @@ export interface AuthModel {
   inputModalities?: readonly ("text" | "image" | "video" | "audio" | "pdf")[];
 }
 export interface AuthDriverContext {
+  /** Enhanced routing owns retries: at most one inference POST in this fetch. */
+  readonly routingSingleAttempt?: true;
   readonly connectionId?: string;
   read(): Promise<AuthGrant | null>;
   /** Replaces the current grant; Host rejects writes after the account/attempt generation changes. */
@@ -73,6 +77,8 @@ export type AuthImportEntry =
   | { status: "ready"; grant: AuthGrant; label?: string }
   | { status: "failed" | "exists"; label?: string; error?: string };
 export interface AuthDriver {
+  /** Audited support for AuthDriverContext.routingSingleAttempt; absent means legacy only. */
+  readonly routingSingleAttempt?: true;
   checkin?(context: AuthDriverContext): Promise<import("@lcode/shared").ProviderCheckinReply>;
   methods(): Promise<readonly AuthMethod[]>;
   authorize(

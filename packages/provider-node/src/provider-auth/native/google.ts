@@ -43,6 +43,7 @@ const APPS = {
 };
 
 export class GoogleAuthDriver implements AuthDriver {
+  readonly routingSingleAttempt = true;
   private readonly lifetime = new AbortController();
   private readonly catalog: GoogleModels;
   private readonly refreshOwner: NativeAccountRefresh;

@@ -40,6 +40,14 @@ export async function handleStreamErrorEvent(
   input.apiKeyAttempt?.observeFailure(
     classified.statusCode,
     getResponseHeaders(unwrapRetryError(error)),
+    input.emittedRetryBoundaryEvent,
+    input.input.request.abortSignal?.aborted,
+  );
+  await input.input.resolved.observeRoutingFailure?.(
+    classified.statusCode,
+    getResponseHeaders(unwrapRetryError(error)),
+    input.emittedRetryBoundaryEvent,
+    input.input.request.abortSignal?.aborted,
   );
   // off-peak 特判：SSE 首块即错（尚无可见输出）时的排队 429 同样豁免预算重试。
   const offPeak = resolveOffPeakFailureDecision({

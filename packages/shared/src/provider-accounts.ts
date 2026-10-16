@@ -23,6 +23,10 @@ export const providerAccountReasoningOptionsSchema = z.object({
 
 export const providerAccountModelSchema = z
   .object({
+    routingPortability: z
+      .enum(["portable", "account-bound", "provider-session-bound", "unknown"])
+      .optional(),
+    routingCacheTtlMs: z.number().int().positive().max(604800000).optional(),
     id: z.string().min(1),
     name: z.string(),
     billing: modelBillingSchema.optional(),

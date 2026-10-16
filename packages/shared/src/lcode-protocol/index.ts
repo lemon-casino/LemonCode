@@ -21,6 +21,7 @@ import { bashOutputDisplaySchema } from "../bash-output-display.js";
 export * from "../background-bash-output.js";
 import { executionOutputPreviewSchema } from "../execution-output-preview.js";
 import { z } from "zod";
+import { routingInvocationSchema } from "../provider-routing.js";
 import { accountModelCatalogSchema } from "../model-catalog.js";
 export {
   workflowRunResumeRejectionReasonSchema,
@@ -2552,8 +2553,12 @@ export const lcodeUserInputResponseSchema = z
 export type LCodeUserInputResponse = z.infer<typeof lcodeUserInputResponseSchema>;
 
 export const lcodeProviderRuntimeHeadersRequestReasonSchema = z.enum(["model-request"]);
+export const lcodeProviderRoutingCapabilitiesSchema = z
+  .object({ capabilities: z.array(z.literal("single-attempt-routing-v1")).max(1) })
+  .strict();
 export const lcodeProviderRuntimeHeadersRequestParamsSchema = z
   .object({
+    routingInvocation: routingInvocationSchema.optional(),
     requestId: nonEmptyString,
     sessionId: nonEmptyString,
     turnId: nonEmptyString.optional(),
@@ -2587,6 +2592,7 @@ export const lcodeProviderRuntimeHeadersResponseSchema = z.discriminatedUnion("h
       // 合并重接：成功必须携带当前请求的鉴权材料，不依赖旧 Registry 已被写入。
       requestAuth: z
         .object({
+          routingFeedback: z.boolean().optional(),
           apiKey: nonEmptyString.optional(),
           baseURL: z.string().url().optional(),
           protocol: z
@@ -3846,6 +3852,7 @@ export const lcodeProtocolMethods = {
   interactionRequestPermission: "interaction/requestPermission",
   interactionRequestUserInput: "interaction/requestUserInput",
   interactionRequestProviderRuntimeHeaders: "interaction/requestProviderRuntimeHeaders",
+  interactionProviderRoutingCapabilities: "interaction/providerRoutingCapabilities",
   interactionRequestOfficialMcpAuthHeaders: "interaction/requestOfficialMcpAuthHeaders",
   // browser-use 反向请求由 agent 发起，host 转给 main 中的 CDP executor。
   interactionBrowserList: "interaction/browserList",

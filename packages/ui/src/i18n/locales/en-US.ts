@@ -8114,6 +8114,34 @@ const enUS: Record<string, string> = {
     "Referencing {count} saved summaries; sources will be checked when sent.",
   "taskList.handoff.capsuleLimit":
     "A message can reference at most 4 summaries. Remove extra references from the draft.",
+  "settings.routing.title": "Connection routing",
+  "settings.routing.strategy": "Strategy",
+  "settings.routing.legacy": "Keep existing behavior",
+  "settings.routing.reliable-first": "Reliable first",
+  "settings.routing.primary-backup": "Primary and backup",
+  "settings.routing.share-rotation": "Weighted rotation",
+  "settings.routing.headroom-balance": "Headroom balance",
+  "settings.routing.expiry-first": "Expiry first",
+  "settings.routing.legacy.description":
+    "Keep the existing account preference, key rotation and cooldown rules.",
+  "settings.routing.reliable-first.description":
+    "Prefer reliable connections using recent success, completion time and quota.",
+  "settings.routing.primary-backup.description":
+    "Use the primary connection first, then backups; prefer the primary again on a new turn.",
+  "settings.routing.share-rotation.description":
+    "Allocate work by connection share; keep tool continuations on their current account.",
+  "settings.routing.headroom-balance.description":
+    "Compare all relevant quota windows and prefer more available headroom.",
+  "settings.routing.expiry-first.description":
+    "Prefer allowance predicted to expire unused; fall back to headroom balance or weighted rotation when data is insufficient.",
+  "settings.routing.concurrency": "Maximum concurrent requests per connection (1–64)",
+  "settings.routing.cache": "Cache preference across turns",
+  "settings.routing.cache.auto": "Keep useful caches",
+  "settings.routing.cache.turn-only": "Keep account for current turn only",
+  "settings.routing.error": "Save failed or configuration changed. Reload before saving again.",
+  "settings.routing.reload": "Reload",
+  "settings.routing.save": "Save routing strategy",
+  "settings.routing.saving": "Saving…",
 };
 
 export default enUS;

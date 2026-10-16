@@ -226,6 +226,7 @@ export type ProviderConfigInput = Omit<ProviderConfigObject, "access" | "api"> &
   readonly access?: ProviderAccessConfig | null;
   readonly api?: ProviderApiConfig | null;
   readonly network?: ProviderConfigObject["network"];
+  readonly routing?: ProviderConfigObject["routing"];
 };
 
 export type ProviderConfigObject = Readonly<z.infer<typeof providerConfigDataSchema>>;
@@ -236,6 +237,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
   readonly access?: ProviderAccessConfig | null;
   readonly api?: ProviderApiConfig | null;
   readonly network?: ProviderConfigObject["network"];
+  readonly routing?: ProviderConfigObject["routing"];
   readonly builtinModelIds?: ProviderConfigObject["builtinModelIds"];
   readonly personalModelIds?: ProviderConfigObject["personalModelIds"];
   readonly excludedModelIds?: ProviderConfigObject["excludedModelIds"];
@@ -249,6 +251,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
     this.access = input.access;
     this.api = input.api;
     this.network = input.network ? Object.freeze({ ...input.network }) : input.network;
+    this.routing = freezeRoutingPolicy(input.routing);
     this.builtinModelIds = freezeModelIds(input.builtinModelIds);
     this.personalModelIds = freezeModelIds(input.personalModelIds);
     this.excludedModelIds = freezeModelIds(input.excludedModelIds);
@@ -264,6 +267,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
       access: overlayProviderAccess(this.access, next.access),
       api: this.overlayConfig(this.api, next.api),
       network: this.overlayValue(this.network, next.network),
+      routing: this.overlayValue(this.routing, next.routing),
       builtinModelIds: this.overlayValue(this.builtinModelIds, next.builtinModelIds),
       personalModelIds: this.overlayValue(this.personalModelIds, next.personalModelIds),
       excludedModelIds: this.overlayValue(this.excludedModelIds, next.excludedModelIds),
@@ -294,6 +298,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
       access: this.access,
       api: this.api,
       network: this.network,
+      routing: this.routing,
       builtinModelIds: this.builtinModelIds,
       personalModelIds: this.personalModelIds,
       excludedModelIds: this.excludedModelIds,
@@ -310,6 +315,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
       access: this.access,
       api: this.api,
       network: this.network,
+      routing: this.routing,
       builtinModelIds: source?.builtinModelIds,
       personalModelIds: source?.personalModelIds,
       excludedModelIds: source?.excludedModelIds,
@@ -330,6 +336,7 @@ export class ProviderConfig extends ConfigOverlay<ProviderConfig> {
       access: this.access?.toJSON() ?? this.access,
       api: this.api?.toJSON() ?? this.api,
       network: this.network,
+      routing: this.routing,
       builtinModelIds: this.builtinModelIds,
       personalModelIds: this.personalModelIds,
       excludedModelIds: this.excludedModelIds,
@@ -436,6 +443,18 @@ function freezeProviderLogo(
   logo: ProviderLogoRef | null | undefined,
 ): ProviderLogoRef | null | undefined {
   return logo ? Object.freeze({ ...logo }) : logo;
+}
+
+function freezeRoutingPolicy(value: ProviderConfigObject["routing"]) {
+  if (!value) return value;
+  const policy = structuredClone(value);
+  if (policy.order) Object.freeze(policy.order);
+  if (policy.weights) Object.freeze(policy.weights);
+  if (policy.reserveRules) {
+    policy.reserveRules.forEach(Object.freeze);
+    Object.freeze(policy.reserveRules);
+  }
+  return Object.freeze(policy);
 }
 
 const ownedApiKeyLists = new WeakSet<readonly ProviderApiKey[]>();

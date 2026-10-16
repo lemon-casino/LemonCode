@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { routingInvocationSchema } from "./provider-routing.js";
 
 /** 仅受信 Desktop Host ↔ Server stdio 使用，不注册到 Renderer/HTTP 服务集合。 */
 export const PROVIDER_ACCOUNT_RELAY_CHANNEL = "host-provider-account-relay";
@@ -15,6 +16,7 @@ export const providerAccountRelayOpenSchema = z
     modelId: z.string().min(1).max(512),
     protocol,
     sessionId: z.string().max(4096).optional(),
+    routingInvocation: routingInvocationSchema.optional(),
     body: z
       .string()
       .max(Math.ceil(PROVIDER_ACCOUNT_RELAY_MAX_BODY_BYTES / 3) * 4)
@@ -39,6 +41,8 @@ export const providerAccountRelayHeadSchema = z
         "content-type": z.string().optional(),
         "retry-after": z.string().optional(),
         "x-zcode-connection-id": z.string().optional(),
+        "x-zcode-routing-strategy": z.string().optional(),
+        "x-zcode-routing-reason": z.string().optional(),
       })
       .strict(),
   })

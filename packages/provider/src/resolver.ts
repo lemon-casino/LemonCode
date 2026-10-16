@@ -54,6 +54,7 @@ export function serializeRegistryProviderConfig(
         config.access.apiKey);
   return {
     group: config.group,
+    ...(config.routing === undefined ? {} : { routing: config.routing }),
     ...(config.network === undefined ? {} : { network: config.network }),
     ...(config.logo === undefined ? {} : { logo: config.logo }),
     access:

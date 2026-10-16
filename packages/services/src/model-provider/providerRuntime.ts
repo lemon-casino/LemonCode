@@ -221,6 +221,8 @@ function createSettingsMutationTarget(
 ): ProviderSettingsMutationTarget {
   const configService = configRuntime.configService;
   return {
+    setProviderRouting: (providerId, routing, membership) =>
+      configService.setProviderRouting(providerId, routing, membership),
     importProxyProfiles: (text) => configService.importProxyProfiles(text),
     saveProxyProfile: (profile) => configService.saveProxyProfile(profile),
     deleteProxyProfile: (id) => configService.deleteProxyProfile(id),

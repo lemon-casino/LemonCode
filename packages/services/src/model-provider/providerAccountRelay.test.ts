@@ -13,7 +13,11 @@ import {
   createAccountProviderConfigSnapshot,
   parseProviderConfig,
 } from "@lcode/provider";
-import { PROVIDER_ACCOUNT_RELAY_CHANNEL, type ProviderAccountRelayOpen } from "@lcode/shared";
+import {
+  PROVIDER_ACCOUNT_RELAY_CHANNEL,
+  type ProviderAccountRelayOpen,
+  type ProviderRoutingPolicy,
+} from "@lcode/shared";
 import { ProviderAccounts } from "./providerAccounts.js";
 import { PROVIDER_AUTH_CHANNELS } from "./providerAccountStoreSchema.js";
 import { createProviderAccountsSource } from "./providerAccountsSource.js";
@@ -28,11 +32,13 @@ const paths = ["/chat/completions", "/responses", "/messages"] as const;
 async function fixture(
   t: test.TestContext,
   fetchHook?: (request: Request, context: AuthDriverContext) => Promise<Response>,
+  routing?: ProviderRoutingPolicy,
 ) {
   const directory = await mkdtemp(join(tmpdir(), "remote-oauth-relay-"));
   const saved = new Map<string, string>();
   const calls: string[] = [];
   const local = new ProviderAccounts({
+    readRouting: async () => routing,
     lockPath: join(directory, "accounts"),
     credentials: {
       load: async (key) => saved.get(key) ?? null,
@@ -46,6 +52,7 @@ async function fixture(
     factory: async (channelId) => {
       const index = PROVIDER_AUTH_CHANNELS.findIndex((channel) => channel.id === channelId);
       return {
+        routingSingleAttempt: true,
         methods: async () => [{ id: "login", label: "Fixture", type: "oauth" }],
         authorize: async () => ({
           method: "code",
@@ -69,7 +76,7 @@ async function fixture(
           assert.equal(new URL(request.url).pathname, `/v1${paths[index % 3]}`);
           assert.equal(
             request.headers.get("x-lcode-session-id"),
-            '["ssh-workspace","remote-session"]',
+            routing ? null : '["ssh-workspace","remote-session"]',
           );
           calls.push(channelId);
           if (fetchHook) return fetchHook(request, context);
@@ -136,6 +143,53 @@ async function fixture(
   });
   return { local, remote, source, proxy, saved, frames, calls };
 }
+
+test("enhanced relay negotiates capabilities, returns the actual strategy and sends usage to the original attempt", async (t) => {
+  const policy = { version: 1, strategy: "headroom-balance" } as const;
+  const f = await fixture(t, undefined, policy);
+  const login = await f.local.startAuthorization({ channelId: "bigmodel", methodId: "login" });
+  await f.local.completeAuthorization(login.attemptId, "fixture");
+  const auth = await f.remote.resolveRequestAuth(
+    "bigmodel",
+    "fixture-model",
+    "openai-chat-completions",
+    '["ssh-workspace","remote-session"]',
+    {
+      capability: "single-attempt-routing-v1",
+      workspaceKey: "ssh-workspace",
+      remoteSessionId: "attachment",
+      sessionId: "remote-session",
+      attemptId: "physical-1",
+      turnId: "turn",
+    },
+  );
+  const response = await fetch(auth.baseURL + "/chat/completions", {
+    method: "POST",
+    headers: { authorization: `Bearer ${auth.apiKey}`, "content-type": "application/json" },
+    body: JSON.stringify({ model: "fixture-model", stream: true }),
+  });
+  assert.equal(response.status, 200);
+  await response.text();
+  assert.equal(response.headers.get("x-zcode-routing-strategy"), "share-rotation");
+  const feedback = await fetch(auth.baseURL + "/routing/usage", {
+    method: "POST",
+    headers: { authorization: `Bearer ${auth.apiKey}`, "content-type": "application/json" },
+    body: JSON.stringify({ workUnits: 7 }),
+  });
+  assert.equal(feedback.status, 204);
+  assert.equal(f.calls.length, 1);
+  assert.equal(
+    f.frames.some((frame) => Buffer.from(frame.buffer).includes(Buffer.from("secret-"))),
+    false,
+  );
+  const old = new RemoteProviderAccounts({ readRouting: async () => policy });
+  t.after(() => old.dispose());
+  old.attach({ ...f.source.service, getRoutingCapabilities: undefined });
+  await assert.rejects(
+    old.resolveRequestAuth("bigmodel", "fixture-model"),
+    /routing-capability-required/,
+  );
+});
 
 test("remote check-in and automatic settings call the original account owner and project no credentials", async (t) => {
   const f = await fixture(t);

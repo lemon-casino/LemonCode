@@ -30,6 +30,7 @@ export function createProviderAccountContext(
         throw new Error("Stale account credential update");
       current.grant = grantSchema.parse(grant);
       current.generation++;
+      current.routingEpoch ??= 0;
       generation = current.generation;
     });
   };

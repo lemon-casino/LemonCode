@@ -1,4 +1,6 @@
 import type { ModelRequestAuth } from "@lcode/contracts";
+import { randomUUID } from "node:crypto";
+import type { RoutingRequest } from "@lcode/provider";
 import { ModelErrorCode, ModelFailureReason, ModelProtocolError } from "@lcode/contracts";
 import type { AiSdkModelTextRequest, ResolvedAiSdkModel } from "./runner-runtime.js";
 
@@ -19,8 +21,23 @@ export async function resolveModelForAttempt(input: {
   const signal = input.request.abortSignal;
   signal?.throwIfAborted();
   const boundModel = input.resolveModel();
+  const trace = input.request.traceContext;
+  const context: RoutingRequest = {
+    attemptId: randomUUID(),
+    scopeKey: JSON.stringify([
+      trace?.attributes?.workspaceIdentity ?? trace?.attributes?.workspacePath ?? null,
+      trace?.sessionId ?? trace?.traceId ?? randomUUID(),
+      trace?.attributes?.executionId ?? null,
+      trace?.attributes?.actorId ?? trace?.sessionId ?? null,
+      boundModel.providerId,
+      boundModel.modelId,
+    ]),
+    turnId: trace?.turnId,
+    workUnits: 4096,
+    signal,
+  };
   if (!input.request.refreshRuntimeHeadersBeforeAttempt)
-    return acquireApiKeyAttempt(boundModel, signal, input.outsideTicket);
+    return acquireApiKeyAttempt(boundModel, signal, input.outsideTicket, context);
   try {
     const refreshResult = await waitForHeaders(
       () =>
@@ -46,6 +63,7 @@ export async function resolveModelForAttempt(input: {
       input.resolveModel(refreshResult.requestAuth),
       signal,
       input.outsideTicket,
+      context,
     );
   } catch (error) {
     if (signal?.aborted) throw error;
@@ -64,8 +82,9 @@ async function acquireApiKeyAttempt(
   model: ResolvedAiSdkModel,
   signal?: AbortSignal,
   outsideTicket?: (wait: () => Promise<void>, signal?: AbortSignal) => Promise<void>,
+  context?: RoutingRequest,
 ): Promise<ResolvedAiSdkModel> {
-  const attempt = await model.acquireApiKeyAttempt?.(signal, outsideTicket);
+  const attempt = await model.acquireApiKeyAttempt?.(signal, outsideTicket, context);
   return attempt ? { ...model, model: attempt.model, apiKeyAttempt: attempt } : model;
 }
 

@@ -43,6 +43,9 @@ export interface ProviderApiKeyProbeEvent extends ProviderApiKeyProbeProgress {
 }
 
 export interface IProviderSettingsService {
+  setProviderRouting(
+    input: Parameters<ProviderSettingsFacade["setProviderRouting"]>[0],
+  ): Promise<ProviderSettingsView>;
   importProxyProfiles(text: string): Promise<ProviderSettingsView>;
   saveProxyProfile(profile: ProxyProfile): Promise<ProviderSettingsView>;
   deleteProxyProfile(id: string): Promise<ProviderSettingsView>;
@@ -200,6 +203,9 @@ export function createProviderSettingsService(
     async setProviderNetwork(providerId, network) {
       await ensureReady();
       return compactProviderSettingsView(await facade.setProviderNetwork(providerId, network));
+    },
+    async setProviderRouting(input) {
+      return compactProviderSettingsView(await facade.setProviderRouting(input));
     },
     onDidChange: toEvent((listener) =>
       facade.onDidChange((view) => listener(compactProviderSettingsView(view))),

@@ -18,6 +18,14 @@ export const providerAccountQuotaWindowSchema = z
     display: z.string().max(160).optional(),
     modelId: z.string().max(160).optional(),
     pool: z.string().max(160).optional(),
+    kind: z.enum(["rate", "budget", "expiring-balance", "informational", "unknown"]).optional(),
+    instanceId: z.string().min(1).max(256).optional(),
+    stableId: z.boolean().optional(),
+    quotaPoolId: z.string().min(1).max(256).optional(),
+    scope: z.enum(["account", "organization", "model", "shared", "unknown"]).optional(),
+    resetMode: z.enum(["fixed", "rolling", "none", "unknown"]).optional(),
+    includedModelIds: z.array(z.string().min(1).max(256)).max(100).optional(),
+    excludedModelIds: z.array(z.string().min(1).max(256)).max(100).optional(),
   })
   .strict();
 export const providerAccountQuotaSchema = z

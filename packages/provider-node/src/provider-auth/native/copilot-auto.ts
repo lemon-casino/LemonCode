@@ -5,6 +5,7 @@ import { autoResponse } from "./copilot-auto-response.js";
 import { joinedSignal, list, number, record, text, type Fetcher, type Json } from "./common.js";
 
 interface AutoOptions {
+  singleAttempt?: boolean;
   base: string;
   headers: Record<string, string>;
   signal: AbortSignal;
@@ -248,7 +249,8 @@ export class CopilotAutoRouter {
     }
   }
   async request(body: Json, options: AutoOptions): Promise<Response> {
-    for (let attempt = 0; attempt < 3; attempt++) {
+    const attempts = options.singleAttempt ? 1 : 3;
+    for (let attempt = 0; attempt < attempts; attempt++) {
       const selected = await this.resolve(body, options);
       options.signal.throwIfAborted();
       const policy = await options.beforeSend?.(selected.model);
@@ -272,7 +274,7 @@ export class CopilotAutoRouter {
       const invalid = result.refused || (Boolean(selected.token) && result.sessionGone);
       if (invalid && this.cache === selected) this.cache = undefined;
       // 只在成功输出之前、明确的模型/会话拒绝时重选；限流、普通错误及已开始的流不重放。
-      if (!invalid || attempt === 2)
+      if (!invalid || attempt === attempts - 1)
         return autoResponse(
           result.response,
           selected.model,

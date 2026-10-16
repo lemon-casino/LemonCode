@@ -5,6 +5,7 @@ import { useProviderAccounts } from "@/hooks/useProviderAccounts.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { ProviderAccountManager, ProviderLoginAuthorization } from "./ProviderAccountsPanel.js";
 import { ProviderProxyEditor } from "@/settings/ProviderProxyEditor.js";
+import { ProviderRoutingEditor } from "@/settings/ProviderRoutingEditor.js";
 
 type ModelEditor = (listModels: () => Promise<readonly string[]>) => ReactNode;
 
@@ -72,6 +73,7 @@ export function ProviderAccountsContent({
   return (
     <div className="min-w-0 space-y-4">
       <ProviderProxyEditor channelId={channelId} />
+      <ProviderRoutingEditor channelId={channelId} />
       <Tabs value={tab} onValueChange={setTab} className="min-w-0 gap-4">
         {/* 通用页签的 flex-1 会拉满整行；这里限制总宽，小屏等分并允许长标签换行。 */}
         <TabsList

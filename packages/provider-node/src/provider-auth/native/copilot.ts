@@ -76,6 +76,7 @@ function sessionBase(value: unknown): string {
 }
 
 export class CopilotAuthDriver implements AuthDriver {
+  readonly routingSingleAttempt = true;
   private readonly lifetime = new AbortController();
   private readonly policies = new Set<string>();
   private readonly auto: CopilotAutoRouter;
@@ -348,6 +349,7 @@ export class CopilotAuthDriver implements AuthDriver {
         if (new URL(request.url).pathname !== "/chat/completions")
           throw new Error("Copilot Auto requires the chat protocol");
         return this.auto.request(parsed, {
+          singleAttempt: context.routingSingleAttempt,
           base,
           headers: Object.fromEntries(headers),
           signal,
@@ -369,10 +371,11 @@ export class CopilotAuthDriver implements AuthDriver {
       });
     };
     let response = await send(grant);
+    // 增强路由不能在一份并发预留里刷新并重放推理；legacy 保持原 401 恢复行为。
     if (response.status === 401) {
-      await response.body?.cancel();
+      if (!context.routingSingleAttempt) await response.body?.cancel();
       grant = await this.session(context, true);
-      response = await send(grant);
+      if (!context.routingSingleAttempt) response = await send(grant);
     }
     return model === "auto" ? response : this.auto.observe(model, response, signal);
   }

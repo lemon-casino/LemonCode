@@ -42,6 +42,7 @@ import { useProviderDetailFeedback } from "./ProviderDetailFeedback.js";
 import { useIdleTrigger } from "./useIdleTrigger.js";
 import { useOptimisticReorder } from "./useOptimisticReorder.js";
 import { ProviderProxyEditor } from "@/settings/ProviderProxyEditor.js";
+import { ProviderRoutingEditor } from "@/settings/ProviderRoutingEditor.js";
 
 type ProviderNameEditKeyAction = "commit" | "cancel";
 type ProviderDraftCleanupAction = "commit" | "skip-delete";
@@ -856,7 +857,10 @@ export function InlineEditableProviderCard({
 
       <div className="space-y-3">
         {provider.config.access?.type !== "oauth-account" ? (
-          <ProviderProxyEditor providerId={provider.providerId} />
+          <>
+            <ProviderProxyEditor providerId={provider.providerId} />
+            <ProviderRoutingEditor providerId={provider.providerId} />
+          </>
         ) : null}
         {isAccountProvider || hideConnectionSettings ? null : (
           <ProviderConnectionSection

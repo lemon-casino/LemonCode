@@ -50,7 +50,7 @@ export function normalizeProviderAccountQuota(
           : finish(
               list(raw.windows).map((w, i) =>
                 windowOf(
-                  `window-${i}`,
+                  label(w.id) ?? `window-${i}`,
                   label(w.name) ?? "Allowance",
                   pluginWindow(channel, w),
                   now,

@@ -8,6 +8,7 @@ import {
 } from "@lcode/contracts";
 import type { LCodeProviderRuntimeHeadersResponse, LCodeWorkspaceRef } from "@lcode/shared";
 import { createProviderRuntimeHeadersPort } from "./provider-runtime-headers.js";
+import { lcodeProtocolMethods } from "@lcode/shared";
 import { ProtocolRequestError, type LCodeProtocolAgentServerContext } from "./server-types.js";
 
 const workspace = {
@@ -44,6 +45,28 @@ function assertAuthMissing(error: unknown): boolean {
   assert.equal(error.context?.reason, ModelFailureReason.AuthFailed);
   return true;
 }
+
+test("routing context is negotiated and an older Host receives exactly the legacy auth shape", async () => {
+  for (const supported of [false, true]) {
+    let params: Record<string, unknown> | undefined;
+    const port = createProviderRuntimeHeadersPort(
+      {
+        notify() {},
+        requestClient: async (method: string, input: Record<string, unknown>) => {
+          if (method === lcodeProtocolMethods.interactionProviderRoutingCapabilities) {
+            if (!supported) throw new ProtocolRequestError(-32601, "Method not found");
+            return { capabilities: ["single-attempt-routing-v1"] };
+          }
+          params = input;
+          return { headersApplied: true, requestAuth: { apiKey: "synthetic" } };
+        },
+      } as unknown as LCodeProtocolAgentServerContext,
+      workspace,
+    );
+    await refresh(port);
+    assert.equal(Boolean(params?.routingInvocation), supported);
+  }
+});
 
 test("headersApplied=false becomes a structured request-auth failure", async () => {
   const port = createPort(async () => ({

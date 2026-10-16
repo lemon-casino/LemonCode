@@ -7,6 +7,7 @@ const protocol = "openai-chat-completions" as const;
 function fixture(run: (id: string, request: Request) => Promise<Response>, channelId = "fixture") {
   const accounts = ["first", "second", "disabled", "other-protocol"].map((id) => ({
     connectionId: id,
+    generation: 1,
     channelId,
     enabled: id !== "disabled",
     models: [
@@ -178,3 +179,46 @@ test("cancelling the request aborts the active account without starting a fallba
   assert.deepEqual(pool.calls, ["first"]);
   assert.equal(pool.active.size, 0);
 });
+
+test(
+  "a cancelled pending read keeps tracking until the underlying cancellation completes",
+  { timeout: 1500 },
+  async () => {
+    let cancel!: () => void, ended!: () => void;
+    const cancellation = new Promise<void>((resolve) => {
+      cancel = resolve;
+    });
+    const physicalEnd = new Promise<void>((resolve) => {
+      ended = resolve;
+    });
+    const pool = fixture(
+      async () =>
+        new Response(
+          new ReadableStream({
+            start(output) {
+              output.enqueue(new Uint8Array([1]));
+            },
+            cancel: () => cancellation,
+          }),
+        ),
+    );
+    const remove = pool.active.delete.bind(pool.active);
+    pool.active.delete = (value) => {
+      const result = remove(value);
+      ended();
+      return result;
+    };
+    const controller = new AbortController();
+    const response = await pool.request("physical", controller.signal);
+    const reader = response.body!.getReader();
+    await reader.read();
+    const pending = reader.read();
+    controller.abort();
+    await pending;
+    assert.equal(pool.active.size, 1);
+    assert.deepEqual(pool.calls, ["first"]);
+    cancel();
+    await physicalEnd;
+    assert.equal(pool.active.size, 0);
+  },
+);

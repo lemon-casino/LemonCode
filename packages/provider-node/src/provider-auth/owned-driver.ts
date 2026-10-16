@@ -30,6 +30,7 @@ export async function createOwnedAuthDriver(
     return run();
   };
   return {
+    routingSingleAttempt: driver.routingSingleAttempt,
     methods: () => admit(() => driver.methods()),
     authorize: (...args) => admit(() => driver.authorize(...args)),
     models: (...args) => admit(() => driver.models(...args)),

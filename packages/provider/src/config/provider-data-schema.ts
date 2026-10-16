@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { sparseShape } from "@lcode/shared/config-schema";
 import { isNetworkProxyUrl } from "@lcode/shared/network-proxy";
+import { providerRoutingPolicySchema } from "@lcode/shared/provider-routing";
 
 export const providerApiTypeDataSchema = z.enum([
   "anthropic-messages",
@@ -128,6 +129,7 @@ export const providerNetworkDataSchema = z.discriminatedUnion("mode", [
 ]);
 export const providerConfigDataSchema = z
   .object({
+    routing: providerRoutingPolicySchema.nullable().optional(),
     group: providerGroupDataSchema.nullable().optional(),
     logo: providerLogoDataSchema.nullable().optional(),
     access: providerAccessDataSchema.nullable().optional(),

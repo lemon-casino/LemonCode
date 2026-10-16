@@ -7743,6 +7743,32 @@ const zhCN: Record<string, string> = {
   "taskList.handoff.existingRequired": "请在摘要所属的现有会话中引用它。",
   "taskList.handoff.capsuleCount": "将引用 {count} 份已保存摘要；发送时重新核对来源。",
   "taskList.handoff.capsuleLimit": "每条消息最多引用 4 份摘要，请从正文中移除多余引用。",
+  "settings.routing.title": "连接调度",
+  "settings.routing.strategy": "选择策略",
+  "settings.routing.legacy": "沿用原有行为",
+  "settings.routing.reliable-first": "可靠优选",
+  "settings.routing.primary-backup": "主备接管",
+  "settings.routing.share-rotation": "份额轮转",
+  "settings.routing.headroom-balance": "余量均衡",
+  "settings.routing.expiry-first": "到期优先",
+  "settings.routing.legacy.description": "保留原有账号偏好、Key 轮换与冷却规则。",
+  "settings.routing.reliable-first.description":
+    "综合近期成功率、完成时间与额度，优先选择可靠连接。",
+  "settings.routing.primary-backup.description":
+    "优先使用主连接，不可用时由后续连接接管；新一轮优先回到主连接。",
+  "settings.routing.share-rotation.description": "按工作量和连接份额分配；同一轮工具续接保留账号。",
+  "settings.routing.headroom-balance.description":
+    "比较所有相关额度窗口，优先使用余量更充足的连接。",
+  "settings.routing.expiry-first.description":
+    "优先使用预计会到期浪费的额度；数据不足时回退到余量均衡或份额轮转。",
+  "settings.routing.concurrency": "每个连接最多同时请求（1–64）",
+  "settings.routing.cache": "跨轮缓存偏好",
+  "settings.routing.cache.auto": "保留有价值的缓存",
+  "settings.routing.cache.turn-only": "仅保留当前轮账号",
+  "settings.routing.error": "保存失败或配置已变化，请重新载入后再保存。",
+  "settings.routing.reload": "重新载入",
+  "settings.routing.save": "保存调度策略",
+  "settings.routing.saving": "正在保存…",
 };
 
 export default zhCN;

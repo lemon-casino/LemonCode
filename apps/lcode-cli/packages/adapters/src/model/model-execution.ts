@@ -17,6 +17,7 @@ import {
   ModelFailureReason,
   ModelProtocolError,
   type Logger,
+  type ModelUsage,
   type ModelId,
   type ModelProviderId,
   type ModelRequestAuth,
@@ -25,6 +26,7 @@ import {
   resolveProviderNetworkConfig,
   type ProviderApiKey,
   type RegistryProviderConfig,
+  type RoutingRequest,
 } from "@lcode/provider";
 import { withOpenRouterAttributionHeaders } from "@lcode/shared";
 import { createAnthropicCompatFetch } from "./anthropic-stream-compat.js";
@@ -37,6 +39,8 @@ import { normalizeModelTlsFailure } from "./failure-tls.js";
 import { mergeModelRequestHeaders } from "./model-request-headers.js";
 import { observeModelSpeed, type ModelSpeedObservation } from "./model-speed-observation.js";
 import { ApiKeyPoolRegistry, type ApiKeyPool } from "./api-key-pool.js";
+import { routingUsage } from "./routing-usage.js";
+import { createRoutingFeedback, routingFailure } from "./routing-feedback.js";
 import { sniffModelSseResponse } from "./model-sse-sniff.js";
 import { createApiKeyFailoverFetch, withApiKeyLease } from "./api-key-fetch.js";
 export { createApiKeyFailoverFetch } from "./api-key-fetch.js";
@@ -81,6 +85,7 @@ export interface AiSdkResolvedModel {
   acquireApiKeyAttempt?: (
     signal?: AbortSignal,
     outsideTicket?: (wait: () => Promise<void>, signal?: AbortSignal) => Promise<void>,
+    context?: RoutingRequest,
   ) => Promise<ApiKeyBoundAttempt>;
   apiKeyAttempt?: ApiKeyBoundAttempt;
   baseURL?: string;
@@ -92,14 +97,27 @@ export interface AiSdkResolvedModel {
   providerOptions?: Record<string, unknown>;
   rawRequestBodyCapture?: RawRequestBodyCapture;
   speedObservation?: ModelSpeedObservation;
+  observeRoutingUsage?: (usage: ModelUsage) => Promise<void> | void;
+  observeRoutingFailure?: (
+    status: number | undefined,
+    headers: Record<string, string> | undefined,
+    outputCommitted?: boolean,
+    cancelled?: boolean,
+  ) => Promise<void>;
 }
 
 export interface ApiKeyBoundAttempt {
+  observeUsage?(usage: ModelUsage): void;
   readonly keyId: string;
   readonly model: LanguageModel;
   readonly canRotate: boolean;
   release(): void;
-  observeFailure(status: number | undefined, headers: Record<string, string> | undefined): void;
+  observeFailure(
+    status: number | undefined,
+    headers: Record<string, string> | undefined,
+    outputCommitted?: boolean,
+    cancelled?: boolean,
+  ): void;
 }
 
 export interface AiSdkBoundModelResolution {
@@ -251,6 +269,7 @@ export class AiSdkModelExecution {
           input.providerId,
           input.providerSaveGeneration,
           configuredProvider.apiKeys,
+          input.providerConfig.routing,
         );
     } catch (error) {
       throw new ModelProtocolError(
@@ -297,6 +316,15 @@ export class AiSdkModelExecution {
   ): AiSdkResolvedModel {
     this.assertActive(String(snapshot.providerId), String(snapshot.modelId));
     const providerConfig = applyModelRequestAuth(snapshot.providerConfig, requestAuth);
+    const feedback =
+      requestAuth?.routingFeedback && providerConfig.access.type === "oauth-account"
+        ? createRoutingFeedback(
+            this.resolveOAuthLoopbackTransport(),
+            providerConfig.baseURL,
+            providerConfig.apiKey,
+            this.logger,
+          )
+        : undefined;
     // Model 创建时的 Provider 事实必须被冻结在当前 binding 中。若按 providerId 缓存
     // factory，配置更新后创建的新 Model 会错误复用旧 Endpoint / Header / API Key。
     const rawRequestBodyCapture: RawRequestBodyCapture = {};
@@ -314,9 +342,9 @@ export class AiSdkModelExecution {
     return {
       ...(snapshot.apiKeyPool && providerConfig.apiKeys?.length
         ? {
-            acquireApiKeyAttempt: async (signal, outsideTicket) => {
+            acquireApiKeyAttempt: async (signal, outsideTicket, context) => {
               this.assertActive(String(snapshot.providerId), String(snapshot.modelId));
-              const lease = await snapshot.apiKeyPool!.acquire(signal, outsideTicket);
+              const lease = await snapshot.apiKeyPool!.acquire(signal, outsideTicket, context);
               try {
                 const factory = this.createFactory(
                   snapshot.providerId,
@@ -331,12 +359,20 @@ export class AiSdkModelExecution {
                 const model = factory(snapshot.modelId.toString());
                 return {
                   keyId: lease.key.id,
+                  observeUsage: (usage: ModelUsage) =>
+                    lease.observeUsage?.({
+                      outcome: "success",
+                      workUnits: routingUsage(usage).workUnits,
+                    }),
                   model: speedObservation ? observeModelSpeed(model, speedObservation) : model,
                   get canRotate() {
                     return lease.canRotate;
                   },
                   release: () => lease.release(),
-                  observeFailure: (status, headers) => {
+                  observeFailure: (status, headers, outputCommitted, cancelled) => {
+                    lease.observeUsage?.(
+                      routingFailure(status, headers, outputCommitted, cancelled),
+                    );
                     if (status === 429) lease.observe(429, new Headers(headers));
                   },
                 };
@@ -348,6 +384,23 @@ export class AiSdkModelExecution {
           }
         : {}),
       baseURL: providerConfig.baseURL,
+      ...(feedback
+        ? {
+            observeRoutingUsage: (usage: ModelUsage) =>
+              this.disposed
+                ? Promise.resolve()
+                : feedback({ ...routingUsage(usage), outcome: "success" }),
+            observeRoutingFailure: (
+              status: number | undefined,
+              headers: Record<string, string> | undefined,
+              committed?: boolean,
+              cancelled?: boolean,
+            ) =>
+              this.disposed
+                ? Promise.resolve()
+                : feedback(routingFailure(status, headers, committed, cancelled)),
+          }
+        : {}),
       headers: providerConfig.headers,
       providerId: snapshot.providerId,
       modelId: snapshot.modelId,

@@ -90,6 +90,27 @@ nodes:
       - "The selected Host reads local credentials only after explicit action; client files supply content, never filesystem paths."
       - "Adding OAuth opens a dialog; existing custom OAuth providers edit in the right pane and continuously add accounts to the same pool."
       - "Account revision delivers providers and exact model rules together; Agent accepts safe OAuth metadata without credentials or personal overrides."
+  - id: capability.provider-routing-strategies
+    kind: capability
+    label: Explicit same-provider connection routing
+    aliases: [连接调度, 可靠优选, 主备接管, 份额轮转, 余量均衡, 到期优先]
+    codeSeeds:
+      - file: packages/shared/src/provider-routing.ts
+        symbol: providerRoutingPolicySchema
+      - file: packages/provider/src/routing/scheduler.ts
+        symbol: RoutingScheduler
+      - file: packages/services/src/model-provider/providerAccountScheduler.ts
+        symbol: ProviderAccountScheduler
+      - file: apps/lcode-cli/packages/adapters/src/model/api-key-pool.ts
+        symbol: ApiKeyPool
+      - file: packages/ui/src/settings/ProviderRoutingEditor.tsx
+        symbol: ProviderRoutingEditor
+    invariants:
+      - "Absent routing preserves legacy selection. Dedicated policy writes use the existing personal settings owner and preserve key save generations."
+      - "ProviderAccounts and the original API key pool own reservations. Planning is read-only; physical response completion releases slots and unverified consumption remains conservative."
+      - "Every relevant quota window constrains the same attempt. Only explicit shared resource identities merge account balances."
+      - "Turn bindings and portability precede soft cache preferences; unknown TTL never implies a five-minute cache benefit."
+      - "Enhanced OAuth negotiates single-attempt-routing-v1 and cannot hide additional model POSTs behind one Runner permit."
   - id: capability.oauth-usage-analytics
     kind: capability
     label: OAuth provider and account usage analytics
@@ -1361,6 +1382,18 @@ edges:
     type: guards-explicit-historical-actions-through
     rank: conditional
     condition: Explicit file rewind and feedback use existing admission; opening history alone admits no command.
+  - from: capability.provider-routing-strategies
+    to: service.provider-settings-owner
+    type: persists-policy-through
+    rank: must-inspect
+  - from: capability.provider-routing-strategies
+    to: capability.oauth-provider-details
+    type: reuses-original-account-owner
+    rank: must-inspect
+  - from: capability.provider-routing-strategies
+    to: capability.oauth-usage-analytics
+    type: preserves-actual-account-attribution
+    rank: invariant-only
   - from: capability.oauth-provider-details
     to: capability.oauth-usage-analytics
     type: preserves-connection-attribution

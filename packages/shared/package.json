@@ -15,6 +15,7 @@
     "./model-catalog": "./src/model-catalog.ts",
     "./config-schema": "./src/config-schema.ts",
     "./network-proxy": "./src/networkProxy.ts",
+    "./provider-routing": "./src/provider-routing.ts",
     "./node": "./src/node.ts",
     "./lcodeEndpoint": "./src/lcodeEndpoint.ts",
     "./workspaceFileSearch": "./src/workspaceFileSearch.ts",

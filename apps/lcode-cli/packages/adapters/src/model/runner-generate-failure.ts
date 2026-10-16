@@ -57,6 +57,14 @@ export async function handleGenerateFailure(
   attemptState.resolved.apiKeyAttempt?.observeFailure(
     classified.statusCode,
     getResponseHeaders(unwrapRetryError(error)),
+    false,
+    input.request.abortSignal?.aborted,
+  );
+  await attemptState.resolved.observeRoutingFailure?.(
+    classified.statusCode,
+    getResponseHeaders(unwrapRetryError(error)),
+    false,
+    input.request.abortSignal?.aborted,
   );
   if (error instanceof RuntimeHeadersRefreshError) {
     classified.message = error.message;

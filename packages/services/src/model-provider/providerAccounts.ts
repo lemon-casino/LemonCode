@@ -5,9 +5,14 @@ import {
   type StoredAccount,
 } from "./providerAccountStoreSchema.js";
 import { executeProviderAccountPool } from "./providerAccountPool.js";
-import { resolveProviderAccountRoutes } from "./providerAccountRouting.js";
+import {
+  resolveProviderAccountRequestAuth,
+  type ProviderAccountRequestAuthArgs,
+} from "./providerAccountRequestAuth.js";
 import { createProviderAccountContext } from "./providerAccountContext.js";
 import { ProviderAccountQuotas } from "./providerAccountQuotas.js";
+import { ProviderAccountScheduler } from "./providerAccountScheduler.js";
+import type { ProviderRoutingPolicy } from "@lcode/shared";
 import { ProviderAccountCheckins } from "./providerAccountCheckins.js";
 import { refreshProviderAccountCatalog } from "./providerAccountCatalogRefresh.js";
 import { randomUUID } from "node:crypto";
@@ -22,12 +27,7 @@ import {
   type ProviderAuthorization,
   type StartProviderAuthorization,
 } from "@lcode/shared";
-import {
-  createAuthDriver,
-  type AuthDriver,
-  type AuthDriverFactory,
-  type AuthWireProtocol,
-} from "@lcode/provider-node";
+import { createAuthDriver, type AuthDriver, type AuthDriverFactory } from "@lcode/provider-node";
 import type { ICredentialService } from "../credential/credential.js";
 import type { IProviderAccountService } from "./providerAccountService.js";
 import { ProviderAccountTransport } from "./providerAccountTransport.js";
@@ -41,6 +41,7 @@ import {
   type AccountAuthorizationAttempt as Attempt,
 } from "./providerAccountCompletion.js";
 export interface ProviderAccountsOptions {
+  readRouting?: (channelId: string) => Promise<ProviderRoutingPolicy | null | undefined>;
   credentials: ICredentialService;
   lockPath: string;
   watchFile?: string;
@@ -68,15 +69,25 @@ export class ProviderAccounts implements IProviderAccountService {
     closed: () => this.#disposed,
   };
   readonly #quotas = new ProviderAccountQuotas(this.#operations);
+  readonly #routing = new ProviderAccountScheduler(
+    (channel) => this.options.readRouting?.(channel) ?? Promise.resolve(undefined),
+    this.#quotas,
+  );
   readonly #checkins: ProviderAccountCheckins;
-  readonly #transport = new ProviderAccountTransport((ticket, request) =>
-    executeProviderAccountPool(
-      this.#operations,
-      ticket.channelId,
-      ticket.modelId,
-      ticket.protocol,
-      request,
-    ),
+  readonly #transport = new ProviderAccountTransport(
+    (ticket, request) =>
+      executeProviderAccountPool(
+        this.#operations,
+        ticket.channelId,
+        ticket.modelId,
+        ticket.protocol,
+        request,
+        this.#routing,
+        ticket.routingInvocation,
+      ),
+    (ticket, usage) => {
+      if (ticket.routingInvocation) this.#routing.observeUsage(ticket.routingInvocation, usage);
+    },
   );
   #channels?: Promise<readonly ProviderAccountChannel[]>;
   #revision = 0;
@@ -345,6 +356,7 @@ export class ProviderAccounts implements IProviderAccountService {
       if (!account) throw new Error("Unknown account");
       account.enabled = enabled;
       account.generation++;
+      account.routingEpoch = (account.routingEpoch ?? 0) + 1;
     });
     if (!enabled) this.#abort(connectionId);
     return this.#publish();
@@ -356,27 +368,12 @@ export class ProviderAccounts implements IProviderAccountService {
         ?.name ?? id
     );
   }
-  async resolveRequestAuth(
-    channelId: string,
-    modelId: string,
-    protocol: AuthWireProtocol | undefined,
-    sessionId?: string,
-  ) {
-    const selectedProtocol = resolveProviderAccountRoutes(
-      await this.#storage.read(),
-      channelId,
-      modelId,
-      protocol,
-    )[0]?.model.protocol;
-    if (!selectedProtocol) throw new Error("No authorized account supports this model");
-    return {
-      ...(await this.#transport.issue(channelId, modelId, selectedProtocol, sessionId)),
-      protocol: selectedProtocol,
-    };
-  }
+  readonly resolveRequestAuth = (...args: ProviderAccountRequestAuthArgs) =>
+    resolveProviderAccountRequestAuth(this.#storage, this.#routing, this.#transport, ...args);
   async dispose(): Promise<void> {
     this.#disposed = true;
     this.#quotas.dispose();
+    this.#routing.dispose();
     this.#checkins.dispose();
     this.#watcher.dispose();
     for (const controller of this.#starting.values()) controller.abort();

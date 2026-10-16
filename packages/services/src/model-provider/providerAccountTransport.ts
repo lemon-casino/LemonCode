@@ -3,6 +3,8 @@ import { createServer, type Server } from "node:http";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { AuthWireProtocol } from "@lcode/provider-node";
+import { RoutingError } from "@lcode/provider";
+import { routingUsageSchema, type RoutingInvocation, type RoutingUsage } from "@lcode/shared";
 
 interface Ticket {
   channelId: string;
@@ -10,14 +12,24 @@ interface Ticket {
   protocol: AuthWireProtocol;
   expires: number;
   sessionId?: string;
+  routingInvocation?: RoutingInvocation;
 }
 export class ProviderAccountTransport {
   #server?: Server;
   #ready?: Promise<string>;
   readonly #tickets = new Map<string, Ticket>();
   readonly #controllers = new Set<AbortController>();
-  constructor(private readonly execute: (ticket: Ticket, request: Request) => Promise<Response>) {}
-  async issue(channelId: string, modelId: string, protocol: AuthWireProtocol, sessionId?: string) {
+  constructor(
+    private readonly execute: (ticket: Ticket, request: Request) => Promise<Response>,
+    private readonly feedback?: (ticket: Ticket, usage: RoutingUsage) => void | Promise<void>,
+  ) {}
+  async issue(
+    channelId: string,
+    modelId: string,
+    protocol: AuthWireProtocol,
+    sessionId?: string,
+    routingInvocation?: RoutingInvocation,
+  ) {
     const baseURL = await (this.#ready ??= this.#start());
     for (const [key, ticket] of this.#tickets)
       if (ticket.expires < Date.now()) this.#tickets.delete(key);
@@ -27,6 +39,7 @@ export class ProviderAccountTransport {
       modelId,
       protocol,
       sessionId,
+      routingInvocation,
       expires: Date.now() + 5 * 60_000,
     });
     return { baseURL, apiKey };
@@ -46,6 +59,8 @@ export class ProviderAccountTransport {
               String(req.headers["x-api-key"] ?? "");
             const ticket = this.#tickets.get(token);
             const path = req.url?.split("?")[0];
+            const usageFeedback =
+              path === "/v1/routing/usage" && this.feedback && ticket?.routingInvocation;
             const expected =
               ticket?.protocol === "anthropic-messages"
                 ? "/v1/messages"
@@ -56,7 +71,7 @@ export class ProviderAccountTransport {
               !ticket ||
               ticket.expires < Date.now() ||
               req.method !== "POST" ||
-              path !== expected
+              (path !== expected && !usageFeedback)
             ) {
               res.writeHead(403);
               res.end();
@@ -71,6 +86,18 @@ export class ProviderAccountTransport {
             }
             const body = Buffer.concat(parts);
             const payload = JSON.parse(body.toString("utf8")) as { model?: string };
+            if (usageFeedback) {
+              const usage = routingUsageSchema.safeParse(payload);
+              if (!usage.success) {
+                res.writeHead(400);
+                res.end();
+                return;
+              }
+              await this.feedback!(ticket, usage.data);
+              res.writeHead(204);
+              res.end();
+              return;
+            }
             if (payload.model !== ticket.modelId) {
               res.writeHead(400);
               res.end();
@@ -93,7 +120,13 @@ export class ProviderAccountTransport {
               }),
             );
             const responseHeaders: Record<string, string> = {};
-            for (const name of ["content-type", "retry-after", "x-zcode-connection-id"]) {
+            for (const name of [
+              "content-type",
+              "retry-after",
+              "x-zcode-connection-id",
+              "x-zcode-routing-strategy",
+              "x-zcode-routing-reason",
+            ]) {
               const value = response.headers.get(name);
               if (value) responseHeaders[name] = value;
             }
@@ -104,8 +137,25 @@ export class ProviderAccountTransport {
                 res,
               );
             else res.end();
-          } catch {
+          } catch (error) {
             if (!res.headersSent) {
+              if (error instanceof RoutingError) {
+                res.writeHead(error.retryable ? 503 : 409, {
+                  "content-type": "application/json",
+                  "x-zcode-routing-reason": error.code,
+                });
+                res.end(
+                  JSON.stringify({
+                    error: {
+                      code: error.code,
+                      type: "routing_error",
+                      message: error.code,
+                      retryable: error.retryable,
+                    },
+                  }),
+                );
+                return;
+              }
               res.writeHead(502, { "content-type": "application/json" });
               res.end(
                 JSON.stringify({

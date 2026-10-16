@@ -80,6 +80,46 @@ export function windowOf(
   return {
     id,
     name,
+    ...(value.kind === "rate" ||
+    value.kind === "budget" ||
+    value.kind === "expiring-balance" ||
+    value.kind === "informational" ||
+    value.kind === "unknown"
+      ? { kind: value.kind }
+      : {}),
+    ...(label(value.instanceId) ? { instanceId: label(value.instanceId) } : {}),
+    ...(typeof value.stableId === "boolean" ? { stableId: value.stableId } : {}),
+    ...(label(value.quotaPoolId) ? { quotaPoolId: label(value.quotaPoolId) } : {}),
+    ...(value.scope === "account" ||
+    value.scope === "organization" ||
+    value.scope === "model" ||
+    value.scope === "shared" ||
+    value.scope === "unknown"
+      ? { scope: value.scope }
+      : {}),
+    ...(value.resetMode === "fixed" ||
+    value.resetMode === "rolling" ||
+    value.resetMode === "none" ||
+    value.resetMode === "unknown"
+      ? { resetMode: value.resetMode }
+      : {}),
+    ...(Array.isArray(value.includedModelIds)
+      ? {
+          includedModelIds: value.includedModelIds
+            .slice(0, 100)
+            .map((id) => label(id))
+            .filter((id): id is string => Boolean(id)),
+        }
+      : {}),
+    ...(Array.isArray(value.excludedModelIds)
+      ? {
+          excludedModelIds: value.excludedModelIds
+            .slice(0, 100)
+            .map((id) => label(id))
+            .filter((id): id is string => Boolean(id)),
+        }
+      : {}),
+    ...(date(value.expiresAt) ? { expiresAt: date(value.expiresAt) } : {}),
     ...(percent !== undefined
       ? { usedPercent: Math.min(100, percent), remainingPercent: Math.max(0, 100 - percent) }
       : {}),

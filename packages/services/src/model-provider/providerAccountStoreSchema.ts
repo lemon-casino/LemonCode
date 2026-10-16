@@ -67,6 +67,7 @@ export const accountSchema = z
     displayName: z.string(),
     enabled: z.boolean(),
     generation: z.number().int(),
+    routingEpoch: z.number().int().nonnegative().optional(),
     checkin: providerAccountCheckinStateSchema.optional(),
     grant: grantSchema,
     models: z.array(modelSchema),

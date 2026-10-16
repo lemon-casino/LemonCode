@@ -40,6 +40,7 @@ const VERSION = "0.159.0";
 type OpenAIChannel = "codex" | "chatgpt-api";
 
 export class OpenAIAuthDriver implements AuthDriver {
+  readonly routingSingleAttempt = true;
   private readonly lifetime = new AbortController();
   private readonly refreshOwner: OpenAIRefresh;
   constructor(
@@ -316,9 +317,11 @@ export class OpenAIAuthDriver implements AuthDriver {
       });
     };
     let response = await send(grant);
+    // 增强调度的一份许可只能对应一次推理；401 交回原 Runner，旧模式仍刷新后重发。
     if (response.status === 401) {
-      await response.body?.cancel();
-      response = await send(await this.fresh(context, true));
+      if (!context.routingSingleAttempt) await response.body?.cancel();
+      const refreshed = await this.fresh(context, true);
+      if (!context.routingSingleAttempt) response = await send(refreshed);
     }
     if (streamed || !response.ok || !response.body) return response;
     // SDK 非流式生成仍走厂商的 SSE；只用 completed 的权威 usage/result 回答。

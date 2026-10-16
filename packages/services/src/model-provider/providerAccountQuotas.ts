@@ -13,6 +13,8 @@ interface QuotaHost {
   closed(): boolean;
 }
 interface CachedQuota {
+  routingEpoch: number;
+  revision: number;
   generation: number;
   expiresAt: number;
   value: ProviderAccountQuota;
@@ -52,12 +54,33 @@ function abortable<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
 
 /** Host-owned transient cache. Credentials and last-success readings never leave their account. */
 export class ProviderAccountQuotas {
+  #revision = 0;
   readonly #cache = new Map<string, CachedQuota>();
   readonly #flights = new Map<string, Flight>();
   constructor(
     private readonly host: QuotaHost,
     private readonly now = Date.now,
   ) {}
+
+  peek(
+    connectionId: string,
+    generation: number,
+    routingEpoch?: number,
+  ): { revision: number; value: ProviderAccountQuota } | undefined {
+    const cached = this.#cache.get(connectionId);
+    // token 轮换不是新额度；只有授权身份代次相同才允许调度投影继续使用旧读数。
+    if (
+      !cached ||
+      (routingEpoch !== undefined
+        ? cached.routingEpoch !== routingEpoch
+        : cached.generation !== generation)
+    )
+      return undefined;
+    return {
+      revision: cached.revision,
+      value: { ...cached.value, stale: cached.value.stale || cached.expiresAt <= this.now() },
+    };
+  }
 
   invalidate(connectionId: string): void {
     this.#flights.get(connectionId)?.controller.abort();
@@ -193,7 +216,13 @@ export class ProviderAccountQuotas {
       ...(reading.status === "ready" ? { checkedAt: attemptedAt } : {}),
       ...(reading.status === "error" ? lastSuccessfulReading(previous) : {}),
     });
-    this.#cache.set(connectionId, { generation, expiresAt: this.now() + TTL, value });
+    this.#cache.set(connectionId, {
+      routingEpoch: latest.routingEpoch ?? 0,
+      revision: ++this.#revision,
+      generation,
+      expiresAt: this.now() + TTL,
+      value,
+    });
     return value;
   }
 }

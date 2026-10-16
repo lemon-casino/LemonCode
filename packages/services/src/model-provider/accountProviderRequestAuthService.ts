@@ -8,6 +8,7 @@ import {
 } from "@lcode/shared";
 
 export interface AccountRequestAuthMaterial {
+  routingFeedback?: boolean;
   baseURL?: string;
   protocol?: "anthropic-messages" | "openai-chat-completions" | "openai-responses";
   apiKey?: string;

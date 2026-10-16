@@ -6,6 +6,7 @@ import {
   ProviderApiConfig,
   ProviderConfig,
   type RegistryProviderConfig,
+  type RoutingStrategy,
 } from "@lcode/provider";
 import { AiSdkModelExecution } from "./model-execution.js";
 import { runGenerateText } from "./runner-generate.js";
@@ -20,6 +21,7 @@ function fixture(
   mode: "generate" | "stream",
   failure: "http" | "json" | "sse" | "committed",
   scope: string | undefined,
+  routing?: RoutingStrategy,
 ) {
   const sent: string[] = [];
   const execution = new AiSdkModelExecution(
@@ -59,6 +61,7 @@ function fixture(
     modelId: "fixture",
     providerSaveGeneration: "save-1",
     providerConfig: new ProviderConfig({
+      ...(routing ? { routing: { version: 1, strategy: routing } } : {}),
       group: "standard-personal",
       api: new ProviderApiConfig({
         type: "openai-chat-completions",
@@ -142,6 +145,31 @@ function fixture(
     },
   };
 }
+
+for (const strategy of [
+  "reliable-first",
+  "primary-backup",
+  "share-rotation",
+  "headroom-balance",
+  "expiry-first",
+] as const)
+  for (const mode of ["generate", "stream"] as const)
+    test(
+      `${mode} ${strategy}: a rotated Key consumes exactly two original Runner permits`,
+      { timeout: 3000 },
+      async () => {
+        const f = fixture(mode, "http", "key", strategy);
+        try {
+          assert.equal(await f.run(), "ok");
+          assert.deepEqual(f.sent, ["Bearer first", "Bearer second"]);
+          assert.equal(f.accounting.snapshot().requests.length, 2);
+          assert.equal(f.admitted, 2);
+          assert.equal(f.active, 0);
+        } finally {
+          await f.execution.disposeAndWait();
+        }
+      },
+    );
 
 for (const mode of ["generate", "stream"] as const)
   for (const failure of (mode === "stream" ? ["http", "json", "sse"] : ["http", "json"]) as Array<

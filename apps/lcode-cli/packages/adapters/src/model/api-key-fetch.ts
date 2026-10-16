@@ -1,5 +1,6 @@
 import type { ProviderApiKey } from "@lcode/provider";
 import { ApiKeyPool, type ApiKeyFailoverState, type ApiKeyLease } from "./api-key-pool.js";
+import { observeApiKeyResponse } from "./api-key-response.js";
 
 export type { ApiKeyFailoverState } from "./api-key-pool.js";
 
@@ -14,11 +15,23 @@ export function withApiKeyLease(
     // 私有副本可直接写 headers；额外临时 clone 的取消 controller 在 GC 后会断开上游信号。
     request.headers.set("Authorization", `Bearer ${lease.key.apiKey}`);
     if (providerKind === "anthropic") request.headers.set("x-api-key", lease.key.apiKey);
-    const response = await fetch(request);
-    if (request.signal.aborted) void response.body?.cancel(request.signal.reason).catch(() => {});
+    if (lease.begin && !lease.begin()) throw new Error("attempt-already-dispatched");
+    let response: Response;
+    try {
+      response = await fetch(request);
+    } catch (error) {
+      lease.end?.(false);
+      throw error;
+    }
+    if (request.signal.aborted) {
+      // 响应头和取消同拍时尚未安装 body observer；必须让取消完成句柄负责物理收尾。
+      void (response.body?.cancel(request.signal.reason) ?? Promise.resolve())
+        .finally(() => lease.end?.(false))
+        .catch(() => {});
+    }
     request.signal.throwIfAborted();
     lease.observe(response.status, response.headers);
-    return response;
+    return lease.end ? observeApiKeyResponse(response, request.signal, lease.end) : response;
   };
 }
 
@@ -47,7 +60,7 @@ export function createApiKeyFailoverFetch(options: {
           lease,
           options.providerKind,
         )(template.clone());
-        if (!lease.canRotate) return response;
+        if (pool.routingEnabled || !lease.canRotate) return response;
         await response.body?.cancel();
       } finally {
         lease.release();
