@@ -43,6 +43,7 @@ export class RoutingScheduler extends RoutingReservationOwner {
     candidates: readonly RoutingCandidate[],
     request: RoutingRequest,
     directory?: RoutingDirectory,
+    now = this.now(),
   ) {
     const credits = new Map(
       candidates.map((candidate) => {
@@ -54,7 +55,6 @@ export class RoutingScheduler extends RoutingReservationOwner {
         ] as const;
       }),
     );
-    const now = this.now();
     const projected = candidates.map((candidate) =>
       this.history.project(candidate, now, (window) => this.ledger.available(window)),
     );
@@ -116,6 +116,7 @@ export class RoutingScheduler extends RoutingReservationOwner {
     request: RoutingRequest,
     expectedRevision?: number,
     directory?: RoutingDirectory,
+    now = this.now(),
   ): RoutingReservation {
     request.signal?.throwIfAborted();
     if (
@@ -128,7 +129,7 @@ export class RoutingScheduler extends RoutingReservationOwner {
     )
       throw new RoutingError("invalid-work-estimate");
     if (this.closed) throw new RoutingError("owner-stale");
-    if (request.deadline !== undefined && request.deadline <= this.now())
+    if (request.deadline !== undefined && request.deadline <= now)
       throw new RoutingError("attempt-expired");
     const key = JSON.stringify([request.scopeKey, request.attemptId]);
     const fingerprint = JSON.stringify([
@@ -147,7 +148,10 @@ export class RoutingScheduler extends RoutingReservationOwner {
     }
     if (expectedRevision !== undefined && expectedRevision !== this.revision)
       throw new RoutingError("policy-conflict");
-    const { plan, credits, round } = this.decision(candidates, request, directory);
+    if (!directory)
+      for (const candidate of candidates)
+        for (const window of candidate.windows) this.ledger.observe(window);
+    const { plan, credits, round } = this.decision(candidates, request, directory, now);
     const chosen = candidates.find((candidate) => candidate.id === plan.routes[0]);
     if (!chosen)
       throw new RoutingError(
@@ -182,9 +186,14 @@ export class RoutingScheduler extends RoutingReservationOwner {
   }
   touchDirectory(id: string): void {
     this.directory?.touch(id, (candidate, request) => this.classify(candidate, request));
+    if (this.directory?.read(id).windows.some((window) => window.shared && !window.coordinated))
+      this.directory.touchGroupFor(id, (candidate, request) => this.classify(candidate, request));
   }
-  private classify(candidate: RoutingCandidate, request: RoutingRequest) {
-    const now = this.now();
+  touchQuotaGroup(poolId: string): void {
+    this.directory?.touchGroup(poolId, (candidate, request) => this.classify(candidate, request));
+  }
+  private classify(candidate: RoutingCandidate, request: RoutingRequest, now = this.now()) {
+    for (const window of candidate.windows) this.ledger.observe(window);
     const projected = this.history.project(candidate, now, (window) =>
       this.ledger.available(window),
     );
@@ -192,15 +201,18 @@ export class RoutingScheduler extends RoutingReservationOwner {
       ...projected,
       windows: projected.windows.filter((window) => !window.shared),
     };
-    const plan = planRouting(this.policy, [privateCandidate], request, {
-      revision: this.revision,
-      now,
-      inFlight: this.inFlight,
-      credit: this.credit,
-      cursor: 0,
-      ledger: this.ledger,
-      orderIndex: this.directory?.order,
-    });
+    const measure = (value: RoutingCandidate) =>
+      planRouting(this.policy, [value], request, {
+        revision: this.revision,
+        now,
+        inFlight: this.inFlight,
+        credit: this.credit,
+        cursor: 0,
+        ledger: this.ledger,
+        orderIndex: this.directory?.order,
+      });
+    const plan = measure(privateCandidate);
+    const ranked = measure(projected);
     const quantum = QUANTUM * routingWeight(this.policy, candidate.id);
     const credit = this.credit.get(candidate.id) ?? quantum;
     const eligibleRound =
@@ -212,6 +224,28 @@ export class RoutingScheduler extends RoutingReservationOwner {
       expiry &&
       projected.windows.some((window) => window.shared && window.resourceId === expiry.resourceId);
     return {
+      rank: {
+        candidate: projected,
+        index: this.directory!.order.get(candidate.id)!,
+        tier: ranked.tiers?.[candidate.id] ?? 0,
+        pressure: ranked.pressures[candidate.id] ?? 0,
+        load: this.inFlight.get(candidate.id) ?? 0,
+        eligible: !ranked.excluded[candidate.id],
+        eligibleRound,
+        now,
+        expires: Math.min(
+          this.history.nextChange(candidate, now),
+          ...candidate.windows
+            .flatMap((window) => [window.resetAt, window.expiresAt])
+            .filter((at): at is number => at !== undefined && at > now),
+          ...[expiry?.expiresAt, expiry ? expiry.expiresAt - 3_600_000 : undefined].filter(
+            (at): at is number => at !== undefined && at > now,
+          ),
+          expiry && !candidate.expiry && this.policy.strategy === "expiry-first"
+            ? now + 1
+            : Infinity,
+        ),
+      },
       key: JSON.stringify([
         candidate.quotaGroupId,
         candidate.unavailable,
@@ -258,6 +292,7 @@ export class RoutingScheduler extends RoutingReservationOwner {
     };
   }
   reserveIndexed(request: RoutingRequest): RoutingReservation {
+    const now = this.now();
     const directory = this.directory;
     if (!directory) throw new RoutingError("no-compatible-route");
     const previous = this.attempts.has(JSON.stringify([request.scopeKey, request.attemptId]));
@@ -267,11 +302,12 @@ export class RoutingScheduler extends RoutingReservationOwner {
       : directory.select(
           request,
           this.cursor,
-          (candidate, input) => this.classify(candidate, input),
-          this.now(),
+          (candidate, input) => this.classify(candidate, input, now),
+          now,
           binding?.routeId,
+          this.round,
         );
-    return this.reserveResolved(candidates, request, undefined, directory);
+    return this.reserveResolved(candidates, request, undefined, directory, now);
   }
   indexDiagnostics() {
     return this.directory?.inspect();

@@ -4,9 +4,9 @@ import { routingFailureCodeSchema, type RoutingFailureCode } from "@lcode/shared
 export class RoutingError extends Error {
   readonly code: RoutingFailureCode;
   readonly retryable: boolean;
-  constructor(reason: string) {
+  constructor(reason: string, options?: ErrorOptions) {
     const code = routingFailureCodeSchema.safeParse(reason).data ?? "no-compatible-route";
-    super(code);
+    super(code, options);
     this.name = "RoutingError";
     this.code = code;
     this.retryable = ["route-cooling", "concurrency-full", "policy-conflict"].includes(code);

@@ -9,6 +9,7 @@ interface Resource {
   reading: RoutingWindow;
   debits: Map<number, Debit>;
   total: number;
+  observedAt: number;
 }
 const keyOf = (window: RoutingWindow) => JSON.stringify([window.resourceId, window.instanceId]);
 const finite = (value: number | undefined): value is number =>
@@ -17,13 +18,29 @@ const finite = (value: number | undefined): value is number =>
 /** 只保存原额度 owner 的版本投影与本地待对账增量，不产生厂商额度事实。 */
 export class RoutingLedger {
   private readonly resources = new Map<string, Resource>();
+  private observationSequence = 0;
+  get readingSequence(): number {
+    return this.observationSequence;
+  }
+  changedSince(window: RoutingWindow, sequence: number): boolean {
+    const resource = this.resources.get(keyOf(window));
+    return (
+      !resource || resource.observedAt > sequence || window.revision > resource.reading.revision
+    );
+  }
 
   observe(window: RoutingWindow): void {
     const key = keyOf(window),
       existing = this.resources.get(key);
     if (existing && existing.reading.revision >= window.revision) return;
-    const resource = existing ?? { reading: window, debits: new Map<number, Debit>(), total: 0 };
+    const resource = existing ?? {
+      reading: window,
+      debits: new Map<number, Debit>(),
+      total: 0,
+      observedAt: 0,
+    };
     resource.reading = { ...window };
+    resource.observedAt = ++this.observationSequence;
     // 读取完成时间不是覆盖证明；只有明确水位才退休已结算增量，在途消费不能清空。
     for (const [seq, debit] of resource.debits)
       if (debit.ended && window.coversThroughSeq !== undefined && seq <= window.coversThroughSeq) {
@@ -51,6 +68,7 @@ export class RoutingLedger {
   ): void {
     const seen = new Set<string>();
     for (const window of windows) {
+      if (window.coordinated) continue;
       const key = keyOf(window);
       if (seen.has(key)) continue;
       seen.add(key);
@@ -105,6 +123,8 @@ export class RoutingLedger {
     actual: Readonly<Record<string, number>>,
   ): void {
     for (const window of windows) {
+      // 外部共享 owner 已对账；本地不能因迟到 usage 再补出一份共享借记。
+      if (window.coordinated) continue;
       const resource = this.resources.get(keyOf(window));
       const debit = resource?.debits.get(sequence);
       const amount = actual[window.resourceId];

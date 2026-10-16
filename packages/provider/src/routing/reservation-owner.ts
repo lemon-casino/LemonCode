@@ -12,6 +12,7 @@ import { routingWindowKey, type RoutingBinding } from "./planner.js";
 import { RoutingError } from "./error.js";
 export interface RoutingReservation {
   readonly routeId: string;
+  readonly createdAt: number;
   readonly sequence: number;
   dispatch(): boolean;
   cancel(): void;
@@ -55,6 +56,7 @@ export abstract class RoutingReservationOwner {
     key: string,
     nextCursor: number,
   ): RoutingReservation {
+    const createdAt = this.now();
     const sequence = ++this.sequence;
     const policyEpoch = this.policyEpoch;
     this.selections++;
@@ -81,6 +83,7 @@ export abstract class RoutingReservationOwner {
       cacheUntil: 0,
       pressure: plan.pressures[chosen.id] ?? 0,
       readingRevision: Math.max(0, ...windows.map((window) => window.revision)),
+      readingSequence: this.ledger.readingSequence,
       readings,
     };
     const binding = this.bindings.reserve(request, chosen, sequence, initialBinding);
@@ -175,6 +178,7 @@ export abstract class RoutingReservationOwner {
     };
     const lease: RoutingReservation = {
       routeId: chosen.id,
+      createdAt,
       sequence,
       dispatch: () => {
         request.signal?.throwIfAborted();

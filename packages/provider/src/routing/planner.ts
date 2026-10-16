@@ -6,7 +6,8 @@ import type {
   RoutingStrategy,
 } from "@lcode/shared/provider-routing";
 import type { RoutingLedger } from "./ledger.js";
-import { routingDemand, routingExpiryBenefit } from "./values.js";
+import { routingDemand } from "./values.js";
+import { routingScore, compareRoutingScore } from "./ranking.js";
 
 export interface RoutingBinding {
   cacheGroupId?: string;
@@ -17,6 +18,7 @@ export interface RoutingBinding {
   cacheUntil: number;
   pressure: number;
   readingRevision: number;
+  readingSequence?: number;
   readings?: ReadonlyMap<string, number>;
 }
 export interface PlanningState {
@@ -203,48 +205,18 @@ export function planRouting(
   const ring = (id: string) =>
     ((indexOf.get(id) ?? 0) - state.cursor + (state.directorySize ?? listed.length)) %
     Math.max(1, state.directorySize ?? listed.length);
-  routes.sort((a, b) => {
-    const tier = (softTier.get(a.id) ?? 0) - (softTier.get(b.id) ?? 0);
-    if (tier) return tier;
-    if (effectiveStrategy === "primary-backup") return indexOf.get(a.id)! - indexOf.get(b.id)!;
-    if (effectiveStrategy === "share-rotation") {
-      const positive =
-        Number((state.credit.get(b.id) ?? 1) > 0) - Number((state.credit.get(a.id) ?? 1) > 0);
-      return positive || ring(a.id) - ring(b.id);
-    }
-    if (effectiveStrategy === "reliable-first") {
-      const health = Number(a.health === "degraded") - Number(b.health === "degraded");
-      if (health) return health;
-      const readiness = (candidate: RoutingCandidate) =>
-        ready(candidate) ? (candidate.statistics!.failureRate < PRESSURE_BAND ? 0 : 2) : 1;
-      const evidence = readiness(a) - readiness(b);
-      if (evidence) return evidence;
-      if (ready(a) && ready(b)) {
-        const failure =
-          Math.floor(a.statistics!.failureRate / PRESSURE_BAND) -
-          Math.floor(b.statistics!.failureRate / PRESSURE_BAND);
-        const latency =
-          Math.floor(Math.log1p(a.statistics!.completionMs) / Math.log(1.15)) -
-          Math.floor(Math.log1p(b.statistics!.completionMs) / Math.log(1.15));
-        const cost = pricesKnown ? a.statistics!.marginalCost! - b.statistics!.marginalCost! : 0;
-        if (failure || latency || cost) return failure || latency || cost;
-      }
-    }
-    if (effectiveStrategy === "expiry-first") {
-      const benefit = (candidate: RoutingCandidate) =>
-        routingExpiryBenefit(candidate, request, state.now);
-      const saved = benefit(b) - benefit(a);
-      if (saved) return saved;
-      if (benefit(a) > 0 && benefit(b) > 0 && a.expiry!.expiresAt !== b.expiry!.expiresAt)
-        return a.expiry!.expiresAt - b.expiry!.expiresAt;
-    }
-    const known = quality(a) - quality(b);
-    if (known) return known;
-    const pressure =
-      Math.floor(pressures[a.id]! / PRESSURE_BAND) - Math.floor(pressures[b.id]! / PRESSURE_BAND);
-    const load = (state.inFlight.get(a.id) ?? 0) - (state.inFlight.get(b.id) ?? 0);
-    return pressure || load || indexOf.get(a.id)! - indexOf.get(b.id)!;
-  });
+  const score = (candidate: RoutingCandidate) =>
+    routingScore(effectiveStrategy, candidate, request, {
+      tier: softTier.get(candidate.id) ?? 0,
+      pressure: pressures[candidate.id]!,
+      load: state.inFlight.get(candidate.id) ?? 0,
+      index: indexOf.get(candidate.id)!,
+      ring: ring(candidate.id),
+      positive: (state.credit.get(candidate.id) ?? 1) > 0,
+      pricesKnown,
+      now: state.now,
+    });
+  routes.sort((a, b) => compareRoutingScore(score(a), score(b)));
   let reason: string = effectiveStrategy;
   if (binding) {
     const at = routes.findIndex(
@@ -267,6 +239,9 @@ export function planRouting(
         const material = pressures[same.id]! - pressures[best.id]! >= PRESSURE_BAND;
         const newReading = [...same.windows, ...best.windows].some((original) => {
           const window = state.ledger.reading(original);
+          // 候选省略只影响展示，不能把已存在的高修订当成新事实。
+          if (binding.readingSequence !== undefined)
+            return state.ledger.changedSince(window, binding.readingSequence);
           const previous =
             binding.readings?.get(routingWindowKey(window)) ?? binding.readingRevision;
           return window.revision > previous;

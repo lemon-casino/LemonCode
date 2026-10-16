@@ -143,6 +143,7 @@ export class ApiKeyRouting {
     }
     this.windows.set(owner, [...merged.values()]);
     if (snapshot.keyId) this.scheduler?.touchDirectory(snapshot.keyId);
+    if (snapshot.poolId) this.scheduler?.touchQuotaGroup(snapshot.poolId);
   }
 
   observe(id: string, headers: Headers, retainedKey?: ProviderApiKey): void {

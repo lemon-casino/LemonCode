@@ -2,6 +2,8 @@
 
 本规格补充 `provider-routing-strategies.md`，保留五策略名称和优先级。实施顺序：契约与失败测试 → Token/共享资源预留 → 十万 Key 索引 → 缓存与批量诊断 → 实际回归。缺省 `routing` 或 null 继续原路径，不改变 Key 轮换、失败隔离与保存代次。
 
+后续跨进程共享 owner 与高度分散目录增强见 [补充规格](provider-routing-cross-process.md)；仅在其明确的注入/数据目录边界下替代本文的进程内共享限制。
+
 ## 状态与接口
 
 - `ApiKeyPoolRegistry/ApiKeyPool` 仍是当前执行器的唯一 owner；不承诺独立 CLI 之间的全局额度锁。原 Runner 持有物理请求许可，租约不能自发重试。

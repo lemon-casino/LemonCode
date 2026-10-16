@@ -1,0 +1,53 @@
+import type {
+  RoutingRequest,
+  RoutingWindow,
+  RoutingTokens,
+  ProviderRoutingPolicy,
+} from "@lcode/shared/provider-routing";
+/** 共享额度 owner 的窄端口；Scheduler 不依赖任何 IO 实现。 */
+export interface SharedQuotaInput {
+  providerId: string;
+  poolId: string;
+  keyId: string;
+  maxInFlight: number;
+  reserveRules?: ProviderRoutingPolicy["reserveRules"];
+  request: Pick<RoutingRequest, "attemptId" | "scopeKey" | "modelKey" | "tokens" | "demands"> & {
+    createdAt: number;
+  };
+  windows: readonly RoutingWindow[];
+}
+export interface SharedQuotaHandle {
+  poolKey: string;
+  leaseId: string;
+  fence: string;
+  sequence: number;
+  expiresAt: number;
+}
+export interface SharedQuotaView {
+  source: "shared-owner";
+  sequence: number;
+  inFlight: number;
+  reservations: number;
+  retainedAttempts: number;
+  capacity: number;
+  resources: { resourceId: string; instanceId: string; available?: number; held: number }[];
+}
+export interface SharedQuotaCoordinator {
+  reserve(input: SharedQuotaInput): Promise<SharedQuotaHandle>;
+  dispatch(handle: SharedQuotaHandle): Promise<boolean>;
+  cancel(handle: SharedQuotaHandle): Promise<void>;
+  finish(handle: SharedQuotaHandle): Promise<void>;
+  rollbackDispatch(handle: SharedQuotaHandle): Promise<void>;
+  usage(
+    handle: SharedQuotaHandle,
+    actual: Readonly<Record<string, number>>,
+    tokens?: RoutingTokens,
+  ): Promise<void>;
+  observe(
+    providerId: string,
+    poolId: string,
+    windows: readonly RoutingWindow[],
+    coversThroughSeq?: number,
+  ): Promise<void>;
+  inspect(providerId: string, poolId: string): Promise<SharedQuotaView>;
+}

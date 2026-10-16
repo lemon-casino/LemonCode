@@ -120,6 +120,8 @@ export const apiKeyQuotaSnapshotSchema = z
   .refine((value) => Boolean(value.keyId) !== Boolean(value.poolId), "One quota owner is required");
 export type ApiKeyQuotaSnapshot = z.infer<typeof apiKeyQuotaSnapshotSchema>;
 export const routingFailureCodeSchema = z.enum([
+  "quota-owner-unavailable",
+  "quota-owner-capacity",
   "no-compatible-route",
   "binding-blocked",
   "quota-exhausted",
@@ -191,6 +193,8 @@ export interface RoutingWindow {
   stableId?: boolean;
   resetMode?: "fixed" | "rolling" | "none" | "unknown";
   shared?: boolean;
+  /** 共享借记由外部 owner 持有，本地只投影读数。 */
+  coordinated?: boolean;
 }
 export interface RoutingCandidate {
   quotaGroupId?: string;
