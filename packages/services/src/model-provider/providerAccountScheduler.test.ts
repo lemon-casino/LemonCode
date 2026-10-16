@@ -74,6 +74,16 @@ test("shared organization metadata prevents two accounts reserving the last requ
     scheduler.reserve("fixture", routes, request(), invocation("two")),
     /quota-exhausted/,
   );
+  const diagnostic = scheduler.readDiagnostics("fixture")!;
+  assert.equal(diagnostic.owner.resources.length, 1);
+  assert.equal(diagnostic.owner.resources[0]!.readingRemaining, 1);
+  assert.equal(diagnostic.owner.resources[0]!.reserved, 1);
+  assert.equal(diagnostic.owner.resources[0]!.available, 0);
+  const repeated = scheduler.readDiagnostics("fixture")!;
+  assert.deepEqual(
+    { ...repeated, asOf: 0, owner: { ...repeated.owner, asOf: 0 } },
+    { ...diagnostic, asOf: 0, owner: { ...diagnostic.owner, asOf: 0 } },
+  );
   first!.lease.cancel();
   scheduler.dispose();
 });
@@ -137,7 +147,11 @@ test("model-scoped rejection does not mark an account's other models as exhauste
     invocation("one"),
   );
   first!.lease.dispatch();
-  first!.finish(routes[0]!.account, new Response("limited", { status: 429 }));
+  // 模型隔离需要驱动确认的局部限流；未知 scope 的 429 现按 provider 保守处理。
+  first!.finish(
+    routes[0]!.account,
+    new Response("limited", { status: 429, headers: { "x-lcode-rate-limit-scope": "key" } }),
+  );
   const other = [
     { account: routes[0]!.account, model: { ...routes[0]!.model, id: "other-model" } },
   ];

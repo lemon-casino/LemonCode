@@ -1,5 +1,6 @@
 import {
   RoutingScheduler,
+  RoutingRecovery,
   RoutingError,
   readRateLimitHint,
   type RoutingCandidate,
@@ -30,7 +31,8 @@ export class ProviderAccountScheduler {
     string,
     { generation: number; credentialGeneration?: number; until: number }
   >();
-  private readonly sharedCooldowns = new Map<string, number>();
+  private readonly recovery = new RoutingRecovery();
+  private readonly now: () => number;
   private readonly feedback = new Map<
     string,
     { expires: number; observe: (usage: RoutingUsage) => void }
@@ -38,7 +40,10 @@ export class ProviderAccountScheduler {
   constructor(
     readonly readPolicy: (channelId: string) => Promise<ProviderRoutingPolicy | null | undefined>,
     private readonly quotas: Pick<ProviderAccountQuotas, "peek">,
-  ) {}
+    options: { now?: () => number } = {},
+  ) {
+    this.now = options.now ?? Date.now;
+  }
 
   async requireCapability(channel: string, invocation?: RoutingInvocation): Promise<boolean> {
     const enabled = Boolean(await this.readPolicy(channel));
@@ -62,14 +67,15 @@ export class ProviderAccountScheduler {
     const signature = JSON.stringify(policy);
     let entry = this.schedulers.get(channel);
     if (!entry) {
-      entry = { signature, owner: new RoutingScheduler(policy) };
+      entry = { signature, owner: new RoutingScheduler(policy, { now: this.now }) };
       this.schedulers.set(channel, entry);
     } else if (entry.signature !== signature) {
       entry.owner.setPolicy(policy);
       entry.signature = signature;
     }
-    const now = Date.now(),
+    const now = this.now(),
       demands: Record<string, number> = {};
+    const recoveryKeys = new Map<string, { all: string[]; model: string; shared: string[] }>();
     const candidates: RoutingCandidate[] = routes.map(({ account, model }) => {
       const cached = this.quotas.peek(
         account.connectionId,
@@ -105,6 +111,7 @@ export class ProviderAccountScheduler {
           const resetAt = window.resetAt ? Date.parse(window.resetAt) : undefined;
           return {
             resourceId,
+            shared: Boolean(sharedPool),
             instanceId:
               window.instanceId ??
               (window.resetMode === "fixed" ? window.resetAt : undefined) ??
@@ -142,14 +149,29 @@ export class ProviderAccountScheduler {
             block.credentialGeneration === account.generation) &&
           block.until > now,
       );
+      const modelKey = JSON.stringify([
+        channel,
+        account.connectionId,
+        account.routingEpoch ?? 0,
+        model.protocol,
+        model.id,
+      ]);
+      const shared = windows
+        .filter((window) => window.shared)
+        .map((window) => JSON.stringify(["pool", window.resourceId]));
+      const providerKey = JSON.stringify(["provider", channel]);
+      const all = [providerKey, modelKey, ...shared];
+      recoveryKeys.set(account.connectionId, {
+        all,
+        model: modelKey,
+        shared: shared.length ? shared : [providerKey],
+      });
       return {
         id: account.connectionId,
         generation: String(account.routingEpoch ?? 0),
         windows,
         portability: model.routingPortability ?? "unknown",
-        ...((this.sharedCooldowns.get(channel) ?? 0) > now || blocked
-          ? { unavailable: "route-cooling" }
-          : {}),
+        ...(!this.recovery.available(all, now) || blocked ? { unavailable: "route-cooling" } : {}),
       };
     });
     const scopeKey = JSON.stringify([
@@ -166,12 +188,43 @@ export class ProviderAccountScheduler {
       attemptId: context.attemptId,
       scopeKey,
       turnId: context.turnId,
+      modelKey: JSON.stringify([routes[0]?.model.protocol, routes[0]?.model.id, "completion"]),
       workUnits: WORK_QUANTUM,
       demands,
       signal: request.signal,
     };
     const plan = entry.owner.plan(candidates, input);
-    const lease = entry.owner.reserve(candidates, input, plan.revision);
+    const original = entry.owner.reserve(candidates, input, plan.revision);
+    const resources = recoveryKeys.get(original.routeId)!;
+    const permit = this.recovery.reserve(
+      resources.all,
+      JSON.stringify([channel, original.sequence]),
+      now,
+    );
+    const lease = {
+      ...original,
+      dispatch: () => {
+        this.recovery.dispatch(permit, this.now());
+        try {
+          return original.dispatch();
+        } catch (error) {
+          this.recovery.rollbackUnsent(permit);
+          throw error;
+        }
+      },
+      cancel: () => {
+        original.cancel();
+        this.recovery.cancel(permit);
+      },
+      finish: (result: Parameters<typeof original.finish>[0]) => {
+        original.finish(result);
+        this.recovery.finish(permit, result.outcome ?? "unknown", this.now());
+      },
+      observeUsage: (result: Parameters<typeof original.observeUsage>[0]) => {
+        original.observeUsage(result);
+        this.recovery.observe(permit, result.outcome, this.now());
+      },
+    };
     const selected = candidates.find((candidate) => candidate.id === lease.routeId)!;
     for (const [id, item] of this.feedback) if (item.expires <= now) this.feedback.delete(id);
     this.feedback.set(JSON.stringify(context), {
@@ -188,23 +241,23 @@ export class ProviderAccountScheduler {
         }
         lease.observeUsage({
           outcome: usage.outcome,
+          statusCode: usage.statusCode,
           replaySafeFailure: usage.replaySafeFailure,
           workUnits: usage.workUnits,
           ...(Object.keys(actualDemands).length ? { actualDemands } : {}),
         });
-        if (usage.statusCode === 429) {
-          const until = Date.now() + (usage.retryAfterMs ?? 0);
-          if (usage.rateLimitScope === "shared")
-            this.sharedCooldowns.set(
-              channel,
-              Math.max(this.sharedCooldowns.get(channel) ?? 0, until),
-            );
-          else
-            this.blocked.set(
-              JSON.stringify([selected.id, routes[0]?.model.protocol, routes[0]?.model.id]),
-              { generation: Number(selected.generation), until },
-            );
-        }
+        if (usage.statusCode === 429 || (usage.statusCode !== undefined && usage.statusCode >= 500))
+          this.recovery.fail(
+            permit,
+            usage.statusCode === 429
+              ? usage.rateLimitScope === "key"
+                ? [resources.model]
+                : resources.shared
+              : usage.rateLimitScope === "shared"
+                ? resources.shared
+                : [resources.model],
+            this.now() + (usage.retryAfterMs ?? 1000),
+          );
       },
     });
     return {
@@ -223,24 +276,21 @@ export class ProviderAccountScheduler {
             credentialGeneration: account.generation,
             until: Infinity,
           });
-        if (response?.status === 429) {
-          const model = routes.find(
-            (route) => route.account.connectionId === account.connectionId,
-          )!.model;
-          const until = Date.now() + readRateLimitHint(response.headers).delayMs;
-          // 只把明确共享的冷却扩大到整个渠道；模型拒绝不能撤销其它模型资格。
-          if (response.headers.get("x-lcode-rate-limit-scope") === "shared")
-            this.sharedCooldowns.set(
-              channel,
-              Math.max(this.sharedCooldowns.get(channel) ?? 0, until),
-            );
-          else
-            this.blocked.set(JSON.stringify([account.connectionId, model.protocol, model.id]), {
-              generation: account.routingEpoch ?? 0,
-              until,
-            });
-        }
+        if (response && (response.status === 429 || response.status >= 500))
+          this.recovery.fail(
+            permit,
+            response.status === 429
+              ? readRateLimitHint(response.headers).scope === "shared"
+                ? resources.shared
+                : [resources.model]
+              : [resources.model],
+            this.now() + readRateLimitHint(response.headers).delayMs,
+          );
+        // 已进入物理调用后无响应的失败仍需冷却；保留未知消费，不能靠下一请求直接重试失效连接。
+        if (!response && !request.signal.aborted)
+          this.recovery.fail(permit, [resources.model], this.now() + 1000);
         lease.finish({
+          statusCode: response?.status,
           outcome: request.signal.aborted ? "cancelled" : success ? "unknown" : "failed",
           replaySafeFailure: Boolean(response && !response.ok),
           ...(success &&
@@ -248,7 +298,7 @@ export class ProviderAccountScheduler {
             .routingCacheTtlMs
             ? {
                 cacheUntil:
-                  Date.now() +
+                  this.now() +
                   routes.find((route) => route.account.connectionId === account.connectionId)!.model
                     .routingCacheTtlMs!,
               }
@@ -262,11 +312,32 @@ export class ProviderAccountScheduler {
     this.feedback.get(JSON.stringify(routingInvocationSchema.parse(invocation)))?.observe(usage);
   }
 
+  readDiagnostics(channel: string) {
+    const owner = this.schedulers.get(channel)?.owner;
+    if (!owner) return null;
+    return {
+      asOf: this.now(),
+      owner: owner.readDiagnostics(),
+      recovery: this.recovery.inspect(this.now()).filter((item) => {
+        try {
+          const resource = JSON.parse(item.resource);
+          return (
+            resource[0] === channel ||
+            (resource[0] === "provider" && resource[1] === channel) ||
+            (resource[0] === "pool" && JSON.parse(resource[1])[0] === channel)
+          );
+        } catch {
+          return false;
+        }
+      }),
+    };
+  }
+
   dispose(): void {
     for (const entry of this.schedulers.values()) entry.owner.dispose();
     this.schedulers.clear();
     this.blocked.clear();
-    this.sharedCooldowns.clear();
+    this.recovery.clear();
     this.feedback.clear();
   }
 }

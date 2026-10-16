@@ -175,7 +175,7 @@ pnpm architecture:check --changed
 ## 完整 spec 尚未达到的门禁
 
 1. **大规模索引边界**：高度分散 G=N 的 API Key 热路径已补齐胜者树及差分/实测；同拍失效的大共享组或大量连续预测变化仍按实际受影响成员刷新，不保证任意批量变化均为常数时间。OAuth 候选路径未迁移为大目录索引。
-2. **完整设置与诊断表面**：本批补齐 Key 份额、优先级、共享池和缓存批量设置及配置检查；API 执行器提供单 Key 需求预览端口，不冒充最后执行决策。任意连接拖动排序、soft/hard 保留线编辑器、完整最近决策面板尚未交付。本批共享额度锁仅覆盖本机、相同数据目录且注入协调端口的新版增强执行器；跨主机、外部客户端与旧版本不受此锁约束。
+2. **现行设置与诊断边界**：批量设置、拖动排序、保留线编辑器和诊断面板的 UI 要求已由简洁策略规格永久替代，不再列为待交付界面。本轮提供原 owner 的只读运行诊断，区分本地预览、预留阶段和共享权威额度，见下方恢复验证。本批共享额度锁仅覆盖本机、相同数据目录且注入协调端口的新版增强执行器；跨主机、外部客户端与旧版本不受此锁约束。
 3. **更完整的策略质量模型**：当前余量使用瓶颈压力分档，未完成所有其余窗口向量、近期工作半衰期、预测范围和缓存经济成本的完整回放门禁；本批已验证共享文件 owner 的终态压缩与容量拒绝；更长期压力、未知消费的人工核销，以及本地历史/账本的完整容量治理仍需专门验证。
 4. **厂商事实与环境覆盖**：不臆造价格、缓存 TTL、扣减归属和覆盖水位；只有驱动实际提供相应事实时才使用。Claude CLI 与未声明单次推理能力的插件目前只能用 legacy，启用增强配置会明确拒绝。真实供应商与 macOS/Linux 未实测；Windows fixtures 与浏览器验证不能代替这些环境。
 
@@ -198,3 +198,31 @@ pnpm architecture:check --changed
 | 格式与 feature graph              | 使用 root formatter 检查本批文件；图移除已删除组件的种子，保留原路由 owner 与兼容接口。                                                                                                               |
 
 宽屏、手机、折叠及问号帮助截图位于本机 .tmp/simple-routing-ui/，已实际查看展开与折叠布局；可由测试重建。先失败、通过及检查日志位于 .tmp/simple-routing-\*.log。本批不改变调度算法，不将 UI 精简当作此前审计缺口已修复的证据。
+
+## OAuth / API 缓存、恢复与共享池诊断（基线 92a65ba6）
+
+本轮按 [恢复规格](provider-routing-recovery-diagnostics.md) 先写规则与失败测试，再实现。保留当前简洁 UI，永久不恢复批量 Key 路由表单，也不新增手动配置项。
+
+- 缓存判定复用可靠性档；到期跨组切换必须有同单位的已知成本和正净收益，未知成本不估成零。模型/协议统计与远端会话绑定隔离，原资源债务继续共享。离线恢复信用上限为一轮。
+- OAuth 和 API 使用原 owner 的单 probe 状态，物理终结及归一成功共同确认恢复；仅 HTTP 200、release 或 TTL 不确认。API 共享 pool 的恢复许可保存在同一文件事务中，v1 到 v2 迁移保留借记。
+- 修复半开租约已有用量但缺少 outcome 时被压缩删除的问题；晚于 TTL 的成功仍可对账。目录跟踪冷却截止点，probe/取消及仅 outcome 的反馈也刷新索引；各 profile 使用自己的模型上下文。
+- finish/usage/observe 等幂等反馈有界重试，失败容量与溢出可诊断。dispatch 回执丢失明确为 dispatch-uncertain，不重放 dispatch 或 POST；安全路由字段经过 SDK 分类与 adapter 上下文继续保留。
+- API 异步诊断按当前页去重读取共享 pool：本地 preview=100、另一 owner 已预留 60 时，全局 available=40。OAuth 直接读同一个 ProviderAccounts；同组织共享窗口只投影一份。诊断明确 reserved/dispatched/ended actual/ended estimated/folded、覆盖水位、质量与来源。未知 owner 保持 unknown，stale 页在 IO 前拒绝。
+- 增强 OAuth 的未知 429 scope 按 provider 保守冷却；模型隔离测试改用驱动确认的局部 scope，新增未知 scope 回归。无策略/null 的 legacy 路径保持原行为；旧隐藏策略字段与 Key 元数据继续兼容。
+
+| 验证                              | 实际结果                                                                                                                                                                           |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| pnpm test:provider-routing        | **399/399 通过**，相对简洁 UI 基线新增 32 个场景；包含五策略、批量 Key、真实双进程、崩溃/坏文件/迁移、归因及原有差分测试。                                                         |
+| API generate / stream             | 本地 HTTP + 真实 SDK：共享 Token 预留与实际用量对账、429 后单 probe 成功恢复，物理 POST 数受原预算约束。                                                                           |
+| OAuth 三种协议                    | 原 ProviderAccounts 受信本地 HTTP：chat-completions、responses、anthropic-messages 均验证冷却探测、仅 body 结束仍 uncertain、原票据归一反馈才恢复。另有三协议直接 owner 并发测试。 |
+| 双进程与 IO 故障                  | 两个真实独立进程只获得一个共享 probe；未知派发不按 TTL/PID 退款；丢失 dispatch 回执实际 POST=0；临时反馈 IO 可恢复；300 个永久失败的追踪保持 256 上限并显式溢出。                  |
+| 十万 Key 分页诊断                 | 前两 Key 同池只读取 1 个池；不读取其它 99,998 个池，不改变 cursor/sequence/借记，不暴露虚构密钥或请求作用域。                                                                      |
+| pnpm test:provider-routing-ui     | **2/2 通过**：1280 中文暗色 / 390 英文亮色；现有横排、折叠、问号帮助、五策略保存、旧隐藏字段、legacy 及零 Key 行为保持。UI 源码本轮无改动。                                        |
+| pnpm typecheck                    | **通过**。                                                                                                                                                                         |
+| CLI typecheck / lint              | **27/27 与 14/14 任务通过**；反馈 drain 的快照迭代在最终复检前改为显式命名变量，保留有界重试语义。                                                                                 |
+| pnpm lint                         | **最终复检通过**；首轮曾被范围外 sidebar-organization.tsx 的 max-lines 阻塞，最终同命令返回 0。本轮未修改该文件；根目录目标文件单独 oxlint 也通过。                                |
+| pnpm architecture:check --changed | **通过**：violations/baseline/new 均为 0。                                                                                                                                         |
+
+最终完整路由回归与类型检查并行时的本机观测：五策略各 100,000 个独立 pool/cohort，冷建约 3.76–4.48 秒，热 p95 约 0.34–1.29 ms；50 次热循环后 scannedKeys 仍为 100,000，rankBuilds=1，刷新 102 个叶子。API Registry 加真实共享文件 IO：冷建 6.84 秒，热 p95 16.78 ms，只生成被选中 pool 的 1 个文件。这些是本机证据，不是跨平台 SLA。
+
+失败和通过轨迹位于本机 .tmp/routing-recovery-\*.log；最终门禁日志使用 delivery 前缀，界面日志为 routing-recovery-ui.log。仅使用虚构凭据与本地 HTTP；未用真实厂商调用替代验证，未实测 macOS/Linux、跨机器或完整经济收益回放。价格、TTL、共享关系与覆盖水位未知时继续安全降级，不添加人工配置填空。

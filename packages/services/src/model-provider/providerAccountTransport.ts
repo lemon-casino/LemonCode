@@ -143,6 +143,13 @@ export class ProviderAccountTransport {
                 res.writeHead(error.retryable ? 503 : 409, {
                   "content-type": "application/json",
                   "x-zcode-routing-reason": error.code,
+                  ...(error.details.retryAt !== undefined
+                    ? {
+                        "retry-after": String(
+                          Math.max(0, Math.ceil((error.details.retryAt - Date.now()) / 1000)),
+                        ),
+                      }
+                    : {}),
                 });
                 res.end(
                   JSON.stringify({
@@ -151,6 +158,7 @@ export class ProviderAccountTransport {
                       type: "routing_error",
                       message: error.code,
                       retryable: error.retryable,
+                      routing: error.details,
                     },
                   }),
                 );

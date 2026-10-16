@@ -113,6 +113,12 @@ nodes:
         symbol: FileSharedQuotaCoordinator
       - file: packages/shared/src/provider-routing.ts
         symbol: setApiKeyRoutingMetadataSchema
+      - file: packages/provider/src/routing/cache-decision.ts
+        symbol: decideRoutingCache
+      - file: packages/provider/src/routing/recovery.ts
+        symbol: RoutingRecovery
+      - file: apps/lcode-cli/packages/adapters/src/model/api-key-shared-diagnostics.ts
+        symbol: sharedQuotaView
     invariants:
       - "Absent routing preserves legacy selection. Dedicated policy writes use the existing personal settings owner and preserve key save generations."
       - "ProviderAccounts and the original API key pool own reservations. Planning is read-only; physical response completion releases slots and unverified consumption remains conservative."
@@ -124,6 +130,11 @@ nodes:
       - "Cohorts and winner trees derive from the same Scheduler owner; dispersed hot selection avoids full scans and reports affected members and index work."
       - "An injected local shared-quota file owner serializes all pool windows before fetch; dispatched unknown usage is never refunded by TTL or process exit."
       - "Only a shared owner global coverage watermark retires ended debits; local snapshot revisions cannot wash consumption."
+      - "The batch Key routing panel is permanently absent; automatic recovery and diagnostics add no manual settings."
+      - "Cache decisions use the same reliability bands and require comparable positive expiry gain after known switch cost."
+      - "A cooling resource admits one probe; physical completion and normalized success jointly confirm recovery, with versioned file ownership for shared API pools."
+      - "Directory profiles preserve model context and recovery deadlines; outcome-only feedback refreshes the affected index entries."
+      - "Read-only diagnostics distinguish local preview from authoritative shared debits and retain unknown failures without replaying dispatch."
   - id: capability.oauth-usage-analytics
     kind: capability
     label: OAuth provider and account usage analytics

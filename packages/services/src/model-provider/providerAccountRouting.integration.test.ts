@@ -11,6 +11,7 @@ async function fixture(
   t: test.TestContext,
   protocol: AuthWireProtocol = "openai-chat-completions",
   certified = true,
+  recoveryFixture = false,
 ) {
   const directory = await mkdtemp(join(tmpdir(), "routing-fixture-"));
   const saved = new Map<string, string>();
@@ -39,12 +40,24 @@ async function fixture(
         complete: async (code) => ({ type: "oauth", access: `synthetic-${code}`, accountId: code }),
       }),
       models: async () => [
-        { id: "model", name: "Model", baseURL: "https://fixture.invalid/v1", protocol },
+        {
+          id: "model",
+          name: "Model",
+          baseURL: "https://fixture.invalid/v1",
+          protocol,
+          ...(recoveryFixture ? { routingPortability: "portable" as const } : {}),
+        },
       ],
       fetch: async (_request, context) => {
         if (policy) assert.equal(context.routingSingleAttempt, true);
         calls.push(context.connectionId!);
-        return new Response("fixture", { status });
+        return new Response("fixture", {
+          status,
+          headers: {
+            "retry-after-ms": recoveryFixture ? "0" : "1000",
+            "x-lcode-rate-limit-scope": "key",
+          },
+        });
       },
     }),
   });
@@ -172,3 +185,34 @@ test("a clearly rejected first request releases only its provisional binding for
   assert.equal(f.calls.length, 2);
   assert.notEqual(f.calls[0], f.calls[1]);
 });
+
+for (const protocol of [
+  "openai-chat-completions",
+  "openai-responses",
+  "anthropic-messages",
+] as const)
+  test(`RCD-12 OAuth transport ${protocol} keeps recovery uncertain until authenticated normalized feedback`, async (t) => {
+    const f = await fixture(t, protocol, true, true);
+    f.setPolicy({ version: 1, strategy: "primary-backup" });
+    f.setStatus(429);
+    assert.equal((await f.send("failed")).status, 429);
+    f.setStatus(200);
+    assert.equal((await f.send("probe")).status, 200);
+    const view = f.service.readRoutingDiagnostics("fixture")!;
+    assert.equal(view.recovery[0]!.phase, "uncertain");
+    assert.equal(view.owner.lastDecision?.effectiveStrategy, "primary-backup");
+    await f.send("before-feedback");
+    assert.equal(f.calls[0], f.calls[1]);
+    assert.notEqual(f.calls[1], f.calls[2]);
+    const auth = f.auths.get("probe")!;
+    const feedback = await fetch(auth.baseURL + "/routing/usage", {
+      method: "POST",
+      headers: { authorization: `Bearer ${auth.apiKey}`, "content-type": "application/json" },
+      body: JSON.stringify({ outcome: "success" }),
+    });
+    assert.equal(feedback.status, 204);
+    await f.send("recovered");
+    assert.equal(f.calls[0], f.calls[3]);
+    assert.equal(f.calls.length, 4);
+    assert.equal(f.service.readRoutingDiagnostics("fixture")!.recovery[0]!.phase, "healthy");
+  });

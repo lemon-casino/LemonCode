@@ -131,6 +131,10 @@ export class ProviderAccounts implements IProviderAccountService {
     });
     this.#revision++;
   }
+  readRoutingDiagnostics(channelId: string) {
+    return this.#routing.readDiagnostics(channelId);
+  }
+
   async getView(): Promise<ProviderAccountView> {
     await this.#watcher.ready;
     const channels = await (this.#channels ??= loadProviderAuthChannels(
