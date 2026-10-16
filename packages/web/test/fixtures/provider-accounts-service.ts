@@ -1,3 +1,4 @@
+import { projectFixtureAuthorizationDiagnostic } from "./provider-authorization-diagnostic-fixture.js";
 import type { ProxyProfile } from "@lcode/shared";
 import { applyProxyFixtureView, createProxyFixtureMethods } from "./provider-proxy-fixture.js";
 import { fixtureAuthorizationChannels } from "./provider-authorization-catalog.js";
@@ -35,6 +36,7 @@ export const fixture = {
   startFailure: null as string | null,
   completionFailure: null as string | null,
   authorizationInstructions: null as string | null,
+  authorizationDiagnostic: undefined as ProviderAuthorization["diagnostic"],
   starts: [] as StartProviderAuthorization[],
   localReads: 0,
   importReads: 0,
@@ -105,6 +107,7 @@ export const service: IProviderAccountService = {
       methodId,
       status: "pending",
       method: "code",
+      diagnostic: fixture.authorizationDiagnostic,
       url: "https://example.test/authorize",
       instructions: fixture.authorizationInstructions ?? "Fixture browser authorization",
     };
@@ -163,13 +166,23 @@ export const service: IProviderAccountService = {
       fixture.completeOnPoll = false;
       return service.completeAuthorization(id, "fixture-polled-code");
     }
-    return attempts.get(id)!;
+    const attempt = projectFixtureAuthorizationDiagnostic(
+      attempts.get(id)!,
+      fixture.authorizationDiagnostic,
+    );
+    attempts.set(id, attempt);
+    return attempt;
   },
   async completeAuthorization(id, code) {
     const attempt = attempts.get(id)!;
     if (attempt.status !== "pending" || !code) return attempt;
     if (fixture.completionFailure) {
-      const failed = { ...attempt, status: "failed" as const, error: fixture.completionFailure };
+      const failed = {
+        ...attempt,
+        diagnostic: fixture.authorizationDiagnostic,
+        status: "failed" as const,
+        error: fixture.completionFailure,
+      };
       fixture.completionFailure = null;
       attempts.set(id, failed);
       return failed;
@@ -193,7 +206,12 @@ export const service: IProviderAccountService = {
         ],
       },
     ];
-    const completed = { ...attempt, status: "completed" as const, connectionId };
+    const completed = {
+      ...attempt,
+      diagnostic: fixture.authorizationDiagnostic,
+      status: "completed" as const,
+      connectionId,
+    };
     attempts.set(id, completed);
     publish();
     return completed;

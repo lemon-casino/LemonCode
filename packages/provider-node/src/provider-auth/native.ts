@@ -33,8 +33,8 @@ export async function createNativeAuthDriver(
                 http_proxy: network.httpProxy ?? "",
                 https_proxy: network.httpProxy ?? "",
                 all_proxy: "",
-                NO_PROXY: network.noProxy ?? "",
-                no_proxy: network.noProxy ?? "",
+                NO_PROXY: [network.noProxy, additions?.NO_PROXY].filter(Boolean).join(","),
+                no_proxy: [network.noProxy, additions?.no_proxy].filter(Boolean).join(","),
                 ...(network.caCertPath ? { NODE_EXTRA_CA_CERTS: network.caCertPath } : {}),
               });
             }

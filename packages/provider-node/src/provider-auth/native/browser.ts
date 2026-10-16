@@ -65,9 +65,10 @@ export async function browserChallenge(options: BrowserOptions): Promise<AuthCha
         resolve(grant);
         cleanup();
       }
-    } catch {
+    } catch (error) {
       if (!closed) {
-        reject(new Error("Authorization token exchange failed"));
+        // 接收 callback 只是开始交换；保留 cause 供安全阶段分类，不能把超时伪装成通用拒绝。
+        reject(new Error("Authorization token exchange failed", { cause: error }));
         cleanup();
       }
     }

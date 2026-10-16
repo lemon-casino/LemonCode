@@ -1,46 +1,14 @@
 import { Worker } from "node:worker_threads";
+import type { PendingCall, WorkerMessage } from "./transport-types.js";
 import type { AuthDriverContext, AuthGrant, AuthDriverNetworkOptions } from "../driver.js";
 import { PLUGIN_WORKER_SOURCE } from "./worker-source.js";
 import { readNetworkRequestBody } from "../../network-request-body.js";
 import { NetworkCleanup } from "../../network-cleanup.js";
 import { PluginRefreshOwnership } from "./refresh-ownership.js";
-
-interface PendingCall {
-  /** Node Request 的取消 controller 使用弱引用；只持有 signal 不够，须保留 Request 到流结算。 */
-  readonly requestOwner?: Request;
-  resolve(value: unknown): void;
-  reject(error: Error): void;
-  context?: AuthDriverContext;
-  cleanup(): void;
-  stream?: ReadableStreamDefaultController<Uint8Array>;
-  settled: boolean;
-  aborted: boolean;
-}
-
-type WorkerMessage = {
-  kind:
-    | "result"
-    | "response"
-    | "chunk"
-    | "end"
-    | "error"
-    | "credential"
-    | "disposed"
-    | "refresh-end";
-  id: number;
-  value?: unknown;
-  error?: { message: string; name?: string; signIn?: string };
-  action?: "read" | "write" | "signin" | "refresh-begin";
-  admitted?: boolean;
-  signIn?: "expired" | "kept" | "renewed";
-  grant?: AuthGrant;
-  callId?: number;
-  operationId?: number;
-  status?: number;
-  statusText?: string;
-  headers?: [string, string][];
-  bytes?: Uint8Array;
-};
+import {
+  providerAuthorizationDiagnosticSchema,
+  type ProviderAuthorizationDiagnostic,
+} from "@lcode/shared";
 
 function abortedError(): Error {
   return new DOMException("Provider operation was cancelled", "AbortError");
@@ -151,6 +119,7 @@ export class PluginWorkerTransport {
     signal?: AbortSignal,
     killOnAbort = false,
     requestOwner?: Request,
+    observeAuthorization?: (diagnostic: ProviderAuthorizationDiagnostic) => void,
   ): Promise<T> {
     if (this.closed) return Promise.reject(new Error("Provider plugin driver is disposed"));
     const signals = [context?.signal, signal].filter((item): item is AbortSignal => Boolean(item));
@@ -173,6 +142,7 @@ export class PluginWorkerTransport {
       };
       const pending: PendingCall = {
         requestOwner,
+        observeAuthorization,
         resolve: (value) => resolve(value as T),
         reject,
         context,
@@ -187,6 +157,7 @@ export class PluginWorkerTransport {
         id,
         operation,
         context: Boolean(context),
+        routingSingleAttempt: context?.routingSingleAttempt === true,
         ...params,
         network,
       });
@@ -285,6 +256,11 @@ export class PluginWorkerTransport {
     const pending = this.pending.get(message.id);
     if (!pending || pending.aborted || this.closed) return;
     switch (message.kind) {
+      case "authorization-diagnostic": {
+        const parsed = providerAuthorizationDiagnosticSchema.safeParse(message.diagnostic);
+        if (parsed.success) pending.observeAuthorization?.(parsed.data);
+        break;
+      }
       case "result":
         this.finish(message.id, undefined, message.value);
         break;

@@ -1406,10 +1406,11 @@
     "packages/lcode-server-cli/package.json": "9d824802017245a14e355315d5e659a572e7a94fcd540ca9437c189df8614b85",
     "packages/model-option-map/package.json": "a9f720efdb353f556d01ea866bb15ac0201c155fb305a4246e6a323384770aba",
     "packages/provider-node/package.json": "21628ef367aad9acbe092cf7454037de1628d4358670ab6a40718297efdd9e5f",
-    "packages/provider-node/src/provider-auth/native.ts": "7d214d0064859152aec369c09d1009451fcde50d101170663e0bf29b59c6b86e",
+    "packages/provider-node/src/provider-auth/native.ts": "f3cc90c02acc138f06bc55da3560e3b95fe5e5d19a29c8e0bf057bf263d194db",
     "packages/provider-node/src/provider-auth/native/account-refresh.test.ts": "2f77ffc4c332802cff0b7dbb762c52fd0fdd95e8ff053f72cf23612ca72db67d",
     "packages/provider-node/src/provider-auth/native/account-refresh.ts": "891962c85ce0002ffa8d73c8dbe3b5b1bd1a65f157c0b949bc93af8adae9bc30",
-    "packages/provider-node/src/provider-auth/native/browser.ts": "b597d6bb9a4aed7887e5cd3cd423627cd1aeae09577b0a95f508e0d65449bd53",
+    "packages/provider-node/src/provider-auth/native/authorization-diagnostics.test.ts": "b6543ff731946e9091d7a738a66d9a7957ba5ae284fe22480c35451efed70372",
+    "packages/provider-node/src/provider-auth/native/browser.ts": "c665cec23a21eeeb6372ae15f704ee5ef5cbd7cf7c98185f245b85c24125d584",
     "packages/provider-node/src/provider-auth/native/catalog-metadata.ts": "4b2316ad44760b87327d3efe04437bbda74f5a6ab27c5f30de4aca74576058c6",
     "packages/provider-node/src/provider-auth/native/claude-account.ts": "b65277319e2ab64aa1359114015dc53726a6c1590eb1f50819bb9b057920bec4",
     "packages/provider-node/src/provider-auth/native/claude-auth.ts": "4170257a0045b9ca092ec0f9a059c1181d4670dcb480f6d45be6fecc483a4e3b",
@@ -1424,9 +1425,12 @@
     "packages/provider-node/src/provider-auth/native/claude-quota-time.ts": "62e7e40dd7c8c25161be2c36f6f8fb4e3fa4b90c8ca689385f45587ff302c745",
     "packages/provider-node/src/provider-auth/native/claude-quota.test.ts": "a239f38a6c628f9d3ce04672f0949113f318a7e85040e441a56b9d2e321c8ac3",
     "packages/provider-node/src/provider-auth/native/claude-quota.ts": "5c24bb2a68bf5cb3b8983397154969e6bab0811fd8a57a2d9d4380b81f30e08c",
-    "packages/provider-node/src/provider-auth/native/claude-session.ts": "62bea4539fe1bd161d359940948b95994e2f229d66fdf5c411e87b7efe217a49",
+    "packages/provider-node/src/provider-auth/native/claude-relay-lifecycle.test.ts": "33e41fa2a0231643353c480d7adcf4a0c2fe51a597695370d066cdf4e805a76e",
+    "packages/provider-node/src/provider-auth/native/claude-routing-relay.ts": "b25d997c999fc5328870fa90814549df372e4bb3366d4cd7c304bf3407f3e680",
+    "packages/provider-node/src/provider-auth/native/claude-routing.test.ts": "d6a9744caa563ffe7b8eb88b57b795c86bc859044ddb14a542a81e863e88741e",
+    "packages/provider-node/src/provider-auth/native/claude-session.ts": "27db8ba6cb5d21cb5ef47449361b5d61b34cdd764a24a751f863695e4178b615",
     "packages/provider-node/src/provider-auth/native/claude.test.ts": "a93dc17a97147dba3efef15526ba084240e09c3f1144eeae96f82de0f5a1f8e9",
-    "packages/provider-node/src/provider-auth/native/claude.ts": "b85256a3e4e94c52d01bf6bef49a5631e9885e0ec02921b9bfcdcb2b291d3e85",
+    "packages/provider-node/src/provider-auth/native/claude.ts": "7de26ec29f53ea80fcf486bcdf2dadd00b60663f8b6d69f4efe34c6076b26ae3",
     "packages/provider-node/src/provider-auth/native/common-cancellation.test.ts": "14e2e31805042d57134eb8359acf1e8db6d87454341a169b7b0784af55dba1de",
     "packages/provider-node/src/provider-auth/native/common.ts": "46c861b9892d4bfd970bbbfcb24ad92b4595329443b2fcb7c8353c8875ee9011",
     "packages/provider-node/src/provider-auth/native/copilot-auto-lifecycle.test.ts": "c742b5ad441010450db8eec13ebc564dcd3a7c439f5ad1bb2cc8c3b8ba5edf96",
@@ -1472,7 +1476,7 @@
     "packages/provider-node/src/provider-auth/plugins/checkin.mjs": "760a2319160ac8a17a6b1b6d16cb5f02711f6e9a6b04f4f2b232fc5d822b8436",
     "packages/provider-node/src/provider-auth/plugins/factory-import.mjs": "5c9ed1cce9ab4e3538b21996e7d17df002964e3bacc64ba868f01153f564652d",
     "packages/provider-node/src/provider-auth/plugins/method-details.mjs": "81af1536b6f35061208824323f09956dd3409ca9d850b3f3c7e30b1bfdcd31e5",
-    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "c95b64cc638a8335b165e235c5a6d4404d34e3cc3af880f45ca81ffcf6b255fb",
+    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "9daef4120fda405ac40ed0e1fe824cc286d9389e8794b2fb0b25dad51afdb597",
     "packages/provider-node/src/provider-auth/plugins/zcode-local.mjs": "c8b91d4414eed9c9edd0e227a06141d0c75bb1601abc5cef177be01ca21952e4",
     "packages/provider-node/src/provider-auth/vendor/cline/index.mjs.source": "17d11f1c35c4201152478a183961d03431ac795c7bc4be44189825f2d3e84272",
     "packages/provider-node/src/provider-auth/vendor/commandcode/index.mjs.source": "54b6112ce2a93d645fa9f87327109bdffd42c8088b010b9194fa5fefb56fb549",
@@ -30936,8 +30940,12 @@
           "sha256": "891962c85ce0002ffa8d73c8dbe3b5b1bd1a65f157c0b949bc93af8adae9bc30"
         },
         {
+          "file": "packages/provider-node/src/provider-auth/native/authorization-diagnostics.test.ts",
+          "sha256": "b6543ff731946e9091d7a738a66d9a7957ba5ae284fe22480c35451efed70372"
+        },
+        {
           "file": "packages/provider-node/src/provider-auth/native/browser.ts",
-          "sha256": "b93f6dbf8c4fb4b208b8b1dc76816cf677c58764ec6c7a6e5cfc8c431c31eb4a"
+          "sha256": "c665cec23a21eeeb6372ae15f704ee5ef5cbd7cf7c98185f245b85c24125d584"
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/catalog-metadata.ts",
@@ -30996,8 +31004,20 @@
           "sha256": "fb313e26a6dd6c8231e5ff57212082a611a4ccf55dc417b57e6eacf3785d33fd"
         },
         {
+          "file": "packages/provider-node/src/provider-auth/native/claude-relay-lifecycle.test.ts",
+          "sha256": "33e41fa2a0231643353c480d7adcf4a0c2fe51a597695370d066cdf4e805a76e"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/native/claude-routing-relay.ts",
+          "sha256": "b25d997c999fc5328870fa90814549df372e4bb3366d4cd7c304bf3407f3e680"
+        },
+        {
+          "file": "packages/provider-node/src/provider-auth/native/claude-routing.test.ts",
+          "sha256": "d6a9744caa563ffe7b8eb88b57b795c86bc859044ddb14a542a81e863e88741e"
+        },
+        {
           "file": "packages/provider-node/src/provider-auth/native/claude-session.ts",
-          "sha256": "62bea4539fe1bd161d359940948b95994e2f229d66fdf5c411e87b7efe217a49"
+          "sha256": "27db8ba6cb5d21cb5ef47449361b5d61b34cdd764a24a751f863695e4178b615"
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/claude.test.ts",
@@ -31005,7 +31025,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/claude.ts",
-          "sha256": "294bd8bb2a1c0a32a16aafae671a166c26fbb2ca7ca3dcfc2868ce721df60aff"
+          "sha256": "7de26ec29f53ea80fcf486bcdf2dadd00b60663f8b6d69f4efe34c6076b26ae3"
         },
         {
           "file": "packages/provider-node/src/provider-auth/native/common-cancellation.test.ts",
@@ -31169,7 +31189,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/native.ts",
-          "sha256": "a498831d1a8506dd40056ffc561759dfcdf6f9793d0089f596779639eedfd958"
+          "sha256": "f3cc90c02acc138f06bc55da3560e3b95fe5e5d19a29c8e0bf057bf263d194db"
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/factory-import.mjs",
@@ -31181,7 +31201,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "c95b64cc638a8335b165e235c5a6d4404d34e3cc3af880f45ca81ffcf6b255fb"
+          "sha256": "9daef4120fda405ac40ed0e1fe824cc286d9389e8794b2fb0b25dad51afdb597"
         }
       ]
     },
@@ -31311,7 +31331,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "c95b64cc638a8335b165e235c5a6d4404d34e3cc3af880f45ca81ffcf6b255fb"
+          "sha256": "9daef4120fda405ac40ed0e1fe824cc286d9389e8794b2fb0b25dad51afdb597"
         }
       ]
     },

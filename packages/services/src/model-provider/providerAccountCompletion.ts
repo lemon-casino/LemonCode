@@ -3,6 +3,10 @@ import type { ProviderAccountImportResult, ProviderAuthorization } from "@lcode/
 import { grantSchema, type StoredAccount } from "./providerAccountStoreSchema.js";
 import { admitProviderAccount, safeAccountLabel } from "./providerAccountAdmission.js";
 import { authorizationFailureMessage } from "./providerAccountStorage.js";
+import {
+  updateAuthorizationProgress,
+  failAuthorizationProgress,
+} from "./providerAuthorizationProgress.js";
 
 export interface AccountAuthorizationAttempt {
   view: ProviderAuthorization;
@@ -10,16 +14,21 @@ export interface AccountAuthorizationAttempt {
   driver: AuthDriver;
   challenge: AuthChallenge;
   completion?: Promise<void>;
+  startedAt?: number;
 }
+/** 同一 attempts Map 中的无资源终态；开始阶段失败无需伪造 challenge/driver。 */
+export type AccountAuthorizationRecord =
+  | AccountAuthorizationAttempt
+  | { view: ProviderAuthorization; startedAt?: number };
 interface CompletionHost {
   closed(): boolean;
   channel(id: string): { id: string; name: string };
   mutate(update: (accounts: StoredAccount[]) => void): Promise<void>;
   rollback(update: (accounts: StoredAccount[]) => void): Promise<void>;
-  resetDriver(id: string): Promise<void>;
-  useDriver(id: string, driver: AuthDriver): void;
+  adoptDriver(id: string, driver?: AuthDriver): Promise<void>;
   refreshEnabled(id: string): Promise<void>;
   publish(): Promise<unknown>;
+  retireDriver?(driver: AuthDriver): Promise<void>;
 }
 
 /** The Host owns the attempt and all writes; this sequence has no cache or independent lifecycle. */
@@ -28,7 +37,14 @@ export async function completeProviderAccountAuthorization(
   attempt: AccountAuthorizationAttempt,
   code?: string,
 ): Promise<void> {
+  let committed = false,
+    handedOff = false,
+    saved = false;
+  const retire = () =>
+    host.retireDriver ? host.retireDriver(attempt.driver) : attempt.driver.dispose?.();
   try {
+    if (!attempt.view.diagnostic?.code)
+      updateAuthorizationProgress(attempt, { phase: "exchange", credentialsSaved: false });
     const batch = Boolean(attempt.challenge.completeMany);
     const entries: readonly AuthImportEntry[] = attempt.challenge.completeMany
       ? await attempt.challenge.completeMany()
@@ -38,6 +54,7 @@ export async function completeProviderAccountAuthorization(
     const channel = host.channel(attempt.view.channelId);
     const results: ProviderAccountImportResult[] = [];
     const createdGenerations = new Map<string, number>();
+    updateAuthorizationProgress(attempt, { phase: "persisting", credentialsSaved: false });
     await host.mutate((accounts) => {
       attempt.controller.signal.throwIfAborted();
       for (const [index, entry] of entries.entries()) {
@@ -69,9 +86,7 @@ export async function completeProviderAccountAuthorization(
           );
     });
     const changed = results.filter((row) => row.connectionId && row.status !== "failed");
-    // 轮换凭据一旦持久化即不能退回旧token；先废止旧driver，再处理取消期间的新连接撤销。
-    for (const row of changed)
-      if (row.status !== "exists") await host.resetDriver(row.connectionId!);
+    // 凭据提交是授权完成点；后续清理和目录失败不能回退成授权失败或关闭已移交 driver。
     if (attempt.controller.signal.aborted) {
       await host.rollback((accounts) => {
         // 保存期间另一Host可能已重新授权同一连接；取消只能撤销本attempt仍拥有的新增代次。
@@ -79,29 +94,64 @@ export async function completeProviderAccountAuthorization(
           if (createdGenerations.get(accounts[index]!.connectionId) === accounts[index]!.generation)
             accounts.splice(index, 1);
       });
-      await attempt.driver.dispose?.();
+      await retire();
       return;
     }
+    committed = true;
+    saved = changed.length > 0;
+    const post = async (run: () => unknown) => {
+      try {
+        await run();
+      } catch (error) {
+        failAuthorizationProgress(attempt, error, "post-login", saved);
+      }
+    };
     const connectionId = changed[0]?.connectionId;
-    if (!batch && connectionId && changed[0]?.status !== "exists")
-      host.useDriver(connectionId, attempt.driver);
-    else await attempt.driver.dispose?.();
     attempt.view = {
       ...attempt.view,
       status: "completed",
       ...(connectionId ? { connectionId } : {}),
       ...(batch ? { results } : {}),
     };
+    updateAuthorizationProgress(attempt, {
+      phase: "post-login",
+      credentialsSaved: saved,
+      followupPending: true,
+    });
+    const adopted = changed
+      .filter((row) => row.status !== "exists")
+      .map((row) => {
+        const driver = !batch && row.connectionId === connectionId ? attempt.driver : undefined;
+        if (driver) handedOff = true;
+        // 原 owner 在返回 Promise 前同步替换缓存，旧 driver 的异步关闭不得留下无主窗口。
+        return post(() => host.adoptDriver(row.connectionId!, driver));
+      });
+    await Promise.all(adopted);
+    if (!handedOff) await post(retire);
     for (const row of changed)
-      if (row.status !== "exists") await host.refreshEnabled(row.connectionId!);
-    await host.publish();
+      if (row.status !== "exists") await post(() => host.refreshEnabled(row.connectionId!));
+    await post(() => host.publish());
+    updateAuthorizationProgress(
+      attempt,
+      attempt.view.diagnostic?.code
+        ? { ...attempt.view.diagnostic, followupPending: false }
+        : { phase: "completed", credentialsSaved: saved, followupPending: false },
+    );
   } catch (error) {
+    if (committed) {
+      attempt.view = { ...attempt.view, status: "completed" };
+      failAuthorizationProgress(attempt, error, "post-login", saved);
+      updateAuthorizationProgress(attempt, { ...attempt.view.diagnostic!, followupPending: false });
+      if (!handedOff) await retire();
+      return;
+    }
     if (!attempt.controller.signal.aborted)
       attempt.view = {
         ...attempt.view,
         status: "failed",
         error: authorizationFailureMessage(error),
       };
-    await attempt.driver.dispose?.();
+    failAuthorizationProgress(attempt, error, attempt.view.diagnostic?.phase ?? "exchange");
+    await retire();
   }
 }

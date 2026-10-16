@@ -25,6 +25,7 @@ import {
 } from "./common.js";
 
 export class ClaudeAuthDriver implements AuthDriver {
+  readonly routingSingleAttempt = true;
   private readonly profile: ClaudeProfile;
   private readonly sessions = new Set<ClaudeSession>();
   private readonly lifetime = new AbortController();
@@ -36,6 +37,7 @@ export class ClaudeAuthDriver implements AuthDriver {
     private readonly spawn: ClaudeSpawner = spawnClaude,
     private readonly localIO: LocalIO = defaultLocalIO,
     modelFetcher: Fetcher = fetch,
+    private readonly routingFetcher: Fetcher = modelFetcher,
   ) {
     this.profile = new ClaudeProfile(localIO);
     this.catalog = new ClaudeModels(modelFetcher);
@@ -190,7 +192,10 @@ export class ClaudeAuthDriver implements AuthDriver {
       if (session.closed) {
         await session.waitClosed();
         this.sessions.delete(session);
-      } else if (session.accepts(body)) {
+      } else if (
+        session.singleAttemptEnabled === Boolean(context.routingSingleAttempt) &&
+        session.accepts(body)
+      ) {
         const response = await session.continue(body, signal);
         await this.profile.sync(context);
         return response;
@@ -207,8 +212,12 @@ export class ClaudeAuthDriver implements AuthDriver {
         "Claude tool continuation is no longer active or belongs to another conversation",
       );
     const dir = await this.profile.get(grant);
-    const session = new ClaudeSession(body, dir, this.spawner(grant), () =>
-      this.profile.sync(context),
+    const session = new ClaudeSession(
+      body,
+      dir,
+      this.spawner(grant),
+      () => this.profile.sync(context),
+      context.routingSingleAttempt ? this.routingFetcher : undefined,
     );
     this.sessions.add(session);
     try {

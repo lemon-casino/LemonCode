@@ -15,13 +15,11 @@ import { ProviderAccountScheduler } from "./providerAccountScheduler.js";
 import type { ProviderRoutingPolicy } from "@lcode/shared";
 import { ProviderAccountCheckins } from "./providerAccountCheckins.js";
 import { refreshProviderAccountCatalog } from "./providerAccountCatalogRefresh.js";
-import { randomUUID } from "node:crypto";
 import { Emitter } from "@lcode/rpc";
 import { ProviderAccountRefreshOwner } from "./providerAccountRefreshOwner.js";
 import { ProviderAccountDriverCleanup } from "./providerAccountDriverCleanup.js";
-import { prepareProviderAuthorizationInputs } from "./providerAccountAuthorizationInputs.js";
+import { startProviderAccountAuthorization } from "./providerAccountAuthorizationStart.js";
 import {
-  startProviderAuthorizationSchema,
   type ProviderAccountChannel,
   type ProviderAccountView,
   type ProviderAuthorization,
@@ -31,14 +29,11 @@ import { createAuthDriver, type AuthDriver, type AuthDriverFactory } from "@lcod
 import type { ICredentialService } from "../credential/credential.js";
 import type { IProviderAccountService } from "./providerAccountService.js";
 import { ProviderAccountTransport } from "./providerAccountTransport.js";
-import {
-  ProviderAccountStorage,
-  watchProviderAccountStorage,
-  authorizationFailureMessage,
-} from "./providerAccountStorage.js";
+import { ProviderAccountStorage, watchProviderAccountStorage } from "./providerAccountStorage.js";
 import {
   completeProviderAccountAuthorization,
   type AccountAuthorizationAttempt as Attempt,
+  type AccountAuthorizationRecord,
 } from "./providerAccountCompletion.js";
 export interface ProviderAccountsOptions {
   readRouting?: (channelId: string) => Promise<ProviderRoutingPolicy | null | undefined>;
@@ -51,7 +46,7 @@ export interface ProviderAccountsOptions {
 export class ProviderAccounts implements IProviderAccountService {
   readonly #emitter = new Emitter<ProviderAccountView>();
   readonly onDidChange = this.#emitter.event;
-  readonly #attempts = new Map<string, Attempt>();
+  readonly #attempts = new Map<string, AccountAuthorizationRecord>();
   readonly #starting = new Map<AuthDriver, AbortController>();
   readonly #drivers = new Map<string, AuthDriver>();
   readonly #inflight = new Map<string, Set<AbortController>>();
@@ -155,66 +150,32 @@ export class ProviderAccounts implements IProviderAccountService {
     return view;
   }
   async startAuthorization(input: StartProviderAuthorization): Promise<ProviderAuthorization> {
-    await this.#watcher.ready;
-    if (this.#disposed) throw new Error("Provider account service closed");
-    const parsed = startProviderAuthorizationSchema.parse(input);
-    const channel = (this.options.channels ?? PROVIDER_AUTH_CHANNELS).find(
-      (item) => item.id === parsed.channelId,
-    );
-    if (!channel) throw new Error("Unknown authorization channel");
-    const { driver, controller } = await this.#driverCleanup.constructDriver({
-      create: () => this.#factory(parsed.channelId),
-      closed: () => this.#disposed,
-      publish: (driver) => {
-        const controller = new AbortController();
-        this.#starting.set(driver, controller);
-        return { driver, controller };
+    return startProviderAccountAuthorization(
+      {
+        ready: this.#watcher.ready,
+        closed: () => this.#disposed,
+        channels: this.options.channels ?? PROVIDER_AUTH_CHANNELS,
+        factory: this.#factory,
+        cleanup: this.#driverCleanup,
+        hostId: () => this.#storage.hostId(),
+        starting: this.#starting,
+        attempts: this.#attempts,
+        complete: (attempt) => this.#complete(attempt),
       },
-    });
-    try {
-      if (this.#disposed) throw new Error("Provider account service closed");
-      const method = (await driver.methods()).find((item) => item.id === parsed.methodId);
-      if (!method) throw new Error("Unknown authorization method");
-      const inputs = prepareProviderAuthorizationInputs(method, parsed.inputs);
-      if (channel.id === "chatgpt-api") inputs.hostId = await this.#storage.hostId();
-      controller.signal.throwIfAborted();
-      const challenge = await driver.authorize(parsed.methodId, inputs, controller.signal);
-      if (this.#disposed || controller.signal.aborted) {
-        challenge.cancel?.();
-        throw new Error("Authorization cancelled");
-      }
-      const view: ProviderAuthorization = {
-        attemptId: randomUUID(),
-        channelId: parsed.channelId,
-        methodId: parsed.methodId,
-        status: "pending",
-        method: challenge.method,
-        ...(challenge.url ? { url: challenge.url } : {}),
-        ...(challenge.instructions ? { instructions: challenge.instructions } : {}),
-      };
-      const attempt: Attempt = { view, controller, driver, challenge };
-      this.#attempts.set(view.attemptId, attempt);
-      if (challenge.method === "auto") attempt.completion = this.#complete(attempt);
-      return { ...view };
-    } catch (error) {
-      controller.abort();
-      await this.#driverCleanup.retire(driver);
-      throw new Error(authorizationFailureMessage(error));
-    } finally {
-      this.#starting.delete(driver);
-    }
+      input,
+    );
   }
   async getAuthorization(attemptId: string): Promise<ProviderAuthorization> {
     return { ...this.#attempt(attemptId).view };
   }
-  #attempt(id: string): Attempt {
+  #attempt(id: string): AccountAuthorizationRecord {
     const attempt = this.#attempts.get(id);
     if (!attempt) throw new Error("Unknown authorization attempt");
     return attempt;
   }
   async completeAuthorization(attemptId: string, code: string): Promise<ProviderAuthorization> {
     const attempt = this.#attempt(attemptId);
-    if (attempt.view.status === "pending") {
+    if (attempt.view.status === "pending" && "challenge" in attempt) {
       attempt.completion ??= this.#complete(attempt, code);
       await attempt.completion;
     }
@@ -228,13 +189,12 @@ export class ProviderAccounts implements IProviderAccountService {
           (this.options.channels ?? PROVIDER_AUTH_CHANNELS).find((channel) => channel.id === id)!,
         mutate: (update) => this.#mutate(update),
         rollback: (update) => this.#storage.mutate(update),
-        resetDriver: async (id) => {
+        adoptDriver: (id, driver) => {
           this.#abort(id);
-          await this.#drivers.get(id)?.dispose?.();
-          this.#drivers.delete(id);
-        },
-        useDriver: (id, driver) => {
-          this.#drivers.set(id, driver);
+          const old = this.#drivers.get(id);
+          if (driver) this.#drivers.set(id, driver);
+          else this.#drivers.delete(id);
+          return old ? this.#driverCleanup.retire(old) : Promise.resolve();
         },
         refreshEnabled: async (id) => {
           if (
@@ -245,6 +205,7 @@ export class ProviderAccounts implements IProviderAccountService {
             await this.refreshModels(id);
         },
         publish: () => this.#publish(),
+        retireDriver: (driver) => this.#driverCleanup.retire(driver),
       },
       attempt,
       code,
@@ -252,7 +213,7 @@ export class ProviderAccounts implements IProviderAccountService {
   }
   async cancelAuthorization(attemptId: string): Promise<ProviderAuthorization> {
     const attempt = this.#attempt(attemptId);
-    if (attempt.view.status !== "pending") return { ...attempt.view };
+    if (attempt.view.status !== "pending" || !("challenge" in attempt)) return { ...attempt.view };
     attempt.controller.abort();
     attempt.challenge.cancel?.();
     attempt.view = { ...attempt.view, status: "cancelled" };
@@ -382,6 +343,7 @@ export class ProviderAccounts implements IProviderAccountService {
     this.#watcher.dispose();
     for (const controller of this.#starting.values()) controller.abort();
     for (const attempt of this.#attempts.values()) {
+      if (!("challenge" in attempt)) continue;
       attempt.controller.abort();
       attempt.challenge.cancel?.();
     }
@@ -390,7 +352,9 @@ export class ProviderAccounts implements IProviderAccountService {
     await this.#driverCleanup.close([
       ...this.#drivers.values(),
       ...this.#starting.keys(),
-      ...[...this.#attempts.values()].map((item) => item.driver),
+      ...[...this.#attempts.values()]
+        .filter((item): item is Attempt => "challenge" in item)
+        .map((item) => item.driver),
     ]);
     this.#emitter.dispose();
   }

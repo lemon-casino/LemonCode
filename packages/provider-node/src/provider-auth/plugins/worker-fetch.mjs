@@ -9,6 +9,7 @@ export async function fetchPluginModel({
   model,
   request: r,
   signal,
+  singleAttempt,
 }) {
   const headers = new Headers(r.headers);
   for (const [key, value] of Object.entries(loader.headers ?? {}))
@@ -68,7 +69,18 @@ export async function fetchPluginModel({
   }
   signal.throwIfAborted();
   const request = new Request(target, { method: r.method, headers, body, signal });
-  const response = await loader.fetch(request, { method: r.method, headers, body, signal });
+  let response;
+  try {
+    response = await loader.fetch(request, { method: r.method, headers, body, signal });
+  } catch (error) {
+    if (!singleAttempt?.violated) throw error;
+    response = singleAttempt.failure();
+  }
+  if (singleAttempt?.violated) {
+    await response.body?.cancel();
+    response = singleAttempt.failure();
+  }
+  response = singleAttempt?.preserve(response) ?? response;
   return {
     response: google
       ? codeAssistResponse(response, payload.model, payload.stream === true, signal)

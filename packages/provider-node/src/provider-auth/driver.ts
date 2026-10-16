@@ -85,6 +85,7 @@ export interface AuthDriver {
     methodId: string,
     inputs: Record<string, string>,
     signal: AbortSignal,
+    observe?: (diagnostic: import("@lcode/shared").ProviderAuthorizationDiagnostic) => void,
   ): Promise<AuthChallenge>;
   models(context: AuthDriverContext): Promise<readonly AuthModel[]>;
   modelCatalog?(context: AuthDriverContext): Promise<{

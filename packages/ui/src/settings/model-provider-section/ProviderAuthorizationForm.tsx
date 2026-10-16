@@ -14,6 +14,7 @@ import type { useProviderAccounts } from "@/hooks/useProviderAccounts.js";
 import { getProviderAccountDependencyError } from "@/lib/providerAccountErrors.js";
 import { ProviderCredentialImport } from "./ProviderCredentialImport.js";
 import { CredentialJsonTextarea } from "./CredentialJsonTextarea.js";
+import { ProviderAuthorizationDiagnostic } from "./ProviderAuthorizationDiagnostic.js";
 import {
   localizeAuthorizationChannel,
   localizeAuthorizationInstructions,
@@ -211,6 +212,9 @@ export function ProviderAuthorizationForm({
           </Button>
         </div>
       )}
+      {attempt?.diagnostic ? (
+        <ProviderAuthorizationDiagnostic diagnostic={attempt.diagnostic} />
+      ) : null}
       {attempt?.status === "completed" && !attempt.results ? (
         <p role="status" className="text-ui-base text-foreground-subtle">
           {message("completed")}

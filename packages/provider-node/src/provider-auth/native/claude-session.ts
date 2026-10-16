@@ -6,10 +6,13 @@ import type { ClaudeSpawner } from "./claude-process.js";
 import { ClaudeOutput } from "./claude-output.js";
 import { ClaudeTools } from "./claude-mcp.js";
 import { closeClaudeChild } from "./claude-close.js";
+import { ClaudeRoutingRelay } from "./claude-routing-relay.js";
+import type { Fetcher } from "./common.js";
 
 export type { ClaudeSpawner } from "./claude-process.js";
 export class ClaudeSession {
   private child?: ChildProcessWithoutNullStreams;
+  private readonly relay?: ClaudeRoutingRelay;
   private output?: ClaudeOutput;
   private readonly tools: ClaudeTools;
   private readonly blocks = new Map<
@@ -27,9 +30,14 @@ export class ClaudeSession {
     private readonly dir: string,
     private readonly spawn: ClaudeSpawner,
     private readonly finish: () => Promise<void>,
+    routingFetcher?: Fetcher,
   ) {
+    this.relay = routingFetcher ? new ClaudeRoutingRelay(routingFetcher) : undefined;
     this.tools = new ClaudeTools(list(body.tools).map(record));
     this.messages = list(body.messages);
+  }
+  get singleAttemptEnabled(): boolean {
+    return Boolean(this.relay);
   }
   get closed(): boolean {
     return this.terminated;
@@ -84,6 +92,10 @@ export class ClaudeSession {
     if (["low", "medium", "high", "xhigh", "max"].includes(effort))
       args.push("--effort", effort, "--thinking-display", "summarized");
     const env: NodeJS.ProcessEnv = {};
+    if (this.relay) {
+      env.ANTHROPIC_BASE_URL = await this.relay.start(signal);
+      env.NO_PROXY = env.no_proxy = "127.0.0.1,localhost";
+    }
     if (reasoning.type === "enabled" && typeof reasoning.budget_tokens === "number")
       env.MAX_THINKING_TOKENS = String(reasoning.budget_tokens);
     if (reasoning.type === "disabled") env.MAX_THINKING_TOKENS = "0";
@@ -148,15 +160,16 @@ export class ClaudeSession {
         }) + "\n",
       );
       this.resetDeadline();
-      return this.output.response;
+      return this.relay ? this.relay.response(this.output.response) : this.output.response;
     } catch (error) {
       this.dispose();
       throw error;
     }
   }
-  continue(body: Json, signal: AbortSignal): Promise<Response> {
+  async continue(body: Json, signal: AbortSignal): Promise<Response> {
     signal.throwIfAborted();
     if (!this.accepts(body)) throw new Error("Claude tool results do not match the active request");
+    await this.relay?.begin(signal);
     this.awaitingTools = false;
     this.messages = list(body.messages);
     this.output = new ClaudeOutput(text(body.model), body.stream === true, signal, () =>
@@ -164,7 +177,7 @@ export class ClaudeSession {
     );
     this.tools.provide(toolResults(body));
     this.resetDeadline();
-    return this.output.response;
+    return this.relay ? this.relay.response(this.output.response) : this.output.response;
   }
   private event(frame: Json): void {
     if (this.terminated) return;
@@ -231,11 +244,13 @@ export class ClaudeSession {
     this.terminated = true;
     clearTimeout(this.timer);
     this.tools.dispose();
+    void this.relay?.dispose();
     if (this.child) closeClaudeChild(this.child, this.ended);
     this.output?.fail("Claude request closed");
   }
-  waitClosed(): Promise<void> {
-    return this.ended;
+  async waitClosed(): Promise<void> {
+    await this.ended;
+    await this.relay?.dispose();
   }
 }
 

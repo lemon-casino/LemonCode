@@ -3,6 +3,10 @@ import { EventEmitter } from "node:events";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { readFile } from "node:fs/promises";
 import { rootCertificates } from "node:tls";
+import { authorizationRequestPhase } from "../authorization-phase.ts";
+import { readAuthorizationDiagnostic } from "../authorization-diagnostics.ts";
+import { isPluginAuxiliaryRequest } from "./auxiliary-request.ts";
+import { isPluginRefreshRequest } from "./refresh-policy.mjs";
 import { createHostApiNetworkTransport, resolveHostProxyForUrl } from "../../network-transport.ts";
 
 export function installWorkerNetwork({ scopes, check, workerData, refresh }) {
@@ -23,6 +27,21 @@ export function installWorkerNetwork({ scopes, check, workerData, refresh }) {
   globalThis.fetch = async (input, init = {}) => {
     check();
     const scope = scopes.getStore();
+    if (scope?.authorization) {
+      const phase =
+        authorizationRequestPhase(input instanceof Request ? input.url : String(input)) ??
+        "waiting";
+      scope.authorizationDiagnostic = { phase, credentialsSaved: false };
+      scope.reportAuthorization?.(scope.authorizationDiagnostic);
+    }
+    const originalUrl = input instanceof Request ? input.url : String(input);
+    const method = init.method ?? (input instanceof Request ? input.method : "GET");
+    const auxiliary = isPluginAuxiliaryRequest(workerData.channel, input);
+    const inference =
+      scope?.singleAttempt && !auxiliary && !isPluginRefreshRequest(workerData.channel, input, init)
+        ? scope.singleAttempt.claim(method, new URL(originalUrl).pathname)
+        : false;
+    if (inference) init = { ...init, redirect: "error" };
     const rotationSignal = await refresh?.before(input, init);
     check();
     const requestSignal = init.signal ?? (input instanceof Request ? input.signal : undefined);
@@ -49,11 +68,31 @@ export function installWorkerNetwork({ scopes, check, workerData, refresh }) {
       }),
     );
     if (scope?.listing) Object.assign(scope.listing, { tried: true, lastOk: false });
-    return response.then((res) => {
-      if (scope?.listing) scope.listing.lastOk = res.ok;
-      if (scope?.catalogFacts) res = scope.catalogFacts.observe(input, res);
-      return scope?.quotaFacts ? scope.quotaFacts.observe(input, res) : res;
-    });
+    return response.then(
+      (res) => {
+        if (inference) scope.singleAttempt.observe(res.status, res.headers);
+        if (scope?.authorization && !res.ok) {
+          scope.authorizationDiagnostic = readAuthorizationDiagnostic(
+            { status: res.status },
+            scope.authorizationDiagnostic.phase,
+          );
+          scope.reportAuthorization?.(scope.authorizationDiagnostic);
+        }
+        if (scope?.listing) scope.listing.lastOk = res.ok;
+        if (scope?.catalogFacts) res = scope.catalogFacts.observe(input, res);
+        return scope?.quotaFacts ? scope.quotaFacts.observe(input, res) : res;
+      },
+      (error) => {
+        if (scope?.authorization) {
+          scope.authorizationDiagnostic = readAuthorizationDiagnostic(
+            error,
+            scope.authorizationDiagnostic?.phase ?? "waiting",
+          );
+          scope.reportAuthorization?.(scope.authorizationDiagnostic);
+        }
+        throw error;
+      },
+    );
   };
 
   const connectHttp2 = http2.connect;
@@ -91,6 +130,23 @@ export function installWorkerNetwork({ scopes, check, workerData, refresh }) {
       { ...options, ...(scope?.http2Ca ? { ca: scope.http2Ca } : {}) },
       ...args,
     );
+    if (!managedFetch.getStore() && scope?.singleAttempt) {
+      const request = session.request.bind(session);
+      session.request = (headers, ...rest) => {
+        scope.singleAttempt.claim(
+          String(headers[":method"] ?? "GET"),
+          String(headers[":path"] ?? ""),
+        );
+        const stream = request(headers, ...rest);
+        stream.once("response", (head) => {
+          const forwarded = new Headers();
+          for (const [key, value] of Object.entries(head))
+            if (!key.startsWith(":") && value !== undefined) forwarded.set(key, String(value));
+          scope.singleAttempt.observe(Number(head[":status"]), forwarded);
+        });
+        return stream;
+      };
+    }
     // 裸 H2（Cursor）按 operation 持有 session；通用池由 transport 管理，不能随单流取消。
     if (!managedFetch.getStore()) {
       const signal = scope?.controller.signal;

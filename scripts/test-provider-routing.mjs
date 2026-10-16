@@ -19,10 +19,25 @@ const groups = [
     "packages/provider-node/src/provider-auth/native",
     /^(?:routing-single-attempt|copilot-auto.*|copilot-manual|google-refresh)\.test\.ts$/u,
   ],
-  ["apps/lcode-cli/packages/bootstrap/src/lcode-protocol", /^provider-runtime-headers\.test\.ts$/u],
+  ["packages/services/src/lcode-agent", /^providerConnectivityStartup\.test\.ts$/u],
+  [
+    "packages/provider-node/src/provider-auth/plugins",
+    /^(?:authorization-progress|single-attempt.*)\.test\.ts$/u,
+  ],
+  [
+    "packages/provider-node/src/provider-auth/native",
+    /^(?:authorization-diagnostics|claude-routing|claude-relay-lifecycle)\.test\.ts$/u,
+  ],
+  [
+    "apps/lcode-cli/packages/bootstrap/src/lcode-protocol",
+    /^(?:provider-runtime-headers|connectivity-network)\.test\.ts$/u,
+  ],
 ];
 const files = process.argv.includes("--ui")
-  ? ["packages/web/test/provider-routing.test.mjs"]
+  ? [
+      "packages/web/test/provider-routing.test.mjs",
+      "packages/web/test/provider-authorization-diagnostics.test.mjs",
+    ]
   : (
       await Promise.all(
         groups.map(async ([directory, pattern]) =>

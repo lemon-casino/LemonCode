@@ -14,6 +14,9 @@ import { fetchPluginModel } from "./worker-fetch.mjs";
 import { createWorkerReaderCleanup } from "./worker-reader-cleanup.mjs";
 import { createWorkerRefresh } from "./worker-refresh.mjs";
 import { createWorkerCredentials } from "./worker-credentials.mjs";
+import { workerFailure } from "./worker-error.mjs";
+import { PluginSingleAttempt } from "./single-attempt.ts";
+import { buildPluginProvider } from "./provider-projection.mjs";
 
 const scopes = new AsyncLocalStorage();
 const operations = new Map();
@@ -36,11 +39,6 @@ const check = () => {
   const scope = scopes.getStore();
   (scope?.rotation?.signal ?? scope?.controller.signal)?.throwIfAborted();
 };
-const failure = (error) => ({
-  name: error?.name || "Error",
-  message: error?.message || String(error),
-  ...(error?.signIn ? { signIn: error.signIn } : {}),
-});
 
 // Each account runs in a disposable worker. Track vendor-owned callback servers
 // and CLI children so cancellation cannot leave a login process running.
@@ -126,22 +124,7 @@ const hooksPromise = (async () => {
 })();
 
 async function providerOf(hooks) {
-  if (!listing) {
-    const config = { provider: {} };
-    await hooks.config?.(config);
-    const source = config.provider[hooks.auth.provider];
-    if (!source) throw new Error("Plugin gave no provider configuration");
-    listing = {
-      ...source,
-      id: hooks.auth.provider,
-      models: Object.fromEntries(
-        Object.entries(source.models ?? {}).map(([id, m]) => [
-          id,
-          { ...m, id, providerID: hooks.auth.provider },
-        ]),
-      ),
-    };
-  }
+  if (!listing) listing = await buildPluginProvider(hooks);
   return listing;
 }
 
@@ -275,6 +258,8 @@ async function call(message, scope) {
     check();
   }
   const model = discovered?.[payload.model] ?? provider.models?.[payload.model];
+  if (message.routingSingleAttempt)
+    scope.singleAttempt = new PluginSingleAttempt(workerData.channel);
   const { response, signIn } = await fetchPluginModel({
     channel: workerData.channel,
     hooks,
@@ -283,6 +268,7 @@ async function call(message, scope) {
     model,
     request: r,
     signal: scope.controller.signal,
+    singleAttempt: scope.singleAttempt,
   });
   if (response.body) scope.reader = response.body.getReader();
   check();
@@ -393,9 +379,12 @@ parentPort.on("message", (message) => {
   const scope = {
     id: message.id,
     context: message.context,
+    authorization: ["authorize", "complete", "completeMany"].includes(message.operation),
     network: message.network,
     controller: new AbortController(),
   };
+  scope.reportAuthorization = (diagnostic) =>
+    send({ kind: "authorization-diagnostic", id: message.id, diagnostic });
   operations.set(message.id, scope);
   scope.done = scopes.run(scope, async () => {
     try {
@@ -410,7 +399,11 @@ parentPort.on("message", (message) => {
         ["expired", "kept", "renewed"].includes(error?.signIn)
       )
         await credential("signin", error.signIn).catch(() => {});
-      send({ kind: "error", id: message.id, error: failure(error) });
+      send({
+        kind: "error",
+        id: message.id,
+        error: workerFailure(error, scope),
+      });
     } finally {
       readerCleanup.cancel(scope);
       workerRefresh.end(scope);

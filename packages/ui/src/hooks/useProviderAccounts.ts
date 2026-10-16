@@ -92,16 +92,34 @@ export function useProviderAccounts() {
     (scope: AccountScope, next: ProviderAuthorization) => {
       if (!isCurrent(scope)) return;
       // 手动提交完成与旧轮询可交错返回；同一 attempt 的终态不能被迟到 pending 回退。
-      if (scope.attempt?.attemptId === next.attemptId && scope.attempt.status !== "pending") return;
+      const previous = scope.attempt;
+      if (
+        previous?.attemptId === next.attemptId &&
+        previous.status !== "pending" &&
+        !(
+          previous.status === "completed" &&
+          previous.diagnostic?.followupPending &&
+          next.status === "completed"
+        )
+      )
+        return;
       scope.attempt = next;
       setAuthorization(next);
-      if (next.status === "completed") void refresh();
+      if (
+        next.status === "completed" &&
+        (previous?.status !== "completed" || !next.diagnostic?.followupPending)
+      )
+        void refresh();
     },
     [isCurrent, refresh],
   );
 
   useEffect(() => {
-    if (authorization?.status !== "pending") return;
+    if (
+      authorization?.status !== "pending" &&
+      !(authorization?.status === "completed" && authorization.diagnostic?.followupPending)
+    )
+      return;
     const scope = scopeRef.current;
     if (!scope?.service) return;
     const generation = scope.authorizationGeneration;
@@ -112,7 +130,11 @@ export function useProviderAccounts() {
         const next = await scope.service!.getAuthorization(authorization.attemptId);
         if (!cancelled && isCurrent(scope) && generation === scope.authorizationGeneration) {
           acceptAuthorization(scope, next);
-          if (next.status === "pending") timer = setTimeout(poll, 1000);
+          if (
+            next.status === "pending" ||
+            (next.status === "completed" && next.diagnostic?.followupPending)
+          )
+            timer = setTimeout(poll, 1000);
         }
       } catch {
         if (!cancelled && isCurrent(scope)) setError("action");
@@ -127,6 +149,7 @@ export function useProviderAccounts() {
     acceptAuthorization,
     authorization?.attemptId,
     authorization?.status,
+    authorization?.diagnostic?.followupPending,
     isCurrent,
     pollVersion,
   ]);

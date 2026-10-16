@@ -94,7 +94,27 @@ export interface ProviderAccountView {
   channels: readonly ProviderAccountChannel[];
   accounts: readonly ProviderAccount[];
 }
+export const providerAuthorizationDiagnosticSchema = z.strictObject({
+  phase: z.enum([
+    "preparing",
+    "waiting",
+    "exchange",
+    "identity",
+    "persisting",
+    "post-login",
+    "completed",
+  ]),
+  code: z
+    .enum(["timeout", "network", "rejected", "cancelled", "dependency", "storage", "unknown"])
+    .optional(),
+  status: z.number().int().min(400).max(599).optional(),
+  retryable: z.boolean().optional(),
+  credentialsSaved: z.boolean(),
+  followupPending: z.boolean().optional(),
+});
+export type ProviderAuthorizationDiagnostic = z.infer<typeof providerAuthorizationDiagnosticSchema>;
 export interface ProviderAuthorization {
+  diagnostic?: ProviderAuthorizationDiagnostic;
   attemptId: string;
   channelId: string;
   methodId: string;

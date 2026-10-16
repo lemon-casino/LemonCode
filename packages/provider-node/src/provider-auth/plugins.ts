@@ -92,14 +92,17 @@ function createDriver(
     options,
   );
   return {
+    routingSingleAttempt: true,
     methods: () => worker.call<readonly AuthMethod[]>("methods"),
-    async authorize(methodId, inputs, signal): Promise<AuthChallenge> {
+    async authorize(methodId, inputs, signal, observe): Promise<AuthChallenge> {
       const challenge = await worker.call<WorkerChallenge>(
         "authorize",
         { methodId, inputs },
         undefined,
         signal,
         true,
+        undefined,
+        observe,
       );
       const cancel = () => {
         void worker.dispose().catch(() => {});
@@ -120,6 +123,8 @@ function createDriver(
             undefined,
             signal,
             true,
+            undefined,
+            observe,
           );
         } finally {
           signal.removeEventListener("abort", cancel);

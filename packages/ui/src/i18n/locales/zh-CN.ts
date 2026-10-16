@@ -1,5 +1,16 @@
 /** 中文翻译 */
 const zhCN: Record<string, string> = {
+  "settings.startupAnimation.title": "启动动画",
+  "settings.startupAnimation.description":
+    "仅桌面冷启动首窗播放。完整视频需显式导入本地验证素材；不可用时显示简洁动画。手机和远控恢复直接进入项目。",
+  "settings.startupAnimation.mode": "播放方式",
+  "settings.startupAnimation.simple": "简洁动画",
+  "settings.startupAnimation.cinematic": "完整动画",
+  "settings.startupAnimation.off": "关闭",
+  "settings.startupAnimation.volume": "视频音量",
+  "settings.startupAnimation.muted": "静音",
+  "settings.startupAnimation.preview": "预览动画",
+  "settings.startupAnimation.saveFailed": "保存失败，请重试。",
   "settings.tokenUsageStatusBar.title": "Token 用量状态栏",
   "settings.tokenUsageStatusBar.description":
     "集中查看当前会话的用量、上下文和输出速度。设置自动保存，并跟随界面主题。",
@@ -195,6 +206,21 @@ const zhCN: Record<string, string> = {
   "settings.oauth.complete": "完成授权",
   "settings.oauth.cancel": "取消授权",
   "settings.oauth.completed": "账号已授权。可用模型以账号目录为准。",
+  "settings.oauth.credentialsSaved": "凭据已保存",
+  "settings.oauth.phase.preparing": "准备授权",
+  "settings.oauth.phase.waiting": "等待授权",
+  "settings.oauth.phase.exchange": "交换凭据",
+  "settings.oauth.phase.identity": "账号校验",
+  "settings.oauth.phase.persisting": "保存凭据",
+  "settings.oauth.phase.post-login": "登录后同步",
+  "settings.oauth.phase.completed": "授权完成",
+  "settings.oauth.failure.timeout": "请求超时",
+  "settings.oauth.failure.network": "网络连接失败",
+  "settings.oauth.failure.rejected": "服务拒绝授权",
+  "settings.oauth.failure.cancelled": "授权已取消",
+  "settings.oauth.failure.dependency": "缺少运行依赖",
+  "settings.oauth.failure.storage": "凭据保存失败",
+  "settings.oauth.failure.unknown": "当前步骤失败",
   "settings.oauth.authorizationFailed": "授权失败，请重试。",
   "settings.oauth.claudeCliRequired":
     "当前执行环境未找到可用的 Claude Code。请安装 Claude Code CLI，或通过 LCODE_CLAUDE_BIN 指定程序路径，然后重试。",

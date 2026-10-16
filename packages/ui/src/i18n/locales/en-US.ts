@@ -1,5 +1,16 @@
 /** English translations */
 const enUS: Record<string, string> = {
+  "settings.startupAnimation.title": "Startup animation",
+  "settings.startupAnimation.description":
+    "Plays only in the first desktop window on cold launch. Full video requires explicitly imported local test media; otherwise the simple animation is used. Mobile and remote recovery go directly to the project.",
+  "settings.startupAnimation.mode": "Playback",
+  "settings.startupAnimation.simple": "Simple",
+  "settings.startupAnimation.cinematic": "Full animation",
+  "settings.startupAnimation.off": "Off",
+  "settings.startupAnimation.volume": "Video volume",
+  "settings.startupAnimation.muted": "Muted",
+  "settings.startupAnimation.preview": "Preview animation",
+  "settings.startupAnimation.saveFailed": "Could not save. Please try again.",
   "settings.tokenUsageStatusBar.title": "Token usage status bar",
   "settings.tokenUsageStatusBar.description":
     "Keep session usage, context and output speed together. Preferences save automatically and follow your theme.",
@@ -148,6 +159,21 @@ const enUS: Record<string, string> = {
   "settings.oauth.complete": "Complete authorization",
   "settings.oauth.cancel": "Cancel authorization",
   "settings.oauth.completed": "Account authorized. Available models are listed in its catalog.",
+  "settings.oauth.credentialsSaved": "Credentials saved",
+  "settings.oauth.phase.preparing": "Preparing authorization",
+  "settings.oauth.phase.waiting": "Waiting for authorization",
+  "settings.oauth.phase.exchange": "Token exchange",
+  "settings.oauth.phase.identity": "Account verification",
+  "settings.oauth.phase.persisting": "Saving credentials",
+  "settings.oauth.phase.post-login": "Post-login sync",
+  "settings.oauth.phase.completed": "Authorization completed",
+  "settings.oauth.failure.timeout": "Request timed out",
+  "settings.oauth.failure.network": "Network connection failed",
+  "settings.oauth.failure.rejected": "Authorization rejected",
+  "settings.oauth.failure.cancelled": "Authorization cancelled",
+  "settings.oauth.failure.dependency": "Runtime dependency unavailable",
+  "settings.oauth.failure.storage": "Credential save failed",
+  "settings.oauth.failure.unknown": "This step failed",
   "settings.oauth.authorizationFailed": "Authorization failed. Please retry.",
   "settings.oauth.claudeCliRequired":
     "Claude Code is unavailable in this execution environment. Install the Claude Code CLI or set LCODE_CLAUDE_BIN to its executable path, then retry.",

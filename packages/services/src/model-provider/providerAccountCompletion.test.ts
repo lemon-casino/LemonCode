@@ -44,8 +44,7 @@ test("cancelling an import cannot remove a connection another Host reauthorized 
       rollback: async (update) => {
         update(accounts);
       },
-      resetDriver: async () => {},
-      useDriver: () => {},
+      adoptDriver: async () => {},
       refreshEnabled: async () => {
         assert.fail("Cancelled import must not refresh models");
       },
