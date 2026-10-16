@@ -64,7 +64,7 @@ nodes:
   - id: capability.oauth-provider-details
     kind: capability
     label: OAuth provider details, account imports and shared model configuration
-    aliases: [OAuth供应商弹窗, OAuth供应商右侧详情, OAuth文件导入, 本机账号识别, OAuth模型智能配置]
+    aliases: [OAuth供应商弹窗, OAuth供应商右侧详情, OAuth文件导入, 本机账号识别, OAuth模型智能配置, 授权阶段诊断, 凭据保存后告警]
     codeSeeds:
       - file: packages/ui/src/settings/model-provider-section/ProviderAccountsDialog.tsx
         symbol: ProviderAccountsDialog
@@ -84,8 +84,13 @@ nodes:
         symbol: createProviderAccountsSource
       - file: packages/provider-node/src/provider-auth/model-options.ts
         symbol: createAuthModelOptionSpecs
+      - file: packages/services/src/model-provider/providerAccountAuthorizationStart.ts
+        symbol: startProviderAccountAuthorization
+      - file: packages/ui/src/settings/model-provider-section/ProviderAuthorizationDiagnostic.tsx
+        symbol: ProviderAuthorizationDiagnostic
     invariants:
       - "ProviderAccounts owns attempts and encrypted connections; import and local methods share the existing authorization lifecycle."
+      - "A credential commit remains completed despite post-login catalog/cleanup failure; safe phase diagnostics and followupPending preserve final warnings through the existing poll owner."
       - "OAuth model edits use the API model editor and existing personal overlay owner; upstream refresh preserves manual overrides."
       - "The selected Host reads local credentials only after explicit action; client files supply content, never filesystem paths."
       - "Adding OAuth opens a dialog; existing custom OAuth providers edit in the right pane and continuously add accounts to the same pool."
@@ -125,6 +130,10 @@ nodes:
         symbol: ApiKeyProviderGate
       - file: packages/services/src/model-provider/providerRoutingFeedback.ts
         symbol: ProviderRoutingFeedback
+      - file: apps/lcode-cli/packages/adapters/src/model/api-key-index-preparation.ts
+        symbol: prepareApiKeyIndex
+      - file: packages/provider/src/routing/quota-score.ts
+        symbol: routingQuotaScore
     invariants:
       - "Absent/null routing uses reliable-first. Settings persist only the selected strategy through the existing owner and preserve credential generations and unsettled debits."
       - "ProviderAccounts and the original API key pool own reservations. Planning is read-only; physical response completion releases slots and unverified consumption remains conservative."
@@ -133,7 +142,8 @@ nodes:
       - "Enhanced OAuth negotiates single-attempt-routing-v1 and cannot hide additional model POSTs behind one Runner permit."
       - "Settings presents exactly five strategies in a compact collapsible selector with contextual help; no legacy option or manual batch fields are available."
       - "Token bounds and explicitly shared pools constrain one reservation; toggling policy cannot erase existing debits."
-      - "Cohorts and winner trees derive from the same Scheduler owner; dispersed hot selection avoids full scans and reports affected members and index work."
+      - "Bounded equivalent groups and compact winner trees are alternative projections of the same Scheduler; cold preparation yields in the adapter and promotion releases group membership."
+      - "Comparable full quota vectors, normalized concurrency, decaying work and observed admission wait share one planner/ranking model and indexed differential validation."
       - "An injected local shared-quota file owner serializes all pool windows before fetch; dispatched unknown usage is never refunded by TTL or process exit."
       - "Only a shared owner global coverage watermark retires ended debits; local snapshot revisions cannot wash consumption."
       - "The batch Key routing panel is permanently absent; automatic recovery and diagnostics add no manual settings."

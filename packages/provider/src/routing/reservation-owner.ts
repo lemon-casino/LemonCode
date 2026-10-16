@@ -44,7 +44,7 @@ export abstract class RoutingReservationOwner {
     outcome?: RoutingFinish["outcome"];
   };
   protected readonly ledger: RoutingLedger;
-  protected readonly history = new RoutingHistory();
+  protected readonly history = new RoutingHistory((id) => this.touchDirectory(id));
   protected readonly inFlight = new Map<string, number>();
   protected readonly credit = new Map<string, number>();
   protected readonly creditedRound = new Map<string, number>();
@@ -234,7 +234,10 @@ export abstract class RoutingReservationOwner {
           : {}),
         ...(acceptWork ? { workUnits: result.workUnits } : {}),
       };
-      if (sample) sample.usage = usage;
+      if (sample) {
+        sample.usage = usage;
+        if (acceptWork) this.history.updateWork(sample, result.workUnits!, this.now());
+      }
       if (state.settled && Object.keys(actualDemands).length)
         this.ledger.reconcile(windows, sequence, actualDemands);
       if (acceptWork)
@@ -305,6 +308,8 @@ export abstract class RoutingReservationOwner {
               outcome: outcome ?? result.outcome,
             },
             request.modelKey,
+            request.createdAt ?? createdAt,
+            work,
           );
         binding.finish(
           (outcome ?? result.outcome) !== "failed" &&

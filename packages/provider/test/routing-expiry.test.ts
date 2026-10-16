@@ -59,7 +59,9 @@ test("expiry forecast requires measured same-unit demand and subtracts already r
   const held = owner.reserve([a], request("held", 991));
   held.dispatch();
   const plan = owner.plan([a, b], request("new"));
-  assert.equal(plan.effectiveStrategy, "headroom-balance");
+  // 到期预测不足后，budget 与 expiring-balance 的完整维度仍不可互比，继续明确回退轮转。
+  assert.equal(plan.effectiveStrategy, "share-rotation");
+  assert.equal(plan.fallbackReason, "expiry-unverifiable");
   assert.equal(plan.routes[0], "b");
   held.finish({ outcome: "cancelled" });
   owner.dispose();

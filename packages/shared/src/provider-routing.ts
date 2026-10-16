@@ -232,10 +232,13 @@ export interface RoutingCandidate {
   availableAt?: number;
   maxInFlight?: number;
   health?: "healthy" | "degraded" | "open";
+  /** 本 owner 按模型累计的衰减工作量；不代表供应商额度。 */
+  recentWork?: { units: number; at: number };
   statistics?: {
     samples: number;
     failureRate: number;
     completionMs: number;
+    serviceMs?: number;
     marginalCost?: number;
     currency?: string;
   };
@@ -275,6 +278,12 @@ export interface RoutingTokens {
   output?: number;
   total?: number;
 }
+export interface RoutingQuotaScore {
+  quality: 0 | 1 | 2;
+  dimensions?: string;
+  vector: readonly number[];
+  pressure: number;
+}
 export interface RoutingPlan {
   cacheDecision?: RoutingCacheDecision;
   tiers?: Readonly<Record<string, number>>;
@@ -285,5 +294,6 @@ export interface RoutingPlan {
   excluded: Readonly<Record<string, string>>;
   available: Readonly<Record<string, number>>;
   pressures: Readonly<Record<string, number>>;
+  quotaScores?: Readonly<Record<string, RoutingQuotaScore>>;
   reason: string;
 }

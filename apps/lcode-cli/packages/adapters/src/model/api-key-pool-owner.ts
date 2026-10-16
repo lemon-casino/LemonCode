@@ -4,7 +4,6 @@ import {
   RateLimitWindow,
   readRateLimitHint,
   readRateLimitScope,
-  waitForRateLimitDelay,
   type ProviderApiKey,
   type ProviderRoutingPolicy,
   type RoutingRequest,
@@ -13,6 +12,7 @@ import {
 import { readApiKeyRuntimeDiagnostics } from "./api-key-routing-diagnostics.js";
 import { ApiKeyCooldownQueue } from "./api-key-cooldown-queue.js";
 import { ApiKeyRouting } from "./api-key-routing.js";
+import { acquireApiKeyLease } from "./api-key-acquisition.js";
 import type { ApiKeyQuotaSnapshot } from "@lcode/shared";
 import type { ApiKeySharedQuotaClient } from "./api-key-shared-client.js";
 import type { ApiKeyLease } from "./api-key-lease.js";
@@ -90,37 +90,47 @@ export class ApiKeyPool {
       wait(),
     context?: RoutingRequest,
   ): Promise<ApiKeyLease> {
-    const combined = AbortSignal.any([
-      this.closing.signal,
-      this.shared.signal,
-      ...(signal ? [signal] : []),
-    ]);
-    combined.throwIfAborted();
-    // owner 关闭也要取消冷却结束后的 admission 排队，不能只传 caller signal。
-    if (this.waitMs() > 0)
-      await outsideTicket(async () => {
-        for (;;) {
-          combined.throwIfAborted();
-          const delay = this.waitMs();
-          if (delay === 0) return;
-          await waitForRateLimitDelay(delay, combined);
-        }
-      }, combined);
-    combined.throwIfAborted();
-    // reacquire admission 期间可能有并发 429；重新判定，不把冷却等待计为 HTTP。
-    if (this.waitMs() > 0) return this.acquire(signal, outsideTicket, context);
-    const lease = this.reserve(context);
-    if (!this.quota || !lease.sharedQuotaInput) return lease;
-    try {
-      let prepared!: ApiKeyLease;
-      await outsideTicket(async () => {
-        prepared = await this.quota!.client.prepare(this.quota!.providerId, lease, combined);
-      }, combined);
-      return prepared;
-    } catch (error) {
-      lease.release();
-      throw error;
-    }
+    return acquireApiKeyLease(
+      {
+        signal: AbortSignal.any([
+          this.closing.signal,
+          this.shared.signal,
+          ...(signal ? [signal] : []),
+        ]),
+        waitMs: () => this.waitMs(),
+        indexReady: () => this.routing.indexReady(context),
+        prepareInline: (bounded) =>
+          this.routing.prepareInline(
+            this.ids,
+            (id, model) => this.routingUnavailable(id, model),
+            context,
+            (id, model) => this.recovery.retryAt(this.routing.recoveryResources(id, model).all),
+            bounded,
+          ),
+        prepareIndex: (bounded) =>
+          this.routing.prepareIndex(
+            this.ids,
+            (id, model) => this.routingUnavailable(id, model),
+            context,
+            (id, model) => this.recovery.retryAt(this.routing.recoveryResources(id, model).all),
+            bounded,
+          ),
+        reserve: () => this.reserve(context),
+        ...(this.quota
+          ? {
+              prepareShared: (lease: ApiKeyLease, bounded: AbortSignal) =>
+                this.quota!.client.prepare(this.quota!.providerId, lease, bounded),
+            }
+          : {}),
+      },
+      outsideTicket,
+    );
+  }
+  private routingUnavailable(id: string, modelKey?: string): boolean {
+    return (
+      !this.available[this.positions.get(id)!] ||
+      !this.recovery.available(this.routing.recoveryResources(id, modelKey).all, this.recoveryNow())
+    );
   }
 
   configureRouting(policy?: ProviderRoutingPolicy | null, keys = this.sourceKeys): void {
@@ -178,12 +188,7 @@ export class ApiKeyPool {
     try {
       reservation = this.routing.reserve(
         this.ids,
-        (id, modelKey) =>
-          !this.available[this.positions.get(id)!] ||
-          !this.recovery.available(
-            this.routing.recoveryResources(id, modelKey).all,
-            this.recoveryNow(),
-          ),
+        (id, modelKey) => this.routingUnavailable(id, modelKey),
         context,
         (id, modelKey) => this.recovery.retryAt(this.routing.recoveryResources(id, modelKey).all),
       );

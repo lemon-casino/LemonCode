@@ -44,12 +44,14 @@ test(
     let peakRss = process.memoryUsage().rss;
     for (let model = 0; model < 9; model++) {
       const at = performance.now();
-      const lease = owner.reserveIndexed({
+      const input = {
         modelKey: "model" + model,
         scopeKey: "scope",
         attemptId: "cold" + model,
-        tokens: { total: model + 1, quality: "bound" },
-      });
+        tokens: { total: model + 1, quality: "bound" as const },
+      };
+      for (const _ of owner.prepareIndexed(input)) await immediate();
+      const lease = owner.reserveIndexed(input);
       lease.cancel();
       cold.push(performance.now() - at);
       peakRss = Math.max(peakRss, process.memoryUsage().rss);
@@ -75,13 +77,14 @@ test(
         actualDemands: { ["r" + lease.routeId]: 1 },
       });
       elapsed.push(performance.now() - at);
-      if (i % 1000 === 0) {
+      if (i % 32 === 0) {
         peakRss = Math.max(peakRss, process.memoryUsage().rss);
         await immediate();
       }
     }
     assert.equal(owner.indexDiagnostics()!.scannedKeys, before);
     assert.ok(owner.inspect().attempts <= 4096);
+    assert.ok(peakRss < 1000 * 1048576, "peak RSS must improve on the old 1452 MiB measurement");
     assert.ok(owner.readDiagnostics().debitRecords <= 4096);
     elapsed.sort((a, b) => a - b);
     await pause(20);

@@ -6,6 +6,9 @@ import { RoutingScheduler } from "./scheduler.js";
  * 缺省策略为 reliable-first；OAuth invocation 携带 Token 上界和兼容键，未确认流不按 TTL 淘汰。
  * 完整事件顺序见 specs/provider-routing-hardening.md，domain 不实现文件锁或 HTTP。
  * 冷却到期只允许同资源一个 probe，finish 与归一 success 共同确认恢复。
+ * 十万 Key 的原 adapter 在 outsideTicket 内迭代 prepareIndexed，每片段后让出 IO；
+ * 重新获得 admission 后检查 indexReady，再同步 reserveIndexed。取消只撤销当前等待者。
+ * 评分以完整可比窗口向量、归一在途和按模型衰减历史为投影，不拥有第二份额度。
  * readDiagnostics 是原 owner 的只读有界投影；共享 API 另读 SharedQuotaCoordinator.inspect，不能把本地 available 当成全局余额。
  */
 export function routingContractExample() {

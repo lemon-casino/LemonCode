@@ -67,7 +67,7 @@ sequenceDiagram
 - 上游缓存事实使用明确契约头 x-lcode-cache-ttl-ms（1–86400000）、x-lcode-cache-group、x-lcode-cache-portability，以及成对的 x-lcode-cache-switch-cost/unit。事实从响应头收到时起计时，记录 upstream-contract 来源；缺失、非法或过期不制造事实。现有厂商未提供这些头时走未知分支。
 - Retry-After 最大保留一天；HTTP 日期按接收时钟解析。OAuth 票据只允许一次模型 POST，物理流期间保留反馈能力，物理结束后保留五分钟反馈宽限。票据和归因索引各最多 4096，未确认时达到容量则拒绝新的 admission。
 - 原 Scheduler 已确认终态缓存最多 4096，含活跃/未确认记录的总容量为 8192；过期句柄明确失败。已结束借记可折叠保留总额与覆盖水位，不能归零。生产 invocation 带 createdAt，五分钟后拒绝再次 admission。统计投影的 route/model 与 resource 各最多 8192 桶。
-- 目录最多八个 profile，且 profile 总成员预算为 200000；十万 Key 最多两个 profile。新 profile 仍需同步 O(N) 构建，报告冷构建与事件循环阻塞，热路径不重复扫描。该限制不能当作已解决的异步预热。
+- 目录最多八个 profile，且 profile 总成员预算为 200000；十万 Key 最多两个 profile。2026-10-17 已由 [完成规格](provider-completion-2026-10-17.md) 接续分块准备与紧凑替代索引，并明确多窗向量、归一负载、近期工作和等待时间评分；实际测量见验证记录。低层同步接口仍保留确定性，生产 acquire 通过原 adapter 让出执行权。
 - API 文件版本为 3，v1/v2 在锁内迁移并保留全部借记、租约及恢复状态；未知版本拒绝。provider gate 独立版本为 1，所有 API Key（包括未声明共享池）均经过同一供应商 gate；独立 Key 不因此被猜成共用额度池。
 - 每次诊断最多 100 个 pool，每次最多 4 个并行文件读取。恢复条目有界输出，并报告总数/截断；失败反馈记录带安全 provider/pool 与哈希 lease 身份以便定位。读诊断不改状态。
 

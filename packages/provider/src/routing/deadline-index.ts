@@ -15,9 +15,12 @@ export class RoutingDeadlineIndex {
     this.positions.set(id, index);
     this.up(index);
   }
-  takeDue(now: number): string[] {
+  get nextAt(): number {
+    return this.heap[0]?.at ?? Infinity;
+  }
+  takeDue(now: number, limit = Infinity): string[] {
     const result: string[] = [];
-    while (this.heap[0] && this.heap[0].at <= now) {
+    while (result.length < limit && this.heap[0] && this.heap[0].at <= now) {
       result.push(this.heap[0].id);
       this.remove(0);
     }

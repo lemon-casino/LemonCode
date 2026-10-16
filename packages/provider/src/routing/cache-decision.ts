@@ -3,7 +3,7 @@ import type {
   RoutingStrategy,
   RoutingCacheDecision,
 } from "@lcode/shared/provider-routing";
-import { compareRoutingScore, routingReliabilityScore } from "./ranking.js";
+import { compareRoutingScore, routingReliabilityScore, routingCompletionMs } from "./ranking.js";
 import { routingExpiryBenefit } from "./values.js";
 import type { RoutingRequest } from "@lcode/shared/provider-routing";
 
@@ -19,6 +19,8 @@ export function decideRoutingCache(input: {
   bestTier: number;
   material: boolean;
   newReading: boolean;
+  sameLoad?: number;
+  bestLoad?: number;
 }): RoutingCacheDecision {
   const { same, best } = input;
   const decision = (action: "keep" | "switch", reason: string): RoutingCacheDecision => ({
@@ -35,8 +37,9 @@ export function decideRoutingCache(input: {
     const a = same.statistics,
       b = best.statistics;
     if (a && b && a.samples >= 8 && b.samples >= 8) {
-      if (a.completionMs > 0 && b.completionMs <= a.completionMs * 0.8)
-        return decision("switch", "better-latency");
+      const sameMs = routingCompletionMs(same, input.sameLoad ?? 0),
+        bestMs = routingCompletionMs(best, input.bestLoad ?? 0);
+      if (sameMs > 0 && bestMs <= sameMs * 0.8) return decision("switch", "better-latency");
       if (
         a.marginalCost !== undefined &&
         a.marginalCost > 0 &&

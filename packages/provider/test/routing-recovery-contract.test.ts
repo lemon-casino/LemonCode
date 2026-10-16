@@ -64,7 +64,8 @@ test("RCD-10 owner diagnostics retain actual fallback and split usage without ad
   assert.equal(view.lastDecision?.phase, "ended");
   assert.equal(view.lastDecision?.outcome, "unknown");
   assert.equal(view.lastDecision?.requestedStrategy, "expiry-first");
-  assert.equal(view.lastDecision?.effectiveStrategy, "headroom-balance");
+  // 只有绝对余额、没有 limit，不能把压力猜成零；原借记和反馈语义仍独立有效。
+  assert.equal(view.lastDecision?.effectiveStrategy, "share-rotation");
   assert.equal(view.lastDecision?.fallbackReason, "expiry-unverifiable");
   assert.equal(view.resources[0]!.endedEstimated, 60);
   assert.equal(view.resources[0]!.available, 40);

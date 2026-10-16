@@ -4,9 +4,11 @@ import type {
   RoutingPlan,
   RoutingRequest,
   RoutingStrategy,
+  RoutingQuotaScore,
 } from "@lcode/shared/provider-routing";
 import type { RoutingLedger } from "./ledger.js";
-import { routingDemand, routingExpiryBenefit } from "./values.js";
+import { routingDemand, routingExpiryBenefit, routingConcurrency } from "./values.js";
+import { routingQuotaScore } from "./quota-score.js";
 import { decideRoutingCache } from "./cache-decision.js";
 import { routingScore, compareRoutingScore } from "./ranking.js";
 
@@ -34,8 +36,7 @@ export interface PlanningState {
   ledger: RoutingLedger;
   binding?: RoutingBinding;
 }
-const DEFAULT_CONCURRENCY = 2,
-  PRESSURE_BAND = 0.05,
+const PRESSURE_BAND = 0.05,
   MIN_SAMPLES = 8,
   FORECAST_HORIZON = 3_600_000;
 export const routingWindowKey = (window: RoutingCandidate["windows"][number]) =>
@@ -49,7 +50,8 @@ export function planRouting(
 ): RoutingPlan {
   const excluded: Record<string, string> = Object.create(null),
     available: Record<string, number> = Object.create(null),
-    pressures: Record<string, number> = Object.create(null);
+    pressures: Record<string, number> = Object.create(null),
+    quotaScores: Record<string, RoutingQuotaScore> = Object.create(null);
   const rank = state.orderIndex ?? new Map(policy.order?.map((id, index) => [id, index]));
   const listed = candidates
     .map((candidate, index) => ({ candidate, index }))
@@ -70,19 +72,14 @@ export function planRouting(
   let softTier = new Map<string, number>();
   for (const candidate of listed) {
     let why = candidate.unavailable ?? (candidate.health === "open" ? "route-cooling" : undefined);
-    const maxInFlight = Math.min(
-      candidate.maxInFlight ?? Infinity,
-      policy.maxInFlightPerCandidate ?? DEFAULT_CONCURRENCY,
-      candidate.windows.length ? Infinity : 1,
-    );
+    const maxInFlight = routingConcurrency(policy, candidate);
     if ((state.inFlight.get(candidate.id) ?? 0) >= maxInFlight) why ??= "concurrency-full";
     if (
       hardBound &&
       (binding.routeId !== candidate.id || binding.generation !== candidate.generation)
     )
       why ??= "binding-blocked";
-    let pressure = 0,
-      tier = 0;
+    let tier = 0;
     for (const original of candidate.windows) {
       const window = state.ledger.reading(original);
       if (window.kind === "informational") continue;
@@ -102,14 +99,7 @@ export function planRouting(
         window.usedPercent === 100 ||
         (demand !== undefined && left !== undefined && demand > left);
       if (fresh(window) && exhausted) why ??= "quota-exhausted";
-      const used =
-        left !== undefined && window.limit
-          ? 1 - left / window.limit
-          : (window.usedPercent ?? 0) / 100;
-      pressure = Math.max(
-        pressure,
-        used + (demand !== undefined && window.limit ? demand / window.limit : 0),
-      );
+
       const rule = policy.reserveRules?.find((item) => item.resourceId === window.resourceId);
       if (rule) {
         const verified =
@@ -134,18 +124,16 @@ export function planRouting(
         !candidate.windows.some((window) => window.resourceId === rule.resourceId)
       )
         why ??= "reserve-unverifiable";
-    pressures[candidate.id] = pressure;
+    const quota = routingQuotaScore(candidate, request, state.now, state.ledger);
+    quotaScores[candidate.id] = quota;
+    pressures[candidate.id] = quota.pressure;
     softTier.set(candidate.id, tier);
     if (why) excluded[candidate.id] = why;
   }
   let routes = listed.filter((candidate) => !excluded[candidate.id]);
   const ready = (candidate: RoutingCandidate) =>
     Boolean(candidate.statistics && candidate.statistics.samples >= MIN_SAMPLES);
-  const knownQuota = (candidate: RoutingCandidate) =>
-    candidate.windows.some(
-      (window) =>
-        fresh(window) && (window.remaining !== undefined || window.usedPercent !== undefined),
-    );
+  const knownQuota = (candidate: RoutingCandidate) => quotaScores[candidate.id]!.quality < 2;
   let effectiveStrategy: RoutingStrategy = policy.strategy,
     fallbackReason: string | undefined;
   if (
@@ -179,30 +167,29 @@ export function planRouting(
       fallbackReason = "expiry-unverifiable";
     }
   }
-  if (
-    effectiveStrategy === "headroom-balance" &&
-    !routes.some((candidate) =>
-      candidate.windows.some(
-        (window) =>
-          fresh(window) && (window.remaining !== undefined || window.usedPercent !== undefined),
-      ),
-    )
-  ) {
+  if (effectiveStrategy === "headroom-balance" && !routes.some(knownQuota)) {
     effectiveStrategy = "share-rotation";
     fallbackReason ??= "quota-unknown";
   }
+  if (
+    effectiveStrategy === "headroom-balance" &&
+    new Set(
+      routes
+        .filter((candidate) => quotaScores[candidate.id]!.quality === 0)
+        .map((candidate) => quotaScores[candidate.id]!.dimensions),
+    ).size > 1
+  ) {
+    effectiveStrategy = "share-rotation";
+    fallbackReason ??= "quota-incomparable";
+  }
+  const completeQuota = routes.some((candidate) => quotaScores[candidate.id]!.quality === 0);
   const statisticsKnown =
     routes.length > 0 &&
     routes.every(
       (candidate) => candidate.statistics && candidate.statistics.samples >= MIN_SAMPLES,
     );
   const quality = (candidate: RoutingCandidate) =>
-    candidate.windows.some(
-      (window) =>
-        fresh(window) && (window.remaining !== undefined || window.usedPercent !== undefined),
-    )
-      ? 0
-      : 1;
+    (completeQuota ? quotaScores[candidate.id]!.quality === 0 : knownQuota(candidate)) ? 0 : 1;
   const pricesKnown =
     statisticsKnown &&
     routes.every(
@@ -219,7 +206,9 @@ export function planRouting(
     routingScore(effectiveStrategy, candidate, request, {
       tier: softTier.get(candidate.id) ?? 0,
       pressure: pressures[candidate.id]!,
-      load: state.inFlight.get(candidate.id) ?? 0,
+      load: (state.inFlight.get(candidate.id) ?? 0) / routingConcurrency(policy, candidate),
+      concurrency: routingConcurrency(policy, candidate),
+      quota: quotaScores[candidate.id],
       index: indexOf.get(candidate.id)!,
       ring: ring(candidate.id),
       positive: (state.credit.get(candidate.id) ?? 1) > 0,
@@ -268,6 +257,8 @@ export function planRouting(
           bestTier: softTier.get(best.id) ?? 0,
           material,
           newReading,
+          sameLoad: (state.inFlight.get(same.id) ?? 0) / routingConcurrency(policy, same),
+          bestLoad: (state.inFlight.get(best.id) ?? 0) / routingConcurrency(policy, best),
         });
         keep = cacheDecision.action === "keep";
       }
@@ -314,6 +305,7 @@ export function planRouting(
     excluded,
     available,
     pressures,
+    quotaScores,
     reason,
   };
 }

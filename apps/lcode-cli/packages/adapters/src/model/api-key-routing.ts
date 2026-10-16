@@ -13,6 +13,7 @@ import {
 import { apiKeyQuotaSnapshotSchema, type ApiKeyQuotaSnapshot } from "@lcode/shared";
 
 import { apiKeyRoutingPolicy } from "./api-key-routing-policy.js";
+import { prepareApiKeyIndex } from "./api-key-index-preparation.js";
 const WORK_QUANTUM = 4096;
 /** 原池内的投影；共享资源身份由配置明确声明，不从显示名称或 URL 猜测。 */
 export class ApiKeyRouting {
@@ -75,6 +76,61 @@ export class ApiKeyRouting {
     );
   }
 
+  private bindIndex(
+    ids: readonly string[],
+    unavailable: (id: string, modelKey?: string) => boolean,
+    availableAt: (id: string, modelKey?: string) => number | undefined,
+  ): void {
+    this.unavailable = unavailable;
+    this.availableAt = availableAt;
+    if (this.scheduler && this.catalogIds !== ids) {
+      this.scheduler.setDirectory(ids, (id, input) => this.candidate(id, input?.modelKey));
+      this.catalogIds = ids;
+    }
+  }
+  indexReady(request?: RoutingRequest): boolean {
+    return (
+      !this.enabled ||
+      Boolean(
+        this.scheduler?.indexReady(
+          request ?? { attemptId: "prepare", scopeKey: "prepare", workUnits: WORK_QUANTUM },
+        ),
+      )
+    );
+  }
+  prepareInline(
+    ids: readonly string[],
+    unavailable: (id: string, modelKey?: string) => boolean,
+    request: RoutingRequest | undefined,
+    availableAt: (id: string, modelKey?: string) => number | undefined,
+    signal: AbortSignal,
+  ): boolean {
+    if (!this.enabled || !this.scheduler) return true;
+    this.bindIndex(ids, unavailable, availableAt);
+    return Boolean(
+      this.scheduler
+        .prepareIndexed({
+          ...(request ?? { attemptId: "prepare", scopeKey: "prepare", workUnits: WORK_QUANTUM }),
+          signal,
+        })
+        .next().done,
+    );
+  }
+  async prepareIndex(
+    ids: readonly string[],
+    unavailable: (id: string, modelKey?: string) => boolean,
+    request: RoutingRequest | undefined,
+    availableAt: (id: string, modelKey?: string) => number | undefined,
+    signal: AbortSignal,
+  ): Promise<void> {
+    if (!this.enabled || !this.scheduler) return;
+    this.bindIndex(ids, unavailable, availableAt);
+    await prepareApiKeyIndex(
+      this.scheduler,
+      request ?? { attemptId: "prepare", scopeKey: "prepare", workUnits: WORK_QUANTUM },
+      signal,
+    );
+  }
   reserve(
     ids: readonly string[],
     unavailable: (id: string, modelKey?: string) => boolean,
@@ -82,12 +138,7 @@ export class ApiKeyRouting {
     availableAt: (id: string, modelKey?: string) => number | undefined = () => undefined,
   ) {
     if (!this.enabled || !this.scheduler) return undefined;
-    this.unavailable = unavailable;
-    this.availableAt = availableAt;
-    if (this.catalogIds !== ids) {
-      this.scheduler.setDirectory(ids, (id, input) => this.candidate(id, input?.modelKey));
-      this.catalogIds = ids;
-    }
+    this.bindIndex(ids, unavailable, availableAt);
     const context = request ?? {
       attemptId: randomUUID(),
       scopeKey: randomUUID(),

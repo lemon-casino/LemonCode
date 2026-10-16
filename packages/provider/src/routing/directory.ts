@@ -1,24 +1,23 @@
 import type { RoutingCandidate, RoutingRequest } from "@lcode/shared/provider-routing";
-import { RoutingOrderedSet } from "./ordered-set.js";
-import { RoutingDeadlineIndex } from "./deadline-index.js";
+import { RoutingScoreGroups } from "./score-groups.js";
 import { RoutingTournament } from "./tournament.js";
 import type { RoutingRank } from "./ranking.js";
 type Classifier = (
   candidate: RoutingCandidate,
   request: RoutingRequest,
-) => { key: string; expires: number; rank?: RoutingRank };
+) => { rank: RoutingRank; expires?: number };
 interface Profile {
   request: RoutingRequest;
-  cohorts: Map<string, RoutingOrderedSet>;
-  membership: Map<string, string>;
-  deadlines: RoutingDeadlineIndex;
   ranked?: RoutingTournament;
-  rankDirty?: boolean;
+  groups?: RoutingScoreGroups;
+  builder?: Generator<void, void, void>;
+  dirty: Set<string>;
+  rankDirty: boolean;
 }
 const PROFILE_LIMIT = 8,
-  PROFILE_MEMBER_BUDGET = 200_000;
-const RANK_THRESHOLD = 128;
-/** 只索引当前需求下等价的目录位置；余额、份额和绑定仍由 Scheduler 拥有。 */
+  PROFILE_MEMBER_BUDGET = 200000,
+  CHUNK = 128;
+/** 可丢弃的紧凑投影；共享 builder 只由调用者驱动，不拥有业务队列、预留或异步 IO。 */
 export class RoutingDirectory {
   readonly order: ReadonlyMap<string, number>;
   readonly ids: readonly string[];
@@ -31,104 +30,121 @@ export class RoutingDirectory {
   private rankWork = 0;
   private invalidatedMembers = 0;
   private readonly groupById = new Map<string, string>();
-  private readonly groups = new Map<string, Set<string>>();
+  private readonly groups = new Map<string, string | Set<string>>();
   constructor(
     readonly sourceIds: readonly string[],
     readonly read: (id: string, request?: RoutingRequest) => RoutingCandidate,
     policyOrder?: readonly string[],
   ) {
-    const ids = sourceIds;
-    const present = new Set(ids),
-      leading = (policyOrder ?? []).filter((id) => present.has(id));
-    const listed = new Set(leading);
-    this.ids = [...leading, ...ids.filter((id) => !listed.has(id))];
-    this.order = new Map(this.ids.map((id, index) => [id, index]));
+    if (policyOrder?.length) {
+      const present = new Set(sourceIds),
+        leading = policyOrder.filter((id) => present.has(id)),
+        listed = new Set(leading);
+      this.ids = [...leading, ...sourceIds.filter((id) => !listed.has(id))];
+    } else this.ids = [...sourceIds];
+    const order = new Map<string, number>();
+    for (let index = 0; index < this.ids.length; index++) order.set(this.ids[index]!, index);
+    this.order = order;
   }
-  select(
+  private key(request: RoutingRequest): string {
+    return JSON.stringify([request.tokens, request.workUnits, request.demands, request.modelKey]);
+  }
+  private get capacity(): number {
+    return Math.min(
+      PROFILE_LIMIT,
+      Math.max(1, Math.floor(PROFILE_MEMBER_BUDGET / Math.max(1, this.ids.length))),
+    );
+  }
+  ready(request: RoutingRequest, now: number): boolean {
+    const profile = this.profiles.get(this.key(request));
+    return Boolean(
+      profile &&
+      !profile.builder &&
+      !profile.rankDirty &&
+      !profile.dirty.size &&
+      (profile.groups ?? profile.ranked)!.nextAt > now,
+    );
+  }
+  *prepare(
     request: RoutingRequest,
-    cursor: number,
     classify: Classifier,
-    now: number,
-    binding?: string,
-    round = 0,
-  ): RoutingCandidate[] {
-    const key = JSON.stringify([
-      request.tokens,
-      request.workUnits,
-      request.demands,
-      request.modelKey,
-    ]);
+    now: () => number,
+  ): Generator<void, void, void> {
+    const key = this.key(request);
     let profile = this.profiles.get(key);
-    if (profile)
-      for (const id of profile.deadlines.takeDue(now)) this.refresh(profile, id, classify);
     if (!profile) {
-      if (
-        this.profiles.size >=
-        Math.min(
-          PROFILE_LIMIT,
-          Math.max(1, Math.floor(PROFILE_MEMBER_BUDGET / Math.max(1, this.ids.length))),
-        )
-      )
+      if (this.profiles.size >= this.capacity)
         this.profiles.delete(this.profiles.keys().next().value!);
-      profile = {
-        request: {
-          ...request,
-          attemptId: "index",
-          scopeKey: "index",
-          turnId: undefined,
-          signal: undefined,
-          tokens: request.tokens ? { ...request.tokens } : undefined,
-          demands: request.demands ? { ...request.demands } : undefined,
-        },
-        cohorts: new Map(),
-        membership: new Map(),
-        deadlines: new RoutingDeadlineIndex(),
+      const input = {
+        ...request,
+        attemptId: "index",
+        scopeKey: "index",
+        turnId: undefined,
+        signal: undefined,
+        tokens: request.tokens ? { ...request.tokens } : undefined,
+        demands: request.demands ? { ...request.demands } : undefined,
       };
+      profile = {
+        request: input,
+        ranked: new RoutingTournament(this.ids, input),
+        groups: new RoutingScoreGroups(),
+        dirty: new Set(),
+        rankDirty: true,
+      };
+      this.profiles.set(key, profile);
       this.builds++;
-      const rankings: RoutingRank[] = [];
-      for (const id of this.ids) {
-        this.scannedKeys++;
-        const rank = this.insert(profile, id, classify);
-        if (rank) rankings.push(rank);
-      }
-      if (profile.cohorts.size > RANK_THRESHOLD && rankings.length === this.ids.length) {
-        profile.ranked = new RoutingTournament(rankings, profile.request);
-        this.rankBuilds++;
-      }
     }
     this.profiles.delete(key);
     this.profiles.set(key, profile);
-    const result: RoutingCandidate[] = [];
-    if (profile.rankDirty) {
-      const rankings = this.ids.map((id) => {
-        this.scannedKeys++;
-        return classify(this.read(id, profile!.request), profile!.request).rank!;
-      });
-      profile.ranked = new RoutingTournament(rankings, profile.request);
-      profile.rankDirty = false;
+    while (this.profiles.get(key) === profile) {
+      if (!profile.builder && profile.rankDirty) {
+        profile.rankDirty = false;
+        profile.builder = this.rebuild(profile, classify);
+      }
+      if (profile.builder) {
+        if (profile.builder.next().done) profile.builder = undefined;
+        else {
+          yield;
+          continue;
+        }
+      }
+      if (profile.dirty.size) {
+        let count = 0;
+        for (const id of profile.dirty) {
+          profile.dirty.delete(id);
+          this.refresh(profile, id, classify);
+          if (++count === CHUNK) break;
+        }
+        yield;
+        continue;
+      }
+      const due = (profile.groups ?? profile.ranked)!.takeDue(now(), CHUNK);
+      if (due.length) {
+        for (const id of due) this.refresh(profile, id, classify);
+        yield;
+        continue;
+      }
+      return;
+    }
+  }
+  private *rebuild(profile: Profile, classify: Classifier): Generator<void, void, void> {
+    profile.ranked ??= new RoutingTournament(this.ids, profile.request);
+    if (profile.groups) profile.groups = new RoutingScoreGroups();
+    for (let index = 0; index < this.ids.length; index++) {
+      this.scannedKeys++;
+      const measured = this.rank(profile, this.ids[index]!, classify);
+      profile.ranked.seed(measured.rank);
+      profile.groups?.update(measured.rank, measured.expires ?? measured.rank.expires);
+      if (profile.groups?.overflow) profile.groups = undefined;
+      if ((index + 1) % CHUNK === 0) yield;
+    }
+    if (profile.groups) profile.ranked = undefined;
+    else {
+      yield* profile.ranked.finish();
       this.rankBuilds++;
     }
-    if (profile.ranked) {
-      for (const id of profile.ranked.takeDue(now)) this.refresh(profile, id, classify);
-      const selected = profile.ranked.select(cursor, round);
-      this.rankWork = selected.work;
-      for (const id of selected.ids) result.push(this.read(id, request));
-    } else
-      for (const members of profile.cohorts.values()) {
-        const first = members.first(cursor);
-        if (first !== undefined) result.push(this.read(this.ids[first]!, request));
-        // 可靠/余量的最后平局使用顺序；份额与探索使用环形后继，两者均保留。
-        const ordered = members.first();
-        if (ordered !== undefined && ordered !== first)
-          result.push(this.read(this.ids[ordered]!, request));
-      }
-    if (binding && this.order.has(binding) && !result.some((candidate) => candidate.id === binding))
-      result.push(this.read(binding, request));
-    this.lastInspected = result.length;
-    return result;
   }
-  private insert(profile: Profile, id: string, classify: Classifier): RoutingRank | undefined {
-    // 各 profile 保留自己的请求语义，不能把最近一次模型的冷却投影写进所有索引。
+  private rank(profile: Profile, id: string, classify: Classifier) {
     const candidate = this.read(id, profile.request);
     const group =
       candidate.quotaGroupId ??
@@ -141,28 +157,41 @@ export class RoutingDirectory {
         : undefined);
     if (group && !this.groupById.has(id)) {
       this.groupById.set(id, group);
-      let ids = this.groups.get(group);
-      if (!ids) {
-        ids = new Set();
-        this.groups.set(group, ids);
-      }
-      ids.add(id);
+      const members = this.groups.get(group);
+      if (!members) this.groups.set(group, id);
+      else if (typeof members === "string") {
+        if (members !== id) this.groups.set(group, new Set([members, id]));
+      } else members.add(id);
     }
-    const result = classify(candidate, profile.request);
-    let members = profile.cohorts.get(result.key);
-    if (!members) {
-      members = new RoutingOrderedSet();
-      profile.cohorts.set(result.key, members);
+    return classify(candidate, profile.request);
+  }
+  select(
+    request: RoutingRequest,
+    cursor: number,
+    classify: Classifier,
+    now: number,
+    binding?: string,
+    round = 0,
+  ): RoutingCandidate[] {
+    for (const _ of this.prepare(request, classify, () => now)) {
     }
-    members.add(this.order.get(id)!);
-    profile.membership.set(id, result.key);
-    profile.deadlines.set(id, result.expires);
-    if (result.rank) profile.ranked?.update(result.rank);
-    return result.rank;
+    const profile = this.profiles.get(this.key(request))!;
+    const selected = profile.groups
+      ? profile.groups.select(this.ids, cursor)
+      : profile.ranked!.select(cursor, round);
+    this.rankWork = selected.work;
+    const result = selected.ids.map((id) => this.read(id, request));
+    if (binding && this.order.has(binding) && !result.some((candidate) => candidate.id === binding))
+      result.push(this.read(binding, request));
+    this.lastInspected = result.length;
+    return result;
   }
   touch(id: string, classify: Classifier): void {
     if (!this.order.has(id)) return;
-    for (const profile of this.profiles.values()) this.refresh(profile, id, classify);
+    for (const profile of this.profiles.values()) {
+      if (profile.builder || profile.rankDirty) profile.dirty.add(id);
+      else this.refresh(profile, id, classify);
+    }
   }
   touchGroupFor(id: string, classify: Classifier): void {
     const group = this.groupById.get(id);
@@ -171,22 +200,29 @@ export class RoutingDirectory {
   touchGroup(group: string, classify: Classifier, skipId?: string): void {
     const members = this.groups.get(group);
     if (!members) return;
+    const count = typeof members === "string" ? 1 : members.size;
     for (const profile of this.profiles.values()) {
-      if (!profile.ranked || profile.rankDirty) continue;
-      this.invalidatedMembers += members.size;
-      // 大共享池的共同约束变化会影响全部叶子，下一次显式重建一次，不能静默使用旧胜者。
-      if (members.size > RANK_THRESHOLD) profile.rankDirty = true;
-      else for (const id of members) if (id !== skipId) this.refresh(profile, id, classify);
+      this.invalidatedMembers += count;
+      if (profile.groups && !profile.builder && !profile.rankDirty) continue;
+      if (count > CHUNK) profile.rankDirty = true;
+      else
+        for (const id of typeof members === "string" ? [members] : members)
+          if (id !== skipId) {
+            if (profile.builder) profile.dirty.add(id);
+            else this.refresh(profile, id, classify);
+          }
     }
   }
   private refresh(profile: Profile, id: string, classify: Classifier): void {
     this.refreshedKeys++;
-    const prior = profile.membership.get(id)!;
-    const members = profile.cohorts.get(prior)!;
-    members.delete(this.order.get(id)!);
-    if (!members.size) profile.cohorts.delete(prior);
-    this.insert(profile, id, classify);
-    if (!profile.ranked && profile.cohorts.size > RANK_THRESHOLD) profile.rankDirty = true;
+    const measured = this.rank(profile, id, classify);
+    if (profile.groups) {
+      profile.groups.update(measured.rank, measured.expires ?? measured.rank.expires);
+      if (profile.groups.overflow) {
+        profile.groups = undefined;
+        profile.rankDirty = true;
+      }
+    } else profile.ranked!.update(measured.rank);
   }
   inspect() {
     return {
@@ -194,14 +230,16 @@ export class RoutingDirectory {
       builds: this.builds,
       scannedKeys: this.scannedKeys,
       profileCount: this.profiles.size,
-      profileCapacity: Math.min(
-        PROFILE_LIMIT,
-        Math.max(1, Math.floor(PROFILE_MEMBER_BUDGET / Math.max(1, this.ids.length))),
-      ),
+      profileCapacity: this.capacity,
       cohortCount: [...this.profiles.values()].reduce(
-        (sum, profile) => sum + profile.cohorts.size,
+        (sum, profile) => sum + (profile.groups?.size ?? 0),
         0,
       ),
+      rankedEntries:
+        [...this.profiles.values()].filter((profile) => profile.ranked).length * this.ids.length,
+      preparing: [...this.profiles.values()].filter(
+        (profile) => profile.builder || profile.rankDirty,
+      ).length,
       lastInspected: this.lastInspected,
       refreshedKeys: this.refreshedKeys,
       rankBuilds: this.rankBuilds,

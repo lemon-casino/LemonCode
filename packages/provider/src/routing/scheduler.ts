@@ -8,7 +8,7 @@ import {
   type RoutingWindow,
 } from "@lcode/shared/provider-routing";
 import { planRouting } from "./planner.js";
-import { routingWeight, routingExpiryBenefit } from "./values.js";
+import { routingWeight, routingConcurrency } from "./values.js";
 import { RoutingError } from "./error.js";
 import { RoutingDirectory } from "./directory.js";
 
@@ -227,10 +227,7 @@ export class RoutingScheduler extends RoutingReservationOwner {
       (window) => this.ledger.available(window),
       request.modelKey,
     );
-    const privateCandidate = {
-      ...projected,
-      windows: projected.windows.filter((window) => !window.shared),
-    };
+
     const measure = (value: RoutingCandidate) =>
       planRouting(this.policy, [value], request, {
         revision: this.revision,
@@ -241,25 +238,22 @@ export class RoutingScheduler extends RoutingReservationOwner {
         ledger: this.ledger,
         orderIndex: this.directory?.order,
       });
-    const plan = measure(privateCandidate);
     const ranked = measure(projected);
     const quantum = QUANTUM * routingWeight(this.policy, candidate.id);
     const credit = this.credit.get(candidate.id) ?? quantum;
     const eligibleRound =
       (this.creditedRound.get(candidate.id) ?? 0) +
       (credit > 0 ? 0 : Math.floor(-credit / quantum) + 1);
-    const statistics = projected.statistics;
     const expiry = projected.expiry;
-    const sharedExpiry =
-      expiry &&
-      projected.windows.some((window) => window.shared && window.resourceId === expiry.resourceId);
     return {
       rank: {
         candidate: projected,
         index: this.directory!.order.get(candidate.id)!,
         tier: ranked.tiers?.[candidate.id] ?? 0,
         pressure: ranked.pressures[candidate.id] ?? 0,
-        load: this.inFlight.get(candidate.id) ?? 0,
+        load: (this.inFlight.get(candidate.id) ?? 0) / routingConcurrency(this.policy, candidate),
+        concurrency: routingConcurrency(this.policy, candidate),
+        quota: ranked.quotaScores?.[candidate.id],
         eligible: !ranked.excluded[candidate.id],
         eligibleRound,
         now,
@@ -279,39 +273,6 @@ export class RoutingScheduler extends RoutingReservationOwner {
             : Infinity,
         ),
       },
-      key: JSON.stringify([
-        candidate.quotaGroupId,
-        candidate.unavailable,
-        candidate.health,
-        candidate.maxInFlight,
-        this.inFlight.get(candidate.id) ?? 0,
-        plan.excluded[candidate.id],
-        plan.tiers?.[candidate.id],
-        Math.floor((plan.pressures[candidate.id] ?? 0) / 0.05),
-        candidate.windows.some(
-          (window) =>
-            !window.shared &&
-            window.quality === "fresh" &&
-            (window.resetAt === undefined || window.resetAt > now) &&
-            (window.expiresAt === undefined || window.expiresAt > now) &&
-            (window.remaining !== undefined || window.usedPercent !== undefined),
-        ),
-        statistics && [
-          statistics.samples >= 8,
-          Math.floor(statistics.failureRate / 0.05),
-          Math.floor(Math.log1p(statistics.completionMs) / Math.log(1.15)),
-          statistics.marginalCost,
-          statistics.currency,
-        ],
-        sharedExpiry
-          ? undefined
-          : expiry && [
-              routingExpiryBenefit(projected, request, now),
-              expiry.expiresAt,
-              expiry.comparableUnit,
-            ],
-        eligibleRound,
-      ]),
       expires: Math.min(
         candidate.availableAt !== undefined && candidate.availableAt > now
           ? candidate.availableAt
@@ -326,6 +287,32 @@ export class RoutingScheduler extends RoutingReservationOwner {
           ),
       ),
     };
+  }
+  *prepareIndexed(request: RoutingRequest): Generator<void, void, void> {
+    const directory = this.directory,
+      epoch = this.policyEpoch;
+    if (!directory) throw new RoutingError("no-compatible-route");
+    const steps = directory.prepare(
+      request,
+      (candidate, input) => this.classify(candidate, input),
+      this.now,
+    );
+    for (;;) {
+      request.signal?.throwIfAborted();
+      if (this.closed) throw new RoutingError("owner-stale");
+      if (
+        (request.deadline !== undefined && request.deadline <= this.now()) ||
+        (request.createdAt !== undefined && request.createdAt + 300000 <= this.now())
+      )
+        throw new RoutingError("attempt-expired");
+      if (directory !== this.directory || epoch !== this.policyEpoch)
+        throw new RoutingError("policy-conflict");
+      if (steps.next().done) return;
+      yield;
+    }
+  }
+  indexReady(request: RoutingRequest): boolean {
+    return this.directory?.ready(request, this.now()) ?? false;
   }
   reserveIndexed(request: RoutingRequest): RoutingReservation {
     const now = this.now();

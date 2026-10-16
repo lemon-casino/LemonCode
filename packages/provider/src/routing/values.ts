@@ -5,6 +5,12 @@ import type {
   RoutingRequest,
 } from "@lcode/shared/provider-routing";
 
+export const routingConcurrency = (policy: ProviderRoutingPolicy, candidate: RoutingCandidate) =>
+  Math.min(
+    candidate.maxInFlight ?? Infinity,
+    policy.maxInFlightPerCandidate ?? 2,
+    candidate.windows.length ? Infinity : 1,
+  );
 export const routingWeight = (policy: ProviderRoutingPolicy, id: string) =>
   policy.weights && Object.hasOwn(policy.weights, id) ? policy.weights[id]! : 1;
 export function routingDemand(

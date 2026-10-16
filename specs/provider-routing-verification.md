@@ -277,3 +277,46 @@ pnpm architecture:check --changed
 详细运行轨迹保存在本机 .tmp/routing-hardening-\*.log；最终路由、类型、lint 使用 final 前缀，交互红/绿轨迹分别为 ui-red/ui，故障与探测红灯为 gate-red/probe-red。日志中的 Key 与供应商均为虚构夹具，未调用真实厂商计费接口。
 
 最后还补了 provider 许可不可删除/跨预留拼接的失败回归，修复并进入 430 项最终回归。一次验证 shell 在系统 oh-my-posh profile 初始化时停滞，该次未启动测试；只停止本任务的相关 shell/helper 后以 NoProfile 重跑，Node 24.21.0、pnpm 10.34.6。没有修改用户 profile。
+
+## 2026-10-17 首次配置、授权与调度优化
+
+基线 af957e78，对应 [完成规格](provider-completion-2026-10-17.md)。本轮先更新规格、记录失败回归，再实现；没有引入批量 Key 面板、手填额度/缓存参数或旧配置回退。
+
+### 已交付行为
+
+- API-only、空可执行模型列表的 temporary 检测走原控制面启动入口，再发送原 CLI 检测命令；正常模型执行门禁保留。原 workspace identity / remoteSessionId、单进程复用和平台网络配置继续传递，不要求 OAuth。
+- 授权阶段诊断覆盖工厂/准备、等待、Token 交换、账号查询、持久化和目录工作；公开字段由严格 schema 校验，不透出凭据、URL、响应和原始异常。开始阶段失败也保留原 attempts Map 中的无资源终态。
+- 凭据 commit 后即为 completed；清理、目录及发布失败保留安全告警。followupPending 使同一 UI 轮询继续接收迟到告警，完成状态不被旧 pending 回退。全部导入失败不谎称已保存。
+- 原生 HTTP 保留原单次模式；插件在原 worker operation 的 fetch/H2 出口强制单次推理许可，已核对的辅助查询和刷新不消耗推理许可。H2 429/503 不落入第二个 H1 模型请求，首个 HTTP/Retry-After 得以保留。Claude CLI 使用随机 loopback capability relay，约束原进程模型出口、等待真实上游 EOF，并在取消时关闭原物理流。
+- 冷索引按 128 个候选/2048 个合并节点分块，adapter 在 outsideTicket 中推进；小目录可在一个片段内沿用原 admission。等待者独立取消，策略变化和额度更新不会发布旧结果。
+- 等价分组最多 128 个；高分散时释放分组/membership，改用 typed score 列的胜者树，不保留完整候选对象。原账本、绑定、恢复和原 Runner 尝试预算仍是唯一事实。
+- 完整可比多窗口使用 5% 压力向量；不同完整维度明确回退轮转。补齐并发能力归一、按模型的一小时半衰期工作量、迟到差额幂等、等待时间及预计完成时间；缓存的延迟判定使用相同完成时间模型。统计桶淘汰会同步失效原目录，避免软分数与全量 planner 分离。
+
+### 失败与修复轨迹
+
+API 首次同步先复现 provider-not-ready 循环依赖；授权 commit 后刷新/发布/清理及保存前失败的五项回归先失败，随后通过。评分首批七项中六项先失败；额外的 8193 桶淘汰反例也先失败。继续验证发现并修复低差异共享池重复全扫描、Cursor 辅助 POST 抢占推理许可、外部流取消过早返回三个问题。首次 UI 验证曾受并行冷编译的导航时间限制，增加独立导航预算并串行运行后通过；断言没有用固定睡眠代替状态等待。
+
+| 验证                              | 最终结果                                                                                                                                                                                                                     |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| pnpm test:provider-routing        | **480/480 通过**，含 API 首次检测、OAuth 状态、五策略差分、真实 SDK/HTTP/双进程共享 owner、并发准备、统计淘汰及十万 Key 测试。                                                                                               |
+| provider-node 全部测试            | **319/319 通过**：node --import tsx --test --test-concurrency=4 "packages/provider-node/src/\*_/_.test.ts"；与路由集有交集，不相加当成独立场景数。含 HTTP/HTTPS/SOCKS5 代理、取消、刷新、厂商插件、CLI fixture 子进程与 H2。 |
+| 策略与授权诊断 UI                 | **4/4 通过**，1280px 中文桌面与 390px 英文手机；五选项、折叠/帮助、账号查询超时、凭据保存后的迟到告警、无横向溢出。使用两个实际 web test 文件并以 test-concurrency=1 执行。                                                  |
+| pnpm typecheck / pnpm lint        | **均通过**；早期 H2 fixture 类型和 fixture 400 行限制先失败，修正后最终返回 0。                                                                                                                                              |
+| CLI typecheck / lint              | **27/27 与 14/14 任务通过**；0 errors / 0 warnings。Turbo 现有 lockfile workspace 提示仍存在，未改无关依赖。                                                                                                                 |
+| pnpm architecture:check --changed | **通过，violations/baseline/new 均为 0**。新增端口仍分属原 provider、provider-node、services、shared、CLI adapter 和 UI；domain 没有 IO/异步队列。                                                                           |
+| 格式、领域图与来源                | 本轮代码按所属包 oxfmt 格式检查；图仅修改 OAuth details/routing 两节点，验证 YAML、ID、边 rank/端点及当前代码 seed；固定厂商源码构建校验通过，并只更新受影响 copied-source 哈希。未重写其它本地领域图变更。                  |
+
+### 十万 Key 实测
+
+最终完整回归同时运行类型检查和 provider-node 测试，当前 Windows / Node 24.21.0 / pnpm 10.34.6：
+
+- 单 profile cooperative 冷建 **2.53 秒**、**844** 次让出，最长片段 **27.08 ms**；RSS 采样 **324.20 MiB**、结束 heap **117.24 MiB**。并发 acquire 共享一次准备，取消等待者没有预留，另一个继续成功。
+- 五策略高度分散目录低层冷建 **2.08–2.59 秒**，热 p95 **0.285–0.796 ms**，热阶段扫描数不增长。低差异共享额度池也通过五策略热路径断言，没有退化为每请求扫描十万成员。
+- **100000 Key、9 个 profile、10000 次已完成请求、约七天虚拟时钟**：profile 最终 2，rankedEntries=200000，扫描 900000；热阶段无全扫描，attempt/借记明细各 4096。冷 profile **1.82–2.39 秒**，热 p95 **0.900 ms**，采样峰值 RSS **485.53 MiB**、结束 heap **189.17 MiB**、事件循环最大 **33.31 ms**。与旧 1452 MiB / 6.34 秒样本相比，内存和停顿明显下降；这是合成负载，热循环每 32 次让出，不是七天墙钟浸泡或跨平台 SLA。
+- 真实共享文件 IO 与其它验证并发时冷建 **4.60 秒**、热 p95 **41.57 ms**；为核实该波动，单独复跑该文件得到冷建 **3.17 秒**、热 p95 **18.38 ms**。只建立一个选中 pool 文件和一个 provider gate，未选中的 99999 个池没有建文件。该测量包含配置投影、文件锁和对账，不等同纯排名时间。
+
+### 未由夹具验证替代的范围
+
+本机没有安装实际 Claude CLI；真实 Node fixture 子进程验证了 relay 边界，但没有认证任意 CLI 版本，也没有使用真实供应商账号发起计费调用。用户 Ubuntu 的实际授权重试、Linux/macOS、跨主机/网络文件系统和七天真实墙钟浸泡未执行。真实厂商价格、缓存命中、TTL 和切换成本仍依赖受信事实；未知保持 unknown。主规格更完整的共享资源未来需求分配/经济收益回放不在本次已经完成的评分模型范围内。
+
+本机轨迹为 .tmp/provider-completion-\*.log；最终证据包括 routing-final、auth-all、ui3、typecheck-final、lint-final、cli3-typecheck、cli3-lint、architecture 与 shared-io-isolated。red/green 文件保留实际失败和修复后的结果；没有将初次失败写成通过。
