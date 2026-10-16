@@ -129,20 +129,20 @@
 
 ## 8. 协议、恢复与 UI
 
-| Case ID | Setup                                                         | Action                            | 必须断言                                                                           | 证据层        |
-| ------- | ------------------------------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------- | ------------- |
-| PRS-079 | OAuth 可恢复错误触发下一个账号；Runner 总预算 2               | 连续失败后再试                    | 最多 2 次真实上游 POST；每次独立 permit/admission/attempt，不隐藏账号内循环        | HTTP+协议     |
-| PRS-080 | 成组候选全部冷却/明确耗尽，多个请求同时到达恢复边界           | 请求恢复                          | 同资源只有一个半开 permit；其它不并发探测，不无限轮询                              | 并发+网络     |
-| PRS-081 | 老 peer 不支持 single-attempt-routing-v1                      | enhanced 与 legacy 分别请求       | enhanced 明确能力错误；legacy 原路径可工作；不能显示策略已生效却旧语义运行         | 协议          |
-| PRS-082 | 本地和远端 attachment 同时使用一个本机 OAuth pool             | 各提交请求                        | 由原 Local Host 统一预留，远端不自选账号、不复制 grant                             | 双向 RPC+网络 |
-| PRS-083 | 同路径的两个远端 identity；其中一条 attachment 换代           | 旧 open/read/usage 迟到           | 仅原上下文有效；换代不能复活旧请求、借新连接重发 POST                              | RPC+身份      |
-| PRS-084 | 手机断线并 replayable 恢复；桌面 continuous 同时持续          | 恢复 View/会话事件                | 恢复原 owner 当前投影，不恢复预留、不重发模型流、不新增 accepted 输入              | E2E+协议      |
-| PRS-085 | 三协议各有成功、错误、取消和工具继续                          | 完整模型请求                      | 状态、body、真实 connectionId、retry-after 沿原受信桥保真；内部票据/关联材料不泄露 | 三协议 HTTP   |
-| PRS-086 | 伪造 route ID、预算 permit、reservation、workspace 或原始 URL | 调用公开/私有端口                 | 严格 schema 与原 attachment 绑定拒绝；零未授权上游调用                             | 协议+网络     |
-| PRS-087 | 桌面 1280×900、手机 390×844；中英文、深浅主题                 | 选择五策略、键盘改顺序/份额并保存 | 名称与说明正确，布局无横溢，焦点可用；只提交配置，无真实推理                       | E2E+截图      |
-| PRS-088 | quota/预测不足而实际 fallback；另有 hard reserve blocked      | 打开设置诊断与额度页              | 显示 requested/effective 策略、瓶颈/未知原因；保守估计不显示为上游真实余额         | E2E+服务      |
-| PRS-089 | 保存失败或切换 Environment 后旧 View 迟到                     | 操作路由表单                      | 草稿与错误可恢复；旧结果不回填新 scope，不新增另一缓存/写 owner                    | E2E+服务      |
-| PRS-090 | API 有十万 Key，UI 已省略完整密钥列表                         | 改策略、读取摘要、选择 Key        | 不全量暴露密钥；旧默认选择不重新扫描全部 Key；无新增秘密输出                       | 性能+UI+网络  |
+| Case ID | Setup                                                         | Action                                | 必须断言                                                                           | 证据层        |
+| ------- | ------------------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------- | ------------- |
+| PRS-079 | OAuth 可恢复错误触发下一个账号；Runner 总预算 2               | 连续失败后再试                        | 最多 2 次真实上游 POST；每次独立 permit/admission/attempt，不隐藏账号内循环        | HTTP+协议     |
+| PRS-080 | 成组候选全部冷却/明确耗尽，多个请求同时到达恢复边界           | 请求恢复                              | 同资源只有一个半开 permit；其它不并发探测，不无限轮询                              | 并发+网络     |
+| PRS-081 | 老 peer 不支持 single-attempt-routing-v1                      | enhanced 与 legacy 分别请求           | enhanced 明确能力错误；legacy 原路径可工作；不能显示策略已生效却旧语义运行         | 协议          |
+| PRS-082 | 本地和远端 attachment 同时使用一个本机 OAuth pool             | 各提交请求                            | 由原 Local Host 统一预留，远端不自选账号、不复制 grant                             | 双向 RPC+网络 |
+| PRS-083 | 同路径的两个远端 identity；其中一条 attachment 换代           | 旧 open/read/usage 迟到               | 仅原上下文有效；换代不能复活旧请求、借新连接重发 POST                              | RPC+身份      |
+| PRS-084 | 手机断线并 replayable 恢复；桌面 continuous 同时持续          | 恢复 View/会话事件                    | 恢复原 owner 当前投影，不恢复预留、不重发模型流、不新增 accepted 输入              | E2E+协议      |
+| PRS-085 | 三协议各有成功、错误、取消和工具继续                          | 完整模型请求                          | 状态、body、真实 connectionId、retry-after 沿原受信桥保真；内部票据/关联材料不泄露 | 三协议 HTTP   |
+| PRS-086 | 伪造 route ID、预算 permit、reservation、workspace 或原始 URL | 调用公开/私有端口                     | 严格 schema 与原 attachment 绑定拒绝；零未授权上游调用                             | 协议+网络     |
+| PRS-087 | 桌面 1280×900、手机 390×844；中英文、深浅主题                 | 选择五策略、展开/折叠、问号说明并保存 | 名称与说明正确，布局无横溢，焦点可用；只提交配置，无真实推理                       | E2E+截图      |
+| PRS-088 | quota/预测不足而实际 fallback；另有 hard reserve blocked      | 打开设置诊断与额度页                  | 显示 requested/effective 策略、瓶颈/未知原因；保守估计不显示为上游真实余额         | E2E+服务      |
+| PRS-089 | 保存失败或切换 Environment 后旧 View 迟到                     | 操作路由表单                          | 草稿与错误可恢复；旧结果不回填新 scope，不新增另一缓存/写 owner                    | E2E+服务      |
+| PRS-090 | API 有十万 Key，UI 已省略完整密钥列表                         | 改策略、读取摘要、选择 Key            | 不全量暴露密钥；旧默认选择不重新扫描全部 Key；无新增秘密输出                       | 性能+UI+网络  |
 
 ## 9. 必须保留的性能与回放门禁
 

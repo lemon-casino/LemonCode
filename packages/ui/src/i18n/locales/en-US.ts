@@ -8125,62 +8125,22 @@ const enUS: Record<string, string> = {
   "settings.routing.legacy.description":
     "Keep the existing account preference, key rotation and cooldown rules.",
   "settings.routing.reliable-first.description":
-    "Prefer reliable connections using recent success, completion time and quota.",
+    "Prefer reliable connections using recent results, completion time and known quota. Fall back to weighted rotation when signals are insufficient.",
   "settings.routing.primary-backup.description":
-    "Use the primary connection first, then backups; prefer the primary again on a new turn.",
+    "Prefer the primary connection in the existing order and use backups when it is unavailable. Keep tool continuations on their current account.",
   "settings.routing.share-rotation.description":
-    "Allocate work by connection share; keep tool continuations on their current account.",
+    "Rotate equally by default, or distribute work using existing shares. Keep tool continuations on their current account.",
   "settings.routing.headroom-balance.description":
-    "Compare all relevant quota windows and prefer more available headroom.",
+    "Compare projected pressure across known quota windows and prefer more headroom. Fall back to weighted rotation when quota is unknown.",
   "settings.routing.expiry-first.description":
-    "Prefer allowance predicted to expire unused; fall back to headroom balance or weighted rotation when data is insufficient.",
-  "settings.routing.concurrency": "Maximum concurrent requests per connection (1–64)",
-  "settings.routing.cache": "Cache preference across turns",
-  "settings.routing.cache.auto": "Keep useful caches",
-  "settings.routing.cache.turn-only": "Keep account for current turn only",
+    "Assign actual requests to allowance predicted to expire unused. Fall back to headroom balance or weighted rotation when benefit is unverified; never create extra requests.",
   "settings.routing.error": "Save failed or configuration changed. Reload before saving again.",
   "settings.routing.reload": "Reload",
-  "settings.routing.save": "Save routing strategy",
+  "settings.routing.save": "Save",
+  "settings.routing.expand": "Expand",
+  "settings.routing.collapse": "Collapse",
+  "settings.routing.help": "About {strategy}",
   "settings.routing.saving": "Saving…",
-  "settings.routing.batch.title": "Batch Key routing",
-  "settings.routing.batch.description":
-    "Assign a quota pool only after confirming that the Keys share allowance. Shares and priorities apply when enhanced routing is enabled. Use confirmed provider rules for cache groups and lifetimes.",
-  "settings.routing.batch.loading": "Loading configuration…",
-  "settings.routing.batch.summary":
-    "Configuration check: {total} Keys, {enabled} enabled, {pools} declared quota pools and {caches} cache groups.",
-  "settings.routing.batch.unavailable": "Configuration unavailable",
-  "settings.routing.batch.all": "Apply to all {total} Keys",
-  "settings.routing.batch.selected": "Current target: {count} Keys",
-  "settings.routing.batch.pool": "Shared quota pool",
-  "settings.routing.batch.weight": "Work share (1–100)",
-  "settings.routing.batch.priority": "Priority (lower first)",
-  "settings.routing.batch.cache-group": "Cache group",
-  "settings.routing.batch.cache-ttl": "Confirmed cache lifetime (seconds)",
-  "settings.routing.batch.clearField": "Clear",
-  "settings.routing.batch.willClear": "Cleared on save",
-  "settings.routing.batch.keep": "Keep current value",
-  "settings.routing.batch.error":
-    "The operation failed or configuration changed. Reload before saving again.",
-  "settings.routing.batch.reload": "Reload",
-  "settings.routing.batch.saving": "Saving…",
-  "settings.routing.batch.apply": "Save selected settings",
-  "settings.routing.batch.clear": "Clear routing settings for target",
-  "settings.routing.batch.enabled": "Enabled",
-  "settings.routing.batch.disabled": "Disabled",
-  "settings.routing.batch.row":
-    "Pool {pool} · Share {weight} · Priority {priority} · Cache {cache} · Lifetime {ttl}",
-  "settings.routing.batch.independent": "Independent",
-  "settings.routing.batch.directoryOrder": "Directory order",
-  "settings.routing.batch.none": "Undeclared",
-  "settings.routing.batch.ttlValue": "{seconds}s",
-  "settings.routing.batch.pages": "Key configuration pages",
-  "settings.routing.batch.previous": "Previous",
-  "settings.routing.batch.page": "{start}–{end} / {total}",
-  "settings.routing.batch.next": "Next",
-  "settings.routing.batch.issue.duplicate-id": "Duplicate Key ID. Correct it in Key management.",
-  "settings.routing.batch.issue.cache-ttl-missing":
-    "No lifetime declared; no cache preference across turns.",
-  "settings.routing.batch.issue.cache-group-missing": "Declare a cache group to use this lifetime.",
 };
 
 export default enUS;

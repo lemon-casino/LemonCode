@@ -113,15 +113,13 @@ nodes:
         symbol: FileSharedQuotaCoordinator
       - file: packages/shared/src/provider-routing.ts
         symbol: setApiKeyRoutingMetadataSchema
-      - file: packages/ui/src/settings/ApiKeyRoutingBatchEditor.tsx
-        symbol: ApiKeyRoutingBatchEditor
     invariants:
       - "Absent routing preserves legacy selection. Dedicated policy writes use the existing personal settings owner and preserve key save generations."
       - "ProviderAccounts and the original API key pool own reservations. Planning is read-only; physical response completion releases slots and unverified consumption remains conservative."
       - "Every relevant quota window constrains the same attempt. Only explicit shared resource identities merge account balances."
       - "Turn bindings and portability precede soft cache preferences; unknown TTL never implies a five-minute cache benefit."
       - "Enhanced OAuth negotiates single-attempt-routing-v1 and cannot hide additional model POSTs behind one Runner permit."
-      - "Batch Key metadata uses Settings revision CAS and redacted pages; stale full forms preserve authoritative metadata."
+      - "Settings presents only a compact collapsible strategy selector with contextual help; hidden policy and legacy Key metadata remain compatible without Key-page reads."
       - "Token bounds and explicitly shared pools constrain one reservation; toggling policy cannot erase existing debits."
       - "Cohorts and winner trees derive from the same Scheduler owner; dispersed hot selection avoids full scans and reports affected members and index work."
       - "An injected local shared-quota file owner serializes all pool windows before fetch; dispatched unknown usage is never refunded by TTL or process exit."

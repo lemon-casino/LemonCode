@@ -8,52 +8,69 @@ for (const [width, locale, theme] of [
   [390, "en-US", "light"],
 ]) {
   test(
-    `routing settings save all five strategies and restore legacy (${width}, ${locale})`,
+    `compact strategy settings, collapse and contextual help (${width}, ${locale})`,
     { timeout: 90_000 },
     async (t) => {
       const { browser, port } = await startWorkflowProgressBrowser(t);
-      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      const page = await browser.newPage({
+        viewport: { width, height: 900 },
+        isMobile: width < 640,
+        hasTouch: width < 640,
+      });
       page.setDefaultTimeout(10_000);
+      await mkdir(".tmp/simple-routing-ui", { recursive: true });
       const errors = [];
       page.on("pageerror", (error) => errors.push(error.message));
-      await page.goto(
-        `http://127.0.0.1:${port}/test/fixtures/provider-routing.html?locale=${locale}&theme=${theme}`,
-      );
+      const visit = async (seed) => {
+        await page.goto(
+          `http://127.0.0.1:${port}/test/fixtures/provider-routing.html?locale=${locale}&theme=${theme}&seed=${seed}`,
+        );
+        await page.getByTestId("provider-routing-editor").waitFor();
+      };
       const editor = page.getByTestId("provider-routing-editor");
-      await editor.waitFor();
-      const batch = page.getByTestId("api-key-routing-batch");
-      assert.equal(
-        await batch.count(),
-        1,
-        "API providers must expose safe batch routing management",
-      );
-      assert.equal(
-        await page.evaluate(() => window.__routingFixture.pageReads),
-        0,
-        "collapsed batch management must not fetch Key pages",
-      );
-      await editor.getByTestId("routing-strategy").click();
-      await page.getByTestId("routing-option-primary-backup").click();
-      const originalCache = await editor.getByRole("combobox").nth(1).textContent();
-      await editor.getByRole("spinbutton").fill("7");
-      await editor.getByRole("combobox").nth(1).click();
-      await page.getByRole("option").last().click();
-      await page.evaluate(() => window.__routingFixture.bumpRevision());
-      await editor.getByTestId("routing-save").click();
-      await editor
-        .getByRole("alert")
-        .waitFor()
-        .catch(async (error) => {
-          throw new Error(
-            `${error.message}; fixture=${JSON.stringify(await page.evaluate(() => window.__routingFixture))}`,
-          );
-        });
+      const choose = async (strategy) => {
+        await editor.getByTestId("routing-strategy").click();
+        await page.getByTestId(`routing-option-${strategy}`).click();
+      };
+      const save = async (strategy) => {
+        const before = await page.evaluate(() => window.__routingFixture.saves);
+        await editor.getByTestId("routing-save").click();
+        await page.waitForFunction(
+          ({ strategy, before }) =>
+            (window.__routingFixture.policy?.strategy ?? "legacy") === strategy &&
+            window.__routingFixture.saves > before,
+          { strategy, before },
+        );
+      };
+      const noAdvanced = async () => {
+        assert.equal(await page.getByTestId("api-key-routing-batch").count(), 0);
+        assert.equal(await editor.getByRole("spinbutton").count(), 0);
+        assert.equal(await editor.getByRole("switch").count(), 0);
+        assert.equal(await editor.getByRole("combobox").count(), 1);
+        assert.deepEqual(
+          await page.evaluate(() => [
+            window.__routingFixture.pageReads,
+            window.__routingFixture.metadataSaves,
+            window.__routingFixture.secretReads,
+          ]),
+          [0, 0, 0],
+        );
+      };
+      await visit("default");
+      await noAdvanced();
+      await choose("reliable-first");
+      const toggle = editor.getByTestId("routing-toggle");
+      await toggle.click();
+      assert.equal(await toggle.getAttribute("aria-expanded"), "false");
+      assert.equal(await editor.getByTestId("routing-strategy").count(), 0);
       assert.equal(await page.evaluate(() => window.__routingFixture.saves), 0);
-      await editor.getByRole("alert").getByRole("button").click();
-      await editor.getByTestId("routing-strategy").click();
-      await page.getByTestId("routing-option-primary-backup").click();
-      assert.equal(await editor.getByRole("spinbutton").inputValue(), "2");
-      assert.equal(await editor.getByRole("combobox").nth(1).textContent(), originalCache);
+      await toggle.focus();
+      await page.keyboard.press("Enter");
+      assert.equal(await toggle.getAttribute("aria-expanded"), "true");
+      assert.equal(
+        (await editor.getByTestId("routing-strategy").textContent()).trim(),
+        locale === "zh-CN" ? "可靠优选" : "Reliable first",
+      );
       for (const strategy of [
         "reliable-first",
         "primary-backup",
@@ -62,62 +79,94 @@ for (const [width, locale, theme] of [
         "headroom-balance",
         "expiry-first",
       ]) {
-        const saves = await page.evaluate(() => window.__routingFixture.saves);
-        await editor.getByTestId("routing-strategy").click();
-        await page.getByTestId(`routing-option-${strategy}`).click();
-        await editor.getByTestId("routing-save").click();
-        await page.waitForFunction(
-          ({ strategy, saves }) =>
-            window.__routingFixture.policy?.strategy === strategy &&
-            window.__routingFixture.saves > saves,
-          { strategy, saves },
-        );
+        await choose(strategy);
+        const help = editor.getByTestId("routing-help");
+        if (width >= 640) await help.hover();
+        else await help.tap();
+        const tip = page.getByTestId("routing-help-content");
+        await tip.waitFor();
+        assert.equal(await tip.getAttribute("data-strategy"), strategy);
+        const expected =
+          locale === "zh-CN"
+            ? {
+                "reliable-first": "近期请求结果",
+                "primary-backup": "现有连接顺序",
+                "share-rotation": "默认等份轮转",
+                "headroom-balance": "预计压力",
+                "expiry-first": "实际请求",
+              }
+            : {
+                "reliable-first": "recent results",
+                "primary-backup": "existing order",
+                "share-rotation": "Rotate equally",
+                "headroom-balance": "projected pressure",
+                "expiry-first": "actual requests",
+              };
+        assert.ok((await tip.textContent()).includes(expected[strategy]));
+        if (strategy === "expiry-first")
+          await page.screenshot({
+            path: `.tmp/simple-routing-ui/${width}-${locale}-help.png`,
+            animations: "disabled",
+            fullPage: true,
+          });
+        const box = await tip.boundingBox();
+        assert.ok(box.x >= 0 && box.x + box.width <= width + 1);
+        await page.keyboard.press("Escape");
+        await save(strategy);
+        assert.deepEqual(await page.evaluate(() => window.__routingFixture.policy), {
+          version: 1,
+          strategy,
+        });
       }
-      await mkdir(".tmp/provider-routing-ui", { recursive: true });
+      await editor.getByTestId("routing-help").focus();
+      await page.getByTestId("routing-help-content").waitFor();
+      await page.keyboard.press("Escape");
+      if (width >= 640) {
+        const boxes = await Promise.all(
+          [toggle, editor.getByTestId("routing-strategy"), editor.getByTestId("routing-save")].map(
+            (item) => item.boundingBox(),
+          ),
+        );
+        assert.ok(
+          Math.max(...boxes.map((b) => b.y + b.height / 2)) -
+            Math.min(...boxes.map((b) => b.y + b.height / 2)) <
+            3,
+        );
+        assert.ok(boxes[1].width <= 200, `Selector should be compact: ${boxes[1].width}`);
+      }
+      await mkdir(".tmp/simple-routing-ui", { recursive: true });
       await page.screenshot({
-        path: `.tmp/provider-routing-ui/${width}-${locale}.png`,
+        path: `.tmp/simple-routing-ui/${width}-${locale}.png`,
         fullPage: true,
       });
-      await editor.getByTestId("routing-strategy").click();
-      await page.getByTestId("routing-option-legacy").click();
-      await editor.getByTestId("routing-save").click();
-      await page.waitForFunction(() => window.__routingFixture.policy === null);
-      await batch.getByTestId("batch-toggle").click();
-      await batch.getByTestId("batch-row-key-0").getByRole("checkbox").check();
-      await batch.getByTestId("batch-pool").fill("team");
-      await batch.getByTestId("batch-weight").fill("3");
-      await batch.getByTestId("batch-cache-group").fill("cache");
-      await batch.getByTestId("batch-cache-ttl").fill("60");
-      await batch.getByTestId("batch-apply").click();
-      await page.waitForFunction(() => window.__routingFixture.metadataSaves === 1);
-      assert.deepEqual(await page.evaluate(() => window.__routingFixture.lastMetadata.target), {
-        type: "ids",
-        keyIds: ["key-0"],
+      await editor.screenshot({ path: `.tmp/simple-routing-ui/${width}-${locale}-panel.png` });
+      await toggle.click();
+      await page.screenshot({
+        path: `.tmp/simple-routing-ui/${width}-${locale}-collapsed.png`,
+        fullPage: true,
       });
-      await batch.getByTestId("batch-weight").fill("4");
+      await toggle.click();
+      await choose("legacy");
+      await save("legacy");
+      await visit("advanced");
+      const initial = await page.evaluate(() => window.__routingFixture.policy);
+      const metadata = await page.evaluate(() => window.__routingFixture.keyMetadata);
+      await choose("expiry-first");
       await page.evaluate(() => window.__routingFixture.bumpRevision());
-      await batch.getByTestId("batch-apply").click();
-      await batch.getByRole("alert").waitFor();
-      assert.equal(await page.evaluate(() => window.__routingFixture.metadataSaves), 1);
-      await batch.getByTestId("batch-reload").click();
-      assert.equal(await batch.getByTestId("batch-weight").inputValue(), "");
-      assert.equal(await batch.getByTestId("batch-cache-ttl").inputValue(), "");
-      await batch.getByTestId("batch-next").click();
-      await batch.getByTestId("batch-row-key-25").waitFor();
-      await batch.getByTestId("batch-target-all").check();
-      await batch.getByTestId("batch-pool").fill("shared-team");
-      await batch.getByTestId("batch-apply").click();
-      await page.waitForFunction(() => window.__routingFixture.metadataSaves === 2);
-      assert.deepEqual(await page.evaluate(() => window.__routingFixture.lastMetadata.target), {
-        type: "all",
+      await editor.getByTestId("routing-save").click();
+      await editor.getByRole("alert").waitFor();
+      assert.equal(await page.evaluate(() => window.__routingFixture.saves), 0);
+      await editor.getByRole("alert").getByRole("button").click();
+      await choose("primary-backup");
+      await save("primary-backup");
+      assert.deepEqual(await page.evaluate(() => window.__routingFixture.policy), {
+        ...initial,
+        strategy: "primary-backup",
       });
-      await page.screenshot({
-        path: `.tmp/provider-routing-ui/${width}-${locale}-batch.png`,
-        fullPage: true,
-      });
-      await batch.getByTestId("batch-clear").click();
-      await page.waitForFunction(() => window.__routingFixture.metadataSaves === 3);
-      assert.equal(await page.evaluate(() => window.__routingFixture.lastMetadata.patch), null);
+      assert.deepEqual(await page.evaluate(() => window.__routingFixture.keyMetadata), metadata);
+      await noAdvanced();
+      await visit("empty");
+      await noAdvanced();
       assert.equal(
         await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
         true,
