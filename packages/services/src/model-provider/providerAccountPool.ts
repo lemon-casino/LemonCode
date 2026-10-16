@@ -86,6 +86,7 @@ export async function executeProviderAccountPool<T extends PoolAccount>(
           { ...host.context(account, signal), ...(selected ? { routingSingleAttempt: true } : {}) },
         );
       });
+      selected?.observeHeaders(response);
       // Copilot 目录可能给账号列出不可调用的模型；仅对驱动确认的模型拒绝尝试同模型的另一账号。
       const modelRefused =
         channelId === "copilot" &&

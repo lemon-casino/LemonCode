@@ -34,5 +34,8 @@ test("routing mutation preserves keys, membership, defaults and save generation;
     expectedRevision: f.settings.getView().revision,
     routing: null,
   });
-  assert.equal(f.repository.snapshot.providers.get("personal")!.routing, null);
+  assert.deepEqual(f.repository.snapshot.providers.get("personal")!.routing, {
+    version: 1,
+    strategy: "reliable-first",
+  });
 });

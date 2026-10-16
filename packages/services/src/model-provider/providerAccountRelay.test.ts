@@ -1,3 +1,4 @@
+import { randomUUID as routingUuid } from "node:crypto";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -74,10 +75,7 @@ async function fixture(
           assert.equal(grant.access, `secret-${channelId}`);
           await context.write({ ...grant, revision: Number(grant.revision) + 1 });
           assert.equal(new URL(request.url).pathname, `/v1${paths[index % 3]}`);
-          assert.equal(
-            request.headers.get("x-lcode-session-id"),
-            routing ? null : '["ssh-workspace","remote-session"]',
-          );
+          assert.equal(request.headers.get("x-lcode-session-id"), null);
           calls.push(channelId);
           if (fetchHook) return fetchHook(request, context);
           const body = new TextEncoder().encode(
@@ -149,7 +147,8 @@ test("enhanced relay negotiates capabilities, returns the actual strategy and se
   const f = await fixture(t, undefined, policy);
   const login = await f.local.startAuthorization({ channelId: "bigmodel", methodId: "login" });
   await f.local.completeAuthorization(login.attemptId, "fixture");
-  const auth = await f.remote.resolveRequestAuth(
+  const auth = await resolveAuth(
+    f.remote,
     "bigmodel",
     "fixture-model",
     "openai-chat-completions",
@@ -186,7 +185,7 @@ test("enhanced relay negotiates capabilities, returns the actual strategy and se
   t.after(() => old.dispose());
   old.attach({ ...f.source.service, getRoutingCapabilities: undefined });
   await assert.rejects(
-    old.resolveRequestAuth("bigmodel", "fixture-model"),
+    resolveAuth(old, "bigmodel", "fixture-model"),
     /routing-capability-required/,
   );
 });
@@ -271,7 +270,8 @@ test("remote Registry selects API plus every OAuth channel and executes all thre
       true,
       channel.id,
     );
-    const auth = await f.remote.resolveRequestAuth(
+    const auth = await resolveAuth(
+      f.remote,
       channel.id,
       "fixture-model",
       undefined,
@@ -301,10 +301,10 @@ test("remote account changes use the original local owner and removed accounts r
   const attempt = await f.remote.startAuthorization({ channelId: "codex", methodId: "login" });
   const complete = await f.remote.completeAuthorization(attempt.attemptId, "fixture");
   assert.equal((await f.local.getView()).accounts.length, 1);
-  const auth = await f.remote.resolveRequestAuth("codex", "fixture-model");
+  const auth = await resolveAuth(f.remote, "codex", "fixture-model");
   await f.remote.removeAccount(complete.connectionId!);
   assert.equal((await f.local.getView()).accounts.length, 0);
-  await assert.rejects(f.remote.resolveRequestAuth("codex", "fixture-model"));
+  await assert.rejects(resolveAuth(f.remote, "codex", "fixture-model"));
   const response = await fetch(`${auth.baseURL}/messages`, {
     method: "POST",
     headers: { authorization: `Bearer ${auth.apiKey}`, "content-type": "application/json" },
@@ -321,6 +321,7 @@ test("private relay rejects arbitrary URLs, auth headers, malformed payloads and
   const f = await fixture(t);
   const request: ProviderAccountRelayOpen = {
     requestId: randomUUID(),
+    routingInvocation: routingContext(),
     channelId: "codex",
     modelId: "fixture-model",
     protocol: "anthropic-messages",
@@ -354,6 +355,7 @@ async function loginCodex(local: ProviderAccounts) {
 function request(lane = "fixture"): ProviderAccountRelayOpen {
   return {
     requestId: randomUUID(),
+    routingInvocation: routingContext(),
     channelId: "codex",
     modelId: "fixture-model",
     protocol: "anthropic-messages",
@@ -465,13 +467,14 @@ test("an unattached or closed remote adapter cannot keep waiting or mint a ticke
   const waiting = assert.rejects(remote.getView(), /closed/);
   remote.dispose();
   await waiting;
-  await assert.rejects(remote.resolveRequestAuth("codex", "fixture-model"), /closed/);
+  await assert.rejects(resolveAuth(remote, "codex", "fixture-model"), /closed/);
 });
 
 test("manually configured OAuth model IDs reuse the original fixed endpoint and disabled accounts remain unavailable", async (t) => {
   const f = await fixture(t);
   await loginCodex(f.local);
-  const auth = await f.remote.resolveRequestAuth(
+  const auth = await resolveAuth(
+    f.remote,
     "codex",
     "manually-added",
     undefined,
@@ -486,8 +489,8 @@ test("manually configured OAuth model IDs reuse the original fixed endpoint and 
   await response.text();
   const account = (await f.local.getView()).accounts[0]!;
   await f.local.setAccountEnabled(account.connectionId, false);
-  await assert.rejects(f.remote.resolveRequestAuth("codex", "fixture-model"));
-  await assert.rejects(f.remote.resolveRequestAuth("codex", "manually-added"));
+  await assert.rejects(resolveAuth(f.remote, "codex", "fixture-model"));
+  await assert.rejects(resolveAuth(f.remote, "codex", "manually-added"));
 });
 
 test("empty successes and upstream rate-limit responses retain status, headers and body through the relay", async (t) => {
@@ -502,7 +505,8 @@ test("empty successes and upstream rate-limit responses retain status, headers a
   );
   await loginCodex(f.local);
   for (const status of [204, 429]) {
-    const auth = await f.remote.resolveRequestAuth(
+    const auth = await resolveAuth(
+      f.remote,
       "codex",
       "fixture-model",
       undefined,
@@ -521,3 +525,26 @@ test("empty successes and upstream rate-limit responses retain status, headers a
     }
   }
 });
+
+function routingContext() {
+  return {
+    capability: "single-attempt-routing-v1" as const,
+    workspaceKey: "fixture-workspace",
+    sessionId: "fixture-session",
+    attemptId: routingUuid(),
+    turnId: routingUuid(),
+    tokens: { total: 8192, quality: "bound" as const },
+  };
+}
+function resolveAuth(
+  service: Pick<ProviderAccounts, "resolveRequestAuth">,
+  ...args: Parameters<ProviderAccounts["resolveRequestAuth"]>
+) {
+  return service.resolveRequestAuth(
+    args[0],
+    args[1],
+    args[2],
+    args[3] ?? "fixture-session",
+    args[4] ?? routingContext(),
+  );
+}

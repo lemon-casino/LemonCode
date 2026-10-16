@@ -70,6 +70,9 @@ export function createProviderRuntimeHeadersPort(
               ? {
                   routingInvocation: {
                     capability: "single-attempt-routing-v1",
+                    createdAt: Date.now(),
+                    tokens: input.routingTokens,
+                    compatibilityKey: input.routingCompatibilityKey,
                     workspaceKey: workspace.workspaceKey,
                     executionId: workspace.executionBindingId,
                     remoteSessionId: workspace.remoteSessionId,

@@ -15,7 +15,6 @@ import {
 } from "@/components/ui/select.js";
 
 const STRATEGIES = [
-  "legacy",
   "reliable-first",
   "primary-backup",
   "share-rotation",
@@ -73,7 +72,7 @@ function RoutingFields({
   const message = (key: string, values?: Record<string, string>) =>
     intl.formatMessage({ id: `settings.routing.${key}` }, values);
   const id = useId();
-  const [strategy, setStrategy] = useState<Selection>(policy?.strategy ?? "legacy");
+  const [strategy, setStrategy] = useState<Selection>(policy?.strategy ?? "reliable-first");
   const [baseRevision, setBaseRevision] = useState(revision);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
@@ -81,13 +80,11 @@ function RoutingFields({
     setBusy(true);
     setError(false);
     try {
-      // 简洁表单只修改策略，隐藏的旧并发/缓存/保留线不能被 UI 默认值覆盖。
-      const committedRevision = await onSave(
-        baseRevision,
-        strategy === "legacy"
-          ? null
-          : { ...policy, version: 1, strategy: strategy as RoutingStrategy },
-      );
+      // 新规则只保存策略，旧隐藏参数不再从表单透传。
+      const committedRevision = await onSave(baseRevision, {
+        version: 1,
+        strategy: strategy as RoutingStrategy,
+      });
       setBaseRevision(committedRevision);
     } catch {
       setError(true);
@@ -181,7 +178,7 @@ function RoutingFields({
             size="sm"
             onClick={() => {
               setBaseRevision(revision);
-              setStrategy(policy?.strategy ?? "legacy");
+              setStrategy(policy?.strategy ?? "reliable-first");
               setError(false);
             }}
           >

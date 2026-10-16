@@ -58,6 +58,14 @@ for (const [width, locale, theme] of [
       };
       await visit("default");
       await noAdvanced();
+      await editor.getByTestId("routing-strategy").click();
+      assert.equal(await page.getByRole("option").count(), 5);
+      assert.equal(await page.getByTestId("routing-option-legacy").count(), 0);
+      await page.keyboard.press("Escape");
+      assert.equal(
+        (await editor.getByTestId("routing-strategy").textContent()).trim(),
+        locale === "zh-CN" ? "可靠优选" : "Reliable first",
+      );
       await choose("reliable-first");
       const toggle = editor.getByTestId("routing-toggle");
       await toggle.click();
@@ -146,10 +154,9 @@ for (const [width, locale, theme] of [
         fullPage: true,
       });
       await toggle.click();
-      await choose("legacy");
-      await save("legacy");
+      await choose("reliable-first");
+      await save("reliable-first");
       await visit("advanced");
-      const initial = await page.evaluate(() => window.__routingFixture.policy);
       const metadata = await page.evaluate(() => window.__routingFixture.keyMetadata);
       await choose("expiry-first");
       await page.evaluate(() => window.__routingFixture.bumpRevision());
@@ -160,7 +167,7 @@ for (const [width, locale, theme] of [
       await choose("primary-backup");
       await save("primary-backup");
       assert.deepEqual(await page.evaluate(() => window.__routingFixture.policy), {
-        ...initial,
+        version: 1,
         strategy: "primary-backup",
       });
       assert.deepEqual(await page.evaluate(() => window.__routingFixture.keyMetadata), metadata);

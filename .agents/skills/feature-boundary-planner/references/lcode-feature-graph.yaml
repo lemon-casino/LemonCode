@@ -92,7 +92,7 @@ nodes:
       - "Account revision delivers providers and exact model rules together; Agent accepts safe OAuth metadata without credentials or personal overrides."
   - id: capability.provider-routing-strategies
     kind: capability
-    label: Explicit same-provider connection routing
+    label: Automatic same-provider connection routing
     aliases: [连接调度, 可靠优选, 主备接管, 份额轮转, 余量均衡, 到期优先, 批量Key路由, 共享额度池]
     codeSeeds:
       - file: packages/shared/src/provider-routing.ts
@@ -119,13 +119,19 @@ nodes:
         symbol: RoutingRecovery
       - file: apps/lcode-cli/packages/adapters/src/model/api-key-shared-diagnostics.ts
         symbol: sharedQuotaView
+      - file: packages/provider/src/routing/cache-facts.ts
+        symbol: readRoutingCacheFacts
+      - file: apps/lcode-cli/packages/adapters/src/model/api-key-provider-gate.ts
+        symbol: ApiKeyProviderGate
+      - file: packages/services/src/model-provider/providerRoutingFeedback.ts
+        symbol: ProviderRoutingFeedback
     invariants:
-      - "Absent routing preserves legacy selection. Dedicated policy writes use the existing personal settings owner and preserve key save generations."
+      - "Absent/null routing uses reliable-first. Settings persist only the selected strategy through the existing owner and preserve credential generations and unsettled debits."
       - "ProviderAccounts and the original API key pool own reservations. Planning is read-only; physical response completion releases slots and unverified consumption remains conservative."
       - "Every relevant quota window constrains the same attempt. Only explicit shared resource identities merge account balances."
       - "Turn bindings and portability precede soft cache preferences; unknown TTL never implies a five-minute cache benefit."
       - "Enhanced OAuth negotiates single-attempt-routing-v1 and cannot hide additional model POSTs behind one Runner permit."
-      - "Settings presents only a compact collapsible strategy selector with contextual help; hidden policy and legacy Key metadata remain compatible without Key-page reads."
+      - "Settings presents exactly five strategies in a compact collapsible selector with contextual help; no legacy option or manual batch fields are available."
       - "Token bounds and explicitly shared pools constrain one reservation; toggling policy cannot erase existing debits."
       - "Cohorts and winner trees derive from the same Scheduler owner; dispersed hot selection avoids full scans and reports affected members and index work."
       - "An injected local shared-quota file owner serializes all pool windows before fetch; dispatched unknown usage is never refunded by TTL or process exit."

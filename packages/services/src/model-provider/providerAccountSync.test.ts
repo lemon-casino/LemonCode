@@ -1,3 +1,4 @@
+import { randomUUID as routingUuid } from "node:crypto";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -51,6 +52,7 @@ test("every registered channel survives Host sync, process Registry and authenti
       const index = PROVIDER_AUTH_CHANNELS.findIndex((channel) => channel.id === channelId);
       const protocol = protocols[index % protocols.length]!;
       return {
+        routingSingleAttempt: true,
         methods: async () => [
           { id: "local", label: "Fixture local sign-in", type: "oauth", kind: "local" },
         ],
@@ -150,7 +152,7 @@ test("every registered channel survives Host sync, process Registry and authenti
       ?.models[0]?.effectiveBuiltinConfig;
     assert.equal(recommended?.properties?.contextWindow, 200000, `smart defaults: ${channel.id}`);
     const protocol = protocols[index % protocols.length]!;
-    const auth = await service.resolveRequestAuth(channel.id, model.modelId, protocol);
+    const auth = await resolveAuth(service, channel.id, model.modelId, protocol);
     const response = await fetch(`${auth.baseURL}${paths[protocol]}`, {
       method: "POST",
       headers: { authorization: `Bearer ${auth.apiKey}`, "content-type": "application/json" },
@@ -177,3 +179,26 @@ test("every registered channel survives Host sync, process Registry and authenti
   );
   assert.throws(() => parseAccountModelConfigRules([{ modelMatch: ".*", config: {} }], providers));
 });
+
+function routingContext() {
+  return {
+    capability: "single-attempt-routing-v1" as const,
+    workspaceKey: "fixture-workspace",
+    sessionId: "fixture-session",
+    attemptId: routingUuid(),
+    turnId: routingUuid(),
+    tokens: { total: 8192, quality: "bound" as const },
+  };
+}
+function resolveAuth(
+  service: Pick<ProviderAccounts, "resolveRequestAuth">,
+  ...args: Parameters<ProviderAccounts["resolveRequestAuth"]>
+) {
+  return service.resolveRequestAuth(
+    args[0],
+    args[1],
+    args[2],
+    args[3] ?? "fixture-session",
+    args[4] ?? routingContext(),
+  );
+}

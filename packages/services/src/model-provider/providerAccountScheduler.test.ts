@@ -150,7 +150,7 @@ test("model-scoped rejection does not mark an account's other models as exhauste
   // 模型隔离需要驱动确认的局部限流；未知 scope 的 429 现按 provider 保守处理。
   first!.finish(
     routes[0]!.account,
-    new Response("limited", { status: 429, headers: { "x-lcode-rate-limit-scope": "key" } }),
+    new Response("limited", { status: 429, headers: { "x-lcode-rate-limit-scope": "model" } }),
   );
   const other = [
     { account: routes[0]!.account, model: { ...routes[0]!.model, id: "other-model" } },

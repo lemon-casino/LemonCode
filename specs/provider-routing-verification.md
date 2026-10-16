@@ -1,5 +1,7 @@
 # 连接调度首批实现与验证
 
+> 最新结果见本文末“2026-10-16 OAuth/API 加固交付”；旧 legacy/隐藏参数兼容描述仅记录历史，当前规则以 [加固 spec](provider-routing-hardening.md) 为准。
+
 日期：2026-10-16。基线：`05c9d6e3`。本文件区分已落地功能、实际执行证据和仍未完成的完整 spec 门禁；不把目录里的 96 个计划场景整体标记为通过。
 
 ## 已落地的执行边界
@@ -226,3 +228,52 @@ pnpm architecture:check --changed
 最终完整路由回归与类型检查并行时的本机观测：五策略各 100,000 个独立 pool/cohort，冷建约 3.76–4.48 秒，热 p95 约 0.34–1.29 ms；50 次热循环后 scannedKeys 仍为 100,000，rankBuilds=1，刷新 102 个叶子。API Registry 加真实共享文件 IO：冷建 6.84 秒，热 p95 16.78 ms，只生成被选中 pool 的 1 个文件。这些是本机证据，不是跨平台 SLA。
 
 失败和通过轨迹位于本机 .tmp/routing-recovery-\*.log；最终门禁日志使用 delivery 前缀，界面日志为 routing-recovery-ui.log。仅使用虚构凭据与本地 HTTP；未用真实厂商调用替代验证，未实测 macOS/Linux、跨机器或完整经济收益回放。价格、TTL、共享关系与覆盖水位未知时继续安全降级，不添加人工配置填空。
+
+## 2026-10-16 OAuth/API 加固交付
+
+基线 d8b440dc。对应 [加固 spec](provider-routing-hardening.md)，按“规格 → 失败测试 → 实现 → 实测”推进，原有策略数学规则继续共用同一调度 owner。
+
+### 已完成的优先项
+
+- OAuth invocation 沿原 Runner/core/协议/票据传递 input/output/total Token 上界、创建时间和缓存兼容键，三个 Token 窗口独立借记及实际分量对账。未知需求使用独占探测并在诊断标明，不能冒充零消费。
+- OAuth 活跃流与未确认归一反馈不按签发五分钟删除。真实 HTTP 长流跨时钟边界后仍可反馈；同票据禁止再次模型 POST；反馈最多三次、payload 不变，永久失败可读，不能重发模型请求。
+- 并发同代失败合并最大 Retry-After，重复反馈不延长截止；新 probe 后旧反馈无权覆盖。使用 closed permit 和活跃引用检查回收健康 tombstone，文件原 sequence/fence 仍校验。
+- API 明确区分 key/model/pool/provider，未知 429 为 provider；未知 5xx 默认 model。provider 文件 gate 覆盖所有 Key，固定 provider → pool 锁序；独立 Key 不被猜成实际共享额度池。pool 写入失败也不能回滚已接收的 provider 冷却。
+- 文件版本 3 在锁内迁移 v1/v2 并保留借记。过期零余额与 stale 窗口只允许同资源一次探索，不补满额度；未知派发不因 TTL/PID 清账。健康记录、已确认 attempt 缓存、借记明细、统计桶和 profile 设容量；未确认状态容量满明确失败。
+- 上游显式缓存契约头提供来源、TTL、组、可移植性和同单位切换成本；没有真实声明就保持未知。原手填缓存 TTL/组不再作为运行事实。最终探索覆盖软绑定时，cacheDecision 明确记录 switch。
+- 共享诊断每页最多 100 pool、最多 4 个并行文件读取，恢复投影有总数/截断；失败反馈含安全的 provider/pool/哈希 lease 定位。设置仍只有五策略，缺省/null 为可靠优选，不保留 legacy 或隐藏参数透传。
+
+### 红灯与实际验证
+
+首批 core/OAuth 5 个审计复现、API 5 个复现均先失败，再通过；UI 先暴露 6 对 5 选项错误。后续补充了 provider 冷却随下游 IO 失败丢失、未知 Token 探测诊断的失败回归，修复后通过。初次类型检查发现 SDK 夹具自引用推断错误，补显式类型后的最终检查通过；没有把初次失败计作通过。
+
+| 验证                              | 最终真实结果                                                                                                                                                                                                 |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| pnpm test:provider-routing        | **430/430 通过**；较基线 399 增加 31 项，包含五策略、原差分回归、真实双进程、坏文件/迁移/崩溃/未知派发及本轮故障注入。                                                                                       |
+| pnpm test:provider-routing-ui     | **2/2 通过**；桌面横排与手机布局、五选项、默认可靠优选、保存投影、折叠和帮助均验证。                                                                                                                         |
+| OAuth 真实 SDK                    | chat-completions、responses、anthropic-messages，各 generate/stream，共 **6 项通过**。通过子进程真实 Runner/SDK、本地票据 HTTP、原 ProviderAccounts；POST=1，Token 预留=60，实际回填=15，归因 unresolved=0。 |
+| OAuth 长流                        | 实际 HTTP 流配合可注入时钟跨五分钟；其它票据签发清理不丢原反馈，旧票据模型重放=403，结束后宽限期到期才拒绝反馈。此处是确定性时钟验证，不是等待五分钟墙钟。                                                   |
+| API 跨进程与恢复                  | 两个真实进程无法通过换 pool 绕过 provider 429；并发/重复 Retry-After、独占 probe、下游 pool 反馈失败仍保留 provider 冷却均通过。                                                                             |
+| pnpm typecheck / pnpm lint        | **最终均通过**。                                                                                                                                                                                             |
+| CLI typecheck / lint              | **27/27 与 14/14 任务通过**；最终规则检查 0 errors / 0 warnings。Turbo 仍提示已有 lockfile 缺 node-repl-host workspace 条目，退出为 0。                                                                      |
+| pnpm architecture:check --changed | **通过，violations/baseline/new 均为 0**。                                                                                                                                                                   |
+| 格式与领域图                      | 本轮文件使用各包 oxfmt 检查；图 YAML、唯一 ID、边端点/rank、15 个 routing seed 路径/符号校验通过，目标节点以外的本地改动保留。                                                                               |
+
+### 十万 Key 的实际测量及限制
+
+最终完整回归与类型检查并行运行时：五策略各 100000 个不同 cohort，冷建约 3.23–3.55 秒，热 p95 约 0.27–0.62 ms，热循环不再全量扫描。真实共享文件 IO 场景冷建 **4.99 秒**、热 p95 **17.99 ms**；仅创建被选中的 1 个 pool 文件和 1 个 provider gate，没有为其余 99999 个 pool 建文件。
+
+长期状态测试为 **100000 条目录、9 个模型 profile、10000 个已完成请求、约七天虚拟时钟（10000 × 60 秒）**。不是七天真实进程驻留。最终 profile=2、cohort=200000、rankBuilds=9、扫描=900000，热阶段扫描不增长；attempt 和借记明细均为 4096。已确认借记折叠保留总量/覆盖水位，未知借记不退款。
+
+该高分散长跑测得每个新 profile 冷建 **2.33–3.31 秒**，热 p95 **0.701 ms**，峰值 RSS **1452 MiB**、结束 heap **510 MiB**，事件循环最大延迟 **6.34 秒**。profile 预算和提前 LRU 回收避免无限积累，但**同步冷建停顿和较高内存仍是后续性能优化项**；不能据热 p95 宣称全程低延迟。数值是本机并行负载观测，不是跨平台 SLA。
+
+### 仍未由本轮验证替代的事项
+
+- 真实厂商的缓存命中、价格/币种、缓存重建成本及完整经济收益回放；未提供事实时按 unknown 分支运行。
+- macOS/Linux、跨机器、网络文件系统与七天真实墙钟浸泡；本轮只实测当前 Windows、本地文件锁、真实独立 Node 进程及本地 HTTP。
+- 主规格中更完整的窗口压力向量/归一负载/历史工作衰减、含排队的完成时间预测与共享资源未来需求分配，仍需单独实现/验收；本次没有把这些数学模型算作已完成。
+- 无 single-attempt 认证能力的 OAuth 驱动现明确拒绝；不使用 legacy 绕过。该迁移属于用户本轮“不保留旧配置行为”的边界。
+
+详细运行轨迹保存在本机 .tmp/routing-hardening-\*.log；最终路由、类型、lint 使用 final 前缀，交互红/绿轨迹分别为 ui-red/ui，故障与探测红灯为 gate-red/probe-red。日志中的 Key 与供应商均为虚构夹具，未调用真实厂商计费接口。
+
+最后还补了 provider 许可不可删除/跨预留拼接的失败回归，修复并进入 430 项最终回归。一次验证 shell 在系统 oh-my-posh profile 初始化时停滞，该次未启动测试；只停止本任务的相关 shell/helper 后以 NoProfile 重跑，Node 24.21.0、pnpm 10.34.6。没有修改用户 profile。

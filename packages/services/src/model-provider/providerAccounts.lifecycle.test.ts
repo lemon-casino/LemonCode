@@ -1,3 +1,4 @@
+import { randomUUID as routingUuid } from "node:crypto";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -87,6 +88,7 @@ test("cold hosts share a serial credential refresh and revoked tickets cannot ca
   let maxActive = 0;
   const versions: number[] = [];
   const driver = (): AuthDriver => ({
+    routingSingleAttempt: true,
     methods: async () => [{ id: "login", label: "Login", type: "oauth" }],
     authorize: async () => ({
       method: "code",
@@ -116,7 +118,7 @@ test("cold hosts share a serial credential refresh and revoked tickets cannot ca
   const first = new ProviderAccounts(options);
   const second = new ProviderAccounts(options);
   async function invoke(service: ProviderAccounts) {
-    const auth = await service.resolveRequestAuth("fixture", "fixture", undefined, "session");
+    const auth = await resolveAuth(service, "fixture", "fixture", undefined, "session");
     return fetch(auth.baseURL + "/chat/completions", {
       method: "POST",
       headers: { authorization: `Bearer ${auth.apiKey}` },
@@ -131,14 +133,14 @@ test("cold hosts share a serial credential refresh and revoked tickets cannot ca
     assert.deepEqual(await Promise.all(responses.map((response) => response.text())), ["ok", "ok"]);
     assert.equal(maxActive, 1);
     assert.deepEqual(versions, [0, 1]);
-    const auth = await second.resolveRequestAuth("fixture", "fixture", undefined);
+    const auth = await resolveAuth(second, "fixture", "fixture", undefined);
     await first.removeAccount((await first.getView()).accounts[0]!.connectionId);
     const response = await fetch(auth.baseURL + "/chat/completions", {
       method: "POST",
       headers: { authorization: `Bearer ${auth.apiKey}` },
       body: JSON.stringify({ model: "fixture" }),
     });
-    assert.equal(response.status, 403);
+    assert.equal(response.status, 409);
     assert.equal(versions.length, 2);
   } finally {
     await first.dispose();
@@ -200,3 +202,26 @@ test("deleting an account fences a late model refresh and credential update", as
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+function routingContext() {
+  return {
+    capability: "single-attempt-routing-v1" as const,
+    workspaceKey: "fixture-workspace",
+    sessionId: "fixture-session",
+    attemptId: routingUuid(),
+    turnId: routingUuid(),
+    tokens: { total: 8192, quality: "bound" as const },
+  };
+}
+function resolveAuth(
+  service: Pick<ProviderAccounts, "resolveRequestAuth">,
+  ...args: Parameters<ProviderAccounts["resolveRequestAuth"]>
+) {
+  return service.resolveRequestAuth(
+    args[0],
+    args[1],
+    args[2],
+    args[3] ?? "fixture-session",
+    args[4] ?? routingContext(),
+  );
+}

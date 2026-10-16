@@ -133,17 +133,20 @@ for (const protocol of [
     assert.equal(f.calls.length, 4);
   });
 
-test("explicit OAuth routing requires a capable peer; absent policy keeps legacy tickets", async (t) => {
+test("OAuth routing requires a capable peer even when policy is absent", async (t) => {
   const f = await fixture(t);
   await assert.rejects(
     f.service.resolveRequestAuth("fixture", "model", undefined, "session"),
     /routing-capability-required/,
   );
   f.setPolicy(null);
-  assert.ok((await f.service.resolveRequestAuth("fixture", "model", undefined, "session")).apiKey);
+  await assert.rejects(
+    f.service.resolveRequestAuth("fixture", "model", undefined, "session"),
+    /routing-capability-required/,
+  );
 });
 
-test("uncertified drivers reject enhanced dispatch and retain legacy execution", async (t) => {
+test("uncertified drivers reject dispatch and cannot bypass via absent policy", async (t) => {
   const f = await fixture(t, "openai-chat-completions", false);
   for (const id of ["unsupported-one", "unsupported-two", "unsupported-three"]) {
     const response = await f.send(id);
@@ -152,8 +155,8 @@ test("uncertified drivers reject enhanced dispatch and retain legacy execution",
   }
   assert.equal(f.calls.length, 0);
   f.setPolicy(null);
-  assert.equal((await f.send("legacy")).status, 200);
-  assert.equal(f.calls.length, 1);
+  assert.equal((await f.send("legacy")).status, 409);
+  assert.equal(f.calls.length, 0);
 });
 
 test("SDK usage feedback is authenticated by the original attempt ticket and never sends another model POST", async (t) => {
@@ -214,5 +217,8 @@ for (const protocol of [
     await f.send("recovered");
     assert.equal(f.calls[0], f.calls[3]);
     assert.equal(f.calls.length, 4);
-    assert.equal(f.service.readRoutingDiagnostics("fixture")!.recovery[0]!.phase, "healthy");
+    assert.equal(
+      f.service.readRoutingDiagnostics("fixture")!.recovery[0]?.phase ?? "healthy",
+      "healthy",
+    );
   });

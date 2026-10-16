@@ -6,11 +6,16 @@ import type { AuthWireProtocol } from "@lcode/provider-node";
 import { RoutingError } from "@lcode/provider";
 import { routingUsageSchema, type RoutingInvocation, type RoutingUsage } from "@lcode/shared";
 
+const TICKET_CAPACITY = 4096,
+  TICKET_TTL_MS = 5 * 60_000;
 interface Ticket {
   channelId: string;
   modelId: string;
   protocol: AuthWireProtocol;
   expires: number;
+  used?: boolean;
+  active?: boolean;
+  feedbackComplete?: boolean;
   sessionId?: string;
   routingInvocation?: RoutingInvocation;
 }
@@ -22,6 +27,7 @@ export class ProviderAccountTransport {
   constructor(
     private readonly execute: (ticket: Ticket, request: Request) => Promise<Response>,
     private readonly feedback?: (ticket: Ticket, usage: RoutingUsage) => void | Promise<void>,
+    private readonly now: () => number = Date.now,
   ) {}
   async issue(
     channelId: string,
@@ -32,7 +38,14 @@ export class ProviderAccountTransport {
   ) {
     const baseURL = await (this.#ready ??= this.#start());
     for (const [key, ticket] of this.#tickets)
-      if (ticket.expires < Date.now()) this.#tickets.delete(key);
+      if (!ticket.active && ticket.expires < this.now()) this.#tickets.delete(key);
+    if (this.#tickets.size >= TICKET_CAPACITY) {
+      const terminal = [...this.#tickets].find(
+        ([, ticket]) => ticket.used && !ticket.active && ticket.feedbackComplete,
+      );
+      if (terminal) this.#tickets.delete(terminal[0]);
+      else throw new RoutingError("quota-owner-capacity", { phase: "admission" });
+    }
     const apiKey = randomBytes(32).toString("hex");
     this.#tickets.set(apiKey, {
       channelId,
@@ -40,7 +53,7 @@ export class ProviderAccountTransport {
       protocol,
       sessionId,
       routingInvocation,
-      expires: Date.now() + 5 * 60_000,
+      expires: this.now() + TICKET_TTL_MS,
     });
     return { baseURL, apiKey };
   }
@@ -48,6 +61,7 @@ export class ProviderAccountTransport {
     return new Promise((resolve, reject) => {
       const server = createServer((req, res) => {
         void (async () => {
+          let activeTicket: Ticket | undefined;
           const controller = new AbortController();
           this.#controllers.add(controller);
           res.on("close", () => {
@@ -69,7 +83,8 @@ export class ProviderAccountTransport {
                   : "/v1/chat/completions";
             if (
               !ticket ||
-              ticket.expires < Date.now() ||
+              (!ticket.active && ticket.expires < this.now()) ||
+              (!usageFeedback && ticket.used) ||
               req.method !== "POST" ||
               (path !== expected && !usageFeedback)
             ) {
@@ -94,6 +109,7 @@ export class ProviderAccountTransport {
                 return;
               }
               await this.feedback!(ticket, usage.data);
+              if (usage.data.outcome) ticket.feedbackComplete = true;
               res.writeHead(204);
               res.end();
               return;
@@ -110,6 +126,10 @@ export class ProviderAccountTransport {
               const value = req.headers[name];
               if (typeof value === "string") headers.set(name, value);
             }
+            // 同一票据只授权一次物理 POST；长流仅延长归一反馈能力，不能成为重放入口。
+            ticket.used = true;
+            ticket.active = true;
+            activeTicket = ticket;
             const response = await this.execute(
               ticket,
               new Request(`https://oauth.invalid${path}`, {
@@ -123,6 +143,8 @@ export class ProviderAccountTransport {
             for (const name of [
               "content-type",
               "retry-after",
+              "retry-after-ms",
+              "x-lcode-rate-limit-scope",
               "x-zcode-connection-id",
               "x-zcode-routing-strategy",
               "x-zcode-routing-reason",
@@ -146,7 +168,7 @@ export class ProviderAccountTransport {
                   ...(error.details.retryAt !== undefined
                     ? {
                         "retry-after": String(
-                          Math.max(0, Math.ceil((error.details.retryAt - Date.now()) / 1000)),
+                          Math.max(0, Math.ceil((error.details.retryAt - this.now()) / 1000)),
                         ),
                       }
                     : {}),
@@ -172,6 +194,10 @@ export class ProviderAccountTransport {
               );
             } else res.destroy();
           } finally {
+            if (activeTicket) {
+              activeTicket.active = false;
+              activeTicket.expires = this.now() + TICKET_TTL_MS;
+            }
             this.#controllers.delete(controller);
           }
         })();

@@ -35,6 +35,13 @@ export interface ModelInvocationContext {
   streamRecovery?: ModelStreamRecoveryStatus;
   preserveProviderStreamBoundaries?: boolean;
   refreshRuntimeHeadersBeforeAttempt?: (input: {
+    routingTokens?: {
+      input?: number;
+      output?: number;
+      total?: number;
+      quality: "bound" | "estimated";
+    };
+    routingCompatibilityKey?: string;
     accountAccess?: LCodeModelAccountAccess;
     attempt: number;
     reason?: "model-request";

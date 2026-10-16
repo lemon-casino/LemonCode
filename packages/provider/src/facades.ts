@@ -450,7 +450,7 @@ export class ProviderSettingsFacade {
       if (!target.setProviderRouting) throw new Error("Provider routing mutation is unavailable");
       return target.setProviderRouting(
         parsed.providerId,
-        parsed.routing,
+        { version: 1, strategy: parsed.routing?.strategy ?? "reliable-first" },
         this.#modelMembership(parsed.providerId),
       );
     });

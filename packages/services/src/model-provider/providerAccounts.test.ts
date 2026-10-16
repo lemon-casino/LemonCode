@@ -1,3 +1,4 @@
+import { randomUUID as routingUuid } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -33,6 +34,7 @@ test("same supplier keeps independent accounts, fails over and never changes API
     },
     channels: [{ id: "fixture", name: "Fixture" }],
     factory: async (): Promise<AuthDriver> => ({
+      routingSingleAttempt: true,
       methods: async () => [{ id: "login", label: "Login", type: "oauth" }],
       authorize: async () => ({
         method: "code",
@@ -57,7 +59,10 @@ test("same supplier keeps independent accounts, fails over and never changes API
       fetch: async (_request, context) => {
         const access = (await context.read())!.access!;
         calls.push(access);
-        return new Response(access, { status: access === "1" ? 429 : 200 });
+        return new Response(access, {
+          status: access === "1" ? 429 : 200,
+          headers: { "x-lcode-rate-limit-scope": "key" },
+        });
       },
     }),
   });
@@ -124,13 +129,21 @@ test("same supplier keeps independent accounts, fails over and never changes API
     assert.equal(edited.properties.contextWindow, 160000);
     assert.equal(edited.optionSpecs.maxOutputTokens.max, 16000);
     assert.deepEqual(personal.get("existing")!.toJSON(), api.toJSON());
-    const auth = await service.resolveRequestAuth("fixture", "model", "openai-chat-completions");
+    const auth = await resolveAuth(service, "fixture", "model", "openai-chat-completions");
     const response = await fetch(`${auth.baseURL}/chat/completions`, {
       method: "POST",
       headers: { authorization: `Bearer ${auth.apiKey}`, "content-type": "application/json" },
       body: JSON.stringify({ model: "model", messages: [] }),
     });
-    assert.equal(await response.text(), "2");
+    assert.equal(response.status, 429);
+    assert.equal(await response.text(), "1");
+    const nextAuth = await resolveAuth(service, "fixture", "model", "openai-chat-completions");
+    const next = await fetch(nextAuth.baseURL + "/chat/completions", {
+      method: "POST",
+      headers: { authorization: "Bearer " + nextAuth.apiKey, "content-type": "application/json" },
+      body: JSON.stringify({ model: "model", messages: [] }),
+    });
+    assert.equal(await next.text(), "2");
     assert.deepEqual(calls, ["1", "2"]);
     await service.removeAccount(view.accounts[1]!.connectionId);
     const remaining = await service.getView();
@@ -182,3 +195,26 @@ test("cancelled authorization rejects late success without resurrecting an accou
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+function routingContext() {
+  return {
+    capability: "single-attempt-routing-v1" as const,
+    workspaceKey: "fixture-workspace",
+    sessionId: "fixture-session",
+    attemptId: routingUuid(),
+    turnId: routingUuid(),
+    tokens: { total: 8192, quality: "bound" as const },
+  };
+}
+function resolveAuth(
+  service: Pick<ProviderAccounts, "resolveRequestAuth">,
+  ...args: Parameters<ProviderAccounts["resolveRequestAuth"]>
+) {
+  return service.resolveRequestAuth(
+    args[0],
+    args[1],
+    args[2],
+    args[3] ?? "fixture-session",
+    args[4] ?? routingContext(),
+  );
+}

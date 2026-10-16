@@ -15,6 +15,13 @@ export function createRefreshRuntimeHeadersBeforeModelAttempt(
 ):
   | ((attemptInput: {
       accountAccess?: LCodeModelAccountAccess;
+      routingTokens?: {
+        input?: number;
+        output?: number;
+        total?: number;
+        quality: "bound" | "estimated";
+      };
+      routingCompatibilityKey?: string;
       attempt: number;
       reason?: "model-request";
       abortSignal?: AbortSignal;
@@ -45,6 +52,8 @@ export function createRefreshRuntimeHeadersBeforeModelAttempt(
     const abortSignal = attemptInput.abortSignal ?? input.abortSignal;
     const refreshResult = await runtimeHeadersPort.refreshBeforeModelRequest({
       accountAccess: attemptInput.accountAccess,
+      routingTokens: attemptInput.routingTokens,
+      routingCompatibilityKey: attemptInput.routingCompatibilityKey,
       abortSignal,
       modelId: String(input.model.modelId),
       providerId: String(input.model.providerId),

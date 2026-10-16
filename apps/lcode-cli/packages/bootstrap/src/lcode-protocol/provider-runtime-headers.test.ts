@@ -31,6 +31,8 @@ function createPort(
 
 function refresh(port: ReturnType<typeof createProviderRuntimeHeadersPort>) {
   return port.refreshBeforeModelRequest({
+    routingTokens: { input: 40, output: 20, total: 60, quality: "bound" },
+    routingCompatibilityKey: "fixture-options",
     modelId: "model-a",
     providerId: "provider-a",
     reason: "model-request",
@@ -65,6 +67,11 @@ test("routing context is negotiated and an older Host receives exactly the legac
     );
     await refresh(port);
     assert.equal(Boolean(params?.routingInvocation), supported);
+    if (supported) {
+      const invocation = params!.routingInvocation as { tokens: unknown; compatibilityKey: string };
+      assert.deepEqual(invocation.tokens, { input: 40, output: 20, total: 60, quality: "bound" });
+      assert.equal(invocation.compatibilityKey, "fixture-options");
+    }
   }
 });
 

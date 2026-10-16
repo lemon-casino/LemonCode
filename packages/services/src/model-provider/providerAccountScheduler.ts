@@ -2,13 +2,17 @@ import {
   RoutingScheduler,
   RoutingRecovery,
   RoutingError,
+  readRoutingCacheFacts,
+  type RoutingCacheFacts,
   readRateLimitHint,
+  readRateLimitScope,
   type RoutingCandidate,
   type RoutingWindow,
   type ProviderRoutingPolicy,
 } from "@lcode/provider";
 import { routingInvocationSchema, type RoutingInvocation, type RoutingUsage } from "@lcode/shared";
 import type { AuthModel } from "@lcode/provider-node";
+import { ProviderRoutingFeedback } from "./providerRoutingFeedback.js";
 import type { ProviderAccountQuotas } from "./providerAccountQuotas.js";
 
 interface Account {
@@ -22,7 +26,6 @@ interface Route<T extends Account> {
   model: AuthModel;
 }
 const WORK_QUANTUM = 4096;
-const CACHE_TTL = 5 * 60_000;
 
 /** 唯一 ProviderAccounts 的调度状态；额度只读原 cache，既不发 quota 请求也不写额度事实。 */
 export class ProviderAccountScheduler {
@@ -32,26 +35,22 @@ export class ProviderAccountScheduler {
     { generation: number; credentialGeneration?: number; until: number }
   >();
   private readonly recovery = new RoutingRecovery();
+  private readonly cacheFacts = new Map<string, RoutingCacheFacts>();
   private readonly now: () => number;
-  private readonly feedback = new Map<
-    string,
-    { expires: number; observe: (usage: RoutingUsage) => void }
-  >();
+  private readonly feedback: ProviderRoutingFeedback;
   constructor(
     readonly readPolicy: (channelId: string) => Promise<ProviderRoutingPolicy | null | undefined>,
     private readonly quotas: Pick<ProviderAccountQuotas, "peek">,
     options: { now?: () => number } = {},
   ) {
     this.now = options.now ?? Date.now;
+    this.feedback = new ProviderRoutingFeedback(this.now);
   }
 
-  async requireCapability(channel: string, invocation?: RoutingInvocation): Promise<boolean> {
-    const enabled = Boolean(await this.readPolicy(channel));
-    if (enabled) {
-      if (!invocation) throw new RoutingError("routing-capability-required");
-      routingInvocationSchema.parse(invocation);
-    }
-    return enabled;
+  async requireCapability(_channel: string, invocation?: RoutingInvocation): Promise<boolean> {
+    if (!invocation) throw new RoutingError("routing-capability-required");
+    routingInvocationSchema.parse(invocation);
+    return true;
   }
 
   async reserve<T extends Account>(
@@ -60,8 +59,11 @@ export class ProviderAccountScheduler {
     request: Request,
     invocation?: RoutingInvocation,
   ) {
-    const policy = await this.readPolicy(channel);
-    if (!policy) return undefined;
+    const stored = await this.readPolicy(channel);
+    const policy: ProviderRoutingPolicy = {
+      version: 1,
+      strategy: stored?.strategy ?? "reliable-first",
+    };
     if (!invocation) throw new RoutingError("routing-capability-required");
     const context = routingInvocationSchema.parse(invocation);
     const signature = JSON.stringify(policy);
@@ -75,8 +77,29 @@ export class ProviderAccountScheduler {
     }
     const now = this.now(),
       demands: Record<string, number> = {};
-    const recoveryKeys = new Map<string, { all: string[]; model: string; shared: string[] }>();
+    const providerRecoveryKey = JSON.stringify(["provider", channel]);
+    if (routes.length && !this.recovery.available([providerRecoveryKey], now))
+      throw new RoutingError("route-cooling", {
+        scope: "provider",
+        phase: "admission",
+        dispatch: "unsent",
+        retryAt: this.recovery.retryAt([providerRecoveryKey]),
+      });
+    const recoveryKeys = new Map<
+      string,
+      { all: string[]; account: string; provider: string; model: string; shared: string[] }
+    >();
+    const cacheKey = (id: string) =>
+      JSON.stringify([
+        channel,
+        id,
+        routes.find((r) => r.account.connectionId === id)?.account.routingEpoch ?? 0,
+        routes[0]?.model.protocol,
+        routes[0]?.model.id,
+      ]);
     const candidates: RoutingCandidate[] = routes.map(({ account, model }) => {
+      const storedCache = this.cacheFacts.get(cacheKey(account.connectionId));
+      const cache = storedCache && storedCache.validUntil > now ? storedCache : undefined;
       const cached = this.quotas.peek(
         account.connectionId,
         account.generation,
@@ -160,9 +183,17 @@ export class ProviderAccountScheduler {
         .filter((window) => window.shared)
         .map((window) => JSON.stringify(["pool", window.resourceId]));
       const providerKey = JSON.stringify(["provider", channel]);
-      const all = [providerKey, modelKey, ...shared];
+      const accountKey = JSON.stringify([
+        "account",
+        channel,
+        account.connectionId,
+        account.routingEpoch ?? 0,
+      ]);
+      const all = [providerKey, accountKey, modelKey, ...shared];
       recoveryKeys.set(account.connectionId, {
         all,
+        account: accountKey,
+        provider: providerKey,
         model: modelKey,
         shared: shared.length ? shared : [providerKey],
       });
@@ -170,7 +201,10 @@ export class ProviderAccountScheduler {
         id: account.connectionId,
         generation: String(account.routingEpoch ?? 0),
         windows,
-        portability: model.routingPortability ?? "unknown",
+        availableAt: this.recovery.retryAt(all),
+        portability: model.routingPortability ?? cache?.portability ?? "unknown",
+        cacheGroupId: cache?.groupId,
+        cacheSwitchCost: cache?.switchCost,
         ...(!this.recovery.available(all, now) || blocked ? { unavailable: "route-cooling" } : {}),
       };
     });
@@ -183,24 +217,38 @@ export class ProviderAccountScheduler {
       channel,
       routes[0]?.model.protocol,
       routes[0]?.model.id,
+      context.compatibilityKey ?? null,
     ]);
     const input = {
       attemptId: context.attemptId,
+      createdAt: context.createdAt,
       scopeKey,
       turnId: context.turnId,
       modelKey: JSON.stringify([routes[0]?.model.protocol, routes[0]?.model.id, "completion"]),
-      workUnits: WORK_QUANTUM,
+      workUnits: context.tokens?.total ?? WORK_QUANTUM,
+      tokens: context.tokens,
       demands,
       signal: request.signal,
     };
     const plan = entry.owner.plan(candidates, input);
     const original = entry.owner.reserve(candidates, input, plan.revision);
     const resources = recoveryKeys.get(original.routeId)!;
+    const affected = (scope: string | undefined, status: number) =>
+      scope === "key"
+        ? [resources.account]
+        : scope === "model"
+          ? [resources.model]
+          : scope === "shared" || scope === "pool"
+            ? resources.shared
+            : scope === "provider" || status === 429
+              ? [resources.provider]
+              : [resources.model];
     const permit = this.recovery.reserve(
       resources.all,
       JSON.stringify([channel, original.sequence]),
       now,
     );
+    let feedbackHandle: ReturnType<ProviderRoutingFeedback["retain"]> | undefined;
     const lease = {
       ...original,
       dispatch: () => {
@@ -215,10 +263,12 @@ export class ProviderAccountScheduler {
       cancel: () => {
         original.cancel();
         this.recovery.cancel(permit);
+        feedbackHandle?.cancel();
       },
       finish: (result: Parameters<typeof original.finish>[0]) => {
         original.finish(result);
         this.recovery.finish(permit, result.outcome ?? "unknown", this.now());
+        feedbackHandle?.finish();
       },
       observeUsage: (result: Parameters<typeof original.observeUsage>[0]) => {
         original.observeUsage(result);
@@ -226,10 +276,8 @@ export class ProviderAccountScheduler {
       },
     };
     const selected = candidates.find((candidate) => candidate.id === lease.routeId)!;
-    for (const [id, item] of this.feedback) if (item.expires <= now) this.feedback.delete(id);
-    this.feedback.set(JSON.stringify(context), {
-      expires: now + CACHE_TTL,
-      observe: (usage) => {
+    try {
+      feedbackHandle = this.feedback.retain(JSON.stringify(context), (usage) => {
         const actualDemands: Record<string, number> = {};
         for (const window of selected.windows) {
           if (window.unit === "tokens" && usage.workUnits !== undefined)
@@ -239,6 +287,12 @@ export class ProviderAccountScheduler {
           if (window.unit === "output_tokens" && usage.outputTokens !== undefined)
             actualDemands[window.resourceId] = usage.outputTokens;
         }
+        if (usage.statusCode === 429 || (usage.statusCode !== undefined && usage.statusCode >= 500))
+          this.recovery.fail(
+            permit,
+            affected(usage.rateLimitScope, usage.statusCode),
+            this.now() + (usage.retryAfterMs ?? 1000),
+          );
         lease.observeUsage({
           outcome: usage.outcome,
           statusCode: usage.statusCode,
@@ -246,25 +300,25 @@ export class ProviderAccountScheduler {
           workUnits: usage.workUnits,
           ...(Object.keys(actualDemands).length ? { actualDemands } : {}),
         });
-        if (usage.statusCode === 429 || (usage.statusCode !== undefined && usage.statusCode >= 500))
-          this.recovery.fail(
-            permit,
-            usage.statusCode === 429
-              ? usage.rateLimitScope === "key"
-                ? [resources.model]
-                : resources.shared
-              : usage.rateLimitScope === "shared"
-                ? resources.shared
-                : [resources.model],
-            this.now() + (usage.retryAfterMs ?? 1000),
-          );
-      },
-    });
+      });
+    } catch (error) {
+      lease.cancel();
+      throw error;
+    }
     return {
       lease,
       plan,
+      observeHeaders: (response: Response) => {
+        const cache = readRoutingCacheFacts(response.headers, this.now());
+        if (cache) this.cacheFacts.set(cacheKey(lease.routeId), cache);
+      },
       validate: async () => {
-        if (JSON.stringify(await this.readPolicy(channel)) !== signature) {
+        if (
+          JSON.stringify({
+            version: 1,
+            strategy: (await this.readPolicy(channel))?.strategy ?? "reliable-first",
+          }) !== signature
+        ) {
           lease.cancel();
           throw new RoutingError("policy-conflict");
         }
@@ -279,11 +333,7 @@ export class ProviderAccountScheduler {
         if (response && (response.status === 429 || response.status >= 500))
           this.recovery.fail(
             permit,
-            response.status === 429
-              ? readRateLimitHint(response.headers).scope === "shared"
-                ? resources.shared
-                : [resources.model]
-              : [resources.model],
+            affected(readRateLimitScope(response.headers), response.status),
             this.now() + readRateLimitHint(response.headers).delayMs,
           );
         // 已进入物理调用后无响应的失败仍需冷却；保留未知消费，不能靠下一请求直接重试失效连接。
@@ -293,14 +343,16 @@ export class ProviderAccountScheduler {
           statusCode: response?.status,
           outcome: request.signal.aborted ? "cancelled" : success ? "unknown" : "failed",
           replaySafeFailure: Boolean(response && !response.ok),
-          ...(success &&
-          routes.find((route) => route.account.connectionId === account.connectionId)?.model
-            .routingCacheTtlMs
+          ...(success
             ? {
                 cacheUntil:
-                  this.now() +
-                  routes.find((route) => route.account.connectionId === account.connectionId)!.model
-                    .routingCacheTtlMs!,
+                  this.cacheFacts.get(cacheKey(lease.routeId))?.validUntil ??
+                  (routes.find((route) => route.account.connectionId === account.connectionId)
+                    ?.model.routingCacheTtlMs
+                    ? this.now() +
+                      routes.find((route) => route.account.connectionId === account.connectionId)!
+                        .model.routingCacheTtlMs!
+                    : 0),
               }
             : {}),
         });
@@ -309,27 +361,31 @@ export class ProviderAccountScheduler {
   }
 
   observeUsage(invocation: RoutingInvocation, usage: RoutingUsage): void {
-    this.feedback.get(JSON.stringify(routingInvocationSchema.parse(invocation)))?.observe(usage);
+    this.feedback.observe(JSON.stringify(routingInvocationSchema.parse(invocation)), usage);
   }
 
   readDiagnostics(channel: string) {
     const owner = this.schedulers.get(channel)?.owner;
     if (!owner) return null;
+    const filter = (id: string) => {
+      try {
+        const resource = JSON.parse(id);
+        return (
+          resource[0] === channel ||
+          ((resource[0] === "provider" || resource[0] === "account") && resource[1] === channel) ||
+          (resource[0] === "pool" && JSON.parse(resource[1])[0] === channel)
+        );
+      } catch {
+        return false;
+      }
+    };
     return {
       asOf: this.now(),
       owner: owner.readDiagnostics(),
-      recovery: this.recovery.inspect(this.now()).filter((item) => {
-        try {
-          const resource = JSON.parse(item.resource);
-          return (
-            resource[0] === channel ||
-            (resource[0] === "provider" && resource[1] === channel) ||
-            (resource[0] === "pool" && JSON.parse(resource[1])[0] === channel)
-          );
-        } catch {
-          return false;
-        }
-      }),
+      feedback: this.feedback.inspect(),
+      recovery: this.recovery.inspect(this.now(), 0, 100, filter),
+      recoveryCount: this.recovery.count(filter),
+      recoveryTruncated: this.recovery.count(filter) > 100,
     };
   }
 
@@ -338,6 +394,7 @@ export class ProviderAccountScheduler {
     this.schedulers.clear();
     this.blocked.clear();
     this.recovery.clear();
+    this.cacheFacts.clear();
     this.feedback.clear();
   }
 }

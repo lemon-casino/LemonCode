@@ -436,6 +436,13 @@ export type RuntimeModelFactory = (input: RuntimeModelFactoryInput) => Model;
 export interface ProviderRuntimeHeadersPort {
   shouldRefreshBeforeModelRequest?(input: { providerId: string; modelId: string }): boolean;
   refreshBeforeModelRequest(input: {
+    routingTokens?: {
+      input?: number;
+      output?: number;
+      total?: number;
+      quality: "bound" | "estimated";
+    };
+    routingCompatibilityKey?: string;
     accountAccess?: LCodeModelAccountAccess;
     abortSignal?: AbortSignal;
     modelId: string;

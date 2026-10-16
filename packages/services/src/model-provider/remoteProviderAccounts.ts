@@ -161,11 +161,10 @@ export class RemoteProviderAccounts implements IProviderAccountService {
     routingInvocation?: RoutingInvocation,
   ) {
     const service = await this.#ready;
-    const policy = await this.options.readRouting?.(channelId);
     const capabilities = await service
       .getRoutingCapabilities?.()
       .catch((): readonly string[] => []);
-    if (policy && (!routingInvocation || !capabilities?.includes("single-attempt-routing-v1")))
+    if (!routingInvocation || !capabilities?.includes("single-attempt-routing-v1"))
       throw new Error("routing-capability-required");
     // 手动模型与目录内模型复用本机路由规则，不能在远端再维护一套账号资格判断。
     const model = resolveProviderAccountRoutes(
