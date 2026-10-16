@@ -64,7 +64,12 @@ test(
     assert.ok(after.lastInspected <= 32);
     assert.ok(after.refreshedKeys - before.refreshedKeys <= 200);
     const files = (await readdir(directory)).filter((f) => f.endsWith(".json"));
-    assert.equal(files.length, 1, "never create files for the unselected 99,999 pools");
+    assert.equal(
+      files.filter((f) => !f.endsWith(".provider.json")).length,
+      1,
+      "never create files for the unselected 99,999 pools",
+    );
+    assert.equal(files.filter((f) => f.endsWith(".provider.json")).length, 1);
     elapsed.sort((a, b) => a - b);
     assert.ok(elapsed[47]! < 100, `hot p95=${elapsed[47]}`);
     t.diagnostic(

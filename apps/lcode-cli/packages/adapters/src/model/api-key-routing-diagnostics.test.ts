@@ -125,3 +125,33 @@ test("RCD-09 runtime diagnostics distinguish local preview from global held quot
   assert.equal(actual.endedActual, 15);
   assert.equal(actual.available, 85);
 });
+
+test("HD-08 diagnostics bound pool IO concurrency and preserve row order", async () => {
+  let active = 0,
+    max = 0;
+  const registry = new ApiKeyPoolRegistry({
+    inspect: async () => {
+      active++;
+      max = Math.max(max, active);
+      await new Promise<void>((done) => setImmediate(done));
+      active--;
+      throw new RoutingError("quota-owner-unavailable");
+    },
+  } as unknown as SharedQuotaCoordinator);
+  registry.get(
+    "fixture",
+    undefined,
+    Array.from({ length: 12 }, (_, i) => ({
+      id: String(i),
+      apiKey: "synthetic",
+      routing: { quotaPoolId: String(i) },
+    })),
+  );
+  const view = await registry.readRuntimeDiagnostics("fixture", { limit: 12 });
+  assert.ok(max <= 4);
+  assert.deepEqual(
+    view!.sharedPools.map((pool) => pool.poolId),
+    Array.from({ length: 12 }, (_, i) => String(i)),
+  );
+  registry.dispose();
+});

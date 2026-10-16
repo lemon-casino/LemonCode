@@ -100,6 +100,7 @@ export interface AiSdkResolvedModel {
   providerOptions?: Record<string, unknown>;
   rawRequestBodyCapture?: RawRequestBodyCapture;
   speedObservation?: ModelSpeedObservation;
+  readRoutingFeedbackState?: () => { pending: boolean; attempts: number; delivered: boolean };
   observeRoutingUsage?: (usage: ModelUsage) => Promise<void> | void;
   observeRoutingFailure?: (
     status: number | undefined,
@@ -435,6 +436,7 @@ export class AiSdkModelExecution {
       baseURL: providerConfig.baseURL,
       ...(feedback
         ? {
+            readRoutingFeedbackState: feedback.diagnostics,
             observeRoutingUsage: (usage: ModelUsage) =>
               this.disposed
                 ? Promise.resolve()

@@ -32,11 +32,23 @@ export const sharedInputSchema = z.strictObject({
   windows: sharedWindowsSchema,
 });
 export const sharedQuotaStateSchema = z.strictObject({
-  schemaVersion: z.literal(2),
+  schemaVersion: z.literal(3),
+  quotaProbes: z
+    .record(
+      z.string(),
+      z.strictObject({
+        leaseId: z.string(),
+        revision: z.number().int().nonnegative(),
+        instanceId: z.string(),
+        dispatched: z.boolean(),
+      }),
+    )
+    .optional(),
   recovery: z.record(
     z.string(),
     z.strictObject({
       revision: z.number().int().nonnegative(),
+      failedFrom: z.number().int().nonnegative().optional(),
       retryAt: amount,
       phase: z.enum(["healthy", "cooling", "probing", "uncertain"]),
       probe: identifier.optional(),
@@ -91,6 +103,10 @@ export const sharedQuotaStateSchema = z.strictObject({
           versions: z.record(z.string(), z.number().int().nonnegative()),
           probes: z.array(z.string()).max(4),
           dispatched: z.boolean().optional(),
+          physicalEnded: z.boolean().optional(),
+          outcome: z.enum(["success", "failed", "cancelled"]).optional(),
+          failures: counts.optional(),
+          closed: z.boolean().optional(),
         })
         .optional(),
     }),
@@ -102,17 +118,30 @@ const legacySharedQuotaStateSchema = sharedQuotaStateSchema
   .extend({ schemaVersion: z.literal(1) });
 export function parseSharedQuotaState(input: unknown): SharedQuotaState {
   if ((input as { schemaVersion?: unknown })?.schemaVersion === 1)
-    return { ...legacySharedQuotaStateSchema.parse(input), schemaVersion: 2, recovery: {} };
+    return { ...legacySharedQuotaStateSchema.parse(input), schemaVersion: 3, recovery: {} };
+  if ((input as { schemaVersion?: unknown })?.schemaVersion === 2)
+    return {
+      ...sharedQuotaStateSchema.extend({ schemaVersion: z.literal(2) }).parse(input),
+      schemaVersion: 3,
+    };
   return sharedQuotaStateSchema.parse(input);
 }
 export const sharedFeedbackSchema = z.strictObject({
   outcome: z.enum(["success", "failed", "cancelled", "unknown"]).optional(),
   statusCode: z.number().int().min(400).max(599).optional(),
   retryAfterMs: amount.max(86400000).optional(),
-  rateLimitScope: z.enum(["key", "shared"]).optional(),
+  rateLimitScope: z.enum(["key", "model", "pool", "provider", "shared"]).optional(),
 });
+export function sharedRecovery(state: SharedQuotaState) {
+  return new RoutingRecovery(
+    state.recovery,
+    Object.values(state.leases).flatMap((lease) =>
+      lease.recoveryPermit ? [lease.recoveryPermit] : [],
+    ),
+  );
+}
 export const emptySharedQuotaState = (): SharedQuotaState => ({
-  schemaVersion: 2,
+  schemaVersion: 3,
   recovery: {},
   sequence: 0,
   current: {},

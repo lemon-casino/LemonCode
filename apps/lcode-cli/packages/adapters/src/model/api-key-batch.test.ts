@@ -38,14 +38,14 @@ function fixture(pool = false) {
   return { registry, keys, owner };
 }
 
-test("strategy disable and re-enable retains shared debits and fences unsent leases", () => {
+test("missing policy defaults to reliability and retains shared debits and pending fences", () => {
   const { registry, keys, owner } = fixture(true);
   owner.observeRoutingQuota({ poolId: "team", windows: [window()] });
   const first = owner.reserve(tokens("running"));
   first.begin!();
   const pending = owner.reserve(tokens("pending", 10, 10));
   registry.get("fixture", "generation", keys, null);
-  assert.equal(owner.routingEnabled, false);
+  assert.equal(owner.routingEnabled, true);
   assert.throws(() => pending.begin!(), /policy-conflict/);
   pending.release();
   registry.get("fixture", "generation", keys, { version: 1, strategy: "primary-backup" });
@@ -272,7 +272,7 @@ test("AKB-012 paginated diagnostics are redacted, readonly and reject stale revi
   registry.dispose();
 });
 
-test("batch Key priority and shares apply while explicit strategy fields take precedence", () => {
+test("obsolete batch weights are ignored and strategy-only rotation remains equal", () => {
   const registry = new ApiKeyPoolRegistry();
   const keys = [key("a"), key("b")].map((key, i) => ({
     ...key,
@@ -283,7 +283,7 @@ test("batch Key priority and shares apply while explicit strategy fields take pr
     strategy: "primary-backup",
   });
   const preferred = primary.reserve();
-  assert.equal(preferred.key.id, "b");
+  assert.equal(preferred.key.id, "a");
   preferred.release();
   const overridden = registry.get("fixture", "generation", keys, {
     version: 1,
@@ -311,7 +311,7 @@ test("batch Key priority and shares apply while explicit strategy fields take pr
       lease.end!(true);
       lease.release();
     }
-    assert.ok(explicit ? counts.a > counts.b * 2 : counts.b > counts.a * 2);
+    assert.ok(Math.abs(counts.a - counts.b) <= 1);
   }
   registry.dispose();
 });

@@ -1,6 +1,8 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   RoutingScheduler,
+  readRoutingCacheFacts,
+  type RoutingCacheFacts,
   type ProviderRoutingPolicy,
   type ProviderApiKey,
   type RoutingCandidate,
@@ -27,6 +29,7 @@ export class ApiKeyRouting {
   private readonly pools = new Set<string>();
   private readonly windows = new Map<string, RoutingWindow[]>();
   private revision = 0;
+  private readonly cacheFacts = new Map<string, RoutingCacheFacts>();
   private catalogIds?: readonly string[];
   private unavailable: (id: string, modelKey?: string) => boolean = () => false;
   private context?: RoutingRequest;
@@ -94,39 +97,44 @@ export class ApiKeyRouting {
     const lease = this.scheduler.reserveIndexed(context);
     const chosen = this.candidate(lease.routeId, context.modelKey);
     const selectedKey = this.byId.get(lease.routeId)!;
-    const ttl = selectedKey.routing?.cacheGroupId ? selectedKey.routing.cacheTtlMs : undefined;
     return {
       ...lease,
-      sharedQuotaInput:
-        this.coordinated && selectedKey.routing?.quotaPoolId
-          ? {
-              poolId: selectedKey.routing.quotaPoolId,
-              reserveRules: this.policyInput?.reserveRules?.filter(
-                (rule) =>
-                  !chosen.windows.some(
-                    (window) => !window.shared && window.resourceId === rule.resourceId,
-                  ),
-              ),
-              keyId: selectedKey.id,
-              maxInFlight: Math.min(
-                this.policyInput?.maxInFlightPerCandidate ?? 2,
-                chosen.windows.length ? Infinity : 1,
-              ),
-              request: {
-                createdAt: lease.createdAt,
-                attemptId: context.attemptId,
-                scopeKey: context.scopeKey,
-                modelKey: context.modelKey,
-                tokens: context.tokens,
-                demands: context.demands,
-              },
-              windows: this.sharedWindows(selectedKey.routing.quotaPoolId),
-            }
-          : undefined,
+      sharedQuotaInput: this.coordinated
+        ? {
+            poolId:
+              selectedKey.routing?.quotaPoolId ??
+              "key:" + createHash("sha256").update(selectedKey.id).digest("hex"),
+            reserveRules: this.policyInput?.reserveRules?.filter(
+              (rule) =>
+                !chosen.windows.some(
+                  (window) => !window.shared && window.resourceId === rule.resourceId,
+                ),
+            ),
+            keyId: selectedKey.id,
+            maxInFlight: Math.min(
+              this.policyInput?.maxInFlightPerCandidate ?? 2,
+              chosen.windows.length ? Infinity : 1,
+            ),
+            request: {
+              createdAt: lease.createdAt,
+              attemptId: context.attemptId,
+              scopeKey: context.scopeKey,
+              modelKey: context.modelKey,
+              tokens: context.tokens,
+              demands: context.demands,
+            },
+            windows: this.sharedWindows(selectedKey.routing?.quotaPoolId),
+          }
+        : undefined,
       sharedQuotaWindows: () => this.sharedWindows(selectedKey.routing?.quotaPoolId),
       observeHeaders: (headers: Headers) => this.observe(lease.routeId, headers, selectedKey),
       finish: (result: RoutingFinish) =>
-        lease.finish({ ...result, ...(ttl ? { cacheUntil: this.now() + ttl } : {}) }),
+        lease.finish({
+          ...result,
+          ...(this.cacheFacts.get(lease.routeId)
+            ? { cacheUntil: this.cacheFacts.get(lease.routeId)!.validUntil }
+            : {}),
+        }),
       observeUsage: (result: RoutingFinish) => {
         const actualDemands: Record<string, number> = { ...result.actualDemands };
         const usage = result.tokens;
@@ -188,6 +196,11 @@ export class ApiKeyRouting {
   observe(id: string, headers: Headers, retainedKey?: ProviderApiKey): void {
     const key = retainedKey ?? this.byId.get(id);
     if (!key) return;
+    const cache = readRoutingCacheFacts(headers, this.now());
+    if (cache) {
+      this.cacheFacts.set(id, cache);
+      this.scheduler?.touchDirectory(id);
+    }
     const windows: RoutingWindow[] = [];
     for (const unit of ["requests", "tokens"] as const) {
       const rawRemaining = headers.get(`x-ratelimit-remaining-${unit}`),
@@ -224,13 +237,16 @@ export class ApiKeyRouting {
   private candidate(id: string, modelKey?: string): RoutingCandidate {
     const key = this.byId.get(id)!;
     const privateWindows = this.windows.get(JSON.stringify(["key", id])) ?? [];
+    const rawCache = this.cacheFacts.get(id),
+      cache = rawCache && rawCache.validUntil > this.now() ? rawCache : undefined;
     return {
       id,
       generation: "pool",
       availableAt: this.availableAt(id, modelKey),
-      portability: "portable",
+      portability: cache?.portability ?? "portable",
+      cacheSwitchCost: cache?.switchCost,
       quotaGroupId: key.routing?.quotaPoolId,
-      cacheGroupId: key.routing?.cacheGroupId,
+      cacheGroupId: cache?.groupId,
       windows: key.routing?.quotaPoolId
         ? [...privateWindows, ...(this.windows.get(this.owner(key)) ?? [])]
         : privateWindows,
@@ -288,7 +304,8 @@ export class ApiKeyRouting {
         inFlight: this.scheduler?.routingInFlight(key.id) ?? 0,
         enabled: key.enabled !== false,
         quotaPoolId: key.routing?.quotaPoolId,
-        cacheGroupId: key.routing?.cacheGroupId,
+        cacheGroupId: candidate.cacheGroupId,
+        cacheFacts: structuredClone(this.cacheFacts.get(key.id)),
         strategy: plan?.effectiveStrategy,
         fallbackReason: plan?.fallbackReason,
         reason: plan?.excluded[key.id] ?? plan?.reason ?? "legacy",

@@ -1,3 +1,4 @@
+import { cancelSharedProbes } from "./api-key-shared-quota-probes.js";
 import { routingDemand } from "@lcode/provider";
 import type { SharedQuotaState } from "./api-key-shared-quota-state.js";
 
@@ -8,6 +9,7 @@ export function compactSharedQuota(state: SharedQuotaState, now: number): void {
     if (lease.expiresAt > now || lease.state === "reserved" || lease.state === "dispatched")
       continue;
     if (lease.state === "cancelled" || lease.state === "expired") {
+      cancelSharedProbes(state, id);
       delete state.leases[id];
       continue;
     }

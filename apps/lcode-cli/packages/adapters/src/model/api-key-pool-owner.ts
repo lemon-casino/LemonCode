@@ -3,14 +3,14 @@ import {
   RoutingRecovery,
   RateLimitWindow,
   readRateLimitHint,
+  readRateLimitScope,
   waitForRateLimitDelay,
   type ProviderApiKey,
   type ProviderRoutingPolicy,
   type RoutingRequest,
-  // lease 拆分后 usage 回调仍使用 provider 的公开类型，必须保留导入以通过类型检查。
   type RoutingFinish,
 } from "@lcode/provider";
-import { readApiKeySharedDiagnostics } from "./api-key-routing-diagnostics.js";
+import { readApiKeyRuntimeDiagnostics } from "./api-key-routing-diagnostics.js";
 import { ApiKeyCooldownQueue } from "./api-key-cooldown-queue.js";
 import { ApiKeyRouting } from "./api-key-routing.js";
 import type { ApiKeyQuotaSnapshot } from "@lcode/shared";
@@ -157,20 +157,14 @@ export class ApiKeyPool {
   }
 
   async readRuntimeDiagnostics(input?: { offset?: number; limit?: number; revision?: number }) {
-    const localPreview = this.readRoutingDiagnostics(input);
-    const sharedPools = await readApiKeySharedDiagnostics(
+    return readApiKeyRuntimeDiagnostics(
       this.quota?.providerId ?? "",
-      localPreview.items.flatMap((item) => (item.quotaPoolId ? [item.quotaPoolId] : [])),
-      this.quota?.client.coordinator,
+      this.readRoutingDiagnostics(input),
+      this.quota?.client,
+      this.routing.readRuntimeDiagnostics(),
+      this.recovery.inspect(this.recoveryNow()),
+      this.recoveryNow(),
     );
-    return {
-      asOf: this.recoveryNow(),
-      localPreview,
-      sharedPools,
-      owner: this.routing.readRuntimeDiagnostics(),
-      recovery: this.recovery.inspect(this.recoveryNow()),
-      feedback: this.quota?.client.diagnostics(),
-    };
   }
 
   reserve(context?: RoutingRequest): ApiKeyLease {
@@ -180,17 +174,33 @@ export class ApiKeyPool {
     while (this.count && this.failures.has(this.keys[this.cursor]!.id))
       this.remove(this.keys[this.cursor]!.id);
     const probe = this.count === 0;
-    const reservation = this.routing.reserve(
-      this.ids,
-      (id, modelKey) =>
-        !this.available[this.positions.get(id)!] ||
-        !this.recovery.available(
-          this.routing.recoveryResources(id, modelKey).all,
-          this.recoveryNow(),
-        ),
-      context,
-      (id, modelKey) => this.recovery.retryAt(this.routing.recoveryResources(id, modelKey).all),
-    );
+    let reservation: ReturnType<ApiKeyRouting["reserve"]>;
+    try {
+      reservation = this.routing.reserve(
+        this.ids,
+        (id, modelKey) =>
+          !this.available[this.positions.get(id)!] ||
+          !this.recovery.available(
+            this.routing.recoveryResources(id, modelKey).all,
+            this.recoveryNow(),
+          ),
+        context,
+        (id, modelKey) => this.recovery.retryAt(this.routing.recoveryResources(id, modelKey).all),
+      );
+    } catch (error) {
+      if (
+        error instanceof RoutingError &&
+        error.code === "route-cooling" &&
+        !this.recovery.available(["provider"], this.recoveryNow())
+      )
+        throw new RoutingError("route-cooling", {
+          phase: "admission",
+          scope: "provider",
+          retryAt: this.recovery.retryAt(["provider"]),
+          dispatch: "unsent",
+        });
+      throw error;
+    }
     const index = reservation
       ? this.positions.get(reservation.routeId)!
       : probe
@@ -202,7 +212,6 @@ export class ApiKeyPool {
       ? this.recovery.reserve(resources.all, String(reservation.sequence), this.recoveryNow())
       : undefined;
     if (permit?.probes.length) this.routing.touch(key.id);
-    // 原实现收到响应才推进游标，多个并发会命中首 Key；在首个 await 前同步 reserve。
     if (!probe) this.cursor = this.next[index]!;
     if (this.state) this.state.nextIndex = this.cursor;
     this.leases++;
@@ -291,21 +300,25 @@ export class ApiKeyPool {
           rateObserved = true;
           const hint = readRateLimitHint(headers);
           const affected =
-            status === 429
-              ? hint.scope === "shared"
-                ? resources.shared
-                : resources.key
-              : resources.model;
+            !readRateLimitScope(headers) && status !== 429
+              ? resources.model
+              : hint.scope === "key"
+                ? resources.key
+                : hint.scope === "model"
+                  ? resources.model
+                  : hint.scope === "shared" || hint.scope === "pool"
+                    ? resources.shared
+                    : "provider";
           if (affected && !reservation?.sharedQuotaInput)
             this.recovery.fail(permit, [affected], this.recoveryNow() + hint.delayMs);
-          rejected = status === 429 && hint.scope !== "shared";
+          rejected = status === 429 && (hint.scope === "key" || hint.scope === "model");
           this.routing.touch(key.id);
           return;
         }
         if (status === 429 && !rateObserved) {
           rateObserved = true;
           const hint = readRateLimitHint(headers);
-          if (hint.scope === "shared") {
+          if (hint.scope !== "key") {
             this.shared.extend(hint.delayMs);
             return;
           }

@@ -71,7 +71,10 @@ test("RCD-11 legacy v1 shared records migrate without erasing in-flight debits",
   const owner = new FileSharedQuotaCoordinator(directory, { now: () => 0 });
   const first = await owner.reserve(input("first", 0));
   await owner.dispatch(first);
-  const path = join(directory, (await readdir(directory)).find((p) => p.endsWith(".json"))!);
+  const path = join(
+    directory,
+    (await readdir(directory)).find((p) => p.endsWith(".json") && !p.endsWith(".provider.json"))!,
+  );
   const saved = JSON.parse(await readFile(path, "utf8"));
   saved.schemaVersion = 1;
   delete saved.recovery;
@@ -83,7 +86,7 @@ test("RCD-11 legacy v1 shared records migrate without erasing in-flight debits",
   const second = await reopened.reserve(input("second", 0));
   await reopened.cancel(second);
   const migrated = JSON.parse(await readFile(path, "utf8"));
-  assert.equal(migrated.schemaVersion, 2);
+  assert.equal(migrated.schemaVersion, 3);
   assert.equal((await reopened.inspect("fixture", "team")).resources[0]!.available, 90);
 });
 

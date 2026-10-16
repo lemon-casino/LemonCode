@@ -1,6 +1,7 @@
 import {
   RoutingError,
   readRateLimitHint,
+  readRateLimitScope,
   type RoutingFinish,
   type SharedQuotaCoordinator,
 } from "@lcode/provider";
@@ -12,7 +13,16 @@ const MAX_IO_ATTEMPTS = 3,
 /** 原租约内有界串行反馈；共享余额与恢复许可唯一归 coordinator，不重试 dispatch/HTTP。 */
 export class ApiKeySharedQuotaClient {
   private readonly pending = new Set<Promise<void>>();
-  private readonly failed = new Map<string, { error: unknown; retry: () => Promise<void> }>();
+  private readonly failed = new Map<
+    string,
+    {
+      error: unknown;
+      retry: () => Promise<void>;
+      providerId: string;
+      poolId: string;
+      leaseId: string;
+    }
+  >();
   private overflow?: RoutingError;
   constructor(readonly coordinator: SharedQuotaCoordinator) {}
   async prepare(
@@ -51,7 +61,13 @@ export class ApiKeySharedQuotaClient {
           if (error) {
             failure = error;
             if (this.failed.has(identity) || this.failed.size < MAX_FAILED_LEASES)
-              this.failed.set(identity, { error, retry: flush });
+              this.failed.set(identity, {
+                error,
+                retry: flush,
+                providerId,
+                poolId: input.poolId,
+                leaseId: handle.leaseId,
+              });
             else this.overflow = new RoutingError("quota-owner-capacity", { phase: "feedback" });
             return;
           }
@@ -114,9 +130,7 @@ export class ApiKeySharedQuotaClient {
               outcome: "failed" as const,
               statusCode: status,
               retryAfterMs: Math.min(86400000, hint.delayMs),
-              ...(hint.scope === "key" || hint.scope === "shared"
-                ? { rateLimitScope: hint.scope }
-                : {}),
+              rateLimitScope: status === 429 ? hint.scope : readRateLimitScope(headers),
             };
             enqueue(() => this.coordinator.usage(handle, {}, undefined, feedback));
           }
@@ -145,12 +159,19 @@ export class ApiKeySharedQuotaClient {
       flushRouting: flush,
     };
   }
-  diagnostics() {
+  diagnostics(providerId?: string) {
+    const failed = [...this.failed.values()].filter(
+      (item) => !providerId || item.providerId === providerId,
+    );
     return {
+      pendingScope: "execution" as const,
       pendingOperations: this.pending.size,
-      failedLeases: this.failed.size,
+      failedLeases: failed.length,
       overflowed: Boolean(this.overflow),
-      failures: [...this.failed.values()].map((item) => ({
+      failures: failed.map((item) => ({
+        providerId: item.providerId,
+        poolId: item.poolId,
+        leaseId: item.leaseId,
         code: item.error instanceof RoutingError ? item.error.code : "quota-owner-unavailable",
         phase: "feedback" as const,
       })),

@@ -9,9 +9,17 @@ export function assertSharedWindow(input: {
   now: number;
   quality?: "bound" | "estimated";
   rules?: ProviderRoutingPolicy["reserveRules"];
+  probe?: boolean;
 }): void {
   const { window, demand, held, own = 0, now, quality, rules } = input;
   if (window.kind === "informational") return;
+  if (window.expiresAt !== undefined && window.expiresAt <= now)
+    throw new RoutingError("quota-exhausted");
+  if (
+    input.probe &&
+    !rules?.some((rule) => rule.mode === "hard" && rule.resourceId === window.resourceId)
+  )
+    return;
   const left = window.remaining === undefined ? undefined : window.remaining - held + own;
   if (
     (window.quality === "fresh" && window.usedPercent === 100) ||

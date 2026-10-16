@@ -36,6 +36,7 @@ export async function resolveModelForAttempt(input: {
   ]);
   const context: RoutingRequest = {
     attemptId: randomUUID(),
+    createdAt: Date.now(),
     modelKey: modelScope,
     scopeKey: JSON.stringify([
       (typeof trace?.attributes?.workspaceIdentity === "string" &&
@@ -62,6 +63,12 @@ export async function resolveModelForAttempt(input: {
     const refreshResult = await waitForHeaders(
       () =>
         input.request.refreshRuntimeHeadersBeforeAttempt!({
+          routingTokens: tokens,
+          routingCompatibilityKey: JSON.stringify([
+            modelScope,
+            input.request.selectedSpeed ?? null,
+            input.request.providerOptions ?? boundModel.providerOptions ?? null,
+          ]),
           attempt: input.attempt,
           reason: input.reason ?? "model-request",
           abortSignal: signal,

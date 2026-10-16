@@ -375,7 +375,7 @@ test("XQP-07 corrupt and unknown records fail closed; bounded capacity never sil
   await owner.cancel(first);
   await assert.rejects(owner.reserve(input("second")), /quota-owner-capacity/);
   const files = (await readdir(path)).filter((f) => f.endsWith(".json"));
-  assert.equal(files.length, 1);
+  assert.equal(files.filter((f) => !f.endsWith(".provider.json")).length, 1);
   const file = join(path, files[0]!);
   const original = await readFile(file, "utf8");
   await writeFile(file, "{invalid");

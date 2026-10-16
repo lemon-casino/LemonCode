@@ -17,6 +17,8 @@ export function sharedQuotaView(
     reservations: leases.filter((l) => l.state === "reserved" || l.state === "dispatched").length,
     retainedAttempts: leases.length,
     capacity,
+    recoveryCount: Object.keys(state.recovery).length,
+    recoveryTruncated: Object.keys(state.recovery).length > 100,
     recovery: new RoutingRecovery(state.recovery).inspect(now),
     resourceCount: entries.length,
     resourcesTruncated: entries.length > 100,
@@ -43,6 +45,13 @@ export function sharedQuotaView(
       const held = reserved + dispatched + endedActual + endedEstimated + folded;
       return {
         resourceId: window.resourceId,
+        ...(state.quotaProbes?.[window.resourceId]
+          ? {
+              exploration: state.quotaProbes[window.resourceId]!.dispatched
+                ? ("dispatched" as const)
+                : ("reserved" as const),
+            }
+          : {}),
         instanceId: window.instanceId,
         current: state.current[JSON.stringify(window.resourceId)] === key,
         readingRemaining: window.remaining,

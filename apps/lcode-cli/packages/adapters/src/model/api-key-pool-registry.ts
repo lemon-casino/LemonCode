@@ -108,7 +108,7 @@ export class ApiKeyPoolRegistry {
       this.pools.set(slot, new WeakRef(pool));
       this.finalizer.register(pool, slot);
     }
-    pool.configureRouting(routing, keys);
+    pool.configureRouting({ version: 1, strategy: routing?.strategy ?? "reliable-first" }, keys);
     this.current.set(providerId, pool);
     return pool;
   }

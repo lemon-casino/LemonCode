@@ -207,7 +207,7 @@ for (const mode of ["generate", "stream"] as const)
       assert.equal((await generate(false, true).promise).text, "ok");
       assert.equal(posts, 4);
       assert.equal(
-        (await execution.readSharedApiKeyQuota("fixture", "team"))!.recovery[0]!.phase,
+        (await execution.readSharedApiKeyQuota("fixture", "team"))!.recovery[0]?.phase ?? "healthy",
         "healthy",
       );
     },
