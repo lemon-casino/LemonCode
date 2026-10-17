@@ -116,6 +116,7 @@ import {
   type AppShutdownKind,
 } from "./appShutdownPolicy.js";
 import { createPrimaryWindowCoordinator } from "./primaryWindowCoordinator.js";
+import { createStartupAnimationPolicy } from "./startupAnimationPolicy.js";
 import { flushMainE2ECoverage } from "./e2eCoverage.js";
 import { resolveStartupWindowBootstrap, type StartupWindowBootstrap } from "./startupWorkspace.js";
 import {
@@ -671,6 +672,8 @@ const UPDATE_STATUS_WINDOW_READY_HEIGHT = UPDATE_STATUS_WINDOW_PROGRESS_HEIGHT -
 const UPDATE_STATUS_WINDOW_TRAFFIC_LIGHT_POSITION = { x: 10, y: 10 } as const;
 const mainSettingService = createSettingService();
 const appLaunchGate = createAppLaunchGate();
+const startupAnimationPolicy = createStartupAnimationPolicy();
+let startupAnimationSettings: AppSettings["desktopStartupAnimation"];
 const appLaunchCoordinator = createAppLaunchCoordinator(appLaunchGate);
 const appTelemetryCredentialService = createCredentialService();
 // 手机远程控制的接入 Key/设备哈希表与遥测凭据共用同一加密凭据存储,键空间互不相交。
@@ -1770,6 +1773,7 @@ function createWindowInstance(startupBootstrap: StartupWindowBootstrap = {}) {
       remoteSessionManager.reattachRemoteWorkspaceSessionsForWindow,
     bootstrap: {
       restoreSession: startupBootstrap.restoreSession,
+      startupAnimation: startupAnimationPolicy.take(startupAnimationSettings),
       initialWorkspacePath: startupBootstrap.initialWorkspacePath,
       initialWorkspacePurpose: startupBootstrap.initialWorkspacePurpose,
       unavailableWorkspacePath: startupBootstrap.unavailableWorkspacePath,
@@ -1884,6 +1888,7 @@ app.whenReady().then(async () => {
     keepAwakeWhileRunning = bootstrapSettings.keepAwakeWhileRunning ?? false;
     currentDesktopZoomLevel = clampDesktopZoomLevel(bootstrapSettings.desktopZoomLevel ?? 0);
     currentDesktopWindowSize = bootstrapSettings.desktopWindowSize;
+    startupAnimationSettings = bootstrapSettings.desktopStartupAnimation;
     // 全局 keep-awake：启动时若设置已开，立刻持有 powerSaveBlocker，不必等设置变更事件。
     reconcileKeepAwakeBlocker();
   } catch {

@@ -167,7 +167,15 @@ export const resolveBuildAliases = ({
   // 共享 Model Schema 新增的子路径不能被通用 alias 拼到 index.ts 后面。
   "@lcode/shared/model-config": resolve(rootDirectory, "../../packages/shared/src/model-config.ts"),
   // 目录安全元数据使用独立公共子入口；不能让根 alias 将它拼接到 index.ts 后。
-  "@lcode/shared/model-catalog": resolve(rootDirectory, "../../packages/shared/src/model-catalog.ts"),
+  "@lcode/shared/model-catalog": resolve(
+    rootDirectory,
+    "../../packages/shared/src/model-catalog.ts",
+  ),
+  // 路由公开子入口必须精确映射；通用前缀会将它错拼为 index.ts/provider-routing，类型检查无法发现。
+  "@lcode/shared/provider-routing": resolve(
+    rootDirectory,
+    "../../packages/shared/src/provider-routing.ts",
+  ),
   // 进程异常边界在 bootstrap 之前使用该轻量契约，不能落入 shared 的通用前缀 alias。
   "@lcode/shared/process-diagnostic": resolve(
     rootDirectory,

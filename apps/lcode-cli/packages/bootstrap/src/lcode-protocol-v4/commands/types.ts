@@ -111,7 +111,12 @@ export interface V4CommandCoreHost {
   admitInputCommand?(
     envelope: CommandEnvelope,
     sessionId: string,
-    admission: { admissionSeq: number; admittedAt: number; queueItemId: string },
+    admission: {
+      admissionSeq: number;
+      admittedAt: number;
+      queueItemId: string;
+      projectContext?: import("@lcode/shared").ProjectContextSnapshot;
+    },
   ): Promise<ConversationInputIntent | null>;
   cancelInputCommand?(sessionId: string, queueItemId: string, reason: string): Promise<void>;
   discardSharedContext?(sessionId: string, contextId: string): Promise<boolean>;

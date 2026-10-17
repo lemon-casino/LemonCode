@@ -25,10 +25,11 @@ export function useCommitReviewNavigation(
 export function useOpenCommitReview(
   workspacePath: string,
   workspaceIdentity: string | undefined,
-  sessionId: string,
+  sessionId: string | undefined,
   selectSession?: (sessionId: string) => void,
 ) {
   return () => {
+    if (!sessionId) return;
     // 沿原导航选择已有会话，审核仍由当前会话的 GitActionMenu 打开，不挂载第二个控制器。
     if (selectSession) selectSession(sessionId);
     else

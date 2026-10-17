@@ -7,6 +7,8 @@ import tailwindcss from "@tailwindcss/vite";
 import { resolveLCodeEndpointOrigin, pickProductEndpointEnv } from "@lcode/shared/lcodeEndpoint";
 import { pdfJsCMapsPlugin } from "../ui/vite/pdfJsCMapsPlugin.js";
 import { getBuildMetadata } from "./scripts/build-metadata.mjs";
+import { startupMediaPlugin } from "./scripts/startupMediaPlugin.js";
+import { startupEntryPlugins } from "./scripts/startupEntryPlugin.js";
 import { resolveDesktopProductFlavor } from "./scripts/desktop-product-identity.mjs";
 import {
   assertRuntimeDevelopmentDataRoot,
@@ -168,6 +170,8 @@ export default defineConfig(({ mode }) => {
   assertRuntimeDevelopmentDataRoot(process.env);
   const desktopPort = resolveDesktopPort(process.env);
   const plugins = [
+    ...startupEntryPlugins(__dirname),
+    startupMediaPlugin(__dirname),
     ...(e2eCoverageEnabled ? [createE2EUIRendererCoveragePlugin(repoRoot)] : []),
     pdfJsCMapsPlugin(),
     react(),

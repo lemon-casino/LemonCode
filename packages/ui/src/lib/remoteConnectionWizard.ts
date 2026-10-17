@@ -1,6 +1,6 @@
 import type { RemoteAssetInstallMode, RemoteTarget } from "@lcode/shared";
 import { isValidWslUser, normalizeRemoteResourcePackageSelection } from "@lcode/shared";
-import type { SSHAuthMethod } from "@/hooks/useRemoteConnectionForm.js";
+import type { SSHAuthMethod, SshProxySelection } from "@/hooks/useRemoteConnectionForm.js";
 import type { RemoteWizardStep } from "@/RemoteConnectionWizardChrome.js";
 
 type WizardIntlLike = {
@@ -13,6 +13,7 @@ interface RemoteConnectionFormSnapshot {
   port: string;
   username: string;
   sshAuthMethod: SSHAuthMethod;
+  sshProxySelection?: SshProxySelection;
   assetInstallMode?: RemoteAssetInstallMode;
   selectedSshConfigAlias?: string | null;
   password: string;
@@ -93,6 +94,14 @@ export function buildRemoteTarget(
         target: {
           kind: "ssh",
           host: snapshot.host,
+          ...(snapshot.sshProxySelection && snapshot.sshProxySelection.kind !== "direct"
+            ? {
+                useProxy: true,
+                ...(snapshot.sshProxySelection.kind === "profile"
+                  ? { proxyProfileId: snapshot.sshProxySelection.profileId }
+                  : {}),
+              }
+            : {}),
           port: snapshot.port ? Number(snapshot.port) : undefined,
           username: snapshot.username,
           ...(sshConfigAlias ? { sshConfigAlias } : {}),

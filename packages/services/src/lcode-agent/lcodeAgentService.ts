@@ -10,6 +10,10 @@ import {
 } from "./runtimeEnvironmentRequests.js";
 import { createWorktreeClientLeases } from "./worktreeClientLeases.js";
 import { sameRuntimeWorkspacePath } from "./runtimeEnvironmentAuthorization.js";
+import {
+  authorizeProjectContextRequest,
+  materializeProjectContext,
+} from "./projectContextScope.js";
 import { isOwnedCheckoutScope } from "../process/ownedCheckoutScope.js";
 import type { WorktreeBinding } from "../worktree/contract.js";
 import { gitFileMutationJournalSchema } from "@lcode/shared";
@@ -876,6 +880,7 @@ interface CreateLCodeAgentServiceOptions extends Omit<
   /** 仅供 MCP 状态探测进程使用，不能把空闲回收传给 chat。 */
   mcpStatusIdleTimeoutMs?: number;
   worktreeService?: import("../worktree/contract.js").IWorktreeService;
+  projectExecutionSetService?: import("../project-execution-set/contract.js").ProjectExecutionSetHostService;
   /** 执行 Host 的持久 admission；后台读取和重启同样不能重新占用已关闭的工作树。 */
   assertWorktreeExecutionAdmission?: (
     scope: import("../worktree/contract.js").WorktreeScope,
@@ -901,6 +906,7 @@ interface CreateLCodeAgentServiceOptions extends Omit<
   sessionRuntimePreferencesAuthority?: "local" | "external";
   resolveSessionRuntimePreferences?: (
     scope: LCodeSessionRuntimePreferencesScope,
+    projectWorkspace?: import("@lcode/shared").LCodeWorkspaceRef,
   ) => Promise<LCodeSessionRuntimePreferencesResult>;
   /** manual run 落库后由当前 host 直接派发；返回时 prompt 必须已被 session 接受。 */
   onAutomationManualRunRequested?: (params: {
@@ -2233,6 +2239,7 @@ export function createLCodeAgentService(
             request.params,
             workspace,
             clientWorktree?.service,
+            options?.projectExecutionSetService,
           )
             .then(
               (result) => client.respond(request.id, result),
@@ -2352,58 +2359,92 @@ export function createLCodeAgentService(
               .catch(reportResponseFailure);
             return;
           }
-          if (sessionRuntimePreferencesAuthority === "local") {
-            void (async () => {
-              let preferences: LCodeSessionRuntimePreferencesResult;
-              try {
-                preferences = lcodeSessionRuntimePreferencesResultSchema.parse(
-                  // 同一 RPC 承载 runtime 创建与首次执行两个时机；必须继续传递
-                  // 已校验的 scope，避免首次执行为了 Shell 再次等待远端 client config。
-                  (await resolveSessionRuntimePreferences?.(parsed.data.scope)) ?? {
-                    askUserQuestionAutoResolutionEnabled: true,
-                    nativeSearchEnhancementsEnabled: true,
-                    memoryEnabled: false,
-                    sessionRecallEnabled: false,
-                  },
-                );
-              } catch (error) {
-                await client.respondError(request.id, {
-                  code: -32603,
-                  message: error instanceof Error ? error.message : String(error),
-                });
-                return;
-              }
-              // 响应发送失败表示 transport 已关闭，不能再把它当成设置读取失败
-              // 并尝试发送第二个 error response。
-              await client.respond(request.id, preferences);
-            })().catch(reportResponseFailure);
-            return;
-          }
+          void (async () => {
+            if (parsed.data.scope === "project-admission") {
+              if (!parsed.data.projectContext)
+                throw new Error("Project context version is required");
+              await authorizeProjectContextRequest(
+                parsed.data.projectContext.workspace,
+                parsed.data.sessionId,
+                workspace,
+                options?.worktreeService,
+                options?.projectExecutionSetService,
+              );
+            }
+            if (sessionRuntimePreferencesAuthority === "local") {
+              void (async () => {
+                let preferences: LCodeSessionRuntimePreferencesResult;
+                try {
+                  preferences = lcodeSessionRuntimePreferencesResultSchema.parse(
+                    // 同一 RPC 承载 runtime 创建与首次执行两个时机；必须继续传递
+                    // 已校验的 scope，避免首次执行为了 Shell 再次等待远端 client config。
+                    (await resolveSessionRuntimePreferences?.(
+                      parsed.data.scope,
+                      parsed.data.projectContext?.workspace,
+                    )) ?? {
+                      askUserQuestionAutoResolutionEnabled: true,
+                      nativeSearchEnhancementsEnabled: true,
+                      memoryEnabled: false,
+                      sessionRecallEnabled: false,
+                    },
+                  );
+                  if (parsed.data.scope === "project-admission") {
+                    if (preferences.projectContext === undefined)
+                      throw new Error("Project context capability is unavailable on this Host");
+                    preferences.projectContext = await materializeProjectContext(
+                      preferences.projectContext,
+                      parsed.data.projectContext!.workspace,
+                      parsed.data.sessionId,
+                      options?.worktreeService,
+                      options?.projectExecutionSetService,
+                    );
+                  }
+                } catch (error) {
+                  await client.respondError(request.id, {
+                    code: -32603,
+                    message: error instanceof Error ? error.message : String(error),
+                  });
+                  return;
+                }
+                // 响应发送失败表示 transport 已关闭，不能再把它当成设置读取失败
+                // 并尝试发送第二个 error response。
+                await client.respond(request.id, preferences);
+              })().catch(reportResponseFailure);
+              return;
+            }
 
-          const requestId = randomUUID();
-          const dynamicRequest: LCodeAgentSessionRuntimePreferencesRequest = {
-            ...parsed.data,
-            requestId,
-          };
-          pendingSessionRuntimePreferences.set(requestId, {
-            client,
-            protocolRequestId: request.id,
-            request: dynamicRequest,
-            timeout: setTimeout(
-              () => expireSessionRuntimePreferencesRequest(requestId),
-              LCODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
-            ),
-            workspaceKey: resolveWorkspaceKey(workspace),
-          });
-          logger.info(undefined, "运行时偏好请求已转发给 Host", {
-            event: "lcode_agent.runtime_preferences.host_request_dispatched",
-            module: "services.lcode_agent",
-            requestId,
-            scope: dynamicRequest.scope,
-            sessionId: dynamicRequest.sessionId,
-            workspaceKey: resolveWorkspaceKey(workspace),
-          });
-          sessionRuntimePreferencesRequestEmitter.fire(dynamicRequest);
+            const requestId = randomUUID();
+            const dynamicRequest: LCodeAgentSessionRuntimePreferencesRequest = {
+              ...parsed.data,
+              requestId,
+            };
+            pendingSessionRuntimePreferences.set(requestId, {
+              client,
+              protocolRequestId: request.id,
+              request: dynamicRequest,
+              timeout: setTimeout(
+                () => expireSessionRuntimePreferencesRequest(requestId),
+                LCODE_SESSION_RUNTIME_PREFERENCES_REQUEST_TIMEOUT_MS,
+              ),
+              workspaceKey: resolveWorkspaceKey(workspace),
+            });
+            logger.info(undefined, "运行时偏好请求已转发给 Host", {
+              event: "lcode_agent.runtime_preferences.host_request_dispatched",
+              module: "services.lcode_agent",
+              requestId,
+              scope: dynamicRequest.scope,
+              sessionId: dynamicRequest.sessionId,
+              workspaceKey: resolveWorkspaceKey(workspace),
+            });
+            sessionRuntimePreferencesRequestEmitter.fire(dynamicRequest);
+          })()
+            .catch((error: unknown) =>
+              client.respondError(request.id, {
+                code: -32603,
+                message: error instanceof Error ? error.message : String(error),
+              }),
+            )
+            .catch(reportResponseFailure);
           return;
         }
 
@@ -4939,19 +4980,25 @@ export function createLCodeAgentService(
     async closeSession(
       params: LCodeAgentSessionTarget & {
         expectedPersistence?: "deferred" | "immediate";
+        resourceRelease?: true;
       },
     ): Promise<boolean> {
-      const client = await getClient(params);
+      const client = params.resourceRelease
+        ? await getReadOnlyClient(params)
+        : await getClient(params);
       const result = await client.request(
         lcodeProtocolMethods.sessionClose,
         {
           sessionId: params.sessionId,
+          ...(params.resourceRelease ? { resourceRelease: true } : {}),
           ...(params.expectedPersistence
             ? { expectedPersistence: params.expectedPersistence }
             : {}),
         },
         lcodeSessionCloseResultSchema,
       );
+      if (params.resourceRelease && (!result.closed || !result.residency))
+        throw new Error("Agent did not provide a resource-release stop receipt");
       // 兼容尚未返回 closed 字段、但已成功执行普通 close 的 Agent。
       return result.closed ?? true;
     },
@@ -5092,6 +5139,17 @@ export function createLCodeAgentService(
         preferences = lcodeSessionRuntimePreferencesResultSchema.parse(
           params.resolution.preferences,
         );
+        if (pending.request.scope === "project-admission") {
+          if (preferences.projectContext === undefined || !pending.request.projectContext)
+            throw new Error("Project context capability is unavailable on this Host");
+          preferences.projectContext = await materializeProjectContext(
+            preferences.projectContext,
+            pending.request.projectContext.workspace,
+            pending.request.sessionId,
+            options?.worktreeService,
+            options?.projectExecutionSetService,
+          );
+        }
       } catch (error) {
         logger.warn(undefined, "Host 返回运行时偏好格式非法", {
           ...responseContext,

@@ -1,6 +1,7 @@
 // CLI admission 后的自包含输入事实。
 // queue / guide / runtime / transcript 只能携带同一个 intent，不允许各层重建字段。
 import { z } from "zod";
+import { projectContextSnapshotSchema } from "../projectContext.js";
 import { goalAcceptanceSchema } from "../goal-evidence.js";
 import { timestampSchema } from "./core.js";
 import { attachmentRefSchema } from "./attachment-ref.js";
@@ -46,6 +47,7 @@ export const conversationInputIntentSchema = z
     kind: z.enum(["sendText", "sendGoalCommand", "compact"]),
     goalAcceptance: goalAcceptanceSchema.optional(),
     text: z.string(),
+    projectContext: projectContextSnapshotSchema.optional(),
     attachments: z.array(attachmentRefSchema).default([]),
     // optional 只服务旧 snapshot hydration；新 admission 必须填入完整 Submission。
     modelSelection: modelSelectionSchema.optional(),

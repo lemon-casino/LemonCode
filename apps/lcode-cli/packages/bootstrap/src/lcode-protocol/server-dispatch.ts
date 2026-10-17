@@ -277,7 +277,7 @@ export async function dispatchRequest(host: ProtocolDispatchHost, request: LCode
     case lcodeProtocolMethods.sessionSetMode:
       return await setMode(host.context, request.params);
     case lcodeProtocolMethods.sessionClose:
-      return await closeSession(host.context, request.params);
+      return await closeSession(host.context, request.params, true);
     case lcodeProtocolMethods.sessionWorktreeCleanup:
       return await cleanupWorktreeSessions(host.context, request.params);
     case lcodeProtocolMethods.sessionWorktreeRebind:

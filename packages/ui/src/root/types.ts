@@ -4,6 +4,8 @@ import type { ReactNode } from "react";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 
 export interface RootProps {
+  /** 平台装配的局部展示投影，不改变鉴权、存储或恢复准入。 */
+  onStartupSurfaceChange?: (surface: import("@lcode/shared").StartupSurface) => void;
   services: IServiceAccessor;
   platform: IPlatformService;
   /** 如果从 main 进程传入则跳过项目选择页 */

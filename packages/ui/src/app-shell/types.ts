@@ -72,6 +72,7 @@ export interface CreateTaskOptions {
   /** 原项目内的新空白会话复用已有 checkout；不继承会话历史。 */
   worktree?: { bindingId: string; bindingOwnerTaskId: string; label: string };
   newWorktree?: boolean;
+  executionSetId?: string;
 }
 
 export type CreateTaskRequest = LCodeProvider | CreateTaskOptions;

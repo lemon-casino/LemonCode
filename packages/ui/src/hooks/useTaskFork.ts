@@ -19,7 +19,7 @@ export type TaskForkNavigation = (
 ) => void;
 
 export function useTaskFork(
-  task: Pick<LCodeTaskMeta, "taskId" | "workspacePath" | "workspaceIdentity">,
+  task: Pick<LCodeTaskMeta, "workspacePath" | "workspaceIdentity"> & { taskId?: string },
   remoteSessionId: string | undefined,
   onCreated: TaskForkNavigation,
 ): {
@@ -39,7 +39,7 @@ export function useTaskFork(
   const pendingRef = useRef(false);
   const fork = useCallback(
     async (workspaceMode: "same" | "worktree") => {
-      if (pendingRef.current || !resolved.rpcReady) return;
+      if (pendingRef.current || !resolved.rpcReady || !task.taskId) return;
       pendingRef.current = true;
       setPending(true);
       const activeTabId = tabStore.getState().activeTabId;

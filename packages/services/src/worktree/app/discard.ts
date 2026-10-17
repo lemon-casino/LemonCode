@@ -22,6 +22,7 @@ export function createWorktreeDiscard(
   async function read(params: Request) {
     const value = await store.readBinding(params.bindingId);
     if (!value) throw new Error("Worktree binding not found");
+    if (value.consumers?.length) throw new Error("Worktree has durable collaboration consumers; release them through its execution set first");
     if (
       params.discard?.branch !== value.branch ||
       params.discard.checkoutPath !== value.checkoutPath
@@ -113,13 +114,13 @@ export function createWorktreeDiscard(
           collected = context.collectDiscardSessions
             ? await context.collectDiscardSessions(value)
             : [
-                value.taskId,
+                ...(value.taskId ? [value.taskId] : []),
                 ...(await store.listAliases())
                   .filter((alias) => alias.bindingId === value.id)
                   .map((alias) => alias.taskId),
               ];
           // 旧版已删除主会话但遗留子代理；每次重试重读完整范围，绝不丢弃 SQL 已消失的原 journal IDs。
-          collected = [...new Set([...(value.deletion!.sessionIds ?? []), ...collected])];
+          collected = [...new Set([...(value.deletion!.sessionIds ?? []), ...(collected ?? [])])];
         }
         await releaseBindingRuntime(
           context,

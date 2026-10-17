@@ -183,6 +183,12 @@ function createRemoteTargetSnapshot(
       return {
         kind: "ssh",
         host: target.host,
+        ...(target.useProxy
+          ? {
+              useProxy: true,
+              ...(target.proxyProfileId ? { proxyProfileId: target.proxyProfileId } : {}),
+            }
+          : {}),
         port: target.port,
         username: target.username,
         ...(target.sshConfigAlias?.trim() ? { sshConfigAlias: target.sshConfigAlias.trim() } : {}),
@@ -229,6 +235,12 @@ export function createRemoteTargetFromSnapshot(
       return {
         kind: "ssh",
         host: snapshot.host,
+        ...(snapshot.useProxy
+          ? {
+              useProxy: true,
+              ...(snapshot.proxyProfileId ? { proxyProfileId: snapshot.proxyProfileId } : {}),
+            }
+          : {}),
         port: snapshot.port,
         username: snapshot.username,
         ...(snapshot.sshConfigAlias ? { sshConfigAlias: snapshot.sshConfigAlias } : {}),

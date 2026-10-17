@@ -28,6 +28,10 @@ export type {
 } from "./protocol.js";
 export type { WorkspacePurpose } from "./workspacePurpose.js";
 export * from "./localProjects.js";
+export * from "./projectDefinitions.js";
+export * from "./projectContext.js";
+export * from "./projectExecutionSet.js";
+export * from "./projectExecutionSetView.js";
 export * from "./tokenUsageStatusBarSettings.js";
 export * from "./worktreePolicy.js";
 export * from "./sessionDefaults.js";
@@ -310,6 +314,7 @@ export {
 } from "./subagent-markdown-selection.js";
 export * from "./memoryDiagnostics.js";
 export * from "./database-startup.js";
+export * from "./startupAnimation.js";
 export * from "./processResourceTelemetry.js";
 export * from "./execution-state.js";
 

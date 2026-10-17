@@ -8,7 +8,7 @@ import {
   createLocalProject,
   createUuid,
   isSameLocalProjectPath,
-  localProjectPathKey,
+  projectDefinitionSchema,
   type AppSettings,
   type IPlatformService,
   type LocalProjectCreateRequest,
@@ -20,6 +20,7 @@ import {
 import type { IServiceAccessor } from "@lcode/services";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
 import { useConfirmDialog } from "@/hooks/useConfirmDialog.js";
+import { useSettings } from "@/hooks/useSettingService.js";
 import { reportAppTelemetryEvent } from "@/lib/appTelemetry.js";
 import { resolveLogoutProviderFamilyDomain } from "@/lib/providerFamilyDomainSettings.js";
 import { isRendererReloadNavigation } from "@/lib/rendererNavigation.js";
@@ -130,6 +131,7 @@ export function useRootWorkspaceActions({
 }) {
   const [workspaceActionError, setWorkspaceActionError] = useState<string | null>(null);
   const requestConfirmation = useConfirmDialog();
+  const { mutateProject } = useSettings(services);
   const {
     handleSelectConversationWorkspace,
     handleResolveConversationWorkspace,
@@ -292,13 +294,21 @@ export function useRootWorkspaceActions({
           },
         );
         useDraftExecutionStore.getState().reset(draftScope);
-        if (typeof request === "object" && request.worktree) {
+        if (typeof request === "object" && request.executionSetId) {
+          useDraftExecutionStore
+            .getState()
+            .choose(draftScope, { mode: "worktree", executionSetId: request.executionSetId });
+        } else if (typeof request === "object" && request.worktree) {
           const { label, ...existingBinding } = request.worktree;
           useDraftExecutionStore.getState().choose(draftScope, {
-            mode: "worktree", existingBinding, worktreeLabel: label,
+            mode: "worktree",
+            existingBinding,
+            worktreeLabel: label,
           });
         } else if (typeof request === "object" && request.newWorktree) {
-          useDraftExecutionStore.getState().choose(draftScope, { mode: "worktree", newWorktree: true });
+          useDraftExecutionStore
+            .getState()
+            .choose(draftScope, { mode: "worktree", newWorktree: true });
         }
       }
       useLCodeSessionStore
@@ -548,10 +558,15 @@ export function useRootWorkspaceActions({
         throw new Error(intl.formatMessage({ id: "chat.empty.createProject.unsupported" }));
       }
       const settings = await services.settingService.get();
-      const project = createLocalProject({
-        id: createUuid(),
-        name: request.name,
-        sourceFolderPaths: request.sourceFolderPaths,
+      // 中文依据：新建表单的目录用途必须随同一次项目命令保存，不能在创建后再补写而丢失元数据。
+      const project = projectDefinitionSchema.parse({
+        ...createLocalProject({
+          id: createUuid(),
+          name: request.name,
+          sourceFolderPaths: request.sourceFolderPaths,
+        }),
+        description: request.description,
+        members: request.members,
       });
       const conflictingProject = settings.localProjects.find((candidate) =>
         isSameLocalProjectPath(candidate.primaryFolderPath, project.primaryFolderPath),
@@ -561,19 +576,17 @@ export function useRootWorkspaceActions({
         throw new Error(intl.formatMessage({ id: "chat.empty.createProject.duplicatePrimary" }));
       }
 
-      const primaryFolderKey = localProjectPathKey(project.primaryFolderPath);
-
       // 项目定义必须先成为设置事实，再打开 tab。反过来会在设置写失败时留下一个
       // 看似属于项目、实际无法恢复源文件夹的半创建会话。
-      await updateAppSettings({
-        localProjects: [project, ...settings.localProjects],
-        recentProjects: [
-          project.primaryFolderPath,
-          ...settings.recentProjects.filter(
-            (path) => localProjectPathKey(path) !== primaryFolderKey,
-          ),
-        ].slice(0, 10),
+      const result = await mutateProject({
+        type: "save",
+        operationId: createUuid(),
+        projectId: project.id,
+        expectedRevision: null,
+        project,
       });
+      if (result.status !== "applied")
+        throw new Error(result.reason ?? "Project could not be saved");
       await handleSelectProject(project.primaryFolderPath, {
         workspacePurpose: "project",
         localProjectId: project.id,
@@ -585,7 +598,7 @@ export function useRootWorkspaceActions({
       intl,
       services.settingService,
       supportsSettings,
-      updateAppSettings,
+      mutateProject,
     ],
   );
 
@@ -600,6 +613,22 @@ export function useRootWorkspaceActions({
       }
 
       const settings = await services.settingService.get();
+      const project = settings.localProjects.find((item) =>
+        request.projectId
+          ? item.id === request.projectId
+          : isSameLocalProjectPath(item.primaryFolderPath, request.workspacePath),
+      );
+      if (project) {
+        const result = await mutateProject({
+          type: "remove",
+          operationId: createUuid(),
+          projectId: project.id,
+          expectedRevision: project.revision ?? 0,
+        });
+        if (result.status !== "applied")
+          throw new Error(result.reason ?? "Project could not be removed");
+        return;
+      }
       const patch = buildLocalProjectRemovalPatch(settings, request);
       if (!patch) {
         return;
@@ -607,9 +636,10 @@ export function useRootWorkspaceActions({
 
       // 只删除应用中的项目元数据，不碰源码目录；同时清理 recent/session 索引，
       // 防止选择器、启动恢复和新建冲突校验继续把已移除项目当成有效项目。
-      await updateAppSettings(patch);
+      const { localProjects: _projects, ...navigation } = patch;
+      await updateAppSettings(navigation);
     },
-    [services.settingService, supportsSettings, updateAppSettings],
+    [services.settingService, supportsSettings, updateAppSettings, mutateProject],
   );
 
   const handleCreateScratchWorkspace = useCallback(

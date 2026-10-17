@@ -9,6 +9,12 @@ import {
   worktreeCompleteRepairParamsSchema,
 } from "@lcode/shared";
 import type { IWorktreeService, WorktreeScope } from "../worktree/contract.js";
+import type { ProjectExecutionSetHostService } from "../project-execution-set/contract.js";
+import {
+  executionSetPrepareExecutionParamsSchema,
+  executionSetResolveExecutionParamsSchema,
+  resolveWorkspaceKey,
+} from "@lcode/shared";
 
 export function isWorktreeRequest(method: string): boolean {
   return [
@@ -18,6 +24,8 @@ export function isWorktreeRequest(method: string): boolean {
     "worktree/completeRepair",
     "checkout/acquireWriter",
     "checkout/releaseWriter",
+    "executionSet/prepareExecution",
+    "executionSet/resolveExecution",
   ].includes(method);
 }
 
@@ -35,6 +43,7 @@ export async function handleWorktreeRequest(
   params: unknown,
   workspace: WorktreeScope,
   service?: IWorktreeService,
+  executionSets?: ProjectExecutionSetHostService,
 ): Promise<unknown> {
   if (!service) throw new Error("Worktree execution is not available on this Host.");
   // 原因：client 可由 commands/query 启动，workspace 实参还带 commands/clock/可信载体。
@@ -48,6 +57,87 @@ export async function handleWorktreeRequest(
     if (!sameScope(scope, workspace))
       throw new Error("Worktree request scope does not match the Agent workspace.");
   };
+  if (method === "executionSet/prepareExecution") {
+    if (!executionSets)
+      throw new Error("Collaboration execution sets are unavailable on this Host");
+    const request = executionSetPrepareExecutionParamsSchema.parse(params);
+    requireScope(request);
+    let snapshot = request.executionSetId
+      ? await executionSets.get({ ...originScope, executionSetId: request.executionSetId })
+      : await executionSets.getPreparation({ ...originScope, operationId: request.requestId });
+    if (request.executionSetId && request.forkSource)
+      throw new Error("Choose either an existing set or an independent fork");
+    if (!snapshot) {
+      if (request.executionSetId) throw new Error("Execution set no longer exists");
+      if (request.forkSource) {
+        const source = await executionSets.get({
+          ...originScope,
+          executionSetId: request.forkSource.executionSetId,
+        });
+        if (!source) throw new Error("Fork source execution set not found");
+        const resolved = await executionSets.resolveContext({
+          ...originScope,
+          executionSetId: source.id,
+          sessionId: request.forkSource.sessionId,
+        });
+        snapshot = await executionSets.prepare({
+          operationId: request.requestId,
+          name: request.name,
+          projectContext: source.projectContext,
+          forkSource: resolved.reference,
+        });
+      } else {
+        if (
+          !request.projectContext ||
+          resolveWorkspaceKey(request.projectContext.origin) !== resolveWorkspaceKey(originScope)
+        )
+          throw new Error("Project context does not match the attached source");
+        snapshot = await executionSets.prepare({
+          operationId: request.requestId,
+          name: request.name,
+          projectContext: request.projectContext,
+          baseRefs: request.baseRefs,
+        });
+      }
+    } else if (!request.executionSetId) {
+      if (
+        snapshot.preparationName !== request.name ||
+        JSON.stringify(snapshot.baseRefs) !== JSON.stringify(request.baseRefs)
+      )
+        throw new Error("Execution set preparation differs from its original request");
+      if (
+        (snapshot.forkSource?.executionSetId ?? null) !==
+        (request.forkSource?.executionSetId ?? null)
+      )
+        throw new Error("Execution set fork source differs from its original request");
+      if (snapshot.status !== "ready")
+        snapshot = await executionSets.retry({
+          ...originScope,
+          executionSetId: snapshot.id,
+          operationId: snapshot.requestId,
+        });
+    }
+    if (snapshot.status !== "ready")
+      throw new Error(snapshot.error ?? "Collaboration repositories are not all ready");
+    await executionSets.attachSession({
+      ...originScope,
+      executionSetId: snapshot.id,
+      sessionId: request.sessionId,
+      operationId: request.requestId,
+    });
+    return executionSets.resolveContext({
+      ...originScope,
+      executionSetId: snapshot.id,
+      sessionId: request.sessionId,
+    });
+  }
+  if (method === "executionSet/resolveExecution") {
+    if (!executionSets)
+      throw new Error("Collaboration execution sets are unavailable on this Host");
+    const request = executionSetResolveExecutionParamsSchema.parse(params);
+    requireScope(request);
+    return executionSets.resolveContext(request);
+  }
   if (method === "worktree/prepareExecution") {
     const request = worktreePrepareExecutionParamsSchema.parse(params);
     requireScope(request);
@@ -93,6 +183,34 @@ export async function handleWorktreeRequest(
   }
   if (method === "checkout/acquireWriter") {
     const request = checkoutAcquireWriterParamsSchema.parse(params);
+    if (request.executionSetRef) {
+      if (!executionSets || !sameScope(request.executionSetRef.origin, originScope))
+        throw new Error("Execution set checkout source differs from the Agent workspace");
+      const target = {
+        ...originScope,
+        executionSetId: request.executionSetRef.executionSetId,
+        sessionId: request.sessionId,
+      };
+      const current = await executionSets.resolveContext(target);
+      if (
+        JSON.stringify(current.reference) !== JSON.stringify(request.executionSetRef) ||
+        !sameScope(request, current.context.execution)
+      )
+        throw new Error("Execution set checkout reference has changed");
+      try {
+        const leases = await executionSets.acquireExecution(
+          { ...target, ownerId: `${originKey}:${request.sessionId}` },
+          service,
+        );
+        return {
+          permitId: leases[0]!.token,
+          additionalPermitIds: leases.slice(1).map((lease) => lease.token),
+        };
+      } catch (error) {
+        if ((error as { code?: string }).code === "LCODE_CHECKOUT_BUSY") return { busy: true };
+        throw error;
+      }
+    }
     if (request.repair) {
       const binding = await service.getBinding({
         ...originScope,
@@ -139,10 +257,8 @@ export async function handleWorktreeRequest(
   }
   if (method === "checkout/releaseWriter") {
     const request = checkoutReleaseWriterParamsSchema.parse(params);
-    await service.releaseCheckout({
-      token: request.permitId,
-      ownerId: `${originKey}:${request.sessionId}`,
-    });
+    for (const token of [request.permitId, ...(request.additionalPermitIds ?? [])].reverse())
+      await service.releaseCheckout({ token, ownerId: `${originKey}:${request.sessionId}` });
     return { released: true };
   }
   throw new Error("Unknown worktree request.");

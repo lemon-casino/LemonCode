@@ -15,6 +15,10 @@ import {
 
 type RemoteKind = RemoteTarget["kind"];
 export type SSHAuthMethod = "password" | "privateKey";
+export type SshProxySelection =
+  | { kind: "direct" }
+  | { kind: "default" }
+  | { kind: "profile"; profileId: string };
 
 function buildAvailableKinds(options: { isWindowsDesktop: boolean }): RemoteKind[] {
   const kinds: RemoteKind[] = ["ssh"];
@@ -47,6 +51,7 @@ export function useRemoteConnectionForm({
   const [port, setPortState] = useState("22");
   const [username, setUsernameState] = useState("");
   const [sshAuthMethod, setSshAuthMethod] = useState<SSHAuthMethod>("password");
+  const [sshProxySelection, setSshProxySelection] = useState<SshProxySelection>({ kind: "direct" });
   const [assetInstallMode, setAssetInstallMode] = useState<RemoteAssetInstallMode>(
     DEFAULT_REMOTE_ASSET_INSTALL_MODE,
   );
@@ -330,6 +335,7 @@ export function useRemoteConnectionForm({
     port,
     username,
     sshAuthMethod,
+    sshProxySelection,
     assetInstallMode,
     password,
     privateKeyPath,
@@ -351,6 +357,7 @@ export function useRemoteConnectionForm({
     setPort,
     setUsername,
     setSshAuthMethod,
+    setSshProxySelection,
     setAssetInstallMode,
     setPassword,
     setPrivateKeyPath,

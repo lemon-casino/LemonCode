@@ -29,7 +29,8 @@ export function projectSidebarFocus(
       entries: section.entries.flatMap((ref) => {
         if (focus === "all") return [ref];
         if (focus === "projects") return ref.kind === "project" ? [ref] : [];
-        if (focus === "worktrees") return ref.kind === "worktree" ? [ref] : [];
+        if (focus === "worktrees")
+          return ref.kind === "worktree" || ref.kind === "executionSet" ? [ref] : [];
         return ref.kind === "task"
           ? [ref]
           : (children.get(sidebarEntryKey(ref)) ?? []).map((item) => item.ref);

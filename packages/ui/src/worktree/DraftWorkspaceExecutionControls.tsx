@@ -18,6 +18,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover.js";
 import { ProjectExecutionPolicySettings } from "./ExecutionPolicySettings.js";
 import { WorktreeBaseBranchPicker } from "./WorktreeBaseBranchPicker.js";
+import { useSidebarText } from "@/WorkspaceSidebar/sidebarText.js";
+import { CollaborationBasePicker } from "./CollaborationBasePicker.js";
 
 export function DraftWorkspaceExecutionControls({
   workspacePath,
@@ -35,6 +37,7 @@ export function DraftWorkspaceExecutionControls({
   onRefreshGit: () => void;
 }) {
   const { intl } = useLCodeIntl();
+  const text = useSidebarText();
   const scope = workspaceIdentity?.trim() || workspacePath;
   const selection = useDraftExecutionStore((store) => store.drafts[scope]);
   const choose = useDraftExecutionStore((store) => store.choose);
@@ -42,7 +45,7 @@ export function DraftWorkspaceExecutionControls({
     workspacePath,
     workspaceIdentity,
     // 合并执行方式入口后，只有已接受请求的冻结意图可覆盖项目设置，避免旧草稿值造成双重默认。
-    selection?.existingBinding || selection?.newWorktree
+    selection?.existingBinding || selection?.newWorktree || selection?.executionSetId
       ? "worktree"
       : selection?.frozen
         ? selection.mode
@@ -63,7 +66,10 @@ export function DraftWorkspaceExecutionControls({
     }
   };
   const pending = Boolean(selection?.requestId);
-  const frozen = pending || selection?.frozen || Boolean(selection?.existingBinding);
+  const frozen =
+    pending ||
+    selection?.frozen ||
+    Boolean(selection?.existingBinding || selection?.executionSetId);
   const worktree = policy.executionMode === "worktree";
   const capability = useWorktreeCapabilities(
     workspacePath,
@@ -122,6 +128,24 @@ export function DraftWorkspaceExecutionControls({
             data-testid="draft-existing-worktree"
           >
             {selection.worktreeLabel}
+          </span>
+        ) : worktree && capability.collaboration && !selection?.executionSetId ? (
+          <CollaborationBasePicker
+            repositories={capability.repositories ?? []}
+            baseRefs={selection?.baseRefs}
+            frozen={Boolean(frozen)}
+            supported={Boolean(supportedRepository)}
+            remoteSessionId={workspaceRemoteSessionId}
+            onChoose={(baseRefs) => choose(scope, { baseRefs })}
+            onRefreshGit={onRefreshGit}
+          />
+        ) : worktree && selection?.executionSetId ? (
+          <span
+            className="min-w-0 truncate text-ui-sm text-foreground-subtle"
+            title={text("executionSetSharedHint")}
+            data-testid="draft-execution-shared-files"
+          >
+            {text("executionSet")} · {text("sharedFiles")}
           </span>
         ) : worktree ? (
           <WorktreeBaseBranchPicker

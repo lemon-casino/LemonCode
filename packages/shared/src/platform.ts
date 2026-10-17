@@ -237,7 +237,10 @@ export interface ApplicationIconRequest {
 }
 
 export type OpenInEditorRemoteTarget =
-  | Pick<SSHConnectOptions, "kind" | "host" | "port" | "username" | "sshConfigAlias">
+  | Pick<
+      SSHConnectOptions,
+      "kind" | "host" | "port" | "username" | "sshConfigAlias" | "useProxy" | "proxyProfileId"
+    >
   | Pick<WSLConnectOptions, "kind" | "distro" | "user">
   | Pick<DockerConnectOptions, "kind" | "container">;
 
@@ -539,6 +542,8 @@ export interface IPlatformService {
 
   /** 打开系统目录选择框，返回选中路径或 null */
   selectDirectory(): Promise<string | null>;
+  /** 系统多目录选择；取消返回空数组，旧平台可缺省此能力。 */
+  selectDirectories?(): Promise<string[]>;
 
   /** 打开系统文件选择框，返回选中文件路径或 null */
   selectFile(): Promise<string | null>;
@@ -762,6 +767,27 @@ export interface IPlatformService {
 
   /** 同步需要 main 进程即时感知的应用设置；Web fallback 可忽略 */
   syncAppSettings?(patch: Partial<AppSettings>): void;
+  /** 当前窗口显式预览装饰动画；不创建窗口或业务进程。 */
+  previewStartupAnimation?(
+    settings: import("./startupAnimation.js").StartupAnimationSettings,
+    image?: Blob,
+  ): void;
+  mountStartupScenePreview?(
+    container: { readonly nodeType: number },
+    settings: import("./startupScene.js").StartupSceneSettings,
+    onTime?: (seconds: number) => void,
+    preset?: import("./startupAnimation.js").StartupAnimationPreset,
+  ): import("./startupScene.js").StartupScenePreview;
+  saveStartupSceneImage?(image: Blob): Promise<string>;
+  validateStartupSceneMedia?(media: Blob): Promise<void>;
+  /** 仅返回本平台允许的内置壁纸相对资源；Web/手机不提供该能力。 */
+  getBuiltinWallpaperUrl?(preset: "baili" | "aemeath"): string | undefined;
+  /** 本机动态壁纸展示；pause 保留睁眼静帧，dispose 丢弃晚到解码。 */
+  mountAemeathWallpaper?(
+    container: { readonly nodeType: number },
+    onReady: (ready: boolean) => void,
+  ): Pick<import("./startupScene.js").StartupScenePreview, "play" | "pause" | "dispose">;
+  getStartupAnimationPresets?(): readonly import("./startupAnimation.js").StartupAnimationPreset[];
 
   /** 快捷键设置页录制态开关；桌面端 main 据此暂时摘除可配置菜单 accelerator，Web 可忽略 */
   setShortcutRecordingActive?(active: boolean): void;

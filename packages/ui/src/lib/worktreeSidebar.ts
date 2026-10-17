@@ -3,7 +3,7 @@ import type { LCodeTaskMeta } from "@lcode/shared";
 
 type SidebarTaskScope = Pick<
   LCodeTaskMeta,
-  "workspacePath" | "workspaceIdentity" | "taskId" | "executionBindingId"
+  "workspacePath" | "workspaceIdentity" | "taskId" | "executionBindingId" | "executionSetRef"
 >;
 type WorkspaceScope = { workspacePath: string; workspaceIdentity?: string };
 const scopeKey = (scope: WorkspaceScope) => scope.workspaceIdentity?.trim() || scope.workspacePath;
@@ -43,6 +43,7 @@ export function isWorktreeSidebarTask(
   bindings: readonly WorktreeBinding[],
 ) {
   return (
+    Boolean(task.executionSetRef) ||
     Boolean(task.executionBindingId?.trim()) ||
     bindings.some((binding) => isTaskInSidebarBinding(task, binding))
   );

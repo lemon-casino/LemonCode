@@ -279,6 +279,7 @@ export type TurnSteerDeliveryMode = "guide" | "queue";
 
 /** 协议无关的输入 intent metadata；bootstrap v4 在事件边界组装为 ConversationInputIntent。 */
 export interface TurnInputIntentMetadata {
+  projectContext?: import("@lcode/shared").ProjectContextSnapshot;
   planEnabled?: boolean;
   sourceCommandId: string;
   queueItemId: string;

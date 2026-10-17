@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { goalAcceptanceSchema, goalEvidenceSummarySchema } from "./goal-evidence.js";
 import { modelSelectionSchema } from "./model-selection.js";
+import { executionSetRefSchema } from "./projectExecutionSet.js";
 
 const nonEmptyString = z.string().trim().min(1);
 const jsonObjectSchema = z.record(z.string(), z.unknown());
@@ -36,6 +37,7 @@ export const lcodeWorkspaceRefSchema = z
   .object({
     workspacePath: nonEmptyString,
     executionBindingId: nonEmptyString.optional(),
+    executionSetRef: executionSetRefSchema.optional(),
     bindingOwnerTaskId: nonEmptyString.optional(),
     /** 空白同树会话；恢复须以自身 taskId 核对 Host alias，不依赖父会话历史。 */
     bindingReuse: z.literal("existing").optional(),

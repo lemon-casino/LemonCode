@@ -97,6 +97,7 @@ export interface V4GatewayHost {
     lastActivityAt: number;
     parentSessionId?: string;
     executionBindingId?: string;
+    executionSetRef?: import("@lcode/shared").ExecutionSetRef;
   } | null;
   /**
    * config 种子：会话 runtime 的当前真值（模型选型/思考深度/协作模式）。

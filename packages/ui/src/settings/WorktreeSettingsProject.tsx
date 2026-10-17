@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { WorktreeTaskActions } from "@/worktree/WorktreeTaskActions.js";
 import { ArrowLeft, Plus, RefreshCw } from "lucide-react";
 import type { WorktreeBinding } from "@lcode/services";
 import type { CreateTaskRequest } from "@/app-shell/types.js";
@@ -168,11 +169,13 @@ export function WorktreeSettingsProject({
             </Button>
             {section === "worktrees" ? (
               <>
+                {selected.ownerRef?.kind === "executionSet" ? <WorktreeTaskActions workspacePath={selected.originalWorkspacePath} workspaceIdentity={selected.originalWorkspaceIdentity} workspaceRemoteSessionId={project.remoteSessionId} bindingId={selected.id} busy={false} /> : null}
                 <WorktreeManagementActions
                   workspacePath={project.workspacePath}
                   workspaceIdentity={project.workspaceIdentity}
                   workspaceRemoteSessionId={project.remoteSessionId}
                   sessionId={selected.taskId}
+                  bindingId={selected.id}
                   busy={false}
                   renderContent={(content) => content}
                   showEnvironment={false}

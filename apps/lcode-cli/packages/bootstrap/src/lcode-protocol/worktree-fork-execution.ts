@@ -12,6 +12,7 @@ import { buildWorkspaceRef } from "./workspace.js";
 import { filesystemMcpRoots, remapFilesystemMcpServers } from "./worktree-mcp-scope.js";
 import { retainRuntimeEnvironmentSession } from "./runtime-environment-session.js";
 import { summarizeWorktreeTaskName } from "./worktree-task-name.js";
+import { prepareProtocolExecutionSet } from "./protocol-execution-set.js";
 
 function assertForkSourceIdle(record: LCodeProtocolSessionRecord) {
   if (record.activeAbortController && !record.activeAbortController.signal.aborted)
@@ -29,6 +30,12 @@ export async function prepareForkWorktree(
     workspacePath: source.originWorkspacePath ?? source.workspacePath,
     workspaceIdentity: source.originWorkspaceIdentity ?? source.workspaceIdentity,
   };
+  if (source.executionSetRef) {
+    const taskId = createSessionId(commandId);
+    const prepared = await prepareProtocolExecutionSet(context, { workspace: { ...buildWorkspaceRef(origin), remoteSessionId: source.remoteSessionId }, taskId, requestId: commandId, execution: { mode: "worktree", collaboration: true, taskName: "Fork collaboration" }, mcpServers: record.executionMcpServers, forkSource: { executionSetId: source.executionSetRef.executionSetId, sessionId: record.app.sessionId } });
+    assertForkSourceIdle(record);
+    return { taskId, ...prepared };
+  }
   const { binding: parentBinding } = await context.requestClient(
     lcodeProtocolMethods.worktreeGetBinding,
     { ...origin, taskId: source.bindingOwnerTaskId ?? record.app.sessionId },

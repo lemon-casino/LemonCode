@@ -17,6 +17,7 @@ import type {
 import { measureUtf8Bytes, MAX_TURN_STEER_INPUT_BYTES, previewInput } from "../helpers/index.js";
 import type { ActiveTurnSteeringState } from "../types.js";
 import type { AgentRuntimeInternal } from "../internal.js";
+import { formatProjectContextSnapshot } from "@lcode/shared";
 
 function hasSteerInput(request: Pick<TurnSteerInput, "attachments" | "input">): boolean {
   return request.input.trim().length > 0 || Boolean(request.attachments?.length);
@@ -84,13 +85,19 @@ export async function steerTurn(
   const queryId = request.queryId ?? (request.inputId as QueryId | undefined) ?? createQueryId();
   const commandKind = request.commandKind;
   const source: TurnSteerSource | undefined = request.source;
-  const delivery = request.delivery;
+  const currentScope = this.messageHistory.borrowReadOnlyRuntimeEntries().find((entry) => entry.metadata?.source === "project_scope");
+  const currentScopeText = currentScope && currentScope.kind !== "attachment" ? currentScope.message.content : undefined;
+  const nextScopeText = request.intent?.projectContext ? formatProjectContextSnapshot(request.intent.projectContext) : undefined;
+  // 中文依据：guide 沿用当前轮工具权限；项目目录变更必须排队到下一轮，不能在执行中切换协作范围。
+  const changedScope = (request.delivery ?? request.intent?.admittedDelivery) === "guide" && currentScopeText !== nextScopeText;
+  const delivery = changedScope ? "queue" : request.delivery;
   const toolDisallowlist = request.toolDisallowlist;
   const queuePosition = activeTurn.pendingInputs.length;
   const intent = request.intent
     ? {
         ...request.intent,
         admittedDelivery: request.delivery ?? request.intent.admittedDelivery,
+        ...(changedScope ? { admittedDelivery: "queue" as const, fallbackReasonCode: "guide.projectScopeChanged" } : {}),
         queuePosition,
       }
     : undefined;

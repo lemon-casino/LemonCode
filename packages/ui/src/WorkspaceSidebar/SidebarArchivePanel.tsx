@@ -24,20 +24,28 @@ import {
 } from "@/components/ui/context-menu.js";
 import type { UnifiedSidebarTreeProps } from "./UnifiedSidebarTree.js";
 import { useSidebarText } from "./sidebarText.js";
+import { ExecutionSetSidebarRow } from "./ExecutionSetSidebarRow.js";
+import type { SidebarExecutionSetsResult } from "@/hooks/useSidebarExecutionSets.js";
 
 export function SidebarArchivePanel({
   props,
   queryTabs,
   bindings,
   sortBy,
+  sets,
 }: {
   props: UnifiedSidebarTreeProps;
   queryTabs: WorkspaceTabState[];
   bindings: WorktreeBinding[];
   sortBy: "created" | "updated";
+  sets: SidebarExecutionSetsResult;
 }) {
   const text = useSidebarText();
   const [source, setSource] = useState("all");
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const archivedSets = sets.entries.filter(
+    (entry) => entry.snapshot.status === "archived" || entry.snapshot.status === "restoring",
+  );
   const [deletion, setDeletion] = useState<{ run(): void; enabled: boolean } | null>(null);
   const [refresh, setRefresh] = useState<(() => Promise<void>) | null>(null);
   const onRefresh = useCallback(
@@ -46,7 +54,8 @@ export function SidebarArchivePanel({
   );
   const filter = useCallback(
     (task: LCodeTaskMeta) =>
-      source === "all" || isWorktreeSidebarTask(task, bindings) === (source === "treeChats"),
+      source !== "executionSets" &&
+      (source === "all" || isWorktreeSidebarTask(task, bindings) === (source === "treeChats")),
     [source, bindings],
   );
   const actions = (
@@ -54,7 +63,13 @@ export function SidebarArchivePanel({
     Separator: typeof DropdownMenuSeparator | typeof ContextMenuSeparator,
   ) => (
     <>
-      <Item disabled={!refresh} onSelect={() => void refresh?.()}>
+      <Item
+        disabled={!refresh}
+        onSelect={() => {
+          void refresh?.();
+          void sets.refresh();
+        }}
+      >
         <RefreshCw className="size-3.5" />
         {text("refreshArchive")}
       </Item>
@@ -87,7 +102,14 @@ export function SidebarArchivePanel({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="start">
                 <DropdownMenuRadioGroup value={source} onValueChange={setSource}>
-                  {(["all", "ordinary", "treeChats"] as const).map((value) => (
+                  {(
+                    [
+                      "all",
+                      "ordinary",
+                      "treeChats",
+                      ...(archivedSets.length ? ["executionSets" as const] : []),
+                    ] as const
+                  ).map((value) => (
                     <DropdownMenuRadioItem key={value} value={value}>
                       {text(value)}
                     </DropdownMenuRadioItem>
@@ -111,18 +133,37 @@ export function SidebarArchivePanel({
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-          <WorkspaceArchivedTasksFlatSection
-            onDeleteActionChange={setDeletion}
-            onRefreshActionChange={onRefresh}
-            workspaceTabs={queryTabs}
-            activeWorkspacePath={props.workspacePath}
-            activeWorkspaceIdentity={props.workspaceIdentity}
-            activeTaskId={props.activeTaskId}
-            sortBy={sortBy}
-            actionsContainer={null}
-            taskFilter={filter}
-            onSelectTask={props.onSelectTask}
-          />
+          {source === "all" || source === "executionSets"
+            ? archivedSets.map((entry) => (
+                <ExecutionSetSidebarRow
+                  key={entry.snapshot.id}
+                  entry={entry}
+                  sets={sets}
+                  open={Boolean(expanded[entry.snapshot.id])}
+                  onToggle={() =>
+                    setExpanded((previous) => ({
+                      ...previous,
+                      [entry.snapshot.id]: !previous[entry.snapshot.id],
+                    }))
+                  }
+                  props={props}
+                />
+              ))
+            : null}
+          {source !== "executionSets" ? (
+            <WorkspaceArchivedTasksFlatSection
+              onDeleteActionChange={setDeletion}
+              onRefreshActionChange={onRefresh}
+              workspaceTabs={queryTabs}
+              activeWorkspacePath={props.workspacePath}
+              activeWorkspaceIdentity={props.workspaceIdentity}
+              activeTaskId={props.activeTaskId}
+              sortBy={sortBy}
+              actionsContainer={null}
+              taskFilter={filter}
+              onSelectTask={props.onSelectTask}
+            />
+          ) : null}
         </section>
       </ContextMenuTrigger>
       <ContextMenuContent>{actions(ContextMenuItem, ContextMenuSeparator)}</ContextMenuContent>

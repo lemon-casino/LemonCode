@@ -87,6 +87,7 @@ async function createWorkerContext(browser, viewport) {
     revoked: false,
     busy: false,
     holdBridge: false,
+    hostBusyResponses: 0,
     pairCalls: 0,
     dataCalls: 0,
     sockets: [],
@@ -118,6 +119,11 @@ async function createWorkerContext(browser, viewport) {
     worker.dataCalls += 1;
     if (worker.revoked || target.searchParams.get("auth") !== CREDENTIAL) {
       socket.close({ code: 4002, reason: "device credential rejected" });
+      return;
+    }
+    if (worker.hostBusyResponses > 0) {
+      worker.hostBusyResponses--;
+      socket.close({ code: 1013, reason: "host reconnecting" });
       return;
     }
     if (worker.busy) {
@@ -231,6 +237,28 @@ test("手机远控：关闭页面、后台断连与网络重试不重放配对�
       await connected(page);
       assert.equal(worker.pairCalls, 1);
       assert.equal(worker.dataCalls, 2);
+    } finally {
+      await context.close();
+    }
+  });
+  await t.test("Host 心跳断连期间 1013 自动重试，恢复原设备且不再次配对", async () => {
+    const { context, worker } = await createWorkerContext(browser, { width: 390, height: 844 });
+    try {
+      const page = await context.newPage();
+      await page.goto(url);
+      await connected(page);
+      worker.hostBusyResponses = 2;
+      const reload = page.waitForEvent("load");
+      worker.sockets.at(-1).close({ code: 1013, reason: "host reconnecting" });
+      await reload;
+      await connected(page);
+      assert.equal(worker.pairCalls, 1);
+      assert.equal(worker.dataCalls, 4);
+      assert.equal(worker.hostBusyResponses, 0);
+      const stored = await page.evaluate(() =>
+        JSON.parse(localStorage.getItem("lcode:remote-pairing:device:v1")),
+      );
+      assert.ok(JSON.stringify(stored).includes(CREDENTIAL));
     } finally {
       await context.close();
     }

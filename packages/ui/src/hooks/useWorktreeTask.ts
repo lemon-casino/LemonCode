@@ -11,6 +11,7 @@ export function useWorktreeTask(
   workspaceIdentity: string | undefined,
   taskId: string | null,
   revision?: string,
+  bindingId?: string,
 ) {
   const { worktreeService, gitService } = useServices();
   const { intl } = useLCodeIntl();
@@ -56,7 +57,7 @@ export function useWorktreeTask(
       intl,
     ],
   );
-  const scope = `${workspaceIdentity?.trim() || workspacePath}\0${taskId ?? ""}`;
+  const scope = `${workspaceIdentity?.trim() || workspacePath}\0${taskId ?? bindingId ?? ""}`;
   const ticket = useRef(0);
   const [state, setState] = useState<{
     scope: string;
@@ -72,7 +73,7 @@ export function useWorktreeTask(
     state.scope === scope ? state : { scope, binding: null, operation: null, loading: true };
   const refresh = useCallback(async () => {
     const ownTicket = ++ticket.current;
-    if (!taskId || !worktreeService) {
+    if ((!taskId && !bindingId) || !worktreeService) {
       setState({ scope, binding: null, operation: null, loading: false });
       return;
     }
@@ -80,7 +81,7 @@ export function useWorktreeTask(
       const binding = await worktreeService.getBinding({
         workspacePath,
         workspaceIdentity,
-        taskId,
+        ...(bindingId ? { bindingId } : { taskId: taskId! }),
       });
       const operation = binding?.latestIntegrationId
         ? await worktreeService.getIntegration({ operationId: binding.latestIntegrationId })
@@ -96,7 +97,7 @@ export function useWorktreeTask(
           rawError: getErrorMessage(error),
         }));
     }
-  }, [scope, taskId, workspacePath, workspaceIdentity, worktreeService, describeError]);
+  }, [scope, taskId, bindingId, workspacePath, workspaceIdentity, worktreeService, describeError]);
   useEffect(() => {
     void refresh();
     return () => {

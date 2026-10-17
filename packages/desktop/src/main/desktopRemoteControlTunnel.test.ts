@@ -91,7 +91,8 @@ function makeClock() {
     setTimeout(callback: () => void, ms: number) {
       const id = ++seq;
       timers.set(id, { at: nowMs + ms, callback });
-      return { unref() {} } as unknown as NodeJS.Timeout;
+      // clearTimeout 必须能定位原定时器，才能真实验证停止和释放会取消重连。
+      return { id, unref() {} } as unknown as NodeJS.Timeout;
     },
     clearTimeout(timer: NodeJS.Timeout) {
       timers.delete((timer as unknown as { id: number }).id);
@@ -617,6 +618,163 @@ test("宽限耗尽后放弃重连并上报终态", () => {
   clock.advance(60_000);
   assert.equal(factory.sockets.length, socketsBefore);
 });
+
+for (const multiDevice of [false, true]) {
+  test(`心跳超时沿用同房间重连、恢复传输并忽略旧 socket（multiDevice=${multiDevice}）`, () => {
+    const factory = makeSocketFactory();
+    const clock = makeClock();
+    const { events, delegate } = makeDelegate();
+    const params = { ...baseParams(), ...(multiDevice ? { multiDevice: true as const } : {}) };
+    const session = createRemoteControlTunnelSession(params, delegate, {
+      createSocket: factory.createSocket,
+      setTimeoutImpl: clock.setTimeout,
+      clearTimeoutImpl: clock.clearTimeout,
+      nowImpl: clock.now,
+    });
+    const ready = {
+      type: "room.ready",
+      proto: 1,
+      roomId: params.roomId,
+      expiresAt: 123,
+      ...(multiDevice ? { multiDevice: true } : {}),
+    };
+    const first = factory.sockets[0]!;
+    first.emitOpen();
+    first.emitText(JSON.stringify(ready));
+    first.emitClose(4001, "heartbeat timeout");
+    assert.equal(session.isRunning(), true);
+    assert.equal(events.at(-1)?.kind, "suspended");
+    clock.advance(2000);
+    assert.equal(factory.sockets.length, 2);
+    assert.equal(factory.urls[1], factory.urls[0]);
+    assert.deepEqual(factory.headers[1], factory.headers[0]);
+    const second = factory.sockets[1]!;
+    second.emitOpen();
+    assert.deepEqual(JSON.parse(second.sentText[0]!), JSON.parse(first.sentText[0]!));
+    second.emitText(JSON.stringify(ready));
+    second.emitText(
+      JSON.stringify({ type: "bridge.open", proto: 1, deviceId: "device-1", resumed: true }),
+    );
+    const before = events.length;
+    first.emitClose(4001, "late timeout");
+    assert.equal(events.length, before);
+    assert.equal(session.isRunning(), true);
+    const payload = Uint8Array.of(1, 2, 3);
+    session.sendBridgeBinary(payload, "device-1");
+    assert.deepEqual(
+      multiDevice
+        ? decodeRemoteControlBridgeFrame(second.sentBinary[0]!).payload
+        : second.sentBinary[0],
+      payload,
+    );
+    clock.advance(31000);
+    assert.ok(second.sentText.some((text) => JSON.parse(text).type === "ping"));
+    second.emitClose(4001, "next timeout after recovery");
+    const suspended = events.at(-1)!;
+    assert.equal(suspended.kind, "suspended");
+    assert.equal(
+      (suspended.payload as { graceDeadlineAt: number }).graceDeadlineAt,
+      clock.now() + 30000,
+    );
+    clock.advance(2000);
+    assert.equal(factory.sockets.length, 3);
+    session.dispose();
+  });
+}
+
+test("连续心跳超时不延长 30 秒恢复期限", () => {
+  const factory = makeSocketFactory();
+  const clock = makeClock();
+  const { events, delegate } = makeDelegate();
+  const session = createRemoteControlTunnelSession(baseParams(), delegate, {
+    createSocket: factory.createSocket,
+    setTimeoutImpl: clock.setTimeout,
+    clearTimeoutImpl: clock.clearTimeout,
+    nowImpl: clock.now,
+  });
+  factory.sockets[0]!.emitOpen();
+  factory.sockets[0]!.emitText(
+    JSON.stringify({ type: "room.ready", proto: 1, roomId: baseParams().roomId, expiresAt: 123 }),
+  );
+  factory.sockets[0]!.emitClose(4001, "heartbeat timeout");
+  for (let attempt = 0; attempt < 14; attempt++) {
+    clock.advance(2000);
+    const socket = factory.sockets.at(-1)!;
+    socket.emitOpen();
+    socket.emitClose(4001, "heartbeat timeout");
+  }
+  assert.ok(events.some((event) => event.kind === "suspended"));
+  assert.ok(
+    events
+      .filter((event) => event.kind === "suspended")
+      .every((event) => (event.payload as { graceDeadlineAt: number }).graceDeadlineAt === 30000),
+  );
+  clock.advance(2000);
+  assert.equal(session.isRunning(), false);
+  assert.equal(events.filter((event) => event.kind === "closed").length, 1);
+  const attempts = factory.sockets.length;
+  clock.advance(60000);
+  assert.equal(factory.sockets.length, attempts);
+  session.dispose();
+});
+
+for (const action of ["stopRoom", "dispose"] as const) {
+  test(`心跳重连等待中 ${action} 取消所有后续尝试`, () => {
+    const factory = makeSocketFactory(),
+      clock = makeClock();
+    const { events, delegate } = makeDelegate();
+    const session = createRemoteControlTunnelSession(baseParams(), delegate, {
+      createSocket: factory.createSocket,
+      setTimeoutImpl: clock.setTimeout,
+      clearTimeoutImpl: clock.clearTimeout,
+      nowImpl: clock.now,
+    });
+    factory.sockets[0]!.emitOpen();
+    factory.sockets[0]!.emitText(
+      JSON.stringify({ type: "room.ready", proto: 1, roomId: baseParams().roomId, expiresAt: 123 }),
+    );
+    factory.sockets[0]!.emitClose(4001, "heartbeat timeout");
+    assert.equal(events.at(-1)?.kind, "suspended");
+    session[action]();
+    const count = events.length;
+    clock.advance(60000);
+    assert.equal(factory.sockets.length, 1);
+    assert.equal(events.length, count);
+    assert.equal(session.isRunning(), false);
+    assert.equal(clock.pendingCount(), 0);
+  });
+}
+
+for (const code of [1000, 4001, 4002, 4003, 4004, 4005, 4006, 4007, 4008]) {
+  test(`关闭码 ${code} 保留首次注册和授权/房间终态边界`, () => {
+    const factory = makeSocketFactory(),
+      clock = makeClock();
+    const { events, delegate } = makeDelegate();
+    const session = createRemoteControlTunnelSession(baseParams(), delegate, {
+      createSocket: factory.createSocket,
+      setTimeoutImpl: clock.setTimeout,
+      clearTimeoutImpl: clock.clearTimeout,
+      nowImpl: clock.now,
+    });
+    factory.sockets[0]!.emitOpen();
+    if (code !== 4001)
+      factory.sockets[0]!.emitText(
+        JSON.stringify({
+          type: "room.ready",
+          proto: 1,
+          roomId: baseParams().roomId,
+          expiresAt: 123,
+        }),
+      );
+    factory.sockets[0]!.emitClose(code, "fixture close");
+    clock.advance(60000);
+    assert.equal(factory.sockets.length, 1);
+    assert.equal(session.isRunning(), false);
+    assert.equal(events.filter((event) => event.kind === "closed").length, 1);
+    assert.equal(events.filter((event) => event.kind === "suspended").length, 0);
+    session.dispose();
+  });
+}
 
 test("升级 401 拒绝:不重连并上报 auth-rejected", () => {
   const factory = makeSocketFactory();

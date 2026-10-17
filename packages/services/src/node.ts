@@ -14,6 +14,11 @@ import { drainProviderServiceResources } from "./model-provider/providerServiceS
 import { createProviderAccountRelaySource } from "./model-provider/providerAccountRelaySource.js";
 import type { ProviderAccountRelayService } from "./model-provider/providerAccountRelay.js";
 import { IWorktreeService } from "./worktree/contract.js";
+import { IProjectExecutionSetService } from "./project-execution-set/contract.js";
+import {
+  createProjectExecutionSetService,
+  createPublicProjectExecutionSetService,
+} from "./project-execution-set/node.js";
 import {
   createWorktreeService,
   createCheckoutCoordinator,
@@ -482,6 +487,7 @@ import {
 import {
   createOfficialMcpTrustedOriginRegistry,
   findLocalProjectForWorkspace,
+  buildProjectContextSnapshot,
   OFFICIAL_MCP_DEV_TRUSTED_ORIGINS_ENV,
 } from "@lcode/shared";
 import {
@@ -2256,6 +2262,48 @@ export function createLocalServices(options: {
         }),
     },
   );
+  const projectExecutionSetService = createProjectExecutionSetService({
+    dataDir: join(resolveAppConfigDir(), "project-execution-sets"),
+    worktrees: worktreeService,
+    selectArchiveSessions: async (snapshot) => {
+      const ids: string[] = [];
+      const archived = new Set(
+        (await lcodeTaskService.listArchivedTasks(snapshot.origin)).map((task) => task.taskId),
+      );
+      for (const session of snapshot.sessions) {
+        const meta = await lcodeTaskService.getTaskMeta({
+          ...snapshot.origin,
+          taskId: session.sessionId,
+        });
+        if (meta && !archived.has(session.sessionId)) ids.push(session.sessionId);
+      }
+      return ids;
+    },
+    setSessionsArchived: async (snapshot, archived) => {
+      for (const taskId of snapshot.archiveSessionIds ?? []) {
+        if (!(await lcodeTaskService.getTaskMeta({ ...snapshot.origin, taskId }))) continue;
+        if (archived) await lcodeTaskService.archiveTask({ ...snapshot.origin, taskId });
+        else await lcodeTaskService.unarchiveTask({ ...snapshot.origin, taskId });
+      }
+    },
+    stopSessions: async (snapshot) => {
+      const sessionIds = snapshot.sessions
+        .filter((session) => session.status !== "released")
+        .map((session) => session.sessionId);
+      for (const sessionId of sessionIds) {
+        // 中文依据：close 的 false 表示未取得停止证明，不能先释放多仓库目录再让后台执行继续写入。
+        if (
+          !(await lcodeAgentService.closeSession({
+            ...snapshot.origin,
+            sessionId,
+            resourceRelease: true,
+          }))
+        )
+          throw new Error(`Session did not confirm closure: ${sessionId}`);
+      }
+      return { stopped: true, sessionIds };
+    },
+  });
   const lcodeAgentService = createLCodeAgentService({
     resolveOAuthRequestAuth: async ({
       channelId,
@@ -2276,6 +2324,7 @@ export function createLocalServices(options: {
       );
     },
     worktreeService,
+    projectExecutionSetService,
     assertWorktreeExecutionAdmission: (scope) => worktreeService.assertExecutionAdmission(scope),
     runtimeEnvironmentService,
     runtimeEnvironmentPublicService: publicRuntimeEnvironmentService,
@@ -2435,10 +2484,15 @@ export function createLocalServices(options: {
       ? { sessionRuntimePreferencesAuthority: "external" as const }
       : {
           sessionRuntimePreferencesAuthority: "local" as const,
-          resolveSessionRuntimePreferences: async (scope) => {
+          resolveSessionRuntimePreferences: async (scope, projectWorkspace) => {
             // 预算已统一，不能把可选远端配置作为本地/手机 shared-host 建会话的前置条件。
             const settings = await settingService.get();
-            return buildLocalSessionRuntimePreferences(settings, scope);
+            return {
+              ...buildLocalSessionRuntimePreferences(settings, scope),
+              ...(scope === "project-admission" && projectWorkspace
+                ? { projectContext: buildProjectContextSnapshot(settings, projectWorkspace) }
+                : {}),
+            };
           },
         }),
   });
@@ -2628,6 +2682,10 @@ export function createLocalServices(options: {
     .register(IMediaPreviewService, mediaPreviewService)
     .register(IGitService, gitService)
     .register(IWorktreeService, createPublicWorktreeService(worktreeService))
+    .register(
+      IProjectExecutionSetService,
+      createPublicProjectExecutionSetService(projectExecutionSetService),
+    )
     .register(IRuntimeEnvironmentService, publicRuntimeEnvironmentService)
     .register(IGitCheckpointService, gitCheckpointService)
     .register(ISystemService, systemService)

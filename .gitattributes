@@ -20,3 +20,7 @@ packages/provider-node/src/provider-auth/vendor/** -text -whitespace
 
 # 品牌SVG按来源字节保留，避免Windows换行转换破坏素材记录和第三方快照哈希。
 packages/ui/src/assets/provider-icons/model-provider-*.svg -text -whitespace
+packages/desktop/assets/startup-media/*.mp4 -text -diff
+# SHA-256 清单需要各平台 checkout 后的声明文件字节一致。
+packages/desktop/assets/startup-media/*.md text eol=lf
+packages/desktop/assets/startup-media/*.json text eol=lf

@@ -14,6 +14,7 @@ import type { AgentRuntimeInternal } from "../internal.js";
 import { buildReferencedSessionContextReminderBody } from "../../session-context/read-session-context.js";
 import { maybeStartSessionTitleGeneration } from "./session-title.js";
 import { prepareTurnContextCapsules } from "./turn-context-capsule.js";
+import { prepareTurnProjectContext } from "./turn-project-context.js";
 import type { TraceContext, TurnId } from "../deps.js";
 
 export async function prepareTurnInput(
@@ -162,6 +163,7 @@ export async function prepareTurnInput(
     targetMessageId: userMessageId,
     targetTurnId: turnId,
   });
+  await prepareTurnProjectContext(this, options?.intent, turnAbortSignal, turnTraceContext);
   // Plugin reminder 必须在对应 user 消息写入历史和 session store 后再追加：
   // provider 形态因此稳定为 user → system，cold hydration 也按同一因果顺序恢复。
   // 根因：input 可能已经被自定义命令展开，解析它会让命令模板里的 plugin://

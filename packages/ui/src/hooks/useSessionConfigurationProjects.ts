@@ -1,5 +1,9 @@
 import { useMemo } from "react";
-import { buildRemoteWorkspaceIdentity, type AppSettings } from "@lcode/shared";
+import {
+  buildRemoteWorkspaceIdentity,
+  findProjectDefinition,
+  type AppSettings,
+} from "@lcode/shared";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 import {
   useRemoteWorkspaceSessionStore,
@@ -13,7 +17,12 @@ import { useSidebarWorktrees, type SidebarWorktreeEntry } from "./useSidebarWork
 
 export type SessionConfigurationProject = Pick<
   WorkspaceTabState,
-  "workspacePath" | "workspaceIdentity" | "remoteSessionId" | "remoteTarget" | "label"
+  | "workspacePath"
+  | "workspaceIdentity"
+  | "remoteSessionId"
+  | "remoteTarget"
+  | "label"
+  | "localProjectId"
 >;
 
 export const sessionConfigurationProjectKey = (project: SessionConfigurationProject) =>
@@ -87,9 +96,17 @@ export function resolveSessionConfigurationProjects({
     const sessionId = project.workspaceIdentity
       ? sessionIdByWorkspaceIdentity[project.workspaceIdentity]
       : undefined;
-    return sessionId && sessionsById[sessionId]
-      ? { ...project, remoteSessionId: sessionId }
+    const definition = findProjectDefinition(
+      settings?.projectDefinitions?.projects ?? settings?.localProjects ?? [],
+      project.workspacePath,
+      project.workspaceIdentity,
+    );
+    const normalized = definition
+      ? { ...project, label: definition.name, localProjectId: definition.id }
       : project;
+    return sessionId && sessionsById[sessionId]
+      ? { ...normalized, remoteSessionId: sessionId }
+      : normalized;
   });
 }
 

@@ -105,6 +105,7 @@ export function RemoteConnectionDialog({
     port,
     username,
     sshAuthMethod,
+    sshProxySelection,
     assetInstallMode,
     password,
     privateKeyPath,
@@ -126,6 +127,7 @@ export function RemoteConnectionDialog({
     setPort,
     setUsername,
     setSshAuthMethod,
+    setSshProxySelection,
     setAssetInstallMode,
     setPassword,
     setPrivateKeyPath,
@@ -343,6 +345,7 @@ export function RemoteConnectionDialog({
       port,
       username,
       sshAuthMethod,
+      sshProxySelection,
       assetInstallMode,
       password,
       privateKeyPath,
@@ -541,6 +544,8 @@ export function RemoteConnectionDialog({
                     port={port}
                     username={username}
                     sshAuthMethod={sshAuthMethod}
+                    sshProxySelection={sshProxySelection}
+                    onSshProxySelectionChange={setSshProxySelection}
                     assetInstallMode={assetInstallMode}
                     password={password}
                     privateKeyPath={privateKeyPath}

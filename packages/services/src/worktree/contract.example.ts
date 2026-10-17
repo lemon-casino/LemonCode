@@ -33,7 +33,7 @@ export async function readPreparation(
   requestId: string,
 ) {
   const binding = await service.getBinding({ workspacePath, requestId });
-  if (binding?.status === "preparing")
+  if (binding?.status === "preparing" && binding.taskId)
     return service.prepare({ workspacePath, taskId: binding.taskId, requestId, cancel: true });
   return binding;
 }

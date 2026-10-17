@@ -1,4 +1,4 @@
-import { access, readFile, mkdir, rename } from "node:fs/promises";
+import { readFile, mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { withFileLock } from "@lcode/shared/node";
@@ -16,11 +16,13 @@ import {
 import type { ISettingService } from "./setting.js";
 import { normalizeSettingsPatch } from "#src/setting/normalizeSettingsPatch.js";
 import { assertMemoryStorageTransition } from "./memoryStorageTransition.js";
-import { copyDataDirectory, getDataBaseDir, validateDataBaseDirTarget } from "../paths.js";
+import { settingDirectoryCommands } from "./settingDirectoryCommands.js";
 import { isEffectiveDevelopmentNodeEnv } from "../runtime-tools/nodeEnv.js";
 import { maybeThrowInjectedFsFault } from "../fs/fsFaultInjection.js";
 import { atomicWriteText } from "../fs/atomicFileUtils.js";
 import { withSettingsWriteQueueTimeout } from "./settingsWriteQueue.js";
+import { applyProjectMutation } from "./projectMutations.js";
+import { readProjectSettings } from "./projectSettingsRead.js";
 import {
   migrateLegacyAccountConnectionSettings,
   needsLegacyAccountConnectionMigration,
@@ -30,7 +32,6 @@ import {
   type LegacyTeamConnection,
 } from "#src/setting/legacyAccountConnectionSettings.js";
 const MAX_RECENT_PROJECTS = 10;
-const DEFAULT_PROJECT_NAME = "LCodeProject";
 const SETTINGS_PARSE_RETRY_DELAY_MS = 300;
 const SETTINGS_PARSE_RETRY_COUNT = 3;
 
@@ -200,7 +201,7 @@ async function writeSettings(
   const settingsFile = getSettingsFile();
   // Windows 下测试只改了 HOME，模块顶层常量如果在导入时就把 homedir() 固化，
   // 后续读写仍会串到真实用户目录。这里改成每次按当前环境解析配置路径，保证本地和测试都稳定。
-  log("writing settings to:", settingsFile, JSON.stringify(settings));
+  log("writing settings");
   maybeThrowInjectedFsFault({ operation: "mkdir", path: settingsDir });
   await mkdir(settingsDir, { recursive: true });
   if (!shouldCommit()) return;
@@ -277,6 +278,25 @@ export function createSettingServiceWithMigrations(): {
   };
 
   const service: ISettingService = {
+    async mutateProject(request) {
+      let result: Awaited<ReturnType<typeof applyProjectMutation>>["result"] | undefined;
+      await enqueueSettingsWrite(async (shouldCommit, enterCommitPhase) => {
+        const current = await readProjectSettings(getSettingsFile());
+        const mutation = await applyProjectMutation(current.settings, request);
+        if (mutation.next) {
+          await current.backupBeforeMigration();
+          await writeSettings(
+            appSettingsSchema.parse(mutation.next),
+            shouldCommit,
+            runSettingsCommit,
+            enterCommitPhase,
+          );
+        }
+        result = mutation.result;
+      });
+      if (!result) throw new Error("Project command did not complete");
+      return result;
+    },
     async get(): Promise<AppSettings> {
       // 设置切换后可能立即创建或冷恢复 Session；读取若越过已入队写入，
       // runtime 会固定旧开关值。先等待现有写队列，保证启动偏好读取到已提交的选择。
@@ -304,6 +324,13 @@ export function createSettingServiceWithMigrations(): {
       const runUpdate = async (shouldCommit: () => boolean, enterCommitPhase: () => void) => {
         const validatedPatch = appSettingsPatchSchema.parse(normalizeSettingsPatch(patch));
         const current = await readSettings();
+        // 中文依据：迁移后的兼容数组只能由项目命令生成，阻止旧窗口整数组覆盖新成员及其它项目。
+        if (
+          Object.hasOwn(patch, "projectDefinitions") ||
+          Object.hasOwn(patch, "projectMutationReceipts") ||
+          (current.projectDefinitions && Object.hasOwn(patch, "localProjects"))
+        )
+          throw new Error("Use the project command to update project definitions");
         if (expectedAccountSettings) {
           // 账号查询期间用户可能已手动切换。必须在同一写队列内校验，不能靠调用方先读再写。
           const expected = appSettingsPatchSchema.parse(expectedAccountSettings);
@@ -354,44 +381,7 @@ export function createSettingServiceWithMigrations(): {
       await enqueueSettingsWrite(runUpdate);
     },
 
-    async updateDataBaseDir(newDir: string | undefined): Promise<void> {
-      const currentBaseDir = getDataBaseDir();
-      const targetBaseDir = newDir?.trim() || homedir();
-      const validation = validateDataBaseDirTarget(targetBaseDir);
-      if (!validation.ok) {
-        // Windows 安装目录由安装器/自动更新管理，把 .lcode/v2 放进去可能在升级时被覆盖。
-        // 迁移前在 service 层拦截，避免 UI 入口变化或 RPC 调用绕过前端判断。
-        const error = new Error(`${validation.code}: ${validation.forbiddenDir}`);
-        (error as Error & { code: string }).code = validation.code;
-        throw error;
-      }
-
-      if (currentBaseDir !== targetBaseDir) {
-        log("copying data directory from", currentBaseDir, "to", targetBaseDir);
-        await copyDataDirectory(currentBaseDir, targetBaseDir);
-        log("data directory copy done");
-      }
-
-      await this.update({ dataBaseDir: newDir });
-    },
-
-    async ensureDefaultProject(userHomeDir: string): Promise<{ path: string; created: boolean }> {
-      const path = join(userHomeDir, DEFAULT_PROJECT_NAME);
-      let existedBefore = true;
-
-      try {
-        await access(path).catch(() => {
-          existedBefore = false;
-        });
-        maybeThrowInjectedFsFault({ operation: "mkdir", path });
-        await mkdir(path, { recursive: true });
-      } catch (error) {
-        log("ensureDefaultProject failed:", error);
-        throw error;
-      }
-
-      return { path, created: !existedBefore };
-    },
+    ...settingDirectoryCommands((patch, expected) => service.update(patch, expected)),
   };
 
   let inFlight: Promise<readonly ProviderFamilyDomain[]> | null = null;

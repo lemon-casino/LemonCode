@@ -1,0 +1,67 @@
+name: Desktop startup animation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "packages/desktop/src/renderer/**"
+      - "packages/desktop/src/main/startupAnimation*"
+      - "packages/desktop/src/main/desktopHostProcess.ts"
+      - "packages/desktop/src/main/desktopWindowLifecycle.ts"
+      - "packages/desktop/scripts/startup*"
+      - "packages/desktop/scripts/import-startup-media.mjs"
+      - "packages/desktop/assets/startup-media/**"
+      - "packages/desktop/electron-builder.config.js"
+      - "packages/desktop/vite.config.ts"
+      - "packages/shared/src/startupAnimation*"
+      - "packages/shared/src/startupScene*"
+      - "packages/ui/src/root/startupSurface*"
+      - "packages/ui/src/Root.tsx"
+      - "packages/ui/src/WelcomeScreen.tsx"
+      - "packages/ui/src/hooks/useStartupAnimationSettings.ts"
+      - "packages/ui/src/hooks/useStartupSceneEditor.ts"
+      - "packages/ui/src/settings/StartupAnimationSettingsSection.tsx"
+      - "packages/ui/src/settings/StartupSceneEditor.tsx"
+      - "packages/ui/src/settings/StartupSubtitlePicker.tsx"
+      - "packages/ui/src/settings/WallpaperSettingsSection.tsx"
+      - "packages/ui/src/store/wallpaper*"
+      - "packages/ui/src/hooks/useWallpaper*"
+      - "packages/ui/src/hooks/useAemeathWallpaper.ts"
+      - "packages/ui/src/app-shell/WorkspaceWallpaper.tsx"
+      - "packages/ui/src/app-shell/WorkspaceShellSurface.tsx"
+      - "packages/ui/src/wallpaper.css"
+      - ".github/workflows/startup-animation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  startup:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2025, macos-15, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 10.34.6
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24.21.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:startup-animation
+      - if: runner.os != 'Linux'
+        run: pnpm test:startup-animation:ui
+      - if: runner.os == 'Linux'
+        run: xvfb-run -a pnpm test:startup-animation:ui
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: startup-${{ matrix.os }}
+          path: packages/desktop/.e2e-artifacts/startup-animation/
+          retention-days: 7

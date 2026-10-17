@@ -92,6 +92,7 @@ export const ServiceChannels = {
   /** Git 服务 */
   Git: "git",
   Worktree: "worktree",
+  ProjectExecutionSet: "projectExecutionSet",
   SidebarOrganization: "sidebar-organization",
   /** Git checkpoint 服务 */
   GitCheckpoint: "git-checkpoint",
@@ -175,6 +176,7 @@ export type ServiceChannelName = (typeof ServiceChannels)[keyof typeof ServiceCh
 export const PlatformChannels = {
   /** 打开系统目录选择框 */
   SelectDirectory: "lcode:select-directory",
+  SelectDirectories: "lcode:select-directories",
   /** 打开系统文件选择框 */
   SelectFile: "lcode:select-file",
   /** 打开系统多文件选择框 */
@@ -693,6 +695,10 @@ export interface PlatformChannelMap {
   [PlatformChannels.SelectDirectory]: {
     request: void;
     response: string | null;
+  };
+  [PlatformChannels.SelectDirectories]: {
+    request: void;
+    response: string[];
   };
   [PlatformChannels.SelectFile]: {
     request: void;

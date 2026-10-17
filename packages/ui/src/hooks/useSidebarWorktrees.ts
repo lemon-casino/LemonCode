@@ -110,7 +110,7 @@ export function useSidebarWorktrees(tabs: WorkspaceTabState[]): SidebarWorktrees
               key,
               token,
               unavailable: false,
-              entries: bindings.map((binding) => {
+              entries: bindings.filter((binding) => binding.ownerRef?.kind !== "executionSet").map((binding) => {
                 const originKey =
                   binding.originalWorkspaceIdentity?.trim() || binding.originalWorkspacePath;
                 const project = tabs.find(

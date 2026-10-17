@@ -67,6 +67,7 @@ export function onTurnSteerQueued(
     planEnabled: payload.intent?.planEnabled ?? existing?.planEnabled,
     sharedContextRefs: payload.intent?.sharedContextRefs ?? existing?.sharedContextRefs,
     contextCapsuleRefs: payload.intent?.contextCapsuleRefs ?? existing?.contextCapsuleRefs,
+    projectContext: payload.intent?.projectContext ?? existing?.projectContext,
     provenance: payload.intent?.provenance ?? existing?.provenance,
     delivery: {
       requested: requestedDelivery,

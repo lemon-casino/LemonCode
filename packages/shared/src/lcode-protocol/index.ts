@@ -22,12 +22,18 @@ export * from "../background-bash-output.js";
 import { executionOutputPreviewSchema } from "../execution-output-preview.js";
 import { z } from "zod";
 import { routingInvocationSchema } from "../provider-routing.js";
+import { projectContextSnapshotSchema } from "../projectContext.js";
 import { accountModelCatalogSchema } from "../model-catalog.js";
 export {
   workflowRunResumeRejectionReasonSchema,
   type WorkflowRunResumeRejectionReason,
 } from "../workflow-run-resume.js";
 import { executionIntentSchema } from "../worktreeExecution.js";
+import {
+  executionSetPrepareExecutionParamsSchema,
+  executionSetResolveExecutionParamsSchema,
+  executionSetExecutionResultSchema,
+} from "../projectExecutionSet.js";
 import {
   runtimeEnvironmentProtocolCapabilitySchema,
   runtimeEnvironmentActionSchema,
@@ -1774,6 +1780,7 @@ export type LCodeSessionEventsParams = z.infer<typeof lcodeSessionEventsParamsSc
 export const lcodeSessionRuntimePreferencesScopeSchema = z.enum([
   "runtime-materialization",
   "user-execution",
+  "project-admission",
 ]);
 export type LCodeSessionRuntimePreferencesScope = z.infer<
   typeof lcodeSessionRuntimePreferencesScopeSchema
@@ -1785,6 +1792,9 @@ export const lcodeSessionRequestRuntimePreferencesParamsSchema = z
   .object({
     sessionId: nonEmptyString,
     scope: lcodeSessionRuntimePreferencesScopeSchema,
+    projectContext: z
+      .strictObject({ version: z.literal(1), workspace: lcodeWorkspaceRefSchema })
+      .optional(),
   })
   .strict();
 export type LCodeSessionRequestRuntimePreferencesParams = z.infer<
@@ -1799,6 +1809,7 @@ export type LCodeModelContextBudgetStrategy = z.infer<typeof lcodeModelContextBu
 
 export const lcodeSessionRuntimePreferencesResultSchema = z
   .object({
+    projectContext: projectContextSnapshotSchema.nullable().optional(),
     nativeSearchEnhancementsEnabled: z.boolean(),
     memoryEnabled: z.boolean().default(false),
     // 初始 profile 不补成响应字段，兼容旧 strict Agent；选择 workspace 或发生版本切换时才扩展报文。
@@ -2088,12 +2099,14 @@ export const lcodeSessionCloseParamsSchema = z
   .object({
     sessionId: nonEmptyString,
     expectedPersistence: lcodeSessionPersistenceSchema.optional(),
+    resourceRelease: z.literal(true).optional(),
   })
   .strict();
 export type LCodeSessionCloseParams = z.infer<typeof lcodeSessionCloseParamsSchema>;
 export const lcodeSessionCloseResultSchema = z
   .object({
     closed: z.boolean().optional(),
+    residency: z.enum(["closed", "absent"]).optional(),
   })
   .strict();
 export type LCodeSessionCloseResult = z.infer<typeof lcodeSessionCloseResultSchema>;
@@ -3747,6 +3760,8 @@ export const lcodeProtocolMethods = {
   computerUseOperationEvent: "computer-use/operation-event",
   sessionCreate: "session/create",
   worktreePrepareExecution: "worktree/prepareExecution",
+  executionSetPrepareExecution: "executionSet/prepareExecution",
+  executionSetResolveExecution: "executionSet/resolveExecution",
   worktreePrepareRepair: "worktree/prepareRepair",
   worktreeCompleteRepair: "worktree/completeRepair",
   worktreeGetBinding: "worktree/getBinding",
@@ -3882,6 +3897,14 @@ export const lcodeProtocolEmptyResultSchema = z.object({}).strict();
 // 最新 V4 主链已不再依赖旧版全量方法表；这里仅保留仍被兼容测试和 browser broker
 // 消费的最小契约集合，避免重新引入已移除的 legacy 方法。
 export const lcodeProtocolSessionMethodContracts = {
+  [lcodeProtocolMethods.executionSetPrepareExecution]: {
+    params: executionSetPrepareExecutionParamsSchema,
+    result: executionSetExecutionResultSchema,
+  },
+  [lcodeProtocolMethods.executionSetResolveExecution]: {
+    params: executionSetResolveExecutionParamsSchema,
+    result: executionSetExecutionResultSchema,
+  },
   [lcodeProtocolMethods.sessionWorktreeRebind]: {
     params: lcodeSessionWorktreeRebindParamsSchema,
     result: lcodeSessionWorktreeRebindResultSchema,

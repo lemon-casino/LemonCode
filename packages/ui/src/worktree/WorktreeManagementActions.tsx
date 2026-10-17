@@ -23,6 +23,7 @@ export function WorktreeManagementActions({
   workspaceIdentity,
   workspaceRemoteSessionId,
   sessionId,
+  bindingId,
   busy,
   revision,
   renderContent,
@@ -39,7 +40,8 @@ export function WorktreeManagementActions({
   workspacePath: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
-  sessionId: string;
+  sessionId?: string;
+  bindingId?: string;
   busy: boolean;
   revision?: string;
   renderContent?: (content: ReactNode) => ReactNode;
@@ -58,7 +60,11 @@ export function WorktreeManagementActions({
   const lifecycleRevision = useWorktreeLifecycleStore(
     (state) => state.revisions[workspaceIdentity?.trim() || workspacePath] ?? 0,
   );
-  const sharedReview = useReviewWorkspaceState(workspacePath, workspaceIdentity, sessionId);
+  const sharedReview = useReviewWorkspaceState(
+    workspacePath,
+    workspaceIdentity,
+    sessionId ?? bindingId ?? "management",
+  );
   const sessionAvailability = useWorktreeSessionAvailability(
     workspacePath,
     workspaceIdentity,
@@ -69,8 +75,9 @@ export function WorktreeManagementActions({
   const task = useWorktreeTask(
     workspacePath,
     workspaceIdentity,
-    sessionId,
+    sessionId ?? null,
     `${revision ?? ""}/${lifecycleRevision}/${sharedReview.snapshot.fieldRevisions.integrationId}/${sharedReview.snapshot.fieldRevisions.worktreeView}`,
+    sessionId ? undefined : bindingId,
   );
   const [, setOpen] = useState(defaultOpen);
   const [acknowledged, setAcknowledged] = useState(false);
@@ -96,6 +103,7 @@ export function WorktreeManagementActions({
   const locked =
     busy || task.pending || commitMergeState(operation ?? undefined, null).sourceLocked;
   const deleted = binding.status === "deleted";
+  const ownedBySet = binding.ownerRef?.kind === "executionSet";
   const content = (
     <div className="space-y-3 text-ui-sm" data-testid="worktree-management-content">
       <WorktreeDetailsTable label={intl.formatMessage({ id: "settings.worktrees.details" })}>
@@ -127,7 +135,7 @@ export function WorktreeManagementActions({
           workspaceIdentity={workspaceIdentity}
           workspaceRemoteSessionId={workspaceRemoteSessionId}
           sessionId={sessionAvailability === "available" ? sessionId : undefined}
-          disabled={locked}
+          disabled={locked || ownedBySet}
           onTransferred={hide}
           onSettled={() => void task.refresh()}
         />
@@ -211,7 +219,7 @@ export function WorktreeManagementActions({
       {deleted || binding.status === "deleting" ? null : binding.status === "archived" ? (
         <Button
           type="button"
-          disabled={locked}
+          disabled={locked || ownedBySet}
           onClick={() =>
             void task.perform(() =>
               worktreeService.restore({ bindingId: binding.id, requestId: crypto.randomUUID() }),
@@ -222,7 +230,7 @@ export function WorktreeManagementActions({
         </Button>
       ) : (
         <WorktreeArchiveControl
-          disabled={locked}
+          disabled={locked || ownedBySet}
           acknowledged={acknowledged}
           onChange={setAcknowledged}
           onArchive={() =>
@@ -241,7 +249,7 @@ export function WorktreeManagementActions({
           defaultOpen={defaultDeleteOpen}
           binding={binding}
           operation={operation}
-          disabled={busy || task.pending}
+          disabled={busy || task.pending || ownedBySet}
           pending={task.pending}
           error={task.error}
           onDiscard={async () => {

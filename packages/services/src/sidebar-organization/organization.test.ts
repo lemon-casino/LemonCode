@@ -18,6 +18,70 @@ const tree: SidebarEntryRef = {
   bindingId: "binding",
 };
 
+test("execution set placement persists its default and upgrades the schema", async (t) => {
+  const { service, path } = await fixture(t);
+  const set: SidebarEntryRef = { kind: "executionSet", projectId: "project", executionSetId: "a".repeat(32), origin: { workspacePath: "/project", workspaceIdentity: "remote-scope" } };
+  const result = await service.apply({ operationId: "set", expectedRevision: 0, mutations: [{ type: "create", section: { id: "s", title: "Feature", entries: [remote, set], defaultTargetRef: set } }] });
+  assert.equal(result.snapshot.version, 2);
+  const restarted = createSidebarOrganizationService(path);
+  assert.deepEqual((await restarted.getSnapshot()).sections[0]?.defaultTargetRef, set);
+  const removed = await restarted.apply({ operationId: "project-forget", expectedRevision: result.snapshot.revision, mutations: [{ type: "forget", entries: [remote] }] });
+  assert.deepEqual(removed.snapshot.sections[0]?.entries, [set]);
+  assert.deepEqual(removed.snapshot.sections[0]?.defaultTargetRef, set);
+  const moved = await restarted.apply({ operationId: "set-move", expectedRevision: removed.snapshot.revision, mutations: [{ type: "move", entries: [set], sectionId: null }] });
+  assert.equal(moved.snapshot.sections[0]?.defaultTargetRef, undefined);
+});
+
+test("section edit atomically moves full members and invalidates moved default targets", async (t) => {
+  const { service } = await fixture(t);
+  await service.apply({
+    operationId: "init",
+    expectedRevision: 0,
+    mutations: [
+      {
+        type: "create",
+        section: { id: "a", title: "A", entries: [local, remote], defaultTargetRef: remote },
+      },
+      { type: "create", section: { id: "b", title: "B", entries: [tree] } },
+    ],
+  });
+  const result = await service.apply({
+    operationId: "edit",
+    expectedRevision: 1,
+    mutations: [
+      {
+        type: "editSection",
+        sectionId: "b",
+        title: "Edited",
+        entries: [remote, tree],
+        defaultTargetRef: tree,
+      },
+    ],
+  });
+  assert.deepEqual(result.snapshot.sections[0]?.entries, [local]);
+  assert.equal(result.snapshot.sections[0]?.defaultTargetRef, undefined);
+  assert.deepEqual(result.snapshot.sections[1]?.entries, [remote, tree]);
+  assert.deepEqual(result.snapshot.sections[1]?.defaultTargetRef, tree);
+  const before = await service.getSnapshot();
+  await assert.rejects(
+    service.apply({
+      operationId: "invalid",
+      expectedRevision: 2,
+      mutations: [
+        {
+          type: "editSection",
+          sectionId: "b",
+          title: "Bad",
+          entries: [tree],
+          defaultTargetRef: local,
+        },
+      ],
+    }),
+    /default target/i,
+  );
+  assert.deepEqual(await service.getSnapshot(), before);
+});
+
 async function fixture(t: TestContext) {
   const dir = await mkdtemp(join(tmpdir(), "lcode-sidebar-"));
   t.after(() => rm(dir, { recursive: true, force: true }));

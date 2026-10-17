@@ -33,6 +33,7 @@ export type RuntimeMessageSource =
   | SystemReminderSource
   | "shared_context"
   | "context_capsule"
+  | "project_scope"
   | "real_user"
   | "legacy_synthetic";
 

@@ -129,7 +129,7 @@ export function WorktreeSidebarRow({
     bindingId: binding.id,
   };
   const create = () => {
-    if (!ready) return;
+    if (!ready || !binding.taskId) return;
     onCreateTask?.({
       targetWorkspace: origin,
       createSource: "project",

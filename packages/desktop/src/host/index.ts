@@ -15,6 +15,7 @@
  */
 import { createHostDatabaseStartup } from "./hostDatabaseStartup.js";
 import { randomUUID } from "node:crypto";
+import { resolveSshSettingsProxy } from "./sshSettingsProxy.js";
 import { removePhysicalWorktreeDirectory } from "./physicalWorktreeRemoval.js";
 import {
   MessagePortProtocol,
@@ -42,6 +43,7 @@ import {
   IOffPeakTaskService,
   IModelSelectionService,
   ISettingService,
+  IProviderSettingsService,
   IWindowControllerService,
   IWindowWorkspaceService,
   IConversationShareService,
@@ -2092,6 +2094,8 @@ function getWindowWorkspaceCatalog(): WindowWorkspaceCatalogEntry[] {
             username: session.target.username,
             port: session.target.port,
             sshConfigAlias: session.target.sshConfigAlias,
+            useProxy: session.target.useProxy,
+            proxyProfileId: session.target.proxyProfileId,
           }
         : session.target.kind === "wsl"
           ? { kind: "wsl" as const, distro: session.target.distro, user: session.target.user }
@@ -3080,7 +3084,16 @@ async function setupRemoteConnection(
   // 延迟加载 remote backend，避免 local 模式下因 ssh2 依赖链进入 asar 后崩溃
   const { createRemoteBackend, connectRemote, pickRemoteRuntimeEnv } =
     await import("@lcode/server/remote");
-  const backend = await createRemoteBackend(target);
+  const sshProxy = await resolveSshSettingsProxy(target, async () => {
+    if (!activeServices) throw new Error("本地主机设置服务尚未就绪");
+    if (target.kind === "ssh" && target.proxyProfileId !== undefined) {
+      const view = await activeServices.get(IProviderSettingsService).getView();
+      return { proxyProfiles: view.proxyProfiles };
+    }
+    return activeServices.get(ISettingService).get();
+  });
+  signal?.throwIfAborted();
+  const backend = await createRemoteBackend(target, { sshProxy });
   const connection = await connectRemote(backend, {
     providerAccountRelay: activeServices
       ? getProviderAccountRelaySource(activeServices)

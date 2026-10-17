@@ -89,6 +89,7 @@ export interface CanonicalUserIntentFact extends CanonicalConversationFactBase {
   admittedDelivery?: "startNow" | "queue" | "guide";
   sharedContextRefs?: readonly { kind: "shared_context_import"; context_id: string }[];
   contextCapsuleRefs?: readonly { kind: "context_capsule"; capsule_id: string }[];
+  projectContext?: TurnInputIntentMetadata["projectContext"];
   fallbackReasonCode?: string;
   modelSelection?: TurnInputIntentMetadata["modelSelection"];
   mode?: TurnInputIntentMetadata["mode"];
@@ -279,6 +280,7 @@ function normalizeTurnStarted(
       ? { contextCapsuleRefs: payload.intent.contextCapsuleRefs }
       : {}),
     ...(payload.intent?.goalAcceptance ? { goalAcceptance: payload.intent.goalAcceptance } : {}),
+    ...(payload.intent?.projectContext ? { projectContext: payload.intent.projectContext } : {}),
     ...(payload.intent?.fallbackReasonCode
       ? { fallbackReasonCode: payload.intent.fallbackReasonCode }
       : {}),

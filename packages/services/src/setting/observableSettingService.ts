@@ -21,6 +21,14 @@ export function createObservableSettingService(base: ISettingService): Observabl
       listeners.add(listener);
       return () => listeners.delete(listener);
     },
+    async mutateProject(request) {
+      const result = await base.mutateProject(request);
+      if (result.status === "applied") {
+        const keys = Object.freeze(["localProjects", "projectDefinitions"] as const);
+        for (const listener of listeners) listener(Object.freeze({ keys }));
+      }
+      return result;
+    },
     async update(patch, expectedAccountSettings): Promise<void> {
       if (expectedAccountSettings) await base.update(patch, expectedAccountSettings);
       else await base.update(patch);

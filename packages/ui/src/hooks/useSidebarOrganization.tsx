@@ -32,22 +32,35 @@ export interface SidebarCatalogItem {
   available?: boolean;
 }
 export type SidebarOrganizationDialog = {
-  type: "create" | "rename" | "move" | "add" | "split" | "dissolve" | "target";
+  type: "create" | "edit" | "rename" | "move" | "add" | "split" | "dissolve" | "target";
   purpose?: "manage" | "create";
   sectionId?: string;
   entries?: SidebarEntryRef[];
 };
+export interface SidebarProjectEditorTarget {
+  workspacePath: string;
+  workspaceIdentity?: string;
+  remoteSessionId?: string;
+  remoteTarget?: import("@lcode/shared").RemoteTarget;
+  localProjectId?: string;
+  label: string;
+}
 interface OrganizationContext {
   isDesktop: boolean;
   snapshot: SidebarOrganization;
   writable: boolean;
   pending: boolean;
   error: string | null;
-  run(mutations: SidebarMutation[], undoable?: boolean, reconcile?: boolean): Promise<boolean>;
+  run(
+    mutations: SidebarMutation[],
+    undoable?: boolean,
+    reconcile?: boolean,
+    expectedRevision?: number,
+  ): Promise<boolean>;
   undo(): void;
   canUndo: boolean;
   dialog: SidebarOrganizationDialog | null;
-  showDialog(value: SidebarOrganizationDialog | null): void;
+  showDialog(value: SidebarOrganizationDialog | null, expected?: SidebarOrganizationDialog): void;
   catalog: SidebarCatalogItem[];
   setCatalog(items: SidebarCatalogItem[]): void;
   sectionFor(entry: SidebarEntryRef): string | null;
@@ -56,6 +69,13 @@ interface OrganizationContext {
   selected: SidebarEntryRef[];
   select(entry: SidebarEntryRef, extend?: boolean): void;
   target(entry: SidebarEntryRef): void;
+  projectEditor: SidebarProjectEditorTarget | null;
+  editProject(
+    target: SidebarProjectEditorTarget | null,
+    expected?: SidebarProjectEditorTarget,
+  ): void;
+  scopeTarget: Extract<SidebarEntryRef, { kind: "task" }> | null;
+  inspectScope(target: Extract<SidebarEntryRef, { kind: "task" }> | null): void;
 }
 const Context = createContext<OrganizationContext | null>(null);
 export const useSidebarOrganization = () => useContext(Context);
@@ -73,7 +93,24 @@ export function SidebarOrganizationProvider({
   const text = useSidebarText();
   const textRef = useRef(text);
   textRef.current = text;
-  const [dialog, showDialog] = useState<SidebarOrganizationDialog | null>(null);
+  const [dialog, setDialog] = useState<SidebarOrganizationDialog | null>(null);
+  const [projectEditor, setProjectEditor] = useState<SidebarProjectEditorTarget | null>(null);
+  // 中文依据：已提交命令可以在关闭后完成；旧回调只能关闭它原先的视图，不能关闭用户后来打开的编辑器。
+  const showDialog = useCallback(
+    (value: SidebarOrganizationDialog | null, expected?: SidebarOrganizationDialog) =>
+      setDialog((current) => (expected === undefined || current === expected ? value : current)),
+    [],
+  );
+  const editProject = useCallback(
+    (value: SidebarProjectEditorTarget | null, expected?: SidebarProjectEditorTarget) =>
+      setProjectEditor((current) =>
+        expected === undefined || current === expected ? value : current,
+      ),
+    [],
+  );
+  const [scopeTarget, inspectScope] = useState<Extract<SidebarEntryRef, { kind: "task" }> | null>(
+    null,
+  );
   const [catalog, setCatalog] = useState<SidebarCatalogItem[]>([]);
   const catalogRef = useRef(catalog);
   catalogRef.current = catalog;
@@ -108,7 +145,12 @@ export function SidebarOrganizationProvider({
     };
   }, [service, store]);
   const run = useCallback(
-    async (mutations: SidebarMutation[], undoable = true, reconcile = false) => {
+    async (
+      mutations: SidebarMutation[],
+      undoable = true,
+      reconcile = false,
+      expectedRevision?: number,
+    ) => {
       const current = store.getState();
       if (!service || !current.ready || current.pending || current.error) return false;
       store.setState({ pending: true });
@@ -132,7 +174,7 @@ export function SidebarOrganizationProvider({
         );
         let result = await submitSidebarOrganization(service, {
           operationId: crypto.randomUUID(),
-          expectedRevision: current.snapshot.revision,
+          expectedRevision: expectedRevision ?? current.snapshot.revision,
           mutations,
         });
         if (
@@ -181,6 +223,10 @@ export function SidebarOrganizationProvider({
     error: state.error,
     run,
     dialog,
+    projectEditor,
+    editProject,
+    scopeTarget,
+    inspectScope,
     showDialog,
     catalog,
     setCatalog,

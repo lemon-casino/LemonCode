@@ -29,6 +29,7 @@ export function WorktreeTaskActions({
   workspaceIdentity,
   workspaceRemoteSessionId,
   sessionId,
+  bindingId,
   busy,
   revision,
   onResolveConflicts,
@@ -40,7 +41,8 @@ export function WorktreeTaskActions({
   workspacePath: string;
   workspaceIdentity?: string;
   workspaceRemoteSessionId?: string;
-  sessionId: string;
+  sessionId?: string;
+  bindingId?: string;
   busy: boolean;
   revision?: string;
   defaultOpen?: boolean;
@@ -51,12 +53,17 @@ export function WorktreeTaskActions({
 }) {
   const { intl } = useLCodeIntl();
   const { policy } = useProjectExecutionPolicy(workspacePath, workspaceIdentity);
-  const sharedReview = useReviewWorkspaceState(workspacePath, workspaceIdentity, sessionId);
+  const sharedReview = useReviewWorkspaceState(
+    workspacePath,
+    workspaceIdentity,
+    sessionId ?? bindingId ?? "worktree-review",
+  );
   const task = useWorktreeTask(
     workspacePath,
     workspaceIdentity,
-    sessionId,
+    sessionId ?? null,
     `${revision ?? ""}/${sharedReview.snapshot.fieldRevisions.integrationId}/${sharedReview.snapshot.fieldRevisions.worktreeView}`,
+    bindingId,
   );
   const { binding, operation, pending, worktreeService } = task;
   const [open, setOpen] = useState(defaultOpen);

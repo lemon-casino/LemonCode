@@ -4,6 +4,7 @@ import { useSidebarOrganization } from "./useSidebarOrganization.js";
 import { useBaseWorkspaceServices } from "./useWorkspaceServices.js";
 import { useSettings } from "./useSettingService.js";
 import { useSidebarWorktrees } from "./useSidebarWorktrees.js";
+import { useSidebarExecutionSets } from "./useSidebarExecutionSets.js";
 import { resolveSessionConfigurationProjects } from "./useSessionConfigurationProjects.js";
 import { useSidebarLegacyMigration } from "./useSidebarLegacyMigration.js";
 import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
@@ -75,5 +76,6 @@ export function useUnifiedSidebarSources() {
     [registeredTabs, bindings],
   );
   useSidebarLegacyMigration(queryTabs, bindings, trees.loading);
-  return { projects, trees, bindings, queryTabs, activateTab, closeTab };
+  const sets = useSidebarExecutionSets(projects, trees.lookup);
+  return { projects, trees, sets, bindings, queryTabs, activateTab, closeTab };
 }

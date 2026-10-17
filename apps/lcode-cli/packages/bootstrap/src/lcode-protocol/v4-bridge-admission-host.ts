@@ -7,6 +7,7 @@ import type { SessionId } from "@lcode/contracts";
 import type { LCodeProtocolAgentServerContext } from "./server-types.js";
 
 import { resolveInputCommandForAdmission } from "./v4-bridge-admission-input.js";
+import { resolveAdmissionProjectContext } from "./admission-project-context.js";
 
 export function createV4AdmissionHost(
   context: LCodeProtocolAgentServerContext,
@@ -21,6 +22,12 @@ export function createV4AdmissionHost(
           context.v4Gateway?.resolveRowActionTarget(sourceSessionId, target, action) ?? null,
       );
       if (!input) return null;
+      // 中文依据：必须在 accepted input 落盘前固定项目版本；排队/重试不得重新读取已修改的项目定义。
+      const projectContext =
+        input.kind !== "compact"
+          ? (input.projectContext ?? (await resolveAdmissionProjectContext(context, sessionId)))
+          : undefined;
+      admission.projectContext = projectContext;
       const kind = input.kind;
       const record = context.sessions.get(sessionId);
       if (record?.persistence === "deferred") {
@@ -63,6 +70,7 @@ export function createV4AdmissionHost(
         clientId: envelope.clientId || "cli",
         kind,
         text: input.text ?? "",
+        ...(projectContext ? { projectContext } : {}),
         attachments: attachmentRefs,
         ...(input.sharedContextRefs ? { sharedContextRefs: input.sharedContextRefs } : {}),
         ...(input.contextCapsuleRefs ? { contextCapsuleRefs: input.contextCapsuleRefs } : {}),
@@ -98,6 +106,7 @@ export function createV4AdmissionHost(
             clientId: conversationInputIntent.clientId,
             kind: conversationInputIntent.kind,
             text: conversationInputIntent.text,
+            ...(projectContext ? { projectContext } : {}),
             ...(conversationInputIntent.goalAcceptance
               ? { goalAcceptance: conversationInputIntent.goalAcceptance }
               : {}),

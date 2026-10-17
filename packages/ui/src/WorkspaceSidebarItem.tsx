@@ -1,5 +1,7 @@
 import { ProjectRemoteSyncGroup } from "@/WorkspaceSidebar/ProjectRemoteSyncGroup.js";
 import { useSidebarOrganization } from "@/hooks/useSidebarOrganization.js";
+import { useSettings } from "@/hooks/useSettingService.js";
+import { findProjectDefinition } from "@lcode/shared";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -151,6 +153,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   toggleWorkspaceExpanded,
   onSelectTask,
   onStartDraftInWorkspace,
+  onStartCollaboration,
   taskItems,
   showTaskList = true,
   taskListLoading,
@@ -191,6 +194,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
     targetWorkspaceIdentity?: string,
   ) => void;
   onStartDraftInWorkspace: (targetWorkspacePath: string, targetWorkspaceIdentity?: string) => void;
+  onStartCollaboration?: () => void;
   taskItems: LCodeTaskMeta[];
   showTaskList?: boolean;
   taskListLoading: boolean;
@@ -251,6 +255,8 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   const { copyAbsolutePath } = useFileContextActions();
   const [projectContextOpen, setProjectContextOpen] = useState(false);
   const baseServices = useBaseWorkspaceServices();
+  const { settings: projectSettings } = useSettings(baseServices);
+  const projectDefinition = findProjectDefinition(projectSettings?.projectDefinitions?.projects ?? projectSettings?.localProjects ?? [], tab.workspacePath, tab.workspaceIdentity, tab.localProjectId);
   const lcodeTaskService = services.lcodeTaskService;
   const taskItemsRef = useRef(taskItems);
   taskItemsRef.current = taskItems;
@@ -856,6 +862,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
       <div className="min-w-0 truncate text-ui-base text-foreground-subtle">
         {workspaceSidebarLabel}
       </div>
+      {projectDefinition && projectDefinition.sourceFolderPaths.length > 1 ? <span className="shrink-0 rounded-md bg-surface px-1.5 text-ui-xs text-foreground-subtlest" title={projectDefinition.sourceFolderPaths.join("\n")} data-project-folder-count>{projectDefinition.sourceFolderPaths.length}</span> : null}
       {!isExpanded && taskListHasUnread ? (
         <span
           aria-hidden="true"
@@ -938,6 +945,11 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
       >
         {sidebarText(isRemoteWorkspace ? "remoteNew" : "projectNew")}
       </Item>
+      {onStartCollaboration && (projectDefinition?.members?.filter((member) => member.enabled).length ?? projectDefinition?.sourceFolderPaths.length ?? 0) > 1 ? <Item
+        disabled={Boolean(readOnlyReason) || isDisconnectedRemoteWorkspace}
+        title={readOnlyReason ?? (isDisconnectedRemoteWorkspace ? sidebarText("offline") : undefined)}
+        onSelect={onStartCollaboration}
+      >{sidebarText("newExecutionSet")}</Item> : null}
       <Item
         disabled={Boolean(readOnlyReason) || isDisconnectedRemoteWorkspace || !onOpenFileTree}
         title={readOnlyReason}

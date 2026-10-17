@@ -18,15 +18,19 @@ import { SidebarUnavailableEntry } from "./SidebarUnavailableEntry.js";
 import { WorktreeSidebarRow } from "./WorktreeSidebarRow.js";
 import { Button } from "@/components/ui/button.js";
 import { useSidebarText } from "./sidebarText.js";
-import { scopeKey, projectRef, treeRef } from "./sidebarReferences.js";
+import { scopeKey, projectRef, treeRef, executionSetRef } from "./sidebarReferences.js";
+import { ExecutionSetSidebarRow } from "./ExecutionSetSidebarRow.js";
 import type { UnifiedSidebarTreeProps } from "./UnifiedSidebarTree.js";
 import type { SidebarContentFocus } from "@/lib/sidebarTaskPreferences.js";
 import { projectSidebarFocus } from "./sidebarFocusProjection.js";
 import { useSidebarSystemActions } from "./useSidebarSystemActions.js";
+import { SidebarProjectEntry } from "./SidebarProjectEntry.js";
+import type { SidebarExecutionSetsResult } from "@/hooks/useSidebarExecutionSets.js";
 export function useUnifiedSidebarProjection({
   props,
   projects,
   trees,
+  sets,
   bindings,
   catalog,
   placement,
@@ -47,6 +51,7 @@ export function useUnifiedSidebarProjection({
   props: UnifiedSidebarTreeProps;
   projects: WorkspaceTabState[];
   trees: SidebarWorktreesResult;
+  sets: SidebarExecutionSetsResult;
   bindings: WorktreeBinding[];
   catalog: SidebarCatalogItem[];
   placement: Set<string>;
@@ -76,69 +81,26 @@ export function useUnifiedSidebarProjection({
     setExpanded,
   );
   const renderProject = (tab: WorkspaceTabState, tasks: LCodeTaskMeta[]) => {
-    const hasIndependentChats = organization.snapshot.sections.some((section) =>
-      section.entries.some(
-        (entry) => entry.kind === "task" && scopeKey(entry.workspace) === scopeKey(tab),
-      ),
-    );
-    const ref = projectRef(tab);
-    const key = sidebarEntryKey(ref);
-    const children = tasks.filter(
-      (task) =>
-        scopeKey(task) === scopeKey(tab) &&
-        !isWorktreeSidebarTask(task, bindings) &&
-        !placement.has(sidebarEntryKey(taskSidebarRef(task))),
-    );
+    const key = sidebarEntryKey(projectRef(tab));
     return (
-      <SidebarEntryInteraction entry={ref}>
-        <ul>
-          <WorkspaceSidebarItem
-            tab={tab}
-            isActiveWorkspace={scopeKey(tab) === (props.workspaceIdentity || props.workspacePath)}
-            isExpanded={focus === "all" && isOpen(key)}
-            activateTab={activateTab}
-            closeTab={closeTab}
-            toggleWorkspaceExpanded={() => {
-              if (focus === "all") toggle(key);
-            }}
-            onStartDraftInWorkspace={props.onStartDraftInWorkspace}
-            onSelectTask={props.onSelectTask}
-            onRemoveLocalProject={props.onRemoveLocalProject}
-            taskItems={children.slice(0, limits[key] ?? 20)}
-            showTaskList={focus === "all"}
-            taskListLoading={false}
-            taskListHasMore={children.length > (limits[key] ?? 20)}
-            onShowMoreTasks={() =>
-              setLimits((current) => ({ ...current, [key]: (current[key] ?? 20) + 20 }))
-            }
-            reconnectingRemoteWorkspaceKeys={props.reconnectingRemoteWorkspaceKeys}
-            remoteWorkspaceErrorByWorkspaceKey={props.remoteWorkspaceErrorByWorkspaceKey}
-            reconnectingRemoteWorkspaceLogsByWorkspaceKey={
-              props.reconnectingRemoteWorkspaceLogsByWorkspaceKey
-            }
-            onReconnectRemoteWorkspace={props.onReconnectRemoteWorkspace}
-            sourceReadError={trees.failures[scopeKey(tab)]}
-            sourceRefreshing={trees.loadingScopeKeys.includes(scopeKey(tab))}
-            onRefreshSource={() => void trees.refresh(scopeKey(tab))}
-            onOpenFileTree={props.onOpenFileTree}
-            groupByDate={dates}
-            taskSortBy={sortBy}
-            preserveOrigin={
-              hasIndependentChats ||
-              trees.loading ||
-              trees.unavailableScopeKeys.includes(scopeKey(tab)) ||
-              trees.entries.some((entry) => scopeKey(entry.origin) === scopeKey(tab))
-            }
-            removalBlockedReason={
-              trees.loading || trees.unavailableScopeKeys.includes(scopeKey(tab))
-                ? text("verifySource")
-                : hasIndependentChats
-                  ? text("dependentChats")
-                  : undefined
-            }
-          />
-        </ul>
-      </SidebarEntryInteraction>
+      <SidebarProjectEntry
+        tab={tab}
+        tasks={tasks}
+        props={props}
+        trees={trees}
+        sets={sets}
+        bindings={bindings}
+        placement={placement}
+        showChats={focus === "all"}
+        open={isOpen(key)}
+        toggle={() => toggle(key)}
+        limit={limits[key] ?? 20}
+        setLimits={setLimits}
+        dates={dates}
+        sortBy={sortBy}
+        activateTab={activateTab}
+        closeTab={closeTab}
+      />
     );
   };
   const rootIndex = (ref: SidebarEntryRef) => {
@@ -147,6 +109,9 @@ export function useUnifiedSidebarProjection({
     );
     return index < 0 ? Number.MAX_SAFE_INTEGER : index;
   };
+  const unavailable = (ref: SidebarEntryRef, label: string): SidebarTimelineGroup => ({
+    key: sidebarEntryKey(ref), label: null, items: [], header: <SidebarUnavailableEntry entry={ref} label={label} />,
+  });
   const buildGroups = (tasks: LCodeTaskMeta[]): SidebarTimelineGroup[] => {
     const groups: SidebarTimelineGroup[] = [];
     const header = (
@@ -182,21 +147,7 @@ export function useUnifiedSidebarProjection({
       if (ref.kind === "project") {
         const tab = projects.find((item) => sidebarEntryKey(projectRef(item)) === key);
         if (tab) groups.push({ key, label: null, items: [], header: renderProject(tab, tasks) });
-        else
-          groups.push({
-            key,
-            label: null,
-            items: [],
-            header: (
-              <SidebarUnavailableEntry
-                entry={ref}
-                label={
-                  catalog.find((item) => sidebarEntryKey(item.ref) === key)?.label ||
-                  ref.workspacePath
-                }
-              />
-            ),
-          });
+        else groups.push(unavailable(ref, catalog.find((item) => sidebarEntryKey(item.ref) === key)?.label || ref.workspacePath));
       } else if (ref.kind === "worktree") {
         const entry = trees.entries.find((item) => sidebarEntryKey(treeRef(item)) === key);
         if (entry) {
@@ -282,6 +233,38 @@ export function useUnifiedSidebarProjection({
               />
             ),
           });
+      } else if (ref.kind === "executionSet") {
+        const entry = sets.entries.find((entry) => sidebarEntryKey(executionSetRef(entry)) === key);
+        if (entry && entry.snapshot.status !== "archived")
+          groups.push({
+            key,
+            label: null,
+            indent: true,
+            collapsed: !isOpen(key),
+            header: (
+              <SidebarEntryInteraction entry={ref}>
+                <ExecutionSetSidebarRow
+                  entry={entry}
+                  sets={sets}
+                  open={isOpen(key)}
+                  onToggle={() => toggle(key)}
+                  props={props}
+                />
+              </SidebarEntryInteraction>
+            ),
+            items:
+              focus === "all"
+                ? tasks
+                    .filter(
+                      (task) =>
+                        task.executionSetRef?.executionSetId === entry.snapshot.id &&
+                        scopeKey(task.executionSetRef.origin) === scopeKey(entry.origin) &&
+                        !placement.has(sidebarEntryKey(taskSidebarRef(task))),
+                    )
+                    .slice(0, limits[key] ?? 20)
+                : [],
+          });
+        else if (!entry) groups.push(unavailable(ref, catalog.find((item) => sidebarEntryKey(item.ref) === key)?.label || ref.executionSetId));
       } else {
         const task = tasks.find((item) => sidebarEntryKey(taskSidebarRef(item)) === key);
         if (task) groups.push({ key, label: null, items: [task] });
@@ -318,12 +301,24 @@ export function useUnifiedSidebarProjection({
     const rootTrees = trees.entries
       .filter((entry) => !placement.has(sidebarEntryKey(treeRef(entry))))
       .sort((a, b) => rootIndex(treeRef(a)) - rootIndex(treeRef(b)));
+    const rootSets = sets.entries
+      .filter(
+        (entry) =>
+          entry.snapshot.status !== "archived" &&
+          !placement.has(sidebarEntryKey(executionSetRef(entry))),
+      )
+      .sort((a, b) => rootIndex(executionSetRef(a)) - rootIndex(executionSetRef(b)));
     const unresolved =
       focus === "all"
         ? tasks.filter(
             (task) =>
               isWorktreeSidebarTask(task, bindings) &&
               !trees.entries.some((entry) => isTaskInSidebarBinding(task, entry.binding)) &&
+              !sets.entries.some(
+                (entry) =>
+                  task.executionSetRef?.executionSetId === entry.snapshot.id &&
+                  scopeKey(task.executionSetRef.origin) === scopeKey(entry.origin),
+              ) &&
               !placement.has(sidebarEntryKey(taskSidebarRef(task))),
           )
         : [];
@@ -332,10 +327,14 @@ export function useUnifiedSidebarProjection({
       header("projects", text("projects"), undefined, systemActions.projects);
       if (isOpen("projects")) for (const tab of rootProjects) addEntry(projectRef(tab));
     }
-    if ((focus === "all" || focus === "worktrees") && (rootTrees.length || unresolved.length)) {
+    if (
+      (focus === "all" || focus === "worktrees") &&
+      (rootTrees.length || rootSets.length || unresolved.length)
+    ) {
       header("worktrees", text("worktrees"), undefined, systemActions.worktrees);
       if (isOpen("worktrees")) {
         for (const entry of rootTrees) addEntry(treeRef(entry));
+        for (const entry of rootSets) addEntry(executionSetRef(entry));
         if (unresolved.length)
           groups.push({
             key: "unresolved",

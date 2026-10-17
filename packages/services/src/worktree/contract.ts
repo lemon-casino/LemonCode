@@ -197,9 +197,9 @@ export interface IWorktreeService extends WorktreeIntegrationInspection, Worktre
   getCapabilities(
     params: WorktreeScope & { sourceFolderPaths?: string[] },
   ): Promise<WorktreeCapabilities>;
-  prepare(params: WorktreePrepareRequest): Promise<WorktreeBinding>;
+  prepare(params: WorktreePrepareRequest): Promise<WorktreeBinding & { taskId: string }>;
   getBinding(
-    params: WorktreeScope & { taskId?: string; requestId?: string },
+    params: WorktreeScope & { taskId?: string; requestId?: string; bindingId?: string },
   ): Promise<WorktreeBinding | null>;
   list(params: WorktreeScope): Promise<WorktreeBinding[]>;
   integrate(params: WorktreeIntegrateRequest): Promise<WorktreeIntegration>;

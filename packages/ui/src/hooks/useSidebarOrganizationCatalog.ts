@@ -6,12 +6,15 @@ import { useSidebarOrganization, type SidebarCatalogItem } from "./useSidebarOrg
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
 import { useSidebarText } from "@/WorkspaceSidebar/sidebarText.js";
 import { projectRef, treeRef, scopeKey } from "@/WorkspaceSidebar/sidebarReferences.js";
+import { executionSetRef } from "@/WorkspaceSidebar/sidebarReferences.js";
+import type { SidebarExecutionSetsResult } from "./useSidebarExecutionSets.js";
 import { isTaskInSidebarBinding, isWorktreeSidebarTask } from "@/lib/worktreeSidebar.js";
 import { taskSidebarRef } from "@/lib/sidebarOrganization.js";
 export function useSidebarOrganizationCatalog(
   projects: WorkspaceTabState[],
   trees: SidebarWorktreesResult,
   allTasks: LCodeTaskMeta[],
+  sets: SidebarExecutionSetsResult,
 ) {
   const organization = useSidebarOrganization()!;
   const text = useSidebarText();
@@ -35,9 +38,24 @@ export function useSidebarOrganizationCatalog(
         label: entry.binding.displayName || entry.binding.branch,
         detail: `${text(entry.origin.workspaceIdentity ? "remoteTree" : "localTree")} · ${entry.origin.label}`,
       })),
+      ...sets.entries.map((entry) => ({
+        ref: executionSetRef(entry),
+        available:
+          entry.snapshot.status === "ready" && sets.supported.includes(scopeKey(entry.origin)),
+        label: entry.snapshot.name,
+        detail: `${text("executionSet")} · ${entry.snapshot.repositories.length} ${text("repositories")} · ${entry.origin.label}`,
+      })),
       ...allTasks.map((task) => ({
         ref: taskSidebarRef(task),
         naturalParent: (() => {
+          const set =
+            task.executionSetRef &&
+            sets.entries.find(
+              (entry) =>
+                entry.snapshot.id === task.executionSetRef!.executionSetId &&
+                scopeKey(entry.origin) === scopeKey(task.executionSetRef!.origin),
+            );
+          if (set) return executionSetRef(set);
           const entry = trees.entries.find((entry) => isTaskInSidebarBinding(task, entry.binding));
           if (entry) return treeRef(entry);
           const project = projects.find((tab) => scopeKey(tab) === scopeKey(task));
@@ -57,14 +75,25 @@ export function useSidebarOrganizationCatalog(
             label:
               ref.kind === "task"
                 ? ref.taskId
-                : ref.kind === "worktree"
-                  ? ref.bindingId
-                  : ref.workspacePath.split(/[\\/]/).at(-1) || ref.workspacePath,
+                : ref.kind === "executionSet"
+                  ? ref.executionSetId
+                  : ref.kind === "worktree"
+                    ? ref.bindingId
+                    : ref.workspacePath.split(/[\\/]/).at(-1) || ref.workspacePath,
             detail: text("pendingSource"),
             available: false,
           });
     return items;
-  }, [projects, trees.entries, allTasks, organization.snapshot.sections, intl, locale]);
+  }, [
+    projects,
+    trees.entries,
+    sets.entries,
+    sets.supported,
+    allTasks,
+    organization.snapshot.sections,
+    intl,
+    locale,
+  ]);
   useEffect(() => organization.setCatalog(catalog), [catalog, organization.setCatalog]);
   return catalog;
 }

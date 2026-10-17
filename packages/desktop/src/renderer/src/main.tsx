@@ -1,5 +1,6 @@
 import { applyTheme, isThemeValue } from "@lcode/ui/useTheme";
 import { DatabaseStartupAdmission } from "./databaseStartupAdmission.js";
+import { notifyStartupShellReady, notifyStartupSurface } from "./startup/bridge.js";
 import { initializeDesktopLocalTtft } from "./localTtftBootstrap.js";
 import { createRoot } from "react-dom/client";
 import { useEffect } from "react";
@@ -144,6 +145,9 @@ const appRoot =
 const sendStartupControl = (control: DatabaseStartupControl) =>
   window.postMessage({ type: InternalChannels.DatabaseStartupControl, control }, "*");
 function renderDatabaseStartup(): void {
+  const startup = databaseStartupAdmission.state;
+  if (startup?.phase === "failed" || (startup?.migration && startup.migration.kind !== "none"))
+    notifyStartupSurface("attention");
   appRoot?.render(
     <AppErrorBoundary isDesktop isMacDesktop={isMacDesktop} isWindowsDesktop={isWindowsDesktop}>
       <LCodeIntlProvider
@@ -232,8 +236,8 @@ function StartupReadyNotifier() {
     (window as Window & { __LCODE_REACT_COMMIT_AT__?: number }).__LCODE_REACT_COMMIT_AT__ =
       Date.now();
     // HTML 启动壳的弹出动画结束时，React 首屏可能还没 commit，直接移除壳会露出空白。
-    // 这里在 React commit 后通知 index.html，再由启动壳统一判断动画和 React ready 两个条件后退场。
-    window.dispatchEvent(new Event("lcode-react-startup-ready"));
+    // 这里只通知独立启动壳已有可绘制页面；工作台 ready 仍由 Root 原门禁单独投影。
+    notifyStartupShellReady();
   }, []);
 
   return null;
@@ -313,6 +317,7 @@ function initializeBusinessRoot(port: MessagePort): void {
       >
         <StartupReadyNotifier />
         <Root
+          onStartupSurfaceChange={notifyStartupSurface}
           services={services}
           platform={desktopPlatform}
           isDesktop

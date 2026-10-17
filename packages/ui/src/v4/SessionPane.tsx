@@ -47,6 +47,7 @@ import {
   TID_V4_SESSION_PANE,
   testId,
   LCODE_AGENT_PROVIDER,
+  findProjectDefinition,
 } from "@lcode/shared";
 import type {
   ConversationShareAccessMode,
@@ -646,11 +647,11 @@ export function SessionPane({
   const executionWorkspacePath = snapshot?.executionWorkspace?.workspacePath ?? workspacePath;
   const executionWorkspaceIdentity =
     snapshot?.executionWorkspace?.workspaceIdentity ?? workspaceIdentity;
-  const isWorktreeSession = Boolean(snapshot?.executionWorkspace?.executionBindingId);
+  const isWorktreeSession = Boolean(snapshot?.executionWorkspace?.executionBindingId || snapshot?.executionWorkspace?.executionSetRef);
   const executionTask = useWorktreeTask(
     workspacePath,
     workspaceIdentity,
-    isWorktreeSession ? (snapshot?.sessionId ?? null) : null,
+    snapshot?.executionWorkspace?.executionBindingId ? (snapshot?.sessionId ?? null) : null,
   );
   const newlyCreatedSessionIdRef = useRef<string | null>(null);
   const shareDraft = useConversationShareSelectionStore((storeState) =>
@@ -1555,17 +1556,22 @@ export function SessionPane({
     sharedSettings ?? {},
     { workspacePath, workspaceIdentity },
     // 执行选择统一保存到项目；仅首次请求冻结的意图优先，保证准备失败重试仍使用原目录。
-    draftExecution?.existingBinding || draftExecution?.newWorktree
+    draftExecution?.existingBinding || draftExecution?.newWorktree || draftExecution?.executionSetId
       ? "worktree"
       : draftExecution?.frozen
         ? draftExecution.mode
         : undefined,
   );
+  const collaborationDefinition = findProjectDefinition(sharedSettings?.projectDefinitions?.projects ?? sharedSettings?.localProjects ?? [], workspacePath, workspaceIdentity);
+  const collaborationProject = (collaborationDefinition?.members?.filter((member) => member.enabled).length ?? collaborationDefinition?.sourceFolderPaths.length ?? 0) > 1;
   const executionIntentRef = useRef({
+    executionSetId: draftExecution?.executionSetId,
+    collaboration: !draftExecution?.existingBinding && collaborationProject ? true as const : undefined,
     existingBinding: draftExecution?.existingBinding,
     mode: executionPolicy.executionMode,
     environmentPolicy: executionPolicy.environmentPolicy,
-    baseRef: draftExecution?.baseRef,
+    baseRef: collaborationProject ? undefined : draftExecution?.baseRef,
+    baseRefs: collaborationProject && !draftExecution?.executionSetId && !draftExecution?.existingBinding ? draftExecution?.baseRefs : undefined,
     originWorkspacePath: workspacePath,
     originWorkspaceIdentity: workspaceIdentity,
     setupCommands: executionPolicy.setupCommandsConfigured
@@ -1574,10 +1580,13 @@ export function SessionPane({
     copyIgnoredPaths: executionPolicy.copyIgnoredPaths,
   });
   executionIntentRef.current = {
+    executionSetId: draftExecution?.executionSetId,
+    collaboration: !draftExecution?.existingBinding && collaborationProject ? true as const : undefined,
     existingBinding: draftExecution?.existingBinding,
     mode: executionPolicy.executionMode,
     environmentPolicy: executionPolicy.environmentPolicy,
-    baseRef: draftExecution?.baseRef,
+    baseRef: collaborationProject ? undefined : draftExecution?.baseRef,
+    baseRefs: collaborationProject && !draftExecution?.executionSetId && !draftExecution?.existingBinding ? draftExecution?.baseRefs : undefined,
     originWorkspacePath: workspacePath,
     originWorkspaceIdentity: workspaceIdentity,
     setupCommands: executionPolicy.setupCommandsConfigured
@@ -1706,6 +1715,7 @@ export function SessionPane({
           {
             mode: "worktree",
             baseRef: (envelope.payload as { execution?: { baseRef?: string } }).execution?.baseRef,
+            baseRefs: (envelope.payload as { execution?: { baseRefs?: Record<string, string> } }).execution?.baseRefs,
           },
           envelope,
         );
@@ -5265,7 +5275,7 @@ export function SessionPane({
       key="conversation-composer"
       executionWorkspacePath={executionWorkspacePath}
       executionWorkspaceIdentity={executionWorkspaceIdentity}
-      executionSourceFolderPaths={executionTask.binding?.sourceFolderPaths}
+      executionSourceFolderPaths={snapshot?.executionWorkspace?.executionSetRef?.bindings.map((binding) => binding.workspacePath) ?? executionTask.binding?.sourceFolderPaths}
       // Snapshot 仍服务用量、路由与运行态；工具栏的 mode/model 只读下方 Composer Draft。
       snapshot={snapshot}
       sessionId={sessionId}

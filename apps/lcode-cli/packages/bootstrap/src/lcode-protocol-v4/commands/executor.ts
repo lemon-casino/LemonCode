@@ -64,6 +64,7 @@ export class V4CommandExecutor {
 }
 
 interface V4CommandAdmission {
+  projectContext?: import("@lcode/shared").ProjectContextSnapshot;
   admissionSeq: number;
   admittedAt: number;
   queueItemId: string;

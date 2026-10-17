@@ -92,13 +92,23 @@ export function SidebarSectionHeader({
     section && organization
       ? [
           {
+            label: text("editSection"),
+            disabled: !writable,
+            run: () => organization.showDialog({ type: "edit", sectionId: section.id }),
+          },
+          {
             label: text("add"),
             disabled: !writable,
             run: () => organization.showDialog({ type: "add", sectionId: section.id }),
           },
           {
             label: text("newChat"),
-            run: () => organization.showDialog({ type: "target", sectionId: section.id }),
+            run: () =>
+              organization.showDialog({
+                type: "target",
+                sectionId: section.id,
+                entries: section.defaultTargetRef ? [section.defaultTargetRef] : undefined,
+              }),
           },
           {
             label: text("rename"),

@@ -710,7 +710,10 @@ export interface ILCodeAgentService {
   compactSession(params: LCodeAgentCompactParams): Promise<LCodeSessionCompactResult>;
   goalSession(params: LCodeAgentGoalParams): Promise<LCodeSessionGoalResult>;
   closeSession(
-    params: LCodeAgentSessionTarget & { expectedPersistence?: "deferred" | "immediate" },
+    params: LCodeAgentSessionTarget & {
+      expectedPersistence?: "deferred" | "immediate";
+      resourceRelease?: true;
+    },
   ): Promise<boolean>;
   cleanupWorktreeSessions(
     params: LCodeAgentWorkspaceTarget & {

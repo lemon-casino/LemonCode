@@ -6,7 +6,7 @@ import { prepareProtocolExecution, restoreProtocolExecution } from "./worktree-e
 import type { LCodeProtocolAgentServerContext } from "./server-types.js";
 
 const taskId = createSessionId("fixture");
-const binding: WorktreeExecutionBinding = {
+const binding: WorktreeExecutionBinding & { taskId: string } = {
   id: "binding",
   taskId,
   requestId: "request",

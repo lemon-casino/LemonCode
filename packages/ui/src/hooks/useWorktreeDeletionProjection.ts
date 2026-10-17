@@ -17,7 +17,7 @@ export function useWorktreeDeletionProjection() {
         },
         { workspacePath: binding.workspacePath, workspaceIdentity: binding.workspaceIdentity },
       ]) {
-        for (const taskId of binding.deletion?.sessionIds ?? [binding.taskId])
+        for (const taskId of binding.deletion?.sessionIds ?? (binding.taskId ? [binding.taskId] : []))
           removeTaskFromTaskCaches({ ...scope, taskId });
         useLCodeSessionStore
           .getState()

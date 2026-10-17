@@ -23,18 +23,46 @@ import { useLCodeStore } from "./store/StoreProvider.js";
 
 interface WelcomeScreenProps {
   onComplete: (reason: LoginCompleteReason) => void | Promise<void>;
+  startupWelcome?: boolean;
 }
 
 export type LoginCompleteReason = "oauth" | "apiKey" | "skip" | "cancel";
 
-export function WelcomeScreen({ onComplete }: WelcomeScreenProps) {
+export function WelcomeScreen({ onComplete, startupWelcome = false }: WelcomeScreenProps) {
+  const pending = useRef(false);
+  const [completing, setCompleting] = useState(false);
+  const complete = useCallback(
+    async (reason: LoginCompleteReason) => {
+      // 项目准备是异步的，快速回车/连点不能重复调用 Root 的工作区创建路径。
+      if (pending.current) return;
+      pending.current = true;
+      setCompleting(true);
+      try {
+        await onComplete(reason);
+      } finally {
+        pending.current = false;
+        setCompleting(false);
+      }
+    },
+    [onComplete],
+  );
   return (
-    <main className="relative flex h-full min-h-dvh items-center justify-center overflow-hidden bg-background px-4 py-6 text-foreground sm:px-6">
-      <ThemeHeroVisual className="absolute inset-0" />
+    <main
+      data-startup-welcome={startupWelcome ? "true" : undefined}
+      aria-busy={completing}
+      className="relative flex h-full min-h-dvh items-center justify-center overflow-hidden bg-background px-4 py-6 text-foreground sm:px-6"
+    >
+      <div data-welcome-backdrop className="absolute inset-0">
+        <ThemeHeroVisual className="absolute inset-0" />
+      </div>
       <div className="pointer-events-none absolute left-0 top-0 right-0 z-10 flex h-12 w-full items-center [app-region:drag]" />
-      <section className="relative z-10 w-full flex flex-col gap-10 max-w-sm rounded-2xl border border-popover-border bg-background p-8 text-ui-base/relaxed shadow-md sm:p-10">
-        <LoginPanel active onComplete={onComplete} />
-      </section>
+      <fieldset
+        disabled={completing}
+        data-welcome-card
+        className="relative z-10 m-0 min-w-0 w-full flex flex-col gap-10 max-w-sm rounded-2xl border border-popover-border bg-background p-8 text-ui-base/relaxed shadow-md sm:p-10"
+      >
+        <LoginPanel active onComplete={complete} />
+      </fieldset>
     </main>
   );
 }

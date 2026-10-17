@@ -93,6 +93,7 @@ export function buildUserInputRow(base: RowBaseInput, payload: TurnStartedPayloa
     ...base,
     kind: "userInput",
     text: payload.input,
+    ...(payload.intent?.projectContext ? { projectContext: payload.intent.projectContext } : {}),
     origin: mapUserInputOrigin(payload.inputSource),
     ...(sourceCommandId ? { sourceCommandId } : {}),
     ...(rootSourceCommandId ? { rootSourceCommandId } : {}),

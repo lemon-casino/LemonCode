@@ -8,6 +8,12 @@ import {
 } from "@lcode/shared";
 
 import { desktopBrowserPlatformBridge } from "./desktopBrowserPlatformBridge.js";
+import { previewStartupAnimation } from "./startup/bridge.js";
+import { getBuiltinWallpaperUrl, getStartupAnimationPresets } from "./startup/media.js";
+import { mountStartupScenePreview } from "./startup/scene.js";
+import { mountAemeathWallpaper } from "./startup/aemeathWallpaper.js";
+import { validateStartupSceneMedia } from "./startup/sceneResource.js";
+import { saveStartupSceneImage } from "./startup/sceneImages.js";
 
 // 手机远程控制桥的方法声明在 packages/client/src/globals.d.ts 的 window.lcode 上;
 // renderer 仍只经 IPlatformService 消费,不直触私有通道。
@@ -17,6 +23,13 @@ export function createDesktopPlatform(options: {
 }): IPlatformService {
   return {
     canSelectFilePath: true,
+    previewStartupAnimation,
+    getBuiltinWallpaperUrl,
+    getStartupAnimationPresets,
+    mountStartupScenePreview,
+    mountAemeathWallpaper,
+    validateStartupSceneMedia,
+    saveStartupSceneImage,
     async writeClipboardText(text) {
       if (!navigator.clipboard?.writeText) throw new Error("Clipboard is unavailable");
       await navigator.clipboard.writeText(text);
@@ -24,6 +37,11 @@ export function createDesktopPlatform(options: {
     createLocalMediaPreviewUrl: buildLocalMediaPreviewUrl,
     isLocalDevelopmentRuntime: options.isLocalDevelopmentRuntime,
     selectDirectory: () => window.lcode.selectDirectory(),
+    selectDirectories: async () => {
+      if (window.lcode.selectDirectories) return window.lcode.selectDirectories();
+      const path = await window.lcode.selectDirectory();
+      return path ? [path] : [];
+    },
     selectFile: () => window.lcode.selectFile(),
     selectFiles: () => window.lcode.selectFiles?.() ?? Promise.resolve([]),
     createTempTextAttachment: (payload) => window.lcode.createTempTextAttachment(payload),

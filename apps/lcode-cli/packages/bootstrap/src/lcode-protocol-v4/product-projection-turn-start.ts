@@ -171,6 +171,7 @@ export function onTurnStarted(
       ...base,
       kind: "userInput",
       text: fact.input,
+      ...(fact.projectContext ? { projectContext: fact.projectContext } : {}),
       origin: fact.origin,
       ...(fact.sourceCommandId ? { sourceCommandId: fact.sourceCommandId } : {}),
       ...(rootSourceCommandId ? { rootSourceCommandId } : {}),
@@ -208,6 +209,7 @@ export function onTurnStarted(
               ...(fact.mode ? { mode: fact.mode } : {}),
               ...(fact.planEnabled !== undefined ? { planEnabled: fact.planEnabled } : {}),
               ...(fact.goalAcceptance ? { goalAcceptance: fact.goalAcceptance } : {}),
+              ...(fact.projectContext ? { projectContext: fact.projectContext } : {}),
               ...(fact.contextCapsuleRefs
                 ? { contextCapsuleRefs: [...fact.contextCapsuleRefs] }
                 : {}),

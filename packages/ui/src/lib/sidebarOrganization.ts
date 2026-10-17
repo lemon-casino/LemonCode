@@ -48,15 +48,17 @@ export function invertSidebarMutations(
         kind: mutation.kind,
         entries: before.rootOrders.filter((entry) => entry.kind === mutation.kind),
       });
-    if (mutation.type === "move") {
-      inverse.push({ type: "move", entries: mutation.entries, sectionId: null });
-      for (const section of before.sections)
-        for (const [index, entry] of section.entries.entries()) {
-          if (mutation.entries.some((item) => sidebarEntryKey(item) === sidebarEntryKey(entry)))
-            inverse.push({ type: "move", entries: [entry], sectionId: section.id, index });
-        }
-    }
   }
+  // 中文依据：移动也会清空来源分区默认目标，撤销必须恢复完整受影响结构；调用方已用 revision 防止覆盖并发整理。
+  if (mutations.some((mutation) => ["move", "editSection", "forget"].includes(mutation.type)))
+    for (const section of before.sections)
+      inverse.push({
+        type: "editSection",
+        sectionId: section.id,
+        title: section.title,
+        entries: section.entries,
+        defaultTargetRef: section.defaultTargetRef,
+      });
   return inverse;
 }
 export function normalizeSidebarSelection(

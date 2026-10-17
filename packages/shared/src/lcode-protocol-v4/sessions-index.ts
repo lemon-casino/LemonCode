@@ -1,5 +1,6 @@
 // sessions-index topic：列表活性数据源；conflated 最新态，永不溢出。
 import { z } from "zod";
+import { executionSetRefSchema } from "../projectExecutionSet.js";
 import { timestampSchema } from "./core.js";
 import { sessionWorkflowActivitySchema } from "./sessions-index-workflow-activity.js";
 import {
@@ -32,6 +33,7 @@ export const sessionSummarySchema = z.object({
   // fork 树。
   parentSessionId: z.string().optional(),
   executionBindingId: z.string().min(1).optional(),
+  executionSetRef: executionSetRefSchema.optional(),
   title: z.string(),
   // custom = 用户显式重命名；default/generated 都不是产品语义上的手动标题。
   // optional 是为了兼容旧 sessions-index frame / 旧持久化摘要。

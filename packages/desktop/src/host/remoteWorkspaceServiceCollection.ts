@@ -4,6 +4,7 @@ import {
   IFileService,
   IGitService,
   IWorktreeService,
+  IProjectExecutionSetService,
   IRuntimeEnvironmentService,
   IGitCheckpointService,
   IGitBackupService,
@@ -70,6 +71,7 @@ import {
   BIGMODEL_PROVIDER_ID,
   buildRuntimeLCodeApiUrl,
   DEFAULT_LCODE_MODEL_CONTEXT_BUDGET_STRATEGY,
+  buildProjectContextSnapshot,
   type ProviderFamilyDomain,
   type LCodeSessionRuntimePreferencesResult,
   ZAI_PROVIDER_ID,
@@ -265,6 +267,8 @@ export function createRemoteWorkspaceServiceCollection(params: {
           resolution = {
             status: "resolved",
             preferences: {
+              ...(request.scope === "project-admission" && request.projectContext
+                ? { projectContext: buildProjectContextSnapshot(settings, request.projectContext.workspace) } : {}),
               askUserQuestionAutoResolutionEnabled:
                 settings.askUserQuestionAutoResolutionEnabled !== false,
               nativeSearchEnhancementsEnabled: settings.nativeSearchEnhancementsEnabled !== false,
@@ -317,6 +321,7 @@ export function createRemoteWorkspaceServiceCollection(params: {
     .register(IFileService, params.connectionServices.fileService)
     .register(IGitService, params.connectionServices.gitService)
     .register(IWorktreeService, params.connectionServices.worktreeService)
+    .register(IProjectExecutionSetService, params.connectionServices.projectExecutionSetService)
     .register(IGitCheckpointService, params.connectionServices.gitCheckpointService)
     .register(ISystemService, params.connectionServices.systemService)
     .register(ITerminalService, params.connectionServices.terminalService)

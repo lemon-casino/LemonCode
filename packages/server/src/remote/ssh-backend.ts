@@ -1,6 +1,7 @@
 /* eslint-disable max-lines -- SSH backend 集中维护连接、exec、SFTP 上传和 fallback 进度链路；集中维护以避免拆分引入远端连接回归。 */
 import { Client as SSHClient } from "ssh2";
 import type { ConnectConfig } from "ssh2";
+import type { Socket } from "node:net";
 import { createReadStream } from "node:fs";
 import { posix } from "node:path";
 import { Emitter } from "@lcode/rpc";
@@ -45,6 +46,10 @@ export interface SSHBackendOptions {
   privateKeyPassphrase?: string;
   password?: string;
   agent?: string;
+  openSocket?: (
+    destination: { host: string; port: number },
+    signal: AbortSignal,
+  ) => Promise<Socket>;
 }
 
 type SSHUploadFailureKind = "sftp-session" | "sftp-write" | "local-read" | "aborted";
@@ -98,6 +103,9 @@ export class SSHBackend implements IRemoteBackend {
   private disposed = false;
   private hasEverConnected = false;
   private disconnectReported = false;
+  private connectionInFlight: Promise<void> | undefined;
+  private readonly connectionAbort = new AbortController();
+  private proxySocket: Socket | undefined;
   private readonly disconnectEmitter = new Emitter<RemoteDisconnectEvent>();
   readonly onDidDisconnect = this.disconnectEmitter.event;
 
@@ -123,7 +131,7 @@ export class SSHBackend implements IRemoteBackend {
     this.reportDisconnect("end");
   };
 
-  constructor(options: SSHBackendOptions) {
+  constructor(private readonly options: SSHBackendOptions) {
     this.client = new SSHClient();
     this.client.on("error", this.onClientError);
     this.client.on("close", this.onClientClose);
@@ -175,9 +183,42 @@ export class SSHBackend implements IRemoteBackend {
     // 调用 ensureConnected。ssh2 Client 支持 end 后再次 connect，必须在 backend 边界阻止旧凭据复活。
     this.assertNotDisposed();
     if (this.connected) return;
+    if (this.connectionInFlight) return this.connectionInFlight;
+    this.connectionInFlight = this.connectOnce().finally(() => {
+      this.connectionInFlight = undefined;
+    });
+    return this.connectionInFlight;
+  }
+
+  private async connectOnce(): Promise<void> {
+    if (this.options.openSocket) {
+      const socket = await this.options.openSocket(
+        { host: this.config.host!, port: this.config.port ?? 22 },
+        this.connectionAbort.signal,
+      );
+      if (this.disposed) {
+        socket.destroy();
+        this.assertNotDisposed();
+      }
+      this.proxySocket = socket;
+    }
     return new Promise((resolve, reject) => {
-      const handleReady = () => {
+      const cleanup = () => {
+        this.client.off("ready", handleReady);
         this.client.off("error", handleConnectError);
+        this.client.off("close", handleConnectClosed);
+        this.connectionAbort.signal.removeEventListener("abort", handleAbort);
+      };
+      const handleConnectClosed = () => {
+        cleanup();
+        reject(new Error("SSH 连接在认证完成前关闭"));
+      };
+      const handleAbort = () => {
+        cleanup();
+        reject(new Error("SSH 连接已取消"));
+      };
+      const handleReady = () => {
+        cleanup();
         if (this.disposed) {
           // dispose 与 ssh2 ready 可能交错；迟到的 ready 若重新标记 connected，
           // 后续 detect 会继续使用已取消连接的旧凭据。再次关闭 socket，并让原调用失败。
@@ -191,12 +232,24 @@ export class SSHBackend implements IRemoteBackend {
         resolve();
       };
       const handleConnectError = (error: unknown) => {
-        this.client.off("ready", handleReady);
+        cleanup();
         reject(normalizeSSHConnectError(error));
       };
       this.client.once("ready", handleReady);
       this.client.once("error", handleConnectError);
-      this.client.connect(this.config);
+      this.client.once("close", handleConnectClosed);
+      this.connectionAbort.signal.addEventListener("abort", handleAbort, { once: true });
+      try {
+        this.client.connect({
+          ...this.config,
+          ...(this.proxySocket ? { sock: this.proxySocket } : {}),
+        });
+        this.proxySocket?.resume();
+      } catch (error) {
+        cleanup();
+        this.proxySocket?.destroy();
+        reject(normalizeSSHConnectError(error));
+      }
     });
   }
 
@@ -600,6 +653,8 @@ export class SSHBackend implements IRemoteBackend {
       return;
     }
     this.disposed = true;
+    this.connectionAbort.abort();
+    this.proxySocket?.destroy();
     // 首次握手失败后，ssh2 可能在 socket end/close 之后继续发出 error。
     // dispose 后保留 onClientError 作为 no-op sink，不能按 end/close 事件时序提前移除，
     // 否则迟到事件会逃逸为 uncaughtException，让共享 Window Host 连带退出其它 workspace。

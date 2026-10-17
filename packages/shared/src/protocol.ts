@@ -137,6 +137,8 @@ export interface SSHRemoteTargetSnapshot {
   username: string;
   /** 用户建立连接时选择的 SSH config Host alias，仅用于 UI 展示。 */
   sshConfigAlias?: string;
+  useProxy?: boolean;
+  proxyProfileId?: string;
   privateKeyPath?: string;
   assetInstallMode?: RemoteAssetInstallMode;
   resourcePackages?: RemoteResourcePackageSelection;
@@ -244,6 +246,8 @@ export interface ResourceUsageSnapshot {
 }
 
 export interface AppSettings {
+  /** 桌面冷启动展示偏好；Web/远控不播放，缺省简洁静音。 */
+  desktopStartupAnimation?: import("./startupAnimation.js").StartupAnimationSettings;
   /** 会话下方的用量状态栏展示偏好；缺省兼容为全部开启。 */
   tokenUsageStatusBar?: import("./tokenUsageStatusBarSettings.js").TokenUsageStatusBarSettings;
   /** 当前 App/Host 不再显示提交前体验套餐推荐；不改变任何入口的模型选择。 */
@@ -251,6 +255,9 @@ export interface AppSettings {
   recentProjects: string[]; // 最近项目列表，最多保留 10 个
   /** 本地项目定义；主文件夹承担 cwd/Git，次要文件夹扩展搜索和文件访问范围。 */
   localProjects: import("./localProjects.js").LocalProject[];
+  /** 项目命令 owner 的唯一可写定义；localProjects 是同次提交生成的本地兼容投影。 */
+  projectDefinitions?: import("./projectDefinitions.js").ProjectRegistry;
+  projectMutationReceipts?: import("./projectDefinitions.js").ProjectMutationReceipt[];
   locale: Locale; // 界面语言
   /**
    * 用户覆盖的快捷键绑定（命令 ID → 绑定串数组，格式见 shortcutCommands.ts）。

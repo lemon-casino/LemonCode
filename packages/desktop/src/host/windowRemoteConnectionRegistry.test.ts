@@ -8,6 +8,33 @@ const targets: RemoteTarget[] = [
   { kind: "wsl", distro: "TestDistro", user: "tester" },
   { kind: "docker", container: "test-container" },
 ];
+
+test("SSH direct, default proxy and distinct saved proxies have separate physical connections", async () => {
+  const { registry, attempts } = fixture();
+  const target = { kind: "ssh" as const, host: "example.invalid", username: "tester" };
+  const direct = registry.connect({ requestId: "direct", target, remoteAssets: {} });
+  const proxied = registry.connect({
+    requestId: "proxied",
+    target: { ...target, useProxy: true },
+    remoteAssets: {},
+  });
+  const sameProxy = registry.connect({
+    requestId: "same-proxy",
+    target: { ...target, useProxy: true },
+    remoteAssets: {},
+  });
+  const savedProxies = ["first", "second", "first"].map((proxyProfileId, index) =>
+    registry.connect({
+      requestId: `saved-${index}`,
+      target: { ...target, useProxy: true, proxyProfileId },
+      remoteAssets: {},
+    }),
+  );
+  assert.equal(attempts.length, 4);
+  for (const attempt of attempts) attempt.finish();
+  await Promise.all([direct, proxied, sameProxy, ...savedProxies]);
+  await registry.dispose();
+});
 function fixture() {
   let id = 0;
   const attempts: {

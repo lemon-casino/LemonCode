@@ -34,8 +34,6 @@ export const REMOTE_CONTROL_HOST_RECONNECT_GRACE_MS = 30_000;
 export const REMOTE_CONTROL_RECONNECT_RETRY_DELAY_MS = 2_000;
 /** bridge.open 之前 host socket BINARY 帧的违规断开阈值(对齐 §6.4 "计数+断开")。 */
 export const REMOTE_CONTROL_PRE_BRIDGE_BINARY_LIMIT = 5;
-/** 心跳超时 close code;命中即终态,不再重连(PROTOCOL.md §3.2)。 */
-const CLOSE_HEARTBEAT_TIMEOUT = 4001;
 const CLOSE_AUTH_FAILED = 4002;
 const CLOSE_PROTOCOL_VIOLATION = 4003;
 const CLOSE_ROOM_MISSING = 4004;
@@ -474,9 +472,9 @@ export function createRemoteControlTunnelSession(
       if (!running) delegate.onClosed({ code, reason });
       return;
     }
-    // 终态 close code:不再重连(§3.2)。
+    // 4001 只表示传输心跳超时。误当终态会使 Host 放弃恢复，Worker 30s 后清房，手机随后收到 4004。
+    // 已注册房间应复用下方有界重连路径；鉴权/协议/房间终态仍停止，首次未注册仍由原门禁拒绝重试。
     const permanent =
-      code === CLOSE_HEARTBEAT_TIMEOUT ||
       code === CLOSE_AUTH_FAILED ||
       code === CLOSE_PROTOCOL_VIOLATION ||
       code === CLOSE_ROOM_MISSING ||

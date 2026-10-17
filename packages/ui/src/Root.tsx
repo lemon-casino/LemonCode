@@ -79,6 +79,7 @@ import { setUiPerfArmsReporter } from "@/lib/uiPerfArmsTelemetry.js";
 import { setSessionOpenArmsReporter } from "@/lib/sessionOpenArmsTelemetry.js";
 import { setSendFunnelArmsReporter } from "@/lib/sendFunnelArmsTelemetry.js";
 import { RootStartupLoading } from "@/root/RootStartupLoading.js";
+import { resolveStartupSurface } from "@/root/startupSurface.js";
 import { resolveProviderAvailabilityState } from "@/lib/modelProviderAvailability.js";
 import { useProviderAvailabilityLoginEntryGuard } from "@/root/useProviderAvailabilityLoginEntryGuard.js";
 import { ensureProviderFamilyDomainMigration } from "@/lib/providerFamilyDomainMigration.js";
@@ -168,6 +169,7 @@ function RootInner({
   supportsEmbeddedBrowser: explicitSupportsEmbeddedBrowser,
   allowRemoteWorkspace = true,
   initialWorkspaceLoadingFallback,
+  onStartupSurfaceChange,
 }: RootProps) {
   useEffect(() => {
     setMcpStorePlatform(platform);
@@ -667,6 +669,20 @@ function RootInner({
   });
 
   const launchReportedRef = useRef(false);
+  const startupSurface = resolveStartupSurface({
+    blocked: isStartupRenderBlocked,
+    hasWorkspace: Boolean(workspaceShellPath) || isSettingsTabActive,
+    welcome: isStartupProviderLoginEntryOpen,
+    attention: Boolean(
+      (welcomeScreenOpenReason && !isStartupProviderLoginEntryOpen) ||
+      rootModelSelectionErrorNode ||
+      remoteConnectionDialogOpen ||
+      directoryBrowserOpen,
+    ),
+  });
+  useEffect(() => {
+    onStartupSurfaceChange?.(startupSurface);
+  }, [startupSurface, onStartupSurfaceChange]);
   useEffect(() => {
     if (
       !shouldReportLaunchToInput({
@@ -1043,7 +1059,10 @@ function RootInner({
         {rootModelSelectionErrorNode}
         {remoteConnectionDialog}
         {directoryBrowserDialog}
-        <WelcomeScreen onComplete={handleWelcomeScreenComplete} />
+        <WelcomeScreen
+          startupWelcome={isDesktop && isStartupProviderLoginEntryOpen}
+          onComplete={handleWelcomeScreenComplete}
+        />
       </RootShell>
     );
   }

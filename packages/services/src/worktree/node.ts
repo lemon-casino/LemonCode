@@ -56,6 +56,11 @@ export function createWorktreeService(options: WorktreeServiceOptions): IWorktre
   );
   return {
     ...createPublicWorktreeService(host),
+    inspectOwnedRepository: host.inspectOwnedRepository,
+    prepareOwnedBinding: host.prepareOwnedBinding,
+    getOwnedBinding: host.getOwnedBinding,
+    attachBindingConsumer: host.attachBindingConsumer,
+    detachBindingConsumer: host.detachBindingConsumer,
     upgradeRuntimeEnvironment: host.upgradeRuntimeEnvironment,
     assertExecutionAdmission: host.assertExecutionAdmission,
     assertFileWatchAdmission: host.assertFileWatchAdmission,

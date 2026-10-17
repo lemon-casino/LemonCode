@@ -55,6 +55,7 @@ import { createFeedbackLogArchiveFromExportLogs } from "./exportLogs.js";
 import { buildHostE2ECoverageEnv } from "./e2eCoverage.js";
 
 export interface WindowBootstrapOptions {
+  startupAnimation?: import("@lcode/shared").StartupAnimationBootstrap;
   restoreSession?: boolean;
   supportsSettings?: boolean;
   initialWorkspacePath?: string;
@@ -121,6 +122,9 @@ export function loadWindow(
       unavailableWorkspacePath: bootstrap?.unavailableWorkspacePath,
       windowKind: bootstrap?.windowKind,
       locale: bootstrap?.locale,
+      startupAnimation: bootstrap?.startupAnimation
+        ? JSON.stringify(bootstrap.startupAnimation)
+        : undefined,
     }).filter((entry): entry is [string, string] => entry[1] != null),
   );
 

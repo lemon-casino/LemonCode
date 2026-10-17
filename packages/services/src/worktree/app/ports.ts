@@ -50,6 +50,7 @@ export interface WorktreeSessionAlias {
   executionKey: string;
 }
 export interface WorktreeGit extends WorktreeGitPort {
+  canonicalDirectory?(path: string): Promise<string>;
   command(
     cwd: string,
     args: string[],

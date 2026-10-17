@@ -1,0 +1,19 @@
+/* 多层半透明底色会相乘，导致工作台里的壁纸几乎不可见；结构层透明，主题遮罩只叠一次。 */
+.lcode-wallpaper-scope[data-wallpaper-active="true"] {
+  background-color: transparent;
+}
+.lcode-wallpaper-scope[data-wallpaper-active="true"]
+  :is(
+    .bg-background,
+    .bg-background-alt,
+    .bg-background-win,
+    .bg-background-win-alt,
+    .bg-panel,
+    .bg-sidebar,
+    .bg-header
+  ) {
+  background-color: transparent;
+}
+.lcode-wallpaper-scope [data-wallpaper-tint="true"] {
+  background-color: color-mix(in srgb, var(--color-background) 80%, transparent);
+}

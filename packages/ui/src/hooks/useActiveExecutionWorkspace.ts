@@ -25,7 +25,12 @@ export function useActiveExecutionWorkspace(
     remoteSessionId,
     workspaceIdentity,
   );
-  const { lcodeSessionService: service, lcodeAgentService, worktreeService } = resolution.services;
+  const {
+    lcodeSessionService: service,
+    lcodeAgentService,
+    worktreeService,
+    projectExecutionSetService,
+  } = resolution.services;
   const scope = JSON.stringify([
     workspaceIdentity?.trim() || workspacePath,
     workspacePath,
@@ -45,6 +50,7 @@ export function useActiveExecutionWorkspace(
     service?: typeof service;
     agentService?: typeof lcodeAgentService;
     worktreeService?: typeof worktreeService;
+    projectExecutionSetService?: typeof projectExecutionSetService;
     workspace?: LCodeWorkspaceRef;
     binding?: WorktreeBinding;
     error?: string;
@@ -54,7 +60,14 @@ export function useActiveExecutionWorkspace(
     let cancelled = false;
     let attempt = 0;
     let readyKey: string | null = null;
-    const owner = { scope, generation, service, agentService: lcodeAgentService, worktreeService };
+    const owner = {
+      scope,
+      generation,
+      service,
+      agentService: lcodeAgentService,
+      worktreeService,
+      projectExecutionSetService,
+    };
     const connection = acquireWorkspaceConnection(
       {
         workspacePath,
@@ -101,6 +114,32 @@ export function useActiveExecutionWorkspace(
         if (cancelled || currentAttempt !== attempt) return;
         if (snapshot.status === "rejected") throw snapshot.reason;
         const workspace = snapshot.value.session.workspace;
+        if (workspace.executionSetRef) {
+          if (!projectExecutionSetService)
+            throw new Error("Collaboration execution set owner is unavailable");
+          const reference = workspace.executionSetRef;
+          const target = { ...reference.origin, executionSetId: reference.executionSetId };
+          const [set, repositories] = await Promise.all([
+            projectExecutionSetService.get(target),
+            projectExecutionSetService.bindings(target),
+          ]);
+          if (
+            set?.status !== "ready" ||
+            reference.bindings.some(
+              (expected) =>
+                !repositories.some(
+                  (view) =>
+                    view.binding?.id === expected.bindingId &&
+                    view.binding.status === "ready" &&
+                    !view.error &&
+                    (view.binding.workspaceIdentity?.trim() || view.binding.workspacePath) ===
+                      (expected.workspaceIdentity?.trim() || expected.workspacePath),
+                ),
+            )
+          )
+            throw new Error(set?.error || "Collaboration repositories are not all ready");
+          if (cancelled || currentAttempt !== attempt) return;
+        }
         if (
           workspace.executionBindingId &&
           (binding.status === "rejected" || !binding.value || binding.value.status !== "ready")
@@ -131,6 +170,7 @@ export function useActiveExecutionWorkspace(
     service,
     lcodeAgentService,
     worktreeService,
+    projectExecutionSetService,
     workspacePath,
     workspaceIdentity,
     taskId,
@@ -156,7 +196,8 @@ export function useActiveExecutionWorkspace(
     resolution.rpcReady &&
     state.service === service &&
     state.agentService === lcodeAgentService &&
-    state.worktreeService === worktreeService
+    state.worktreeService === worktreeService &&
+    state.projectExecutionSetService === projectExecutionSetService
     ? { ...state, pending: !state.workspace && !state.error, retry }
     : { workspace: undefined, binding: undefined, pending: true, retry };
 }

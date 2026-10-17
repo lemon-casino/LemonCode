@@ -63,3 +63,15 @@ export function remapFilesystemMcpServers(
     return { ...stdio, args: [...stdio.args.slice(0, index), ...new Set(roots)] };
   });
 }
+/** 工作集每个成员都已由 Host 映射；不能把原仓库或任意旧 MCP 根带进隔离执行。 */
+export function scopeProjectFilesystemMcpServers(
+  servers: LCodeAgentMcpServer[] | undefined,
+  paths: readonly string[],
+) {
+  return servers?.map((server) => {
+    const index = rootArgumentIndex(server);
+    if (index === undefined) return server;
+    const stdio = server as StdioServer;
+    return { ...stdio, args: [...stdio.args.slice(0, index), ...new Set(paths)] };
+  });
+}

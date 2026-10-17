@@ -9,6 +9,10 @@ import { loadBuiltinProviderConfig } from "../../scripts/builtin-provider-config
 import { noticesFileName, stageElectronNotices } from "../../scripts/third-party-notices.mjs";
 import { resolveNativeSearchReleasePlan } from "../../scripts/native-search-tools-config.mjs";
 import { getBuildMetadata } from "./scripts/build-metadata.mjs";
+import {
+  assertStartupMediaPackaging,
+  assertPackagedStartupMedia,
+} from "./scripts/startup-media-packaging.mjs";
 import { verifyMacLocalNetworkUsage } from "./scripts/macos-local-network-metadata.mjs";
 import { collectRuntimeModuleClosureEntries } from "./scripts/runtime-dependency-closure.mjs";
 import { providerNetworkRuntimeModules } from "./scripts/provider-network-runtime.mjs";
@@ -515,6 +519,7 @@ export default {
     `node_modules/node-pty/prebuilds/${targetPlatform.key}/**`,
   ],
   beforePack: async (context) => {
+    await assertStartupMediaPackaging(desktopPackageRoot);
     await runTimedAsync("beforePack:validateBundledMise", () =>
       validateMiseRuntimeAssets({ desktopRoot: desktopPackageRoot, target: miseTarget }),
     );
@@ -620,6 +625,9 @@ export default {
     );
     runTimedSync("afterPack:assertPackagedNodePtyPrebuild", () =>
       assertPackagedNodePtyPrebuild(context),
+    );
+    await runTimedAsync("afterPack:assertPackagedStartupMedia", () =>
+      assertPackagedStartupMedia(desktopPackageRoot, resolveAppAsarPath(context)),
     );
     if (actualCuaTarget.os === "win32") {
       await runTimedAsync("afterPack:writeWindowsInstallManifest", () =>

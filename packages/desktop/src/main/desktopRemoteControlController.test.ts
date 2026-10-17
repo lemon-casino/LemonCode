@@ -699,6 +699,68 @@ test('本地工作区镜像:local target 走 scope:{kind:"local"} 第二 attachm
   assert.equal(tunnel.sentBinary.length, 1);
 });
 
+test("Host 心跳恢复保留同房间、镜像目标与 replayable attachment 并重发 Initialize", async () => {
+  const { controller, tunnels, broadcasts, okAttach } = makeController();
+  const start = await enableAndStart(controller, MIRROR_TARGET);
+  assert.ok(start.success);
+  if (!start.success) return;
+  const tunnel = tunnels[0]!;
+  const ready = {
+    type: "room.ready" as const,
+    proto: 1 as const,
+    roomId: start.roomId,
+    expiresAt: 9000000,
+    multiDevice: true as const,
+  };
+  tunnel.delegate.onRoomReady(ready);
+  tunnel.delegate.onBridgeOpen({
+    type: "bridge.open",
+    proto: 1,
+    deviceId: "device-1",
+    resumed: false,
+    connected: true,
+  });
+  const attachment = okAttach.calls[0];
+  assert.equal(attachment?.clientMode, "web-remote-replayable");
+  tunnel.delegate.onTransportSuspended({
+    code: 4001,
+    reason: "heartbeat timeout",
+    graceDeadlineAt: Date.now() + 30000,
+  });
+  assert.equal(broadcasts.at(-1)?.payload.state, "reconnecting");
+  assert.equal(broadcasts.at(-1)?.payload.roomId, start.roomId);
+  assert.equal(tunnel.stopped, false);
+  assert.equal(okAttach.detachMessages.length, 0);
+  tunnel.delegate.onRoomReady(ready);
+  tunnel.delegate.onBridgeOpen({
+    type: "bridge.open",
+    proto: 1,
+    deviceId: "device-1",
+    resumed: true,
+    connected: false,
+  });
+  assert.equal(okAttach.detachMessages.length, 0);
+  tunnel.delegate.onBridgeOpen({
+    type: "bridge.open",
+    proto: 1,
+    deviceId: "device-1",
+    resumed: true,
+    connected: true,
+  });
+  assert.equal(tunnels.length, 1);
+  assert.equal(okAttach.calls.length, 1);
+  assert.equal(okAttach.calls[0], attachment);
+  assert.deepEqual(okAttach.detachMessages, [
+    { type: "resend-service-port-init", attachmentId: okAttach.attachmentId },
+  ]);
+  tunnel.delegate.onBridgeBinary?.(encodeRemoteControlRegularFrame(Uint8Array.of(9)), "device-1");
+  assert.deepEqual([...okAttach.postedToPort[0]!], [9]);
+  okAttach.emitPortMessage(Uint8Array.of(8));
+  assert.equal(tunnel.sentBinary.length, 1);
+  assert.equal(broadcasts.at(-1)?.payload.state, "bridged");
+  controller.dispose("test");
+});
+
 test("resumed 重连复用既有桥:不重复 attach、不 detach、帧仍双向(§3.3)", async () => {
   const { controller, tunnels, broadcasts, okAttach } = makeController();
   const start = await enableAndStart(controller, MIRROR_TARGET);

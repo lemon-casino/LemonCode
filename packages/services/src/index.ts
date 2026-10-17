@@ -67,6 +67,7 @@ export type { MediaPreviewPreparation } from "./media-preview/mediaPreview.js";
 // Git service — IGitService is both a type (interface) and value (descriptor)
 export { IGitService } from "./git/git.js";
 export * from "./worktree/contract.js";
+export * from "./project-execution-set/contract.js";
 export * from "./runtime-environment/contract.js";
 export { IGitCheckpointService } from "./git/gitCheckpoint.js";
 

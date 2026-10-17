@@ -25,6 +25,76 @@ rules:
     - invariant-only
     - evidence-only
 nodes:
+  - id: capability.ssh-settings-proxy
+    kind: capability
+    label: SSH proxy selection reuses the local Settings proxy library
+    aliases: [SSH代理, SSH代理模式, 复用设置代理, SSH proxy mode]
+    codeSeeds:
+      - file: packages/ui/src/remote-connection/SshProxyModeField.tsx
+        symbol: SshProxyModeField
+      - file: packages/desktop/src/host/sshSettingsProxy.ts
+        symbol: resolveSshSettingsProxy
+      - file: packages/provider-node/src/proxy-socket.ts
+        symbol: connectNetworkProxySocket
+      - file: packages/server/src/remote/create-backend.ts
+        symbol: createRemoteBackend
+    invariants:
+      - "One selector chooses direct, Settings default or a saved proxy; the target and history carry only useProxy and proxyProfileId, while the local Host reads current credentials."
+      - "Proxy selection fails closed; direct, default and distinct profile IDs do not share physical connections. Workspace identity and attachment delivery modes remain unchanged."
+  - id: capability.desktop-startup-animation
+    kind: capability
+    label: Desktop startup animation and in-window handoff
+    aliases:
+      [
+        启动动画,
+        白璃动画,
+        白璃模板,
+        爱弥斯,
+        制作动画,
+        多副标题,
+        自选视频,
+        动态背景,
+        自定义启动动画,
+        欢迎渐显,
+        缓动,
+        startup animation,
+        cinematic startup,
+      ]
+    codeSeeds:
+      - file: packages/desktop/src/main/startupAnimationPolicy.ts
+        symbol: createStartupAnimationPolicy
+      - file: packages/desktop/src/renderer/src/startup/presentation.ts
+        symbol: bootStartupPresentation
+      - file: packages/ui/src/root/startupSurface.ts
+        symbol: resolveStartupSurface
+      - file: packages/ui/src/settings/StartupAnimationSettingsSection.tsx
+        symbol: StartupAnimationSettingsSection
+    invariants:
+      - "SettingService owns preferences; Main owns first-window eligibility; the current Renderer document owns only animation presentation."
+      - "Media completion, skipping and watchdogs never admit database ports or clear Root business gates."
+      - "Windows, macOS and Linux share an in-window compositor; Web/mobile recovery enters the existing project without an animation gate."
+      - "Baili media, editable Aemeath artwork/contours, notices and checksum manifest ship in every desktop build. Missing or mismatched source, renderer output or ASAR media blocks packaging without environment switches."
+      - "Aemeath, editable Baili and Custom share one Canvas renderer and independent scenes entries; Custom has generated neutral artwork. SettingService owns pure settings and subtitle tracks. Immutable local image/video Blobs stay behind the desktop platform port; unsaved drafts never become accepted settings. Legacy scene/single-subtitle fields migrate only at the shared read boundary."
+      - "Root alone owns welcome completion and readiness. Its first-start welcome projection fades the actual no-drag card over continuously playing cinematic artwork/audio or Canvas ambient media time; only actual ready resumes the final transition. A loop never hides the card or implies readiness. Manual login and errors remain attention; mobile recovery never installs the presentation."
+      - "Custom media and text-free Baili video derive continuous contours from their first frame, then reveal original color left-to-right. The presentation clock owns media seek/play/pause, never business readiness; stale loads and disposed decoders cannot reactivate."
+      - "The LCode title is canonical at the shared schema boundary; only its layout is editable. The old default subtitle migrates while custom subtitles remain intact."
+  - id: capability.appearance-wallpaper
+    kind: capability
+    label: Device-local project wallpaper
+    aliases: [壁纸, 更换壁纸, 动态壁纸, wallpaper]
+    codeSeeds:
+      - file: packages/ui/src/store/wallpaperStore.ts
+        symbol: createWallpaperStore
+      - file: packages/ui/src/hooks/useWallpaper.ts
+        symbol: useWallpaper
+      - file: packages/ui/src/settings/WallpaperSettingsSection.tsx
+        symbol: WallpaperSettingsSection
+      - file: packages/ui/src/app-shell/WorkspaceWallpaper.tsx
+        symbol: WorkspaceWallpaper
+    invariants:
+      - "Wallpaper is device-local IndexedDB state with serial writes through wallpaperStore, separate from SettingService startup preferences."
+      - "Media loads only for visible desktop surfaces after startup; Web/mobile restoration neither reads wallpaper storage nor requests media."
+      - "Baili loops its text-free wallpaper muted. Aemeath wallpaper shares the startup portrait blink painter through IPlatformService, shows no startup text, and pauses open-eyed for reduced motion. Custom images are decoded before saving and never sent through RPC."
   - id: capability.sidebar-organization
     kind: capability
     label: Unified sidebar sections, projects, worktrees and task placement
@@ -61,10 +131,50 @@ nodes:
       - "Pinned and archived task projections preserve explicit placement. Legacy groups import once per source without a second organization write path."
       - "Historical disconnected projects are not read failures. Actual read errors and scoped retry belong to their project or worktree rows; archive navigation opens a separate UI panel without changing the active chat."
       - "Focus is a local display preference over the unified tree. It never mutates organization or source ownership; focused chats preserve exact source identity, explicit placement and source labels. Empty system categories stay hidden."
+  - id: capability.project-collaboration
+    kind: capability
+    label: Project editing, frozen multi-folder scope and same-Host repository execution sets
+    aliases: [编辑项目, 编辑分区, 多目录协作, 前后端协作, 协作工作集, executionSet]
+    codeSeeds:
+      - file: packages/shared/src/projectDefinitions.ts
+        symbol: projectMutationRequestSchema
+      - file: packages/services/src/setting/projectMutations.ts
+        symbol: applyProjectMutation
+      - file: packages/ui/src/WorkspaceSidebar/SidebarProjectEditor.tsx
+        symbol: SidebarProjectEditor
+      - file: packages/ui/src/WorkspaceSidebar/SidebarSectionEditor.tsx
+        symbol: SidebarSectionEditor
+      - file: packages/shared/src/projectContext.ts
+        symbol: projectContextSnapshotSchema
+      - file: apps/lcode-cli/packages/bootstrap/src/lcode-protocol/admission-project-context.ts
+        symbol: resolveAdmissionProjectContext
+      - file: apps/lcode-cli/packages/core/src/runtime/methods/turn-project-context.ts
+        symbol: prepareTurnProjectContext
+      - file: packages/services/src/project-execution-set/contract.ts
+        symbol: IProjectExecutionSetService
+      - file: packages/services/src/project-execution-set/node.ts
+        symbol: createProjectExecutionSetService
+      - file: packages/ui/src/WorkspaceSidebar/ExecutionSetSidebarRow.tsx
+        symbol: ExecutionSetSidebarRow
+    invariants:
+      - "Profile SettingService owns project CAS and operation receipts; localProjects is a compatibility projection after migration."
+      - "CLI admission freezes each input's project revision. Native context and explicit filesystem MCP roots use those same materialized paths."
+      - "The target Host's execution-set owner persists repository plans; WorktreeService owns real bindings and durable set/session consumers without synthetic sessions."
+      - "All repositories must be ready before execution. Checkout permits are acquired in stable order; partial acquisition releases only its own permits."
+      - "Archive requires stop proof and preserves its journal; restore reuses original bindings. Different target identities never fall back to local services."
   - id: capability.oauth-provider-details
     kind: capability
     label: OAuth provider details, account imports and shared model configuration
-    aliases: [OAuth供应商弹窗, OAuth供应商右侧详情, OAuth文件导入, 本机账号识别, OAuth模型智能配置, 授权阶段诊断, 凭据保存后告警]
+    aliases:
+      [
+        OAuth供应商弹窗,
+        OAuth供应商右侧详情,
+        OAuth文件导入,
+        本机账号识别,
+        OAuth模型智能配置,
+        授权阶段诊断,
+        凭据保存后告警,
+      ]
     codeSeeds:
       - file: packages/ui/src/settings/model-provider-section/ProviderAccountsDialog.tsx
         symbol: ProviderAccountsDialog

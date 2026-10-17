@@ -226,10 +226,18 @@ export class SessionResidentPool {
   }
 
   /** 维护与冷恢复共用同一 gate；禁止关闭仍被另一个协议 handler 持有的旧 record。 */
-  async withMaintenance<T>(sessionIds: readonly string[], operation: () => Promise<T>): Promise<T> {
+  async withMaintenance<T>(
+    sessionIds: readonly string[],
+    operation: () => Promise<T>,
+    options?: { exclusiveProtocol?: true; currentProtocolOperation?: true },
+  ): Promise<T> {
     const ids = [...new Set(sessionIds)];
+    const ownLease = options?.currentProtocolOperation ? 1 : 0;
+    // 中文依据：record 不存在时仍可能有尚未登记的 create/fork；资源释放必须同时排除并发协议物化，不能将暂时缺席当停止。
+    if (options?.exclusiveProtocol && this.activeOperationCount > ownLease)
+      throw new Error("Another Agent operation is in progress; retry resource release");
     for (const id of ids) {
-      if (this.inFlightDeactivations.has(id) || (this.operationLeaseCounts.get(id) ?? 0) > 0)
+      if (this.inFlightDeactivations.has(id) || (this.operationLeaseCounts.get(id) ?? 0) > ownLease)
         throw new Error("Worktree session has an active residency operation; retry maintenance");
     }
     let releaseGate!: () => void;

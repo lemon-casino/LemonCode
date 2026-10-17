@@ -18,6 +18,7 @@ export function createProtocolCheckoutExecutionPort(
     async acquire({ sessionId, turnId, signal }) {
       signal.throwIfAborted();
       let permitId: string;
+      let additionalPermitIds: string[] | undefined;
       try {
         // 不能在已发申请上直接 race abort：Host 可能已授予票据，而取消会丢掉唯一 token。
         while (true) {
@@ -30,11 +31,13 @@ export function createProtocolCheckoutExecutionPort(
               workspacePath: workspace.workspacePath,
               workspaceIdentity: workspace.workspaceIdentity,
               ...(repair ? { repair } : {}),
+              ...(workspace.executionSetRef ? { executionSetRef: workspace.executionSetRef } : {}),
             },
             checkoutAcquireWriterResultSchema,
           );
           if ("permitId" in result) {
             permitId = result.permitId;
+            additionalPermitIds = result.additionalPermitIds;
             break;
           }
           // 这是同一次已接受执行的许可等待，不创建第二条输入，也不把超时当成 writer 退出。
@@ -43,6 +46,7 @@ export function createProtocolCheckoutExecutionPort(
       } catch (error) {
         if (
           !workspace.executionBindingId &&
+          !workspace.executionSetRef &&
           !repair &&
           (error as { code?: unknown })?.code === -32601
         ) {
@@ -56,7 +60,7 @@ export function createProtocolCheckoutExecutionPort(
         if (released) return;
         const result = await context.requestClient(
           lcodeProtocolMethods.checkoutReleaseWriter,
-          { permitId, sessionId },
+          { permitId, sessionId, ...(additionalPermitIds?.length ? { additionalPermitIds } : {}) },
           checkoutReleaseWriterResultSchema,
           { purpose: "resource_cleanup" },
         );

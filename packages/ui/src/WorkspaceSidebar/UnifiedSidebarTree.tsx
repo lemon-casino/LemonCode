@@ -2,7 +2,7 @@ import { useSidebarOrganizationCatalog } from "@/hooks/useSidebarOrganizationCat
 import { useSidebarTreePreferences } from "@/hooks/useSidebarTreePreferences.js";
 import { useUnifiedSidebarSources } from "@/hooks/useUnifiedSidebarSources.js";
 import { useUnifiedSidebarProjection } from "./useUnifiedSidebarProjection.js";
-import { scopeKey, projectRef, treeRef } from "./sidebarReferences.js";
+import { scopeKey, projectRef, treeRef, executionSetRef } from "./sidebarReferences.js";
 import { useCallback, useMemo, useState } from "react";
 import { Archive, ArrowLeft, Plus } from "lucide-react";
 import { SidebarArchivePanel } from "./SidebarArchivePanel.js";
@@ -15,6 +15,8 @@ import { WorkspacePinnedTasksSection } from "@/WorkspacePinnedTasksSection.js";
 import { SidebarOrganizeMenu } from "./SidebarOrganizeMenu.js";
 import { SidebarSortContextMenu } from "./SidebarSortContextMenu.js";
 import { SidebarOrganizationDialog } from "./SidebarOrganizationDialog.js";
+import { SidebarProjectEditor } from "./SidebarProjectEditor.js";
+import { ProjectScopeDialog } from "./ProjectScopeDialog.js";
 import { SidebarSectionHeader } from "./SidebarSectionHeader.js";
 import { useSidebarText } from "./sidebarText.js";
 import { Button } from "@/components/ui/button.js";
@@ -58,7 +60,7 @@ export interface UnifiedSidebarTreeProps {
 export function UnifiedSidebarTree(props: UnifiedSidebarTreeProps) {
   const text = useSidebarText();
   const organization = useSidebarOrganization()!;
-  const { projects, trees, bindings, queryTabs, activateTab, closeTab } =
+  const { projects, trees, sets, bindings, queryTabs, activateTab, closeTab } =
     useUnifiedSidebarSources();
   const {
     isOpen,
@@ -94,7 +96,7 @@ export function UnifiedSidebarTree(props: UnifiedSidebarTreeProps) {
   };
   const [archiveOpen, setArchiveOpen] = useState(false);
   const openWorktreeSettings = useOpenWorktreeSettings();
-  const catalog = useSidebarOrganizationCatalog(projects, trees, allTasks);
+  const catalog = useSidebarOrganizationCatalog(projects, trees, allTasks, sets);
   const sourceLabels = useMemo(() => sidebarTaskSourceLabels(catalog), [catalog]);
   const placement = useMemo(
     () =>
@@ -109,6 +111,19 @@ export function UnifiedSidebarTree(props: UnifiedSidebarTreeProps) {
     [props.onSelectTask],
   );
   const createFor = (ref: SidebarEntryRef) => {
+    if (ref.kind === "executionSet") {
+      const entry = sets.entries.find(
+        (entry) =>
+          entry.snapshot.id === ref.executionSetId &&
+          scopeKey(entry.origin) === scopeKey(ref.origin),
+      );
+      if (entry?.snapshot.status === "ready" && sets.supported.includes(scopeKey(entry.origin)))
+        props.onCreateTask({
+          targetWorkspace: entry.origin,
+          createSource: "project",
+          executionSetId: entry.snapshot.id,
+        });
+    }
     if (
       ref.kind === "project" &&
       trees.lookup.has(scopeKey(ref)) &&
@@ -122,6 +137,7 @@ export function UnifiedSidebarTree(props: UnifiedSidebarTreeProps) {
       );
       if (
         entry?.binding.status === "ready" &&
+        entry.binding.taskId &&
         trees.lookup.has(scopeKey(entry.origin)) &&
         !trees.unavailableScopeKeys.includes(scopeKey(entry.origin))
       )
@@ -140,6 +156,7 @@ export function UnifiedSidebarTree(props: UnifiedSidebarTreeProps) {
     props,
     projects,
     trees,
+    sets,
     bindings,
     catalog,
     placement,
@@ -171,6 +188,7 @@ export function UnifiedSidebarTree(props: UnifiedSidebarTreeProps) {
               ...organization.snapshot.sections.map((section) => section.id),
               ...projects.map((tab) => sidebarEntryKey(projectRef(tab))),
               ...trees.entries.map((entry) => sidebarEntryKey(treeRef(entry))),
+              ...sets.entries.map((entry) => sidebarEntryKey(executionSetRef(entry))),
             ].map((id) => [id, value]),
           ),
     );
@@ -220,6 +238,7 @@ export function UnifiedSidebarTree(props: UnifiedSidebarTreeProps) {
       ) : null}
       {archiveOpen ? (
         <SidebarArchivePanel
+          sets={sets}
           props={props}
           queryTabs={queryTabs}
           bindings={bindings}
@@ -336,6 +355,18 @@ export function UnifiedSidebarTree(props: UnifiedSidebarTreeProps) {
           } else createFor(entry);
         }}
       />
+      {organization.projectEditor ? (
+        <SidebarProjectEditor
+          key={JSON.stringify([
+            scopeKey(organization.projectEditor),
+            organization.projectEditor.localProjectId,
+          ])}
+          target={organization.projectEditor}
+        />
+      ) : null}
+      {organization.scopeTarget ? (
+        <ProjectScopeDialog key={sidebarEntryKey(organization.scopeTarget)} />
+      ) : null}
     </div>
   );
 }

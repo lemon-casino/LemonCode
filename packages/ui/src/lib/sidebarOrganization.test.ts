@@ -24,6 +24,34 @@ const chat: SidebarEntryRef = {
   workspace: { workspacePath: "/repo" },
   taskId: "chat",
 };
+
+test("edit and move undo restore whole sections including source defaults and hidden entries", () => {
+  const before = applySidebarMutations(emptySidebarOrganization(), [
+    {
+      type: "create",
+      section: { id: "a", title: "A", entries: [project, chat], defaultTargetRef: project },
+    },
+    { type: "create", section: { id: "b", title: "B", entries: [tree] } },
+  ]);
+  for (const mutations of [
+    [
+      {
+        type: "editSection",
+        sectionId: "b",
+        title: "Edited",
+        entries: [tree, project],
+        defaultTargetRef: project,
+      },
+    ],
+    [{ type: "move", entries: [project], sectionId: "b" }],
+  ] satisfies SidebarMutation[][]) {
+    const restored = applySidebarMutations(
+      applySidebarMutations(before, mutations),
+      invertSidebarMutations(before, mutations),
+    );
+    assert.deepEqual(restored.sections, before.sections);
+  }
+});
 test("selection does not mistake a real worktree chat for the project's natural child", () => {
   const parents = new Map([[sidebarEntryKey(chat), sidebarEntryKey(tree)]]);
   assert.deepEqual(normalizeSidebarSelection([project, chat], [], parents), [project, chat]);

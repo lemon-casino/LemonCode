@@ -4,9 +4,11 @@ import type { CommandEnvelope } from "@lcode/shared/lcode-protocol-v4";
 export interface DraftExecutionSelection {
   mode?: "local" | "worktree";
   baseRef?: string;
+  baseRefs?: Record<string, string>;
   existingBinding?: { bindingId: string; bindingOwnerTaskId: string };
   worktreeLabel?: string;
   newWorktree?: boolean;
+  executionSetId?: string;
   requestId?: string;
   frozen?: boolean;
   retryRevision?: number;
@@ -21,14 +23,20 @@ interface DraftExecutionStore {
     scope: string,
     selection: Pick<
       DraftExecutionSelection,
-      "mode" | "baseRef" | "existingBinding" | "worktreeLabel" | "newWorktree"
+      | "mode"
+      | "baseRef"
+      | "baseRefs"
+      | "existingBinding"
+      | "worktreeLabel"
+      | "newWorktree"
+      | "executionSetId"
     >,
   ): void;
   begin(
     scope: string,
     requestId: string,
     attachmentPreparation?: boolean,
-    intent?: Pick<DraftExecutionSelection, "mode" | "baseRef">,
+    intent?: Pick<DraftExecutionSelection, "mode" | "baseRef" | "baseRefs">,
     creationEnvelope?: CommandEnvelope,
   ): void;
   settle(scope: string, requestId: string, error?: string): void;

@@ -1,6 +1,8 @@
 import { useMemo, useRef, type ComponentProps } from "react";
 import { Group, useDefaultLayout, type LayoutStorage } from "react-resizable-panels";
 import { cn } from "@/components/lib/utils.js";
+import { WorkspaceWallpaper } from "./WorkspaceWallpaper.js";
+import "../wallpaper.css";
 
 const BODY_PANEL_IDS = ["conversation-column", "browser"];
 
@@ -9,14 +11,20 @@ export function WorkspaceShellSurface({
   isNarrowWebLayout,
   isNativeDesktop,
   className,
+  children,
+  wallpaperVisible = true,
   ...props
-}: ComponentProps<"div"> & { isNarrowWebLayout: boolean; isNativeDesktop: boolean }) {
+}: ComponentProps<"div"> & {
+  isNarrowWebLayout: boolean;
+  isNativeDesktop: boolean;
+  wallpaperVisible?: boolean;
+}) {
   return (
     <div
       {...props}
       data-workspace-shell="true"
       className={cn(
-        "relative flex h-full min-h-0 w-full",
+        "lcode-wallpaper-scope isolate relative flex h-full min-h-0 w-full",
         // Web 极窄屏 Tab 到工具条时，overflow:hidden 仍会被浏览器焦点算法纵向滚动，
         // 把顶部导航一起移出视口。结构壳不拥有滚动，使用 clip；正文/工具条各自保留原生滚动。
         isNativeDesktop ? "overflow-hidden" : "overflow-clip",
@@ -26,7 +34,10 @@ export function WorkspaceShellSurface({
           "[&_[data-workspace-body-group]>[data-panel]]:!flex-none [&_[data-workspace-body-group]>[data-panel]]:!w-full [&_[data-workspace-body-group]>[data-workspace-side-pane-panel]]:!absolute [&_[data-workspace-body-group]>[data-workspace-side-pane-panel]]:!inset-y-0 [&_[data-workspace-body-group]>[data-workspace-side-pane-panel]]:!right-0 [&_[data-workspace-body-group]>[data-workspace-side-pane-panel]]:!w-[calc(100%-1rem)] [&_[data-workspace-body-group]>[data-workspace-side-pane-panel]]:!h-full [&_[data-workspace-body-group]>[data-workspace-side-pane-panel]]:z-40",
         className,
       )}
-    />
+    >
+      {isNativeDesktop ? <WorkspaceWallpaper active={wallpaperVisible} /> : null}
+      {children}
+    </div>
   );
 }
 

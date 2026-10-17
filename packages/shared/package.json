@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./startup-animation": "./src/startupAnimation.ts",
     ".": "./src/index.ts",
     "./runtime-env": "./src/runtimeEnv.ts",
     "./mcp": "./src/mcp.ts",

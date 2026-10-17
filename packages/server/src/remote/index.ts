@@ -5,7 +5,7 @@ export type {
   RemoteUploadProgress,
   StdioStream,
 } from "./backend.js";
-export { createRemoteBackend } from "./create-backend.js";
+export { createRemoteBackend, type RemoteBackendOptions } from "./create-backend.js";
 export {
   connectRemote,
   pickRemoteRuntimeEnv,

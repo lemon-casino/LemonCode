@@ -1675,7 +1675,7 @@ export function createLCodeTaskIndexSyncer(
     if (snapshot.session.sessionKind === "subagent_child") return meta;
     const workspace = snapshot.session.workspace;
     const reconciledWorktreeScope = Boolean(
-      workspace.executionBindingId &&
+      (workspace.executionBindingId || workspace.executionSetRef) &&
       workspace.originWorkspacePath &&
       (await taskIndexRepo.reconcileWorktreeTaskScope({ taskId: meta.taskId, workspace })),
     );
@@ -1833,6 +1833,7 @@ function buildMetaFromSnapshot(
   const thoughtLevelOverride = options?.thoughtLevelOverride?.trim();
   const meta: LCodeTaskMeta = {
     taskId: snapshot.session.sessionId,
+    ...(snapshot.session.workspace.executionSetRef ? { executionSetRef: snapshot.session.workspace.executionSetRef } : {}),
     traceId: snapshot.session.traceId ?? generateTraceId(snapshot.session.sessionId),
     title: deriveTitleFromSnapshot(snapshot),
     ...resolveWorktreeProjectScope(snapshot.session.workspace),

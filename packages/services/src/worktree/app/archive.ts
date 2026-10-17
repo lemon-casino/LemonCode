@@ -44,6 +44,7 @@ export function createWorktreeArchive(
     if (params.discard) return discard(params);
     return store.lock(params.bindingId, async () => {
       let value = await binding(params.bindingId);
+      if (value.consumers?.length) throw new Error("Worktree has durable collaboration consumers; release them through its execution set first");
       if (["deleting", "deleted"].includes(value.status))
         throw new Error("Worktree has been deleted; create a new task");
       if (value.status === "archived") return value;

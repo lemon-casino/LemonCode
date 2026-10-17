@@ -1,5 +1,15 @@
 # Worktree service
 
+Host-only repository inspection can require a member directory to exist as a tree at a frozen
+commit. Source filesystem presence alone is insufficient; this check performs no checkout or
+file creation and identifies the unavailable member before execution-set allocation.
+
+Collaboration bindings use an explicit `BindingOwnerRef` (`executionSetId` + `repositoryId`)
+and have no synthetic task/session ID. The Host-only owned-binding contract reuses the same
+lifecycle, checkout coordinator and store. Durable consumer receipts prevent archive/discard
+until the trusted execution-set owner supplies stop evidence. Legacy session preparation,
+alias lookup and the public RPC whitelist remain session-specific.
+
 Git absence is a typed `LCODE_GIT_NOT_AVAILABLE` dependency failure. Checkout permit
 canonicalization alone may recover it by resolving the actual directory and nearest
 `.git` file/directory ancestor, preserving the same repository lock domain for nested

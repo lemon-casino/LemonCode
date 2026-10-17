@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { replaceRemoteWorkspaceIdentityPath, runtimeEnvironmentErrorSchema } from "@lcode/shared";
-import type { CheckoutLease, WorktreeBinding, WorktreePrepareRequest, WorktreeScope } from "../contract.js";
+import type { CheckoutLease, WorktreeBinding, WorktreeScope } from "../contract.js";
+import type { WorktreePreparationRequest } from "../ownedBindingContract.js";
 import type { WorktreeContext } from "./ports.js";
 import { prepareWorktreeEnvironment } from "./setup.js";
 import { registerWorktreeSessionAlias } from "./sessionAliases.js";
@@ -22,8 +23,9 @@ export function createWorktreeLifecycle(context: WorktreeContext, coordinator: C
     if (info.root !== binding.checkoutPath || info.commonDirectory !== binding.commonDirectory || info.branch !== binding.branch)
       throw new Error("Worktree ownership or branch has changed");
   }
-  async function prepare(params: WorktreePrepareRequest): Promise<WorktreeBinding> {
-    if (!params.taskId.trim() || !params.requestId.trim()) throw new Error("Worktree request and task IDs are required");
+  async function prepare(params: WorktreePreparationRequest): Promise<WorktreeBinding> {
+    if ((!params.taskId?.trim() && params.ownerRef?.kind !== "executionSet") || !params.requestId.trim()) throw new Error("Worktree request and explicit owner are required");
+    if (params.ownerRef?.kind === "executionSet" && params.taskId) throw new Error("Execution set bindings cannot use a synthetic task ID");
     const id = bindingKey(context, params);
     if (params.cancel) {
       const cancelled = await store.lock(store.key(`preparation-claim:${id}`), async () => {
@@ -41,7 +43,7 @@ export function createWorktreeLifecycle(context: WorktreeContext, coordinator: C
       if (cancelled.status !== "ready") await cancelBindingRuntime(context, cancelled);
       return cancelled;
     }
-    if (params.parentBinding) return registerWorktreeSessionAlias(context, params, id, async (binding) => {
+    if (params.parentBinding && params.taskId) return registerWorktreeSessionAlias(context, { ...params, taskId: params.taskId }, id, async (binding) => {
       await ready(binding);
       await resolveBindingRuntime(context, binding);
     });
@@ -82,6 +84,7 @@ export function createWorktreeLifecycle(context: WorktreeContext, coordinator: C
         const now = new Date().toISOString();
         binding = {
           id, creationFingerprint, taskId: params.taskId, requestId: params.requestId, projectId: params.projectId,
+          ...(params.ownerRef ? { ownerRef: params.ownerRef, consumers: [{ owner: params.ownerRef, operationId: params.requestId }] } : {}),
           environmentPolicy: policy, originalWorkspacePath: params.workspacePath, originalWorkspaceIdentity: params.workspaceIdentity,
           repositoryRoot: info.root, commonDirectory: info.commonDirectory, checkoutPath, checkoutRoot, workspacePath, workspaceIdentity,
           branch: `lcode/task-${id}`, baseCommit, targetBranch: info.branch,

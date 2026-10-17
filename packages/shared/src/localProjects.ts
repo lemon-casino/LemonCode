@@ -6,6 +6,10 @@ export interface LocalProject {
   name: string;
   primaryFolderPath: string;
   sourceFolderPaths: string[];
+  revision?: number;
+  description?: string;
+  members?: import("./projectDefinitions.js").ProjectMember[];
+  memberOrder?: string[];
 }
 
 export interface CreateLocalProjectInput {
@@ -17,6 +21,8 @@ export interface CreateLocalProjectInput {
 export interface LocalProjectCreateRequest {
   name: string;
   sourceFolderPaths: string[];
+  description?: string;
+  members?: import("./projectDefinitions.js").ProjectMember[];
 }
 
 export interface LocalProjectRemoveRequest {

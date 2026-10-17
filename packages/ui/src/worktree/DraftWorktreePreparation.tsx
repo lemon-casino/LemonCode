@@ -52,7 +52,7 @@ export function DraftWorktreePreparation({
   if (!requestId) return null;
   const cancel = async (kind: "cancel" | "local") => {
     const binding = state.binding;
-    if (!binding || !worktreeService || intent) return;
+    if (!binding?.taskId || !worktreeService || intent) return;
     setError(undefined);
     setIntent(kind);
     try {

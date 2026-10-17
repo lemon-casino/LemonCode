@@ -9,6 +9,7 @@ import { createWorktreeIntegration } from "./integration.js";
 import { createWorktreePublication } from "./publication.js";
 import { createWorktreeManagement } from "./management.js";
 import { createServiceLogger } from "../../logger/serviceLogger.js";
+import { createOwnedBindings } from "./ownedBindings.js";
 
 export function createWorktreeApplication(
   context: WorktreeContext,
@@ -37,6 +38,7 @@ export function createWorktreeApplication(
     }
   }
   return {
+    ...createOwnedBindings(context, lifecycle.prepare, lifecycle.ready),
     ...management,
     cleanup: () => management.cleanup(),
     async updateManagementSettings(patch) {
@@ -68,10 +70,11 @@ export function createWorktreeApplication(
     getCapabilities: lifecycle.capability,
     async prepare(params) {
       const binding = await lifecycle.prepare(params);
+      if (!binding.taskId) throw new Error("Session preparation requires a session-owned binding");
       if (!params.parentBinding && !params.cancel && binding.status === "ready") {
         await enforceRetention(binding.id);
       }
-      return binding;
+      return { ...binding, taskId: binding.taskId };
     },
     getBinding: lifecycle.getBinding,
     async list(params) {

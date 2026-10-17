@@ -11,6 +11,14 @@ export function assertUniquePlacements(state: SidebarOrganization) {
   for (const section of state.sections) {
     if (sectionIds.has(section.id)) throw new Error("Duplicate sidebar section");
     sectionIds.add(section.id);
+    if (
+      section.defaultTargetRef &&
+      (section.defaultTargetRef.kind === "task" ||
+        !section.entries.some(
+          (entry) => sidebarEntryKey(entry) === sidebarEntryKey(section.defaultTargetRef!),
+        ))
+    )
+      throw new Error("Invalid sidebar default target");
     for (const entry of section.entries) {
       const key = sidebarEntryKey(entry);
       if (entries.has(key)) throw new Error("Duplicate sidebar placement");
@@ -30,6 +38,25 @@ export function applySidebarMutations(
       return section;
     };
     switch (mutation.type) {
+      case "editSection": {
+        const target = requireSection(mutation.sectionId);
+        const keys = new Set(mutation.entries.map(sidebarEntryKey));
+        if (keys.size !== mutation.entries.length) throw new Error("Duplicate edit entries");
+        if (
+          mutation.defaultTargetRef &&
+          (mutation.defaultTargetRef.kind === "task" ||
+            !keys.has(sidebarEntryKey(mutation.defaultTargetRef)))
+        )
+          throw new Error("Invalid sidebar default target");
+        for (const section of next.sections)
+          section.entries = section.entries.filter((entry) => !keys.has(sidebarEntryKey(entry)));
+        target.title = mutation.title;
+        target.entries = structuredClone(mutation.entries);
+        if (mutation.defaultTargetRef)
+          target.defaultTargetRef = structuredClone(mutation.defaultTargetRef);
+        else delete target.defaultTargetRef;
+        break;
+      }
       case "forget": {
         const keys = new Set(mutation.entries.map(sidebarEntryKey));
         for (const section of next.sections)
@@ -104,7 +131,18 @@ export function applySidebarMutations(
       }
     }
   }
+  // 中文依据：默认入口只能指向分区直接成员；移出或跨区移动须随同一事务清空，避免新建误路由。
+  for (const section of next.sections) {
+    if (
+      section.defaultTargetRef &&
+      !section.entries.some(
+        (entry) => sidebarEntryKey(entry) === sidebarEntryKey(section.defaultTargetRef!),
+      )
+    )
+      delete section.defaultTargetRef;
+  }
   next.revision++;
+  if (next.sections.some((section) => section.entries.some((entry) => entry.kind === "executionSet")) || next.rootOrders.some((entry) => entry.kind === "executionSet")) next.version = 2;
   const validated = sidebarOrganizationSchema.parse(next);
   assertUniquePlacements(validated);
   return validated;

@@ -104,6 +104,7 @@ export interface ConversationEditTarget {
     planEnabled?: boolean;
     goalAcceptance?: import("@lcode/contracts").GoalAcceptance;
     contextCapsuleRefs?: TurnInputIntentMetadata["contextCapsuleRefs"];
+    projectContext?: TurnInputIntentMetadata["projectContext"];
     provenance?: CanonicalUserIntentFact["provenance"];
   };
 }

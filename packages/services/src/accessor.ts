@@ -53,6 +53,7 @@ export interface IServiceAccessor {
   readonly gitService: IGitService;
   /** 旧 Host 不支持时保持 unavailable，不能在本机代替远端创建工作树。 */
   readonly worktreeService?: IWorktreeService;
+  readonly projectExecutionSetService?: import("./project-execution-set/contract.js").IProjectExecutionSetService;
   /** 托管运行环境（M1 起提供）；旧 wire/测试 double 可缺省，缺省=不支持托管。 */
   readonly runtimeEnvironmentService?: IRuntimeEnvironmentService;
   readonly gitCheckpointService: IGitCheckpointService;

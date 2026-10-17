@@ -125,6 +125,9 @@ export function createV4SessionIndexHost(
         ...(record.workspace.executionBindingId
           ? { executionBindingId: record.workspace.executionBindingId }
           : {}),
+        ...(record.workspace.executionSetRef
+          ? { executionSetRef: record.workspace.executionSetRef }
+          : {}),
         ...(record.parentSessionId ? { parentSessionId: String(record.parentSessionId) } : {}),
       };
     },
@@ -227,6 +230,9 @@ function createStoredSessionSummaryReader(context: LCodeProtocolAgentServerConte
             workspaceId,
             ...(binding.success && binding.data.executionBindingId
               ? { executionBindingId: binding.data.executionBindingId }
+              : {}),
+            ...(binding.success && binding.data.executionSetRef
+              ? { executionSetRef: binding.data.executionSetRef }
               : {}),
             ...(session.parentID ? { parentSessionId: String(session.parentID) } : {}),
             title: session.title ?? "",

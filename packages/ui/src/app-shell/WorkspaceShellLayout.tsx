@@ -1666,6 +1666,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
       headerTestId={TID_APP_HEADER}
     >
       <WorkspaceShellSurface
+        wallpaperVisible={isWorkspaceVisible}
         ref={workspaceShellRef}
         style={workspaceShellSplitStyle}
         isNarrowWebLayout={isNarrowWebLayout}

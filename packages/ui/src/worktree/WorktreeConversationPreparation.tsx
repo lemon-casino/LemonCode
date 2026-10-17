@@ -8,6 +8,7 @@ import { ConversationUserInputContent } from "@/v4/ConversationUserInputContent.
 import { parseComposerPromptContexts } from "@/v4/composer/composerPromptContexts.js";
 import { DraftWorktreePreparation } from "./DraftWorktreePreparation.js";
 import { WorktreePreparationCard } from "./WorktreePreparationCard.js";
+import { DraftExecutionSetPreparation } from "./DraftExecutionSetPreparation.js";
 
 export function hasDraftWorktreePreparation(draft: DraftExecutionSelection | undefined): boolean {
   return draft?.mode === "worktree" && Boolean(draft.requestId || draft.creationEnvelope);
@@ -25,6 +26,13 @@ export function DraftWorktreeConversation({
   if (!hasDraftWorktreePreparation(draft)) return null;
   const input = (draft?.creationEnvelope?.payload as { firstInput?: { text?: string } } | undefined)
     ?.firstInput;
+  const execution = (
+    draft?.creationEnvelope?.payload as
+      | { execution?: { collaboration?: boolean; executionSetId?: string } }
+      | undefined
+  )?.execution;
+  const collaboration =
+    execution?.collaboration || execution?.executionSetId || draft?.executionSetId;
   const { visibleContent } = parseComposerPromptContexts(input?.text ?? "", {
     workspacePath,
     workspaceIdentity,
@@ -48,10 +56,17 @@ export function DraftWorktreeConversation({
           </div>
         </div>
       ) : null}
-      <DraftWorktreePreparation
-        workspacePath={workspacePath}
-        workspaceIdentity={workspaceIdentity}
-      />
+      {collaboration ? (
+        <DraftExecutionSetPreparation
+          workspacePath={workspacePath}
+          workspaceIdentity={workspaceIdentity}
+        />
+      ) : (
+        <DraftWorktreePreparation
+          workspacePath={workspacePath}
+          workspaceIdentity={workspaceIdentity}
+        />
+      )}
     </section>
   );
 }

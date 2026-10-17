@@ -87,6 +87,7 @@ export function resolveIndexMeta(
   lastActivityAt: number;
   parentSessionId?: string;
   executionBindingId?: string;
+  executionSetRef?: import("@lcode/shared").ExecutionSetRef;
 } {
   const meta = gateway.host.getSessionIndexMeta?.(sessionId);
   return {
@@ -94,6 +95,7 @@ export function resolveIndexMeta(
     lastActivityAt: meta?.lastActivityAt ?? gateway.now(),
     ...(meta?.parentSessionId ? { parentSessionId: meta.parentSessionId } : {}),
     ...(meta?.executionBindingId ? { executionBindingId: meta.executionBindingId } : {}),
+    ...(meta?.executionSetRef ? { executionSetRef: meta.executionSetRef } : {}),
   };
 }
 

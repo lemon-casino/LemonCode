@@ -1306,6 +1306,7 @@ export function createLCodeTaskServiceAdapter(
     return applyOverlayToMeta(
       {
         taskId: snapshot.session.sessionId,
+        ...(snapshot.session.workspace.executionSetRef ? { executionSetRef: snapshot.session.workspace.executionSetRef } : {}),
         traceId: snapshot.session.traceId ?? generateTraceId(snapshot.session.sessionId),
         title: deriveTitleFromSnapshot(snapshot),
         ...resolveWorktreeProjectScope(snapshot.session.workspace),
@@ -1400,7 +1401,7 @@ export function createLCodeTaskServiceAdapter(
     const workspace = snapshot.session.workspace;
     // 手机 replayable 与桌面 continuous 共用相同的项目归属，不能再次写回 checkout。
     const reconciled = Boolean(
-      workspace.executionBindingId &&
+      (workspace.executionBindingId || workspace.executionSetRef) &&
       workspace.originWorkspacePath &&
       (await taskIndexRepo.reconcileWorktreeTaskScope({ taskId: meta.taskId, workspace })),
     );

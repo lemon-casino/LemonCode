@@ -29,6 +29,7 @@ export function buildPersistedConversationInputIntent(
     // goal 的 message text 可以是 `/goal ...` 展示文案；admission 已持有 runtime
     // 解析后的 canonical objective，持久化必须优先使用它以保证 live/cold 等价。
     text: intent.text ?? text,
+    ...(intent.projectContext ? { projectContext: intent.projectContext } : {}),
     attachments: intent.attachmentRefs ?? [],
     ...(intent.modelSelection ? { modelSelection: intent.modelSelection } : {}),
     ...(intent.mode ? { mode: intent.mode } : {}),

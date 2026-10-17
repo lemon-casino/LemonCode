@@ -1,4 +1,6 @@
 node_modules/
+# 旧版素材验证缓存；当前内置资源位于 assets/startup-media 并随包分发。
+packages/desktop/.local-startup/
 dist/
 # lcode-server-cli 发行包 staging 输出，本地组装产物不入库。
 dist-release/
@@ -31,6 +33,8 @@ coverage/
 z-work/
 openclaw/
 .run-logs/
+# 本机诊断、浏览器缓存、抓包和回归截图，不属于可提交的产品源码。
+/.artifacts/
 .worktrees/
 packages/stream-animate/dist-server/
 packages/stream-animate/.stream-animate-data/
@@ -145,6 +149,7 @@ nul
 !/packages/web/test/fixtures/runtime-environment-service.ts
 !/packages/web/test/fixtures/runtime-environment-candidate.ts
 !/packages/web/test/remote-connection.test.mjs
+!/packages/web/test/ssh-proxy-mode.test.mjs
 !/packages/web/test/remote-provider-models.test.mjs
 !/packages/web/test/fixtures/remote-connection.html
 !/packages/web/test/fixtures/remote-connection.tsx
@@ -280,6 +285,10 @@ nul
 !/packages/ui/src/lib/providerAccountErrors.ts
 !/packages/ui/src/lib/sidebarOrganization.ts
 !/packages/ui/src/lib/sidebarOrganization.test.ts
+!/packages/ui/src/lib/sshProxyMode.test.ts
+# RPC 订阅失败隔离属于永久回归，覆盖维护者全局 test/ 忽略。
+!/packages/rpc/test/
+!/packages/rpc/test/channelServer.test.ts
 !/packages/web/test/sidebar-organization.test.mjs
 !/packages/web/test/sidebar-organization-transactions.test.mjs
 !/packages/web/test/fixtures/sidebar-organization.html
@@ -374,3 +383,17 @@ nul
 !/packages/ui/src/WorkspaceSidebar/sidebarFocusProjection.test.ts
 !/packages/web/test/fixtures/missing-git.html
 !/packages/web/test/fixtures/missing-git.tsx
+
+# 分区、项目编辑与多仓库工作集的永久浏览器回归。
+!/packages/web/test/sidebar-project-editing.test.mjs
+!/packages/web/test/sidebar-collaboration-completion.test.mjs
+!/packages/web/test/fixtures/sidebar-collaboration-bases.tsx
+!/packages/web/test/sidebar-execution-sets.test.mjs
+!/packages/web/test/fixtures/sidebar-project-service.ts
+!/packages/web/test/fixtures/sidebar-execution-set-service.ts
+!/packages/web/test/project-form-details.test.mjs
+!/packages/web/test/project-editor-close.test.mjs
+!/packages/web/test/project-folders.test.mjs
+!/packages/web/test/fixtures/project-creation-controls.tsx
+!/packages/web/test/fixtures/project-form.html
+!/packages/web/test/fixtures/project-form.tsx

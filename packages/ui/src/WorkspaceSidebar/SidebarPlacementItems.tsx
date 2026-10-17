@@ -23,6 +23,13 @@ export function SidebarPlacementItems({
   const text = useSidebarText();
   if (!organization) return null;
   const sectionId = organization.sectionFor(entry);
+  const scope =
+    entry.kind === "task" ? entry.workspace : entry.kind === "project" ? entry : entry.origin;
+  const project = organization.catalog.find(
+    (item) =>
+      item.ref.kind === "project" &&
+      sidebarEntryKey(item.ref) === sidebarEntryKey({ kind: "project", ...scope }),
+  );
   const entries =
     organization.batch &&
     organization.selected.some((item) => sidebarEntryKey(item) === sidebarEntryKey(entry))
@@ -31,6 +38,24 @@ export function SidebarPlacementItems({
   return (
     <>
       <Separator />
+      {entry.kind === "task" ? (
+        <Item onSelect={() => organization.inspectScope(entry)}>{text("inspectScope")}</Item>
+      ) : null}
+      {project ? (
+        <Item
+          onSelect={() =>
+            organization.editProject({
+              ...scope,
+              label: project.label,
+              ...(project.ref.kind === "project"
+                ? { localProjectId: project.ref.localProjectId }
+                : {}),
+            })
+          }
+        >
+          {text(entry.kind === "project" ? "editProject" : "editSourceProject")}
+        </Item>
+      ) : null}
       <Item
         disabled={!organization.writable}
         onSelect={() => organization.showDialog({ type: "move", entries })}

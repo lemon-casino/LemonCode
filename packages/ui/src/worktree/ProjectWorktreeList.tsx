@@ -18,6 +18,7 @@ export function ProjectWorktreeList({
 }) {
   const { intl } = useLCodeIntl();
   const trees = useProjectWorktrees(workspacePath, workspaceIdentity, enabled);
+  const sessionBindings = trees.bindings.filter((binding) => binding.taskId);
   if (!trees.available) return null;
   return (
     <div className="mt-2 space-y-2" data-testid="project-worktree-list">
@@ -25,8 +26,8 @@ export function ProjectWorktreeList({
         {intl.formatMessage({ id: "worktree.projectWorktreesDescription" })}
       </p>
       {trees.loading ? <p role="status">{intl.formatMessage({ id: "worktree.loading" })}</p> : null}
-      {trees.bindings.length ? (
-        trees.bindings.map((binding) => (
+      {sessionBindings.length ? (
+        sessionBindings.map((binding) => (
           <div key={binding.id} className="min-w-0 rounded-md border border-border p-1">
             <p className="break-all px-2" title={binding.branch}>
               {binding.branch}
@@ -39,7 +40,9 @@ export function ProjectWorktreeList({
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => onSelect(binding.taskId)}
+                onClick={() => {
+                  if (binding.taskId) onSelect(binding.taskId);
+                }}
               >
                 {intl.formatMessage({ id: "worktree.manage" })}
               </Button>
@@ -51,7 +54,9 @@ export function ProjectWorktreeList({
                   data-testid="project-worktree-delete"
                   aria-label={intl.formatMessage({ id: "worktree.discard" })}
                   title={intl.formatMessage({ id: "worktree.discard" })}
-                  onClick={() => onDelete(binding.taskId)}
+                  onClick={() => {
+                    if (binding.taskId) onDelete(binding.taskId);
+                  }}
                 >
                   <Trash2Icon className="size-4" />
                 </Button>

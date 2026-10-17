@@ -24,7 +24,7 @@ import {
   TID_WSL_USER_INPUT,
   isValidWslUser,
 } from "@lcode/shared";
-import type { SSHAuthMethod } from "@/hooks/useRemoteConnectionForm.js";
+import type { SSHAuthMethod, SshProxySelection } from "@/hooks/useRemoteConnectionForm.js";
 import { usePlatform } from "@/hooks/usePlatform.js";
 import { cn } from "@/components/lib/utils.js";
 import { Button } from "@/components/ui/button.js";
@@ -48,6 +48,7 @@ import {
   SelectValue,
 } from "@/components/ui/select.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
+import { SshProxyModeField } from "@/remote-connection/SshProxyModeField.js";
 
 const DEFAULT_WSL_DISTRO_VALUE = "__default_wsl_distro__";
 const NO_SSH_CONFIG_ALIAS_VALUE = "__ssh_config_alias_none__";
@@ -70,6 +71,8 @@ export function RemoteConnectionFields({
   port,
   username,
   sshAuthMethod,
+  sshProxySelection,
+  setSshProxySelection,
   assetInstallMode,
   password,
   privateKeyPath,
@@ -108,6 +111,8 @@ export function RemoteConnectionFields({
   port: string;
   username: string;
   sshAuthMethod: SSHAuthMethod;
+  sshProxySelection: SshProxySelection;
+  setSshProxySelection: (value: SshProxySelection) => void;
   assetInstallMode: RemoteAssetInstallMode;
   password: string;
   privateKeyPath: string;
@@ -229,6 +234,7 @@ export function RemoteConnectionFields({
     case "ssh":
       return (
         <div className="space-y-3">
+          <SshProxyModeField value={sshProxySelection} onChange={setSshProxySelection} />
           <div className="space-y-1">
             <label className="mb-1 block text-ui-base text-foreground-subtle">
               {intl.formatMessage({ id: "ssh.configAlias" })}

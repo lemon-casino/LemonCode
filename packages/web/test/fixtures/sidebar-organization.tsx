@@ -6,6 +6,7 @@ import {
   emptySidebarOrganization,
   sidebarOrganizationRequestSchema,
   type SidebarOrganization,
+  type AppSettings,
 } from "@lcode/shared";
 import type { IServiceAccessor, WorktreeBinding } from "@lcode/services";
 import { applySidebarMutations } from "../../../services/src/sidebar-organization/domain/transition.js";
@@ -24,7 +25,10 @@ import { ConfirmDialogHost } from "@/ConfirmDialog.js";
 import { platform } from "./git-backup-platform.js";
 import { services as defaults } from "./sidebar-file-tree-service.js";
 import { createSidebarFixtureData } from "./sidebar-organization-data.js";
+import { createHeldSidebarProjectCommands } from "./sidebar-project-service.js";
+import { installSidebarExecutionSets } from "./sidebar-execution-set-service.js";
 import { installSidebarMenuServices } from "./worktree-sidebar-menu-service.js";
+import { installSidebarBasesFixture, SidebarBasesFixture } from "./sidebar-collaboration-bases.js";
 import type { WorkspaceTabState } from "@/store/tabStore.js";
 import "@/styles.css";
 
@@ -49,6 +53,7 @@ const facts = {
   drafts: 0,
   localReadsForRemote: 0,
   connects: 0,
+  settingsSync: 0,
   creates: [] as unknown[],
   sourceReads: [] as string[],
 };
@@ -75,13 +80,16 @@ async function listWorktrees(scope: { workspacePath: string; workspaceIdentity?:
   );
 }
 const broadcast = { send: async () => {}, onMessage: subscribe } as never;
-const settings = {
+const settings: Partial<AppSettings> = JSON.parse(
+  localStorage.getItem("sidebar-fixture-projects") || "null",
+) ?? {
   recentProjects: [origin],
   localProjects: [
     { id: "project", name: "网站项目", primaryFolderPath: origin, sourceFolderPaths: [origin] },
   ],
   remoteWorkspaceSessions: [],
 };
+const projectCommands = createHeldSidebarProjectCommands(settings, calls);
 const services = {
   ...defaults,
   broadcastService: broadcast,
@@ -105,6 +113,15 @@ const services = {
   settingService: {
     ...defaults.settingService,
     get: async () => ({ ...(await defaults.settingService.get()), ...settings }),
+    mutateProject: projectCommands.mutateProject,
+  },
+  fileService: {
+    ...defaults.fileService,
+    stat: async ({ path }: { path: string }) => {
+      calls.push({ method: "localStat", params: { path } });
+      if (path.includes("missing")) throw new Error("Fixture directory not found");
+      return { type: "directory" };
+    },
   },
   worktreeService: {
     ...defaults.worktreeService,
@@ -199,11 +216,30 @@ Object.assign(services.lcodeTaskService, {
 const remoteServices = {
   ...services,
   sidebarOrganizationService: undefined,
+  fileService: {
+    ...services.fileService,
+    stat: async ({ path }: { path: string }) => {
+      calls.push({ method: "remoteStat", params: { path, identity } });
+      if (path.includes("missing")) throw new Error("Remote directory not found");
+      return { type: "directory" };
+    },
+  },
   worktreeService: {
     ...services.worktreeService,
     list: listWorktrees,
   },
 } as IServiceAccessor;
+const executionSetFixtures = installSidebarExecutionSets(
+  services,
+  remoteServices,
+  tasks,
+  origin,
+  identity,
+  calls,
+  params.has("sets"),
+);
+const { localSet, remoteSet } = executionSetFixtures;
+tasks = executionSetFixtures.tasks;
 const store = useRemoteWorkspaceSessionStore.getState();
 store.registerBaseServices(services);
 function registerRemote() {
@@ -251,6 +287,12 @@ Object.assign(globalThis, {
     snapshot: () => snapshot,
     identity,
     origin,
+    settings: () => settings,
+    holdProjectSave: projectCommands.hold,
+    releaseProjectSave: projectCommands.release,
+    isProjectSaveHeld: projectCommands.pending,
+    executionSets: () => [localSet.snapshot(), remoteSet.snapshot()],
+    failExecutionSet: () => localSet.fail(),
     setReadError: (remote: boolean, error: string | null, refresh = true) => {
       const key = remote ? identity : origin;
       if (error) readFailures.set(key, error);
@@ -290,6 +332,7 @@ function Fixture() {
   }, [api, setTheme]);
   return (
     <main className="flex h-dvh bg-background text-foreground">
+      {params.has("bases") ? <SidebarBasesFixture /> : null}
       <div className="w-80 max-w-full shrink-0 bg-sidebar">
         {ready ? (
           <WorkspaceSidebar
@@ -330,8 +373,18 @@ function Fixture() {
     </main>
   );
 }
+installSidebarBasesFixture(services, calls);
 createRoot(document.getElementById("root")!).render(
-  <PlatformProvider platform={platform}>
+  <PlatformProvider
+    platform={{
+      ...platform,
+      canSelectFilePath: true,
+      selectDirectory: async () => "/fixture/backend",
+      syncAppSettings: () => {
+        facts.settingsSync++;
+      },
+    }}
+  >
     <ServiceProvider services={services}>
       <StoreProvider broadcastService={broadcast}>
         <TabStoreProvider>

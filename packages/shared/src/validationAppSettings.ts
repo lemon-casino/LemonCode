@@ -1,6 +1,11 @@
 /* oxlint-disable max-lines -- AppSettings schema 聚合历史迁移、默认值和 patch 校验，拆分会削弱设置迁移的单一入口。 */
 import { z } from "zod";
 import {
+  projectMetadataShape,
+  projectRegistrySchema,
+  projectMutationReceiptsSchema,
+} from "./projectDefinitions.js";
+import {
   DEFAULT_TOKEN_USAGE_STATUS_BAR,
   tokenUsageStatusBarSettingsSchema,
 } from "./tokenUsageStatusBarSettings.js";
@@ -25,6 +30,7 @@ import {
   embeddedBrowserViewportPreferenceSchema,
 } from "./browser-use/command-metadata.js";
 import { providerFamilyConnectionSelectionSettingsSchema } from "./provider-family-connection-selection.js";
+import { startupAnimationSettingsSchema } from "./startupAnimation.js";
 
 export const memoryStorageLocationSchema = z.enum(["profile", "workspace"]);
 export const memoryStorageRevisionSchema = z
@@ -102,6 +108,8 @@ const remoteWorkspaceTargetSchema = z.discriminatedUnion("kind", [
     port: z.number().int().positive().max(65535).optional(),
     username: nonEmptyStringSchema,
     sshConfigAlias: nonEmptyStringSchema.optional(),
+    useProxy: z.boolean().optional(),
+    proxyProfileId: nonEmptyStringSchema.optional(),
     privateKeyPath: z.string().optional(),
     assetInstallMode: z.enum(REMOTE_ASSET_INSTALL_MODES).optional(),
     resourcePackages: z
@@ -152,6 +160,7 @@ const localProjectSchema = z
       .array(nonEmptyStringSchema)
       .min(1)
       .max(LOCAL_PROJECT_SOURCE_FOLDER_MAX_COUNT),
+    ...projectMetadataShape,
   })
   .superRefine((project, context) => {
     if (!isSameLocalProjectPath(project.primaryFolderPath, project.sourceFolderPaths[0]!)) {
@@ -488,6 +497,8 @@ const appSettingsObjectSchema = z.object({
   tokenUsageStatusBar: tokenUsageStatusBarSettingsSchema.default(DEFAULT_TOKEN_USAGE_STATUS_BAR),
   recentProjects: z.array(z.string()).default([]),
   localProjects: localProjectsSchema.default([]),
+  projectDefinitions: projectRegistrySchema.optional(),
+  projectMutationReceipts: projectMutationReceiptsSchema.optional(),
   locale: localeSchema.default("zh-CN"),
   // 快捷键用户覆盖（语义校验在 ui/src/shortcuts 生效表阶段容错，schema 只管形状）
   shortcutBindings: z.record(z.string(), z.array(z.string())).optional(),
@@ -511,6 +522,7 @@ const appSettingsObjectSchema = z.object({
   closeToTrayOnWindowsMigrationInitialized: z.boolean().default(true),
   keepAwakeWhileRunning: z.boolean().default(false),
   desktopZoomLevel: desktopZoomLevelSchema.optional(),
+  desktopStartupAnimation: startupAnimationSettingsSchema.optional(),
   desktopWindowSize: desktopWindowSizeSchema.optional(),
   desktopChromiumHardwareAccelerationEnabled: z.boolean().default(true),
   messageStreamShowReasoning: z.boolean().default(true),
@@ -572,6 +584,8 @@ export const appSettingsPatchSchema = z.object({
   tokenUsageStatusBar: tokenUsageStatusBarSettingsSchema.optional(),
   recentProjects: z.array(z.string()).optional(),
   localProjects: localProjectsSchema.optional(),
+  projectDefinitions: projectRegistrySchema.optional(),
+  projectMutationReceipts: projectMutationReceiptsSchema.optional(),
   locale: localeSchema.optional(),
   shortcutBindings: z.record(z.string(), z.array(z.string())).optional(),
   localePreference: localePreferenceSchema.optional(),
@@ -590,6 +604,7 @@ export const appSettingsPatchSchema = z.object({
   keepAwakeWhileRunning: z.boolean().optional(),
   closeToTrayOnWindowsMigrationInitialized: z.boolean().optional(),
   desktopZoomLevel: desktopZoomLevelSchema.optional(),
+  desktopStartupAnimation: startupAnimationSettingsSchema.optional(),
   desktopWindowSize: desktopWindowSizeSchema.optional(),
   desktopChromiumHardwareAccelerationEnabled: z.boolean().optional(),
   messageStreamShowReasoning: z.boolean().optional(),

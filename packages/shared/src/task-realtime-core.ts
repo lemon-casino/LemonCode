@@ -5,6 +5,7 @@
 // task-realtime.ts 保留旧协议兼容接口；本文件集中定义对应的运行时 schema。
 
 import { z } from "zod";
+import { executionSetRefSchema } from "./projectExecutionSet.js";
 import type { LCodeTaskMigrationSource, LCodeTaskMode } from "./lcode-task-types-core.js";
 import { lcodeAgentProviderSchema } from "./lcode-agent-policy.js";
 import { lcodePermissionResponseSchema } from "./lcode-protocol-legacy-types.js";
@@ -46,6 +47,7 @@ const lcodeTaskChangeSummaryRealtimeSchema = z
 const taskMetaRealtimeSchema = z.object({
   taskId: nonEmptyString,
   executionBindingId: nonEmptyString.optional(),
+  executionSetRef: executionSetRefSchema.optional(),
   traceId: nonEmptyString,
   title: z.string(),
   titleOverridden: z.boolean().optional(),

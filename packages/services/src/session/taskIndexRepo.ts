@@ -1288,11 +1288,12 @@ export class TaskIndexRepo {
       | "workspacePath"
       | "workspaceIdentity"
       | "executionBindingId"
+      | "executionSetRef"
       | "originWorkspacePath"
       | "originWorkspaceIdentity"
     >;
   }): Promise<boolean> {
-    if (!params.workspace.executionBindingId || !params.workspace.originWorkspacePath) return false;
+    if ((!params.workspace.executionBindingId && !params.workspace.executionSetRef) || !params.workspace.originWorkspacePath) return false;
     const source = { ...params.workspace, taskId: params.taskId };
     const target = { ...resolveWorktreeProjectScope(params.workspace), taskId: params.taskId };
     if (workspaceKey(source) === workspaceKey(target)) return false;

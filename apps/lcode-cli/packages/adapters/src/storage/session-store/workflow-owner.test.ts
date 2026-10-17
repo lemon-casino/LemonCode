@@ -133,6 +133,115 @@ test("unknown process validity never retires an active owner", async (t) => {
   original.release();
 });
 
+for (const operation of ["appendEvent", "reconcileInterrupted"] as const) {
+  test(`owner ${operation} acquires the WAL write lock before reading run scope`, async (t) => {
+    let competing: DatabaseSync | undefined;
+    const f = await fixture(t, async () => competing?.close());
+    competing = new DatabaseSync(f.path);
+    let interleave = () => {};
+    const journal = new Proxy(f.journal, {
+      get(target, key) {
+        const member = Reflect.get(target, key, target);
+        if (key === "getRun")
+          return (id: string) => {
+            const record = target.getRun(id);
+            interleave();
+            return record;
+          };
+        return typeof member === "function" ? member.bind(target) : member;
+      },
+    });
+    const lease = await acquireWorkflowJournalOwner({
+      db: f.db,
+      journal,
+      parentSessionId: "parent",
+      workspaceKey: "fixture-identity",
+    });
+    lease.journal.createRun(run());
+    f.journal.createRun(run("sibling", "other-parent"));
+    const ownerBefore = f.db.prepare("select * from local_setting").all();
+    const writeSibling = () =>
+      competing!
+        .prepare("update dwf_run set spent_tokens = spent_tokens + 1 where id = ?")
+        .run("sibling");
+    let competingError: unknown;
+    interleave = () => {
+      interleave = () => {};
+      try {
+        writeSibling();
+      } catch (error) {
+        competingError = error;
+      }
+    };
+    // 用另一真实连接卡住原实现的“已读 owner、尚未写事件”窗口，不能靠延时碰运气。
+    const activity = { type: "log" as const, message: "fixture activity" };
+    assert.doesNotThrow(() => {
+      if (operation === "appendEvent") lease.journal.appendEvent("live", activity);
+      else
+        assert.equal(
+          lease.reconcileInterrupted("live", "running", { stopReason: "interrupted" }),
+          true,
+        );
+    });
+    assert.equal((competingError as { errcode?: number })?.errcode, 5);
+    assert.deepEqual(f.db.prepare("select * from local_setting").all(), ownerBefore);
+    if (operation === "appendEvent") {
+      const events = f.journal.listEvents("live");
+      assert.equal(events.length, 1);
+      assert.equal(events[0]?.sequence, 0);
+      assert.deepEqual(events[0]?.event, activity);
+    } else {
+      assert.equal(f.journal.getRun("live")?.stopReason, "interrupted");
+      assert.equal(
+        lease.reconcileInterrupted("live", "running", { stopReason: "interrupted" }),
+        false,
+      );
+    }
+    writeSibling();
+    assert.equal(f.journal.getRun("sibling")?.spentTokens, 1);
+    lease.release();
+  });
+}
+
+test("failed journal writes roll back their savepoint and preserve the caller transaction", async (t) => {
+  const f = await fixture(t);
+  const failure = new Error("fixture journal write failed");
+  const journal = new Proxy(f.journal, {
+    get(target, key) {
+      const member = Reflect.get(target, key, target);
+      if (key === "appendEvent")
+        return (...args: Parameters<typeof target.appendEvent>) => {
+          target.appendEvent(...args);
+          throw failure;
+        };
+      return typeof member === "function" ? member.bind(target) : member;
+    },
+  });
+  const lease = await acquireWorkflowJournalOwner({
+    db: f.db,
+    journal,
+    parentSessionId: "parent",
+    workspaceKey: "fixture-identity",
+  });
+  lease.journal.createRun(run());
+  f.db.exec("begin immediate");
+  try {
+    f.journal.updateRunUsage("live", 7);
+    assert.throws(
+      () => lease.journal.appendEvent("live", { type: "log", message: "rolled back" }),
+      (error) => error === failure,
+    );
+    assert.deepEqual(f.journal.listEvents("live"), []);
+    f.db.exec("commit");
+  } catch (error) {
+    f.db.exec("rollback");
+    throw error;
+  }
+  assert.equal(f.journal.getRun("live")?.spentTokens, 7);
+  lease.assertOwned();
+  lease.release();
+});
+
 test(
   "independent processes sharing SQLite cannot claim or write a live owner's journal",
   { timeout: 30_000 },

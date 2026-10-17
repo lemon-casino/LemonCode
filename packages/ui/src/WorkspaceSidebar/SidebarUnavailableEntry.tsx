@@ -1,4 +1,4 @@
-import { Ellipsis, Folder, GitBranch, MessageCircle, Unplug } from "lucide-react";
+import { Ellipsis, Folder, GitBranch, Layers, MessageCircle, Unplug } from "lucide-react";
 import type { SidebarEntryRef } from "@lcode/shared";
 import { Button } from "@/components/ui/button.js";
 import {
@@ -30,17 +30,25 @@ export function SidebarUnavailableEntry({
   const remote =
     entry.kind === "project"
       ? Boolean(entry.workspaceIdentity)
-      : entry.kind === "worktree"
+      : entry.kind === "worktree" || entry.kind === "executionSet"
         ? Boolean(entry.origin.workspaceIdentity)
         : Boolean(entry.workspace.workspaceIdentity);
   const kind =
-    entry.kind === "worktree"
-      ? text(remote ? "remoteTree" : "localTree")
-      : entry.kind === "project"
-        ? text(remote ? "remoteProject" : "localProject")
-        : text("chats");
+    entry.kind === "executionSet"
+      ? text("executionSet")
+      : entry.kind === "worktree"
+        ? text(remote ? "remoteTree" : "localTree")
+        : entry.kind === "project"
+          ? text(remote ? "remoteProject" : "localProject")
+          : text("chats");
   const Icon =
-    entry.kind === "project" ? Folder : entry.kind === "worktree" ? GitBranch : MessageCircle;
+    entry.kind === "project"
+      ? Folder
+      : entry.kind === "executionSet"
+        ? Layers
+        : entry.kind === "worktree"
+          ? GitBranch
+          : MessageCircle;
   return (
     <SidebarEntryInteraction entry={entry}>
       <ContextMenu>

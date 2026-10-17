@@ -77,6 +77,7 @@ export function createWorktreeGit(port: WorktreeGitPort): WorktreeGit {
     }
   }
   return {
+    canonicalDirectory: (path) => realpath(path),
     run: (params) => port.run(params),
     command,
     inspect,

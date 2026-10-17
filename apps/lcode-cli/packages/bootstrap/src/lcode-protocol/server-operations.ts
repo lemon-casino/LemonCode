@@ -2892,24 +2892,42 @@ export async function setMode(context: LCodeProtocolAgentServerContext, rawParam
   return await afterStateMutation(context, record, "mode_changed");
 }
 
-export async function closeSession(context: LCodeProtocolAgentServerContext, rawParams: unknown) {
+export async function closeSession(
+  context: LCodeProtocolAgentServerContext,
+  rawParams: unknown,
+  protocolOperationLeaseHeld = false,
+) {
   const params = parseParams(lcodeSessionCloseParamsSchema, rawParams);
-  const record = requireSession(context, params.sessionId);
-  if (!shouldCloseSessionForExpectedPersistence(record.persistence, params.expectedPersistence)) {
-    // 连接切换与跨端首发可能并发。session/send 会先把 deferred 提升为
-    // immediate；条件关闭必须在 Agent record 上原子判断，不能依赖 renderer 的旧快照。
-    return { closed: false };
-  }
-  record.unsubscribe?.();
-  await record.app.close?.();
-  // v4 通道：会话关闭同时清 publisher / 订阅调度；重开会话走 snapshot 冷启动。
-  // dispose 必须先于注册表删除——gateway 靠 getSessionWorkspaceId
-  // （读 context.sessions）定位 workspace 才能推 session.removed 给 sessions-index 订阅者。
-  context.v4Gateway?.disposeSession(params.sessionId);
-  context.sessions.delete(params.sessionId);
-  // 内存 event store 随 record 释放。
-  await record.eventStore.deleteSession(params.sessionId as SessionId);
-  return { closed: true };
+  const maintain = async () => {
+    context.assertServing?.();
+    // 中文依据：冷会话没有 resident runtime；只有目标 Agent 的成功维护回执能证明此 incarnation 中无执行，断连/超时不能替代。
+    if (params.resourceRelease && !context.sessions.has(params.sessionId))
+      return { closed: true, residency: "absent" as const };
+    const record = requireSession(context, params.sessionId);
+    if (params.resourceRelease && typeof record.app.close !== "function")
+      throw new Error("Session has no resource-release close capability");
+    if (!shouldCloseSessionForExpectedPersistence(record.persistence, params.expectedPersistence)) {
+      // 连接切换与跨端首发可能并发。session/send 会先把 deferred 提升为
+      // immediate；条件关闭必须在 Agent record 上原子判断，不能依赖 renderer 的旧快照。
+      return { closed: false };
+    }
+    record.unsubscribe?.();
+    await record.app.close?.();
+    // v4 通道：会话关闭同时清 publisher / 订阅调度；重开会话走 snapshot 冷启动。
+    // dispose 必须先于注册表删除——gateway 靠 getSessionWorkspaceId
+    // （读 context.sessions）定位 workspace 才能推 session.removed 给 sessions-index 订阅者。
+    context.v4Gateway?.disposeSession(params.sessionId);
+    context.sessions.delete(params.sessionId);
+    // 内存 event store 随 record 释放。
+    await record.eventStore.deleteSession(params.sessionId as SessionId);
+    return { closed: true, ...(params.resourceRelease ? { residency: "closed" as const } : {}) };
+  };
+  return params.resourceRelease && context.sessionResidentPool
+    ? context.sessionResidentPool.withMaintenance([params.sessionId], maintain, {
+        exclusiveProtocol: true,
+        ...(protocolOperationLeaseHeld ? { currentProtocolOperation: true } : {}),
+      })
+    : maintain();
 }
 
 function shouldCloseSessionForExpectedPersistence(
@@ -3545,7 +3563,9 @@ async function createRecord(
       // 身份隔离与路径执行分开：core 只把 identity 写入 session.workspace_id，
       // workingDirectory 仍是远端机器上的实际路径；本地 workspace 保持 undefined。
       workspaceIdentity: workspace.workspaceIdentity as WorkspaceId | undefined,
-      ...(workspace.executionBindingId ? { workspaceBinding: workspace } : {}),
+      ...(workspace.executionBindingId || workspace.executionSetRef
+        ? { workspaceBinding: workspace }
+        : {}),
     },
     // LCode Protocol app-server 以前没有注入可等待的交互 broker，
     // core 遇到 permission / AskUserQuestion 只能走默认拒绝，UI 永远收不到阻塞请求。

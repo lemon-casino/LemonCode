@@ -2,6 +2,7 @@
 import undiciPackage from "undici/package.json" with { type: "json" };
 export const PROVIDER_NETWORK_BACKEND_VERSION: string = undiciPackage.version;
 export { getProviderNetworkDiagnostics } from "./network-diagnostics.js";
+export { connectNetworkProxySocket, type NetworkProxySocketOptions } from "./proxy-socket.js";
 export {
   createHostApiNetworkTransport as createProviderNetworkTransport,
   resolveHostProxyForUrl,

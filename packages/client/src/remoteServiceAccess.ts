@@ -5,6 +5,7 @@ import {
   IMediaPreviewService,
   IGitService,
   IWorktreeService,
+  IProjectExecutionSetService,
   ISidebarOrganizationService,
   IRuntimeEnvironmentService,
   IGitCheckpointService,
@@ -60,6 +61,7 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly mediaPreviewService: IMediaPreviewService;
   readonly gitService: IGitService;
   readonly worktreeService: IWorktreeService;
+  readonly projectExecutionSetService: IProjectExecutionSetService;
   readonly runtimeEnvironmentService: IRuntimeEnvironmentService;
   readonly gitCheckpointService: IGitCheckpointService;
   readonly gitBackupService: IGitBackupService;
@@ -105,6 +107,7 @@ export class RemoteServiceAccess implements IServiceAccessor {
   readonly promptAttachmentTransferService: IPromptAttachmentTransferService;
 
   constructor(private readonly channelClient: IChannelClient) {
+    this.projectExecutionSetService = ProxyChannel.toService<IProjectExecutionSetService>(channelClient.getChannel(IProjectExecutionSetService.channelName));
     this.sidebarOrganizationService = ProxyChannel.toService<ISidebarOrganizationService>(
       channelClient.getChannel(ISidebarOrganizationService.channelName),
     );

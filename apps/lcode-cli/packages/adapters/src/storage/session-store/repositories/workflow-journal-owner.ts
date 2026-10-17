@@ -112,7 +112,15 @@ export async function acquireWorkflowJournalOwner(options: {
     // 校验和写入必须处于同一 SQLite 事务，不能 await 后用旧 token 写新代。
     db.exec(`savepoint ${SAVEPOINT}`);
     try {
-      assertOwned();
+      // SAVEPOINT 是延迟事务；先 SELECT owner 会在并发连接提交后留下旧 WAL 快照，
+      // 后续 appendEvent 升级写锁即报 SQLITE_BUSY_SNAPSHOT，busy_timeout 也无法等待解决。
+      // 第一条语句用完整 owner 值做条件 UPDATE，先取得写锁并完成 fencing；值和时间均不变。
+      const owned = db
+        .prepare(
+          "update local_setting set value = value where scope = 'session' and scope_id = ? and namespace = ? and key = ? and value = ?",
+        )
+        .run(parentSessionId, OWNER_NAMESPACE, OWNER_KEY, value);
+      if (!owned.changes) throw new WorkflowExecutionOwnerError("owner_changed");
       const result = operation();
       db.exec(`release savepoint ${SAVEPOINT}`);
       return result;

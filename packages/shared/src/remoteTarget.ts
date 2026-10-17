@@ -7,6 +7,10 @@ export interface SSHConnectOptions {
   port?: number;
   username: string;
   sshConfigAlias?: string;
+  /** 复用本机设置代理；缺省直连，不在连接目标中复制代理凭据。 */
+  useProxy?: boolean;
+  /** 设置代理库的 ID；开启代理且缺省 ID 时兼容设置中的默认代理。 */
+  proxyProfileId?: string;
   password?: string;
   privateKeyPath?: string;
   privateKeyPassphrase?: string;

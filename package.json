@@ -5,6 +5,9 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
+    "test:startup-animation": "node --import tsx --test packages/shared/src/startupAnimation.test.ts packages/shared/src/startupScene.test.ts packages/desktop/src/main/startupAnimationPolicy.test.ts packages/desktop/scripts/startup-animation-state.test.ts packages/desktop/scripts/startup-admission.test.ts packages/desktop/scripts/startup-media-packaging.test.mjs packages/desktop/scripts/startup-media-plugin.test.ts packages/ui/src/root/startupSurface.test.ts packages/ui/src/store/wallpaperStore.test.ts packages/ui/src/lib/rootStartupGate.test.ts packages/desktop/src/main/startupWorkspace.test.ts packages/web/test/rootRecovery.test.mjs packages/web/test/mirrorReconnect.test.mjs packages/desktop/scripts/startup-scene-media.test.ts",
+    "test:startup-animation:ui": "node --import tsx --test packages/desktop/scripts/startup-animation.e2e.test.mjs",
+    "test:sidebar-collaboration": "node scripts/test-sidebar-collaboration.mjs",
     "test:remote-control": "node scripts/test-remote-control.mjs",
     "test:website": "node --import tsx --test packages/web/test/rootRecovery.test.mjs scripts/mobile-web-assembly.test.mjs scripts/project-website.test.mjs",
     "test:remote-providers": "node --import tsx --test packages/services/src/model-provider/providerAccountRelay.test.ts packages/server/src/remote/providerAccountRelayConnect.test.ts",

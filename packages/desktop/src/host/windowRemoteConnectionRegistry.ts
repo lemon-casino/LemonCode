@@ -118,7 +118,13 @@ function normalizeWslSegment(value: string | undefined): string {
 function buildConnectionKey(target: RemoteTarget, remoteSessionId: string): string {
   switch (target.kind) {
     case "ssh":
-      return `ssh:${buildSshRemoteHostKey(target)}`;
+      // 同一主机经不同代理建立的隧道不能混用；ID 不包含地址或认证信息。
+      const proxyKey = !target.useProxy
+        ? "direct"
+        : target.proxyProfileId !== undefined
+          ? `profile:${encodeURIComponent(target.proxyProfileId)}`
+          : "settings-proxy";
+      return `ssh:${buildSshRemoteHostKey(target)}:${proxyKey}`;
     case "wsl":
       return `wsl:${normalizeWslSegment(target.distro)}\0${normalizeWslSegment(target.user)}`;
     case "docker":

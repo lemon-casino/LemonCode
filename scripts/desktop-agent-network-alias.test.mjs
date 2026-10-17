@@ -8,6 +8,35 @@ const requireFromCli = createRequire(
 );
 const { build } = requireFromCli("esbuild");
 
+test("Agent bundle resolves the public provider routing subpath and executes its schema", async () => {
+  const result = await build({
+    stdin: {
+      contents: 'export { providerRoutingPolicySchema } from "@lcode/shared/provider-routing";',
+    },
+    alias: resolveBuildAliases(),
+    bundle: true,
+    platform: "node",
+    format: "esm",
+    write: false,
+    metafile: true,
+    logLevel: "silent",
+  });
+  const contract = await import(
+    `data:text/javascript;base64,${Buffer.from(result.outputFiles[0].text).toString("base64")}`
+  );
+  const schema = contract.providerRoutingPolicySchema;
+  assert.equal(schema.safeParse({ version: 1, strategy: "reliable-first" }).success, true);
+  assert.equal(schema.safeParse({ version: 1, strategy: "unknown" }).success, false);
+  assert.equal(
+    schema.safeParse({ version: 1, strategy: "primary-backup", order: ["same", "same"] }).success,
+    false,
+  );
+  assert.ok(
+    Object.keys(result.metafile.inputs).every((input) => !input.endsWith("shared/src/index.ts")),
+    "routing contract must keep its public subpath instead of importing the shared root",
+  );
+});
+
 test("Agent build resolves and executes the public network proxy contract", async () => {
   const result = await build({
     stdin: {

@@ -23,7 +23,7 @@ export function WorktreePublication({
   workspaceIdentity?: string;
   disabled: boolean;
   originWorkspacePath: string;
-  sessionId: string;
+  sessionId?: string;
   onTransferred?: () => void;
   renderReview?: (publication: ReactNode) => ReactNode;
 }) {
@@ -32,7 +32,11 @@ export function WorktreePublication({
     workspaceIdentity,
   );
   const { intl } = useLCodeIntl();
-  const shared = useReviewWorkspaceState(originWorkspacePath, workspaceIdentity, sessionId);
+  const shared = useReviewWorkspaceState(
+    originWorkspacePath,
+    workspaceIdentity,
+    sessionId ?? operation.bindingId,
+  );
   const view =
     shared.data.publicationView?.operationId === operation.id
       ? shared.data.publicationView.view

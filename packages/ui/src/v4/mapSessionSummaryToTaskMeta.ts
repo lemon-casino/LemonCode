@@ -56,6 +56,7 @@ export function mapSessionSummaryToTaskMeta(
     {
       taskId: summary.sessionId,
       ...(summary.executionBindingId ? { executionBindingId: summary.executionBindingId } : {}),
+      ...(summary.executionSetRef ? { executionSetRef: summary.executionSetRef } : {}),
       traceId: (previous?.traceId ?? `session-${summary.sessionId}`) as TraceId,
       title,
       ...(titleOverridden ? { titleOverridden } : {}),

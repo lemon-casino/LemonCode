@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button.js";
 import { Input } from "@/components/ui/input.js";
 import { useSidebarOrganization } from "@/hooks/useSidebarOrganization.js";
 import { useSidebarText } from "./sidebarText.js";
+import { SidebarSectionEditor } from "./SidebarSectionEditor.js";
 
 export function SidebarOrganizationDialog({
   onTarget,
@@ -22,6 +23,7 @@ export function SidebarOrganizationDialog({
   const organization = useSidebarOrganization();
   const dialog = organization?.dialog;
   if (!dialog || !organization) return null;
+  if (dialog.type === "edit") return <SidebarSectionEditor key={dialog.sectionId} />;
   return (
     <OrganizationDialogContent
       key={`${dialog.type}:${dialog.sectionId ?? ""}`}
@@ -94,7 +96,7 @@ function OrganizationDialogContent({ onTarget }: { onTarget(entry: SidebarEntryR
         sectionId: section?.id ?? (target === "natural" ? null : target),
       });
     if (mutations.length && (await organization.run(mutations))) {
-      organization.showDialog(null);
+      organization.showDialog(null, dialog);
       organization.setBatch(false);
     }
   };

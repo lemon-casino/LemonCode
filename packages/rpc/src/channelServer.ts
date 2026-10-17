@@ -203,18 +203,24 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
       return;
     }
 
-    const disposable = channel.listen(
-      this.ctx,
-      request.name,
-      request.arg,
-    )((data) => {
-      this.sendResponse({
-        id: request.id,
-        data,
-        type: ResponseType.EventFire,
+    // scoped 通道可能同步拒绝订阅；在 RPC 边界隔离，避免异常击穿 Host 或 pending flush。
+    try {
+      const disposable = channel.listen(
+        this.ctx,
+        request.name,
+        request.arg,
+      )((data) => {
+        this.sendResponse({
+          id: request.id,
+          data,
+          type: ResponseType.EventFire,
+        });
       });
-    });
-    this.activeRequests.set(request.id, disposable);
+      this.activeRequests.set(request.id, disposable);
+    } catch {
+      // 不记录参数或原始异常，避免权限错误携带的业务数据进入日志。
+      console.warn("[rpc] Event subscription rejected");
+    }
   }
 
   private disposeActiveRequest(id: number): void {

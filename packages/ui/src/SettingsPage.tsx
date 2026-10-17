@@ -91,6 +91,8 @@ import {
   resolveSettingsSectionForPlatform,
 } from "./settingsPageHelpers.js";
 import { AppearanceSectionContent } from "./settingsCodePreview.js";
+import { StartupAnimationSettingsSection } from "./settings/StartupAnimationSettingsSection.js";
+import { WallpaperSettingsSection } from "./settings/WallpaperSettingsSection.js";
 import type { SettingsSectionId } from "@/lib/settingsNavigation.js";
 import { requestPluginStoreOpen } from "@/lib/pluginStoreNavigation.js";
 import {
@@ -1439,28 +1441,36 @@ export function SettingsPage({
                             />
                           </ServiceProvider>
                         ) : activeSection === "appearance" ? (
-                          <AppearanceSectionContent
-                            codePreviewSettings={codePreviewSettings}
-                            setCodePreviewSettings={handleCodePreviewSettingsChange}
-                            theme={theme}
-                            setTheme={(nextTheme) => handleFooterThemeChange(nextTheme)}
-                            uiFontSizePx={uiFontSizePx}
-                            setUiFontSizePx={(fontSizePx) =>
-                              runUserAction({
-                                input: {
-                                  featureId: "settings.appearance",
-                                  action: "change_ui_font_size",
-                                  trigger: "keyboard",
-                                },
-                                operation: () => setUiFontSizePx(fontSizePx),
-                                completed: {
-                                  resultSource: "local_commit",
-                                  valueAfter: String(fontSizePx),
-                                },
-                                failureStage: "local_commit",
-                              })
-                            }
-                          />
+                          <>
+                            {isDesktop ? (
+                              <ServiceProvider services={localHostServices}>
+                                <StartupAnimationSettingsSection />
+                                <WallpaperSettingsSection />
+                              </ServiceProvider>
+                            ) : null}
+                            <AppearanceSectionContent
+                              codePreviewSettings={codePreviewSettings}
+                              setCodePreviewSettings={handleCodePreviewSettingsChange}
+                              theme={theme}
+                              setTheme={(nextTheme) => handleFooterThemeChange(nextTheme)}
+                              uiFontSizePx={uiFontSizePx}
+                              setUiFontSizePx={(fontSizePx) =>
+                                runUserAction({
+                                  input: {
+                                    featureId: "settings.appearance",
+                                    action: "change_ui_font_size",
+                                    trigger: "keyboard",
+                                  },
+                                  operation: () => setUiFontSizePx(fontSizePx),
+                                  completed: {
+                                    resultSource: "local_commit",
+                                    valueAfter: String(fontSizePx),
+                                  },
+                                  failureStage: "local_commit",
+                                })
+                              }
+                            />
+                          </>
                         ) : activeSection === "shortcuts" ? (
                           <ShortcutSettingsSection isDesktop={Boolean(isDesktop)} />
                         ) : activeSection === "modelProvider" ? (

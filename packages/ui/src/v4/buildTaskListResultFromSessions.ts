@@ -70,6 +70,7 @@ function mergeTaskIndexRowWithSession(
     // pending interaction 属于当前 session 投影；summary 已到达但字段为空时必须清掉旧持久值。
     pendingInteraction: sessionTask.pendingInteraction,
     executionBindingId: sessionTask.executionBindingId,
+    executionSetRef: sessionTask.executionSetRef,
   };
   return activity ? attachTaskListRowActivity(merged, activity) : merged;
 }

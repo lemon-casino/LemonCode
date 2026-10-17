@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { DirectoryBrowser } from "@/DirectoryBrowser.js";
 import { RemoteConnectionFields } from "@/RemoteConnectionFields.js";
-import type { SSHAuthMethod } from "@/hooks/useRemoteConnectionForm.js";
+import type { SSHAuthMethod, SshProxySelection } from "@/hooks/useRemoteConnectionForm.js";
 import { Button } from "@/components/ui/button.js";
 import { cn } from "@/components/lib/utils.js";
 import { useLCodeIntl } from "@/i18n/IntlProvider.js";
@@ -139,6 +139,8 @@ export function RemoteConnectionSettingsStep({
   port,
   username,
   sshAuthMethod,
+  sshProxySelection,
+  onSshProxySelectionChange,
   assetInstallMode,
   password,
   privateKeyPath,
@@ -182,6 +184,8 @@ export function RemoteConnectionSettingsStep({
   port: string;
   username: string;
   sshAuthMethod: SSHAuthMethod;
+  sshProxySelection: SshProxySelection;
+  onSshProxySelectionChange: (value: SshProxySelection) => void;
   assetInstallMode: RemoteAssetInstallMode;
   password: string;
   privateKeyPath: string;
@@ -243,6 +247,8 @@ export function RemoteConnectionSettingsStep({
           port={port}
           username={username}
           sshAuthMethod={sshAuthMethod}
+          sshProxySelection={sshProxySelection}
+          setSshProxySelection={onSshProxySelectionChange}
           assetInstallMode={assetInstallMode}
           password={password}
           privateKeyPath={privateKeyPath}

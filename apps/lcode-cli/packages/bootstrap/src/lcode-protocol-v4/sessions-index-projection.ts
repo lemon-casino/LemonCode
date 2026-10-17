@@ -17,6 +17,7 @@ export interface SessionSummaryDeriveExtra {
   lastActivityAt: number;
   parentSessionId?: string;
   executionBindingId?: string;
+  executionSetRef?: import("@lcode/shared").ExecutionSetRef;
 }
 
 const MAX_PREVIEW_CHARS = 120;
@@ -79,6 +80,7 @@ function deriveSessionSummary(
     workspaceId: extra.workspaceId,
     ...(extra.parentSessionId ? { parentSessionId: extra.parentSessionId } : {}),
     ...(extra.executionBindingId ? { executionBindingId: extra.executionBindingId } : {}),
+    ...(extra.executionSetRef ? { executionSetRef: extra.executionSetRef } : {}),
     title: snapshot.meta.title,
     titleSource: snapshot.meta.titleSource,
     phase: snapshot.control.phase,
@@ -109,6 +111,7 @@ function summariesEqual(a: SessionSummary, b: SessionSummary): boolean {
     a.workspaceId === b.workspaceId &&
     a.parentSessionId === b.parentSessionId &&
     a.executionBindingId === b.executionBindingId &&
+    JSON.stringify(a.executionSetRef) === JSON.stringify(b.executionSetRef) &&
     a.title === b.title &&
     a.titleSource === b.titleSource &&
     a.phase === b.phase &&

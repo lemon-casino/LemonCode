@@ -16,6 +16,10 @@ import type { LCodeProtocolAgentServerContext } from "./server-types.js";
 import { buildWorkspaceRef } from "./workspace.js";
 import { filesystemMcpRoots, remapFilesystemMcpServers } from "./worktree-mcp-scope.js";
 import { retainRuntimeEnvironmentSession } from "./runtime-environment-session.js";
+import {
+  prepareProtocolExecutionSet,
+  restoreProtocolExecutionSet,
+} from "./protocol-execution-set.js";
 
 export const WORKTREE_BINDING_ENTRY = "runtime/worktree_binding";
 const MANAGED_ENVIRONMENT_PROTOCOL_VERSION = 1;
@@ -48,7 +52,7 @@ function bindingWorkspace(binding: WorktreeExecutionBinding): LCodeWorkspaceRef 
 function assertReadyBinding(
   binding: WorktreeExecutionBinding | null,
   taskId: string,
-): asserts binding is WorktreeExecutionBinding {
+): asserts binding is WorktreeExecutionBinding & { taskId: string } {
   if (!binding || binding.taskId !== taskId || binding.status !== "ready") {
     throw new Error(
       `Worktree execution binding is unavailable: ${binding?.error ?? binding?.status ?? "missing"}`,
@@ -68,6 +72,8 @@ export async function prepareProtocolExecution(
 ): Promise<{ workspace: LCodeWorkspaceRef; mcpServers?: LCodeAgentMcpServer[] }> {
   if (input.execution?.mode !== "worktree")
     return { workspace: input.workspace, mcpServers: input.mcpServers };
+  if (input.execution.collaboration || input.execution.executionSetId)
+    return prepareProtocolExecutionSet(context, { ...input, execution: input.execution });
   const origin = input.workspace;
   const existingBinding = input.execution.existingBinding;
   if (
@@ -166,11 +172,19 @@ export async function restoreProtocolExecution(
   });
   const entry = entries?.at(-1);
   if (!entry) {
-    if (input.workspace.executionBindingId)
+    if (input.workspace.executionBindingId || input.workspace.executionSetRef)
       throw new Error("Worktree binding reference is missing from session storage");
     return { workspace: input.workspace, mcpServers: input.mcpServers };
   }
   const reference = lcodeWorkspaceRefSchema.parse(entry.data);
+  if (reference.executionSetRef)
+    return restoreProtocolExecutionSet(
+      context,
+      reference,
+      input.taskId,
+      input.persistedWorkspace,
+      input.mcpServers,
+    );
   if (!reference.executionBindingId || !reference.originWorkspacePath)
     throw new Error("Invalid persisted worktree binding reference");
   if (reference.bindingReuse && !reference.bindingOwnerTaskId)

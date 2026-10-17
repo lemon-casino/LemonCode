@@ -12,6 +12,7 @@ import type { ForkCommitBundle, SessionId } from "@lcode/contracts";
 import { resolveHistoricalCapsuleRefs } from "../lcode-protocol-v4/commands/handlers/fork-edit-retry-context.js";
 
 interface InputCommandForAdmission {
+  projectContext?: ConversationInputIntent["projectContext"];
   kind: ConversationInputIntent["kind"];
   text: string;
   attachments: readonly AttachmentRef[];
@@ -178,6 +179,7 @@ export function resolveInputCommandForAdmission(
     ...(canonical.intent.requestedDelivery
       ? { requestedDelivery: canonical.intent.requestedDelivery }
       : {}),
+    ...(canonical.intent.projectContext ? { projectContext: canonical.intent.projectContext } : {}),
     ...(canonical.intent.admittedDelivery
       ? { admittedDelivery: canonical.intent.admittedDelivery }
       : {}),
@@ -224,6 +226,7 @@ export function buildForkInitialInput(
     clientId: envelope.clientId || "cli",
     kind: input.kind,
     text: input.text,
+    ...(input.projectContext ? { projectContext: input.projectContext } : {}),
     attachments: input.attachments,
     ...(input.modelSelection ? { modelSelection: input.modelSelection } : {}),
     ...(input.mode ? { mode: input.mode } : {}),

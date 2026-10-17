@@ -79,6 +79,8 @@ export function createWindow(options: {
       initialWorkspacePath: options.bootstrap?.initialWorkspacePath,
       initialWorkspacePurpose: options.bootstrap?.initialWorkspacePurpose,
       unavailableWorkspacePath: options.bootstrap?.unavailableWorkspacePath,
+      startupAnimation: options.bootstrap?.startupAnimation,
+      locale: options.currentApplicationLocale?.(),
     },
     logger: options.logger,
     deviceMid: options.deviceMid,

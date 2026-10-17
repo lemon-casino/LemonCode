@@ -2,7 +2,11 @@
  * useSettingService —— 设置服务 hooks
  */
 import { useState, useEffect, useCallback } from "react";
-import { APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL, type AppSettings } from "@lcode/shared";
+import {
+  APP_RUNTIME_PREFERENCES_CHANGED_BROADCAST_CHANNEL,
+  type AppSettings,
+  type ProjectMutationRequest,
+} from "@lcode/shared";
 import type { ISettingService, IServiceAccessor } from "@lcode/services";
 import { useServices } from "./useServices.js";
 import { usePlatform } from "./usePlatform.js";
@@ -194,11 +198,28 @@ export function useSettings(servicesOverride?: IServiceAccessor) {
     [broadcastService, settingService, settingsStore, lcodeAgentService, platform, refresh],
   );
 
+  const mutateProject = useCallback(
+    async (request: ProjectMutationRequest) => {
+      const result = await settingService.mutateProject(request);
+      if (result.status === "applied") {
+        await refresh({ afterPending: true, throwOnError: true });
+        const latest = settingsStore.snapshot.settings;
+        if (latest)
+          platform.syncAppSettings?.({
+            localProjects: latest.localProjects,
+            projectDefinitions: latest.projectDefinitions,
+          });
+      }
+      return result;
+    },
+    [settingService, refresh, settingsStore, platform],
+  );
   return {
     settings: snapshot.settings,
     loading: snapshot.loading,
     error: snapshot.error,
     update,
+    mutateProject,
     refresh,
   };
 }

@@ -47,16 +47,21 @@ function DialogContent({
   showCloseButton = true,
   showOverlay = true,
   overlayClassName,
+  overlayProps,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> & {
   showCloseButton?: boolean;
   showOverlay?: boolean;
   overlayClassName?: string;
+  overlayProps?: Pick<
+    React.ComponentProps<typeof DialogPrimitive.Overlay>,
+    "onDragEnter" | "onDragOver" | "onDragLeave" | "onDrop"
+  >;
 }) {
   const { intl } = useLCodeIntl();
   return (
     <DialogPortal>
-      {showOverlay ? <DialogOverlay className={overlayClassName} /> : null}
+      {showOverlay ? <DialogOverlay className={overlayClassName} {...overlayProps} /> : null}
       <DialogPrimitive.Content
         data-slot="dialog-content"
         className={cn(

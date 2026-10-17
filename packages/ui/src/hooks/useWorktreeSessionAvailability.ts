@@ -5,7 +5,7 @@ import { useServices } from "./useServices.js";
 export function useWorktreeSessionAvailability(
   workspacePath: string,
   workspaceIdentity: string | undefined,
-  taskId: string,
+  taskId: string | undefined,
   revision: number,
 ) {
   const { lcodeTaskService } = useServices();
@@ -16,6 +16,10 @@ export function useWorktreeSessionAvailability(
   }>({ scope, status: "checking" });
   useEffect(() => {
     let active = true;
+    if (!taskId) {
+      setState({ scope, status: "missing" });
+      return;
+    }
     setState({ scope, status: "checking" });
     void lcodeTaskService.getTaskMeta({ workspacePath, workspaceIdentity, taskId }).then(
       (meta) => {

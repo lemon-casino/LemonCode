@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { executionSetRefSchema } from "./projectExecutionSet.js";
 import { sessionExecutionModeSchema, runtimeEnvironmentPolicySchema } from "./worktreePolicy.js";
 import { runtimeEnvironmentErrorSchema } from "./runtimeEnvironment.js";
 import {
@@ -11,11 +12,15 @@ export function resolveWorktreeProjectScope(workspace: {
   workspacePath: string;
   workspaceIdentity?: string;
   executionBindingId?: string;
+  executionSetRef?: import("./projectExecutionSet.js").ExecutionSetRef;
   originWorkspacePath?: string;
   originWorkspaceIdentity?: string;
 }): { workspacePath: string; workspaceIdentity?: string } {
   // 工作树 checkout 不属于已添加的项目列表。只有绑定引用允许把索引投影回原项目。
-  if (workspace.executionBindingId && workspace.originWorkspacePath) {
+  if (
+    (workspace.executionBindingId || workspace.executionSetRef) &&
+    workspace.originWorkspacePath
+  ) {
     return {
       workspacePath: workspace.originWorkspacePath,
       ...(workspace.originWorkspaceIdentity
@@ -30,6 +35,15 @@ export function resolveWorktreeProjectScope(workspace: {
 }
 
 const text = z.string().trim().min(1);
+export const bindingOwnerRefSchema = z.discriminatedUnion("kind", [
+  z.strictObject({ kind: z.literal("session"), sessionId: text }),
+  z.strictObject({ kind: z.literal("executionSet"), executionSetId: text, repositoryId: text }),
+]);
+export type BindingOwnerRef = z.infer<typeof bindingOwnerRefSchema>;
+export const worktreeConsumerRefSchema = z.strictObject({
+  owner: bindingOwnerRefSchema,
+  operationId: text,
+});
 export const executionIntentSchema = z
   .object({
     mode: sessionExecutionModeSchema,
@@ -37,7 +51,17 @@ export const executionIntentSchema = z
     environmentPolicy: runtimeEnvironmentPolicySchema.optional(),
     taskName: z.string().max(256).optional(),
     existingBinding: z.object({ bindingId: text, bindingOwnerTaskId: text }).strict().optional(),
+    executionSetId: z
+      .string()
+      .regex(/^[a-f0-9]{32}$/)
+      .optional(),
+    collaboration: z.literal(true).optional(),
     baseRef: text.optional(),
+    /** 仅未创建的协作工作集使用；按冻结成员 id 绑定，不能以第一库分支替代其它仓库。 */
+    baseRefs: z
+      .record(z.string().min(1).max(200), text)
+      .refine((refs) => Object.keys(refs).length <= 20)
+      .optional(),
     originWorkspacePath: text.optional(),
     originWorkspaceIdentity: text.optional(),
     projectId: text.optional(),
@@ -49,7 +73,19 @@ export const executionIntentSchema = z
   .refine((intent) => !intent.existingBinding || intent.mode === "worktree", {
     message: "Existing binding requires worktree execution mode",
     path: ["existingBinding"],
-  });
+  })
+  .refine(
+    (intent) =>
+      !intent.baseRefs ||
+      (intent.collaboration === true &&
+        intent.mode === "worktree" &&
+        !intent.existingBinding &&
+        !intent.executionSetId),
+    {
+      message: "Per-repository bases require a new collaboration execution set",
+      path: ["baseRefs"],
+    },
+  );
 export type ExecutionIntent = z.infer<typeof executionIntentSchema>;
 
 export const worktreeSnapshotSchema = z
@@ -137,7 +173,9 @@ export const worktreePreparationSchema = z
 export const worktreeExecutionBindingSchema = z
   .object({
     id: text,
-    taskId: text,
+    taskId: text.optional(),
+    ownerRef: bindingOwnerRefSchema.optional(),
+    consumers: z.array(worktreeConsumerRefSchema).max(10000).optional(),
     requestId: text,
     projectId: text.optional(),
     workspacePath: text,
@@ -230,7 +268,16 @@ export const worktreeExecutionBindingSchema = z
       .strict()
       .optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((binding, context) => {
+    if (binding.ownerRef?.kind === "executionSet" ? Boolean(binding.taskId) : !binding.taskId)
+      context.addIssue({
+        code: "custom",
+        message: "Binding requires an explicit session or execution-set owner",
+      });
+    if (binding.ownerRef?.kind === "session" && binding.ownerRef.sessionId !== binding.taskId)
+      context.addIssue({ code: "custom", message: "Session binding owner does not match taskId" });
+  });
 export type WorktreeExecutionBinding = z.infer<typeof worktreeExecutionBindingSchema>;
 const scope = { workspacePath: text, workspaceIdentity: text.optional() };
 export const worktreePrepareExecutionParamsSchema = z
@@ -258,11 +305,19 @@ export const worktreePrepareExecutionParamsSchema = z
   })
   .strict();
 export const worktreeGetBindingParamsSchema = z
-  .object({ ...scope, taskId: text.optional(), requestId: text.optional() })
+  .object({
+    ...scope,
+    taskId: text.optional(),
+    requestId: text.optional(),
+    bindingId: text.optional(),
+  })
   .strict()
   .refine(
-    (value) => Boolean(value.taskId || value.requestId),
-    "Task or preparation request is required",
+    (value) =>
+      value.bindingId
+        ? !value.taskId && !value.requestId
+        : Boolean(value.taskId || value.requestId),
+    "Choose a task/preparation request or a binding id",
   );
 export const worktreeGetBindingResultSchema = z
   .object({ binding: worktreeExecutionBindingSchema.nullable() })
@@ -296,14 +351,19 @@ export const checkoutAcquireWriterParamsSchema = z
     requestId: text,
     sessionId: text,
     repair: worktreeRepairScopeSchema.optional(),
+    executionSetRef: executionSetRefSchema.optional(),
   })
   .strict();
 export const checkoutAcquireWriterResultSchema = z.union([
-  z.object({ permitId: text }).strict(),
+  z.object({ permitId: text, additionalPermitIds: z.array(text).max(19).optional() }).strict(),
   z.object({ busy: z.literal(true) }).strict(),
 ]);
 export const checkoutReleaseWriterParamsSchema = z
-  .object({ permitId: text, sessionId: text })
+  .object({
+    permitId: text,
+    sessionId: text,
+    additionalPermitIds: z.array(text).max(19).optional(),
+  })
   .strict();
 export const checkoutReleaseWriterResultSchema = z.object({ released: z.boolean() }).strict();
 export type WorktreePrepareExecutionParams = z.infer<typeof worktreePrepareExecutionParamsSchema>;

@@ -102,6 +102,7 @@ export function onTurnSteerDrained(
       kind: "userInput" as const,
       text: item.text,
       origin: "realUser" as const,
+      ...(item.intent?.projectContext ? { projectContext: item.intent.projectContext } : {}),
       ...(delivery === "guide" ? { guided: true as const } : {}),
       ...(item.intent?.sourceCommandId ? { sourceCommandId: item.intent.sourceCommandId } : {}),
       ...(rootSourceCommandId ? { rootSourceCommandId } : {}),
