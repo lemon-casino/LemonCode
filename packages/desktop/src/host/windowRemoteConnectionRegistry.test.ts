@@ -9,6 +9,91 @@ const targets: RemoteTarget[] = [
   { kind: "docker", container: "test-container" },
 ];
 
+test("cached SSH connection releases only its last idle workspace owner", async () => {
+  const releases: string[] = [];
+  let id = 0;
+  let disposed = 0;
+  const target = targets[0]!;
+  const registry = createWindowRemoteConnectionRegistry({
+    createId: () => `memory-${++id}`,
+    connect: async () => ({
+      services: {},
+      dispose: () => {
+        disposed++;
+      },
+    }),
+    releaseWorkspace: async (_services, context) => {
+      releases.push(context.workspaceIdentity || context.workspacePath);
+    },
+  });
+  const connect = (requestId: string) =>
+    registry.connect({
+      requestId,
+      target,
+      remoteAssets: {},
+      workspacePath: "/fixture",
+      workspaceIdentity: "memory-fixture",
+    });
+  const first = await connect("first");
+  const second = await connect("second");
+  await registry.disposeSession(first.remoteSessionId);
+  assert.deepEqual(releases, []);
+  registry.setWorkspaceRunningTaskCount({
+    workspacePath: "/fixture",
+    workspaceIdentity: "memory-fixture",
+    runningTaskCount: 1,
+  });
+  await registry.disposeSession(second.remoteSessionId);
+  assert.deepEqual(releases, []);
+  registry.setWorkspaceRunningTaskCount({
+    workspacePath: "/fixture",
+    workspaceIdentity: "memory-fixture",
+    runningTaskCount: 0,
+  });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.deepEqual(releases, ["memory-fixture"]);
+  assert.equal(disposed, 0, "SSH transport cache stays alive after its Agent is reclaimed");
+  await registry.dispose();
+  assert.equal(disposed, 1);
+});
+
+test("SSH reattach waits for the previous workspace cleanup and keeps its new generation", async () => {
+  const release = Promise.withResolvers<void>();
+  const entered = Promise.withResolvers<void>();
+  let id = 0;
+  const registry = createWindowRemoteConnectionRegistry({
+    createId: () => `reattach-${++id}`,
+    connect: async () => ({ services: {}, dispose: () => {} }),
+    releaseWorkspace: async () => {
+      entered.resolve();
+      await release.promise;
+    },
+  });
+  const connect = (requestId: string) =>
+    registry.connect({
+      requestId,
+      target: targets[0]!,
+      remoteAssets: {},
+      workspacePath: "/fixture",
+      workspaceIdentity: "memory-fixture",
+    });
+  const first = await connect("first");
+  const closing = registry.disposeSession(first.remoteSessionId);
+  await entered.promise;
+  let ready = false;
+  const next = connect("next").then((session) => {
+    ready = true;
+    return session;
+  });
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  assert.equal(ready, false);
+  release.resolve();
+  await closing;
+  const session = await next;
+  assert.equal(registry.getSession(session.remoteSessionId)?.state, "online");
+  await registry.dispose();
+});
+
 test("SSH direct, default proxy and distinct saved proxies have separate physical connections", async () => {
   const { registry, attempts } = fixture();
   const target = { kind: "ssh" as const, host: "example.invalid", username: "tester" };

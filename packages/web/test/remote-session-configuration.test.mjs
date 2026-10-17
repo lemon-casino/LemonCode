@@ -113,7 +113,34 @@ test(
           );
           const draft = await page.getByTestId("remote-draft-probe").innerText();
           assert.equal(JSON.parse(draft).submission.modelSelection.options.reasoningLevel, "low");
+          const startupCounts = await page.evaluate(
+            () => window.__remoteSessionConfiguration.counts,
+          );
+          assert.equal(startupCounts.presentations, 0);
+          assert.equal(startupCounts.prewarms, 0);
         }
+      },
+    );
+
+    await t.test(
+      "remote slash input hydrates the catalog only on demand without draft prewarm",
+      async () => {
+        await load();
+        await projectOption("wsl");
+        await page.evaluate(() => window.__remoteSessionConfiguration.preview("wsl"));
+        await page.getByTestId("remote-draft-probe").waitFor();
+        assert.equal(
+          await page.evaluate(() => window.__remoteSessionConfiguration.counts.presentations),
+          0,
+        );
+        await page.evaluate(() => window.__remoteSessionConfiguration.requestCatalog());
+        await page.waitForFunction(
+          () => window.__remoteSessionConfiguration.counts.presentations === 1,
+        );
+        assert.equal(
+          await page.evaluate(() => window.__remoteSessionConfiguration.counts.prewarms),
+          0,
+        );
       },
     );
 

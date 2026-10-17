@@ -19,6 +19,8 @@ import {
 } from "@/store/remoteWorkspaceSessionStore.js";
 import { SessionConfigurationSection } from "@/settings/SessionConfigurationSection.js";
 import { useDraftConfigControl } from "@/v4/composer/useDraftConfigControl.js";
+import { useDraftSessionPrewarm } from "@/v4/composer/useDraftSessionPrewarm.js";
+import { shouldDeferDraftRuntime } from "@/v4/composer/draftRuntimeStartupPolicy.js";
 import { createComposerSubmissionConfig } from "@/v4/composer/composerSubmissionConfig.js";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { applyTheme } from "@/useTheme.js";
@@ -55,7 +57,14 @@ const initial = appSettingsSchema.parse({
 const settingsListeners = new Set<() => void>();
 const modelListeners = new Map<string, Set<(view: ModelSelectionView) => void>>();
 const views = new Map<string, ModelSelectionView>();
-const counts = { reads: 0, modelReads: {} as Record<string, number>, connects: 0, disposes: 0 };
+const counts = {
+  reads: 0,
+  modelReads: {} as Record<string, number>,
+  connects: 0,
+  disposes: 0,
+  presentations: 0,
+  prewarms: 0,
+};
 const fixture = {
   settings: JSON.parse(localStorage.getItem(storageKey) || "null") || initial,
   writes: [] as Partial<AppSettings>[],
@@ -144,7 +153,12 @@ function createServices(kind: string, generation = 0): IServiceAccessor {
       },
     },
     worktreeService: { list: async () => [] },
-    lcodeSessionService: {},
+    lcodeSessionService: {
+      readWorkspacePresentation: async () => {
+        counts.presentations++;
+        return { mode: "build", slashCommands: [] };
+      },
+    },
     lcodeAgentService: {},
     broadcastService: { onMessage: () => ({ dispose() {} }), send: async () => {} },
   } as unknown as IServiceAccessor;
@@ -200,8 +214,21 @@ function DraftProbe({ kind }: { kind: string }) {
     workspaceIdentity: identity(kind),
     sessionId: null,
     sessionConfig: null,
-    agentStartupAllowed: false,
+    agentStartupAllowed: true,
     modelSelectionService,
+  });
+  Object.assign(fixture, { requestCatalog: () => control.updateComposerContent({ text: "/" }) });
+  useDraftSessionPrewarm({
+    enabled: !shouldDeferDraftRuntime(null, identity(kind)),
+    workspaceKey: identity(kind),
+    paneId: "memory-regression",
+    invalidationVersion: 0,
+    transportIdentity: modelSelectionService,
+    resolveInitialConfig: control.resolveInitialDraftConfig,
+    dispatchCommand: async () => {
+      counts.prewarms++;
+      throw new Error("draft-must-not-prewarm");
+    },
   });
   return (
     <pre data-testid="remote-draft-probe">

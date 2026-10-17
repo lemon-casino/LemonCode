@@ -1306,7 +1306,9 @@ export function createLCodeTaskServiceAdapter(
     return applyOverlayToMeta(
       {
         taskId: snapshot.session.sessionId,
-        ...(snapshot.session.workspace.executionSetRef ? { executionSetRef: snapshot.session.workspace.executionSetRef } : {}),
+        ...(snapshot.session.workspace.executionSetRef
+          ? { executionSetRef: snapshot.session.workspace.executionSetRef }
+          : {}),
         traceId: snapshot.session.traceId ?? generateTraceId(snapshot.session.sessionId),
         title: deriveTitleFromSnapshot(snapshot),
         ...resolveWorktreeProjectScope(snapshot.session.workspace),
@@ -1798,7 +1800,7 @@ export function createLCodeTaskServiceAdapter(
 
     async releaseWorkspacePreparation(params): Promise<void> {
       // 关闭 workspace UI 只会释放 RPC 使用方，不会自动终止已预热的 Agent。
-      // WSL Host 共享后 Host 会继续存活，因此必须按 workspaceKey 显式回收对应 runtime。
+      // SSH/WSL Host 共享后仍存活，必须由原连接注册表的 owner/任务门禁按 workspaceKey 回收 runtime。
       await options.lcodeAgentService.disposeWorkspace(normalizeWorkspaceParams(params));
     },
 

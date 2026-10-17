@@ -1762,12 +1762,12 @@ const windowRemoteConnectionRegistry = createWindowRemoteConnectionRegistry<
       provider: "glm",
     });
     logger.info(
-      `released WSL workspace runtime, workspaceKey=${context.workspaceIdentity?.trim() || context.workspacePath}`,
+      `released remote workspace runtime, workspaceKey=${context.workspaceIdentity?.trim() || context.workspacePath}`,
     );
   },
   onWorkspaceReleaseError: (context, error) => {
     logger.warn(
-      `failed to release WSL workspace runtime, workspaceKey=${context.workspaceIdentity?.trim() || context.workspacePath}`,
+      `failed to release remote workspace runtime, workspaceKey=${context.workspaceIdentity?.trim() || context.workspacePath}`,
       error,
     );
   },

@@ -25,12 +25,15 @@ export const officialSeaPlugins = [
     name: "node-repl-host",
     packageName: "@lcode/node-repl-host",
     requiresRuntime: true,
-    requiredRuntimePaths: ["dist/mcp/server.js"],
+    requiredRuntimePaths: [
+      "dist/mcp/server.js",
+      "dist/mcp/executor.js",
+      "dist/mcp/executor-worker.js",
+    ],
     rootPath: join("packages", "node-repl-host"),
     version: "0.6.0",
   },
   {
-
     marketplace: "zcode-plugins-official",
     name: "browser-use",
     packageName: "@lcode/browser-use-plugin",

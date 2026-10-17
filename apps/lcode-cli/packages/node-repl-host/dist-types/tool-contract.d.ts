@@ -1,5 +1,2 @@
-export declare const NODE_REPL_DEFAULT_TIMEOUT_MS = 60000;
-export declare const NODE_REPL_SERVER_VERSION = "0.6.0";
-export declare const NODE_REPL_SERVER_INSTRUCTIONS: string;
-export declare const JS_TOOL_DESCRIPTION: string;
+export { JS_TOOL_DESCRIPTION, NODE_REPL_DEFAULT_TIMEOUT_MS, NODE_REPL_SERVER_INSTRUCTIONS, NODE_REPL_SERVER_VERSION, } from "@lcode/contracts/tools/node-repl";
 //# sourceMappingURL=tool-contract.d.ts.map

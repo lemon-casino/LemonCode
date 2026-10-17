@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { Emitter } from "@lcode/rpc";
+import { runtimeMemoryBudget, withRuntimeHeapLimit } from "@lcode/shared/node";
 import {
   parseLCodeProcessDiagnostic,
   LCODE_AGENT_LIFECYCLE_LOG_MARKER,
@@ -107,6 +108,7 @@ export interface LCodeAgentProcessManagerOptions {
 }
 
 interface ManagedLCodeAgentProcess {
+  releaseMemory?: () => void;
   client: LCodeProtocolClient;
   child: ChildProcessWithoutNullStreams;
   cleanupPromise?: Promise<void>;
@@ -786,6 +788,7 @@ export class LCodeAgentProcessManager {
           delete managed.cleanupPromise;
         }
         if (cleanupCompleted) {
+          managed.releaseMemory?.();
           this.ownedProcesses.delete(managed);
         }
       });
@@ -1081,22 +1084,49 @@ export class LCodeAgentProcessManager {
       spawnPreflight,
     });
     const spawnRequestedAt = Date.now();
-    const child = spawn(effectiveCommand.command, spawnPreflight.args, {
-      cwd: spawnPreflight.cwd,
-      // agent 可能再派生实际 runtime/MCP 子进程。POSIX 下让 wrapper 进入独立进程组，
-      // 关闭时才能按进程树整体回收；Windows 保持非 detached，交给 taskkill /T 处理。
-      detached: shouldSpawnInDetachedProcessGroup(),
-      env: {
-        ...sanitizeLCodeRuntimeEnv(process.env),
-        [LCODE_RUNTIME_ENV_KEY]: runtimeEnv,
-        ...spawnEnv,
-        ...effectiveCommand.env,
-        // 身份/隔离语义使用 workspaceIdentity；cwd 继续使用 workspacePath。
-        ...buildAgentWorkspaceIdentityEnv(params.workspaceIdentity),
-        ...buildE2EAgentCoverageEnv(),
-      },
-      stdio: ["pipe", "pipe", "pipe"],
-    });
+    // 内存预留必须由进程 owner 持有到整棵树完成回收；不能由超时或 UI 解绑提前释放。
+    const memoryLease = await runtimeMemoryBudget.acquire("agent");
+    try {
+      // 预算探测包含异步 IO；期间 Helper admission 可能换代，spawn 前仍须通过原屏障。
+      await this.waitForSpawnAdmission?.({ ...params, workspaceKey, signal: admissionSignal });
+    } catch (error) {
+      memoryLease.release();
+      throw error;
+    }
+    if (
+      this.disposed ||
+      admissionSignal.aborted ||
+      (this.restartGenerationByWorkspaceKey.get(workspaceKey) ?? 0) !== startGeneration
+    ) {
+      memoryLease.release();
+      throw new Error("LCode agent process start was cancelled.");
+    }
+    let child: ChildProcessWithoutNullStreams;
+    try {
+      child = spawn(effectiveCommand.command, spawnPreflight.args, {
+        cwd: spawnPreflight.cwd,
+        // agent 可能再派生实际 runtime/MCP 子进程。POSIX 下让 wrapper 进入独立进程组，
+        // 关闭时才能按进程树整体回收；Windows 保持非 detached，交给 taskkill /T 处理。
+        detached: shouldSpawnInDetachedProcessGroup(),
+        env: {
+          ...sanitizeLCodeRuntimeEnv(process.env),
+          [LCODE_RUNTIME_ENV_KEY]: runtimeEnv,
+          ...spawnEnv,
+          ...effectiveCommand.env,
+          NODE_OPTIONS: withRuntimeHeapLimit(
+            effectiveCommand.env?.NODE_OPTIONS ?? spawnEnv.NODE_OPTIONS ?? process.env.NODE_OPTIONS,
+            memoryLease.heapMb,
+          ),
+          // 身份/隔离语义使用 workspaceIdentity；cwd 继续使用 workspacePath。
+          ...buildAgentWorkspaceIdentityEnv(params.workspaceIdentity),
+          ...buildE2EAgentCoverageEnv(),
+        },
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+    } catch (error) {
+      memoryLease.release();
+      throw error;
+    }
     const startedAt = Date.now();
     const stderrTail = createAgentStderrTail();
     const transport = new LCodeStdioTransport(child, {
@@ -1147,6 +1177,7 @@ export class LCodeAgentProcessManager {
       workspaceKey,
     };
     const managed: ManagedLCodeAgentProcess = {
+      releaseMemory: memoryLease.release,
       child,
       client,
       exited: false,
@@ -1257,6 +1288,7 @@ export class LCodeAgentProcessManager {
         }),
       );
       if (child.pid == null) {
+        managed.releaseMemory?.();
         this.ownedProcesses.delete(managed);
       }
     });

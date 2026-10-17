@@ -7,7 +7,24 @@ import {
   BROKER_SOCKET_ENV,
   mintBrokerSocketPath,
 } from "@lcode/lcode-cua/broker";
-import { captureComputerUseRuntimeFromEnvironment } from "./server.js";
+import {
+  captureComputerUseRuntimeFromEnvironment,
+  captureAndClearComputerUseRuntimeFromEnvironment,
+} from "./server.js";
+
+test("direct MCP entry clears raw helper credentials before any Worker can inherit them", async () => {
+  const env = {
+    [BROKER_SOCKET_ENV]: "fixture-socket",
+    [BROKER_CAPABILITY_ENV]: "fixture-capability",
+    LCODE_CUA_PLUGIN_AUTHORITY: "fixture-authority",
+    [BROKER_GENERATION_ENV]: "1",
+    LCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER: "fixture-marker",
+    KEEP: "retained",
+  };
+  const runtime = captureAndClearComputerUseRuntimeFromEnvironment(env);
+  assert.deepEqual(env, { KEEP: "retained" });
+  await runtime?.dispose();
+});
 
 test("trusted plugin authority outranks a stale legacy broker capability", async (t) => {
   const socketPath = mintBrokerSocketPath();

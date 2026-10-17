@@ -58,7 +58,11 @@ const ZAI_AUTHOR = { name: "Z.ai", url: "https://z.ai" } as const;
 const LEMON_AUTHOR = { name: "Lemon" } as const;
 const OFFICIAL_PLUGIN_ASSETS_BASE_URL = "https://cdn-zcode.z.ai/lcode/official-plugin/assets";
 
-const OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS = ["dist/mcp/server.js"] as const;
+const OFFICIAL_NODE_REPL_HOST_REQUIRED_SEED_PATHS = [
+  "dist/mcp/server.js",
+  "dist/mcp/executor.js",
+  "dist/mcp/executor-worker.js",
+] as const;
 
 export const OFFICIAL_BROWSER_USE_REQUIRED_SEED_PATHS = [
   "docs/api.json",

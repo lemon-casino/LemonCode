@@ -1,7 +1,7 @@
 import { Server } from "@modelcontextprotocol/server";
-import { type NodeReplRequestMeta, type NodeReplRunResult } from "@lcode/core/repl";
+import type { NodeReplRequestMeta, NodeReplRunResult } from "@lcode/core/repl";
 import { type ComputerUseRuntime } from "@lcode/lcode-cua";
-import { type NodeReplCuaBrokerConnection } from "./cua-bridge.js";
+import type { NodeReplCuaBrokerConnection } from "./cua-bridge.js";
 import { installNodeReplProcessGuards, installNodeReplShutdownTriggers } from "./process-lifecycle.js";
 export declare const NODE_REPL_MCP_PROCESS_TITLE = "lcode-node-repl-mcp";
 export interface NodeReplExecuteInput {
@@ -31,4 +31,5 @@ export declare function createNodeReplMcpRuntime(input?: {
 export { installNodeReplProcessGuards, installNodeReplShutdownTriggers };
 export declare function main(): Promise<void>;
 export declare function captureComputerUseRuntimeFromEnvironment(env?: NodeJS.ProcessEnv): ComputerUseRuntime | undefined;
+export declare function captureAndClearComputerUseRuntimeFromEnvironment(env?: NodeJS.ProcessEnv): ComputerUseRuntime | undefined;
 //# sourceMappingURL=server.d.ts.map

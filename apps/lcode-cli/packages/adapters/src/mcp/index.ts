@@ -210,7 +210,8 @@ class NodeMcpAdapter implements McpAdapterOwner {
     try {
       const startedAt = Date.now();
       const serverCount = this.records.size;
-      for (const name of this.records.keys()) {
+      // 延迟目录可能仍在等待旧连接回收，尚未写入 records；close 也必须封住这些在途代际。
+      for (const name of this.connectionGenerations.keys()) {
         this.nextConnectionGeneration(name);
       }
       await Promise.all(Array.from(this.records.keys()).map((name) => this.closeRecord(name)));

@@ -20,6 +20,8 @@ export interface McpServerConfigBase {
   protocolVersion?: McpProtocolVersion;
   /** 仅限宿主生成，公共配置 schema 会拒绝该字段。 */
   source?: McpServerRuntimeSource;
+  /** 仅可信宿主附加的静态工具目录；公共配置 schema 禁止注入，发现阶段无需启动进程。 */
+  onDemandTools?: Array<Omit<McpToolDescriptor, "serverName" | "name">>;
   timeoutMs?: number;
 }
 
@@ -214,6 +216,8 @@ export interface McpConnectionSnapshot {
 }
 
 export interface McpConnectOptions {
+  /** 宿主初始化目录时允许延迟内置工具进程；显式 connect/工具调用仍实际建连。 */
+  deferOnDemand?: boolean;
   /**
    * authorization_code OAuth callback 的等待上限。
    * 普通 MCP timeoutMs 只约束协议请求，session 启动需要单独限制 OAuth 授权等待。

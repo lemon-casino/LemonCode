@@ -1,4 +1,5 @@
 import type { OpenGitReview } from "@/v4/gitTurnReview.js";
+import { shouldDeferDraftRuntime } from "@/v4/composer/draftRuntimeStartupPolicy.js";
 import { resolveSelectionSideInheritedModel } from "@/lib/selectionSideInheritedModel.js";
 import { useStartPlanRecommendation } from "@/hooks/useStartPlanRecommendation.js";
 import type { SessionCreateSource } from "@lcode/shared";
@@ -647,7 +648,10 @@ export function SessionPane({
   const executionWorkspacePath = snapshot?.executionWorkspace?.workspacePath ?? workspacePath;
   const executionWorkspaceIdentity =
     snapshot?.executionWorkspace?.workspaceIdentity ?? workspaceIdentity;
-  const isWorktreeSession = Boolean(snapshot?.executionWorkspace?.executionBindingId || snapshot?.executionWorkspace?.executionSetRef);
+  const isWorktreeSession = Boolean(
+    snapshot?.executionWorkspace?.executionBindingId ||
+    snapshot?.executionWorkspace?.executionSetRef,
+  );
   const executionTask = useWorktreeTask(
     workspacePath,
     workspaceIdentity,
@@ -1562,16 +1566,27 @@ export function SessionPane({
         ? draftExecution.mode
         : undefined,
   );
-  const collaborationDefinition = findProjectDefinition(sharedSettings?.projectDefinitions?.projects ?? sharedSettings?.localProjects ?? [], workspacePath, workspaceIdentity);
-  const collaborationProject = (collaborationDefinition?.members?.filter((member) => member.enabled).length ?? collaborationDefinition?.sourceFolderPaths.length ?? 0) > 1;
+  const collaborationDefinition = findProjectDefinition(
+    sharedSettings?.projectDefinitions?.projects ?? sharedSettings?.localProjects ?? [],
+    workspacePath,
+    workspaceIdentity,
+  );
+  const collaborationProject =
+    (collaborationDefinition?.members?.filter((member) => member.enabled).length ??
+      collaborationDefinition?.sourceFolderPaths.length ??
+      0) > 1;
   const executionIntentRef = useRef({
     executionSetId: draftExecution?.executionSetId,
-    collaboration: !draftExecution?.existingBinding && collaborationProject ? true as const : undefined,
+    collaboration:
+      !draftExecution?.existingBinding && collaborationProject ? (true as const) : undefined,
     existingBinding: draftExecution?.existingBinding,
     mode: executionPolicy.executionMode,
     environmentPolicy: executionPolicy.environmentPolicy,
     baseRef: collaborationProject ? undefined : draftExecution?.baseRef,
-    baseRefs: collaborationProject && !draftExecution?.executionSetId && !draftExecution?.existingBinding ? draftExecution?.baseRefs : undefined,
+    baseRefs:
+      collaborationProject && !draftExecution?.executionSetId && !draftExecution?.existingBinding
+        ? draftExecution?.baseRefs
+        : undefined,
     originWorkspacePath: workspacePath,
     originWorkspaceIdentity: workspaceIdentity,
     setupCommands: executionPolicy.setupCommandsConfigured
@@ -1581,12 +1596,16 @@ export function SessionPane({
   });
   executionIntentRef.current = {
     executionSetId: draftExecution?.executionSetId,
-    collaboration: !draftExecution?.existingBinding && collaborationProject ? true as const : undefined,
+    collaboration:
+      !draftExecution?.existingBinding && collaborationProject ? (true as const) : undefined,
     existingBinding: draftExecution?.existingBinding,
     mode: executionPolicy.executionMode,
     environmentPolicy: executionPolicy.environmentPolicy,
     baseRef: collaborationProject ? undefined : draftExecution?.baseRef,
-    baseRefs: collaborationProject && !draftExecution?.executionSetId && !draftExecution?.existingBinding ? draftExecution?.baseRefs : undefined,
+    baseRefs:
+      collaborationProject && !draftExecution?.executionSetId && !draftExecution?.existingBinding
+        ? draftExecution?.baseRefs
+        : undefined,
     originWorkspacePath: workspacePath,
     originWorkspaceIdentity: workspaceIdentity,
     setupCommands: executionPolicy.setupCommandsConfigured
@@ -1715,7 +1734,8 @@ export function SessionPane({
           {
             mode: "worktree",
             baseRef: (envelope.payload as { execution?: { baseRef?: string } }).execution?.baseRef,
-            baseRefs: (envelope.payload as { execution?: { baseRefs?: Record<string, string> } }).execution?.baseRefs,
+            baseRefs: (envelope.payload as { execution?: { baseRefs?: Record<string, string> } })
+              .execution?.baseRefs,
           },
           envelope,
         );
@@ -3123,6 +3143,8 @@ export function SessionPane({
   const { binding: prewarmBinding } = useDraftSessionPrewarm({
     enabled:
       sessionId === null &&
+      // 远端空白草稿的后台预热曾立即拉起完整 Agent/MCP，1 GiB 主机会在连接时耗尽内存。
+      !shouldDeferDraftRuntime(sessionId, workspaceIdentity) &&
       draftAgentStartupAllowed &&
       // 配置与模型目录到齐后 Composer 才初始化；提前预热会把 Host 旧默认冻结为新会话配置。
       Boolean(draftConfig.mode) &&
@@ -5275,7 +5297,11 @@ export function SessionPane({
       key="conversation-composer"
       executionWorkspacePath={executionWorkspacePath}
       executionWorkspaceIdentity={executionWorkspaceIdentity}
-      executionSourceFolderPaths={snapshot?.executionWorkspace?.executionSetRef?.bindings.map((binding) => binding.workspacePath) ?? executionTask.binding?.sourceFolderPaths}
+      executionSourceFolderPaths={
+        snapshot?.executionWorkspace?.executionSetRef?.bindings.map(
+          (binding) => binding.workspacePath,
+        ) ?? executionTask.binding?.sourceFolderPaths
+      }
       // Snapshot 仍服务用量、路由与运行态；工具栏的 mode/model 只读下方 Composer Draft。
       snapshot={snapshot}
       sessionId={sessionId}

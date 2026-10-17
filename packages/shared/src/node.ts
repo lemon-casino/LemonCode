@@ -5,6 +5,15 @@
  */
 export { acquireFileLock } from "./node/atomicFileLock.js";
 export {
+  runtimeMemoryBudget,
+  createRuntimeMemoryBudget,
+  readRuntimeMemorySnapshot,
+  withRuntimeHeapLimit,
+  RuntimeMemoryBudgetError,
+  resolveRuntimeHeapMb,
+  RUNTIME_MEMORY_SYSTEM_HEADROOM_BYTES,
+} from "./node/runtimeMemoryBudget.js";
+export {
   resolveProjectMemoryRoot,
   prepareProjectMemoryStorage,
   ProjectMemoryStorageError,

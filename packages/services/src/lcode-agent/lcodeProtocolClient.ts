@@ -202,12 +202,18 @@ export class LCodeProtocolClient implements IDisposable {
     }
 
     try {
-      await this.transport.send({
-        id,
-        method,
-        params,
-        ...(options?.trace ? { trace: options.trace } : {}),
-      });
+      // spawn 失败可能在 stdin.write 回调前关闭 transport 并拒绝响应；同时观察两条 Promise，
+      // 避免等待 send 时出现无人接收的响应拒绝，进而把本可重试的启动失败升级为 Host 崩溃。
+      const [, result] = await Promise.all([
+        this.transport.send({
+          id,
+          method,
+          params,
+          ...(options?.trace ? { trace: options.trace } : {}),
+        }),
+        resultPromise,
+      ]);
+      return result;
     } catch (error) {
       const pending = this.pending.get(requestKey);
       if (pending) {
@@ -217,8 +223,6 @@ export class LCodeProtocolClient implements IDisposable {
       }
       throw error;
     }
-
-    return resultPromise;
   }
 
   async notify(method: LCodeProtocolClientMethod, params?: unknown): Promise<void> {

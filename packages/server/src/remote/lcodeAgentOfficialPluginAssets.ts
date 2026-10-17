@@ -4,6 +4,7 @@ export const REMOTE_AGENT_OFFICIAL_PLUGIN_DIR_NAME = "packages";
 
 export const REMOTE_AGENT_OFFICIAL_PLUGIN_PACKAGE_NAMES = [
   "browser-use-plugin",
+  "node-repl-host",
   "lemon-workflow-plugin",
 ] as const;
 
@@ -36,9 +37,10 @@ export const REMOTE_AGENT_OFFICIAL_PLUGIN_REQUIRED_RELATIVE_PATHS = [
   // 这里只能列 browser-use **自己产出**的资产。node_repl 宿主抽成 @lcode/node-repl-host 后
   // browser-use 不再产出 dist/mcp/server.js；
   // 本清单里指向不存在的文件，会让远端资产校验对着幽灵路径报缺失。
-  // 远程工作区当前不承载 Browser Use / Computer Use，因此宿主 runtime 不进这份远端合同——
-  // 要支持远程 bua/cua 时，应把 node-repl-host 补进上面的 PACKAGE_NAMES 并在此声明它的
-  // dist/mcp/server.js，而不是把宿主产物挂回 browser-use 名下。
+  // 远端也必须更新独立宿主及执行器；只复制旧缓存的 server.js 会让按需首次调用缺少 Worker。
+  "node-repl-host/dist/mcp/server.js",
+  "node-repl-host/dist/mcp/executor.js",
+  "node-repl-host/dist/mcp/executor-worker.js",
   "browser-use-plugin/docs/api.json",
   "browser-use-plugin/docs/documents.json",
   "browser-use-plugin/docs/overview.md",

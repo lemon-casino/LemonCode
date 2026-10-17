@@ -1,5 +1,6 @@
 /* eslint-disable max-lines -- 发送夹具同时覆盖 composer、工作树准备与时间线故障注入，保持一个可复用浏览器入口。 */
 import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
+import { useWorktreeSettingsNavigation } from "@/store/worktreeSidebarStore.js";
 import { useCallback, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type { IServiceAccessor, ModelSelectionView, WorktreeBinding } from "@lcode/services";
@@ -113,6 +114,7 @@ const context = {
   layer: { liveOutputRates: new LiveOutputRateRegistry() },
 } as unknown as V4ConversationContextValue;
 const fixture = {
+  settingsTarget: () => useWorktreeSettingsNavigation.getState().target,
   uploads: [] as { draftId?: string; sessionId?: string }[],
   calls: [] as { text: string; options: unknown }[],
   fail: false,

@@ -25,6 +25,23 @@ rules:
     - invariant-only
     - evidence-only
 nodes:
+  - id: state.runtime-memory-admission
+    kind: state-owner
+    label: Demand-driven runtime memory admission and owner cleanup
+    aliases: [远端内存预算, Agent按需启动, NodeREPL按需启动, runtime memory budget]
+    codeSeeds:
+      - file: packages/shared/src/node/runtimeMemoryBudget.ts
+        symbol: runtimeMemoryBudget
+      - file: packages/services/src/lcode-agent/lcodeAgentProcessManager.ts
+        symbol: LCodeAgentProcessManager
+      - file: packages/desktop/src/host/windowRemoteConnectionRegistry.ts
+        symbol: createWindowRemoteConnectionRegistry
+      - file: apps/lcode-cli/packages/node-repl-host/src/server.ts
+        symbol: createNodeReplMcpRuntime
+    invariants:
+      - "Remote blank drafts do not prewarm execution; trusted builtin tools remain discoverable before their first process starts."
+      - "Memory reservations belong to existing process/Worker owners until confirmed cleanup, and never become another accepted command queue."
+      - "Cached SSH transport does not retain an idle workspace Agent after its last logical owner; running tasks and reattach generations preserve existing release fences."
   - id: capability.ssh-settings-proxy
     kind: capability
     label: SSH proxy selection reuses the local Settings proxy library
@@ -1466,6 +1483,15 @@ nodes:
       - "Menus append editable drafts through the scoped existing receiver; only an explicit send admits context."
       - "Capsule IDs are independent typed references and never share URLs; the target store validates source history again."
 edges:
+  - from: capability.conversation-runtime
+    to: state.runtime-memory-admission
+    type: admits-runtime-processes-through
+    rank: must-inspect
+    condition: Remote draft startup, first execution, memory refusal or workspace process cleanup changes.
+  - from: state.runtime-memory-admission
+    to: state.browser-scope-authority
+    type: preserves-capability-and-scope-ownership
+    rank: invariant-only
   - from: capability.sidebar-organization
     to: boundary.workspace-key
     type: isolates-references-by

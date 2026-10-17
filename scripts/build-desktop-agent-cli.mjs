@@ -56,6 +56,10 @@ const requiredDevPluginRuntimeBuilds = [
     packageName: "@lcode/node-repl-host",
     packageDir: "node-repl-host",
     artifactPath: "node-repl-host/dist/mcp/server.js",
+    additionalArtifactPaths: [
+      "node-repl-host/dist/mcp/executor.js",
+      "node-repl-host/dist/mcp/executor-worker.js",
+    ],
   },
   {
     // browser-use 自己的 runtime 只剩 browser-client；宿主不再由它携带。
@@ -80,14 +84,16 @@ async function buildRequiredPluginRuntimes(repoRoot, env, run) {
 
 async function verifyRequiredDevPluginRuntimeArtifacts(repoRoot, checkArtifact) {
   for (const runtime of requiredDevPluginRuntimeBuilds) {
-    const artifactPath = resolve(repoRoot, "apps/lcode-cli/packages", runtime.artifactPath);
-    try {
-      await checkArtifact(artifactPath);
-    } catch (error) {
-      throw new Error(
-        `[build-desktop-agent-cli] ${runtime.packageName} build succeeded without required MCP runtime: ${artifactPath}`,
-        { cause: error },
-      );
+    for (const relativePath of [runtime.artifactPath, ...(runtime.additionalArtifactPaths ?? [])]) {
+      const artifactPath = resolve(repoRoot, "apps/lcode-cli/packages", relativePath);
+      try {
+        await checkArtifact(artifactPath);
+      } catch (error) {
+        throw new Error(
+          `[build-desktop-agent-cli] ${runtime.packageName} build succeeded without required MCP runtime: ${artifactPath}`,
+          { cause: error },
+        );
+      }
     }
   }
 }

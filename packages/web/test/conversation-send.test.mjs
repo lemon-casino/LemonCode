@@ -166,12 +166,18 @@ test("真实 ConversationComposer 的新旧会话回车及按钮发送", { timeo
           await card
             .getByText(english ? "Worktree created" : "已创建工作树", { exact: true })
             .waitFor();
-          await page.getByTestId("worktree-task-location").waitFor();
+          // 管理入口现在选择设置页中的 binding；此夹具不再渲染旧弹窗。
+          const management = page.getByRole("button", {
+            name: english ? "Worktree management" : "工作树管理",
+            exact: true,
+          });
+          await management.waitFor();
           assert.equal(await card.count(), 1);
           assert.equal((await editor.innerText()).trimEnd(), "准备期间编辑的下一条草稿");
-          await page.getByTestId("worktree-task-location").getByRole("button").click();
-          await page.getByTestId("worktree-task-dialog").waitFor();
-          await page.getByTestId("git-review-dismiss").click();
+          await management.click();
+          const target = await page.evaluate(() => globalThis.__sendFixture.settingsTarget());
+          assert.equal(target.workspacePath, "/fixture/origin");
+          assert.equal(target.bindingId, "prepared-binding");
           assert.equal(await card.count(), 1);
           assert.equal(
             await page

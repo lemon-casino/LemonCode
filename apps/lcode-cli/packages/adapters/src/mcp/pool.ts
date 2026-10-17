@@ -17,6 +17,7 @@ import type {
   McpToolDescriptor,
 } from "@lcode/contracts";
 import type { McpTelemetryTracker } from "./telemetry.js";
+import { summarizeMcpPoolStartup } from "./pool-startup.js";
 import {
   closeMcpPoolEntry,
   scheduleMcpPoolEntryClose,
@@ -315,20 +316,8 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
       }
       if (sessionId && !sessionStartupReported) {
         sessionStartupReported = true;
-        const enabledServers = [...configuredServers].filter(
-          ([, config]) => config.enabled !== false,
-        );
-        const connectedCount = enabledServers.filter(
-          ([serverName]) => statuses[serverName]?.status === "connected",
-        ).length;
         options.telemetry?.recordSessionStartup({
-          configuredCount: enabledServers.length,
-          connectedCount,
-          failedCount: enabledServers.length - connectedCount,
-          processCount: enabledServers.filter(
-            ([serverName, config]) =>
-              config.type === "stdio" && statuses[serverName]?.status === "connected",
-          ).length,
+          ...summarizeMcpPoolStartup(configuredServers, statuses),
           sessionId,
         });
       }
@@ -366,7 +355,10 @@ export function createMcpConnectionPool(options: McpConnectionPoolOptions): McpC
         }
         await Promise.all(
           Object.entries(servers).map(([serverName, config]) =>
-            acquire(serverName, config, connectOptions),
+            acquire(serverName, config, {
+              ...connectOptions,
+              deferOnDemand: connectOptions.deferOnDemand ?? !connectOptions.revalidate,
+            }),
           ),
         );
         return await snapshot();

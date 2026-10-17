@@ -1,19 +1,14 @@
-/* eslint-disable max-lines -- shared node_repl host 的 worker、CUA bridge 和生命周期必须保持同一边界。 */
-import { resolve } from "node:path";
-import { isMainThread, parentPort, Worker, workerData } from "node:worker_threads";
+import { Worker } from "node:worker_threads";
 import { INVALID_PARAMS, Server, type Tool } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import { JsInputJsonSchema } from "@lcode/contracts/tools/node-repl";
-// 值导入必须走 @lcode/core/repl 这条深路径：barrel 会把 core 的整张图拖进 bundle
-// （tool handlers → @lcode/dynamic-workflow → typescript，实测 21.7MB 且求值即崩
-// ERR_AMBIGUOUS_MODULE_SYNTAX）。宿主只需要 REPL 会话本身。
-// 类型也一并从 /repl 取：总入口的顶层副作用会把 Agent、Bash 注册表和工作流编译器
-// 打入每个 REPL Worker，Worker 会重复承担这份开销。
 import {
-  NodeReplSession,
-  type NodeReplRequestMeta,
-  type NodeReplRunResult,
-} from "@lcode/core/repl";
+  runtimeMemoryBudget,
+  readRuntimeMemorySnapshot,
+  RuntimeMemoryBudgetError,
+  RUNTIME_MEMORY_SYSTEM_HEADROOM_BYTES,
+} from "@lcode/shared/node";
+import type { NodeReplRequestMeta, NodeReplRunResult } from "@lcode/core/repl";
 import {
   createComputerUseRuntime,
   type ComputerUseRuntime,
@@ -25,12 +20,7 @@ import {
   BROKER_SOCKET_ENV,
 } from "@lcode/lcode-cua/broker";
 import { z } from "zod";
-import { createBrowserBridgeGlobals, type ActiveNodeReplCall } from "./browser-bridge.js";
-import {
-  createComputerUseBridgeGlobals,
-  type ActiveCuaNodeReplCall,
-  type NodeReplCuaBrokerConnection,
-} from "./cua-bridge.js";
+import type { NodeReplCuaBrokerConnection } from "./cua-bridge.js";
 import { createNodeReplCuaBroker } from "./cua-broker.js";
 import {
   isDirectMcpEntrypoint,
@@ -46,17 +36,9 @@ import {
 } from "./tool-contract.js";
 
 const MAX_SYNC_TIMEOUT_MS = 120_000;
+const MEMORY_SAMPLE_INTERVAL_MS = 100;
 const UNTRUSTED_SESSION_KEY = "__unscoped__";
-const WORKER_KIND = "lcode-node-repl-call";
 export const NODE_REPL_MCP_PROCESS_TITLE = "lcode-node-repl-mcp";
-const pluginRoot = process.env.LCODE_PLUGIN_ROOT ?? process.cwd();
-// CUA 与 Browser Use 共用 node_repl host，但文档和 native 依赖必须按领域隔离；
-// 否则 CUA skill 会因为 host root 恰好来自 Browser Use 而再次产生隐式依赖。
-const browserDocumentationRoot = resolve(pluginRoot, "docs");
-const cuaDocumentationRoot = resolve(
-  process.env.LCODE_CUA_PLUGIN_ROOT ?? pluginRoot,
-  "docs",
-);
 const jsInputSchema = z
   .object({
     code: z.string(),
@@ -106,14 +88,6 @@ export interface NodeReplMcpRuntime {
   server: Server;
 }
 
-interface WorkerCallData {
-  code: string;
-  kind: typeof WORKER_KIND;
-  requestMeta: NodeReplRequestMeta;
-  syncTimeoutMs: number;
-  cuaBroker?: NodeReplCuaBrokerConnection;
-}
-
 export function setNodeReplMcpProcessTitle(target: { title: string } = process): void {
   target.title = NODE_REPL_MCP_PROCESS_TITLE;
 }
@@ -123,60 +97,15 @@ export function setNodeReplMcpProcessTitle(target: { title: string } = process):
  * 从而连 Node 的模块缓存也随调用一起销毁。
  */
 export function createInProcessNodeReplExecutor(): NodeReplExecutor {
-  return async (input) => {
-    let activeCall: ActiveNodeReplCall | undefined;
-    let activeCuaCall: ActiveCuaNodeReplCall | undefined;
-    let session: NodeReplSession;
-    const generation = 1;
-    session = new NodeReplSession({
-      injectedGlobals: () =>
-        ({
-          ...createBrowserBridgeGlobals({
-            documentationRoot: browserDocumentationRoot,
-            generation,
-            getActiveCall: () => activeCall,
-            session: () => session,
-          }),
-          ...createComputerUseBridgeGlobals({
-            broker: input.cuaBroker,
-            generation,
-            getActiveCall: () => activeCuaCall,
-            session: () => session,
-            documentationRoot: cuaDocumentationRoot,
-          }),
-        }),
-      restrictProcess: true,
-    });
-    activeCall = {
-      generation,
-      requestMeta: input.requestMeta,
-      signal: input.signal,
-    };
-    activeCuaCall = {
-      generation,
-      requestMeta: input.requestMeta,
-      signal: input.signal,
-    };
-    try {
-      return await session.run(input.code, {
-        requestMeta: input.requestMeta,
-        signal: input.signal,
-        syncTimeoutMs: input.syncTimeoutMs,
-      });
-    } finally {
-      activeCall = undefined;
-      activeCuaCall = undefined;
-      session.dispose();
-    }
-  };
+  // 控制进程仅持有协议；解析器/VM/领域桥只在实际执行 Worker 中加载。
+  return async (input) => (await import("./executor.js")).createInProcessNodeReplExecutor()(input);
 }
 
 export function createNodeReplMcpRuntime(
   input: { executeJs?: NodeReplExecutor; cuaRuntime?: ComputerUseRuntime } = {},
 ): NodeReplMcpRuntime {
   const executeJs = input.executeJs ?? executeJsInWorker;
-  const cuaRuntime =
-    input.cuaRuntime ?? captureComputerUseRuntimeFromEnvironment();
+  const cuaRuntime = input.cuaRuntime ?? captureComputerUseRuntimeFromEnvironment();
   const cuaBroker = cuaRuntime
     ? createNodeReplCuaBroker({ runtime: cuaRuntime, platform: process.platform })
     : undefined;
@@ -214,6 +143,8 @@ export function createNodeReplMcpRuntime(
     if (name === "js") {
       const args = parseToolInput(jsInputSchema, request.params.arguments, name);
       return await serialized(sessionKey, async () => {
+        if (disposed) throw new Error("node_repl runtime is disposed");
+        extra.mcpReq.signal.throwIfAborted();
         if (!args.code) {
           return {
             content: [{ type: "text" as const, text: "js expects non-empty JavaScript source" }],
@@ -261,29 +192,75 @@ export function createNodeReplMcpRuntime(
 
 async function executeJsInWorker(input: NodeReplExecuteInput): Promise<NodeReplRunResult> {
   if (input.signal.aborted) throw input.signal.reason;
-  const data: WorkerCallData = {
+  const memoryLease = await runtimeMemoryBudget.acquire("repl-worker");
+  if (input.signal.aborted) {
+    memoryLease.release();
+    throw input.signal.reason;
+  }
+  const data: Omit<NodeReplExecuteInput, "signal"> = {
     code: input.code,
-    kind: WORKER_KIND,
     requestMeta: input.requestMeta,
     syncTimeoutMs: input.syncTimeoutMs,
     cuaBroker: input.cuaBroker,
   };
-  const worker = new Worker(new URL(import.meta.url), { workerData: data });
+  let worker: Worker;
+  try {
+    worker = new Worker(new URL("./executor-worker.js", import.meta.url), {
+      workerData: data,
+      // 原来每个会话都能同时创建无上限 isolate，全部能力开启时会把 1 GiB 主机耗尽。
+      resourceLimits: {
+        maxOldGenerationSizeMb: memoryLease.heapMb,
+        maxYoungGenerationSizeMb: 16,
+        stackSizeMb: 4,
+      },
+    });
+  } catch (error) {
+    memoryLease.release();
+    throw error;
+  }
   return await new Promise<NodeReplRunResult>((resolveRun, rejectRun) => {
     let settled = false;
     const cleanup = () => {
+      clearInterval(memoryMonitor);
       input.signal.removeEventListener("abort", onAbort);
       worker.removeAllListeners();
     };
     const finish = (error?: unknown, result?: NodeReplRunResult) => {
       if (settled) return;
       settled = true;
-      cleanup();
-      void worker.terminate().catch(() => undefined);
-      if (error !== undefined) rejectRun(error);
-      else if (result) resolveRun(result);
-      else rejectRun(new Error("node_repl worker returned no result"));
+      // result 到达不等于 isolate 已退出；必须先回收，才能让下一次调用复用同一份内存预算。
+      void worker.terminate().then(
+        () => {
+          cleanup();
+          memoryLease.release();
+          if (error !== undefined) rejectRun(error);
+          else if (result) resolveRun(result);
+          else rejectRun(new Error("node_repl worker returned no result"));
+        },
+        (error) => {
+          cleanup();
+          rejectRun(error);
+        },
+      );
     };
+    let sampling = false;
+    // ArrayBuffer/native 不计入 V8 堆，执行期间还要观察 cgroup/系统余量；主线程可中止阻塞中的 Worker。
+    const memoryMonitor = setInterval(() => {
+      if (sampling || settled) return;
+      sampling = true;
+      void readRuntimeMemorySnapshot()
+        .then(
+          (snapshot) => {
+            if (!settled && snapshot.availableBytes < RUNTIME_MEMORY_SYSTEM_HEADROOM_BYTES)
+              finish(new RuntimeMemoryBudgetError("repl-worker"));
+          },
+          (error) => finish(error),
+        )
+        .finally(() => {
+          sampling = false;
+        });
+    }, MEMORY_SAMPLE_INTERVAL_MS);
+    memoryMonitor.unref();
     const onAbort = () => finish(input.signal.reason ?? new DOMException("aborted", "AbortError"));
     input.signal.addEventListener("abort", onAbort, { once: true });
     worker.once("message", (message: unknown) => finish(undefined, message as NodeReplRunResult));
@@ -329,7 +306,7 @@ export async function main(): Promise<void> {
   // process.env，必然得到空值，导致 node_repl 永久把 Computer Use 判为 unavailable。
   // 这里在 main() 生命周期内先捕获 runtime；Worker 只收到二次 bridge token，
   // 不会接触 Helper 的原始 socket/token。
-  const computerUseRuntime = captureComputerUseRuntimeFromEnvironment();
+  const computerUseRuntime = captureAndClearComputerUseRuntimeFromEnvironment();
   const handle = serveStdio(
     () => {
       const runtime = createNodeReplMcpRuntime({ cuaRuntime: computerUseRuntime });
@@ -356,28 +333,6 @@ export async function main(): Promise<void> {
   installNodeReplShutdownTriggers({ process, shutdown, stdin: process.stdin });
 }
 
-if (!isMainThread && isWorkerCallData(workerData)) {
-  const execute = createInProcessNodeReplExecutor();
-  const controller = new AbortController();
-  void execute({
-    code: workerData.code,
-    requestMeta: workerData.requestMeta,
-    signal: controller.signal,
-    syncTimeoutMs: workerData.syncTimeoutMs,
-    cuaBroker: workerData.cuaBroker,
-  })
-    .then((result) => parentPort?.postMessage(result))
-    .catch((error) => {
-      parentPort?.postMessage({
-        logs: "",
-        error: {
-          name: error instanceof Error ? error.name : "Error",
-          message: error instanceof Error ? error.message : String(error),
-        },
-      } satisfies NodeReplRunResult);
-    });
-}
-
 // runtime 低频异常路径（门拒绝/驱动异常/dispose 失败/会话排空）的日志落点：
 // node-repl-host 不依赖 services logger，直接走进程 stderr（本文件既有 guards 同通道）。
 const cuaRuntimeLogger: ComputerUseRuntimeLogger = {
@@ -402,17 +357,30 @@ export function captureComputerUseRuntimeFromEnvironment(
     brokerCapability,
     brokerGeneration: Number(env[BROKER_GENERATION_ENV] ?? 0),
     refreshMarkerPath: env.LCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER?.trim(),
-    env,
+    env: { ...env },
     logger: cuaRuntimeLogger,
   });
 }
 
-function isWorkerCallData(value: unknown): value is WorkerCallData {
-  if (!value || typeof value !== "object") return false;
-  return (value as { kind?: unknown }).kind === WORKER_KIND;
+export function captureAndClearComputerUseRuntimeFromEnvironment(
+  env: NodeJS.ProcessEnv = process.env,
+): ComputerUseRuntime | undefined {
+  try {
+    return captureComputerUseRuntimeFromEnvironment(env);
+  } finally {
+    // 直接 Node 入口没有 CLI plugin-host 的 finally；原始 Helper 凭据不得被执行 Worker 继承。
+    for (const key of [
+      BROKER_SOCKET_ENV,
+      BROKER_CAPABILITY_ENV,
+      BROKER_GENERATION_ENV,
+      "LCODE_CUA_PLUGIN_AUTHORITY",
+      "LCODE_CUA_PERMISSION_BROKER_REFRESH_MARKER",
+    ])
+      delete env[key];
+  }
 }
 
-if (isMainThread && (await isDirectMcpEntrypoint(import.meta.url, process.argv[1]))) {
+if (await isDirectMcpEntrypoint(import.meta.url, process.argv[1])) {
   void main().catch((error) => {
     process.stderr.write(
       `node_repl MCP server failed: ${error instanceof Error ? error.stack : String(error)}\n`,

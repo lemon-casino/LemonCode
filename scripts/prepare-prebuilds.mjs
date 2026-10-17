@@ -118,7 +118,11 @@ const remoteOfficialPluginPackages = [
     packageName: "@lcode/node-repl-host",
     relativePath: "apps/lcode-cli/packages/node-repl-host",
     requiresRuntime: true,
-    requiredRuntimePaths: ["dist/mcp/server.js"],
+    requiredRuntimePaths: [
+      "dist/mcp/server.js",
+      "dist/mcp/executor.js",
+      "dist/mcp/executor-worker.js",
+    ],
     runtimeBuildScript: "scripts/build.mjs",
     stagedPath: "packages/node-repl-host",
   },
@@ -161,6 +165,9 @@ function shouldCopyOfficialPluginAsset(sourcePath) {
 const remoteOfficialPluginRequiredPaths = [
   "packages/browser-use-plugin/.lcode-plugin/plugin.json",
   "packages/node-repl-host/.lcode-plugin/plugin.json",
+  "packages/node-repl-host/dist/mcp/server.js",
+  "packages/node-repl-host/dist/mcp/executor.js",
+  "packages/node-repl-host/dist/mcp/executor-worker.js",
   "packages/lemon-workflow-plugin/.lcode-plugin/plugin.json",
   "packages/lemon-workflow-plugin/commands/lemon.md",
   "packages/lemon-workflow-plugin/skills/ponytail/SKILL.md",

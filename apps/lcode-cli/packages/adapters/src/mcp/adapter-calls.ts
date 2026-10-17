@@ -59,7 +59,13 @@ export async function callTool(
   // 这里在调用前对已断连的 record 重连一次；server 进程内状态（如 REPL 变量）不可恢复，
   // 但工具本身恢复可用。
   const disconnected = this.records.get(request.serverName);
-  if (disconnected && disconnected.status.status === "disconnected") {
+  if (
+    disconnected &&
+    (disconnected.status.status === "disconnected" ||
+      (disconnected.status.status === "failed" &&
+        disconnected.config.source?.kind === "builtin" &&
+        disconnected.config.onDemandTools))
+  ) {
     await waitWithinMcpDeadline(
       this.reconnectForCall(request.serverName, disconnected.config),
       deadline,
@@ -232,12 +238,19 @@ export async function reconnectForCall(
   name: string,
   config: McpServerConfig,
 ): Promise<void> {
-  this.logger?.warn("MCP server reconnecting after lost connection", {
-    event: "mcp.server.reconnect.started",
-    mcpServerName: name,
-    status: "started",
-    transport: config.type,
-  });
+  const deferred =
+    config.source?.kind === "builtin" &&
+    config.onDemandTools &&
+    !this.records.get(name)?.status.error;
+  this.logger?.[deferred ? "info" : "warn"](
+    deferred ? "MCP server starting on demand" : "MCP server reconnecting after lost connection",
+    {
+      event: "mcp.server.reconnect.started",
+      mcpServerName: name,
+      status: "started",
+      transport: config.type,
+    },
+  );
   await this.connectServer(name, config);
 }
 

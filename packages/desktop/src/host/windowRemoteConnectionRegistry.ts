@@ -133,6 +133,11 @@ function buildConnectionKey(target: RemoteTarget, remoteSessionId: string): stri
   }
 }
 
+function ownsSharedWorkspaceRuntimes(target: RemoteTarget): boolean {
+  // SSH 物理连接也会驻留缓存；关闭工作区必须回收其 Agent，不能把传输 owner 当成执行 owner。
+  return target.kind === "ssh" || target.kind === "wsl";
+}
+
 function toSessionSnapshot<TServices, TCapabilities>(
   session: LogicalSession<TServices, TCapabilities>,
 ): WindowRemoteLogicalSessionSnapshot {
@@ -210,7 +215,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     generation: number,
   ): Promise<void> | undefined {
     if (
-      entry.target.kind !== "wsl" ||
+      !ownsSharedWorkspaceRuntimes(entry.target) ||
       state.generation !== generation ||
       state.releaseInFlight ||
       !entry.handle ||
@@ -254,7 +259,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     workspaceGeneration?: number;
   }): Promise<void> | undefined {
     const { entry, workspaceKey, workspaceGeneration } = params;
-    if (entry.target.kind !== "wsl" || !workspaceKey || !workspaceGeneration) {
+    if (!ownsSharedWorkspaceRuntimes(entry.target) || !workspaceKey || !workspaceGeneration) {
       return undefined;
     }
     if (hasOtherWorkspaceOwner(entry, workspaceKey, params.remoteSessionId)) {
@@ -274,7 +279,11 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
   function prepareWorkspaceRuntime(
     session: LogicalSession<TServices, TCapabilities>,
   ): Promise<void> {
-    if (session.entry.target.kind !== "wsl" || !session.workspacePath || !session.workspaceKey) {
+    if (
+      !ownsSharedWorkspaceRuntimes(session.entry.target) ||
+      !session.workspacePath ||
+      !session.workspaceKey
+    ) {
       session.workspaceReadyState = "ready";
       session.workspaceReady = Promise.resolve();
       return session.workspaceReady;
@@ -753,7 +762,7 @@ export function createWindowRemoteConnectionRegistry<TServices, TCapabilities = 
     }): void {
       const workspaceKey = params.workspaceIdentity?.trim() || params.workspacePath;
       for (const entry of entriesByKey.values()) {
-        if (entry.target.kind !== "wsl" || !entry.workspaceKeys.has(workspaceKey)) {
+        if (!ownsSharedWorkspaceRuntimes(entry.target) || !entry.workspaceKeys.has(workspaceKey)) {
           continue;
         }
         if (params.runningTaskCount > 0) {

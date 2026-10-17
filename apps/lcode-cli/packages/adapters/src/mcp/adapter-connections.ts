@@ -11,6 +11,7 @@ import {
   type McpServerRecord,
 } from "./adapter-types.js";
 import { isPeerAnsweredError } from "./adapter-protocol.js";
+import { normalizeMcpToolDescriptor } from "./descriptor.js";
 
 import type { McpAdapterOwner } from "./adapter-owner.js";
 
@@ -68,7 +69,10 @@ export async function connectConfiguredServers(
         // 连接生命周期可以共享，但 Session 的 15 秒等待预算和 AbortSignal 不能继承设置页的 5 分钟预算。
         return this.waitForSharedConnection(name, record, options);
       }
-      return this.connectServer(name, config, options);
+      return this.connectServer(name, config, {
+        ...options,
+        deferOnDemand: options.deferOnDemand ?? !options.revalidate,
+      });
     }),
   );
 
@@ -99,6 +103,36 @@ export async function connectServer(
   options: McpConnectOptions = {},
 ): Promise<McpServerStatus> {
   const startedAt = Date.now();
+  const existing = this.records.get(name);
+  // 首次工具调用可能并发到达；原 connecting owner 必须在任何 await/换代之前复用。
+  if (existing?.connecting && isDeepStrictEqual(existing.config, config)) {
+    return this.waitForSharedConnection(name, existing, options);
+  }
+  if (
+    options.deferOnDemand &&
+    config.source?.kind === "builtin" &&
+    config.onDemandTools &&
+    config.enabled !== false
+  ) {
+    const tools = config.onDemandTools.map((tool) =>
+      normalizeMcpToolDescriptor(name, { ...tool, name: tool.toolName }, config.timeoutMs),
+    );
+    if (existing && isDeepStrictEqual(existing.config, config)) {
+      // 按需进程启动失败后，新会话仍需发现可信工具，才能通过下一次显式调用恢复；状态保留真实失败。
+      if (existing.status.status === "failed" || existing.status.status === "disconnected") {
+        existing.tools = tools;
+        existing.status = { ...existing.status, toolCount: tools.length };
+      }
+      return existing.status;
+    }
+    const generation = this.nextConnectionGeneration(name);
+    await this.closeRecord(name);
+    if (!this.isCurrentConnection(name, generation))
+      return this.records.get(name)?.status ?? this.createStatus(config, "disconnected");
+    const status = this.createStatus(config, "disconnected", { toolCount: tools.length });
+    this.records.set(name, { config, status, tools });
+    return status;
+  }
   const timeoutMs = config.timeoutMs ?? DEFAULT_MCP_TIMEOUT_MS;
   const generation = this.nextConnectionGeneration(name);
   this.lastOfficialAuthKind.delete(name);
@@ -110,9 +144,12 @@ export async function connectServer(
     timeoutMs,
     transport: config.type,
   });
-  await this.closeRecord(name);
+  const closing = this.closeRecord(name);
 
   if (config.enabled === false) {
+    await closing;
+    if (!this.isCurrentConnection(name, generation))
+      return this.records.get(name)?.status ?? this.createStatus(config, "disabled");
     const status = this.createStatus(config, "disabled");
     this.records.set(name, { config, status, tools: [] });
     this.logger?.info("MCP server connection skipped", {
@@ -145,15 +182,20 @@ export async function connectServer(
     tools: [],
   };
   this.records.set(name, record);
-  const connecting = this.openServerConnection({
-    config,
-    generation,
-    name,
-    oauthAuthorizationTimeoutMs: options.oauthAuthorizationTimeoutMs,
-    signal: abortController.signal,
-    timeoutMs,
-    workingDirectory: options.workingDirectory,
-  }).finally(() => {
+  const connecting = (async () => {
+    await closing;
+    if (!this.isCurrentConnection(name, generation))
+      return this.records.get(name)?.status ?? connectingStatus;
+    return this.openServerConnection({
+      config,
+      generation,
+      name,
+      oauthAuthorizationTimeoutMs: options.oauthAuthorizationTimeoutMs,
+      signal: abortController.signal,
+      timeoutMs,
+      workingDirectory: options.workingDirectory,
+    });
+  })().finally(() => {
     options.signal?.removeEventListener("abort", abortExternal);
   });
   record.connecting = connecting;

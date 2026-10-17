@@ -24,6 +24,7 @@ import {
 } from "@/hooks/useModelSelectionView.js";
 import { submissionModeSchema } from "@lcode/shared/lcode-protocol-v4";
 import { prepareWorkspaceWithLCodeSessionService } from "@/hooks/useWorkspacePrepare.js";
+import { shouldDeferDraftRuntime } from "./draftRuntimeStartupPolicy.js";
 import { useLCodeSessionService } from "@/hooks/useLCodeSessionService.js";
 import { useSettings } from "@/hooks/useSettingService.js";
 import { parseModelPickerValue } from "@/lib/lcodeSessionProjection.js";
@@ -374,11 +375,16 @@ export function useDraftConfigControl(params: {
 
   // ── workspace 目录水合（见文件头说明）──
   // 目录已 ready（reload/广播/上次水合写过）则跳过；否则读取最小 workspace presentation。
+  const workspaceCatalogRequested = draft.text.trimStart().startsWith("/");
   useEffect(() => {
     const isDraft = sessionId === null;
     const store = useLCodeSessionStore.getState();
     const workspaceState = store.getWorkspaceState(workspacePath, workspaceIdentity);
-    if (!agentStartupAllowed) {
+    if (
+      !agentStartupAllowed ||
+      (shouldDeferDraftRuntime(sessionId, workspaceIdentity) && !workspaceCatalogRequested)
+    ) {
+      // 目录水合也会拉起 CLI；只关闭 prewarm 不足以修复远端连接即占满内存的问题。
       // V4 目录水合曾在无模型时直接进入 RPC，虽然 Host 不会启动 CLI，
       // renderer 仍会把正常等待态记成 hydration error。readiness 未通过时保持 idle；
       // registry 就绪后依赖变化会自动重新进入本 effect。
@@ -450,6 +456,7 @@ export function useDraftConfigControl(params: {
       });
     workspaceCatalogHydrationFlights.set(workspaceKey, flight);
   }, [
+    workspaceCatalogRequested,
     agentStartupAllowed,
     displayProvider,
     sessionId,
