@@ -14,6 +14,7 @@ const backend = [
   "packages/shared/src/projectContext.test.ts",
   "packages/ui/src/lib/sidebarOrganization.test.ts",
   "packages/ui/src/WorkspaceSidebar/sidebarFocusProjection.test.ts",
+  "packages/ui/src/WorkspaceSidebar/projectRemovalPolicy.test.ts",
   "scripts/sidebar-project-context-admission.test.ts",
   "scripts/sidebar-execution-set-protocol.test.ts",
   "apps/lcode-cli/packages/core/src/runtime/methods/project-filesystem-mcp.test.ts",

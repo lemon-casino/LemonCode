@@ -38,9 +38,14 @@ nodes:
         symbol: connectNetworkProxySocket
       - file: packages/server/src/remote/create-backend.ts
         symbol: createRemoteBackend
+      - file: packages/shared/src/remoteTargetSchema.ts
+        symbol: sshConnectOptionsSchema
+      - file: packages/shared/src/windowWorkspace.ts
+        symbol: createWindowWorkspaceCatalogTarget
     invariants:
       - "One selector chooses direct, Settings default or a saved proxy; the target and history carry only useProxy and proxyProfileId, while the local Host reads current credentials."
       - "Proxy selection fails closed; direct, default and distinct profile IDs do not share physical connections. Workspace identity and attachment delivery modes remain unchanged."
+      - "Trusted connect schemas preserve proxy selection; the remote browser catalog projects only endpoint display fields, while the desktop owner retains connection options for reconnect."
   - id: capability.desktop-startup-animation
     kind: capability
     label: Desktop startup animation and in-window handoff

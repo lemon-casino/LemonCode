@@ -9,6 +9,7 @@ import {
 } from "@lcode/services";
 import {
   buildRemoteWorkspaceIdentity,
+  createWindowWorkspaceCatalogTarget,
   type WindowWorkspaceCatalogEntry,
   type WindowWorkspaceScope,
 } from "@lcode/shared";
@@ -43,6 +44,8 @@ async function fixture() {
     host: "example.invalid",
     username: "fixture",
     password: "fixture-only",
+    useProxy: true,
+    proxyProfileId: "fixture-profile",
   };
   const identity = buildRemoteWorkspaceIdentity("/same", target);
   const session = await registry.connect({
@@ -65,7 +68,7 @@ async function fixture() {
       getCatalog: () =>
         registry.listSessions().map((item) => ({
           scope: { ...scope, generation: item.generation },
-          target: { kind: "ssh", host: target.host, username: target.username },
+          target: createWindowWorkspaceCatalogTarget(item.target),
           sourceAvailability: item.sourceAvailability,
         })) as WindowWorkspaceCatalogEntry[],
       onCatalogChanged: registry.onDidChangeCatalog,
@@ -128,6 +131,12 @@ test("真实客户端 scoped facade 区分同路径本机/SSH，目录不泄露�
     JSON.stringify(await client.windowWorkspaceService.getCatalog()).includes("fixture-only"),
     false,
   );
+  const catalog = await client.windowWorkspaceService.getCatalog();
+  assert.equal("useProxy" in catalog[0]!.target, false);
+  assert.equal("proxyProfileId" in catalog[0]!.target, false);
+  const ownedTarget = f.registry.getSession(f.scope.remoteSessionId)!.target;
+  assert.equal(ownedTarget.kind === "ssh" && ownedTarget.useProxy, true);
+  assert.equal(ownedTarget.kind === "ssh" && ownedTarget.proxyProfileId, "fixture-profile");
   assert.notEqual(IWindowWorkspaceService.channelName, IFileService.channelName);
   a.dispose();
   await f.registry.dispose();

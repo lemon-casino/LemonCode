@@ -12,6 +12,8 @@ import { SidebarEntryInteraction } from "./SidebarEntryInteraction.js";
 import { scopeKey, projectRef } from "./sidebarReferences.js";
 import type { UnifiedSidebarTreeProps } from "./UnifiedSidebarTree.js";
 import { useSidebarText } from "./sidebarText.js";
+import { isRemoteWorkspaceTarget } from "@/lib/workspaceServiceResolver.js";
+import { projectRemovalBlockedReason } from "./projectRemovalPolicy.js";
 
 export function SidebarProjectEntry({
   tab,
@@ -65,6 +67,19 @@ export function SidebarProjectEntry({
       !isWorktreeSidebarTask(task, bindings) &&
       !placement.has(sidebarEntryKey(taskSidebarRef(task))),
   );
+  const blockedReason = projectRemovalBlockedReason({
+    hasExecutionSets: hasSets,
+    hasIndependentChats,
+    hasWorktrees: trees.entries.some((entry) => scopeKey(entry.origin) === scope),
+    isRemote: isRemoteWorkspaceTarget(tab),
+    sourceConnected: trees.lookup.has(scope),
+    // 只考虑本来源及首次初始化，不让另一个来源的在途读取锁住当前菜单。
+    sourceLoading:
+      trees.loadingScopeKeys.includes(scope) ||
+      sets.loading.includes(scope) ||
+      (trees.loading && trees.loadingScopeKeys.length === 0),
+    sourceUnavailable: trees.unavailableScopeKeys.includes(scope) || Boolean(sets.failures[scope]),
+  });
   return (
     <SidebarEntryInteraction entry={ref}>
       <ul>
@@ -110,22 +125,8 @@ export function SidebarProjectEntry({
           onOpenFileTree={props.onOpenFileTree}
           groupByDate={dates}
           taskSortBy={sortBy}
-          preserveOrigin={
-            hasIndependentChats ||
-            hasSets ||
-            trees.loading ||
-            trees.unavailableScopeKeys.includes(scope) ||
-            trees.entries.some((entry) => scopeKey(entry.origin) === scope)
-          }
-          removalBlockedReason={
-            hasSets
-              ? text("activeExecutionSet")
-              : trees.loading || trees.unavailableScopeKeys.includes(scope)
-                ? text("verifySource")
-                : hasIndependentChats
-                  ? text("dependentChats")
-                  : undefined
-          }
+          preserveOrigin={Boolean(blockedReason)}
+          removalBlockedReason={blockedReason ? text(blockedReason) : undefined}
         />
       </ul>
     </SidebarEntryInteraction>

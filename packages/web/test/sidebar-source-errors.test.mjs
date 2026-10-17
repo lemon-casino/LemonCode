@@ -4,6 +4,56 @@ import { mkdir } from "node:fs/promises";
 import { startWorkflowProgressBrowser } from "./workflow-execution-progress-browser.mjs";
 
 test(
+  "disconnected projects without known dependencies can be removed after catalog errors",
+  { timeout: 120000 },
+  async (t) => {
+    const { browser, port } = await startWorkflowProgressBrowser(t);
+    for (const width of [1280, 390]) {
+      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      const errors = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.goto(`http://127.0.0.1:${port}/test/fixtures/sidebar-organization.html?empty`);
+      const remote = page.getByRole("button", { name: "远程服务", exact: true });
+      await remote.waitFor();
+      await page.evaluate(() =>
+        globalThis.__sidebarOrganization.setReadError(
+          true,
+          'Unrecognized keys: "useProxy", "proxyProfileId"',
+        ),
+      );
+      await page.getByRole("button", { name: "读取失败 · 远程服务", exact: true }).waitFor();
+      await page.evaluate(() => globalThis.__sidebarOrganization.offline());
+      await page.getByRole("button", { name: "重新连接", exact: true }).waitFor();
+      await page.evaluate(() => {
+        globalThis.__sidebarOrganization.holdNextRead();
+        globalThis.__sidebarOrganization.setReadError(false, null);
+      });
+      await page.waitForFunction(() => globalThis.__sidebarOrganization.hasHeldRead());
+      await remote.click({ button: "right" });
+      const remove = page.getByRole("menuitem", { name: "移除", exact: true });
+      assert.equal(await remove.isEnabled(), true);
+      await mkdir("../../.artifacts/ssh-proxy-boundaries", { recursive: true });
+      await page.screenshot({
+        path: `../../.artifacts/ssh-proxy-boundaries/offline-removal-${width}.png`,
+      });
+      await remove.click();
+      await remote.waitFor({ state: "hidden" });
+      await page.getByRole("button", { name: "网站项目", exact: true }).waitFor();
+      await page.evaluate(() => globalThis.__sidebarOrganization.releaseRead());
+      assert.equal(await page.evaluate(() => globalThis.__sidebarOrganization.facts.connects), 0);
+      assert.equal(
+        await page.evaluate(() =>
+          globalThis.__sidebarOrganization.calls.some((call) => call.method === "delete"),
+        ),
+        false,
+      );
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  },
+);
+
+test(
   "source failures stay on their own rows and reread never reconnects",
   { timeout: 120000 },
   async (t) => {
@@ -17,6 +67,12 @@ test(
     await page.getByText("登录优化", { exact: true }).waitFor();
     await page.evaluate(() => globalThis.__sidebarOrganization.offline());
     await page.getByRole("button", { name: "重新连接", exact: true }).waitFor();
+    await page.getByRole("button", { name: "远程服务", exact: true }).click({ button: "right" });
+    assert.equal(
+      await page.getByRole("menuitem", { name: "移除", exact: true }).isDisabled(),
+      true,
+    );
+    await page.keyboard.press("Escape");
     assert.equal(await page.getByText(/部分来源/).count(), 0);
     assert.equal(await page.getByTestId("sidebar-source-error").count(), 0);
     await page.evaluate(() => globalThis.__sidebarOrganization.online());

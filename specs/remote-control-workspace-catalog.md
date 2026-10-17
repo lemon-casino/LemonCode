@@ -6,6 +6,7 @@
 - 项目路径用于 IO，身份使用 `workspaceIdentity?.trim() || workspacePath`。在线远端调用必须携带当前 `remoteSessionId`、路径和 identity，三者匹配窗口连接注册表；旧 session、错窗口、断线和迟到回包明确拒绝，禁止查询同路径本机或其它 endpoint。
 - 房间的单条 replayable attachment 提供窗口目录和 scoped RPC；本地服务仍来自本窗口 Local Host。新配对只绑定可信 windowId 对应的 Local Host，不绑定激活项目的路径/session，切换项目或单个远端断线不能拆掉房间。即使从远端项目发起配对，浏览器根服务也必须解析到本地窗口，项目服务按目录分别绑定。Main 原有 remote target 的完整校验保留用于兼容入口。
 - 目录从窗口连接注册表派生；连接、绑定、关闭和替换触发同一事实源的变更事件。浏览器先订阅再读取，忽略迟到旧读取；会话代理只有当前目录在线时可用。断开后保留项目占位，重连更新代理和 tab；目录投影本身不新建 Host、Agent、连接或业务队列。
+- 目录 target 仅包含 endpoint 展示身份。Host 使用共享白名单投影，不发送 SSH `useProxy`、`proxyProfileId`、凭据或部署选项；严格目录 schema 保持不变。真实连接和桌面历史保留完整代理选择，远控重连只由已有桌面 owner 读取这些参数。
 - 工作树列表及操作继续调用对应项目 owner 的 worktreeService。身份相同的执行目录和原项目共用已有 scoped facade，工作树归类不能退回本地路径。
 - 分组视图读取所有当前 workspace 的 tasks-index 分组与 Controller task facts。不同 Environment 的组 ID 在 UI 投影中隔离；rename/color/delete/order 发回原 owner，跨 owner 的组成员移动明确拒绝。同一 Environment 多项目合并查询；本地原有 ID 和顺序保持兼容。
 - 浏览器位置按 identity 恢复远端项目；远端重连 session 换代时采用目录里的新 session。失效 identity 回默认草稿，不按同路径恢复本地任务。浏览器选择仍不写桌面 lastWorkspaceSession/recentProjects。

@@ -34,7 +34,7 @@ z-work/
 openclaw/
 .run-logs/
 # 本机诊断、浏览器缓存、抓包和回归截图，不属于可提交的产品源码。
-/.artifacts/
+.artifacts/
 .worktrees/
 packages/stream-animate/dist-server/
 packages/stream-animate/.stream-animate-data/

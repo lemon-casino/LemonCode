@@ -3,6 +3,7 @@ import { createRoot } from "react-dom/client";
 import {
   appSettingsSchema,
   buildRemoteWorkspaceIdentity,
+  createWindowWorkspaceCatalogTarget,
   type WindowWorkspaceCatalogEntry,
   type WindowWorkspaceScope,
   type LCodeTaskMeta,
@@ -20,7 +21,13 @@ import { useGroupedTaskView } from "@/hooks/useGroupedTaskView.js";
 import "@/styles.css";
 
 const targets = [
-  { kind: "ssh" as const, host: "example.invalid", username: "fixture" },
+  {
+    kind: "ssh" as const,
+    host: "example.invalid",
+    username: "fixture",
+    useProxy: true,
+    proxyProfileId: "fixture-profile",
+  },
   { kind: "wsl" as const, distro: "FixtureDistro" },
   { kind: "docker" as const, container: "fixture-container" },
 ];
@@ -32,7 +39,7 @@ let catalog: WindowWorkspaceCatalogEntry[] = targets.map((target, index) => ({
     workspacePath: "/same",
     workspaceIdentity: buildRemoteWorkspaceIdentity("/same", target),
   },
-  target,
+  target: createWindowWorkspaceCatalogTarget(target),
   sourceAvailability: "online",
 }));
 const catalogListeners = new Set<(catalog: WindowWorkspaceCatalogEntry[]) => void>();

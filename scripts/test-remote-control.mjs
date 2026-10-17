@@ -5,6 +5,7 @@ const root = resolve(import.meta.dirname, "..");
 const files = [
   "packages/rpc/test/channelServer.test.ts",
   "packages/shared/src/remoteControlBridgeFrame.test.ts",
+  "packages/shared/src/sshProxyBoundary.test.ts",
   "packages/desktop/src/main/desktopRemoteControlController.test.ts",
   "packages/desktop/src/main/desktopRemoteControlTunnel.test.ts",
   "packages/desktop/src/main/desktopRemoteControlFramePump.test.ts",

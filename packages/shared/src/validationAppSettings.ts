@@ -21,9 +21,11 @@ import {
   isSameLocalProjectPath,
   localProjectPathKey,
 } from "./localProjects.js";
-import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
-import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
-import { wslUserSchema } from "./wslUserValidation.js";
+import {
+  sshConnectOptionsSchema,
+  wslConnectOptionsSchema,
+  dockerConnectOptionsSchema,
+} from "./remoteTargetSchema.js";
 import { normalizeLCodeEndpointOrigin } from "./lcodeEndpoint.js";
 import {
   DEFAULT_EMBEDDED_BROWSER_VIEWPORT_PREFERENCE,
@@ -102,34 +104,13 @@ const skippedElectronUpdateVersionsSchema = z
   .default({});
 
 const remoteWorkspaceTargetSchema = z.discriminatedUnion("kind", [
-  z.object({
-    kind: z.literal("ssh"),
-    host: nonEmptyStringSchema,
-    port: z.number().int().positive().max(65535).optional(),
-    username: nonEmptyStringSchema,
-    sshConfigAlias: nonEmptyStringSchema.optional(),
-    useProxy: z.boolean().optional(),
-    proxyProfileId: nonEmptyStringSchema.optional(),
-    privateKeyPath: z.string().optional(),
-    assetInstallMode: z.enum(REMOTE_ASSET_INSTALL_MODES).optional(),
-    resourcePackages: z
-      .object({
-        selectedPackageIds: z.array(z.string().refine(isKnownRemoteResourcePackageId)).optional(),
-      })
-      .optional(),
+  // 只在连接 schema 上剔除临时 secret，避免新增选项在历史与实际连接入口之间漂移。
+  sshConnectOptionsSchema.omit({ password: true, privateKeyPassphrase: true }).extend({
     passwordCredentialKey: nonEmptyStringSchema.optional(),
     privateKeyPassphraseCredentialKey: nonEmptyStringSchema.optional(),
   }),
-  z.object({
-    kind: z.literal("wsl"),
-    distro: z.string().optional(),
-    // 远程历史重连会直接使用 settings 中的 WSL user，必须和连接入口共用校验，避免绕过 UI 后污染 identity/日志。
-    user: wslUserSchema.optional(),
-  }),
-  z.object({
-    kind: z.literal("docker"),
-    container: nonEmptyStringSchema,
-  }),
+  wslConnectOptionsSchema,
+  dockerConnectOptionsSchema,
 ]);
 
 const appWorkspaceSessionEntrySchema = z.discriminatedUnion("kind", [

@@ -10,6 +10,7 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { connectNetworkProxySocket } from "@lcode/provider-node/network";
+import { remoteTargetSchema } from "@lcode/shared";
 import { createRemoteBackend } from "@lcode/server/remote/create-backend.js";
 import { resolveSshSettingsProxy } from "../src/host/sshSettingsProxy.ts";
 
@@ -98,14 +99,14 @@ test(
       key = forge.pki.privateKeyToPem(keys.privateKey);
     const caCertPath = join(directory, "fixture.pem");
     await writeFile(caCertPath, cert);
-    const target = {
+    const target = remoteTargetSchema.parse({
       kind: "ssh",
       host: "destination.invalid",
       port: destinationPort,
       username: "fixture-ssh-user",
       password: "fixture-ssh-password",
       useProxy: true,
-    };
+    });
     const expectedAuth = `Basic ${Buffer.from(`${USER}:${PASSWORD}`).toString("base64")}`;
     const proxyUrls = [];
     for (const protocol of ["http", "https"]) {

@@ -5,9 +5,14 @@ import { z } from "zod";
 import { lcodeProcessDiagnosticSchema } from "./process-diagnostic.js";
 import { browserCommandSchema } from "./browser-use/commands.js";
 import { browserCommandResultSchema } from "./browser-use/result.js";
-import { REMOTE_ASSET_INSTALL_MODES } from "./remoteAssetInstallMode.js";
 import { PROCESS_RESOURCE_CLI_LANES } from "./processResourceTelemetry.js";
-import { isKnownRemoteResourcePackageId } from "./remoteResourcePackages.js";
+import { remoteTargetSchema } from "./remoteTargetSchema.js";
+export {
+  sshConnectOptionsSchema,
+  wslConnectOptionsSchema,
+  dockerConnectOptionsSchema,
+  remoteTargetSchema,
+} from "./remoteTargetSchema.js";
 import { lcodeProviderSchema } from "./providers.js";
 import { lcodeAgentProviderSchema } from "./lcode-agent-policy.js";
 import { modelSelectionSchema } from "./model-selection.js";
@@ -36,7 +41,6 @@ import {
 
 export { WSL_USER_MAX_LENGTH, isValidWslUser, wslUserSchema } from "./wslUserValidation.js";
 export { lcodeTaskModeSchema } from "./lcode-task-mode-schema.js";
-import { wslUserSchema } from "./wslUserValidation.js";
 export {
   appSettingsOccupationEnum,
   appSettingsPatchSchema,
@@ -59,40 +63,6 @@ export const stringArraySchema = z.array(z.string());
 export const credentialRecordSchema = z.record(z.string(), z.string());
 export const credentialKeySchema = nonEmptyStringSchema;
 export const credentialValueSchema = z.string();
-
-export const sshConnectOptionsSchema = z.object({
-  kind: z.literal("ssh"),
-  host: nonEmptyStringSchema,
-  port: z.number().int().positive().max(65535).optional(),
-  username: nonEmptyStringSchema,
-  sshConfigAlias: nonEmptyStringSchema.optional(),
-  password: z.string().optional(),
-  privateKeyPath: z.string().optional(),
-  privateKeyPassphrase: z.string().optional(),
-  assetInstallMode: z.enum(REMOTE_ASSET_INSTALL_MODES).optional(),
-  resourcePackages: z
-    .object({
-      selectedPackageIds: z.array(z.string().refine(isKnownRemoteResourcePackageId)).optional(),
-    })
-    .optional(),
-});
-
-export const wslConnectOptionsSchema = z.object({
-  kind: z.literal("wsl"),
-  distro: z.string().optional(),
-  user: wslUserSchema.optional(),
-});
-
-export const dockerConnectOptionsSchema = z.object({
-  kind: z.literal("docker"),
-  container: nonEmptyStringSchema,
-});
-
-export const remoteTargetSchema = z.discriminatedUnion("kind", [
-  sshConnectOptionsSchema,
-  wslConnectOptionsSchema,
-  dockerConnectOptionsSchema,
-]);
 
 export const helloMessageSchema = z.object({
   capabilities: z.object({ providerAccountRelay: z.boolean().optional() }).optional(),

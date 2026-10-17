@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { isRemoteWorkspaceIdentity } from "./remote-workspace-identity.js";
+import type { RemoteTarget } from "./remoteTarget.js";
 
 // 目录只暴露 endpoint 的展示身份，不透出认证字段或凭据存储 key。
 const catalogTargetSchema = z.discriminatedUnion("kind", [
@@ -40,6 +41,28 @@ export const windowWorkspaceCatalogEntrySchema = z
   .strict();
 export const windowWorkspaceCatalogSchema = z.array(windowWorkspaceCatalogEntrySchema);
 export type WindowWorkspaceCatalogEntry = z.infer<typeof windowWorkspaceCatalogEntrySchema>;
+
+/** 目录只投影展示身份；连接选项由桌面 owner 持有，不能进入严格的远控目录协议。 */
+export function createWindowWorkspaceCatalogTarget(
+  target: RemoteTarget,
+): WindowWorkspaceCatalogEntry["target"] {
+  switch (target.kind) {
+    case "ssh":
+      // 修复：复制 useProxy/proxyProfileId 会使目录在 [index, target] 报 unrecognized_keys。
+      return {
+        kind: "ssh",
+        host: target.host,
+        username: target.username,
+        port: target.port,
+        sshConfigAlias: target.sshConfigAlias,
+      };
+    case "wsl":
+      return { kind: "wsl", distro: target.distro, user: target.user };
+    case "docker":
+      return { kind: "docker", container: target.container };
+  }
+}
+
 export const windowWorkspaceRpcCallSchema = z
   .object({
     scope: windowWorkspaceScopeSchema,

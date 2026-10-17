@@ -1,33 +1,13 @@
-import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
-import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
+import type { z } from "zod";
+import type {
+  sshConnectOptionsSchema,
+  wslConnectOptionsSchema,
+  dockerConnectOptionsSchema,
+} from "./remoteTargetSchema.js";
 
-export interface SSHConnectOptions {
-  kind: "ssh";
-  host: string;
-  port?: number;
-  username: string;
-  sshConfigAlias?: string;
-  /** 复用本机设置代理；缺省直连，不在连接目标中复制代理凭据。 */
-  useProxy?: boolean;
-  /** 设置代理库的 ID；开启代理且缺省 ID 时兼容设置中的默认代理。 */
-  proxyProfileId?: string;
-  password?: string;
-  privateKeyPath?: string;
-  privateKeyPassphrase?: string;
-  assetInstallMode?: RemoteAssetInstallMode;
-  resourcePackages?: RemoteResourcePackageSelection;
-}
-
-export interface WSLConnectOptions {
-  kind: "wsl";
-  distro?: string;
-  user?: string;
-}
-
-export interface DockerConnectOptions {
-  kind: "docker";
-  container: string;
-}
+export type SSHConnectOptions = z.infer<typeof sshConnectOptionsSchema>;
+export type WSLConnectOptions = z.infer<typeof wslConnectOptionsSchema>;
+export type DockerConnectOptions = z.infer<typeof dockerConnectOptionsSchema>;
 
 export type RemoteTarget = SSHConnectOptions | WSLConnectOptions | DockerConnectOptions;
 

@@ -87,6 +87,7 @@ import {
   formatZodError,
   buildRemoteWorkspaceIdentity,
   buildRemoteEnvironmentKey,
+  createWindowWorkspaceCatalogTarget,
   isOffPeakTicketExpiredError,
   isRemoteWorkspaceIdentity,
   resolveWorkspaceKey,
@@ -2086,20 +2087,7 @@ const windowWorkspaceReconnectOwner = createWindowWorkspaceReconnectOwner(random
 function getWindowWorkspaceCatalog(): WindowWorkspaceCatalogEntry[] {
   return windowRemoteConnectionRegistry.listSessions().flatMap((session) => {
     if (!session.workspacePath || !session.workspaceIdentity) return [];
-    const target =
-      session.target.kind === "ssh"
-        ? {
-            kind: "ssh" as const,
-            host: session.target.host,
-            username: session.target.username,
-            port: session.target.port,
-            sshConfigAlias: session.target.sshConfigAlias,
-            useProxy: session.target.useProxy,
-            proxyProfileId: session.target.proxyProfileId,
-          }
-        : session.target.kind === "wsl"
-          ? { kind: "wsl" as const, distro: session.target.distro, user: session.target.user }
-          : { kind: "docker" as const, container: session.target.container };
+    const target = createWindowWorkspaceCatalogTarget(session.target);
     const scope = {
       kind: "remote" as const,
       remoteSessionId: session.remoteSessionId,

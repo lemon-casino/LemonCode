@@ -1,5 +1,4 @@
-import type { RemoteAssetInstallMode } from "./remoteAssetInstallMode.js";
-import type { RemoteResourcePackageSelection } from "./remoteResourcePackages.js";
+import type { SSHConnectOptions, WSLConnectOptions, DockerConnectOptions } from "./remoteTarget.js";
 import type { ProviderFamilyDomain } from "./model-provider-family.js";
 import type { ProviderFamilyConnectionSelectionSettings } from "./provider-family-connection-selection.js";
 import type { WorkspacePurpose } from "./workspacePurpose.js";
@@ -130,18 +129,10 @@ export interface TabState {
   label: string;
 }
 
-export interface SSHRemoteTargetSnapshot {
-  kind: "ssh";
-  host: string;
-  port?: number;
-  username: string;
-  /** 用户建立连接时选择的 SSH config Host alias，仅用于 UI 展示。 */
-  sshConfigAlias?: string;
-  useProxy?: boolean;
-  proxyProfileId?: string;
-  privateKeyPath?: string;
-  assetInstallMode?: RemoteAssetInstallMode;
-  resourcePackages?: RemoteResourcePackageSelection;
+export interface SSHRemoteTargetSnapshot extends Omit<
+  SSHConnectOptions,
+  "password" | "privateKeyPassphrase"
+> {
   /**
    * SSH 密码不会写入 setting.json。
    * 这里只保存 credentialService 的键名，恢复时再去安全存储读取真实密码。
@@ -154,16 +145,8 @@ export interface SSHRemoteTargetSnapshot {
   privateKeyPassphraseCredentialKey?: string;
 }
 
-export interface WSLRemoteTargetSnapshot {
-  kind: "wsl";
-  distro?: string;
-  user?: string;
-}
-
-export interface DockerRemoteTargetSnapshot {
-  kind: "docker";
-  container: string;
-}
+export type WSLRemoteTargetSnapshot = WSLConnectOptions;
+export type DockerRemoteTargetSnapshot = DockerConnectOptions;
 
 export type RemoteTargetSnapshot =
   | SSHRemoteTargetSnapshot

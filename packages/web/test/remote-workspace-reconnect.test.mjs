@@ -23,6 +23,16 @@ test(
           throw error;
         });
       const label = width === 390 ? "Reconnect" : "重新连接";
+      const catalogTargets = await page.evaluate(() => window.__reconnectFixture.catalogTargets());
+      for (const target of catalogTargets) {
+        assert.equal("useProxy" in target, false);
+        assert.equal("proxyProfileId" in target, false);
+      }
+      const sshTarget = await page.evaluate(() =>
+        window.__reconnectFixture.desktopTargets().find((target) => target.kind === "ssh"),
+      );
+      assert.equal(sshTarget.useProxy, true);
+      assert.equal(sshTarget.proxyProfileId, "fixture-profile");
       const click = async (kind) => {
         const row = page.getByTestId(`row-${kind}`);
         await row.hover();

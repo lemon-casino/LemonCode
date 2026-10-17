@@ -4,6 +4,7 @@ import type { IServiceAccessor } from "@lcode/services";
 import {
   appSettingsSchema,
   buildRemoteWorkspaceIdentity,
+  createWindowWorkspaceCatalogTarget,
   WINDOW_WORKSPACE_RECONNECT_UNAVAILABLE,
   type WindowWorkspaceCatalogEntry,
   type WindowWorkspaceReconnectRequest,
@@ -28,7 +29,13 @@ const noop = () => {};
 const english = new URLSearchParams(location.search).has("english");
 applyTheme(english ? "zai-dark" : "zai-light");
 const targets = [
-  { kind: "ssh" as const, host: "fixture.invalid", username: "fixture" },
+  {
+    kind: "ssh" as const,
+    host: "fixture.invalid",
+    username: "fixture",
+    useProxy: true,
+    proxyProfileId: "fixture-profile",
+  },
   { kind: "wsl" as const, distro: "Fixture" },
   { kind: "docker" as const, container: "fixture" },
 ];
@@ -40,7 +47,7 @@ let catalog: WindowWorkspaceCatalogEntry[] = targets.map((target) => ({
     workspacePath: "/same",
     workspaceIdentity: buildRemoteWorkspaceIdentity("/same", target),
   },
-  target,
+  target: createWindowWorkspaceCatalogTarget(target),
   sourceAvailability: "offline",
 }));
 const desktopTabs = createTabStore(null);
@@ -55,6 +62,8 @@ let sequence = 0;
 const requests = new Map<string, { resolve(): void; reject(error: Error): void }>();
 const catalogListeners = new Set<(entries: WindowWorkspaceCatalogEntry[]) => void>();
 const fixture = {
+  catalogTargets: () => catalog.map((entry) => entry.target),
+  desktopTargets: () => targets,
   browserDirectCalls: 0,
   settingWrites: 0,
   desktopCalls: [] as Array<{ key: string; options: unknown }>,
