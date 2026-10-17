@@ -1477,7 +1477,7 @@
     "packages/provider-node/src/provider-auth/plugins/checkin.mjs": "760a2319160ac8a17a6b1b6d16cb5f02711f6e9a6b04f4f2b232fc5d822b8436",
     "packages/provider-node/src/provider-auth/plugins/factory-import.mjs": "5c9ed1cce9ab4e3538b21996e7d17df002964e3bacc64ba868f01153f564652d",
     "packages/provider-node/src/provider-auth/plugins/method-details.mjs": "81af1536b6f35061208824323f09956dd3409ca9d850b3f3c7e30b1bfdcd31e5",
-    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "4e03dd2f532d4cb8bcc288e53cf50933fc00c4b64333c32bcd419591cfd03ab2",
+    "packages/provider-node/src/provider-auth/plugins/worker-source.ts": "0fb88043684ebf55843ca52acd85c9cb0c437a0798e703dc61e69aae4410d672",
     "packages/provider-node/src/provider-auth/plugins/zcode-local.mjs": "c8b91d4414eed9c9edd0e227a06141d0c75bb1601abc5cef177be01ca21952e4",
     "packages/provider-node/src/provider-auth/vendor/cline/index.mjs.source": "17d11f1c35c4201152478a183961d03431ac795c7bc4be44189825f2d3e84272",
     "packages/provider-node/src/provider-auth/vendor/commandcode/index.mjs.source": "54b6112ce2a93d645fa9f87327109bdffd42c8088b010b9194fa5fefb56fb549",
@@ -31206,7 +31206,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "4e03dd2f532d4cb8bcc288e53cf50933fc00c4b64333c32bcd419591cfd03ab2"
+          "sha256": "0fb88043684ebf55843ca52acd85c9cb0c437a0798e703dc61e69aae4410d672"
         }
       ]
     },
@@ -31336,7 +31336,7 @@
         },
         {
           "file": "packages/provider-node/src/provider-auth/plugins/worker-source.ts",
-          "sha256": "4e03dd2f532d4cb8bcc288e53cf50933fc00c4b64333c32bcd419591cfd03ab2"
+          "sha256": "0fb88043684ebf55843ca52acd85c9cb0c437a0798e703dc61e69aae4410d672"
         }
       ]
     },

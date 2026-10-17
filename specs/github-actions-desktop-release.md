@@ -556,3 +556,31 @@ sequenceDiagram
   不阻断构建与发布；声明哈希、输入新鲜度、许可标识和发布基线偏移检查继续执行，不输出“许可完整”。
   CLI SEA 上传复用同一 `readReleaseVerifiedNotices`，校验失败时不得创建或覆盖发布目录。
 - 本地构建脚本版本元数据、安装包文件名、Release tag 一致。
+
+## 内嵌 OAuth Worker 的生成一致性
+
+- `scripts/build-auth-plugin-worker.mjs` 是 `worker-source.ts` 的唯一生成入口。其输入包括
+  Worker、固定插件及间接依赖的 shared 协议；只修改 SSH 等共享 schema 也必须同步生成产物。
+- 提交前按顺序执行 `node scripts/build-auth-plugin-worker.mjs` 与
+  `node scripts/licenses.mjs notices`，同时提交 Worker 和更新后的清单。发布构建仍先生成
+  Worker 再验证已提交清单；不在 CI 自动重写清单或跳过输入哈希。
+- `pnpm test:release` 从实际依赖生成 Worker 并与仓库产物比较，仅规范化文本换行；测试不
+  写回产物。共享依赖变化而产物遗漏时直接失败，不能只靠模拟生成命令的调用顺序判定成功。
+
+```mermaid
+flowchart LR
+  Source[Worker / vendor / shared 协议] --> Generator[既有 Worker 生成器]
+  Generator --> Artifact[worker-source.ts]
+  Artifact --> Notices[既有 licenses notices / inventory]
+  Notices --> Commit[一并提交]
+  Commit --> Release[发布重建 Worker 并校验相同哈希]
+```
+
+验收：实际生成一致性回归在旧产物上失败；同步产物和清单后，发布模式的
+`prepareDesktopAgentInputs` 可以重复执行且不再改变输入哈希。原许可证材料复核基线保持一致。
+
+本轮验证（Windows / Node 24.21.0）：旧 Worker 的实际生成回归先失败，同步后通过；
+`pnpm test:release` 137 通过、1 项 Chromium 按平台跳过，`pnpm test:remote-assets` 37 通过。
+发布模式输入准备连续两次通过且 Worker 哈希不变；隔离 Git index 验证 3008 项输入通过，
+保留原有 20 项材料复核记录，实际暂存区未改变。根 typecheck、lint 和架构检查通过。
+本轮未重发 tag 或运行六平台安装包构建。

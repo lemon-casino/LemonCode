@@ -1,12 +1,28 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import YAML from "yaml";
 import * as build from "./build-desktop-agent-cli.mjs";
+import { generateAuthPluginWorkerSource } from "./build-auth-plugin-worker.mjs";
 
 const root = new URL("../", import.meta.url);
+
+test("embedded OAuth worker matches its actual shared protocol dependencies", async () => {
+  const committed = await readFile(
+    new URL("packages/provider-node/src/provider-auth/plugins/worker-source.ts", root),
+    "utf8",
+  );
+  const { source } = await generateAuthPluginWorkerSource();
+  const hash = (text) => createHash("sha256").update(text.replaceAll("\r\n", "\n")).digest("hex");
+  assert.equal(
+    hash(committed),
+    hash(source),
+    "Embedded worker is stale: run node scripts/build-auth-plugin-worker.mjs, then node scripts/licenses.mjs notices",
+  );
+});
 
 test("local Agent inputs regenerate worker before notices; release inputs only verify", async () => {
   for (const release of [false, true]) {
