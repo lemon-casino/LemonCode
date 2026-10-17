@@ -50,6 +50,7 @@ export interface UnifiedSidebarTreeProps {
   onRemoveLocalProject?: (
     request: import("@lcode/shared").LocalProjectRemoveRequest,
   ) => Promise<void>;
+  onRemoveRemoteProject?: (workspaceKey: string) => Promise<void>;
   onReconnectRemoteWorkspace(key: string, options?: { cancelPending?: boolean }): Promise<void>;
   onCancelRemoteProject?(sessionId: string): Promise<void>;
   reconnectingRemoteWorkspaceKeys: string[];

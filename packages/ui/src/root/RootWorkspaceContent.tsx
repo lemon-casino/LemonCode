@@ -30,6 +30,7 @@ interface RootWorkspaceContentProps {
   handleOpenWorkspace: AppProps["onOpenWorkspace"];
   handleCreateLocalProject: AppProps["onCreateLocalProject"];
   handleRemoveLocalProject: NonNullable<AppProps["onRemoveLocalProject"]>;
+  handleRemoveRemoteProject?: AppProps["onRemoveRemoteProject"];
   localProjects: AppProps["localProjects"];
   handleOpenRemoteWorkspace?: AppProps["onOpenRemoteWorkspace"];
   handleCreateScratchWorkspace: AppProps["onCreateScratchWorkspace"];
@@ -70,6 +71,7 @@ export function RootWorkspaceContent({
   handleOpenWorkspace,
   handleCreateLocalProject,
   handleRemoveLocalProject,
+  handleRemoveRemoteProject,
   localProjects,
   handleOpenRemoteWorkspace,
   handleCreateScratchWorkspace,
@@ -167,6 +169,7 @@ export function RootWorkspaceContent({
                   onOpenWorkspace={handleOpenWorkspace}
                   onCreateLocalProject={handleCreateLocalProject}
                   onRemoveLocalProject={handleRemoveLocalProject}
+                  onRemoveRemoteProject={handleRemoveRemoteProject}
                   localProjects={localProjects}
                   onOpenRemoteWorkspace={handleOpenRemoteWorkspace}
                   onCreateScratchWorkspace={handleCreateScratchWorkspace}

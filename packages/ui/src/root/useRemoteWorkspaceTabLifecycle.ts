@@ -73,7 +73,7 @@ export function useRemoteWorkspaceTabLifecycle({
   tabs: WindowTabState[];
   activeWorkspaceTab: WorkspaceTabState | null;
   platform: IPlatformService;
-  onRemoteWorkspaceTabsClosed?: (workspaceKeys: string[]) => void;
+  onRemoteWorkspaceTabsClosed?: (workspaceKeys: string[]) => void | Promise<void>;
 }) {
   const previousWorkspaceTabsRef = useRef<WindowTabState[]>([]);
   const rememberedSessionIdsByWorkspaceKeyRef = useRef<Map<string, string>>(new Map());
@@ -93,7 +93,11 @@ export function useRemoteWorkspaceTabLifecycle({
       rememberedSessionIdsByWorkspaceKeyRef.current,
     );
     if (closedRemoteWorkspaceKeys.length > 0) {
-      onRemoteWorkspaceTabsClosed?.(closedRemoteWorkspaceKeys);
+      void Promise.resolve(onRemoteWorkspaceTabsClosed?.(closedRemoteWorkspaceKeys)).catch(
+        (error) => {
+          logger.error("[Root] 保存远程项目移除失败", { error });
+        },
+      );
       for (const workspaceKey of closedRemoteWorkspaceKeys) {
         rememberedSessionIdsByWorkspaceKeyRef.current.delete(workspaceKey);
       }

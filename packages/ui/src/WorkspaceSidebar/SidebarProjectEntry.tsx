@@ -95,6 +95,7 @@ export function SidebarProjectEntry({
           onStartDraftInWorkspace={props.onStartDraftInWorkspace}
           onSelectTask={props.onSelectTask}
           onRemoveLocalProject={props.onRemoveLocalProject}
+          onRemoveRemoteProject={props.onRemoveRemoteProject}
           onStartCollaboration={
             sets.supported.includes(scope)
               ? () =>

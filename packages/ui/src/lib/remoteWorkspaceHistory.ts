@@ -146,7 +146,10 @@ export function buildRemoteWorkspaceIdentity(
 export function resolveRemoteWorkspaceSessionIdentity(
   entry: Pick<RemoteWorkspaceSessionEntry, "workspacePath" | "target" | "workspaceIdentity">,
 ): string {
-  return entry.workspaceIdentity || buildRemoteWorkspaceIdentity(entry.workspacePath, entry.target);
+  return (
+    entry.workspaceIdentity?.trim() ||
+    buildRemoteWorkspaceIdentity(entry.workspacePath, entry.target)
+  );
 }
 
 export function buildWorkspaceSessionKey(entry: {
@@ -453,7 +456,10 @@ export function getRemoteWorkspaceSessionEntries(
   settings: Pick<AppSettings, "lastWorkspaceSession">,
 ): RemoteWorkspaceSessionEntry[] {
   return (settings.lastWorkspaceSession ?? []).flatMap((entry) =>
-    entry.kind === "remote" ? [entry] : [],
+    // 旧快照未存 identity；侧栏与历史 owner 必须在同一读取边界补齐，避免显示身份与移除 key 不一致。
+    entry.kind === "remote"
+      ? [{ ...entry, workspaceIdentity: resolveRemoteWorkspaceSessionIdentity(entry) }]
+      : [],
   );
 }
 

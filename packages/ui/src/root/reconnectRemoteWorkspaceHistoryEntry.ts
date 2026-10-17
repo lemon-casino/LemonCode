@@ -233,6 +233,18 @@ export async function reconnectRemoteWorkspaceHistoryEntry({
       }),
     ]);
   } catch (error) {
+    // 成功结果已有保留校验，失败结果也必须经过同一 requestId/identity 门禁；
+    // 否则用户移除后迟到的下载超时仍会重新写回 failed 历史，让入口“删后复活”。
+    if (
+      shouldKeepReconnectedWorkspace &&
+      !shouldKeepReconnectedWorkspace({
+        workspacePath: resolvedWorkspacePath,
+        workspaceIdentity: resolvedWorkspaceIdentity,
+      })
+    ) {
+      if (options?.throwOnFailure) throw error;
+      return;
+    }
     const message = error instanceof Error ? error.message : String(error);
     logger.warn("[Root] 手动重连远程 workspace 失败", {
       workspacePath: resolvedWorkspacePath,

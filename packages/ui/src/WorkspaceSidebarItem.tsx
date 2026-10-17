@@ -150,6 +150,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   isExpanded,
   closeTab,
   onRemoveLocalProject,
+  onRemoveRemoteProject,
   toggleWorkspaceExpanded,
   onSelectTask,
   onStartDraftInWorkspace,
@@ -187,6 +188,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   onRemoveLocalProject?: (
     request: import("@lcode/shared").LocalProjectRemoveRequest,
   ) => Promise<void>;
+  onRemoveRemoteProject?: (workspaceKey: string) => Promise<void>;
   toggleWorkspaceExpanded: (workspacePath: string) => void;
   onSelectTask: (
     targetWorkspacePath: string,
@@ -256,7 +258,12 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
   const [projectContextOpen, setProjectContextOpen] = useState(false);
   const baseServices = useBaseWorkspaceServices();
   const { settings: projectSettings } = useSettings(baseServices);
-  const projectDefinition = findProjectDefinition(projectSettings?.projectDefinitions?.projects ?? projectSettings?.localProjects ?? [], tab.workspacePath, tab.workspaceIdentity, tab.localProjectId);
+  const projectDefinition = findProjectDefinition(
+    projectSettings?.projectDefinitions?.projects ?? projectSettings?.localProjects ?? [],
+    tab.workspacePath,
+    tab.workspaceIdentity,
+    tab.localProjectId,
+  );
   const lcodeTaskService = services.lcodeTaskService;
   const taskItemsRef = useRef(taskItems);
   taskItemsRef.current = taskItems;
@@ -461,6 +468,18 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
       }
     }
 
+    if (isRemoteWorkspace && onRemoveRemoteProject) {
+      try {
+        // 历史投影行可能没有真实 tab；显式移除必须先提交 owner，不能依赖 closeTab observer。
+        await onRemoveRemoteProject(workspaceKey);
+      } catch (error) {
+        logger.error("[WorkspaceSidebarItem] 移除远程项目历史失败", { error, workspaceKey });
+        toast(intl.formatMessage({ id: "workspaceSidebar.removeProjectFailed" }), {
+          variant: "warning",
+        });
+        return;
+      }
+    }
     closeTab(tab.id);
     if (
       organization?.sectionFor({
@@ -536,6 +555,7 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
     isExpanded,
     isRemoteWorkspace,
     onRemoveLocalProject,
+    onRemoveRemoteProject,
     tab.id,
     tab.localProjectId,
     tab.workspaceIdentity,
@@ -862,7 +882,15 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
       <div className="min-w-0 truncate text-ui-base text-foreground-subtle">
         {workspaceSidebarLabel}
       </div>
-      {projectDefinition && projectDefinition.sourceFolderPaths.length > 1 ? <span className="shrink-0 rounded-md bg-surface px-1.5 text-ui-xs text-foreground-subtlest" title={projectDefinition.sourceFolderPaths.join("\n")} data-project-folder-count>{projectDefinition.sourceFolderPaths.length}</span> : null}
+      {projectDefinition && projectDefinition.sourceFolderPaths.length > 1 ? (
+        <span
+          className="shrink-0 rounded-md bg-surface px-1.5 text-ui-xs text-foreground-subtlest"
+          title={projectDefinition.sourceFolderPaths.join("\n")}
+          data-project-folder-count
+        >
+          {projectDefinition.sourceFolderPaths.length}
+        </span>
+      ) : null}
       {!isExpanded && taskListHasUnread ? (
         <span
           aria-hidden="true"
@@ -945,11 +973,20 @@ export const WorkspaceSidebarItem = memo(function WorkspaceSidebarItem({
       >
         {sidebarText(isRemoteWorkspace ? "remoteNew" : "projectNew")}
       </Item>
-      {onStartCollaboration && (projectDefinition?.members?.filter((member) => member.enabled).length ?? projectDefinition?.sourceFolderPaths.length ?? 0) > 1 ? <Item
-        disabled={Boolean(readOnlyReason) || isDisconnectedRemoteWorkspace}
-        title={readOnlyReason ?? (isDisconnectedRemoteWorkspace ? sidebarText("offline") : undefined)}
-        onSelect={onStartCollaboration}
-      >{sidebarText("newExecutionSet")}</Item> : null}
+      {onStartCollaboration &&
+      (projectDefinition?.members?.filter((member) => member.enabled).length ??
+        projectDefinition?.sourceFolderPaths.length ??
+        0) > 1 ? (
+        <Item
+          disabled={Boolean(readOnlyReason) || isDisconnectedRemoteWorkspace}
+          title={
+            readOnlyReason ?? (isDisconnectedRemoteWorkspace ? sidebarText("offline") : undefined)
+          }
+          onSelect={onStartCollaboration}
+        >
+          {sidebarText("newExecutionSet")}
+        </Item>
+      ) : null}
       <Item
         disabled={Boolean(readOnlyReason) || isDisconnectedRemoteWorkspace || !onOpenFileTree}
         title={readOnlyReason}

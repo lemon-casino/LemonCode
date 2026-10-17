@@ -1,7 +1,93 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 import { startWorkflowProgressBrowser } from "./workflow-execution-progress-browser.mjs";
+
+const proxyScreenshots = fileURLToPath(
+  new URL("../../../.artifacts/ssh-proxy-boundaries/", import.meta.url),
+);
+
+test(
+  "saved remote history removal commits without a tab and survives reload",
+  { timeout: 120000 },
+  async (t) => {
+    const { browser, port } = await startWorkflowProgressBrowser(t);
+    for (const [width, opened] of [
+      [1280, false],
+      [390, true],
+    ]) {
+      const page = await browser.newPage({ viewport: { width, height: 900 } });
+      page.setDefaultTimeout(10000);
+      const errors = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.goto(
+        `http://127.0.0.1:${port}/test/fixtures/sidebar-organization.html?empty&saved-history${opened ? "&opened" : ""}`,
+        { timeout: 30000 },
+      );
+      const row = page.getByRole("button", { name: "保存的远程项目", exact: true });
+      await row.waitFor();
+      await page.getByRole("button", { name: "另一台远程项目", exact: true }).waitFor();
+      // 保存失败仍展示原项目；重试必须再次提交，不可被已修改的 owner ref 误判为成功。
+      await page.evaluate(() => globalThis.__sidebarOrganization.rejectHistorySave(true));
+      await row.click({ button: "right" });
+      await page.getByRole("menuitem", { name: "移除", exact: true }).click();
+      await page.getByText("项目移除失败，请重试。", { exact: true }).waitFor();
+      await row.waitFor();
+      await page.evaluate(() => globalThis.__sidebarOrganization.rejectHistorySave(false));
+      if (opened) {
+        await row.click({ button: "right" });
+        await page.getByRole("menuitem", { name: "重新连接", exact: true }).click();
+        await page.waitForFunction(() => globalThis.__sidebarOrganization.facts.connects === 1);
+        await row.hover();
+        await row
+          .locator("xpath=ancestor::li[1]")
+          .getByRole("button", { name: "更多", exact: true })
+          .click();
+      } else await row.click({ button: "right" });
+      await mkdir(proxyScreenshots, { recursive: true });
+      await page.screenshot({
+        path: `${proxyScreenshots}/history-removal-${width}.png`,
+      });
+      await page.getByRole("menuitem", { name: "移除", exact: true }).click();
+      await row.waitFor({ state: "hidden" });
+      await page.getByRole("button", { name: "另一台远程项目", exact: true }).waitFor();
+      await page.getByRole("button", { name: "网站项目", exact: true }).waitFor();
+      assert.equal(
+        await page.evaluate(
+          () =>
+            globalThis.__sidebarOrganization
+              .settings()
+              .lastWorkspaceSession.filter((entry) => entry.kind === "remote").length,
+        ),
+        1,
+      );
+      await page.evaluate(() => {
+        globalThis.__sidebarOrganization.finishConnection();
+        globalThis.__sidebarOrganization.finishCancellation();
+      });
+      if (opened)
+        await page.waitForFunction(
+          () => globalThis.__sidebarOrganization.facts.finishedReconnects === 1,
+        );
+      assert.equal(
+        await page.evaluate(
+          () =>
+            globalThis.__sidebarOrganization
+              .settings()
+              .lastWorkspaceSession.filter((entry) => entry.kind === "remote").length,
+        ),
+        1,
+      );
+      await page.reload();
+      await page.getByRole("button", { name: "另一台远程项目", exact: true }).waitFor();
+      assert.equal(await row.count(), 0);
+      assert.equal(await page.evaluate(() => globalThis.__sidebarOrganization.facts.connects), 0);
+      assert.deepEqual(errors, []);
+      await page.close();
+    }
+  },
+);
 
 test(
   "disconnected projects without known dependencies can be removed after catalog errors",
@@ -32,9 +118,9 @@ test(
       await remote.click({ button: "right" });
       const remove = page.getByRole("menuitem", { name: "移除", exact: true });
       assert.equal(await remove.isEnabled(), true);
-      await mkdir("../../.artifacts/ssh-proxy-boundaries", { recursive: true });
+      await mkdir(proxyScreenshots, { recursive: true });
       await page.screenshot({
-        path: `../../.artifacts/ssh-proxy-boundaries/offline-removal-${width}.png`,
+        path: `${proxyScreenshots}/offline-removal-${width}.png`,
       });
       await remove.click();
       await remote.waitFor({ state: "hidden" });

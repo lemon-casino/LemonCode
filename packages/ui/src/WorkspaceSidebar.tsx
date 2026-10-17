@@ -57,6 +57,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onCreateConversationTask,
   onOpenFolderFromWorkspaceMenu,
   onRemoveLocalProject,
+  onRemoveRemoteProject,
   onOpenRemoteWorkspace,
   theme,
   onConnectRemote: _onConnectRemote,
@@ -111,6 +112,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
   onRemoveLocalProject?: (
     request: import("@lcode/shared").LocalProjectRemoveRequest,
   ) => Promise<void>;
+  onRemoveRemoteProject?: (workspaceKey: string) => Promise<void>;
   onOpenRemoteWorkspace?: () => void;
   theme: Theme;
   onConnectRemote: (options: RemoteTarget, requestId?: string) => Promise<string>;
@@ -291,6 +293,7 @@ export const WorkspaceSidebar = memo(function WorkspaceSidebarComponent({
               onOpenFolderFromWorkspaceMenu={onOpenFolderFromWorkspaceMenu}
               onOpenRemoteWorkspace={onOpenRemoteWorkspace}
               onRemoveLocalProject={onRemoveLocalProject}
+              onRemoveRemoteProject={onRemoveRemoteProject}
               onReconnectRemoteWorkspace={onReconnectRemoteWorkspace}
               onCancelRemoteProject={onCancelRemoteProject}
               reconnectingRemoteWorkspaceKeys={reconnectingRemoteWorkspaceKeys}

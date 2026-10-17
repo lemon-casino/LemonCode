@@ -1,5 +1,6 @@
 import { buildRemoteWorkspaceIdentity, type LCodeTaskMeta } from "@lcode/shared";
 import type { WorktreeBinding } from "@lcode/services";
+import type { WorkspaceTabState } from "@/store/tabStore.js";
 import { binding as template } from "./sidebar-file-tree-service.js";
 export function createSidebarFixtureData(
   origin: string,
@@ -61,5 +62,40 @@ export function createSidebarFixtureData(
       displayName: "远程修复",
     },
   ];
-  return { tasks, bindings };
+  const tabs: WorkspaceTabState[] = [
+    {
+      id: "project",
+      kind: "workspace",
+      workspacePath: origin,
+      label: "网站项目",
+      localProjectId: "project",
+    },
+    {
+      id: "remote",
+      kind: "workspace",
+      workspacePath: origin,
+      workspaceIdentity: identity,
+      remoteSessionId: "remote",
+      remoteTarget: target,
+      label: "远程服务",
+    },
+    {
+      id: "conversation",
+      kind: "workspace",
+      workspacePath: "/fixture/conversations",
+      workspacePurpose: "conversation",
+      label: "对话",
+    },
+  ];
+  const facts = {
+    selected: "unchanged",
+    drafts: 0,
+    localReadsForRemote: 0,
+    connects: 0,
+    finishedReconnects: 0,
+    settingsSync: 0,
+    creates: [] as unknown[],
+    sourceReads: [] as string[],
+  };
+  return { tasks, bindings, tabs, facts };
 }

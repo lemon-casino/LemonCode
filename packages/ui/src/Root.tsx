@@ -553,6 +553,7 @@ function RootInner({
     handleConnectRemote,
     handleReconnectRemoteWorkspace,
     handleRemoteWorkspaceTabsClosed,
+    handleRemoveRemoteProject,
   } = useRemoteWorkspaceHistory({
     intl,
     services,
@@ -1144,6 +1145,9 @@ function RootInner({
             handleOpenWorkspace={handleOpenWorkspace}
             handleCreateLocalProject={handleCreateLocalProject}
             handleRemoveLocalProject={handleRemoveLocalProject}
+            handleRemoveRemoteProject={
+              remoteBrowserNavigationScope ? undefined : handleRemoveRemoteProject
+            }
             localProjects={appSettings?.localProjects ?? []}
             handleOpenRemoteWorkspace={
               allowRemoteWorkspace ? handleOpenRemoteConnection : undefined

@@ -16,6 +16,11 @@ import { PlatformProvider } from "@/hooks/usePlatform.js";
 import { TabStoreProvider, useTabStoreApi } from "@/store/TabStoreProvider.js";
 import { StoreProvider } from "@/store/StoreProvider.js";
 import { LCodeIntlProvider } from "@/i18n/IntlProvider.js";
+import {
+  createHistoryRemovalFixture,
+  SavedHistoryFixture,
+  type HistoryRemovalActions,
+} from "./sidebar-history-removal.js";
 import { TooltipProvider } from "@/components/ui/tooltip.js";
 import { useLCodeSessionStore } from "@/store/lcodeSessionStore.js";
 import { useRemoteWorkspaceSessionStore } from "@/store/remoteWorkspaceSessionStore.js";
@@ -29,7 +34,6 @@ import { createHeldSidebarProjectCommands } from "./sidebar-project-service.js";
 import { installSidebarExecutionSets } from "./sidebar-execution-set-service.js";
 import { installSidebarMenuServices } from "./worktree-sidebar-menu-service.js";
 import { installSidebarBasesFixture, SidebarBasesFixture } from "./sidebar-collaboration-bases.js";
-import type { WorkspaceTabState } from "@/store/tabStore.js";
 import "@/styles.css";
 
 const noop = () => {};
@@ -38,7 +42,8 @@ const origin = "/fixture/repo";
 const target = { kind: "ssh" as const, host: "example.invalid", username: "fixture", port: 22 };
 const identity = buildRemoteWorkspaceIdentity(origin, target);
 const params = new URLSearchParams(location.search);
-let { tasks, bindings } = createSidebarFixtureData(origin, identity, target);
+const savedHistory = params.has("saved-history");
+let { tasks, bindings, tabs, facts } = createSidebarFixtureData(origin, identity, target);
 let snapshot: SidebarOrganization =
   JSON.parse(localStorage.getItem("sidebar-fixture-organization") || "null") ??
   emptySidebarOrganization();
@@ -48,15 +53,6 @@ if (params.has("empty")) {
 }
 const listeners = new Set<(state: SidebarOrganization) => void>();
 const calls: Array<{ method: string; params: unknown }> = [];
-const facts = {
-  selected: "unchanged",
-  drafts: 0,
-  localReadsForRemote: 0,
-  connects: 0,
-  settingsSync: 0,
-  creates: [] as unknown[],
-  sourceReads: [] as string[],
-};
 const readFailures = new Map<string, string>();
 const heldReads = new Map<string, (error?: string) => void>();
 const holdNextReads = new Set<string>();
@@ -89,6 +85,15 @@ const settings: Partial<AppSettings> = JSON.parse(
   ],
   remoteWorkspaceSessions: [],
 };
+const historyFixture = createHistoryRemovalFixture({
+  enabled: savedHistory,
+  settings,
+  origin,
+  target,
+  defaults,
+  calls,
+  facts,
+});
 const projectCommands = createHeldSidebarProjectCommands(settings, calls);
 const services = {
   ...defaults,
@@ -113,8 +118,10 @@ const services = {
   settingService: {
     ...defaults.settingService,
     get: async () => ({ ...(await defaults.settingService.get()), ...settings }),
+    update: historyFixture.update,
     mutateProject: projectCommands.mutateProject,
   },
+  ...historyFixture.services,
   fileService: {
     ...defaults.fileService,
     stat: async ({ path }: { path: string }) => {
@@ -252,34 +259,9 @@ function registerRemote() {
   });
   store.bindWorkspaceIdentity(identity, "remote");
 }
-registerRemote();
+if (!savedHistory) registerRemote();
 for (const task of tasks.filter((task) => task.workspaceIdentity))
   useRemoteTimelineTaskStore.getState().upsertTask(task);
-const tabs: WorkspaceTabState[] = [
-  {
-    id: "project",
-    kind: "workspace",
-    workspacePath: origin,
-    label: "网站项目",
-    localProjectId: "project",
-  },
-  {
-    id: "remote",
-    kind: "workspace",
-    workspacePath: origin,
-    workspaceIdentity: identity,
-    remoteSessionId: "remote",
-    remoteTarget: target,
-    label: "远程服务",
-  },
-  {
-    id: "conversation",
-    kind: "workspace",
-    workspacePath: "/fixture/conversations",
-    workspacePurpose: "conversation",
-    label: "对话",
-  },
-];
 Object.assign(globalThis, {
   __sidebarOrganization: {
     facts,
@@ -288,6 +270,7 @@ Object.assign(globalThis, {
     identity,
     origin,
     settings: () => settings,
+    ...historyFixture.actions,
     holdProjectSave: projectCommands.hold,
     releaseProjectSave: projectCommands.release,
     isProjectSaveHeld: projectCommands.pending,
@@ -321,13 +304,17 @@ Object.assign(globalThis, {
 const theme = params.get("theme") || "zai-dark";
 document.documentElement.classList.toggle("dark", ["zai-dark", "inkpurple"].includes(theme));
 document.documentElement.classList.add(`theme-${theme}`);
-function Fixture() {
+function Fixture({ onRemoveRemoteProject, onReconnect }: HistoryRemovalActions) {
   const api = useTabStoreApi();
   const [ready, setReady] = useState(false);
   const setTheme = useLCodeStore((state) => state.setTheme);
   useEffect(() => {
     setTheme(theme as never);
-    api.setState({ tabs, activeTabId: "project", activeWorkspacePath: origin });
+    api.setState({
+      tabs: historyFixture.tabs(tabs, params.has("opened")),
+      activeTabId: "project",
+      activeWorkspacePath: origin,
+    });
     setReady(true);
   }, [api, setTheme]);
   return (
@@ -354,9 +341,8 @@ function Fixture() {
             onConnectRemote={async () => "remote"}
             onSelectRemoteProject={async () => {}}
             onCancelRemoteProject={async () => {}}
-            onReconnectRemoteWorkspace={async () => {
-              facts.connects++;
-            }}
+            onRemoveRemoteProject={onRemoveRemoteProject}
+            onReconnectRemoteWorkspace={historyFixture.reconnect(onReconnect)}
             onOpenRemoteWorkspace={noop}
             reconnectingRemoteWorkspaceKeys={[]}
             remoteWorkspaceErrorByWorkspaceKey={{}}
@@ -382,7 +368,9 @@ createRoot(document.getElementById("root")!).render(
       selectDirectory: async () => "/fixture/backend",
       syncAppSettings: () => {
         facts.settingsSync++;
+        historyFixture.notifySettingsChanged();
       },
+      ...historyFixture.platform,
     }}
   >
     <ServiceProvider services={services}>
@@ -390,7 +378,11 @@ createRoot(document.getElementById("root")!).render(
         <TabStoreProvider>
           <LCodeIntlProvider initialLocale={params.has("english") ? "en-US" : "zh-CN"}>
             <TooltipProvider>
-              <Fixture />
+              {savedHistory ? (
+                <SavedHistoryFixture services={services} content={Fixture} />
+              ) : (
+                <Fixture />
+              )}
               <ConfirmDialogHost />
             </TooltipProvider>
           </LCodeIntlProvider>

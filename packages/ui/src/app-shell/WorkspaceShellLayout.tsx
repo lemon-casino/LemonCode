@@ -222,6 +222,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
   onOpenWorkspace,
   onCreateLocalProject,
   onRemoveLocalProject,
+  onRemoveRemoteProject,
   localProjects,
   onOpenRemoteWorkspace,
   allowOpenWorkspace = true,
@@ -1720,6 +1721,7 @@ export const WorkspaceShellLayout = memo(function WorkspaceShellLayoutComponent(
                       onCreateConversationTask={handleCreateConversationTaskFromSidebar}
                       onOpenFolderFromWorkspaceMenu={onOpenWorkspace}
                       onRemoveLocalProject={onRemoveLocalProject}
+                      onRemoveRemoteProject={onRemoveRemoteProject}
                       onOpenRemoteWorkspace={onOpenRemoteWorkspace}
                       theme={theme}
                       onConnectRemote={onConnectRemote}

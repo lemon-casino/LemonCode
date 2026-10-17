@@ -108,6 +108,7 @@ export function App({
   onOpenWorkspace,
   onCreateLocalProject,
   onRemoveLocalProject,
+  onRemoveRemoteProject,
   localProjects,
   onOpenRemoteWorkspace,
   onCreateScratchWorkspace,
@@ -1190,6 +1191,7 @@ export function App({
         onOpenWorkspace={onOpenWorkspace}
         onCreateLocalProject={onCreateLocalProject}
         onRemoveLocalProject={onRemoveLocalProject}
+        onRemoveRemoteProject={onRemoveRemoteProject}
         localProjects={localProjects}
         onOpenRemoteWorkspace={onOpenRemoteWorkspace}
         onCreateScratchWorkspace={onCreateScratchWorkspace}

@@ -15,6 +15,7 @@ const files = [
   "packages/ui/src/hooks/groupedWorkspaceService.test.ts",
   "packages/ui/src/hooks/remoteBrowserWorkspaceCatalog.test.ts",
   "packages/ui/src/hooks/windowWorkspaceReconnect.test.ts",
+  "packages/ui/src/lib/remoteWorkspaceRemoval.test.ts",
   "packages/ui/src/settings/MobileRemoteControlPanel.test.tsx",
   "packages/ui/src/settings/RemoteControlSettingsSection.test.tsx",
   "packages/ui/src/store/remoteBrowserNavigationStore.test.ts",

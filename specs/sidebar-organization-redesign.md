@@ -6,12 +6,39 @@
 - 已知依赖仍阻止移除，读取失败不能被解释为依赖已删除。连接中的来源或本地来源尚未校验时继续保护；移除判断仅查询当前完整 identity 对应的加载状态，不因另一来源加载而禁用。
 - 连接事实来自现有 services lookup，依赖来自已读取的 worktree / execution set / 组织快照；UI 只派生禁用原因，不新增状态副本，不放松 owner/lease 或工作树删除边界。
 - 验收：代理字段导致目录失败后断开的无依赖入口仍可点击移除；另一个同路径来源在途读取不阻止该操作；已知依赖的失联项目保持保护，移除不建立远端连接、不调用任务或文件删除。
+- 补充：保存的历史项目可以没有打开的 tab，合成的 `sidebar:` 行不是 tab。桌面显式移除必须按完整 identity 调用 `useRemoteWorkspaceHistory` 的同一历史清理命令，再关闭实际 tab；不能仅靠 tab 消失的 observer 触发。旧快照缺少 identity 时，在历史读取边界用既有构造器补齐，不能按 `/` 等路径删除其它主机。
+- 事件顺序：先使当前重连 requestId 失效，再提交历史移除；取消上传/连接的网络 ACK 与凭据回收属于后续清理，不能阻塞本地入口消失。迟到的重连结果沿既有 requestId 防护丢弃。保存失败展示现有移除失败提示，并允许重试。
+- 手机 `web-remote-replayable` 的导航关闭不获得桌面历史删除或 Host attachment 释放权限；新命令只由桌面历史 owner 提供，既有依赖门禁继续生效。
+- 新增回归：有 tab / 只有保存历史、旧快照无 identity、同路径不同主机、取消连接 ACK 挂起、刷新后不复活、保存失败可重试；同时检查菜单右键与更多按钮入口。
 
 ```text
 连接注册表 / lookup + 已知依赖 + 当前 identity 的读取状态
-  → 纯移除策略 → 菜单状态 → 既有 closeTab / 历史清理
+  → 纯移除策略 → 菜单状态 → 历史 owner 按 identity 清理 → closeTab
   → runtime 释放失败仅记录，不回滚用户移除
 ```
+
+```mermaid
+sequenceDiagram
+  participant UI as 桌面项目菜单
+  participant Owner as useRemoteWorkspaceHistory
+  participant Settings as SettingService
+  participant Host as 连接 owner
+  UI->>Owner: removeRemoteProject(identity)
+  Owner->>Owner: 删除 pending requestId（旧结果失效）
+  Owner->>Host: 异步取消旧请求
+  Owner->>Settings: 保存排除该 identity 的历史
+  Settings-->>UI: 设置投影刷新
+  Owner-->>UI: 提交成功
+  UI->>UI: 关闭真实 tab / 清理组织引用
+  Host-->>Owner: 迟到 ACK 不控制入口移除
+```
+
+### 显式移除补充验证（2026-10-17）
+
+- 旧历史身份与迟到重连失败先用测试复现失败，再修改实现；新增两项已纳入 `pnpm test:remote-control` 的 tag 发行门禁。远控 135 项、项目身份投影 3 项、侧栏协作 61 项通过。
+- 真实生产侧栏与 `useRemoteWorkspaceHistory` owner 的浏览器场景通过：保存但无 tab、有断连 tab、同路径两台主机与本地目录、保存失败重试、取消 ACK 挂起、迟到失败、页面刷新。右键和更多菜单均验证。来源提示/归档文件最终 4 项通过；远端目录与远端重连两项通过。
+- `pnpm typecheck`、`pnpm lint`、`pnpm architecture:check --changed` 通过（架构 baseline 0 / new 0）。浏览器场景使用确定性 IO 桩；没有替换正在运行的安装版，也没有删除真实 VPS 数据。
+- 另一次真实下载检查中，当前 Host 网络层 4.1 秒取得本次发布的 Linux x64 清单，返回内容摘要与 GitHub 发行资产一致。此前客户端日志中的十秒超时未复现，不能将移除修复表述成已经根治公网下载超时。
 
 日期：2026-10-16。状态：产品实现及本轮自动化回归已完成；文末记录实现、多轮查漏补缺、实测证据与尚未实机验证的范围。
 

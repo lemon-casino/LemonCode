@@ -44,6 +44,7 @@ import {
 } from "@/root/reconnectRemoteWorkspaceHistoryEntry.js";
 import { useRemoteConnectionEntryVisibility } from "@/hooks/useRemoteConnectionEntryVisibility.js";
 import { markRemoteWorkspaceRunningTasksFailed } from "@/lib/remoteWorkspaceSessionRuntime.js";
+import { useSettings } from "@/hooks/useSettingService.js";
 
 export { reconnectRemoteWorkspaceHistoryEntry };
 
@@ -642,6 +643,7 @@ export function useRemoteWorkspaceHistory({
   const showRemoteConnectionEntry = useRemoteConnectionEntryVisibility();
   const canUseRemoteWorkspace = allowRemoteWorkspace && showRemoteConnectionEntry;
   const allowRemoteWorkspaceRestore = canUseRemoteWorkspace;
+  const { update: updateAppSettings } = useSettings(services);
   const [remoteWorkspaceSessions, setRemoteWorkspaceSessions] = useState<
     RemoteWorkspaceSessionEntry[]
   >([]);
@@ -676,18 +678,28 @@ export function useRemoteWorkspaceHistory({
 
   const syncPersistedWorkspaceSession = useCallback(
     async (nextRemoteSessions: readonly RemoteWorkspaceSessionEntry[]) => {
-      setRemoteWorkspaceSessions([...nextRemoteSessions]);
-      remoteWorkspaceSessionsRef.current = [...nextRemoteSessions];
+      const previous = remoteWorkspaceSessionsRef.current;
+      const next = [...nextRemoteSessions];
+      setRemoteWorkspaceSessions(next);
+      remoteWorkspaceSessionsRef.current = next;
 
       if (!supportsSettings) {
         return;
       }
 
-      await services.settingService.update(
-        buildRemoteWorkspacePersistPatch(tabStoreApi.getState(), nextRemoteSessions),
-      );
+      try {
+        // 设置服务提交后还要刷新同一个 settings 投影；仅写盘会让侧栏继续用旧历史重建已移除行。
+        await updateAppSettings(buildRemoteWorkspacePersistPatch(tabStoreApi.getState(), next));
+      } catch (error) {
+        // 仅回滚本次仍拥有的投影，不能覆盖期间已提交的新一代历史。
+        if (remoteWorkspaceSessionsRef.current === next) {
+          remoteWorkspaceSessionsRef.current = previous;
+          setRemoteWorkspaceSessions(previous);
+        }
+        throw error;
+      }
     },
-    [services.settingService, supportsSettings, tabStoreApi],
+    [updateAppSettings, supportsSettings, tabStoreApi],
   );
 
   const commitRemoteWorkspaceSessionMutation = useCallback(
@@ -1219,46 +1231,47 @@ export function useRemoteWorkspaceHistory({
   }, [handleRemoteWorkspaceSessionClosed, platform]);
 
   const handleRemoteWorkspaceTabsClosed = useCallback(
-    (workspaceKeys: string[]) => {
+    async (workspaceKeys: string[]) => {
       if (workspaceKeys.length === 0) {
         return;
       }
 
       const workspaceKeySet = new Set(workspaceKeys);
 
-      void (async () => {
-        // 关闭断连态 remote tab 时，tab 上还没有 remoteSessionId，但 main 进程可能已经在上传 remote runtime。
-        // 这里用重连 requestId 精准取消 pending host，避免 UI 已移除而后台 upload 继续跑。
-        await cancelPendingRemoteReconnectsForWorkspaceKeys({
-          workspaceKeys,
-          pendingRequestIds: pendingReconnectRequestIdsRef.current,
-          cancelPendingRemoteConnection: platform.cancelPendingRemoteConnection
-            ? (requestId) =>
-                platform.cancelPendingRemoteConnection?.(requestId) ?? Promise.resolve()
-            : undefined,
-          logger,
-        });
-        setReconnectingRemoteWorkspaceKeys((currentKeys) =>
-          currentKeys.filter((key) => !workspaceKeySet.has(key)),
-        );
+      // 关闭断连态 remote tab 时，tab 上还没有 remoteSessionId，但 main 进程可能已经在上传 remote runtime。
+      // 这里用重连 requestId 精准取消 pending host，避免 UI 已移除而后台 upload 继续跑。
+      // 函数在首个 await 前同步删除 requestId；本地历史提交不能等待 SSH/上传取消 ACK。
+      void cancelPendingRemoteReconnectsForWorkspaceKeys({
+        workspaceKeys,
+        pendingRequestIds: pendingReconnectRequestIdsRef.current,
+        cancelPendingRemoteConnection: platform.cancelPendingRemoteConnection
+          ? (requestId) => platform.cancelPendingRemoteConnection?.(requestId) ?? Promise.resolve()
+          : undefined,
+        logger,
+      });
+      setReconnectingRemoteWorkspaceKeys((currentKeys) =>
+        currentKeys.filter((key) => !workspaceKeySet.has(key)),
+      );
 
-        const removal = removeRemoteWorkspaceSessionEntries(
-          remoteWorkspaceSessionsRef.current,
-          workspaceKeys,
-        );
-        if (
-          removal.nextRemoteSessions.length === remoteWorkspaceSessionsRef.current.length &&
-          removal.credentialKeysToDelete.length === 0
-        ) {
-          return;
-        }
+      const removal = removeRemoteWorkspaceSessionEntries(
+        remoteWorkspaceSessionsRef.current,
+        workspaceKeys,
+      );
+      if (
+        removal.nextRemoteSessions.length === remoteWorkspaceSessionsRef.current.length &&
+        removal.credentialKeysToDelete.length === 0
+      ) {
+        return;
+      }
 
-        // 用户在侧栏“移除”远程 workspace 后，只删 tab 不够：
-        // remoteWorkspaceSessionsRef 仍被持久化补丁合并回 setting.json，
-        // 所以下次启动又会恢复同一个断连项。这里把显式移除视为删除远程历史，
-        // 同时清理该历史独占的 SSH 凭据，避免留下不可达的 credential key。
-        await syncPersistedWorkspaceSession(removal.nextRemoteSessions);
-        for (const credentialKey of removal.credentialKeysToDelete) {
+      // 用户在侧栏“移除”远程 workspace 后，只删 tab 不够：
+      // remoteWorkspaceSessionsRef 仍被持久化补丁合并回 setting.json，
+      // 所以下次启动又会恢复同一个断连项。这里把显式移除视为删除远程历史，
+      // 同时清理该历史独占的 SSH 凭据，避免留下不可达的 credential key。
+      await syncPersistedWorkspaceSession(removal.nextRemoteSessions);
+      // 凭据回收不控制菜单完成；离线平台的凭据 API 也可能暂时不可用。
+      void Promise.all(
+        removal.credentialKeysToDelete.map(async (credentialKey) => {
           try {
             await services.credentialService.delete(credentialKey);
           } catch (error) {
@@ -1267,10 +1280,15 @@ export function useRemoteWorkspaceHistory({
               error,
             });
           }
-        }
-      })();
+        }),
+      );
     },
     [platform, services.credentialService, syncPersistedWorkspaceSession],
+  );
+
+  const handleRemoveRemoteProject = useCallback(
+    (workspaceKey: string) => handleRemoteWorkspaceTabsClosed([workspaceKey]),
+    [handleRemoteWorkspaceTabsClosed],
   );
 
   const remoteWorkspaceErrorByWorkspaceKey = useMemo(
@@ -1298,5 +1316,6 @@ export function useRemoteWorkspaceHistory({
     handleReconnectRemoteWorkspace,
     handleOpenRemoteWorkspaceFromHistory,
     handleRemoteWorkspaceTabsClosed,
+    handleRemoveRemoteProject,
   };
 }
